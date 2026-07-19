@@ -61,10 +61,8 @@ func (l *lowerer) schemaRef(js *oas3.JSONSchema[oas3.Referenceable], pointer, hi
 	if schema.Ref != nil {
 		return l.refTypeRef(js, pointer)
 	}
-	if inner, ip, ih, ok := nullUnionCollapse(schema, pointer, hint); ok {
-		ref := l.schemaRef(inner, ip, ih)
-		ref.Nullable = true
-		return ref
+	if len(schema.GetOneOf()) > 0 || len(schema.GetAnyOf()) > 0 {
+		return l.lowerOneOfAnyOf(schema, pointer, hint)
 	}
 	return ir.TypeRef{Target: l.lower(schema, pointer, hint), Nullable: schemaHasNull(schema)}
 }
@@ -108,9 +106,20 @@ func (l *lowerer) falseSchema(pointer, hint string) ir.TypeID {
 	})
 }
 
-// lower interns the inline schema at pointer and returns its TypeID, dispatching
-// on the schema's effective (null-stripped) type set.
+// lower interns the inline schema at pointer and returns its TypeID. Value
+// constraints (const, enum) and allOf composition take precedence over the
+// structural type; otherwise it dispatches on the effective (null-stripped)
+// type set.
 func (l *lowerer) lower(s *oas3.Schema, pointer, hint string) ir.TypeID {
+	if s.GetConst() != nil {
+		return l.lowerConst(s, pointer, hint)
+	}
+	if len(s.GetEnum()) > 0 {
+		return l.lowerEnum(s, pointer, hint)
+	}
+	if len(s.GetAllOf()) > 0 {
+		return l.lowerAllOf(s, pointer, hint)
+	}
 	types := effectiveTypes(s)
 	switch {
 	case len(types) > 1:
@@ -184,6 +193,9 @@ func (l *lowerer) lowerModel(s *oas3.Schema, pointer, hint string) ir.TypeID {
 	return l.intern(pointer, id, func() ir.TypeDef {
 		m := &ir.Model{TypeCommon: l.commonFor(id, pointer, hint)}
 		l.fillModelProperties(m, s, pointer)
+		if d := l.modelDiscriminator(s, m); d != nil {
+			m.Discriminator = d
+		}
 		return m
 	})
 }
