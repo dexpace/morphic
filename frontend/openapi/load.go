@@ -30,6 +30,8 @@ type loaded struct {
 // become ir.Diagnostic values; the Go error return is reserved for I/O and
 // programmer errors (a hard unmarshal failure). A nil document with diagnostics
 // signals a refusal to lower (unsupported version) without aborting the batch.
+//
+//nolint:unparam // srcIndex varies once Parse drives the multi-source loop
 func load(ctx context.Context, srcIndex int, src frontend.Source, opts Options) (*loaded, []ir.Diagnostic, error) {
 	doc, valErrs, err := soa.Unmarshal(ctx, bytes.NewReader(src.Data))
 	if err != nil {
