@@ -9,6 +9,8 @@ each. This is the evidence base behind `architecture.md` and `ir-design.md`.
 
 oagen parses OpenAPI 3.x into a small structural IR (`ApiSpec` → services → operations,
 plus a flat model/enum registry) and hands that IR to per-language emitter plugins.
+Every claim in this section has been verified against the source (parser, IR, engine,
+and the differ/compat/verify subsystems added since the original survey).
 
 ### Worth adopting
 
@@ -21,23 +23,83 @@ plus a flat model/enum registry) and hands that IR to per-language emitter plugi
 - **Models referenced by name/handle, never embedded** — a flat registry makes deduplication,
   traversal, and serialization trivial and makes recursive types a non-issue.
 - **A "resolved plan" layer between IR and templates**: semantic rendering decisions
-  (is-paginated, has-body, idempotent-post…) are computed once, language-neutrally, so string
+  (is-paginated, has-body, idempotent-post, primary-response selection, return-shape
+  classification, parameter-passing shape…) are computed once, language-neutrally, so string
   templates contain no policy.
 - **Runtime SDK policy (retry, telemetry, error taxonomy) kept in a separate tree** from the
   structural API description.
+- **Policy addressed by wire identity, not derived names** — consumer operation hints are keyed
+  `"METHOD /path"`, never by generated method name, because derived names churn. Independent
+  convergence on stable source identity; Morphic's IDs make the same key durable across path
+  renames too. The hint vocabulary itself (rename, remount, split-union-body into typed wrapper
+  methods, constant defaults, client-config-derived fields, URL-builder ops) is a concrete
+  inventory of what a client-shaping backend policy input must express.
+- **Group metadata over an untouched wire list** — mutually-exclusive parameter groups
+  (`x-mutually-exclusive-parameter-groups`) are modeled as grouping metadata whose variants
+  share the parameter objects by identity, while the flat wire arrays stay authoritative for
+  serialization. Ergonomic structure layered on wire truth, neither duplicated nor destroyed.
+- **A generation manifest + provenance-gated integration** — regenerating into a live repo
+  rests on: a manifest (spec/emitter/config hashes, sorted file list, operation → generated
+  symbol map), file-header provenance that gates pruning (never delete a file lacking the
+  generated-by header), ignore-region markers for hand-written islands, and additive-only
+  AST merges. Manifests should key entities by stable ID — oagen's `"METHOD /path"` keys break
+  on path renames.
+- **Wire-conformance smoke testing with a spec-only offline baseline** — the expected request
+  shape (method, path, query, body keys) is derived from the spec alone and diffed against the
+  generated SDK running under HTTP interception; request-side mismatches block, response-side
+  inform. The decisive test of a generator is bytes-on-the-wire, not compilation.
+- **A behavioral-change diff channel** — default-value changes are surfaced separately from
+  structural signature changes (same signature, different runtime behavior), and every compat
+  finding carries *drift provenance* (which pipeline stage caused it) plus, where detectable,
+  a spec-level *remediation* hint (e.g. "new schema forks the old — extend instead").
+- **Narrow, expiring diagnostic approvals** — intentional breaking changes are allowlisted per
+  (symbol × change category) with a required reason, optional expiry and tracker link, and
+  wildcards rejected. The shape a mature CI allowlist takes.
 
 ### Mistakes to avoid
 
 | oagen behavior | Morphic decision |
 |---|---|
-| Models keyed by *derived string names*; collisions resolved silently ("keep largest"), refs fixed by string rewriting | Stable synthetic IDs (source-pointer-derived); names are presentation metadata |
-| Inline-schema naming logic duplicated across ≥4 call sites that must stay byte-identical | One hoisting pass, keyed by source-pointer identity |
+| Models keyed by *derived string names*; collisions resolved silently ("keep largest"), refs fixed by string rewriting. Same failure class for hoisted inline enums (name-colliding enums silently adopt the first's member set) | Stable synthetic IDs (source-pointer-derived); names are presentation metadata |
+| Inline-schema naming logic duplicated across ≥6 call sites that must stay byte-identical — worse, *inferred discriminator mappings are name strings* that must reproduce the hoisting pass's naming byte-for-byte across files or they dangle | One hoisting pass, keyed by source-pointer identity; `Discriminator.Mapping` points at IDs, severing the naming coupling |
+| Reference nodes bake in the *target's* kind (`enum` vs `model` ref), so no reference can be built without global knowledge of all targets — the root cause of the two-pass module-global state | One `TypeRef{Target TypeID}`; kind lives on the registry entry |
 | `allOf` eagerly flattened to a field list — the inheritance relationship is lost | Composition preserved un-lowered (base + mixin provenance kept) |
-| oneOf branches without discriminator merged as *optional fields* — exclusivity constraint lost | Unions always survive as union nodes |
-| Pagination/envelope/discriminator detection via hardcoded name lists | Heuristics are injectable frontend policy, never IR semantics |
-| Failures are `console.warn`; unresolved refs degrade to `unknown` silently | Typed diagnostics with severity + provenance, collected on the IR document |
-| Single "primary response" privileged; media-type multiplicity collapsed by fixed priority | All responses and all content types are first-class |
-| Mutable module-global parser state (non-reentrant) | Frontends are pure `(source, options) → (IR, diagnostics)` |
+| oneOf merged as *optional fields* at top-level-schema and request-body positions — even when explicitly discriminated, for argument-spreading ergonomics (variant `required` discarded); only property-level unions survive as union nodes | Unions always survive as union nodes; ergonomic flattening is a backend plan decision |
+| Pagination/envelope detection via hardcoded name lists (with a fabricated `after` cursor param when none exists); single-resource envelope unwrapping applied *destructively* — the wrapper key vanishes from the IR with no recorded path | Heuristics are injectable frontend policy, never IR semantics; unwrap decisions are recorded as `PropPath`s, never applied to the stored shape |
+| Discriminator *inference* is structural (const-property across variants — sound), but its output is welded to derived names (see above); name lists appear as tie-break preference order | Structural inference marked `Inferred`; output keyed by ID |
+| Failures are `console.warn`; unresolvable model refs left dangling with a warning; unrecognized schema shapes degrade to `unknown` — silently when anonymous | Typed diagnostics with severity + provenance, collected on the IR document |
+| Single "primary response" privileged (all 2xx kept, but inline-model extraction and pagination classification follow whichever iterates last); media-type multiplicity collapsed by fixed priority | All responses and all content types are first-class |
+| Mutable module-global parser state (non-reentrant; concurrent parses race) | Frontends are pure `(source, options) → (IR, diagnostics)` |
+| Collision-cascade operation renaming: same-named ops renamed in place by appending path context — adding one endpoint can rename *existing* SDK methods | Names are presentation; identity is the ID; naming collisions are a backend policy concern |
+| Name sanitization accretes hardcoded domain word-lists (acronym sets, `Json`-fork collapse passes doing registry surgery via string rewriting) | Acronym/cleanup policy is injectable per-frontend; the registry is never edited by string rewrite |
+| Catch-all `additionalProperties` smuggled as a magic-named synthetic field (collides with a real property of that name); `patternProperties` truncated to the first pattern | `AdditionalProps{Value, Key, Patterns}` is its own channel |
+| `$ref`-site vs ref-target annotation merging patched ad-hoc for parameters only; model fields typed by `$ref` still lose target defaults | One documented precedence rule (use-site overrides target), applied uniformly in the frontend |
+
+### The diff/compat/verify subsystems — identity re-derived by heuristic
+
+oagen grew an IR-to-IR spec differ, a cross-language backwards-compat checker (per-language
+extractors parse SDK source into a neutral API-surface model, diffed under per-language policy),
+and a self-correcting overlay loop. Three structural lessons:
+
+- **Everything correlates by display name, and it costs hundreds of lines of heuristics.**
+  The differ matches models/operations by name, so a rename is indistinguishable from
+  remove+add; the compat layer then *re-derives* identity structurally (field-set superset
+  matching, enum value-set equality, Jaccard-similarity overlay matching ≥0.6). Its symbol
+  model even has a dual-key design (`id` + name) intended for rename detection — but `id` is
+  derived from the name, so the rename branch is dead. Cross-language change rollup finally
+  reinvents a spec-level identity (`conceptualChangeId`). Morphic's pointer-derived IDs make
+  rename detection a lookup; the compat experience adds one refinement — when both pointer
+  *and* name churn, a third *structural* correlation tier (content-hash / field-set
+  similarity, shared with the `dedup` pass) is the fallback (see ir-design.md open question 5).
+- **Breaking-ness is per-language policy, not a property of a change.** The same spec change
+  is breaking in PHP (param names are public API), soft-risk in Kotlin, invisible in Node.
+  oagen's two-stage split — neutral change records, then `(change × language) → severity`
+  policy — is the right architecture for any future Morphic diff pass.
+- **The comparison plane is an extracted "SDK surface", not the IR.** Live SDK source and
+  generated output are both projected into a neutral surface model and diffed there; the IR's
+  roles are to generate one side and to scope the baseline. Nothing in the ~20-file compat
+  subsystem needed information Morphic's IR lacks — the strongest validation the audit
+  produced.
 
 ---
 

@@ -103,11 +103,22 @@ can enable:
 - **dedup** — structurally identical anonymous types are merged (by content hash), with ID
   aliases retained so provenance survives.
 - **filter** — include/exclude operations and types by pattern (Kiota-style path filtering),
-  followed by reachability trimming of orphaned types.
+  followed by reachability trimming of orphaned types. Filtering serves *surface reduction*
+  (a smaller SDK). Regenerating only one service of an existing SDK is a different problem and
+  never uses a filtered document: global decisions (dedup, shared files, naming) must stay
+  byte-identical across scoped runs, so the backend consumes the full document plus a scope
+  option and gates emission itself (a lesson oagen recorded after trying the filtered route).
 - **version-slice** — project a document carrying availability metadata into a concrete
   per-version snapshot (the TypeSpec versioning model: timeline stored, snapshot consumed).
 - **overlay** — user-supplied IR patches (rename hints, pagination declarations for specs that
-  can't express them, doc overrides) applied as data, not code.
+  can't express them, doc overrides) applied as data, not code. IR overlays are language-neutral
+  and each entry carries provenance (user-authored vs tool-inferred, mirroring the `Inferred`
+  marker) so automated overlay-generation loops stay auditable. Two related hooks live
+  deliberately elsewhere: *source-document* patching (e.g. the OpenAPI Overlay spec) is a
+  frontend option applied before lowering — some fixes must land before naming/hoisting
+  heuristics consume the broken shape — and *per-target-language* naming/compat overlays are a
+  backend input keyed by IR ID, so one IR document drives different compat baselines per
+  language.
 
 Passes operate on the IR only; they know nothing about source formats or target languages.
 
@@ -118,7 +129,11 @@ except for the boundary they impose on the IR; the internal shape mirrors what K
 converged on independently:
 
 1. **Plan** — compute language-*neutral* per-operation and per-type decisions once
-   (is-paginated, body presence, idempotency, error taxonomy) so templates contain no policy.
+   (is-paginated, body presence, idempotency, error taxonomy, primary-content/response
+   selection, return-shape classification (model / void / list-of-models with elementwise
+   deserialization), pagination item-type unwrap, parameter-passing shape (positional vs
+   options-bag)) so templates contain no policy. This list is the decision set oagen's
+   emitters demonstrably needed, computed once and shared across all languages.
 2. **Refine** — per-language lowering: reserved words, casing, union representation strategy
    (native union vs sealed interface vs wrapper class), enum strategy for open enums, interface
    extraction. Everything a refiner needs must exist un-lowered in the IR — this is the IR's
@@ -128,12 +143,42 @@ converged on independently:
 Language-specific naming (casing, reserved words, import layout) lives here exclusively. The IR
 carries source names, wire names, and naming hints — never camelCase/PascalCase renderings.
 
+Two further backend-side stages are named here so their obligations shape the contracts, even
+though both are post-milestone scope:
+
+- **Write/integrate** — regenerating into a live repo alongside hand-written code requires:
+  deterministic file paths, a generation manifest (spec/emitter/config hashes, sorted file
+  list, and an entity → generated-symbol map **keyed by IR stable IDs**, which survive path
+  and name churn), file-header provenance that gates pruning (never delete a file lacking the
+  generated-by header), ignore-region markers for hand-written islands, and additive-only
+  merging. Additive-only writers also need a staleness check — (previous-revision entities −
+  current entities) ∩ files-on-disk — to surface dead code that pruning cannot touch.
+- **Surface verification** — per-language extractors project existing SDK source into a
+  neutral API-surface model; the same projection of generated output is diffed against it.
+  Change records are *neutral*; breaking/additive severity is an injectable per-language
+  policy function (parameter names are public API in PHP, arity in Go, almost nothing in
+  JS), consistent with principle 6. Behavioral changes (defaults) are a separate channel
+  from structural ones. Backends propagate IR IDs into manifests and reports so findings
+  correlate across languages without name-matching heuristics.
+
 ### 2.4 Runtime/SDK policy is a separate input
 
 Retry, timeout, telemetry, error-class taxonomy, user-agent — the *behavioral* configuration of
 generated SDKs — is a backend input alongside the IR, not part of it. The IR describes the API;
 policy describes the SDK. (oagen embeds both in one root; we keep the trees separate so the same
 IR document can drive SDKs, docs, and mock servers without dragging SDK opinions along.)
+
+The canonical policy-input vocabulary, taken from oagen's production `SdkBehavior` (the best
+real-world enumeration available): **retry** (retryable status codes, max attempts, full backoff
+strategy with jitter), **timeouts** (defaults + env override), **error taxonomy** (status →
+logical exception-kind map, client/server catch-alls, doc-URL template), **telemetry** (request-
+ID and client-telemetry headers), **logging** (a closed lifecycle-event list), **user-agent**
+construction (identifier template, app-info enrichment), **idempotency injection** (header name,
+auto-generate rules), **pagination pacing** (auto-page delay), and **request guards** (option
+keys that must not appear as params — misuse detection). Delivery model: canonical defaults +
+deep-partial per-backend/per-project overrides. Precedence rule: *declared IR facts win over
+policy defaults* — `ErrorCase.Retryable/Fault` and `Operation.Idempotency` come from the spec;
+policy fills in where the spec is silent, never the reverse.
 
 ## 3. Go package layout
 
@@ -165,7 +210,10 @@ Every IR node carries a `Provenance` (source format, file, JSON pointer or line/
 source name, and an `Inferred` marker naming the heuristic when applicable). Every stage returns
 `[]Diagnostic{Severity, Code, Message, Provenance}`. Codes are stable strings
 (`openapi/unresolved-ref`, `ir/dangling-type-ref`, `pass/discriminator-missing-variant`) so CI
-can allowlist. Nothing in the pipeline writes to stderr; the CLI renders diagnostics.
+can allowlist. A mature allowlist entry is keyed by (diagnostic code × entity ID), requires a
+human rationale, supports expiry tied to a release, and rejects wildcards — narrowness is
+validated, so approvals cannot rot into blanket suppressions. Nothing in the pipeline writes to
+stderr; the CLI renders diagnostics.
 
 ## 5. Testing strategy
 
@@ -177,6 +225,11 @@ can allowlist. Nothing in the pipeline writes to stderr; the CLI renders diagnos
 - **Round-trip property**: `parse → serialize → deserialize → deep-equal` for every corpus
   document.
 - **Architecture test**: import-graph assertions for the layering rules above.
+- **Wire-conformance harness** (from milestone 3): expected request shapes (method, path,
+  query, body keys) are derived *from the IR alone* — offline, deterministic, shared across
+  every language backend; generated SDKs run under HTTP interception and the requests are
+  diffed. Request-side mismatches block; response-side mismatches inform. The decisive test of
+  a generated SDK is the bytes it puts on the wire, not whether it compiles.
 
 ## 6. Milestones
 
