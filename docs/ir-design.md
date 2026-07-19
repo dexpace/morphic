@@ -15,6 +15,9 @@ spec — field names and shapes here are normative, receiver methods and helpers
 
 1. **Union of capabilities.** The IR represents everything any supported spec can express
    (`ir-spec-matrix.md`). A backend may ignore a capability; a frontend must never drop one.
+   Only frontends are staged over time — the IR's capability surface is complete from day one,
+   so shipping the OpenAPI 3.x frontend first never forces an IR schema change when TypeSpec,
+   Smithy, GraphQL, AsyncAPI, or Protobuf frontends land.
 2. **Un-lowered.** Composition, unions, visibility, discriminators, encodings, and streaming stay
    in source-semantic form. Flattening and language fitting happen in backends.
 3. **Stable IDs, flat registries.** All named entities live in flat, ID-keyed registries and
@@ -189,9 +192,12 @@ nearest representable base and accumulate constraints/encoding along the way.
 type Model struct {
     TypeCommon
     Properties     []Property
-    Base           *TypeRef        // declared single inheritance (TypeSpec extends, GraphQL implements-as-base, allOf-as-inheritance)
+    Base           *TypeRef        // declared single inheritance (TypeSpec extends, allOf-as-inheritance)
+    Implements     []TypeRef       // interface conformance, N-ary (GraphQL `implements A & B`); targets are Abstract models
     Mixins         []TypeRef       // composition without subtyping (Smithy mixins, TypeSpec spread provenance, extra allOf entries)
     AdditionalProps *AdditionalProps // map-like catch-all alongside declared properties
+    Abstract       bool            // cannot be instantiated directly; fields may be typed by it and
+                                   // resolve to a conforming concrete model (GraphQL interface types)
     Discriminator  *Discriminator  // set on the polymorphic base
     DiscriminatorValue string      // set on each subtype: its wire tag value
     InputOnly      bool            // GraphQL input types; distinct identity from output types
@@ -210,9 +216,12 @@ type Discriminator struct {
 ```
 
 **Composition semantics.** `Properties` contains only the model's *own* properties. Consumers
-walk `Base` and `Mixins` for the full shape (a provided `FlattenedProperties()` traversal helper
-does this; the flattening is computed, never stored). This preserves what oagen and Kiota lose:
-the difference between "inherits from", "mixes in", and "declares".
+walk `Base`, `Implements`, and `Mixins` for the full shape (a provided `FlattenedProperties()`
+traversal helper does this; the flattening is computed, never stored). This preserves what oagen
+and Kiota lose: the difference between "inherits from", "conforms to", "mixes in", and
+"declares". `Base` is single (subtype identity); `Implements` is N-ary conformance to `Abstract`
+models — the distinction matters because GraphQL allows multiple interfaces while every
+class-based target language allows at most one base class.
 
 How frontends classify `allOf`: an entry that is a `$ref` to a schema participating in a
 discriminator hierarchy, or the sole `$ref` entry, becomes `Base`; other `$ref` entries become
@@ -307,8 +316,11 @@ type Property struct {
     Default    *Value
     Constraints *Constraints
     Encoding   *Encoding
+    Args       []Parameter         // parameterized fields: GraphQL field arguments on any property,
+                                   // at any depth — not just operation entry points. Empty elsewhere.
     Flatten    bool                // property's fields hoisted into parent on the wire (Smithy/TCGC flatten)
     Secret     bool                // redact in logs/docs (TypeSpec @secret, format:password)
+    XML        *XMLHints           // XML wire shape when it diverges from the JSON-implied shape
     Docs       Docs
     Deprecation *Deprecation
     Availability *Availability
@@ -363,6 +375,23 @@ type Encoding struct {
 The logical-type / encoding-name / wire-type triple is TCGC's reification of TypeSpec `@encode`
 and also absorbs OpenAPI `format` and Protobuf's `sint*/fixed*` wire variants. Encoding attaches
 at the scalar definition or overrides at the property — property wins.
+
+### 5.4 XML hints
+
+XML-capable formats (OpenAPI's `xml` object, Smithy's `xmlName`/`xmlAttribute`/`xmlNamespace`/
+`xmlFlattened` traits) describe an XML wire shape that diverges from the JSON-implied one. This
+is typed, not an extension, because two formats express it and backends must act on it:
+
+```go
+type XMLHints struct {
+    Name      string   // element/attribute name override
+    Namespace string   // namespace URI
+    Prefix    string
+    Attribute bool     // serialize as attribute, not element
+    Wrapped   bool     // list items wrapped in a container element
+    Text      bool     // value is the element's text content (Smithy httpPayload text)
+}
+```
 
 ---
 
@@ -638,11 +667,13 @@ type GraphQLBinding struct {
 }
 ```
 
-GraphQL lowering: schema types → models (`InputOnly` for inputs), interfaces → `Base` +
-implementors, unions → `WireTagged` unions discriminated by `__typename`, entry-point fields →
-operations (field args → `Params`, field type → response). Arbitrary client-composed selection
-sets are out of scope by design: Morphic generates SDK surface, and the full type graph is
-retained so a backend can still offer query builders.
+GraphQL lowering: schema types → models (`InputOnly` for inputs), interfaces → `Abstract`
+models with implementors listing them in `Implements`, unions → `WireTagged` unions
+discriminated by `__typename`, entry-point fields → operations (field args → `Params`, field
+type → response), nested field arguments → `Property.Args` at any depth. Arbitrary
+client-composed selection sets are out of scope by design: Morphic generates SDK surface, and
+the full type graph — including per-field arguments — is retained so a backend can still offer
+query builders.
 
 ---
 
@@ -752,11 +783,11 @@ How each format's distinctive concepts land in the IR (full details live with ea
 
 | Format | Lowering highlights |
 |---|---|
-| **OpenAPI 3.x** | components/schemas → registry (IDs from pointers); inline schemas hoisted with hints; `allOf` → Base/Mixins per §4.3; `oneOf`/`anyOf` → Union (Exclusive bit), null-variant → Nullable ref; `discriminator` → Discriminator; `nullable`/type-arrays → Nullable; readOnly/writeOnly → Visibility; parameters → Params + HTTPBinding locations w/ style/explode; requestBody/responses all content types → Payload.Contents; per-status responses/default → Conditions + ranges; webhooks → MessageBinding or HTTPBinding.IsWebhook; callbacks → Callbacks; links → extensions (promotable later); securitySchemes/security → Auth OR-of-ANDs; servers+variables → Servers; `x-*` → namespaced Extensions; pagination only via injectable policy, marked Inferred |
+| **OpenAPI 3.x** | components/schemas → registry (IDs from pointers); inline schemas hoisted with hints; `allOf` → Base/Mixins per §4.3; `oneOf`/`anyOf` → Union (Exclusive bit), null-variant → Nullable ref; `discriminator` → Discriminator; `nullable`/type-arrays → Nullable; readOnly/writeOnly → Visibility; parameters → Params + HTTPBinding locations w/ style/explode; requestBody/responses all content types → Payload.Contents; per-status responses/default → Conditions + ranges; webhooks → MessageBinding or HTTPBinding.IsWebhook; callbacks → Callbacks; links → extensions (promotable later); securitySchemes/security → Auth OR-of-ANDs; servers+variables → Servers; `xml` object → XMLHints; `x-*` → namespaced Extensions; pagination only via injectable policy, marked Inferred |
 | **Swagger 2.0** | lifted to OpenAPI 3.x shape first (body/formData → Payload; host/basePath/schemes → Servers; consumes/produces → content types), then the OpenAPI lowering runs |
 | **TypeSpec** | consumed post-check (monomorphized, `isFinished`); models → Model w/ Base + spread provenance → Mixins; scalars → Scalar chains; `@encode` → Encoding triple; unions w/ named variants → Union; `| null` → Nullable; visibility enums → Visibility; interfaces → OperationGroups; `@service` → Service; versioning decorators → Availability timeline; `@list`/`@pageItems` paths → Pagination PropPaths; `@error` → UsageFlags.Error; values/consts → Values channel |
-| **Smithy 2.0** | structures → Model, mixins → Mixins; unions → WireTagged Union; enum/intEnum → Enum (open by default); traits: constraints → Constraints, `@paginated` → Pagination (declared), `@retryable` → ErrorCase.Retryable, `@idempotencyToken` → Idempotency, `@streaming`/eventstreams → StreamingMode + MessageBinding; resources → OperationGroup + ResourceInfo lifecycle map; http traits → HTTPBinding; other traits → namespaced Extensions |
-| **GraphQL** | §8.4; input objects → `InputOnly` models; non-null wrapping → Required/Nullable; deprecation w/ reason; custom scalars → Scalar; directives → Extensions |
+| **Smithy 2.0** | structures → Model, mixins → Mixins; unions → WireTagged Union; enum/intEnum → Enum (open by default); traits: constraints → Constraints, `@paginated` → Pagination (declared), `@retryable` → ErrorCase.Retryable, `@idempotencyToken` → Idempotency, `@streaming`/eventstreams → StreamingMode + MessageBinding; resources → OperationGroup + ResourceInfo lifecycle map; http traits → HTTPBinding; xml traits → XMLHints; other traits → namespaced Extensions |
+| **GraphQL** | §8.4; interfaces → Abstract models + Implements; field arguments → Property.Args; input objects → `InputOnly` models; non-null wrapping → Required/Nullable; deprecation w/ reason; custom scalars → Scalar; directives → Extensions |
 | **AsyncAPI** | servers w/ protocols → Servers; channels/messages → Channels/Messages; operations send/receive → Operation + MessageBinding; correlation IDs → PropPath; protocol bindings → Channel.Bindings raw; message payload schemas share the same JSON-Schema lowering as OpenAPI |
 | **Protobuf** | messages → Model w/ WireIDs; oneof → WireTagged Exclusive Union w/ variant WireIDs; enums → open Enum w/ int32 values; map/repeated → MapT/List; scalar wire variants (sint/fixed) → Encoding; services/rpcs → Service/Operation + RPCBinding; streaming modifiers → StreamingMode; options → Extensions; reserved ranges → Extensions (guarded by validate pass) |
 
@@ -784,5 +815,3 @@ How each format's distinctive concepts land in the IR (full details live with ea
    shared as a standard plan helper.
 4. **Whether `UsageFlags` is stored or always recomputed** — leaning: computed by a standard pass
    and stored, since backends all need it and it's expensive to derive.
-5. **XML serialization metadata** (OpenAPI `xml` object) — likely a typed `XMLHints` on Property
-   rather than extensions, needed before any XML-heavy corpus lands.
