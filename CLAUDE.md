@@ -15,7 +15,8 @@ Standard Go tooling applies once code exists: `go build ./...`, `go test ./...`,
 ## What Morphic is
 
 A spec-to-SDK compiler: any API spec (OpenAPI, Swagger 2.0, TypeSpec, Smithy, GraphQL, AsyncAPI,
-Protobuf) → **one spec-agnostic intermediate representation (IR)** → idiomatic SDKs and docs.
+Protobuf, Erlang/OTP module specs) → **one spec-agnostic intermediate representation (IR)** →
+idiomatic SDKs and docs.
 Pipeline: **frontends** (spec → IR) → **IR passes** (IR → IR) → **backends** (IR → artifacts).
 
 ## The documents are the spec — read them first
