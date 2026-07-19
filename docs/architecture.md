@@ -1,8 +1,8 @@
 # Morphic Architecture
 
 Morphic turns any API specification — OpenAPI/Swagger, TypeSpec, Smithy, GraphQL, AsyncAPI,
-Protobuf — into idiomatic SDKs and docs through a single spec-agnostic intermediate
-representation (IR). This document defines the pipeline, the package layout, and the contracts
+Protobuf, Erlang/OTP module specs — into idiomatic SDKs and docs through a single spec-agnostic
+intermediate representation (IR). This document defines the pipeline, the package layout, and the contracts
 between stages. The IR itself is specified in [`ir-design.md`](./ir-design.md).
 
 ```
@@ -14,6 +14,7 @@ between stages. The IR itself is specified in [`ir-design.md`](./ir-design.md).
  GraphQL     ──▶ └───────────────────────────────────────┘
  AsyncAPI                          │
  Protobuf                          ▼
+ Erlang/OTP
                         ┌── IR passes (IR → IR) ──┐
                         │  validate · link · dedup │
                         │  filter · version-slice  │
@@ -86,7 +87,7 @@ Internal phases every frontend follows (each format implements them its own way)
 
 Frontends are registered in a registry keyed by detected format; the engine sniffs the source
 format and dispatches. Milestone 1 ships the OpenAPI 3.x frontend only; the frontend registry,
-provenance model, and IR are built for all seven from day one.
+provenance model, and IR are built for all eight from day one.
 
 ### 2.2 IR passes (IR → IR)
 
@@ -143,7 +144,7 @@ morphic/
 ├── frontend/            # Layer 1 — frontend contract + registry.
 │   ├── openapi/         #           OpenAPI 3.x → IR (milestone 1).
 │   ├── swagger/         #           2.0 lift → openapi frontend (future).
-│   ├── typespec/ smithy/ graphql/ asyncapi/ protobuf/   (future)
+│   ├── typespec/ smithy/ graphql/ asyncapi/ protobuf/ otp/   (future)
 ├── pass/                # Layer 1 — IR → IR passes (validate, dedup, filter, slice, overlay).
 ├── backend/             # Layer 2 — backend contract, plan layer, registry (future).
 ├── engine/              # Layer 3 — orchestration: sniff format, run frontend, passes, backends.
@@ -187,5 +188,5 @@ can allowlist. Nothing in the pipeline writes to stderr; the CLI renders diagnos
 4. **Second family frontend (TypeSpec or Smithy)** — proves the spec-agnostic claim: richer-than-
    OpenAPI concepts (interfaces, custom scalars, lifecycle visibility, declared pagination) flow
    through untouched IR code.
-5. **Event-shaped frontend (AsyncAPI)** — proves channels/messages/bindings; then GraphQL and
-   Protobuf.
+5. **Event-shaped frontend (AsyncAPI)** — proves channels/messages/bindings; then GraphQL,
+   Protobuf, and Erlang/OTP (the actor-protocol frontend: behaviours → operations + channels).
