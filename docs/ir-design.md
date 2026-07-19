@@ -138,9 +138,13 @@ type TypeCommon struct {
     Name       Naming
     Anonymous  bool         // hoisted inline type
     Docs       Docs
+    Tags       []string     // free-form labels (Smithy @tags, OpenAPI tag membership on types via policy)
+    Sensitive  bool         // whole-type redaction (Smithy @sensitive on shapes); Property.Secret is the per-use form
     Deprecation *Deprecation
     Availability *Availability
     Usage      UsageFlags   // computed by a pass: Input | Output | Error | Multipart | …
+    Instantiation *TemplateInstantiation // provenance for monomorphized generics (TypeSpec templates):
+                                         // {Template string; Args []TypeRef} — naming hint + cross-version identity
     Extensions Extensions
     Provenance Provenance
 }
@@ -205,12 +209,16 @@ type Model struct {
 
 type AdditionalProps struct {
     Value    TypeRef
-    Key      *TypeRef   // nil = string keys
+    Key      *TypeRef       // nil = string keys
+    Patterns []PatternProps // key-pattern-scoped value schemas (JSON Schema patternProperties)
 }
+type PatternProps struct { Pattern string; Value TypeRef }
 
 type Discriminator struct {
     Property PropID                // which property carries the tag
     Mapping  map[string]TypeID     // wire value → subtype; nil mapping = infer by type name
+    Envelope string                // "" = tag inline in the variant object;
+                                   // "object" = {kind, value} wrapper (TypeSpec @discriminated envelope)
     Inferred bool                  // discovered heuristically (const-property detection), not declared
 }
 ```
@@ -297,6 +305,17 @@ Containers are real type nodes with IDs (hoisted like all anonymous types), not 
 references — Kiota's `CollectionKind` flag couldn't express nested collections or constrained
 lists cleanly.
 
+### 4.7 Validation-only schema constructs — a documented boundary
+
+JSON Schema's `not`, `if`/`then`/`else`, and `dependentSchemas` express *validation logic*, not
+data shape; no target language's type system represents them, and none of the other six formats
+has an equivalent. The IR deliberately does not model them structurally. Frontends preserve them
+verbatim in `Extensions` (`openapi:not`, `openapi:if-then-else`, …) and emit an `info`
+diagnostic, so the information is never silently lost and a future validation-oriented backend
+(request validators, mock servers) can still consume them. This is the one intentional carve-out
+from "lossless means structural": losslessness is satisfied by verbatim preservation, and the
+carve-out is explicit rather than accidental.
+
 ---
 
 ## 5. Properties, constraints, encodings, visibility
@@ -319,6 +338,8 @@ type Property struct {
     Args       []Parameter         // parameterized fields: GraphQL field arguments on any property,
                                    // at any depth — not just operation entry points. Empty elsewhere.
     Flatten    bool                // property's fields hoisted into parent on the wire (Smithy/TCGC flatten)
+    EventHeader bool               // in an event-stream event model: member travels in the frame
+                                   // header, not the event payload (Smithy @eventHeader)
     Secret     bool                // redact in logs/docs (TypeSpec @secret, format:password)
     XML        *XMLHints           // XML wire shape when it diverges from the JSON-implied shape
     Docs       Docs
@@ -329,13 +350,21 @@ type Property struct {
 }
 ```
 
+**Scope rule for `Args`:** parameterized properties are only legal on models reachable from a
+GraphQL binding (the only format with per-field arguments); the validate pass rejects them
+elsewhere. This keeps ordinary models pure data shapes — a model without `Args` anywhere in its
+graph serializes conventionally in every backend.
+
 ### 5.2 Visibility — lifecycle sets, not booleans
 
 ```go
-type Lifecycle string // "create" | "read" | "update" | "delete" | "query"
+type Lifecycle = string // OPEN set. Canonical values: "create" | "read" | "update" | "delete" | "query".
+                        // TypeSpec's new visibility system allows arbitrary user-defined visibility
+                        // classes; frontends lower custom classes as "<class>:<member>" strings so
+                        // nothing is dropped. Backends treat unknown classes as opaque filters.
 
 type Visibility struct {
-    Only []Lifecycle   // empty = all lifecycles
+    Only []Lifecycle   // empty = visible in all lifecycles
 }
 ```
 
@@ -402,12 +431,15 @@ separate from the type graph (TypeSpec's Type-vs-Value split):
 
 ```go
 type Value struct {
-    Kind ValueKind        // "null" | "bool" | "string" | "number" | "list" | "object"
+    Kind ValueKind        // "null" | "bool" | "string" | "number" | "bytes" | "list" | "object" | "ref"
     Bool   bool
     Str    string
     Num    BigVal         // arbitrary precision, decimal string form
+    Bytes  []byte         // base64 in JSON form
     List   []Value
     Object []Field        // ordered; Field{Name string; Value Value}
+    Ref    *ValueRef      // reference to a declared constant: {Type TypeID; Member string}
+                          // (TypeSpec enum-member defaults, references to named consts)
 }
 ```
 
@@ -426,6 +458,7 @@ type Service struct {
     Namespace  []string           // source namespace path (TypeSpec/Smithy/proto package)
     Groups     []OperationGroup   // hierarchical; a group ≈ TypeSpec interface / Smithy resource / tag
     Auth       []AuthRequirement  // service-level default (OR-of-ANDs, §9)
+    CommonErrors []ErrorCase      // errors every operation can return (Smithy service-level errors)
     Servers    []int              // indexes into Document.Servers scoped to this service
     Extensions Extensions
     Provenance Provenance
@@ -442,6 +475,7 @@ type OperationGroup struct {
 
 type ResourceInfo struct {
     Identifiers []Property                  // resource identity fields
+    Properties  []Property                  // resource state fields (Smithy 2.0 resource properties)
     Lifecycle   map[string]OpID             // "create"|"read"|"update"|"delete"|"list" → op
 }
 ```
@@ -465,11 +499,16 @@ type Operation struct {
     Responses  []Response         // ordered; success + alternative successes
     Errors     []ErrorCase        // declared failure shapes
 
-    Streaming  StreamingMode      // none | client | server | bidi
+    Streaming  StreamingMode      // none | client | server | bidi (derived summary of the two below)
+    RequestStream  *StreamDetail  // client→server streaming semantics, when present
+    ResponseStream *StreamDetail  // server→client streaming semantics, when present
     Pagination *Pagination
     LongRunning *LongRunning
-    Idempotency Idempotency       // unknown | idempotent | idempotency_token(param)
+    Idempotency Idempotency       // unknown | safe | idempotent | idempotency_token(param)
+                                  // safe = no side effects (Smithy @readonly, HTTP GET semantics)
     Auth       []AuthRequirement  // override of service default; empty slice ≠ nil (empty = explicitly public)
+    Tags       []string
+    OverloadOf *OpID              // TypeSpec @overload grouping
 
     Bindings   OpBindings         // §8 — how the core maps onto concrete protocols
     Examples   []Example
@@ -496,9 +535,22 @@ type Payload struct {
 type Content struct {
     MediaType string              // "application/json", "multipart/form-data", "" for non-HTTP
     Type      TypeRef
-    Encoding  map[string]PartEncoding // multipart/form field encodings
+    Encoding  map[string]PartEncoding // multipart/form: per-property (part) wire config, keyed by PropID
+    File      *FileInfo           // body is a file upload/download (TypeSpec file bodies, binary payloads)
     Examples  []Example
 }
+
+type PartEncoding struct {
+    ContentTypes []string          // media type(s) of this part
+    Headers      []Property        // per-part headers
+    Multi        bool              // part repeats (array member → repeated parts)
+    Filename     bool              // part carries a filename (file part)
+    Style        string            // form-style serialization for non-file parts
+    Explode      *bool
+}
+// TypeSpec tuple-form multipart lowers to a synthesized model whose properties are the parts.
+
+type FileInfo struct { IsText bool; FilenameParam string }
 
 type Response struct {
     Name       Naming             // for formats with named outputs; Hint elsewhere
@@ -551,12 +603,23 @@ type ParamPath struct{ Param string; Segments []PropID }
 
 type LongRunning struct {
     FinalStateVia string       // "operation-location" | "status-monitor" | "original-uri" | …
+    PollingOperation *OpID     // declared poll op (TypeSpec @pollingOperation)
+    FinalOperation   *OpID     // declared final-result op (TypeSpec @finalOperation)
     PollingType   *TypeRef
     FinalType     *TypeRef
     ResultPath    *PropPath
 }
 
 type StreamingMode string      // "none" | "client" | "server" | "bidi"
+
+type StreamDetail struct {
+    Events  *TypeRef   // stream element type when it differs from the payload content type —
+                       // for event streams this is a WireTagged Union of event models; within an
+                       // event model, Property.EventHeader marks frame-header members and the
+                       // remaining members form the event payload (Smithy @eventHeader/@eventPayload)
+    Initial *TypeRef   // initial-request / initial-response message preceding the stream
+                       // (Smithy event stream initial messages); nil = none
+}
 ```
 
 Streaming mode is on the operation core because it is protocol-independent (gRPC streams, SSE,
@@ -585,6 +648,7 @@ HTTP and RPC; gRPC with HTTP transcoding).
 type HTTPBinding struct {
     Method      string             // GET, POST, … uppercase
     URITemplate string             // RFC 6570 — the one true path representation (Kiota + TypeSpec agree)
+    HostPrefix  string             // endpoint host prefix, may contain {param} labels (Smithy @endpoint)
     ParamBindings []HTTPParamBinding
     RequestContentTypes  []string  // priority-ordered
     SuccessStatus map[int]int      // response index → primary status (denormalized convenience; conditions are the truth)
@@ -594,11 +658,15 @@ type HTTPBinding struct {
 
 type HTTPParamBinding struct {
     Param      string             // Operation.Params name it binds
-    Location   HTTPLocation       // path | query | header | cookie | body | body_property
+    Location   HTTPLocation       // path | query | header | cookie | body | body_property | host
+                                  // host = param fills a HostPrefix label (Smithy @hostLabel)
     WireName   string
     Style      string             // simple | form | label | matrix | deepObject | pipe/space-delimited
     Explode    *bool
     AllowReserved bool
+    Prefix     string             // map-typed param spread as prefixed wire entries:
+                                  // prefixed headers (Smithy @httpPrefixHeaders) or catch-all
+                                  // query maps (@httpQueryParams with Prefix "")
     ContentType string            // param serialized as a media type (OpenAPI content-style params)
     BodyPath   []PropID           // for body_property: where in the body model it lands (TypeSpec HttpProperty)
 }
@@ -724,7 +792,9 @@ type Availability struct {
     Added      string   // version label from Document.Versions
     Removed    string
     Deprecated string
-    RenamedFrom []VersionedName // {Version, Name}
+    RenamedFrom     []VersionedName // {Version, Name}
+    TypeChangedFrom []VersionedType // {Version, Type TypeRef} — property/return type changed
+                                    // across versions (TypeSpec @typeChangedFrom)
 }
 ```
 
@@ -783,10 +853,10 @@ How each format's distinctive concepts land in the IR (full details live with ea
 
 | Format | Lowering highlights |
 |---|---|
-| **OpenAPI 3.x** | components/schemas → registry (IDs from pointers); inline schemas hoisted with hints; `allOf` → Base/Mixins per §4.3; `oneOf`/`anyOf` → Union (Exclusive bit), null-variant → Nullable ref; `discriminator` → Discriminator; `nullable`/type-arrays → Nullable; readOnly/writeOnly → Visibility; parameters → Params + HTTPBinding locations w/ style/explode; requestBody/responses all content types → Payload.Contents; per-status responses/default → Conditions + ranges; webhooks → MessageBinding or HTTPBinding.IsWebhook; callbacks → Callbacks; links → extensions (promotable later); securitySchemes/security → Auth OR-of-ANDs; servers+variables → Servers; `xml` object → XMLHints; `x-*` → namespaced Extensions; pagination only via injectable policy, marked Inferred |
+| **OpenAPI 3.x** | components/schemas → registry (IDs from pointers); inline schemas hoisted with hints; `allOf` → Base/Mixins per §4.3; `oneOf`/`anyOf` → Union (Exclusive bit), null-variant → Nullable ref; `discriminator` → Discriminator; `nullable`/type-arrays → Nullable; readOnly/writeOnly → Visibility; parameters → Params + HTTPBinding locations w/ style/explode; requestBody/responses all content types → Payload.Contents; per-status responses/default → Conditions + ranges; webhooks → MessageBinding or HTTPBinding.IsWebhook; callbacks → Callbacks; links → extensions (promotable later); securitySchemes/security → Auth OR-of-ANDs; servers+variables → Servers; `xml` object → XMLHints; `not`/`if-then-else`/`dependentSchemas` → verbatim Extensions per §4.7; `patternProperties` → AdditionalProps.Patterns; `x-*` → namespaced Extensions; pagination only via injectable policy, marked Inferred |
 | **Swagger 2.0** | lifted to OpenAPI 3.x shape first (body/formData → Payload; host/basePath/schemes → Servers; consumes/produces → content types), then the OpenAPI lowering runs |
-| **TypeSpec** | consumed post-check (monomorphized, `isFinished`); models → Model w/ Base + spread provenance → Mixins; scalars → Scalar chains; `@encode` → Encoding triple; unions w/ named variants → Union; `| null` → Nullable; visibility enums → Visibility; interfaces → OperationGroups; `@service` → Service; versioning decorators → Availability timeline; `@list`/`@pageItems` paths → Pagination PropPaths; `@error` → UsageFlags.Error; values/consts → Values channel |
-| **Smithy 2.0** | structures → Model, mixins → Mixins; unions → WireTagged Union; enum/intEnum → Enum (open by default); traits: constraints → Constraints, `@paginated` → Pagination (declared), `@retryable` → ErrorCase.Retryable, `@idempotencyToken` → Idempotency, `@streaming`/eventstreams → StreamingMode + MessageBinding; resources → OperationGroup + ResourceInfo lifecycle map; http traits → HTTPBinding; xml traits → XMLHints; other traits → namespaced Extensions |
+| **TypeSpec** | consumed post-check (monomorphized, `isFinished`); template instances → TypeCommon.Instantiation; models → Model w/ Base + spread provenance → Mixins; scalars → Scalar chains; `@encode` → Encoding triple; unions w/ named variants → Union, `@discriminated` envelope → Discriminator.Envelope; `| null` → Nullable; visibility enums (incl. custom classes) → Visibility; interfaces → OperationGroups; `@overload` → OverloadOf; `@service` → Service; versioning decorators incl. `@typeChangedFrom` → Availability timeline; `@list`/`@pageItems` paths → Pagination PropPaths; `@pollingOperation`/`@finalOperation` → LongRunning; multipart w/ parts → Content.Encoding/PartEncoding, file bodies → FileInfo; `@error` → UsageFlags.Error; values/consts incl. enum-member refs → Values channel |
+| **Smithy 2.0** | structures → Model, mixins → Mixins; `document` → Any; unions → WireTagged Union; enum/intEnum → Enum (open by default); `@sparse` → element Nullable; traits: constraints → Constraints, `@paginated` → Pagination (declared), `@retryable` → ErrorCase.Retryable, `@readonly` → Idempotency safe, `@idempotent`/`@idempotencyToken` → Idempotency, `@sensitive` → Sensitive/Secret, `@tags` → Tags; `@streaming` blob → StreamDetail; event streams → StreamDetail.Events union + Property.EventHeader + Initial messages; service-level errors → Service.CommonErrors; resources → OperationGroup + ResourceInfo (identifiers, properties, lifecycle map); http traits → HTTPBinding incl. `@endpoint`/`@hostLabel` → HostPrefix/host location, `@httpPrefixHeaders`/`@httpQueryParams` → Prefix bindings; `@jsonName` → WireName; xml traits → XMLHints; other traits → namespaced Extensions |
 | **GraphQL** | §8.4; interfaces → Abstract models + Implements; field arguments → Property.Args; input objects → `InputOnly` models; non-null wrapping → Required/Nullable; deprecation w/ reason; custom scalars → Scalar; directives → Extensions |
 | **AsyncAPI** | servers w/ protocols → Servers; channels/messages → Channels/Messages; operations send/receive → Operation + MessageBinding; correlation IDs → PropPath; protocol bindings → Channel.Bindings raw; message payload schemas share the same JSON-Schema lowering as OpenAPI |
 | **Protobuf** | messages → Model w/ WireIDs; oneof → WireTagged Exclusive Union w/ variant WireIDs; enums → open Enum w/ int32 values; map/repeated → MapT/List; scalar wire variants (sint/fixed) → Encoding; services/rpcs → Service/Operation + RPCBinding; streaming modifiers → StreamingMode; options → Extensions; reserved ranges → Extensions (guarded by validate pass) |
@@ -815,3 +885,12 @@ How each format's distinctive concepts land in the IR (full details live with ea
    shared as a standard plan helper.
 4. **Whether `UsageFlags` is stored or always recomputed** — leaning: computed by a standard pass
    and stored, since backends all need it and it's expensive to derive.
+5. **Dual identity for cross-revision correlation** — pointer-derived `TypeID`s are stable across
+   runs but churn when a schema moves within its source file. TCGC solves cross-version
+   correlation with name-based `crossLanguageDefinitionId`s. Likely resolution: keep pointer IDs
+   as the structural identity and add a derived, name-based correlation key computed by a pass —
+   decide once IR diffing between spec revisions is actually built.
+6. **Response discrimination placement** — `ResponseConditions` (status ranges) is HTTP-shaped
+   living on the neutral core. Alternatives: move conditions into `HTTPBinding` alongside
+   parameter locations, leaving responses as an ordered named list. Revisit when the RPC or
+   messaging frontend lands and either validates or strains the current shape.
