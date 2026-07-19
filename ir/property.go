@@ -122,9 +122,3 @@ type Property struct {
 	// Provenance records where the property came from.
 	Provenance Provenance `json:"provenance"`
 }
-
-// Parameter is the operation-layer parameter (ir-design §7.2). Property.Args
-// carries GraphQL field arguments as Parameters (§5.1), so the type graph
-// references it here; its full shape is defined with the service layer in
-// operation.go.
-type Parameter struct{}
