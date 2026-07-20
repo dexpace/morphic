@@ -273,10 +273,9 @@ func (l *lowerer) applyPathServers(op *ir.Operation, pi *soa.PathItem) {
 // (status < 400) and error cases (>= 400 and the default), each in source order
 // with the default last (ir-design §7.2).
 func (l *lowerer) lowerResponses(src *soa.Operation, opPointer string) ([]ir.Response, []ir.ErrorCase) {
+	// GetResponses never returns nil (it addresses an always-present map), so the
+	// loop simply yields nothing when no responses are declared.
 	resps := src.GetResponses()
-	if resps == nil {
-		return nil, nil
-	}
 	var responses []ir.Response
 	var errs []ir.ErrorCase
 	for code, rr := range resps.All() {

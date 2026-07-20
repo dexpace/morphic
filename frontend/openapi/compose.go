@@ -210,15 +210,12 @@ func (l *lowerer) buildUnion(s *oas3.Schema, id ir.TypeID, pointer, hint string)
 // variantHint derives a Union variant's naming hint from its $ref target's name,
 // falling back to a positional hint for inline branches.
 func variantHint(b *oas3.JSONSchema[oas3.Referenceable], i int) string {
-	if b != nil {
-		if b.IsReference() {
-			if name := refLastSegment(b.GetRef().String()); name != "" {
-				return name
-			}
-		} else if s := b.GetSchema(); s != nil && s.Ref != nil {
-			if name := refLastSegment(s.GetRef().String()); name != "" {
-				return name
-			}
+	// Only a true reference carries a target name: IsReference() is precisely
+	// GetSchema().Ref != "" for a non-bool branch, so a schema whose Ref pointer is
+	// set but empty (IsReference() false) has no usable last segment.
+	if b != nil && b.IsReference() {
+		if name := refLastSegment(b.GetRef().String()); name != "" {
+			return name
 		}
 	}
 	return "variant_" + strconv.Itoa(i)

@@ -60,12 +60,13 @@ func (l *lowerer) lowerParameter(p *soa.Parameter, pptr string) (ir.Parameter, i
 // type on the binding). Default and constraints come from the same schema.
 func (l *lowerer) fillParamType(param *ir.Parameter, binding *ir.HTTPParamBinding, p *soa.Parameter, pptr, name string) {
 	if content := p.GetContent(); content != nil && content.Len() > 0 {
+		// A content parameter has exactly one media type; take the first entry.
 		for mt, media := range content.All() {
 			schemaPtr := pptr + ptr("content", mt, "schema")
 			param.Type = l.schemaRef(media.GetSchema(), schemaPtr, name)
 			binding.ContentType = mt
 			l.fillParamSchema(param, media.GetSchema(), schemaPtr)
-			return
+			break
 		}
 		return
 	}

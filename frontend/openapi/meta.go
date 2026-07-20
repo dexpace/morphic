@@ -18,11 +18,10 @@ func (l *lowerer) lowerMeta() {
 }
 
 // lowerInfo maps info onto the document identity, docs, contact, and license.
+// GetInfo always returns a non-nil Info (it addresses an embedded struct value),
+// so no nil guard is needed.
 func (l *lowerer) lowerInfo() {
 	info := l.doc.GetInfo()
-	if info == nil {
-		return
-	}
 	l.out.Name = info.GetTitle()
 	l.out.Version = info.GetVersion()
 	l.out.TermsOfService = info.GetTermsOfService()
@@ -48,10 +47,9 @@ func (l *lowerer) infoDocs(info *soa.Info) ir.Docs {
 // lowerServers lowers the document's servers in source order, each with its URL
 // template, description, and templated variables (ir-design §10).
 func (l *lowerer) lowerServers() {
+	// GetServers never returns an empty slice — it injects a default "/" server
+	// when none are declared — so the loop always runs at least once.
 	servers := l.doc.GetServers()
-	if len(servers) == 0 {
-		return
-	}
 	out := make([]ir.Server, 0, len(servers))
 	for _, s := range servers {
 		if s == nil {

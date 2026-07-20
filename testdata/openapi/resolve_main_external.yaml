@@ -1,0 +1,8 @@
+openapi: 3.1.0
+info: {title: Main, version: "1"}
+paths:
+  /a:
+    get:
+      operationId: a
+      responses:
+        "200": {$ref: './resolve_target_invalid.yaml#/components/responses/Bad'}
