@@ -27,6 +27,7 @@ func Verify(doc *ir.Document) []Violation {
 	}
 
 	vs := checkRegistryKeys(doc)
+	vs = append(vs, checkReferentialIntegrity(doc)...)
 
 	sort.Slice(vs, func(i, j int) bool {
 		if vs[i].Code != vs[j].Code {

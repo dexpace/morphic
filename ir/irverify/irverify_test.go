@@ -33,14 +33,24 @@ func TestVerify_NilDocIsAViolation(t *testing.T) {
 
 func TestVerify_RegistryKeyMismatchIsAViolation(t *testing.T) {
 	doc := validDoc()
-	// Re-key the model under an ID that disagrees with its Common().ID.
+	// Re-key the model under an ID that disagrees with its Common().ID. This also
+	// dangles the model's own self-reference, so both codes are expected.
 	m := doc.Types["t/x/Model"]
 	delete(doc.Types, "t/x/Model")
 	doc.Types["t/x/WrongKey"] = m
 
 	got := irverify.Verify(doc)
 	require.NotEmpty(t, got)
-	assert.Equal(t, "ir/type-id-mismatch", got[0].Code)
+	assert.Contains(t, codesOf(got), "ir/type-id-mismatch")
+}
+
+// codesOf extracts the Code of each violation for order-independent assertions.
+func codesOf(vs []irverify.Violation) []string {
+	codes := make([]string, len(vs))
+	for i, v := range vs {
+		codes[i] = v.Code
+	}
+	return codes
 }
 
 func TestVerify_EmptyTypeIDIsAViolation(t *testing.T) {
