@@ -6,6 +6,7 @@ import (
 	"strings"
 	"unicode"
 
+	"github.com/speakeasy-api/openapi/extensions"
 	oas3 "github.com/speakeasy-api/openapi/jsonschema/oas3"
 	yaml "gopkg.in/yaml.v3"
 
@@ -193,6 +194,7 @@ func (l *lowerer) lowerModel(s *oas3.Schema, pointer, hint string) ir.TypeID {
 	return l.intern(pointer, id, func() ir.TypeDef {
 		m := &ir.Model{TypeCommon: l.commonFor(id, pointer, hint)}
 		l.fillModelProperties(m, s, pointer)
+		l.fillModelDetail(m, s, pointer, hint)
 		if d := l.modelDiscriminator(s, m); d != nil {
 			m.Discriminator = d
 		}
@@ -200,7 +202,8 @@ func (l *lowerer) lowerModel(s *oas3.Schema, pointer, hint string) ir.TypeID {
 	})
 }
 
-// fillModelProperties lowers a model's own properties in source order.
+// fillModelProperties lowers a model's own properties in source order, each with
+// its full property-level detail (constraints, visibility, defaults, docs, ...).
 func (l *lowerer) fillModelProperties(m *ir.Model, s *oas3.Schema, pointer string) {
 	props := s.GetProperties()
 	if props == nil {
@@ -209,15 +212,203 @@ func (l *lowerer) fillModelProperties(m *ir.Model, s *oas3.Schema, pointer strin
 	required := requiredSet(s.GetRequired())
 	for name, js := range props.All() {
 		ppointer := pointer + ptr("properties", name)
-		ref := l.schemaRef(js, ppointer, name)
-		m.Properties = append(m.Properties, ir.Property{
+		p := ir.Property{
 			ID:         propID(ppointer),
 			Name:       ir.Naming{Source: name, Canonical: canonicalWords(name)},
-			Type:       ref,
+			WireName:   name,
+			Type:       l.schemaRef(js, ppointer, name),
 			Required:   required[name],
 			Provenance: ir.Provenance{Source: l.srcIndex, Pointer: ppointer},
-		})
+		}
+		l.fillPropertyDetail(&p, js, ppointer)
+		m.Properties = append(m.Properties, p)
 	}
+}
+
+// fillPropertyDetail enriches a property from its schema: docs, default,
+// visibility, deprecation, secrecy, examples, XML, constraints, and extensions.
+// Annotations present at a $ref use-site override the target's (ir-design §14).
+func (l *lowerer) fillPropertyDetail(p *ir.Property, js *oas3.JSONSchema[oas3.Referenceable], pointer string) {
+	ref := js.GetSchema()
+	if ref == nil {
+		return
+	}
+	tgt := l.refTargetSchema(js, ref)
+	if d := effectiveDescription(ref, tgt); d != "" {
+		p.Docs.Description = d
+	}
+	l.fillPropertyDefault(p, ref, tgt, pointer)
+	if ref.GetFormat() == "password" {
+		p.Secret = true
+	}
+	p.Visibility = effectiveVisibility(ref, tgt)
+	if effectiveDeprecated(ref, tgt) {
+		p.Deprecation = &ir.Deprecation{}
+	}
+	if ex := l.schemaExamples(ref); len(ex) > 0 {
+		p.Examples = ex
+	}
+	if h := xmlHints(ref.GetXML()); h != nil {
+		p.XML = h
+	}
+	l.fillPropertyConstraints(p, ref, pointer)
+	if ext := l.schemaExtensions(ref); len(ext) > 0 {
+		p.Extensions = ext
+	}
+}
+
+// refTargetSchema returns the resolved target schema when js is a $ref, so
+// use-site annotations can fall back to the referent; it returns nil otherwise.
+func (l *lowerer) refTargetSchema(js *oas3.JSONSchema[oas3.Referenceable], ref *oas3.Schema) *oas3.Schema {
+	if !js.IsReference() && ref.Ref == nil {
+		return nil
+	}
+	resolved := js.GetResolvedSchema()
+	if resolved == nil {
+		return nil
+	}
+	return resolved.GetSchema()
+}
+
+// fillPropertyDefault sets the property default, preferring the use-site node
+// over the $ref target's; an unconvertible node yields a diagnostic.
+func (l *lowerer) fillPropertyDefault(p *ir.Property, ref, tgt *oas3.Schema, pointer string) {
+	node := ref.GetDefault()
+	if node == nil && tgt != nil {
+		node = tgt.GetDefault()
+	}
+	if node == nil {
+		return
+	}
+	v, err := valueFromNode(node)
+	if err != nil {
+		l.diags = append(l.diags, diagf(ir.SeverityWarning, codeDegradedConstruct,
+			ir.Provenance{Source: l.srcIndex, Pointer: pointer}, "default: %s", err.Error()))
+		return
+	}
+	p.Default = &v
+}
+
+// fillPropertyConstraints attaches the property's scalar constraints and stamps
+// each constraint diagnostic with the property's provenance.
+func (l *lowerer) fillPropertyConstraints(p *ir.Property, ref *oas3.Schema, pointer string) {
+	c, diags := constraintsFromSchema(ref)
+	for i := range diags {
+		diags[i].Provenance = ir.Provenance{Source: l.srcIndex, Pointer: pointer}
+	}
+	l.diags = append(l.diags, diags...)
+	if c != nil {
+		p.Constraints = c
+	}
+}
+
+// schemaExamples lowers a schema's single (3.0) and plural (3.1) examples into
+// value examples in source order.
+func (l *lowerer) schemaExamples(s *oas3.Schema) []ir.Example {
+	var out []ir.Example
+	if node := s.GetExample(); node != nil {
+		if v, err := valueFromNode(node); err == nil {
+			out = append(out, ir.Example{Value: &v})
+		}
+	}
+	for _, node := range s.GetExamples() {
+		if v, err := valueFromNode(node); err == nil {
+			out = append(out, ir.Example{Value: &v})
+		}
+	}
+	return out
+}
+
+// fillModelDetail lowers the model-level shape: docs, deprecation, additional-
+// property openness, validation-only keywords, and x-* extensions.
+func (l *lowerer) fillModelDetail(m *ir.Model, s *oas3.Schema, pointer, hint string) {
+	fillTypeDocs(&m.Docs, s)
+	if effectiveDeprecated(s, nil) {
+		m.Deprecation = &ir.Deprecation{}
+	}
+	l.fillAdditional(m, s, pointer, hint)
+	l.fillValidationOnly(m, s, pointer)
+	m.Extensions = mergeExtensions(m.Extensions, l.schemaExtensions(s))
+}
+
+// fillAdditional lowers additionalProperties, patternProperties, and
+// unevaluatedProperties into the model's openness and catch-all shape.
+func (l *lowerer) fillAdditional(m *ir.Model, s *oas3.Schema, pointer, hint string) {
+	ap := s.GetAdditionalProperties()
+	switch {
+	case isFalseSchema(ap):
+		m.Additional = ir.AdditionalClosed
+	case ap != nil && !ap.IsBool():
+		ref := l.schemaRef(ap, pointer+ptr("additionalProperties"), hint+"_value")
+		m.AdditionalProps = &ir.AdditionalProps{Value: ref}
+	}
+	if patterns := l.patternProps(s, pointer, hint); len(patterns) > 0 {
+		if m.AdditionalProps == nil {
+			m.AdditionalProps = &ir.AdditionalProps{Value: l.primRef(ir.PrimAny)}
+		}
+		m.AdditionalProps.Patterns = patterns
+	}
+	if isFalseSchema(s.GetUnevaluatedProperties()) {
+		m.Additional = ir.AdditionalClosedAfterComposition
+	}
+}
+
+// patternProps lowers patternProperties into pattern/value bindings in source
+// order.
+func (l *lowerer) patternProps(s *oas3.Schema, pointer, hint string) []ir.PatternProps {
+	pp := s.GetPatternProperties()
+	if pp == nil || pp.Len() == 0 {
+		return nil
+	}
+	out := make([]ir.PatternProps, 0, pp.Len())
+	for pattern, js := range pp.All() {
+		ref := l.schemaRef(js, pointer+ptr("patternProperties", pattern), hint+"_pattern")
+		out = append(out, ir.PatternProps{Pattern: pattern, Value: ref})
+	}
+	return out
+}
+
+// fillValidationOnly preserves JSON Schema keywords that have no structural IR
+// home verbatim in namespaced Extensions, one info diagnostic each (§4.7).
+func (l *lowerer) fillValidationOnly(m *ir.Model, s *oas3.Schema, pointer string) {
+	if s.GetNot() != nil {
+		l.preserveKeyword(m, "openapi:not", nodeToRaw(rawPropertyNode(s, "not")), pointer, "not")
+	}
+	if ite := ifThenElseRaw(s); ite != nil {
+		l.preserveKeyword(m, "openapi:if-then-else", ite, pointer, "if/then/else")
+	}
+	if ds := s.GetDependentSchemas(); ds != nil && ds.Len() > 0 {
+		l.preserveKeyword(m, "openapi:dependentSchemas",
+			nodeToRaw(rawPropertyNode(s, "dependentSchemas")), pointer, "dependentSchemas")
+	}
+	if craw := containsRaw(s); craw != nil {
+		l.preserveKeyword(m, "openapi:contains", craw, pointer, "contains")
+	}
+	if u := unevaluatedRaw(s); u != nil {
+		l.preserveKeyword(m, "openapi:unevaluated", u, pointer, "unevaluated")
+	}
+}
+
+// preserveKeyword records a raw keyword payload under key and emits one info
+// diagnostic naming the preserved construct.
+func (l *lowerer) preserveKeyword(m *ir.Model, key string, raw ir.RawValue, pointer, label string) {
+	if raw == nil {
+		return
+	}
+	if m.Extensions == nil {
+		m.Extensions = ir.Extensions{}
+	}
+	m.Extensions[key] = raw
+	l.diags = append(l.diags, diagf(ir.SeverityInfo, codeValidationOnlyKeyword,
+		ir.Provenance{Source: l.srcIndex, Pointer: pointer},
+		"validation-only keyword %q preserved verbatim in extensions", label))
+}
+
+// schemaExtensions lowers a schema's x-* extensions into namespaced Extensions.
+func (l *lowerer) schemaExtensions(s *oas3.Schema) ir.Extensions {
+	ext, diags := extensionsFrom(s.GetExtensions())
+	l.diags = append(l.diags, diags...)
+	return ext
 }
 
 // lowerArray hoists an array schema as a Tuple when prefixItems is present, else
@@ -443,6 +634,247 @@ func nodeToRaw(node *yaml.Node) ir.RawValue {
 		return nil
 	}
 	return ir.RawValue(data)
+}
+
+// effectiveDescription picks the description from the $ref use-site when present,
+// else from the referent.
+func effectiveDescription(ref, tgt *oas3.Schema) string {
+	if ref != nil && ref.Description != nil {
+		return *ref.Description
+	}
+	if tgt != nil && tgt.Description != nil {
+		return *tgt.Description
+	}
+	return ""
+}
+
+// effectiveDeprecated reports the deprecated flag, use-site over referent.
+func effectiveDeprecated(ref, tgt *oas3.Schema) bool {
+	return pickBool(schemaDeprecated(ref), schemaDeprecated(tgt))
+}
+
+// effectiveVisibility maps readOnly/writeOnly to a lifecycle visibility set
+// (ir-design §5.2): readOnly is read-only; writeOnly is create+update.
+func effectiveVisibility(ref, tgt *oas3.Schema) ir.Visibility {
+	switch {
+	case pickBool(schemaReadOnly(ref), schemaReadOnly(tgt)):
+		return ir.Visibility{Only: []ir.Lifecycle{ir.LifecycleRead}}
+	case pickBool(schemaWriteOnly(ref), schemaWriteOnly(tgt)):
+		return ir.Visibility{Only: []ir.Lifecycle{ir.LifecycleCreate, ir.LifecycleUpdate}}
+	default:
+		return ir.Visibility{}
+	}
+}
+
+// pickBool returns *ref when present, else *tgt, else false.
+func pickBool(ref, tgt *bool) bool {
+	if ref != nil {
+		return *ref
+	}
+	if tgt != nil {
+		return *tgt
+	}
+	return false
+}
+
+// schemaReadOnly returns a schema's readOnly pointer, nil-safe.
+func schemaReadOnly(s *oas3.Schema) *bool {
+	if s == nil {
+		return nil
+	}
+	return s.ReadOnly
+}
+
+// schemaWriteOnly returns a schema's writeOnly pointer, nil-safe.
+func schemaWriteOnly(s *oas3.Schema) *bool {
+	if s == nil {
+		return nil
+	}
+	return s.WriteOnly
+}
+
+// schemaDeprecated returns a schema's deprecated pointer, nil-safe.
+func schemaDeprecated(s *oas3.Schema) *bool {
+	if s == nil {
+		return nil
+	}
+	return s.Deprecated
+}
+
+// fillTypeDocs maps a schema's title, description, and externalDocs onto Docs.
+func fillTypeDocs(d *ir.Docs, s *oas3.Schema) {
+	if t := s.GetTitle(); t != "" {
+		d.Summary = t
+	}
+	if desc := s.GetDescription(); desc != "" {
+		d.Description = desc
+	}
+	if ed := s.GetExternalDocs(); ed != nil {
+		d.ExternalDocs = append(d.ExternalDocs, ir.Link{URL: ed.GetURL(), Description: ed.GetDescription()})
+	}
+}
+
+// xmlHints maps an OpenAPI XML object onto ir.XMLHints; an attribute flag becomes
+// the "attribute" node type. Fields are read directly rather than via the
+// library getters, which dereference unset (nil) field pointers.
+func xmlHints(x *oas3.XML) *ir.XMLHints {
+	if x == nil {
+		return nil
+	}
+	h := &ir.XMLHints{}
+	if x.Name != nil {
+		h.Name = *x.Name
+	}
+	if x.Namespace != nil {
+		h.Namespace = *x.Namespace
+	}
+	if x.Prefix != nil {
+		h.Prefix = *x.Prefix
+	}
+	if x.Wrapped != nil {
+		h.Wrapped = *x.Wrapped
+	}
+	if x.Attribute != nil && *x.Attribute {
+		h.NodeType = "attribute"
+	}
+	return h
+}
+
+// extensionsFrom lowers an x-* extension map into namespaced ir.Extensions, keys
+// prefixed "openapi:" and values serialized to raw JSON.
+func extensionsFrom(ext *extensions.Extensions) (ir.Extensions, []ir.Diagnostic) {
+	if ext == nil || ext.Len() == 0 {
+		return nil, nil
+	}
+	out := ir.Extensions{}
+	var diags []ir.Diagnostic
+	for name, node := range ext.All() {
+		raw := nodeToRaw(node)
+		if raw == nil {
+			diags = append(diags, diagf(ir.SeverityWarning, codeDegradedConstruct,
+				ir.Provenance{}, "extension %q could not be serialized", name))
+			continue
+		}
+		out["openapi:"+name] = raw
+	}
+	if len(out) == 0 {
+		return nil, diags
+	}
+	return out, diags
+}
+
+// mergeExtensions overlays src onto dst, allocating dst on first write.
+func mergeExtensions(dst, src ir.Extensions) ir.Extensions {
+	if len(src) == 0 {
+		return dst
+	}
+	if dst == nil {
+		dst = ir.Extensions{}
+	}
+	for k, v := range src {
+		dst[k] = v
+	}
+	return dst
+}
+
+// isFalseSchema reports whether js is the boolean `false` schema.
+func isFalseSchema(js *oas3.JSONSchema[oas3.Referenceable]) bool {
+	return js != nil && js.IsBool() && js.GetBool() != nil && !*js.GetBool()
+}
+
+// ifThenElseRaw combines the present if/then/else arms into one raw JSON object.
+func ifThenElseRaw(s *oas3.Schema) ir.RawValue {
+	return jsonObject(presentMembers(s, "if", "then", "else"))
+}
+
+// containsRaw combines contains/minContains/maxContains into one raw JSON object.
+func containsRaw(s *oas3.Schema) ir.RawValue {
+	if s.GetContains() == nil && s.GetMinContains() == nil && s.GetMaxContains() == nil {
+		return nil
+	}
+	return jsonObject(presentMembers(s, "contains", "minContains", "maxContains"))
+}
+
+// unevaluatedRaw combines a non-false unevaluatedProperties and any
+// unevaluatedItems into one raw JSON object (a false unevaluatedProperties is a
+// structural mode, handled in fillAdditional).
+func unevaluatedRaw(s *oas3.Schema) ir.RawValue {
+	var members []rawMember
+	if up := s.GetUnevaluatedProperties(); up != nil && !isFalseSchema(up) {
+		if raw := nodeToRaw(rawPropertyNode(s, "unevaluatedProperties")); raw != nil {
+			members = append(members, rawMember{key: "unevaluatedProperties", val: raw})
+		}
+	}
+	if s.GetUnevaluatedItems() != nil {
+		if raw := nodeToRaw(rawPropertyNode(s, "unevaluatedItems")); raw != nil {
+			members = append(members, rawMember{key: "unevaluatedItems", val: raw})
+		}
+	}
+	return jsonObject(members)
+}
+
+// presentMembers collects the given keywords that are present on s as raw JSON
+// members, preserving the requested order.
+func presentMembers(s *oas3.Schema, keys ...string) []rawMember {
+	var members []rawMember
+	for _, k := range keys {
+		if raw := nodeToRaw(rawPropertyNode(s, k)); raw != nil {
+			members = append(members, rawMember{key: k, val: raw})
+		}
+	}
+	return members
+}
+
+// rawPropertyNode returns the raw YAML value node of a top-level schema keyword,
+// or nil when absent. The library's GetPropertyNode resolves Go core field names
+// and returns key nodes; this scans the schema's root mapping for the on-wire
+// keyword and returns its value node, which is where exact literals live.
+func rawPropertyNode(s *oas3.Schema, key string) *yaml.Node {
+	if s == nil {
+		return nil
+	}
+	root := s.GetRootNode()
+	if root == nil {
+		return nil
+	}
+	if root.Kind == yaml.DocumentNode && len(root.Content) > 0 {
+		root = root.Content[0]
+	}
+	if root.Kind != yaml.MappingNode {
+		return nil
+	}
+	for i := 0; i+1 < len(root.Content); i += 2 {
+		if root.Content[i].Value == key {
+			return root.Content[i+1]
+		}
+	}
+	return nil
+}
+
+// rawMember is one key/raw-JSON pair of a combined validation-only object.
+type rawMember struct {
+	key string
+	val ir.RawValue
+}
+
+// jsonObject renders ordered raw members into a JSON object, or nil when empty.
+func jsonObject(members []rawMember) ir.RawValue {
+	if len(members) == 0 {
+		return nil
+	}
+	var b strings.Builder
+	b.WriteByte('{')
+	for i, m := range members {
+		if i > 0 {
+			b.WriteByte(',')
+		}
+		key, _ := json.Marshal(m.key)
+		b.Write(key)
+		b.WriteByte(':')
+		b.Write(m.val)
+	}
+	b.WriteByte('}')
+	return ir.RawValue(b.String())
 }
 
 // canonicalWords renders name as a neutral lower_snake word sequence: it splits
