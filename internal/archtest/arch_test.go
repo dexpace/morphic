@@ -24,6 +24,7 @@ const module = "github.com/dexpace/morphic"
 var rules = map[string][]string{
 	"ir":                {},
 	"ir/irtest":         {module + "/ir", "github.com/google/go-cmp"},
+	"ir/irverify":       {module + "/ir"},
 	"compilers":         {module + "/ir"},
 	"compilers/openapi": {module + "/ir", module + "/compilers", "github.com/speakeasy-api/openapi", "gopkg.in/yaml.v3"},
 	"pass":              {module + "/ir"},
