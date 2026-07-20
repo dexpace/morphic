@@ -57,6 +57,7 @@
               ],
               "oneWay": false,
               "idempotency": {},
+              "auth": null,
               "bindings": {
                 "http": [
                   {
@@ -79,6 +80,7 @@
           ]
         }
       ],
+      "auth": null,
       "provenance": {
         "source": 0
       }
@@ -107,7 +109,8 @@
     {
       "name": {},
       "urlTemplate": "/",
-      "description": {}
+      "description": {},
+      "auth": null
     }
   ],
   "diagnostics": [

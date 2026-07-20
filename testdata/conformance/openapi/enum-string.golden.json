@@ -11,6 +11,7 @@
         "canonical": "enum_string"
       },
       "docs": {},
+      "auth": null,
       "provenance": {
         "source": 0
       }
@@ -40,7 +41,10 @@
           },
           "value": {
             "kind": "string",
-            "str": "red"
+            "str": "red",
+            "bytes": null,
+            "list": null,
+            "object": null
           },
           "docs": {}
         },
@@ -51,7 +55,10 @@
           },
           "value": {
             "kind": "string",
-            "str": "green"
+            "str": "green",
+            "bytes": null,
+            "list": null,
+            "object": null
           },
           "docs": {}
         },
@@ -62,7 +69,10 @@
           },
           "value": {
             "kind": "string",
-            "str": "blue"
+            "str": "blue",
+            "bytes": null,
+            "list": null,
+            "object": null
           },
           "docs": {}
         }
@@ -75,7 +85,8 @@
     {
       "name": {},
       "urlTemplate": "/",
-      "description": {}
+      "description": {},
+      "auth": null
     }
   ],
   "sources": [

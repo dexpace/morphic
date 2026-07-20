@@ -11,6 +11,7 @@
         "canonical": "defaults"
       },
       "docs": {},
+      "auth": null,
       "provenance": {
         "source": 0
       }
@@ -51,7 +52,10 @@
           },
           "default": {
             "kind": "number",
-            "num": "9007199254740993"
+            "num": "9007199254740993",
+            "bytes": null,
+            "list": null,
+            "object": null
           },
           "flatten": false,
           "eventHeader": false,
@@ -85,7 +89,8 @@
     {
       "name": {},
       "urlTemplate": "/",
-      "description": {}
+      "description": {},
+      "auth": null
     }
   ],
   "sources": [

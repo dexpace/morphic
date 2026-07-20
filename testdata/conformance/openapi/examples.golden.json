@@ -11,6 +11,7 @@
         "canonical": "examples"
       },
       "docs": {},
+      "auth": null,
       "provenance": {
         "source": 0
       }
@@ -57,13 +58,19 @@
             {
               "value": {
                 "kind": "number",
-                "num": "1"
+                "num": "1",
+                "bytes": null,
+                "list": null,
+                "object": null
               }
             },
             {
               "value": {
                 "kind": "number",
-                "num": "2"
+                "num": "2",
+                "bytes": null,
+                "list": null,
+                "object": null
               }
             }
           ],
@@ -95,7 +102,8 @@
     {
       "name": {},
       "urlTemplate": "/",
-      "description": {}
+      "description": {},
+      "auth": null
     }
   ],
   "sources": [

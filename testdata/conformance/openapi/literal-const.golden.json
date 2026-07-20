@@ -11,6 +11,7 @@
         "canonical": "literal_const"
       },
       "docs": {},
+      "auth": null,
       "provenance": {
         "source": 0
       }
@@ -33,7 +34,10 @@
       },
       "value": {
         "kind": "string",
-        "str": "v1"
+        "str": "v1",
+        "bytes": null,
+        "list": null,
+        "object": null
       }
     }
   },
@@ -41,7 +45,8 @@
     {
       "name": {},
       "urlTemplate": "/",
-      "description": {}
+      "description": {},
+      "auth": null
     }
   ],
   "sources": [

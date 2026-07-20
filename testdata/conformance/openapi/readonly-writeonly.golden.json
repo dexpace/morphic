@@ -11,6 +11,7 @@
         "canonical": "read_only_write_only"
       },
       "docs": {},
+      "auth": null,
       "provenance": {
         "source": 0
       }
@@ -48,7 +49,9 @@
           "defaultAdded": false,
           "visibility": {
             "only": [
-              "read"
+              "read",
+              "delete",
+              "query"
             ],
             "none": false
           },
@@ -115,7 +118,8 @@
     {
       "name": {},
       "urlTemplate": "/",
-      "description": {}
+      "description": {},
+      "auth": null
     }
   ],
   "sources": [

@@ -11,6 +11,7 @@
         "canonical": "all_of_inheritance"
       },
       "docs": {},
+      "auth": null,
       "provenance": {
         "source": 0
       }
@@ -72,8 +73,14 @@
         "canonical": "derived"
       },
       "anonymous": false,
-      "docs": {},
+      "docs": {
+        "description": "A Base specialized with one extra field."
+      },
       "sensitive": false,
+      "deprecation": {},
+      "extensions": {
+        "openapi:x-team": "pets"
+      },
       "provenance": {
         "source": 0,
         "pointer": "/components/schemas/Derived"
@@ -111,6 +118,7 @@
         "target": "t/openapi/components/schemas/Base",
         "nullable": false
       },
+      "additional": "closed",
       "abstract": false,
       "positional": false,
       "inputOnly": false
@@ -132,14 +140,15 @@
     {
       "name": {},
       "urlTemplate": "/",
-      "description": {}
+      "description": {},
+      "auth": null
     }
   ],
   "sources": [
     {
       "format": "openapi@3.1",
       "path": "allof-inheritance.yaml",
-      "hash": "4f35088fd3fb634fbc13b28ed765c58c76fa1f0148d6520c10b5950a9a3d29c3"
+      "hash": "96c7255ebc7073d76ea3dcb6d5dc31717c27b00e4d5b3f616c700aad05fc213d"
     }
   ]
 }

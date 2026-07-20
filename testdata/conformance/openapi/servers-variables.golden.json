@@ -11,6 +11,7 @@
         "canonical": "servers_variables"
       },
       "docs": {},
+      "auth": null,
       "provenance": {
         "source": 0
       }
@@ -35,7 +36,8 @@
             "description": "Deployment environment"
           }
         }
-      ]
+      ],
+      "auth": null
     }
   ],
   "sources": [

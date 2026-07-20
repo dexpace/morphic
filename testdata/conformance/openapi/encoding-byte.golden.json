@@ -11,6 +11,7 @@
         "canonical": "encoding_byte"
       },
       "docs": {},
+      "auth": null,
       "provenance": {
         "source": 0
       }
@@ -118,7 +119,8 @@
     {
       "name": {},
       "urlTemplate": "/",
-      "description": {}
+      "description": {},
+      "auth": null
     }
   ],
   "sources": [

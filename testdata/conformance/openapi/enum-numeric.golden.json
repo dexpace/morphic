@@ -11,6 +11,7 @@
         "canonical": "enum_numeric"
       },
       "docs": {},
+      "auth": null,
       "provenance": {
         "source": 0
       }
@@ -40,7 +41,10 @@
           },
           "value": {
             "kind": "number",
-            "num": "1"
+            "num": "1",
+            "bytes": null,
+            "list": null,
+            "object": null
           },
           "docs": {}
         },
@@ -51,7 +55,10 @@
           },
           "value": {
             "kind": "number",
-            "num": "9007199254740993"
+            "num": "9007199254740993",
+            "bytes": null,
+            "list": null,
+            "object": null
           },
           "docs": {}
         }
@@ -64,7 +71,8 @@
     {
       "name": {},
       "urlTemplate": "/",
-      "description": {}
+      "description": {},
+      "auth": null
     }
   ],
   "sources": [
