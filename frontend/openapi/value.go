@@ -64,11 +64,13 @@ func scalarValue(node *yaml.Node) (ir.Value, error) {
 		}
 		return ir.Value{Kind: ir.ValueNumber, Num: num}, nil
 	case "!!binary":
-		var raw []byte
+		// yaml.v3 base64-decodes a !!binary node into a string (it rejects a
+		// []byte target), so decode to string and carry the bytes from there.
+		var raw string
 		if err := node.Decode(&raw); err != nil {
 			return ir.Value{}, fmt.Errorf("openapi: binary literal: %w", err)
 		}
-		return ir.Value{Kind: ir.ValueBytes, Bytes: raw}, nil
+		return ir.Value{Kind: ir.ValueBytes, Bytes: []byte(raw)}, nil
 	default:
 		return ir.Value{}, fmt.Errorf("openapi: unsupported scalar tag %q", node.Tag)
 	}
