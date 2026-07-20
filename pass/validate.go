@@ -84,6 +84,10 @@ func walkTypeDefRefs(td ir.TypeDef, visit refVisitor) {
 		for i, e := range t.Elems {
 			visit(e.Target, fmt.Sprintf("%s/elems/%d", where, i))
 		}
+	default:
+		// Enum, Literal, Primitive, External, and Any carry no TypeRefs, so
+		// there is nothing to walk. A new ref-bearing TypeDef kind must add a
+		// case above rather than fall through here silently.
 	}
 }
 
@@ -172,6 +176,10 @@ func checkDiscriminators(doc *ir.Document) []ir.Diagnostic {
 			diags = append(diags, checkUnionDiscriminator(doc, t)...)
 		case *ir.Model:
 			diags = append(diags, checkModelDiscriminator(doc, t)...)
+		default:
+			// Only Union and Model can declare a discriminator; every other
+			// TypeDef kind has nothing to check. A new discriminator-bearing
+			// kind must add a case above rather than fall through here.
 		}
 	}
 	return diags
