@@ -27,8 +27,8 @@ func run(args []string, stdout, stderr io.Writer) int {
 		return 2
 	}
 	switch args[0] {
-	case "parse":
-		return runParse(args[1:], stdout, stderr)
+	case "compile":
+		return runCompile(args[1:], stdout, stderr)
 	default:
 		emitf(stderr, "morphic: unknown command %q\n", args[0])
 		printUsage(stderr)
@@ -48,6 +48,6 @@ func printUsage(w io.Writer) {
 }
 
 const usage = `usage:
-  morphic parse <spec-file> [-o out.json] [--fail-on error|warning] [--skip-validate]
+  morphic compile <spec-file> [-o out.json] [--fail-on error|warning] [--skip-validate]
 
-parse lowers an API spec (OpenAPI 3.x) into Morphic IR JSON.`
+compile lowers an API spec (OpenAPI 3.x) into Morphic IR JSON.`

@@ -6,7 +6,7 @@ type Docs struct {
 	// Summary is a short single-line description.
 	Summary string `json:"summary,omitempty"`
 	// Description is CommonMark; it may contain {t:TypeID} cross-reference
-	// tokens that backends resolve to language-appropriate links.
+	// tokens that emitters resolve to language-appropriate links.
 	Description string `json:"description,omitempty"`
 	// ExternalDocs links to supplementary documentation.
 	ExternalDocs []Link `json:"externalDocs,omitempty"`

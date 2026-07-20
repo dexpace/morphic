@@ -18,7 +18,7 @@ architecture test from milestone 1.
 
 ---
 
-# SECTION A — FOR THE BACKEND / EMITTER DESIGN
+# SECTION A — FOR THE EMITTER DESIGN
 
 ## A0. Template vs typed-AST: what the references actually do (and what to pick)
 
@@ -34,7 +34,7 @@ architecture test from milestone 1.
 The three generators that scaled cleanest either use typed writers (oagen) or are actively migrating
 toward them (TypeSpec). The pure-template shops (openapi-generator, fastapi) accumulated the worst
 correctness hacks — regex dead-import elimination, string-replace patches, untyped `Map` context
-drift. **Recommendation for Morphic's first Go backend:** use a **typed output model / structured
+drift. **Recommendation for Morphic's first Go emitter:** use a **typed output model / structured
 writer** for everything with cross-references (type decls, method signatures, imports, forward
 declarations, recursion breaking); reserve string templates for leaf/boilerplate bodies
 (encode/decode). Whatever the choice, three things are table stakes, all proven across repos:
@@ -50,7 +50,7 @@ Every template-based repo computes imports by **mutation or text-grep**, and eve
 import-bug class: openapi-generator's `addImport` mutates `model.imports` during lowering (dead +
 missing imports recurring); fastapi greps the rendered string with `IDENTIFIER_PATTERN` to drop
 unused imports; openapi-python-client threads mutable import sets via `object.__setattr__`.
-**CONFIRMS** that import computation is a backend concern, and **challenges** any accumulator design.
+**CONFIRMS** that import computation is a emitter concern, and **challenges** any accumulator design.
 **Recommendation:** Morphic's flat ID-keyed registry (invariant #3) makes the import set a *pure
 reachability walk* over `TypeRef` targets per output file — compute it as a derived function in
 refine, and **track symbol references structurally** as you emit each reference (oagen/TypeSpec do
@@ -73,7 +73,7 @@ discriminator=...)]` from the *same* oneOf; openapi-python-client emits a **try-
 serialization-specific reasoning that has no business in the IR. **Recommendation for Morphic's Go
 refine layer:** (1) port ogen's ordered strategy taxonomy as the union-strategy selector; (2) because
 Morphic's `Union` node already carries `Variants[].{Name,WireName,WireID}`, `Exclusive`, `WireTagged`,
-and `Discriminator` un-lowered (everything ogen's tree needs as *input*), the Go backend can **degrade
+and `Discriminator` un-lowered (everything ogen's tree needs as *input*), the Go emitter can **degrade
 gracefully** (e.g. `json.RawMessage` / sealed-interface with a fallback) where ogen aborts the whole
 spec. Make "no strategy found" a `Diagnostic` + fallback, never fatal — this is the concrete payoff of
 having the ABI seam ogen lacks. (3) Preserve `Exclusive` in the decoder: oneOf must reject
@@ -109,18 +109,18 @@ variant's own const field value over the schema name; ogen also resolves the Ope
 JSON-pointer mapping ambiguity (try `#/components/schemas/<name>` first, then pointer). openapi-
 generator triple-stores name variants (`mappingName`/`modelName`/`schemaName`) to paper over name-
 keying, and hides two incompatible interpretations behind `legacyDiscriminatorBehavior` (the mess to
-avoid — model facts, let backends decide). fastapi *drops* the discriminator when a variant is a
-non-object because Pydantic can't express it — **target capability leaking into the frontend**, the
+avoid — model facts, let emitters decide). fastapi *drops* the discriminator when a variant is a
+non-object because Pydantic can't express it — **target capability leaking into the compiler**, the
 exact anti-pattern.
 
 **Recommendation:** Morphic's `Discriminator{Property | PropertyName | Index, Mapping map[string]
 TypeID, Default, Envelope, EnvelopeValueName, Inferred}` already covers all of this and points mappings
-at **TypeIDs not names** (severing openapi-generator's triple-name coupling). Two concrete backend
+at **TypeIDs not names** (severing openapi-generator's triple-name coupling). Two concrete emitter
 obligations the references surface: (1) the plan/emit layer **must be able to materialize a
 discriminator property that is not declared** on the base (`Discriminator.PropertyName` deliberately
 has no PropID) — TypeSpec proves this is required; (2) the "drop discriminator for non-object variants"
-decision belongs in the Go/Python refiner **with a diagnostic**, never the frontend (fastapi's
-mistake). Copy ogen's mapping-ref resolution fallback into the frontend.
+decision belongs in the Go/Python refiner **with a diagnostic**, never the compiler (fastapi's
+mistake). Copy ogen's mapping-ref resolution fallback into the compiler.
 
 ## A5. Pagination & streaming: plan-layer traversal over un-lowered IR — CONFIRMS
 
@@ -149,9 +149,9 @@ escaping is per-language data + a hook everywhere (openapi-generator's `escapeRe
 default; Go appends `_`).
 
 **Recommendation:** store `Naming{Source, Canonical (neutral word sequence), Wire (+numeric ID)}` and
-**nothing cased** — validated by all. Model the backend name resolver as TypeSpec's two-function
+**nothing cased** — validated by all. Model the emitter name resolver as TypeSpec's two-function
 policy (wire namer reads `WireName`; application namer reads `Canonical` + per-language casing +
-reserved words), injectable per backend (invariant #6). Give anonymous-type `Hint`s enough parent+role
+reserved words), injectable per emitter (invariant #6). Give anonymous-type `Hint`s enough parent+role
 context to be legible (ogen: `FooItem`, `UserAdditional`). **CHALLENGES to guard:** oagen froze a
 snake_case method-name deriver + English singularizer/verb-list into its shared layer-0
 (`operation-hints.ts`), un-swappable per target — Morphic must run the verb/singularization heuristic
@@ -176,7 +176,7 @@ touches some slice of it:
   computed over the *full* (or `selected ∪ already-on-disk`) surface so shared files stay byte-
   identical; only per-service emission is gated. Reachability from **selected operations only** (a
   service can split across mount targets). This is exactly architecture.md §2.2's recorded lesson —
-  confirmed real and subtle. Carry a `scope` + `presentEntities` set into the backend.
+  confirmed real and subtle. Carry a `scope` + `presentEntities` set into the emitter.
 - **AST additive merge into live repos** (oagen `merger.ts`): parse existing+generated (tree-sitter),
   append only absent top-level symbols, **never modify/remove hand-written code**; honor
   `@ignore-start/@ignore-end` islands; preserve `@deprecated`. Plus file→directory conflict repair
@@ -187,7 +187,7 @@ touches some slice of it:
   `staleness.ts` — needs BOTH specs to distinguish hand-written from removed-spec symbols). This is
   the dead code additive-merge can't prune. Reinforces caching serialized IR per revision (#7).
 - **Formatter runs last; generated tree is disposable** (openapi-python `rmtree`+ruff; all repos).
-  Removes enormous template complexity — declare an optional per-backend format post-step.
+  Removes enormous template complexity — declare an optional per-emitter format post-step.
 - **Barrel/re-export file** (`__init__.py`/`mod.rs`/`index.ts`) is a recurring explicit artifact.
 - Tree-sitter-per-language merge (oagen) silently no-ops on missing grammar — Morphic (Go) must decide
   deliberately: bundle grammars, shell to the target toolchain, or whole-file overwrite — and make the
@@ -197,7 +197,7 @@ TypeSpec adds the emit-layout primitive: model output as a **scope tree** (sourc
 declarations) with per-file `imports`, resolve cross-file refs by common-ancestor diff
 (`ref-scope.ts`), and keep a free `SourceFile.meta` bag for manifest hashes.
 
-## A8. Runtime SDK policy is a separate backend input, NOT IR — CONFIRMS #10 (unanimous)
+## A8. Runtime SDK policy is a separate emitter input, NOT IR — CONFIRMS #10 (unanimous)
 
 Counterexamples everywhere: ogen bakes otel/retry/middleware into generated code via feature flags +
 a vendored runtime; openapi-generator smears retry/auth/timeout across `additionalProperties`/`CliOption`
@@ -209,7 +209,7 @@ the vocabulary source: `SdkBehavior` (layer-0, imports nothing) covers `retry` (
 `requestGuard.optionKeys`), `timeout`. Merge semantics: **arrays replace, objects merge recursively**.
 **Recommendation:** lift oagen's field list wholesale as Morphic's policy-input vocabulary (add the
 non-obvious `aiAgentEnvVars` + `requestGuard.optionKeys`), adopt the array-replace/object-merge rule,
-but keep it a **separate backend input, not a `Document` field** — oagen's one violation
+but keep it a **separate emitter input, not a `Document` field** — oagen's one violation
 (`ApiSpec.sdk` on the IR root) is why it can't cleanly drive docs/mocks from one IR. Precedence rule
 (oagen §A4, openapi-python): **declared IR facts win; policy fills silence** — plan reads
 `ErrorCase.Retryable`/`Operation.Idempotency` first, consults policy only when the IR field is nil.
@@ -238,10 +238,10 @@ lacks (the strongest validation the oagen audit produced).
   cautionary middle ground. **Ship Morphic's per-kind-struct + generated switch-completeness test in
   milestone 1** — ogen's panics are exactly the runtime failure the test prevents. Also ship
   `walkTypeRef`/`mapTypeRef` generic-traversal helpers (oagen leans on them constantly).
-- **Recursion is a backend problem, solved at emit.** Morphic's ID-referenced registry makes the IR
+- **Recursion is a emitter problem, solved at emit.** Morphic's ID-referenced registry makes the IR
   cycle-free (invariant #3) — vindicated against ogen's whole recursion module (`reflect.DeepEqual`
   cycle finder + hard errors on required recursive fields), datamodel's SCC cross-module relocation,
-  and openapi-python's two-phase fixpoint. But the Go **backend still must break emitted-output cycles
+  and openapi-python's two-phase fixpoint. But the Go **emitter still must break emitted-output cycles
   with pointers**, and should **degrade required-recursive fields to pointer, not error** (ogen
   errors). Adopt TypeSpec's Placeholder/back-patch mechanism (`asset-emitter/placeholder.ts`) with
   named declarations as cycle break-points, + SCC grouping so mutually-recursive types land in one
@@ -251,7 +251,7 @@ lacks (the strongest validation the oagen audit produced).
   propagates across ref edges) — Morphic's plan hits this the moment one model is used under two
   lifecycles/media-types. Key visibility/shape projections on `(TypeID, lifecycle-set, options-hash)`
   and intern the option set (answers ir-design open-question #4: compute Usage once, store, key by
-  interned context). Support `manuallyTrack`-style usage injection for backend-synthesized types
+  interned context). Support `manuallyTrack`-style usage injection for emitter-synthesized types
   (envelopes, page wrappers) or you get mis-scoped duplicate declarations.
 
 ## A11. Error-response collapse, dedup equality, encode/decode pairing — plan-layer patterns to steal
@@ -269,9 +269,9 @@ lacks (the strongest validation the oagen audit produced).
 
 ---
 
-# SECTION B — FOR THE IR & OPENAPI FRONTEND
+# SECTION B — FOR THE IR & OPENAPI COMPILER
 
-## B0. The headline: frontends never flatten — CONFIRMED by every reference's scars
+## B0. The headline: compilers never flatten — CONFIRMED by every reference's scars
 
 allOf eager-merge appears in **all six** non-Kiota references and is irreversible every time:
 openapi-python `merge_properties` (two regexes = fatal, "required wins", arbitrary description-override
@@ -288,10 +288,10 @@ discriminator-participant → `Base`; other $refs → `Mixins`; inline → `Prop
 **never merge**; keep `FlattenedProperties()` computed, never stored (openapi-generator's
 `allVars`-beside-`vars` is the storage smell). TypeSpec independently validates the split with distinct
 `sourceModels[].usage: "is"|"spread"|"intersection"` provenance — **consider a `MixinKind`/provenance
-tag on each `Mixins` entry** so a backend can tell structural-copy (`is`/spread) from compose-by-
-reference. Harvest the merge algorithms as **backend-refiner** material (below). Any convenience
+tag on each `Mixins` entry** so a emitter can tell structural-copy (`is`/spread) from compose-by-
+reference. Harvest the merge algorithms as **emitter-refiner** material (below). Any convenience
 simplification lives in `pass/` (composable, order-explicit, default OFF, provenance-recording), never
-a default frontend mutation.
+a default compiler mutation.
 
 ## B1. Nullable normalization: fold every spelling to one bit — CONFIRMS #8/§3.3
 
@@ -301,11 +301,11 @@ ogen (`extendInfo`, `handleNullableEnum`), oagen (`schemas.ts:1110`), openapi-py
 `type:[T,"null"]` / `x-nullable` to one internal signal. A `oneOf/anyOf` whose only extra arm is
 `null` collapses to a plain nullable — **Morphic already legislates this (§3.3), and it's the exact
 spot ogen left unfinished** (its TODO "convert oneOf+null into generic"). Do the 3.0↔3.1 reconciliation
-*inside the frontend before IR lowering*, emit an `info` diagnostic recording the original spelling.
+*inside the compiler before IR lowering*, emit an `info` diagnostic recording the original spelling.
 **Guard:** openapi-python's `allOf`→`oneOf[null,allOf]` trick mixes null with composition — Morphic
 must instead set `TypeRef.Nullable=true` on the reference to the composed model and invent **no union**
 (§3.3). **Edge case from TypeSpec (B4):** a union whose *only* member is `null` (bare-null) has no
-nullable-bit home — lower it to `Literal{Value:null}` (or `Any`+Nullable) + diagnostic, or the frontend
+nullable-bit home — lower it to `Literal{Value:null}` (or `Any`+Nullable) + diagnostic, or the compiler
 emits a `TypeRef` with no non-null target. Cover the full four-state matrix (required×nullable) in the
 conformance corpus — datamodel needing `strict_nullable` years late is the argument for day-one.
 
@@ -331,7 +331,7 @@ stamps `.Ref`; a `ResolveCtx` ref-stack detects cycles; generic `resolveComponen
 per-kind duplication. openapi-python keeps *two* registries (`classes_by_reference` by $ref path =
 identity, `classes_by_name` = presentation) but name-collisions are **fatal** (`"duplicate models with
 name X"`). **Adopt `RefKey{file, jsonpointer}` → `TypeID` verbatim** for Morphic's ID construction
-(`t/openapi/components/schemas/User`); use the two-map idea only as *frontend bookkeeping* (source
+(`t/openapi/components/schemas/User`); use the two-map idea only as *compiler bookkeeping* (source
 pointer → TypeID), never as IR storage. Morphic's ID-sole-key design means renames never collide — the
 `duplicate name` fatal error simply cannot occur. Keep `operationId` as `Naming.Source` (display) but
 derive identity from the source pointer (fastapi confirms the two roles are distinct; it injects
@@ -357,20 +357,20 @@ Also add a configurable depth/size limit surfaced as a fatal diagnostic (ogen's 
 recovered-at-boundary — but keep it inside the pure stage, don't let the panic escape). And **purity**:
 datamodel's module-global `activeSchemaNameTransform`, oagen's file-scoped `let`s, fastapi's
 `_temporary_operation` mutation + `self.results.remove` during parse all violate reentrancy — Morphic
-frontends must thread state through args/context, never package globals (invariant #5, concurrent
+compilers must thread state through args/context, never package globals (invariant #5, concurrent
 parses).
 
-## B5. Keep the full capability surface even when the first backend won't use it — CONFIRMS #9
+## B5. Keep the full capability surface even when the first emitter won't use it — CONFIRMS #9
 
-Repeatedly, references *drop* what a richer backend needs: openapi-python captures constraints then
+Repeatedly, references *drop* what a richer emitter needs: openapi-python captures constraints then
 ignores them (only `format` drives type choice), drops `patternProperties`/`unevaluatedProperties`/
 non-string keys, has no open/closed enum bit; oagen/openapi-generator/datamodel have no enum openness;
 fastapi strips `x-*` from `info` (a losslessness violation). Morphic must keep `Constraints`,
 `Enum{Closed,Flags,FallbackMember,ValueType}`, `AdditionalProps{Value,Key,Patterns}` + `AdditionalMode`,
-`Exclusive`/`WireTagged`, `x-*` everywhere — the OpenAPI frontend sets `Enum.Closed=true` (JSON-Schema
-default) but the bit exists for Smithy(open)/protobuf/Avro(fallback) frontends. Enum specifics: allow
+`Exclusive`/`WireTagged`, `x-*` everywhere — the OpenAPI compiler sets `Enum.Closed=true` (JSON-Schema
+default) but the bit exists for Smithy(open)/protobuf/Avro(fallback) compilers. Enum specifics: allow
 **duplicate member values** (protobuf `allow_alias`) — ogen's hard rejection is the thing NOT to copy
-into the shared validate pass; capture `x-enum-varnames` member names (openapi-python) so backends
+into the shared validate pass; capture `x-enum-varnames` member names (openapi-python) so emitters
 don't invent `VALUE_1`. TypeSpec confirms `additionalProperties:false`→`Additional=closed`,
 `unevaluatedProperties:false`→`closed_after_composition`, and typed map keys (`indexer.key: Scalar`).
 
@@ -397,7 +397,7 @@ interacting flags. **Recommendation:** implement the *recipes* (they're genuinel
 Treat `Extensions` as **preserved data**; route any *behavioral* use through explicit `Inferred`-marked
 policy/overlays, never inline `x-*` branches. **Do NOT put target-language directives in the IR/spec**
 (ogen's `x-ogen-type`=Go type, `x-oapi-codegen-extra-tags`=Go tags couple spec to one target) — route
-per-target naming/type overrides through per-backend overlays keyed by IR ID; `x-ogen-name` (a naming
+per-target naming/type overrides through per-emitter overlays keyed by IR ID; `x-ogen-name` (a naming
 hint) is the one neutral exception → maps to `Naming`.
 
 ## B7. Single hoist pass keyed by source pointer, Hint not name — CONFIRMS §2.1 phase 3
@@ -414,20 +414,20 @@ re-derive elsewhere. The **dedup pass** (content-hash + retained ID **aliases**)
 delete/rename loses provenance; fastapi's `reuse_model` flag is weaker than an alias-retaining pass).
 Snapshot-test that alias provenance round-trips.
 
-## B8. Layer the frontend, share JSON-Schema lowering, keep the IR seeing only the result — CONFIRMS milestone 2
+## B8. Layer the compiler, share JSON-Schema lowering, keep the IR seeing only the result — CONFIRMS milestone 2
 
 datamodel subclasses `OpenAPIParser(JsonSchemaParser)` with a `SCHEMA_PATHS` override; fastapi
 subclasses datamodel's parser and adds only the operation layer; openapi-python parses into a full
-typed pydantic spec model *first*, then lowers. **Recommendation:** Morphic's OpenAPI frontend should
+typed pydantic spec model *first*, then lowers. **Recommendation:** Morphic's OpenAPI compiler should
 parse into a typed spec model (Go structs / schema lib) as a distinct stage, then lower to IR — two
 clean stages beat dict-walking, and a shared JSON-Schema lowering **core** serves OpenAPI/Swagger/
-AsyncAPI frontends (they layer the envelope). Keep it shared *frontend* code, **never shared IR**.
+AsyncAPI compilers (they layer the envelope). Keep it shared *compiler* code, **never shared IR**.
 Steal openapi-python's targeted error hints ("you may be using Swagger 2.0", wrong-document-kind) as
 typed diagnostics. Keep the ref-site-vs-target annotation merge as **one uniform rule with use-site
 precedence** (TypeSpec's OpenAPI emitter is the confirming mirror; openapi-generator patches it ad-hoc
 for parameters only and loses target defaults on $ref-typed fields — the bug).
 
-## B9. $ref + sibling keywords, $dynamicRef, validation-only constructs — frontend edge-case recipes
+## B9. $ref + sibling keywords, $dynamicRef, validation-only constructs — compiler edge-case recipes
 
 - **`$ref` + sibling keywords** (2020-12 legal): datamodel distinguishes "`$ref` + nullable only" (use
   ref directly + Optional — Morphic's `TypeRef{Target, Nullable}` handles this with **zero duplicate-
@@ -435,7 +435,7 @@ for parameters only and loses target defaults on $ref-typed fields — the bug).
   overrides, **use-site wins** — preserve both ref identity and overrides losslessly, don't merge-copy).
 - **`$recursiveRef`/`$dynamicRef`**: datamodel's `_resolve_recursive_ref`/`_resolve_dynamic_ref` +
   anchor-index (nearest enclosing `$recursiveAnchor`, outermost `$dynamicAnchor`) is a working
-  reference implementation of ir-design §4.7's "resolve per site by frontend expansion (dynamic scope
+  reference implementation of ir-design §4.7's "resolve per site by compiler expansion (dynamic scope
   is static per document)". Port the anchor-index logic; add Morphic's promised "irreducible cases
   preserved verbatim + diagnostic" fallback (datamodel just best-effort resolves).
 - **Validation-only (`not`/`if-then-else`/`dependentSchemas`)**: §4.7 carve-out — preserve **verbatim
@@ -445,11 +445,11 @@ for parameters only and loses target defaults on $ref-typed fields — the bug).
   verbatim approach is cleaner. Keep the one carve-back: `unevaluatedProperties:false` →
   `Additional=closed_after_composition`. Corpus: assert "preserved-not-modeled".
 
-## B10. Latent frontend bug #1 — named scalar component registering no node → dangling $ref
+## B10. Latent compiler bug #1 — named scalar component registering no node → dangling $ref
 
 **The bug.** A named component that is a plain scalar — e.g. `components/schemas/UserId: {type:
 string, format: uuid}` or even `{type: string}` — gets resolved *through* to the shared primitive/scalar
-at frontend time, so **no node is registered at its own source pointer** `#/components/schemas/UserId`.
+at compiler time, so **no node is registered at its own source pointer** `#/components/schemas/UserId`.
 Any `$ref: '#/components/schemas/UserId'` elsewhere then resolves to a TypeID with no registry entry →
 dangling ref (`ir/dangling-type-ref` fires, or worse, silently).
 
@@ -466,10 +466,10 @@ dangling ref (`ir/dangling-type-ref` fires, or worse, silently).
   precisely so a `$ref` to a primitive-alias component resolves to the primitive instead of dangling.
   The alias need not be a `CodegenModel`, but it *is* in the alias table, so resolution never fails.
 
-**Fix for Morphic (and it's the clean one given the IR):** the frontend must **register a `Scalar`
+**Fix for Morphic (and it's the clean one given the IR):** the compiler must **register a `Scalar`
 node (§4.2) at every named component's pointer-derived TypeID**, even when it trivially aliases a
-primitive — `Scalar{Base: <primitive TypeRef>}`. Do **not** resolve-through in the frontend; resolving
-a scalar chain "to the nearest representable base" is explicitly a **backend refiner** job (§4.2). This
+primitive — `Scalar{Base: <primitive TypeRef>}`. Do **not** resolve-through in the compiler; resolving
+a scalar chain "to the nearest representable base" is explicitly a **emitter refiner** job (§4.2). This
 matches ogen and datamodel (register the node) and is cleaner than openapi-generator's side alias-table
 (Morphic gets the alias-table's guarantee for free because every pointer maps to a registered node).
 Belt-and-suspenders: keep the `validate` pass's `ir/dangling-type-ref` check so any future
@@ -477,11 +477,11 @@ resolve-through regression is caught by a golden/corpus test. **Corpus item:** a
 `{type:string,format:uuid}` component referenced from two sites — assert a `Scalar` node exists at its
 pointer and both refs resolve to it.
 
-## B11. Latent frontend bug #2 — allOf + oneOf co-occurrence dropping allOf
+## B11. Latent compiler bug #2 — allOf + oneOf co-occurrence dropping allOf
 
 **The bug.** A schema carries **both** `allOf` and `oneOf` (or `anyOf`) at the same level. Semantics:
 the value must satisfy **all** allOf members **AND** exactly one oneOf member (composition ∧ union). A
-frontend that dispatches on "saw oneOf → emit `Union`, return" **silently drops the sibling allOf**,
+compiler that dispatches on "saw oneOf → emit `Union`, return" **silently drops the sibling allOf**,
 losing the base/mixin composition entirely.
 
 **How the references handle co-occurrence — the two correct shapes, both retain allOf:**
@@ -501,7 +501,7 @@ losing the base/mixin composition entirely.
   complex allOf+oneOf combinations it can't reconcile hit `ErrNotImplemented` rather than silently
   dropping — a hard stop, not silent loss.
 
-**Fix for Morphic (lossless, per §4.3/§4.4):** when allOf and oneOf/anyOf co-occur, the frontend must
+**Fix for Morphic (lossless, per §4.3/§4.4):** when allOf and oneOf/anyOf co-occur, the compiler must
 process **both** — never return early on the combinator. Two lossless representations, in preference
 order:
 1. **Distribute the allOf composition across the Union variants** (datamodel's semantics, kept
@@ -523,7 +523,7 @@ union variants survive in the IR; a second case with a discriminator to exercise
 ## Coverage-corpus items to steal (schema-lowering edge cases the references encode)
 
 From datamodel-code-generator (`_intersect_constraint`, `_merge_primitive_schemas_for_allof`) and
-openapi-python (`merge_properties`) — these double as **backend-refiner merge algorithms** (relocate
+openapi-python (`merge_properties`) — these double as **emitter-refiner merge algorithms** (relocate
 the merge to refine; keep the cases as fixtures):
 - allOf of primitives with conflicting bounds → intersection: **max-of-mins, min-of-maxes**,
   `multipleOf` → **LCM**, `pattern` conjunction via `(?=a)(?=b)` lookahead, incompatible `format`s →
@@ -531,7 +531,7 @@ the merge to refine; keep the cases as fixtures):
 - allOf = single `$ref` to (a) object [inheritance], (b) scalar/root + extra constraints, (c) enum,
   (d) `true` schema — each lowers differently.
 - allOf with multiple `$ref`s having **conflicting** property signatures (MRO hazard — a *target*
-  constraint, must NOT drive frontend flattening) vs non-conflicting.
+  constraint, must NOT drive compiler flattening) vs non-conflicting.
 - `$ref` + `nullable` only (→ `TypeRef{Target,Nullable}`, zero dup) vs `$ref` + real keyword siblings.
 - **allOf + oneOf/anyOf co-occurrence** (bug #2) — with and without discriminator.
 - **named scalar component `{type:string,format:uuid}` referenced from ≥2 sites** (bug #1) — assert a
@@ -555,7 +555,7 @@ the merge to refine; keep the cases as fixtures):
 
 - **Golden trees per config permutation** + one-command regen script (openapi-python `golden-record/`,
   `regen_golden_record.py`; fastapi `--disable-timestamp` for reproducible headers). Maps to Morphic's
-  golden IR snapshots (per frontend) + golden output (per backend).
+  golden IR snapshots (per compiler) + golden output (per emitter).
 - **Black-box round-trip on *generated* code**: generate from a tiny inline spec, compile+run, assert
   `from_dict → == → to_dict == original` (openapi-python `assert_model_decode_encode`). The strongest
   correctness signal; maps to Morphic's round-trip property test. oagen goes further — **wire-
@@ -569,4 +569,4 @@ the merge to refine; keep the cases as fixtures):
   honest per capability.
 - **Architecture import-graph test in milestone 1** — datamodel's msgspec-in-parser leakage and
   openapi-generator's fused pipeline are the concrete failures it prevents; write it against the exact
-  layering in CLAUDE.md before the first frontend lands.
+  layering in CLAUDE.md before the first compiler lands.

@@ -3,7 +3,7 @@
 // rewritten document).
 //
 // Passes import only the ir package — the layering rule keeps them blind to
-// frontends, backends, and the engine. Every pass is f(input) -> output with no
+// compilers, emitters, and the engine. Every pass is f(input) -> output with no
 // package-level mutable state and no I/O; spec-level problems surface as
 // [ir.Diagnostic] values, never as panics or stderr writes.
 package pass

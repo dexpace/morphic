@@ -224,7 +224,7 @@ func (l *lowerer) lowerOperation(src *soa.Operation, ctx opContext, pointer stri
 
 // operationName builds an operation's neutral naming: the operationId when
 // present (source + canonical words), else an empty source with a method+path
-// hint so backends can synthesize a name.
+// hint so emitters can synthesize a name.
 func operationName(src *soa.Operation, method, uriTemplate string) ir.Naming {
 	if id := src.GetOperationID(); id != "" {
 		return ir.Naming{Source: id, Canonical: canonicalWords(id)}

@@ -1,7 +1,7 @@
 package ir
 
 // Naming carries the identity of a named entity as words, never as a cased
-// identifier: backends apply casing, acronym policy, and reserved-word escaping
+// identifier: emitters apply casing, acronym policy, and reserved-word escaping
 // (ir-design §3.2). Anonymous (hoisted) types have an empty Source and a Hint.
 type Naming struct {
 	// Source is the name exactly as written in the spec ("user_id", a $ref

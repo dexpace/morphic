@@ -14,7 +14,7 @@ import (
 
 // newEngine constructs the pipeline engine. It is a package var so tests can
 // inject a construction failure — the real engine.New only errors on a
-// duplicate frontend registration, which the default registry never produces —
+// duplicate compiler registration, which the default registry never produces —
 // and a stub engine that returns a nil Document.
 var newEngine = engine.New
 
@@ -23,10 +23,10 @@ var newEngine = engine.New
 // not fail after a successful write on the platforms Morphic targets.
 var openOutput = func(path string) (io.WriteCloser, error) { return os.Create(path) }
 
-// runParse implements the `parse` subcommand: lower one spec file to IR JSON,
+// runCompile implements the `compile` subcommand: lower one spec file to IR JSON,
 // render its diagnostics to stderr, and return the process exit code.
-func runParse(args []string, stdout, stderr io.Writer) int {
-	fs := flag.NewFlagSet("parse", flag.ContinueOnError)
+func runCompile(args []string, stdout, stderr io.Writer) int {
+	fs := flag.NewFlagSet("compile", flag.ContinueOnError)
 	fs.SetOutput(stderr)
 	outPath := fs.String("o", "", "write IR JSON to this file instead of stdout")
 	failOn := fs.String("fail-on", "error",
@@ -44,7 +44,7 @@ func runParse(args []string, stdout, stderr io.Writer) int {
 		return 2
 	}
 	if len(positional) != 1 {
-		emitf(stderr, "morphic: parse requires exactly one spec file\n")
+		emitf(stderr, "morphic: compile requires exactly one spec file\n")
 		printUsage(stderr)
 		return 2
 	}
@@ -63,7 +63,7 @@ func runParse(args []string, stdout, stderr io.Writer) int {
 	if res.Document == nil {
 		return 1
 	}
-	if err := writeParsed(*outPath, stdout, res.Document); err != nil {
+	if err := writeCompiled(*outPath, stdout, res.Document); err != nil {
 		emitf(stderr, "morphic: %v\n", err)
 		return 2
 	}
@@ -141,9 +141,9 @@ func severityRank(s ir.Severity) int {
 	}
 }
 
-// writeParsed emits doc's pretty IR JSON to outPath, or to stdout when outPath
+// writeCompiled emits doc's pretty IR JSON to outPath, or to stdout when outPath
 // is empty.
-func writeParsed(outPath string, stdout io.Writer, doc *ir.Document) error {
+func writeCompiled(outPath string, stdout io.Writer, doc *ir.Document) error {
 	if outPath == "" {
 		return writeDocument(stdout, doc)
 	}

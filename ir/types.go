@@ -84,7 +84,7 @@ type Primitive struct {
 	Prim PrimKind `json:"prim"`
 }
 
-// Scalar is a named restricted or extended primitive (ir-design §4.2). Backends
+// Scalar is a named restricted or extended primitive (ir-design §4.2). Emitters
 // resolve the Base chain to the nearest representable base, accumulating
 // constraints and encoding along the way.
 type Scalar struct {
@@ -323,7 +323,7 @@ type Literal struct {
 }
 
 // External is a well-known library type that no target can structurally model,
-// resolved to a runtime handle by the backend (TCGC external) (ir-design §4.6).
+// resolved to a runtime handle by the emitter (TCGC external) (ir-design §4.6).
 type External struct {
 	TypeCommon
 	// Identity is the external type's stable identity (e.g. "erlang:pid").

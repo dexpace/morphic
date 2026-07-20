@@ -1,7 +1,7 @@
 package ir
 
 // AuthKind names one authentication mechanism (ir-design §9). X509 is distinct
-// from mutual_tls (certificate as credential vs mutual verification); frontends
+// from mutual_tls (certificate as credential vs mutual verification); compilers
 // must not conflate them.
 type AuthKind string
 

@@ -83,7 +83,7 @@ type ValueRef struct {
 
 // CtorValue captures a value built by a named scalar constructor, such as
 // utcDateTime.now() or plainDate.fromISO("2024-05-06"). Such values are
-// inherently non-literal, so frontends must not fold them (ir-design §6).
+// inherently non-literal, so compilers must not fold them (ir-design §6).
 type CtorValue struct {
 	// Scalar identifies the scalar whose constructor is invoked.
 	Scalar TypeID `json:"scalar,omitempty"`

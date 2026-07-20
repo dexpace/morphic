@@ -354,7 +354,7 @@ func checkOneWay(doc *ir.Document) []ir.Diagnostic {
 
 // checkArgsOutsideGraphQL reports field arguments on models that are not
 // reachable from a GraphQL binding (the only scope in which Property.Args is
-// legal). With no GraphQL frontend yet, any Args is a violation.
+// legal). With no GraphQL compiler yet, any Args is a violation.
 func checkArgsOutsideGraphQL(doc *ir.Document) []ir.Diagnostic {
 	reachable := graphqlReachableTypes(doc)
 	var diags []ir.Diagnostic

@@ -5,7 +5,7 @@ import (
 
 	yaml "gopkg.in/yaml.v3"
 
-	"github.com/dexpace/morphic/frontend"
+	"github.com/dexpace/morphic/compilers"
 )
 
 // sniffProbe holds the two discriminating keys read from the source bytes. YAML
@@ -16,22 +16,22 @@ type sniffProbe struct {
 }
 
 // Sniff probe-decodes the source bytes and reports the spec format they declare.
-// An `openapi: 3.X.Y` key yields the openapi frontend keyed by the major.minor
+// An `openapi: 3.X.Y` key yields the openapi compiler keyed by the major.minor
 // prefix; `swagger: "2.0"` is recognized but unsupported; anything else is an
 // error. Undecodable bytes yield a wrapped decode error.
-func Sniff(data []byte) (frontend.SourceFormat, error) {
+func Sniff(data []byte) (compilers.SourceFormat, error) {
 	var probe sniffProbe
 	if err := yaml.Unmarshal(data, &probe); err != nil {
-		return frontend.SourceFormat{}, fmt.Errorf("sniff: decode source: %w", err)
+		return compilers.SourceFormat{}, fmt.Errorf("sniff: decode source: %w", err)
 	}
 	switch {
 	case probe.OpenAPI != "":
-		return frontend.SourceFormat{Name: "openapi", Version: majorMinor(probe.OpenAPI)}, nil
+		return compilers.SourceFormat{Name: "openapi", Version: majorMinor(probe.OpenAPI)}, nil
 	case probe.Swagger != "":
-		return frontend.SourceFormat{}, fmt.Errorf(
-			"swagger 2.0 is not supported yet (planned: lift into the openapi frontend)")
+		return compilers.SourceFormat{}, fmt.Errorf(
+			"swagger 2.0 is not supported yet (planned: lift into the openapi compiler)")
 	default:
-		return frontend.SourceFormat{}, fmt.Errorf("unrecognized spec format")
+		return compilers.SourceFormat{}, fmt.Errorf("unrecognized spec format")
 	}
 }
 

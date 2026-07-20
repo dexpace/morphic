@@ -1,5 +1,5 @@
 // Package ir defines Morphic's spec-agnostic intermediate representation: the
-// single contract between spec frontends and generator backends.
+// single contract between spec compilers and generator emitters.
 //
 // The shapes in this package are normatively specified in docs/ir-design.md;
 // field names and struct layouts must match that document exactly. All named

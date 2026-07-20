@@ -13,8 +13,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/dexpace/morphic/compilers"
 	"github.com/dexpace/morphic/engine"
-	"github.com/dexpace/morphic/frontend"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -24,7 +24,7 @@ type failWriter struct{ err error }
 
 func (f failWriter) Write([]byte) (int, error) { return 0, f.err }
 
-// closeFailWriteCloser accepts writes but fails Close, to drive writeParsed's
+// closeFailWriteCloser accepts writes but fails Close, to drive writeCompiled's
 // f.Close error branch.
 type closeFailWriteCloser struct {
 	buf      bytes.Buffer
@@ -34,16 +34,16 @@ type closeFailWriteCloser struct {
 func (c *closeFailWriteCloser) Write(p []byte) (int, error) { return c.buf.Write(p) }
 func (c *closeFailWriteCloser) Close() error                { return c.closeErr }
 
-// nilDocFrontend claims openapi 3.1 and lowers to a nil Document with no error,
-// modelling a frontend that refuses to lower (e.g. an unsupported construct)
-// so runParse's Document==nil branch is exercised.
-type nilDocFrontend struct{}
+// nilDocCompiler claims openapi 3.1 and lowers to a nil Document with no error,
+// modelling a compiler that refuses to lower (e.g. an unsupported construct)
+// so runCompile's Document==nil branch is exercised.
+type nilDocCompiler struct{}
 
-func (nilDocFrontend) Formats() []frontend.SourceFormat {
-	return []frontend.SourceFormat{{Name: "openapi", Version: "3.1"}}
+func (nilDocCompiler) Formats() []compilers.SourceFormat {
+	return []compilers.SourceFormat{{Name: "openapi", Version: "3.1"}}
 }
 
-func (nilDocFrontend) Parse(context.Context, []frontend.Source, frontend.Options) (*ir.Document, []ir.Diagnostic, error) {
+func (nilDocCompiler) Compile(context.Context, []compilers.Source, compilers.Options) (*ir.Document, []ir.Diagnostic, error) {
 	return nil, []ir.Diagnostic{{
 		Severity: ir.SeverityError,
 		Code:     "openapi/unsupported-version",
@@ -82,7 +82,7 @@ func TestRunParse_EngineConstructFails(t *testing.T) {
 	spec := writeFile(t, "spec.yaml", tinySpec)
 	var stdout, stderr bytes.Buffer
 
-	code := run([]string{"parse", spec}, &stdout, &stderr)
+	code := run([]string{"compile", spec}, &stdout, &stderr)
 
 	assert.Equal(t, 2, code)
 	assert.Contains(t, stderr.String(), "morphic: boom")
@@ -92,8 +92,8 @@ func TestRunParse_NilDocumentReturnsOne(t *testing.T) {
 	orig := newEngine
 	t.Cleanup(func() { newEngine = orig })
 	newEngine = func() (*engine.Engine, error) {
-		reg := frontend.NewRegistry()
-		if err := reg.Register(nilDocFrontend{}); err != nil {
+		reg := compilers.NewRegistry()
+		if err := reg.Register(nilDocCompiler{}); err != nil {
 			return nil, err
 		}
 		return engine.NewWithRegistry(reg), nil
@@ -102,7 +102,7 @@ func TestRunParse_NilDocumentReturnsOne(t *testing.T) {
 	spec := writeFile(t, "spec.yaml", tinySpec)
 	var stdout, stderr bytes.Buffer
 
-	code := run([]string{"parse", spec}, &stdout, &stderr)
+	code := run([]string{"compile", spec}, &stdout, &stderr)
 
 	assert.Equal(t, 1, code)
 	assert.Empty(t, stdout.String(), "no IR JSON should be written for a nil document")
@@ -114,7 +114,7 @@ func TestRunParse_UnknownFlagIsUsageError(t *testing.T) {
 	spec := writeFile(t, "spec.yaml", tinySpec)
 	var stdout, stderr bytes.Buffer
 
-	code := run([]string{"parse", spec, "--bogus"}, &stdout, &stderr)
+	code := run([]string{"compile", spec, "--bogus"}, &stdout, &stderr)
 
 	assert.Equal(t, 2, code)
 	assert.Contains(t, stderr.String(), "usage")
@@ -127,8 +127,8 @@ func TestRunParse_WrongPositionalCount(t *testing.T) {
 		name string
 		args []string
 	}{
-		{"no spec file", []string{"parse"}},
-		{"two spec files", []string{"parse", spec, spec}},
+		{"no spec file", []string{"compile"}},
+		{"two spec files", []string{"compile", spec, spec}},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -146,7 +146,7 @@ func TestRunParse_SkipValidateToStdout(t *testing.T) {
 	spec := writeFile(t, "spec.yaml", tinySpec)
 	var stdout, stderr bytes.Buffer
 
-	code := run([]string{"parse", spec, "--skip-validate"}, &stdout, &stderr)
+	code := run([]string{"compile", spec, "--skip-validate"}, &stdout, &stderr)
 
 	require.Equal(t, 0, code, "stderr: %s", stderr.String())
 	var doc ir.Document
@@ -158,7 +158,7 @@ func TestRunParse_MissingSpecFile(t *testing.T) {
 	t.Parallel()
 	var stdout, stderr bytes.Buffer
 
-	code := run([]string{"parse", filepath.Join(t.TempDir(), "nope.yaml")}, &stdout, &stderr)
+	code := run([]string{"compile", filepath.Join(t.TempDir(), "nope.yaml")}, &stdout, &stderr)
 
 	assert.Equal(t, 2, code)
 	assert.Contains(t, stderr.String(), "morphic:")
@@ -171,7 +171,7 @@ func TestRunParse_OutputCreateError(t *testing.T) {
 	badOut := filepath.Join(t.TempDir(), "missing-dir", "ir.json")
 	var stdout, stderr bytes.Buffer
 
-	code := run([]string{"parse", spec, "-o", badOut}, &stdout, &stderr)
+	code := run([]string{"compile", spec, "-o", badOut}, &stdout, &stderr)
 
 	assert.Equal(t, 2, code)
 	assert.Contains(t, stderr.String(), "create output")
@@ -276,7 +276,7 @@ func TestWriteDocument_WriteError(t *testing.T) {
 func TestWriteParsed_CreateError(t *testing.T) {
 	t.Parallel()
 	badOut := filepath.Join(t.TempDir(), "no-such-dir", "ir.json")
-	err := writeParsed(badOut, io.Discard, &ir.Document{Name: "ok"})
+	err := writeCompiled(badOut, io.Discard, &ir.Document{Name: "ok"})
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "create output")
 }
@@ -284,9 +284,9 @@ func TestWriteParsed_CreateError(t *testing.T) {
 func TestWriteParsed_WriteErrorClosesFile(t *testing.T) {
 	t.Parallel()
 	out := filepath.Join(t.TempDir(), "ir.json")
-	// A marshal failure surfaces through writeParsed's writeDocument branch after
+	// A marshal failure surfaces through writeCompiled's writeDocument branch after
 	// the file is created, exercising the close-and-return path.
-	err := writeParsed(out, io.Discard, badDoc())
+	err := writeCompiled(out, io.Discard, badDoc())
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "marshal ir document")
 }
@@ -297,7 +297,7 @@ func TestWriteParsed_CloseError(t *testing.T) {
 	wc := &closeFailWriteCloser{closeErr: errors.New("close failed")}
 	openOutput = func(string) (io.WriteCloser, error) { return wc, nil }
 
-	err := writeParsed("out.json", io.Discard, &ir.Document{Name: "ok"})
+	err := writeCompiled("out.json", io.Discard, &ir.Document{Name: "ok"})
 
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "close output")
@@ -307,6 +307,6 @@ func TestWriteParsed_CloseError(t *testing.T) {
 func TestWriteParsed_ToStdoutSuccess(t *testing.T) {
 	t.Parallel()
 	var buf bytes.Buffer
-	require.NoError(t, writeParsed("", &buf, &ir.Document{Name: "ok"}))
+	require.NoError(t, writeCompiled("", &buf, &ir.Document{Name: "ok"}))
 	assert.True(t, bytes.HasSuffix(buf.Bytes(), []byte("\n")))
 }

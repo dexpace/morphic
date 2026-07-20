@@ -13,7 +13,7 @@ import (
 // this bound only guards pathologically deep inline nesting.
 const maxSchemaDepth = 256
 
-// lowerer is the single mutable context of one Parse call: a local, never a
+// lowerer is the single mutable context of one Compile call: a local, never a
 // package global. It threads the interning table, accumulated diagnostics, and
 // the recursion depth counter through every schema position.
 type lowerer struct {
@@ -30,7 +30,7 @@ type lowerer struct {
 // newLowerer allocates a lowerer over one loaded document, with an empty IR
 // document and interning table ready for schema lowering.
 //
-//nolint:unparam // srcIndex varies once Parse drives the multi-source loop
+//nolint:unparam // srcIndex varies once Compile drives the multi-source loop
 func newLowerer(srcIndex int, doc *loaded, opts Options) *lowerer {
 	return &lowerer{
 		srcIndex:  srcIndex,

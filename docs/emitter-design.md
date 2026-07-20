@@ -1,23 +1,23 @@
-# Morphic Backend — Emitter Design
+# Morphic Emitter — Emitter Design
 
-The backend is the second half of the Morphic pipeline: it turns an `ir.Document` (plus its own
+The emitter is the second half of the Morphic pipeline: it turns an `ir.Document` (plus its own
 options) into generated SDK source, docs, mock servers, and other artifacts. This document is the
 normative contract for that half, the way `docs/ir-design.md` is normative for the IR. It extends
-the backend sketch in `docs/architecture.md §2.3`–`§2.4`; where the two disagree, `architecture.md`
-wins on stage boundaries and this document wins on the shapes inside a backend.
+the emitter sketch in `docs/architecture.md §2.3`–`§2.4`; where the two disagree, `architecture.md`
+wins on stage boundaries and this document wins on the shapes inside a emitter.
 
 Type sketches are written as Go because the implementation is Go. As in `ir-design.md`, field names
 and struct shapes here are the contract; receiver methods and helpers are not. The IR is consumed,
-never modified — a backend imports `ir` and reads it.
+never modified — a emitter imports `ir` and reads it.
 
 ---
 
 ## 1. Purpose, pipeline relationship, and the chosen architecture
 
-### 1.1 Where the backend sits
+### 1.1 Where the emitter sits
 
 ```
-frontend (spec → IR)  →  passes (IR → IR)  →  backend (IR → artifacts)
+compiler (spec → IR)  →  passes (IR → IR)  →  emitter (IR → artifacts)
                                                  │
                     ┌────────────────────────────┴─────────────────────────────┐
                     │  plan   — language-NEUTRAL decisions, computed ONCE,       │
@@ -29,9 +29,9 @@ frontend (spec → IR)  →  passes (IR → IR)  →  backend (IR → artifacts)
                     └────────────────────────────────────────────────────────────┘
 ```
 
-The engine (Layer 3) runs the frontend, then the passes (`validate · link · dedup · filter ·
+The engine (Layer 3) runs the compiler, then the passes (`validate · link · dedup · filter ·
 version-slice · overlay`), then — **once per document** — the shared plan, and finally each
-requested backend. A backend never sees a source spec, a frontend, another backend, or the engine
+requested emitter. A emitter never sees a source spec, a compiler, another emitter, or the engine
 (INV1). Its only structural input is an `ir.Document`; everything else it needs is either derived
 from the IR in the plan/refine stages or supplied as a separate, non-IR input (runtime policy,
 naming policy, shaping hints).
@@ -62,7 +62,7 @@ The definitive design is a **strict three-stage pipeline** with these decisions:
 
 1. **The plan layer is shared and computed once by the engine, keyed by IR stable IDs, and passed
    into every target.** This is the single most important structural choice: it is what makes the
-   docs backend, the mock backend, and every language SDK agree *by construction* rather than
+   docs emitter, the mock emitter, and every language SDK agree *by construction* rather than
    re-derive decisions and drift (the OpenAPI-Generator failure mode, prior-art.md §3). The
    plan is JSON-serializable and has its own language-independent golden-test corpus.
 
@@ -93,20 +93,20 @@ The trade this accepts, honestly: a new language costs a target-AST node set + a
 pipeline before it emits a line — heavier than dropping in a template pack. The payoff (compiler-
 enforced correctness, a free surface model, cross-language uniformity, identity-based merge) is
 real but back-loaded onto the first target, which is precisely milestone 3's charter. §5.5 and §14
-address the velocity cost directly, and the `Emit` seam is per-backend, so a future target that
+address the velocity cost directly, and the `Emit` seam is per-emitter, so a future target that
 genuinely wants templates for structure can implement `Emit` differently while reusing the same
 `plan` and refine step library.
 
-### 1.3 Backend design rules (in addition to the ten CLAUDE.md invariants)
+### 1.3 Emitter design rules (in addition to the ten CLAUDE.md invariants)
 
-1. **The IR is read-only.** No stage of a backend mutates the `ir.Document`. Lowering lands on the
+1. **The IR is read-only.** No stage of a emitter mutates the `ir.Document`. Lowering lands on the
    target AST, which is freshly built per (target × document).
 2. **Decisions live in Go, never in templates.** Any branch that depends on an IR fact or a policy
    value is resolved in plan or refine and reaches emit as a decided node. A template that inspects
    the IR is a design bug.
 3. **The un-lowered IR is the acceptance test.** If a refine step cannot make its decision from
    `IR + Plan + Options`, either the IR is under-designed (file a bug against `ir-design.md`) or the
-   fact is runtime policy (§6) — never a frontend change (INV2, INV9).
+   fact is runtime policy (§6) — never a compiler change (INV2, INV9).
 4. **Wire truth is a separate channel from identifiers.** Serialization always reads `WireName` /
    `WireID` / `WireNameByFormat`; it never reads a rendered identifier (INV4).
 5. **Nothing heuristic is silent, nothing un-lowerable is silent.** Inferred outputs are marked
@@ -115,28 +115,28 @@ genuinely wants templates for structure can implement `Emit` differently while r
 
 ---
 
-## 2. The backend contract
+## 2. The emitter contract
 
-Package `backend` is the Layer-2 contract. It imports **only** `ir` (Layer 0) plus its own shared
-sub-packages (`plan`, `policy`, `naming`, `manifest`, `verify`) — never `frontend`, never `engine`,
+Package `emitter` is the Layer-2 contract. It imports **only** `ir` (Layer 0) plus its own shared
+sub-packages (`plan`, `policy`, `naming`, `manifest`, `verify`) — never `compiler`, never `engine`,
 never a sibling target package (INV1; architecture.md §3). Enforced by the import-graph test (§7).
 
 ```go
-package backend
+package emitter
 
-// TargetKey identifies a backend in the registry: "go", "python", "docs", "mock/go", …
+// TargetKey identifies a emitter in the registry: "go", "python", "docs", "mock/go", …
 type TargetKey string
 
-// Backend is one target — a language SDK, a docs site, a mock server, a validator.
+// Emitter is one target — a language SDK, a docs site, a mock server, a validator.
 // Pure and reentrant: no package-level mutable state, no clock, no randomness, no stderr,
 // no filesystem I/O. Same input ⇒ byte-identical output (INV5, INV7).
-type Backend interface {
+type Emitter interface {
     Target() TargetKey
     Capabilities() Capabilities          // lets the engine reason without running (§2.3)
-    Generate(BackendInput) BackendOutput // the whole backend, as one pure function
+    Generate(EmitterInput) EmitterOutput // the whole emitter, as one pure function
 }
 
-type BackendInput struct {
+type EmitterInput struct {
     Doc     *ir.Document          // the ABI — the ONLY structural input (INV1)
     Plan    *plan.Plan            // language-neutral decisions, computed ONCE by the engine (§3)
     Policy  policy.Policy         // runtime/SDK behavior — a SEPARATE tree, never in the IR (INV10; §6)
@@ -148,7 +148,7 @@ type BackendInput struct {
     Options TargetOptions         // module path, root package, output layout — free-form per target
 }
 
-type BackendOutput struct {
+type EmitterOutput struct {
     Artifacts   []Artifact          // files (+ integration directives) — no I/O performed here
     Diagnostics []ir.Diagnostic     // typed, coded, provenance-bearing; engine decides fatality
     Manifest    *manifest.Manifest  // entity→symbol map keyed by IR stable IDs (§11)
@@ -172,26 +172,26 @@ type Artifact struct {
 }
 ```
 
-`error` is not part of the `Generate` signature: a backend has no failure mode that is not either a
+`error` is not part of the `Generate` signature: a emitter has no failure mode that is not either a
 `Diagnostic` (something about the input it cannot lower) or a programmer bug (a `TypeKind` with no
 dispatch — caught by the switch-completeness test at build time, §13, not at runtime). This keeps
 the contract pure and total.
 
 ### 2.1 The registry
 
-Keyed by `TargetKey`, populated by each target's `init()` — mirroring the frontend registry
+Keyed by `TargetKey`, populated by each target's `init()` — mirroring the compiler registry
 (architecture.md §2.1):
 
 ```go
-var registry = map[TargetKey]func() Backend{}
+var registry = map[TargetKey]func() Emitter{}
 
-func Register(t TargetKey, ctor func() Backend) { registry[t] = ctor }
-func New(t TargetKey) (Backend, bool)           { c, ok := registry[t]; if !ok { return nil, false }; return c(), true }
+func Register(t TargetKey, ctor func() Emitter) { registry[t] = ctor }
+func New(t TargetKey) (Emitter, bool)           { c, ok := registry[t]; if !ok { return nil, false }; return c(), true }
 func Targets() []TargetKey                        // sorted — determinism (INV7)
 ```
 
 The engine is the only caller of `New`, the only thing that runs `Generate`, and the only thing
-that touches the filesystem, prunes, and renders diagnostics. Backends are I/O-free.
+that touches the filesystem, prunes, and renders diagnostics. Emitters are I/O-free.
 
 ### 2.2 Who computes the plan
 
@@ -204,13 +204,13 @@ it. A single-target invocation may compute the plan inline; the function is the 
 
 ### 2.3 Capabilities
 
-`Capabilities()` lets the engine reason about a backend without running it — which IR `TypeKind`s
+`Capabilities()` lets the engine reason about a emitter without running it — which IR `TypeKind`s
 it lowers, whether it supports write/integrate, whether it produces a surface for compat. It is
 advisory metadata, not a second decision channel; it never changes what `Generate` emits.
 
 ```go
 type Capabilities struct {
-    LowersKinds     []ir.TypeKind // the kinds this backend has an emit path for
+    LowersKinds     []ir.TypeKind // the kinds this emitter has an emit path for
     WriteIntegrate  bool          // supports additive merge into a live repo (§11)
     SurfaceVerify   bool          // produces a verify.Surface (§12)
     Protocols       []string      // "http", "grpc", "message", "graphql", "otp"
@@ -222,20 +222,20 @@ type Capabilities struct {
 - **Purity / determinism.** No I/O, clock, randomness, or stderr inside `Generate`. Same
   `(Doc, Plan, Policy, Naming, Hints, Scope, Options)` ⇒ byte-identical `Artifacts`. Maps are
   walked in sorted-key order, slices in source order (§13 test T-6).
-- **Diagnostics are the only input-failure channel.** A construct the backend cannot lower emits
-  `ir.Diagnostic{Severity, Code:"backend/<target>/…", Message, Provenance}` — never a silent
-  fallback, never a panic (§13 test T-7). Codes live in a stable `backend/<target>/…` namespace.
+- **Diagnostics are the only input-failure channel.** A construct the emitter cannot lower emits
+  `ir.Diagnostic{Severity, Code:"emitters/<target>/…", Message, Provenance}` — never a silent
+  fallback, never a panic (§13 test T-7). Codes live in a stable `emitters/<target>/…` namespace.
 - **Full document under scope.** Scope gates *emission*, not the plan or naming; global decisions
   are computed over the whole document so a scoped run is byte-identical to the corresponding slice
   of a full run. Scope is never a filtered `Document`.
-- **Snapshots only.** The engine runs `version-slice` first; the backend receives a single version
+- **Snapshots only.** The engine runs `version-slice` first; the emitter receives a single version
   snapshot and never interprets `Availability`.
 
 ---
 
 ## 3. The plan layer
 
-`backend/plan` (Layer 2, imports `ir` only). `Build` is pure, deterministic, and JSON-serializable
+`emitters/plan` (Layer 2, imports `ir` only). `Build` is pure, deterministic, and JSON-serializable
 (INV7) so it can be cached, shared out-of-process, and golden-tested independently of any language.
 
 ```go
@@ -333,7 +333,7 @@ type ReturnShape     string          // "model" | "void" | "list_elementwise" | 
 ```
 
 `PrimaryResponse` / `PrimaryContent` are the *one legitimate home* for the collapse oagen performs
-destructively in its frontend and Morphic forbids there (INV2): the IR keeps every response and
+destructively in its compiler and Morphic forbids there (INV2): the IR keeps every response and
 content type whole; "pick a primary for the ergonomic method" happens here, lowered late. `Content
 negotiation` default (`json > form > multipart > binary`) is a shared, overridable plan helper
 (resolves `ir-design.md` open Q3).
@@ -423,7 +423,7 @@ a neutral per-protocol view a refiner turns into a request builder: which params
 header/cookie/body, their style/explode/prefix, RPC message folding, message channel + reply, the
 GraphQL entry point, the OTP call/cast shape. One operation may carry several bindings (gRPC
 transcoding `additional_bindings`, HTTP+RPC); all are represented, primary first. This resolves
-`ir-design.md` open Q6 on the backend side: status conditions and `StatusCodeProp` are read through
+`ir-design.md` open Q6 on the emitter side: status conditions and `StatusCodeProp` are read through
 the HTTP `BindingView`, so RPC/OTP single-response ops with empty conditions are handled uniformly.
 
 ```go
@@ -451,8 +451,8 @@ type MsgView struct { Channel ir.ChannelID; Direction ir.MsgDirection; Reply *ir
 ```
 
 The Go-first walkthrough (§8) exercises `Protocol == "http"`; the RPC/message/OTP arms exist in the
-type so the second-protocol backend (open Q4) does not force a plan schema change (INV9). Channels
-and messages (`ir-design.md §8.3`) reach a backend through `MsgView`; a messaging target consumes
+type so the second-protocol emitter (open Q4) does not force a plan schema change (INV9). Channels
+and messages (`ir-design.md §8.3`) reach a emitter through `MsgView`; a messaging target consumes
 them the same way an HTTP target consumes `HTTP`.
 
 `GroupPlan` mirrors the `OperationGroup` tree so a refiner can build sub-clients / fluent navigation:
@@ -488,7 +488,7 @@ guard against a heuristic silently defaulting on and quietly making the plan non
 
 ## 4. The refine layer
 
-`backend/<target>/refine`. This is where the "lossless, lowered late" bet is cashed (INV2) and
+`emitters/<target>/refine`. This is where the "lossless, lowered late" bet is cashed (INV2) and
 the **only** place names get cased (INV4). It reads the immutable IR and the shared Plan and
 **constructs typed nodes of a per-language target AST**. It never mutates the IR and never mutates a
 shared cross-language tree.
@@ -503,7 +503,7 @@ is a **pure function `IR+Plan → nodes`**, not an in-place edit:
 package refine
 
 type Refiner interface {
-    Target() backend.TargetKey
+    Target() emitter.TargetKey
     Steps()  []Step             // ORDERED — composition order is part of the contract
 }
 
@@ -517,7 +517,7 @@ type Ctx struct {
     Plan    *plan.Plan          // read-only shared decisions
     Policy  policy.Policy        // read-only SDK runtime policy (§6)
     Naming  naming.Policy        // per-target casing/acronym/reserved-word engine (INV4)
-    Hints   map[backend.EntityID]backend.ShapeHint
+    Hints   map[emitter.EntityID]emitter.ShapeHint
     Out     TargetAST            // the per-language AST being built (e.g. *goast.Module)
     Syms    *SymbolTable         // ID-keyed; collision resolution never touches IR identity
 }
@@ -571,7 +571,7 @@ concrete lowering strategies for the load-bearing axes follow.
 
 ### 4.3 The target AST substrate
 
-The target AST (`backend/golang/goast` for the first target) is a small, purpose-built,
+The target AST (`emitters/golang/goast` for the first target) is a small, purpose-built,
 sealed-sum syntax layer — the exact Go the SDK needs, at declaration/signature granularity — modelled
 with the same discipline the IR uses (INV Go-conventions): an unexported marker method, one
 struct per node kind, a `Kind()` accessor, a generated switch-completeness test over the node enum.
@@ -579,7 +579,7 @@ struct per node kind, a `Kind()` accessor, a generated switch-completeness test 
 ```go
 package goast
 
-type Node interface { node(); Kind() NodeKind; Origin() backend.EntityID }
+type Node interface { node(); Kind() NodeKind; Origin() emitter.EntityID }
 
 type Module struct { Packages []*Package }
 type StructType struct {
@@ -599,7 +599,7 @@ type Method struct { Common; Name Ident; Params []*Param; Returns Expr; Kind Met
 type ErrorType struct { Common; Fault string; Retryable *bool; Throttling *bool }
 
 type Common struct {
-    origin backend.EntityID   // ← the IR ID this node came from (manifest / surface / prune; INV3)
+    origin emitter.EntityID   // ← the IR ID this node came from (manifest / surface / prune; INV3)
     prov   ir.Provenance      // passthrough for diagnostics + Inferred marking
     ident  Ident              // NEUTRAL until RenderCasing runs — holds Naming.Canonical, not a cased string
 }
@@ -643,7 +643,7 @@ ogen's `schema_gen_sum.go` is the battle-tested enumeration to lift: try, in ord
 discriminator → implicit discriminator (variant const/name) → JSON-type discrimination (variants
 distinguishable by JSON kind) → unique-field discrimination → value-based. The decisive divergence:
 ogen computes this *while building the Go model*, so a union it cannot discriminate aborts the whole
-generation. Because Morphic keeps `Union` lossless in the IR and only a backend picks a strategy, a
+generation. Because Morphic keeps `Union` lossless in the IR and only a emitter picks a strategy, a
 Go refiner that finds no strategy emits a coded diagnostic and falls back to `json.RawMessage` per
 variant — a degrade, never a whole-document failure (§13 test T-7). That graceful-degradation margin
 is exactly what the ABI seam buys and the fused-pipeline generator cannot have.
@@ -751,7 +751,7 @@ the pre-split neutral words, there is no lossy runtime re-splitting of a cased s
 `WireName`/`WireID`** — struct tags are built from the wire channel, so wire correctness never
 depends on the rendered identifier (§13 test T-4). Collisions are resolved deterministically in
 `Ctx.Syms`, which is keyed by IR ID: adding one endpoint never renames an existing method (the oagen
-collision-cascade counterexample; INV3). Anonymous hoisted types get a backend-chosen name from
+collision-cascade counterexample; INV3). Anonymous hoisted types get a emitter-chosen name from
 `Naming.Hint`. Per-service presentation renames (`Service.Renames`) change how a shape is presented
 in a service without changing its `TypeID` or its own `Naming`.
 
@@ -767,7 +767,7 @@ of the IR (prior-art §2). `OperationGroup` nesting becomes sub-clients / fluent
 
 ## 5. The emit layer
 
-`backend/<target>/emit` plus per-target printer. Emit is a **pure fold** `print(TargetAST) → []byte`,
+`emitters/<target>/emit` plus per-target printer. Emit is a **pure fold** `print(TargetAST) → []byte`,
 then the language's native formatter canonicalises the result.
 
 ### 5.1 Typed AST → text → native formatter (the rationale)
@@ -791,7 +791,7 @@ parsed" is a lookup.
 |---|---|---|
 | Models, enums, unions, discriminators, operations, clients, error types, serializers | **Typed AST nodes** | Spec-derived *structure*; correctness must be compiler-checked; must be uniform across languages |
 | Runtime core: HTTP transport, retry loop, backoff+jitter, pagination iterator runtime, auth injectors, logging hooks | **Templates**, one small file each, parameterised by `Policy` | Policy-driven *boilerplate* whose shape does not vary with the spec |
-| Package docs, README, per-op usage examples | **Docs backend** (`docast`, §10) | Prose with holes |
+| Package docs, README, per-op usage examples | **Docs emitter** (`docast`, §10) | Prose with holes |
 
 A retry loop is the same code for every API; only numbers and header names vary. A typed AST there
 buys nothing and costs readability. But a template with an `if` that inspects the IR is a design bug
@@ -826,18 +826,18 @@ boilerplate that backs the interface.
 Emit walks the AST in source order and any map in sorted-key order (INV7); identical `IR + options`
 ⇒ byte-identical output (§13 test T-6), which is what makes golden snapshots and the ID-keyed
 manifest meaningful. On velocity: a new *language* is expensive (node set + printer + pipeline), but
-a new *non-SDK backend* (docs, mock) is cheap because it reuses the shared plan and most of the
+a new *non-SDK emitter* (docs, mock) is cheap because it reuses the shared plan and most of the
 refine step library (§10); and the per-language cost buys compiler-enforced correctness, a free
 surface model, and identity-based merge that a template pack cannot. The `Emit` seam remaining
-per-backend means a target may opt into templates-for-structure if it ever needs to — the design
+per-emitter means a target may opt into templates-for-structure if it ever needs to — the design
 does not mandate typed-AST emit, it defaults to it.
 
 ---
 
 ## 6. Runtime/SDK policy — a separate input
 
-`backend/policy` (INV10; architecture.md §2.4). The behavioral configuration of generated
-SDKs is a backend input alongside the IR, **never a field on `ir.Document`** — the divergence from
+`emitters/policy` (INV10; architecture.md §2.4). The behavioral configuration of generated
+SDKs is a emitter input alongside the IR, **never a field on `ir.Document`** — the divergence from
 oagen, which attaches `SdkBehavior` to its spec root. Keeping the trees separate lets one IR drive
 SDKs, docs, and mock servers without dragging SDK opinions along.
 
@@ -866,8 +866,8 @@ func Merge(base Policy, over DeepPartial) Policy // scalars override; ARRAYS REP
 
 ### 6.2 Delivery
 
-Canonical `Defaults()` + deep-partial per-backend/per-project overrides. Arrays replace
-entirely (not concat) — an explicit, documented rule. Policy is delivered in `BackendInput.Policy`;
+Canonical `Defaults()` + deep-partial per-emitters/per-project overrides. Arrays replace
+entirely (not concat) — an explicit, documented rule. Policy is delivered in `EmitterInput.Policy`;
 refiners read it via `Ctx.Policy`, and it shapes only the generated *runtime binding* (the retry
 loop, transport config, user-agent string, telemetry headers, pagination pacing) behind the
 `Transport`/`Serializer` abstraction. It never enters the typed structural model (§5.4).
@@ -884,7 +884,7 @@ overridden by a spec fact, an `Inferred`-marked diagnostic is emitted so nothing
 
 oagen's `OperationHint` / rename / remount / split-union-body / url-builder machinery is *SDK
 ergonomics, not API semantics* — the same category as runtime policy. It lives in
-`BackendInput.Hints`, keyed by **IR stable ID** (never `"METHOD /path"`), so a path rename never
+`EmitterInput.Hints`, keyed by **IR stable ID** (never `"METHOD /path"`), so a path rename never
 drops a hint (INV3):
 
 ```go
@@ -899,19 +899,19 @@ type ShapeHint struct {
 ```
 
 Method-name *derivation* is itself an injectable policy marked `Inferred`, disable-able and
-overridable. Per-target naming/compat overlays are the same shape: a backend input keyed by IR ID,
+overridable. Per-target naming/compat overlays are the same shape: a emitter input keyed by IR ID,
 so one IR document drives different compat baselines per language.
 
 ---
 
 ## 7. Package layout & layering
 
-Consistent with architecture.md §3 (`backend/*` is Layer 2: imports `ir` + the backend contract,
-never `frontend`, never `engine`, never a sibling target):
+Consistent with architecture.md §3 (`emitters/*` is Layer 2: imports `ir` + the emitter contract,
+never `compiler`, never `engine`, never a sibling target):
 
 ```
-backend/
-├── contract.go        # Backend, BackendInput/Output, Artifact, Capabilities, TargetKey, registry
+emitters/
+├── contract.go        # Emitter, EmitterInput/Output, Artifact, Capabilities, TargetKey, registry
 ├── plan/              # SHARED, language-neutral — imports ir only. Build(), Plan, OpPlan, TypePlan, ModelShape
 │   └── plantest/      #   golden snapshots of Plan (language-independent corpus)
 ├── policy/            # runtime SDK-policy vocabulary + Defaults() + Merge(DeepPartial) (INV10)
@@ -922,30 +922,30 @@ backend/
 ├── manifest/          # generation manifest (ID-keyed), header provenance, additive-merge driver (§11)
 ├── verify/            # neutral Surface projection, differ, injectable per-language severity (§12)
 ├── golang/            # ◀ FIRST TARGET (TargetKey "go")
-│   ├── backend.go     #   init() Register("go", …); wires plan→refine→emit
+│   ├── emitter.go     #   init() Register("go", …); wires plan→refine→emit
 │   ├── goast/         #   typed target AST (sealed sum) + printer
 │   ├── refine/        #   IR+Plan → goast — the ordered lowering pipeline (§4)
 │   ├── emit/          #   goast → []byte via printer + go/format; templates/ (boilerplate only)
 │   ├── naming/        #   Go reserved words + default acronym table (naming.Policy impl)
 │   └── mergeadapter.go#   go/ast additive-merge adapter (registers into manifest driver)
-├── docs/              # docs backend: reuses plan + refine step library; docast + Markdown/HTML printer (§10)
-└── mock/              # mock-server backend: reuses plan; server-routing AST + printer (§10)
+├── docs/              # docs emitter: reuses plan + refine step library; docast + Markdown/HTML printer (§10)
+└── mock/              # mock-server emitter: reuses plan; server-routing AST + printer (§10)
 ```
 
-`goast` lives *under* `backend/golang`, not in the shared contract, because a target AST is
+`goast` lives *under* `emitters/golang`, not in the shared contract, because a target AST is
 per-language by definition. `plan`, `policy`, `naming`, `refine` (the contract + shared helpers),
 `manifest`, and `verify` are shared because they are language-neutral.
 
-**Architecture test.** The import-graph assertion (written alongside the first backend packages, not
-after) asserts: `backend/golang` may import `backend`, `backend/plan`, `backend/policy`,
-`backend/naming`, `backend/refine`, `backend/manifest`, `backend/verify`, `ir`; it may **not** import
-`frontend/*`, `engine`, or any other `backend/<target>`. **Switch-completeness tests** live beside
+**Architecture test.** The import-graph assertion (written alongside the first emitter packages, not
+after) asserts: `emitters/golang` may import `emitter`, `emitters/plan`, `emitters/policy`,
+`emitters/naming`, `emitters/refine`, `emitters/manifest`, `emitters/verify`, `ir`; it may **not** import
+`compilers/*`, `engine`, or any other `emitters/<target>`. **Switch-completeness tests** live beside
 `goast` (over its `NodeKind`) and beside every refiner (over `ir.TypeKind`'s eleven kinds): adding an
 IR kind breaks compilation of every dispatch that must handle it (the `assertNever` obligation).
 
 ---
 
-## 8. First-target walkthrough — a Go SDK backend
+## 8. First-target walkthrough — a Go SDK emitter
 
 `TargetKey("go")`. Six IR constructs traced through `plan → refine → emit`. IR field names per
 `ir-design.md`.
@@ -1084,9 +1084,9 @@ declared poll op `GetExport` is `HTTPBinding{GET /exports/{id}}` returning an `E
 
 ## 9. The lowering table (normative IR → Go)
 
-The complete backend acceptance surface is `ir-design.md §4–§9`; this table is the
+The complete emitter acceptance surface is `ir-design.md §4–§9`; this table is the
 condensed normative mapping for the first target. Every row must have a Go emit path or a diagnosed
-degrade; a missing row is an IR bug (INV9), not a frontend change.
+degrade; a missing row is an IR bug (INV9), not a compiler change.
 
 | IR construct | Refine decision (Go) | Wire truth preserved |
 |---|---|---|
@@ -1116,29 +1116,29 @@ degrade; a missing row is an IR bug (INV9), not a frontend change.
 
 ---
 
-## 10. Docs and mock-server backends reuse the contract
+## 10. Docs and mock-server emitters reuse the contract
 
-Both are `Backend` implementations consuming the **same `Doc + Plan`** — the payoff of computing the
+Both are `Emitter` implementations consuming the **same `Doc + Plan`** — the payoff of computing the
 plan once: docs and mocks agree with the SDK by construction, not by re-derivation.
 
-- **Docs backend (`backend/docs`).** Reuses the shared plan verbatim (primary response/content,
+- **Docs emitter (`emitters/docs`).** Reuses the shared plan verbatim (primary response/content,
   pagination, return-shape, error taxonomy — exactly what docs must describe) and most of the refine
   step library, but lowers into a `docast` (pages, operation blocks, schema tables, examples) and
   runs a **reduced pipeline**: no `EscapeReservedWords`, and casing is a presentation choice (SDK-style
   identifiers or spec-faithful source names, a `naming.Policy` selection). `Docs.Description`
   `{t:TypeID}` cross-reference tokens resolve to intra-doc links via the *same* IR-ID lookup the Go
-  backend uses for doc comments — links survive renames. Examples use the schema arm (`Value/Headers`)
+  emitter uses for doc comments — links survive renames. Examples use the schema arm (`Value/Headers`)
   vs the operation arm (`Input/Output/Error`) correctly. No runtime `Policy` is consulted — proving
   the IR/policy split pays off.
-- **Mock-server backend (`backend/mock`).** Reuses `PrimaryResponse`/`PrimaryContent` and the IR
+- **Mock-server emitter (`emitters/mock`).** Reuses `PrimaryResponse`/`PrimaryContent` and the IR
   `Examples` to synthesize canned responses, the error taxonomy to simulate declared failures, the
   `BindingView` to route requests, and the visibility projections to honor the same wire shapes an
   SDK sends/receives. Refine lowers into a server-routing AST (routes from `HTTPBinding.URITemplate`,
   handlers validating against constraints). Because the same plan feeds SDK and mock, the two are
   **wire-consistent by construction** — the mock can *be* the interception target the SDK's
   wire-conformance harness (§13) is diffed against.
-- **Validation backend (future).** Additionally consumes the validation-only constructs preserved
-  verbatim in `Extensions` (`not`/`if-then-else`/`dependentSchemas`) that SDK/docs backends ignore.
+- **Validation emitter (future).** Additionally consumes the validation-only constructs preserved
+  verbatim in `Extensions` (`not`/`if-then-else`/`dependentSchemas`) that SDK/docs emitters ignore.
   The contract already carries them; no IR change is needed (INV9).
 
 Adding any of these is a registry entry over one `Doc + Plan` — no change to the ABI, no change to
@@ -1163,7 +1163,7 @@ seams; the `Origin`-tagged AST makes the manifest a byproduct of the emit walk.
 - **Ignore regions & additive-only merge.** Two provenance markers — whole-file
   (`@morphic:ignore-file`) and region (`@morphic:keep`/`:end`) — with append-only merge. The
   structural merge is **language-parameterised** by an adapter registered into the manifest driver;
-  the Go adapter (`backend/golang/mergeadapter.go`) uses `go/ast` to parse existing files and append
+  the Go adapter (`emitters/golang/mergeadapter.go`) uses `go/ast` to parse existing files and append
   only new top-level symbols, never delete. No adapter ⇒ skip, never clobber. Case-only renames go
   via a temp name (APFS/NTFS hazard).
 - **Staleness check.** `(prior-manifest entities − current entities) ∩ files-on-disk` surfaces
@@ -1174,7 +1174,7 @@ seams; the `Origin`-tagged AST makes the manifest a byproduct of the emit walk.
 
 ## 12. Surface verification / compat
 
-Post-milestone. `BackendOutput.Surface` is the neutral API-surface projection — classes, interfaces,
+Post-milestone. `EmitterOutput.Surface` is the neutral API-surface projection — classes, interfaces,
 enums, methods, fields as neutral records — built by the **same walk** over `Origin`-tagged AST nodes
 that emit performs.
 
@@ -1193,7 +1193,7 @@ that emit performs.
 
 ---
 
-## 13. Mandatory backend tests
+## 13. Mandatory emitter tests
 
 Built as the code lands, extending the testing strategy in `architecture.md §5`. Cited as `T-N`
 throughout this document.
@@ -1224,17 +1224,17 @@ throughout this document.
 
 ## 14. Per-target milestone plan
 
-Extends architecture.md §6 milestone 3 (the first backend) and beyond.
+Extends architecture.md §6 milestone 3 (the first emitter) and beyond.
 
-1. **M3a — plan layer + Go target skeleton.** `backend/plan` with its language-independent golden
-   corpus; `backend/golang` emitting models, enums, and one service client end-to-end. Proves the
+1. **M3a — plan layer + Go target skeleton.** `emitters/plan` with its language-independent golden
+   corpus; `emitters/golang` emitting models, enums, and one service client end-to-end. Proves the
    plan/refine/emit boundary and that the IR retains what a refiner needs (architecture.md §6 M3).
 2. **M3b — the hard axes.** Unions (all four tag modes), discriminators, visibility projections, the
    four optionality states, containers, external types, values. Each is a refine step tied to a
    specific un-lowered IR fact — the acceptance test cashed.
 3. **M3c — operations & runtime.** Pagination, streaming, LRO, error taxonomy, auth; the runtime
    policy tree and the boilerplate templates; the wire-conformance harness.
-4. **M3d — docs + mock backends.** Prove reuse of `Doc + Plan` over a second and third target AST,
+4. **M3d — docs + mock emitters.** Prove reuse of `Doc + Plan` over a second and third target AST,
    and that docs/mock agree with the SDK by construction.
 5. **M4 — write/integrate + surface verification.** Manifest, header-gated pruning, ignore regions,
    additive `go/ast` merge, staleness; neutral surface diff with injectable per-language severity.
@@ -1282,7 +1282,7 @@ Extends architecture.md §6 milestone 3 (the first backend) and beyond.
 4. **Protocol-view neutrality.** The `BindingView` and target-AST `MethodKind` must be designed
    against the full binding matrix (HTTP/RPC/message/GraphQL/OTP) from day one, or they ossify around
    HTTP the way Kiota's model did. The Go-first walkthrough is HTTP-heavy; the RPC/messaging targets
-   are the real test. Revisit when the second-protocol backend lands (tracks `ir-design.md` Q6).
+   are the real test. Revisit when the second-protocol emitter lands (tracks `ir-design.md` Q6).
 5. **Manifest granularity for merge.** Whether the entity→symbol map keys at property level (not just
    type/op level) to support field-level additive merge, or leaves sub-type merge to the `go/ast`
    adapter. Decide when write/integrate (M4) is built.
@@ -1296,13 +1296,13 @@ Extends architecture.md §6 milestone 3 (the first backend) and beyond.
 
 | INV | Where satisfied |
 |---|---|
-| 1 IR is the ABI | `BackendInput.Doc` is the only structural input; `backend/*` imports `ir` + shared contract, never `frontend`/`engine`/a sibling target (§2, §7) |
+| 1 IR is the ABI | `EmitterInput.Doc` is the only structural input; `emitters/*` imports `ir` + shared contract, never `compiler`/`engine`/a sibling target (§2, §7) |
 | 2 Lossless, lowered late | all lowering is in `refine` steps building a fresh target AST; the IR is never mutated; unions/enums/discriminators/visibility/pagination/streaming/LRO arrive un-lowered and the step list is the acceptance test (§4, §8) |
 | 3 Stable IDs, names presentation | plan, AST `Origin`, manifest, surface, hints, and the collision table are all keyed by IR stable ID; renames are lookups; collisions never touch identity (§3, §4.12, §11) |
-| 4 Names neutral, backend cases | `Ident` starts as `Naming.Canonical` word sequence; `RenderCasing`/`EscapeReservedWords` are the only casing steps; struct tags come from `WireName`/`WireID`, a separate channel (§4.12, §5) |
+| 4 Names neutral, emitter cases | `Ident` starts as `Naming.Canonical` word sequence; `RenderCasing`/`EscapeReservedWords` are the only casing steps; struct tags come from `WireName`/`WireID`, a separate channel (§4.12, §5) |
 | 5 Pure, typed diagnostics | `Generate` is pure/reentrant/no-stderr/no-I/O; every un-lowerable construct → coded `ir.Diagnostic`; the engine decides fatality (§2, §2.4) |
 | 6 Heuristics are policy | `plan.Policy`, `naming.Policy`, `verify.Severity`, method-name derivation, and shaping hints are injectable and disable-able; inferred outputs marked `Inferred` (§3.5, §6.4, §12) |
 | 7 Serializable/deterministic | `Plan` + manifest are JSON-serializable; maps walked sorted, slices source order; identical input ⇒ identical bytes (§3, §5.5, §13) |
 | 8 Optionality ≠ nullability | `LowerOptionality` renders all four states plus protobuf `Presence` as a third axis; collapses are diagnosed (§4.7) |
 | 9 Capability surface complete | every `ir.TypeKind` and every operation facet (pagination/streaming/LRO/one-way/messaging) has a lowering path or diagnosed degrade (§4.2, §9); docs/mock/validation are registry entries over the same `Doc + Plan`; a new language forces no IR or plan change (§10, §14 M5–M6) |
-| 10 Runtime policy separate | `policy.Policy` tree in `BackendInput.Policy`, never on `ir.Document`; it parameterises only boilerplate; declared IR facts win over its defaults (§6) |
+| 10 Runtime policy separate | `policy.Policy` tree in `EmitterInput.Policy`, never on `ir.Document`; it parameterises only boilerplate; declared IR facts win over its defaults (§6) |

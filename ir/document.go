@@ -1,6 +1,6 @@
 package ir
 
-// IRVersion is the semver of the IR schema itself. Frontends stamp it into
+// IRVersion is the semver of the IR schema itself. Compilers stamp it into
 // Document.IRVersion; consumers compare against it to detect schema drift.
 const IRVersion = "0.1.0"
 
@@ -49,7 +49,7 @@ type Document struct {
 	Versions []string `json:"versions,omitempty"`
 	// Extensions carries source metadata without a first-class IR node.
 	Extensions Extensions `json:"extensions,omitempty"`
-	// Diagnostics is accumulated by the frontend and passes; not part of API
+	// Diagnostics is accumulated by the compiler and passes; not part of API
 	// meaning.
 	Diagnostics []Diagnostic `json:"diagnostics,omitempty"`
 	// Sources describes the input files: format, path, content hash.

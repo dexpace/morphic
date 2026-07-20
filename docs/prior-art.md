@@ -33,7 +33,7 @@ and the differ/compat/verify subsystems added since the original survey).
   convergence on stable source identity; Morphic's IDs make the same key durable across path
   renames too. The hint vocabulary itself (rename, remount, split-union-body into typed wrapper
   methods, constant defaults, client-config-derived fields, URL-builder ops) is a concrete
-  inventory of what a client-shaping backend policy input must express.
+  inventory of what a client-shaping emitter policy input must express.
 - **Group metadata over an untouched wire list** — mutually-exclusive parameter groups
   (`x-mutually-exclusive-parameter-groups`) are modeled as grouping metadata whose variants
   share the parameter objects by identity, while the flat wire arrays stay authoritative for
@@ -64,16 +64,16 @@ and the differ/compat/verify subsystems added since the original survey).
 | Inline-schema naming logic duplicated across ≥6 call sites that must stay byte-identical — worse, *inferred discriminator mappings are name strings* that must reproduce the hoisting pass's naming byte-for-byte across files or they dangle | One hoisting pass, keyed by source-pointer identity; `Discriminator.Mapping` points at IDs, severing the naming coupling |
 | Reference nodes bake in the *target's* kind (`enum` vs `model` ref), so no reference can be built without global knowledge of all targets — the root cause of the two-pass module-global state | One `TypeRef{Target TypeID}`; kind lives on the registry entry |
 | `allOf` eagerly flattened to a field list — the inheritance relationship is lost | Composition preserved un-lowered (base + mixin provenance kept) |
-| oneOf merged as *optional fields* at top-level-schema and request-body positions — even when explicitly discriminated, for argument-spreading ergonomics (variant `required` discarded); only property-level unions survive as union nodes | Unions always survive as union nodes; ergonomic flattening is a backend plan decision |
-| Pagination/envelope detection via hardcoded name lists (with a fabricated `after` cursor param when none exists); single-resource envelope unwrapping applied *destructively* — the wrapper key vanishes from the IR with no recorded path | Heuristics are injectable frontend policy, never IR semantics; unwrap decisions are recorded as `PropPath`s, never applied to the stored shape |
+| oneOf merged as *optional fields* at top-level-schema and request-body positions — even when explicitly discriminated, for argument-spreading ergonomics (variant `required` discarded); only property-level unions survive as union nodes | Unions always survive as union nodes; ergonomic flattening is a emitter plan decision |
+| Pagination/envelope detection via hardcoded name lists (with a fabricated `after` cursor param when none exists); single-resource envelope unwrapping applied *destructively* — the wrapper key vanishes from the IR with no recorded path | Heuristics are injectable compiler policy, never IR semantics; unwrap decisions are recorded as `PropPath`s, never applied to the stored shape |
 | Discriminator *inference* is structural (const-property across variants — sound), but its output is welded to derived names (see above); name lists appear as tie-break preference order | Structural inference marked `Inferred`; output keyed by ID |
 | Failures are `console.warn`; unresolvable model refs left dangling with a warning; unrecognized schema shapes degrade to `unknown` — silently when anonymous | Typed diagnostics with severity + provenance, collected on the IR document |
 | Single "primary response" privileged (all 2xx kept, but inline-model extraction and pagination classification follow whichever iterates last); media-type multiplicity collapsed by fixed priority | All responses and all content types are first-class |
-| Mutable module-global parser state (non-reentrant; concurrent parses race) | Frontends are pure `(source, options) → (IR, diagnostics)` |
-| Collision-cascade operation renaming: same-named ops renamed in place by appending path context — adding one endpoint can rename *existing* SDK methods | Names are presentation; identity is the ID; naming collisions are a backend policy concern |
-| Name sanitization accretes hardcoded domain word-lists (acronym sets, `Json`-fork collapse passes doing registry surgery via string rewriting) | Acronym/cleanup policy is injectable per-frontend; the registry is never edited by string rewrite |
+| Mutable module-global parser state (non-reentrant; concurrent parses race) | Compilers are pure `(source, options) → (IR, diagnostics)` |
+| Collision-cascade operation renaming: same-named ops renamed in place by appending path context — adding one endpoint can rename *existing* SDK methods | Names are presentation; identity is the ID; naming collisions are a emitter policy concern |
+| Name sanitization accretes hardcoded domain word-lists (acronym sets, `Json`-fork collapse passes doing registry surgery via string rewriting) | Acronym/cleanup policy is injectable per-compiler; the registry is never edited by string rewrite |
 | Catch-all `additionalProperties` smuggled as a magic-named synthetic field (collides with a real property of that name); `patternProperties` truncated to the first pattern | `AdditionalProps{Value, Key, Patterns}` is its own channel |
-| `$ref`-site vs ref-target annotation merging patched ad-hoc for parameters only; model fields typed by `$ref` still lose target defaults | One documented precedence rule (use-site overrides target), applied uniformly in the frontend |
+| `$ref`-site vs ref-target annotation merging patched ad-hoc for parameters only; model fields typed by `$ref` still lose target defaults | One documented precedence rule (use-site overrides target), applied uniformly in the compiler |
 
 ### The diff/compat/verify subsystems — identity re-derived by heuristic
 
@@ -131,7 +131,7 @@ refiners (in-place tree mutations) → per-language writers`. The CodeDOM is a *
 | Kiota behavior | Morphic decision |
 |---|---|
 | Children keyed by *name* in each block → elaborate collision-reconciliation logic | ID-keyed containers; name uniqueness is a validation, not an identity mechanism |
-| Unions flattened early into `MemberN`-named wrapper conventions; unresolvable shapes fall back to opaque `UntypedNode` | Unions keep variant identity, tag mode, and open/closed semantics until a backend lowers them |
+| Unions flattened early into `MemberN`-named wrapper conventions; unresolvable shapes fall back to opaque `UntypedNode` | Unions keep variant identity, tag mode, and open/closed semantics until a emitter lowers them |
 | `allOf` supports only one true base; extra entries silently intersection-merged | Base + explicit mixin list, merge deferred |
 | Enums are string-backed only; no numeric values, no open/closed distinction | Enums carry a value type, member values, and an explicit open/closed bit |
 | Collections are flags on the type reference (`CollectionKind`), maps are not a distinct type | List/Map/Tuple are proper type nodes |
@@ -144,7 +144,7 @@ refiners (in-place tree mutations) → per-language writers`. The CodeDOM is a *
 RequestBuilder-per-URL-segment fluent navigation, RFC 6570 URI templates with a path-parameter
 dictionary, per-operation executor/generator method pairs, query-parameter classes, and
 request-configuration wrappers are all *generator-side* constructs. Morphic keeps these out of
-the IR; they belong to backend plan layers.
+the IR; they belong to emitter plan layers.
 
 ---
 
@@ -208,4 +208,4 @@ Interfaces/operation grouping, custom scalars with encodings, named union varian
 visibility, paging/LRO as semantics rather than convention, versioning timelines, values/consts,
 multi-service — all of these exist in TypeSpec and Smithy today, appear in the client IR, and are
 lost when squeezed through OpenAPI. Morphic's IR keeps them first-class so a future TypeSpec or
-Smithy frontend loses nothing.
+Smithy compiler loses nothing.

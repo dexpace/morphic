@@ -3,7 +3,7 @@
 What each source specification format can express, and what the Morphic IR must therefore be
 able to represent without loss. The IR is designed against the **union** of these capabilities,
 not the intersection — a generator target may ignore a capability, but the IR must never drop one.
-Erlang/OTP is included as a frontend target: its "spec" is module type information
+Erlang/OTP is included as a compiler target: its "spec" is module type information
 (`-spec`/`-type` on behaviour callbacks) plus the gen_server/gen_statem/gen_event message
 protocols.
 
@@ -110,10 +110,10 @@ Legend: ✅ native concept · ⚠ expressible indirectly · — absent
    request-reply carries both a static reply channel and a *dynamic* reply address (a path into
    the request message's headers).
 9. **Symbols are not strings.** Erlang atoms are a distinct term class (`ok` ≠ `<<"ok">>` on the
-   wire); the Values channel carries a symbol kind so backends degrade to strings explicitly,
+   wire); the Values channel carries a symbol kind so emitters degrade to strings explicitly,
    never accidentally.
 10. **Formats beyond this matrix already shape the IR.** Thrift/WSDL/Cap'n Proto service
     inheritance (services carry IDs and an extends list), Avro/XSD/OData decimal
     precision+scale, Avro aliases and enum fallback members, JSON-RPC positional params, and
     per-type namespaces (proto packages, Avro fullnames) are all held by the IR so those
-    frontends never force a schema change.
+    compilers never force a schema change.

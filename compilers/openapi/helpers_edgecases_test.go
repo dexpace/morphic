@@ -6,20 +6,20 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/dexpace/morphic/frontend"
+	"github.com/dexpace/morphic/compilers"
 	"github.com/dexpace/morphic/ir"
 )
 
-// sourceOf wraps a spec string as a frontend.Source.
-func sourceOf(src string) frontend.Source {
-	return frontend.Source{Path: "spec.yaml", Data: []byte(src)}
+// sourceOf wraps a spec string as a compilers.Source.
+func sourceOf(src string) compilers.Source {
+	return compilers.Source{Path: "spec.yaml", Data: []byte(src)}
 }
 
-// parseFull runs the whole public frontend pipeline over src.
+// parseFull runs the whole public compiler pipeline over src.
 func parseFull(t *testing.T, src string) (*ir.Document, []ir.Diagnostic) {
 	t.Helper()
-	doc, diags, err := New().Parse(context.Background(),
-		[]frontend.Source{{Path: "spec.yaml", Data: []byte(src)}}, frontend.Options{})
+	doc, diags, err := New().Compile(context.Background(),
+		[]compilers.Source{{Path: "spec.yaml", Data: []byte(src)}}, compilers.Options{})
 	require.NoError(t, err)
 	require.NotNil(t, doc)
 	return doc, diags

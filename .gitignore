@@ -29,6 +29,8 @@ go.work.sum
 
 # Subagent-driven-development scratch ledger (git-ignored, not shared)
 .superpowers/
+# Planning docs / SDD plan artifacts - kept local, never committed
+docs/superpowers/
 
 # env file
 .env

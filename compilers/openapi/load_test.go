@@ -6,7 +6,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/dexpace/morphic/frontend"
+	"github.com/dexpace/morphic/compilers"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -17,10 +17,10 @@ paths: {}
 
 func TestLoad_Minimal31(t *testing.T) {
 	t.Parallel()
-	got, diags, err := load(t.Context(), 0, frontend.Source{Path: "spec.yaml", Data: []byte(minimal31)}, Options{}.withDefaults())
+	got, diags, err := load(t.Context(), 0, compilers.Source{Path: "spec.yaml", Data: []byte(minimal31)}, Options{}.withDefaults())
 	require.NoError(t, err)
 	require.NotNil(t, got)
-	assert.Equal(t, frontend.SourceFormat{Name: "openapi", Version: "3.1"}, got.Format)
+	assert.Equal(t, compilers.SourceFormat{Name: "openapi", Version: "3.1"}, got.Format)
 	assert.Equal(t, "spec.yaml", got.Source.Path)
 	assert.Len(t, got.Source.Hash, 64)
 	for _, d := range diags {
@@ -30,7 +30,7 @@ func TestLoad_Minimal31(t *testing.T) {
 
 func TestLoad_UnsupportedVersion(t *testing.T) {
 	t.Parallel()
-	src := frontend.Source{Path: "old.yaml", Data: []byte("swagger: \"2.0\"\ninfo: {title: T, version: \"1\"}\npaths: {}\n")}
+	src := compilers.Source{Path: "old.yaml", Data: []byte("swagger: \"2.0\"\ninfo: {title: T, version: \"1\"}\npaths: {}\n")}
 	got, diags, err := load(t.Context(), 0, src, Options{}.withDefaults())
 	require.NoError(t, err) // spec problems are diagnostics, not Go errors
 	assert.Nil(t, got)
@@ -42,7 +42,7 @@ func TestLoad_UnsupportedVersion(t *testing.T) {
 func TestLoad_ValidationErrorsBecomeDiagnostics(t *testing.T) {
 	t.Parallel()
 	// paths entry with a bogus structure triggers library validation errors.
-	src := frontend.Source{Path: "bad.yaml", Data: []byte("openapi: 3.1.0\ninfo: {title: T, version: \"1\"}\npaths: {/x: {get: {responses: \"nope\"}}}\n")}
+	src := compilers.Source{Path: "bad.yaml", Data: []byte("openapi: 3.1.0\ninfo: {title: T, version: \"1\"}\npaths: {/x: {get: {responses: \"nope\"}}}\n")}
 	_, diags, err := load(t.Context(), 0, src, Options{}.withDefaults())
 	require.NoError(t, err)
 	require.NotEmpty(t, diags)
