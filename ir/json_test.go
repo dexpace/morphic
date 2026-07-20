@@ -106,3 +106,42 @@ func TestTypeRegistry_UnmarshalRejectsUnknownKind(t *testing.T) {
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "bogus")
 }
+
+func TestTypeRegistry_UnmarshalErrors(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		name    string
+		data    string
+		wantSub string
+	}{
+		{
+			name:    "outer_not_a_map",
+			data:    `["not", "a", "map"]`,
+			wantSub: "type registry:",
+		},
+		{
+			name:    "entry_not_an_object",
+			data:    `{"t/x":123}`,
+			wantSub: "reading kind tag:",
+		},
+		{
+			name:    "unknown_kind",
+			data:    `{"t/x":{"kind":"nope"}}`,
+			wantSub: `unknown kind "nope"`,
+		},
+		{
+			name:    "concrete_body_type_mismatch",
+			data:    `{"t/x":{"kind":"primitive","prim":123}}`,
+			wantSub: "t/x (primitive):",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			var reg ir.TypeRegistry
+			err := json.Unmarshal([]byte(tt.data), &reg)
+			require.Error(t, err)
+			assert.Contains(t, err.Error(), tt.wantSub)
+		})
+	}
+}
