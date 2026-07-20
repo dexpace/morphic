@@ -100,7 +100,7 @@ func TestValueFromNode_MappingValueError(t *testing.T) {
 func TestValueFromNode_DepthCapExceeded(t *testing.T) {
 	t.Parallel()
 	n := scalarNode("!!int", "1")
-	for i := 0; i < maxValueDepth+2; i++ {
+	for range maxValueDepth + 2 {
 		n = &yaml.Node{Kind: yaml.SequenceNode, Content: []*yaml.Node{n}}
 	}
 	_, err := valueFromNode(n)

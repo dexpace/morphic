@@ -259,7 +259,7 @@ func TestValidate_ExcessiveGroupNestingIsTruncated(t *testing.T) {
 	buried := ir.Operation{ID: "deep", OneWay: true, Responses: []ir.Response{{}}}
 	// Nest it 200 levels deep, past maxGroupDepth (128).
 	group := ir.OperationGroup{Operations: []ir.Operation{buried}}
-	for i := 0; i < 200; i++ {
+	for range 200 {
 		group = ir.OperationGroup{Groups: []ir.OperationGroup{group}}
 	}
 	doc := validDoc()

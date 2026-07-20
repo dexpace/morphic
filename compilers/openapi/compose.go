@@ -1,6 +1,7 @@
 package openapi
 
 import (
+	"slices"
 	"strconv"
 	"strings"
 
@@ -165,17 +166,10 @@ func (l *lowerer) lowerOneOfAnyOf(s *oas3.Schema, pointer, hint string) ir.TypeR
 // schema, so its nullability lifts onto the enclosing union ref rather than
 // degrading to an `any` variant.
 func oneOfAnyOfHasNull(s *oas3.Schema) bool {
-	for _, b := range s.GetOneOf() {
-		if isNullSchema(b) {
-			return true
-		}
+	if slices.ContainsFunc(s.GetOneOf(), isNullSchema) {
+		return true
 	}
-	for _, b := range s.GetAnyOf() {
-		if isNullSchema(b) {
-			return true
-		}
-	}
-	return false
+	return slices.ContainsFunc(s.GetAnyOf(), isNullSchema)
 }
 
 // buildUnion assembles the Union node for a oneOf/anyOf schema, attaching a

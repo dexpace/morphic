@@ -1,6 +1,7 @@
 package openapi
 
 import (
+	"slices"
 	"strings"
 
 	oas3 "github.com/speakeasy-api/openapi/jsonschema/oas3"
@@ -254,7 +255,7 @@ func splitContentTypes(raw string) []string {
 		return nil
 	}
 	var out []string
-	for _, part := range strings.Split(raw, ",") {
+	for part := range strings.SplitSeq(raw, ",") {
 		if s := strings.TrimSpace(part); s != "" {
 			out = append(out, s)
 		}
@@ -301,12 +302,7 @@ func schemaIsArray(s *oas3.Schema) bool {
 
 // schemaHasType reports whether a schema's declared type set contains st.
 func schemaHasType(s *oas3.Schema, st oas3.SchemaType) bool {
-	for _, t := range s.GetType() {
-		if t == st {
-			return true
-		}
-	}
-	return false
+	return slices.Contains(s.GetType(), st)
 }
 
 // schemaOf returns the concrete Schema of a schema-or-ref-or-bool position,
