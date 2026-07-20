@@ -497,7 +497,7 @@ func faultFor(r ir.StatusRange) string {
 // firstPathSegment returns the first non-empty segment of a path, or "" when the
 // path has none.
 func firstPathSegment(path string) string {
-	for _, seg := range strings.Split(path, "/") {
+	for seg := range strings.SplitSeq(path, "/") {
 		if seg != "" {
 			return seg
 		}

@@ -1,6 +1,7 @@
 package openapi
 
 import (
+	"maps"
 	"strings"
 
 	soa "github.com/speakeasy-api/openapi/openapi"
@@ -147,10 +148,7 @@ func scopeMap(f *soa.OAuthFlow) map[string]string {
 	if scopes == nil || scopes.Len() == 0 {
 		return nil
 	}
-	out := make(map[string]string, scopes.Len())
-	for name, desc := range scopes.All() {
-		out[name] = desc
-	}
+	out := maps.Collect(scopes.All())
 	return out
 }
 

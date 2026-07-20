@@ -2,6 +2,8 @@ package openapi
 
 import (
 	"encoding/json"
+	"maps"
+	"slices"
 	"strconv"
 	"strings"
 	"unicode"
@@ -638,12 +640,7 @@ func schemaHasNull(s *oas3.Schema) bool {
 	if s.Nullable != nil && *s.Nullable {
 		return true
 	}
-	for _, t := range s.GetType() {
-		if t == oas3.SchemaTypeNull {
-			return true
-		}
-	}
-	return false
+	return slices.Contains(s.GetType(), oas3.SchemaTypeNull)
 }
 
 // nullUnionCollapse detects a oneOf/anyOf that has exactly one non-null branch
@@ -864,9 +861,7 @@ func mergeExtensions(dst, src ir.Extensions) ir.Extensions {
 	if dst == nil {
 		dst = ir.Extensions{}
 	}
-	for k, v := range src {
-		dst[k] = v
-	}
+	maps.Copy(dst, src)
 	return dst
 }
 

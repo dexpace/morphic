@@ -110,7 +110,7 @@ func TestLower_DepthCapExceeded(t *testing.T) {
 	var b strings.Builder
 	b.WriteString("    Deep:\n")
 	indent := "      "
-	for i := 0; i < maxSchemaDepth+4; i++ {
+	for range maxSchemaDepth + 4 {
 		b.WriteString(indent + "type: array\n")
 		b.WriteString(indent + "items:\n")
 		indent += "  "

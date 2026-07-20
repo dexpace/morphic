@@ -2,7 +2,7 @@ package pass
 
 import (
 	"fmt"
-	"sort"
+	"slices"
 
 	"github.com/dexpace/morphic/ir"
 )
@@ -467,6 +467,6 @@ func sortedKeys[K ~string, V any](m map[K]V) []K {
 	for k := range m {
 		keys = append(keys, k)
 	}
-	sort.Slice(keys, func(i, j int) bool { return keys[i] < keys[j] })
+	slices.Sort(keys)
 	return keys
 }
