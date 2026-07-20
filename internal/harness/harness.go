@@ -8,9 +8,6 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/google/go-cmp/cmp"
-	"github.com/google/go-cmp/cmp/cmpopts"
-
 	"github.com/dexpace/morphic/compilers"
 	"github.com/dexpace/morphic/compilers/openapi"
 	"github.com/dexpace/morphic/ir"
@@ -100,22 +97,29 @@ func firstErrorDiag(diags []ir.Diagnostic) (ir.Diagnostic, bool) {
 	return ir.Diagnostic{}, false
 }
 
-// roundTrips marshals doc, unmarshals it back into a fresh Document, and
-// compares. It reports the cmp diff on mismatch. cmpopts.EquateEmpty treats a
-// nil and an empty collection as equal: the IR's omitempty JSON tags collapse
-// empty non-nil registries and slices to absent, so they return as nil — a
-// normalization, not the data loss this oracle exists to catch.
+// roundTrips marshals doc, unmarshals it into a fresh Document, re-marshals
+// that, and compares the two JSON encodings byte for byte. Comparing serialized
+// forms — not the in-memory structs — is the faithful round-trip oracle: an
+// omitempty empty-but-non-nil collection and nil encode identically, so this
+// ignores that unpreservable distinction, while still catching any real
+// serialization loss — including a null-vs-[] flip on the IR's deliberately
+// non-omitempty Value collections that an in-memory EquateEmpty compare would
+// mask. It reports both encodings on mismatch.
 func roundTrips(doc *ir.Document) (string, bool) {
-	data, err := json.Marshal(doc)
+	first, err := json.Marshal(doc)
 	if err != nil {
 		return "marshal: " + err.Error(), false
 	}
 	var back ir.Document
-	if err := json.Unmarshal(data, &back); err != nil {
+	if err := json.Unmarshal(first, &back); err != nil {
 		return "unmarshal: " + err.Error(), false
 	}
-	if diff := cmp.Diff(doc, &back, cmpopts.EquateEmpty()); diff != "" {
-		return diff, false
+	second, err := json.Marshal(&back)
+	if err != nil {
+		return "remarshal: " + err.Error(), false
+	}
+	if !bytes.Equal(first, second) {
+		return "round-trip JSON differs:\n first: " + string(first) + "\nsecond: " + string(second), false
 	}
 	return "", true
 }
