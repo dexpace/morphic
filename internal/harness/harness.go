@@ -45,7 +45,10 @@ type Result struct {
 
 // Check compiles data under recover() and applies every oracle in order,
 // returning the first failure or OutcomeOK. A panic anywhere in compilation or
-// the oracles is captured as OutcomePanic rather than escaping to the caller.
+// the oracles is captured as OutcomePanic rather than escaping to the caller. A
+// caller mistake (nil ctx, empty spec identifier) is reported as OutcomeError
+// with a harness-prefixed Detail, so it is never misattributed to the spec as a
+// compiler panic.
 func Check(ctx context.Context, spec string, data []byte) (res Result) {
 	res = Result{Spec: spec, Outcome: OutcomeOK}
 	defer func() {
@@ -53,6 +56,13 @@ func Check(ctx context.Context, spec string, data []byte) (res Result) {
 			res = Result{Spec: spec, Outcome: OutcomePanic, Detail: fmt.Sprint(r)}
 		}
 	}()
+
+	if ctx == nil {
+		return Result{Spec: spec, Outcome: OutcomeError, Detail: "harness: nil context"}
+	}
+	if spec == "" {
+		return Result{Spec: spec, Outcome: OutcomeError, Detail: "harness: empty spec identifier"}
+	}
 
 	doc, diags, err := compile(ctx, spec, data)
 	if err != nil {

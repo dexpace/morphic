@@ -39,26 +39,44 @@ func Verify(doc *ir.Document) []Violation {
 	return vs
 }
 
-// checkRegistryKeys asserts every Types entry is keyed by its own Common().ID
-// and that the ID is non-empty.
+// checkRegistryKeys asserts every entry of each flat, ID-keyed registry
+// (Types, Channels, Messages, Auth) is keyed by its own node ID and that the key
+// is non-empty (invariant #3). Each registry contributes symmetric empty-*-id and
+// *-id-mismatch violations.
 func checkRegistryKeys(doc *ir.Document) []Violation {
 	var vs []Violation
 	for id, td := range doc.Types {
-		if id == "" {
-			vs = append(vs, Violation{
-				Code:    "ir/empty-type-id",
-				Message: "type registry has an empty key",
-				Path:    `types[""]`,
-			})
-			continue
-		}
-		if got := td.Common().ID; got != id {
-			vs = append(vs, Violation{
-				Code:    "ir/type-id-mismatch",
-				Message: "registry key " + string(id) + " disagrees with node ID " + string(got),
-				Path:    "types[" + string(id) + "]",
-			})
-		}
+		vs = registryKey(vs, "type", "types", string(id), string(td.Common().ID))
+	}
+	for id, ch := range doc.Channels {
+		vs = registryKey(vs, "channel", "channels", string(id), string(ch.ID))
+	}
+	for id, msg := range doc.Messages {
+		vs = registryKey(vs, "message", "messages", string(id), string(msg.ID))
+	}
+	for id, scheme := range doc.Auth {
+		vs = registryKey(vs, "auth", "auth", string(id), string(scheme.ID))
+	}
+	return vs
+}
+
+// registryKey checks one registry entry: key must be non-empty and equal the
+// node's own ID. noun is the diagnostic-code singular ("type", "channel", …) and
+// reg is the path/message registry label ("types", "channels", …).
+func registryKey(vs []Violation, noun, reg, key, nodeID string) []Violation {
+	if key == "" {
+		return append(vs, Violation{
+			Code:    "ir/empty-" + noun + "-id",
+			Message: reg + " registry has an empty key",
+			Path:    reg + `[""]`,
+		})
+	}
+	if key != nodeID {
+		return append(vs, Violation{
+			Code:    "ir/" + noun + "-id-mismatch",
+			Message: "registry key " + key + " disagrees with node ID " + nodeID,
+			Path:    reg + "[" + key + "]",
+		})
 	}
 	return vs
 }

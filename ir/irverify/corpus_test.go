@@ -20,11 +20,15 @@ func TestVerify_ConformanceCorpusIsClean(t *testing.T) {
 	entries, err := os.ReadDir(dir)
 	require.NoError(t, err)
 
+	var specs []string
 	for _, e := range entries {
-		if filepath.Ext(e.Name()) != ".yaml" {
-			continue
+		if filepath.Ext(e.Name()) == ".yaml" {
+			specs = append(specs, e.Name())
 		}
-		name := e.Name()
+	}
+	require.NotEmpty(t, specs, "no conformance specs found under %s; the corpus path may have moved", dir)
+
+	for _, name := range specs {
 		t.Run(name, func(t *testing.T) {
 			data, err := os.ReadFile(filepath.Join(dir, name))
 			require.NoError(t, err)

@@ -7,9 +7,13 @@ import (
 	"github.com/dexpace/morphic/ir"
 )
 
-// maxWalkDepth bounds the reflection traversal (bounded-recursion rule). The IR
-// nests shallowly and references other nodes by ID string rather than by
-// pointer, so this cap is a defensive backstop, not a functional limit.
+// maxWalkDepth bounds the reflection traversal (bounded-recursion rule). Most of
+// the IR nests shallowly and references other nodes by ID string, but Value
+// trees (examples, defaults) embed []Value/[]Field by value and nest without
+// bound, so the cap is a real functional limit, not only a backstop. Hitting it
+// is never silent: walkValues reports truncation and checkReferentialIntegrity
+// surfaces it as an ir/walk-truncated violation so a too-deep document is never
+// reported clean.
 const maxWalkDepth = 256
 
 // refSite is one discovered ID reference and the registry it must resolve in.
@@ -45,13 +49,16 @@ func registryFor(t reflect.Type) string {
 	}
 }
 
-// collectRefs walks doc and returns every non-empty typed-ID reference. It
-// visits struct fields, slice/array elements and map VALUES only — map keys and
-// a node's own ID are definitions, not references (a node's own ID trivially
-// resolves in its registry, so collecting it is harmless).
-func collectRefs(doc *ir.Document) []refSite {
+// collectRefs walks doc and returns every non-empty typed-ID reference plus
+// whether the bounded walk was truncated. It inspects struct fields, slice/array
+// elements, and both map keys and values. Most map keys are an entry's own ID (a
+// definition that resolves trivially), but some — Service.Renames's
+// map[TypeID]Naming keys — are genuine references into a registry that must
+// resolve, so keys are collected too; a node's own ID also resolves trivially,
+// so collecting it is harmless.
+func collectRefs(doc *ir.Document) ([]refSite, bool) {
 	var sites []refSite
-	walkValues(doc, func(v reflect.Value, path string) bool {
+	truncated := walkValues(doc, func(v reflect.Value, path string) bool {
 		if v.Kind() != reflect.String {
 			return true
 		}
@@ -60,14 +67,22 @@ func collectRefs(doc *ir.Document) []refSite {
 		}
 		return true
 	})
-	return sites
+	return sites, truncated
 }
 
 // checkReferentialIntegrity asserts every discovered reference resolves in its
 // registry, emitting one dangling-*-ref Violation per unresolved reference.
 func checkReferentialIntegrity(doc *ir.Document) []Violation {
 	var vs []Violation
-	for _, s := range collectRefs(doc) {
+	sites, truncated := collectRefs(doc)
+	if truncated {
+		vs = append(vs, Violation{
+			Code:    "ir/walk-truncated",
+			Message: "document nests deeper than the bounded verifier walk; some references and names went unchecked",
+			Path:    "doc",
+		})
+	}
+	for _, s := range sites {
 		if resolves(doc, s) {
 			continue
 		}
@@ -117,13 +132,27 @@ func singular(registry string) string {
 // walkValues performs a bounded, cycle-guarded reflection traversal of root,
 // invoking visit for every value it reaches. When visit returns false the walk
 // does not descend into that value's children; when it returns true the walk
-// continues into struct fields, slice/array elements, and map VALUES (map keys
-// are skipped: they are definitions, not references).
-func walkValues(root any, visit func(v reflect.Value, path string) bool) {
+// continues into struct fields, slice/array elements, and both map KEYS and
+// VALUES. Keys are walked because some IR maps key by a reference rather than by
+// the entry's own identity (Service.Renames is map[TypeID]Naming); only the flat
+// Document registries key by a definition, and those keys resolve trivially.
+//
+// walkValues returns true when the depth cap was reached and at least one real
+// child was skipped, so callers can surface a too-deep document rather than
+// silently under-checking it.
+func walkValues(root any, visit func(v reflect.Value, path string) bool) bool {
 	seen := map[uintptr]bool{}
+	truncated := false
 	var walk func(v reflect.Value, path string, depth int)
+	descend := func(child reflect.Value, path string, depth int) {
+		if depth > maxWalkDepth {
+			truncated = true
+			return
+		}
+		walk(child, path, depth)
+	}
 	walk = func(v reflect.Value, path string, depth int) {
-		if depth > maxWalkDepth || !v.IsValid() || !visit(v, path) {
+		if !v.IsValid() || !visit(v, path) {
 			return
 		}
 		switch v.Kind() {
@@ -136,25 +165,28 @@ func walkValues(root any, visit func(v reflect.Value, path string) bool) {
 				return
 			}
 			seen[p] = true
-			walk(v.Elem(), path, depth+1)
+			descend(v.Elem(), path, depth+1)
 		case reflect.Interface:
 			if !v.IsNil() {
-				walk(v.Elem(), path, depth+1)
+				descend(v.Elem(), path, depth+1)
 			}
 		case reflect.Struct:
 			for i := range v.NumField() {
-				walk(v.Field(i), path+"."+v.Type().Field(i).Name, depth+1)
+				descend(v.Field(i), path+"."+v.Type().Field(i).Name, depth+1)
 			}
 		case reflect.Slice, reflect.Array:
 			for i := range v.Len() {
-				walk(v.Index(i), fmt.Sprintf("%s[%d]", path, i), depth+1)
+				descend(v.Index(i), fmt.Sprintf("%s[%d]", path, i), depth+1)
 			}
 		case reflect.Map:
 			iter := v.MapRange()
 			for iter.Next() {
-				walk(iter.Value(), fmt.Sprintf("%s[%v]", path, iter.Key()), depth+1)
+				k := iter.Key()
+				descend(k, fmt.Sprintf("%s[%v].key", path, k), depth+1)
+				descend(iter.Value(), fmt.Sprintf("%s[%v]", path, k), depth+1)
 			}
 		}
 	}
 	walk(reflect.ValueOf(root), "doc", 0)
+	return truncated
 }

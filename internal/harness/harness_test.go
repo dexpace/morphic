@@ -28,6 +28,22 @@ func TestCheck_GarbageBytesDoNotPanic(t *testing.T) {
 	assert.NotEqual(t, harness.OutcomePanic, r.Outcome, r.Detail)
 }
 
+func TestCheck_NilContextIsErrorNotPanic(t *testing.T) {
+	t.Parallel()
+	//nolint:staticcheck // deliberately passing a nil ctx to exercise the boundary guard.
+	r := harness.Check(nil, "minimal", []byte(minimalSpec))
+	// A caller mistake is a harness error, never a spec-attributed compiler panic.
+	assert.Equal(t, harness.OutcomeError, r.Outcome, r.Detail)
+	assert.Contains(t, r.Detail, "nil context")
+}
+
+func TestCheck_EmptySpecIsErrorNotPanic(t *testing.T) {
+	t.Parallel()
+	r := harness.Check(context.Background(), "", []byte(minimalSpec))
+	assert.Equal(t, harness.OutcomeError, r.Outcome, r.Detail)
+	assert.Contains(t, r.Detail, "empty spec")
+}
+
 func TestReport_IsStableAndSorted(t *testing.T) {
 	t.Parallel()
 	results := []harness.Result{

@@ -59,3 +59,35 @@ func TestVerify_EmptyTypeIDIsAViolation(t *testing.T) {
 	require.NotEmpty(t, got)
 	assert.Equal(t, "ir/empty-type-id", got[0].Code)
 }
+
+func TestVerify_EmptyChannelIDIsAViolation(t *testing.T) {
+	doc := &ir.Document{Channels: map[ir.ChannelID]ir.Channel{"": {}}}
+	got := irverify.Verify(doc)
+	require.NotEmpty(t, got)
+	assert.Equal(t, "ir/empty-channel-id", got[0].Code)
+}
+
+func TestVerify_EmptyMessageIDIsAViolation(t *testing.T) {
+	doc := &ir.Document{Messages: map[ir.MessageID]ir.Message{"": {}}}
+	got := irverify.Verify(doc)
+	require.NotEmpty(t, got)
+	assert.Equal(t, "ir/empty-message-id", got[0].Code)
+}
+
+func TestVerify_EmptyAuthIDIsAViolation(t *testing.T) {
+	doc := &ir.Document{Auth: map[ir.AuthID]ir.AuthScheme{"": {}}}
+	got := irverify.Verify(doc)
+	require.NotEmpty(t, got)
+	assert.Equal(t, "ir/empty-auth-id", got[0].Code)
+}
+
+func TestVerify_ChannelIDMismatchIsAViolation(t *testing.T) {
+	// Key the channel under an ID that disagrees with its node ID. This also
+	// dangles the channel's own self-reference, so both codes are expected.
+	doc := &ir.Document{Channels: map[ir.ChannelID]ir.Channel{
+		"c/x/WrongKey": {ID: "c/x/Ch"},
+	}}
+	got := irverify.Verify(doc)
+	require.NotEmpty(t, got)
+	assert.Contains(t, codesOf(got), "ir/channel-id-mismatch")
+}
