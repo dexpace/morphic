@@ -5,7 +5,6 @@ import (
 	"strings"
 
 	soa "github.com/speakeasy-api/openapi/openapi"
-	"github.com/speakeasy-api/openapi/sequencedmap"
 	yaml "gopkg.in/yaml.v3"
 
 	"github.com/dexpace/morphic/ir"
@@ -210,6 +209,7 @@ func (l *lowerer) lowerOperation(src *soa.Operation, ctx opContext, pointer stri
 		IsWebhook:     ctx.isWebhook,
 		ParamBindings: bindings,
 	}
+	l.lowerRequestBody(&op, &hb, src, pointer)
 	var extra []ir.Operation
 	if ctx.withCallbacks {
 		hb.Callbacks, extra = l.lowerCallbacks(src, pointer, ctx.inferred)
@@ -302,8 +302,8 @@ func (l *lowerer) lowerResponses(src *soa.Operation, opPointer string) ([]ir.Res
 func (l *lowerer) lowerResponse(r *soa.Response, rng ir.StatusRange, rptr string) ir.Response {
 	resp := ir.Response{
 		Conditions: ir.ResponseConditions{StatusCodes: []ir.StatusRange{rng}},
-		Payload:    l.lowerPayload(r.GetContent(), rptr+ptr("content")),
-		Headers:    l.lowerResponseHeaders(r, rptr),
+		Payload:    l.lowerPayload(r.GetContent(), rptr, "response"),
+		Headers:    l.lowerHeaders(r.GetHeaders(), rptr),
 	}
 	resp.Docs.Description = r.GetDescription()
 	if raw := nodeToRaw(rawChildNode(r.GetRootNode(), "links")); raw != nil {
@@ -350,32 +350,6 @@ func (l *lowerer) fillErrorType(ec *ir.ErrorCase, r *soa.Response, rptr string) 
 			ir.Provenance{Source: l.srcIndex, Pointer: rptr},
 			"error response has multiple media types; full content map preserved under extensions"))
 	}
-}
-
-// lowerResponseHeaders lowers a response's headers into Properties in source
-// order, each identified by the header's pointer under the response.
-func (l *lowerer) lowerResponseHeaders(r *soa.Response, rptr string) []ir.Property {
-	headers := r.GetHeaders()
-	if headers == nil || headers.Len() == 0 {
-		return nil
-	}
-	out := make([]ir.Property, 0, headers.Len())
-	for name, rh := range headers.All() {
-		h := resolveHeader(rh)
-		if h == nil {
-			continue
-		}
-		hptr := rptr + ptr("headers", name)
-		out = append(out, ir.Property{
-			ID:         propID(hptr),
-			Name:       ir.Naming{Source: name, Canonical: canonicalWords(name)},
-			WireName:   name,
-			Type:       l.schemaRef(h.GetSchema(), hptr+ptr("schema"), name),
-			Required:   h.GetRequired(),
-			Provenance: ir.Provenance{Source: l.srcIndex, Pointer: hptr},
-		})
-	}
-	return out
 }
 
 // lowerCallbacks lowers each callback expression's path-item operations as
@@ -441,22 +415,6 @@ func (l *lowerer) lowerSecurityRequirements(reqs []*soa.SecurityRequirement) []i
 		return nil
 	}
 	return []ir.AuthRequirement{}
-}
-
-// lowerParameters is a Task 14 stub: parameter and HTTP-param-binding lowering
-// lands there. It returns empty slices so operation lowering is testable now.
-//
-//nolint:unparam // Task 14 replaces the body to lower real parameters
-func (l *lowerer) lowerParameters(params []*soa.ReferencedParameter, pointer string) ([]ir.Parameter, []ir.HTTPParamBinding) {
-	return nil, nil
-}
-
-// lowerPayload is a Task 14 stub: request/response body and content lowering
-// lands there. It returns nil so response lowering is testable now.
-//
-//nolint:unparam // Task 14 replaces the body to lower real content
-func (l *lowerer) lowerPayload(content *sequencedmap.Map[string, *soa.MediaType], pointer string) *ir.Payload {
-	return nil
 }
 
 // mergeParameters merges path-item parameters with operation parameters using
