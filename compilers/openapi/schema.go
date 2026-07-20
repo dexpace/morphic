@@ -323,19 +323,13 @@ func (l *lowerer) fillModelProperties(m *ir.Model, s *oas3.Schema, pointer strin
 // §4.3). allOf is an intersection, so the field is required when any branch
 // requires it, and the first (richest) declaration defines its shape; a later
 // bare redeclaration must not become a second, wire-colliding property.
+//
+// fillModelProperties is the sole caller and always sets WireName to the
+// (non-empty) property key, so the wire name is compared directly.
 func mergeProperty(m *ir.Model, p ir.Property) {
-	wire := p.WireName
-	if wire == "" {
-		wire = p.Name.Source
-	}
 	for i := range m.Properties {
-		existing := &m.Properties[i]
-		ewire := existing.WireName
-		if ewire == "" {
-			ewire = existing.Name.Source
-		}
-		if ewire == wire {
-			existing.Required = existing.Required || p.Required
+		if m.Properties[i].WireName == p.WireName {
+			m.Properties[i].Required = m.Properties[i].Required || p.Required
 			return
 		}
 	}
