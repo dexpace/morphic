@@ -12,6 +12,17 @@ import (
 	"github.com/dexpace/morphic/ir"
 )
 
+// newEngine constructs the pipeline engine. It is a package var so tests can
+// inject a construction failure — the real engine.New only errors on a
+// duplicate frontend registration, which the default registry never produces —
+// and a stub engine that returns a nil Document.
+var newEngine = engine.New
+
+// openOutput creates the destination file for -o. It is a package var so tests
+// can inject an io.WriteCloser whose Close fails; a real *os.File's Close does
+// not fail after a successful write on the platforms Morphic targets.
+var openOutput = func(path string) (io.WriteCloser, error) { return os.Create(path) }
+
 // runParse implements the `parse` subcommand: lower one spec file to IR JSON,
 // render its diagnostics to stderr, and return the process exit code.
 func runParse(args []string, stdout, stderr io.Writer) int {
@@ -38,7 +49,7 @@ func runParse(args []string, stdout, stderr io.Writer) int {
 		return 2
 	}
 
-	eng, err := engine.New()
+	eng, err := newEngine()
 	if err != nil {
 		emitf(stderr, "morphic: %v\n", err)
 		return 2
@@ -136,7 +147,7 @@ func writeParsed(outPath string, stdout io.Writer, doc *ir.Document) error {
 	if outPath == "" {
 		return writeDocument(stdout, doc)
 	}
-	f, err := os.Create(outPath)
+	f, err := openOutput(outPath)
 	if err != nil {
 		return fmt.Errorf("create output %q: %w", outPath, err)
 	}

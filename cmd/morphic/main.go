@@ -11,8 +11,12 @@ import (
 	"os"
 )
 
+// osExit is os.Exit, a package var so tests can drive main without terminating
+// the test process.
+var osExit = os.Exit
+
 func main() {
-	os.Exit(run(os.Args[1:], os.Stdout, os.Stderr))
+	osExit(run(os.Args[1:], os.Stdout, os.Stderr))
 }
 
 // run dispatches subcommands and returns the process exit code. It exists so
