@@ -20,6 +20,7 @@ func lowerServiceSpec(t *testing.T, src string) (*ir.Document, ir.Service, []ir.
 		require.NotNil(t, loadedDoc)
 		l := newLowerer(0, loadedDoc, Options{}.withDefaults())
 		l.lowerComponentSchemas()
+		l.lowerSecuritySchemes()
 		l.out.Services = []ir.Service{l.lowerService()}
 		return l.out, append(loadDiags, l.diags...)
 	}()

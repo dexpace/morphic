@@ -19,6 +19,7 @@ const maxSchemaDepth = 256
 type lowerer struct {
 	srcIndex  int
 	doc       *soa.OpenAPI
+	source    ir.SourceInfo // identity of the loaded source, stamped into Document.Sources
 	out       *ir.Document
 	opts      Options
 	diags     []ir.Diagnostic
@@ -28,10 +29,13 @@ type lowerer struct {
 
 // newLowerer allocates a lowerer over one loaded document, with an empty IR
 // document and interning table ready for schema lowering.
+//
+//nolint:unparam // srcIndex varies once Parse drives the multi-source loop
 func newLowerer(srcIndex int, doc *loaded, opts Options) *lowerer {
 	return &lowerer{
 		srcIndex:  srcIndex,
 		doc:       doc.Doc,
+		source:    doc.Source,
 		out:       &ir.Document{Types: ir.TypeRegistry{}},
 		opts:      opts,
 		byPointer: make(map[string]ir.TypeID),

@@ -40,6 +40,7 @@ func (l *lowerer) lowerService() ir.Service {
 		svc.Name = ir.Naming{Source: title, Canonical: canonicalWords(title)}
 		svc.Docs.Description = info.GetDescription()
 	}
+	svc.Auth = l.lowerSecurityRequirements(l.doc.GetSecurity())
 	l.lowerTagDefs()
 	groups := newServiceGroups()
 	l.lowerPaths(groups)
@@ -405,18 +406,6 @@ func (l *lowerer) lowerCallbackOps(pi *soa.PathItem, cbPtr, expr, inferred strin
 	return ids, ops
 }
 
-// lowerSecurityRequirements is a Task 15 stub: it preserves only the nil-vs-empty
-// distinction (ir-design §7.2). An absent security field (nil) inherits the
-// service default; an explicit empty list marks the operation explicitly public.
-//
-//nolint:unparam // Task 15 replaces the body to lower real requirements
-func (l *lowerer) lowerSecurityRequirements(reqs []*soa.SecurityRequirement) []ir.AuthRequirement {
-	if reqs == nil {
-		return nil
-	}
-	return []ir.AuthRequirement{}
-}
-
 // mergeParameters merges path-item parameters with operation parameters using
 // use-site precedence: an operation parameter with the same (name, in) overrides
 // the path-item one; unshadowed path-item parameters follow in source order.
@@ -590,8 +579,7 @@ func (g *serviceGroups) group(key string, mk func() ir.OperationGroup) *ir.Opera
 	if existing, ok := g.byKey[key]; ok {
 		return existing
 	}
-	created := mk()
-	g.byKey[key] = &created
+	g.byKey[key] = new(mk())
 	g.order = append(g.order, key)
 	return g.byKey[key]
 }
