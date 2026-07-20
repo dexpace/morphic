@@ -53,6 +53,29 @@ func TestDocument_JSONRoundTripAllKinds(t *testing.T) {
 	}
 }
 
+func TestOperation_AuthEmptyNonNilRoundTrips(t *testing.T) {
+	t.Parallel()
+	// An empty non-nil Auth ("explicitly public") must survive the JSON round
+	// trip distinct from nil ("inherit the service default").
+	op := ir.Operation{ID: "op/x", Auth: []ir.AuthRequirement{}}
+	raw, err := json.Marshal(op)
+	require.NoError(t, err)
+	assert.Contains(t, string(raw), `"auth":[]`, "empty non-nil Auth serializes as []")
+
+	var back ir.Operation
+	require.NoError(t, json.Unmarshal(raw, &back))
+	require.NotNil(t, back.Auth, "empty Auth must not deserialize to nil")
+	assert.Empty(t, back.Auth)
+
+	var nilOp ir.Operation
+	rawNil, err := json.Marshal(nilOp)
+	require.NoError(t, err)
+	assert.Contains(t, string(rawNil), `"auth":null`, "nil Auth serializes as null")
+	var backNil ir.Operation
+	require.NoError(t, json.Unmarshal(rawNil, &backNil))
+	assert.Nil(t, backNil.Auth, "nil Auth stays nil")
+}
+
 func TestDocument_MarshalIsDeterministic(t *testing.T) {
 	t.Parallel()
 	doc := sampleDocument(t)

@@ -20,8 +20,9 @@ type Server struct {
 	Tags []string `json:"tags,omitempty"`
 	// Auth is server-scoped security — AsyncAPI's primary auth placement (broker
 	// connections authenticate per server; different servers of one service may
-	// require different schemes).
-	Auth []AuthRequirement `json:"auth,omitempty"`
+	// require different schemes). An empty non-nil slice (explicitly public)
+	// differs from nil, so the field carries no omitempty.
+	Auth []AuthRequirement `json:"auth"`
 	// Bindings holds server-level protocol bindings kept raw.
 	Bindings map[string]Extensions `json:"bindings,omitempty"`
 	// Extensions carries source metadata without a first-class IR node.

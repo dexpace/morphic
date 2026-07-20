@@ -21,8 +21,10 @@ type Service struct {
 	// Groups holds the hierarchical operation groups; a group is a TypeSpec
 	// interface / Smithy resource / tag.
 	Groups []OperationGroup `json:"groups,omitempty"`
-	// Auth is the service-level default requirement (OR-of-ANDs, §9).
-	Auth []AuthRequirement `json:"auth,omitempty"`
+	// Auth is the service-level default requirement (OR-of-ANDs, §9). An empty
+	// non-nil slice (explicitly public) differs from nil (no default), so the
+	// field carries no omitempty.
+	Auth []AuthRequirement `json:"auth"`
 	// CommonErrors are errors every operation can return (Smithy service-level
 	// errors).
 	CommonErrors []ErrorCase `json:"commonErrors,omitempty"`

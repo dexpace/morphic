@@ -38,7 +38,10 @@ const (
 // Value is typed data kept separate from the type graph: defaults, constants,
 // literal types, enum member values, and examples (ir-design §6). Kind selects
 // which payload field is meaningful; the remaining fields hold their zero
-// value. The empty Value{Kind: ValueNull} marshals to {"kind":"null"}.
+// value. Collection payloads (Bytes/List/Object) carry no omitempty so a
+// present-but-empty collection round-trips as []/{} rather than collapsing to
+// nil; the ValueNull compact form therefore also carries their null fields, e.g.
+// Value{Kind: ValueNull} marshals to {"kind":"null","bytes":null,"list":null,"object":null}.
 type Value struct {
 	// Kind selects the meaningful payload field.
 	Kind ValueKind `json:"kind"`
@@ -49,12 +52,12 @@ type Value struct {
 	// Num is the payload for ValueNumber, an arbitrary-precision decimal string.
 	Num BigVal `json:"num,omitempty"`
 	// Bytes is the payload for ValueBytes, base64-encoded in JSON form.
-	Bytes []byte `json:"bytes,omitempty"`
+	Bytes []byte `json:"bytes"`
 	// List is the payload for ValueList, an ordered sequence of values.
-	List []Value `json:"list,omitempty"`
+	List []Value `json:"list"`
 	// Object is the payload for ValueObject, an ordered set of named values.
 	// Object member order carries meaning, so it is a slice, never a map.
-	Object []Field `json:"object,omitempty"`
+	Object []Field `json:"object"`
 	// Ref is the payload for ValueRefKind, a reference to a declared constant.
 	Ref *ValueRef `json:"ref,omitempty"`
 	// Ctor is the payload for ValueCtor, a constructor-built value.
@@ -86,6 +89,7 @@ type CtorValue struct {
 	Scalar TypeID `json:"scalar,omitempty"`
 	// Name is the constructor name ("fromISO", "now", custom inits).
 	Name string `json:"name,omitempty"`
-	// Args are the constructor arguments in source order.
-	Args []Value `json:"args,omitempty"`
+	// Args are the constructor arguments in source order; a present-but-empty
+	// argument list round-trips as [] rather than nil, so it carries no omitempty.
+	Args []Value `json:"args"`
 }

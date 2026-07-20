@@ -42,8 +42,9 @@ type Operation struct {
 	// (Smithy @readonly, HTTP GET semantics).
 	Idempotency Idempotency `json:"idempotency"`
 	// Auth overrides the service default; an empty slice differs from nil (empty
-	// = explicitly public).
-	Auth []AuthRequirement `json:"auth,omitempty"`
+	// = explicitly public). The four-state distinction requires the field to
+	// serialize even when empty, so it carries no omitempty.
+	Auth []AuthRequirement `json:"auth"`
 	// Tags are the operation's tag memberships.
 	Tags []string `json:"tags,omitempty"`
 	// ParameterVisibility overrides the visibility filter for the request view

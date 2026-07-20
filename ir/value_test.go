@@ -23,6 +23,9 @@ func TestValue_JSONRoundTrip(t *testing.T) {
 			{Kind: ir.ValueNumber, Num: ir.BigVal("1")},
 			{Kind: ir.ValueNumber, Num: ir.BigVal("2")},
 		}},
+		"empty list":   {Kind: ir.ValueList, List: []ir.Value{}},
+		"empty object": {Kind: ir.ValueObject, Object: []ir.Field{}},
+		"empty bytes":  {Kind: ir.ValueBytes, Bytes: []byte{}},
 		"object": {Kind: ir.ValueObject, Object: []ir.Field{
 			{Name: "b", Value: ir.Value{Kind: ir.ValueBool, Bool: false}},
 			{Name: "a", Value: ir.Value{Kind: ir.ValueString, Str: "x"}},
