@@ -72,10 +72,11 @@ func refTypeID(ref string) (ir.TypeID, error) {
 	switch {
 	case doc != "": // external document
 		return ir.TypeID("t/openapi/ext/" + ref), nil
-	case strings.HasPrefix(pointer, "/components/schemas/"):
-		return namedTypeID(pointer), nil
 	case pointer != "":
-		return anonTypeID(pointer), nil
+		// Share the interning discriminator so a $ref derives the same ID the
+		// target was interned under: named only for a top-level component schema
+		// (/components/schemas/<name>), anonymous for any deeper pointer.
+		return typeIDForPointer(pointer), nil
 	default:
 		return "", fmt.Errorf("openapi: unsupported $ref form %q", ref)
 	}

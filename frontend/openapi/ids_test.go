@@ -40,6 +40,13 @@ func TestRefTypeID_LocalAndExternal(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, ir.TypeID("t/anon/paths/~1users/get/responses/200"), id)
 
+	// A pointer under /components/schemas/ that addresses a nested subschema is
+	// NOT a named component; it interns anonymously, so a $ref to it must derive
+	// the same anon ID (else the reference dangles).
+	id, err = refTypeID("#/components/schemas/Foo/properties/bar")
+	require.NoError(t, err)
+	assert.Equal(t, ir.TypeID("t/anon/components/schemas/Foo/properties/bar"), id)
+
 	id, err = refTypeID("common.yaml#/components/schemas/Err")
 	require.NoError(t, err)
 	assert.Equal(t, ir.TypeID("t/openapi/ext/common.yaml#/components/schemas/Err"), id)
