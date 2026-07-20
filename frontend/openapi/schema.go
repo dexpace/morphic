@@ -79,10 +79,9 @@ func (l *lowerer) schemaRef(js *oas3.JSONSchema[oas3.Referenceable], pointer, hi
 	if js.IsReference() {
 		return l.refTypeRef(js, pointer)
 	}
+	// Past the IsBool check, the either's left schema is always set (an empty
+	// either reads as a bool), so GetSchema never returns nil here.
 	schema := js.GetSchema()
-	if schema == nil {
-		return l.primRef(ir.PrimAny)
-	}
 	if schema.Ref != nil {
 		return l.refTypeRef(js, pointer)
 	}
@@ -530,7 +529,7 @@ func (l *lowerer) buildTuple(s *oas3.Schema, id ir.TypeID, pointer, hint string,
 	}
 	t := &ir.Tuple{TypeCommon: l.commonFor(id, pointer, hint), Elems: elems}
 	if s.GetItems() != nil {
-		if raw := nodeToRaw(s.GetPropertyNode("items")); raw != nil {
+		if raw := nodeToRaw(rawPropertyNode(s, "items")); raw != nil {
 			t.Extensions = ir.Extensions{"openapi:items-after-prefix": raw}
 		}
 	}
@@ -927,22 +926,7 @@ func rawPropertyNode(s *oas3.Schema, key string) *yaml.Node {
 	if s == nil {
 		return nil
 	}
-	root := s.GetRootNode()
-	if root == nil {
-		return nil
-	}
-	if root.Kind == yaml.DocumentNode && len(root.Content) > 0 {
-		root = root.Content[0]
-	}
-	if root.Kind != yaml.MappingNode {
-		return nil
-	}
-	for i := 0; i+1 < len(root.Content); i += 2 {
-		if root.Content[i].Value == key {
-			return root.Content[i+1]
-		}
-	}
-	return nil
+	return rawChildNode(s.GetRootNode(), key)
 }
 
 // rawMember is one key/raw-JSON pair of a combined validation-only object.
