@@ -36,9 +36,24 @@ func WriteGolden(path string, doc *ir.Document) error {
 	return nil
 }
 
+// testingT is the subset of *testing.T that compareGolden relies on. It exists
+// so the abort/failure branches can be exercised with a recording stub instead
+// of aborting a real test.
+type testingT interface {
+	Helper()
+	Fatalf(format string, args ...any)
+	Errorf(format string, args ...any)
+}
+
 // CompareGolden compares doc against the golden file at goldenPath, or
 // rewrites it when -update is set. Failures include a full diff.
 func CompareGolden(t *testing.T, goldenPath string, doc *ir.Document) {
+	t.Helper()
+	compareGolden(t, goldenPath, doc)
+}
+
+// compareGolden holds the comparison logic against the minimal testingT surface.
+func compareGolden(t testingT, goldenPath string, doc *ir.Document) {
 	t.Helper()
 	if Update() {
 		if err := WriteGolden(goldenPath, doc); err != nil {
