@@ -1,6 +1,7 @@
 package openapi
 
 import (
+	"strings"
 	"testing"
 
 	soa "github.com/speakeasy-api/openapi/openapi"
@@ -94,6 +95,40 @@ paths:
 	assert.Equal(t, "server", op.Errors[1].Fault)
 	assert.Equal(t, []ir.StatusRange{{From: 0, To: 0}}, op.Errors[2].Conditions.StatusCodes)
 	assert.Equal(t, "", op.Errors[2].Fault)
+}
+
+func TestResponses_ErrorHeadersPreserved(t *testing.T) {
+	t.Parallel()
+	// ErrorCase has no Headers field; a 429's Retry-After header must not be
+	// dropped silently — it is preserved verbatim under Extensions with a diag.
+	spec := `openapi: 3.1.0
+info: {title: T, version: "1"}
+paths:
+  /w:
+    get:
+      operationId: w
+      responses:
+        "200": {description: ok}
+        "429":
+          description: slow down
+          headers:
+            Retry-After: {schema: {type: integer}}
+`
+	_, svc, diags := lowerServiceSpec(t, spec)
+	requireNoErrorDiags(t, diags)
+	op := svc.Groups[0].Operations[0]
+	require.Len(t, op.Errors, 1)
+	raw, ok := op.Errors[0].Extensions["openapi:headers"]
+	require.True(t, ok, "error response headers preserved under extensions")
+	assert.Contains(t, string(raw), "Retry-After")
+
+	found := false
+	for _, d := range diags {
+		if d.Severity == ir.SeverityInfo && strings.Contains(d.Message, "error response headers") {
+			found = true
+		}
+	}
+	assert.True(t, found, "dropped error headers emit one info diagnostic")
 }
 
 func TestOperation_ExplicitlyPublicSecurity(t *testing.T) {

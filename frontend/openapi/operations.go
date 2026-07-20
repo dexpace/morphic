@@ -322,7 +322,30 @@ func (l *lowerer) lowerErrorCase(r *soa.Response, rng ir.StatusRange, rptr strin
 	}
 	ec.Docs.Description = r.GetDescription()
 	l.fillErrorType(&ec, r, rptr)
+	l.preserveErrorHeaders(&ec, r, rptr)
 	return ec
+}
+
+// preserveErrorHeaders keeps an error response's headers from being dropped:
+// ir.ErrorCase has no Headers field (ir-design §7.2), so when the response
+// declares headers they are preserved verbatim under Extensions with one info
+// diagnostic, mirroring the success path's structural header lowering.
+func (l *lowerer) preserveErrorHeaders(ec *ir.ErrorCase, r *soa.Response, rptr string) {
+	headers := r.GetHeaders()
+	if headers == nil || headers.Len() == 0 {
+		return
+	}
+	raw := nodeToRaw(rawChildNode(r.GetRootNode(), "headers"))
+	if raw == nil {
+		return
+	}
+	if ec.Extensions == nil {
+		ec.Extensions = ir.Extensions{}
+	}
+	ec.Extensions["openapi:headers"] = raw
+	l.diags = append(l.diags, diagf(ir.SeverityInfo, codeDegradedConstruct,
+		ir.Provenance{Source: l.srcIndex, Pointer: rptr},
+		"error response headers have no ErrorCase home; preserved verbatim under extensions"))
 }
 
 // fillErrorType lowers every content entry's schema into the type registry
