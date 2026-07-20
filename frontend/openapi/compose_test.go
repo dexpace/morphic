@@ -208,6 +208,41 @@ components:
 	}
 }
 
+func TestOneOf_ThreeVariantsWithNullStripsNullLiftsNullable(t *testing.T) {
+	t.Parallel()
+	// A oneOf with two non-null branches plus a null branch stays a Union of the
+	// two non-null variants (the null branch is NOT emitted as an `any` variant),
+	// and the enclosing ref becomes Nullable.
+	spec := `openapi: 3.1.0
+info: {title: T, version: "1"}
+paths: {}
+components:
+  schemas:
+    S:
+      type: object
+      properties:
+        p:
+          oneOf:
+            - {type: string}
+            - {type: integer}
+            - {type: "null"}
+`
+	doc, diags := lowerSpec(t, spec)
+	requireNoErrorDiags(t, diags)
+	s := doc.Types[ir.TypeID("t/openapi/components/schemas/S")].(*ir.Model)
+	require.Len(t, s.Properties, 1)
+	ref := s.Properties[0].Type
+	assert.True(t, ref.Nullable, "the null branch lifts onto the enclosing ref")
+
+	u, ok := doc.Types[ref.Target].(*ir.Union)
+	require.True(t, ok, "the non-null branches form a Union")
+	require.Len(t, u.Variants, 2, "the null branch is stripped, not emitted as a variant")
+	for _, v := range u.Variants {
+		assert.NotEqual(t, ir.TypeID("t/prim/any"), v.Type.Target,
+			"no variant degraded to any")
+	}
+}
+
 func TestEnum_StringClosed(t *testing.T) {
 	t.Parallel()
 	spec := `openapi: 3.1.0

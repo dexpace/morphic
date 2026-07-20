@@ -8,6 +8,10 @@ components:
       properties:
         id: {type: string}
     Derived:
+      description: A Base specialized with one extra field.
+      deprecated: true
+      additionalProperties: false
+      x-team: pets
       allOf:
         - {$ref: '#/components/schemas/Base'}
       properties:

@@ -1,6 +1,7 @@
 package openapi
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -8,6 +9,7 @@ import (
 
 	"github.com/dexpace/morphic/frontend"
 	"github.com/dexpace/morphic/ir"
+	"github.com/dexpace/morphic/pass"
 )
 
 // lowerSpec loads src and lowers its component schemas, returning the document
@@ -63,6 +65,109 @@ func TestSchemaRef_NullableNormalization(t *testing.T) {
 			assert.Equal(t, tc.wantNullable, model.Properties[0].Type.Nullable)
 		})
 	}
+}
+
+func TestLower_NamedScalarComponentResolves(t *testing.T) {
+	t.Parallel()
+	// A named component whose body is a plain scalar must register a resolvable
+	// node at its own component pointer, so a $ref to it never dangles.
+	spec := `openapi: 3.1.0
+info: {title: T, version: "1"}
+paths: {}
+components:
+  schemas:
+    MyId: {type: string, format: uuid}
+    Holder:
+      type: object
+      properties:
+        id: {$ref: "#/components/schemas/MyId"}
+`
+	doc, diags := lowerSpec(t, spec)
+	requireNoErrorDiags(t, diags)
+
+	scalar, ok := doc.Types[ir.TypeID("t/openapi/components/schemas/MyId")].(*ir.Scalar)
+	require.True(t, ok, "named scalar component registers a Scalar at its own ID")
+	require.NotNil(t, scalar.Base)
+	assert.Equal(t, ir.TypeID("t/prim/uuid"), scalar.Base.Target)
+	assert.Equal(t, "MyId", scalar.Name.Source, "the component name is preserved")
+
+	holder := doc.Types[ir.TypeID("t/openapi/components/schemas/Holder")].(*ir.Model)
+	assert.Equal(t, ir.TypeID("t/openapi/components/schemas/MyId"), holder.Properties[0].Type.Target)
+
+	// The reference must resolve: the validate pass finds no dangling type ref.
+	for _, d := range pass.Validate(doc) {
+		assert.NotEqual(t, "ir/dangling-type-ref", d.Code, "ref to named scalar dangles: %+v", d)
+	}
+}
+
+func TestLower_OneOfWithStructuralSiblingsPreserved(t *testing.T) {
+	t.Parallel()
+	// The "exactly one of" idiom co-declares object structure with oneOf. The
+	// structural body must survive AND the union must be preserved verbatim.
+	spec := `openapi: 3.1.0
+info: {title: T, version: "1"}
+paths: {}
+components:
+  schemas:
+    Thing:
+      type: object
+      additionalProperties: false
+      required: [common]
+      properties:
+        common: {type: string}
+      oneOf:
+        - {required: [a]}
+        - {required: [b]}
+`
+	doc, diags := lowerSpec(t, spec)
+	requireNoErrorDiags(t, diags)
+
+	m, ok := doc.Types[ir.TypeID("t/openapi/components/schemas/Thing")].(*ir.Model)
+	require.True(t, ok, "structural body lowers to a Model, not a bare Union")
+	require.Len(t, m.Properties, 1)
+	assert.Equal(t, "common", m.Properties[0].Name.Source)
+	assert.True(t, m.Properties[0].Required)
+	assert.Equal(t, ir.AdditionalClosed, m.Additional)
+	raw, ok := m.Extensions["openapi:oneOf"]
+	require.True(t, ok, "the dropped union is preserved verbatim under extensions")
+	assert.Contains(t, string(raw), "required")
+
+	found := false
+	for _, d := range diags {
+		if d.Severity == ir.SeverityInfo && strings.Contains(d.Message, "oneOf/anyOf co-declared") {
+			found = true
+		}
+	}
+	assert.True(t, found, "coexistence emits one info diagnostic")
+}
+
+func TestLower_AllOfWithOneOfKeepsBoth(t *testing.T) {
+	t.Parallel()
+	// allOf co-declared with oneOf must not drop the allOf composition.
+	spec := `openapi: 3.1.0
+info: {title: T, version: "1"}
+paths: {}
+components:
+  schemas:
+    Base:
+      type: object
+      properties:
+        id: {type: string}
+    Combo:
+      allOf:
+        - {$ref: "#/components/schemas/Base"}
+      oneOf:
+        - {type: string}
+        - {type: integer}
+`
+	doc, diags := lowerSpec(t, spec)
+	requireNoErrorDiags(t, diags)
+	m, ok := doc.Types[ir.TypeID("t/openapi/components/schemas/Combo")].(*ir.Model)
+	require.True(t, ok, "allOf composition survives (Model), oneOf preserved raw")
+	require.NotNil(t, m.Base, "the allOf $ref becomes Base")
+	assert.Equal(t, ir.TypeID("t/openapi/components/schemas/Base"), m.Base.Target)
+	_, ok = m.Extensions["openapi:oneOf"]
+	assert.True(t, ok, "the oneOf is preserved verbatim under extensions")
 }
 
 func TestLower_RecursiveSchemaTerminates(t *testing.T) {

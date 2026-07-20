@@ -138,7 +138,7 @@ components:
 	for _, p := range m.Properties {
 		byName[p.WireName] = p
 	}
-	assert.Equal(t, ir.Visibility{Only: []ir.Lifecycle{ir.LifecycleRead}}, byName["r"].Visibility)
+	assert.Equal(t, ir.Visibility{Only: []ir.Lifecycle{ir.LifecycleRead, ir.LifecycleDelete, ir.LifecycleQuery}}, byName["r"].Visibility)
 	assert.Equal(t, ir.Visibility{Only: []ir.Lifecycle{ir.LifecycleCreate, ir.LifecycleUpdate}}, byName["w"].Visibility)
 }
 

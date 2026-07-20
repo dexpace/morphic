@@ -26,8 +26,32 @@ func (l *lowerer) lowerComponentSchemas() {
 		return
 	}
 	for name, js := range schemas.All() {
-		l.schemaRef(js, ptr("components", "schemas", name), name)
+		l.lowerComponentSchema(js, ptr("components", "schemas", name), name)
 	}
+}
+
+// lowerComponentSchema lowers one named component schema and guarantees a node
+// is registered at the component's own TypeID even when its body reduces to a
+// shared primitive/any or aliases another type. Without this, a component like
+// `MyId: {type: string, format: uuid}` would leave nothing at its component
+// pointer and every $ref to it would dangle (invariants 1 and 2).
+func (l *lowerer) lowerComponentSchema(js *oas3.JSONSchema[oas3.Referenceable], pointer, name string) {
+	ref := l.schemaRef(js, pointer, name)
+	if _, owned := l.byPointer[pointer]; owned {
+		return // schemaRef interned the component's own node at its component ID
+	}
+	l.internAlias(pointer, name, ref)
+}
+
+// internAlias interns a named Scalar at pointer whose Base is target, so a
+// component (or a sibling-carrying schema) whose body lowered to a shared or
+// referenced target still owns a resolvable node at its own TypeID.
+func (l *lowerer) internAlias(pointer, hint string, target ir.TypeRef) ir.TypeID {
+	id := typeIDForPointer(pointer)
+	return l.intern(pointer, id, func() ir.TypeDef {
+		base := target
+		return &ir.Scalar{TypeCommon: l.commonFor(id, pointer, hint), Base: &base}
+	})
 }
 
 // schemaRef is THE schema entry point: every schema position (property, items,
@@ -63,9 +87,78 @@ func (l *lowerer) schemaRef(js *oas3.JSONSchema[oas3.Referenceable], pointer, hi
 		return l.refTypeRef(js, pointer)
 	}
 	if len(schema.GetOneOf()) > 0 || len(schema.GetAnyOf()) > 0 {
+		if hasUnionSiblings(schema) {
+			return ir.TypeRef{
+				Target:   l.lowerWithUnionSiblings(schema, pointer, hint),
+				Nullable: schemaHasNull(schema),
+			}
+		}
 		return l.lowerOneOfAnyOf(schema, pointer, hint)
 	}
 	return ir.TypeRef{Target: l.lower(schema, pointer, hint), Nullable: schemaHasNull(schema)}
+}
+
+// hasUnionSiblings reports whether a oneOf/anyOf schema also carries structural
+// keywords (a type, properties, allOf, const/enum, additionalProperties, ...).
+// When it does, the union alone cannot represent the schema, so the structural
+// body must be lowered too rather than dropped (invariant 2, ir-design §4.3).
+func hasUnionSiblings(s *oas3.Schema) bool {
+	if props := s.GetProperties(); props != nil && props.Len() > 0 {
+		return true
+	}
+	if len(s.GetRequired()) > 0 || len(s.GetAllOf()) > 0 {
+		return true
+	}
+	if s.GetConst() != nil || len(s.GetEnum()) > 0 {
+		return true
+	}
+	if s.GetAdditionalProperties() != nil {
+		return true
+	}
+	if pp := s.GetPatternProperties(); pp != nil && pp.Len() > 0 {
+		return true
+	}
+	return len(effectiveTypes(s)) > 0
+}
+
+// lowerWithUnionSiblings lowers the structural body of a schema that co-declares
+// oneOf/anyOf, then preserves the union branches verbatim under the resulting
+// node's Extensions with an info diagnostic — so neither the structural shape
+// nor the union is dropped (ir-design §4.7-style preservation).
+func (l *lowerer) lowerWithUnionSiblings(s *oas3.Schema, pointer, hint string) ir.TypeID {
+	inner := l.lower(s, pointer, hint)
+	owner := inner
+	if l.byPointer[pointer] != inner {
+		// The structural body reduced to a shared/aliased target; hoist an alias
+		// so the preserved union attaches to a node this pointer owns, never to a
+		// shared primitive.
+		owner = l.internAlias(pointer, hint, ir.TypeRef{Target: inner})
+	}
+	l.preserveUnionSiblings(owner, s, pointer)
+	return owner
+}
+
+// preserveUnionSiblings stores the raw oneOf/anyOf of s under the owning node's
+// Extensions and emits one info diagnostic naming the preserved construct.
+func (l *lowerer) preserveUnionSiblings(id ir.TypeID, s *oas3.Schema, pointer string) {
+	td, ok := l.out.Types[id]
+	if !ok {
+		return
+	}
+	c := td.Common()
+	if len(s.GetOneOf()) > 0 {
+		if raw := nodeToRaw(rawPropertyNode(s, "oneOf")); raw != nil {
+			c.Extensions = mergeExtensions(c.Extensions, ir.Extensions{"openapi:oneOf": raw})
+		}
+	}
+	if len(s.GetAnyOf()) > 0 {
+		if raw := nodeToRaw(rawPropertyNode(s, "anyOf")); raw != nil {
+			c.Extensions = mergeExtensions(c.Extensions, ir.Extensions{"openapi:anyOf": raw})
+		}
+	}
+	l.diags = append(l.diags, diagf(ir.SeverityInfo, codeDegradedConstruct,
+		ir.Provenance{Source: l.srcIndex, Pointer: pointer},
+		"oneOf/anyOf co-declared with structural keywords; union branches preserved verbatim under extensions"))
 }
 
 // refTypeRef resolves a $ref position to its target's stable ID, carrying the
@@ -554,27 +647,27 @@ func schemaHasNull(s *oas3.Schema) bool {
 	return false
 }
 
-// nullUnionCollapse detects a oneOf/anyOf whose variant set is {null-schema, X}
-// and returns X's schema, pointer, and hint so it lowers as nullable X rather
-// than a union node (ir-design §3.3).
+// nullUnionCollapse detects a oneOf/anyOf that has exactly one non-null branch
+// alongside one or more `type: null` branches and returns that branch's schema,
+// pointer, and hint so it lowers as nullable X rather than a union node
+// (ir-design §3.3). A set with two or more non-null branches falls through to a
+// Union (with its null branches stripped and lifted onto the enclosing ref).
 func nullUnionCollapse(s *oas3.Schema, pointer, hint string) (*oas3.JSONSchema[oas3.Referenceable], string, string, bool) {
 	variants, key := s.GetOneOf(), "oneOf"
 	if len(variants) == 0 {
 		variants, key = s.GetAnyOf(), "anyOf"
 	}
-	if len(variants) != 2 {
-		return nil, "", "", false
-	}
 	var nonNull *oas3.JSONSchema[oas3.Referenceable]
-	nonNullIdx, nullCount := -1, 0
+	nonNullIdx, nonNullCount, nullCount := -1, 0, 0
 	for i, v := range variants {
 		if isNullSchema(v) {
 			nullCount++
 			continue
 		}
 		nonNull, nonNullIdx = v, i
+		nonNullCount++
 	}
-	if nullCount != 1 || nonNull == nil {
+	if nullCount == 0 || nonNullCount != 1 {
 		return nil, "", "", false
 	}
 	return nonNull, pointer + ptr(key, strconv.Itoa(nonNullIdx)), hint, true
@@ -654,11 +747,12 @@ func effectiveDeprecated(ref, tgt *oas3.Schema) bool {
 }
 
 // effectiveVisibility maps readOnly/writeOnly to a lifecycle visibility set
-// (ir-design §5.2): readOnly is read-only; writeOnly is create+update.
+// (ir-design §5.2): readOnly is present in every response lifecycle
+// (read/delete/query) and absent only from requests; writeOnly is create+update.
 func effectiveVisibility(ref, tgt *oas3.Schema) ir.Visibility {
 	switch {
 	case pickBool(schemaReadOnly(ref), schemaReadOnly(tgt)):
-		return ir.Visibility{Only: []ir.Lifecycle{ir.LifecycleRead}}
+		return ir.Visibility{Only: []ir.Lifecycle{ir.LifecycleRead, ir.LifecycleDelete, ir.LifecycleQuery}}
 	case pickBool(schemaWriteOnly(ref), schemaWriteOnly(tgt)):
 		return ir.Visibility{Only: []ir.Lifecycle{ir.LifecycleCreate, ir.LifecycleUpdate}}
 	default:

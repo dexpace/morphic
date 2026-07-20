@@ -21,6 +21,7 @@ func (l *lowerer) lowerAllOf(s *oas3.Schema, pointer, hint string) ir.TypeID {
 		m := &ir.Model{TypeCommon: l.commonFor(id, pointer, hint)}
 		l.fillAllOf(m, s, pointer)
 		l.fillModelProperties(m, s, pointer) // properties declared alongside allOf
+		l.fillModelDetail(m, s, pointer, hint)
 		if d := l.modelDiscriminator(s, m); d != nil {
 			m.Discriminator = d
 		}
@@ -157,7 +158,24 @@ func (l *lowerer) lowerOneOfAnyOf(s *oas3.Schema, pointer, hint string) ir.TypeR
 	tid := l.intern(pointer, id, func() ir.TypeDef {
 		return l.buildUnion(s, id, pointer, hint)
 	})
-	return ir.TypeRef{Target: tid, Nullable: schemaHasNull(s)}
+	return ir.TypeRef{Target: tid, Nullable: schemaHasNull(s) || oneOfAnyOfHasNull(s)}
+}
+
+// oneOfAnyOfHasNull reports whether any oneOf/anyOf branch is a bare `type: null`
+// schema, so its nullability lifts onto the enclosing union ref rather than
+// degrading to an `any` variant.
+func oneOfAnyOfHasNull(s *oas3.Schema) bool {
+	for _, b := range s.GetOneOf() {
+		if isNullSchema(b) {
+			return true
+		}
+	}
+	for _, b := range s.GetAnyOf() {
+		if isNullSchema(b) {
+			return true
+		}
+	}
+	return false
 }
 
 // buildUnion assembles the Union node for a oneOf/anyOf schema, attaching a
@@ -169,6 +187,9 @@ func (l *lowerer) buildUnion(s *oas3.Schema, id ir.TypeID, pointer, hint string)
 	}
 	variants := make([]ir.Variant, 0, len(branches))
 	for i, b := range branches {
+		if isNullSchema(b) {
+			continue // null branches lift to the enclosing ref's Nullable bit
+		}
 		vh := variantHint(b, i)
 		vptr := pointer + ptr(key, strconv.Itoa(i))
 		variants = append(variants, ir.Variant{

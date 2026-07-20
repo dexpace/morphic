@@ -170,6 +170,13 @@ func assertAllOfInheritance(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
 	assert.Empty(t, d.Mixins)
 	_, ok = propByWire(d, "extra")
 	assert.True(t, ok, "property declared alongside allOf survives")
+	// Model-level detail declared alongside allOf must be captured, not dropped.
+	assert.Equal(t, "A Base specialized with one extra field.", d.Docs.Description,
+		"composed schema keeps its description")
+	assert.NotNil(t, d.Deprecation, "composed schema keeps deprecated")
+	assert.Equal(t, ir.AdditionalClosed, d.Additional,
+		"composed schema keeps additionalProperties: false")
+	assert.Contains(t, d.Extensions, "openapi:x-team", "composed schema keeps x-* extensions")
 }
 
 func assertAllOfMixins(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
@@ -327,7 +334,7 @@ func assertReadOnlyWriteOnly(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) 
 	require.True(t, ok)
 	w, ok := propByWire(m, "w")
 	require.True(t, ok)
-	assert.Equal(t, ir.Visibility{Only: []ir.Lifecycle{ir.LifecycleRead}}, r.Visibility)
+	assert.Equal(t, ir.Visibility{Only: []ir.Lifecycle{ir.LifecycleRead, ir.LifecycleDelete, ir.LifecycleQuery}}, r.Visibility)
 	assert.Equal(t, ir.Visibility{Only: []ir.Lifecycle{ir.LifecycleCreate, ir.LifecycleUpdate}}, w.Visibility)
 }
 
