@@ -302,6 +302,7 @@ func (l *lowerer) fillModelProperties(m *ir.Model, s *oas3.Schema, pointer strin
 		return
 	}
 	required := requiredSet(s.GetRequired())
+	byWire := wireNameIndex(m.Properties)
 	for name, js := range props.All() {
 		ppointer := pointer + ptr("properties", name)
 		p := ir.Property{
@@ -313,27 +314,73 @@ func (l *lowerer) fillModelProperties(m *ir.Model, s *oas3.Schema, pointer strin
 			Provenance: ir.Provenance{Source: l.srcIndex, Pointer: ppointer},
 		}
 		l.fillPropertyDetail(&p, js, ppointer)
-		mergeProperty(m, p)
+		l.mergeProperty(m, byWire, p, ppointer)
 	}
 }
 
-// mergeProperty adds p to m, or reconciles it into an existing property carrying
-// the same wire name. Overlapping inline allOf branches — and properties
-// co-declared alongside allOf — redeclare the same logical field (ir-design
-// §4.3). allOf is an intersection, so the field is required when any branch
-// requires it, and the first (richest) declaration defines its shape; a later
-// bare redeclaration must not become a second, wire-colliding property.
+// wireNameIndex maps each property's wire name to its position in props, so a
+// redeclaration reconciles in one lookup rather than a rescan (fillModelProperties
+// runs once per allOf branch, so a linear scan would be quadratic in a wide model).
+func wireNameIndex(props []ir.Property) map[string]int {
+	idx := make(map[string]int, len(props))
+	for i := range props {
+		idx[props[i].WireName] = i
+	}
+	return idx
+}
+
+// mergeProperty appends p to m and records it in byWire, or folds it into the
+// property that already carries the same wire name. Overlapping inline allOf
+// branches — and properties co-declared alongside allOf — redeclare one logical
+// field (ir-design §4.3); allOf is an intersection, so a redeclaration reconciles
+// into the existing property rather than becoming a second, wire-colliding one.
 //
 // fillModelProperties is the sole caller and always sets WireName to the
-// (non-empty) property key, so the wire name is compared directly.
-func mergeProperty(m *ir.Model, p ir.Property) {
-	for i := range m.Properties {
-		if m.Properties[i].WireName == p.WireName {
-			m.Properties[i].Required = m.Properties[i].Required || p.Required
-			return
-		}
+// (non-empty) property key, so the wire name keys byWire directly.
+func (l *lowerer) mergeProperty(m *ir.Model, byWire map[string]int, p ir.Property, pointer string) {
+	if i, ok := byWire[p.WireName]; ok {
+		l.reconcileProperty(&m.Properties[i], p, pointer)
+		return
 	}
+	byWire[p.WireName] = len(m.Properties)
 	m.Properties = append(m.Properties, p)
+}
+
+// reconcileProperty folds a redeclaration src into the already-present property
+// dst under allOf intersection semantics. The field is required when any branch
+// requires it and secret when any branch marks it, so those bits are OR-ed. dst
+// keeps its position, identity, and type shape (the first declaration in source
+// order defines them); every optional detail dst lacks is adopted from src, so a
+// documented declaration and a bare one reconcile to the richer property whatever
+// their branch order. A description present-and-different in both branches is a
+// genuine conflict dst cannot absorb — reported, never silently dropped.
+func (l *lowerer) reconcileProperty(dst *ir.Property, src ir.Property, pointer string) {
+	dst.Required = dst.Required || src.Required
+	dst.Secret = dst.Secret || src.Secret
+
+	if dst.Docs.Description == "" {
+		dst.Docs.Description = src.Docs.Description
+	} else if src.Docs.Description != "" && src.Docs.Description != dst.Docs.Description {
+		l.diags = append(l.diags, diagf(ir.SeverityInfo, codeDegradedConstruct,
+			ir.Provenance{Source: l.srcIndex, Pointer: pointer},
+			"allOf branches describe field %q differently; kept the first declaration", dst.WireName))
+	}
+	if dst.Default == nil {
+		dst.Default = src.Default
+	}
+	if dst.Constraints == nil {
+		dst.Constraints = src.Constraints
+	}
+	if dst.Deprecation == nil {
+		dst.Deprecation = src.Deprecation
+	}
+	if dst.XML == nil {
+		dst.XML = src.XML
+	}
+	if len(dst.Examples) == 0 {
+		dst.Examples = src.Examples
+	}
+	dst.Extensions = mergeExtensions(dst.Extensions, src.Extensions)
 }
 
 // fillPropertyDetail enriches a property from its schema: docs, default,

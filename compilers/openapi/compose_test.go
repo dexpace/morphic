@@ -88,6 +88,125 @@ components:
 		"the richer (documented) declaration defines the reconciled shape")
 }
 
+func TestAllOf_ReconcileAccumulatesRicherDetailWhateverTheOrder(t *testing.T) {
+	t.Parallel()
+	// The bare declaration comes first and the richer one second: reconciliation
+	// must still surface every optional detail, so branch order never loses
+	// information (the reverse of the forkee documented-first shape).
+	spec := `openapi: 3.1.0
+info: {title: T, version: "1"}
+paths: {}
+components:
+  schemas:
+    Tokenish:
+      allOf:
+        - type: object
+          properties:
+            token: {type: string}
+        - type: object
+          required: [token]
+          properties:
+            token:
+              type: string
+              format: password
+              description: the access token
+              default: none
+              minLength: 1
+              deprecated: true
+              examples: [abc]
+              xml: {name: tok}
+`
+	doc, diags := lowerSpec(t, spec)
+	requireNoErrorDiags(t, diags)
+	m, ok := doc.Types[ir.TypeID("t/openapi/components/schemas/Tokenish")].(*ir.Model)
+	require.True(t, ok, "Tokenish should be a model")
+	require.Len(t, m.Properties, 1, "token reconciles to a single property")
+
+	tok := m.Properties[0]
+	assert.True(t, tok.Required, "required in the richer branch => required on the merged property")
+	assert.True(t, tok.Secret, "secrecy (format:password) adopted from the richer branch")
+	assert.Equal(t, "the access token", tok.Docs.Description, "description adopted whichever branch carries it")
+	require.NotNil(t, tok.Default, "default adopted from the richer branch")
+	require.NotNil(t, tok.Constraints, "constraints adopted from the richer branch")
+	require.NotNil(t, tok.Constraints.MinLength, "minLength adopted from the richer branch")
+	require.NotNil(t, tok.Deprecation, "deprecation adopted from the richer branch")
+	require.NotNil(t, tok.XML, "xml hints adopted from the richer branch")
+	require.Len(t, tok.Examples, 1, "examples adopted from the richer branch")
+}
+
+func TestAllOf_ConflictingRedeclaredDescriptionDiagnosed(t *testing.T) {
+	t.Parallel()
+	// Two branches describe the same field differently. The first declaration in
+	// source order wins the shape, but the dropped description is surfaced as an
+	// info diagnostic rather than vanishing silently.
+	spec := `openapi: 3.1.0
+info: {title: T, version: "1"}
+paths: {}
+components:
+  schemas:
+    Clashish:
+      allOf:
+        - type: object
+          properties:
+            id: {type: integer, description: the first meaning}
+        - type: object
+          properties:
+            id: {type: integer, description: a different meaning}
+`
+	doc, diags := lowerSpec(t, spec)
+	requireNoErrorDiags(t, diags) // a description clash is info-level, never an error
+	m, ok := doc.Types[ir.TypeID("t/openapi/components/schemas/Clashish")].(*ir.Model)
+	require.True(t, ok, "Clashish should be a model")
+	require.Len(t, m.Properties, 1, "id still reconciles to one property")
+	assert.Equal(t, "the first meaning", m.Properties[0].Docs.Description,
+		"the first declaration in source order wins the description")
+
+	var sawConflict bool
+	for _, d := range diags {
+		if d.Code == codeDegradedConstruct && d.Severity == ir.SeverityInfo {
+			sawConflict = true
+		}
+	}
+	assert.True(t, sawConflict, "a differing redeclared description is surfaced, not dropped silently")
+}
+
+func TestAllOf_PropertyAlongsideAllOfReconciles(t *testing.T) {
+	t.Parallel()
+	// A property declared directly on the allOf schema redeclares a field an inline
+	// branch already contributed; the sibling and the branch declaration reconcile
+	// into one property instead of colliding on the wire.
+	spec := `openapi: 3.1.0
+info: {title: T, version: "1"}
+paths: {}
+components:
+  schemas:
+    Mixish:
+      required: [id]
+      properties:
+        id: {type: integer}
+      allOf:
+        - type: object
+          properties:
+            id: {type: integer, description: the identifier}
+            name: {type: string}
+`
+	doc, diags := lowerSpec(t, spec)
+	requireNoErrorDiags(t, diags)
+	m, ok := doc.Types[ir.TypeID("t/openapi/components/schemas/Mixish")].(*ir.Model)
+	require.True(t, ok, "Mixish should be a model")
+	require.Len(t, m.Properties, 2, "id (branch + sibling) reconciles to one; name stays its own")
+
+	var id ir.Property
+	for _, p := range m.Properties {
+		if p.WireName == "id" {
+			id = p
+		}
+	}
+	assert.True(t, id.Required, "required alongside allOf => required on the reconciled property")
+	assert.Equal(t, "the identifier", id.Docs.Description,
+		"detail from the branch declaration survives reconciliation with the sibling property")
+}
+
 func TestAllOf_ExtraRefsBecomeMixins(t *testing.T) {
 	t.Parallel()
 	spec := `openapi: 3.1.0
