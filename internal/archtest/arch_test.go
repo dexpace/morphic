@@ -22,14 +22,15 @@ const module = "github.com/dexpace/morphic"
 // here so the assertion is ready the moment those packages land; absent
 // directories are skipped by the walk (see TestImportGraph_LayeringHolds).
 var rules = map[string][]string{
-	"ir":                {},
-	"ir/irtest":         {module + "/ir", "github.com/google/go-cmp"},
-	"ir/irverify":       {module + "/ir"},
-	"compilers":         {module + "/ir"},
-	"compilers/openapi": {module + "/ir", module + "/compilers", "github.com/speakeasy-api/openapi", "gopkg.in/yaml.v3"},
-	"pass":              {module + "/ir"},
-	"engine":            {module + "/ir", module + "/compilers", module + "/pass", "gopkg.in/yaml.v3"},
-	"cmd/morphic":       {module + "/ir", module + "/engine"},
+	"ir":                  {},
+	"ir/irtest":           {module + "/ir", "github.com/google/go-cmp"},
+	"ir/irverify":         {module + "/ir"},
+	"compilers":           {module + "/ir"},
+	"compilers/openapi":   {module + "/ir", module + "/compilers", "github.com/speakeasy-api/openapi", "gopkg.in/yaml.v3"},
+	"pass":                {module + "/ir"},
+	"engine":              {module + "/ir", module + "/compilers", module + "/pass", "gopkg.in/yaml.v3"},
+	"cmd/morphic":         {module + "/ir", module + "/engine"},
+	"cmd/morphic-harness": {module + "/internal/harness"},
 }
 
 // TestImportGraph_LayeringHolds parses every non-test Go file under each ruled
