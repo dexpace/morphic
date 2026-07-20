@@ -94,17 +94,23 @@ func resolveDiag(srcIndex int, err error) ir.Diagnostic {
 	return diagf(ir.SeverityError, codeUnresolvedRef, prov, "%s", err.Error())
 }
 
-// asValidationError extracts a structured validation error. The library's
-// methods have value receivers and the wrapped value may be stored by value or
-// by pointer, so both forms are probed.
+// asValidationError extracts a structured validation error. The wrapped value
+// may be stored by value or by pointer, so both forms are probed. The error
+// chain is walked manually rather than via errors.As: the speakeasy errors.Error
+// string type has an As method that matches any target type named "Error" and
+// calls SetString on it, which panics on the validation.Error struct (also named
+// "Error"). Manual unwrapping with type assertions never invokes that As method.
 func asValidationError(err error) (validation.Error, bool) {
-	var pv *validation.Error
-	if errors.As(err, &pv) {
-		return *pv, true
-	}
-	var v validation.Error
-	if errors.As(err, &v) {
-		return v, true
+	for e := err; e != nil; e = errors.Unwrap(e) {
+		//nolint:errorlint // Deliberately hand-walked: errors.As would invoke the
+		// speakeasy errors.Error type's As method, which matches any target named
+		// "Error" and calls SetString, panicking on the validation.Error struct.
+		switch v := e.(type) {
+		case *validation.Error:
+			return *v, true
+		case validation.Error:
+			return v, true
+		}
 	}
 	return validation.Error{}, false
 }
