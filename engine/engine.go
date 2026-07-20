@@ -73,7 +73,11 @@ func (e *Engine) Run(ctx context.Context, specPath string, opts RunOptions) (*Re
 		return nil, fmt.Errorf("engine: parse %q: %w", specPath, err)
 	}
 	if !opts.SkipValidate && doc != nil {
-		diags = append(diags, pass.Validate(doc)...)
+		// Land the pass diagnostics in the document too, so the persisted IR JSON
+		// (golden snapshots, IR diff, caches, backends) carries them and does not
+		// silently lose error-level validation findings.
+		doc.Diagnostics = append(doc.Diagnostics, pass.Validate(doc)...)
+		diags = doc.Diagnostics
 	}
 	return &Result{Document: doc, Diagnostics: diags, Format: format}, nil
 }

@@ -83,9 +83,14 @@ func parseArgs(fs *flag.FlagSet, args []string) ([]string, error) {
 // the pipeline where diagnostics are rendered for a human.
 func renderDiagnostics(w io.Writer, res *engine.Result) {
 	for _, d := range res.Diagnostics {
-		emitf(w, "%s %s %s#%s: %s\n",
-			d.Severity, d.Code, sourcePath(res.Document, d.Provenance.Source),
-			d.Provenance.Pointer, d.Message)
+		if path := sourcePath(res.Document, d.Provenance.Source); path != "" {
+			emitf(w, "%s %s %s#%s: %s\n",
+				d.Severity, d.Code, path, d.Provenance.Pointer, d.Message)
+			continue
+		}
+		// No source file (e.g. a pass diagnostic whose pointer is an IR id): show
+		// the bare pointer rather than fabricating a location in the spec file.
+		emitf(w, "%s %s %s: %s\n", d.Severity, d.Code, d.Provenance.Pointer, d.Message)
 	}
 }
 
