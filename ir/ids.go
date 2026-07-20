@@ -1,6 +1,6 @@
 package ir
 
-// IDs are opaque to consumers but constructed deterministically by frontends
+// IDs are opaque to consumers but constructed deterministically by compilers
 // from the source pointer of the defining occurrence (ir-design §3.1). They are
 // never derived from display names and never rewritten by renames.
 

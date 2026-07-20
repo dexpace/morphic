@@ -1,7 +1,7 @@
 # Morphic IR — Model Design
 
-The intermediate representation is the single contract between spec frontends and generator
-backends. This document specifies every node in the model, the semantics of the hard cases, and
+The intermediate representation is the single contract between spec compilers and generator
+emitters. This document specifies every node in the model, the semantics of the hard cases, and
 how each source format lowers into it. The pipeline around it is defined in
 [`architecture.md`](./architecture.md); the capability analysis it is designed against is
 [`ir-spec-matrix.md`](./ir-spec-matrix.md); the evidence base is [`prior-art.md`](./prior-art.md).
@@ -14,12 +14,12 @@ spec — field names and shapes here are normative, receiver methods and helpers
 ## 1. Design rules
 
 1. **Union of capabilities.** The IR represents everything any supported spec can express
-   (`ir-spec-matrix.md`). A backend may ignore a capability; a frontend must never drop one.
-   Only frontends are staged over time — the IR's capability surface is complete from day one,
-   so shipping the OpenAPI 3.x frontend first never forces an IR schema change when TypeSpec,
-   Smithy, GraphQL, AsyncAPI, Protobuf, or Erlang/OTP frontends land.
+   (`ir-spec-matrix.md`). A emitter may ignore a capability; a compiler must never drop one.
+   Only compilers are staged over time — the IR's capability surface is complete from day one,
+   so shipping the OpenAPI 3.x compiler first never forces an IR schema change when TypeSpec,
+   Smithy, GraphQL, AsyncAPI, Protobuf, or Erlang/OTP compilers land.
 2. **Un-lowered.** Composition, unions, visibility, discriminators, encodings, and streaming stay
-   in source-semantic form. Flattening and language fitting happen in backends.
+   in source-semantic form. Flattening and language fitting happen in emitters.
 3. **Stable IDs, flat registries.** All named entities live in flat, ID-keyed registries and
    reference each other by ID. No node embeds another named node. Recursive types need no special
    handling; renames never break references.
@@ -72,7 +72,7 @@ type Document struct {
                                        // []string on the tagged nodes (OpenAPI/AsyncAPI tag objects)
     Versions    []string               // ordered version labels when availability metadata is used
     Extensions  Extensions
-    Diagnostics []Diagnostic           // accumulated by frontend + passes; not part of API meaning
+    Diagnostics []Diagnostic           // accumulated by compiler + passes; not part of API meaning
     Sources     []SourceInfo           // input files: format, path, content hash
 }
 
@@ -95,7 +95,7 @@ type OpID   string      // operation identity, same construction
 type ServiceID, ChannelID, MessageID, AuthID, PropID string
 ```
 
-IDs are opaque to consumers but constructed deterministically by frontends from the source
+IDs are opaque to consumers but constructed deterministically by compilers from the source
 pointer of the defining occurrence, so the same input always yields the same IDs (stable
 snapshots, cachable, diffable across spec revisions). IDs are never derived from display names
 and never rewritten by renames. The `dedup` pass may alias two structurally identical anonymous
@@ -121,9 +121,9 @@ type Naming struct {
 }
 ```
 
-`Canonical` is a cleaned word sequence, not a cased identifier — backends apply casing, acronym
+`Canonical` is a cleaned word sequence, not a cased identifier — emitters apply casing, acronym
 policy, and reserved-word escaping. Anonymous (hoisted) types have empty `Source` and a `Hint`;
-whether a backend inlines them or names them is its choice.
+whether a emitter inlines them or names them is its choice.
 
 ### 3.3 Type references
 
@@ -137,7 +137,7 @@ type TypeRef struct {
 Nullability lives on the reference, not the target type, because the same type is nullable in one
 position and not another. Combined with `Property.Required` this yields the four distinct states
 (required/optional × nullable/non-null) that OpenAPI 3.1, TypeSpec, and GraphQL all distinguish.
-Frontends normalize every source spelling to this one bit: OAS 3.0 `nullable: true`, OAS 3.1
+Compilers normalize every source spelling to this one bit: OAS 3.0 `nullable: true`, OAS 3.1
 `type: [T, "null"]`, TypeSpec `T | null`, GraphQL's absence-of-`!`.
 A oneOf/anyOf/union whose only distinction is a null variant becomes a plain nullable `TypeRef`,
 never a union node.
@@ -225,7 +225,7 @@ type Scalar struct {
     TypeCommon
     Base        *TypeRef     // primitive or another scalar — extension chains preserved.
                              // nil = opaque scalar with implementation-defined representation
-                             // (GraphQL custom scalars declare no base; backends map nil-base
+                             // (GraphQL custom scalars declare no base; emitters map nil-base
                              // scalars to their opaque-scalar strategy, not a fabricated chain)
     Constraints *Constraints
     Encoding    *Encoding
@@ -233,7 +233,7 @@ type Scalar struct {
 ```
 
 Covers TypeSpec `scalar X extends Y`, GraphQL custom scalars, OpenAPI `type+format` pairs that a
-frontend chooses to name, Smithy simple shapes with traits. Backends resolve the chain to the
+compiler chooses to name, Smithy simple shapes with traits. Emitters resolve the chain to the
 nearest representable base and accumulate constraints/encoding along the way.
 
 ### 4.3 Models (structs / objects / messages)
@@ -302,7 +302,7 @@ and Kiota lose: the difference between "inherits from", "conforms to", "mixes in
 models — the distinction matters because GraphQL allows multiple interfaces while every
 class-based target language allows at most one base class.
 
-How frontends classify `allOf`: an entry that is a `$ref` to a schema participating in a
+How compilers classify `allOf`: an entry that is a `$ref` to a schema participating in a
 discriminator hierarchy, or the sole `$ref` entry, becomes `Base`; other `$ref` entries become
 `Mixins`; inline entries merge into `Properties` (with provenance). This mirrors Kiota's
 decision table but keeps every branch reconstructible.
@@ -344,7 +344,7 @@ type EventInfo struct {
 One node covers the whole design space from the capability matrix: untagged `anyOf`
 (`Exclusive=false`), untagged `oneOf` (`Exclusive=true`), discriminated `oneOf`
 (`+Discriminator`), natively tagged unions (`WireTagged=true`). Variant identity survives so
-backends can generate named accessors, sealed interfaces, or wrapper types per their refiner
+emitters can generate named accessors, sealed interfaces, or wrapper types per their refiner
 strategy. Unions never degrade to optional-field merges in the IR — that includes GraphQL
 `@oneOf` input objects, which are spec-level tagged input unions and lower here, not to models.
 
@@ -381,7 +381,7 @@ type EnumMember struct {
 
 `Closed` defaults per source semantics: JSON Schema enums are closed; Smithy enums are open;
 protobuf enums are open or closed **per file syntax / editions feature** (proto2 closed, proto3
-open, editions `enum_type` per enum) — the frontend lowers the *resolved* value. Backends that
+open, editions `enum_type` per enum) — the compiler lowers the *resolved* value. Emitters that
 can't express open enums (plain Go consts, TS string literals) lower via their refiners — the
 bit must survive to that point (Kiota's string-only closed enums are the counterexample).
 Duplicate member values are legal (protobuf `allow_alias`); slice order preserves which name is
@@ -412,13 +412,13 @@ model (`erlang:pid`, `erlang:fun` — see §4.8).
 JSON Schema's `not`, `if`/`then`/`else`, `dependentSchemas`, `contains`/`minContains`/
 `maxContains`, and `unevaluatedItems` express *validation logic*, not data shape; no target
 language's type system represents them, and none of the other source formats has an equivalent.
-The IR deliberately does not model them structurally. Frontends preserve them verbatim in
+The IR deliberately does not model them structurally. Compilers preserve them verbatim in
 `Extensions` (`openapi:not`, `openapi:if-then-else`, `openapi:contains`, …) and emit an `info`
-diagnostic, so the information is never silently lost and a future validation-oriented backend
+diagnostic, so the information is never silently lost and a future validation-oriented emitter
 (request validators, mock servers) can still consume them. The one structural carve-back:
 `unevaluatedProperties: false` is *shape* (a closed model after composition) and lowers to
 `Model.Additional = closed_after_composition`; other `unevaluated*` forms stay verbatim.
-`$dynamicRef` is resolved per reference site by frontend expansion (dynamic scope is static per
+`$dynamicRef` is resolved per reference site by compiler expansion (dynamic scope is static per
 document); irreducible cases are preserved verbatim with a diagnostic.
 
 This is the one intentional carve-out from "lossless means structural": losslessness is
@@ -431,7 +431,7 @@ A few source constructs have no faithful structural target in any SDK language. 
 accident:
 
 - **TypeSpec `never`-typed properties/variants** — the compiler does *not* remove them;
-  frontends delete them and emit an `info` diagnostic. No `never` node exists.
+  compilers delete them and emit an `info` diagnostic. No `never` node exists.
 - **TypeSpec `StringTemplate` types** (interpolating non-literal types) — degrade to `string` +
   `Extensions["typespec:string-template"]` + `info` diagnostic.
 - **Erlang bit-sized binaries** (`<<_:M, _:_*N>>`) — `bytes` + `Min/MaxLength` when
@@ -442,7 +442,7 @@ accident:
 - **Erlang heterogeneous map association lists** (`#{atom() => a(), integer() => b()}`) —
   lower to union-typed `AdditionalProps` + `Extensions["erlang:map-assocs"]` verbatim.
 - **Erlang `-opaque`** — lowered structurally (lossless) + `Extensions["erlang:opaque"] = true`;
-  backend policy decides whether to expose or wrap.
+  emitter policy decides whether to expose or wrap.
 
 ---
 
@@ -506,16 +506,16 @@ type PresenceKind string
 **Scope rule for `Args`:** parameterized properties are only legal on models reachable from a
 GraphQL binding (the only format with per-field arguments); the validate pass rejects them
 elsewhere. This keeps ordinary models pure data shapes — a model without `Args` anywhere in its
-graph serializes conventionally in every backend.
+graph serializes conventionally in every emitter.
 
 ### 5.2 Visibility — lifecycle sets, not booleans
 
 ```go
 type Lifecycle = string // OPEN set. Canonical values: "create" | "read" | "update" | "delete" | "query".
                         // TypeSpec's visibility system allows arbitrary user-defined visibility
-                        // classes; frontends lower custom classes as "<class>:<member>" strings so
+                        // classes; compilers lower custom classes as "<class>:<member>" strings so
                         // nothing is dropped. Filters evaluate per class, not across the flat union;
-                        // backends treat unknown classes as opaque filters.
+                        // emitters treat unknown classes as opaque filters.
 
 type Visibility struct {
     Only []Lifecycle   // empty = visible in all lifecycles (unless None)
@@ -528,7 +528,7 @@ type Visibility struct {
 `Only: [create, update]`; GraphQL input-vs-output types to `create/update` vs `read`; TypeSpec
 `@visibility` maps directly. One logical model therefore produces N wire shapes; the projection
 (`ModelShape(model, lifecycle)`, with PATCH additionally making properties optional *unless the
-binding disables it* — §8.1 `PatchImplicitOptionality`) is a computed traversal in backends'
+binding disables it* — §8.1 `PatchImplicitOptionality`) is a computed traversal in emitters'
 plan layer — the IR stores the single logical model plus the visibility facts, never the
 projected variants. Operations can override which filter applies to their request/response
 (§7.2 `ParameterVisibility`/`ReturnTypeVisibility`). This is TypeSpec's `MetadataInfo` design
@@ -546,7 +546,7 @@ type Constraints struct {
                                   // OData Edm.Decimal)
     // string & bytes — length constraints apply to both (Avro fixed(N) = bytes, MinLength=MaxLength=N)
     MinLength, MaxLength *int64
-    Pattern            string      // ECMA-262 regex as written; backends translate or drop with a diagnostic
+    Pattern            string      // ECMA-262 regex as written; emitters translate or drop with a diagnostic
     PatternMessage     string      // human-readable validation message (TypeSpec @pattern's second arg)
     // collections
     MinItems, MaxItems *int64
@@ -570,7 +570,7 @@ type Encoding struct {
 The logical-type / encoding-name / wire-type triple is TCGC's reification of TypeSpec `@encode`
 and also absorbs OpenAPI `format` and Protobuf's `sint*/fixed*` wire variants. Encoding attaches
 at the scalar definition or overrides at the property — property wins. Protobuf editions features
-lower here per element after the frontend resolves the feature cascade (descriptors expose
+lower here per element after the compiler resolves the feature cascade (descriptors expose
 resolved values): `field_presence` → `Presence`, `enum_type` → `Closed`,
 `repeated_field_encoding` → `List.Encoding`, `message_encoding` → `"delimited"`; remaining axes
 (`utf8_validation`, `json_format`) → namespaced Extensions.
@@ -580,7 +580,7 @@ resolved values): `field_presence` → `Presence`, `enum_type` → `Closed`,
 XML-capable formats (OpenAPI's `xml` object, Smithy's `xmlName`/`xmlAttribute`/`xmlNamespace`/
 `xmlFlattened` traits, TypeSpec's `@Xml.*` decorators) describe an XML wire shape that diverges
 from the JSON-implied one. This is typed, not an extension, because multiple formats express it
-and backends must act on it. Hints attach at both levels: `TypeCommon.XML` (root element
+and emitters must act on it. Hints attach at both levels: `TypeCommon.XML` (root element
 name/namespace of the shape itself) and `Property.XML` (per-use overrides; property wins).
 
 ```go
@@ -626,9 +626,9 @@ type CtorValue struct {
 `BigVal` is a decimal-string wrapper: no float64 round-tripping anywhere in the IR.
 
 `symbol` is an interned-symbol value distinct from `string` (Erlang atoms: on the native wire
-`ok` ≠ `<<"ok">>`). Backends without a symbol concept render symbols as strings — explicitly,
+`ok` ≠ `<<"ok">>`). Emitters without a symbol concept render symbols as strings — explicitly,
 not accidentally. `ctor` captures values built by named scalar constructors
-(`utcDateTime.now()`, `plainDate.fromISO("2024-05-06")`) — inherently non-literal, so frontends
+(`utcDateTime.now()`, `plainDate.fromISO("2024-05-06")`) — inherently non-literal, so compilers
 must not fold them.
 
 ---
@@ -687,7 +687,7 @@ type ResourceInfo struct {
 }
 ```
 
-OpenAPI frontends build groups from tags (policy-controllable: tag-based vs path-prefix-based);
+OpenAPI compilers build groups from tags (policy-controllable: tag-based vs path-prefix-based);
 TypeSpec from interfaces/namespaces; Smithy from resources; GraphQL yields three groups
 (query/mutation/subscription); Protobuf one group per `service`; Erlang/OTP one group per module.
 
@@ -823,7 +823,7 @@ Design notes:
 - **Parameters carry no protocol location.** The same logical operation is bindable to HTTP
   (locations assigned in the binding), to gRPC (all params fold into a request message), or to a
   channel message. This is the split TCGC makes between `ServiceMethod` and `InputOperation`,
-  turned inside out: Morphic stores the neutral core and each binding, and backends derive the
+  turned inside out: Morphic stores the neutral core and each binding, and emitters derive the
   per-protocol view.
 - **All responses and all content types survive** (oagen's "primary response" collapse is the
   counterexample). The plan layer picks a primary for SDK ergonomics; the IR doesn't.
@@ -831,7 +831,7 @@ Design notes:
   range collapsing exactly as Kiota's error mappings (`404`, `4XX`, catch-all).
 - **`OneWay` is on the neutral core**, like `Streaming` and `Idempotency`, because
   fire-and-forget is protocol-independent — an SDK that blocks awaiting a reply on a cast is
-  wrong regardless of transport. The AsyncAPI frontend sets it for send-operations without a
+  wrong regardless of transport. The AsyncAPI compiler sets it for send-operations without a
   reply, rather than leaving one-way-ness inferable only from binding fields.
 
 ### 7.3 Pagination, long-running, streaming
@@ -906,7 +906,7 @@ type OpBindings struct {
     GraphQL *GraphQLBinding   // query/mutation/subscription field binding. GraphQL subscriptions
                               // bind here + streaming fields on the core — NOT via MessageBinding
                               // (GraphQL defines no channel; synthesizing one is deployment-aware
-                              // policy, marked Inferred, never a frontend default)
+                              // policy, marked Inferred, never a compiler default)
     OTP     *OTPBinding       // Erlang/OTP behaviour operations (§8.5)
 }
 ```
@@ -924,7 +924,7 @@ type HTTPBinding struct {
     HostPrefix  string             // endpoint host prefix, may contain {param} labels (Smithy @endpoint)
     SharedRoute bool               // multiple operations legally share method+path, disambiguated by
                                    // request content (TypeSpec @sharedRoute) — validate must not
-                                   // reject the duplicate, and single-route backends must merge
+                                   // reject the duplicate, and single-route emitters must merge
     ParamBindings []HTTPParamBinding
     RequestContentTypes  []string  // priority-ordered
     ResponseBodyPath *PropPath     // HTTP response body = this sub-field of the response type
@@ -957,7 +957,7 @@ type HTTPParamBinding struct {
     AllowReserved bool
     PathPattern string            // multi-segment path pattern constraint for this param
                                   // (gRPC transcoding {name=shelves/*/books/*}); "" = single segment.
-                                  // The URI template uses reserved expansion; backends that cannot
+                                  // The URI template uses reserved expansion; emitters that cannot
                                   // validate the pattern drop it with a diagnostic
     Prefix     string             // map-typed param spread as prefixed wire entries:
                                   // prefixed headers (Smithy @httpPrefixHeaders) or catch-all
@@ -1038,7 +1038,7 @@ type Message struct {
     Headers     *TypeRef           // header *schema* — an object-constrained model hoisted into the
                                    // type registry like any anonymous type (headers can be named,
                                    // composed, even Avro-defined; and $message.header#/… paths need
-                                   // a type to resolve against). Backends compute flat lists per §4.3
+                                   // a type to resolve against). Emitters compute flat lists per §4.3
     CorrelationID *PropPath        // In: "header" | "" (payload)
     ContentType string
     Tags        []string
@@ -1084,7 +1084,7 @@ member's `Provenance` at its defining occurrence; the occurrence list goes to
 `Extensions["graphql:extends"]` when SDL round-trip fidelity is wanted.
 
 Arbitrary client-composed selection sets are out of scope by design: Morphic generates SDK
-surface, and the full type graph — including per-field arguments — is retained so a backend can
+surface, and the full type graph — including per-field arguments — is retained so a emitter can
 still offer query builders.
 
 ### 8.5 Erlang/OTP
@@ -1103,7 +1103,7 @@ type OTPBinding struct {
 }
 ```
 
-An OTP frontend consumes module type information (`-spec`/`-type` on behaviour callbacks and
+An OTP compiler consumes module type information (`-spec`/`-type` on behaviour callbacks and
 API functions). Lowering conventions: a gen_server ≈ one `Channel`; `handle_call`/`handle_cast`
 APIs are `Operation`s with an `OTPBinding`; unsolicited `handle_info` messages are channel
 `Messages` consumed via `MessageBinding{Direction: receive}`; a gen_event manager is a Channel
@@ -1111,7 +1111,7 @@ with one message shape per event. Tagged-tuple protocols (`{ok, V} | {error, R}`
 Tuples discriminated by `Discriminator.Index`; records are `Model{Positional: true}` with the
 record tag as an index-1 `Literal`-typed property. Splitting a tagged reply union into
 `Responses` vs `Errors` (`{error, Reason}` is in-band data, not transport failure) is injectable
-frontend policy, marked `Inferred`. Erlang `string()` is `[char()]` and must lower as a List of
+compiler policy, marked `Inferred`. Erlang `string()` is `[char()]` and must lower as a List of
 a char-ranged scalar — never as PrimKind `string`. Delayed replies (`noreply` +
 `gen_server:reply/2`) are invisible at the protocol surface and need no representation; call
 timeouts and `multi_call`/`send_request` machinery are SDK runtime policy, not IR.
@@ -1131,7 +1131,7 @@ type AuthScheme struct {
     // The SASL family, user_password, and x509 are how Kafka/AMQP clients authenticate
     // (AsyncAPI securitySchemes). AsyncAPI `httpApiKey` lowers to apiKey; AsyncAPI `apiKey`
     // (transport user/password slot) lowers to apiKey with In: user|password. X509 is distinct
-    // from mutual_tls (certificate as credential vs mutual verification) — frontends must not
+    // from mutual_tls (certificate as credential vs mutual verification) — compilers must not
     // conflate them.
     Docs Docs
     Deprecation *Deprecation
@@ -1158,8 +1158,8 @@ type AuthRequirement struct {          // one *option*
 type SchemeUse struct { Scheme AuthID; Scopes []string }
 // []AuthRequirement on a service/operation/server = OR across options (TypeSpec/OpenAPI security
 // semantics). Option order is PRIORITY order — clients pick the first supported option (Smithy
-// @auth is priority-ordered; the Smithy frontend materializes the alphabetical default when
-// @auth is absent). Frontends whose source has no ordering semantics emit source order.
+// @auth is priority-ordered; the Smithy compiler materializes the alphabetical default when
+// @auth is absent). Compilers whose source has no ordering semantics emit source order.
 // An empty option (AuthRequirement{Schemes: []}) inside a non-empty list means "no auth is one
 // acceptable choice" (TypeSpec NoAuth in a union, Smithy @optionalAuth, OpenAPI's empty security
 // requirement) — distinct from Operation.Auth = [] (explicitly public).
@@ -1203,13 +1203,13 @@ type VersionedBool struct { Version string; WasRequired bool }
 ```
 
 The IR stores the **timeline** (TypeSpec model); the `version-slice` pass produces a concrete
-snapshot document per version for consumption. Backends always receive snapshots — they never
+snapshot document per version for consumption. Emitters always receive snapshots — they never
 interpret availability themselves. Formats without versioning semantics simply leave this nil.
 
 `Availability` attaches everywhere versioning decorators can: `TypeCommon`, `Property`,
 `Operation`, `Parameter`, `EnumMember`, `Variant`, and `OperationGroup` — a versioned enum
 member or union variant must disappear from pre-`Added` snapshots. Smithy `@since` (free-form,
-no version registry) lowers to `Added` only when the frontend synthesizes labels; otherwise it
+no version registry) lowers to `Added` only when the compiler synthesizes labels; otherwise it
 is preserved as an extension.
 
 ## 12. Docs, deprecation, examples, extensions
@@ -1218,7 +1218,7 @@ is preserved as an extension.
 type Docs struct {
     Summary     string
     Description string        // CommonMark; may contain {t:TypeID} cross-reference tokens that
-                              // backends resolve to language-appropriate links (Kiota's doc templates)
+                              // emitters resolve to language-appropriate links (Kiota's doc templates)
     ExternalDocs []Link       // {URL, Description}
 }
 
@@ -1277,15 +1277,15 @@ Everything heuristic is auditable; everything broken is reportable with an exact
 
 ---
 
-## 14. Frontend lowering summaries
+## 14. Compiler lowering summaries
 
-How each format's distinctive concepts land in the IR (full details live with each frontend):
+How each format's distinctive concepts land in the IR (full details live with each compiler):
 
 | Format | Lowering highlights |
 |---|---|
-| **OpenAPI 3.x** | components/schemas → registry (IDs from pointers); inline schemas hoisted with hints; `allOf` → Base/Mixins per §4.3; `oneOf`/`anyOf` → Union (Exclusive bit), null-variant → Nullable ref; `discriminator` → Discriminator (3.2 `defaultMapping` → Discriminator.Default); `nullable`/type-arrays → Nullable; readOnly/writeOnly → Visibility (schema-level readOnly pushed down to referencing properties, residue → Extensions + diagnostic); `additionalProperties: false` → Additional=closed, `unevaluatedProperties: false` → closed_after_composition; parameters → Params + HTTPBinding locations w/ style/explode, 3.2 `in: querystring` → querystring location; requestBody/responses all content types → Payload.Contents; 3.2 `itemSchema`/`itemEncoding` → Content.Item/ItemEncoding; per-status responses/default → Conditions + ranges; webhooks → HTTPBinding.IsWebhook; callbacks → Callbacks; links → extensions (promotable later); securitySchemes/security → Auth OR-of-ANDs, 3.2 device flow + `oauth2MetadataUrl` → Flows/OAuth2MetadataURL; servers+variables (3.2 named) → Servers; tags (3.2 parent/kind) → groups + TagDefs; info contact/license → Document; schema `example(s)` → Examples; `xml` object (incl. 3.2 nodeType) → XMLHints at type and property level; `not`/`if-then-else`/`dependentSchemas`/`contains`/`unevaluated*` → verbatim Extensions per §4.7; `patternProperties` → AdditionalProps.Patterns; `x-*` → namespaced Extensions (legal on every object — hence Extensions on every node); `$ref`-adjacent sibling keywords (3.1) and ref-target annotations merge onto the referencing Property/Parameter with **use-site precedence**, applied uniformly (oagen's ad-hoc per-site patching is the counterexample); a oneOf/anyOf whose variants are all string consts normalizes to a closed `Enum` in a `pass/` normalization — not in the frontend — so per-variant `Docs` survive until the collapse is chosen; mutually-exclusive parameter groups (`x-mutually-exclusive-parameter-groups`) stay as namespaced Extensions, and their documented *promotion* (no dedicated node needed) is a pass that synthesizes one logical `Parameter` typed by a `Union` of variant models, bound via `HTTPParamBinding.ParamPath` per field; pagination only via injectable policy, marked Inferred |
+| **OpenAPI 3.x** | components/schemas → registry (IDs from pointers); inline schemas hoisted with hints; `allOf` → Base/Mixins per §4.3; `oneOf`/`anyOf` → Union (Exclusive bit), null-variant → Nullable ref; `discriminator` → Discriminator (3.2 `defaultMapping` → Discriminator.Default); `nullable`/type-arrays → Nullable; readOnly/writeOnly → Visibility (schema-level readOnly pushed down to referencing properties, residue → Extensions + diagnostic); `additionalProperties: false` → Additional=closed, `unevaluatedProperties: false` → closed_after_composition; parameters → Params + HTTPBinding locations w/ style/explode, 3.2 `in: querystring` → querystring location; requestBody/responses all content types → Payload.Contents; 3.2 `itemSchema`/`itemEncoding` → Content.Item/ItemEncoding; per-status responses/default → Conditions + ranges; webhooks → HTTPBinding.IsWebhook; callbacks → Callbacks; links → extensions (promotable later); securitySchemes/security → Auth OR-of-ANDs, 3.2 device flow + `oauth2MetadataUrl` → Flows/OAuth2MetadataURL; servers+variables (3.2 named) → Servers; tags (3.2 parent/kind) → groups + TagDefs; info contact/license → Document; schema `example(s)` → Examples; `xml` object (incl. 3.2 nodeType) → XMLHints at type and property level; `not`/`if-then-else`/`dependentSchemas`/`contains`/`unevaluated*` → verbatim Extensions per §4.7; `patternProperties` → AdditionalProps.Patterns; `x-*` → namespaced Extensions (legal on every object — hence Extensions on every node); `$ref`-adjacent sibling keywords (3.1) and ref-target annotations merge onto the referencing Property/Parameter with **use-site precedence**, applied uniformly (oagen's ad-hoc per-site patching is the counterexample); a oneOf/anyOf whose variants are all string consts normalizes to a closed `Enum` in a `pass/` normalization — not in the compiler — so per-variant `Docs` survive until the collapse is chosen; mutually-exclusive parameter groups (`x-mutually-exclusive-parameter-groups`) stay as namespaced Extensions, and their documented *promotion* (no dedicated node needed) is a pass that synthesizes one logical `Parameter` typed by a `Union` of variant models, bound via `HTTPParamBinding.ParamPath` per field; pagination only via injectable policy, marked Inferred |
 | **Swagger 2.0** | lifted to OpenAPI 3.x shape first (body/formData → Payload; host/basePath/schemes → Servers; consumes/produces → content types), then the OpenAPI lowering runs |
-| **TypeSpec** | consumed post-check (monomorphized, `isFinished`); template instances → TypeCommon.Instantiation incl. value args → TemplateArg; models → Model w/ Base + spread provenance → Mixins; scalars → Scalar chains, constructors in values → Value.Ctor; `@encode`/`@format` → Encoding triple; `@encodedName` → WireNameByFormat at property AND type level; unions w/ named variants → Union, `@discriminated` → Discriminator.PropertyName/Envelope/EnvelopeValueName; `| null` → Nullable; visibility classes (incl. custom, `@invisible` → Visibility.None) → Visibility, op overrides → ParameterVisibility/ReturnTypeVisibility; `@patch` implicitOptionality → HTTPBinding.PatchImplicitOptionality; interfaces → OperationGroups (versionable); `@overload` → OverloadOf; `@sharedRoute` → SharedRoute; `@service` → Service; versioning decorators incl. `@typeChangedFrom`/`@madeOptional`/`@madeRequired` and add/remove cycles → Availability timeline (on members/variants/params too); pagination decorators incl. prev/first/last links and header continuation tokens → Pagination PropPaths (In:"header"); Azure.Core `@pollingOperation`/`@finalOperation` → LongRunning; multipart w/ parts → Content.Encoding/PartEncoding, `Http.File` → FileInfo (content-type set, contents chain, filename location); streams/SSE → StreamDetail + Variant.Event (contentType, terminal); `@error` → UsageFlags.Error; `@example`/`@opExample` → Examples (Input/Output pairs); `@pattern` message → Constraints.PatternMessage; `@mediaTypeHint` → TypeCommon.MediaTypeHint; `never` members deleted + diagnostic per §4.8; TCGC client-shaping decorators (`@clientName`, `@access`, `@usage`, `@scope`, `@override`, …) → namespaced Extensions consumed by backend policy, never IR semantics; values/consts incl. enum-member refs → Values channel |
+| **TypeSpec** | consumed post-check (monomorphized, `isFinished`); template instances → TypeCommon.Instantiation incl. value args → TemplateArg; models → Model w/ Base + spread provenance → Mixins; scalars → Scalar chains, constructors in values → Value.Ctor; `@encode`/`@format` → Encoding triple; `@encodedName` → WireNameByFormat at property AND type level; unions w/ named variants → Union, `@discriminated` → Discriminator.PropertyName/Envelope/EnvelopeValueName; `| null` → Nullable; visibility classes (incl. custom, `@invisible` → Visibility.None) → Visibility, op overrides → ParameterVisibility/ReturnTypeVisibility; `@patch` implicitOptionality → HTTPBinding.PatchImplicitOptionality; interfaces → OperationGroups (versionable); `@overload` → OverloadOf; `@sharedRoute` → SharedRoute; `@service` → Service; versioning decorators incl. `@typeChangedFrom`/`@madeOptional`/`@madeRequired` and add/remove cycles → Availability timeline (on members/variants/params too); pagination decorators incl. prev/first/last links and header continuation tokens → Pagination PropPaths (In:"header"); Azure.Core `@pollingOperation`/`@finalOperation` → LongRunning; multipart w/ parts → Content.Encoding/PartEncoding, `Http.File` → FileInfo (content-type set, contents chain, filename location); streams/SSE → StreamDetail + Variant.Event (contentType, terminal); `@error` → UsageFlags.Error; `@example`/`@opExample` → Examples (Input/Output pairs); `@pattern` message → Constraints.PatternMessage; `@mediaTypeHint` → TypeCommon.MediaTypeHint; `never` members deleted + diagnostic per §4.8; TCGC client-shaping decorators (`@clientName`, `@access`, `@usage`, `@scope`, `@override`, …) → namespaced Extensions consumed by emitter policy, never IR semantics; values/consts incl. enum-member refs → Values channel |
 | **Smithy 2.0** | structures → Model, mixins → Mixins (non-structure mixins flattened — spec-sanctioned); `document` → Any; unions → WireTagged Union, member `@jsonName` → Variant.WireName; enum/intEnum → Enum (open by default); `@sparse` → element Nullable; traits: constraints → Constraints, `@paginated` → Pagination (declared), `@retryable` → ErrorCase.Retryable + Throttling, `@error` fault → ErrorCase.Fault, `@readonly` → Idempotency safe, `@idempotent`/`@idempotencyToken` → Idempotency, `@sensitive` → Sensitive/Secret, `@tags` → Tags, `@clientOptional`/`@input` → Property.ClientOptional (+InputOnly), `@addedDefault` → DefaultAdded, root-shape `@default` pushed down to properties w/ provenance; `@streaming` blob → StreamDetail (+`@requiresLength` → RequiresLength); event streams → StreamDetail.Events union + Property.EventHeader/EventPayload + Initial messages; service-level errors → Service.CommonErrors; protocol traits → Service.Protocols; service `rename`/`version` → Service.Renames/Version; resources → OperationGroup + ResourceInfo (identifiers, properties, lifecycle incl. put/@noReplace, instance vs collection ops); http traits → HTTPBinding incl. `@endpoint`/`@hostLabel` → HostPrefix/host location (additive binding), `@httpPrefixHeaders`/`@httpQueryParams` → Prefix bindings, `@httpResponseCode` → Response.StatusCodeProp, `@requestCompression` → Compression, `@httpChecksumRequired` → ChecksumRequired; `@auth` order → priority-ordered Auth, `@optionalAuth` → empty option; `@jsonName` → WireName; `@mediaType` → Encoding.MediaType; xml traits → XMLHints at type and property level; `@examples` → Examples (Input/Output/Error); waiters + rules-engine traits → verbatim Extensions (§15); `smithy.api#Unit` → nil payload / shared empty Model for tag-only variants; other traits → namespaced Extensions |
 | **GraphQL** | §8.4; interfaces (incl. interface hierarchies) → Abstract models + Implements; field arguments → Property.Args; input objects → `InputOnly` models, `@oneOf` inputs → WireTagged Exclusive Union; non-null wrapping → Required/Nullable (all `[T!]!` combinations via per-layer list nodes); defaults on args AND input fields → Default (list-input coercion normalized); custom scalars → Scalar{Base: nil}, `@specifiedBy` → Extensions; deprecation w/ reason at every location incl. args/input fields; directives → ordered-array Extensions convention + document-level definitions |
 | **AsyncAPI** | servers w/ protocols/protocolVersion/security → Servers (named, w/ Auth); channels → Channels (Address nil = unknown), messages → Document.Messages registry referenced by ID; operations send/receive → Operation + MessageBinding, no-reply sends → OneWay; reply objects → Reply (static channel + dynamic PropPath address + message set); correlation IDs → PropPath (In: header|payload); message headers → hoisted header model (Headers *TypeRef); message examples → Example{Headers, Value} pairs; multi-format payload schemas → Content.SchemaFormat + verbatim schema in Extensions (Avro payloads lower through the type graph: record→Model, enum→closed Enum w/ FallbackMember, fixed→bytes w/ length, decimal→Constraints.Precision/Scale, aliases→Naming.Aliases); parameter `location` → Parameter.ValueFrom; traits applied by merge w/ provenance; protocol bindings at server/channel/operation/message level → raw Bindings maps; payload JSON-Schema lowering shared with OpenAPI |
@@ -1294,13 +1294,13 @@ How each format's distinctive concepts land in the IR (full details live with ea
 
 ## 15. Deliberate exclusions
 
-- **Language names/casings** — backends own identifier rendering entirely (IR stores neutral
+- **Language names/casings** — emitters own identifier rendering entirely (IR stores neutral
   word sequences + wire names).
-- **SDK runtime policy** (retry/timeout/telemetry/error-class taxonomy) — a separate backend
+- **SDK runtime policy** (retry/timeout/telemetry/error-class taxonomy) — a separate emitter
   input, never IR (§2.4 of architecture.md). OTP call timeouts and `multi_call`/`send_request`
   machinery fall here too.
 - **Generator plan artifacts** (request builders, executor pairs, per-visibility model variants,
-  primary-response selection) — computed views in backends, not stored.
+  primary-response selection) — computed views in emitters, not stored.
 - **Structured modeling of transport-deployment minutiae** (Kafka partition configs, AMQP
   exchange args) — preserved as raw namespaced extensions.
 - **Smithy rules-engine traits** (`@endpointRuleSet`, context params) — runtime endpoint
@@ -1308,9 +1308,9 @@ How each format's distinctive concepts land in the IR (full details live with ea
 - **Smithy waiters** (`smithy.waiters#waitable`) — preserved verbatim in `Operation.Extensions`,
   never folded into `LongRunning`; promoted to a typed node only if a second format lands.
 - **TCGC-style client-shaping decorators** (`@clientName`, `@access`, `@usage`, `@scope`, …) —
-  per-language SDK-surface policy, preserved as namespaced extensions for backend policy layers.
+  per-language SDK-surface policy, preserved as namespaced extensions for emitter policy layers.
 - **Arbitrary GraphQL persisted queries** — the type graph and entry points are retained; query
-  composition is a backend/runtime feature.
+  composition is a emitters/runtime feature.
 - **Capability/interface-typed fields** (Cap'n Proto capability passing) — requires
   services-as-types; out of scope for a data-SDK compiler.
 - **Function types** — Erlang funs degrade per §4.8; no target language marshals closures.
@@ -1322,10 +1322,10 @@ How each format's distinctive concepts land in the IR (full details live with ea
 2. **Dedup aliasing mechanics** — alias table on Document vs ID rewriting with a redirect map;
    leaning alias table (IDs immutable, always).
 3. **Content negotiation in the plan layer** — the IR keeps all media types; the default
-   primary-selection policy (json > form > multipart > binary?) belongs to backends but should be
+   primary-selection policy (json > form > multipart > binary?) belongs to emitters but should be
    shared as a standard plan helper.
 4. **Whether `UsageFlags` is stored or always recomputed** — leaning: computed by a standard pass
-   and stored, since backends all need it and it's expensive to derive.
+   and stored, since emitters all need it and it's expensive to derive.
 5. **Dual identity for cross-revision correlation** — pointer-derived `TypeID`s are stable across
    runs but churn when a schema moves within its source file. TCGC solves cross-version
    correlation with name-based `crossLanguageDefinitionId`s. Likely resolution: keep pointer IDs
@@ -1340,9 +1340,9 @@ How each format's distinctive concepts land in the IR (full details live with ea
    living on the neutral core. Fresh evidence that it sits awkwardly: RPC single-response and OTP
    call replies both use empty conditions, and `Response.StatusCodeProp` is likewise
    HTTP-flavored. Alternatives: move conditions into `HTTPBinding` alongside parameter locations,
-   leaving responses as an ordered named list. Revisit when the RPC or messaging frontend lands
+   leaving responses as an ordered named list. Revisit when the RPC or messaging compiler lands
    and either validates or strains the current shape.
 7. **Semantic nullability (GraphQL)** — the `@semanticNonNull` RFC ("null only on error") is a
    third nullability state `TypeRef.Nullable` cannot express. Pre-spec today: preserved as
    `Extensions["graphql:@semanticNonNull"]`. If it merges into the spec, add a `NullKind` (or a
-   `NullOnlyOnError` bool) rather than churning every frontend early.
+   `NullOnlyOnError` bool) rather than churning every compiler early.

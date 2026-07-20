@@ -12,18 +12,18 @@ import (
 	soa "github.com/speakeasy-api/openapi/openapi"
 	"github.com/speakeasy-api/openapi/validation"
 
-	"github.com/dexpace/morphic/frontend"
+	"github.com/dexpace/morphic/compilers"
 	"github.com/dexpace/morphic/ir"
 )
 
 // loaded is the successful output of the load phase: a parsed, resolved
-// speakeasy document plus the identity metadata the rest of the frontend needs.
+// speakeasy document plus the identity metadata the rest of the compiler needs.
 // A nil *loaded with error-severity diagnostics means the document is a spec
-// problem the frontend refuses to lower (e.g. an unsupported version).
+// problem the compiler refuses to lower (e.g. an unsupported version).
 type loaded struct {
-	Doc    *soa.OpenAPI          // parsed, reference-resolved document
-	Format frontend.SourceFormat // "openapi" + normalized major.minor
-	Source ir.SourceInfo         // format tag, path, content hash
+	Doc    *soa.OpenAPI           // parsed, reference-resolved document
+	Format compilers.SourceFormat // "openapi" + normalized major.minor
+	Source ir.SourceInfo          // format tag, path, content hash
 }
 
 // load parses, validates, and resolves one source document. Spec problems
@@ -31,8 +31,8 @@ type loaded struct {
 // programmer errors (a hard unmarshal failure). A nil document with diagnostics
 // signals a refusal to lower (unsupported version) without aborting the batch.
 //
-//nolint:unparam // srcIndex varies once Parse drives the multi-source loop
-func load(ctx context.Context, srcIndex int, src frontend.Source, opts Options) (*loaded, []ir.Diagnostic, error) {
+//nolint:unparam // srcIndex varies once Compile drives the multi-source loop
+func load(ctx context.Context, srcIndex int, src compilers.Source, opts Options) (*loaded, []ir.Diagnostic, error) {
 	doc, valErrs, err := soa.Unmarshal(ctx, bytes.NewReader(src.Data))
 	if err != nil {
 		return nil, nil, fmt.Errorf("openapi: unmarshal source %d: %w", srcIndex, err)
@@ -63,7 +63,7 @@ func load(ctx context.Context, srcIndex int, src frontend.Source, opts Options) 
 
 	return &loaded{
 		Doc:    doc,
-		Format: frontend.SourceFormat{Name: "openapi", Version: minor},
+		Format: compilers.SourceFormat{Name: "openapi", Version: minor},
 		Source: ir.SourceInfo{
 			Format: "openapi@" + minor,
 			Path:   src.Path,
@@ -136,7 +136,7 @@ func mapSeverity(s validation.Severity) ir.Severity {
 }
 
 // supportedMinor returns the normalized major.minor prefix of an OpenAPI version
-// string and whether the frontend supports it (3.0, 3.1, or 3.2).
+// string and whether the compiler supports it (3.0, 3.1, or 3.2).
 func supportedMinor(version string) (string, bool) {
 	parts := strings.SplitN(version, ".", 3)
 	if len(parts) < 2 {

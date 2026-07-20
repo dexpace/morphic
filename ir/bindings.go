@@ -57,7 +57,7 @@ type HTTPBinding struct {
 	HostPrefix string `json:"hostPrefix,omitempty"`
 	// SharedRoute reports that multiple operations legally share method+path,
 	// disambiguated by request content (TypeSpec @sharedRoute); validate must not
-	// reject the duplicate, and single-route backends must merge.
+	// reject the duplicate, and single-route emitters must merge.
 	SharedRoute bool `json:"sharedRoute"`
 	// ParamBindings assigns each logical parameter its HTTP location.
 	ParamBindings []HTTPParamBinding `json:"paramBindings,omitempty"`
@@ -118,7 +118,7 @@ type HTTPParamBinding struct {
 	AllowReserved bool `json:"allowReserved"`
 	// PathPattern is a multi-segment path pattern constraint for this param
 	// (gRPC transcoding {name=shelves/*/books/*}); "" = single segment. The URI
-	// template uses reserved expansion; backends that cannot validate the pattern
+	// template uses reserved expansion; emitters that cannot validate the pattern
 	// drop it with a diagnostic.
 	PathPattern string `json:"pathPattern,omitempty"`
 	// Prefix spreads a map-typed param as prefixed wire entries: prefixed headers

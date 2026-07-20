@@ -7,21 +7,21 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/dexpace/morphic/frontend"
+	"github.com/dexpace/morphic/compilers"
 	"github.com/dexpace/morphic/ir"
 	"github.com/dexpace/morphic/pass"
 )
 
 // lowerSpec loads src and lowers its component schemas, returning the document
-// under construction and all diagnostics. It drives the same lowerer Parse
+// under construction and all diagnostics. It drives the same lowerer Compile
 // will use, without requiring the not-yet-written operation lowering.
 func lowerSpec(t *testing.T, src string) (*ir.Document, []ir.Diagnostic) {
 	t.Helper()
-	loadedDoc, diags, err := load(t.Context(), 0, frontend.Source{Path: "spec.yaml", Data: []byte(src)}, Options{}.withDefaults())
+	loadedDoc, diags, err := load(t.Context(), 0, compilers.Source{Path: "spec.yaml", Data: []byte(src)}, Options{}.withDefaults())
 	require.NoError(t, err)
 	require.NotNil(t, loadedDoc, "load returned no document: %+v", diags)
 	l := newLowerer(0, loadedDoc, Options{}.withDefaults())
-	l.lowerComponentSchemas() // named components; the entry Parse's run() calls first
+	l.lowerComponentSchemas() // named components; the entry Compile's run() calls first
 	return l.out, append(diags, l.diags...)
 }
 

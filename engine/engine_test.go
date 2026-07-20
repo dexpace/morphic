@@ -9,8 +9,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/dexpace/morphic/compilers"
 	"github.com/dexpace/morphic/engine"
-	"github.com/dexpace/morphic/frontend"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -64,51 +64,51 @@ func TestEngine_RunSniffError(t *testing.T) {
 
 func TestEngine_RunLookupMiss(t *testing.T) {
 	t.Parallel()
-	// An empty registry has no frontend for the openapi 3.1 the spec sniffs to.
-	eng := engine.NewWithRegistry(frontend.NewRegistry())
+	// An empty registry has no compiler for the openapi 3.1 the spec sniffs to.
+	eng := engine.NewWithRegistry(compilers.NewRegistry())
 	_, err := eng.Run(t.Context(), writeSpec(t, tinySpec), engine.RunOptions{})
 	require.Error(t, err)
-	assert.Contains(t, err.Error(), "no frontend registered for format")
+	assert.Contains(t, err.Error(), "no compiler registered for format")
 }
 
-// parseErrFrontend claims openapi 3.1 and always fails Parse, driving Run's
+// errCompiler claims openapi 3.1 and always fails Compile, driving Run's
 // parse-error branch.
-type parseErrFrontend struct{}
+type errCompiler struct{}
 
-func (parseErrFrontend) Formats() []frontend.SourceFormat {
-	return []frontend.SourceFormat{{Name: "openapi", Version: "3.1"}}
+func (errCompiler) Formats() []compilers.SourceFormat {
+	return []compilers.SourceFormat{{Name: "openapi", Version: "3.1"}}
 }
 
-func (parseErrFrontend) Parse(context.Context, []frontend.Source, frontend.Options) (*ir.Document, []ir.Diagnostic, error) {
+func (errCompiler) Compile(context.Context, []compilers.Source, compilers.Options) (*ir.Document, []ir.Diagnostic, error) {
 	return nil, nil, assert.AnError
 }
 
 func TestEngine_RunParseError(t *testing.T) {
 	t.Parallel()
-	reg := frontend.NewRegistry()
-	require.NoError(t, reg.Register(parseErrFrontend{}))
+	reg := compilers.NewRegistry()
+	require.NoError(t, reg.Register(errCompiler{}))
 	eng := engine.NewWithRegistry(reg)
 	_, err := eng.Run(t.Context(), writeSpec(t, tinySpec), engine.RunOptions{})
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "engine: parse")
 }
 
-// nilDocFrontend claims openapi 3.1 and returns a nil Document with no error —
+// nilDocCompiler claims openapi 3.1 and returns a nil Document with no error —
 // a legal outcome that must skip the validate pass and surface a nil Document.
-type nilDocFrontend struct{}
+type nilDocCompiler struct{}
 
-func (nilDocFrontend) Formats() []frontend.SourceFormat {
-	return []frontend.SourceFormat{{Name: "openapi", Version: "3.1"}}
+func (nilDocCompiler) Formats() []compilers.SourceFormat {
+	return []compilers.SourceFormat{{Name: "openapi", Version: "3.1"}}
 }
 
-func (nilDocFrontend) Parse(context.Context, []frontend.Source, frontend.Options) (*ir.Document, []ir.Diagnostic, error) {
+func (nilDocCompiler) Compile(context.Context, []compilers.Source, compilers.Options) (*ir.Document, []ir.Diagnostic, error) {
 	return nil, []ir.Diagnostic{{Code: "x/none"}}, nil
 }
 
 func TestEngine_RunNilDocument(t *testing.T) {
 	t.Parallel()
-	reg := frontend.NewRegistry()
-	require.NoError(t, reg.Register(nilDocFrontend{}))
+	reg := compilers.NewRegistry()
+	require.NoError(t, reg.Register(nilDocCompiler{}))
 	eng := engine.NewWithRegistry(reg)
 	// SkipValidate is false, but a nil Document must still short-circuit the pass.
 	res, err := eng.Run(t.Context(), writeSpec(t, tinySpec), engine.RunOptions{})
@@ -117,17 +117,17 @@ func TestEngine_RunNilDocument(t *testing.T) {
 	assert.True(t, hasDiagCode(res.Diagnostics, "x/none"))
 }
 
-// danglingFrontend is a stub that always lowers to a Document containing a
+// danglingCompiler is a stub that always lowers to a Document containing a
 // dangling type reference, so the validate pass — if it runs — reports
 // ir/dangling-type-ref. It claims the openapi 3.1 format so a tiny 3.1 spec
 // sniffs to it.
-type danglingFrontend struct{}
+type danglingCompiler struct{}
 
-func (danglingFrontend) Formats() []frontend.SourceFormat {
-	return []frontend.SourceFormat{{Name: "openapi", Version: "3.1"}}
+func (danglingCompiler) Formats() []compilers.SourceFormat {
+	return []compilers.SourceFormat{{Name: "openapi", Version: "3.1"}}
 }
 
-func (danglingFrontend) Parse(_ context.Context, _ []frontend.Source, _ frontend.Options) (*ir.Document, []ir.Diagnostic, error) {
+func (danglingCompiler) Compile(_ context.Context, _ []compilers.Source, _ compilers.Options) (*ir.Document, []ir.Diagnostic, error) {
 	doc := &ir.Document{
 		Name:  "Dangling",
 		Types: ir.TypeRegistry{},
@@ -155,11 +155,11 @@ func hasDiagCode(diags []ir.Diagnostic, code string) bool {
 
 func TestEngine_ValidateRuns(t *testing.T) {
 	t.Parallel()
-	// A stub frontend yields a Document with a dangling type ref. The validate
+	// A stub compiler yields a Document with a dangling type ref. The validate
 	// pass must surface it when enabled and stay silent when skipped — so removing
 	// the pass.Validate call from Run would break this test.
-	reg := frontend.NewRegistry()
-	require.NoError(t, reg.Register(danglingFrontend{}))
+	reg := compilers.NewRegistry()
+	require.NoError(t, reg.Register(danglingCompiler{}))
 	eng := engine.NewWithRegistry(reg)
 	path := writeSpec(t, tinySpec)
 

@@ -7,7 +7,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/dexpace/morphic/frontend"
+	"github.com/dexpace/morphic/compilers"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -63,7 +63,7 @@ func TestMeta_NoInfoNoServers(t *testing.T) {
 func TestParse_UnsupportedVersion(t *testing.T) {
 	t.Parallel()
 	spec := "openapi: 2.0.0\ninfo: {title: T, version: \"1\"}\npaths: {}\n"
-	doc, diags, err := New().Parse(context.Background(), []frontend.Source{sourceOf(spec)}, frontend.Options{})
+	doc, diags, err := New().Compile(context.Background(), []compilers.Source{sourceOf(spec)}, compilers.Options{})
 	require.NoError(t, err)
 	assert.Nil(t, doc, "unsupported version refuses to lower")
 	var sawUnsupported bool
@@ -77,24 +77,24 @@ func TestParse_UnsupportedVersion(t *testing.T) {
 
 func TestParse_UnmarshalError(t *testing.T) {
 	t.Parallel()
-	_, _, err := New().Parse(context.Background(),
-		[]frontend.Source{sourceOf("\t\t: : : not valid : yaml\n\x00")}, frontend.Options{})
+	_, _, err := New().Compile(context.Background(),
+		[]compilers.Source{sourceOf("\t\t: : : not valid : yaml\n\x00")}, compilers.Options{})
 	require.Error(t, err)
 }
 
 func TestParse_WrongFormatOptions(t *testing.T) {
 	t.Parallel()
-	_, _, err := New().Parse(context.Background(),
-		[]frontend.Source{sourceOf("openapi: 3.1.0\ninfo: {title: T, version: \"1\"}\npaths: {}\n")},
-		frontend.Options{FormatOptions: "not-openapi-options"})
+	_, _, err := New().Compile(context.Background(),
+		[]compilers.Source{sourceOf("openapi: 3.1.0\ninfo: {title: T, version: \"1\"}\npaths: {}\n")},
+		compilers.Options{FormatOptions: "not-openapi-options"})
 	require.Error(t, err, "wrong FormatOptions type is a programmer error")
 }
 
 func TestParse_ExplicitOptions(t *testing.T) {
 	t.Parallel()
 	spec := "openapi: 3.1.0\ninfo: {title: T, version: \"1\"}\npaths:\n  /a/b:\n    get: {operationId: ab, responses: {\"200\": {description: ok}}}\n"
-	doc, _, err := New().Parse(context.Background(), []frontend.Source{sourceOf(spec)},
-		frontend.Options{FormatOptions: Options{Grouping: GroupByPathPrefix}})
+	doc, _, err := New().Compile(context.Background(), []compilers.Source{sourceOf(spec)},
+		compilers.Options{FormatOptions: Options{Grouping: GroupByPathPrefix}})
 	require.NoError(t, err)
 	require.NotNil(t, doc)
 	assert.Equal(t, "a", doc.Services[0].Groups[0].Name.Source)

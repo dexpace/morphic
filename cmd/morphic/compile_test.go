@@ -36,7 +36,7 @@ func TestRun_ParseWritesIRToFile(t *testing.T) {
 	out := filepath.Join(t.TempDir(), "ir.json")
 	var stdout, stderr bytes.Buffer
 
-	code := run([]string{"parse", spec, "-o", out}, &stdout, &stderr)
+	code := run([]string{"compile", spec, "-o", out}, &stdout, &stderr)
 
 	require.Equal(t, 0, code, "stderr: %s", stderr.String())
 	raw, err := os.ReadFile(out)
@@ -51,7 +51,7 @@ func TestRun_ParseUnknownSpecFails(t *testing.T) {
 	t.Parallel()
 	spec := writeFile(t, "junk.yaml", "hello: world\n")
 	var stdout, stderr bytes.Buffer
-	code := run([]string{"parse", spec}, &stdout, &stderr)
+	code := run([]string{"compile", spec}, &stdout, &stderr)
 	assert.Equal(t, 2, code)
 	assert.Contains(t, stderr.String(), "unrecognized spec format")
 }
@@ -68,7 +68,7 @@ components:
     S: {type: object, not: {required: [x]}}
 `)
 	var stdout, stderr bytes.Buffer
-	require.Equal(t, 0, run([]string{"parse", spec}, &stdout, &stderr),
+	require.Equal(t, 0, run([]string{"compile", spec}, &stdout, &stderr),
 		"info diagnostics must not fail the default gate")
 	assert.Contains(t, stderr.String(), "openapi/validation-only-keyword")
 
@@ -86,6 +86,6 @@ func TestRun_UsageErrors(t *testing.T) {
 	var stdout, stderr bytes.Buffer
 	assert.Equal(t, 2, run(nil, &stdout, &stderr))
 	assert.Equal(t, 2, run([]string{"bogus"}, &stdout, &stderr))
-	assert.Equal(t, 2, run([]string{"parse", "x.yaml", "--fail-on", "hint"}, &stdout, &stderr))
+	assert.Equal(t, 2, run([]string{"compile", "x.yaml", "--fail-on", "hint"}, &stdout, &stderr))
 	assert.True(t, strings.Contains(stderr.String(), "usage"))
 }

@@ -7,26 +7,26 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/dexpace/morphic/frontend"
+	"github.com/dexpace/morphic/compilers"
 	"github.com/dexpace/morphic/ir"
 )
 
-// collidingFrontend claims a single fixed format. Two of them registered
+// collidingCompiler claims a single fixed format. Two of them registered
 // together make the second Register call fail, driving newEngine's error path.
-type collidingFrontend struct{}
+type collidingCompiler struct{}
 
-func (collidingFrontend) Formats() []frontend.SourceFormat {
-	return []frontend.SourceFormat{{Name: "openapi", Version: "3.1"}}
+func (collidingCompiler) Formats() []compilers.SourceFormat {
+	return []compilers.SourceFormat{{Name: "openapi", Version: "3.1"}}
 }
 
-func (collidingFrontend) Parse(context.Context, []frontend.Source, frontend.Options) (*ir.Document, []ir.Diagnostic, error) {
+func (collidingCompiler) Compile(context.Context, []compilers.Source, compilers.Options) (*ir.Document, []ir.Diagnostic, error) {
 	return nil, nil, nil
 }
 
 func TestNewEngine_RegisterError(t *testing.T) {
 	t.Parallel()
-	eng, err := newEngine(collidingFrontend{}, collidingFrontend{})
+	eng, err := newEngine(collidingCompiler{}, collidingCompiler{})
 	require.Error(t, err)
 	assert.Nil(t, eng)
-	assert.Contains(t, err.Error(), "engine: register frontend")
+	assert.Contains(t, err.Error(), "engine: register compiler")
 }

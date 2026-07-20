@@ -13,8 +13,8 @@ const (
 	GroupByPathPrefix GroupingStrategy = "path-prefix"
 )
 
-// Options configures the OpenAPI frontend. It is the concrete type this
-// frontend expects in frontend.Options.FormatOptions; the zero value is valid
+// Options configures the OpenAPI compiler. It is the concrete type this
+// compiler expects in compilers.Options.FormatOptions; the zero value is valid
 // and normalized by withDefaults.
 type Options struct {
 	// Grouping selects the operation-grouping strategy.
@@ -25,7 +25,7 @@ type Options struct {
 
 // withDefaults returns a copy of o with unset fields filled from the defaults.
 //
-//nolint:unused // applied by the frontend entrypoint in a later task
+//nolint:unused // applied by the compiler entrypoint in a later task
 func (o Options) withDefaults() Options {
 	if o.Grouping == "" {
 		o.Grouping = GroupByTags

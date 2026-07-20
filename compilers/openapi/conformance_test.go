@@ -8,8 +8,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/dexpace/morphic/frontend"
-	"github.com/dexpace/morphic/frontend/openapi"
+	"github.com/dexpace/morphic/compilers"
+	"github.com/dexpace/morphic/compilers/openapi"
 	"github.com/dexpace/morphic/ir"
 	"github.com/dexpace/morphic/ir/irtest"
 )
@@ -19,9 +19,9 @@ import (
 const conformanceDir = "../../testdata/conformance/openapi"
 
 // TestConformance drives one minimal spec per OpenAPI-expressible capability
-// through the full frontend and asserts lossless capture: a focused
+// through the full compiler and asserts lossless capture: a focused
 // capability-specific assertion plus a byte-exact golden IR snapshot. Regenerate
-// the goldens with `go test ./frontend/openapi -run TestConformance -update`.
+// the goldens with `go test ./compilers/openapi -run TestConformance -update`.
 func TestConformance(t *testing.T) {
 	t.Parallel()
 	cases := []struct {
@@ -76,13 +76,13 @@ func TestConformance(t *testing.T) {
 	}
 }
 
-// parseCorpus reads and parses one corpus spec through the full frontend.
+// parseCorpus reads and parses one corpus spec through the full compiler.
 func parseCorpus(t *testing.T, name string) (*ir.Document, []ir.Diagnostic) {
 	t.Helper()
 	data, err := os.ReadFile(filepath.Join(conformanceDir, name+".yaml"))
 	require.NoError(t, err)
-	doc, diags, err := openapi.New().Parse(t.Context(),
-		[]frontend.Source{{Path: name + ".yaml", Data: data}}, frontend.Options{})
+	doc, diags, err := openapi.New().Compile(t.Context(),
+		[]compilers.Source{{Path: name + ".yaml", Data: data}}, compilers.Options{})
 	require.NoError(t, err)
 	require.NotNil(t, doc)
 	return doc, diags

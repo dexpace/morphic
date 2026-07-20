@@ -8,7 +8,7 @@ package ir
 type TypeRef struct {
 	// Target identifies the referenced TypeDef in Document.Types.
 	Target TypeID `json:"target"`
-	// Nullable reports that this usage admits null on the wire. Frontends
+	// Nullable reports that this usage admits null on the wire. Compilers
 	// normalize every source spelling to this one bit: OAS 3.0 nullable: true,
 	// OAS 3.1 type: [T, "null"], TypeSpec T | null, GraphQL absence-of-!.
 	Nullable bool `json:"nullable"`

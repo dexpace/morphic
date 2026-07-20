@@ -6,15 +6,15 @@ import (
 	"github.com/dexpace/morphic/ir"
 )
 
-// Stable diagnostic codes emitted by the OpenAPI frontend. Codes are stable
+// Stable diagnostic codes emitted by the OpenAPI compiler. Codes are stable
 // strings so CI can allowlist them (ir-design §13).
 //
-//nolint:unused // diagnostic seam consumed by later frontend files
+//nolint:unused // diagnostic seam consumed by later compiler files
 const (
 	// codeValidation reports a speakeasy validation finding; it is suffixed
 	// with the library rule name (e.g. "openapi/validation/duplicate-tag").
 	codeValidation = "openapi/validation"
-	// codeUnsupportedVersion reports an OpenAPI version the frontend cannot
+	// codeUnsupportedVersion reports an OpenAPI version the compiler cannot
 	// lower.
 	codeUnsupportedVersion = "openapi/unsupported-version"
 	// codeUnresolvedRef reports a $ref that could not be resolved.
@@ -33,10 +33,10 @@ const (
 )
 
 // diagf builds an ir.Diagnostic with a formatted message. It is the single
-// constructor for frontend diagnostics so severity, code, and provenance are
+// constructor for compiler diagnostics so severity, code, and provenance are
 // always populated.
 //
-//nolint:unused // diagnostic seam consumed by later frontend files
+//nolint:unused // diagnostic seam consumed by later compiler files
 func diagf(sev ir.Severity, code string, prov ir.Provenance, format string, args ...any) ir.Diagnostic {
 	return ir.Diagnostic{
 		Severity:   sev,

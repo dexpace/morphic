@@ -8,7 +8,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/dexpace/morphic/frontend"
+	"github.com/dexpace/morphic/compilers"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -16,7 +16,7 @@ import (
 func lowerServiceSpec(t *testing.T, src string) (*ir.Document, ir.Service, []ir.Diagnostic) {
 	t.Helper()
 	doc, diags := func() (*ir.Document, []ir.Diagnostic) {
-		loadedDoc, loadDiags, err := load(t.Context(), 0, frontend.Source{Path: "spec.yaml", Data: []byte(src)}, Options{}.withDefaults())
+		loadedDoc, loadDiags, err := load(t.Context(), 0, compilers.Source{Path: "spec.yaml", Data: []byte(src)}, Options{}.withDefaults())
 		require.NoError(t, err)
 		require.NotNil(t, loadedDoc)
 		l := newLowerer(0, loadedDoc, Options{}.withDefaults())
@@ -265,7 +265,7 @@ paths:
         - {name: id, in: path, required: true, schema: {type: integer}, description: op-level}
       responses: {"200": {description: ok}}
 `
-	loadedDoc, _, err := load(t.Context(), 0, frontend.Source{Path: "spec.yaml", Data: []byte(spec)}, Options{}.withDefaults())
+	loadedDoc, _, err := load(t.Context(), 0, compilers.Source{Path: "spec.yaml", Data: []byte(spec)}, Options{}.withDefaults())
 	require.NoError(t, err)
 	require.NotNil(t, loadedDoc)
 	var pi *soa.PathItem
@@ -320,7 +320,7 @@ paths:
     get: {operationId: listOrders, responses: {"200": {description: ok}}}
 `
 	opts := Options{Grouping: GroupByPathPrefix}.withDefaults()
-	loadedDoc, loadDiags, err := load(t.Context(), 0, frontend.Source{Path: "spec.yaml", Data: []byte(spec)}, opts)
+	loadedDoc, loadDiags, err := load(t.Context(), 0, compilers.Source{Path: "spec.yaml", Data: []byte(spec)}, opts)
 	require.NoError(t, err)
 	require.NotNil(t, loadedDoc)
 	l := newLowerer(0, loadedDoc, opts)

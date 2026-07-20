@@ -23,7 +23,7 @@ const (
 	KindTuple TypeKind = "tuple"
 	// KindLiteral is a single constant value as a type (Literal).
 	KindLiteral TypeKind = "literal"
-	// KindExternal is a well-known library type resolved by the backend (External).
+	// KindExternal is a well-known library type resolved by the emitter (External).
 	KindExternal TypeKind = "external"
 	// KindAny is a schemaless type (Any).
 	KindAny TypeKind = "any"

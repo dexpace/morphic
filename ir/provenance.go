@@ -23,7 +23,7 @@ const (
 	SeverityInfo    Severity = "info"
 )
 
-// Diagnostic is a typed report from a frontend or pass. Codes are stable
+// Diagnostic is a typed report from a compiler or pass. Codes are stable
 // strings ("openapi/unresolved-ref", "ir/dangling-type-ref") so CI can
 // allowlist them.
 type Diagnostic struct {

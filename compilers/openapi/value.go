@@ -10,7 +10,7 @@ import (
 
 // maxValueDepth bounds valueFromNode recursion (styleguide bounded-recursion
 // rule). Values nested deeper than this are a pathological input, not a spec
-// the frontend is expected to lower.
+// the compiler is expected to lower.
 const maxValueDepth = 128
 
 // valueFromNode converts a YAML node into an ir.Value. Numeric literals are kept

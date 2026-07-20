@@ -43,7 +43,7 @@ type Message struct {
 	// Headers is the header schema — an object-constrained model hoisted into the
 	// type registry like any anonymous type (headers can be named, composed, even
 	// Avro-defined; and $message.header#/… paths need a type to resolve against).
-	// Backends compute flat lists per §4.3.
+	// Emitters compute flat lists per §4.3.
 	Headers *TypeRef `json:"headers,omitempty"`
 	// CorrelationID locates the correlation value: In: "header" | "" (payload).
 	CorrelationID *PropPath `json:"correlationID,omitempty"`

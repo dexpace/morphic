@@ -9,7 +9,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/dexpace/morphic/frontend"
+	"github.com/dexpace/morphic/compilers"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -21,7 +21,7 @@ func TestLoad_ExternalRefResolutionErrors(t *testing.T) {
 	path := "../../testdata/openapi/resolve_main_external.yaml"
 	data, err := os.ReadFile(path)
 	require.NoError(t, err)
-	ld, diags, loadErr := load(t.Context(), 0, frontend.Source{Path: path, Data: data}, Options{}.withDefaults())
+	ld, diags, loadErr := load(t.Context(), 0, compilers.Source{Path: path, Data: data}, Options{}.withDefaults())
 	require.NoError(t, loadErr)
 	require.NotNil(t, ld)
 	var unresolved int

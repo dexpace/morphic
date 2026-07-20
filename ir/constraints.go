@@ -23,7 +23,7 @@ type Constraints struct {
 	MinLength *int64 `json:"minLength,omitempty"`
 	// MaxLength is the maximum string/bytes length.
 	MaxLength *int64 `json:"maxLength,omitempty"`
-	// Pattern is an ECMA-262 regex as written; backends translate or drop it with
+	// Pattern is an ECMA-262 regex as written; emitters translate or drop it with
 	// a diagnostic.
 	Pattern string `json:"pattern,omitempty"`
 	// PatternMessage is a human-readable validation message (TypeSpec @pattern's

@@ -4,28 +4,28 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/dexpace/morphic/frontend"
+	"github.com/dexpace/morphic/compilers"
 	"github.com/dexpace/morphic/ir"
 )
 
-// Frontend lowers OpenAPI 3.x documents into the IR.
-type Frontend struct{}
+// Compiler lowers OpenAPI 3.x documents into the IR.
+type Compiler struct{}
 
-// New returns the OpenAPI frontend.
-func New() *Frontend { return &Frontend{} }
+// New returns the OpenAPI compiler.
+func New() *Compiler { return &Compiler{} }
 
-// Formats reports the OpenAPI dialects this frontend accepts.
-func (*Frontend) Formats() []frontend.SourceFormat {
-	return []frontend.SourceFormat{
+// Formats reports the OpenAPI dialects this compiler accepts.
+func (*Compiler) Formats() []compilers.SourceFormat {
+	return []compilers.SourceFormat{
 		{Name: "openapi", Version: "3.0"},
 		{Name: "openapi", Version: "3.1"},
 		{Name: "openapi", Version: "3.2"},
 	}
 }
 
-// Parse implements frontend.Frontend. Milestone 1 accepts exactly one root
+// Compile implements compilers.Compiler. Milestone 1 accepts exactly one root
 // source; multi-document stitching belongs to the link pass.
-func (f *Frontend) Parse(ctx context.Context, sources []frontend.Source, opts frontend.Options) (*ir.Document, []ir.Diagnostic, error) {
+func (c *Compiler) Compile(ctx context.Context, sources []compilers.Source, opts compilers.Options) (*ir.Document, []ir.Diagnostic, error) {
 	if len(sources) != 1 {
 		return nil, nil, fmt.Errorf("openapi: expected exactly one source, got %d", len(sources))
 	}
@@ -59,10 +59,10 @@ func (l *lowerer) run() *ir.Document {
 	return l.out
 }
 
-// optionsFrom resolves the frontend-specific options: a nil FormatOptions gets
+// optionsFrom resolves the compiler-specific options: a nil FormatOptions gets
 // defaults, an openapi.Options value is normalized, and any other type is a
 // programmer error.
-func optionsFrom(opts frontend.Options) (Options, error) {
+func optionsFrom(opts compilers.Options) (Options, error) {
 	switch fo := opts.FormatOptions.(type) {
 	case nil:
 		return Options{}.withDefaults(), nil

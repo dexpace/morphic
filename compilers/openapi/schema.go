@@ -14,7 +14,7 @@ import (
 )
 
 // lowerComponentSchemas interns every named component schema in source order.
-// It is the entry Parse's run() calls before any operation lowering so that
+// It is the entry Compile's run() calls before any operation lowering so that
 // $refs resolve to already-registered IDs.
 func (l *lowerer) lowerComponentSchemas() {
 	comps := l.doc.Components
@@ -958,7 +958,7 @@ func jsonObject(members []rawMember) ir.RawValue {
 // canonicalWords renders name as a neutral lower_snake word sequence: it splits
 // on _/-/space and on camel-case and letter/digit boundaries, lowercases, and
 // joins with "_". It holds no acronym opinion beyond boundary detection; casing
-// policy is a backend concern.
+// policy is a emitter concern.
 func canonicalWords(name string) string {
 	var words []string
 	var cur []rune

@@ -9,8 +9,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/dexpace/morphic/frontend"
-	"github.com/dexpace/morphic/frontend/openapi"
+	"github.com/dexpace/morphic/compilers"
+	"github.com/dexpace/morphic/compilers/openapi"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -121,8 +121,8 @@ components:
 
 func parsePetstore(t *testing.T) (*ir.Document, []ir.Diagnostic) {
 	t.Helper()
-	doc, diags, err := openapi.New().Parse(context.Background(),
-		[]frontend.Source{{Path: "petstore.yaml", Data: []byte(petstore)}}, frontend.Options{})
+	doc, diags, err := openapi.New().Compile(context.Background(),
+		[]compilers.Source{{Path: "petstore.yaml", Data: []byte(petstore)}}, compilers.Options{})
 	require.NoError(t, err)
 	require.NotNil(t, doc)
 	return doc, diags
@@ -191,9 +191,9 @@ func TestParse_EndToEnd(t *testing.T) {
 
 func TestParse_RegistersInRegistry(t *testing.T) {
 	t.Parallel()
-	reg := frontend.NewRegistry()
+	reg := compilers.NewRegistry()
 	require.NoError(t, reg.Register(openapi.New()))
-	got, ok := reg.Lookup(frontend.SourceFormat{Name: "openapi", Version: "3.1"})
+	got, ok := reg.Lookup(compilers.SourceFormat{Name: "openapi", Version: "3.1"})
 	require.True(t, ok)
 	assert.NotNil(t, got)
 }
@@ -215,10 +215,10 @@ func TestParse_JSONRoundTrip(t *testing.T) {
 
 func TestParse_RejectsMultipleSources(t *testing.T) {
 	t.Parallel()
-	_, _, err := openapi.New().Parse(context.Background(),
-		[]frontend.Source{
+	_, _, err := openapi.New().Compile(context.Background(),
+		[]compilers.Source{
 			{Path: "a.yaml", Data: []byte(petstore)},
 			{Path: "b.yaml", Data: []byte(petstore)},
-		}, frontend.Options{})
+		}, compilers.Options{})
 	require.Error(t, err)
 }
