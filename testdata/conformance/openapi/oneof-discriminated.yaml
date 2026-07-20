@@ -1,0 +1,22 @@
+openapi: 3.1.0
+info: {title: OneOfDiscriminated, version: "1.0.0"}
+paths: {}
+components:
+  schemas:
+    Cat:
+      type: object
+      properties:
+        meow: {type: boolean}
+    Dog:
+      type: object
+      properties:
+        bark: {type: boolean}
+    Pet:
+      oneOf:
+        - {$ref: '#/components/schemas/Cat'}
+        - {$ref: '#/components/schemas/Dog'}
+      discriminator:
+        propertyName: petType
+        mapping:
+          cat: '#/components/schemas/Cat'
+          dog: '#/components/schemas/Dog'

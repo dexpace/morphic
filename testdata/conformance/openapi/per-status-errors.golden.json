@@ -1,0 +1,200 @@
+{
+  "irVersion": "0.1.0",
+  "name": "PerStatusErrors",
+  "version": "1.0.0",
+  "docs": {},
+  "services": [
+    {
+      "id": "s/openapi/0",
+      "name": {
+        "source": "PerStatusErrors",
+        "canonical": "per_status_errors"
+      },
+      "docs": {},
+      "groups": [
+        {
+          "name": {
+            "hint": "default"
+          },
+          "docs": {},
+          "operations": [
+            {
+              "id": "op/openapi/paths/~1widgets/get",
+              "name": {
+                "source": "getWidgets",
+                "canonical": "get_widgets"
+              },
+              "docs": {},
+              "responses": [
+                {
+                  "name": {},
+                  "conditions": {
+                    "statusCodes": [
+                      {
+                        "from": 200,
+                        "to": 200
+                      }
+                    ]
+                  },
+                  "docs": {
+                    "description": "ok"
+                  }
+                }
+              ],
+              "errors": [
+                {
+                  "type": {
+                    "target": "t/openapi/components/schemas/Err",
+                    "nullable": false
+                  },
+                  "conditions": {
+                    "statusCodes": [
+                      {
+                        "from": 404,
+                        "to": 404
+                      }
+                    ]
+                  },
+                  "fault": "client",
+                  "docs": {
+                    "description": "not found"
+                  }
+                },
+                {
+                  "type": {
+                    "target": "",
+                    "nullable": false
+                  },
+                  "conditions": {
+                    "statusCodes": [
+                      {
+                        "from": 500,
+                        "to": 599
+                      }
+                    ]
+                  },
+                  "fault": "server",
+                  "docs": {
+                    "description": "server error"
+                  }
+                },
+                {
+                  "type": {
+                    "target": "",
+                    "nullable": false
+                  },
+                  "conditions": {
+                    "statusCodes": [
+                      {
+                        "from": 0,
+                        "to": 0
+                      }
+                    ]
+                  },
+                  "docs": {
+                    "description": "fallback"
+                  }
+                }
+              ],
+              "oneWay": false,
+              "idempotency": {},
+              "bindings": {
+                "http": [
+                  {
+                    "method": "GET",
+                    "uriTemplate": "/widgets",
+                    "sharedRoute": false,
+                    "checksumRequired": false,
+                    "isWebhook": false
+                  }
+                ]
+              },
+              "provenance": {
+                "source": 0,
+                "pointer": "/paths/~1widgets/get"
+              }
+            }
+          ]
+        }
+      ],
+      "provenance": {
+        "source": 0
+      }
+    }
+  ],
+  "types": {
+    "t/openapi/components/schemas/Err": {
+      "kind": "model",
+      "id": "t/openapi/components/schemas/Err",
+      "name": {
+        "source": "Err",
+        "canonical": "err"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Err"
+      },
+      "properties": [
+        {
+          "id": "p/openapi/components/schemas/Err/properties/message",
+          "name": {
+            "source": "message",
+            "canonical": "message"
+          },
+          "wireName": "message",
+          "type": {
+            "target": "t/prim/string",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/Err/properties/message"
+          }
+        }
+      ],
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
+    "t/prim/string": {
+      "kind": "primitive",
+      "id": "t/prim/string",
+      "name": {},
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0
+      },
+      "prim": "string"
+    }
+  },
+  "servers": [
+    {
+      "name": {},
+      "urlTemplate": "/",
+      "description": {}
+    }
+  ],
+  "sources": [
+    {
+      "format": "openapi@3.1",
+      "path": "per-status-errors.yaml",
+      "hash": "f688d76cbabd110346bccc9c5d4f88a504b6fc9d034295ba3d5bc5b41340aea9"
+    }
+  ]
+}

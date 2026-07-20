@@ -1,0 +1,786 @@
+{
+  "irVersion": "0.1.0",
+  "name": "Petstore",
+  "version": "1.0.0",
+  "docs": {},
+  "contact": {
+    "name": "API Team",
+    "email": "api@example.com"
+  },
+  "license": {
+    "name": "MIT"
+  },
+  "termsOfService": "https://example.com/terms",
+  "services": [
+    {
+      "id": "s/openapi/0",
+      "name": {
+        "source": "Petstore",
+        "canonical": "petstore"
+      },
+      "docs": {},
+      "groups": [
+        {
+          "name": {
+            "source": "pets",
+            "canonical": "pets"
+          },
+          "docs": {
+            "description": "Pet operations"
+          },
+          "operations": [
+            {
+              "id": "op/openapi/paths/~1pets/get",
+              "name": {
+                "source": "listPets",
+                "canonical": "list_pets"
+              },
+              "docs": {},
+              "params": [
+                {
+                  "name": {
+                    "source": "limit",
+                    "canonical": "limit"
+                  },
+                  "type": {
+                    "target": "t/prim/integer",
+                    "nullable": false
+                  },
+                  "required": false,
+                  "docs": {}
+                }
+              ],
+              "responses": [
+                {
+                  "name": {},
+                  "conditions": {
+                    "statusCodes": [
+                      {
+                        "from": 200,
+                        "to": 200
+                      }
+                    ]
+                  },
+                  "payload": {
+                    "contents": [
+                      {
+                        "mediaType": "application/json",
+                        "type": {
+                          "target": "t/anon/paths/~1pets/get/responses/200/content/application~1json/schema",
+                          "nullable": false
+                        }
+                      }
+                    ]
+                  },
+                  "docs": {
+                    "description": "A list of pets"
+                  }
+                }
+              ],
+              "errors": [
+                {
+                  "type": {
+                    "target": "t/openapi/components/schemas/Error",
+                    "nullable": false
+                  },
+                  "conditions": {
+                    "statusCodes": [
+                      {
+                        "from": 0,
+                        "to": 0
+                      }
+                    ]
+                  },
+                  "docs": {
+                    "description": "Unexpected error"
+                  }
+                }
+              ],
+              "oneWay": false,
+              "idempotency": {},
+              "tags": [
+                "pets"
+              ],
+              "bindings": {
+                "http": [
+                  {
+                    "method": "GET",
+                    "uriTemplate": "/pets",
+                    "sharedRoute": false,
+                    "paramBindings": [
+                      {
+                        "param": "limit",
+                        "location": "query",
+                        "wireName": "limit",
+                        "style": "form",
+                        "explode": true,
+                        "allowReserved": false
+                      }
+                    ],
+                    "checksumRequired": false,
+                    "isWebhook": false
+                  }
+                ]
+              },
+              "provenance": {
+                "source": 0,
+                "pointer": "/paths/~1pets/get"
+              }
+            },
+            {
+              "id": "op/openapi/paths/~1pets/post",
+              "name": {
+                "source": "createPet",
+                "canonical": "create_pet"
+              },
+              "docs": {},
+              "request": {
+                "contents": [
+                  {
+                    "mediaType": "application/json",
+                    "type": {
+                      "target": "t/openapi/components/schemas/Pet",
+                      "nullable": false
+                    }
+                  }
+                ]
+              },
+              "responses": [
+                {
+                  "name": {},
+                  "conditions": {
+                    "statusCodes": [
+                      {
+                        "from": 200,
+                        "to": 200
+                      }
+                    ]
+                  },
+                  "payload": {
+                    "contents": [
+                      {
+                        "mediaType": "application/json",
+                        "type": {
+                          "target": "t/openapi/components/schemas/Pet",
+                          "nullable": false
+                        }
+                      }
+                    ]
+                  },
+                  "docs": {
+                    "description": "Created"
+                  }
+                }
+              ],
+              "errors": [
+                {
+                  "type": {
+                    "target": "t/openapi/components/schemas/Error",
+                    "nullable": false
+                  },
+                  "conditions": {
+                    "statusCodes": [
+                      {
+                        "from": 404,
+                        "to": 404
+                      }
+                    ]
+                  },
+                  "fault": "client",
+                  "docs": {
+                    "description": "Not found"
+                  }
+                }
+              ],
+              "oneWay": false,
+              "idempotency": {},
+              "auth": [
+                {}
+              ],
+              "tags": [
+                "pets"
+              ],
+              "bindings": {
+                "http": [
+                  {
+                    "method": "POST",
+                    "uriTemplate": "/pets",
+                    "sharedRoute": false,
+                    "requestContentTypes": [
+                      "application/json"
+                    ],
+                    "checksumRequired": false,
+                    "isWebhook": false
+                  }
+                ]
+              },
+              "provenance": {
+                "source": 0,
+                "pointer": "/paths/~1pets/post"
+              }
+            },
+            {
+              "id": "op/openapi/paths/~1pets~1{petId}/get",
+              "name": {
+                "source": "getPet",
+                "canonical": "get_pet"
+              },
+              "docs": {},
+              "params": [
+                {
+                  "name": {
+                    "source": "petId",
+                    "canonical": "pet_id"
+                  },
+                  "type": {
+                    "target": "t/prim/string",
+                    "nullable": false
+                  },
+                  "required": true,
+                  "docs": {}
+                }
+              ],
+              "responses": [
+                {
+                  "name": {},
+                  "conditions": {
+                    "statusCodes": [
+                      {
+                        "from": 200,
+                        "to": 200
+                      }
+                    ]
+                  },
+                  "payload": {
+                    "contents": [
+                      {
+                        "mediaType": "application/json",
+                        "type": {
+                          "target": "t/openapi/components/schemas/Pet",
+                          "nullable": false
+                        }
+                      }
+                    ]
+                  },
+                  "docs": {
+                    "description": "A pet"
+                  }
+                }
+              ],
+              "oneWay": false,
+              "idempotency": {},
+              "tags": [
+                "pets"
+              ],
+              "bindings": {
+                "http": [
+                  {
+                    "method": "GET",
+                    "uriTemplate": "/pets/{petId}",
+                    "sharedRoute": false,
+                    "paramBindings": [
+                      {
+                        "param": "petId",
+                        "location": "path",
+                        "wireName": "petId",
+                        "style": "simple",
+                        "explode": false,
+                        "allowReserved": false
+                      }
+                    ],
+                    "checksumRequired": false,
+                    "isWebhook": false
+                  }
+                ]
+              },
+              "provenance": {
+                "source": 0,
+                "pointer": "/paths/~1pets~1{petId}/get"
+              }
+            }
+          ]
+        }
+      ],
+      "auth": [
+        {
+          "schemes": [
+            {
+              "scheme": "auth/openapi/components/securitySchemes/petstore_auth",
+              "scopes": [
+                "read:pets"
+              ]
+            }
+          ]
+        }
+      ],
+      "provenance": {
+        "source": 0
+      }
+    }
+  ],
+  "types": {
+    "t/anon/components/schemas/Pet/properties/meta": {
+      "kind": "model",
+      "id": "t/anon/components/schemas/Pet/properties/meta",
+      "name": {
+        "hint": "meta"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Pet/properties/meta"
+      },
+      "properties": [
+        {
+          "id": "p/openapi/components/schemas/Pet/properties/meta/properties/tag",
+          "name": {
+            "source": "tag",
+            "canonical": "tag"
+          },
+          "wireName": "tag",
+          "type": {
+            "target": "t/prim/string",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/Pet/properties/meta/properties/tag"
+          }
+        }
+      ],
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
+    "t/anon/components/schemas/Pet/properties/status": {
+      "kind": "union",
+      "id": "t/anon/components/schemas/Pet/properties/status",
+      "name": {
+        "hint": "status"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Pet/properties/status"
+      },
+      "variants": [
+        {
+          "name": {
+            "hint": "variant_0"
+          },
+          "type": {
+            "target": "t/prim/string",
+            "nullable": false
+          },
+          "docs": {}
+        },
+        {
+          "name": {
+            "hint": "variant_1"
+          },
+          "type": {
+            "target": "t/prim/integer",
+            "nullable": false
+          },
+          "docs": {}
+        }
+      ],
+      "exclusive": true,
+      "wireTagged": false
+    },
+    "t/anon/paths/~1pets/get/responses/200/content/application~1json/schema": {
+      "kind": "list",
+      "id": "t/anon/paths/~1pets/get/responses/200/content/application~1json/schema",
+      "name": {
+        "hint": "response"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/paths/~1pets/get/responses/200/content/application~1json/schema"
+      },
+      "elem": {
+        "target": "t/openapi/components/schemas/Pet",
+        "nullable": false
+      }
+    },
+    "t/openapi/components/schemas/Category": {
+      "kind": "model",
+      "id": "t/openapi/components/schemas/Category",
+      "name": {
+        "source": "Category",
+        "canonical": "category"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Category"
+      },
+      "properties": [
+        {
+          "id": "p/openapi/components/schemas/Category/properties/name",
+          "name": {
+            "source": "name",
+            "canonical": "name"
+          },
+          "wireName": "name",
+          "type": {
+            "target": "t/prim/string",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/Category/properties/name"
+          }
+        }
+      ],
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
+    "t/openapi/components/schemas/Error": {
+      "kind": "model",
+      "id": "t/openapi/components/schemas/Error",
+      "name": {
+        "source": "Error",
+        "canonical": "error"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Error"
+      },
+      "properties": [
+        {
+          "id": "p/openapi/components/schemas/Error/properties/code",
+          "name": {
+            "source": "code",
+            "canonical": "code"
+          },
+          "wireName": "code",
+          "type": {
+            "target": "t/prim/integer",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/Error/properties/code"
+          }
+        },
+        {
+          "id": "p/openapi/components/schemas/Error/properties/message",
+          "name": {
+            "source": "message",
+            "canonical": "message"
+          },
+          "wireName": "message",
+          "type": {
+            "target": "t/prim/string",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/Error/properties/message"
+          }
+        }
+      ],
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
+    "t/openapi/components/schemas/Pet": {
+      "kind": "model",
+      "id": "t/openapi/components/schemas/Pet",
+      "name": {
+        "source": "Pet",
+        "canonical": "pet"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Pet"
+      },
+      "properties": [
+        {
+          "id": "p/openapi/components/schemas/Pet/properties/id",
+          "name": {
+            "source": "id",
+            "canonical": "id"
+          },
+          "wireName": "id",
+          "type": {
+            "target": "t/prim/integer",
+            "nullable": false
+          },
+          "required": true,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/Pet/properties/id"
+          }
+        },
+        {
+          "id": "p/openapi/components/schemas/Pet/properties/name",
+          "name": {
+            "source": "name",
+            "canonical": "name"
+          },
+          "wireName": "name",
+          "type": {
+            "target": "t/prim/string",
+            "nullable": false
+          },
+          "required": true,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/Pet/properties/name"
+          }
+        },
+        {
+          "id": "p/openapi/components/schemas/Pet/properties/category",
+          "name": {
+            "source": "category",
+            "canonical": "category"
+          },
+          "wireName": "category",
+          "type": {
+            "target": "t/openapi/components/schemas/Category",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/Pet/properties/category"
+          }
+        },
+        {
+          "id": "p/openapi/components/schemas/Pet/properties/status",
+          "name": {
+            "source": "status",
+            "canonical": "status"
+          },
+          "wireName": "status",
+          "type": {
+            "target": "t/anon/components/schemas/Pet/properties/status",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/Pet/properties/status"
+          }
+        },
+        {
+          "id": "p/openapi/components/schemas/Pet/properties/meta",
+          "name": {
+            "source": "meta",
+            "canonical": "meta"
+          },
+          "wireName": "meta",
+          "type": {
+            "target": "t/anon/components/schemas/Pet/properties/meta",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/Pet/properties/meta"
+          }
+        }
+      ],
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
+    "t/prim/integer": {
+      "kind": "primitive",
+      "id": "t/prim/integer",
+      "name": {},
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0
+      },
+      "prim": "integer"
+    },
+    "t/prim/string": {
+      "kind": "primitive",
+      "id": "t/prim/string",
+      "name": {},
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0
+      },
+      "prim": "string"
+    }
+  },
+  "auth": {
+    "auth/openapi/components/securitySchemes/petstore_auth": {
+      "id": "auth/openapi/components/securitySchemes/petstore_auth",
+      "name": {
+        "source": "petstore_auth",
+        "canonical": "petstore_auth"
+      },
+      "kind": "oauth2",
+      "docs": {},
+      "flows": [
+        {
+          "kind": "implicit",
+          "authorizationURL": "https://example.com/auth",
+          "scopes": {
+            "read:pets": "read your pets"
+          }
+        }
+      ],
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/securitySchemes/petstore_auth"
+      }
+    }
+  },
+  "servers": [
+    {
+      "name": {},
+      "urlTemplate": "https://{env}.example.com/v1",
+      "description": {
+        "description": "Primary server"
+      },
+      "variables": [
+        {
+          "name": "env",
+          "default": "api",
+          "enum": [
+            "api",
+            "staging"
+          ],
+          "docs": {
+            "description": "Deployment environment"
+          }
+        }
+      ]
+    }
+  ],
+  "tagDefs": [
+    {
+      "name": "pets",
+      "docs": {
+        "description": "Pet operations"
+      }
+    }
+  ],
+  "sources": [
+    {
+      "format": "openapi@3.1",
+      "path": "petstore.yaml",
+      "hash": "ffc27a400be94eb159f931287acea26e4ae7da58e11ef06ef9e02a5476011ae2"
+    }
+  ]
+}

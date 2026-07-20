@@ -1,0 +1,9 @@
+openapi: 3.0.3
+info: {title: Nullable30, version: "1.0.0"}
+paths: {}
+components:
+  schemas:
+    S:
+      type: object
+      properties:
+        n: {type: string, nullable: true}

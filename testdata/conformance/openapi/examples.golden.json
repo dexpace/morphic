@@ -1,0 +1,108 @@
+{
+  "irVersion": "0.1.0",
+  "name": "Examples",
+  "version": "1.0.0",
+  "docs": {},
+  "services": [
+    {
+      "id": "s/openapi/0",
+      "name": {
+        "source": "Examples",
+        "canonical": "examples"
+      },
+      "docs": {},
+      "provenance": {
+        "source": 0
+      }
+    }
+  ],
+  "types": {
+    "t/openapi/components/schemas/S": {
+      "kind": "model",
+      "id": "t/openapi/components/schemas/S",
+      "name": {
+        "source": "S",
+        "canonical": "s"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/S"
+      },
+      "properties": [
+        {
+          "id": "p/openapi/components/schemas/S/properties/n",
+          "name": {
+            "source": "n",
+            "canonical": "n"
+          },
+          "wireName": "n",
+          "type": {
+            "target": "t/prim/integer",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "examples": [
+            {
+              "value": {
+                "kind": "number",
+                "num": "1"
+              }
+            },
+            {
+              "value": {
+                "kind": "number",
+                "num": "2"
+              }
+            }
+          ],
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/S/properties/n"
+          }
+        }
+      ],
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
+    "t/prim/integer": {
+      "kind": "primitive",
+      "id": "t/prim/integer",
+      "name": {},
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0
+      },
+      "prim": "integer"
+    }
+  },
+  "servers": [
+    {
+      "name": {},
+      "urlTemplate": "/",
+      "description": {}
+    }
+  ],
+  "sources": [
+    {
+      "format": "openapi@3.1",
+      "path": "examples.yaml",
+      "hash": "a04d9f522d84f3d488e1ae965ab4556461dbd77b3d53eeba486126589751719a"
+    }
+  ]
+}

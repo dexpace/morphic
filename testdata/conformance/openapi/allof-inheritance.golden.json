@@ -1,0 +1,145 @@
+{
+  "irVersion": "0.1.0",
+  "name": "AllOfInheritance",
+  "version": "1.0.0",
+  "docs": {},
+  "services": [
+    {
+      "id": "s/openapi/0",
+      "name": {
+        "source": "AllOfInheritance",
+        "canonical": "all_of_inheritance"
+      },
+      "docs": {},
+      "provenance": {
+        "source": 0
+      }
+    }
+  ],
+  "types": {
+    "t/openapi/components/schemas/Base": {
+      "kind": "model",
+      "id": "t/openapi/components/schemas/Base",
+      "name": {
+        "source": "Base",
+        "canonical": "base"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Base"
+      },
+      "properties": [
+        {
+          "id": "p/openapi/components/schemas/Base/properties/id",
+          "name": {
+            "source": "id",
+            "canonical": "id"
+          },
+          "wireName": "id",
+          "type": {
+            "target": "t/prim/string",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/Base/properties/id"
+          }
+        }
+      ],
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
+    "t/openapi/components/schemas/Derived": {
+      "kind": "model",
+      "id": "t/openapi/components/schemas/Derived",
+      "name": {
+        "source": "Derived",
+        "canonical": "derived"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Derived"
+      },
+      "properties": [
+        {
+          "id": "p/openapi/components/schemas/Derived/properties/extra",
+          "name": {
+            "source": "extra",
+            "canonical": "extra"
+          },
+          "wireName": "extra",
+          "type": {
+            "target": "t/prim/string",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/Derived/properties/extra"
+          }
+        }
+      ],
+      "base": {
+        "target": "t/openapi/components/schemas/Base",
+        "nullable": false
+      },
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
+    "t/prim/string": {
+      "kind": "primitive",
+      "id": "t/prim/string",
+      "name": {},
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0
+      },
+      "prim": "string"
+    }
+  },
+  "servers": [
+    {
+      "name": {},
+      "urlTemplate": "/",
+      "description": {}
+    }
+  ],
+  "sources": [
+    {
+      "format": "openapi@3.1",
+      "path": "allof-inheritance.yaml",
+      "hash": "4f35088fd3fb634fbc13b28ed765c58c76fa1f0148d6520c10b5950a9a3d29c3"
+    }
+  ]
+}

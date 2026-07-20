@@ -1,0 +1,11 @@
+openapi: 3.1.0
+info: {title: ServersVariables, version: "1.0.0"}
+servers:
+  - url: https://{env}.example.com/v1
+    description: Primary server
+    variables:
+      env:
+        default: api
+        enum: [api, staging]
+        description: Deployment environment
+paths: {}

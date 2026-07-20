@@ -1,0 +1,145 @@
+{
+  "irVersion": "0.1.0",
+  "name": "AllOfInlineMerge",
+  "version": "1.0.0",
+  "docs": {},
+  "services": [
+    {
+      "id": "s/openapi/0",
+      "name": {
+        "source": "AllOfInlineMerge",
+        "canonical": "all_of_inline_merge"
+      },
+      "docs": {},
+      "provenance": {
+        "source": 0
+      }
+    }
+  ],
+  "types": {
+    "t/openapi/components/schemas/Base": {
+      "kind": "model",
+      "id": "t/openapi/components/schemas/Base",
+      "name": {
+        "source": "Base",
+        "canonical": "base"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Base"
+      },
+      "properties": [
+        {
+          "id": "p/openapi/components/schemas/Base/properties/id",
+          "name": {
+            "source": "id",
+            "canonical": "id"
+          },
+          "wireName": "id",
+          "type": {
+            "target": "t/prim/string",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/Base/properties/id"
+          }
+        }
+      ],
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
+    "t/openapi/components/schemas/Merged": {
+      "kind": "model",
+      "id": "t/openapi/components/schemas/Merged",
+      "name": {
+        "source": "Merged",
+        "canonical": "merged"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Merged"
+      },
+      "properties": [
+        {
+          "id": "p/openapi/components/schemas/Merged/allOf/1/properties/name",
+          "name": {
+            "source": "name",
+            "canonical": "name"
+          },
+          "wireName": "name",
+          "type": {
+            "target": "t/prim/string",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/Merged/allOf/1/properties/name"
+          }
+        }
+      ],
+      "base": {
+        "target": "t/openapi/components/schemas/Base",
+        "nullable": false
+      },
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
+    "t/prim/string": {
+      "kind": "primitive",
+      "id": "t/prim/string",
+      "name": {},
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0
+      },
+      "prim": "string"
+    }
+  },
+  "servers": [
+    {
+      "name": {},
+      "urlTemplate": "/",
+      "description": {}
+    }
+  ],
+  "sources": [
+    {
+      "format": "openapi@3.1",
+      "path": "allof-inline-merge.yaml",
+      "hash": "1af5d5f97c9eeb1964a796fe993658dfe5508cc5a07f55f43b0fc26603a915c9"
+    }
+  ]
+}

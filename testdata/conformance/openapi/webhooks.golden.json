@@ -1,0 +1,131 @@
+{
+  "irVersion": "0.1.0",
+  "name": "Webhooks",
+  "version": "1.0.0",
+  "docs": {},
+  "services": [
+    {
+      "id": "s/openapi/0",
+      "name": {
+        "source": "Webhooks",
+        "canonical": "webhooks"
+      },
+      "docs": {},
+      "groups": [
+        {
+          "name": {
+            "source": "webhooks"
+          },
+          "docs": {},
+          "operations": [
+            {
+              "id": "op/openapi/webhooks/newPet/post",
+              "name": {
+                "source": "onNewPet",
+                "canonical": "on_new_pet"
+              },
+              "docs": {},
+              "request": {
+                "contents": [
+                  {
+                    "mediaType": "application/json",
+                    "type": {
+                      "target": "t/anon/webhooks/newPet/post/requestBody/content/application~1json/schema",
+                      "nullable": false
+                    }
+                  }
+                ],
+                "extensions": {
+                  "openapi:required": false
+                }
+              },
+              "responses": [
+                {
+                  "name": {},
+                  "conditions": {
+                    "statusCodes": [
+                      {
+                        "from": 200,
+                        "to": 200
+                      }
+                    ]
+                  },
+                  "docs": {
+                    "description": "ok"
+                  }
+                }
+              ],
+              "oneWay": false,
+              "idempotency": {},
+              "bindings": {
+                "http": [
+                  {
+                    "method": "POST",
+                    "uriTemplate": "newPet",
+                    "sharedRoute": false,
+                    "requestContentTypes": [
+                      "application/json"
+                    ],
+                    "checksumRequired": false,
+                    "isWebhook": true
+                  }
+                ]
+              },
+              "provenance": {
+                "source": 0,
+                "pointer": "/webhooks/newPet/post"
+              }
+            }
+          ]
+        }
+      ],
+      "provenance": {
+        "source": 0
+      }
+    }
+  ],
+  "types": {
+    "t/anon/webhooks/newPet/post/requestBody/content/application~1json/schema": {
+      "kind": "model",
+      "id": "t/anon/webhooks/newPet/post/requestBody/content/application~1json/schema",
+      "name": {
+        "hint": "onNewPet_request"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/webhooks/newPet/post/requestBody/content/application~1json/schema"
+      },
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    }
+  },
+  "servers": [
+    {
+      "name": {},
+      "urlTemplate": "/",
+      "description": {}
+    }
+  ],
+  "diagnostics": [
+    {
+      "severity": "info",
+      "code": "openapi/degraded-construct",
+      "message": "request body is not required; optionality preserved under extensions",
+      "provenance": {
+        "source": 0,
+        "pointer": "/webhooks/newPet/post/requestBody"
+      }
+    }
+  ],
+  "sources": [
+    {
+      "format": "openapi@3.1",
+      "path": "webhooks.yaml",
+      "hash": "32abadfcd65ac8530ddedcf4780f90471b3ce5d1f670384f3c87a5100edd1a96"
+    }
+  ]
+}

@@ -1,0 +1,77 @@
+{
+  "irVersion": "0.1.0",
+  "name": "EnumNumeric",
+  "version": "1.0.0",
+  "docs": {},
+  "services": [
+    {
+      "id": "s/openapi/0",
+      "name": {
+        "source": "EnumNumeric",
+        "canonical": "enum_numeric"
+      },
+      "docs": {},
+      "provenance": {
+        "source": 0
+      }
+    }
+  ],
+  "types": {
+    "t/openapi/components/schemas/BigCodes": {
+      "kind": "enum",
+      "id": "t/openapi/components/schemas/BigCodes",
+      "name": {
+        "source": "BigCodes",
+        "canonical": "big_codes"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/BigCodes"
+      },
+      "valueType": "integer",
+      "members": [
+        {
+          "name": {
+            "source": "1",
+            "canonical": "1"
+          },
+          "value": {
+            "kind": "number",
+            "num": "1"
+          },
+          "docs": {}
+        },
+        {
+          "name": {
+            "source": "9007199254740993",
+            "canonical": "9007199254740993"
+          },
+          "value": {
+            "kind": "number",
+            "num": "9007199254740993"
+          },
+          "docs": {}
+        }
+      ],
+      "closed": true,
+      "flags": false
+    }
+  },
+  "servers": [
+    {
+      "name": {},
+      "urlTemplate": "/",
+      "description": {}
+    }
+  ],
+  "sources": [
+    {
+      "format": "openapi@3.1",
+      "path": "enum-numeric.yaml",
+      "hash": "d15037c5b1d912cebf55377d252656be7c7b2f864d03381ff96c63065cdd3236"
+    }
+  ]
+}

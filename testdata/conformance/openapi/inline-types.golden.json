@@ -1,0 +1,140 @@
+{
+  "irVersion": "0.1.0",
+  "name": "InlineTypes",
+  "version": "1.0.0",
+  "docs": {},
+  "services": [
+    {
+      "id": "s/openapi/0",
+      "name": {
+        "source": "InlineTypes",
+        "canonical": "inline_types"
+      },
+      "docs": {},
+      "provenance": {
+        "source": 0
+      }
+    }
+  ],
+  "types": {
+    "t/anon/components/schemas/Order/properties/shipping": {
+      "kind": "model",
+      "id": "t/anon/components/schemas/Order/properties/shipping",
+      "name": {
+        "hint": "shipping"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Order/properties/shipping"
+      },
+      "properties": [
+        {
+          "id": "p/openapi/components/schemas/Order/properties/shipping/properties/street",
+          "name": {
+            "source": "street",
+            "canonical": "street"
+          },
+          "wireName": "street",
+          "type": {
+            "target": "t/prim/string",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/Order/properties/shipping/properties/street"
+          }
+        }
+      ],
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
+    "t/openapi/components/schemas/Order": {
+      "kind": "model",
+      "id": "t/openapi/components/schemas/Order",
+      "name": {
+        "source": "Order",
+        "canonical": "order"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Order"
+      },
+      "properties": [
+        {
+          "id": "p/openapi/components/schemas/Order/properties/shipping",
+          "name": {
+            "source": "shipping",
+            "canonical": "shipping"
+          },
+          "wireName": "shipping",
+          "type": {
+            "target": "t/anon/components/schemas/Order/properties/shipping",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/Order/properties/shipping"
+          }
+        }
+      ],
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
+    "t/prim/string": {
+      "kind": "primitive",
+      "id": "t/prim/string",
+      "name": {},
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0
+      },
+      "prim": "string"
+    }
+  },
+  "servers": [
+    {
+      "name": {},
+      "urlTemplate": "/",
+      "description": {}
+    }
+  ],
+  "sources": [
+    {
+      "format": "openapi@3.1",
+      "path": "inline-types.yaml",
+      "hash": "a2232e4f790fc0bfb7157a727f72ba4ffef8b247ec5880d8f5d15168f1eb1d45"
+    }
+  ]
+}

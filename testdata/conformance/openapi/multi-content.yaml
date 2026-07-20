@@ -1,0 +1,14 @@
+openapi: 3.1.0
+info: {title: MultiContent, version: "1.0.0"}
+paths:
+  /data:
+    get:
+      operationId: getData
+      responses:
+        "200":
+          description: ok
+          content:
+            application/json:
+              schema: {type: object}
+            application/xml:
+              schema: {type: object}

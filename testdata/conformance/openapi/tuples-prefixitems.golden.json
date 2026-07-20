@@ -1,0 +1,84 @@
+{
+  "irVersion": "0.1.0",
+  "name": "TuplesPrefixItems",
+  "version": "1.0.0",
+  "docs": {},
+  "services": [
+    {
+      "id": "s/openapi/0",
+      "name": {
+        "source": "TuplesPrefixItems",
+        "canonical": "tuples_prefix_items"
+      },
+      "docs": {},
+      "provenance": {
+        "source": 0
+      }
+    }
+  ],
+  "types": {
+    "t/openapi/components/schemas/Pair": {
+      "kind": "tuple",
+      "id": "t/openapi/components/schemas/Pair",
+      "name": {
+        "source": "Pair",
+        "canonical": "pair"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Pair"
+      },
+      "elems": [
+        {
+          "target": "t/prim/string",
+          "nullable": false
+        },
+        {
+          "target": "t/prim/integer",
+          "nullable": false
+        }
+      ]
+    },
+    "t/prim/integer": {
+      "kind": "primitive",
+      "id": "t/prim/integer",
+      "name": {},
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0
+      },
+      "prim": "integer"
+    },
+    "t/prim/string": {
+      "kind": "primitive",
+      "id": "t/prim/string",
+      "name": {},
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0
+      },
+      "prim": "string"
+    }
+  },
+  "servers": [
+    {
+      "name": {},
+      "urlTemplate": "/",
+      "description": {}
+    }
+  ],
+  "sources": [
+    {
+      "format": "openapi@3.1",
+      "path": "tuples-prefixitems.yaml",
+      "hash": "04f10ffb788cf44bfd7fe16e3453f186051b833df979c5bce1d3348d606f960e"
+    }
+  ]
+}

@@ -1,0 +1,126 @@
+{
+  "irVersion": "0.1.0",
+  "name": "SecuritySchemes",
+  "version": "1.0.0",
+  "docs": {},
+  "services": [
+    {
+      "id": "s/openapi/0",
+      "name": {
+        "source": "SecuritySchemes",
+        "canonical": "security_schemes"
+      },
+      "docs": {},
+      "provenance": {
+        "source": 0
+      }
+    }
+  ],
+  "auth": {
+    "auth/openapi/components/securitySchemes/apiKeyAuth": {
+      "id": "auth/openapi/components/securitySchemes/apiKeyAuth",
+      "name": {
+        "source": "apiKeyAuth",
+        "canonical": "api_key_auth"
+      },
+      "kind": "apiKey",
+      "docs": {},
+      "in": "header",
+      "keyName": "X-API-Key",
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/securitySchemes/apiKeyAuth"
+      }
+    },
+    "auth/openapi/components/securitySchemes/basicAuth": {
+      "id": "auth/openapi/components/securitySchemes/basicAuth",
+      "name": {
+        "source": "basicAuth",
+        "canonical": "basic_auth"
+      },
+      "kind": "http_basic",
+      "docs": {},
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/securitySchemes/basicAuth"
+      }
+    },
+    "auth/openapi/components/securitySchemes/bearerAuth": {
+      "id": "auth/openapi/components/securitySchemes/bearerAuth",
+      "name": {
+        "source": "bearerAuth",
+        "canonical": "bearer_auth"
+      },
+      "kind": "http_bearer",
+      "docs": {},
+      "bearerFormat": "JWT",
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/securitySchemes/bearerAuth"
+      }
+    },
+    "auth/openapi/components/securitySchemes/mtlsAuth": {
+      "id": "auth/openapi/components/securitySchemes/mtlsAuth",
+      "name": {
+        "source": "mtlsAuth",
+        "canonical": "mtls_auth"
+      },
+      "kind": "mutual_tls",
+      "docs": {},
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/securitySchemes/mtlsAuth"
+      }
+    },
+    "auth/openapi/components/securitySchemes/oauth2Auth": {
+      "id": "auth/openapi/components/securitySchemes/oauth2Auth",
+      "name": {
+        "source": "oauth2Auth",
+        "canonical": "oauth_2_auth"
+      },
+      "kind": "oauth2",
+      "docs": {},
+      "flows": [
+        {
+          "kind": "client_credentials",
+          "tokenURL": "https://example.com/token",
+          "scopes": {
+            "read": "Read access"
+          }
+        }
+      ],
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/securitySchemes/oauth2Auth"
+      }
+    },
+    "auth/openapi/components/securitySchemes/oidcAuth": {
+      "id": "auth/openapi/components/securitySchemes/oidcAuth",
+      "name": {
+        "source": "oidcAuth",
+        "canonical": "oidc_auth"
+      },
+      "kind": "openid_connect",
+      "docs": {},
+      "openIDConnectURL": "https://example.com/.well-known/openid-configuration",
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/securitySchemes/oidcAuth"
+      }
+    }
+  },
+  "servers": [
+    {
+      "name": {},
+      "urlTemplate": "/",
+      "description": {}
+    }
+  ],
+  "sources": [
+    {
+      "format": "openapi@3.1",
+      "path": "security-schemes.yaml",
+      "hash": "af554e1196ddcbe6fcf8e9bc1b0f921c7b0414666961b1be79e1fcb4da6de591"
+    }
+  ]
+}

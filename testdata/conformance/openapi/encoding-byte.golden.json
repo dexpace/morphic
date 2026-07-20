@@ -1,0 +1,131 @@
+{
+  "irVersion": "0.1.0",
+  "name": "EncodingByte",
+  "version": "1.0.0",
+  "docs": {},
+  "services": [
+    {
+      "id": "s/openapi/0",
+      "name": {
+        "source": "EncodingByte",
+        "canonical": "encoding_byte"
+      },
+      "docs": {},
+      "provenance": {
+        "source": 0
+      }
+    }
+  ],
+  "types": {
+    "t/anon/components/schemas/Holder/properties/blob": {
+      "kind": "scalar",
+      "id": "t/anon/components/schemas/Holder/properties/blob",
+      "name": {
+        "hint": "blob"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Holder/properties/blob"
+      },
+      "base": {
+        "target": "t/prim/bytes",
+        "nullable": false
+      },
+      "encoding": {
+        "name": "base64",
+        "wireType": {
+          "target": "t/prim/string",
+          "nullable": false
+        }
+      }
+    },
+    "t/openapi/components/schemas/Holder": {
+      "kind": "model",
+      "id": "t/openapi/components/schemas/Holder",
+      "name": {
+        "source": "Holder",
+        "canonical": "holder"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Holder"
+      },
+      "properties": [
+        {
+          "id": "p/openapi/components/schemas/Holder/properties/blob",
+          "name": {
+            "source": "blob",
+            "canonical": "blob"
+          },
+          "wireName": "blob",
+          "type": {
+            "target": "t/anon/components/schemas/Holder/properties/blob",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/Holder/properties/blob"
+          }
+        }
+      ],
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
+    "t/prim/bytes": {
+      "kind": "primitive",
+      "id": "t/prim/bytes",
+      "name": {},
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0
+      },
+      "prim": "bytes"
+    },
+    "t/prim/string": {
+      "kind": "primitive",
+      "id": "t/prim/string",
+      "name": {},
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0
+      },
+      "prim": "string"
+    }
+  },
+  "servers": [
+    {
+      "name": {},
+      "urlTemplate": "/",
+      "description": {}
+    }
+  ],
+  "sources": [
+    {
+      "format": "openapi@3.1",
+      "path": "encoding-byte.yaml",
+      "hash": "36b33305f6de700c178b981840b3a0b33a99c029ec23b157303a129bacd0a9d4"
+    }
+  ]
+}

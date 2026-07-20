@@ -1,0 +1,98 @@
+{
+  "irVersion": "0.1.0",
+  "name": "Defaults",
+  "version": "1.0.0",
+  "docs": {},
+  "services": [
+    {
+      "id": "s/openapi/0",
+      "name": {
+        "source": "Defaults",
+        "canonical": "defaults"
+      },
+      "docs": {},
+      "provenance": {
+        "source": 0
+      }
+    }
+  ],
+  "types": {
+    "t/openapi/components/schemas/S": {
+      "kind": "model",
+      "id": "t/openapi/components/schemas/S",
+      "name": {
+        "source": "S",
+        "canonical": "s"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/S"
+      },
+      "properties": [
+        {
+          "id": "p/openapi/components/schemas/S/properties/n",
+          "name": {
+            "source": "n",
+            "canonical": "n"
+          },
+          "wireName": "n",
+          "type": {
+            "target": "t/prim/integer",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "default": {
+            "kind": "number",
+            "num": "9007199254740993"
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/S/properties/n"
+          }
+        }
+      ],
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
+    "t/prim/integer": {
+      "kind": "primitive",
+      "id": "t/prim/integer",
+      "name": {},
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0
+      },
+      "prim": "integer"
+    }
+  },
+  "servers": [
+    {
+      "name": {},
+      "urlTemplate": "/",
+      "description": {}
+    }
+  ],
+  "sources": [
+    {
+      "format": "openapi@3.1",
+      "path": "defaults.yaml",
+      "hash": "dda34f986812439933685360de205ffa48142e20cc0a7ed3bc990b9a7df888d7"
+    }
+  ]
+}

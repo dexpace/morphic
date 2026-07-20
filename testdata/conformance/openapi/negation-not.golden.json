@@ -1,0 +1,112 @@
+{
+  "irVersion": "0.1.0",
+  "name": "NegationNot",
+  "version": "1.0.0",
+  "docs": {},
+  "services": [
+    {
+      "id": "s/openapi/0",
+      "name": {
+        "source": "NegationNot",
+        "canonical": "negation_not"
+      },
+      "docs": {},
+      "provenance": {
+        "source": 0
+      }
+    }
+  ],
+  "types": {
+    "t/openapi/components/schemas/NotFoo": {
+      "kind": "model",
+      "id": "t/openapi/components/schemas/NotFoo",
+      "name": {
+        "source": "NotFoo",
+        "canonical": "not_foo"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "extensions": {
+        "openapi:not": {
+          "required": [
+            "b"
+          ]
+        }
+      },
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/NotFoo"
+      },
+      "properties": [
+        {
+          "id": "p/openapi/components/schemas/NotFoo/properties/a",
+          "name": {
+            "source": "a",
+            "canonical": "a"
+          },
+          "wireName": "a",
+          "type": {
+            "target": "t/prim/string",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/NotFoo/properties/a"
+          }
+        }
+      ],
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
+    "t/prim/string": {
+      "kind": "primitive",
+      "id": "t/prim/string",
+      "name": {},
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0
+      },
+      "prim": "string"
+    }
+  },
+  "servers": [
+    {
+      "name": {},
+      "urlTemplate": "/",
+      "description": {}
+    }
+  ],
+  "diagnostics": [
+    {
+      "severity": "info",
+      "code": "openapi/validation-only-keyword",
+      "message": "validation-only keyword \"not\" preserved verbatim in extensions",
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/NotFoo"
+      }
+    }
+  ],
+  "sources": [
+    {
+      "format": "openapi@3.1",
+      "path": "negation-not.yaml",
+      "hash": "ec629368eb390ad47f84a9d04f7d2a1e45ea4225b85209754ed46116a286ee5d"
+    }
+  ]
+}

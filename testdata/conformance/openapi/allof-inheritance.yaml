@@ -1,0 +1,14 @@
+openapi: 3.1.0
+info: {title: AllOfInheritance, version: "1.0.0"}
+paths: {}
+components:
+  schemas:
+    Base:
+      type: object
+      properties:
+        id: {type: string}
+    Derived:
+      allOf:
+        - {$ref: '#/components/schemas/Base'}
+      properties:
+        extra: {type: string}

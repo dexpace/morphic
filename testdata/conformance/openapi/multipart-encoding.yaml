@@ -1,0 +1,21 @@
+openapi: 3.1.0
+info: {title: MultipartEncoding, version: "1.0.0"}
+paths:
+  /upload:
+    post:
+      operationId: upload
+      requestBody:
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                file: {type: string, format: binary}
+                tags:
+                  type: array
+                  items: {type: string}
+            encoding:
+              file: {contentType: image/png}
+      responses:
+        "200":
+          description: ok

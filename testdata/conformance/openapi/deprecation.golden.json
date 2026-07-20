@@ -1,0 +1,148 @@
+{
+  "irVersion": "0.1.0",
+  "name": "Deprecation",
+  "version": "1.0.0",
+  "docs": {},
+  "services": [
+    {
+      "id": "s/openapi/0",
+      "name": {
+        "source": "Deprecation",
+        "canonical": "deprecation"
+      },
+      "docs": {},
+      "groups": [
+        {
+          "name": {
+            "hint": "default"
+          },
+          "docs": {},
+          "operations": [
+            {
+              "id": "op/openapi/paths/~1old/get",
+              "name": {
+                "source": "oldOp",
+                "canonical": "old_op"
+              },
+              "docs": {},
+              "deprecation": {},
+              "responses": [
+                {
+                  "name": {},
+                  "conditions": {
+                    "statusCodes": [
+                      {
+                        "from": 200,
+                        "to": 200
+                      }
+                    ]
+                  },
+                  "docs": {
+                    "description": "ok"
+                  }
+                }
+              ],
+              "oneWay": false,
+              "idempotency": {},
+              "bindings": {
+                "http": [
+                  {
+                    "method": "GET",
+                    "uriTemplate": "/old",
+                    "sharedRoute": false,
+                    "checksumRequired": false,
+                    "isWebhook": false
+                  }
+                ]
+              },
+              "provenance": {
+                "source": 0,
+                "pointer": "/paths/~1old/get"
+              }
+            }
+          ]
+        }
+      ],
+      "provenance": {
+        "source": 0
+      }
+    }
+  ],
+  "types": {
+    "t/openapi/components/schemas/OldModel": {
+      "kind": "model",
+      "id": "t/openapi/components/schemas/OldModel",
+      "name": {
+        "source": "OldModel",
+        "canonical": "old_model"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "deprecation": {},
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/OldModel"
+      },
+      "properties": [
+        {
+          "id": "p/openapi/components/schemas/OldModel/properties/oldField",
+          "name": {
+            "source": "oldField",
+            "canonical": "old_field"
+          },
+          "wireName": "oldField",
+          "type": {
+            "target": "t/prim/string",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "deprecation": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/OldModel/properties/oldField"
+          }
+        }
+      ],
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
+    "t/prim/string": {
+      "kind": "primitive",
+      "id": "t/prim/string",
+      "name": {},
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0
+      },
+      "prim": "string"
+    }
+  },
+  "servers": [
+    {
+      "name": {},
+      "urlTemplate": "/",
+      "description": {}
+    }
+  ],
+  "sources": [
+    {
+      "format": "openapi@3.1",
+      "path": "deprecation.yaml",
+      "hash": "d49a7c4feae86b417ae352791aa78e03957409ca8d5b3a0f94fd5695311c12d5"
+    }
+  ]
+}

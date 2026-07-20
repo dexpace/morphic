@@ -1,0 +1,175 @@
+{
+  "irVersion": "0.1.0",
+  "name": "NullabilityFourStates",
+  "version": "1.0.0",
+  "docs": {},
+  "services": [
+    {
+      "id": "s/openapi/0",
+      "name": {
+        "source": "NullabilityFourStates",
+        "canonical": "nullability_four_states"
+      },
+      "docs": {},
+      "provenance": {
+        "source": 0
+      }
+    }
+  ],
+  "types": {
+    "t/openapi/components/schemas/S": {
+      "kind": "model",
+      "id": "t/openapi/components/schemas/S",
+      "name": {
+        "source": "S",
+        "canonical": "s"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/S"
+      },
+      "properties": [
+        {
+          "id": "p/openapi/components/schemas/S/properties/reqPlain",
+          "name": {
+            "source": "reqPlain",
+            "canonical": "req_plain"
+          },
+          "wireName": "reqPlain",
+          "type": {
+            "target": "t/prim/string",
+            "nullable": false
+          },
+          "required": true,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/S/properties/reqPlain"
+          }
+        },
+        {
+          "id": "p/openapi/components/schemas/S/properties/reqNull",
+          "name": {
+            "source": "reqNull",
+            "canonical": "req_null"
+          },
+          "wireName": "reqNull",
+          "type": {
+            "target": "t/prim/string",
+            "nullable": true
+          },
+          "required": true,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/S/properties/reqNull"
+          }
+        },
+        {
+          "id": "p/openapi/components/schemas/S/properties/optPlain",
+          "name": {
+            "source": "optPlain",
+            "canonical": "opt_plain"
+          },
+          "wireName": "optPlain",
+          "type": {
+            "target": "t/prim/string",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/S/properties/optPlain"
+          }
+        },
+        {
+          "id": "p/openapi/components/schemas/S/properties/optNull",
+          "name": {
+            "source": "optNull",
+            "canonical": "opt_null"
+          },
+          "wireName": "optNull",
+          "type": {
+            "target": "t/prim/string",
+            "nullable": true
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/S/properties/optNull"
+          }
+        }
+      ],
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
+    "t/prim/string": {
+      "kind": "primitive",
+      "id": "t/prim/string",
+      "name": {},
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0
+      },
+      "prim": "string"
+    }
+  },
+  "servers": [
+    {
+      "name": {},
+      "urlTemplate": "/",
+      "description": {}
+    }
+  ],
+  "sources": [
+    {
+      "format": "openapi@3.1",
+      "path": "nullability-four-states.yaml",
+      "hash": "a71e8136b5b1f42414e0a93cbb715c290947558412b4dd141aece0e42eb52b62"
+    }
+  ]
+}

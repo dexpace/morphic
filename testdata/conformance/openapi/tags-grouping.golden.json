@@ -1,0 +1,98 @@
+{
+  "irVersion": "0.1.0",
+  "name": "TagsGrouping",
+  "version": "1.0.0",
+  "docs": {},
+  "services": [
+    {
+      "id": "s/openapi/0",
+      "name": {
+        "source": "TagsGrouping",
+        "canonical": "tags_grouping"
+      },
+      "docs": {},
+      "groups": [
+        {
+          "name": {
+            "source": "pets",
+            "canonical": "pets"
+          },
+          "docs": {
+            "description": "Pet operations"
+          },
+          "operations": [
+            {
+              "id": "op/openapi/paths/~1pets/get",
+              "name": {
+                "source": "listPets",
+                "canonical": "list_pets"
+              },
+              "docs": {},
+              "responses": [
+                {
+                  "name": {},
+                  "conditions": {
+                    "statusCodes": [
+                      {
+                        "from": 200,
+                        "to": 200
+                      }
+                    ]
+                  },
+                  "docs": {
+                    "description": "ok"
+                  }
+                }
+              ],
+              "oneWay": false,
+              "idempotency": {},
+              "tags": [
+                "pets"
+              ],
+              "bindings": {
+                "http": [
+                  {
+                    "method": "GET",
+                    "uriTemplate": "/pets",
+                    "sharedRoute": false,
+                    "checksumRequired": false,
+                    "isWebhook": false
+                  }
+                ]
+              },
+              "provenance": {
+                "source": 0,
+                "pointer": "/paths/~1pets/get"
+              }
+            }
+          ]
+        }
+      ],
+      "provenance": {
+        "source": 0
+      }
+    }
+  ],
+  "servers": [
+    {
+      "name": {},
+      "urlTemplate": "/",
+      "description": {}
+    }
+  ],
+  "tagDefs": [
+    {
+      "name": "pets",
+      "docs": {
+        "description": "Pet operations"
+      }
+    }
+  ],
+  "sources": [
+    {
+      "format": "openapi@3.1",
+      "path": "tags-grouping.yaml",
+      "hash": "41766fd81f5d3c1f467807353ae4972a3a7ce0a81127482b9e6c13441d089055"
+    }
+  ]
+}

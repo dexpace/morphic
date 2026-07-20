@@ -1,0 +1,138 @@
+{
+  "irVersion": "0.1.0",
+  "name": "MultiContent",
+  "version": "1.0.0",
+  "docs": {},
+  "services": [
+    {
+      "id": "s/openapi/0",
+      "name": {
+        "source": "MultiContent",
+        "canonical": "multi_content"
+      },
+      "docs": {},
+      "groups": [
+        {
+          "name": {
+            "hint": "default"
+          },
+          "docs": {},
+          "operations": [
+            {
+              "id": "op/openapi/paths/~1data/get",
+              "name": {
+                "source": "getData",
+                "canonical": "get_data"
+              },
+              "docs": {},
+              "responses": [
+                {
+                  "name": {},
+                  "conditions": {
+                    "statusCodes": [
+                      {
+                        "from": 200,
+                        "to": 200
+                      }
+                    ]
+                  },
+                  "payload": {
+                    "contents": [
+                      {
+                        "mediaType": "application/json",
+                        "type": {
+                          "target": "t/anon/paths/~1data/get/responses/200/content/application~1json/schema",
+                          "nullable": false
+                        }
+                      },
+                      {
+                        "mediaType": "application/xml",
+                        "type": {
+                          "target": "t/anon/paths/~1data/get/responses/200/content/application~1xml/schema",
+                          "nullable": false
+                        }
+                      }
+                    ]
+                  },
+                  "docs": {
+                    "description": "ok"
+                  }
+                }
+              ],
+              "oneWay": false,
+              "idempotency": {},
+              "bindings": {
+                "http": [
+                  {
+                    "method": "GET",
+                    "uriTemplate": "/data",
+                    "sharedRoute": false,
+                    "checksumRequired": false,
+                    "isWebhook": false
+                  }
+                ]
+              },
+              "provenance": {
+                "source": 0,
+                "pointer": "/paths/~1data/get"
+              }
+            }
+          ]
+        }
+      ],
+      "provenance": {
+        "source": 0
+      }
+    }
+  ],
+  "types": {
+    "t/anon/paths/~1data/get/responses/200/content/application~1json/schema": {
+      "kind": "model",
+      "id": "t/anon/paths/~1data/get/responses/200/content/application~1json/schema",
+      "name": {
+        "hint": "response"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/paths/~1data/get/responses/200/content/application~1json/schema"
+      },
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
+    "t/anon/paths/~1data/get/responses/200/content/application~1xml/schema": {
+      "kind": "model",
+      "id": "t/anon/paths/~1data/get/responses/200/content/application~1xml/schema",
+      "name": {
+        "hint": "response"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/paths/~1data/get/responses/200/content/application~1xml/schema"
+      },
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    }
+  },
+  "servers": [
+    {
+      "name": {},
+      "urlTemplate": "/",
+      "description": {}
+    }
+  ],
+  "sources": [
+    {
+      "format": "openapi@3.1",
+      "path": "multi-content.yaml",
+      "hash": "02d4937408147bb86ed1a3dc0f1dac56eb1c56405a036ffdc3ee93df73f17437"
+    }
+  ]
+}

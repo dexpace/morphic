@@ -1,0 +1,88 @@
+{
+  "irVersion": "0.1.0",
+  "name": "EnumString",
+  "version": "1.0.0",
+  "docs": {},
+  "services": [
+    {
+      "id": "s/openapi/0",
+      "name": {
+        "source": "EnumString",
+        "canonical": "enum_string"
+      },
+      "docs": {},
+      "provenance": {
+        "source": 0
+      }
+    }
+  ],
+  "types": {
+    "t/openapi/components/schemas/Color": {
+      "kind": "enum",
+      "id": "t/openapi/components/schemas/Color",
+      "name": {
+        "source": "Color",
+        "canonical": "color"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Color"
+      },
+      "valueType": "string",
+      "members": [
+        {
+          "name": {
+            "source": "red",
+            "canonical": "red"
+          },
+          "value": {
+            "kind": "string",
+            "str": "red"
+          },
+          "docs": {}
+        },
+        {
+          "name": {
+            "source": "green",
+            "canonical": "green"
+          },
+          "value": {
+            "kind": "string",
+            "str": "green"
+          },
+          "docs": {}
+        },
+        {
+          "name": {
+            "source": "blue",
+            "canonical": "blue"
+          },
+          "value": {
+            "kind": "string",
+            "str": "blue"
+          },
+          "docs": {}
+        }
+      ],
+      "closed": true,
+      "flags": false
+    }
+  },
+  "servers": [
+    {
+      "name": {},
+      "urlTemplate": "/",
+      "description": {}
+    }
+  ],
+  "sources": [
+    {
+      "format": "openapi@3.1",
+      "path": "enum-string.yaml",
+      "hash": "458911e5605f5143aabebcaf22aeab647bce86a4f5692953e17e14a94832ea15"
+    }
+  ]
+}

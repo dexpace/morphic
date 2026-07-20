@@ -1,0 +1,28 @@
+openapi: 3.1.0
+info: {title: SecuritySchemes, version: "1.0.0"}
+paths: {}
+components:
+  securitySchemes:
+    apiKeyAuth:
+      type: apiKey
+      in: header
+      name: X-API-Key
+    basicAuth:
+      type: http
+      scheme: basic
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+    oauth2Auth:
+      type: oauth2
+      flows:
+        clientCredentials:
+          tokenUrl: https://example.com/token
+          scopes:
+            read: Read access
+    oidcAuth:
+      type: openIdConnect
+      openIdConnectUrl: https://example.com/.well-known/openid-configuration
+    mtlsAuth:
+      type: mutualTLS
