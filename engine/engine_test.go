@@ -52,6 +52,71 @@ func TestEngine_RunMissingFile(t *testing.T) {
 	require.Error(t, err)
 }
 
+func TestEngine_RunSniffError(t *testing.T) {
+	t.Parallel()
+	eng, err := engine.New()
+	require.NoError(t, err)
+	// Swagger 2.0 sniffs to a recognized-but-unsupported error, which Run wraps.
+	_, err = eng.Run(t.Context(), writeSpec(t, "swagger: \"2.0\"\n"), engine.RunOptions{})
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "engine: sniff")
+}
+
+func TestEngine_RunLookupMiss(t *testing.T) {
+	t.Parallel()
+	// An empty registry has no frontend for the openapi 3.1 the spec sniffs to.
+	eng := engine.NewWithRegistry(frontend.NewRegistry())
+	_, err := eng.Run(t.Context(), writeSpec(t, tinySpec), engine.RunOptions{})
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "no frontend registered for format")
+}
+
+// parseErrFrontend claims openapi 3.1 and always fails Parse, driving Run's
+// parse-error branch.
+type parseErrFrontend struct{}
+
+func (parseErrFrontend) Formats() []frontend.SourceFormat {
+	return []frontend.SourceFormat{{Name: "openapi", Version: "3.1"}}
+}
+
+func (parseErrFrontend) Parse(context.Context, []frontend.Source, frontend.Options) (*ir.Document, []ir.Diagnostic, error) {
+	return nil, nil, assert.AnError
+}
+
+func TestEngine_RunParseError(t *testing.T) {
+	t.Parallel()
+	reg := frontend.NewRegistry()
+	require.NoError(t, reg.Register(parseErrFrontend{}))
+	eng := engine.NewWithRegistry(reg)
+	_, err := eng.Run(t.Context(), writeSpec(t, tinySpec), engine.RunOptions{})
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "engine: parse")
+}
+
+// nilDocFrontend claims openapi 3.1 and returns a nil Document with no error —
+// a legal outcome that must skip the validate pass and surface a nil Document.
+type nilDocFrontend struct{}
+
+func (nilDocFrontend) Formats() []frontend.SourceFormat {
+	return []frontend.SourceFormat{{Name: "openapi", Version: "3.1"}}
+}
+
+func (nilDocFrontend) Parse(context.Context, []frontend.Source, frontend.Options) (*ir.Document, []ir.Diagnostic, error) {
+	return nil, []ir.Diagnostic{{Code: "x/none"}}, nil
+}
+
+func TestEngine_RunNilDocument(t *testing.T) {
+	t.Parallel()
+	reg := frontend.NewRegistry()
+	require.NoError(t, reg.Register(nilDocFrontend{}))
+	eng := engine.NewWithRegistry(reg)
+	// SkipValidate is false, but a nil Document must still short-circuit the pass.
+	res, err := eng.Run(t.Context(), writeSpec(t, tinySpec), engine.RunOptions{})
+	require.NoError(t, err)
+	assert.Nil(t, res.Document)
+	assert.True(t, hasDiagCode(res.Diagnostics, "x/none"))
+}
+
 // danglingFrontend is a stub that always lowers to a Document containing a
 // dangling type reference, so the validate pass — if it runs — reports
 // ir/dangling-type-ref. It claims the openapi 3.1 format so a tiny 3.1 spec

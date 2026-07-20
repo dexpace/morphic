@@ -36,9 +36,19 @@ type Engine struct {
 // New composes the default engine: a registry with every built-in frontend
 // registered. Future frontends are added here and only here.
 func New() (*Engine, error) {
+	return newEngine(openapi.New())
+}
+
+// newEngine registers the given frontends into a fresh registry and wraps it in
+// an Engine. It is the shared construction seam behind New: a register failure
+// (a frontend reporting no formats, or two frontends claiming the same format)
+// surfaces as a Go error rather than a panic.
+func newEngine(fronts ...frontend.Frontend) (*Engine, error) {
 	reg := frontend.NewRegistry()
-	if err := reg.Register(openapi.New()); err != nil {
-		return nil, fmt.Errorf("engine: register openapi frontend: %w", err)
+	for _, front := range fronts {
+		if err := reg.Register(front); err != nil {
+			return nil, fmt.Errorf("engine: register frontend: %w", err)
+		}
 	}
 	return NewWithRegistry(reg), nil
 }
