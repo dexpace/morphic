@@ -1,0 +1,123 @@
+{
+  "irVersion": "0.1.0",
+  "name": "Recursive",
+  "version": "1.0.0",
+  "docs": {},
+  "services": [
+    {
+      "id": "s/openapi/0",
+      "name": {
+        "source": "Recursive",
+        "canonical": "recursive"
+      },
+      "docs": {},
+      "auth": null,
+      "provenance": {
+        "source": 0
+      }
+    }
+  ],
+  "types": {
+    "t/openapi/components/schemas/Node": {
+      "kind": "model",
+      "id": "t/openapi/components/schemas/Node",
+      "name": {
+        "source": "Node",
+        "canonical": "node"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Node"
+      },
+      "properties": [
+        {
+          "id": "p/openapi/components/schemas/Node/properties/value",
+          "name": {
+            "source": "value",
+            "canonical": "value"
+          },
+          "wireName": "value",
+          "type": {
+            "target": "t/prim/string",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/Node/properties/value"
+          }
+        },
+        {
+          "id": "p/openapi/components/schemas/Node/properties/next",
+          "name": {
+            "source": "next",
+            "canonical": "next"
+          },
+          "wireName": "next",
+          "type": {
+            "target": "t/openapi/components/schemas/Node",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/Node/properties/next"
+          }
+        }
+      ],
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
+    "t/prim/string": {
+      "kind": "primitive",
+      "id": "t/prim/string",
+      "name": {},
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0
+      },
+      "prim": "string"
+    }
+  },
+  "servers": [
+    {
+      "name": {},
+      "urlTemplate": "/",
+      "description": {},
+      "auth": null
+    }
+  ],
+  "sources": [
+    {
+      "format": "openapi@3.1",
+      "path": "recursive.yaml",
+      "hash": "577c1bd8e9b88f374c686510719b0a550f64ff58bd953e2670ddff9580affa27"
+    }
+  ]
+}

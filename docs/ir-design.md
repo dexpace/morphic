@@ -1099,6 +1099,7 @@ type OTPBinding struct {
                          // (local/global/via) in Channel.Bindings["otp"]
     RequestTag *Value    // tag of the request tuple (a symbol Value, e.g. 'get');
                          // nil = the whole term is the request
+    Extensions Extensions // source metadata without a first-class IR node (§12)
 }
 ```
 

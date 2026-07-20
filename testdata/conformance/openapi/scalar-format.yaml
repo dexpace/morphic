@@ -1,0 +1,9 @@
+openapi: 3.1.0
+info: {title: ScalarFormat, version: "1.0.0"}
+paths: {}
+components:
+  schemas:
+    Holder:
+      type: object
+      properties:
+        color: {type: string, format: hex-color}

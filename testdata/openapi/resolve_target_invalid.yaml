@@ -1,0 +1,10 @@
+openapi: 3.1.0
+info: {title: Target, version: "1"}
+paths: {}
+components:
+  responses:
+    Bad:
+      headers:
+        X:
+          schema: {type: string}
+          required: notabool

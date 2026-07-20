@@ -1,0 +1,13 @@
+openapi: 3.1.0
+info: {title: Constraints, version: "1.0.0"}
+paths: {}
+components:
+  schemas:
+    S:
+      type: object
+      properties:
+        ratio:
+          type: number
+          minimum: 0.30000000000000004
+          maximum: 9007199254740993
+          multipleOf: 0.1

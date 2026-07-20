@@ -1,0 +1,10 @@
+openapi: 3.1.0
+info: {title: ReadOnlyWriteOnly, version: "1.0.0"}
+paths: {}
+components:
+  schemas:
+    S:
+      type: object
+      properties:
+        r: {type: string, readOnly: true}
+        w: {type: string, writeOnly: true}

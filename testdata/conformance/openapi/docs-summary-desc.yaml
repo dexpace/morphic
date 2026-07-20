@@ -1,0 +1,11 @@
+openapi: 3.1.0
+info: {title: DocsSummaryDesc, version: "1.0.0"}
+paths:
+  /ping:
+    get:
+      operationId: ping
+      summary: Ping the server
+      description: Returns pong
+      responses:
+        "200":
+          description: ok

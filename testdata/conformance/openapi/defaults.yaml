@@ -1,0 +1,9 @@
+openapi: 3.1.0
+info: {title: Defaults, version: "1.0.0"}
+paths: {}
+components:
+  schemas:
+    S:
+      type: object
+      properties:
+        n: {type: integer, default: 9007199254740993}

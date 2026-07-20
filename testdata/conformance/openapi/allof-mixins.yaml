@@ -1,0 +1,17 @@
+openapi: 3.1.0
+info: {title: AllOfMixins, version: "1.0.0"}
+paths: {}
+components:
+  schemas:
+    A:
+      type: object
+      properties:
+        a: {type: string}
+    B:
+      type: object
+      properties:
+        b: {type: string}
+    C:
+      allOf:
+        - {$ref: '#/components/schemas/A'}
+        - {$ref: '#/components/schemas/B'}

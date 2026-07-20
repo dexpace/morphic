@@ -1,0 +1,11 @@
+openapi: 3.1.0
+info: {title: Examples, version: "1.0.0"}
+paths: {}
+components:
+  schemas:
+    S:
+      type: object
+      properties:
+        n:
+          type: integer
+          examples: [1, 2]

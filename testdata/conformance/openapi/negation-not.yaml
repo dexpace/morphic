@@ -1,0 +1,11 @@
+openapi: 3.1.0
+info: {title: NegationNot, version: "1.0.0"}
+paths: {}
+components:
+  schemas:
+    NotFoo:
+      type: object
+      properties:
+        a: {type: string}
+      not:
+        required: [b]

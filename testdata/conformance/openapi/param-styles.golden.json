@@ -1,0 +1,200 @@
+{
+  "irVersion": "0.1.0",
+  "name": "ParamStyles",
+  "version": "1.0.0",
+  "docs": {},
+  "services": [
+    {
+      "id": "s/openapi/0",
+      "name": {
+        "source": "ParamStyles",
+        "canonical": "param_styles"
+      },
+      "docs": {},
+      "groups": [
+        {
+          "name": {
+            "hint": "default"
+          },
+          "docs": {},
+          "operations": [
+            {
+              "id": "op/openapi/paths/~1search/get",
+              "name": {
+                "source": "search",
+                "canonical": "search"
+              },
+              "docs": {},
+              "params": [
+                {
+                  "name": {
+                    "source": "q",
+                    "canonical": "q"
+                  },
+                  "type": {
+                    "target": "t/prim/string",
+                    "nullable": false
+                  },
+                  "required": false,
+                  "docs": {}
+                },
+                {
+                  "name": {
+                    "source": "filter",
+                    "canonical": "filter"
+                  },
+                  "type": {
+                    "target": "t/anon/paths/~1search/get/parameters/1/schema",
+                    "nullable": false
+                  },
+                  "required": false,
+                  "docs": {}
+                },
+                {
+                  "name": {
+                    "source": "payload",
+                    "canonical": "payload"
+                  },
+                  "type": {
+                    "target": "t/anon/paths/~1search/get/parameters/2/content/application~1json/schema",
+                    "nullable": false
+                  },
+                  "required": false,
+                  "docs": {}
+                }
+              ],
+              "responses": [
+                {
+                  "name": {},
+                  "conditions": {
+                    "statusCodes": [
+                      {
+                        "from": 200,
+                        "to": 200
+                      }
+                    ]
+                  },
+                  "docs": {
+                    "description": "ok"
+                  }
+                }
+              ],
+              "oneWay": false,
+              "idempotency": {},
+              "auth": null,
+              "bindings": {
+                "http": [
+                  {
+                    "method": "GET",
+                    "uriTemplate": "/search",
+                    "sharedRoute": false,
+                    "paramBindings": [
+                      {
+                        "param": "q",
+                        "location": "query",
+                        "wireName": "q",
+                        "style": "form",
+                        "explode": true,
+                        "allowReserved": false
+                      },
+                      {
+                        "param": "filter",
+                        "location": "query",
+                        "wireName": "filter",
+                        "style": "deepObject",
+                        "explode": true,
+                        "allowReserved": false
+                      },
+                      {
+                        "param": "payload",
+                        "location": "query",
+                        "wireName": "payload",
+                        "style": "form",
+                        "explode": true,
+                        "allowReserved": false,
+                        "contentType": "application/json"
+                      }
+                    ],
+                    "checksumRequired": false,
+                    "isWebhook": false
+                  }
+                ]
+              },
+              "provenance": {
+                "source": 0,
+                "pointer": "/paths/~1search/get"
+              }
+            }
+          ]
+        }
+      ],
+      "auth": null,
+      "provenance": {
+        "source": 0
+      }
+    }
+  ],
+  "types": {
+    "t/anon/paths/~1search/get/parameters/1/schema": {
+      "kind": "model",
+      "id": "t/anon/paths/~1search/get/parameters/1/schema",
+      "name": {
+        "hint": "filter"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/paths/~1search/get/parameters/1/schema"
+      },
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
+    "t/anon/paths/~1search/get/parameters/2/content/application~1json/schema": {
+      "kind": "model",
+      "id": "t/anon/paths/~1search/get/parameters/2/content/application~1json/schema",
+      "name": {
+        "hint": "payload"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/paths/~1search/get/parameters/2/content/application~1json/schema"
+      },
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
+    "t/prim/string": {
+      "kind": "primitive",
+      "id": "t/prim/string",
+      "name": {},
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0
+      },
+      "prim": "string"
+    }
+  },
+  "servers": [
+    {
+      "name": {},
+      "urlTemplate": "/",
+      "description": {},
+      "auth": null
+    }
+  ],
+  "sources": [
+    {
+      "format": "openapi@3.1",
+      "path": "param-styles.yaml",
+      "hash": "2c337a970b067a1bb733d1f8cd3f65eaeee18acf2ba0336fbd58d6ff249b804a"
+    }
+  ]
+}

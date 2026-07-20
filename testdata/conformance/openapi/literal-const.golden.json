@@ -1,0 +1,59 @@
+{
+  "irVersion": "0.1.0",
+  "name": "LiteralConst",
+  "version": "1.0.0",
+  "docs": {},
+  "services": [
+    {
+      "id": "s/openapi/0",
+      "name": {
+        "source": "LiteralConst",
+        "canonical": "literal_const"
+      },
+      "docs": {},
+      "auth": null,
+      "provenance": {
+        "source": 0
+      }
+    }
+  ],
+  "types": {
+    "t/openapi/components/schemas/Version": {
+      "kind": "literal",
+      "id": "t/openapi/components/schemas/Version",
+      "name": {
+        "source": "Version",
+        "canonical": "version"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Version"
+      },
+      "value": {
+        "kind": "string",
+        "str": "v1",
+        "bytes": null,
+        "list": null,
+        "object": null
+      }
+    }
+  },
+  "servers": [
+    {
+      "name": {},
+      "urlTemplate": "/",
+      "description": {},
+      "auth": null
+    }
+  ],
+  "sources": [
+    {
+      "format": "openapi@3.1",
+      "path": "literal-const.yaml",
+      "hash": "3d9007ec05f150a2403280bcdadd49f9b5c6f2ee1e727b90870a154464ddf615"
+    }
+  ]
+}

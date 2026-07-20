@@ -99,6 +99,65 @@ an afterthought.
 - **Round-trip property**: `parse → serialize → deserialize → deep-equal` for every corpus doc.
 - **Architecture test**: the import-graph assertions above.
 
+## Go code style — the dexpace styleguide is binding
+
+All Go in this repo follows the org styleguide at
+[dexpace/styleguide](https://github.com/dexpace/styleguide) (`go/` chapters 01–13). It extends
+the [Google Go Style Guide](https://google.github.io/styleguide/go/); where they conflict,
+Google wins except for the recorded deviations (function-size cap, assertion density, bounded
+recursion). Priority order: **correctness > performance > developer experience**. The rules
+below are the ones most likely to bite in this codebase — the full guide governs everything else.
+
+- **Functions: 70-line hard cap, aim 20–40.** One thing each; blank lines between logical
+  sections; guard clauses and early returns over nesting; no `else` after a returning `if`.
+- **Assert aggressively** (TigerBeetle discipline): validate at every public boundary; aim ≥2
+  assertions (precondition/postcondition/invariant checks returning errors) per function; split
+  compound checks. Never accept garbage silently.
+- **Bounded everything.** Every loop, queue, retry, buffer, and timeout has an explicit limit.
+  Recursion is permitted **only** with a provably bounded depth: an explicit counter checked
+  against a named hard cap, recovered at the public boundary. This applies directly to schema
+  lowering and IR traversal — deep/cyclic specs are normal inputs, not edge cases.
+- **Errors are values.** Handle every error (`_ = err` is banned); wrap with `%w` + context,
+  one level, `%w` at the end; branch with `errors.Is`/`errors.As`, never string matching;
+  sentinel errors `Err…`, error types `…Error` implementing `Unwrap`; error strings lowercase,
+  unpunctuated; no in-band errors (no `-1`/`""` for "not found"); no panics escaping a package
+  (`Must*` only in init/tests). Note: pipeline stages additionally report *spec problems* as
+  `ir.Diagnostic` values, not Go errors — Go errors are for I/O and programmer errors.
+- **API design:** accept interfaces, return concrete structs; small consumer-defined
+  interfaces; `any` not `interface{}`; comma-ok on every type assertion; type switches carry a
+  `default`; zero values useful or obviously invalid; copy slices/maps at API boundaries; no
+  mutable globals (this repo's "pure, reentrant stages" invariant is the same rule).
+- **Concurrency:** prefer synchronous APIs — the caller adds concurrency; `ctx context.Context`
+  first parameter, never stored in a struct; every goroutine has a documented lifetime and stop
+  mechanism; `errgroup` for groups; bounded fan-out.
+- **Naming:** MixedCaps; scope-proportional length; no `Get` prefix on getters; initialisms in
+  one consistent case; package names short lowercase nouns; never shadow builtins or imports.
+- **Testing:** table-driven and flat; `TestFunc_Scenario` names; `testify/require` for
+  preconditions, `assert` for values; compare with `cmp.Diff`, never `reflect.DeepEqual`;
+  golden files for complex expected output; `t.Helper()` in helpers; `t.Cleanup()` over
+  `defer`; external test packages (`package foo_test`) preferred; `goleak` where goroutines
+  exist.
+- **Packages:** one package per directory; `internal/` aggressively for implementation detail;
+  no `utils`/`helpers`/`common`; `doc.go` for package docs; imports in three `gci` groups
+  (stdlib, external, local); no dot imports.
+- **Docs:** GoDoc on every exported symbol starting with its name, complete sentences; package
+  comment on every package; comments explain *why*, not what.
+- **Serialization:** explicit JSON struct tags on every field; `omitempty` only on optional
+  fields; custom `MarshalJSON`/`UnmarshalJSON` for special forms (the IR's sum types and
+  `BigVal` do this); never `float64` for money — and in this repo, never `float64` in the IR at
+  all.
+- **Logging:** `log/slog` only, injected — but note the stronger repo invariant: pipeline
+  stages don't log at all; they return diagnostics.
+
+Before claiming any Go work done, run and pass:
+
+```bash
+gofmt -l .          # must print nothing
+golangci-lint run   # must pass clean
+go vet ./...
+go test ./...
+```
+
 ## Repository rules
 
 These match the conventions already in force across the other dexpace SDK repos

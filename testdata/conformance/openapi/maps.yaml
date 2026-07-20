@@ -1,0 +1,22 @@
+openapi: 3.1.0
+info: {title: Maps, version: "1.0.0"}
+paths: {}
+components:
+  schemas:
+    OpenMap:
+      type: object
+      additionalProperties: {type: integer}
+    PatternMap:
+      type: object
+      patternProperties:
+        "^x-": {type: string}
+    ClosedRecord:
+      type: object
+      properties:
+        a: {type: string}
+      additionalProperties: false
+    ClosedAfter:
+      type: object
+      properties:
+        a: {type: string}
+      unevaluatedProperties: false

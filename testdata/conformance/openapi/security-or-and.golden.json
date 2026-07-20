@@ -1,0 +1,149 @@
+{
+  "irVersion": "0.1.0",
+  "name": "SecurityOrAnd",
+  "version": "1.0.0",
+  "docs": {},
+  "services": [
+    {
+      "id": "s/openapi/0",
+      "name": {
+        "source": "SecurityOrAnd",
+        "canonical": "security_or_and"
+      },
+      "docs": {},
+      "groups": [
+        {
+          "name": {
+            "hint": "default"
+          },
+          "docs": {},
+          "operations": [
+            {
+              "id": "op/openapi/paths/~1public/get",
+              "name": {
+                "source": "publicOp",
+                "canonical": "public_op"
+              },
+              "docs": {},
+              "responses": [
+                {
+                  "name": {},
+                  "conditions": {
+                    "statusCodes": [
+                      {
+                        "from": 200,
+                        "to": 200
+                      }
+                    ]
+                  },
+                  "docs": {
+                    "description": "ok"
+                  }
+                }
+              ],
+              "oneWay": false,
+              "idempotency": {},
+              "auth": [],
+              "bindings": {
+                "http": [
+                  {
+                    "method": "GET",
+                    "uriTemplate": "/public",
+                    "sharedRoute": false,
+                    "checksumRequired": false,
+                    "isWebhook": false
+                  }
+                ]
+              },
+              "provenance": {
+                "source": 0,
+                "pointer": "/paths/~1public/get"
+              }
+            }
+          ]
+        }
+      ],
+      "auth": [
+        {
+          "schemes": [
+            {
+              "scheme": "auth/openapi/components/securitySchemes/apiKeyAuth"
+            }
+          ]
+        },
+        {
+          "schemes": [
+            {
+              "scheme": "auth/openapi/components/securitySchemes/basicAuth"
+            },
+            {
+              "scheme": "auth/openapi/components/securitySchemes/bearerAuth"
+            }
+          ]
+        },
+        {}
+      ],
+      "provenance": {
+        "source": 0
+      }
+    }
+  ],
+  "auth": {
+    "auth/openapi/components/securitySchemes/apiKeyAuth": {
+      "id": "auth/openapi/components/securitySchemes/apiKeyAuth",
+      "name": {
+        "source": "apiKeyAuth",
+        "canonical": "api_key_auth"
+      },
+      "kind": "apiKey",
+      "docs": {},
+      "in": "header",
+      "keyName": "X-API-Key",
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/securitySchemes/apiKeyAuth"
+      }
+    },
+    "auth/openapi/components/securitySchemes/basicAuth": {
+      "id": "auth/openapi/components/securitySchemes/basicAuth",
+      "name": {
+        "source": "basicAuth",
+        "canonical": "basic_auth"
+      },
+      "kind": "http_basic",
+      "docs": {},
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/securitySchemes/basicAuth"
+      }
+    },
+    "auth/openapi/components/securitySchemes/bearerAuth": {
+      "id": "auth/openapi/components/securitySchemes/bearerAuth",
+      "name": {
+        "source": "bearerAuth",
+        "canonical": "bearer_auth"
+      },
+      "kind": "http_bearer",
+      "docs": {},
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/securitySchemes/bearerAuth"
+      }
+    }
+  },
+  "servers": [
+    {
+      "name": {},
+      "urlTemplate": "/",
+      "description": {},
+      "auth": null
+    }
+  ],
+  "sources": [
+    {
+      "format": "openapi@3.1",
+      "path": "security-or-and.yaml",
+      "hash": "f6c718a8188c41f93187d97af370df6893a2013d2b1b016bea4ac66c6d0dee45"
+    }
+  ]
+}

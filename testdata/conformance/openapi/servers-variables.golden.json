@@ -1,0 +1,50 @@
+{
+  "irVersion": "0.1.0",
+  "name": "ServersVariables",
+  "version": "1.0.0",
+  "docs": {},
+  "services": [
+    {
+      "id": "s/openapi/0",
+      "name": {
+        "source": "ServersVariables",
+        "canonical": "servers_variables"
+      },
+      "docs": {},
+      "auth": null,
+      "provenance": {
+        "source": 0
+      }
+    }
+  ],
+  "servers": [
+    {
+      "name": {},
+      "urlTemplate": "https://{env}.example.com/v1",
+      "description": {
+        "description": "Primary server"
+      },
+      "variables": [
+        {
+          "name": "env",
+          "default": "api",
+          "enum": [
+            "api",
+            "staging"
+          ],
+          "docs": {
+            "description": "Deployment environment"
+          }
+        }
+      ],
+      "auth": null
+    }
+  ],
+  "sources": [
+    {
+      "format": "openapi@3.1",
+      "path": "servers-variables.yaml",
+      "hash": "786e4afd954146d107c22abe4c6ebf3230c62b18f0a17c603f298754d7a0e355"
+    }
+  ]
+}

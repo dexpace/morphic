@@ -1,0 +1,10 @@
+openapi: 3.1.0
+info: {title: ExtensionsX, version: "1.0.0"}
+paths: {}
+components:
+  schemas:
+    S:
+      type: object
+      x-rate-limit: 100
+      properties:
+        a: {type: string}

@@ -20,9 +20,15 @@ profile.cov
 # Dependency directories (remove the comment below to include it)
 # vendor/
 
+# Compiled CLI binary
+/morphic
+
 # Go workspace file
 go.work
 go.work.sum
+
+# Subagent-driven-development scratch ledger (git-ignored, not shared)
+.superpowers/
 
 # env file
 .env

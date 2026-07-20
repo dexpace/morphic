@@ -1,0 +1,18 @@
+openapi: 3.1.0
+info: {title: AllOfInheritance, version: "1.0.0"}
+paths: {}
+components:
+  schemas:
+    Base:
+      type: object
+      properties:
+        id: {type: string}
+    Derived:
+      description: A Base specialized with one extra field.
+      deprecated: true
+      additionalProperties: false
+      x-team: pets
+      allOf:
+        - {$ref: '#/components/schemas/Base'}
+      properties:
+        extra: {type: string}
