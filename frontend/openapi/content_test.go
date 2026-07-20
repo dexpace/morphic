@@ -101,6 +101,76 @@ paths:
 	assert.Equal(t, ir.TypeID("t/prim/bytes"), content.Type.Target)
 }
 
+func TestContent_BinaryRefBodyDetectedAsFile(t *testing.T) {
+	t.Parallel()
+	// A binary body referenced via $ref must still be detected as a File body,
+	// exactly like the inline string+binary form.
+	spec := `openapi: 3.1.0
+info: {title: T, version: "1"}
+paths:
+  /raw:
+    post:
+      operationId: putRaw
+      requestBody:
+        required: true
+        content:
+          application/octet-stream:
+            schema: {$ref: "#/components/schemas/Blob"}
+      responses: {"200": {description: ok}}
+components:
+  schemas:
+    Blob: {type: string, format: binary}
+`
+	_, svc, diags := lowerServiceSpec(t, spec)
+	requireNoErrorDiags(t, diags)
+	content := svc.Groups[0].Operations[0].Request.Contents[0]
+	require.NotNil(t, content.File, "binary body behind a $ref lowers to a FileInfo")
+	assert.False(t, content.File.IsText)
+	assert.Equal(t, ir.TypeID("t/prim/bytes"), content.Type.Target)
+}
+
+func TestContent_MultipartRefBodyKeepsEncoding(t *testing.T) {
+	t.Parallel()
+	// A multipart body referenced via $ref must keep its per-part encoding, keyed
+	// by the RESOLVED model's property IDs (under the ref target's pointer).
+	spec := `openapi: 3.1.0
+info: {title: T, version: "1"}
+paths:
+  /upload:
+    post:
+      operationId: upload
+      requestBody:
+        content:
+          multipart/form-data:
+            schema: {$ref: "#/components/schemas/Form"}
+            encoding:
+              meta:
+                contentType: application/json
+      responses: {"200": {description: ok}}
+components:
+  schemas:
+    Form:
+      type: object
+      properties:
+        meta: {type: object, properties: {k: {type: string}}}
+        file: {type: string, format: binary}
+`
+	_, svc, diags := lowerServiceSpec(t, spec)
+	requireNoErrorDiags(t, diags)
+	content := svc.Groups[0].Operations[0].Request.Contents[0]
+	require.NotNil(t, content.Encoding, "referenced multipart body keeps per-part encoding")
+
+	metaProp := "p/openapi" + ptr("components", "schemas", "Form", "properties", "meta")
+	enc, ok := content.Encoding[metaProp]
+	require.True(t, ok, "encoding keyed by the resolved property's PropID; got %v", content.Encoding)
+	assert.Equal(t, []string{"application/json"}, enc.ContentTypes)
+
+	fileProp := "p/openapi" + ptr("components", "schemas", "Form", "properties", "file")
+	fileEnc, ok := content.Encoding[fileProp]
+	require.True(t, ok, "binary part gets a synthesized file PartEncoding")
+	assert.True(t, fileEnc.Filename)
+}
+
 func TestContent_NonRequiredRequestBody(t *testing.T) {
 	t.Parallel()
 	spec := `openapi: 3.1.0

@@ -98,7 +98,11 @@ func (l *lowerer) partEncodings(media *soa.MediaType, mediaPtr string) map[strin
 	if props == nil || props.Len() == 0 {
 		return nil
 	}
-	schemaPtr := mediaPtr + ptr("schema")
+	// Key each part by the PropID of the hoisted body model's property. When the
+	// body is a $ref, that model's properties were interned under the ref target's
+	// pointer, so derive the encoding keys from there — not the media-local schema
+	// pointer — or the keys will not align with the model (invariant 2/3).
+	schemaPtr := bodySchemaPointer(media.GetSchema(), mediaPtr+ptr("schema"))
 	encMap := media.GetEncoding()
 	out := map[string]ir.PartEncoding{}
 	for name, pjs := range props.All() {
@@ -305,13 +309,40 @@ func schemaHasType(s *oas3.Schema, st oas3.SchemaType) bool {
 	return false
 }
 
-// schemaOf returns the concrete Schema of a schema-or-ref-or-bool position, or
-// nil for a boolean schema or an absent one.
+// schemaOf returns the concrete Schema of a schema-or-ref-or-bool position,
+// following a $ref to its resolved target so binary/file detection and part
+// enumeration see the referent's type and properties rather than the bare ref
+// (which carries none). It returns nil for a boolean schema or an absent one.
 func schemaOf(js *oas3.JSONSchema[oas3.Referenceable]) *oas3.Schema {
 	if js == nil || !js.IsSchema() {
 		return nil
 	}
-	return js.GetSchema()
+	s := js.GetSchema()
+	if s != nil && s.Ref != nil {
+		if resolved := js.GetResolvedSchema(); resolved != nil {
+			return resolved.GetSchema()
+		}
+	}
+	return s
+}
+
+// bodySchemaPointer returns the JSON pointer under which a body schema's
+// properties were interned: the local ref target's pointer when the media schema
+// is a local $ref, else localPtr for an inline schema. Encoding keys derived from
+// this pointer align with the hoisted model's property IDs.
+func bodySchemaPointer(js *oas3.JSONSchema[oas3.Referenceable], localPtr string) string {
+	if js == nil {
+		return localPtr
+	}
+	s := js.GetSchema()
+	isRef := js.IsReference() || (s != nil && s.Ref != nil)
+	if !isRef {
+		return localPtr
+	}
+	if _, pointer, found := strings.Cut(js.GetRef().String(), "#"); found && pointer != "" {
+		return pointer
+	}
+	return localPtr
 }
 
 // partEncodingEmpty reports whether a PartEncoding carries no information and can
