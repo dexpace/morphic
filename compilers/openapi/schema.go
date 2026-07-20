@@ -313,8 +313,33 @@ func (l *lowerer) fillModelProperties(m *ir.Model, s *oas3.Schema, pointer strin
 			Provenance: ir.Provenance{Source: l.srcIndex, Pointer: ppointer},
 		}
 		l.fillPropertyDetail(&p, js, ppointer)
-		m.Properties = append(m.Properties, p)
+		mergeProperty(m, p)
 	}
+}
+
+// mergeProperty adds p to m, or reconciles it into an existing property carrying
+// the same wire name. Overlapping inline allOf branches — and properties
+// co-declared alongside allOf — redeclare the same logical field (ir-design
+// §4.3). allOf is an intersection, so the field is required when any branch
+// requires it, and the first (richest) declaration defines its shape; a later
+// bare redeclaration must not become a second, wire-colliding property.
+func mergeProperty(m *ir.Model, p ir.Property) {
+	wire := p.WireName
+	if wire == "" {
+		wire = p.Name.Source
+	}
+	for i := range m.Properties {
+		existing := &m.Properties[i]
+		ewire := existing.WireName
+		if ewire == "" {
+			ewire = existing.Name.Source
+		}
+		if ewire == wire {
+			existing.Required = existing.Required || p.Required
+			return
+		}
+	}
+	m.Properties = append(m.Properties, p)
 }
 
 // fillPropertyDetail enriches a property from its schema: docs, default,

@@ -40,6 +40,54 @@ components:
 		"merged property provenance points into its allOf branch")
 }
 
+func TestAllOf_OverlappingInlineBranchesReconcile(t *testing.T) {
+	t.Parallel()
+	// Two inline allOf branches redeclare the same fields — the shape GitHub's
+	// webhook `forkee` uses (a documented object plus a doc-stripped duplicate
+	// that marks some fields required). allOf is an intersection, so each wire
+	// name must reconcile to a single property, not append a duplicate.
+	spec := `openapi: 3.1.0
+info: {title: T, version: "1"}
+paths: {}
+components:
+  schemas:
+    Forkish:
+      allOf:
+        - type: object
+          properties:
+            id: {type: integer, description: the identifier}
+            name: {type: string}
+        - type: object
+          required: [id]
+          properties:
+            id: {type: integer}
+            url: {type: string}
+`
+	doc, diags := lowerSpec(t, spec)
+	requireNoErrorDiags(t, diags)
+	m, ok := doc.Types[ir.TypeID("t/openapi/components/schemas/Forkish")].(*ir.Model)
+	require.True(t, ok, "Forkish should be a model")
+
+	byWire := map[string]int{}
+	for _, p := range m.Properties {
+		byWire[p.WireName]++
+	}
+	assert.Equal(t, 1, byWire["id"], "id declared in both branches reconciles to one property")
+	assert.Equal(t, 1, byWire["name"])
+	assert.Equal(t, 1, byWire["url"])
+	require.Len(t, m.Properties, 3, "no duplicate properties across overlapping inline branches")
+
+	var id ir.Property
+	for _, p := range m.Properties {
+		if p.WireName == "id" {
+			id = p
+		}
+	}
+	assert.True(t, id.Required, "required in the second branch => required on the merged model (allOf intersection)")
+	assert.Equal(t, "the identifier", id.Docs.Description,
+		"the richer (documented) declaration defines the reconciled shape")
+}
+
 func TestAllOf_ExtraRefsBecomeMixins(t *testing.T) {
 	t.Parallel()
 	spec := `openapi: 3.1.0
