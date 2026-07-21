@@ -21,6 +21,48 @@
     }
   ],
   "types": {
+    "t/anon/protobuf/rep.Series.deltas/elem": {
+      "kind": "scalar",
+      "id": "t/anon/protobuf/rep.Series.deltas/elem",
+      "name": {
+        "hint": "deltas"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "rep.Series.deltas"
+      },
+      "base": {
+        "target": "t/prim/int64",
+        "nullable": false
+      },
+      "encoding": {
+        "name": "zigzag"
+      }
+    },
+    "t/anon/protobuf/rep.Series.deltas/list": {
+      "kind": "list",
+      "id": "t/anon/protobuf/rep.Series.deltas/list",
+      "name": {
+        "hint": "deltas"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "rep.Series.deltas"
+      },
+      "elem": {
+        "target": "t/anon/protobuf/rep.Series.deltas/elem",
+        "nullable": false
+      },
+      "encoding": {
+        "name": "packed"
+      }
+    },
     "t/anon/protobuf/rep.Series.expanded_values/list": {
       "kind": "list",
       "id": "t/anon/protobuf/rep.Series.expanded_values/list",
@@ -92,6 +134,18 @@
         "source": 0
       },
       "prim": "int32"
+    },
+    "t/prim/int64": {
+      "kind": "primitive",
+      "id": "t/prim/int64",
+      "name": {},
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0
+      },
+      "prim": "int64"
     },
     "t/prim/string": {
       "kind": "primitive",
@@ -203,6 +257,33 @@
             "source": 0,
             "pointer": "rep.Series.labels"
           }
+        },
+        {
+          "id": "p/protobuf/rep.Series.deltas",
+          "name": {
+            "source": "deltas",
+            "canonical": "deltas"
+          },
+          "wireID": 4,
+          "type": {
+            "target": "t/anon/protobuf/rep.Series.deltas/list",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "rep.Series.deltas"
+          }
         }
       ],
       "abstract": false,
@@ -219,7 +300,7 @@
     {
       "format": "protobuf@3",
       "path": "repeated.proto",
-      "hash": "7375f034c6eaaced0ea0403727f69d70579a1d195d0a281b6fb3f9c3f13727de"
+      "hash": "6f9fc1237966d1face9c7e72b5b70999c95ea66758c70a28ed6dc5b2d0c2473d"
     }
   ]
 }

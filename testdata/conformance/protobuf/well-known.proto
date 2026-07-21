@@ -9,6 +9,7 @@ import "google/protobuf/empty.proto";
 import "google/protobuf/struct.proto";
 import "google/protobuf/field_mask.proto";
 import "google/protobuf/wrappers.proto";
+import "google/protobuf/source_context.proto";
 
 message Bundle {
   google.protobuf.Timestamp ts = 1;
@@ -19,4 +20,5 @@ message Bundle {
   google.protobuf.Int32Value count = 6;
   google.protobuf.StringValue note = 7;
   google.protobuf.Empty nothing = 8;
+  google.protobuf.SourceContext ctx = 9;
 }

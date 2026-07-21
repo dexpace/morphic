@@ -70,6 +70,20 @@
           },
           "wireID": 3,
           "docs": {}
+        },
+        {
+          "name": {
+            "source": "legacy_code",
+            "canonical": "legacy_code"
+          },
+          "type": {
+            "target": "t/prim/int32",
+            "nullable": false
+          },
+          "wireName": "legacy",
+          "wireID": 5,
+          "docs": {},
+          "deprecation": {}
         }
       ],
       "exclusive": true,
@@ -86,6 +100,18 @@
         "source": 0
       },
       "prim": "float64"
+    },
+    "t/prim/int32": {
+      "kind": "primitive",
+      "id": "t/prim/int32",
+      "name": {},
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0
+      },
+      "prim": "int32"
     },
     "t/prim/string": {
       "kind": "primitive",
@@ -187,7 +213,7 @@
     {
       "format": "protobuf@3",
       "path": "oneof.proto",
-      "hash": "30cce65ed9fa8b783f064d87b9309eb86678260a5867b9bfbf2e40bc71f7077a"
+      "hash": "fc6a52b750ba1e7094d5282520b7210d0464f8a48f277465681e724ae8299269"
     }
   ]
 }

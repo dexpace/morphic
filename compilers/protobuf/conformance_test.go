@@ -48,6 +48,9 @@ func TestConformance(t *testing.T) {
 		{"deprecation", assertDeprecation},
 		{"comments", assertComments},
 		{"custom-options", assertCustomOptions},
+		{"rich-options", assertRichOptions},
+		{"file-options", assertFileOptions},
+		{"no-package", assertNoPackage},
 		{"editions", assertEditions},
 	}
 	for _, tc := range cases {
@@ -187,9 +190,12 @@ func assertOneof(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
 	require.True(t, ok, "oneof lowers to a Union node")
 	assert.True(t, u.Exclusive)
 	assert.True(t, u.WireTagged, "protobuf oneof is tagged on the wire")
-	require.Len(t, u.Variants, 3)
+	require.Len(t, u.Variants, 4)
 	require.NotNil(t, u.Variants[0].WireID)
 	assert.Equal(t, 1, *u.Variants[0].WireID, "variant keeps its field number")
+	legacy := u.Variants[3]
+	assert.NotNil(t, legacy.Deprecation, "a deprecated oneof member keeps its deprecation")
+	assert.Equal(t, "legacy", legacy.WireName, "an explicit json_name becomes the variant wire name")
 	// The non-oneof field remains an ordinary property alongside the wrapper.
 	_ = propByName(t, shape, "name")
 }
@@ -230,6 +236,13 @@ func assertRepeated(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
 	assert.Equal(t, "expanded", expanded.Encoding.Name, "[packed=false] lowers to expanded")
 	labels := listOf(t, doc, propByName(t, series, "labels"))
 	assert.Nil(t, labels.Encoding, "string lists carry no packing encoding")
+	// A repeated encoded scalar wraps its element in a Scalar so the zigzag
+	// encoding survives where a bare element ref has no encoding slot.
+	deltas := listOf(t, doc, propByName(t, series, "deltas"))
+	elem, ok := doc.Types[deltas.Elem.Target].(*ir.Scalar)
+	require.True(t, ok, "sint64 list element hoists a Scalar")
+	require.NotNil(t, elem.Encoding)
+	assert.Equal(t, "zigzag", elem.Encoding.Name)
 }
 
 // listOf resolves the List node a property references.
@@ -279,6 +292,11 @@ func assertDefaults(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
 	require.NotNil(t, mode.Ref)
 	assert.Equal(t, typeID("def.Mode"), mode.Ref.Type)
 	assert.Equal(t, "SLOW", mode.Ref.Member)
+	assert.Equal(t, ir.BigVal("42"), propByName(t, s, "limit").Default.Num, "unsigned default")
+	salt := propByName(t, s, "salt").Default
+	require.Equal(t, ir.ValueBytes, salt.Kind, "bytes default")
+	assert.Equal(t, []byte{1, 2}, salt.Bytes)
+	assert.Nil(t, propByName(t, s, "unbounded").Default, "a non-finite default is dropped")
 }
 
 func assertExtensions(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
@@ -340,6 +358,9 @@ func assertWellKnown(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
 	assert.True(t, note.Type.Nullable)
 	_, ok = doc.Types[propByName(t, b, "nothing").Type.Target].(*ir.External)
 	assert.True(t, ok, "Empty as a field type lowers to an External")
+	ctx, ok := doc.Types[propByName(t, b, "ctx").Type.Target].(*ir.External)
+	require.True(t, ok, "an unmapped well-known type falls back to External")
+	assert.Equal(t, "google.protobuf.SourceContext", ctx.Identity)
 }
 
 func assertServices(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
@@ -377,6 +398,14 @@ func assertServices(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
 	require.Len(t, notify.Responses, 1)
 	assert.Nil(t, notify.Responses[0].Payload, "an Empty response carries no payload")
 	assert.NotNil(t, notify.Request, "Notify still has a request payload")
+
+	drain := opByName(t, doc, "Drain")
+	assert.Nil(t, drain.Request, "an Empty request lowers to no payload")
+	assert.Nil(t, drain.Bindings.RPC.InputType, "and no RPC input type")
+
+	touch := opByName(t, doc, "Touch")
+	assert.NotNil(t, touch.Deprecation, "a deprecated rpc keeps its deprecation")
+	assert.Equal(t, ir.IdempotencyUnknown, touch.Idempotency.Kind, "no idempotency level declared")
 }
 
 func assertDeprecation(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
@@ -412,6 +441,63 @@ func assertCustomOptions(t *testing.T, doc *ir.Document, diags []ir.Diagnostic) 
 		}
 	}
 	assert.True(t, found)
+}
+
+func assertRichOptions(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
+	widget := modelOf(t, doc, "ropt.Widget")
+	meta, ok := widget.Extensions["protobuf:option:ropt.meta"]
+	require.True(t, ok, "a message-valued custom option renders as a nested object")
+	// score (a NaN scalar) is dropped; points and ratios keep their NaN elements
+	// dropped, leaving an empty array and object.
+	assert.JSONEq(t,
+		`{"owner":"team","labels":["a","b"],"weights":{"a":2,"x":1},"nested":{"flag":true},`+
+			`"kind":"K_B","sig":"QUE9PQ==","big":42,"points":[],"ratios":{}}`,
+		string(meta))
+	reviewers, ok := widget.Extensions["protobuf:option:ropt.reviewers"]
+	require.True(t, ok, "a repeated custom option renders as an array")
+	assert.JSONEq(t, `["alice","bob"]`, string(reviewers))
+	id := propByName(t, widget, "id")
+	assert.JSONEq(t, `"K_A"`, string(id.Extensions["protobuf:option:ropt.field_kind"]))
+	// A group field lowers to a delimited-encoded message property.
+	detail := propByName(t, widget, "detail")
+	require.NotNil(t, detail.Encoding)
+	assert.Equal(t, "delimited", detail.Encoding.Name, "proto2 group is delimited-encoded")
+	// An enum-value custom option is preserved on the member.
+	kind := enumOf(t, doc, "ropt.Kind")
+	require.Len(t, kind.Members, 2)
+	assert.JSONEq(t, `"beta"`, string(kind.Members[1].Extensions["protobuf:option:ropt.label"]))
+	// A service-level custom option lands on its operation group; a method-level
+	// one lands on its operation.
+	require.Len(t, doc.Services, 1)
+	require.Len(t, doc.Services[0].Groups, 1)
+	team, ok := doc.Services[0].Groups[0].Extensions["protobuf:option:ropt.team"]
+	require.True(t, ok, "service custom option preserved on the group")
+	assert.JSONEq(t, `"platform"`, string(team))
+	do := opByName(t, doc, "Do")
+	assert.JSONEq(t, `"yes"`, string(do.Extensions["protobuf:option:ropt.audit"]))
+}
+
+func assertFileOptions(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
+	raw, ok := doc.Extensions["protobuf:file"]
+	require.True(t, ok)
+	// Only the options that are set appear; unset ones are omitted.
+	assert.JSONEq(t, `{
+		"syntax": "proto3",
+		"goPackage": "example.com/fopt",
+		"javaPackage": "com.example.fopt",
+		"javaMultipleFiles": true,
+		"deprecated": true
+	}`, string(raw))
+}
+
+func assertNoPackage(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
+	assert.Empty(t, doc.Name, "a package-less file has no document name")
+	require.Len(t, doc.Services, 1)
+	assert.Empty(t, doc.Services[0].Namespace, "no package means no namespace")
+	item := modelOf(t, doc, "Item")
+	assert.Empty(t, item.Namespace)
+	// The service identity falls back to the source path.
+	assert.Equal(t, ir.ServiceID("s/protobuf/no-package.proto"), doc.Services[0].ID)
 }
 
 func assertEditions(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {

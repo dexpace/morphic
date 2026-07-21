@@ -33,6 +33,18 @@
       },
       "prim": "bool"
     },
+    "t/prim/bytes": {
+      "kind": "primitive",
+      "id": "t/prim/bytes",
+      "name": {},
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0
+      },
+      "prim": "bytes"
+    },
     "t/prim/float64": {
       "kind": "primitive",
       "id": "t/prim/float64",
@@ -68,6 +80,18 @@
         "source": 0
       },
       "prim": "string"
+    },
+    "t/prim/uint32": {
+      "kind": "primitive",
+      "id": "t/prim/uint32",
+      "name": {},
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0
+      },
+      "prim": "uint32"
     },
     "t/protobuf/def.Mode": {
       "kind": "enum",
@@ -315,6 +339,103 @@
             "source": 0,
             "pointer": "def.Settings.mode"
           }
+        },
+        {
+          "id": "p/protobuf/def.Settings.limit",
+          "name": {
+            "source": "limit",
+            "canonical": "limit"
+          },
+          "wireID": 6,
+          "type": {
+            "target": "t/prim/uint32",
+            "nullable": false
+          },
+          "required": false,
+          "presence": "explicit",
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "default": {
+            "kind": "number",
+            "num": "42",
+            "bytes": null,
+            "list": null,
+            "object": null
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "def.Settings.limit"
+          }
+        },
+        {
+          "id": "p/protobuf/def.Settings.salt",
+          "name": {
+            "source": "salt",
+            "canonical": "salt"
+          },
+          "wireID": 7,
+          "type": {
+            "target": "t/prim/bytes",
+            "nullable": false
+          },
+          "required": false,
+          "presence": "explicit",
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "default": {
+            "kind": "bytes",
+            "bytes": "AQI=",
+            "list": null,
+            "object": null
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "def.Settings.salt"
+          }
+        },
+        {
+          "id": "p/protobuf/def.Settings.unbounded",
+          "name": {
+            "source": "unbounded",
+            "canonical": "unbounded"
+          },
+          "wireID": 8,
+          "type": {
+            "target": "t/prim/float64",
+            "nullable": false
+          },
+          "required": false,
+          "presence": "explicit",
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "def.Settings.unbounded"
+          }
         }
       ],
       "abstract": false,
@@ -327,11 +448,22 @@
       "syntax": "proto2"
     }
   },
+  "diagnostics": [
+    {
+      "severity": "info",
+      "code": "protobuf/degraded-construct",
+      "message": "non-finite default for def.Settings.unbounded dropped (not representable as a decimal)",
+      "provenance": {
+        "source": 0,
+        "pointer": "def.Settings.unbounded"
+      }
+    }
+  ],
   "sources": [
     {
       "format": "protobuf@2",
       "path": "defaults.proto",
-      "hash": "7ddd00df317d583441ea85fcd3c3035213d7e51afd71b0618045c143d9c66685"
+      "hash": "349a556de734e96ce40025e220e352b1b2b601779320f6ba9d8f82c6dd4342b7"
     }
   ]
 }

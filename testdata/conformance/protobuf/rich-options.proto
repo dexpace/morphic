@@ -1,0 +1,78 @@
+syntax = "proto2";
+
+package ropt;
+
+import "google/protobuf/descriptor.proto";
+
+enum Kind {
+  K_A = 0;
+  K_B = 1 [(label) = "beta"];
+}
+
+message Nested {
+  optional bool flag = 1;
+}
+
+message Meta {
+  optional string owner = 1;
+  repeated string labels = 2;
+  map<string, int32> weights = 3;
+  optional Nested nested = 4;
+  optional Kind kind = 5;
+  optional bytes sig = 6;
+  optional uint64 big = 7;
+  optional double score = 8;
+  repeated double points = 9;
+  map<string, double> ratios = 10;
+}
+
+extend google.protobuf.EnumValueOptions {
+  optional string label = 50099;
+}
+
+extend google.protobuf.MessageOptions {
+  optional Meta meta = 50100;
+  repeated string reviewers = 50101;
+}
+
+extend google.protobuf.FieldOptions {
+  optional Kind field_kind = 50102;
+}
+
+extend google.protobuf.ServiceOptions {
+  optional string team = 50103;
+}
+
+extend google.protobuf.MethodOptions {
+  optional string audit = 50104;
+}
+
+message Widget {
+  option (meta) = {
+    owner: "team"
+    labels: "a"
+    labels: "b"
+    weights: [{ key: "x", value: 1 }, { key: "a", value: 2 }]
+    nested: { flag: true }
+    kind: K_B
+    sig: "AA=="
+    big: 42
+    score: nan
+    points: [nan]
+    ratios: [{ key: "a", value: nan }]
+  };
+  option (reviewers) = "alice";
+  option (reviewers) = "bob";
+
+  optional string id = 1 [(field_kind) = K_A];
+  optional group Detail = 2 {
+    optional string note = 1;
+  }
+}
+
+service Ops {
+  option (team) = "platform";
+  rpc Do(Widget) returns (Widget) {
+    option (audit) = "yes";
+  }
+}

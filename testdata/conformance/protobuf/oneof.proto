@@ -7,6 +7,7 @@ message Shape {
     double radius = 1;
     double side = 2;
     string label = 3;
+    int32 legacy_code = 5 [deprecated = true, json_name = "legacy"];
   }
   string name = 4;
 }

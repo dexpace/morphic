@@ -409,6 +409,101 @@
                 "source": 0,
                 "pointer": "svc.Echo.Notify"
               }
+            },
+            {
+              "id": "op/protobuf/svc.Echo.Drain",
+              "name": {
+                "source": "Drain",
+                "canonical": "drain"
+              },
+              "docs": {},
+              "responses": [
+                {
+                  "name": {
+                    "hint": "response"
+                  },
+                  "conditions": {},
+                  "payload": {
+                    "contents": [
+                      {
+                        "type": {
+                          "target": "t/protobuf/svc.Pong",
+                          "nullable": false
+                        }
+                      }
+                    ]
+                  },
+                  "docs": {}
+                }
+              ],
+              "oneWay": false,
+              "idempotency": {},
+              "auth": null,
+              "bindings": {
+                "rpc": {
+                  "system": "grpc",
+                  "fullMethod": "/svc.Echo/Drain"
+                }
+              },
+              "provenance": {
+                "source": 0,
+                "pointer": "svc.Echo.Drain"
+              }
+            },
+            {
+              "id": "op/protobuf/svc.Echo.Touch",
+              "name": {
+                "source": "Touch",
+                "canonical": "touch"
+              },
+              "docs": {},
+              "deprecation": {},
+              "request": {
+                "contents": [
+                  {
+                    "type": {
+                      "target": "t/protobuf/svc.Ping",
+                      "nullable": false
+                    }
+                  }
+                ]
+              },
+              "responses": [
+                {
+                  "name": {
+                    "hint": "response"
+                  },
+                  "conditions": {},
+                  "payload": {
+                    "contents": [
+                      {
+                        "type": {
+                          "target": "t/protobuf/svc.Pong",
+                          "nullable": false
+                        }
+                      }
+                    ]
+                  },
+                  "docs": {}
+                }
+              ],
+              "oneWay": false,
+              "idempotency": {},
+              "auth": null,
+              "bindings": {
+                "rpc": {
+                  "system": "grpc",
+                  "fullMethod": "/svc.Echo/Touch",
+                  "inputType": {
+                    "target": "t/protobuf/svc.Ping",
+                    "nullable": false
+                  }
+                }
+              },
+              "provenance": {
+                "source": 0,
+                "pointer": "svc.Echo.Touch"
+              }
             }
           ]
         }
@@ -545,7 +640,7 @@
     {
       "format": "protobuf@3",
       "path": "services.proto",
-      "hash": "b93910b5b74c4c859ac5063d914154d539a5f83124a60273c168c4f977c0cb9c"
+      "hash": "376960e79ff5192b1518fbaab727afe3e97761a43c86b65a8f12c3a4035b1d7d"
     }
   ]
 }

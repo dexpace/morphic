@@ -1,0 +1,104 @@
+{
+  "irVersion": "0.1.0",
+  "name": "fopt",
+  "docs": {},
+  "services": [
+    {
+      "id": "s/protobuf/fopt",
+      "name": {
+        "source": "fopt",
+        "canonical": "fopt"
+      },
+      "docs": {},
+      "namespace": [
+        "fopt"
+      ],
+      "auth": null,
+      "provenance": {
+        "source": 0,
+        "pointer": "file-options.proto"
+      }
+    }
+  ],
+  "types": {
+    "t/prim/string": {
+      "kind": "primitive",
+      "id": "t/prim/string",
+      "name": {},
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0
+      },
+      "prim": "string"
+    },
+    "t/protobuf/fopt.Thing": {
+      "kind": "model",
+      "id": "t/protobuf/fopt.Thing",
+      "name": {
+        "source": "Thing",
+        "canonical": "thing"
+      },
+      "namespace": [
+        "fopt"
+      ],
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "fopt.Thing"
+      },
+      "properties": [
+        {
+          "id": "p/protobuf/fopt.Thing.id",
+          "name": {
+            "source": "id",
+            "canonical": "id"
+          },
+          "wireID": 1,
+          "type": {
+            "target": "t/prim/string",
+            "nullable": false
+          },
+          "required": false,
+          "presence": "implicit",
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "fopt.Thing.id"
+          }
+        }
+      ],
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    }
+  },
+  "extensions": {
+    "protobuf:file": {
+      "deprecated": true,
+      "goPackage": "example.com/fopt",
+      "javaMultipleFiles": true,
+      "javaPackage": "com.example.fopt",
+      "syntax": "proto3"
+    }
+  },
+  "sources": [
+    {
+      "format": "protobuf@3",
+      "path": "file-options.proto",
+      "hash": "2e95bc5f582b21becbd2d21a01d44d3633b9dc54e3094d6f171df9d9228cab03"
+    }
+  ]
+}

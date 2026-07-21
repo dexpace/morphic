@@ -13,4 +13,7 @@ message Settings {
   optional bool enabled = 3 [default = true];
   optional double ratio = 4 [default = 2.5];
   optional Mode mode = 5 [default = SLOW];
+  optional uint32 limit = 6 [default = 42];
+  optional bytes salt = 7 [default = "\001\002"];
+  optional double unbounded = 8 [default = inf];
 }

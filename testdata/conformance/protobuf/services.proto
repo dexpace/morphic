@@ -24,4 +24,8 @@ service Echo {
     option idempotency_level = IDEMPOTENT;
   }
   rpc Notify(Ping) returns (google.protobuf.Empty);
+  rpc Drain(google.protobuf.Empty) returns (Pong);
+  rpc Touch(Ping) returns (Pong) {
+    option deprecated = true;
+  }
 }

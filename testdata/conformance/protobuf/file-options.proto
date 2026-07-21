@@ -1,0 +1,12 @@
+syntax = "proto3";
+
+package fopt;
+
+option go_package = "example.com/fopt";
+option java_package = "com.example.fopt";
+option java_multiple_files = true;
+option deprecated = true;
+
+message Thing {
+  string id = 1;
+}

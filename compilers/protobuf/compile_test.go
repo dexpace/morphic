@@ -129,6 +129,48 @@ func TestCompile_WrapperExternalPolicy(t *testing.T) {
 	assert.Equal(t, "google.protobuf.StringValue", ext.Identity)
 }
 
+func TestCompile_SyntaxError(t *testing.T) {
+	t.Parallel()
+	const src = `syntax = "proto3";
+package s;
+message M {
+  string s = ;
+}
+`
+	doc, diags, err := compile(t, "s.proto", src, compilers.Options{})
+	require.NoError(t, err, "a syntax error is a spec problem, not a Go error")
+	assert.Nil(t, doc, "a malformed source cannot be lowered")
+	var found bool
+	for _, d := range diags {
+		if d.Code == "protobuf/compile-error" && d.Severity == ir.SeverityError {
+			found = true
+			assert.Regexp(t, `^\d+:\d+$`, d.Provenance.Pointer, "parse errors carry line:col provenance")
+		}
+	}
+	assert.True(t, found, "syntax error reported with position")
+}
+
+func TestCompile_ImportWarning(t *testing.T) {
+	t.Parallel()
+	const src = `syntax = "proto3";
+package iw;
+import "google/protobuf/empty.proto";
+message M {
+  string s = 1;
+}
+`
+	doc, diags, err := compile(t, "iw.proto", src, compilers.Options{})
+	require.NoError(t, err)
+	require.NotNil(t, doc, "an unused import is a warning, not a hard failure")
+	var found bool
+	for _, d := range diags {
+		if d.Severity == ir.SeverityWarning && d.Code == "protobuf/warning" {
+			found = true
+		}
+	}
+	assert.True(t, found, "an unused import surfaces as a warning diagnostic")
+}
+
 func TestCompile_SyntaxDigit(t *testing.T) {
 	t.Parallel()
 	const proto2Src = `syntax = "proto2";
