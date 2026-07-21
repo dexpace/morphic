@@ -23,10 +23,10 @@ func (l *lowerer) lowerAllOf(s *oas3.Schema, pointer, hint string) ir.TypeID {
 		l.fillAllOf(m, s, pointer)
 		l.fillModelProperties(m, s, pointer) // properties declared alongside allOf
 		l.fillModelDetail(m, s, pointer, hint)
-		if d := l.modelDiscriminator(s, m); d != nil {
+		if d := l.modelDiscriminator(s, m, pointer); d != nil {
 			m.Discriminator = d
 		}
-		m.DiscriminatorValue = subtypeDiscriminatorValue(s, id, pointer)
+		m.DiscriminatorValue = l.subtypeDiscriminatorValue(s, id, pointer)
 		return m
 	})
 }
@@ -41,10 +41,11 @@ func (l *lowerer) fillAllOf(m *ir.Model, s *oas3.Schema, pointer string) {
 			l.fillModelProperties(m, b.GetSchema(), bptr)
 			continue
 		}
-		id, err := refTypeID(b.GetRef().String())
-		if err != nil {
+		id, ok := l.resolveSchemaRef(b, b.GetRef().String())
+		if !ok {
 			l.diags = append(l.diags, diagf(ir.SeverityError, codeUnresolvedRef,
-				ir.Provenance{Source: l.srcIndex, Pointer: bptr}, "%s", err.Error()))
+				ir.Provenance{Source: l.srcIndex, Pointer: bptr},
+				"unresolved allOf $ref %q", b.GetRef().String()))
 			continue
 		}
 		ref := ir.TypeRef{Target: id}
@@ -107,14 +108,14 @@ func refTargetHasDiscriminator(b *oas3.JSONSchema[oas3.Referenceable]) bool {
 // anchors one. Per ir-design §4.3 the value is the base mapping key that points
 // at this subtype, falling back to the subtype's own schema name (OpenAPI's
 // implicit mapping) when the mapping omits it.
-func subtypeDiscriminatorValue(s *oas3.Schema, id ir.TypeID, pointer string) string {
+func (l *lowerer) subtypeDiscriminatorValue(s *oas3.Schema, id ir.TypeID, pointer string) string {
 	d := baseBranchDiscriminator(s.GetAllOf())
 	if d == nil {
 		return ""
 	}
 	if m := d.GetMapping(); m != nil {
 		for value, target := range m.All() {
-			if tid, err := mappingTargetID(target); err == nil && tid == id {
+			if tid, ok := l.mappingTargetID(target); ok && tid == id {
 				return value
 			}
 		}
@@ -197,7 +198,7 @@ func (l *lowerer) buildUnion(s *oas3.Schema, id ir.TypeID, pointer, hint string)
 		Exclusive:  exclusive,
 		WireTagged: false,
 	}
-	u.Discriminator = l.lowerDiscriminator(s, u)
+	u.Discriminator = l.lowerDiscriminator(s, u, pointer)
 	return u
 }
 
@@ -227,7 +228,7 @@ func refLastSegment(ref string) string {
 // wire name to Discriminator.PropertyName and each mapping entry to a target
 // TypeID (a bare name implies #/components/schemas/<name>). A nil mapping stays
 // nil, preserving infer-by-name semantics.
-func (l *lowerer) lowerDiscriminator(s *oas3.Schema, u *ir.Union) *ir.Discriminator {
+func (l *lowerer) lowerDiscriminator(s *oas3.Schema, u *ir.Union, pointer string) *ir.Discriminator {
 	_ = u // signature carries the union per ir-design §4.4; the tag lives on the schema
 	d := s.GetDiscriminator()
 	if d == nil {
@@ -235,66 +236,101 @@ func (l *lowerer) lowerDiscriminator(s *oas3.Schema, u *ir.Union) *ir.Discrimina
 	}
 	disc := &ir.Discriminator{
 		PropertyName: d.GetPropertyName(),
-		Mapping:      l.discriminatorMapping(d),
+		Mapping:      l.discriminatorMapping(d, pointer),
 	}
-	if dm := d.GetDefaultMapping(); dm != "" {
-		if id, err := mappingTargetID(dm); err == nil {
-			disc.Default = id
-		}
-	}
+	disc.Default = l.discriminatorDefault(d, pointer)
 	return disc
 }
 
 // modelDiscriminator lowers a discriminator declared on a Model base (allOf
 // hierarchies): the tag resolves to the property's PropID when the model
 // declares it, else to its wire name, and the mapping resolves to target IDs.
-func (l *lowerer) modelDiscriminator(s *oas3.Schema, m *ir.Model) *ir.Discriminator {
+func (l *lowerer) modelDiscriminator(s *oas3.Schema, m *ir.Model, pointer string) *ir.Discriminator {
 	d := s.GetDiscriminator()
 	if d == nil {
 		return nil
 	}
-	disc := &ir.Discriminator{Mapping: l.discriminatorMapping(d)}
+	disc := &ir.Discriminator{Mapping: l.discriminatorMapping(d, pointer)}
 	if pid, ok := propIDByName(m, d.GetPropertyName()); ok {
 		disc.Property = pid
 	} else {
 		disc.PropertyName = d.GetPropertyName()
 	}
-	if dm := d.GetDefaultMapping(); dm != "" {
-		if id, err := mappingTargetID(dm); err == nil {
-			disc.Default = id
-		}
-	}
+	disc.Default = l.discriminatorDefault(d, pointer)
 	return disc
 }
 
 // discriminatorMapping resolves a discriminator's wire-value-to-schema mapping
-// into TypeIDs, in source order; an unresolvable entry yields one diagnostic and
-// is skipped rather than dropping the whole mapping silently.
-func (l *lowerer) discriminatorMapping(d *oas3.Discriminator) map[string]ir.TypeID {
+// into TypeIDs, in source order. An entry that does not resolve to an interned
+// schema yields one error diagnostic and is dropped — never a synthesized ID
+// that nothing backs (issue #14). An all-dropped mapping collapses to nil,
+// preserving infer-by-name semantics and a clean round-trip.
+func (l *lowerer) discriminatorMapping(d *oas3.Discriminator, pointer string) map[string]ir.TypeID {
 	m := d.GetMapping()
 	if m == nil || m.Len() == 0 {
 		return nil
 	}
 	out := make(map[string]ir.TypeID, m.Len())
 	for value, target := range m.All() {
-		id, err := mappingTargetID(target)
-		if err != nil {
+		id, ok := l.mappingTargetID(target)
+		if !ok {
 			l.diags = append(l.diags, diagf(ir.SeverityError, codeUnresolvedRef,
-				ir.Provenance{Source: l.srcIndex}, "discriminator mapping %q: %s", value, err.Error()))
+				ir.Provenance{Source: l.srcIndex, Pointer: pointer + ptr("discriminator", "mapping", value)},
+				"discriminator mapping %q references unresolved schema %q", value, target))
 			continue
 		}
 		out[value] = id
 	}
+	if len(out) == 0 {
+		return nil
+	}
 	return out
 }
 
-// mappingTargetID resolves a discriminator mapping target — a $ref string or a
-// bare schema name — to its stable TypeID.
-func mappingTargetID(target string) (ir.TypeID, error) {
-	if strings.HasPrefix(target, "#") || strings.Contains(target, "/") {
-		return refTypeID(target)
+// discriminatorDefault resolves an OpenAPI 3.2 defaultMapping to its target ID,
+// dropping it with one diagnostic when it does not resolve to an interned schema.
+func (l *lowerer) discriminatorDefault(d *oas3.Discriminator, pointer string) ir.TypeID {
+	dm := d.GetDefaultMapping()
+	if dm == "" {
+		return ""
 	}
-	return namedTypeID(ptr("components", "schemas", target)), nil
+	id, ok := l.mappingTargetID(dm)
+	if !ok {
+		l.diags = append(l.diags, diagf(ir.SeverityError, codeUnresolvedRef,
+			ir.Provenance{Source: l.srcIndex, Pointer: pointer + ptr("discriminator", "defaultMapping")},
+			"discriminator defaultMapping references unresolved schema %q", dm))
+		return ""
+	}
+	return id
+}
+
+// mappingTargetID resolves a discriminator mapping target — a bare schema name or
+// a $ref string — to the stable TypeID of an interned schema. A bare name (even
+// one containing '/', i.e. a schema literally named "A/B") that names a declared
+// component resolves to it; otherwise the target must be a same-file $ref to a
+// declared component or an already-interned node. A target that resolves to no
+// interned schema yields ok=false so the caller drops and diagnoses it: unlike a
+// schema position, a discriminator subtype cannot be hoisted from a bare pointer.
+//
+// A top-level component target resolves regardless of source order, because every
+// declared component name is recorded before lowering begins; a deeper sub-schema
+// target resolves only if it was already interned, and is otherwise dropped like
+// any other unbacked target. The declared-name branch derives the ID through
+// typeIDForPointer, the same discriminator the component was interned under, so a
+// degenerate empty-named component (interned anonymously) resolves to its real ID
+// rather than an unbacked namedTypeID.
+func (l *lowerer) mappingTargetID(target string) (ir.TypeID, bool) {
+	if l.schemas[target] {
+		return typeIDForPointer(ptr("components", "schemas", target)), true
+	}
+	pointer, ok := l.internalPointer(target)
+	if !ok {
+		return "", false
+	}
+	if id, resolved, handled := l.resolveComponentRef(pointer); handled {
+		return id, resolved
+	}
+	return l.internedID(pointer)
 }
 
 // propIDByName returns the PropID of the model property with the given source

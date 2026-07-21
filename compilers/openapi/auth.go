@@ -162,20 +162,30 @@ func (l *lowerer) lowerSecurityRequirements(reqs []*soa.SecurityRequirement) []i
 	}
 	out := make([]ir.AuthRequirement, 0, len(reqs))
 	for _, req := range reqs {
-		out = append(out, lowerSecurityRequirement(req))
+		out = append(out, l.lowerSecurityRequirement(req))
 	}
 	return out
 }
 
 // lowerSecurityRequirement lowers one requirement option: each member is a
-// scheme reference plus the scopes required of it within this option.
-func lowerSecurityRequirement(req *soa.SecurityRequirement) ir.AuthRequirement {
+// scheme reference plus the scopes required of it within this option. A member
+// naming a scheme that is not declared under components.securitySchemes (or one
+// that failed to resolve into the auth registry) is dropped with one error
+// diagnostic rather than writing a dangling AuthID (issue #14).
+func (l *lowerer) lowerSecurityRequirement(req *soa.SecurityRequirement) ir.AuthRequirement {
 	if req == nil {
 		return ir.AuthRequirement{}
 	}
 	var uses []ir.SchemeUse
 	for name, scopes := range req.All() {
-		uses = append(uses, ir.SchemeUse{Scheme: authIDFor(name), Scopes: scopes})
+		id := authIDFor(name)
+		if _, ok := l.out.Auth[id]; !ok {
+			l.diags = append(l.diags, diagf(ir.SeverityError, codeUnresolvedRef,
+				ir.Provenance{Source: l.srcIndex, Pointer: ptr("components", "securitySchemes", name)},
+				"security requirement references undeclared scheme %q", name))
+			continue
+		}
+		uses = append(uses, ir.SchemeUse{Scheme: id, Scopes: scopes})
 	}
 	return ir.AuthRequirement{Schemes: uses}
 }

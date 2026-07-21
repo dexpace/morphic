@@ -1,0 +1,18 @@
+openapi: 3.1.0
+info: {title: t, version: '1'}
+paths: {}
+components:
+  schemas:
+    Base:
+      oneOf:
+        - $ref: '#/components/schemas/A'
+      discriminator:
+        propertyName: kind
+        mapping:
+          x: ""
+    A:
+      type: object
+      properties: {kind: {type: string}}
+    "":
+      type: object
+      properties: {y: {type: string}}

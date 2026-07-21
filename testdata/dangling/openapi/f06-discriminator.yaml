@@ -1,0 +1,12 @@
+openapi: 3.1.0
+info: {title: t, version: "1"}
+paths: {}
+components:
+  schemas:
+    Base:
+      type: object
+      discriminator:
+        propertyName: p
+        mapping:
+          x: '#/components/schemas/M'
+

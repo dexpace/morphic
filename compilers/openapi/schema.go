@@ -27,6 +27,13 @@ func (l *lowerer) lowerComponentSchemas() {
 	if schemas == nil {
 		return
 	}
+	// Record every declared name before lowering any schema so a $ref or
+	// discriminator mapping resolved mid-lowering sees forward-declared
+	// components as valid targets regardless of source order.
+	l.schemas = make(map[string]bool, schemas.Len())
+	for name := range schemas.All() {
+		l.schemas[name] = true
+	}
 	for name, js := range schemas.All() {
 		l.lowerComponentSchema(js, ptr("components", "schemas", name), name)
 	}
@@ -111,6 +118,14 @@ func (l *lowerer) schemaRef(js *oas3.JSONSchema[oas3.Referenceable], pointer, hi
 	if schema.Ref != nil {
 		return l.refTypeRef(js, pointer)
 	}
+	return l.schemaBody(schema, pointer, hint)
+}
+
+// schemaBody lowers a concrete (non-reference) schema body to a TypeRef, handling
+// the oneOf/anyOf dispatch that precedes structural lowering. It is shared by
+// schemaRef and by sub-schema hoisting (resolveSchemaRef), which both reach a
+// body only after peeling off any leading $ref.
+func (l *lowerer) schemaBody(schema *oas3.Schema, pointer, hint string) ir.TypeRef {
 	if len(schema.GetOneOf()) > 0 || len(schema.GetAnyOf()) > 0 {
 		if hasUnionSiblings(schema) {
 			return ir.TypeRef{
@@ -187,16 +202,59 @@ func (l *lowerer) preserveUnionSiblings(id ir.TypeID, s *oas3.Schema, pointer st
 }
 
 // refTypeRef resolves a $ref position to its target's stable ID, carrying the
-// combined ref-site and target nullability. The target is lowered where it is
-// defined, never here (single-hoisting-pass rule).
+// combined ref-site and target nullability. A top-level component target keeps
+// its stable named ID (lowered where it is defined); an internal sub-schema
+// target is hoisted at its pointer-derived ID so the reference never dangles. A
+// genuinely external or unresolvable target is diagnosed and dropped to any.
 func (l *lowerer) refTypeRef(js *oas3.JSONSchema[oas3.Referenceable], pointer string) ir.TypeRef {
-	id, err := refTypeID(js.GetRef().String())
-	if err != nil {
+	ref := js.GetRef().String()
+	id, ok := l.resolveSchemaRef(js, ref)
+	if !ok {
 		l.diags = append(l.diags, diagf(ir.SeverityError, codeUnresolvedRef,
-			ir.Provenance{Source: l.srcIndex, Pointer: pointer}, "%s", err.Error()))
+			ir.Provenance{Source: l.srcIndex, Pointer: pointer},
+			"unresolved $ref %q", ref))
 		return l.primRef(ir.PrimAny)
 	}
 	return ir.TypeRef{Target: id, Nullable: l.refNullable(js)}
+}
+
+// resolveSchemaRef resolves a schema-position $ref to an interned TypeID, never
+// synthesizing an ID that nothing backs. A top-level component keeps its stable
+// named ID; an already-interned target reuses it; an internal sub-schema the
+// resolver library resolved is hoisted at its pointer-derived ID. It returns
+// ok=false for a cross-document reference, a reference to an undeclared
+// component, or a pointer the library could not resolve.
+func (l *lowerer) resolveSchemaRef(js *oas3.JSONSchema[oas3.Referenceable], ref string) (ir.TypeID, bool) {
+	pointer, ok := l.internalPointer(ref)
+	if !ok {
+		return "", false
+	}
+	if id, resolved, handled := l.resolveComponentRef(pointer); handled {
+		return id, resolved
+	}
+	if id, ok := l.internedID(pointer); ok {
+		return id, true
+	}
+	target := js.GetResolvedSchema()
+	if target == nil {
+		return "", false
+	}
+	return l.hoistSubSchema(target.GetSchema(), pointer)
+}
+
+// hoistSubSchema lowers a resolved internal sub-schema at pointer and guarantees
+// a node exists at the pointer-derived ID, aliasing when the body reduces to a
+// shared target so a $ref to the sub-schema always resolves (invariants 1, 2).
+func (l *lowerer) hoistSubSchema(schema *oas3.Schema, pointer string) (ir.TypeID, bool) {
+	if schema == nil {
+		return "", false
+	}
+	hint := refLastSegment(pointer)
+	ref := l.schemaBody(schema, pointer, hint)
+	if owned, ok := l.byPointer[pointer]; ok {
+		return owned, true
+	}
+	return l.internAlias(pointer, hint, ref, nil), true
 }
 
 // refNullable reports whether a $ref usage admits null: either the reference
@@ -313,7 +371,7 @@ func (l *lowerer) lowerModel(s *oas3.Schema, pointer, hint string) ir.TypeID {
 		m := &ir.Model{TypeCommon: l.commonFor(id, pointer, hint)}
 		l.fillModelProperties(m, s, pointer)
 		l.fillModelDetail(m, s, pointer, hint)
-		if d := l.modelDiscriminator(s, m); d != nil {
+		if d := l.modelDiscriminator(s, m, pointer); d != nil {
 			m.Discriminator = d
 		}
 		return m
@@ -328,6 +386,7 @@ func (l *lowerer) fillModelProperties(m *ir.Model, s *oas3.Schema, pointer strin
 		return
 	}
 	required := requiredSet(s.GetRequired())
+	byWire := wireNameIndex(m.Properties)
 	for name, js := range props.All() {
 		ppointer := pointer + ptr("properties", name)
 		p := ir.Property{
@@ -339,8 +398,73 @@ func (l *lowerer) fillModelProperties(m *ir.Model, s *oas3.Schema, pointer strin
 			Provenance: ir.Provenance{Source: l.srcIndex, Pointer: ppointer},
 		}
 		l.fillPropertyDetail(&p, js, ppointer)
-		m.Properties = append(m.Properties, p)
+		l.mergeProperty(m, byWire, p, ppointer)
 	}
+}
+
+// wireNameIndex maps each property's wire name to its position in props, so a
+// redeclaration reconciles in one lookup rather than a rescan (fillModelProperties
+// runs once per allOf branch, so a linear scan would be quadratic in a wide model).
+func wireNameIndex(props []ir.Property) map[string]int {
+	idx := make(map[string]int, len(props))
+	for i := range props {
+		idx[props[i].WireName] = i
+	}
+	return idx
+}
+
+// mergeProperty appends p to m and records it in byWire, or folds it into the
+// property that already carries the same wire name. Overlapping inline allOf
+// branches — and properties co-declared alongside allOf — redeclare one logical
+// field (ir-design §4.3); allOf is an intersection, so a redeclaration reconciles
+// into the existing property rather than becoming a second, wire-colliding one.
+//
+// fillModelProperties is the sole caller and always sets WireName to the
+// (non-empty) property key, so the wire name keys byWire directly.
+func (l *lowerer) mergeProperty(m *ir.Model, byWire map[string]int, p ir.Property, pointer string) {
+	if i, ok := byWire[p.WireName]; ok {
+		l.reconcileProperty(&m.Properties[i], p, pointer)
+		return
+	}
+	byWire[p.WireName] = len(m.Properties)
+	m.Properties = append(m.Properties, p)
+}
+
+// reconcileProperty folds a redeclaration src into the already-present property
+// dst under allOf intersection semantics. The field is required when any branch
+// requires it and secret when any branch marks it, so those bits are OR-ed. dst
+// keeps its position, identity, and type shape (the first declaration in source
+// order defines them); every optional detail dst lacks is adopted from src, so a
+// documented declaration and a bare one reconcile to the richer property whatever
+// their branch order. A description present-and-different in both branches is a
+// genuine conflict dst cannot absorb — reported, never silently dropped.
+func (l *lowerer) reconcileProperty(dst *ir.Property, src ir.Property, pointer string) {
+	dst.Required = dst.Required || src.Required
+	dst.Secret = dst.Secret || src.Secret
+
+	if dst.Docs.Description == "" {
+		dst.Docs.Description = src.Docs.Description
+	} else if src.Docs.Description != "" && src.Docs.Description != dst.Docs.Description {
+		l.diags = append(l.diags, diagf(ir.SeverityInfo, codeDegradedConstruct,
+			ir.Provenance{Source: l.srcIndex, Pointer: pointer},
+			"allOf branches describe field %q differently; kept the first declaration", dst.WireName))
+	}
+	if dst.Default == nil {
+		dst.Default = src.Default
+	}
+	if dst.Constraints == nil {
+		dst.Constraints = src.Constraints
+	}
+	if dst.Deprecation == nil {
+		dst.Deprecation = src.Deprecation
+	}
+	if dst.XML == nil {
+		dst.XML = src.XML
+	}
+	if len(dst.Examples) == 0 {
+		dst.Examples = src.Examples
+	}
+	dst.Extensions = mergeExtensions(dst.Extensions, src.Extensions)
 }
 
 // fillPropertyDetail enriches a property from its schema: docs, default,

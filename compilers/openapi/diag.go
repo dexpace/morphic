@@ -19,6 +19,14 @@ const (
 	codeUnsupportedVersion = "openapi/unsupported-version"
 	// codeUnresolvedRef reports a $ref that could not be resolved.
 	codeUnresolvedRef = "openapi/unresolved-ref"
+	// codeCyclicRef reports a degenerate reference cycle — a recursive YAML
+	// anchor or a chain of $ref-only schemas that never reaches a concrete
+	// type — caught before it can crash the parser with a stack overflow.
+	codeCyclicRef = "openapi/cyclic-ref"
+	// codeCycleScanFailed reports that the pre-parse cycle scan aborted (a
+	// detector bug), leaving its stack-overflow protection incomplete for the
+	// source. It is a warning, never a refusal: the compile still proceeds.
+	codeCycleScanFailed = "openapi/cycle-scan-failed"
 	// codeValidationOnlyKeyword reports a validation-only JSON Schema keyword
 	// preserved verbatim in Extensions (ir-design §4.7).
 	codeValidationOnlyKeyword = "openapi/validation-only-keyword"
@@ -44,4 +52,16 @@ func diagf(sev ir.Severity, code string, prov ir.Provenance, format string, args
 		Message:    fmt.Sprintf(format, args...),
 		Provenance: prov,
 	}
+}
+
+// hasErrorDiag reports whether any diagnostic carries error severity. The load
+// phase uses it to tell a refusal (a real spec problem, e.g. a degenerate cycle)
+// from advisory warnings it must carry forward rather than abort on.
+func hasErrorDiag(diags []ir.Diagnostic) bool {
+	for _, d := range diags {
+		if d.Severity == ir.SeverityError {
+			return true
+		}
+	}
+	return false
 }
