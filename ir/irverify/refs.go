@@ -7,14 +7,17 @@ import (
 	"github.com/dexpace/morphic/ir"
 )
 
-// maxWalkDepth bounds the reflection traversal (bounded-recursion rule). Most of
-// the IR nests shallowly and references other nodes by ID string, but Value
-// trees (examples, defaults) embed []Value/[]Field by value and nest without
-// bound, so the cap is a real functional limit, not only a backstop. Hitting it
-// is never silent: walkValues reports truncation and checkReferentialIntegrity
-// surfaces it as an ir/walk-truncated violation so a too-deep document is never
-// reported clean.
-const maxWalkDepth = 256
+// maxWalkDepth bounds the reflection traversal (bounded-recursion rule). Value
+// trees (defaults, examples) embed []Value/[]Field by value and are the deepest
+// structures the walk reaches; each nesting level costs a few reflection
+// descents on top of a fixed prefix from the document root. Compilers bound
+// value/example nesting (the OpenAPI compiler caps it at 128), so this limit is
+// set well above the deepest reflection path a validly-bounded document can
+// produce — several times prefix + maxValueDepth × per-level cost — so a
+// walk-truncated violation signals a genuinely pathological document, never a
+// valid deeply-nested default. Hitting it is never silent: walkValues reports
+// truncation and checkReferentialIntegrity surfaces it as ir/walk-truncated.
+const maxWalkDepth = 4096
 
 // refSite is one discovered ID reference and the registry it must resolve in.
 type refSite struct {
