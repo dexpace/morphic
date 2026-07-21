@@ -1,0 +1,312 @@
+{
+  "irVersion": "0.1.0",
+  "docs": {},
+  "services": [
+    {
+      "id": "s/graphql/0",
+      "name": {},
+      "docs": {},
+      "groups": [
+        {
+          "name": {
+            "source": "query",
+            "canonical": "query"
+          },
+          "docs": {},
+          "operations": [
+            {
+              "id": "op/graphql/query/posts",
+              "name": {
+                "source": "posts",
+                "canonical": "posts"
+              },
+              "docs": {},
+              "responses": [
+                {
+                  "name": {},
+                  "conditions": {},
+                  "payload": {
+                    "contents": [
+                      {
+                        "type": {
+                          "target": "t/anon/query/posts/result/list",
+                          "nullable": false
+                        }
+                      }
+                    ]
+                  },
+                  "docs": {}
+                }
+              ],
+              "oneWay": false,
+              "idempotency": {
+                "kind": "safe"
+              },
+              "auth": null,
+              "bindings": {
+                "graphql": {
+                  "kind": "query",
+                  "fieldPath": [
+                    "posts"
+                  ]
+                }
+              },
+              "provenance": {
+                "source": 0,
+                "pointer": "/query/posts"
+              }
+            }
+          ]
+        }
+      ],
+      "auth": null,
+      "provenance": {
+        "source": 0
+      }
+    }
+  ],
+  "types": {
+    "t/anon/query/posts/result/list": {
+      "kind": "list",
+      "id": "t/anon/query/posts/result/list",
+      "name": {
+        "hint": "list"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/query/posts/result/list"
+      },
+      "elem": {
+        "target": "t/graphql/types/Post",
+        "nullable": false
+      }
+    },
+    "t/anon/types/Post/fields/comments/list": {
+      "kind": "list",
+      "id": "t/anon/types/Post/fields/comments/list",
+      "name": {
+        "hint": "list"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/types/Post/fields/comments/list"
+      },
+      "elem": {
+        "target": "t/graphql/types/Comment",
+        "nullable": false
+      }
+    },
+    "t/graphql/scalars/ID": {
+      "kind": "scalar",
+      "id": "t/graphql/scalars/ID",
+      "name": {
+        "source": "ID",
+        "canonical": "id"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "extensions": {
+        "graphql:builtin-scalar": "ID"
+      },
+      "provenance": {
+        "source": 0
+      },
+      "base": {
+        "target": "t/prim/string",
+        "nullable": false
+      }
+    },
+    "t/graphql/types/Comment": {
+      "kind": "model",
+      "id": "t/graphql/types/Comment",
+      "name": {
+        "source": "Comment",
+        "canonical": "comment"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/types/Comment"
+      },
+      "properties": [
+        {
+          "id": "p/graphql/types/Comment/fields/body",
+          "name": {
+            "source": "body",
+            "canonical": "body"
+          },
+          "wireName": "body",
+          "type": {
+            "target": "t/prim/string",
+            "nullable": false
+          },
+          "required": true,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/types/Comment/fields/body"
+          }
+        }
+      ],
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
+    "t/graphql/types/Post": {
+      "kind": "model",
+      "id": "t/graphql/types/Post",
+      "name": {
+        "source": "Post",
+        "canonical": "post"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/types/Post"
+      },
+      "properties": [
+        {
+          "id": "p/graphql/types/Post/fields/id",
+          "name": {
+            "source": "id",
+            "canonical": "id"
+          },
+          "wireName": "id",
+          "type": {
+            "target": "t/graphql/scalars/ID",
+            "nullable": false
+          },
+          "required": true,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/types/Post/fields/id"
+          }
+        },
+        {
+          "id": "p/graphql/types/Post/fields/comments",
+          "name": {
+            "source": "comments",
+            "canonical": "comments"
+          },
+          "wireName": "comments",
+          "type": {
+            "target": "t/anon/types/Post/fields/comments/list",
+            "nullable": false
+          },
+          "required": true,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "args": [
+            {
+              "name": {
+                "source": "first",
+                "canonical": "first"
+              },
+              "type": {
+                "target": "t/prim/int32",
+                "nullable": true
+              },
+              "required": false,
+              "default": {
+                "kind": "number",
+                "num": "20",
+                "bytes": null,
+                "list": null,
+                "object": null
+              },
+              "docs": {}
+            },
+            {
+              "name": {
+                "source": "after",
+                "canonical": "after"
+              },
+              "type": {
+                "target": "t/prim/string",
+                "nullable": true
+              },
+              "required": false,
+              "docs": {}
+            }
+          ],
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/types/Post/fields/comments"
+          }
+        }
+      ],
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
+    "t/prim/int32": {
+      "kind": "primitive",
+      "id": "t/prim/int32",
+      "name": {},
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0
+      },
+      "prim": "int32"
+    },
+    "t/prim/string": {
+      "kind": "primitive",
+      "id": "t/prim/string",
+      "name": {},
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0
+      },
+      "prim": "string"
+    }
+  },
+  "sources": [
+    {
+      "format": "graphql@sdl",
+      "path": "field-arguments.graphql",
+      "hash": "21b1d6ff9a98721096b18a53e86fd68edfec355fb8712a0829dd9b32359407b4"
+    }
+  ]
+}

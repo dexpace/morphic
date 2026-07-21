@@ -1,0 +1,312 @@
+{
+  "irVersion": "0.1.0",
+  "docs": {},
+  "services": [
+    {
+      "id": "s/graphql/0",
+      "name": {},
+      "docs": {},
+      "groups": [
+        {
+          "name": {
+            "source": "query",
+            "canonical": "query"
+          },
+          "docs": {},
+          "operations": [
+            {
+              "id": "op/graphql/query/secret",
+              "name": {
+                "source": "secret",
+                "canonical": "secret"
+              },
+              "docs": {},
+              "responses": [
+                {
+                  "name": {},
+                  "conditions": {},
+                  "payload": {
+                    "contents": [
+                      {
+                        "type": {
+                          "target": "t/graphql/types/Secret",
+                          "nullable": true
+                        }
+                      }
+                    ]
+                  },
+                  "docs": {}
+                }
+              ],
+              "oneWay": false,
+              "idempotency": {
+                "kind": "safe"
+              },
+              "auth": null,
+              "bindings": {
+                "graphql": {
+                  "kind": "query",
+                  "fieldPath": [
+                    "secret"
+                  ]
+                }
+              },
+              "provenance": {
+                "source": 0,
+                "pointer": "/query/secret"
+              }
+            }
+          ]
+        }
+      ],
+      "auth": null,
+      "provenance": {
+        "source": 0
+      }
+    }
+  ],
+  "types": {
+    "t/graphql/types/Level": {
+      "kind": "enum",
+      "id": "t/graphql/types/Level",
+      "name": {
+        "source": "Level",
+        "canonical": "level"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/types/Level"
+      },
+      "valueType": "string",
+      "members": [
+        {
+          "name": {
+            "source": "LOW",
+            "canonical": "low"
+          },
+          "value": {
+            "kind": "string",
+            "str": "LOW",
+            "bytes": null,
+            "list": null,
+            "object": null
+          },
+          "docs": {}
+        },
+        {
+          "name": {
+            "source": "HIGH",
+            "canonical": "high"
+          },
+          "value": {
+            "kind": "string",
+            "str": "HIGH",
+            "bytes": null,
+            "list": null,
+            "object": null
+          },
+          "docs": {}
+        }
+      ],
+      "closed": true,
+      "flags": false
+    },
+    "t/graphql/types/Secret": {
+      "kind": "model",
+      "id": "t/graphql/types/Secret",
+      "name": {
+        "source": "Secret",
+        "canonical": "secret"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "extensions": {
+        "graphql:@auth": [
+          {
+            "role": "admin"
+          }
+        ],
+        "graphql:@config": [
+          {
+            "tags": [
+              "a",
+              "b"
+            ],
+            "opts": {
+              "retries": 3
+            },
+            "level": "HIGH"
+          }
+        ]
+      },
+      "provenance": {
+        "source": 0,
+        "pointer": "/types/Secret"
+      },
+      "properties": [
+        {
+          "id": "p/graphql/types/Secret/fields/value",
+          "name": {
+            "source": "value",
+            "canonical": "value"
+          },
+          "wireName": "value",
+          "type": {
+            "target": "t/prim/string",
+            "nullable": false
+          },
+          "required": true,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "extensions": {
+            "graphql:@auth": [
+              {
+                "role": "reader"
+              },
+              {
+                "role": "writer"
+              }
+            ]
+          },
+          "provenance": {
+            "source": 0,
+            "pointer": "/types/Secret/fields/value"
+          }
+        }
+      ],
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
+    "t/graphql/types/Settings": {
+      "kind": "model",
+      "id": "t/graphql/types/Settings",
+      "name": {
+        "source": "Settings",
+        "canonical": "settings"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/types/Settings"
+      },
+      "properties": [
+        {
+          "id": "p/graphql/types/Settings/fields/retries",
+          "name": {
+            "source": "retries",
+            "canonical": "retries"
+          },
+          "wireName": "retries",
+          "type": {
+            "target": "t/prim/int32",
+            "nullable": true
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/types/Settings/fields/retries"
+          }
+        }
+      ],
+      "abstract": false,
+      "positional": false,
+      "inputOnly": true
+    },
+    "t/prim/int32": {
+      "kind": "primitive",
+      "id": "t/prim/int32",
+      "name": {},
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0
+      },
+      "prim": "int32"
+    },
+    "t/prim/string": {
+      "kind": "primitive",
+      "id": "t/prim/string",
+      "name": {},
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0
+      },
+      "prim": "string"
+    }
+  },
+  "extensions": {
+    "graphql:directive-definitions": [
+      {
+        "name": "auth",
+        "description": "Access control for a field or object.",
+        "repeatable": true,
+        "locations": [
+          "FIELD_DEFINITION",
+          "OBJECT"
+        ],
+        "arguments": [
+          {
+            "name": "role",
+            "type": "String!"
+          }
+        ]
+      },
+      {
+        "name": "config",
+        "repeatable": false,
+        "locations": [
+          "OBJECT"
+        ],
+        "arguments": [
+          {
+            "name": "tags",
+            "type": "[String!]"
+          },
+          {
+            "name": "opts",
+            "type": "Settings"
+          },
+          {
+            "name": "level",
+            "type": "Level"
+          }
+        ]
+      }
+    ]
+  },
+  "sources": [
+    {
+      "format": "graphql@sdl",
+      "path": "directives.graphql",
+      "hash": "10b9372969bdd4dc69edc3bf2c002e47162bdabf6be169abb0fb4af33a3b69b4"
+    }
+  ]
+}

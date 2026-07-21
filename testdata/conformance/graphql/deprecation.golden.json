@@ -1,0 +1,161 @@
+{
+  "irVersion": "0.1.0",
+  "docs": {},
+  "services": [
+    {
+      "id": "s/graphql/0",
+      "name": {},
+      "docs": {},
+      "groups": [
+        {
+          "name": {
+            "source": "query",
+            "canonical": "query"
+          },
+          "docs": {},
+          "operations": [
+            {
+              "id": "op/graphql/query/legacy",
+              "name": {
+                "source": "legacy",
+                "canonical": "legacy"
+              },
+              "docs": {},
+              "params": [
+                {
+                  "name": {
+                    "source": "mode",
+                    "canonical": "mode"
+                  },
+                  "type": {
+                    "target": "t/prim/string",
+                    "nullable": true
+                  },
+                  "required": false,
+                  "docs": {},
+                  "deprecation": {
+                    "message": "ignored"
+                  }
+                }
+              ],
+              "responses": [
+                {
+                  "name": {},
+                  "conditions": {},
+                  "payload": {
+                    "contents": [
+                      {
+                        "type": {
+                          "target": "t/graphql/types/Legacy",
+                          "nullable": true
+                        }
+                      }
+                    ]
+                  },
+                  "docs": {}
+                }
+              ],
+              "oneWay": false,
+              "idempotency": {
+                "kind": "safe"
+              },
+              "auth": null,
+              "bindings": {
+                "graphql": {
+                  "kind": "query",
+                  "fieldPath": [
+                    "legacy"
+                  ]
+                }
+              },
+              "provenance": {
+                "source": 0,
+                "pointer": "/query/legacy"
+              }
+            }
+          ]
+        }
+      ],
+      "auth": null,
+      "provenance": {
+        "source": 0
+      }
+    }
+  ],
+  "types": {
+    "t/graphql/types/Legacy": {
+      "kind": "model",
+      "id": "t/graphql/types/Legacy",
+      "name": {
+        "source": "Legacy",
+        "canonical": "legacy"
+      },
+      "anonymous": false,
+      "docs": {
+        "description": "An outdated type."
+      },
+      "sensitive": false,
+      "deprecation": {
+        "message": "use Modern"
+      },
+      "provenance": {
+        "source": 0,
+        "pointer": "/types/Legacy"
+      },
+      "properties": [
+        {
+          "id": "p/graphql/types/Legacy/fields/old",
+          "name": {
+            "source": "old",
+            "canonical": "old"
+          },
+          "wireName": "old",
+          "type": {
+            "target": "t/prim/string",
+            "nullable": true
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "deprecation": {
+            "message": "removed soon"
+          },
+          "provenance": {
+            "source": 0,
+            "pointer": "/types/Legacy/fields/old"
+          }
+        }
+      ],
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
+    "t/prim/string": {
+      "kind": "primitive",
+      "id": "t/prim/string",
+      "name": {},
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0
+      },
+      "prim": "string"
+    }
+  },
+  "sources": [
+    {
+      "format": "graphql@sdl",
+      "path": "deprecation.graphql",
+      "hash": "7ea16de90c53e900f08dc8db601010c51336491cb87c1aed6b06e2ea7b790e64"
+    }
+  ]
+}

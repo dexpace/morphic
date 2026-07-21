@@ -1,0 +1,265 @@
+{
+  "irVersion": "0.1.0",
+  "docs": {},
+  "services": [
+    {
+      "id": "s/graphql/0",
+      "name": {},
+      "docs": {},
+      "groups": [
+        {
+          "name": {
+            "source": "query",
+            "canonical": "query"
+          },
+          "docs": {},
+          "operations": [
+            {
+              "id": "op/graphql/query/shape",
+              "name": {
+                "source": "shape",
+                "canonical": "shape"
+              },
+              "docs": {},
+              "responses": [
+                {
+                  "name": {},
+                  "conditions": {},
+                  "payload": {
+                    "contents": [
+                      {
+                        "type": {
+                          "target": "t/graphql/types/Shape",
+                          "nullable": true
+                        }
+                      }
+                    ]
+                  },
+                  "docs": {}
+                }
+              ],
+              "oneWay": false,
+              "idempotency": {
+                "kind": "safe"
+              },
+              "auth": null,
+              "bindings": {
+                "graphql": {
+                  "kind": "query",
+                  "fieldPath": [
+                    "shape"
+                  ]
+                }
+              },
+              "provenance": {
+                "source": 0,
+                "pointer": "/query/shape"
+              }
+            }
+          ]
+        }
+      ],
+      "auth": null,
+      "provenance": {
+        "source": 0
+      }
+    }
+  ],
+  "types": {
+    "t/anon/types/Shape/fields/optListOptItem/list": {
+      "kind": "list",
+      "id": "t/anon/types/Shape/fields/optListOptItem/list",
+      "name": {
+        "hint": "list"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/types/Shape/fields/optListOptItem/list"
+      },
+      "elem": {
+        "target": "t/prim/int32",
+        "nullable": true
+      }
+    },
+    "t/anon/types/Shape/fields/reqListReqItem/list": {
+      "kind": "list",
+      "id": "t/anon/types/Shape/fields/reqListReqItem/list",
+      "name": {
+        "hint": "list"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/types/Shape/fields/reqListReqItem/list"
+      },
+      "elem": {
+        "target": "t/prim/int32",
+        "nullable": false
+      }
+    },
+    "t/graphql/types/Shape": {
+      "kind": "model",
+      "id": "t/graphql/types/Shape",
+      "name": {
+        "source": "Shape",
+        "canonical": "shape"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/types/Shape"
+      },
+      "properties": [
+        {
+          "id": "p/graphql/types/Shape/fields/reqPlain",
+          "name": {
+            "source": "reqPlain",
+            "canonical": "req_plain"
+          },
+          "wireName": "reqPlain",
+          "type": {
+            "target": "t/prim/string",
+            "nullable": false
+          },
+          "required": true,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/types/Shape/fields/reqPlain"
+          }
+        },
+        {
+          "id": "p/graphql/types/Shape/fields/optPlain",
+          "name": {
+            "source": "optPlain",
+            "canonical": "opt_plain"
+          },
+          "wireName": "optPlain",
+          "type": {
+            "target": "t/prim/string",
+            "nullable": true
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/types/Shape/fields/optPlain"
+          }
+        },
+        {
+          "id": "p/graphql/types/Shape/fields/reqListReqItem",
+          "name": {
+            "source": "reqListReqItem",
+            "canonical": "req_list_req_item"
+          },
+          "wireName": "reqListReqItem",
+          "type": {
+            "target": "t/anon/types/Shape/fields/reqListReqItem/list",
+            "nullable": false
+          },
+          "required": true,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/types/Shape/fields/reqListReqItem"
+          }
+        },
+        {
+          "id": "p/graphql/types/Shape/fields/optListOptItem",
+          "name": {
+            "source": "optListOptItem",
+            "canonical": "opt_list_opt_item"
+          },
+          "wireName": "optListOptItem",
+          "type": {
+            "target": "t/anon/types/Shape/fields/optListOptItem/list",
+            "nullable": true
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/types/Shape/fields/optListOptItem"
+          }
+        }
+      ],
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
+    "t/prim/int32": {
+      "kind": "primitive",
+      "id": "t/prim/int32",
+      "name": {},
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0
+      },
+      "prim": "int32"
+    },
+    "t/prim/string": {
+      "kind": "primitive",
+      "id": "t/prim/string",
+      "name": {},
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0
+      },
+      "prim": "string"
+    }
+  },
+  "sources": [
+    {
+      "format": "graphql@sdl",
+      "path": "nullability.graphql",
+      "hash": "faf8a3c8a82435e3d1d49bb28f6e8de2cd57a1d5290c7ba1b77fa12afaf0d4db"
+    }
+  ]
+}

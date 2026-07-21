@@ -1,0 +1,300 @@
+{
+  "irVersion": "0.1.0",
+  "docs": {},
+  "services": [
+    {
+      "id": "s/graphql/0",
+      "name": {},
+      "docs": {},
+      "groups": [
+        {
+          "name": {
+            "source": "query",
+            "canonical": "query"
+          },
+          "docs": {},
+          "operations": [
+            {
+              "id": "op/graphql/query/latest",
+              "name": {
+                "source": "latest",
+                "canonical": "latest"
+              },
+              "docs": {},
+              "responses": [
+                {
+                  "name": {},
+                  "conditions": {},
+                  "payload": {
+                    "contents": [
+                      {
+                        "type": {
+                          "target": "t/graphql/types/Message",
+                          "nullable": true
+                        }
+                      }
+                    ]
+                  },
+                  "docs": {}
+                }
+              ],
+              "oneWay": false,
+              "idempotency": {
+                "kind": "safe"
+              },
+              "auth": null,
+              "bindings": {
+                "graphql": {
+                  "kind": "query",
+                  "fieldPath": [
+                    "latest"
+                  ]
+                }
+              },
+              "provenance": {
+                "source": 0,
+                "pointer": "/query/latest"
+              }
+            }
+          ]
+        },
+        {
+          "name": {
+            "source": "mutation",
+            "canonical": "mutation"
+          },
+          "docs": {},
+          "operations": [
+            {
+              "id": "op/graphql/mutation/send",
+              "name": {
+                "source": "send",
+                "canonical": "send"
+              },
+              "docs": {},
+              "params": [
+                {
+                  "name": {
+                    "source": "text",
+                    "canonical": "text"
+                  },
+                  "type": {
+                    "target": "t/prim/string",
+                    "nullable": false
+                  },
+                  "required": true,
+                  "docs": {}
+                }
+              ],
+              "responses": [
+                {
+                  "name": {},
+                  "conditions": {},
+                  "payload": {
+                    "contents": [
+                      {
+                        "type": {
+                          "target": "t/graphql/types/Message",
+                          "nullable": false
+                        }
+                      }
+                    ]
+                  },
+                  "docs": {}
+                }
+              ],
+              "oneWay": false,
+              "idempotency": {},
+              "auth": null,
+              "bindings": {
+                "graphql": {
+                  "kind": "mutation",
+                  "fieldPath": [
+                    "send"
+                  ]
+                }
+              },
+              "provenance": {
+                "source": 0,
+                "pointer": "/mutation/send"
+              }
+            }
+          ]
+        },
+        {
+          "name": {
+            "source": "subscription",
+            "canonical": "subscription"
+          },
+          "docs": {},
+          "operations": [
+            {
+              "id": "op/graphql/subscription/messageAdded",
+              "name": {
+                "source": "messageAdded",
+                "canonical": "message_added"
+              },
+              "docs": {},
+              "responses": [
+                {
+                  "name": {},
+                  "conditions": {},
+                  "payload": {
+                    "contents": [
+                      {
+                        "type": {
+                          "target": "t/graphql/types/Message",
+                          "nullable": false
+                        }
+                      }
+                    ]
+                  },
+                  "docs": {}
+                }
+              ],
+              "oneWay": false,
+              "streaming": "server",
+              "responseStream": {
+                "requiresLength": false
+              },
+              "idempotency": {},
+              "auth": null,
+              "bindings": {
+                "graphql": {
+                  "kind": "subscription",
+                  "fieldPath": [
+                    "messageAdded"
+                  ]
+                }
+              },
+              "provenance": {
+                "source": 0,
+                "pointer": "/subscription/messageAdded"
+              }
+            }
+          ]
+        }
+      ],
+      "auth": null,
+      "provenance": {
+        "source": 0
+      }
+    }
+  ],
+  "types": {
+    "t/graphql/scalars/ID": {
+      "kind": "scalar",
+      "id": "t/graphql/scalars/ID",
+      "name": {
+        "source": "ID",
+        "canonical": "id"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "extensions": {
+        "graphql:builtin-scalar": "ID"
+      },
+      "provenance": {
+        "source": 0
+      },
+      "base": {
+        "target": "t/prim/string",
+        "nullable": false
+      }
+    },
+    "t/graphql/types/Message": {
+      "kind": "model",
+      "id": "t/graphql/types/Message",
+      "name": {
+        "source": "Message",
+        "canonical": "message"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/types/Message"
+      },
+      "properties": [
+        {
+          "id": "p/graphql/types/Message/fields/id",
+          "name": {
+            "source": "id",
+            "canonical": "id"
+          },
+          "wireName": "id",
+          "type": {
+            "target": "t/graphql/scalars/ID",
+            "nullable": false
+          },
+          "required": true,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/types/Message/fields/id"
+          }
+        },
+        {
+          "id": "p/graphql/types/Message/fields/text",
+          "name": {
+            "source": "text",
+            "canonical": "text"
+          },
+          "wireName": "text",
+          "type": {
+            "target": "t/prim/string",
+            "nullable": false
+          },
+          "required": true,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/types/Message/fields/text"
+          }
+        }
+      ],
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
+    "t/prim/string": {
+      "kind": "primitive",
+      "id": "t/prim/string",
+      "name": {},
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0
+      },
+      "prim": "string"
+    }
+  },
+  "sources": [
+    {
+      "format": "graphql@sdl",
+      "path": "operations.graphql",
+      "hash": "9a006a26263a1100a3f3c2b15898730dc47483e03d610c2b574b73538fc6e8d7"
+    }
+  ]
+}

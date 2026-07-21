@@ -1,0 +1,463 @@
+{
+  "irVersion": "0.1.0",
+  "docs": {},
+  "services": [
+    {
+      "id": "s/graphql/0",
+      "name": {},
+      "docs": {},
+      "groups": [
+        {
+          "name": {
+            "source": "query",
+            "canonical": "query"
+          },
+          "docs": {},
+          "operations": [
+            {
+              "id": "op/graphql/query/topProducts",
+              "name": {
+                "source": "topProducts",
+                "canonical": "top_products"
+              },
+              "docs": {},
+              "responses": [
+                {
+                  "name": {},
+                  "conditions": {},
+                  "payload": {
+                    "contents": [
+                      {
+                        "type": {
+                          "target": "t/anon/query/topProducts/result/list",
+                          "nullable": false
+                        }
+                      }
+                    ]
+                  },
+                  "docs": {}
+                }
+              ],
+              "oneWay": false,
+              "idempotency": {
+                "kind": "safe"
+              },
+              "auth": null,
+              "bindings": {
+                "graphql": {
+                  "kind": "query",
+                  "fieldPath": [
+                    "topProducts"
+                  ]
+                }
+              },
+              "provenance": {
+                "source": 0,
+                "pointer": "/query/topProducts"
+              }
+            }
+          ]
+        }
+      ],
+      "auth": null,
+      "provenance": {
+        "source": 0
+      }
+    }
+  ],
+  "types": {
+    "t/anon/query/topProducts/result/list": {
+      "kind": "list",
+      "id": "t/anon/query/topProducts/result/list",
+      "name": {
+        "hint": "list"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/query/topProducts/result/list"
+      },
+      "elem": {
+        "target": "t/graphql/types/Product",
+        "nullable": false
+      }
+    },
+    "t/anon/types/Product/fields/reviews/list": {
+      "kind": "list",
+      "id": "t/anon/types/Product/fields/reviews/list",
+      "name": {
+        "hint": "list"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/types/Product/fields/reviews/list"
+      },
+      "elem": {
+        "target": "t/graphql/types/Review",
+        "nullable": false
+      }
+    },
+    "t/anon/types/User/fields/recommendations/list": {
+      "kind": "list",
+      "id": "t/anon/types/User/fields/recommendations/list",
+      "name": {
+        "hint": "list"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/types/User/fields/recommendations/list"
+      },
+      "elem": {
+        "target": "t/graphql/types/Product",
+        "nullable": false
+      }
+    },
+    "t/graphql/scalars/ID": {
+      "kind": "scalar",
+      "id": "t/graphql/scalars/ID",
+      "name": {
+        "source": "ID",
+        "canonical": "id"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "extensions": {
+        "graphql:builtin-scalar": "ID"
+      },
+      "provenance": {
+        "source": 0
+      },
+      "base": {
+        "target": "t/prim/string",
+        "nullable": false
+      }
+    },
+    "t/graphql/types/Product": {
+      "kind": "model",
+      "id": "t/graphql/types/Product",
+      "name": {
+        "source": "Product",
+        "canonical": "product"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "extensions": {
+        "federation:@key": [
+          {
+            "fields": "upc"
+          }
+        ]
+      },
+      "provenance": {
+        "source": 0,
+        "pointer": "/types/Product"
+      },
+      "properties": [
+        {
+          "id": "p/graphql/types/Product/fields/upc",
+          "name": {
+            "source": "upc",
+            "canonical": "upc"
+          },
+          "wireName": "upc",
+          "type": {
+            "target": "t/prim/string",
+            "nullable": false
+          },
+          "required": true,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/types/Product/fields/upc"
+          }
+        },
+        {
+          "id": "p/graphql/types/Product/fields/name",
+          "name": {
+            "source": "name",
+            "canonical": "name"
+          },
+          "wireName": "name",
+          "type": {
+            "target": "t/prim/string",
+            "nullable": true
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/types/Product/fields/name"
+          }
+        },
+        {
+          "id": "p/graphql/types/Product/fields/reviews",
+          "name": {
+            "source": "reviews",
+            "canonical": "reviews"
+          },
+          "wireName": "reviews",
+          "type": {
+            "target": "t/anon/types/Product/fields/reviews/list",
+            "nullable": false
+          },
+          "required": true,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "extensions": {
+            "federation:@requires": [
+              {
+                "fields": "name"
+              }
+            ]
+          },
+          "provenance": {
+            "source": 0,
+            "pointer": "/types/Product/fields/reviews"
+          }
+        }
+      ],
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
+    "t/graphql/types/Review": {
+      "kind": "model",
+      "id": "t/graphql/types/Review",
+      "name": {
+        "source": "Review",
+        "canonical": "review"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/types/Review"
+      },
+      "properties": [
+        {
+          "id": "p/graphql/types/Review/fields/body",
+          "name": {
+            "source": "body",
+            "canonical": "body"
+          },
+          "wireName": "body",
+          "type": {
+            "target": "t/prim/string",
+            "nullable": false
+          },
+          "required": true,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/types/Review/fields/body"
+          }
+        },
+        {
+          "id": "p/graphql/types/Review/fields/product",
+          "name": {
+            "source": "product",
+            "canonical": "product"
+          },
+          "wireName": "product",
+          "type": {
+            "target": "t/graphql/types/Product",
+            "nullable": true
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "extensions": {
+            "federation:@provides": [
+              {
+                "fields": "upc"
+              }
+            ]
+          },
+          "provenance": {
+            "source": 0,
+            "pointer": "/types/Review/fields/product"
+          }
+        }
+      ],
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
+    "t/graphql/types/User": {
+      "kind": "model",
+      "id": "t/graphql/types/User",
+      "name": {
+        "source": "User",
+        "canonical": "user"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "extensions": {
+        "federation:@key": [
+          {
+            "fields": "id"
+          }
+        ],
+        "graphql:extends": [
+          {
+            "source": 0,
+            "pointer": "12:13",
+            "baseless": true
+          }
+        ]
+      },
+      "provenance": {
+        "source": 0,
+        "pointer": "/types/User"
+      },
+      "properties": [
+        {
+          "id": "p/graphql/types/User/fields/id",
+          "name": {
+            "source": "id",
+            "canonical": "id"
+          },
+          "wireName": "id",
+          "type": {
+            "target": "t/graphql/scalars/ID",
+            "nullable": false
+          },
+          "required": true,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "extensions": {
+            "federation:@external": [
+              {}
+            ]
+          },
+          "provenance": {
+            "source": 0,
+            "pointer": "/types/User/fields/id"
+          }
+        },
+        {
+          "id": "p/graphql/types/User/fields/recommendations",
+          "name": {
+            "source": "recommendations",
+            "canonical": "recommendations"
+          },
+          "wireName": "recommendations",
+          "type": {
+            "target": "t/anon/types/User/fields/recommendations/list",
+            "nullable": false
+          },
+          "required": true,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "extensions": {
+            "federation:@tag": [
+              {
+                "name": "public"
+              }
+            ]
+          },
+          "provenance": {
+            "source": 0,
+            "pointer": "/types/User/fields/recommendations"
+          }
+        }
+      ],
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
+    "t/prim/string": {
+      "kind": "primitive",
+      "id": "t/prim/string",
+      "name": {},
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0
+      },
+      "prim": "string"
+    }
+  },
+  "extensions": {
+    "federation:version": "1"
+  },
+  "sources": [
+    {
+      "format": "graphql@sdl",
+      "path": "federation-v1.graphql",
+      "hash": "20cfba5b4e5936546790a16235632fda7c6c81f51252658b3161ae8a6a120e78"
+    }
+  ]
+}

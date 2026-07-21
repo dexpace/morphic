@@ -1,0 +1,21 @@
+"Access control for a field or object."
+directive @auth(role: String!) repeatable on FIELD_DEFINITION | OBJECT
+
+directive @config(tags: [String!], opts: Settings, level: Level) on OBJECT
+
+input Settings {
+  retries: Int
+}
+
+enum Level {
+  LOW
+  HIGH
+}
+
+type Secret @auth(role: "admin") @config(tags: ["a", "b"], opts: { retries: 3 }, level: HIGH) {
+  value: String! @auth(role: "reader") @auth(role: "writer")
+}
+
+type Query {
+  secret: Secret
+}

@@ -1,0 +1,16 @@
+"""The address of a user."""
+type Address {
+  street: String!
+  city: String
+}
+
+"A registered user."
+type User {
+  id: ID!
+  name: String!
+  address: Address
+}
+
+type Query {
+  user(id: ID!): User
+}

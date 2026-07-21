@@ -1,0 +1,208 @@
+{
+  "irVersion": "0.1.0",
+  "docs": {},
+  "services": [
+    {
+      "id": "s/graphql/0",
+      "name": {},
+      "docs": {},
+      "groups": [
+        {
+          "name": {
+            "source": "query",
+            "canonical": "query"
+          },
+          "docs": {},
+          "operations": [
+            {
+              "id": "op/graphql/query/root",
+              "name": {
+                "source": "root",
+                "canonical": "root"
+              },
+              "docs": {},
+              "responses": [
+                {
+                  "name": {},
+                  "conditions": {},
+                  "payload": {
+                    "contents": [
+                      {
+                        "type": {
+                          "target": "t/graphql/types/TreeNode",
+                          "nullable": true
+                        }
+                      }
+                    ]
+                  },
+                  "docs": {}
+                }
+              ],
+              "oneWay": false,
+              "idempotency": {
+                "kind": "safe"
+              },
+              "auth": null,
+              "bindings": {
+                "graphql": {
+                  "kind": "query",
+                  "fieldPath": [
+                    "root"
+                  ]
+                }
+              },
+              "provenance": {
+                "source": 0,
+                "pointer": "/query/root"
+              }
+            }
+          ]
+        }
+      ],
+      "auth": null,
+      "provenance": {
+        "source": 0
+      }
+    }
+  ],
+  "types": {
+    "t/anon/types/TreeNode/fields/children/list": {
+      "kind": "list",
+      "id": "t/anon/types/TreeNode/fields/children/list",
+      "name": {
+        "hint": "list"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/types/TreeNode/fields/children/list"
+      },
+      "elem": {
+        "target": "t/graphql/types/TreeNode",
+        "nullable": false
+      }
+    },
+    "t/graphql/types/TreeNode": {
+      "kind": "model",
+      "id": "t/graphql/types/TreeNode",
+      "name": {
+        "source": "TreeNode",
+        "canonical": "tree_node"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/types/TreeNode"
+      },
+      "properties": [
+        {
+          "id": "p/graphql/types/TreeNode/fields/value",
+          "name": {
+            "source": "value",
+            "canonical": "value"
+          },
+          "wireName": "value",
+          "type": {
+            "target": "t/prim/int32",
+            "nullable": false
+          },
+          "required": true,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/types/TreeNode/fields/value"
+          }
+        },
+        {
+          "id": "p/graphql/types/TreeNode/fields/children",
+          "name": {
+            "source": "children",
+            "canonical": "children"
+          },
+          "wireName": "children",
+          "type": {
+            "target": "t/anon/types/TreeNode/fields/children/list",
+            "nullable": false
+          },
+          "required": true,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/types/TreeNode/fields/children"
+          }
+        },
+        {
+          "id": "p/graphql/types/TreeNode/fields/parent",
+          "name": {
+            "source": "parent",
+            "canonical": "parent"
+          },
+          "wireName": "parent",
+          "type": {
+            "target": "t/graphql/types/TreeNode",
+            "nullable": true
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/types/TreeNode/fields/parent"
+          }
+        }
+      ],
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
+    "t/prim/int32": {
+      "kind": "primitive",
+      "id": "t/prim/int32",
+      "name": {},
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0
+      },
+      "prim": "int32"
+    }
+  },
+  "sources": [
+    {
+      "format": "graphql@sdl",
+      "path": "recursive.graphql",
+      "hash": "ed6f578fcc552cd3f98300fef37504fd0521767ae441541de9983760b042af28"
+    }
+  ]
+}

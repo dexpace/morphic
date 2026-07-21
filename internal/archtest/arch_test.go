@@ -30,15 +30,16 @@ const module = "github.com/dexpace/morphic"
 // carrying a misleading allowlist. (An unruled subdirectory that *is* nested
 // under a ruled directory is still audited, under that ancestor's allowlist.)
 var rules = map[string][]string{
-	"ir":                  {},
-	"ir/irtest":           {module + "/ir", "github.com/google/go-cmp"},
-	"ir/irverify":         {module + "/ir"},
-	"compilers":           {module + "/ir"},
-	"compilers/openapi":   {module + "/ir", module + "/compilers", "github.com/speakeasy-api/openapi", "gopkg.in/yaml.v3"},
-	"pass":                {module + "/ir"},
-	"engine":              {module + "/ir", module + "/compilers", module + "/pass", "gopkg.in/yaml.v3"},
-	"cmd/morphic":         {module + "/ir", module + "/engine"},
-	"cmd/morphic-harness": {module + "/internal/harness"},
+	"ir":                {},
+	"ir/irtest":         {module + "/ir", "github.com/google/go-cmp"},
+  "ir/irverify":         {module + "/ir"},
+	"compilers":         {module + "/ir"},
+	"compilers/openapi": {module + "/ir", module + "/compilers", "github.com/speakeasy-api/openapi", "gopkg.in/yaml.v3"},
+	"compilers/graphql": {module + "/ir", module + "/compilers", "github.com/vektah/gqlparser/v2"},
+	"pass":              {module + "/ir"},
+	"engine":            {module + "/ir", module + "/compilers", module + "/pass", "gopkg.in/yaml.v3"},
+	"cmd/morphic":       {module + "/ir", module + "/engine"},
+  "cmd/morphic-harness": {module + "/internal/harness"},
 }
 
 // TestImportGraph_LayeringHolds parses every non-test Go file under each ruled

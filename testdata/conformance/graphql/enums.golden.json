@@ -1,0 +1,144 @@
+{
+  "irVersion": "0.1.0",
+  "docs": {},
+  "services": [
+    {
+      "id": "s/graphql/0",
+      "name": {},
+      "docs": {},
+      "groups": [
+        {
+          "name": {
+            "source": "query",
+            "canonical": "query"
+          },
+          "docs": {},
+          "operations": [
+            {
+              "id": "op/graphql/query/status",
+              "name": {
+                "source": "status",
+                "canonical": "status"
+              },
+              "docs": {},
+              "responses": [
+                {
+                  "name": {},
+                  "conditions": {},
+                  "payload": {
+                    "contents": [
+                      {
+                        "type": {
+                          "target": "t/graphql/types/Status",
+                          "nullable": false
+                        }
+                      }
+                    ]
+                  },
+                  "docs": {}
+                }
+              ],
+              "oneWay": false,
+              "idempotency": {
+                "kind": "safe"
+              },
+              "auth": null,
+              "bindings": {
+                "graphql": {
+                  "kind": "query",
+                  "fieldPath": [
+                    "status"
+                  ]
+                }
+              },
+              "provenance": {
+                "source": 0,
+                "pointer": "/query/status"
+              }
+            }
+          ]
+        }
+      ],
+      "auth": null,
+      "provenance": {
+        "source": 0
+      }
+    }
+  ],
+  "types": {
+    "t/graphql/types/Status": {
+      "kind": "enum",
+      "id": "t/graphql/types/Status",
+      "name": {
+        "source": "Status",
+        "canonical": "status"
+      },
+      "anonymous": false,
+      "docs": {
+        "description": "Publication status."
+      },
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/types/Status"
+      },
+      "valueType": "string",
+      "members": [
+        {
+          "name": {
+            "source": "DRAFT",
+            "canonical": "draft"
+          },
+          "value": {
+            "kind": "string",
+            "str": "DRAFT",
+            "bytes": null,
+            "list": null,
+            "object": null
+          },
+          "docs": {}
+        },
+        {
+          "name": {
+            "source": "PUBLISHED",
+            "canonical": "published"
+          },
+          "value": {
+            "kind": "string",
+            "str": "PUBLISHED",
+            "bytes": null,
+            "list": null,
+            "object": null
+          },
+          "docs": {}
+        },
+        {
+          "name": {
+            "source": "ARCHIVED",
+            "canonical": "archived"
+          },
+          "value": {
+            "kind": "string",
+            "str": "ARCHIVED",
+            "bytes": null,
+            "list": null,
+            "object": null
+          },
+          "docs": {},
+          "deprecation": {
+            "message": "use PUBLISHED"
+          }
+        }
+      ],
+      "closed": true,
+      "flags": false
+    }
+  },
+  "sources": [
+    {
+      "format": "graphql@sdl",
+      "path": "enums.graphql",
+      "hash": "e8536fee1a551b2f8718cf1f3a0b140a203ac7d2b94933f1033930da760f4d9c"
+    }
+  ]
+}

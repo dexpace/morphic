@@ -1,0 +1,19 @@
+type Product @key(fields: "upc") {
+  upc: String!
+  name: String
+  reviews: [Review!]! @requires(fields: "name")
+}
+
+type Review {
+  body: String!
+  product: Product @provides(fields: "upc")
+}
+
+extend type User @key(fields: "id") {
+  id: ID! @external
+  recommendations: [Product!]! @tag(name: "public")
+}
+
+type Query {
+  topProducts: [Product!]!
+}
