@@ -1,0 +1,13 @@
+openapi: 3.1.0
+info: {title: t, version: "1"}
+paths: {}
+components:
+  schemas:
+    Foo:
+      type: object
+      not: {type: string}
+    Bar:
+      properties:
+        x:
+          $ref: '#/components/schemas/Foo/not'
+

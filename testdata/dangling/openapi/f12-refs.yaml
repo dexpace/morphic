@@ -1,0 +1,13 @@
+openapi: 3.1.0
+info: {title: t, version: "1"}
+paths: {}
+components:
+  schemas:
+    Foo:
+      properties:
+        s:
+          $ref: 'm.yaml#/components/schemas/Foo'
+# Save this file as m.yaml. The $ref's document part must equal the compiled
+# file's own basename so speakeasy resolves it back into the same document
+# (OpenAPILocation: src.Path in load.go). refTypeID (ids.go) then mints an
+# un-interned t/openapi/ext/... TypeID -> ir/dangling-type-ref.

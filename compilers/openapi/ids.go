@@ -1,7 +1,7 @@
 package openapi
 
 import (
-	"fmt"
+	"path"
 	"strconv"
 	"strings"
 
@@ -26,6 +26,14 @@ func ptr(segments ...string) string {
 func escapeSegment(s string) string {
 	s = strings.ReplaceAll(s, "~", "~0")
 	return strings.ReplaceAll(s, "/", "~1")
+}
+
+// unescapeSegment reverses RFC 6901 escaping: ~1 to /, then ~0 to ~. It recovers
+// a component's on-wire name from a pointer segment (e.g. a schema named "A/B"
+// is escaped to "A~1B" in the pointer).
+func unescapeSegment(s string) string {
+	s = strings.ReplaceAll(s, "~1", "/")
+	return strings.ReplaceAll(s, "~0", "~")
 }
 
 // namedTypeID returns the stable ID of a components-named schema at pointer.
@@ -63,21 +71,60 @@ func serviceID(sourceIndex int) ir.ServiceID {
 	return ir.ServiceID("s/openapi/" + strconv.Itoa(sourceIndex))
 }
 
-// refTypeID maps a $ref string to the stable ID of its target.
-func refTypeID(ref string) (ir.TypeID, error) {
+// internalPointer returns the same-document JSON pointer a $ref (or discriminator
+// mapping) target addresses, and ok=false for a genuine cross-document reference,
+// a bare schema name, or a malformed ref. A document part naming this same source
+// file (an OpenAPI self-reference) is treated as internal — Milestone 1 interns
+// only same-file targets; genuinely external ones are diagnosed and dropped.
+func (l *lowerer) internalPointer(ref string) (string, bool) {
 	doc, pointer, found := strings.Cut(ref, "#")
-	if !found && doc == "" {
-		return "", fmt.Errorf("openapi: empty $ref")
+	if !found || pointer == "" {
+		return "", false
 	}
-	switch {
-	case doc != "": // external document
-		return ir.TypeID("t/openapi/ext/" + ref), nil
-	case pointer != "":
-		// Share the interning discriminator so a $ref derives the same ID the
-		// target was interned under: named only for a top-level component schema
-		// (/components/schemas/<name>), anonymous for any deeper pointer.
-		return typeIDForPointer(pointer), nil
-	default:
-		return "", fmt.Errorf("openapi: unsupported $ref form %q", ref)
+	if doc != "" && !l.sameFile(doc) {
+		return "", false
 	}
+	return pointer, true
+}
+
+// sameFile reports whether a $ref document part names this compilation's own
+// source file, so the reference resolves back into the same document. The
+// comparison is by path basename because a self-reference is spelled with the
+// file's own name (e.g. `m.yaml#/...` inside m.yaml).
+func (l *lowerer) sameFile(doc string) bool {
+	self := l.source.Path
+	if self == "" {
+		return false
+	}
+	return doc == self || path.Base(doc) == path.Base(self)
+}
+
+// internedID returns the TypeID a node was interned under at pointer, when one
+// already exists there — either a previously hoisted sub-schema (via byPointer)
+// or a node registered directly under its pointer-derived ID.
+func (l *lowerer) internedID(pointer string) (ir.TypeID, bool) {
+	if id, ok := l.byPointer[pointer]; ok {
+		return id, true
+	}
+	id := typeIDForPointer(pointer)
+	if _, ok := l.out.Types[id]; ok {
+		return id, true
+	}
+	return "", false
+}
+
+// resolveComponentRef resolves an internal pointer that addresses a top-level
+// component schema to its stable named ID, but only when that component is
+// declared. It returns handled=true once it has classified the pointer as a
+// component pointer (declared or not) so callers can stop; a declared component
+// yields ok=true, an undeclared one ok=false (a dangling reference to drop).
+func (l *lowerer) resolveComponentRef(pointer string) (id ir.TypeID, ok, handled bool) {
+	name, isComponent := componentSchemaName(pointer)
+	if !isComponent {
+		return "", false, false
+	}
+	if l.schemas[name] {
+		return namedTypeID(pointer), true, true
+	}
+	return "", false, true
 }
