@@ -26,6 +26,7 @@ var rules = map[string][]string{
 	"ir/irtest":         {module + "/ir", "github.com/google/go-cmp"},
 	"compilers":         {module + "/ir"},
 	"compilers/openapi": {module + "/ir", module + "/compilers", "github.com/speakeasy-api/openapi", "gopkg.in/yaml.v3"},
+	"compilers/graphql": {module + "/ir", module + "/compilers", "github.com/vektah/gqlparser/v2"},
 	"pass":              {module + "/ir"},
 	"engine":            {module + "/ir", module + "/compilers", module + "/pass", "gopkg.in/yaml.v3"},
 	"cmd/morphic":       {module + "/ir", module + "/engine"},
