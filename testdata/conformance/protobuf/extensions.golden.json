@@ -1,0 +1,178 @@
+{
+  "irVersion": "0.1.0",
+  "name": "ext",
+  "docs": {},
+  "services": [
+    {
+      "id": "s/protobuf/ext",
+      "name": {
+        "source": "ext",
+        "canonical": "ext"
+      },
+      "docs": {},
+      "namespace": [
+        "ext"
+      ],
+      "auth": null,
+      "provenance": {
+        "source": 0,
+        "pointer": "extensions.proto"
+      }
+    }
+  ],
+  "types": {
+    "t/prim/int32": {
+      "kind": "primitive",
+      "id": "t/prim/int32",
+      "name": {},
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0
+      },
+      "prim": "int32"
+    },
+    "t/prim/string": {
+      "kind": "primitive",
+      "id": "t/prim/string",
+      "name": {},
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0
+      },
+      "prim": "string"
+    },
+    "t/protobuf/ext.Base": {
+      "kind": "model",
+      "id": "t/protobuf/ext.Base",
+      "name": {
+        "source": "Base",
+        "canonical": "base"
+      },
+      "namespace": [
+        "ext"
+      ],
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "ext.Base"
+      },
+      "properties": [
+        {
+          "id": "p/protobuf/ext.Base.name",
+          "name": {
+            "source": "name",
+            "canonical": "name"
+          },
+          "wireID": 1,
+          "type": {
+            "target": "t/prim/string",
+            "nullable": false
+          },
+          "required": false,
+          "presence": "explicit",
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "ext.Base.name"
+          }
+        },
+        {
+          "id": "p/protobuf/ext.priority",
+          "name": {
+            "source": "priority",
+            "canonical": "priority"
+          },
+          "wireName": "[ext.priority]",
+          "wireID": 100,
+          "extensionOf": "ext",
+          "type": {
+            "target": "t/prim/int32",
+            "nullable": false
+          },
+          "required": false,
+          "presence": "explicit",
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "ext.priority"
+          }
+        },
+        {
+          "id": "p/protobuf/ext.tag",
+          "name": {
+            "source": "tag",
+            "canonical": "tag"
+          },
+          "wireName": "[ext.tag]",
+          "wireID": 150,
+          "extensionOf": "ext",
+          "type": {
+            "target": "t/prim/string",
+            "nullable": false
+          },
+          "required": false,
+          "presence": "explicit",
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "ext.tag"
+          }
+        }
+      ],
+      "abstract": false,
+      "positional": false,
+      "extensionRanges": [
+        {
+          "from": 100,
+          "to": 200
+        }
+      ],
+      "inputOnly": false
+    }
+  },
+  "extensions": {
+    "protobuf:file": {
+      "syntax": "proto2"
+    }
+  },
+  "sources": [
+    {
+      "format": "protobuf@2",
+      "path": "extensions.proto",
+      "hash": "91968728dbb693b75e73efaf8d59fa5bf943a7d358d0111b3bd8831ee5d2d3f1"
+    }
+  ]
+}

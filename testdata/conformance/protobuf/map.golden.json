@@ -1,0 +1,194 @@
+{
+  "irVersion": "0.1.0",
+  "name": "maps",
+  "docs": {},
+  "services": [
+    {
+      "id": "s/protobuf/maps",
+      "name": {
+        "source": "maps",
+        "canonical": "maps"
+      },
+      "docs": {},
+      "namespace": [
+        "maps"
+      ],
+      "auth": null,
+      "provenance": {
+        "source": 0,
+        "pointer": "map.proto"
+      }
+    }
+  ],
+  "types": {
+    "t/anon/protobuf/maps.Dict.counts/map": {
+      "kind": "map",
+      "id": "t/anon/protobuf/maps.Dict.counts/map",
+      "name": {
+        "hint": "counts"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "maps.Dict.counts"
+      },
+      "key": {
+        "target": "t/prim/string",
+        "nullable": false
+      },
+      "value": {
+        "target": "t/prim/int32",
+        "nullable": false
+      }
+    },
+    "t/anon/protobuf/maps.Dict.names/map": {
+      "kind": "map",
+      "id": "t/anon/protobuf/maps.Dict.names/map",
+      "name": {
+        "hint": "names"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "maps.Dict.names"
+      },
+      "key": {
+        "target": "t/prim/int64",
+        "nullable": false
+      },
+      "value": {
+        "target": "t/prim/string",
+        "nullable": false
+      }
+    },
+    "t/prim/int32": {
+      "kind": "primitive",
+      "id": "t/prim/int32",
+      "name": {},
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0
+      },
+      "prim": "int32"
+    },
+    "t/prim/int64": {
+      "kind": "primitive",
+      "id": "t/prim/int64",
+      "name": {},
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0
+      },
+      "prim": "int64"
+    },
+    "t/prim/string": {
+      "kind": "primitive",
+      "id": "t/prim/string",
+      "name": {},
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0
+      },
+      "prim": "string"
+    },
+    "t/protobuf/maps.Dict": {
+      "kind": "model",
+      "id": "t/protobuf/maps.Dict",
+      "name": {
+        "source": "Dict",
+        "canonical": "dict"
+      },
+      "namespace": [
+        "maps"
+      ],
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "maps.Dict"
+      },
+      "properties": [
+        {
+          "id": "p/protobuf/maps.Dict.counts",
+          "name": {
+            "source": "counts",
+            "canonical": "counts"
+          },
+          "wireID": 1,
+          "type": {
+            "target": "t/anon/protobuf/maps.Dict.counts/map",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "maps.Dict.counts"
+          }
+        },
+        {
+          "id": "p/protobuf/maps.Dict.names",
+          "name": {
+            "source": "names",
+            "canonical": "names"
+          },
+          "wireID": 2,
+          "type": {
+            "target": "t/anon/protobuf/maps.Dict.names/map",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "maps.Dict.names"
+          }
+        }
+      ],
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    }
+  },
+  "extensions": {
+    "protobuf:file": {
+      "syntax": "proto3"
+    }
+  },
+  "sources": [
+    {
+      "format": "protobuf@3",
+      "path": "map.proto",
+      "hash": "1ad16634cc1ed4e150038a5f7c3ae6daf5ff4c16e2f9390cfbafee68daa76eb6"
+    }
+  ]
+}

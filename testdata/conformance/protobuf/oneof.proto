@@ -1,0 +1,12 @@
+syntax = "proto3";
+
+package oneofs;
+
+message Shape {
+  oneof form {
+    double radius = 1;
+    double side = 2;
+    string label = 3;
+  }
+  string name = 4;
+}

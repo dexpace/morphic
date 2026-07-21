@@ -1,0 +1,167 @@
+{
+  "irVersion": "0.1.0",
+  "name": "enums2",
+  "docs": {},
+  "services": [
+    {
+      "id": "s/protobuf/enums2",
+      "name": {
+        "source": "enums2",
+        "canonical": "enums_2"
+      },
+      "docs": {},
+      "namespace": [
+        "enums2"
+      ],
+      "auth": null,
+      "provenance": {
+        "source": 0,
+        "pointer": "enum-closed.proto"
+      }
+    }
+  ],
+  "types": {
+    "t/protobuf/enums2.Job": {
+      "kind": "model",
+      "id": "t/protobuf/enums2.Job",
+      "name": {
+        "source": "Job",
+        "canonical": "job"
+      },
+      "namespace": [
+        "enums2"
+      ],
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "enums2.Job"
+      },
+      "properties": [
+        {
+          "id": "p/protobuf/enums2.Job.status",
+          "name": {
+            "source": "status",
+            "canonical": "status"
+          },
+          "wireID": 1,
+          "type": {
+            "target": "t/protobuf/enums2.Status",
+            "nullable": false
+          },
+          "required": false,
+          "presence": "explicit",
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "enums2.Job.status"
+          }
+        }
+      ],
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
+    "t/protobuf/enums2.Status": {
+      "kind": "enum",
+      "id": "t/protobuf/enums2.Status",
+      "name": {
+        "source": "Status",
+        "canonical": "status"
+      },
+      "namespace": [
+        "enums2"
+      ],
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "enums2.Status"
+      },
+      "valueType": "int32",
+      "members": [
+        {
+          "name": {
+            "source": "UNKNOWN",
+            "canonical": "unknown"
+          },
+          "value": {
+            "kind": "number",
+            "num": "0",
+            "bytes": null,
+            "list": null,
+            "object": null
+          },
+          "docs": {}
+        },
+        {
+          "name": {
+            "source": "STARTED",
+            "canonical": "started"
+          },
+          "value": {
+            "kind": "number",
+            "num": "1",
+            "bytes": null,
+            "list": null,
+            "object": null
+          },
+          "docs": {}
+        },
+        {
+          "name": {
+            "source": "RUNNING",
+            "canonical": "running"
+          },
+          "value": {
+            "kind": "number",
+            "num": "1",
+            "bytes": null,
+            "list": null,
+            "object": null
+          },
+          "docs": {}
+        },
+        {
+          "name": {
+            "source": "DONE",
+            "canonical": "done"
+          },
+          "value": {
+            "kind": "number",
+            "num": "2",
+            "bytes": null,
+            "list": null,
+            "object": null
+          },
+          "docs": {}
+        }
+      ],
+      "closed": true,
+      "flags": false
+    }
+  },
+  "extensions": {
+    "protobuf:file": {
+      "syntax": "proto2"
+    }
+  },
+  "sources": [
+    {
+      "format": "protobuf@2",
+      "path": "enum-closed.proto",
+      "hash": "09dcaa0e3133211768de80f6116f928131facdc0da0f76349b0af4262d9d5eaa"
+    }
+  ]
+}

@@ -1,0 +1,104 @@
+{
+  "irVersion": "0.1.0",
+  "name": "docs",
+  "docs": {},
+  "services": [
+    {
+      "id": "s/protobuf/docs",
+      "name": {
+        "source": "docs",
+        "canonical": "docs"
+      },
+      "docs": {},
+      "namespace": [
+        "docs"
+      ],
+      "auth": null,
+      "provenance": {
+        "source": 0,
+        "pointer": "comments.proto"
+      }
+    }
+  ],
+  "types": {
+    "t/prim/string": {
+      "kind": "primitive",
+      "id": "t/prim/string",
+      "name": {},
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0
+      },
+      "prim": "string"
+    },
+    "t/protobuf/docs.Doc": {
+      "kind": "model",
+      "id": "t/protobuf/docs.Doc",
+      "name": {
+        "source": "Doc",
+        "canonical": "doc"
+      },
+      "namespace": [
+        "docs"
+      ],
+      "anonymous": false,
+      "docs": {
+        "description": "A documented message."
+      },
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "docs.Doc"
+      },
+      "properties": [
+        {
+          "id": "p/protobuf/docs.Doc.id",
+          "name": {
+            "source": "id",
+            "canonical": "id"
+          },
+          "wireID": 1,
+          "type": {
+            "target": "t/prim/string",
+            "nullable": false
+          },
+          "required": false,
+          "presence": "implicit",
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {
+            "description": "The identifier."
+          },
+          "provenance": {
+            "source": 0,
+            "pointer": "docs.Doc.id"
+          }
+        }
+      ],
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    }
+  },
+  "extensions": {
+    "protobuf:file": {
+      "syntax": "proto3"
+    }
+  },
+  "sources": [
+    {
+      "format": "protobuf@3",
+      "path": "comments.proto",
+      "hash": "b81110b251ae51f177158daf18b813c08cf7652ab2639f1873ebf0af5b0d40fe"
+    }
+  ]
+}

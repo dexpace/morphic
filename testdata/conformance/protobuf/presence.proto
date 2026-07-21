@@ -1,0 +1,9 @@
+syntax = "proto2";
+
+package pres;
+
+message Rec {
+  required string id = 1;
+  optional string note = 2;
+  repeated string tags = 3;
+}

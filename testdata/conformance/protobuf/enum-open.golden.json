@@ -1,0 +1,167 @@
+{
+  "irVersion": "0.1.0",
+  "name": "enums",
+  "docs": {},
+  "services": [
+    {
+      "id": "s/protobuf/enums",
+      "name": {
+        "source": "enums",
+        "canonical": "enums"
+      },
+      "docs": {},
+      "namespace": [
+        "enums"
+      ],
+      "auth": null,
+      "provenance": {
+        "source": 0,
+        "pointer": "enum-open.proto"
+      }
+    }
+  ],
+  "types": {
+    "t/protobuf/enums.Color": {
+      "kind": "enum",
+      "id": "t/protobuf/enums.Color",
+      "name": {
+        "source": "Color",
+        "canonical": "color"
+      },
+      "namespace": [
+        "enums"
+      ],
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "enums.Color"
+      },
+      "valueType": "int32",
+      "members": [
+        {
+          "name": {
+            "source": "COLOR_UNSPECIFIED",
+            "canonical": "color_unspecified"
+          },
+          "value": {
+            "kind": "number",
+            "num": "0",
+            "bytes": null,
+            "list": null,
+            "object": null
+          },
+          "docs": {}
+        },
+        {
+          "name": {
+            "source": "RED",
+            "canonical": "red"
+          },
+          "value": {
+            "kind": "number",
+            "num": "1",
+            "bytes": null,
+            "list": null,
+            "object": null
+          },
+          "docs": {}
+        },
+        {
+          "name": {
+            "source": "GREEN",
+            "canonical": "green"
+          },
+          "value": {
+            "kind": "number",
+            "num": "2",
+            "bytes": null,
+            "list": null,
+            "object": null
+          },
+          "docs": {}
+        },
+        {
+          "name": {
+            "source": "BLUE",
+            "canonical": "blue"
+          },
+          "value": {
+            "kind": "number",
+            "num": "3",
+            "bytes": null,
+            "list": null,
+            "object": null
+          },
+          "docs": {}
+        }
+      ],
+      "closed": false,
+      "flags": false
+    },
+    "t/protobuf/enums.Paint": {
+      "kind": "model",
+      "id": "t/protobuf/enums.Paint",
+      "name": {
+        "source": "Paint",
+        "canonical": "paint"
+      },
+      "namespace": [
+        "enums"
+      ],
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "enums.Paint"
+      },
+      "properties": [
+        {
+          "id": "p/protobuf/enums.Paint.color",
+          "name": {
+            "source": "color",
+            "canonical": "color"
+          },
+          "wireID": 1,
+          "type": {
+            "target": "t/protobuf/enums.Color",
+            "nullable": false
+          },
+          "required": false,
+          "presence": "implicit",
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "enums.Paint.color"
+          }
+        }
+      ],
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    }
+  },
+  "extensions": {
+    "protobuf:file": {
+      "syntax": "proto3"
+    }
+  },
+  "sources": [
+    {
+      "format": "protobuf@3",
+      "path": "enum-open.proto",
+      "hash": "b4e74769a7d4d9817ae79b24c15d1c08973f9a7cc7dd4923076de094fe69ca89"
+    }
+  ]
+}

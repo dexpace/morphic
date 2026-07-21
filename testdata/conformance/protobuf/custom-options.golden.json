@@ -1,0 +1,136 @@
+{
+  "irVersion": "0.1.0",
+  "name": "copt",
+  "docs": {},
+  "services": [
+    {
+      "id": "s/protobuf/copt",
+      "name": {
+        "source": "copt",
+        "canonical": "copt"
+      },
+      "docs": {},
+      "namespace": [
+        "copt"
+      ],
+      "auth": null,
+      "provenance": {
+        "source": 0,
+        "pointer": "custom-options.proto"
+      }
+    }
+  ],
+  "types": {
+    "t/prim/string": {
+      "kind": "primitive",
+      "id": "t/prim/string",
+      "name": {},
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0
+      },
+      "prim": "string"
+    },
+    "t/protobuf/copt.Account": {
+      "kind": "model",
+      "id": "t/protobuf/copt.Account",
+      "name": {
+        "source": "Account",
+        "canonical": "account"
+      },
+      "namespace": [
+        "copt"
+      ],
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "extensions": {
+        "protobuf:option:copt.audited": true
+      },
+      "provenance": {
+        "source": 0,
+        "pointer": "copt.Account"
+      },
+      "properties": [
+        {
+          "id": "p/protobuf/copt.Account.ssn",
+          "name": {
+            "source": "ssn",
+            "canonical": "ssn"
+          },
+          "wireID": 1,
+          "type": {
+            "target": "t/prim/string",
+            "nullable": false
+          },
+          "required": false,
+          "presence": "explicit",
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "extensions": {
+            "protobuf:option:copt.sensitivity": "high"
+          },
+          "provenance": {
+            "source": 0,
+            "pointer": "copt.Account.ssn"
+          }
+        }
+      ],
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    }
+  },
+  "extensions": {
+    "protobuf:custom-option:copt.audited": {
+      "extends": "google.protobuf.MessageOptions",
+      "name": "copt.audited",
+      "number": 50001
+    },
+    "protobuf:custom-option:copt.sensitivity": {
+      "extends": "google.protobuf.FieldOptions",
+      "name": "copt.sensitivity",
+      "number": 50000
+    },
+    "protobuf:file": {
+      "syntax": "proto2"
+    }
+  },
+  "diagnostics": [
+    {
+      "severity": "info",
+      "code": "protobuf/custom-option-definition",
+      "message": "extension copt.sensitivity defines a custom option on google.protobuf.FieldOptions",
+      "provenance": {
+        "source": 0,
+        "pointer": "copt.sensitivity"
+      }
+    },
+    {
+      "severity": "info",
+      "code": "protobuf/custom-option-definition",
+      "message": "extension copt.audited defines a custom option on google.protobuf.MessageOptions",
+      "provenance": {
+        "source": 0,
+        "pointer": "copt.audited"
+      }
+    }
+  ],
+  "sources": [
+    {
+      "format": "protobuf@2",
+      "path": "custom-options.proto",
+      "hash": "8cd9783b74609aab97c0e7b700cf9e72f0cca2f5aff6873a8b2acbb138f5da63"
+    }
+  ]
+}

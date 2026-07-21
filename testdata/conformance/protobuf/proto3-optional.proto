@@ -1,0 +1,8 @@
+syntax = "proto3";
+
+package opt3;
+
+message Config {
+  optional string name = 1;
+  int32 count = 2;
+}

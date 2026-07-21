@@ -1,0 +1,13 @@
+syntax = "proto2";
+
+package ext;
+
+message Base {
+  optional string name = 1;
+  extensions 100 to 200;
+}
+
+extend Base {
+  optional int32 priority = 100;
+  optional string tag = 150;
+}

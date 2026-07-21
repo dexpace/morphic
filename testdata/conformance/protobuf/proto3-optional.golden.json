@@ -1,0 +1,140 @@
+{
+  "irVersion": "0.1.0",
+  "name": "opt3",
+  "docs": {},
+  "services": [
+    {
+      "id": "s/protobuf/opt3",
+      "name": {
+        "source": "opt3",
+        "canonical": "opt_3"
+      },
+      "docs": {},
+      "namespace": [
+        "opt3"
+      ],
+      "auth": null,
+      "provenance": {
+        "source": 0,
+        "pointer": "proto3-optional.proto"
+      }
+    }
+  ],
+  "types": {
+    "t/prim/int32": {
+      "kind": "primitive",
+      "id": "t/prim/int32",
+      "name": {},
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0
+      },
+      "prim": "int32"
+    },
+    "t/prim/string": {
+      "kind": "primitive",
+      "id": "t/prim/string",
+      "name": {},
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0
+      },
+      "prim": "string"
+    },
+    "t/protobuf/opt3.Config": {
+      "kind": "model",
+      "id": "t/protobuf/opt3.Config",
+      "name": {
+        "source": "Config",
+        "canonical": "config"
+      },
+      "namespace": [
+        "opt3"
+      ],
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "opt3.Config"
+      },
+      "properties": [
+        {
+          "id": "p/protobuf/opt3.Config.name",
+          "name": {
+            "source": "name",
+            "canonical": "name"
+          },
+          "wireID": 1,
+          "type": {
+            "target": "t/prim/string",
+            "nullable": false
+          },
+          "required": false,
+          "presence": "explicit",
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "opt3.Config.name"
+          }
+        },
+        {
+          "id": "p/protobuf/opt3.Config.count",
+          "name": {
+            "source": "count",
+            "canonical": "count"
+          },
+          "wireID": 2,
+          "type": {
+            "target": "t/prim/int32",
+            "nullable": false
+          },
+          "required": false,
+          "presence": "implicit",
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "opt3.Config.count"
+          }
+        }
+      ],
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    }
+  },
+  "extensions": {
+    "protobuf:file": {
+      "syntax": "proto3"
+    }
+  },
+  "sources": [
+    {
+      "format": "protobuf@3",
+      "path": "proto3-optional.proto",
+      "hash": "1bed764c8b72adcd9e2a4e4868e19546b5d1c7aba1e771db15bbf0cd3464abef"
+    }
+  ]
+}

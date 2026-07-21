@@ -1,0 +1,337 @@
+{
+  "irVersion": "0.1.0",
+  "name": "def",
+  "docs": {},
+  "services": [
+    {
+      "id": "s/protobuf/def",
+      "name": {
+        "source": "def",
+        "canonical": "def"
+      },
+      "docs": {},
+      "namespace": [
+        "def"
+      ],
+      "auth": null,
+      "provenance": {
+        "source": 0,
+        "pointer": "defaults.proto"
+      }
+    }
+  ],
+  "types": {
+    "t/prim/bool": {
+      "kind": "primitive",
+      "id": "t/prim/bool",
+      "name": {},
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0
+      },
+      "prim": "bool"
+    },
+    "t/prim/float64": {
+      "kind": "primitive",
+      "id": "t/prim/float64",
+      "name": {},
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0
+      },
+      "prim": "float64"
+    },
+    "t/prim/int32": {
+      "kind": "primitive",
+      "id": "t/prim/int32",
+      "name": {},
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0
+      },
+      "prim": "int32"
+    },
+    "t/prim/string": {
+      "kind": "primitive",
+      "id": "t/prim/string",
+      "name": {},
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0
+      },
+      "prim": "string"
+    },
+    "t/protobuf/def.Mode": {
+      "kind": "enum",
+      "id": "t/protobuf/def.Mode",
+      "name": {
+        "source": "Mode",
+        "canonical": "mode"
+      },
+      "namespace": [
+        "def"
+      ],
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "def.Mode"
+      },
+      "valueType": "int32",
+      "members": [
+        {
+          "name": {
+            "source": "FAST",
+            "canonical": "fast"
+          },
+          "value": {
+            "kind": "number",
+            "num": "0",
+            "bytes": null,
+            "list": null,
+            "object": null
+          },
+          "docs": {}
+        },
+        {
+          "name": {
+            "source": "SLOW",
+            "canonical": "slow"
+          },
+          "value": {
+            "kind": "number",
+            "num": "1",
+            "bytes": null,
+            "list": null,
+            "object": null
+          },
+          "docs": {}
+        }
+      ],
+      "closed": true,
+      "flags": false
+    },
+    "t/protobuf/def.Settings": {
+      "kind": "model",
+      "id": "t/protobuf/def.Settings",
+      "name": {
+        "source": "Settings",
+        "canonical": "settings"
+      },
+      "namespace": [
+        "def"
+      ],
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "def.Settings"
+      },
+      "properties": [
+        {
+          "id": "p/protobuf/def.Settings.retries",
+          "name": {
+            "source": "retries",
+            "canonical": "retries"
+          },
+          "wireID": 1,
+          "type": {
+            "target": "t/prim/int32",
+            "nullable": false
+          },
+          "required": false,
+          "presence": "explicit",
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "default": {
+            "kind": "number",
+            "num": "3",
+            "bytes": null,
+            "list": null,
+            "object": null
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "def.Settings.retries"
+          }
+        },
+        {
+          "id": "p/protobuf/def.Settings.label",
+          "name": {
+            "source": "label",
+            "canonical": "label"
+          },
+          "wireID": 2,
+          "type": {
+            "target": "t/prim/string",
+            "nullable": false
+          },
+          "required": false,
+          "presence": "explicit",
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "default": {
+            "kind": "string",
+            "str": "hello",
+            "bytes": null,
+            "list": null,
+            "object": null
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "def.Settings.label"
+          }
+        },
+        {
+          "id": "p/protobuf/def.Settings.enabled",
+          "name": {
+            "source": "enabled",
+            "canonical": "enabled"
+          },
+          "wireID": 3,
+          "type": {
+            "target": "t/prim/bool",
+            "nullable": false
+          },
+          "required": false,
+          "presence": "explicit",
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "default": {
+            "kind": "bool",
+            "bool": true,
+            "bytes": null,
+            "list": null,
+            "object": null
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "def.Settings.enabled"
+          }
+        },
+        {
+          "id": "p/protobuf/def.Settings.ratio",
+          "name": {
+            "source": "ratio",
+            "canonical": "ratio"
+          },
+          "wireID": 4,
+          "type": {
+            "target": "t/prim/float64",
+            "nullable": false
+          },
+          "required": false,
+          "presence": "explicit",
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "default": {
+            "kind": "number",
+            "num": "2.5",
+            "bytes": null,
+            "list": null,
+            "object": null
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "def.Settings.ratio"
+          }
+        },
+        {
+          "id": "p/protobuf/def.Settings.mode",
+          "name": {
+            "source": "mode",
+            "canonical": "mode"
+          },
+          "wireID": 5,
+          "type": {
+            "target": "t/protobuf/def.Mode",
+            "nullable": false
+          },
+          "required": false,
+          "presence": "explicit",
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "default": {
+            "kind": "ref",
+            "bytes": null,
+            "list": null,
+            "object": null,
+            "ref": {
+              "type": "t/protobuf/def.Mode",
+              "member": "SLOW"
+            }
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "def.Settings.mode"
+          }
+        }
+      ],
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    }
+  },
+  "extensions": {
+    "protobuf:file": {
+      "syntax": "proto2"
+    }
+  },
+  "sources": [
+    {
+      "format": "protobuf@2",
+      "path": "defaults.proto",
+      "hash": "7ddd00df317d583441ea85fcd3c3035213d7e51afd71b0618045c143d9c66685"
+    }
+  ]
+}

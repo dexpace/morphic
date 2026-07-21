@@ -1,0 +1,18 @@
+syntax = "proto2";
+
+package copt;
+
+import "google/protobuf/descriptor.proto";
+
+extend google.protobuf.FieldOptions {
+  optional string sensitivity = 50000;
+}
+
+extend google.protobuf.MessageOptions {
+  optional bool audited = 50001;
+}
+
+message Account {
+  option (audited) = true;
+  optional string ssn = 1 [(sensitivity) = "high"];
+}

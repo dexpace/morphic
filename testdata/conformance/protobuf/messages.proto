@@ -1,0 +1,18 @@
+syntax = "proto3";
+
+package shop;
+
+// A product for sale.
+message Product {
+  int64 id = 1;
+  string name = 2;
+  bool active = 3;
+  double price = 4;
+  bytes image = 5;
+  Category category = 6;
+}
+
+message Category {
+  int64 id = 1;
+  string label = 2;
+}

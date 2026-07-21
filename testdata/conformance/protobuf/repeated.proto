@@ -1,0 +1,9 @@
+syntax = "proto3";
+
+package rep;
+
+message Series {
+  repeated int32 packed_values = 1;
+  repeated int32 expanded_values = 2 [packed = false];
+  repeated string labels = 3;
+}

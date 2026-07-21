@@ -1,0 +1,11 @@
+syntax = "proto3";
+
+package enc;
+
+message Nums {
+  sint32 a = 1;
+  sint64 b = 2;
+  fixed32 c = 3;
+  sfixed64 d = 4;
+  fixed64 e = 5;
+}

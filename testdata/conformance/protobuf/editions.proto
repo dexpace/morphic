@@ -1,0 +1,8 @@
+edition = "2023";
+
+package ed;
+
+message Rec {
+  string id = 1;
+  int32 count = 2 [features.field_presence = IMPLICIT];
+}

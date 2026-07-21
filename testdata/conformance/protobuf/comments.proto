@@ -1,0 +1,9 @@
+syntax = "proto3";
+
+package docs;
+
+// A documented message.
+message Doc {
+  // The identifier.
+  string id = 1;
+}

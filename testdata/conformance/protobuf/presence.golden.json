@@ -1,0 +1,173 @@
+{
+  "irVersion": "0.1.0",
+  "name": "pres",
+  "docs": {},
+  "services": [
+    {
+      "id": "s/protobuf/pres",
+      "name": {
+        "source": "pres",
+        "canonical": "pres"
+      },
+      "docs": {},
+      "namespace": [
+        "pres"
+      ],
+      "auth": null,
+      "provenance": {
+        "source": 0,
+        "pointer": "presence.proto"
+      }
+    }
+  ],
+  "types": {
+    "t/anon/protobuf/pres.Rec.tags/list": {
+      "kind": "list",
+      "id": "t/anon/protobuf/pres.Rec.tags/list",
+      "name": {
+        "hint": "tags"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "pres.Rec.tags"
+      },
+      "elem": {
+        "target": "t/prim/string",
+        "nullable": false
+      }
+    },
+    "t/prim/string": {
+      "kind": "primitive",
+      "id": "t/prim/string",
+      "name": {},
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0
+      },
+      "prim": "string"
+    },
+    "t/protobuf/pres.Rec": {
+      "kind": "model",
+      "id": "t/protobuf/pres.Rec",
+      "name": {
+        "source": "Rec",
+        "canonical": "rec"
+      },
+      "namespace": [
+        "pres"
+      ],
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "pres.Rec"
+      },
+      "properties": [
+        {
+          "id": "p/protobuf/pres.Rec.id",
+          "name": {
+            "source": "id",
+            "canonical": "id"
+          },
+          "wireID": 1,
+          "type": {
+            "target": "t/prim/string",
+            "nullable": false
+          },
+          "required": true,
+          "presence": "required",
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "pres.Rec.id"
+          }
+        },
+        {
+          "id": "p/protobuf/pres.Rec.note",
+          "name": {
+            "source": "note",
+            "canonical": "note"
+          },
+          "wireID": 2,
+          "type": {
+            "target": "t/prim/string",
+            "nullable": false
+          },
+          "required": false,
+          "presence": "explicit",
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "pres.Rec.note"
+          }
+        },
+        {
+          "id": "p/protobuf/pres.Rec.tags",
+          "name": {
+            "source": "tags",
+            "canonical": "tags"
+          },
+          "wireID": 3,
+          "type": {
+            "target": "t/anon/protobuf/pres.Rec.tags/list",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "pres.Rec.tags"
+          }
+        }
+      ],
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    }
+  },
+  "extensions": {
+    "protobuf:file": {
+      "syntax": "proto2"
+    }
+  },
+  "sources": [
+    {
+      "format": "protobuf@2",
+      "path": "presence.proto",
+      "hash": "5b017ab69e3fdebbe2e6b2e869325af0ff64ce0056836c74dd758b36191af1bb"
+    }
+  ]
+}
