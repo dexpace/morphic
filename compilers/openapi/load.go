@@ -16,6 +16,10 @@ import (
 	"github.com/dexpace/morphic/ir"
 )
 
+// errParse marks a hard failure to parse a source document — an I/O- or
+// programmer-level error, distinct from a spec problem reported as a diagnostic.
+var errParse = errors.New("parse source")
+
 // loaded is the successful output of the load phase: a parsed, resolved
 // speakeasy document plus the identity metadata the rest of the compiler needs.
 // A nil *loaded with error-severity diagnostics means the document is a spec
@@ -33,19 +37,25 @@ type loaded struct {
 //
 //nolint:unparam // srcIndex varies once Compile drives the multi-source loop
 func load(ctx context.Context, srcIndex int, src compilers.Source, opts Options) (*loaded, []ir.Diagnostic, error) {
-	doc, valErrs, err := soa.Unmarshal(ctx, bytes.NewReader(src.Data))
+	cyc := detectCycles(srcIndex, src.Data)
+	if hasErrorDiag(cyc) {
+		return nil, cyc, nil // degenerate cycle: refuse to lower, do not crash the parser
+	}
+	// cyc may still hold a non-fatal scan-incomplete warning; carry it forward.
+
+	doc, valErrs, err := unmarshal(ctx, src.Data)
 	if err != nil {
 		return nil, nil, fmt.Errorf("openapi: unmarshal source %d: %w", srcIndex, err)
 	}
 
 	minor, ok := supportedMinor(doc.OpenAPI)
 	if !ok {
-		return nil, []ir.Diagnostic{diagf(ir.SeverityError, codeUnsupportedVersion,
+		return nil, append(cyc, diagf(ir.SeverityError, codeUnsupportedVersion,
 			ir.Provenance{Source: srcIndex},
-			"unsupported OpenAPI version %q; want 3.0, 3.1, or 3.2", doc.OpenAPI)}, nil
+			"unsupported OpenAPI version %q; want 3.0, 3.1, or 3.2", doc.OpenAPI)), nil
 	}
 
-	var diags []ir.Diagnostic
+	diags := cyc
 	for _, ve := range valErrs {
 		diags = append(diags, validationDiag(srcIndex, ve))
 	}
@@ -70,6 +80,21 @@ func load(ctx context.Context, srcIndex int, src compilers.Source, opts Options)
 			Hash:   sourceHash(src.Data),
 		},
 	}, diags, nil
+}
+
+// unmarshal parses source bytes into a speakeasy document. It converts a panic
+// from the third-party parser — which faults on degenerate input such as a
+// whitespace-only document — into an errParse error, so the compiler upholds the
+// no-panics-escape invariant instead of crashing the caller's process. The named
+// returns are reset in the recover so a partially-assigned document never leaks.
+func unmarshal(ctx context.Context, data []byte) (doc *soa.OpenAPI, valErrs []error, err error) {
+	defer func() {
+		if r := recover(); r != nil {
+			doc, valErrs = nil, nil
+			err = fmt.Errorf("parser panicked (%v): %w", r, errParse)
+		}
+	}()
+	return soa.Unmarshal(ctx, bytes.NewReader(data))
 }
 
 // validationDiag converts one speakeasy validation error into a diagnostic. A
