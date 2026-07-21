@@ -94,11 +94,8 @@ func (l *lowerer) fillParamSchema(param *ir.Parameter, js *oas3.JSONSchema[oas3.
 				ir.Provenance{Source: l.srcIndex, Pointer: pointer}, "default: %s", err.Error()))
 		}
 	}
-	c, diags := constraintsFromSchema(s)
-	for i := range diags {
-		diags[i].Provenance = ir.Provenance{Source: l.srcIndex, Pointer: pointer}
-	}
-	l.diags = append(l.diags, diags...)
+	c, diags := constraintsFromSchema(s, l.exclusiveBoundIsBoolean())
+	l.appendConstraintDiags(diags, pointer)
 	if c != nil {
 		param.Constraints = c
 	}

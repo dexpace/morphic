@@ -32,9 +32,14 @@ const (
 	codeValidationOnlyKeyword = "openapi/validation-only-keyword"
 	// codeFalseSchema reports a boolean `false` schema (matches nothing).
 	codeFalseSchema = "openapi/false-schema"
-	// codeNumericPrecision reports a numeric literal that could not be parsed
-	// as an exact decimal.
+	// codeNumericPrecision reports a numeric bound literal that is not a finite
+	// number (error severity: Morphic owns these keywords, so this is the sole
+	// diagnostic for the defect — see boundLiteralDiag).
 	codeNumericPrecision = "openapi/invalid-numeric-literal"
+	// codeExclusiveBoundForm reports an exclusiveMinimum/exclusiveMaximum whose
+	// value form is wrong for the document's dialect (a boolean under 2020-12, or
+	// a number under 3.0) — see exclusiveFormDiag.
+	codeExclusiveBoundForm = "openapi/invalid-exclusive-bound"
 	// codeDegradedConstruct reports a construct preserved raw because the IR
 	// has no structural home for it.
 	codeDegradedConstruct = "openapi/degraded-construct"

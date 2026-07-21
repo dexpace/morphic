@@ -102,17 +102,27 @@ var numericBoundKeywords = map[string]struct{}{
 	"multipleOf":       {},
 }
 
-// numericLiteralArtifact reports whether a library validation error is an
-// artifact of the library's float64/JSON numeric model rather than a real spec
-// defect. Such a finding names a literal that is genuinely a number — Morphic
-// captures it losslessly from the raw node — so surfacing it as an error would
-// wrongly fail a spec whose numbers exceed float64 range (1.8e308) or use a valid
-// non-JSON spelling (.5). A literal that is not a number (hello, .inf) is not an
-// artifact, and its finding is kept.
+// numericLiteralArtifact reports whether a library validation finding must be
+// dropped because Morphic — not the library's float64 model — is authoritative
+// for numeric-bound keywords. Morphic reads every bound from the raw node
+// (constraintsFromSchema) and emits its own exact-provenance diagnostic when one
+// is genuinely bad, so the library's finding on such a keyword is either a false
+// positive (a valid magnitude beyond float64 range like 1.8e308, or a valid
+// non-JSON spelling like .5) or a redundant duplicate of Morphic's own error:
+//
+//   - a type-mismatch on a numeric-bound keyword is always Morphic's to own; and
+//   - an invalid-syntax finding is dropped only when caused solely by a
+//     recoverable non-JSON numeric spelling (.5), never when a genuinely
+//     unrepresentable literal (.inf) is present.
+//
+// This classifier is coupled to the speakeasy library's finding shape — the
+// TypeMismatchError parent path and the YAML tag of the offending node. A
+// library upgrade that changes either must be revalidated against the
+// numeric-precision conformance corpus, which pins the end-to-end behavior.
 func numericLiteralArtifact(verr validation.Error) bool {
 	switch verr.Rule {
 	case validation.RuleValidationTypeMismatch:
-		return typeMismatchOnValidNumber(verr)
+		return isNumericBoundKeyword(verr)
 	case validation.RuleValidationInvalidSyntax:
 		return invalidSyntaxOnValidNumbers(verr.GetNode())
 	default:
@@ -120,76 +130,22 @@ func numericLiteralArtifact(verr validation.Error) bool {
 	}
 }
 
-// typeMismatchOnValidNumber reports whether a type-mismatch finding concerns a
-// numeric-bound keyword whose literal is nonetheless a valid number (the library
-// could not fit it into float64, so it read the scalar as a string). The
-// finding's node is either the keyword's value scalar directly (the unmarshal
-// finding) or the enclosing schema node (the meta-schema finding), so the value
-// is taken directly when scalar and searched for by keyword otherwise.
-func typeMismatchOnValidNumber(verr validation.Error) bool {
-	keyword, ok := numericBoundKeyword(verr)
-	if !ok {
-		return false
-	}
-	node := verr.GetNode()
-	if node == nil {
-		return false
-	}
-	if node.Kind == yaml.ScalarNode {
-		_, err := ir.NewBigVal(node.Value)
-		return err == nil
-	}
-	literals := keywordScalars(node, keyword, 0)
-	if len(literals) == 0 {
-		return false
-	}
-	for _, literal := range literals {
-		if _, err := ir.NewBigVal(literal); err != nil {
-			return false // a genuinely non-numeric bound is a real defect
-		}
-	}
-	return true
-}
-
-// numericBoundKeyword returns the numeric-bound keyword a type-mismatch finding
-// concerns, read from the trailing segment of the mismatch's parent path.
-func numericBoundKeyword(verr validation.Error) (string, bool) {
+// isNumericBoundKeyword reports whether a type-mismatch finding concerns one of
+// the numeric-bound keywords Morphic reads from the raw node, identified by the
+// trailing segment of the mismatch's parent path. The library emits both a
+// meta-schema and an unmarshal finding for one bad bound; both carry the keyword
+// in their parent path, so both are recognized and suppressed together.
+func isNumericBoundKeyword(verr validation.Error) bool {
 	var mismatch *validation.TypeMismatchError
 	if !errors.As(verr.UnderlyingError, &mismatch) {
-		return "", false
+		return false
 	}
 	name := mismatch.ParentName
 	if i := strings.LastIndexByte(name, '.'); i >= 0 {
 		name = name[i+1:]
 	}
 	_, ok := numericBoundKeywords[name]
-	return name, ok
-}
-
-// keywordScalars collects the scalar values of every mapping entry named keyword
-// reachable from node within maxSchemaScanDepth. The meta-schema finding attaches
-// its node at the enclosing schema root rather than the keyword's own map, so a
-// single-level lookup is not enough.
-func keywordScalars(node *yaml.Node, keyword string, depth int) []string {
-	if node == nil || depth > maxSchemaScanDepth {
-		return nil
-	}
-	if node.Kind == yaml.MappingNode {
-		var out []string
-		for i := 0; i+1 < len(node.Content); i += 2 {
-			key, val := node.Content[i], node.Content[i+1]
-			if key.Value == keyword && val.Kind == yaml.ScalarNode {
-				out = append(out, val.Value)
-			}
-			out = append(out, keywordScalars(val, keyword, depth+1)...)
-		}
-		return out
-	}
-	var out []string
-	for _, child := range node.Content {
-		out = append(out, keywordScalars(child, keyword, depth+1)...)
-	}
-	return out
+	return ok
 }
 
 // invalidSyntaxOnValidNumbers reports whether an invalid-syntax finding is caused

@@ -53,3 +53,44 @@ func TestCompile_ComponentScalarConstraintsPreserved(t *testing.T) {
 		})
 	}
 }
+
+// TestCompile_HoistedSubSchemaConstraintsPreserved pins that a $ref to an internal
+// scalar sub-schema keeps that sub-schema's numeric constraints on the hoisted
+// alias node the reference resolves to. The hoisted node is distinct from the
+// property whose position the sub-schema also occupies, so before the alias
+// carried constraints a $ref to a bounded scalar sub-schema silently dropped them.
+func TestCompile_HoistedSubSchemaConstraintsPreserved(t *testing.T) {
+	t.Parallel()
+	spec := "openapi: 3.1.0\n" +
+		"info: {title: t, version: \"1\"}\n" +
+		"paths: {}\n" +
+		"components:\n" +
+		"  schemas:\n" +
+		"    Foo:\n" +
+		"      type: object\n" +
+		"      properties:\n" +
+		"        bar: {type: number, minimum: 5, maximum: 10}\n" +
+		"    Uses:\n" +
+		"      type: object\n" +
+		"      properties:\n" +
+		"        b: {$ref: '#/components/schemas/Foo/properties/bar'}\n"
+	doc := compileComponentSpec(t, spec)
+
+	uses, ok := doc.Types["t/openapi/components/schemas/Uses"].(*ir.Model)
+	require.True(t, ok, "Uses lowers to a model")
+	var target ir.TypeID
+	for _, p := range uses.Properties {
+		if p.WireName == "b" {
+			target = p.Type.Target
+		}
+	}
+	require.NotEmpty(t, target, "property b resolves to the hoisted sub-schema")
+
+	sc, ok := doc.Types[target].(*ir.Scalar)
+	require.True(t, ok, "the hoisted sub-schema is a scalar alias")
+	require.NotNil(t, sc.Constraints, "the hoisted scalar keeps its constraints")
+	require.NotNil(t, sc.Constraints.Min)
+	require.NotNil(t, sc.Constraints.Max)
+	assert.Equal(t, ir.BigVal("5"), *sc.Constraints.Min)
+	assert.Equal(t, ir.BigVal("10"), *sc.Constraints.Max)
+}

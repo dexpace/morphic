@@ -10,66 +10,44 @@ import (
 	"github.com/speakeasy-api/openapi/validation"
 	"github.com/stretchr/testify/assert"
 	yaml "gopkg.in/yaml.v3"
+
+	"github.com/dexpace/morphic/ir"
 )
 
-// TestNumericBoundKeyword_UnderlyingNotTypeMismatch drives the errors.As guard: a
-// type-mismatch-ruled finding whose underlying error is not a *TypeMismatchError
-// names no bound keyword, so the artifact classifier declines it.
-func TestNumericBoundKeyword_UnderlyingNotTypeMismatch(t *testing.T) {
+// TestIsNumericBoundKeyword_UnderlyingNotTypeMismatch drives the errors.As guard:
+// a type-mismatch-ruled finding whose underlying error is not a *TypeMismatchError
+// names no bound keyword, so the classifier declines to suppress it.
+func TestIsNumericBoundKeyword_UnderlyingNotTypeMismatch(t *testing.T) {
 	t.Parallel()
 	verr := validation.Error{
 		Rule:            validation.RuleValidationTypeMismatch,
 		UnderlyingError: errors.New("not a type mismatch"),
 	}
-	name, ok := numericBoundKeyword(verr)
-	assert.False(t, ok)
-	assert.Empty(t, name)
+	assert.False(t, isNumericBoundKeyword(verr))
 }
 
-// TestTypeMismatchOnValidNumber_NilNode covers the nil-node guard: a bound-keyword
-// mismatch that carries no node cannot be reclassified as a numeric artifact.
-func TestTypeMismatchOnValidNumber_NilNode(t *testing.T) {
+// TestIsNumericBoundKeyword_NonBoundKeyword covers the not-in-map arm: a genuine
+// type-mismatch on a keyword Morphic does not own (here `type`) is never
+// suppressed, so the library's finding is kept.
+func TestIsNumericBoundKeyword_NonBoundKeyword(t *testing.T) {
 	t.Parallel()
 	verr := validation.Error{
 		Rule:            validation.RuleValidationTypeMismatch,
-		UnderlyingError: &validation.TypeMismatchError{ParentName: "schema.minimum"},
-		Node:            nil,
+		UnderlyingError: &validation.TypeMismatchError{ParentName: "schema.type"},
 	}
-	assert.False(t, typeMismatchOnValidNumber(verr))
+	assert.False(t, isNumericBoundKeyword(verr))
 }
 
-// TestTypeMismatchOnValidNumber_MappingWithoutKeyword covers the no-literals arm:
-// a mismatch whose node is the enclosing schema mapping but which carries no
-// instance of the bound keyword yields no literals, so the finding is genuine.
-func TestTypeMismatchOnValidNumber_MappingWithoutKeyword(t *testing.T) {
+// TestIsNumericBoundKeyword_BoundKeyword covers the in-map arm: a type-mismatch on
+// a numeric-bound keyword is recognized (whatever the parent path's prefix) so
+// load suppresses the library's redundant float64 finding on it.
+func TestIsNumericBoundKeyword_BoundKeyword(t *testing.T) {
 	t.Parallel()
 	verr := validation.Error{
 		Rule:            validation.RuleValidationTypeMismatch,
-		UnderlyingError: &validation.TypeMismatchError{ParentName: "schema.maximum"},
-		Node:            &yaml.Node{Kind: yaml.MappingNode},
+		UnderlyingError: &validation.TypeMismatchError{ParentName: "schema.properties.n.minimum"},
 	}
-	assert.False(t, typeMismatchOnValidNumber(verr))
-}
-
-// TestKeywordScalars_NilAndDepthGuards covers the recursion guards: a nil node and
-// a node past the scan-depth cap both yield no literals.
-func TestKeywordScalars_NilAndDepthGuards(t *testing.T) {
-	t.Parallel()
-	assert.Nil(t, keywordScalars(nil, "minimum", 0))
-	deep := &yaml.Node{Kind: yaml.MappingNode}
-	assert.Nil(t, keywordScalars(deep, "minimum", maxSchemaScanDepth+1))
-}
-
-// TestKeywordScalars_SequenceBranch covers the non-mapping recursion arm: a
-// sequence node is walked child-by-child to reach a nested keyword literal.
-func TestKeywordScalars_SequenceBranch(t *testing.T) {
-	t.Parallel()
-	nested := &yaml.Node{Kind: yaml.MappingNode, Content: []*yaml.Node{
-		{Kind: yaml.ScalarNode, Value: "minimum"},
-		{Kind: yaml.ScalarNode, Value: "5"},
-	}}
-	seq := &yaml.Node{Kind: yaml.SequenceNode, Content: []*yaml.Node{nested}}
-	assert.Equal(t, []string{"5"}, keywordScalars(seq, "minimum", 0))
+	assert.True(t, isNumericBoundKeyword(verr))
 }
 
 // TestInvalidSyntaxOnValidNumbers_NilNode covers the nil guard.
@@ -89,7 +67,7 @@ func TestWalkNumericScalars_NilAndDepthGuards(t *testing.T) {
 	assert.Zero(t, visited)
 }
 
-// TestComponentConstraints_NonSchemaInputs covers the first early return: a nil,
+// TestComponentConstraints_NonSchemaInputs covers the js-level early return: a nil,
 // boolean, or reference component has no scalar body to carry constraints.
 func TestComponentConstraints_NonSchemaInputs(t *testing.T) {
 	t.Parallel()
@@ -99,11 +77,11 @@ func TestComponentConstraints_NonSchemaInputs(t *testing.T) {
 	assert.Nil(t, l.componentConstraints(oas3.NewJSONSchemaFromReference("#/components/schemas/Other"), "/p"))
 }
 
-// TestComponentConstraints_EmptyRefSchema covers the second early return: a schema
-// whose $ref pointer is present but empty is not a reference (IsReference is false)
-// yet its Ref field is set, so it holds no readable constraint body. The parser
-// never emits this shape, so it is built by hand.
-func TestComponentConstraints_EmptyRefSchema(t *testing.T) {
+// TestSchemaConstraints_EmptyRefSchema covers the schemaConstraints early return: a
+// schema whose $ref pointer is present but empty is not a reference (IsReference is
+// false) yet its Ref field is set, so it holds no readable constraint body. The
+// parser never emits this shape, so it is built by hand.
+func TestSchemaConstraints_EmptyRefSchema(t *testing.T) {
 	t.Parallel()
 	l := newRawLowerer(&soa.OpenAPI{})
 	emptyRef := references.Reference("")
@@ -113,7 +91,7 @@ func TestComponentConstraints_EmptyRefSchema(t *testing.T) {
 
 // TestComponentConstraints_DiagnosticProvenance covers the diagnostic-stamping
 // loop: a scalar component whose numeric bound is not a valid number surfaces a
-// numeric-precision diagnostic stamped with the component's own pointer.
+// numeric-precision error stamped with the component's own pointer.
 func TestComponentConstraints_DiagnosticProvenance(t *testing.T) {
 	t.Parallel()
 	spec := componentSpec("    BadN: {type: number, minimum: hello}\n")
@@ -123,7 +101,8 @@ func TestComponentConstraints_DiagnosticProvenance(t *testing.T) {
 		if d.Code == codeNumericPrecision {
 			found = true
 			assert.NotEmpty(t, d.Provenance.Pointer, "component numeric diagnostic carries its pointer")
+			assert.Equal(t, ir.SeverityError, d.Severity, "a non-numeric bound is an error")
 		}
 	}
-	assert.True(t, found, "a non-numeric component bound warns")
+	assert.True(t, found, "a non-numeric component bound is reported")
 }

@@ -12,7 +12,7 @@ import (
 
 func TestConstraintsFromSchema_NilSchema(t *testing.T) {
 	t.Parallel()
-	c, diags := constraintsFromSchema(nil)
+	c, diags := constraintsFromSchema(nil, false)
 	assert.Nil(t, c)
 	assert.Nil(t, diags)
 }

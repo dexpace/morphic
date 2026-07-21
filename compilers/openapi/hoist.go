@@ -25,7 +25,11 @@ type lowerer struct {
 	diags     []ir.Diagnostic
 	byPointer map[string]ir.TypeID // pointer -> hoisted/interned TypeID
 	schemas   map[string]bool      // declared component-schema names (for ref resolution)
-	depth     int
+	// diagnosedConstraints records pointers whose constraint diagnostics were
+	// already emitted, so a sub-schema read from two positions (its owning
+	// property and a $ref that hoists it) reports a malformed bound only once.
+	diagnosedConstraints map[string]bool
+	depth                int
 }
 
 // newLowerer allocates a lowerer over one loaded document, with an empty IR
@@ -34,12 +38,13 @@ type lowerer struct {
 //nolint:unparam // srcIndex varies once Compile drives the multi-source loop
 func newLowerer(srcIndex int, doc *loaded, opts Options) *lowerer {
 	return &lowerer{
-		srcIndex:  srcIndex,
-		doc:       doc.Doc,
-		source:    doc.Source,
-		out:       &ir.Document{Types: ir.TypeRegistry{}},
-		opts:      opts,
-		byPointer: make(map[string]ir.TypeID),
+		srcIndex:             srcIndex,
+		doc:                  doc.Doc,
+		source:               doc.Source,
+		out:                  &ir.Document{Types: ir.TypeRegistry{}},
+		opts:                 opts,
+		byPointer:            make(map[string]ir.TypeID),
+		diagnosedConstraints: make(map[string]bool),
 	}
 }
 

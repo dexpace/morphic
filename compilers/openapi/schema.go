@@ -62,15 +62,22 @@ func (l *lowerer) componentConstraints(js *oas3.JSONSchema[oas3.Referenceable], 
 	if js == nil || js.IsBool() || js.IsReference() {
 		return nil
 	}
-	s := js.GetSchema()
+	return l.schemaConstraints(js.GetSchema(), pointer)
+}
+
+// schemaConstraints reads the value constraints of a concrete schema and stamps
+// each constraint diagnostic with pointer's provenance. It returns nil when the
+// schema has no readable constraint body (a nil schema or a bare $ref). It is the
+// shared path for every alias a body reduces to — a named component
+// (componentConstraints) and a $ref-hoisted internal sub-schema
+// (hoistSubSchema) — so a scalar that aliases a shared primitive never drops the
+// constraints it carried, regardless of how it was reached.
+func (l *lowerer) schemaConstraints(s *oas3.Schema, pointer string) *ir.Constraints {
 	if s == nil || s.Ref != nil {
 		return nil
 	}
-	c, diags := constraintsFromSchema(s)
-	for i := range diags {
-		diags[i].Provenance = ir.Provenance{Source: l.srcIndex, Pointer: pointer}
-	}
-	l.diags = append(l.diags, diags...)
+	c, diags := constraintsFromSchema(s, l.exclusiveBoundIsBoolean())
+	l.appendConstraintDiags(diags, pointer)
 	return c
 }
 
@@ -245,6 +252,9 @@ func (l *lowerer) resolveSchemaRef(js *oas3.JSONSchema[oas3.Referenceable], ref 
 // hoistSubSchema lowers a resolved internal sub-schema at pointer and guarantees
 // a node exists at the pointer-derived ID, aliasing when the body reduces to a
 // shared target so a $ref to the sub-schema always resolves (invariants 1, 2).
+// When the body reduces to an alias, its value constraints are carried onto that
+// alias — exactly as for a named scalar component — so a $ref to a constrained
+// scalar sub-schema (e.g. {type: number, minimum: 5}) does not silently drop them.
 func (l *lowerer) hoistSubSchema(schema *oas3.Schema, pointer string) (ir.TypeID, bool) {
 	if schema == nil {
 		return "", false
@@ -254,7 +264,7 @@ func (l *lowerer) hoistSubSchema(schema *oas3.Schema, pointer string) (ir.TypeID
 	if owned, ok := l.byPointer[pointer]; ok {
 		return owned, true
 	}
-	return l.internAlias(pointer, hint, ref, nil), true
+	return l.internAlias(pointer, hint, ref, l.schemaConstraints(schema, pointer)), true
 }
 
 // refNullable reports whether a $ref usage admits null: either the reference
@@ -534,11 +544,8 @@ func (l *lowerer) fillPropertyDefault(p *ir.Property, ref, tgt *oas3.Schema, poi
 // fillPropertyConstraints attaches the property's scalar constraints and stamps
 // each constraint diagnostic with the property's provenance.
 func (l *lowerer) fillPropertyConstraints(p *ir.Property, ref *oas3.Schema, pointer string) {
-	c, diags := constraintsFromSchema(ref)
-	for i := range diags {
-		diags[i].Provenance = ir.Provenance{Source: l.srcIndex, Pointer: pointer}
-	}
-	l.diags = append(l.diags, diags...)
+	c, diags := constraintsFromSchema(ref, l.exclusiveBoundIsBoolean())
+	l.appendConstraintDiags(diags, pointer)
 	if c != nil {
 		p.Constraints = c
 	}
