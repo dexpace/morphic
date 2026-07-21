@@ -1,0 +1,332 @@
+{
+  "irVersion": "0.1.0",
+  "name": "NumericPrecision",
+  "version": "1.0.0",
+  "docs": {},
+  "services": [
+    {
+      "id": "s/openapi/0",
+      "name": {
+        "source": "NumericPrecision",
+        "canonical": "numeric_precision"
+      },
+      "docs": {},
+      "auth": null,
+      "provenance": {
+        "source": 0
+      }
+    }
+  ],
+  "types": {
+    "t/anon/components/schemas/S/properties/choice": {
+      "kind": "enum",
+      "id": "t/anon/components/schemas/S/properties/choice",
+      "name": {
+        "hint": "choice"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/S/properties/choice"
+      },
+      "valueType": "integer",
+      "members": [
+        {
+          "name": {
+            "source": "1",
+            "canonical": "1"
+          },
+          "value": {
+            "kind": "number",
+            "num": "1",
+            "bytes": null,
+            "list": null,
+            "object": null
+          },
+          "docs": {}
+        },
+        {
+          "name": {
+            "source": "123456789012345678901234567890",
+            "canonical": "123456789012345678901234567890"
+          },
+          "value": {
+            "kind": "number",
+            "num": "123456789012345678901234567890",
+            "bytes": null,
+            "list": null,
+            "object": null
+          },
+          "docs": {}
+        }
+      ],
+      "closed": true,
+      "flags": false
+    },
+    "t/anon/components/schemas/S/properties/pinned": {
+      "kind": "literal",
+      "id": "t/anon/components/schemas/S/properties/pinned",
+      "name": {
+        "hint": "pinned"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/S/properties/pinned"
+      },
+      "value": {
+        "kind": "number",
+        "num": "1.8e308",
+        "bytes": null,
+        "list": null,
+        "object": null
+      }
+    },
+    "t/openapi/components/schemas/S": {
+      "kind": "model",
+      "id": "t/openapi/components/schemas/S",
+      "name": {
+        "source": "S",
+        "canonical": "s"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/S"
+      },
+      "properties": [
+        {
+          "id": "p/openapi/components/schemas/S/properties/bounded",
+          "name": {
+            "source": "bounded",
+            "canonical": "bounded"
+          },
+          "wireName": "bounded",
+          "type": {
+            "target": "t/prim/number",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "constraints": {
+            "min": "1.8e308",
+            "max": "123456789012345678901234567890",
+            "exclusiveMin": false,
+            "exclusiveMax": false,
+            "multipleOf": "1e-30",
+            "uniqueItems": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/S/properties/bounded"
+          }
+        },
+        {
+          "id": "p/openapi/components/schemas/S/properties/exclusive",
+          "name": {
+            "source": "exclusive",
+            "canonical": "exclusive"
+          },
+          "wireName": "exclusive",
+          "type": {
+            "target": "t/prim/number",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "constraints": {
+            "min": "0.5",
+            "max": "0.12345678901234567890123456789",
+            "exclusiveMin": true,
+            "exclusiveMax": true,
+            "uniqueItems": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/S/properties/exclusive"
+          }
+        },
+        {
+          "id": "p/openapi/components/schemas/S/properties/withDefault",
+          "name": {
+            "source": "withDefault",
+            "canonical": "with_default"
+          },
+          "wireName": "withDefault",
+          "type": {
+            "target": "t/prim/number",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "default": {
+            "kind": "number",
+            "num": "1.8e308",
+            "bytes": null,
+            "list": null,
+            "object": null
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/S/properties/withDefault"
+          }
+        },
+        {
+          "id": "p/openapi/components/schemas/S/properties/pinned",
+          "name": {
+            "source": "pinned",
+            "canonical": "pinned"
+          },
+          "wireName": "pinned",
+          "type": {
+            "target": "t/anon/components/schemas/S/properties/pinned",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/S/properties/pinned"
+          }
+        },
+        {
+          "id": "p/openapi/components/schemas/S/properties/choice",
+          "name": {
+            "source": "choice",
+            "canonical": "choice"
+          },
+          "wireName": "choice",
+          "type": {
+            "target": "t/anon/components/schemas/S/properties/choice",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/S/properties/choice"
+          }
+        },
+        {
+          "id": "p/openapi/components/schemas/S/properties/sampled",
+          "name": {
+            "source": "sampled",
+            "canonical": "sampled"
+          },
+          "wireName": "sampled",
+          "type": {
+            "target": "t/prim/number",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "examples": [
+            {
+              "value": {
+                "kind": "number",
+                "num": "0.5",
+                "bytes": null,
+                "list": null,
+                "object": null
+              }
+            }
+          ],
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/S/properties/sampled"
+          }
+        }
+      ],
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
+    "t/prim/number": {
+      "kind": "primitive",
+      "id": "t/prim/number",
+      "name": {},
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0
+      },
+      "prim": "number"
+    }
+  },
+  "servers": [
+    {
+      "name": {},
+      "urlTemplate": "/",
+      "description": {},
+      "auth": null
+    }
+  ],
+  "sources": [
+    {
+      "format": "openapi@3.1",
+      "path": "numeric-precision.yaml",
+      "hash": "863fbca1eb00ecbd26294d1f3268cb92e73daa8fd5d2e00482144922b4dd430c"
+    }
+  ]
+}

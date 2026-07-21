@@ -42,17 +42,41 @@ func (l *lowerer) lowerComponentSchema(js *oas3.JSONSchema[oas3.Referenceable], 
 	if _, owned := l.byPointer[pointer]; owned {
 		return // schemaRef interned the component's own node at its component ID
 	}
-	l.internAlias(pointer, name, ref)
+	l.internAlias(pointer, name, ref, l.componentConstraints(js, pointer))
+}
+
+// componentConstraints reads the value constraints of a component schema whose
+// body reduced to a shared or referenced target. A top-level scalar component
+// (e.g. {minimum: 5} or {type: number, minimum: 5}) reduces to a shared
+// primitive, so unlike a property — whose constraints land on the Property — it
+// has no other node to hold them; the alias Scalar must carry them or they are
+// silently dropped.
+func (l *lowerer) componentConstraints(js *oas3.JSONSchema[oas3.Referenceable], pointer string) *ir.Constraints {
+	if js == nil || js.IsBool() || js.IsReference() {
+		return nil
+	}
+	s := js.GetSchema()
+	if s == nil || s.Ref != nil {
+		return nil
+	}
+	c, diags := constraintsFromSchema(s)
+	for i := range diags {
+		diags[i].Provenance = ir.Provenance{Source: l.srcIndex, Pointer: pointer}
+	}
+	l.diags = append(l.diags, diags...)
+	return c
 }
 
 // internAlias interns a named Scalar at pointer whose Base is target, so a
 // component (or a sibling-carrying schema) whose body lowered to a shared or
-// referenced target still owns a resolvable node at its own TypeID.
-func (l *lowerer) internAlias(pointer, hint string, target ir.TypeRef) ir.TypeID {
+// referenced target still owns a resolvable node at its own TypeID. Any value
+// constraints the schema carried are attached so a scalar component never drops
+// them.
+func (l *lowerer) internAlias(pointer, hint string, target ir.TypeRef, constraints *ir.Constraints) ir.TypeID {
 	id := typeIDForPointer(pointer)
 	return l.intern(pointer, id, func() ir.TypeDef {
 		base := target
-		return &ir.Scalar{TypeCommon: l.commonFor(id, pointer, hint), Base: &base}
+		return &ir.Scalar{TypeCommon: l.commonFor(id, pointer, hint), Base: &base, Constraints: constraints}
 	})
 }
 
@@ -133,7 +157,7 @@ func (l *lowerer) lowerWithUnionSiblings(s *oas3.Schema, pointer, hint string) i
 		// The structural body reduced to a shared/aliased target; hoist an alias
 		// so the preserved union attaches to a node this pointer owns, never to a
 		// shared primitive.
-		owner = l.internAlias(pointer, hint, ir.TypeRef{Target: inner})
+		owner = l.internAlias(pointer, hint, ir.TypeRef{Target: inner}, nil)
 	}
 	l.preserveUnionSiblings(owner, s, pointer)
 	return owner

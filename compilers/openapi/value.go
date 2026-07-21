@@ -56,6 +56,15 @@ func scalarValue(node *yaml.Node) (ir.Value, error) {
 		}
 		return ir.Value{Kind: ir.ValueBool, Bool: b}, nil
 	case "!!str":
+		// A numeric literal beyond float64 range (e.g. 1.8e308) resolves to a
+		// plain, unquoted !!str node; capture it as the number it is, never a
+		// string. Quoted strings are never plain, so a genuine numeric string
+		// ("123") stays a string.
+		if node.Style == 0 {
+			if num, err := ir.NewBigVal(node.Value); err == nil {
+				return ir.Value{Kind: ir.ValueNumber, Num: num}, nil
+			}
+		}
 		return ir.Value{Kind: ir.ValueString, Str: node.Value}, nil
 	case "!!int", "!!float":
 		num, err := ir.NewBigVal(node.Value)

@@ -72,6 +72,51 @@ func TestConstraints_MalformedNumericLiterals(t *testing.T) {
 	assert.GreaterOrEqual(t, count, 2, "both malformed literals warn")
 }
 
+func TestConstraints_LosslessNumericLiterals(t *testing.T) {
+	t.Parallel()
+	cases := []struct {
+		name    string
+		literal string
+		want    ir.BigVal
+	}{
+		{"beyond float64 range", "1.8e308", "1.8e308"},
+		{"far beyond float64 range", "1e400", "1e400"},
+		{"leading dot spelling", ".5", "0.5"},
+		{"trailing dot spelling", "5.", "5"},
+		{"huge integer beyond int64", "123456789012345678901234567890", "123456789012345678901234567890"},
+		{"high-precision decimal", "0.12345678901234567890123456789", "0.12345678901234567890123456789"},
+		{"exponential notation", "6.022e23", "6.022e23"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			spec := componentSpec("    S:\n      type: object\n      properties:\n        n: {type: number, minimum: " + tc.literal + "}\n")
+			doc, diags := lowerSpec(t, spec)
+			// A valid number, however spelled, is accepted with no error: the
+			// library's float64/JSON complaint is not surfaced.
+			requireNoErrorDiags(t, diags)
+			c := propConstraints(t, doc, "S", "n")
+			require.NotNil(t, c.Min)
+			assert.Equal(t, tc.want, *c.Min)
+		})
+	}
+}
+
+func TestConstraints_NonNumericMinimumWarns(t *testing.T) {
+	t.Parallel()
+	spec := componentSpec("    S:\n      type: object\n      properties:\n        n: {type: number, minimum: hello}\n")
+	doc, diags := lowerSpec(t, spec)
+	require.NotNil(t, doc)
+	// A genuinely non-numeric bound is never dropped silently; it is reported.
+	var reported bool
+	for _, d := range diags {
+		if d.Code == codeNumericPrecision || d.Severity == ir.SeverityError {
+			reported = true
+		}
+	}
+	assert.True(t, reported, "a non-numeric minimum yields a diagnostic")
+}
+
 // propConstraints returns the constraints of a named model's property.
 func propConstraints(t *testing.T, doc *ir.Document, model, wire string) *ir.Constraints {
 	t.Helper()

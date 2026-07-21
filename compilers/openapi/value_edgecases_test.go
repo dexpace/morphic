@@ -73,6 +73,27 @@ func TestValueFromNode_ScalarErrors(t *testing.T) {
 	}
 }
 
+func TestValueFromNode_OverflowNumberIsNumber(t *testing.T) {
+	t.Parallel()
+	// A float64-overflow literal resolves to a plain !!str node; it must be
+	// captured as the number it is, canonicalized, not as a string.
+	got, err := valueFromNode(scalarNode("!!str", "1.8e308"))
+	require.NoError(t, err)
+	assert.Equal(t, ir.ValueNumber, got.Kind)
+	assert.Equal(t, ir.BigVal("1.8e308"), got.Num)
+}
+
+func TestValueFromNode_QuotedNumericStaysString(t *testing.T) {
+	t.Parallel()
+	// A quoted numeric string is not plain, so it stays a string.
+	node := scalarNode("!!str", "123")
+	node.Style = yaml.DoubleQuotedStyle
+	got, err := valueFromNode(node)
+	require.NoError(t, err)
+	assert.Equal(t, ir.ValueString, got.Kind)
+	assert.Equal(t, "123", got.Str)
+}
+
 func TestValueFromNode_UnsupportedNodeKind(t *testing.T) {
 	t.Parallel()
 	_, err := valueFromNode(&yaml.Node{Kind: yaml.Kind(99)})
