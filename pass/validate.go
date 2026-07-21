@@ -452,12 +452,7 @@ func forEachGroupOperation(groups []ir.OperationGroup, depth int, fn func(ir.Ope
 // so Source is -1 to mark "no source file" and stop renderers fabricating a
 // file location for it.
 func diag(sev ir.Severity, code, message, pointer string) ir.Diagnostic {
-	return ir.Diagnostic{
-		Severity:   sev,
-		Code:       code,
-		Message:    message,
-		Provenance: ir.Provenance{Source: -1, Pointer: pointer},
-	}
+	return ir.NewDiagnostic(sev, code, message, ir.Provenance{Source: -1, Pointer: pointer})
 }
 
 // sortedKeys returns the keys of a string-keyed map in ascending order, giving
