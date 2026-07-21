@@ -37,9 +37,11 @@ type loaded struct {
 //
 //nolint:unparam // srcIndex varies once Compile drives the multi-source loop
 func load(ctx context.Context, srcIndex int, src compilers.Source, opts Options) (*loaded, []ir.Diagnostic, error) {
-	if cyc := detectCycles(srcIndex, src.Data); len(cyc) > 0 {
+	cyc := detectCycles(srcIndex, src.Data)
+	if hasErrorDiag(cyc) {
 		return nil, cyc, nil // degenerate cycle: refuse to lower, do not crash the parser
 	}
+	// cyc may still hold a non-fatal scan-incomplete warning; carry it forward.
 
 	doc, valErrs, err := unmarshal(ctx, src.Data)
 	if err != nil {
@@ -48,12 +50,12 @@ func load(ctx context.Context, srcIndex int, src compilers.Source, opts Options)
 
 	minor, ok := supportedMinor(doc.OpenAPI)
 	if !ok {
-		return nil, []ir.Diagnostic{diagf(ir.SeverityError, codeUnsupportedVersion,
+		return nil, append(cyc, diagf(ir.SeverityError, codeUnsupportedVersion,
 			ir.Provenance{Source: srcIndex},
-			"unsupported OpenAPI version %q; want 3.0, 3.1, or 3.2", doc.OpenAPI)}, nil
+			"unsupported OpenAPI version %q; want 3.0, 3.1, or 3.2", doc.OpenAPI)), nil
 	}
 
-	var diags []ir.Diagnostic
+	diags := cyc
 	for _, ve := range valErrs {
 		diags = append(diags, validationDiag(srcIndex, ve))
 	}

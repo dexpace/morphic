@@ -22,6 +22,17 @@ const maxCycleDepth = 10000
 // inside example/default/enum data is never followed at all. Descending into
 // those positions would refuse legal documents (GitHub #12 fix must not
 // regress valid specs). The key sets below drive the schema-scoped walk.
+//
+// Scope and provenance: this scan classifies a single source document, matching
+// the crash it prevents — an internal ('#/...') pure-$ref cycle inside one spec.
+// External ('other.yaml#/...') and cross-document cycles are left to speakeasy's
+// reference resolver, which reports them as resolve errors rather than faulting.
+// The schema-position scoping encodes the resolver behavior of
+// github.com/speakeasy-api/openapi v1.24.0 (see go.mod), not an OpenAPI
+// guarantee: if a later bump changes which reference positions the resolver
+// recurses through, re-validate against FuzzCompile (cycles_fuzz_test.go), which
+// drives arbitrary sources through Compile and faults if a degenerate cycle ever
+// reaches the parser.
 
 // schemaEntryMapKeys name a mapping of schemas encountered outside a schema
 // (e.g. components.schemas, $defs): every value is a schema root.
@@ -65,20 +76,25 @@ var schemaDataKeys = map[string]bool{
 // main parser owns reporting that as a parse problem. The scan runs under
 // recoverCycleScan so a detector bug degrades to "no cycle found", never aborts.
 func detectCycles(srcIndex int, data []byte) []ir.Diagnostic {
-	return recoverCycleScan(func() []ir.Diagnostic {
+	return recoverCycleScan(srcIndex, func() []ir.Diagnostic {
 		return scanCycles(srcIndex, data)
 	})
 }
 
-// recoverCycleScan runs scan and converts any panic into an empty result. It is
-// the bounded-recursion backstop for the recursive walks: the pre-parse pass
-// exists so the compiler never crashes on a degenerate spec (GitHub #12), so a
-// bug in the detector itself must still degrade to "no cycle found" rather than
-// abort the caller's process.
-func recoverCycleScan(scan func() []ir.Diagnostic) (diags []ir.Diagnostic) {
+// recoverCycleScan runs scan and, on any panic from the recursive walks, degrades
+// to a single non-fatal warning instead of propagating. The pre-parse pass exists
+// so the compiler never crashes on a degenerate spec (GitHub #12); a bug in the
+// detector itself must therefore never abort the caller's process. Rather than
+// swallow the failure silently, it surfaces a codeCycleScanFailed warning so an
+// incomplete scan is observable: the compile still proceeds to the parser and
+// stays protected against every cycle the scan did classify — only the pre-parse
+// guarantee is flagged as incomplete for this source.
+func recoverCycleScan(srcIndex int, scan func() []ir.Diagnostic) (diags []ir.Diagnostic) {
 	defer func() {
 		if r := recover(); r != nil {
-			diags = nil
+			diags = []ir.Diagnostic{diagf(ir.SeverityWarning, codeCycleScanFailed,
+				ir.Provenance{Source: srcIndex},
+				"cycle pre-scan aborted (%v); reference-cycle protection is incomplete for this source", r)}
 		}
 	}()
 	return scan()
@@ -167,8 +183,9 @@ func anchorName(alias *yaml.Node) string {
 func refCycle(srcIndex int, root *yaml.Node) (ir.Diagnostic, bool) {
 	var refs []*yaml.Node
 	collectSchemaRefs(root, &refs)
+	safe := make(map[*yaml.Node]bool)
 	for _, start := range refs {
-		if followRefChain(root, start) {
+		if followRefChain(root, start, safe) {
 			return cyclicDiag(srcIndex, start, "cyclic $ref: reference chain never reaches a node without a $ref"), true
 		}
 	}
@@ -256,29 +273,52 @@ func walkSchemaList(n *yaml.Node, out *[]*yaml.Node, depth int) {
 	}
 }
 
-// followRefChain follows pure-$ref edges from start and reports whether the
-// chain loops back onto itself without reaching a node that has no top-level
-// $ref. It stops on such a node, a dangling ref, or a revisited node; the seen
-// set and depth cap bound it against any structure.
-func followRefChain(root, start *yaml.Node) bool {
-	seen := map[*yaml.Node]bool{}
+// followRefChain follows pure-$ref edges from start and reports whether the chain
+// loops back onto itself without reaching a node that has no top-level $ref. It
+// stops on such a node, a dangling ref, or a node already on the current chain;
+// the on-path set and depth cap bound it against any structure.
+//
+// safe memoizes nodes already proven to reach a $ref-free node across every chain
+// in one scan: reaching one ends the walk immediately, and every node on a
+// terminating chain is recorded, so the whole scan stays linear in the number of
+// collected refs instead of re-walking shared tails. A node on a cycle is never
+// marked safe, so memoization never hides a real cycle.
+func followRefChain(root, start *yaml.Node, safe map[*yaml.Node]bool) bool {
+	onPath := make(map[*yaml.Node]bool)
+	var path []*yaml.Node
 	cur := start
 	for depth := 0; depth <= maxCycleDepth; depth++ {
+		if safe[cur] {
+			markSafe(path, safe)
+			return false // cur already proved chain-terminating — no cycle
+		}
+		if onPath[cur] {
+			return true // revisited a node on this chain — cyclic
+		}
 		ref, ok := pureRefTarget(cur)
 		if !ok {
+			safe[cur] = true
+			markSafe(path, safe)
 			return false // reached a node without a top-level $ref — legal recursion
 		}
-		seen[cur] = true
+		onPath[cur] = true
+		path = append(path, cur)
 		next := resolvePointer(root, ref)
 		if next == nil {
+			markSafe(path, safe)
 			return false // dangling ref — reported downstream as unresolved
-		}
-		if seen[next] {
-			return true // chain looped without ever reaching a concrete node
 		}
 		cur = next
 	}
-	return false
+	return false // depth cap reached without a verdict — mark nothing
+}
+
+// markSafe records every node on a proven chain-terminating path so a later chain
+// that reaches one stops immediately instead of re-walking it.
+func markSafe(path []*yaml.Node, safe map[*yaml.Node]bool) {
+	for _, n := range path {
+		safe[n] = true
+	}
 }
 
 // pureRefTarget reports the internal $ref target of a node that carries a

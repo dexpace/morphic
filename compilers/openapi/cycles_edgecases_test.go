@@ -30,14 +30,18 @@ func yalias(target *yaml.Node) *yaml.Node {
 	return &yaml.Node{Kind: yaml.AliasNode, Alias: target}
 }
 
-// TestRecoverCycleScan_PanicYieldsNoDiags pins the bounded-recursion backstop: a
-// scan that panics must degrade to an empty result, never propagate the panic.
-func TestRecoverCycleScan_PanicYieldsNoDiags(t *testing.T) {
+// TestRecoverCycleScan_PanicYieldsWarning pins the bounded-recursion backstop: a
+// scan that panics must degrade to a single non-fatal warning that keeps the
+// failure observable, never propagate the panic and never silently vanish.
+func TestRecoverCycleScan_PanicYieldsWarning(t *testing.T) {
 	t.Parallel()
-	got := recoverCycleScan(func() []ir.Diagnostic {
+	got := recoverCycleScan(3, func() []ir.Diagnostic {
 		panic("detector bug")
 	})
-	assert.Nil(t, got, "a panicking scan degrades to no diagnostics")
+	require.Len(t, got, 1, "a panicking scan degrades to one diagnostic")
+	assert.Equal(t, codeCycleScanFailed, got[0].Code)
+	assert.Equal(t, ir.SeverityWarning, got[0].Severity, "the scan failure must not refuse a spec")
+	assert.Equal(t, 3, got[0].Provenance.Source, "the diagnostic carries the source index")
 }
 
 // TestRecoverCycleScan_PassesThroughResult pins that a scan that does not panic
@@ -45,7 +49,7 @@ func TestRecoverCycleScan_PanicYieldsNoDiags(t *testing.T) {
 func TestRecoverCycleScan_PassesThroughResult(t *testing.T) {
 	t.Parallel()
 	want := []ir.Diagnostic{{Code: codeCyclicRef, Severity: ir.SeverityError}}
-	got := recoverCycleScan(func() []ir.Diagnostic {
+	got := recoverCycleScan(0, func() []ir.Diagnostic {
 		return want
 	})
 	assert.Equal(t, want, got)
@@ -156,8 +160,41 @@ func TestFollowRefChain_DepthCapReturnsFalse(t *testing.T) {
 			nodes[i].Content = []*yaml.Node{yscalar("$ref"), yscalar("#/schemas/" + strconv.Itoa(i+1))}
 		}
 	}
-	assert.False(t, followRefChain(root, nodes[0]),
+	assert.False(t, followRefChain(root, nodes[0], map[*yaml.Node]bool{}),
 		"a chain longer than the depth cap exits without flagging a cycle")
+}
+
+// TestFollowRefChain_SafeMemoShortCircuits pins the memoization: a node already
+// proven chain-terminating is trusted without re-walking its edges, and every
+// node that reaches it is recorded as terminating too. The same graph is a
+// genuine cycle with an empty memo, which isolates the short-circuit.
+func TestFollowRefChain_SafeMemoShortCircuits(t *testing.T) {
+	t.Parallel()
+	a := ymap(yscalar("$ref"), yscalar("#/schemas/B"))
+	b := ymap(yscalar("$ref"), yscalar("#/schemas/A"))
+	schemas := ymap(yscalar("A"), a, yscalar("B"), b)
+	root := ymap(yscalar("schemas"), schemas)
+
+	assert.True(t, followRefChain(root, a, map[*yaml.Node]bool{}),
+		"A -> B -> A is cyclic with an empty memo")
+
+	safe := map[*yaml.Node]bool{b: true}
+	assert.False(t, followRefChain(root, a, safe),
+		"a chain reaching a memoized-safe node is not a cycle")
+	assert.True(t, safe[a], "the walk records the reaching node as terminating too")
+}
+
+// TestFollowRefChain_DanglingRefIsNotCycle pins that a $ref whose target does not
+// resolve ends the chain as terminating rather than cyclic: the missing target is
+// reported downstream, and the node is recorded safe so a later chain reusing it
+// short-circuits.
+func TestFollowRefChain_DanglingRefIsNotCycle(t *testing.T) {
+	t.Parallel()
+	a := ymap(yscalar("$ref"), yscalar("#/schemas/Missing"))
+	root := ymap(yscalar("schemas"), ymap(yscalar("A"), a))
+	safe := map[*yaml.Node]bool{}
+	assert.False(t, followRefChain(root, a, safe), "a dangling $ref is not a cycle")
+	assert.True(t, safe[a], "the dangling node is recorded terminating")
 }
 
 // TestChildByToken_NilNode pins that a nil node has no child for any token.
@@ -213,4 +250,15 @@ func TestDeref_FollowsAliasChain(t *testing.T) {
 	target := ymap(yscalar("k"), yscalar("v"))
 	require.Same(t, target, deref(yalias(target)))
 	require.Same(t, target, deref(target))
+}
+
+// TestHasErrorDiag_Cases pins the severity gate the load phase relies on: only an
+// error-severity diagnostic signals a refusal; empty and warning-only sets do not.
+func TestHasErrorDiag_Cases(t *testing.T) {
+	t.Parallel()
+	assert.False(t, hasErrorDiag(nil), "no diagnostics is not an error")
+	assert.False(t, hasErrorDiag([]ir.Diagnostic{{Severity: ir.SeverityWarning}, {Severity: ir.SeverityInfo}}),
+		"warnings and hints alone are not an error")
+	assert.True(t, hasErrorDiag([]ir.Diagnostic{{Severity: ir.SeverityWarning}, {Severity: ir.SeverityError}}),
+		"a single error-severity diagnostic is a refusal")
 }
