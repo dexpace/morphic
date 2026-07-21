@@ -1,0 +1,14 @@
+openapi: 3.1.0
+info: {title: t, version: "1"}
+paths: {}
+components:
+  schemas:
+    "A~B":
+      type: object
+      properties:
+        x: {type: string}
+    User:
+      type: object
+      properties:
+        friend:
+          $ref: '#/components/schemas/A~B'

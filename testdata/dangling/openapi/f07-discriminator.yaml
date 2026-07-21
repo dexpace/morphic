@@ -1,0 +1,13 @@
+openapi: 3.1.0
+info: {title: t, version: "1"}
+paths: {}
+components:
+  schemas:
+    Pet:
+      oneOf:
+        - $ref: '#/components/schemas/A~1B'
+      discriminator:
+        propertyName: k
+        mapping:
+          x: 'A/B'
+    A/B: {}

@@ -1,0 +1,36 @@
+openapi: 3.1.0
+info: {title: NumericPrecision, version: "1.0.0"}
+paths: {}
+components:
+  schemas:
+    S:
+      type: object
+      properties:
+        # Bounds beyond float64 range and a huge integer beyond int64; a float64
+        # path would drop or round every one of these.
+        bounded:
+          type: number
+          minimum: 1.8e308
+          maximum: 123456789012345678901234567890
+          multipleOf: 1e-30
+        # 2020-12 numeric exclusive bounds: a leading-dot spelling (canonicalized
+        # to 0.5) and a high-precision decimal.
+        exclusive:
+          type: number
+          exclusiveMinimum: .5
+          exclusiveMaximum: 0.12345678901234567890123456789
+        # A default literal beyond float64 range, captured as a number.
+        withDefault:
+          type: number
+          default: 1.8e308
+        # A const literal beyond float64 range.
+        pinned:
+          const: 1.8e308
+        # Numeric enum members, one beyond int64 range.
+        choice:
+          type: integer
+          enum: [1, 123456789012345678901234567890]
+        # An example in a leading-dot spelling.
+        sampled:
+          type: number
+          example: .5

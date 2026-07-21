@@ -1,0 +1,13 @@
+openapi: 3.1.0
+info: {title: t, version: "1"}
+paths: {}
+components:
+  schemas:
+    Pet:
+      discriminator:
+        propertyName: kind
+        mapping:
+          deep: '#/components/schemas/Pet/properties/nose'
+      properties:
+        nose: {type: string}
+
