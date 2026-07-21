@@ -3,6 +3,8 @@ package irverify
 import (
 	"reflect"
 	"sort"
+	"strconv"
+	"unicode/utf8"
 
 	"github.com/dexpace/morphic/ir"
 )
@@ -30,6 +32,7 @@ func Verify(doc *ir.Document) []Violation {
 	vs := checkRegistryKeys(doc)
 	vs = append(vs, checkReferentialIntegrity(doc)...)
 	vs = append(vs, checkNaming(doc)...)
+	vs = append(vs, checkDiagnostics(doc)...)
 
 	sort.Slice(vs, func(i, j int) bool {
 		if vs[i].Code != vs[j].Code {
@@ -101,4 +104,29 @@ func isNilTypeDef(td ir.TypeDef) bool {
 	}
 	rv := reflect.ValueOf(td)
 	return rv.Kind() == reflect.Pointer && rv.IsNil()
+}
+
+// checkDiagnostics asserts every diagnostic message is well-formed UTF-8
+// (invariant #7). A message carrying an ill-formed byte run — as a third-party
+// validator emits when it truncates a multibyte rune — reaches
+// Document.Diagnostics, and json.Marshal rewrites invalid UTF-8 to U+FFFD, so
+// the document stops round-tripping byte-for-byte. Producers coerce messages
+// through ir.NewDiagnostic; this check catches any that bypass it. Message is
+// the only diagnostic field that carries free-form validator text: a Code may
+// embed a validator-supplied rule suffix, but those rule names are bounded
+// ASCII identifiers, and Provenance holds line:col or synthetic pointers — so
+// neither can carry the ill-formed bytes Message can.
+func checkDiagnostics(doc *ir.Document) []Violation {
+	var vs []Violation
+	for i, d := range doc.Diagnostics {
+		if utf8.ValidString(d.Message) {
+			continue
+		}
+		vs = append(vs, Violation{
+			Code:    "ir/diagnostic-invalid-utf8",
+			Message: "diagnostic message is not valid UTF-8",
+			Path:    "diagnostics[" + strconv.Itoa(i) + "]",
+		})
+	}
+	return vs
 }

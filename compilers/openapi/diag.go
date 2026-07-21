@@ -51,12 +51,7 @@ const (
 //
 //nolint:unused // diagnostic seam consumed by later compiler files
 func diagf(sev ir.Severity, code string, prov ir.Provenance, format string, args ...any) ir.Diagnostic {
-	return ir.Diagnostic{
-		Severity:   sev,
-		Code:       code,
-		Message:    fmt.Sprintf(format, args...),
-		Provenance: prov,
-	}
+	return ir.NewDiagnostic(sev, code, fmt.Sprintf(format, args...), prov)
 }
 
 // hasErrorDiag reports whether any diagnostic carries error severity. The load
