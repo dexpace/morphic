@@ -44,6 +44,29 @@ func TestVerify_RegistryKeyMismatchIsAViolation(t *testing.T) {
 	assert.Contains(t, codesOf(got), "ir/type-id-mismatch")
 }
 
+func TestVerify_SortsSameCodeByPath(t *testing.T) {
+	// Two properties dangle distinct missing targets, yielding two violations that
+	// share the ir/dangling-type-ref code. Verify must order them by Path, which
+	// exercises the sort's equal-code tiebreaker.
+	holder := &ir.Model{
+		TypeCommon: ir.TypeCommon{ID: "t/x/Holder"},
+		Properties: []ir.Property{
+			{ID: "p/x/Holder/a", Type: ir.TypeRef{Target: "t/x/MissingA"}},
+			{ID: "p/x/Holder/b", Type: ir.TypeRef{Target: "t/x/MissingB"}},
+		},
+	}
+	doc := &ir.Document{Types: ir.TypeRegistry{holder.ID: holder}}
+
+	var dangling []irverify.Violation
+	for _, v := range irverify.Verify(doc) {
+		if v.Code == "ir/dangling-type-ref" {
+			dangling = append(dangling, v)
+		}
+	}
+	require.Len(t, dangling, 2)
+	assert.Less(t, dangling[0].Path, dangling[1].Path, "same-code violations are ordered by Path")
+}
+
 // codesOf extracts the Code of each violation for order-independent assertions.
 func codesOf(vs []irverify.Violation) []string {
 	codes := make([]string, len(vs))

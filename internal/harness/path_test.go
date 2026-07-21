@@ -82,3 +82,24 @@ func TestCheckPath_NilContextIsError(t *testing.T) {
 	_, err := harness.CheckPath(nil, t.TempDir())
 	require.Error(t, err)
 }
+
+func TestCheckPath_EmptyPathIsError(t *testing.T) {
+	t.Parallel()
+	_, err := harness.CheckPath(context.Background(), "")
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "empty path")
+}
+
+func TestCheckPath_UnreadableFileIsError(t *testing.T) {
+	t.Parallel()
+	// A regular file with no read permission stats cleanly (so it is not a
+	// directory) but fails to read, so CheckPath returns the read error.
+	dir := t.TempDir()
+	path := writeSpec(t, dir, "spec.yaml", minimalSpec)
+	require.NoError(t, os.Chmod(path, 0o000))
+	t.Cleanup(func() { _ = os.Chmod(path, 0o600) })
+
+	_, err := harness.CheckPath(context.Background(), path)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "harness: read")
+}

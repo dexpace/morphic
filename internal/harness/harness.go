@@ -81,11 +81,21 @@ func Check(ctx context.Context, spec string, data []byte) (res Result) {
 }
 
 // compile runs the OpenAPI compiler on one in-memory source with default
-// options.
-func compile(ctx context.Context, spec string, data []byte) (*ir.Document, []ir.Diagnostic, error) {
+// options. It is a package-level seam: production always uses the real compiler
+// wired here, while tests replace it to drive the oracle-failure paths a correct
+// compiler never produces — a panic, a document with structural violations, a
+// non-round-tripping document, or a nondeterministic recompile.
+var compile = func(ctx context.Context, spec string, data []byte) (*ir.Document, []ir.Diagnostic, error) {
 	return openapi.New().Compile(ctx,
 		[]compilers.Source{{Path: spec, Data: data}}, compilers.Options{})
 }
+
+// reserializeJSON re-encodes a value that has already survived a marshal or a
+// compile: the decoded document in roundTrips and the recompiled document in
+// deterministic. It is a package-level seam over json.Marshal that defaults to
+// json.Marshal in production, where such a value can never fail to re-marshal;
+// tests replace it to exercise that otherwise-unreachable defensive error path.
+var reserializeJSON = json.Marshal
 
 // firstErrorDiag returns the first error-severity diagnostic, if any.
 func firstErrorDiag(diags []ir.Diagnostic) (ir.Diagnostic, bool) {
@@ -114,7 +124,7 @@ func roundTrips(doc *ir.Document) (string, bool) {
 	if err := json.Unmarshal(first, &back); err != nil {
 		return "unmarshal: " + err.Error(), false
 	}
-	second, err := json.Marshal(&back)
+	second, err := reserializeJSON(&back)
 	if err != nil {
 		return "remarshal: " + err.Error(), false
 	}
@@ -135,7 +145,7 @@ func deterministic(ctx context.Context, spec string, data []byte, doc *ir.Docume
 	if err != nil {
 		return "recompile: " + err.Error(), false
 	}
-	second, err := json.Marshal(recompiled)
+	second, err := reserializeJSON(recompiled)
 	if err != nil {
 		return "marshal second: " + err.Error(), false
 	}

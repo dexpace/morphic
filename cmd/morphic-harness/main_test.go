@@ -76,3 +76,16 @@ func TestRun_NoArgsExitsTwo(t *testing.T) {
 	assert.Equal(t, 2, code)
 	assert.Contains(t, stderr.String(), "usage")
 }
+
+func TestMain_ExitCode(t *testing.T) {
+	origArgs, origExit := os.Args, osExit
+	t.Cleanup(func() { os.Args, osExit = origArgs, origExit })
+
+	var got int
+	osExit = func(code int) { got = code }
+	os.Args = []string{"morphic-harness"} // no path args → usage → exit 2
+
+	main()
+
+	assert.Equal(t, 2, got)
+}

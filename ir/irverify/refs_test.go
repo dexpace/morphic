@@ -135,6 +135,38 @@ func TestCheckReferentialIntegrity_DeepValueTreeReportsTruncation(t *testing.T) 
 	assert.Equal(t, "ir/walk-truncated", got[0].Code)
 }
 
+func TestResolves_UnknownRegistryIsUnresolved(t *testing.T) {
+	// A refSite naming a registry the resolver does not handle falls through to the
+	// default arm and reports the reference as unresolved.
+	assert.False(t, resolves(&ir.Document{}, refSite{id: "x", registry: "bogus"}))
+}
+
+func TestCollectRefs_SharedPointerVisitedOnce(t *testing.T) {
+	// The same *TypeRef reachable through two template arguments must trip the
+	// cycle guard: the walk descends into it once and skips the repeat visit, so
+	// its target is discovered exactly once.
+	shared := &ir.TypeRef{Target: "t/x/Shared"}
+	m := &ir.Model{TypeCommon: ir.TypeCommon{
+		ID: "t/x/M",
+		Instantiation: &ir.TemplateInstantiation{Args: []ir.TemplateArg{
+			{Type: shared},
+			{Type: shared},
+		}},
+	}}
+	doc := &ir.Document{Types: ir.TypeRegistry{m.ID: m}}
+
+	sites, truncated := collectRefs(doc)
+	assert.False(t, truncated)
+
+	var count int
+	for _, s := range sites {
+		if s.id == "t/x/Shared" {
+			count++
+		}
+	}
+	assert.Equal(t, 1, count, "the shared pointer's target is collected once, not per reference")
+}
+
 // refIDInMessage extracts the reference ID from a dangling-ref message of the
 // form "reference <id> does not resolve in <registry>".
 func refIDInMessage(msg string) string {
