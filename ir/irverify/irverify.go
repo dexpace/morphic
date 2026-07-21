@@ -1,6 +1,7 @@
 package irverify
 
 import (
+	"reflect"
 	"sort"
 
 	"github.com/dexpace/morphic/ir"
@@ -46,6 +47,14 @@ func Verify(doc *ir.Document) []Violation {
 func checkRegistryKeys(doc *ir.Document) []Violation {
 	var vs []Violation
 	for id, td := range doc.Types {
+		if isNilTypeDef(td) {
+			vs = append(vs, Violation{
+				Code:    "ir/nil-type",
+				Message: "types registry has a nil type definition",
+				Path:    "types[" + string(id) + "]",
+			})
+			continue
+		}
 		vs = registryKey(vs, "type", "types", string(id), string(td.Common().ID))
 	}
 	for id, ch := range doc.Channels {
@@ -79,4 +88,17 @@ func registryKey(vs []Violation, noun, reg, key, nodeID string) []Violation {
 		})
 	}
 	return vs
+}
+
+// isNilTypeDef reports whether td is a nil TypeDef — either an untyped nil
+// interface or a typed nil pointer. Calling Common() on either panics, so
+// checkRegistryKeys reports the entry as an ir/nil-type violation instead of
+// dereferencing it, keeping Verify a report-only oracle that never crashes on a
+// malformed document (the walk-based checks already tolerate nil entries).
+func isNilTypeDef(td ir.TypeDef) bool {
+	if td == nil {
+		return true
+	}
+	rv := reflect.ValueOf(td)
+	return rv.Kind() == reflect.Pointer && rv.IsNil()
 }

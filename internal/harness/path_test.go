@@ -92,6 +92,9 @@ func TestCheckPath_EmptyPathIsError(t *testing.T) {
 
 func TestCheckPath_UnreadableFileIsError(t *testing.T) {
 	t.Parallel()
+	if os.Geteuid() == 0 {
+		t.Skip("root bypasses permission bits, so a chmod 0o000 file stays readable")
+	}
 	// A regular file with no read permission stats cleanly (so it is not a
 	// directory) but fails to read, so CheckPath returns the read error.
 	dir := t.TempDir()

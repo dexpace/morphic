@@ -76,6 +76,24 @@ func codesOf(vs []irverify.Violation) []string {
 	return codes
 }
 
+func TestVerify_NilTypeDefIsAViolation(t *testing.T) {
+	// An untyped nil in the Types registry must be reported, not dereferenced:
+	// Verify stays a report-only oracle that never panics on a malformed document.
+	doc := &ir.Document{Types: ir.TypeRegistry{"t/x/nil": nil}}
+	got := irverify.Verify(doc)
+	require.NotEmpty(t, got)
+	assert.Contains(t, codesOf(got), "ir/nil-type")
+}
+
+func TestVerify_TypedNilTypeDefIsAViolation(t *testing.T) {
+	// A typed nil pointer is a non-nil interface whose Common() still panics, so
+	// it must be reported as ir/nil-type rather than crashing the walk.
+	doc := &ir.Document{Types: ir.TypeRegistry{"t/x/typednil": (*ir.Model)(nil)}}
+	got := irverify.Verify(doc)
+	require.NotEmpty(t, got)
+	assert.Contains(t, codesOf(got), "ir/nil-type")
+}
+
 func TestVerify_EmptyTypeIDIsAViolation(t *testing.T) {
 	doc := &ir.Document{Types: ir.TypeRegistry{"": &ir.Any{}}}
 	got := irverify.Verify(doc)

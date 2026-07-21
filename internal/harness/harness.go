@@ -165,7 +165,9 @@ func Report(results []Result) string {
 
 	var b strings.Builder
 	for _, r := range sorted {
-		fmt.Fprintf(&b, "%-40s %-20s %s\n", r.Spec, r.Outcome, r.Detail)
+		// strings.Builder.Write never returns an error; the discard is explicit
+		// so no write in this codebase is dropped silently.
+		_, _ = fmt.Fprintf(&b, "%-40s %-20s %s\n", r.Spec, r.Outcome, r.Detail)
 	}
 	return b.String()
 }

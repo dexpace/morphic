@@ -21,6 +21,14 @@ const module = "github.com/dexpace/morphic"
 // engine and cmd/morphic do not exist yet (Phase 4). Their rules are declared
 // here so the assertion is ready the moment those packages land; absent
 // directories are skipped by the walk (see TestImportGraph_LayeringHolds).
+//
+// internal/harness is intentionally absent: it is test/tooling infrastructure
+// that drives specs through the oracles and so legitimately imports a Layer-1
+// compiler (compilers/openapi). The walk starts only at the directories keyed
+// here and recurses into their subtrees; no ruled directory is an ancestor of
+// internal/harness, so it is never visited and stays unaudited rather than
+// carrying a misleading allowlist. (An unruled subdirectory that *is* nested
+// under a ruled directory is still audited, under that ancestor's allowlist.)
 var rules = map[string][]string{
 	"ir":                  {},
 	"ir/irtest":           {module + "/ir", "github.com/google/go-cmp"},
