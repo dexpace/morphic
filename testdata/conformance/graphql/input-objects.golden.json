@@ -78,6 +78,24 @@
     }
   ],
   "types": {
+    "t/anon/types/NewPost/fields/tags/list": {
+      "kind": "list",
+      "id": "t/anon/types/NewPost/fields/tags/list",
+      "name": {
+        "hint": "list"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/types/NewPost/fields/tags/list"
+      },
+      "elem": {
+        "target": "t/prim/string",
+        "nullable": false
+      }
+    },
     "t/graphql/scalars/ID": {
       "kind": "scalar",
       "id": "t/graphql/scalars/ID",
@@ -208,6 +226,249 @@
             "source": 0,
             "pointer": "/types/NewPost/fields/draft"
           }
+        },
+        {
+          "id": "p/graphql/types/NewPost/fields/hidden",
+          "name": {
+            "source": "hidden",
+            "canonical": "hidden"
+          },
+          "wireName": "hidden",
+          "type": {
+            "target": "t/prim/bool",
+            "nullable": true
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "default": {
+            "kind": "bool",
+            "bytes": null,
+            "list": null,
+            "object": null
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/types/NewPost/fields/hidden"
+          }
+        },
+        {
+          "id": "p/graphql/types/NewPost/fields/tags",
+          "name": {
+            "source": "tags",
+            "canonical": "tags"
+          },
+          "wireName": "tags",
+          "type": {
+            "target": "t/anon/types/NewPost/fields/tags/list",
+            "nullable": true
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "default": {
+            "kind": "list",
+            "bytes": null,
+            "list": [
+              {
+                "kind": "string",
+                "str": "a",
+                "bytes": null,
+                "list": null,
+                "object": null
+              },
+              {
+                "kind": "string",
+                "str": "b",
+                "bytes": null,
+                "list": null,
+                "object": null
+              }
+            ],
+            "object": null
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/types/NewPost/fields/tags"
+          }
+        },
+        {
+          "id": "p/graphql/types/NewPost/fields/priority",
+          "name": {
+            "source": "priority",
+            "canonical": "priority"
+          },
+          "wireName": "priority",
+          "type": {
+            "target": "t/graphql/types/Priority",
+            "nullable": true
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "default": {
+            "kind": "symbol",
+            "str": "LOW",
+            "bytes": null,
+            "list": null,
+            "object": null
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/types/NewPost/fields/priority"
+          }
+        },
+        {
+          "id": "p/graphql/types/NewPost/fields/origin",
+          "name": {
+            "source": "origin",
+            "canonical": "origin"
+          },
+          "wireName": "origin",
+          "type": {
+            "target": "t/graphql/types/Point",
+            "nullable": true
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "default": {
+            "kind": "object",
+            "bytes": null,
+            "list": null,
+            "object": [
+              {
+                "name": "x",
+                "value": {
+                  "kind": "number",
+                  "num": "0",
+                  "bytes": null,
+                  "list": null,
+                  "object": null
+                }
+              },
+              {
+                "name": "y",
+                "value": {
+                  "kind": "number",
+                  "num": "0",
+                  "bytes": null,
+                  "list": null,
+                  "object": null
+                }
+              }
+            ]
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/types/NewPost/fields/origin"
+          }
+        }
+      ],
+      "abstract": false,
+      "positional": false,
+      "inputOnly": true
+    },
+    "t/graphql/types/Point": {
+      "kind": "model",
+      "id": "t/graphql/types/Point",
+      "name": {
+        "source": "Point",
+        "canonical": "point"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/types/Point"
+      },
+      "properties": [
+        {
+          "id": "p/graphql/types/Point/fields/x",
+          "name": {
+            "source": "x",
+            "canonical": "x"
+          },
+          "wireName": "x",
+          "type": {
+            "target": "t/prim/int32",
+            "nullable": false
+          },
+          "required": true,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/types/Point/fields/x"
+          }
+        },
+        {
+          "id": "p/graphql/types/Point/fields/y",
+          "name": {
+            "source": "y",
+            "canonical": "y"
+          },
+          "wireName": "y",
+          "type": {
+            "target": "t/prim/int32",
+            "nullable": false
+          },
+          "required": true,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/types/Point/fields/y"
+          }
         }
       ],
       "abstract": false,
@@ -261,6 +522,54 @@
       "positional": false,
       "inputOnly": false
     },
+    "t/graphql/types/Priority": {
+      "kind": "enum",
+      "id": "t/graphql/types/Priority",
+      "name": {
+        "source": "Priority",
+        "canonical": "priority"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/types/Priority"
+      },
+      "valueType": "string",
+      "members": [
+        {
+          "name": {
+            "source": "LOW",
+            "canonical": "low"
+          },
+          "value": {
+            "kind": "string",
+            "str": "LOW",
+            "bytes": null,
+            "list": null,
+            "object": null
+          },
+          "docs": {}
+        },
+        {
+          "name": {
+            "source": "HIGH",
+            "canonical": "high"
+          },
+          "value": {
+            "kind": "string",
+            "str": "HIGH",
+            "bytes": null,
+            "list": null,
+            "object": null
+          },
+          "docs": {}
+        }
+      ],
+      "closed": true,
+      "flags": false
+    },
     "t/prim/bool": {
       "kind": "primitive",
       "id": "t/prim/bool",
@@ -272,6 +581,18 @@
         "source": 0
       },
       "prim": "bool"
+    },
+    "t/prim/int32": {
+      "kind": "primitive",
+      "id": "t/prim/int32",
+      "name": {},
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0
+      },
+      "prim": "int32"
     },
     "t/prim/string": {
       "kind": "primitive",
@@ -290,7 +611,7 @@
     {
       "format": "graphql@sdl",
       "path": "input-objects.graphql",
-      "hash": "649418baf00eaf795076025804acbcaca3671578d37c725c70fc9a3d294e75b4"
+      "hash": "85ed9d0ddaf73b7ef0437ed52eed95c50b3a225e794247569c2de570a07627fb"
     }
   ]
 }

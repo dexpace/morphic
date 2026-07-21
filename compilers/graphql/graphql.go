@@ -5,17 +5,25 @@ import (
 	"fmt"
 
 	"github.com/vektah/gqlparser/v2/ast"
+	"github.com/vektah/gqlparser/v2/parser"
 
 	"github.com/dexpace/morphic/compilers"
 	"github.com/dexpace/morphic/ir"
 )
 
+// parseFunc is the SDL parser seam. It matches parser.ParseSchemasWithLimit and
+// is stored per-Compiler (never a package global) so a test can substitute a
+// panicking parser to exercise the recovery path without mutable global state.
+type parseFunc func(maxTokenLimit int, inputs ...*ast.Source) (*ast.SchemaDocument, error)
+
 // Compiler lowers GraphQL SDL documents — plain schemas and Apollo Federation v1
 // and v2 subgraphs — into the IR.
-type Compiler struct{}
+type Compiler struct {
+	parse parseFunc
+}
 
 // New returns the GraphQL compiler.
-func New() *Compiler { return &Compiler{} }
+func New() *Compiler { return &Compiler{parse: parser.ParseSchemasWithLimit} }
 
 // Formats reports the source dialect this compiler accepts. GraphQL SDL is
 // version-less; federation is detected from the document itself, not selected by
@@ -37,7 +45,7 @@ func (c *Compiler) Compile(_ context.Context, sources []compilers.Source, opts c
 		return nil, nil, err
 	}
 	astInputs, infos, index := sourcesFrom(toLoadInputs(sources))
-	ld, diags, err := load(infos, astInputs, index)
+	ld, diags, err := load(c.parse, infos, astInputs, index)
 	if err != nil || ld == nil {
 		return nil, diags, err
 	}

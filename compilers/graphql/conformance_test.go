@@ -220,6 +220,18 @@ func assertInputObjects(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
 	require.NotNil(t, draft.Default)
 	assert.Equal(t, ir.ValueBool, draft.Default.Kind)
 	assert.True(t, draft.Default.Bool)
+	tags, ok := propByWire(np, "tags")
+	require.True(t, ok)
+	require.NotNil(t, tags.Default)
+	assert.Equal(t, ir.ValueList, tags.Default.Kind, "a list default lands as a list Value")
+	priority, ok := propByWire(np, "priority")
+	require.True(t, ok)
+	require.NotNil(t, priority.Default)
+	assert.Equal(t, ir.ValueSymbol, priority.Default.Kind, "an enum default is a symbol, not a string")
+	origin, ok := propByWire(np, "origin")
+	require.True(t, ok)
+	require.NotNil(t, origin.Default)
+	assert.Equal(t, ir.ValueObject, origin.Default.Kind, "an object default lands as an object Value")
 }
 
 func assertFieldArguments(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
@@ -319,6 +331,9 @@ func assertDirectives(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
 	require.True(t, ok)
 	assert.JSONEq(t, `[{"role":"reader"},{"role":"writer"}]`, string(raw),
 		"repeatable applications accumulate in an ordered array")
+	cfg, ok := secret.Extensions["graphql:@config"]
+	require.True(t, ok, "directive arguments of every value kind are preserved")
+	assert.JSONEq(t, `[{"tags":["a","b"],"opts":{"retries":3},"level":"HIGH"}]`, string(cfg))
 	assert.Contains(t, doc.Extensions, "graphql:directive-definitions")
 }
 

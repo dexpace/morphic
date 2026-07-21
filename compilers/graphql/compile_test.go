@@ -95,3 +95,92 @@ func TestCompile_DefaultRootTypesWithoutSchemaBlock(t *testing.T) {
 	require.Len(t, doc.Services[0].Groups, 1, "Query is discovered without an explicit schema block")
 	assert.Equal(t, "query", doc.Services[0].Groups[0].Name.Source)
 }
+
+func TestCompile_DuplicateTypeIsWarning(t *testing.T) {
+	t.Parallel()
+	sdl := "type A { x: Int } type A { y: Int } type Query { a: A }"
+	doc, diags, err := graphql.New().Compile(t.Context(),
+		[]compilers.Source{{Path: "s.graphql", Data: []byte(sdl)}}, compilers.Options{})
+	require.NoError(t, err)
+	require.NotNil(t, doc)
+	var found bool
+	for _, d := range diags {
+		if d.Code == "graphql/duplicate-type" {
+			found = true
+			assert.Equal(t, ir.SeverityWarning, d.Severity)
+		}
+	}
+	assert.True(t, found, "a redefined type name is diagnosed")
+	a, ok := doc.Types[namedID("A")].(*ir.Model)
+	require.True(t, ok)
+	_, kept := propByWire(a, "x")
+	assert.True(t, kept, "the first definition wins")
+}
+
+func TestCompile_ExtendMergesIntoBase(t *testing.T) {
+	t.Parallel()
+	sdl := `type A { x: Int }
+	extend type A @tag(name: "t") { y: Int }
+	type Query { a: A }`
+	doc, diags, err := graphql.New().Compile(t.Context(),
+		[]compilers.Source{{Path: "s.graphql", Data: []byte(sdl)}}, compilers.Options{})
+	require.NoError(t, err)
+	require.NotNil(t, doc)
+	assertNoErrorDiags(t, diags)
+	a, ok := doc.Types[namedID("A")].(*ir.Model)
+	require.True(t, ok)
+	_, hasX := propByWire(a, "x")
+	_, hasY := propByWire(a, "y")
+	assert.True(t, hasX && hasY, "extend fields merge into the base")
+	assert.Contains(t, a.Extensions, "graphql:extends", "the extend occurrence is recorded on a based type")
+	assert.Contains(t, a.Extensions, "federation:@tag", "an extend's directives merge in")
+}
+
+func TestCompile_FieldLevelFederationDetectsV1(t *testing.T) {
+	t.Parallel()
+	sdl := "type Widget { id: ID! @external } type Query { w: Widget }"
+	doc, _, err := graphql.New().Compile(t.Context(),
+		[]compilers.Source{{Path: "s.graphql", Data: []byte(sdl)}}, compilers.Options{})
+	require.NoError(t, err)
+	require.NotNil(t, doc)
+	raw, ok := doc.Extensions["federation:version"]
+	require.True(t, ok, "a field-level federation directive alone detects v1")
+	assert.JSONEq(t, `"1"`, string(raw))
+}
+
+func TestCompile_UndefinedSchemaRootIsSkipped(t *testing.T) {
+	t.Parallel()
+	sdl := "type Query { a: Int } schema { query: Query, mutation: Ghost }"
+	doc, _, err := graphql.New().Compile(t.Context(),
+		[]compilers.Source{{Path: "s.graphql", Data: []byte(sdl)}}, compilers.Options{})
+	require.NoError(t, err)
+	require.NotNil(t, doc)
+	require.Len(t, doc.Services, 1)
+	assert.Len(t, doc.Services[0].Groups, 1, "a schema block root that names no defined type yields no group")
+}
+
+func TestCompile_DirectiveOnlyExtendYieldsFieldlessModel(t *testing.T) {
+	t.Parallel()
+	sdl := `extend type Widget @tag(name: "x")
+	type Query { ok: Boolean }`
+	doc, _, err := graphql.New().Compile(t.Context(),
+		[]compilers.Source{{Path: "s.graphql", Data: []byte(sdl)}}, compilers.Options{})
+	require.NoError(t, err)
+	require.NotNil(t, doc)
+	w, ok := doc.Types[namedID("Widget")].(*ir.Model)
+	require.True(t, ok, "a directive-only extend still lands as a model")
+	assert.Empty(t, w.Properties, "a fieldless extend produces a model with no properties")
+}
+
+func TestCompile_InaccessibleTypeIsInternal(t *testing.T) {
+	t.Parallel()
+	sdl := `type Hidden @inaccessible { x: Int }
+	type Query { h: Hidden }`
+	doc, _, err := graphql.New().Compile(t.Context(),
+		[]compilers.Source{{Path: "s.graphql", Data: []byte(sdl)}}, compilers.Options{})
+	require.NoError(t, err)
+	require.NotNil(t, doc)
+	hidden, ok := doc.Types[namedID("Hidden")].(*ir.Model)
+	require.True(t, ok)
+	assert.Equal(t, "internal", hidden.Common().Access, "@inaccessible on a type maps to internal access")
+}

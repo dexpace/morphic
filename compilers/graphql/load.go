@@ -8,7 +8,6 @@ import (
 
 	"github.com/vektah/gqlparser/v2/ast"
 	"github.com/vektah/gqlparser/v2/gqlerror"
-	"github.com/vektah/gqlparser/v2/parser"
 
 	"github.com/dexpace/morphic/ir"
 )
@@ -34,8 +33,8 @@ type loaded struct {
 // load parses every input as one merged SDL document. Syntax errors become
 // error-severity diagnostics with a nil document (a refusal to lower that does
 // not abort the batch); the Go error return is reserved for a parser panic.
-func load(srcs []ir.SourceInfo, inputs []*ast.Source, index map[*ast.Source]int) (*loaded, []ir.Diagnostic, error) {
-	doc, perr := parseAll(inputs)
+func load(parse parseFunc, srcs []ir.SourceInfo, inputs []*ast.Source, index map[*ast.Source]int) (*loaded, []ir.Diagnostic, error) {
+	doc, perr := parseAll(parse, inputs)
 	if perr != nil {
 		if errors.Is(perr, errParse) {
 			return nil, nil, perr
@@ -48,14 +47,14 @@ func load(srcs []ir.SourceInfo, inputs []*ast.Source, index map[*ast.Source]int)
 // parseAll runs the SDL parser over every input, converting a parser panic into
 // an errParse Go error so the compiler upholds the no-panics-escape invariant.
 // The named returns are reset in the recover so a partial document never leaks.
-func parseAll(inputs []*ast.Source) (doc *ast.SchemaDocument, err error) {
+func parseAll(parse parseFunc, inputs []*ast.Source) (doc *ast.SchemaDocument, err error) {
 	defer func() {
 		if r := recover(); r != nil {
 			doc = nil
 			err = fmt.Errorf("parser panicked (%v): %w", r, errParse)
 		}
 	}()
-	parsed, perr := parser.ParseSchemasWithLimit(maxTokenLimit, inputs...)
+	parsed, perr := parse(maxTokenLimit, inputs...)
 	if perr != nil {
 		return nil, perr
 	}

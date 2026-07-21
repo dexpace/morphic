@@ -1,7 +1,21 @@
+enum Priority {
+  LOW
+  HIGH
+}
+
+input Point {
+  x: Int!
+  y: Int!
+}
+
 input NewPost {
   title: String!
   tag: String = "general"
   draft: Boolean = true
+  hidden: Boolean = false
+  tags: [String!] = ["a", "b"]
+  priority: Priority = LOW
+  origin: Point = { x: 0, y: 0 }
 }
 
 type Post {
