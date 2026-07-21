@@ -1,0 +1,161 @@
+{
+  "irVersion": "0.1.0",
+  "docs": {},
+  "services": [
+    {
+      "id": "s/graphql/0",
+      "name": {},
+      "docs": {},
+      "groups": [
+        {
+          "name": {
+            "source": "query",
+            "canonical": "query"
+          },
+          "docs": {},
+          "operations": [
+            {
+              "id": "op/graphql/query/documented",
+              "name": {
+                "source": "documented",
+                "canonical": "documented"
+              },
+              "docs": {},
+              "responses": [
+                {
+                  "name": {},
+                  "conditions": {},
+                  "payload": {
+                    "contents": [
+                      {
+                        "type": {
+                          "target": "t/graphql/types/Documented",
+                          "nullable": true
+                        }
+                      }
+                    ]
+                  },
+                  "docs": {}
+                }
+              ],
+              "oneWay": false,
+              "idempotency": {
+                "kind": "safe"
+              },
+              "auth": null,
+              "bindings": {
+                "graphql": {
+                  "kind": "query",
+                  "fieldPath": [
+                    "documented"
+                  ]
+                }
+              },
+              "provenance": {
+                "source": 0,
+                "pointer": "/query/documented"
+              }
+            }
+          ]
+        }
+      ],
+      "auth": null,
+      "provenance": {
+        "source": 0
+      }
+    }
+  ],
+  "types": {
+    "t/graphql/scalars/ID": {
+      "kind": "scalar",
+      "id": "t/graphql/scalars/ID",
+      "name": {
+        "source": "ID",
+        "canonical": "id"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "extensions": {
+        "graphql:builtin-scalar": "ID"
+      },
+      "provenance": {
+        "source": 0
+      },
+      "base": {
+        "target": "t/prim/string",
+        "nullable": false
+      }
+    },
+    "t/graphql/types/Documented": {
+      "kind": "model",
+      "id": "t/graphql/types/Documented",
+      "name": {
+        "source": "Documented",
+        "canonical": "documented"
+      },
+      "anonymous": false,
+      "docs": {
+        "description": "A documented type.\nSecond line of prose."
+      },
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/types/Documented"
+      },
+      "properties": [
+        {
+          "id": "p/graphql/types/Documented/fields/id",
+          "name": {
+            "source": "id",
+            "canonical": "id"
+          },
+          "wireName": "id",
+          "type": {
+            "target": "t/graphql/scalars/ID",
+            "nullable": false
+          },
+          "required": true,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {
+            "description": "The identifier."
+          },
+          "provenance": {
+            "source": 0,
+            "pointer": "/types/Documented/fields/id"
+          }
+        }
+      ],
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
+    "t/prim/string": {
+      "kind": "primitive",
+      "id": "t/prim/string",
+      "name": {},
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0
+      },
+      "prim": "string"
+    }
+  },
+  "sources": [
+    {
+      "format": "graphql@sdl",
+      "path": "docs.graphql",
+      "hash": "c385398b7168cb98b160a1f913913c67b21254ab75a9bb444e3662df88fb0b1e"
+    }
+  ]
+}

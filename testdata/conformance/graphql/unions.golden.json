@@ -1,0 +1,244 @@
+{
+  "irVersion": "0.1.0",
+  "docs": {},
+  "services": [
+    {
+      "id": "s/graphql/0",
+      "name": {},
+      "docs": {},
+      "groups": [
+        {
+          "name": {
+            "source": "query",
+            "canonical": "query"
+          },
+          "docs": {},
+          "operations": [
+            {
+              "id": "op/graphql/query/media",
+              "name": {
+                "source": "media",
+                "canonical": "media"
+              },
+              "docs": {},
+              "responses": [
+                {
+                  "name": {},
+                  "conditions": {},
+                  "payload": {
+                    "contents": [
+                      {
+                        "type": {
+                          "target": "t/graphql/types/Media",
+                          "nullable": true
+                        }
+                      }
+                    ]
+                  },
+                  "docs": {}
+                }
+              ],
+              "oneWay": false,
+              "idempotency": {
+                "kind": "safe"
+              },
+              "auth": null,
+              "bindings": {
+                "graphql": {
+                  "kind": "query",
+                  "fieldPath": [
+                    "media"
+                  ]
+                }
+              },
+              "provenance": {
+                "source": 0,
+                "pointer": "/query/media"
+              }
+            }
+          ]
+        }
+      ],
+      "auth": null,
+      "provenance": {
+        "source": 0
+      }
+    }
+  ],
+  "types": {
+    "t/graphql/types/Media": {
+      "kind": "union",
+      "id": "t/graphql/types/Media",
+      "name": {
+        "source": "Media",
+        "canonical": "media"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/types/Media"
+      },
+      "variants": [
+        {
+          "name": {
+            "source": "Photo",
+            "canonical": "photo"
+          },
+          "type": {
+            "target": "t/graphql/types/Photo",
+            "nullable": false
+          },
+          "docs": {}
+        },
+        {
+          "name": {
+            "source": "Video",
+            "canonical": "video"
+          },
+          "type": {
+            "target": "t/graphql/types/Video",
+            "nullable": false
+          },
+          "docs": {}
+        }
+      ],
+      "exclusive": true,
+      "wireTagged": true,
+      "discriminator": {
+        "propertyName": "__typename",
+        "mapping": {
+          "Photo": "t/graphql/types/Photo",
+          "Video": "t/graphql/types/Video"
+        },
+        "inferred": false
+      }
+    },
+    "t/graphql/types/Photo": {
+      "kind": "model",
+      "id": "t/graphql/types/Photo",
+      "name": {
+        "source": "Photo",
+        "canonical": "photo"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/types/Photo"
+      },
+      "properties": [
+        {
+          "id": "p/graphql/types/Photo/fields/url",
+          "name": {
+            "source": "url",
+            "canonical": "url"
+          },
+          "wireName": "url",
+          "type": {
+            "target": "t/prim/string",
+            "nullable": false
+          },
+          "required": true,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/types/Photo/fields/url"
+          }
+        }
+      ],
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
+    "t/graphql/types/Video": {
+      "kind": "model",
+      "id": "t/graphql/types/Video",
+      "name": {
+        "source": "Video",
+        "canonical": "video"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/types/Video"
+      },
+      "properties": [
+        {
+          "id": "p/graphql/types/Video/fields/length",
+          "name": {
+            "source": "length",
+            "canonical": "length"
+          },
+          "wireName": "length",
+          "type": {
+            "target": "t/prim/int32",
+            "nullable": false
+          },
+          "required": true,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/types/Video/fields/length"
+          }
+        }
+      ],
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
+    "t/prim/int32": {
+      "kind": "primitive",
+      "id": "t/prim/int32",
+      "name": {},
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0
+      },
+      "prim": "int32"
+    },
+    "t/prim/string": {
+      "kind": "primitive",
+      "id": "t/prim/string",
+      "name": {},
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0
+      },
+      "prim": "string"
+    }
+  },
+  "sources": [
+    {
+      "format": "graphql@sdl",
+      "path": "unions.graphql",
+      "hash": "60a152832d0c0d48776456d4b91b4d1a544f83a4e3288ac5887cd0a28de7993c"
+    }
+  ]
+}

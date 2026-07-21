@@ -1,0 +1,9 @@
+directive @auth(role: String!) repeatable on FIELD_DEFINITION | OBJECT
+
+type Secret @auth(role: "admin") {
+  value: String! @auth(role: "reader") @auth(role: "writer")
+}
+
+type Query {
+  secret: Secret
+}

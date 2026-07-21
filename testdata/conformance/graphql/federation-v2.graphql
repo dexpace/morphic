@@ -1,0 +1,18 @@
+extend schema
+  @link(url: "https://specs.apollo.dev/federation/v2.5", import: ["@key", "@shareable", "@inaccessible", "@override", "@interfaceObject", "@tag"])
+
+type Product @key(fields: "id") {
+  id: ID!
+  sku: String! @shareable
+  internalName: String @inaccessible
+  price: Int @override(from: "products-v1")
+}
+
+type Metrics @key(fields: "id") @interfaceObject {
+  id: ID!
+  views: Int
+}
+
+extend type Query {
+  bestSeller: Product
+}

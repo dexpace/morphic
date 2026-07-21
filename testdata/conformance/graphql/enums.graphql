@@ -1,0 +1,10 @@
+"""Publication status."""
+enum Status {
+  DRAFT
+  PUBLISHED
+  ARCHIVED @deprecated(reason: "use PUBLISHED")
+}
+
+type Query {
+  status: Status!
+}

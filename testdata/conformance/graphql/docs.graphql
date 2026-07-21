@@ -1,0 +1,12 @@
+"""
+A documented type.
+Second line of prose.
+"""
+type Documented {
+  "The identifier."
+  id: ID!
+}
+
+type Query {
+  documented: Documented
+}

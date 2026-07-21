@@ -1,0 +1,8 @@
+"An outdated type."
+type Legacy @deprecated(reason: "use Modern") {
+  old: String @deprecated(reason: "removed soon")
+}
+
+type Query {
+  legacy(mode: String @deprecated(reason: "ignored")): Legacy
+}

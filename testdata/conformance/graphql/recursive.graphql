@@ -1,0 +1,9 @@
+type TreeNode {
+  value: Int!
+  children: [TreeNode!]!
+  parent: TreeNode
+}
+
+type Query {
+  root: TreeNode
+}

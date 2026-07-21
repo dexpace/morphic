@@ -1,0 +1,12 @@
+input LookupInput @oneOf {
+  byId: ID
+  byEmail: String
+}
+
+type Account {
+  id: ID!
+}
+
+type Query {
+  account(by: LookupInput!): Account
+}

@@ -1,0 +1,13 @@
+input NewPost {
+  title: String!
+  tag: String = "general"
+  draft: Boolean = true
+}
+
+type Post {
+  id: ID!
+}
+
+type Mutation {
+  createPost(input: NewPost!): Post!
+}

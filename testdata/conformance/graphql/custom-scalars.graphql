@@ -1,0 +1,12 @@
+scalar DateTime @specifiedBy(url: "https://scalars.graphql.org/andimarek/date-time")
+
+scalar JSON
+
+type Event {
+  at: DateTime!
+  payload: JSON
+}
+
+type Query {
+  event: Event
+}

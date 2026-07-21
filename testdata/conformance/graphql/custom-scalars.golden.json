@@ -1,0 +1,188 @@
+{
+  "irVersion": "0.1.0",
+  "docs": {},
+  "services": [
+    {
+      "id": "s/graphql/0",
+      "name": {},
+      "docs": {},
+      "groups": [
+        {
+          "name": {
+            "source": "query",
+            "canonical": "query"
+          },
+          "docs": {},
+          "operations": [
+            {
+              "id": "op/graphql/query/event",
+              "name": {
+                "source": "event",
+                "canonical": "event"
+              },
+              "docs": {},
+              "responses": [
+                {
+                  "name": {},
+                  "conditions": {},
+                  "payload": {
+                    "contents": [
+                      {
+                        "type": {
+                          "target": "t/graphql/types/Event",
+                          "nullable": true
+                        }
+                      }
+                    ]
+                  },
+                  "docs": {}
+                }
+              ],
+              "oneWay": false,
+              "idempotency": {
+                "kind": "safe"
+              },
+              "auth": null,
+              "bindings": {
+                "graphql": {
+                  "kind": "query",
+                  "fieldPath": [
+                    "event"
+                  ]
+                }
+              },
+              "provenance": {
+                "source": 0,
+                "pointer": "/query/event"
+              }
+            }
+          ]
+        }
+      ],
+      "auth": null,
+      "provenance": {
+        "source": 0
+      }
+    }
+  ],
+  "types": {
+    "t/graphql/types/DateTime": {
+      "kind": "scalar",
+      "id": "t/graphql/types/DateTime",
+      "name": {
+        "source": "DateTime",
+        "canonical": "date_time"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "extensions": {
+        "graphql:@specifiedBy": [
+          {
+            "url": "https://scalars.graphql.org/andimarek/date-time"
+          }
+        ]
+      },
+      "provenance": {
+        "source": 0,
+        "pointer": "/types/DateTime"
+      }
+    },
+    "t/graphql/types/Event": {
+      "kind": "model",
+      "id": "t/graphql/types/Event",
+      "name": {
+        "source": "Event",
+        "canonical": "event"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/types/Event"
+      },
+      "properties": [
+        {
+          "id": "p/graphql/types/Event/fields/at",
+          "name": {
+            "source": "at",
+            "canonical": "at"
+          },
+          "wireName": "at",
+          "type": {
+            "target": "t/graphql/types/DateTime",
+            "nullable": false
+          },
+          "required": true,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/types/Event/fields/at"
+          }
+        },
+        {
+          "id": "p/graphql/types/Event/fields/payload",
+          "name": {
+            "source": "payload",
+            "canonical": "payload"
+          },
+          "wireName": "payload",
+          "type": {
+            "target": "t/graphql/types/JSON",
+            "nullable": true
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/types/Event/fields/payload"
+          }
+        }
+      ],
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
+    "t/graphql/types/JSON": {
+      "kind": "scalar",
+      "id": "t/graphql/types/JSON",
+      "name": {
+        "source": "JSON",
+        "canonical": "json"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/types/JSON"
+      }
+    }
+  },
+  "sources": [
+    {
+      "format": "graphql@sdl",
+      "path": "custom-scalars.graphql",
+      "hash": "61bef2bce63d9566d2e51983be615d9bd1a78b762a6eb23ef97ad7faa0e139ba"
+    }
+  ]
+}

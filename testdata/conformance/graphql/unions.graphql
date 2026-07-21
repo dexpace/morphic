@@ -1,0 +1,13 @@
+type Photo {
+  url: String!
+}
+
+type Video {
+  length: Int!
+}
+
+union Media = Photo | Video
+
+type Query {
+  media: Media
+}

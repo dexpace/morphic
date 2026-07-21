@@ -1,0 +1,82 @@
+"""
+The Social API.
+A small but complete schema exercising the full GraphQL surface.
+"""
+schema {
+  query: Query
+  mutation: Mutation
+  subscription: Subscription
+}
+
+directive @auth(requires: Role = VIEWER) on FIELD_DEFINITION | OBJECT
+
+"An RFC 3339 date-time."
+scalar DateTime @specifiedBy(url: "https://scalars.graphql.org/andimarek/date-time")
+
+"Anything with a global id."
+interface Node {
+  id: ID!
+}
+
+"The role of a user."
+enum Role {
+  ADMIN
+  EDITOR
+  VIEWER
+  GUEST @deprecated(reason: "guests are anonymous now")
+}
+
+"A registered user."
+type User implements Node @auth(requires: EDITOR) {
+  id: ID!
+  handle: String!
+  displayName: String
+  role: Role!
+  createdAt: DateTime!
+  posts(first: Int = 10, after: String): [Post!]!
+  friends: [User!]!
+}
+
+"A published post."
+type Post implements Node {
+  id: ID!
+  author: User!
+  title: String!
+  body: String
+  tags: [String!]
+  createdAt: DateTime!
+}
+
+"A comment or a post shown in a feed."
+union FeedItem = Post
+
+"Filter for searching posts."
+input PostFilter {
+  titleContains: String
+  authorId: ID
+  limit: Int = 25
+}
+
+"Locate an account by exactly one key."
+input AccountLookup @oneOf {
+  byId: ID
+  byHandle: String
+}
+
+type Query {
+  "Fetch any node by id."
+  node(id: ID!): Node
+  me: User
+  search(filter: PostFilter): [Post!]!
+  account(by: AccountLookup!): User
+}
+
+type Mutation {
+  "Create a post."
+  createPost(title: String!, body: String): Post!
+  deletePost(id: ID!): Boolean! @deprecated(reason: "use archivePost")
+}
+
+type Subscription {
+  postAdded(authorId: ID): Post!
+}

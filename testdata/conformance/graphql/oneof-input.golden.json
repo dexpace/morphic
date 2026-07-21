@@ -1,0 +1,217 @@
+{
+  "irVersion": "0.1.0",
+  "docs": {},
+  "services": [
+    {
+      "id": "s/graphql/0",
+      "name": {},
+      "docs": {},
+      "groups": [
+        {
+          "name": {
+            "source": "query",
+            "canonical": "query"
+          },
+          "docs": {},
+          "operations": [
+            {
+              "id": "op/graphql/query/account",
+              "name": {
+                "source": "account",
+                "canonical": "account"
+              },
+              "docs": {},
+              "params": [
+                {
+                  "name": {
+                    "source": "by",
+                    "canonical": "by"
+                  },
+                  "type": {
+                    "target": "t/graphql/types/LookupInput",
+                    "nullable": false
+                  },
+                  "required": true,
+                  "docs": {}
+                }
+              ],
+              "responses": [
+                {
+                  "name": {},
+                  "conditions": {},
+                  "payload": {
+                    "contents": [
+                      {
+                        "type": {
+                          "target": "t/graphql/types/Account",
+                          "nullable": true
+                        }
+                      }
+                    ]
+                  },
+                  "docs": {}
+                }
+              ],
+              "oneWay": false,
+              "idempotency": {
+                "kind": "safe"
+              },
+              "auth": null,
+              "bindings": {
+                "graphql": {
+                  "kind": "query",
+                  "fieldPath": [
+                    "account"
+                  ]
+                }
+              },
+              "provenance": {
+                "source": 0,
+                "pointer": "/query/account"
+              }
+            }
+          ]
+        }
+      ],
+      "auth": null,
+      "provenance": {
+        "source": 0
+      }
+    }
+  ],
+  "types": {
+    "t/graphql/scalars/ID": {
+      "kind": "scalar",
+      "id": "t/graphql/scalars/ID",
+      "name": {
+        "source": "ID",
+        "canonical": "id"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "extensions": {
+        "graphql:builtin-scalar": "ID"
+      },
+      "provenance": {
+        "source": 0
+      },
+      "base": {
+        "target": "t/prim/string",
+        "nullable": false
+      }
+    },
+    "t/graphql/types/Account": {
+      "kind": "model",
+      "id": "t/graphql/types/Account",
+      "name": {
+        "source": "Account",
+        "canonical": "account"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/types/Account"
+      },
+      "properties": [
+        {
+          "id": "p/graphql/types/Account/fields/id",
+          "name": {
+            "source": "id",
+            "canonical": "id"
+          },
+          "wireName": "id",
+          "type": {
+            "target": "t/graphql/scalars/ID",
+            "nullable": false
+          },
+          "required": true,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/types/Account/fields/id"
+          }
+        }
+      ],
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
+    "t/graphql/types/LookupInput": {
+      "kind": "union",
+      "id": "t/graphql/types/LookupInput",
+      "name": {
+        "source": "LookupInput",
+        "canonical": "lookup_input"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "extensions": {
+        "graphql:oneOfInput": true
+      },
+      "provenance": {
+        "source": 0,
+        "pointer": "/types/LookupInput"
+      },
+      "variants": [
+        {
+          "name": {
+            "source": "byId",
+            "canonical": "by_id"
+          },
+          "type": {
+            "target": "t/graphql/scalars/ID",
+            "nullable": true
+          },
+          "wireName": "byId",
+          "docs": {}
+        },
+        {
+          "name": {
+            "source": "byEmail",
+            "canonical": "by_email"
+          },
+          "type": {
+            "target": "t/prim/string",
+            "nullable": true
+          },
+          "wireName": "byEmail",
+          "docs": {}
+        }
+      ],
+      "exclusive": true,
+      "wireTagged": true
+    },
+    "t/prim/string": {
+      "kind": "primitive",
+      "id": "t/prim/string",
+      "name": {},
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0
+      },
+      "prim": "string"
+    }
+  },
+  "sources": [
+    {
+      "format": "graphql@sdl",
+      "path": "oneof-input.graphql",
+      "hash": "3198b4f0b66c6d6d7187d57253fdb94d56b16e5fcc4e9706aa32b935a7414f4b"
+    }
+  ]
+}

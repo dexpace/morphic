@@ -1,0 +1,10 @@
+type Shape {
+  reqPlain: String!
+  optPlain: String
+  reqListReqItem: [Int!]!
+  optListOptItem: [Int]
+}
+
+type Query {
+  shape: Shape
+}

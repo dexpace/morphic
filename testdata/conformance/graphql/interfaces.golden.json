@@ -1,0 +1,362 @@
+{
+  "irVersion": "0.1.0",
+  "docs": {},
+  "services": [
+    {
+      "id": "s/graphql/0",
+      "name": {},
+      "docs": {},
+      "groups": [
+        {
+          "name": {
+            "source": "query",
+            "canonical": "query"
+          },
+          "docs": {},
+          "operations": [
+            {
+              "id": "op/graphql/query/node",
+              "name": {
+                "source": "node",
+                "canonical": "node"
+              },
+              "docs": {},
+              "params": [
+                {
+                  "name": {
+                    "source": "id",
+                    "canonical": "id"
+                  },
+                  "type": {
+                    "target": "t/graphql/scalars/ID",
+                    "nullable": false
+                  },
+                  "required": true,
+                  "docs": {}
+                }
+              ],
+              "responses": [
+                {
+                  "name": {},
+                  "conditions": {},
+                  "payload": {
+                    "contents": [
+                      {
+                        "type": {
+                          "target": "t/graphql/types/Node",
+                          "nullable": true
+                        }
+                      }
+                    ]
+                  },
+                  "docs": {}
+                }
+              ],
+              "oneWay": false,
+              "idempotency": {
+                "kind": "safe"
+              },
+              "auth": null,
+              "bindings": {
+                "graphql": {
+                  "kind": "query",
+                  "fieldPath": [
+                    "node"
+                  ]
+                }
+              },
+              "provenance": {
+                "source": 0,
+                "pointer": "/query/node"
+              }
+            }
+          ]
+        }
+      ],
+      "auth": null,
+      "provenance": {
+        "source": 0
+      }
+    }
+  ],
+  "types": {
+    "t/graphql/scalars/ID": {
+      "kind": "scalar",
+      "id": "t/graphql/scalars/ID",
+      "name": {
+        "source": "ID",
+        "canonical": "id"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "extensions": {
+        "graphql:builtin-scalar": "ID"
+      },
+      "provenance": {
+        "source": 0
+      },
+      "base": {
+        "target": "t/prim/string",
+        "nullable": false
+      }
+    },
+    "t/graphql/types/Article": {
+      "kind": "model",
+      "id": "t/graphql/types/Article",
+      "name": {
+        "source": "Article",
+        "canonical": "article"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/types/Article"
+      },
+      "properties": [
+        {
+          "id": "p/graphql/types/Article/fields/id",
+          "name": {
+            "source": "id",
+            "canonical": "id"
+          },
+          "wireName": "id",
+          "type": {
+            "target": "t/graphql/scalars/ID",
+            "nullable": false
+          },
+          "required": true,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/types/Article/fields/id"
+          }
+        },
+        {
+          "id": "p/graphql/types/Article/fields/createdAt",
+          "name": {
+            "source": "createdAt",
+            "canonical": "created_at"
+          },
+          "wireName": "createdAt",
+          "type": {
+            "target": "t/prim/string",
+            "nullable": false
+          },
+          "required": true,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/types/Article/fields/createdAt"
+          }
+        },
+        {
+          "id": "p/graphql/types/Article/fields/title",
+          "name": {
+            "source": "title",
+            "canonical": "title"
+          },
+          "wireName": "title",
+          "type": {
+            "target": "t/prim/string",
+            "nullable": false
+          },
+          "required": true,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/types/Article/fields/title"
+          }
+        }
+      ],
+      "implements": [
+        {
+          "target": "t/graphql/types/Node",
+          "nullable": false
+        },
+        {
+          "target": "t/graphql/types/Timestamped",
+          "nullable": false
+        }
+      ],
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
+    "t/graphql/types/Node": {
+      "kind": "model",
+      "id": "t/graphql/types/Node",
+      "name": {
+        "source": "Node",
+        "canonical": "node"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/types/Node"
+      },
+      "properties": [
+        {
+          "id": "p/graphql/types/Node/fields/id",
+          "name": {
+            "source": "id",
+            "canonical": "id"
+          },
+          "wireName": "id",
+          "type": {
+            "target": "t/graphql/scalars/ID",
+            "nullable": false
+          },
+          "required": true,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/types/Node/fields/id"
+          }
+        }
+      ],
+      "abstract": true,
+      "positional": false,
+      "inputOnly": false
+    },
+    "t/graphql/types/Timestamped": {
+      "kind": "model",
+      "id": "t/graphql/types/Timestamped",
+      "name": {
+        "source": "Timestamped",
+        "canonical": "timestamped"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/types/Timestamped"
+      },
+      "properties": [
+        {
+          "id": "p/graphql/types/Timestamped/fields/id",
+          "name": {
+            "source": "id",
+            "canonical": "id"
+          },
+          "wireName": "id",
+          "type": {
+            "target": "t/graphql/scalars/ID",
+            "nullable": false
+          },
+          "required": true,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/types/Timestamped/fields/id"
+          }
+        },
+        {
+          "id": "p/graphql/types/Timestamped/fields/createdAt",
+          "name": {
+            "source": "createdAt",
+            "canonical": "created_at"
+          },
+          "wireName": "createdAt",
+          "type": {
+            "target": "t/prim/string",
+            "nullable": false
+          },
+          "required": true,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/types/Timestamped/fields/createdAt"
+          }
+        }
+      ],
+      "implements": [
+        {
+          "target": "t/graphql/types/Node",
+          "nullable": false
+        }
+      ],
+      "abstract": true,
+      "positional": false,
+      "inputOnly": false
+    },
+    "t/prim/string": {
+      "kind": "primitive",
+      "id": "t/prim/string",
+      "name": {},
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0
+      },
+      "prim": "string"
+    }
+  },
+  "sources": [
+    {
+      "format": "graphql@sdl",
+      "path": "interfaces.graphql",
+      "hash": "c87c00c60a4151460c8f25fe50d668ca6672fa0c533788c39255a74c797ca2af"
+    }
+  ]
+}
