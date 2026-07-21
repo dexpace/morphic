@@ -2,7 +2,7 @@ package irverify
 
 import (
 	"reflect"
-	"unicode"
+	"strings"
 
 	"github.com/dexpace/morphic/ir"
 )
@@ -18,7 +18,7 @@ func checkNaming(doc *ir.Document) []Violation {
 		if v.Kind() != reflect.Struct || v.Type() != namingType {
 			return true
 		}
-		if n, ok := v.Interface().(ir.Naming); ok && hasUpper(n.Canonical) {
+		if n, ok := v.Interface().(ir.Naming); ok && isCased(n.Canonical) {
 			vs = append(vs, Violation{
 				Code:    "ir/naming-cased",
 				Message: "canonical name " + n.Canonical + " carries casing; store neutral words",
@@ -30,12 +30,12 @@ func checkNaming(doc *ir.Document) []Violation {
 	return vs
 }
 
-// hasUpper reports whether s contains an uppercase letter.
-func hasUpper(s string) bool {
-	for _, r := range s {
-		if unicode.IsUpper(r) {
-			return true
-		}
-	}
-	return false
+// isCased reports whether s still carries casing an emitter should own. The test
+// is lowercase-idempotence, not unicode.IsUpper: a compiler neutralizes names
+// with strings.ToLower, so a rune that has no lowercase form (double-struck ℤ,
+// Mathematical Bold 𝐀, a Roman numeral) is already neutral even though IsUpper
+// reports true for it. Only a canonical that ToLower would still change carries
+// casing.
+func isCased(s string) bool {
+	return strings.ToLower(s) != s
 }
