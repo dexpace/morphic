@@ -19,6 +19,10 @@ const (
 	codeUnsupportedVersion = "openapi/unsupported-version"
 	// codeUnresolvedRef reports a $ref that could not be resolved.
 	codeUnresolvedRef = "openapi/unresolved-ref"
+	// codeCyclicRef reports a degenerate reference cycle — a recursive YAML
+	// anchor or a chain of $ref-only schemas that never reaches a concrete
+	// type — caught before it can crash the parser with a stack overflow.
+	codeCyclicRef = "openapi/cyclic-ref"
 	// codeValidationOnlyKeyword reports a validation-only JSON Schema keyword
 	// preserved verbatim in Extensions (ir-design §4.7).
 	codeValidationOnlyKeyword = "openapi/validation-only-keyword"

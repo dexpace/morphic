@@ -37,6 +37,10 @@ type loaded struct {
 //
 //nolint:unparam // srcIndex varies once Compile drives the multi-source loop
 func load(ctx context.Context, srcIndex int, src compilers.Source, opts Options) (*loaded, []ir.Diagnostic, error) {
+	if cyc := detectCycles(srcIndex, src.Data); len(cyc) > 0 {
+		return nil, cyc, nil // degenerate cycle: refuse to lower, do not crash the parser
+	}
+
 	doc, valErrs, err := unmarshal(ctx, src.Data)
 	if err != nil {
 		return nil, nil, fmt.Errorf("openapi: unmarshal source %d: %w", srcIndex, err)
