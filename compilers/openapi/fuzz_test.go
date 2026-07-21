@@ -2,7 +2,9 @@ package openapi_test // external test package — exercises only the public API
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -21,21 +23,23 @@ import (
 const goldenPetstore = "../../testdata/golden/openapi/petstore.yaml"
 
 // FuzzCompile hammers the OpenAPI compiler with mutated spec bytes and asserts the
-// structural oracles on every document it produces: a successful compile must
-// verify clean under irverify and survive a serialized-JSON round-trip. Malformed
-// input — a Go error or a nil document — is expected and returns without failing;
-// a panic is a real compiler defect the fuzzer captures on its own. Error-severity
-// diagnostics are ignored, since mutated input legitimately provokes them yet must
-// still yield a structurally sound document.
+// structural oracles on every document it compiles cleanly: irverify must pass, a
+// serialized-JSON round-trip must be byte-identical, and a recompile of the same
+// bytes must produce identical IR. Only a clean compile is checked — a Go error or
+// a nil document means malformed input, and an error-severity diagnostic marks a
+// spec-author problem that legitimately leaves a structurally degraded document
+// (an unresolved $ref leaves a dangling type ref the validate pass flags). Those
+// inputs return without failing, exactly as internal/harness.Check gates its
+// oracles behind the same diagnostic check. A panic is a real compiler defect the
+// fuzzer captures on its own.
 func FuzzCompile(f *testing.F) {
 	seedCorpus(f)
 	f.Fuzz(func(t *testing.T, data []byte) {
-		doc, _, err := openapi.New().Compile(t.Context(),
-			[]compilers.Source{{Path: "fuzz.yaml", Data: data}}, compilers.Options{})
-		if err != nil || doc == nil {
-			return // malformed input is not a failure
+		doc, diags, err := compileSpec(t.Context(), "fuzz.yaml", data)
+		if err != nil || doc == nil || hasErrorDiag(diags) {
+			return // malformed input or a spec-author problem is not a compiler defect
 		}
-		assertOracles(t, doc, data)
+		assertOracles(t, "fuzz.yaml", data, doc)
 	})
 }
 
@@ -43,7 +47,8 @@ func FuzzCompile(f *testing.F) {
 // embedded as the sole component schema of a minimal OpenAPI 3.1 document, which is
 // then compiled and checked against the same structural oracles. A fragment that is
 // not valid JSON cannot be embedded and is skipped; an embeddable fragment the
-// compiler rejects returns without failing.
+// compiler rejects — a Go error, a nil document, or an error-severity diagnostic —
+// returns without failing.
 func FuzzLowerSchema(f *testing.F) {
 	for _, s := range schemaSeeds() {
 		f.Add([]byte(s))
@@ -53,26 +58,50 @@ func FuzzLowerSchema(f *testing.F) {
 		if !ok {
 			return // fragment is not valid JSON; nothing to embed
 		}
-		doc, _, err := openapi.New().Compile(t.Context(),
-			[]compilers.Source{{Path: "fuzz-schema.json", Data: spec}}, compilers.Options{})
-		if err != nil || doc == nil {
+		doc, diags, err := compileSpec(t.Context(), "fuzz-schema.json", spec)
+		if err != nil || doc == nil || hasErrorDiag(diags) {
 			return
 		}
-		assertOracles(t, doc, spec)
+		assertOracles(t, "fuzz-schema.json", spec, doc)
 	})
 }
 
-// assertOracles applies the structural oracles to a successfully compiled
-// document: irverify must report no violations and the document must round-trip
-// through JSON byte-for-byte. Each failure is reported with the triggering input so
-// the fuzzer's persisted reproducer is self-describing.
-func assertOracles(t *testing.T, doc *ir.Document, input []byte) {
+// compileSpec compiles one in-memory source under the given logical path with
+// default options — the single compile entry point the fuzz targets share so the
+// determinism oracle can recompile with an identical source path.
+func compileSpec(ctx context.Context, path string, data []byte) (*ir.Document, []ir.Diagnostic, error) {
+	return openapi.New().Compile(ctx,
+		[]compilers.Source{{Path: path, Data: data}}, compilers.Options{})
+}
+
+// hasErrorDiag reports whether any diagnostic is error severity — the same gate
+// internal/harness.Check applies before running the structural oracles. An
+// error-severity diagnostic marks a spec-author problem, not a compiler defect,
+// so the oracles must not run on the resulting degraded document.
+func hasErrorDiag(diags []ir.Diagnostic) bool {
+	for _, d := range diags {
+		if d.Severity == ir.SeverityError {
+			return true
+		}
+	}
+	return false
+}
+
+// assertOracles applies the structural oracles to a cleanly compiled document:
+// irverify reports no violations, the document round-trips through JSON
+// byte-for-byte, and a recompile of the same input yields identical IR. Each
+// failure is reported with the triggering input so the fuzzer's persisted
+// reproducer is self-describing.
+func assertOracles(t *testing.T, path string, input []byte, doc *ir.Document) {
 	t.Helper()
 	if vs := irverify.Verify(doc); len(vs) > 0 {
 		t.Errorf("irverify reported %d violation(s) on input %q: %+v", len(vs), input, vs)
 	}
 	if err := roundTrip(doc); err != nil {
 		t.Errorf("round-trip mismatch on input %q: %v", input, err)
+	}
+	if err := recompileStable(t.Context(), path, input, doc); err != nil {
+		t.Errorf("nondeterministic compile on input %q: %v", input, err)
 	}
 }
 
@@ -96,6 +125,31 @@ func roundTrip(doc *ir.Document) error {
 	}
 	if !bytes.Equal(first, second) {
 		return fmt.Errorf("JSON differs:\n first: %s\nsecond: %s", first, second)
+	}
+	return nil
+}
+
+// recompileStable recompiles input under the same source path and requires its IR
+// to marshal to the same bytes as doc, catching compile-time nondeterminism (for
+// example output assembled by ranging a Go map without sorting keys) that a single
+// document's round-trip cannot observe. This is the determinism oracle
+// internal/harness applies as its fourth check; feeding it thousands of varied
+// inputs makes the fuzzer the ideal place to surface map-ordering bugs.
+func recompileStable(ctx context.Context, path string, input []byte, doc *ir.Document) error {
+	first, err := json.Marshal(doc)
+	if err != nil {
+		return fmt.Errorf("marshal first: %w", err)
+	}
+	again, _, err := compileSpec(ctx, path, input)
+	if err != nil {
+		return fmt.Errorf("recompile: %w", err)
+	}
+	second, err := json.Marshal(again)
+	if err != nil {
+		return fmt.Errorf("marshal second: %w", err)
+	}
+	if !bytes.Equal(first, second) {
+		return errors.New("IR JSON differs across two compiles")
 	}
 	return nil
 }

@@ -28,11 +28,9 @@ components:
           required: notabool
 `
 
-func writeSpec(t *testing.T, dir, name, content string) string {
+func writeSpec(t *testing.T, dir, name, content string) {
 	t.Helper()
-	p := filepath.Join(dir, name)
-	require.NoError(t, os.WriteFile(p, []byte(content), 0o600))
-	return p
+	require.NoError(t, os.WriteFile(filepath.Join(dir, name), []byte(content), 0o600))
 }
 
 func TestRun_AllOKExitsZero(t *testing.T) {
