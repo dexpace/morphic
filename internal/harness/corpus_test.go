@@ -23,10 +23,19 @@ import (
 //   - resolve_main_external.yaml: $refs the malformed target above across files;
 //     the compiler does no file I/O, so the external ref surfaces as an
 //     unresolved-ref error diagnostic.
+//   - cycle_self_ref.yaml, cycle_two_node_ref.yaml, their _sibling variants, and
+//     cycle_yaml_anchor.yaml: degenerate reference cycles that never reach a
+//     concrete schema node. The pre-parse detector reports each as a cyclic-ref
+//     error instead of letting the parser fault with a stack overflow (GitHub #12).
 func knownInvalid() map[string]bool {
 	return map[string]bool{
-		filepath.FromSlash("../../testdata/openapi/resolve_target_invalid.yaml"): true,
-		filepath.FromSlash("../../testdata/openapi/resolve_main_external.yaml"):  true,
+		filepath.FromSlash("../../testdata/openapi/resolve_target_invalid.yaml"):     true,
+		filepath.FromSlash("../../testdata/openapi/resolve_main_external.yaml"):      true,
+		filepath.FromSlash("../../testdata/openapi/cycle_self_ref.yaml"):             true,
+		filepath.FromSlash("../../testdata/openapi/cycle_self_ref_sibling.yaml"):     true,
+		filepath.FromSlash("../../testdata/openapi/cycle_two_node_ref.yaml"):         true,
+		filepath.FromSlash("../../testdata/openapi/cycle_two_node_ref_sibling.yaml"): true,
+		filepath.FromSlash("../../testdata/openapi/cycle_yaml_anchor.yaml"):          true,
 	}
 }
 

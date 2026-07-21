@@ -30,9 +30,9 @@ const maxCycleDepth = 10000
 // The schema-position scoping encodes the resolver behavior of
 // github.com/speakeasy-api/openapi v1.24.0 (see go.mod), not an OpenAPI
 // guarantee: if a later bump changes which reference positions the resolver
-// recurses through, re-validate against FuzzCompile (cycles_fuzz_test.go), which
-// drives arbitrary sources through Compile and faults if a degenerate cycle ever
-// reaches the parser.
+// recurses through, re-validate against FuzzCycleDetector (cycles_fuzz_test.go),
+// which drives arbitrary sources through Compile and faults if a degenerate cycle
+// ever reaches the parser.
 
 // schemaEntryMapKeys name a mapping of schemas encountered outside a schema
 // (e.g. components.schemas, $defs): every value is a schema root.
