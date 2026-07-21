@@ -11,13 +11,18 @@ import (
 	"github.com/dexpace/morphic/ir"
 )
 
-// cycleReproducers are the three documents from GitHub #12 whose schema graph
-// cycles never reach a concrete node. Each crashed the process with a fatal,
-// unrecoverable stack overflow before the pre-parse detector was added.
+// cycleReproducers are documents from GitHub #12 whose schema graph cycles never
+// reach a node without a top-level $ref. Each crashed the process with a fatal,
+// unrecoverable stack overflow before the pre-parse detector was added. The
+// sibling variants carry a concrete `type` alongside the $ref: speakeasy follows
+// the top-level $ref regardless of the sibling, so they crash exactly like the
+// bare-$ref forms and must be diagnosed the same way.
 var cycleReproducers = []struct{ name, file string }{
 	{"self-ref", "cycle_self_ref"},
 	{"two-node-ref", "cycle_two_node_ref"},
 	{"yaml-anchor", "cycle_yaml_anchor"},
+	{"self-ref-sibling", "cycle_self_ref_sibling"},
+	{"two-node-ref-sibling", "cycle_two_node_ref_sibling"},
 }
 
 // TestDetectCycles_Reproducers pins that each degenerate cycle is diagnosed as an
@@ -64,6 +69,93 @@ func TestDetectCycles_LegalRecursionClean(t *testing.T) {
 	data, err := os.ReadFile("../../testdata/conformance/openapi/recursive.yaml")
 	require.NoError(t, err)
 	assert.Empty(t, detectCycles(0, data), "legal recursion is not a degenerate cycle")
+}
+
+// refShapedDataSpecs are legal documents that speakeasy compiles without a
+// crash: a $ref-shaped mapping inside example/default data or an x-* extension
+// is opaque data (never resolved), and a pure-$ref cycle among non-schema
+// reference objects is caught by speakeasy's own resolver guard. The pre-parse
+// detector must leave all of them alone rather than refuse a valid source.
+var refShapedDataSpecs = []struct {
+	name string
+	data string
+}{
+	{"example-data-cycle", `openapi: 3.1.0
+info: {title: t, version: '1'}
+paths: {}
+components:
+  schemas:
+    A:
+      type: object
+      example:
+        p: {$ref: '#/components/schemas/A/example/q'}
+        q: {$ref: '#/components/schemas/A/example/p'}
+`},
+	{"default-data-cycle", `openapi: 3.1.0
+info: {title: t, version: '1'}
+paths: {}
+components:
+  schemas:
+    A:
+      type: object
+      default:
+        p: {$ref: '#/components/schemas/A/default/q'}
+        q: {$ref: '#/components/schemas/A/default/p'}
+`},
+	{"extension-cycle", `openapi: 3.1.0
+info: {title: t, version: '1'}
+paths: {}
+x-foo: {a: {$ref: '#/x-foo/b'}, b: {$ref: '#/x-foo/a'}}
+`},
+	{"responses-ref-cycle", `openapi: 3.1.0
+info: {title: t, version: '1'}
+paths: {}
+components:
+  responses:
+    A: {$ref: '#/components/responses/B'}
+    B: {$ref: '#/components/responses/A'}
+`},
+	{"allof-wrapped-cycle", `openapi: 3.1.0
+info: {title: t, version: '1'}
+paths: {}
+components:
+  schemas:
+    A: {allOf: [{$ref: '#/components/schemas/B'}]}
+    B: {allOf: [{$ref: '#/components/schemas/A'}]}
+`},
+}
+
+// TestDetectCycles_RefShapedDataIsClean pins that the detector does not fire on a
+// $ref-shaped structure outside a schema position: those never reach the
+// crashing schema resolver, so flagging them would refuse a legal document.
+func TestDetectCycles_RefShapedDataIsClean(t *testing.T) {
+	t.Parallel()
+	for _, tc := range refShapedDataSpecs {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			assert.Empty(t, detectCycles(0, []byte(tc.data)),
+				"a ref-shaped structure outside a schema position is not a degenerate cycle")
+		})
+	}
+}
+
+// TestCompile_RefShapedDataNotRefused drives the same legal documents through the
+// full public Compile path: the compiler must lower them (non-nil document) and
+// must not raise a cyclic-ref diagnostic, since speakeasy handles them cleanly.
+func TestCompile_RefShapedDataNotRefused(t *testing.T) {
+	t.Parallel()
+	for _, tc := range refShapedDataSpecs {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			doc, diags, err := New().Compile(t.Context(),
+				[]compilers.Source{{Path: tc.name + ".yaml", Data: []byte(tc.data)}}, compilers.Options{})
+			require.NoError(t, err)
+			assert.NotNil(t, doc, "a legal ref-shaped-data spec must still lower")
+			for _, d := range diags {
+				assert.NotEqualf(t, codeCyclicRef, d.Code, "must not refuse as a cyclic ref: %+v", d)
+			}
+		})
+	}
 }
 
 // TestDetectCycles_NonYAMLIsNoCycle pins that undecodable input yields no cycle

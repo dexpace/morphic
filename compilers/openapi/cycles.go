@@ -15,16 +15,44 @@ import (
 // specs nest far shallower, so the cap only ever fires on a detector bug.
 const maxCycleDepth = 10000
 
-// concreteSchemaKeys are the mapping keys whose presence makes a schema node
-// concrete rather than a bare reference. A node carrying any of them terminates
-// a $ref chain even when it also has a $ref sibling — that is how legal
-// recursion bottoms out on a real type.
-var concreteSchemaKeys = map[string]bool{
-	"type": true, "properties": true, "items": true, "prefixItems": true,
-	"allOf": true, "oneOf": true, "anyOf": true, "not": true,
-	"additionalProperties": true, "patternProperties": true,
-	"enum": true, "const": true, "format": true,
-	"$dynamicRef": true, "$recursiveRef": true,
+// The pure-$ref scan visits schema positions only, because the unrecoverable
+// stack overflow is specific to speakeasy's schema resolver: a pure-$ref cycle
+// among components/responses (or any non-schema reference object) is caught by
+// the resolver's own cycle guard and surfaces as a resolve error, and a $ref
+// inside example/default/enum data is never followed at all. Descending into
+// those positions would refuse legal documents (GitHub #12 fix must not
+// regress valid specs). The key sets below drive the schema-scoped walk.
+
+// schemaEntryMapKeys name a mapping of schemas encountered outside a schema
+// (e.g. components.schemas, $defs): every value is a schema root.
+var schemaEntryMapKeys = map[string]bool{
+	"schemas": true, "$defs": true, "definitions": true,
+}
+
+// subSchemaObjectKeys name single sub-schemas within a schema object.
+var subSchemaObjectKeys = map[string]bool{
+	"items": true, "not": true, "additionalProperties": true,
+	"additionalItems": true, "propertyNames": true, "contains": true,
+	"if": true, "then": true, "else": true,
+	"unevaluatedItems": true, "unevaluatedProperties": true,
+}
+
+// subSchemaMapKeys name a mapping of name→schema within a schema object.
+var subSchemaMapKeys = map[string]bool{
+	"properties": true, "patternProperties": true, "dependentSchemas": true,
+	"$defs": true, "definitions": true,
+}
+
+// subSchemaListKeys name a sequence of schemas within a schema object.
+var subSchemaListKeys = map[string]bool{
+	"allOf": true, "oneOf": true, "anyOf": true, "prefixItems": true,
+}
+
+// schemaDataKeys name value-bearing keys whose subtree is data, not schema — a
+// $ref-shaped mapping under one of them is an opaque value, never resolved.
+var schemaDataKeys = map[string]bool{
+	"example": true, "examples": true, "default": true,
+	"const": true, "enum": true,
 }
 
 // detectCycles scans raw source bytes for degenerate reference cycles that would
@@ -32,9 +60,9 @@ var concreteSchemaKeys = map[string]bool{
 // overflow (GitHub #12). It runs BEFORE soa.Unmarshal so the anchor case never
 // reaches the crashing parser, and reports two classes as error diagnostics: a
 // recursive YAML anchor (an alias whose target is one of its own ancestors) and
-// a pure-$ref cycle (a chain of $ref-only schemas that never reaches a concrete
-// node). A source that does not decode as YAML yields no cycles: the main parser
-// owns reporting that as a parse problem. The recover is a bounded-recursion
+// a pure-$ref cycle (a chain of schema $refs that never reaches a node without a
+// top-level $ref). A source that does not decode as YAML yields no cycles: the
+// main parser owns reporting that as a parse problem. The recover is a bounded-recursion
 // backstop — a detector bug must degrade to "no cycle found", never abort.
 func detectCycles(srcIndex int, data []byte) (diags []ir.Diagnostic) {
 	defer func() {
@@ -116,46 +144,113 @@ func anchorName(alias *yaml.Node) string {
 	return alias.Value
 }
 
-// refCycle reports the first pure-$ref cycle: a chain of schemas whose only
-// meaningful content is an internal $ref, followed until it returns to a node
-// already on the chain. A $ref that reaches a concrete schema terminates the
-// chain and is not a cycle.
+// refCycle reports the first pure-$ref cycle: a chain of schema $refs, followed
+// until it returns to a node already on the chain without ever reaching a node
+// that carries no top-level $ref. A $ref that reaches such a node terminates the
+// chain and is not a cycle — that is exactly where speakeasy stops resolving.
 func refCycle(srcIndex int, root *yaml.Node) (ir.Diagnostic, bool) {
 	var refs []*yaml.Node
-	collectPureRefs(root, &refs, 0)
+	collectSchemaRefs(root, &refs)
 	for _, start := range refs {
 		if followRefChain(root, start) {
-			return cyclicDiag(srcIndex, start, "cyclic $ref: schema reference chain never reaches a concrete type"), true
+			return cyclicDiag(srcIndex, start, "cyclic $ref: reference chain never reaches a node without a $ref"), true
 		}
 	}
 	return ir.Diagnostic{}, false
 }
 
-// collectPureRefs gathers every pure-reference schema node in the tree. Alias
-// nodes are leaves here, so the descent stays bounded by the finite tree.
-func collectPureRefs(n *yaml.Node, out *[]*yaml.Node, depth int) {
+// collectSchemaRefs gathers every pure-$ref node reachable through a schema
+// position, skipping reference objects and data subtrees that speakeasy never
+// resolves as schema references. The walk is split between schema context
+// (walkSchema) and the surrounding document (walkOutsideSchema).
+func collectSchemaRefs(root *yaml.Node, out *[]*yaml.Node) {
+	walkOutsideSchema(root, out, 0)
+}
+
+// walkOutsideSchema descends the OpenAPI document outside any schema, entering
+// schema context at schema-valued keys and never collecting refs from data or
+// extension subtrees. The finite tree and depth cap bound the descent.
+func walkOutsideSchema(n *yaml.Node, out *[]*yaml.Node, depth int) {
 	if n == nil || depth > maxCycleDepth {
+		return
+	}
+	switch n.Kind {
+	case yaml.MappingNode:
+		for i := 0; i+1 < len(n.Content); i += 2 {
+			key, val := n.Content[i].Value, n.Content[i+1]
+			switch {
+			case strings.HasPrefix(key, "x-"), schemaDataKeys[key]:
+				// extension or example/default data: not a schema position
+			case key == "schema":
+				walkSchema(val, out, depth+1)
+			case schemaEntryMapKeys[key]:
+				walkSchemaMap(val, out, depth+1)
+			default:
+				walkOutsideSchema(val, out, depth+1)
+			}
+		}
+	case yaml.SequenceNode:
+		for _, child := range n.Content {
+			walkOutsideSchema(child, out, depth+1)
+		}
+	}
+}
+
+// walkSchema visits one schema object: it collects the node when it is a pure
+// $ref, then recurses only into sub-schema positions — never into type, enum,
+// example, or extension data — so ref-shaped values never masquerade as schema
+// references.
+func walkSchema(n *yaml.Node, out *[]*yaml.Node, depth int) {
+	if n == nil || depth > maxCycleDepth || n.Kind != yaml.MappingNode {
 		return
 	}
 	if _, ok := pureRefTarget(n); ok {
 		*out = append(*out, n)
 	}
+	for i := 0; i+1 < len(n.Content); i += 2 {
+		key, val := n.Content[i].Value, n.Content[i+1]
+		switch {
+		case subSchemaObjectKeys[key]:
+			walkSchema(val, out, depth+1)
+		case subSchemaMapKeys[key]:
+			walkSchemaMap(val, out, depth+1)
+		case subSchemaListKeys[key]:
+			walkSchemaList(val, out, depth+1)
+		}
+	}
+}
+
+// walkSchemaMap visits each value of a name→schema mapping as a schema.
+func walkSchemaMap(n *yaml.Node, out *[]*yaml.Node, depth int) {
+	if n == nil || depth > maxCycleDepth || n.Kind != yaml.MappingNode {
+		return
+	}
+	for i := 0; i+1 < len(n.Content); i += 2 {
+		walkSchema(n.Content[i+1], out, depth+1)
+	}
+}
+
+// walkSchemaList visits each element of a schema sequence as a schema.
+func walkSchemaList(n *yaml.Node, out *[]*yaml.Node, depth int) {
+	if n == nil || depth > maxCycleDepth || n.Kind != yaml.SequenceNode {
+		return
+	}
 	for _, child := range n.Content {
-		collectPureRefs(child, out, depth+1)
+		walkSchema(child, out, depth+1)
 	}
 }
 
 // followRefChain follows pure-$ref edges from start and reports whether the
-// chain loops back onto itself without reaching a concrete schema. It stops on a
-// concrete node, a dangling ref, or a revisited node; the seen set and depth cap
-// bound it against any structure.
+// chain loops back onto itself without reaching a node that has no top-level
+// $ref. It stops on such a node, a dangling ref, or a revisited node; the seen
+// set and depth cap bound it against any structure.
 func followRefChain(root, start *yaml.Node) bool {
 	seen := map[*yaml.Node]bool{}
 	cur := start
 	for depth := 0; depth <= maxCycleDepth; depth++ {
 		ref, ok := pureRefTarget(cur)
 		if !ok {
-			return false // reached a concrete schema — legal recursion
+			return false // reached a node without a top-level $ref — legal recursion
 		}
 		seen[cur] = true
 		next := resolvePointer(root, ref)
@@ -170,21 +265,18 @@ func followRefChain(root, start *yaml.Node) bool {
 	return false
 }
 
-// pureRefTarget reports the internal $ref target of a pure-reference schema node.
-// A node qualifies when it is a mapping carrying an internal ('#/...') $ref and
-// no key that would make it a concrete schema; annotation-only siblings such as
-// description or title do not disqualify it.
+// pureRefTarget reports the internal $ref target of a node that carries a
+// top-level internal ('#/...') $ref. Sibling keys do not disqualify it:
+// speakeasy follows a node's top-level $ref before any concrete sibling, so a
+// $ref node with a type or properties sibling still drives the crash. The chain
+// terminates only at a node with no top-level $ref at all.
 func pureRefTarget(n *yaml.Node) (string, bool) {
 	if n == nil || n.Kind != yaml.MappingNode {
 		return "", false
 	}
 	var ref string
 	for i := 0; i+1 < len(n.Content); i += 2 {
-		key := n.Content[i].Value
-		if concreteSchemaKeys[key] {
-			return "", false
-		}
-		if key == "$ref" && n.Content[i+1].Kind == yaml.ScalarNode {
+		if n.Content[i].Value == "$ref" && n.Content[i+1].Kind == yaml.ScalarNode {
 			ref = n.Content[i+1].Value
 		}
 	}
