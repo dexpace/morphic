@@ -1,0 +1,24 @@
+syntax = "proto3";
+
+package wkt;
+
+import "google/protobuf/timestamp.proto";
+import "google/protobuf/duration.proto";
+import "google/protobuf/any.proto";
+import "google/protobuf/empty.proto";
+import "google/protobuf/struct.proto";
+import "google/protobuf/field_mask.proto";
+import "google/protobuf/wrappers.proto";
+import "google/protobuf/source_context.proto";
+
+message Bundle {
+  google.protobuf.Timestamp ts = 1;
+  google.protobuf.Duration dur = 2;
+  google.protobuf.Any any = 3;
+  google.protobuf.Struct props = 4;
+  google.protobuf.FieldMask mask = 5;
+  google.protobuf.Int32Value count = 6;
+  google.protobuf.StringValue note = 7;
+  google.protobuf.Empty nothing = 8;
+  google.protobuf.SourceContext ctx = 9;
+}

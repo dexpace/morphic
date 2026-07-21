@@ -1,0 +1,155 @@
+{
+  "irVersion": "0.1.0",
+  "docs": {},
+  "services": [
+    {
+      "id": "s/protobuf/no-package.proto",
+      "name": {},
+      "docs": {},
+      "groups": [
+        {
+          "name": {
+            "source": "Bare",
+            "canonical": "bare"
+          },
+          "docs": {},
+          "operations": [
+            {
+              "id": "op/protobuf/Bare.Get",
+              "name": {
+                "source": "Get",
+                "canonical": "get"
+              },
+              "docs": {},
+              "request": {
+                "contents": [
+                  {
+                    "type": {
+                      "target": "t/protobuf/Item",
+                      "nullable": false
+                    }
+                  }
+                ]
+              },
+              "responses": [
+                {
+                  "name": {
+                    "hint": "response"
+                  },
+                  "conditions": {},
+                  "payload": {
+                    "contents": [
+                      {
+                        "type": {
+                          "target": "t/protobuf/Item",
+                          "nullable": false
+                        }
+                      }
+                    ]
+                  },
+                  "docs": {}
+                }
+              ],
+              "oneWay": false,
+              "idempotency": {},
+              "auth": null,
+              "bindings": {
+                "rpc": {
+                  "system": "grpc",
+                  "fullMethod": "/Bare/Get",
+                  "inputType": {
+                    "target": "t/protobuf/Item",
+                    "nullable": false
+                  }
+                }
+              },
+              "provenance": {
+                "source": 0,
+                "pointer": "Bare.Get"
+              }
+            }
+          ]
+        }
+      ],
+      "auth": null,
+      "provenance": {
+        "source": 0,
+        "pointer": "no-package.proto"
+      }
+    }
+  ],
+  "types": {
+    "t/prim/string": {
+      "kind": "primitive",
+      "id": "t/prim/string",
+      "name": {},
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0
+      },
+      "prim": "string"
+    },
+    "t/protobuf/Item": {
+      "kind": "model",
+      "id": "t/protobuf/Item",
+      "name": {
+        "source": "Item",
+        "canonical": "item"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "Item"
+      },
+      "properties": [
+        {
+          "id": "p/protobuf/Item.id",
+          "name": {
+            "source": "id",
+            "canonical": "id"
+          },
+          "wireID": 1,
+          "type": {
+            "target": "t/prim/string",
+            "nullable": false
+          },
+          "required": false,
+          "presence": "implicit",
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "Item.id"
+          }
+        }
+      ],
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    }
+  },
+  "extensions": {
+    "protobuf:file": {
+      "syntax": "proto3"
+    }
+  },
+  "sources": [
+    {
+      "format": "protobuf@3",
+      "path": "no-package.proto",
+      "hash": "a22a00244e6e34049cce648e6f4b8c9aed1a41c365672115b08190b78b65980e"
+    }
+  ]
+}

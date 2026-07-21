@@ -1,0 +1,154 @@
+{
+  "irVersion": "0.1.0",
+  "name": "dep",
+  "docs": {},
+  "services": [
+    {
+      "id": "s/protobuf/dep",
+      "name": {
+        "source": "dep",
+        "canonical": "dep"
+      },
+      "docs": {},
+      "namespace": [
+        "dep"
+      ],
+      "auth": null,
+      "provenance": {
+        "source": 0,
+        "pointer": "deprecation.proto"
+      }
+    }
+  ],
+  "types": {
+    "t/prim/string": {
+      "kind": "primitive",
+      "id": "t/prim/string",
+      "name": {},
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0
+      },
+      "prim": "string"
+    },
+    "t/protobuf/dep.Legacy": {
+      "kind": "enum",
+      "id": "t/protobuf/dep.Legacy",
+      "name": {
+        "source": "Legacy",
+        "canonical": "legacy"
+      },
+      "namespace": [
+        "dep"
+      ],
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "dep.Legacy"
+      },
+      "valueType": "int32",
+      "members": [
+        {
+          "name": {
+            "source": "LEGACY_UNSPECIFIED",
+            "canonical": "legacy_unspecified"
+          },
+          "value": {
+            "kind": "number",
+            "num": "0",
+            "bytes": null,
+            "list": null,
+            "object": null
+          },
+          "docs": {}
+        },
+        {
+          "name": {
+            "source": "OLD_VALUE",
+            "canonical": "old_value"
+          },
+          "value": {
+            "kind": "number",
+            "num": "1",
+            "bytes": null,
+            "list": null,
+            "object": null
+          },
+          "docs": {},
+          "deprecation": {}
+        }
+      ],
+      "closed": false,
+      "flags": false
+    },
+    "t/protobuf/dep.Old": {
+      "kind": "model",
+      "id": "t/protobuf/dep.Old",
+      "name": {
+        "source": "Old",
+        "canonical": "old"
+      },
+      "namespace": [
+        "dep"
+      ],
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "deprecation": {},
+      "provenance": {
+        "source": 0,
+        "pointer": "dep.Old"
+      },
+      "properties": [
+        {
+          "id": "p/protobuf/dep.Old.id",
+          "name": {
+            "source": "id",
+            "canonical": "id"
+          },
+          "wireID": 1,
+          "type": {
+            "target": "t/prim/string",
+            "nullable": false
+          },
+          "required": false,
+          "presence": "implicit",
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "deprecation": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "dep.Old.id"
+          }
+        }
+      ],
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    }
+  },
+  "extensions": {
+    "protobuf:file": {
+      "syntax": "proto3"
+    }
+  },
+  "sources": [
+    {
+      "format": "protobuf@3",
+      "path": "deprecation.proto",
+      "hash": "7e79b43c57e82ade00dd797a4bdd0825e8ea63a402e06c17be3a916ed96ad8f2"
+    }
+  ]
+}

@@ -3,9 +3,11 @@ module github.com/dexpace/morphic
 go 1.26.3
 
 require (
+	github.com/bufbuild/protocompile v0.14.1
 	github.com/google/go-cmp v0.7.0
 	github.com/speakeasy-api/openapi v1.24.0
 	github.com/stretchr/testify v1.11.1
+	google.golang.org/protobuf v1.34.2
 	gopkg.in/yaml.v3 v3.0.1
 )
 

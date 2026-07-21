@@ -1,0 +1,16 @@
+syntax = "proto3";
+
+package resv;
+
+message M {
+  string keep = 1;
+  reserved 2, 15, 9 to 11;
+  reserved "foo", "bar";
+}
+
+enum E {
+  E_UNSPECIFIED = 0;
+  KEEP = 1;
+  reserved 2, 5 to 7;
+  reserved "OLD";
+}

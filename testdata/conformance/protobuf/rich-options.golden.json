@@ -1,0 +1,914 @@
+{
+  "irVersion": "0.1.0",
+  "name": "ropt",
+  "docs": {},
+  "services": [
+    {
+      "id": "s/protobuf/ropt",
+      "name": {
+        "source": "ropt",
+        "canonical": "ropt"
+      },
+      "docs": {},
+      "namespace": [
+        "ropt"
+      ],
+      "groups": [
+        {
+          "name": {
+            "source": "Ops",
+            "canonical": "ops"
+          },
+          "docs": {},
+          "operations": [
+            {
+              "id": "op/protobuf/ropt.Ops.Do",
+              "name": {
+                "source": "Do",
+                "canonical": "do"
+              },
+              "docs": {},
+              "request": {
+                "contents": [
+                  {
+                    "type": {
+                      "target": "t/protobuf/ropt.Widget",
+                      "nullable": false
+                    }
+                  }
+                ]
+              },
+              "responses": [
+                {
+                  "name": {
+                    "hint": "response"
+                  },
+                  "conditions": {},
+                  "payload": {
+                    "contents": [
+                      {
+                        "type": {
+                          "target": "t/protobuf/ropt.Widget",
+                          "nullable": false
+                        }
+                      }
+                    ]
+                  },
+                  "docs": {}
+                }
+              ],
+              "oneWay": false,
+              "idempotency": {},
+              "auth": null,
+              "bindings": {
+                "rpc": {
+                  "system": "grpc",
+                  "fullMethod": "/ropt.Ops/Do",
+                  "inputType": {
+                    "target": "t/protobuf/ropt.Widget",
+                    "nullable": false
+                  }
+                }
+              },
+              "extensions": {
+                "protobuf:option:ropt.audit": "yes"
+              },
+              "provenance": {
+                "source": 0,
+                "pointer": "ropt.Ops.Do"
+              }
+            }
+          ],
+          "extensions": {
+            "protobuf:option:ropt.team": "platform"
+          }
+        }
+      ],
+      "auth": null,
+      "provenance": {
+        "source": 0,
+        "pointer": "rich-options.proto"
+      }
+    }
+  ],
+  "types": {
+    "t/anon/protobuf/ropt.Meta.labels/list": {
+      "kind": "list",
+      "id": "t/anon/protobuf/ropt.Meta.labels/list",
+      "name": {
+        "hint": "labels"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "ropt.Meta.labels"
+      },
+      "elem": {
+        "target": "t/prim/string",
+        "nullable": false
+      }
+    },
+    "t/anon/protobuf/ropt.Meta.points/list": {
+      "kind": "list",
+      "id": "t/anon/protobuf/ropt.Meta.points/list",
+      "name": {
+        "hint": "points"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "ropt.Meta.points"
+      },
+      "elem": {
+        "target": "t/prim/float64",
+        "nullable": false
+      },
+      "encoding": {
+        "name": "expanded"
+      }
+    },
+    "t/anon/protobuf/ropt.Meta.ratios/map": {
+      "kind": "map",
+      "id": "t/anon/protobuf/ropt.Meta.ratios/map",
+      "name": {
+        "hint": "ratios"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "ropt.Meta.ratios"
+      },
+      "key": {
+        "target": "t/prim/string",
+        "nullable": false
+      },
+      "value": {
+        "target": "t/prim/float64",
+        "nullable": false
+      }
+    },
+    "t/anon/protobuf/ropt.Meta.weights/map": {
+      "kind": "map",
+      "id": "t/anon/protobuf/ropt.Meta.weights/map",
+      "name": {
+        "hint": "weights"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "ropt.Meta.weights"
+      },
+      "key": {
+        "target": "t/prim/string",
+        "nullable": false
+      },
+      "value": {
+        "target": "t/prim/int32",
+        "nullable": false
+      }
+    },
+    "t/prim/bool": {
+      "kind": "primitive",
+      "id": "t/prim/bool",
+      "name": {},
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0
+      },
+      "prim": "bool"
+    },
+    "t/prim/bytes": {
+      "kind": "primitive",
+      "id": "t/prim/bytes",
+      "name": {},
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0
+      },
+      "prim": "bytes"
+    },
+    "t/prim/float64": {
+      "kind": "primitive",
+      "id": "t/prim/float64",
+      "name": {},
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0
+      },
+      "prim": "float64"
+    },
+    "t/prim/int32": {
+      "kind": "primitive",
+      "id": "t/prim/int32",
+      "name": {},
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0
+      },
+      "prim": "int32"
+    },
+    "t/prim/string": {
+      "kind": "primitive",
+      "id": "t/prim/string",
+      "name": {},
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0
+      },
+      "prim": "string"
+    },
+    "t/prim/uint64": {
+      "kind": "primitive",
+      "id": "t/prim/uint64",
+      "name": {},
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0
+      },
+      "prim": "uint64"
+    },
+    "t/protobuf/ropt.Kind": {
+      "kind": "enum",
+      "id": "t/protobuf/ropt.Kind",
+      "name": {
+        "source": "Kind",
+        "canonical": "kind"
+      },
+      "namespace": [
+        "ropt"
+      ],
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "ropt.Kind"
+      },
+      "valueType": "int32",
+      "members": [
+        {
+          "name": {
+            "source": "K_A",
+            "canonical": "k_a"
+          },
+          "value": {
+            "kind": "number",
+            "num": "0",
+            "bytes": null,
+            "list": null,
+            "object": null
+          },
+          "docs": {}
+        },
+        {
+          "name": {
+            "source": "K_B",
+            "canonical": "k_b"
+          },
+          "value": {
+            "kind": "number",
+            "num": "1",
+            "bytes": null,
+            "list": null,
+            "object": null
+          },
+          "docs": {},
+          "extensions": {
+            "protobuf:option:ropt.label": "beta"
+          }
+        }
+      ],
+      "closed": true,
+      "flags": false
+    },
+    "t/protobuf/ropt.Meta": {
+      "kind": "model",
+      "id": "t/protobuf/ropt.Meta",
+      "name": {
+        "source": "Meta",
+        "canonical": "meta"
+      },
+      "namespace": [
+        "ropt"
+      ],
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "ropt.Meta"
+      },
+      "properties": [
+        {
+          "id": "p/protobuf/ropt.Meta.owner",
+          "name": {
+            "source": "owner",
+            "canonical": "owner"
+          },
+          "wireID": 1,
+          "type": {
+            "target": "t/prim/string",
+            "nullable": false
+          },
+          "required": false,
+          "presence": "explicit",
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "ropt.Meta.owner"
+          }
+        },
+        {
+          "id": "p/protobuf/ropt.Meta.labels",
+          "name": {
+            "source": "labels",
+            "canonical": "labels"
+          },
+          "wireID": 2,
+          "type": {
+            "target": "t/anon/protobuf/ropt.Meta.labels/list",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "ropt.Meta.labels"
+          }
+        },
+        {
+          "id": "p/protobuf/ropt.Meta.weights",
+          "name": {
+            "source": "weights",
+            "canonical": "weights"
+          },
+          "wireID": 3,
+          "type": {
+            "target": "t/anon/protobuf/ropt.Meta.weights/map",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "ropt.Meta.weights"
+          }
+        },
+        {
+          "id": "p/protobuf/ropt.Meta.nested",
+          "name": {
+            "source": "nested",
+            "canonical": "nested"
+          },
+          "wireID": 4,
+          "type": {
+            "target": "t/protobuf/ropt.Nested",
+            "nullable": false
+          },
+          "required": false,
+          "presence": "explicit",
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "ropt.Meta.nested"
+          }
+        },
+        {
+          "id": "p/protobuf/ropt.Meta.kind",
+          "name": {
+            "source": "kind",
+            "canonical": "kind"
+          },
+          "wireID": 5,
+          "type": {
+            "target": "t/protobuf/ropt.Kind",
+            "nullable": false
+          },
+          "required": false,
+          "presence": "explicit",
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "ropt.Meta.kind"
+          }
+        },
+        {
+          "id": "p/protobuf/ropt.Meta.sig",
+          "name": {
+            "source": "sig",
+            "canonical": "sig"
+          },
+          "wireID": 6,
+          "type": {
+            "target": "t/prim/bytes",
+            "nullable": false
+          },
+          "required": false,
+          "presence": "explicit",
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "ropt.Meta.sig"
+          }
+        },
+        {
+          "id": "p/protobuf/ropt.Meta.big",
+          "name": {
+            "source": "big",
+            "canonical": "big"
+          },
+          "wireID": 7,
+          "type": {
+            "target": "t/prim/uint64",
+            "nullable": false
+          },
+          "required": false,
+          "presence": "explicit",
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "ropt.Meta.big"
+          }
+        },
+        {
+          "id": "p/protobuf/ropt.Meta.score",
+          "name": {
+            "source": "score",
+            "canonical": "score"
+          },
+          "wireID": 8,
+          "type": {
+            "target": "t/prim/float64",
+            "nullable": false
+          },
+          "required": false,
+          "presence": "explicit",
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "ropt.Meta.score"
+          }
+        },
+        {
+          "id": "p/protobuf/ropt.Meta.points",
+          "name": {
+            "source": "points",
+            "canonical": "points"
+          },
+          "wireID": 9,
+          "type": {
+            "target": "t/anon/protobuf/ropt.Meta.points/list",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "ropt.Meta.points"
+          }
+        },
+        {
+          "id": "p/protobuf/ropt.Meta.ratios",
+          "name": {
+            "source": "ratios",
+            "canonical": "ratios"
+          },
+          "wireID": 10,
+          "type": {
+            "target": "t/anon/protobuf/ropt.Meta.ratios/map",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "ropt.Meta.ratios"
+          }
+        }
+      ],
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
+    "t/protobuf/ropt.Nested": {
+      "kind": "model",
+      "id": "t/protobuf/ropt.Nested",
+      "name": {
+        "source": "Nested",
+        "canonical": "nested"
+      },
+      "namespace": [
+        "ropt"
+      ],
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "ropt.Nested"
+      },
+      "properties": [
+        {
+          "id": "p/protobuf/ropt.Nested.flag",
+          "name": {
+            "source": "flag",
+            "canonical": "flag"
+          },
+          "wireID": 1,
+          "type": {
+            "target": "t/prim/bool",
+            "nullable": false
+          },
+          "required": false,
+          "presence": "explicit",
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "ropt.Nested.flag"
+          }
+        }
+      ],
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
+    "t/protobuf/ropt.Widget": {
+      "kind": "model",
+      "id": "t/protobuf/ropt.Widget",
+      "name": {
+        "source": "Widget",
+        "canonical": "widget"
+      },
+      "namespace": [
+        "ropt"
+      ],
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "extensions": {
+        "protobuf:option:ropt.meta": {
+          "owner": "team",
+          "labels": [
+            "a",
+            "b"
+          ],
+          "weights": {
+            "a": 2,
+            "x": 1
+          },
+          "nested": {
+            "flag": true
+          },
+          "kind": "K_B",
+          "sig": "QUE9PQ==",
+          "big": 42,
+          "points": [],
+          "ratios": {}
+        },
+        "protobuf:option:ropt.reviewers": [
+          "alice",
+          "bob"
+        ]
+      },
+      "provenance": {
+        "source": 0,
+        "pointer": "ropt.Widget"
+      },
+      "properties": [
+        {
+          "id": "p/protobuf/ropt.Widget.id",
+          "name": {
+            "source": "id",
+            "canonical": "id"
+          },
+          "wireID": 1,
+          "type": {
+            "target": "t/prim/string",
+            "nullable": false
+          },
+          "required": false,
+          "presence": "explicit",
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "extensions": {
+            "protobuf:option:ropt.field_kind": "K_A"
+          },
+          "provenance": {
+            "source": 0,
+            "pointer": "ropt.Widget.id"
+          }
+        },
+        {
+          "id": "p/protobuf/ropt.Widget.detail",
+          "name": {
+            "source": "detail",
+            "canonical": "detail"
+          },
+          "wireID": 2,
+          "type": {
+            "target": "t/protobuf/ropt.Widget.Detail",
+            "nullable": false
+          },
+          "required": false,
+          "presence": "explicit",
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "encoding": {
+            "name": "delimited"
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "ropt.Widget.detail"
+          }
+        }
+      ],
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
+    "t/protobuf/ropt.Widget.Detail": {
+      "kind": "model",
+      "id": "t/protobuf/ropt.Widget.Detail",
+      "name": {
+        "source": "Detail",
+        "canonical": "detail"
+      },
+      "namespace": [
+        "ropt"
+      ],
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "ropt.Widget.Detail"
+      },
+      "properties": [
+        {
+          "id": "p/protobuf/ropt.Widget.Detail.note",
+          "name": {
+            "source": "note",
+            "canonical": "note"
+          },
+          "wireID": 1,
+          "type": {
+            "target": "t/prim/string",
+            "nullable": false
+          },
+          "required": false,
+          "presence": "explicit",
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "ropt.Widget.Detail.note"
+          }
+        }
+      ],
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    }
+  },
+  "extensions": {
+    "protobuf:custom-option:ropt.audit": {
+      "extends": "google.protobuf.MethodOptions",
+      "name": "ropt.audit",
+      "number": 50104
+    },
+    "protobuf:custom-option:ropt.field_kind": {
+      "extends": "google.protobuf.FieldOptions",
+      "name": "ropt.field_kind",
+      "number": 50102
+    },
+    "protobuf:custom-option:ropt.label": {
+      "extends": "google.protobuf.EnumValueOptions",
+      "name": "ropt.label",
+      "number": 50099
+    },
+    "protobuf:custom-option:ropt.meta": {
+      "extends": "google.protobuf.MessageOptions",
+      "name": "ropt.meta",
+      "number": 50100
+    },
+    "protobuf:custom-option:ropt.reviewers": {
+      "extends": "google.protobuf.MessageOptions",
+      "name": "ropt.reviewers",
+      "number": 50101
+    },
+    "protobuf:custom-option:ropt.team": {
+      "extends": "google.protobuf.ServiceOptions",
+      "name": "ropt.team",
+      "number": 50103
+    },
+    "protobuf:file": {
+      "syntax": "proto2"
+    }
+  },
+  "diagnostics": [
+    {
+      "severity": "info",
+      "code": "protobuf/custom-option-definition",
+      "message": "extension ropt.label defines a custom option on google.protobuf.EnumValueOptions",
+      "provenance": {
+        "source": 0,
+        "pointer": "ropt.label"
+      }
+    },
+    {
+      "severity": "info",
+      "code": "protobuf/custom-option-definition",
+      "message": "extension ropt.meta defines a custom option on google.protobuf.MessageOptions",
+      "provenance": {
+        "source": 0,
+        "pointer": "ropt.meta"
+      }
+    },
+    {
+      "severity": "info",
+      "code": "protobuf/custom-option-definition",
+      "message": "extension ropt.reviewers defines a custom option on google.protobuf.MessageOptions",
+      "provenance": {
+        "source": 0,
+        "pointer": "ropt.reviewers"
+      }
+    },
+    {
+      "severity": "info",
+      "code": "protobuf/custom-option-definition",
+      "message": "extension ropt.field_kind defines a custom option on google.protobuf.FieldOptions",
+      "provenance": {
+        "source": 0,
+        "pointer": "ropt.field_kind"
+      }
+    },
+    {
+      "severity": "info",
+      "code": "protobuf/custom-option-definition",
+      "message": "extension ropt.team defines a custom option on google.protobuf.ServiceOptions",
+      "provenance": {
+        "source": 0,
+        "pointer": "ropt.team"
+      }
+    },
+    {
+      "severity": "info",
+      "code": "protobuf/custom-option-definition",
+      "message": "extension ropt.audit defines a custom option on google.protobuf.MethodOptions",
+      "provenance": {
+        "source": 0,
+        "pointer": "ropt.audit"
+      }
+    }
+  ],
+  "sources": [
+    {
+      "format": "protobuf@2",
+      "path": "rich-options.proto",
+      "hash": "c0ac97529c4fe06f0eaf7f122c5a7c1dd3eabe9a2aa9eda083fc26c528f87d1e"
+    }
+  ]
+}

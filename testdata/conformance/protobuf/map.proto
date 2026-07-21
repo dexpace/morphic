@@ -1,0 +1,8 @@
+syntax = "proto3";
+
+package maps;
+
+message Dict {
+  map<string, int32> counts = 1;
+  map<int64, string> names = 2;
+}

@@ -1,0 +1,219 @@
+{
+  "irVersion": "0.1.0",
+  "name": "oneofs",
+  "docs": {},
+  "services": [
+    {
+      "id": "s/protobuf/oneofs",
+      "name": {
+        "source": "oneofs",
+        "canonical": "oneofs"
+      },
+      "docs": {},
+      "namespace": [
+        "oneofs"
+      ],
+      "auth": null,
+      "provenance": {
+        "source": 0,
+        "pointer": "oneof.proto"
+      }
+    }
+  ],
+  "types": {
+    "t/anon/protobuf/oneofs.Shape.form/oneof": {
+      "kind": "union",
+      "id": "t/anon/protobuf/oneofs.Shape.form/oneof",
+      "name": {
+        "hint": "form"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "oneofs.Shape.form"
+      },
+      "variants": [
+        {
+          "name": {
+            "source": "radius",
+            "canonical": "radius"
+          },
+          "type": {
+            "target": "t/prim/float64",
+            "nullable": false
+          },
+          "wireID": 1,
+          "docs": {}
+        },
+        {
+          "name": {
+            "source": "side",
+            "canonical": "side"
+          },
+          "type": {
+            "target": "t/prim/float64",
+            "nullable": false
+          },
+          "wireID": 2,
+          "docs": {}
+        },
+        {
+          "name": {
+            "source": "label",
+            "canonical": "label"
+          },
+          "type": {
+            "target": "t/prim/string",
+            "nullable": false
+          },
+          "wireID": 3,
+          "docs": {}
+        },
+        {
+          "name": {
+            "source": "legacy_code",
+            "canonical": "legacy_code"
+          },
+          "type": {
+            "target": "t/prim/int32",
+            "nullable": false
+          },
+          "wireName": "legacy",
+          "wireID": 5,
+          "docs": {},
+          "deprecation": {}
+        }
+      ],
+      "exclusive": true,
+      "wireTagged": true
+    },
+    "t/prim/float64": {
+      "kind": "primitive",
+      "id": "t/prim/float64",
+      "name": {},
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0
+      },
+      "prim": "float64"
+    },
+    "t/prim/int32": {
+      "kind": "primitive",
+      "id": "t/prim/int32",
+      "name": {},
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0
+      },
+      "prim": "int32"
+    },
+    "t/prim/string": {
+      "kind": "primitive",
+      "id": "t/prim/string",
+      "name": {},
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0
+      },
+      "prim": "string"
+    },
+    "t/protobuf/oneofs.Shape": {
+      "kind": "model",
+      "id": "t/protobuf/oneofs.Shape",
+      "name": {
+        "source": "Shape",
+        "canonical": "shape"
+      },
+      "namespace": [
+        "oneofs"
+      ],
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "oneofs.Shape"
+      },
+      "properties": [
+        {
+          "id": "p/protobuf/oneofs.Shape.form",
+          "name": {
+            "source": "form",
+            "canonical": "form"
+          },
+          "type": {
+            "target": "t/anon/protobuf/oneofs.Shape.form/oneof",
+            "nullable": false
+          },
+          "required": false,
+          "presence": "explicit",
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": true,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "oneofs.Shape.form"
+          }
+        },
+        {
+          "id": "p/protobuf/oneofs.Shape.name",
+          "name": {
+            "source": "name",
+            "canonical": "name"
+          },
+          "wireID": 4,
+          "type": {
+            "target": "t/prim/string",
+            "nullable": false
+          },
+          "required": false,
+          "presence": "implicit",
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "oneofs.Shape.name"
+          }
+        }
+      ],
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    }
+  },
+  "extensions": {
+    "protobuf:file": {
+      "syntax": "proto3"
+    }
+  },
+  "sources": [
+    {
+      "format": "protobuf@3",
+      "path": "oneof.proto",
+      "hash": "fc6a52b750ba1e7094d5282520b7210d0464f8a48f277465681e724ae8299269"
+    }
+  ]
+}

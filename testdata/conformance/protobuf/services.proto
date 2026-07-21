@@ -1,0 +1,31 @@
+syntax = "proto3";
+
+package svc;
+
+import "google/protobuf/empty.proto";
+
+message Ping {
+  string msg = 1;
+}
+
+message Pong {
+  string msg = 1;
+}
+
+service Echo {
+  rpc Unary(Ping) returns (Pong);
+  rpc ClientStream(stream Ping) returns (Pong);
+  rpc ServerStream(Ping) returns (stream Pong);
+  rpc BidiStream(stream Ping) returns (stream Pong);
+  rpc Fetch(Ping) returns (Pong) {
+    option idempotency_level = NO_SIDE_EFFECTS;
+  }
+  rpc Replace(Ping) returns (Pong) {
+    option idempotency_level = IDEMPOTENT;
+  }
+  rpc Notify(Ping) returns (google.protobuf.Empty);
+  rpc Drain(google.protobuf.Empty) returns (Pong);
+  rpc Touch(Ping) returns (Pong) {
+    option deprecated = true;
+  }
+}

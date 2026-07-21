@@ -1,0 +1,210 @@
+{
+  "irVersion": "0.1.0",
+  "name": "resv",
+  "docs": {},
+  "services": [
+    {
+      "id": "s/protobuf/resv",
+      "name": {
+        "source": "resv",
+        "canonical": "resv"
+      },
+      "docs": {},
+      "namespace": [
+        "resv"
+      ],
+      "auth": null,
+      "provenance": {
+        "source": 0,
+        "pointer": "reserved.proto"
+      }
+    }
+  ],
+  "types": {
+    "t/prim/string": {
+      "kind": "primitive",
+      "id": "t/prim/string",
+      "name": {},
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0
+      },
+      "prim": "string"
+    },
+    "t/protobuf/resv.E": {
+      "kind": "enum",
+      "id": "t/protobuf/resv.E",
+      "name": {
+        "source": "E",
+        "canonical": "e"
+      },
+      "namespace": [
+        "resv"
+      ],
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "extensions": {
+        "protobuf:reserved": {
+          "ranges": [
+            {
+              "from": 2,
+              "to": 2
+            },
+            {
+              "from": 5,
+              "to": 7
+            }
+          ],
+          "names": [
+            "OLD"
+          ]
+        }
+      },
+      "provenance": {
+        "source": 0,
+        "pointer": "resv.E"
+      },
+      "valueType": "int32",
+      "members": [
+        {
+          "name": {
+            "source": "E_UNSPECIFIED",
+            "canonical": "e_unspecified"
+          },
+          "value": {
+            "kind": "number",
+            "num": "0",
+            "bytes": null,
+            "list": null,
+            "object": null
+          },
+          "docs": {}
+        },
+        {
+          "name": {
+            "source": "KEEP",
+            "canonical": "keep"
+          },
+          "value": {
+            "kind": "number",
+            "num": "1",
+            "bytes": null,
+            "list": null,
+            "object": null
+          },
+          "docs": {}
+        }
+      ],
+      "closed": false,
+      "flags": false
+    },
+    "t/protobuf/resv.M": {
+      "kind": "model",
+      "id": "t/protobuf/resv.M",
+      "name": {
+        "source": "M",
+        "canonical": "m"
+      },
+      "namespace": [
+        "resv"
+      ],
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "extensions": {
+        "protobuf:reserved": {
+          "ranges": [
+            {
+              "from": 2,
+              "to": 2
+            },
+            {
+              "from": 15,
+              "to": 15
+            },
+            {
+              "from": 9,
+              "to": 11
+            }
+          ],
+          "names": [
+            "foo",
+            "bar"
+          ]
+        }
+      },
+      "provenance": {
+        "source": 0,
+        "pointer": "resv.M"
+      },
+      "properties": [
+        {
+          "id": "p/protobuf/resv.M.keep",
+          "name": {
+            "source": "keep",
+            "canonical": "keep"
+          },
+          "wireID": 1,
+          "type": {
+            "target": "t/prim/string",
+            "nullable": false
+          },
+          "required": false,
+          "presence": "implicit",
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "resv.M.keep"
+          }
+        }
+      ],
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    }
+  },
+  "extensions": {
+    "protobuf:file": {
+      "syntax": "proto3"
+    }
+  },
+  "diagnostics": [
+    {
+      "severity": "info",
+      "code": "protobuf/reserved",
+      "message": "reserved field numbers/names for resv.M preserved in Extensions",
+      "provenance": {
+        "source": 0,
+        "pointer": "resv.M"
+      }
+    },
+    {
+      "severity": "info",
+      "code": "protobuf/reserved",
+      "message": "reserved enum numbers/names for resv.E preserved in Extensions",
+      "provenance": {
+        "source": 0,
+        "pointer": "resv.E"
+      }
+    }
+  ],
+  "sources": [
+    {
+      "format": "protobuf@3",
+      "path": "reserved.proto",
+      "hash": "287139755354e17cecdf6cdf8b3af2fae88931dc13c30f7633eedefb5e4a8498"
+    }
+  ]
+}

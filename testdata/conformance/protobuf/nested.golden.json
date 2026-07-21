@@ -1,0 +1,230 @@
+{
+  "irVersion": "0.1.0",
+  "name": "nested",
+  "docs": {},
+  "services": [
+    {
+      "id": "s/protobuf/nested",
+      "name": {
+        "source": "nested",
+        "canonical": "nested"
+      },
+      "docs": {},
+      "namespace": [
+        "nested"
+      ],
+      "auth": null,
+      "provenance": {
+        "source": 0,
+        "pointer": "nested.proto"
+      }
+    }
+  ],
+  "types": {
+    "t/prim/string": {
+      "kind": "primitive",
+      "id": "t/prim/string",
+      "name": {},
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0
+      },
+      "prim": "string"
+    },
+    "t/protobuf/nested.Outer": {
+      "kind": "model",
+      "id": "t/protobuf/nested.Outer",
+      "name": {
+        "source": "Outer",
+        "canonical": "outer"
+      },
+      "namespace": [
+        "nested"
+      ],
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "nested.Outer"
+      },
+      "properties": [
+        {
+          "id": "p/protobuf/nested.Outer.inner",
+          "name": {
+            "source": "inner",
+            "canonical": "inner"
+          },
+          "wireID": 1,
+          "type": {
+            "target": "t/protobuf/nested.Outer.Inner",
+            "nullable": false
+          },
+          "required": false,
+          "presence": "explicit",
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "nested.Outer.inner"
+          }
+        },
+        {
+          "id": "p/protobuf/nested.Outer.kind",
+          "name": {
+            "source": "kind",
+            "canonical": "kind"
+          },
+          "wireID": 2,
+          "type": {
+            "target": "t/protobuf/nested.Outer.Kind",
+            "nullable": false
+          },
+          "required": false,
+          "presence": "implicit",
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "nested.Outer.kind"
+          }
+        }
+      ],
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
+    "t/protobuf/nested.Outer.Inner": {
+      "kind": "model",
+      "id": "t/protobuf/nested.Outer.Inner",
+      "name": {
+        "source": "Inner",
+        "canonical": "inner"
+      },
+      "namespace": [
+        "nested"
+      ],
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "nested.Outer.Inner"
+      },
+      "properties": [
+        {
+          "id": "p/protobuf/nested.Outer.Inner.value",
+          "name": {
+            "source": "value",
+            "canonical": "value"
+          },
+          "wireID": 1,
+          "type": {
+            "target": "t/prim/string",
+            "nullable": false
+          },
+          "required": false,
+          "presence": "implicit",
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "nested.Outer.Inner.value"
+          }
+        }
+      ],
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
+    "t/protobuf/nested.Outer.Kind": {
+      "kind": "enum",
+      "id": "t/protobuf/nested.Outer.Kind",
+      "name": {
+        "source": "Kind",
+        "canonical": "kind"
+      },
+      "namespace": [
+        "nested"
+      ],
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "nested.Outer.Kind"
+      },
+      "valueType": "int32",
+      "members": [
+        {
+          "name": {
+            "source": "KIND_UNSPECIFIED",
+            "canonical": "kind_unspecified"
+          },
+          "value": {
+            "kind": "number",
+            "num": "0",
+            "bytes": null,
+            "list": null,
+            "object": null
+          },
+          "docs": {}
+        },
+        {
+          "name": {
+            "source": "PRIMARY",
+            "canonical": "primary"
+          },
+          "value": {
+            "kind": "number",
+            "num": "1",
+            "bytes": null,
+            "list": null,
+            "object": null
+          },
+          "docs": {}
+        }
+      ],
+      "closed": false,
+      "flags": false
+    }
+  },
+  "extensions": {
+    "protobuf:file": {
+      "syntax": "proto3"
+    }
+  },
+  "sources": [
+    {
+      "format": "protobuf@3",
+      "path": "nested.proto",
+      "hash": "3ca66400c2c97a08e4fdca5c19f7d447b4bede545693eb6f491c75eb36763b8a"
+    }
+  ]
+}

@@ -1,0 +1,13 @@
+syntax = "proto3";
+
+package dep;
+
+message Old {
+  option deprecated = true;
+  string id = 1 [deprecated = true];
+}
+
+enum Legacy {
+  LEGACY_UNSPECIFIED = 0;
+  OLD_VALUE = 1 [deprecated = true];
+}

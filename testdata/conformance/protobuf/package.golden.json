@@ -1,0 +1,104 @@
+{
+  "irVersion": "0.1.0",
+  "name": "deep.nested.pkg",
+  "docs": {},
+  "services": [
+    {
+      "id": "s/protobuf/deep.nested.pkg",
+      "name": {
+        "source": "deep.nested.pkg",
+        "canonical": "deep_nested_pkg"
+      },
+      "docs": {},
+      "namespace": [
+        "deep",
+        "nested",
+        "pkg"
+      ],
+      "auth": null,
+      "provenance": {
+        "source": 0,
+        "pointer": "package.proto"
+      }
+    }
+  ],
+  "types": {
+    "t/prim/string": {
+      "kind": "primitive",
+      "id": "t/prim/string",
+      "name": {},
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0
+      },
+      "prim": "string"
+    },
+    "t/protobuf/deep.nested.pkg.Thing": {
+      "kind": "model",
+      "id": "t/protobuf/deep.nested.pkg.Thing",
+      "name": {
+        "source": "Thing",
+        "canonical": "thing"
+      },
+      "namespace": [
+        "deep",
+        "nested",
+        "pkg"
+      ],
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "deep.nested.pkg.Thing"
+      },
+      "properties": [
+        {
+          "id": "p/protobuf/deep.nested.pkg.Thing.id",
+          "name": {
+            "source": "id",
+            "canonical": "id"
+          },
+          "wireID": 1,
+          "type": {
+            "target": "t/prim/string",
+            "nullable": false
+          },
+          "required": false,
+          "presence": "implicit",
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "deep.nested.pkg.Thing.id"
+          }
+        }
+      ],
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    }
+  },
+  "extensions": {
+    "protobuf:file": {
+      "syntax": "proto3"
+    }
+  },
+  "sources": [
+    {
+      "format": "protobuf@3",
+      "path": "package.proto",
+      "hash": "cb0d01ae57ec6d36b897bb9caeb5592ae44b01f4457ccbe91d5625577409a54a"
+    }
+  ]
+}

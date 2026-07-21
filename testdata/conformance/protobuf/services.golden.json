@@ -1,0 +1,646 @@
+{
+  "irVersion": "0.1.0",
+  "name": "svc",
+  "docs": {},
+  "services": [
+    {
+      "id": "s/protobuf/svc",
+      "name": {
+        "source": "svc",
+        "canonical": "svc"
+      },
+      "docs": {},
+      "namespace": [
+        "svc"
+      ],
+      "groups": [
+        {
+          "name": {
+            "source": "Echo",
+            "canonical": "echo"
+          },
+          "docs": {},
+          "operations": [
+            {
+              "id": "op/protobuf/svc.Echo.Unary",
+              "name": {
+                "source": "Unary",
+                "canonical": "unary"
+              },
+              "docs": {},
+              "request": {
+                "contents": [
+                  {
+                    "type": {
+                      "target": "t/protobuf/svc.Ping",
+                      "nullable": false
+                    }
+                  }
+                ]
+              },
+              "responses": [
+                {
+                  "name": {
+                    "hint": "response"
+                  },
+                  "conditions": {},
+                  "payload": {
+                    "contents": [
+                      {
+                        "type": {
+                          "target": "t/protobuf/svc.Pong",
+                          "nullable": false
+                        }
+                      }
+                    ]
+                  },
+                  "docs": {}
+                }
+              ],
+              "oneWay": false,
+              "idempotency": {},
+              "auth": null,
+              "bindings": {
+                "rpc": {
+                  "system": "grpc",
+                  "fullMethod": "/svc.Echo/Unary",
+                  "inputType": {
+                    "target": "t/protobuf/svc.Ping",
+                    "nullable": false
+                  }
+                }
+              },
+              "provenance": {
+                "source": 0,
+                "pointer": "svc.Echo.Unary"
+              }
+            },
+            {
+              "id": "op/protobuf/svc.Echo.ClientStream",
+              "name": {
+                "source": "ClientStream",
+                "canonical": "client_stream"
+              },
+              "docs": {},
+              "request": {
+                "contents": [
+                  {
+                    "type": {
+                      "target": "t/protobuf/svc.Ping",
+                      "nullable": false
+                    }
+                  }
+                ]
+              },
+              "responses": [
+                {
+                  "name": {
+                    "hint": "response"
+                  },
+                  "conditions": {},
+                  "payload": {
+                    "contents": [
+                      {
+                        "type": {
+                          "target": "t/protobuf/svc.Pong",
+                          "nullable": false
+                        }
+                      }
+                    ]
+                  },
+                  "docs": {}
+                }
+              ],
+              "oneWay": false,
+              "streaming": "client",
+              "requestStream": {
+                "requiresLength": false
+              },
+              "idempotency": {},
+              "auth": null,
+              "bindings": {
+                "rpc": {
+                  "system": "grpc",
+                  "fullMethod": "/svc.Echo/ClientStream",
+                  "inputType": {
+                    "target": "t/protobuf/svc.Ping",
+                    "nullable": false
+                  }
+                }
+              },
+              "provenance": {
+                "source": 0,
+                "pointer": "svc.Echo.ClientStream"
+              }
+            },
+            {
+              "id": "op/protobuf/svc.Echo.ServerStream",
+              "name": {
+                "source": "ServerStream",
+                "canonical": "server_stream"
+              },
+              "docs": {},
+              "request": {
+                "contents": [
+                  {
+                    "type": {
+                      "target": "t/protobuf/svc.Ping",
+                      "nullable": false
+                    }
+                  }
+                ]
+              },
+              "responses": [
+                {
+                  "name": {
+                    "hint": "response"
+                  },
+                  "conditions": {},
+                  "payload": {
+                    "contents": [
+                      {
+                        "type": {
+                          "target": "t/protobuf/svc.Pong",
+                          "nullable": false
+                        }
+                      }
+                    ]
+                  },
+                  "docs": {}
+                }
+              ],
+              "oneWay": false,
+              "streaming": "server",
+              "responseStream": {
+                "requiresLength": false
+              },
+              "idempotency": {},
+              "auth": null,
+              "bindings": {
+                "rpc": {
+                  "system": "grpc",
+                  "fullMethod": "/svc.Echo/ServerStream",
+                  "inputType": {
+                    "target": "t/protobuf/svc.Ping",
+                    "nullable": false
+                  }
+                }
+              },
+              "provenance": {
+                "source": 0,
+                "pointer": "svc.Echo.ServerStream"
+              }
+            },
+            {
+              "id": "op/protobuf/svc.Echo.BidiStream",
+              "name": {
+                "source": "BidiStream",
+                "canonical": "bidi_stream"
+              },
+              "docs": {},
+              "request": {
+                "contents": [
+                  {
+                    "type": {
+                      "target": "t/protobuf/svc.Ping",
+                      "nullable": false
+                    }
+                  }
+                ]
+              },
+              "responses": [
+                {
+                  "name": {
+                    "hint": "response"
+                  },
+                  "conditions": {},
+                  "payload": {
+                    "contents": [
+                      {
+                        "type": {
+                          "target": "t/protobuf/svc.Pong",
+                          "nullable": false
+                        }
+                      }
+                    ]
+                  },
+                  "docs": {}
+                }
+              ],
+              "oneWay": false,
+              "streaming": "bidi",
+              "requestStream": {
+                "requiresLength": false
+              },
+              "responseStream": {
+                "requiresLength": false
+              },
+              "idempotency": {},
+              "auth": null,
+              "bindings": {
+                "rpc": {
+                  "system": "grpc",
+                  "fullMethod": "/svc.Echo/BidiStream",
+                  "inputType": {
+                    "target": "t/protobuf/svc.Ping",
+                    "nullable": false
+                  }
+                }
+              },
+              "provenance": {
+                "source": 0,
+                "pointer": "svc.Echo.BidiStream"
+              }
+            },
+            {
+              "id": "op/protobuf/svc.Echo.Fetch",
+              "name": {
+                "source": "Fetch",
+                "canonical": "fetch"
+              },
+              "docs": {},
+              "request": {
+                "contents": [
+                  {
+                    "type": {
+                      "target": "t/protobuf/svc.Ping",
+                      "nullable": false
+                    }
+                  }
+                ]
+              },
+              "responses": [
+                {
+                  "name": {
+                    "hint": "response"
+                  },
+                  "conditions": {},
+                  "payload": {
+                    "contents": [
+                      {
+                        "type": {
+                          "target": "t/protobuf/svc.Pong",
+                          "nullable": false
+                        }
+                      }
+                    ]
+                  },
+                  "docs": {}
+                }
+              ],
+              "oneWay": false,
+              "idempotency": {
+                "kind": "safe"
+              },
+              "auth": null,
+              "bindings": {
+                "rpc": {
+                  "system": "grpc",
+                  "fullMethod": "/svc.Echo/Fetch",
+                  "inputType": {
+                    "target": "t/protobuf/svc.Ping",
+                    "nullable": false
+                  },
+                  "idempotencyLevel": "NO_SIDE_EFFECTS"
+                }
+              },
+              "provenance": {
+                "source": 0,
+                "pointer": "svc.Echo.Fetch"
+              }
+            },
+            {
+              "id": "op/protobuf/svc.Echo.Replace",
+              "name": {
+                "source": "Replace",
+                "canonical": "replace"
+              },
+              "docs": {},
+              "request": {
+                "contents": [
+                  {
+                    "type": {
+                      "target": "t/protobuf/svc.Ping",
+                      "nullable": false
+                    }
+                  }
+                ]
+              },
+              "responses": [
+                {
+                  "name": {
+                    "hint": "response"
+                  },
+                  "conditions": {},
+                  "payload": {
+                    "contents": [
+                      {
+                        "type": {
+                          "target": "t/protobuf/svc.Pong",
+                          "nullable": false
+                        }
+                      }
+                    ]
+                  },
+                  "docs": {}
+                }
+              ],
+              "oneWay": false,
+              "idempotency": {
+                "kind": "idempotent"
+              },
+              "auth": null,
+              "bindings": {
+                "rpc": {
+                  "system": "grpc",
+                  "fullMethod": "/svc.Echo/Replace",
+                  "inputType": {
+                    "target": "t/protobuf/svc.Ping",
+                    "nullable": false
+                  },
+                  "idempotencyLevel": "IDEMPOTENT"
+                }
+              },
+              "provenance": {
+                "source": 0,
+                "pointer": "svc.Echo.Replace"
+              }
+            },
+            {
+              "id": "op/protobuf/svc.Echo.Notify",
+              "name": {
+                "source": "Notify",
+                "canonical": "notify"
+              },
+              "docs": {},
+              "request": {
+                "contents": [
+                  {
+                    "type": {
+                      "target": "t/protobuf/svc.Ping",
+                      "nullable": false
+                    }
+                  }
+                ]
+              },
+              "responses": [
+                {
+                  "name": {
+                    "hint": "response"
+                  },
+                  "conditions": {},
+                  "docs": {}
+                }
+              ],
+              "oneWay": false,
+              "idempotency": {},
+              "auth": null,
+              "bindings": {
+                "rpc": {
+                  "system": "grpc",
+                  "fullMethod": "/svc.Echo/Notify",
+                  "inputType": {
+                    "target": "t/protobuf/svc.Ping",
+                    "nullable": false
+                  }
+                }
+              },
+              "provenance": {
+                "source": 0,
+                "pointer": "svc.Echo.Notify"
+              }
+            },
+            {
+              "id": "op/protobuf/svc.Echo.Drain",
+              "name": {
+                "source": "Drain",
+                "canonical": "drain"
+              },
+              "docs": {},
+              "responses": [
+                {
+                  "name": {
+                    "hint": "response"
+                  },
+                  "conditions": {},
+                  "payload": {
+                    "contents": [
+                      {
+                        "type": {
+                          "target": "t/protobuf/svc.Pong",
+                          "nullable": false
+                        }
+                      }
+                    ]
+                  },
+                  "docs": {}
+                }
+              ],
+              "oneWay": false,
+              "idempotency": {},
+              "auth": null,
+              "bindings": {
+                "rpc": {
+                  "system": "grpc",
+                  "fullMethod": "/svc.Echo/Drain"
+                }
+              },
+              "provenance": {
+                "source": 0,
+                "pointer": "svc.Echo.Drain"
+              }
+            },
+            {
+              "id": "op/protobuf/svc.Echo.Touch",
+              "name": {
+                "source": "Touch",
+                "canonical": "touch"
+              },
+              "docs": {},
+              "deprecation": {},
+              "request": {
+                "contents": [
+                  {
+                    "type": {
+                      "target": "t/protobuf/svc.Ping",
+                      "nullable": false
+                    }
+                  }
+                ]
+              },
+              "responses": [
+                {
+                  "name": {
+                    "hint": "response"
+                  },
+                  "conditions": {},
+                  "payload": {
+                    "contents": [
+                      {
+                        "type": {
+                          "target": "t/protobuf/svc.Pong",
+                          "nullable": false
+                        }
+                      }
+                    ]
+                  },
+                  "docs": {}
+                }
+              ],
+              "oneWay": false,
+              "idempotency": {},
+              "auth": null,
+              "bindings": {
+                "rpc": {
+                  "system": "grpc",
+                  "fullMethod": "/svc.Echo/Touch",
+                  "inputType": {
+                    "target": "t/protobuf/svc.Ping",
+                    "nullable": false
+                  }
+                }
+              },
+              "provenance": {
+                "source": 0,
+                "pointer": "svc.Echo.Touch"
+              }
+            }
+          ]
+        }
+      ],
+      "auth": null,
+      "provenance": {
+        "source": 0,
+        "pointer": "services.proto"
+      }
+    }
+  ],
+  "types": {
+    "t/prim/string": {
+      "kind": "primitive",
+      "id": "t/prim/string",
+      "name": {},
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0
+      },
+      "prim": "string"
+    },
+    "t/protobuf/svc.Ping": {
+      "kind": "model",
+      "id": "t/protobuf/svc.Ping",
+      "name": {
+        "source": "Ping",
+        "canonical": "ping"
+      },
+      "namespace": [
+        "svc"
+      ],
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "svc.Ping"
+      },
+      "properties": [
+        {
+          "id": "p/protobuf/svc.Ping.msg",
+          "name": {
+            "source": "msg",
+            "canonical": "msg"
+          },
+          "wireID": 1,
+          "type": {
+            "target": "t/prim/string",
+            "nullable": false
+          },
+          "required": false,
+          "presence": "implicit",
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "svc.Ping.msg"
+          }
+        }
+      ],
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
+    "t/protobuf/svc.Pong": {
+      "kind": "model",
+      "id": "t/protobuf/svc.Pong",
+      "name": {
+        "source": "Pong",
+        "canonical": "pong"
+      },
+      "namespace": [
+        "svc"
+      ],
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "svc.Pong"
+      },
+      "properties": [
+        {
+          "id": "p/protobuf/svc.Pong.msg",
+          "name": {
+            "source": "msg",
+            "canonical": "msg"
+          },
+          "wireID": 1,
+          "type": {
+            "target": "t/prim/string",
+            "nullable": false
+          },
+          "required": false,
+          "presence": "implicit",
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "svc.Pong.msg"
+          }
+        }
+      ],
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    }
+  },
+  "extensions": {
+    "protobuf:file": {
+      "syntax": "proto3"
+    }
+  },
+  "sources": [
+    {
+      "format": "protobuf@3",
+      "path": "services.proto",
+      "hash": "376960e79ff5192b1518fbaab727afe3e97761a43c86b65a8f12c3a4035b1d7d"
+    }
+  ]
+}

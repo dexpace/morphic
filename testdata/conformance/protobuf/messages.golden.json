@@ -1,0 +1,369 @@
+{
+  "irVersion": "0.1.0",
+  "name": "shop",
+  "docs": {},
+  "services": [
+    {
+      "id": "s/protobuf/shop",
+      "name": {
+        "source": "shop",
+        "canonical": "shop"
+      },
+      "docs": {},
+      "namespace": [
+        "shop"
+      ],
+      "auth": null,
+      "provenance": {
+        "source": 0,
+        "pointer": "messages.proto"
+      }
+    }
+  ],
+  "types": {
+    "t/prim/bool": {
+      "kind": "primitive",
+      "id": "t/prim/bool",
+      "name": {},
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0
+      },
+      "prim": "bool"
+    },
+    "t/prim/bytes": {
+      "kind": "primitive",
+      "id": "t/prim/bytes",
+      "name": {},
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0
+      },
+      "prim": "bytes"
+    },
+    "t/prim/float64": {
+      "kind": "primitive",
+      "id": "t/prim/float64",
+      "name": {},
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0
+      },
+      "prim": "float64"
+    },
+    "t/prim/int64": {
+      "kind": "primitive",
+      "id": "t/prim/int64",
+      "name": {},
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0
+      },
+      "prim": "int64"
+    },
+    "t/prim/string": {
+      "kind": "primitive",
+      "id": "t/prim/string",
+      "name": {},
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0
+      },
+      "prim": "string"
+    },
+    "t/protobuf/shop.Category": {
+      "kind": "model",
+      "id": "t/protobuf/shop.Category",
+      "name": {
+        "source": "Category",
+        "canonical": "category"
+      },
+      "namespace": [
+        "shop"
+      ],
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "shop.Category"
+      },
+      "properties": [
+        {
+          "id": "p/protobuf/shop.Category.id",
+          "name": {
+            "source": "id",
+            "canonical": "id"
+          },
+          "wireID": 1,
+          "type": {
+            "target": "t/prim/int64",
+            "nullable": false
+          },
+          "required": false,
+          "presence": "implicit",
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "shop.Category.id"
+          }
+        },
+        {
+          "id": "p/protobuf/shop.Category.label",
+          "name": {
+            "source": "label",
+            "canonical": "label"
+          },
+          "wireID": 2,
+          "type": {
+            "target": "t/prim/string",
+            "nullable": false
+          },
+          "required": false,
+          "presence": "implicit",
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "shop.Category.label"
+          }
+        }
+      ],
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
+    "t/protobuf/shop.Product": {
+      "kind": "model",
+      "id": "t/protobuf/shop.Product",
+      "name": {
+        "source": "Product",
+        "canonical": "product"
+      },
+      "namespace": [
+        "shop"
+      ],
+      "anonymous": false,
+      "docs": {
+        "description": "A product for sale."
+      },
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "shop.Product"
+      },
+      "properties": [
+        {
+          "id": "p/protobuf/shop.Product.id",
+          "name": {
+            "source": "id",
+            "canonical": "id"
+          },
+          "wireID": 1,
+          "type": {
+            "target": "t/prim/int64",
+            "nullable": false
+          },
+          "required": false,
+          "presence": "implicit",
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "shop.Product.id"
+          }
+        },
+        {
+          "id": "p/protobuf/shop.Product.name",
+          "name": {
+            "source": "name",
+            "canonical": "name"
+          },
+          "wireID": 2,
+          "type": {
+            "target": "t/prim/string",
+            "nullable": false
+          },
+          "required": false,
+          "presence": "implicit",
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "shop.Product.name"
+          }
+        },
+        {
+          "id": "p/protobuf/shop.Product.active",
+          "name": {
+            "source": "active",
+            "canonical": "active"
+          },
+          "wireID": 3,
+          "type": {
+            "target": "t/prim/bool",
+            "nullable": false
+          },
+          "required": false,
+          "presence": "implicit",
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "shop.Product.active"
+          }
+        },
+        {
+          "id": "p/protobuf/shop.Product.price",
+          "name": {
+            "source": "price",
+            "canonical": "price"
+          },
+          "wireID": 4,
+          "type": {
+            "target": "t/prim/float64",
+            "nullable": false
+          },
+          "required": false,
+          "presence": "implicit",
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "shop.Product.price"
+          }
+        },
+        {
+          "id": "p/protobuf/shop.Product.image",
+          "name": {
+            "source": "image",
+            "canonical": "image"
+          },
+          "wireID": 5,
+          "type": {
+            "target": "t/prim/bytes",
+            "nullable": false
+          },
+          "required": false,
+          "presence": "implicit",
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "shop.Product.image"
+          }
+        },
+        {
+          "id": "p/protobuf/shop.Product.category",
+          "name": {
+            "source": "category",
+            "canonical": "category"
+          },
+          "wireID": 6,
+          "type": {
+            "target": "t/protobuf/shop.Category",
+            "nullable": false
+          },
+          "required": false,
+          "presence": "explicit",
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "shop.Product.category"
+          }
+        }
+      ],
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    }
+  },
+  "extensions": {
+    "protobuf:file": {
+      "syntax": "proto3"
+    }
+  },
+  "sources": [
+    {
+      "format": "protobuf@3",
+      "path": "messages.proto",
+      "hash": "b312aa53fa9bf2a6c72218d4adc822033a3c6c8bdab16ac502ffc3f3f4faed5f"
+    }
+  ]
+}

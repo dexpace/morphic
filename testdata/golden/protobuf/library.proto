@@ -1,0 +1,72 @@
+syntax = "proto3";
+
+package library.v1;
+
+import "google/protobuf/timestamp.proto";
+import "google/protobuf/empty.proto";
+import "google/protobuf/field_mask.proto";
+
+// Availability of a book in the catalog.
+enum Availability {
+  AVAILABILITY_UNSPECIFIED = 0;
+  IN_STOCK = 1;
+  OUT_OF_STOCK = 2;
+  DISCONTINUED = 3;
+}
+
+// A book in the library catalog.
+message Book {
+  int64 id = 1;
+  string title = 2;
+  repeated string authors = 3;
+  Availability availability = 4;
+  google.protobuf.Timestamp published_at = 5;
+  map<string, string> metadata = 6;
+  optional string subtitle = 7;
+  // Either an ISBN-10 or an ISBN-13 identifier.
+  oneof identifier {
+    string isbn10 = 8;
+    string isbn13 = 9;
+  }
+  reserved 100 to 199;
+  reserved "old_price";
+}
+
+message GetBookRequest {
+  int64 id = 1;
+}
+
+message ListBooksRequest {
+  int32 page_size = 1;
+  string page_token = 2;
+}
+
+message ListBooksResponse {
+  repeated Book books = 1;
+  string next_page_token = 2;
+}
+
+message UpdateBookRequest {
+  Book book = 1;
+  google.protobuf.FieldMask update_mask = 2;
+}
+
+// The library catalog service.
+service Catalog {
+  // Fetch one book by id.
+  rpc GetBook(GetBookRequest) returns (Book) {
+    option idempotency_level = NO_SIDE_EFFECTS;
+  }
+  // List books, paginated.
+  rpc ListBooks(ListBooksRequest) returns (ListBooksResponse) {
+    option idempotency_level = NO_SIDE_EFFECTS;
+  }
+  // Update a book in place.
+  rpc UpdateBook(UpdateBookRequest) returns (Book) {
+    option idempotency_level = IDEMPOTENT;
+  }
+  // Stream the whole catalog.
+  rpc StreamCatalog(google.protobuf.Empty) returns (stream Book);
+  // Delete a book.
+  rpc DeleteBook(GetBookRequest) returns (google.protobuf.Empty);
+}

@@ -1,0 +1,1131 @@
+{
+  "irVersion": "0.1.0",
+  "name": "library.v1",
+  "docs": {},
+  "services": [
+    {
+      "id": "s/protobuf/library.v1",
+      "name": {
+        "source": "library.v1",
+        "canonical": "library_v_1"
+      },
+      "docs": {},
+      "namespace": [
+        "library",
+        "v1"
+      ],
+      "groups": [
+        {
+          "name": {
+            "source": "Catalog",
+            "canonical": "catalog"
+          },
+          "docs": {
+            "description": "The library catalog service."
+          },
+          "operations": [
+            {
+              "id": "op/protobuf/library.v1.Catalog.GetBook",
+              "name": {
+                "source": "GetBook",
+                "canonical": "get_book"
+              },
+              "docs": {
+                "description": "Fetch one book by id."
+              },
+              "request": {
+                "contents": [
+                  {
+                    "type": {
+                      "target": "t/protobuf/library.v1.GetBookRequest",
+                      "nullable": false
+                    }
+                  }
+                ]
+              },
+              "responses": [
+                {
+                  "name": {
+                    "hint": "response"
+                  },
+                  "conditions": {},
+                  "payload": {
+                    "contents": [
+                      {
+                        "type": {
+                          "target": "t/protobuf/library.v1.Book",
+                          "nullable": false
+                        }
+                      }
+                    ]
+                  },
+                  "docs": {}
+                }
+              ],
+              "oneWay": false,
+              "idempotency": {
+                "kind": "safe"
+              },
+              "auth": null,
+              "bindings": {
+                "rpc": {
+                  "system": "grpc",
+                  "fullMethod": "/library.v1.Catalog/GetBook",
+                  "inputType": {
+                    "target": "t/protobuf/library.v1.GetBookRequest",
+                    "nullable": false
+                  },
+                  "idempotencyLevel": "NO_SIDE_EFFECTS"
+                }
+              },
+              "provenance": {
+                "source": 0,
+                "pointer": "library.v1.Catalog.GetBook"
+              }
+            },
+            {
+              "id": "op/protobuf/library.v1.Catalog.ListBooks",
+              "name": {
+                "source": "ListBooks",
+                "canonical": "list_books"
+              },
+              "docs": {
+                "description": "List books, paginated."
+              },
+              "request": {
+                "contents": [
+                  {
+                    "type": {
+                      "target": "t/protobuf/library.v1.ListBooksRequest",
+                      "nullable": false
+                    }
+                  }
+                ]
+              },
+              "responses": [
+                {
+                  "name": {
+                    "hint": "response"
+                  },
+                  "conditions": {},
+                  "payload": {
+                    "contents": [
+                      {
+                        "type": {
+                          "target": "t/protobuf/library.v1.ListBooksResponse",
+                          "nullable": false
+                        }
+                      }
+                    ]
+                  },
+                  "docs": {}
+                }
+              ],
+              "oneWay": false,
+              "idempotency": {
+                "kind": "safe"
+              },
+              "auth": null,
+              "bindings": {
+                "rpc": {
+                  "system": "grpc",
+                  "fullMethod": "/library.v1.Catalog/ListBooks",
+                  "inputType": {
+                    "target": "t/protobuf/library.v1.ListBooksRequest",
+                    "nullable": false
+                  },
+                  "idempotencyLevel": "NO_SIDE_EFFECTS"
+                }
+              },
+              "provenance": {
+                "source": 0,
+                "pointer": "library.v1.Catalog.ListBooks"
+              }
+            },
+            {
+              "id": "op/protobuf/library.v1.Catalog.UpdateBook",
+              "name": {
+                "source": "UpdateBook",
+                "canonical": "update_book"
+              },
+              "docs": {
+                "description": "Update a book in place."
+              },
+              "request": {
+                "contents": [
+                  {
+                    "type": {
+                      "target": "t/protobuf/library.v1.UpdateBookRequest",
+                      "nullable": false
+                    }
+                  }
+                ]
+              },
+              "responses": [
+                {
+                  "name": {
+                    "hint": "response"
+                  },
+                  "conditions": {},
+                  "payload": {
+                    "contents": [
+                      {
+                        "type": {
+                          "target": "t/protobuf/library.v1.Book",
+                          "nullable": false
+                        }
+                      }
+                    ]
+                  },
+                  "docs": {}
+                }
+              ],
+              "oneWay": false,
+              "idempotency": {
+                "kind": "idempotent"
+              },
+              "auth": null,
+              "bindings": {
+                "rpc": {
+                  "system": "grpc",
+                  "fullMethod": "/library.v1.Catalog/UpdateBook",
+                  "inputType": {
+                    "target": "t/protobuf/library.v1.UpdateBookRequest",
+                    "nullable": false
+                  },
+                  "idempotencyLevel": "IDEMPOTENT"
+                }
+              },
+              "provenance": {
+                "source": 0,
+                "pointer": "library.v1.Catalog.UpdateBook"
+              }
+            },
+            {
+              "id": "op/protobuf/library.v1.Catalog.StreamCatalog",
+              "name": {
+                "source": "StreamCatalog",
+                "canonical": "stream_catalog"
+              },
+              "docs": {
+                "description": "Stream the whole catalog."
+              },
+              "responses": [
+                {
+                  "name": {
+                    "hint": "response"
+                  },
+                  "conditions": {},
+                  "payload": {
+                    "contents": [
+                      {
+                        "type": {
+                          "target": "t/protobuf/library.v1.Book",
+                          "nullable": false
+                        }
+                      }
+                    ]
+                  },
+                  "docs": {}
+                }
+              ],
+              "oneWay": false,
+              "streaming": "server",
+              "responseStream": {
+                "requiresLength": false
+              },
+              "idempotency": {},
+              "auth": null,
+              "bindings": {
+                "rpc": {
+                  "system": "grpc",
+                  "fullMethod": "/library.v1.Catalog/StreamCatalog"
+                }
+              },
+              "provenance": {
+                "source": 0,
+                "pointer": "library.v1.Catalog.StreamCatalog"
+              }
+            },
+            {
+              "id": "op/protobuf/library.v1.Catalog.DeleteBook",
+              "name": {
+                "source": "DeleteBook",
+                "canonical": "delete_book"
+              },
+              "docs": {
+                "description": "Delete a book."
+              },
+              "request": {
+                "contents": [
+                  {
+                    "type": {
+                      "target": "t/protobuf/library.v1.GetBookRequest",
+                      "nullable": false
+                    }
+                  }
+                ]
+              },
+              "responses": [
+                {
+                  "name": {
+                    "hint": "response"
+                  },
+                  "conditions": {},
+                  "docs": {}
+                }
+              ],
+              "oneWay": false,
+              "idempotency": {},
+              "auth": null,
+              "bindings": {
+                "rpc": {
+                  "system": "grpc",
+                  "fullMethod": "/library.v1.Catalog/DeleteBook",
+                  "inputType": {
+                    "target": "t/protobuf/library.v1.GetBookRequest",
+                    "nullable": false
+                  }
+                }
+              },
+              "provenance": {
+                "source": 0,
+                "pointer": "library.v1.Catalog.DeleteBook"
+              }
+            }
+          ]
+        }
+      ],
+      "auth": null,
+      "provenance": {
+        "source": 0,
+        "pointer": "library.proto"
+      }
+    }
+  ],
+  "types": {
+    "t/anon/protobuf/library.v1.Book.authors/list": {
+      "kind": "list",
+      "id": "t/anon/protobuf/library.v1.Book.authors/list",
+      "name": {
+        "hint": "authors"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "library.v1.Book.authors"
+      },
+      "elem": {
+        "target": "t/prim/string",
+        "nullable": false
+      }
+    },
+    "t/anon/protobuf/library.v1.Book.identifier/oneof": {
+      "kind": "union",
+      "id": "t/anon/protobuf/library.v1.Book.identifier/oneof",
+      "name": {
+        "hint": "identifier"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "library.v1.Book.identifier"
+      },
+      "variants": [
+        {
+          "name": {
+            "source": "isbn10",
+            "canonical": "isbn_10"
+          },
+          "type": {
+            "target": "t/prim/string",
+            "nullable": false
+          },
+          "wireID": 8,
+          "docs": {}
+        },
+        {
+          "name": {
+            "source": "isbn13",
+            "canonical": "isbn_13"
+          },
+          "type": {
+            "target": "t/prim/string",
+            "nullable": false
+          },
+          "wireID": 9,
+          "docs": {}
+        }
+      ],
+      "exclusive": true,
+      "wireTagged": true
+    },
+    "t/anon/protobuf/library.v1.Book.metadata/map": {
+      "kind": "map",
+      "id": "t/anon/protobuf/library.v1.Book.metadata/map",
+      "name": {
+        "hint": "metadata"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "library.v1.Book.metadata"
+      },
+      "key": {
+        "target": "t/prim/string",
+        "nullable": false
+      },
+      "value": {
+        "target": "t/prim/string",
+        "nullable": false
+      }
+    },
+    "t/anon/protobuf/library.v1.ListBooksResponse.books/list": {
+      "kind": "list",
+      "id": "t/anon/protobuf/library.v1.ListBooksResponse.books/list",
+      "name": {
+        "hint": "books"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "library.v1.ListBooksResponse.books"
+      },
+      "elem": {
+        "target": "t/protobuf/library.v1.Book",
+        "nullable": false
+      }
+    },
+    "t/prim/datetime": {
+      "kind": "primitive",
+      "id": "t/prim/datetime",
+      "name": {},
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0
+      },
+      "prim": "datetime"
+    },
+    "t/prim/int32": {
+      "kind": "primitive",
+      "id": "t/prim/int32",
+      "name": {},
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0
+      },
+      "prim": "int32"
+    },
+    "t/prim/int64": {
+      "kind": "primitive",
+      "id": "t/prim/int64",
+      "name": {},
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0
+      },
+      "prim": "int64"
+    },
+    "t/prim/string": {
+      "kind": "primitive",
+      "id": "t/prim/string",
+      "name": {},
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0
+      },
+      "prim": "string"
+    },
+    "t/protobuf/external/google.protobuf.FieldMask": {
+      "kind": "external",
+      "id": "t/protobuf/external/google.protobuf.FieldMask",
+      "name": {
+        "source": "google.protobuf.FieldMask",
+        "canonical": "field_mask"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "google.protobuf.FieldMask"
+      },
+      "identity": "google.protobuf.FieldMask",
+      "package": "google.golang.org/protobuf/types/known/fieldmaskpb"
+    },
+    "t/protobuf/library.v1.Availability": {
+      "kind": "enum",
+      "id": "t/protobuf/library.v1.Availability",
+      "name": {
+        "source": "Availability",
+        "canonical": "availability"
+      },
+      "namespace": [
+        "library",
+        "v1"
+      ],
+      "anonymous": false,
+      "docs": {
+        "description": "Availability of a book in the catalog."
+      },
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "library.v1.Availability"
+      },
+      "valueType": "int32",
+      "members": [
+        {
+          "name": {
+            "source": "AVAILABILITY_UNSPECIFIED",
+            "canonical": "availability_unspecified"
+          },
+          "value": {
+            "kind": "number",
+            "num": "0",
+            "bytes": null,
+            "list": null,
+            "object": null
+          },
+          "docs": {}
+        },
+        {
+          "name": {
+            "source": "IN_STOCK",
+            "canonical": "in_stock"
+          },
+          "value": {
+            "kind": "number",
+            "num": "1",
+            "bytes": null,
+            "list": null,
+            "object": null
+          },
+          "docs": {}
+        },
+        {
+          "name": {
+            "source": "OUT_OF_STOCK",
+            "canonical": "out_of_stock"
+          },
+          "value": {
+            "kind": "number",
+            "num": "2",
+            "bytes": null,
+            "list": null,
+            "object": null
+          },
+          "docs": {}
+        },
+        {
+          "name": {
+            "source": "DISCONTINUED",
+            "canonical": "discontinued"
+          },
+          "value": {
+            "kind": "number",
+            "num": "3",
+            "bytes": null,
+            "list": null,
+            "object": null
+          },
+          "docs": {}
+        }
+      ],
+      "closed": false,
+      "flags": false
+    },
+    "t/protobuf/library.v1.Book": {
+      "kind": "model",
+      "id": "t/protobuf/library.v1.Book",
+      "name": {
+        "source": "Book",
+        "canonical": "book"
+      },
+      "namespace": [
+        "library",
+        "v1"
+      ],
+      "anonymous": false,
+      "docs": {
+        "description": "A book in the library catalog."
+      },
+      "sensitive": false,
+      "extensions": {
+        "protobuf:reserved": {
+          "ranges": [
+            {
+              "from": 100,
+              "to": 199
+            }
+          ],
+          "names": [
+            "old_price"
+          ]
+        }
+      },
+      "provenance": {
+        "source": 0,
+        "pointer": "library.v1.Book"
+      },
+      "properties": [
+        {
+          "id": "p/protobuf/library.v1.Book.id",
+          "name": {
+            "source": "id",
+            "canonical": "id"
+          },
+          "wireID": 1,
+          "type": {
+            "target": "t/prim/int64",
+            "nullable": false
+          },
+          "required": false,
+          "presence": "implicit",
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "library.v1.Book.id"
+          }
+        },
+        {
+          "id": "p/protobuf/library.v1.Book.title",
+          "name": {
+            "source": "title",
+            "canonical": "title"
+          },
+          "wireID": 2,
+          "type": {
+            "target": "t/prim/string",
+            "nullable": false
+          },
+          "required": false,
+          "presence": "implicit",
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "library.v1.Book.title"
+          }
+        },
+        {
+          "id": "p/protobuf/library.v1.Book.authors",
+          "name": {
+            "source": "authors",
+            "canonical": "authors"
+          },
+          "wireID": 3,
+          "type": {
+            "target": "t/anon/protobuf/library.v1.Book.authors/list",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "library.v1.Book.authors"
+          }
+        },
+        {
+          "id": "p/protobuf/library.v1.Book.availability",
+          "name": {
+            "source": "availability",
+            "canonical": "availability"
+          },
+          "wireID": 4,
+          "type": {
+            "target": "t/protobuf/library.v1.Availability",
+            "nullable": false
+          },
+          "required": false,
+          "presence": "implicit",
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "library.v1.Book.availability"
+          }
+        },
+        {
+          "id": "p/protobuf/library.v1.Book.published_at",
+          "name": {
+            "source": "published_at",
+            "canonical": "published_at"
+          },
+          "wireID": 5,
+          "type": {
+            "target": "t/prim/datetime",
+            "nullable": false
+          },
+          "required": false,
+          "presence": "explicit",
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "library.v1.Book.published_at"
+          }
+        },
+        {
+          "id": "p/protobuf/library.v1.Book.metadata",
+          "name": {
+            "source": "metadata",
+            "canonical": "metadata"
+          },
+          "wireID": 6,
+          "type": {
+            "target": "t/anon/protobuf/library.v1.Book.metadata/map",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "library.v1.Book.metadata"
+          }
+        },
+        {
+          "id": "p/protobuf/library.v1.Book.subtitle",
+          "name": {
+            "source": "subtitle",
+            "canonical": "subtitle"
+          },
+          "wireID": 7,
+          "type": {
+            "target": "t/prim/string",
+            "nullable": false
+          },
+          "required": false,
+          "presence": "explicit",
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "library.v1.Book.subtitle"
+          }
+        },
+        {
+          "id": "p/protobuf/library.v1.Book.identifier",
+          "name": {
+            "source": "identifier",
+            "canonical": "identifier"
+          },
+          "type": {
+            "target": "t/anon/protobuf/library.v1.Book.identifier/oneof",
+            "nullable": false
+          },
+          "required": false,
+          "presence": "explicit",
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": true,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {
+            "description": "Either an ISBN-10 or an ISBN-13 identifier."
+          },
+          "provenance": {
+            "source": 0,
+            "pointer": "library.v1.Book.identifier"
+          }
+        }
+      ],
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
+    "t/protobuf/library.v1.GetBookRequest": {
+      "kind": "model",
+      "id": "t/protobuf/library.v1.GetBookRequest",
+      "name": {
+        "source": "GetBookRequest",
+        "canonical": "get_book_request"
+      },
+      "namespace": [
+        "library",
+        "v1"
+      ],
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "library.v1.GetBookRequest"
+      },
+      "properties": [
+        {
+          "id": "p/protobuf/library.v1.GetBookRequest.id",
+          "name": {
+            "source": "id",
+            "canonical": "id"
+          },
+          "wireID": 1,
+          "type": {
+            "target": "t/prim/int64",
+            "nullable": false
+          },
+          "required": false,
+          "presence": "implicit",
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "library.v1.GetBookRequest.id"
+          }
+        }
+      ],
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
+    "t/protobuf/library.v1.ListBooksRequest": {
+      "kind": "model",
+      "id": "t/protobuf/library.v1.ListBooksRequest",
+      "name": {
+        "source": "ListBooksRequest",
+        "canonical": "list_books_request"
+      },
+      "namespace": [
+        "library",
+        "v1"
+      ],
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "library.v1.ListBooksRequest"
+      },
+      "properties": [
+        {
+          "id": "p/protobuf/library.v1.ListBooksRequest.page_size",
+          "name": {
+            "source": "page_size",
+            "canonical": "page_size"
+          },
+          "wireID": 1,
+          "type": {
+            "target": "t/prim/int32",
+            "nullable": false
+          },
+          "required": false,
+          "presence": "implicit",
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "library.v1.ListBooksRequest.page_size"
+          }
+        },
+        {
+          "id": "p/protobuf/library.v1.ListBooksRequest.page_token",
+          "name": {
+            "source": "page_token",
+            "canonical": "page_token"
+          },
+          "wireID": 2,
+          "type": {
+            "target": "t/prim/string",
+            "nullable": false
+          },
+          "required": false,
+          "presence": "implicit",
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "library.v1.ListBooksRequest.page_token"
+          }
+        }
+      ],
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
+    "t/protobuf/library.v1.ListBooksResponse": {
+      "kind": "model",
+      "id": "t/protobuf/library.v1.ListBooksResponse",
+      "name": {
+        "source": "ListBooksResponse",
+        "canonical": "list_books_response"
+      },
+      "namespace": [
+        "library",
+        "v1"
+      ],
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "library.v1.ListBooksResponse"
+      },
+      "properties": [
+        {
+          "id": "p/protobuf/library.v1.ListBooksResponse.books",
+          "name": {
+            "source": "books",
+            "canonical": "books"
+          },
+          "wireID": 1,
+          "type": {
+            "target": "t/anon/protobuf/library.v1.ListBooksResponse.books/list",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "library.v1.ListBooksResponse.books"
+          }
+        },
+        {
+          "id": "p/protobuf/library.v1.ListBooksResponse.next_page_token",
+          "name": {
+            "source": "next_page_token",
+            "canonical": "next_page_token"
+          },
+          "wireID": 2,
+          "type": {
+            "target": "t/prim/string",
+            "nullable": false
+          },
+          "required": false,
+          "presence": "implicit",
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "library.v1.ListBooksResponse.next_page_token"
+          }
+        }
+      ],
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
+    "t/protobuf/library.v1.UpdateBookRequest": {
+      "kind": "model",
+      "id": "t/protobuf/library.v1.UpdateBookRequest",
+      "name": {
+        "source": "UpdateBookRequest",
+        "canonical": "update_book_request"
+      },
+      "namespace": [
+        "library",
+        "v1"
+      ],
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "library.v1.UpdateBookRequest"
+      },
+      "properties": [
+        {
+          "id": "p/protobuf/library.v1.UpdateBookRequest.book",
+          "name": {
+            "source": "book",
+            "canonical": "book"
+          },
+          "wireID": 1,
+          "type": {
+            "target": "t/protobuf/library.v1.Book",
+            "nullable": false
+          },
+          "required": false,
+          "presence": "explicit",
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "library.v1.UpdateBookRequest.book"
+          }
+        },
+        {
+          "id": "p/protobuf/library.v1.UpdateBookRequest.update_mask",
+          "name": {
+            "source": "update_mask",
+            "canonical": "update_mask"
+          },
+          "wireID": 2,
+          "type": {
+            "target": "t/protobuf/external/google.protobuf.FieldMask",
+            "nullable": false
+          },
+          "required": false,
+          "presence": "explicit",
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "library.v1.UpdateBookRequest.update_mask"
+          }
+        }
+      ],
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    }
+  },
+  "extensions": {
+    "protobuf:file": {
+      "syntax": "proto3"
+    }
+  },
+  "diagnostics": [
+    {
+      "severity": "info",
+      "code": "protobuf/reserved",
+      "message": "reserved field numbers/names for library.v1.Book preserved in Extensions",
+      "provenance": {
+        "source": 0,
+        "pointer": "library.v1.Book"
+      }
+    }
+  ],
+  "sources": [
+    {
+      "format": "protobuf@3",
+      "path": "library.proto",
+      "hash": "6804a923fde02c572dd5be9af6e18f7a2e8f4e9e636ec20fb2f0bb3d255c02bd"
+    }
+  ]
+}

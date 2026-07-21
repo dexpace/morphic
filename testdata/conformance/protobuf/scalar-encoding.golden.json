@@ -1,0 +1,263 @@
+{
+  "irVersion": "0.1.0",
+  "name": "enc",
+  "docs": {},
+  "services": [
+    {
+      "id": "s/protobuf/enc",
+      "name": {
+        "source": "enc",
+        "canonical": "enc"
+      },
+      "docs": {},
+      "namespace": [
+        "enc"
+      ],
+      "auth": null,
+      "provenance": {
+        "source": 0,
+        "pointer": "scalar-encoding.proto"
+      }
+    }
+  ],
+  "types": {
+    "t/prim/int32": {
+      "kind": "primitive",
+      "id": "t/prim/int32",
+      "name": {},
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0
+      },
+      "prim": "int32"
+    },
+    "t/prim/int64": {
+      "kind": "primitive",
+      "id": "t/prim/int64",
+      "name": {},
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0
+      },
+      "prim": "int64"
+    },
+    "t/prim/uint32": {
+      "kind": "primitive",
+      "id": "t/prim/uint32",
+      "name": {},
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0
+      },
+      "prim": "uint32"
+    },
+    "t/prim/uint64": {
+      "kind": "primitive",
+      "id": "t/prim/uint64",
+      "name": {},
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0
+      },
+      "prim": "uint64"
+    },
+    "t/protobuf/enc.Nums": {
+      "kind": "model",
+      "id": "t/protobuf/enc.Nums",
+      "name": {
+        "source": "Nums",
+        "canonical": "nums"
+      },
+      "namespace": [
+        "enc"
+      ],
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "enc.Nums"
+      },
+      "properties": [
+        {
+          "id": "p/protobuf/enc.Nums.a",
+          "name": {
+            "source": "a",
+            "canonical": "a"
+          },
+          "wireID": 1,
+          "type": {
+            "target": "t/prim/int32",
+            "nullable": false
+          },
+          "required": false,
+          "presence": "implicit",
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "encoding": {
+            "name": "zigzag"
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "enc.Nums.a"
+          }
+        },
+        {
+          "id": "p/protobuf/enc.Nums.b",
+          "name": {
+            "source": "b",
+            "canonical": "b"
+          },
+          "wireID": 2,
+          "type": {
+            "target": "t/prim/int64",
+            "nullable": false
+          },
+          "required": false,
+          "presence": "implicit",
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "encoding": {
+            "name": "zigzag"
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "enc.Nums.b"
+          }
+        },
+        {
+          "id": "p/protobuf/enc.Nums.c",
+          "name": {
+            "source": "c",
+            "canonical": "c"
+          },
+          "wireID": 3,
+          "type": {
+            "target": "t/prim/uint32",
+            "nullable": false
+          },
+          "required": false,
+          "presence": "implicit",
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "encoding": {
+            "name": "fixed"
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "enc.Nums.c"
+          }
+        },
+        {
+          "id": "p/protobuf/enc.Nums.d",
+          "name": {
+            "source": "d",
+            "canonical": "d"
+          },
+          "wireID": 4,
+          "type": {
+            "target": "t/prim/int64",
+            "nullable": false
+          },
+          "required": false,
+          "presence": "implicit",
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "encoding": {
+            "name": "fixed"
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "enc.Nums.d"
+          }
+        },
+        {
+          "id": "p/protobuf/enc.Nums.e",
+          "name": {
+            "source": "e",
+            "canonical": "e"
+          },
+          "wireID": 5,
+          "type": {
+            "target": "t/prim/uint64",
+            "nullable": false
+          },
+          "required": false,
+          "presence": "implicit",
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "encoding": {
+            "name": "fixed"
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "enc.Nums.e"
+          }
+        }
+      ],
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    }
+  },
+  "extensions": {
+    "protobuf:file": {
+      "syntax": "proto3"
+    }
+  },
+  "sources": [
+    {
+      "format": "protobuf@3",
+      "path": "scalar-encoding.proto",
+      "hash": "7ea34f3a40f03b5f0edcfbcdfd744a034c7b447ce3f8000a016a23d47828b2a8"
+    }
+  ]
+}

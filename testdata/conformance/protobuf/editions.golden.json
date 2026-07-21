@@ -1,0 +1,141 @@
+{
+  "irVersion": "0.1.0",
+  "name": "ed",
+  "docs": {},
+  "services": [
+    {
+      "id": "s/protobuf/ed",
+      "name": {
+        "source": "ed",
+        "canonical": "ed"
+      },
+      "docs": {},
+      "namespace": [
+        "ed"
+      ],
+      "auth": null,
+      "provenance": {
+        "source": 0,
+        "pointer": "editions.proto"
+      }
+    }
+  ],
+  "types": {
+    "t/prim/int32": {
+      "kind": "primitive",
+      "id": "t/prim/int32",
+      "name": {},
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0
+      },
+      "prim": "int32"
+    },
+    "t/prim/string": {
+      "kind": "primitive",
+      "id": "t/prim/string",
+      "name": {},
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0
+      },
+      "prim": "string"
+    },
+    "t/protobuf/ed.Rec": {
+      "kind": "model",
+      "id": "t/protobuf/ed.Rec",
+      "name": {
+        "source": "Rec",
+        "canonical": "rec"
+      },
+      "namespace": [
+        "ed"
+      ],
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "ed.Rec"
+      },
+      "properties": [
+        {
+          "id": "p/protobuf/ed.Rec.id",
+          "name": {
+            "source": "id",
+            "canonical": "id"
+          },
+          "wireID": 1,
+          "type": {
+            "target": "t/prim/string",
+            "nullable": false
+          },
+          "required": false,
+          "presence": "explicit",
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "ed.Rec.id"
+          }
+        },
+        {
+          "id": "p/protobuf/ed.Rec.count",
+          "name": {
+            "source": "count",
+            "canonical": "count"
+          },
+          "wireID": 2,
+          "type": {
+            "target": "t/prim/int32",
+            "nullable": false
+          },
+          "required": false,
+          "presence": "implicit",
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "ed.Rec.count"
+          }
+        }
+      ],
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    }
+  },
+  "extensions": {
+    "protobuf:file": {
+      "edition": "EDITION_2023",
+      "syntax": "editions"
+    }
+  },
+  "sources": [
+    {
+      "format": "protobuf@2023",
+      "path": "editions.proto",
+      "hash": "1d9bf761e53c93cec98f1a226e8dab3cacb29f473f049cc7091bd8b4d4516dcc"
+    }
+  ]
+}

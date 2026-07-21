@@ -1,0 +1,306 @@
+{
+  "irVersion": "0.1.0",
+  "name": "rep",
+  "docs": {},
+  "services": [
+    {
+      "id": "s/protobuf/rep",
+      "name": {
+        "source": "rep",
+        "canonical": "rep"
+      },
+      "docs": {},
+      "namespace": [
+        "rep"
+      ],
+      "auth": null,
+      "provenance": {
+        "source": 0,
+        "pointer": "repeated.proto"
+      }
+    }
+  ],
+  "types": {
+    "t/anon/protobuf/rep.Series.deltas/elem": {
+      "kind": "scalar",
+      "id": "t/anon/protobuf/rep.Series.deltas/elem",
+      "name": {
+        "hint": "deltas"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "rep.Series.deltas"
+      },
+      "base": {
+        "target": "t/prim/int64",
+        "nullable": false
+      },
+      "encoding": {
+        "name": "zigzag"
+      }
+    },
+    "t/anon/protobuf/rep.Series.deltas/list": {
+      "kind": "list",
+      "id": "t/anon/protobuf/rep.Series.deltas/list",
+      "name": {
+        "hint": "deltas"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "rep.Series.deltas"
+      },
+      "elem": {
+        "target": "t/anon/protobuf/rep.Series.deltas/elem",
+        "nullable": false
+      },
+      "encoding": {
+        "name": "packed"
+      }
+    },
+    "t/anon/protobuf/rep.Series.expanded_values/list": {
+      "kind": "list",
+      "id": "t/anon/protobuf/rep.Series.expanded_values/list",
+      "name": {
+        "hint": "expanded_values"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "rep.Series.expanded_values"
+      },
+      "elem": {
+        "target": "t/prim/int32",
+        "nullable": false
+      },
+      "encoding": {
+        "name": "expanded"
+      }
+    },
+    "t/anon/protobuf/rep.Series.labels/list": {
+      "kind": "list",
+      "id": "t/anon/protobuf/rep.Series.labels/list",
+      "name": {
+        "hint": "labels"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "rep.Series.labels"
+      },
+      "elem": {
+        "target": "t/prim/string",
+        "nullable": false
+      }
+    },
+    "t/anon/protobuf/rep.Series.packed_values/list": {
+      "kind": "list",
+      "id": "t/anon/protobuf/rep.Series.packed_values/list",
+      "name": {
+        "hint": "packed_values"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "rep.Series.packed_values"
+      },
+      "elem": {
+        "target": "t/prim/int32",
+        "nullable": false
+      },
+      "encoding": {
+        "name": "packed"
+      }
+    },
+    "t/prim/int32": {
+      "kind": "primitive",
+      "id": "t/prim/int32",
+      "name": {},
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0
+      },
+      "prim": "int32"
+    },
+    "t/prim/int64": {
+      "kind": "primitive",
+      "id": "t/prim/int64",
+      "name": {},
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0
+      },
+      "prim": "int64"
+    },
+    "t/prim/string": {
+      "kind": "primitive",
+      "id": "t/prim/string",
+      "name": {},
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0
+      },
+      "prim": "string"
+    },
+    "t/protobuf/rep.Series": {
+      "kind": "model",
+      "id": "t/protobuf/rep.Series",
+      "name": {
+        "source": "Series",
+        "canonical": "series"
+      },
+      "namespace": [
+        "rep"
+      ],
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "rep.Series"
+      },
+      "properties": [
+        {
+          "id": "p/protobuf/rep.Series.packed_values",
+          "name": {
+            "source": "packed_values",
+            "canonical": "packed_values"
+          },
+          "wireID": 1,
+          "type": {
+            "target": "t/anon/protobuf/rep.Series.packed_values/list",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "rep.Series.packed_values"
+          }
+        },
+        {
+          "id": "p/protobuf/rep.Series.expanded_values",
+          "name": {
+            "source": "expanded_values",
+            "canonical": "expanded_values"
+          },
+          "wireID": 2,
+          "type": {
+            "target": "t/anon/protobuf/rep.Series.expanded_values/list",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "rep.Series.expanded_values"
+          }
+        },
+        {
+          "id": "p/protobuf/rep.Series.labels",
+          "name": {
+            "source": "labels",
+            "canonical": "labels"
+          },
+          "wireID": 3,
+          "type": {
+            "target": "t/anon/protobuf/rep.Series.labels/list",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "rep.Series.labels"
+          }
+        },
+        {
+          "id": "p/protobuf/rep.Series.deltas",
+          "name": {
+            "source": "deltas",
+            "canonical": "deltas"
+          },
+          "wireID": 4,
+          "type": {
+            "target": "t/anon/protobuf/rep.Series.deltas/list",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "rep.Series.deltas"
+          }
+        }
+      ],
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    }
+  },
+  "extensions": {
+    "protobuf:file": {
+      "syntax": "proto3"
+    }
+  },
+  "sources": [
+    {
+      "format": "protobuf@3",
+      "path": "repeated.proto",
+      "hash": "6f9fc1237966d1face9c7e72b5b70999c95ea66758c70a28ed6dc5b2d0c2473d"
+    }
+  ]
+}

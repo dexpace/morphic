@@ -1,0 +1,424 @@
+{
+  "irVersion": "0.1.0",
+  "name": "wkt",
+  "docs": {},
+  "services": [
+    {
+      "id": "s/protobuf/wkt",
+      "name": {
+        "source": "wkt",
+        "canonical": "wkt"
+      },
+      "docs": {},
+      "namespace": [
+        "wkt"
+      ],
+      "auth": null,
+      "provenance": {
+        "source": 0,
+        "pointer": "well-known.proto"
+      }
+    }
+  ],
+  "types": {
+    "t/prim/datetime": {
+      "kind": "primitive",
+      "id": "t/prim/datetime",
+      "name": {},
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0
+      },
+      "prim": "datetime"
+    },
+    "t/prim/duration": {
+      "kind": "primitive",
+      "id": "t/prim/duration",
+      "name": {},
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0
+      },
+      "prim": "duration"
+    },
+    "t/prim/int32": {
+      "kind": "primitive",
+      "id": "t/prim/int32",
+      "name": {},
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0
+      },
+      "prim": "int32"
+    },
+    "t/prim/string": {
+      "kind": "primitive",
+      "id": "t/prim/string",
+      "name": {},
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0
+      },
+      "prim": "string"
+    },
+    "t/protobuf/any": {
+      "kind": "any",
+      "id": "t/protobuf/any",
+      "name": {
+        "hint": "any"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0
+      }
+    },
+    "t/protobuf/external/google.protobuf.Empty": {
+      "kind": "external",
+      "id": "t/protobuf/external/google.protobuf.Empty",
+      "name": {
+        "source": "google.protobuf.Empty",
+        "canonical": "empty"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "google.protobuf.Empty"
+      },
+      "identity": "google.protobuf.Empty",
+      "package": "google.golang.org/protobuf/types/known/emptypb"
+    },
+    "t/protobuf/external/google.protobuf.FieldMask": {
+      "kind": "external",
+      "id": "t/protobuf/external/google.protobuf.FieldMask",
+      "name": {
+        "source": "google.protobuf.FieldMask",
+        "canonical": "field_mask"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "google.protobuf.FieldMask"
+      },
+      "identity": "google.protobuf.FieldMask",
+      "package": "google.golang.org/protobuf/types/known/fieldmaskpb"
+    },
+    "t/protobuf/external/google.protobuf.SourceContext": {
+      "kind": "external",
+      "id": "t/protobuf/external/google.protobuf.SourceContext",
+      "name": {
+        "source": "google.protobuf.SourceContext",
+        "canonical": "source_context"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "google.protobuf.SourceContext"
+      },
+      "identity": "google.protobuf.SourceContext",
+      "package": "google.golang.org/protobuf/types/known"
+    },
+    "t/protobuf/wkt.Bundle": {
+      "kind": "model",
+      "id": "t/protobuf/wkt.Bundle",
+      "name": {
+        "source": "Bundle",
+        "canonical": "bundle"
+      },
+      "namespace": [
+        "wkt"
+      ],
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "wkt.Bundle"
+      },
+      "properties": [
+        {
+          "id": "p/protobuf/wkt.Bundle.ts",
+          "name": {
+            "source": "ts",
+            "canonical": "ts"
+          },
+          "wireID": 1,
+          "type": {
+            "target": "t/prim/datetime",
+            "nullable": false
+          },
+          "required": false,
+          "presence": "explicit",
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "wkt.Bundle.ts"
+          }
+        },
+        {
+          "id": "p/protobuf/wkt.Bundle.dur",
+          "name": {
+            "source": "dur",
+            "canonical": "dur"
+          },
+          "wireID": 2,
+          "type": {
+            "target": "t/prim/duration",
+            "nullable": false
+          },
+          "required": false,
+          "presence": "explicit",
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "wkt.Bundle.dur"
+          }
+        },
+        {
+          "id": "p/protobuf/wkt.Bundle.any",
+          "name": {
+            "source": "any",
+            "canonical": "any"
+          },
+          "wireID": 3,
+          "type": {
+            "target": "t/protobuf/any",
+            "nullable": false
+          },
+          "required": false,
+          "presence": "explicit",
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "wkt.Bundle.any"
+          }
+        },
+        {
+          "id": "p/protobuf/wkt.Bundle.props",
+          "name": {
+            "source": "props",
+            "canonical": "props"
+          },
+          "wireID": 4,
+          "type": {
+            "target": "t/protobuf/any",
+            "nullable": false
+          },
+          "required": false,
+          "presence": "explicit",
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "wkt.Bundle.props"
+          }
+        },
+        {
+          "id": "p/protobuf/wkt.Bundle.mask",
+          "name": {
+            "source": "mask",
+            "canonical": "mask"
+          },
+          "wireID": 5,
+          "type": {
+            "target": "t/protobuf/external/google.protobuf.FieldMask",
+            "nullable": false
+          },
+          "required": false,
+          "presence": "explicit",
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "wkt.Bundle.mask"
+          }
+        },
+        {
+          "id": "p/protobuf/wkt.Bundle.count",
+          "name": {
+            "source": "count",
+            "canonical": "count"
+          },
+          "wireID": 6,
+          "type": {
+            "target": "t/prim/int32",
+            "nullable": true
+          },
+          "required": false,
+          "presence": "explicit",
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "wkt.Bundle.count"
+          }
+        },
+        {
+          "id": "p/protobuf/wkt.Bundle.note",
+          "name": {
+            "source": "note",
+            "canonical": "note"
+          },
+          "wireID": 7,
+          "type": {
+            "target": "t/prim/string",
+            "nullable": true
+          },
+          "required": false,
+          "presence": "explicit",
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "wkt.Bundle.note"
+          }
+        },
+        {
+          "id": "p/protobuf/wkt.Bundle.nothing",
+          "name": {
+            "source": "nothing",
+            "canonical": "nothing"
+          },
+          "wireID": 8,
+          "type": {
+            "target": "t/protobuf/external/google.protobuf.Empty",
+            "nullable": false
+          },
+          "required": false,
+          "presence": "explicit",
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "wkt.Bundle.nothing"
+          }
+        },
+        {
+          "id": "p/protobuf/wkt.Bundle.ctx",
+          "name": {
+            "source": "ctx",
+            "canonical": "ctx"
+          },
+          "wireID": 9,
+          "type": {
+            "target": "t/protobuf/external/google.protobuf.SourceContext",
+            "nullable": false
+          },
+          "required": false,
+          "presence": "explicit",
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "wkt.Bundle.ctx"
+          }
+        }
+      ],
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    }
+  },
+  "extensions": {
+    "protobuf:file": {
+      "syntax": "proto3"
+    }
+  },
+  "sources": [
+    {
+      "format": "protobuf@3",
+      "path": "well-known.proto",
+      "hash": "deb7aa62e0ab7e88208e04b3a909903ca629ab4f98659bb55b8d067994479520"
+    }
+  ]
+}

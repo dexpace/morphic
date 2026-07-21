@@ -1,0 +1,7 @@
+syntax = "proto3";
+
+package deep.nested.pkg;
+
+message Thing {
+  string id = 1;
+}

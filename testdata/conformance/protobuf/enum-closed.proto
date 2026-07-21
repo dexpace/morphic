@@ -1,0 +1,15 @@
+syntax = "proto2";
+
+package enums2;
+
+enum Status {
+  option allow_alias = true;
+  UNKNOWN = 0;
+  STARTED = 1;
+  RUNNING = 1;
+  DONE = 2;
+}
+
+message Job {
+  optional Status status = 1;
+}
