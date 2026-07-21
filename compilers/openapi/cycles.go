@@ -62,14 +62,33 @@ var schemaDataKeys = map[string]bool{
 // recursive YAML anchor (an alias whose target is one of its own ancestors) and
 // a pure-$ref cycle (a chain of schema $refs that never reaches a node without a
 // top-level $ref). A source that does not decode as YAML yields no cycles: the
-// main parser owns reporting that as a parse problem. The recover is a bounded-recursion
-// backstop — a detector bug must degrade to "no cycle found", never abort.
-func detectCycles(srcIndex int, data []byte) (diags []ir.Diagnostic) {
+// main parser owns reporting that as a parse problem. The scan runs under
+// recoverCycleScan so a detector bug degrades to "no cycle found", never aborts.
+func detectCycles(srcIndex int, data []byte) []ir.Diagnostic {
+	return recoverCycleScan(func() []ir.Diagnostic {
+		return scanCycles(srcIndex, data)
+	})
+}
+
+// recoverCycleScan runs scan and converts any panic into an empty result. It is
+// the bounded-recursion backstop for the recursive walks: the pre-parse pass
+// exists so the compiler never crashes on a degenerate spec (GitHub #12), so a
+// bug in the detector itself must still degrade to "no cycle found" rather than
+// abort the caller's process.
+func recoverCycleScan(scan func() []ir.Diagnostic) (diags []ir.Diagnostic) {
 	defer func() {
 		if r := recover(); r != nil {
 			diags = nil
 		}
 	}()
+	return scan()
+}
+
+// scanCycles decodes source bytes and reports the first degenerate cycle found,
+// or nil. documentRoot may return nil for an empty or malformed root; the anchor
+// and ref walks both treat a nil root as "nothing to scan", so no explicit nil
+// guard is needed here.
+func scanCycles(srcIndex int, data []byte) []ir.Diagnostic {
 	if len(data) == 0 {
 		return nil
 	}
@@ -78,9 +97,6 @@ func detectCycles(srcIndex int, data []byte) (diags []ir.Diagnostic) {
 		return nil
 	}
 	docRoot := documentRoot(&root)
-	if docRoot == nil {
-		return nil
-	}
 	if d, ok := anchorCycle(srcIndex, docRoot); ok {
 		return []ir.Diagnostic{d}
 	}
