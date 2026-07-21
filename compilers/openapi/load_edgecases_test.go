@@ -33,6 +33,18 @@ func TestLoad_ExternalRefResolutionErrors(t *testing.T) {
 	assert.GreaterOrEqual(t, unresolved, 1, "external resolution validation errors surface as diagnostics")
 }
 
+// TestUnmarshal_RecoversParserPanic pins the no-panics-escape invariant: the
+// third-party parser faults on a whitespace-only document, and unmarshal must
+// convert that panic into an errParse error instead of letting it escape.
+func TestUnmarshal_RecoversParserPanic(t *testing.T) {
+	t.Parallel()
+	doc, valErrs, err := unmarshal(t.Context(), []byte(" "))
+	require.Error(t, err)
+	assert.ErrorIs(t, err, errParse)
+	assert.Nil(t, doc)
+	assert.Nil(t, valErrs)
+}
+
 func TestMapSeverity(t *testing.T) {
 	t.Parallel()
 	assert.Equal(t, ir.SeverityWarning, mapSeverity(validation.Severity("warning")))
