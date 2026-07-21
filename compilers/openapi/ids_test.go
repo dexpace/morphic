@@ -4,7 +4,6 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 
 	"github.com/dexpace/morphic/ir"
 )
@@ -30,27 +29,70 @@ func TestPtr_EscapesPerRFC6901(t *testing.T) {
 	}
 }
 
-func TestRefTypeID_LocalAndExternal(t *testing.T) {
+func TestInternalPointer(t *testing.T) {
 	t.Parallel()
-	id, err := refTypeID("#/components/schemas/User")
-	require.NoError(t, err)
-	assert.Equal(t, ir.TypeID("t/openapi/components/schemas/User"), id)
+	l := &lowerer{source: ir.SourceInfo{Path: "m.yaml"}}
+	cases := []struct {
+		ref    string
+		want   string
+		wantOK bool
+	}{
+		{"#/components/schemas/User", "/components/schemas/User", true},
+		{"#/components/schemas/Foo/properties/bar", "/components/schemas/Foo/properties/bar", true},
+		{"m.yaml#/components/schemas/Foo", "/components/schemas/Foo", true}, // same-file external
+		{"other.yaml#/components/schemas/X", "", false},                     // genuine external
+		{"Bare", "", false}, // bare name, no fragment
+		{"", "", false},
+		{"#", "", false}, // empty fragment
+	}
+	for _, tc := range cases {
+		got, ok := l.internalPointer(tc.ref)
+		assert.Equal(t, tc.wantOK, ok, tc.ref)
+		assert.Equal(t, tc.want, got, tc.ref)
+	}
+}
 
-	id, err = refTypeID("#/paths/~1users/get/responses/200")
-	require.NoError(t, err)
-	assert.Equal(t, ir.TypeID("t/anon/paths/~1users/get/responses/200"), id)
+func TestResolveComponentRef(t *testing.T) {
+	t.Parallel()
+	l := &lowerer{schemas: map[string]bool{"User": true}}
 
-	// A pointer under /components/schemas/ that addresses a nested subschema is
-	// NOT a named component; it interns anonymously, so a $ref to it must derive
-	// the same anon ID (else the reference dangles).
-	id, err = refTypeID("#/components/schemas/Foo/properties/bar")
-	require.NoError(t, err)
-	assert.Equal(t, ir.TypeID("t/anon/components/schemas/Foo/properties/bar"), id)
+	id, ok, handled := l.resolveComponentRef("/components/schemas/User")
+	assert.True(t, handled)
+	assert.True(t, ok)
+	assert.Equal(t, namedTypeID("/components/schemas/User"), id)
 
-	id, err = refTypeID("common.yaml#/components/schemas/Err")
-	require.NoError(t, err)
-	assert.Equal(t, ir.TypeID("t/openapi/ext/common.yaml#/components/schemas/Err"), id)
+	_, ok, handled = l.resolveComponentRef("/components/schemas/Missing")
+	assert.True(t, handled, "an undeclared component pointer is still classified as a component")
+	assert.False(t, ok, "an undeclared component does not resolve")
 
-	_, err = refTypeID("")
-	require.Error(t, err)
+	_, _, handled = l.resolveComponentRef("/components/schemas/Foo/properties/bar")
+	assert.False(t, handled, "a sub-schema pointer is not a top-level component pointer")
+}
+
+// TestResolveComponentRef_NonCanonicalEscape pins that the resolved ID is built
+// from the component's canonical name, so a $ref that escapes non-canonically
+// (a raw '~' for a component named "A~B", interned under "A~0B") still resolves to
+// the interned node rather than an unbacked ID (issue #14).
+func TestResolveComponentRef_NonCanonicalEscape(t *testing.T) {
+	t.Parallel()
+	l := &lowerer{schemas: map[string]bool{"A~B": true}}
+
+	id, ok, handled := l.resolveComponentRef("/components/schemas/A~B")
+	assert.True(t, handled)
+	assert.True(t, ok)
+	assert.Equal(t, namedTypeID("/components/schemas/A~0B"), id,
+		"the ID is canonically re-escaped to match the interned node")
+	assert.Equal(t, namedTypeID(ptr("components", "schemas", "A~B")), id,
+		"and equals the ID the component was interned under")
+}
+
+func TestSameFile(t *testing.T) {
+	t.Parallel()
+	l := &lowerer{source: ir.SourceInfo{Path: "dir/m.yaml"}}
+	assert.True(t, l.sameFile("dir/m.yaml"), "exact path")
+	assert.True(t, l.sameFile("m.yaml"), "bare filename equal to our basename")
+	assert.False(t, l.sameFile("other.yaml"))
+	assert.False(t, l.sameFile("other/m.yaml"),
+		"a doc part with its own directory is a distinct path, not a basename match")
+	assert.False(t, (&lowerer{}).sameFile("m.yaml"), "empty source path never matches")
 }
