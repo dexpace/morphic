@@ -2,6 +2,8 @@ package openapi
 
 import (
 	"fmt"
+	"strings"
+	"unicode/utf8"
 
 	"github.com/dexpace/morphic/ir"
 )
@@ -41,7 +43,20 @@ func diagf(sev ir.Severity, code string, prov ir.Provenance, format string, args
 	return ir.Diagnostic{
 		Severity:   sev,
 		Code:       code,
-		Message:    fmt.Sprintf(format, args...),
+		Message:    validMessage(fmt.Sprintf(format, args...)),
 		Provenance: prov,
 	}
+}
+
+// validMessage coerces a diagnostic message to valid UTF-8, replacing any
+// ill-formed byte runs with U+FFFD. Third-party validators can render a
+// truncated multibyte rune into their error text; leaving those bytes in the IR
+// breaks invariant #7, since JSON marshalling rewrites invalid UTF-8 to U+FFFD
+// and the Document then fails to round-trip byte-for-byte. Sanitizing here keeps
+// every diagnostic message idempotent under marshal/unmarshal.
+func validMessage(msg string) string {
+	if utf8.ValidString(msg) {
+		return msg
+	}
+	return strings.ToValidUTF8(msg, "�")
 }
