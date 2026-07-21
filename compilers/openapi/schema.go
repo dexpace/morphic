@@ -27,6 +27,13 @@ func (l *lowerer) lowerComponentSchemas() {
 	if schemas == nil {
 		return
 	}
+	// Record every declared name before lowering any schema so a $ref or
+	// discriminator mapping resolved mid-lowering sees forward-declared
+	// components as valid targets regardless of source order.
+	l.schemas = make(map[string]bool, schemas.Len())
+	for name := range schemas.All() {
+		l.schemas[name] = true
+	}
 	for name, js := range schemas.All() {
 		l.lowerComponentSchema(js, ptr("components", "schemas", name), name)
 	}
@@ -87,6 +94,14 @@ func (l *lowerer) schemaRef(js *oas3.JSONSchema[oas3.Referenceable], pointer, hi
 	if schema.Ref != nil {
 		return l.refTypeRef(js, pointer)
 	}
+	return l.schemaBody(schema, pointer, hint)
+}
+
+// schemaBody lowers a concrete (non-reference) schema body to a TypeRef, handling
+// the oneOf/anyOf dispatch that precedes structural lowering. It is shared by
+// schemaRef and by sub-schema hoisting (resolveSchemaRef), which both reach a
+// body only after peeling off any leading $ref.
+func (l *lowerer) schemaBody(schema *oas3.Schema, pointer, hint string) ir.TypeRef {
 	if len(schema.GetOneOf()) > 0 || len(schema.GetAnyOf()) > 0 {
 		if hasUnionSiblings(schema) {
 			return ir.TypeRef{
@@ -163,16 +178,59 @@ func (l *lowerer) preserveUnionSiblings(id ir.TypeID, s *oas3.Schema, pointer st
 }
 
 // refTypeRef resolves a $ref position to its target's stable ID, carrying the
-// combined ref-site and target nullability. The target is lowered where it is
-// defined, never here (single-hoisting-pass rule).
+// combined ref-site and target nullability. A top-level component target keeps
+// its stable named ID (lowered where it is defined); an internal sub-schema
+// target is hoisted at its pointer-derived ID so the reference never dangles. A
+// genuinely external or unresolvable target is diagnosed and dropped to any.
 func (l *lowerer) refTypeRef(js *oas3.JSONSchema[oas3.Referenceable], pointer string) ir.TypeRef {
-	id, err := refTypeID(js.GetRef().String())
-	if err != nil {
+	ref := js.GetRef().String()
+	id, ok := l.resolveSchemaRef(js, ref)
+	if !ok {
 		l.diags = append(l.diags, diagf(ir.SeverityError, codeUnresolvedRef,
-			ir.Provenance{Source: l.srcIndex, Pointer: pointer}, "%s", err.Error()))
+			ir.Provenance{Source: l.srcIndex, Pointer: pointer},
+			"unresolved $ref %q", ref))
 		return l.primRef(ir.PrimAny)
 	}
 	return ir.TypeRef{Target: id, Nullable: l.refNullable(js)}
+}
+
+// resolveSchemaRef resolves a schema-position $ref to an interned TypeID, never
+// synthesizing an ID that nothing backs. A top-level component keeps its stable
+// named ID; an already-interned target reuses it; an internal sub-schema the
+// resolver library resolved is hoisted at its pointer-derived ID. It returns
+// ok=false for a cross-document reference, a reference to an undeclared
+// component, or a pointer the library could not resolve.
+func (l *lowerer) resolveSchemaRef(js *oas3.JSONSchema[oas3.Referenceable], ref string) (ir.TypeID, bool) {
+	pointer, ok := l.internalPointer(ref)
+	if !ok {
+		return "", false
+	}
+	if id, resolved, handled := l.resolveComponentRef(pointer); handled {
+		return id, resolved
+	}
+	if id, ok := l.internedID(pointer); ok {
+		return id, true
+	}
+	target := js.GetResolvedSchema()
+	if target == nil {
+		return "", false
+	}
+	return l.hoistSubSchema(target.GetSchema(), pointer)
+}
+
+// hoistSubSchema lowers a resolved internal sub-schema at pointer and guarantees
+// a node exists at the pointer-derived ID, aliasing when the body reduces to a
+// shared target so a $ref to the sub-schema always resolves (invariants 1, 2).
+func (l *lowerer) hoistSubSchema(schema *oas3.Schema, pointer string) (ir.TypeID, bool) {
+	if schema == nil {
+		return "", false
+	}
+	hint := refLastSegment(pointer)
+	ref := l.schemaBody(schema, pointer, hint)
+	if owned, ok := l.byPointer[pointer]; ok {
+		return owned, true
+	}
+	return l.internAlias(pointer, hint, ref), true
 }
 
 // refNullable reports whether a $ref usage admits null: either the reference
@@ -289,7 +347,7 @@ func (l *lowerer) lowerModel(s *oas3.Schema, pointer, hint string) ir.TypeID {
 		m := &ir.Model{TypeCommon: l.commonFor(id, pointer, hint)}
 		l.fillModelProperties(m, s, pointer)
 		l.fillModelDetail(m, s, pointer, hint)
-		if d := l.modelDiscriminator(s, m); d != nil {
+		if d := l.modelDiscriminator(s, m, pointer); d != nil {
 			m.Discriminator = d
 		}
 		return m

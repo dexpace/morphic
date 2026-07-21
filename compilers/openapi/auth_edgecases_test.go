@@ -76,6 +76,6 @@ func TestAuth_AllSchemeKinds(t *testing.T) {
 
 func TestLowerSecurityRequirement_Nil(t *testing.T) {
 	t.Parallel()
-	got := lowerSecurityRequirement(nil)
+	got := (&lowerer{out: &ir.Document{}}).lowerSecurityRequirement(nil)
 	assert.Empty(t, got.Schemes)
 }

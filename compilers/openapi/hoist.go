@@ -24,6 +24,7 @@ type lowerer struct {
 	opts      Options
 	diags     []ir.Diagnostic
 	byPointer map[string]ir.TypeID // pointer -> hoisted/interned TypeID
+	schemas   map[string]bool      // declared component-schema names (for ref resolution)
 	depth     int
 }
 
@@ -112,5 +113,5 @@ func componentSchemaName(pointer string) (string, bool) {
 	if rest == "" || strings.Contains(rest, "/") {
 		return "", false
 	}
-	return rest, true
+	return unescapeSegment(rest), true
 }
