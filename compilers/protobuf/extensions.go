@@ -25,31 +25,22 @@ func deprecationOf(d protoreflect.Descriptor) *ir.Deprecation {
 }
 
 // optionBool reads a boolean standard option by name, returning false when the
-// descriptor has no options or the option is unset.
+// option field is unset. The parser always materializes an options message, so
+// the value is read from it directly.
 func optionBool(d protoreflect.Descriptor, name protoreflect.Name) bool {
 	m := optionsMessage(d)
-	if m == nil {
-		return false
-	}
 	fd := m.Descriptor().Fields().ByName(name)
-	if fd == nil || fd.Kind() != protoreflect.BoolKind {
+	if fd == nil {
 		return false
 	}
 	return m.Get(fd).Bool()
 }
 
-// optionsMessage returns the descriptor's options as a reflective message, or
-// nil when no options are set.
+// optionsMessage returns the descriptor's options as a reflective message. The
+// parser materializes an options message on every descriptor (empty when nothing
+// is set), so the result is always a valid message.
 func optionsMessage(d protoreflect.Descriptor) protoreflect.Message {
-	opts := d.Options()
-	if opts == nil {
-		return nil
-	}
-	m := opts.ProtoReflect()
-	if !m.IsValid() {
-		return nil
-	}
-	return m
+	return d.Options().ProtoReflect()
 }
 
 // customOptions renders a descriptor's custom (extension) options into
@@ -58,9 +49,6 @@ func optionsMessage(d protoreflect.Descriptor) protoreflect.Message {
 // excluded; ordering is deterministic.
 func (l *lowerer) customOptions(d protoreflect.Descriptor) ir.Extensions {
 	m := optionsMessage(d)
-	if m == nil {
-		return nil
-	}
 	type entry struct {
 		key string
 		raw ir.RawValue
@@ -110,10 +98,7 @@ func renderList(fd protoreflect.FieldDescriptor, list protoreflect.List, depth i
 			parts = append(parts, raw)
 		}
 	}
-	b, err := json.Marshal(parts)
-	if err != nil {
-		return nil, false
-	}
+	b, _ := json.Marshal(parts) // a slice of RawMessage always marshals
 	return ir.RawValue(b), true
 }
 
@@ -146,10 +131,7 @@ func renderScalar(fd protoreflect.FieldDescriptor, v protoreflect.Value, depth i
 	case protoreflect.MessageKind, protoreflect.GroupKind:
 		return renderMessage(v.Message(), depth+1)
 	case protoreflect.EnumKind:
-		if ev := fd.Enum().Values().ByNumber(v.Enum()); ev != nil {
-			return jsonRaw(string(ev.Name()))
-		}
-		return jsonRaw(int64(v.Enum()))
+		return jsonRaw(enumMemberName(fd.Enum(), v.Enum()))
 	case protoreflect.BytesKind:
 		return jsonRaw(base64.StdEncoding.EncodeToString(v.Bytes()))
 	case protoreflect.Uint32Kind, protoreflect.Fixed32Kind,
@@ -158,6 +140,15 @@ func renderScalar(fd protoreflect.FieldDescriptor, v protoreflect.Value, depth i
 	default:
 		return jsonRaw(v.Interface())
 	}
+}
+
+// enumMemberName resolves an enum number to its declared member name, falling
+// back to the raw number when the value is undeclared.
+func enumMemberName(ed protoreflect.EnumDescriptor, n protoreflect.EnumNumber) any {
+	if ev := ed.Values().ByNumber(n); ev != nil {
+		return string(ev.Name())
+	}
+	return int64(n)
 }
 
 // renderMessage renders a message option value into a JSON object with its set
@@ -261,10 +252,7 @@ func reservedRaw(ranges []ir.WireIDRange, names []string) ir.RawValue {
 		Ranges []ir.WireIDRange `json:"ranges,omitempty"`
 		Names  []string         `json:"names,omitempty"`
 	}{Ranges: ranges, Names: names}
-	b, err := json.Marshal(payload)
-	if err != nil {
-		return nil
-	}
+	b, _ := json.Marshal(payload) // ranges and names always marshal
 	return ir.RawValue(b)
 }
 

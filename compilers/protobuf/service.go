@@ -133,13 +133,7 @@ func applyStreaming(op *ir.Operation, md protoreflect.MethodDescriptor) {
 // idempotency classification and its raw level string.
 func methodIdempotency(md protoreflect.MethodDescriptor) (ir.Idempotency, string) {
 	m := optionsMessage(md)
-	if m == nil {
-		return ir.Idempotency{}, ""
-	}
 	fd := m.Descriptor().Fields().ByName("idempotency_level")
-	if fd == nil || fd.Kind() != protoreflect.EnumKind {
-		return ir.Idempotency{}, ""
-	}
 	switch m.Get(fd).Enum() {
 	case 1: // NO_SIDE_EFFECTS
 		return ir.Idempotency{Kind: ir.IdempotencySafe}, "NO_SIDE_EFFECTS"
@@ -188,7 +182,7 @@ func (l *lowerer) lowerExtensionField(ext protoreflect.FieldDescriptor) {
 		return
 	}
 	prop := l.lowerField(ext)
-	prop.ExtensionOf = extensionScope(ext)
+	prop.ExtensionOf = scopeOf(string(ext.FullName()))
 	model.Properties = append(model.Properties, prop)
 }
 
@@ -200,23 +194,21 @@ func (l *lowerer) recordOptionDefinition(ext protoreflect.FieldDescriptor, exten
 		"number":  int32(ext.Number()),
 		"name":    string(ext.FullName()),
 	}
-	if raw, err := json.Marshal(def); err == nil {
-		l.out.Extensions = mergeRaw(l.out.Extensions,
-			"protobuf:custom-option:"+string(ext.FullName()), ir.RawValue(raw))
-	}
+	raw, _ := json.Marshal(def) // a map of strings and an int always marshals
+	l.out.Extensions = mergeRaw(l.out.Extensions,
+		"protobuf:custom-option:"+string(ext.FullName()), ir.RawValue(raw))
 	l.diags = append(l.diags, diagf(ir.SeverityInfo, codeCustomOptionDefinition,
 		ir.Provenance{Source: l.srcIndex, Pointer: string(ext.FullName())},
 		"extension %s defines a custom option on %s", ext.FullName(), extended.FullName()))
 }
 
-// extensionScope is the fully-qualified declaring scope of an extension field:
-// its full name with the field name removed.
-func extensionScope(ext protoreflect.FieldDescriptor) string {
-	full := string(ext.FullName())
-	if i := strings.LastIndex(full, "."); i >= 0 {
-		return full[:i]
+// scopeOf is the declaring scope of a fully-qualified name: the name with its
+// final segment removed, or the name itself when it has no qualifier.
+func scopeOf(fullName string) string {
+	if i := strings.LastIndex(fullName, "."); i >= 0 {
+		return fullName[:i]
 	}
-	return full
+	return fullName
 }
 
 // lowerMeta records file-level metadata: the package as the document name and
@@ -252,10 +244,7 @@ func (l *lowerer) fileOptionsRaw() ir.RawValue {
 			fields["deprecated"] = true
 		}
 	}
-	b, err := json.Marshal(fields)
-	if err != nil {
-		return nil
-	}
+	b, _ := json.Marshal(fields) // a map of strings and bools always marshals
 	return ir.RawValue(b)
 }
 

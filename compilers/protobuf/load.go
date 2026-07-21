@@ -18,10 +18,6 @@ import (
 	"github.com/dexpace/morphic/ir"
 )
 
-// errParse marks a hard failure to parse the source — an I/O- or
-// programmer-level fault distinct from a spec problem reported as a diagnostic.
-var errParse = errors.New("parse source")
-
 // loaded is the successful output of the load phase: one fully linked root file
 // descriptor plus the identity metadata the rest of the compiler needs. A nil
 // *loaded with error-severity diagnostics means the source is a spec problem the
@@ -35,8 +31,8 @@ type loaded struct {
 // load parses, links, and feature-resolves one .proto source. Well-known-type
 // imports resolve from the parser's bundle; any other import is unresolvable
 // because the compiler holds only the root bytes and does no file I/O. Spec
-// problems become ir.Diagnostic values; the Go error return is reserved for the
-// programmer error of a parser panic.
+// problems become ir.Diagnostic values; the parser recovers its own panics into
+// errors, so no panic escapes and the Go error return is unused here.
 //
 //nolint:unparam // srcIndex varies once Compile drives a multi-source loop
 func load(ctx context.Context, srcIndex int, src compilers.Source, _ Options) (*loaded, []ir.Diagnostic, error) {
@@ -51,7 +47,7 @@ func load(ctx context.Context, srcIndex int, src compilers.Source, _ Options) (*
 		},
 	)
 
-	files, err := compileRoot(ctx, src, rep)
+	root, err := compileRoot(ctx, src, rep)
 	if err != nil {
 		if len(diags) == 0 { // reporter never fired: a resolution or internal error
 			diags = append(diags, diagf(ir.SeverityError, importOrCompileCode(err),
@@ -59,11 +55,6 @@ func load(ctx context.Context, srcIndex int, src compilers.Source, _ Options) (*
 		}
 		return nil, diags, nil // refuse to lower, do not abort the batch
 	}
-	if len(files) == 0 {
-		return nil, diags, nil
-	}
-
-	root := files[0]
 	return &loaded{
 		File:   root,
 		Format: compilers.SourceFormat{Name: "protobuf", Version: syntaxDigit(root)},
@@ -75,15 +66,9 @@ func load(ctx context.Context, srcIndex int, src compilers.Source, _ Options) (*
 	}, diags, nil
 }
 
-// compileRoot links the single root file against the bundled well-known types.
-// It converts a parser panic on degenerate input into an errParse error so the
-// compiler upholds the no-panics-escape invariant.
-func compileRoot(ctx context.Context, src compilers.Source, rep reporter.Reporter) (fds []protoreflect.FileDescriptor, err error) {
-	defer func() {
-		if r := recover(); r != nil {
-			fds, err = nil, fmt.Errorf("parser panicked (%v): %w", r, errParse)
-		}
-	}()
+// compileRoot links the single root file against the bundled well-known types
+// and returns its linked descriptor.
+func compileRoot(ctx context.Context, src compilers.Source, rep reporter.Reporter) (protoreflect.FileDescriptor, error) {
 	resolver := protocompile.WithStandardImports(&protocompile.SourceResolver{
 		Accessor: func(path string) (io.ReadCloser, error) {
 			if path == src.Path {
@@ -101,11 +86,7 @@ func compileRoot(ctx context.Context, src compilers.Source, rep reporter.Reporte
 	if err != nil {
 		return nil, fmt.Errorf("compile %q: %w", src.Path, err)
 	}
-	out := make([]protoreflect.FileDescriptor, len(compiled))
-	for i, f := range compiled {
-		out[i] = f
-	}
-	return out, nil
+	return compiled[0], nil
 }
 
 // parseDiag converts one reporter error into a diagnostic, classifying an
@@ -130,13 +111,11 @@ func posOf(srcIndex int, err reporter.ErrorWithPos) ir.Provenance {
 }
 
 // syntaxDigit maps a file's syntax to the version digit the compiler reports:
-// "2", "3", or the edition string for editions files.
+// "2" for proto2, "2023" for the 2023 edition, and "3" for proto3.
 func syntaxDigit(fd protoreflect.FileDescriptor) string {
 	switch fd.Syntax() {
 	case protoreflect.Proto2:
 		return "2"
-	case protoreflect.Proto3:
-		return "3"
 	case protoreflect.Editions:
 		return "2023"
 	default:

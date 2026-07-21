@@ -238,10 +238,8 @@ func (l *lowerer) leafType(fd protoreflect.FieldDescriptor) (ir.TypeRef, *ir.Enc
 		return l.enumRef(fd.Enum()), nil
 	case protoreflect.GroupKind:
 		return l.messageOrWKT(fd.Message()), &ir.Encoding{Name: "delimited"}
-	case protoreflect.MessageKind:
+	default: // MessageKind — the only remaining kind
 		return l.messageOrWKT(fd.Message()), nil
-	default:
-		return l.anyRef(), nil
 	}
 }
 
