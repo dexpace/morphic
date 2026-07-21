@@ -46,9 +46,9 @@ func TestApplyExclusive_NumericWithoutRootNode(t *testing.T) {
 	f := 5.0
 	s := &oas3.Schema{ExclusiveMinimum: &values.EitherValue[bool, bool, float64, float64]{Right: &f}}
 	c := &ir.Constraints{}
-	diags := applyExclusive(c, s, true)
-	// The numeric arm is taken but there is no raw node to read the exact literal
-	// from, so nothing is set and no diagnostic is produced.
+	diags := applyExclusive(c, s, true, false)
+	// The numeric arm is taken (2020-12 dialect, numeric value) but there is no raw
+	// node to read the exact literal from, so nothing is set and no diagnostic.
 	assert.Nil(t, diags)
 	assert.False(t, c.ExclusiveMin)
 }

@@ -15,9 +15,10 @@ import (
 // parser so nil slice/map entries (which the parser panics on) can be exercised.
 func newRawLowerer(doc *soa.OpenAPI) *lowerer {
 	return &lowerer{
-		doc:       doc,
-		out:       &ir.Document{Types: ir.TypeRegistry{}},
-		byPointer: map[string]ir.TypeID{},
+		doc:                  doc,
+		out:                  &ir.Document{Types: ir.TypeRegistry{}},
+		byPointer:            map[string]ir.TypeID{},
+		diagnosedConstraints: map[string]bool{},
 	}
 }
 

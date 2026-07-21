@@ -44,6 +44,7 @@ func TestConformance(t *testing.T) {
 		{"nullable-30", assertNullable30},
 		{"defaults", assertDefaults},
 		{"constraints", assertConstraints},
+		{"numeric-precision", assertNumericPrecision},
 		{"readonly-writeonly", assertReadOnlyWriteOnly},
 		{"recursive", assertRecursive},
 		{"maps", assertMaps},
@@ -325,6 +326,64 @@ func assertConstraints(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
 	assert.Equal(t, ir.BigVal("0.30000000000000004"), *c.Min)
 	assert.Equal(t, ir.BigVal("9007199254740993"), *c.Max)
 	assert.Equal(t, ir.BigVal("0.1"), *c.MultipleOf)
+}
+
+func assertNumericPrecision(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
+	m, ok := doc.Types[namedID("S")].(*ir.Model)
+	require.True(t, ok)
+
+	// Bounds beyond float64 range and a huge integer beyond int64, exact.
+	bounded, ok := propByWire(m, "bounded")
+	require.True(t, ok)
+	require.NotNil(t, bounded.Constraints)
+	require.NotNil(t, bounded.Constraints.Min)
+	require.NotNil(t, bounded.Constraints.Max)
+	require.NotNil(t, bounded.Constraints.MultipleOf)
+	assert.Equal(t, ir.BigVal("1.8e308"), *bounded.Constraints.Min)
+	assert.Equal(t, ir.BigVal("123456789012345678901234567890"), *bounded.Constraints.Max)
+	assert.Equal(t, ir.BigVal("1e-30"), *bounded.Constraints.MultipleOf)
+
+	// A leading-dot spelling is canonicalized to JSON form; a high-precision
+	// decimal is kept to the last digit.
+	exclusive, ok := propByWire(m, "exclusive")
+	require.True(t, ok)
+	require.NotNil(t, exclusive.Constraints)
+	require.NotNil(t, exclusive.Constraints.Min)
+	require.NotNil(t, exclusive.Constraints.Max)
+	assert.True(t, exclusive.Constraints.ExclusiveMin)
+	assert.True(t, exclusive.Constraints.ExclusiveMax)
+	assert.Equal(t, ir.BigVal("0.5"), *exclusive.Constraints.Min)
+	assert.Equal(t, ir.BigVal("0.12345678901234567890123456789"), *exclusive.Constraints.Max)
+
+	// A default beyond float64 range is captured as a number, not a string.
+	withDefault, ok := propByWire(m, "withDefault")
+	require.True(t, ok)
+	require.NotNil(t, withDefault.Default)
+	assert.Equal(t, ir.ValueNumber, withDefault.Default.Kind)
+	assert.Equal(t, ir.BigVal("1.8e308"), withDefault.Default.Num)
+
+	// A const beyond float64 range hoists a Literal over the exact number.
+	pinned, ok := propByWire(m, "pinned")
+	require.True(t, ok)
+	lit, ok := doc.Types[pinned.Type.Target].(*ir.Literal)
+	require.True(t, ok)
+	assert.Equal(t, ir.ValueNumber, lit.Value.Kind)
+	assert.Equal(t, ir.BigVal("1.8e308"), lit.Value.Num)
+
+	// Numeric enum members keep their exact value past int64 range.
+	choice, ok := propByWire(m, "choice")
+	require.True(t, ok)
+	enum, ok := doc.Types[choice.Type.Target].(*ir.Enum)
+	require.True(t, ok)
+	require.Len(t, enum.Members, 2)
+	assert.Equal(t, ir.BigVal("123456789012345678901234567890"), enum.Members[1].Value.Num)
+
+	// A leading-dot example is canonicalized losslessly.
+	sampled, ok := propByWire(m, "sampled")
+	require.True(t, ok)
+	require.Len(t, sampled.Examples, 1)
+	require.NotNil(t, sampled.Examples[0].Value)
+	assert.Equal(t, ir.BigVal("0.5"), sampled.Examples[0].Value.Num)
 }
 
 func assertReadOnlyWriteOnly(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
