@@ -311,9 +311,17 @@ func (l *lowerer) discriminatorDefault(d *oas3.Discriminator, pointer string) ir
 // declared component or an already-interned node. A target that resolves to no
 // interned schema yields ok=false so the caller drops and diagnoses it: unlike a
 // schema position, a discriminator subtype cannot be hoisted from a bare pointer.
+//
+// A top-level component target resolves regardless of source order, because every
+// declared component name is recorded before lowering begins; a deeper sub-schema
+// target resolves only if it was already interned, and is otherwise dropped like
+// any other unbacked target. The declared-name branch derives the ID through
+// typeIDForPointer, the same discriminator the component was interned under, so a
+// degenerate empty-named component (interned anonymously) resolves to its real ID
+// rather than an unbacked namedTypeID.
 func (l *lowerer) mappingTargetID(target string) (ir.TypeID, bool) {
 	if l.schemas[target] {
-		return namedTypeID(ptr("components", "schemas", target)), true
+		return typeIDForPointer(ptr("components", "schemas", target)), true
 	}
 	pointer, ok := l.internalPointer(target)
 	if !ok {

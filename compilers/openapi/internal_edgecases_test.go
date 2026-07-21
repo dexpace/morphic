@@ -109,6 +109,14 @@ func TestMappingTargetID(t *testing.T) {
 	assert.False(t, ok, "undeclared component target dropped")
 	_, ok = l.mappingTargetID("a.yaml#/A")
 	assert.False(t, ok, "external target dropped")
+	// A declared but empty-named component ("") is interned anonymously, so its
+	// bare mapping name must resolve to that anon ID, not an unbacked namedTypeID
+	// (issue #14, f31).
+	l.schemas[""] = true
+	id, ok = l.mappingTargetID("")
+	require.True(t, ok)
+	assert.Equal(t, anonTypeID(ptr("components", "schemas", "")), id)
+	assert.NotEqual(t, namedTypeID(ptr("components", "schemas", "")), id)
 }
 
 func TestStatusRange(t *testing.T) {

@@ -69,11 +69,30 @@ func TestResolveComponentRef(t *testing.T) {
 	assert.False(t, handled, "a sub-schema pointer is not a top-level component pointer")
 }
 
+// TestResolveComponentRef_NonCanonicalEscape pins that the resolved ID is built
+// from the component's canonical name, so a $ref that escapes non-canonically
+// (a raw '~' for a component named "A~B", interned under "A~0B") still resolves to
+// the interned node rather than an unbacked ID (issue #14).
+func TestResolveComponentRef_NonCanonicalEscape(t *testing.T) {
+	t.Parallel()
+	l := &lowerer{schemas: map[string]bool{"A~B": true}}
+
+	id, ok, handled := l.resolveComponentRef("/components/schemas/A~B")
+	assert.True(t, handled)
+	assert.True(t, ok)
+	assert.Equal(t, namedTypeID("/components/schemas/A~0B"), id,
+		"the ID is canonically re-escaped to match the interned node")
+	assert.Equal(t, namedTypeID(ptr("components", "schemas", "A~B")), id,
+		"and equals the ID the component was interned under")
+}
+
 func TestSameFile(t *testing.T) {
 	t.Parallel()
 	l := &lowerer{source: ir.SourceInfo{Path: "dir/m.yaml"}}
 	assert.True(t, l.sameFile("dir/m.yaml"), "exact path")
-	assert.True(t, l.sameFile("m.yaml"), "compared by basename")
+	assert.True(t, l.sameFile("m.yaml"), "bare filename equal to our basename")
 	assert.False(t, l.sameFile("other.yaml"))
+	assert.False(t, l.sameFile("other/m.yaml"),
+		"a doc part with its own directory is a distinct path, not a basename match")
 	assert.False(t, (&lowerer{}).sameFile("m.yaml"), "empty source path never matches")
 }
