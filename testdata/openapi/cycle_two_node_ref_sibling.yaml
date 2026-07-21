@@ -1,0 +1,4 @@
+openapi: 3.1.0
+info: {title: t, version: '1'}
+paths: {}
+components: {schemas: {A: {$ref: '#/components/schemas/B', type: object}, B: {$ref: '#/components/schemas/A', type: object}}}
