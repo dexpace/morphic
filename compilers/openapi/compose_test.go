@@ -170,6 +170,124 @@ components:
 	assert.True(t, sawConflict, "a differing redeclared description is surfaced, not dropped silently")
 }
 
+// conflictDiags returns every conflicting-redeclaration diagnostic in diags.
+func conflictDiags(diags []ir.Diagnostic) []ir.Diagnostic {
+	var out []ir.Diagnostic
+	for _, d := range diags {
+		if d.Code == codeConflictingRedecl {
+			out = append(out, d)
+		}
+	}
+	return out
+}
+
+func TestAllOf_ConflictingRedeclaredTypeDiagnosed(t *testing.T) {
+	t.Parallel()
+	// allOf is an intersection, so a field one branch types `string` and another
+	// types `integer` describes an unsatisfiable schema. Reconciliation keeps the
+	// first declaration's shape (as before) but must no longer swallow the
+	// conflict — it names the field and both branch sites so the author can find
+	// and fix them.
+	spec := `openapi: 3.1.0
+info: {title: T, version: "1"}
+paths: {}
+components:
+  schemas:
+    Conflictish:
+      allOf:
+        - type: object
+          properties:
+            id: {type: string}
+        - type: object
+          properties:
+            id: {type: integer}
+`
+	doc, diags := lowerSpec(t, spec)
+	requireNoErrorDiags(t, diags) // a redeclaration conflict is a warning, not a refusal
+	m, ok := doc.Types[ir.TypeID("t/openapi/components/schemas/Conflictish")].(*ir.Model)
+	require.True(t, ok, "Conflictish should be a model")
+	require.Len(t, m.Properties, 1, "id still reconciles to one property")
+	assert.Equal(t, ir.TypeID("t/prim/string"), m.Properties[0].Type.Target,
+		"the first declaration in source order still wins the shape")
+
+	conflicts := conflictDiags(diags)
+	require.Len(t, conflicts, 1, "the incompatible type redeclaration is diagnosed exactly once")
+	d := conflicts[0]
+	assert.Equal(t, ir.SeverityWarning, d.Severity, "a usable-but-suspicious model is a warning")
+	assert.Contains(t, d.Message, `"id"`, "the diagnostic names the conflicting field")
+	assert.Contains(t, d.Message, "allOf/0", "the diagnostic names the first branch site")
+	assert.Contains(t, d.Message, "allOf/1", "the diagnostic names the second branch site")
+}
+
+func TestAllOf_ConflictingRedeclaredConstraintDiagnosed(t *testing.T) {
+	t.Parallel()
+	// Same target type, but the two branches pin the same keyword to different
+	// values (maxLength 10 vs 20). The chosen winner is arbitrary source order, so
+	// the dropped bound is surfaced rather than silently discarded.
+	spec := `openapi: 3.1.0
+info: {title: T, version: "1"}
+paths: {}
+components:
+  schemas:
+    Boundish:
+      allOf:
+        - type: object
+          properties:
+            code: {type: string, maxLength: 10}
+        - type: object
+          properties:
+            code: {type: string, maxLength: 20}
+`
+	doc, diags := lowerSpec(t, spec)
+	requireNoErrorDiags(t, diags)
+	m, ok := doc.Types[ir.TypeID("t/openapi/components/schemas/Boundish")].(*ir.Model)
+	require.True(t, ok, "Boundish should be a model")
+	require.Len(t, m.Properties, 1, "code reconciles to one property")
+	require.NotNil(t, m.Properties[0].Constraints, "the first declaration's constraints are kept")
+	require.NotNil(t, m.Properties[0].Constraints.MaxLength)
+	assert.Equal(t, int64(10), *m.Properties[0].Constraints.MaxLength,
+		"the first declaration in source order still wins the constraint")
+
+	conflicts := conflictDiags(diags)
+	require.Len(t, conflicts, 1, "the incompatible constraint redeclaration is diagnosed exactly once")
+	d := conflicts[0]
+	assert.Equal(t, ir.SeverityWarning, d.Severity)
+	assert.Contains(t, d.Message, `"code"`, "the diagnostic names the conflicting field")
+	assert.Contains(t, d.Message, "allOf/0")
+	assert.Contains(t, d.Message, "allOf/1")
+}
+
+func TestAllOf_CompatibleRedeclarationStaysSilent(t *testing.T) {
+	t.Parallel()
+	// The reconcilable case: identical target type, the second branch only adds
+	// `required`. This must stay silent — a redeclaration is not by itself a
+	// conflict, only an incompatible one is.
+	spec := `openapi: 3.1.0
+info: {title: T, version: "1"}
+paths: {}
+components:
+  schemas:
+    Compatish:
+      allOf:
+        - type: object
+          properties:
+            id: {type: integer}
+        - type: object
+          required: [id]
+          properties:
+            id: {type: integer}
+`
+	doc, diags := lowerSpec(t, spec)
+	requireNoErrorDiags(t, diags)
+	m, ok := doc.Types[ir.TypeID("t/openapi/components/schemas/Compatish")].(*ir.Model)
+	require.True(t, ok, "Compatish should be a model")
+	require.Len(t, m.Properties, 1, "id reconciles to one property")
+	assert.True(t, m.Properties[0].Required, "required from the second branch is OR-ed in")
+
+	assert.Empty(t, conflictDiags(diags),
+		"a compatible redeclaration is not a conflict")
+}
+
 func TestAllOf_PropertyAlongsideAllOfReconciles(t *testing.T) {
 	t.Parallel()
 	// A property declared directly on the allOf schema redeclares a field an inline

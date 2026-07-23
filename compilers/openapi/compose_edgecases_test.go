@@ -9,6 +9,183 @@ import (
 	"github.com/dexpace/morphic/ir"
 )
 
+func TestAllOf_UntypedRedeclarationDoesNotConflict(t *testing.T) {
+	t.Parallel()
+	// One branch leaves the field schemaless (the top type), the other types it.
+	// `any` intersects with everything under allOf, so this is a narrowing, not a
+	// contradiction — it must not be reported.
+	spec := componentSpec(`    Anyish:
+      allOf:
+        - type: object
+          properties:
+            id: {description: the identifier}
+        - type: object
+          properties:
+            id: {type: integer}
+`)
+	doc, diags := lowerSpec(t, spec)
+	requireNoErrorDiags(t, diags)
+	m, ok := typeByName(doc, "Anyish").(*ir.Model)
+	require.True(t, ok, "Anyish should be a model")
+	require.Len(t, m.Properties, 1, "id reconciles to one property")
+	assert.Empty(t, conflictDiags(diags),
+		"the schemaless top type never conflicts with a sibling redeclaration")
+}
+
+func TestAllOf_EquivalentNumericBoundsDoNotConflict(t *testing.T) {
+	t.Parallel()
+	// The same bound spelled two ways (10 and 10.0) denotes one value, so it must
+	// compare equal by magnitude and stay silent.
+	spec := componentSpec(`    Boundish:
+      allOf:
+        - type: object
+          properties:
+            n: {type: number, minimum: 10}
+        - type: object
+          properties:
+            n: {type: number, minimum: 10.0}
+`)
+	_, diags := lowerSpec(t, spec)
+	requireNoErrorDiags(t, diags)
+	assert.Empty(t, conflictDiags(diags),
+		"10 and 10.0 are the same numeric bound, not a conflict")
+}
+
+func TestAllOf_DifferingNumericBoundsConflict(t *testing.T) {
+	t.Parallel()
+	// Two branches pin the same lower bound to different magnitudes; the kept
+	// winner is arbitrary source order, so the dropped bound is surfaced.
+	spec := componentSpec(`    Boundish:
+      allOf:
+        - type: object
+          properties:
+            n: {type: integer, minimum: 5}
+        - type: object
+          properties:
+            n: {type: integer, minimum: 10}
+`)
+	_, diags := lowerSpec(t, spec)
+	requireNoErrorDiags(t, diags)
+	conflicts := conflictDiags(diags)
+	require.Len(t, conflicts, 1, "differing numeric bounds are diagnosed once")
+	assert.Contains(t, conflicts[0].Message, `"n"`)
+}
+
+func TestAllOf_ScalarVersusObjectRedeclarationConflicts(t *testing.T) {
+	t.Parallel()
+	// A scalar in one branch and a structural type in the other cannot both hold.
+	spec := componentSpec(`    Mixed:
+      allOf:
+        - type: object
+          properties:
+            f: {type: string}
+        - type: object
+          properties:
+            f:
+              type: object
+              properties:
+                x: {type: string}
+`)
+	_, diags := lowerSpec(t, spec)
+	requireNoErrorDiags(t, diags)
+	conflicts := conflictDiags(diags)
+	require.Len(t, conflicts, 1, "a scalar against an object is diagnosed once")
+	assert.Contains(t, conflicts[0].Message, `"f"`)
+}
+
+func TestAllOf_DistinctInlineObjectsDoNotConflict(t *testing.T) {
+	t.Parallel()
+	// Two branches redeclare the field as distinct inline objects. Each hoists its
+	// own model at its own pointer, so the targets differ — but two objects of the
+	// same kind are not provably contradictory, and conflict detection never
+	// guesses.
+	spec := componentSpec(`    Objish:
+      allOf:
+        - type: object
+          properties:
+            f:
+              type: object
+              properties:
+                x: {type: string}
+        - type: object
+          properties:
+            f:
+              type: object
+              properties:
+                x: {type: string}
+`)
+	_, diags := lowerSpec(t, spec)
+	requireNoErrorDiags(t, diags)
+	assert.Empty(t, conflictDiags(diags),
+		"two distinct inline objects for one field are not a provable conflict")
+}
+
+// allOfConflictSpec builds a component whose two inline allOf branches each
+// declare field v with the given flow-style schemas, for exercising per-keyword
+// redeclaration conflict detection.
+func allOfConflictSpec(schemaA, schemaB string) string {
+	return componentSpec(
+		"    T:\n" +
+			"      allOf:\n" +
+			"        - type: object\n" +
+			"          properties: {v: " + schemaA + "}\n" +
+			"        - type: object\n" +
+			"          properties: {v: " + schemaB + "}\n")
+}
+
+func TestAllOf_ConstraintAndFormatConflictsDiagnosed(t *testing.T) {
+	t.Parallel()
+	// Each keyword class that can contradict across branches: an inclusive vs
+	// exclusive bound of equal magnitude, a differing pattern, a differing
+	// multipleOf, and two format-derived primitives (string vs uuid). Each keeps
+	// the first declaration but surfaces exactly one conflict naming the field and
+	// both branch sites.
+	cases := []struct {
+		name, a, b string
+	}{
+		{"exclusive sense", "{type: number, minimum: 10}", "{type: number, exclusiveMinimum: 10}"},
+		{"pattern", "{type: string, pattern: '^a$'}", "{type: string, pattern: '^b$'}"},
+		{"multipleOf", "{type: integer, multipleOf: 2}", "{type: integer, multipleOf: 3}"},
+		{"string vs uuid", "{type: string}", "{type: string, format: uuid}"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			_, diags := lowerSpec(t, allOfConflictSpec(tc.a, tc.b))
+			requireNoErrorDiags(t, diags)
+			conflicts := conflictDiags(diags)
+			require.Len(t, conflicts, 1, "%s is diagnosed exactly once", tc.name)
+			assert.Contains(t, conflicts[0].Message, `"v"`, "the diagnostic names the field")
+			assert.Contains(t, conflicts[0].Message, "allOf/0", "names the first branch site")
+			assert.Contains(t, conflicts[0].Message, "allOf/1", "names the second branch site")
+		})
+	}
+}
+
+func TestAllOf_CompatibleConstraintRedeclarationsStaySilent(t *testing.T) {
+	t.Parallel()
+	// The false-positive guards for the constraint path: a keyword present on only
+	// one branch (both branches still carry constraints) is intersected, not a
+	// conflict; equal multipleOf spelled two ways is one value; and an
+	// unknown-format scalar resolves through its Base to the same primitive as the
+	// plain type, so it is not a type conflict.
+	cases := []struct {
+		name, a, b string
+	}{
+		{"one-sided keywords", "{type: string, maxLength: 10}", "{type: string, minLength: 2}"},
+		{"equivalent multipleOf", "{type: number, multipleOf: 2}", "{type: number, multipleOf: 2.0}"},
+		{"custom format over base", "{type: string, format: weird}", "{type: string}"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			_, diags := lowerSpec(t, allOfConflictSpec(tc.a, tc.b))
+			requireNoErrorDiags(t, diags)
+			assert.Empty(t, conflictDiags(diags), "%s must not be reported as a conflict", tc.name)
+		})
+	}
+}
+
 func TestAllOf_DiscriminatorHierarchy(t *testing.T) {
 	t.Parallel()
 	spec := componentSpecVer("3.2.0", `    Pet:

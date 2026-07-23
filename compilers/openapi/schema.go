@@ -3,6 +3,7 @@ package openapi
 import (
 	"encoding/json"
 	"maps"
+	"math/big"
 	"slices"
 	"strconv"
 	"strings"
@@ -447,8 +448,13 @@ func (l *lowerer) mergeProperty(m *ir.Model, byWire map[string]int, p ir.Propert
 // order defines them); every optional detail dst lacks is adopted from src, so a
 // documented declaration and a bare one reconcile to the richer property whatever
 // their branch order. A description present-and-different in both branches is a
-// genuine conflict dst cannot absorb — reported, never silently dropped.
+// genuine conflict dst cannot absorb — reported, never silently dropped. An
+// incompatible type or constraint redeclaration is reported the same way, before
+// any detail is folded in, so the kept-first-declaration shape is diagnosed rather
+// than silently arbitrary.
 func (l *lowerer) reconcileProperty(dst *ir.Property, src ir.Property, pointer string) {
+	l.diagnoseRedeclarationConflict(dst, &src, pointer)
+
 	dst.Required = dst.Required || src.Required
 	dst.Secret = dst.Secret || src.Secret
 
@@ -475,6 +481,176 @@ func (l *lowerer) reconcileProperty(dst *ir.Property, src ir.Property, pointer s
 		dst.Examples = src.Examples
 	}
 	dst.Extensions = mergeExtensions(dst.Extensions, src.Extensions)
+}
+
+// maxTypeResolveDepth bounds Base-chain resolution when classifying a property
+// type for conflict detection (styleguide bounded-recursion rule). A scalar Base
+// chain is far shorter than this in a well-formed document, so the cap only
+// guards a pathological or malformed registry.
+const maxTypeResolveDepth = 64
+
+// diagnoseRedeclarationConflict reports when a redeclaration src contradicts the
+// already-present property dst under allOf intersection: an incompatible target
+// type, or a constraint keyword both branches pin to different values. The merge
+// still keeps dst's shape (first declaration wins); this only surfaces the
+// contradiction, naming the field and both branch sites, so a broken source spec
+// no longer compiles clean. A type conflict subsumes any constraint disagreement
+// on the same field, so at most one diagnostic is reported.
+func (l *lowerer) diagnoseRedeclarationConflict(dst, src *ir.Property, pointer string) {
+	switch {
+	case l.typesConflict(dst.Type, src.Type):
+		l.redeclarationConflictDiag(dst, pointer, "incompatible types")
+	case constraintsConflict(dst.Constraints, src.Constraints):
+		l.redeclarationConflictDiag(dst, pointer, "conflicting constraints")
+	}
+}
+
+// redeclarationConflictDiag emits the shared conflicting-redeclaration warning,
+// naming the field and both branch sites: dst's declaration and the redeclaration
+// at pointer. Severity is warning — the merged model is still usable — so a
+// consumer chooses whether to escalate on the stable code.
+func (l *lowerer) redeclarationConflictDiag(dst *ir.Property, pointer, what string) {
+	l.diags = append(l.diags, diagf(ir.SeverityWarning, codeConflictingRedecl,
+		ir.Provenance{Source: l.srcIndex, Pointer: pointer},
+		"allOf branches redeclare field %q with %s; kept the first declaration (%s) over the redeclaration (%s)",
+		dst.WireName, what, dst.Provenance.Pointer, pointer))
+}
+
+// typesConflict reports whether two reconciled property types describe an
+// unsatisfiable intersection. Identical interned targets and the schemaless top
+// type never conflict. Types resolving to different underlying primitives conflict
+// (string vs integer, string vs uuid), as does a scalar against a structural type.
+// Two distinct composite types of the same kind (two models, two lists) are not
+// provably contradictory, so they are never reported — conflict detection does
+// not guess.
+func (l *lowerer) typesConflict(a, b ir.TypeRef) bool {
+	if a.Target == b.Target || l.isAnyType(a) || l.isAnyType(b) {
+		return false
+	}
+	ak, aok := l.resolvePrimKind(a)
+	bk, bok := l.resolvePrimKind(b)
+	switch {
+	case aok && bok:
+		return ak != bk
+	case aok != bok:
+		return true
+	default:
+		return l.differentTypeKind(a, b)
+	}
+}
+
+// isAnyType reports whether ref targets the schemaless top type (a PrimAny
+// primitive or an Any node). The top type imposes no constraint under allOf
+// intersection, so it never conflicts with a sibling redeclaration.
+func (l *lowerer) isAnyType(ref ir.TypeRef) bool {
+	td, ok := l.out.Types[ref.Target]
+	if !ok {
+		return false
+	}
+	if p, ok := td.(*ir.Primitive); ok {
+		return p.Prim == ir.PrimAny
+	}
+	return td.Kind() == ir.KindAny
+}
+
+// resolvePrimKind follows ref through the registry to its underlying primitive
+// kind, returning ok=false when the target is not ultimately a primitive (a
+// model, union, list, or a base-less opaque scalar). The Base chain is bounded so
+// a malformed registry cannot spin.
+func (l *lowerer) resolvePrimKind(ref ir.TypeRef) (ir.PrimKind, bool) {
+	id := ref.Target
+	for range maxTypeResolveDepth {
+		td, ok := l.out.Types[id]
+		if !ok {
+			return "", false
+		}
+		switch t := td.(type) {
+		case *ir.Primitive:
+			return t.Prim, true
+		case *ir.Scalar:
+			if t.Base == nil {
+				return "", false
+			}
+			id = t.Base.Target
+		default:
+			return "", false
+		}
+	}
+	return "", false
+}
+
+// differentTypeKind reports whether two registry targets carry different TypeDef
+// kinds (a model vs a union). An unresolvable target is not treated as a conflict.
+func (l *lowerer) differentTypeKind(a, b ir.TypeRef) bool {
+	at, aok := l.out.Types[a.Target]
+	bt, bok := l.out.Types[b.Target]
+	if !aok || !bok {
+		return false
+	}
+	return at.Kind() != bt.Kind()
+}
+
+// constraintsConflict reports whether two constraint sets pin the same keyword to
+// incompatible values. A keyword set on only one side is not a conflict — allOf
+// intersects the two — so only a keyword present on both with a differing value
+// counts. Numeric bounds compare by magnitude, so an equal bound spelled two ways
+// (10 and 10.0) is not a false conflict.
+func constraintsConflict(a, b *ir.Constraints) bool {
+	if a == nil || b == nil {
+		return false
+	}
+	return boundConflict(a.Min, b.Min, a.ExclusiveMin, b.ExclusiveMin) ||
+		boundConflict(a.Max, b.Max, a.ExclusiveMax, b.ExclusiveMax) ||
+		bigValConflict(a.MultipleOf, b.MultipleOf) ||
+		intConflict(a.Precision, b.Precision) ||
+		intConflict(a.Scale, b.Scale) ||
+		intConflict(a.MinLength, b.MinLength) ||
+		intConflict(a.MaxLength, b.MaxLength) ||
+		intConflict(a.MinItems, b.MinItems) ||
+		intConflict(a.MaxItems, b.MaxItems) ||
+		intConflict(a.MinProps, b.MinProps) ||
+		intConflict(a.MaxProps, b.MaxProps) ||
+		strConflict(a.Pattern, b.Pattern)
+}
+
+// boundConflict reports whether two numeric bounds, each with its exclusivity
+// flag, are both present and disagree — a differing magnitude or a differing
+// inclusive/exclusive sense.
+func boundConflict(a, b *ir.BigVal, exclA, exclB bool) bool {
+	if a == nil || b == nil {
+		return false
+	}
+	return exclA != exclB || !bigValEqual(*a, *b)
+}
+
+// bigValConflict reports whether two optional numeric values are both present and
+// unequal by magnitude.
+func bigValConflict(a, b *ir.BigVal) bool {
+	return a != nil && b != nil && !bigValEqual(*a, *b)
+}
+
+// bigValEqual reports whether two numeric literals denote the same value,
+// comparing by magnitude so equal values spelled differently (10, 10.0, 1e1) are
+// equal. Both are already-validated BigVals, so parsing succeeds; an unparseable
+// pair falls back to exact string equality.
+func bigValEqual(a, b ir.BigVal) bool {
+	ar, aok := new(big.Rat).SetString(a.String())
+	br, bok := new(big.Rat).SetString(b.String())
+	if !aok || !bok {
+		return a == b
+	}
+	return ar.Cmp(br) == 0
+}
+
+// intConflict reports whether two optional integer bounds are both present and
+// differ.
+func intConflict(a, b *int64) bool {
+	return a != nil && b != nil && *a != *b
+}
+
+// strConflict reports whether two string keywords are both set and differ.
+func strConflict(a, b string) bool {
+	return a != "" && b != "" && a != b
 }
 
 // fillPropertyDetail enriches a property from its schema: docs, default,
