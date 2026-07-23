@@ -13,9 +13,22 @@ import (
 // this bound only guards pathologically deep inline nesting.
 const maxSchemaDepth = 256
 
-// lowerer is the single mutable context of one Compile call: a local, never a
-// package global. It threads the interning table, accumulated diagnostics, and
-// the recursion depth counter through every schema position.
+// A lowerer performs lowering: the translation of one source-shaped OpenAPI
+// document into Morphic's spec-agnostic IR. "Lowering" is the standard compiler
+// term for moving from a high-level, format-specific representation to a lower,
+// more uniform internal one (LLVM lowers its IR to machine code, Rust lowers HIR
+// to MIR); here the descent is OpenAPI schemas -> ir.TypeDef nodes, and every
+// lower* method is one step of it.
+//
+// The word carries two senses in this repo, and this is the first: the faithful,
+// lossless source -> IR translation. It is deliberately NOT the lossy,
+// target-shaped "lowered late" of invariant #2 (e.g. collapsing a union to
+// optional fields for a language without sum types) — that happens far
+// downstream in emitter refiners, never in a compiler.
+//
+// The struct itself is the single mutable context of one Compile call — a local,
+// never a package global — threading the interning table, accumulated
+// diagnostics, and the recursion-depth counter through every schema position.
 type lowerer struct {
 	srcIndex  int
 	doc       *soa.OpenAPI
