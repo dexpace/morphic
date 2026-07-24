@@ -43,6 +43,12 @@ const (
 	// codeDegradedConstruct reports a construct preserved raw because the IR
 	// has no structural home for it.
 	codeDegradedConstruct = "openapi/degraded-construct"
+	// codeConflictingRedecl reports that inline allOf branches redeclare one
+	// field with contradictory definitions — a differing target type or a
+	// constraint keyword pinned to incompatible values. allOf is an intersection,
+	// so the redeclaration describes an unsatisfiable field; the merge keeps the
+	// first declaration but surfaces the conflict rather than discarding it.
+	codeConflictingRedecl = "openapi/conflicting-redeclaration"
 )
 
 // diagf builds an ir.Diagnostic with a formatted message. It is the single

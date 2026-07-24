@@ -145,3 +145,101 @@ func TestLowerPayload_NilMediaEntriesYieldNil(t *testing.T) {
 	)
 	assert.Nil(t, l.lowerPayload(content, "/p", "hint"), "all-nil media map yields no payload")
 }
+
+// The redeclaration-conflict helpers carry defensive guards for states a
+// well-formed lowered document never reaches: a reference into no interned type,
+// a base-less opaque scalar, a cyclic base chain, and an unparseable numeric
+// literal. These exercise those guards directly.
+
+func TestResolvePrimKind_DanglingTargetIsNotResolved(t *testing.T) {
+	t.Parallel()
+	l := newRawLowerer(&soa.OpenAPI{})
+	_, ok := l.resolvePrimKind(ir.TypeRef{Target: "t/missing"})
+	assert.False(t, ok, "a target absent from the registry resolves to no primitive")
+}
+
+func TestResolvePrimKind_BaselessScalarIsNotResolved(t *testing.T) {
+	t.Parallel()
+	l := newRawLowerer(&soa.OpenAPI{})
+	l.out.Types["t/opaque"] = &ir.Scalar{TypeCommon: ir.TypeCommon{ID: "t/opaque"}}
+	_, ok := l.resolvePrimKind(ir.TypeRef{Target: "t/opaque"})
+	assert.False(t, ok, "a base-less opaque scalar has no underlying primitive")
+}
+
+func TestResolvePrimKind_CyclicBaseChainTerminates(t *testing.T) {
+	t.Parallel()
+	l := newRawLowerer(&soa.OpenAPI{})
+	// A scalar whose Base points back at itself: the bounded walk must terminate
+	// and report no primitive rather than spin.
+	self := ir.TypeRef{Target: "t/cycle"}
+	l.out.Types["t/cycle"] = &ir.Scalar{TypeCommon: ir.TypeCommon{ID: "t/cycle"}, Base: &self}
+	_, ok := l.resolvePrimKind(self)
+	assert.False(t, ok, "a cyclic base chain terminates without resolving")
+}
+
+func TestIsAnyType_DanglingTargetIsNotAny(t *testing.T) {
+	t.Parallel()
+	l := newRawLowerer(&soa.OpenAPI{})
+	assert.False(t, l.isAnyType(ir.TypeRef{Target: "t/missing"}),
+		"an unresolvable target is not classified as the top type")
+}
+
+func TestDifferentTypeKind_UnresolvableTargetIsNotAConflict(t *testing.T) {
+	t.Parallel()
+	l := newRawLowerer(&soa.OpenAPI{})
+	l.out.Types["t/model"] = &ir.Model{TypeCommon: ir.TypeCommon{ID: "t/model"}}
+	assert.False(t,
+		l.differentTypeKind(ir.TypeRef{Target: "t/model"}, ir.TypeRef{Target: "t/missing"}),
+		"an unresolvable target is not treated as a differing kind")
+}
+
+func TestBigValEqual_UnparseableFallsBackToStringEquality(t *testing.T) {
+	t.Parallel()
+	assert.True(t, bigValEqual(ir.BigVal("not-a-number"), ir.BigVal("not-a-number")),
+		"unparseable operands compare by exact string")
+	assert.False(t, bigValEqual(ir.BigVal("not-a-number"), ir.BigVal("other")))
+}
+
+func TestIsStructuralType_DistinguishesCompositeFromOpaque(t *testing.T) {
+	t.Parallel()
+	l := newRawLowerer(&soa.OpenAPI{})
+	l.out.Types["t/model"] = &ir.Model{TypeCommon: ir.TypeCommon{ID: "t/model"}}
+	l.out.Types["t/list"] = &ir.List{TypeCommon: ir.TypeCommon{ID: "t/list"}}
+	l.out.Types["t/opaque"] = &ir.Scalar{TypeCommon: ir.TypeCommon{ID: "t/opaque"}}
+	l.out.Types["t/string"] = &ir.Primitive{TypeCommon: ir.TypeCommon{ID: "t/string"}, Prim: ir.PrimString}
+
+	assert.True(t, l.isStructuralType(ir.TypeRef{Target: "t/model"}),
+		"model is a structural type")
+	assert.True(t, l.isStructuralType(ir.TypeRef{Target: "t/list"}),
+		"list is a structural type")
+	assert.False(t, l.isStructuralType(ir.TypeRef{Target: "t/opaque"}),
+		"base-less opaque scalar is not structural")
+	assert.False(t, l.isStructuralType(ir.TypeRef{Target: "t/string"}),
+		"primitive is not structural")
+	assert.False(t, l.isStructuralType(ir.TypeRef{Target: "t/missing"}),
+		"unresolvable target is not structural")
+}
+
+func TestTypesConflict_OpaqueScalarVsPrimitiveIsNotConflict(t *testing.T) {
+	t.Parallel()
+	l := newRawLowerer(&soa.OpenAPI{})
+	l.out.Types["t/opaque"] = &ir.Scalar{TypeCommon: ir.TypeCommon{ID: "t/opaque"}}
+	l.out.Types["t/string"] = &ir.Primitive{TypeCommon: ir.TypeCommon{ID: "t/string"}, Prim: ir.PrimString}
+
+	assert.False(t, l.typesConflict(ir.TypeRef{Target: "t/opaque"}, ir.TypeRef{Target: "t/string"}),
+		"opaque scalar vs primitive is not flagged (never guess)")
+	assert.False(t, l.typesConflict(ir.TypeRef{Target: "t/string"}, ir.TypeRef{Target: "t/opaque"}),
+		"primitive vs opaque scalar is not flagged (never guess)")
+}
+
+func TestTypesConflict_StructuralVsPrimitiveIsConflict(t *testing.T) {
+	t.Parallel()
+	l := newRawLowerer(&soa.OpenAPI{})
+	l.out.Types["t/model"] = &ir.Model{TypeCommon: ir.TypeCommon{ID: "t/model"}}
+	l.out.Types["t/string"] = &ir.Primitive{TypeCommon: ir.TypeCommon{ID: "t/string"}, Prim: ir.PrimString}
+
+	assert.True(t, l.typesConflict(ir.TypeRef{Target: "t/model"}, ir.TypeRef{Target: "t/string"}),
+		"model vs primitive is a provable conflict")
+	assert.True(t, l.typesConflict(ir.TypeRef{Target: "t/string"}, ir.TypeRef{Target: "t/model"}),
+		"primitive vs model is a provable conflict")
+}
