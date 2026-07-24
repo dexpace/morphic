@@ -532,8 +532,10 @@ func (l *lowerer) typesConflict(a, b ir.TypeRef) bool {
 	switch {
 	case aok && bok:
 		return ak != bk
-	case aok != bok:
-		return true
+	case aok && !bok:
+		return l.isStructuralType(b)
+	case !aok && bok:
+		return l.isStructuralType(a)
 	default:
 		return l.differentTypeKind(a, b)
 	}
@@ -590,11 +592,29 @@ func (l *lowerer) differentTypeKind(a, b ir.TypeRef) bool {
 	return at.Kind() != bt.Kind()
 }
 
+// isStructuralType reports whether ref targets a composite type (model, list,
+// map, tuple, enum, union, literal, or external) — anything that is provably
+// not a scalar. A base-less opaque scalar is unknown, not structural, so it is
+// not reported as a conflict against a primitive redeclaration.
+func (l *lowerer) isStructuralType(ref ir.TypeRef) bool {
+	td, ok := l.out.Types[ref.Target]
+	if !ok {
+		return false
+	}
+	switch td.(type) {
+	case *ir.Model, *ir.List, *ir.MapT, *ir.Tuple, *ir.Enum, *ir.Union, *ir.Literal, *ir.External:
+		return true
+	default:
+		return false
+	}
+}
+
 // constraintsConflict reports whether two constraint sets pin the same keyword to
-// incompatible values. A keyword set on only one side is not a conflict — allOf
-// intersects the two — so only a keyword present on both with a differing value
-// counts. Numeric bounds compare by magnitude, so an equal bound spelled two ways
-// (10 and 10.0) is not a false conflict.
+// incompatible values. A keyword set on only one side is not a conflict — the
+// reconcileProperty merge adopts the richer constraint set, so no field is
+// flagged as contradictory — so only a keyword present on both with a differing
+// value counts. Numeric bounds compare by magnitude, so an equal bound spelled
+// two ways (10 and 10.0) is not a false conflict.
 func constraintsConflict(a, b *ir.Constraints) bool {
 	if a == nil || b == nil {
 		return false

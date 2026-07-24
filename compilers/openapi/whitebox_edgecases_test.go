@@ -199,3 +199,47 @@ func TestBigValEqual_UnparseableFallsBackToStringEquality(t *testing.T) {
 		"unparseable operands compare by exact string")
 	assert.False(t, bigValEqual(ir.BigVal("not-a-number"), ir.BigVal("other")))
 }
+
+func TestIsStructuralType_DistinguishesCompositeFromOpaque(t *testing.T) {
+	t.Parallel()
+	l := newRawLowerer(&soa.OpenAPI{})
+	l.out.Types["t/model"] = &ir.Model{TypeCommon: ir.TypeCommon{ID: "t/model"}}
+	l.out.Types["t/list"] = &ir.List{TypeCommon: ir.TypeCommon{ID: "t/list"}}
+	l.out.Types["t/opaque"] = &ir.Scalar{TypeCommon: ir.TypeCommon{ID: "t/opaque"}}
+	l.out.Types["t/string"] = &ir.Primitive{TypeCommon: ir.TypeCommon{ID: "t/string"}, Prim: ir.PrimString}
+
+	assert.True(t, l.isStructuralType(ir.TypeRef{Target: "t/model"}),
+		"model is a structural type")
+	assert.True(t, l.isStructuralType(ir.TypeRef{Target: "t/list"}),
+		"list is a structural type")
+	assert.False(t, l.isStructuralType(ir.TypeRef{Target: "t/opaque"}),
+		"base-less opaque scalar is not structural")
+	assert.False(t, l.isStructuralType(ir.TypeRef{Target: "t/string"}),
+		"primitive is not structural")
+	assert.False(t, l.isStructuralType(ir.TypeRef{Target: "t/missing"}),
+		"unresolvable target is not structural")
+}
+
+func TestTypesConflict_OpaqueScalarVsPrimitiveIsNotConflict(t *testing.T) {
+	t.Parallel()
+	l := newRawLowerer(&soa.OpenAPI{})
+	l.out.Types["t/opaque"] = &ir.Scalar{TypeCommon: ir.TypeCommon{ID: "t/opaque"}}
+	l.out.Types["t/string"] = &ir.Primitive{TypeCommon: ir.TypeCommon{ID: "t/string"}, Prim: ir.PrimString}
+
+	assert.False(t, l.typesConflict(ir.TypeRef{Target: "t/opaque"}, ir.TypeRef{Target: "t/string"}),
+		"opaque scalar vs primitive is not flagged (never guess)")
+	assert.False(t, l.typesConflict(ir.TypeRef{Target: "t/string"}, ir.TypeRef{Target: "t/opaque"}),
+		"primitive vs opaque scalar is not flagged (never guess)")
+}
+
+func TestTypesConflict_StructuralVsPrimitiveIsConflict(t *testing.T) {
+	t.Parallel()
+	l := newRawLowerer(&soa.OpenAPI{})
+	l.out.Types["t/model"] = &ir.Model{TypeCommon: ir.TypeCommon{ID: "t/model"}}
+	l.out.Types["t/string"] = &ir.Primitive{TypeCommon: ir.TypeCommon{ID: "t/string"}, Prim: ir.PrimString}
+
+	assert.True(t, l.typesConflict(ir.TypeRef{Target: "t/model"}, ir.TypeRef{Target: "t/string"}),
+		"model vs primitive is a provable conflict")
+	assert.True(t, l.typesConflict(ir.TypeRef{Target: "t/string"}, ir.TypeRef{Target: "t/model"}),
+		"primitive vs model is a provable conflict")
+}

@@ -365,6 +365,71 @@ func TestEnum_ValueTypeVariants(t *testing.T) {
 	}
 }
 
+func TestAllOf_OpaqueScalarVsPrimitiveNoConflict(t *testing.T) {
+	t.Parallel()
+	// An opaque scalar (format without a base type) is unknown, not structural,
+	// so it's not provably incompatible with a primitive. The "never guess"
+	// principle means we don't flag this as a conflict.
+	spec := componentSpec(`    OpaqueTest:
+      allOf:
+        - type: object
+          properties:
+            id: {type: string}
+        - type: object
+          properties:
+            id: {format: custom}
+`)
+	_, diags := lowerSpec(t, spec)
+	requireNoErrorDiags(t, diags)
+	assert.Empty(t, conflictDiags(diags),
+		"opaque scalar vs primitive is not flagged as a conflict")
+}
+
+func TestAllOf_ThreeWayRedeclarationProducesTwoDiagnostics(t *testing.T) {
+	t.Parallel()
+	// When three allOf branches declare the same field with different types,
+	// reconciliation runs twice: branch[1] vs branch[0], then branch[2] vs branch[0].
+	// Each incompatible pair produces one diagnostic, so we expect two total.
+	spec := componentSpec(`    ThreeWay:
+      allOf:
+        - type: object
+          properties:
+            id: {type: string}
+        - type: object
+          properties:
+            id: {type: integer}
+        - type: object
+          properties:
+            id: {type: boolean}
+`)
+	_, diags := lowerSpec(t, spec)
+	requireNoErrorDiags(t, diags)
+	conflicts := conflictDiags(diags)
+	require.Len(t, conflicts, 2, "three-way redeclaration produces two diagnostics")
+}
+
+func TestAllOf_ThreeWayCompatibleRedeclarationStaysSilent(t *testing.T) {
+	t.Parallel()
+	// When three allOf branches declare the same field with compatible types
+	// (all the same), no conflict is reported.
+	spec := componentSpec(`    ThreeWayCompat:
+      allOf:
+        - type: object
+          properties:
+            id: {type: string}
+        - type: object
+          properties:
+            id: {type: string}
+        - type: object
+          properties:
+            id: {type: string}
+`)
+	_, diags := lowerSpec(t, spec)
+	requireNoErrorDiags(t, diags)
+	assert.Empty(t, conflictDiags(diags),
+		"three-way compatible redeclaration stays silent")
+}
+
 func TestEnum_HeterogeneousBecomesUnionWithBadValue(t *testing.T) {
 	t.Parallel()
 	spec := componentSpec("    Mixed:\n      enum: [active, .inf]\n")
