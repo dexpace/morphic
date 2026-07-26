@@ -119,3 +119,17 @@ func TestDiscriminatorDefault_EmptyIsNoOp(t *testing.T) {
 	assert.Empty(t, id)
 	assert.Empty(t, l.diags)
 }
+
+func TestIntern_IdempotentOnSamePointer(t *testing.T) {
+	t.Parallel()
+	l := newRawLowerer(&soa.OpenAPI{})
+	calls := 0
+	build := func() ir.TypeDef {
+		calls++
+		return &ir.Primitive{TypeCommon: ir.TypeCommon{ID: "x"}, Prim: ir.PrimString}
+	}
+	first := l.intern("/p", "x", build)
+	second := l.intern("/p", "x", build)
+	assert.Equal(t, first, second)
+	assert.Equal(t, 1, calls, "build runs only on first intern of a pointer")
+}

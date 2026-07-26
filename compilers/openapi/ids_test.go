@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/dexpace/morphic/ir"
 )
@@ -95,4 +96,69 @@ func TestSameFile(t *testing.T) {
 	assert.False(t, l.sameFile("other/m.yaml"),
 		"a doc part with its own directory is a distinct path, not a basename match")
 	assert.False(t, (&lowerer{}).sameFile("m.yaml"), "empty source path never matches")
+}
+
+func TestPropIDByName_NotFound(t *testing.T) {
+	t.Parallel()
+	m := &ir.Model{Properties: []ir.Property{{ID: "p1", Name: ir.Naming{Source: "a"}}}}
+	_, ok := propIDByName(m, "missing")
+	assert.False(t, ok)
+	id, ok := propIDByName(m, "a")
+	assert.True(t, ok)
+	assert.Equal(t, ir.PropID("p1"), id)
+}
+
+func TestRefLastSegment(t *testing.T) {
+	t.Parallel()
+	assert.Equal(t, "Pet", refLastSegment("#/components/schemas/Pet"))
+	assert.Equal(t, "bare", refLastSegment("bare"))
+}
+
+func TestMappingTargetID(t *testing.T) {
+	t.Parallel()
+	l := &lowerer{
+		schemas: map[string]bool{"Cat": true, "Dog": true, "A/B": true},
+		out:     &ir.Document{Types: ir.TypeRegistry{}},
+	}
+	// A $ref to a declared component.
+	id, ok := l.mappingTargetID("#/components/schemas/Cat")
+	require.True(t, ok)
+	assert.Equal(t, namedTypeID("/components/schemas/Cat"), id)
+	// A bare schema name.
+	id, ok = l.mappingTargetID("Dog")
+	require.True(t, ok)
+	assert.Equal(t, namedTypeID(ptr("components", "schemas", "Dog")), id)
+	// A bare name that contains '/' but names an existing schema must resolve, not
+	// dangle as a misclassified external $ref (issue #14, f07).
+	id, ok = l.mappingTargetID("A/B")
+	require.True(t, ok)
+	assert.Equal(t, namedTypeID(ptr("components", "schemas", "A/B")), id)
+	// An undeclared component and a genuine external ref are dropped, never
+	// synthesized into a dangling ID.
+	_, ok = l.mappingTargetID("#/components/schemas/Ghost")
+	assert.False(t, ok, "undeclared component target dropped")
+	_, ok = l.mappingTargetID("a.yaml#/A")
+	assert.False(t, ok, "external target dropped")
+	// A declared but empty-named component ("") is interned anonymously, so its
+	// bare mapping name must resolve to that anon ID, not an unbacked namedTypeID
+	// (issue #14, f31).
+	l.schemas[""] = true
+	id, ok = l.mappingTargetID("")
+	require.True(t, ok)
+	assert.Equal(t, anonTypeID(ptr("components", "schemas", "")), id)
+	assert.NotEqual(t, namedTypeID(ptr("components", "schemas", "")), id)
+}
+
+func TestFirstPathSegment_Empty(t *testing.T) {
+	t.Parallel()
+	assert.Equal(t, "", firstPathSegment("/"))
+	assert.Equal(t, "users", firstPathSegment("/users/{id}"))
+}
+
+func TestPrimID_SecondCallReuses(t *testing.T) {
+	t.Parallel()
+	l := newLowerer(0, &loaded{Doc: nil, Source: ir.SourceInfo{}}, Options{}.withDefaults())
+	first := l.primID(ir.PrimString)
+	second := l.primID(ir.PrimString)
+	assert.Equal(t, first, second, "interned primitive reused on second call")
 }
