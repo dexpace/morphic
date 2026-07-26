@@ -44,10 +44,19 @@ const (
 	// has no structural home for it.
 	codeDegradedConstruct = "openapi/degraded-construct"
 	// codeConflictingRedecl reports that inline allOf branches redeclare one
-	// field with contradictory definitions — a differing target type or a
-	// constraint keyword pinned to incompatible values. allOf is an intersection,
-	// so the redeclaration describes an unsatisfiable field; the merge keeps the
-	// first declaration but surfaces the conflict rather than discarding it.
+	// field with definitions that disagree — a differing target type or a
+	// constraint keyword pinned to incompatible values. allOf is an
+	// intersection, so what "disagree" means differs by kind: an incompatible
+	// target type genuinely describes an unsatisfiable field (string and
+	// integer cannot both hold), but a contradictory constraint keyword is
+	// normally still satisfiable on its own (maxLength: 10 and maxLength: 20
+	// together simply mean 10; minimum: 10 and exclusiveMinimum: 10 together
+	// mean "> 10") — the real defect there is that the merge cannot represent
+	// the intersection of the two keyword values, so it keeps an arbitrary
+	// source-order winner that may be the looser of the two and so silently
+	// weaken the validation the spec intended. Either way, the merge keeps the
+	// first declaration's value but surfaces the disagreement rather than
+	// discarding it.
 	codeConflictingRedecl = "openapi/conflicting-redeclaration"
 )
 

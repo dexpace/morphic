@@ -2,6 +2,7 @@ package openapi
 
 import (
 	"encoding/json"
+	"fmt"
 	"maps"
 	"math/big"
 	"slices"
@@ -447,11 +448,18 @@ func (l *lowerer) mergeProperty(m *ir.Model, byWire map[string]int, p ir.Propert
 // keeps its position, identity, and type shape (the first declaration in source
 // order defines them); every optional detail dst lacks is adopted from src, so a
 // documented declaration and a bare one reconcile to the richer property whatever
-// their branch order. A description present-and-different in both branches is a
-// genuine conflict dst cannot absorb — reported, never silently dropped. An
-// incompatible type or constraint redeclaration is reported the same way, before
-// any detail is folded in, so the kept-first-declaration shape is diagnosed rather
-// than silently arbitrary.
+// their branch order. Constraints merge per keyword (mergeConstraints), not as a
+// whole struct swap, so a keyword only one branch constrains is folded into the
+// merged property rather than dropped whenever the other branch also carries
+// some constraint of its own. A description present-and-different in both
+// branches is a genuine conflict dst cannot absorb — reported, never silently
+// dropped. An incompatible type redeclaration is genuinely unsatisfiable and is
+// reported as such; a contradictory constraint keyword is reported too, even
+// though it is usually still individually satisfiable on its own, because the
+// merge cannot represent the intersection of the two values and keeps an
+// arbitrary — possibly looser — winner (see codeConflictingRedecl). Either is
+// reported before any detail is folded in, so the kept-first-declaration shape
+// is diagnosed rather than silently arbitrary.
 func (l *lowerer) reconcileProperty(dst *ir.Property, src ir.Property, pointer string) {
 	l.diagnoseRedeclarationConflict(dst, &src, pointer)
 
@@ -468,9 +476,7 @@ func (l *lowerer) reconcileProperty(dst *ir.Property, src ir.Property, pointer s
 	if dst.Default == nil {
 		dst.Default = src.Default
 	}
-	if dst.Constraints == nil {
-		dst.Constraints = src.Constraints
-	}
+	dst.Constraints = mergeConstraints(dst.Constraints, src.Constraints)
 	if dst.Deprecation == nil {
 		dst.Deprecation = src.Deprecation
 	}
@@ -483,6 +489,73 @@ func (l *lowerer) reconcileProperty(dst *ir.Property, src ir.Property, pointer s
 	dst.Extensions = mergeExtensions(dst.Extensions, src.Extensions)
 }
 
+// mergeConstraints folds src's constraint keywords into dst under allOf
+// intersection semantics, adopting — per keyword — whichever src sets that dst
+// does not, and leaving every keyword dst already sets untouched (first
+// declaration still wins, consistent with the rest of reconcileProperty). allOf
+// is an intersection, so a keyword only one branch constrains genuinely applies
+// to the merged field: this invents nothing and flattens no composition, it
+// simply stops throwing away a keyword neither side contradicts.
+//
+// Min and Max are adopted together with their exclusivity flag: taking
+// src.Min without src.ExclusiveMin would silently change the bound's sense
+// (an exclusive "> 5" read back as inclusive ">= 5"). UniqueItems has no
+// absent state — it is a plain bool — so "false" cannot mean "not set"; but
+// under intersection a collection satisfying both branches must be unique
+// whenever either branch requires it, so adopting a true from src is always
+// correct and dst is never downgraded from true back to false.
+func mergeConstraints(dst, src *ir.Constraints) *ir.Constraints {
+	if dst == nil {
+		return src
+	}
+	if src == nil {
+		return dst
+	}
+	if dst.Min == nil {
+		dst.Min, dst.ExclusiveMin = src.Min, src.ExclusiveMin
+	}
+	if dst.Max == nil {
+		dst.Max, dst.ExclusiveMax = src.Max, src.ExclusiveMax
+	}
+	if dst.MultipleOf == nil {
+		dst.MultipleOf = src.MultipleOf
+	}
+	if dst.Precision == nil {
+		dst.Precision = src.Precision
+	}
+	if dst.Scale == nil {
+		dst.Scale = src.Scale
+	}
+	if dst.MinLength == nil {
+		dst.MinLength = src.MinLength
+	}
+	if dst.MaxLength == nil {
+		dst.MaxLength = src.MaxLength
+	}
+	if dst.Pattern == "" {
+		dst.Pattern = src.Pattern
+	}
+	if dst.PatternMessage == "" {
+		dst.PatternMessage = src.PatternMessage
+	}
+	if dst.MinItems == nil {
+		dst.MinItems = src.MinItems
+	}
+	if dst.MaxItems == nil {
+		dst.MaxItems = src.MaxItems
+	}
+	if !dst.UniqueItems {
+		dst.UniqueItems = src.UniqueItems
+	}
+	if dst.MinProps == nil {
+		dst.MinProps = src.MinProps
+	}
+	if dst.MaxProps == nil {
+		dst.MaxProps = src.MaxProps
+	}
+	return dst
+}
+
 // maxTypeResolveDepth bounds Base-chain resolution when classifying a property
 // type for conflict detection (styleguide bounded-recursion rule). A scalar Base
 // chain is far shorter than this in a well-formed document, so the cap only
@@ -493,27 +566,43 @@ const maxTypeResolveDepth = 64
 // already-present property dst under allOf intersection: an incompatible target
 // type, or a constraint keyword both branches pin to different values. The merge
 // still keeps dst's shape (first declaration wins); this only surfaces the
-// contradiction, naming the field and both branch sites, so a broken source spec
-// no longer compiles clean. A type conflict subsumes any constraint disagreement
-// on the same field, so at most one diagnostic is reported.
+// disagreement, naming the field and both declaration sites, so a broken source
+// spec no longer compiles clean. An incompatible type describes a genuinely
+// unsatisfiable field (string and integer cannot both hold); a conflicting
+// constraint keyword is usually still satisfiable on its own, but the merge
+// cannot represent the intersection of the two values and may keep the looser
+// of the two (see codeConflictingRedecl) — either kind is worth surfacing. A
+// type conflict subsumes any constraint disagreement on the same field, so at
+// most one diagnostic is reported.
 func (l *lowerer) diagnoseRedeclarationConflict(dst, src *ir.Property, pointer string) {
-	switch {
-	case l.typesConflict(dst.Type, src.Type):
-		l.redeclarationConflictDiag(dst, pointer, "incompatible types")
-	case constraintsConflict(dst.Constraints, src.Constraints):
-		l.redeclarationConflictDiag(dst, pointer, "conflicting constraints")
+	if l.typesConflict(dst.Type, src.Type) {
+		l.redeclarationConflictDiag(dst, pointer,
+			fmt.Sprintf("incompatible types %s and %s", dst.Type.Target, src.Type.Target))
+		return
+	}
+	if detail, ok := constraintsConflict(dst.Constraints, src.Constraints); ok {
+		l.redeclarationConflictDiag(dst, pointer, detail)
 	}
 }
 
 // redeclarationConflictDiag emits the shared conflicting-redeclaration warning,
-// naming the field and both branch sites: dst's declaration and the redeclaration
-// at pointer. Severity is warning — the merged model is still usable — so a
-// consumer chooses whether to escalate on the stable code.
-func (l *lowerer) redeclarationConflictDiag(dst *ir.Property, pointer, what string) {
+// naming the field and both declaration sites: dst's own declaration and the
+// redeclaration at pointer. detail is the caller-formatted description of what
+// disagrees — the two conflicting type IDs for a type conflict, or the
+// offending constraint keyword and its two conflicting values for a constraint
+// conflict — so this one wording serves both callers without hard-coding
+// either's shape. The wording itself says
+// "declarations", not "allOf branches": a redeclaration reconciled here is
+// either two inline allOf branches or a property declared directly on the
+// schema alongside allOf (mergeProperty folds both the same way), and dst's
+// pointer is not always inside an allOf branch, so the message must read
+// correctly for either site. Severity is warning — the merged model is still
+// usable — so a consumer chooses whether to escalate on the stable code.
+func (l *lowerer) redeclarationConflictDiag(dst *ir.Property, pointer, detail string) {
 	l.diags = append(l.diags, diagf(ir.SeverityWarning, codeConflictingRedecl,
 		ir.Provenance{Source: l.srcIndex, Pointer: pointer},
-		"allOf branches redeclare field %q with %s; kept the first declaration (%s) over the redeclaration (%s)",
-		dst.WireName, what, dst.Provenance.Pointer, pointer))
+		"declarations of field %q disagree: %s; kept the first declaration (%s) over the redeclaration (%s)",
+		dst.WireName, detail, dst.Provenance.Pointer, pointer))
 }
 
 // typesConflict reports whether two reconciled property types describe an
@@ -556,9 +645,20 @@ func (l *lowerer) isAnyType(ref ir.TypeRef) bool {
 }
 
 // resolvePrimKind follows ref through the registry to its underlying primitive
-// kind, returning ok=false when the target is not ultimately a primitive (a
-// model, union, list, or a base-less opaque scalar). The Base chain is bounded so
-// a malformed registry cannot spin.
+// kind, returning ok=false when the target is not ultimately resolvable to a
+// single primitive kind (a model, union, list, tuple, literal, external, or a
+// base-less opaque scalar). The Base chain is bounded so a malformed registry
+// cannot spin.
+//
+// An Enum resolves to its declared ValueType — the primitive its members'
+// values share, already computed once at lowering time (ir-design §4.5) — so a
+// string enum agrees with a plain string redeclaration but still conflicts with
+// an integer one. A Literal is deliberately NOT resolved here: it carries only
+// a Value, and Value.Kind does not determine a single PrimKind cleanly (a
+// ValueNumber literal spans integer/number/float/decimal with no way to tell
+// which; a format-tagged scalar's Literal retains no memory of that format).
+// Rather than guess, a Literal is left unresolved (ok=false) and excluded from
+// isStructuralType below, so it is simply never reported as conflicting.
 func (l *lowerer) resolvePrimKind(ref ir.TypeRef) (ir.PrimKind, bool) {
 	id := ref.Target
 	for range maxTypeResolveDepth {
@@ -569,6 +669,8 @@ func (l *lowerer) resolvePrimKind(ref ir.TypeRef) (ir.PrimKind, bool) {
 		switch t := td.(type) {
 		case *ir.Primitive:
 			return t.Prim, true
+		case *ir.Enum:
+			return t.ValueType, true
 		case *ir.Scalar:
 			if t.Base == nil {
 				return "", false
@@ -582,7 +684,16 @@ func (l *lowerer) resolvePrimKind(ref ir.TypeRef) (ir.PrimKind, bool) {
 }
 
 // differentTypeKind reports whether two registry targets carry different TypeDef
-// kinds (a model vs a union). An unresolvable target is not treated as a conflict.
+// kinds (a model vs a union). An unresolvable target is not treated as a
+// conflict. This arm is reached only when neither side resolved a PrimKind
+// (typesConflict's default case), which — after the isStructuralType and
+// resolvePrimKind changes above — is exactly the same set of pairs it covered
+// before them: Enum now resolves via resolvePrimKind so Enum pairs no longer
+// reach here at all, and Union/External/Literal were already unresolvable
+// (ok=false) both before and after, so removing them from isStructuralType does
+// not add any new pair to this arm. It can still fire on a pair neither of the
+// three false-positive fixes targets (e.g. a base-less opaque scalar against a
+// Union) — that is pre-existing, out of scope here, and unchanged by this fix.
 func (l *lowerer) differentTypeKind(a, b ir.TypeRef) bool {
 	at, aok := l.out.Types[a.Target]
 	bt, bok := l.out.Types[b.Target]
@@ -592,45 +703,108 @@ func (l *lowerer) differentTypeKind(a, b ir.TypeRef) bool {
 	return at.Kind() != bt.Kind()
 }
 
-// isStructuralType reports whether ref targets a composite type (model, list,
-// map, tuple, enum, union, literal, or external) — anything that is provably
-// not a scalar. A base-less opaque scalar is unknown, not structural, so it is
-// not reported as a conflict against a primitive redeclaration.
+// isStructuralType reports whether ref targets a type that can never be a
+// scalar under allOf intersection: a model, list, map, or tuple. These four
+// shapes are the only ones provably incompatible with a scalar redeclaration.
+//
+// Enum, Union, and External are deliberately excluded even though they are
+// composite IR nodes: an enum member, a union variant, or (in principle) an
+// external's runtime representation can itself be a scalar of the very kind
+// being redeclared (a string enum, a union with a string variant), so a bare
+// scalar sibling is not provably contradictory — Enum is instead resolved
+// precisely via its ValueType in resolvePrimKind above, and Union/External are
+// left unresolved so they are simply never reported here. Literal is excluded
+// for the reason documented on resolvePrimKind: its Value.Kind does not map
+// cleanly to one PrimKind, so rather than guess it is left unresolved too.
+//
+// A base-less opaque scalar is likewise unknown, not structural, so it is not
+// reported as a conflict against a primitive redeclaration.
 func (l *lowerer) isStructuralType(ref ir.TypeRef) bool {
 	td, ok := l.out.Types[ref.Target]
 	if !ok {
 		return false
 	}
 	switch td.(type) {
-	case *ir.Model, *ir.List, *ir.MapT, *ir.Tuple, *ir.Enum, *ir.Union, *ir.Literal, *ir.External:
+	case *ir.Model, *ir.List, *ir.MapT, *ir.Tuple:
 		return true
 	default:
 		return false
 	}
 }
 
-// constraintsConflict reports whether two constraint sets pin the same keyword to
-// incompatible values. A keyword set on only one side is not a conflict — the
-// reconcileProperty merge adopts the richer constraint set, so no field is
-// flagged as contradictory — so only a keyword present on both with a differing
+// constraintsConflict reports whether two constraint sets pin the same keyword
+// to incompatible values and, when they do, describes which keyword and both
+// values (e.g. "conflicting maxLength (10 and 20)"). A keyword set on only one
+// side is not a conflict — mergeConstraints adopts it from whichever side sets
+// it, so a one-sided keyword genuinely narrows the merged field rather than
+// being discarded — so only a keyword present on both sides with a differing
 // value counts. Numeric bounds compare by magnitude, so an equal bound spelled
 // two ways (10 and 10.0) is not a false conflict.
-func constraintsConflict(a, b *ir.Constraints) bool {
+//
+// UniqueItems is deliberately never compared here: it is a plain bool with no
+// absent state, so a false on either side cannot be told apart from "not set",
+// and flagging it would report the ordinary case of one branch simply not
+// caring about uniqueness as if it contradicted the other.
+//
+// Keywords are checked in the fixed order below, so when more than one
+// conflicts at once the keyword named in the returned detail is deterministic
+// rather than a product of struct layout or map iteration.
+func constraintsConflict(a, b *ir.Constraints) (string, bool) {
 	if a == nil || b == nil {
-		return false
+		return "", false
 	}
-	return boundConflict(a.Min, b.Min, a.ExclusiveMin, b.ExclusiveMin) ||
-		boundConflict(a.Max, b.Max, a.ExclusiveMax, b.ExclusiveMax) ||
-		bigValConflict(a.MultipleOf, b.MultipleOf) ||
-		intConflict(a.Precision, b.Precision) ||
-		intConflict(a.Scale, b.Scale) ||
-		intConflict(a.MinLength, b.MinLength) ||
-		intConflict(a.MaxLength, b.MaxLength) ||
-		intConflict(a.MinItems, b.MinItems) ||
-		intConflict(a.MaxItems, b.MaxItems) ||
-		intConflict(a.MinProps, b.MinProps) ||
-		intConflict(a.MaxProps, b.MaxProps) ||
-		strConflict(a.Pattern, b.Pattern)
+	checks := []func() (string, bool){
+		func() (string, bool) {
+			return boundConflictDetail("minimum", a.Min, b.Min, a.ExclusiveMin, b.ExclusiveMin)
+		},
+		func() (string, bool) {
+			return boundConflictDetail("maximum", a.Max, b.Max, a.ExclusiveMax, b.ExclusiveMax)
+		},
+		func() (string, bool) { return bigValConflictDetail("multipleOf", a.MultipleOf, b.MultipleOf) },
+		func() (string, bool) { return intConflictDetail("precision", a.Precision, b.Precision) },
+		func() (string, bool) { return intConflictDetail("scale", a.Scale, b.Scale) },
+		func() (string, bool) { return intConflictDetail("minLength", a.MinLength, b.MinLength) },
+		func() (string, bool) { return intConflictDetail("maxLength", a.MaxLength, b.MaxLength) },
+		func() (string, bool) { return intConflictDetail("minItems", a.MinItems, b.MinItems) },
+		func() (string, bool) { return intConflictDetail("maxItems", a.MaxItems, b.MaxItems) },
+		func() (string, bool) { return intConflictDetail("minProps", a.MinProps, b.MinProps) },
+		func() (string, bool) { return intConflictDetail("maxProps", a.MaxProps, b.MaxProps) },
+		func() (string, bool) { return strConflictDetail("pattern", a.Pattern, b.Pattern) },
+		func() (string, bool) { return strConflictDetail("patternMessage", a.PatternMessage, b.PatternMessage) },
+	}
+	for _, check := range checks {
+		if detail, ok := check(); ok {
+			return detail, ok
+		}
+	}
+	return "", false
+}
+
+// boundConflictDetail reports whether two numeric bounds, each with its
+// exclusivity flag, are both present and disagree — a differing magnitude or a
+// differing inclusive/exclusive sense — formatting the disagreement when they
+// do. Unlike an incompatible type, a disagreement here is usually still
+// individually satisfiable on its own (minimum: 10 and exclusiveMinimum: 10
+// together simply mean "> 10"); it is kept as a diagnosed conflict anyway
+// because the merge keeps an arbitrary source-order winner rather than the
+// true intersection, and the discarded bound is always the stricter one —
+// staying silent would trade this false positive for a silent loosening of
+// the validation the spec intended.
+func boundConflictDetail(keyword string, a, b *ir.BigVal, exclA, exclB bool) (string, bool) {
+	if !boundConflict(a, b, exclA, exclB) {
+		return "", false
+	}
+	return fmt.Sprintf("conflicting %s (%s and %s)", keyword, boundText(*a, exclA), boundText(*b, exclB)), true
+}
+
+// boundText renders a numeric bound for a conflict detail, marking an
+// exclusive bound so "conflicting minimum (10 and exclusive 10)" reads as the
+// differing sense it is, not a duplicate magnitude.
+func boundText(v ir.BigVal, exclusive bool) string {
+	if exclusive {
+		return "exclusive " + v.String()
+	}
+	return v.String()
 }
 
 // boundConflict reports whether two numeric bounds, each with its exclusivity
@@ -641,6 +815,15 @@ func boundConflict(a, b *ir.BigVal, exclA, exclB bool) bool {
 		return false
 	}
 	return exclA != exclB || !bigValEqual(*a, *b)
+}
+
+// bigValConflictDetail reports whether two optional numeric values are both
+// present and differ by magnitude, formatting the disagreement when they do.
+func bigValConflictDetail(keyword string, a, b *ir.BigVal) (string, bool) {
+	if !bigValConflict(a, b) {
+		return "", false
+	}
+	return fmt.Sprintf("conflicting %s (%s and %s)", keyword, a.String(), b.String()), true
 }
 
 // bigValConflict reports whether two optional numeric values are both present and
@@ -662,10 +845,28 @@ func bigValEqual(a, b ir.BigVal) bool {
 	return ar.Cmp(br) == 0
 }
 
+// intConflictDetail reports whether two optional integer bounds are both
+// present and differ, formatting the disagreement when they do.
+func intConflictDetail(keyword string, a, b *int64) (string, bool) {
+	if !intConflict(a, b) {
+		return "", false
+	}
+	return fmt.Sprintf("conflicting %s (%d and %d)", keyword, *a, *b), true
+}
+
 // intConflict reports whether two optional integer bounds are both present and
 // differ.
 func intConflict(a, b *int64) bool {
 	return a != nil && b != nil && *a != *b
+}
+
+// strConflictDetail reports whether two string keywords are both set and
+// differ, formatting the disagreement when they do.
+func strConflictDetail(keyword string, a, b string) (string, bool) {
+	if !strConflict(a, b) {
+		return "", false
+	}
+	return fmt.Sprintf("conflicting %s (%q and %q)", keyword, a, b), true
 }
 
 // strConflict reports whether two string keywords are both set and differ.
