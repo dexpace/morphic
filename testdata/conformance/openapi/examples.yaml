@@ -1,7 +1,21 @@
 openapi: 3.1.0
 info: {title: Examples, version: "1.0.0"}
-paths: {}
+paths:
+  /items:
+    get:
+      operationId: getItem
+      responses:
+        "200":
+          description: ok
+          content:
+            application/json:
+              schema: {type: string}
+              examples:
+                inline: {value: hello}
+                shared: {$ref: '#/components/examples/Shared'}
 components:
+  examples:
+    Shared: {value: world}
   schemas:
     S:
       type: object

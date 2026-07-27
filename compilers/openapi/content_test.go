@@ -443,6 +443,86 @@ func TestContent_ExampleWithoutValueSkipped(t *testing.T) {
 	assert.Empty(t, c.Examples, "an example without a value is skipped")
 }
 
+func TestContent_UnconvertibleExamplesDiagnosed(t *testing.T) {
+	t.Parallel()
+	// Covers both the single 3.0-style `example` and one entry of the plural
+	// 3.1-style `examples` map — each carries a custom, structurally
+	// unconvertible tag, and each conversion failure must be diagnosed rather
+	// than discarded silently.
+	spec := pathsSpec(`  /items:
+    get:
+      operationId: getItem
+      responses:
+        "200":
+          description: ok
+          content:
+            application/json:
+              schema: {type: string}
+              example: !foo bar
+              examples:
+                one: {value: !foo baz}
+`)
+	_, svc, diags := lowerServiceSpec(t, spec)
+	op := firstOp(t, svc)
+	require.Len(t, op.Responses, 1)
+	c := op.Responses[0].Payload.Contents[0]
+	assert.Empty(t, c.Examples, "both unconvertible examples are skipped, not appended")
+
+	require.Equal(t, 2, countDiagsAt(diags, codeDegradedConstruct, ir.SeverityWarning))
+	pointers := map[string]bool{}
+	for _, d := range diags {
+		if d.Code == codeDegradedConstruct && d.Severity == ir.SeverityWarning {
+			pointers[d.Provenance.Pointer] = true
+			assert.Contains(t, d.Message, "example:")
+		}
+	}
+	const base = "/paths/~1items/get/responses/200/content/application~1json"
+	assert.True(t, pointers[base+"/example"], "the single example's pointer")
+	assert.True(t, pointers[base+"/examples/one/value"], "the plural example's pointer, keyed by its name")
+}
+
+func TestContent_RefdExampleDiagnosedAtReferenceSite(t *testing.T) {
+	t.Parallel()
+	// An `examples` entry written as a $ref holds no value of its own — the
+	// value lives in the referenced component — so `.../examples/<name>/value`
+	// would name a location the source never had. The diagnostic belongs at the
+	// reference site. The convertible sibling pins that a $ref'd example still
+	// lowers normally.
+	spec := `openapi: 3.1.0
+info: {title: T, version: "1.0.0"}
+paths:
+  /items:
+    get:
+      operationId: getItem
+      responses:
+        "200":
+          description: ok
+          content:
+            application/json:
+              schema: {type: string}
+              examples:
+                good: {$ref: '#/components/examples/Good'}
+                bad: {$ref: '#/components/examples/Bad'}
+components:
+  examples:
+    Good: {value: fine}
+    Bad: {value: !foo baz}
+`
+	_, svc, diags := lowerServiceSpec(t, spec)
+	op := firstOp(t, svc)
+	c := op.Responses[0].Payload.Contents[0]
+	require.Len(t, c.Examples, 1, "the convertible $ref'd example still lowers")
+	require.NotNil(t, c.Examples[0].Value)
+	assert.Equal(t, ir.Value{Kind: ir.ValueString, Str: "fine"}, *c.Examples[0].Value)
+
+	require.Equal(t, 1, countDiagsAt(diags, codeDegradedConstruct, ir.SeverityWarning))
+	d, ok := firstDegradedWarning(diags)
+	require.True(t, ok)
+	assert.Equal(t, "/paths/~1items/get/responses/200/content/application~1json/examples/bad",
+		d.Provenance.Pointer, "the reference site, not a /value the source never had")
+	assert.Contains(t, d.Message, "example:")
+}
+
 func TestContentTypeKeys_Nil(t *testing.T) {
 	t.Parallel()
 	assert.Nil(t, contentTypeKeys(nil))

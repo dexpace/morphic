@@ -771,7 +771,7 @@ func (l *lowerer) fillPropertyDetail(p *ir.Property, js *oas3.JSONSchema[oas3.Re
 	if effectiveDeprecated(ref, tgt) {
 		p.Deprecation = &ir.Deprecation{}
 	}
-	if ex := l.schemaExamples(ref); len(ex) > 0 {
+	if ex := l.schemaExamples(ref, pointer); len(ex) > 0 {
 		p.Examples = ex
 	}
 	if h := xmlHints(ref.GetXML()); h != nil {
@@ -825,20 +825,33 @@ func (l *lowerer) fillPropertyConstraints(p *ir.Property, ref *oas3.Schema, poin
 }
 
 // schemaExamples lowers a schema's single (3.0) and plural (3.1) examples into
-// value examples in source order.
-func (l *lowerer) schemaExamples(s *oas3.Schema) []ir.Example {
+// value examples in source order, pointer being the owning schema's own
+// pointer so an unconvertible example's diagnostic can locate it.
+func (l *lowerer) schemaExamples(s *oas3.Schema, pointer string) []ir.Example {
 	var out []ir.Example
 	if node := s.GetExample(); node != nil {
-		if v, err := valueFromNode(node); err == nil {
-			out = append(out, ir.Example{Value: &v})
-		}
+		out = l.appendExample(out, node, pointer, "example")
 	}
-	for _, node := range s.GetExamples() {
-		if v, err := valueFromNode(node); err == nil {
-			out = append(out, ir.Example{Value: &v})
-		}
+	for i, node := range s.GetExamples() {
+		out = l.appendExample(out, node, pointer, "examples", strconv.Itoa(i))
 	}
 	return out
+}
+
+// appendExample converts node to a value example and appends it to out; an
+// unconvertible node is skipped with a warning diagnostic rather than silently
+// dropped — an example is an annotation, not a structural hole, so losing it is
+// fine as long as it isn't silent. base and seg locate the node, joined into a
+// pointer only on the failure path, so an example that converts builds no
+// pointer string at all. Shared by every example site: schema
+// (schemaExamples), media type and parameter (exampleList).
+func (l *lowerer) appendExample(out []ir.Example, node *yaml.Node, base string, seg ...string) []ir.Example {
+	v, err := valueFromNode(node)
+	if err != nil {
+		l.diag(ir.SeverityWarning, codeDegradedConstruct, base+ptr(seg...), "example: %s", err.Error())
+		return out
+	}
+	return append(out, ir.Example{Value: &v})
 }
 
 // fillModelDetail lowers the model-level shape: docs, deprecation, additional-

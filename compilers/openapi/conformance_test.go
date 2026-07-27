@@ -49,6 +49,7 @@ func TestConformance(t *testing.T) {
 		{"nullable-30", assertNullable30},
 		{"nullable-31-ref", assertNullable31Ref},
 		{"defaults", assertDefaults},
+		{"yaml-timestamp-scalars", assertYAMLTimestampScalars},
 		{"constraints", assertConstraints},
 		{"numeric-precision", assertNumericPrecision},
 		{"readonly-writeonly", assertReadOnlyWriteOnly},
@@ -354,6 +355,45 @@ func assertDefaults(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
 	assert.Equal(t, ir.BigVal("9007199254740993"), m.Properties[0].Default.Num)
 }
 
+// assertYAMLTimestampScalars covers a YAML 1.1 quirk: an unquoted date like
+// 2021-01-01 resolves to tag !!timestamp, not !!str. It must survive as the
+// literal string everywhere OpenAPI's JSON data model can carry one — enum,
+// const, a property default, a schema-level example, and a media-type
+// example — with nothing dropped or degraded to null.
+func assertYAMLTimestampScalars(t *testing.T, doc *ir.Document, diags []ir.Diagnostic) {
+	assert.Empty(t, diags, "every unquoted date converts cleanly; nothing is dropped or degraded")
+
+	d, ok := doc.Types[namedID("D")].(*ir.Enum)
+	require.True(t, ok, "D stays a closed Enum of the real dates, not a union of null literals")
+	assert.Equal(t, ir.PrimString, d.ValueType)
+	require.Len(t, d.Members, 2)
+	assert.Equal(t, ir.Value{Kind: ir.ValueString, Str: "2021-01-01"}, d.Members[0].Value)
+	assert.Equal(t, ir.Value{Kind: ir.ValueString, Str: "2022-02-02"}, d.Members[1].Value)
+
+	k, ok := doc.Types[namedID("K")].(*ir.Literal)
+	require.True(t, ok, "K's const hoists a real Literal, not the schemaless top type")
+	assert.Equal(t, ir.Value{Kind: ir.ValueString, Str: "2021-01-01"}, k.Value)
+
+	s, ok := doc.Types[namedID("S")].(*ir.Model)
+	require.True(t, ok)
+	require.Len(t, s.Properties, 1)
+	prop := s.Properties[0]
+	require.NotNil(t, prop.Default, "the property default is preserved")
+	assert.Equal(t, ir.Value{Kind: ir.ValueString, Str: "2021-01-01"}, *prop.Default)
+	require.Len(t, prop.Examples, 1, "the schema-level example is preserved")
+	require.NotNil(t, prop.Examples[0].Value)
+	assert.Equal(t, ir.Value{Kind: ir.ValueString, Str: "2021-01-01"}, *prop.Examples[0].Value)
+
+	op, ok := opByName(doc, "getItem")
+	require.True(t, ok)
+	require.NotNil(t, op.Responses[0].Payload)
+	require.Len(t, op.Responses[0].Payload.Contents, 1)
+	mediaExamples := op.Responses[0].Payload.Contents[0].Examples
+	require.Len(t, mediaExamples, 1, "the media-type example is preserved")
+	require.NotNil(t, mediaExamples[0].Value)
+	assert.Equal(t, ir.Value{Kind: ir.ValueString, Str: "2021-01-01"}, *mediaExamples[0].Value)
+}
+
 func assertConstraints(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
 	m, ok := doc.Types[namedID("S")].(*ir.Model)
 	require.True(t, ok)
@@ -597,6 +637,18 @@ func assertExamples(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
 	require.True(t, ok)
 	require.Len(t, m.Properties, 1)
 	assert.Len(t, m.Properties[0].Examples, 2)
+
+	// The plural `examples` map, in both spellings: an inline entry and one
+	// written as a $ref, which must resolve to the referenced component's value.
+	op, ok := opByName(doc, "getItem")
+	require.True(t, ok)
+	require.Len(t, op.Responses[0].Payload.Contents, 1)
+	ex := op.Responses[0].Payload.Contents[0].Examples
+	require.Len(t, ex, 2, "both entries lower, in source order")
+	require.NotNil(t, ex[0].Value)
+	assert.Equal(t, ir.Value{Kind: ir.ValueString, Str: "hello"}, *ex[0].Value)
+	require.NotNil(t, ex[1].Value)
+	assert.Equal(t, ir.Value{Kind: ir.ValueString, Str: "world"}, *ex[1].Value)
 }
 
 func assertDocsSummaryDesc(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {

@@ -79,6 +79,29 @@ func TestParams_ContentStyleParameter(t *testing.T) {
 	assert.NotEmpty(t, op.Params[0].Type.Target, "content-style param schema is lowered")
 }
 
+func TestParams_UnconvertibleExampleDiagnosed(t *testing.T) {
+	t.Parallel()
+	spec := pathsSpec(`  /items:
+    get:
+      operationId: getItem
+      parameters:
+        - name: q
+          in: query
+          schema: {type: string}
+          example: !foo bar
+      responses: {"200": {description: ok}}
+`)
+	_, svc, diags := lowerServiceSpec(t, spec)
+	op := firstOp(t, svc)
+	require.Len(t, op.Params, 1)
+	assert.Empty(t, op.Params[0].Examples, "the unconvertible example is skipped, not appended")
+	require.Equal(t, 1, countDiagsAt(diags, codeDegradedConstruct, ir.SeverityWarning))
+	d, ok := firstDegradedWarning(diags)
+	require.True(t, ok)
+	assert.Equal(t, "/paths/~1items/get/parameters/0/example", d.Provenance.Pointer)
+	assert.Contains(t, d.Message, "example:")
+}
+
 func TestParams_SchemaConstraints(t *testing.T) {
 	t.Parallel()
 	spec := pathsSpec(`  /people:

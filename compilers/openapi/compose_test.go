@@ -715,6 +715,101 @@ func TestConst_BecomesLiteral(t *testing.T) {
 	assert.Equal(t, ir.Value{Kind: ir.ValueString, Str: "fixed"}, k.Value)
 }
 
+func TestHoistLiteral_UnconvertibleConstBecomesAny(t *testing.T) {
+	t.Parallel()
+	// A custom tag is structurally unconvertible (no scalarValue case resolves
+	// it), forcing hoistLiteral's fallback. Before the fix this silently
+	// produced a Literal asserting the value is null, which the spec never said.
+	spec := componentSpec("    K:\n      const: !foo bar\n")
+	doc, diags := lowerSpec(t, spec)
+	k, ok := doc.Types[componentID("K")].(*ir.Any)
+	require.True(t, ok, "an unconvertible const hoists the schemaless top type at its own pointer")
+	assert.Equal(t, ir.KindAny, k.Kind())
+	for _, td := range doc.Types {
+		_, isLiteral := td.(*ir.Literal)
+		assert.False(t, isLiteral, "no Literal is produced anywhere; nothing lies about the value being null")
+	}
+	require.Equal(t, 1, countDiagsAt(diags, codeDegradedConstruct, ir.SeverityWarning),
+		"exactly one warning fires for the unconvertible value")
+	d, ok := firstDegradedWarning(diags)
+	require.True(t, ok)
+	assert.Equal(t, "/components/schemas/K", d.Provenance.Pointer)
+}
+
+func TestEnumAsUnion_UnconvertibleMemberBecomesAny(t *testing.T) {
+	t.Parallel()
+	// The convertible member ("ok") must still hoist a real Literal; only the
+	// genuinely unconvertible member ("!foo bar") falls back to the top type.
+	spec := componentSpec("    M:\n      enum: [ok, !foo bar]\n")
+	doc, diags := lowerSpec(t, spec)
+	u, ok := doc.Types[componentID("M")].(*ir.Union)
+	require.True(t, ok, "heterogeneous enum still lowers to a union of literals")
+	require.Len(t, u.Variants, 2)
+
+	member0, ok := doc.Types[u.Variants[0].Type.Target].(*ir.Literal)
+	require.True(t, ok, "the convertible member still hoists a Literal")
+	assert.Equal(t, ir.Value{Kind: ir.ValueString, Str: "ok"}, member0.Value)
+
+	member1, ok := doc.Types[u.Variants[1].Type.Target].(*ir.Any)
+	require.True(t, ok, "the unconvertible member hoists the schemaless top type, not a lying null Literal")
+	assert.Equal(t, ir.KindAny, member1.Kind())
+
+	require.Equal(t, 1, countDiagsAt(diags, codeDegradedConstruct, ir.SeverityWarning),
+		"exactly one warning for the unconvertible member, distinct from the heterogeneous-enum info diagnostic")
+	d, ok := firstDegradedWarning(diags)
+	require.True(t, ok)
+	assert.Equal(t, "/components/schemas/M/enum/1", d.Provenance.Pointer)
+}
+
+func TestEnum_UnquotedDatesStayClosedEnum(t *testing.T) {
+	t.Parallel()
+	// The exact issue repro: YAML 1.1 resolves an unquoted date to !!timestamp.
+	// Before the fix, scalarValue had no case for it, so both enum members
+	// failed to convert, enumMembers bailed to enumAsUnion, and valueOrNull
+	// turned every member into a null literal — the actual dates never
+	// survived. A component-level default (as in the repro) is never lowered
+	// onto anything by itself (only properties/params read one), so it
+	// contributes no diagnostic either way; see
+	// TestProperty_UnquotedDateDefaultPreserved for the default path.
+	spec := componentSpec(`    D:
+      type: string
+      format: date
+      default: 2021-01-01
+      enum: [2021-01-01, 2022-02-02]
+`)
+	doc, diags := lowerSpec(t, spec)
+	assert.Empty(t, diags, "no diagnostics at all: the dates convert cleanly")
+	e, ok := doc.Types[componentID("D")].(*ir.Enum)
+	require.True(t, ok, "D stays a closed Enum, never degrades to a Union of literals")
+	assert.True(t, e.Closed)
+	assert.Equal(t, ir.PrimString, e.ValueType)
+	require.Len(t, e.Members, 2)
+	assert.Equal(t, ir.Value{Kind: ir.ValueString, Str: "2021-01-01"}, e.Members[0].Value)
+	assert.Equal(t, ir.Value{Kind: ir.ValueString, Str: "2022-02-02"}, e.Members[1].Value)
+}
+
+func TestProperty_UnquotedDateDefaultPreserved(t *testing.T) {
+	t.Parallel()
+	// The repro's default sits at the component level, which nothing lowers by
+	// itself; this covers the path that actually surfaces the bug in practice —
+	// a date default declared on an object property.
+	spec := componentSpec(`    S:
+      type: object
+      properties:
+        d:
+          type: string
+          format: date
+          default: 2021-01-01
+`)
+	doc, diags := lowerSpec(t, spec)
+	assert.Empty(t, diags, "no diagnostics at all: the date default converts cleanly")
+	m, ok := doc.Types[componentID("S")].(*ir.Model)
+	require.True(t, ok)
+	require.Len(t, m.Properties, 1)
+	require.NotNil(t, m.Properties[0].Default)
+	assert.Equal(t, ir.Value{Kind: ir.ValueString, Str: "2021-01-01"}, *m.Properties[0].Default)
+}
+
 func TestAllOf_DiscriminatorHierarchy(t *testing.T) {
 	t.Parallel()
 	spec := componentSpecVer("3.2.0", `    Pet:

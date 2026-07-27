@@ -1,14 +1,14 @@
 {
   "irVersion": "0.1.0",
-  "name": "Examples",
+  "name": "YamlTimestampScalars",
   "version": "1.0.0",
   "docs": {},
   "services": [
     {
       "id": "s/openapi/0",
       "name": {
-        "source": "Examples",
-        "canonical": "examples"
+        "source": "YamlTimestampScalars",
+        "canonical": "yaml_timestamp_scalars"
       },
       "docs": {},
       "groups": [
@@ -41,23 +41,14 @@
                       {
                         "mediaType": "application/json",
                         "type": {
-                          "target": "t/prim/string",
+                          "target": "t/prim/date",
                           "nullable": false
                         },
                         "examples": [
                           {
                             "value": {
                               "kind": "string",
-                              "str": "hello",
-                              "bytes": null,
-                              "list": null,
-                              "object": null
-                            }
-                          },
-                          {
-                            "value": {
-                              "kind": "string",
-                              "str": "world",
+                              "str": "2021-01-01",
                               "bytes": null,
                               "list": null,
                               "object": null
@@ -101,6 +92,76 @@
     }
   ],
   "types": {
+    "t/openapi/components/schemas/D": {
+      "kind": "enum",
+      "id": "t/openapi/components/schemas/D",
+      "name": {
+        "source": "D",
+        "canonical": "d"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/D"
+      },
+      "valueType": "string",
+      "members": [
+        {
+          "name": {
+            "source": "2021-01-01",
+            "canonical": "2021_01_01"
+          },
+          "value": {
+            "kind": "string",
+            "str": "2021-01-01",
+            "bytes": null,
+            "list": null,
+            "object": null
+          },
+          "docs": {}
+        },
+        {
+          "name": {
+            "source": "2022-02-02",
+            "canonical": "2022_02_02"
+          },
+          "value": {
+            "kind": "string",
+            "str": "2022-02-02",
+            "bytes": null,
+            "list": null,
+            "object": null
+          },
+          "docs": {}
+        }
+      ],
+      "closed": true,
+      "flags": false
+    },
+    "t/openapi/components/schemas/K": {
+      "kind": "literal",
+      "id": "t/openapi/components/schemas/K",
+      "name": {
+        "source": "K",
+        "canonical": "k"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/K"
+      },
+      "value": {
+        "kind": "string",
+        "str": "2021-01-01",
+        "bytes": null,
+        "list": null,
+        "object": null
+      }
+    },
     "t/openapi/components/schemas/S": {
       "kind": "model",
       "id": "t/openapi/components/schemas/S",
@@ -117,14 +178,14 @@
       },
       "properties": [
         {
-          "id": "p/openapi/components/schemas/S/properties/n",
+          "id": "p/openapi/components/schemas/S/properties/d",
           "name": {
-            "source": "n",
-            "canonical": "n"
+            "source": "d",
+            "canonical": "d"
           },
-          "wireName": "n",
+          "wireName": "d",
           "type": {
-            "target": "t/prim/integer",
+            "target": "t/prim/date",
             "nullable": false
           },
           "required": false,
@@ -133,6 +194,13 @@
           "visibility": {
             "none": false
           },
+          "default": {
+            "kind": "string",
+            "str": "2021-01-01",
+            "bytes": null,
+            "list": null,
+            "object": null
+          },
           "flatten": false,
           "eventHeader": false,
           "eventPayload": false,
@@ -140,17 +208,8 @@
           "examples": [
             {
               "value": {
-                "kind": "number",
-                "num": "1",
-                "bytes": null,
-                "list": null,
-                "object": null
-              }
-            },
-            {
-              "value": {
-                "kind": "number",
-                "num": "2",
+                "kind": "string",
+                "str": "2021-01-01",
                 "bytes": null,
                 "list": null,
                 "object": null
@@ -160,7 +219,7 @@
           "docs": {},
           "provenance": {
             "source": 0,
-            "pointer": "/components/schemas/S/properties/n"
+            "pointer": "/components/schemas/S/properties/d"
           }
         }
       ],
@@ -168,9 +227,9 @@
       "positional": false,
       "inputOnly": false
     },
-    "t/prim/integer": {
+    "t/prim/date": {
       "kind": "primitive",
-      "id": "t/prim/integer",
+      "id": "t/prim/date",
       "name": {},
       "anonymous": false,
       "docs": {},
@@ -178,19 +237,7 @@
       "provenance": {
         "source": 0
       },
-      "prim": "integer"
-    },
-    "t/prim/string": {
-      "kind": "primitive",
-      "id": "t/prim/string",
-      "name": {},
-      "anonymous": false,
-      "docs": {},
-      "sensitive": false,
-      "provenance": {
-        "source": 0
-      },
-      "prim": "string"
+      "prim": "date"
     }
   },
   "servers": [
@@ -204,8 +251,8 @@
   "sources": [
     {
       "format": "openapi@3.1",
-      "path": "examples.yaml",
-      "hash": "f454f0f0f4981f3a384d73d645e72c92900385c258cb44688e42e601c0c2a44a"
+      "path": "yaml-timestamp-scalars.yaml",
+      "hash": "e649b990382693ae848f9f4187ad9fa5889606d9aeaea03a9e3713144e4d2d17"
     }
   ]
 }

@@ -42,7 +42,7 @@ func (l *lowerer) lowerContent(mt string, media *soa.MediaType, pointer, hint st
 		MediaType: mt,
 		Type:      l.schemaRef(media.GetSchema(), mediaPtr+ptr("schema"), hint),
 	}
-	if ex := l.mediaExamples(media); len(ex) > 0 {
+	if ex := l.mediaExamples(media, mediaPtr); len(ex) > 0 {
 		c.Examples = ex
 	}
 	switch {
@@ -155,36 +155,47 @@ func (l *lowerer) lowerHeaders(headers *sequencedmap.Map[string, *soa.Referenced
 }
 
 // mediaExamples lowers a media type's single and plural example values.
-func (l *lowerer) mediaExamples(media *soa.MediaType) []ir.Example {
-	return l.exampleList(media.GetExample(), media.GetExamples())
+func (l *lowerer) mediaExamples(media *soa.MediaType, pointer string) []ir.Example {
+	return l.exampleList(media.GetExample(), media.GetExamples(), pointer)
 }
 
 // exampleList lowers a single example node and a plural example map into value
-// examples, in source order; unconvertible nodes are skipped.
-func (l *lowerer) exampleList(single *yaml.Node, plural *sequencedmap.Map[string, *soa.ReferencedExample]) []ir.Example {
+// examples, in source order. An unconvertible node is skipped with a warning
+// diagnostic rather than silently; an entry carrying no value node at all — an
+// externalValue, or a summary-only stub — is still skipped without one.
+func (l *lowerer) exampleList(single *yaml.Node, plural *sequencedmap.Map[string, *soa.ReferencedExample], pointer string) []ir.Example {
 	var out []ir.Example
 	if single != nil {
-		if v, err := valueFromNode(single); err == nil {
-			out = append(out, ir.Example{Value: &v})
-		}
+		out = l.appendExample(out, single, pointer, "example")
 	}
 	if plural == nil {
 		return out
 	}
-	for _, re := range plural.All() {
-		ex := resolveRef[soa.Example](re)
-		if ex == nil {
-			continue
-		}
-		node := ex.GetValue()
-		if node == nil {
-			continue
-		}
-		if v, err := valueFromNode(node); err == nil {
-			out = append(out, ir.Example{Value: &v})
-		}
+	for name, re := range plural.All() {
+		out = l.appendPluralExample(out, re, pointer, name)
 	}
 	return out
+}
+
+// appendPluralExample lowers one named entry of a plural `examples` map. An
+// entry written as a $ref holds no value of its own — the value lives in the
+// referenced component — so its diagnostic is stamped at the reference site
+// rather than at a `value` node this entry never had; an inline entry is
+// stamped at its own `value`. Only this hop is de-referenced: an enclosing
+// $ref'd response or parameter is already flattened into pointer.
+func (l *lowerer) appendPluralExample(out []ir.Example, re *soa.ReferencedExample, pointer, name string) []ir.Example {
+	ex := resolveRef[soa.Example](re)
+	if ex == nil {
+		return out
+	}
+	node := ex.GetValue()
+	if node == nil {
+		return out
+	}
+	if re.IsReference() {
+		return l.appendExample(out, node, pointer, "examples", name)
+	}
+	return l.appendExample(out, node, pointer, "examples", name, "value")
 }
 
 // lowerRequestBody lowers an operation's request body onto op.Request and the

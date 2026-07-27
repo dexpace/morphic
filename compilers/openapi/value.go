@@ -67,6 +67,14 @@ func scalarValue(node *yaml.Node) (ir.Value, error) {
 			}
 		}
 		return ir.Value{Kind: ir.ValueString, Str: node.Value}, nil
+	case "!!timestamp":
+		// YAML 1.1 resolves a plain date/time scalar (e.g. 2021-01-01) to
+		// !!timestamp, but OpenAPI's data model is JSON, where a date is only
+		// expressible as a string; the tag is a YAML parsing artifact, not a
+		// JSON Schema type. Keep the verbatim source spelling (2021-1-1 stays
+		// 2021-1-1), classified by wire spelling alone — same rule as !!str
+		// above, independent of any surrounding schema type.
+		return ir.Value{Kind: ir.ValueString, Str: node.Value}, nil
 	case "!!int", "!!float":
 		num, err := ir.NewBigVal(node.Value)
 		if err != nil {
