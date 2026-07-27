@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"testing"
 
-	"github.com/google/go-cmp/cmp"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -41,16 +40,7 @@ func sampleDocument(t *testing.T) ir.Document {
 
 func TestDocument_JSONRoundTripAllKinds(t *testing.T) {
 	t.Parallel()
-	doc := sampleDocument(t)
-
-	raw, err := json.Marshal(doc)
-	require.NoError(t, err)
-
-	var back ir.Document
-	require.NoError(t, json.Unmarshal(raw, &back))
-	if diff := cmp.Diff(doc, back); diff != "" {
-		t.Errorf("round-trip mismatch (-want +got):\n%s", diff)
-	}
+	assertRoundTrip(t, sampleDocument(t))
 }
 
 func TestOperation_AuthEmptyNonNilRoundTrips(t *testing.T) {
@@ -78,12 +68,7 @@ func TestOperation_AuthEmptyNonNilRoundTrips(t *testing.T) {
 
 func TestDocument_MarshalIsDeterministic(t *testing.T) {
 	t.Parallel()
-	doc := sampleDocument(t)
-	a, err := json.Marshal(doc)
-	require.NoError(t, err)
-	b, err := json.Marshal(doc)
-	require.NoError(t, err)
-	assert.Equal(t, string(a), string(b))
+	assertDeterministicMarshal(t, sampleDocument(t))
 }
 
 func TestTypeRegistry_KindTagIsAdjacent(t *testing.T) {

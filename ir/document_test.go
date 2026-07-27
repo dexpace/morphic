@@ -66,3 +66,47 @@ func TestDocument_ConstructRepresentative(t *testing.T) {
 	assert.True(t, model.Properties[0].Required)
 	assert.False(t, model.Properties[0].Type.Nullable)
 }
+
+// TestDocument_ChannelsDeterministic pins Class C for Document's map-keyed
+// registry fields: Channels must marshal with keys in sorted order on every
+// run.
+func TestDocument_ChannelsDeterministic(t *testing.T) {
+	t.Parallel()
+	doc := ir.Document{
+		Channels: map[ir.ChannelID]ir.Channel{"z/c": {}, "m/c": {}, "a/c": {}},
+	}
+	got := assertDeterministicMarshal(t, doc)
+	assert.Contains(t, got,
+		`"channels":{"a/c":{"name":{},"docs":{},"provenance":{"source":0}},`+
+			`"m/c":{"name":{},"docs":{},"provenance":{"source":0}},`+
+			`"z/c":{"name":{},"docs":{},"provenance":{"source":0}}}`)
+}
+
+// TestDocument_MessagesDeterministic pins Class C for Document's map-keyed
+// registry fields: Messages must marshal with keys in sorted order on every
+// run.
+func TestDocument_MessagesDeterministic(t *testing.T) {
+	t.Parallel()
+	doc := ir.Document{
+		Messages: map[ir.MessageID]ir.Message{"z/m": {}, "m/m": {}, "a/m": {}},
+	}
+	got := assertDeterministicMarshal(t, doc)
+	assert.Contains(t, got,
+		`"messages":{"a/m":{"name":{},"payload":{},"docs":{},"provenance":{"source":0}},`+
+			`"m/m":{"name":{},"payload":{},"docs":{},"provenance":{"source":0}},`+
+			`"z/m":{"name":{},"payload":{},"docs":{},"provenance":{"source":0}}}`)
+}
+
+// TestDocument_AuthDeterministic pins Class C for Document's map-keyed
+// registry fields: Auth must marshal with keys in sorted order on every run.
+func TestDocument_AuthDeterministic(t *testing.T) {
+	t.Parallel()
+	doc := ir.Document{
+		Auth: map[ir.AuthID]ir.AuthScheme{"z/a": {}, "m/a": {}, "a/a": {}},
+	}
+	got := assertDeterministicMarshal(t, doc)
+	assert.Contains(t, got,
+		`"auth":{"a/a":{"name":{},"docs":{},"provenance":{"source":0}},`+
+			`"m/a":{"name":{},"docs":{},"provenance":{"source":0}},`+
+			`"z/a":{"name":{},"docs":{},"provenance":{"source":0}}}`)
+}

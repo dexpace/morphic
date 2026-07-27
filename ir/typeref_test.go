@@ -10,21 +10,16 @@ import (
 	"github.com/dexpace/morphic/ir"
 )
 
-// TestTypeRef_ZeroValueShape pins the half of invariant #8 that lives on
+// TestTypeRef_JSONContract pins the half of invariant #8 that lives on
 // TypeRef: Nullable must serialize even when false, because "not nullable" is
 // a declared fact distinct from "unspecified" — there is no third state. If
 // `,omitempty` were added to Nullable, a non-nullable reference would
 // serialize identically to one that never set the field at all, and
-// TestTypeRef_NullableNeverOmitted below would catch it directly.
-func TestTypeRef_ZeroValueShape(t *testing.T) {
+// TestTypeRef_NullableNeverOmitted below would catch it directly. It also
+// pins that a populated TypeRef round-trips.
+func TestTypeRef_JSONContract(t *testing.T) {
 	t.Parallel()
-	assertZeroValueShape(t, ir.TypeRef{}, `{"target":"","nullable":false}`)
-}
-
-// TestTypeRef_PopulatedRoundTrip pins that a populated TypeRef round-trips.
-func TestTypeRef_PopulatedRoundTrip(t *testing.T) {
-	t.Parallel()
-	assertRoundTrip(t, populatedTypeRef())
+	assertJSONContract(t, ir.TypeRef{}, `{"target":"","nullable":false}`, populatedTypeRef())
 }
 
 // TestTypeRef_NullableNeverOmitted is the TypeRef half of the invariant #8

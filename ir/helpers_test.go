@@ -58,6 +58,50 @@ func assertDeterministicMarshal(t *testing.T, v any) string {
 	return string(first)
 }
 
+// assertJSONContract merges a type's Class A (zero-value shape) and Class B
+// (populated round-trip) checks into one call, replacing the two adjacent
+// TestX_ZeroValueShape/TestX_PopulatedRoundTrip functions most types in this
+// package used to need. Each half still runs in its own t.Run subtest rather
+// than sequentially inline — assertRoundTrip's require.NoError calls
+// t.FailNow, so without the subtest boundary a failure in the zero half would
+// abort the function before the round-trip half ever ran; two subtests
+// preserve the failure isolation the two separate top-level tests used to
+// give for free, and keep the TestX_ per-type naming this package's 1:1
+// X.go/X_test.go mapping depends on.
+func assertJSONContract[T any](t *testing.T, zero T, wantZeroJSON string, populated T) {
+	t.Helper()
+	t.Run("zero", func(t *testing.T) {
+		t.Parallel()
+		assertZeroValueShape(t, zero, wantZeroJSON)
+	})
+	t.Run("roundtrip", func(t *testing.T) {
+		t.Parallel()
+		assertRoundTrip(t, populated)
+	})
+}
+
+// assertConstantSpellings asserts that every entry of tests round-trips: the
+// map value is the on-disk wire spelling and the map key is the typed
+// constant it must convert back to, one subtest per entry (named after the
+// spelling, so a typo in one member's string never masks a typo in another's).
+// emptyName names the subtest for the member whose wire spelling is the empty
+// string, when tests has one — not every K's empty-string member spells
+// "unspecified" (IdempotencyKind's is documented "unknown"), so callers
+// supply their own rather than the helper guessing.
+func assertConstantSpellings[K ~string](t *testing.T, tests map[K]string, emptyName string) {
+	t.Helper()
+	for kind, want := range tests {
+		name := want
+		if name == "" {
+			name = emptyName
+		}
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			assert.Equal(t, K(want), kind)
+		})
+	}
+}
+
 // populatedNaming returns a Naming with every field non-zero, for embedding in
 // Class B fixtures.
 func populatedNaming() ir.Naming {
@@ -268,6 +312,26 @@ func assertTypeDefRoundTrip[T any](t *testing.T, want *T) {
 	require.NoError(t, json.Unmarshal(raw, got))
 	assert.Empty(t, cmp.Diff(want, got), "JSON round-trip must reproduce the original value")
 }
+
+// outOfOrderProtocolBindings returns a map[string]Extensions fixture whose
+// insertion order is not sorted, shared by every Class C test pinning that a
+// "namespace protocol -> raw config" bindings map marshals with sorted keys
+// (Server.Bindings, Channel.Bindings, Message.Bindings, MessageBinding.Bindings
+// all share this exact shape).
+func outOfOrderProtocolBindings() map[string]ir.Extensions {
+	return map[string]ir.Extensions{
+		"z-proto": {"k": ir.RawValue(`1`)},
+		"m-proto": {"k": ir.RawValue(`2`)},
+		"a-proto": {"k": ir.RawValue(`3`)},
+		"q-proto": {"k": ir.RawValue(`4`)},
+		"b-proto": {"k": ir.RawValue(`5`)},
+	}
+}
+
+// sortedProtocolBindingsJSON is outOfOrderProtocolBindings encoded with its
+// keys in sorted order — the substring every protocol-bindings determinism
+// test above asserts its marshaled fixture contains.
+const sortedProtocolBindingsJSON = `"bindings":{"a-proto":{"k":3},"b-proto":{"k":5},"m-proto":{"k":2},"q-proto":{"k":4},"z-proto":{"k":1}}`
 
 // populatedProperty returns a Property with every field non-zero, matching
 // the shape ir-design §5.1 describes and the zero-value list in the test

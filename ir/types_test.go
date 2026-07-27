@@ -10,51 +10,45 @@ import (
 	"github.com/dexpace/morphic/ir"
 )
 
-// TestTypeCommon_ZeroValueShape pins TypeCommon's omitempty contract. ID,
-// Name, Anonymous, Docs, Sensitive, and Provenance carry no omitempty because
-// every type-graph node has an identity, a naming, an anonymity flag, a docs
+// TestTypeCommon_JSONContract pins TypeCommon's omitempty contract. ID, Name,
+// Anonymous, Docs, Sensitive, and Provenance carry no omitempty because every
+// type-graph node has an identity, a naming, an anonymity flag, a docs
 // object, a sensitivity flag, and provenance; every other field is optional.
 // TypeCommon is embedded and inlined into all 11 concrete kinds, so this test
-// pins the shared portion of every one of their zero-value encodings.
-func TestTypeCommon_ZeroValueShape(t *testing.T) {
+// pins the shared portion of every one of their zero-value encodings. It also
+// pins that a fully populated TypeCommon round-trips.
+func TestTypeCommon_JSONContract(t *testing.T) {
 	t.Parallel()
-	assertZeroValueShape(t, ir.TypeCommon{},
-		`{"id":"","name":{},"anonymous":false,"docs":{},"sensitive":false,"provenance":{"source":0}}`)
-}
-
-// TestTypeCommon_PopulatedRoundTrip pins that a fully populated TypeCommon
-// round-trips.
-func TestTypeCommon_PopulatedRoundTrip(t *testing.T) {
-	t.Parallel()
-	want := ir.TypeCommon{
-		ID:               "t/openapi/components/schemas/User",
-		Name:             populatedNaming(),
-		Namespace:        []string{"com", "example"},
-		Anonymous:        true,
-		Docs:             populatedDocs(),
-		Tags:             []string{"users", "public"},
-		Sensitive:        true,
-		Access:           "internal",
-		Deprecation:      populatedDeprecation(),
-		Availability:     populatedAvailability(),
-		Usage:            ir.UsageInput | ir.UsageOutput,
-		WireNameByFormat: map[string]string{"xml": "User", "json": "user"},
-		MediaTypeHint:    "application/json",
-		XML:              populatedXMLHints(),
-		Examples: []ir.Example{
-			{Name: "ex1", Value: &ir.Value{Kind: ir.ValueString, Str: "v1"}},
-		},
-		Instantiation: &ir.TemplateInstantiation{
-			Template: "Page",
-			Args: []ir.TemplateArg{
-				{Type: &ir.TypeRef{Target: "t/item"}},
-				{Value: &ir.Value{Kind: ir.ValueNumber, Num: ir.BigVal("10")}},
+	assertJSONContract(t, ir.TypeCommon{},
+		`{"id":"","name":{},"anonymous":false,"docs":{},"sensitive":false,"provenance":{"source":0}}`,
+		ir.TypeCommon{
+			ID:               "t/openapi/components/schemas/User",
+			Name:             populatedNaming(),
+			Namespace:        []string{"com", "example"},
+			Anonymous:        true,
+			Docs:             populatedDocs(),
+			Tags:             []string{"users", "public"},
+			Sensitive:        true,
+			Access:           "internal",
+			Deprecation:      populatedDeprecation(),
+			Availability:     populatedAvailability(),
+			Usage:            ir.UsageInput | ir.UsageOutput,
+			WireNameByFormat: map[string]string{"xml": "User", "json": "user"},
+			MediaTypeHint:    "application/json",
+			XML:              populatedXMLHints(),
+			Examples: []ir.Example{
+				{Name: "ex1", Value: &ir.Value{Kind: ir.ValueString, Str: "v1"}},
 			},
-		},
-		Extensions: populatedExtensions(),
-		Provenance: populatedProvenance(),
-	}
-	assertRoundTrip(t, want)
+			Instantiation: &ir.TemplateInstantiation{
+				Template: "Page",
+				Args: []ir.TemplateArg{
+					{Type: &ir.TypeRef{Target: "t/item"}},
+					{Value: &ir.Value{Kind: ir.ValueNumber, Num: ir.BigVal("10")}},
+				},
+			},
+			Extensions: populatedExtensions(),
+			Provenance: populatedProvenance(),
+		})
 }
 
 // TestTypeCommon_WireNameByFormatDeterministic pins Class C for TypeCommon's
@@ -322,77 +316,32 @@ func TestAny_PopulatedRoundTrip(t *testing.T) {
 
 // TestTypeDef_CommonIsAnAliasNotACopy is the highest-value new test in this
 // file: Common() must return a pointer into the concrete struct's own
-// TypeCommon, not a pointer to a copy. A copying implementation would compile
-// and pass every other test in this package (including the JSON round-trip
-// tests above, which never call Common()), but would silently break any pass
-// that mutates a type's shared metadata (Usage flags, Availability, …) via
-// the TypeDef interface — exactly the pattern passes use.
+// TypeCommon, not a pointer to a copy (and, now that Common() is a single
+// method promoted from *TypeCommon rather than eleven per-kind methods, not a
+// pointer to some other kind's TypeCommon or a shared singleton either). A
+// copying or singleton implementation would compile and pass every other test
+// in this package (including the JSON round-trip tests above, which never
+// call Common()), but would silently break any pass that mutates a type's
+// shared metadata (Usage flags, Availability, …) via the TypeDef interface —
+// exactly the pattern passes use.
+//
+// The read-back deliberately goes through json.Marshal of the whole td rather
+// than through td.Common().ID again: re-reading via Common() would trivially
+// pass a shared-singleton mutant, since that would just report the same value
+// it was just written through. Marshaling td exercises each concrete kind's
+// own embedded TypeCommon field directly (json.go's MarshalJSON adapters), so
+// it only passes when Common() aliases that kind's real field.
 func TestTypeDef_CommonIsAnAliasNotACopy(t *testing.T) {
 	t.Parallel()
-	tests := []struct {
-		name  string
-		check func(t *testing.T)
-	}{
-		{"primitive", func(t *testing.T) {
-			td := &ir.Primitive{TypeCommon: ir.TypeCommon{ID: "t/x"}}
-			td.Common().ID = "t/y"
-			assert.Equal(t, ir.TypeID("t/y"), td.ID)
-		}},
-		{"scalar", func(t *testing.T) {
-			td := &ir.Scalar{TypeCommon: ir.TypeCommon{ID: "t/x"}}
-			td.Common().ID = "t/y"
-			assert.Equal(t, ir.TypeID("t/y"), td.ID)
-		}},
-		{"model", func(t *testing.T) {
-			td := &ir.Model{TypeCommon: ir.TypeCommon{ID: "t/x"}}
-			td.Common().ID = "t/y"
-			assert.Equal(t, ir.TypeID("t/y"), td.ID)
-		}},
-		{"union", func(t *testing.T) {
-			td := &ir.Union{TypeCommon: ir.TypeCommon{ID: "t/x"}}
-			td.Common().ID = "t/y"
-			assert.Equal(t, ir.TypeID("t/y"), td.ID)
-		}},
-		{"enum", func(t *testing.T) {
-			td := &ir.Enum{TypeCommon: ir.TypeCommon{ID: "t/x"}}
-			td.Common().ID = "t/y"
-			assert.Equal(t, ir.TypeID("t/y"), td.ID)
-		}},
-		{"list", func(t *testing.T) {
-			td := &ir.List{TypeCommon: ir.TypeCommon{ID: "t/x"}}
-			td.Common().ID = "t/y"
-			assert.Equal(t, ir.TypeID("t/y"), td.ID)
-		}},
-		{"map", func(t *testing.T) {
-			td := &ir.MapT{TypeCommon: ir.TypeCommon{ID: "t/x"}}
-			td.Common().ID = "t/y"
-			assert.Equal(t, ir.TypeID("t/y"), td.ID)
-		}},
-		{"tuple", func(t *testing.T) {
-			td := &ir.Tuple{TypeCommon: ir.TypeCommon{ID: "t/x"}}
-			td.Common().ID = "t/y"
-			assert.Equal(t, ir.TypeID("t/y"), td.ID)
-		}},
-		{"literal", func(t *testing.T) {
-			td := &ir.Literal{TypeCommon: ir.TypeCommon{ID: "t/x"}}
-			td.Common().ID = "t/y"
-			assert.Equal(t, ir.TypeID("t/y"), td.ID)
-		}},
-		{"external", func(t *testing.T) {
-			td := &ir.External{TypeCommon: ir.TypeCommon{ID: "t/x"}}
-			td.Common().ID = "t/y"
-			assert.Equal(t, ir.TypeID("t/y"), td.ID)
-		}},
-		{"any", func(t *testing.T) {
-			td := &ir.Any{TypeCommon: ir.TypeCommon{ID: "t/x"}}
-			td.Common().ID = "t/y"
-			assert.Equal(t, ir.TypeID("t/y"), td.ID)
-		}},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
+	for _, k := range allKinds {
+		t.Run(string(k), func(t *testing.T) {
 			t.Parallel()
-			tt.check(t)
+			td, ok := ir.NewTypeDef(k)
+			require.True(t, ok, "no concrete type registered for kind %q", k)
+			td.Common().ID = "t/y"
+			raw, err := json.Marshal(td)
+			require.NoError(t, err)
+			assert.Contains(t, string(raw), `"id":"t/y"`)
 		})
 	}
 }
@@ -402,7 +351,7 @@ func TestTypeDef_CommonIsAnAliasNotACopy(t *testing.T) {
 // golden IR snapshot; a typo fix later would be a silent breaking change.
 func TestPrimKind_Constants(t *testing.T) {
 	t.Parallel()
-	tests := map[ir.PrimKind]string{
+	assertConstantSpellings(t, map[ir.PrimKind]string{
 		ir.PrimBool:           "bool",
 		ir.PrimString:         "string",
 		ir.PrimBytes:          "bytes",
@@ -429,103 +378,63 @@ func TestPrimKind_Constants(t *testing.T) {
 		ir.PrimURL:            "url",
 		ir.PrimUUID:           "uuid",
 		ir.PrimAny:            "any",
-	}
-	for kind, want := range tests {
-		t.Run(want, func(t *testing.T) {
-			t.Parallel()
-			assert.Equal(t, ir.PrimKind(want), kind)
-		})
-	}
+	}, "unspecified")
 }
 
 // TestAdditionalMode_Constants pins the on-disk spelling of every
 // AdditionalMode value, including the empty-string "unspecified" state.
 func TestAdditionalMode_Constants(t *testing.T) {
 	t.Parallel()
-	tests := map[ir.AdditionalMode]string{
+	assertConstantSpellings(t, map[ir.AdditionalMode]string{
 		ir.AdditionalUnspecified:            "",
 		ir.AdditionalClosed:                 "closed",
 		ir.AdditionalClosedAfterComposition: "closed_after_composition",
-	}
-	for mode, want := range tests {
-		name := want
-		if name == "" {
-			name = "unspecified"
-		}
-		t.Run(name, func(t *testing.T) {
-			t.Parallel()
-			assert.Equal(t, ir.AdditionalMode(want), mode)
+	}, "unspecified")
+}
+
+// TestWireIDRange_JSONContract pins WireIDRange's contract that both bounds
+// carry no omitempty and that a populated WireIDRange round-trips.
+func TestWireIDRange_JSONContract(t *testing.T) {
+	t.Parallel()
+	assertJSONContract(t, ir.WireIDRange{}, `{"from":0,"to":0}`, ir.WireIDRange{From: 100, To: 199})
+}
+
+// TestAdditionalProps_JSONContract pins AdditionalProps' contract that Value
+// carries no omitempty (a catch-all always has a value schema) and that a
+// fully populated AdditionalProps — key schema and pattern-scoped value
+// schemas — round-trips.
+func TestAdditionalProps_JSONContract(t *testing.T) {
+	t.Parallel()
+	assertJSONContract(t, ir.AdditionalProps{}, `{"value":{"target":"","nullable":false}}`,
+		ir.AdditionalProps{
+			Value: populatedTypeRef(),
+			Key:   &ir.TypeRef{Target: "t/prim/string"},
+			Patterns: []ir.PatternProps{
+				{Pattern: "^x-", Value: populatedTypeRef()},
+				{Pattern: "^y-", Value: ir.TypeRef{Target: "t/prim/int32"}},
+			},
 		})
-	}
 }
 
-// TestWireIDRange_ZeroValueShape pins WireIDRange's contract that both bounds
-// carry no omitempty.
-func TestWireIDRange_ZeroValueShape(t *testing.T) {
+// TestPatternProps_JSONContract pins PatternProps' contract that both fields
+// carry no omitempty and that a populated PatternProps round-trips.
+func TestPatternProps_JSONContract(t *testing.T) {
 	t.Parallel()
-	assertZeroValueShape(t, ir.WireIDRange{}, `{"from":0,"to":0}`)
+	assertJSONContract(t, ir.PatternProps{}, `{"pattern":"","value":{"target":"","nullable":false}}`,
+		ir.PatternProps{Pattern: "^x-", Value: populatedTypeRef()})
 }
 
-// TestWireIDRange_PopulatedRoundTrip pins that a populated WireIDRange
-// round-trips.
-func TestWireIDRange_PopulatedRoundTrip(t *testing.T) {
-	t.Parallel()
-	assertRoundTrip(t, ir.WireIDRange{From: 100, To: 199})
-}
-
-// TestAdditionalProps_ZeroValueShape pins AdditionalProps' contract that
-// Value carries no omitempty: a catch-all always has a value schema.
-func TestAdditionalProps_ZeroValueShape(t *testing.T) {
-	t.Parallel()
-	assertZeroValueShape(t, ir.AdditionalProps{}, `{"value":{"target":"","nullable":false}}`)
-}
-
-// TestAdditionalProps_PopulatedRoundTrip pins that a fully populated
-// AdditionalProps — key schema and pattern-scoped value schemas — round-trips.
-func TestAdditionalProps_PopulatedRoundTrip(t *testing.T) {
-	t.Parallel()
-	want := ir.AdditionalProps{
-		Value: populatedTypeRef(),
-		Key:   &ir.TypeRef{Target: "t/prim/string"},
-		Patterns: []ir.PatternProps{
-			{Pattern: "^x-", Value: populatedTypeRef()},
-			{Pattern: "^y-", Value: ir.TypeRef{Target: "t/prim/int32"}},
-		},
-	}
-	assertRoundTrip(t, want)
-}
-
-// TestPatternProps_ZeroValueShape pins PatternProps' contract that both
-// fields carry no omitempty.
-func TestPatternProps_ZeroValueShape(t *testing.T) {
-	t.Parallel()
-	assertZeroValueShape(t, ir.PatternProps{}, `{"pattern":"","value":{"target":"","nullable":false}}`)
-}
-
-// TestPatternProps_PopulatedRoundTrip pins that a populated PatternProps
-// round-trips.
-func TestPatternProps_PopulatedRoundTrip(t *testing.T) {
-	t.Parallel()
-	assertRoundTrip(t, ir.PatternProps{Pattern: "^x-", Value: populatedTypeRef()})
-}
-
-// TestDiscriminator_ZeroValueShape pins Discriminator's contract that
-// Inferred carries no omitempty ("not heuristically inferred" is a declared
-// fact, not an absence — the same reasoning invariant #8 applies elsewhere in
-// the package), while Default and every locator field stay optional.
-func TestDiscriminator_ZeroValueShape(t *testing.T) {
-	t.Parallel()
-	assertZeroValueShape(t, ir.Discriminator{}, `{"inferred":false}`)
-}
-
-// TestDiscriminator_PopulatedRoundTrip pins that a fully populated
-// Discriminator — property-based, index-based, and mapping/default/envelope
-// fields simultaneously populated purely to exercise every field — round-
-// trips.
-func TestDiscriminator_PopulatedRoundTrip(t *testing.T) {
+// TestDiscriminator_JSONContract pins Discriminator's contract that Inferred
+// carries no omitempty ("not heuristically inferred" is a declared fact, not
+// an absence — the same reasoning invariant #8 applies elsewhere in the
+// package), while Default and every locator field stay optional, and that a
+// fully populated Discriminator — property-based, index-based, and
+// mapping/default/envelope fields simultaneously populated purely to
+// exercise every field — round-trips.
+func TestDiscriminator_JSONContract(t *testing.T) {
 	t.Parallel()
 	idx := 0
-	want := ir.Discriminator{
+	assertJSONContract(t, ir.Discriminator{}, `{"inferred":false}`, ir.Discriminator{
 		Property:          "p/kind",
 		PropertyName:      "kind",
 		Index:             &idx,
@@ -534,8 +443,7 @@ func TestDiscriminator_PopulatedRoundTrip(t *testing.T) {
 		Envelope:          "object",
 		EnvelopeValueName: "value",
 		Inferred:          true,
-	}
-	assertRoundTrip(t, want)
+	})
 }
 
 // TestDiscriminator_MappingDeterministic pins Class C for Discriminator's map
@@ -552,96 +460,71 @@ func TestDiscriminator_MappingDeterministic(t *testing.T) {
 		`"mapping":{"a-tag":"t/A","b-tag":"t/B","m-tag":"t/M","q-tag":"t/Q","z-tag":"t/Z"}`)
 }
 
-// TestVariant_ZeroValueShape pins Variant's omitempty contract: Name, Type,
-// and Docs carry no omitempty; every other field is optional.
-func TestVariant_ZeroValueShape(t *testing.T) {
-	t.Parallel()
-	assertZeroValueShape(t, ir.Variant{}, `{"name":{},"type":{"target":"","nullable":false},"docs":{}}`)
-}
-
-// TestVariant_PopulatedRoundTrip pins that a fully populated Variant round-
-// trips.
-func TestVariant_PopulatedRoundTrip(t *testing.T) {
+// TestVariant_JSONContract pins Variant's omitempty contract (Name, Type, and
+// Docs carry no omitempty; every other field is optional) and that a fully
+// populated Variant round-trips.
+func TestVariant_JSONContract(t *testing.T) {
 	t.Parallel()
 	wireID := 3
-	want := ir.Variant{
-		Name:         populatedNaming(),
-		Type:         populatedTypeRef(),
-		WireName:     "dog_variant",
-		WireID:       &wireID,
-		XML:          populatedXMLHints(),
-		Event:        &ir.EventInfo{ContentType: "application/json", Terminal: true},
-		Docs:         populatedDocs(),
-		Deprecation:  populatedDeprecation(),
-		Availability: populatedAvailability(),
-		Examples: []ir.Example{
-			{Name: "ex1", Value: &ir.Value{Kind: ir.ValueString, Str: "v1"}},
-		},
-		Extensions: populatedExtensions(),
-	}
-	assertRoundTrip(t, want)
+	assertJSONContract(t, ir.Variant{}, `{"name":{},"type":{"target":"","nullable":false},"docs":{}}`,
+		ir.Variant{
+			Name:         populatedNaming(),
+			Type:         populatedTypeRef(),
+			WireName:     "dog_variant",
+			WireID:       &wireID,
+			XML:          populatedXMLHints(),
+			Event:        &ir.EventInfo{ContentType: "application/json", Terminal: true},
+			Docs:         populatedDocs(),
+			Deprecation:  populatedDeprecation(),
+			Availability: populatedAvailability(),
+			Examples: []ir.Example{
+				{Name: "ex1", Value: &ir.Value{Kind: ir.ValueString, Str: "v1"}},
+			},
+			Extensions: populatedExtensions(),
+		})
 }
 
-// TestEventInfo_ZeroValueShape pins EventInfo's contract that Terminal
-// carries no omitempty.
-func TestEventInfo_ZeroValueShape(t *testing.T) {
+// TestEventInfo_JSONContract pins EventInfo's contract that Terminal carries
+// no omitempty and that a populated EventInfo round-trips.
+func TestEventInfo_JSONContract(t *testing.T) {
 	t.Parallel()
-	assertZeroValueShape(t, ir.EventInfo{}, `{"terminal":false}`)
+	assertJSONContract(t, ir.EventInfo{}, `{"terminal":false}`,
+		ir.EventInfo{ContentType: "application/json", Terminal: true})
 }
 
-// TestEventInfo_PopulatedRoundTrip pins that a populated EventInfo round-
-// trips.
-func TestEventInfo_PopulatedRoundTrip(t *testing.T) {
+// TestEnumMember_JSONContract pins EnumMember's omitempty contract (Name,
+// Value, and Docs carry no omitempty; every other field is optional) and that
+// a fully populated EnumMember round-trips.
+func TestEnumMember_JSONContract(t *testing.T) {
 	t.Parallel()
-	assertRoundTrip(t, ir.EventInfo{ContentType: "application/json", Terminal: true})
+	assertJSONContract(t, ir.EnumMember{},
+		`{"name":{},"value":{"kind":"","bytes":null,"list":null,"object":null},"docs":{}}`,
+		ir.EnumMember{
+			Name:         populatedNaming(),
+			Value:        ir.Value{Kind: ir.ValueString, Str: "active"},
+			WireName:     "ACTIVE",
+			Docs:         populatedDocs(),
+			Deprecation:  populatedDeprecation(),
+			Availability: populatedAvailability(),
+			Examples: []ir.Example{
+				{Name: "ex1", Value: &ir.Value{Kind: ir.ValueString, Str: "active"}},
+			},
+			Extensions: populatedExtensions(),
+		})
 }
 
-// TestEnumMember_ZeroValueShape pins EnumMember's omitempty contract: Name,
-// Value, and Docs carry no omitempty; every other field is optional.
-func TestEnumMember_ZeroValueShape(t *testing.T) {
-	t.Parallel()
-	assertZeroValueShape(t, ir.EnumMember{},
-		`{"name":{},"value":{"kind":"","bytes":null,"list":null,"object":null},"docs":{}}`)
-}
-
-// TestEnumMember_PopulatedRoundTrip pins that a fully populated EnumMember
-// round-trips.
-func TestEnumMember_PopulatedRoundTrip(t *testing.T) {
-	t.Parallel()
-	want := ir.EnumMember{
-		Name:         populatedNaming(),
-		Value:        ir.Value{Kind: ir.ValueString, Str: "active"},
-		WireName:     "ACTIVE",
-		Docs:         populatedDocs(),
-		Deprecation:  populatedDeprecation(),
-		Availability: populatedAvailability(),
-		Examples: []ir.Example{
-			{Name: "ex1", Value: &ir.Value{Kind: ir.ValueString, Str: "active"}},
-		},
-		Extensions: populatedExtensions(),
-	}
-	assertRoundTrip(t, want)
-}
-
-// TestTemplateInstantiation_ZeroValueShape pins TemplateInstantiation's
-// omitempty contract: both fields are optional.
-func TestTemplateInstantiation_ZeroValueShape(t *testing.T) {
-	t.Parallel()
-	assertZeroValueShape(t, ir.TemplateInstantiation{}, `{}`)
-}
-
-// TestTemplateInstantiation_PopulatedRoundTrip pins that a fully populated
+// TestTemplateInstantiation_JSONContract pins TemplateInstantiation's
+// omitempty contract (both fields are optional) and that a fully populated
 // TemplateInstantiation round-trips.
-func TestTemplateInstantiation_PopulatedRoundTrip(t *testing.T) {
+func TestTemplateInstantiation_JSONContract(t *testing.T) {
 	t.Parallel()
-	want := ir.TemplateInstantiation{
+	assertJSONContract(t, ir.TemplateInstantiation{}, `{}`, ir.TemplateInstantiation{
 		Template: "Page",
 		Args: []ir.TemplateArg{
 			{Type: &ir.TypeRef{Target: "t/item"}},
 			{Value: &ir.Value{Kind: ir.ValueNumber, Num: ir.BigVal("10")}},
 		},
-	}
-	assertRoundTrip(t, want)
+	})
 }
 
 // TestTemplateArg_ZeroValueShape pins TemplateArg's omitempty contract: both

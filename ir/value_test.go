@@ -1,11 +1,7 @@
 package ir_test
 
 import (
-	"encoding/json"
 	"testing"
-
-	"github.com/google/go-cmp/cmp"
-	"github.com/stretchr/testify/require"
 
 	"github.com/dexpace/morphic/ir"
 )
@@ -40,13 +36,7 @@ func TestValue_JSONRoundTrip(t *testing.T) {
 	for name, v := range cases {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
-			raw, err := json.Marshal(v)
-			require.NoError(t, err)
-			var back ir.Value
-			require.NoError(t, json.Unmarshal(raw, &back))
-			if diff := cmp.Diff(v, back); diff != "" {
-				t.Errorf("round-trip mismatch (-want +got):\n%s", diff)
-			}
+			assertRoundTrip(t, v)
 		})
 	}
 }
