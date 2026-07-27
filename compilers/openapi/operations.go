@@ -430,10 +430,9 @@ func (l *lowerer) lowerCallbackOps(pi *soa.PathItem, cbPtr, expr, inferred strin
 	return ids, ops
 }
 
-// sourcedParam pairs a parameter with the JSON pointer of the position it is
-// declared at. Path-item-level parameters are merged into every operation on the
-// path item, so the declaration pointer has to travel with the parameter rather
-// than be recomputed from the operation's own index space.
+// sourcedParam pairs a parameter with its own declaration pointer, because
+// path-item parameters are merged into every operation on the path item and so
+// cannot borrow the operation's index space.
 type sourcedParam struct {
 	ref     *soa.ReferencedParameter
 	pointer string
@@ -442,35 +441,29 @@ type sourcedParam struct {
 // mergeParameters merges path-item parameters with operation parameters using
 // use-site precedence: an operation parameter with the same (name, in) overrides
 // the path-item one; unshadowed path-item parameters follow in source order.
-// Each returned entry keeps the pointer of its own declaration site (pathPointer
-// or opPointer) rather than a position recomputed from the merged slice, so a
-// parameter declared once on the path item keeps one pointer no matter how many
-// operations it is merged into (issue #36).
+// Each entry keeps the pointer of its own declaration site rather than a
+// position recomputed from the merged slice (issue #36).
 func mergeParameters(pathParams, opParams []*soa.ReferencedParameter, pathPointer, opPointer string) []sourcedParam {
-	opSourced := sourceParams(opParams, opPointer)
-	if len(pathParams) == 0 {
-		return opSourced
-	}
-	shadowed := shadowedKeys(opParams)
 	merged := make([]sourcedParam, 0, len(opParams)+len(pathParams))
-	merged = append(merged, opSourced...)
-	for _, sp := range sourceParams(pathParams, pathPointer) {
-		if key, ok := paramKey(sp.ref); ok && shadowed[key] {
-			continue
-		}
-		merged = append(merged, sp)
+	merged = appendSourced(merged, opParams, opPointer, nil)
+	if len(pathParams) == 0 {
+		return merged
 	}
-	return merged
+	return appendSourced(merged, pathParams, pathPointer, shadowedKeys(opParams))
 }
 
-// sourceParams pairs each parameter in params with the pointer of its own
-// declaration position under base.
-func sourceParams(params []*soa.ReferencedParameter, base string) []sourcedParam {
-	out := make([]sourcedParam, len(params))
+// appendSourced appends params to dst, pairing each with the pointer of its own
+// declaration position under base and skipping any whose (name, in) key is in
+// shadowed. A nil shadowed map reads as all-false, which is what the operation
+// side passes: operation parameters are never shadowed.
+func appendSourced(dst []sourcedParam, params []*soa.ReferencedParameter, base string, shadowed map[string]bool) []sourcedParam {
 	for i, p := range params {
-		out[i] = sourcedParam{ref: p, pointer: base + ptr("parameters", strconv.Itoa(i))}
+		if key, ok := paramKey(p); ok && shadowed[key] {
+			continue
+		}
+		dst = append(dst, sourcedParam{ref: p, pointer: base + ptr("parameters", strconv.Itoa(i))})
 	}
-	return out
+	return dst
 }
 
 // shadowedKeys returns the (in, name) identities declared by opParams, so a

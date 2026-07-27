@@ -11,9 +11,8 @@ import (
 // operation) into logical Parameters and their HTTP wire bindings, in source
 // order (ir-design §7.2, §8.1). The logical side carries the protocol-neutral
 // input; the binding side carries the location, style, and explode facts. Each
-// parameter lowers at its own declaration pointer (sp.pointer): the path item's
-// pointer for one merged in from there, the operation's for one declared
-// directly on it — never a pointer recomputed from this list's index.
+// parameter lowers at its own declaration pointer, never one recomputed from
+// this list's index.
 func (l *lowerer) lowerParameters(params []sourcedParam) ([]ir.Parameter, []ir.HTTPParamBinding) {
 	if len(params) == 0 {
 		return nil, nil

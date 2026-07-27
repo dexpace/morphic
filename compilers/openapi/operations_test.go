@@ -278,14 +278,10 @@ func TestParameters_PathItemSharedAcrossOperationsInternsOnce(t *testing.T) {
         - {name: force, in: query, schema: {type: boolean}}
       responses: {"200": {description: ok}}
 `)
-	doc, svc, diags := lowerServiceSpec(t, spec)
+	doc, _, diags := lowerServiceSpec(t, spec)
 	requireNoErrorDiags(t, diags)
-	require.Len(t, svc.Groups, 1)
-	ops := indexBy(svc.Groups[0].Operations, func(op ir.Operation) string { return op.Name.Source })
-	getPet, ok := ops["getPet"]
-	require.True(t, ok)
-	deletePet, ok := ops["deletePet"]
-	require.True(t, ok)
+	getPet := findOp(t, doc, "getPet")
+	deletePet := findOp(t, doc, "deletePet")
 	require.Len(t, getPet.Params, 1, "get inherits only the shared path-item parameter")
 	require.Len(t, deletePet.Params, 2, "delete gets its own force plus the shared path-item parameter")
 
@@ -366,18 +362,9 @@ webhooks:
       operationId: onPetEvent
       responses: {"200": {description: ok}}
 `
-	doc, svc, diags := lowerServiceSpec(t, spec)
+	doc, _, diags := lowerServiceSpec(t, spec)
 	requireNoErrorDiags(t, diags)
-	var group ir.OperationGroup
-	found := false
-	for _, g := range svc.Groups {
-		if g.Name.Source == "webhooks" {
-			group, found = g, true
-		}
-	}
-	require.True(t, found, "webhook operations land in the webhooks group")
-	require.Len(t, group.Operations, 1)
-	op := group.Operations[0]
+	op := findOp(t, doc, "onPetEvent")
 	require.Len(t, op.Params, 1)
 
 	wantID := ir.TypeID("t/anon/webhooks/petEvent/parameters/0/schema")
@@ -408,12 +395,9 @@ func TestParameters_CallbackPathItemParameterPointer(t *testing.T) {
               responses: {"200": {description: ok}}
       responses: {"200": {description: ok}}
 `)
-	doc, svc, diags := lowerServiceSpec(t, spec)
+	doc, _, diags := lowerServiceSpec(t, spec)
 	requireNoErrorDiags(t, diags)
-	require.Len(t, svc.Groups, 1)
-	byName := indexBy(svc.Groups[0].Operations, func(op ir.Operation) string { return op.Name.Source })
-	cbOp, ok := byName["onEvent"]
-	require.True(t, ok, "the callback operation is registered alongside its parent")
+	cbOp := findOp(t, doc, "onEvent")
 	require.Len(t, cbOp.Params, 1)
 
 	wantPointer := "/paths/~1subscribe/post/callbacks/onEvent/{$request.body#~1callbackUrl}/parameters/0/schema"
