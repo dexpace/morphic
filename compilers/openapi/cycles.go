@@ -15,6 +15,29 @@ import (
 // specs nest far shallower, so the cap only ever fires on a detector bug.
 const maxCycleDepth = 10000
 
+// maxMergeDepth bounds how deep a chain of `<<` merge keys the mapping view
+// expands. It is far tighter than maxCycleDepth because the two bounds guard
+// different costs: plain nesting is cheap to descend, whereas every merge level
+// re-materializes each pair the levels beneath it contributed, so expanding a
+// chain of depth d costs O(d²) and retains as much. Keeping d small is what
+// makes an over-deep chain harmless — the scan simply stops expanding it, at a
+// cost bounded by this constant rather than by the document — and a merge chain
+// this deep is already unreachable by hand or by any generator, which nest one
+// or two levels. A document that reaches it is reported through a
+// codeCycleScanFailed warning; see nodeView.expand and refCycles.
+const maxMergeDepth = 64
+
+// maxCachedPairs bounds how many expanded pairs one nodeView retains, which is
+// what turns the cache from an open-ended cost into a stated one: the scan holds
+// at most this many pairs no matter what it is given, roughly 50 MB at 2²¹.
+// maxMergeDepth already bounds any single mapping's expansion, so reaching this
+// budget takes a document with a great many merged mappings rather than one deep
+// chain — the two bounds cover different shapes and neither subsumes the other.
+// Past the budget the view still answers every query correctly, only without
+// memoizing further expansions, because declining to cache costs a recomputation
+// and nothing else.
+const maxCachedPairs = 1 << 21
+
 // The pure-$ref scan visits schema positions only, because the unrecoverable
 // stack overflow is specific to speakeasy's schema resolver: a pure-$ref cycle
 // among components/responses (or any non-schema reference object) is caught by
@@ -131,10 +154,7 @@ func scanCycles(srcIndex int, data []byte) []ir.Diagnostic {
 	if d, ok := anchorCycle(srcIndex, docRoot); ok {
 		return []ir.Diagnostic{d}
 	}
-	if d, ok := refCycle(srcIndex, docRoot); ok {
-		return []ir.Diagnostic{d}
-	}
-	return nil
+	return refCycles(srcIndex, docRoot)
 }
 
 // documentRoot returns the effective root node to scan: the content of a
@@ -193,19 +213,34 @@ func anchorName(alias *yaml.Node) string {
 	return alias.Value
 }
 
-// refCycle reports the first pure-$ref cycle: a chain of schema $refs, followed
+// refCycles reports the first pure-$ref cycle: a chain of schema $refs, followed
 // until it returns to a node already on the chain without ever reaching a node
 // that carries no top-level $ref. A $ref that reaches such a node terminates the
 // chain and is not a cycle — that is exactly where speakeasy stops resolving.
-func refCycle(srcIndex int, root *yaml.Node) (ir.Diagnostic, bool) {
+//
+// A scan whose mapping view hit maxMergeDepth yields a codeCycleScanFailed
+// warning in place of the clean nil. Truncating an expansion only ever drops
+// pairs, and a dropped pair can only make a chain terminate earlier or a pointer
+// dangle — never invent an edge — so a cycle found despite the truncation is
+// still real and is reported as the error, while a clean result is only "no
+// cycle found in what could be expanded", which the warning says out loud.
+func refCycles(srcIndex int, root *yaml.Node) []ir.Diagnostic {
 	s := newRefScan()
 	s.collect(root)
 	for _, start := range s.out {
 		if s.followRefChain(root, start) {
-			return cyclicDiag(srcIndex, start, "cyclic $ref: reference chain never reaches a node without a $ref"), true
+			return []ir.Diagnostic{cyclicDiag(srcIndex, start,
+				"cyclic $ref: reference chain never reaches a node without a $ref")}
 		}
 	}
-	return ir.Diagnostic{}, false
+	if s.view.exhausted {
+		return []ir.Diagnostic{diagf(ir.SeverityWarning, codeCycleScanFailed,
+			ir.Provenance{Source: srcIndex},
+			"cycle pre-scan stopped at its %d-level merge-key expansion bound; "+
+				"reference-cycle protection is incomplete for this source",
+			maxMergeDepth)}
+	}
+	return nil
 }
 
 // walkRole is how the ref-collection walk reads the node it is visiting. The
@@ -231,7 +266,7 @@ type refTask struct {
 	role walkRole
 }
 
-// refScan holds the state of one pure-$ref cycle search: the decoder-faithful
+// refScan holds the state of one pure-$ref cycle search: the resolver-faithful
 // view of the source tree, the worklist and per-role visited sets of the
 // collection walk, the collected pure-$ref nodes, and the chain walk's
 // memo of nodes already proven to terminate.
@@ -282,8 +317,15 @@ func (s *refScan) collect(root *yaml.Node) {
 			s.visitSchema(t.n)
 		case roleSchemaMap:
 			s.visitSchemaMap(t.n)
-		default: // roleSchemaList
+		case roleSchemaList:
 			s.visitSchemaList(t.n)
+		default:
+			// Unreachable by construction: push is the only producer of tasks
+			// and every declared role has a case above. A role added without
+			// one is a programmer error, so fail loudly rather than silently
+			// walking it as the wrong kind of node — recoverCycleScan turns
+			// this into the codeCycleScanFailed warning, never a crash.
+			panic(fmt.Sprintf("cycle scan: unhandled walk role %d", t.role))
 		}
 	}
 }
@@ -432,22 +474,27 @@ type yamlPair struct {
 	val *yaml.Node
 }
 
-// nodeView reads a raw yaml.Node tree the way the YAML decoder reads it: alias
-// keys and values dereferenced, `<<` merge keys expanded. The pre-parse scan
-// works on the raw tree while speakeasy's resolver works on the decoded one, and
-// every gap between the two models is a cycle that reaches the resolver and
-// faults the process (GitHub #26) — so every read of a mapping in this file goes
-// through a nodeView.
+// nodeView reads a raw yaml.Node tree the way speakeasy's unmarshaller reads it:
+// alias keys and values dereferenced, `<<` merge keys expanded (yml.ResolveAlias
+// and yml.ResolveMergeKeys, applied per mapping in marshaller/unmarshaller.go).
+// The pre-parse scan works on the raw tree while speakeasy's resolver works on
+// the resolved one, and every gap between the two models is a cycle that reaches
+// the resolver and faults the process (GitHub #26) — so every read of a mapping
+// in this file goes through a nodeView.
 //
 // It memoizes each mapping's expansion for the lifetime of one scan. Without
 // that, a merge chain (&m1 {a: 1}, &m2 {<<: *m1, b: 2}, ...) costs O(n) per
 // expansion and O(n) expansions per walk, and the scan goes cubic in the chain
 // length — a hang where the bug being fixed was a crash. A cached expansion is
 // always the depth-0 expansion of that node, so it is independent of the path
-// that first reached it.
+// that first reached it. Both the depth of a merge chain and the size of the
+// cache are explicitly bounded (maxMergeDepth, maxCachedPairs): a view that
+// memoized without limit trades the crash for exhausted memory instead.
 type nodeView struct {
-	pairs    map[*yaml.Node][]yamlPair
-	inFlight map[*yaml.Node]bool
+	pairs       map[*yaml.Node][]yamlPair
+	cachedPairs int
+	inFlight    map[*yaml.Node]bool
+	exhausted   bool
 }
 
 // newNodeView returns an empty view; a view must not outlive the node tree whose
@@ -460,25 +507,49 @@ func newNodeView() *nodeView {
 }
 
 // mappingPairs returns the effective pairs of a mapping node. Precedence follows
-// yaml.v3: an explicit key beats one contributed by a merge wherever the `<<`
-// appears in the mapping, and within a merge sequence an earlier source beats a
-// later one on a shared key. Duplicate explicit keys are invalid YAML;
-// first-occurrence-wins there matches the single-$ref case the scan needs. n is
-// dereferenced by this call, so an alias standing in for a whole mapping can be
-// passed directly; a node that is not a mapping (including nil) yields no pairs.
+// speakeasy's resolveMergeKeys: an explicit key beats one contributed by a merge
+// wherever the `<<` appears in the mapping, and within a merge sequence an
+// earlier source beats a later one on a shared key. On a duplicate explicit key
+// the first wins, matching yml.GetMapElementNodes, which returns the first match
+// in source order — the only case the scan cares about, since that is how a
+// repeated $ref would be read.
+//
+// n is dereferenced by this call, so an alias standing in for a whole mapping can
+// be passed directly; a node that is not a mapping (including nil) yields no
+// pairs. The returned slice is the view's own memo: callers must treat it as
+// read-only, or a later read of the same node sees the mutation.
 func (v *nodeView) mappingPairs(n *yaml.Node) []yamlPair {
 	pairs, _ := v.expand(deref(n), 0)
 	return pairs
 }
 
 // expand returns n's effective pairs and reports whether the expansion is
-// complete — false when a merge cycle had to be broken or the depth cap was hit.
-// Only a complete expansion is cached: an incomplete one is missing pairs that a
-// different entry point would have supplied, and caching it would let one
-// traversal order silently lose a $ref another would find. An incomplete
-// expansion is recomputed on every call, so a document past either bound costs
-// O(n) per expansion again; anchorCycle rejects the self-referential-merge
-// documents that reach the in-flight bound before refCycle ever runs.
+// complete — false when a merge cycle had to be broken or maxMergeDepth was
+// reached. Only a complete expansion is memoized: an incomplete one is missing
+// pairs that a different entry point would have supplied, and caching it would
+// let one traversal order silently lose a $ref another would find.
+//
+// Neither incomplete case is contagious: expansion is refused for the one node
+// that hit a bound, and every other mapping in the document still expands in
+// full. That matters more than it looks. Truncation is only ever safe in one
+// direction — dropping pairs can make a chain terminate early or a pointer
+// dangle, never invent an edge — so a truncated node costs coverage, and letting
+// one over-deep chain switch the whole view off would hand an attacker a way to
+// disable the scan for a document by prefixing it with one. Recording that it
+// happened is refCycles' job, via the exhausted flag.
+//
+// An incomplete expansion is still memoized when it was entered at depth 0,
+// because there it is a deterministic function of n alone: a depth-0 entry finds
+// no expansion in flight, so nothing about the caller can change what it
+// produces. Reached from inside a chain it is not — how much of the chain below
+// survived depends on how far down the entry was — and memoizing that would let
+// one traversal order lose a $ref another would find. Since every walk-level
+// read enters at depth 0, this is what keeps a truncated chain from re-expanding
+// once per node that references it.
+//
+// The in-flight case needs no bound of its own: a merge cycle requires an alias
+// to an ancestor, which anchorCycle refuses before refCycles ever runs, so it is
+// unreachable from a parsed document.
 func (v *nodeView) expand(n *yaml.Node, depth int) ([]yamlPair, bool) {
 	if n == nil || n.Kind != yaml.MappingNode {
 		return nil, true
@@ -486,7 +557,11 @@ func (v *nodeView) expand(n *yaml.Node, depth int) ([]yamlPair, bool) {
 	if cached, ok := v.pairs[n]; ok {
 		return cached, true
 	}
-	if v.inFlight[n] || depth > maxCycleDepth {
+	if v.inFlight[n] {
+		return nil, false
+	}
+	if depth > maxMergeDepth {
+		v.exhausted = true
 		return nil, false
 	}
 
@@ -494,10 +569,29 @@ func (v *nodeView) expand(n *yaml.Node, depth int) ([]yamlPair, bool) {
 	pairs, complete := v.expandContent(n, depth)
 	delete(v.inFlight, n)
 
-	if complete {
-		v.pairs[n] = pairs
+	if complete || v.isEntryPoint(depth) {
+		v.memoize(n, pairs)
 	}
 	return pairs, complete
+}
+
+// isEntryPoint reports whether an expansion that just finished at this depth was
+// the outermost one, with no other expansion of the same view in flight around
+// it — the condition under which even a truncated result is reproducible.
+func (v *nodeView) isEntryPoint(depth int) bool {
+	return depth == 0 && len(v.inFlight) == 0
+}
+
+// memoize retains a complete expansion while the view's pair budget allows.
+// Declining to cache costs a recomputation and nothing else — the cache is pure
+// memoization, so a miss recomputes exactly the same pairs — which makes the
+// budget a memory bound the scan can enforce without touching what it reports.
+func (v *nodeView) memoize(n *yaml.Node, pairs []yamlPair) {
+	if v.cachedPairs+len(pairs) > maxCachedPairs {
+		return
+	}
+	v.pairs[n] = pairs
+	v.cachedPairs += len(pairs)
 }
 
 // expandContent splits a mapping's raw content into the pairs it declares itself
@@ -542,17 +636,30 @@ func (v *nodeView) mergeSource(val *yaml.Node, depth int) ([]yamlPair, bool) {
 	return dedupeFirstWins(out), complete
 }
 
+// mergeTag is the tag yaml.v3 resolves every `<<` merge key to, and the exact
+// tag speakeasy's yml.IsMergeKey requires before treating one as a merge.
+const mergeTag = "!!merge"
+
 // isMergeKey reports whether a raw mapping key node is a `<<` merge key, applying
-// the same test as yaml.v3's decoder (isMerge in decode.go). The key is examined
-// undereferenced and its tag is checked, because both matter: an alias standing
-// in for the key, and a quoted '<<' (tag !!str), are ordinary keys to the
-// decoder. Treating either as a merge would expand pairs no decoder ever sees and
-// could refuse a document that parses cleanly.
+// the same test as the library that consumes the document: speakeasy's
+// yml.IsMergeKey (yml/yml.go), which its marshaller runs over every mapping it
+// unmarshals by way of yml.ResolveMergeKeys. The key is examined undereferenced
+// and its resolved tag is checked, because both matter: an alias standing in for
+// the key is not a scalar, and a quoted '<<' resolves to !!str. Speakeasy treats
+// both as ordinary keys, so expanding them would invent pairs it never sees and
+// refuse a document that parses cleanly.
+//
+// yaml.v3's own decoder (isMerge in decode.go) is the wrong model to copy even
+// though it reads the same syntax, and the difference is worth recording because
+// it is the thing to re-check on a dependency bump. It is laxer about the tag
+// (it also accepts an empty or non-specific one) and stricter about repetition
+// (it honors only the last `<<` in a mapping, where speakeasy merges every one,
+// which is why expandContent accumulates them all). Neither difference is
+// reachable from a parsed document — yaml.v3 resolves plain, non-specific, and
+// explicitly tagged `<<` scalars alike to !!merge — but speakeasy is what this
+// scan has to agree with.
 func isMergeKey(n *yaml.Node) bool {
-	if n == nil || n.Kind != yaml.ScalarNode || n.Value != "<<" {
-		return false
-	}
-	return n.Tag == "" || n.Tag == "!" || n.Tag == "!!merge" || n.Tag == "tag:yaml.org,2002:merge"
+	return n != nil && n.Kind == yaml.ScalarNode && n.Value == "<<" && n.Tag == mergeTag
 }
 
 // dedupeFirstWins keeps only the first pair for each key, preserving order —
