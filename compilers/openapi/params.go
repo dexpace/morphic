@@ -90,8 +90,7 @@ func (l *lowerer) fillParamSchema(param *ir.Parameter, js *oas3.JSONSchema[oas3.
 		if v, err := valueFromNode(node); err == nil {
 			param.Default = &v
 		} else {
-			l.diags = append(l.diags, diagf(ir.SeverityWarning, codeDegradedConstruct,
-				ir.Provenance{Source: l.srcIndex, Pointer: pointer}, "default: %s", err.Error()))
+			l.diag(ir.SeverityWarning, codeDegradedConstruct, pointer, "default: %s", err.Error())
 		}
 	}
 	c, diags := constraintsFromSchema(s, l.exclusiveBoundIsBoolean())

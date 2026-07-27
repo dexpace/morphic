@@ -340,9 +340,8 @@ func (l *lowerer) preserveErrorHeaders(ec *ir.ErrorCase, r *soa.Response, rptr s
 		ec.Extensions = ir.Extensions{}
 	}
 	ec.Extensions["openapi:headers"] = raw
-	l.diags = append(l.diags, diagf(ir.SeverityInfo, codeDegradedConstruct,
-		ir.Provenance{Source: l.srcIndex, Pointer: rptr},
-		"error response headers have no ErrorCase home; preserved verbatim under extensions"))
+	l.diag(ir.SeverityInfo, codeDegradedConstruct, rptr,
+		"error response headers have no ErrorCase home; preserved verbatim under extensions")
 }
 
 // fillErrorType lowers every content entry's schema into the type registry
@@ -367,9 +366,8 @@ func (l *lowerer) fillErrorType(ec *ir.ErrorCase, r *soa.Response, rptr string) 
 		if raw := nodeToRaw(rawChildNode(r.GetRootNode(), "content")); raw != nil {
 			ec.Extensions = ir.Extensions{"openapi:content": raw}
 		}
-		l.diags = append(l.diags, diagf(ir.SeverityInfo, codeDegradedConstruct,
-			ir.Provenance{Source: l.srcIndex, Pointer: rptr},
-			"error response has multiple media types; full content map preserved under extensions"))
+		l.diag(ir.SeverityInfo, codeDegradedConstruct, rptr,
+			"error response has multiple media types; full content map preserved under extensions")
 	}
 }
 

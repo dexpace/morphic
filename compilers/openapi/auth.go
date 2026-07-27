@@ -179,9 +179,8 @@ func (l *lowerer) lowerSecurityRequirement(req *soa.SecurityRequirement) ir.Auth
 	for name, scopes := range req.All() {
 		id := authIDFor(name)
 		if _, ok := l.out.Auth[id]; !ok {
-			l.diags = append(l.diags, diagf(ir.SeverityError, codeUnresolvedRef,
-				ir.Provenance{Source: l.srcIndex, Pointer: ptr("components", "securitySchemes", name)},
-				"security requirement references undeclared scheme %q", name))
+			l.diag(ir.SeverityError, codeUnresolvedRef, ptr("components", "securitySchemes", name),
+				"security requirement references undeclared scheme %q", name)
 			continue
 		}
 		uses = append(uses, ir.SchemeUse{Scheme: id, Scopes: scopes})

@@ -145,11 +145,15 @@ func setExclusiveBound(c *ir.Constraints, isMin bool, v *ir.BigVal) {
 }
 
 // emptyConstraints reports whether c carries no scalar constraint set by
-// constraintsFromSchema (collection bounds are not read here).
+// constraintsFromSchema (collection bounds are not read here). Every scalar
+// field that constraintsFromSchema populates must appear in this check; a
+// missing field silently leaks a non-nil *Constraints when it should be nil.
 func emptyConstraints(c *ir.Constraints) bool {
 	return c.Min == nil && c.Max == nil && !c.ExclusiveMin && !c.ExclusiveMax &&
-		c.MultipleOf == nil && c.MinLength == nil && c.MaxLength == nil &&
-		c.Pattern == "" && c.MinProps == nil && c.MaxProps == nil
+		c.MultipleOf == nil && c.Precision == nil && c.Scale == nil &&
+		c.MinLength == nil && c.MaxLength == nil &&
+		c.Pattern == "" && c.PatternMessage == "" &&
+		c.MinProps == nil && c.MaxProps == nil
 }
 
 // exclusiveBoundIsBoolean reports whether this document's dialect spells

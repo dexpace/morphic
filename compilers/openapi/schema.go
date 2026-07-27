@@ -104,9 +104,8 @@ func (l *lowerer) schemaRef(js *oas3.JSONSchema[oas3.Referenceable], pointer, hi
 	l.depth++
 	defer func() { l.depth-- }()
 	if l.depth > maxSchemaDepth {
-		l.diags = append(l.diags, diagf(ir.SeverityError, codeDegradedConstruct,
-			ir.Provenance{Source: l.srcIndex, Pointer: pointer},
-			"schema nesting exceeds %d; lowered as any", maxSchemaDepth))
+		l.diag(ir.SeverityError, codeDegradedConstruct, pointer,
+			"schema nesting exceeds %d; lowered as any", maxSchemaDepth)
 		return l.primRef(ir.PrimAny)
 	}
 	if js == nil {
@@ -205,9 +204,8 @@ func (l *lowerer) preserveUnionSiblings(id ir.TypeID, s *oas3.Schema, pointer st
 			c.Extensions = mergeExtensions(c.Extensions, ir.Extensions{"openapi:anyOf": raw})
 		}
 	}
-	l.diags = append(l.diags, diagf(ir.SeverityInfo, codeDegradedConstruct,
-		ir.Provenance{Source: l.srcIndex, Pointer: pointer},
-		"oneOf/anyOf co-declared with structural keywords; union branches preserved verbatim under extensions"))
+	l.diag(ir.SeverityInfo, codeDegradedConstruct, pointer,
+		"oneOf/anyOf co-declared with structural keywords; union branches preserved verbatim under extensions")
 }
 
 // refTypeRef resolves a $ref position to its target's stable ID, carrying the
@@ -219,9 +217,8 @@ func (l *lowerer) refTypeRef(js *oas3.JSONSchema[oas3.Referenceable], pointer st
 	ref := js.GetRef().String()
 	id, ok := l.resolveSchemaRef(js, ref)
 	if !ok {
-		l.diags = append(l.diags, diagf(ir.SeverityError, codeUnresolvedRef,
-			ir.Provenance{Source: l.srcIndex, Pointer: pointer},
-			"unresolved $ref %q", ref))
+		l.diag(ir.SeverityError, codeUnresolvedRef, pointer,
+			"unresolved $ref %q", ref)
 		return l.primRef(ir.PrimAny)
 	}
 	return ir.TypeRef{Target: id, Nullable: l.refNullable(js)}
@@ -287,9 +284,8 @@ func (l *lowerer) refNullable(js *oas3.JSONSchema[oas3.Referenceable]) bool {
 // matches nothing) and records one info diagnostic on first visit.
 func (l *lowerer) falseSchema(pointer, hint string) ir.TypeID {
 	return l.internNode(pointer, hint, func(common ir.TypeCommon) ir.TypeDef {
-		l.diags = append(l.diags, diagf(ir.SeverityInfo, codeFalseSchema,
-			ir.Provenance{Source: l.srcIndex, Pointer: pointer},
-			"boolean false schema matches nothing; lowered as a closed empty model"))
+		l.diag(ir.SeverityInfo, codeFalseSchema, pointer,
+			"boolean false schema matches nothing; lowered as a closed empty model")
 		return &ir.Model{TypeCommon: common, Additional: ir.AdditionalClosed}
 	})
 }
@@ -456,9 +452,8 @@ func (l *lowerer) reconcileProperty(dst *ir.Property, src ir.Property, pointer s
 	if dst.Docs.Description == "" {
 		dst.Docs.Description = src.Docs.Description
 	} else if src.Docs.Description != "" && src.Docs.Description != dst.Docs.Description {
-		l.diags = append(l.diags, diagf(ir.SeverityInfo, codeDegradedConstruct,
-			ir.Provenance{Source: l.srcIndex, Pointer: pointer},
-			"allOf branches describe field %q differently; kept the first declaration", dst.WireName))
+		l.diag(ir.SeverityInfo, codeDegradedConstruct, pointer,
+			"allOf branches describe field %q differently; kept the first declaration", dst.WireName)
 	}
 	dst.Default = cmp.Or(dst.Default, src.Default)
 	dst.Constraints = mergeConstraints(dst.Constraints, src.Constraints)
@@ -569,10 +564,9 @@ func (l *lowerer) diagnoseRedeclarationConflict(dst, src *ir.Property, pointer s
 // correctly for either site. Severity is warning — the merged model is still
 // usable — so a consumer chooses whether to escalate on the stable code.
 func (l *lowerer) redeclarationConflictDiag(dst *ir.Property, pointer, detail string) {
-	l.diags = append(l.diags, diagf(ir.SeverityWarning, codeConflictingRedecl,
-		ir.Provenance{Source: l.srcIndex, Pointer: pointer},
+	l.diag(ir.SeverityWarning, codeConflictingRedecl, pointer,
 		"declarations of field %q disagree: %s; kept the first declaration (%s) over the redeclaration (%s)",
-		dst.WireName, detail, dst.Provenance.Pointer, pointer))
+		dst.WireName, detail, dst.Provenance.Pointer, pointer)
 }
 
 // typesConflict reports whether two reconciled property types describe an
@@ -874,8 +868,7 @@ func (l *lowerer) fillPropertyDefault(p *ir.Property, ref, tgt *oas3.Schema, poi
 	}
 	v, err := valueFromNode(node)
 	if err != nil {
-		l.diags = append(l.diags, diagf(ir.SeverityWarning, codeDegradedConstruct,
-			ir.Provenance{Source: l.srcIndex, Pointer: pointer}, "default: %s", err.Error()))
+		l.diag(ir.SeverityWarning, codeDegradedConstruct, pointer, "default: %s", err.Error())
 		return
 	}
 	p.Default = &v
@@ -1002,10 +995,16 @@ func (l *lowerer) preserveRaw(ext *ir.Extensions, key string, raw ir.RawValue, p
 		*ext = ir.Extensions{}
 	}
 	(*ext)[key] = raw
-	// diagf infers a printf format from its 4th argument; msg is forwarded
-	// through "%s" rather than passed directly as the format string, so a
-	// preserved construct's own text can never be misread as a format verb.
-	l.diags = append(l.diags, diagf(ir.SeverityInfo, code, ir.Provenance{Source: l.srcIndex, Pointer: pointer}, "%s", msg))
+	l.diag(ir.SeverityInfo, code, pointer, "%s", msg)
+}
+
+// diag appends one diagnostic at pointer with the given severity and code,
+// stamping it with l.srcIndex. It is the single provenance-stamping primitive
+// for compiler diagnostics: every lowering site that constructs a Provenance
+// from l.srcIndex should go through this rather than hand-writing the
+// append+diagf+Provenance triple, so the stamping rule is stated once.
+func (l *lowerer) diag(sev ir.Severity, code, pointer, format string, args ...any) {
+	l.diags = append(l.diags, diagf(sev, code, ir.Provenance{Source: l.srcIndex, Pointer: pointer}, format, args...))
 }
 
 // schemaExtensions lowers a schema's x-* extensions into namespaced Extensions.
@@ -1244,7 +1243,7 @@ func effectiveDescription(ref, tgt *oas3.Schema) string {
 
 // effectiveDeprecated reports the deprecated flag, use-site over referent.
 func effectiveDeprecated(ref, tgt *oas3.Schema) bool {
-	return pickBool(schemaDeprecated(ref), schemaDeprecated(tgt))
+	return pickFlag(ref, tgt, func(s *oas3.Schema) *bool { return s.Deprecated })
 }
 
 // effectiveVisibility maps readOnly/writeOnly to a lifecycle visibility set
@@ -1252,48 +1251,32 @@ func effectiveDeprecated(ref, tgt *oas3.Schema) bool {
 // (read/delete/query) and absent only from requests; writeOnly is create+update.
 func effectiveVisibility(ref, tgt *oas3.Schema) ir.Visibility {
 	switch {
-	case pickBool(schemaReadOnly(ref), schemaReadOnly(tgt)):
+	case pickFlag(ref, tgt, func(s *oas3.Schema) *bool { return s.ReadOnly }):
 		return ir.Visibility{Only: []ir.Lifecycle{ir.LifecycleRead, ir.LifecycleDelete, ir.LifecycleQuery}}
-	case pickBool(schemaWriteOnly(ref), schemaWriteOnly(tgt)):
+	case pickFlag(ref, tgt, func(s *oas3.Schema) *bool { return s.WriteOnly }):
 		return ir.Visibility{Only: []ir.Lifecycle{ir.LifecycleCreate, ir.LifecycleUpdate}}
 	default:
 		return ir.Visibility{}
 	}
 }
 
-// pickBool returns *ref when present, else *tgt, else false.
-func pickBool(ref, tgt *bool) bool {
+// pickFlag returns the bool field extracted by accessor from ref when present,
+// else from tgt, else false. It is the single nil-safe "use-site overrides
+// referent" primitive for boolean schema flags (readOnly, writeOnly, deprecated);
+// each flag previously had its own nil-guard accessor plus a pickBool call at
+// every use site, but all three followed this identical shape.
+func pickFlag(ref, tgt *oas3.Schema, accessor func(*oas3.Schema) *bool) bool {
 	if ref != nil {
-		return *ref
+		if v := accessor(ref); v != nil {
+			return *v
+		}
 	}
 	if tgt != nil {
-		return *tgt
+		if v := accessor(tgt); v != nil {
+			return *v
+		}
 	}
 	return false
-}
-
-// schemaReadOnly returns a schema's readOnly pointer, nil-safe.
-func schemaReadOnly(s *oas3.Schema) *bool {
-	if s == nil {
-		return nil
-	}
-	return s.ReadOnly
-}
-
-// schemaWriteOnly returns a schema's writeOnly pointer, nil-safe.
-func schemaWriteOnly(s *oas3.Schema) *bool {
-	if s == nil {
-		return nil
-	}
-	return s.WriteOnly
-}
-
-// schemaDeprecated returns a schema's deprecated pointer, nil-safe.
-func schemaDeprecated(s *oas3.Schema) *bool {
-	if s == nil {
-		return nil
-	}
-	return s.Deprecated
 }
 
 // fillTypeDocs maps a schema's title, description, and externalDocs onto Docs.

@@ -42,9 +42,8 @@ func (l *lowerer) fillAllOf(m *ir.Model, s *oas3.Schema, pointer string) {
 		}
 		id, ok := l.resolveSchemaRef(b, b.GetRef().String())
 		if !ok {
-			l.diags = append(l.diags, diagf(ir.SeverityError, codeUnresolvedRef,
-				ir.Provenance{Source: l.srcIndex, Pointer: bptr},
-				"unresolved allOf $ref %q", b.GetRef().String()))
+			l.diag(ir.SeverityError, codeUnresolvedRef, bptr,
+				"unresolved allOf $ref %q", b.GetRef().String())
 			continue
 		}
 		ref := ir.TypeRef{Target: id}
@@ -263,9 +262,8 @@ func (l *lowerer) discriminatorMapping(d *oas3.Discriminator, pointer string) ma
 	for value, target := range m.All() {
 		id, ok := l.mappingTargetID(target)
 		if !ok {
-			l.diags = append(l.diags, diagf(ir.SeverityError, codeUnresolvedRef,
-				ir.Provenance{Source: l.srcIndex, Pointer: pointer + ptr("discriminator", "mapping", value)},
-				"discriminator mapping %q references unresolved schema %q", value, target))
+			l.diag(ir.SeverityError, codeUnresolvedRef, pointer+ptr("discriminator", "mapping", value),
+				"discriminator mapping %q references unresolved schema %q", value, target)
 			continue
 		}
 		out[value] = id
@@ -285,9 +283,8 @@ func (l *lowerer) discriminatorDefault(d *oas3.Discriminator, pointer string) ir
 	}
 	id, ok := l.mappingTargetID(dm)
 	if !ok {
-		l.diags = append(l.diags, diagf(ir.SeverityError, codeUnresolvedRef,
-			ir.Provenance{Source: l.srcIndex, Pointer: pointer + ptr("discriminator", "defaultMapping")},
-			"discriminator defaultMapping references unresolved schema %q", dm))
+		l.diag(ir.SeverityError, codeUnresolvedRef, pointer+ptr("discriminator", "defaultMapping"),
+			"discriminator defaultMapping references unresolved schema %q", dm)
 		return ""
 	}
 	return id
@@ -382,9 +379,8 @@ func (l *lowerer) enumMembers(nodes []values.Value) ([]ir.EnumMember, ir.ValueKi
 // enumAsUnion lowers a heterogeneous or non-scalar enum to an exclusive Union of
 // hoisted Literals, emitting one info diagnostic.
 func (l *lowerer) enumAsUnion(s *oas3.Schema, common ir.TypeCommon, pointer, hint string) ir.TypeDef {
-	l.diags = append(l.diags, diagf(ir.SeverityInfo, codeDegradedConstruct,
-		ir.Provenance{Source: l.srcIndex, Pointer: pointer},
-		"heterogeneous or non-scalar enum lowered as a union of literals"))
+	l.diag(ir.SeverityInfo, codeDegradedConstruct, pointer,
+		"heterogeneous or non-scalar enum lowered as a union of literals")
 	nodes := s.GetEnum()
 	variants := make([]ir.Variant, 0, len(nodes))
 	for i, node := range nodes {
@@ -421,8 +417,7 @@ func (l *lowerer) hoistLiteral(node values.Value, pointer, hint string) ir.TypeI
 func (l *lowerer) valueOrNull(node values.Value, pointer string) ir.Value {
 	val, err := valueFromNode(node)
 	if err != nil {
-		l.diags = append(l.diags, diagf(ir.SeverityWarning, codeDegradedConstruct,
-			ir.Provenance{Source: l.srcIndex, Pointer: pointer}, "value: %s", err.Error()))
+		l.diag(ir.SeverityWarning, codeDegradedConstruct, pointer, "value: %s", err.Error())
 		return ir.Value{Kind: ir.ValueNull}
 	}
 	return val

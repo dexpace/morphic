@@ -208,9 +208,8 @@ func (l *lowerer) lowerRequestBody(op *ir.Operation, hb *ir.HTTPBinding, src *so
 			payload.Extensions = ir.Extensions{}
 		}
 		payload.Extensions["openapi:required"] = ir.RawValue("false")
-		l.diags = append(l.diags, diagf(ir.SeverityInfo, codeDegradedConstruct,
-			ir.Provenance{Source: l.srcIndex, Pointer: bodyPtr},
-			"request body is not required; optionality preserved under extensions"))
+		l.diag(ir.SeverityInfo, codeDegradedConstruct, bodyPtr,
+			"request body is not required; optionality preserved under extensions")
 	}
 	op.Request = payload
 	hb.RequestContentTypes = contentTypeKeys(rb.GetContent())
