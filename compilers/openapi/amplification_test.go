@@ -424,3 +424,74 @@ func TestAliasWeigher_SaturatesWithoutOverflow(t *testing.T) {
 	assert.Equal(t, w.ceiling, w.weight[culprit], "an exceeding weight always lands exactly on the ceiling")
 	assert.Greater(t, w.weight[culprit], int64(0), "the saturated value must not have wrapped negative")
 }
+
+// TestRawNodeCount_NilRoot pins the empty-document arm: documentRoot returns
+// nil for a document with no content, and the count of nothing is zero rather
+// than a panic on the walk's first dereference.
+func TestRawNodeCount_NilRoot(t *testing.T) {
+	t.Parallel()
+	assert.Equal(t, int64(0), rawNodeCount(nil))
+}
+
+// TestChildrenOf_AliasWithoutTarget pins the arm that keeps a malformed alias
+// from being read as a node with children. yaml.v3 always populates Alias on a
+// parsed alias node, so this is unreachable from a real document — but the
+// weigher would dereference nil without it, and the whole point of the
+// pre-parse scan is that it never faults on input the parser has not vetted.
+func TestChildrenOf_AliasWithoutTarget(t *testing.T) {
+	t.Parallel()
+	orphan := &yaml.Node{Kind: yaml.AliasNode}
+	assert.Nil(t, childrenOf(orphan), "an alias with no target depends on nothing")
+
+	pair := ymap(yscalar("k"), yscalar("v"))
+	assert.Equal(t, pair.Content, childrenOf(pair), "every other node depends on its own Content")
+}
+
+// TestAliasWeigher_AliasWithoutTargetWeighsZero is the weight-side half of the
+// same guard: an alias standing in for nothing contributes nothing, so a
+// document carrying one is neither refused nor able to fault the walk.
+func TestAliasWeigher_AliasWithoutTargetWeighsZero(t *testing.T) {
+	t.Parallel()
+	orphan := &yaml.Node{Kind: yaml.AliasNode}
+	root := ymap(yscalar("k"), orphan)
+
+	w := newAliasWeigher(1000)
+	_, exceeded := w.weigh(root)
+	require.False(t, exceeded)
+	assert.Equal(t, int64(0), w.weight[orphan], "an alias with no target substitutes nothing")
+	assert.Equal(t, int64(2), w.weight[root], "root = 1(itself) + 1(key) + 0(the orphan alias)")
+}
+
+// TestAliasWeigher_NilChildIsSkipped pins that a nil entry in a node's Content
+// — which a parsed document never produces, but which a hand-built or
+// third-party-mutated tree could — is passed over rather than dereferenced.
+func TestAliasWeigher_NilChildIsSkipped(t *testing.T) {
+	t.Parallel()
+	root := ymap(yscalar("k"), yscalar("v"))
+	root.Content = append(root.Content, nil)
+
+	w := newAliasWeigher(1000)
+	_, exceeded := w.weigh(root)
+	require.False(t, exceeded)
+	assert.Equal(t, int64(3), w.weight[root], "the nil child contributes nothing and costs no dereference")
+}
+
+// TestAliasWeigher_InFlightCycleSaturates pins the defensive guard behind
+// pushChildren's in-flight check. anchorCycle refuses every recursive anchor
+// before this walk runs, so a cyclic alias graph is unreachable from a parsed
+// document — but "unreachable" is an argument about a sibling function, not a
+// property of this one, so the walk defends itself: re-entering a node whose
+// own weight is still being computed saturates it at the ceiling rather than
+// looping forever. The cycle is built directly as nodes, since no YAML text
+// could produce one that anchorCycle would let through.
+func TestAliasWeigher_InFlightCycleSaturates(t *testing.T) {
+	t.Parallel()
+	loop := ymap(yscalar("k"), yscalar("v"))
+	loop.Content = append(loop.Content, yalias(loop)) // loop's own subtree aliases loop
+
+	w := newAliasWeigher(1000)
+	culprit, exceeded := w.weigh(loop)
+	require.True(t, exceeded, "a cyclic alias graph expands without bound and must be refused")
+	require.NotNil(t, culprit)
+	assert.Equal(t, w.ceiling, w.weight[culprit], "the cycle saturates rather than looping")
+}
