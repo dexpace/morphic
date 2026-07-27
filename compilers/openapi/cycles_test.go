@@ -1,9 +1,12 @@
 package openapi
 
 import (
+	"fmt"
 	"os"
 	"strconv"
+	"strings"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -13,18 +16,40 @@ import (
 	"github.com/dexpace/morphic/ir"
 )
 
-// cycleReproducers are documents from GitHub #12 whose schema graph cycles never
-// reach a node without a top-level $ref. Each crashed the process with a fatal,
-// unrecoverable stack overflow before the pre-parse detector was added. The
-// sibling variants carry a concrete `type` alongside the $ref: speakeasy follows
-// the top-level $ref regardless of the sibling, so they crash exactly like the
-// bare-$ref forms and must be diagnosed the same way.
+// cycleReproducers are documents from GitHub #12 and GitHub #26 whose schema
+// graph cycles never reach a node without a top-level $ref. Each crashed the
+// process with a fatal, unrecoverable stack overflow before the pre-parse
+// detector (and, for the #26 shapes, its alias/merge/contentSchema awareness)
+// was added. The sibling variants carry a concrete `type` alongside the $ref:
+// speakeasy follows the top-level $ref regardless of the sibling, so they
+// crash exactly like the bare-$ref forms and must be diagnosed the same way.
+//
+// The #26 shapes exercise the gap between the scan's raw yaml.Node model and
+// the decoder's resolved view of the same document: an alias standing in for
+// the $ref value (alias-ref-value), a $ref nested under a JSONSchema-typed
+// keyword the old key set omitted (content-schema), an alias standing in for
+// the literal `$ref` key itself (alias-ref-key), a `<<` merge key that
+// contributes a $ref the decoder sees but no literal key does (merge-key-ref),
+// an alias standing in for the whole schema node (alias-schema-node), and one
+// anchored pure-$ref node reused in two different schema positions
+// (alias-dual-position: once as a "properties" value and once as a schema in
+// its own right) — a follow-up to the alias-schema-node fix that exposed a
+// second bug, the ref-collection walk sharing one visited-node set across
+// walkSchema/walkSchemaMap/walkSchemaList let the first role to reach the
+// node consume it and the second role skip it, silently dropping the $ref the
+// chain walk needed.
 var cycleReproducers = []struct{ name, file string }{
 	{"self-ref", "cycle_self_ref"},
 	{"two-node-ref", "cycle_two_node_ref"},
 	{"yaml-anchor", "cycle_yaml_anchor"},
 	{"self-ref-sibling", "cycle_self_ref_sibling"},
 	{"two-node-ref-sibling", "cycle_two_node_ref_sibling"},
+	{"alias-ref-value", "cycle_alias_ref_value"},
+	{"content-schema", "cycle_content_schema"},
+	{"alias-ref-key", "cycle_alias_ref_key"},
+	{"merge-key-ref", "cycle_merge_key_ref"},
+	{"alias-schema-node", "cycle_alias_schema_node"},
+	{"alias-dual-position", "cycle_alias_dual_position"},
 }
 
 // TestDetectCycles_Reproducers pins that each degenerate cycle is diagnosed as an
@@ -124,6 +149,43 @@ components:
   schemas:
     A: {allOf: [{$ref: '#/components/schemas/B'}]}
     B: {allOf: [{$ref: '#/components/schemas/A'}]}
+`},
+	// The four cases below are the negative controls for GitHub #26: each uses
+	// the same alias/merge/contentSchema shapes as the crashing reproducers, but
+	// legally (no degenerate cycle), so the alias- and merge-aware scan must not
+	// start refusing valid documents it previously accepted.
+	{"legal-anchor-reuse", `openapi: 3.1.0
+info: {title: t, version: '1'}
+paths: {}
+x-anchors: {s: &s {type: object}}
+components:
+  schemas:
+    A: *s
+    B: {type: object, properties: {p: *s}}
+`},
+	{"legal-merge-key", `openapi: 3.1.0
+info: {title: t, version: '1'}
+paths: {}
+x-anchors: {base: &base {description: base schema}}
+components:
+  schemas:
+    A: {<<: *base, type: object}
+`},
+	{"legal-content-schema", `openapi: 3.1.0
+info: {title: t, version: '1'}
+paths: {}
+components:
+  schemas:
+    A: {type: string, contentMediaType: application/json, contentSchema: {type: object}}
+`},
+	{"legal-alias-ref-terminates", `openapi: 3.1.0
+info: {title: t, version: '1'}
+paths: {}
+x-anchors: {ref: &r '#/components/schemas/B'}
+components:
+  schemas:
+    A: {$ref: *r}
+    B: {type: object}
 `},
 }
 
@@ -299,8 +361,15 @@ func TestAnchorName_Cases(t *testing.T) {
 func TestWalkOutsideSchema_NilNode(t *testing.T) {
 	t.Parallel()
 	var out []*yaml.Node
-	walkOutsideSchema(nil, &out, 0)
+	s := newRefScan(&out)
+	s.walkOutsideSchema(nil, 0)
 	assert.Empty(t, out)
+}
+
+// newRefScan builds a refScan with fresh, empty visited-node sets, for tests
+// that drive the ref-collection walk's methods directly.
+func newRefScan(out *[]*yaml.Node) *refScan {
+	return &refScan{out: out, outsideSeen: map[*yaml.Node]bool{}, schemaSeen: map[*yaml.Node]bool{}}
 }
 
 // TestDetectCycles_MalformedSchemaShapes pins that a schema-entry map whose value
@@ -424,6 +493,163 @@ func TestDeref_FollowsAliasChain(t *testing.T) {
 	target := ymap(yscalar("k"), yscalar("v"))
 	require.Same(t, target, deref(yalias(target)))
 	require.Same(t, target, deref(target))
+}
+
+// TestMappingPairs_Cases covers mappingPairs/collectMappingPairs/
+// mergeSourcePairs on shapes a real parse cannot produce (a non-scalar key,
+// a merge sequence) alongside the ones it can (alias key, alias value,
+// single-mapping merge, duplicate explicit key).
+func TestMappingPairs_Cases(t *testing.T) {
+	t.Parallel()
+
+	t.Run("nil node yields no pairs", func(t *testing.T) {
+		t.Parallel()
+		assert.Nil(t, mappingPairs(nil))
+	})
+
+	t.Run("non-mapping node yields no pairs", func(t *testing.T) {
+		t.Parallel()
+		assert.Nil(t, mappingPairs(yscalar("x")))
+	})
+
+	t.Run("alias key and alias value are dereferenced", func(t *testing.T) {
+		t.Parallel()
+		keyTarget := yscalar("k")
+		valTarget := yscalar("v")
+		n := ymap(yalias(keyTarget), yalias(valTarget))
+		got := mappingPairs(n)
+		require.Len(t, got, 1)
+		assert.Equal(t, "k", got[0].key)
+		assert.Same(t, valTarget, got[0].val)
+	})
+
+	t.Run("non-scalar key after deref is skipped", func(t *testing.T) {
+		t.Parallel()
+		n := ymap(
+			ymap(yscalar("x"), yscalar("1")), yscalar("ignored"),
+			yscalar("real"), yscalar("kept"),
+		)
+		got := mappingPairs(n)
+		require.Len(t, got, 1)
+		assert.Equal(t, "real", got[0].key)
+	})
+
+	t.Run("duplicate explicit key: first wins", func(t *testing.T) {
+		t.Parallel()
+		first := yscalar("first")
+		n := ymap(yscalar("k"), first, yscalar("k"), yscalar("second"))
+		got := mappingPairs(n)
+		require.Len(t, got, 1)
+		assert.Same(t, first, got[0].val)
+	})
+
+	t.Run("merge key contributes a mapping's pairs", func(t *testing.T) {
+		t.Parallel()
+		base := ymap(yscalar("a"), yscalar("1"))
+		n := ymap(yscalar("<<"), yalias(base), yscalar("b"), yscalar("2"))
+		got := mappingPairs(n)
+		keys := make(map[string]string, len(got))
+		for _, p := range got {
+			keys[p.key] = p.val.Value
+		}
+		assert.Equal(t, map[string]string{"a": "1", "b": "2"}, keys)
+	})
+
+	t.Run("explicit key wins over merged key", func(t *testing.T) {
+		t.Parallel()
+		base := ymap(yscalar("a"), yscalar("from-merge"))
+		n := ymap(yscalar("a"), yscalar("explicit"), yscalar("<<"), base)
+		got := mappingPairs(n)
+		require.Len(t, got, 1)
+		assert.Equal(t, "explicit", got[0].val.Value)
+	})
+
+	t.Run("merge sequence: earlier source wins on a shared key", func(t *testing.T) {
+		t.Parallel()
+		first := ymap(yscalar("a"), yscalar("from-first"))
+		second := ymap(yscalar("a"), yscalar("from-second"), yscalar("b"), yscalar("only-in-second"))
+		n := ymap(yscalar("<<"), yseq(first, second))
+		got := mappingPairs(n)
+		keys := make(map[string]string, len(got))
+		for _, p := range got {
+			keys[p.key] = p.val.Value
+		}
+		assert.Equal(t, map[string]string{"a": "from-first", "b": "only-in-second"}, keys)
+	})
+
+	t.Run("self-referential merge is bounded, not infinite", func(t *testing.T) {
+		t.Parallel()
+		n := &yaml.Node{Kind: yaml.MappingNode}
+		n.Content = []*yaml.Node{yscalar("<<"), yalias(n)}
+		assert.Empty(t, mappingPairs(n), "a merge that references its own mapping contributes nothing")
+	})
+
+	t.Run("merge chain longer than the depth cap stops at the cap", func(t *testing.T) {
+		t.Parallel()
+		const n = maxCycleDepth + 2
+		nodes := make([]*yaml.Node, n)
+		for i := range nodes {
+			nodes[i] = &yaml.Node{Kind: yaml.MappingNode}
+		}
+		for i := 0; i < n-1; i++ {
+			nodes[i].Content = []*yaml.Node{yscalar("<<"), yalias(nodes[i+1])}
+		}
+		nodes[n-1].Content = []*yaml.Node{yscalar("leaf"), yscalar("v")}
+		assert.Empty(t, mappingPairs(nodes[0]),
+			"a merge chain longer than the depth cap never reaches the leaf pair")
+	})
+}
+
+// TestPureRefTarget_NonMappingNode pins that a non-mapping node (a shape
+// mappingPairs cannot turn into pairs) reports no $ref target.
+func TestPureRefTarget_NonMappingNode(t *testing.T) {
+	t.Parallel()
+	_, ok := pureRefTarget(yscalar("x"))
+	assert.False(t, ok)
+}
+
+// TestChildByToken_MappingResolvesThroughAliasKey pins that childByToken's
+// mapping arm resolves an alias-valued key via mappingPairs, matching
+// pureRefTarget's alias-key handling.
+func TestChildByToken_MappingResolvesThroughAliasKey(t *testing.T) {
+	t.Parallel()
+	keyTarget := yscalar("k")
+	val := yscalar("v")
+	n := ymap(yalias(keyTarget), val)
+	assert.Same(t, val, childByToken(n, "k"))
+}
+
+// TestDetectCycles_ChainedAliasFanOutStaysLinear pins the walk's linear-time
+// bound against a "billion laughs" style chained-alias document: each level
+// aliases the previous level twice inside allOf, so an unmemoized schema walk
+// would explore an exponential number of paths even though the node count
+// grows only linearly. Without refScan's visited-node sets this document
+// would hang rather than crash — the availability regression the sets guard
+// against (deref'ing an alias edge, added for GitHub #26, is what first makes
+// the walk cross alias edges at all). The goroutine/timeout wraps the call so
+// a regression fails this test instead of hanging the whole suite.
+func TestDetectCycles_ChainedAliasFanOutStaysLinear(t *testing.T) {
+	t.Parallel()
+	const levels = 40
+
+	var b strings.Builder
+	b.WriteString("openapi: 3.1.0\ninfo: {title: t, version: '1'}\npaths: {}\nx-anchors:\n")
+	b.WriteString("  a0: &a0 {type: string}\n")
+	for i := 1; i <= levels; i++ {
+		fmt.Fprintf(&b, "  a%d: &a%d {allOf: [*a%d, *a%d]}\n", i, i, i-1, i-1)
+	}
+	fmt.Fprintf(&b, "components:\n  schemas:\n    Root: *a%d\n", levels)
+
+	done := make(chan []ir.Diagnostic, 1)
+	go func() {
+		done <- detectCycles(0, []byte(b.String()))
+	}()
+	select {
+	case diags := <-done:
+		assert.Empty(t, diags, "deep alias reuse without a $ref cycle is not a degenerate cycle")
+	case <-time.After(10 * time.Second):
+		t.Fatal("detectCycles did not return within the bound — likely exponential blowup on chained aliases")
+	}
 }
 
 // TestHasErrorDiag_Cases pins the severity gate the load phase relies on: only an

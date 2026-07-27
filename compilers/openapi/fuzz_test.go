@@ -25,6 +25,10 @@ import (
 // corpus, addressed relative to this test file.
 const goldenPetstore = "../../testdata/golden/openapi/petstore.yaml"
 
+// cycleFixtureDir holds the cycle-detector reproducer and pointer-resolution
+// fixtures, addressed relative to this test file.
+const cycleFixtureDir = "../../testdata/openapi"
+
 // FuzzCompile hammers the OpenAPI compiler with mutated spec bytes and asserts the
 // structural oracles on every document it compiles cleanly: irverify must pass, a
 // serialized-JSON round-trip must be byte-identical, and a recompile of the same
@@ -177,24 +181,38 @@ func embedSchema(fragment []byte) ([]byte, bool) {
 	return b, true
 }
 
-// seedCorpus adds every committed OpenAPI spec — the full conformance corpus plus
-// the larger golden petstore — to the fuzz corpus so mutation starts from valid,
-// feature-dense documents rather than from empty input.
+// seedCorpus adds every committed OpenAPI spec — the full conformance corpus,
+// the larger golden petstore, and every fixture under testdata/openapi
+// (the cycle-detector reproducers plus the pointer-resolution fixtures) — to
+// the fuzz corpus so mutation starts from valid, feature-dense documents
+// rather than from empty input. The degenerate cycle shapes are seeded too:
+// a document with an alias-valued $ref or a `<<` merge key is a good mutation
+// starting point for uncovering a sibling crash the way GitHub #26 turned up
+// five variants of one root cause, and FuzzCompile already returns early on
+// an error diagnostic, so seeding an input that is expected to be refused
+// cannot fail the fuzzer's oracles.
 func seedCorpus(f *testing.F) {
 	f.Helper()
-	entries, err := os.ReadDir(conformanceDir)
+	addYAMLDir(f, conformanceDir)
+	addYAMLDir(f, cycleFixtureDir)
+	data, err := os.ReadFile(goldenPetstore)
+	require.NoError(f, err)
+	f.Add(data)
+}
+
+// addYAMLDir adds every *.yaml file directly under dir to the fuzz corpus.
+func addYAMLDir(f *testing.F, dir string) {
+	f.Helper()
+	entries, err := os.ReadDir(dir)
 	require.NoError(f, err)
 	for _, e := range entries {
 		if e.IsDir() || filepath.Ext(e.Name()) != ".yaml" {
 			continue
 		}
-		data, err := os.ReadFile(filepath.Join(conformanceDir, e.Name()))
+		data, err := os.ReadFile(filepath.Join(dir, e.Name()))
 		require.NoError(f, err)
 		f.Add(data)
 	}
-	data, err := os.ReadFile(goldenPetstore)
-	require.NoError(f, err)
-	f.Add(data)
 }
 
 // schemaSeeds are small JSON Schema fragments that exercise distinct branches of

@@ -1,0 +1,7 @@
+openapi: 3.1.0
+info: {title: t, version: '1'}
+paths: {}
+components:
+  schemas:
+    B: {contentSchema: {$ref: '#/components/schemas/C/contentSchema'}}
+    C: {contentSchema: {$ref: '#/components/schemas/B/contentSchema'}}
