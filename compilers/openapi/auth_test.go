@@ -128,6 +128,29 @@ components:
 	assert.Equal(t, []string{"read", "write"}, svc.Auth[2].Schemes[0].Scopes)
 }
 
+// TestAuth_UnserializableExtensionStillWarns pins that a security scheme whose
+// sole x-* extension fails to serialize still surfaces the warning: l.extensions
+// records the diagnostic unconditionally, so a caller must not gate the append
+// behind the same "if len(ext) > 0" that guards the assignment — that guard is
+// exactly false in the all-unserializable case, which used to drop the warning
+// silently.
+func TestAuth_UnserializableExtensionStillWarns(t *testing.T) {
+	t.Parallel()
+	spec := `openapi: 3.1.0
+info: {title: T, version: "1"}
+paths: {}
+components:
+  securitySchemes:
+    s: {type: apiKey, in: header, name: X-Key, x-bad: {1: intkey}}
+`
+	doc, _, diags := lowerServiceSpec(t, spec)
+	assert.True(t, hasDiagAt(diags, codeDegradedConstruct, ir.SeverityWarning),
+		"an entirely unserializable extension still warns even though the scheme's own Extensions ends up empty")
+	scheme, ok := doc.Auth[authIDFor("s")]
+	require.True(t, ok)
+	assert.Empty(t, scheme.Extensions, "the unserializable extension is dropped, not stored")
+}
+
 const authSpec = `openapi: 3.1.0
 info: {title: T, version: "1"}
 paths:
@@ -173,10 +196,7 @@ func TestAuth_AllSchemeKinds(t *testing.T) {
 
 	oauth := byKind[ir.AuthKindOAuth2]
 	assert.NotEmpty(t, oauth.Extensions, "oauth x-* extension")
-	kinds := map[string]ir.OAuthFlow{}
-	for _, f := range oauth.Flows {
-		kinds[f.Kind] = f
-	}
+	kinds := indexBy(oauth.Flows, func(f ir.OAuthFlow) string { return f.Kind })
 	assert.Len(t, oauth.Flows, 5)
 	assert.Equal(t, "https://r", kinds["authorization_code"].RefreshURL)
 	assert.NotEmpty(t, kinds["authorization_code"].Scopes)
@@ -201,17 +221,14 @@ func TestLowerSecurityRequirement_Nil(t *testing.T) {
 
 func TestAuth_OAuthNoFlowsUnknownTypeAndGhostRef(t *testing.T) {
 	t.Parallel()
-	spec := `openapi: 3.1.0
-info: {title: T, version: "1"}
-paths:
-  /x:
+	spec := pathsSpec(`  /x:
     get: {operationId: x, responses: {"200": {description: ok}}}
 components:
   securitySchemes:
     oauthNoFlows: {type: oauth2}
     weird: {type: bananas}
     ghost: {$ref: '#/components/securitySchemes/Missing'}
-`
+`)
 	doc, _, _ := lowerServiceSpec(t, spec)
 	var oauth, custom ir.AuthScheme
 	for _, s := range doc.Auth {

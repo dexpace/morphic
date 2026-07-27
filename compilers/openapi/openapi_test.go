@@ -3,6 +3,7 @@ package openapi_test
 import (
 	"context"
 	"encoding/json"
+	"os"
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
@@ -14,115 +15,17 @@ import (
 	"github.com/dexpace/morphic/ir"
 )
 
-const petstore = `openapi: 3.1.0
-info:
-  title: Petstore
-  version: "1.0.0"
-  termsOfService: https://example.com/terms
-  contact: {name: API Team, email: api@example.com}
-  license: {name: MIT}
-servers:
-  - url: https://{env}.example.com/v1
-    description: Primary server
-    variables:
-      env:
-        default: api
-        enum: [api, staging]
-        description: Deployment environment
-security:
-  - petstore_auth: [read:pets]
-tags:
-  - {name: pets, description: Pet operations}
-paths:
-  /pets:
-    get:
-      operationId: listPets
-      tags: [pets]
-      parameters:
-        - {name: limit, in: query, schema: {type: integer}}
-      responses:
-        "200":
-          description: A list of pets
-          content:
-            application/json:
-              schema: {type: array, items: {$ref: "#/components/schemas/Pet"}}
-        default:
-          description: Unexpected error
-          content:
-            application/json:
-              schema: {$ref: "#/components/schemas/Error"}
-    post:
-      operationId: createPet
-      tags: [pets]
-      security:
-        - {}
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema: {$ref: "#/components/schemas/Pet"}
-      responses:
-        "200":
-          description: Created
-          content:
-            application/json:
-              schema: {$ref: "#/components/schemas/Pet"}
-        "404":
-          description: Not found
-          content:
-            application/json:
-              schema: {$ref: "#/components/schemas/Error"}
-  /pets/{petId}:
-    get:
-      operationId: getPet
-      tags: [pets]
-      parameters:
-        - {name: petId, in: path, required: true, schema: {type: string}}
-      responses:
-        "200":
-          description: A pet
-          content:
-            application/json:
-              schema: {$ref: "#/components/schemas/Pet"}
-components:
-  securitySchemes:
-    petstore_auth:
-      type: oauth2
-      flows:
-        implicit:
-          authorizationUrl: https://example.com/auth
-          scopes: {"read:pets": read your pets}
-  schemas:
-    Pet:
-      type: object
-      required: [id, name]
-      properties:
-        id: {type: integer}
-        name: {type: string}
-        category: {$ref: "#/components/schemas/Category"}
-        status:
-          oneOf:
-            - {type: string}
-            - {type: integer}
-        meta:
-          type: object
-          properties:
-            tag: {type: string}
-    Category:
-      type: object
-      properties:
-        name: {type: string}
-    Error:
-      type: object
-      properties:
-        code: {type: integer}
-        message: {type: string}
-`
-
+// parsePetstore compiles the shared golden petstore spec (goldenPetstore, in
+// fuzz_test.go) through the public pipeline. Reading the on-disk spec rather
+// than a hand-copied literal keeps this test coupled to the same document the
+// golden snapshot is compared against, so an edit to the fixture cannot leave
+// this test asserting against a stale copy.
 func parsePetstore(t *testing.T) (*ir.Document, []ir.Diagnostic) {
 	t.Helper()
+	data, err := os.ReadFile(goldenPetstore)
+	require.NoError(t, err)
 	doc, diags, err := openapi.New().Compile(context.Background(),
-		[]compilers.Source{{Path: "petstore.yaml", Data: []byte(petstore)}}, compilers.Options{})
+		[]compilers.Source{{Path: "petstore.yaml", Data: data}}, compilers.Options{})
 	require.NoError(t, err)
 	require.NotNil(t, doc)
 	return doc, diags
@@ -215,10 +118,12 @@ func TestParse_JSONRoundTrip(t *testing.T) {
 
 func TestParse_RejectsMultipleSources(t *testing.T) {
 	t.Parallel()
-	_, _, err := openapi.New().Compile(context.Background(),
+	data, err := os.ReadFile(goldenPetstore)
+	require.NoError(t, err)
+	_, _, err = openapi.New().Compile(context.Background(),
 		[]compilers.Source{
-			{Path: "a.yaml", Data: []byte(petstore)},
-			{Path: "b.yaml", Data: []byte(petstore)},
+			{Path: "a.yaml", Data: data},
+			{Path: "b.yaml", Data: data},
 		}, compilers.Options{})
 	require.Error(t, err)
 }

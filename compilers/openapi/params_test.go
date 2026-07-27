@@ -12,10 +12,7 @@ import (
 
 func TestParams_LocationsAndSerializationDefaults(t *testing.T) {
 	t.Parallel()
-	spec := `openapi: 3.1.0
-info: {title: T, version: "1"}
-paths:
-  /items/{id}:
+	spec := pathsSpec(`  /items/{id}:
     get:
       operationId: getItem
       parameters:
@@ -25,16 +22,13 @@ paths:
         - {name: X-Trace, in: header, schema: {type: string}}
         - {name: session, in: cookie, schema: {type: string}}
       responses: {"200": {description: ok}}
-`
+`)
 	_, svc, diags := lowerServiceSpec(t, spec)
 	requireNoErrorDiags(t, diags)
-	op := svc.Groups[0].Operations[0]
+	op := firstOp(t, svc)
 	require.Len(t, op.Params, 5)
 	require.Len(t, op.Bindings.HTTP, 1)
-	bindings := map[string]ir.HTTPParamBinding{}
-	for _, b := range op.Bindings.HTTP[0].ParamBindings {
-		bindings[b.Param] = b
-	}
+	bindings := indexBy(op.Bindings.HTTP[0].ParamBindings, func(b ir.HTTPParamBinding) string { return b.Param })
 	require.Len(t, bindings, 5, "every logical param bound exactly once")
 
 	id := bindings["id"]
@@ -53,10 +47,7 @@ paths:
 	assert.Equal(t, ir.HTTPLocationHeader, bindings["X-Trace"].Location)
 	assert.Equal(t, ir.HTTPLocationCookie, bindings["session"].Location)
 
-	params := map[string]ir.Parameter{}
-	for _, p := range op.Params {
-		params[p.Name.Source] = p
-	}
+	params := indexBy(op.Params, func(p ir.Parameter) string { return p.Name.Source })
 	assert.True(t, params["id"].Required, "path params are always required")
 	require.NotNil(t, params["limit"].Default)
 	assert.Equal(t, ir.BigVal("20"), params["limit"].Default.Num)
@@ -64,10 +55,7 @@ paths:
 
 func TestParams_ContentStyleParameter(t *testing.T) {
 	t.Parallel()
-	spec := `openapi: 3.1.0
-info: {title: T, version: "1"}
-paths:
-  /search:
+	spec := pathsSpec(`  /search:
     get:
       operationId: search
       parameters:
@@ -77,10 +65,10 @@ paths:
             application/json:
               schema: {type: object, properties: {kind: {type: string}}}
       responses: {"200": {description: ok}}
-`
+`)
 	_, svc, diags := lowerServiceSpec(t, spec)
 	requireNoErrorDiags(t, diags)
-	op := svc.Groups[0].Operations[0]
+	op := firstOp(t, svc)
 	require.Len(t, op.Bindings.HTTP, 1)
 	require.Len(t, op.Bindings.HTTP[0].ParamBindings, 1)
 	binding := op.Bindings.HTTP[0].ParamBindings[0]
@@ -93,19 +81,16 @@ paths:
 
 func TestParams_SchemaConstraints(t *testing.T) {
 	t.Parallel()
-	spec := `openapi: 3.1.0
-info: {title: T, version: "1"}
-paths:
-  /people:
+	spec := pathsSpec(`  /people:
     get:
       operationId: listPeople
       parameters:
         - {name: age, in: query, schema: {type: integer, maximum: 120}}
       responses: {"200": {description: ok}}
-`
+`)
 	_, svc, diags := lowerServiceSpec(t, spec)
 	requireNoErrorDiags(t, diags)
-	op := svc.Groups[0].Operations[0]
+	op := firstOp(t, svc)
 	require.Len(t, op.Params, 1)
 	c := op.Params[0].Constraints
 	require.NotNil(t, c, "param scalar constraints land via constraintsFromSchema")
@@ -162,10 +147,7 @@ func TestParams_AllLocationsAndStyles(t *testing.T) {
 	t.Parallel()
 	doc, diags := parseFull(t, paramSpec)
 	op := findOp(t, doc, "search")
-	byName := map[string]ir.HTTPParamBinding{}
-	for _, b := range op.Bindings.HTTP[0].ParamBindings {
-		byName[b.Param] = b
-	}
+	byName := indexBy(op.Bindings.HTTP[0].ParamBindings, func(b ir.HTTPParamBinding) string { return b.Param })
 	assert.Equal(t, ir.HTTPLocationPath, byName["id"].Location)
 	assert.Equal(t, ir.HTTPLocationQuery, byName["q"].Location)
 	assert.Equal(t, ir.HTTPLocationHeader, byName["X-Tok"].Location)
@@ -173,42 +155,27 @@ func TestParams_AllLocationsAndStyles(t *testing.T) {
 	assert.Equal(t, "deepObject", byName["filter"].Style)
 	assert.Equal(t, "application/json", byName["complex"].ContentType)
 
-	logical := map[string]ir.Parameter{}
-	for _, p := range op.Params {
-		logical[p.Name.Source] = p
-	}
+	logical := indexBy(op.Params, func(p ir.Parameter) string { return p.Name.Source })
 	assert.True(t, logical["id"].Required, "path param always required")
 	require.NotNil(t, logical["q"].Deprecation)
 	assert.NotEmpty(t, logical["q"].Examples)
 	assert.NotEmpty(t, logical["filter"].Extensions)
 	require.NotNil(t, logical["q"].Constraints)
 
-	var sawBadDefault, sawBadNumeric bool
-	for _, d := range diags {
-		if d.Severity == ir.SeverityWarning && d.Code == codeDegradedConstruct {
-			sawBadDefault = true
-		}
-		if d.Code == codeNumericPrecision {
-			sawBadNumeric = true
-		}
-	}
-	assert.True(t, sawBadDefault, "malformed param default warns")
-	assert.True(t, sawBadNumeric, "malformed param constraint warns")
+	assert.True(t, hasDiagAt(diags, codeDegradedConstruct, ir.SeverityWarning), "malformed param default warns")
+	assert.True(t, hasDiag(diags, codeNumericPrecision), "malformed param constraint warns")
 }
 
 func TestParams_QueryStringLocation(t *testing.T) {
 	t.Parallel()
-	spec := `openapi: 3.2.0
-info: {title: T, version: "1"}
-paths:
-  /q:
+	spec := pathsSpecVer("3.2.0", `  /q:
     get:
       operationId: q
       parameters:
         - {name: qs, in: querystring, schema: {type: string}}
       responses:
         "200": {description: ok}
-`
+`)
 	doc, _ := parseFull(t, spec)
 	op := findOp(t, doc, "q")
 	assert.Equal(t, ir.HTTPLocationQuerystring, op.Bindings.HTTP[0].ParamBindings[0].Location)

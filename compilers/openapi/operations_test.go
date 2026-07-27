@@ -34,10 +34,7 @@ paths:
 	doc, svc, diags := lowerServiceSpec(t, spec)
 	requireNoErrorDiags(t, diags)
 	require.Len(t, svc.Groups, 2)
-	byName := map[string]ir.OperationGroup{}
-	for _, g := range svc.Groups {
-		byName[g.Name.Source] = g
-	}
+	byName := indexBy(svc.Groups, func(g ir.OperationGroup) string { return g.Name.Source })
 	users, ok := byName["users"]
 	require.True(t, ok)
 	assert.Equal(t, "User ops", users.Docs.Description)
@@ -53,10 +50,7 @@ paths:
 
 func TestResponses_ErrorSplitAndRanges(t *testing.T) {
 	t.Parallel()
-	spec := `openapi: 3.1.0
-info: {title: T, version: "1"}
-paths:
-  /w:
+	spec := pathsSpec(`  /w:
     get:
       operationId: w
       responses:
@@ -66,10 +60,10 @@ paths:
           content: {application/json: {schema: {type: object, properties: {msg: {type: string}}}}}
         "5XX": {description: server oops}
         default: {description: anything else}
-`
+`)
 	_, svc, diags := lowerServiceSpec(t, spec)
 	requireNoErrorDiags(t, diags)
-	op := svc.Groups[0].Operations[0]
+	op := firstOp(t, svc)
 	require.Len(t, op.Responses, 1)
 	assert.Equal(t, []ir.StatusRange{{From: 200, To: 200}}, op.Responses[0].Conditions.StatusCodes)
 	require.Len(t, op.Errors, 3)
@@ -86,10 +80,7 @@ func TestResponses_ErrorHeadersPreserved(t *testing.T) {
 	t.Parallel()
 	// ErrorCase has no Headers field; a 429's Retry-After header must not be
 	// dropped silently — it is preserved verbatim under Extensions with a diag.
-	spec := `openapi: 3.1.0
-info: {title: T, version: "1"}
-paths:
-  /w:
+	spec := pathsSpec(`  /w:
     get:
       operationId: w
       responses:
@@ -98,10 +89,10 @@ paths:
           description: slow down
           headers:
             Retry-After: {schema: {type: integer}}
-`
+`)
 	_, svc, diags := lowerServiceSpec(t, spec)
 	requireNoErrorDiags(t, diags)
-	op := svc.Groups[0].Operations[0]
+	op := firstOp(t, svc)
 	require.Len(t, op.Errors, 1)
 	raw, ok := op.Errors[0].Extensions["openapi:headers"]
 	require.True(t, ok, "error response headers preserved under extensions")
@@ -118,10 +109,7 @@ paths:
 
 func TestOperation_ExplicitlyPublicSecurity(t *testing.T) {
 	t.Parallel()
-	spec := `openapi: 3.1.0
-info: {title: T, version: "1"}
-paths:
-  /open:
+	spec := pathsSpec(`  /open:
     get:
       operationId: open
       security: []
@@ -130,7 +118,7 @@ paths:
     get:
       operationId: inherits
       responses: {"200": {description: ok}}
-`
+`)
 	_, svc, diags := lowerServiceSpec(t, spec)
 	requireNoErrorDiags(t, diags)
 	ops := map[string]ir.Operation{}
@@ -174,10 +162,7 @@ webhooks:
 
 func TestResponses_HeadersLowered(t *testing.T) {
 	t.Parallel()
-	spec := `openapi: 3.1.0
-info: {title: T, version: "1"}
-paths:
-  /h:
+	spec := pathsSpec(`  /h:
     get:
       operationId: h
       responses:
@@ -185,10 +170,10 @@ paths:
           description: ok
           headers:
             X-Rate-Limit: {required: true, schema: {type: integer}}
-`
+`)
 	_, svc, diags := lowerServiceSpec(t, spec)
 	requireNoErrorDiags(t, diags)
-	op := svc.Groups[0].Operations[0]
+	op := firstOp(t, svc)
 	require.Len(t, op.Responses, 1)
 	require.Len(t, op.Responses[0].Headers, 1)
 	h := op.Responses[0].Headers[0]
@@ -200,10 +185,7 @@ paths:
 
 func TestCallbacks_RegisteredAndBound(t *testing.T) {
 	t.Parallel()
-	spec := `openapi: 3.1.0
-info: {title: T, version: "1"}
-paths:
-  /subscribe:
+	spec := pathsSpec(`  /subscribe:
     post:
       operationId: sub
       callbacks:
@@ -213,16 +195,13 @@ paths:
               operationId: cbPost
               responses: {"200": {description: ok}}
       responses: {"200": {description: ok}}
-`
+`)
 	_, svc, diags := lowerServiceSpec(t, spec)
 	requireNoErrorDiags(t, diags)
 	require.Len(t, svc.Groups, 1)
 	group := svc.Groups[0]
 	require.Len(t, group.Operations, 2, "parent op and callback op both registered")
-	byName := map[string]ir.Operation{}
-	for _, op := range group.Operations {
-		byName[op.Name.Source] = op
-	}
+	byName := indexBy(group.Operations, func(op ir.Operation) string { return op.Name.Source })
 	sub, ok := byName["sub"]
 	require.True(t, ok)
 	cb, ok := byName["cbPost"]
@@ -237,10 +216,7 @@ paths:
 
 func TestParameters_PathItemMergeOverride(t *testing.T) {
 	t.Parallel()
-	spec := `openapi: 3.1.0
-info: {title: T, version: "1"}
-paths:
-  /users/{id}:
+	spec := pathsSpec(`  /users/{id}:
     parameters:
       - {name: id, in: path, required: true, schema: {type: string}, description: path-level}
       - {name: trace, in: header, schema: {type: string}}
@@ -249,13 +225,13 @@ paths:
       parameters:
         - {name: id, in: path, required: true, schema: {type: integer}, description: op-level}
       responses: {"200": {description: ok}}
-`
+`)
 	loadedDoc, _, err := load(t.Context(), 0, compilers.Source{Path: "spec.yaml", Data: []byte(spec)}, Options{}.withDefaults())
 	require.NoError(t, err)
 	require.NotNil(t, loadedDoc)
 	var pi *soa.PathItem
 	for _, rp := range loadedDoc.Doc.GetPaths().All() {
-		pi = resolvePathItem(rp)
+		pi = resolveRef(rp)
 	}
 	require.NotNil(t, pi)
 	op := pi.Get()
@@ -265,7 +241,7 @@ paths:
 	assert.Same(t, op.GetParameters()[0], merged[0], "operation parameter overrides the path-item one")
 	names := map[string]bool{}
 	for _, p := range merged {
-		names[resolveParameter(p).GetName()] = true
+		names[resolveRef(p).GetName()] = true
 	}
 	assert.True(t, names["id"])
 	assert.True(t, names["trace"])
@@ -273,10 +249,7 @@ paths:
 
 func TestResponses_LinksPreserved(t *testing.T) {
 	t.Parallel()
-	spec := `openapi: 3.1.0
-info: {title: T, version: "1"}
-paths:
-  /l:
+	spec := pathsSpec(`  /l:
     get:
       operationId: l
       responses:
@@ -284,10 +257,10 @@ paths:
           description: ok
           links:
             GetUserByUserId: {operationId: getUser}
-`
+`)
 	_, svc, diags := lowerServiceSpec(t, spec)
 	requireNoErrorDiags(t, diags)
-	op := svc.Groups[0].Operations[0]
+	op := firstOp(t, svc)
 	require.Len(t, op.Responses, 1)
 	raw, ok := op.Responses[0].Extensions["openapi:links"]
 	require.True(t, ok, "response links preserved raw for later promotion")
@@ -296,14 +269,11 @@ paths:
 
 func TestGrouping_ByPathPrefixInferred(t *testing.T) {
 	t.Parallel()
-	spec := `openapi: 3.1.0
-info: {title: T, version: "1"}
-paths:
-  /users/{id}:
+	spec := pathsSpec(`  /users/{id}:
     get: {operationId: getUser, responses: {"200": {description: ok}}}
   /orders:
     get: {operationId: listOrders, responses: {"200": {description: ok}}}
-`
+`)
 	opts := Options{Grouping: GroupByPathPrefix}.withDefaults()
 	loadedDoc, loadDiags, err := load(t.Context(), 0, compilers.Source{Path: "spec.yaml", Data: []byte(spec)}, opts)
 	require.NoError(t, err)
@@ -312,10 +282,7 @@ paths:
 	l.lowerComponentSchemas()
 	svc := l.lowerService()
 	requireNoErrorDiags(t, append(loadDiags, l.diags...))
-	byName := map[string]ir.OperationGroup{}
-	for _, g := range svc.Groups {
-		byName[g.Name.Source] = g
-	}
+	byName := indexBy(svc.Groups, func(g ir.OperationGroup) string { return g.Name.Source })
 	_, hasUsers := byName["users"]
 	_, hasOrders := byName["orders"]
 	assert.True(t, hasUsers, "first path segment forms a group")
@@ -329,16 +296,13 @@ paths:
 
 func TestOperation_NoOperationIdHint(t *testing.T) {
 	t.Parallel()
-	spec := `openapi: 3.1.0
-info: {title: T, version: "1"}
-paths:
-  /ping:
+	spec := pathsSpec(`  /ping:
     get:
       responses: {"200": {description: ok}}
-`
+`)
 	_, svc, diags := lowerServiceSpec(t, spec)
 	requireNoErrorDiags(t, diags)
-	op := svc.Groups[0].Operations[0]
+	op := firstOp(t, svc)
 	assert.Empty(t, op.Name.Source, "no operationId leaves an empty source name")
 	assert.Equal(t, canonicalWords("get /ping"), op.Name.Hint)
 }
@@ -465,12 +429,9 @@ func TestWebhooks_PathItemRefResolved(t *testing.T) {
 
 func TestGrouping_PathPrefixRootPath(t *testing.T) {
 	t.Parallel()
-	spec := `openapi: 3.1.0
-info: {title: T, version: "1"}
-paths:
-  /:
+	spec := pathsSpec(`  /:
     get: {operationId: root, responses: {"200": {description: ok}}}
-`
+`)
 	opts := Options{Grouping: GroupByPathPrefix}.withDefaults()
 	loadedDoc, _, err := load(t.Context(), 0, sourceOf(spec), opts)
 	require.NoError(t, err)
@@ -568,14 +529,24 @@ func TestRawChildNode(t *testing.T) {
 
 func TestResolvers_NilInputs(t *testing.T) {
 	t.Parallel()
-	assert.Nil(t, resolvePathItem(nil))
-	assert.Nil(t, resolveResponse(nil))
-	assert.Nil(t, resolveHeader(nil))
-	assert.Nil(t, resolveCallback(nil))
-	assert.Nil(t, resolveParameter(nil))
-	assert.Nil(t, resolveRequestBody(nil))
-	assert.Nil(t, resolveExample(nil))
-	assert.Nil(t, resolveSecurityScheme(nil))
+	var (
+		rpi *soa.ReferencedPathItem
+		rr  *soa.ReferencedResponse
+		rh  *soa.ReferencedHeader
+		rcb *soa.ReferencedCallback
+		rp  *soa.ReferencedParameter
+		rrb *soa.ReferencedRequestBody
+		re  *soa.ReferencedExample
+		rss *soa.ReferencedSecurityScheme
+	)
+	assert.Nil(t, resolveRef(rpi))
+	assert.Nil(t, resolveRef(rr))
+	assert.Nil(t, resolveRef(rh))
+	assert.Nil(t, resolveRef(rcb))
+	assert.Nil(t, resolveRef(rp))
+	assert.Nil(t, resolveRef(rrb))
+	assert.Nil(t, resolveRef(re))
+	assert.Nil(t, resolveRef(rss))
 	_, ok := paramKey(nil)
 	assert.False(t, ok)
 }

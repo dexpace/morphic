@@ -25,7 +25,7 @@ func TestLoad_Minimal31(t *testing.T) {
 	got, diags, err := load(t.Context(), 0, compilers.Source{Path: "spec.yaml", Data: []byte(minimal31)}, Options{}.withDefaults())
 	require.NoError(t, err)
 	require.NotNil(t, got)
-	assert.Equal(t, compilers.SourceFormat{Name: "openapi", Version: "3.1"}, got.Format)
+	assert.Equal(t, "openapi@3.1", got.Source.Format, "3.1.0 normalizes to 3.1")
 	assert.Equal(t, "spec.yaml", got.Source.Path)
 	assert.Len(t, got.Source.Hash, 64)
 	for _, d := range diags {
@@ -71,13 +71,8 @@ func TestLoad_ExternalRefResolutionErrors(t *testing.T) {
 	ld, diags, loadErr := load(t.Context(), 0, compilers.Source{Path: path, Data: data}, Options{}.withDefaults())
 	require.NoError(t, loadErr)
 	require.NotNil(t, ld)
-	var unresolved int
-	for _, d := range diags {
-		if d.Code == codeUnresolvedRef {
-			unresolved++
-		}
-	}
-	assert.GreaterOrEqual(t, unresolved, 1, "external resolution validation errors surface as diagnostics")
+	assert.GreaterOrEqual(t, countDiagsAt(diags, codeUnresolvedRef, ir.SeverityError), 1,
+		"external resolution validation errors surface as diagnostics")
 }
 
 // TestUnmarshal_RecoversParserPanic pins the no-panics-escape invariant: the

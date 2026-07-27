@@ -84,14 +84,10 @@ func compileSpec(ctx context.Context, path string, data []byte) (*ir.Document, [
 // hasErrorDiag reports whether any diagnostic is error severity — the same gate
 // internal/harness.Check applies before running the structural oracles. An
 // error-severity diagnostic marks a spec-author problem, not a compiler defect,
-// so the oracles must not run on the resulting degraded document.
+// so the oracles must not run on the resulting degraded document. It is also
+// shared by danglingcheck_test.go, in this same external test package.
 func hasErrorDiag(diags []ir.Diagnostic) bool {
-	for _, d := range diags {
-		if d.Severity == ir.SeverityError {
-			return true
-		}
-	}
-	return false
+	return ir.HasError(diags)
 }
 
 // assertOracles applies the structural oracles to a cleanly compiled document:
