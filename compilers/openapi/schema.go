@@ -830,23 +830,25 @@ func (l *lowerer) fillPropertyConstraints(p *ir.Property, ref *oas3.Schema, poin
 func (l *lowerer) schemaExamples(s *oas3.Schema, pointer string) []ir.Example {
 	var out []ir.Example
 	if node := s.GetExample(); node != nil {
-		out = l.appendExample(out, node, pointer+ptr("example"))
+		out = l.appendExample(out, node, pointer, "example")
 	}
 	for i, node := range s.GetExamples() {
-		out = l.appendExample(out, node, pointer+ptr("examples", strconv.Itoa(i)))
+		out = l.appendExample(out, node, pointer, "examples", strconv.Itoa(i))
 	}
 	return out
 }
 
 // appendExample converts node to a value example and appends it to out; an
-// unconvertible node is skipped with a warning diagnostic at pointer rather
-// than silently dropped — an example is an annotation, not a structural hole,
-// so losing it is fine as long as it isn't silent. Shared by every example
-// site: schema (schemaExamples), media type and parameter (exampleList).
-func (l *lowerer) appendExample(out []ir.Example, node *yaml.Node, pointer string) []ir.Example {
+// unconvertible node is skipped with a warning diagnostic rather than silently
+// dropped — an example is an annotation, not a structural hole, so losing it is
+// fine as long as it isn't silent. base and seg locate the node, joined into a
+// pointer only on the failure path, so an example that converts builds no
+// pointer string at all. Shared by every example site: schema
+// (schemaExamples), media type and parameter (exampleList).
+func (l *lowerer) appendExample(out []ir.Example, node *yaml.Node, base string, seg ...string) []ir.Example {
 	v, err := valueFromNode(node)
 	if err != nil {
-		l.diag(ir.SeverityWarning, codeDegradedConstruct, pointer, "example: %s", err.Error())
+		l.diag(ir.SeverityWarning, codeDegradedConstruct, base+ptr(seg...), "example: %s", err.Error())
 		return out
 	}
 	return append(out, ir.Example{Value: &v})

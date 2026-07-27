@@ -637,6 +637,18 @@ func assertExamples(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
 	require.True(t, ok)
 	require.Len(t, m.Properties, 1)
 	assert.Len(t, m.Properties[0].Examples, 2)
+
+	// The plural `examples` map, in both spellings: an inline entry and one
+	// written as a $ref, which must resolve to the referenced component's value.
+	op, ok := opByName(doc, "getItem")
+	require.True(t, ok)
+	require.Len(t, op.Responses[0].Payload.Contents, 1)
+	ex := op.Responses[0].Payload.Contents[0].Examples
+	require.Len(t, ex, 2, "both entries lower, in source order")
+	require.NotNil(t, ex[0].Value)
+	assert.Equal(t, ir.Value{Kind: ir.ValueString, Str: "hello"}, *ex[0].Value)
+	require.NotNil(t, ex[1].Value)
+	assert.Equal(t, ir.Value{Kind: ir.ValueString, Str: "world"}, *ex[1].Value)
 }
 
 func assertDocsSummaryDesc(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {

@@ -11,6 +11,89 @@
         "canonical": "examples"
       },
       "docs": {},
+      "groups": [
+        {
+          "name": {
+            "hint": "default"
+          },
+          "docs": {},
+          "operations": [
+            {
+              "id": "op/openapi/paths/~1items/get",
+              "name": {
+                "source": "getItem",
+                "canonical": "get_item"
+              },
+              "docs": {},
+              "responses": [
+                {
+                  "name": {},
+                  "conditions": {
+                    "statusCodes": [
+                      {
+                        "from": 200,
+                        "to": 200
+                      }
+                    ]
+                  },
+                  "payload": {
+                    "contents": [
+                      {
+                        "mediaType": "application/json",
+                        "type": {
+                          "target": "t/prim/string",
+                          "nullable": false
+                        },
+                        "examples": [
+                          {
+                            "value": {
+                              "kind": "string",
+                              "str": "hello",
+                              "bytes": null,
+                              "list": null,
+                              "object": null
+                            }
+                          },
+                          {
+                            "value": {
+                              "kind": "string",
+                              "str": "world",
+                              "bytes": null,
+                              "list": null,
+                              "object": null
+                            }
+                          }
+                        ]
+                      }
+                    ]
+                  },
+                  "docs": {
+                    "description": "ok"
+                  }
+                }
+              ],
+              "oneWay": false,
+              "idempotency": {},
+              "auth": null,
+              "bindings": {
+                "http": [
+                  {
+                    "method": "GET",
+                    "uriTemplate": "/items",
+                    "sharedRoute": false,
+                    "checksumRequired": false,
+                    "isWebhook": false
+                  }
+                ]
+              },
+              "provenance": {
+                "source": 0,
+                "pointer": "/paths/~1items/get"
+              }
+            }
+          ]
+        }
+      ],
       "auth": null,
       "provenance": {
         "source": 0
@@ -96,6 +179,18 @@
         "source": 0
       },
       "prim": "integer"
+    },
+    "t/prim/string": {
+      "kind": "primitive",
+      "id": "t/prim/string",
+      "name": {},
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0
+      },
+      "prim": "string"
     }
   },
   "servers": [
@@ -110,7 +205,7 @@
     {
       "format": "openapi@3.1",
       "path": "examples.yaml",
-      "hash": "a04d9f522d84f3d488e1ae965ab4556461dbd77b3d53eeba486126589751719a"
+      "hash": "f454f0f0f4981f3a384d73d645e72c92900385c258cb44688e42e601c0c2a44a"
     }
   ]
 }

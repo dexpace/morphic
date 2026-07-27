@@ -40,8 +40,12 @@ const (
 	// value form is wrong for the document's dialect (a boolean under 2020-12, or
 	// a number under 3.0) — see exclusiveFormDiag.
 	codeExclusiveBoundForm = "openapi/invalid-exclusive-bound"
-	// codeDegradedConstruct reports a construct preserved raw because the IR
-	// has no structural home for it.
+	// codeDegradedConstruct reports a construct the compiler could not carry
+	// into the IR as written: preserved raw for want of a structural home,
+	// lowered to a weaker shape (a heterogeneous enum as a union, an
+	// unconvertible value as the top type), or — for an annotation like a
+	// default or example — dropped. It marks the lossy lowerings the compiler
+	// reports, not a guarantee that every lossy lowering is reported.
 	codeDegradedConstruct = "openapi/degraded-construct"
 	// codeConflictingRedecl reports that inline allOf branches redeclare one
 	// field with values that disagree: an incompatible target type (string vs.
