@@ -1,0 +1,5 @@
+openapi: 3.1.0
+info: {title: t, version: '1'}
+paths: {}
+x-anchors: {ref: &r '#/components/schemas/A'}
+components: {schemas: {A: {$ref: *r}}}

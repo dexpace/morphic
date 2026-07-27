@@ -23,9 +23,11 @@ const (
 	// anchor or a chain of $ref-only schemas that never reaches a concrete
 	// type — caught before it can crash the parser with a stack overflow.
 	codeCyclicRef = "openapi/cyclic-ref"
-	// codeCycleScanFailed reports that the pre-parse cycle scan aborted (a
-	// detector bug), leaving its stack-overflow protection incomplete for the
-	// source. It is a warning, never a refusal: the compile still proceeds.
+	// codeCycleScanFailed reports that the pre-parse cycle scan did not run to
+	// completion — either it aborted (a detector bug) or the document exceeded
+	// one of its expansion bounds — leaving its stack-overflow protection
+	// incomplete for the source. It is a warning, never a refusal: the compile
+	// still proceeds, and every cycle the scan did classify is still caught.
 	codeCycleScanFailed = "openapi/cycle-scan-failed"
 	// codeValidationOnlyKeyword reports a validation-only JSON Schema keyword
 	// preserved verbatim in Extensions (ir-design §4.7).

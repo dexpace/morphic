@@ -27,6 +27,17 @@ import (
 //     cycle_yaml_anchor.yaml: degenerate reference cycles that never reach a
 //     concrete schema node. The pre-parse detector reports each as a cyclic-ref
 //     error instead of letting the parser fault with a stack overflow (GitHub #12).
+//   - cycle_alias_ref_value.yaml, cycle_content_schema.yaml, cycle_alias_ref_key.yaml,
+//     cycle_merge_key_ref.yaml, and cycle_alias_schema_node.yaml: the same
+//     degenerate-cycle shape reached through an alias-valued $ref, a $ref nested
+//     under contentSchema, an alias-valued $ref key, a `<<` merge key, and an
+//     alias-valued schema node respectively — the raw yaml.Node scan now covers
+//     all five shapes it previously missed (GitHub #26).
+//   - cycle_alias_dual_position.yaml: one anchored pure-$ref node reused in two
+//     schema positions (once as a "properties" value, once as a schema in its
+//     own right). The ref-collection walk previously shared one visited-node
+//     set across those two positions, so reaching the node in one position
+//     marked it seen and the other silently skipped it (GitHub #26 follow-up).
 //   - dangling/openapi/f04, f05, f06, f08, f09, f13: discriminator mappings whose
 //     target is undeclared, external, or a sub-schema, dropped with an
 //     unresolved-ref error rather than written as a dangling TypeID (GitHub #14).
@@ -53,6 +64,12 @@ func knownInvalid() map[string]bool {
 		filepath.FromSlash("../../testdata/openapi/cycle_two_node_ref.yaml"):                   true,
 		filepath.FromSlash("../../testdata/openapi/cycle_two_node_ref_sibling.yaml"):           true,
 		filepath.FromSlash("../../testdata/openapi/cycle_yaml_anchor.yaml"):                    true,
+		filepath.FromSlash("../../testdata/openapi/cycle_alias_ref_value.yaml"):                true,
+		filepath.FromSlash("../../testdata/openapi/cycle_content_schema.yaml"):                 true,
+		filepath.FromSlash("../../testdata/openapi/cycle_alias_ref_key.yaml"):                  true,
+		filepath.FromSlash("../../testdata/openapi/cycle_merge_key_ref.yaml"):                  true,
+		filepath.FromSlash("../../testdata/openapi/cycle_alias_schema_node.yaml"):              true,
+		filepath.FromSlash("../../testdata/openapi/cycle_alias_dual_position.yaml"):            true,
 		filepath.FromSlash("../../testdata/dangling/openapi/f04-composition.yaml"):             true,
 		filepath.FromSlash("../../testdata/dangling/openapi/f05-discriminator.yaml"):           true,
 		filepath.FromSlash("../../testdata/dangling/openapi/f06-discriminator.yaml"):           true,
