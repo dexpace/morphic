@@ -138,12 +138,12 @@ func (l *lowerer) schemaBody(schema *oas3.Schema, pointer, hint string) ir.TypeR
 		if hasUnionSiblings(schema) {
 			return ir.TypeRef{
 				Target:   l.lowerWithUnionSiblings(schema, pointer, hint),
-				Nullable: schemaHasNull(schema),
+				Nullable: schemaAdmitsNull(schema),
 			}
 		}
 		return l.lowerOneOfAnyOf(schema, pointer, hint)
 	}
-	return ir.TypeRef{Target: l.lower(schema, pointer, hint), Nullable: schemaHasNull(schema)}
+	return ir.TypeRef{Target: l.lower(schema, pointer, hint), Nullable: schemaAdmitsNull(schema)}
 }
 
 // hasUnionSiblings reports whether a oneOf/anyOf schema also carries structural
@@ -1085,14 +1085,15 @@ func schemaHasNull(s *oas3.Schema) bool {
 
 // schemaAdmitsNull reports whether a schema admits null in any spelling: the two
 // keyword dialects (schemaHasNull) or a oneOf/anyOf null branch. Lowering lifts
-// all three onto the enclosing TypeRef rather than into the type node, so every
-// site that computes a Nullable bit must weigh all three the same way.
+// all of them onto the enclosing TypeRef rather than into the type node, so this
+// is the one predicate every site computing a Nullable bit goes through — a
+// definition site, a union, and a $ref use site must never disagree about the
+// same schema.
 //
 // A null branch counts only when the union is the type itself. Structural
 // siblings intersect with the union (JSON Schema conjoins keywords), so
 // `{type: object, oneOf: [{type: string}, {type: null}]}` admits neither string
-// nor null; schemaBody takes the same view, preserving that union verbatim under
-// Extensions rather than reading nullability out of it.
+// nor null; that union is preserved verbatim under Extensions instead.
 func schemaAdmitsNull(s *oas3.Schema) bool {
 	if schemaHasNull(s) {
 		return true
