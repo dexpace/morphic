@@ -6,16 +6,11 @@ import (
 	"github.com/dexpace/morphic/ir"
 )
 
-// TestNaming_JSONContract pins the omitempty contract of ir.Naming — every
-// field is optional (an anonymous hoisted type has empty Source, and a named
-// entity with no aliases has a nil Aliases slice), so the zero value must
-// marshal to an empty object. Losing an omitempty tag here would litter every
-// anonymous type's JSON with empty-string noise; gaining one where a field
-// must always appear (none do, today) would silently drop data. It also pins
-// that a fully populated Naming — source, canonical, hint, and multiple
-// aliases — survives a JSON round trip unchanged, since Naming is the
-// identity vehicle threaded through every named entity in the IR
-// (ir-design §3.2).
+// TestNaming_JSONContract pins that every ir.Naming field is optional — an
+// anonymous hoisted type has empty Source, and a named entity may have no
+// aliases — so the zero value marshals to an empty object, and that a fully
+// populated Naming survives a JSON round trip. Naming is the identity vehicle
+// threaded through every named entity in the IR (ir-design §3.2).
 func TestNaming_JSONContract(t *testing.T) {
 	t.Parallel()
 	assertJSONContract(t, ir.Naming{}, `{}`, populatedNaming())

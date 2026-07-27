@@ -314,23 +314,16 @@ func TestAny_PopulatedRoundTrip(t *testing.T) {
 	assertTypeDefRoundTrip(t, want)
 }
 
-// TestTypeDef_CommonIsAnAliasNotACopy is the highest-value new test in this
-// file: Common() must return a pointer into the concrete struct's own
-// TypeCommon, not a pointer to a copy (and, now that Common() is a single
-// method promoted from *TypeCommon rather than eleven per-kind methods, not a
-// pointer to some other kind's TypeCommon or a shared singleton either). A
-// copying or singleton implementation would compile and pass every other test
-// in this package (including the JSON round-trip tests above, which never
-// call Common()), but would silently break any pass that mutates a type's
-// shared metadata (Usage flags, Availability, …) via the TypeDef interface —
-// exactly the pattern passes use.
+// TestTypeDef_CommonIsAnAliasNotACopy checks that Common() returns a pointer
+// into the concrete struct's own TypeCommon, not a copy or a value shared
+// across kinds. A copying or singleton implementation would pass every other
+// test in this package (including the JSON round-trip tests above, which
+// never call Common()) while silently breaking any pass that mutates shared
+// metadata (Usage flags, Availability, …) via the TypeDef interface.
 //
-// The read-back deliberately goes through json.Marshal of the whole td rather
-// than through td.Common().ID again: re-reading via Common() would trivially
-// pass a shared-singleton mutant, since that would just report the same value
-// it was just written through. Marshaling td exercises each concrete kind's
-// own embedded TypeCommon field directly (json.go's MarshalJSON adapters), so
-// it only passes when Common() aliases that kind's real field.
+// The read-back goes through json.Marshal of the whole td rather than
+// td.Common().ID again, since re-reading via Common() would trivially pass a
+// shared-singleton mutant.
 func TestTypeDef_CommonIsAnAliasNotACopy(t *testing.T) {
 	t.Parallel()
 	for _, k := range allKinds {

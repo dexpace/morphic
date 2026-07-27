@@ -1,12 +1,10 @@
-// Command morphic-harness sweeps API specs through the Morphic bug-catching
+// Command morphic-harness sweeps API specs through Morphic's bug-catching
 // oracles (no panic/error, IR invariants, JSON round-trip, determinism) and
-// reports the outcome per spec.
+// writes a combined report to stdout. It is tooling built on
+// internal/harness, not part of the compile pipeline.
 //
-// Each argument is a spec file or a directory of specs; directories are walked
-// recursively for *.yaml, *.yml, and *.json inputs, excluding *.golden.json IR
-// snapshots. The combined report is written to stdout. The process exits 0 when
-// every spec passes, 1 when any spec fails an oracle, and 2 on a usage or
-// filesystem error, so it is usable as a CI or script gate.
-//
-// It is tooling built on internal/harness, not part of the compile pipeline.
+// Each argument is a spec file or directory, walked recursively for
+// *.yaml/*.yml/*.json and skipping *.golden.json IR snapshots. Exit code is 0
+// if every spec passes, 1 if any spec fails an oracle, and 2 on a usage or
+// filesystem error, making it usable as a CI or script gate.
 package main

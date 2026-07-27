@@ -25,16 +25,13 @@ import (
 // tests are self-contained.
 const danglingDir = "../../testdata/dangling/openapi"
 
-// danglingRefs returns a sorted, human-readable list of every reference in doc
-// that resolves to nothing — a TypeRef, discriminator, or value ref whose TypeID
-// is absent from doc.Types, or a SchemeUse whose AuthID is absent from doc.Auth.
-// It delegates to irverify.Verify, the shared reflection-based structural checker
-// (ir/irverify/refs.go) that the compiler fuzzer already runs on every document,
-// and keeps only its dangling-reference violations. Reusing that one walker is
-// what lets this test track the IR's ID surface automatically as new ID-bearing
-// fields land, instead of a bespoke traversal that would silently miss them. An
-// empty result means the IR is referentially closed — the property issue #14
-// restores.
+// danglingRefs returns a sorted, human-readable list of every dangling reference
+// in doc — a TypeRef, discriminator, or value ref whose TypeID is absent from
+// doc.Types, or a SchemeUse whose AuthID is absent from doc.Auth — by filtering
+// irverify.Verify's output to violations coded "ir/dangling-". Reusing that
+// shared walker (ir/irverify/refs.go) means new ID-bearing IR fields are covered
+// automatically, rather than by a bespoke traversal that could miss them. An
+// empty result is the referential-closure property issue #14 restores.
 func danglingRefs(doc *ir.Document) []string {
 	var out []string
 	for _, v := range irverify.Verify(doc) {

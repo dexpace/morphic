@@ -1,9 +1,7 @@
 package ir
 
-// ValueKind names the shape of a Value payload. Values are typed data kept
-// separate from the type graph (the TypeSpec Type-vs-Value split): defaults,
-// constants, literal types, enum member values, and examples live here
-// (ir-design §6).
+// ValueKind names the shape of a Value payload; see Value for why values are
+// kept separate from the type graph (ir-design §6).
 type ValueKind string
 
 // Value kinds. The Kind field of a Value selects which payload field carries

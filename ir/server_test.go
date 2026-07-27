@@ -10,14 +10,11 @@ import (
 	"github.com/dexpace/morphic/ir"
 )
 
-// TestServer_JSONContract pins Server's omitempty contract. Name and
-// Description carry no omitempty because every server has a naming and a
-// (possibly empty) description object; Auth carries no omitempty because an
-// empty non-nil slice ("explicitly public") must be distinguishable from nil
-// ("no server-scoped override") — the same reasoning the source comment gives
-// for Operation.Auth and Service.Auth. It also pins that a fully populated
-// Server — URL template, variables, protocol, tags, auth requirements, and
-// bindings — round-trips.
+// TestServer_JSONContract pins that Name and Description carry no omitempty
+// (every server has both), and Auth carries no omitempty because an empty
+// non-nil slice ("explicitly public") must stay distinguishable from nil ("no
+// server-scoped override") — the same reasoning as Operation.Auth and
+// Service.Auth. It also pins that a fully populated Server round-trips.
 func TestServer_JSONContract(t *testing.T) {
 	t.Parallel()
 	assertJSONContract(t, ir.Server{}, `{"name":{},"description":{},"auth":null}`, ir.Server{

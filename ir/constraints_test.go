@@ -6,14 +6,12 @@ import (
 	"github.com/dexpace/morphic/ir"
 )
 
-// TestConstraints_JSONContract pins Constraints' omitempty contract — every
-// bound is a pointer (nil = unconstrained) except ExclusiveMin, ExclusiveMax,
-// and UniqueItems, which are plain bools that must always serialize — an
-// unconstrained Constraints still asserts "not exclusive" and "not unique" as
-// facts, not absences — and that a fully populated Constraints — every
-// numeric bound, string/collection/property-count bound, and both
-// exclusivity flags — survives a JSON round trip with its BigVal decimal
-// strings intact (invariant: no float64 anywhere in the IR).
+// TestConstraints_JSONContract pins that every bound is a pointer (nil =
+// unconstrained) except ExclusiveMin, ExclusiveMax, and UniqueItems, which
+// are plain bools that always serialize — an unconstrained Constraints still
+// asserts "not exclusive" and "not unique" as facts, not absences. It also
+// pins that a fully populated Constraints round-trips with its BigVal decimal
+// strings intact (no float64 anywhere in the IR).
 func TestConstraints_JSONContract(t *testing.T) {
 	t.Parallel()
 	assertJSONContract(t, ir.Constraints{},

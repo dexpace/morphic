@@ -1,9 +1,8 @@
 package ir
 
-// Availability stores the versioning timeline of an entity (ir-design §11). The
-// IR stores the timeline (TypeSpec model); the version-slice pass produces a
-// concrete snapshot document per version. Formats without versioning leave this
-// nil.
+// Availability stores the versioning timeline of an entity (ir-design §11),
+// following the TypeSpec model; the version-slice pass produces a concrete
+// snapshot document per version. Formats without versioning leave this nil.
 type Availability struct {
 	// Added lists the version labels at which the entity was added, ordered;
 	// multiple entries with Removed support add/remove/re-add cycles.

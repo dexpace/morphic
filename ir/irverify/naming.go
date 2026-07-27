@@ -39,8 +39,7 @@ func checkNaming(doc *ir.Document) []Violation {
 // is lowercase-idempotence, not unicode.IsUpper: a compiler neutralizes names
 // with strings.ToLower, so a rune that has no lowercase form (double-struck ℤ,
 // Mathematical Bold 𝐀, a Roman numeral) is already neutral even though IsUpper
-// reports true for it. Only a canonical that ToLower would still change carries
-// casing.
+// reports true for it.
 func isCased(s string) bool {
 	return strings.ToLower(s) != s
 }

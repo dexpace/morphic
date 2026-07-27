@@ -44,14 +44,11 @@ func TestErrorExample_JSONContract(t *testing.T) {
 		ir.ErrorExample{Type: populatedTypeRef(), Content: populatedValue()})
 }
 
-// TestExample_JSONContract pins Example's omitempty contract — every field is
-// optional, since an Example is legally constructed with only one of its
-// contextual arms (Value vs Input/Output/Error) populated (ir-design §12) —
-// and that a fully populated Example — both the type-example arm
-// (Value/Headers) and the operation-scenario arm (Input/Output/Error) set
-// simultaneously here purely to exercise every field in one fixture —
-// survives a JSON round trip. Field legality across the two arms is validated
-// elsewhere; this test only pins serialization.
+// TestExample_JSONContract pins that every Example field is optional, since a
+// legal Example populates only one contextual arm — Value/Headers or
+// Input/Output/Error (ir-design §12). The fixture below sets both arms at
+// once purely to exercise every field in one fixture; arm legality is
+// validated elsewhere, this test only pins serialization.
 func TestExample_JSONContract(t *testing.T) {
 	t.Parallel()
 	val := ir.Value{Kind: ir.ValueString, Str: "example value"}

@@ -79,12 +79,11 @@ func (l *lowerer) internalPointer(ref string) (string, bool) {
 
 // sameFile reports whether a $ref document part names this compilation's own
 // source file, so the reference resolves back into the same document. An exact
-// path match is internal; failing that, a bare filename (no directory) equal to
-// our own basename is internal too, since a self-reference is conventionally
-// spelled with the file's own name (e.g. `m.yaml#/...` inside m.yaml). A doc
-// part that carries its own directory is a distinct path and is matched in full,
-// never on basename alone — otherwise a genuine cross-directory reference
-// (`dir2/m.yaml` from `dir1/m.yaml`) would be misread as a self-reference.
+// path match is internal; so is a bare filename (no directory) equal to our own
+// basename, since self-references are conventionally spelled with just the
+// file's own name (e.g. `m.yaml#/...` inside m.yaml). A doc part that carries
+// its own directory is matched in full, never on basename alone — otherwise
+// `dir2/m.yaml` referenced from `dir1/m.yaml` would misread as a self-reference.
 func (l *lowerer) sameFile(doc string) bool {
 	self := l.source.Path
 	if self == "" {
@@ -110,15 +109,16 @@ func (l *lowerer) internedID(pointer string) (ir.TypeID, bool) {
 	return "", false
 }
 
-// resolveComponentRef resolves an internal pointer that addresses a top-level
+// resolveComponentRef resolves an internal pointer addressing a top-level
 // component schema to its stable named ID, but only when that component is
-// declared. It returns handled=true once it has classified the pointer as a
-// component pointer (declared or not) so callers can stop; a declared component
-// yields ok=true, an undeclared one ok=false (a dangling reference to drop). The
-// ID is rebuilt from the component's canonical name (unescaped, then re-escaped
-// by ptr) rather than the incoming pointer text, so a reference that spells its
-// escapes non-canonically (e.g. `A~B` for a component named "A~B", interned under
-// `A~0B`) still resolves to the interned node instead of an unbacked ID.
+// declared. It returns handled=true once the pointer is classified as a
+// component pointer (declared or not), so callers can stop; a declared
+// component yields ok=true, an undeclared one ok=false (a dangling reference to
+// drop). The ID is rebuilt from the component's canonical name — unescaped, then
+// re-escaped by ptr — rather than from the incoming pointer text, so a
+// non-canonically escaped reference (e.g. `A~B` for a component named "A~B",
+// interned under `A~0B`) still resolves to the interned node instead of an
+// unbacked ID.
 func (l *lowerer) resolveComponentRef(pointer string) (id ir.TypeID, ok, handled bool) {
 	name, isComponent := componentSchemaName(pointer)
 	if !isComponent {

@@ -104,22 +104,15 @@ var numericBoundKeywords = map[string]struct{}{
 }
 
 // numericLiteralArtifact reports whether a library validation finding must be
-// dropped because Morphic — not the library's float64 model — is authoritative
-// for numeric-bound keywords. Morphic reads every bound from the raw node
-// (constraintsFromSchema) and emits its own exact-provenance diagnostic when one
-// is genuinely bad, so the library's finding on such a keyword is either a false
-// positive (a valid magnitude beyond float64 range like 1.8e308, or a valid
-// non-JSON spelling like .5) or a redundant duplicate of Morphic's own error:
+// dropped because Morphic, not the library's float64 model, is authoritative for
+// numeric-bound keywords: a type-mismatch on such a keyword is always Morphic's
+// to own, and an invalid-syntax finding is dropped only when caused solely by a
+// recoverable non-JSON spelling (.5), never a genuinely unrepresentable literal
+// (.inf).
 //
-//   - a type-mismatch on a numeric-bound keyword is always Morphic's to own; and
-//   - an invalid-syntax finding is dropped only when caused solely by a
-//     recoverable non-JSON numeric spelling (.5), never when a genuinely
-//     unrepresentable literal (.inf) is present.
-//
-// This classifier is coupled to the speakeasy library's finding shape — the
-// TypeMismatchError parent path and the YAML tag of the offending node. A
-// library upgrade that changes either must be revalidated against the
-// numeric-precision conformance corpus, which pins the end-to-end behavior.
+// This is coupled to the speakeasy library's finding shape — TypeMismatchError's
+// parent path and the offending node's YAML tag. A library upgrade that changes
+// either must be revalidated against the numeric-precision conformance corpus.
 func numericLiteralArtifact(verr validation.Error) bool {
 	switch verr.Rule {
 	case validation.RuleValidationTypeMismatch:
@@ -204,16 +197,15 @@ func unmarshal(ctx context.Context, data []byte) (doc *soa.OpenAPI, valErrs []er
 }
 
 // resolveAll resolves every reference in doc, converting a panic from the
-// third-party resolver into an ordinary error so the compiler upholds the
-// no-panics-escape invariant. It is the resolve-side counterpart to unmarshal's
-// barrier, and it is needed for the same reason: the resolver faults on shapes
-// the parser accepts — a reference object whose $ref key carries no value, say,
-// which nil-derefs while populating the resolved node.
+// third-party resolver into an ordinary error — the resolve-side counterpart to
+// unmarshal's barrier, needed because the resolver faults on shapes the parser
+// accepts (e.g. a $ref with no value, which nil-derefs while populating the
+// resolved node).
 //
-// The error joins the resolve errors the caller already turns into diagnostics
-// rather than aborting the compile, because a document that trips this is a
-// malformed spec, not an I/O or programmer error. The named returns are reset in
-// the recover so a partially-populated result never leaks.
+// The returned error joins the resolve errors, which the caller turns into
+// diagnostics rather than aborting: a document that trips this is a malformed
+// spec, not an I/O or programmer error. Named returns are reset in the recover
+// so a partially-populated result never leaks.
 func resolveAll(ctx context.Context, doc *soa.OpenAPI, opts soa.ResolveAllOptions) (resErrs []error, err error) {
 	defer func() {
 		if r := recover(); r != nil {
@@ -247,11 +239,9 @@ func resolveDiag(srcIndex int, err error) ir.Diagnostic {
 }
 
 // asValidationError extracts a structured validation error. The wrapped value
-// may be stored by value or by pointer, so both forms are probed. The error
-// chain is walked manually rather than via errors.As: the speakeasy errors.Error
-// string type has an As method that matches any target type named "Error" and
-// calls SetString on it, which panics on the validation.Error struct (also named
-// "Error"). Manual unwrapping with type assertions never invokes that As method.
+// may be stored by value or by pointer, so both forms are probed. The chain is
+// walked manually with type assertions instead of errors.As; see the nolint
+// comment below for why.
 func asValidationError(err error) (validation.Error, bool) {
 	for e := err; e != nil; e = errors.Unwrap(e) {
 		//nolint:errorlint // Deliberately hand-walked: errors.As would invoke the

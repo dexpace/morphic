@@ -1324,14 +1324,12 @@ func TestAllOf_ThreeWayCompatibleRedeclarationStaysSilent(t *testing.T) {
 
 func TestAllOf_SatisfiableNarrowingsStaySilent(t *testing.T) {
 	t.Parallel()
-	// Each of these narrows a base type to a stricter but still-satisfiable
-	// shape under allOf intersection, so none is a provable contradiction:
-	//   - an enum of the same primitive the base type declares,
-	//   - a const pinning one legal value of the base type,
-	//   - a multi-type union narrowed down to one of its own member types.
-	// isStructuralType no longer treats Enum, Union, or Literal as provably
-	// non-scalar, so a bare scalar sibling against one of these is never
-	// flagged (see the false-positive fix on resolvePrimKind/isStructuralType).
+	// Each case narrows a base type to a stricter but satisfiable shape under
+	// allOf intersection (enum of the base's own primitive, const pinning a
+	// legal value, a union narrowed to one of its own members) — none is a
+	// provable contradiction. isStructuralType treats Enum, Union, and Literal
+	// as scalar-compatible, so a bare scalar sibling against any of these must
+	// not be flagged.
 	cases := []struct {
 		name, a, b string
 	}{

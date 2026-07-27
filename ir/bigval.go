@@ -11,11 +11,10 @@ import (
 // convert through math/big at the boundary.
 //
 // A BigVal is always a JSON-valid numeric literal: NewBigVal canonicalizes
-// source spellings that are numerically valid but not valid JSON (a leading dot
-// as in ".5", a trailing dot as in "5.", a leading "+") into their JSON form
-// without touching a single significant digit, so every stored value round-trips
-// through JSON unchanged. Digits, exponent form, and case are preserved exactly;
-// only the non-JSON affixes are rewritten.
+// non-JSON but numerically valid spellings (a leading dot as in ".5", a
+// trailing dot as in "5.", a leading "+") into JSON form, leaving every
+// significant digit, the exponent, and its case untouched — so a stored value
+// round-trips through JSON unchanged.
 type BigVal string
 
 // NewBigVal validates s as a decimal or scientific-notation numeric literal and

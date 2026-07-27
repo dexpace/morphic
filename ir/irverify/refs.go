@@ -8,14 +8,10 @@ import (
 )
 
 // maxWalkDepth bounds the reflection traversal (bounded-recursion rule). Value
-// trees (defaults, examples) embed []Value/[]Field by value and are the deepest
-// structures the walk reaches; each nesting level costs a few reflection
-// descents on top of a fixed prefix from the document root. Compilers bound
-// value/example nesting (the OpenAPI compiler caps it at 128), so this limit is
-// set well above the deepest reflection path a validly-bounded document can
-// produce — several times prefix + maxValueDepth × per-level cost — so a
-// walk-truncated violation signals a genuinely pathological document, never a
-// valid deeply-nested default. Hitting it is never silent: walkValues reports
+// trees (defaults, examples) are the deepest structures reached, and compilers
+// cap their nesting (the OpenAPI compiler caps it at 128), so this limit sits
+// well above what a validly-bounded document can produce — hitting it signals
+// a pathological document, not legitimate nesting. walkValues reports
 // truncation and checkReferentialIntegrity surfaces it as ir/walk-truncated.
 const maxWalkDepth = 4096
 
@@ -38,13 +34,11 @@ func (s refSite) resolves(doc *ir.Document) bool {
 	return s.kind.has(doc, s.id)
 }
 
-// refKind is one class of typed-ID reference this checker resolves: its
-// registry label (used in violation paths and messages), the diagnostic-code
-// singular for a dangling reference, and how to test whether an id resolves
-// in that registry. refKindByType, keyed by reflect.Type, is the single
-// source of truth for what a "reference" is to this checker — a reference
-// class can no longer be silently dropped from the oracle by updating one of
-// several parallel lists and missing another.
+// refKind is one class of typed-ID reference this checker resolves: a
+// registry label (for violation paths and messages), a diagnostic-code
+// singular, and a resolves-in-registry test. refKindByType is the single
+// source of truth for what counts as a "reference" here, so a class can't be
+// silently dropped by missing it from one of several parallel lists.
 //
 // PropID and ServiceID are intentionally absent: neither lives in a
 // document-level flat registry, so they are out of scope for Phase 1.
@@ -79,11 +73,10 @@ var refKindByType = map[reflect.Type]refKind{
 
 // collectRefs walks doc and returns every non-empty typed-ID reference plus
 // whether the bounded walk was truncated. It inspects struct fields, slice/array
-// elements, and both map keys and values. Most map keys are an entry's own ID (a
-// definition that resolves trivially), but some — Service.Renames's
-// map[TypeID]Naming keys — are genuine references into a registry that must
-// resolve, so keys are collected too; a node's own ID also resolves trivially,
-// so collecting it is harmless.
+// elements, and both map keys and values: most map keys are an entry's own ID
+// and resolve trivially, but some — Service.Renames's map[TypeID]Naming keys —
+// are genuine references into a registry that must resolve, so keys are
+// collected too.
 func collectRefs(doc *ir.Document) ([]refSite, bool) {
 	var sites []refSite
 	truncated := walkValues(doc, func(v reflect.Value, path string) bool {
@@ -124,16 +117,13 @@ func checkReferentialIntegrity(doc *ir.Document) []Violation {
 }
 
 // walkValues performs a bounded, cycle-guarded reflection traversal of root,
-// invoking visit for every value it reaches. When visit returns false the walk
-// does not descend into that value's children; when it returns true the walk
-// continues into struct fields, slice/array elements, and both map KEYS and
-// VALUES. Keys are walked because some IR maps key by a reference rather than by
-// the entry's own identity (Service.Renames is map[TypeID]Naming); only the flat
-// Document registries key by a definition, and those keys resolve trivially.
+// calling visit on every value it reaches; returning false from visit skips
+// that value's children. Map keys are walked too, not just values — see
+// collectRefs for why that matters.
 //
-// walkValues returns true when the depth cap was reached and at least one real
-// child was skipped, so callers can surface a too-deep document rather than
-// silently under-checking it.
+// The bool return is true only when the depth cap truncated the walk, so
+// callers can surface a too-deep document instead of silently
+// under-checking it.
 func walkValues(root any, visit func(v reflect.Value, path string) bool) bool {
 	seen := map[uintptr]bool{}
 	truncated := false

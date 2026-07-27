@@ -8,12 +8,12 @@ import (
 
 // constraintsFromSchema reads a schema's scalar (string/number/object-count)
 // value constraints into an ir.Constraints. Numeric bounds are read from the raw
-// YAML nodes, never the *float64 model fields, so full decimal precision is
-// preserved (the no-float64 invariant). Collection bounds (minItems/maxItems/
-// uniqueItems) are List-owned and read elsewhere. A bound literal that is not a
-// finite number yields an error-severity codeNumericPrecision diagnostic and is
-// skipped; nil is returned when no constraint is present. exclusiveBoolean selects
-// the exclusiveMinimum/exclusiveMaximum dialect (see applyExclusive).
+// YAML nodes, never the *float64 model fields, to preserve full decimal
+// precision (the no-float64 invariant). Collection bounds (minItems/maxItems/
+// uniqueItems) are List-owned and read elsewhere. A non-finite bound literal
+// yields an error-severity codeNumericPrecision diagnostic and is skipped; nil
+// is returned when no constraint is present. exclusiveBoolean selects the
+// exclusiveMinimum/exclusiveMaximum dialect (see applyExclusive).
 func constraintsFromSchema(s *oas3.Schema, exclusiveBoolean bool) (*ir.Constraints, []ir.Diagnostic) {
 	if s == nil {
 		return nil, nil
@@ -61,26 +61,22 @@ func numericBounds(c *ir.Constraints, s *oas3.Schema) []ir.Diagnostic {
 }
 
 // boundLiteralDiag reports a numeric bound whose literal is not a finite number.
-// Morphic — not the library's float64 model — is authoritative for these
-// keywords: load suppresses the library's redundant float64 type-mismatch
-// finding on them (a valid magnitude beyond float64 range must not fail the
-// spec), so this is the sole diagnostic for a genuinely bad bound and therefore
-// carries error severity — a non-numeric bound is an invalid schema, not a
-// lossy-but-tolerable value.
+// load already suppresses the library's own float64 type-mismatch check on
+// these keywords (a valid magnitude beyond float64 range must not fail the
+// spec), so this is the sole diagnostic for a bad bound — hence error severity:
+// a non-numeric bound is an invalid schema, not a lossy-but-tolerable value.
 func boundLiteralDiag(prop, literal string, err error) ir.Diagnostic {
 	return diagf(ir.SeverityError, codeNumericPrecision, ir.Provenance{},
 		"%s literal %q: %s", prop, literal, err.Error())
 }
 
 // applyExclusive handles exclusiveMinimum/exclusiveMaximum in both dialects: the
-// 3.0 boolean arm flags the corresponding Min/Max as exclusive, while the 2020-12
-// numeric arm carries the bound value itself (read from the raw node to avoid the
-// float64 trap) and sets the exclusive flag. exclusiveBoolean selects the dialect
-// (true for 3.0, false for the 2020-12 dialect of 3.1/3.2). Because load
-// suppresses the library's type-mismatch on these keywords, Morphic validates the
-// value form here: a value written in the wrong form for the dialect (a boolean
-// under 2020-12, or a number under 3.0) is reported and dropped rather than
-// silently accepted.
+// 3.0 boolean arm flags the corresponding Min/Max as exclusive; the 2020-12
+// numeric arm (3.1/3.2) carries the bound value itself, read from the raw node to
+// avoid the float64 trap, and sets the exclusive flag. exclusiveBoolean selects
+// the dialect (true for 3.0). Because load suppresses the library's type-mismatch
+// on these keywords, a value in the wrong form for the dialect is reported and
+// dropped here rather than silently accepted.
 func applyExclusive(c *ir.Constraints, s *oas3.Schema, isMin, exclusiveBoolean bool) []ir.Diagnostic {
 	ev, prop := s.GetExclusiveMaximum(), "exclusiveMaximum"
 	if isMin {
@@ -165,12 +161,11 @@ func (l *lowerer) exclusiveBoundIsBoolean() bool {
 	return minor == "3.0"
 }
 
-// appendConstraintDiags stamps constraint diagnostics with pointer's provenance
-// and records them at most once per pointer. A sub-schema reached from two
-// positions — its owning property and a $ref that hoists it — reads its
-// constraints twice, but a malformed bound must be reported only once, so a
-// second visit to an already-diagnosed pointer is dropped. The constraint data
-// itself still lands on both nodes; only the diagnostic is de-duplicated.
+// appendConstraintDiags stamps constraint diagnostics with pointer's provenance,
+// recording them at most once per pointer: a sub-schema reached from both its
+// owning property and a $ref that hoists it is read twice, but a malformed bound
+// must be reported only once. Constraint data still lands on both nodes; only
+// the diagnostic is de-duplicated.
 func (l *lowerer) appendConstraintDiags(diags []ir.Diagnostic, pointer string) {
 	if l.diagnosedConstraints[pointer] {
 		return

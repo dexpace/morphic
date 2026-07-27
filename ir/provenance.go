@@ -36,17 +36,13 @@ type Diagnostic struct {
 }
 
 // NewDiagnostic builds a Diagnostic, coercing message to well-formed UTF-8 so
-// the enclosing Document round-trips through JSON byte-for-byte (invariant #7).
-// A third-party validator can render a truncated multibyte rune into its error
-// text; stored verbatim, that ill-formed byte run would reach Document
-// diagnostics, and json.Marshal rewrites invalid UTF-8 to U+FFFD — so the
-// document would no longer re-encode to identical bytes. Coercing at
-// construction keeps every message idempotent under marshal/unmarshal.
-//
-// Compilers and passes build diagnostics through this constructor; irverify's
+// the enclosing Document round-trips through JSON byte-for-byte (invariant
+// #7): a third-party validator can emit a truncated multibyte rune in its
+// error text, and json.Marshal silently rewrites invalid UTF-8 to U+FFFD,
+// breaking that round-trip if left uncoerced until marshal time. irverify's
 // ir/diagnostic-invalid-utf8 check flags any message that still reaches a
-// Document ill-formed. strings.ToValidUTF8 returns message unchanged, without
-// allocating, when it is already valid, so the common path costs one scan.
+// Document ill-formed; strings.ToValidUTF8 doesn't allocate when message is
+// already valid, so the common path costs one scan.
 func NewDiagnostic(sev Severity, code, message string, prov Provenance) Diagnostic {
 	return Diagnostic{
 		Severity:   sev,
@@ -56,15 +52,13 @@ func NewDiagnostic(sev Severity, code, message string, prov Provenance) Diagnost
 	}
 }
 
-// FirstError returns the first error-severity diagnostic in diags, along with
-// true. It returns the zero Diagnostic and false when diags contains no
-// error-severity entry, so a caller can distinguish "found an empty-message
-// error" from "found nothing" without an in-band sentinel.
+// FirstError returns the first error-severity diagnostic in diags and true,
+// or the zero Diagnostic and false if none exists — a two-value return so a
+// zero-value error diagnostic can't be mistaken for "no error found".
 //
-// Compilers and the harness use FirstError to tell a refusal (a real spec
-// problem, e.g. a degenerate reference cycle) from advisory warnings that must
-// be carried forward rather than aborted on, and to report the offending
-// diagnostic's code and message once a refusal is confirmed.
+// Compilers and the harness use it to tell a refusal (a real spec problem)
+// from advisory warnings that must be carried forward, and to report the
+// offending diagnostic once a refusal is confirmed.
 func FirstError(diags []Diagnostic) (Diagnostic, bool) {
 	for _, d := range diags {
 		if d.Severity == SeverityError {
