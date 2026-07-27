@@ -36,5 +36,14 @@ docs/superpowers/
 .env
 
 # Editor/IDE
-# .idea/
-# .vscode/
+.idea/
+.vscode/
+
+# Agent scratch space — not project content
+.claude/
+.crush/
+
+# Scratch files that land in the repo root during ad hoc runs
+/out.json
+/logs.txt
+/pets.json
