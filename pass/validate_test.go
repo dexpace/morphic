@@ -43,6 +43,18 @@ func codes(diags []ir.Diagnostic) []string {
 	return out
 }
 
+// countCode returns how many of diags carry the given diagnostic code.
+func countCode(t *testing.T, diags []ir.Diagnostic, code string) int {
+	t.Helper()
+	var n int
+	for _, d := range diags {
+		if d.Code == code {
+			n++
+		}
+	}
+	return n
+}
+
 func TestValidate_CleanDocumentHasNoDiagnostics(t *testing.T) {
 	t.Parallel()
 	assert.Empty(t, pass.Validate(validDoc()))

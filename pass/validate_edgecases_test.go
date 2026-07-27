@@ -61,13 +61,7 @@ func TestValidate_DanglingRefsAcrossContainerKinds(t *testing.T) {
 	}
 	diags := pass.Validate(doc)
 	// Each dangling target above yields exactly one dangling-type-ref diagnostic.
-	var n int
-	for _, c := range codes(diags) {
-		if c == "ir/dangling-type-ref" {
-			n++
-		}
-	}
-	assert.Equal(t, 7, n)
+	assert.Equal(t, 7, countCode(t, diags, "ir/dangling-type-ref"))
 }
 
 // TestValidate_ModelImplementsAndAdditionalPropsWalked covers walkModelRefs'
@@ -85,13 +79,7 @@ func TestValidate_ModelImplementsAndAdditionalPropsWalked(t *testing.T) {
 		},
 	}
 	diags := pass.Validate(doc)
-	var n int
-	for _, c := range codes(diags) {
-		if c == "ir/dangling-type-ref" {
-			n++
-		}
-	}
-	assert.Equal(t, 4, n)
+	assert.Equal(t, 4, countCode(t, diags, "ir/dangling-type-ref"))
 }
 
 // TestValidate_OperationHeadersAndItemWalked covers the response-headers loop in
@@ -115,15 +103,8 @@ func TestValidate_OperationHeadersAndItemWalked(t *testing.T) {
 		Errors: []ir.ErrorCase{{Type: ir.TypeRef{Target: "t/ghost-err"}}},
 	}
 	diags := pass.Validate(docWithOperation(op))
-	got := codes(diags)
-	var n int
-	for _, c := range got {
-		if c == "ir/dangling-type-ref" {
-			n++
-		}
-	}
 	// item, header, and error targets are all dangling.
-	assert.Equal(t, 3, n)
+	assert.Equal(t, 3, countCode(t, diags, "ir/dangling-type-ref"))
 }
 
 // TestValidate_ModelDiscriminator drives checkModelDiscriminator and every
@@ -155,13 +136,7 @@ func TestValidate_ModelDiscriminator(t *testing.T) {
 		},
 	}
 	diags := pass.Validate(doc)
-	var n int
-	for _, c := range codes(diags) {
-		if c == "pass/discriminator-missing-variant" {
-			n++
-		}
-	}
-	assert.Equal(t, 2, n)
+	assert.Equal(t, 2, countCode(t, diags, "pass/discriminator-missing-variant"))
 }
 
 // TestValidate_EmptyEffectiveWireNameIsSkipped covers effectiveWireName's

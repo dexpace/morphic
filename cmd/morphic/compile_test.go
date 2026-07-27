@@ -11,17 +11,9 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/dexpace/morphic/internal/testspec"
 	"github.com/dexpace/morphic/ir"
 )
-
-const tinySpec = `openapi: 3.1.0
-info: {title: Tiny, version: "1"}
-paths:
-  /ping:
-    get:
-      operationId: ping
-      responses: {"200": {description: ok}}
-`
 
 func writeFile(t *testing.T, name, contents string) string {
 	t.Helper()
@@ -32,7 +24,7 @@ func writeFile(t *testing.T, name, contents string) string {
 
 func TestRun_ParseWritesIRToFile(t *testing.T) {
 	t.Parallel()
-	spec := writeFile(t, "spec.yaml", tinySpec)
+	spec := writeFile(t, "spec.yaml", testspec.Tiny)
 	out := filepath.Join(t.TempDir(), "ir.json")
 	var stdout, stderr bytes.Buffer
 
