@@ -104,15 +104,19 @@ var schemaDataKeys = map[string]bool{
 	"const": true, "enum": true,
 }
 
-// detectCycles scans raw source bytes for degenerate reference cycles that would
-// otherwise crash the third-party parser with a fatal, unrecoverable stack
-// overflow (GitHub #12). It runs BEFORE soa.Unmarshal so the anchor case never
-// reaches the crashing parser, and reports two classes as error diagnostics: a
-// recursive YAML anchor (an alias whose target is one of its own ancestors) and
-// a pure-$ref cycle (a chain of schema $refs that never reaches a node without a
-// top-level $ref). A source that does not decode as YAML yields no cycles: the
-// main parser owns reporting that as a parse problem. The scan runs under
-// recoverCycleScan so a detector bug degrades to "no cycle found", never aborts.
+// detectCycles scans raw source bytes for degenerate reference structures that
+// would otherwise crash or exhaust memory in the third-party parser (GitHub
+// #12, GitHub #27). "Cycles" in the name covers the whole family this pre-scan
+// refuses, not literally every class below: it runs BEFORE soa.Unmarshal so
+// none of them ever reaches the crashing or memory-exhausting code path, and
+// reports three classes as error diagnostics — a recursive YAML anchor (an
+// alias whose target is one of its own ancestors), a pure-$ref cycle (a chain
+// of schema $refs that never reaches a node without a top-level $ref), and
+// alias amplification (aliases whose expansion would blow up to far more nodes
+// than the document declares, a billion-laughs shape). A source that does not
+// decode as YAML yields no cycles: the main parser owns reporting that as a
+// parse problem. The scan runs under recoverCycleScan so a detector bug
+// degrades to "no cycle found", never aborts.
 func detectCycles(srcIndex int, data []byte) []ir.Diagnostic {
 	return recoverCycleScan(srcIndex, func() []ir.Diagnostic {
 		return scanCycles(srcIndex, data)
@@ -154,7 +158,30 @@ func scanCycles(srcIndex int, data []byte) []ir.Diagnostic {
 	if d, ok := anchorCycle(srcIndex, docRoot); ok {
 		return []ir.Diagnostic{d}
 	}
-	return refCycles(srcIndex, docRoot)
+
+	// anchorCycle must run first: a recursive anchor makes expandedWeight
+	// infinite, and having already refused those is what makes the alias
+	// graph a DAG and the weigh walk below provably terminating.
+	diags := refCycles(srcIndex, docRoot)
+	if hasErrorDiag(diags) {
+		return diags
+	}
+
+	// refCycles runs before the amplification check, ahead of it rather than
+	// skipped, for two reasons. First, a genuine $ref cycle should still win
+	// the diagnostic over an amplification finding on the same document.
+	// Second, refCycles is provably safe to run on an amplifying document: it
+	// walks the raw tree with per-role memoization and never materializes the
+	// expansion, so running it costs nothing and keeps its own bounded
+	// merge-key work exercised on every document, amplifying or not.
+	//
+	// The append (rather than a replace) preserves any codeCycleScanFailed
+	// warning refCycles already produced, so a document that both truncates a
+	// merge chain and amplifies via aliases reports both findings.
+	if d, ok := aliasAmplification(srcIndex, docRoot); ok {
+		return append(diags, d)
+	}
+	return diags
 }
 
 // documentRoot returns the effective root node to scan: the content of a

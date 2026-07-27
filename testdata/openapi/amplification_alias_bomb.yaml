@@ -1,0 +1,27 @@
+# GitHub #27 reproducer: a "billion laughs" YAML alias bomb. Each level's
+# anchor fans out into ten copies of the level below via allOf, so 159 raw
+# parsed nodes stand in for an alias-substituted form of roughly 37 billion
+# nodes. Every level here is acyclic and every alias's target is a proper
+# ancestor-free anchor, so this is not a cycle the anchor or $ref detectors
+# catch — it slips past both and, unguarded, exhausts memory inside
+# soa.Unmarshal well before ResolveAllReferences ever runs. aliasAmplification
+# is what refuses it, at the pre-parse stage, before the crashing parser is
+# ever reached.
+openapi: 3.1.0
+info:
+  title: b
+  version: '1'
+paths: {}
+components:
+  schemas:
+    L0: &a0 {type: string}
+    L1: &a1 {allOf: [*a0,*a0,*a0,*a0,*a0,*a0,*a0,*a0,*a0,*a0]}
+    L2: &a2 {allOf: [*a1,*a1,*a1,*a1,*a1,*a1,*a1,*a1,*a1,*a1]}
+    L3: &a3 {allOf: [*a2,*a2,*a2,*a2,*a2,*a2,*a2,*a2,*a2,*a2]}
+    L4: &a4 {allOf: [*a3,*a3,*a3,*a3,*a3,*a3,*a3,*a3,*a3,*a3]}
+    L5: &a5 {allOf: [*a4,*a4,*a4,*a4,*a4,*a4,*a4,*a4,*a4,*a4]}
+    L6: &a6 {allOf: [*a5,*a5,*a5,*a5,*a5,*a5,*a5,*a5,*a5,*a5]}
+    L7: &a7 {allOf: [*a6,*a6,*a6,*a6,*a6,*a6,*a6,*a6,*a6,*a6]}
+    L8: &a8 {allOf: [*a7,*a7,*a7,*a7,*a7,*a7,*a7,*a7,*a7,*a7]}
+    L9: &a9 {allOf: [*a8,*a8,*a8,*a8,*a8,*a8,*a8,*a8,*a8,*a8]}
+    L10: &a10 {allOf: [*a9,*a9,*a9,*a9,*a9,*a9,*a9,*a9,*a9,*a9]}

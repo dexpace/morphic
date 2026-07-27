@@ -40,6 +40,12 @@ import (
 //     where only the second declaration is cyclic. Speakeasy warns and applies
 //     both in turn, so the resolver works from the last; the scan read such a
 //     mapping first-key-wins and reported the document clean.
+//   - amplification_alias_bomb.yaml: a 10-level x 10-way YAML alias fan-out
+//     (a "billion laughs" document). Every alias's target is acyclic and no
+//     ancestor of the alias, so neither the anchor nor $ref cycle detector
+//     catches it, and unguarded it exhausts memory inside soa.Unmarshal before
+//     ResolveAllReferences ever runs (GitHub #27). The pre-parse scan measures
+//     its alias-expanded node count and refuses it outright.
 //   - dangling/openapi/f04, f05, f06, f08, f09, f13: discriminator mappings whose
 //     target is undeclared, external, or a sub-schema, dropped with an
 //     unresolved-ref error rather than written as a dangling TypeID (GitHub #14).
@@ -73,6 +79,7 @@ func knownInvalid() map[string]bool {
 		filepath.FromSlash("../../testdata/openapi/cycle_alias_schema_node.yaml"):              true,
 		filepath.FromSlash("../../testdata/openapi/cycle_alias_dual_position.yaml"):            true,
 		filepath.FromSlash("../../testdata/openapi/cycle_duplicate_key.yaml"):                  true,
+		filepath.FromSlash("../../testdata/openapi/amplification_alias_bomb.yaml"):             true,
 		filepath.FromSlash("../../testdata/dangling/openapi/f04-composition.yaml"):             true,
 		filepath.FromSlash("../../testdata/dangling/openapi/f05-discriminator.yaml"):           true,
 		filepath.FromSlash("../../testdata/dangling/openapi/f06-discriminator.yaml"):           true,

@@ -58,6 +58,16 @@ const (
 	// first declaration's value but surfaces the disagreement rather than
 	// discarding it.
 	codeConflictingRedecl = "openapi/conflicting-redeclaration"
+	// codeAliasAmplification reports a document whose YAML aliases expand to
+	// far more nodes than the document itself declares — a billion-laughs
+	// shape that would exhaust memory inside soa.Unmarshal well before
+	// ResolveAllReferences ever runs (GitHub #27). It is an error, never a
+	// warning: unlike codeCycleScanFailed, which flags an incomplete scan
+	// while still letting the compile proceed, this is a positive finding —
+	// the scan completed and measured the expansion — so the document is
+	// refused outright rather than handed to the parser to find out the hard
+	// way.
+	codeAliasAmplification = "openapi/alias-amplification"
 )
 
 // diagf builds an ir.Diagnostic with a formatted message. It is the single
