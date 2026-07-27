@@ -3,7 +3,9 @@ package openapi
 import (
 	"testing"
 
+	soa "github.com/speakeasy-api/openapi/openapi"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/dexpace/morphic/ir"
 )
@@ -95,4 +97,34 @@ func TestSameFile(t *testing.T) {
 	assert.False(t, l.sameFile("other/m.yaml"),
 		"a doc part with its own directory is a distinct path, not a basename match")
 	assert.False(t, (&lowerer{}).sameFile("m.yaml"), "empty source path never matches")
+}
+
+func TestInternedID_ByPointerHit(t *testing.T) {
+	t.Parallel()
+	l := newRawLowerer(&soa.OpenAPI{})
+	l.byPointer[deepPointer] = "t/anon/prev"
+
+	id, ok := l.internedID(deepPointer)
+	require.True(t, ok, "a pointer already recorded in byPointer resolves")
+	assert.Equal(t, ir.TypeID("t/anon/prev"), id)
+}
+
+func TestInternedID_RegistryHit(t *testing.T) {
+	t.Parallel()
+	l := newRawLowerer(&soa.OpenAPI{})
+	// A node lives at the pointer-derived ID without a byPointer entry: internedID
+	// still finds it through the type registry.
+	id := anonTypeID(deepPointer)
+	l.out.Types[id] = &ir.Primitive{TypeCommon: ir.TypeCommon{ID: id}, Prim: ir.PrimString}
+
+	got, ok := l.internedID(deepPointer)
+	require.True(t, ok, "a node registered under its pointer-derived ID resolves")
+	assert.Equal(t, id, got)
+}
+
+func TestInternedID_Miss(t *testing.T) {
+	t.Parallel()
+	l := newRawLowerer(&soa.OpenAPI{})
+	_, ok := l.internedID(deepPointer)
+	assert.False(t, ok, "an un-interned pointer does not resolve")
 }

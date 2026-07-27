@@ -3,6 +3,8 @@ package openapi
 import (
 	"testing"
 
+	oas3 "github.com/speakeasy-api/openapi/jsonschema/oas3"
+	soa "github.com/speakeasy-api/openapi/openapi"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -168,6 +170,113 @@ components:
 		}
 	}
 	assert.True(t, sawConflict, "a differing redeclared description is surfaced, not dropped silently")
+}
+
+func TestAllOf_ConflictingRedeclaredTypeDiagnosed(t *testing.T) {
+	t.Parallel()
+	// allOf is an intersection, so a field one branch types `string` and another
+	// types `integer` describes an unsatisfiable schema. Reconciliation keeps the
+	// first declaration's shape (as before) but must no longer swallow the
+	// conflict — it names the field and both branch sites so the author can find
+	// and fix them.
+	spec := `openapi: 3.1.0
+info: {title: T, version: "1"}
+paths: {}
+components:
+  schemas:
+    Conflictish:
+      allOf:
+        - type: object
+          properties:
+            id: {type: string}
+        - type: object
+          properties:
+            id: {type: integer}
+`
+	doc, diags := lowerSpec(t, spec)
+	requireNoErrorDiags(t, diags) // a redeclaration conflict is a warning, not a refusal
+	m, ok := doc.Types[ir.TypeID("t/openapi/components/schemas/Conflictish")].(*ir.Model)
+	require.True(t, ok, "Conflictish should be a model")
+	require.Len(t, m.Properties, 1, "id still reconciles to one property")
+	assert.Equal(t, ir.TypeID("t/prim/string"), m.Properties[0].Type.Target,
+		"the first declaration in source order still wins the shape")
+
+	conflicts := conflictDiags(diags)
+	require.Len(t, conflicts, 1, "the incompatible type redeclaration is diagnosed exactly once")
+	d := conflicts[0]
+	assert.Equal(t, ir.SeverityWarning, d.Severity, "a usable-but-suspicious model is a warning")
+	assert.Contains(t, d.Message, `"id"`, "the diagnostic names the conflicting field")
+	assert.Contains(t, d.Message, "allOf/0", "the diagnostic names the first branch site")
+	assert.Contains(t, d.Message, "allOf/1", "the diagnostic names the second branch site")
+}
+
+func TestAllOf_ConflictingRedeclaredConstraintDiagnosed(t *testing.T) {
+	t.Parallel()
+	// Same target type, but the two branches pin the same keyword to different
+	// values (maxLength 10 vs 20). The chosen winner is arbitrary source order, so
+	// the dropped bound is surfaced rather than silently discarded.
+	spec := `openapi: 3.1.0
+info: {title: T, version: "1"}
+paths: {}
+components:
+  schemas:
+    Boundish:
+      allOf:
+        - type: object
+          properties:
+            code: {type: string, maxLength: 10}
+        - type: object
+          properties:
+            code: {type: string, maxLength: 20}
+`
+	doc, diags := lowerSpec(t, spec)
+	requireNoErrorDiags(t, diags)
+	m, ok := doc.Types[ir.TypeID("t/openapi/components/schemas/Boundish")].(*ir.Model)
+	require.True(t, ok, "Boundish should be a model")
+	require.Len(t, m.Properties, 1, "code reconciles to one property")
+	require.NotNil(t, m.Properties[0].Constraints, "the first declaration's constraints are kept")
+	require.NotNil(t, m.Properties[0].Constraints.MaxLength)
+	assert.Equal(t, int64(10), *m.Properties[0].Constraints.MaxLength,
+		"the first declaration in source order still wins the constraint")
+
+	conflicts := conflictDiags(diags)
+	require.Len(t, conflicts, 1, "the incompatible constraint redeclaration is diagnosed exactly once")
+	d := conflicts[0]
+	assert.Equal(t, ir.SeverityWarning, d.Severity)
+	assert.Contains(t, d.Message, `"code"`, "the diagnostic names the conflicting field")
+	assert.Contains(t, d.Message, "allOf/0")
+	assert.Contains(t, d.Message, "allOf/1")
+}
+
+func TestAllOf_CompatibleRedeclarationStaysSilent(t *testing.T) {
+	t.Parallel()
+	// The reconcilable case: identical target type, the second branch only adds
+	// `required`. This must stay silent — a redeclaration is not by itself a
+	// conflict, only an incompatible one is.
+	spec := `openapi: 3.1.0
+info: {title: T, version: "1"}
+paths: {}
+components:
+  schemas:
+    Compatish:
+      allOf:
+        - type: object
+          properties:
+            id: {type: integer}
+        - type: object
+          required: [id]
+          properties:
+            id: {type: integer}
+`
+	doc, diags := lowerSpec(t, spec)
+	requireNoErrorDiags(t, diags)
+	m, ok := doc.Types[ir.TypeID("t/openapi/components/schemas/Compatish")].(*ir.Model)
+	require.True(t, ok, "Compatish should be a model")
+	require.Len(t, m.Properties, 1, "id reconciles to one property")
+	assert.True(t, m.Properties[0].Required, "required from the second branch is OR-ed in")
+
+	assert.Empty(t, conflictDiags(diags),
+		"a compatible redeclaration is not a conflict")
 }
 
 func TestAllOf_PropertyAlongsideAllOfReconciles(t *testing.T) {
@@ -448,4 +557,337 @@ components:
 	k, ok := doc.Types[ir.TypeID("t/openapi/components/schemas/K")].(*ir.Literal)
 	require.True(t, ok, "K should be a literal")
 	assert.Equal(t, ir.Value{Kind: ir.ValueString, Str: "fixed"}, k.Value)
+}
+
+func TestAllOf_DiscriminatorHierarchy(t *testing.T) {
+	t.Parallel()
+	spec := componentSpecVer("3.2.0", `    Pet:
+      type: object
+      discriminator:
+        propertyName: petType
+        mapping:
+          cat: '#/components/schemas/Cat'
+        defaultMapping: '#/components/schemas/Dog'
+      properties: {petType: {type: string}}
+    Extra:
+      type: object
+      properties: {x: {type: string}}
+    Cat:
+      allOf:
+        - {$ref: '#/components/schemas/Pet'}
+        - {type: object, properties: {meow: {type: boolean}}}
+    Dog:
+      allOf:
+        - {$ref: '#/components/schemas/Pet'}
+        - {$ref: '#/components/schemas/Extra'}
+        - {type: object, properties: {bark: {type: boolean}}}
+`)
+	doc, _ := lowerSpec(t, spec)
+
+	pet := typeByName(doc, "Pet").(*ir.Model)
+	require.NotNil(t, pet.Discriminator)
+	assert.NotEmpty(t, pet.Discriminator.Property, "declared petType resolves to a PropID")
+	assert.NotEmpty(t, pet.Discriminator.Mapping)
+	assert.NotEmpty(t, pet.Discriminator.Default, "defaultMapping resolved")
+
+	cat := typeByName(doc, "Cat").(*ir.Model)
+	require.NotNil(t, cat.Base)
+	assert.Equal(t, "cat", cat.DiscriminatorValue, "mapping key wins")
+
+	dog := typeByName(doc, "Dog").(*ir.Model)
+	require.NotNil(t, dog.Base, "the discriminator-anchoring ref is the base")
+	require.Len(t, dog.Mixins, 1, "the second ref becomes a mixin")
+	assert.Equal(t, "Dog", dog.DiscriminatorValue, "falls back to schema name")
+}
+
+func TestModelDiscriminator_UndeclaredPropertyAndBadMapping(t *testing.T) {
+	t.Parallel()
+	spec := componentSpec(`    Vehicle:
+      type: object
+      discriminator:
+        propertyName: kind
+        mapping:
+          car: '#'
+      properties: {name: {type: string}}
+`)
+	doc, diags := lowerSpec(t, spec)
+	v := typeByName(doc, "Vehicle").(*ir.Model)
+	require.NotNil(t, v.Discriminator)
+	assert.Empty(t, v.Discriminator.Property, "undeclared property")
+	assert.Equal(t, "kind", v.Discriminator.PropertyName)
+	var sawBad bool
+	for _, d := range diags {
+		if d.Code == codeUnresolvedRef {
+			sawBad = true
+		}
+	}
+	assert.True(t, sawBad, "bad mapping target diagnostic")
+}
+
+func TestOneOf_DiscriminatorWithDefault(t *testing.T) {
+	t.Parallel()
+	spec := componentSpecVer("3.2.0", `    Shape:
+      oneOf:
+        - {$ref: '#/components/schemas/Circle'}
+        - {$ref: '#/components/schemas/Square'}
+      discriminator:
+        propertyName: shapeType
+        mapping: {circle: '#/components/schemas/Circle'}
+        defaultMapping: '#/components/schemas/Square'
+    Circle: {type: object, properties: {r: {type: number}}}
+    Square: {type: object, properties: {s: {type: number}}}
+`)
+	doc, _ := lowerSpec(t, spec)
+	u := typeByName(doc, "Shape").(*ir.Union)
+	require.NotNil(t, u.Discriminator)
+	assert.Equal(t, "shapeType", u.Discriminator.PropertyName)
+	assert.NotEmpty(t, u.Discriminator.Default)
+}
+
+func TestAnyOf_ThreeVariantsWithNull(t *testing.T) {
+	t.Parallel()
+	spec := componentSpec(`    N:
+      anyOf:
+        - {type: string}
+        - {type: integer}
+        - {type: 'null'}
+`)
+	doc, diags := lowerSpec(t, spec)
+	requireNoErrorDiags(t, diags)
+	u := typeByName(doc, "N").(*ir.Union)
+	assert.Len(t, u.Variants, 2, "null branch stripped from variants")
+	assert.False(t, u.Exclusive, "anyOf is not exclusive")
+}
+
+func TestUnion_VariantHints(t *testing.T) {
+	t.Parallel()
+	spec := componentSpec(`    U:
+      oneOf:
+        - {$ref: '#/components/schemas/Named', description: sibling}
+        - {type: string}
+    Named: {type: object, properties: {a: {type: string}}}
+`)
+	doc, diags := lowerSpec(t, spec)
+	requireNoErrorDiags(t, diags)
+	u := typeByName(doc, "U").(*ir.Union)
+	require.Len(t, u.Variants, 2)
+	hints := []string{u.Variants[0].Name.Hint, u.Variants[1].Name.Hint}
+	assert.Contains(t, hints, "Named", "ref-with-siblings hint from target name")
+	assert.Contains(t, hints, "variant_1", "inline branch positional hint")
+}
+
+func TestAllOf_UnresolvedRefBranch(t *testing.T) {
+	t.Parallel()
+	spec := componentSpec(`    Bad:
+      allOf:
+        - {$ref: '#'}
+        - {type: object, properties: {a: {type: string}}}
+`)
+	doc, diags := lowerSpec(t, spec)
+	require.NotNil(t, doc)
+	var sawUnresolved bool
+	for _, d := range diags {
+		if d.Code == codeUnresolvedRef {
+			sawUnresolved = true
+		}
+	}
+	assert.True(t, sawUnresolved)
+}
+
+func TestAllOf_MultiRefWithUnresolvedDoesNotAnchor(t *testing.T) {
+	t.Parallel()
+	spec := componentSpec(`    Base:
+      type: object
+      discriminator: {propertyName: t}
+      properties: {t: {type: string}}
+    Sub:
+      allOf:
+        - {$ref: '#/components/schemas/Ghost'}
+        - {$ref: '#/components/schemas/Base'}
+        - {type: object, properties: {a: {type: string}}}
+`)
+	doc, diags := lowerSpec(t, spec)
+	require.NotNil(t, doc)
+	sub := typeByName(doc, "Sub").(*ir.Model)
+	require.NotNil(t, sub.Base, "the discriminator-anchoring Base becomes base despite an unresolved sibling ref")
+	assert.Equal(t, "Sub", sub.DiscriminatorValue)
+	_ = diags
+}
+
+func TestEnum_ValueTypeVariants(t *testing.T) {
+	t.Parallel()
+	spec := componentSpec(`    EInt: {type: integer, enum: [1, 2]}
+    ENum: {type: number, enum: [1.5, 2.5]}
+    EBool: {type: boolean, enum: [true, false]}
+    ENoTypeBool: {enum: [true, false]}
+    ENoTypeNum: {enum: [1, 2]}
+    ENoTypeStr: {enum: [a, b]}
+    EBytes: {enum: [!!binary aGk=]}
+`)
+	doc, diags := lowerSpec(t, spec)
+	requireNoErrorDiags(t, diags)
+	want := map[string]ir.PrimKind{
+		"EInt": ir.PrimInteger, "ENum": ir.PrimNumber, "EBool": ir.PrimBool,
+		"ENoTypeBool": ir.PrimBool, "ENoTypeNum": ir.PrimNumber,
+		"ENoTypeStr": ir.PrimString, "EBytes": ir.PrimString,
+	}
+	for name, prim := range want {
+		e, ok := typeByName(doc, name).(*ir.Enum)
+		require.True(t, ok, "%s is an enum", name)
+		assert.Equal(t, prim, e.ValueType, "%s value type", name)
+	}
+}
+
+func TestEnum_HeterogeneousBecomesUnionWithBadValue(t *testing.T) {
+	t.Parallel()
+	spec := componentSpec("    Mixed:\n      enum: [active, .inf]\n")
+	doc, diags := lowerSpec(t, spec)
+	u, ok := typeByName(doc, "Mixed").(*ir.Union)
+	require.True(t, ok, "heterogeneous enum lowers to a union of literals")
+	assert.Len(t, u.Variants, 2)
+	var sawDegraded, sawValueWarn bool
+	for _, d := range diags {
+		if d.Code == codeDegradedConstruct && d.Severity == ir.SeverityInfo {
+			sawDegraded = true
+		}
+		if d.Severity == ir.SeverityWarning {
+			sawValueWarn = true
+		}
+	}
+	assert.True(t, sawDegraded, "heterogeneous-enum info diagnostic")
+	assert.True(t, sawValueWarn, "unconvertible literal value warning")
+}
+
+func TestAllOf_ModelWithOwnDiscriminator(t *testing.T) {
+	t.Parallel()
+	spec := componentSpec(`    Base:
+      allOf:
+        - {$ref: '#/components/schemas/Common'}
+      discriminator: {propertyName: kind}
+      properties: {kind: {type: string}}
+    Common: {type: object, properties: {id: {type: string}}}
+`)
+	doc, diags := lowerSpec(t, spec)
+	requireNoErrorDiags(t, diags)
+	base := typeByName(doc, "Base").(*ir.Model)
+	require.NotNil(t, base.Discriminator, "allOf model may declare its own discriminator")
+	assert.NotEmpty(t, base.Discriminator.Property)
+}
+
+func TestAllOf_BoolRefBranchHasNoDiscriminator(t *testing.T) {
+	t.Parallel()
+	spec := componentSpec(`    BoolComp: false
+    Sub:
+      allOf:
+        - {$ref: '#/components/schemas/BoolComp'}
+        - {type: object, properties: {a: {type: string}}}
+`)
+	doc, diags := lowerSpec(t, spec)
+	require.NotNil(t, doc)
+	sub := typeByName(doc, "Sub").(*ir.Model)
+	assert.Empty(t, sub.DiscriminatorValue, "a bool-schema ref target anchors no hierarchy")
+	_ = diags
+}
+
+func TestEnum_NonScalarAndMidListMismatch(t *testing.T) {
+	t.Parallel()
+	spec := componentSpec(`    ObjEnum:
+      enum:
+        - {a: 1}
+        - {b: 2}
+    MidMismatch:
+      enum: [alpha, beta, 3]
+`)
+	doc, diags := lowerSpec(t, spec)
+	require.NotNil(t, doc)
+	_, objIsUnion := typeByName(doc, "ObjEnum").(*ir.Union)
+	assert.True(t, objIsUnion, "object-valued enum degrades to a union")
+	_, midIsUnion := typeByName(doc, "MidMismatch").(*ir.Union)
+	assert.True(t, midIsUnion, "kind change mid-list degrades to a union")
+	_ = diags
+}
+
+func TestPropIDByName_NotFound(t *testing.T) {
+	t.Parallel()
+	m := &ir.Model{Properties: []ir.Property{{ID: "p1", Name: ir.Naming{Source: "a"}}}}
+	_, ok := propIDByName(m, "missing")
+	assert.False(t, ok)
+	id, ok := propIDByName(m, "a")
+	assert.True(t, ok)
+	assert.Equal(t, ir.PropID("p1"), id)
+}
+
+func TestRefLastSegment(t *testing.T) {
+	t.Parallel()
+	assert.Equal(t, "Pet", refLastSegment("#/components/schemas/Pet"))
+	assert.Equal(t, "bare", refLastSegment("bare"))
+}
+
+func TestMappingTargetID(t *testing.T) {
+	t.Parallel()
+	l := &lowerer{
+		schemas: map[string]bool{"Cat": true, "Dog": true, "A/B": true},
+		out:     &ir.Document{Types: ir.TypeRegistry{}},
+	}
+	// A $ref to a declared component.
+	id, ok := l.mappingTargetID("#/components/schemas/Cat")
+	require.True(t, ok)
+	assert.Equal(t, namedTypeID("/components/schemas/Cat"), id)
+	// A bare schema name.
+	id, ok = l.mappingTargetID("Dog")
+	require.True(t, ok)
+	assert.Equal(t, namedTypeID(ptr("components", "schemas", "Dog")), id)
+	// A bare name that contains '/' but names an existing schema must resolve, not
+	// dangle as a misclassified external $ref (issue #14, f07).
+	id, ok = l.mappingTargetID("A/B")
+	require.True(t, ok)
+	assert.Equal(t, namedTypeID(ptr("components", "schemas", "A/B")), id)
+	// An undeclared component and a genuine external ref are dropped, never
+	// synthesized into a dangling ID.
+	_, ok = l.mappingTargetID("#/components/schemas/Ghost")
+	assert.False(t, ok, "undeclared component target dropped")
+	_, ok = l.mappingTargetID("a.yaml#/A")
+	assert.False(t, ok, "external target dropped")
+	// A declared but empty-named component ("") is interned anonymously, so its
+	// bare mapping name must resolve to that anon ID, not an unbacked namedTypeID
+	// (issue #14, f31).
+	l.schemas[""] = true
+	id, ok = l.mappingTargetID("")
+	require.True(t, ok)
+	assert.Equal(t, anonTypeID(ptr("components", "schemas", "")), id)
+	assert.NotEqual(t, namedTypeID(ptr("components", "schemas", "")), id)
+}
+
+func strptr(s string) *string { return &s }
+
+func TestDiscriminatorDefault_ResolvesDeclaredComponent(t *testing.T) {
+	t.Parallel()
+	l := newRawLowerer(&soa.OpenAPI{})
+	l.schemas = map[string]bool{"Cat": true}
+	d := &oas3.Discriminator{PropertyName: "kind", DefaultMapping: strptr("Cat")}
+
+	id := l.discriminatorDefault(d, "/components/schemas/Pet")
+	assert.Equal(t, namedTypeID("/components/schemas/Cat"), id)
+	assert.Empty(t, l.diags, "a resolvable defaultMapping produces no diagnostic")
+}
+
+func TestDiscriminatorDefault_DroppedWhenUnresolved(t *testing.T) {
+	t.Parallel()
+	l := newRawLowerer(&soa.OpenAPI{})
+	// "Missing" is neither a declared component nor an internal pointer, so the
+	// defaultMapping does not resolve and is dropped with one error diagnostic.
+	d := &oas3.Discriminator{PropertyName: "kind", DefaultMapping: strptr("Missing")}
+
+	id := l.discriminatorDefault(d, "/components/schemas/Pet")
+	assert.Empty(t, id, "an unresolved defaultMapping yields no target")
+	require.Len(t, l.diags, 1)
+	assert.Equal(t, codeUnresolvedRef, l.diags[0].Code)
+}
+
+func TestDiscriminatorDefault_EmptyIsNoOp(t *testing.T) {
+	t.Parallel()
+	l := newRawLowerer(&soa.OpenAPI{})
+	id := l.discriminatorDefault(&oas3.Discriminator{PropertyName: "kind"}, "/components/schemas/Pet")
+	assert.Empty(t, id)
+	assert.Empty(t, l.diags)
 }

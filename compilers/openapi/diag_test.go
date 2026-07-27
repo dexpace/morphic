@@ -33,3 +33,12 @@ func TestDiagf_SanitizesInvalidUTF8(t *testing.T) {
 	assert.Equal(t, string(first), string(second), "sanitized message round-trips byte-for-byte")
 	assert.Equal(t, d.Message, back.Message, "message survives marshal/unmarshal unchanged")
 }
+
+func TestHasErrorDiag_Cases(t *testing.T) {
+	t.Parallel()
+	assert.False(t, hasErrorDiag(nil), "no diagnostics is not an error")
+	assert.False(t, hasErrorDiag([]ir.Diagnostic{{Severity: ir.SeverityWarning}, {Severity: ir.SeverityInfo}}),
+		"warnings and hints alone are not an error")
+	assert.True(t, hasErrorDiag([]ir.Diagnostic{{Severity: ir.SeverityWarning}, {Severity: ir.SeverityError}}),
+		"a single error-severity diagnostic is a refusal")
+}

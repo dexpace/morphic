@@ -1,4 +1,4 @@
-package openapi_test // external test package — exercises only the public API
+package openapi_test
 
 import (
 	"context"

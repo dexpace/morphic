@@ -3,11 +3,20 @@ package openapi
 import (
 	"testing"
 
+	oas3 "github.com/speakeasy-api/openapi/jsonschema/oas3"
+	"github.com/speakeasy-api/openapi/values"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/dexpace/morphic/ir"
 )
+
+func TestConstraintsFromSchema_NilSchema(t *testing.T) {
+	t.Parallel()
+	c, diags := constraintsFromSchema(nil, false)
+	assert.Nil(t, c)
+	assert.Nil(t, diags)
+}
 
 func TestConstraints_ExclusiveBoolean30(t *testing.T) {
 	t.Parallel()
@@ -73,6 +82,33 @@ func TestConstraints_MalformedNumericLiterals(t *testing.T) {
 		}
 	}
 	assert.GreaterOrEqual(t, count, 2, "both malformed literals error")
+}
+
+func TestConstraints_NumericPrecisionSurvives(t *testing.T) {
+	t.Parallel()
+	spec := `openapi: 3.1.0
+info: {title: T, version: "1"}
+paths: {}
+components:
+  schemas:
+    S:
+      type: object
+      properties:
+        ratio:
+          type: number
+          minimum: 0.30000000000000004
+          maximum: 9007199254740993
+          multipleOf: 0.1
+`
+	doc, diags := lowerSpec(t, spec)
+	requireNoErrorDiags(t, diags)
+	m := doc.Types[ir.TypeID("t/openapi/components/schemas/S")].(*ir.Model)
+	c := m.Properties[0].Constraints
+	require.NotNil(t, c)
+	// Exact decimal strings — a float64 path would corrupt all three.
+	assert.Equal(t, ir.BigVal("0.30000000000000004"), *c.Min)
+	assert.Equal(t, ir.BigVal("9007199254740993"), *c.Max)
+	assert.Equal(t, ir.BigVal("0.1"), *c.MultipleOf)
 }
 
 func TestConstraints_LosslessNumericLiterals(t *testing.T) {
@@ -207,4 +243,34 @@ func propConstraints(t *testing.T, doc *ir.Document, model, wire string) *ir.Con
 	}
 	t.Fatalf("property %s not found", wire)
 	return nil
+}
+
+func TestApplyExclusive_NumericWithoutRootNode(t *testing.T) {
+	t.Parallel()
+	f := 5.0
+	s := &oas3.Schema{ExclusiveMinimum: &values.EitherValue[bool, bool, float64, float64]{Right: &f}}
+	c := &ir.Constraints{}
+	diags := applyExclusive(c, s, true, false)
+	// The numeric arm is taken (2020-12 dialect, numeric value) but there is no raw
+	// node to read the exact literal from, so nothing is set and no diagnostic.
+	assert.Nil(t, diags)
+	assert.False(t, c.ExclusiveMin)
+}
+
+// TestComponentConstraints_DiagnosticProvenance covers the diagnostic-stamping
+// loop: a scalar component whose numeric bound is not a valid number surfaces a
+// numeric-precision error stamped with the component's own pointer.
+func TestComponentConstraints_DiagnosticProvenance(t *testing.T) {
+	t.Parallel()
+	spec := componentSpec("    BadN: {type: number, minimum: hello}\n")
+	_, diags := lowerSpec(t, spec)
+	var found bool
+	for _, d := range diags {
+		if d.Code == codeNumericPrecision {
+			found = true
+			assert.NotEmpty(t, d.Provenance.Pointer, "component numeric diagnostic carries its pointer")
+			assert.Equal(t, ir.SeverityError, d.Severity, "a non-numeric bound is an error")
+		}
+	}
+	assert.True(t, found, "a non-numeric component bound is reported")
 }

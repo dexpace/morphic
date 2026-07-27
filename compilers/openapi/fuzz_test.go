@@ -1,3 +1,6 @@
+// This file is a package-level suite, not a per-source-file test: it fuzzes the
+// whole compile pipeline (corpus-seeded and mutation-based) rather than any one
+// source file's logic, so it has no single source file to pair with.
 package openapi_test // external test package — exercises only the public API
 
 import (

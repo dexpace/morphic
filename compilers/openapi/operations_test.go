@@ -5,29 +5,14 @@ import (
 	"testing"
 
 	soa "github.com/speakeasy-api/openapi/openapi"
+	"github.com/speakeasy-api/openapi/sequencedmap"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	yaml "gopkg.in/yaml.v3"
 
 	"github.com/dexpace/morphic/compilers"
 	"github.com/dexpace/morphic/ir"
 )
-
-// lowerServiceSpec lowers components and the service layer of src.
-func lowerServiceSpec(t *testing.T, src string) (*ir.Document, ir.Service, []ir.Diagnostic) {
-	t.Helper()
-	doc, diags := func() (*ir.Document, []ir.Diagnostic) {
-		loadedDoc, loadDiags, err := load(t.Context(), 0, compilers.Source{Path: "spec.yaml", Data: []byte(src)}, Options{}.withDefaults())
-		require.NoError(t, err)
-		require.NotNil(t, loadedDoc)
-		l := newLowerer(0, loadedDoc, Options{}.withDefaults())
-		l.lowerComponentSchemas()
-		l.lowerSecuritySchemes()
-		l.out.Services = []ir.Service{l.lowerService()}
-		return l.out, append(loadDiags, l.diags...)
-	}()
-	require.Len(t, doc.Services, 1)
-	return doc, doc.Services[0], diags
-}
 
 func TestGrouping_ByFirstTag(t *testing.T) {
 	t.Parallel()
@@ -356,4 +341,241 @@ paths:
 	op := svc.Groups[0].Operations[0]
 	assert.Empty(t, op.Name.Source, "no operationId leaves an empty source name")
 	assert.Equal(t, canonicalWords("get /ping"), op.Name.Hint)
+}
+
+const opsSpec = `openapi: 3.1.0
+info: {title: T, version: "1"}
+servers:
+  - url: https://api.example.com
+tags:
+  - name: main
+    description: Main
+    externalDocs: {url: 'https://docs', description: d}
+paths:
+  /a:
+    servers:
+      - url: https://a.example.com
+    get:
+      operationId: getA
+      tags: [ghost]
+      externalDocs: {url: 'https://x'}
+      x-flag: true
+      parameters:
+        - {$ref: '#/components/parameters/PageParam'}
+      responses:
+        "200":
+          description: ok
+          headers:
+            X-Rate: {$ref: '#/components/headers/RateLimit'}
+        "404": {$ref: '#/components/responses/NotFound'}
+        "4XX": {description: client range}
+        "5XX": {description: server range}
+    put: {operationId: putA, responses: {"200": {description: ok}}}
+    post:
+      operationId: postA
+      callbacks:
+        onEvent: {$ref: '#/components/callbacks/OnEvent'}
+      responses: {"200": {description: ok}}
+    delete: {operationId: delA, responses: {"200": {description: ok}}}
+    options: {operationId: optA, responses: {"200": {description: ok}}}
+    head: {operationId: headA, responses: {"200": {description: ok}}}
+    patch: {operationId: patchA, responses: {"200": {description: ok}}}
+    trace: {operationId: traceA}
+components:
+  parameters:
+    PageParam: {name: page, in: query, schema: {type: integer}}
+  headers:
+    RateLimit: {schema: {type: integer}}
+  responses:
+    NotFound: {description: not found}
+  callbacks:
+    OnEvent:
+      '{$request.body#/url}':
+        post: {operationId: cbPost, responses: {"200": {description: ok}}}
+`
+
+func TestOperations_MethodsTagsServersRefs(t *testing.T) {
+	t.Parallel()
+	doc, diags := parseFull(t, opsSpec)
+
+	// All eight HTTP methods lowered.
+	methods := map[string]bool{}
+	for _, g := range doc.Services[0].Groups {
+		for _, op := range g.Operations {
+			for _, hb := range op.Bindings.HTTP {
+				methods[hb.Method] = true
+			}
+		}
+	}
+	for _, m := range []string{"GET", "PUT", "POST", "DELETE", "OPTIONS", "HEAD", "PATCH", "TRACE"} {
+		assert.True(t, methods[m], "method %s lowered", m)
+	}
+
+	getA := findOp(t, doc, "getA")
+	assert.NotEmpty(t, getA.Extensions, "op x-* extension")
+	assert.NotEmpty(t, getA.Docs.ExternalDocs, "op externalDocs")
+	_, hasServers := getA.Extensions["openapi:servers"]
+	assert.True(t, hasServers, "path-item servers preserved")
+	require.NotEmpty(t, getA.Params, "component-ref parameter resolved")
+	assert.Equal(t, "page", getA.Params[0].Name.Source)
+
+	// Component-ref response + header resolved; error ranges classified.
+	require.NotEmpty(t, getA.Responses)
+	assert.NotEmpty(t, getA.Responses[0].Headers, "component-ref header resolved")
+	faults := map[string]bool{}
+	for _, ec := range getA.Errors {
+		faults[ec.Fault] = true
+	}
+	assert.True(t, faults["client"] && faults["server"])
+
+	// Undeclared tag → empty tag docs (no crash), tag def registered once.
+	require.Len(t, doc.TagDefs, 1)
+	assert.NotEmpty(t, doc.TagDefs[0].Docs.ExternalDocs, "declared tag externalDocs")
+
+	// Callback operation registered alongside its parent.
+	assert.NotEmpty(t, findOp(t, doc, "cbPost").ID)
+	_ = diags
+}
+
+func TestOperations_NoResponses(t *testing.T) {
+	t.Parallel()
+	doc, _ := parseFull(t, opsSpec)
+	trace := findOp(t, doc, "traceA")
+	assert.Empty(t, trace.Responses)
+	assert.Empty(t, trace.Errors)
+}
+
+const webhookRefSpec = `openapi: 3.1.0
+info: {title: T, version: "1"}
+webhooks:
+  ping: {$ref: '#/components/pathItems/PingItem'}
+components:
+  pathItems:
+    PingItem:
+      post: {operationId: onPing, responses: {"200": {description: ok}}}
+`
+
+func TestWebhooks_PathItemRefResolved(t *testing.T) {
+	t.Parallel()
+	doc, _ := parseFull(t, webhookRefSpec)
+	op := findOp(t, doc, "onPing")
+	require.NotEmpty(t, op.Bindings.HTTP)
+	assert.True(t, op.Bindings.HTTP[0].IsWebhook)
+}
+
+func TestGrouping_PathPrefixRootPath(t *testing.T) {
+	t.Parallel()
+	spec := `openapi: 3.1.0
+info: {title: T, version: "1"}
+paths:
+  /:
+    get: {operationId: root, responses: {"200": {description: ok}}}
+`
+	opts := Options{Grouping: GroupByPathPrefix}.withDefaults()
+	loadedDoc, _, err := load(t.Context(), 0, sourceOf(spec), opts)
+	require.NoError(t, err)
+	l := newLowerer(0, loadedDoc, opts)
+	l.lowerComponentSchemas()
+	svc := l.lowerService()
+	require.NotEmpty(t, svc.Groups)
+	assert.Equal(t, "", svc.Groups[0].Name.Source, "root path yields empty first segment")
+}
+
+func TestStatusRange(t *testing.T) {
+	t.Parallel()
+	cases := []struct {
+		code     string
+		from, to int
+	}{
+		{"default", 0, 0},
+		{"200", 200, 200},
+		{"4XX", 400, 499},
+		{"5xx", 500, 599},
+		{"20A", 0, 0}, // non-numeric, non-range → catch-all
+	}
+	for _, tc := range cases {
+		t.Run(tc.code, func(t *testing.T) {
+			t.Parallel()
+			r := statusRange(tc.code)
+			assert.Equal(t, tc.from, r.From)
+			assert.Equal(t, tc.to, r.To)
+		})
+	}
+}
+
+func TestFaultFor(t *testing.T) {
+	t.Parallel()
+	assert.Equal(t, "client", faultFor(ir.StatusRange{From: 404, To: 404}))
+	assert.Equal(t, "server", faultFor(ir.StatusRange{From: 503, To: 503}))
+	assert.Equal(t, "", faultFor(ir.StatusRange{}))
+}
+
+func TestPreserveErrorHeaders_WithoutRootNode(t *testing.T) {
+	t.Parallel()
+	l := newRawLowerer(&soa.OpenAPI{})
+	headers := sequencedmap.New(
+		sequencedmap.NewElem("X-H", &soa.ReferencedHeader{}),
+	)
+	ec := &ir.ErrorCase{}
+	l.preserveErrorHeaders(ec, &soa.Response{Headers: headers}, "/r")
+	assert.Nil(t, ec.Extensions, "headers with no raw node are not preserved")
+	require.Empty(t, l.diags)
+}
+
+func TestLowerResponses_NoResponses(t *testing.T) {
+	t.Parallel()
+	l := newRawLowerer(&soa.OpenAPI{})
+	responses, errs := l.lowerResponses(&soa.Operation{}, "/op")
+	assert.Nil(t, responses)
+	assert.Nil(t, errs)
+}
+
+func TestFirstPathSegment_Empty(t *testing.T) {
+	t.Parallel()
+	assert.Equal(t, "", firstPathSegment("/"))
+	assert.Equal(t, "users", firstPathSegment("/users/{id}"))
+}
+
+func TestApplyPathServers_WithoutRootNode(t *testing.T) {
+	t.Parallel()
+	l := newRawLowerer(&soa.OpenAPI{})
+	op := &ir.Operation{}
+	l.applyPathServers(op, &soa.PathItem{Servers: []*soa.Server{{URL: "https://x"}}})
+	assert.Nil(t, op.Extensions, "servers with no raw node are not preserved")
+	assert.Empty(t, l.diags)
+}
+
+func TestLowerTagDefs_NilEntrySkipped(t *testing.T) {
+	t.Parallel()
+	l := newRawLowerer(&soa.OpenAPI{Tags: []*soa.Tag{nil, {}}})
+	l.lowerTagDefs()
+	assert.Len(t, l.out.TagDefs, 1, "nil tag entry skipped")
+}
+
+func TestRawChildNode(t *testing.T) {
+	t.Parallel()
+	assert.Nil(t, rawChildNode(nil, "x"), "nil root")
+	assert.Nil(t, rawChildNode(scalarNode("!!str", "x"), "k"), "non-mapping root")
+
+	var doc yaml.Node
+	require.NoError(t, yaml.Unmarshal([]byte("a: 1\nb: 2"), &doc))
+	// doc is a DocumentNode wrapping the mapping — exercises the unwrap branch.
+	got := rawChildNode(&doc, "b")
+	require.NotNil(t, got)
+	assert.Equal(t, "2", got.Value)
+	assert.Nil(t, rawChildNode(&doc, "missing"), "absent key")
+}
+
+func TestResolvers_NilInputs(t *testing.T) {
+	t.Parallel()
+	assert.Nil(t, resolvePathItem(nil))
+	assert.Nil(t, resolveResponse(nil))
+	assert.Nil(t, resolveHeader(nil))
+	assert.Nil(t, resolveCallback(nil))
+	assert.Nil(t, resolveParameter(nil))
+	assert.Nil(t, resolveRequestBody(nil))
+	assert.Nil(t, resolveExample(nil))
+	assert.Nil(t, resolveSecurityScheme(nil))
+	_, ok := paramKey(nil)
+	assert.False(t, ok)
 }

@@ -1,0 +1,112 @@
+package ir_test
+
+import (
+	"encoding/json"
+	"testing"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
+	"github.com/dexpace/morphic/ir"
+)
+
+// TestServer_ZeroValueShape pins Server's omitempty contract. Name and
+// Description carry no omitempty because every server has a naming and a
+// (possibly empty) description object; Auth carries no omitempty because an
+// empty non-nil slice ("explicitly public") must be distinguishable from nil
+// ("no server-scoped override") — the same reasoning the source comment gives
+// for Operation.Auth and Service.Auth.
+func TestServer_ZeroValueShape(t *testing.T) {
+	t.Parallel()
+	assertZeroValueShape(t, ir.Server{}, `{"name":{},"description":{},"auth":null}`)
+}
+
+// TestServer_PopulatedRoundTrip pins that a fully populated Server — URL
+// template, variables, protocol, tags, auth requirements, and bindings —
+// round-trips.
+func TestServer_PopulatedRoundTrip(t *testing.T) {
+	t.Parallel()
+	want := ir.Server{
+		Name:        ir.Naming{Source: "production", Canonical: "production"},
+		URLTemplate: "https://{region}.example.com/v1",
+		Description: populatedDocs(),
+		Variables: []ir.ServerVariable{
+			{Name: "region", Default: "us-east-1", Enum: []string{"us-east-1", "eu-west-1"}, Docs: populatedDocs()},
+			{Name: "stage", Default: "prod"},
+		},
+		Protocol:        "kafka",
+		ProtocolVersion: "3.5",
+		Tags:            []string{"internal", "beta"},
+		Auth: []ir.AuthRequirement{
+			{Schemes: []ir.SchemeUse{{Scheme: "auth/apiKey", Scopes: []string{"read"}}}},
+		},
+		Bindings: map[string]ir.Extensions{
+			"kafka": {"groupId": ir.RawValue(`"g1"`)},
+			"amqp":  {"exchange": ir.RawValue(`"e1"`)},
+		},
+		Extensions: populatedExtensions(),
+	}
+	assertRoundTrip(t, want)
+}
+
+// TestServer_AuthEmptyNonNilRoundTrips mirrors TestOperation_AuthEmptyNonNilRoundTrips
+// (document_test.go) for Server.Auth: an empty non-nil slice must serialize as
+// [] and must not collapse to nil on decode, since Server is the other place
+// besides Operation and Service where the source comment makes this promise.
+func TestServer_AuthEmptyNonNilRoundTrips(t *testing.T) {
+	t.Parallel()
+	srv := ir.Server{Auth: []ir.AuthRequirement{}}
+	raw, err := json.Marshal(srv)
+	require.NoError(t, err)
+	assert.Contains(t, string(raw), `"auth":[]`, "empty non-nil Auth serializes as []")
+
+	var back ir.Server
+	require.NoError(t, json.Unmarshal(raw, &back))
+	require.NotNil(t, back.Auth, "empty Auth must not deserialize to nil")
+	assert.Empty(t, back.Auth)
+
+	var nilSrv ir.Server
+	rawNil, err := json.Marshal(nilSrv)
+	require.NoError(t, err)
+	assert.Contains(t, string(rawNil), `"auth":null`, "nil Auth serializes as null")
+}
+
+// TestServer_BindingsDeterministic pins Class C for Server's map field:
+// Bindings must marshal with keys in sorted order on every run.
+func TestServer_BindingsDeterministic(t *testing.T) {
+	t.Parallel()
+	srv := ir.Server{
+		Bindings: map[string]ir.Extensions{
+			"z-proto": {"k": ir.RawValue(`1`)},
+			"m-proto": {"k": ir.RawValue(`2`)},
+			"a-proto": {"k": ir.RawValue(`3`)},
+			"q-proto": {"k": ir.RawValue(`4`)},
+			"b-proto": {"k": ir.RawValue(`5`)},
+		},
+	}
+	got := assertDeterministicMarshal(t, srv)
+	assert.Contains(t, got,
+		`"bindings":{"a-proto":{"k":3},"b-proto":{"k":5},"m-proto":{"k":2},"q-proto":{"k":4},"z-proto":{"k":1}}`)
+}
+
+// TestServerVariable_ZeroValueShape pins ServerVariable's contract that Docs
+// carries no omitempty, since every variable has a (possibly empty)
+// documentation object, while Name/Default/Enum/Extensions stay optional.
+func TestServerVariable_ZeroValueShape(t *testing.T) {
+	t.Parallel()
+	assertZeroValueShape(t, ir.ServerVariable{}, `{"docs":{}}`)
+}
+
+// TestServerVariable_PopulatedRoundTrip pins that a fully populated
+// ServerVariable round-trips.
+func TestServerVariable_PopulatedRoundTrip(t *testing.T) {
+	t.Parallel()
+	want := ir.ServerVariable{
+		Name:       "region",
+		Default:    "us-east-1",
+		Enum:       []string{"us-east-1", "eu-west-1", "ap-south-1"},
+		Docs:       populatedDocs(),
+		Extensions: populatedExtensions(),
+	}
+	assertRoundTrip(t, want)
+}
