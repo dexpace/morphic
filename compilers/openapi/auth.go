@@ -23,7 +23,7 @@ func (l *lowerer) lowerSecuritySchemes() {
 	}
 	out := make(map[ir.AuthID]ir.AuthScheme, schemes.Len())
 	for name, rs := range schemes.All() {
-		ss := resolveRef(rs)
+		ss := resolveRef[soa.SecurityScheme](rs)
 		if ss == nil {
 			continue
 		}

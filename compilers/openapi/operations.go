@@ -82,7 +82,7 @@ func (l *lowerer) lowerPaths(groups *serviceGroups) {
 		return
 	}
 	for path, rp := range paths.All() {
-		pi := resolveRef(rp)
+		pi := resolveRef[soa.PathItem](rp)
 		if pi == nil {
 			continue
 		}
@@ -122,7 +122,7 @@ func (l *lowerer) lowerWebhooks(groups *serviceGroups) {
 		return
 	}
 	for name, rp := range hooks.All() {
-		pi := resolveRef(rp)
+		pi := resolveRef[soa.PathItem](rp)
 		if pi == nil {
 			continue
 		}
@@ -277,7 +277,7 @@ func (l *lowerer) lowerResponses(src *soa.Operation, opPointer string) ([]ir.Res
 	var responses []ir.Response
 	var errs []ir.ErrorCase
 	for code, rr := range resps.All() {
-		r := resolveRef(rr)
+		r := resolveRef[soa.Response](rr)
 		if r == nil {
 			continue
 		}
@@ -289,7 +289,7 @@ func (l *lowerer) lowerResponses(src *soa.Operation, opPointer string) ([]ir.Res
 			responses = append(responses, l.lowerResponse(r, rng, rptr))
 		}
 	}
-	if def := resolveRef(resps.GetDefault()); def != nil {
+	if def := resolveRef[soa.Response](resps.GetDefault()); def != nil {
 		errs = append(errs, l.lowerErrorCase(def, ir.StatusRange{}, opPointer+ptr("responses", "default")))
 	}
 	return responses, errs
@@ -382,12 +382,12 @@ func (l *lowerer) lowerCallbacks(src *soa.Operation, opPointer, inferred string)
 	var callbacks []ir.Callback
 	var ops []ir.Operation
 	for cbName, rcb := range cbMap.All() {
-		cb := resolveRef(rcb)
+		cb := resolveRef[soa.Callback](rcb)
 		if cb == nil {
 			continue
 		}
 		for expr, rp := range cb.All() {
-			pi := resolveRef(rp)
+			pi := resolveRef[soa.PathItem](rp)
 			if pi == nil {
 				continue
 			}
@@ -450,7 +450,7 @@ func mergeParameters(pathParams, opParams []*soa.ReferencedParameter) []*soa.Ref
 
 // paramKey builds the (in, name) identity of a parameter for merge dedup.
 func paramKey(rp *soa.ReferencedParameter) (string, bool) {
-	p := resolveRef(rp)
+	p := resolveRef[soa.Parameter](rp)
 	if p == nil {
 		return "", false
 	}
