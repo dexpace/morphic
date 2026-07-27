@@ -37,6 +37,11 @@ import (
 // sharing one visited-node set across the schema, schema-map, and schema-list
 // roles let the first role to reach the node consume it and the second role
 // skip it, silently dropping the $ref the chain walk needed.
+//
+// duplicate-key is the same class of gap in the other direction: a mapping that
+// declares a key twice. Speakeasy warns and applies both occurrences in turn, so
+// the resolver works from the last, and reading the mapping first-key-wins hid
+// the cycle behind the shadowed sibling. FuzzCycleDetector found it.
 var cycleReproducers = []struct{ name, file string }{
 	{"self-ref", "cycle_self_ref"},
 	{"two-node-ref", "cycle_two_node_ref"},
@@ -49,6 +54,7 @@ var cycleReproducers = []struct{ name, file string }{
 	{"merge-key-ref", "cycle_merge_key_ref"},
 	{"alias-schema-node", "cycle_alias_schema_node"},
 	{"alias-dual-position", "cycle_alias_dual_position"},
+	{"duplicate-key", "cycle_duplicate_key"},
 }
 
 // TestDetectCycles_Reproducers pins that each degenerate cycle is diagnosed as an
@@ -568,13 +574,38 @@ func TestMappingPairs_Cases(t *testing.T) {
 		assert.Equal(t, "a", got[0].key)
 	})
 
-	t.Run("duplicate explicit key: first wins", func(t *testing.T) {
+	t.Run("duplicate explicit key: last wins", func(t *testing.T) {
 		t.Parallel()
-		first := yscalar("first")
-		n := ymap(yscalar("k"), first, yscalar("k"), yscalar("second"))
+		last := yscalar("second")
+		n := ymap(yscalar("k"), yscalar("first"), yscalar("k"), last)
 		got := newNodeView().mappingPairs(n)
 		require.Len(t, got, 1)
-		assert.Same(t, first, got[0].val)
+		assert.Same(t, last, got[0].val,
+			"speakeasy applies every occurrence in turn, so the last value is the effective one")
+	})
+
+	t.Run("duplicate explicit key keeps the last occurrence's position", func(t *testing.T) {
+		t.Parallel()
+		n := ymap(
+			yscalar("k"), yscalar("first"),
+			yscalar("other"), yscalar("o"),
+			yscalar("k"), yscalar("second"),
+		)
+		got := newNodeView().mappingPairs(n)
+		require.Len(t, got, 2)
+		assert.Equal(t, "other", got[0].key)
+		assert.Equal(t, "k", got[1].key)
+		assert.Equal(t, "second", got[1].val.Value)
+	})
+
+	t.Run("a merged key still yields to a repeated explicit key", func(t *testing.T) {
+		t.Parallel()
+		base := ymap(yscalar("k"), yscalar("from-merge"))
+		n := ymap(yscalar("k"), yscalar("first"), ymerge(), base, yscalar("k"), yscalar("second"))
+		got := newNodeView().mappingPairs(n)
+		require.Len(t, got, 1)
+		assert.Equal(t, "second", got[0].val.Value,
+			"the two precedence rules compose: last explicit wins, and it still outranks the merge")
 	})
 
 	t.Run("merge key contributes a mapping's pairs", func(t *testing.T) {

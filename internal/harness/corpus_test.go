@@ -38,6 +38,10 @@ import (
 //     own right). The ref-collection walk previously shared one visited-node
 //     set across those two positions, so reaching the node in one position
 //     marked it seen and the other silently skipped it (GitHub #26 follow-up).
+//   - cycle_duplicate_key.yaml: a schema map that declares the same key twice,
+//     where only the second declaration is cyclic. Speakeasy warns and applies
+//     both in turn, so the resolver works from the last; the scan read such a
+//     mapping first-key-wins and reported the document clean.
 //   - dangling/openapi/f04, f05, f06, f08, f09, f13: discriminator mappings whose
 //     target is undeclared, external, or a sub-schema, dropped with an
 //     unresolved-ref error rather than written as a dangling TypeID (GitHub #14).
@@ -70,6 +74,7 @@ func knownInvalid() map[string]bool {
 		filepath.FromSlash("../../testdata/openapi/cycle_merge_key_ref.yaml"):                  true,
 		filepath.FromSlash("../../testdata/openapi/cycle_alias_schema_node.yaml"):              true,
 		filepath.FromSlash("../../testdata/openapi/cycle_alias_dual_position.yaml"):            true,
+		filepath.FromSlash("../../testdata/openapi/cycle_duplicate_key.yaml"):                  true,
 		filepath.FromSlash("../../testdata/dangling/openapi/f04-composition.yaml"):             true,
 		filepath.FromSlash("../../testdata/dangling/openapi/f05-discriminator.yaml"):           true,
 		filepath.FromSlash("../../testdata/dangling/openapi/f06-discriminator.yaml"):           true,

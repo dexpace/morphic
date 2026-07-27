@@ -1,0 +1,11 @@
+openapi: 3.1.0
+info: {title: t, version: '1'}
+paths: {}
+components:
+  schemas:
+    # `B` is declared twice. Reading the mapping first-key-wins sees only the
+    # harmless definition and calls the document clean; speakeasy applies both
+    # occurrences in turn, so the resolver works from the second — whose
+    # contentSchema $refs itself and never reaches a node without a $ref.
+    B: {type: object}
+    B: {contentSchema: {$ref: '#/components/schemas/B/contentSchema'}}
