@@ -40,7 +40,7 @@ func TestSchemaRef_NullableNormalization(t *testing.T) {
 				"        p: " + tc.schema + "\n"
 			doc, diags := lowerSpec(t, spec)
 			requireNoErrorDiags(t, diags)
-			model, ok := doc.Types[ir.TypeID("t/openapi/components/schemas/S")].(*ir.Model)
+			model, ok := doc.Types[componentID("S")].(*ir.Model)
 			require.True(t, ok)
 			require.Len(t, model.Properties, 1)
 			assert.Equal(t, tc.wantTarget, model.Properties[0].Type.Target)
@@ -62,14 +62,14 @@ func TestLower_NamedScalarComponentResolves(t *testing.T) {
 	doc, diags := lowerSpec(t, spec)
 	requireNoErrorDiags(t, diags)
 
-	scalar, ok := doc.Types[ir.TypeID("t/openapi/components/schemas/MyId")].(*ir.Scalar)
+	scalar, ok := doc.Types[componentID("MyId")].(*ir.Scalar)
 	require.True(t, ok, "named scalar component registers a Scalar at its own ID")
 	require.NotNil(t, scalar.Base)
 	assert.Equal(t, ir.TypeID("t/prim/uuid"), scalar.Base.Target)
 	assert.Equal(t, "MyId", scalar.Name.Source, "the component name is preserved")
 
-	holder := doc.Types[ir.TypeID("t/openapi/components/schemas/Holder")].(*ir.Model)
-	assert.Equal(t, ir.TypeID("t/openapi/components/schemas/MyId"), holder.Properties[0].Type.Target)
+	holder := doc.Types[componentID("Holder")].(*ir.Model)
+	assert.Equal(t, componentID("MyId"), holder.Properties[0].Type.Target)
 
 	// The reference must resolve: the validate pass finds no dangling type ref.
 	for _, d := range pass.Validate(doc) {
@@ -94,7 +94,7 @@ func TestLower_OneOfWithStructuralSiblingsPreserved(t *testing.T) {
 	doc, diags := lowerSpec(t, spec)
 	requireNoErrorDiags(t, diags)
 
-	m, ok := doc.Types[ir.TypeID("t/openapi/components/schemas/Thing")].(*ir.Model)
+	m, ok := doc.Types[componentID("Thing")].(*ir.Model)
 	require.True(t, ok, "structural body lowers to a Model, not a bare Union")
 	require.Len(t, m.Properties, 1)
 	assert.Equal(t, "common", m.Properties[0].Name.Source)
@@ -129,10 +129,10 @@ func TestLower_AllOfWithOneOfKeepsBoth(t *testing.T) {
 `)
 	doc, diags := lowerSpec(t, spec)
 	requireNoErrorDiags(t, diags)
-	m, ok := doc.Types[ir.TypeID("t/openapi/components/schemas/Combo")].(*ir.Model)
+	m, ok := doc.Types[componentID("Combo")].(*ir.Model)
 	require.True(t, ok, "allOf composition survives (Model), oneOf preserved raw")
 	require.NotNil(t, m.Base, "the allOf $ref becomes Base")
-	assert.Equal(t, ir.TypeID("t/openapi/components/schemas/Base"), m.Base.Target)
+	assert.Equal(t, componentID("Base"), m.Base.Target)
 	_, ok = m.Extensions["openapi:oneOf"]
 	assert.True(t, ok, "the oneOf is preserved verbatim under extensions")
 }
@@ -146,7 +146,7 @@ func TestLower_RecursiveSchemaTerminates(t *testing.T) {
 `)
 	doc, diags := lowerSpec(t, spec)
 	requireNoErrorDiags(t, diags)
-	node, ok := doc.Types[ir.TypeID("t/openapi/components/schemas/Node")].(*ir.Model)
+	node, ok := doc.Types[componentID("Node")].(*ir.Model)
 	require.True(t, ok)
 	require.Equal(t, ir.TypeRef{Target: "t/openapi/components/schemas/Node"}, node.Properties[0].Type)
 }
@@ -445,7 +445,7 @@ func TestModel_FourOptionalityStates(t *testing.T) {
 `)
 	doc, diags := lowerSpec(t, spec)
 	requireNoErrorDiags(t, diags)
-	m, ok := doc.Types[ir.TypeID("t/openapi/components/schemas/S")].(*ir.Model)
+	m, ok := doc.Types[componentID("S")].(*ir.Model)
 	require.True(t, ok)
 	require.Len(t, m.Properties, 4)
 	byName := propsByWire(m.Properties)
@@ -467,7 +467,7 @@ func TestModel_ValidationOnlyKeywordPreserved(t *testing.T) {
       not: {required: [b]}
 `)
 	doc, diags := lowerSpec(t, spec)
-	m := doc.Types[ir.TypeID("t/openapi/components/schemas/S")].(*ir.Model)
+	m := doc.Types[componentID("S")].(*ir.Model)
 	raw, ok := m.Extensions["openapi:not"]
 	require.True(t, ok, "not-keyword must be preserved verbatim")
 	assert.JSONEq(t, `{"required":["b"]}`, string(raw))
@@ -490,7 +490,7 @@ func TestModel_DefaultBigLiteral(t *testing.T) {
 `)
 	doc, diags := lowerSpec(t, spec)
 	requireNoErrorDiags(t, diags)
-	m := doc.Types[ir.TypeID("t/openapi/components/schemas/S")].(*ir.Model)
+	m := doc.Types[componentID("S")].(*ir.Model)
 	require.NotNil(t, m.Properties[0].Default)
 	assert.Equal(t, ir.ValueNumber, m.Properties[0].Default.Kind)
 	assert.Equal(t, ir.BigVal("9007199254740993"), m.Properties[0].Default.Num)
@@ -506,7 +506,7 @@ func TestModel_ReadOnlyWriteOnlyVisibility(t *testing.T) {
 `)
 	doc, diags := lowerSpec(t, spec)
 	requireNoErrorDiags(t, diags)
-	m := doc.Types[ir.TypeID("t/openapi/components/schemas/S")].(*ir.Model)
+	m := doc.Types[componentID("S")].(*ir.Model)
 	byName := propsByWire(m.Properties)
 	assert.Equal(t, ir.Visibility{Only: []ir.Lifecycle{ir.LifecycleRead, ir.LifecycleDelete, ir.LifecycleQuery}}, byName["r"].Visibility)
 	assert.Equal(t, ir.Visibility{Only: []ir.Lifecycle{ir.LifecycleCreate, ir.LifecycleUpdate}}, byName["w"].Visibility)
@@ -521,7 +521,7 @@ func TestModel_PasswordFormatSecret(t *testing.T) {
 `)
 	doc, diags := lowerSpec(t, spec)
 	requireNoErrorDiags(t, diags)
-	m := doc.Types[ir.TypeID("t/openapi/components/schemas/S")].(*ir.Model)
+	m := doc.Types[componentID("S")].(*ir.Model)
 	assert.True(t, m.Properties[0].Secret)
 }
 
@@ -534,7 +534,7 @@ func TestModel_AdditionalPropertiesFalseClosed(t *testing.T) {
 `)
 	doc, diags := lowerSpec(t, spec)
 	requireNoErrorDiags(t, diags)
-	m := doc.Types[ir.TypeID("t/openapi/components/schemas/S")].(*ir.Model)
+	m := doc.Types[componentID("S")].(*ir.Model)
 	assert.Equal(t, ir.AdditionalClosed, m.Additional)
 }
 
@@ -546,7 +546,7 @@ func TestModel_AdditionalPropertiesSchema(t *testing.T) {
 `)
 	doc, diags := lowerSpec(t, spec)
 	requireNoErrorDiags(t, diags)
-	m := doc.Types[ir.TypeID("t/openapi/components/schemas/S")].(*ir.Model)
+	m := doc.Types[componentID("S")].(*ir.Model)
 	require.NotNil(t, m.AdditionalProps)
 	assert.Equal(t, ir.TypeID("t/prim/integer"), m.AdditionalProps.Value.Target)
 }
@@ -561,7 +561,7 @@ func TestModel_PatternPropertiesOrder(t *testing.T) {
 `)
 	doc, diags := lowerSpec(t, spec)
 	requireNoErrorDiags(t, diags)
-	m := doc.Types[ir.TypeID("t/openapi/components/schemas/S")].(*ir.Model)
+	m := doc.Types[componentID("S")].(*ir.Model)
 	require.NotNil(t, m.AdditionalProps)
 	require.Len(t, m.AdditionalProps.Patterns, 2)
 	assert.Equal(t, "^x-", m.AdditionalProps.Patterns[0].Pattern)
@@ -577,7 +577,7 @@ func TestModel_UnevaluatedPropertiesClosedAfterComposition(t *testing.T) {
 `)
 	doc, diags := lowerSpec(t, spec)
 	requireNoErrorDiags(t, diags)
-	m := doc.Types[ir.TypeID("t/openapi/components/schemas/S")].(*ir.Model)
+	m := doc.Types[componentID("S")].(*ir.Model)
 	assert.Equal(t, ir.AdditionalClosedAfterComposition, m.Additional)
 }
 
@@ -590,7 +590,7 @@ func TestModel_SchemaExtensionPreserved(t *testing.T) {
 `)
 	doc, diags := lowerSpec(t, spec)
 	requireNoErrorDiags(t, diags)
-	m := doc.Types[ir.TypeID("t/openapi/components/schemas/S")].(*ir.Model)
+	m := doc.Types[componentID("S")].(*ir.Model)
 	raw, ok := m.Extensions["openapi:x-rate-limit"]
 	require.True(t, ok)
 	assert.JSONEq(t, "100", string(raw))
@@ -606,7 +606,7 @@ func TestModel_TitleDescriptionDocs(t *testing.T) {
 `)
 	doc, diags := lowerSpec(t, spec)
 	requireNoErrorDiags(t, diags)
-	m := doc.Types[ir.TypeID("t/openapi/components/schemas/S")].(*ir.Model)
+	m := doc.Types[componentID("S")].(*ir.Model)
 	assert.Equal(t, "My Title", m.Docs.Summary)
 	assert.Equal(t, "My Desc", m.Docs.Description)
 }
@@ -620,7 +620,7 @@ func TestModel_PropertyDeprecation(t *testing.T) {
 `)
 	doc, diags := lowerSpec(t, spec)
 	requireNoErrorDiags(t, diags)
-	m := doc.Types[ir.TypeID("t/openapi/components/schemas/S")].(*ir.Model)
+	m := doc.Types[componentID("S")].(*ir.Model)
 	assert.NotNil(t, m.Properties[0].Deprecation)
 }
 
@@ -633,7 +633,7 @@ func TestModel_PropertyXML(t *testing.T) {
 `)
 	doc, diags := lowerSpec(t, spec)
 	requireNoErrorDiags(t, diags)
-	m := doc.Types[ir.TypeID("t/openapi/components/schemas/S")].(*ir.Model)
+	m := doc.Types[componentID("S")].(*ir.Model)
 	require.NotNil(t, m.Properties[0].XML)
 	assert.Equal(t, "n", m.Properties[0].XML.Name)
 	assert.Equal(t, "attribute", m.Properties[0].XML.NodeType)
@@ -651,7 +651,7 @@ func TestModel_RefSiblingDescriptionWins(t *testing.T) {
 `)
 	doc, diags := lowerSpec(t, spec)
 	requireNoErrorDiags(t, diags)
-	m := doc.Types[ir.TypeID("t/openapi/components/schemas/S")].(*ir.Model)
+	m := doc.Types[componentID("S")].(*ir.Model)
 	assert.Equal(t, "sibling desc", m.Properties[0].Docs.Description)
 }
 

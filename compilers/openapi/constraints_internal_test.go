@@ -97,7 +97,7 @@ func TestConstraints_NumericPrecisionSurvives(t *testing.T) {
 `)
 	doc, diags := lowerSpec(t, spec)
 	requireNoErrorDiags(t, diags)
-	m := doc.Types[ir.TypeID("t/openapi/components/schemas/S")].(*ir.Model)
+	m := doc.Types[componentID("S")].(*ir.Model)
 	c := m.Properties[0].Constraints
 	require.NotNil(t, c)
 	// Exact decimal strings — a float64 path would corrupt all three.

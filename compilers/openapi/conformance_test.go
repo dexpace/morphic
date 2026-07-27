@@ -107,6 +107,15 @@ func namedID(name string) ir.TypeID {
 	return ir.TypeID("t/openapi/components/schemas/" + name)
 }
 
+// propsByWire indexes a model's properties by wire name.
+func propsByWire(props []ir.Property) map[string]ir.Property {
+	out := make(map[string]ir.Property, len(props))
+	for _, p := range props {
+		out[p.WireName] = p
+	}
+	return out
+}
+
 // allOperations flattens every operation across a document's service groups.
 func allOperations(doc *ir.Document) []ir.Operation {
 	var out []ir.Operation
@@ -288,10 +297,7 @@ func assertNullabilityFourStates(t *testing.T, doc *ir.Document, _ []ir.Diagnost
 	m, ok := doc.Types[namedID("S")].(*ir.Model)
 	require.True(t, ok)
 	require.Len(t, m.Properties, 4)
-	states := map[string]ir.Property{}
-	for _, p := range m.Properties {
-		states[p.WireName] = p
-	}
+	states := propsByWire(m.Properties)
 	assert.True(t, states["reqPlain"].Required)
 	assert.False(t, states["reqPlain"].Type.Nullable)
 	assert.True(t, states["reqNull"].Required)
@@ -313,10 +319,7 @@ func assertNullable31Ref(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
 	m, ok := doc.Types[namedID("Owner")].(*ir.Model)
 	require.True(t, ok)
 	require.Len(t, m.Properties, 2)
-	byName := map[string]ir.Property{}
-	for _, p := range m.Properties {
-		byName[p.WireName] = p
-	}
+	byName := propsByWire(m.Properties)
 
 	assert.True(t, byName["p"].Type.Nullable,
 		"3.1's type-array null spelling normalizes to the same IR bit at a $ref site")
