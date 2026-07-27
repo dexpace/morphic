@@ -266,10 +266,11 @@ func (l *lowerer) hoistSubSchema(schema *oas3.Schema, pointer string) (ir.TypeID
 	return l.internAlias(pointer, hint, ref, l.schemaConstraints(schema, pointer)), true
 }
 
-// refNullable reports whether a $ref usage admits null: either the reference
-// site carries 3.0 nullable, or its resolved target does.
+// refNullable reports whether a $ref usage admits null: the reference site or
+// its resolved target admits null in either dialect (3.0 nullable: true, or a
+// 3.1 type array containing "null").
 func (l *lowerer) refNullable(js *oas3.JSONSchema[oas3.Referenceable]) bool {
-	if s := js.GetSchema(); s != nil && s.Nullable != nil && *s.Nullable {
+	if s := js.GetSchema(); s != nil && schemaHasNull(s) {
 		return true
 	}
 	resolved := js.GetResolvedSchema()
@@ -277,7 +278,7 @@ func (l *lowerer) refNullable(js *oas3.JSONSchema[oas3.Referenceable]) bool {
 		return false
 	}
 	target := resolved.GetSchema()
-	return target != nil && target.Nullable != nil && *target.Nullable
+	return target != nil && schemaHasNull(target)
 }
 
 // falseSchema hoists a boolean `false` schema as a closed empty model (it

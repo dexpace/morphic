@@ -1,0 +1,11 @@
+openapi: 3.1.0
+info: {title: Nullable31Ref, version: "1.0.0"}
+paths: {}
+components:
+  schemas:
+    Target:
+      type: [object, "null"]
+    Owner:
+      type: object
+      properties:
+        p: {$ref: '#/components/schemas/Target'}

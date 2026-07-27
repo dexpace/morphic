@@ -46,6 +46,7 @@ func TestConformance(t *testing.T) {
 		{"encoding-byte", assertEncodingByte},
 		{"nullability-four-states", assertNullabilityFourStates},
 		{"nullable-30", assertNullable30},
+		{"nullable-31-ref", assertNullable31Ref},
 		{"defaults", assertDefaults},
 		{"constraints", assertConstraints},
 		{"numeric-precision", assertNumericPrecision},
@@ -306,6 +307,15 @@ func assertNullable30(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
 	require.True(t, ok)
 	require.Len(t, m.Properties, 1)
 	assert.True(t, m.Properties[0].Type.Nullable, "3.0 nullable lowers to the same IR bit")
+}
+
+func assertNullable31Ref(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
+	m, ok := doc.Types[namedID("Owner")].(*ir.Model)
+	require.True(t, ok)
+	require.Len(t, m.Properties, 1)
+	assert.True(t, m.Properties[0].Type.Nullable,
+		"3.1's type-array null spelling normalizes to the same IR bit at a $ref site")
+	assert.Equal(t, namedID("Target"), m.Properties[0].Type.Target, "the ref resolves to the named component")
 }
 
 func assertDefaults(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {

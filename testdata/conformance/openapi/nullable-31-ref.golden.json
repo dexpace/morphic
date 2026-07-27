@@ -1,0 +1,102 @@
+{
+  "irVersion": "0.1.0",
+  "name": "Nullable31Ref",
+  "version": "1.0.0",
+  "docs": {},
+  "services": [
+    {
+      "id": "s/openapi/0",
+      "name": {
+        "source": "Nullable31Ref",
+        "canonical": "nullable_31_ref"
+      },
+      "docs": {},
+      "auth": null,
+      "provenance": {
+        "source": 0
+      }
+    }
+  ],
+  "types": {
+    "t/openapi/components/schemas/Owner": {
+      "kind": "model",
+      "id": "t/openapi/components/schemas/Owner",
+      "name": {
+        "source": "Owner",
+        "canonical": "owner"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Owner"
+      },
+      "properties": [
+        {
+          "id": "p/openapi/components/schemas/Owner/properties/p",
+          "name": {
+            "source": "p",
+            "canonical": "p"
+          },
+          "wireName": "p",
+          "type": {
+            "target": "t/openapi/components/schemas/Target",
+            "nullable": true
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/Owner/properties/p"
+          }
+        }
+      ],
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
+    "t/openapi/components/schemas/Target": {
+      "kind": "model",
+      "id": "t/openapi/components/schemas/Target",
+      "name": {
+        "source": "Target",
+        "canonical": "target"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Target"
+      },
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    }
+  },
+  "servers": [
+    {
+      "name": {},
+      "urlTemplate": "/",
+      "description": {},
+      "auth": null
+    }
+  ],
+  "sources": [
+    {
+      "format": "openapi@3.1",
+      "path": "nullable-31-ref.yaml",
+      "hash": "35ffc2cc1b7a3175b215bfbb87d5da41c9a2ea45d0a7f3c4f7cd090c193cb05c"
+    }
+  ]
+}

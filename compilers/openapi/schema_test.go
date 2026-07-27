@@ -788,6 +788,190 @@ func TestSchema_Ref30NullableSiblings(t *testing.T) {
 	assert.True(t, m.Properties[0].Type.Nullable, "3.0 nullable at a $ref site lifts to the ref")
 }
 
+// TestSchema_RefNullableAcrossDialects pins that 3.0 nullable: true and 3.1's
+// type-array null spelling normalize to the same Nullable bit at a $ref site,
+// across direct refs, chained refs, sub-schema refs, array/scalar targets, and
+// ref-site siblings — and that a plain (non-nullable) ref stays false in both
+// dialects (issue #28).
+func TestSchema_RefNullableAcrossDialects(t *testing.T) {
+	t.Parallel()
+	targetID := ir.TypeID("t/openapi/components/schemas/Target")
+	midID := ir.TypeID("t/openapi/components/schemas/Mid")
+	cases := []struct {
+		name         string
+		version      string
+		schemas      string
+		wantNullable bool
+		wantTarget   ir.TypeID // empty skips the target assertion
+		msg          string
+	}{
+		{
+			name:    "3.0 direct ref to nullable object component",
+			version: "3.0.3",
+			schemas: `    Owner:
+      type: object
+      properties:
+        p: {$ref: '#/components/schemas/Target'}
+    Target: {type: object, nullable: true}
+`,
+			wantNullable: true,
+			wantTarget:   targetID,
+			msg:          "3.0 nullable on the ref target lifts to the ref",
+		},
+		{
+			name:    "3.1 direct ref to nullable object component (type array)",
+			version: "3.1.0",
+			schemas: `    Owner:
+      type: object
+      properties:
+        p: {$ref: '#/components/schemas/Target'}
+    Target: {type: [object, "null"]}
+`,
+			wantNullable: true,
+			wantTarget:   targetID,
+			msg:          "3.1 type-array null on the ref target lifts to the ref",
+		},
+		{
+			name:    "3.0 direct ref to plain component (negative control)",
+			version: "3.0.3",
+			schemas: `    Owner:
+      type: object
+      properties:
+        p: {$ref: '#/components/schemas/Target'}
+    Target: {type: object}
+`,
+			wantNullable: false,
+			wantTarget:   targetID,
+			msg:          "a non-nullable 3.0 ref target stays non-nullable at the ref",
+		},
+		{
+			name:    "3.1 direct ref to plain component (negative control)",
+			version: "3.1.0",
+			schemas: `    Owner:
+      type: object
+      properties:
+        p: {$ref: '#/components/schemas/Target'}
+    Target: {type: object}
+`,
+			wantNullable: false,
+			wantTarget:   targetID,
+			msg:          "a non-nullable 3.1 ref target stays non-nullable at the ref",
+		},
+		{
+			name:    "3.0 chained ref lifts nullability from the base",
+			version: "3.0.3",
+			schemas: `    Owner:
+      type: object
+      properties:
+        p: {$ref: '#/components/schemas/Mid'}
+    Mid: {$ref: '#/components/schemas/Base'}
+    Base: {type: object, nullable: true}
+`,
+			wantNullable: true,
+			wantTarget:   midID,
+			msg:          "3.0 nullable on a chain's base lifts through Mid to the ref",
+		},
+		{
+			name:    "3.1 chained ref lifts nullability from the base (type array)",
+			version: "3.1.0",
+			schemas: `    Owner:
+      type: object
+      properties:
+        p: {$ref: '#/components/schemas/Mid'}
+    Mid: {$ref: '#/components/schemas/Base'}
+    Base: {type: [object, "null"]}
+`,
+			wantNullable: true,
+			wantTarget:   midID,
+			msg:          "3.1 type-array null on a chain's base lifts through Mid to the ref",
+		},
+		{
+			name:    "3.0 ref to a nullable non-component sub-schema",
+			version: "3.0.3",
+			schemas: `    Holder:
+      type: object
+      properties:
+        inner: {type: object, nullable: true}
+    Owner:
+      type: object
+      properties:
+        p: {$ref: '#/components/schemas/Holder/properties/inner'}
+`,
+			wantNullable: true,
+			msg:          "3.0 nullable on a non-component sub-schema lifts to a ref at its pointer",
+		},
+		{
+			name:    "3.1 ref to a nullable non-component sub-schema (type array)",
+			version: "3.1.0",
+			schemas: `    Holder:
+      type: object
+      properties:
+        inner: {type: [object, "null"]}
+    Owner:
+      type: object
+      properties:
+        p: {$ref: '#/components/schemas/Holder/properties/inner'}
+`,
+			wantNullable: true,
+			msg:          "3.1 type-array null on a non-component sub-schema lifts to a ref at its pointer",
+		},
+		{
+			name:    "3.1 nullable array component via ref",
+			version: "3.1.0",
+			schemas: `    Owner:
+      type: object
+      properties:
+        p: {$ref: '#/components/schemas/Target'}
+    Target: {type: [array, "null"], items: {type: string}}
+`,
+			wantNullable: true,
+			wantTarget:   targetID,
+			msg:          "3.1 type-array null on a nullable array component lifts to the ref",
+		},
+		{
+			name:    "3.1 nullable scalar component via ref",
+			version: "3.1.0",
+			schemas: `    Owner:
+      type: object
+      properties:
+        p: {$ref: '#/components/schemas/Target'}
+    Target: {type: [string, "null"]}
+`,
+			wantNullable: true,
+			wantTarget:   targetID,
+			msg:          "3.1 type-array null on a nullable scalar component lifts to the ref",
+		},
+		{
+			name:    "3.1 ref-site sibling type array lifts nullability",
+			version: "3.1.0",
+			schemas: `    Owner:
+      type: object
+      properties:
+        p: {$ref: '#/components/schemas/Target', type: ["null"]}
+    Target: {type: string}
+`,
+			wantNullable: true,
+			wantTarget:   targetID,
+			msg:          "3.1 type-array null as a $ref-site sibling lifts to the ref",
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			spec := componentSpecVer(tc.version, tc.schemas)
+			doc, diags := lowerSpec(t, spec)
+			requireNoErrorDiags(t, diags)
+			m := typeByName(doc, "Owner").(*ir.Model)
+			require.Len(t, m.Properties, 1)
+			assert.Equal(t, tc.wantNullable, m.Properties[0].Type.Nullable, tc.msg)
+			if tc.wantTarget != "" {
+				assert.Equal(t, tc.wantTarget, m.Properties[0].Type.Target,
+					"ref resolves to the expected target")
+			}
+		})
+	}
+}
+
 func TestSchema_UnionSiblingsAdditionalAndRequired(t *testing.T) {
 	t.Parallel()
 	spec := componentSpec(`    A:
