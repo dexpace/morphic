@@ -1097,7 +1097,7 @@ func schemaAdmitsNull(s *oas3.Schema) bool {
 	if schemaHasNull(s) {
 		return true
 	}
-	return !hasUnionSiblings(s) && oneOfAnyOfHasNull(s)
+	return oneOfAnyOfHasNull(s) && !hasUnionSiblings(s)
 }
 
 // nullUnionCollapse detects a oneOf/anyOf that has exactly one non-null branch
