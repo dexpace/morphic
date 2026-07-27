@@ -356,20 +356,14 @@ func TestAnchorName_Cases(t *testing.T) {
 	assert.Equal(t, "bare", anchorName(&yaml.Node{Kind: yaml.AliasNode, Value: "bare"}))
 }
 
-// TestWalkOutsideSchema_NilNode pins that a nil node terminates the outside-schema
-// walk without collecting refs.
-func TestWalkOutsideSchema_NilNode(t *testing.T) {
+// TestRefScanCollect_NilRoot pins that a nil root terminates the collection walk
+// without collecting refs — push drops it before anything is enqueued.
+func TestRefScanCollect_NilRoot(t *testing.T) {
 	t.Parallel()
-	var out []*yaml.Node
-	s := newRefScan(&out)
-	s.walkOutsideSchema(nil, 0)
-	assert.Empty(t, out)
-}
-
-// newRefScan builds a refScan with fresh, empty visited-node sets, for tests
-// that drive the ref-collection walk's methods directly.
-func newRefScan(out *[]*yaml.Node) *refScan {
-	return &refScan{out: out, outsideSeen: map[*yaml.Node]bool{}, schemaSeen: map[*yaml.Node]bool{}}
+	s := newRefScan()
+	s.collect(nil)
+	assert.Empty(t, s.out)
+	assert.Empty(t, s.stack, "the worklist drains to empty")
 }
 
 // TestDetectCycles_MalformedSchemaShapes pins that a schema-entry map whose value
@@ -403,7 +397,7 @@ func TestFollowRefChain_DepthCapReturnsFalse(t *testing.T) {
 			nodes[i].Content = []*yaml.Node{yscalar("$ref"), yscalar("#/schemas/" + strconv.Itoa(i+1))}
 		}
 	}
-	assert.False(t, followRefChain(root, nodes[0], map[*yaml.Node]bool{}),
+	assert.False(t, newRefScan().followRefChain(root, nodes[0]),
 		"a chain longer than the depth cap exits without flagging a cycle")
 }
 
@@ -418,13 +412,14 @@ func TestFollowRefChain_SafeMemoShortCircuits(t *testing.T) {
 	schemas := ymap(yscalar("A"), a, yscalar("B"), b)
 	root := ymap(yscalar("schemas"), schemas)
 
-	assert.True(t, followRefChain(root, a, map[*yaml.Node]bool{}),
+	assert.True(t, newRefScan().followRefChain(root, a),
 		"A -> B -> A is cyclic with an empty memo")
 
-	safe := map[*yaml.Node]bool{b: true}
-	assert.False(t, followRefChain(root, a, safe),
+	s := newRefScan()
+	s.safe[b] = true
+	assert.False(t, s.followRefChain(root, a),
 		"a chain reaching a memoized-safe node is not a cycle")
-	assert.True(t, safe[a], "the walk records the reaching node as terminating too")
+	assert.True(t, s.safe[a], "the walk records the reaching node as terminating too")
 }
 
 // TestFollowRefChain_DanglingRefIsNotCycle pins that a $ref whose target does not
@@ -435,15 +430,15 @@ func TestFollowRefChain_DanglingRefIsNotCycle(t *testing.T) {
 	t.Parallel()
 	a := ymap(yscalar("$ref"), yscalar("#/schemas/Missing"))
 	root := ymap(yscalar("schemas"), ymap(yscalar("A"), a))
-	safe := map[*yaml.Node]bool{}
-	assert.False(t, followRefChain(root, a, safe), "a dangling $ref is not a cycle")
-	assert.True(t, safe[a], "the dangling node is recorded terminating")
+	s := newRefScan()
+	assert.False(t, s.followRefChain(root, a), "a dangling $ref is not a cycle")
+	assert.True(t, s.safe[a], "the dangling node is recorded terminating")
 }
 
 // TestChildByToken_NilNode pins that a nil node has no child for any token.
 func TestChildByToken_NilNode(t *testing.T) {
 	t.Parallel()
-	assert.Nil(t, childByToken(nil, "anything"))
+	assert.Nil(t, newNodeView().childByToken(nil, "anything"))
 }
 
 // TestResolvePointer_Cases covers the pointer-navigation branches the schema
@@ -476,7 +471,7 @@ func TestResolvePointer_Cases(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			got := resolvePointer(root, tc.ref)
+			got := newNodeView().resolvePointer(root, tc.ref)
 			if tc.want == nil {
 				assert.Nil(t, got)
 				return
@@ -495,21 +490,29 @@ func TestDeref_FollowsAliasChain(t *testing.T) {
 	require.Same(t, target, deref(target))
 }
 
-// TestMappingPairs_Cases covers mappingPairs/collectMappingPairs/
-// mergeSourcePairs on shapes a real parse cannot produce (a non-scalar key,
-// a merge sequence) alongside the ones it can (alias key, alias value,
-// single-mapping merge, duplicate explicit key).
+// TestMappingPairs_Cases covers nodeView's expansion on shapes a real parse
+// cannot produce (a non-scalar key, a merge sequence, a self-referential merge)
+// alongside the ones it can (alias key, alias value, single-mapping merge,
+// duplicate explicit key).
 func TestMappingPairs_Cases(t *testing.T) {
 	t.Parallel()
 
 	t.Run("nil node yields no pairs", func(t *testing.T) {
 		t.Parallel()
-		assert.Nil(t, mappingPairs(nil))
+		assert.Nil(t, newNodeView().mappingPairs(nil))
 	})
 
 	t.Run("non-mapping node yields no pairs", func(t *testing.T) {
 		t.Parallel()
-		assert.Nil(t, mappingPairs(yscalar("x")))
+		assert.Nil(t, newNodeView().mappingPairs(yscalar("x")))
+	})
+
+	t.Run("alias-valued mapping is dereferenced at entry", func(t *testing.T) {
+		t.Parallel()
+		target := ymap(yscalar("k"), yscalar("v"))
+		got := newNodeView().mappingPairs(yalias(target))
+		require.Len(t, got, 1)
+		assert.Equal(t, "k", got[0].key)
 	})
 
 	t.Run("alias key and alias value are dereferenced", func(t *testing.T) {
@@ -517,7 +520,7 @@ func TestMappingPairs_Cases(t *testing.T) {
 		keyTarget := yscalar("k")
 		valTarget := yscalar("v")
 		n := ymap(yalias(keyTarget), yalias(valTarget))
-		got := mappingPairs(n)
+		got := newNodeView().mappingPairs(n)
 		require.Len(t, got, 1)
 		assert.Equal(t, "k", got[0].key)
 		assert.Same(t, valTarget, got[0].val)
@@ -529,16 +532,33 @@ func TestMappingPairs_Cases(t *testing.T) {
 			ymap(yscalar("x"), yscalar("1")), yscalar("ignored"),
 			yscalar("real"), yscalar("kept"),
 		)
-		got := mappingPairs(n)
+		got := newNodeView().mappingPairs(n)
 		require.Len(t, got, 1)
 		assert.Equal(t, "real", got[0].key)
+	})
+
+	t.Run("key aliasing a nil target is skipped", func(t *testing.T) {
+		t.Parallel()
+		n := ymap(yalias(nil), yscalar("ignored"), yscalar("real"), yscalar("kept"))
+		got := newNodeView().mappingPairs(n)
+		require.Len(t, got, 1)
+		assert.Equal(t, "real", got[0].key)
+	})
+
+	t.Run("odd trailing key without a value is ignored", func(t *testing.T) {
+		t.Parallel()
+		n := ymap(yscalar("a"), yscalar("1"))
+		n.Content = append(n.Content, yscalar("dangling"))
+		got := newNodeView().mappingPairs(n)
+		require.Len(t, got, 1)
+		assert.Equal(t, "a", got[0].key)
 	})
 
 	t.Run("duplicate explicit key: first wins", func(t *testing.T) {
 		t.Parallel()
 		first := yscalar("first")
 		n := ymap(yscalar("k"), first, yscalar("k"), yscalar("second"))
-		got := mappingPairs(n)
+		got := newNodeView().mappingPairs(n)
 		require.Len(t, got, 1)
 		assert.Same(t, first, got[0].val)
 	})
@@ -547,19 +567,20 @@ func TestMappingPairs_Cases(t *testing.T) {
 		t.Parallel()
 		base := ymap(yscalar("a"), yscalar("1"))
 		n := ymap(yscalar("<<"), yalias(base), yscalar("b"), yscalar("2"))
-		got := mappingPairs(n)
-		keys := make(map[string]string, len(got))
-		for _, p := range got {
-			keys[p.key] = p.val.Value
-		}
-		assert.Equal(t, map[string]string{"a": "1", "b": "2"}, keys)
+		assert.Equal(t, map[string]string{"a": "1", "b": "2"}, pairMap(newNodeView().mappingPairs(n)))
+	})
+
+	t.Run("merge value that is not a mapping contributes nothing", func(t *testing.T) {
+		t.Parallel()
+		n := ymap(yscalar("<<"), yscalar("not-a-mapping"), yscalar("b"), yscalar("2"))
+		assert.Equal(t, map[string]string{"b": "2"}, pairMap(newNodeView().mappingPairs(n)))
 	})
 
 	t.Run("explicit key wins over merged key", func(t *testing.T) {
 		t.Parallel()
 		base := ymap(yscalar("a"), yscalar("from-merge"))
 		n := ymap(yscalar("a"), yscalar("explicit"), yscalar("<<"), base)
-		got := mappingPairs(n)
+		got := newNodeView().mappingPairs(n)
 		require.Len(t, got, 1)
 		assert.Equal(t, "explicit", got[0].val.Value)
 	})
@@ -569,19 +590,23 @@ func TestMappingPairs_Cases(t *testing.T) {
 		first := ymap(yscalar("a"), yscalar("from-first"))
 		second := ymap(yscalar("a"), yscalar("from-second"), yscalar("b"), yscalar("only-in-second"))
 		n := ymap(yscalar("<<"), yseq(first, second))
-		got := mappingPairs(n)
-		keys := make(map[string]string, len(got))
-		for _, p := range got {
-			keys[p.key] = p.val.Value
-		}
-		assert.Equal(t, map[string]string{"a": "from-first", "b": "only-in-second"}, keys)
+		assert.Equal(t, map[string]string{"a": "from-first", "b": "only-in-second"},
+			pairMap(newNodeView().mappingPairs(n)))
+	})
+
+	t.Run("merge sequence reusing one source keeps its pairs", func(t *testing.T) {
+		t.Parallel()
+		base := ymap(yscalar("a"), yscalar("1"))
+		n := ymap(yscalar("<<"), yseq(yalias(base), yalias(base)))
+		assert.Equal(t, map[string]string{"a": "1"}, pairMap(newNodeView().mappingPairs(n)))
 	})
 
 	t.Run("self-referential merge is bounded, not infinite", func(t *testing.T) {
 		t.Parallel()
 		n := &yaml.Node{Kind: yaml.MappingNode}
 		n.Content = []*yaml.Node{yscalar("<<"), yalias(n)}
-		assert.Empty(t, mappingPairs(n), "a merge that references its own mapping contributes nothing")
+		assert.Empty(t, newNodeView().mappingPairs(n),
+			"a merge that references its own mapping contributes nothing")
 	})
 
 	t.Run("merge chain longer than the depth cap stops at the cap", func(t *testing.T) {
@@ -595,39 +620,237 @@ func TestMappingPairs_Cases(t *testing.T) {
 			nodes[i].Content = []*yaml.Node{yscalar("<<"), yalias(nodes[i+1])}
 		}
 		nodes[n-1].Content = []*yaml.Node{yscalar("leaf"), yscalar("v")}
-		assert.Empty(t, mappingPairs(nodes[0]),
+		assert.Empty(t, newNodeView().mappingPairs(nodes[0]),
 			"a merge chain longer than the depth cap never reaches the leaf pair")
 	})
 }
 
-// TestPureRefTarget_NonMappingNode pins that a non-mapping node (a shape
-// mappingPairs cannot turn into pairs) reports no $ref target.
-func TestPureRefTarget_NonMappingNode(t *testing.T) {
+// pairMap collapses an expansion to key→scalar-value for order-insensitive
+// assertions.
+func pairMap(pairs []yamlPair) map[string]string {
+	out := make(map[string]string, len(pairs))
+	for _, p := range pairs {
+		out[p.key] = p.val.Value
+	}
+	return out
+}
+
+// TestIsMergeKey_MatchesDecoder pins isMergeKey against yaml.v3's own isMerge:
+// only a plain (or explicitly !!merge-tagged) scalar `<<` is a merge key. A
+// quoted '<<' carries tag !!str and an alias key is not a scalar at all — the
+// decoder treats both as ordinary keys, and so must the scan, or it would expand
+// pairs no decoder sees and refuse documents that parse cleanly.
+func TestIsMergeKey_MatchesDecoder(t *testing.T) {
 	t.Parallel()
-	_, ok := pureRefTarget(yscalar("x"))
-	assert.False(t, ok)
+	tagged := func(tag string) *yaml.Node {
+		return &yaml.Node{Kind: yaml.ScalarNode, Value: "<<", Tag: tag}
+	}
+	tests := []struct {
+		name string
+		in   *yaml.Node
+		want bool
+	}{
+		{"untagged scalar", yscalar("<<"), true},
+		{"resolved merge tag", tagged("!!merge"), true},
+		{"long-form merge tag", tagged("tag:yaml.org,2002:merge"), true},
+		{"non-specific tag", tagged("!"), true},
+		{"quoted string tag", tagged("!!str"), false},
+		{"other value", yscalar("$ref"), false},
+		{"alias key", yalias(yscalar("<<")), false},
+		{"mapping key", ymap(), false},
+		{"nil", nil, false},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			assert.Equal(t, tc.want, isMergeKey(tc.in))
+		})
+	}
+}
+
+// TestDetectCycles_NonMergeKeyShapesAreClean pins the decoder-fidelity half of
+// the merge handling end to end: a quoted '<<' and an alias standing in for the
+// key are ordinary keys, so the $ref they carry never becomes a top-level $ref
+// and the document must not be refused. Treating either as a merge would flag a
+// cycle that speakeasy never encounters.
+func TestDetectCycles_NonMergeKeyShapesAreClean(t *testing.T) {
+	t.Parallel()
+	quoted := `openapi: 3.1.0
+info: {title: t, version: '1'}
+paths: {}
+x-anchors: {base: &base {$ref: '#/components/schemas/A'}}
+components: {schemas: {A: {'<<': *base}}}
+`
+	aliasedKey := `openapi: 3.1.0
+info: {title: t, version: '1'}
+paths: {}
+x-anchors: {k: &k '<<', base: &base {$ref: '#/components/schemas/A'}}
+components: {schemas: {A: {*k : *base}}}
+`
+	assert.Empty(t, detectCycles(0, []byte(quoted)),
+		"a quoted '<<' is a plain key to the decoder, not a merge")
+	assert.Empty(t, detectCycles(0, []byte(aliasedKey)),
+		"an alias standing in for the key is a plain key to the decoder, not a merge")
+}
+
+// TestPureRefTarget_Cases covers every arm of the $ref read: a node with no
+// pairs at all, a non-$ref key skipped on the way to one, and the three ways a
+// $ref value fails to be an internal pointer.
+func TestPureRefTarget_Cases(t *testing.T) {
+	t.Parallel()
+
+	t.Run("non-mapping node has no target", func(t *testing.T) {
+		t.Parallel()
+		_, ok := newNodeView().pureRefTarget(yscalar("x"))
+		assert.False(t, ok)
+	})
+
+	tests := []struct {
+		name string
+		n    *yaml.Node
+		want string
+	}{
+		{"sibling key before the ref", ymap(yscalar("type"), yscalar("object"),
+			yscalar("$ref"), yscalar("#/components/schemas/A")), "#/components/schemas/A"},
+		{"external ref is not internal", ymap(yscalar("$ref"), yscalar("other.yaml#/A")), ""},
+		{"non-scalar ref value", ymap(yscalar("$ref"), ymap(yscalar("a"), yscalar("b"))), ""},
+		{"nil ref value via broken alias", ymap(yscalar("$ref"), yalias(nil)), ""},
+		{"no ref key at all", ymap(yscalar("type"), yscalar("object")), ""},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			got, ok := newNodeView().pureRefTarget(tc.n)
+			assert.Equal(t, tc.want != "", ok)
+			assert.Equal(t, tc.want, got)
+		})
+	}
 }
 
 // TestChildByToken_MappingResolvesThroughAliasKey pins that childByToken's
-// mapping arm resolves an alias-valued key via mappingPairs, matching
+// mapping arm resolves an alias-valued key through the view, matching
 // pureRefTarget's alias-key handling.
 func TestChildByToken_MappingResolvesThroughAliasKey(t *testing.T) {
 	t.Parallel()
 	keyTarget := yscalar("k")
 	val := yscalar("v")
 	n := ymap(yalias(keyTarget), val)
-	assert.Same(t, val, childByToken(n, "k"))
+	assert.Same(t, val, newNodeView().childByToken(n, "k"))
 }
 
-// TestDetectCycles_ChainedAliasFanOutStaysLinear pins the walk's linear-time
-// bound against a "billion laughs" style chained-alias document: each level
-// aliases the previous level twice inside allOf, so an unmemoized schema walk
-// would explore an exponential number of paths even though the node count
-// grows only linearly. Without refScan's visited-node sets this document
-// would hang rather than crash — the availability regression the sets guard
-// against (deref'ing an alias edge, added for GitHub #26, is what first makes
-// the walk cross alias edges at all). The goroutine/timeout wraps the call so
-// a regression fails this test instead of hanging the whole suite.
+// TestChildByToken_ScalarNodeHasNoChild pins the switch's fall-through arm: a
+// node that is neither a mapping nor a sequence has no child for any token.
+func TestChildByToken_ScalarNodeHasNoChild(t *testing.T) {
+	t.Parallel()
+	assert.Nil(t, newNodeView().childByToken(yscalar("x"), "0"))
+}
+
+// TestNodeView_CachesCompleteExpansionsOnly pins the memoization contract that
+// keeps the scan sub-cubic without letting one traversal order lose a $ref.
+// A complete expansion is cached and returned identically on the next call; an
+// expansion truncated by a merge cycle is not cached, so a later call that
+// reaches the same node by a path with no cycle still computes it in full.
+func TestNodeView_CachesCompleteExpansionsOnly(t *testing.T) {
+	t.Parallel()
+
+	t.Run("complete expansion is cached", func(t *testing.T) {
+		t.Parallel()
+		base := ymap(yscalar("a"), yscalar("1"))
+		n := ymap(yscalar("<<"), yalias(base), yscalar("b"), yscalar("2"))
+		v := newNodeView()
+		first := v.mappingPairs(n)
+		require.Contains(t, v.pairs, n, "a complete expansion is memoized")
+		require.Contains(t, v.pairs, base, "so is every complete sub-expansion")
+		assert.Equal(t, pairMap(first), pairMap(v.mappingPairs(n)), "the cached read matches")
+	})
+
+	t.Run("expansion truncated by a merge cycle is not cached", func(t *testing.T) {
+		t.Parallel()
+		// outer -> shared -> deep -> outer, all by `<<`. Reaching deep through
+		// outer breaks the cycle at outer, so deep contributes only its own
+		// pair. Expanding deep first instead breaks the cycle at deep, and it
+		// contributes all three. Caching the truncated result would make the
+		// second read depend on the order of the first.
+		outer := &yaml.Node{Kind: yaml.MappingNode}
+		shared := &yaml.Node{Kind: yaml.MappingNode}
+		deep := &yaml.Node{Kind: yaml.MappingNode}
+		outer.Content = []*yaml.Node{yscalar("outerkey"), yscalar("o"), yscalar("<<"), yalias(shared)}
+		shared.Content = []*yaml.Node{yscalar("keep"), yscalar("v"), yscalar("<<"), yalias(deep)}
+		deep.Content = []*yaml.Node{yscalar("deepkey"), yscalar("d"), yscalar("<<"), yalias(outer)}
+
+		v := newNodeView()
+		assert.Equal(t, map[string]string{"outerkey": "o", "keep": "v", "deepkey": "d"},
+			pairMap(v.mappingPairs(outer)), "the cycle is broken, not followed")
+		for _, n := range []*yaml.Node{outer, shared, deep} {
+			assert.NotContains(t, v.pairs, n, "no truncated expansion may be cached")
+		}
+		assert.Equal(t, map[string]string{"deepkey": "d", "outerkey": "o", "keep": "v"},
+			pairMap(v.mappingPairs(deep)),
+			"entering at deep breaks the cycle elsewhere and sees more pairs than the first read gave it")
+	})
+}
+
+// TestRefScanCollect_VisitsEachNodeOncePerRole pins the walk's memoization keys.
+// One anchored pure-$ref mapping is reached twice in the same schema role (two
+// allOf entries) and once in each of the other two schema roles. It must be
+// collected exactly once — the same-role repeat is deduplicated — while each
+// distinct role is still entered, which is what cycle_alias_dual_position.yaml
+// exercises end to end.
+func TestRefScanCollect_VisitsEachNodeOncePerRole(t *testing.T) {
+	t.Parallel()
+	ref := ymap(yscalar("$ref"), yscalar("#/components/schemas/B"))
+	root := ymap(yscalar("schemas"), ymap(
+		yscalar("A"), ymap(yscalar("allOf"), yseq(yalias(ref), yalias(ref))),
+		yscalar("B"), ymap(yscalar("properties"), yalias(ref)),
+		yscalar("C"), yalias(ref),
+		// allOf whose value is the mapping itself, not a sequence: the only way
+		// this node is entered in the schema-list role.
+		yscalar("D"), ymap(yscalar("allOf"), yalias(ref)),
+	))
+
+	s := newRefScan()
+	s.collect(root)
+
+	assert.Equal(t, []*yaml.Node{ref}, s.out,
+		"the shared node is collected once despite repeated schema-role arrivals")
+	assert.True(t, s.seen[roleSchema][ref], "entered as a schema")
+	assert.True(t, s.seen[roleSchemaMap][ref], "and as a name->schema map")
+	assert.True(t, s.seen[roleSchemaList][ref], "and as a schema list, each in its own set")
+	assert.False(t, s.seen[roleOutside][ref], "never reached outside a schema")
+}
+
+// TestRefScanCollect_DeepNestingIsNotTruncated pins the reason the collection
+// walk is iterative. A recursive walk needs a depth cap, and a depth cap plus
+// per-node memoization silently drops refs: a node first reached below the cap
+// has its descent truncated and is then skipped when a shallow path reaches it
+// again. This document nests a $ref far deeper than maxCycleDepth, so a capped
+// walk would never collect it and the cycle would reach speakeasy uncaught.
+func TestRefScanCollect_DeepNestingIsNotTruncated(t *testing.T) {
+	t.Parallel()
+	ref := ymap(yscalar("$ref"), yscalar("#/components/schemas/A"))
+	deep := ref
+	for i := 0; i < maxCycleDepth+10; i++ {
+		deep = ymap(yscalar("items"), deep)
+	}
+	root := ymap(yscalar("schemas"), ymap(yscalar("A"), deep))
+
+	s := newRefScan()
+	s.collect(root)
+	assert.Contains(t, s.out, ref, "a ref nested past the old depth cap is still collected")
+}
+
+// TestDetectCycles_ChainedAliasFanOutStaysLinear and its merge sibling pin the
+// scan's time bound against documents whose node count grows linearly but whose
+// naive expansion does not. Chained aliases (&a1 {type: string}, &a2 {allOf:
+// [*a1, *a1]}, ...) fan a schema walk out exponentially; a merge chain (&m1 {a:
+// 1}, &m2 {<<: *m1, b: 2}, ...) costs O(n) per expansion and O(n) expansions,
+// going cubic without the nodeView cache. Both would turn the crash this scan
+// prevents into a hang, so both are guarded.
+//
+// Each runs the scan on a goroutine and fails on a timeout rather than blocking
+// the suite until the package-level test timeout. A regression therefore leaks
+// the goroutine for the remaining lifetime of the test binary; that is the
+// deliberate trade for a fast, legible failure, and it cannot leak on a pass.
 func TestDetectCycles_ChainedAliasFanOutStaysLinear(t *testing.T) {
 	t.Parallel()
 	const levels = 40
@@ -640,15 +863,45 @@ func TestDetectCycles_ChainedAliasFanOutStaysLinear(t *testing.T) {
 	}
 	fmt.Fprintf(&b, "components:\n  schemas:\n    Root: *a%d\n", levels)
 
+	assertScansWithin(t, b.String(), "exponential blowup on chained aliases")
+}
+
+// TestDetectCycles_MergeChainStaysSubQuadratic guards the other half of the
+// bound: every anchor in a merge chain is also a schema, so the walk expands
+// each of them. Uncached, this document took ~40s at this size; cached, the
+// total work is bounded by the size of the expansions themselves.
+func TestDetectCycles_MergeChainStaysSubQuadratic(t *testing.T) {
+	t.Parallel()
+	const levels = 1600
+
+	var b strings.Builder
+	b.WriteString("openapi: 3.1.0\ninfo: {title: t, version: '1'}\npaths: {}\nx-anchors:\n")
+	b.WriteString("  m0: &m0 {type: object}\n")
+	for i := 1; i <= levels; i++ {
+		fmt.Fprintf(&b, "  m%d: &m%d {<<: *m%d, p%d: %d}\n", i, i, i-1, i, i)
+	}
+	b.WriteString("components:\n  schemas:\n")
+	for i := 0; i <= levels; i++ {
+		fmt.Fprintf(&b, "    S%d: {properties: {x: *m%d}}\n", i, i)
+	}
+
+	assertScansWithin(t, b.String(), "super-linear blowup on a merge chain")
+}
+
+// assertScansWithin runs detectCycles on src and requires it to finish clean
+// inside the bound. See the note on goroutine lifetime above.
+func assertScansWithin(t *testing.T, src, blowup string) {
+	t.Helper()
+	const bound = 10 * time.Second
 	done := make(chan []ir.Diagnostic, 1)
 	go func() {
-		done <- detectCycles(0, []byte(b.String()))
+		done <- detectCycles(0, []byte(src))
 	}()
 	select {
 	case diags := <-done:
-		assert.Empty(t, diags, "deep alias reuse without a $ref cycle is not a degenerate cycle")
-	case <-time.After(10 * time.Second):
-		t.Fatal("detectCycles did not return within the bound — likely exponential blowup on chained aliases")
+		assert.Empty(t, diags, "deep anchor reuse without a $ref cycle is not a degenerate cycle")
+	case <-time.After(bound):
+		t.Fatalf("detectCycles did not return within %v — likely %s", bound, blowup)
 	}
 }
 
