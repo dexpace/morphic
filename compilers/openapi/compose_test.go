@@ -415,6 +415,48 @@ func TestAllOf_RequiredOnlyBranchNamingBaseOwnedPropertyDiagnosed(t *testing.T) 
 		"the diagnostic points at the branch that declared the requirement")
 }
 
+// TestAllOf_RequiredOnlyBranchNoBaseOrMixinDiagnosedInfo covers the other side
+// of diagUnattachableRequired's severity split: an allOf with no $ref branch at
+// all, so nothing becomes Base or a Mixin. Unlike
+// TestAllOf_RequiredOnlyBranchNamingBaseOwnedPropertyDiagnosed, there is no
+// base/mixin the missing name could plausibly belong to — the spec just names a
+// property nothing declares, which is legal JSON Schema with nothing lost — so
+// the diagnostic is info, not warning.
+func TestAllOf_RequiredOnlyBranchNoBaseOrMixinDiagnosedInfo(t *testing.T) {
+	t.Parallel()
+	spec := componentSpec(`    Thing:
+      allOf:
+        - type: object
+          properties:
+            id: {type: integer}
+        - required: [ghost]
+`)
+	doc, diags := lowerSpec(t, spec)
+	requireNoErrorDiags(t, diags)
+	m, ok := doc.Types[componentID("Thing")].(*ir.Model)
+	require.True(t, ok, "Thing should be a model")
+	assert.Nil(t, m.Base, "no $ref branch at all: no Base")
+	assert.Empty(t, m.Mixins, "no $ref branch at all: no Mixins")
+
+	id, hasID := propsByWire(m.Properties)["id"]
+	require.True(t, hasID, "the branch's own id property still lowers")
+	assert.False(t, id.Required, "ghost's requiredness never misattaches to id")
+	_, hasGhost := propsByWire(m.Properties)["ghost"]
+	assert.False(t, hasGhost, "ghost is never invented as a property")
+
+	require.Equal(t, 1, countDiagsAt(diags, codeUnattachableRequired, ir.SeverityInfo),
+		"exactly one info-severity unattachable-required diagnostic")
+	var unattachable ir.Diagnostic
+	for _, d := range diags {
+		if d.Code == codeUnattachableRequired {
+			unattachable = d
+		}
+	}
+	assert.Contains(t, unattachable.Message, `"ghost"`, "the diagnostic names the unattached property")
+	assert.Contains(t, unattachable.Provenance.Pointer, "/allOf/1",
+		"the diagnostic points at the branch that declared the requirement")
+}
+
 // TestAllOf_RefBranchWithSiblingRequired31 pins the real behavior of a $ref
 // allOf branch that also carries a sibling `required` (legal in OpenAPI 3.1 /
 // JSON Schema 2020-12, where $ref no longer has to be the schema object's only
@@ -882,6 +924,39 @@ func TestAllOf_BoolRefBranchHasNoDiscriminator(t *testing.T) {
 	sub := typeByName(doc, "Sub").(*ir.Model)
 	assert.Empty(t, sub.DiscriminatorValue, "a bool-schema ref target anchors no hierarchy")
 	_ = diags
+}
+
+// TestAllOf_BoolBranchSkippedInCompositionRequired covers compositionRequired's
+// `bs == nil` guard: an allOf branch can itself be a bare boolean schema
+// (`true`/`false`), not just a $ref to one (as above) or an inline object. For
+// such a branch, b.GetSchema() returns nil — it is the JSONSchema either-value's
+// Left half, populated only for an object branch, never for a bool one — so
+// without the guard, reading bs.GetRequired() would nil-deref on a real spec
+// that composes a bare boolean into an allOf. This pins that the guard makes
+// the bool branch inert rather than crashing, while the sibling object branch's
+// own property and its own required both still lower normally.
+func TestAllOf_BoolBranchSkippedInCompositionRequired(t *testing.T) {
+	t.Parallel()
+	spec := componentSpec(`    Thing:
+      allOf:
+        - type: object
+          required: [id]
+          properties:
+            id: {type: integer}
+        - true
+`)
+	doc, diags := lowerSpec(t, spec)
+	requireNoErrorDiags(t, diags)
+	m, ok := doc.Types[componentID("Thing")].(*ir.Model)
+	require.True(t, ok, "Thing should be a model")
+	assert.Nil(t, m.Base, "a bare boolean branch is never a $ref, so no Base")
+	assert.Empty(t, m.Mixins)
+
+	id, hasID := propsByWire(m.Properties)["id"]
+	require.True(t, hasID, "the object branch's own property still lowers despite the sibling bool branch")
+	assert.True(t, id.Required, "the object branch's own required still attaches to its own property")
+	assert.False(t, hasDiag(diags, codeUnattachableRequired),
+		"the boolean branch contributes no required names, so nothing goes unattached")
 }
 
 func TestEnum_NonScalarAndMidListMismatch(t *testing.T) {
