@@ -19,50 +19,50 @@ import (
 //   - resolve_target_invalid.yaml: a response with no description and a header
 //     whose required is the string "notabool" — two schema violations.
 //   - resolve_main_external.yaml: $refs the malformed target above across files;
-//     the compiler does no file I/O, so the external ref surfaces as an
-//     unresolved-ref error diagnostic.
+//     the compiler does no file I/O, so it's an unresolved-ref error.
 //   - cycle_self_ref.yaml, cycle_two_node_ref.yaml, their _sibling variants, and
-//     cycle_yaml_anchor.yaml: degenerate reference cycles that never reach a
-//     concrete schema node. The pre-parse detector reports each as a cyclic-ref
-//     error instead of letting the parser fault with a stack overflow (GitHub #12).
+//     cycle_yaml_anchor.yaml: degenerate ref cycles that never reach a concrete
+//     schema node. The pre-parse detector reports cyclic-ref instead of letting
+//     the parser stack-overflow (GitHub #12).
 //   - cycle_alias_ref_value.yaml, cycle_content_schema.yaml, cycle_alias_ref_key.yaml,
 //     cycle_merge_key_ref.yaml, and cycle_alias_schema_node.yaml: the same
-//     degenerate-cycle shape reached through an alias-valued $ref, a $ref nested
-//     under contentSchema, an alias-valued $ref key, a `<<` merge key, and an
-//     alias-valued schema node respectively — the raw yaml.Node scan now covers
-//     all five shapes it previously missed (GitHub #26).
+//     degenerate cycle reached via an alias-valued $ref, a $ref nested under
+//     contentSchema, an alias-valued $ref key, a `<<` merge key, and an
+//     alias-valued schema node — five shapes the raw yaml.Node scan previously
+//     missed (GitHub #26).
 //   - cycle_alias_dual_position.yaml: one anchored pure-$ref node reused in two
 //     schema positions (once as a "properties" value, once as a schema in its
 //     own right). The ref-collection walk previously shared one visited-node
-//     set across those two positions, so reaching the node in one position
-//     marked it seen and the other silently skipped it (GitHub #26 follow-up).
-//   - cycle_duplicate_key.yaml: a schema map that declares the same key twice,
-//     where only the second declaration is cyclic. Speakeasy warns and applies
-//     both in turn, so the resolver works from the last; the scan read such a
-//     mapping first-key-wins and reported the document clean.
+//     set across both positions, so visiting the node in one silently skipped
+//     the other (GitHub #26 follow-up).
+//   - cycle_duplicate_key.yaml: a schema map declaring the same key twice, only
+//     the second declaration cyclic. The resolver works from the last
+//     declaration (matching Speakeasy), but the scan read the mapping
+//     first-key-wins and reported the document clean.
 //   - amplification_alias_bomb.yaml: a 10-level x 10-way YAML alias fan-out
-//     (a "billion laughs" document). Every alias's target is acyclic and no
-//     ancestor of the alias, so neither the anchor nor $ref cycle detector
-//     catches it, and unguarded it exhausts memory inside soa.Unmarshal before
-//     ResolveAllReferences ever runs (GitHub #27). The pre-parse scan measures
-//     its alias-expanded node count and refuses it outright.
+//     ("billion laughs"). Every alias's target is acyclic, so neither the
+//     anchor nor $ref cycle detector catches it, and unguarded it exhausts
+//     memory inside soa.Unmarshal before ResolveAllReferences ever runs
+//     (GitHub #27). The pre-parse scan measures the alias-expanded node count
+//     and refuses it outright.
 //   - dangling/openapi/f04, f05, f06, f08, f09, f13: discriminator mappings whose
 //     target is undeclared, external, or a sub-schema, dropped with an
 //     unresolved-ref error rather than written as a dangling TypeID (GitHub #14).
 //   - dangling/openapi/f12-refs.yaml: a same-file self-reference spelled with the
-//     m.yaml basename; swept under its own filename the doc part no longer matches,
-//     so the loader reports the external m.yaml it cannot open (GitHub #14).
+//     m.yaml basename; swept under its own filename the doc part no longer
+//     matches, so the loader reports the external m.yaml it cannot open
+//     (GitHub #14).
 //   - dangling/openapi/f30-protocol-surface.yaml: a security requirement naming a
 //     scheme with no components.securitySchemes declaration, dropped with an
 //     unresolved-ref error rather than a dangling AuthID (GitHub #14).
 //   - dangling/openapi/f32-ref-noncanonical-escape.yaml: a $ref whose pointer
-//     escapes non-canonically (a raw '~' for a component named "A~B"). The compiler
-//     resolves it to the interned node (no dangling ID), but the loader still
-//     reports the malformed JSON pointer as an unresolved-ref error (GitHub #14).
+//     escapes non-canonically (a raw '~' for a component named "A~B"). The
+//     compiler resolves it to the interned node, but the loader still reports
+//     the malformed JSON pointer as an unresolved-ref error first (GitHub #14).
 //
-// The remaining dangling reproducers (f07, f10, f11, f28, f31) intern their targets
-// and compile clean, so they are deliberately absent — the rot-guard below fails
-// any listed fixture that turns out to compile OK.
+// The remaining dangling reproducers (f07, f10, f11, f28, f31) intern their
+// targets and compile clean, so they're deliberately absent — the rot-guard
+// below fails any listed fixture that turns out to compile OK.
 func knownInvalid() map[string]bool {
 	return map[string]bool{
 		filepath.FromSlash("../../testdata/openapi/resolve_target_invalid.yaml"):               true,

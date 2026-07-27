@@ -14,21 +14,14 @@ import (
 const maxSchemaDepth = 256
 
 // A lowerer performs lowering: the translation of one source-shaped OpenAPI
-// document into Morphic's spec-agnostic IR. "Lowering" is the standard compiler
-// term for moving from a high-level, format-specific representation to a lower,
-// more uniform internal one (LLVM lowers its IR to machine code, Rust lowers HIR
-// to MIR); here the descent is OpenAPI schemas -> ir.TypeDef nodes, and every
-// lower* method is one step of it.
+// document into Morphic's spec-agnostic IR (OpenAPI schemas -> ir.TypeDef
+// nodes, one step per lower* method). This is the lossless source -> IR sense
+// of "lowering" — not the lossy, target-shaped "lowered late" of invariant #2,
+// which happens only in emitter refiners, never here.
 //
-// The word carries two senses in this repo, and this is the first: the faithful,
-// lossless source -> IR translation. It is deliberately NOT the lossy,
-// target-shaped "lowered late" of invariant #2 (e.g. collapsing a union to
-// optional fields for a language without sum types) — that happens far
-// downstream in emitter refiners, never in a compiler.
-//
-// The struct itself is the single mutable context of one Compile call — a local,
-// never a package global — threading the interning table, accumulated
-// diagnostics, and the recursion-depth counter through every schema position.
+// The struct is the single mutable context of one Compile call (local, never
+// a package global): it threads the interning table, diagnostics, and
+// recursion depth through every schema position.
 type lowerer struct {
 	srcIndex  int
 	doc       *soa.OpenAPI
@@ -76,12 +69,9 @@ func (l *lowerer) intern(pointer string, id ir.TypeID, build func() ir.TypeDef) 
 
 // internNode is the single hoisting entry point: it derives pointer's stable
 // TypeID (typeIDForPointer) and shared TypeCommon (commonFor) once, then
-// interns build's result under that ID. Every hoisted node kind — Scalar,
-// Model, Union, Enum, List, Tuple — used to compute both the same way in its
-// own "id := typeIDForPointer(pointer); TypeCommon: l.commonFor(id, pointer,
-// hint)" prologue; build receives the already-built TypeCommon (whose ID
-// field is the same id) so it never needs pointer, hint, or a bare id just to
-// re-derive what internNode already has.
+// interns build's result under that ID. build receives the already-built
+// TypeCommon (its ID field is the same id), so it never needs pointer, hint,
+// or a bare id to re-derive it.
 func (l *lowerer) internNode(pointer, hint string, build func(common ir.TypeCommon) ir.TypeDef) ir.TypeID {
 	id := typeIDForPointer(pointer)
 	return l.intern(pointer, id, func() ir.TypeDef { return build(l.commonFor(id, pointer, hint)) })

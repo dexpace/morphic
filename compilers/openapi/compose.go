@@ -15,7 +15,7 @@ import (
 // ir-design §4.3: the sole $ref (or a $ref whose target anchors a discriminator
 // hierarchy) becomes Base; other $refs become Mixins in source order; inline
 // branches contribute their properties, each carrying provenance into the
-// allOf branch it came from. Refs are never flattened.
+// allOf branch it came from.
 func (l *lowerer) lowerAllOf(s *oas3.Schema, pointer, hint string) ir.TypeID {
 	return l.internNode(pointer, hint, func(common ir.TypeCommon) ir.TypeDef {
 		m := &ir.Model{TypeCommon: common}
@@ -56,9 +56,7 @@ func (l *lowerer) fillAllOf(m *ir.Model, s *oas3.Schema, pointer string) {
 }
 
 // selectAllOfBase returns the branch index that becomes Model.Base, or -1 when
-// none qualifies (multiple non-hierarchy refs stay Mixins). A sole $ref is the
-// base; otherwise the first $ref whose target anchors a discriminator hierarchy
-// is the base.
+// none qualifies (multiple non-hierarchy refs stay Mixins).
 func (l *lowerer) selectAllOfBase(branches []*oas3.JSONSchema[oas3.Referenceable]) int {
 	refIdxs := make([]int, 0, len(branches))
 	for i, b := range branches {
@@ -222,17 +220,15 @@ func refLastSegment(ref string) string {
 	return ref
 }
 
-// lowerDiscriminator lowers a schema's discriminator, resolving each mapping
-// entry to a target TypeID (a bare name implies #/components/schemas/<name>;
-// a nil mapping stays nil, preserving infer-by-name semantics) and the tag
-// itself per ir-design §4.3's Discriminator contract — "exactly one of
-// Property / PropertyName / Index locates the tag". m is the allOf base model
-// this discriminator is declared on, or nil for a oneOf/anyOf union: a union's
-// tag exists on no single model, so it can only be named by its wire
-// PropertyName (this is why buildUnion, the sole union-side caller, passes
-// nil rather than the union it just built); a model's tag resolves to the
-// declaring property's own PropID when the model declares it, falling back to
-// PropertyName only when it does not.
+// lowerDiscriminator lowers a schema's discriminator. Each mapping entry
+// resolves to a target TypeID (a bare name implies
+// #/components/schemas/<name>; nil stays nil, preserving infer-by-name
+// semantics), and the tag is located via exactly one of Property /
+// PropertyName / Index (ir-design §4.3). m is the allOf base model this
+// discriminator is declared on, or nil for a oneOf/anyOf union, which has no
+// single model and so is named only by PropertyName; otherwise the tag
+// resolves to the declaring property's PropID, falling back to PropertyName
+// if undeclared.
 func (l *lowerer) lowerDiscriminator(s *oas3.Schema, m *ir.Model, pointer string) *ir.Discriminator {
 	d := s.GetDiscriminator()
 	if d == nil {
@@ -290,21 +286,17 @@ func (l *lowerer) discriminatorDefault(d *oas3.Discriminator, pointer string) ir
 	return id
 }
 
-// mappingTargetID resolves a discriminator mapping target — a bare schema name or
-// a $ref string — to the stable TypeID of an interned schema. A bare name (even
-// one containing '/', i.e. a schema literally named "A/B") that names a declared
-// component resolves to it; otherwise the target must be a same-file $ref to a
-// declared component or an already-interned node. A target that resolves to no
-// interned schema yields ok=false so the caller drops and diagnoses it: unlike a
-// schema position, a discriminator subtype cannot be hoisted from a bare pointer.
-//
-// A top-level component target resolves regardless of source order, because every
-// declared component name is recorded before lowering begins; a deeper sub-schema
-// target resolves only if it was already interned, and is otherwise dropped like
-// any other unbacked target. The declared-name branch derives the ID through
-// typeIDForPointer, the same discriminator the component was interned under, so a
-// degenerate empty-named component (interned anonymously) resolves to its real ID
-// rather than an unbacked namedTypeID.
+// mappingTargetID resolves a discriminator mapping target — a bare schema
+// name or a $ref string — to the stable TypeID of an interned schema. A bare
+// name (even one containing '/') that names a declared component resolves to
+// it via typeIDForPointer regardless of source order, since every declared
+// name is recorded before lowering begins — this also makes a degenerate
+// empty-named component resolve to its real (anonymous) ID rather than an
+// unbacked namedTypeID. Otherwise the target must be a same-file $ref to a
+// declared component or an already-interned node; a target that resolves to
+// neither yields ok=false, since unlike a schema position, a discriminator
+// subtype cannot be hoisted from a bare pointer — the caller drops and
+// diagnoses it.
 func (l *lowerer) mappingTargetID(target string) (ir.TypeID, bool) {
 	if l.schemas[target] {
 		return typeIDForPointer(ptr("components", "schemas", target)), true

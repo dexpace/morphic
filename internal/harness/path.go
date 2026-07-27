@@ -9,16 +9,14 @@ import (
 	"strings"
 )
 
-// CheckPath applies Check to the spec(s) at path. When path is a directory it is
-// walked recursively for *.yaml, *.yml, and *.json spec files (excluding
-// *.golden.json IR snapshots), each read and checked; when path names a regular
-// file it is read and checked directly, whatever its extension. Results are
-// returned in the deterministic lexical order filepath.WalkDir visits entries.
+// CheckPath applies Check to the spec(s) at path: a directory is walked
+// recursively for *.yaml, *.yml, and *.json files (excluding *.golden.json IR
+// snapshots) in filepath.WalkDir's lexical order; a regular file is read and
+// checked directly, whatever its extension.
 //
-// It returns a Go error only for a caller mistake or a filesystem fault — a nil
-// context, an empty path, a missing path, an unreadable file. A spec that trips
-// an oracle is a Result with a non-OK Outcome, never a Go error, so a broken
-// spec never aborts a sweep of its siblings.
+// It returns a Go error only for a caller or filesystem fault (nil context,
+// bad path, unreadable file) — an oracle failure is a non-OK Result, never a
+// Go error, so one broken spec never aborts the sweep of its siblings.
 func CheckPath(ctx context.Context, path string) ([]Result, error) {
 	if ctx == nil {
 		return nil, fmt.Errorf("harness: nil context")

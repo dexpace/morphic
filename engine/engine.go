@@ -43,9 +43,9 @@ func New() (*Engine, error) {
 // an Engine, for tests and embedders that need a custom compiler set. A
 // register failure (a compiler reporting no formats, or two compilers claiming
 // the same format) surfaces as a Go error rather than a panic. Calling
-// NewWith with no compilers is legal — it yields an engine whose Run always
-// fails at the lookup step, which is the seam TestEngine_RunLookupMiss relies
-// on to reach that branch, so this must stay callable with zero arguments.
+// NewWith with no compilers is legal: the resulting engine's Run always fails
+// at the lookup step, which is the seam TestEngine_RunLookupMiss relies on to
+// reach that branch.
 func NewWith(fronts ...compilers.Compiler) (*Engine, error) {
 	reg := compilers.NewRegistry()
 	for _, front := range fronts {

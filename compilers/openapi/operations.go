@@ -348,7 +348,7 @@ func (l *lowerer) preserveErrorHeaders(ec *ir.ErrorCase, r *soa.Response, rptr s
 // (nothing dropped) and points ErrorCase.Type at the first. When more than one
 // media type exists, the full content map is preserved raw with an info
 // diagnostic, since ErrorCase.Type holds a single model reference (ir-design
-// §7.2 clarification — surfaced in the PR description).
+// §7.2 clarification).
 func (l *lowerer) fillErrorType(ec *ir.ErrorCase, r *soa.Response, rptr string) {
 	content := r.GetContent()
 	if content == nil || content.Len() == 0 {

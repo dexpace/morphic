@@ -72,9 +72,9 @@ func (l *lowerer) componentConstraints(js *oas3.JSONSchema[oas3.Referenceable], 
 // each constraint diagnostic with pointer's provenance. It returns nil when the
 // schema has no readable constraint body (a nil schema or a bare $ref). It is the
 // shared path for every alias a body reduces to — a named component
-// (componentConstraints) and a $ref-hoisted internal sub-schema
-// (hoistSubSchema) — so a scalar that aliases a shared primitive never drops the
-// constraints it carried, regardless of how it was reached.
+// (componentConstraints) and a $ref-hoisted internal sub-schema (hoistSubSchema)
+// — so a scalar that aliases a shared primitive never drops the constraints it
+// carried.
 func (l *lowerer) schemaConstraints(s *oas3.Schema, pointer string) *ir.Constraints {
 	if s == nil || s.Ref != nil {
 		return nil
@@ -409,13 +409,10 @@ func wireNameIndex(props []ir.Property) map[string]int {
 }
 
 // mergeProperty appends p to m and records it in byWire, or folds it into the
-// property that already carries the same wire name. Overlapping inline allOf
-// branches — and properties co-declared alongside allOf — redeclare one logical
-// field (ir-design §4.3); allOf is an intersection, so a redeclaration reconciles
-// into the existing property rather than becoming a second, wire-colliding one.
-//
-// fillModelProperties is the sole caller and always sets WireName to the
-// (non-empty) property key, so the wire name keys byWire directly.
+// property that already carries the same wire name — overlapping allOf branches
+// (and properties co-declared alongside allOf) redeclare one logical field under
+// allOf's intersection semantics (ir-design §4.3). Callers must set p.WireName
+// (fillModelProperties always does); it keys byWire directly.
 func (l *lowerer) mergeProperty(m *ir.Model, byWire map[string]int, p ir.Property, pointer string) {
 	if i, ok := byWire[p.WireName]; ok {
 		l.reconcileProperty(&m.Properties[i], p, pointer)
@@ -426,23 +423,14 @@ func (l *lowerer) mergeProperty(m *ir.Model, byWire map[string]int, p ir.Propert
 }
 
 // reconcileProperty folds a redeclaration src into the already-present property
-// dst under allOf intersection semantics. The field is required when any branch
-// requires it and secret when any branch marks it, so those bits are OR-ed. dst
-// keeps its position, identity, and type shape (the first declaration in source
-// order defines them); every optional detail dst lacks is adopted from src, so a
-// documented declaration and a bare one reconcile to the richer property whatever
-// their branch order. Constraints merge per keyword (mergeConstraints), not as a
-// whole struct swap, so a keyword only one branch constrains is folded into the
-// merged property rather than dropped whenever the other branch also carries
-// some constraint of its own. A description present-and-different in both
-// branches is a genuine conflict dst cannot absorb — reported, never silently
-// dropped. An incompatible type redeclaration is genuinely unsatisfiable and is
-// reported as such; a contradictory constraint keyword is reported too, even
-// though it is usually still individually satisfiable on its own, because the
-// merge cannot represent the intersection of the two values and keeps an
-// arbitrary — possibly looser — winner (see codeConflictingRedecl). Either is
-// reported before any detail is folded in, so the kept-first-declaration shape
-// is diagnosed rather than silently arbitrary.
+// dst under allOf intersection semantics: required and secret are OR-ed, dst
+// keeps its position/identity/type shape (first declaration wins), and every
+// optional detail dst lacks — docs, default, constraints (merged per keyword via
+// mergeConstraints), deprecation, XML, examples, extensions — is adopted from
+// src. A description that differs between branches, an incompatible type, or a
+// contradictory constraint keyword are genuine conflicts the merge cannot
+// represent (see codeConflictingRedecl); each is diagnosed before any detail is
+// folded in, rather than silently picking an arbitrary winner.
 func (l *lowerer) reconcileProperty(dst *ir.Property, src ir.Property, pointer string) {
 	l.diagnoseRedeclarationConflict(dst, &src, pointer)
 
@@ -468,31 +456,15 @@ func (l *lowerer) reconcileProperty(dst *ir.Property, src ir.Property, pointer s
 }
 
 // mergeConstraints folds src's constraint keywords into dst under allOf
-// intersection semantics, adopting — per keyword — whichever src sets that dst
-// does not, and leaving every keyword dst already sets untouched (first
-// declaration still wins, consistent with the rest of reconcileProperty). allOf
-// is an intersection, so a keyword only one branch constrains genuinely applies
-// to the merged field: this invents nothing and flattens no composition, it
-// simply stops throwing away a keyword neither side contradicts.
+// intersection semantics: dst keeps every keyword it already sets, and adopts
+// from src any keyword dst leaves unset (nil/""/false) — a keyword only one
+// branch constrains still applies to the merged field, so it is never dropped.
 //
-// Min and Max are adopted together with their exclusivity flag rather than
-// through cmp.Or below: taking src.Min without src.ExclusiveMin would
-// silently change the bound's sense (an exclusive "> 5" read back as
-// inclusive ">= 5"). Every other keyword adopts through cmp.Or, which returns
-// dst's value when it is already non-zero and src's otherwise — exactly the
-// "first declaration wins, absent keywords are inherited" rule this function
-// documents, with the zero value (nil, "", or false) standing in for "not
-// set". UniqueItems has no absent state — it is a plain bool — so "false"
-// cannot mean "not set"; but under intersection a collection satisfying both
-// branches must be unique whenever either branch requires it, so adopting a
-// true from src through cmp.Or is always correct and dst is never downgraded
-// from true back to false.
-//
-// cmp.Or folds what were 12 separately branch-covered keywords down to
-// straight-line assignments, so TestMergeConstraints_AdoptsEveryUnsetKeyword
-// and TestMergeConstraints_LeavesSetKeywordsUntouched are now the only place
-// per-keyword adoption is pinned; there is no longer a coverage obligation
-// forcing a test to exercise each keyword individually.
+// Min and Max are adopted together with their exclusivity flag: taking src.Min
+// without src.ExclusiveMin would silently flip an exclusive "> 5" into an
+// inclusive ">= 5". UniqueItems has no absent state to detect via cmp.Or, but
+// under intersection a true from either branch is always correct, so adopting
+// it via cmp.Or never wrongly downgrades dst from true to false.
 func mergeConstraints(dst, src *ir.Constraints) *ir.Constraints {
 	if dst == nil {
 		return src
@@ -527,18 +499,14 @@ func mergeConstraints(dst, src *ir.Constraints) *ir.Constraints {
 // guards a pathological or malformed registry.
 const maxTypeResolveDepth = 64
 
-// diagnoseRedeclarationConflict reports when a redeclaration src contradicts the
-// already-present property dst under allOf intersection: an incompatible target
-// type, or a constraint keyword both branches pin to different values. The merge
-// still keeps dst's shape (first declaration wins); this only surfaces the
-// disagreement, naming the field and both declaration sites, so a broken source
-// spec no longer compiles clean. An incompatible type describes a genuinely
-// unsatisfiable field (string and integer cannot both hold); a conflicting
-// constraint keyword is usually still satisfiable on its own, but the merge
-// cannot represent the intersection of the two values and may keep the looser
-// of the two (see codeConflictingRedecl) — either kind is worth surfacing. A
-// type conflict subsumes any constraint disagreement on the same field, so at
-// most one diagnostic is reported.
+// diagnoseRedeclarationConflict reports when redeclaration src contradicts dst
+// under allOf intersection — an incompatible target type, or a constraint
+// keyword both branches pin to different values — without altering the merge
+// (dst keeps its shape). A type conflict is genuinely unsatisfiable; a
+// constraint conflict is usually satisfiable alone, but the merge can't
+// represent the true intersection and may keep the looser bound
+// (codeConflictingRedecl). At most one diagnostic fires: a type conflict
+// subsumes any constraint conflict.
 func (l *lowerer) diagnoseRedeclarationConflict(dst, src *ir.Property, pointer string) {
 	if l.typesConflict(dst.Type, src.Type) {
 		l.redeclarationConflictDiag(dst, pointer,
@@ -551,18 +519,14 @@ func (l *lowerer) diagnoseRedeclarationConflict(dst, src *ir.Property, pointer s
 }
 
 // redeclarationConflictDiag emits the shared conflicting-redeclaration warning,
-// naming the field and both declaration sites: dst's own declaration and the
-// redeclaration at pointer. detail is the caller-formatted description of what
-// disagrees — the two conflicting type IDs for a type conflict, or the
-// offending constraint keyword and its two conflicting values for a constraint
-// conflict — so this one wording serves both callers without hard-coding
-// either's shape. The wording itself says
-// "declarations", not "allOf branches": a redeclaration reconciled here is
-// either two inline allOf branches or a property declared directly on the
-// schema alongside allOf (mergeProperty folds both the same way), and dst's
-// pointer is not always inside an allOf branch, so the message must read
-// correctly for either site. Severity is warning — the merged model is still
-// usable — so a consumer chooses whether to escalate on the stable code.
+// naming the field and both declaration sites (dst's own, and the redeclaration
+// at pointer). detail is the caller-formatted disagreement — two type IDs, or a
+// constraint keyword and its two values — so one wording serves both callers.
+// It says "declarations", not "allOf branches": dst's declaration is not always
+// inside an allOf branch (a property can also be declared directly alongside
+// allOf), so the message must read correctly either way. Severity is warning —
+// the merged model is still usable — leaving escalation to the consumer via
+// the stable code.
 func (l *lowerer) redeclarationConflictDiag(dst *ir.Property, pointer, detail string) {
 	l.diag(ir.SeverityWarning, codeConflictingRedecl, pointer,
 		"declarations of field %q disagree: %s; kept the first declaration (%s) over the redeclaration (%s)",
@@ -609,20 +573,15 @@ func (l *lowerer) isAnyType(ref ir.TypeRef) bool {
 }
 
 // resolvePrimKind follows ref through the registry to its underlying primitive
-// kind, returning ok=false when the target is not ultimately resolvable to a
-// single primitive kind (a model, union, list, tuple, literal, external, or a
-// base-less opaque scalar). The Base chain is bounded so a malformed registry
-// cannot spin.
+// kind, returning ok=false when the target doesn't ultimately resolve to a
+// single one (a model, union, list, tuple, literal, external, or a base-less
+// opaque scalar). The Base chain is bounded against a malformed registry.
 //
-// An Enum resolves to its declared ValueType — the primitive its members'
-// values share, already computed once at lowering time (ir-design §4.5) — so a
-// string enum agrees with a plain string redeclaration but still conflicts with
-// an integer one. A Literal is deliberately NOT resolved here: it carries only
-// a Value, and Value.Kind does not determine a single PrimKind cleanly (a
-// ValueNumber literal spans integer/number/float/decimal with no way to tell
-// which; a format-tagged scalar's Literal retains no memory of that format).
-// Rather than guess, a Literal is left unresolved (ok=false) and excluded from
-// isStructuralType below, so it is simply never reported as conflicting.
+// An Enum resolves via its already-computed ValueType (ir-design §4.5), so a
+// string enum conflicts with an integer redeclaration but not a string one. A
+// Literal is deliberately left unresolved: Value.Kind doesn't map cleanly to
+// one PrimKind (a ValueNumber literal spans integer/number/float/decimal), so
+// rather than guess it is excluded from isStructuralType below too.
 func (l *lowerer) resolvePrimKind(ref ir.TypeRef) (ir.PrimKind, bool) {
 	id := ref.Target
 	for range maxTypeResolveDepth {
@@ -647,17 +606,10 @@ func (l *lowerer) resolvePrimKind(ref ir.TypeRef) (ir.PrimKind, bool) {
 	return "", false
 }
 
-// differentTypeKind reports whether two registry targets carry different TypeDef
-// kinds (a model vs a union). An unresolvable target is not treated as a
-// conflict. This arm is reached only when neither side resolved a PrimKind
-// (typesConflict's default case), which — after the isStructuralType and
-// resolvePrimKind changes above — is exactly the same set of pairs it covered
-// before them: Enum now resolves via resolvePrimKind so Enum pairs no longer
-// reach here at all, and Union/External/Literal were already unresolvable
-// (ok=false) both before and after, so removing them from isStructuralType does
-// not add any new pair to this arm. It can still fire on a pair neither of the
-// three false-positive fixes targets (e.g. a base-less opaque scalar against a
-// Union) — that is pre-existing, out of scope here, and unchanged by this fix.
+// differentTypeKind reports whether two registry targets carry different
+// TypeDef kinds (a model vs a union); an unresolvable target is never treated
+// as a conflict. Reached only from typesConflict's default case, when neither
+// side resolved a PrimKind — e.g. a base-less opaque scalar against a Union.
 func (l *lowerer) differentTypeKind(a, b ir.TypeRef) bool {
 	at, aok := l.out.Types[a.Target]
 	bt, bok := l.out.Types[b.Target]
@@ -668,21 +620,16 @@ func (l *lowerer) differentTypeKind(a, b ir.TypeRef) bool {
 }
 
 // isStructuralType reports whether ref targets a type that can never be a
-// scalar under allOf intersection: a model, list, map, or tuple. These four
-// shapes are the only ones provably incompatible with a scalar redeclaration.
+// scalar under allOf intersection: a model, list, map, or tuple — the only
+// shapes provably incompatible with a scalar redeclaration.
 //
-// Enum, Union, and External are deliberately excluded even though they are
-// composite IR nodes: an enum member, a union variant, or (in principle) an
-// external's runtime representation can itself be a scalar of the very kind
-// being redeclared (a string enum, a union with a string variant), so a bare
-// scalar sibling is not provably contradictory — Enum is instead resolved
-// precisely via its ValueType in resolvePrimKind above, and Union/External are
-// left unresolved so they are simply never reported here. Literal is excluded
-// for the reason documented on resolvePrimKind: its Value.Kind does not map
-// cleanly to one PrimKind, so rather than guess it is left unresolved too.
-//
-// A base-less opaque scalar is likewise unknown, not structural, so it is not
-// reported as a conflict against a primitive redeclaration.
+// Enum, Union, and External are deliberately excluded: an enum member or union
+// variant can itself be a scalar of the kind being redeclared, so a bare
+// scalar sibling isn't provably contradictory. Enum instead resolves via its
+// ValueType in resolvePrimKind above; Union/External/Literal stay unresolved
+// (Literal for the same reason as in resolvePrimKind), and a base-less opaque
+// scalar is likewise unknown, not structural — none of these count as
+// conflicts.
 func (l *lowerer) isStructuralType(ref ir.TypeRef) bool {
 	td, ok := l.out.Types[ref.Target]
 	if !ok {
@@ -697,22 +644,15 @@ func (l *lowerer) isStructuralType(ref ir.TypeRef) bool {
 }
 
 // constraintsConflict reports whether two constraint sets pin the same keyword
-// to incompatible values and, when they do, describes which keyword and both
-// values (e.g. "conflicting maxLength (10 and 20)"). A keyword set on only one
-// side is not a conflict — mergeConstraints adopts it from whichever side sets
-// it, so a one-sided keyword genuinely narrows the merged field rather than
-// being discarded — so only a keyword present on both sides with a differing
-// value counts. Numeric bounds compare by magnitude, so an equal bound spelled
-// two ways (10 and 10.0) is not a false conflict.
-//
-// UniqueItems is deliberately never compared here: it is a plain bool with no
-// absent state, so a false on either side cannot be told apart from "not set",
-// and flagging it would report the ordinary case of one branch simply not
-// caring about uniqueness as if it contradicted the other.
-//
-// Keywords are checked in the fixed order below, so when more than one
-// conflicts at once the keyword named in the returned detail is deterministic
-// rather than a product of struct layout or map iteration.
+// to incompatible values, describing which keyword and both values when they
+// do (e.g. "conflicting maxLength (10 and 20)"). A keyword set on only one
+// side is not a conflict — mergeConstraints adopts it, narrowing the merged
+// field rather than discarding it — so only a keyword present and differing on
+// both sides counts; numeric bounds compare by magnitude, so 10 and 10.0
+// aren't a false conflict. UniqueItems is never compared: it's a plain bool
+// with no absent state, so a false on either side can't be told apart from
+// "not set". Keywords are checked in the fixed order below, so the keyword
+// named when several conflict at once is deterministic.
 func constraintsConflict(a, b *ir.Constraints) (string, bool) {
 	if a == nil || b == nil {
 		return "", false
@@ -745,15 +685,13 @@ func constraintsConflict(a, b *ir.Constraints) (string, bool) {
 }
 
 // boundConflictDetail reports whether two numeric bounds, each with its
-// exclusivity flag, are both present and disagree — a differing magnitude or a
-// differing inclusive/exclusive sense — formatting the disagreement when they
-// do. Unlike an incompatible type, a disagreement here is usually still
-// individually satisfiable on its own (minimum: 10 and exclusiveMinimum: 10
-// together simply mean "> 10"); it is kept as a diagnosed conflict anyway
-// because the merge keeps an arbitrary source-order winner rather than the
-// true intersection, and the discarded bound is always the stricter one —
-// staying silent would trade this false positive for a silent loosening of
-// the validation the spec intended.
+// exclusivity flag, are both present and disagree in magnitude or in
+// inclusive/exclusive sense, formatting the disagreement when they do. Such a
+// disagreement is usually still individually satisfiable (minimum: 10 and
+// exclusiveMinimum: 10 together just mean "> 10"), but it's diagnosed anyway:
+// the merge keeps dst's bound (first declaration wins) over the true
+// intersection, and the discarded bound is always the stricter one — staying
+// silent would silently loosen the validation the spec intended.
 func boundConflictDetail(keyword string, a, b *ir.BigVal, exclA, exclB bool) (string, bool) {
 	if a == nil || b == nil || (exclA == exclB && bigValEqual(*a, *b)) {
 		return "", false
@@ -980,13 +918,10 @@ func (l *lowerer) preserveKeyword(m *ir.Model, key string, raw ir.RawValue, poin
 }
 
 // preserveRaw records raw under key in *ext (allocating the map on first
-// write) and appends one info diagnostic at pointer with msg. It is the
-// shared "keep it verbatim, since the IR has no structural home for it"
-// primitive behind preserveKeyword's five validation-only keywords and
-// fillSequential's 3.2 itemEncoding preservation; those two use different
-// diagnostic codes (codeValidationOnlyKeyword vs codeDegradedConstruct),
-// which is exactly the variation that keeps code a genuine parameter rather
-// than one unparam would flag as always receiving the same value.
+// write) and appends one info diagnostic at pointer with msg. It backs both
+// preserveKeyword's validation-only keywords and fillSequential's itemEncoding
+// preservation, which use different diagnostic codes — why code is a real
+// parameter rather than a constant.
 func (l *lowerer) preserveRaw(ext *ir.Extensions, key string, raw ir.RawValue, pointer, code, msg string) {
 	if raw == nil {
 		return
@@ -999,10 +934,9 @@ func (l *lowerer) preserveRaw(ext *ir.Extensions, key string, raw ir.RawValue, p
 }
 
 // diag appends one diagnostic at pointer with the given severity and code,
-// stamping it with l.srcIndex. It is the single provenance-stamping primitive
-// for compiler diagnostics: every lowering site that constructs a Provenance
-// from l.srcIndex should go through this rather than hand-writing the
-// append+diagf+Provenance triple, so the stamping rule is stated once.
+// stamping it with l.srcIndex. It is the single primitive for constructing a
+// Provenance from l.srcIndex — lowering sites should use it instead of
+// hand-writing the append+diagf+Provenance triple.
 func (l *lowerer) diag(sev ir.Severity, code, pointer, format string, args ...any) {
 	l.diags = append(l.diags, diagf(sev, code, ir.Provenance{Source: l.srcIndex, Pointer: pointer}, format, args...))
 }
@@ -1262,9 +1196,7 @@ func effectiveVisibility(ref, tgt *oas3.Schema) ir.Visibility {
 
 // pickFlag returns the bool field extracted by accessor from ref when present,
 // else from tgt, else false. It is the single nil-safe "use-site overrides
-// referent" primitive for boolean schema flags (readOnly, writeOnly, deprecated);
-// each flag previously had its own nil-guard accessor plus a pickBool call at
-// every use site, but all three followed this identical shape.
+// referent" primitive for boolean schema flags (readOnly, writeOnly, deprecated).
 func pickFlag(ref, tgt *oas3.Schema, accessor func(*oas3.Schema) *bool) bool {
 	if ref != nil {
 		if v := accessor(ref); v != nil {
@@ -1341,14 +1273,12 @@ func extensionsFrom(ext *extensions.Extensions) (ir.Extensions, []ir.Diagnostic)
 	return out, diags
 }
 
-// extensions lowers ext's x-* extensions into namespaced Extensions and
-// records any serialization-failure diagnostics unconditionally — regardless
-// of whether the result ends up empty. It is the single caller of
-// extensionsFrom every lowering site should go through: a caller that instead
-// gates the diagnostic append behind the same "if len(ext) > 0" that guards
-// the assignment silently drops every serialization-failure warning on an
-// object whose extensions all failed to serialize, since that is exactly the
-// case where ext is empty.
+// extensions lowers ext's x-* extensions into namespaced Extensions, recording
+// any serialization-failure diagnostics unconditionally even when the result
+// is empty. Every lowering site should call this rather than extensionsFrom
+// directly: gating the diagnostic append behind the same "len(ext) > 0" that
+// guards the assignment would drop every warning on an object whose
+// extensions all failed to serialize — exactly when the result is empty.
 func (l *lowerer) extensions(ext *extensions.Extensions) ir.Extensions {
 	out, diags := extensionsFrom(ext)
 	l.diags = append(l.diags, diags...)

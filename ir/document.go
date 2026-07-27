@@ -5,9 +5,9 @@ package ir
 const IRVersion = "0.1.0"
 
 // TypeRegistry is the flat, ID-keyed owner of every TypeDef in a Document
-// (ir-design §2, §4). It is the only place TypeDefs live; every other node
-// references types by TypeID. JSON (un)marshaling of the sealed sum is defined
-// with the rest of the sum-type codec.
+// (ir-design §2, §4); every other node references types by TypeID. JSON
+// (un)marshaling of the sealed sum is defined with the rest of the sum-type
+// codec.
 type TypeRegistry map[TypeID]TypeDef
 
 // Document is the root of a Morphic IR document (ir-design §2). It is

@@ -89,10 +89,8 @@ func (l *lowerer) partEncodings(media *soa.MediaType, mediaPtr string) map[strin
 	if props == nil || props.Len() == 0 {
 		return nil
 	}
-	// Key each part by the PropID of the hoisted body model's property. When the
-	// body is a $ref, that model's properties were interned under the ref target's
-	// pointer, so derive the encoding keys from there — not the media-local schema
-	// pointer — or the keys will not align with the model (invariant 2/3).
+	// Use the ref target's pointer, not mediaPtr, so encoding keys align with the
+	// hoisted model's property IDs (invariant 2/3); see bodySchemaPointer.
 	schemaPtr := bodySchemaPointer(media.GetSchema(), mediaPtr+ptr("schema"))
 	encMap := media.GetEncoding()
 	out := map[string]ir.PartEncoding{}

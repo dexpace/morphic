@@ -97,14 +97,12 @@ var compile = func(ctx context.Context, spec string, data []byte) (*ir.Document,
 // tests replace it to exercise that otherwise-unreachable defensive error path.
 var reserializeJSON = json.Marshal
 
-// roundTrips marshals doc, unmarshals it into a fresh Document, re-marshals
-// that, and compares the two JSON encodings byte for byte. Comparing serialized
-// forms — not the in-memory structs — is the faithful round-trip oracle: an
-// omitempty empty-but-non-nil collection and nil encode identically, so this
-// ignores that unpreservable distinction, while still catching any real
-// serialization loss — including a null-vs-[] flip on the IR's deliberately
-// non-omitempty Value collections that an in-memory EquateEmpty compare would
-// mask. It reports both encodings on mismatch.
+// roundTrips marshals doc, unmarshals into a fresh Document, re-marshals, and
+// compares the two encodings byte for byte. Comparing serialized JSON — not
+// the in-memory structs — is deliberate: it catches a null-vs-[] flip on the
+// IR's deliberately non-omitempty Value collections that an in-memory
+// EquateEmpty compare would miss, while still ignoring the harmless
+// omitempty empty-vs-nil distinction.
 func roundTrips(doc *ir.Document) (string, bool) {
 	first, err := json.Marshal(doc)
 	if err != nil {

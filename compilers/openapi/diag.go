@@ -44,29 +44,19 @@ const (
 	// has no structural home for it.
 	codeDegradedConstruct = "openapi/degraded-construct"
 	// codeConflictingRedecl reports that inline allOf branches redeclare one
-	// field with definitions that disagree — a differing target type or a
-	// constraint keyword pinned to incompatible values. allOf is an
-	// intersection, so what "disagree" means differs by kind: an incompatible
-	// target type genuinely describes an unsatisfiable field (string and
-	// integer cannot both hold), but a contradictory constraint keyword is
-	// normally still satisfiable on its own (maxLength: 10 and maxLength: 20
-	// together simply mean 10; minimum: 10 and exclusiveMinimum: 10 together
-	// mean "> 10") — the real defect there is that the merge cannot represent
-	// the intersection of the two keyword values, so it keeps an arbitrary
-	// source-order winner that may be the looser of the two and so silently
-	// weaken the validation the spec intended. Either way, the merge keeps the
-	// first declaration's value but surfaces the disagreement rather than
-	// discarding it.
+	// field with values that disagree: an incompatible target type (string vs.
+	// integer) is unsatisfiable outright, while a conflicting constraint
+	// keyword (e.g. minimum: 10 vs. exclusiveMinimum: 10) is usually still
+	// satisfiable but not representable by a simple merge, so the merge keeps
+	// an arbitrary source-order winner — possibly the looser bound — and
+	// surfaces the disagreement instead of silently discarding it.
 	codeConflictingRedecl = "openapi/conflicting-redeclaration"
 	// codeAliasAmplification reports a document whose YAML aliases expand to
-	// far more nodes than the document itself declares — a billion-laughs
-	// shape that would exhaust memory inside soa.Unmarshal well before
-	// ResolveAllReferences ever runs (GitHub #27). It is an error, never a
-	// warning: unlike codeCycleScanFailed, which flags an incomplete scan
-	// while still letting the compile proceed, this is a positive finding —
-	// the scan completed and measured the expansion — so the document is
-	// refused outright rather than handed to the parser to find out the hard
-	// way.
+	// far more nodes than it declares — a billion-laughs shape that would
+	// exhaust memory inside soa.Unmarshal before ResolveAllReferences ever
+	// runs (GitHub #27). Unlike codeCycleScanFailed's incomplete-scan warning,
+	// this is a positive, measured finding, so the document is refused
+	// outright rather than handed to the parser.
 	codeAliasAmplification = "openapi/alias-amplification"
 )
 

@@ -16,32 +16,24 @@ import (
 	"github.com/dexpace/morphic/ir"
 )
 
-// cycleReproducers are documents from GitHub #12 and GitHub #26 whose schema
-// graph cycles never reach a node without a top-level $ref. Each crashed the
-// process with a fatal, unrecoverable stack overflow before the pre-parse
-// detector (and, for the #26 shapes, its alias/merge/contentSchema awareness)
-// was added. The sibling variants carry a concrete `type` alongside the $ref:
-// speakeasy follows the top-level $ref regardless of the sibling, so they
-// crash exactly like the bare-$ref forms and must be diagnosed the same way.
+// cycleReproducers are real crash inputs from GitHub #12 and #26: schema
+// cycles that never reach a node with a top-level $ref, so a scan that only
+// looks there misses them. Sibling-typed variants (a $ref plus a concrete
+// `type`) crash the same way, since speakeasy follows the $ref regardless.
 //
-// The #26 shapes exercise the gap between the scan's raw yaml.Node model and
-// the resolved view speakeasy's unmarshaller reads: an alias standing in for
-// the $ref value (alias-ref-value), a $ref nested under a JSONSchema-typed
-// keyword the old key set omitted (content-schema), an alias standing in for
-// the literal `$ref` key itself (alias-ref-key), a `<<` merge key that
-// contributes a $ref no literal key does (merge-key-ref), an alias standing in
-// for the whole schema node (alias-schema-node), and one anchored pure-$ref
-// node reused in two different schema positions (alias-dual-position: once as
-// a "properties" value and once as a schema in its own right) — a follow-up to
-// the alias-schema-node fix that exposed a second bug, the ref-collection walk
-// sharing one visited-node set across the schema, schema-map, and schema-list
-// roles let the first role to reach the node consume it and the second role
-// skip it, silently dropping the $ref the chain walk needed.
+// The #26 shapes each probe a gap between the scan's raw yaml.Node view and
+// speakeasy's resolved one: an alias for the $ref value (alias-ref-value), a
+// $ref under a JSONSchema keyword the old key set missed (content-schema), an
+// alias for the `$ref` key itself (alias-ref-key), a `<<` merge contributing a
+// $ref no literal key does (merge-key-ref), an alias for the whole schema node
+// (alias-schema-node), and one $ref node reused in two schema positions
+// (alias-dual-position) — this last exposed the ref-collection walk sharing
+// one visited-node set across roles, so whichever role reached the node first
+// silently starved the other.
 //
-// duplicate-key is the same class of gap in the other direction: a mapping that
-// declares a key twice. Speakeasy warns and applies both occurrences in turn, so
-// the resolver works from the last, and reading the mapping first-key-wins hid
-// the cycle behind the shadowed sibling. FuzzCycleDetector found it.
+// duplicate-key covers a mapping that declares a key twice: speakeasy keeps
+// the last occurrence, so reading first-key-wins hid the cycle. Found by
+// FuzzCycleDetector.
 var cycleReproducers = []struct{ name, file string }{
 	{"self-ref", "cycle_self_ref"},
 	{"two-node-ref", "cycle_two_node_ref"},
@@ -493,16 +485,14 @@ func TestDeref_FollowsAliasChain(t *testing.T) {
 	require.Same(t, target, deref(target))
 }
 
-// TestMappingPairs_Cases covers nodeView's expansion on shapes a real parse
-// cannot produce (a non-scalar key, a merge sequence, a self-referential merge)
-// alongside the ones it can (alias key, alias value, single-mapping merge,
-// duplicate explicit key). Three precedence rules are pinned only by the
-// resulting value, so the rationale is recorded here rather than at a
-// generic assertion that would discard it: speakeasy applies every
-// occurrence of a duplicate explicit key in turn, so the last one is the
-// effective value; that still outranks a merged key, so the two precedence
-// rules compose rather than one hiding the other; and a merge whose `<<`
-// aliases its own mapping contributes nothing, rather than looping forever.
+// TestMappingPairs_Cases covers nodeView's expansion: shapes a real parse
+// cannot produce (non-scalar key, merge sequence, self-referential merge) and
+// ones it can (alias key/value, single-mapping merge, duplicate key). Three
+// precedence rules only show up in the result, so they're pinned here: a
+// duplicate explicit key resolves to its last occurrence (matching speakeasy,
+// which applies every occurrence in turn); an explicit key still outranks a
+// merged one; and a merge whose `<<` aliases its own mapping contributes
+// nothing rather than looping forever.
 func TestMappingPairs_Cases(t *testing.T) {
 	t.Parallel()
 
@@ -1064,21 +1054,20 @@ func TestRefScanCollect_DeepNestingIsNotTruncated(t *testing.T) {
 
 // TestDetectCycles_ChainedAliasFanOutIsRefusedFast and the merge-chain tests
 // below pin the scan's time bound against documents whose node count grows
-// linearly but whose naive expansion does not. Chained aliases (&a1 {type:
+// linearly but whose naive expansion doesn't. Chained aliases (&a1 {type:
 // string}, &a2 {allOf: [*a1, *a1]}, ...) fan a schema walk out exponentially
-// unless the collection walk memoizes; a merge chain (&m1 {a: 1}, &m2 {<<:
-// *m1, b: 2}, ...) re-materializes every pair beneath each level. Both would
-// turn the crash this scan prevents into a hang, so both are guarded.
+// unless the walk memoizes; a merge chain (&m1 {a: 1}, &m2 {<<: *m1, b: 2},
+// ...) re-materializes every pair at each level. Either would turn the crash
+// this scan prevents into a hang.
 //
-// This document pins two properties: the scan over it stays linear, and the
-// document itself is refused. It used to be pinned as clean, which was a live
-// hole — the same shape blows past 3 GiB inside soa.Unmarshal at only 18
-// levels, and this one runs 40.
+// This document must stay linear to scan and still be refused: it used to be
+// pinned clean, which was a live hole — the same shape blows past 3 GiB inside
+// soa.Unmarshal at 18 levels, and this one runs 40.
 //
-// Each runs the scan on a goroutine and fails on a timeout rather than blocking
-// the suite until the package-level test timeout. A regression therefore leaks
-// the goroutine for the remaining lifetime of the test binary; that is the
-// deliberate trade for a fast, legible failure, and it cannot leak on a pass.
+// The scan runs on a goroutine and the test fails on timeout rather than
+// blocking on the package's own timeout; a regression leaks that goroutine for
+// the test binary's lifetime, which is the accepted trade for a fast, legible
+// failure.
 func TestDetectCycles_ChainedAliasFanOutIsRefusedFast(t *testing.T) {
 	t.Parallel()
 	const levels = 40
@@ -1126,21 +1115,18 @@ func TestDetectCycles_MergeChainWithinBoundIsClean(t *testing.T) {
 	assert.Empty(t, diags, "a merge chain the scan can expand in full is clean")
 }
 
-// TestDetectCycles_MergeChainPastBoundStaysFastAndWarns is the regression guard
-// for the cost of truncation. A chain this long cannot be memoized past the
-// depth bound, so every one of its levels re-expands on arrival; the guarantee
-// that keeps that affordable is that a re-expansion costs O(maxMergeDepth²) — a
-// constant — rather than scaling with the length of the chain. With the bound
-// set loosely enough for the descent to run away, this document took ~29s.
-//
-// It must also say so: silently reporting "clean" on a document the scan could
-// not fully expand would claim a protection it did not provide. That warning is
-// now joined by an amplification refusal — this document expands ~19,227 raw
-// nodes to roughly 10.3 million, far past either bound, with the surplus one
-// deciding it. Do not lower 1600: it is sized so a regression in the
+// TestDetectCycles_MergeChainPastBoundStaysFastAndWarns guards the cost of
+// truncation: past the depth bound each level re-expands on arrival, and stays
+// affordable only because a re-expansion costs O(maxMergeDepth²) rather than
+// scaling with chain length. Without that bound the descent runs away — this
+// document took ~29s. Do not lower 1600: it's sized so a regression in the
 // merge-expansion bound blows the 10s budget this test enforces.
-// TestCompile_MergeChainPastBoundStillCompiles pins the shallower level (200)
-// that must stay accepted.
+//
+// The scan must also report its own incompleteness rather than claim a clean
+// document is protected. That warning is now joined by an amplification
+// refusal — this document expands ~19,227 raw nodes to ~10.3 million, past
+// either bound. TestCompile_MergeChainPastBoundStillCompiles pins the
+// shallower level (200) that must stay accepted.
 func TestDetectCycles_MergeChainPastBoundStaysFastAndWarns(t *testing.T) {
 	t.Parallel()
 	diags := scanWithin(t, mergeChainSpec(1600), "super-linear blowup on a long merge chain")
@@ -1189,20 +1175,19 @@ func scanWithin(t *testing.T, src, blowup string) []ir.Diagnostic {
 	}
 }
 
-// TestHasErrorDiag_Cases pins the severity gate the load phase relies on: only an
-// error-severity diagnostic signals a refusal; empty and warning-only sets do not.
-// FuzzCycleDetector is the standing regression guard for GitHub #12: no input,
-// however degenerate, may crash the process with a fatal stack overflow. The
-// contract is process survival, not a particular verdict — Compile may return a
-// document, diagnostics, or a Go error, but must never fault.
+// FuzzCycleDetector is the standing regression guard for GitHub #12: no
+// input, however degenerate, may crash the process with a fatal stack
+// overflow. The contract is process survival, not a particular verdict —
+// Compile may return a document, diagnostics, or an error, but must never
+// fault.
 //
-// It is distinct from the corpus-seeded FuzzCompile in fuzz_test.go, which asserts
-// structural oracles on cleanly-compiled specs: this target instead seeds the
-// known degenerate reproducers, the legal ref-shaped controls, and the
-// parser-panic inputs, so a plain `go test` replays them and a detector regression
-// that lets a cycle reach the parser faults here. Mutating from those cycle shapes
-// is also the surest way to surface a new crashing shape after a speakeasy bump
-// changes which reference positions the resolver recurses through:
+// Unlike FuzzCompile in fuzz_test.go, which asserts structural oracles on
+// cleanly-compiled specs, this target seeds the known degenerate
+// reproducers, the legal ref-shaped controls, and the parser-panic inputs,
+// so a plain `go test` replays them and a detector regression that lets a
+// cycle reach the parser faults here. Mutating from those seeds is also the
+// surest way to surface a new crashing shape after a speakeasy bump changes
+// which reference positions the resolver recurses through:
 //
 //	go test -run x -fuzz FuzzCycleDetector ./compilers/openapi
 func FuzzCycleDetector(f *testing.F) {

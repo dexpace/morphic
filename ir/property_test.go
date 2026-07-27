@@ -38,16 +38,12 @@ func TestVisibility_PopulatedRoundTrip(t *testing.T) {
 	}
 }
 
-// TestProperty_JSONContract pins Property's omitempty contract field by
-// field, per the test specification's derived lists. The fields that MUST be
-// present on the zero value (id, type, required, clientOptional,
-// defaultAdded, visibility, flatten, eventHeader, eventPayload, secret, docs,
-// provenance, name) carry no omitempty tag; every other field is optional.
-// This is the test that would fail the instant an omitempty is added to, say,
-// Required — see the Verification section of the test spec for the exact
-// regression this guards against. It also pins that a fully populated
-// Property — every field non-zero, including nested Constraints, Encoding,
-// Args, XML, and Availability — survives a JSON round trip.
+// TestProperty_JSONContract pins Property's omitempty contract: id, name,
+// type, required, clientOptional, defaultAdded, visibility, flatten,
+// eventHeader, eventPayload, secret, docs, and provenance carry no omitempty
+// and must appear on the zero value; every other field is optional. It also
+// pins that a fully populated Property — including nested Constraints,
+// Encoding, Args, XML, and Availability — survives a JSON round trip.
 func TestProperty_JSONContract(t *testing.T) {
 	t.Parallel()
 	assertJSONContract(t, ir.Property{},
@@ -79,14 +75,11 @@ func TestProperty_WireNameByFormatDeterministic(t *testing.T) {
 	assert.Contains(t, got, wantSubstr, "map keys must serialize in sorted order")
 }
 
-// TestProperty_RequiredNullableFourStates is the non-negotiable invariant #8
-// test: Property.Required (wire presence) and Type.Nullable (this usage
-// admits null) are orthogonal, yielding four distinct, independently
-// meaningful states. All four must marshal to distinct JSON, round-trip back
-// to an equal value, and carry both "required:" and "nullable:" literally on
-// the wire in every case. Adding `,omitempty` to either Property.Required or
-// TypeRef.Nullable would collapse two of these four rows onto each other with
-// no compile-time or test signal short of this table.
+// TestProperty_RequiredNullableFourStates covers invariant #8: Required (wire
+// presence) and Nullable (admits null) are orthogonal, so all four
+// combinations must marshal to distinct JSON with both "required:" and
+// "nullable:" always literal on the wire — adding omitempty to either field
+// would silently collapse two of the four rows with no test signal.
 func TestProperty_RequiredNullableFourStates(t *testing.T) {
 	t.Parallel()
 	tests := []struct {

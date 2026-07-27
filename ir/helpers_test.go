@@ -59,15 +59,10 @@ func assertDeterministicMarshal(t *testing.T, v any) string {
 }
 
 // assertJSONContract merges a type's Class A (zero-value shape) and Class B
-// (populated round-trip) checks into one call, replacing the two adjacent
-// TestX_ZeroValueShape/TestX_PopulatedRoundTrip functions most types in this
-// package used to need. Each half still runs in its own t.Run subtest rather
-// than sequentially inline — assertRoundTrip's require.NoError calls
+// (populated round-trip) checks into one call, running each half in its own
+// t.Run subtest rather than inline — assertRoundTrip's require.NoError calls
 // t.FailNow, so without the subtest boundary a failure in the zero half would
-// abort the function before the round-trip half ever ran; two subtests
-// preserve the failure isolation the two separate top-level tests used to
-// give for free, and keep the TestX_ per-type naming this package's 1:1
-// X.go/X_test.go mapping depends on.
+// abort the function before the round-trip half ever ran.
 func assertJSONContract[T any](t *testing.T, zero T, wantZeroJSON string, populated T) {
 	t.Helper()
 	t.Run("zero", func(t *testing.T) {
@@ -80,14 +75,12 @@ func assertJSONContract[T any](t *testing.T, zero T, wantZeroJSON string, popula
 	})
 }
 
-// assertConstantSpellings asserts that every entry of tests round-trips: the
-// map value is the on-disk wire spelling and the map key is the typed
-// constant it must convert back to, one subtest per entry (named after the
-// spelling, so a typo in one member's string never masks a typo in another's).
-// emptyName names the subtest for the member whose wire spelling is the empty
-// string, when tests has one — not every K's empty-string member spells
-// "unspecified" (IdempotencyKind's is documented "unknown"), so callers
-// supply their own rather than the helper guessing.
+// assertConstantSpellings asserts each tests entry round-trips: the map value
+// is the wire spelling, the map key the constant it must convert back to, one
+// subtest per entry named after the spelling so one typo can't mask another.
+// emptyName names the subtest for the empty-string member, since not every
+// K's empty-string spelling is "unspecified" (IdempotencyKind's is
+// "unknown"), so callers supply their own rather than the helper guessing.
 func assertConstantSpellings[K ~string](t *testing.T, tests map[K]string, emptyName string) {
 	t.Helper()
 	for kind, want := range tests {

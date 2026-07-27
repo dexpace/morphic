@@ -30,15 +30,12 @@ const goldenPetstore = "../../testdata/golden/openapi/petstore.yaml"
 const cycleFixtureDir = "../../testdata/openapi"
 
 // FuzzCompile hammers the OpenAPI compiler with mutated spec bytes and asserts the
-// structural oracles on every document it compiles cleanly: irverify must pass, a
-// serialized-JSON round-trip must be byte-identical, and a recompile of the same
-// bytes must produce identical IR. Only a clean compile is checked — a Go error or
-// a nil document means malformed input, and an error-severity diagnostic marks a
-// spec-author problem that legitimately leaves a structurally degraded document
-// (an unresolved $ref leaves a dangling type ref the validate pass flags). Those
-// inputs return without failing, exactly as internal/harness.Check gates its
-// oracles behind the same diagnostic check. A panic is a real compiler defect the
-// fuzzer captures on its own.
+// structural oracles (irverify passes, JSON round-trips byte-identical, recompile
+// is deterministic) on every document that compiles cleanly. A Go error, nil
+// document, or error-severity diagnostic (e.g. a dangling $ref) marks malformed
+// input or a spec-author problem rather than a compiler defect and is skipped,
+// mirroring the gate internal/harness.Check applies before running its own
+// oracles. A panic is always a real defect and fails the fuzz run.
 func FuzzCompile(f *testing.F) {
 	seedCorpus(f)
 	f.Fuzz(func(t *testing.T, data []byte) {
@@ -177,16 +174,14 @@ func embedSchema(fragment []byte) ([]byte, bool) {
 	return b, true
 }
 
-// seedCorpus adds every committed OpenAPI spec — the full conformance corpus,
-// the larger golden petstore, and every fixture under testdata/openapi
-// (the cycle-detector reproducers plus the pointer-resolution fixtures) — to
-// the fuzz corpus so mutation starts from valid, feature-dense documents
-// rather than from empty input. The degenerate cycle shapes are seeded too:
-// a document with an alias-valued $ref or a `<<` merge key is a good mutation
-// starting point for uncovering a sibling crash the way GitHub #26 turned up
-// five variants of one root cause, and FuzzCompile already returns early on
-// an error diagnostic, so seeding an input that is expected to be refused
-// cannot fail the fuzzer's oracles.
+// seedCorpus adds every committed OpenAPI spec — the conformance corpus, the
+// golden petstore, and the testdata/openapi fixtures (cycle-detector
+// reproducers plus pointer-resolution cases) — to the fuzz corpus, so mutation
+// starts from valid, feature-dense documents instead of empty input. The
+// degenerate cycle shapes (an alias-valued $ref, a `<<` merge key) are seeded
+// too: mutating them found five variants of one crash in GitHub #26, and
+// FuzzCompile already skips inputs with an error diagnostic, so seeding one
+// that's expected to be refused can't fail an oracle.
 func seedCorpus(f *testing.F) {
 	f.Helper()
 	addYAMLDir(f, conformanceDir)
