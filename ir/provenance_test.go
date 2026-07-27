@@ -72,3 +72,67 @@ func TestNewDiagnostic_RoundTripsByteForByte(t *testing.T) {
 	assert.Equal(t, string(first), string(second), "re-encoding is byte-for-byte stable")
 	assert.Equal(t, d, back, "the in-memory diagnostic survives a JSON round-trip")
 }
+
+// TestFirstError_Cases covers the shapes call sites depend on: no
+// diagnostics, diagnostics with no error severity, and diagnostics carrying
+// more than one error — where the first, not the last, must be returned.
+func TestFirstError_Cases(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		name   string
+		diags  []ir.Diagnostic
+		want   ir.Diagnostic
+		wantOK bool
+	}{
+		{name: "nil", diags: nil, want: ir.Diagnostic{}, wantOK: false},
+		{
+			name: "no errors",
+			diags: []ir.Diagnostic{
+				{Severity: ir.SeverityWarning, Code: "w"},
+				{Severity: ir.SeverityInfo, Code: "i"},
+			},
+			want:   ir.Diagnostic{},
+			wantOK: false,
+		},
+		{
+			name: "returns the first error, not the last",
+			diags: []ir.Diagnostic{
+				{Severity: ir.SeverityWarning, Code: "w"},
+				{Severity: ir.SeverityError, Code: "first"},
+				{Severity: ir.SeverityError, Code: "second"},
+			},
+			want:   ir.Diagnostic{Severity: ir.SeverityError, Code: "first"},
+			wantOK: true,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			got, ok := ir.FirstError(tt.diags)
+			assert.Equal(t, tt.wantOK, ok)
+			assert.Equal(t, tt.want, got)
+		})
+	}
+}
+
+// TestHasError_Cases covers HasError's boolean-only form over the same shapes
+// TestFirstError_Cases exercises, confirming it agrees with FirstError's ok
+// value without exposing the matched Diagnostic.
+func TestHasError_Cases(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		name  string
+		diags []ir.Diagnostic
+		want  bool
+	}{
+		{name: "nil", diags: nil, want: false},
+		{name: "no errors", diags: []ir.Diagnostic{{Severity: ir.SeverityWarning}}, want: false},
+		{name: "has an error", diags: []ir.Diagnostic{{Severity: ir.SeverityError}}, want: true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			assert.Equal(t, tt.want, ir.HasError(tt.diags))
+		})
+	}
+}

@@ -27,7 +27,7 @@ func TestCollectRefs_FindsTypeRefTarget(t *testing.T) {
 	sites, _ := collectRefs(doc)
 	var found bool
 	for _, s := range sites {
-		if s.id == "t/x/Missing" && s.registry == "types" {
+		if s.id == "t/x/Missing" && s.kind.registry == "types" {
 			found = true
 		}
 	}
@@ -135,10 +135,13 @@ func TestCheckReferentialIntegrity_DeepValueTreeReportsTruncation(t *testing.T) 
 	assert.Equal(t, "ir/walk-truncated", got[0].Code)
 }
 
-func TestResolves_UnknownRegistryIsUnresolved(t *testing.T) {
-	// A refSite naming a registry the resolver does not handle falls through to the
-	// default arm and reports the reference as unresolved.
-	assert.False(t, resolves(&ir.Document{}, refSite{id: "x", registry: "bogus"}))
+func TestRefSite_ResolvesUnknownKindIsUnresolved(t *testing.T) {
+	// A refSite whose kind is the zero value — as an unrecognized reference
+	// class would produce, since it never gets an entry in refKindByType —
+	// falls through the has == nil guard and reports the reference as
+	// unresolved rather than panicking.
+	site := refSite{id: "x"}
+	assert.False(t, site.resolves(&ir.Document{}))
 }
 
 func TestCollectRefs_SharedPointerVisitedOnce(t *testing.T) {

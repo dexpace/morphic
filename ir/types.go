@@ -344,85 +344,60 @@ func (*Primitive) typeDef() {}
 // Kind reports the TypeKind of a Primitive.
 func (*Primitive) Kind() TypeKind { return KindPrimitive }
 
-// Common returns the shared TypeCommon of a Primitive.
-func (p *Primitive) Common() *TypeCommon { return &p.TypeCommon }
-
 func (*Scalar) typeDef() {}
 
 // Kind reports the TypeKind of a Scalar.
 func (*Scalar) Kind() TypeKind { return KindScalar }
-
-// Common returns the shared TypeCommon of a Scalar.
-func (s *Scalar) Common() *TypeCommon { return &s.TypeCommon }
 
 func (*Model) typeDef() {}
 
 // Kind reports the TypeKind of a Model.
 func (*Model) Kind() TypeKind { return KindModel }
 
-// Common returns the shared TypeCommon of a Model.
-func (m *Model) Common() *TypeCommon { return &m.TypeCommon }
-
 func (*Union) typeDef() {}
 
 // Kind reports the TypeKind of a Union.
 func (*Union) Kind() TypeKind { return KindUnion }
-
-// Common returns the shared TypeCommon of a Union.
-func (u *Union) Common() *TypeCommon { return &u.TypeCommon }
 
 func (*Enum) typeDef() {}
 
 // Kind reports the TypeKind of an Enum.
 func (*Enum) Kind() TypeKind { return KindEnum }
 
-// Common returns the shared TypeCommon of an Enum.
-func (e *Enum) Common() *TypeCommon { return &e.TypeCommon }
-
 func (*List) typeDef() {}
 
 // Kind reports the TypeKind of a List.
 func (*List) Kind() TypeKind { return KindList }
-
-// Common returns the shared TypeCommon of a List.
-func (l *List) Common() *TypeCommon { return &l.TypeCommon }
 
 func (*MapT) typeDef() {}
 
 // Kind reports the TypeKind of a MapT.
 func (*MapT) Kind() TypeKind { return KindMap }
 
-// Common returns the shared TypeCommon of a MapT.
-func (m *MapT) Common() *TypeCommon { return &m.TypeCommon }
-
 func (*Tuple) typeDef() {}
 
 // Kind reports the TypeKind of a Tuple.
 func (*Tuple) Kind() TypeKind { return KindTuple }
-
-// Common returns the shared TypeCommon of a Tuple.
-func (t *Tuple) Common() *TypeCommon { return &t.TypeCommon }
 
 func (*Literal) typeDef() {}
 
 // Kind reports the TypeKind of a Literal.
 func (*Literal) Kind() TypeKind { return KindLiteral }
 
-// Common returns the shared TypeCommon of a Literal.
-func (l *Literal) Common() *TypeCommon { return &l.TypeCommon }
-
 func (*External) typeDef() {}
 
 // Kind reports the TypeKind of an External.
 func (*External) Kind() TypeKind { return KindExternal }
-
-// Common returns the shared TypeCommon of an External.
-func (e *External) Common() *TypeCommon { return &e.TypeCommon }
 
 func (*Any) typeDef() {}
 
 // Kind reports the TypeKind of an Any.
 func (*Any) Kind() TypeKind { return KindAny }
 
-// Common returns the shared TypeCommon of an Any.
-func (a *Any) Common() *TypeCommon { return &a.TypeCommon }
+// Common returns c itself. TypeCommon embeds by value into every concrete
+// TypeDef kind (Primitive, Scalar, Model, Union, Enum, List, MapT, Tuple,
+// Literal, External, Any), so this single pointer method is promoted to each
+// kind's own pointer type and satisfies the TypeDef.Common contract for all
+// eleven of them; only the unexported typeDef() marker stays declared per
+// kind, so embedding TypeCommon elsewhere cannot join the sealed sum.
+func (c *TypeCommon) Common() *TypeCommon { return c }

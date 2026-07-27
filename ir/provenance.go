@@ -56,6 +56,33 @@ func NewDiagnostic(sev Severity, code, message string, prov Provenance) Diagnost
 	}
 }
 
+// FirstError returns the first error-severity diagnostic in diags, along with
+// true. It returns the zero Diagnostic and false when diags contains no
+// error-severity entry, so a caller can distinguish "found an empty-message
+// error" from "found nothing" without an in-band sentinel.
+//
+// Compilers and the harness use FirstError to tell a refusal (a real spec
+// problem, e.g. a degenerate reference cycle) from advisory warnings that must
+// be carried forward rather than aborted on, and to report the offending
+// diagnostic's code and message once a refusal is confirmed.
+func FirstError(diags []Diagnostic) (Diagnostic, bool) {
+	for _, d := range diags {
+		if d.Severity == SeverityError {
+			return d, true
+		}
+	}
+	return Diagnostic{}, false
+}
+
+// HasError reports whether diags contains at least one error-severity
+// diagnostic. It is FirstError's boolean-only form, for call sites — an if
+// condition, a fuzz-target skip gate — that only need the yes/no answer and
+// cannot consume a two-value return.
+func HasError(diags []Diagnostic) bool {
+	_, ok := FirstError(diags)
+	return ok
+}
+
 // SourceInfo describes one input file of a Document.
 type SourceInfo struct {
 	Format string `json:"format"`
