@@ -231,7 +231,7 @@ func TestParameters_PathItemMergeOverride(t *testing.T) {
 	require.NotNil(t, loadedDoc)
 	var pi *soa.PathItem
 	for _, rp := range loadedDoc.Doc.GetPaths().All() {
-		pi = resolveRef(rp)
+		pi = resolveRef[soa.PathItem](rp)
 	}
 	require.NotNil(t, pi)
 	op := pi.Get()
@@ -241,7 +241,7 @@ func TestParameters_PathItemMergeOverride(t *testing.T) {
 	assert.Same(t, op.GetParameters()[0], merged[0], "operation parameter overrides the path-item one")
 	names := map[string]bool{}
 	for _, p := range merged {
-		names[resolveRef(p).GetName()] = true
+		names[resolveRef[soa.Parameter](p).GetName()] = true
 	}
 	assert.True(t, names["id"])
 	assert.True(t, names["trace"])
@@ -539,14 +539,14 @@ func TestResolvers_NilInputs(t *testing.T) {
 		re  *soa.ReferencedExample
 		rss *soa.ReferencedSecurityScheme
 	)
-	assert.Nil(t, resolveRef(rpi))
-	assert.Nil(t, resolveRef(rr))
-	assert.Nil(t, resolveRef(rh))
-	assert.Nil(t, resolveRef(rcb))
-	assert.Nil(t, resolveRef(rp))
-	assert.Nil(t, resolveRef(rrb))
-	assert.Nil(t, resolveRef(re))
-	assert.Nil(t, resolveRef(rss))
+	assert.Nil(t, resolveRef[soa.PathItem](rpi))
+	assert.Nil(t, resolveRef[soa.Response](rr))
+	assert.Nil(t, resolveRef[soa.Header](rh))
+	assert.Nil(t, resolveRef[soa.Callback](rcb))
+	assert.Nil(t, resolveRef[soa.Parameter](rp))
+	assert.Nil(t, resolveRef[soa.RequestBody](rrb))
+	assert.Nil(t, resolveRef[soa.Example](re))
+	assert.Nil(t, resolveRef[soa.SecurityScheme](rss))
 	_, ok := paramKey(nil)
 	assert.False(t, ok)
 }

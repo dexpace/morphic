@@ -20,7 +20,7 @@ func (l *lowerer) lowerParameters(params []*soa.ReferencedParameter, opPointer s
 	logical := make([]ir.Parameter, 0, len(params))
 	bindings := make([]ir.HTTPParamBinding, 0, len(params))
 	for i, rp := range params {
-		p := resolveRef(rp)
+		p := resolveRef[soa.Parameter](rp)
 		if p == nil {
 			continue
 		}

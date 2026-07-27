@@ -139,7 +139,7 @@ func (l *lowerer) lowerHeaders(headers *sequencedmap.Map[string, *soa.Referenced
 	}
 	out := make([]ir.Property, 0, headers.Len())
 	for name, rh := range headers.All() {
-		h := resolveRef(rh)
+		h := resolveRef[soa.Header](rh)
 		if h == nil {
 			continue
 		}
@@ -174,7 +174,7 @@ func (l *lowerer) exampleList(single *yaml.Node, plural *sequencedmap.Map[string
 		return out
 	}
 	for _, re := range plural.All() {
-		ex := resolveRef(re)
+		ex := resolveRef[soa.Example](re)
 		if ex == nil {
 			continue
 		}
@@ -194,7 +194,7 @@ func (l *lowerer) exampleList(single *yaml.Node, plural *sequencedmap.Map[string
 // so a non-required body stays present with its optionality preserved under
 // Extensions plus one info diagnostic (ir-design §7.2 clarification).
 func (l *lowerer) lowerRequestBody(op *ir.Operation, hb *ir.HTTPBinding, src *soa.Operation, opPointer string) {
-	rb := resolveRef(src.GetRequestBody())
+	rb := resolveRef[soa.RequestBody](src.GetRequestBody())
 	if rb == nil {
 		return
 	}
