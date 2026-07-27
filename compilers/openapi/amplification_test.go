@@ -158,18 +158,13 @@ func wideBaseReuseSpec(props, siblings int) string {
 	return b.String()
 }
 
-// TestDetectCycles_RealWorldAnchorReuseIsClean pins ordinary DRY anchor
-// reuse — a base schema shared by many sibling schemas through allOf
-// inheritance, not recursion — at a scale calibrated to a real measured worst
-// case rather than an invented one. The worst alias-amplification profile
-// found across 1,693 real-world OpenAPI/Swagger specs (APIs.guru's 1,491,
-// 199 hand-authored anchor-using specs found via GitHub code search, plus
-// GitHub's, Stripe's, and Kubernetes' flagship specs) is
-// github.com/willhuff0/labrinth_dart's openapi.yaml: raw 5,765, surplus
-// 15,727. The sanity checks below confirm this fixture's own raw node count
-// and surplus meet or exceed that real profile before the clean assertion
-// runs, so this test proves it is at least as demanding as the worst
-// document actually seen, not merely shaped like it.
+// TestDetectCycles_RealWorldAnchorReuseIsClean pins ordinary DRY anchor reuse —
+// one base schema shared by many siblings through allOf, not recursion — at the
+// worst profile measured across 1,693 real specs (labrinth_dart's openapi.yaml:
+// raw 5,765, surplus 15,727). The sanity checks below confirm this fixture
+// meets or exceeds that profile before asserting it is clean, so the test is
+// demonstrably at least as demanding as the worst real document, not merely
+// shaped like it.
 func TestDetectCycles_RealWorldAnchorReuseIsClean(t *testing.T) {
 	t.Parallel()
 	const props = 20
@@ -197,16 +192,11 @@ func TestDetectCycles_RealWorldAnchorReuseIsClean(t *testing.T) {
 		"ordinary DRY reuse of one shared base across many sibling schemas, at least as demanding as the worst real spec measured, is not amplification")
 }
 
-// TestDetectCycles_SyntheticWideBaseReuseIsNowRefused pins the far more
-// extreme synthetic shape that once justified a looser maxAliasAmplification:
-// a 200-field base schema reused across 500 siblings (raw=5,423,
-// expanded=708,423, ratio≈130.6, surplus≈703,000). That surplus is 44x beyond
-// the worst surplus ever measured in a real spec (15,727) and was measured to
-// cost roughly 2,013 MiB to compile — a legitimate reason to refuse it, not a
-// regression. The verdict flips deliberately here: this shape is kept as a
-// pinned test so a future change is forced to explain why it accepted an
-// amplification profile no real spec has ever come close to, rather than
-// silently reopening that door.
+// TestDetectCycles_SyntheticWideBaseReuseIsNowRefused pins the far more extreme
+// synthetic shape that once justified a looser bound: a 200-field base reused
+// across 500 siblings (surplus ≈703,000, ratio ≈130.6). That is 44x the worst
+// real surplus and costs roughly 2 GiB to compile, so refusing it is deliberate.
+// Keeping it pinned forces a future change to justify reopening that door.
 func TestDetectCycles_SyntheticWideBaseReuseIsNowRefused(t *testing.T) {
 	t.Parallel()
 	const props = 200

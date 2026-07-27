@@ -1070,18 +1070,10 @@ func TestRefScanCollect_DeepNestingIsNotTruncated(t *testing.T) {
 // *m1, b: 2}, ...) re-materializes every pair beneath each level. Both would
 // turn the crash this scan prevents into a hang, so both are guarded.
 //
-// This document pins two properties together, not one. First, the scan over
-// it stays linear: the collection and ref-chain walks below still finish
-// (or, here, never even have to run — see below) well inside the time bound.
-// Second — and this is the part that changed — the document itself is now
-// refused rather than accepted: at 40 levels of 2-way fan-out its
-// alias-expanded form is astronomically larger than its ~120 raw nodes, and
-// measurement showed the same shape blows past 3 GiB inside soa.Unmarshal at
-// only 18 levels. Accepting it was a live hole this test used to pin as
-// correct behavior; aliasAmplification is what closes it, and it does so
-// before the ref-collection walk this test file's other timing tests exercise
-// even starts, since scanCycles runs the amplification check after refCycles
-// but refCycles has nothing to find here and returns immediately.
+// This document pins two properties: the scan over it stays linear, and the
+// document itself is refused. It used to be pinned as clean, which was a live
+// hole — the same shape blows past 3 GiB inside soa.Unmarshal at only 18
+// levels, and this one runs 40.
 //
 // Each runs the scan on a goroutine and fails on a timeout rather than blocking
 // the suite until the package-level test timeout. A regression therefore leaks
@@ -1142,20 +1134,13 @@ func TestDetectCycles_MergeChainWithinBoundIsClean(t *testing.T) {
 // set loosely enough for the descent to run away, this document took ~29s.
 //
 // It must also say so: silently reporting "clean" on a document the scan could
-// not fully expand would claim a protection it did not provide. That warning
-// is now joined by a second, more serious finding: this document's alias
-// amplification ratio is 534 (a ~118 KB source expanding to roughly 10.3
-// million nodes), measured at 13.5s / 1.1 GiB inside soa.Unmarshal — past the
-// allowance by a wide margin either way it is computed: the ratio allowance
-// (maxAliasAmplification * rawNodeCount ≈ 1,230,528 for this document's
-// ~19,227 raw nodes) and the absolute surplus allowance (rawNodeCount +
-// maxAliasSurplus ≈ 281,371) both fall well short of the ~10.3 million
-// nodes this document actually reaches; computeAllowance takes the lesser of
-// the two, so the surplus bound is what actually decides this case. Do not
-// lower 1600: it is sized so a regression in the merge-expansion bound blows
-// the 10s budget this test enforces, and
-// TestCompile_MergeChainPastBoundStillCompiles below pins the shallower level
-// (200) that must stay accepted.
+// not fully expand would claim a protection it did not provide. That warning is
+// now joined by an amplification refusal — this document expands ~19,227 raw
+// nodes to roughly 10.3 million, far past either bound, with the surplus one
+// deciding it. Do not lower 1600: it is sized so a regression in the
+// merge-expansion bound blows the 10s budget this test enforces.
+// TestCompile_MergeChainPastBoundStillCompiles pins the shallower level (200)
+// that must stay accepted.
 func TestDetectCycles_MergeChainPastBoundStaysFastAndWarns(t *testing.T) {
 	t.Parallel()
 	diags := scanWithin(t, mergeChainSpec(1600), "super-linear blowup on a long merge chain")
