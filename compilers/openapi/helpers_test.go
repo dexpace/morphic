@@ -205,6 +205,19 @@ func hasDiagAt(diags []ir.Diagnostic, code string, sev ir.Severity) bool {
 	return countDiagsAt(diags, code, sev) > 0
 }
 
+// firstDegradedWarning returns the first codeDegradedConstruct warning in
+// diags, and whether one was found — the pointer/message inspection
+// counterpart to hasDiagAt/countDiagsAt for the degraded-value warning tests
+// that need more than a yes/no answer.
+func firstDegradedWarning(diags []ir.Diagnostic) (ir.Diagnostic, bool) {
+	for _, d := range diags {
+		if d.Code == codeDegradedConstruct && d.Severity == ir.SeverityWarning {
+			return d, true
+		}
+	}
+	return ir.Diagnostic{}, false
+}
+
 // countDiagsAt counts the diagnostics in diags matching code and sev exactly.
 // code is an exact match with no wildcard: countDiagsAt(diags, "",
 // ir.SeverityError) matches only diagnostics whose code is literally empty —

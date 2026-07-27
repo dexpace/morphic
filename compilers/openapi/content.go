@@ -42,7 +42,7 @@ func (l *lowerer) lowerContent(mt string, media *soa.MediaType, pointer, hint st
 		MediaType: mt,
 		Type:      l.schemaRef(media.GetSchema(), mediaPtr+ptr("schema"), hint),
 	}
-	if ex := l.mediaExamples(media); len(ex) > 0 {
+	if ex := l.mediaExamples(media, mediaPtr); len(ex) > 0 {
 		c.Examples = ex
 	}
 	switch {
@@ -155,23 +155,22 @@ func (l *lowerer) lowerHeaders(headers *sequencedmap.Map[string, *soa.Referenced
 }
 
 // mediaExamples lowers a media type's single and plural example values.
-func (l *lowerer) mediaExamples(media *soa.MediaType) []ir.Example {
-	return l.exampleList(media.GetExample(), media.GetExamples())
+func (l *lowerer) mediaExamples(media *soa.MediaType, pointer string) []ir.Example {
+	return l.exampleList(media.GetExample(), media.GetExamples(), pointer)
 }
 
 // exampleList lowers a single example node and a plural example map into value
-// examples, in source order; unconvertible nodes are skipped.
-func (l *lowerer) exampleList(single *yaml.Node, plural *sequencedmap.Map[string, *soa.ReferencedExample]) []ir.Example {
+// examples, in source order; an unconvertible node is skipped with a warning
+// diagnostic (appendExample) rather than dropped silently.
+func (l *lowerer) exampleList(single *yaml.Node, plural *sequencedmap.Map[string, *soa.ReferencedExample], pointer string) []ir.Example {
 	var out []ir.Example
 	if single != nil {
-		if v, err := valueFromNode(single); err == nil {
-			out = append(out, ir.Example{Value: &v})
-		}
+		out = l.appendExample(out, single, pointer+ptr("example"))
 	}
 	if plural == nil {
 		return out
 	}
-	for _, re := range plural.All() {
+	for name, re := range plural.All() {
 		ex := resolveRef[soa.Example](re)
 		if ex == nil {
 			continue
@@ -180,9 +179,7 @@ func (l *lowerer) exampleList(single *yaml.Node, plural *sequencedmap.Map[string
 		if node == nil {
 			continue
 		}
-		if v, err := valueFromNode(node); err == nil {
-			out = append(out, ir.Example{Value: &v})
-		}
+		out = l.appendExample(out, node, pointer+ptr("examples", name, "value"))
 	}
 	return out
 }

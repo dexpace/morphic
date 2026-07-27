@@ -457,29 +457,23 @@ func (l *lowerer) enumAsUnion(s *oas3.Schema, common ir.TypeCommon, pointer, hin
 	}
 }
 
-// hoistLiteral hoists a single node as a Literal type at its own pointer. It is
+// hoistLiteral hoists a single node as a Literal type at its own pointer, or
+// falls back to the schemaless top type when the node is structurally
+// unconvertible — never a Literal whose Value lies about being null. It is
 // the single entry point for lowering both a bare `const` schema (pointer may
 // be a top-level component, so internNode's typeIDForPointer keeps that
 // component's stable named ID) and each individual member of a heterogeneous
 // enum (enumAsUnion, always an anonymous sub-pointer).
 func (l *lowerer) hoistLiteral(node values.Value, pointer, hint string) ir.TypeID {
 	return l.internNode(pointer, hint, func(common ir.TypeCommon) ir.TypeDef {
-		return &ir.Literal{
-			TypeCommon: common,
-			Value:      l.valueOrNull(node, pointer),
+		val, err := valueFromNode(node)
+		if err != nil {
+			l.diag(ir.SeverityWarning, codeDegradedConstruct, pointer,
+				"unconvertible value lowered as the top type: %s", err.Error())
+			return &ir.Any{TypeCommon: common}
 		}
+		return &ir.Literal{TypeCommon: common, Value: val}
 	})
-}
-
-// valueOrNull converts a node to an ir.Value, emitting a diagnostic and using
-// null when the node is structurally unconvertible.
-func (l *lowerer) valueOrNull(node values.Value, pointer string) ir.Value {
-	val, err := valueFromNode(node)
-	if err != nil {
-		l.diag(ir.SeverityWarning, codeDegradedConstruct, pointer, "value: %s", err.Error())
-		return ir.Value{Kind: ir.ValueNull}
-	}
-	return val
 }
 
 // enumValueType picks an Enum's ValueType from the schema's declared scalar

@@ -83,6 +83,25 @@ func TestValueFromNode_Binary(t *testing.T) {
 	assert.Equal(t, []byte("hello"), got.Bytes)
 }
 
+func TestValueFromNode_Timestamp(t *testing.T) {
+	t.Parallel()
+	// YAML 1.1 resolves each of these plain scalars to !!timestamp; the exact
+	// source spelling must survive as a string, not get parsed into a Go
+	// time.Time or dropped.
+	cases := []string{"2021-01-01", "2021-01-01T00:00:00Z", "2021-1-1"}
+	for _, src := range cases {
+		t.Run(src, func(t *testing.T) {
+			t.Parallel()
+			node := yamlNode(t, src)
+			require.Equal(t, "!!timestamp", node.Tag, "precondition: this spelling must resolve to !!timestamp")
+			got, err := valueFromNode(node)
+			require.NoError(t, err)
+			assert.Equal(t, ir.ValueString, got.Kind)
+			assert.Equal(t, src, got.Str, "verbatim spelling survives, not a canonicalized or parsed form")
+		})
+	}
+}
+
 func TestValueFromNode_ScalarErrors(t *testing.T) {
 	t.Parallel()
 	cases := []struct {
@@ -93,7 +112,7 @@ func TestValueFromNode_ScalarErrors(t *testing.T) {
 		{"bad int", scalarNode("!!int", "12abc")},
 		{"bad float", scalarNode("!!float", "1.2.3")},
 		{"bad binary", scalarNode("!!binary", "@@@not-base64")},
-		{"unsupported tag", scalarNode("!!timestamp", "2020-01-01")},
+		{"unsupported tag", scalarNode("!custom", "2020-01-01")},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -134,7 +153,7 @@ func TestValueFromNode_UnsupportedNodeKind(t *testing.T) {
 func TestValueFromNode_SequenceChildError(t *testing.T) {
 	t.Parallel()
 	seq := &yaml.Node{Kind: yaml.SequenceNode, Content: []*yaml.Node{
-		scalarNode("!!timestamp", "x"),
+		scalarNode("!custom", "x"),
 	}}
 	_, err := valueFromNode(seq)
 	require.Error(t, err)
@@ -143,7 +162,7 @@ func TestValueFromNode_SequenceChildError(t *testing.T) {
 func TestValueFromNode_MappingValueError(t *testing.T) {
 	t.Parallel()
 	m := &yaml.Node{Kind: yaml.MappingNode, Content: []*yaml.Node{
-		scalarNode("!!str", "k"), scalarNode("!!timestamp", "x"),
+		scalarNode("!!str", "k"), scalarNode("!custom", "x"),
 	}}
 	_, err := valueFromNode(m)
 	require.Error(t, err)

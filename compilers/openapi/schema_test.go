@@ -496,6 +496,23 @@ func TestModel_DefaultBigLiteral(t *testing.T) {
 	assert.Equal(t, ir.BigVal("9007199254740993"), m.Properties[0].Default.Num)
 }
 
+func TestFillPropertyDetail_UnconvertibleExampleDiagnosed(t *testing.T) {
+	t.Parallel()
+	// A custom tag is structurally unconvertible; the example must be skipped
+	// (an example is an annotation, not a structural hole) but never silently —
+	// the conversion error was previously discarded on the floor.
+	spec := componentSpec("    S:\n      type: object\n      properties:\n        n:\n          type: string\n          example: !foo bar\n")
+	doc, diags := lowerSpec(t, spec)
+	m, ok := doc.Types[componentID("S")].(*ir.Model)
+	require.True(t, ok)
+	assert.Empty(t, m.Properties[0].Examples, "the unconvertible example is skipped, not appended")
+	require.Equal(t, 1, countDiagsAt(diags, codeDegradedConstruct, ir.SeverityWarning))
+	d, ok := firstDegradedWarning(diags)
+	require.True(t, ok)
+	assert.Equal(t, "/components/schemas/S/properties/n/example", d.Provenance.Pointer)
+	assert.Contains(t, d.Message, "example:")
+}
+
 func TestModel_ReadOnlyWriteOnlyVisibility(t *testing.T) {
 	t.Parallel()
 	spec := componentSpec(`    S:

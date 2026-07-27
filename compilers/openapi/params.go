@@ -51,7 +51,7 @@ func (l *lowerer) lowerParameter(p *soa.Parameter, pptr string) (ir.Parameter, i
 		AllowReserved: p.GetAllowReserved(),
 	}
 	l.fillParamType(&param, &binding, p, pptr, name)
-	l.fillParamDetail(&param, p)
+	l.fillParamDetail(&param, p, pptr)
 	return param, binding
 }
 
@@ -101,13 +101,13 @@ func (l *lowerer) fillParamSchema(param *ir.Parameter, js *oas3.JSONSchema[oas3.
 }
 
 // fillParamDetail enriches a parameter with its docs, deprecation, examples, and
-// extensions.
-func (l *lowerer) fillParamDetail(param *ir.Parameter, p *soa.Parameter) {
+// extensions. pptr is the parameter's own pointer, for example diagnostics.
+func (l *lowerer) fillParamDetail(param *ir.Parameter, p *soa.Parameter, pptr string) {
 	param.Docs.Description = p.GetDescription()
 	if p.GetDeprecated() {
 		param.Deprecation = &ir.Deprecation{}
 	}
-	if ex := l.exampleList(p.GetExample(), p.GetExamples()); len(ex) > 0 {
+	if ex := l.exampleList(p.GetExample(), p.GetExamples(), pptr); len(ex) > 0 {
 		param.Examples = ex
 	}
 	if ext := l.extensions(p.GetExtensions()); len(ext) > 0 {
