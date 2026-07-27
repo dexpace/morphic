@@ -1147,9 +1147,9 @@ func TestDetectCycles_MergeChainWithinBoundIsClean(t *testing.T) {
 // amplification ratio is 534 (a ~118 KB source expanding to roughly 10.3
 // million nodes), measured at 13.5s / 1.1 GiB inside soa.Unmarshal — past the
 // allowance by a wide margin either way it is computed: the ratio allowance
-// (maxAliasAmplification * rawNodeCount ≈ 4,922,112 for this document's
+// (maxAliasAmplification * rawNodeCount ≈ 1,230,528 for this document's
 // ~19,227 raw nodes) and the absolute surplus allowance (rawNodeCount +
-// maxAliasSurplus ≈ 1,067,803) both fall well short of the ~10.3 million
+// maxAliasSurplus ≈ 281,371) both fall well short of the ~10.3 million
 // nodes this document actually reaches; computeAllowance takes the lesser of
 // the two, so the surplus bound is what actually decides this case. Do not
 // lower 1600: it is sized so a regression in the merge-expansion bound blows

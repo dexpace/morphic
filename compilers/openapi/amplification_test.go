@@ -158,20 +158,22 @@ func wideBaseReuseSpec(props, siblings int) string {
 	return b.String()
 }
 
-// TestDetectCycles_WideBaseReuseAcrossManySiblingsIsClean pins the false-
-// positive maxAliasAmplification's doc comment measures: a single large,
-// legitimately detailed base schema (200 fields) shared by many sibling
-// schemas through ordinary allOf inheritance, not recursion. This shape's
-// ratio (raw=5,423, expanded=708,423, ≈130.6) exceeded the original 128
-// constant, refusing a document the real parser (soa.Unmarshal) has no
-// trouble with — a live false refusal, not a theoretical one. The sanity
-// check below confirms the document still crosses that old threshold, so a
-// future regression that lowers maxAliasAmplification back toward 128 fails
-// here rather than only showing up as a silently-accepted false refusal.
-func TestDetectCycles_WideBaseReuseAcrossManySiblingsIsClean(t *testing.T) {
+// TestDetectCycles_RealWorldAnchorReuseIsClean pins ordinary DRY anchor
+// reuse — a base schema shared by many sibling schemas through allOf
+// inheritance, not recursion — at a scale calibrated to a real measured worst
+// case rather than an invented one. The worst alias-amplification profile
+// found across 1,693 real-world OpenAPI/Swagger specs (APIs.guru's 1,491,
+// 199 hand-authored anchor-using specs found via GitHub code search, plus
+// GitHub's, Stripe's, and Kubernetes' flagship specs) is
+// github.com/willhuff0/labrinth_dart's openapi.yaml: raw 5,765, surplus
+// 15,727. The sanity checks below confirm this fixture's own raw node count
+// and surplus meet or exceed that real profile before the clean assertion
+// runs, so this test proves it is at least as demanding as the worst
+// document actually seen, not merely shaped like it.
+func TestDetectCycles_RealWorldAnchorReuseIsClean(t *testing.T) {
 	t.Parallel()
-	const props = 200
-	const siblings = 500
+	const props = 20
+	const siblings = 900
 	src := wideBaseReuseSpec(props, siblings)
 
 	var root yaml.Node
@@ -182,13 +184,39 @@ func TestDetectCycles_WideBaseReuseAcrossManySiblingsIsClean(t *testing.T) {
 	_, exceeded := probe.weigh(docRoot)
 	require.False(t, exceeded, "sanity: the probe's own allowance must not itself be crossed")
 	expanded := probe.weight[docRoot]
+	surplus := expanded - raw
 
-	const obsoleteRatioConstant = 128
-	require.Greater(t, expanded, int64(obsoleteRatioConstant)*raw,
-		"sanity: this document must actually exceed the old constant to prove the fix, not merely resemble the shape that used to trip it")
+	const realWorldWorstRaw = 5_765
+	const realWorldWorstSurplus = 15_727
+	require.GreaterOrEqual(t, raw, int64(realWorldWorstRaw),
+		"sanity: this fixture's raw node count must meet or exceed the worst real spec measured")
+	require.GreaterOrEqual(t, surplus, int64(realWorldWorstSurplus),
+		"sanity: this fixture's surplus must meet or exceed the worst real spec measured")
 
 	assert.Empty(t, detectCycles(0, []byte(src)),
-		"ordinary DRY reuse of one large shared base across many sibling schemas is not amplification, however rich the base")
+		"ordinary DRY reuse of one shared base across many sibling schemas, at least as demanding as the worst real spec measured, is not amplification")
+}
+
+// TestDetectCycles_SyntheticWideBaseReuseIsNowRefused pins the far more
+// extreme synthetic shape that once justified a looser maxAliasAmplification:
+// a 200-field base schema reused across 500 siblings (raw=5,423,
+// expanded=708,423, ratio≈130.6, surplus≈703,000). That surplus is 44x beyond
+// the worst surplus ever measured in a real spec (15,727) and was measured to
+// cost roughly 2,013 MiB to compile — a legitimate reason to refuse it, not a
+// regression. The verdict flips deliberately here: this shape is kept as a
+// pinned test so a future change is forced to explain why it accepted an
+// amplification profile no real spec has ever come close to, rather than
+// silently reopening that door.
+func TestDetectCycles_SyntheticWideBaseReuseIsNowRefused(t *testing.T) {
+	t.Parallel()
+	const props = 200
+	const siblings = 500
+	src := wideBaseReuseSpec(props, siblings)
+
+	diags := detectCycles(0, []byte(src))
+	require.NotEmpty(t, diags, "44x beyond any real spec's surplus must be refused")
+	assert.Equal(t, codeAliasAmplification, diags[0].Code)
+	assert.Equal(t, ir.SeverityError, diags[0].Severity)
 }
 
 // flatFanOutSpec builds a document with one modest anchor (props fields)
@@ -225,28 +253,28 @@ func flatFanOutSpec(props, n int) string {
 }
 
 // TestDetectCycles_FlatFanOutOfModestAnchorIsEventuallyRefused pins the
-// maxAliasSurplus backstop: an 8-field anchor (a small, entirely ordinary
+// maxAliasSurplus backstop: a 4-field anchor (a small, entirely ordinary
 // schema) referenced directly, many times, in one flat allOf list. Its ratio
-// converges to roughly 47 — comfortably under maxAliasAmplification at any
+// converges to 27 (measured) — comfortably under maxAliasAmplification at any
 // reuse count, per the anchor's own weight rather than the number of
 // references — so no ratio threshold this file could choose would ever
 // refuse it, while real memory keeps growing with every added reference.
 // maxAliasSurplus is what refuses it once that growth passes a fixed, finite
 // bound. Each added reference costs one raw node and contributes the anchor's
-// whole weight, so the surplus grows by 46 per reference: 20,000 references
-// (surplus ≈ 920,000) stays clean and 30,000 (≈ 1,380,000) is refused, either
-// side of the 1<<20 budget. The sanity checks confirm the ratio at the refused
-// size is still nowhere near maxAliasAmplification — proving the surplus
-// bound, not the ratio, is what catches this shape.
+// whole weight, so the surplus grows by 26 per reference (measured): 9,000
+// references (surplus = 234,000) stays clean and 11,000 (surplus = 286,000)
+// is refused, either side of the 1<<18 budget. The sanity checks confirm the
+// ratio at the refused size is still nowhere near maxAliasAmplification —
+// proving the surplus bound, not the ratio, is what catches this shape.
 func TestDetectCycles_FlatFanOutOfModestAnchorIsEventuallyRefused(t *testing.T) {
 	t.Parallel()
-	const props = 8
+	const props = 4
 
-	const under = 20_000
+	const under = 9_000
 	assert.Empty(t, detectCycles(0, []byte(flatFanOutSpec(props, under))),
 		"a modest anchor reused this many times has not yet crossed the surplus budget")
 
-	const over = 30_000
+	const over = 11_000
 	src := flatFanOutSpec(props, over)
 
 	var root yaml.Node
@@ -295,7 +323,7 @@ func TestComputeAllowance_TakesTheLesserBound(t *testing.T) {
 // for any levels>=1 (the node's own mapping, its "allOf" key, the sequence,
 // and its two alias elements — rawNodeCount does not follow either alias to
 // count the level beneath), which is what lets the tests below pin an exact
-// allowance (the minExpandedNodes floor, since neither 256*5 nor 5 plus
+// allowance (the minExpandedNodes floor, since neither 64*5 nor 5 plus
 // maxAliasSurplus reaches it) rather than one that shifts with levels.
 func aliasFanOutNode(levels int) *yaml.Node {
 	cur := ymap(yscalar("type"), yscalar("string"))
