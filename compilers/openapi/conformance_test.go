@@ -312,10 +312,23 @@ func assertNullable30(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
 func assertNullable31Ref(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
 	m, ok := doc.Types[namedID("Owner")].(*ir.Model)
 	require.True(t, ok)
-	require.Len(t, m.Properties, 1)
-	assert.True(t, m.Properties[0].Type.Nullable,
+	require.Len(t, m.Properties, 2)
+	byName := map[string]ir.Property{}
+	for _, p := range m.Properties {
+		byName[p.WireName] = p
+	}
+
+	assert.True(t, byName["p"].Type.Nullable,
 		"3.1's type-array null spelling normalizes to the same IR bit at a $ref site")
-	assert.Equal(t, namedID("Target"), m.Properties[0].Type.Target, "the ref resolves to the named component")
+	assert.Equal(t, namedID("Target"), byName["p"].Type.Target, "the ref resolves to the named component")
+
+	assert.True(t, byName["q"].Type.Nullable,
+		"a union's null branch is stripped into the ref's Nullable bit, so the ref must carry it")
+	assert.Equal(t, namedID("UnionTarget"), byName["q"].Type.Target, "the ref resolves to the union component")
+
+	u, ok := doc.Types[namedID("UnionTarget")].(*ir.Union)
+	require.True(t, ok)
+	assert.Len(t, u.Variants, 2, "the null branch lifts to the ref rather than becoming a variant")
 }
 
 func assertDefaults(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {

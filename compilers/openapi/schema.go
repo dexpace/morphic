@@ -267,10 +267,11 @@ func (l *lowerer) hoistSubSchema(schema *oas3.Schema, pointer string) (ir.TypeID
 }
 
 // refNullable reports whether a $ref usage admits null: the reference site or
-// its resolved target admits null in either dialect (3.0 nullable: true, or a
-// 3.1 type array containing "null").
+// its resolved target admits null in any spelling. The ref site must recompute
+// this because a target interned at its own ID (a model, a union) discards the
+// TypeRef its definition produced, so the bit survives nowhere else.
 func (l *lowerer) refNullable(js *oas3.JSONSchema[oas3.Referenceable]) bool {
-	if s := js.GetSchema(); s != nil && schemaHasNull(s) {
+	if s := js.GetSchema(); s != nil && schemaAdmitsNull(s) {
 		return true
 	}
 	resolved := js.GetResolvedSchema()
@@ -278,7 +279,7 @@ func (l *lowerer) refNullable(js *oas3.JSONSchema[oas3.Referenceable]) bool {
 		return false
 	}
 	target := resolved.GetSchema()
-	return target != nil && schemaHasNull(target)
+	return target != nil && schemaAdmitsNull(target)
 }
 
 // falseSchema hoists a boolean `false` schema as a closed empty model (it
@@ -1080,6 +1081,23 @@ func schemaHasNull(s *oas3.Schema) bool {
 		return true
 	}
 	return slices.Contains(s.GetType(), oas3.SchemaTypeNull)
+}
+
+// schemaAdmitsNull reports whether a schema admits null in any spelling: the two
+// keyword dialects (schemaHasNull) or a oneOf/anyOf null branch. Lowering lifts
+// all three onto the enclosing TypeRef rather than into the type node, so every
+// site that computes a Nullable bit must weigh all three the same way.
+//
+// A null branch counts only when the union is the type itself. Structural
+// siblings intersect with the union (JSON Schema conjoins keywords), so
+// `{type: object, oneOf: [{type: string}, {type: null}]}` admits neither string
+// nor null; schemaBody takes the same view, preserving that union verbatim under
+// Extensions rather than reading nullability out of it.
+func schemaAdmitsNull(s *oas3.Schema) bool {
+	if schemaHasNull(s) {
+		return true
+	}
+	return !hasUnionSiblings(s) && oneOfAnyOfHasNull(s)
 }
 
 // nullUnionCollapse detects a oneOf/anyOf that has exactly one non-null branch

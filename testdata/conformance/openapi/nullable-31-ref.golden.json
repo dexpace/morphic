@@ -59,6 +59,33 @@
             "source": 0,
             "pointer": "/components/schemas/Owner/properties/p"
           }
+        },
+        {
+          "id": "p/openapi/components/schemas/Owner/properties/q",
+          "name": {
+            "source": "q",
+            "canonical": "q"
+          },
+          "wireName": "q",
+          "type": {
+            "target": "t/openapi/components/schemas/UnionTarget",
+            "nullable": true
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/Owner/properties/q"
+          }
         }
       ],
       "abstract": false,
@@ -82,6 +109,69 @@
       "abstract": false,
       "positional": false,
       "inputOnly": false
+    },
+    "t/openapi/components/schemas/UnionTarget": {
+      "kind": "union",
+      "id": "t/openapi/components/schemas/UnionTarget",
+      "name": {
+        "source": "UnionTarget",
+        "canonical": "union_target"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/UnionTarget"
+      },
+      "variants": [
+        {
+          "name": {
+            "hint": "variant_0"
+          },
+          "type": {
+            "target": "t/prim/string",
+            "nullable": false
+          },
+          "docs": {}
+        },
+        {
+          "name": {
+            "hint": "variant_1"
+          },
+          "type": {
+            "target": "t/prim/integer",
+            "nullable": false
+          },
+          "docs": {}
+        }
+      ],
+      "exclusive": true,
+      "wireTagged": false
+    },
+    "t/prim/integer": {
+      "kind": "primitive",
+      "id": "t/prim/integer",
+      "name": {},
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0
+      },
+      "prim": "integer"
+    },
+    "t/prim/string": {
+      "kind": "primitive",
+      "id": "t/prim/string",
+      "name": {},
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0
+      },
+      "prim": "string"
     }
   },
   "servers": [
@@ -96,7 +186,7 @@
     {
       "format": "openapi@3.1",
       "path": "nullable-31-ref.yaml",
-      "hash": "35ffc2cc1b7a3175b215bfbb87d5da41c9a2ea45d0a7f3c4f7cd090c193cb05c"
+      "hash": "209757a2b4823e315fc5b016d88527efc1cbe592152d55f68020f301992885d5"
     }
   ]
 }

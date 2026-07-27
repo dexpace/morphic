@@ -788,21 +788,24 @@ func TestSchema_Ref30NullableSiblings(t *testing.T) {
 	assert.True(t, m.Properties[0].Type.Nullable, "3.0 nullable at a $ref site lifts to the ref")
 }
 
-// TestSchema_RefNullableAcrossDialects pins that 3.0 nullable: true and 3.1's
-// type-array null spelling normalize to the same Nullable bit at a $ref site,
-// across direct refs, chained refs, sub-schema refs, array/scalar targets, and
-// ref-site siblings — and that a plain (non-nullable) ref stays false in both
-// dialects (issue #28).
-func TestSchema_RefNullableAcrossDialects(t *testing.T) {
+// TestSchema_RefNullableAcrossSpellings pins that every spelling of "admits
+// null" — 3.0 nullable: true, a 3.1 type array, and a oneOf/anyOf null branch —
+// normalizes to the same Nullable bit at a $ref site, across direct refs,
+// chained refs, sub-schema refs, array/scalar/union targets, and ref-site
+// siblings, with negative controls for each shape (issue #28).
+func TestSchema_RefNullableAcrossSpellings(t *testing.T) {
 	t.Parallel()
-	targetID := ir.TypeID("t/openapi/components/schemas/Target")
-	midID := ir.TypeID("t/openapi/components/schemas/Mid")
+	targetID := componentID("Target")
+	midID := componentID("Mid")
+	// A hoisted sub-schema lands in the anonymous namespace, not the component
+	// one — the ref must resolve to that node, never to a synthesized name.
+	subSchemaID := ir.TypeID("t/anon/components/schemas/Holder/properties/inner")
 	cases := []struct {
 		name         string
 		version      string
 		schemas      string
 		wantNullable bool
-		wantTarget   ir.TypeID // empty skips the target assertion
+		wantTarget   ir.TypeID
 		msg          string
 	}{
 		{
@@ -898,6 +901,7 @@ func TestSchema_RefNullableAcrossDialects(t *testing.T) {
         p: {$ref: '#/components/schemas/Holder/properties/inner'}
 `,
 			wantNullable: true,
+			wantTarget:   subSchemaID,
 			msg:          "3.0 nullable on a non-component sub-schema lifts to a ref at its pointer",
 		},
 		{
@@ -913,6 +917,7 @@ func TestSchema_RefNullableAcrossDialects(t *testing.T) {
         p: {$ref: '#/components/schemas/Holder/properties/inner'}
 `,
 			wantNullable: true,
+			wantTarget:   subSchemaID,
 			msg:          "3.1 type-array null on a non-component sub-schema lifts to a ref at its pointer",
 		},
 		{
@@ -954,6 +959,106 @@ func TestSchema_RefNullableAcrossDialects(t *testing.T) {
 			wantTarget:   targetID,
 			msg:          "3.1 type-array null as a $ref-site sibling lifts to the ref",
 		},
+		{
+			name:    "3.1 non-null ref-site sibling type array (negative control)",
+			version: "3.1.0",
+			schemas: `    Owner:
+      type: object
+      properties:
+        p: {$ref: '#/components/schemas/Target', type: [string]}
+    Target: {type: string}
+`,
+			wantNullable: false,
+			wantTarget:   targetID,
+			msg:          "a $ref-site type array without null leaves the ref non-nullable",
+		},
+		{
+			name:    "3.1 ref to a collapsed oneOf null component",
+			version: "3.1.0",
+			schemas: `    Owner:
+      type: object
+      properties:
+        p: {$ref: '#/components/schemas/Target'}
+    Target:
+      oneOf: [{type: string}, {type: "null"}]
+`,
+			wantNullable: true,
+			wantTarget:   targetID,
+			msg:          "a oneOf null branch that collapses to nullable X lifts to the ref",
+		},
+		{
+			name:    "3.1 ref to a multi-branch union with a null branch",
+			version: "3.1.0",
+			schemas: `    Owner:
+      type: object
+      properties:
+        p: {$ref: '#/components/schemas/Target'}
+    Target:
+      oneOf: [{type: string}, {type: integer}, {type: "null"}]
+`,
+			wantNullable: true,
+			wantTarget:   targetID,
+			msg:          "a null branch stripped from a Union lifts to the ref, not into the variants",
+		},
+		{
+			name:    "3.1 ref to an anyOf null component",
+			version: "3.1.0",
+			schemas: `    Owner:
+      type: object
+      properties:
+        p: {$ref: '#/components/schemas/Target'}
+    Target:
+      anyOf: [{type: object}, {type: "null"}]
+`,
+			wantNullable: true,
+			wantTarget:   targetID,
+			msg:          "an anyOf null branch lifts to the ref just as a oneOf one does",
+		},
+		{
+			name:    "3.1 ref to a union without a null branch (negative control)",
+			version: "3.1.0",
+			schemas: `    Owner:
+      type: object
+      properties:
+        p: {$ref: '#/components/schemas/Target'}
+    Target:
+      oneOf: [{type: string}, {type: integer}]
+`,
+			wantNullable: false,
+			wantTarget:   targetID,
+			msg:          "a union with no null branch stays non-nullable at the ref",
+		},
+		{
+			name:    "3.1 ref to a null branch intersected by structural siblings",
+			version: "3.1.0",
+			schemas: `    Owner:
+      type: object
+      properties:
+        p: {$ref: '#/components/schemas/Target'}
+    Target:
+      type: object
+      properties: {a: {type: string}}
+      oneOf: [{type: string}, {type: "null"}]
+`,
+			wantNullable: false,
+			wantTarget:   targetID,
+			msg:          "a union co-declared with a structural body intersects with it, so its null branch admits nothing",
+		},
+		{
+			name:    "3.1 ref to a closed enum with a null branch sibling",
+			version: "3.1.0",
+			schemas: `    Owner:
+      type: object
+      properties:
+        p: {$ref: '#/components/schemas/Target'}
+    Target:
+      enum: ["open", "closed"]
+      oneOf: [{type: string}, {type: "null"}]
+`,
+			wantNullable: false,
+			wantTarget:   targetID,
+			msg:          "an enum with no null member must not read as nullable through a $ref",
+		},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -964,12 +1069,66 @@ func TestSchema_RefNullableAcrossDialects(t *testing.T) {
 			m := typeByName(doc, "Owner").(*ir.Model)
 			require.Len(t, m.Properties, 1)
 			assert.Equal(t, tc.wantNullable, m.Properties[0].Type.Nullable, tc.msg)
-			if tc.wantTarget != "" {
-				assert.Equal(t, tc.wantTarget, m.Properties[0].Type.Target,
-					"ref resolves to the expected target")
-			}
+			assert.Equal(t, tc.wantTarget, m.Properties[0].Type.Target,
+				"ref resolves to the expected target")
 		})
 	}
+}
+
+// TestSchema_RefNullableMatchesInlineForUnionSiblings pins that one schema body
+// lowers to the same Nullable bit whether it is written inline or reached
+// through a $ref. The $ref site recomputes nullability, so it is the one place
+// that can drift from the inline rule for a union carrying structural siblings.
+func TestSchema_RefNullableMatchesInlineForUnionSiblings(t *testing.T) {
+	t.Parallel()
+	// Both positions are built from one body string, so "the same schema" is
+	// structural rather than two hand-copied blocks that could drift apart.
+	const body = `type: object
+properties: {a: {type: string}}
+oneOf: [{type: string}, {type: "null"}]`
+	indent := func(n int) string {
+		pad := strings.Repeat(" ", n)
+		return pad + strings.ReplaceAll(body, "\n", "\n"+pad) + "\n"
+	}
+	spec := componentSpec("    Target:\n" + indent(6) +
+		`    Owner:
+      type: object
+      properties:
+        viaRef: {$ref: '#/components/schemas/Target'}
+        inline:
+` + indent(10))
+	doc, diags := lowerSpec(t, spec)
+	requireNoErrorDiags(t, diags)
+	m := typeByName(doc, "Owner").(*ir.Model)
+	props := propsByWire(m.Properties)
+	require.Len(t, props, 2)
+
+	assert.Equal(t, props["inline"].Type.Nullable, props["viaRef"].Type.Nullable,
+		"the same body must not change nullability by being reached through a $ref")
+	assert.False(t, props["viaRef"].Type.Nullable,
+		"an intersected union's null branch admits nothing, so neither spelling is nullable")
+}
+
+// TestSchema_RefNullableAtNonPropertyPosition pins that the lifted bit reaches a
+// $ref used as a list element, not just a model property.
+func TestSchema_RefNullableAtNonPropertyPosition(t *testing.T) {
+	t.Parallel()
+	spec := componentSpec(`    Owner:
+      type: object
+      properties:
+        p:
+          type: array
+          items: {$ref: '#/components/schemas/Target'}
+    Target:
+      oneOf: [{type: string}, {type: integer}, {type: "null"}]
+`)
+	doc, diags := lowerSpec(t, spec)
+	requireNoErrorDiags(t, diags)
+	list, ok := doc.Types["t/anon/components/schemas/Owner/properties/p"].(*ir.List)
+	require.True(t, ok)
+	assert.True(t, list.Elem.Nullable,
+		"a nullable union target lifts to the ref wherever it is used, including a list element")
+	assert.Equal(t, componentID("Target"), list.Elem.Target)
 }
 
 func TestSchema_UnionSiblingsAdditionalAndRequired(t *testing.T) {

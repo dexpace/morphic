@@ -112,9 +112,15 @@ func pathsSpecVer(version, paths string) string {
 		"paths:\n" + paths
 }
 
+// componentID is the stable TypeID of a components-named schema, or of a
+// sub-schema beneath one ("Holder/properties/inner").
+func componentID(name string) ir.TypeID {
+	return ir.TypeID("t/openapi/components/schemas/" + name)
+}
+
 // typeByName returns the named component schema's lowered TypeDef.
 func typeByName(doc *ir.Document, name string) ir.TypeDef {
-	return doc.Types[ir.TypeID("t/openapi/components/schemas/"+name)]
+	return doc.Types[componentID(name)]
 }
 
 // conflictDiags returns every conflicting-redeclaration diagnostic in diags.
