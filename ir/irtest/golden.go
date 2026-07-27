@@ -19,14 +19,25 @@ var update = flag.Bool("update", false, "rewrite golden files instead of compari
 // Update reports whether -update was passed to go test.
 func Update() bool { return *update }
 
+// encodeGolden serializes doc as deterministic indented JSON with a trailing
+// newline. Both WriteGolden and compareGolden encode through this one
+// function, so the golden writer and the golden comparer cannot disagree
+// about what "the golden encoding" is.
+func encodeGolden(doc *ir.Document) ([]byte, error) {
+	raw, err := json.MarshalIndent(doc, "", "  ")
+	if err != nil {
+		return nil, err
+	}
+	return append(raw, '\n'), nil
+}
+
 // WriteGolden serializes doc deterministically and writes it to path, creating
 // parent directories as needed.
 func WriteGolden(path string, doc *ir.Document) error {
-	raw, err := json.MarshalIndent(doc, "", "  ")
+	raw, err := encodeGolden(doc)
 	if err != nil {
 		return fmt.Errorf("irtest: marshal golden %s: %w", path, err)
 	}
-	raw = append(raw, '\n')
 	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
 		return fmt.Errorf("irtest: mkdir for golden %s: %w", path, err)
 	}
@@ -65,11 +76,10 @@ func compareGolden(t testingT, goldenPath string, doc *ir.Document) {
 	if err != nil {
 		t.Fatalf("read golden %s (run with -update to create): %v", goldenPath, err)
 	}
-	raw, err := json.MarshalIndent(doc, "", "  ")
+	raw, err := encodeGolden(doc)
 	if err != nil {
 		t.Fatalf("marshal document: %v", err)
 	}
-	raw = append(raw, '\n')
 	if diff := cmp.Diff(string(want), string(raw)); diff != "" {
 		t.Errorf("golden mismatch for %s (-golden +got):\n%s", goldenPath, diff)
 	}

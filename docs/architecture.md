@@ -185,7 +185,8 @@ policy fills in where the spec is silent, never the reverse.
 ```
 morphic/
 ├── ir/                  # Layer 0 — IR node types, IDs, traversal, JSON round-trip.
-│   └── irtest/          #           Golden-snapshot helpers for IR documents.
+│   ├── irtest/          #           Golden-snapshot helpers for IR documents.
+│   └── irverify/        #           Structural-invariant oracle (dangling refs, IDs, naming).
 ├── compilers/           # Layer 1 — compiler contract + registry.
 │   ├── openapi/         #           OpenAPI 3.x → IR (milestone 1).
 │   ├── swagger/         #           2.0 lift → openapi compiler (future).
@@ -193,7 +194,9 @@ morphic/
 ├── pass/                # Layer 1 — IR → IR passes (validate, dedup, filter, slice, overlay).
 ├── emitters/            # Layer 2 — emitter contract, plan layer, registry (future).
 ├── engine/              # Layer 3 — orchestration: sniff format, run compiler, passes, emitters.
-└── cmd/morphic/         # Layer 4 — CLI.
+├── internal/harness/    #           Bug-catching oracle sweep over a spec corpus (tooling).
+├── cmd/morphic/         # Layer 4 — CLI.
+└── cmd/morphic-harness/ #           CLI over internal/harness (tooling, not the pipeline).
 ```
 
 Dependency rules, enforced by an architecture test as in oagen:

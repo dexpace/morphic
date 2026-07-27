@@ -16,13 +16,7 @@ func TestParse_UnsupportedVersion(t *testing.T) {
 	doc, diags, err := New().Compile(context.Background(), []compilers.Source{sourceOf(spec)}, compilers.Options{})
 	require.NoError(t, err)
 	assert.Nil(t, doc, "unsupported version refuses to lower")
-	var sawUnsupported bool
-	for _, d := range diags {
-		if d.Code == codeUnsupportedVersion {
-			sawUnsupported = true
-		}
-	}
-	assert.True(t, sawUnsupported)
+	assert.True(t, hasDiag(diags, codeUnsupportedVersion))
 }
 
 func TestParse_UnmarshalError(t *testing.T) {
@@ -75,11 +69,5 @@ func TestGhostRefs_AllResolversDegradeGracefully(t *testing.T) {
 	l := newLowerer(0, loadedDoc, Options{}.withDefaults())
 	out := l.run()
 	require.NotNil(t, out)
-	var sawUnresolved bool
-	for _, d := range append(diags, l.diags...) {
-		if d.Code == codeUnresolvedRef {
-			sawUnresolved = true
-		}
-	}
-	assert.True(t, sawUnresolved, "unresolved refs reported")
+	assert.True(t, hasDiag(append(diags, l.diags...), codeUnresolvedRef), "unresolved refs reported")
 }

@@ -15,10 +15,7 @@ import (
 
 func TestContent_AllMediaTypesKeptInOrder(t *testing.T) {
 	t.Parallel()
-	spec := `openapi: 3.1.0
-info: {title: T, version: "1"}
-paths:
-  /docs:
+	spec := pathsSpec(`  /docs:
     post:
       operationId: createDoc
       requestBody:
@@ -27,10 +24,10 @@ paths:
           application/json: {schema: {type: object, properties: {n: {type: string}}}}
           application/xml: {schema: {type: object, properties: {n: {type: string}}}}
       responses: {"201": {description: created}}
-`
+`)
 	_, svc, diags := lowerServiceSpec(t, spec)
 	requireNoErrorDiags(t, diags)
-	op := svc.Groups[0].Operations[0]
+	op := firstOp(t, svc)
 	require.NotNil(t, op.Request)
 	require.Len(t, op.Request.Contents, 2, "no primary-content selection in the IR")
 	assert.Equal(t, "application/json", op.Request.Contents[0].MediaType)
@@ -41,10 +38,7 @@ paths:
 
 func TestContent_MultipartPartEncoding(t *testing.T) {
 	t.Parallel()
-	spec := `openapi: 3.1.0
-info: {title: T, version: "1"}
-paths:
-  /upload:
+	spec := pathsSpec(`  /upload:
     post:
       operationId: upload
       requestBody:
@@ -61,10 +55,10 @@ paths:
                 headers:
                   X-Part: {schema: {type: string}}
       responses: {"200": {description: ok}}
-`
+`)
 	_, svc, diags := lowerServiceSpec(t, spec)
 	requireNoErrorDiags(t, diags)
-	content := svc.Groups[0].Operations[0].Request.Contents[0]
+	content := firstOp(t, svc).Request.Contents[0]
 	metaProp := ir.PropID("p/openapi" + ptr("paths", "/upload", "post", "requestBody", "content", "multipart/form-data", "schema", "properties", "meta"))
 	enc, ok := content.Encoding[string(metaProp)]
 	require.True(t, ok, "encoding keyed by the part property's PropID; got keys %v", content.Encoding)
@@ -80,10 +74,7 @@ paths:
 
 func TestContent_BinaryOctetStreamBody(t *testing.T) {
 	t.Parallel()
-	spec := `openapi: 3.1.0
-info: {title: T, version: "1"}
-paths:
-  /raw:
+	spec := pathsSpec(`  /raw:
     post:
       operationId: putRaw
       requestBody:
@@ -92,10 +83,10 @@ paths:
           application/octet-stream:
             schema: {type: string, format: binary}
       responses: {"200": {description: ok}}
-`
+`)
 	_, svc, diags := lowerServiceSpec(t, spec)
 	requireNoErrorDiags(t, diags)
-	op := svc.Groups[0].Operations[0]
+	op := firstOp(t, svc)
 	require.NotNil(t, op.Request)
 	require.Len(t, op.Request.Contents, 1)
 	content := op.Request.Contents[0]
@@ -108,10 +99,7 @@ func TestContent_BinaryRefBodyDetectedAsFile(t *testing.T) {
 	t.Parallel()
 	// A binary body referenced via $ref must still be detected as a File body,
 	// exactly like the inline string+binary form.
-	spec := `openapi: 3.1.0
-info: {title: T, version: "1"}
-paths:
-  /raw:
+	spec := pathsSpec(`  /raw:
     post:
       operationId: putRaw
       requestBody:
@@ -123,10 +111,10 @@ paths:
 components:
   schemas:
     Blob: {type: string, format: binary}
-`
+`)
 	_, svc, diags := lowerServiceSpec(t, spec)
 	requireNoErrorDiags(t, diags)
-	content := svc.Groups[0].Operations[0].Request.Contents[0]
+	content := firstOp(t, svc).Request.Contents[0]
 	require.NotNil(t, content.File, "binary body behind a $ref lowers to a FileInfo")
 	assert.False(t, content.File.IsText)
 	assert.Equal(t, ir.TypeID("t/prim/bytes"), content.Type.Target)
@@ -136,10 +124,7 @@ func TestContent_MultipartRefBodyKeepsEncoding(t *testing.T) {
 	t.Parallel()
 	// A multipart body referenced via $ref must keep its per-part encoding, keyed
 	// by the RESOLVED model's property IDs (under the ref target's pointer).
-	spec := `openapi: 3.1.0
-info: {title: T, version: "1"}
-paths:
-  /upload:
+	spec := pathsSpec(`  /upload:
     post:
       operationId: upload
       requestBody:
@@ -157,10 +142,10 @@ components:
       properties:
         meta: {type: object, properties: {k: {type: string}}}
         file: {type: string, format: binary}
-`
+`)
 	_, svc, diags := lowerServiceSpec(t, spec)
 	requireNoErrorDiags(t, diags)
-	content := svc.Groups[0].Operations[0].Request.Contents[0]
+	content := firstOp(t, svc).Request.Contents[0]
 	require.NotNil(t, content.Encoding, "referenced multipart body keeps per-part encoding")
 
 	metaProp := "p/openapi" + ptr("components", "schemas", "Form", "properties", "meta")
@@ -176,20 +161,17 @@ components:
 
 func TestContent_NonRequiredRequestBody(t *testing.T) {
 	t.Parallel()
-	spec := `openapi: 3.1.0
-info: {title: T, version: "1"}
-paths:
-  /maybe:
+	spec := pathsSpec(`  /maybe:
     post:
       operationId: maybe
       requestBody:
         content:
           application/json: {schema: {type: object, properties: {n: {type: string}}}}
       responses: {"200": {description: ok}}
-`
+`)
 	_, svc, diags := lowerServiceSpec(t, spec)
 	requireNoErrorDiags(t, diags)
-	op := svc.Groups[0].Operations[0]
+	op := firstOp(t, svc)
 	require.NotNil(t, op.Request, "a non-required body still lowers to a present Payload")
 	raw, ok := op.Request.Extensions["openapi:required"]
 	require.True(t, ok, "body optionality preserved under extensions")
@@ -205,10 +187,7 @@ paths:
 
 func TestContent_ArrayMultipartPartMulti(t *testing.T) {
 	t.Parallel()
-	spec := `openapi: 3.1.0
-info: {title: T, version: "1"}
-paths:
-  /bulk:
+	spec := pathsSpec(`  /bulk:
     post:
       operationId: bulk
       requestBody:
@@ -219,10 +198,10 @@ paths:
               properties:
                 tags: {type: array, items: {type: string}}
       responses: {"200": {description: ok}}
-`
+`)
 	_, svc, diags := lowerServiceSpec(t, spec)
 	requireNoErrorDiags(t, diags)
-	content := svc.Groups[0].Operations[0].Request.Contents[0]
+	content := firstOp(t, svc).Request.Contents[0]
 	tagsProp := "p/openapi" + ptr("paths", "/bulk", "post", "requestBody", "content", "multipart/form-data", "schema", "properties", "tags")
 	enc, ok := content.Encoding[tagsProp]
 	require.True(t, ok, "array part gets a synthesized PartEncoding; got keys %v", content.Encoding)
@@ -335,13 +314,7 @@ func TestContent_FullPipeline(t *testing.T) {
 	_, hasLinks := resp.Extensions["openapi:links"]
 	assert.True(t, hasLinks)
 
-	var sawDegraded bool
-	for _, d := range diags {
-		if d.Code == codeDegradedConstruct {
-			sawDegraded = true
-		}
-	}
-	assert.True(t, sawDegraded)
+	assert.True(t, hasDiag(diags, codeDegradedConstruct))
 }
 
 func TestContent_OctetAndErrorMulti(t *testing.T) {

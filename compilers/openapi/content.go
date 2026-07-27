@@ -55,9 +55,7 @@ func (l *lowerer) lowerContent(mt string, media *soa.MediaType, pointer, hint st
 		}
 	}
 	l.fillSequential(&c, media, mediaPtr, hint)
-	ext, diags := extensionsFrom(media.GetExtensions())
-	l.diags = append(l.diags, diags...)
-	if len(ext) > 0 {
+	if ext := l.extensions(media.GetExtensions()); len(ext) > 0 {
 		c.Extensions = mergeExtensions(c.Extensions, ext)
 	}
 	return c
@@ -75,16 +73,8 @@ func (l *lowerer) fillSequential(c *ir.Content, media *soa.MediaType, mediaPtr, 
 		return
 	}
 	raw := nodeToRaw(rawChildNode(media.GetRootNode(), "itemEncoding"))
-	if raw == nil {
-		return
-	}
-	if c.Extensions == nil {
-		c.Extensions = ir.Extensions{}
-	}
-	c.Extensions["openapi:itemEncoding"] = raw
-	l.diags = append(l.diags, diagf(ir.SeverityInfo, codeDegradedConstruct,
-		ir.Provenance{Source: l.srcIndex, Pointer: mediaPtr},
-		"3.2 itemEncoding preserved under extensions; per-item multipart encoding is out of model"))
+	l.preserveRaw(&c.Extensions, "openapi:itemEncoding", raw, mediaPtr, codeDegradedConstruct,
+		"3.2 itemEncoding preserved under extensions; per-item multipart encoding is out of model")
 }
 
 // partEncodings builds the multipart/form per-part wire config, keyed by each
@@ -149,7 +139,7 @@ func (l *lowerer) lowerHeaders(headers *sequencedmap.Map[string, *soa.Referenced
 	}
 	out := make([]ir.Property, 0, headers.Len())
 	for name, rh := range headers.All() {
-		h := resolveHeader(rh)
+		h := resolveRef(rh)
 		if h == nil {
 			continue
 		}
@@ -184,7 +174,7 @@ func (l *lowerer) exampleList(single *yaml.Node, plural *sequencedmap.Map[string
 		return out
 	}
 	for _, re := range plural.All() {
-		ex := resolveExample(re)
+		ex := resolveRef(re)
 		if ex == nil {
 			continue
 		}
@@ -204,7 +194,7 @@ func (l *lowerer) exampleList(single *yaml.Node, plural *sequencedmap.Map[string
 // so a non-required body stays present with its optionality preserved under
 // Extensions plus one info diagnostic (ir-design §7.2 clarification).
 func (l *lowerer) lowerRequestBody(op *ir.Operation, hb *ir.HTTPBinding, src *soa.Operation, opPointer string) {
-	rb := resolveRequestBody(src.GetRequestBody())
+	rb := resolveRef(src.GetRequestBody())
 	if rb == nil {
 		return
 	}
@@ -218,9 +208,8 @@ func (l *lowerer) lowerRequestBody(op *ir.Operation, hb *ir.HTTPBinding, src *so
 			payload.Extensions = ir.Extensions{}
 		}
 		payload.Extensions["openapi:required"] = ir.RawValue("false")
-		l.diags = append(l.diags, diagf(ir.SeverityInfo, codeDegradedConstruct,
-			ir.Provenance{Source: l.srcIndex, Pointer: bodyPtr},
-			"request body is not required; optionality preserved under extensions"))
+		l.diag(ir.SeverityInfo, codeDegradedConstruct, bodyPtr,
+			"request body is not required; optionality preserved under extensions")
 	}
 	op.Request = payload
 	hb.RequestContentTypes = contentTypeKeys(rb.GetContent())
@@ -346,27 +335,4 @@ func bodySchemaPointer(js *oas3.JSONSchema[oas3.Referenceable], localPtr string)
 func partEncodingEmpty(pe ir.PartEncoding) bool {
 	return len(pe.ContentTypes) == 0 && len(pe.Headers) == 0 &&
 		!pe.Multi && !pe.Filename && pe.Style == "" && pe.Explode == nil
-}
-
-// resolveRequestBody returns the concrete RequestBody of a reference-or-inline
-// entry.
-func resolveRequestBody(rrb *soa.ReferencedRequestBody) *soa.RequestBody {
-	if rrb == nil {
-		return nil
-	}
-	if obj := rrb.GetObject(); obj != nil {
-		return obj
-	}
-	return rrb.GetResolvedObject()
-}
-
-// resolveExample returns the concrete Example of a reference-or-inline entry.
-func resolveExample(re *soa.ReferencedExample) *soa.Example {
-	if re == nil {
-		return nil
-	}
-	if obj := re.GetObject(); obj != nil {
-		return obj
-	}
-	return re.GetResolvedObject()
 }

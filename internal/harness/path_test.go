@@ -10,23 +10,8 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/dexpace/morphic/internal/harness"
+	"github.com/dexpace/morphic/internal/testspec"
 )
-
-// brokenSpec is a syntactically valid YAML document that is not a usable OpenAPI
-// spec: the response header's required is the string "notabool", mirroring the
-// committed testdata/openapi/resolve_target_invalid.yaml fixture. It surfaces as
-// a non-OK outcome, so a sweep flags it.
-const brokenSpec = `openapi: 3.1.0
-info: {title: Broken, version: "1"}
-paths: {}
-components:
-  responses:
-    Bad:
-      headers:
-        X:
-          schema: {type: string}
-          required: notabool
-`
 
 // writeSpec writes content to name inside dir, failing the test on a write
 // error.
@@ -40,8 +25,8 @@ func writeSpec(t *testing.T, dir, name, content string) string {
 func TestCheckPath_DirectorySweepsGoodAndBroken(t *testing.T) {
 	t.Parallel()
 	dir := t.TempDir()
-	goodPath := writeSpec(t, dir, "good.yaml", minimalSpec)
-	brokenPath := writeSpec(t, dir, "broken.yaml", brokenSpec)
+	goodPath := writeSpec(t, dir, "good.yaml", testspec.Minimal)
+	brokenPath := writeSpec(t, dir, "broken.yaml", testspec.BadHeader)
 	// A golden snapshot in the same directory must be skipped, not checked.
 	writeSpec(t, dir, "good.golden.json", "{}")
 
@@ -62,7 +47,7 @@ func TestCheckPath_DirectorySweepsGoodAndBroken(t *testing.T) {
 func TestCheckPath_SingleFile(t *testing.T) {
 	t.Parallel()
 	dir := t.TempDir()
-	goodPath := writeSpec(t, dir, "good.yaml", minimalSpec)
+	goodPath := writeSpec(t, dir, "good.yaml", testspec.Minimal)
 
 	results, err := harness.CheckPath(context.Background(), goodPath)
 	require.NoError(t, err)
@@ -98,7 +83,7 @@ func TestCheckPath_UnreadableFileIsError(t *testing.T) {
 	// A regular file with no read permission stats cleanly (so it is not a
 	// directory) but fails to read, so CheckPath returns the read error.
 	dir := t.TempDir()
-	path := writeSpec(t, dir, "spec.yaml", minimalSpec)
+	path := writeSpec(t, dir, "spec.yaml", testspec.Minimal)
 	require.NoError(t, os.Chmod(path, 0o000))
 	t.Cleanup(func() { _ = os.Chmod(path, 0o600) })
 

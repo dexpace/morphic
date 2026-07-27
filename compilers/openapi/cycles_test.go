@@ -242,23 +242,6 @@ func readReproducer(t *testing.T, file string) []byte {
 	return data
 }
 
-func assertHasErrorCode(t *testing.T, diags []ir.Diagnostic, code string) {
-	t.Helper()
-	assertHasCode(t, diags, code, ir.SeverityError)
-}
-
-// assertHasCode requires diags to carry a diagnostic with the given code at the
-// given severity.
-func assertHasCode(t *testing.T, diags []ir.Diagnostic, code string, sev ir.Severity) {
-	t.Helper()
-	for _, d := range diags {
-		if d.Code == code && d.Severity == sev {
-			return
-		}
-	}
-	t.Fatalf("expected a %v diagnostic with code %q, got %+v", sev, code, diags)
-}
-
 // yscalar, ymap, yseq, and yalias build bare yaml.Node values for the whitebox
 // tests below, which exercise the cycle detector's helpers on shapes the parser
 // never produces from a real document.
@@ -513,76 +496,111 @@ func TestDeref_FollowsAliasChain(t *testing.T) {
 // TestMappingPairs_Cases covers nodeView's expansion on shapes a real parse
 // cannot produce (a non-scalar key, a merge sequence, a self-referential merge)
 // alongside the ones it can (alias key, alias value, single-mapping merge,
-// duplicate explicit key).
+// duplicate explicit key). Three precedence rules are pinned only by the
+// resulting value, so the rationale is recorded here rather than at a
+// generic assertion that would discard it: speakeasy applies every
+// occurrence of a duplicate explicit key in turn, so the last one is the
+// effective value; that still outranks a merged key, so the two precedence
+// rules compose rather than one hiding the other; and a merge whose `<<`
+// aliases its own mapping contributes nothing, rather than looping forever.
 func TestMappingPairs_Cases(t *testing.T) {
 	t.Parallel()
 
-	t.Run("nil node yields no pairs", func(t *testing.T) {
-		t.Parallel()
-		assert.Nil(t, newNodeView().mappingPairs(nil))
-	})
+	tests := []struct {
+		name string
+		n    *yaml.Node
+		want map[string]string
+	}{
+		{"nil node yields no pairs", nil, nil},
+		{"non-mapping node yields no pairs", yscalar("x"), nil},
+		{
+			"alias-valued mapping is dereferenced at entry",
+			yalias(ymap(yscalar("k"), yscalar("v"))),
+			map[string]string{"k": "v"},
+		},
+		{
+			"alias key and alias value are dereferenced",
+			ymap(yalias(yscalar("k")), yalias(yscalar("v"))),
+			map[string]string{"k": "v"},
+		},
+		{
+			"non-scalar key after deref is skipped",
+			ymap(
+				ymap(yscalar("x"), yscalar("1")), yscalar("ignored"),
+				yscalar("real"), yscalar("kept"),
+			),
+			map[string]string{"real": "kept"},
+		},
+		{
+			"key aliasing a nil target is skipped",
+			ymap(yalias(nil), yscalar("ignored"), yscalar("real"), yscalar("kept")),
+			map[string]string{"real": "kept"},
+		},
+		{
+			"odd trailing key without a value is ignored",
+			trailingKeyNode(),
+			map[string]string{"a": "1"},
+		},
+		{
+			"duplicate explicit key: last wins",
+			ymap(yscalar("k"), yscalar("first"), yscalar("k"), yscalar("second")),
+			map[string]string{"k": "second"},
+		},
+		{
+			"a merged key still yields to a repeated explicit key",
+			ymap(yscalar("k"), yscalar("first"), ymerge(), ymap(yscalar("k"), yscalar("from-merge")),
+				yscalar("k"), yscalar("second")),
+			map[string]string{"k": "second"},
+		},
+		{
+			"merge key contributes a mapping's pairs",
+			ymap(ymerge(), yalias(ymap(yscalar("a"), yscalar("1"))), yscalar("b"), yscalar("2")),
+			map[string]string{"a": "1", "b": "2"},
+		},
+		{
+			"merge value that is not a mapping contributes nothing",
+			ymap(ymerge(), yscalar("not-a-mapping"), yscalar("b"), yscalar("2")),
+			map[string]string{"b": "2"},
+		},
+		{
+			"explicit key wins over merged key",
+			ymap(yscalar("a"), yscalar("explicit"), ymerge(), ymap(yscalar("a"), yscalar("from-merge"))),
+			map[string]string{"a": "explicit"},
+		},
+		{
+			"merge sequence: earlier source wins on a shared key",
+			ymap(ymerge(), yseq(
+				ymap(yscalar("a"), yscalar("from-first")),
+				ymap(yscalar("a"), yscalar("from-second"), yscalar("b"), yscalar("only-in-second")),
+			)),
+			map[string]string{"a": "from-first", "b": "only-in-second"},
+		},
+		{
+			"merge sequence reusing one source keeps its pairs",
+			mergeSeqReuseNode(),
+			map[string]string{"a": "1"},
+		},
+		{
+			"self-referential merge is bounded, not infinite",
+			selfReferentialMergeNode(),
+			map[string]string{},
+		},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			got := newNodeView().mappingPairs(tc.n)
+			if tc.want == nil {
+				assert.Nil(t, got)
+				return
+			}
+			assert.Equal(t, tc.want, pairMap(got))
+		})
+	}
 
-	t.Run("non-mapping node yields no pairs", func(t *testing.T) {
-		t.Parallel()
-		assert.Nil(t, newNodeView().mappingPairs(yscalar("x")))
-	})
-
-	t.Run("alias-valued mapping is dereferenced at entry", func(t *testing.T) {
-		t.Parallel()
-		target := ymap(yscalar("k"), yscalar("v"))
-		got := newNodeView().mappingPairs(yalias(target))
-		require.Len(t, got, 1)
-		assert.Equal(t, "k", got[0].key)
-	})
-
-	t.Run("alias key and alias value are dereferenced", func(t *testing.T) {
-		t.Parallel()
-		keyTarget := yscalar("k")
-		valTarget := yscalar("v")
-		n := ymap(yalias(keyTarget), yalias(valTarget))
-		got := newNodeView().mappingPairs(n)
-		require.Len(t, got, 1)
-		assert.Equal(t, "k", got[0].key)
-		assert.Same(t, valTarget, got[0].val)
-	})
-
-	t.Run("non-scalar key after deref is skipped", func(t *testing.T) {
-		t.Parallel()
-		n := ymap(
-			ymap(yscalar("x"), yscalar("1")), yscalar("ignored"),
-			yscalar("real"), yscalar("kept"),
-		)
-		got := newNodeView().mappingPairs(n)
-		require.Len(t, got, 1)
-		assert.Equal(t, "real", got[0].key)
-	})
-
-	t.Run("key aliasing a nil target is skipped", func(t *testing.T) {
-		t.Parallel()
-		n := ymap(yalias(nil), yscalar("ignored"), yscalar("real"), yscalar("kept"))
-		got := newNodeView().mappingPairs(n)
-		require.Len(t, got, 1)
-		assert.Equal(t, "real", got[0].key)
-	})
-
-	t.Run("odd trailing key without a value is ignored", func(t *testing.T) {
-		t.Parallel()
-		n := ymap(yscalar("a"), yscalar("1"))
-		n.Content = append(n.Content, yscalar("dangling"))
-		got := newNodeView().mappingPairs(n)
-		require.Len(t, got, 1)
-		assert.Equal(t, "a", got[0].key)
-	})
-
-	t.Run("duplicate explicit key: last wins", func(t *testing.T) {
-		t.Parallel()
-		last := yscalar("second")
-		n := ymap(yscalar("k"), yscalar("first"), yscalar("k"), last)
-		got := newNodeView().mappingPairs(n)
-		require.Len(t, got, 1)
-		assert.Same(t, last, got[0].val,
-			"speakeasy applies every occurrence in turn, so the last value is the effective one")
-	})
+	// The remaining two shapes assert something pairMap erases (slice order,
+	// and the view's own exhausted bookkeeping across a depth-bound merge
+	// chain), so they stay as dedicated subtests rather than table rows.
 
 	t.Run("duplicate explicit key keeps the last occurrence's position", func(t *testing.T) {
 		t.Parallel()
@@ -596,62 +614,6 @@ func TestMappingPairs_Cases(t *testing.T) {
 		assert.Equal(t, "other", got[0].key)
 		assert.Equal(t, "k", got[1].key)
 		assert.Equal(t, "second", got[1].val.Value)
-	})
-
-	t.Run("a merged key still yields to a repeated explicit key", func(t *testing.T) {
-		t.Parallel()
-		base := ymap(yscalar("k"), yscalar("from-merge"))
-		n := ymap(yscalar("k"), yscalar("first"), ymerge(), base, yscalar("k"), yscalar("second"))
-		got := newNodeView().mappingPairs(n)
-		require.Len(t, got, 1)
-		assert.Equal(t, "second", got[0].val.Value,
-			"the two precedence rules compose: last explicit wins, and it still outranks the merge")
-	})
-
-	t.Run("merge key contributes a mapping's pairs", func(t *testing.T) {
-		t.Parallel()
-		base := ymap(yscalar("a"), yscalar("1"))
-		n := ymap(ymerge(), yalias(base), yscalar("b"), yscalar("2"))
-		assert.Equal(t, map[string]string{"a": "1", "b": "2"}, pairMap(newNodeView().mappingPairs(n)))
-	})
-
-	t.Run("merge value that is not a mapping contributes nothing", func(t *testing.T) {
-		t.Parallel()
-		n := ymap(ymerge(), yscalar("not-a-mapping"), yscalar("b"), yscalar("2"))
-		assert.Equal(t, map[string]string{"b": "2"}, pairMap(newNodeView().mappingPairs(n)))
-	})
-
-	t.Run("explicit key wins over merged key", func(t *testing.T) {
-		t.Parallel()
-		base := ymap(yscalar("a"), yscalar("from-merge"))
-		n := ymap(yscalar("a"), yscalar("explicit"), ymerge(), base)
-		got := newNodeView().mappingPairs(n)
-		require.Len(t, got, 1)
-		assert.Equal(t, "explicit", got[0].val.Value)
-	})
-
-	t.Run("merge sequence: earlier source wins on a shared key", func(t *testing.T) {
-		t.Parallel()
-		first := ymap(yscalar("a"), yscalar("from-first"))
-		second := ymap(yscalar("a"), yscalar("from-second"), yscalar("b"), yscalar("only-in-second"))
-		n := ymap(ymerge(), yseq(first, second))
-		assert.Equal(t, map[string]string{"a": "from-first", "b": "only-in-second"},
-			pairMap(newNodeView().mappingPairs(n)))
-	})
-
-	t.Run("merge sequence reusing one source keeps its pairs", func(t *testing.T) {
-		t.Parallel()
-		base := ymap(yscalar("a"), yscalar("1"))
-		n := ymap(ymerge(), yseq(yalias(base), yalias(base)))
-		assert.Equal(t, map[string]string{"a": "1"}, pairMap(newNodeView().mappingPairs(n)))
-	})
-
-	t.Run("self-referential merge is bounded, not infinite", func(t *testing.T) {
-		t.Parallel()
-		n := &yaml.Node{Kind: yaml.MappingNode}
-		n.Content = []*yaml.Node{ymerge(), yalias(n)}
-		assert.Empty(t, newNodeView().mappingPairs(n),
-			"a merge that references its own mapping contributes nothing")
 	})
 
 	t.Run("merge chain at the depth bound still reaches the leaf", func(t *testing.T) {
@@ -670,6 +632,31 @@ func TestMappingPairs_Cases(t *testing.T) {
 			"a merge chain longer than the bound never reaches the leaf pair")
 		assert.True(t, v.exhausted, "exceeding the bound is recorded for refCycles")
 	})
+}
+
+// trailingKeyNode returns a mapping with one well-formed pair followed by a
+// dangling key with no value, the shape mappingPairs must ignore instead of
+// reading past the end of Content.
+func trailingKeyNode() *yaml.Node {
+	n := ymap(yscalar("a"), yscalar("1"))
+	n.Content = append(n.Content, yscalar("dangling"))
+	return n
+}
+
+// mergeSeqReuseNode returns a merge sequence whose two sources are the exact
+// same mapping node, pinning that revisiting one node twice within a single
+// merge expansion is read twice, not mistaken for a cycle.
+func mergeSeqReuseNode() *yaml.Node {
+	base := ymap(yscalar("a"), yscalar("1"))
+	return ymap(ymerge(), yseq(yalias(base), yalias(base)))
+}
+
+// selfReferentialMergeNode returns a mapping whose sole `<<` merge aliases
+// itself.
+func selfReferentialMergeNode() *yaml.Node {
+	n := &yaml.Node{Kind: yaml.MappingNode}
+	n.Content = []*yaml.Node{ymerge(), yalias(n)}
+	return n
 }
 
 // mergeChain builds a chain of `levels` mappings, each merging the next, ending

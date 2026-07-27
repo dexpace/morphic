@@ -38,29 +38,24 @@ func TestVisibility_PopulatedRoundTrip(t *testing.T) {
 	}
 }
 
-// TestProperty_ZeroValueShape pins Property's omitempty contract field by
+// TestProperty_JSONContract pins Property's omitempty contract field by
 // field, per the test specification's derived lists. The fields that MUST be
 // present on the zero value (id, type, required, clientOptional,
 // defaultAdded, visibility, flatten, eventHeader, eventPayload, secret, docs,
 // provenance, name) carry no omitempty tag; every other field is optional.
 // This is the test that would fail the instant an omitempty is added to, say,
 // Required — see the Verification section of the test spec for the exact
-// regression this guards against.
-func TestProperty_ZeroValueShape(t *testing.T) {
+// regression this guards against. It also pins that a fully populated
+// Property — every field non-zero, including nested Constraints, Encoding,
+// Args, XML, and Availability — survives a JSON round trip.
+func TestProperty_JSONContract(t *testing.T) {
 	t.Parallel()
-	assertZeroValueShape(t, ir.Property{},
+	assertJSONContract(t, ir.Property{},
 		`{"id":"","name":{},"type":{"target":"","nullable":false},"required":false,`+
 			`"clientOptional":false,"defaultAdded":false,"visibility":{"none":false},`+
 			`"flatten":false,"eventHeader":false,"eventPayload":false,"secret":false,`+
-			`"docs":{},"provenance":{"source":0}}`)
-}
-
-// TestProperty_PopulatedRoundTrip pins that a fully populated Property — every
-// field non-zero, including nested Constraints, Encoding, Args, XML, and
-// Availability — survives a JSON round trip.
-func TestProperty_PopulatedRoundTrip(t *testing.T) {
-	t.Parallel()
-	assertRoundTrip(t, populatedProperty())
+			`"docs":{},"provenance":{"source":0}}`,
+		populatedProperty())
 }
 
 // TestProperty_WireNameByFormatDeterministic pins Class C for Property's one

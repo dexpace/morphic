@@ -9,24 +9,9 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/dexpace/morphic/internal/testspec"
 )
-
-const okSpec = `openapi: 3.0.0
-info: {title: t, version: "1"}
-paths: {}
-`
-
-const badSpec = `openapi: 3.1.0
-info: {title: Broken, version: "1"}
-paths: {}
-components:
-  responses:
-    Bad:
-      headers:
-        X:
-          schema: {type: string}
-          required: notabool
-`
 
 func writeSpec(t *testing.T, dir, name, content string) {
 	t.Helper()
@@ -36,8 +21,8 @@ func writeSpec(t *testing.T, dir, name, content string) {
 func TestRun_AllOKExitsZero(t *testing.T) {
 	t.Parallel()
 	dir := t.TempDir()
-	writeSpec(t, dir, "a.yaml", okSpec)
-	writeSpec(t, dir, "b.yaml", okSpec)
+	writeSpec(t, dir, "a.yaml", testspec.Minimal)
+	writeSpec(t, dir, "b.yaml", testspec.Minimal)
 
 	var stdout, stderr bytes.Buffer
 	code := run(context.Background(), []string{dir}, &stdout, &stderr)
@@ -50,8 +35,8 @@ func TestRun_AllOKExitsZero(t *testing.T) {
 func TestRun_AnyFailureExitsOne(t *testing.T) {
 	t.Parallel()
 	dir := t.TempDir()
-	writeSpec(t, dir, "good.yaml", okSpec)
-	writeSpec(t, dir, "bad.yaml", badSpec)
+	writeSpec(t, dir, "good.yaml", testspec.Minimal)
+	writeSpec(t, dir, "bad.yaml", testspec.BadHeader)
 
 	var stdout, stderr bytes.Buffer
 	code := run(context.Background(), []string{dir}, &stdout, &stderr)

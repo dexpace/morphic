@@ -4,13 +4,13 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project status
 
-Morphic is at the **design stage**. The repository currently contains only design documents
-under `docs/` — there is no Go code, no `go.mod`, and no build/test tooling yet. Milestone 1
-(the `ir` package + OpenAPI 3.x compiler) is the first code to be written. When you add code,
-create the module (`go mod init`) and the package layout described in `docs/architecture.md §3`.
+Morphic is in **early development**, past the design stage. Milestone 1 (the `ir` package +
+OpenAPI 3.x compiler) is implemented and exercised end-to-end by the `morphic compile` CLI; see
+`README.md` for the current milestone table and up-to-date status — read that rather than this
+section, which is not kept in sync with it.
 
-Standard Go tooling applies once code exists: `go build ./...`, `go test ./...`,
-`go test ./ir -run TestName` for a single test, `go vet ./...`. None of these work today.
+Standard Go tooling works today: `go build ./...`, `go test ./...`,
+`go test ./ir -run TestName` for a single test, `go vet ./...`.
 
 ## What Morphic is
 

@@ -4,7 +4,6 @@ import (
 	"context"
 	"testing"
 
-	"github.com/google/go-cmp/cmp"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -55,30 +54,6 @@ func TestRegistry_RejectsCompilerWithNoFormats(t *testing.T) {
 	err := reg.Register(&stubCompiler{formats: nil})
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "reports no formats")
-}
-
-func TestRegistry_Formats_SortedAndComplete(t *testing.T) {
-	t.Parallel()
-	reg := compilers.NewRegistry()
-	require.NoError(t, reg.Register(&stubCompiler{formats: []compilers.SourceFormat{
-		{Name: "swagger", Version: "2.0"},
-		{Name: "openapi", Version: "3.1"},
-		{Name: "openapi", Version: "3.0"},
-	}}))
-
-	got := reg.Formats()
-	want := []compilers.SourceFormat{
-		{Name: "openapi", Version: "3.0"},
-		{Name: "openapi", Version: "3.1"},
-		{Name: "swagger", Version: "2.0"},
-	}
-	assert.Empty(t, cmp.Diff(want, got))
-}
-
-func TestRegistry_Formats_Empty(t *testing.T) {
-	t.Parallel()
-	reg := compilers.NewRegistry()
-	assert.Empty(t, reg.Formats())
 }
 
 func TestSourceFormat_String(t *testing.T) {

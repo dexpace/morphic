@@ -11,17 +11,9 @@ import (
 
 	"github.com/dexpace/morphic/compilers"
 	"github.com/dexpace/morphic/engine"
+	"github.com/dexpace/morphic/internal/testspec"
 	"github.com/dexpace/morphic/ir"
 )
-
-const tinySpec = `openapi: 3.1.0
-info: {title: Tiny, version: "1"}
-paths:
-  /ping:
-    get:
-      operationId: ping
-      responses: {"200": {description: ok}}
-`
 
 func writeSpec(t *testing.T, contents string) string {
 	t.Helper()
@@ -34,7 +26,7 @@ func TestEngine_RunEndToEnd(t *testing.T) {
 	t.Parallel()
 	eng, err := engine.New()
 	require.NoError(t, err)
-	res, err := eng.Run(t.Context(), writeSpec(t, tinySpec), engine.RunOptions{})
+	res, err := eng.Run(t.Context(), writeSpec(t, testspec.Tiny), engine.RunOptions{})
 	require.NoError(t, err)
 	require.NotNil(t, res.Document)
 	assert.Equal(t, "Tiny", res.Document.Name)
@@ -64,11 +56,35 @@ func TestEngine_RunSniffError(t *testing.T) {
 
 func TestEngine_RunLookupMiss(t *testing.T) {
 	t.Parallel()
-	// An empty registry has no compiler for the openapi 3.1 the spec sniffs to.
-	eng := engine.NewWithRegistry(compilers.NewRegistry())
-	_, err := eng.Run(t.Context(), writeSpec(t, tinySpec), engine.RunOptions{})
+	// NewWith() with zero compilers is load-bearing here: it is the only way to
+	// reach an engine with no compiler registered for the openapi 3.1 the spec
+	// sniffs to. Don't add a len(fronts) == 0 precondition to NewWith — doing so
+	// would make this branch unreachable.
+	eng, err := engine.NewWith()
+	require.NoError(t, err)
+	_, err = eng.Run(t.Context(), writeSpec(t, testspec.Tiny), engine.RunOptions{})
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "no compiler registered for format")
+}
+
+// collidingCompiler claims a single fixed format. Two of them registered
+// together make the second Register call fail, driving NewWith's error path.
+type collidingCompiler struct{}
+
+func (collidingCompiler) Formats() []compilers.SourceFormat {
+	return []compilers.SourceFormat{{Name: "openapi", Version: "3.1"}}
+}
+
+func (collidingCompiler) Compile(context.Context, []compilers.Source, compilers.Options) (*ir.Document, []ir.Diagnostic, error) {
+	return nil, nil, nil
+}
+
+func TestNewWith_RegisterError(t *testing.T) {
+	t.Parallel()
+	eng, err := engine.NewWith(collidingCompiler{}, collidingCompiler{})
+	require.Error(t, err)
+	assert.Nil(t, eng)
+	assert.Contains(t, err.Error(), "engine: register compiler")
 }
 
 // errCompiler claims openapi 3.1 and always fails Compile, driving Run's
@@ -85,10 +101,9 @@ func (errCompiler) Compile(context.Context, []compilers.Source, compilers.Option
 
 func TestEngine_RunParseError(t *testing.T) {
 	t.Parallel()
-	reg := compilers.NewRegistry()
-	require.NoError(t, reg.Register(errCompiler{}))
-	eng := engine.NewWithRegistry(reg)
-	_, err := eng.Run(t.Context(), writeSpec(t, tinySpec), engine.RunOptions{})
+	eng, err := engine.NewWith(errCompiler{})
+	require.NoError(t, err)
+	_, err = eng.Run(t.Context(), writeSpec(t, testspec.Tiny), engine.RunOptions{})
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "engine: parse")
 }
@@ -107,11 +122,10 @@ func (nilDocCompiler) Compile(context.Context, []compilers.Source, compilers.Opt
 
 func TestEngine_RunNilDocument(t *testing.T) {
 	t.Parallel()
-	reg := compilers.NewRegistry()
-	require.NoError(t, reg.Register(nilDocCompiler{}))
-	eng := engine.NewWithRegistry(reg)
+	eng, err := engine.NewWith(nilDocCompiler{})
+	require.NoError(t, err)
 	// SkipValidate is false, but a nil Document must still short-circuit the pass.
-	res, err := eng.Run(t.Context(), writeSpec(t, tinySpec), engine.RunOptions{})
+	res, err := eng.Run(t.Context(), writeSpec(t, testspec.Tiny), engine.RunOptions{})
 	require.NoError(t, err)
 	assert.Nil(t, res.Document)
 	assert.True(t, hasDiagCode(res.Diagnostics, "x/none"))
@@ -158,10 +172,9 @@ func TestEngine_ValidateRuns(t *testing.T) {
 	// A stub compiler yields a Document with a dangling type ref. The validate
 	// pass must surface it when enabled and stay silent when skipped — so removing
 	// the pass.Validate call from Run would break this test.
-	reg := compilers.NewRegistry()
-	require.NoError(t, reg.Register(danglingCompiler{}))
-	eng := engine.NewWithRegistry(reg)
-	path := writeSpec(t, tinySpec)
+	eng, err := engine.NewWith(danglingCompiler{})
+	require.NoError(t, err)
+	path := writeSpec(t, testspec.Tiny)
 
 	withPass, err := eng.Run(t.Context(), path, engine.RunOptions{})
 	require.NoError(t, err)

@@ -19,37 +19,62 @@ import (
 // truncation and checkReferentialIntegrity surfaces it as ir/walk-truncated.
 const maxWalkDepth = 4096
 
-// refSite is one discovered ID reference and the registry it must resolve in.
+// refSite is one discovered ID reference and the reference class (refKind) it
+// must resolve in.
 type refSite struct {
-	id       string
-	registry string // "types" | "auth" | "channels" | "messages"
-	path     string
+	id   string
+	kind refKind
+	path string
 }
 
-var (
-	typeIDType    = reflect.TypeOf(ir.TypeID(""))
-	authIDType    = reflect.TypeOf(ir.AuthID(""))
-	channelIDType = reflect.TypeOf(ir.ChannelID(""))
-	messageIDType = reflect.TypeOf(ir.MessageID(""))
-)
-
-// registryFor maps a typed-ID reflect.Type to its registry label, or "" if the
-// string type is not a reference this checker resolves. PropID and ServiceID are
-// intentionally absent: neither lives in a document-level flat registry, so they
-// are out of scope for Phase 1.
-func registryFor(t reflect.Type) string {
-	switch t {
-	case typeIDType:
-		return "types"
-	case authIDType:
-		return "auth"
-	case channelIDType:
-		return "channels"
-	case messageIDType:
-		return "messages"
-	default:
-		return ""
+// resolves reports whether s.id exists in the registry s.kind names. The
+// has == nil guard — rather than calling s.kind.has directly — keeps Verify a
+// report-only oracle that never crashes on a malformed document, even if a
+// refSite is ever built with a kind this package does not recognize.
+func (s refSite) resolves(doc *ir.Document) bool {
+	if s.kind.has == nil {
+		return false
 	}
+	return s.kind.has(doc, s.id)
+}
+
+// refKind is one class of typed-ID reference this checker resolves: its
+// registry label (used in violation paths and messages), the diagnostic-code
+// singular for a dangling reference, and how to test whether an id resolves
+// in that registry. refKindByType, keyed by reflect.Type, is the single
+// source of truth for what a "reference" is to this checker — a reference
+// class can no longer be silently dropped from the oracle by updating one of
+// several parallel lists and missing another.
+//
+// PropID and ServiceID are intentionally absent: neither lives in a
+// document-level flat registry, so they are out of scope for Phase 1.
+type refKind struct {
+	registry string
+	singular string
+	has      func(doc *ir.Document, id string) bool
+}
+
+// refKindByType maps a typed-ID reflect.Type to its refKind. Literals below
+// are keyed, not positional: registry and singular are both plain strings,
+// and a positional row could silently swap them, emitting
+// "ir/dangling-types-ref" instead of "ir/dangling-type-ref".
+var refKindByType = map[reflect.Type]refKind{
+	reflect.TypeOf(ir.TypeID("")): {registry: "types", singular: "type", has: func(doc *ir.Document, id string) bool {
+		_, ok := doc.Types[ir.TypeID(id)]
+		return ok
+	}},
+	reflect.TypeOf(ir.AuthID("")): {registry: "auth", singular: "auth", has: func(doc *ir.Document, id string) bool {
+		_, ok := doc.Auth[ir.AuthID(id)]
+		return ok
+	}},
+	reflect.TypeOf(ir.ChannelID("")): {registry: "channels", singular: "channel", has: func(doc *ir.Document, id string) bool {
+		_, ok := doc.Channels[ir.ChannelID(id)]
+		return ok
+	}},
+	reflect.TypeOf(ir.MessageID("")): {registry: "messages", singular: "message", has: func(doc *ir.Document, id string) bool {
+		_, ok := doc.Messages[ir.MessageID(id)]
+		return ok
+	}},
 }
 
 // collectRefs walks doc and returns every non-empty typed-ID reference plus
@@ -65,8 +90,8 @@ func collectRefs(doc *ir.Document) ([]refSite, bool) {
 		if v.Kind() != reflect.String {
 			return true
 		}
-		if reg := registryFor(v.Type()); reg != "" && v.String() != "" {
-			sites = append(sites, refSite{id: v.String(), registry: reg, path: path})
+		if k, ok := refKindByType[v.Type()]; ok && v.String() != "" {
+			sites = append(sites, refSite{id: v.String(), kind: k, path: path})
 		}
 		return true
 	})
@@ -86,50 +111,16 @@ func checkReferentialIntegrity(doc *ir.Document) []Violation {
 		})
 	}
 	for _, s := range sites {
-		if resolves(doc, s) {
+		if s.resolves(doc) {
 			continue
 		}
 		vs = append(vs, Violation{
-			Code:    "ir/dangling-" + singular(s.registry) + "-ref",
-			Message: "reference " + s.id + " does not resolve in " + s.registry,
+			Code:    "ir/dangling-" + s.kind.singular + "-ref",
+			Message: "reference " + s.id + " does not resolve in " + s.kind.registry,
 			Path:    s.path,
 		})
 	}
 	return vs
-}
-
-// resolves reports whether s.id exists in the registry s names.
-func resolves(doc *ir.Document, s refSite) bool {
-	switch s.registry {
-	case "types":
-		_, ok := doc.Types[ir.TypeID(s.id)]
-		return ok
-	case "auth":
-		_, ok := doc.Auth[ir.AuthID(s.id)]
-		return ok
-	case "channels":
-		_, ok := doc.Channels[ir.ChannelID(s.id)]
-		return ok
-	case "messages":
-		_, ok := doc.Messages[ir.MessageID(s.id)]
-		return ok
-	default:
-		return false
-	}
-}
-
-// singular converts a registry label to its diagnostic-code singular form.
-func singular(registry string) string {
-	switch registry {
-	case "types":
-		return "type"
-	case "channels":
-		return "channel"
-	case "messages":
-		return "message"
-	default:
-		return registry // "auth" is already singular
-	}
 }
 
 // walkValues performs a bounded, cycle-guarded reflection traversal of root,

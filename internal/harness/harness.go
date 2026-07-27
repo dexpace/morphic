@@ -65,7 +65,7 @@ func Check(ctx context.Context, spec string, data []byte) (res Result) {
 	if err != nil {
 		return Result{Spec: spec, Outcome: OutcomeError, Detail: err.Error()}
 	}
-	if d, ok := firstErrorDiag(diags); ok {
+	if d, ok := ir.FirstError(diags); ok {
 		return Result{Spec: spec, Outcome: OutcomeErrorDiag, Detail: d.Code + ": " + d.Message}
 	}
 	if vs := irverify.Verify(doc); len(vs) > 0 {
@@ -96,16 +96,6 @@ var compile = func(ctx context.Context, spec string, data []byte) (*ir.Document,
 // json.Marshal in production, where such a value can never fail to re-marshal;
 // tests replace it to exercise that otherwise-unreachable defensive error path.
 var reserializeJSON = json.Marshal
-
-// firstErrorDiag returns the first error-severity diagnostic, if any.
-func firstErrorDiag(diags []ir.Diagnostic) (ir.Diagnostic, bool) {
-	for _, d := range diags {
-		if d.Severity == ir.SeverityError {
-			return d, true
-		}
-	}
-	return ir.Diagnostic{}, false
-}
 
 // roundTrips marshals doc, unmarshals it into a fresh Document, re-marshals
 // that, and compares the two JSON encodings byte for byte. Comparing serialized

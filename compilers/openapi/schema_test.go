@@ -53,17 +53,12 @@ func TestLower_NamedScalarComponentResolves(t *testing.T) {
 	t.Parallel()
 	// A named component whose body is a plain scalar must register a resolvable
 	// node at its own component pointer, so a $ref to it never dangles.
-	spec := `openapi: 3.1.0
-info: {title: T, version: "1"}
-paths: {}
-components:
-  schemas:
-    MyId: {type: string, format: uuid}
+	spec := componentSpec(`    MyId: {type: string, format: uuid}
     Holder:
       type: object
       properties:
         id: {$ref: "#/components/schemas/MyId"}
-`
+`)
 	doc, diags := lowerSpec(t, spec)
 	requireNoErrorDiags(t, diags)
 
@@ -86,12 +81,7 @@ func TestLower_OneOfWithStructuralSiblingsPreserved(t *testing.T) {
 	t.Parallel()
 	// The "exactly one of" idiom co-declares object structure with oneOf. The
 	// structural body must survive AND the union must be preserved verbatim.
-	spec := `openapi: 3.1.0
-info: {title: T, version: "1"}
-paths: {}
-components:
-  schemas:
-    Thing:
+	spec := componentSpec(`    Thing:
       type: object
       additionalProperties: false
       required: [common]
@@ -100,7 +90,7 @@ components:
       oneOf:
         - {required: [a]}
         - {required: [b]}
-`
+`)
 	doc, diags := lowerSpec(t, spec)
 	requireNoErrorDiags(t, diags)
 
@@ -126,12 +116,7 @@ components:
 func TestLower_AllOfWithOneOfKeepsBoth(t *testing.T) {
 	t.Parallel()
 	// allOf co-declared with oneOf must not drop the allOf composition.
-	spec := `openapi: 3.1.0
-info: {title: T, version: "1"}
-paths: {}
-components:
-  schemas:
-    Base:
+	spec := componentSpec(`    Base:
       type: object
       properties:
         id: {type: string}
@@ -141,7 +126,7 @@ components:
       oneOf:
         - {type: string}
         - {type: integer}
-`
+`)
 	doc, diags := lowerSpec(t, spec)
 	requireNoErrorDiags(t, diags)
 	m, ok := doc.Types[ir.TypeID("t/openapi/components/schemas/Combo")].(*ir.Model)
@@ -154,16 +139,11 @@ components:
 
 func TestLower_RecursiveSchemaTerminates(t *testing.T) {
 	t.Parallel()
-	spec := `openapi: 3.1.0
-info: {title: T, version: "1"}
-paths: {}
-components:
-  schemas:
-    Node:
+	spec := componentSpec(`    Node:
       type: object
       properties:
         next: {$ref: "#/components/schemas/Node"}
-`
+`)
 	doc, diags := lowerSpec(t, spec)
 	requireNoErrorDiags(t, diags)
 	node, ok := doc.Types[ir.TypeID("t/openapi/components/schemas/Node")].(*ir.Model)
@@ -173,12 +153,7 @@ components:
 
 func TestLower_InlineSchemaHoistedOnce(t *testing.T) {
 	t.Parallel()
-	spec := `openapi: 3.1.0
-info: {title: T, version: "1"}
-paths: {}
-components:
-  schemas:
-    S:
+	spec := componentSpec(`    S:
       type: object
       properties:
         tags:
@@ -187,7 +162,7 @@ components:
             type: object
             properties:
               name: {type: string}
-`
+`)
 	doc, diags := lowerSpec(t, spec)
 	requireNoErrorDiags(t, diags)
 	itemsID := ir.TypeID("t/anon/components/schemas/S/properties/tags/items")
@@ -221,10 +196,7 @@ func TestSchemaRef_BooleanAndUntypedShapes(t *testing.T) {
 	doc, diags := lowerSpec(t, spec)
 	requireNoErrorDiags(t, diags)
 	m := typeByName(doc, "S").(*ir.Model)
-	byWire := map[string]ir.Property{}
-	for _, p := range m.Properties {
-		byWire[p.WireName] = p
-	}
+	byWire := propsByWire(m.Properties)
 	assert.Equal(t, ir.TypeID("t/prim/any"), byWire["anything"].Type.Target)
 	// `false` schema lowered to a closed empty model.
 	nothing := doc.Types[byWire["nothing"].Type.Target]
@@ -234,13 +206,7 @@ func TestSchemaRef_BooleanAndUntypedShapes(t *testing.T) {
 	assert.Equal(t, ir.TypeID("t/prim/any"), byWire["untyped"].Type.Target)
 	assert.Equal(t, ir.KindModel, doc.Types[byWire["withprops"].Type.Target].Kind())
 
-	var sawFalse bool
-	for _, d := range diags {
-		if d.Code == codeFalseSchema {
-			sawFalse = true
-		}
-	}
-	assert.True(t, sawFalse, "false schema info diagnostic")
+	assert.True(t, hasDiagAt(diags, codeFalseSchema, ir.SeverityInfo), "false schema info diagnostic")
 }
 
 func TestLower_MultiTypeUnion(t *testing.T) {
@@ -373,13 +339,7 @@ func TestLower_ValidationOnlyKeywords(t *testing.T) {
 		_, ok := m.Extensions[key]
 		assert.True(t, ok, "keyword %s preserved", key)
 	}
-	var count int
-	for _, d := range diags {
-		if d.Code == codeValidationOnlyKeyword {
-			count++
-		}
-	}
-	assert.GreaterOrEqual(t, count, 4)
+	assert.GreaterOrEqual(t, countDiagsAt(diags, codeValidationOnlyKeyword, ir.SeverityInfo), 4)
 }
 
 func TestLower_PropertyDetailRichSchema(t *testing.T) {
@@ -398,10 +358,7 @@ func TestLower_PropertyDetailRichSchema(t *testing.T) {
 	doc, diags := lowerSpec(t, spec)
 	m := typeByName(doc, "D").(*ir.Model)
 	assert.NotEmpty(t, m.Docs.ExternalDocs)
-	byWire := map[string]ir.Property{}
-	for _, p := range m.Properties {
-		byWire[p.WireName] = p
-	}
+	byWire := propsByWire(m.Properties)
 	require.NotNil(t, byWire["withXml"].XML)
 	assert.Equal(t, "attribute", byWire["withXml"].XML.NodeType)
 	assert.Equal(t, "urn:x", byWire["withXml"].XML.Namespace)
@@ -442,13 +399,7 @@ func TestLower_UnresolvedRefDiagnostics(t *testing.T) {
 `)
 	doc, diags := lowerSpec(t, spec)
 	require.NotNil(t, doc)
-	var sawUnresolved bool
-	for _, d := range diags {
-		if d.Code == codeUnresolvedRef {
-			sawUnresolved = true
-		}
-	}
-	assert.True(t, sawUnresolved, "unresolved ref diagnostic emitted")
+	assert.True(t, hasDiag(diags, codeUnresolvedRef), "unresolved ref diagnostic emitted")
 }
 
 func TestLower_UnionWithStructuralSiblingVariants(t *testing.T) {
@@ -483,12 +434,7 @@ func TestLower_UnionWithStructuralSiblingVariants(t *testing.T) {
 
 func TestModel_FourOptionalityStates(t *testing.T) {
 	t.Parallel()
-	spec := `openapi: 3.1.0
-info: {title: T, version: "1"}
-paths: {}
-components:
-  schemas:
-    S:
+	spec := componentSpec(`    S:
       type: object
       required: [reqPlain, reqNull]
       properties:
@@ -496,16 +442,13 @@ components:
         reqNull: {type: [string, "null"]}
         optPlain: {type: string}
         optNull: {type: [string, "null"]}
-`
+`)
 	doc, diags := lowerSpec(t, spec)
 	requireNoErrorDiags(t, diags)
 	m, ok := doc.Types[ir.TypeID("t/openapi/components/schemas/S")].(*ir.Model)
 	require.True(t, ok)
 	require.Len(t, m.Properties, 4)
-	byName := map[string]ir.Property{}
-	for _, p := range m.Properties {
-		byName[p.WireName] = p
-	}
+	byName := propsByWire(m.Properties)
 	assert.True(t, byName["reqPlain"].Required)
 	assert.False(t, byName["reqPlain"].Type.Nullable)
 	assert.True(t, byName["reqNull"].Required)
@@ -518,16 +461,11 @@ components:
 
 func TestModel_ValidationOnlyKeywordPreserved(t *testing.T) {
 	t.Parallel()
-	spec := `openapi: 3.1.0
-info: {title: T, version: "1"}
-paths: {}
-components:
-  schemas:
-    S:
+	spec := componentSpec(`    S:
       type: object
       properties: {a: {type: string}}
       not: {required: [b]}
-`
+`)
 	doc, diags := lowerSpec(t, spec)
 	m := doc.Types[ir.TypeID("t/openapi/components/schemas/S")].(*ir.Model)
 	raw, ok := m.Extensions["openapi:not"]
@@ -545,16 +483,11 @@ components:
 
 func TestModel_DefaultBigLiteral(t *testing.T) {
 	t.Parallel()
-	spec := `openapi: 3.1.0
-info: {title: T, version: "1"}
-paths: {}
-components:
-  schemas:
-    S:
+	spec := componentSpec(`    S:
       type: object
       properties:
         n: {type: integer, default: 9007199254740993}
-`
+`)
 	doc, diags := lowerSpec(t, spec)
 	requireNoErrorDiags(t, diags)
 	m := doc.Types[ir.TypeID("t/openapi/components/schemas/S")].(*ir.Model)
@@ -565,40 +498,27 @@ components:
 
 func TestModel_ReadOnlyWriteOnlyVisibility(t *testing.T) {
 	t.Parallel()
-	spec := `openapi: 3.1.0
-info: {title: T, version: "1"}
-paths: {}
-components:
-  schemas:
-    S:
+	spec := componentSpec(`    S:
       type: object
       properties:
         r: {type: string, readOnly: true}
         w: {type: string, writeOnly: true}
-`
+`)
 	doc, diags := lowerSpec(t, spec)
 	requireNoErrorDiags(t, diags)
 	m := doc.Types[ir.TypeID("t/openapi/components/schemas/S")].(*ir.Model)
-	byName := map[string]ir.Property{}
-	for _, p := range m.Properties {
-		byName[p.WireName] = p
-	}
+	byName := propsByWire(m.Properties)
 	assert.Equal(t, ir.Visibility{Only: []ir.Lifecycle{ir.LifecycleRead, ir.LifecycleDelete, ir.LifecycleQuery}}, byName["r"].Visibility)
 	assert.Equal(t, ir.Visibility{Only: []ir.Lifecycle{ir.LifecycleCreate, ir.LifecycleUpdate}}, byName["w"].Visibility)
 }
 
 func TestModel_PasswordFormatSecret(t *testing.T) {
 	t.Parallel()
-	spec := `openapi: 3.1.0
-info: {title: T, version: "1"}
-paths: {}
-components:
-  schemas:
-    S:
+	spec := componentSpec(`    S:
       type: object
       properties:
         pw: {type: string, format: password}
-`
+`)
 	doc, diags := lowerSpec(t, spec)
 	requireNoErrorDiags(t, diags)
 	m := doc.Types[ir.TypeID("t/openapi/components/schemas/S")].(*ir.Model)
@@ -607,16 +527,11 @@ components:
 
 func TestModel_AdditionalPropertiesFalseClosed(t *testing.T) {
 	t.Parallel()
-	spec := `openapi: 3.1.0
-info: {title: T, version: "1"}
-paths: {}
-components:
-  schemas:
-    S:
+	spec := componentSpec(`    S:
       type: object
       properties: {a: {type: string}}
       additionalProperties: false
-`
+`)
 	doc, diags := lowerSpec(t, spec)
 	requireNoErrorDiags(t, diags)
 	m := doc.Types[ir.TypeID("t/openapi/components/schemas/S")].(*ir.Model)
@@ -625,15 +540,10 @@ components:
 
 func TestModel_AdditionalPropertiesSchema(t *testing.T) {
 	t.Parallel()
-	spec := `openapi: 3.1.0
-info: {title: T, version: "1"}
-paths: {}
-components:
-  schemas:
-    S:
+	spec := componentSpec(`    S:
       type: object
       additionalProperties: {type: integer}
-`
+`)
 	doc, diags := lowerSpec(t, spec)
 	requireNoErrorDiags(t, diags)
 	m := doc.Types[ir.TypeID("t/openapi/components/schemas/S")].(*ir.Model)
@@ -643,17 +553,12 @@ components:
 
 func TestModel_PatternPropertiesOrder(t *testing.T) {
 	t.Parallel()
-	spec := `openapi: 3.1.0
-info: {title: T, version: "1"}
-paths: {}
-components:
-  schemas:
-    S:
+	spec := componentSpec(`    S:
       type: object
       patternProperties:
         "^x-": {type: string}
         "^y-": {type: integer}
-`
+`)
 	doc, diags := lowerSpec(t, spec)
 	requireNoErrorDiags(t, diags)
 	m := doc.Types[ir.TypeID("t/openapi/components/schemas/S")].(*ir.Model)
@@ -665,16 +570,11 @@ components:
 
 func TestModel_UnevaluatedPropertiesClosedAfterComposition(t *testing.T) {
 	t.Parallel()
-	spec := `openapi: 3.1.0
-info: {title: T, version: "1"}
-paths: {}
-components:
-  schemas:
-    S:
+	spec := componentSpec(`    S:
       type: object
       properties: {a: {type: string}}
       unevaluatedProperties: false
-`
+`)
 	doc, diags := lowerSpec(t, spec)
 	requireNoErrorDiags(t, diags)
 	m := doc.Types[ir.TypeID("t/openapi/components/schemas/S")].(*ir.Model)
@@ -683,16 +583,11 @@ components:
 
 func TestModel_SchemaExtensionPreserved(t *testing.T) {
 	t.Parallel()
-	spec := `openapi: 3.1.0
-info: {title: T, version: "1"}
-paths: {}
-components:
-  schemas:
-    S:
+	spec := componentSpec(`    S:
       type: object
       x-rate-limit: 100
       properties: {a: {type: string}}
-`
+`)
 	doc, diags := lowerSpec(t, spec)
 	requireNoErrorDiags(t, diags)
 	m := doc.Types[ir.TypeID("t/openapi/components/schemas/S")].(*ir.Model)
@@ -703,17 +598,12 @@ components:
 
 func TestModel_TitleDescriptionDocs(t *testing.T) {
 	t.Parallel()
-	spec := `openapi: 3.1.0
-info: {title: T, version: "1"}
-paths: {}
-components:
-  schemas:
-    S:
+	spec := componentSpec(`    S:
       type: object
       title: "My Title"
       description: "My Desc"
       properties: {a: {type: string}}
-`
+`)
 	doc, diags := lowerSpec(t, spec)
 	requireNoErrorDiags(t, diags)
 	m := doc.Types[ir.TypeID("t/openapi/components/schemas/S")].(*ir.Model)
@@ -723,16 +613,11 @@ components:
 
 func TestModel_PropertyDeprecation(t *testing.T) {
 	t.Parallel()
-	spec := `openapi: 3.1.0
-info: {title: T, version: "1"}
-paths: {}
-components:
-  schemas:
-    S:
+	spec := componentSpec(`    S:
       type: object
       properties:
         old: {type: string, deprecated: true}
-`
+`)
 	doc, diags := lowerSpec(t, spec)
 	requireNoErrorDiags(t, diags)
 	m := doc.Types[ir.TypeID("t/openapi/components/schemas/S")].(*ir.Model)
@@ -741,16 +626,11 @@ components:
 
 func TestModel_PropertyXML(t *testing.T) {
 	t.Parallel()
-	spec := `openapi: 3.1.0
-info: {title: T, version: "1"}
-paths: {}
-components:
-  schemas:
-    S:
+	spec := componentSpec(`    S:
       type: object
       properties:
         p: {type: string, xml: {name: n, attribute: true}}
-`
+`)
 	doc, diags := lowerSpec(t, spec)
 	requireNoErrorDiags(t, diags)
 	m := doc.Types[ir.TypeID("t/openapi/components/schemas/S")].(*ir.Model)
@@ -761,19 +641,14 @@ components:
 
 func TestModel_RefSiblingDescriptionWins(t *testing.T) {
 	t.Parallel()
-	spec := `openapi: 3.1.0
-info: {title: T, version: "1"}
-paths: {}
-components:
-  schemas:
-    Target: {type: string, description: "target desc"}
+	spec := componentSpec(`    Target: {type: string, description: "target desc"}
     S:
       type: object
       properties:
         p:
           $ref: '#/components/schemas/Target'
           description: "sibling desc"
-`
+`)
 	doc, diags := lowerSpec(t, spec)
 	requireNoErrorDiags(t, diags)
 	m := doc.Types[ir.TypeID("t/openapi/components/schemas/S")].(*ir.Model)
@@ -953,13 +828,7 @@ func TestSchema_UnserializableExtension(t *testing.T) {
 `)
 	doc, diags := lowerSpec(t, spec)
 	require.NotNil(t, doc)
-	var sawWarn bool
-	for _, d := range diags {
-		if d.Code == codeDegradedConstruct && d.Severity == ir.SeverityWarning {
-			sawWarn = true
-		}
-	}
-	assert.True(t, sawWarn, "unserializable extension warns")
+	assert.True(t, hasDiagAt(diags, codeDegradedConstruct, ir.SeverityWarning), "unserializable extension warns")
 	m := typeByName(doc, "S").(*ir.Model)
 	_, hasBad := m.Extensions["openapi:x-bad"]
 	assert.False(t, hasBad, "unserializable extension is dropped, not stored")
@@ -974,13 +843,7 @@ func TestSchema_EmptyFragmentRef(t *testing.T) {
 `)
 	doc, diags := lowerSpec(t, spec)
 	require.NotNil(t, doc)
-	var sawUnresolved bool
-	for _, d := range diags {
-		if d.Code == codeUnresolvedRef {
-			sawUnresolved = true
-		}
-	}
-	assert.True(t, sawUnresolved, "the '#' ref form is unresolved")
+	assert.True(t, hasDiag(diags, codeUnresolvedRef), "the '#' ref form is unresolved")
 }
 
 func TestSchema_EmptyStringRefMirrorBranches(t *testing.T) {
@@ -999,13 +862,7 @@ func TestSchema_EmptyStringRefMirrorBranches(t *testing.T) {
 `)
 	doc, diags := lowerSpec(t, spec)
 	require.NotNil(t, doc)
-	var count int
-	for _, d := range diags {
-		if d.Code == codeUnresolvedRef {
-			count++
-		}
-	}
-	assert.GreaterOrEqual(t, count, 2, "both empty refs are unresolved")
+	assert.GreaterOrEqual(t, countDiagsAt(diags, codeUnresolvedRef, ir.SeverityError), 2, "both empty refs are unresolved")
 	u, ok := typeByName(doc, "U").(*ir.Union)
 	require.True(t, ok)
 	assert.Contains(t, []string{u.Variants[0].Name.Hint, u.Variants[1].Name.Hint}, "variant_0")

@@ -10,53 +10,47 @@ import (
 	"github.com/dexpace/morphic/ir"
 )
 
-// TestService_ZeroValueShape pins Service's omitempty contract: Name, Docs,
+// TestService_JSONContract pins Service's omitempty contract: Name, Docs,
 // Auth, and Provenance carry no omitempty. Auth is the load-bearing one — an
 // empty non-nil slice ("explicitly public") must differ from nil ("no
 // service-level default"), so the field cannot be dropped from the wire just
-// because it happens to be empty.
-func TestService_ZeroValueShape(t *testing.T) {
+// because it happens to be empty. It also pins that a fully populated
+// Service — inheritance, groups, auth, common errors, protocols, renames, and
+// server indices — round-trips.
+func TestService_JSONContract(t *testing.T) {
 	t.Parallel()
-	assertZeroValueShape(t, ir.Service{},
-		`{"name":{},"docs":{},"auth":null,"provenance":{"source":0}}`)
-}
-
-// TestService_PopulatedRoundTrip pins that a fully populated Service —
-// inheritance, groups, auth, common errors, protocols, renames, and server
-// indices — round-trips.
-func TestService_PopulatedRoundTrip(t *testing.T) {
-	t.Parallel()
-	want := ir.Service{
-		ID:        "s/openapi/petstore",
-		Name:      populatedNaming(),
-		Docs:      populatedDocs(),
-		Version:   "1.2.0",
-		Namespace: []string{"com", "example", "petstore"},
-		Extends:   []ir.ServiceID{"s/base1", "s/base2"},
-		Groups: []ir.OperationGroup{
-			{Name: ir.Naming{Source: "pets"}},
-			{Name: ir.Naming{Source: "owners"}},
-		},
-		Auth: []ir.AuthRequirement{
-			{Schemes: []ir.SchemeUse{{Scheme: "auth/apiKey"}}},
-		},
-		CommonErrors: []ir.ErrorCase{
-			{Type: populatedTypeRef(), Fault: "client"},
-			{Type: populatedTypeRef(), Fault: "server"},
-		},
-		Protocols: []ir.ProtocolDecl{
-			{Name: "aws.restJson1", Options: populatedExtensions()},
-			{Name: "grpc"},
-		},
-		Renames: map[ir.TypeID]ir.Naming{
-			"t/z": {Source: "ZRenamed"},
-			"t/a": {Source: "ARenamed"},
-		},
-		Servers:    []int{0, 1},
-		Extensions: populatedExtensions(),
-		Provenance: populatedProvenance(),
-	}
-	assertRoundTrip(t, want)
+	assertJSONContract(t, ir.Service{},
+		`{"name":{},"docs":{},"auth":null,"provenance":{"source":0}}`,
+		ir.Service{
+			ID:        "s/openapi/petstore",
+			Name:      populatedNaming(),
+			Docs:      populatedDocs(),
+			Version:   "1.2.0",
+			Namespace: []string{"com", "example", "petstore"},
+			Extends:   []ir.ServiceID{"s/base1", "s/base2"},
+			Groups: []ir.OperationGroup{
+				{Name: ir.Naming{Source: "pets"}},
+				{Name: ir.Naming{Source: "owners"}},
+			},
+			Auth: []ir.AuthRequirement{
+				{Schemes: []ir.SchemeUse{{Scheme: "auth/apiKey"}}},
+			},
+			CommonErrors: []ir.ErrorCase{
+				{Type: populatedTypeRef(), Fault: "client"},
+				{Type: populatedTypeRef(), Fault: "server"},
+			},
+			Protocols: []ir.ProtocolDecl{
+				{Name: "aws.restJson1", Options: populatedExtensions()},
+				{Name: "grpc"},
+			},
+			Renames: map[ir.TypeID]ir.Naming{
+				"t/z": {Source: "ZRenamed"},
+				"t/a": {Source: "ARenamed"},
+			},
+			Servers:    []int{0, 1},
+			Extensions: populatedExtensions(),
+			Provenance: populatedProvenance(),
+		})
 }
 
 // TestService_AuthEmptyNonNilRoundTrips mirrors the Operation and Server
@@ -95,34 +89,22 @@ func TestService_RenamesDeterministic(t *testing.T) {
 			`"t/q-type":{"source":"Q"},"t/z-type":{"source":"Z"}}`)
 }
 
-// TestProtocolDecl_ZeroValueShape pins ProtocolDecl's omitempty contract: both
-// fields are optional.
-func TestProtocolDecl_ZeroValueShape(t *testing.T) {
+// TestProtocolDecl_JSONContract pins ProtocolDecl's omitempty contract (both
+// fields are optional) and that a populated ProtocolDecl round-trips.
+func TestProtocolDecl_JSONContract(t *testing.T) {
 	t.Parallel()
-	assertZeroValueShape(t, ir.ProtocolDecl{}, `{}`)
+	assertJSONContract(t, ir.ProtocolDecl{}, `{}`,
+		ir.ProtocolDecl{Name: "aws.restJson1", Options: populatedExtensions()})
 }
 
-// TestProtocolDecl_PopulatedRoundTrip pins that a populated ProtocolDecl
-// round-trips.
-func TestProtocolDecl_PopulatedRoundTrip(t *testing.T) {
+// TestOperationGroup_JSONContract pins OperationGroup's omitempty contract
+// (Name and Docs carry no omitempty, every other field is optional including
+// the recursive Groups slice) and that a fully populated OperationGroup —
+// nested sub-groups, operations, resource info, and availability —
+// round-trips, including recursion through Groups.
+func TestOperationGroup_JSONContract(t *testing.T) {
 	t.Parallel()
-	assertRoundTrip(t, ir.ProtocolDecl{Name: "aws.restJson1", Options: populatedExtensions()})
-}
-
-// TestOperationGroup_ZeroValueShape pins OperationGroup's omitempty contract:
-// Name and Docs carry no omitempty, every other field is optional including
-// the recursive Groups slice.
-func TestOperationGroup_ZeroValueShape(t *testing.T) {
-	t.Parallel()
-	assertZeroValueShape(t, ir.OperationGroup{}, `{"name":{},"docs":{}}`)
-}
-
-// TestOperationGroup_PopulatedRoundTrip pins that a fully populated
-// OperationGroup — nested sub-groups, operations, resource info, and
-// availability — round-trips, including recursion through Groups.
-func TestOperationGroup_PopulatedRoundTrip(t *testing.T) {
-	t.Parallel()
-	want := ir.OperationGroup{
+	assertJSONContract(t, ir.OperationGroup{}, `{"name":{},"docs":{}}`, ir.OperationGroup{
 		Name: populatedNaming(),
 		Docs: populatedDocs(),
 		Groups: []ir.OperationGroup{
@@ -138,32 +120,24 @@ func TestOperationGroup_PopulatedRoundTrip(t *testing.T) {
 		},
 		Availability: populatedAvailability(),
 		Extensions:   populatedExtensions(),
-	}
-	assertRoundTrip(t, want)
+	})
 }
 
-// TestResourceInfo_ZeroValueShape pins ResourceInfo's contract that NoReplace
-// carries no omitempty: "put may replace" is a declared fact about the
-// resource, not an absence.
-func TestResourceInfo_ZeroValueShape(t *testing.T) {
+// TestResourceInfo_JSONContract pins ResourceInfo's contract that NoReplace
+// carries no omitempty ("put may replace" is a declared fact about the
+// resource, not an absence) and that a fully populated ResourceInfo —
+// identifiers, properties, lifecycle map, and both operation-id slices —
+// round-trips.
+func TestResourceInfo_JSONContract(t *testing.T) {
 	t.Parallel()
-	assertZeroValueShape(t, ir.ResourceInfo{}, `{"noReplace":false}`)
-}
-
-// TestResourceInfo_PopulatedRoundTrip pins that a fully populated
-// ResourceInfo — identifiers, properties, lifecycle map, and both operation-id
-// slices — round-trips.
-func TestResourceInfo_PopulatedRoundTrip(t *testing.T) {
-	t.Parallel()
-	want := ir.ResourceInfo{
+	assertJSONContract(t, ir.ResourceInfo{}, `{"noReplace":false}`, ir.ResourceInfo{
 		Identifiers:   []ir.Property{{ID: "p/id"}},
 		Properties:    []ir.Property{{ID: "p/name"}, {ID: "p/age"}},
 		Lifecycle:     map[string]ir.OpID{"create": "op/create", "read": "op/read", "delete": "op/delete"},
 		NoReplace:     true,
 		InstanceOps:   []ir.OpID{"op/get", "op/update"},
 		CollectionOps: []ir.OpID{"op/list", "op/create"},
-	}
-	assertRoundTrip(t, want)
+	})
 }
 
 // TestResourceInfo_LifecycleDeterministic pins Class C for ResourceInfo's map

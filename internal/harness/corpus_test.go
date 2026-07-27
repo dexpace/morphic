@@ -2,9 +2,7 @@ package harness_test
 
 import (
 	"context"
-	"os"
 	"path/filepath"
-	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -87,55 +85,26 @@ func knownInvalid() map[string]bool {
 	}
 }
 
-// collectSpecs returns every committed spec under root, excluding golden
-// snapshots (they are IR JSON, not input specs).
-func collectSpecs(t *testing.T, root string) []string {
-	t.Helper()
-	var specs []string
-	err := filepath.WalkDir(root, func(p string, d os.DirEntry, err error) error {
-		if err != nil {
-			return err
-		}
-		if d.IsDir() {
-			return nil
-		}
-		ext := strings.ToLower(filepath.Ext(p))
-		if ext != ".yaml" && ext != ".yml" && ext != ".json" {
-			return nil
-		}
-		if strings.HasSuffix(p, ".golden.json") {
-			return nil
-		}
-		specs = append(specs, p)
-		return nil
-	})
-	require.NoError(t, err)
-	return specs
-}
-
 // TestHarness_InRepoCorpus sweeps every committed spec through all oracles. Any
 // non-OK outcome on a spec that is not a known-invalid fixture is a finding; the
 // failure message is the full report so the offending specs are named at once.
 func TestHarness_InRepoCorpus(t *testing.T) {
 	t.Parallel()
 	const root = "../../testdata"
-	specs := collectSpecs(t, root)
-	require.NotEmpty(t, specs, "corpus sweep found no specs under %s", root)
+	swept, err := harness.CheckPath(context.Background(), root)
+	require.NoError(t, err)
+	require.NotEmpty(t, swept, "corpus sweep found no specs under %s", root)
 
 	invalid := knownInvalid()
 	seenInvalid := make(map[string]bool, len(invalid))
 
 	var results []harness.Result
 	var failures []harness.Result
-	for _, p := range specs {
-		data, err := os.ReadFile(p)
-		require.NoError(t, err)
-
-		r := harness.Check(context.Background(), p, data)
-		if invalid[p] {
-			seenInvalid[p] = true
+	for _, r := range swept {
+		if invalid[r.Spec] {
+			seenInvalid[r.Spec] = true
 			assert.NotEqual(t, harness.OutcomeOK, r.Outcome,
-				"fixture %s is listed as known-invalid but compiled clean; update knownInvalid", p)
+				"fixture %s is listed as known-invalid but compiled clean; update knownInvalid", r.Spec)
 			continue
 		}
 		results = append(results, r)

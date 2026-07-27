@@ -86,12 +86,7 @@ func TestConstraints_MalformedNumericLiterals(t *testing.T) {
 
 func TestConstraints_NumericPrecisionSurvives(t *testing.T) {
 	t.Parallel()
-	spec := `openapi: 3.1.0
-info: {title: T, version: "1"}
-paths: {}
-components:
-  schemas:
-    S:
+	spec := componentSpec(`    S:
       type: object
       properties:
         ratio:
@@ -99,7 +94,7 @@ components:
           minimum: 0.30000000000000004
           maximum: 9007199254740993
           multipleOf: 0.1
-`
+`)
 	doc, diags := lowerSpec(t, spec)
 	requireNoErrorDiags(t, diags)
 	m := doc.Types[ir.TypeID("t/openapi/components/schemas/S")].(*ir.Model)
@@ -141,17 +136,6 @@ func TestConstraints_LosslessNumericLiterals(t *testing.T) {
 	}
 }
 
-// countErrors returns the error-severity diagnostics carrying code.
-func countErrors(diags []ir.Diagnostic, code string) int {
-	var n int
-	for _, d := range diags {
-		if d.Code == code && d.Severity == ir.SeverityError {
-			n++
-		}
-	}
-	return n
-}
-
 // TestConstraints_HoistedSubSchemaBadBoundSingleError pins that a malformed bound
 // on a component-property sub-schema reached by a $ref is reported exactly once,
 // even though the sub-schema's constraints are read from two positions (the owning
@@ -162,7 +146,7 @@ func TestConstraints_HoistedSubSchemaBadBoundSingleError(t *testing.T) {
 	spec := componentSpec("    Foo:\n      type: object\n      properties:\n        bar: {type: number, minimum: hello}\n" +
 		"    User:\n      type: object\n      properties:\n        b: {$ref: '#/components/schemas/Foo/properties/bar'}\n")
 	_, diags := lowerSpec(t, spec)
-	assert.Equal(t, 1, countErrors(diags, codeNumericPrecision),
+	assert.Equal(t, 1, countDiagsAt(diags, codeNumericPrecision, ir.SeverityError),
 		"one error for the shared bad bound, got: %+v", diags)
 }
 
@@ -186,7 +170,7 @@ func TestConstraints_ExclusiveWrongDialectForm(t *testing.T) {
 				"    S:\n      type: object\n      properties:\n        n: {type: number, exclusiveMinimum: "+tc.value+"}\n")
 			doc, diags := lowerSpec(t, spec)
 			require.NotNil(t, doc)
-			assert.Equal(t, 1, countErrors(diags, codeExclusiveBoundForm),
+			assert.Equal(t, 1, countDiagsAt(diags, codeExclusiveBoundForm, ir.SeverityError),
 				"one dialect-form error, got: %+v", diags)
 			// The degenerate bound is dropped, not recorded.
 			m, ok := typeByName(doc, "S").(*ir.Model)

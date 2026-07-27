@@ -71,15 +71,6 @@ func hasErrorRef(diags []ir.Diagnostic) bool {
 	return false
 }
 
-func hasAnyError(diags []ir.Diagnostic) bool {
-	for _, d := range diags {
-		if d.Severity == ir.SeverityError {
-			return true
-		}
-	}
-	return false
-}
-
 // outcome classifies how a reproducer must be made referentially sound.
 type outcome int
 
@@ -129,7 +120,7 @@ func TestDanglingRefs_Reproducers(t *testing.T) {
 				assert.True(t, hasErrorRef(diags),
 					"a dropped entry must leave an error-severity unresolved-ref diagnostic")
 			case interns:
-				assert.False(t, hasAnyError(diags),
+				assert.False(t, hasErrorDiag(diags),
 					"an interned reference must not raise an error diagnostic")
 			case internsNoisy:
 				// f12 resolves the same-file ref internally; the loader still reports
@@ -144,7 +135,7 @@ func TestDanglingRefs_Reproducers(t *testing.T) {
 func TestDanglingRefs_f07(t *testing.T) {
 	t.Parallel()
 	doc, diags := compileFile(t, danglingDir, "f07-discriminator.yaml", "f07.yaml")
-	assert.False(t, hasAnyError(diags))
+	assert.False(t, hasErrorDiag(diags))
 	pet, ok := doc.Types[namedID("Pet")].(*ir.Union)
 	require.True(t, ok)
 	require.NotNil(t, pet.Discriminator)

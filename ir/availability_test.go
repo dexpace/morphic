@@ -6,51 +6,33 @@ import (
 	"github.com/dexpace/morphic/ir"
 )
 
-// TestAvailability_ZeroValueShape pins Availability's omitempty contract:
+// TestAvailability_JSONContract pins Availability's omitempty contract —
 // formats without versioning leave the whole field nil on the owning entity,
 // and *Availability itself has every member optional, so its zero value must
-// marshal to an empty object rather than six empty-slice/empty-string fields.
-func TestAvailability_ZeroValueShape(t *testing.T) {
+// marshal to an empty object rather than six empty-slice/empty-string fields —
+// and that a fully populated Availability — add/remove/re-add cycles, a
+// deprecation version, renames, type changes, and required-flips — survives a
+// JSON round trip (ir-design §11).
+func TestAvailability_JSONContract(t *testing.T) {
 	t.Parallel()
-	assertZeroValueShape(t, ir.Availability{}, `{}`)
+	assertJSONContract(t, ir.Availability{}, `{}`, *populatedAvailability())
 }
 
-// TestAvailability_PopulatedRoundTrip pins that a fully populated Availability
-// — add/remove/re-add cycles, a deprecation version, renames, type changes,
-// and required-flips — survives a JSON round trip (ir-design §11).
-func TestAvailability_PopulatedRoundTrip(t *testing.T) {
+// TestVersionedName_JSONContract pins VersionedName's omitempty contract —
+// both fields are optional — and that a populated VersionedName round-trips.
+func TestVersionedName_JSONContract(t *testing.T) {
 	t.Parallel()
-	assertRoundTrip(t, *populatedAvailability())
+	assertJSONContract(t, ir.VersionedName{}, `{}`, ir.VersionedName{Version: "v1", Name: "oldName"})
 }
 
-// TestVersionedName_ZeroValueShape pins VersionedName's omitempty contract:
-// both fields are optional.
-func TestVersionedName_ZeroValueShape(t *testing.T) {
-	t.Parallel()
-	assertZeroValueShape(t, ir.VersionedName{}, `{}`)
-}
-
-// TestVersionedName_PopulatedRoundTrip pins that a populated VersionedName
-// round-trips.
-func TestVersionedName_PopulatedRoundTrip(t *testing.T) {
-	t.Parallel()
-	assertRoundTrip(t, ir.VersionedName{Version: "v1", Name: "oldName"})
-}
-
-// TestVersionedType_ZeroValueShape pins VersionedType's contract that Type
+// TestVersionedType_JSONContract pins VersionedType's contract that Type
 // carries no omitempty — a prior type is always a concrete TypeRef, never
 // implicitly absent, even though the surrounding TypeChangedFrom slice can be
-// nil.
-func TestVersionedType_ZeroValueShape(t *testing.T) {
+// nil — and that a populated VersionedType round-trips.
+func TestVersionedType_JSONContract(t *testing.T) {
 	t.Parallel()
-	assertZeroValueShape(t, ir.VersionedType{}, `{"type":{"target":"","nullable":false}}`)
-}
-
-// TestVersionedType_PopulatedRoundTrip pins that a populated VersionedType
-// round-trips.
-func TestVersionedType_PopulatedRoundTrip(t *testing.T) {
-	t.Parallel()
-	assertRoundTrip(t, ir.VersionedType{Version: "v1", Type: populatedTypeRef()})
+	assertJSONContract(t, ir.VersionedType{}, `{"type":{"target":"","nullable":false}}`,
+		ir.VersionedType{Version: "v1", Type: populatedTypeRef()})
 }
 
 // TestVersionedBool_ZeroValueShape pins VersionedBool's contract that

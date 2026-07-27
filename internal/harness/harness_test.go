@@ -8,16 +8,12 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	"github.com/dexpace/morphic/internal/harness"
+	"github.com/dexpace/morphic/internal/testspec"
 )
-
-const minimalSpec = `openapi: 3.0.0
-info: {title: t, version: "1"}
-paths: {}
-`
 
 func TestCheck_ValidSpecIsOK(t *testing.T) {
 	t.Parallel()
-	r := harness.Check(context.Background(), "minimal", []byte(minimalSpec))
+	r := harness.Check(context.Background(), "minimal", []byte(testspec.Minimal))
 	assert.Equal(t, harness.OutcomeOK, r.Outcome, r.Detail)
 }
 
@@ -31,7 +27,7 @@ func TestCheck_GarbageBytesDoNotPanic(t *testing.T) {
 func TestCheck_NilContextIsErrorNotPanic(t *testing.T) {
 	t.Parallel()
 	//nolint:staticcheck // deliberately passing a nil ctx to exercise the boundary guard.
-	r := harness.Check(nil, "minimal", []byte(minimalSpec))
+	r := harness.Check(nil, "minimal", []byte(testspec.Minimal))
 	// A caller mistake is a harness error, never a spec-attributed compiler panic.
 	assert.Equal(t, harness.OutcomeError, r.Outcome, r.Detail)
 	assert.Contains(t, r.Detail, "nil context")
@@ -39,7 +35,7 @@ func TestCheck_NilContextIsErrorNotPanic(t *testing.T) {
 
 func TestCheck_EmptySpecIsErrorNotPanic(t *testing.T) {
 	t.Parallel()
-	r := harness.Check(context.Background(), "", []byte(minimalSpec))
+	r := harness.Check(context.Background(), "", []byte(testspec.Minimal))
 	assert.Equal(t, harness.OutcomeError, r.Outcome, r.Detail)
 	assert.Contains(t, r.Detail, "empty spec")
 }

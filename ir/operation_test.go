@@ -95,130 +95,87 @@ func TestOperation_PopulatedRoundTrip(t *testing.T) {
 // value.
 func TestStreamingMode_Constants(t *testing.T) {
 	t.Parallel()
-	tests := map[ir.StreamingMode]string{
+	assertConstantSpellings(t, map[ir.StreamingMode]string{
 		ir.StreamingNone:   "none",
 		ir.StreamingClient: "client",
 		ir.StreamingServer: "server",
 		ir.StreamingBidi:   "bidi",
-	}
-	for mode, want := range tests {
-		t.Run(want, func(t *testing.T) {
-			t.Parallel()
-			assert.Equal(t, ir.StreamingMode(want), mode)
-		})
-	}
+	}, "unspecified")
 }
 
 // TestIdempotencyKind_Constants pins the on-disk spelling of every
 // IdempotencyKind value, including the empty-string "unknown" state.
 func TestIdempotencyKind_Constants(t *testing.T) {
 	t.Parallel()
-	tests := []struct {
-		name string
-		kind ir.IdempotencyKind
-		want string
-	}{
-		{name: "unknown", kind: ir.IdempotencyUnknown, want: ""},
-		{name: "safe", kind: ir.IdempotencySafe, want: "safe"},
-		{name: "idempotent", kind: ir.IdempotencyIdempotent, want: "idempotent"},
-		{name: "token", kind: ir.IdempotencyToken, want: "idempotency_token"},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-			assert.Equal(t, ir.IdempotencyKind(tt.want), tt.kind)
-		})
-	}
+	assertConstantSpellings(t, map[ir.IdempotencyKind]string{
+		ir.IdempotencyUnknown:    "",
+		ir.IdempotencySafe:       "safe",
+		ir.IdempotencyIdempotent: "idempotent",
+		ir.IdempotencyToken:      "idempotency_token",
+	}, "unknown")
 }
 
 // TestPageStrategy_Constants pins the on-disk spelling of every PageStrategy
 // value.
 func TestPageStrategy_Constants(t *testing.T) {
 	t.Parallel()
-	tests := map[ir.PageStrategy]string{
+	assertConstantSpellings(t, map[ir.PageStrategy]string{
 		ir.PageStrategyCursor:     "cursor",
 		ir.PageStrategyOffset:     "offset",
 		ir.PageStrategyPage:       "page",
 		ir.PageStrategyLinkHeader: "link_header",
 		ir.PageStrategyNextLink:   "next_link",
 		ir.PageStrategyToken:      "token",
-	}
-	for strategy, want := range tests {
-		t.Run(want, func(t *testing.T) {
-			t.Parallel()
-			assert.Equal(t, ir.PageStrategy(want), strategy)
-		})
-	}
+	}, "unspecified")
 }
 
-// TestParameter_ZeroValueShape pins Parameter's omitempty contract: Name,
+// TestParameter_JSONContract pins Parameter's omitempty contract — Name,
 // Type, Required, and Docs carry no omitempty since every parameter has a
 // naming, a type, a required flag, and a docs object; everything else is
-// optional.
-func TestParameter_ZeroValueShape(t *testing.T) {
+// optional — and that a fully populated Parameter round-trips.
+func TestParameter_JSONContract(t *testing.T) {
 	t.Parallel()
-	assertZeroValueShape(t, ir.Parameter{},
-		`{"name":{},"type":{"target":"","nullable":false},"required":false,"docs":{}}`)
+	assertJSONContract(t, ir.Parameter{},
+		`{"name":{},"type":{"target":"","nullable":false},"required":false,"docs":{}}`,
+		ir.Parameter{
+			Name:         populatedNaming(),
+			Type:         populatedTypeRef(),
+			Required:     true,
+			Default:      &ir.Value{Kind: ir.ValueNumber, Num: ir.BigVal("10")},
+			Constraints:  populatedConstraints(),
+			ValueFrom:    &ir.PropPath{In: "header", Segments: []ir.PropID{"p/x"}},
+			Docs:         populatedDocs(),
+			Deprecation:  populatedDeprecation(),
+			Availability: populatedAvailability(),
+			Examples: []ir.Example{
+				{Name: "ex1", Value: &ir.Value{Kind: ir.ValueNumber, Num: ir.BigVal("1")}},
+				{Name: "ex2", Value: &ir.Value{Kind: ir.ValueNumber, Num: ir.BigVal("2")}},
+			},
+			Extensions: populatedExtensions(),
+		})
 }
 
-// TestParameter_PopulatedRoundTrip pins that a fully populated Parameter
-// round-trips.
-func TestParameter_PopulatedRoundTrip(t *testing.T) {
+// TestPayload_JSONContract pins Payload's omitempty contract (both fields are
+// optional) and that a Payload with multiple media-type contents round-trips,
+// all kept per the "no primary-response selection" invariant.
+func TestPayload_JSONContract(t *testing.T) {
 	t.Parallel()
-	want := ir.Parameter{
-		Name:         populatedNaming(),
-		Type:         populatedTypeRef(),
-		Required:     true,
-		Default:      &ir.Value{Kind: ir.ValueNumber, Num: ir.BigVal("10")},
-		Constraints:  populatedConstraints(),
-		ValueFrom:    &ir.PropPath{In: "header", Segments: []ir.PropID{"p/x"}},
-		Docs:         populatedDocs(),
-		Deprecation:  populatedDeprecation(),
-		Availability: populatedAvailability(),
-		Examples: []ir.Example{
-			{Name: "ex1", Value: &ir.Value{Kind: ir.ValueNumber, Num: ir.BigVal("1")}},
-			{Name: "ex2", Value: &ir.Value{Kind: ir.ValueNumber, Num: ir.BigVal("2")}},
-		},
-		Extensions: populatedExtensions(),
-	}
-	assertRoundTrip(t, want)
-}
-
-// TestPayload_ZeroValueShape pins Payload's omitempty contract: both fields
-// are optional.
-func TestPayload_ZeroValueShape(t *testing.T) {
-	t.Parallel()
-	assertZeroValueShape(t, ir.Payload{}, `{}`)
-}
-
-// TestPayload_PopulatedRoundTrip pins that a Payload with multiple media-type
-// contents round-trips, all kept per the "no primary-response selection"
-// invariant.
-func TestPayload_PopulatedRoundTrip(t *testing.T) {
-	t.Parallel()
-	want := ir.Payload{
+	assertJSONContract(t, ir.Payload{}, `{}`, ir.Payload{
 		Contents: []ir.Content{
 			{MediaType: "application/json", Type: populatedTypeRef()},
 			{MediaType: "application/xml", Type: populatedTypeRef()},
 		},
 		Extensions: populatedExtensions(),
-	}
-	assertRoundTrip(t, want)
+	})
 }
 
-// TestContent_ZeroValueShape pins Content's omitempty contract: Type carries
-// no omitempty, every other field is optional.
-func TestContent_ZeroValueShape(t *testing.T) {
+// TestContent_JSONContract pins Content's omitempty contract — Type carries
+// no omitempty, every other field is optional — and that a fully populated
+// Content — item schema for sequential streaming, per-part encodings, and
+// file info — round-trips.
+func TestContent_JSONContract(t *testing.T) {
 	t.Parallel()
-	assertZeroValueShape(t, ir.Content{}, `{"type":{"target":"","nullable":false}}`)
-}
-
-// TestContent_PopulatedRoundTrip pins that a fully populated Content — item
-// schema for sequential streaming, per-part encodings, and file info —
-// round-trips.
-func TestContent_PopulatedRoundTrip(t *testing.T) {
-	t.Parallel()
-	want := ir.Content{
+	assertJSONContract(t, ir.Content{}, `{"type":{"target":"","nullable":false}}`, ir.Content{
 		MediaType:    "multipart/form-data",
 		SchemaFormat: "application/vnd.apache.avro+json",
 		Type:         populatedTypeRef(),
@@ -235,8 +192,7 @@ func TestContent_PopulatedRoundTrip(t *testing.T) {
 			{Name: "ex1", Value: &ir.Value{Kind: ir.ValueString, Str: "v1"}},
 		},
 		Extensions: populatedExtensions(),
-	}
-	assertRoundTrip(t, want)
+	})
 }
 
 // TestContent_EncodingDeterministic pins Class C for Content's map fields:
@@ -259,64 +215,67 @@ func TestContent_EncodingDeterministic(t *testing.T) {
 	assert.True(t, aIdx < bIdx && bIdx < mIdx && mIdx < qIdx && qIdx < zIdx, "map keys must appear in sorted order: %s", got)
 }
 
-// TestPartEncoding_ZeroValueShape pins PartEncoding's omitempty contract:
-// Multi and Filename are plain bools that must always serialize as declared
-// facts ("does not repeat", "carries no filename").
-func TestPartEncoding_ZeroValueShape(t *testing.T) {
+// TestContent_ItemEncodingDeterministic pins Class C for Content's other map
+// field: the doc comment above claims ItemEncoding is covered alongside
+// Encoding, but that fixture never sets it, so ItemEncoding's own sort path
+// was untested until this test.
+func TestContent_ItemEncodingDeterministic(t *testing.T) {
 	t.Parallel()
-	assertZeroValueShape(t, ir.PartEncoding{}, `{"multi":false,"filename":false}`)
+	content := ir.Content{
+		Type: populatedTypeRef(),
+		ItemEncoding: map[string]ir.PartEncoding{
+			"z-part": {Style: "z"}, "m-part": {Style: "m"}, "a-part": {Style: "a"},
+			"q-part": {Style: "q"}, "b-part": {Style: "b"},
+		},
+	}
+	got := assertDeterministicMarshal(t, content)
+	assert.Contains(t, got,
+		`"itemEncoding":{"a-part":{"multi":false,"filename":false,"style":"a"},`+
+			`"b-part":{"multi":false,"filename":false,"style":"b"},`+
+			`"m-part":{"multi":false,"filename":false,"style":"m"},`+
+			`"q-part":{"multi":false,"filename":false,"style":"q"},`+
+			`"z-part":{"multi":false,"filename":false,"style":"z"}}`)
 }
 
-// TestPartEncoding_PopulatedRoundTrip pins that a fully populated PartEncoding
-// round-trips.
-func TestPartEncoding_PopulatedRoundTrip(t *testing.T) {
+// TestPartEncoding_JSONContract pins PartEncoding's omitempty contract — Multi
+// and Filename are plain bools that must always serialize as declared facts
+// ("does not repeat", "carries no filename") — and that a fully populated
+// PartEncoding round-trips.
+func TestPartEncoding_JSONContract(t *testing.T) {
 	t.Parallel()
 	explode := false
-	want := ir.PartEncoding{
+	assertJSONContract(t, ir.PartEncoding{}, `{"multi":false,"filename":false}`, ir.PartEncoding{
 		ContentTypes: []string{"image/png", "image/jpeg"},
 		Headers:      []ir.Property{populatedProperty()},
 		Multi:        true,
 		Filename:     true,
 		Style:        "form",
 		Explode:      &explode,
-	}
-	assertRoundTrip(t, want)
+	})
 }
 
-// TestFileInfo_ZeroValueShape pins FileInfo's omitempty contract: IsText is a
-// plain bool that always serializes as a declared fact ("binary by default").
-func TestFileInfo_ZeroValueShape(t *testing.T) {
+// TestFileInfo_JSONContract pins FileInfo's omitempty contract (IsText is a
+// plain bool that always serializes as a declared fact, "binary by default")
+// and that a fully populated FileInfo round-trips.
+func TestFileInfo_JSONContract(t *testing.T) {
 	t.Parallel()
-	assertZeroValueShape(t, ir.FileInfo{}, `{"isText":false}`)
-}
-
-// TestFileInfo_PopulatedRoundTrip pins that a fully populated FileInfo
-// round-trips.
-func TestFileInfo_PopulatedRoundTrip(t *testing.T) {
-	t.Parallel()
-	want := ir.FileInfo{
+	assertJSONContract(t, ir.FileInfo{}, `{"isText":false}`, ir.FileInfo{
 		IsText:             true,
 		Contents:           &ir.TypeRef{Target: "t/prim/string"},
 		ContentTypes:       []string{"image/png", "image/jpeg"},
 		ContentTypeDefault: "image/png",
 		FilenameLocation:   "header",
 		FilenameWireName:   "X-Filename",
-	}
-	assertRoundTrip(t, want)
+	})
 }
 
-// TestResponse_ZeroValueShape pins Response's omitempty contract: Name,
-// Conditions, and Docs carry no omitempty; every other field is optional.
-func TestResponse_ZeroValueShape(t *testing.T) {
+// TestResponse_JSONContract pins Response's omitempty contract (Name,
+// Conditions, and Docs carry no omitempty; every other field is optional)
+// and that a fully populated Response — status-code source, headers, and
+// status-code member path — round-trips.
+func TestResponse_JSONContract(t *testing.T) {
 	t.Parallel()
-	assertZeroValueShape(t, ir.Response{}, `{"name":{},"conditions":{},"docs":{}}`)
-}
-
-// TestResponse_PopulatedRoundTrip pins that a fully populated Response —
-// status-code source, headers, and status-code member path — round-trips.
-func TestResponse_PopulatedRoundTrip(t *testing.T) {
-	t.Parallel()
-	want := ir.Response{
+	assertJSONContract(t, ir.Response{}, `{"name":{},"conditions":{},"docs":{}}`, ir.Response{
 		Name:           ir.Naming{Source: "ok"},
 		Conditions:     ir.ResponseConditions{StatusCodes: []ir.StatusRange{{From: 200, To: 200}, {From: 202, To: 202}}},
 		Payload:        &ir.Payload{Contents: []ir.Content{{MediaType: "application/json", Type: populatedTypeRef()}}},
@@ -324,23 +283,16 @@ func TestResponse_PopulatedRoundTrip(t *testing.T) {
 		StatusCodeProp: &ir.PropPath{Segments: []ir.PropID{"p/status"}},
 		Docs:           populatedDocs(),
 		Extensions:     populatedExtensions(),
-	}
-	assertRoundTrip(t, want)
+	})
 }
 
-// TestResponseConditions_ZeroValueShape pins ResponseConditions' omitempty
-// contract: StatusCodes is optional ("empty = unconditional").
-func TestResponseConditions_ZeroValueShape(t *testing.T) {
+// TestResponseConditions_JSONContract pins ResponseConditions' omitempty
+// contract (StatusCodes is optional, "empty = unconditional") and that a
+// populated ResponseConditions round-trips with its ranges in source order.
+func TestResponseConditions_JSONContract(t *testing.T) {
 	t.Parallel()
-	assertZeroValueShape(t, ir.ResponseConditions{}, `{}`)
-}
-
-// TestResponseConditions_PopulatedRoundTrip pins that a populated
-// ResponseConditions round-trips with its ranges in source order.
-func TestResponseConditions_PopulatedRoundTrip(t *testing.T) {
-	t.Parallel()
-	want := ir.ResponseConditions{StatusCodes: []ir.StatusRange{{From: 400, To: 499}, {From: 500, To: 599}}}
-	assertRoundTrip(t, want)
+	assertJSONContract(t, ir.ResponseConditions{}, `{}`,
+		ir.ResponseConditions{StatusCodes: []ir.StatusRange{{From: 400, To: 499}, {From: 500, To: 599}}})
 }
 
 // TestStatusRange_ZeroValueShape pins StatusRange's contract that both bounds
@@ -372,50 +324,38 @@ func TestStatusRange_PopulatedRoundTrip(t *testing.T) {
 	}
 }
 
-// TestErrorCase_ZeroValueShape pins ErrorCase's omitempty contract: Type,
-// Conditions, and Docs carry no omitempty; every other field is optional.
-func TestErrorCase_ZeroValueShape(t *testing.T) {
-	t.Parallel()
-	assertZeroValueShape(t, ir.ErrorCase{},
-		`{"type":{"target":"","nullable":false},"conditions":{},"docs":{}}`)
-}
-
-// TestErrorCase_PopulatedRoundTrip pins that a fully populated ErrorCase —
-// fault classification, retryable/throttling tri-state pointers — round-trips.
-func TestErrorCase_PopulatedRoundTrip(t *testing.T) {
+// TestErrorCase_JSONContract pins ErrorCase's omitempty contract (Type,
+// Conditions, and Docs carry no omitempty; every other field is optional)
+// and that a fully populated ErrorCase — fault classification,
+// retryable/throttling tri-state pointers — round-trips.
+func TestErrorCase_JSONContract(t *testing.T) {
 	t.Parallel()
 	retryable := true
 	throttling := false
-	want := ir.ErrorCase{
-		Type:       populatedTypeRef(),
-		Conditions: ir.ResponseConditions{StatusCodes: []ir.StatusRange{{From: 429, To: 429}}},
-		Fault:      "client",
-		Retryable:  &retryable,
-		Throttling: &throttling,
-		Docs:       populatedDocs(),
-		Extensions: populatedExtensions(),
-	}
-	assertRoundTrip(t, want)
+	assertJSONContract(t, ir.ErrorCase{},
+		`{"type":{"target":"","nullable":false},"conditions":{},"docs":{}}`,
+		ir.ErrorCase{
+			Type:       populatedTypeRef(),
+			Conditions: ir.ResponseConditions{StatusCodes: []ir.StatusRange{{From: 429, To: 429}}},
+			Fault:      "client",
+			Retryable:  &retryable,
+			Throttling: &throttling,
+			Docs:       populatedDocs(),
+			Extensions: populatedExtensions(),
+		})
 }
 
-// TestStreamDetail_ZeroValueShape pins StreamDetail's contract that
-// RequiresLength carries no omitempty: "no minimum length requirement" is a
-// declared fact, not an absence.
-func TestStreamDetail_ZeroValueShape(t *testing.T) {
-	t.Parallel()
-	assertZeroValueShape(t, ir.StreamDetail{}, `{"requiresLength":false}`)
-}
-
-// TestStreamDetail_PopulatedRoundTrip pins that a fully populated StreamDetail
+// TestStreamDetail_JSONContract pins StreamDetail's contract that
+// RequiresLength carries no omitempty ("no minimum length requirement" is a
+// declared fact, not an absence) and that a fully populated StreamDetail
 // round-trips.
-func TestStreamDetail_PopulatedRoundTrip(t *testing.T) {
+func TestStreamDetail_JSONContract(t *testing.T) {
 	t.Parallel()
-	want := ir.StreamDetail{
+	assertJSONContract(t, ir.StreamDetail{}, `{"requiresLength":false}`, ir.StreamDetail{
 		Events:         &ir.TypeRef{Target: "t/events", Nullable: true},
 		Initial:        &ir.TypeRef{Target: "t/initial"},
 		RequiresLength: true,
-	}
-	assertRoundTrip(t, want)
+	})
 }
 
 // TestIdempotency_ZeroValueShape pins Idempotency's omitempty contract: both
@@ -442,20 +382,14 @@ func TestIdempotency_PopulatedRoundTrip(t *testing.T) {
 	}
 }
 
-// TestPagination_ZeroValueShape pins Pagination's contract that Inferred
-// carries no omitempty: whether a pagination scheme was declared or
+// TestPagination_JSONContract pins Pagination's contract that Inferred
+// carries no omitempty — whether a pagination scheme was declared or
 // heuristically detected is always a fact worth recording (ir-design §7.3),
-// never an absence.
-func TestPagination_ZeroValueShape(t *testing.T) {
+// never an absence — and that a fully populated Pagination — every
+// navigation-link path — round-trips.
+func TestPagination_JSONContract(t *testing.T) {
 	t.Parallel()
-	assertZeroValueShape(t, ir.Pagination{}, `{"inferred":false}`)
-}
-
-// TestPagination_PopulatedRoundTrip pins that a fully populated Pagination —
-// every navigation-link path — round-trips.
-func TestPagination_PopulatedRoundTrip(t *testing.T) {
-	t.Parallel()
-	want := ir.Pagination{
+	assertJSONContract(t, ir.Pagination{}, `{"inferred":false}`, ir.Pagination{
 		Strategy:    ir.PageStrategyCursor,
 		Inferred:    true,
 		InputCursor: &ir.ParamPath{Param: "cursor", Segments: []ir.PropID{"p/cursor"}},
@@ -467,66 +401,45 @@ func TestPagination_PopulatedRoundTrip(t *testing.T) {
 		FirstLink:   &ir.PropPath{Segments: []ir.PropID{"p/firstLink"}},
 		LastLink:    &ir.PropPath{Segments: []ir.PropID{"p/lastLink"}},
 		TotalCount:  &ir.PropPath{Segments: []ir.PropID{"p/totalCount"}},
-	}
-	assertRoundTrip(t, want)
+	})
 }
 
-// TestPropPath_ZeroValueShape pins PropPath's omitempty contract: every field
-// is optional (nil Root = context-determined, per the source comment).
-func TestPropPath_ZeroValueShape(t *testing.T) {
+// TestPropPath_JSONContract pins PropPath's omitempty contract (every field
+// is optional; nil Root = context-determined, per the source comment) and
+// that a fully populated PropPath — rooted at an explicit type, addressed
+// into a header — round-trips with its segments in walk order.
+func TestPropPath_JSONContract(t *testing.T) {
 	t.Parallel()
-	assertZeroValueShape(t, ir.PropPath{}, `{}`)
-}
-
-// TestPropPath_PopulatedRoundTrip pins that a fully populated PropPath —
-// rooted at an explicit type, addressed into a header — round-trips with its
-// segments in walk order.
-func TestPropPath_PopulatedRoundTrip(t *testing.T) {
-	t.Parallel()
-	want := ir.PropPath{
+	assertJSONContract(t, ir.PropPath{}, `{}`, ir.PropPath{
 		Root:     &ir.TypeRef{Target: "t/response"},
 		In:       "header",
 		Segments: []ir.PropID{"p/outer", "p/inner"},
-	}
-	assertRoundTrip(t, want)
+	})
 }
 
-// TestParamPath_ZeroValueShape pins ParamPath's omitempty contract: both
-// fields are optional.
-func TestParamPath_ZeroValueShape(t *testing.T) {
+// TestParamPath_JSONContract pins ParamPath's omitempty contract (both fields
+// are optional) and that a populated ParamPath round-trips with its segments
+// in walk order.
+func TestParamPath_JSONContract(t *testing.T) {
 	t.Parallel()
-	assertZeroValueShape(t, ir.ParamPath{}, `{}`)
+	assertJSONContract(t, ir.ParamPath{}, `{}`,
+		ir.ParamPath{Param: "filter", Segments: []ir.PropID{"p/outer", "p/inner"}})
 }
 
-// TestParamPath_PopulatedRoundTrip pins that a populated ParamPath
-// round-trips with its segments in walk order.
-func TestParamPath_PopulatedRoundTrip(t *testing.T) {
-	t.Parallel()
-	want := ir.ParamPath{Param: "filter", Segments: []ir.PropID{"p/outer", "p/inner"}}
-	assertRoundTrip(t, want)
-}
-
-// TestLongRunning_ZeroValueShape pins LongRunning's omitempty contract: every
-// field is optional.
-func TestLongRunning_ZeroValueShape(t *testing.T) {
-	t.Parallel()
-	assertZeroValueShape(t, ir.LongRunning{}, `{}`)
-}
-
-// TestLongRunning_PopulatedRoundTrip pins that a fully populated LongRunning —
-// polling and final operation references, polling/final types, and result
-// path — round-trips.
-func TestLongRunning_PopulatedRoundTrip(t *testing.T) {
+// TestLongRunning_JSONContract pins LongRunning's omitempty contract (every
+// field is optional) and that a fully populated LongRunning — polling and
+// final operation references, polling/final types, and result path —
+// round-trips.
+func TestLongRunning_JSONContract(t *testing.T) {
 	t.Parallel()
 	pollOp := ir.OpID("op/poll")
 	finalOp := ir.OpID("op/final")
-	want := ir.LongRunning{
+	assertJSONContract(t, ir.LongRunning{}, `{}`, ir.LongRunning{
 		FinalStateVia:    "operation-location",
 		PollingOperation: &pollOp,
 		FinalOperation:   &finalOp,
 		PollingType:      &ir.TypeRef{Target: "t/status-monitor"},
 		FinalType:        &ir.TypeRef{Target: "t/final-result"},
 		ResultPath:       &ir.PropPath{Segments: []ir.PropID{"p/result"}},
-	}
-	assertRoundTrip(t, want)
+	})
 }

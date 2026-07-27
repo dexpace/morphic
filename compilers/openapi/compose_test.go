@@ -13,12 +13,7 @@ import (
 
 func TestAllOf_SoleRefBecomesBase(t *testing.T) {
 	t.Parallel()
-	spec := `openapi: 3.1.0
-info: {title: T, version: "1"}
-paths: {}
-components:
-  schemas:
-    Animal:
+	spec := componentSpec(`    Animal:
       type: object
       properties:
         name: {type: string}
@@ -28,7 +23,7 @@ components:
         - type: object
           properties:
             bark: {type: string}
-`
+`)
 	doc, diags := lowerSpec(t, spec)
 	requireNoErrorDiags(t, diags)
 	dog, ok := doc.Types[ir.TypeID("t/openapi/components/schemas/Dog")].(*ir.Model)
@@ -48,12 +43,7 @@ func TestAllOf_OverlappingInlineBranchesReconcile(t *testing.T) {
 	// webhook `forkee` uses (a documented object plus a doc-stripped duplicate
 	// that marks some fields required). allOf is an intersection, so each wire
 	// name must reconcile to a single property, not append a duplicate.
-	spec := `openapi: 3.1.0
-info: {title: T, version: "1"}
-paths: {}
-components:
-  schemas:
-    Forkish:
+	spec := componentSpec(`    Forkish:
       allOf:
         - type: object
           properties:
@@ -64,7 +54,7 @@ components:
           properties:
             id: {type: integer}
             url: {type: string}
-`
+`)
 	doc, diags := lowerSpec(t, spec)
 	requireNoErrorDiags(t, diags)
 	m, ok := doc.Types[ir.TypeID("t/openapi/components/schemas/Forkish")].(*ir.Model)
@@ -95,12 +85,7 @@ func TestAllOf_ReconcileAccumulatesRicherDetailWhateverTheOrder(t *testing.T) {
 	// The bare declaration comes first and the richer one second: reconciliation
 	// must still surface every optional detail, so branch order never loses
 	// information (the reverse of the forkee documented-first shape).
-	spec := `openapi: 3.1.0
-info: {title: T, version: "1"}
-paths: {}
-components:
-  schemas:
-    Tokenish:
+	spec := componentSpec(`    Tokenish:
       allOf:
         - type: object
           properties:
@@ -117,7 +102,7 @@ components:
               deprecated: true
               examples: [abc]
               xml: {name: tok}
-`
+`)
 	doc, diags := lowerSpec(t, spec)
 	requireNoErrorDiags(t, diags)
 	m, ok := doc.Types[ir.TypeID("t/openapi/components/schemas/Tokenish")].(*ir.Model)
@@ -141,12 +126,7 @@ func TestAllOf_ConflictingRedeclaredDescriptionDiagnosed(t *testing.T) {
 	// Two branches describe the same field differently. The first declaration in
 	// source order wins the shape, but the dropped description is surfaced as an
 	// info diagnostic rather than vanishing silently.
-	spec := `openapi: 3.1.0
-info: {title: T, version: "1"}
-paths: {}
-components:
-  schemas:
-    Clashish:
+	spec := componentSpec(`    Clashish:
       allOf:
         - type: object
           properties:
@@ -154,7 +134,7 @@ components:
         - type: object
           properties:
             id: {type: integer, description: a different meaning}
-`
+`)
 	doc, diags := lowerSpec(t, spec)
 	requireNoErrorDiags(t, diags) // a description clash is info-level, never an error
 	m, ok := doc.Types[ir.TypeID("t/openapi/components/schemas/Clashish")].(*ir.Model)
@@ -162,14 +142,8 @@ components:
 	require.Len(t, m.Properties, 1, "id still reconciles to one property")
 	assert.Equal(t, "the first meaning", m.Properties[0].Docs.Description,
 		"the first declaration in source order wins the description")
-
-	var sawConflict bool
-	for _, d := range diags {
-		if d.Code == codeDegradedConstruct && d.Severity == ir.SeverityInfo {
-			sawConflict = true
-		}
-	}
-	assert.True(t, sawConflict, "a differing redeclared description is surfaced, not dropped silently")
+	assert.True(t, hasDiagAt(diags, codeDegradedConstruct, ir.SeverityInfo),
+		"a differing redeclared description is surfaced, not dropped silently")
 }
 
 func TestAllOf_ConflictingRedeclaredTypeDiagnosed(t *testing.T) {
@@ -179,12 +153,7 @@ func TestAllOf_ConflictingRedeclaredTypeDiagnosed(t *testing.T) {
 	// first declaration's shape (as before) but must no longer swallow the
 	// conflict — it names the field and both branch sites so the author can find
 	// and fix them.
-	spec := `openapi: 3.1.0
-info: {title: T, version: "1"}
-paths: {}
-components:
-  schemas:
-    Conflictish:
+	spec := componentSpec(`    Conflictish:
       allOf:
         - type: object
           properties:
@@ -192,7 +161,7 @@ components:
         - type: object
           properties:
             id: {type: integer}
-`
+`)
 	doc, diags := lowerSpec(t, spec)
 	requireNoErrorDiags(t, diags) // a redeclaration conflict is a warning, not a refusal
 	m, ok := doc.Types[ir.TypeID("t/openapi/components/schemas/Conflictish")].(*ir.Model)
@@ -215,12 +184,7 @@ func TestAllOf_ConflictingRedeclaredConstraintDiagnosed(t *testing.T) {
 	// Same target type, but the two branches pin the same keyword to different
 	// values (maxLength 10 vs 20). The chosen winner is arbitrary source order, so
 	// the dropped bound is surfaced rather than silently discarded.
-	spec := `openapi: 3.1.0
-info: {title: T, version: "1"}
-paths: {}
-components:
-  schemas:
-    Boundish:
+	spec := componentSpec(`    Boundish:
       allOf:
         - type: object
           properties:
@@ -228,7 +192,7 @@ components:
         - type: object
           properties:
             code: {type: string, maxLength: 20}
-`
+`)
 	doc, diags := lowerSpec(t, spec)
 	requireNoErrorDiags(t, diags)
 	m, ok := doc.Types[ir.TypeID("t/openapi/components/schemas/Boundish")].(*ir.Model)
@@ -253,12 +217,7 @@ func TestAllOf_CompatibleRedeclarationStaysSilent(t *testing.T) {
 	// The reconcilable case: identical target type, the second branch only adds
 	// `required`. This must stay silent — a redeclaration is not by itself a
 	// conflict, only an incompatible one is.
-	spec := `openapi: 3.1.0
-info: {title: T, version: "1"}
-paths: {}
-components:
-  schemas:
-    Compatish:
+	spec := componentSpec(`    Compatish:
       allOf:
         - type: object
           properties:
@@ -267,7 +226,7 @@ components:
           required: [id]
           properties:
             id: {type: integer}
-`
+`)
 	doc, diags := lowerSpec(t, spec)
 	requireNoErrorDiags(t, diags)
 	m, ok := doc.Types[ir.TypeID("t/openapi/components/schemas/Compatish")].(*ir.Model)
@@ -284,12 +243,7 @@ func TestAllOf_PropertyAlongsideAllOfReconciles(t *testing.T) {
 	// A property declared directly on the allOf schema redeclares a field an inline
 	// branch already contributed; the sibling and the branch declaration reconcile
 	// into one property instead of colliding on the wire.
-	spec := `openapi: 3.1.0
-info: {title: T, version: "1"}
-paths: {}
-components:
-  schemas:
-    Mixish:
+	spec := componentSpec(`    Mixish:
       required: [id]
       properties:
         id: {type: integer}
@@ -298,7 +252,7 @@ components:
           properties:
             id: {type: integer, description: the identifier}
             name: {type: string}
-`
+`)
 	doc, diags := lowerSpec(t, spec)
 	requireNoErrorDiags(t, diags)
 	m, ok := doc.Types[ir.TypeID("t/openapi/components/schemas/Mixish")].(*ir.Model)
@@ -318,12 +272,7 @@ components:
 
 func TestAllOf_ExtraRefsBecomeMixins(t *testing.T) {
 	t.Parallel()
-	spec := `openapi: 3.1.0
-info: {title: T, version: "1"}
-paths: {}
-components:
-  schemas:
-    A:
+	spec := componentSpec(`    A:
       type: object
       properties:
         a: {type: string}
@@ -338,7 +287,7 @@ components:
         - type: object
           properties:
             c: {type: string}
-`
+`)
 	doc, diags := lowerSpec(t, spec)
 	requireNoErrorDiags(t, diags)
 	c, ok := doc.Types[ir.TypeID("t/openapi/components/schemas/C")].(*ir.Model)
@@ -353,12 +302,7 @@ components:
 
 func TestAllOf_DiscriminatorSubtypeValue(t *testing.T) {
 	t.Parallel()
-	spec := `openapi: 3.1.0
-info: {title: T, version: "1"}
-paths: {}
-components:
-  schemas:
-    Pet:
+	spec := componentSpec(`    Pet:
       type: object
       discriminator:
         propertyName: petType
@@ -378,7 +322,7 @@ components:
         - type: object
           properties:
             bark: {type: string}
-`
+`)
 	doc, diags := lowerSpec(t, spec)
 	requireNoErrorDiags(t, diags)
 
@@ -402,12 +346,7 @@ components:
 
 func TestOneOf_WithDiscriminator(t *testing.T) {
 	t.Parallel()
-	spec := `openapi: 3.1.0
-info: {title: T, version: "1"}
-paths: {}
-components:
-  schemas:
-    Cat:
+	spec := componentSpec(`    Cat:
       type: object
       properties:
         petType: {type: string}
@@ -423,7 +362,7 @@ components:
         propertyName: petType
         mapping:
           cat: "#/components/schemas/Cat"
-`
+`)
 	doc, diags := lowerSpec(t, spec)
 	requireNoErrorDiags(t, diags)
 	pet, ok := doc.Types[ir.TypeID("t/openapi/components/schemas/Pet")].(*ir.Union)
@@ -439,16 +378,11 @@ components:
 
 func TestAnyOf_IsNonExclusiveUnion(t *testing.T) {
 	t.Parallel()
-	spec := `openapi: 3.1.0
-info: {title: T, version: "1"}
-paths: {}
-components:
-  schemas:
-    U:
+	spec := componentSpec(`    U:
       anyOf:
         - {type: string}
         - {type: integer}
-`
+`)
 	doc, diags := lowerSpec(t, spec)
 	requireNoErrorDiags(t, diags)
 	u, ok := doc.Types[ir.TypeID("t/openapi/components/schemas/U")].(*ir.Union)
@@ -459,19 +393,14 @@ components:
 
 func TestOneOf_NullVariantCollapses(t *testing.T) {
 	t.Parallel()
-	spec := `openapi: 3.1.0
-info: {title: T, version: "1"}
-paths: {}
-components:
-  schemas:
-    S:
+	spec := componentSpec(`    S:
       type: object
       properties:
         p:
           oneOf:
             - {type: string}
             - {type: "null"}
-`
+`)
 	doc, diags := lowerSpec(t, spec)
 	requireNoErrorDiags(t, diags)
 	s, ok := doc.Types[ir.TypeID("t/openapi/components/schemas/S")].(*ir.Model)
@@ -489,12 +418,7 @@ func TestOneOf_ThreeVariantsWithNullStripsNullLiftsNullable(t *testing.T) {
 	// A oneOf with two non-null branches plus a null branch stays a Union of the
 	// two non-null variants (the null branch is NOT emitted as an `any` variant),
 	// and the enclosing ref becomes Nullable.
-	spec := `openapi: 3.1.0
-info: {title: T, version: "1"}
-paths: {}
-components:
-  schemas:
-    S:
+	spec := componentSpec(`    S:
       type: object
       properties:
         p:
@@ -502,7 +426,7 @@ components:
             - {type: string}
             - {type: integer}
             - {type: "null"}
-`
+`)
 	doc, diags := lowerSpec(t, spec)
 	requireNoErrorDiags(t, diags)
 	s := doc.Types[ir.TypeID("t/openapi/components/schemas/S")].(*ir.Model)
@@ -521,15 +445,10 @@ components:
 
 func TestEnum_StringClosed(t *testing.T) {
 	t.Parallel()
-	spec := `openapi: 3.1.0
-info: {title: T, version: "1"}
-paths: {}
-components:
-  schemas:
-    E:
+	spec := componentSpec(`    E:
       type: string
       enum: [a, b]
-`
+`)
 	doc, diags := lowerSpec(t, spec)
 	requireNoErrorDiags(t, diags)
 	e, ok := doc.Types[ir.TypeID("t/openapi/components/schemas/E")].(*ir.Enum)
@@ -544,14 +463,9 @@ components:
 
 func TestConst_BecomesLiteral(t *testing.T) {
 	t.Parallel()
-	spec := `openapi: 3.1.0
-info: {title: T, version: "1"}
-paths: {}
-components:
-  schemas:
-    K:
+	spec := componentSpec(`    K:
       const: "fixed"
-`
+`)
 	doc, diags := lowerSpec(t, spec)
 	requireNoErrorDiags(t, diags)
 	k, ok := doc.Types[ir.TypeID("t/openapi/components/schemas/K")].(*ir.Literal)
@@ -615,13 +529,7 @@ func TestModelDiscriminator_UndeclaredPropertyAndBadMapping(t *testing.T) {
 	require.NotNil(t, v.Discriminator)
 	assert.Empty(t, v.Discriminator.Property, "undeclared property")
 	assert.Equal(t, "kind", v.Discriminator.PropertyName)
-	var sawBad bool
-	for _, d := range diags {
-		if d.Code == codeUnresolvedRef {
-			sawBad = true
-		}
-	}
-	assert.True(t, sawBad, "bad mapping target diagnostic")
+	assert.True(t, hasDiag(diags, codeUnresolvedRef), "bad mapping target diagnostic")
 }
 
 func TestOneOf_DiscriminatorWithDefault(t *testing.T) {
@@ -685,13 +593,7 @@ func TestAllOf_UnresolvedRefBranch(t *testing.T) {
 `)
 	doc, diags := lowerSpec(t, spec)
 	require.NotNil(t, doc)
-	var sawUnresolved bool
-	for _, d := range diags {
-		if d.Code == codeUnresolvedRef {
-			sawUnresolved = true
-		}
-	}
-	assert.True(t, sawUnresolved)
+	assert.True(t, hasDiag(diags, codeUnresolvedRef))
 }
 
 func TestAllOf_MultiRefWithUnresolvedDoesNotAnchor(t *testing.T) {
@@ -745,17 +647,10 @@ func TestEnum_HeterogeneousBecomesUnionWithBadValue(t *testing.T) {
 	u, ok := typeByName(doc, "Mixed").(*ir.Union)
 	require.True(t, ok, "heterogeneous enum lowers to a union of literals")
 	assert.Len(t, u.Variants, 2)
-	var sawDegraded, sawValueWarn bool
-	for _, d := range diags {
-		if d.Code == codeDegradedConstruct && d.Severity == ir.SeverityInfo {
-			sawDegraded = true
-		}
-		if d.Severity == ir.SeverityWarning {
-			sawValueWarn = true
-		}
-	}
-	assert.True(t, sawDegraded, "heterogeneous-enum info diagnostic")
-	assert.True(t, sawValueWarn, "unconvertible literal value warning")
+	assert.True(t, hasDiagAt(diags, codeDegradedConstruct, ir.SeverityInfo),
+		"heterogeneous-enum info diagnostic")
+	assert.True(t, hasDiagAt(diags, codeDegradedConstruct, ir.SeverityWarning),
+		"unconvertible literal value warning")
 }
 
 func TestAllOf_ModelWithOwnDiscriminator(t *testing.T) {

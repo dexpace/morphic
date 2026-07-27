@@ -1,6 +1,7 @@
 package openapi
 
 import (
+	"cmp"
 	"encoding/json"
 	"fmt"
 	"maps"
@@ -89,10 +90,9 @@ func (l *lowerer) schemaConstraints(s *oas3.Schema, pointer string) *ir.Constrai
 // constraints the schema carried are attached so a scalar component never drops
 // them.
 func (l *lowerer) internAlias(pointer, hint string, target ir.TypeRef, constraints *ir.Constraints) ir.TypeID {
-	id := typeIDForPointer(pointer)
-	return l.intern(pointer, id, func() ir.TypeDef {
+	return l.internNode(pointer, hint, func(common ir.TypeCommon) ir.TypeDef {
 		base := target
-		return &ir.Scalar{TypeCommon: l.commonFor(id, pointer, hint), Base: &base, Constraints: constraints}
+		return &ir.Scalar{TypeCommon: common, Base: &base, Constraints: constraints}
 	})
 }
 
@@ -104,9 +104,8 @@ func (l *lowerer) schemaRef(js *oas3.JSONSchema[oas3.Referenceable], pointer, hi
 	l.depth++
 	defer func() { l.depth-- }()
 	if l.depth > maxSchemaDepth {
-		l.diags = append(l.diags, diagf(ir.SeverityError, codeDegradedConstruct,
-			ir.Provenance{Source: l.srcIndex, Pointer: pointer},
-			"schema nesting exceeds %d; lowered as any", maxSchemaDepth))
+		l.diag(ir.SeverityError, codeDegradedConstruct, pointer,
+			"schema nesting exceeds %d; lowered as any", maxSchemaDepth)
 		return l.primRef(ir.PrimAny)
 	}
 	if js == nil {
@@ -205,9 +204,8 @@ func (l *lowerer) preserveUnionSiblings(id ir.TypeID, s *oas3.Schema, pointer st
 			c.Extensions = mergeExtensions(c.Extensions, ir.Extensions{"openapi:anyOf": raw})
 		}
 	}
-	l.diags = append(l.diags, diagf(ir.SeverityInfo, codeDegradedConstruct,
-		ir.Provenance{Source: l.srcIndex, Pointer: pointer},
-		"oneOf/anyOf co-declared with structural keywords; union branches preserved verbatim under extensions"))
+	l.diag(ir.SeverityInfo, codeDegradedConstruct, pointer,
+		"oneOf/anyOf co-declared with structural keywords; union branches preserved verbatim under extensions")
 }
 
 // refTypeRef resolves a $ref position to its target's stable ID, carrying the
@@ -219,9 +217,8 @@ func (l *lowerer) refTypeRef(js *oas3.JSONSchema[oas3.Referenceable], pointer st
 	ref := js.GetRef().String()
 	id, ok := l.resolveSchemaRef(js, ref)
 	if !ok {
-		l.diags = append(l.diags, diagf(ir.SeverityError, codeUnresolvedRef,
-			ir.Provenance{Source: l.srcIndex, Pointer: pointer},
-			"unresolved $ref %q", ref))
+		l.diag(ir.SeverityError, codeUnresolvedRef, pointer,
+			"unresolved $ref %q", ref)
 		return l.primRef(ir.PrimAny)
 	}
 	return ir.TypeRef{Target: id, Nullable: l.refNullable(js)}
@@ -286,22 +283,22 @@ func (l *lowerer) refNullable(js *oas3.JSONSchema[oas3.Referenceable]) bool {
 // falseSchema hoists a boolean `false` schema as a closed empty model (it
 // matches nothing) and records one info diagnostic on first visit.
 func (l *lowerer) falseSchema(pointer, hint string) ir.TypeID {
-	id := typeIDForPointer(pointer)
-	return l.intern(pointer, id, func() ir.TypeDef {
-		l.diags = append(l.diags, diagf(ir.SeverityInfo, codeFalseSchema,
-			ir.Provenance{Source: l.srcIndex, Pointer: pointer},
-			"boolean false schema matches nothing; lowered as a closed empty model"))
-		return &ir.Model{TypeCommon: l.commonFor(id, pointer, hint), Additional: ir.AdditionalClosed}
+	return l.internNode(pointer, hint, func(common ir.TypeCommon) ir.TypeDef {
+		l.diag(ir.SeverityInfo, codeFalseSchema, pointer,
+			"boolean false schema matches nothing; lowered as a closed empty model")
+		return &ir.Model{TypeCommon: common, Additional: ir.AdditionalClosed}
 	})
 }
 
 // lower interns the inline schema at pointer and returns its TypeID. Value
 // constraints (const, enum) and allOf composition take precedence over the
 // structural type; otherwise it dispatches on the effective (null-stripped)
-// type set.
+// type set. const hoists through hoistLiteral — the same primitive that
+// hoists each individual member of a heterogeneous enum (enumAsUnion) — since
+// a bare `const` schema is exactly a Literal at its own pointer.
 func (l *lowerer) lower(s *oas3.Schema, pointer, hint string) ir.TypeID {
-	if s.GetConst() != nil {
-		return l.lowerConst(s, pointer, hint)
+	if c := s.GetConst(); c != nil {
+		return l.hoistLiteral(c, pointer, hint)
 	}
 	if len(s.GetEnum()) > 0 {
 		return l.lowerEnum(s, pointer, hint)
@@ -345,45 +342,31 @@ func (l *lowerer) lowerUntyped(s *oas3.Schema, pointer, hint string) ir.TypeID {
 // lowerUnion hoists a multi-typed schema (e.g. type: [string, integer]) as an
 // exclusive, untagged union with one variant per declared type.
 func (l *lowerer) lowerUnion(s *oas3.Schema, pointer, hint string, types []oas3.SchemaType) ir.TypeID {
-	id := typeIDForPointer(pointer)
-	return l.intern(pointer, id, func() ir.TypeDef {
+	return l.internNode(pointer, hint, func(common ir.TypeCommon) ir.TypeDef {
 		variants := make([]ir.Variant, 0, len(types))
 		for i, st := range types {
 			vptr := pointer + ptr("type", strconv.Itoa(i))
 			variants = append(variants, ir.Variant{
 				Name: ir.Naming{Hint: string(st)},
-				Type: l.variantRef(s, st, vptr, hint),
+				Type: ir.TypeRef{Target: l.lowerTyped(s, vptr, hint, st)},
 			})
 		}
 		return &ir.Union{
-			TypeCommon: l.commonFor(id, pointer, hint),
+			TypeCommon: common,
 			Variants:   variants,
 			Exclusive:  true,
 		}
 	})
 }
 
-// variantRef lowers one type of a multi-typed schema to a TypeRef.
-func (l *lowerer) variantRef(s *oas3.Schema, st oas3.SchemaType, vptr, hint string) ir.TypeRef {
-	switch st {
-	case oas3.SchemaTypeObject:
-		return ir.TypeRef{Target: l.lowerModel(s, vptr, hint)}
-	case oas3.SchemaTypeArray:
-		return ir.TypeRef{Target: l.lowerArray(s, vptr, hint)}
-	default:
-		return ir.TypeRef{Target: l.scalarTypeID(s, st, vptr, hint)}
-	}
-}
-
 // lowerModel hoists an object schema as a Model. This task lowers only the
 // property shape (name, type, required); a later pass fills the rest.
 func (l *lowerer) lowerModel(s *oas3.Schema, pointer, hint string) ir.TypeID {
-	id := typeIDForPointer(pointer)
-	return l.intern(pointer, id, func() ir.TypeDef {
-		m := &ir.Model{TypeCommon: l.commonFor(id, pointer, hint)}
+	return l.internNode(pointer, hint, func(common ir.TypeCommon) ir.TypeDef {
+		m := &ir.Model{TypeCommon: common}
 		l.fillModelProperties(m, s, pointer)
 		l.fillModelDetail(m, s, pointer, hint)
-		if d := l.modelDiscriminator(s, m, pointer); d != nil {
+		if d := l.lowerDiscriminator(s, m, pointer); d != nil {
 			m.Discriminator = d
 		}
 		return m
@@ -469,21 +452,16 @@ func (l *lowerer) reconcileProperty(dst *ir.Property, src ir.Property, pointer s
 	if dst.Docs.Description == "" {
 		dst.Docs.Description = src.Docs.Description
 	} else if src.Docs.Description != "" && src.Docs.Description != dst.Docs.Description {
-		l.diags = append(l.diags, diagf(ir.SeverityInfo, codeDegradedConstruct,
-			ir.Provenance{Source: l.srcIndex, Pointer: pointer},
-			"allOf branches describe field %q differently; kept the first declaration", dst.WireName))
+		l.diag(ir.SeverityInfo, codeDegradedConstruct, pointer,
+			"allOf branches describe field %q differently; kept the first declaration", dst.WireName)
 	}
-	if dst.Default == nil {
-		dst.Default = src.Default
-	}
+	dst.Default = cmp.Or(dst.Default, src.Default)
 	dst.Constraints = mergeConstraints(dst.Constraints, src.Constraints)
-	if dst.Deprecation == nil {
-		dst.Deprecation = src.Deprecation
-	}
-	if dst.XML == nil {
-		dst.XML = src.XML
-	}
+	dst.Deprecation = cmp.Or(dst.Deprecation, src.Deprecation)
+	dst.XML = cmp.Or(dst.XML, src.XML)
 	if len(dst.Examples) == 0 {
+		// Examples is a slice, not comparable, so it cannot go through cmp.Or
+		// like its neighbors above; the len()==0 predicate is the adoption rule.
 		dst.Examples = src.Examples
 	}
 	dst.Extensions = mergeExtensions(dst.Extensions, src.Extensions)
@@ -497,13 +475,24 @@ func (l *lowerer) reconcileProperty(dst *ir.Property, src ir.Property, pointer s
 // to the merged field: this invents nothing and flattens no composition, it
 // simply stops throwing away a keyword neither side contradicts.
 //
-// Min and Max are adopted together with their exclusivity flag: taking
-// src.Min without src.ExclusiveMin would silently change the bound's sense
-// (an exclusive "> 5" read back as inclusive ">= 5"). UniqueItems has no
-// absent state — it is a plain bool — so "false" cannot mean "not set"; but
-// under intersection a collection satisfying both branches must be unique
-// whenever either branch requires it, so adopting a true from src is always
-// correct and dst is never downgraded from true back to false.
+// Min and Max are adopted together with their exclusivity flag rather than
+// through cmp.Or below: taking src.Min without src.ExclusiveMin would
+// silently change the bound's sense (an exclusive "> 5" read back as
+// inclusive ">= 5"). Every other keyword adopts through cmp.Or, which returns
+// dst's value when it is already non-zero and src's otherwise — exactly the
+// "first declaration wins, absent keywords are inherited" rule this function
+// documents, with the zero value (nil, "", or false) standing in for "not
+// set". UniqueItems has no absent state — it is a plain bool — so "false"
+// cannot mean "not set"; but under intersection a collection satisfying both
+// branches must be unique whenever either branch requires it, so adopting a
+// true from src through cmp.Or is always correct and dst is never downgraded
+// from true back to false.
+//
+// cmp.Or folds what were 12 separately branch-covered keywords down to
+// straight-line assignments, so TestMergeConstraints_AdoptsEveryUnsetKeyword
+// and TestMergeConstraints_LeavesSetKeywordsUntouched are now the only place
+// per-keyword adoption is pinned; there is no longer a coverage obligation
+// forcing a test to exercise each keyword individually.
 func mergeConstraints(dst, src *ir.Constraints) *ir.Constraints {
 	if dst == nil {
 		return src
@@ -517,42 +506,18 @@ func mergeConstraints(dst, src *ir.Constraints) *ir.Constraints {
 	if dst.Max == nil {
 		dst.Max, dst.ExclusiveMax = src.Max, src.ExclusiveMax
 	}
-	if dst.MultipleOf == nil {
-		dst.MultipleOf = src.MultipleOf
-	}
-	if dst.Precision == nil {
-		dst.Precision = src.Precision
-	}
-	if dst.Scale == nil {
-		dst.Scale = src.Scale
-	}
-	if dst.MinLength == nil {
-		dst.MinLength = src.MinLength
-	}
-	if dst.MaxLength == nil {
-		dst.MaxLength = src.MaxLength
-	}
-	if dst.Pattern == "" {
-		dst.Pattern = src.Pattern
-	}
-	if dst.PatternMessage == "" {
-		dst.PatternMessage = src.PatternMessage
-	}
-	if dst.MinItems == nil {
-		dst.MinItems = src.MinItems
-	}
-	if dst.MaxItems == nil {
-		dst.MaxItems = src.MaxItems
-	}
-	if !dst.UniqueItems {
-		dst.UniqueItems = src.UniqueItems
-	}
-	if dst.MinProps == nil {
-		dst.MinProps = src.MinProps
-	}
-	if dst.MaxProps == nil {
-		dst.MaxProps = src.MaxProps
-	}
+	dst.MultipleOf = cmp.Or(dst.MultipleOf, src.MultipleOf)
+	dst.Precision = cmp.Or(dst.Precision, src.Precision)
+	dst.Scale = cmp.Or(dst.Scale, src.Scale)
+	dst.MinLength = cmp.Or(dst.MinLength, src.MinLength)
+	dst.MaxLength = cmp.Or(dst.MaxLength, src.MaxLength)
+	dst.Pattern = cmp.Or(dst.Pattern, src.Pattern)
+	dst.PatternMessage = cmp.Or(dst.PatternMessage, src.PatternMessage)
+	dst.MinItems = cmp.Or(dst.MinItems, src.MinItems)
+	dst.MaxItems = cmp.Or(dst.MaxItems, src.MaxItems)
+	dst.UniqueItems = cmp.Or(dst.UniqueItems, src.UniqueItems)
+	dst.MinProps = cmp.Or(dst.MinProps, src.MinProps)
+	dst.MaxProps = cmp.Or(dst.MaxProps, src.MaxProps)
 	return dst
 }
 
@@ -599,10 +564,9 @@ func (l *lowerer) diagnoseRedeclarationConflict(dst, src *ir.Property, pointer s
 // correctly for either site. Severity is warning — the merged model is still
 // usable — so a consumer chooses whether to escalate on the stable code.
 func (l *lowerer) redeclarationConflictDiag(dst *ir.Property, pointer, detail string) {
-	l.diags = append(l.diags, diagf(ir.SeverityWarning, codeConflictingRedecl,
-		ir.Provenance{Source: l.srcIndex, Pointer: pointer},
+	l.diag(ir.SeverityWarning, codeConflictingRedecl, pointer,
 		"declarations of field %q disagree: %s; kept the first declaration (%s) over the redeclaration (%s)",
-		dst.WireName, detail, dst.Provenance.Pointer, pointer))
+		dst.WireName, detail, dst.Provenance.Pointer, pointer)
 }
 
 // typesConflict reports whether two reconciled property types describe an
@@ -791,7 +755,7 @@ func constraintsConflict(a, b *ir.Constraints) (string, bool) {
 // staying silent would trade this false positive for a silent loosening of
 // the validation the spec intended.
 func boundConflictDetail(keyword string, a, b *ir.BigVal, exclA, exclB bool) (string, bool) {
-	if !boundConflict(a, b, exclA, exclB) {
+	if a == nil || b == nil || (exclA == exclB && bigValEqual(*a, *b)) {
 		return "", false
 	}
 	return fmt.Sprintf("conflicting %s (%s and %s)", keyword, boundText(*a, exclA), boundText(*b, exclB)), true
@@ -807,29 +771,13 @@ func boundText(v ir.BigVal, exclusive bool) string {
 	return v.String()
 }
 
-// boundConflict reports whether two numeric bounds, each with its exclusivity
-// flag, are both present and disagree — a differing magnitude or a differing
-// inclusive/exclusive sense.
-func boundConflict(a, b *ir.BigVal, exclA, exclB bool) bool {
-	if a == nil || b == nil {
-		return false
-	}
-	return exclA != exclB || !bigValEqual(*a, *b)
-}
-
 // bigValConflictDetail reports whether two optional numeric values are both
 // present and differ by magnitude, formatting the disagreement when they do.
 func bigValConflictDetail(keyword string, a, b *ir.BigVal) (string, bool) {
-	if !bigValConflict(a, b) {
+	if a == nil || b == nil || bigValEqual(*a, *b) {
 		return "", false
 	}
 	return fmt.Sprintf("conflicting %s (%s and %s)", keyword, a.String(), b.String()), true
-}
-
-// bigValConflict reports whether two optional numeric values are both present and
-// unequal by magnitude.
-func bigValConflict(a, b *ir.BigVal) bool {
-	return a != nil && b != nil && !bigValEqual(*a, *b)
 }
 
 // bigValEqual reports whether two numeric literals denote the same value,
@@ -848,30 +796,19 @@ func bigValEqual(a, b ir.BigVal) bool {
 // intConflictDetail reports whether two optional integer bounds are both
 // present and differ, formatting the disagreement when they do.
 func intConflictDetail(keyword string, a, b *int64) (string, bool) {
-	if !intConflict(a, b) {
+	if a == nil || b == nil || *a == *b {
 		return "", false
 	}
 	return fmt.Sprintf("conflicting %s (%d and %d)", keyword, *a, *b), true
 }
 
-// intConflict reports whether two optional integer bounds are both present and
-// differ.
-func intConflict(a, b *int64) bool {
-	return a != nil && b != nil && *a != *b
-}
-
 // strConflictDetail reports whether two string keywords are both set and
 // differ, formatting the disagreement when they do.
 func strConflictDetail(keyword string, a, b string) (string, bool) {
-	if !strConflict(a, b) {
+	if a == "" || b == "" || a == b {
 		return "", false
 	}
 	return fmt.Sprintf("conflicting %s (%q and %q)", keyword, a, b), true
-}
-
-// strConflict reports whether two string keywords are both set and differ.
-func strConflict(a, b string) bool {
-	return a != "" && b != "" && a != b
 }
 
 // fillPropertyDetail enriches a property from its schema: docs, default,
@@ -931,8 +868,7 @@ func (l *lowerer) fillPropertyDefault(p *ir.Property, ref, tgt *oas3.Schema, poi
 	}
 	v, err := valueFromNode(node)
 	if err != nil {
-		l.diags = append(l.diags, diagf(ir.SeverityWarning, codeDegradedConstruct,
-			ir.Provenance{Source: l.srcIndex, Pointer: pointer}, "default: %s", err.Error()))
+		l.diag(ir.SeverityWarning, codeDegradedConstruct, pointer, "default: %s", err.Error())
 		return
 	}
 	p.Default = &v
@@ -1035,38 +971,56 @@ func (l *lowerer) fillValidationOnly(m *ir.Model, s *oas3.Schema, pointer string
 	}
 }
 
-// preserveKeyword records a raw keyword payload under key and emits one info
-// diagnostic naming the preserved construct.
+// preserveKeyword records a validation-only keyword's raw payload under key in
+// m's Extensions and emits one info diagnostic naming it. It is the
+// fillValidationOnly-specific caller of preserveRaw.
 func (l *lowerer) preserveKeyword(m *ir.Model, key string, raw ir.RawValue, pointer, label string) {
+	l.preserveRaw(&m.Extensions, key, raw, pointer, codeValidationOnlyKeyword,
+		fmt.Sprintf("validation-only keyword %q preserved verbatim in extensions", label))
+}
+
+// preserveRaw records raw under key in *ext (allocating the map on first
+// write) and appends one info diagnostic at pointer with msg. It is the
+// shared "keep it verbatim, since the IR has no structural home for it"
+// primitive behind preserveKeyword's five validation-only keywords and
+// fillSequential's 3.2 itemEncoding preservation; those two use different
+// diagnostic codes (codeValidationOnlyKeyword vs codeDegradedConstruct),
+// which is exactly the variation that keeps code a genuine parameter rather
+// than one unparam would flag as always receiving the same value.
+func (l *lowerer) preserveRaw(ext *ir.Extensions, key string, raw ir.RawValue, pointer, code, msg string) {
 	if raw == nil {
 		return
 	}
-	if m.Extensions == nil {
-		m.Extensions = ir.Extensions{}
+	if *ext == nil {
+		*ext = ir.Extensions{}
 	}
-	m.Extensions[key] = raw
-	l.diags = append(l.diags, diagf(ir.SeverityInfo, codeValidationOnlyKeyword,
-		ir.Provenance{Source: l.srcIndex, Pointer: pointer},
-		"validation-only keyword %q preserved verbatim in extensions", label))
+	(*ext)[key] = raw
+	l.diag(ir.SeverityInfo, code, pointer, "%s", msg)
+}
+
+// diag appends one diagnostic at pointer with the given severity and code,
+// stamping it with l.srcIndex. It is the single provenance-stamping primitive
+// for compiler diagnostics: every lowering site that constructs a Provenance
+// from l.srcIndex should go through this rather than hand-writing the
+// append+diagf+Provenance triple, so the stamping rule is stated once.
+func (l *lowerer) diag(sev ir.Severity, code, pointer, format string, args ...any) {
+	l.diags = append(l.diags, diagf(sev, code, ir.Provenance{Source: l.srcIndex, Pointer: pointer}, format, args...))
 }
 
 // schemaExtensions lowers a schema's x-* extensions into namespaced Extensions.
 func (l *lowerer) schemaExtensions(s *oas3.Schema) ir.Extensions {
-	ext, diags := extensionsFrom(s.GetExtensions())
-	l.diags = append(l.diags, diags...)
-	return ext
+	return l.extensions(s.GetExtensions())
 }
 
 // lowerArray hoists an array schema as a Tuple when prefixItems is present, else
 // a List over its item schema with its collection constraints.
 func (l *lowerer) lowerArray(s *oas3.Schema, pointer, hint string) ir.TypeID {
-	id := typeIDForPointer(pointer)
-	return l.intern(pointer, id, func() ir.TypeDef {
+	return l.internNode(pointer, hint, func(common ir.TypeCommon) ir.TypeDef {
 		if prefix := s.GetPrefixItems(); len(prefix) > 0 {
-			return l.buildTuple(s, id, pointer, hint, prefix)
+			return l.buildTuple(s, common, pointer, hint, prefix)
 		}
 		list := &ir.List{
-			TypeCommon:  l.commonFor(id, pointer, hint),
+			TypeCommon:  common,
 			Elem:        l.schemaRef(s.GetItems(), pointer+ptr("items"), hint+"_item"),
 			Constraints: listConstraints(s),
 		}
@@ -1076,12 +1030,12 @@ func (l *lowerer) lowerArray(s *oas3.Schema, pointer, hint string) ir.TypeID {
 
 // buildTuple lowers prefixItems into a Tuple, preserving any trailing items
 // residue raw so the closed/open distinction is not lost.
-func (l *lowerer) buildTuple(s *oas3.Schema, id ir.TypeID, pointer, hint string, prefix []*oas3.JSONSchema[oas3.Referenceable]) ir.TypeDef {
+func (l *lowerer) buildTuple(s *oas3.Schema, common ir.TypeCommon, pointer, hint string, prefix []*oas3.JSONSchema[oas3.Referenceable]) ir.TypeDef {
 	elems := make([]ir.TypeRef, 0, len(prefix))
 	for i, ps := range prefix {
 		elems = append(elems, l.schemaRef(ps, pointer+ptr("prefixItems", strconv.Itoa(i)), hint+"_"+strconv.Itoa(i)))
 	}
-	t := &ir.Tuple{TypeCommon: l.commonFor(id, pointer, hint), Elems: elems}
+	t := &ir.Tuple{TypeCommon: common, Elems: elems}
 	if s.GetItems() != nil {
 		if raw := nodeToRaw(rawPropertyNode(s, "items")); raw != nil {
 			t.Extensions = ir.Extensions{"openapi:items-after-prefix": raw}
@@ -1110,12 +1064,11 @@ func (l *lowerer) scalarTypeID(s *oas3.Schema, st oas3.SchemaType, pointer, hint
 
 // hoistByteScalar hoists a base64-encoded byte scalar (string+byte).
 func (l *lowerer) hoistByteScalar(pointer, hint string) ir.TypeID {
-	id := typeIDForPointer(pointer)
-	return l.intern(pointer, id, func() ir.TypeDef {
+	return l.internNode(pointer, hint, func(common ir.TypeCommon) ir.TypeDef {
 		base := l.primRef(ir.PrimBytes)
 		wire := l.primRef(ir.PrimString)
 		return &ir.Scalar{
-			TypeCommon: l.commonFor(id, pointer, hint),
+			TypeCommon: common,
 			Base:       &base,
 			Encoding:   &ir.Encoding{Name: "base64", WireType: &wire},
 		}
@@ -1125,11 +1078,10 @@ func (l *lowerer) hoistByteScalar(pointer, hint string) ir.TypeID {
 // hoistFormatScalar hoists a scalar over base carrying an unknown format as its
 // encoding name, preserving the format losslessly.
 func (l *lowerer) hoistFormatScalar(base ir.PrimKind, format, pointer, hint string) ir.TypeID {
-	id := typeIDForPointer(pointer)
-	return l.intern(pointer, id, func() ir.TypeDef {
+	return l.internNode(pointer, hint, func(common ir.TypeCommon) ir.TypeDef {
 		baseRef := l.primRef(base)
 		return &ir.Scalar{
-			TypeCommon: l.commonFor(id, pointer, hint),
+			TypeCommon: common,
 			Base:       &baseRef,
 			Encoding:   &ir.Encoding{Name: format},
 		}
@@ -1291,7 +1243,7 @@ func effectiveDescription(ref, tgt *oas3.Schema) string {
 
 // effectiveDeprecated reports the deprecated flag, use-site over referent.
 func effectiveDeprecated(ref, tgt *oas3.Schema) bool {
-	return pickBool(schemaDeprecated(ref), schemaDeprecated(tgt))
+	return pickFlag(ref, tgt, func(s *oas3.Schema) *bool { return s.Deprecated })
 }
 
 // effectiveVisibility maps readOnly/writeOnly to a lifecycle visibility set
@@ -1299,48 +1251,32 @@ func effectiveDeprecated(ref, tgt *oas3.Schema) bool {
 // (read/delete/query) and absent only from requests; writeOnly is create+update.
 func effectiveVisibility(ref, tgt *oas3.Schema) ir.Visibility {
 	switch {
-	case pickBool(schemaReadOnly(ref), schemaReadOnly(tgt)):
+	case pickFlag(ref, tgt, func(s *oas3.Schema) *bool { return s.ReadOnly }):
 		return ir.Visibility{Only: []ir.Lifecycle{ir.LifecycleRead, ir.LifecycleDelete, ir.LifecycleQuery}}
-	case pickBool(schemaWriteOnly(ref), schemaWriteOnly(tgt)):
+	case pickFlag(ref, tgt, func(s *oas3.Schema) *bool { return s.WriteOnly }):
 		return ir.Visibility{Only: []ir.Lifecycle{ir.LifecycleCreate, ir.LifecycleUpdate}}
 	default:
 		return ir.Visibility{}
 	}
 }
 
-// pickBool returns *ref when present, else *tgt, else false.
-func pickBool(ref, tgt *bool) bool {
+// pickFlag returns the bool field extracted by accessor from ref when present,
+// else from tgt, else false. It is the single nil-safe "use-site overrides
+// referent" primitive for boolean schema flags (readOnly, writeOnly, deprecated);
+// each flag previously had its own nil-guard accessor plus a pickBool call at
+// every use site, but all three followed this identical shape.
+func pickFlag(ref, tgt *oas3.Schema, accessor func(*oas3.Schema) *bool) bool {
 	if ref != nil {
-		return *ref
+		if v := accessor(ref); v != nil {
+			return *v
+		}
 	}
 	if tgt != nil {
-		return *tgt
+		if v := accessor(tgt); v != nil {
+			return *v
+		}
 	}
 	return false
-}
-
-// schemaReadOnly returns a schema's readOnly pointer, nil-safe.
-func schemaReadOnly(s *oas3.Schema) *bool {
-	if s == nil {
-		return nil
-	}
-	return s.ReadOnly
-}
-
-// schemaWriteOnly returns a schema's writeOnly pointer, nil-safe.
-func schemaWriteOnly(s *oas3.Schema) *bool {
-	if s == nil {
-		return nil
-	}
-	return s.WriteOnly
-}
-
-// schemaDeprecated returns a schema's deprecated pointer, nil-safe.
-func schemaDeprecated(s *oas3.Schema) *bool {
-	if s == nil {
-		return nil
-	}
-	return s.Deprecated
 }
 
 // fillTypeDocs maps a schema's title, description, and externalDocs onto Docs.
@@ -1403,6 +1339,20 @@ func extensionsFrom(ext *extensions.Extensions) (ir.Extensions, []ir.Diagnostic)
 		return nil, diags
 	}
 	return out, diags
+}
+
+// extensions lowers ext's x-* extensions into namespaced Extensions and
+// records any serialization-failure diagnostics unconditionally — regardless
+// of whether the result ends up empty. It is the single caller of
+// extensionsFrom every lowering site should go through: a caller that instead
+// gates the diagnostic append behind the same "if len(ext) > 0" that guards
+// the assignment silently drops every serialization-failure warning on an
+// object whose extensions all failed to serialize, since that is exactly the
+// case where ext is empty.
+func (l *lowerer) extensions(ext *extensions.Extensions) ir.Extensions {
+	out, diags := extensionsFrom(ext)
+	l.diags = append(l.diags, diags...)
+	return out
 }
 
 // mergeExtensions overlays src onto dst, allocating dst on first write.

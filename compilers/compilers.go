@@ -3,7 +3,6 @@ package compilers
 import (
 	"context"
 	"fmt"
-	"sort"
 
 	"github.com/dexpace/morphic/ir"
 )
@@ -75,14 +74,4 @@ func (r *Registry) Register(c Compiler) error {
 func (r *Registry) Lookup(format SourceFormat) (Compiler, bool) {
 	c, ok := r.byFormat[format]
 	return c, ok
-}
-
-// Formats lists every registered format, sorted for stable display.
-func (r *Registry) Formats() []SourceFormat {
-	out := make([]SourceFormat, 0, len(r.byFormat))
-	for f := range r.byFormat {
-		out = append(out, f)
-	}
-	sort.Slice(out, func(i, j int) bool { return out[i].String() < out[j].String() })
-	return out
 }

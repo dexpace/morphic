@@ -29,11 +29,13 @@ const maxSchemaScanDepth = 512
 // loaded is the successful output of the load phase: a parsed, resolved
 // speakeasy document plus the identity metadata the rest of the compiler needs.
 // A nil *loaded with error-severity diagnostics means the document is a spec
-// problem the compiler refuses to lower (e.g. an unsupported version).
+// problem the compiler refuses to lower (e.g. an unsupported version). The
+// normalized "openapi" + major.minor format reaches the IR through
+// Source.Format alone; loaded does not separately carry a
+// compilers.SourceFormat, since nothing downstream ever read one.
 type loaded struct {
-	Doc    *soa.OpenAPI           // parsed, reference-resolved document
-	Format compilers.SourceFormat // "openapi" + normalized major.minor
-	Source ir.SourceInfo          // format tag, path, content hash
+	Doc    *soa.OpenAPI  // parsed, reference-resolved document
+	Source ir.SourceInfo // format tag, path, content hash
 }
 
 // load parses, validates, and resolves one source document. Spec problems
@@ -81,8 +83,7 @@ func load(ctx context.Context, srcIndex int, src compilers.Source, opts Options)
 	}
 
 	return &loaded{
-		Doc:    doc,
-		Format: compilers.SourceFormat{Name: "openapi", Version: minor},
+		Doc: doc,
 		Source: ir.SourceInfo{
 			Format: "openapi@" + minor,
 			Path:   src.Path,

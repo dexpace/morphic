@@ -24,8 +24,6 @@ type Options struct {
 }
 
 // withDefaults returns a copy of o with unset fields filled from the defaults.
-//
-//nolint:unused // applied by the compiler entrypoint in a later task
 func (o Options) withDefaults() Options {
 	if o.Grouping == "" {
 		o.Grouping = GroupByTags

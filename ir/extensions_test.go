@@ -1,32 +1,25 @@
 package ir_test
 
 import (
-	"encoding/json"
 	"testing"
 
-	"github.com/google/go-cmp/cmp"
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 
 	"github.com/dexpace/morphic/ir"
 )
 
+// TestExtensions_JSONRoundTrip pins that Extensions round-trips through
+// assertRoundTrip's byte-level cmp.Diff. RawValue is json.RawMessage, and
+// json.Marshal re-emits it verbatim rather than re-compacting it, so this
+// only works because both fixture values below are already written compact
+// (no incidental whitespace) — a non-compact fixture would round-trip to a
+// semantically equal but byte-different value and fail the diff.
 func TestExtensions_JSONRoundTrip(t *testing.T) {
 	t.Parallel()
-	ext := ir.Extensions{
+	assertRoundTrip(t, ir.Extensions{
 		"openapi:x-rate-limit": ir.RawValue(`{"limit":100}`),
 		"smithy:aws.api#arn":   ir.RawValue(`"arn:aws:s3"`),
-	}
-
-	raw, err := json.Marshal(ext)
-	require.NoError(t, err)
-
-	var back ir.Extensions
-	require.NoError(t, json.Unmarshal(raw, &back))
-
-	assert.JSONEq(t, string(ext["openapi:x-rate-limit"]), string(back["openapi:x-rate-limit"]))
-	assert.JSONEq(t, string(ext["smithy:aws.api#arn"]), string(back["smithy:aws.api#arn"]))
-	assert.ElementsMatch(t, keysOf(ext), keysOf(back))
+	})
 }
 
 func TestExtensions_DeterministicKeyOrder(t *testing.T) {
@@ -36,23 +29,9 @@ func TestExtensions_DeterministicKeyOrder(t *testing.T) {
 		"openapi:x-rate-limit": ir.RawValue(`1`),
 		"erlang:opaque":        ir.RawValue(`true`),
 	}
-
-	first, err := json.Marshal(ext)
-	require.NoError(t, err)
-	second, err := json.Marshal(ext)
-	require.NoError(t, err)
-
-	assert.Empty(t, cmp.Diff(string(first), string(second)))
+	got := assertDeterministicMarshal(t, ext)
 	assert.Equal(t,
 		`{"erlang:opaque":true,"graphql:@key":"id","openapi:x-rate-limit":1}`,
-		string(first),
+		got,
 	)
-}
-
-func keysOf(ext ir.Extensions) []string {
-	out := make([]string, 0, len(ext))
-	for k := range ext {
-		out = append(out, k)
-	}
-	return out
 }

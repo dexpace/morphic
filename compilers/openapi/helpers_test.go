@@ -60,12 +60,12 @@ func lowerSpec(t *testing.T, src string) (*ir.Document, []ir.Diagnostic) {
 	return l.out, append(diags, l.diags...)
 }
 
-// requireNoErrorDiags fails the test if any diagnostic has error severity.
+// requireNoErrorDiags fails the test if any diagnostic has error severity,
+// reporting the first offending diagnostic.
 func requireNoErrorDiags(t *testing.T, diags []ir.Diagnostic) {
 	t.Helper()
-	for _, d := range diags {
-		require.NotEqual(t, ir.SeverityError, d.Severity, "unexpected error diagnostic: %+v", d)
-	}
+	d, ok := ir.FirstError(diags)
+	require.False(t, ok, "unexpected error diagnostic: %+v", d)
 }
 
 // lowerServiceSpec lowers components and the service layer of src.
@@ -97,6 +97,19 @@ func componentSpecVer(version, schemas string) string {
 		"info: {title: T, version: \"1\"}\n" +
 		"paths: {}\n" +
 		"components:\n  schemas:\n" + schemas
+}
+
+// pathsSpec wraps a paths block in a minimal 3.1 document with no components.
+func pathsSpec(paths string) string {
+	return pathsSpecVer("3.1.0", paths)
+}
+
+// pathsSpecVer wraps a paths block in a minimal document of the given OpenAPI
+// version, with no components.
+func pathsSpecVer(version, paths string) string {
+	return "openapi: " + version + "\n" +
+		"info: {title: T, version: \"1\"}\n" +
+		"paths:\n" + paths
 }
 
 // typeByName returns the named component schema's lowered TypeDef.
@@ -146,4 +159,83 @@ func yamlNode(t *testing.T, src string) *yaml.Node {
 // scalarNode builds a bare scalar yaml.Node with the given tag and value.
 func scalarNode(tag, val string) *yaml.Node {
 	return &yaml.Node{Kind: yaml.ScalarNode, Tag: tag, Value: val}
+}
+
+// assertHasErrorCode requires diags to carry an error-severity diagnostic with
+// the given code.
+func assertHasErrorCode(t *testing.T, diags []ir.Diagnostic, code string) {
+	t.Helper()
+	assertHasCode(t, diags, code, ir.SeverityError)
+}
+
+// assertHasCode requires diags to carry a diagnostic with the given code at the
+// given severity.
+func assertHasCode(t *testing.T, diags []ir.Diagnostic, code string, sev ir.Severity) {
+	t.Helper()
+	for _, d := range diags {
+		if d.Code == code && d.Severity == sev {
+			return
+		}
+	}
+	t.Fatalf("expected a %v diagnostic with code %q, got %+v", sev, code, diags)
+}
+
+// hasDiag reports whether diags contains a diagnostic with the exact code, at
+// any severity. It is the existential half of the vocabulary: use it where a
+// test only needs to know a diagnostic fired, not how many or at what
+// severity.
+func hasDiag(diags []ir.Diagnostic, code string) bool {
+	for _, d := range diags {
+		if d.Code == code {
+			return true
+		}
+	}
+	return false
+}
+
+// hasDiagAt reports whether diags contains a diagnostic with the exact code at
+// the exact severity.
+func hasDiagAt(diags []ir.Diagnostic, code string, sev ir.Severity) bool {
+	return countDiagsAt(diags, code, sev) > 0
+}
+
+// countDiagsAt counts the diagnostics in diags matching code and sev exactly.
+// code is an exact match with no wildcard: countDiagsAt(diags, "",
+// ir.SeverityError) matches only diagnostics whose code is literally empty —
+// it is not a way to spell "every error," and reads dangerously like one, so
+// callers who want that must filter on severity alone instead.
+func countDiagsAt(diags []ir.Diagnostic, code string, sev ir.Severity) int {
+	var n int
+	for _, d := range diags {
+		if d.Code == code && d.Severity == sev {
+			n++
+		}
+	}
+	return n
+}
+
+// firstOp returns the operation at svc.Groups[0].Operations[0], requiring both
+// to be non-empty first rather than letting a malformed fixture fail with a
+// bare index-out-of-range panic.
+func firstOp(t *testing.T, svc ir.Service) ir.Operation {
+	t.Helper()
+	require.NotEmpty(t, svc.Groups, "service has no operation groups")
+	require.NotEmpty(t, svc.Groups[0].Operations, "first group has no operations")
+	return svc.Groups[0].Operations[0]
+}
+
+// indexBy builds a lookup keyed by key(item), the shape behind every
+// hand-rolled "m := map[K]T{}; for _, x := range xs { m[key(x)] = x }" loop
+// this suite used to repeat per test.
+func indexBy[T any, K comparable](items []T, key func(T) K) map[K]T {
+	out := make(map[K]T, len(items))
+	for _, item := range items {
+		out[key(item)] = item
+	}
+	return out
+}
+
+// propsByWire indexes a model's properties by wire name.
+func propsByWire(props []ir.Property) map[string]ir.Property {
+	return indexBy(props, func(p ir.Property) string { return p.WireName })
 }

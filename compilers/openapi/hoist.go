@@ -74,6 +74,19 @@ func (l *lowerer) intern(pointer string, id ir.TypeID, build func() ir.TypeDef) 
 	return id
 }
 
+// internNode is the single hoisting entry point: it derives pointer's stable
+// TypeID (typeIDForPointer) and shared TypeCommon (commonFor) once, then
+// interns build's result under that ID. Every hoisted node kind — Scalar,
+// Model, Union, Enum, List, Tuple — used to compute both the same way in its
+// own "id := typeIDForPointer(pointer); TypeCommon: l.commonFor(id, pointer,
+// hint)" prologue; build receives the already-built TypeCommon (whose ID
+// field is the same id) so it never needs pointer, hint, or a bare id just to
+// re-derive what internNode already has.
+func (l *lowerer) internNode(pointer, hint string, build func(common ir.TypeCommon) ir.TypeDef) ir.TypeID {
+	id := typeIDForPointer(pointer)
+	return l.intern(pointer, id, func() ir.TypeDef { return build(l.commonFor(id, pointer, hint)) })
+}
+
 // primRef interns the primitive of kind k under its shared ID on first use and
 // returns a reference to it. Primitives are leaves, so they never enter the
 // pointer-keyed interning table.
