@@ -40,7 +40,7 @@ func TestSchemaRef_NullableNormalization(t *testing.T) {
 				"        p: " + tc.schema + "\n"
 			doc, diags := lowerSpec(t, spec)
 			requireNoErrorDiags(t, diags)
-			model, ok := doc.Types[ir.TypeID("t/openapi/components/schemas/S")].(*ir.Model)
+			model, ok := doc.Types[componentID("S")].(*ir.Model)
 			require.True(t, ok)
 			require.Len(t, model.Properties, 1)
 			assert.Equal(t, tc.wantTarget, model.Properties[0].Type.Target)
@@ -62,14 +62,14 @@ func TestLower_NamedScalarComponentResolves(t *testing.T) {
 	doc, diags := lowerSpec(t, spec)
 	requireNoErrorDiags(t, diags)
 
-	scalar, ok := doc.Types[ir.TypeID("t/openapi/components/schemas/MyId")].(*ir.Scalar)
+	scalar, ok := doc.Types[componentID("MyId")].(*ir.Scalar)
 	require.True(t, ok, "named scalar component registers a Scalar at its own ID")
 	require.NotNil(t, scalar.Base)
 	assert.Equal(t, ir.TypeID("t/prim/uuid"), scalar.Base.Target)
 	assert.Equal(t, "MyId", scalar.Name.Source, "the component name is preserved")
 
-	holder := doc.Types[ir.TypeID("t/openapi/components/schemas/Holder")].(*ir.Model)
-	assert.Equal(t, ir.TypeID("t/openapi/components/schemas/MyId"), holder.Properties[0].Type.Target)
+	holder := doc.Types[componentID("Holder")].(*ir.Model)
+	assert.Equal(t, componentID("MyId"), holder.Properties[0].Type.Target)
 
 	// The reference must resolve: the validate pass finds no dangling type ref.
 	for _, d := range pass.Validate(doc) {
@@ -94,7 +94,7 @@ func TestLower_OneOfWithStructuralSiblingsPreserved(t *testing.T) {
 	doc, diags := lowerSpec(t, spec)
 	requireNoErrorDiags(t, diags)
 
-	m, ok := doc.Types[ir.TypeID("t/openapi/components/schemas/Thing")].(*ir.Model)
+	m, ok := doc.Types[componentID("Thing")].(*ir.Model)
 	require.True(t, ok, "structural body lowers to a Model, not a bare Union")
 	require.Len(t, m.Properties, 1)
 	assert.Equal(t, "common", m.Properties[0].Name.Source)
@@ -129,10 +129,10 @@ func TestLower_AllOfWithOneOfKeepsBoth(t *testing.T) {
 `)
 	doc, diags := lowerSpec(t, spec)
 	requireNoErrorDiags(t, diags)
-	m, ok := doc.Types[ir.TypeID("t/openapi/components/schemas/Combo")].(*ir.Model)
+	m, ok := doc.Types[componentID("Combo")].(*ir.Model)
 	require.True(t, ok, "allOf composition survives (Model), oneOf preserved raw")
 	require.NotNil(t, m.Base, "the allOf $ref becomes Base")
-	assert.Equal(t, ir.TypeID("t/openapi/components/schemas/Base"), m.Base.Target)
+	assert.Equal(t, componentID("Base"), m.Base.Target)
 	_, ok = m.Extensions["openapi:oneOf"]
 	assert.True(t, ok, "the oneOf is preserved verbatim under extensions")
 }
@@ -146,7 +146,7 @@ func TestLower_RecursiveSchemaTerminates(t *testing.T) {
 `)
 	doc, diags := lowerSpec(t, spec)
 	requireNoErrorDiags(t, diags)
-	node, ok := doc.Types[ir.TypeID("t/openapi/components/schemas/Node")].(*ir.Model)
+	node, ok := doc.Types[componentID("Node")].(*ir.Model)
 	require.True(t, ok)
 	require.Equal(t, ir.TypeRef{Target: "t/openapi/components/schemas/Node"}, node.Properties[0].Type)
 }
@@ -445,7 +445,7 @@ func TestModel_FourOptionalityStates(t *testing.T) {
 `)
 	doc, diags := lowerSpec(t, spec)
 	requireNoErrorDiags(t, diags)
-	m, ok := doc.Types[ir.TypeID("t/openapi/components/schemas/S")].(*ir.Model)
+	m, ok := doc.Types[componentID("S")].(*ir.Model)
 	require.True(t, ok)
 	require.Len(t, m.Properties, 4)
 	byName := propsByWire(m.Properties)
@@ -467,7 +467,7 @@ func TestModel_ValidationOnlyKeywordPreserved(t *testing.T) {
       not: {required: [b]}
 `)
 	doc, diags := lowerSpec(t, spec)
-	m := doc.Types[ir.TypeID("t/openapi/components/schemas/S")].(*ir.Model)
+	m := doc.Types[componentID("S")].(*ir.Model)
 	raw, ok := m.Extensions["openapi:not"]
 	require.True(t, ok, "not-keyword must be preserved verbatim")
 	assert.JSONEq(t, `{"required":["b"]}`, string(raw))
@@ -490,7 +490,7 @@ func TestModel_DefaultBigLiteral(t *testing.T) {
 `)
 	doc, diags := lowerSpec(t, spec)
 	requireNoErrorDiags(t, diags)
-	m := doc.Types[ir.TypeID("t/openapi/components/schemas/S")].(*ir.Model)
+	m := doc.Types[componentID("S")].(*ir.Model)
 	require.NotNil(t, m.Properties[0].Default)
 	assert.Equal(t, ir.ValueNumber, m.Properties[0].Default.Kind)
 	assert.Equal(t, ir.BigVal("9007199254740993"), m.Properties[0].Default.Num)
@@ -506,7 +506,7 @@ func TestModel_ReadOnlyWriteOnlyVisibility(t *testing.T) {
 `)
 	doc, diags := lowerSpec(t, spec)
 	requireNoErrorDiags(t, diags)
-	m := doc.Types[ir.TypeID("t/openapi/components/schemas/S")].(*ir.Model)
+	m := doc.Types[componentID("S")].(*ir.Model)
 	byName := propsByWire(m.Properties)
 	assert.Equal(t, ir.Visibility{Only: []ir.Lifecycle{ir.LifecycleRead, ir.LifecycleDelete, ir.LifecycleQuery}}, byName["r"].Visibility)
 	assert.Equal(t, ir.Visibility{Only: []ir.Lifecycle{ir.LifecycleCreate, ir.LifecycleUpdate}}, byName["w"].Visibility)
@@ -521,7 +521,7 @@ func TestModel_PasswordFormatSecret(t *testing.T) {
 `)
 	doc, diags := lowerSpec(t, spec)
 	requireNoErrorDiags(t, diags)
-	m := doc.Types[ir.TypeID("t/openapi/components/schemas/S")].(*ir.Model)
+	m := doc.Types[componentID("S")].(*ir.Model)
 	assert.True(t, m.Properties[0].Secret)
 }
 
@@ -534,7 +534,7 @@ func TestModel_AdditionalPropertiesFalseClosed(t *testing.T) {
 `)
 	doc, diags := lowerSpec(t, spec)
 	requireNoErrorDiags(t, diags)
-	m := doc.Types[ir.TypeID("t/openapi/components/schemas/S")].(*ir.Model)
+	m := doc.Types[componentID("S")].(*ir.Model)
 	assert.Equal(t, ir.AdditionalClosed, m.Additional)
 }
 
@@ -546,7 +546,7 @@ func TestModel_AdditionalPropertiesSchema(t *testing.T) {
 `)
 	doc, diags := lowerSpec(t, spec)
 	requireNoErrorDiags(t, diags)
-	m := doc.Types[ir.TypeID("t/openapi/components/schemas/S")].(*ir.Model)
+	m := doc.Types[componentID("S")].(*ir.Model)
 	require.NotNil(t, m.AdditionalProps)
 	assert.Equal(t, ir.TypeID("t/prim/integer"), m.AdditionalProps.Value.Target)
 }
@@ -561,7 +561,7 @@ func TestModel_PatternPropertiesOrder(t *testing.T) {
 `)
 	doc, diags := lowerSpec(t, spec)
 	requireNoErrorDiags(t, diags)
-	m := doc.Types[ir.TypeID("t/openapi/components/schemas/S")].(*ir.Model)
+	m := doc.Types[componentID("S")].(*ir.Model)
 	require.NotNil(t, m.AdditionalProps)
 	require.Len(t, m.AdditionalProps.Patterns, 2)
 	assert.Equal(t, "^x-", m.AdditionalProps.Patterns[0].Pattern)
@@ -577,7 +577,7 @@ func TestModel_UnevaluatedPropertiesClosedAfterComposition(t *testing.T) {
 `)
 	doc, diags := lowerSpec(t, spec)
 	requireNoErrorDiags(t, diags)
-	m := doc.Types[ir.TypeID("t/openapi/components/schemas/S")].(*ir.Model)
+	m := doc.Types[componentID("S")].(*ir.Model)
 	assert.Equal(t, ir.AdditionalClosedAfterComposition, m.Additional)
 }
 
@@ -590,7 +590,7 @@ func TestModel_SchemaExtensionPreserved(t *testing.T) {
 `)
 	doc, diags := lowerSpec(t, spec)
 	requireNoErrorDiags(t, diags)
-	m := doc.Types[ir.TypeID("t/openapi/components/schemas/S")].(*ir.Model)
+	m := doc.Types[componentID("S")].(*ir.Model)
 	raw, ok := m.Extensions["openapi:x-rate-limit"]
 	require.True(t, ok)
 	assert.JSONEq(t, "100", string(raw))
@@ -606,7 +606,7 @@ func TestModel_TitleDescriptionDocs(t *testing.T) {
 `)
 	doc, diags := lowerSpec(t, spec)
 	requireNoErrorDiags(t, diags)
-	m := doc.Types[ir.TypeID("t/openapi/components/schemas/S")].(*ir.Model)
+	m := doc.Types[componentID("S")].(*ir.Model)
 	assert.Equal(t, "My Title", m.Docs.Summary)
 	assert.Equal(t, "My Desc", m.Docs.Description)
 }
@@ -620,7 +620,7 @@ func TestModel_PropertyDeprecation(t *testing.T) {
 `)
 	doc, diags := lowerSpec(t, spec)
 	requireNoErrorDiags(t, diags)
-	m := doc.Types[ir.TypeID("t/openapi/components/schemas/S")].(*ir.Model)
+	m := doc.Types[componentID("S")].(*ir.Model)
 	assert.NotNil(t, m.Properties[0].Deprecation)
 }
 
@@ -633,7 +633,7 @@ func TestModel_PropertyXML(t *testing.T) {
 `)
 	doc, diags := lowerSpec(t, spec)
 	requireNoErrorDiags(t, diags)
-	m := doc.Types[ir.TypeID("t/openapi/components/schemas/S")].(*ir.Model)
+	m := doc.Types[componentID("S")].(*ir.Model)
 	require.NotNil(t, m.Properties[0].XML)
 	assert.Equal(t, "n", m.Properties[0].XML.Name)
 	assert.Equal(t, "attribute", m.Properties[0].XML.NodeType)
@@ -651,7 +651,7 @@ func TestModel_RefSiblingDescriptionWins(t *testing.T) {
 `)
 	doc, diags := lowerSpec(t, spec)
 	requireNoErrorDiags(t, diags)
-	m := doc.Types[ir.TypeID("t/openapi/components/schemas/S")].(*ir.Model)
+	m := doc.Types[componentID("S")].(*ir.Model)
 	assert.Equal(t, "sibling desc", m.Properties[0].Docs.Description)
 }
 
@@ -786,6 +786,349 @@ func TestSchema_Ref30NullableSiblings(t *testing.T) {
 	_ = diags
 	m := typeByName(doc, "Owner").(*ir.Model)
 	assert.True(t, m.Properties[0].Type.Nullable, "3.0 nullable at a $ref site lifts to the ref")
+}
+
+// TestSchema_RefNullableAcrossSpellings pins that every spelling of "admits
+// null" — 3.0 nullable: true, a 3.1 type array, and a oneOf/anyOf null branch —
+// normalizes to the same Nullable bit at a $ref site, across direct refs,
+// chained refs, sub-schema refs, array/scalar/union targets, and ref-site
+// siblings, with negative controls for each shape (issue #28).
+func TestSchema_RefNullableAcrossSpellings(t *testing.T) {
+	t.Parallel()
+	targetID := componentID("Target")
+	midID := componentID("Mid")
+	// A hoisted sub-schema lands in the anonymous namespace, not the component
+	// one — the ref must resolve to that node, never to a synthesized name.
+	subSchemaID := ir.TypeID("t/anon/components/schemas/Holder/properties/inner")
+	cases := []struct {
+		name         string
+		version      string
+		schemas      string
+		wantNullable bool
+		wantTarget   ir.TypeID
+		msg          string
+	}{
+		{
+			name:    "3.0 direct ref to nullable object component",
+			version: "3.0.3",
+			schemas: `    Owner:
+      type: object
+      properties:
+        p: {$ref: '#/components/schemas/Target'}
+    Target: {type: object, nullable: true}
+`,
+			wantNullable: true,
+			wantTarget:   targetID,
+			msg:          "3.0 nullable on the ref target lifts to the ref",
+		},
+		{
+			name:    "3.1 direct ref to nullable object component (type array)",
+			version: "3.1.0",
+			schemas: `    Owner:
+      type: object
+      properties:
+        p: {$ref: '#/components/schemas/Target'}
+    Target: {type: [object, "null"]}
+`,
+			wantNullable: true,
+			wantTarget:   targetID,
+			msg:          "3.1 type-array null on the ref target lifts to the ref",
+		},
+		{
+			name:    "3.0 direct ref to plain component (negative control)",
+			version: "3.0.3",
+			schemas: `    Owner:
+      type: object
+      properties:
+        p: {$ref: '#/components/schemas/Target'}
+    Target: {type: object}
+`,
+			wantNullable: false,
+			wantTarget:   targetID,
+			msg:          "a non-nullable 3.0 ref target stays non-nullable at the ref",
+		},
+		{
+			name:    "3.1 direct ref to plain component (negative control)",
+			version: "3.1.0",
+			schemas: `    Owner:
+      type: object
+      properties:
+        p: {$ref: '#/components/schemas/Target'}
+    Target: {type: object}
+`,
+			wantNullable: false,
+			wantTarget:   targetID,
+			msg:          "a non-nullable 3.1 ref target stays non-nullable at the ref",
+		},
+		{
+			name:    "3.0 chained ref lifts nullability from the base",
+			version: "3.0.3",
+			schemas: `    Owner:
+      type: object
+      properties:
+        p: {$ref: '#/components/schemas/Mid'}
+    Mid: {$ref: '#/components/schemas/Base'}
+    Base: {type: object, nullable: true}
+`,
+			wantNullable: true,
+			wantTarget:   midID,
+			msg:          "3.0 nullable on a chain's base lifts through Mid to the ref",
+		},
+		{
+			name:    "3.1 chained ref lifts nullability from the base (type array)",
+			version: "3.1.0",
+			schemas: `    Owner:
+      type: object
+      properties:
+        p: {$ref: '#/components/schemas/Mid'}
+    Mid: {$ref: '#/components/schemas/Base'}
+    Base: {type: [object, "null"]}
+`,
+			wantNullable: true,
+			wantTarget:   midID,
+			msg:          "3.1 type-array null on a chain's base lifts through Mid to the ref",
+		},
+		{
+			name:    "3.0 ref to a nullable non-component sub-schema",
+			version: "3.0.3",
+			schemas: `    Holder:
+      type: object
+      properties:
+        inner: {type: object, nullable: true}
+    Owner:
+      type: object
+      properties:
+        p: {$ref: '#/components/schemas/Holder/properties/inner'}
+`,
+			wantNullable: true,
+			wantTarget:   subSchemaID,
+			msg:          "3.0 nullable on a non-component sub-schema lifts to a ref at its pointer",
+		},
+		{
+			name:    "3.1 ref to a nullable non-component sub-schema (type array)",
+			version: "3.1.0",
+			schemas: `    Holder:
+      type: object
+      properties:
+        inner: {type: [object, "null"]}
+    Owner:
+      type: object
+      properties:
+        p: {$ref: '#/components/schemas/Holder/properties/inner'}
+`,
+			wantNullable: true,
+			wantTarget:   subSchemaID,
+			msg:          "3.1 type-array null on a non-component sub-schema lifts to a ref at its pointer",
+		},
+		{
+			name:    "3.1 nullable array component via ref",
+			version: "3.1.0",
+			schemas: `    Owner:
+      type: object
+      properties:
+        p: {$ref: '#/components/schemas/Target'}
+    Target: {type: [array, "null"], items: {type: string}}
+`,
+			wantNullable: true,
+			wantTarget:   targetID,
+			msg:          "3.1 type-array null on a nullable array component lifts to the ref",
+		},
+		{
+			name:    "3.1 nullable scalar component via ref",
+			version: "3.1.0",
+			schemas: `    Owner:
+      type: object
+      properties:
+        p: {$ref: '#/components/schemas/Target'}
+    Target: {type: [string, "null"]}
+`,
+			wantNullable: true,
+			wantTarget:   targetID,
+			msg:          "3.1 type-array null on a nullable scalar component lifts to the ref",
+		},
+		{
+			name:    "3.1 ref-site sibling type array lifts nullability",
+			version: "3.1.0",
+			schemas: `    Owner:
+      type: object
+      properties:
+        p: {$ref: '#/components/schemas/Target', type: ["null"]}
+    Target: {type: string}
+`,
+			wantNullable: true,
+			wantTarget:   targetID,
+			msg:          "3.1 type-array null as a $ref-site sibling lifts to the ref",
+		},
+		{
+			name:    "3.1 non-null ref-site sibling type array (negative control)",
+			version: "3.1.0",
+			schemas: `    Owner:
+      type: object
+      properties:
+        p: {$ref: '#/components/schemas/Target', type: [string]}
+    Target: {type: string}
+`,
+			wantNullable: false,
+			wantTarget:   targetID,
+			msg:          "a $ref-site type array without null leaves the ref non-nullable",
+		},
+		{
+			name:    "3.1 ref to a collapsed oneOf null component",
+			version: "3.1.0",
+			schemas: `    Owner:
+      type: object
+      properties:
+        p: {$ref: '#/components/schemas/Target'}
+    Target:
+      oneOf: [{type: string}, {type: "null"}]
+`,
+			wantNullable: true,
+			wantTarget:   targetID,
+			msg:          "a oneOf null branch that collapses to nullable X lifts to the ref",
+		},
+		{
+			name:    "3.1 ref to a multi-branch union with a null branch",
+			version: "3.1.0",
+			schemas: `    Owner:
+      type: object
+      properties:
+        p: {$ref: '#/components/schemas/Target'}
+    Target:
+      oneOf: [{type: string}, {type: integer}, {type: "null"}]
+`,
+			wantNullable: true,
+			wantTarget:   targetID,
+			msg:          "a null branch stripped from a Union lifts to the ref, not into the variants",
+		},
+		{
+			name:    "3.1 ref to an anyOf null component",
+			version: "3.1.0",
+			schemas: `    Owner:
+      type: object
+      properties:
+        p: {$ref: '#/components/schemas/Target'}
+    Target:
+      anyOf: [{type: object}, {type: "null"}]
+`,
+			wantNullable: true,
+			wantTarget:   targetID,
+			msg:          "an anyOf null branch lifts to the ref just as a oneOf one does",
+		},
+		{
+			name:    "3.1 ref to a union without a null branch (negative control)",
+			version: "3.1.0",
+			schemas: `    Owner:
+      type: object
+      properties:
+        p: {$ref: '#/components/schemas/Target'}
+    Target:
+      oneOf: [{type: string}, {type: integer}]
+`,
+			wantNullable: false,
+			wantTarget:   targetID,
+			msg:          "a union with no null branch stays non-nullable at the ref",
+		},
+		{
+			name:    "3.1 ref to a null branch intersected by structural siblings",
+			version: "3.1.0",
+			schemas: `    Owner:
+      type: object
+      properties:
+        p: {$ref: '#/components/schemas/Target'}
+    Target:
+      type: object
+      properties: {a: {type: string}}
+      oneOf: [{type: string}, {type: "null"}]
+`,
+			wantNullable: false,
+			wantTarget:   targetID,
+			msg:          "a union co-declared with a structural body intersects with it, so its null branch admits nothing",
+		},
+		{
+			name:    "3.1 ref to a closed enum with a null branch sibling",
+			version: "3.1.0",
+			schemas: `    Owner:
+      type: object
+      properties:
+        p: {$ref: '#/components/schemas/Target'}
+    Target:
+      enum: ["open", "closed"]
+      oneOf: [{type: string}, {type: "null"}]
+`,
+			wantNullable: false,
+			wantTarget:   targetID,
+			msg:          "an enum with no null member must not read as nullable through a $ref",
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			spec := componentSpecVer(tc.version, tc.schemas)
+			doc, diags := lowerSpec(t, spec)
+			requireNoErrorDiags(t, diags)
+			m := typeByName(doc, "Owner").(*ir.Model)
+			require.Len(t, m.Properties, 1)
+			assert.Equal(t, tc.wantNullable, m.Properties[0].Type.Nullable, tc.msg)
+			assert.Equal(t, tc.wantTarget, m.Properties[0].Type.Target,
+				"ref resolves to the expected target")
+		})
+	}
+}
+
+// TestSchema_RefNullableMatchesInlineForUnionSiblings pins that one schema body
+// lowers to the same Nullable bit whether it is written inline or reached
+// through a $ref. The $ref site recomputes nullability, so it is the one place
+// that can drift from the inline rule for a union carrying structural siblings.
+func TestSchema_RefNullableMatchesInlineForUnionSiblings(t *testing.T) {
+	t.Parallel()
+	// Both positions are built from one body string, so "the same schema" is
+	// structural rather than two hand-copied blocks that could drift apart.
+	const body = `type: object
+properties: {a: {type: string}}
+oneOf: [{type: string}, {type: "null"}]`
+	indent := func(n int) string {
+		pad := strings.Repeat(" ", n)
+		return pad + strings.ReplaceAll(body, "\n", "\n"+pad) + "\n"
+	}
+	spec := componentSpec("    Target:\n" + indent(6) +
+		`    Owner:
+      type: object
+      properties:
+        viaRef: {$ref: '#/components/schemas/Target'}
+        inline:
+` + indent(10))
+	doc, diags := lowerSpec(t, spec)
+	requireNoErrorDiags(t, diags)
+	m := typeByName(doc, "Owner").(*ir.Model)
+	props := propsByWire(m.Properties)
+	require.Len(t, props, 2)
+
+	assert.Equal(t, props["inline"].Type.Nullable, props["viaRef"].Type.Nullable,
+		"the same body must not change nullability by being reached through a $ref")
+	assert.False(t, props["viaRef"].Type.Nullable,
+		"an intersected union's null branch admits nothing, so neither spelling is nullable")
+}
+
+// TestSchema_RefNullableAtNonPropertyPosition pins that the lifted bit reaches a
+// $ref used as a list element, not just a model property.
+func TestSchema_RefNullableAtNonPropertyPosition(t *testing.T) {
+	t.Parallel()
+	spec := componentSpec(`    Owner:
+      type: object
+      properties:
+        p:
+          type: array
+          items: {$ref: '#/components/schemas/Target'}
+    Target:
+      oneOf: [{type: string}, {type: integer}, {type: "null"}]
+`)
+	doc, diags := lowerSpec(t, spec)
+	requireNoErrorDiags(t, diags)
+	list, ok := doc.Types["t/anon/components/schemas/Owner/properties/p"].(*ir.List)
+	require.True(t, ok)
+	assert.True(t, list.Elem.Nullable,
+		"a nullable union target lifts to the ref wherever it is used, including a list element")
+	assert.Equal(t, componentID("Target"), list.Elem.Target)
 }
 
 func TestSchema_UnionSiblingsAdditionalAndRequired(t *testing.T) {

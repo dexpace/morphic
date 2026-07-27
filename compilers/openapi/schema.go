@@ -138,12 +138,12 @@ func (l *lowerer) schemaBody(schema *oas3.Schema, pointer, hint string) ir.TypeR
 		if hasUnionSiblings(schema) {
 			return ir.TypeRef{
 				Target:   l.lowerWithUnionSiblings(schema, pointer, hint),
-				Nullable: schemaHasNull(schema),
+				Nullable: schemaAdmitsNull(schema),
 			}
 		}
 		return l.lowerOneOfAnyOf(schema, pointer, hint)
 	}
-	return ir.TypeRef{Target: l.lower(schema, pointer, hint), Nullable: schemaHasNull(schema)}
+	return ir.TypeRef{Target: l.lower(schema, pointer, hint), Nullable: schemaAdmitsNull(schema)}
 }
 
 // hasUnionSiblings reports whether a oneOf/anyOf schema also carries structural
@@ -266,10 +266,12 @@ func (l *lowerer) hoistSubSchema(schema *oas3.Schema, pointer string) (ir.TypeID
 	return l.internAlias(pointer, hint, ref, l.schemaConstraints(schema, pointer)), true
 }
 
-// refNullable reports whether a $ref usage admits null: either the reference
-// site carries 3.0 nullable, or its resolved target does.
+// refNullable reports whether a $ref usage admits null: the reference site or
+// its resolved target admits null in any spelling. The ref site must recompute
+// this because a target interned at its own ID (a model, a union) discards the
+// TypeRef its definition produced, so the bit survives nowhere else.
 func (l *lowerer) refNullable(js *oas3.JSONSchema[oas3.Referenceable]) bool {
-	if s := js.GetSchema(); s != nil && s.Nullable != nil && *s.Nullable {
+	if s := js.GetSchema(); s != nil && schemaAdmitsNull(s) {
 		return true
 	}
 	resolved := js.GetResolvedSchema()
@@ -277,7 +279,7 @@ func (l *lowerer) refNullable(js *oas3.JSONSchema[oas3.Referenceable]) bool {
 		return false
 	}
 	target := resolved.GetSchema()
-	return target != nil && target.Nullable != nil && *target.Nullable
+	return target != nil && schemaAdmitsNull(target)
 }
 
 // falseSchema hoists a boolean `false` schema as a closed empty model (it
@@ -1079,6 +1081,24 @@ func schemaHasNull(s *oas3.Schema) bool {
 		return true
 	}
 	return slices.Contains(s.GetType(), oas3.SchemaTypeNull)
+}
+
+// schemaAdmitsNull reports whether a schema admits null in any spelling: the two
+// keyword dialects (schemaHasNull) or a oneOf/anyOf null branch. Lowering lifts
+// all of them onto the enclosing TypeRef rather than into the type node, so this
+// is the one predicate every site computing a Nullable bit goes through — a
+// definition site, a union, and a $ref use site must never disagree about the
+// same schema.
+//
+// A null branch counts only when the union is the type itself. Structural
+// siblings intersect with the union (JSON Schema conjoins keywords), so
+// `{type: object, oneOf: [{type: string}, {type: null}]}` admits neither string
+// nor null; that union is preserved verbatim under Extensions instead.
+func schemaAdmitsNull(s *oas3.Schema) bool {
+	if schemaHasNull(s) {
+		return true
+	}
+	return oneOfAnyOfHasNull(s) && !hasUnionSiblings(s)
 }
 
 // nullUnionCollapse detects a oneOf/anyOf that has exactly one non-null branch

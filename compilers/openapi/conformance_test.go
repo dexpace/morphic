@@ -46,6 +46,7 @@ func TestConformance(t *testing.T) {
 		{"encoding-byte", assertEncodingByte},
 		{"nullability-four-states", assertNullabilityFourStates},
 		{"nullable-30", assertNullable30},
+		{"nullable-31-ref", assertNullable31Ref},
 		{"defaults", assertDefaults},
 		{"constraints", assertConstraints},
 		{"numeric-precision", assertNumericPrecision},
@@ -104,6 +105,15 @@ func assertNoErrorDiags(t *testing.T, diags []ir.Diagnostic) {
 // namedID is the stable TypeID of a components-named schema.
 func namedID(name string) ir.TypeID {
 	return ir.TypeID("t/openapi/components/schemas/" + name)
+}
+
+// propsByWire indexes a model's properties by wire name.
+func propsByWire(props []ir.Property) map[string]ir.Property {
+	out := make(map[string]ir.Property, len(props))
+	for _, p := range props {
+		out[p.WireName] = p
+	}
+	return out
 }
 
 // allOperations flattens every operation across a document's service groups.
@@ -287,10 +297,7 @@ func assertNullabilityFourStates(t *testing.T, doc *ir.Document, _ []ir.Diagnost
 	m, ok := doc.Types[namedID("S")].(*ir.Model)
 	require.True(t, ok)
 	require.Len(t, m.Properties, 4)
-	states := map[string]ir.Property{}
-	for _, p := range m.Properties {
-		states[p.WireName] = p
-	}
+	states := propsByWire(m.Properties)
 	assert.True(t, states["reqPlain"].Required)
 	assert.False(t, states["reqPlain"].Type.Nullable)
 	assert.True(t, states["reqNull"].Required)
@@ -306,6 +313,25 @@ func assertNullable30(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
 	require.True(t, ok)
 	require.Len(t, m.Properties, 1)
 	assert.True(t, m.Properties[0].Type.Nullable, "3.0 nullable lowers to the same IR bit")
+}
+
+func assertNullable31Ref(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
+	m, ok := doc.Types[namedID("Owner")].(*ir.Model)
+	require.True(t, ok)
+	require.Len(t, m.Properties, 2)
+	byName := propsByWire(m.Properties)
+
+	assert.True(t, byName["p"].Type.Nullable,
+		"3.1's type-array null spelling normalizes to the same IR bit at a $ref site")
+	assert.Equal(t, namedID("Target"), byName["p"].Type.Target, "the ref resolves to the named component")
+
+	assert.True(t, byName["q"].Type.Nullable,
+		"a union's null branch is stripped into the ref's Nullable bit, so the ref must carry it")
+	assert.Equal(t, namedID("UnionTarget"), byName["q"].Type.Target, "the ref resolves to the union component")
+
+	u, ok := doc.Types[namedID("UnionTarget")].(*ir.Union)
+	require.True(t, ok)
+	assert.Len(t, u.Variants, 2, "the null branch lifts to the ref rather than becoming a variant")
 }
 
 func assertDefaults(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {

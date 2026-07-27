@@ -155,7 +155,7 @@ func (l *lowerer) lowerOneOfAnyOf(s *oas3.Schema, pointer, hint string) ir.TypeR
 	tid := l.internNode(pointer, hint, func(common ir.TypeCommon) ir.TypeDef {
 		return l.buildUnion(s, common, pointer)
 	})
-	return ir.TypeRef{Target: tid, Nullable: schemaHasNull(s) || oneOfAnyOfHasNull(s)}
+	return ir.TypeRef{Target: tid, Nullable: schemaAdmitsNull(s)}
 }
 
 // oneOfAnyOfHasNull reports whether any oneOf/anyOf branch is a bare `type: null`
