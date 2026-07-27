@@ -41,13 +41,10 @@ type requiredEntry struct {
 }
 
 // compositionRequired collects every required-property name declared across an
-// allOf composition, in source order: each branch's own required list (via
-// its local schema — never its resolved $ref target, which belongs to that
-// target's own model), then the composed schema's own required list. allOf is
-// an intersection, so a required list constrains the whole composed object
-// regardless of which branch declares the named property — unlike
-// fillModelProperties, which only ever applies a required list to the
-// properties declared in the very same properties map (issue #29).
+// allOf composition, in source order: each branch's required list, then the
+// composed schema's own. A branch is read from its local schema, never its
+// resolved $ref target — that required list belongs to the target's own
+// model (issue #29).
 func compositionRequired(s *oas3.Schema, pointer string) []requiredEntry {
 	var out []requiredEntry
 	for i, b := range s.GetAllOf() {
@@ -91,12 +88,13 @@ func (l *lowerer) applyCompositionRequired(m *ir.Model, s *oas3.Schema, pointer 
 // fidelity is lost. Otherwise it is info: the spec just names a property
 // nothing declares, which is legal JSON Schema with nothing to lose.
 func (l *lowerer) diagUnattachableRequired(m *ir.Model, e requiredEntry) {
-	sev := ir.SeverityInfo
 	if m.Base != nil || len(m.Mixins) > 0 {
-		sev = ir.SeverityWarning
+		l.diag(ir.SeverityWarning, codeUnattachableRequired, e.pointer,
+			"required %q matches no property declared here; a base or mixin may declare it, and the requirement cannot be carried across composition", e.name)
+		return
 	}
-	l.diag(sev, codeUnattachableRequired, e.pointer,
-		"required property %q matches no own property; cannot attach across allOf composition", e.name)
+	l.diag(ir.SeverityInfo, codeUnattachableRequired, e.pointer,
+		"required %q matches no property declared here", e.name)
 }
 
 // fillAllOf classifies and lowers the allOf branches into m.
