@@ -5,6 +5,7 @@ import (
 	"os"
 	"testing"
 
+	soa "github.com/speakeasy-api/openapi/openapi"
 	"github.com/speakeasy-api/openapi/validation"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -89,6 +90,42 @@ func TestUnmarshal_RecoversParserPanic(t *testing.T) {
 	assert.ErrorIs(t, err, errParse)
 	assert.Nil(t, doc)
 	assert.Nil(t, valErrs)
+}
+
+// resolverPanicSpec is a document the parser accepts and the resolver faults on:
+// `B: {$ref}` is a mapping whose $ref key carries no value, so populating the
+// response reference that points at it nil-dereferences inside speakeasy.
+// FuzzCycleDetector found it; the same bytes are committed as a corpus entry.
+const resolverPanicSpec = "openapi: 3.0\ncomponents:\n responses:\n  000: {$ref: '#/B'}\nB: {$ref}"
+
+// TestResolveAll_RecoversResolverPanic pins the resolve half of the
+// no-panics-escape invariant. unmarshal has guarded the parser since GitHub #12;
+// ResolveAllReferences was left bare, so a document that parses cleanly and
+// faults during resolution took the caller's process with it.
+func TestResolveAll_RecoversResolverPanic(t *testing.T) {
+	t.Parallel()
+	doc, _, err := unmarshal(t.Context(), []byte(resolverPanicSpec))
+	require.NoError(t, err, "the parser accepts this document")
+	require.NotNil(t, doc)
+
+	resErrs, err := resolveAll(t.Context(), doc, soa.ResolveAllOptions{})
+	require.Error(t, err)
+	assert.ErrorIs(t, err, errParse)
+	assert.Contains(t, err.Error(), "reference resolver panicked")
+	assert.Nil(t, resErrs, "a partially-populated result never leaks")
+}
+
+// TestCompile_ResolverPanicIsADiagnostic is the end-to-end half: the panic
+// becomes an ordinary unresolved-ref diagnostic, so a malformed spec is refused
+// as a spec problem rather than reported as a Go error or crashing the process.
+func TestCompile_ResolverPanicIsADiagnostic(t *testing.T) {
+	t.Parallel()
+	doc, diags, err := New().Compile(t.Context(),
+		[]compilers.Source{{Path: "resolver-panic.yaml", Data: []byte(resolverPanicSpec)}},
+		compilers.Options{})
+	require.NoError(t, err, "a malformed spec is a spec problem, not a Go error")
+	assert.NotNil(t, doc, "resolution failure does not stop the document being lowered")
+	assertHasErrorCode(t, diags, codeUnresolvedRef)
 }
 
 func TestMapSeverity(t *testing.T) {

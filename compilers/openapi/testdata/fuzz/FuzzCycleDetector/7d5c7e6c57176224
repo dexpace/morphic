@@ -1,0 +1,2 @@
+go test fuzz v1
+[]byte("openapi: 3.0\ncomponents:\n responses:\n  000: {$ref: '#/B'}\nB: {$ref}")

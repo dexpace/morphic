@@ -69,7 +69,7 @@ func load(ctx context.Context, srcIndex int, src compilers.Source, opts Options)
 		diags = append(diags, validationDiag(srcIndex, ve))
 	}
 
-	resErrs, err := doc.ResolveAllReferences(ctx, soa.ResolveAllOptions{
+	resErrs, err := resolveAll(ctx, doc, soa.ResolveAllOptions{
 		OpenAPILocation:     src.Path,
 		DisableExternalRefs: opts.DisableExternalRefs,
 	})
@@ -200,6 +200,27 @@ func unmarshal(ctx context.Context, data []byte) (doc *soa.OpenAPI, valErrs []er
 		}
 	}()
 	return soa.Unmarshal(ctx, bytes.NewReader(data))
+}
+
+// resolveAll resolves every reference in doc, converting a panic from the
+// third-party resolver into an ordinary error so the compiler upholds the
+// no-panics-escape invariant. It is the resolve-side counterpart to unmarshal's
+// barrier, and it is needed for the same reason: the resolver faults on shapes
+// the parser accepts — a reference object whose $ref key carries no value, say,
+// which nil-derefs while populating the resolved node.
+//
+// The error joins the resolve errors the caller already turns into diagnostics
+// rather than aborting the compile, because a document that trips this is a
+// malformed spec, not an I/O or programmer error. The named returns are reset in
+// the recover so a partially-populated result never leaks.
+func resolveAll(ctx context.Context, doc *soa.OpenAPI, opts soa.ResolveAllOptions) (resErrs []error, err error) {
+	defer func() {
+		if r := recover(); r != nil {
+			resErrs = nil
+			err = fmt.Errorf("reference resolver panicked (%v): %w", r, errParse)
+		}
+	}()
+	return doc.ResolveAllReferences(ctx, opts)
 }
 
 // validationDiag converts one speakeasy validation error into a diagnostic. A
