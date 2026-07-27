@@ -3,6 +3,8 @@ package openapi
 import (
 	"testing"
 
+	oas3 "github.com/speakeasy-api/openapi/jsonschema/oas3"
+	soa "github.com/speakeasy-api/openapi/openapi"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -803,4 +805,89 @@ func TestEnum_NonScalarAndMidListMismatch(t *testing.T) {
 	_, midIsUnion := typeByName(doc, "MidMismatch").(*ir.Union)
 	assert.True(t, midIsUnion, "kind change mid-list degrades to a union")
 	_ = diags
+}
+
+func TestPropIDByName_NotFound(t *testing.T) {
+	t.Parallel()
+	m := &ir.Model{Properties: []ir.Property{{ID: "p1", Name: ir.Naming{Source: "a"}}}}
+	_, ok := propIDByName(m, "missing")
+	assert.False(t, ok)
+	id, ok := propIDByName(m, "a")
+	assert.True(t, ok)
+	assert.Equal(t, ir.PropID("p1"), id)
+}
+
+func TestRefLastSegment(t *testing.T) {
+	t.Parallel()
+	assert.Equal(t, "Pet", refLastSegment("#/components/schemas/Pet"))
+	assert.Equal(t, "bare", refLastSegment("bare"))
+}
+
+func TestMappingTargetID(t *testing.T) {
+	t.Parallel()
+	l := &lowerer{
+		schemas: map[string]bool{"Cat": true, "Dog": true, "A/B": true},
+		out:     &ir.Document{Types: ir.TypeRegistry{}},
+	}
+	// A $ref to a declared component.
+	id, ok := l.mappingTargetID("#/components/schemas/Cat")
+	require.True(t, ok)
+	assert.Equal(t, namedTypeID("/components/schemas/Cat"), id)
+	// A bare schema name.
+	id, ok = l.mappingTargetID("Dog")
+	require.True(t, ok)
+	assert.Equal(t, namedTypeID(ptr("components", "schemas", "Dog")), id)
+	// A bare name that contains '/' but names an existing schema must resolve, not
+	// dangle as a misclassified external $ref (issue #14, f07).
+	id, ok = l.mappingTargetID("A/B")
+	require.True(t, ok)
+	assert.Equal(t, namedTypeID(ptr("components", "schemas", "A/B")), id)
+	// An undeclared component and a genuine external ref are dropped, never
+	// synthesized into a dangling ID.
+	_, ok = l.mappingTargetID("#/components/schemas/Ghost")
+	assert.False(t, ok, "undeclared component target dropped")
+	_, ok = l.mappingTargetID("a.yaml#/A")
+	assert.False(t, ok, "external target dropped")
+	// A declared but empty-named component ("") is interned anonymously, so its
+	// bare mapping name must resolve to that anon ID, not an unbacked namedTypeID
+	// (issue #14, f31).
+	l.schemas[""] = true
+	id, ok = l.mappingTargetID("")
+	require.True(t, ok)
+	assert.Equal(t, anonTypeID(ptr("components", "schemas", "")), id)
+	assert.NotEqual(t, namedTypeID(ptr("components", "schemas", "")), id)
+}
+
+func strptr(s string) *string { return &s }
+
+func TestDiscriminatorDefault_ResolvesDeclaredComponent(t *testing.T) {
+	t.Parallel()
+	l := newRawLowerer(&soa.OpenAPI{})
+	l.schemas = map[string]bool{"Cat": true}
+	d := &oas3.Discriminator{PropertyName: "kind", DefaultMapping: strptr("Cat")}
+
+	id := l.discriminatorDefault(d, "/components/schemas/Pet")
+	assert.Equal(t, namedTypeID("/components/schemas/Cat"), id)
+	assert.Empty(t, l.diags, "a resolvable defaultMapping produces no diagnostic")
+}
+
+func TestDiscriminatorDefault_DroppedWhenUnresolved(t *testing.T) {
+	t.Parallel()
+	l := newRawLowerer(&soa.OpenAPI{})
+	// "Missing" is neither a declared component nor an internal pointer, so the
+	// defaultMapping does not resolve and is dropped with one error diagnostic.
+	d := &oas3.Discriminator{PropertyName: "kind", DefaultMapping: strptr("Missing")}
+
+	id := l.discriminatorDefault(d, "/components/schemas/Pet")
+	assert.Empty(t, id, "an unresolved defaultMapping yields no target")
+	require.Len(t, l.diags, 1)
+	assert.Equal(t, codeUnresolvedRef, l.diags[0].Code)
+}
+
+func TestDiscriminatorDefault_EmptyIsNoOp(t *testing.T) {
+	t.Parallel()
+	l := newRawLowerer(&soa.OpenAPI{})
+	id := l.discriminatorDefault(&oas3.Discriminator{PropertyName: "kind"}, "/components/schemas/Pet")
+	assert.Empty(t, id)
+	assert.Empty(t, l.diags)
 }

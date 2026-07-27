@@ -7,8 +7,6 @@ import (
 	"github.com/speakeasy-api/openapi/sequencedmap"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-
-	"github.com/dexpace/morphic/ir"
 )
 
 const metaSpec = `openapi: 3.2.0
@@ -78,20 +76,4 @@ func TestServerVariables_NilEntrySkipped(t *testing.T) {
 	srv := lowerServer(&soa.Server{URL: "https://x", Variables: vars})
 	require.Len(t, srv.Variables, 1, "nil variable entry skipped")
 	assert.Equal(t, "keep", srv.Variables[0].Name)
-}
-
-func TestApplyPathServers_WithoutRootNode(t *testing.T) {
-	t.Parallel()
-	l := newRawLowerer(&soa.OpenAPI{})
-	op := &ir.Operation{}
-	l.applyPathServers(op, &soa.PathItem{Servers: []*soa.Server{{URL: "https://x"}}})
-	assert.Nil(t, op.Extensions, "servers with no raw node are not preserved")
-	assert.Empty(t, l.diags)
-}
-
-func TestLowerTagDefs_NilEntrySkipped(t *testing.T) {
-	t.Parallel()
-	l := newRawLowerer(&soa.OpenAPI{Tags: []*soa.Tag{nil, {}}})
-	l.lowerTagDefs()
-	assert.Len(t, l.out.TagDefs, 1, "nil tag entry skipped")
 }

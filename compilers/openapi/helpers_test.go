@@ -13,6 +13,11 @@ import (
 	"github.com/dexpace/morphic/ir"
 )
 
+// deepPointer is a sub-schema pointer (not a top-level component pointer), so it
+// exercises the interning-lookup paths rather than the named-component path.
+// Shared across ids_test.go and schema_test.go.
+const deepPointer = "/components/schemas/Obj/properties/inner"
+
 // sourceOf wraps a spec string as a compilers.Source.
 func sourceOf(src string) compilers.Source {
 	return compilers.Source{Path: "spec.yaml", Data: []byte(src)}

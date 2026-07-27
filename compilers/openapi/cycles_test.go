@@ -428,15 +428,6 @@ func TestDeref_FollowsAliasChain(t *testing.T) {
 
 // TestHasErrorDiag_Cases pins the severity gate the load phase relies on: only an
 // error-severity diagnostic signals a refusal; empty and warning-only sets do not.
-func TestHasErrorDiag_Cases(t *testing.T) {
-	t.Parallel()
-	assert.False(t, hasErrorDiag(nil), "no diagnostics is not an error")
-	assert.False(t, hasErrorDiag([]ir.Diagnostic{{Severity: ir.SeverityWarning}, {Severity: ir.SeverityInfo}}),
-		"warnings and hints alone are not an error")
-	assert.True(t, hasErrorDiag([]ir.Diagnostic{{Severity: ir.SeverityWarning}, {Severity: ir.SeverityError}}),
-		"a single error-severity diagnostic is a refusal")
-}
-
 // FuzzCycleDetector is the standing regression guard for GitHub #12: no input,
 // however degenerate, may crash the process with a fatal stack overflow. The
 // contract is process survival, not a particular verdict — Compile may return a

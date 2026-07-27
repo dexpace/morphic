@@ -138,30 +138,55 @@ func TestResolveDiag(t *testing.T) {
 	assert.Equal(t, 2, bare.Provenance.Source)
 }
 
-func TestNodeToRaw(t *testing.T) {
+// TestIsNumericBoundKeyword_UnderlyingNotTypeMismatch drives the errors.As guard:
+// a type-mismatch-ruled finding whose underlying error is not a *TypeMismatchError
+// names no bound keyword, so the classifier declines to suppress it.
+func TestIsNumericBoundKeyword_UnderlyingNotTypeMismatch(t *testing.T) {
 	t.Parallel()
-	assert.Nil(t, nodeToRaw(nil), "nil node")
-	assert.Nil(t, nodeToRaw(&yaml.Node{Kind: yaml.Kind(99)}), "decode error")
-	assert.Nil(t, nodeToRaw(yamlNode(t, "1: a\n2: b")), "int-key map: json marshal error")
-	raw := nodeToRaw(yamlNode(t, "{a: 1}"))
-	assert.JSONEq(t, `{"a":1}`, string(raw))
+	verr := validation.Error{
+		Rule:            validation.RuleValidationTypeMismatch,
+		UnderlyingError: errors.New("not a type mismatch"),
+	}
+	assert.False(t, isNumericBoundKeyword(verr))
 }
 
-func TestRawChildNode(t *testing.T) {
+// TestIsNumericBoundKeyword_NonBoundKeyword covers the not-in-map arm: a genuine
+// type-mismatch on a keyword Morphic does not own (here `type`) is never
+// suppressed, so the library's finding is kept.
+func TestIsNumericBoundKeyword_NonBoundKeyword(t *testing.T) {
 	t.Parallel()
-	assert.Nil(t, rawChildNode(nil, "x"), "nil root")
-	assert.Nil(t, rawChildNode(scalarNode("!!str", "x"), "k"), "non-mapping root")
-
-	var doc yaml.Node
-	require.NoError(t, yaml.Unmarshal([]byte("a: 1\nb: 2"), &doc))
-	// doc is a DocumentNode wrapping the mapping — exercises the unwrap branch.
-	got := rawChildNode(&doc, "b")
-	require.NotNil(t, got)
-	assert.Equal(t, "2", got.Value)
-	assert.Nil(t, rawChildNode(&doc, "missing"), "absent key")
+	verr := validation.Error{
+		Rule:            validation.RuleValidationTypeMismatch,
+		UnderlyingError: &validation.TypeMismatchError{ParentName: "schema.type"},
+	}
+	assert.False(t, isNumericBoundKeyword(verr))
 }
 
-func TestRawPropertyNode_NilSchema(t *testing.T) {
+// TestIsNumericBoundKeyword_BoundKeyword covers the in-map arm: a type-mismatch on
+// a numeric-bound keyword is recognized (whatever the parent path's prefix) so
+// load suppresses the library's redundant float64 finding on it.
+func TestIsNumericBoundKeyword_BoundKeyword(t *testing.T) {
 	t.Parallel()
-	assert.Nil(t, rawPropertyNode(nil, "x"))
+	verr := validation.Error{
+		Rule:            validation.RuleValidationTypeMismatch,
+		UnderlyingError: &validation.TypeMismatchError{ParentName: "schema.properties.n.minimum"},
+	}
+	assert.True(t, isNumericBoundKeyword(verr))
+}
+
+// TestInvalidSyntaxOnValidNumbers_NilNode covers the nil guard.
+func TestInvalidSyntaxOnValidNumbers_NilNode(t *testing.T) {
+	t.Parallel()
+	assert.False(t, invalidSyntaxOnValidNumbers(nil))
+}
+
+// TestWalkNumericScalars_NilAndDepthGuards covers the recursion guards: neither a
+// nil node nor a node past the scan-depth cap visits any scalar.
+func TestWalkNumericScalars_NilAndDepthGuards(t *testing.T) {
+	t.Parallel()
+	var visited int
+	visit := func(string) { visited++ }
+	walkNumericScalars(nil, 0, visit)
+	walkNumericScalars(&yaml.Node{Kind: yaml.ScalarNode, Tag: "!!int", Value: "5"}, maxSchemaScanDepth+1, visit)
+	assert.Zero(t, visited)
 }

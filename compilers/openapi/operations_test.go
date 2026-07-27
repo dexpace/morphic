@@ -8,6 +8,7 @@ import (
 	"github.com/speakeasy-api/openapi/sequencedmap"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	yaml "gopkg.in/yaml.v3"
 
 	"github.com/dexpace/morphic/compilers"
 	"github.com/dexpace/morphic/ir"
@@ -527,4 +528,54 @@ func TestLowerResponses_NoResponses(t *testing.T) {
 	responses, errs := l.lowerResponses(&soa.Operation{}, "/op")
 	assert.Nil(t, responses)
 	assert.Nil(t, errs)
+}
+
+func TestFirstPathSegment_Empty(t *testing.T) {
+	t.Parallel()
+	assert.Equal(t, "", firstPathSegment("/"))
+	assert.Equal(t, "users", firstPathSegment("/users/{id}"))
+}
+
+func TestApplyPathServers_WithoutRootNode(t *testing.T) {
+	t.Parallel()
+	l := newRawLowerer(&soa.OpenAPI{})
+	op := &ir.Operation{}
+	l.applyPathServers(op, &soa.PathItem{Servers: []*soa.Server{{URL: "https://x"}}})
+	assert.Nil(t, op.Extensions, "servers with no raw node are not preserved")
+	assert.Empty(t, l.diags)
+}
+
+func TestLowerTagDefs_NilEntrySkipped(t *testing.T) {
+	t.Parallel()
+	l := newRawLowerer(&soa.OpenAPI{Tags: []*soa.Tag{nil, {}}})
+	l.lowerTagDefs()
+	assert.Len(t, l.out.TagDefs, 1, "nil tag entry skipped")
+}
+
+func TestRawChildNode(t *testing.T) {
+	t.Parallel()
+	assert.Nil(t, rawChildNode(nil, "x"), "nil root")
+	assert.Nil(t, rawChildNode(scalarNode("!!str", "x"), "k"), "non-mapping root")
+
+	var doc yaml.Node
+	require.NoError(t, yaml.Unmarshal([]byte("a: 1\nb: 2"), &doc))
+	// doc is a DocumentNode wrapping the mapping — exercises the unwrap branch.
+	got := rawChildNode(&doc, "b")
+	require.NotNil(t, got)
+	assert.Equal(t, "2", got.Value)
+	assert.Nil(t, rawChildNode(&doc, "missing"), "absent key")
+}
+
+func TestResolvers_NilInputs(t *testing.T) {
+	t.Parallel()
+	assert.Nil(t, resolvePathItem(nil))
+	assert.Nil(t, resolveResponse(nil))
+	assert.Nil(t, resolveHeader(nil))
+	assert.Nil(t, resolveCallback(nil))
+	assert.Nil(t, resolveParameter(nil))
+	assert.Nil(t, resolveRequestBody(nil))
+	assert.Nil(t, resolveExample(nil))
+	assert.Nil(t, resolveSecurityScheme(nil))
+	_, ok := paramKey(nil)
+	assert.False(t, ok)
 }

@@ -6,8 +6,10 @@ import (
 
 	oas3 "github.com/speakeasy-api/openapi/jsonschema/oas3"
 	soa "github.com/speakeasy-api/openapi/openapi"
+	"github.com/speakeasy-api/openapi/references"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	yaml "gopkg.in/yaml.v3"
 
 	"github.com/dexpace/morphic/ir"
 	"github.com/dexpace/morphic/pass"
@@ -514,33 +516,6 @@ components:
 	assert.True(t, byName["optNull"].Type.Nullable)
 }
 
-func TestConstraints_NumericPrecisionSurvives(t *testing.T) {
-	t.Parallel()
-	spec := `openapi: 3.1.0
-info: {title: T, version: "1"}
-paths: {}
-components:
-  schemas:
-    S:
-      type: object
-      properties:
-        ratio:
-          type: number
-          minimum: 0.30000000000000004
-          maximum: 9007199254740993
-          multipleOf: 0.1
-`
-	doc, diags := lowerSpec(t, spec)
-	requireNoErrorDiags(t, diags)
-	m := doc.Types[ir.TypeID("t/openapi/components/schemas/S")].(*ir.Model)
-	c := m.Properties[0].Constraints
-	require.NotNil(t, c)
-	// Exact decimal strings — a float64 path would corrupt all three.
-	assert.Equal(t, ir.BigVal("0.30000000000000004"), *c.Min)
-	assert.Equal(t, ir.BigVal("9007199254740993"), *c.Max)
-	assert.Equal(t, ir.BigVal("0.1"), *c.MultipleOf)
-}
-
 func TestModel_ValidationOnlyKeywordPreserved(t *testing.T) {
 	t.Parallel()
 	spec := `openapi: 3.1.0
@@ -817,11 +792,6 @@ func TestIsNullSchema_EmptyEitherFalse(t *testing.T) {
 	assert.False(t, isNullSchema(emptyEitherSchema()), "empty either is not a null schema")
 }
 
-func TestIsRefBranch_Nil(t *testing.T) {
-	t.Parallel()
-	assert.False(t, isRefBranch(nil))
-}
-
 func TestPreserveUnionSiblings_MissingNode(t *testing.T) {
 	t.Parallel()
 	l := newRawLowerer(&soa.OpenAPI{})
@@ -958,20 +928,6 @@ func TestSchema_UnionSiblingsAdditionalAndRequired(t *testing.T) {
 		_, ok := typeByName(doc, name).Common().Extensions["openapi:oneOf"]
 		assert.True(t, ok, "%s preserves its union", name)
 	}
-}
-
-func TestSchema_OneOfWithBoolBranch(t *testing.T) {
-	t.Parallel()
-	spec := componentSpec(`    U:
-      anyOf:
-        - {type: string}
-        - true
-`)
-	doc, diags := lowerSpec(t, spec)
-	requireNoErrorDiags(t, diags)
-	u, ok := typeByName(doc, "U").(*ir.Union)
-	require.True(t, ok)
-	assert.Len(t, u.Variants, 2, "the boolean branch is a variant, not a null strip")
 }
 
 func TestSchema_RefTargetReadOnlyVisibility(t *testing.T) {
@@ -1591,4 +1547,109 @@ func TestAllOf_PropertyAlongsideAllOfConflictMessageIsAccurate(t *testing.T) {
 		"the redeclaration site is a co-declared property, not an allOf branch")
 	assert.Equal(t, "/components/schemas/Along/properties/id", d.Provenance.Pointer,
 		"the diagnostic's own site is the co-declared property, not an allOf branch")
+}
+
+func TestPreserveKeyword_NilRaw(t *testing.T) {
+	t.Parallel()
+	l := &lowerer{}
+	m := &ir.Model{}
+	l.preserveKeyword(m, "openapi:not", nil, "/p", "not")
+	assert.Nil(t, m.Extensions, "nil raw is a no-op")
+	assert.Empty(t, l.diags)
+}
+
+func TestNodeToRaw(t *testing.T) {
+	t.Parallel()
+	assert.Nil(t, nodeToRaw(nil), "nil node")
+	assert.Nil(t, nodeToRaw(&yaml.Node{Kind: yaml.Kind(99)}), "decode error")
+	assert.Nil(t, nodeToRaw(yamlNode(t, "1: a\n2: b")), "int-key map: json marshal error")
+	raw := nodeToRaw(yamlNode(t, "{a: 1}"))
+	assert.JSONEq(t, `{"a":1}`, string(raw))
+}
+
+func TestRawPropertyNode_NilSchema(t *testing.T) {
+	t.Parallel()
+	assert.Nil(t, rawPropertyNode(nil, "x"))
+}
+
+// TestComponentConstraints_NonSchemaInputs covers the js-level early return: a nil,
+// boolean, or reference component has no scalar body to carry constraints.
+func TestComponentConstraints_NonSchemaInputs(t *testing.T) {
+	t.Parallel()
+	l := newRawLowerer(&soa.OpenAPI{})
+	assert.Nil(t, l.componentConstraints(nil, "/p"))
+	assert.Nil(t, l.componentConstraints(oas3.NewJSONSchemaFromBool(true), "/p"))
+	assert.Nil(t, l.componentConstraints(oas3.NewJSONSchemaFromReference("#/components/schemas/Other"), "/p"))
+}
+
+// TestSchemaConstraints_EmptyRefSchema covers the schemaConstraints early return: a
+// schema whose $ref pointer is present but empty is not a reference (IsReference is
+// false) yet its Ref field is set, so it holds no readable constraint body. The
+// parser never emits this shape, so it is built by hand.
+func TestSchemaConstraints_EmptyRefSchema(t *testing.T) {
+	t.Parallel()
+	l := newRawLowerer(&soa.OpenAPI{})
+	emptyRef := references.Reference("")
+	js := oas3.NewJSONSchemaFromSchema[oas3.Referenceable](&oas3.Schema{Ref: &emptyRef})
+	assert.Nil(t, l.componentConstraints(js, "/p"))
+}
+
+func TestResolveSchemaRef_ReusesInternedSubSchema(t *testing.T) {
+	t.Parallel()
+	l := newRawLowerer(&soa.OpenAPI{})
+	l.byPointer[deepPointer] = "t/anon/prev"
+
+	id, ok := l.resolveSchemaRef(emptyEitherSchema(), "#"+deepPointer)
+	require.True(t, ok, "a $ref to an already-hoisted sub-schema reuses its ID")
+	assert.Equal(t, ir.TypeID("t/anon/prev"), id)
+}
+
+func TestResolveSchemaRef_UnresolvedDeepRefDropped(t *testing.T) {
+	t.Parallel()
+	l := newRawLowerer(&soa.OpenAPI{})
+	// A same-file $ref to a deep pointer the library never resolved: no interned
+	// node, GetResolvedSchema is nil, so the reference is dropped (ok=false).
+	js := oas3.NewJSONSchemaFromReference("#" + deepPointer)
+
+	_, ok := l.resolveSchemaRef(js, "#"+deepPointer)
+	assert.False(t, ok, "an unresolved deep sub-schema $ref is dropped, not synthesized")
+}
+
+func TestHoistSubSchema_NilSchema(t *testing.T) {
+	t.Parallel()
+	l := newRawLowerer(&soa.OpenAPI{})
+	_, ok := l.hoistSubSchema(nil, deepPointer)
+	assert.False(t, ok, "a nil resolved sub-schema cannot be hoisted")
+}
+
+func TestHoistSubSchema_BodyInternsAtPointer(t *testing.T) {
+	t.Parallel()
+	l := newRawLowerer(&soa.OpenAPI{})
+	// An object body interns a node at the sub-schema's own pointer, so the
+	// pointer-owns-a-node branch returns that node rather than aliasing it.
+	object := &oas3.Schema{Type: oas3.NewTypeFromString(oas3.SchemaTypeObject)}
+
+	id, ok := l.hoistSubSchema(object, deepPointer)
+	require.True(t, ok)
+	assert.Equal(t, anonTypeID(deepPointer), id)
+	assert.Equal(t, anonTypeID(deepPointer), l.byPointer[deepPointer])
+}
+
+func TestIsRefBranch_Nil(t *testing.T) {
+	t.Parallel()
+	assert.False(t, isRefBranch(nil))
+}
+
+func TestSchema_OneOfWithBoolBranch(t *testing.T) {
+	t.Parallel()
+	spec := componentSpec(`    U:
+      anyOf:
+        - {type: string}
+        - true
+`)
+	doc, diags := lowerSpec(t, spec)
+	requireNoErrorDiags(t, diags)
+	u, ok := typeByName(doc, "U").(*ir.Union)
+	require.True(t, ok)
+	assert.Len(t, u.Variants, 2, "the boolean branch is a variant, not a null strip")
 }

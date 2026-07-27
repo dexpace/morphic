@@ -1,3 +1,6 @@
+// This file is a package-level suite, not a per-source-file test: it snapshot-
+// compares the whole compiler's IR output against a byte-exact golden file, so
+// it has no single source file to pair with.
 package openapi_test // external test package — exercises only the public API
 
 import (

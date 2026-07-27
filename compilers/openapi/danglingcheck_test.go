@@ -1,3 +1,7 @@
+// This file is a package-level suite, not a per-source-file test: it runs the
+// issue-#14 dangling-ref reproducer corpus through the whole compiler, so it has
+// no single source file to pair with. This is deliberate, not a leftover from the
+// test-file consolidation — do not fold it into another file.
 package openapi_test // external test package — exercises only the public API
 
 import (
