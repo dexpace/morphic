@@ -37,6 +37,7 @@ func TestConformance(t *testing.T) {
 		{"allof-inheritance", assertAllOfInheritance},
 		{"allof-mixins", assertAllOfMixins},
 		{"allof-inline-merge", assertAllOfInlineMerge},
+		{"allof-required-only", assertAllOfRequiredOnly},
 		{"oneof-discriminated", assertOneOfDiscriminated},
 		{"anyof-untagged", assertAnyOfUntagged},
 		{"negation-not", assertNegationNot},
@@ -210,6 +211,16 @@ func assertAllOfInlineMerge(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
 	assert.Equal(t, namedID("Base"), m.Base.Target)
 	_, ok = propByWire(m, "name")
 	assert.True(t, ok, "inline allOf branch contributes its properties")
+}
+
+func assertAllOfRequiredOnly(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
+	d, ok := doc.Types[namedID("Derived")].(*ir.Model)
+	require.True(t, ok)
+	require.NotNil(t, d.Base, "the $ref branch still becomes Base")
+	name, ok := propByWire(d, "name")
+	require.True(t, ok, "the inline branch's own property survives")
+	assert.True(t, name.Required,
+		"a required-only allOf branch attaches across the whole composition, not just its own properties map (issue #29)")
 }
 
 func assertOneOfDiscriminated(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {

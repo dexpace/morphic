@@ -21,6 +21,7 @@ func (l *lowerer) lowerAllOf(s *oas3.Schema, pointer, hint string) ir.TypeID {
 		m := &ir.Model{TypeCommon: common}
 		l.fillAllOf(m, s, pointer)
 		l.fillModelProperties(m, s, pointer) // properties declared alongside allOf
+		l.applyCompositionRequired(m, s, pointer)
 		l.fillModelDetail(m, s, pointer, hint)
 		if d := l.lowerDiscriminator(s, m, pointer); d != nil {
 			m.Discriminator = d
@@ -28,6 +29,74 @@ func (l *lowerer) lowerAllOf(s *oas3.Schema, pointer, hint string) ir.TypeID {
 		m.DiscriminatorValue = l.subtypeDiscriminatorValue(s, common.ID, pointer)
 		return m
 	})
+}
+
+// requiredEntry is one `required` name declared somewhere in an allOf
+// composition, paired with the pointer of the schema that declared it (an
+// allOf branch, or the composed schema itself) so a diagnostic can point the
+// author at the right site.
+type requiredEntry struct {
+	name    string
+	pointer string
+}
+
+// compositionRequired collects every required-property name declared across an
+// allOf composition, in source order: each branch's own required list (via
+// its local schema — never its resolved $ref target, which belongs to that
+// target's own model), then the composed schema's own required list. allOf is
+// an intersection, so a required list constrains the whole composed object
+// regardless of which branch declares the named property — unlike
+// fillModelProperties, which only ever applies a required list to the
+// properties declared in the very same properties map (issue #29).
+func compositionRequired(s *oas3.Schema, pointer string) []requiredEntry {
+	var out []requiredEntry
+	for i, b := range s.GetAllOf() {
+		bs := b.GetSchema() // the branch's own local schema; nil for a bare `false`
+		if bs == nil {
+			continue
+		}
+		bptr := pointer + ptr("allOf", strconv.Itoa(i))
+		for _, name := range bs.GetRequired() {
+			out = append(out, requiredEntry{name: name, pointer: bptr})
+		}
+	}
+	for _, name := range s.GetRequired() {
+		out = append(out, requiredEntry{name: name, pointer: pointer})
+	}
+	return out
+}
+
+// applyCompositionRequired OR-s every composition-scope required name onto m's
+// own properties, matching by wire name; it never clears a Required already
+// set. An entry matching no own property has no IR home (ir-design §4.3) and
+// is diagnosed via diagUnattachableRequired instead of dropped silently.
+func (l *lowerer) applyCompositionRequired(m *ir.Model, s *oas3.Schema, pointer string) {
+	entries := compositionRequired(s, pointer)
+	if len(entries) == 0 {
+		return
+	}
+	byWire := wireNameIndex(m.Properties)
+	for _, e := range entries {
+		if i, ok := byWire[e.name]; ok {
+			m.Properties[i].Required = true
+			continue
+		}
+		l.diagUnattachableRequired(m, e)
+	}
+}
+
+// diagUnattachableRequired reports a composition-scope required name matching
+// no own property. It is a warning when m composes a ref (Base or a Mixin):
+// the requirement plausibly belongs to that base/mixin's own property, so real
+// fidelity is lost. Otherwise it is info: the spec just names a property
+// nothing declares, which is legal JSON Schema with nothing to lose.
+func (l *lowerer) diagUnattachableRequired(m *ir.Model, e requiredEntry) {
+	sev := ir.SeverityInfo
+	if m.Base != nil || len(m.Mixins) > 0 {
+		sev = ir.SeverityWarning
+	}
+	l.diag(sev, codeUnattachableRequired, e.pointer,
+		"required property %q matches no own property; cannot attach across allOf composition", e.name)
 }
 
 // fillAllOf classifies and lowers the allOf branches into m.
