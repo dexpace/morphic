@@ -2,6 +2,10 @@ openapi: 3.1.0
 info: {title: ParamStyles, version: "1.0.0"}
 paths:
   /search:
+    parameters:
+      - name: requestId
+        in: header
+        schema: {type: string, enum: [a, b]}
     get:
       operationId: search
       parameters:
@@ -16,6 +20,11 @@ paths:
           content:
             application/json:
               schema: {type: object}
+      responses:
+        "200":
+          description: ok
+    delete:
+      operationId: clearSearch
       responses:
         "200":
           description: ok

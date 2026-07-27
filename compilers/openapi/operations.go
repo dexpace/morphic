@@ -93,20 +93,22 @@ func (l *lowerer) lowerPaths(groups *serviceGroups) {
 // lowerPathItem lowers each method operation on one path into its group,
 // carrying along any callback operations registered under the same group.
 func (l *lowerer) lowerPathItem(groups *serviceGroups, path string, pi *soa.PathItem) {
+	pathPtr := ptr("paths", path)
 	for _, m := range httpMethods {
 		src := m.get(pi)
 		if src == nil {
 			continue
 		}
 		key, name, docs, inferred := l.groupFor(src, path)
+		opPtr := pathPtr + ptr(m.name)
 		ctx := opContext{
 			method:        m.name,
 			uriTemplate:   path,
 			withCallbacks: true,
 			inferred:      inferred,
-			params:        mergeParameters(pi.GetParameters(), src.GetParameters()),
+			params:        mergeParameters(pi.GetParameters(), src.GetParameters(), pathPtr, opPtr),
 		}
-		op, extra := l.lowerOperation(src, ctx, ptr("paths", path, m.name))
+		op, extra := l.lowerOperation(src, ctx, opPtr)
 		l.applyPathServers(&op, pi)
 		grp := groups.group(key, func() ir.OperationGroup { return ir.OperationGroup{Name: name, Docs: docs} })
 		grp.Operations = append(grp.Operations, op)
@@ -126,19 +128,21 @@ func (l *lowerer) lowerWebhooks(groups *serviceGroups) {
 		if pi == nil {
 			continue
 		}
+		hookPtr := ptr("webhooks", name)
 		for _, m := range httpMethods {
 			src := m.get(pi)
 			if src == nil {
 				continue
 			}
+			opPtr := hookPtr + ptr(m.name)
 			ctx := opContext{
 				method:        m.name,
 				uriTemplate:   name,
 				isWebhook:     true,
 				withCallbacks: true,
-				params:        mergeParameters(pi.GetParameters(), src.GetParameters()),
+				params:        mergeParameters(pi.GetParameters(), src.GetParameters(), hookPtr, opPtr),
 			}
-			op, extra := l.lowerOperation(src, ctx, ptr("webhooks", name, m.name))
+			op, extra := l.lowerOperation(src, ctx, opPtr)
 			grp := groups.group("webhook", func() ir.OperationGroup {
 				return ir.OperationGroup{Name: ir.Naming{Source: "webhooks"}}
 			})
@@ -176,14 +180,15 @@ func (l *lowerer) tagDocs(name string) ir.Docs {
 
 // opContext carries the per-operation lowering inputs that do not come from the
 // source Operation itself: its HTTP binding shape, grouping provenance, and the
-// path-item-merged parameter list.
+// path-item-merged parameter list — each entry still carrying the pointer of its
+// own declaration site rather than a position in the merged list.
 type opContext struct {
 	method        string
 	uriTemplate   string
 	isWebhook     bool
 	withCallbacks bool
 	inferred      string
-	params        []*soa.ReferencedParameter
+	params        []sourcedParam
 }
 
 // lowerOperation lowers one source operation at pointer into the neutral core
@@ -201,7 +206,7 @@ func (l *lowerer) lowerOperation(src *soa.Operation, ctx opContext, pointer stri
 	if src.GetDeprecated() {
 		op.Deprecation = &ir.Deprecation{}
 	}
-	params, bindings := l.lowerParameters(ctx.params, pointer)
+	params, bindings := l.lowerParameters(ctx.params)
 	op.Params = params
 	op.Responses, op.Errors = l.lowerResponses(src, pointer)
 	hb := ir.HTTPBinding{
@@ -411,41 +416,66 @@ func (l *lowerer) lowerCallbackOps(pi *soa.PathItem, cbPtr, expr, inferred strin
 		if src == nil {
 			continue
 		}
+		opPtr := cbPtr + ptr(m.name)
 		ctx := opContext{
 			method:      m.name,
 			uriTemplate: expr,
 			inferred:    inferred,
-			params:      mergeParameters(pi.GetParameters(), src.GetParameters()),
+			params:      mergeParameters(pi.GetParameters(), src.GetParameters(), cbPtr, opPtr),
 		}
-		op, _ := l.lowerOperation(src, ctx, cbPtr+ptr(m.name))
+		op, _ := l.lowerOperation(src, ctx, opPtr)
 		ids = append(ids, op.ID)
 		ops = append(ops, op)
 	}
 	return ids, ops
 }
 
+// sourcedParam pairs a parameter with its own declaration pointer, because
+// path-item parameters are merged into every operation on the path item and so
+// cannot borrow the operation's index space.
+type sourcedParam struct {
+	ref     *soa.ReferencedParameter
+	pointer string
+}
+
 // mergeParameters merges path-item parameters with operation parameters using
 // use-site precedence: an operation parameter with the same (name, in) overrides
 // the path-item one; unshadowed path-item parameters follow in source order.
-func mergeParameters(pathParams, opParams []*soa.ReferencedParameter) []*soa.ReferencedParameter {
+// Each entry keeps the pointer of its own declaration site rather than a
+// position recomputed from the merged slice (issue #36).
+func mergeParameters(pathParams, opParams []*soa.ReferencedParameter, pathPointer, opPointer string) []sourcedParam {
+	merged := make([]sourcedParam, 0, len(opParams)+len(pathParams))
+	merged = appendSourced(merged, opParams, opPointer, nil)
 	if len(pathParams) == 0 {
-		return opParams
+		return merged
 	}
+	return appendSourced(merged, pathParams, pathPointer, shadowedKeys(opParams))
+}
+
+// appendSourced appends params to dst, pairing each with the pointer of its own
+// declaration position under base and skipping any whose (name, in) key is in
+// shadowed. A nil shadowed map reads as all-false, which is what the operation
+// side passes: operation parameters are never shadowed.
+func appendSourced(dst []sourcedParam, params []*soa.ReferencedParameter, base string, shadowed map[string]bool) []sourcedParam {
+	for i, p := range params {
+		if key, ok := paramKey(p); ok && shadowed[key] {
+			continue
+		}
+		dst = append(dst, sourcedParam{ref: p, pointer: base + ptr("parameters", strconv.Itoa(i))})
+	}
+	return dst
+}
+
+// shadowedKeys returns the (in, name) identities declared by opParams, so a
+// path-item parameter sharing one is left out of the merge as a duplicate.
+func shadowedKeys(opParams []*soa.ReferencedParameter) map[string]bool {
 	shadowed := make(map[string]bool, len(opParams))
 	for _, p := range opParams {
 		if key, ok := paramKey(p); ok {
 			shadowed[key] = true
 		}
 	}
-	merged := make([]*soa.ReferencedParameter, 0, len(opParams)+len(pathParams))
-	merged = append(merged, opParams...)
-	for _, p := range pathParams {
-		if key, ok := paramKey(p); ok && shadowed[key] {
-			continue
-		}
-		merged = append(merged, p)
-	}
-	return merged
+	return shadowed
 }
 
 // paramKey builds the (in, name) identity of a parameter for merge dedup.

@@ -154,6 +154,17 @@ func propByWire(m *ir.Model, wire string) (ir.Property, bool) {
 	return ir.Property{}, false
 }
 
+// paramByName returns the operation's logical parameter with the given source
+// name.
+func paramByName(op ir.Operation, name string) (ir.Parameter, bool) {
+	for _, p := range op.Params {
+		if p.Name.Source == name {
+			return p, true
+		}
+	}
+	return ir.Parameter{}, false
+}
+
 func assertNamedTypes(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
 	user, ok := doc.Types[namedID("User")].(*ir.Model)
 	require.True(t, ok, "named schema User present under its pointer-derived ID")
@@ -550,6 +561,19 @@ func assertParamStyles(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
 	assert.True(t, *q.Explode, "form default explodes")
 	assert.Equal(t, "deepObject", byParam["filter"].Style)
 	assert.Equal(t, "application/json", byParam["payload"].ContentType, "content-style param records its media type")
+
+	// The path item's shared parameter merges into both of its operations and
+	// interns its schema once, at the path item's own pointer (issue #36).
+	clearSearch, ok := opByName(doc, "clearSearch")
+	require.True(t, ok, "the path item's second operation is registered")
+	searchReqID, ok := paramByName(op, "requestId")
+	require.True(t, ok, "search inherits the path-item-level parameter")
+	clearReqID, ok := paramByName(clearSearch, "requestId")
+	require.True(t, ok, "clearSearch inherits the same path-item-level parameter")
+	assert.Equal(t, searchReqID.Type.Target, clearReqID.Type.Target,
+		"both operations resolve the shared path-item parameter to the same interned schema")
+	assert.Equal(t, ir.TypeID("t/anon/paths/~1search/parameters/0/schema"), searchReqID.Type.Target,
+		"the shared schema is hoisted at the path item's own pointer, not a per-operation one")
 }
 
 func assertMultiContent(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {

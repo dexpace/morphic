@@ -236,15 +236,214 @@ func TestParameters_PathItemMergeOverride(t *testing.T) {
 	require.NotNil(t, pi)
 	op := pi.Get()
 	require.NotNil(t, op)
-	merged := mergeParameters(pi.GetParameters(), op.GetParameters())
+	pathPtr := ptr("paths", "/users/{id}")
+	opPtr := pathPtr + ptr("get")
+	merged := mergeParameters(pi.GetParameters(), op.GetParameters(), pathPtr, opPtr)
 	require.Len(t, merged, 2, "shared (name,in) collapses to one; op wins")
-	assert.Same(t, op.GetParameters()[0], merged[0], "operation parameter overrides the path-item one")
-	names := map[string]bool{}
-	for _, p := range merged {
-		names[resolveRef[soa.Parameter](p).GetName()] = true
+	assert.Same(t, op.GetParameters()[0], merged[0].ref, "operation parameter overrides the path-item one")
+	assert.Equal(t, "/paths/~1users~1{id}/get/parameters/0", merged[0].pointer,
+		"the op-level parameter keeps its own declaration pointer")
+
+	byName := map[string]sourcedParam{}
+	for _, sp := range merged {
+		byName[resolveRef[soa.Parameter](sp.ref).GetName()] = sp
 	}
-	assert.True(t, names["id"])
-	assert.True(t, names["trace"])
+	_, hasID := byName["id"]
+	_, hasTrace := byName["trace"]
+	assert.True(t, hasID)
+	assert.True(t, hasTrace)
+	assert.Equal(t, "/paths/~1users~1{id}/parameters/1", byName["trace"].pointer,
+		"the unshadowed path-level parameter keeps its own declaration pointer, at its own path-item index")
+}
+
+// TestParameters_PathItemSharedAcrossOperationsInternsOnce is the fix's core
+// scenario (issue #36): a path-item-level parameter merged into two sibling
+// operations must intern its schema once, at the path item's own pointer —
+// not once per operation under a pointer fabricated from that operation's
+// unrelated parameter count.
+func TestParameters_PathItemSharedAcrossOperationsInternsOnce(t *testing.T) {
+	t.Parallel()
+	spec := pathsSpec(`  /pets/{petId}:
+    parameters:
+      - name: petId
+        in: path
+        required: true
+        schema: {type: string, enum: [a, b]}
+    get:
+      operationId: getPet
+      responses: {"200": {description: ok}}
+    delete:
+      operationId: deletePet
+      parameters:
+        - {name: force, in: query, schema: {type: boolean}}
+      responses: {"200": {description: ok}}
+`)
+	doc, _, diags := lowerServiceSpec(t, spec)
+	requireNoErrorDiags(t, diags)
+	getPet := findOp(t, doc, "getPet")
+	deletePet := findOp(t, doc, "deletePet")
+	require.Len(t, getPet.Params, 1, "get inherits only the shared path-item parameter")
+	require.Len(t, deletePet.Params, 2, "delete gets its own force plus the shared path-item parameter")
+
+	wantID := ir.TypeID("t/anon/paths/~1pets~1{petId}/parameters/0/schema")
+	assert.Equal(t, wantID, getPet.Params[0].Type.Target, "get resolves the shared path-item schema")
+
+	byName := indexBy(deletePet.Params, func(p ir.Parameter) string { return p.Name.Source })
+	assert.Equal(t, wantID, byName["petId"].Type.Target, "delete resolves the same shared schema, not a copy")
+
+	typeDef, ok := doc.Types[wantID]
+	require.True(t, ok, "the shared schema is registered under the path item's own pointer")
+	assert.Equal(t, "/paths/~1pets~1{petId}/parameters/0/schema", typeDef.Common().Provenance.Pointer)
+
+	_, fabricatedGet := doc.Types[ir.TypeID("t/anon/paths/~1pets~1{petId}/get/parameters/0/schema")]
+	_, fabricatedDelete := doc.Types[ir.TypeID("t/anon/paths/~1pets~1{petId}/delete/parameters/1/schema")]
+	assert.False(t, fabricatedGet, "no fabricated per-operation ID for get")
+	assert.False(t, fabricatedDelete, "no fabricated per-operation ID for delete")
+}
+
+// TestParameters_PathItemSchemaIDStableAcrossOperationParamChanges guards the
+// specific regression from issue #36: adding an unrelated operation-level
+// parameter must not shift the TypeID already handed out for a sibling
+// path-item-level parameter's schema.
+func TestParameters_PathItemSchemaIDStableAcrossOperationParamChanges(t *testing.T) {
+	t.Parallel()
+	before := pathsSpec(`  /pets/{petId}:
+    parameters:
+      - name: petId
+        in: path
+        required: true
+        schema: {type: string, enum: [a, b]}
+    get:
+      operationId: getPet
+      responses: {"200": {description: ok}}
+`)
+	after := pathsSpec(`  /pets/{petId}:
+    parameters:
+      - name: petId
+        in: path
+        required: true
+        schema: {type: string, enum: [a, b]}
+    get:
+      operationId: getPet
+      parameters:
+        - {name: verbose, in: query, schema: {type: boolean}}
+      responses: {"200": {description: ok}}
+`)
+	_, svcBefore, diagsBefore := lowerServiceSpec(t, before)
+	requireNoErrorDiags(t, diagsBefore)
+	_, svcAfter, diagsAfter := lowerServiceSpec(t, after)
+	requireNoErrorDiags(t, diagsAfter)
+
+	opBefore := firstOp(t, svcBefore)
+	opAfter := firstOp(t, svcAfter)
+	require.Len(t, opBefore.Params, 1)
+	require.Len(t, opAfter.Params, 2, "the unrelated verbose parameter adds a second entry")
+
+	byName := indexBy(opAfter.Params, func(p ir.Parameter) string { return p.Name.Source })
+	assert.Equal(t, opBefore.Params[0].Type.Target, byName["petId"].Type.Target,
+		"an unrelated operation-level parameter must not shift the shared path-item schema's ID")
+}
+
+// TestParameters_WebhookPathItemParameterPointer covers the same merge through
+// lowerWebhooks: a webhook path-item-level parameter must hoist at the webhook
+// path item's own pointer.
+func TestParameters_WebhookPathItemParameterPointer(t *testing.T) {
+	t.Parallel()
+	spec := `openapi: 3.1.0
+info: {title: T, version: "1"}
+paths: {}
+webhooks:
+  petEvent:
+    parameters:
+      - name: kind
+        in: query
+        schema: {type: string, enum: [created, deleted]}
+    post:
+      operationId: onPetEvent
+      responses: {"200": {description: ok}}
+`
+	doc, _, diags := lowerServiceSpec(t, spec)
+	requireNoErrorDiags(t, diags)
+	op := findOp(t, doc, "onPetEvent")
+	require.Len(t, op.Params, 1)
+
+	wantID := ir.TypeID("t/anon/webhooks/petEvent/parameters/0/schema")
+	assert.Equal(t, wantID, op.Params[0].Type.Target)
+	typeDef, ok := doc.Types[wantID]
+	require.True(t, ok)
+	assert.Equal(t, "/webhooks/petEvent/parameters/0/schema", typeDef.Common().Provenance.Pointer)
+}
+
+// TestParameters_CallbackPathItemParameterPointer covers the same merge
+// through lowerCallbackOps: a callback path-item-level parameter must hoist at
+// the callback path item's own pointer, nested under the parent operation and
+// callback expression.
+func TestParameters_CallbackPathItemParameterPointer(t *testing.T) {
+	t.Parallel()
+	spec := pathsSpec(`  /subscribe:
+    post:
+      operationId: subscribe
+      callbacks:
+        onEvent:
+          '{$request.body#/callbackUrl}':
+            parameters:
+              - name: token
+                in: query
+                schema: {type: string, enum: [a, b]}
+            post:
+              operationId: onEvent
+              responses: {"200": {description: ok}}
+      responses: {"200": {description: ok}}
+`)
+	doc, _, diags := lowerServiceSpec(t, spec)
+	requireNoErrorDiags(t, diags)
+	cbOp := findOp(t, doc, "onEvent")
+	require.Len(t, cbOp.Params, 1)
+
+	wantPointer := "/paths/~1subscribe/post/callbacks/onEvent/{$request.body#~1callbackUrl}/parameters/0/schema"
+	wantID := ir.TypeID("t/anon" + wantPointer)
+	assert.Equal(t, wantID, cbOp.Params[0].Type.Target)
+	typeDef, ok := doc.Types[wantID]
+	require.True(t, ok)
+	assert.Equal(t, wantPointer, typeDef.Common().Provenance.Pointer)
+}
+
+// TestParameters_ShadowedPathItemParamUsesOperationPointer covers the other
+// side of the merge: when the operation redeclares a path-item parameter, the
+// operation's own schema must be used and lowered at the operation's own
+// pointer — the shadowed path-item schema is never lowered at all.
+func TestParameters_ShadowedPathItemParamUsesOperationPointer(t *testing.T) {
+	t.Parallel()
+	spec := pathsSpec(`  /pets/{petId}:
+    parameters:
+      - name: petId
+        in: path
+        required: true
+        schema: {type: string, enum: [a, b]}
+    get:
+      operationId: getPet
+      parameters:
+        - name: petId
+          in: path
+          required: true
+          schema: {type: string, enum: [c, d]}
+      responses: {"200": {description: ok}}
+`)
+	doc, svc, diags := lowerServiceSpec(t, spec)
+	requireNoErrorDiags(t, diags)
+	op := firstOp(t, svc)
+	require.Len(t, op.Params, 1, "the operation parameter shadows the path-item one; no duplicate")
+
+	wantID := ir.TypeID("t/anon/paths/~1pets~1{petId}/get/parameters/0/schema")
+	assert.Equal(t, wantID, op.Params[0].Type.Target, "the operation's own schema wins, at the operation's pointer")
+
+	enum, ok := doc.Types[wantID].(*ir.Enum)
+	require.True(t, ok)
+	require.Len(t, enum.Members, 2)
+	assert.Equal(t, "c", enum.Members[0].Value.Str, "the operation-level schema's own values are used")
+
+	_, atPathLevel := doc.Types[ir.TypeID("t/anon/paths/~1pets~1{petId}/parameters/0/schema")]
+	assert.False(t, atPathLevel, "the shadowed path-item schema is never lowered")
 }
 
 func TestResponses_LinksPreserved(t *testing.T) {

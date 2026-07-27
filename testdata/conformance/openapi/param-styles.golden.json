@@ -61,6 +61,18 @@
                   },
                   "required": false,
                   "docs": {}
+                },
+                {
+                  "name": {
+                    "source": "requestId",
+                    "canonical": "request_id"
+                  },
+                  "type": {
+                    "target": "t/anon/paths/~1search/parameters/0/schema",
+                    "nullable": false
+                  },
+                  "required": false,
+                  "docs": {}
                 }
               ],
               "responses": [
@@ -113,6 +125,14 @@
                         "explode": true,
                         "allowReserved": false,
                         "contentType": "application/json"
+                      },
+                      {
+                        "param": "requestId",
+                        "location": "header",
+                        "wireName": "requestId",
+                        "style": "simple",
+                        "explode": false,
+                        "allowReserved": false
                       }
                     ],
                     "checksumRequired": false,
@@ -123,6 +143,72 @@
               "provenance": {
                 "source": 0,
                 "pointer": "/paths/~1search/get"
+              }
+            },
+            {
+              "id": "op/openapi/paths/~1search/delete",
+              "name": {
+                "source": "clearSearch",
+                "canonical": "clear_search"
+              },
+              "docs": {},
+              "params": [
+                {
+                  "name": {
+                    "source": "requestId",
+                    "canonical": "request_id"
+                  },
+                  "type": {
+                    "target": "t/anon/paths/~1search/parameters/0/schema",
+                    "nullable": false
+                  },
+                  "required": false,
+                  "docs": {}
+                }
+              ],
+              "responses": [
+                {
+                  "name": {},
+                  "conditions": {
+                    "statusCodes": [
+                      {
+                        "from": 200,
+                        "to": 200
+                      }
+                    ]
+                  },
+                  "docs": {
+                    "description": "ok"
+                  }
+                }
+              ],
+              "oneWay": false,
+              "idempotency": {},
+              "auth": null,
+              "bindings": {
+                "http": [
+                  {
+                    "method": "DELETE",
+                    "uriTemplate": "/search",
+                    "sharedRoute": false,
+                    "paramBindings": [
+                      {
+                        "param": "requestId",
+                        "location": "header",
+                        "wireName": "requestId",
+                        "style": "simple",
+                        "explode": false,
+                        "allowReserved": false
+                      }
+                    ],
+                    "checksumRequired": false,
+                    "isWebhook": false
+                  }
+                ]
+              },
+              "provenance": {
+                "source": 0,
+                "pointer": "/paths/~1search/delete"
               }
             }
           ]
@@ -169,6 +255,53 @@
       "positional": false,
       "inputOnly": false
     },
+    "t/anon/paths/~1search/parameters/0/schema": {
+      "kind": "enum",
+      "id": "t/anon/paths/~1search/parameters/0/schema",
+      "name": {
+        "hint": "requestId"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/paths/~1search/parameters/0/schema"
+      },
+      "valueType": "string",
+      "members": [
+        {
+          "name": {
+            "source": "a",
+            "canonical": "a"
+          },
+          "value": {
+            "kind": "string",
+            "str": "a",
+            "bytes": null,
+            "list": null,
+            "object": null
+          },
+          "docs": {}
+        },
+        {
+          "name": {
+            "source": "b",
+            "canonical": "b"
+          },
+          "value": {
+            "kind": "string",
+            "str": "b",
+            "bytes": null,
+            "list": null,
+            "object": null
+          },
+          "docs": {}
+        }
+      ],
+      "closed": true,
+      "flags": false
+    },
     "t/prim/string": {
       "kind": "primitive",
       "id": "t/prim/string",
@@ -194,7 +327,7 @@
     {
       "format": "openapi@3.1",
       "path": "param-styles.yaml",
-      "hash": "2c337a970b067a1bb733d1f8cd3f65eaeee18acf2ba0336fbd58d6ff249b804a"
+      "hash": "e815dd74d4bb367205a941d95f669d03754775a7c32c4bc74632a3fe8ce3e18b"
     }
   ]
 }
