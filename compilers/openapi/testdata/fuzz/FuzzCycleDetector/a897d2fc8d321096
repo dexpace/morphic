@@ -1,0 +1,2 @@
+go test fuzz v1
+[]byte("openapi: 3.1.0\ninfo: {title: t, version: '1'}\npaths: {}\ncomponents:\n  schemas:\n    B: {contentSchema: {$ref: '#/components/schemas/C/JJJJJJJJchema'}}\n    B: {contentSchema: {$ref: '#/components/schemas/B/contentSchema'}}\n")

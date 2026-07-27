@@ -507,12 +507,11 @@ func newNodeView() *nodeView {
 }
 
 // mappingPairs returns the effective pairs of a mapping node. Precedence follows
-// speakeasy's resolveMergeKeys: an explicit key beats one contributed by a merge
-// wherever the `<<` appears in the mapping, and within a merge sequence an
-// earlier source beats a later one on a shared key. On a duplicate explicit key
-// the first wins, matching yml.GetMapElementNodes, which returns the first match
-// in source order — the only case the scan cares about, since that is how a
-// repeated $ref would be read.
+// speakeasy: an explicit key beats one contributed by a merge wherever the `<<`
+// appears in the mapping, and within a merge sequence an earlier source beats a
+// later one on a shared key (yml.resolveMergeKeys), while a key repeated
+// explicitly resolves to its last value, because the unmarshaller applies every
+// occurrence in turn and warns rather than refusing.
 //
 // n is dereferenced by this call, so an alias standing in for a whole mapping can
 // be passed directly; a node that is not a mapping (including nil) yields no
@@ -595,8 +594,10 @@ func (v *nodeView) memoize(n *yaml.Node, pairs []yamlPair) {
 }
 
 // expandContent splits a mapping's raw content into the pairs it declares itself
-// and the pairs its `<<` keys merge in, then applies yaml.v3's precedence by
-// ordering the former first and deduplicating.
+// and the pairs its `<<` keys merge in, then applies the two precedence rules
+// that govern them. They point in opposite directions, so they cannot share one
+// pass: a repeated explicit key resolves to its last value, while a merged key
+// yields to an explicit one and to any earlier merge source.
 func (v *nodeView) expandContent(n *yaml.Node, depth int) ([]yamlPair, bool) {
 	var explicit, merged []yamlPair
 	complete := true
@@ -616,7 +617,49 @@ func (v *nodeView) expandContent(n *yaml.Node, depth int) ([]yamlPair, bool) {
 		explicit = append(explicit, yamlPair{key: key.Value, val: val})
 	}
 
-	return dedupeFirstWins(append(explicit, merged...)), complete
+	return appendUnseen(dedupeLastWins(explicit), merged), complete
+}
+
+// dedupeLastWins keeps the last pair for each key, at that last occurrence's
+// position. A mapping that repeats a key is ill-formed, and speakeasy neither
+// refuses it nor keeps the first one: it reports a duplicate-key warning and
+// unmarshals every occurrence in turn, so the final value is what the resolver
+// then works from. Reading such a mapping first-key-wins hid a real cycle behind
+// a shadowed sibling.
+func dedupeLastWins(pairs []yamlPair) []yamlPair {
+	last := make(map[string]int, len(pairs))
+	for i, p := range pairs {
+		last[p.key] = i
+	}
+	out := make([]yamlPair, 0, len(last))
+	for i, p := range pairs {
+		if last[p.key] == i {
+			out = append(out, p)
+		}
+	}
+	return out
+}
+
+// appendUnseen appends the pairs of add whose key is not already present,
+// keeping the first contributor of each — the rule for merged keys, which yield
+// both to an explicit key and to an earlier merge source.
+func appendUnseen(base, add []yamlPair) []yamlPair {
+	if len(add) == 0 {
+		return base
+	}
+	seenKey := make(map[string]bool, len(base)+len(add))
+	for _, p := range base {
+		seenKey[p.key] = true
+	}
+	out := base
+	for _, p := range add {
+		if seenKey[p.key] {
+			continue
+		}
+		seenKey[p.key] = true
+		out = append(out, p)
+	}
+	return out
 }
 
 // mergeSource expands one `<<` value into the pairs it contributes: a mapping is
@@ -662,20 +705,11 @@ func isMergeKey(n *yaml.Node) bool {
 	return n != nil && n.Kind == yaml.ScalarNode && n.Value == "<<" && n.Tag == mergeTag
 }
 
-// dedupeFirstWins keeps only the first pair for each key, preserving order —
-// the precedence rule mappingPairs documents for both explicit-over-merged
-// keys and earlier-over-later merge sources.
+// dedupeFirstWins keeps only the first pair for each key, preserving order — the
+// rule across the elements of a merge sequence, where an earlier source outranks
+// a later one.
 func dedupeFirstWins(pairs []yamlPair) []yamlPair {
-	seenKey := make(map[string]bool, len(pairs))
-	out := make([]yamlPair, 0, len(pairs))
-	for _, p := range pairs {
-		if seenKey[p.key] {
-			continue
-		}
-		seenKey[p.key] = true
-		out = append(out, p)
-	}
-	return out
+	return appendUnseen(nil, pairs)
 }
 
 // pureRefTarget reports the internal $ref target of a node that carries a
