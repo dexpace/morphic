@@ -17,16 +17,15 @@ import (
 // branches contribute their properties, each carrying provenance into the
 // allOf branch it came from. Refs are never flattened.
 func (l *lowerer) lowerAllOf(s *oas3.Schema, pointer, hint string) ir.TypeID {
-	id := typeIDForPointer(pointer)
-	return l.intern(pointer, id, func() ir.TypeDef {
-		m := &ir.Model{TypeCommon: l.commonFor(id, pointer, hint)}
+	return l.internNode(pointer, hint, func(common ir.TypeCommon) ir.TypeDef {
+		m := &ir.Model{TypeCommon: common}
 		l.fillAllOf(m, s, pointer)
 		l.fillModelProperties(m, s, pointer) // properties declared alongside allOf
 		l.fillModelDetail(m, s, pointer, hint)
-		if d := l.modelDiscriminator(s, m, pointer); d != nil {
+		if d := l.lowerDiscriminator(s, m, pointer); d != nil {
 			m.Discriminator = d
 		}
-		m.DiscriminatorValue = l.subtypeDiscriminatorValue(s, id, pointer)
+		m.DiscriminatorValue = l.subtypeDiscriminatorValue(s, common.ID, pointer)
 		return m
 	})
 }
@@ -156,9 +155,8 @@ func (l *lowerer) lowerOneOfAnyOf(s *oas3.Schema, pointer, hint string) ir.TypeR
 		ref.Nullable = true
 		return ref
 	}
-	id := typeIDForPointer(pointer)
-	tid := l.intern(pointer, id, func() ir.TypeDef {
-		return l.buildUnion(s, id, pointer, hint)
+	tid := l.internNode(pointer, hint, func(common ir.TypeCommon) ir.TypeDef {
+		return l.buildUnion(s, common, pointer)
 	})
 	return ir.TypeRef{Target: tid, Nullable: schemaHasNull(s) || oneOfAnyOfHasNull(s)}
 }
@@ -174,8 +172,9 @@ func oneOfAnyOfHasNull(s *oas3.Schema) bool {
 }
 
 // buildUnion assembles the Union node for a oneOf/anyOf schema, attaching a
-// discriminator when one is declared.
-func (l *lowerer) buildUnion(s *oas3.Schema, id ir.TypeID, pointer, hint string) ir.TypeDef {
+// discriminator when one is declared. common is already built by the caller
+// (internNode), so buildUnion needs no hint of its own to build one.
+func (l *lowerer) buildUnion(s *oas3.Schema, common ir.TypeCommon, pointer string) ir.TypeDef {
 	branches, key, exclusive := s.GetOneOf(), "oneOf", true
 	if len(branches) == 0 {
 		branches, key, exclusive = s.GetAnyOf(), "anyOf", false
@@ -193,12 +192,12 @@ func (l *lowerer) buildUnion(s *oas3.Schema, id ir.TypeID, pointer, hint string)
 		})
 	}
 	u := &ir.Union{
-		TypeCommon: l.commonFor(id, pointer, hint),
+		TypeCommon: common,
 		Variants:   variants,
 		Exclusive:  exclusive,
 		WireTagged: false,
 	}
-	u.Discriminator = l.lowerDiscriminator(s, u, pointer)
+	u.Discriminator = l.lowerDiscriminator(s, nil, pointer)
 	return u
 }
 
@@ -224,28 +223,18 @@ func refLastSegment(ref string) string {
 	return ref
 }
 
-// lowerDiscriminator lowers the discriminator of a oneOf/anyOf union: the tag's
-// wire name to Discriminator.PropertyName and each mapping entry to a target
-// TypeID (a bare name implies #/components/schemas/<name>). A nil mapping stays
-// nil, preserving infer-by-name semantics.
-func (l *lowerer) lowerDiscriminator(s *oas3.Schema, u *ir.Union, pointer string) *ir.Discriminator {
-	_ = u // signature carries the union per ir-design §4.4; the tag lives on the schema
-	d := s.GetDiscriminator()
-	if d == nil {
-		return nil
-	}
-	disc := &ir.Discriminator{
-		PropertyName: d.GetPropertyName(),
-		Mapping:      l.discriminatorMapping(d, pointer),
-	}
-	disc.Default = l.discriminatorDefault(d, pointer)
-	return disc
-}
-
-// modelDiscriminator lowers a discriminator declared on a Model base (allOf
-// hierarchies): the tag resolves to the property's PropID when the model
-// declares it, else to its wire name, and the mapping resolves to target IDs.
-func (l *lowerer) modelDiscriminator(s *oas3.Schema, m *ir.Model, pointer string) *ir.Discriminator {
+// lowerDiscriminator lowers a schema's discriminator, resolving each mapping
+// entry to a target TypeID (a bare name implies #/components/schemas/<name>;
+// a nil mapping stays nil, preserving infer-by-name semantics) and the tag
+// itself per ir-design §4.3's Discriminator contract — "exactly one of
+// Property / PropertyName / Index locates the tag". m is the allOf base model
+// this discriminator is declared on, or nil for a oneOf/anyOf union: a union's
+// tag exists on no single model, so it can only be named by its wire
+// PropertyName (this is why buildUnion, the sole union-side caller, passes
+// nil rather than the union it just built); a model's tag resolves to the
+// declaring property's own PropID when the model declares it, falling back to
+// PropertyName only when it does not.
+func (l *lowerer) lowerDiscriminator(s *oas3.Schema, m *ir.Model, pointer string) *ir.Discriminator {
 	d := s.GetDiscriminator()
 	if d == nil {
 		return nil
@@ -334,8 +323,12 @@ func (l *lowerer) mappingTargetID(target string) (ir.TypeID, bool) {
 }
 
 // propIDByName returns the PropID of the model property with the given source
-// name, if the model declares it.
+// name, if the model declares it. m is nil-safe: lowerDiscriminator's
+// oneOf/anyOf union case has no model to search, only a tag name.
 func propIDByName(m *ir.Model, name string) (ir.PropID, bool) {
+	if m == nil {
+		return "", false
+	}
 	for i := range m.Properties {
 		if m.Properties[i].Name.Source == name {
 			return m.Properties[i].ID, true
@@ -344,29 +337,17 @@ func propIDByName(m *ir.Model, name string) (ir.PropID, bool) {
 	return "", false
 }
 
-// lowerConst hoists a schema with `const` as a Literal over the constant value.
-func (l *lowerer) lowerConst(s *oas3.Schema, pointer, hint string) ir.TypeID {
-	id := typeIDForPointer(pointer)
-	return l.intern(pointer, id, func() ir.TypeDef {
-		return &ir.Literal{
-			TypeCommon: l.commonFor(id, pointer, hint),
-			Value:      l.valueOrNull(s.GetConst(), pointer),
-		}
-	})
-}
-
 // lowerEnum hoists a schema with `enum` as a closed Enum. A heterogeneous or
 // non-scalar member set has no Enum home, so it falls back to a Union of
 // Literals with an info diagnostic — nothing is dropped.
 func (l *lowerer) lowerEnum(s *oas3.Schema, pointer, hint string) ir.TypeID {
-	id := typeIDForPointer(pointer)
-	return l.intern(pointer, id, func() ir.TypeDef {
+	return l.internNode(pointer, hint, func(common ir.TypeCommon) ir.TypeDef {
 		members, kind, ok := l.enumMembers(s.GetEnum())
 		if !ok {
-			return l.enumAsUnion(s, id, pointer, hint)
+			return l.enumAsUnion(s, common, pointer, hint)
 		}
 		return &ir.Enum{
-			TypeCommon: l.commonFor(id, pointer, hint),
+			TypeCommon: common,
 			ValueType:  enumValueType(s, kind),
 			Members:    members,
 			Closed:     true,
@@ -400,7 +381,7 @@ func (l *lowerer) enumMembers(nodes []values.Value) ([]ir.EnumMember, ir.ValueKi
 
 // enumAsUnion lowers a heterogeneous or non-scalar enum to an exclusive Union of
 // hoisted Literals, emitting one info diagnostic.
-func (l *lowerer) enumAsUnion(s *oas3.Schema, id ir.TypeID, pointer, hint string) ir.TypeDef {
+func (l *lowerer) enumAsUnion(s *oas3.Schema, common ir.TypeCommon, pointer, hint string) ir.TypeDef {
 	l.diags = append(l.diags, diagf(ir.SeverityInfo, codeDegradedConstruct,
 		ir.Provenance{Source: l.srcIndex, Pointer: pointer},
 		"heterogeneous or non-scalar enum lowered as a union of literals"))
@@ -415,18 +396,21 @@ func (l *lowerer) enumAsUnion(s *oas3.Schema, id ir.TypeID, pointer, hint string
 		})
 	}
 	return &ir.Union{
-		TypeCommon: l.commonFor(id, pointer, hint),
+		TypeCommon: common,
 		Variants:   variants,
 		Exclusive:  true,
 	}
 }
 
-// hoistLiteral hoists a single enum node as a Literal type at its own pointer.
+// hoistLiteral hoists a single node as a Literal type at its own pointer. It is
+// the single entry point for lowering both a bare `const` schema (pointer may
+// be a top-level component, so internNode's typeIDForPointer keeps that
+// component's stable named ID) and each individual member of a heterogeneous
+// enum (enumAsUnion, always an anonymous sub-pointer).
 func (l *lowerer) hoistLiteral(node values.Value, pointer, hint string) ir.TypeID {
-	id := anonTypeID(pointer)
-	return l.intern(pointer, id, func() ir.TypeDef {
+	return l.internNode(pointer, hint, func(common ir.TypeCommon) ir.TypeDef {
 		return &ir.Literal{
-			TypeCommon: l.commonFor(id, pointer, hint),
+			TypeCommon: common,
 			Value:      l.valueOrNull(node, pointer),
 		}
 	})

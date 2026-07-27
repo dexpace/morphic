@@ -20,7 +20,7 @@ func (l *lowerer) lowerParameters(params []*soa.ReferencedParameter, opPointer s
 	logical := make([]ir.Parameter, 0, len(params))
 	bindings := make([]ir.HTTPParamBinding, 0, len(params))
 	for i, rp := range params {
-		p := resolveParameter(rp)
+		p := resolveRef(rp)
 		if p == nil {
 			continue
 		}
@@ -111,9 +111,7 @@ func (l *lowerer) fillParamDetail(param *ir.Parameter, p *soa.Parameter) {
 	if ex := l.exampleList(p.GetExample(), p.GetExamples()); len(ex) > 0 {
 		param.Examples = ex
 	}
-	ext, diags := extensionsFrom(p.GetExtensions())
-	l.diags = append(l.diags, diags...)
-	if len(ext) > 0 {
+	if ext := l.extensions(p.GetExtensions()); len(ext) > 0 {
 		param.Extensions = ext
 	}
 }

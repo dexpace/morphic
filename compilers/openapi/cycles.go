@@ -745,7 +745,7 @@ func (v *nodeView) resolvePointer(root *yaml.Node, ref string) *yaml.Node {
 		if raw == "" {
 			continue
 		}
-		cur = v.childByToken(deref(cur), unescapePointer(raw))
+		cur = v.childByToken(deref(cur), unescapeSegment(raw))
 		if cur == nil {
 			return nil
 		}
@@ -785,12 +785,6 @@ func deref(n *yaml.Node) *yaml.Node {
 		n = n.Alias
 	}
 	return n
-}
-
-// unescapePointer decodes the RFC 6901 escapes in one JSON pointer token.
-func unescapePointer(token string) string {
-	token = strings.ReplaceAll(token, "~1", "/")
-	return strings.ReplaceAll(token, "~0", "~")
 }
 
 // cyclicDiag builds a codeCyclicRef error diagnostic anchored at a node's

@@ -8,8 +8,6 @@ import (
 
 // Stable diagnostic codes emitted by the OpenAPI compiler. Codes are stable
 // strings so CI can allowlist them (ir-design §13).
-//
-//nolint:unused // diagnostic seam consumed by later compiler files
 const (
 	// codeValidation reports a speakeasy validation finding; it is suffixed
 	// with the library rule name (e.g. "openapi/validation/duplicate-tag").
@@ -65,8 +63,6 @@ const (
 // diagf builds an ir.Diagnostic with a formatted message. It is the single
 // constructor for compiler diagnostics so severity, code, and provenance are
 // always populated.
-//
-//nolint:unused // diagnostic seam consumed by later compiler files
 func diagf(sev ir.Severity, code string, prov ir.Provenance, format string, args ...any) ir.Diagnostic {
 	return ir.NewDiagnostic(sev, code, fmt.Sprintf(format, args...), prov)
 }
@@ -75,10 +71,5 @@ func diagf(sev ir.Severity, code string, prov ir.Provenance, format string, args
 // phase uses it to tell a refusal (a real spec problem, e.g. a degenerate cycle)
 // from advisory warnings it must carry forward rather than abort on.
 func hasErrorDiag(diags []ir.Diagnostic) bool {
-	for _, d := range diags {
-		if d.Severity == ir.SeverityError {
-			return true
-		}
-	}
-	return false
+	return ir.HasError(diags)
 }

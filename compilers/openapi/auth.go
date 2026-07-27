@@ -23,7 +23,7 @@ func (l *lowerer) lowerSecuritySchemes() {
 	}
 	out := make(map[ir.AuthID]ir.AuthScheme, schemes.Len())
 	for name, rs := range schemes.All() {
-		ss := resolveSecurityScheme(rs)
+		ss := resolveRef(rs)
 		if ss == nil {
 			continue
 		}
@@ -47,9 +47,8 @@ func (l *lowerer) lowerSecurityScheme(name string, ss *soa.SecurityScheme) ir.Au
 		scheme.Deprecation = &ir.Deprecation{}
 	}
 	fillSchemeKind(&scheme, ss)
-	if ext, diags := extensionsFrom(ss.GetExtensions()); len(ext) > 0 {
+	if ext := l.extensions(ss.GetExtensions()); len(ext) > 0 {
 		scheme.Extensions = ext
-		l.diags = append(l.diags, diags...)
 	}
 	return scheme
 }
@@ -188,16 +187,4 @@ func (l *lowerer) lowerSecurityRequirement(req *soa.SecurityRequirement) ir.Auth
 		uses = append(uses, ir.SchemeUse{Scheme: id, Scopes: scopes})
 	}
 	return ir.AuthRequirement{Schemes: uses}
-}
-
-// resolveSecurityScheme returns the concrete SecurityScheme of a
-// reference-or-inline entry, preferring the inline object.
-func resolveSecurityScheme(rs *soa.ReferencedSecurityScheme) *soa.SecurityScheme {
-	if rs == nil {
-		return nil
-	}
-	if obj := rs.GetObject(); obj != nil {
-		return obj
-	}
-	return rs.GetResolvedObject()
 }

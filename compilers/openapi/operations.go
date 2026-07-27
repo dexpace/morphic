@@ -82,7 +82,7 @@ func (l *lowerer) lowerPaths(groups *serviceGroups) {
 		return
 	}
 	for path, rp := range paths.All() {
-		pi := resolvePathItem(rp)
+		pi := resolveRef(rp)
 		if pi == nil {
 			continue
 		}
@@ -122,7 +122,7 @@ func (l *lowerer) lowerWebhooks(groups *serviceGroups) {
 		return
 	}
 	for name, rp := range hooks.All() {
-		pi := resolvePathItem(rp)
+		pi := resolveRef(rp)
 		if pi == nil {
 			continue
 		}
@@ -245,9 +245,7 @@ func fillOperationDocs(d *ir.Docs, src *soa.Operation) {
 // operationExtensions lowers an operation's x-* extensions into namespaced
 // Extensions.
 func (l *lowerer) operationExtensions(src *soa.Operation) ir.Extensions {
-	ext, diags := extensionsFrom(src.GetExtensions())
-	l.diags = append(l.diags, diags...)
-	return ext
+	return l.extensions(src.GetExtensions())
 }
 
 // applyPathServers preserves path-item-level servers verbatim under Extensions
@@ -279,7 +277,7 @@ func (l *lowerer) lowerResponses(src *soa.Operation, opPointer string) ([]ir.Res
 	var responses []ir.Response
 	var errs []ir.ErrorCase
 	for code, rr := range resps.All() {
-		r := resolveResponse(rr)
+		r := resolveRef(rr)
 		if r == nil {
 			continue
 		}
@@ -291,7 +289,7 @@ func (l *lowerer) lowerResponses(src *soa.Operation, opPointer string) ([]ir.Res
 			responses = append(responses, l.lowerResponse(r, rng, rptr))
 		}
 	}
-	if def := resolveResponse(resps.GetDefault()); def != nil {
+	if def := resolveRef(resps.GetDefault()); def != nil {
 		errs = append(errs, l.lowerErrorCase(def, ir.StatusRange{}, opPointer+ptr("responses", "default")))
 	}
 	return responses, errs
@@ -386,12 +384,12 @@ func (l *lowerer) lowerCallbacks(src *soa.Operation, opPointer, inferred string)
 	var callbacks []ir.Callback
 	var ops []ir.Operation
 	for cbName, rcb := range cbMap.All() {
-		cb := resolveCallback(rcb)
+		cb := resolveRef(rcb)
 		if cb == nil {
 			continue
 		}
 		for expr, rp := range cb.All() {
-			pi := resolvePathItem(rp)
+			pi := resolveRef(rp)
 			if pi == nil {
 				continue
 			}
@@ -454,7 +452,7 @@ func mergeParameters(pathParams, opParams []*soa.ReferencedParameter) []*soa.Ref
 
 // paramKey builds the (in, name) identity of a parameter for merge dedup.
 func paramKey(rp *soa.ReferencedParameter) (string, bool) {
-	p := resolveParameter(rp)
+	p := resolveRef(rp)
 	if p == nil {
 		return "", false
 	}
@@ -526,60 +524,37 @@ func rawChildNode(root *yaml.Node, key string) *yaml.Node {
 	return nil
 }
 
-// resolvePathItem returns the concrete PathItem of a reference-or-inline entry,
-// preferring the inline object and falling back to the resolved target.
-func resolvePathItem(rp *soa.ReferencedPathItem) *soa.PathItem {
-	if rp == nil {
-		return nil
-	}
-	if obj := rp.GetObject(); obj != nil {
-		return obj
-	}
-	return rp.GetResolvedObject()
+// referencedEntry is the method set every soa "Referenced*" alias exposes: it
+// is the generic form of speakeasy's Reference[T, V, C], which underlies
+// ReferencedPathItem, ReferencedResponse, ReferencedHeader, ReferencedCallback,
+// ReferencedParameter, ReferencedRequestBody, ReferencedExample, and
+// ReferencedSecurityScheme alike. Naming the shape once here lets resolveRef
+// stand in for what would otherwise be one resolveX per aliased type.
+type referencedEntry[T any] interface {
+	GetObject() *T
+	GetResolvedObject() *T
 }
 
-// resolveResponse returns the concrete Response of a reference-or-inline entry.
-func resolveResponse(rr *soa.ReferencedResponse) *soa.Response {
-	if rr == nil {
+// resolveRef returns the concrete value of a reference-or-inline entry,
+// preferring the inline object and falling back to the resolved target. The
+// *S term constrains R to a pointer type so `ref == nil` is legal in generic
+// code; interfaces.Validator[T] is unavailable here (it lives in the
+// library's internal/ tree), which is why R is expressed via *S rather than
+// V directly.
+func resolveRef[T, S any, R interface {
+	*S
+	referencedEntry[T]
+}](ref R) *T {
+	if ref == nil {
 		return nil
 	}
-	if obj := rr.GetObject(); obj != nil {
+	if obj := ref.GetObject(); obj != nil {
 		return obj
 	}
-	return rr.GetResolvedObject()
-}
-
-// resolveHeader returns the concrete Header of a reference-or-inline entry.
-func resolveHeader(rh *soa.ReferencedHeader) *soa.Header {
-	if rh == nil {
-		return nil
-	}
-	if obj := rh.GetObject(); obj != nil {
-		return obj
-	}
-	return rh.GetResolvedObject()
-}
-
-// resolveCallback returns the concrete Callback of a reference-or-inline entry.
-func resolveCallback(rc *soa.ReferencedCallback) *soa.Callback {
-	if rc == nil {
-		return nil
-	}
-	if obj := rc.GetObject(); obj != nil {
-		return obj
-	}
-	return rc.GetResolvedObject()
-}
-
-// resolveParameter returns the concrete Parameter of a reference-or-inline entry.
-func resolveParameter(rp *soa.ReferencedParameter) *soa.Parameter {
-	if rp == nil {
-		return nil
-	}
-	if obj := rp.GetObject(); obj != nil {
-		return obj
-	}
-	return rp.GetResolvedObject()
+	// GetResolvedObject is itself nil-safe and delegates to GetObject, but the
+	// fallback stays explicit rather than coupling this compiler to that
+	// undocumented nil-tolerance.
+	return ref.GetResolvedObject()
 }
 
 // serviceGroups accumulates operation groups keyed by a namespaced key while

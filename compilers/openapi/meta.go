@@ -11,9 +11,8 @@ import (
 func (l *lowerer) lowerMeta() {
 	l.lowerInfo()
 	l.lowerServers()
-	if ext, diags := extensionsFrom(l.doc.GetExtensions()); len(ext) > 0 {
+	if ext := l.extensions(l.doc.GetExtensions()); len(ext) > 0 {
 		l.out.Extensions = mergeExtensions(l.out.Extensions, ext)
-		l.diags = append(l.diags, diags...)
 	}
 }
 
