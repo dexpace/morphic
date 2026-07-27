@@ -1,0 +1,16 @@
+openapi: 3.1.0
+info: {title: AllOfRequiredOnly, version: "1.0.0"}
+paths: {}
+components:
+  schemas:
+    Base:
+      type: object
+      properties:
+        id: {type: string}
+    Derived:
+      allOf:
+        - {$ref: '#/components/schemas/Base'}
+        - type: object
+          properties:
+            name: {type: string}
+        - required: [name]

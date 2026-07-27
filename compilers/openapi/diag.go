@@ -58,6 +58,12 @@ const (
 	// this is a positive, measured finding, so the document is refused
 	// outright rather than handed to the parser.
 	codeAliasAmplification = "openapi/alias-amplification"
+	// codeUnattachableRequired reports a composition-scope `required` name (an
+	// allOf branch's own required list, or the composed schema's own) that
+	// matches none of the model's own properties, so it has no IR home to
+	// attach to (ir-design §4.3: Properties holds only own properties, and
+	// flattening across Base/Mixins is computed, never stored).
+	codeUnattachableRequired = "openapi/unattachable-required"
 )
 
 // diagf builds an ir.Diagnostic with a formatted message. It is the single

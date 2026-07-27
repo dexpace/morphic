@@ -270,6 +270,248 @@ func TestAllOf_PropertyAlongsideAllOfReconciles(t *testing.T) {
 		"detail from the branch declaration survives reconciliation with the sibling property")
 }
 
+// TestAllOf_CompositionRequiredAttaches covers issue #29: allOf is an
+// intersection, so a `required` list constrains the whole composed object
+// regardless of which branch declares the named property, or whether it is
+// paired with a properties map at all. Each case names a wire property that
+// must end up Required=true, and none of them should produce an
+// unattachable-required diagnostic — every name matches an own property.
+func TestAllOf_CompositionRequiredAttaches(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		name  string // subtest name, describing the case
+		spec  string
+		model string // component under test
+		wire  string // property expected to end up Required=true
+	}{
+		{
+			name: "required-only branch after the branch declaring the property (issue #29 repro)",
+			spec: componentSpec(`    Thing:
+      allOf:
+        - type: object
+          properties:
+            id: {type: integer}
+        - required: [id]
+`),
+			model: "Thing",
+			wire:  "id",
+		},
+		{
+			name: "required-only branch before the branch declaring the property",
+			spec: componentSpec(`    ThingB:
+      allOf:
+        - required: [id]
+        - type: object
+          properties:
+            id: {type: integer}
+`),
+			model: "ThingB",
+			wire:  "id",
+		},
+		{
+			name: "required-only branch, property declared alongside allOf (mirrors allof_required.yaml's Bar)",
+			spec: componentSpec(`    Foo:
+      type: object
+      properties:
+        a: {type: string}
+    Bar:
+      type: object
+      properties:
+        type: {type: string}
+        name: {type: string}
+      allOf:
+        - {$ref: "#/components/schemas/Foo"}
+        - required: [type]
+`),
+			model: "Bar",
+			wire:  "type",
+		},
+		{
+			name: "branch declares properties: {} (empty, non-nil) plus required",
+			spec: componentSpec(`    ThingF:
+      allOf:
+        - type: object
+          properties:
+            id: {type: integer}
+        - type: object
+          properties: {}
+          required: [id]
+`),
+			model: "ThingF",
+			wire:  "id",
+		},
+		{
+			name: "the schema's own required (sibling of allOf, no sibling properties) names a property declared inside a branch",
+			spec: componentSpec(`    ThingG:
+      required: [id]
+      allOf:
+        - type: object
+          properties:
+            id: {type: integer}
+`),
+			model: "ThingG",
+			wire:  "id",
+		},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			doc, diags := lowerSpec(t, tc.spec)
+			requireNoErrorDiags(t, diags)
+			m, ok := doc.Types[componentID(tc.model)].(*ir.Model)
+			require.True(t, ok, "%s should be a model", tc.model)
+			p, ok := propsByWire(m.Properties)[tc.wire]
+			require.True(t, ok, "%s should have a %q property", tc.model, tc.wire)
+			assert.True(t, p.Required, "%s.%s should be required via composition-scope required", tc.model, tc.wire)
+			assert.False(t, hasDiag(diags, codeUnattachableRequired),
+				"every required name matches an own property; no unattachable-required diagnostic expected")
+		})
+	}
+}
+
+// TestAllOf_RequiredOnlyBranchNamingBaseOwnedPropertyDiagnosed mirrors
+// openapi-generator's SuperBaby fixture: an allOf composed of a sole $ref
+// (becomes Base) plus a required-only branch naming a property that only the
+// base declares. ir-design §4.3 stores only a model's own properties — never a
+// flattened view across Base/Mixins — so the requirement has no IR home to
+// attach to; it must be diagnosed rather than dropped silently or misattached
+// to an unrelated property.
+func TestAllOf_RequiredOnlyBranchNamingBaseOwnedPropertyDiagnosed(t *testing.T) {
+	t.Parallel()
+	spec := componentSpec(`    Human:
+      type: object
+      properties:
+        name: {type: string}
+        level: {type: integer}
+    SuperBaby:
+      allOf:
+        - {$ref: "#/components/schemas/Human"}
+        - required: [level]
+          properties:
+            gender: {type: string}
+`)
+	doc, diags := lowerSpec(t, spec)
+	m, ok := doc.Types[componentID("SuperBaby")].(*ir.Model)
+	require.True(t, ok, "SuperBaby should be a model")
+	require.NotNil(t, m.Base, "the sole $ref still becomes Base")
+	assert.Equal(t, componentID("Human"), m.Base.Target)
+
+	_, hasLevel := propsByWire(m.Properties)["level"]
+	assert.False(t, hasLevel, "level belongs to the base, not to SuperBaby's own properties")
+	_, hasGender := propsByWire(m.Properties)["gender"]
+	assert.True(t, hasGender, "gender is SuperBaby's own property")
+
+	var unattachable []ir.Diagnostic
+	for _, d := range diags {
+		if d.Code == codeUnattachableRequired {
+			unattachable = append(unattachable, d)
+		}
+	}
+	require.Len(t, unattachable, 1, "exactly one unattachable-required diagnostic")
+	assert.Equal(t, ir.SeverityWarning, unattachable[0].Severity,
+		"SuperBaby composes a ref, so the requirement plausibly belongs to a base property: real fidelity is lost")
+	assert.Contains(t, unattachable[0].Message, `"level"`, "the diagnostic names the unattached property")
+	assert.Contains(t, unattachable[0].Provenance.Pointer, "/allOf/1",
+		"the diagnostic points at the branch that declared the requirement")
+}
+
+// TestAllOf_RequiredOnlyBranchNoBaseOrMixinDiagnosedInfo covers the other side
+// of diagUnattachableRequired's severity split: an allOf with no $ref branch at
+// all, so nothing becomes Base or a Mixin. Unlike
+// TestAllOf_RequiredOnlyBranchNamingBaseOwnedPropertyDiagnosed, there is no
+// base/mixin the missing name could plausibly belong to — the spec just names a
+// property nothing declares, which is legal JSON Schema with nothing lost — so
+// the diagnostic is info, not warning.
+func TestAllOf_RequiredOnlyBranchNoBaseOrMixinDiagnosedInfo(t *testing.T) {
+	t.Parallel()
+	spec := componentSpec(`    Thing:
+      allOf:
+        - type: object
+          properties:
+            id: {type: integer}
+        - required: [ghost]
+`)
+	doc, diags := lowerSpec(t, spec)
+	requireNoErrorDiags(t, diags)
+	m, ok := doc.Types[componentID("Thing")].(*ir.Model)
+	require.True(t, ok, "Thing should be a model")
+	assert.Nil(t, m.Base, "no $ref branch at all: no Base")
+	assert.Empty(t, m.Mixins, "no $ref branch at all: no Mixins")
+
+	id, hasID := propsByWire(m.Properties)["id"]
+	require.True(t, hasID, "the branch's own id property still lowers")
+	assert.False(t, id.Required, "ghost's requiredness never misattaches to id")
+	_, hasGhost := propsByWire(m.Properties)["ghost"]
+	assert.False(t, hasGhost, "ghost is never invented as a property")
+
+	require.Equal(t, 1, countDiagsAt(diags, codeUnattachableRequired, ir.SeverityInfo),
+		"exactly one info-severity unattachable-required diagnostic")
+	var unattachable ir.Diagnostic
+	for _, d := range diags {
+		if d.Code == codeUnattachableRequired {
+			unattachable = d
+		}
+	}
+	assert.Contains(t, unattachable.Message, `"ghost"`, "the diagnostic names the unattached property")
+	assert.Contains(t, unattachable.Provenance.Pointer, "/allOf/1",
+		"the diagnostic points at the branch that declared the requirement")
+}
+
+// TestAllOf_RefBranchWithSiblingRequired31 pins the real behavior of a $ref
+// allOf branch that also carries a sibling `required` (legal in OpenAPI 3.1 /
+// JSON Schema 2020-12, where $ref no longer has to be the schema object's only
+// keyword). compositionRequired reads a branch's required list off its own
+// local schema node (GetSchema()) — never the resolved $ref target, which
+// belongs to that target's own model — so this pins what that local schema
+// node actually exposes for a $ref-with-siblings branch in this library.
+func TestAllOf_RefBranchWithSiblingRequired31(t *testing.T) {
+	t.Parallel()
+	spec := componentSpec(`    Human:
+      type: object
+      properties:
+        name: {type: string}
+    SuperBoyLike:
+      allOf:
+        - $ref: "#/components/schemas/Human"
+          required: [level]
+        - type: object
+          properties:
+            level: {type: integer}
+`)
+	doc, diags := lowerSpec(t, spec)
+	requireNoErrorDiags(t, diags)
+	m, ok := doc.Types[componentID("SuperBoyLike")].(*ir.Model)
+	require.True(t, ok, "SuperBoyLike should be a model")
+	require.NotNil(t, m.Base, "the sole $ref still becomes Base despite the sibling required")
+
+	level, ok := propsByWire(m.Properties)["level"]
+	require.True(t, ok, "level is declared by the inline branch")
+	assert.True(t, level.Required,
+		"a required sibling on a $ref branch is read off the branch's own local schema and attaches to level")
+}
+
+// TestModel_PlainRequiredUndeclaredPropertyUnaffected is a regression guard:
+// fillModelProperties (the plain, non-allOf path) is untouched by this fix. A
+// required name matching no declared property on a plain object schema is
+// legal JSON Schema (required doesn't imply declaration) and must stay silent,
+// exactly as before — this path never reaches applyCompositionRequired.
+func TestModel_PlainRequiredUndeclaredPropertyUnaffected(t *testing.T) {
+	t.Parallel()
+	spec := componentSpec(`    Plain:
+      type: object
+      required: [ghost]
+      properties:
+        id: {type: integer}
+`)
+	doc, diags := lowerSpec(t, spec)
+	requireNoErrorDiags(t, diags)
+	m, ok := doc.Types[componentID("Plain")].(*ir.Model)
+	require.True(t, ok, "Plain should be a model")
+	require.Len(t, m.Properties, 1)
+	assert.False(t, hasDiag(diags, codeUnattachableRequired),
+		"the plain (non-allOf) path is untouched by this fix; no new diagnostic")
+}
+
 func TestAllOf_ExtraRefsBecomeMixins(t *testing.T) {
 	t.Parallel()
 	spec := componentSpec(`    A:
@@ -682,6 +924,39 @@ func TestAllOf_BoolRefBranchHasNoDiscriminator(t *testing.T) {
 	sub := typeByName(doc, "Sub").(*ir.Model)
 	assert.Empty(t, sub.DiscriminatorValue, "a bool-schema ref target anchors no hierarchy")
 	_ = diags
+}
+
+// TestAllOf_BoolBranchSkippedInCompositionRequired covers compositionRequired's
+// `bs == nil` guard: an allOf branch can itself be a bare boolean schema
+// (`true`/`false`), not just a $ref to one (as above) or an inline object. For
+// such a branch, b.GetSchema() returns nil — it is the JSONSchema either-value's
+// Left half, populated only for an object branch, never for a bool one — so
+// without the guard, reading bs.GetRequired() would nil-deref on a real spec
+// that composes a bare boolean into an allOf. This pins that the guard makes
+// the bool branch inert rather than crashing, while the sibling object branch's
+// own property and its own required both still lower normally.
+func TestAllOf_BoolBranchSkippedInCompositionRequired(t *testing.T) {
+	t.Parallel()
+	spec := componentSpec(`    Thing:
+      allOf:
+        - type: object
+          required: [id]
+          properties:
+            id: {type: integer}
+        - true
+`)
+	doc, diags := lowerSpec(t, spec)
+	requireNoErrorDiags(t, diags)
+	m, ok := doc.Types[componentID("Thing")].(*ir.Model)
+	require.True(t, ok, "Thing should be a model")
+	assert.Nil(t, m.Base, "a bare boolean branch is never a $ref, so no Base")
+	assert.Empty(t, m.Mixins)
+
+	id, hasID := propsByWire(m.Properties)["id"]
+	require.True(t, hasID, "the object branch's own property still lowers despite the sibling bool branch")
+	assert.True(t, id.Required, "the object branch's own required still attaches to its own property")
+	assert.False(t, hasDiag(diags, codeUnattachableRequired),
+		"the boolean branch contributes no required names, so nothing goes unattached")
 }
 
 func TestEnum_NonScalarAndMidListMismatch(t *testing.T) {
