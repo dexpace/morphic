@@ -15,6 +15,7 @@ import (
 
 	"github.com/dexpace/morphic/compilers"
 	"github.com/dexpace/morphic/engine"
+	"github.com/dexpace/morphic/internal/testspec"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -79,7 +80,7 @@ func TestRunParse_EngineConstructFails(t *testing.T) {
 	t.Cleanup(func() { newEngine = orig })
 	newEngine = func() (*engine.Engine, error) { return nil, errors.New("boom") }
 
-	spec := writeFile(t, "spec.yaml", tinySpec)
+	spec := writeFile(t, "spec.yaml", testspec.Tiny)
 	var stdout, stderr bytes.Buffer
 
 	code := run([]string{"compile", spec}, &stdout, &stderr)
@@ -92,14 +93,10 @@ func TestRunParse_NilDocumentReturnsOne(t *testing.T) {
 	orig := newEngine
 	t.Cleanup(func() { newEngine = orig })
 	newEngine = func() (*engine.Engine, error) {
-		reg := compilers.NewRegistry()
-		if err := reg.Register(nilDocCompiler{}); err != nil {
-			return nil, err
-		}
-		return engine.NewWithRegistry(reg), nil
+		return engine.NewWith(nilDocCompiler{})
 	}
 
-	spec := writeFile(t, "spec.yaml", tinySpec)
+	spec := writeFile(t, "spec.yaml", testspec.Tiny)
 	var stdout, stderr bytes.Buffer
 
 	code := run([]string{"compile", spec}, &stdout, &stderr)
@@ -111,7 +108,7 @@ func TestRunParse_NilDocumentReturnsOne(t *testing.T) {
 
 func TestRunParse_UnknownFlagIsUsageError(t *testing.T) {
 	t.Parallel()
-	spec := writeFile(t, "spec.yaml", tinySpec)
+	spec := writeFile(t, "spec.yaml", testspec.Tiny)
 	var stdout, stderr bytes.Buffer
 
 	code := run([]string{"compile", spec, "--bogus"}, &stdout, &stderr)
@@ -122,7 +119,7 @@ func TestRunParse_UnknownFlagIsUsageError(t *testing.T) {
 
 func TestRunParse_WrongPositionalCount(t *testing.T) {
 	t.Parallel()
-	spec := writeFile(t, "spec.yaml", tinySpec)
+	spec := writeFile(t, "spec.yaml", testspec.Tiny)
 	tests := []struct {
 		name string
 		args []string
@@ -143,7 +140,7 @@ func TestRunParse_WrongPositionalCount(t *testing.T) {
 
 func TestRunParse_SkipValidateToStdout(t *testing.T) {
 	t.Parallel()
-	spec := writeFile(t, "spec.yaml", tinySpec)
+	spec := writeFile(t, "spec.yaml", testspec.Tiny)
 	var stdout, stderr bytes.Buffer
 
 	code := run([]string{"compile", spec, "--skip-validate"}, &stdout, &stderr)
@@ -166,7 +163,7 @@ func TestRunParse_MissingSpecFile(t *testing.T) {
 
 func TestRunParse_OutputCreateError(t *testing.T) {
 	t.Parallel()
-	spec := writeFile(t, "spec.yaml", tinySpec)
+	spec := writeFile(t, "spec.yaml", testspec.Tiny)
 	// A path whose parent directory does not exist makes os.Create fail.
 	badOut := filepath.Join(t.TempDir(), "missing-dir", "ir.json")
 	var stdout, stderr bytes.Buffer

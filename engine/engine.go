@@ -36,27 +36,24 @@ type Engine struct {
 // New composes the default engine: a registry with every built-in compiler
 // registered. Future compilers are added here and only here.
 func New() (*Engine, error) {
-	return newEngine(openapi.New())
+	return NewWith(openapi.New())
 }
 
-// newEngine registers the given compilers into a fresh registry and wraps it in
-// an Engine. It is the shared construction seam behind New: a register failure
-// (a compiler reporting no formats, or two compilers claiming the same format)
-// surfaces as a Go error rather than a panic.
-func newEngine(fronts ...compilers.Compiler) (*Engine, error) {
+// NewWith registers the given compilers into a fresh registry and wraps it in
+// an Engine, for tests and embedders that need a custom compiler set. A
+// register failure (a compiler reporting no formats, or two compilers claiming
+// the same format) surfaces as a Go error rather than a panic. Calling
+// NewWith with no compilers is legal — it yields an engine whose Run always
+// fails at the lookup step, which is the seam TestEngine_RunLookupMiss relies
+// on to reach that branch, so this must stay callable with zero arguments.
+func NewWith(fronts ...compilers.Compiler) (*Engine, error) {
 	reg := compilers.NewRegistry()
 	for _, front := range fronts {
 		if err := reg.Register(front); err != nil {
 			return nil, fmt.Errorf("engine: register compiler: %w", err)
 		}
 	}
-	return NewWithRegistry(reg), nil
-}
-
-// NewWithRegistry builds an engine over a caller-supplied registry, for tests
-// and embedders that need a custom compiler set.
-func NewWithRegistry(reg *compilers.Registry) *Engine {
-	return &Engine{registry: reg}
+	return &Engine{registry: reg}, nil
 }
 
 // Run executes the pipeline for the spec at specPath: read the file, sniff its
