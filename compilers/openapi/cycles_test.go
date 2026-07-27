@@ -1062,19 +1062,32 @@ func TestRefScanCollect_DeepNestingIsNotTruncated(t *testing.T) {
 	assert.Contains(t, s.out, ref, "a ref nested past the old depth cap is still collected")
 }
 
-// TestDetectCycles_ChainedAliasFanOutStaysLinear and the merge-chain tests below
-// pin the scan's time bound against documents whose node count grows linearly
-// but whose naive expansion does not. Chained aliases (&a1 {type: string}, &a2
-// {allOf: [*a1, *a1]}, ...) fan a schema walk out exponentially unless the
-// collection walk memoizes; a merge chain (&m1 {a: 1}, &m2 {<<: *m1, b: 2}, ...)
-// re-materializes every pair beneath each level. Both would turn the crash this
-// scan prevents into a hang, so both are guarded.
+// TestDetectCycles_ChainedAliasFanOutIsRefusedFast and the merge-chain tests
+// below pin the scan's time bound against documents whose node count grows
+// linearly but whose naive expansion does not. Chained aliases (&a1 {type:
+// string}, &a2 {allOf: [*a1, *a1]}, ...) fan a schema walk out exponentially
+// unless the collection walk memoizes; a merge chain (&m1 {a: 1}, &m2 {<<:
+// *m1, b: 2}, ...) re-materializes every pair beneath each level. Both would
+// turn the crash this scan prevents into a hang, so both are guarded.
+//
+// This document pins two properties together, not one. First, the scan over
+// it stays linear: the collection and ref-chain walks below still finish
+// (or, here, never even have to run — see below) well inside the time bound.
+// Second — and this is the part that changed — the document itself is now
+// refused rather than accepted: at 40 levels of 2-way fan-out its
+// alias-expanded form is astronomically larger than its ~120 raw nodes, and
+// measurement showed the same shape blows past 3 GiB inside soa.Unmarshal at
+// only 18 levels. Accepting it was a live hole this test used to pin as
+// correct behavior; aliasAmplification is what closes it, and it does so
+// before the ref-collection walk this test file's other timing tests exercise
+// even starts, since scanCycles runs the amplification check after refCycles
+// but refCycles has nothing to find here and returns immediately.
 //
 // Each runs the scan on a goroutine and fails on a timeout rather than blocking
 // the suite until the package-level test timeout. A regression therefore leaks
 // the goroutine for the remaining lifetime of the test binary; that is the
 // deliberate trade for a fast, legible failure, and it cannot leak on a pass.
-func TestDetectCycles_ChainedAliasFanOutStaysLinear(t *testing.T) {
+func TestDetectCycles_ChainedAliasFanOutIsRefusedFast(t *testing.T) {
 	t.Parallel()
 	const levels = 40
 
@@ -1086,8 +1099,10 @@ func TestDetectCycles_ChainedAliasFanOutStaysLinear(t *testing.T) {
 	}
 	fmt.Fprintf(&b, "components:\n  schemas:\n    Root: *a%d\n", levels)
 
-	assert.Empty(t, scanWithin(t, b.String(), "exponential blowup on chained aliases"),
-		"deep anchor reuse without a $ref cycle is not a degenerate cycle")
+	diags := scanWithin(t, b.String(), "exponential blowup on chained aliases")
+	require.Len(t, diags, 1, "a fan-out this deep is refused, not silently accepted")
+	assert.Equal(t, codeAliasAmplification, diags[0].Code)
+	assert.Equal(t, ir.SeverityError, diags[0].Severity)
 }
 
 // mergeChainSpec builds a document whose anchors form a merge chain `levels`
@@ -1127,14 +1142,30 @@ func TestDetectCycles_MergeChainWithinBoundIsClean(t *testing.T) {
 // set loosely enough for the descent to run away, this document took ~29s.
 //
 // It must also say so: silently reporting "clean" on a document the scan could
-// not fully expand would claim a protection it did not provide.
+// not fully expand would claim a protection it did not provide. That warning
+// is now joined by a second, more serious finding: this document's alias
+// amplification ratio is 534 (a ~118 KB source expanding to roughly 10.3
+// million nodes), measured at 13.5s / 1.1 GiB inside soa.Unmarshal — past the
+// allowance by a wide margin either way it is computed: the ratio allowance
+// (maxAliasAmplification * rawNodeCount ≈ 4,922,112 for this document's
+// ~19,227 raw nodes) and the absolute surplus allowance (rawNodeCount +
+// maxAliasSurplus ≈ 1,067,803) both fall well short of the ~10.3 million
+// nodes this document actually reaches; computeAllowance takes the lesser of
+// the two, so the surplus bound is what actually decides this case. Do not
+// lower 1600: it is sized so a regression in the merge-expansion bound blows
+// the 10s budget this test enforces, and
+// TestCompile_MergeChainPastBoundStillCompiles below pins the shallower level
+// (200) that must stay accepted.
 func TestDetectCycles_MergeChainPastBoundStaysFastAndWarns(t *testing.T) {
 	t.Parallel()
 	diags := scanWithin(t, mergeChainSpec(1600), "super-linear blowup on a long merge chain")
-	require.Len(t, diags, 1, "an unexpandable chain is reported, not passed off as clean")
+	require.Len(t, diags, 2, "both the truncation warning and the amplification refusal are reported")
 	assert.Equal(t, codeCycleScanFailed, diags[0].Code)
 	assert.Equal(t, ir.SeverityWarning, diags[0].Severity,
 		"incomplete protection is a warning, never a refusal")
+	assert.Equal(t, codeAliasAmplification, diags[1].Code)
+	assert.Equal(t, ir.SeverityError, diags[1].Severity,
+		"the document's alias expansion is also refused outright")
 }
 
 // TestCompile_MergeChainPastBoundStillCompiles is the other half of that
@@ -1197,6 +1228,9 @@ func FuzzCycleDetector(f *testing.F) {
 	}
 	for _, tc := range refShapedDataSpecs {
 		f.Add([]byte(tc.data))
+	}
+	if data, err := os.ReadFile("../../testdata/openapi/amplification_alias_bomb.yaml"); err == nil {
+		f.Add(data) // the GitHub #27 reproducer: refused for amplification, not a cycle
 	}
 	f.Add([]byte(" "))         // whitespace-only: recoverable parser panic
 	f.Add([]byte("\t\x00: [")) // undecodable: reported as a parse error, not a fault
