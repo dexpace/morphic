@@ -1,8 +1,6 @@
 package openapi
 
 import (
-	"strconv"
-
 	oas3 "github.com/speakeasy-api/openapi/jsonschema/oas3"
 	soa "github.com/speakeasy-api/openapi/openapi"
 
@@ -12,20 +10,22 @@ import (
 // lowerParameters lowers an operation's merged parameter list (path-item plus
 // operation) into logical Parameters and their HTTP wire bindings, in source
 // order (ir-design §7.2, §8.1). The logical side carries the protocol-neutral
-// input; the binding side carries the location, style, and explode facts.
-func (l *lowerer) lowerParameters(params []*soa.ReferencedParameter, opPointer string) ([]ir.Parameter, []ir.HTTPParamBinding) {
+// input; the binding side carries the location, style, and explode facts. Each
+// parameter lowers at its own declaration pointer (sp.pointer): the path item's
+// pointer for one merged in from there, the operation's for one declared
+// directly on it — never a pointer recomputed from this list's index.
+func (l *lowerer) lowerParameters(params []sourcedParam) ([]ir.Parameter, []ir.HTTPParamBinding) {
 	if len(params) == 0 {
 		return nil, nil
 	}
 	logical := make([]ir.Parameter, 0, len(params))
 	bindings := make([]ir.HTTPParamBinding, 0, len(params))
-	for i, rp := range params {
-		p := resolveRef[soa.Parameter](rp)
+	for _, sp := range params {
+		p := resolveRef[soa.Parameter](sp.ref)
 		if p == nil {
 			continue
 		}
-		pptr := opPointer + ptr("parameters", strconv.Itoa(i))
-		param, binding := l.lowerParameter(p, pptr)
+		param, binding := l.lowerParameter(p, sp.pointer)
 		logical = append(logical, param)
 		bindings = append(bindings, binding)
 	}
