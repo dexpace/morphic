@@ -22,7 +22,10 @@ type Annotation string
 
 // The annotation slots the IR offers. Adding a slot here widens what
 // annotation retention checks, which is the intended way to discover that a
-// format handles it nowhere.
+// format handles it nowhere — TestConstBlock_TiesToAnnotationsAndSiteKinds
+// (annotations_test.go) requires every constant declared below to also
+// appear in Annotations(), so a slot added here without also being added
+// there fails that test rather than sitting unused.
 const (
 	AnnotationDocs           Annotation = "docs"
 	AnnotationExamples       Annotation = "examples"
@@ -66,6 +69,8 @@ const (
 type SiteKind string
 
 // The kinds of position an annotation can be written at.
+// TestConstBlock_TiesToAnnotationsAndSiteKinds requires every constant below
+// to appear in SiteKinds(), the same way it does for Annotations() above.
 const (
 	// SiteDeclarationModel is an annotation on an object-shaped component,
 	// which lowers through the compiler's model path.
