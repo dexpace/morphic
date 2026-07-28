@@ -249,3 +249,49 @@ func TestParams_ComponentRefSharedAcrossOperationsInternsOnce(t *testing.T) {
 	assert.False(t, fabricatedA, "no fabricated per-operation ID for /a")
 	assert.False(t, fabricatedB, "no fabricated per-operation ID for /b")
 }
+
+const componentContentParamRefSpec = `openapi: 3.1.0
+info: {title: T, version: "1"}
+paths:
+  /a:
+    get:
+      operationId: getA
+      parameters:
+        - {$ref: '#/components/parameters/Filter'}
+      responses: {"200": {description: ok}}
+  /b:
+    get:
+      operationId: getB
+      parameters:
+        - {$ref: '#/components/parameters/Filter'}
+      responses: {"200": {description: ok}}
+components:
+  parameters:
+    Filter:
+      name: filter
+      in: query
+      content:
+        application/json:
+          schema: {type: object, properties: {q: {type: string}}}
+`
+
+// TestParams_ContentStyleComponentRefInternsOnce covers fillParamType's other
+// branch: a content-style parameter hoists under <param>/content/<mt>/schema
+// rather than <param>/schema, so it needs its own guard that the base pointer
+// is the component's declaration and not the referencing operation (issue #107).
+func TestParams_ContentStyleComponentRefInternsOnce(t *testing.T) {
+	t.Parallel()
+	doc, diags := parseFull(t, componentContentParamRefSpec)
+	requireNoErrorDiags(t, diags)
+	getA := findOp(t, doc, "getA")
+	getB := findOp(t, doc, "getB")
+	require.Len(t, getA.Params, 1)
+	require.Len(t, getB.Params, 1)
+
+	wantID := ir.TypeID("t/anon/components/parameters/Filter/content/application~1json/schema")
+	assert.Equal(t, wantID, getA.Params[0].Type.Target)
+	assert.Equal(t, wantID, getB.Params[0].Type.Target, "both operations share the content parameter's schema")
+	_, ok := doc.Types[wantID]
+	require.True(t, ok, "the schema is registered under the component's own pointer")
+	assert.Equal(t, "application/json", getA.Bindings.HTTP[0].ParamBindings[0].ContentType)
+}

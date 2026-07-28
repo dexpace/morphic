@@ -7,6 +7,7 @@ package openapi_test // external test package — exercises only the public API
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -34,6 +35,7 @@ func TestConformance(t *testing.T) {
 	}{
 		{"named-types", assertNamedTypes},
 		{"inline-types", assertInlineTypes},
+		{"component-reuse", assertComponentReuse},
 		{"allof-inheritance", assertAllOfInheritance},
 		{"allof-mixins", assertAllOfMixins},
 		{"allof-inline-merge", assertAllOfInlineMerge},
@@ -188,6 +190,75 @@ func assertInlineTypes(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
 	require.True(t, ok, "the inline object was hoisted as its own type")
 	assert.True(t, inline.Anonymous)
 	assert.Equal(t, "shipping", inline.Name.Hint)
+}
+
+// assertComponentReuse covers the non-schema half of `$ref`: OpenAPI lets a
+// parameter, requestBody, response, header, callback, or whole path item be
+// declared once under components and referenced from many operations. Each
+// lowers at its declaration, so the shared node is interned once however many
+// operations reach it, while the operations that reach it stay distinct.
+func assertComponentReuse(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
+	widgets := operationAt(t, doc, "GET", "/widgets")
+	gadgets := operationAt(t, doc, "GET", "/gadgets")
+	order := operationAt(t, doc, "POST", "/orders")
+	assert.NotEqual(t, widgets.ID, gadgets.ID, "one path item mounted twice is two operations")
+	assert.Equal(t, widgets.Provenance.Pointer, gadgets.Provenance.Pointer,
+		"...both written at the one component that declares them")
+
+	// Every hoisted type in this document belongs to a component declaration:
+	// no operation contributes a pointer of its own, because none declares a
+	// schema of its own.
+	for id, td := range doc.Types {
+		if td.Common().Provenance.Pointer == "" {
+			continue // shared primitives are pointerless by construction
+		}
+		assert.True(t, strings.HasPrefix(td.Common().Provenance.Pointer, "/components/"),
+			"type %s hoists at a component declaration, not a use site", id)
+	}
+
+	sortID := ir.TypeID("t/anon/components/parameters/Sort/schema")
+	require.Len(t, widgets.Params, 1)
+	require.Len(t, gadgets.Params, 1)
+	assert.Equal(t, sortID, widgets.Params[0].Type.Target)
+	assert.Equal(t, sortID, gadgets.Params[0].Type.Target, "the shared parameter interns once")
+
+	listedID := ir.TypeID("t/anon/components/responses/Listed/content/application~1json/schema")
+	assert.Equal(t, listedID, widgets.Responses[0].Payload.Contents[0].Type.Target)
+	assert.Equal(t, listedID, order.Responses[0].Payload.Contents[0].Type.Target,
+		"a response reused across unrelated operations interns once")
+
+	bodyID := ir.TypeID("t/anon/components/requestBodies/OrderBody/content/application~1json/schema")
+	require.NotNil(t, order.Request)
+	assert.Equal(t, bodyID, order.Request.Contents[0].Type.Target)
+	assert.Equal(t, "OrderBody", doc.Types[bodyID].Common().Name.Hint,
+		"a shared body is named after its component, not the operation that reached it first")
+
+	require.Len(t, widgets.Responses[0].Headers, 1)
+	header := widgets.Responses[0].Headers[0]
+	assert.Equal(t, ir.TypeID("t/anon/components/headers/RateUnit/schema"), header.Type.Target)
+	assert.Equal(t, "/components/responses/Listed/headers/X-Rate-Unit", header.Provenance.Pointer,
+		"the header's identity is the map entry that binds its name")
+
+	require.Len(t, order.Bindings.HTTP[0].Callbacks, 1)
+	assert.Equal(t, "{$request.body#/callbackUrl}", order.Bindings.HTTP[0].Callbacks[0].Expression)
+	_, ok := opByName(doc, "onShipped")
+	assert.True(t, ok, "the shared callback's operation is registered alongside its parent")
+}
+
+// operationAt finds the operation bound to one HTTP method and URI template.
+// Operations reached through a shared path item have no distinguishing name of
+// their own, so their binding is what tells them apart.
+func operationAt(t *testing.T, doc *ir.Document, method, uri string) ir.Operation {
+	t.Helper()
+	for _, op := range allOperations(doc) {
+		for _, hb := range op.Bindings.HTTP {
+			if hb.Method == method && hb.URITemplate == uri {
+				return op
+			}
+		}
+	}
+	t.Fatalf("no operation bound to %s %s", method, uri)
+	return ir.Operation{}
 }
 
 func assertAllOfInheritance(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {

@@ -909,7 +909,7 @@ func TestCallbacks_RefSharedAcrossParentsKeepsDistinctOpIDs(t *testing.T) {
 	assert.Equal(t, ir.OpID("op/openapi/paths/~1c/post/callbacks/onEvent/{$request.body#~1url}/post"), cbIDC)
 	assert.Equal(t, ir.OpID("op/openapi/paths/~1d/post/callbacks/onEvent/{$request.body#~1url}/post"), cbIDD)
 
-	cbOps := opsByID(doc, cbIDC, cbIDD)
+	cbOps := opsByID(t, doc, cbIDC, cbIDD)
 	wantReqID := ir.TypeID(
 		"t/anon/components/callbacks/Shared/{$request.body#~1url}/post/requestBody/content/application~1json/schema")
 	require.NotNil(t, cbOps[cbIDC].Request)
@@ -923,7 +923,9 @@ func TestCallbacks_RefSharedAcrossParentsKeepsDistinctOpIDs(t *testing.T) {
 // exists because findOp disambiguates by Name.Source, which two mounts of one
 // $ref'd path item or callback share (they are the same declared operationId
 // mounted twice); OpID is the only thing that still tells them apart.
-func opsByID(doc *ir.Document, ids ...ir.OpID) map[ir.OpID]ir.Operation {
+func opsByID(t *testing.T, doc *ir.Document, ids ...ir.OpID) map[ir.OpID]ir.Operation {
+	t.Helper()
+	require.NotEmpty(t, doc.Services, "the spec lowers to at least one service")
 	want := make(map[ir.OpID]bool, len(ids))
 	for _, id := range ids {
 		want[id] = true
@@ -939,11 +941,12 @@ func opsByID(doc *ir.Document, ids ...ir.OpID) map[ir.OpID]ir.Operation {
 	return out
 }
 
-// provenanceSpec exercises every use-site/declaration split the fix touches
-// in one document: a path item shared across two mounts, a component
-// parameter reached through a one-hop alias (PageAlias -> Page), a component
-// request body, a component response with a nested component header, and a
-// component callback.
+// provenanceSpec exercises every use-site/declaration split the fix touches in
+// one document: a path item shared across two mounts and mounted again as a
+// webhook, a component parameter reached through a one-hop alias (PageAlias ->
+// Page), a content-style component parameter, a component request body whose
+// multipart encoding $refs a header, a component response with a nested
+// component header, a $ref'd default response, and a component callback.
 const provenanceSpec = `openapi: 3.1.0
 info: {title: T, version: "1"}
 paths:
@@ -954,11 +957,15 @@ paths:
       operationId: solo
       parameters:
         - {$ref: '#/components/parameters/PageAlias'}
+        - {$ref: '#/components/parameters/Filter'}
       requestBody: {$ref: '#/components/requestBodies/Body'}
       callbacks:
         onEvent: {$ref: '#/components/callbacks/Shared'}
       responses:
         "200": {$ref: '#/components/responses/OK'}
+        default: {$ref: '#/components/responses/Fallback'}
+webhooks:
+  onShared: {$ref: '#/components/pathItems/Shared'}
 components:
   pathItems:
     Shared:
@@ -970,11 +977,21 @@ components:
   parameters:
     PageAlias: {$ref: '#/components/parameters/Page'}
     Page: {name: page, in: query, schema: {type: string, enum: [a, b]}}
+    Filter:
+      name: filter
+      in: query
+      content:
+        application/json:
+          schema: {type: object, properties: {q: {type: string}}}
   requestBodies:
     Body:
       content:
-        application/json:
+        multipart/form-data:
           schema: {type: object, properties: {n: {type: string}}}
+          encoding:
+            n:
+              headers:
+                X-Part: {$ref: '#/components/headers/Rate'}
   callbacks:
     Shared:
       '{$request.body#/url}':
@@ -989,16 +1006,21 @@ components:
       content:
         application/json:
           schema: {type: object, properties: {m: {type: string}}}
+    Fallback:
+      description: fallback
+      content:
+        application/json:
+          schema: {type: object, properties: {msg: {type: string}}}
   headers:
     Rate: {schema: {type: string, enum: [a, b]}}
 `
 
 // TestProvenance_EveryPointerResolvesInSource is the direct regression guard
-// for issue #107's first bullet: every hoisted TypeDef, and every
-// response-header Property, must carry a Provenance.Pointer that resolves to
-// a node actually present in the parsed source YAML — never a fabricated
-// use-site position (e.g. under an operation that never declared the shared
-// entity) that the document has no node at.
+// for issue #107's first bullet: every hoisted TypeDef, every operation, and
+// every header Property must carry a Provenance.Pointer that resolves to a node
+// actually present in the parsed source YAML — never a fabricated use-site
+// position (e.g. under an operation that never declared the shared entity, or
+// under a path whose only key is $ref) that the document has no node at.
 func TestProvenance_EveryPointerResolvesInSource(t *testing.T) {
 	t.Parallel()
 	doc, diags := parseFull(t, provenanceSpec)
@@ -1006,32 +1028,56 @@ func TestProvenance_EveryPointerResolvesInSource(t *testing.T) {
 
 	var root yaml.Node
 	require.NoError(t, yaml.Unmarshal([]byte(provenanceSpec), &root))
+	check := func(kind, name, pointer string) int {
+		if pointer == "" {
+			return 0
+		}
+		assert.True(t, pointerResolves(&root, pointer),
+			"%s %s: pointer %q does not resolve in source", kind, name, pointer)
+		return 1
+	}
 
 	checked := 0
 	for id, td := range doc.Types {
-		p := td.Common().Provenance.Pointer
-		if p == "" {
-			continue
-		}
-		checked++
-		assert.True(t, pointerResolves(&root, p), "type %s: pointer %q does not resolve in source", id, p)
+		checked += check("type", string(id), td.Common().Provenance.Pointer)
 	}
-	for _, g := range doc.Services[0].Groups {
-		for _, op := range g.Operations {
-			for _, resp := range op.Responses {
-				for _, h := range resp.Headers {
-					p := h.Provenance.Pointer
-					if p == "" {
-						continue
-					}
-					checked++
-					assert.True(t, pointerResolves(&root, p),
-						"header %s: pointer %q does not resolve in source", h.WireName, p)
-				}
-			}
+	require.NotEmpty(t, doc.Services, "the spec lowers to at least one service")
+	for _, op := range operationsOf(doc) {
+		checked += check("operation", string(op.ID), op.Provenance.Pointer)
+		for _, h := range headersOf(op) {
+			checked += check("header", h.WireName, h.Provenance.Pointer)
 		}
 	}
 	assert.Positive(t, checked, "the spec must exercise at least one pointer worth checking")
+}
+
+// operationsOf flattens every operation across a document's service groups.
+func operationsOf(doc *ir.Document) []ir.Operation {
+	var out []ir.Operation
+	for _, svc := range doc.Services {
+		for _, g := range svc.Groups {
+			out = append(out, g.Operations...)
+		}
+	}
+	return out
+}
+
+// headersOf collects an operation's header Properties from both places they
+// live: response headers, and the per-part headers of a multipart encoding.
+func headersOf(op ir.Operation) []ir.Property {
+	var out []ir.Property
+	for _, resp := range op.Responses {
+		out = append(out, resp.Headers...)
+	}
+	if op.Request == nil {
+		return out
+	}
+	for _, c := range op.Request.Contents {
+		for _, pe := range c.Encoding {
+			out = append(out, pe.Headers...)
+		}
+	}
+	return out
 }
 
 // pointerResolves reports whether an RFC 6901 JSON pointer resolves to some
@@ -1076,41 +1122,6 @@ func pointerStep(node *yaml.Node, seg string) (*yaml.Node, bool) {
 	}
 }
 
-// TestOpContext_DeclarationPointer covers both branches of declarationPointer:
-// an opContext with declPtr set returns it, and a zero-value opContext falls
-// back to the passed-in mount pointer. Every constructor in this package sets
-// declPtr; the fallback exists so that a bare opContext{} literal — or some
-// future constructor that forgets to set it — degrades to the mount pointer
-// instead of silently deriving a shared declaration's identity from "".
-func TestOpContext_DeclarationPointer(t *testing.T) {
-	t.Parallel()
-	cases := []struct {
-		name    string
-		ctx     opContext
-		pointer string
-		want    string
-	}{
-		{
-			name:    "zero value falls back to the mount pointer",
-			ctx:     opContext{},
-			pointer: "/paths/~1a/get",
-			want:    "/paths/~1a/get",
-		},
-		{
-			name:    "declPtr set wins over the mount pointer",
-			ctx:     opContext{declPtr: "/components/pathItems/Shared/get"},
-			pointer: "/paths/~1a/get",
-			want:    "/components/pathItems/Shared/get",
-		},
-	}
-	for _, tc := range cases {
-		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
-			assert.Equal(t, tc.want, tc.ctx.declarationPointer(tc.pointer))
-		})
-	}
-}
-
 // TestResolveRefAt_CrossDocumentKeepsUseSitePointer is the cross-document
 // counterpart to the same-document sharing tests above (issue #107). The
 // fixture's operation $refs a parameter and a response into a sibling
@@ -1120,7 +1131,27 @@ func TestOpContext_DeclarationPointer(t *testing.T) {
 // into a document this IR has no node for.
 func TestResolveRefAt_CrossDocumentKeepsUseSitePointer(t *testing.T) {
 	t.Parallel()
-	path := "../../testdata/openapi/resolve_main_external_valid.yaml"
+	doc := compileFixture(t, "../../testdata/openapi/resolve_main_external_valid.yaml")
+	assertCrossDocumentUseSitePointers(t, doc)
+}
+
+// TestResolveRefAt_AliasChainLeavingDocumentKeepsUseSitePointer covers the hop
+// the plain cross-document case does not: a chain that starts inside this
+// document and only then leaves it (PageAlias -> ./target#/…/Page). The alias
+// pointer walked past is itself a one-key $ref object with no schema child, so
+// adopting it would fabricate a pointer just as surely as the use site did
+// before issue #107 — the walk must fall all the way back to the use site,
+// matching what a direct cross-document reference already does.
+func TestResolveRefAt_AliasChainLeavingDocumentKeepsUseSitePointer(t *testing.T) {
+	t.Parallel()
+	doc := compileFixture(t, "../../testdata/openapi/resolve_main_alias_external_valid.yaml")
+	assertCrossDocumentUseSitePointers(t, doc)
+}
+
+// compileFixture loads and lowers one on-disk spec, which — unlike parseFull's
+// in-memory source — is what lets the loader resolve a sibling document.
+func compileFixture(t *testing.T, path string) *ir.Document {
+	t.Helper()
 	data, err := os.ReadFile(path)
 	require.NoError(t, err)
 
@@ -1132,7 +1163,15 @@ func TestResolveRefAt_CrossDocumentKeepsUseSitePointer(t *testing.T) {
 	l := newLowerer(0, loadedDoc, opts)
 	doc := l.run()
 	requireNoErrorDiags(t, append(loadDiags, l.diags...))
+	return doc
+}
 
+// assertCrossDocumentUseSitePointers pins the shared outcome of both
+// cross-document fixtures: the schemas intern at the operation's own pointers,
+// and nothing interns under a /components/ pointer — neither the sibling
+// document's (this IR has no node there) nor a local alias's.
+func assertCrossDocumentUseSitePointers(t *testing.T, doc *ir.Document) {
+	t.Helper()
 	wantParamID := ir.TypeID("t/anon/paths/~1a/get/parameters/0/schema")
 	wantRespID := ir.TypeID("t/anon/paths/~1a/get/responses/200/content/application~1json/schema")
 	_, hasParam := doc.Types[wantParamID]
@@ -1142,7 +1181,7 @@ func TestResolveRefAt_CrossDocumentKeepsUseSitePointer(t *testing.T) {
 
 	for id := range doc.Types {
 		assert.False(t, strings.HasPrefix(string(id), "t/anon/components/"),
-			"no type interned under the sibling document's own pointer: %s", id)
+			"no type interned under an unaddressable declaration pointer: %s", id)
 	}
 }
 
@@ -1206,4 +1245,230 @@ func TestResolveRefAt_AliasedComponentChainInternsAtFinalDeclaration(t *testing.
 		assert.NotContains(t, string(id), "PageAlias", "no ID derived from the one-hop alias pointer")
 		assert.NotContains(t, string(id), "OKAlias", "no ID derived from the one-hop alias pointer")
 	}
+}
+
+const refdWebhookPathItemSpec = `openapi: 3.1.0
+info: {title: T, version: "1"}
+paths: {}
+webhooks:
+  onA: {$ref: '#/components/pathItems/Hook'}
+  onB: {$ref: '#/components/pathItems/Hook'}
+components:
+  pathItems:
+    Hook:
+      parameters:
+        - {name: shared, in: query, schema: {type: string, enum: [a, b]}}
+      post:
+        operationId: hookPost
+        requestBody:
+          content:
+            application/json:
+              schema: {type: object, properties: {n: {type: string}}}
+        responses: {"200": {description: ok}}
+`
+
+// TestWebhooks_RefdPathItemSharedAcrossHooksKeepsDistinctOpIDs is the webhook
+// arm of issue #107, which the paths arm does not reach: lowerWebhooks resolves
+// its own path items, so a component path item mounted as two webhooks must
+// keep one operation identity per hook name while its parameter and body
+// schemas intern once, at the component's own pointer.
+func TestWebhooks_RefdPathItemSharedAcrossHooksKeepsDistinctOpIDs(t *testing.T) {
+	t.Parallel()
+	doc, diags := parseFull(t, refdWebhookPathItemSpec)
+	requireNoErrorDiags(t, diags)
+
+	idA := ir.OpID("op/openapi/webhooks/onA/post")
+	idB := ir.OpID("op/openapi/webhooks/onB/post")
+	ops := opsByID(t, doc, idA, idB)
+	require.Contains(t, ops, idA, "each webhook keeps its own mount identity")
+	require.Contains(t, ops, idB, "each webhook keeps its own mount identity")
+	assert.True(t, ops[idA].Bindings.HTTP[0].IsWebhook)
+
+	require.Len(t, ops[idA].Params, 1)
+	require.Len(t, ops[idB].Params, 1)
+	wantParamID := ir.TypeID("t/anon/components/pathItems/Hook/parameters/0/schema")
+	assert.Equal(t, wantParamID, ops[idA].Params[0].Type.Target)
+	assert.Equal(t, wantParamID, ops[idB].Params[0].Type.Target,
+		"the shared webhook path-item parameter interns once")
+
+	require.NotNil(t, ops[idA].Request)
+	require.NotNil(t, ops[idB].Request)
+	wantReqID := ir.TypeID("t/anon/components/pathItems/Hook/post/requestBody/content/application~1json/schema")
+	assert.Equal(t, wantReqID, ops[idA].Request.Contents[0].Type.Target)
+	assert.Equal(t, wantReqID, ops[idB].Request.Contents[0].Type.Target,
+		"the shared webhook request schema interns once")
+}
+
+const refdCallbackPathItemSpec = `openapi: 3.1.0
+info: {title: T, version: "1"}
+paths:
+  /c:
+    post:
+      operationId: parentC
+      callbacks:
+        onEvent:
+          '{$request.body#/url}': {$ref: '#/components/pathItems/CB'}
+      responses: {"200": {description: ok}}
+  /d:
+    post:
+      operationId: parentD
+      callbacks:
+        onEvent:
+          '{$request.body#/url}': {$ref: '#/components/pathItems/CB'}
+      responses: {"200": {description: ok}}
+components:
+  pathItems:
+    CB:
+      post:
+        operationId: cbPost
+        requestBody:
+          content:
+            application/json:
+              schema: {type: object, properties: {n: {type: string}}}
+        responses: {"200": {description: ok}}
+`
+
+// TestCallbacks_RefdPathItemInternsAtDeclaration covers the inner hop of a
+// callback: the callback map itself is inline, but the path item under its
+// expression is a $ref. That path item is reached through cbDecl rather than
+// the parent's mount pointer, so its body must intern at the component while
+// the callback operations stay distinct per parent (issue #107).
+func TestCallbacks_RefdPathItemInternsAtDeclaration(t *testing.T) {
+	t.Parallel()
+	doc, diags := parseFull(t, refdCallbackPathItemSpec)
+	requireNoErrorDiags(t, diags)
+	parentC := findOp(t, doc, "parentC")
+	parentD := findOp(t, doc, "parentD")
+	require.Len(t, parentC.Bindings.HTTP[0].Callbacks[0].Operations, 1)
+	require.Len(t, parentD.Bindings.HTTP[0].Callbacks[0].Operations, 1)
+
+	cbIDC := parentC.Bindings.HTTP[0].Callbacks[0].Operations[0]
+	cbIDD := parentD.Bindings.HTTP[0].Callbacks[0].Operations[0]
+	assert.NotEqual(t, cbIDC, cbIDD, "callback operations keep distinct identity per parent")
+
+	cbOps := opsByID(t, doc, cbIDC, cbIDD)
+	wantReqID := ir.TypeID("t/anon/components/pathItems/CB/post/requestBody/content/application~1json/schema")
+	require.NotNil(t, cbOps[cbIDC].Request)
+	require.NotNil(t, cbOps[cbIDD].Request)
+	assert.Equal(t, wantReqID, cbOps[cbIDC].Request.Contents[0].Type.Target)
+	assert.Equal(t, wantReqID, cbOps[cbIDD].Request.Contents[0].Type.Target,
+		"the $ref'd callback path item's request schema interns once")
+}
+
+const refdErrorResponseSpec = `openapi: 3.1.0
+info: {title: T, version: "1"}
+paths:
+  /a:
+    get:
+      operationId: getA
+      responses:
+        "404": {$ref: '#/components/responses/NotFound'}
+        default: {$ref: '#/components/responses/Fallback'}
+  /b:
+    get:
+      operationId: getB
+      responses:
+        "404": {$ref: '#/components/responses/NotFound'}
+        default: {$ref: '#/components/responses/Fallback'}
+components:
+  responses:
+    NotFound:
+      description: nope
+      content:
+        application/json:
+          schema: {type: object, properties: {code: {type: string}}}
+    Fallback:
+      description: fallback
+      content:
+        application/json:
+          schema: {type: object, properties: {msg: {type: string}}}
+`
+
+// TestResponses_RefdErrorAndDefaultInternAtDeclaration covers the two error
+// arms of lowerResponses, which the success-response test does not reach: a
+// $ref'd 4XX response (the isErrorRange branch) and a $ref'd default response,
+// which resolves outside the status loop entirely. Both must intern their
+// error models at the component's own pointer, once for the two operations.
+func TestResponses_RefdErrorAndDefaultInternAtDeclaration(t *testing.T) {
+	t.Parallel()
+	doc, diags := parseFull(t, refdErrorResponseSpec)
+	requireNoErrorDiags(t, diags)
+	getA := findOp(t, doc, "getA")
+	getB := findOp(t, doc, "getB")
+	require.Len(t, getA.Errors, 2)
+	require.Len(t, getB.Errors, 2)
+
+	byFault := func(op ir.Operation) map[string]ir.ErrorCase {
+		return indexBy(op.Errors, func(ec ir.ErrorCase) string { return ec.Fault })
+	}
+	aErrs, bErrs := byFault(getA), byFault(getB)
+
+	wantNotFound := ir.TypeID("t/anon/components/responses/NotFound/content/application~1json/schema")
+	assert.Equal(t, wantNotFound, aErrs["client"].Type.Target)
+	assert.Equal(t, wantNotFound, bErrs["client"].Type.Target, "the shared 4XX error model interns once")
+
+	// The default response is the unclassified catch-all, so it keys on "".
+	wantFallback := ir.TypeID("t/anon/components/responses/Fallback/content/application~1json/schema")
+	assert.Equal(t, wantFallback, aErrs[""].Type.Target)
+	assert.Equal(t, wantFallback, bErrs[""].Type.Target, "the shared default error model interns once")
+
+	for id := range doc.Types {
+		assert.NotContains(t, string(id), "/responses/404", "no fabricated per-operation error ID")
+		assert.NotContains(t, string(id), "/responses/default", "no fabricated per-operation default ID")
+	}
+}
+
+// chainedAliasSpec builds a spec whose operation $refs P0 at the head of an
+// alias chain P0 -> P1 -> ... -> P<hops>, where only P<hops> is a real
+// parameter declaration. The walk therefore takes hops+1 steps: one from the
+// use site, then one per alias.
+func chainedAliasSpec(hops int) string {
+	var b strings.Builder
+	b.WriteString(`openapi: 3.1.0
+info: {title: T, version: "1"}
+paths:
+  /a:
+    get:
+      operationId: getA
+      parameters:
+        - {$ref: '#/components/parameters/P0'}
+      responses: {"200": {description: ok}}
+components:
+  parameters:
+`)
+	for i := range hops {
+		b.WriteString("    P" + strconv.Itoa(i) + ": {$ref: '#/components/parameters/P" + strconv.Itoa(i+1) + "'}\n")
+	}
+	b.WriteString("    P" + strconv.Itoa(hops) + ": {name: page, in: query, schema: {type: string, enum: [a, b]}}\n")
+	return b.String()
+}
+
+// TestResolveRefAt_AliasChainWithinBoundReachesDeclaration walks a chain
+// several hops deeper than the two-hop regression above, to pin that the walk
+// is genuinely iterative rather than a fixed one-or-two-hop peel.
+func TestResolveRefAt_AliasChainWithinBoundReachesDeclaration(t *testing.T) {
+	t.Parallel()
+	const hops = 8
+	doc, diags := parseFull(t, chainedAliasSpec(hops))
+	requireNoErrorDiags(t, diags)
+	op := findOp(t, doc, "getA")
+	require.Len(t, op.Params, 1)
+	assert.Equal(t, ir.TypeID("t/anon/components/parameters/P8/schema"), op.Params[0].Type.Target,
+		"the walk follows every hop to the final declaration")
+}
+
+// TestResolveRefAt_AliasChainBeyondBoundFallsBackToUseSite pins the behaviour
+// of maxRefChain itself. A chain longer than the bound has no declaration the
+// walk can prove it reached, so it must fall back to the use-site pointer —
+// terminating, deterministic, and never a mid-chain alias whose only key is
+// $ref. Nothing in a real spec looks like this; the bound exists so a
+// pathological one cannot make the walk unbounded.
+func TestResolveRefAt_AliasChainBeyondBoundFallsBackToUseSite(t *testing.T) {
+	t.Parallel()
+	doc, diags := parseFull(t, chainedAliasSpec(maxRefChain+4))
+	requireNoErrorDiags(t, diags)
+	op := findOp(t, doc, "getA")
+	require.Len(t, op.Params, 1)
+	assert.Equal(t, ir.TypeID("t/anon/paths/~1a/get/parameters/0/schema"), op.Params[0].Type.Target,
+		"an over-long chain keeps the one pointer that is certainly addressable")
 }

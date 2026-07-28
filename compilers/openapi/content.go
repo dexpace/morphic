@@ -131,8 +131,8 @@ func (l *lowerer) buildPartEncoding(name string, pjs *oas3.JSONSchema[oas3.Refer
 
 // lowerHeaders lowers a header map into Properties in source order. Each
 // entry's own pointer stays its ID and Provenance (two keys $ref'ing the same
-// header must not collide), but its schema follows the ref target's
-// declaration pointer instead (issue #107).
+// header must not collide), but its schema — and the name hint that schema is
+// hoisted under — follow the ref target's declaration instead (issue #107).
 func (l *lowerer) lowerHeaders(headers *sequencedmap.Map[string, *soa.ReferencedHeader], basePtr string) []ir.Property {
 	if headers == nil || headers.Len() == 0 {
 		return nil
@@ -148,7 +148,7 @@ func (l *lowerer) lowerHeaders(headers *sequencedmap.Map[string, *soa.Referenced
 			ID:         propID(hptr),
 			Name:       ir.Naming{Source: name, Canonical: canonicalWords(name)},
 			WireName:   name,
-			Type:       l.schemaRef(h.GetSchema(), hdecl+ptr("schema"), name),
+			Type:       l.schemaRef(h.GetSchema(), hdecl+ptr("schema"), declarationHint(hdecl, name)),
 			Required:   h.GetRequired(),
 			Provenance: ir.Provenance{Source: l.srcIndex, Pointer: hptr},
 		})
@@ -206,13 +206,14 @@ func (l *lowerer) appendPluralExample(out []ir.Example, re *soa.ReferencedExampl
 // Extensions plus one info diagnostic (ir-design §7.2 clarification). opDeclPtr
 // is the operation's own declaration pointer, so a $ref'd body interns its
 // content once at its component pointer rather than once per mount site
-// (issue #107).
+// (issue #107) — and under the component's name, since the operationId hint
+// would otherwise name the shared node after one arbitrary referencing site.
 func (l *lowerer) lowerRequestBody(op *ir.Operation, hb *ir.HTTPBinding, src *soa.Operation, opDeclPtr string) {
 	rb, bodyPtr := resolveRefAt[soa.RequestBody](l, src.GetRequestBody(), opDeclPtr+ptr("requestBody"))
 	if rb == nil {
 		return
 	}
-	payload := l.lowerPayload(rb.GetContent(), bodyPtr, requestBodyHint(src))
+	payload := l.lowerPayload(rb.GetContent(), bodyPtr, declarationHint(bodyPtr, requestBodyHint(src)))
 	if payload == nil {
 		return
 	}

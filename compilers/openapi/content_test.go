@@ -369,6 +369,7 @@ func multipartEncoding(t *testing.T, op ir.Operation) map[string]ir.PartEncoding
 // opByPath finds an operation by HTTP method and URI template.
 func opByPath(t *testing.T, doc *ir.Document, method, uri string) ir.Operation {
 	t.Helper()
+	require.NotEmpty(t, doc.Services, "the spec lowers to at least one service")
 	for _, g := range doc.Services[0].Groups {
 		for _, op := range g.Operations {
 			for _, hb := range op.Bindings.HTTP {
@@ -675,4 +676,103 @@ func TestContent_HeaderMapEntriesSharingComponentGetDistinctIDs(t *testing.T) {
 	assert.Equal(t, ir.PropID("p/openapi/paths/~1a/get/responses/200/headers/X-Limit"), limit.ID)
 	assert.Equal(t, rate.Type.Target, limit.Type.Target, "both resolve the same shared header schema")
 	assert.Equal(t, ir.TypeID("t/anon/components/headers/Rate/schema"), rate.Type.Target)
+}
+
+// TestContent_SharedComponentSchemaTakesItsDeclarationHint pins where the name
+// hint of a $ref'd component's schema comes from. The node interns once, at the
+// component's declaration, so a use-site hint — the referencing operationId for
+// a body, the map key for a header — would name the one shared node after
+// whichever reference happened to lower first. Naming.Hint is what emitters
+// render from, so "postA_request" on a body two operations share is a wrong
+// name, not a cosmetic one.
+func TestContent_SharedComponentSchemaTakesItsDeclarationHint(t *testing.T) {
+	t.Parallel()
+	doc, diags := parseFull(t, componentBodyRefSpec)
+	requireNoErrorDiags(t, diags)
+	bodyID := ir.TypeID("t/anon/components/requestBodies/Body/content/application~1json/schema")
+	body, ok := doc.Types[bodyID]
+	require.True(t, ok)
+	assert.True(t, body.Common().Anonymous, "a requestBody component is not a named type")
+	assert.Equal(t, "Body", body.Common().Name.Hint,
+		"the shared body schema is hinted from its component, not from postA or postB")
+
+	hdrDoc, hdrDiags := parseFull(t, headerIdentitySpec)
+	requireNoErrorDiags(t, hdrDiags)
+	hdr, ok := hdrDoc.Types[ir.TypeID("t/anon/components/headers/Rate/schema")]
+	require.True(t, ok)
+	assert.Equal(t, "Rate", hdr.Common().Name.Hint,
+		"the shared header schema is hinted from its component, not from X-Rate or X-Limit")
+}
+
+// TestContent_InlineSchemaKeepsItsUseSiteHint is the other half of the rule
+// above: only a component declaration renames the hoisted node. An inline body
+// has exactly one use site, so its operationId-derived hint is the best name
+// available and must survive.
+func TestContent_InlineSchemaKeepsItsUseSiteHint(t *testing.T) {
+	t.Parallel()
+	spec := pathsSpec(`  /a:
+    post:
+      operationId: postA
+      requestBody:
+        content:
+          application/json:
+            schema: {type: object, properties: {n: {type: string}}}
+      responses: {"200": {description: ok}}
+`)
+	doc, diags := parseFull(t, spec)
+	requireNoErrorDiags(t, diags)
+	td, ok := doc.Types[ir.TypeID("t/anon/paths/~1a/post/requestBody/content/application~1json/schema")]
+	require.True(t, ok)
+	assert.Equal(t, "postA_request", td.Common().Name.Hint)
+}
+
+const refdEncodingHeaderSpec = `openapi: 3.1.0
+info: {title: T, version: "1"}
+paths:
+  /u:
+    post:
+      operationId: upload
+      requestBody:
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                file: {type: string, format: binary}
+            encoding:
+              file:
+                headers:
+                  X-Rate: {$ref: '#/components/headers/Rate'}
+      responses: {"200": {description: ok}}
+components:
+  headers:
+    Rate: {schema: {type: string, enum: [a, b]}}
+`
+
+// TestContent_EncodingHeaderRefInternsAtDeclaration covers lowerHeaders' other
+// caller: a multipart part's per-encoding headers. A $ref'd header there must
+// split the same way a response header does — schema at the component, identity
+// (PropID, provenance) at the encoding entry that binds the name (issue #107).
+func TestContent_EncodingHeaderRefInternsAtDeclaration(t *testing.T) {
+	t.Parallel()
+	doc, diags := parseFull(t, refdEncodingHeaderSpec)
+	requireNoErrorDiags(t, diags)
+	op := findOp(t, doc, "upload")
+	require.NotNil(t, op.Request)
+	require.Len(t, op.Request.Contents, 1)
+	enc := op.Request.Contents[0].Encoding
+	require.Len(t, enc, 1)
+
+	var headers []ir.Property
+	for _, pe := range enc {
+		headers = pe.Headers
+	}
+	require.Len(t, headers, 1)
+	assert.Equal(t, ir.TypeID("t/anon/components/headers/Rate/schema"), headers[0].Type.Target,
+		"the encoding header's schema interns at the header component")
+	assert.Equal(t,
+		ir.PropID("p/openapi/paths/~1u/post/requestBody/content/multipart~1form-data/encoding/file/headers/X-Rate"),
+		headers[0].ID, "the encoding entry that binds the name keeps the header's identity")
+	assert.Equal(t, headers[0].Provenance.Pointer, string(headers[0].ID)[len("p/openapi"):],
+		"provenance tracks the same use-site pointer as the ID")
 }

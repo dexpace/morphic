@@ -61,6 +61,37 @@ func serviceID(sourceIndex int) ir.ServiceID {
 	return ir.ServiceID("s/openapi/" + strconv.Itoa(sourceIndex))
 }
 
+// declarationHint returns the name hint a node hoisted under pointer should
+// carry: the component's own name when pointer addresses a top-level component
+// entry, else fallback. A $ref'd component lowers once, at its declaration, so
+// a use-site-derived hint (the referencing operation's ID, a response header's
+// map key) would name the one shared node after whichever reference happened to
+// lower first — arbitrary, and emitter-visible via Naming.Hint (issue #107).
+func declarationHint(pointer, fallback string) string {
+	name, ok := componentEntryName(pointer)
+	if !ok {
+		return fallback
+	}
+	return name
+}
+
+// componentEntryName reports whether pointer addresses a top-level component
+// entry of any kind (/components/<kind>/<name>, no deeper path) and returns its
+// unescaped name. It is the any-kind counterpart of componentSchemaName, which
+// answers the narrower question of whether a pointer names a *schema* component
+// and so earns a named TypeID.
+func componentEntryName(pointer string) (string, bool) {
+	const prefix = "/components/"
+	if !strings.HasPrefix(pointer, prefix) {
+		return "", false
+	}
+	kind, name, found := strings.Cut(pointer[len(prefix):], "/")
+	if !found || kind == "" || name == "" || strings.Contains(name, "/") {
+		return "", false
+	}
+	return unescapeSegment(name), true
+}
+
 // internalPointer returns the same-document JSON pointer a $ref (or discriminator
 // mapping) target addresses, and ok=false for a genuine cross-document reference,
 // a bare schema name, or a malformed ref. A document part naming this same source
