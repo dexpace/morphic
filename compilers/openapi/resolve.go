@@ -154,8 +154,8 @@ func declaredSchema(js *oas3.JSONSchema[oas3.Referenceable]) *oas3.JSONSchema[oa
 // lowers a concrete body in place, and either way leaves this to intern the node
 // the pointer owns.
 func (l *lowerer) hoistSubSchema(decl *oas3.JSONSchema[oas3.Referenceable], pointer string) (ir.TypeID, bool) {
-	body := siteSchema(decl)
-	if body == nil {
+	st := l.siteAt(decl, pointer)
+	if st.Node == nil {
 		return "", false
 	}
 	hint := refLastSegment(pointer)
@@ -163,10 +163,10 @@ func (l *lowerer) hoistSubSchema(decl *oas3.JSONSchema[oas3.Referenceable], poin
 	if owned, ok := l.byPointer[pointer]; ok {
 		return owned, true
 	}
-	id := l.internAlias(pointer, hint, ref, l.schemaConstraints(body, pointer))
+	id := l.internAlias(pointer, hint, ref, l.schemaConstraints(st.Node, pointer))
 	// As in lowerComponentSchema: this alias is the first node the pointer owns,
 	// so the annotations schemaRef had nowhere to put now have a home.
-	l.attachSchemaExamples(body, pointer)
+	l.attachSchemaExamples(st.Node, pointer)
 	return id, true
 }
 

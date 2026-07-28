@@ -81,3 +81,30 @@ components:
 		assert.Nil(t, tsc.Constraints, "the referent must not acquire the site's bound")
 	}
 }
+
+// TestHoistSubSchema_RefSiblingExampleBindsTheSite is a characterization test:
+// it locks in the existing $ref-sibling-example behaviour before hoistSubSchema
+// is rewired through site, so a behaviour change during that rewiring shows up
+// as a failure here rather than passing unnoticed.
+func TestHoistSubSchema_RefSiblingExampleBindsTheSite(t *testing.T) {
+	t.Parallel()
+	l := loweredFor(t, `openapi: 3.1.0
+info: {title: t, version: "1"}
+paths: {}
+components:
+  schemas:
+    Target: {type: string}
+    Holder:
+      type: object
+      properties:
+        f:
+          $ref: '#/components/schemas/Target'
+          example: at-reference
+`)
+	l.lowerComponentSchemas()
+
+	target := typeByName(l.out, "Target")
+	require.NotNil(t, target)
+	assert.Empty(t, target.Common().Examples,
+		"an example beside a $ref must not attach to the referent")
+}

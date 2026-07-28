@@ -68,10 +68,9 @@ func (l *lowerer) lowerComponentSchema(js *oas3.JSONSchema[oas3.Referenceable], 
 // already apply at a property. It returns nil only where no body is written at
 // all: a nil either, or a boolean schema, which admits no annotations.
 //
-// Every position that owns a node reads it through here: siteAt, for a named
-// component (lowerComponentSchema), and a $ref'd internal sub-schema directly
-// (hoistSubSchema, which declaredSchema feeds one hop at a time for exactly
-// this reason).
+// Every position that owns a node reads it through siteAt: a named component
+// (lowerComponentSchema) and a $ref'd internal sub-schema (hoistSubSchema,
+// which declaredSchema feeds one hop at a time for exactly this reason).
 func siteSchema(js *oas3.JSONSchema[oas3.Referenceable]) *oas3.Schema {
 	if js == nil || js.IsBool() {
 		return nil
