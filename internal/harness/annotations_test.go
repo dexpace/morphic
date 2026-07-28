@@ -79,7 +79,9 @@ func TestMissingCells_UnknownCellsDoNotAppearInResult(t *testing.T) {
 // value to appear in Annotations()/SiteKinds(), the functions Cells() builds
 // the retention grid from. Without this test, a constant could be added to
 // either block and never wired into Cells(), leaving the grid silently short
-// of the slot it names.
+// of the slot it names. The check is scoped to that one file: an Annotation-
+// or SiteKind-typed constant declared in a different file of this package
+// would not be seen by it.
 func TestConstBlock_TiesToAnnotationsAndSiteKinds(t *testing.T) {
 	t.Parallel()
 	declared := parseDeclaredConsts(t)
@@ -112,29 +114,28 @@ func parseDeclaredConsts(t *testing.T) map[string][]string {
 }
 
 // collectConstSpecs appends each ValueSpec's declared type name and literal
-// string value from gd into out. A spec whose value is not a string literal
-// (e.g. an untyped numeric constant) is not part of this taxonomy and is
-// skipped. A spec whose value is a string literal, however, must declare its
-// type explicitly: left untyped, it would still convert implicitly to
-// Annotation or SiteKind at any usage site, so skipping it here would let it
-// join the taxonomy without this test ever recording it — it fails instead.
+// string value from gd into out. Every spec here is required to have the
+// form `Name Type = "literal"`: this file holds nothing but
+// annotation-retention vocabulary, so there is no legitimate reason for a
+// const here to be untyped, valueless (as in an iota block's repeat-sugar),
+// or assigned via a conversion or expression rather than written as a
+// literal (e.g. Annotation("foo")). Any of those fails loudly instead of
+// being silently skipped: skipping would let such a constant join the
+// taxonomy at every usage site without this test ever recording it.
 func collectConstSpecs(t *testing.T, gd *ast.GenDecl, out map[string][]string) {
 	t.Helper()
 	for _, spec := range gd.Specs {
 		vs, ok := spec.(*ast.ValueSpec)
 		require.True(t, ok, "const decl spec is not a ValueSpec: %#v", spec)
-		require.Len(t, vs.Values, 1, "%s: expected exactly one value", vs.Names)
 
 		typeIdent, hasType := vs.Type.(*ast.Ident)
+		require.True(t, hasType, "%s: const must declare its type explicitly "+
+			"(Annotation or SiteKind); this file holds nothing else", vs.Names)
+
+		require.Len(t, vs.Values, 1, "%s: expected exactly one literal value", vs.Names)
 		lit, isLit := vs.Values[0].(*ast.BasicLit)
-		isString := isLit && lit.Kind == token.STRING
-		if !hasType && !isString {
-			continue // neither typed nor string-valued: not part of this taxonomy, skip
-		}
-		require.True(t, hasType, "%s: a string constant here must declare its type "+
-			"explicitly (Annotation or SiteKind); left untyped, it would still satisfy "+
-			"that type at any usage site without this test ever seeing it", vs.Names)
-		require.True(t, isString, "%s: value is not a string literal", vs.Names)
+		require.True(t, isLit && lit.Kind == token.STRING,
+			"%s: value must be a string literal, not a conversion or expression", vs.Names)
 
 		value, err := strconv.Unquote(lit.Value)
 		require.NoError(t, err)

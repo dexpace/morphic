@@ -5,13 +5,12 @@ package harness
 // and ir.Diagnostic carries no annotation field. Annotation is one axis of
 // annotation retention; SiteKind is the other.
 //
-// JSON Schema Core uses "annotation" more narrowly than this suite does: it
-// reserves the term for keywords that attach information without affecting
-// validation, so minimum/maxLength (assertions) and if/then/else, not,
-// dependentSchemas (applicators) are not annotations in its sense. This
-// suite groups them under Annotation anyway because, from the IR's
-// perspective, each attaches to a source position rather than defines the
-// type there — the distinction retention actually measures.
+// JSON Schema Core uses "annotation" more narrowly than this suite does:
+// minimum/maxLength are assertions in its terms, and if/then/else, not,
+// dependentSchemas are applicators. This suite groups them under Annotation
+// anyway because, from the IR's perspective, each attaches to a source
+// position rather than defines the type there — the distinction retention
+// actually measures.
 type Annotation string
 
 // The annotation slots the IR offers. Adding a slot here widens what
@@ -44,24 +43,36 @@ const (
 // schema.go) produces — const (hoistLiteral -> Literal), enum (lowerEnum ->
 // Enum or a Union of Literals), a multi-type such as `type: [string,
 // integer]` (lowerUnion -> Union), a `type: array` body (lowerArray ->
-// List/Tuple), allOf (lowerAllOf -> Model), and oneOf/anyOf
-// (lowerOneOfAnyOf) are destinations too. Of those, only lowerAllOf calls
-// fillModelDetail the way lowerModel does, so an allOf-composed component's
-// docs/deprecated/x-* annotations are retained even though this grid does
-// not exercise allOf as its own SiteKind; hoistLiteral, lowerEnum,
-// lowerUnion, and lowerArray never call fillModelDetail, so an annotation on
-// a const, enum, multi-type, or array declaration is believed — but, unlike
-// allOf, not verified here — to drop the same way SiteDeclarationScalar's
-// cases do.
+// List/Tuple), allOf (lowerAllOf -> Model), and a sibling-less oneOf/anyOf
+// (lowerOneOfAnyOf -> Union) are destinations too. Of those, only lowerAllOf
+// calls fillModelDetail the way lowerModel does, so an allOf-composed
+// component's docs/deprecated/x-* annotations are retained even though this
+// grid does not exercise allOf as its own SiteKind; hoistLiteral, lowerEnum,
+// lowerUnion, lowerArray, and a sibling-less lowerOneOfAnyOf never call
+// fillModelDetail, so an annotation on a const, enum, multi-type, array, or
+// bare oneOf/anyOf declaration is believed — but, unlike allOf, not verified
+// here — to drop the same way SiteDeclarationScalar's cases do. A oneOf/anyOf
+// co-declared with a structural sibling (`type: object` or `properties`)
+// takes neither path: lowerSchemaBody (schema.go) routes it through
+// lowerWithUnionSiblings into lower() -> lowerModel instead, so it retains
+// docs/deprecated/x-* like allOf's composed case — confirmed by probe, and
+// likewise unexercised as its own SiteKind.
 type SiteKind string
 
 // The kinds of position an annotation can be written at.
 // TestConstBlock_TiesToAnnotationsAndSiteKinds requires every constant below
 // to appear in SiteKinds(), the same way it does for Annotations() above.
 const (
-	SiteDeclarationModel  SiteKind = "declaration-model"
+	// SiteDeclarationModel is an annotation on an object-shaped component,
+	// which lowers through the compiler's model path (lowerModel).
+	SiteDeclarationModel SiteKind = "declaration-model"
+	// SiteDeclarationScalar is an annotation on a scalar-shaped component,
+	// which lowers through the compiler's alias path: internAlias, the
+	// function most scalar knownGap reasons in annotations_test.go cite as
+	// the boundary an annotation never crosses.
 	SiteDeclarationScalar SiteKind = "declaration-scalar"
-	SiteReference         SiteKind = "reference"
+	// SiteReference is an annotation written beside a $ref.
+	SiteReference SiteKind = "reference"
 )
 
 // Cell identifies one annotation at one kind of position: the unit annotation
