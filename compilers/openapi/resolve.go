@@ -247,10 +247,23 @@ func (l *lowerer) refNullable(js *oas3.JSONSchema[oas3.Referenceable]) bool {
 	return target != nil && schemaAdmitsNull(target)
 }
 
+// isRefSite reports whether a position is $ref-shaped: the resolver's own
+// IsReference (a non-empty $ref), or a schema body that carries a Ref field of
+// its own even when empty. That is deliberately broader than siteAt's
+// classification above — refTargetSchema and bodySchemaPointer (content.go)
+// both need "there is a $ref-carrying body here" rather than "there is a
+// genuine, followable reference," so the degenerate {$ref: ""} shape counts
+// for them even though it does not count as a siteReference. s is the schema
+// body the caller already holds; it may be nil (a boolean schema carries
+// none), and a nil s is never $ref-shaped.
+func isRefSite(js *oas3.JSONSchema[oas3.Referenceable], s *oas3.Schema) bool {
+	return js.IsReference() || (s != nil && s.Ref != nil)
+}
+
 // refTargetSchema returns the resolved target schema when js is a $ref, so
 // use-site annotations can fall back to the referent; it returns nil otherwise.
 func (l *lowerer) refTargetSchema(js *oas3.JSONSchema[oas3.Referenceable], ref *oas3.Schema) *oas3.Schema {
-	if !js.IsReference() && ref.Ref == nil {
+	if !isRefSite(js, ref) {
 		return nil
 	}
 	resolved := js.GetResolvedSchema()

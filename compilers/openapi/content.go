@@ -356,9 +356,7 @@ func bodySchemaPointer(js *oas3.JSONSchema[oas3.Referenceable], localPtr string)
 	if js == nil {
 		return localPtr
 	}
-	s := js.GetSchema()
-	isRef := js.IsReference() || (s != nil && s.Ref != nil)
-	if !isRef {
+	if !isRefSite(js, js.GetSchema()) {
 		return localPtr
 	}
 	if _, pointer, found := strings.Cut(js.GetRef().String(), "#"); found && pointer != "" {
