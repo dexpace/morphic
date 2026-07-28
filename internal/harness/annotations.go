@@ -4,6 +4,14 @@ package harness
 // vocabulary: nothing in the compiler's write path refers to these values, and
 // ir.Diagnostic carries no annotation field. Annotation is one axis of
 // annotation retention; SiteKind is the other.
+//
+// The name is broader here than in JSON Schema Core, which splits keywords
+// into annotations (no validation effect, e.g. title, default) and
+// assertions (e.g. minimum, pattern) — AnnotationConstraints and
+// AnnotationValidationOnly are assertions in that stricter sense. This suite
+// groups them under one name anyway because the IR attaches all of them at a
+// source position rather than using them to define the type there, which is
+// the distinction retention actually measures.
 type Annotation string
 
 // The annotation slots the IR offers. Adding a slot here widens what
