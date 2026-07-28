@@ -50,6 +50,12 @@ func TestNewBigVal_CanonicalizesToJSONForm(t *testing.T) {
 		{"2.5E-3", "2.5E-3"},   // exponent case preserved
 		{"0.30000000000000004", "0.30000000000000004"},                       // full precision kept
 		{"123456789012345678901234567890", "123456789012345678901234567890"}, // huge int kept
+		{"09", "9"},      // leading zero is JSON-invalid
+		{"-09", "-9"},    // leading zero with sign
+		{"007e2", "7e2"}, // leading zeros before an exponent
+		{"00", "0"},      // all-zero keeps one digit
+		{"00.5", "0.5"},  // the integer part's zeros collapse to one
+		{"0.5", "0.5"},   // a meaningful zero survives
 	}
 	for _, tc := range cases {
 		t.Run(tc.in, func(t *testing.T) {

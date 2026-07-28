@@ -1,0 +1,11 @@
+# A response object that references its own position. The cycle is a reference
+# object rather than a path item, and it is spelled through /paths, so the
+# resolver faults on it just the same.
+openapi: 3.1.0
+info: {title: Response Via Path, version: "1"}
+paths:
+  /a:
+    get:
+      operationId: a
+      responses:
+        "200": {$ref: '#/paths/~1a/get/responses/200'}

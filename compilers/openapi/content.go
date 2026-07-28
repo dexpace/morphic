@@ -150,6 +150,7 @@ func (l *lowerer) lowerHeaders(headers *sequencedmap.Map[string, *soa.Referenced
 			WireName:   name,
 			Type:       l.schemaRef(h.GetSchema(), hdecl+ptr("schema"), declarationHint(hdecl, name)),
 			Required:   h.GetRequired(),
+			Examples:   l.exampleList(h.GetExample(), h.GetExamples(), hdecl),
 			Provenance: ir.Provenance{Source: l.srcIndex, Pointer: hptr},
 		})
 	}
@@ -163,12 +164,12 @@ func (l *lowerer) mediaExamples(media *soa.MediaType, pointer string) []ir.Examp
 
 // exampleList lowers a single example node and a plural example map into value
 // examples, in source order. An unconvertible node is skipped with a warning
-// diagnostic rather than silently; an entry carrying no value node at all — an
-// externalValue, or a summary-only stub — is still skipped without one.
+// diagnostic rather than silently. The singular `example` keyword is a bare
+// value with nowhere to hang a name or summary, so it lowers to a value alone.
 func (l *lowerer) exampleList(single *yaml.Node, plural *sequencedmap.Map[string, *soa.ReferencedExample], pointer string) []ir.Example {
 	var out []ir.Example
 	if single != nil {
-		out = l.appendExample(out, single, pointer, "example")
+		out = l.appendExample(out, ir.Example{}, single, pointer, "example")
 	}
 	if plural == nil {
 		return out
@@ -179,25 +180,47 @@ func (l *lowerer) exampleList(single *yaml.Node, plural *sequencedmap.Map[string
 	return out
 }
 
-// appendPluralExample lowers one named entry of a plural `examples` map. An
-// entry written as a $ref holds no value of its own — the value lives in the
-// referenced component — so its diagnostic is stamped at the reference site
-// rather than at a `value` node this entry never had; an inline entry is
-// stamped at its own `value`. Only this hop is de-referenced: an enclosing
-// $ref'd response or parameter is already flattened into pointer.
+// appendPluralExample lowers one named entry of a plural `examples` map with the
+// annotations that surround its value: the map key names the example, and its
+// summary and description travel with it. An entry written as a $ref holds no
+// value of its own — the value lives in the referenced component — so its
+// diagnostic is stamped at the reference site rather than at a `value` node this
+// entry never had; an inline entry is stamped at its own `value`. Only this hop
+// is de-referenced: an enclosing $ref'd response or parameter is already
+// flattened into pointer.
 func (l *lowerer) appendPluralExample(out []ir.Example, re *soa.ReferencedExample, pointer, name string) []ir.Example {
 	ex := resolveRef[soa.Example](re)
 	if ex == nil {
 		return out
 	}
+	proto := ir.Example{
+		Name:        name,
+		Summary:     ex.GetSummary(),
+		Description: ex.GetDescription(),
+		ExternalURL: ex.GetExternalValue(),
+	}
 	node := ex.GetValue()
 	if node == nil {
-		return out
+		return l.appendValuelessExample(out, proto, pointer, name)
 	}
 	if re.IsReference() {
-		return l.appendExample(out, node, pointer, "examples", name)
+		return l.appendExample(out, proto, node, pointer, "examples", name)
 	}
-	return l.appendExample(out, node, pointer, "examples", name, "value")
+	return l.appendExample(out, proto, node, pointer, "examples", name, "value")
+}
+
+// appendValuelessExample records an entry that declares no inline `value`. The
+// spec-legal externalValue form is one of these, and ir.Example.ExternalURL is
+// its home, so it is kept whole. Any other value-less entry carries no example
+// at all — a 3.2 dataValue/serializedValue, or an empty stub — and is dropped
+// with a warning rather than in silence.
+func (l *lowerer) appendValuelessExample(out []ir.Example, proto ir.Example, pointer, name string) []ir.Example {
+	if proto.ExternalURL == "" {
+		l.diag(ir.SeverityWarning, codeDegradedConstruct, pointer+ptr("examples", name),
+			"example declares neither value nor externalValue")
+		return out
+	}
+	return append(out, proto)
 }
 
 // lowerRequestBody lowers an operation's request body onto op.Request and the

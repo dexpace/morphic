@@ -35,6 +35,88 @@ func TestValueFromNode_Scalars(t *testing.T) {
 	}
 }
 
+// TestNumericLiteral_YAMLBases pins the rule that a numeric scalar is captured
+// as the value YAML resolved, not as the base-10 reading of its source text. The
+// two differ for every prefixed spelling, and reading the text as decimal stores
+// a different number with nothing to report it.
+func TestNumericLiteral_YAMLBases(t *testing.T) {
+	t.Parallel()
+	cases := []struct {
+		name, src string
+		want      ir.BigVal
+	}{
+		{"octal 1.1 spelling", "0644", "420"},
+		{"octal negative", "-017", "-15"},
+		{"octal 1.2 spelling", "0o17", "15"},
+		{"hex", "0x1f", "31"},
+		{"hex negative", "-0x1f", "-31"},
+		{"binary", "0b1010", "10"},
+		{"separators", "1_000", "1000"},
+		{"plain decimal", "42", "42"},
+		{"leading plus", "+42", "42"},
+		{"above int64", "18446744073709551615", "18446744073709551615"},
+		// A float keeps its text: decoding it would round it through float64.
+		{"float leading zero", "09", "9"},
+		{"float separators", "1_000.5", "1000.5"},
+		{"float precision", "1.23456789012345678901234567890", "1.23456789012345678901234567890"},
+		{"float beyond int64", "123456789012345678901234567890", "123456789012345678901234567890"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			got, err := numericLiteral(yamlNode(t, tc.src))
+			require.NoError(t, err)
+			assert.Equal(t, tc.want, got)
+		})
+	}
+}
+
+// TestNumericLiteral_ExplicitIntBeyondUint64 covers a magnitude past uint64
+// under an explicit !!int tag: yaml.v3 resolves one that big to !!float, so it
+// only reaches an !!int node when the source says so and nothing can decode it.
+// Its plain-decimal text means what it says, so it survives to the last digit
+// rather than being dropped for being undecodable.
+func TestNumericLiteral_ExplicitIntBeyondUint64(t *testing.T) {
+	t.Parallel()
+	cases := []struct {
+		name, src string
+		want      ir.BigVal
+	}{
+		{"positive", "!!int 99999999999999999999999", "99999999999999999999999"},
+		{"negative", "!!int -99999999999999999999999", "-99999999999999999999999"},
+		{"separators", "!!int 99_999_999_999_999_999_999_999", "99999999999999999999999"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			got, err := numericLiteral(yamlNode(t, tc.src))
+			require.NoError(t, err)
+			assert.Equal(t, tc.want, got)
+		})
+	}
+}
+
+// TestNumericLiteral_NilNode covers the nil guard.
+func TestNumericLiteral_NilNode(t *testing.T) {
+	t.Parallel()
+	_, err := numericLiteral(nil)
+	require.Error(t, err)
+}
+
+// TestNumericLiteral_UndecodableInt covers !!int spellings no base-10 reading
+// can recover: a non-numeric run, and a prefixed magnitude past uint64 whose
+// base would have to be guessed. Neither may fall back to its source text.
+func TestNumericLiteral_UndecodableInt(t *testing.T) {
+	t.Parallel()
+	for _, src := range []string{"12abc", "077777777777777777777777", "0x1FFFFFFFFFFFFFFFFFFFF", ""} {
+		t.Run(src, func(t *testing.T) {
+			t.Parallel()
+			_, err := numericLiteral(scalarNode("!!int", src))
+			require.Error(t, err)
+		})
+	}
+}
+
 func TestValueFromNode_ObjectPreservesOrder(t *testing.T) {
 	t.Parallel()
 	got, err := valueFromNode(yamlNode(t, "b: 1\na: 2\n"))

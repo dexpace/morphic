@@ -68,6 +68,10 @@ const (
 	// attach to (ir-design §4.3: Properties holds only own properties, and
 	// flattening across Base/Mixins is computed, never stored).
 	codeUnattachableRequired = "openapi/unattachable-required"
+	// codeDuplicateOperationID reports an operationId claimed by more than one
+	// operation, which OpenAPI forbids. A path item mounted at two paths is the
+	// shape that reaches this without the document repeating the id in source.
+	codeDuplicateOperationID = "openapi/duplicate-operation-id"
 )
 
 // diagf builds an ir.Diagnostic with a formatted message. It is the single

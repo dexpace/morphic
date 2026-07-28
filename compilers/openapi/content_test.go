@@ -438,10 +438,17 @@ func TestContent_MultipartEncodingVariants(t *testing.T) {
 
 func TestContent_ExampleWithoutValueSkipped(t *testing.T) {
 	t.Parallel()
-	doc, _ := parseFull(t, multipartVariantsSpec)
+	doc, diags := parseFull(t, multipartVariantsSpec)
 	op := findOp(t, doc, "exGet")
 	c := op.Responses[0].Payload.Contents[0]
-	assert.Empty(t, c.Examples, "an example without a value is skipped")
+	assert.Empty(t, c.Examples, "an example carrying no example is skipped")
+
+	// Skipped, but not in silence: the entry declares neither a value nor the
+	// externalValue that would have given it a home.
+	d, ok := firstDegradedWarning(diags)
+	require.True(t, ok, "the skipped entry is reported")
+	assert.Equal(t, "/paths/~1examples/get/responses/200/content/application~1json/examples/empty",
+		d.Provenance.Pointer)
 }
 
 func TestContent_UnconvertibleExamplesDiagnosed(t *testing.T) {

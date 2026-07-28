@@ -217,8 +217,53 @@ func TestInvalidSyntaxOnValidNumbers_NilNode(t *testing.T) {
 func TestWalkNumericScalars_NilAndDepthGuards(t *testing.T) {
 	t.Parallel()
 	var visited int
-	visit := func(string) { visited++ }
+	visit := func(*yaml.Node) { visited++ }
 	walkNumericScalars(nil, 0, visit)
 	walkNumericScalars(&yaml.Node{Kind: yaml.ScalarNode, Tag: "!!int", Value: "5"}, maxSchemaScanDepth+1, visit)
 	assert.Zero(t, visited)
+}
+
+// TestInvalidSyntaxOnValidNumbers_Candidacy pins which literals can excuse a
+// JSON-syntax finding. Only a spelling JSON rejects is a candidate cause, and
+// every candidate must be one Morphic recovers.
+func TestInvalidSyntaxOnValidNumbers_Candidacy(t *testing.T) {
+	t.Parallel()
+	cases := []struct {
+		name    string
+		scalars []*yaml.Node
+		want    bool
+	}{
+		{"leading dot", []*yaml.Node{scalarNode("!!float", ".5")}, true},
+		{"octal", []*yaml.Node{scalarNode("!!int", "0644")}, true},
+		{"separators", []*yaml.Node{scalarNode("!!int", "1_000")}, true},
+		{"recoverable beside a json-valid literal",
+			[]*yaml.Node{scalarNode("!!float", ".5"), scalarNode("!!int", "42")}, true},
+
+		{"nothing to recover", []*yaml.Node{scalarNode("!!int", "42")}, false},
+		{"infinity", []*yaml.Node{scalarNode("!!float", ".inf")}, false},
+		{"recoverable beside an unrecoverable literal",
+			[]*yaml.Node{scalarNode("!!float", ".5"), scalarNode("!!float", ".inf")}, false},
+		// JSON accepts "-0", so normalizing it to "0" is not evidence that it
+		// provoked anything.
+		{"negative zero", []*yaml.Node{scalarNode("!!int", "-0")}, false},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			node := &yaml.Node{Kind: yaml.SequenceNode, Content: tc.scalars}
+			assert.Equal(t, tc.want, invalidSyntaxOnValidNumbers(node))
+		})
+	}
+}
+
+// TestLoad_RecoverableLiteralSuppressesFindingAmongOtherScalars pins the
+// end-to-end shape the candidacy rule has to preserve. The library reports this
+// document as invalid JSON because of the .5, and names that character in the
+// message; the unconvertible custom tag beside it is a bystander that converts
+// fine on its own, so the finding is still an artifact and must not surface.
+func TestLoad_RecoverableLiteralSuppressesFindingAmongOtherScalars(t *testing.T) {
+	t.Parallel()
+	_, diags := parseFull(t, componentSpec(`    S: {type: string, default: !custom foo, example: .5}`))
+	assert.False(t, hasDiag(diags, codeValidation+"/"+string(validation.RuleValidationInvalidSyntax)),
+		"a finding a recoverable literal explains stays suppressed: %+v", diags)
 }

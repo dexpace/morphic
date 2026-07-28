@@ -1,8 +1,6 @@
 package openapi
 
 import (
-	"strings"
-
 	soa "github.com/speakeasy-api/openapi/openapi"
 
 	"github.com/dexpace/morphic/ir"
@@ -35,7 +33,19 @@ type lowerer struct {
 	// already emitted, so a sub-schema read from two positions (its owning
 	// property and a $ref that hoists it) reports a malformed bound only once.
 	diagnosedConstraints map[string]bool
-	depth                int
+	// emitted records the identity of every diagnostic already appended, so one
+	// defect is reported once however many times lowering reaches it. Lowering a
+	// referenced component at its declaration rather than at each use site made
+	// this observable: severity, code, provenance and message are then identical
+	// per referencing operation, and a second copy tells a reader nothing the
+	// first did not. Unlike diagnosedConstraints — which silences a whole pointer
+	// once any constraint diagnostic lands there — this compares the full
+	// diagnostic, so two different defects at one pointer both still surface.
+	emitted map[string]bool
+	// operationIDs maps each operationId already lowered to the mount pointer
+	// that claimed it, so a second claim can name the first in its diagnostic.
+	operationIDs map[string]string
+	depth        int
 }
 
 // newLowerer allocates a lowerer over one loaded document, with an empty IR
@@ -51,6 +61,8 @@ func newLowerer(srcIndex int, doc *loaded, opts Options) *lowerer {
 		opts:                 opts,
 		byPointer:            make(map[string]ir.TypeID),
 		diagnosedConstraints: make(map[string]bool),
+		emitted:              make(map[string]bool),
+		operationIDs:         make(map[string]string),
 	}
 }
 
@@ -125,14 +137,9 @@ func typeIDForPointer(pointer string) ir.TypeID {
 
 // componentSchemaName reports whether pointer addresses a top-level component
 // schema (/components/schemas/<name> with no deeper path) and returns its name.
+// Only this kind of component declares a named type in OpenAPI, which is why it
+// alone gates namedTypeID.
 func componentSchemaName(pointer string) (string, bool) {
-	const prefix = "/components/schemas/"
-	if !strings.HasPrefix(pointer, prefix) {
-		return "", false
-	}
-	rest := pointer[len(prefix):]
-	if rest == "" || strings.Contains(rest, "/") {
-		return "", false
-	}
-	return unescapeSegment(rest), true
+	kind, name, ok := componentEntry(pointer)
+	return name, ok && kind == "schemas"
 }

@@ -75,21 +75,28 @@ func declarationHint(pointer, fallback string) string {
 	return name
 }
 
-// componentEntryName reports whether pointer addresses a top-level component
-// entry of any kind (/components/<kind>/<name>, no deeper path) and returns its
-// unescaped name. It is the any-kind counterpart of componentSchemaName, which
-// answers the narrower question of whether a pointer names a *schema* component
-// and so earns a named TypeID.
-func componentEntryName(pointer string) (string, bool) {
+// componentEntry splits a pointer that addresses a top-level component entry
+// (/components/<kind>/<name>, no deeper path) into its kind and unescaped name.
+// It is the one place that shape is parsed: componentEntryName drops the kind,
+// and componentSchemaName narrows it to the schemas kind, which is the only one
+// that earns a named TypeID.
+func componentEntry(pointer string) (kind, name string, ok bool) {
 	const prefix = "/components/"
 	if !strings.HasPrefix(pointer, prefix) {
-		return "", false
+		return "", "", false
 	}
 	kind, name, found := strings.Cut(pointer[len(prefix):], "/")
 	if !found || kind == "" || name == "" || strings.Contains(name, "/") {
-		return "", false
+		return "", "", false
 	}
-	return unescapeSegment(name), true
+	return kind, unescapeSegment(name), true
+}
+
+// componentEntryName returns the unescaped name of a top-level component entry
+// of any kind.
+func componentEntryName(pointer string) (string, bool) {
+	_, name, ok := componentEntry(pointer)
+	return name, ok
 }
 
 // internalPointer returns the same-document JSON pointer a $ref (or discriminator

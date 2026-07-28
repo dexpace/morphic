@@ -50,7 +50,7 @@ func numericBounds(c *ir.Constraints, s *oas3.Schema) []ir.Diagnostic {
 		if node == nil {
 			continue
 		}
-		v, err := ir.NewBigVal(node.Value)
+		v, err := numericLiteral(node)
 		if err != nil {
 			diags = append(diags, boundLiteralDiag(b.prop, node.Value, err))
 			continue
@@ -98,7 +98,7 @@ func applyExclusive(c *ir.Constraints, s *oas3.Schema, isMin, exclusiveBoolean b
 	if node == nil {
 		return nil
 	}
-	v, err := ir.NewBigVal(node.Value)
+	v, err := numericLiteral(node)
 	if err != nil {
 		return []ir.Diagnostic{boundLiteralDiag(prop, node.Value, err)}
 	}
@@ -173,6 +173,6 @@ func (l *lowerer) appendConstraintDiags(diags []ir.Diagnostic, pointer string) {
 	l.diagnosedConstraints[pointer] = true
 	for i := range diags {
 		diags[i].Provenance = ir.Provenance{Source: l.srcIndex, Pointer: pointer}
+		l.appendDiag(diags[i])
 	}
-	l.diags = append(l.diags, diags...)
 }

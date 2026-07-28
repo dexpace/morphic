@@ -225,8 +225,8 @@ func (l *lowerer) lowerOperation(src *soa.Operation, ctx opContext) (ir.Operatio
 		// The ID is the mount — two mounts of one $ref'd path item are two
 		// operations — but provenance is where the operation is written, which
 		// for those two is one component. A mount pointer under a $ref'd path
-		// item addresses no node at all (ir-design §13, and the §8.4 rule that
-		// a node's provenance names its original definition).
+		// item addresses no node at all, and ir-design §13 defines Pointer as a
+		// pointer into the source, so it has to name the declaration.
 		Provenance: ir.Provenance{Source: l.srcIndex, Pointer: decl, Inferred: ctx.inferred},
 	}
 	fillOperationDocs(&op.Docs, src)
@@ -251,7 +251,31 @@ func (l *lowerer) lowerOperation(src *soa.Operation, ctx opContext) (ir.Operatio
 	if ext := l.operationExtensions(src); len(ext) > 0 {
 		op.Extensions = ext
 	}
+	l.checkOperationIDUnique(op, mount)
 	return op, extra
+}
+
+// checkOperationIDUnique reports an operationId claimed by more than one
+// operation. OpenAPI requires it to be unique across the whole API, and the
+// resolver cannot see this shape: one path item declaring an operationId and
+// mounted at two paths is written once but describes two operations. Names are
+// presentation, so the IR still records what the document said (invariant 4) —
+// but an emitter renders both under one identifier, so the collision has to be
+// reported rather than discovered downstream.
+func (l *lowerer) checkOperationIDUnique(op ir.Operation, mount string) {
+	if op.Name.Source == "" {
+		return // no operationId: emitters synthesize from the method and path
+	}
+	if first, seen := l.operationIDs[op.Name.Source]; seen {
+		l.diag(ir.SeverityWarning, codeDuplicateOperationID, mount,
+			"operationId %q is already used by the operation at %s; "+
+				"OpenAPI requires it to be unique across the API", op.Name.Source, first)
+		return
+	}
+	if l.operationIDs == nil {
+		l.operationIDs = make(map[string]string)
+	}
+	l.operationIDs[op.Name.Source] = mount
 }
 
 // operationName builds an operation's neutral naming: the operationId when
