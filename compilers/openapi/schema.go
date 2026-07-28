@@ -55,14 +55,27 @@ func (l *lowerer) lowerComponentSchema(js *oas3.JSONSchema[oas3.Referenceable], 
 	l.internAlias(pointer, name, ref, l.componentConstraints(js, pointer))
 	// This alias is the first node the pointer owns, so the examples schemaBody
 	// had nowhere to put now have a home.
-	if s := concreteSchema(js); s != nil {
+	if s := siteSchema(js); s != nil {
 		l.attachSchemaExamples(s, pointer)
 	}
 }
 
+// siteSchema returns the schema body written at this position, including one
+// that also carries a $ref. An example written beside a $ref annotates the
+// position it is written at rather than the referent, which is why it may not
+// be read off the target — and why hoistSubSchema and fillPropertyExamples
+// already keep one. It returns nil only where no body is written at all: a nil
+// either, or a boolean schema, which admits no annotations.
+func siteSchema(js *oas3.JSONSchema[oas3.Referenceable]) *oas3.Schema {
+	if js == nil || js.IsBool() {
+		return nil
+	}
+	return js.GetSchema()
+}
+
 // concreteSchema returns the schema body js declares, or nil when it declares
-// none of its own — a boolean schema or a bare $ref, whose annotations belong
-// to the referent rather than to this position.
+// none of its own — a boolean schema or a bare $ref, whose constraints the
+// referent already carries on the node this one aliases.
 func concreteSchema(js *oas3.JSONSchema[oas3.Referenceable]) *oas3.Schema {
 	if js == nil || js.IsBool() || js.IsReference() {
 		return nil

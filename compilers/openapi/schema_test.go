@@ -726,6 +726,46 @@ components:
 		"the shared primitive carries no per-declaration annotation")
 }
 
+// TestSchemaExamples_ComponentRefSiblingKeepsThem pins the examples a component
+// writes beside a $ref. They annotate the position they are written at, not the
+// referent, so they belong on the alias this component interns — the rule a
+// property ($ref plus a sibling example) and a hoisted sub-schema already
+// follow. Reading them off the target instead would attribute one component's
+// example to every other reference to the same schema.
+func TestSchemaExamples_ComponentRefSiblingKeepsThem(t *testing.T) {
+	t.Parallel()
+	doc, diags := parseFull(t, `
+openapi: 3.1.0
+info: {title: t, version: '1'}
+paths: {}
+components:
+  schemas:
+    Base: {type: string}
+    Alias:
+      $ref: '#/components/schemas/Base'
+      example: alias-level
+`)
+	requireNoErrorDiags(t, diags)
+	alias, ok := doc.Types["t/openapi/components/schemas/Alias"]
+	require.True(t, ok)
+	require.Len(t, alias.Common().Examples, 1)
+	require.NotNil(t, alias.Common().Examples[0].Value)
+	assert.Equal(t, "alias-level", alias.Common().Examples[0].Value.Str)
+
+	base, ok := doc.Types["t/openapi/components/schemas/Base"]
+	require.True(t, ok)
+	assert.Empty(t, base.Common().Examples,
+		"the referent carries no example the alias wrote beside its own $ref")
+}
+
+// TestSiteSchema_BodylessPositions covers the positions that declare no schema
+// body to read annotations from: a nil either and a boolean schema.
+func TestSiteSchema_BodylessPositions(t *testing.T) {
+	t.Parallel()
+	assert.Nil(t, siteSchema(nil))
+	assert.Nil(t, siteSchema(oas3.NewJSONSchemaFromBool(true)))
+}
+
 // TestAttachSchemaExamples_MissingNode covers the mid-interning state a
 // self-referential schema can reach: the pointer already owns an ID, but the
 // node it names is still being built and is not in the registry yet.
