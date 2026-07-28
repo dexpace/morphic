@@ -1927,7 +1927,8 @@ func TestHoistSubSchema_BodyInternsAtPointer(t *testing.T) {
 	l := newRawLowerer(&soa.OpenAPI{})
 	// An object body interns a node at the sub-schema's own pointer, so the
 	// pointer-owns-a-node branch returns that node rather than aliasing it.
-	object := &oas3.Schema{Type: oas3.NewTypeFromString(oas3.SchemaTypeObject)}
+	object := oas3.NewJSONSchemaFromSchema[oas3.Referenceable](
+		&oas3.Schema{Type: oas3.NewTypeFromString(oas3.SchemaTypeObject)})
 
 	id, ok := l.hoistSubSchema(object, deepPointer)
 	require.True(t, ok)
@@ -1997,4 +1998,86 @@ func TestCheckOperationIDUnique_BareLowerer(t *testing.T) {
 	l.checkOperationIDUnique(op, "/paths/~1b/get")
 	require.Len(t, l.diags, 1)
 	assert.Equal(t, codeDuplicateOperationID, l.diags[0].Code)
+}
+
+// TestSchemaSiblings_RefdSubSchemaKeepsThem is the sub-schema arm of the rule
+// TestSchemaExamples_ComponentRefSiblingKeepsThem pins for components: a $ref'd
+// internal sub-schema that is itself a $ref carrying siblings keeps them on the
+// alias hoisted at its own pointer. Resolving the chain to its end before
+// hoisting would read the sub-schema as its target and lose both annotations
+// before anything could record them — and would attribute nothing to the
+// referent, which every other reference to it shares.
+func TestSchemaSiblings_RefdSubSchemaKeepsThem(t *testing.T) {
+	t.Parallel()
+	doc, diags := parseFull(t, `
+openapi: 3.1.0
+info: {title: t, version: '1'}
+paths:
+  /x:
+    get:
+      operationId: x
+      parameters:
+        - {name: q, in: query, schema: {$ref: '#/components/schemas/Holder/properties/inner'}}
+      responses: {'200': {description: ok}}
+components:
+  schemas:
+    Base: {type: integer}
+    Holder:
+      type: object
+      properties:
+        inner:
+          $ref: '#/components/schemas/Base'
+          minimum: 7
+          example: 9
+`)
+	requireNoErrorDiags(t, diags)
+	inner, ok := doc.Types["t/anon/components/schemas/Holder/properties/inner"].(*ir.Scalar)
+	require.True(t, ok, "the referenced sub-schema hoists an alias at its own pointer")
+
+	require.NotNil(t, inner.Base)
+	assert.Equal(t, ir.TypeID("t/openapi/components/schemas/Base"), inner.Base.Target, "the alias points at what it referenced")
+	require.NotNil(t, inner.Constraints)
+	require.NotNil(t, inner.Constraints.Min)
+	assert.Equal(t, ir.BigVal("7"), *inner.Constraints.Min)
+	require.Len(t, inner.Examples, 1)
+	require.NotNil(t, inner.Examples[0].Value)
+	assert.Equal(t, ir.BigVal("9"), inner.Examples[0].Value.Num)
+
+	base, ok := doc.Types[ir.TypeID("t/openapi/components/schemas/Base")].(*ir.Scalar)
+	require.True(t, ok)
+	assert.Nil(t, base.Constraints, "the referent stays unbounded")
+	assert.Empty(t, base.Common().Examples, "and unannotated")
+}
+
+// TestSchemaSiblings_RefdSubSchemaBareRefAliases is the no-siblings control: a
+// sub-schema that is a bare $ref still interns as an alias to its target rather
+// than as a second structural copy of it under the sub-schema's own ID.
+func TestSchemaSiblings_RefdSubSchemaBareRefAliases(t *testing.T) {
+	t.Parallel()
+	doc, diags := parseFull(t, `
+openapi: 3.1.0
+info: {title: t, version: '1'}
+paths:
+  /x:
+    get:
+      operationId: x
+      parameters:
+        - {name: q, in: query, schema: {$ref: '#/components/schemas/Holder/properties/inner'}}
+      responses: {'200': {description: ok}}
+components:
+  schemas:
+    Base: {type: object, properties: {n: {type: string}}}
+    Holder:
+      type: object
+      properties:
+        inner: {$ref: '#/components/schemas/Base'}
+`)
+	requireNoErrorDiags(t, diags)
+	inner, ok := doc.Types["t/anon/components/schemas/Holder/properties/inner"].(*ir.Scalar)
+	require.True(t, ok, "a bare $ref sub-schema aliases rather than copying its target")
+	require.NotNil(t, inner.Base)
+	assert.Equal(t, ir.TypeID("t/openapi/components/schemas/Base"), inner.Base.Target)
+
+	_, isModel := doc.Types[ir.TypeID("t/openapi/components/schemas/Base")].(*ir.Model)
+	assert.True(t, isModel, "the structure lives at the component it was declared at")
 }

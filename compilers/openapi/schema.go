@@ -67,10 +67,10 @@ func (l *lowerer) lowerComponentSchema(js *oas3.JSONSchema[oas3.Referenceable], 
 // already apply at a property. It returns nil only where no body is written at
 // all: a nil either, or a boolean schema, which admits no annotations.
 //
-// This covers the two positions that read their own body. A $ref'd internal
-// sub-schema does not: resolveSchemaRef hands hoistSubSchema the fully resolved
-// target, so siblings written at the sub-schema are lost before it is reached.
-// Fixing that means resolving one hop at a time, which is its own change.
+// Every position that owns a node reads it through here: a named component
+// (componentConstraints, lowerComponentSchema) and a $ref'd internal sub-schema
+// (hoistSubSchema, which declaredSchema feeds one hop at a time for exactly this
+// reason).
 func siteSchema(js *oas3.JSONSchema[oas3.Referenceable]) *oas3.Schema {
 	if js == nil || js.IsBool() {
 		return nil
@@ -272,32 +272,54 @@ func (l *lowerer) resolveSchemaRef(js *oas3.JSONSchema[oas3.Referenceable], ref 
 	if id, ok := l.internedID(pointer); ok {
 		return id, true
 	}
-	target := js.GetResolvedSchema()
-	if target == nil {
+	decl := declaredSchema(js)
+	if decl == nil {
 		return "", false
 	}
-	return l.hoistSubSchema(target.GetSchema(), pointer)
+	return l.hoistSubSchema(decl, pointer)
 }
 
-// hoistSubSchema lowers a resolved internal sub-schema at pointer and guarantees
-// a node exists at the pointer-derived ID, aliasing when the body reduces to a
-// shared target so a $ref to the sub-schema always resolves (invariants 1, 2).
-// When the body reduces to an alias, its value constraints are carried onto that
-// alias — exactly as for a named scalar component — so a $ref to a constrained
-// scalar sub-schema (e.g. {type: number, minimum: 5}) does not silently drop them.
-func (l *lowerer) hoistSubSchema(schema *oas3.Schema, pointer string) (ir.TypeID, bool) {
-	if schema == nil {
+// declaredSchema returns the schema written at the position js references — one
+// hop, not the end of the chain. GetResolvedSchema follows a reference to a
+// reference all the way through, which is the wrong node to hoist at that
+// position: a sub-schema spelled {$ref: Other, minimum: 7} would be read as
+// Other, and the bound written beside the $ref would be gone before anything
+// could record it.
+func declaredSchema(js *oas3.JSONSchema[oas3.Referenceable]) *oas3.JSONSchema[oas3.Referenceable] {
+	info := js.GetReferenceResolutionInfo()
+	if info == nil {
+		return nil
+	}
+	return info.Object
+}
+
+// hoistSubSchema lowers the internal sub-schema declared at pointer and
+// guarantees a node exists at the pointer-derived ID, aliasing when the body
+// reduces to a shared target so a $ref to the sub-schema always resolves
+// (invariants 1, 2). When the body reduces to an alias, the annotations written
+// at that position — value constraints and examples — are carried onto the
+// alias, exactly as for a named scalar component, so a $ref to a constrained
+// scalar sub-schema ({type: number, minimum: 5}) does not silently drop them.
+//
+// decl is the declaration itself rather than its resolved form, so a sub-schema
+// that is a $ref carrying siblings aliases its target and keeps them. schemaRef
+// makes that distinction already: it peels a reference off to a TypeRef and
+// lowers a concrete body in place, and either way leaves this to intern the node
+// the pointer owns.
+func (l *lowerer) hoistSubSchema(decl *oas3.JSONSchema[oas3.Referenceable], pointer string) (ir.TypeID, bool) {
+	body := siteSchema(decl)
+	if body == nil {
 		return "", false
 	}
 	hint := refLastSegment(pointer)
-	ref := l.schemaBody(schema, pointer, hint)
+	ref := l.schemaRef(decl, pointer, hint)
 	if owned, ok := l.byPointer[pointer]; ok {
 		return owned, true
 	}
-	id := l.internAlias(pointer, hint, ref, l.schemaConstraints(schema, pointer))
+	id := l.internAlias(pointer, hint, ref, l.schemaConstraints(body, pointer))
 	// As in lowerComponentSchema: this alias is the first node the pointer owns,
-	// so the examples schemaBody had nowhere to put now have a home.
-	l.attachSchemaExamples(schema, pointer)
+	// so the annotations schemaRef had nowhere to put now have a home.
+	l.attachSchemaExamples(body, pointer)
 	return id, true
 }
 
