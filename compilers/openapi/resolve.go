@@ -32,13 +32,16 @@ func (k siteKind) String() string {
 	}
 }
 
-// site is a position that owns an IR node: Node is the schema written there,
+// site is what a schema position declares: Node is the schema written there,
 // and Referent — set only for a reference site — is the schema exactly one
 // hop away, never the end of a $ref chain.
 //
 // The split lets an annotation be read from where it was written rather than
 // wherever the $ref resolves to, with a fallback to Referent for annotations
-// meant to inherit from the target. No caller uses that fallback yet:
+// meant to inherit from the target. Kind and Referent have no production
+// reader yet, but the next planned work is fixing the seven annotation gaps
+// where the scalar-alias path never runs the annotation readers — and those
+// readers, effectiveDescription(ref, tgt) and its siblings, take a referent.
 // fillPropertyDetail (schema.go) instead falls back via refTargetSchema,
 // which follows a $ref chain to its end (GetResolvedSchema) rather than one
 // hop (GetReferenceResolutionInfo, what Referent uses). The two are not
@@ -64,7 +67,7 @@ type site struct {
 //
 // siteAt trusts its caller that js is genuinely the schema at the position
 // being modeled; nothing here can cross-check that from js alone.
-func (l *lowerer) siteAt(js *oas3.JSONSchema[oas3.Referenceable]) site {
+func siteAt(js *oas3.JSONSchema[oas3.Referenceable]) site {
 	s := site{Kind: siteDeclaration, Node: siteSchema(js)}
 	if js == nil || js.IsBool() {
 		return s
@@ -86,9 +89,9 @@ func (l *lowerer) siteAt(js *oas3.JSONSchema[oas3.Referenceable]) site {
 // body is written: a nil either, or a boolean schema, which admits no
 // annotations.
 //
-// Every position that owns a node reads it through siteAt: a named component
-// (lowerComponentSchema) and a $ref'd internal sub-schema (hoistSubSchema,
-// fed one hop at a time by declaredSchema).
+// Every position modeled as a site reads it through siteAt: a named
+// component (lowerComponentSchema) and a $ref'd internal sub-schema
+// (hoistSubSchema, fed one hop at a time by declaredSchema).
 func siteSchema(js *oas3.JSONSchema[oas3.Referenceable]) *oas3.Schema {
 	if js == nil || js.IsBool() {
 		return nil
@@ -194,7 +197,7 @@ func declaredSchema(js *oas3.JSONSchema[oas3.Referenceable]) *oas3.JSONSchema[oa
 // lowering a concrete body in place — leaving this to intern whichever node
 // the pointer ends up owning.
 func (l *lowerer) hoistSubSchema(decl *oas3.JSONSchema[oas3.Referenceable], pointer string) (ir.TypeID, bool) {
-	s := l.siteAt(decl)
+	s := siteAt(decl)
 	if s.Node == nil {
 		return "", false
 	}

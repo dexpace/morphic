@@ -4,7 +4,6 @@ import (
 	"testing"
 
 	oas3 "github.com/speakeasy-api/openapi/jsonschema/oas3"
-	soa "github.com/speakeasy-api/openapi/openapi"
 	"github.com/speakeasy-api/openapi/references"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -24,7 +23,7 @@ components:
 	js := l.doc.Components.GetSchemas().GetOrZero("S")
 	require.NotNil(t, js)
 
-	s := l.siteAt(js)
+	s := siteAt(js)
 	assert.Equal(t, siteDeclaration, s.Kind)
 	require.NotNil(t, s.Node)
 	assert.Equal(t, "d", s.Node.GetDescription())
@@ -46,7 +45,7 @@ components:
 	js := l.doc.Components.GetSchemas().GetOrZero("S")
 	require.NotNil(t, js)
 
-	s := l.siteAt(js)
+	s := siteAt(js)
 	assert.Equal(t, siteReference, s.Kind)
 	require.NotNil(t, s.Node)
 	assert.Equal(t, "site-desc", s.Node.GetDescription(), "Node is the schema written here")
@@ -59,11 +58,10 @@ components:
 // siteAt reports a declaration, not a reference with a nil Referent.
 func TestSiteAt_EmptyRefIsDeclaration(t *testing.T) {
 	t.Parallel()
-	l := newRawLowerer(&soa.OpenAPI{})
 	emptyRef := references.Reference("")
 	js := oas3.NewJSONSchemaFromSchema[oas3.Referenceable](&oas3.Schema{Ref: &emptyRef})
 
-	s := l.siteAt(js)
+	s := siteAt(js)
 	assert.Equal(t, siteDeclaration, s.Kind, "an empty $ref resolves nowhere, so it is not a reference site")
 	assert.Nil(t, s.Referent)
 }
