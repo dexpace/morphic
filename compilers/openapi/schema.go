@@ -48,15 +48,16 @@ func (l *lowerer) lowerComponentSchemas() {
 // `MyId: {type: string, format: uuid}` would leave nothing at its component
 // pointer and every $ref to it would dangle (invariants 1 and 2).
 func (l *lowerer) lowerComponentSchema(js *oas3.JSONSchema[oas3.Referenceable], pointer, name string) {
+	st := l.siteAt(js, pointer)
 	ref := l.schemaRef(js, pointer, name)
 	if _, owned := l.byPointer[pointer]; owned {
 		return // schemaRef interned the component's own node at its component ID
 	}
-	l.internAlias(pointer, name, ref, l.componentConstraints(js, pointer))
+	l.internAlias(pointer, name, ref, l.schemaConstraints(st.Node, pointer))
 	// This alias is the first node the pointer owns, so the examples schemaBody
 	// had nowhere to put now have a home.
-	if s := siteSchema(js); s != nil {
-		l.attachSchemaExamples(s, pointer)
+	if st.Node != nil {
+		l.attachSchemaExamples(st.Node, pointer)
 	}
 }
 
@@ -67,10 +68,10 @@ func (l *lowerer) lowerComponentSchema(js *oas3.JSONSchema[oas3.Referenceable], 
 // already apply at a property. It returns nil only where no body is written at
 // all: a nil either, or a boolean schema, which admits no annotations.
 //
-// Every position that owns a node reads it through here: a named component
-// (componentConstraints, lowerComponentSchema) and a $ref'd internal sub-schema
-// (hoistSubSchema, which declaredSchema feeds one hop at a time for exactly this
-// reason).
+// Every position that owns a node reads it through here: siteAt, for a named
+// component (lowerComponentSchema), and a $ref'd internal sub-schema directly
+// (hoistSubSchema, which declaredSchema feeds one hop at a time for exactly
+// this reason).
 func siteSchema(js *oas3.JSONSchema[oas3.Referenceable]) *oas3.Schema {
 	if js == nil || js.IsBool() {
 		return nil
@@ -78,22 +79,10 @@ func siteSchema(js *oas3.JSONSchema[oas3.Referenceable]) *oas3.Schema {
 	return js.GetSchema()
 }
 
-// componentConstraints reads the value constraints of a component schema whose
-// body reduced to a shared or referenced target. A top-level scalar component
-// (e.g. {minimum: 5} or {type: number, minimum: 5}) reduces to a shared
-// primitive, so unlike a property — whose constraints land on the Property — it
-// has no other node to hold them; the alias Scalar must carry them or they are
-// silently dropped. That includes a bound written beside a $ref, which
-// constrains this position rather than the referent, exactly as a property in
-// the same shape already keeps one (fillPropertyConstraints).
-func (l *lowerer) componentConstraints(js *oas3.JSONSchema[oas3.Referenceable], pointer string) *ir.Constraints {
-	return l.schemaConstraints(siteSchema(js), pointer)
-}
-
 // schemaConstraints reads the value constraints of a schema and stamps each
 // constraint diagnostic with pointer's provenance. It returns nil only when
 // there is no schema to read. It is the shared path for every alias a body
-// reduces to — a named component (componentConstraints) and a $ref-hoisted
+// reduces to — a named component (lowerComponentSchema) and a $ref-hoisted
 // internal sub-schema (hoistSubSchema) — so a scalar that aliases a shared
 // primitive never drops the constraints it carried, including a bound written
 // beside a $ref, which constrains the position it is written at.

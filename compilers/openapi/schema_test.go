@@ -1872,14 +1872,14 @@ func TestRawPropertyNode_NilSchema(t *testing.T) {
 	assert.Nil(t, rawPropertyNode(nil, "x"))
 }
 
-// TestComponentConstraints_NonSchemaInputs covers the js-level early return: a nil,
+// TestSchemaConstraints_NonSchemaInputs covers the js-level early return: a nil,
 // boolean, or reference component has no scalar body to carry constraints.
-func TestComponentConstraints_NonSchemaInputs(t *testing.T) {
+func TestSchemaConstraints_NonSchemaInputs(t *testing.T) {
 	t.Parallel()
 	l := newRawLowerer(&soa.OpenAPI{})
-	assert.Nil(t, l.componentConstraints(nil, "/p"))
-	assert.Nil(t, l.componentConstraints(oas3.NewJSONSchemaFromBool(true), "/p"))
-	assert.Nil(t, l.componentConstraints(oas3.NewJSONSchemaFromReference("#/components/schemas/Other"), "/p"))
+	assert.Nil(t, l.schemaConstraints(siteSchema(nil), "/p"))
+	assert.Nil(t, l.schemaConstraints(siteSchema(oas3.NewJSONSchemaFromBool(true)), "/p"))
+	assert.Nil(t, l.schemaConstraints(siteSchema(oas3.NewJSONSchemaFromReference("#/components/schemas/Other")), "/p"))
 }
 
 // TestSchemaConstraints_EmptyRefSchema covers the schemaConstraints early return: a
@@ -1891,7 +1891,7 @@ func TestSchemaConstraints_EmptyRefSchema(t *testing.T) {
 	l := newRawLowerer(&soa.OpenAPI{})
 	emptyRef := references.Reference("")
 	js := oas3.NewJSONSchemaFromSchema[oas3.Referenceable](&oas3.Schema{Ref: &emptyRef})
-	assert.Nil(t, l.componentConstraints(js, "/p"))
+	assert.Nil(t, l.schemaConstraints(siteSchema(js), "/p"))
 }
 
 func TestResolveSchemaRef_ReusesInternedSubSchema(t *testing.T) {
