@@ -582,7 +582,7 @@ func visibilityModelCase() retentionCase {
 	return retentionCase{
 		cell: harness.Cell{Annotation: harness.AnnotationVisibility, SiteKind: harness.SiteDeclarationModel},
 		knownGap: "ir.TypeCommon has no Visibility field; Access and Usage exist but the compiler " +
-			"never sets them, for either declaration shape",
+			"never sets them",
 		spec: `openapi: 3.1.0
 info: {title: g, version: "1"}
 paths: {}
@@ -944,13 +944,14 @@ components:
 }
 
 // marshalToMap JSON-marshals v — a type node — and decodes the result back
-// into a generic map keyed by wire field name. It backs two checks: a
-// knownGap case proving an annotation has no field to land in on the
-// declaration itself (constraints, default, visibility all read this way),
-// and a non-gap case additionally proving that same annotation has not
-// leaked onto an unrelated, field-less node it also holds a handle to — the
-// shared primitive in constraintsScalarCase, or a $ref's target in
-// defaultReferenceCase and visibilityReferenceCase.
+// into a generic map keyed by wire field name. It backs two kinds of check
+// among the retention cases above: proving an annotation has no field to
+// land in on the declaration itself (constraints, default, and visibility
+// all read this way), and, in several of those same cases — gap or not —
+// additionally proving that same annotation has not leaked onto an
+// unrelated, field-less node the case also holds a handle to: the shared
+// primitive a scalar declaration aliases, or the target a reference case's
+// $ref points at.
 //
 // Either way, NotContains(node, key) only rules out that exact JSON key —
 // not preservation under a different one, such as Extensions (ir-design
