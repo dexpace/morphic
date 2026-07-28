@@ -21,16 +21,24 @@ const (
 )
 
 // SiteKind distinguishes a position that declares a type from one that
-// references another type and may carry annotations of its own. The distinction
-// is the grid's second axis because it is where annotations are most often
-// dropped: an annotation written beside a reference belongs to the position it
-// is written at, not to the referent.
+// references another type and may carry annotations of its own. Declaration
+// splits by the declaring component's own shape because the compiler routes an
+// object-shaped body and a scalar-shaped body through different lowering paths
+// that do not honor the same keywords: an annotation present on one shape is
+// not evidence it survives on the other. The distinction is the grid's second
+// axis because this is where annotations are most often dropped.
 type SiteKind string
 
 // The kinds of position an annotation can be written at.
 const (
-	SiteDeclaration SiteKind = "declaration"
-	SiteReference   SiteKind = "reference"
+	// SiteDeclarationModel is an annotation on an object-shaped component,
+	// which lowers through the compiler's model path.
+	SiteDeclarationModel SiteKind = "declaration-model"
+	// SiteDeclarationScalar is an annotation on a scalar-shaped component,
+	// which lowers through the compiler's alias path.
+	SiteDeclarationScalar SiteKind = "declaration-scalar"
+	// SiteReference is an annotation written beside a $ref.
+	SiteReference SiteKind = "reference"
 )
 
 // Cell identifies one square of the conformance grid: one annotation slot at
@@ -57,7 +65,7 @@ func Aspects() []Aspect {
 
 // SiteKinds returns every site kind in a stable order.
 func SiteKinds() []SiteKind {
-	return []SiteKind{SiteDeclaration, SiteReference}
+	return []SiteKind{SiteDeclarationModel, SiteDeclarationScalar, SiteReference}
 }
 
 // Cells returns the full aspect-by-site-kind cross product in a stable order,
