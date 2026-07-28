@@ -5,6 +5,7 @@
 package openapi_test
 
 import (
+	"encoding/json"
 	"slices"
 	"strings"
 	"testing"
@@ -205,8 +206,9 @@ components:
 			assert: func(t *testing.T, doc *ir.Document) {
 				m, ok := doc.Types[namedID("S")].(*ir.Model)
 				require.True(t, ok, "S still owns a Model node even though its minProperties is dropped")
-				assert.Empty(t, m.Extensions, "minProperties is never read for a model declaration today; closing this gap should turn this red")
-				assert.Nil(t, m.XML, "minProperties has no other landing spot on a model today; closing this gap should turn this red")
+				node := marshalToMap(t, m)
+				assert.NotContains(t, node, "constraints",
+					"minProperties is never surfaced anywhere in the IR today; closing this gap should turn this red")
 			},
 		},
 		{
@@ -426,8 +428,9 @@ components:
 			assert: func(t *testing.T, doc *ir.Document) {
 				m, ok := doc.Types[namedID("S")].(*ir.Model)
 				require.True(t, ok, "S still owns a Model node even though its default is dropped")
-				assert.Empty(t, m.Extensions, "default is never read for a model declaration today; closing this gap should turn this red")
-				assert.Nil(t, m.XML, "default has no other landing spot on a model today; closing this gap should turn this red")
+				node := marshalToMap(t, m)
+				assert.NotContains(t, node, "default",
+					"default is never surfaced anywhere in the IR today; closing this gap should turn this red")
 			},
 		},
 		{
@@ -443,7 +446,9 @@ components:
 			assert: func(t *testing.T, doc *ir.Document) {
 				td, ok := doc.Types[namedID("S")]
 				require.True(t, ok, "S still owns a node even though its default is dropped")
-				assert.Empty(t, td.Common().Extensions, "default is never read for a scalar declaration today; closing this gap should turn this red")
+				node := marshalToMap(t, td)
+				assert.NotContains(t, node, "default",
+					"default is never surfaced anywhere in the IR today; closing this gap should turn this red")
 			},
 		},
 		{
@@ -781,6 +786,20 @@ components:
 			},
 		},
 	}
+}
+
+// marshalToMap JSON-marshals v — a type node — and decodes the result back
+// into a generic map keyed by wire field name. A knownGap cell asserts on
+// this instead of on a specific Go field, so the assertion still catches the
+// annotation once it reaches the IR through any struct field, not only
+// through the one field the gap's case happened to check when it was written.
+func marshalToMap(t *testing.T, v any) map[string]any {
+	t.Helper()
+	raw, err := json.Marshal(v)
+	require.NoError(t, err)
+	node := make(map[string]any)
+	require.NoError(t, json.Unmarshal(raw, &node))
+	return node
 }
 
 // hasDiagCode reports whether diags contains a diagnostic with the given
