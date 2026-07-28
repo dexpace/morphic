@@ -5,6 +5,7 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"strings"
@@ -21,7 +22,7 @@ import (
 // programmer-level error, distinct from a spec problem reported as a diagnostic.
 var errParse = errors.New("parse source")
 
-// maxSchemaScanDepth bounds the numeric-scalar scan of a schema node (styleguide
+// maxSchemaScanDepth bounds the scalar scan of a schema node (styleguide
 // bounded-recursion rule); a schema nested deeper is pathological, not a spec the
 // compiler is expected to classify.
 const maxSchemaScanDepth = 512
@@ -143,32 +144,38 @@ func isNumericBoundKeyword(verr validation.Error) bool {
 }
 
 // invalidSyntaxOnValidNumbers reports whether an invalid-syntax finding is caused
-// solely by numeric literals that are valid numbers in a non-JSON spelling (.5,
-// 5., 0644), which Morphic captures losslessly. A non-JSON numeric scalar that is
-// not a recoverable number (.inf) makes the finding genuine, so it is kept.
-// Recoverability is decided by numericLiteral, the same conversion the lowerer
-// runs, so the loader never refuses a spelling the compiler would have captured
-// — nor accepts one it would not.
+// solely by numeric literals written in a spelling JSON rejects (.5, 5., 0644)
+// that Morphic captures losslessly anyway.
+//
+// A literal is only a candidate cause when json.Valid rejects its source text —
+// that is the grammar the library's YAML-to-JSON conversion has to satisfy, so a
+// spelling JSON already accepts provoked nothing and cannot excuse the finding.
+// Every rejected literal must then be one numericLiteral recovers, the very
+// conversion the lowerer will run; a single unrecoverable one (.inf) keeps the
+// finding. Because the scan covers every numeric scalar under the node, no
+// candidate cause goes unclassified.
 func invalidSyntaxOnValidNumbers(node *yaml.Node) bool {
 	if node == nil {
 		return false
 	}
-	var recoverable, genuine bool
+	var recovered, unrepresentable bool
 	walkNumericScalars(node, 0, func(scalar *yaml.Node) {
-		canonical, err := numericLiteral(scalar)
-		switch {
-		case err != nil:
-			genuine = true
-		case string(canonical) != scalar.Value:
-			recoverable = true
+		if json.Valid([]byte(scalar.Value)) {
+			return
 		}
+		if _, err := numericLiteral(scalar); err != nil {
+			unrepresentable = true
+			return
+		}
+		recovered = true
 	})
-	return recoverable && !genuine
+	return recovered && !unrepresentable
 }
 
 // walkNumericScalars visits every numeric-tagged scalar reachable from node
-// within maxSchemaScanDepth. Only numeric scalars can defeat the library's
-// YAML-to-JSON conversion, so non-numeric scalars are skipped.
+// within maxSchemaScanDepth. Only a numeric spelling has been observed to defeat
+// the library's YAML-to-JSON conversion — a custom tag or a non-string key
+// converts fine — so non-numeric scalars are skipped.
 func walkNumericScalars(node *yaml.Node, depth int, visit func(*yaml.Node)) {
 	if node == nil || depth > maxSchemaScanDepth {
 		return
