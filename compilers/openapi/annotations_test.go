@@ -508,7 +508,8 @@ components:
 			require.True(t, ok, "S still owns a Model node even though its default is dropped")
 			node := marshalToMap(t, m)
 			assert.NotContains(t, node, "default",
-				"default is never surfaced anywhere in the IR today; closing this gap should turn this red")
+				"default has no field to land in on a declaration site today (it is surfaced "+
+					"for a property); closing this gap should turn this red")
 		},
 	}
 }
@@ -529,7 +530,8 @@ components:
 			require.True(t, ok, "a bare scalar component owns a Scalar node")
 			node := marshalToMap(t, sc)
 			assert.NotContains(t, node, "default",
-				"default is never surfaced anywhere in the IR today; closing this gap should turn this red")
+				"default has no field to land in on a declaration site today (it is surfaced "+
+					"for a property); closing this gap should turn this red")
 
 			primNode := marshalToMap(t, primitiveNode(t, doc, ir.TypeID("t/prim/integer")))
 			assert.NotContains(t, primNode, "default",
@@ -773,7 +775,8 @@ components:
 		assert: func(t *testing.T, doc *ir.Document) {
 			td, ok := doc.Types[namedID("S")]
 			require.True(t, ok)
-			assert.Nil(t, td.Common().XML, "XML is never set today; closing this gap should turn this red")
+			assert.Nil(t, td.Common().XML,
+				"XML is never set on a declaration site today; closing this gap should turn this red")
 		},
 	}
 }
@@ -793,7 +796,8 @@ components:
 		assert: func(t *testing.T, doc *ir.Document) {
 			sc, ok := doc.Types[namedID("S")].(*ir.Scalar)
 			require.True(t, ok, "a bare scalar component owns a Scalar node")
-			assert.Nil(t, sc.XML, "XML is never set today; closing this gap should turn this red")
+			assert.Nil(t, sc.XML,
+				"XML is never set on a declaration site today; closing this gap should turn this red")
 
 			assert.Nil(t, primitiveNode(t, doc, ir.TypeID("t/prim/string")).Common().XML,
 				"an xml hint on the declaration must not leak onto the shared primitive")
@@ -927,7 +931,8 @@ components:
 			p, ok := propByWire(m, "f")
 			require.True(t, ok)
 			_, ok = p.Extensions["openapi:if-then-else"]
-			assert.False(t, ok, "if/then is never read today; closing this gap should turn this red")
+			assert.False(t, ok,
+				"if/then beside a $ref is never read today; closing this gap should turn this red")
 		},
 		assertDiags: func(t *testing.T, diags []ir.Diagnostic) {
 			assert.False(t, hasDiagCode(diags, "openapi/validation-only-keyword"),
@@ -937,21 +942,19 @@ components:
 }
 
 // marshalToMap JSON-marshals v — a type node — and decodes the result back
-// into a generic map keyed by wire field name. Five of this suite's twelve
-// knownGap cases assert the dropped annotation's absence this way, because
-// the annotation has no dedicated Go field to read off directly; the other
-// seven assert a specific field directly instead.
+// into a generic map keyed by wire field name. It backs two checks: a
+// knownGap case proving an annotation has no field to land in on the
+// declaration itself (constraints, default, visibility all read this way),
+// and a non-gap case additionally proving that same annotation has not
+// leaked onto an unrelated, field-less node it also holds a handle to — the
+// shared primitive in constraintsScalarCase, or a $ref's target in
+// defaultReferenceCase and visibilityReferenceCase.
 //
-// NotContains(node, key) only checks that no field JSON-encodes under that
-// exact key — it cannot rule out the annotation being preserved under some
-// other key instead, such as Extensions. That is a deliberate scope limit,
-// not an oversight: Extensions-based preservation is ir-design §4.7's
-// carve-out for validation-only keywords with no structural home, and every
-// field-less gap this helper checks (constraints, default, visibility) names
-// a field missing from the IR that Property or Scalar already has for the
-// same annotation, so the fix each is waiting on is that field — and this
-// assertion is written to catch exactly that, not to anticipate every other
-// way the gap could theoretically be routed around.
+// Either way, NotContains(node, key) only rules out that exact JSON key —
+// not preservation under a different one, such as Extensions (ir-design
+// §4.7's carve-out for validation-only keywords with no structural home).
+// A knownGap case is waiting on a real field; this assertion exists to
+// catch exactly that gap, not every other way it could be routed around.
 func marshalToMap(t *testing.T, v any) map[string]any {
 	t.Helper()
 	raw, err := json.Marshal(v)
