@@ -32,21 +32,18 @@ func (k siteKind) String() string {
 	}
 }
 
-// site is a position that owns an IR node. Node is the schema written at the
-// position; Referent is the schema exactly one hop away, set only for a
-// reference site.
+// site is a position that owns an IR node: Node is the schema written there,
+// and Referent — set only for a reference site — is the schema exactly one
+// hop away, never the end of a $ref chain.
 //
-// The split exists so an annotation can be read from where it was written
-// rather than from wherever a $ref happens to resolve: a site-only annotation
-// (examples, constraints) reads Node alone, and a site-overrides-referent
-// annotation (docs, deprecation, visibility, default) is meant to read Node
-// and fall back to Referent. No caller does that yet: fillPropertyDetail
-// (schema.go) still resolves its own fallback via refTargetSchema, which
-// follows a $ref chain to its end (GetResolvedSchema) rather than one hop
-// (GetReferenceResolutionInfo, what Referent uses here). The two are not
-// interchangeable — swapping one for the other would silently change
-// property-default and description semantics on a ref-to-ref chain, where the
-// end of the chain and the schema one hop away can be different schemas.
+// The split lets an annotation be read from where it was written rather than
+// wherever the $ref resolves to, with a fallback to Referent for annotations
+// meant to inherit from the target. No caller uses that fallback yet:
+// fillPropertyDetail (schema.go) instead falls back via refTargetSchema,
+// which follows a $ref chain to its end (GetResolvedSchema) rather than one
+// hop (GetReferenceResolutionInfo, what Referent uses). The two are not
+// interchangeable: swapping one for the other would silently change
+// property-default and description semantics on a ref-to-ref chain.
 type site struct {
 	Kind siteKind
 	Node *oas3.Schema
@@ -55,33 +52,19 @@ type site struct {
 	Referent *oas3.Schema
 }
 
-// siteAt builds the site for the position at pointer. A position carrying a
-// $ref is a reference site and resolves its referent exactly one hop, never to
-// the end of the chain: a sub-schema spelled {$ref: Other, minimum: 7} must read
-// as this position, not as Other, or the bound written beside the $ref is lost
-// before anything can record it.
+// siteAt builds the site for js. A $ref position resolves Referent exactly
+// one hop through declaredSchema, never the full chain — see site and
+// declaredSchema for why that distinction matters.
 //
 // A schema whose $ref pointer is present but empty ({$ref: ""}) is not a
-// reference site: IsReference is false for it (by definition — an empty ref
-// resolves nowhere), so it is classified as a declaration like any other
-// schema body, and this narrower test is what keeps Referent's doc comment
-// below true: a reference site's $ref was genuinely attempted, so "the $ref
-// does not resolve" is the only reason left for Referent to be nil.
+// reference site: an empty ref resolves nowhere, so IsReference is false and
+// it is classified as a declaration like any other schema body. That is what
+// keeps Referent's nil guarantee true: a reference site's $ref was genuinely
+// attempted, so an unresolved target is the only reason Referent is nil.
 //
-// siteAt cannot verify the one precondition that actually matters: that js is
-// the schema written at pointer, not some other node. That pairing is the
-// caller's responsibility — nothing here can cross-check it from js and
-// pointer alone. What it can check is that pointer is at least shaped like a
-// position: every caller derives it from a JSON pointer (RFC 6901), which is
-// either empty (denoting the whole document — no caller here means that) or
-// starts with "/".
-func (l *lowerer) siteAt(js *oas3.JSONSchema[oas3.Referenceable], pointer string) site {
-	if pointer == "" {
-		panic("siteAt: empty pointer")
-	}
-	if pointer[0] != '/' {
-		panic(fmt.Sprintf("siteAt: pointer %q is not a JSON pointer", pointer))
-	}
+// siteAt trusts its caller that js is genuinely the schema at the position
+// being modeled; nothing here can cross-check that from js alone.
+func (l *lowerer) siteAt(js *oas3.JSONSchema[oas3.Referenceable]) site {
 	s := site{Kind: siteDeclaration, Node: siteSchema(js)}
 	if js == nil || js.IsBool() {
 		return s
@@ -97,16 +80,15 @@ func (l *lowerer) siteAt(js *oas3.JSONSchema[oas3.Referenceable], pointer string
 }
 
 // siteSchema returns the schema body written at this position, including one
-// that also carries a $ref. An example or a bound written beside a $ref applies
-// to the position it is written at rather than to the referent, so it may not be
-// read off the target — the rule fillPropertyExamples and fillPropertyConstraints
-// already apply at a property. It returns nil only where no body is written at
-// all: a nil either, or a boolean schema, which admits no annotations.
+// that also carries a $ref — an example or bound written beside a $ref binds
+// the position, not the referent, the same rule fillPropertyExamples and
+// fillPropertyConstraints apply at a property. It returns nil only where no
+// body is written: a nil either, or a boolean schema, which admits no
+// annotations.
 //
 // Every position that owns a node reads it through siteAt: a named component
-// (lowerComponentSchema, schema.go) and a $ref'd internal sub-schema
-// (hoistSubSchema, which declaredSchema feeds one hop at a time for exactly
-// this reason).
+// (lowerComponentSchema) and a $ref'd internal sub-schema (hoistSubSchema,
+// fed one hop at a time by declaredSchema).
 func siteSchema(js *oas3.JSONSchema[oas3.Referenceable]) *oas3.Schema {
 	if js == nil || js.IsBool() {
 		return nil
@@ -199,20 +181,20 @@ func declaredSchema(js *oas3.JSONSchema[oas3.Referenceable]) *oas3.JSONSchema[oa
 }
 
 // hoistSubSchema lowers the internal sub-schema declared at pointer and
-// guarantees a node exists at the pointer-derived ID, aliasing when the body
+// guarantees a node exists at its pointer-derived ID, aliasing when the body
 // reduces to a shared target so a $ref to the sub-schema always resolves
-// (invariants 1, 2). When the body reduces to an alias, the annotations written
-// at that position — value constraints and examples — are carried onto the
-// alias, exactly as for a named scalar component, so a $ref to a constrained
-// scalar sub-schema ({type: number, minimum: 5}) does not silently drop them.
+// (invariants 1, 2). The annotations written at that position — value
+// constraints and examples — are carried onto the alias exactly as for a
+// named scalar component, so a $ref to a constrained scalar sub-schema
+// ({type: number, minimum: 5}) does not silently drop them.
 //
-// decl is the declaration itself rather than its resolved form, so a sub-schema
-// that is a $ref carrying siblings aliases its target and keeps them. schemaRef
-// makes that distinction already: it peels a reference off to a TypeRef and
-// lowers a concrete body in place, and either way leaves this to intern the node
-// the pointer owns.
+// decl is the declaration itself, not its resolved form, so a sub-schema that
+// is a $ref carrying siblings aliases its target while keeping them. schemaRef
+// already draws that distinction — peeling a $ref off to a TypeRef and
+// lowering a concrete body in place — leaving this to intern whichever node
+// the pointer ends up owning.
 func (l *lowerer) hoistSubSchema(decl *oas3.JSONSchema[oas3.Referenceable], pointer string) (ir.TypeID, bool) {
-	s := l.siteAt(decl, pointer)
+	s := l.siteAt(decl)
 	if s.Node == nil {
 		return "", false
 	}
@@ -287,12 +269,12 @@ func (l *lowerer) internalPointer(ref string) (string, bool) {
 }
 
 // sameFile reports whether a $ref document part names this compilation's own
-// source file, so the reference resolves back into the same document. An exact
-// path match is internal; so is a bare filename (no directory) equal to our own
-// basename, since self-references are conventionally spelled with just the
-// file's own name (e.g. `m.yaml#/...` inside m.yaml). A doc part that carries
-// its own directory is matched in full, never on basename alone — otherwise
-// `dir2/m.yaml` referenced from `dir1/m.yaml` would misread as a self-reference.
+// source file. An exact path match is internal; so is a bare filename (no
+// directory) equal to our own basename, since self-references are
+// conventionally spelled with just the file's own name (e.g. `m.yaml#/...`
+// inside m.yaml). A doc part carrying its own directory is matched in full,
+// never on basename alone — otherwise `dir2/m.yaml` referenced from
+// `dir1/m.yaml` would misread as a self-reference.
 func (l *lowerer) sameFile(doc string) bool {
 	self := l.source.Path
 	if self == "" {

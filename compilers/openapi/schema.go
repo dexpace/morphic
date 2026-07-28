@@ -48,7 +48,7 @@ func (l *lowerer) lowerComponentSchemas() {
 // `MyId: {type: string, format: uuid}` would leave nothing at its component
 // pointer and every $ref to it would dangle (invariants 1 and 2).
 func (l *lowerer) lowerComponentSchema(js *oas3.JSONSchema[oas3.Referenceable], pointer, name string) {
-	s := l.siteAt(js, pointer)
+	s := l.siteAt(js)
 	ref := l.schemaRef(js, pointer, name)
 	if _, owned := l.byPointer[pointer]; owned {
 		return // schemaRef interned the component's own node at its component ID

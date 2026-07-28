@@ -24,11 +24,11 @@ components:
 	js := l.doc.Components.GetSchemas().GetOrZero("S")
 	require.NotNil(t, js)
 
-	st := l.siteAt(js, ptr("components", "schemas", "S"))
-	assert.Equal(t, siteDeclaration, st.Kind)
-	require.NotNil(t, st.Node)
-	assert.Equal(t, "d", st.Node.GetDescription())
-	assert.Nil(t, st.Referent, "a declaration site has no referent")
+	s := l.siteAt(js)
+	assert.Equal(t, siteDeclaration, s.Kind)
+	require.NotNil(t, s.Node)
+	assert.Equal(t, "d", s.Node.GetDescription())
+	assert.Nil(t, s.Referent, "a declaration site has no referent")
 }
 
 func TestSiteAt_ReferenceCarriesBothNodes(t *testing.T) {
@@ -46,12 +46,12 @@ components:
 	js := l.doc.Components.GetSchemas().GetOrZero("S")
 	require.NotNil(t, js)
 
-	st := l.siteAt(js, ptr("components", "schemas", "S"))
-	assert.Equal(t, siteReference, st.Kind)
-	require.NotNil(t, st.Node)
-	assert.Equal(t, "site-desc", st.Node.GetDescription(), "Node is the schema written here")
-	require.NotNil(t, st.Referent)
-	assert.Equal(t, "target-desc", st.Referent.GetDescription(), "Referent is one hop away")
+	s := l.siteAt(js)
+	assert.Equal(t, siteReference, s.Kind)
+	require.NotNil(t, s.Node)
+	assert.Equal(t, "site-desc", s.Node.GetDescription(), "Node is the schema written here")
+	require.NotNil(t, s.Referent)
+	assert.Equal(t, "target-desc", s.Referent.GetDescription(), "Referent is one hop away")
 }
 
 // TestSiteAt_EmptyRefIsDeclaration pins the narrower classification: a $ref
@@ -63,28 +63,9 @@ func TestSiteAt_EmptyRefIsDeclaration(t *testing.T) {
 	emptyRef := references.Reference("")
 	js := oas3.NewJSONSchemaFromSchema[oas3.Referenceable](&oas3.Schema{Ref: &emptyRef})
 
-	s := l.siteAt(js, "/p")
+	s := l.siteAt(js)
 	assert.Equal(t, siteDeclaration, s.Kind, "an empty $ref resolves nowhere, so it is not a reference site")
 	assert.Nil(t, s.Referent)
-}
-
-// TestSiteAt_EmptyPointerPanics covers siteAt's own precondition: pointer is
-// always caller-derived and never empty in practice (every call site already
-// guarantees it), so an empty pointer here is a programmer error, not a spec
-// problem, and siteAt panics rather than build a site for nowhere.
-func TestSiteAt_EmptyPointerPanics(t *testing.T) {
-	t.Parallel()
-	l := newRawLowerer(&soa.OpenAPI{})
-	assert.Panics(t, func() { l.siteAt(oas3.NewJSONSchemaFromBool(true), "") })
-}
-
-// TestSiteAt_NonPointerPanics covers siteAt's second precondition: pointer
-// must be RFC 6901-shaped (starting with "/"), the assumption every pointer-
-// keyed lookup in this file relies on.
-func TestSiteAt_NonPointerPanics(t *testing.T) {
-	t.Parallel()
-	l := newRawLowerer(&soa.OpenAPI{})
-	assert.Panics(t, func() { l.siteAt(oas3.NewJSONSchemaFromBool(true), "components/schemas/S") })
 }
 
 // TestSiteKind_String covers both named values and the default case, so an
