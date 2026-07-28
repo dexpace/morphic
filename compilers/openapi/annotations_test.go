@@ -5,6 +5,8 @@
 package openapi_test
 
 import (
+	"slices"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -15,6 +17,11 @@ import (
 	"github.com/dexpace/morphic/internal/harness"
 	"github.com/dexpace/morphic/ir"
 )
+
+// minGapReasonLen is the shortest a knownGap reason may be. It is cheap
+// insurance against a placeholder like "todo" masquerading as the required
+// explanation of why the compiler drops an annotation.
+const minGapReasonLen = 20
 
 // retentionCase is one cell of annotation retention: a minimal spec exercising
 // one annotation at one kind of position, and the assertion that the
@@ -63,18 +70,45 @@ func TestAnnotationRetention(t *testing.T) {
 	}
 }
 
-// TestAnnotationRetention_KnownGaps logs every cell marked knownGap so the gaps stay
-// visible in test output rather than buried inside a passing subtest's body.
+// TestAnnotationRetention_KnownGaps logs every cell marked knownGap so the gaps
+// stay visible in test output rather than buried inside a passing subtest's
+// body, and checks the marker itself: retentionCase's doc comment promises
+// that a knownGap case asserts absence, so a case missing its own assertion,
+// or carrying a reason too short to explain anything, would let a gap go
+// unenforced or unexplained.
 func TestAnnotationRetention_KnownGaps(t *testing.T) {
 	t.Parallel()
 	for _, tc := range retentionCases() {
-		if tc.knownGap != "" {
-			t.Logf("GAP %s/%s: %s", tc.cell.Annotation, tc.cell.SiteKind, tc.knownGap)
+		assert.NotNil(t, tc.assert, "%s/%s: every case must assert something, gap or not",
+			tc.cell.Annotation, tc.cell.SiteKind)
+		if tc.knownGap == "" {
+			continue
 		}
+		t.Logf("GAP %s/%s: %s", tc.cell.Annotation, tc.cell.SiteKind, tc.knownGap)
+		reason := strings.TrimSpace(tc.knownGap)
+		assert.GreaterOrEqual(t, len(reason), minGapReasonLen,
+			"%s/%s: knownGap reason is too short to be a real explanation: %q",
+			tc.cell.Annotation, tc.cell.SiteKind, tc.knownGap)
 	}
 }
 
 func retentionCases() []retentionCase {
+	return slices.Concat(
+		examplesCases(),
+		constraintsCases(),
+		docsCases(),
+		deprecatedCases(),
+		defaultCases(),
+		visibilityCases(),
+		extensionsCases(),
+		xmlHintsCases(),
+		validationOnlyCases(),
+	)
+}
+
+// examplesCases returns the annotation-retention cases for the examples
+// annotation: an example value at each SiteKind.
+func examplesCases() []retentionCase {
 	return []retentionCase{
 		{
 			cell: harness.Cell{Annotation: harness.AnnotationExamples, SiteKind: harness.SiteDeclarationModel},
@@ -145,6 +179,13 @@ components:
 					"a reference-site example must not attach to the referent")
 			},
 		},
+	}
+}
+
+// constraintsCases returns the annotation-retention cases for the constraints
+// annotation: a value bound (e.g. minimum) at each SiteKind.
+func constraintsCases() []retentionCase {
+	return []retentionCase{
 		{
 			cell: harness.Cell{Annotation: harness.AnnotationConstraints, SiteKind: harness.SiteDeclarationModel},
 			knownGap: "ir.Model has no Constraints field, and lowerModel already owns the component's " +
@@ -214,6 +255,13 @@ components:
 				assert.Nil(t, target.Constraints, "a reference-site bound must not attach to the referent")
 			},
 		},
+	}
+}
+
+// docsCases returns the annotation-retention cases for the docs annotation: a
+// description at each SiteKind.
+func docsCases() []retentionCase {
+	return []retentionCase{
 		{
 			cell: harness.Cell{Annotation: harness.AnnotationDocs, SiteKind: harness.SiteDeclarationModel},
 			spec: `openapi: 3.1.0
@@ -280,6 +328,13 @@ components:
 					"a reference-site description must not attach to the referent")
 			},
 		},
+	}
+}
+
+// deprecatedCases returns the annotation-retention cases for the deprecated
+// annotation at each SiteKind.
+func deprecatedCases() []retentionCase {
+	return []retentionCase{
 		{
 			cell: harness.Cell{Annotation: harness.AnnotationDeprecated, SiteKind: harness.SiteDeclarationModel},
 			spec: `openapi: 3.1.0
@@ -346,6 +401,13 @@ components:
 					"a reference-site deprecation must not attach to the referent")
 			},
 		},
+	}
+}
+
+// defaultCases returns the annotation-retention cases for the default
+// annotation at each SiteKind.
+func defaultCases() []retentionCase {
+	return []retentionCase{
 		{
 			cell: harness.Cell{Annotation: harness.AnnotationDefault, SiteKind: harness.SiteDeclarationModel},
 			knownGap: "ir.Model and TypeCommon have no Default field, so a component-level default has " +
@@ -408,6 +470,13 @@ components:
 				assert.Equal(t, "7", p.Default.Num.String())
 			},
 		},
+	}
+}
+
+// visibilityCases returns the annotation-retention cases for the visibility
+// annotation (readOnly) at each SiteKind.
+func visibilityCases() []retentionCase {
+	return []retentionCase{
 		{
 			cell: harness.Cell{Annotation: harness.AnnotationVisibility, SiteKind: harness.SiteDeclarationModel},
 			knownGap: "ir.TypeCommon has no Visibility field; Access and Usage exist but the compiler " +
@@ -472,6 +541,13 @@ components:
 					p.Visibility.Only)
 			},
 		},
+	}
+}
+
+// extensionsCases returns the annotation-retention cases for the extensions
+// annotation (x-vendor) at each SiteKind.
+func extensionsCases() []retentionCase {
+	return []retentionCase{
 		{
 			cell: harness.Cell{Annotation: harness.AnnotationExtensions, SiteKind: harness.SiteDeclarationModel},
 			spec: `openapi: 3.1.0
@@ -541,6 +617,13 @@ components:
 					"a reference-site extension must not attach to the referent")
 			},
 		},
+	}
+}
+
+// xmlHintsCases returns the annotation-retention cases for the xmlHints
+// annotation at each SiteKind.
+func xmlHintsCases() []retentionCase {
+	return []retentionCase{
 		{
 			cell:     harness.Cell{Annotation: harness.AnnotationXMLHints, SiteKind: harness.SiteDeclarationModel},
 			knownGap: "ir.TypeCommon.XML exists but the OpenAPI compiler never assigns it; only Property.XML is filled (fillPropertyDetail), so a component-level xml hint has nowhere to land",
@@ -606,6 +689,13 @@ components:
 				assert.Nil(t, target.Common().XML, "a reference-site xml hint must not attach to the referent")
 			},
 		},
+	}
+}
+
+// validationOnlyCases returns the annotation-retention cases for the
+// validationOnly annotation (if/then/else) at each SiteKind.
+func validationOnlyCases() []retentionCase {
+	return []retentionCase{
 		{
 			cell: harness.Cell{Annotation: harness.AnnotationValidationOnly, SiteKind: harness.SiteDeclarationModel},
 			spec: `openapi: 3.1.0
@@ -724,4 +814,17 @@ func TestAnnotationRetention_EveryCellCovered(t *testing.T) {
 
 	missing := harness.MissingCells(covered)
 	assert.Empty(t, missing, "cells with neither a case nor an excuse: %+v", missing)
+}
+
+// TestAnnotationRetention_NoDuplicateCells guards the case table against two
+// cases claiming the same cell: TestAnnotationRetention_EveryCellCovered would
+// still pass with one case silently shadowing the other, since it only checks
+// which cells are covered, never how many times.
+func TestAnnotationRetention_NoDuplicateCells(t *testing.T) {
+	t.Parallel()
+	seen := make(map[harness.Cell]bool)
+	for _, tc := range retentionCases() {
+		require.False(t, seen[tc.cell], "duplicate case for cell %+v", tc.cell)
+		seen[tc.cell] = true
+	}
 }
