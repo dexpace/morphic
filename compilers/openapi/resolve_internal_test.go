@@ -1,0 +1,148 @@
+package openapi
+
+import (
+	"testing"
+
+	oas3 "github.com/speakeasy-api/openapi/jsonschema/oas3"
+	"github.com/speakeasy-api/openapi/references"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
+	"github.com/dexpace/morphic/ir"
+)
+
+func TestSiteAt_DeclarationHasNoReferent(t *testing.T) {
+	t.Parallel()
+	l, _ := loweredFor(t, `openapi: 3.1.0
+info: {title: t, version: "1"}
+paths: {}
+components:
+  schemas:
+    S: {type: string, description: d}
+`)
+	js := l.doc.Components.GetSchemas().GetOrZero("S")
+	require.NotNil(t, js)
+
+	s := siteAt(js)
+	assert.Equal(t, siteDeclaration, s.Kind)
+	require.NotNil(t, s.Node)
+	assert.Equal(t, "d", s.Node.GetDescription())
+	assert.Nil(t, s.Referent, "a declaration site has no referent")
+}
+
+func TestSiteAt_ReferenceCarriesBothNodes(t *testing.T) {
+	t.Parallel()
+	l, _ := loweredFor(t, `openapi: 3.1.0
+info: {title: t, version: "1"}
+paths: {}
+components:
+  schemas:
+    Target: {type: string, description: target-desc}
+    S:
+      $ref: '#/components/schemas/Target'
+      description: site-desc
+`)
+	js := l.doc.Components.GetSchemas().GetOrZero("S")
+	require.NotNil(t, js)
+
+	s := siteAt(js)
+	assert.Equal(t, siteReference, s.Kind)
+	require.NotNil(t, s.Node)
+	assert.Equal(t, "site-desc", s.Node.GetDescription(), "Node is the schema written here")
+	require.NotNil(t, s.Referent)
+	assert.Equal(t, "target-desc", s.Referent.GetDescription(), "Referent is one hop away")
+}
+
+// TestSiteAt_EmptyRefIsDeclaration pins the narrower classification: a $ref
+// pointer present but empty never resolves (IsReference is false for it), so
+// siteAt reports a declaration, not a reference with a nil Referent.
+func TestSiteAt_EmptyRefIsDeclaration(t *testing.T) {
+	t.Parallel()
+	emptyRef := references.Reference("")
+	js := oas3.NewJSONSchemaFromSchema[oas3.Referenceable](&oas3.Schema{Ref: &emptyRef})
+
+	s := siteAt(js)
+	assert.Equal(t, siteDeclaration, s.Kind, "an empty $ref resolves nowhere, so it is not a reference site")
+	assert.Nil(t, s.Referent)
+}
+
+// TestSiteKind_String covers both named values and the default case, so an
+// assertion failure or test diff over a siteKind prints a name instead of a
+// bare int.
+func TestSiteKind_String(t *testing.T) {
+	t.Parallel()
+	assert.Equal(t, "siteDeclaration", siteDeclaration.String())
+	assert.Equal(t, "siteReference", siteReference.String())
+	assert.Equal(t, "siteKind(99)", siteKind(99).String())
+}
+
+// TestLowerComponentSchema_RefSiblingConstraintBindsTheSite locks in the
+// $ref-sibling-constraint behaviour at a named component: lowerComponentSchema
+// resolves the component's own site via siteAt, so a bound written beside the
+// $ref (S: {$ref: Target, minimum: 5}) binds S, not Target.
+func TestLowerComponentSchema_RefSiblingConstraintBindsTheSite(t *testing.T) {
+	t.Parallel()
+	l, _ := loweredFor(t, `openapi: 3.1.0
+info: {title: t, version: "1"}
+paths: {}
+components:
+  schemas:
+    Target: {type: integer}
+    S:
+      $ref: '#/components/schemas/Target'
+      minimum: 5
+`)
+	l.lowerComponentSchemas()
+
+	sc, ok := typeByName(l.out, "S").(*ir.Scalar)
+	require.True(t, ok, "S aliases Target and must own a Scalar node")
+	require.NotNil(t, sc.Constraints, "a bound beside a $ref binds S, not Target")
+	require.NotNil(t, sc.Constraints.Min)
+	assert.Equal(t, "5", sc.Constraints.Min.String())
+
+	target := typeByName(l.out, "Target")
+	require.NotNil(t, target)
+	tsc, ok := target.(*ir.Scalar)
+	require.True(t, ok, "Target aliases a primitive and must own a Scalar node")
+	assert.Nil(t, tsc.Constraints, "the referent must not acquire the site's bound")
+}
+
+// TestFillPropertyExamples_RefSiblingExampleBindsTheSite locks in the
+// $ref-sibling-example behaviour at a property position: an example written
+// beside a $ref binds the property, not the referent, because
+// fillPropertyExamples resolves it directly rather than through site.
+// Property f's $ref targets a named component (Target), so
+// resolveComponentRef resolves it directly without ever calling
+// hoistSubSchema. TestSchemaSiblings_RefdSubSchemaKeepsThem covers the
+// analogous hoistSubSchema path, where the $ref target is an internal
+// sub-schema pointer rather than a named component.
+func TestFillPropertyExamples_RefSiblingExampleBindsTheSite(t *testing.T) {
+	t.Parallel()
+	l, _ := loweredFor(t, `openapi: 3.1.0
+info: {title: t, version: "1"}
+paths: {}
+components:
+  schemas:
+    Target: {type: string}
+    Holder:
+      type: object
+      properties:
+        f:
+          $ref: '#/components/schemas/Target'
+          example: at-reference
+`)
+	l.lowerComponentSchemas()
+
+	target := typeByName(l.out, "Target")
+	require.NotNil(t, target)
+	assert.Empty(t, target.Common().Examples,
+		"an example beside a $ref must not attach to the referent")
+
+	holder, ok := typeByName(l.out, "Holder").(*ir.Model)
+	require.True(t, ok, "Holder must own a Model node")
+	f, ok := propsByWire(holder.Properties)["f"]
+	require.True(t, ok, "property f must be present")
+	require.Len(t, f.Examples, 1, "the example beside the $ref must bind the property")
+	require.NotNil(t, f.Examples[0].Value)
+	assert.Equal(t, ir.Value{Kind: ir.ValueString, Str: "at-reference"}, *f.Examples[0].Value)
+}

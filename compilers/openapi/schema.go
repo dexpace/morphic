@@ -48,52 +48,23 @@ func (l *lowerer) lowerComponentSchemas() {
 // `MyId: {type: string, format: uuid}` would leave nothing at its component
 // pointer and every $ref to it would dangle (invariants 1 and 2).
 func (l *lowerer) lowerComponentSchema(js *oas3.JSONSchema[oas3.Referenceable], pointer, name string) {
+	s := siteAt(js)
 	ref := l.schemaRef(js, pointer, name)
 	if _, owned := l.byPointer[pointer]; owned {
 		return // schemaRef interned the component's own node at its component ID
 	}
-	l.internAlias(pointer, name, ref, l.componentConstraints(js, pointer))
+	l.internAlias(pointer, name, ref, l.schemaConstraints(s.Node, pointer))
 	// This alias is the first node the pointer owns, so the examples schemaBody
 	// had nowhere to put now have a home.
-	if s := siteSchema(js); s != nil {
-		l.attachSchemaExamples(s, pointer)
+	if s.Node != nil {
+		l.attachSchemaExamples(s.Node, pointer)
 	}
-}
-
-// siteSchema returns the schema body written at this position, including one
-// that also carries a $ref. An example or a bound written beside a $ref applies
-// to the position it is written at rather than to the referent, so it may not be
-// read off the target — the rule fillPropertyExamples and fillPropertyConstraints
-// already apply at a property. It returns nil only where no body is written at
-// all: a nil either, or a boolean schema, which admits no annotations.
-//
-// Every position that owns a node reads it through here: a named component
-// (componentConstraints, lowerComponentSchema) and a $ref'd internal sub-schema
-// (hoistSubSchema, which declaredSchema feeds one hop at a time for exactly this
-// reason).
-func siteSchema(js *oas3.JSONSchema[oas3.Referenceable]) *oas3.Schema {
-	if js == nil || js.IsBool() {
-		return nil
-	}
-	return js.GetSchema()
-}
-
-// componentConstraints reads the value constraints of a component schema whose
-// body reduced to a shared or referenced target. A top-level scalar component
-// (e.g. {minimum: 5} or {type: number, minimum: 5}) reduces to a shared
-// primitive, so unlike a property — whose constraints land on the Property — it
-// has no other node to hold them; the alias Scalar must carry them or they are
-// silently dropped. That includes a bound written beside a $ref, which
-// constrains this position rather than the referent, exactly as a property in
-// the same shape already keeps one (fillPropertyConstraints).
-func (l *lowerer) componentConstraints(js *oas3.JSONSchema[oas3.Referenceable], pointer string) *ir.Constraints {
-	return l.schemaConstraints(siteSchema(js), pointer)
 }
 
 // schemaConstraints reads the value constraints of a schema and stamps each
 // constraint diagnostic with pointer's provenance. It returns nil only when
 // there is no schema to read. It is the shared path for every alias a body
-// reduces to — a named component (componentConstraints) and a $ref-hoisted
+// reduces to — a named component (lowerComponentSchema) and a $ref-hoisted
 // internal sub-schema (hoistSubSchema) — so a scalar that aliases a shared
 // primitive never drops the constraints it carried, including a bound written
 // beside a $ref, which constrains the position it is written at.
@@ -116,39 +87,6 @@ func (l *lowerer) internAlias(pointer, hint string, target ir.TypeRef, constrain
 		base := target
 		return &ir.Scalar{TypeCommon: common, Base: &base, Constraints: constraints}
 	})
-}
-
-// schemaRef is THE schema entry point: every schema position (property, items,
-// params, bodies) flows through it, yielding a TypeRef into the type registry.
-// It normalizes the two nullability dialects onto the single IR bit and never
-// lowers a $ref target from the reference site.
-func (l *lowerer) schemaRef(js *oas3.JSONSchema[oas3.Referenceable], pointer, hint string) ir.TypeRef {
-	l.depth++
-	defer func() { l.depth-- }()
-	if l.depth > maxSchemaDepth {
-		l.diag(ir.SeverityError, codeDegradedConstruct, pointer,
-			"schema nesting exceeds %d; lowered as any", maxSchemaDepth)
-		return l.primRef(ir.PrimAny)
-	}
-	if js == nil {
-		return l.primRef(ir.PrimAny)
-	}
-	if js.IsBool() {
-		if b := js.GetBool(); b != nil && !*b {
-			return ir.TypeRef{Target: l.falseSchema(pointer, hint)}
-		}
-		return l.primRef(ir.PrimAny)
-	}
-	if js.IsReference() {
-		return l.refTypeRef(js, pointer)
-	}
-	// Past the IsBool check, the either's left schema is always set (an empty
-	// either reads as a bool), so GetSchema never returns nil here.
-	schema := js.GetSchema()
-	if schema.Ref != nil {
-		return l.refTypeRef(js, pointer)
-	}
-	return l.schemaBody(schema, pointer, hint)
 }
 
 // schemaBody lowers a concrete (non-reference) schema body to a TypeRef and
@@ -237,106 +175,6 @@ func (l *lowerer) preserveUnionSiblings(id ir.TypeID, s *oas3.Schema, pointer st
 	}
 	l.diag(ir.SeverityInfo, codeDegradedConstruct, pointer,
 		"oneOf/anyOf co-declared with structural keywords; union branches preserved verbatim under extensions")
-}
-
-// refTypeRef resolves a $ref position to its target's stable ID, carrying the
-// combined ref-site and target nullability. A top-level component target keeps
-// its stable named ID (lowered where it is defined); an internal sub-schema
-// target is hoisted at its pointer-derived ID so the reference never dangles. A
-// genuinely external or unresolvable target is diagnosed and dropped to any.
-func (l *lowerer) refTypeRef(js *oas3.JSONSchema[oas3.Referenceable], pointer string) ir.TypeRef {
-	ref := js.GetRef().String()
-	id, ok := l.resolveSchemaRef(js, ref)
-	if !ok {
-		l.diag(ir.SeverityError, codeUnresolvedRef, pointer,
-			"unresolved $ref %q", ref)
-		return l.primRef(ir.PrimAny)
-	}
-	return ir.TypeRef{Target: id, Nullable: l.refNullable(js)}
-}
-
-// resolveSchemaRef resolves a schema-position $ref to an interned TypeID, never
-// synthesizing an ID that nothing backs. A top-level component keeps its stable
-// named ID; an already-interned target reuses it; an internal sub-schema the
-// resolver library resolved is hoisted at its pointer-derived ID. It returns
-// ok=false for a cross-document reference, a reference to an undeclared
-// component, or a pointer the library could not resolve.
-func (l *lowerer) resolveSchemaRef(js *oas3.JSONSchema[oas3.Referenceable], ref string) (ir.TypeID, bool) {
-	pointer, ok := l.internalPointer(ref)
-	if !ok {
-		return "", false
-	}
-	if id, resolved, handled := l.resolveComponentRef(pointer); handled {
-		return id, resolved
-	}
-	if id, ok := l.internedID(pointer); ok {
-		return id, true
-	}
-	decl := declaredSchema(js)
-	if decl == nil {
-		return "", false
-	}
-	return l.hoistSubSchema(decl, pointer)
-}
-
-// declaredSchema returns the schema written at the position js references — one
-// hop, not the end of the chain. GetResolvedSchema follows a reference to a
-// reference all the way through, which is the wrong node to hoist at that
-// position: a sub-schema spelled {$ref: Other, minimum: 7} would be read as
-// Other, and the bound written beside the $ref would be gone before anything
-// could record it.
-func declaredSchema(js *oas3.JSONSchema[oas3.Referenceable]) *oas3.JSONSchema[oas3.Referenceable] {
-	info := js.GetReferenceResolutionInfo()
-	if info == nil {
-		return nil
-	}
-	return info.Object
-}
-
-// hoistSubSchema lowers the internal sub-schema declared at pointer and
-// guarantees a node exists at the pointer-derived ID, aliasing when the body
-// reduces to a shared target so a $ref to the sub-schema always resolves
-// (invariants 1, 2). When the body reduces to an alias, the annotations written
-// at that position — value constraints and examples — are carried onto the
-// alias, exactly as for a named scalar component, so a $ref to a constrained
-// scalar sub-schema ({type: number, minimum: 5}) does not silently drop them.
-//
-// decl is the declaration itself rather than its resolved form, so a sub-schema
-// that is a $ref carrying siblings aliases its target and keeps them. schemaRef
-// makes that distinction already: it peels a reference off to a TypeRef and
-// lowers a concrete body in place, and either way leaves this to intern the node
-// the pointer owns.
-func (l *lowerer) hoistSubSchema(decl *oas3.JSONSchema[oas3.Referenceable], pointer string) (ir.TypeID, bool) {
-	body := siteSchema(decl)
-	if body == nil {
-		return "", false
-	}
-	hint := refLastSegment(pointer)
-	ref := l.schemaRef(decl, pointer, hint)
-	if owned, ok := l.byPointer[pointer]; ok {
-		return owned, true
-	}
-	id := l.internAlias(pointer, hint, ref, l.schemaConstraints(body, pointer))
-	// As in lowerComponentSchema: this alias is the first node the pointer owns,
-	// so the annotations schemaRef had nowhere to put now have a home.
-	l.attachSchemaExamples(body, pointer)
-	return id, true
-}
-
-// refNullable reports whether a $ref usage admits null: the reference site or
-// its resolved target admits null in any spelling. The ref site must recompute
-// this because a target interned at its own ID (a model, a union) discards the
-// TypeRef its definition produced, so the bit survives nowhere else.
-func (l *lowerer) refNullable(js *oas3.JSONSchema[oas3.Referenceable]) bool {
-	if s := js.GetSchema(); s != nil && schemaAdmitsNull(s) {
-		return true
-	}
-	resolved := js.GetResolvedSchema()
-	if resolved == nil {
-		return false
-	}
-	target := resolved.GetSchema()
-	return target != nil && schemaAdmitsNull(target)
 }
 
 // falseSchema hoists a boolean `false` schema as a closed empty model (it
@@ -836,19 +674,6 @@ func (l *lowerer) fillPropertyDetail(p *ir.Property, js *oas3.JSONSchema[oas3.Re
 	if ext := l.schemaExtensions(ref); len(ext) > 0 {
 		p.Extensions = ext
 	}
-}
-
-// refTargetSchema returns the resolved target schema when js is a $ref, so
-// use-site annotations can fall back to the referent; it returns nil otherwise.
-func (l *lowerer) refTargetSchema(js *oas3.JSONSchema[oas3.Referenceable], ref *oas3.Schema) *oas3.Schema {
-	if !js.IsReference() && ref.Ref == nil {
-		return nil
-	}
-	resolved := js.GetResolvedSchema()
-	if resolved == nil {
-		return nil
-	}
-	return resolved.GetSchema()
 }
 
 // fillPropertyDefault sets the property default, preferring the use-site node

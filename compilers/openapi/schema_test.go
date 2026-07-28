@@ -1872,26 +1872,29 @@ func TestRawPropertyNode_NilSchema(t *testing.T) {
 	assert.Nil(t, rawPropertyNode(nil, "x"))
 }
 
-// TestComponentConstraints_NonSchemaInputs covers the js-level early return: a nil,
-// boolean, or reference component has no scalar body to carry constraints.
-func TestComponentConstraints_NonSchemaInputs(t *testing.T) {
+// TestSchemaConstraints_NonSchemaInputs covers siteSchema's nil and boolean
+// early return, plus a well-formed reference besides: none of the three
+// leaves a body with constraint keywords on it, so schemaConstraints reports
+// none either way.
+func TestSchemaConstraints_NonSchemaInputs(t *testing.T) {
 	t.Parallel()
 	l := newRawLowerer(&soa.OpenAPI{})
-	assert.Nil(t, l.componentConstraints(nil, "/p"))
-	assert.Nil(t, l.componentConstraints(oas3.NewJSONSchemaFromBool(true), "/p"))
-	assert.Nil(t, l.componentConstraints(oas3.NewJSONSchemaFromReference("#/components/schemas/Other"), "/p"))
+	assert.Nil(t, l.schemaConstraints(siteSchema(nil), "/p"))
+	assert.Nil(t, l.schemaConstraints(siteSchema(oas3.NewJSONSchemaFromBool(true)), "/p"))
+	assert.Nil(t, l.schemaConstraints(siteSchema(oas3.NewJSONSchemaFromReference("#/components/schemas/Other")), "/p"))
 }
 
-// TestSchemaConstraints_EmptyRefSchema covers the schemaConstraints early return: a
-// schema whose $ref pointer is present but empty is not a reference (IsReference is
-// false) yet its Ref field is set, so it holds no readable constraint body. The
-// parser never emits this shape, so it is built by hand.
+// TestSchemaConstraints_EmptyRefSchema covers a $ref pointer that is present
+// but empty: IsReference is false for it, so siteSchema has no early return
+// here — the Schema body reaches schemaConstraints, which finds no
+// constraint keywords on a body that carries only Ref. The parser never
+// emits this shape, so it is built by hand.
 func TestSchemaConstraints_EmptyRefSchema(t *testing.T) {
 	t.Parallel()
 	l := newRawLowerer(&soa.OpenAPI{})
 	emptyRef := references.Reference("")
 	js := oas3.NewJSONSchemaFromSchema[oas3.Referenceable](&oas3.Schema{Ref: &emptyRef})
-	assert.Nil(t, l.componentConstraints(js, "/p"))
+	assert.Nil(t, l.schemaConstraints(siteSchema(js), "/p"))
 }
 
 func TestResolveSchemaRef_ReusesInternedSubSchema(t *testing.T) {
