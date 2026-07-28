@@ -345,8 +345,10 @@ func TestContent_SequentialAndEmptyBody(t *testing.T) {
 	require.NotNil(t, resp.Payload)
 	c := resp.Payload.Contents[0]
 	require.NotNil(t, c.Item, "itemSchema becomes the element type")
-	_, hasItemEnc := c.Extensions["openapi:itemEncoding"]
-	assert.True(t, hasItemEnc, "itemEncoding preserved")
+	itemEnc, hasItemEnc := c.ItemEncoding[ir.ItemEncodingAll]
+	require.True(t, hasItemEnc, "itemEncoding lowered structurally")
+	assert.Equal(t, []string{"application/json"}, itemEnc.ContentTypes)
+	assert.True(t, itemEnc.Multi, "itemEncoding governs a repeated tail")
 
 	// Empty request-body content yields no Request payload.
 	empty := findOp(t, doc, "emptyBody")
@@ -536,14 +538,22 @@ func TestContentTypeKeys_Nil(t *testing.T) {
 	assert.Nil(t, contentTypeKeys(nil))
 }
 
-func TestFillSequential_ItemEncodingWithoutRootNode(t *testing.T) {
+func TestFillSequential_EmptyItemEncoding(t *testing.T) {
 	t.Parallel()
 	l := newRawLowerer(&soa.OpenAPI{})
 	c := &ir.Content{}
 	media := &soa.MediaType{ItemEncoding: &soa.Encoding{}}
 	l.fillSequential(c, media, "/mp", "h")
-	assert.Nil(t, c.Extensions, "itemEncoding with no raw node is dropped")
+	assert.Equal(t, map[string]ir.PartEncoding{ir.ItemEncodingAll: {Multi: true}}, c.ItemEncoding,
+		"a config-free itemEncoding still records that the tail repeats")
+	assert.Nil(t, c.Extensions, "nothing is preserved raw")
 	assert.Empty(t, l.diags)
+}
+
+func TestEncodingConfig_NilEncoding(t *testing.T) {
+	t.Parallel()
+	l := newRawLowerer(&soa.OpenAPI{})
+	assert.Equal(t, ir.PartEncoding{}, l.encodingConfig(nil, "/mp"))
 }
 
 func TestBodySchemaPointer_ExternalRefNoFragment(t *testing.T) {

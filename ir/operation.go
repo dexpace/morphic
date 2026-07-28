@@ -118,7 +118,8 @@ type Content struct {
 	// (OpenAPI 3.2 itemSchema for SSE/JSONL/json-seq); nil = not sequential.
 	Item *TypeRef `json:"item,omitempty"`
 	// ItemEncoding holds per-item encoding for sequential media types
-	// (3.2 itemEncoding).
+	// (3.2 itemEncoding), keyed like Encoding by PropID — or by
+	// ItemEncodingAll for an encoding that governs every item alike.
 	ItemEncoding map[string]PartEncoding `json:"itemEncoding,omitempty"`
 	// Encoding holds multipart/form per-property (part) wire config, keyed by
 	// PropID.
@@ -131,6 +132,12 @@ type Content struct {
 	// Extensions carries source metadata without a first-class IR node.
 	Extensions Extensions `json:"extensions,omitempty"`
 }
+
+// ItemEncodingAll is the Content.ItemEncoding key for an encoding that governs
+// every item rather than one named part. Sources state per-item encoding both
+// ways, and no PropID can collide with it (PropIDs are pointer-derived and
+// never bare punctuation).
+const ItemEncodingAll = "*"
 
 // PartEncoding is the wire configuration of one multipart part or sequential
 // item (ir-design §7.2). TypeSpec tuple-form multipart lowers to a synthesized

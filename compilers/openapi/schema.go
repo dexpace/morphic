@@ -872,19 +872,9 @@ func (l *lowerer) fillValidationOnly(ext *ir.Extensions, s *oas3.Schema, pointer
 }
 
 // preserveKeyword records a validation-only keyword's raw payload under key in
-// ext and emits one info diagnostic naming it. It is the
-// fillValidationOnly-specific caller of preserveRaw.
+// ext (allocating the map on first write) and emits one info diagnostic naming
+// it. An absent or unconvertible payload records nothing.
 func (l *lowerer) preserveKeyword(ext *ir.Extensions, key string, raw ir.RawValue, pointer, label string) {
-	l.preserveRaw(ext, key, raw, pointer, codeValidationOnlyKeyword,
-		fmt.Sprintf("validation-only keyword %q preserved verbatim in extensions", label))
-}
-
-// preserveRaw records raw under key in *ext (allocating the map on first
-// write) and appends one info diagnostic at pointer with msg. It backs both
-// preserveKeyword's validation-only keywords and fillSequential's itemEncoding
-// preservation, which use different diagnostic codes — why code is a real
-// parameter rather than a constant.
-func (l *lowerer) preserveRaw(ext *ir.Extensions, key string, raw ir.RawValue, pointer, code, msg string) {
 	if raw == nil {
 		return
 	}
@@ -892,7 +882,8 @@ func (l *lowerer) preserveRaw(ext *ir.Extensions, key string, raw ir.RawValue, p
 		*ext = ir.Extensions{}
 	}
 	(*ext)[key] = raw
-	l.diag(ir.SeverityInfo, code, pointer, "%s", msg)
+	l.diag(ir.SeverityInfo, codeValidationOnlyKeyword, pointer,
+		"validation-only keyword %q preserved verbatim in extensions", label)
 }
 
 // diag appends one diagnostic at pointer with the given severity and code,

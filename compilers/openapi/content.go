@@ -62,19 +62,21 @@ func (l *lowerer) lowerContent(mt string, media *soa.MediaType, pointer, hint st
 }
 
 // fillSequential lowers 3.2 sequential-media fields: itemSchema becomes the
-// element type; itemEncoding has no per-property structural home, so it is
-// preserved verbatim under Extensions with one info diagnostic.
+// element type, and itemEncoding — one Encoding object governing every item
+// after any prefixEncoding — becomes Content.ItemEncoding's single entry.
+// Multi is set because the construct describes a repeated tail by definition.
 func (l *lowerer) fillSequential(c *ir.Content, media *soa.MediaType, mediaPtr, hint string) {
 	if item := media.GetItemSchema(); item != nil {
 		ref := l.schemaRef(item, mediaPtr+ptr("itemSchema"), hint+"_item")
 		c.Item = &ref
 	}
-	if media.GetItemEncoding() == nil {
+	enc := media.GetItemEncoding()
+	if enc == nil {
 		return
 	}
-	raw := nodeToRaw(rawChildNode(media.GetRootNode(), "itemEncoding"))
-	l.preserveRaw(&c.Extensions, "openapi:itemEncoding", raw, mediaPtr, codeDegradedConstruct,
-		"3.2 itemEncoding preserved under extensions; per-item multipart encoding is out of model")
+	pe := l.encodingConfig(enc, mediaPtr+ptr("itemEncoding"))
+	pe.Multi = true
+	c.ItemEncoding = map[string]ir.PartEncoding{ir.ItemEncodingAll: pe}
 }
 
 // partEncodings builds the multipart/form per-part wire config, keyed by each
@@ -113,19 +115,31 @@ func (l *lowerer) partEncodings(media *soa.MediaType, mediaPtr string) map[strin
 func (l *lowerer) buildPartEncoding(name string, pjs *oas3.JSONSchema[oas3.Referenceable], encMap *sequencedmap.Map[string, *soa.Encoding], mediaPtr string) ir.PartEncoding {
 	pe := ir.PartEncoding{}
 	if encMap != nil {
-		if enc, ok := encMap.Get(name); ok && enc != nil {
-			pe.ContentTypes = splitContentTypes(enc.GetContentTypeValue())
-			pe.Headers = l.lowerHeaders(enc.GetHeaders(), mediaPtr+ptr("encoding", name))
-			if enc.Style != nil {
-				pe.Style = string(*enc.Style)
-			}
-			pe.Explode = enc.Explode
+		if enc, ok := encMap.Get(name); ok {
+			pe = l.encodingConfig(enc, mediaPtr+ptr("encoding", name))
 		}
 	}
 	if part := schemaOf(pjs); part != nil {
 		pe.Multi = schemaIsArray(part)
 		pe.Filename = schemaIsFilePart(part)
 	}
+	return pe
+}
+
+// encodingConfig lowers one Encoding object's declared wire config: content
+// types, per-part headers, and form-style serialization. The structural flags
+// (Multi, Filename) come from the part's own schema, not from here.
+func (l *lowerer) encodingConfig(enc *soa.Encoding, encPtr string) ir.PartEncoding {
+	pe := ir.PartEncoding{}
+	if enc == nil {
+		return pe
+	}
+	pe.ContentTypes = splitContentTypes(enc.GetContentTypeValue())
+	pe.Headers = l.lowerHeaders(enc.GetHeaders(), encPtr)
+	if enc.Style != nil {
+		pe.Style = string(*enc.Style)
+	}
+	pe.Explode = enc.Explode
 	return pe
 }
 

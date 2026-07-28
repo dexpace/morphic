@@ -761,7 +761,9 @@ type Content struct {
     Type      TypeRef
     Item      *TypeRef            // element shape of a sequential stream declared per media type
                                   // (OpenAPI 3.2 itemSchema for SSE/JSONL/json-seq); nil = not sequential
-    ItemEncoding map[string]PartEncoding // per-item encoding for sequential media types (3.2 itemEncoding)
+    ItemEncoding map[string]PartEncoding // per-item encoding for sequential media types (3.2
+                                  // itemEncoding); keyed by PropID like Encoding, or by the reserved
+                                  // key "*" (ItemEncodingAll) when one encoding governs every item
     Encoding  map[string]PartEncoding // multipart/form: per-property (part) wire config, keyed by PropID
     File      *FileInfo           // body is a file upload/download (TypeSpec file bodies, binary payloads)
     Examples  []Example
