@@ -275,7 +275,7 @@ func assertAllOfInheritance(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
 	assert.NotNil(t, d.Deprecation, "composed schema keeps deprecated")
 	assert.Equal(t, ir.AdditionalClosed, d.Additional,
 		"composed schema keeps additionalProperties: false")
-	assert.Contains(t, d.Extensions, "openapi:x-team", "composed schema keeps x-* extensions")
+	assert.Contains(t, d.Preserved, "openapi:x-team", "composed schema keeps x-* extensions")
 }
 
 func assertAllOfMixins(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
@@ -328,8 +328,8 @@ func assertAnyOfUntagged(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
 func assertNegationNot(t *testing.T, doc *ir.Document, diags []ir.Diagnostic) {
 	m, ok := doc.Types[namedID("NotFoo")].(*ir.Model)
 	require.True(t, ok)
-	raw, ok := m.Extensions["openapi:not"]
-	require.True(t, ok, "not-keyword preserved verbatim in Extensions")
+	raw, ok := m.Preserved["openapi:not"]
+	require.True(t, ok, "not-keyword kept verbatim under Preserved")
 	assert.JSONEq(t, `{"required":["b"]}`, string(raw))
 	var found bool
 	for _, d := range diags {
@@ -846,7 +846,7 @@ func assertDocsSummaryDesc(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
 func assertExtensionsX(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
 	m, ok := doc.Types[namedID("S")].(*ir.Model)
 	require.True(t, ok)
-	raw, ok := m.Extensions["openapi:x-rate-limit"]
+	raw, ok := m.Preserved["openapi:x-rate-limit"]
 	require.True(t, ok, "x-* extensions are namespaced under openapi:")
 	assert.JSONEq(t, "100", string(raw))
 }

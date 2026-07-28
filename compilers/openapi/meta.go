@@ -12,7 +12,7 @@ func (l *lowerer) lowerMeta() {
 	l.lowerInfo()
 	l.lowerServers()
 	if ext := l.extensions(l.doc.GetExtensions()); len(ext) > 0 {
-		l.out.Extensions = mergeExtensions(l.out.Extensions, ext)
+		l.out.Preserved = mergePreserved(l.out.Preserved, ext)
 	}
 }
 

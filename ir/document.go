@@ -47,8 +47,8 @@ type Document struct {
 	TagDefs []TagDef `json:"tagDefs,omitempty"`
 	// Versions holds the ordered version labels when availability metadata is used.
 	Versions []string `json:"versions,omitempty"`
-	// Extensions carries source metadata without a first-class IR node.
-	Extensions Extensions `json:"extensions,omitempty"`
+	// Preserved holds source constructs the IR does not model, kept verbatim.
+	Preserved Preserved `json:"preserved,omitempty"`
 	// Diagnostics is accumulated by the compiler and passes; not part of API
 	// meaning.
 	Diagnostics []Diagnostic `json:"diagnostics,omitempty"`

@@ -65,6 +65,6 @@ func TestExample_JSONContract(t *testing.T) {
 			Content: val,
 		},
 		ExternalURL: "https://example.com/examples/1",
-		Extensions:  populatedExtensions(),
+		Preserved:   populatedPreserved(),
 	})
 }

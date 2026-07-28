@@ -13,10 +13,10 @@ import (
 	"github.com/dexpace/morphic/ir"
 )
 
-// badExtDoc returns a document that cannot be marshalled: its Extensions hold an
+// badExtDoc returns a document that cannot be marshalled: its Preserved holds an
 // invalid json.RawMessage whose MarshalJSON rejects the malformed bytes.
 func badExtDoc() *ir.Document {
-	return &ir.Document{Extensions: ir.Extensions{"openapi:x": ir.RawValue("{invalid")}}
+	return &ir.Document{Preserved: ir.Preserved{"openapi:x": ir.RawValue("{invalid")}}
 }
 
 // soundDoc returns a minimal, structurally-sound document: one model keyed by its

@@ -36,8 +36,8 @@ type Service struct {
 	Renames map[TypeID]Naming `json:"renames,omitempty"`
 	// Servers indexes into Document.Servers scoped to this service.
 	Servers []int `json:"servers,omitempty"`
-	// Extensions carries source metadata without a first-class IR node.
-	Extensions Extensions `json:"extensions,omitempty"`
+	// Preserved holds source constructs the IR does not model, kept verbatim.
+	Preserved Preserved `json:"preserved,omitempty"`
 	// Provenance records where the service came from.
 	Provenance Provenance `json:"provenance"`
 }
@@ -48,7 +48,7 @@ type ProtocolDecl struct {
 	// Name is the protocol name, e.g. "aws.restJson1" or "grpc".
 	Name string `json:"name,omitempty"`
 	// Options holds per-protocol options kept raw (the Channel.Bindings pattern).
-	Options Extensions `json:"options,omitempty"`
+	Options RawConfig `json:"options,omitempty"`
 }
 
 // OperationGroup is a hierarchical grouping of operations: a TypeSpec interface,
@@ -67,8 +67,8 @@ type OperationGroup struct {
 	// Availability records the group's versioning timeline (TypeSpec interfaces
 	// are versionable).
 	Availability *Availability `json:"availability,omitempty"`
-	// Extensions carries source metadata without a first-class IR node.
-	Extensions Extensions `json:"extensions,omitempty"`
+	// Preserved holds source constructs the IR does not model, kept verbatim.
+	Preserved Preserved `json:"preserved,omitempty"`
 }
 
 // ResourceInfo carries Smithy resource semantics for an OperationGroup

@@ -97,8 +97,8 @@ type TypeCommon struct {
 	// Instantiation records provenance for monomorphized generics (TypeSpec
 	// templates).
 	Instantiation *TemplateInstantiation `json:"instantiation,omitempty"`
-	// Extensions carries source metadata without a first-class IR node.
-	Extensions Extensions `json:"extensions,omitempty"`
+	// Preserved holds source constructs the IR does not model, kept verbatim.
+	Preserved Preserved `json:"preserved,omitempty"`
 	// Provenance records where the type came from.
 	Provenance Provenance `json:"provenance"`
 }

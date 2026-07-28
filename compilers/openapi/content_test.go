@@ -173,8 +173,8 @@ func TestContent_NonRequiredRequestBody(t *testing.T) {
 	requireNoErrorDiags(t, diags)
 	op := firstOp(t, svc)
 	require.NotNil(t, op.Request, "a non-required body still lowers to a present Payload")
-	raw, ok := op.Request.Extensions["openapi:required"]
-	require.True(t, ok, "body optionality preserved under extensions")
+	raw, ok := op.Request.Preserved["openapi:required"]
+	require.True(t, ok, "body optionality kept under Preserved")
 	assert.Equal(t, "false", string(raw))
 	found := false
 	for _, d := range diags {
@@ -284,9 +284,9 @@ func TestContent_FullPipeline(t *testing.T) {
 	doc, diags := parseFull(t, contentSpec)
 	upload := findOp(t, doc, "upload")
 
-	// Non-required body preserved as present with optionality under extensions.
+	// Non-required body preserved as present with optionality under Preserved.
 	require.NotNil(t, upload.Request)
-	_, hasReq := upload.Request.Extensions["openapi:required"]
+	_, hasReq := upload.Request.Preserved["openapi:required"]
 	assert.True(t, hasReq, "non-required optionality preserved")
 
 	// Multipart encoding: comma-split content types, header, style/explode, file flag.
@@ -311,7 +311,7 @@ func TestContent_FullPipeline(t *testing.T) {
 	assert.Len(t, resp.Payload.Contents, 2)
 	assert.GreaterOrEqual(t, len(resp.Payload.Contents[0].Examples), 2)
 	assert.NotEmpty(t, resp.Headers)
-	_, hasLinks := resp.Extensions["openapi:links"]
+	_, hasLinks := resp.Preserved["openapi:links"]
 	assert.True(t, hasLinks)
 
 	assert.True(t, hasDiag(diags, codeDegradedConstruct))
@@ -329,11 +329,11 @@ func TestContent_OctetAndErrorMulti(t *testing.T) {
 	require.NotEmpty(t, raw.Errors)
 	var multi ir.ErrorCase
 	for _, ec := range raw.Errors {
-		if len(ec.Extensions) > 0 {
+		if len(ec.Preserved) > 0 {
 			multi = ec
 		}
 	}
-	_, hasContent := multi.Extensions["openapi:content"]
+	_, hasContent := multi.Preserved["openapi:content"]
 	assert.True(t, hasContent, "multi-media error content preserved")
 }
 
@@ -546,7 +546,7 @@ func TestFillSequential_EmptyItemEncoding(t *testing.T) {
 	l.fillSequential(c, media, "/mp", "h")
 	assert.Equal(t, map[string]ir.PartEncoding{ir.ItemEncodingAll: {Multi: true}}, c.ItemEncoding,
 		"a config-free itemEncoding still records that the tail repeats")
-	assert.Nil(t, c.Extensions, "nothing is preserved raw")
+	assert.Nil(t, c.Preserved, "nothing is preserved raw")
 	assert.Empty(t, l.diags)
 }
 

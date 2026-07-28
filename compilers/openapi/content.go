@@ -56,7 +56,7 @@ func (l *lowerer) lowerContent(mt string, media *soa.MediaType, pointer, hint st
 	}
 	l.fillSequential(&c, media, mediaPtr, hint)
 	if ext := l.extensions(media.GetExtensions()); len(ext) > 0 {
-		c.Extensions = mergeExtensions(c.Extensions, ext)
+		c.Preserved = mergePreserved(c.Preserved, ext)
 	}
 	return c
 }
@@ -240,7 +240,7 @@ func (l *lowerer) appendValuelessExample(out []ir.Example, proto ir.Example, poi
 // lowerRequestBody lowers an operation's request body onto op.Request and the
 // binding's RequestContentTypes. The IR expresses body optionality via presence,
 // so a non-required body stays present with its optionality preserved under
-// Extensions plus one info diagnostic (ir-design §7.2 clarification). opDeclPtr
+// Preserved plus one info diagnostic (ir-design §7.2 clarification). opDeclPtr
 // is the operation's own declaration pointer, so a $ref'd body interns its
 // content once at its component pointer rather than once per mount site
 // (issue #107) — and under the component's name, since the operationId hint
@@ -255,12 +255,12 @@ func (l *lowerer) lowerRequestBody(op *ir.Operation, hb *ir.HTTPBinding, src *so
 		return
 	}
 	if !rb.GetRequired() {
-		if payload.Extensions == nil {
-			payload.Extensions = ir.Extensions{}
+		if payload.Preserved == nil {
+			payload.Preserved = ir.Preserved{}
 		}
-		payload.Extensions["openapi:required"] = ir.RawValue("false")
+		payload.Preserved["openapi:required"] = ir.RawValue("false")
 		l.diag(ir.SeverityInfo, codeDegradedConstruct, bodyPtr,
-			"request body is not required; optionality preserved under extensions")
+			"request body is not required; optionality kept under Preserved")
 	}
 	op.Request = payload
 	hb.RequestContentTypes = contentTypeKeys(rb.GetContent())

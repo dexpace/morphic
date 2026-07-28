@@ -127,13 +127,23 @@ func populatedProvenance() ir.Provenance {
 	}
 }
 
-// populatedExtensions returns an Extensions map with several entries whose
+// populatedPreserved returns a Preserved map with several entries whose
 // insertion order differs from sorted order, for Class C determinism checks.
-func populatedExtensions() ir.Extensions {
-	return ir.Extensions{
+func populatedPreserved() ir.Preserved {
+	return ir.Preserved{
 		"openapi:z-ext": ir.RawValue(`1`),
 		"openapi:m-ext": ir.RawValue(`2`),
 		"openapi:a-ext": ir.RawValue(`3`),
+	}
+}
+
+// populatedRawConfig returns a RawConfig map with several entries whose
+// insertion order differs from sorted order, for Class C determinism checks.
+func populatedRawConfig() ir.RawConfig {
+	return ir.RawConfig{
+		"z-opt": ir.RawValue(`1`),
+		"m-opt": ir.RawValue(`2`),
+		"a-opt": ir.RawValue(`3`),
 	}
 }
 
@@ -285,7 +295,7 @@ func populatedTypeCommon(id ir.TypeID) ir.TypeCommon {
 			Template: "Page",
 			Args:     []ir.TemplateArg{{Type: &ir.TypeRef{Target: "t/item"}}},
 		},
-		Extensions: populatedExtensions(),
+		Preserved:  populatedPreserved(),
 		Provenance: populatedProvenance(),
 	}
 }
@@ -306,13 +316,13 @@ func assertTypeDefRoundTrip[T any](t *testing.T, want *T) {
 	assert.Empty(t, cmp.Diff(want, got), "JSON round-trip must reproduce the original value")
 }
 
-// outOfOrderProtocolBindings returns a map[string]Extensions fixture whose
+// outOfOrderProtocolBindings returns a map[string]RawConfig fixture whose
 // insertion order is not sorted, shared by every Class C test pinning that a
 // "namespace protocol -> raw config" bindings map marshals with sorted keys
 // (Server.Bindings, Channel.Bindings, Message.Bindings, MessageBinding.Bindings
 // all share this exact shape).
-func outOfOrderProtocolBindings() map[string]ir.Extensions {
-	return map[string]ir.Extensions{
+func outOfOrderProtocolBindings() map[string]ir.RawConfig {
+	return map[string]ir.RawConfig{
 		"z-proto": {"k": ir.RawValue(`1`)},
 		"m-proto": {"k": ir.RawValue(`2`)},
 		"a-proto": {"k": ir.RawValue(`3`)},
@@ -363,7 +373,7 @@ func populatedProperty() ir.Property {
 		Docs:         populatedDocs(),
 		Deprecation:  populatedDeprecation(),
 		Availability: populatedAvailability(),
-		Extensions:   populatedExtensions(),
+		Preserved:    populatedPreserved(),
 		Provenance:   populatedProvenance(),
 	}
 }

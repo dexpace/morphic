@@ -110,7 +110,7 @@ func (l *lowerer) fillParamDetail(param *ir.Parameter, p *soa.Parameter, pptr st
 		param.Examples = ex
 	}
 	if ext := l.extensions(p.GetExtensions()); len(ext) > 0 {
-		param.Extensions = ext
+		param.Preserved = ext
 	}
 }
 

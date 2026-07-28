@@ -182,7 +182,7 @@ func TestParams_AllLocationsAndStyles(t *testing.T) {
 	assert.True(t, logical["id"].Required, "path param always required")
 	require.NotNil(t, logical["q"].Deprecation)
 	assert.NotEmpty(t, logical["q"].Examples)
-	assert.NotEmpty(t, logical["filter"].Extensions)
+	assert.NotEmpty(t, logical["filter"].Preserved)
 	require.NotNil(t, logical["q"].Constraints)
 
 	assert.True(t, hasDiagAt(diags, codeDegradedConstruct, ir.SeverityWarning), "malformed param default warns")

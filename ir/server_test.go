@@ -31,11 +31,11 @@ func TestServer_JSONContract(t *testing.T) {
 		Auth: []ir.AuthRequirement{
 			{Schemes: []ir.SchemeUse{{Scheme: "auth/apiKey", Scopes: []string{"read"}}}},
 		},
-		Bindings: map[string]ir.Extensions{
+		Bindings: map[string]ir.RawConfig{
 			"kafka": {"groupId": ir.RawValue(`"g1"`)},
 			"amqp":  {"exchange": ir.RawValue(`"e1"`)},
 		},
-		Extensions: populatedExtensions(),
+		Preserved: populatedPreserved(),
 	})
 }
 
@@ -72,15 +72,15 @@ func TestServer_BindingsDeterministic(t *testing.T) {
 
 // TestServerVariable_JSONContract pins ServerVariable's contract that Docs
 // carries no omitempty, since every variable has a (possibly empty)
-// documentation object, while Name/Default/Enum/Extensions stay optional, and
+// documentation object, while Name/Default/Enum/Preserved stay optional, and
 // that a fully populated ServerVariable round-trips.
 func TestServerVariable_JSONContract(t *testing.T) {
 	t.Parallel()
 	assertJSONContract(t, ir.ServerVariable{}, `{"docs":{}}`, ir.ServerVariable{
-		Name:       "region",
-		Default:    "us-east-1",
-		Enum:       []string{"us-east-1", "eu-west-1", "ap-south-1"},
-		Docs:       populatedDocs(),
-		Extensions: populatedExtensions(),
+		Name:      "region",
+		Default:   "us-east-1",
+		Enum:      []string{"us-east-1", "eu-west-1", "ap-south-1"},
+		Docs:      populatedDocs(),
+		Preserved: populatedPreserved(),
 	})
 }

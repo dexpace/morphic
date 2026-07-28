@@ -24,9 +24,9 @@ type Server struct {
 	// differs from nil, so the field carries no omitempty.
 	Auth []AuthRequirement `json:"auth"`
 	// Bindings holds server-level protocol bindings kept raw.
-	Bindings map[string]Extensions `json:"bindings,omitempty"`
-	// Extensions carries source metadata without a first-class IR node.
-	Extensions Extensions `json:"extensions,omitempty"`
+	Bindings map[string]RawConfig `json:"bindings,omitempty"`
+	// Preserved holds source constructs the IR does not model, kept verbatim.
+	Preserved Preserved `json:"preserved,omitempty"`
 }
 
 // ServerVariable is one variable of a Server's URL template (ir-design §10).
@@ -39,6 +39,6 @@ type ServerVariable struct {
 	Enum []string `json:"enum,omitempty"`
 	// Docs is the variable's documentation.
 	Docs Docs `json:"docs"`
-	// Extensions carries source metadata without a first-class IR node.
-	Extensions Extensions `json:"extensions,omitempty"`
+	// Preserved holds source constructs the IR does not model, kept verbatim.
+	Preserved Preserved `json:"preserved,omitempty"`
 }

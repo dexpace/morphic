@@ -48,7 +48,7 @@ func (l *lowerer) lowerSecurityScheme(name string, ss *soa.SecurityScheme) ir.Au
 	}
 	fillSchemeKind(&scheme, ss)
 	if ext := l.extensions(ss.GetExtensions()); len(ext) > 0 {
-		scheme.Extensions = ext
+		scheme.Preserved = ext
 	}
 	return scheme
 }

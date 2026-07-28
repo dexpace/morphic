@@ -117,8 +117,8 @@ type Property struct {
 	Deprecation *Deprecation `json:"deprecation,omitempty"`
 	// Availability records the property's versioning timeline.
 	Availability *Availability `json:"availability,omitempty"`
-	// Extensions carries source metadata without a first-class IR node.
-	Extensions Extensions `json:"extensions,omitempty"`
+	// Preserved holds source constructs the IR does not model, kept verbatim.
+	Preserved Preserved `json:"preserved,omitempty"`
 	// Provenance records where the property came from.
 	Provenance Provenance `json:"provenance"`
 }

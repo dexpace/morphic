@@ -24,9 +24,9 @@ type Channel struct {
 	Servers []int `json:"servers,omitempty"`
 	// Bindings holds protocol-specific config ("kafka", "amqp", "ws", "mqtt")
 	// kept as namespaced raw config.
-	Bindings map[string]Extensions `json:"bindings,omitempty"`
-	// Extensions carries source metadata without a first-class IR node.
-	Extensions Extensions `json:"extensions,omitempty"`
+	Bindings map[string]RawConfig `json:"bindings,omitempty"`
+	// Preserved holds source constructs the IR does not model, kept verbatim.
+	Preserved Preserved `json:"preserved,omitempty"`
 	// Provenance records where the channel came from.
 	Provenance Provenance `json:"provenance"`
 }
@@ -59,9 +59,9 @@ type Message struct {
 	// .Value).
 	Examples []Example `json:"examples,omitempty"`
 	// Bindings holds message-level protocol bindings (kafka message key, …).
-	Bindings map[string]Extensions `json:"bindings,omitempty"`
-	// Extensions carries source metadata without a first-class IR node.
-	Extensions Extensions `json:"extensions,omitempty"`
+	Bindings map[string]RawConfig `json:"bindings,omitempty"`
+	// Preserved holds source constructs the IR does not model, kept verbatim.
+	Preserved Preserved `json:"preserved,omitempty"`
 	// Provenance records where the message came from.
 	Provenance Provenance `json:"provenance"`
 }

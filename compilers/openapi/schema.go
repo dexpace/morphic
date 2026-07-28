@@ -140,7 +140,7 @@ func hasUnionSiblings(s *oas3.Schema) bool {
 
 // lowerWithUnionSiblings lowers the structural body of a schema that co-declares
 // oneOf/anyOf, then preserves the union branches verbatim under the resulting
-// node's Extensions with an info diagnostic — so neither the structural shape
+// node's Preserved with an info diagnostic — so neither the structural shape
 // nor the union is dropped (ir-design §4.7-style preservation).
 func (l *lowerer) lowerWithUnionSiblings(s *oas3.Schema, pointer, hint string) ir.TypeID {
 	inner := l.lower(s, pointer, hint)
@@ -156,7 +156,7 @@ func (l *lowerer) lowerWithUnionSiblings(s *oas3.Schema, pointer, hint string) i
 }
 
 // preserveUnionSiblings stores the raw oneOf/anyOf of s under the owning node's
-// Extensions and emits one info diagnostic naming the preserved construct.
+// Preserved and emits one info diagnostic naming the preserved construct.
 func (l *lowerer) preserveUnionSiblings(id ir.TypeID, s *oas3.Schema, pointer string) {
 	td, ok := l.out.Types[id]
 	if !ok {
@@ -165,16 +165,16 @@ func (l *lowerer) preserveUnionSiblings(id ir.TypeID, s *oas3.Schema, pointer st
 	c := td.Common()
 	if len(s.GetOneOf()) > 0 {
 		if raw := nodeToRaw(rawPropertyNode(s, "oneOf")); raw != nil {
-			c.Extensions = mergeExtensions(c.Extensions, ir.Extensions{"openapi:oneOf": raw})
+			c.Preserved = mergePreserved(c.Preserved, ir.Preserved{"openapi:oneOf": raw})
 		}
 	}
 	if len(s.GetAnyOf()) > 0 {
 		if raw := nodeToRaw(rawPropertyNode(s, "anyOf")); raw != nil {
-			c.Extensions = mergeExtensions(c.Extensions, ir.Extensions{"openapi:anyOf": raw})
+			c.Preserved = mergePreserved(c.Preserved, ir.Preserved{"openapi:anyOf": raw})
 		}
 	}
 	l.diag(ir.SeverityInfo, codeDegradedConstruct, pointer,
-		"oneOf/anyOf co-declared with structural keywords; union branches preserved verbatim under extensions")
+		"oneOf/anyOf co-declared with structural keywords; union branches kept verbatim under Preserved")
 }
 
 // falseSchema hoists a boolean `false` schema as a closed empty model (it
@@ -350,7 +350,7 @@ func (l *lowerer) reconcileProperty(dst *ir.Property, src ir.Property, pointer s
 		// like its neighbors above; the len()==0 predicate is the adoption rule.
 		dst.Examples = src.Examples
 	}
-	dst.Extensions = mergeExtensions(dst.Extensions, src.Extensions)
+	dst.Preserved = mergePreserved(dst.Preserved, src.Preserved)
 }
 
 // mergeConstraints folds src's constraint keywords into dst under allOf
@@ -673,7 +673,7 @@ func (l *lowerer) fillPropertyDetail(p *ir.Property, js *oas3.JSONSchema[oas3.Re
 		p.XML = h
 	}
 	l.fillPropertyConstraints(p, ref, pointer)
-	p.Extensions = mergeExtensions(p.Extensions, l.schemaExtensions(ref))
+	p.Preserved = mergePreserved(p.Preserved, l.schemaExtensions(ref))
 	l.fillPropertyValidationOnly(p, ref, pointer)
 }
 
@@ -686,7 +686,7 @@ func (l *lowerer) fillPropertyValidationOnly(p *ir.Property, ref *oas3.Schema, p
 	if l.ownsNode(pointer) {
 		return
 	}
-	l.fillValidationOnly(&p.Extensions, ref, pointer)
+	l.fillValidationOnly(&p.Preserved, ref, pointer)
 }
 
 // ownsNode reports whether the declaration at pointer hoisted a type node of
@@ -785,8 +785,8 @@ func (l *lowerer) attachDeclaredAnnotations(s *oas3.Schema, pointer string) {
 	if h := xmlHints(s.GetXML()); h != nil {
 		c.XML = h
 	}
-	c.Extensions = mergeExtensions(c.Extensions, l.schemaExtensions(s))
-	l.fillValidationOnly(&c.Extensions, s, pointer)
+	c.Preserved = mergePreserved(c.Preserved, l.schemaExtensions(s))
+	l.fillValidationOnly(&c.Preserved, s, pointer)
 	if ex := l.schemaExamples(s, pointer); len(ex) > 0 {
 		c.Examples = ex
 	}
@@ -848,11 +848,11 @@ func (l *lowerer) patternProps(s *oas3.Schema, pointer, hint string) []ir.Patter
 }
 
 // fillValidationOnly preserves JSON Schema keywords that have no structural IR
-// home verbatim in namespaced Extensions, one info diagnostic each (§4.7). It
-// takes the Extensions map rather than a node so it serves both homes a
+// home verbatim in namespaced Preserved entries, one info diagnostic each
+// (§4.7). It takes the map rather than a node so it serves both homes a
 // declaration's keywords can have: the type node the declaration owns, and the
 // declaring property when it owns none.
-func (l *lowerer) fillValidationOnly(ext *ir.Extensions, s *oas3.Schema, pointer string) {
+func (l *lowerer) fillValidationOnly(ext *ir.Preserved, s *oas3.Schema, pointer string) {
 	if s.GetNot() != nil {
 		l.preserveKeyword(ext, "openapi:not", nodeToRaw(rawPropertyNode(s, "not")), pointer, "not")
 	}
@@ -874,16 +874,16 @@ func (l *lowerer) fillValidationOnly(ext *ir.Extensions, s *oas3.Schema, pointer
 // preserveKeyword records a validation-only keyword's raw payload under key in
 // ext (allocating the map on first write) and emits one info diagnostic naming
 // it. An absent or unconvertible payload records nothing.
-func (l *lowerer) preserveKeyword(ext *ir.Extensions, key string, raw ir.RawValue, pointer, label string) {
+func (l *lowerer) preserveKeyword(ext *ir.Preserved, key string, raw ir.RawValue, pointer, label string) {
 	if raw == nil {
 		return
 	}
 	if *ext == nil {
-		*ext = ir.Extensions{}
+		*ext = ir.Preserved{}
 	}
 	(*ext)[key] = raw
 	l.diag(ir.SeverityInfo, codeValidationOnlyKeyword, pointer,
-		"validation-only keyword %q preserved verbatim in extensions", label)
+		"validation-only keyword %q kept verbatim under Preserved", label)
 }
 
 // diag appends one diagnostic at pointer with the given severity and code,
@@ -913,8 +913,8 @@ func (l *lowerer) appendDiag(d ir.Diagnostic) {
 	l.diags = append(l.diags, d)
 }
 
-// schemaExtensions lowers a schema's x-* extensions into namespaced Extensions.
-func (l *lowerer) schemaExtensions(s *oas3.Schema) ir.Extensions {
+// schemaExtensions lowers a schema's x-* extensions into namespaced Preserved.
+func (l *lowerer) schemaExtensions(s *oas3.Schema) ir.Preserved {
 	return l.extensions(s.GetExtensions())
 }
 
@@ -944,7 +944,7 @@ func (l *lowerer) buildTuple(s *oas3.Schema, common ir.TypeCommon, pointer, hint
 	t := &ir.Tuple{TypeCommon: common, Elems: elems}
 	if s.GetItems() != nil {
 		if raw := nodeToRaw(rawPropertyNode(s, "items")); raw != nil {
-			t.Extensions = ir.Extensions{"openapi:items-after-prefix": raw}
+			t.Preserved = ir.Preserved{"openapi:items-after-prefix": raw}
 		}
 	}
 	return t
@@ -1063,7 +1063,7 @@ func schemaHasNull(s *oas3.Schema) bool {
 // A null branch counts only when the union is the type itself. Structural
 // siblings intersect with the union (JSON Schema conjoins keywords), so
 // `{type: object, oneOf: [{type: string}, {type: null}]}` admits neither string
-// nor null; that union is preserved verbatim under Extensions instead.
+// nor null; that union is kept verbatim under Preserved instead.
 func schemaAdmitsNull(s *oas3.Schema) bool {
 	if schemaHasNull(s) {
 		return true
@@ -1137,7 +1137,7 @@ func requiredSet(required []string) map[string]bool {
 }
 
 // nodeToRaw converts a YAML node to canonical JSON for lossless preservation in
-// Extensions; a nil node or an unconvertible node yields nil.
+// Preserved; a nil node or an unconvertible node yields nil.
 func nodeToRaw(node *yaml.Node) ir.RawValue {
 	if node == nil {
 		return nil
@@ -1243,13 +1243,13 @@ func xmlHints(x *oas3.XML) *ir.XMLHints {
 	return h
 }
 
-// extensionsFrom lowers an x-* extension map into namespaced ir.Extensions, keys
+// extensionsFrom lowers an x-* extension map into namespaced ir.Preserved, keys
 // prefixed "openapi:" and values serialized to raw JSON.
-func extensionsFrom(ext *extensions.Extensions) (ir.Extensions, []ir.Diagnostic) {
+func extensionsFrom(ext *extensions.Extensions) (ir.Preserved, []ir.Diagnostic) {
 	if ext == nil || ext.Len() == 0 {
 		return nil, nil
 	}
-	out := ir.Extensions{}
+	out := ir.Preserved{}
 	var diags []ir.Diagnostic
 	for name, node := range ext.All() {
 		raw := nodeToRaw(node)
@@ -1266,25 +1266,25 @@ func extensionsFrom(ext *extensions.Extensions) (ir.Extensions, []ir.Diagnostic)
 	return out, diags
 }
 
-// extensions lowers ext's x-* extensions into namespaced Extensions, recording
+// extensions lowers ext's x-* extensions into namespaced Preserved, recording
 // any serialization-failure diagnostics unconditionally even when the result
 // is empty. Every lowering site should call this rather than extensionsFrom
 // directly: gating the diagnostic append behind the same "len(ext) > 0" that
 // guards the assignment would drop every warning on an object whose
 // extensions all failed to serialize — exactly when the result is empty.
-func (l *lowerer) extensions(ext *extensions.Extensions) ir.Extensions {
+func (l *lowerer) extensions(ext *extensions.Extensions) ir.Preserved {
 	out, diags := extensionsFrom(ext)
 	l.diags = append(l.diags, diags...)
 	return out
 }
 
-// mergeExtensions overlays src onto dst, allocating dst on first write.
-func mergeExtensions(dst, src ir.Extensions) ir.Extensions {
+// mergePreserved overlays src onto dst, allocating dst on first write.
+func mergePreserved(dst, src ir.Preserved) ir.Preserved {
 	if len(src) == 0 {
 		return dst
 	}
 	if dst == nil {
-		dst = ir.Extensions{}
+		dst = ir.Preserved{}
 	}
 	maps.Copy(dst, src)
 	return dst

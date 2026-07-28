@@ -30,11 +30,11 @@ func TestChannel_JSONContract(t *testing.T) {
 			},
 			Messages: []ir.MessageID{"m/UserSignedUp", "m/UserSignupFailed"},
 			Servers:  []int{0, 2},
-			Bindings: map[string]ir.Extensions{
+			Bindings: map[string]ir.RawConfig{
 				"kafka": {"partitions": ir.RawValue(`3`)},
 				"amqp":  {"exchange": ir.RawValue(`"events"`)},
 			},
-			Extensions: populatedExtensions(),
+			Preserved:  populatedPreserved(),
 			Provenance: populatedProvenance(),
 		})
 }
@@ -75,10 +75,10 @@ func TestMessage_JSONContract(t *testing.T) {
 				{Name: "ex1", Value: &ir.Value{Kind: ir.ValueString, Str: "v1"}, Headers: &ir.Value{Kind: ir.ValueString, Str: "h1"}},
 				{Name: "ex2", Value: &ir.Value{Kind: ir.ValueString, Str: "v2"}},
 			},
-			Bindings: map[string]ir.Extensions{
+			Bindings: map[string]ir.RawConfig{
 				"kafka": {"key": ir.RawValue(`"userId"`)},
 			},
-			Extensions: populatedExtensions(),
+			Preserved:  populatedPreserved(),
 			Provenance: populatedProvenance(),
 		})
 }

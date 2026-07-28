@@ -46,7 +46,7 @@ func TestTypeCommon_JSONContract(t *testing.T) {
 					{Value: &ir.Value{Kind: ir.ValueNumber, Num: ir.BigVal("10")}},
 				},
 			},
-			Extensions: populatedExtensions(),
+			Preserved:  populatedPreserved(),
 			Provenance: populatedProvenance(),
 		})
 }
@@ -473,7 +473,7 @@ func TestVariant_JSONContract(t *testing.T) {
 			Examples: []ir.Example{
 				{Name: "ex1", Value: &ir.Value{Kind: ir.ValueString, Str: "v1"}},
 			},
-			Extensions: populatedExtensions(),
+			Preserved: populatedPreserved(),
 		})
 }
 
@@ -502,7 +502,7 @@ func TestEnumMember_JSONContract(t *testing.T) {
 			Examples: []ir.Example{
 				{Name: "ex1", Value: &ir.Value{Kind: ir.ValueString, Str: "active"}},
 			},
-			Extensions: populatedExtensions(),
+			Preserved: populatedPreserved(),
 		})
 }
 

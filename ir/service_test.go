@@ -40,7 +40,7 @@ func TestService_JSONContract(t *testing.T) {
 				{Type: populatedTypeRef(), Fault: "server"},
 			},
 			Protocols: []ir.ProtocolDecl{
-				{Name: "aws.restJson1", Options: populatedExtensions()},
+				{Name: "aws.restJson1", Options: populatedRawConfig()},
 				{Name: "grpc"},
 			},
 			Renames: map[ir.TypeID]ir.Naming{
@@ -48,7 +48,7 @@ func TestService_JSONContract(t *testing.T) {
 				"t/a": {Source: "ARenamed"},
 			},
 			Servers:    []int{0, 1},
-			Extensions: populatedExtensions(),
+			Preserved:  populatedPreserved(),
 			Provenance: populatedProvenance(),
 		})
 }
@@ -94,7 +94,7 @@ func TestService_RenamesDeterministic(t *testing.T) {
 func TestProtocolDecl_JSONContract(t *testing.T) {
 	t.Parallel()
 	assertJSONContract(t, ir.ProtocolDecl{}, `{}`,
-		ir.ProtocolDecl{Name: "aws.restJson1", Options: populatedExtensions()})
+		ir.ProtocolDecl{Name: "aws.restJson1", Options: populatedRawConfig()})
 }
 
 // TestOperationGroup_JSONContract pins OperationGroup's omitempty contract
@@ -119,7 +119,7 @@ func TestOperationGroup_JSONContract(t *testing.T) {
 			Lifecycle:   map[string]ir.OpID{"create": "op/create", "read": "op/read"},
 		},
 		Availability: populatedAvailability(),
-		Extensions:   populatedExtensions(),
+		Preserved:    populatedPreserved(),
 	})
 }
 

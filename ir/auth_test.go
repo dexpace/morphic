@@ -34,13 +34,13 @@ func TestAuthScheme_JSONContract(t *testing.T) {
 					TokenURL:         "https://example.com/token",
 					RefreshURL:       "https://example.com/refresh",
 					Scopes:           map[string]string{"read": "read access", "write": "write access"},
-					Extensions:       populatedExtensions(),
+					Preserved:        populatedPreserved(),
 				},
 				{Kind: "client_credentials", TokenURL: "https://example.com/token"},
 			},
 			OAuth2MetadataURL: "https://example.com/.well-known/oauth-authorization-server",
 			OpenIDConnectURL:  "https://example.com/.well-known/openid-configuration",
-			Extensions:        populatedExtensions(),
+			Preserved:         populatedPreserved(),
 			Provenance:        populatedProvenance(),
 		})
 }

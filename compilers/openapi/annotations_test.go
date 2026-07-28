@@ -678,7 +678,7 @@ components:
 		assert: func(t *testing.T, doc *ir.Document) {
 			td, ok := doc.Types[namedID("S")]
 			require.True(t, ok)
-			raw, ok := td.Common().Extensions["openapi:x-vendor"]
+			raw, ok := td.Common().Preserved["openapi:x-vendor"]
 			require.True(t, ok, "x-vendor must be preserved under the openapi: namespace")
 			assert.JSONEq(t, `"at-declaration"`, string(raw))
 		},
@@ -698,11 +698,11 @@ components:
 		assert: func(t *testing.T, doc *ir.Document) {
 			sc, ok := doc.Types[namedID("S")].(*ir.Scalar)
 			require.True(t, ok, "a bare scalar component owns a Scalar node")
-			raw, ok := sc.Extensions["openapi:x-vendor"]
+			raw, ok := sc.Preserved["openapi:x-vendor"]
 			require.True(t, ok, "x-vendor must be preserved under the openapi: namespace")
 			assert.JSONEq(t, `"at-declaration"`, string(raw))
 
-			assert.Empty(t, primitiveNode(t, doc, ir.TypeID("t/prim/string")).Common().Extensions,
+			assert.Empty(t, primitiveNode(t, doc, ir.TypeID("t/prim/string")).Common().Preserved,
 				"an x-vendor on the declaration must not leak onto the shared primitive")
 		},
 	}
@@ -729,13 +729,13 @@ components:
 			require.True(t, ok)
 			p, ok := propByWire(m, "f")
 			require.True(t, ok)
-			raw, ok := p.Extensions["openapi:x-vendor"]
+			raw, ok := p.Preserved["openapi:x-vendor"]
 			require.True(t, ok, "x-vendor beside a $ref binds the reference site")
 			assert.JSONEq(t, `"at-reference"`, string(raw))
 
 			target, ok := doc.Types[namedID("Target")]
 			require.True(t, ok)
-			assert.Empty(t, target.Common().Extensions,
+			assert.Empty(t, target.Common().Preserved,
 				"a reference-site extension must not attach to the referent")
 		},
 	}
@@ -849,8 +849,8 @@ components:
 		assert: func(t *testing.T, doc *ir.Document) {
 			m, ok := doc.Types[namedID("S")].(*ir.Model)
 			require.True(t, ok)
-			raw, ok := m.Extensions["openapi:if-then-else"]
-			require.True(t, ok, "if/then must be preserved verbatim in extensions")
+			raw, ok := m.Preserved["openapi:if-then-else"]
+			require.True(t, ok, "if/then must be kept verbatim under Preserved")
 			assert.JSONEq(t, `{"if":{"type":"string"},"then":{"minLength":1}}`, string(raw))
 		},
 		assertDiags: func(t *testing.T, diags []ir.Diagnostic) {
@@ -876,11 +876,11 @@ components:
 		assert: func(t *testing.T, doc *ir.Document) {
 			sc, ok := doc.Types[namedID("S")].(*ir.Scalar)
 			require.True(t, ok, "a bare scalar component owns a Scalar node")
-			raw, ok := sc.Extensions["openapi:if-then-else"]
-			require.True(t, ok, "if/then must be preserved verbatim in extensions")
+			raw, ok := sc.Preserved["openapi:if-then-else"]
+			require.True(t, ok, "if/then must be kept verbatim under Preserved")
 			assert.JSONEq(t, `{"if":{"type":"string"},"then":{"minLength":1}}`, string(raw))
 
-			_, leaked := primitiveNode(t, doc, ir.TypeID("t/prim/string")).Common().Extensions["openapi:if-then-else"]
+			_, leaked := primitiveNode(t, doc, ir.TypeID("t/prim/string")).Common().Preserved["openapi:if-then-else"]
 			assert.False(t, leaked, "if/then on the declaration must not leak onto the shared primitive")
 		},
 		assertDiags: func(t *testing.T, diags []ir.Diagnostic) {
@@ -912,13 +912,13 @@ components:
 			require.True(t, ok)
 			p, ok := propByWire(m, "f")
 			require.True(t, ok)
-			raw, ok := p.Extensions["openapi:if-then-else"]
+			raw, ok := p.Preserved["openapi:if-then-else"]
 			require.True(t, ok, "if/then beside a $ref binds the reference site")
 			assert.JSONEq(t, `{"if":{"type":"string"},"then":{"minLength":1}}`, string(raw))
 
 			target, ok := doc.Types[namedID("Target")]
 			require.True(t, ok)
-			assert.Empty(t, target.Common().Extensions,
+			assert.Empty(t, target.Common().Preserved,
 				"a reference-site keyword must not attach to the referent")
 		},
 		assertDiags: func(t *testing.T, diags []ir.Diagnostic) {
@@ -939,7 +939,7 @@ components:
 // $ref points at.
 //
 // Either way, NotContains(node, key) only rules out that exact JSON key —
-// not preservation under a different one, such as Extensions (ir-design
+// not preservation under a different one, such as Preserved (ir-design
 // §4.7's carve-out for validation-only keywords with no structural home).
 // A knownGap case is waiting on a real field; this assertion exists to
 // catch exactly that gap, not every other way it could be routed around.

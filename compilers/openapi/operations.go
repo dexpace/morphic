@@ -249,7 +249,7 @@ func (l *lowerer) lowerOperation(src *soa.Operation, ctx opContext) (ir.Operatio
 	}
 	op.Bindings = ir.OpBindings{HTTP: []ir.HTTPBinding{hb}}
 	if ext := l.operationExtensions(src); len(ext) > 0 {
-		op.Extensions = ext
+		op.Preserved = ext
 	}
 	l.checkOperationIDUnique(op, mount)
 	return op, extra
@@ -299,12 +299,12 @@ func fillOperationDocs(d *ir.Docs, src *soa.Operation) {
 }
 
 // operationExtensions lowers an operation's x-* extensions into namespaced
-// Extensions.
-func (l *lowerer) operationExtensions(src *soa.Operation) ir.Extensions {
+// Preserved entries.
+func (l *lowerer) operationExtensions(src *soa.Operation) ir.Preserved {
 	return l.extensions(src.GetExtensions())
 }
 
-// applyPathServers preserves path-item-level servers verbatim under Extensions
+// applyPathServers preserves path-item-level servers verbatim under Preserved
 // on the operation: sub-document server scoping is out of the §10 server model,
 // so it is kept raw with an info diagnostic rather than dropped.
 func (l *lowerer) applyPathServers(op *ir.Operation, pi *soa.PathItem) {
@@ -315,12 +315,12 @@ func (l *lowerer) applyPathServers(op *ir.Operation, pi *soa.PathItem) {
 	if raw == nil {
 		return
 	}
-	if op.Extensions == nil {
-		op.Extensions = ir.Extensions{}
+	if op.Preserved == nil {
+		op.Preserved = ir.Preserved{}
 	}
-	op.Extensions["openapi:servers"] = raw
+	op.Preserved["openapi:servers"] = raw
 	l.diags = append(l.diags, diagf(ir.SeverityInfo, codeDegradedConstruct, op.Provenance,
-		"path-item servers preserved under extensions; sub-document server scoping is out of model"))
+		"path-item servers kept under Preserved; sub-document server scoping is out of model"))
 }
 
 // lowerResponses splits an operation's responses into success responses
@@ -363,7 +363,7 @@ func (l *lowerer) lowerResponse(r *soa.Response, rng ir.StatusRange, rptr string
 	}
 	resp.Docs.Description = r.GetDescription()
 	if raw := nodeToRaw(rawChildNode(r.GetRootNode(), "links")); raw != nil {
-		resp.Extensions = ir.Extensions{"openapi:links": raw}
+		resp.Preserved = ir.Preserved{"openapi:links": raw}
 	}
 	return resp
 }
@@ -383,7 +383,7 @@ func (l *lowerer) lowerErrorCase(r *soa.Response, rng ir.StatusRange, rptr strin
 
 // preserveErrorHeaders keeps an error response's headers from being dropped:
 // ir.ErrorCase has no Headers field (ir-design §7.2), so when the response
-// declares headers they are preserved verbatim under Extensions with one info
+// declares headers they are kept verbatim under Preserved with one info
 // diagnostic, mirroring the success path's structural header lowering.
 func (l *lowerer) preserveErrorHeaders(ec *ir.ErrorCase, r *soa.Response, rptr string) {
 	headers := r.GetHeaders()
@@ -394,12 +394,12 @@ func (l *lowerer) preserveErrorHeaders(ec *ir.ErrorCase, r *soa.Response, rptr s
 	if raw == nil {
 		return
 	}
-	if ec.Extensions == nil {
-		ec.Extensions = ir.Extensions{}
+	if ec.Preserved == nil {
+		ec.Preserved = ir.Preserved{}
 	}
-	ec.Extensions["openapi:headers"] = raw
+	ec.Preserved["openapi:headers"] = raw
 	l.diag(ir.SeverityInfo, codeDegradedConstruct, rptr,
-		"error response headers have no ErrorCase home; preserved verbatim under extensions")
+		"error response headers have no ErrorCase home; kept verbatim under Preserved")
 }
 
 // fillErrorType lowers every content entry's schema into the type registry
@@ -422,10 +422,10 @@ func (l *lowerer) fillErrorType(ec *ir.ErrorCase, r *soa.Response, rptr string) 
 	}
 	if content.Len() > 1 {
 		if raw := nodeToRaw(rawChildNode(r.GetRootNode(), "content")); raw != nil {
-			ec.Extensions = ir.Extensions{"openapi:content": raw}
+			ec.Preserved = ir.Preserved{"openapi:content": raw}
 		}
 		l.diag(ir.SeverityInfo, codeDegradedConstruct, rptr,
-			"error response has multiple media types; full content map preserved under extensions")
+			"error response has multiple media types; full content map kept under Preserved")
 	}
 }
 

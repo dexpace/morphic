@@ -100,8 +100,8 @@ func TestLower_OneOfWithStructuralSiblingsPreserved(t *testing.T) {
 	assert.Equal(t, "common", m.Properties[0].Name.Source)
 	assert.True(t, m.Properties[0].Required)
 	assert.Equal(t, ir.AdditionalClosed, m.Additional)
-	raw, ok := m.Extensions["openapi:oneOf"]
-	require.True(t, ok, "the dropped union is preserved verbatim under extensions")
+	raw, ok := m.Preserved["openapi:oneOf"]
+	require.True(t, ok, "the dropped union is kept verbatim under Preserved")
 	assert.Contains(t, string(raw), "required")
 
 	found := false
@@ -133,8 +133,8 @@ func TestLower_AllOfWithOneOfKeepsBoth(t *testing.T) {
 	require.True(t, ok, "allOf composition survives (Model), oneOf preserved raw")
 	require.NotNil(t, m.Base, "the allOf $ref becomes Base")
 	assert.Equal(t, componentID("Base"), m.Base.Target)
-	_, ok = m.Extensions["openapi:oneOf"]
-	assert.True(t, ok, "the oneOf is preserved verbatim under extensions")
+	_, ok = m.Preserved["openapi:oneOf"]
+	assert.True(t, ok, "the oneOf is kept verbatim under Preserved")
 }
 
 func TestLower_RecursiveSchemaTerminates(t *testing.T) {
@@ -285,7 +285,7 @@ func TestLower_TupleWithTrailingItems(t *testing.T) {
 	tup, ok := typeByName(doc, "Tup").(*ir.Tuple)
 	require.True(t, ok)
 	require.Len(t, tup.Elems, 2)
-	_, hasResidue := tup.Extensions["openapi:items-after-prefix"]
+	_, hasResidue := tup.Preserved["openapi:items-after-prefix"]
 	assert.True(t, hasResidue, "trailing items preserved raw")
 }
 
@@ -336,7 +336,7 @@ func TestLower_ValidationOnlyKeywords(t *testing.T) {
 	requireNoErrorDiags(t, diags)
 	m := typeByName(doc, "V").(*ir.Model)
 	for _, key := range []string{"openapi:if-then-else", "openapi:dependentSchemas", "openapi:contains", "openapi:unevaluated"} {
-		_, ok := m.Extensions[key]
+		_, ok := m.Preserved[key]
 		assert.True(t, ok, "keyword %s preserved", key)
 	}
 	assert.GreaterOrEqual(t, countDiagsAt(diags, codeValidationOnlyKeyword, ir.SeverityInfo), 4)
@@ -364,7 +364,7 @@ func TestLower_PropertyDetailRichSchema(t *testing.T) {
 	assert.Equal(t, "urn:x", byWire["withXml"].XML.Namespace)
 	assert.True(t, byWire["withXml"].XML.Wrapped)
 	assert.Len(t, byWire["withExample"].Examples, 3)
-	assert.NotEmpty(t, byWire["withExt"].Extensions)
+	assert.NotEmpty(t, byWire["withExt"].Preserved)
 	var sawDefaultWarn bool
 	for _, d := range diags {
 		if d.Severity == ir.SeverityWarning && strings.Contains(d.Message, "default:") {
@@ -426,8 +426,8 @@ func TestLower_UnionWithStructuralSiblingVariants(t *testing.T) {
 		td := typeByName(doc, name)
 		require.NotNil(t, td, "type %s present", name)
 		c := td.Common()
-		_, hasOneOf := c.Extensions["openapi:oneOf"]
-		_, hasAnyOf := c.Extensions["openapi:anyOf"]
+		_, hasOneOf := c.Preserved["openapi:oneOf"]
+		_, hasAnyOf := c.Preserved["openapi:anyOf"]
 		assert.True(t, hasOneOf || hasAnyOf, "union preserved for %s", name)
 	}
 }
@@ -468,7 +468,7 @@ func TestModel_ValidationOnlyKeywordPreserved(t *testing.T) {
 `)
 	doc, diags := lowerSpec(t, spec)
 	m := doc.Types[componentID("S")].(*ir.Model)
-	raw, ok := m.Extensions["openapi:not"]
+	raw, ok := m.Preserved["openapi:not"]
 	require.True(t, ok, "not-keyword must be preserved verbatim")
 	assert.JSONEq(t, `{"required":["b"]}`, string(raw))
 	found := false
@@ -608,7 +608,7 @@ func TestModel_SchemaExtensionPreserved(t *testing.T) {
 	doc, diags := lowerSpec(t, spec)
 	requireNoErrorDiags(t, diags)
 	m := doc.Types[componentID("S")].(*ir.Model)
-	raw, ok := m.Extensions["openapi:x-rate-limit"]
+	raw, ok := m.Preserved["openapi:x-rate-limit"]
 	require.True(t, ok)
 	assert.JSONEq(t, "100", string(raw))
 }
@@ -1245,7 +1245,7 @@ func TestSchema_UnionSiblingsAdditionalAndRequired(t *testing.T) {
 	doc, diags := lowerSpec(t, spec)
 	requireNoErrorDiags(t, diags)
 	for _, name := range []string{"A", "B"} {
-		_, ok := typeByName(doc, name).Common().Extensions["openapi:oneOf"]
+		_, ok := typeByName(doc, name).Common().Preserved["openapi:oneOf"]
 		assert.True(t, ok, "%s preserves its union", name)
 	}
 }
@@ -1275,7 +1275,7 @@ func TestSchema_UnserializableExtension(t *testing.T) {
 	require.NotNil(t, doc)
 	assert.True(t, hasDiagAt(diags, codeDegradedConstruct, ir.SeverityWarning), "unserializable extension warns")
 	m := typeByName(doc, "S").(*ir.Model)
-	_, hasBad := m.Extensions["openapi:x-bad"]
+	_, hasBad := m.Preserved["openapi:x-bad"]
 	assert.False(t, hasBad, "unserializable extension is dropped, not stored")
 }
 
@@ -1852,7 +1852,7 @@ func TestAllOf_PropertyAlongsideAllOfConflictMessageIsAccurate(t *testing.T) {
 func TestPreserveKeyword_NilRaw(t *testing.T) {
 	t.Parallel()
 	l := &lowerer{}
-	var ext ir.Extensions
+	var ext ir.Preserved
 	l.preserveKeyword(&ext, "openapi:not", nil, "/p", "not")
 	assert.Nil(t, ext, "nil raw is a no-op")
 	assert.Empty(t, l.diags)

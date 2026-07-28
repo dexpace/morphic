@@ -85,7 +85,7 @@ func TestOperation_PopulatedRoundTrip(t *testing.T) {
 		Examples: []ir.Example{
 			{Name: "ex1", Input: &ir.Value{Kind: ir.ValueString, Str: "in"}, Output: &ir.Value{Kind: ir.ValueString, Str: "out"}},
 		},
-		Extensions: populatedExtensions(),
+		Preserved:  populatedPreserved(),
 		Provenance: populatedProvenance(),
 	}
 	assertRoundTrip(t, want)
@@ -151,7 +151,7 @@ func TestParameter_JSONContract(t *testing.T) {
 				{Name: "ex1", Value: &ir.Value{Kind: ir.ValueNumber, Num: ir.BigVal("1")}},
 				{Name: "ex2", Value: &ir.Value{Kind: ir.ValueNumber, Num: ir.BigVal("2")}},
 			},
-			Extensions: populatedExtensions(),
+			Preserved: populatedPreserved(),
 		})
 }
 
@@ -165,7 +165,7 @@ func TestPayload_JSONContract(t *testing.T) {
 			{MediaType: "application/json", Type: populatedTypeRef()},
 			{MediaType: "application/xml", Type: populatedTypeRef()},
 		},
-		Extensions: populatedExtensions(),
+		Preserved: populatedPreserved(),
 	})
 }
 
@@ -191,7 +191,7 @@ func TestContent_JSONContract(t *testing.T) {
 		Examples: []ir.Example{
 			{Name: "ex1", Value: &ir.Value{Kind: ir.ValueString, Str: "v1"}},
 		},
-		Extensions: populatedExtensions(),
+		Preserved: populatedPreserved(),
 	})
 }
 
@@ -282,7 +282,7 @@ func TestResponse_JSONContract(t *testing.T) {
 		Headers:        []ir.Property{populatedProperty()},
 		StatusCodeProp: &ir.PropPath{Segments: []ir.PropID{"p/status"}},
 		Docs:           populatedDocs(),
-		Extensions:     populatedExtensions(),
+		Preserved:      populatedPreserved(),
 	})
 }
 
@@ -341,7 +341,7 @@ func TestErrorCase_JSONContract(t *testing.T) {
 			Retryable:  &retryable,
 			Throttling: &throttling,
 			Docs:       populatedDocs(),
-			Extensions: populatedExtensions(),
+			Preserved:  populatedPreserved(),
 		})
 }
 
