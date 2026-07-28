@@ -43,9 +43,10 @@ type retentionCase struct {
 	assertDiags func(*testing.T, []ir.Diagnostic)
 }
 
-// compileAnnotationSpec compiles one in-memory annotation-retention spec,
-// since such a spec is always well-formed by construction; the caller checks
-// diagnostics against what its own cell expects.
+// compileAnnotationSpec compiles one in-memory annotation-retention spec.
+// Every spec in this suite is well-formed by construction, so compilation is
+// required to succeed with no Go error; the caller checks diagnostics
+// separately, against what its own cell expects.
 func compileAnnotationSpec(t *testing.T, name, spec string) (*ir.Document, []ir.Diagnostic) {
 	t.Helper()
 	doc, diags, err := openapi.New().Compile(t.Context(),
@@ -191,7 +192,9 @@ func constraintsCases() []retentionCase {
 			cell: harness.Cell{Annotation: harness.AnnotationConstraints, SiteKind: harness.SiteDeclarationModel},
 			knownGap: "ir.Model has no Constraints field, and lowerModel already owns the component's " +
 				"pointer before lowerComponentSchema's componentConstraints/internAlias fallback would run, " +
-				"so that fallback never fires for an object-shaped component and minProperties is read by nothing",
+				"so that fallback never fires for an object-shaped component; minProperties is read into " +
+				"Constraints.MinProps for a property or a scalar component (constraints.go), but an " +
+				"object-shaped component's own minProperties has no field to land in and is dropped",
 			spec: `openapi: 3.1.0
 info: {title: g, version: "1"}
 paths: {}
@@ -208,7 +211,8 @@ components:
 				require.True(t, ok, "S still owns a Model node even though its minProperties is dropped")
 				node := marshalToMap(t, m)
 				assert.NotContains(t, node, "constraints",
-					"minProperties is never surfaced anywhere in the IR today; closing this gap should turn this red")
+					"minProperties has no field to land in for an object-shaped component (it is surfaced "+
+						"for a property and a scalar component); closing this gap should turn this red")
 			},
 		},
 		{
@@ -632,8 +636,10 @@ components:
 func xmlHintsCases() []retentionCase {
 	return []retentionCase{
 		{
-			cell:     harness.Cell{Annotation: harness.AnnotationXMLHints, SiteKind: harness.SiteDeclarationModel},
-			knownGap: "ir.TypeCommon.XML exists but the OpenAPI compiler never assigns it; only Property.XML is filled (fillPropertyDetail), so a component-level xml hint has nowhere to land",
+			cell: harness.Cell{Annotation: harness.AnnotationXMLHints, SiteKind: harness.SiteDeclarationModel},
+			knownGap: "ir.TypeCommon.XML exists but the OpenAPI compiler never assigns it; only " +
+				"Property.XML is filled (fillPropertyDetail), so a component-level xml hint has " +
+				"nowhere to land",
 			spec: `openapi: 3.1.0
 info: {title: g, version: "1"}
 paths: {}
@@ -791,10 +797,21 @@ components:
 }
 
 // marshalToMap JSON-marshals v — a type node — and decodes the result back
-// into a generic map keyed by wire field name. A knownGap cell asserts on
-// this instead of on a specific Go field, so the assertion still catches the
-// annotation once it reaches the IR through any struct field, not only
-// through the one field the gap's case happened to check when it was written.
+// into a generic map keyed by wire field name. Five of this suite's twelve
+// knownGap cases assert the dropped annotation's absence this way, because
+// the annotation has no dedicated Go field to read off directly; the other
+// seven assert a specific field directly instead.
+//
+// NotContains(node, key) only checks that no field JSON-encodes under that
+// exact key — it cannot rule out the annotation being preserved under some
+// other key instead, such as Extensions. That is a deliberate scope limit,
+// not an oversight: Extensions-based preservation is ir-design §4.7's
+// carve-out for validation-only keywords with no structural home, and every
+// field-less gap this helper checks (constraints, default, visibility) names
+// a field missing from the IR that Property or Scalar already has for the
+// same annotation, so the fix each is waiting on is that field — and this
+// assertion is written to catch exactly that, not to anticipate every other
+// way the gap could theoretically be routed around.
 func marshalToMap(t *testing.T, v any) map[string]any {
 	t.Helper()
 	raw, err := json.Marshal(v)
