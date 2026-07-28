@@ -1,7 +1,6 @@
 package openapi
 
 import (
-	"path"
 	"strconv"
 	"strings"
 
@@ -97,73 +96,4 @@ func componentEntry(pointer string) (kind, name string, ok bool) {
 func componentEntryName(pointer string) (string, bool) {
 	_, name, ok := componentEntry(pointer)
 	return name, ok
-}
-
-// internalPointer returns the same-document JSON pointer a $ref (or discriminator
-// mapping) target addresses, and ok=false for a genuine cross-document reference,
-// a bare schema name, or a malformed ref. A document part naming this same source
-// file (an OpenAPI self-reference) is treated as internal — Milestone 1 interns
-// only same-file targets; genuinely external ones are diagnosed and dropped.
-func (l *lowerer) internalPointer(ref string) (string, bool) {
-	doc, pointer, found := strings.Cut(ref, "#")
-	if !found || pointer == "" {
-		return "", false
-	}
-	if doc != "" && !l.sameFile(doc) {
-		return "", false
-	}
-	return pointer, true
-}
-
-// sameFile reports whether a $ref document part names this compilation's own
-// source file, so the reference resolves back into the same document. An exact
-// path match is internal; so is a bare filename (no directory) equal to our own
-// basename, since self-references are conventionally spelled with just the
-// file's own name (e.g. `m.yaml#/...` inside m.yaml). A doc part that carries
-// its own directory is matched in full, never on basename alone — otherwise
-// `dir2/m.yaml` referenced from `dir1/m.yaml` would misread as a self-reference.
-func (l *lowerer) sameFile(doc string) bool {
-	self := l.source.Path
-	if self == "" {
-		return false
-	}
-	if doc == self {
-		return true
-	}
-	return !strings.Contains(doc, "/") && doc == path.Base(self)
-}
-
-// internedID returns the TypeID a node was interned under at pointer, when one
-// already exists there — either a previously hoisted sub-schema (via byPointer)
-// or a node registered directly under its pointer-derived ID.
-func (l *lowerer) internedID(pointer string) (ir.TypeID, bool) {
-	if id, ok := l.byPointer[pointer]; ok {
-		return id, true
-	}
-	id := typeIDForPointer(pointer)
-	if _, ok := l.out.Types[id]; ok {
-		return id, true
-	}
-	return "", false
-}
-
-// resolveComponentRef resolves an internal pointer addressing a top-level
-// component schema to its stable named ID, but only when that component is
-// declared. It returns handled=true once the pointer is classified as a
-// component pointer (declared or not), so callers can stop; a declared
-// component yields ok=true, an undeclared one ok=false (a dangling reference to
-// drop). The ID is rebuilt from the component's canonical name — unescaped, then
-// re-escaped by ptr — rather than from the incoming pointer text, so a
-// non-canonically escaped reference (e.g. `A~B` for a component named "A~B",
-// interned under `A~0B`) still resolves to the interned node instead of an
-// unbacked ID.
-func (l *lowerer) resolveComponentRef(pointer string) (id ir.TypeID, ok, handled bool) {
-	name, isComponent := componentSchemaName(pointer)
-	if !isComponent {
-		return "", false, false
-	}
-	if l.schemas[name] {
-		return namedTypeID(ptr("components", "schemas", name)), true, true
-	}
-	return "", false, true
 }
