@@ -128,14 +128,13 @@ components:
 	assert.Nil(t, tsc.Constraints, "the referent must not acquire the site's bound")
 }
 
-// TestFillPropertyExamples_RefSiblingExampleBindsTheSite is a characterization
-// test: it locks in the existing $ref-sibling-example behaviour at a property
-// position before fillPropertyExamples is rewired through site, so a
-// behaviour change during that rewiring shows up as a failure here rather
-// than passing unnoticed. Property f's $ref targets a named component
-// (Target), so resolveComponentRef resolves it directly without ever calling
-// hoistSubSchema; fillPropertyExamples is what keeps the example off the
-// referent here. TestSchemaSiblings_RefdSubSchemaKeepsThem covers the
+// TestFillPropertyExamples_RefSiblingExampleBindsTheSite locks in the
+// $ref-sibling-example behaviour at a property position: an example written
+// beside a $ref binds the property, not the referent, because
+// fillPropertyExamples resolves it directly rather than through site.
+// Property f's $ref targets a named component (Target), so
+// resolveComponentRef resolves it directly without ever calling
+// hoistSubSchema. TestSchemaSiblings_RefdSubSchemaKeepsThem covers the
 // analogous hoistSubSchema path, where the $ref target is an internal
 // sub-schema pointer rather than a named component.
 func TestFillPropertyExamples_RefSiblingExampleBindsTheSite(t *testing.T) {
@@ -159,4 +158,12 @@ components:
 	require.NotNil(t, target)
 	assert.Empty(t, target.Common().Examples,
 		"an example beside a $ref must not attach to the referent")
+
+	holder, ok := typeByName(l.out, "Holder").(*ir.Model)
+	require.True(t, ok, "Holder must own a Model node")
+	f, ok := propsByWire(holder.Properties)["f"]
+	require.True(t, ok, "property f must be present")
+	require.Len(t, f.Examples, 1, "the example beside the $ref must bind the property")
+	require.NotNil(t, f.Examples[0].Value)
+	assert.Equal(t, ir.Value{Kind: ir.ValueString, Str: "at-reference"}, *f.Examples[0].Value)
 }
