@@ -58,7 +58,7 @@ func (nilDocCompiler) Compile(context.Context, []compilers.Source, compilers.Opt
 func badDoc() *ir.Document {
 	return &ir.Document{
 		Name:      "Bad",
-		Preserved: ir.Preserved{"openapi:x": ir.RawValue("{invalid")},
+		Preserved: ir.Preserved{"openapi:x": {Value: ir.RawValue("{invalid")}},
 	}
 }
 

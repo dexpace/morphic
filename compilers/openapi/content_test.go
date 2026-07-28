@@ -175,7 +175,8 @@ func TestContent_NonRequiredRequestBody(t *testing.T) {
 	require.NotNil(t, op.Request, "a non-required body still lowers to a present Payload")
 	raw, ok := op.Request.Preserved["openapi:required"]
 	require.True(t, ok, "body optionality kept under Preserved")
-	assert.Equal(t, "false", string(raw))
+	assert.Equal(t, "false", string(raw.Value))
+	assert.Equal(t, ir.ReasonNoIRHome, raw.Reason)
 	found := false
 	for _, d := range diags {
 		if d.Severity == ir.SeverityInfo && strings.Contains(d.Message, "request body") {

@@ -102,7 +102,8 @@ func TestLower_OneOfWithStructuralSiblingsPreserved(t *testing.T) {
 	assert.Equal(t, ir.AdditionalClosed, m.Additional)
 	raw, ok := m.Preserved["openapi:oneOf"]
 	require.True(t, ok, "the dropped union is kept verbatim under Preserved")
-	assert.Contains(t, string(raw), "required")
+	assert.Contains(t, string(raw.Value), "required")
+	assert.Equal(t, ir.ReasonDegradedLowering, raw.Reason)
 
 	found := false
 	for _, d := range diags {
@@ -470,7 +471,8 @@ func TestModel_ValidationOnlyKeywordPreserved(t *testing.T) {
 	m := doc.Types[componentID("S")].(*ir.Model)
 	raw, ok := m.Preserved["openapi:not"]
 	require.True(t, ok, "not-keyword must be preserved verbatim")
-	assert.JSONEq(t, `{"required":["b"]}`, string(raw))
+	assert.JSONEq(t, `{"required":["b"]}`, string(raw.Value))
+	assert.Equal(t, ir.ReasonValidationOnly, raw.Reason)
 	found := false
 	for _, d := range diags {
 		if d.Code == codeValidationOnlyKeyword {
@@ -610,7 +612,45 @@ func TestModel_SchemaExtensionPreserved(t *testing.T) {
 	m := doc.Types[componentID("S")].(*ir.Model)
 	raw, ok := m.Preserved["openapi:x-rate-limit"]
 	require.True(t, ok)
-	assert.JSONEq(t, "100", string(raw))
+	assert.JSONEq(t, "100", string(raw.Value))
+	assert.Equal(t, ir.ReasonVendorExtension, raw.Reason)
+	assert.Equal(t, "/components/schemas/S/x-rate-limit", raw.Provenance.Pointer,
+		"an entry locates the construct itself, not the node that carries it")
+}
+
+// TestPreserve_AllReasonsReachable pins that every PreserveReason the IR
+// declares is produced by some OpenAPI lowering, so a consumer switching on the
+// enum meets no value this compiler can never emit — and that no site leaves
+// the field at its zero value.
+func TestPreserve_AllReasonsReachable(t *testing.T) {
+	t.Parallel()
+	spec := componentSpec(`    S:
+      type: object
+      x-vendor: v
+      not: {required: [b]}
+      properties: {a: {type: string}}
+      oneOf:
+        - {required: [a]}
+        - {required: [b]}
+    T:
+      type: array
+      prefixItems: [{type: string}]
+      items: {type: integer}
+`)
+	doc, diags := lowerSpec(t, spec)
+	requireNoErrorDiags(t, diags)
+	seen := map[ir.PreserveReason]bool{}
+	for _, name := range []string{"S", "T"} {
+		for _, entry := range doc.Types[componentID(name)].Common().Preserved {
+			seen[entry.Reason] = true
+		}
+	}
+	for _, want := range []ir.PreserveReason{
+		ir.ReasonVendorExtension, ir.ReasonValidationOnly,
+		ir.ReasonDegradedLowering, ir.ReasonNoIRHome,
+	} {
+		assert.True(t, seen[want], "no entry carries reason %q", want)
+	}
 }
 
 func TestModel_TitleDescriptionDocs(t *testing.T) {

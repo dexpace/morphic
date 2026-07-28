@@ -115,7 +115,7 @@ func (l *lowerer) lowerPathItem(groups *serviceGroups, path string, pi *soa.Path
 			params:        mergeParameters(pi.GetParameters(), src.GetParameters(), declPtr, ptrs.decl),
 		}
 		op, extra := l.lowerOperation(src, ctx)
-		l.applyPathServers(&op, pi)
+		l.applyPathServers(&op, pi, declPtr)
 		grp := groups.group(key, func() ir.OperationGroup { return ir.OperationGroup{Name: name, Docs: docs} })
 		grp.Operations = append(grp.Operations, op)
 		grp.Operations = append(grp.Operations, extra...)
@@ -248,7 +248,7 @@ func (l *lowerer) lowerOperation(src *soa.Operation, ctx opContext) (ir.Operatio
 		hb.Callbacks, extra = l.lowerCallbacks(src, ctx.ptrs, ctx.inferred)
 	}
 	op.Bindings = ir.OpBindings{HTTP: []ir.HTTPBinding{hb}}
-	if ext := l.operationExtensions(src); len(ext) > 0 {
+	if ext := l.operationExtensions(src, decl); len(ext) > 0 {
 		op.Preserved = ext
 	}
 	l.checkOperationIDUnique(op, mount)
@@ -300,14 +300,14 @@ func fillOperationDocs(d *ir.Docs, src *soa.Operation) {
 
 // operationExtensions lowers an operation's x-* extensions into namespaced
 // Preserved entries.
-func (l *lowerer) operationExtensions(src *soa.Operation) ir.Preserved {
-	return l.extensions(src.GetExtensions())
+func (l *lowerer) operationExtensions(src *soa.Operation, declPtr string) ir.Preserved {
+	return l.extensions(src.GetExtensions(), declPtr)
 }
 
 // applyPathServers preserves path-item-level servers verbatim under Preserved
 // on the operation: sub-document server scoping is out of the §10 server model,
 // so it is kept raw with an info diagnostic rather than dropped.
-func (l *lowerer) applyPathServers(op *ir.Operation, pi *soa.PathItem) {
+func (l *lowerer) applyPathServers(op *ir.Operation, pi *soa.PathItem, declPtr string) {
 	if len(pi.GetServers()) == 0 {
 		return
 	}
@@ -315,10 +315,7 @@ func (l *lowerer) applyPathServers(op *ir.Operation, pi *soa.PathItem) {
 	if raw == nil {
 		return
 	}
-	if op.Preserved == nil {
-		op.Preserved = ir.Preserved{}
-	}
-	op.Preserved["openapi:servers"] = raw
+	l.preserve(&op.Preserved, "openapi:servers", raw, ir.ReasonNoIRHome, declPtr+ptr("servers"))
 	l.diags = append(l.diags, diagf(ir.SeverityInfo, codeDegradedConstruct, op.Provenance,
 		"path-item servers kept under Preserved; sub-document server scoping is out of model"))
 }
@@ -362,9 +359,8 @@ func (l *lowerer) lowerResponse(r *soa.Response, rng ir.StatusRange, rptr string
 		Headers:    l.lowerHeaders(r.GetHeaders(), rptr),
 	}
 	resp.Docs.Description = r.GetDescription()
-	if raw := nodeToRaw(rawChildNode(r.GetRootNode(), "links")); raw != nil {
-		resp.Preserved = ir.Preserved{"openapi:links": raw}
-	}
+	l.preserve(&resp.Preserved, "openapi:links", nodeToRaw(rawChildNode(r.GetRootNode(), "links")),
+		ir.ReasonNoIRHome, rptr+ptr("links"))
 	return resp
 }
 
@@ -394,10 +390,7 @@ func (l *lowerer) preserveErrorHeaders(ec *ir.ErrorCase, r *soa.Response, rptr s
 	if raw == nil {
 		return
 	}
-	if ec.Preserved == nil {
-		ec.Preserved = ir.Preserved{}
-	}
-	ec.Preserved["openapi:headers"] = raw
+	l.preserve(&ec.Preserved, "openapi:headers", raw, ir.ReasonNoIRHome, rptr+ptr("headers"))
 	l.diag(ir.SeverityInfo, codeDegradedConstruct, rptr,
 		"error response headers have no ErrorCase home; kept verbatim under Preserved")
 }
@@ -421,9 +414,8 @@ func (l *lowerer) fillErrorType(ec *ir.ErrorCase, r *soa.Response, rptr string) 
 		}
 	}
 	if content.Len() > 1 {
-		if raw := nodeToRaw(rawChildNode(r.GetRootNode(), "content")); raw != nil {
-			ec.Preserved = ir.Preserved{"openapi:content": raw}
-		}
+		l.preserve(&ec.Preserved, "openapi:content", nodeToRaw(rawChildNode(r.GetRootNode(), "content")),
+			ir.ReasonNoIRHome, rptr+ptr("content"))
 		l.diag(ir.SeverityInfo, codeDegradedConstruct, rptr,
 			"error response has multiple media types; full content map kept under Preserved")
 	}

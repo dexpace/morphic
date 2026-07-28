@@ -5,6 +5,46 @@ import "encoding/json"
 // RawValue is source JSON preserved verbatim.
 type RawValue = json.RawMessage
 
+// PreserveReason says why a construct was kept verbatim instead of modeled. It
+// is a property of the construct itself, never of the diagnostic a compiler
+// emitted beside it: one diagnostic code routinely spans several of these.
+type PreserveReason string
+
+// Why a construct is preserved rather than modeled.
+const (
+	// ReasonVendorExtension marks an annotation the source format itself assigns
+	// no semantics to (OpenAPI x-*, and every format's equivalent). The key set
+	// is unbounded and nothing can be inferred from the value.
+	ReasonVendorExtension PreserveReason = "vendor_extension"
+	// ReasonValidationOnly marks validation logic rather than data shape: the
+	// IR's structural picture is complete without it, and neither a target type
+	// system nor a sibling source format has an equivalent (ir-design §4.7).
+	ReasonValidationOnly PreserveReason = "validation_only"
+	// ReasonDegradedLowering marks a construct with no faithful structural target
+	// in any SDK language. It was lowered to a documented weaker shape with the
+	// original kept beside it, so the degradation stays recoverable
+	// (ir-design §4.8).
+	ReasonDegradedLowering PreserveReason = "degraded_lowering"
+	// ReasonNoIRHome marks a construct target languages can express and a sibling
+	// IR node already models at an analogous scope, but for which no field exists
+	// at this position yet — a gap expected to close, not a boundary.
+	ReasonNoIRHome PreserveReason = "no_ir_home"
+)
+
+// PreservedEntry is one preserved construct.
+type PreservedEntry struct {
+	// Reason says why the construct is here rather than modeled, so a consumer
+	// can take the subset it cares about — a validation emitter wants §4.7
+	// entries and not vendor noise; a linter wants the degradations.
+	Reason PreserveReason `json:"reason"`
+	// Value is the source construct, byte-faithful.
+	Value RawValue `json:"value"`
+	// Provenance locates the construct itself, which the owning node's own
+	// provenance cannot: a validation emitter reporting on an if/then/else must
+	// point at the keyword, not at the schema that carried it.
+	Provenance Provenance `json:"provenance"`
+}
+
 // Preserved is the lossless escape hatch: a source construct the IR
 // deliberately does not model survives here untouched, keys namespaced by
 // origin so two formats never collide: "openapi:x-rate-limit",
@@ -14,7 +54,7 @@ type RawValue = json.RawMessage
 // concept — OpenAPI calls these extensions, Protobuf options, GraphQL
 // directives, Smithy traits, TypeSpec decorators — and Protobuf's own
 // "extensions" means something else entirely (reserved field-number ranges).
-type Preserved map[string]RawValue
+type Preserved map[string]PreservedEntry
 
 // RawConfig is declared protocol configuration the IR models a field for but
 // deliberately does not constrain the shape of: AsyncAPI protocol bindings,

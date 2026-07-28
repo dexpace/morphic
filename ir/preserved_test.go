@@ -17,21 +17,31 @@ import (
 func TestPreserved_JSONRoundTrip(t *testing.T) {
 	t.Parallel()
 	assertRoundTrip(t, ir.Preserved{
-		"openapi:x-rate-limit": ir.RawValue(`{"limit":100}`),
-		"smithy:aws.api#arn":   ir.RawValue(`"arn:aws:s3"`),
+		"openapi:x-rate-limit": {
+			Reason:     ir.ReasonVendorExtension,
+			Value:      ir.RawValue(`{"limit":100}`),
+			Provenance: populatedProvenance(),
+		},
+		"smithy:aws.api#arn": {
+			Reason:     ir.ReasonVendorExtension,
+			Value:      ir.RawValue(`"arn:aws:s3"`),
+			Provenance: populatedProvenance(),
+		},
 	})
 }
 
 func TestPreserved_DeterministicKeyOrder(t *testing.T) {
 	t.Parallel()
 	p := ir.Preserved{
-		"graphql:@key":         ir.RawValue(`"id"`),
-		"openapi:x-rate-limit": ir.RawValue(`1`),
-		"erlang:opaque":        ir.RawValue(`true`),
+		"graphql:@key":         {Reason: ir.ReasonVendorExtension, Value: ir.RawValue(`"id"`)},
+		"openapi:x-rate-limit": {Reason: ir.ReasonVendorExtension, Value: ir.RawValue(`1`)},
+		"erlang:opaque":        {Reason: ir.ReasonDegradedLowering, Value: ir.RawValue(`true`)},
 	}
 	got := assertDeterministicMarshal(t, p)
 	assert.Equal(t,
-		`{"erlang:opaque":true,"graphql:@key":"id","openapi:x-rate-limit":1}`,
+		`{"erlang:opaque":{"reason":"degraded_lowering","value":true,"provenance":{"source":0}},`+
+			`"graphql:@key":{"reason":"vendor_extension","value":"id","provenance":{"source":0}},`+
+			`"openapi:x-rate-limit":{"reason":"vendor_extension","value":1,"provenance":{"source":0}}}`,
 		got,
 	)
 }

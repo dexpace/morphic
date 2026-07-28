@@ -330,7 +330,8 @@ func assertNegationNot(t *testing.T, doc *ir.Document, diags []ir.Diagnostic) {
 	require.True(t, ok)
 	raw, ok := m.Preserved["openapi:not"]
 	require.True(t, ok, "not-keyword kept verbatim under Preserved")
-	assert.JSONEq(t, `{"required":["b"]}`, string(raw))
+	assert.JSONEq(t, `{"required":["b"]}`, string(raw.Value))
+	assert.Equal(t, ir.ReasonValidationOnly, raw.Reason)
 	var found bool
 	for _, d := range diags {
 		if d.Code == "openapi/validation-only-keyword" {
@@ -848,7 +849,8 @@ func assertExtensionsX(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
 	require.True(t, ok)
 	raw, ok := m.Preserved["openapi:x-rate-limit"]
 	require.True(t, ok, "x-* extensions are namespaced under openapi:")
-	assert.JSONEq(t, "100", string(raw))
+	assert.JSONEq(t, "100", string(raw.Value))
+	assert.Equal(t, ir.ReasonVendorExtension, raw.Reason)
 }
 
 func assertServersVariables(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {

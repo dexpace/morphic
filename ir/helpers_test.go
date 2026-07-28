@@ -131,9 +131,9 @@ func populatedProvenance() ir.Provenance {
 // insertion order differs from sorted order, for Class C determinism checks.
 func populatedPreserved() ir.Preserved {
 	return ir.Preserved{
-		"openapi:z-ext": ir.RawValue(`1`),
-		"openapi:m-ext": ir.RawValue(`2`),
-		"openapi:a-ext": ir.RawValue(`3`),
+		"openapi:z-ext": {Reason: ir.ReasonVendorExtension, Value: ir.RawValue(`1`), Provenance: populatedProvenance()},
+		"openapi:m-ext": {Reason: ir.ReasonVendorExtension, Value: ir.RawValue(`2`), Provenance: populatedProvenance()},
+		"openapi:a-ext": {Reason: ir.ReasonVendorExtension, Value: ir.RawValue(`3`), Provenance: populatedProvenance()},
 	}
 }
 

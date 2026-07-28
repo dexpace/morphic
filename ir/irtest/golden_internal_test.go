@@ -52,7 +52,7 @@ func runCompare(goldenPath string, doc *ir.Document) *recordingT {
 // badExtDoc marshals with an error: an invalid RawMessage in Preserved makes
 // encoding/json fail during (Marshal|MarshalIndent).
 func badExtDoc() *ir.Document {
-	return &ir.Document{Preserved: ir.Preserved{"x": json.RawMessage("{invalid")}}
+	return &ir.Document{Preserved: ir.Preserved{"x": {Value: json.RawMessage("{invalid")}}}
 }
 
 // withUpdate sets the -update flag for the duration of fn and restores it.

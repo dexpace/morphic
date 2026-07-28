@@ -680,7 +680,8 @@ components:
 			require.True(t, ok)
 			raw, ok := td.Common().Preserved["openapi:x-vendor"]
 			require.True(t, ok, "x-vendor must be preserved under the openapi: namespace")
-			assert.JSONEq(t, `"at-declaration"`, string(raw))
+			assert.JSONEq(t, `"at-declaration"`, string(raw.Value))
+			assert.Equal(t, ir.ReasonVendorExtension, raw.Reason)
 		},
 	}
 }
@@ -700,7 +701,8 @@ components:
 			require.True(t, ok, "a bare scalar component owns a Scalar node")
 			raw, ok := sc.Preserved["openapi:x-vendor"]
 			require.True(t, ok, "x-vendor must be preserved under the openapi: namespace")
-			assert.JSONEq(t, `"at-declaration"`, string(raw))
+			assert.JSONEq(t, `"at-declaration"`, string(raw.Value))
+			assert.Equal(t, ir.ReasonVendorExtension, raw.Reason)
 
 			assert.Empty(t, primitiveNode(t, doc, ir.TypeID("t/prim/string")).Common().Preserved,
 				"an x-vendor on the declaration must not leak onto the shared primitive")
@@ -731,7 +733,8 @@ components:
 			require.True(t, ok)
 			raw, ok := p.Preserved["openapi:x-vendor"]
 			require.True(t, ok, "x-vendor beside a $ref binds the reference site")
-			assert.JSONEq(t, `"at-reference"`, string(raw))
+			assert.JSONEq(t, `"at-reference"`, string(raw.Value))
+			assert.Equal(t, ir.ReasonVendorExtension, raw.Reason)
 
 			target, ok := doc.Types[namedID("Target")]
 			require.True(t, ok)
@@ -851,7 +854,8 @@ components:
 			require.True(t, ok)
 			raw, ok := m.Preserved["openapi:if-then-else"]
 			require.True(t, ok, "if/then must be kept verbatim under Preserved")
-			assert.JSONEq(t, `{"if":{"type":"string"},"then":{"minLength":1}}`, string(raw))
+			assert.JSONEq(t, `{"if":{"type":"string"},"then":{"minLength":1}}`, string(raw.Value))
+			assert.Equal(t, ir.ReasonValidationOnly, raw.Reason)
 		},
 		assertDiags: func(t *testing.T, diags []ir.Diagnostic) {
 			assert.True(t, hasDiagCode(diags, "openapi/validation-only-keyword"),
@@ -878,7 +882,8 @@ components:
 			require.True(t, ok, "a bare scalar component owns a Scalar node")
 			raw, ok := sc.Preserved["openapi:if-then-else"]
 			require.True(t, ok, "if/then must be kept verbatim under Preserved")
-			assert.JSONEq(t, `{"if":{"type":"string"},"then":{"minLength":1}}`, string(raw))
+			assert.JSONEq(t, `{"if":{"type":"string"},"then":{"minLength":1}}`, string(raw.Value))
+			assert.Equal(t, ir.ReasonValidationOnly, raw.Reason)
 
 			_, leaked := primitiveNode(t, doc, ir.TypeID("t/prim/string")).Common().Preserved["openapi:if-then-else"]
 			assert.False(t, leaked, "if/then on the declaration must not leak onto the shared primitive")
@@ -914,7 +919,8 @@ components:
 			require.True(t, ok)
 			raw, ok := p.Preserved["openapi:if-then-else"]
 			require.True(t, ok, "if/then beside a $ref binds the reference site")
-			assert.JSONEq(t, `{"if":{"type":"string"},"then":{"minLength":1}}`, string(raw))
+			assert.JSONEq(t, `{"if":{"type":"string"},"then":{"minLength":1}}`, string(raw.Value))
+			assert.Equal(t, ir.ReasonValidationOnly, raw.Reason)
 
 			target, ok := doc.Types[namedID("Target")]
 			require.True(t, ok)

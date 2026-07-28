@@ -55,7 +55,7 @@ func (l *lowerer) lowerContent(mt string, media *soa.MediaType, pointer, hint st
 		}
 	}
 	l.fillSequential(&c, media, mediaPtr, hint)
-	if ext := l.extensions(media.GetExtensions()); len(ext) > 0 {
+	if ext := l.extensions(media.GetExtensions(), mediaPtr); len(ext) > 0 {
 		c.Preserved = mergePreserved(c.Preserved, ext)
 	}
 	return c
@@ -255,10 +255,8 @@ func (l *lowerer) lowerRequestBody(op *ir.Operation, hb *ir.HTTPBinding, src *so
 		return
 	}
 	if !rb.GetRequired() {
-		if payload.Preserved == nil {
-			payload.Preserved = ir.Preserved{}
-		}
-		payload.Preserved["openapi:required"] = ir.RawValue("false")
+		l.preserve(&payload.Preserved, "openapi:required", ir.RawValue("false"),
+			ir.ReasonNoIRHome, bodyPtr+ptr("required"))
 		l.diag(ir.SeverityInfo, codeDegradedConstruct, bodyPtr,
 			"request body is not required; optionality kept under Preserved")
 	}

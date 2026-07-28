@@ -163,15 +163,9 @@ func (l *lowerer) preserveUnionSiblings(id ir.TypeID, s *oas3.Schema, pointer st
 		return
 	}
 	c := td.Common()
-	if len(s.GetOneOf()) > 0 {
-		if raw := nodeToRaw(rawPropertyNode(s, "oneOf")); raw != nil {
-			c.Preserved = mergePreserved(c.Preserved, ir.Preserved{"openapi:oneOf": raw})
-		}
-	}
-	if len(s.GetAnyOf()) > 0 {
-		if raw := nodeToRaw(rawPropertyNode(s, "anyOf")); raw != nil {
-			c.Preserved = mergePreserved(c.Preserved, ir.Preserved{"openapi:anyOf": raw})
-		}
+	for _, kw := range []string{"oneOf", "anyOf"} {
+		l.preserve(&c.Preserved, "openapi:"+kw, nodeToRaw(rawPropertyNode(s, kw)),
+			ir.ReasonDegradedLowering, pointer+ptr(kw))
 	}
 	l.diag(ir.SeverityInfo, codeDegradedConstruct, pointer,
 		"oneOf/anyOf co-declared with structural keywords; union branches kept verbatim under Preserved")
@@ -673,7 +667,7 @@ func (l *lowerer) fillPropertyDetail(p *ir.Property, js *oas3.JSONSchema[oas3.Re
 		p.XML = h
 	}
 	l.fillPropertyConstraints(p, ref, pointer)
-	p.Preserved = mergePreserved(p.Preserved, l.schemaExtensions(ref))
+	p.Preserved = mergePreserved(p.Preserved, l.schemaExtensions(ref, pointer))
 	l.fillPropertyValidationOnly(p, ref, pointer)
 }
 
@@ -785,7 +779,7 @@ func (l *lowerer) attachDeclaredAnnotations(s *oas3.Schema, pointer string) {
 	if h := xmlHints(s.GetXML()); h != nil {
 		c.XML = h
 	}
-	c.Preserved = mergePreserved(c.Preserved, l.schemaExtensions(s))
+	c.Preserved = mergePreserved(c.Preserved, l.schemaExtensions(s, pointer))
 	l.fillValidationOnly(&c.Preserved, s, pointer)
 	if ex := l.schemaExamples(s, pointer); len(ex) > 0 {
 		c.Examples = ex
@@ -871,17 +865,33 @@ func (l *lowerer) fillValidationOnly(ext *ir.Preserved, s *oas3.Schema, pointer 
 	}
 }
 
-// preserveKeyword records a validation-only keyword's raw payload under key in
-// ext (allocating the map on first write) and emits one info diagnostic naming
-// it. An absent or unconvertible payload records nothing.
-func (l *lowerer) preserveKeyword(ext *ir.Preserved, key string, raw ir.RawValue, pointer, label string) {
+// preserve records raw under key in *p with why it was kept and where it was
+// written, allocating the map on first write. An absent or unconvertible
+// payload records nothing, so no caller needs a nil guard of its own.
+func (l *lowerer) preserve(p *ir.Preserved, key string, raw ir.RawValue, reason ir.PreserveReason, pointer string) {
 	if raw == nil {
 		return
 	}
-	if *ext == nil {
-		*ext = ir.Preserved{}
+	if *p == nil {
+		*p = ir.Preserved{}
 	}
-	(*ext)[key] = raw
+	(*p)[key] = ir.PreservedEntry{
+		Reason:     reason,
+		Value:      raw,
+		Provenance: ir.Provenance{Source: l.srcIndex, Pointer: pointer},
+	}
+}
+
+// preserveKeyword records a validation-only keyword's raw payload under key in
+// p and emits one info diagnostic naming it. An absent or unconvertible payload
+// records nothing and reports nothing. The entry is located at the declaring
+// schema rather than at a keyword node: three of the five §4.7 entries combine
+// several keywords into one synthesized object, which no pointer addresses.
+func (l *lowerer) preserveKeyword(p *ir.Preserved, key string, raw ir.RawValue, pointer, label string) {
+	if raw == nil {
+		return
+	}
+	l.preserve(p, key, raw, ir.ReasonValidationOnly, pointer)
 	l.diag(ir.SeverityInfo, codeValidationOnlyKeyword, pointer,
 		"validation-only keyword %q kept verbatim under Preserved", label)
 }
@@ -914,8 +924,8 @@ func (l *lowerer) appendDiag(d ir.Diagnostic) {
 }
 
 // schemaExtensions lowers a schema's x-* extensions into namespaced Preserved.
-func (l *lowerer) schemaExtensions(s *oas3.Schema) ir.Preserved {
-	return l.extensions(s.GetExtensions())
+func (l *lowerer) schemaExtensions(s *oas3.Schema, pointer string) ir.Preserved {
+	return l.extensions(s.GetExtensions(), pointer)
 }
 
 // lowerArray hoists an array schema as a Tuple when prefixItems is present, else
@@ -943,9 +953,8 @@ func (l *lowerer) buildTuple(s *oas3.Schema, common ir.TypeCommon, pointer, hint
 	}
 	t := &ir.Tuple{TypeCommon: common, Elems: elems}
 	if s.GetItems() != nil {
-		if raw := nodeToRaw(rawPropertyNode(s, "items")); raw != nil {
-			t.Preserved = ir.Preserved{"openapi:items-after-prefix": raw}
-		}
+		l.preserve(&t.Preserved, "openapi:items-after-prefix", nodeToRaw(rawPropertyNode(s, "items")),
+			ir.ReasonNoIRHome, pointer+ptr("items"))
 	}
 	return t
 }
@@ -1244,8 +1253,11 @@ func xmlHints(x *oas3.XML) *ir.XMLHints {
 }
 
 // extensionsFrom lowers an x-* extension map into namespaced ir.Preserved, keys
-// prefixed "openapi:" and values serialized to raw JSON.
-func extensionsFrom(ext *extensions.Extensions) (ir.Preserved, []ir.Diagnostic) {
+// prefixed "openapi:" and values serialized to raw JSON. owner is the pointer of
+// the object the extensions were written on; each entry is located at its own
+// key beneath it and marked ReasonVendorExtension, since the format assigns an
+// x-* key no semantics at all.
+func extensionsFrom(ext *extensions.Extensions, srcIndex int, owner string) (ir.Preserved, []ir.Diagnostic) {
 	if ext == nil || ext.Len() == 0 {
 		return nil, nil
 	}
@@ -1255,10 +1267,15 @@ func extensionsFrom(ext *extensions.Extensions) (ir.Preserved, []ir.Diagnostic) 
 		raw := nodeToRaw(node)
 		if raw == nil {
 			diags = append(diags, diagf(ir.SeverityWarning, codeDegradedConstruct,
-				ir.Provenance{}, "extension %q could not be serialized", name))
+				ir.Provenance{Source: srcIndex, Pointer: owner},
+				"extension %q could not be serialized", name))
 			continue
 		}
-		out["openapi:"+name] = raw
+		out["openapi:"+name] = ir.PreservedEntry{
+			Reason:     ir.ReasonVendorExtension,
+			Value:      raw,
+			Provenance: ir.Provenance{Source: srcIndex, Pointer: owner + ptr(name)},
+		}
 	}
 	if len(out) == 0 {
 		return nil, diags
@@ -1272,8 +1289,8 @@ func extensionsFrom(ext *extensions.Extensions) (ir.Preserved, []ir.Diagnostic) 
 // directly: gating the diagnostic append behind the same "len(ext) > 0" that
 // guards the assignment would drop every warning on an object whose
 // extensions all failed to serialize — exactly when the result is empty.
-func (l *lowerer) extensions(ext *extensions.Extensions) ir.Preserved {
-	out, diags := extensionsFrom(ext)
+func (l *lowerer) extensions(ext *extensions.Extensions, owner string) ir.Preserved {
+	out, diags := extensionsFrom(ext, l.srcIndex, owner)
 	l.diags = append(l.diags, diags...)
 	return out
 }

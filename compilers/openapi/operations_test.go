@@ -98,7 +98,8 @@ func TestResponses_ErrorHeadersPreserved(t *testing.T) {
 	require.Len(t, op.Errors, 1)
 	raw, ok := op.Errors[0].Preserved["openapi:headers"]
 	require.True(t, ok, "error response headers kept under Preserved")
-	assert.Contains(t, string(raw), "Retry-After")
+	assert.Contains(t, string(raw.Value), "Retry-After")
+	assert.Equal(t, ir.ReasonNoIRHome, raw.Reason)
 
 	found := false
 	for _, d := range diags {
@@ -465,7 +466,8 @@ func TestResponses_LinksPreserved(t *testing.T) {
 	require.Len(t, op.Responses, 1)
 	raw, ok := op.Responses[0].Preserved["openapi:links"]
 	require.True(t, ok, "response links preserved raw for later promotion")
-	assert.Contains(t, string(raw), "GetUserByUserId")
+	assert.Contains(t, string(raw.Value), "GetUserByUserId")
+	assert.Equal(t, ir.ReasonNoIRHome, raw.Reason)
 }
 
 func TestGrouping_ByPathPrefixInferred(t *testing.T) {
@@ -702,7 +704,7 @@ func TestApplyPathServers_WithoutRootNode(t *testing.T) {
 	t.Parallel()
 	l := newRawLowerer(&soa.OpenAPI{})
 	op := &ir.Operation{}
-	l.applyPathServers(op, &soa.PathItem{Servers: []*soa.Server{{URL: "https://x"}}})
+	l.applyPathServers(op, &soa.PathItem{Servers: []*soa.Server{{URL: "https://x"}}}, "/paths/~1a")
 	assert.Nil(t, op.Preserved, "servers with no raw node are not preserved")
 	assert.Empty(t, l.diags)
 }
