@@ -39,6 +39,12 @@ import (
 //     the second declaration cyclic. The resolver works from the last
 //     declaration (matching Speakeasy), but the scan read the mapping
 //     first-key-wins and reported the document clean.
+//   - cycle_path_item_mutual.yaml, cycle_path_item_self.yaml,
+//     cycle_webhook_mutual.yaml, cycle_response_via_path.yaml, and
+//     cycle_path_item_via_component.yaml: reference-object cycles spelled by
+//     document position ('#/paths/~1a', '#/webhooks/onA') rather than through
+//     components. Speakeasy guards the components spelling and faults on these,
+//     so the pre-parse scan refuses them too.
 //   - amplification_alias_bomb.yaml: a 10-level x 10-way YAML alias fan-out
 //     ("billion laughs"). Every alias's target is acyclic, so neither the
 //     anchor nor $ref cycle detector catches it, and unguarded it exhausts
@@ -79,6 +85,11 @@ func knownInvalid() map[string]bool {
 		filepath.FromSlash("../../testdata/openapi/cycle_alias_schema_node.yaml"):              true,
 		filepath.FromSlash("../../testdata/openapi/cycle_alias_dual_position.yaml"):            true,
 		filepath.FromSlash("../../testdata/openapi/cycle_duplicate_key.yaml"):                  true,
+		filepath.FromSlash("../../testdata/openapi/cycle_path_item_mutual.yaml"):               true,
+		filepath.FromSlash("../../testdata/openapi/cycle_path_item_self.yaml"):                 true,
+		filepath.FromSlash("../../testdata/openapi/cycle_webhook_mutual.yaml"):                 true,
+		filepath.FromSlash("../../testdata/openapi/cycle_response_via_path.yaml"):              true,
+		filepath.FromSlash("../../testdata/openapi/cycle_path_item_via_component.yaml"):        true,
 		filepath.FromSlash("../../testdata/openapi/amplification_alias_bomb.yaml"):             true,
 		filepath.FromSlash("../../testdata/dangling/openapi/f04-composition.yaml"):             true,
 		filepath.FromSlash("../../testdata/dangling/openapi/f05-discriminator.yaml"):           true,

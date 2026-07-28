@@ -1953,3 +1953,48 @@ func TestSchema_OneOfWithBoolBranch(t *testing.T) {
 	require.True(t, ok)
 	assert.Len(t, u.Variants, 2, "the boolean branch is a variant, not a null strip")
 }
+
+// TestComponentConstraints_RefSiblingKeepsThem pins the constraint counterpart
+// of TestSchemaExamples_ComponentRefSiblingKeepsThem. A bound written beside a
+// $ref constrains the position it is written at, so it belongs on the alias the
+// component interns — as a property in the same shape already keeps one. The
+// referent must not gain it: every other reference to that schema is unbounded.
+func TestComponentConstraints_RefSiblingKeepsThem(t *testing.T) {
+	t.Parallel()
+	doc, diags := parseFull(t, `
+openapi: 3.1.0
+info: {title: t, version: '1'}
+paths: {}
+components:
+  schemas:
+    Base: {type: integer}
+    Bounded:
+      $ref: '#/components/schemas/Base'
+      minimum: 5
+`)
+	requireNoErrorDiags(t, diags)
+	bounded, ok := doc.Types["t/openapi/components/schemas/Bounded"].(*ir.Scalar)
+	require.True(t, ok, "a component aliasing another schema interns as a Scalar")
+	require.NotNil(t, bounded.Constraints)
+	require.NotNil(t, bounded.Constraints.Min)
+	assert.Equal(t, ir.BigVal("5"), *bounded.Constraints.Min)
+
+	base, ok := doc.Types["t/openapi/components/schemas/Base"]
+	require.True(t, ok)
+	if s, isScalar := base.(*ir.Scalar); isScalar {
+		assert.Nil(t, s.Constraints, "the referent stays unbounded")
+	}
+}
+
+// TestCheckOperationIDUnique_BareLowerer covers the lazy map init: a lowerer
+// built field-by-field rather than through newLowerer still tracks claims.
+func TestCheckOperationIDUnique_BareLowerer(t *testing.T) {
+	t.Parallel()
+	l := newRawLowerer(nil)
+	l.operationIDs = nil
+	op := ir.Operation{Name: ir.Naming{Source: "dup"}}
+	l.checkOperationIDUnique(op, "/paths/~1a/get")
+	l.checkOperationIDUnique(op, "/paths/~1b/get")
+	require.Len(t, l.diags, 1)
+	assert.Equal(t, codeDuplicateOperationID, l.diags[0].Code)
+}

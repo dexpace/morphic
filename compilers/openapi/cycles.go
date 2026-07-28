@@ -30,12 +30,21 @@ const maxMergeDepth = 64
 // cache hit for a recomputation.
 const maxCachedPairs = 1 << 21
 
-// The pure-$ref scan visits schema positions only: the stack overflow it guards
-// against is specific to speakeasy's schema resolver — a $ref cycle among
-// components/responses (or any non-schema reference object) is caught by the
-// resolver's own cycle guard, and a $ref inside example/default/enum data is
-// never followed at all. Descending into those positions would refuse legal
-// documents (GitHub #12's fix must not regress valid specs).
+// The pure-$ref scan reads schema positions and reference-object positions
+// under different rules, because speakeasy's resolver guards them unevenly.
+//
+// In a schema position, any pure-$ref cycle overflows its stack, so every one
+// is refused here. Outside a schema, the resolver refuses a cycle whose hops all
+// name components ('#/components/responses/A' -> '.../B' -> '.../A') and reports
+// the chain by name — but it has no guard for a hop that names a node by
+// document position ('#/paths/~1a', '#/webhooks/onA'), and resolving one of
+// those faults the process. So only the chains that leave the components section
+// are refused here; the rest are left to the resolver's better message
+// (refCycles, outsideCycle).
+//
+// A $ref inside example/default/enum data is never followed in either mode.
+// Descending into those positions would refuse legal documents (GitHub #12's fix
+// must not regress valid specs).
 //
 // This scoping encodes the resolver behavior of github.com/speakeasy-api/openapi
 // v1.24.0 (see go.mod), not an OpenAPI guarantee, and covers only cycles inside
@@ -221,10 +230,13 @@ func refCycles(srcIndex int, root *yaml.Node) []ir.Diagnostic {
 	s := newRefScan()
 	s.collect(root)
 	for _, start := range s.out {
-		if s.followRefChain(root, start) {
+		if cyclic, _ := s.followRefChain(root, start); cyclic {
 			return []ir.Diagnostic{cyclicDiag(srcIndex, start,
 				"cyclic $ref: reference chain never reaches a node without a $ref")}
 		}
+	}
+	if d, found := s.outsideCycle(srcIndex, root); found {
+		return []ir.Diagnostic{d}
 	}
 	if s.view.exhausted {
 		return []ir.Diagnostic{diagf(ir.SeverityWarning, codeCycleScanFailed,
@@ -234,6 +246,35 @@ func refCycles(srcIndex int, root *yaml.Node) []ir.Diagnostic {
 			maxMergeDepth)}
 	}
 	return nil
+}
+
+// outsideCycle reports the first $ref cycle among the reference objects that
+// live outside any schema — a path item, a response, a parameter — but only
+// when the chain leaves the components section on some hop.
+//
+// The split is not cosmetic. speakeasy's resolver refuses a cycle whose every
+// hop names a component ('#/components/responses/A' -> '.../B' -> '.../A') with
+// its own diagnostic, and that message names the chain, so it is the better one
+// to keep. It has no such guard for a hop that names a node by document
+// position ('#/paths/~1a', '#/webhooks/onA', '#/paths/~1a/get/responses/200'):
+// resolving one recurses until the stack overflows and takes the process with
+// it. Those are the chains this must refuse before soa.Unmarshal ever sees them,
+// and refusing only those leaves the resolver's coverage exactly as it was.
+func (s *refScan) outsideCycle(srcIndex int, root *yaml.Node) (ir.Diagnostic, bool) {
+	for _, start := range s.outside {
+		cyclic, leftComponents := s.followRefChain(root, start)
+		if cyclic && leftComponents {
+			return cyclicDiag(srcIndex, start,
+				"cyclic $ref: reference chain never reaches a node without a $ref"), true
+		}
+	}
+	return ir.Diagnostic{}, false
+}
+
+// componentsRef reports whether a same-document $ref names a node in the
+// components section, the only shape speakeasy's resolver refuses on its own.
+func componentsRef(ref string) bool {
+	return strings.HasPrefix(ref, "#/components/")
 }
 
 // walkRole is how the ref-collection walk reads the node it is visiting. The
@@ -277,7 +318,11 @@ type refScan struct {
 	stack []refTask
 	seen  [roleCount]map[*yaml.Node]bool
 	out   []*yaml.Node
-	safe  map[*yaml.Node]bool
+	// outside holds the pure-$ref nodes found in reference-object positions
+	// rather than schema ones. They are kept apart from out because the two are
+	// reported under different rules — see outsideCycle.
+	outside []*yaml.Node
+	safe    map[*yaml.Node]bool
 }
 
 // newRefScan returns a scan with every memoization map initialized. Building the
@@ -351,6 +396,9 @@ func (s *refScan) visitOutside(n *yaml.Node) {
 		return
 	}
 	pairs := s.view.mappingPairs(n)
+	if _, ok := pureRefTargetOf(pairs); ok {
+		s.outside = append(s.outside, n)
+	}
 	for i := len(pairs) - 1; i >= 0; i-- {
 		p := pairs[i]
 		switch {
@@ -415,38 +463,47 @@ func (s *refScan) visitSchemaList(n *yaml.Node) {
 // $ref. It stops on such a node, a dangling ref, or a node already on the
 // current chain; the on-path set and depth cap bound it against any structure.
 //
+// leftComponents reports whether any edge it followed named a node outside the
+// components section, which is what tells a cycle speakeasy's resolver refuses
+// from one it faults on (outsideCycle). It is only meaningful alongside
+// cyclic=true: a chain that terminates was never a candidate either way, and
+// the s.safe short-circuit can return before the whole chain is walked.
+//
 // s.safe memoizes nodes already proven to reach a $ref-free node, so the scan
 // stays linear in the number of collected refs instead of re-walking shared
 // tails. A node on a cycle is never marked safe, so memoization can't hide a
 // real cycle.
-func (s *refScan) followRefChain(root, start *yaml.Node) bool {
+func (s *refScan) followRefChain(root, start *yaml.Node) (cyclic, leftComponents bool) {
 	onPath := make(map[*yaml.Node]bool)
 	var path []*yaml.Node
 	cur := start
 	for depth := 0; depth <= maxCycleDepth; depth++ {
 		if s.safe[cur] {
 			markSafe(path, s.safe)
-			return false // cur already proved chain-terminating — no cycle
+			return false, leftComponents // cur already proved chain-terminating — no cycle
 		}
 		if onPath[cur] {
-			return true // revisited a node on this chain — cyclic
+			return true, leftComponents // revisited a node on this chain — cyclic
 		}
 		ref, ok := s.view.pureRefTarget(cur)
 		if !ok {
 			s.safe[cur] = true
 			markSafe(path, s.safe)
-			return false // reached a node without a top-level $ref — legal recursion
+			return false, leftComponents // reached a node without a top-level $ref — legal recursion
+		}
+		if !componentsRef(ref) {
+			leftComponents = true
 		}
 		onPath[cur] = true
 		path = append(path, cur)
 		next := s.view.resolvePointer(root, ref)
 		if next == nil {
 			markSafe(path, s.safe)
-			return false // dangling ref — reported downstream as unresolved
+			return false, leftComponents // dangling ref — reported downstream as unresolved
 		}
 		cur = next
 	}
-	return false // depth cap reached without a verdict — mark nothing
+	return false, leftComponents // depth cap reached without a verdict — mark nothing
 }
 
 // markSafe records every node on a proven chain-terminating path so a later chain

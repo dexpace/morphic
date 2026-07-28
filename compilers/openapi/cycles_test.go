@@ -47,6 +47,13 @@ var cycleReproducers = []struct{ name, file string }{
 	{"alias-schema-node", "cycle_alias_schema_node"},
 	{"alias-dual-position", "cycle_alias_dual_position"},
 	{"duplicate-key", "cycle_duplicate_key"},
+	// Reference-object cycles spelled by document position rather than through
+	// components. speakeasy guards the components spelling and faults on these.
+	{"path-item-mutual", "cycle_path_item_mutual"},
+	{"path-item-self", "cycle_path_item_self"},
+	{"webhook-mutual", "cycle_webhook_mutual"},
+	{"response-via-path", "cycle_response_via_path"},
+	{"path-item-via-component", "cycle_path_item_via_component"},
 }
 
 // TestDetectCycles_Reproducers pins that each degenerate cycle is diagnosed as an
@@ -81,6 +88,56 @@ func TestCompile_CyclicSpecDoesNotCrash(t *testing.T) {
 			require.NoError(t, err, "cyclic spec is a spec problem, not a Go error")
 			assert.Nil(t, doc, "the compiler refuses to lower a cyclic spec")
 			assertHasErrorCode(t, diags, codeCyclicRef)
+		})
+	}
+}
+
+// componentOnlyCycles are reference-object cycles whose every hop names a
+// component. speakeasy's resolver refuses these itself, with a message that
+// names the chain, so the pre-parse scan must leave them alone rather than
+// pre-empt the better diagnostic.
+var componentOnlyCycles = []struct{ name, data string }{
+	{"component-path-items", `openapi: 3.1.0
+info: {title: T, version: "1"}
+paths:
+  /a: {$ref: '#/components/pathItems/A'}
+components:
+  pathItems:
+    A: {$ref: '#/components/pathItems/B'}
+    B: {$ref: '#/components/pathItems/A'}
+`},
+	{"component-responses", `openapi: 3.1.0
+info: {title: T, version: "1"}
+paths:
+  /a:
+    get:
+      operationId: a
+      responses:
+        "200": {$ref: '#/components/responses/A'}
+components:
+  responses:
+    A: {$ref: '#/components/responses/B'}
+    B: {$ref: '#/components/responses/A'}
+`},
+}
+
+// TestDetectCycles_ComponentOnlyCyclesLeftToResolver pins the boundary the
+// outside-ref scan draws. These documents are cyclic, but every hop is a
+// component reference, which speakeasy already refuses by name — so the scan
+// must not claim them, and the compile must still surface the resolver's own
+// error rather than falling silent.
+func TestDetectCycles_ComponentOnlyCyclesLeftToResolver(t *testing.T) {
+	t.Parallel()
+	for _, tc := range componentOnlyCycles {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			assert.Empty(t, detectCycles(0, []byte(tc.data)),
+				"a components-only cycle is the resolver's to report")
+
+			_, diags, err := New().Compile(t.Context(),
+				[]compilers.Source{{Path: tc.name + ".yaml", Data: []byte(tc.data)}}, compilers.Options{})
+			require.NoError(t, err)
+			assertHasErrorCode(t, diags, codeUnresolvedRef)
 		})
 	}
 }
@@ -392,7 +449,8 @@ func TestFollowRefChain_DepthCapReturnsFalse(t *testing.T) {
 			nodes[i].Content = []*yaml.Node{yscalar("$ref"), yscalar("#/schemas/" + strconv.Itoa(i+1))}
 		}
 	}
-	assert.False(t, newRefScan().followRefChain(root, nodes[0]),
+	cyclic, _ := newRefScan().followRefChain(root, nodes[0])
+	assert.False(t, cyclic,
 		"a chain longer than the depth cap exits without flagging a cycle")
 }
 
@@ -407,13 +465,13 @@ func TestFollowRefChain_SafeMemoShortCircuits(t *testing.T) {
 	schemas := ymap(yscalar("A"), a, yscalar("B"), b)
 	root := ymap(yscalar("schemas"), schemas)
 
-	assert.True(t, newRefScan().followRefChain(root, a),
-		"A -> B -> A is cyclic with an empty memo")
+	cyclic, _ := newRefScan().followRefChain(root, a)
+	assert.True(t, cyclic, "A -> B -> A is cyclic with an empty memo")
 
 	s := newRefScan()
 	s.safe[b] = true
-	assert.False(t, s.followRefChain(root, a),
-		"a chain reaching a memoized-safe node is not a cycle")
+	memoed, _ := s.followRefChain(root, a)
+	assert.False(t, memoed, "a chain reaching a memoized-safe node is not a cycle")
 	assert.True(t, s.safe[a], "the walk records the reaching node as terminating too")
 }
 
@@ -426,7 +484,8 @@ func TestFollowRefChain_DanglingRefIsNotCycle(t *testing.T) {
 	a := ymap(yscalar("$ref"), yscalar("#/schemas/Missing"))
 	root := ymap(yscalar("schemas"), ymap(yscalar("A"), a))
 	s := newRefScan()
-	assert.False(t, s.followRefChain(root, a), "a dangling $ref is not a cycle")
+	cyclic, _ := s.followRefChain(root, a)
+	assert.False(t, cyclic, "a dangling $ref is not a cycle")
 	assert.True(t, s.safe[a], "the dangling node is recorded terminating")
 }
 

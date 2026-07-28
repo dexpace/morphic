@@ -1,0 +1,8 @@
+# The webhooks arm of the same shape: two hooks referencing each other by
+# document position rather than through components.
+openapi: 3.1.0
+info: {title: Webhook Mutual, version: "1"}
+paths: {}
+webhooks:
+  onA: {$ref: '#/webhooks/onB'}
+  onB: {$ref: '#/webhooks/onA'}

@@ -173,6 +173,6 @@ func (l *lowerer) appendConstraintDiags(diags []ir.Diagnostic, pointer string) {
 	l.diagnosedConstraints[pointer] = true
 	for i := range diags {
 		diags[i].Provenance = ir.Provenance{Source: l.srcIndex, Pointer: pointer}
+		l.appendDiag(diags[i])
 	}
-	l.diags = append(l.diags, diags...)
 }

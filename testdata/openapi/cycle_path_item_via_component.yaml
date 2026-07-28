@@ -1,0 +1,9 @@
+# A chain that starts and ends in components but leaves it in between: the
+# component hop alone would be guarded, the /paths hop is not.
+openapi: 3.1.0
+info: {title: Path Item Via Component, version: "1"}
+paths:
+  /a: {$ref: '#/components/pathItems/X'}
+components:
+  pathItems:
+    X: {$ref: '#/paths/~1a'}

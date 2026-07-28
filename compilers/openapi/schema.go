@@ -61,11 +61,16 @@ func (l *lowerer) lowerComponentSchema(js *oas3.JSONSchema[oas3.Referenceable], 
 }
 
 // siteSchema returns the schema body written at this position, including one
-// that also carries a $ref. An example written beside a $ref annotates the
-// position it is written at rather than the referent, which is why it may not
-// be read off the target — and why hoistSubSchema and fillPropertyExamples
-// already keep one. It returns nil only where no body is written at all: a nil
-// either, or a boolean schema, which admits no annotations.
+// that also carries a $ref. An example or a bound written beside a $ref applies
+// to the position it is written at rather than to the referent, so it may not be
+// read off the target — the rule fillPropertyExamples and fillPropertyConstraints
+// already apply at a property. It returns nil only where no body is written at
+// all: a nil either, or a boolean schema, which admits no annotations.
+//
+// This covers the two positions that read their own body. A $ref'd internal
+// sub-schema does not: resolveSchemaRef hands hoistSubSchema the fully resolved
+// target, so siblings written at the sub-schema are lost before it is reached.
+// Fixing that means resolving one hop at a time, which is its own change.
 func siteSchema(js *oas3.JSONSchema[oas3.Referenceable]) *oas3.Schema {
 	if js == nil || js.IsBool() {
 		return nil
@@ -73,39 +78,27 @@ func siteSchema(js *oas3.JSONSchema[oas3.Referenceable]) *oas3.Schema {
 	return js.GetSchema()
 }
 
-// concreteSchema returns the schema body js declares, or nil when it declares
-// none of its own — a boolean schema or a bare $ref, whose constraints the
-// referent already carries on the node this one aliases.
-func concreteSchema(js *oas3.JSONSchema[oas3.Referenceable]) *oas3.Schema {
-	if js == nil || js.IsBool() || js.IsReference() {
-		return nil
-	}
-	s := js.GetSchema()
-	if s == nil || s.Ref != nil {
-		return nil
-	}
-	return s
-}
-
 // componentConstraints reads the value constraints of a component schema whose
 // body reduced to a shared or referenced target. A top-level scalar component
 // (e.g. {minimum: 5} or {type: number, minimum: 5}) reduces to a shared
 // primitive, so unlike a property — whose constraints land on the Property — it
 // has no other node to hold them; the alias Scalar must carry them or they are
-// silently dropped.
+// silently dropped. That includes a bound written beside a $ref, which
+// constrains this position rather than the referent, exactly as a property in
+// the same shape already keeps one (fillPropertyConstraints).
 func (l *lowerer) componentConstraints(js *oas3.JSONSchema[oas3.Referenceable], pointer string) *ir.Constraints {
-	return l.schemaConstraints(concreteSchema(js), pointer)
+	return l.schemaConstraints(siteSchema(js), pointer)
 }
 
-// schemaConstraints reads the value constraints of a concrete schema and stamps
-// each constraint diagnostic with pointer's provenance. It returns nil when the
-// schema has no readable constraint body (a nil schema or a bare $ref). It is the
-// shared path for every alias a body reduces to — a named component
-// (componentConstraints) and a $ref-hoisted internal sub-schema (hoistSubSchema)
-// — so a scalar that aliases a shared primitive never drops the constraints it
-// carried.
+// schemaConstraints reads the value constraints of a schema and stamps each
+// constraint diagnostic with pointer's provenance. It returns nil only when
+// there is no schema to read. It is the shared path for every alias a body
+// reduces to — a named component (componentConstraints) and a $ref-hoisted
+// internal sub-schema (hoistSubSchema) — so a scalar that aliases a shared
+// primitive never drops the constraints it carried, including a bound written
+// beside a $ref, which constrains the position it is written at.
 func (l *lowerer) schemaConstraints(s *oas3.Schema, pointer string) *ir.Constraints {
-	if s == nil || s.Ref != nil {
+	if s == nil {
 		return nil
 	}
 	c, diags := constraintsFromSchema(s, l.exclusiveBoundIsBoolean())
@@ -1030,7 +1023,26 @@ func (l *lowerer) preserveRaw(ext *ir.Extensions, key string, raw ir.RawValue, p
 // Provenance from l.srcIndex — lowering sites should use it instead of
 // hand-writing the append+diagf+Provenance triple.
 func (l *lowerer) diag(sev ir.Severity, code, pointer, format string, args ...any) {
-	l.diags = append(l.diags, diagf(sev, code, ir.Provenance{Source: l.srcIndex, Pointer: pointer}, format, args...))
+	l.appendDiag(diagf(sev, code, ir.Provenance{Source: l.srcIndex, Pointer: pointer}, format, args...))
+}
+
+// appendDiag records d unless one identical to it — same severity, code,
+// provenance and message — was already recorded. It is the single append point
+// for lowering diagnostics, so a shared declaration reported from N use sites
+// yields one diagnostic rather than N indistinguishable copies.
+func (l *lowerer) appendDiag(d ir.Diagnostic) {
+	key := strings.Join([]string{
+		string(d.Severity), d.Code, d.Message,
+		strconv.Itoa(d.Provenance.Source), d.Provenance.Pointer, d.Provenance.Inferred,
+	}, "\x00") // NUL separates: it cannot occur in a code, pointer, or coerced message
+	if l.emitted[key] {
+		return
+	}
+	if l.emitted == nil {
+		l.emitted = make(map[string]bool) // a lowerer built field-by-field still de-duplicates
+	}
+	l.emitted[key] = true
+	l.diags = append(l.diags, d)
 }
 
 // schemaExtensions lowers a schema's x-* extensions into namespaced Extensions.

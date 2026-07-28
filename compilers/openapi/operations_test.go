@@ -1472,3 +1472,122 @@ func TestResolveRefAt_AliasChainBeyondBoundFallsBackToUseSite(t *testing.T) {
 	assert.Equal(t, ir.TypeID("t/anon/paths/~1a/get/parameters/0/schema"), op.Params[0].Type.Target,
 		"an over-long chain keeps the one pointer that is certainly addressable")
 }
+
+const sharedOptionalBodySpec = `openapi: 3.1.0
+info: {title: T, version: "1"}
+paths:
+  /a:
+    post:
+      operationId: postA
+      requestBody: {$ref: '#/components/requestBodies/Body'}
+      responses:
+        "404": {$ref: '#/components/responses/Err'}
+  /b:
+    post:
+      operationId: postB
+      requestBody: {$ref: '#/components/requestBodies/Body'}
+      responses:
+        "404": {$ref: '#/components/responses/Err'}
+components:
+  requestBodies:
+    Body:
+      required: false
+      content:
+        application/json:
+          schema: {type: object, properties: {n: {type: string}}}
+  responses:
+    Err:
+      description: err
+      headers:
+        X-E: {schema: {type: string}}
+      content:
+        application/json:
+          schema: {type: object}
+`
+
+// TestDiag_SharedDeclarationReportsEachDefectOnce pins the consequence of
+// lowering a referenced component at its declaration: both operations reach the
+// same optional body and the same header-bearing error response, so each defect
+// now has one pointer and one message. Reported per use site they would arrive
+// as byte-identical copies — nothing a reader could act on twice — and a
+// component shared by twenty operations would repeat each line twenty times.
+func TestDiag_SharedDeclarationReportsEachDefectOnce(t *testing.T) {
+	t.Parallel()
+	_, diags := parseFull(t, sharedOptionalBodySpec)
+
+	seen := map[string]int{}
+	for _, d := range diags {
+		seen[string(d.Severity)+"|"+d.Code+"|"+d.Provenance.Pointer+"|"+d.Message]++
+	}
+	for key, n := range seen {
+		assert.Equal(t, 1, n, "one defect, one diagnostic: %s", key)
+	}
+
+	// Both defects still surface — de-duplication must not silence either.
+	assert.Equal(t, 2, countDiagsAt(diags, codeDegradedConstruct, ir.SeverityInfo),
+		"the optional body and the homeless error headers are two distinct defects")
+}
+
+// TestDiag_DistinctDefectsAtOnePointerBothSurvive is the control for the rule
+// above: de-duplication compares the whole diagnostic, so two different messages
+// at one pointer are two findings, not one repeated.
+func TestDiag_DistinctDefectsAtOnePointerBothSurvive(t *testing.T) {
+	t.Parallel()
+	l := newRawLowerer(nil)
+	l.diag(ir.SeverityWarning, codeDegradedConstruct, "/p", "first")
+	l.diag(ir.SeverityWarning, codeDegradedConstruct, "/p", "second")
+	l.diag(ir.SeverityWarning, codeDegradedConstruct, "/p", "first")
+	require.Len(t, l.diags, 2, "the repeat is dropped, the distinct message is not")
+	assert.Equal(t, "first", l.diags[0].Message)
+	assert.Equal(t, "second", l.diags[1].Message)
+}
+
+const duplicateOperationIDSpec = `openapi: 3.1.0
+info: {title: T, version: "1"}
+paths:
+  /a: {$ref: '#/components/pathItems/Shared'}
+  /b: {$ref: '#/components/pathItems/Shared'}
+components:
+  pathItems:
+    Shared:
+      get:
+        operationId: sharedGet
+        responses: {"200": {description: ok}}
+`
+
+// TestOperations_DuplicateOperationIDReported covers the collision a shared path
+// item creates without the document repeating anything: one operationId written
+// once, mounted twice, so two operations claim it. OpenAPI requires the id to be
+// unique across the API, and nothing upstream can see this — the resolver reads
+// one declaration.
+func TestOperations_DuplicateOperationIDReported(t *testing.T) {
+	t.Parallel()
+	doc, diags := parseFull(t, duplicateOperationIDSpec)
+	opA := opByPath(t, doc, "GET", "/a")
+	opB := opByPath(t, doc, "GET", "/b")
+	assert.Equal(t, opA.Name.Source, opB.Name.Source, "the IR still records what the document said")
+
+	require.Equal(t, 1, countDiagsAt(diags, codeDuplicateOperationID, ir.SeverityWarning),
+		"the second claim is reported once, not both claims")
+	for _, d := range diags {
+		if d.Code == codeDuplicateOperationID {
+			assert.Equal(t, "/paths/~1b/get", d.Provenance.Pointer, "reported at the mount that collided")
+			assert.Contains(t, d.Message, "/paths/~1a/get", "and names the mount that claimed it first")
+		}
+	}
+}
+
+// TestOperations_DistinctOperationIDsClean is the control: ordinary operations
+// with their own ids, and an operation with none at all, raise nothing.
+func TestOperations_DistinctOperationIDsClean(t *testing.T) {
+	t.Parallel()
+	_, diags := parseFull(t, pathsSpec(`  /a:
+    get:
+      operationId: getA
+      responses: {"200": {description: ok}}
+  /b:
+    get:
+      responses: {"200": {description: ok}}
+`))
+	assert.False(t, hasDiag(diags, codeDuplicateOperationID))
+}

@@ -1,0 +1,8 @@
+# Two paths whose only key is a $ref to each other. Every hop names a node by
+# document position, so speakeasy's resolver has no cycle guard for it and
+# resolving one recurses until the stack overflows.
+openapi: 3.1.0
+info: {title: Path Item Mutual, version: "1"}
+paths:
+  /a: {$ref: '#/paths/~1b'}
+  /b: {$ref: '#/paths/~1a'}

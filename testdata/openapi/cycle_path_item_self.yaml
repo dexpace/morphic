@@ -1,0 +1,5 @@
+# A path item that references itself by document position.
+openapi: 3.1.0
+info: {title: Path Item Self, version: "1"}
+paths:
+  /a: {$ref: '#/paths/~1a'}
