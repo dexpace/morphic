@@ -1,0 +1,15 @@
+openapi: 3.1.0
+info: {title: Main, version: "1"}
+paths:
+  /a:
+    get:
+      operationId: a
+      parameters:
+        - {$ref: '#/components/parameters/PageAlias'}
+      responses:
+        "200": {$ref: '#/components/responses/OKAlias'}
+components:
+  parameters:
+    PageAlias: {$ref: './resolve_target_valid.yaml#/components/parameters/Page'}
+  responses:
+    OKAlias: {$ref: './resolve_target_valid.yaml#/components/responses/OK'}

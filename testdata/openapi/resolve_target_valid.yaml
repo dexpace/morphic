@@ -1,0 +1,15 @@
+openapi: 3.1.0
+info: {title: Target, version: "1"}
+paths: {}
+components:
+  parameters:
+    Page:
+      name: page
+      in: query
+      schema: {type: string, enum: [p, q]}
+  responses:
+    OK:
+      description: ok
+      content:
+        application/json:
+          schema: {type: object, properties: {n: {type: string}}}

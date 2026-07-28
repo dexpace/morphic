@@ -1,0 +1,54 @@
+openapi: 3.1.0
+info: {title: Component Reuse, version: "1"}
+paths:
+  /widgets: {$ref: '#/components/pathItems/Listing'}
+  /gadgets: {$ref: '#/components/pathItems/Listing'}
+  /orders:
+    post:
+      operationId: createOrder
+      requestBody: {$ref: '#/components/requestBodies/OrderBody'}
+      callbacks:
+        onShipped: {$ref: '#/components/callbacks/Shipped'}
+      responses:
+        "200": {$ref: '#/components/responses/Listed'}
+        default: {$ref: '#/components/responses/Failure'}
+components:
+  pathItems:
+    Listing:
+      parameters:
+        - {$ref: '#/components/parameters/Sort'}
+      get:
+        responses:
+          "200": {$ref: '#/components/responses/Listed'}
+  parameters:
+    Sort: {name: sort, in: query, schema: {type: string, enum: [asc, desc]}}
+  requestBodies:
+    OrderBody:
+      required: true
+      content:
+        application/json:
+          schema: {type: object, properties: {sku: {type: string}}}
+  responses:
+    Listed:
+      description: a page of results
+      headers:
+        X-Rate-Unit: {$ref: '#/components/headers/RateUnit'}
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              items: {type: array, items: {type: string}}
+    Failure:
+      description: anything else
+      content:
+        application/json:
+          schema: {type: object, properties: {message: {type: string}}}
+  headers:
+    RateUnit: {schema: {type: string, enum: [second, minute]}}
+  callbacks:
+    Shipped:
+      '{$request.body#/callbackUrl}':
+        post:
+          operationId: onShipped
+          responses: {"200": {description: ok}}

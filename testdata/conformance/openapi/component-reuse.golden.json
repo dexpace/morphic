@@ -1,0 +1,684 @@
+{
+  "irVersion": "0.1.0",
+  "name": "Component Reuse",
+  "version": "1",
+  "docs": {},
+  "services": [
+    {
+      "id": "s/openapi/0",
+      "name": {
+        "source": "Component Reuse",
+        "canonical": "component_reuse"
+      },
+      "docs": {},
+      "groups": [
+        {
+          "name": {
+            "hint": "default"
+          },
+          "docs": {},
+          "operations": [
+            {
+              "id": "op/openapi/paths/~1widgets/get",
+              "name": {
+                "hint": "get_/widgets"
+              },
+              "docs": {},
+              "params": [
+                {
+                  "name": {
+                    "source": "sort",
+                    "canonical": "sort"
+                  },
+                  "type": {
+                    "target": "t/anon/components/parameters/Sort/schema",
+                    "nullable": false
+                  },
+                  "required": false,
+                  "docs": {}
+                }
+              ],
+              "responses": [
+                {
+                  "name": {},
+                  "conditions": {
+                    "statusCodes": [
+                      {
+                        "from": 200,
+                        "to": 200
+                      }
+                    ]
+                  },
+                  "payload": {
+                    "contents": [
+                      {
+                        "mediaType": "application/json",
+                        "type": {
+                          "target": "t/anon/components/responses/Listed/content/application~1json/schema",
+                          "nullable": false
+                        }
+                      }
+                    ]
+                  },
+                  "headers": [
+                    {
+                      "id": "p/openapi/components/responses/Listed/headers/X-Rate-Unit",
+                      "name": {
+                        "source": "X-Rate-Unit",
+                        "canonical": "x_rate_unit"
+                      },
+                      "wireName": "X-Rate-Unit",
+                      "type": {
+                        "target": "t/anon/components/headers/RateUnit/schema",
+                        "nullable": false
+                      },
+                      "required": false,
+                      "clientOptional": false,
+                      "defaultAdded": false,
+                      "visibility": {
+                        "none": false
+                      },
+                      "flatten": false,
+                      "eventHeader": false,
+                      "eventPayload": false,
+                      "secret": false,
+                      "docs": {},
+                      "provenance": {
+                        "source": 0,
+                        "pointer": "/components/responses/Listed/headers/X-Rate-Unit"
+                      }
+                    }
+                  ],
+                  "docs": {
+                    "description": "a page of results"
+                  }
+                }
+              ],
+              "oneWay": false,
+              "idempotency": {},
+              "auth": null,
+              "bindings": {
+                "http": [
+                  {
+                    "method": "GET",
+                    "uriTemplate": "/widgets",
+                    "sharedRoute": false,
+                    "paramBindings": [
+                      {
+                        "param": "sort",
+                        "location": "query",
+                        "wireName": "sort",
+                        "style": "form",
+                        "explode": true,
+                        "allowReserved": false
+                      }
+                    ],
+                    "checksumRequired": false,
+                    "isWebhook": false
+                  }
+                ]
+              },
+              "provenance": {
+                "source": 0,
+                "pointer": "/components/pathItems/Listing/get"
+              }
+            },
+            {
+              "id": "op/openapi/paths/~1gadgets/get",
+              "name": {
+                "hint": "get_/gadgets"
+              },
+              "docs": {},
+              "params": [
+                {
+                  "name": {
+                    "source": "sort",
+                    "canonical": "sort"
+                  },
+                  "type": {
+                    "target": "t/anon/components/parameters/Sort/schema",
+                    "nullable": false
+                  },
+                  "required": false,
+                  "docs": {}
+                }
+              ],
+              "responses": [
+                {
+                  "name": {},
+                  "conditions": {
+                    "statusCodes": [
+                      {
+                        "from": 200,
+                        "to": 200
+                      }
+                    ]
+                  },
+                  "payload": {
+                    "contents": [
+                      {
+                        "mediaType": "application/json",
+                        "type": {
+                          "target": "t/anon/components/responses/Listed/content/application~1json/schema",
+                          "nullable": false
+                        }
+                      }
+                    ]
+                  },
+                  "headers": [
+                    {
+                      "id": "p/openapi/components/responses/Listed/headers/X-Rate-Unit",
+                      "name": {
+                        "source": "X-Rate-Unit",
+                        "canonical": "x_rate_unit"
+                      },
+                      "wireName": "X-Rate-Unit",
+                      "type": {
+                        "target": "t/anon/components/headers/RateUnit/schema",
+                        "nullable": false
+                      },
+                      "required": false,
+                      "clientOptional": false,
+                      "defaultAdded": false,
+                      "visibility": {
+                        "none": false
+                      },
+                      "flatten": false,
+                      "eventHeader": false,
+                      "eventPayload": false,
+                      "secret": false,
+                      "docs": {},
+                      "provenance": {
+                        "source": 0,
+                        "pointer": "/components/responses/Listed/headers/X-Rate-Unit"
+                      }
+                    }
+                  ],
+                  "docs": {
+                    "description": "a page of results"
+                  }
+                }
+              ],
+              "oneWay": false,
+              "idempotency": {},
+              "auth": null,
+              "bindings": {
+                "http": [
+                  {
+                    "method": "GET",
+                    "uriTemplate": "/gadgets",
+                    "sharedRoute": false,
+                    "paramBindings": [
+                      {
+                        "param": "sort",
+                        "location": "query",
+                        "wireName": "sort",
+                        "style": "form",
+                        "explode": true,
+                        "allowReserved": false
+                      }
+                    ],
+                    "checksumRequired": false,
+                    "isWebhook": false
+                  }
+                ]
+              },
+              "provenance": {
+                "source": 0,
+                "pointer": "/components/pathItems/Listing/get"
+              }
+            },
+            {
+              "id": "op/openapi/paths/~1orders/post",
+              "name": {
+                "source": "createOrder",
+                "canonical": "create_order"
+              },
+              "docs": {},
+              "request": {
+                "contents": [
+                  {
+                    "mediaType": "application/json",
+                    "type": {
+                      "target": "t/anon/components/requestBodies/OrderBody/content/application~1json/schema",
+                      "nullable": false
+                    }
+                  }
+                ]
+              },
+              "responses": [
+                {
+                  "name": {},
+                  "conditions": {
+                    "statusCodes": [
+                      {
+                        "from": 200,
+                        "to": 200
+                      }
+                    ]
+                  },
+                  "payload": {
+                    "contents": [
+                      {
+                        "mediaType": "application/json",
+                        "type": {
+                          "target": "t/anon/components/responses/Listed/content/application~1json/schema",
+                          "nullable": false
+                        }
+                      }
+                    ]
+                  },
+                  "headers": [
+                    {
+                      "id": "p/openapi/components/responses/Listed/headers/X-Rate-Unit",
+                      "name": {
+                        "source": "X-Rate-Unit",
+                        "canonical": "x_rate_unit"
+                      },
+                      "wireName": "X-Rate-Unit",
+                      "type": {
+                        "target": "t/anon/components/headers/RateUnit/schema",
+                        "nullable": false
+                      },
+                      "required": false,
+                      "clientOptional": false,
+                      "defaultAdded": false,
+                      "visibility": {
+                        "none": false
+                      },
+                      "flatten": false,
+                      "eventHeader": false,
+                      "eventPayload": false,
+                      "secret": false,
+                      "docs": {},
+                      "provenance": {
+                        "source": 0,
+                        "pointer": "/components/responses/Listed/headers/X-Rate-Unit"
+                      }
+                    }
+                  ],
+                  "docs": {
+                    "description": "a page of results"
+                  }
+                }
+              ],
+              "errors": [
+                {
+                  "type": {
+                    "target": "t/anon/components/responses/Failure/content/application~1json/schema",
+                    "nullable": false
+                  },
+                  "conditions": {
+                    "statusCodes": [
+                      {
+                        "from": 0,
+                        "to": 0
+                      }
+                    ]
+                  },
+                  "docs": {
+                    "description": "anything else"
+                  }
+                }
+              ],
+              "oneWay": false,
+              "idempotency": {},
+              "auth": null,
+              "bindings": {
+                "http": [
+                  {
+                    "method": "POST",
+                    "uriTemplate": "/orders",
+                    "sharedRoute": false,
+                    "requestContentTypes": [
+                      "application/json"
+                    ],
+                    "checksumRequired": false,
+                    "isWebhook": false,
+                    "callbacks": [
+                      {
+                        "expression": "{$request.body#/callbackUrl}",
+                        "operations": [
+                          "op/openapi/paths/~1orders/post/callbacks/onShipped/{$request.body#~1callbackUrl}/post"
+                        ]
+                      }
+                    ]
+                  }
+                ]
+              },
+              "provenance": {
+                "source": 0,
+                "pointer": "/paths/~1orders/post"
+              }
+            },
+            {
+              "id": "op/openapi/paths/~1orders/post/callbacks/onShipped/{$request.body#~1callbackUrl}/post",
+              "name": {
+                "source": "onShipped",
+                "canonical": "on_shipped"
+              },
+              "docs": {},
+              "responses": [
+                {
+                  "name": {},
+                  "conditions": {
+                    "statusCodes": [
+                      {
+                        "from": 200,
+                        "to": 200
+                      }
+                    ]
+                  },
+                  "docs": {
+                    "description": "ok"
+                  }
+                }
+              ],
+              "oneWay": false,
+              "idempotency": {},
+              "auth": null,
+              "bindings": {
+                "http": [
+                  {
+                    "method": "POST",
+                    "uriTemplate": "{$request.body#/callbackUrl}",
+                    "sharedRoute": false,
+                    "checksumRequired": false,
+                    "isWebhook": false
+                  }
+                ]
+              },
+              "provenance": {
+                "source": 0,
+                "pointer": "/components/callbacks/Shipped/{$request.body#~1callbackUrl}/post"
+              }
+            }
+          ]
+        }
+      ],
+      "auth": null,
+      "provenance": {
+        "source": 0
+      }
+    }
+  ],
+  "types": {
+    "t/anon/components/headers/RateUnit/schema": {
+      "kind": "enum",
+      "id": "t/anon/components/headers/RateUnit/schema",
+      "name": {
+        "hint": "RateUnit"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/headers/RateUnit/schema"
+      },
+      "valueType": "string",
+      "members": [
+        {
+          "name": {
+            "source": "second",
+            "canonical": "second"
+          },
+          "value": {
+            "kind": "string",
+            "str": "second",
+            "bytes": null,
+            "list": null,
+            "object": null
+          },
+          "docs": {}
+        },
+        {
+          "name": {
+            "source": "minute",
+            "canonical": "minute"
+          },
+          "value": {
+            "kind": "string",
+            "str": "minute",
+            "bytes": null,
+            "list": null,
+            "object": null
+          },
+          "docs": {}
+        }
+      ],
+      "closed": true,
+      "flags": false
+    },
+    "t/anon/components/parameters/Sort/schema": {
+      "kind": "enum",
+      "id": "t/anon/components/parameters/Sort/schema",
+      "name": {
+        "hint": "sort"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/parameters/Sort/schema"
+      },
+      "valueType": "string",
+      "members": [
+        {
+          "name": {
+            "source": "asc",
+            "canonical": "asc"
+          },
+          "value": {
+            "kind": "string",
+            "str": "asc",
+            "bytes": null,
+            "list": null,
+            "object": null
+          },
+          "docs": {}
+        },
+        {
+          "name": {
+            "source": "desc",
+            "canonical": "desc"
+          },
+          "value": {
+            "kind": "string",
+            "str": "desc",
+            "bytes": null,
+            "list": null,
+            "object": null
+          },
+          "docs": {}
+        }
+      ],
+      "closed": true,
+      "flags": false
+    },
+    "t/anon/components/requestBodies/OrderBody/content/application~1json/schema": {
+      "kind": "model",
+      "id": "t/anon/components/requestBodies/OrderBody/content/application~1json/schema",
+      "name": {
+        "hint": "OrderBody"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/requestBodies/OrderBody/content/application~1json/schema"
+      },
+      "properties": [
+        {
+          "id": "p/openapi/components/requestBodies/OrderBody/content/application~1json/schema/properties/sku",
+          "name": {
+            "source": "sku",
+            "canonical": "sku"
+          },
+          "wireName": "sku",
+          "type": {
+            "target": "t/prim/string",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/requestBodies/OrderBody/content/application~1json/schema/properties/sku"
+          }
+        }
+      ],
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
+    "t/anon/components/responses/Failure/content/application~1json/schema": {
+      "kind": "model",
+      "id": "t/anon/components/responses/Failure/content/application~1json/schema",
+      "name": {
+        "hint": "error"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/responses/Failure/content/application~1json/schema"
+      },
+      "properties": [
+        {
+          "id": "p/openapi/components/responses/Failure/content/application~1json/schema/properties/message",
+          "name": {
+            "source": "message",
+            "canonical": "message"
+          },
+          "wireName": "message",
+          "type": {
+            "target": "t/prim/string",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/responses/Failure/content/application~1json/schema/properties/message"
+          }
+        }
+      ],
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
+    "t/anon/components/responses/Listed/content/application~1json/schema": {
+      "kind": "model",
+      "id": "t/anon/components/responses/Listed/content/application~1json/schema",
+      "name": {
+        "hint": "response"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/responses/Listed/content/application~1json/schema"
+      },
+      "properties": [
+        {
+          "id": "p/openapi/components/responses/Listed/content/application~1json/schema/properties/items",
+          "name": {
+            "source": "items",
+            "canonical": "items"
+          },
+          "wireName": "items",
+          "type": {
+            "target": "t/anon/components/responses/Listed/content/application~1json/schema/properties/items",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/responses/Listed/content/application~1json/schema/properties/items"
+          }
+        }
+      ],
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
+    "t/anon/components/responses/Listed/content/application~1json/schema/properties/items": {
+      "kind": "list",
+      "id": "t/anon/components/responses/Listed/content/application~1json/schema/properties/items",
+      "name": {
+        "hint": "items"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/responses/Listed/content/application~1json/schema/properties/items"
+      },
+      "elem": {
+        "target": "t/prim/string",
+        "nullable": false
+      }
+    },
+    "t/prim/string": {
+      "kind": "primitive",
+      "id": "t/prim/string",
+      "name": {},
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0
+      },
+      "prim": "string"
+    }
+  },
+  "servers": [
+    {
+      "name": {},
+      "urlTemplate": "/",
+      "description": {},
+      "auth": null
+    }
+  ],
+  "sources": [
+    {
+      "format": "openapi@3.1",
+      "path": "component-reuse.yaml",
+      "hash": "1441de7b380d11e5f2e9c0a1477c864512e3a6620344df4767b4a850721c5f84"
+    }
+  ]
+}

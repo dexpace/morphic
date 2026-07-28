@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	soa "github.com/speakeasy-api/openapi/openapi"
+	"github.com/speakeasy-api/openapi/references"
 	yaml "gopkg.in/yaml.v3"
 
 	"github.com/dexpace/morphic/ir"
@@ -82,17 +83,21 @@ func (l *lowerer) lowerPaths(groups *serviceGroups) {
 		return
 	}
 	for path, rp := range paths.All() {
-		pi := resolveRef[soa.PathItem](rp)
+		pi, declPtr := resolveRefAt[soa.PathItem](l, rp, ptr("paths", path))
 		if pi == nil {
 			continue
 		}
-		l.lowerPathItem(groups, path, pi)
+		l.lowerPathItem(groups, path, pi, declPtr)
 	}
 }
 
 // lowerPathItem lowers each method operation on one path into its group,
 // carrying along any callback operations registered under the same group.
-func (l *lowerer) lowerPathItem(groups *serviceGroups, path string, pi *soa.PathItem) {
+// declPtr is pi's own declaration pointer: the path pointer for an inline
+// path item, or a referenced path item's component pointer (issue #107) —
+// shared parameters and bodies lower from there, while each operation keeps
+// its mount pointer (under path) as its identity.
+func (l *lowerer) lowerPathItem(groups *serviceGroups, path string, pi *soa.PathItem, declPtr string) {
 	pathPtr := ptr("paths", path)
 	for _, m := range httpMethods {
 		src := m.get(pi)
@@ -100,15 +105,16 @@ func (l *lowerer) lowerPathItem(groups *serviceGroups, path string, pi *soa.Path
 			continue
 		}
 		key, name, docs, inferred := l.groupFor(src, path)
-		opPtr := pathPtr + ptr(m.name)
+		ptrs := opPointers{mount: pathPtr + ptr(m.name), decl: declPtr + ptr(m.name)}
 		ctx := opContext{
 			method:        m.name,
 			uriTemplate:   path,
 			withCallbacks: true,
 			inferred:      inferred,
-			params:        mergeParameters(pi.GetParameters(), src.GetParameters(), pathPtr, opPtr),
+			ptrs:          ptrs,
+			params:        mergeParameters(pi.GetParameters(), src.GetParameters(), declPtr, ptrs.decl),
 		}
-		op, extra := l.lowerOperation(src, ctx, opPtr)
+		op, extra := l.lowerOperation(src, ctx)
 		l.applyPathServers(&op, pi)
 		grp := groups.group(key, func() ir.OperationGroup { return ir.OperationGroup{Name: name, Docs: docs} })
 		grp.Operations = append(grp.Operations, op)
@@ -124,25 +130,26 @@ func (l *lowerer) lowerWebhooks(groups *serviceGroups) {
 		return
 	}
 	for name, rp := range hooks.All() {
-		pi := resolveRef[soa.PathItem](rp)
+		hookPtr := ptr("webhooks", name)
+		pi, declPtr := resolveRefAt[soa.PathItem](l, rp, hookPtr)
 		if pi == nil {
 			continue
 		}
-		hookPtr := ptr("webhooks", name)
 		for _, m := range httpMethods {
 			src := m.get(pi)
 			if src == nil {
 				continue
 			}
-			opPtr := hookPtr + ptr(m.name)
+			ptrs := opPointers{mount: hookPtr + ptr(m.name), decl: declPtr + ptr(m.name)}
 			ctx := opContext{
 				method:        m.name,
 				uriTemplate:   name,
 				isWebhook:     true,
 				withCallbacks: true,
-				params:        mergeParameters(pi.GetParameters(), src.GetParameters(), hookPtr, opPtr),
+				ptrs:          ptrs,
+				params:        mergeParameters(pi.GetParameters(), src.GetParameters(), declPtr, ptrs.decl),
 			}
-			op, extra := l.lowerOperation(src, ctx, opPtr)
+			op, extra := l.lowerOperation(src, ctx)
 			grp := groups.group("webhook", func() ir.OperationGroup {
 				return ir.OperationGroup{Name: ir.Naming{Source: "webhooks"}}
 			})
@@ -178,10 +185,23 @@ func (l *lowerer) tagDocs(name string) ir.Docs {
 	return ir.Docs{}
 }
 
+// opPointers pairs the two pointers every operation lowering needs. mount is
+// where the operation is written into the document and fixes its identity —
+// OpID, provenance, and the root its callback operations hang from. decl is
+// where its body is declared: the same node for an inline operation, the
+// component's own pointer when the operation was reached through a $ref'd path
+// item or callback (issue #107). Passing them as one value is what keeps two
+// same-typed pointer arguments from being transposed at a call site.
+type opPointers struct {
+	mount string
+	decl  string
+}
+
 // opContext carries the per-operation lowering inputs that do not come from the
-// source Operation itself: its HTTP binding shape, grouping provenance, and the
-// path-item-merged parameter list — each entry still carrying the pointer of its
-// own declaration site rather than a position in the merged list.
+// source Operation itself: its own two pointers, its HTTP binding shape,
+// grouping provenance, and the path-item-merged parameter list — each entry
+// still carrying the pointer of its own declaration site rather than a position
+// in the merged list.
 type opContext struct {
 	method        string
 	uriTemplate   string
@@ -189,18 +209,25 @@ type opContext struct {
 	withCallbacks bool
 	inferred      string
 	params        []sourcedParam
+	ptrs          opPointers
 }
 
-// lowerOperation lowers one source operation at pointer into the neutral core
-// plus its HTTP binding. It returns the operation and any callback operations
-// that must be registered alongside it in the same group (ir-design §7.2, §8.1).
-func (l *lowerer) lowerOperation(src *soa.Operation, ctx opContext, pointer string) (ir.Operation, []ir.Operation) {
+// lowerOperation lowers one source operation into the neutral core plus its HTTP
+// binding. It returns the operation and any callback operations that must be
+// registered alongside it in the same group (ir-design §7.2, §8.1).
+func (l *lowerer) lowerOperation(src *soa.Operation, ctx opContext) (ir.Operation, []ir.Operation) {
+	mount, decl := ctx.ptrs.mount, ctx.ptrs.decl
 	op := ir.Operation{
-		ID:         opID(pointer),
-		Name:       operationName(src, ctx.method, ctx.uriTemplate),
-		Tags:       src.GetTags(),
-		Auth:       l.lowerSecurityRequirements(src.Security),
-		Provenance: ir.Provenance{Source: l.srcIndex, Pointer: pointer, Inferred: ctx.inferred},
+		ID:   opID(mount),
+		Name: operationName(src, ctx.method, ctx.uriTemplate),
+		Tags: src.GetTags(),
+		Auth: l.lowerSecurityRequirements(src.Security),
+		// The ID is the mount — two mounts of one $ref'd path item are two
+		// operations — but provenance is where the operation is written, which
+		// for those two is one component. A mount pointer under a $ref'd path
+		// item addresses no node at all (ir-design §13, and the §8.4 rule that
+		// a node's provenance names its original definition).
+		Provenance: ir.Provenance{Source: l.srcIndex, Pointer: decl, Inferred: ctx.inferred},
 	}
 	fillOperationDocs(&op.Docs, src)
 	if src.GetDeprecated() {
@@ -208,17 +235,17 @@ func (l *lowerer) lowerOperation(src *soa.Operation, ctx opContext, pointer stri
 	}
 	params, bindings := l.lowerParameters(ctx.params)
 	op.Params = params
-	op.Responses, op.Errors = l.lowerResponses(src, pointer)
+	op.Responses, op.Errors = l.lowerResponses(src, decl)
 	hb := ir.HTTPBinding{
 		Method:        strings.ToUpper(ctx.method),
 		URITemplate:   ctx.uriTemplate,
 		IsWebhook:     ctx.isWebhook,
 		ParamBindings: bindings,
 	}
-	l.lowerRequestBody(&op, &hb, src, pointer)
+	l.lowerRequestBody(&op, &hb, src, decl)
 	var extra []ir.Operation
 	if ctx.withCallbacks {
-		hb.Callbacks, extra = l.lowerCallbacks(src, pointer, ctx.inferred)
+		hb.Callbacks, extra = l.lowerCallbacks(src, ctx.ptrs, ctx.inferred)
 	}
 	op.Bindings = ir.OpBindings{HTTP: []ir.HTTPBinding{hb}}
 	if ext := l.operationExtensions(src); len(ext) > 0 {
@@ -274,28 +301,30 @@ func (l *lowerer) applyPathServers(op *ir.Operation, pi *soa.PathItem) {
 
 // lowerResponses splits an operation's responses into success responses
 // (status < 400) and error cases (>= 400 and the default), each in source order
-// with the default last (ir-design §7.2).
-func (l *lowerer) lowerResponses(src *soa.Operation, opPointer string) ([]ir.Response, []ir.ErrorCase) {
+// with the default last (ir-design §7.2). opDeclPtr is the operation's own
+// declaration pointer, so a $ref'd response interns its content once at its
+// component pointer rather than once per mount site (issue #107).
+func (l *lowerer) lowerResponses(src *soa.Operation, opDeclPtr string) ([]ir.Response, []ir.ErrorCase) {
 	// GetResponses never returns nil (it addresses an always-present map), so the
 	// loop simply yields nothing when no responses are declared.
 	resps := src.GetResponses()
 	var responses []ir.Response
 	var errs []ir.ErrorCase
 	for code, rr := range resps.All() {
-		r := resolveRef[soa.Response](rr)
+		r, rptr := resolveRefAt[soa.Response](l, rr, opDeclPtr+ptr("responses", code))
 		if r == nil {
 			continue
 		}
 		rng := statusRange(code)
-		rptr := opPointer + ptr("responses", code)
 		if isErrorRange(rng) {
 			errs = append(errs, l.lowerErrorCase(r, rng, rptr))
 		} else {
 			responses = append(responses, l.lowerResponse(r, rng, rptr))
 		}
 	}
-	if def := resolveRef[soa.Response](resps.GetDefault()); def != nil {
-		errs = append(errs, l.lowerErrorCase(def, ir.StatusRange{}, opPointer+ptr("responses", "default")))
+	def, dptr := resolveRefAt[soa.Response](l, resps.GetDefault(), opDeclPtr+ptr("responses", "default"))
+	if def != nil {
+		errs = append(errs, l.lowerErrorCase(def, ir.StatusRange{}, dptr))
 	}
 	return responses, errs
 }
@@ -379,7 +408,10 @@ func (l *lowerer) fillErrorType(ec *ir.ErrorCase, r *soa.Response, rptr string) 
 // lowerCallbacks lowers each callback expression's path-item operations as
 // Operations registered in the parent's group, and binds them to the parent via
 // HTTPBinding.Callbacks keyed by the runtime expression (ir-design §8.1).
-func (l *lowerer) lowerCallbacks(src *soa.Operation, opPointer, inferred string) ([]ir.Callback, []ir.Operation) {
+// parent.mount roots callback operation identity, so two parents sharing one
+// $ref'd callback keep distinct callback operations; parent.decl is the base a
+// $ref'd callback or path item resolves against (issue #107).
+func (l *lowerer) lowerCallbacks(src *soa.Operation, parent opPointers, inferred string) ([]ir.Callback, []ir.Operation) {
 	cbMap := src.GetCallbacks()
 	if cbMap == nil || cbMap.Len() == 0 {
 		return nil, nil
@@ -387,17 +419,18 @@ func (l *lowerer) lowerCallbacks(src *soa.Operation, opPointer, inferred string)
 	var callbacks []ir.Callback
 	var ops []ir.Operation
 	for cbName, rcb := range cbMap.All() {
-		cb := resolveRef[soa.Callback](rcb)
+		cb, cbDecl := resolveRefAt[soa.Callback](l, rcb, parent.decl+ptr("callbacks", cbName))
 		if cb == nil {
 			continue
 		}
 		for expr, rp := range cb.All() {
-			pi := resolveRef[soa.PathItem](rp)
+			exprStr := string(expr)
+			pi, piDecl := resolveRefAt[soa.PathItem](l, rp, cbDecl+ptr(exprStr))
 			if pi == nil {
 				continue
 			}
-			exprStr := string(expr)
-			ids, cbOps := l.lowerCallbackOps(pi, opPointer+ptr("callbacks", cbName, exprStr), exprStr, inferred)
+			cbPtrs := opPointers{mount: parent.mount + ptr("callbacks", cbName, exprStr), decl: piDecl}
+			ids, cbOps := l.lowerCallbackOps(pi, cbPtrs, exprStr, inferred)
 			callbacks = append(callbacks, ir.Callback{Expression: exprStr, Operations: ids})
 			ops = append(ops, cbOps...)
 		}
@@ -407,8 +440,11 @@ func (l *lowerer) lowerCallbacks(src *soa.Operation, opPointer, inferred string)
 
 // lowerCallbackOps lowers a callback expression's path-item operations. Callback
 // operations do not recurse into their own callbacks (withCallbacks stays
-// false), which bounds the lowering to the declared out-of-band set.
-func (l *lowerer) lowerCallbackOps(pi *soa.PathItem, cbPtr, expr, inferred string) ([]ir.OpID, []ir.Operation) {
+// false), which bounds the lowering to the declared out-of-band set. cb pairs
+// the expression's identity base (distinct per parent operation) with its
+// declaration base (shared when the callback or its path item is $ref'd;
+// issue #107).
+func (l *lowerer) lowerCallbackOps(pi *soa.PathItem, cb opPointers, expr, inferred string) ([]ir.OpID, []ir.Operation) {
 	var ids []ir.OpID
 	var ops []ir.Operation
 	for _, m := range httpMethods {
@@ -416,23 +452,25 @@ func (l *lowerer) lowerCallbackOps(pi *soa.PathItem, cbPtr, expr, inferred strin
 		if src == nil {
 			continue
 		}
-		opPtr := cbPtr + ptr(m.name)
+		ptrs := opPointers{mount: cb.mount + ptr(m.name), decl: cb.decl + ptr(m.name)}
 		ctx := opContext{
 			method:      m.name,
 			uriTemplate: expr,
 			inferred:    inferred,
-			params:      mergeParameters(pi.GetParameters(), src.GetParameters(), cbPtr, opPtr),
+			ptrs:        ptrs,
+			params:      mergeParameters(pi.GetParameters(), src.GetParameters(), cb.decl, ptrs.decl),
 		}
-		op, _ := l.lowerOperation(src, ctx, opPtr)
+		op, _ := l.lowerOperation(src, ctx)
 		ids = append(ids, op.ID)
 		ops = append(ops, op)
 	}
 	return ids, ops
 }
 
-// sourcedParam pairs a parameter with its own declaration pointer, because
-// path-item parameters are merged into every operation on the path item and so
-// cannot borrow the operation's index space.
+// sourcedParam pairs a parameter with its declaring list entry's pointer,
+// because path-item parameters merge into every operation on the path item and
+// so cannot borrow the operation's index space (issue #36). A $ref entry's own
+// declaration lies one hop further on, resolved in lowerParameters.
 type sourcedParam struct {
 	ref     *soa.ReferencedParameter
 	pointer string
@@ -442,14 +480,16 @@ type sourcedParam struct {
 // use-site precedence: an operation parameter with the same (name, in) overrides
 // the path-item one; unshadowed path-item parameters follow in source order.
 // Each entry keeps the pointer of its own declaration site rather than a
-// position recomputed from the merged slice (issue #36).
-func mergeParameters(pathParams, opParams []*soa.ReferencedParameter, pathPointer, opPointer string) []sourcedParam {
+// position recomputed from the merged slice (issue #36). Both bases are
+// declaration pointers — a $ref'd path item's own component pointer, not the
+// path it is mounted at (issue #107).
+func mergeParameters(pathParams, opParams []*soa.ReferencedParameter, pathDeclPtr, opDeclPtr string) []sourcedParam {
 	merged := make([]sourcedParam, 0, len(opParams)+len(pathParams))
-	merged = appendSourced(merged, opParams, opPointer, nil)
+	merged = appendSourced(merged, opParams, opDeclPtr, nil)
 	if len(pathParams) == 0 {
 		return merged
 	}
-	return appendSourced(merged, pathParams, pathPointer, shadowedKeys(opParams))
+	return appendSourced(merged, pathParams, pathDeclPtr, shadowedKeys(opParams))
 }
 
 // appendSourced appends params to dst, pairing each with the pointer of its own
@@ -557,10 +597,14 @@ func rawChildNode(root *yaml.Node, key string) *yaml.Node {
 // ReferencedPathItem, ReferencedResponse, ReferencedHeader, ReferencedCallback,
 // ReferencedParameter, ReferencedRequestBody, ReferencedExample, and
 // ReferencedSecurityScheme alike. Naming the shape once here lets resolveRef
-// stand in for what would otherwise be one resolveX per aliased type.
-type referencedEntry[T any] interface {
+// stand in for what would otherwise be one resolveX per aliased type. S is the
+// reference's own type, Reference[T, V, C]; resolveRefAt walks it through
+// GetReferenceResolutionInfo to follow a chain of component aliases.
+type referencedEntry[T, S any] interface {
 	GetObject() *T
 	GetResolvedObject() *T
+	GetReference() references.Reference
+	GetReferenceResolutionInfo() *references.ResolveResult[S]
 }
 
 // resolveRef returns the concrete value of a reference-or-inline entry,
@@ -571,7 +615,7 @@ type referencedEntry[T any] interface {
 // V directly.
 func resolveRef[T, S any, R interface {
 	*S
-	referencedEntry[T]
+	referencedEntry[T, S]
 }](ref R) *T {
 	if ref == nil {
 		return nil
@@ -583,6 +627,55 @@ func resolveRef[T, S any, R interface {
 	// fallback stays explicit rather than coupling this compiler to that
 	// undocumented nil-tolerance.
 	return ref.GetResolvedObject()
+}
+
+// maxRefChain bounds how many $ref hops resolveRefAt follows to a declaration
+// (styleguide bounded-everything rule). A $ref cycle among the non-schema
+// components this walks is refused before lowering by speakeasy's resolver, not
+// by cycles.go — that scan covers schema positions only and delegates these (see
+// its header) — and a refused chain resolves to nothing, so resolveRefAt returns
+// before the loop. The bound therefore only ever fires on an absurd alias chain.
+const maxRefChain = 32
+
+// resolveRefAt returns a reference-or-inline entry's concrete value together
+// with the pointer of the declaration it resolves to, walking through any
+// chained component aliases to the last one written in this document (issue
+// #107). usePtr — the entry's own position — stands whenever the chain has no
+// declaration addressable here: an inline entry, a reference that leaves this
+// document, or one that outruns maxRefChain. An alias pointer is never
+// returned on its own, since a one-key $ref object has no children to hoist.
+func resolveRefAt[T, S any, R interface {
+	*S
+	referencedEntry[T, S]
+}](l *lowerer, ref R, usePtr string) (*T, string) {
+	obj := resolveRef[T, S, R](ref)
+	if obj == nil {
+		return nil, usePtr
+	}
+	// cand advances one hop at a time but is adopted only once the chain ends
+	// at a declaration written here, which is what keeps a chain that exits the
+	// document from returning the last alias it passed through.
+	pointer, cand := usePtr, usePtr
+	for hop := 0; hop < maxRefChain; hop++ {
+		// GetReferenceResolutionInfo is nil once the chain reaches a
+		// non-reference entry — the terminator, and why an inline entry
+		// exits on the first pass (couples this to that library contract).
+		info := ref.GetReferenceResolutionInfo()
+		if info == nil {
+			pointer = cand
+			break
+		}
+		target, ok := l.internalPointer(ref.GetReference().String())
+		if !ok {
+			break // another document: nothing addressable here, so usePtr stands
+		}
+		cand = target
+		// obj != nil means the whole chain resolved, so info.Object is non-nil
+		// at every hop this loop takes; a nil one would still be safe, since
+		// the getters above are nil-receiver tolerant and end the walk.
+		ref = R(info.Object)
+	}
+	return obj, pointer
 }
 
 // serviceGroups accumulates operation groups keyed by a namespaced key while
