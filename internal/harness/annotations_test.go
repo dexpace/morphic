@@ -112,22 +112,30 @@ func parseDeclaredConsts(t *testing.T) map[string][]string {
 }
 
 // collectConstSpecs appends each ValueSpec's declared type name and literal
-// string value from gd into out. Every Annotation/SiteKind constant in
-// annotations.go repeats its type on each line and assigns a plain string
-// literal; a spec typed some other way is not part of this taxonomy and is
-// skipped.
+// string value from gd into out. A spec whose value is not a string literal
+// (e.g. an untyped numeric constant) is not part of this taxonomy and is
+// skipped. A spec whose value is a string literal, however, must declare its
+// type explicitly: left untyped, it would still convert implicitly to
+// Annotation or SiteKind at any usage site, so skipping it here would let it
+// join the taxonomy without this test ever recording it — it fails instead.
 func collectConstSpecs(t *testing.T, gd *ast.GenDecl, out map[string][]string) {
 	t.Helper()
 	for _, spec := range gd.Specs {
 		vs, ok := spec.(*ast.ValueSpec)
 		require.True(t, ok, "const decl spec is not a ValueSpec: %#v", spec)
-		typeIdent, ok := vs.Type.(*ast.Ident)
-		if !ok {
-			continue // not a typed const (e.g. an untyped numeric constant): skip
-		}
 		require.Len(t, vs.Values, 1, "%s: expected exactly one value", vs.Names)
-		lit, ok := vs.Values[0].(*ast.BasicLit)
-		require.True(t, ok && lit.Kind == token.STRING, "%s: value is not a string literal", vs.Names)
+
+		typeIdent, hasType := vs.Type.(*ast.Ident)
+		lit, isLit := vs.Values[0].(*ast.BasicLit)
+		isString := isLit && lit.Kind == token.STRING
+		if !hasType && !isString {
+			continue // neither typed nor string-valued: not part of this taxonomy, skip
+		}
+		require.True(t, hasType, "%s: a string constant here must declare its type "+
+			"explicitly (Annotation or SiteKind); left untyped, it would still satisfy "+
+			"that type at any usage site without this test ever seeing it", vs.Names)
+		require.True(t, isString, "%s: value is not a string literal", vs.Names)
+
 		value, err := strconv.Unquote(lit.Value)
 		require.NoError(t, err)
 		out[typeIdent.Name] = append(out[typeIdent.Name], value)

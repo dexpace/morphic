@@ -1,23 +1,17 @@
 package harness
 
 // Annotation names one annotation slot the IR offers at a site. It is test
-// vocabulary: nothing in the compiler's write path refers to these values, and
-// ir.Diagnostic carries no annotation field. Annotation is one axis of
+// vocabulary: nothing in the compiler's write path refers to these values,
+// and ir.Diagnostic carries no annotation field. Annotation is one axis of
 // annotation retention; SiteKind is the other.
 //
-// The name is broader here than in JSON Schema Core, which recognizes four
-// keyword categories, not a two-way split: identifiers ($id, $schema),
-// applicators (properties, allOf, not, if/then/else, dependentSchemas,
-// contains, unevaluated* — apply a subschema rather than assert against the
-// instance directly), assertions (type, minimum, pattern), and annotations in
-// the spec's own narrower sense (title, default, examples: no validation
-// effect). AnnotationConstraints corresponds to the assertions category;
-// AnnotationValidationOnly names applicator keywords with no structural IR
-// home (preserved verbatim per ir-design §4.7) — applicators, not assertions,
-// despite the stricter term. This suite groups everything under one
-// Annotation name anyway because the IR attaches each at a source position
-// rather than using it to define the type there, which is the distinction
-// retention actually measures.
+// JSON Schema Core uses "annotation" more narrowly than this suite does: it
+// reserves the term for keywords that attach information without affecting
+// validation, so minimum/maxLength (assertions) and if/then/else, not,
+// dependentSchemas (applicators) are not annotations in its sense. This
+// suite groups them under Annotation anyway because, from the IR's
+// perspective, each attaches to a source position rather than defines the
+// type there — the distinction retention actually measures.
 type Annotation string
 
 // The annotation slots the IR offers. Adding a slot here widens what
@@ -40,46 +34,34 @@ const (
 
 // SiteKind distinguishes a position that declares a type from one that
 // references another type and may carry annotations of its own. Declaration
-// splits by the declaring component's own shape because the compiler routes an
-// object-shaped body and a scalar-shaped body through different lowering paths
-// that do not honor the same keywords: an annotation present on one shape is
-// not evidence it survives on the other. The distinction is annotation
-// retention's second axis because this is where annotations are most often
-// dropped.
+// further splits by the declaring component's own shape, because the
+// compiler routes an object-shaped body and a scalar-shaped body through
+// different lowering paths that do not honor the same keywords: an
+// annotation present on one shape is not evidence it survives on the other.
 //
 // SiteDeclarationModel and SiteDeclarationScalar do not cover every
 // declaration shape the OpenAPI compiler's schema dispatch (lower(), in
-// schema.go) produces. Six other destinations exist: const (hoistLiteral ->
-// Literal), enum (lowerEnum -> Enum, or a Union of Literals when
-// heterogeneous), a multi-type such as `type: [string, integer]` (lowerUnion
-// -> Union), a `type: array` body (lowerArray -> List/Tuple), allOf
-// (lowerAllOf -> Model), and oneOf/anyOf (lowerOneOfAnyOf -> Union when it
-// has no structural siblings; otherwise it is hoisted through whichever of
-// the other five destinations its sibling shape implies, then has the raw
-// oneOf/anyOf preserved under Extensions on top — see lowerWithUnionSiblings).
-//
-// Of these six, only lowerAllOf builds a Model and calls fillModelDetail, the
-// same as lowerModel: a docs/deprecated/x-* annotation on an allOf-composed
-// component is retained, not dropped, even though this grid does not
-// exercise allOf as its own SiteKind. hoistLiteral, lowerEnum, lowerUnion,
-// and lowerArray never call fillModelDetail, so an annotation on a const,
-// enum, multi-type, or array declaration is believed to drop the same way
-// SiteDeclarationScalar's cases do — but, unlike allOf, that belief is
-// untested here, not verified.
+// schema.go) produces — const (hoistLiteral -> Literal), enum (lowerEnum ->
+// Enum or a Union of Literals), a multi-type such as `type: [string,
+// integer]` (lowerUnion -> Union), a `type: array` body (lowerArray ->
+// List/Tuple), allOf (lowerAllOf -> Model), and oneOf/anyOf
+// (lowerOneOfAnyOf) are destinations too. Of those, only lowerAllOf calls
+// fillModelDetail the way lowerModel does, so an allOf-composed component's
+// docs/deprecated/x-* annotations are retained even though this grid does
+// not exercise allOf as its own SiteKind; hoistLiteral, lowerEnum,
+// lowerUnion, and lowerArray never call fillModelDetail, so an annotation on
+// a const, enum, multi-type, or array declaration is believed — but, unlike
+// allOf, not verified here — to drop the same way SiteDeclarationScalar's
+// cases do.
 type SiteKind string
 
 // The kinds of position an annotation can be written at.
 // TestConstBlock_TiesToAnnotationsAndSiteKinds requires every constant below
 // to appear in SiteKinds(), the same way it does for Annotations() above.
 const (
-	// SiteDeclarationModel is an annotation on an object-shaped component,
-	// which lowers through the compiler's model path.
-	SiteDeclarationModel SiteKind = "declaration-model"
-	// SiteDeclarationScalar is an annotation on a scalar-shaped component,
-	// which lowers through the compiler's alias path.
+	SiteDeclarationModel  SiteKind = "declaration-model"
 	SiteDeclarationScalar SiteKind = "declaration-scalar"
-	// SiteReference is an annotation written beside a $ref.
-	SiteReference SiteKind = "reference"
+	SiteReference         SiteKind = "reference"
 )
 
 // Cell identifies one annotation at one kind of position: the unit annotation
