@@ -941,8 +941,9 @@ func opsByID(doc *ir.Document, ids ...ir.OpID) map[ir.OpID]ir.Operation {
 
 // provenanceSpec exercises every use-site/declaration split the fix touches
 // in one document: a path item shared across two mounts, a component
-// parameter, a component request body, a component response with a nested
-// component header, and a component callback.
+// parameter reached through a one-hop alias (PageAlias -> Page), a component
+// request body, a component response with a nested component header, and a
+// component callback.
 const provenanceSpec = `openapi: 3.1.0
 info: {title: T, version: "1"}
 paths:
@@ -952,7 +953,7 @@ paths:
     post:
       operationId: solo
       parameters:
-        - {$ref: '#/components/parameters/Page'}
+        - {$ref: '#/components/parameters/PageAlias'}
       requestBody: {$ref: '#/components/requestBodies/Body'}
       callbacks:
         onEvent: {$ref: '#/components/callbacks/Shared'}
@@ -967,6 +968,7 @@ components:
         operationId: sharedGet
         responses: {"200": {description: ok}}
   parameters:
+    PageAlias: {$ref: '#/components/parameters/Page'}
     Page: {name: page, in: query, schema: {type: string, enum: [a, b]}}
   requestBodies:
     Body:
@@ -1141,5 +1143,67 @@ func TestResolveRefAt_CrossDocumentKeepsUseSitePointer(t *testing.T) {
 	for id := range doc.Types {
 		assert.False(t, strings.HasPrefix(string(id), "t/anon/components/"),
 			"no type interned under the sibling document's own pointer: %s", id)
+	}
+}
+
+const aliasedComponentChainSpec = `openapi: 3.1.0
+info: {title: T, version: "1"}
+paths:
+  /a:
+    get:
+      operationId: getA
+      parameters:
+        - {$ref: '#/components/parameters/PageAlias'}
+      responses:
+        "200": {$ref: '#/components/responses/OKAlias'}
+  /b:
+    get:
+      operationId: getB
+      parameters:
+        - {$ref: '#/components/parameters/PageAlias'}
+      responses:
+        "200": {$ref: '#/components/responses/OKAlias'}
+components:
+  parameters:
+    PageAlias: {$ref: '#/components/parameters/Page'}
+    Page: {name: page, in: query, schema: {type: string, enum: [p, q]}}
+  responses:
+    OKAlias: {$ref: '#/components/responses/OK'}
+    OK:
+      description: ok
+      content:
+        application/json:
+          schema: {type: object, properties: {n: {type: string}}}
+`
+
+// TestResolveRefAt_AliasedComponentChainInternsAtFinalDeclaration guards a
+// component that is itself a bare $ref to another component (PageAlias ->
+// Page, OKAlias -> OK): resolveRefAt must walk the whole chain to Page's and
+// OK's own declaration, not stop at the one-hop alias pointer, which is a
+// one-key $ref object with no schema (or content) child of its own to hoist.
+func TestResolveRefAt_AliasedComponentChainInternsAtFinalDeclaration(t *testing.T) {
+	t.Parallel()
+	doc, diags := parseFull(t, aliasedComponentChainSpec)
+	requireNoErrorDiags(t, diags)
+	getA := findOp(t, doc, "getA")
+	getB := findOp(t, doc, "getB")
+
+	require.Len(t, getA.Params, 1)
+	require.Len(t, getB.Params, 1)
+	wantParamID := ir.TypeID("t/anon/components/parameters/Page/schema")
+	assert.Equal(t, wantParamID, getA.Params[0].Type.Target)
+	assert.Equal(t, wantParamID, getB.Params[0].Type.Target,
+		"both operations resolve the aliased parameter's final declaration")
+
+	require.Len(t, getA.Responses, 1)
+	require.Len(t, getB.Responses, 1)
+	wantRespID := ir.TypeID("t/anon/components/responses/OK/content/application~1json/schema")
+	assert.Equal(t, wantRespID, getA.Responses[0].Payload.Contents[0].Type.Target)
+	assert.Equal(t, wantRespID, getB.Responses[0].Payload.Contents[0].Type.Target,
+		"both operations resolve the aliased response's final declaration")
+
+	for id := range doc.Types {
+		assert.NotContains(t, string(id), "PageAlias", "no ID derived from the one-hop alias pointer")
+		assert.NotContains(t, string(id), "OKAlias", "no ID derived from the one-hop alias pointer")
 	}
 }

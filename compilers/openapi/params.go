@@ -10,12 +10,9 @@ import (
 // lowerParameters lowers an operation's merged parameter list (path-item plus
 // operation) into logical Parameters and their HTTP wire bindings, in source
 // order (ir-design §7.2, §8.1). The logical side carries the protocol-neutral
-// input; the binding side carries the location, style, and explode facts. Each
-// parameter lowers at its own declaration pointer: sp.pointer for an inline
-// entry, or the $ref target's pointer when the entry is a reference (issue
-// #107) — ir.Parameter has no ID of its own, so the whole parameter (name,
-// in, schema) lowers from there, never from a position recomputed from this
-// list's index.
+// input; the binding side carries the location, style, and explode facts.
+// Each parameter lowers at its declaration: the $ref target for a referenced
+// entry, else the list entry itself (issue #107).
 func (l *lowerer) lowerParameters(params []sourcedParam) ([]ir.Parameter, []ir.HTTPParamBinding) {
 	if len(params) == 0 {
 		return nil, nil

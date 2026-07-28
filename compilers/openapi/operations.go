@@ -206,10 +206,8 @@ type opContext struct {
 	declPtr string
 }
 
-// declarationPointer returns c.declPtr, or pointer itself when c is the zero
-// value (declPtr unset) — every opContext built by this package's own
-// constructors sets it, but degrading a zero value keeps the type usable from
-// a bare literal without silently mis-deriving IDs from it.
+// declarationPointer returns c.declPtr, falling back to pointer for a bare
+// opContext{} literal (every constructor in this package sets declPtr).
 func (c opContext) declarationPointer(pointer string) string {
 	if c.declPtr == "" {
 		return pointer
@@ -301,17 +299,17 @@ func (l *lowerer) applyPathServers(op *ir.Operation, pi *soa.PathItem) {
 
 // lowerResponses splits an operation's responses into success responses
 // (status < 400) and error cases (>= 400 and the default), each in source order
-// with the default last (ir-design §7.2). opPointer is the operation's own
+// with the default last (ir-design §7.2). opDeclPtr is the operation's own
 // declaration pointer, so a $ref'd response interns its content once at its
 // component pointer rather than once per mount site (issue #107).
-func (l *lowerer) lowerResponses(src *soa.Operation, opPointer string) ([]ir.Response, []ir.ErrorCase) {
+func (l *lowerer) lowerResponses(src *soa.Operation, opDeclPtr string) ([]ir.Response, []ir.ErrorCase) {
 	// GetResponses never returns nil (it addresses an always-present map), so the
 	// loop simply yields nothing when no responses are declared.
 	resps := src.GetResponses()
 	var responses []ir.Response
 	var errs []ir.ErrorCase
 	for code, rr := range resps.All() {
-		r, rptr := resolveRefAt[soa.Response](l, rr, opPointer+ptr("responses", code))
+		r, rptr := resolveRefAt[soa.Response](l, rr, opDeclPtr+ptr("responses", code))
 		if r == nil {
 			continue
 		}
@@ -322,7 +320,7 @@ func (l *lowerer) lowerResponses(src *soa.Operation, opPointer string) ([]ir.Res
 			responses = append(responses, l.lowerResponse(r, rng, rptr))
 		}
 	}
-	def, dptr := resolveRefAt[soa.Response](l, resps.GetDefault(), opPointer+ptr("responses", "default"))
+	def, dptr := resolveRefAt[soa.Response](l, resps.GetDefault(), opDeclPtr+ptr("responses", "default"))
 	if def != nil {
 		errs = append(errs, l.lowerErrorCase(def, ir.StatusRange{}, dptr))
 	}
@@ -467,9 +465,10 @@ func (l *lowerer) lowerCallbackOps(pi *soa.PathItem, cbPtr, cbDecl, expr, inferr
 	return ids, ops
 }
 
-// sourcedParam pairs a parameter with its own declaration pointer, because
-// path-item parameters are merged into every operation on the path item and so
-// cannot borrow the operation's index space.
+// sourcedParam pairs a parameter with its declaring list entry's pointer,
+// because path-item parameters merge into every operation on the path item and
+// so cannot borrow the operation's index space (issue #36). A $ref entry's own
+// declaration lies one hop further on, resolved in lowerParameters.
 type sourcedParam struct {
 	ref     *soa.ReferencedParameter
 	pointer string
@@ -594,14 +593,14 @@ func rawChildNode(root *yaml.Node, key string) *yaml.Node {
 // ReferencedPathItem, ReferencedResponse, ReferencedHeader, ReferencedCallback,
 // ReferencedParameter, ReferencedRequestBody, ReferencedExample, and
 // ReferencedSecurityScheme alike. Naming the shape once here lets resolveRef
-// stand in for what would otherwise be one resolveX per aliased type.
-// IsReference and GetReference are what resolveRefAt uses to tell a $ref
-// entry from an inline one and find the $ref's own target pointer.
-type referencedEntry[T any] interface {
+// stand in for what would otherwise be one resolveX per aliased type. S is the
+// reference's own type, Reference[T, V, C]; resolveRefAt walks it through
+// GetReferenceResolutionInfo to follow a chain of component aliases.
+type referencedEntry[T, S any] interface {
 	GetObject() *T
 	GetResolvedObject() *T
-	IsReference() bool
 	GetReference() references.Reference
+	GetReferenceResolutionInfo() *references.ResolveResult[S]
 }
 
 // resolveRef returns the concrete value of a reference-or-inline entry,
@@ -612,7 +611,7 @@ type referencedEntry[T any] interface {
 // V directly.
 func resolveRef[T, S any, R interface {
 	*S
-	referencedEntry[T]
+	referencedEntry[T, S]
 }](ref R) *T {
 	if ref == nil {
 		return nil
@@ -626,25 +625,44 @@ func resolveRef[T, S any, R interface {
 	return ref.GetResolvedObject()
 }
 
+// maxRefChain bounds how many $ref hops resolveRefAt follows to a declaration
+// (styleguide bounded-everything rule). Reference cycles are already refused
+// before lowering (cycles.go), so this only guards an absurd alias chain;
+// stopping early keeps the last real pointer reached.
+const maxRefChain = 32
+
 // resolveRefAt returns a reference-or-inline entry's concrete value together
-// with the pointer of the declaration it was written at: an internal $ref's
-// target pointer, else usePtr. Child pointers — and every TypeID derived from
-// them — build from this pointer, so a component referenced from several
-// sites interns once, under a location that exists in the source document
-// (issue #107). A cross-document reference keeps usePtr; its target is not
-// addressable here.
+// with the pointer of the declaration it resolves to, walking through any
+// chained component aliases to the last one written in this document (issue
+// #107). A cross-document reference keeps usePtr, since the other document's
+// pointer is not addressable here.
 func resolveRefAt[T, S any, R interface {
 	*S
-	referencedEntry[T]
+	referencedEntry[T, S]
 }](l *lowerer, ref R, usePtr string) (*T, string) {
 	obj := resolveRef[T, S, R](ref)
-	if obj == nil || !ref.IsReference() {
-		return obj, usePtr
+	if obj == nil {
+		return nil, usePtr
 	}
-	if pointer, ok := l.internalPointer(ref.GetReference().String()); ok {
-		return obj, pointer
+	// obj != nil means the whole chain resolved, so info.Object is non-nil at
+	// every hop this loop actually takes.
+	pointer := usePtr
+	for hop := 0; hop < maxRefChain; hop++ {
+		// GetReferenceResolutionInfo is nil once the chain reaches a
+		// non-reference entry — the terminator, and why an inline entry
+		// exits on the first pass (couples this to that library contract).
+		info := ref.GetReferenceResolutionInfo()
+		if info == nil {
+			break
+		}
+		target, ok := l.internalPointer(ref.GetReference().String())
+		if !ok {
+			break // another document: not addressable here, keep the last pointer that is
+		}
+		pointer = target
+		ref = R(info.Object)
 	}
-	return obj, usePtr
+	return obj, pointer
 }
 
 // serviceGroups accumulates operation groups keyed by a namespaced key while

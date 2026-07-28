@@ -129,14 +129,10 @@ func (l *lowerer) buildPartEncoding(name string, pjs *oas3.JSONSchema[oas3.Refer
 	return pe
 }
 
-// lowerHeaders lowers a header map (response headers or per-part encoding
-// headers) into Properties in source order, each identified by its pointer.
-// A header map entry binds a name at its own use site — two entries under
-// different keys that $ref the same header component must keep distinct
-// PropIDs — so ID and Provenance stay at the entry's pointer; only the
-// header's schema follows the component's declaration pointer, or every
-// $ref'd header sharing one component would collide on the same schema ID
-// under an unrelated entry's location (issue #107).
+// lowerHeaders lowers a header map into Properties in source order. Each
+// entry's own pointer stays its ID and Provenance (two keys $ref'ing the same
+// header must not collide), but its schema follows the ref target's
+// declaration pointer instead (issue #107).
 func (l *lowerer) lowerHeaders(headers *sequencedmap.Map[string, *soa.ReferencedHeader], basePtr string) []ir.Property {
 	if headers == nil || headers.Len() == 0 {
 		return nil
@@ -207,12 +203,12 @@ func (l *lowerer) appendPluralExample(out []ir.Example, re *soa.ReferencedExampl
 // lowerRequestBody lowers an operation's request body onto op.Request and the
 // binding's RequestContentTypes. The IR expresses body optionality via presence,
 // so a non-required body stays present with its optionality preserved under
-// Extensions plus one info diagnostic (ir-design §7.2 clarification). opPointer
+// Extensions plus one info diagnostic (ir-design §7.2 clarification). opDeclPtr
 // is the operation's own declaration pointer, so a $ref'd body interns its
 // content once at its component pointer rather than once per mount site
 // (issue #107).
-func (l *lowerer) lowerRequestBody(op *ir.Operation, hb *ir.HTTPBinding, src *soa.Operation, opPointer string) {
-	rb, bodyPtr := resolveRefAt[soa.RequestBody](l, src.GetRequestBody(), opPointer+ptr("requestBody"))
+func (l *lowerer) lowerRequestBody(op *ir.Operation, hb *ir.HTTPBinding, src *soa.Operation, opDeclPtr string) {
+	rb, bodyPtr := resolveRefAt[soa.RequestBody](l, src.GetRequestBody(), opDeclPtr+ptr("requestBody"))
 	if rb == nil {
 		return
 	}
