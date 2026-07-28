@@ -77,16 +77,22 @@ components:
 
 	target := typeByName(l.out, "Target")
 	require.NotNil(t, target)
-	if tsc, ok := target.(*ir.Scalar); ok {
-		assert.Nil(t, tsc.Constraints, "the referent must not acquire the site's bound")
-	}
+	tsc, ok := target.(*ir.Scalar)
+	require.True(t, ok, "Target aliases a primitive and must own a Scalar node")
+	assert.Nil(t, tsc.Constraints, "the referent must not acquire the site's bound")
 }
 
-// TestHoistSubSchema_RefSiblingExampleBindsTheSite is a characterization test:
-// it locks in the existing $ref-sibling-example behaviour before hoistSubSchema
-// is rewired through site, so a behaviour change during that rewiring shows up
-// as a failure here rather than passing unnoticed.
-func TestHoistSubSchema_RefSiblingExampleBindsTheSite(t *testing.T) {
+// TestFillPropertyExamples_RefSiblingExampleBindsTheSite is a characterization
+// test: it locks in the existing $ref-sibling-example behaviour at a property
+// position before fillPropertyExamples is rewired through site, so a
+// behaviour change during that rewiring shows up as a failure here rather
+// than passing unnoticed. Property f's $ref targets a named component
+// (Target), so resolveComponentRef resolves it directly without ever calling
+// hoistSubSchema; fillPropertyExamples is what keeps the example off the
+// referent here. TestSchemaSiblings_RefdSubSchemaKeepsThem covers the
+// analogous hoistSubSchema path, where the $ref target is an internal
+// sub-schema pointer rather than a named component.
+func TestFillPropertyExamples_RefSiblingExampleBindsTheSite(t *testing.T) {
 	t.Parallel()
 	l := loweredFor(t, `openapi: 3.1.0
 info: {title: t, version: "1"}
