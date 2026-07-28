@@ -900,7 +900,8 @@ components:
 		},
 		assertDiags: func(t *testing.T, diags []ir.Diagnostic) {
 			assert.False(t, hasDiagCode(diags, "openapi/validation-only-keyword"),
-				"no keyword is read today, so no diagnostic fires; closing this gap should turn this red")
+				"no keyword is read for a scalar declaration today, so no diagnostic fires; "+
+					"closing this gap should turn this red")
 		},
 	}
 }
@@ -936,7 +937,8 @@ components:
 		},
 		assertDiags: func(t *testing.T, diags []ir.Diagnostic) {
 			assert.False(t, hasDiagCode(diags, "openapi/validation-only-keyword"),
-				"no keyword is read today, so no diagnostic fires; closing this gap should turn this red")
+				"no keyword is read beside a $ref today, so no diagnostic fires; "+
+					"closing this gap should turn this red")
 		},
 	}
 }
