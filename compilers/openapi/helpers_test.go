@@ -60,6 +60,18 @@ func lowerSpec(t *testing.T, src string) (*ir.Document, []ir.Diagnostic) {
 	return l.out, append(diags, l.diags...)
 }
 
+// loweredFor loads src and returns the lowerer over it with nothing lowered
+// yet, so a test can drive one entry point at a time. lowerSpec is the same
+// load path but returns only the document it produced.
+func loweredFor(t *testing.T, src string) *lowerer {
+	t.Helper()
+	loadedDoc, diags, err := load(t.Context(), 0,
+		compilers.Source{Path: "spec.yaml", Data: []byte(src)}, Options{}.withDefaults())
+	require.NoError(t, err)
+	require.NotNil(t, loadedDoc, "load returned no document: %+v", diags)
+	return newLowerer(0, loadedDoc, Options{}.withDefaults())
+}
+
 // requireNoErrorDiags fails the test if any diagnostic has error severity,
 // reporting the first offending diagnostic.
 func requireNoErrorDiags(t *testing.T, diags []ir.Diagnostic) {
