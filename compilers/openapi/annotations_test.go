@@ -164,7 +164,8 @@ components:
 			assert: func(t *testing.T, doc *ir.Document) {
 				m, ok := doc.Types[namedID("S")].(*ir.Model)
 				require.True(t, ok, "S still owns a Model node even though its minProperties is dropped")
-				_ = m
+				assert.Empty(t, m.Extensions, "minProperties is never read for a model declaration today; closing this gap should turn this red")
+				assert.Nil(t, m.XML, "minProperties has no other landing spot on a model today; closing this gap should turn this red")
 			},
 		},
 		{
@@ -363,7 +364,8 @@ components:
 			assert: func(t *testing.T, doc *ir.Document) {
 				m, ok := doc.Types[namedID("S")].(*ir.Model)
 				require.True(t, ok, "S still owns a Model node even though its default is dropped")
-				_ = m
+				assert.Empty(t, m.Extensions, "default is never read for a model declaration today; closing this gap should turn this red")
+				assert.Nil(t, m.XML, "default has no other landing spot on a model today; closing this gap should turn this red")
 			},
 		},
 		{
@@ -379,7 +381,7 @@ components:
 			assert: func(t *testing.T, doc *ir.Document) {
 				td, ok := doc.Types[namedID("S")]
 				require.True(t, ok, "S still owns a node even though its default is dropped")
-				_ = td
+				assert.Empty(t, td.Common().Extensions, "default is never read for a scalar declaration today; closing this gap should turn this red")
 			},
 		},
 		{
@@ -425,6 +427,7 @@ components:
 				td, ok := doc.Types[namedID("S")]
 				require.True(t, ok)
 				assert.Empty(t, td.Common().Access, "Access is never set today; closing this gap should turn this red")
+				assert.Zero(t, td.Common().Usage, "Usage is never set today; closing this gap should turn this red")
 			},
 		},
 		{
@@ -441,6 +444,7 @@ components:
 				td, ok := doc.Types[namedID("S")]
 				require.True(t, ok)
 				assert.Empty(t, td.Common().Access, "Access is never set today; closing this gap should turn this red")
+				assert.Zero(t, td.Common().Usage, "Usage is never set today; closing this gap should turn this red")
 			},
 		},
 		{
