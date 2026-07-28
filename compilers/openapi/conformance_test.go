@@ -834,6 +834,13 @@ func assertDocsSummaryDesc(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
 	require.True(t, ok)
 	assert.Equal(t, "Ping the server", op.Docs.Summary)
 	assert.Equal(t, "Returns pong", op.Docs.Description)
+
+	// A documented scalar alias is documented too: its docs must not depend on
+	// what its body happens to lower to (GitHub #114).
+	sc, ok := doc.Types[namedID("UserId")].(*ir.Scalar)
+	require.True(t, ok)
+	assert.Equal(t, "User identifier", sc.Docs.Summary)
+	assert.Equal(t, "Stable identifier for a user.", sc.Docs.Description)
 }
 
 func assertExtensionsX(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {

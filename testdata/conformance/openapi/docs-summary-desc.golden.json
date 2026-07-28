@@ -72,6 +72,42 @@
       }
     }
   ],
+  "types": {
+    "t/openapi/components/schemas/UserId": {
+      "kind": "scalar",
+      "id": "t/openapi/components/schemas/UserId",
+      "name": {
+        "source": "UserId",
+        "canonical": "user_id"
+      },
+      "anonymous": false,
+      "docs": {
+        "summary": "User identifier",
+        "description": "Stable identifier for a user."
+      },
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/UserId"
+      },
+      "base": {
+        "target": "t/prim/uuid",
+        "nullable": false
+      }
+    },
+    "t/prim/uuid": {
+      "kind": "primitive",
+      "id": "t/prim/uuid",
+      "name": {},
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0
+      },
+      "prim": "uuid"
+    }
+  },
   "servers": [
     {
       "name": {},
@@ -84,7 +120,7 @@
     {
       "format": "openapi@3.1",
       "path": "docs-summary-desc.yaml",
-      "hash": "fff17a15225eda479e313d3b96c99ae6469ea65d591decf4aaf08be58cda4b39"
+      "hash": "09a46fb8c6b4d1c3dfeaf3533cb805aca4b07e86f654b3903e7f1343ec8f1476"
     }
   ]
 }
