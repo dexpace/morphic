@@ -22,7 +22,7 @@ func (l *lowerer) lowerAllOf(s *oas3.Schema, pointer, hint string) ir.TypeID {
 		l.fillAllOf(m, s, pointer)
 		l.fillModelProperties(m, s, pointer) // properties declared alongside allOf
 		l.applyCompositionRequired(m, s, pointer)
-		l.fillModelDetail(m, s, pointer, hint)
+		l.fillAdditional(m, s, pointer, hint)
 		if d := l.lowerDiscriminator(s, m, pointer); d != nil {
 			m.Discriminator = d
 		}

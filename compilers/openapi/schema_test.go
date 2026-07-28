@@ -766,14 +766,14 @@ func TestSiteSchema_BodylessPositions(t *testing.T) {
 	assert.Nil(t, siteSchema(oas3.NewJSONSchemaFromBool(true)))
 }
 
-// TestAttachSchemaExamples_MissingNode covers the mid-interning state a
+// TestAttachDeclaredAnnotations_MissingNode covers the mid-interning state a
 // self-referential schema can reach: the pointer already owns an ID, but the
 // node it names is still being built and is not in the registry yet.
-func TestAttachSchemaExamples_MissingNode(t *testing.T) {
+func TestAttachDeclaredAnnotations_MissingNode(t *testing.T) {
 	t.Parallel()
 	l := newRawLowerer(&soa.OpenAPI{})
 	l.byPointer["/p"] = "t/anon/missing"
-	l.attachSchemaExamples(&oas3.Schema{}, "/p")
+	l.attachDeclaredAnnotations(&oas3.Schema{}, "/p")
 	assert.Empty(t, l.diags)
 }
 
@@ -1852,9 +1852,9 @@ func TestAllOf_PropertyAlongsideAllOfConflictMessageIsAccurate(t *testing.T) {
 func TestPreserveKeyword_NilRaw(t *testing.T) {
 	t.Parallel()
 	l := &lowerer{}
-	m := &ir.Model{}
-	l.preserveKeyword(m, "openapi:not", nil, "/p", "not")
-	assert.Nil(t, m.Extensions, "nil raw is a no-op")
+	var ext ir.Extensions
+	l.preserveKeyword(&ext, "openapi:not", nil, "/p", "not")
+	assert.Nil(t, ext, "nil raw is a no-op")
 	assert.Empty(t, l.diags)
 }
 

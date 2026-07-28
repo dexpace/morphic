@@ -54,10 +54,10 @@ func (l *lowerer) lowerComponentSchema(js *oas3.JSONSchema[oas3.Referenceable], 
 		return // schemaRef interned the component's own node at its component ID
 	}
 	l.internAlias(pointer, name, ref, l.schemaConstraints(s.Node, pointer))
-	// This alias is the first node the pointer owns, so the examples schemaBody
-	// had nowhere to put now have a home.
+	// This alias is the first node the pointer owns, so the annotations
+	// schemaBody had nowhere to put now have a home.
 	if s.Node != nil {
-		l.attachSchemaExamples(s.Node, pointer)
+		l.attachDeclaredAnnotations(s.Node, pointer)
 	}
 }
 
@@ -90,13 +90,13 @@ func (l *lowerer) internAlias(pointer, hint string, target ir.TypeRef, constrain
 }
 
 // schemaBody lowers a concrete (non-reference) schema body to a TypeRef and
-// records the schema's own examples on whatever node the lowering hoisted at
+// records the schema's own annotations on whatever node the lowering hoisted at
 // pointer. It is shared by schemaRef and by sub-schema hoisting
 // (resolveSchemaRef), which both reach a body only after peeling off any
 // leading $ref.
 func (l *lowerer) schemaBody(schema *oas3.Schema, pointer, hint string) ir.TypeRef {
 	ref := l.lowerSchemaBody(schema, pointer, hint)
-	l.attachSchemaExamples(schema, pointer)
+	l.attachDeclaredAnnotations(schema, pointer)
 	return ref
 }
 
@@ -257,12 +257,13 @@ func (l *lowerer) lowerUnion(s *oas3.Schema, pointer, hint string, types []oas3.
 }
 
 // lowerModel hoists an object schema as a Model. This task lowers only the
-// property shape (name, type, required); a later pass fills the rest.
+// property shape (name, type, required); a later pass fills the rest. It reads
+// no annotations: attachDeclaredAnnotations does that for every destination.
 func (l *lowerer) lowerModel(s *oas3.Schema, pointer, hint string) ir.TypeID {
 	return l.internNode(pointer, hint, func(common ir.TypeCommon) ir.TypeDef {
 		m := &ir.Model{TypeCommon: common}
 		l.fillModelProperties(m, s, pointer)
-		l.fillModelDetail(m, s, pointer, hint)
+		l.fillAdditional(m, s, pointer, hint)
 		if d := l.lowerDiscriminator(s, m, pointer); d != nil {
 			m.Discriminator = d
 		}
@@ -647,8 +648,9 @@ func strConflictDetail(keyword string, a, b string) (string, bool) {
 }
 
 // fillPropertyDetail enriches a property from its schema: docs, default,
-// visibility, deprecation, secrecy, examples, XML, constraints, and extensions.
-// Annotations present at a $ref use-site override the target's (ir-design §14).
+// visibility, deprecation, secrecy, examples, XML, constraints, extensions, and
+// validation-only keywords. Annotations present at a $ref use-site override the
+// target's (ir-design §14).
 func (l *lowerer) fillPropertyDetail(p *ir.Property, js *oas3.JSONSchema[oas3.Referenceable], pointer string) {
 	ref := js.GetSchema()
 	if ref == nil {
@@ -671,9 +673,27 @@ func (l *lowerer) fillPropertyDetail(p *ir.Property, js *oas3.JSONSchema[oas3.Re
 		p.XML = h
 	}
 	l.fillPropertyConstraints(p, ref, pointer)
-	if ext := l.schemaExtensions(ref); len(ext) > 0 {
-		p.Extensions = ext
+	p.Extensions = mergeExtensions(p.Extensions, l.schemaExtensions(ref))
+	l.fillPropertyValidationOnly(p, ref, pointer)
+}
+
+// fillPropertyValidationOnly preserves the validation-only keywords written at
+// the property's own position, but only when its schema hoisted no node to hold
+// them — the same one-home-per-declaration rule fillPropertyExamples applies.
+// A $ref position never hoists one, which is what gives an if/then/else written
+// beside a $ref somewhere to land (GitHub #114).
+func (l *lowerer) fillPropertyValidationOnly(p *ir.Property, ref *oas3.Schema, pointer string) {
+	if l.ownsNode(pointer) {
+		return
 	}
+	l.fillValidationOnly(&p.Extensions, ref, pointer)
+}
+
+// ownsNode reports whether the declaration at pointer hoisted a type node of
+// its own — the node that then holds its annotations.
+func (l *lowerer) ownsNode(pointer string) bool {
+	_, ok := l.byPointer[pointer]
+	return ok
 }
 
 // fillPropertyDefault sets the property default, preferring the use-site node
@@ -701,7 +721,7 @@ func (l *lowerer) fillPropertyDefault(p *ir.Property, ref, tgt *oas3.Schema, poi
 // its own node (attachSchemaExamples). One home per declaration means the two can
 // never drift apart.
 func (l *lowerer) fillPropertyExamples(p *ir.Property, ref *oas3.Schema, pointer string) {
-	if _, hoisted := l.byPointer[pointer]; hoisted {
+	if l.ownsNode(pointer) {
 		return
 	}
 	if ex := l.schemaExamples(ref, pointer); len(ex) > 0 {
@@ -733,13 +753,22 @@ func (l *lowerer) schemaExamples(s *oas3.Schema, pointer string) []ir.Example {
 	return out
 }
 
-// attachSchemaExamples records s's own example annotations on the type node
-// pointer owns, the structural home for a schema's examples (ir.TypeCommon).
-// A schema whose body reduced to a shared primitive owns no node; its examples
-// stay with the declaring property (fillPropertyExamples). Ownership is checked
-// before conversion because the callers cover a pointer in either order, and
-// only the one that finds a node may emit conversion diagnostics.
-func (l *lowerer) attachSchemaExamples(s *oas3.Schema, pointer string) {
+// attachDeclaredAnnotations records every annotation s declares on the type
+// node pointer owns — the one structural home a declaration's annotations have
+// (ir.TypeCommon, embedded in every type node).
+//
+// It is the sole reader of declaration-scoped annotations, and it runs *above*
+// lower()'s dispatch: every declaration reaches it through schemaBody or an
+// alias fallback, whatever its body turns out to lower to. That is what keeps
+// a new lowering destination from silently dropping annotations — a
+// destination never reads them, so it cannot forget to (GitHub #114).
+//
+// A schema whose body reduced to a shared primitive owns no node; its
+// annotations stay with the declaring property (fillPropertyDetail), and the
+// shared primitive must never carry a per-declaration annotation. Ownership is
+// checked before conversion because the callers cover a pointer in either
+// order, and only the one that finds a node may emit conversion diagnostics.
+func (l *lowerer) attachDeclaredAnnotations(s *oas3.Schema, pointer string) {
 	id, owned := l.byPointer[pointer]
 	if !owned {
 		return
@@ -748,8 +777,18 @@ func (l *lowerer) attachSchemaExamples(s *oas3.Schema, pointer string) {
 	if !ok {
 		return
 	}
+	c := td.Common()
+	fillTypeDocs(&c.Docs, s)
+	if effectiveDeprecated(s, nil) {
+		c.Deprecation = &ir.Deprecation{}
+	}
+	if h := xmlHints(s.GetXML()); h != nil {
+		c.XML = h
+	}
+	c.Extensions = mergeExtensions(c.Extensions, l.schemaExtensions(s))
+	l.fillValidationOnly(&c.Extensions, s, pointer)
 	if ex := l.schemaExamples(s, pointer); len(ex) > 0 {
-		td.Common().Examples = ex
+		c.Examples = ex
 	}
 }
 
@@ -769,18 +808,6 @@ func (l *lowerer) appendExample(out []ir.Example, proto ir.Example, node *yaml.N
 	}
 	proto.Value = &v
 	return append(out, proto)
-}
-
-// fillModelDetail lowers the model-level shape: docs, deprecation, additional-
-// property openness, validation-only keywords, and x-* extensions.
-func (l *lowerer) fillModelDetail(m *ir.Model, s *oas3.Schema, pointer, hint string) {
-	fillTypeDocs(&m.Docs, s)
-	if effectiveDeprecated(s, nil) {
-		m.Deprecation = &ir.Deprecation{}
-	}
-	l.fillAdditional(m, s, pointer, hint)
-	l.fillValidationOnly(m, s, pointer)
-	m.Extensions = mergeExtensions(m.Extensions, l.schemaExtensions(s))
 }
 
 // fillAdditional lowers additionalProperties, patternProperties, and
@@ -821,31 +848,34 @@ func (l *lowerer) patternProps(s *oas3.Schema, pointer, hint string) []ir.Patter
 }
 
 // fillValidationOnly preserves JSON Schema keywords that have no structural IR
-// home verbatim in namespaced Extensions, one info diagnostic each (§4.7).
-func (l *lowerer) fillValidationOnly(m *ir.Model, s *oas3.Schema, pointer string) {
+// home verbatim in namespaced Extensions, one info diagnostic each (§4.7). It
+// takes the Extensions map rather than a node so it serves both homes a
+// declaration's keywords can have: the type node the declaration owns, and the
+// declaring property when it owns none.
+func (l *lowerer) fillValidationOnly(ext *ir.Extensions, s *oas3.Schema, pointer string) {
 	if s.GetNot() != nil {
-		l.preserveKeyword(m, "openapi:not", nodeToRaw(rawPropertyNode(s, "not")), pointer, "not")
+		l.preserveKeyword(ext, "openapi:not", nodeToRaw(rawPropertyNode(s, "not")), pointer, "not")
 	}
 	if ite := ifThenElseRaw(s); ite != nil {
-		l.preserveKeyword(m, "openapi:if-then-else", ite, pointer, "if/then/else")
+		l.preserveKeyword(ext, "openapi:if-then-else", ite, pointer, "if/then/else")
 	}
 	if ds := s.GetDependentSchemas(); ds != nil && ds.Len() > 0 {
-		l.preserveKeyword(m, "openapi:dependentSchemas",
+		l.preserveKeyword(ext, "openapi:dependentSchemas",
 			nodeToRaw(rawPropertyNode(s, "dependentSchemas")), pointer, "dependentSchemas")
 	}
 	if craw := containsRaw(s); craw != nil {
-		l.preserveKeyword(m, "openapi:contains", craw, pointer, "contains")
+		l.preserveKeyword(ext, "openapi:contains", craw, pointer, "contains")
 	}
 	if u := unevaluatedRaw(s); u != nil {
-		l.preserveKeyword(m, "openapi:unevaluated", u, pointer, "unevaluated")
+		l.preserveKeyword(ext, "openapi:unevaluated", u, pointer, "unevaluated")
 	}
 }
 
 // preserveKeyword records a validation-only keyword's raw payload under key in
-// m's Extensions and emits one info diagnostic naming it. It is the
+// ext and emits one info diagnostic naming it. It is the
 // fillValidationOnly-specific caller of preserveRaw.
-func (l *lowerer) preserveKeyword(m *ir.Model, key string, raw ir.RawValue, pointer, label string) {
-	l.preserveRaw(&m.Extensions, key, raw, pointer, codeValidationOnlyKeyword,
+func (l *lowerer) preserveKeyword(ext *ir.Extensions, key string, raw ir.RawValue, pointer, label string) {
+	l.preserveRaw(ext, key, raw, pointer, codeValidationOnlyKeyword,
 		fmt.Sprintf("validation-only keyword %q preserved verbatim in extensions", label))
 }
 
@@ -1181,6 +1211,9 @@ func pickFlag(ref, tgt *oas3.Schema, accessor func(*oas3.Schema) *bool) bool {
 }
 
 // fillTypeDocs maps a schema's title, description, and externalDocs onto Docs.
+// Every field is assigned, never accumulated: a schema declares at most one
+// externalDocs, and a pointer read twice (a sub-schema lowered both in place
+// and through a $ref that hoists it) must not end up with two copies of it.
 func fillTypeDocs(d *ir.Docs, s *oas3.Schema) {
 	if t := s.GetTitle(); t != "" {
 		d.Summary = t
@@ -1189,7 +1222,7 @@ func fillTypeDocs(d *ir.Docs, s *oas3.Schema) {
 		d.Description = desc
 	}
 	if ed := s.GetExternalDocs(); ed != nil {
-		d.ExternalDocs = append(d.ExternalDocs, ir.Link{URL: ed.GetURL(), Description: ed.GetDescription()})
+		d.ExternalDocs = []ir.Link{{URL: ed.GetURL(), Description: ed.GetDescription()}}
 	}
 }
 

@@ -38,10 +38,11 @@ func (k siteKind) String() string {
 //
 // The split lets an annotation be read from where it was written rather than
 // wherever the $ref resolves to, with a fallback to Referent for annotations
-// meant to inherit from the target. Kind and Referent have no production
-// reader yet, but GitHub #114 tracks fixing the annotation gaps where the
-// scalar-alias path never runs the annotation readers — and those readers,
-// effectiveDescription(ref, tgt) and its siblings, take a referent.
+// meant to inherit from the target. Only Node has a production reader: a
+// declaration's annotations bind the position they are written at
+// (attachDeclaredAnnotations), and a component that aliases another keeps the
+// target's own annotations reachable through its Base rather than copying
+// them. Kind and Referent are for a reader that does want to inherit.
 // fillPropertyDetail (schema.go) instead falls back via refTargetSchema,
 // which follows a $ref chain to its end (GetResolvedSchema) rather than one
 // hop (GetReferenceResolutionInfo, what Referent uses). The two are not
@@ -209,7 +210,7 @@ func (l *lowerer) hoistSubSchema(decl *oas3.JSONSchema[oas3.Referenceable], poin
 	id := l.internAlias(pointer, hint, ref, l.schemaConstraints(s.Node, pointer))
 	// As in lowerComponentSchema: this alias is the first node the pointer owns,
 	// so the annotations schemaRef had nowhere to put now have a home.
-	l.attachSchemaExamples(s.Node, pointer)
+	l.attachDeclaredAnnotations(s.Node, pointer)
 	return id, true
 }
 
