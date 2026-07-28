@@ -39,9 +39,9 @@ func (k siteKind) String() string {
 // The split lets an annotation be read from where it was written rather than
 // wherever the $ref resolves to, with a fallback to Referent for annotations
 // meant to inherit from the target. Kind and Referent have no production
-// reader yet, but the next planned work is fixing the seven annotation gaps
-// where the scalar-alias path never runs the annotation readers — and those
-// readers, effectiveDescription(ref, tgt) and its siblings, take a referent.
+// reader yet, but GitHub #114 tracks fixing the annotation gaps where the
+// scalar-alias path never runs the annotation readers — and those readers,
+// effectiveDescription(ref, tgt) and its siblings, take a referent.
 // fillPropertyDetail (schema.go) instead falls back via refTargetSchema,
 // which follows a $ref chain to its end (GetResolvedSchema) rather than one
 // hop (GetReferenceResolutionInfo, what Referent uses). The two are not
