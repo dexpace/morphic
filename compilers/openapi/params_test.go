@@ -203,3 +203,49 @@ func TestParams_QueryStringLocation(t *testing.T) {
 	op := findOp(t, doc, "q")
 	assert.Equal(t, ir.HTTPLocationQuerystring, op.Bindings.HTTP[0].ParamBindings[0].Location)
 }
+
+const componentParamRefSpec = `openapi: 3.1.0
+info: {title: T, version: "1"}
+paths:
+  /a:
+    get:
+      operationId: getA
+      parameters:
+        - {$ref: '#/components/parameters/Page'}
+      responses: {"200": {description: ok}}
+  /b:
+    get:
+      operationId: getB
+      parameters:
+        - {$ref: '#/components/parameters/Page'}
+      responses: {"200": {description: ok}}
+components:
+  parameters:
+    Page: {name: page, in: query, schema: {type: string, enum: [a, b]}}
+`
+
+// TestParams_ComponentRefSharedAcrossOperationsInternsOnce is the fix's core
+// scenario for a referenced parameter component (issue #107): two operations
+// $ref'ing one #/components/parameters/Page must intern its schema once, at
+// the component's own declaration pointer, rather than once per fabricated
+// use-site position.
+func TestParams_ComponentRefSharedAcrossOperationsInternsOnce(t *testing.T) {
+	t.Parallel()
+	doc, diags := parseFull(t, componentParamRefSpec)
+	requireNoErrorDiags(t, diags)
+	getA := findOp(t, doc, "getA")
+	getB := findOp(t, doc, "getB")
+	require.Len(t, getA.Params, 1)
+	require.Len(t, getB.Params, 1)
+
+	wantID := ir.TypeID("t/anon/components/parameters/Page/schema")
+	assert.Equal(t, wantID, getA.Params[0].Type.Target)
+	assert.Equal(t, wantID, getB.Params[0].Type.Target, "both operations resolve the same shared schema")
+	_, ok := doc.Types[wantID]
+	require.True(t, ok, "the shared schema is registered under the component's own pointer")
+
+	_, fabricatedA := doc.Types[ir.TypeID("t/anon/paths/~1a/get/parameters/0/schema")]
+	_, fabricatedB := doc.Types[ir.TypeID("t/anon/paths/~1b/get/parameters/0/schema")]
+	assert.False(t, fabricatedA, "no fabricated per-operation ID for /a")
+	assert.False(t, fabricatedB, "no fabricated per-operation ID for /b")
+}

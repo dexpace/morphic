@@ -557,3 +557,122 @@ func TestLowerPayload_NilMediaEntriesYieldNil(t *testing.T) {
 	)
 	assert.Nil(t, l.lowerPayload(content, "/p", "hint"), "all-nil media map yields no payload")
 }
+
+const componentBodyRefSpec = `openapi: 3.1.0
+info: {title: T, version: "1"}
+paths:
+  /a:
+    post:
+      operationId: postA
+      requestBody: {$ref: '#/components/requestBodies/Body'}
+      responses: {"200": {description: ok}}
+  /b:
+    post:
+      operationId: postB
+      requestBody: {$ref: '#/components/requestBodies/Body'}
+      responses: {"200": {description: ok}}
+components:
+  requestBodies:
+    Body:
+      content:
+        application/json:
+          schema: {type: object, properties: {n: {type: string}}}
+`
+
+// TestContent_RequestBodyRefSharedAcrossOperationsInternsOnce is the fix's
+// core scenario for a referenced requestBody component (issue #107): two
+// operations $ref'ing one #/components/requestBodies/Body must intern its
+// content schema once, at the component's own declaration pointer.
+func TestContent_RequestBodyRefSharedAcrossOperationsInternsOnce(t *testing.T) {
+	t.Parallel()
+	doc, diags := parseFull(t, componentBodyRefSpec)
+	requireNoErrorDiags(t, diags)
+	postA := findOp(t, doc, "postA")
+	postB := findOp(t, doc, "postB")
+	require.NotNil(t, postA.Request)
+	require.NotNil(t, postB.Request)
+
+	wantID := ir.TypeID("t/anon/components/requestBodies/Body/content/application~1json/schema")
+	assert.Equal(t, wantID, postA.Request.Contents[0].Type.Target)
+	assert.Equal(t, wantID, postB.Request.Contents[0].Type.Target,
+		"both operations resolve the same shared body schema")
+
+	_, fabricatedA := doc.Types[ir.TypeID("t/anon/paths/~1a/post/requestBody/content/application~1json/schema")]
+	_, fabricatedB := doc.Types[ir.TypeID("t/anon/paths/~1b/post/requestBody/content/application~1json/schema")]
+	assert.False(t, fabricatedA, "no fabricated per-operation ID for /a")
+	assert.False(t, fabricatedB, "no fabricated per-operation ID for /b")
+}
+
+const refdResponseNestedHeaderSpec = `openapi: 3.1.0
+info: {title: T, version: "1"}
+paths:
+  /a:
+    get:
+      operationId: getA
+      responses:
+        "200": {$ref: '#/components/responses/OK'}
+components:
+  responses:
+    OK:
+      description: ok
+      headers:
+        X-Rate: {$ref: '#/components/headers/Rate'}
+  headers:
+    Rate: {schema: {type: string, enum: [a, b]}}
+`
+
+// TestContent_RefdResponseHeaderNestedRefInternsSchemaOnce covers the nested
+// hop of issue #107: a $ref'd response whose own headers entry is itself a
+// $ref to a header component must still hoist the header's schema once, at
+// the header component's own declaration pointer.
+func TestContent_RefdResponseHeaderNestedRefInternsSchemaOnce(t *testing.T) {
+	t.Parallel()
+	doc, diags := parseFull(t, refdResponseNestedHeaderSpec)
+	requireNoErrorDiags(t, diags)
+	op := findOp(t, doc, "getA")
+	require.Len(t, op.Responses, 1)
+	require.Len(t, op.Responses[0].Headers, 1)
+
+	wantID := ir.TypeID("t/anon/components/headers/Rate/schema")
+	assert.Equal(t, wantID, op.Responses[0].Headers[0].Type.Target)
+	_, ok := doc.Types[wantID]
+	require.True(t, ok, "the header's schema is registered under the header component's own pointer")
+}
+
+const headerIdentitySpec = `openapi: 3.1.0
+info: {title: T, version: "1"}
+paths:
+  /a:
+    get:
+      operationId: getA
+      responses:
+        "200":
+          description: ok
+          headers:
+            X-Rate: {$ref: '#/components/headers/Rate'}
+            X-Limit: {$ref: '#/components/headers/Rate'}
+components:
+  headers:
+    Rate: {schema: {type: string, enum: [a, b]}}
+`
+
+// TestContent_HeaderMapEntriesSharingComponentGetDistinctIDs covers the
+// header-identity half of issue #107: two response headers under different
+// map keys that both $ref the same header component keep distinct PropIDs —
+// the map entry, not the schema, identifies each header — while sharing one
+// Type.Target.
+func TestContent_HeaderMapEntriesSharingComponentGetDistinctIDs(t *testing.T) {
+	t.Parallel()
+	doc, diags := parseFull(t, headerIdentitySpec)
+	requireNoErrorDiags(t, diags)
+	op := findOp(t, doc, "getA")
+	require.Len(t, op.Responses[0].Headers, 2)
+	byWire := indexBy(op.Responses[0].Headers, func(p ir.Property) string { return p.WireName })
+
+	rate, limit := byWire["X-Rate"], byWire["X-Limit"]
+	assert.NotEqual(t, rate.ID, limit.ID, "distinct map keys keep distinct PropIDs")
+	assert.Equal(t, ir.PropID("p/openapi/paths/~1a/get/responses/200/headers/X-Rate"), rate.ID)
+	assert.Equal(t, ir.PropID("p/openapi/paths/~1a/get/responses/200/headers/X-Limit"), limit.ID)
+	assert.Equal(t, rate.Type.Target, limit.Type.Target, "both resolve the same shared header schema")
+	assert.Equal(t, ir.TypeID("t/anon/components/headers/Rate/schema"), rate.Type.Target)
+}

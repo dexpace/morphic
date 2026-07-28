@@ -1,6 +1,8 @@
 package openapi
 
 import (
+	"os"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -748,4 +750,396 @@ func TestResolvers_NilInputs(t *testing.T) {
 	assert.Nil(t, resolveRef[soa.SecurityScheme](rss))
 	_, ok := paramKey(nil)
 	assert.False(t, ok)
+}
+
+const componentResponseRefSpec = `openapi: 3.1.0
+info: {title: T, version: "1"}
+paths:
+  /a:
+    get:
+      operationId: getA
+      responses:
+        "200": {$ref: '#/components/responses/OK'}
+  /b:
+    get:
+      operationId: getB
+      responses:
+        "200": {$ref: '#/components/responses/OK'}
+components:
+  responses:
+    OK:
+      description: ok
+      content:
+        application/json:
+          schema: {type: object, properties: {n: {type: string}}}
+`
+
+// TestResponses_ComponentRefSharedAcrossOperationsInternsOnce is the fix's
+// core scenario for a referenced response component (issue #107): two
+// operations $ref'ing one #/components/responses/OK must intern its content
+// schema once, at the component's own declaration pointer.
+func TestResponses_ComponentRefSharedAcrossOperationsInternsOnce(t *testing.T) {
+	t.Parallel()
+	doc, diags := parseFull(t, componentResponseRefSpec)
+	requireNoErrorDiags(t, diags)
+	getA := findOp(t, doc, "getA")
+	getB := findOp(t, doc, "getB")
+	require.Len(t, getA.Responses, 1)
+	require.Len(t, getB.Responses, 1)
+
+	wantID := ir.TypeID("t/anon/components/responses/OK/content/application~1json/schema")
+	assert.Equal(t, wantID, getA.Responses[0].Payload.Contents[0].Type.Target)
+	assert.Equal(t, wantID, getB.Responses[0].Payload.Contents[0].Type.Target,
+		"both operations resolve the same shared response schema")
+
+	_, fabricatedA := doc.Types[ir.TypeID("t/anon/paths/~1a/get/responses/200/content/application~1json/schema")]
+	_, fabricatedB := doc.Types[ir.TypeID("t/anon/paths/~1b/get/responses/200/content/application~1json/schema")]
+	assert.False(t, fabricatedA, "no fabricated per-operation ID for /a")
+	assert.False(t, fabricatedB, "no fabricated per-operation ID for /b")
+}
+
+const sharedPathItemSpec = `openapi: 3.1.0
+info: {title: T, version: "1"}
+paths:
+  /a: {$ref: '#/components/pathItems/Shared'}
+  /b: {$ref: '#/components/pathItems/Shared'}
+components:
+  pathItems:
+    Shared:
+      parameters:
+        - {name: shared, in: query, schema: {type: string, enum: [a, b]}}
+      get:
+        operationId: sharedGet
+        requestBody:
+          content:
+            application/json:
+              schema: {type: object, properties: {n: {type: string}}}
+        responses:
+          "200":
+            description: ok
+            content:
+              application/json:
+                schema: {type: object, properties: {m: {type: string}}}
+`
+
+// TestPathItem_RefSharedAcrossMountsKeepsDistinctOpIDs is the fix's core
+// scenario for a referenced path item (issue #107): two paths mounting one
+// #/components/pathItems/Shared must keep distinct operation identities —
+// they are different URI templates, so they must never collide on one OpID
+// (issue #36's risk otherwise) — while the shared parameter, request, and
+// response schemas each intern once, at the shared component's own pointer.
+func TestPathItem_RefSharedAcrossMountsKeepsDistinctOpIDs(t *testing.T) {
+	t.Parallel()
+	doc, diags := parseFull(t, sharedPathItemSpec)
+	requireNoErrorDiags(t, diags)
+	opA := opByPath(t, doc, "GET", "/a")
+	opB := opByPath(t, doc, "GET", "/b")
+
+	assert.Equal(t, ir.OpID("op/openapi/paths/~1a/get"), opA.ID)
+	assert.Equal(t, ir.OpID("op/openapi/paths/~1b/get"), opB.ID)
+	assert.NotEqual(t, opA.ID, opB.ID, "operations keep use-site identity")
+
+	require.Len(t, opA.Params, 1)
+	require.Len(t, opB.Params, 1)
+	wantParamID := ir.TypeID("t/anon/components/pathItems/Shared/parameters/0/schema")
+	assert.Equal(t, wantParamID, opA.Params[0].Type.Target)
+	assert.Equal(t, wantParamID, opB.Params[0].Type.Target, "the shared path-item parameter interns once")
+
+	require.NotNil(t, opA.Request)
+	require.NotNil(t, opB.Request)
+	wantReqID := ir.TypeID("t/anon/components/pathItems/Shared/get/requestBody/content/application~1json/schema")
+	assert.Equal(t, wantReqID, opA.Request.Contents[0].Type.Target)
+	assert.Equal(t, wantReqID, opB.Request.Contents[0].Type.Target, "the shared inline request schema interns once")
+
+	require.Len(t, opA.Responses, 1)
+	require.Len(t, opB.Responses, 1)
+	wantRespID := ir.TypeID("t/anon/components/pathItems/Shared/get/responses/200/content/application~1json/schema")
+	assert.Equal(t, wantRespID, opA.Responses[0].Payload.Contents[0].Type.Target)
+	assert.Equal(t, wantRespID, opB.Responses[0].Payload.Contents[0].Type.Target,
+		"the shared inline response schema interns once")
+}
+
+const sharedCallbackSpec = `openapi: 3.1.0
+info: {title: T, version: "1"}
+paths:
+  /c:
+    post:
+      operationId: parentC
+      callbacks:
+        onEvent: {$ref: '#/components/callbacks/Shared'}
+      responses: {"200": {description: ok}}
+  /d:
+    post:
+      operationId: parentD
+      callbacks:
+        onEvent: {$ref: '#/components/callbacks/Shared'}
+      responses: {"200": {description: ok}}
+components:
+  callbacks:
+    Shared:
+      '{$request.body#/url}':
+        post:
+          operationId: cbPost
+          requestBody:
+            content:
+              application/json:
+                schema: {type: object, properties: {n: {type: string}}}
+          responses: {"200": {description: ok}}
+`
+
+// TestCallbacks_RefSharedAcrossParentsKeepsDistinctOpIDs is the fix's core
+// scenario for a referenced callback (issue #107): two parent operations
+// $ref'ing one #/components/callbacks/Shared must keep distinct callback
+// operation identities per parent while the callback's own request schema
+// interns once, at the shared component's own pointer.
+func TestCallbacks_RefSharedAcrossParentsKeepsDistinctOpIDs(t *testing.T) {
+	t.Parallel()
+	doc, diags := parseFull(t, sharedCallbackSpec)
+	requireNoErrorDiags(t, diags)
+	parentC := findOp(t, doc, "parentC")
+	parentD := findOp(t, doc, "parentD")
+	require.Len(t, parentC.Bindings.HTTP[0].Callbacks, 1)
+	require.Len(t, parentD.Bindings.HTTP[0].Callbacks, 1)
+	require.Len(t, parentC.Bindings.HTTP[0].Callbacks[0].Operations, 1)
+	require.Len(t, parentD.Bindings.HTTP[0].Callbacks[0].Operations, 1)
+
+	cbIDC := parentC.Bindings.HTTP[0].Callbacks[0].Operations[0]
+	cbIDD := parentD.Bindings.HTTP[0].Callbacks[0].Operations[0]
+	assert.NotEqual(t, cbIDC, cbIDD, "callback operations keep distinct identity per parent")
+	assert.Equal(t, ir.OpID("op/openapi/paths/~1c/post/callbacks/onEvent/{$request.body#~1url}/post"), cbIDC)
+	assert.Equal(t, ir.OpID("op/openapi/paths/~1d/post/callbacks/onEvent/{$request.body#~1url}/post"), cbIDD)
+
+	cbOps := opsByID(doc, cbIDC, cbIDD)
+	wantReqID := ir.TypeID(
+		"t/anon/components/callbacks/Shared/{$request.body#~1url}/post/requestBody/content/application~1json/schema")
+	require.NotNil(t, cbOps[cbIDC].Request)
+	require.NotNil(t, cbOps[cbIDD].Request)
+	assert.Equal(t, wantReqID, cbOps[cbIDC].Request.Contents[0].Type.Target)
+	assert.Equal(t, wantReqID, cbOps[cbIDD].Request.Contents[0].Type.Target,
+		"the callback's shared request schema interns once")
+}
+
+// opsByID collects the operations matching any of ids into a lookup. It
+// exists because findOp disambiguates by Name.Source, which two mounts of one
+// $ref'd path item or callback share (they are the same declared operationId
+// mounted twice); OpID is the only thing that still tells them apart.
+func opsByID(doc *ir.Document, ids ...ir.OpID) map[ir.OpID]ir.Operation {
+	want := make(map[ir.OpID]bool, len(ids))
+	for _, id := range ids {
+		want[id] = true
+	}
+	out := make(map[ir.OpID]ir.Operation, len(ids))
+	for _, g := range doc.Services[0].Groups {
+		for _, op := range g.Operations {
+			if want[op.ID] {
+				out[op.ID] = op
+			}
+		}
+	}
+	return out
+}
+
+// provenanceSpec exercises every use-site/declaration split the fix touches
+// in one document: a path item shared across two mounts, a component
+// parameter, a component request body, a component response with a nested
+// component header, and a component callback.
+const provenanceSpec = `openapi: 3.1.0
+info: {title: T, version: "1"}
+paths:
+  /a: {$ref: '#/components/pathItems/Shared'}
+  /b: {$ref: '#/components/pathItems/Shared'}
+  /solo:
+    post:
+      operationId: solo
+      parameters:
+        - {$ref: '#/components/parameters/Page'}
+      requestBody: {$ref: '#/components/requestBodies/Body'}
+      callbacks:
+        onEvent: {$ref: '#/components/callbacks/Shared'}
+      responses:
+        "200": {$ref: '#/components/responses/OK'}
+components:
+  pathItems:
+    Shared:
+      parameters:
+        - {name: shared, in: query, schema: {type: string, enum: [a, b]}}
+      get:
+        operationId: sharedGet
+        responses: {"200": {description: ok}}
+  parameters:
+    Page: {name: page, in: query, schema: {type: string, enum: [a, b]}}
+  requestBodies:
+    Body:
+      content:
+        application/json:
+          schema: {type: object, properties: {n: {type: string}}}
+  callbacks:
+    Shared:
+      '{$request.body#/url}':
+        post:
+          operationId: cbPost
+          responses: {"200": {description: ok}}
+  responses:
+    OK:
+      description: ok
+      headers:
+        X-Rate: {$ref: '#/components/headers/Rate'}
+      content:
+        application/json:
+          schema: {type: object, properties: {m: {type: string}}}
+  headers:
+    Rate: {schema: {type: string, enum: [a, b]}}
+`
+
+// TestProvenance_EveryPointerResolvesInSource is the direct regression guard
+// for issue #107's first bullet: every hoisted TypeDef, and every
+// response-header Property, must carry a Provenance.Pointer that resolves to
+// a node actually present in the parsed source YAML — never a fabricated
+// use-site position (e.g. under an operation that never declared the shared
+// entity) that the document has no node at.
+func TestProvenance_EveryPointerResolvesInSource(t *testing.T) {
+	t.Parallel()
+	doc, diags := parseFull(t, provenanceSpec)
+	requireNoErrorDiags(t, diags)
+
+	var root yaml.Node
+	require.NoError(t, yaml.Unmarshal([]byte(provenanceSpec), &root))
+
+	checked := 0
+	for id, td := range doc.Types {
+		p := td.Common().Provenance.Pointer
+		if p == "" {
+			continue
+		}
+		checked++
+		assert.True(t, pointerResolves(&root, p), "type %s: pointer %q does not resolve in source", id, p)
+	}
+	for _, g := range doc.Services[0].Groups {
+		for _, op := range g.Operations {
+			for _, resp := range op.Responses {
+				for _, h := range resp.Headers {
+					p := h.Provenance.Pointer
+					if p == "" {
+						continue
+					}
+					checked++
+					assert.True(t, pointerResolves(&root, p),
+						"header %s: pointer %q does not resolve in source", h.WireName, p)
+				}
+			}
+		}
+	}
+	assert.Positive(t, checked, "the spec must exercise at least one pointer worth checking")
+}
+
+// pointerResolves reports whether an RFC 6901 JSON pointer resolves to some
+// node in a parsed YAML document: each segment (unescaped ~1 then ~0, via the
+// production unescapeSegment) is followed as a mapping key, or, in a
+// sequence, a decimal index. The empty pointer is skipped by callers, not
+// treated as resolving here.
+func pointerResolves(root *yaml.Node, pointer string) bool {
+	node := root
+	if node.Kind == yaml.DocumentNode && len(node.Content) > 0 {
+		node = node.Content[0]
+	}
+	for _, raw := range strings.Split(strings.TrimPrefix(pointer, "/"), "/") {
+		next, ok := pointerStep(node, unescapeSegment(raw))
+		if !ok {
+			return false
+		}
+		node = next
+	}
+	return true
+}
+
+// pointerStep resolves one unescaped pointer segment against node: a mapping
+// key match, or a sequence index for a decimal segment.
+func pointerStep(node *yaml.Node, seg string) (*yaml.Node, bool) {
+	switch node.Kind {
+	case yaml.MappingNode:
+		for i := 0; i+1 < len(node.Content); i += 2 {
+			if node.Content[i].Value == seg {
+				return node.Content[i+1], true
+			}
+		}
+		return nil, false
+	case yaml.SequenceNode:
+		idx, err := strconv.Atoi(seg)
+		if err != nil || idx < 0 || idx >= len(node.Content) {
+			return nil, false
+		}
+		return node.Content[idx], true
+	default:
+		return nil, false
+	}
+}
+
+// TestOpContext_DeclarationPointer covers both branches of declarationPointer:
+// an opContext with declPtr set returns it, and a zero-value opContext falls
+// back to the passed-in mount pointer. Every constructor in this package sets
+// declPtr; the fallback exists so that a bare opContext{} literal — or some
+// future constructor that forgets to set it — degrades to the mount pointer
+// instead of silently deriving a shared declaration's identity from "".
+func TestOpContext_DeclarationPointer(t *testing.T) {
+	t.Parallel()
+	cases := []struct {
+		name    string
+		ctx     opContext
+		pointer string
+		want    string
+	}{
+		{
+			name:    "zero value falls back to the mount pointer",
+			ctx:     opContext{},
+			pointer: "/paths/~1a/get",
+			want:    "/paths/~1a/get",
+		},
+		{
+			name:    "declPtr set wins over the mount pointer",
+			ctx:     opContext{declPtr: "/components/pathItems/Shared/get"},
+			pointer: "/paths/~1a/get",
+			want:    "/components/pathItems/Shared/get",
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			assert.Equal(t, tc.want, tc.ctx.declarationPointer(tc.pointer))
+		})
+	}
+}
+
+// TestResolveRefAt_CrossDocumentKeepsUseSitePointer is the cross-document
+// counterpart to the same-document sharing tests above (issue #107). The
+// fixture's operation $refs a parameter and a response into a sibling
+// document; both resolve to real objects (resolveAll follows external refs),
+// but resolveRefAt's internalPointer check rejects the target because it lives
+// in another document, so the use-site pointer is kept rather than a pointer
+// into a document this IR has no node for.
+func TestResolveRefAt_CrossDocumentKeepsUseSitePointer(t *testing.T) {
+	t.Parallel()
+	path := "../../testdata/openapi/resolve_main_external_valid.yaml"
+	data, err := os.ReadFile(path)
+	require.NoError(t, err)
+
+	opts := Options{}.withDefaults()
+	loadedDoc, loadDiags, err := load(t.Context(), 0, compilers.Source{Path: path, Data: data}, opts)
+	require.NoError(t, err)
+	require.NotNil(t, loadedDoc)
+
+	l := newLowerer(0, loadedDoc, opts)
+	doc := l.run()
+	requireNoErrorDiags(t, append(loadDiags, l.diags...))
+
+	wantParamID := ir.TypeID("t/anon/paths/~1a/get/parameters/0/schema")
+	wantRespID := ir.TypeID("t/anon/paths/~1a/get/responses/200/content/application~1json/schema")
+	_, hasParam := doc.Types[wantParamID]
+	_, hasResp := doc.Types[wantRespID]
+	assert.True(t, hasParam, "the cross-document parameter schema interns at the use-site pointer")
+	assert.True(t, hasResp, "the cross-document response schema interns at the use-site pointer")
+
+	for id := range doc.Types {
+		assert.False(t, strings.HasPrefix(string(id), "t/anon/components/"),
+			"no type interned under the sibling document's own pointer: %s", id)
+	}
 }
