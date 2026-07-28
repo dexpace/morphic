@@ -26,14 +26,13 @@ func run(args []string, stdout, stderr io.Writer) int {
 		printUsage(stderr)
 		return 2
 	}
-	switch args[0] {
-	case "compile":
-		return runCompile(args[1:], stdout, stderr)
-	default:
+	c, ok := lookup(args[0])
+	if !ok {
 		emitf(stderr, "morphic: unknown command %q\n", args[0])
 		printUsage(stderr)
 		return 2
 	}
+	return c.run(args[1:], stdout, stderr)
 }
 
 // emitf writes a formatted line to w. Write errors on a human-facing stream are
