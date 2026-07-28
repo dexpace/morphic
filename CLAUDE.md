@@ -174,6 +174,18 @@ context-switch between repos.
 
 ## Commits & pull requests
 
+- **Zero nits, zero flaws — correctness before shipping.** A PR is not ready because it works; it is
+  ready when there is nothing left to find. Every known defect is fixed or explicitly justified in
+  writing before the PR opens — never deferred silently, never left for the reviewer to catch. This
+  applies to the small things too: a doc comment that is imprecise, a commit subject over the
+  72-char cap, a test that passes without asserting what its name claims. "Minor" is a severity, not
+  a permission to ship it.
+  - Review the **final** state, not an intermediate one. If commits land after a review, that review
+    is stale — re-review the branch as it will be merged.
+  - Prefer proving a claim over asserting it. If a test is meant to fail when something breaks,
+    break that thing in a throwaway patch and watch it fail.
+  - A limitation that is deliberately out of scope must be stated in the code and in the PR body, in
+    a place the next reader will actually reach — not only in a commit message or a scratch note.
 - **Conventional Commits**: `type(scope): subject`, imperative mood, subject line only (no period,
   ≤72 chars). Common types: `feat`, `fix`, `refactor`, `docs`, `test`, `build`, `chore`, `ci`,
   `perf`. Scope is the touched package (`ir`, `compilers/openapi`, `pass`, `emitters/go`, `engine`)
