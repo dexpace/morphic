@@ -498,10 +498,11 @@ components:
       readOnly: true
 `,
 			assert: func(t *testing.T, doc *ir.Document) {
-				td, ok := doc.Types[namedID("S")]
-				require.True(t, ok)
-				assert.Empty(t, td.Common().Access, "Access is never set today; closing this gap should turn this red")
-				assert.Zero(t, td.Common().Usage, "Usage is never set today; closing this gap should turn this red")
+				m, ok := doc.Types[namedID("S")].(*ir.Model)
+				require.True(t, ok, "S still owns a Model node even though its readOnly is dropped")
+				node := marshalToMap(t, m)
+				assert.NotContains(t, node, "visibility",
+					"readOnly has no field to land in on a declaration site today; closing this gap should turn this red")
 			},
 		},
 		{
@@ -515,10 +516,11 @@ components:
     S: {type: string, readOnly: true}
 `,
 			assert: func(t *testing.T, doc *ir.Document) {
-				td, ok := doc.Types[namedID("S")]
-				require.True(t, ok)
-				assert.Empty(t, td.Common().Access, "Access is never set today; closing this gap should turn this red")
-				assert.Zero(t, td.Common().Usage, "Usage is never set today; closing this gap should turn this red")
+				sc, ok := doc.Types[namedID("S")].(*ir.Scalar)
+				require.True(t, ok, "a bare scalar component owns a Scalar node")
+				node := marshalToMap(t, sc)
+				assert.NotContains(t, node, "visibility",
+					"readOnly has no field to land in on a declaration site today; closing this gap should turn this red")
 			},
 		},
 		{
