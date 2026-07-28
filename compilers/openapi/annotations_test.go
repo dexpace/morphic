@@ -1,8 +1,7 @@
-// This file is the OpenAPI half of the (format × aspect × site-kind)
-// conformance grid: one case per annotation slot per kind of position, plus an
-// assertion that no cell is silently uncovered. It complements
-// conformance_test.go, which covers capability rows rather than annotation
-// positions.
+// This file is the OpenAPI half of annotation retention: one case per
+// annotation per kind of position, plus an assertion that no combination is
+// silently uncovered. It complements conformance_test.go, which covers
+// capability rows rather than annotation positions.
 package openapi_test
 
 import (
@@ -17,10 +16,10 @@ import (
 	"github.com/dexpace/morphic/ir"
 )
 
-// gridCase is one cell of the conformance grid: a minimal spec exercising one
-// annotation slot at one kind of position, and the assertion that the
+// retentionCase is one cell of annotation retention: a minimal spec exercising
+// one annotation at one kind of position, and the assertion that the
 // annotation survived to the right place in the IR.
-type gridCase struct {
+type retentionCase struct {
 	cell harness.Cell
 	spec string
 
@@ -36,10 +35,10 @@ type gridCase struct {
 	assertDiags func(*testing.T, []ir.Diagnostic)
 }
 
-// compileGrid compiles one in-memory grid spec, since a grid spec is always
-// well-formed by construction; the caller checks diagnostics against what its
-// own cell expects.
-func compileGrid(t *testing.T, name, spec string) (*ir.Document, []ir.Diagnostic) {
+// compileAnnotationSpec compiles one in-memory annotation-retention spec,
+// since such a spec is always well-formed by construction; the caller checks
+// diagnostics against what its own cell expects.
+func compileAnnotationSpec(t *testing.T, name, spec string) (*ir.Document, []ir.Diagnostic) {
 	t.Helper()
 	doc, diags, err := openapi.New().Compile(t.Context(),
 		[]compilers.Source{{Path: name + ".yaml", Data: []byte(spec)}}, compilers.Options{})
@@ -48,13 +47,13 @@ func compileGrid(t *testing.T, name, spec string) (*ir.Document, []ir.Diagnostic
 	return doc, diags
 }
 
-func TestGrid(t *testing.T) {
+func TestAnnotationRetention(t *testing.T) {
 	t.Parallel()
-	for _, tc := range gridCases() {
-		name := string(tc.cell.Aspect) + "/" + string(tc.cell.SiteKind)
+	for _, tc := range retentionCases() {
+		name := string(tc.cell.Annotation) + "/" + string(tc.cell.SiteKind)
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
-			doc, diags := compileGrid(t, name, tc.spec)
+			doc, diags := compileAnnotationSpec(t, name, tc.spec)
 			assertNoErrorDiags(t, diags)
 			tc.assert(t, doc)
 			if tc.assertDiags != nil {
@@ -64,21 +63,21 @@ func TestGrid(t *testing.T) {
 	}
 }
 
-// TestGrid_KnownGapsAreListed logs every cell marked knownGap so the gaps stay
+// TestAnnotationRetention_KnownGaps logs every cell marked knownGap so the gaps stay
 // visible in test output rather than buried inside a passing subtest's body.
-func TestGrid_KnownGapsAreListed(t *testing.T) {
+func TestAnnotationRetention_KnownGaps(t *testing.T) {
 	t.Parallel()
-	for _, tc := range gridCases() {
+	for _, tc := range retentionCases() {
 		if tc.knownGap != "" {
-			t.Logf("GAP %s/%s: %s", tc.cell.Aspect, tc.cell.SiteKind, tc.knownGap)
+			t.Logf("GAP %s/%s: %s", tc.cell.Annotation, tc.cell.SiteKind, tc.knownGap)
 		}
 	}
 }
 
-func gridCases() []gridCase {
-	return []gridCase{
+func retentionCases() []retentionCase {
+	return []retentionCase{
 		{
-			cell: harness.Cell{Aspect: harness.AspectExamples, SiteKind: harness.SiteDeclarationModel},
+			cell: harness.Cell{Annotation: harness.AnnotationExamples, SiteKind: harness.SiteDeclarationModel},
 			spec: `openapi: 3.1.0
 info: {title: g, version: "1"}
 paths: {}
@@ -97,7 +96,7 @@ components:
 			},
 		},
 		{
-			cell: harness.Cell{Aspect: harness.AspectExamples, SiteKind: harness.SiteDeclarationScalar},
+			cell: harness.Cell{Annotation: harness.AnnotationExamples, SiteKind: harness.SiteDeclarationScalar},
 			spec: `openapi: 3.1.0
 info: {title: g, version: "1"}
 paths: {}
@@ -114,7 +113,7 @@ components:
 			},
 		},
 		{
-			cell: harness.Cell{Aspect: harness.AspectExamples, SiteKind: harness.SiteReference},
+			cell: harness.Cell{Annotation: harness.AnnotationExamples, SiteKind: harness.SiteReference},
 			spec: `openapi: 3.1.0
 info: {title: g, version: "1"}
 paths: {}
@@ -147,7 +146,7 @@ components:
 			},
 		},
 		{
-			cell: harness.Cell{Aspect: harness.AspectConstraints, SiteKind: harness.SiteDeclarationModel},
+			cell: harness.Cell{Annotation: harness.AnnotationConstraints, SiteKind: harness.SiteDeclarationModel},
 			knownGap: "ir.Model has no Constraints field, and lowerModel already owns the component's " +
 				"pointer before lowerComponentSchema's componentConstraints/internAlias fallback would run, " +
 				"so that fallback never fires for an object-shaped component and minProperties is read by nothing",
@@ -169,7 +168,7 @@ components:
 			},
 		},
 		{
-			cell: harness.Cell{Aspect: harness.AspectConstraints, SiteKind: harness.SiteDeclarationScalar},
+			cell: harness.Cell{Annotation: harness.AnnotationConstraints, SiteKind: harness.SiteDeclarationScalar},
 			spec: `openapi: 3.1.0
 info: {title: g, version: "1"}
 paths: {}
@@ -186,7 +185,7 @@ components:
 			},
 		},
 		{
-			cell: harness.Cell{Aspect: harness.AspectConstraints, SiteKind: harness.SiteReference},
+			cell: harness.Cell{Annotation: harness.AnnotationConstraints, SiteKind: harness.SiteReference},
 			spec: `openapi: 3.1.0
 info: {title: g, version: "1"}
 paths: {}
@@ -215,7 +214,7 @@ components:
 			},
 		},
 		{
-			cell: harness.Cell{Aspect: harness.AspectDocs, SiteKind: harness.SiteDeclarationModel},
+			cell: harness.Cell{Annotation: harness.AnnotationDocs, SiteKind: harness.SiteDeclarationModel},
 			spec: `openapi: 3.1.0
 info: {title: g, version: "1"}
 paths: {}
@@ -234,7 +233,7 @@ components:
 			},
 		},
 		{
-			cell: harness.Cell{Aspect: harness.AspectDocs, SiteKind: harness.SiteDeclarationScalar},
+			cell: harness.Cell{Annotation: harness.AnnotationDocs, SiteKind: harness.SiteDeclarationScalar},
 			knownGap: "fillTypeDocs is only called from fillModelDetail; a scalar component's internAlias " +
 				"path never calls it, so a scalar's own description is dropped",
 			spec: `openapi: 3.1.0
@@ -252,7 +251,7 @@ components:
 			},
 		},
 		{
-			cell: harness.Cell{Aspect: harness.AspectDocs, SiteKind: harness.SiteReference},
+			cell: harness.Cell{Annotation: harness.AnnotationDocs, SiteKind: harness.SiteReference},
 			spec: `openapi: 3.1.0
 info: {title: g, version: "1"}
 paths: {}
@@ -281,7 +280,7 @@ components:
 			},
 		},
 		{
-			cell: harness.Cell{Aspect: harness.AspectDeprecated, SiteKind: harness.SiteDeclarationModel},
+			cell: harness.Cell{Annotation: harness.AnnotationDeprecated, SiteKind: harness.SiteDeclarationModel},
 			spec: `openapi: 3.1.0
 info: {title: g, version: "1"}
 paths: {}
@@ -300,7 +299,7 @@ components:
 			},
 		},
 		{
-			cell: harness.Cell{Aspect: harness.AspectDeprecated, SiteKind: harness.SiteDeclarationScalar},
+			cell: harness.Cell{Annotation: harness.AnnotationDeprecated, SiteKind: harness.SiteDeclarationScalar},
 			knownGap: "effectiveDeprecated is only called from fillModelDetail (model) and " +
 				"fillPropertyDetail (property); internAlias never calls it, so a scalar component's own " +
 				"deprecated is dropped",
@@ -319,7 +318,7 @@ components:
 			},
 		},
 		{
-			cell: harness.Cell{Aspect: harness.AspectDeprecated, SiteKind: harness.SiteReference},
+			cell: harness.Cell{Annotation: harness.AnnotationDeprecated, SiteKind: harness.SiteReference},
 			spec: `openapi: 3.1.0
 info: {title: g, version: "1"}
 paths: {}
@@ -347,7 +346,7 @@ components:
 			},
 		},
 		{
-			cell: harness.Cell{Aspect: harness.AspectDefault, SiteKind: harness.SiteDeclarationModel},
+			cell: harness.Cell{Annotation: harness.AnnotationDefault, SiteKind: harness.SiteDeclarationModel},
 			knownGap: "ir.Model and TypeCommon have no Default field, so a component-level default has " +
 				"nowhere to land regardless of declaration shape",
 			spec: `openapi: 3.1.0
@@ -368,7 +367,7 @@ components:
 			},
 		},
 		{
-			cell:     harness.Cell{Aspect: harness.AspectDefault, SiteKind: harness.SiteDeclarationScalar},
+			cell:     harness.Cell{Annotation: harness.AnnotationDefault, SiteKind: harness.SiteDeclarationScalar},
 			knownGap: "ir.Scalar and ir.TypeCommon have no Default field, so a component-level default has nowhere to land",
 			spec: `openapi: 3.1.0
 info: {title: g, version: "1"}
@@ -384,7 +383,7 @@ components:
 			},
 		},
 		{
-			cell: harness.Cell{Aspect: harness.AspectDefault, SiteKind: harness.SiteReference},
+			cell: harness.Cell{Annotation: harness.AnnotationDefault, SiteKind: harness.SiteReference},
 			spec: `openapi: 3.1.0
 info: {title: g, version: "1"}
 paths: {}
@@ -408,7 +407,7 @@ components:
 			},
 		},
 		{
-			cell: harness.Cell{Aspect: harness.AspectVisibility, SiteKind: harness.SiteDeclarationModel},
+			cell: harness.Cell{Annotation: harness.AnnotationVisibility, SiteKind: harness.SiteDeclarationModel},
 			knownGap: "ir.TypeCommon has no Visibility field; Access and Usage exist but the compiler " +
 				"never sets them, for either declaration shape",
 			spec: `openapi: 3.1.0
@@ -429,7 +428,7 @@ components:
 			},
 		},
 		{
-			cell:     harness.Cell{Aspect: harness.AspectVisibility, SiteKind: harness.SiteDeclarationScalar},
+			cell:     harness.Cell{Annotation: harness.AnnotationVisibility, SiteKind: harness.SiteDeclarationScalar},
 			knownGap: "ir.TypeCommon has no Visibility field; Access and Usage exist but the compiler never sets them",
 			spec: `openapi: 3.1.0
 info: {title: g, version: "1"}
@@ -445,7 +444,7 @@ components:
 			},
 		},
 		{
-			cell: harness.Cell{Aspect: harness.AspectVisibility, SiteKind: harness.SiteReference},
+			cell: harness.Cell{Annotation: harness.AnnotationVisibility, SiteKind: harness.SiteReference},
 			spec: `openapi: 3.1.0
 info: {title: g, version: "1"}
 paths: {}
@@ -470,7 +469,7 @@ components:
 			},
 		},
 		{
-			cell: harness.Cell{Aspect: harness.AspectExtensions, SiteKind: harness.SiteDeclarationModel},
+			cell: harness.Cell{Annotation: harness.AnnotationExtensions, SiteKind: harness.SiteDeclarationModel},
 			spec: `openapi: 3.1.0
 info: {title: g, version: "1"}
 paths: {}
@@ -491,7 +490,7 @@ components:
 			},
 		},
 		{
-			cell: harness.Cell{Aspect: harness.AspectExtensions, SiteKind: harness.SiteDeclarationScalar},
+			cell: harness.Cell{Annotation: harness.AnnotationExtensions, SiteKind: harness.SiteDeclarationScalar},
 			knownGap: "schemaExtensions is merged into Model.Extensions only inside fillModelDetail; " +
 				"internAlias never attaches it, so a scalar component's own x-vendor is dropped",
 			spec: `openapi: 3.1.0
@@ -509,7 +508,7 @@ components:
 			},
 		},
 		{
-			cell: harness.Cell{Aspect: harness.AspectExtensions, SiteKind: harness.SiteReference},
+			cell: harness.Cell{Annotation: harness.AnnotationExtensions, SiteKind: harness.SiteReference},
 			spec: `openapi: 3.1.0
 info: {title: g, version: "1"}
 paths: {}
@@ -539,7 +538,7 @@ components:
 			},
 		},
 		{
-			cell:     harness.Cell{Aspect: harness.AspectXMLHints, SiteKind: harness.SiteDeclarationModel},
+			cell:     harness.Cell{Annotation: harness.AnnotationXMLHints, SiteKind: harness.SiteDeclarationModel},
 			knownGap: "ir.TypeCommon.XML exists but the OpenAPI compiler never assigns it; only Property.XML is filled (fillPropertyDetail), so a component-level xml hint has nowhere to land",
 			spec: `openapi: 3.1.0
 info: {title: g, version: "1"}
@@ -559,7 +558,7 @@ components:
 			},
 		},
 		{
-			cell: harness.Cell{Aspect: harness.AspectXMLHints, SiteKind: harness.SiteDeclarationScalar},
+			cell: harness.Cell{Annotation: harness.AnnotationXMLHints, SiteKind: harness.SiteDeclarationScalar},
 			knownGap: "xmlHints() is called only from fillPropertyDetail; neither fillModelDetail nor " +
 				"internAlias ever calls it, so a scalar component's own xml hint is dropped same as a model's",
 			spec: `openapi: 3.1.0
@@ -576,7 +575,7 @@ components:
 			},
 		},
 		{
-			cell: harness.Cell{Aspect: harness.AspectXMLHints, SiteKind: harness.SiteReference},
+			cell: harness.Cell{Annotation: harness.AnnotationXMLHints, SiteKind: harness.SiteReference},
 			spec: `openapi: 3.1.0
 info: {title: g, version: "1"}
 paths: {}
@@ -604,7 +603,7 @@ components:
 			},
 		},
 		{
-			cell: harness.Cell{Aspect: harness.AspectValidationOnly, SiteKind: harness.SiteDeclarationModel},
+			cell: harness.Cell{Annotation: harness.AnnotationValidationOnly, SiteKind: harness.SiteDeclarationModel},
 			spec: `openapi: 3.1.0
 info: {title: g, version: "1"}
 paths: {}
@@ -630,7 +629,7 @@ components:
 			},
 		},
 		{
-			cell: harness.Cell{Aspect: harness.AspectValidationOnly, SiteKind: harness.SiteDeclarationScalar},
+			cell: harness.Cell{Annotation: harness.AnnotationValidationOnly, SiteKind: harness.SiteDeclarationScalar},
 			knownGap: "fillValidationOnly takes *ir.Model and is only reached via fillModelDetail; a " +
 				"scalar component's internAlias path never calls it, so if/then/else on a scalar is " +
 				"neither preserved nor diagnosed",
@@ -656,7 +655,7 @@ components:
 			},
 		},
 		{
-			cell: harness.Cell{Aspect: harness.AspectValidationOnly, SiteKind: harness.SiteReference},
+			cell: harness.Cell{Annotation: harness.AnnotationValidationOnly, SiteKind: harness.SiteReference},
 			knownGap: "$ref dispatch (schemaRef -> refTypeRef) returns before lower()/lowerModel() runs, so " +
 				"fillValidationOnly never sees if/then/else written beside a property's $ref; there is no " +
 				"property-level validation-only preservation to fall back to",
@@ -701,17 +700,17 @@ func hasDiagCode(diags []ir.Diagnostic, code string) bool {
 	return false
 }
 
-// excusedCells lists grid cells OpenAPI cannot express, with the reason. An
+// excusedCells lists cells OpenAPI cannot express, with the reason. An
 // excuse is a claim about the format, not about the compiler — a cell that the
-// format *can* express but the compiler drops belongs in gridCases as a failing
-// case, not here.
+// format *can* express but the compiler drops belongs in retentionCases as a
+// failing case, not here.
 func excusedCells() []harness.Cell {
 	return nil
 }
 
-func TestGrid_EveryCellCoveredOrExcused(t *testing.T) {
+func TestAnnotationRetention_EveryCellCovered(t *testing.T) {
 	t.Parallel()
-	cases := gridCases()
+	cases := retentionCases()
 	excused := excusedCells()
 	covered := make([]harness.Cell, 0, len(cases)+len(excused))
 	for _, tc := range cases {
@@ -720,5 +719,5 @@ func TestGrid_EveryCellCoveredOrExcused(t *testing.T) {
 	covered = append(covered, excused...)
 
 	missing := harness.MissingCells(covered)
-	assert.Empty(t, missing, "grid cells with neither a case nor an excuse: %+v", missing)
+	assert.Empty(t, missing, "cells with neither a case nor an excuse: %+v", missing)
 }

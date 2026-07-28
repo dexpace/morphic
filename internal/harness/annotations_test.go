@@ -12,7 +12,7 @@ import (
 func TestCells_IsFullCrossProduct(t *testing.T) {
 	t.Parallel()
 	cells := harness.Cells()
-	assert.Len(t, cells, len(harness.Aspects())*len(harness.SiteKinds()))
+	assert.Len(t, cells, len(harness.Annotations())*len(harness.SiteKinds()))
 
 	seen := make(map[harness.Cell]bool, len(cells))
 	for _, c := range cells {
@@ -38,6 +38,6 @@ func TestMissingCells_EmptyWhenFullyCovered(t *testing.T) {
 
 func TestMissingCells_IgnoresUnknownCells(t *testing.T) {
 	t.Parallel()
-	covered := append(harness.Cells(), harness.Cell{Aspect: "invented", SiteKind: "nowhere"})
+	covered := append(harness.Cells(), harness.Cell{Annotation: "invented", SiteKind: "nowhere"})
 	assert.Empty(t, harness.MissingCells(covered))
 }
