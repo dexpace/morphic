@@ -344,8 +344,6 @@ components:
 func docsScalarCase() retentionCase {
 	return retentionCase{
 		cell: harness.Cell{Annotation: harness.AnnotationDocs, SiteKind: harness.SiteDeclarationScalar},
-		knownGap: "fillTypeDocs is only called from fillModelDetail; a scalar component's internAlias " +
-			"path never calls it, so a scalar's own description is dropped",
 		spec: `openapi: 3.1.0
 info: {title: g, version: "1"}
 paths: {}
@@ -356,8 +354,7 @@ components:
 		assert: func(t *testing.T, doc *ir.Document) {
 			sc, ok := doc.Types[namedID("S")].(*ir.Scalar)
 			require.True(t, ok, "a bare scalar component owns a Scalar node")
-			assert.Empty(t, sc.Docs.Description,
-				"docs is never set for a scalar declaration today; closing this gap should turn this red")
+			assert.Equal(t, "at-declaration", sc.Docs.Description)
 
 			assert.Empty(t, primitiveNode(t, doc, ir.TypeID("t/prim/string")).Common().Docs.Description,
 				"a description on the declaration must not leak onto the shared primitive")
@@ -428,9 +425,6 @@ components:
 func deprecatedScalarCase() retentionCase {
 	return retentionCase{
 		cell: harness.Cell{Annotation: harness.AnnotationDeprecated, SiteKind: harness.SiteDeclarationScalar},
-		knownGap: "effectiveDeprecated is only called from fillModelDetail (model) and " +
-			"fillPropertyDetail (property); internAlias never calls it, so a scalar component's own " +
-			"deprecated is dropped",
 		spec: `openapi: 3.1.0
 info: {title: g, version: "1"}
 paths: {}
@@ -441,8 +435,7 @@ components:
 		assert: func(t *testing.T, doc *ir.Document) {
 			sc, ok := doc.Types[namedID("S")].(*ir.Scalar)
 			require.True(t, ok, "a bare scalar component owns a Scalar node")
-			assert.Nil(t, sc.Deprecation,
-				"Deprecation is never set for a scalar declaration today; closing this gap should turn this red")
+			assert.NotNil(t, sc.Deprecation)
 
 			assert.Nil(t, primitiveNode(t, doc, ir.TypeID("t/prim/string")).Common().Deprecation,
 				"a deprecated on the declaration must not leak onto the shared primitive")
@@ -695,8 +688,6 @@ components:
 func extensionsScalarCase() retentionCase {
 	return retentionCase{
 		cell: harness.Cell{Annotation: harness.AnnotationExtensions, SiteKind: harness.SiteDeclarationScalar},
-		knownGap: "schemaExtensions is merged into Model.Extensions only inside fillModelDetail; " +
-			"internAlias never attaches it, so a scalar component's own x-vendor is dropped",
 		spec: `openapi: 3.1.0
 info: {title: g, version: "1"}
 paths: {}
@@ -707,8 +698,9 @@ components:
 		assert: func(t *testing.T, doc *ir.Document) {
 			sc, ok := doc.Types[namedID("S")].(*ir.Scalar)
 			require.True(t, ok, "a bare scalar component owns a Scalar node")
-			assert.Empty(t, sc.Extensions,
-				"Extensions is never set for a scalar declaration today; closing this gap should turn this red")
+			raw, ok := sc.Extensions["openapi:x-vendor"]
+			require.True(t, ok, "x-vendor must be preserved under the openapi: namespace")
+			assert.JSONEq(t, `"at-declaration"`, string(raw))
 
 			assert.Empty(t, primitiveNode(t, doc, ir.TypeID("t/prim/string")).Common().Extensions,
 				"an x-vendor on the declaration must not leak onto the shared primitive")
@@ -758,9 +750,6 @@ func xmlHintsCases() []retentionCase {
 func xmlHintsModelCase() retentionCase {
 	return retentionCase{
 		cell: harness.Cell{Annotation: harness.AnnotationXMLHints, SiteKind: harness.SiteDeclarationModel},
-		knownGap: "ir.TypeCommon.XML exists but the OpenAPI compiler never assigns it; only " +
-			"Property.XML is filled (fillPropertyDetail), so a component-level xml hint has " +
-			"nowhere to land",
 		spec: `openapi: 3.1.0
 info: {title: g, version: "1"}
 paths: {}
@@ -775,8 +764,8 @@ components:
 		assert: func(t *testing.T, doc *ir.Document) {
 			td, ok := doc.Types[namedID("S")]
 			require.True(t, ok)
-			assert.Nil(t, td.Common().XML,
-				"XML is never set on a declaration site today; closing this gap should turn this red")
+			require.NotNil(t, td.Common().XML)
+			assert.Equal(t, "Renamed", td.Common().XML.Name)
 		},
 	}
 }
@@ -784,8 +773,6 @@ components:
 func xmlHintsScalarCase() retentionCase {
 	return retentionCase{
 		cell: harness.Cell{Annotation: harness.AnnotationXMLHints, SiteKind: harness.SiteDeclarationScalar},
-		knownGap: "xmlHints() is called only from fillPropertyDetail; neither fillModelDetail nor " +
-			"internAlias ever calls it, so a scalar component's own xml hint is dropped same as a model's",
 		spec: `openapi: 3.1.0
 info: {title: g, version: "1"}
 paths: {}
@@ -796,8 +783,8 @@ components:
 		assert: func(t *testing.T, doc *ir.Document) {
 			sc, ok := doc.Types[namedID("S")].(*ir.Scalar)
 			require.True(t, ok, "a bare scalar component owns a Scalar node")
-			assert.Nil(t, sc.XML,
-				"XML is never set on a declaration site today; closing this gap should turn this red")
+			require.NotNil(t, sc.XML)
+			assert.Equal(t, "Renamed", sc.XML.Name)
 
 			assert.Nil(t, primitiveNode(t, doc, ir.TypeID("t/prim/string")).Common().XML,
 				"an xml hint on the declaration must not leak onto the shared primitive")
@@ -876,9 +863,6 @@ components:
 func validationOnlyScalarCase() retentionCase {
 	return retentionCase{
 		cell: harness.Cell{Annotation: harness.AnnotationValidationOnly, SiteKind: harness.SiteDeclarationScalar},
-		knownGap: "fillValidationOnly takes *ir.Model and is only reached via fillModelDetail; a " +
-			"scalar component's internAlias path never calls it, so if/then/else on a scalar is " +
-			"neither preserved nor diagnosed",
 		spec: `openapi: 3.1.0
 info: {title: g, version: "1"}
 paths: {}
@@ -892,16 +876,16 @@ components:
 		assert: func(t *testing.T, doc *ir.Document) {
 			sc, ok := doc.Types[namedID("S")].(*ir.Scalar)
 			require.True(t, ok, "a bare scalar component owns a Scalar node")
-			_, ok = sc.Extensions["openapi:if-then-else"]
-			assert.False(t, ok, "if/then is never read for a scalar declaration today; closing this gap should turn this red")
+			raw, ok := sc.Extensions["openapi:if-then-else"]
+			require.True(t, ok, "if/then must be preserved verbatim in extensions")
+			assert.JSONEq(t, `{"if":{"type":"string"},"then":{"minLength":1}}`, string(raw))
 
 			_, leaked := primitiveNode(t, doc, ir.TypeID("t/prim/string")).Common().Extensions["openapi:if-then-else"]
 			assert.False(t, leaked, "if/then on the declaration must not leak onto the shared primitive")
 		},
 		assertDiags: func(t *testing.T, diags []ir.Diagnostic) {
-			assert.False(t, hasDiagCode(diags, "openapi/validation-only-keyword"),
-				"no keyword is read for a scalar declaration today, so no diagnostic fires; "+
-					"closing this gap should turn this red")
+			assert.True(t, hasDiagCode(diags, "openapi/validation-only-keyword"),
+				"expected a validation-only-keyword info diagnostic")
 		},
 	}
 }
@@ -909,9 +893,6 @@ components:
 func validationOnlyReferenceCase() retentionCase {
 	return retentionCase{
 		cell: harness.Cell{Annotation: harness.AnnotationValidationOnly, SiteKind: harness.SiteReference},
-		knownGap: "$ref dispatch (schemaRef -> refTypeRef) returns before lower()/lowerModel() runs, so " +
-			"fillValidationOnly never sees if/then/else written beside a property's $ref; there is no " +
-			"property-level validation-only preservation to fall back to",
 		spec: `openapi: 3.1.0
 info: {title: g, version: "1"}
 paths: {}
@@ -931,14 +912,18 @@ components:
 			require.True(t, ok)
 			p, ok := propByWire(m, "f")
 			require.True(t, ok)
-			_, ok = p.Extensions["openapi:if-then-else"]
-			assert.False(t, ok,
-				"if/then beside a $ref is never read today; closing this gap should turn this red")
+			raw, ok := p.Extensions["openapi:if-then-else"]
+			require.True(t, ok, "if/then beside a $ref binds the reference site")
+			assert.JSONEq(t, `{"if":{"type":"string"},"then":{"minLength":1}}`, string(raw))
+
+			target, ok := doc.Types[namedID("Target")]
+			require.True(t, ok)
+			assert.Empty(t, target.Common().Extensions,
+				"a reference-site keyword must not attach to the referent")
 		},
 		assertDiags: func(t *testing.T, diags []ir.Diagnostic) {
-			assert.False(t, hasDiagCode(diags, "openapi/validation-only-keyword"),
-				"no keyword is read beside a $ref today, so no diagnostic fires; "+
-					"closing this gap should turn this red")
+			assert.True(t, hasDiagCode(diags, "openapi/validation-only-keyword"),
+				"expected a validation-only-keyword info diagnostic")
 		},
 	}
 }
@@ -988,6 +973,39 @@ func hasDiagCode(diags []ir.Diagnostic, code string) bool {
 		}
 	}
 	return false
+}
+
+// TestAnnotationRetention_OtherDeclarationShapes covers the declaration shapes
+// the SiteKind axis does not name individually: const, enum, array, and a pure
+// oneOf. Each reaches a different lower() destination, and every one of them
+// used to bypass the annotation reading that lived inside the model branch —
+// so this is what says the reading moved above the dispatch rather than being
+// copied onto a second path.
+func TestAnnotationRetention_OtherDeclarationShapes(t *testing.T) {
+	t.Parallel()
+	cases := []struct{ name, body string }{
+		{"const", "      const: c"},
+		{"enum", "      enum: [a, b]"},
+		{"array", "      type: array\n      items: {type: string}"},
+		{"oneOf", "      oneOf:\n        - {type: string}\n        - {type: integer}"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			doc, diags := compileAnnotationSpec(t, tc.name, `openapi: 3.1.0
+info: {title: g, version: "1"}
+paths: {}
+components:
+  schemas:
+    S:
+      description: at-declaration
+`+tc.body+"\n")
+			assertNoErrorDiags(t, diags)
+			td, ok := doc.Types[namedID("S")]
+			require.True(t, ok, "component S must own a node")
+			assert.Equal(t, "at-declaration", td.Common().Docs.Description)
+		})
+	}
 }
 
 // TestAnnotationRetention_EveryCellCovered requires every cell in the
