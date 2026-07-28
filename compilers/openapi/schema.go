@@ -53,8 +53,8 @@ func (l *lowerer) lowerComponentSchema(js *oas3.JSONSchema[oas3.Referenceable], 
 		return // schemaRef interned the component's own node at its component ID
 	}
 	l.internAlias(pointer, name, ref, l.componentConstraints(js, pointer))
-	// The alias is the first node this pointer has owned, so the examples
-	// schemaBody could not place have a home now.
+	// This alias is the first node the pointer owns, so the examples schemaBody
+	// had nowhere to put now have a home.
 	if s := concreteSchema(js); s != nil {
 		l.attachSchemaExamples(s, pointer)
 	}
@@ -151,14 +151,14 @@ func (l *lowerer) schemaRef(js *oas3.JSONSchema[oas3.Referenceable], pointer, hi
 // (resolveSchemaRef), which both reach a body only after peeling off any
 // leading $ref.
 func (l *lowerer) schemaBody(schema *oas3.Schema, pointer, hint string) ir.TypeRef {
-	ref := l.schemaBodyRef(schema, pointer, hint)
+	ref := l.lowerSchemaBody(schema, pointer, hint)
 	l.attachSchemaExamples(schema, pointer)
 	return ref
 }
 
-// schemaBodyRef lowers the body itself, handling the oneOf/anyOf dispatch that
+// lowerSchemaBody lowers the body itself, handling the oneOf/anyOf dispatch that
 // precedes structural lowering.
-func (l *lowerer) schemaBodyRef(schema *oas3.Schema, pointer, hint string) ir.TypeRef {
+func (l *lowerer) lowerSchemaBody(schema *oas3.Schema, pointer, hint string) ir.TypeRef {
 	if len(schema.GetOneOf()) > 0 || len(schema.GetAnyOf()) > 0 {
 		if hasUnionSiblings(schema) {
 			return ir.TypeRef{
@@ -289,8 +289,8 @@ func (l *lowerer) hoistSubSchema(schema *oas3.Schema, pointer string) (ir.TypeID
 		return owned, true
 	}
 	id := l.internAlias(pointer, hint, ref, l.schemaConstraints(schema, pointer))
-	// As in lowerComponentSchema: the alias is the first node this pointer has
-	// owned, so the examples schemaBody could not place have a home now.
+	// As in lowerComponentSchema: this alias is the first node the pointer owns,
+	// so the examples schemaBody had nowhere to put now have a home.
 	l.attachSchemaExamples(schema, pointer)
 	return id, true
 }

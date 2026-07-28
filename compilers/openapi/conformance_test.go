@@ -558,17 +558,8 @@ func assertYAMLIntegerBases(t *testing.T, doc *ir.Document, m *ir.Model) {
 	t.Helper()
 	mode, ok := propByWire(m, "mode")
 	require.True(t, ok)
-
 	require.NotNil(t, mode.Default)
 	assert.Equal(t, ir.BigVal("420"), mode.Default.Num, "0644 is octal in YAML")
-
-	require.NotNil(t, mode.Constraints)
-	require.NotNil(t, mode.Constraints.Min)
-	require.NotNil(t, mode.Constraints.Max)
-	require.NotNil(t, mode.Constraints.MultipleOf)
-	assert.Equal(t, ir.BigVal("15"), *mode.Constraints.Min, "017 is octal")
-	assert.Equal(t, ir.BigVal("31"), *mode.Constraints.Max, "0x1f is hex")
-	assert.Equal(t, ir.BigVal("10"), *mode.Constraints.MultipleOf, "0b1010 is binary")
 
 	enum, ok := doc.Types[mode.Type.Target].(*ir.Enum)
 	require.True(t, ok)
@@ -576,14 +567,25 @@ func assertYAMLIntegerBases(t *testing.T, doc *ir.Document, m *ir.Model) {
 	assert.Equal(t, ir.BigVal("420"), enum.Members[0].Value.Num)
 	assert.Equal(t, ir.BigVal("493"), enum.Members[1].Value.Num)
 
-	// The enum hoists a node, so its example lives there rather than on the
-	// property; "_" is a separator YAML drops.
-	require.Len(t, enum.Examples, 1)
-	require.NotNil(t, enum.Examples[0].Value)
-	assert.Equal(t, ir.BigVal("1000"), enum.Examples[0].Value.Num)
+	bounds, ok := propByWire(m, "bounds")
+	require.True(t, ok)
+	require.NotNil(t, bounds.Constraints)
+	require.NotNil(t, bounds.Constraints.Min)
+	require.NotNil(t, bounds.Constraints.Max)
+	require.NotNil(t, bounds.Constraints.MultipleOf)
+	assert.Equal(t, ir.BigVal("15"), *bounds.Constraints.Min, "017 is octal")
+	assert.Equal(t, ir.BigVal("31"), *bounds.Constraints.Max, "0x1f is hex")
+	assert.Equal(t, ir.BigVal("10"), *bounds.Constraints.MultipleOf, "0b1010 is binary")
+	require.Len(t, bounds.Examples, 1)
+	require.NotNil(t, bounds.Examples[0].Value)
+	assert.Equal(t, ir.BigVal("30"), bounds.Examples[0].Value.Num, "0b11110 is binary")
 
-	// A leading zero YAML resolves as a decimal float still has to come out as a
-	// JSON-valid literal.
+	// "_" is a separator, and a leading zero YAML resolves as a decimal float
+	// still has to come out as a JSON-valid literal.
+	counted, ok := propByWire(m, "counted")
+	require.True(t, ok)
+	require.NotNil(t, counted.Default)
+	assert.Equal(t, ir.BigVal("1000000"), counted.Default.Num)
 	loose, ok := propByWire(m, "loose")
 	require.True(t, ok)
 	require.NotNil(t, loose.Default)

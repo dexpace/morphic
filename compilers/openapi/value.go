@@ -102,11 +102,10 @@ func scalarValue(node *yaml.Node) (ir.Value, error) {
 // 0644 is 420 and 0x1f is 31; passing that spelling to NewBigVal — a base-10
 // decimal literal — reads 0644 back as 644 instead.
 //
-// Only !!int is decoded. Every !!int yaml.v3 resolves fits int64 or uint64 (a
-// wider integer resolves to !!float instead), so the decode is exact. A !!float
-// keeps its text, because decoding one would round it through float64 and lose
-// the arbitrary precision BigVal exists to preserve; only its separators are
-// dropped.
+// Only !!int is decoded, and every !!int yaml.v3 resolves fits int64 or uint64,
+// so that decode is exact. A !!float keeps its text, because decoding one would
+// round it through float64 and lose the arbitrary precision BigVal exists to
+// preserve; only its separators are dropped.
 func numericLiteral(node *yaml.Node) (ir.BigVal, error) {
 	if node == nil {
 		return "", fmt.Errorf("openapi: nil numeric node")
@@ -117,8 +116,8 @@ func numericLiteral(node *yaml.Node) (ir.BigVal, error) {
 	case "!!float":
 		return ir.NewBigVal(strings.ReplaceAll(node.Value, "_", ""))
 	default:
-		// A quoted or explicitly tagged spelling carries no YAML-assigned base,
-		// so its text is already the decimal literal it looks like.
+		// A non-numeric tag — a quoted bound, say — carries no YAML-assigned
+		// base, so its text reads as the decimal literal it looks like.
 		return ir.NewBigVal(node.Value)
 	}
 }
@@ -126,16 +125,39 @@ func numericLiteral(node *yaml.Node) (ir.BigVal, error) {
 // decodeIntLiteral renders an !!int node as its exact decimal literal. The
 // signed range is tried first so a negative value is never read back as a large
 // positive one; the unsigned range covers the int64..uint64 band above it.
+//
+// A magnitude past uint64 reaches an !!int node only when the source tags one
+// explicitly — yaml.v3's own resolution calls that a !!float — so nothing can
+// decode it and its text has to be taken at face value. That is only safe for a
+// spelling with no base prefix, and every YAML prefix (0x, 0o, 0b, and bare
+// leading-zero octal) starts with a zero, so a plain decimal run is the test.
 func decodeIntLiteral(node *yaml.Node) (ir.BigVal, error) {
 	var signed int64
 	if err := node.Decode(&signed); err == nil {
 		return ir.NewBigVal(strconv.FormatInt(signed, 10))
 	}
 	var unsigned uint64
-	if err := node.Decode(&unsigned); err != nil {
-		return "", fmt.Errorf("openapi: integer literal %q: %w", node.Value, err)
+	if err := node.Decode(&unsigned); err == nil {
+		return ir.NewBigVal(strconv.FormatUint(unsigned, 10))
 	}
-	return ir.NewBigVal(strconv.FormatUint(unsigned, 10))
+	plain := strings.ReplaceAll(node.Value, "_", "")
+	if !isPlainDecimal(plain) {
+		return "", fmt.Errorf("openapi: integer literal %q resolves to no base-10 value", node.Value)
+	}
+	return ir.NewBigVal(plain)
+}
+
+// isPlainDecimal reports whether s is an optionally signed run of digits with no
+// leading zero — the spellings whose value in base 10 is what they say, with no
+// YAML base prefix to reinterpret.
+func isPlainDecimal(s string) bool {
+	if len(s) > 0 && (s[0] == '+' || s[0] == '-') {
+		s = s[1:]
+	}
+	if s == "" || (s[0] == '0' && len(s) > 1) {
+		return false
+	}
+	return strings.TrimLeft(s, "0123456789") == ""
 }
 
 // sequenceValue converts a YAML sequence into an ordered ValueList.

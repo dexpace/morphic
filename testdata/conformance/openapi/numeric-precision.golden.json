@@ -74,17 +74,6 @@
       "anonymous": true,
       "docs": {},
       "sensitive": false,
-      "examples": [
-        {
-          "value": {
-            "kind": "number",
-            "num": "1000",
-            "bytes": null,
-            "list": null,
-            "object": null
-          }
-        }
-      ],
       "provenance": {
         "source": 0,
         "pointer": "/components/schemas/S/properties/mode"
@@ -378,6 +367,33 @@
             "list": null,
             "object": null
           },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/S/properties/mode"
+          }
+        },
+        {
+          "id": "p/openapi/components/schemas/S/properties/bounds",
+          "name": {
+            "source": "bounds",
+            "canonical": "bounds"
+          },
+          "wireName": "bounds",
+          "type": {
+            "target": "t/prim/integer",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
           "constraints": {
             "min": "15",
             "max": "31",
@@ -390,10 +406,55 @@
           "eventHeader": false,
           "eventPayload": false,
           "secret": false,
+          "examples": [
+            {
+              "value": {
+                "kind": "number",
+                "num": "30",
+                "bytes": null,
+                "list": null,
+                "object": null
+              }
+            }
+          ],
           "docs": {},
           "provenance": {
             "source": 0,
-            "pointer": "/components/schemas/S/properties/mode"
+            "pointer": "/components/schemas/S/properties/bounds"
+          }
+        },
+        {
+          "id": "p/openapi/components/schemas/S/properties/counted",
+          "name": {
+            "source": "counted",
+            "canonical": "counted"
+          },
+          "wireName": "counted",
+          "type": {
+            "target": "t/prim/integer",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "default": {
+            "kind": "number",
+            "num": "1000000",
+            "bytes": null,
+            "list": null,
+            "object": null
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/S/properties/counted"
           }
         },
         {
@@ -435,6 +496,18 @@
       "positional": false,
       "inputOnly": false
     },
+    "t/prim/integer": {
+      "kind": "primitive",
+      "id": "t/prim/integer",
+      "name": {},
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0
+      },
+      "prim": "integer"
+    },
     "t/prim/number": {
       "kind": "primitive",
       "id": "t/prim/number",
@@ -460,7 +533,7 @@
     {
       "format": "openapi@3.1",
       "path": "numeric-precision.yaml",
-      "hash": "30fc2207b3c89351fb9907415e9edb72836e608936565088a71c285695ac8af8"
+      "hash": "6788c0244395b3f75e699917d5af52f9937ea3b97e4f006505a7909078bcd074"
     }
   ]
 }

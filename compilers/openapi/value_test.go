@@ -71,6 +71,31 @@ func TestNumericLiteral_YAMLBases(t *testing.T) {
 	}
 }
 
+// TestNumericLiteral_ExplicitIntBeyondUint64 covers a magnitude past uint64
+// under an explicit !!int tag: yaml.v3 resolves one that big to !!float, so it
+// only reaches an !!int node when the source says so and nothing can decode it.
+// Its plain-decimal text means what it says, so it survives to the last digit
+// rather than being dropped for being undecodable.
+func TestNumericLiteral_ExplicitIntBeyondUint64(t *testing.T) {
+	t.Parallel()
+	cases := []struct {
+		name, src string
+		want      ir.BigVal
+	}{
+		{"positive", "!!int 99999999999999999999999", "99999999999999999999999"},
+		{"negative", "!!int -99999999999999999999999", "-99999999999999999999999"},
+		{"separators", "!!int 99_999_999_999_999_999_999_999", "99999999999999999999999"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			got, err := numericLiteral(yamlNode(t, tc.src))
+			require.NoError(t, err)
+			assert.Equal(t, tc.want, got)
+		})
+	}
+}
+
 // TestNumericLiteral_NilNode covers the nil guard.
 func TestNumericLiteral_NilNode(t *testing.T) {
 	t.Parallel()
@@ -78,12 +103,18 @@ func TestNumericLiteral_NilNode(t *testing.T) {
 	require.Error(t, err)
 }
 
-// TestNumericLiteral_UndecodableInt covers an !!int node the decoder rejects,
-// which the parser never produces but a hand-built node can reach.
+// TestNumericLiteral_UndecodableInt covers !!int spellings no base-10 reading
+// can recover: a non-numeric run, and a prefixed magnitude past uint64 whose
+// base would have to be guessed. Neither may fall back to its source text.
 func TestNumericLiteral_UndecodableInt(t *testing.T) {
 	t.Parallel()
-	_, err := numericLiteral(scalarNode("!!int", "12abc"))
-	require.Error(t, err)
+	for _, src := range []string{"12abc", "077777777777777777777777", "0x1FFFFFFFFFFFFFFFFFFFF", ""} {
+		t.Run(src, func(t *testing.T) {
+			t.Parallel()
+			_, err := numericLiteral(scalarNode("!!int", src))
+			require.Error(t, err)
+		})
+	}
 }
 
 func TestValueFromNode_ObjectPreservesOrder(t *testing.T) {
