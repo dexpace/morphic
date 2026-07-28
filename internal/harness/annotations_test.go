@@ -15,6 +15,17 @@ import (
 	"github.com/dexpace/morphic/internal/harness"
 )
 
+// annotationTypeName and siteKindTypeName are the only two type spellings a
+// const in annotations.go's two blocks may declare. collectConstSpecs checks
+// each spec's type identifier against these literally, rather than bucketing
+// by whatever identifier appears, precisely so that a same-file alias of
+// either type cannot bucket a constant under a key
+// TestConstBlock_TiesToAnnotationsAndSiteKinds never inspects.
+const (
+	annotationTypeName = "Annotation"
+	siteKindTypeName   = "SiteKind"
+)
+
 func TestCells_IsFullCrossProduct(t *testing.T) {
 	t.Parallel()
 	cells := harness.Cells()
@@ -86,8 +97,8 @@ func TestConstBlock_TiesToAnnotationsAndSiteKinds(t *testing.T) {
 	t.Parallel()
 	declared := parseDeclaredConsts(t)
 
-	assert.ElementsMatch(t, declared["Annotation"], stringsOf(harness.Annotations()))
-	assert.ElementsMatch(t, declared["SiteKind"], stringsOf(harness.SiteKinds()))
+	assert.ElementsMatch(t, declared[annotationTypeName], stringsOf(harness.Annotations()))
+	assert.ElementsMatch(t, declared[siteKindTypeName], stringsOf(harness.SiteKinds()))
 }
 
 // parseDeclaredConsts parses annotations.go — found relative to this test
@@ -115,11 +126,16 @@ func parseDeclaredConsts(t *testing.T) map[string][]string {
 
 // collectConstSpecs appends each ValueSpec's declared type name and literal
 // string value from gd into out. Every spec here is required to have the
-// form `Name Type = "literal"`: this file holds nothing but
+// form `Name Type = "literal"`, with Type spelled literally as Annotation or
+// SiteKind — never a same-file alias of either (`type Ann = Annotation`),
+// which would still convert to Annotation at every usage site but bucket
+// under a key ("Ann") this test never inspects, since only
+// annotationTypeName and siteKindTypeName are compared against
+// Annotations()/SiteKinds() below. This file holds nothing but
 // annotation-retention vocabulary, so there is no legitimate reason for a
 // const here to be untyped, valueless (as in an iota block's repeat-sugar),
-// or assigned via a conversion or expression rather than written as a
-// literal (e.g. Annotation("foo")). Any of those fails loudly instead of
+// aliased, or assigned via a conversion or expression rather than written as
+// a literal (e.g. Annotation("foo")). Any of those fails loudly instead of
 // being silently skipped: skipping would let such a constant join the
 // taxonomy at every usage site without this test ever recording it.
 func collectConstSpecs(t *testing.T, gd *ast.GenDecl, out map[string][]string) {
@@ -131,6 +147,10 @@ func collectConstSpecs(t *testing.T, gd *ast.GenDecl, out map[string][]string) {
 		typeIdent, hasType := vs.Type.(*ast.Ident)
 		require.True(t, hasType, "%s: const must declare its type explicitly "+
 			"(Annotation or SiteKind); this file holds nothing else", vs.Names)
+		require.True(t, typeIdent.Name == annotationTypeName || typeIdent.Name == siteKindTypeName,
+			"%s: const's declared type is %q, not literally Annotation or SiteKind; a "+
+				"same-file alias of either would bucket here under the alias's name and "+
+				"never be compared against Annotations()/SiteKinds()", vs.Names, typeIdent.Name)
 
 		require.Len(t, vs.Values, 1, "%s: expected exactly one literal value", vs.Names)
 		lit, isLit := vs.Values[0].(*ast.BasicLit)

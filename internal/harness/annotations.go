@@ -55,8 +55,8 @@ const (
 // co-declared with a structural sibling (`type: object` or `properties`)
 // takes neither path: lowerSchemaBody (schema.go) routes it through
 // lowerWithUnionSiblings into lower() -> lowerModel instead, so it retains
-// docs/deprecated/x-* like allOf's composed case — confirmed by probe, and
-// likewise unexercised as its own SiteKind.
+// docs/deprecated/x-* like allOf's composed case, and is likewise
+// unexercised as its own SiteKind.
 type SiteKind string
 
 // The kinds of position an annotation can be written at.
