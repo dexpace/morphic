@@ -19,17 +19,24 @@ const (
 )
 
 // site is a position that owns an IR node. Node is the schema written at the
-// position; Referent is the schema one hop away, set only for a reference site.
+// position; Referent is the schema exactly one hop away, set only for a
+// reference site.
 //
-// The split is what keeps annotations attached where they were written: a
-// site-only annotation (examples, constraints) reads Node alone, while a
+// The split keeps annotations attached where they were written: a site-only
+// annotation (examples, constraints) reads Node alone, while a
 // site-overrides-referent annotation (docs, deprecation, visibility, default)
-// reads Node and falls back to Referent. Resolving this once here is what stops
-// each attachment point from re-deciding it.
+// reads Node and falls back to a referent. That fallback has not been moved
+// onto Referent for properties: fillPropertyDetail (schema.go) still resolves
+// its own via refTargetSchema, which follows a $ref chain to its end
+// (GetResolvedSchema) rather than one hop (GetReferenceResolutionInfo, what
+// Referent uses here). The two differ in hop semantics and are not
+// interchangeable.
 type site struct {
-	Pointer  string
-	Kind     siteKind
-	Node     *oas3.Schema
+	Pointer string
+	Kind    siteKind
+	Node    *oas3.Schema
+	// Referent is nil when Kind is siteReference but the $ref does not
+	// resolve; refTypeRef is what diagnoses that, not this.
 	Referent *oas3.Schema
 }
 

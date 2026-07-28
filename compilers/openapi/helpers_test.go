@@ -47,29 +47,26 @@ func findOp(t *testing.T, doc *ir.Document, source string) ir.Operation {
 	return ir.Operation{}
 }
 
-// lowerSpec loads src and lowers its component schemas, returning the document
-// under construction and all diagnostics. It drives the same lowerer Compile
-// will use, without requiring the not-yet-written operation lowering.
-func lowerSpec(t *testing.T, src string) (*ir.Document, []ir.Diagnostic) {
-	t.Helper()
-	loadedDoc, diags, err := load(t.Context(), 0, compilers.Source{Path: "spec.yaml", Data: []byte(src)}, Options{}.withDefaults())
-	require.NoError(t, err)
-	require.NotNil(t, loadedDoc, "load returned no document: %+v", diags)
-	l := newLowerer(0, loadedDoc, Options{}.withDefaults())
-	l.lowerComponentSchemas() // named components; the entry Compile's run() calls first
-	return l.out, append(diags, l.diags...)
-}
-
 // loweredFor loads src and returns the lowerer over it with nothing lowered
-// yet, so a test can drive one entry point at a time. lowerSpec is the same
-// load path but returns only the document it produced.
-func loweredFor(t *testing.T, src string) *lowerer {
+// yet, plus the load diagnostics, so a test can drive one entry point at a
+// time. lowerSpec builds on this same load path to also lower components.
+func loweredFor(t *testing.T, src string) (*lowerer, []ir.Diagnostic) {
 	t.Helper()
 	loadedDoc, diags, err := load(t.Context(), 0,
 		compilers.Source{Path: "spec.yaml", Data: []byte(src)}, Options{}.withDefaults())
 	require.NoError(t, err)
 	require.NotNil(t, loadedDoc, "load returned no document: %+v", diags)
-	return newLowerer(0, loadedDoc, Options{}.withDefaults())
+	return newLowerer(0, loadedDoc, Options{}.withDefaults()), diags
+}
+
+// lowerSpec loads src and lowers its component schemas, returning the document
+// under construction and all diagnostics. It drives the same lowerer Compile
+// will use, without requiring the not-yet-written operation lowering.
+func lowerSpec(t *testing.T, src string) (*ir.Document, []ir.Diagnostic) {
+	t.Helper()
+	l, diags := loweredFor(t, src)
+	l.lowerComponentSchemas() // named components; the entry Compile's run() calls first
+	return l.out, append(diags, l.diags...)
 }
 
 // requireNoErrorDiags fails the test if any diagnostic has error severity,

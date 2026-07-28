@@ -11,7 +11,7 @@ import (
 
 func TestSiteAt_DeclarationHasNoReferent(t *testing.T) {
 	t.Parallel()
-	l := loweredFor(t, `openapi: 3.1.0
+	l, _ := loweredFor(t, `openapi: 3.1.0
 info: {title: t, version: "1"}
 paths: {}
 components:
@@ -30,7 +30,7 @@ components:
 
 func TestSiteAt_ReferenceCarriesBothNodes(t *testing.T) {
 	t.Parallel()
-	l := loweredFor(t, `openapi: 3.1.0
+	l, _ := loweredFor(t, `openapi: 3.1.0
 info: {title: t, version: "1"}
 paths: {}
 components:
@@ -57,7 +57,7 @@ components:
 // that rewiring shows up as a failure here rather than passing unnoticed.
 func TestLowerComponentSchema_RefSiblingConstraintBindsTheSite(t *testing.T) {
 	t.Parallel()
-	l := loweredFor(t, `openapi: 3.1.0
+	l, _ := loweredFor(t, `openapi: 3.1.0
 info: {title: t, version: "1"}
 paths: {}
 components:
@@ -94,7 +94,7 @@ components:
 // sub-schema pointer rather than a named component.
 func TestFillPropertyExamples_RefSiblingExampleBindsTheSite(t *testing.T) {
 	t.Parallel()
-	l := loweredFor(t, `openapi: 3.1.0
+	l, _ := loweredFor(t, `openapi: 3.1.0
 info: {title: t, version: "1"}
 paths: {}
 components:
