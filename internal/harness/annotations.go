@@ -29,6 +29,16 @@ const (
 // not evidence it survives on the other. The distinction is annotation
 // retention's second axis because this is where annotations are most often
 // dropped.
+//
+// SiteDeclarationModel and SiteDeclarationScalar do not cover every
+// declaration shape the OpenAPI compiler's schema dispatch produces: a
+// const, enum, array, or multi-type (e.g. `type: [string, integer]`)
+// component lowers through hoistLiteral, lowerEnum, lowerArray, or
+// lowerUnion respectively, none of which this grid exercises as their own
+// SiteKind. Like SiteDeclarationScalar's lowering, none of those four call
+// fillModelDetail, so they are believed to drop annotations the same way
+// SiteDeclarationScalar's cases do — but that belief is untested here, not
+// verified.
 type SiteKind string
 
 // The kinds of position an annotation can be written at.
