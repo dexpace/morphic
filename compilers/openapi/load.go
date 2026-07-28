@@ -144,35 +144,38 @@ func isNumericBoundKeyword(verr validation.Error) bool {
 
 // invalidSyntaxOnValidNumbers reports whether an invalid-syntax finding is caused
 // solely by numeric literals that are valid numbers in a non-JSON spelling (.5,
-// 5.), which Morphic canonicalizes losslessly. A non-JSON numeric scalar that is
+// 5., 0644), which Morphic captures losslessly. A non-JSON numeric scalar that is
 // not a recoverable number (.inf) makes the finding genuine, so it is kept.
+// Recoverability is decided by numericLiteral, the same conversion the lowerer
+// runs, so the loader never refuses a spelling the compiler would have captured
+// — nor accepts one it would not.
 func invalidSyntaxOnValidNumbers(node *yaml.Node) bool {
 	if node == nil {
 		return false
 	}
 	var recoverable, genuine bool
-	walkNumericScalars(node, 0, func(value string) {
-		canonical, err := ir.NewBigVal(value)
+	walkNumericScalars(node, 0, func(scalar *yaml.Node) {
+		canonical, err := numericLiteral(scalar)
 		switch {
 		case err != nil:
 			genuine = true
-		case string(canonical) != value:
+		case string(canonical) != scalar.Value:
 			recoverable = true
 		}
 	})
 	return recoverable && !genuine
 }
 
-// walkNumericScalars visits the value of every numeric-tagged scalar reachable
-// from node within maxSchemaScanDepth. Only numeric scalars can defeat the
-// library's YAML-to-JSON conversion, so non-numeric scalars are skipped.
-func walkNumericScalars(node *yaml.Node, depth int, visit func(string)) {
+// walkNumericScalars visits every numeric-tagged scalar reachable from node
+// within maxSchemaScanDepth. Only numeric scalars can defeat the library's
+// YAML-to-JSON conversion, so non-numeric scalars are skipped.
+func walkNumericScalars(node *yaml.Node, depth int, visit func(*yaml.Node)) {
 	if node == nil || depth > maxSchemaScanDepth {
 		return
 	}
 	if node.Kind == yaml.ScalarNode {
 		if node.Tag == "!!int" || node.Tag == "!!float" {
-			visit(node.Value)
+			visit(node)
 		}
 		return
 	}

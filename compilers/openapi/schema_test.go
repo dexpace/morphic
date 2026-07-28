@@ -692,6 +692,51 @@ func TestPreserveUnionSiblings_MissingNode(t *testing.T) {
 	assert.Empty(t, l.diags)
 }
 
+// TestSchemaExamples_RefdSubSchemaKeepsThem pins the examples of a $ref'd
+// internal sub-schema whose body reduces to a shared primitive: the alias
+// hoisted for the reference is the first node its pointer owns, and the
+// examples belong there rather than on the shared primitive every other string
+// in the document also uses.
+func TestSchemaExamples_RefdSubSchemaKeepsThem(t *testing.T) {
+	t.Parallel()
+	doc, diags := parseFull(t, `
+openapi: 3.1.0
+info: {title: t, version: '1'}
+paths:
+  /x:
+    get:
+      operationId: x
+      parameters:
+        - {name: q, in: query, schema: {$ref: '#/components/parameters/P/schema'}}
+      responses: {'200': {description: ok}}
+components:
+  parameters:
+    P:
+      name: p
+      in: query
+      schema: {type: string, example: sub-example}
+`)
+	requireNoErrorDiags(t, diags)
+	td, ok := doc.Types["t/anon/components/parameters/P/schema"]
+	require.True(t, ok, "the referenced sub-schema is hoisted at its own pointer")
+	require.Len(t, td.Common().Examples, 1)
+	require.NotNil(t, td.Common().Examples[0].Value)
+	assert.Equal(t, "sub-example", td.Common().Examples[0].Value.Str)
+	assert.Empty(t, doc.Types["t/prim/string"].Common().Examples,
+		"the shared primitive carries no per-declaration annotation")
+}
+
+// TestAttachSchemaExamples_MissingNode covers the mid-interning state a
+// self-referential schema can reach: the pointer already owns an ID, but the
+// node it names is still being built and is not in the registry yet.
+func TestAttachSchemaExamples_MissingNode(t *testing.T) {
+	t.Parallel()
+	l := newRawLowerer(&soa.OpenAPI{})
+	l.byPointer["/p"] = "t/anon/missing"
+	l.attachSchemaExamples(&oas3.Schema{}, "/p")
+	assert.Empty(t, l.diags)
+}
+
 // The redeclaration-conflict helpers carry defensive guards for states a
 // well-formed lowered document never reaches: a reference into no interned type,
 // a base-less opaque scalar, a cyclic base chain, and an unparseable numeric

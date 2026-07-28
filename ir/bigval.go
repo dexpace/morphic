@@ -12,9 +12,9 @@ import (
 //
 // A BigVal is always a JSON-valid numeric literal: NewBigVal canonicalizes
 // non-JSON but numerically valid spellings (a leading dot as in ".5", a
-// trailing dot as in "5.", a leading "+") into JSON form, leaving every
-// significant digit, the exponent, and its case untouched — so a stored value
-// round-trips through JSON unchanged.
+// trailing dot as in "5.", a leading "+", a redundant leading zero as in "09")
+// into JSON form, leaving every significant digit, the exponent, and its case
+// untouched — so a stored value round-trips through JSON unchanged.
 type BigVal string
 
 // NewBigVal validates s as a decimal or scientific-notation numeric literal and
@@ -41,9 +41,9 @@ func NewBigVal(s string) (BigVal, error) {
 
 // canonicalDecimal rewrites the JSON-invalid affixes of an already-validated
 // numeric literal into JSON form without altering its value: it drops a leading
-// "+", inserts the "0" of a leading-dot mantissa (".5" → "0.5"), and drops a
-// trailing dot (\"5.\" → \"5\", "5.e3" → "5e3"). Significant digits, the
-// exponent, and its case are left exactly as written. The transform is
+// "+", normalizes the integer part's leading zeros (".5" → "0.5", "09" → "9"),
+// and drops a trailing dot (\"5.\" → \"5\", "5.e3" → "5e3"). Significant digits,
+// the exponent, and its case are left exactly as written. The transform is
 // idempotent, so a value already in canonical form is returned unchanged.
 func canonicalDecimal(s string) string {
 	mantissa, exponent := s, ""
@@ -59,12 +59,22 @@ func canonicalDecimal(s string) string {
 		mantissa = mantissa[1:]
 	}
 
-	if strings.HasPrefix(mantissa, ".") {
-		mantissa = "0" + mantissa
-	}
-	mantissa = strings.TrimSuffix(mantissa, ".")
+	mantissa = strings.TrimSuffix(canonicalIntegerPart(mantissa), ".")
 
 	return sign + mantissa + exponent
+}
+
+// canonicalIntegerPart gives an unsigned mantissa the single leading digit JSON
+// requires: it drops zeros that carry no value ("09" → "9", "00.5" → "0.5") and
+// supplies the "0" a leading-dot or all-zero mantissa lacks (".5" → "0.5",
+// "00" → "0"). A leading zero is JSON-invalid rather than merely unusual, so
+// leaving it would break BigVal's round-trip guarantee.
+func canonicalIntegerPart(mantissa string) string {
+	digits := strings.TrimLeft(mantissa, "0")
+	if digits == "" || digits[0] == '.' {
+		return "0" + digits
+	}
+	return digits
 }
 
 // String returns the literal decimal form.

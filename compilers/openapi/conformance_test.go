@@ -547,6 +547,47 @@ func assertNumericPrecision(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
 	require.Len(t, sampled.Examples, 1)
 	require.NotNil(t, sampled.Examples[0].Value)
 	assert.Equal(t, ir.BigVal("0.5"), sampled.Examples[0].Value.Num)
+
+	assertYAMLIntegerBases(t, doc, m)
+}
+
+// assertYAMLIntegerBases pins the value every numeric site stores for an integer
+// whose YAML base comes from its prefix. Reading the source spelling as base 10
+// would store 644 where the document said 420, and would do it silently.
+func assertYAMLIntegerBases(t *testing.T, doc *ir.Document, m *ir.Model) {
+	t.Helper()
+	mode, ok := propByWire(m, "mode")
+	require.True(t, ok)
+
+	require.NotNil(t, mode.Default)
+	assert.Equal(t, ir.BigVal("420"), mode.Default.Num, "0644 is octal in YAML")
+
+	require.NotNil(t, mode.Constraints)
+	require.NotNil(t, mode.Constraints.Min)
+	require.NotNil(t, mode.Constraints.Max)
+	require.NotNil(t, mode.Constraints.MultipleOf)
+	assert.Equal(t, ir.BigVal("15"), *mode.Constraints.Min, "017 is octal")
+	assert.Equal(t, ir.BigVal("31"), *mode.Constraints.Max, "0x1f is hex")
+	assert.Equal(t, ir.BigVal("10"), *mode.Constraints.MultipleOf, "0b1010 is binary")
+
+	enum, ok := doc.Types[mode.Type.Target].(*ir.Enum)
+	require.True(t, ok)
+	require.Len(t, enum.Members, 2)
+	assert.Equal(t, ir.BigVal("420"), enum.Members[0].Value.Num)
+	assert.Equal(t, ir.BigVal("493"), enum.Members[1].Value.Num)
+
+	// The enum hoists a node, so its example lives there rather than on the
+	// property; "_" is a separator YAML drops.
+	require.Len(t, enum.Examples, 1)
+	require.NotNil(t, enum.Examples[0].Value)
+	assert.Equal(t, ir.BigVal("1000"), enum.Examples[0].Value.Num)
+
+	// A leading zero YAML resolves as a decimal float still has to come out as a
+	// JSON-valid literal.
+	loose, ok := propByWire(m, "loose")
+	require.True(t, ok)
+	require.NotNil(t, loose.Default)
+	assert.Equal(t, ir.BigVal("9"), loose.Default.Num)
 }
 
 func assertReadOnlyWriteOnly(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
@@ -730,20 +771,60 @@ func assertDeprecation(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
 func assertExamples(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
 	m, ok := doc.Types[namedID("S")].(*ir.Model)
 	require.True(t, ok)
-	require.Len(t, m.Properties, 1)
-	assert.Len(t, m.Properties[0].Examples, 2)
 
-	// The plural `examples` map, in both spellings: an inline entry and one
-	// written as a $ref, which must resolve to the referenced component's value.
+	// A schema that reduced to a shared primitive keeps its examples on the
+	// declaring property; one that hoists a node of its own keeps them there.
+	n, ok := propByWire(m, "n")
+	require.True(t, ok)
+	assert.Len(t, n.Examples, 2)
+	inner, ok := propByWire(m, "inner")
+	require.True(t, ok)
+	assert.Empty(t, inner.Examples, "an inline object holds its own examples")
+	require.Len(t, doc.Types[inner.Type.Target].Common().Examples, 1)
+
+	// A component's example belongs to the component, not to a use site.
+	c, ok := doc.Types[namedID("C")]
+	require.True(t, ok)
+	require.Len(t, c.Common().Examples, 1)
+	require.NotNil(t, c.Common().Examples[0].Value)
+	assert.Equal(t, "component-level", c.Common().Examples[0].Value.Str)
+
+	assertResponseExamples(t, doc)
+}
+
+// assertResponseExamples pins the response-side example sites: the plural map on
+// a media type, in every spelling the spec allows, and a response header.
+func assertResponseExamples(t *testing.T, doc *ir.Document) {
+	t.Helper()
 	op, ok := opByName(doc, "getItem")
 	require.True(t, ok)
 	require.Len(t, op.Responses[0].Payload.Contents, 1)
 	ex := op.Responses[0].Payload.Contents[0].Examples
-	require.Len(t, ex, 2, "both entries lower, in source order")
+	require.Len(t, ex, 4, "every entry lowers, in source order")
+
+	// An inline entry and one written as a $ref, which must resolve to the
+	// referenced component's value. Both are named by their map key.
 	require.NotNil(t, ex[0].Value)
 	assert.Equal(t, ir.Value{Kind: ir.ValueString, Str: "hello"}, *ex[0].Value)
+	assert.Equal(t, "inline", ex[0].Name)
 	require.NotNil(t, ex[1].Value)
 	assert.Equal(t, ir.Value{Kind: ir.ValueString, Str: "world"}, *ex[1].Value)
+	assert.Equal(t, "shared", ex[1].Name)
+
+	// The annotations that surround a value travel with it.
+	assert.Equal(t, "a summary", ex[2].Summary)
+	assert.Equal(t, "a description", ex[2].Description)
+
+	// An externalValue entry carries no inline value, and is kept for the URL.
+	assert.Equal(t, "https://example.com/e.json", ex[3].ExternalURL)
+	assert.Nil(t, ex[3].Value)
+	assert.Equal(t, "hosted elsewhere", ex[3].Summary)
+
+	headers := op.Responses[0].Headers
+	require.Len(t, headers, 1)
+	require.Len(t, headers[0].Examples, 1)
+	require.NotNil(t, headers[0].Examples[0].Value)
+	assert.Equal(t, ir.BigVal("5"), headers[0].Examples[0].Value.Num)
 }
 
 func assertDocsSummaryDesc(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {

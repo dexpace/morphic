@@ -217,7 +217,7 @@ func TestInvalidSyntaxOnValidNumbers_NilNode(t *testing.T) {
 func TestWalkNumericScalars_NilAndDepthGuards(t *testing.T) {
 	t.Parallel()
 	var visited int
-	visit := func(string) { visited++ }
+	visit := func(*yaml.Node) { visited++ }
 	walkNumericScalars(nil, 0, visit)
 	walkNumericScalars(&yaml.Node{Kind: yaml.ScalarNode, Tag: "!!int", Value: "5"}, maxSchemaScanDepth+1, visit)
 	assert.Zero(t, visited)

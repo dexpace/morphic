@@ -46,6 +46,7 @@
                         },
                         "examples": [
                           {
+                            "name": "inline",
                             "value": {
                               "kind": "string",
                               "str": "hello",
@@ -55,6 +56,7 @@
                             }
                           },
                           {
+                            "name": "shared",
                             "value": {
                               "kind": "string",
                               "str": "world",
@@ -62,11 +64,68 @@
                               "list": null,
                               "object": null
                             }
+                          },
+                          {
+                            "name": "annotated",
+                            "summary": "a summary",
+                            "description": "a description",
+                            "value": {
+                              "kind": "string",
+                              "str": "annotated-value",
+                              "bytes": null,
+                              "list": null,
+                              "object": null
+                            }
+                          },
+                          {
+                            "name": "external",
+                            "summary": "hosted elsewhere",
+                            "externalURL": "https://example.com/e.json"
                           }
                         ]
                       }
                     ]
                   },
+                  "headers": [
+                    {
+                      "id": "p/openapi/paths/~1items/get/responses/200/headers/X-Rate-Limit",
+                      "name": {
+                        "source": "X-Rate-Limit",
+                        "canonical": "x_rate_limit"
+                      },
+                      "wireName": "X-Rate-Limit",
+                      "type": {
+                        "target": "t/prim/integer",
+                        "nullable": false
+                      },
+                      "required": false,
+                      "clientOptional": false,
+                      "defaultAdded": false,
+                      "visibility": {
+                        "none": false
+                      },
+                      "flatten": false,
+                      "eventHeader": false,
+                      "eventPayload": false,
+                      "secret": false,
+                      "examples": [
+                        {
+                          "value": {
+                            "kind": "number",
+                            "num": "5",
+                            "bytes": null,
+                            "list": null,
+                            "object": null
+                          }
+                        }
+                      ],
+                      "docs": {},
+                      "provenance": {
+                        "source": 0,
+                        "pointer": "/paths/~1items/get/responses/200/headers/X-Rate-Limit"
+                      }
+                    }
+                  ],
                   "docs": {
                     "description": "ok"
                   }
@@ -101,6 +160,103 @@
     }
   ],
   "types": {
+    "t/anon/components/schemas/S/properties/inner": {
+      "kind": "model",
+      "id": "t/anon/components/schemas/S/properties/inner",
+      "name": {
+        "hint": "inner"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "examples": [
+        {
+          "value": {
+            "kind": "object",
+            "bytes": null,
+            "list": null,
+            "object": [
+              {
+                "name": "k",
+                "value": {
+                  "kind": "string",
+                  "str": "v",
+                  "bytes": null,
+                  "list": null,
+                  "object": null
+                }
+              }
+            ]
+          }
+        }
+      ],
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/S/properties/inner"
+      },
+      "properties": [
+        {
+          "id": "p/openapi/components/schemas/S/properties/inner/properties/k",
+          "name": {
+            "source": "k",
+            "canonical": "k"
+          },
+          "wireName": "k",
+          "type": {
+            "target": "t/prim/string",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/S/properties/inner/properties/k"
+          }
+        }
+      ],
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
+    "t/openapi/components/schemas/C": {
+      "kind": "scalar",
+      "id": "t/openapi/components/schemas/C",
+      "name": {
+        "source": "C",
+        "canonical": "c"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "examples": [
+        {
+          "value": {
+            "kind": "string",
+            "str": "component-level",
+            "bytes": null,
+            "list": null,
+            "object": null
+          }
+        }
+      ],
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/C"
+      },
+      "base": {
+        "target": "t/prim/string",
+        "nullable": false
+      }
+    },
     "t/openapi/components/schemas/S": {
       "kind": "model",
       "id": "t/openapi/components/schemas/S",
@@ -162,6 +318,33 @@
             "source": 0,
             "pointer": "/components/schemas/S/properties/n"
           }
+        },
+        {
+          "id": "p/openapi/components/schemas/S/properties/inner",
+          "name": {
+            "source": "inner",
+            "canonical": "inner"
+          },
+          "wireName": "inner",
+          "type": {
+            "target": "t/anon/components/schemas/S/properties/inner",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/S/properties/inner"
+          }
         }
       ],
       "abstract": false,
@@ -205,7 +388,7 @@
     {
       "format": "openapi@3.1",
       "path": "examples.yaml",
-      "hash": "f454f0f0f4981f3a384d73d645e72c92900385c258cb44688e42e601c0c2a44a"
+      "hash": "35b1767d0344d8a4aca75527844aa6cac88f1adfb453c67b27fb631c12b52065"
     }
   ]
 }

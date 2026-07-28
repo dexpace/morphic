@@ -65,6 +65,64 @@
       "closed": true,
       "flags": false
     },
+    "t/anon/components/schemas/S/properties/mode": {
+      "kind": "enum",
+      "id": "t/anon/components/schemas/S/properties/mode",
+      "name": {
+        "hint": "mode"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "examples": [
+        {
+          "value": {
+            "kind": "number",
+            "num": "1000",
+            "bytes": null,
+            "list": null,
+            "object": null
+          }
+        }
+      ],
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/S/properties/mode"
+      },
+      "valueType": "integer",
+      "members": [
+        {
+          "name": {
+            "source": "420",
+            "canonical": "420"
+          },
+          "value": {
+            "kind": "number",
+            "num": "420",
+            "bytes": null,
+            "list": null,
+            "object": null
+          },
+          "docs": {}
+        },
+        {
+          "name": {
+            "source": "493",
+            "canonical": "493"
+          },
+          "value": {
+            "kind": "number",
+            "num": "493",
+            "bytes": null,
+            "list": null,
+            "object": null
+          },
+          "docs": {}
+        }
+      ],
+      "closed": true,
+      "flags": false
+    },
     "t/anon/components/schemas/S/properties/pinned": {
       "kind": "literal",
       "id": "t/anon/components/schemas/S/properties/pinned",
@@ -295,6 +353,82 @@
             "source": 0,
             "pointer": "/components/schemas/S/properties/sampled"
           }
+        },
+        {
+          "id": "p/openapi/components/schemas/S/properties/mode",
+          "name": {
+            "source": "mode",
+            "canonical": "mode"
+          },
+          "wireName": "mode",
+          "type": {
+            "target": "t/anon/components/schemas/S/properties/mode",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "default": {
+            "kind": "number",
+            "num": "420",
+            "bytes": null,
+            "list": null,
+            "object": null
+          },
+          "constraints": {
+            "min": "15",
+            "max": "31",
+            "exclusiveMin": false,
+            "exclusiveMax": false,
+            "multipleOf": "10",
+            "uniqueItems": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/S/properties/mode"
+          }
+        },
+        {
+          "id": "p/openapi/components/schemas/S/properties/loose",
+          "name": {
+            "source": "loose",
+            "canonical": "loose"
+          },
+          "wireName": "loose",
+          "type": {
+            "target": "t/prim/number",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "default": {
+            "kind": "number",
+            "num": "9",
+            "bytes": null,
+            "list": null,
+            "object": null
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/S/properties/loose"
+          }
         }
       ],
       "abstract": false,
@@ -326,7 +460,7 @@
     {
       "format": "openapi@3.1",
       "path": "numeric-precision.yaml",
-      "hash": "863fbca1eb00ecbd26294d1f3268cb92e73daa8fd5d2e00482144922b4dd430c"
+      "hash": "30fc2207b3c89351fb9907415e9edb72836e608936565088a71c285695ac8af8"
     }
   ]
 }

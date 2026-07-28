@@ -2,6 +2,8 @@ package openapi
 
 import (
 	"fmt"
+	"strconv"
+	"strings"
 
 	yaml "gopkg.in/yaml.v3"
 
@@ -76,7 +78,7 @@ func scalarValue(node *yaml.Node) (ir.Value, error) {
 		// above, independent of any surrounding schema type.
 		return ir.Value{Kind: ir.ValueString, Str: node.Value}, nil
 	case "!!int", "!!float":
-		num, err := ir.NewBigVal(node.Value)
+		num, err := numericLiteral(node)
 		if err != nil {
 			return ir.Value{}, fmt.Errorf("openapi: numeric literal %q: %w", node.Value, err)
 		}
@@ -92,6 +94,48 @@ func scalarValue(node *yaml.Node) (ir.Value, error) {
 	default:
 		return ir.Value{}, fmt.Errorf("openapi: unsupported scalar tag %q", node.Tag)
 	}
+}
+
+// numericLiteral converts a numeric-tagged YAML scalar into the BigVal of the
+// value YAML resolved it to, which is not what its source text means in base
+// 10. YAML takes an !!int's base from its prefix and drops "_" separators, so
+// 0644 is 420 and 0x1f is 31; passing that spelling to NewBigVal — a base-10
+// decimal literal — reads 0644 back as 644 instead.
+//
+// Only !!int is decoded. Every !!int yaml.v3 resolves fits int64 or uint64 (a
+// wider integer resolves to !!float instead), so the decode is exact. A !!float
+// keeps its text, because decoding one would round it through float64 and lose
+// the arbitrary precision BigVal exists to preserve; only its separators are
+// dropped.
+func numericLiteral(node *yaml.Node) (ir.BigVal, error) {
+	if node == nil {
+		return "", fmt.Errorf("openapi: nil numeric node")
+	}
+	switch node.Tag {
+	case "!!int":
+		return decodeIntLiteral(node)
+	case "!!float":
+		return ir.NewBigVal(strings.ReplaceAll(node.Value, "_", ""))
+	default:
+		// A quoted or explicitly tagged spelling carries no YAML-assigned base,
+		// so its text is already the decimal literal it looks like.
+		return ir.NewBigVal(node.Value)
+	}
+}
+
+// decodeIntLiteral renders an !!int node as its exact decimal literal. The
+// signed range is tried first so a negative value is never read back as a large
+// positive one; the unsigned range covers the int64..uint64 band above it.
+func decodeIntLiteral(node *yaml.Node) (ir.BigVal, error) {
+	var signed int64
+	if err := node.Decode(&signed); err == nil {
+		return ir.NewBigVal(strconv.FormatInt(signed, 10))
+	}
+	var unsigned uint64
+	if err := node.Decode(&unsigned); err != nil {
+		return "", fmt.Errorf("openapi: integer literal %q: %w", node.Value, err)
+	}
+	return ir.NewBigVal(strconv.FormatUint(unsigned, 10))
 }
 
 // sequenceValue converts a YAML sequence into an ordered ValueList.

@@ -7,19 +7,44 @@ paths:
       responses:
         "200":
           description: ok
+          headers:
+            X-Rate-Limit:
+              schema: {type: integer}
+              example: 5
           content:
             application/json:
               schema: {type: string}
               examples:
                 inline: {value: hello}
                 shared: {$ref: '#/components/examples/Shared'}
+                annotated:
+                  summary: a summary
+                  description: a description
+                  value: annotated-value
+                external:
+                  summary: hosted elsewhere
+                  externalValue: https://example.com/e.json
 components:
   examples:
     Shared: {value: world}
   schemas:
+    # A component's own example belongs to the component's node, not to whatever
+    # property happens to reference it.
+    C:
+      type: string
+      example: component-level
     S:
       type: object
       properties:
+        # A property whose schema reduces to a shared primitive keeps its
+        # example on the property: the primitive is shared across every use and
+        # must not carry per-declaration annotations.
         n:
           type: integer
           examples: [1, 2]
+        # An inline object owns a hoisted node, so its example lands there.
+        inner:
+          type: object
+          example: {k: v}
+          properties:
+            k: {type: string}

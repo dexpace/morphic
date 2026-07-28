@@ -53,6 +53,25 @@ func (l *lowerer) lowerComponentSchema(js *oas3.JSONSchema[oas3.Referenceable], 
 		return // schemaRef interned the component's own node at its component ID
 	}
 	l.internAlias(pointer, name, ref, l.componentConstraints(js, pointer))
+	// The alias is the first node this pointer has owned, so the examples
+	// schemaBody could not place have a home now.
+	if s := concreteSchema(js); s != nil {
+		l.attachSchemaExamples(s, pointer)
+	}
+}
+
+// concreteSchema returns the schema body js declares, or nil when it declares
+// none of its own — a boolean schema or a bare $ref, whose annotations belong
+// to the referent rather than to this position.
+func concreteSchema(js *oas3.JSONSchema[oas3.Referenceable]) *oas3.Schema {
+	if js == nil || js.IsBool() || js.IsReference() {
+		return nil
+	}
+	s := js.GetSchema()
+	if s == nil || s.Ref != nil {
+		return nil
+	}
+	return s
 }
 
 // componentConstraints reads the value constraints of a component schema whose
@@ -62,10 +81,7 @@ func (l *lowerer) lowerComponentSchema(js *oas3.JSONSchema[oas3.Referenceable], 
 // has no other node to hold them; the alias Scalar must carry them or they are
 // silently dropped.
 func (l *lowerer) componentConstraints(js *oas3.JSONSchema[oas3.Referenceable], pointer string) *ir.Constraints {
-	if js == nil || js.IsBool() || js.IsReference() {
-		return nil
-	}
-	return l.schemaConstraints(js.GetSchema(), pointer)
+	return l.schemaConstraints(concreteSchema(js), pointer)
 }
 
 // schemaConstraints reads the value constraints of a concrete schema and stamps
@@ -129,11 +145,20 @@ func (l *lowerer) schemaRef(js *oas3.JSONSchema[oas3.Referenceable], pointer, hi
 	return l.schemaBody(schema, pointer, hint)
 }
 
-// schemaBody lowers a concrete (non-reference) schema body to a TypeRef, handling
-// the oneOf/anyOf dispatch that precedes structural lowering. It is shared by
-// schemaRef and by sub-schema hoisting (resolveSchemaRef), which both reach a
-// body only after peeling off any leading $ref.
+// schemaBody lowers a concrete (non-reference) schema body to a TypeRef and
+// records the schema's own examples on whatever node the lowering hoisted at
+// pointer. It is shared by schemaRef and by sub-schema hoisting
+// (resolveSchemaRef), which both reach a body only after peeling off any
+// leading $ref.
 func (l *lowerer) schemaBody(schema *oas3.Schema, pointer, hint string) ir.TypeRef {
+	ref := l.schemaBodyRef(schema, pointer, hint)
+	l.attachSchemaExamples(schema, pointer)
+	return ref
+}
+
+// schemaBodyRef lowers the body itself, handling the oneOf/anyOf dispatch that
+// precedes structural lowering.
+func (l *lowerer) schemaBodyRef(schema *oas3.Schema, pointer, hint string) ir.TypeRef {
 	if len(schema.GetOneOf()) > 0 || len(schema.GetAnyOf()) > 0 {
 		if hasUnionSiblings(schema) {
 			return ir.TypeRef{
@@ -263,7 +288,11 @@ func (l *lowerer) hoistSubSchema(schema *oas3.Schema, pointer string) (ir.TypeID
 	if owned, ok := l.byPointer[pointer]; ok {
 		return owned, true
 	}
-	return l.internAlias(pointer, hint, ref, l.schemaConstraints(schema, pointer)), true
+	id := l.internAlias(pointer, hint, ref, l.schemaConstraints(schema, pointer))
+	// As in lowerComponentSchema: the alias is the first node this pointer has
+	// owned, so the examples schemaBody could not place have a home now.
+	l.attachSchemaExamples(schema, pointer)
+	return id, true
 }
 
 // refNullable reports whether a $ref usage admits null: the reference site or
@@ -771,9 +800,7 @@ func (l *lowerer) fillPropertyDetail(p *ir.Property, js *oas3.JSONSchema[oas3.Re
 	if effectiveDeprecated(ref, tgt) {
 		p.Deprecation = &ir.Deprecation{}
 	}
-	if ex := l.schemaExamples(ref, pointer); len(ex) > 0 {
-		p.Examples = ex
-	}
+	l.fillPropertyExamples(p, ref, pointer)
 	if h := xmlHints(ref.GetXML()); h != nil {
 		p.XML = h
 	}
@@ -814,6 +841,21 @@ func (l *lowerer) fillPropertyDefault(p *ir.Property, ref, tgt *oas3.Schema, poi
 	p.Default = &v
 }
 
+// fillPropertyExamples records the schema's examples on the property, but only
+// when the schema hoisted no node of its own to hold them. A schema that reduced
+// to a shared primitive has nowhere else to put them, and the primitive itself
+// must never carry per-declaration annotations; every other schema keeps them on
+// its own node (attachSchemaExamples). One home per declaration means the two can
+// never drift apart.
+func (l *lowerer) fillPropertyExamples(p *ir.Property, ref *oas3.Schema, pointer string) {
+	if _, hoisted := l.byPointer[pointer]; hoisted {
+		return
+	}
+	if ex := l.schemaExamples(ref, pointer); len(ex) > 0 {
+		p.Examples = ex
+	}
+}
+
 // fillPropertyConstraints attaches the property's scalar constraints and stamps
 // each constraint diagnostic with the property's provenance.
 func (l *lowerer) fillPropertyConstraints(p *ir.Property, ref *oas3.Schema, pointer string) {
@@ -830,28 +872,50 @@ func (l *lowerer) fillPropertyConstraints(p *ir.Property, ref *oas3.Schema, poin
 func (l *lowerer) schemaExamples(s *oas3.Schema, pointer string) []ir.Example {
 	var out []ir.Example
 	if node := s.GetExample(); node != nil {
-		out = l.appendExample(out, node, pointer, "example")
+		out = l.appendExample(out, ir.Example{}, node, pointer, "example")
 	}
 	for i, node := range s.GetExamples() {
-		out = l.appendExample(out, node, pointer, "examples", strconv.Itoa(i))
+		out = l.appendExample(out, ir.Example{}, node, pointer, "examples", strconv.Itoa(i))
 	}
 	return out
 }
 
-// appendExample converts node to a value example and appends it to out; an
-// unconvertible node is skipped with a warning diagnostic rather than silently
+// attachSchemaExamples records s's own example annotations on the type node
+// pointer owns, the structural home for a schema's examples (ir.TypeCommon).
+// A schema whose body reduced to a shared primitive owns no node; its examples
+// stay with the declaring property (fillPropertyExamples). Ownership is checked
+// before conversion because the callers cover a pointer in either order, and
+// only the one that finds a node may emit conversion diagnostics.
+func (l *lowerer) attachSchemaExamples(s *oas3.Schema, pointer string) {
+	id, owned := l.byPointer[pointer]
+	if !owned {
+		return
+	}
+	td, ok := l.out.Types[id]
+	if !ok {
+		return
+	}
+	if ex := l.schemaExamples(s, pointer); len(ex) > 0 {
+		td.Common().Examples = ex
+	}
+}
+
+// appendExample converts node into proto's value and appends the result to out;
+// an unconvertible node is skipped with a warning diagnostic rather than silently
 // dropped — an example is an annotation, not a structural hole, so losing it is
-// fine as long as it isn't silent. base and seg locate the node, joined into a
-// pointer only on the failure path, so an example that converts builds no
-// pointer string at all. Shared by every example site: schema
-// (schemaExamples), media type and parameter (exampleList).
-func (l *lowerer) appendExample(out []ir.Example, node *yaml.Node, base string, seg ...string) []ir.Example {
+// fine as long as it isn't silent. proto carries the annotations that surround
+// the value (name, summary, description); base and seg locate the node, joined
+// into a pointer only on the failure path, so an example that converts builds no
+// pointer string at all. Shared by every example site: schema (schemaExamples),
+// media type, header, and parameter (exampleList).
+func (l *lowerer) appendExample(out []ir.Example, proto ir.Example, node *yaml.Node, base string, seg ...string) []ir.Example {
 	v, err := valueFromNode(node)
 	if err != nil {
 		l.diag(ir.SeverityWarning, codeDegradedConstruct, base+ptr(seg...), "example: %s", err.Error())
 		return out
 	}
-	return append(out, ir.Example{Value: &v})
+	proto.Value = &v
+	return append(out, proto)
 }
 
 // fillModelDetail lowers the model-level shape: docs, deprecation, additional-
