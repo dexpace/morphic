@@ -24,25 +24,62 @@ var newEngine = engine.New
 // not fail after a successful write on the platforms Morphic targets.
 var openOutput = func(path string) (io.WriteCloser, error) { return os.Create(path) }
 
-// runCompile implements the `compile` subcommand: lower one spec file to IR JSON,
-// render its diagnostics to stderr, and return the process exit code.
-func runCompile(args []string, stdout, stderr io.Writer) int {
+// compileCommand is compile's entry in the command table.
+var compileCommand = command{
+	name:    "compile",
+	summary: "lower an API spec (OpenAPI 3.x) into Morphic IR JSON",
+	usage:   "morphic compile <spec-file> [flags]",
+	description: "Lower an API spec (OpenAPI 3.x) into Morphic IR JSON on stdout, and write\n" +
+		"diagnostics to stderr.",
+	flagSet: func() *flag.FlagSet {
+		fs, _ := newCompileFlags()
+		return fs
+	},
+	run: runCompile,
+}
+
+// compileOptions holds the values compile's flags parse into.
+type compileOptions struct {
+	outPath      string
+	failOn       string
+	skipValidate bool
+	explain      string
+}
+
+// newCompileFlags returns compile's FlagSet and the options its flags write
+// into. Directing Output to io.Discard is the whole of the silencing — the flag
+// package writes both its error line and its usage dump there — so parse
+// failures and help requests reach the CLI only as errors from Parse, and the
+// CLI renders exactly one text for them.
+func newCompileFlags() (*flag.FlagSet, *compileOptions) {
 	fs := flag.NewFlagSet("compile", flag.ContinueOnError)
-	fs.SetOutput(stderr)
-	outPath := fs.String("o", "", "write IR JSON to this file instead of stdout")
-	failOn := fs.String("fail-on", "error",
+	fs.SetOutput(io.Discard)
+
+	var opts compileOptions
+	fs.StringVar(&opts.outPath, "o", "", "write IR JSON to this file instead of stdout")
+	fs.StringVar(&opts.failOn, "fail-on", "error",
 		"fail (exit 1) on diagnostics at or above this severity: error|warning")
-	skipValidate := fs.Bool("skip-validate", false, "skip the referential-integrity validate pass")
-	explain := fs.String("explain", "",
+	fs.BoolVar(&opts.skipValidate, "skip-validate", false,
+		"skip the referential-integrity validate pass")
+	fs.StringVar(&opts.explain, "explain", "",
 		"report what compiling produced at this source pointer instead of writing IR JSON")
+
+	return fs, &opts
+}
+
+// runCompile implements the `compile` subcommand: lower one spec file to IR
+// JSON, render its diagnostics to stderr, and return the process exit code.
+func runCompile(args []string, stdout, stderr io.Writer) int {
+	fs, opts := newCompileFlags()
 
 	positional, err := parseArgs(fs, args)
 	if err != nil {
+		emitf(stderr, "morphic: %v\n", err)
 		printUsage(stderr)
 		return 2
 	}
-	if *failOn != "error" && *failOn != "warning" {
-		emitf(stderr, "morphic: invalid --fail-on %q (want error or warning)\n", *failOn)
+	if opts.failOn != "error" && opts.failOn != "warning" {
+		emitf(stderr, "morphic: invalid --fail-on %q (want error or warning)\n", opts.failOn)
 		printUsage(stderr)
 		return 2
 	}
@@ -52,29 +89,37 @@ func runCompile(args []string, stdout, stderr io.Writer) int {
 		return 2
 	}
 
+	return compileSpec(positional[0], *opts, stdout, stderr)
+}
+
+// compileSpec runs the pipeline over specPath, writes the IR document and its
+// diagnostics, and returns the process exit code.
+func compileSpec(specPath string, opts compileOptions, stdout, stderr io.Writer) int {
 	eng, err := newEngine()
 	if err != nil {
 		emitf(stderr, "morphic: %v\n", err)
 		return 2
 	}
-	res, err := eng.Run(context.Background(), positional[0], engine.RunOptions{SkipValidate: *skipValidate})
+
+	res, err := eng.Run(context.Background(), specPath, engine.RunOptions{SkipValidate: opts.skipValidate})
 	if err != nil {
 		emitf(stderr, "morphic: %v\n", err)
 		return 2
 	}
+
 	renderDiagnostics(stderr, res)
 	if res.Document == nil {
 		return 1
 	}
-	if *explain != "" {
-		explainDocument(stdout, res.Document, res.Diagnostics, *explain)
-		return exitCodeFor(res.Diagnostics, *failOn)
+	if opts.explain != "" {
+		explainDocument(stdout, res.Document, res.Diagnostics, opts.explain)
+		return exitCodeFor(res.Diagnostics, opts.failOn)
 	}
-	if err := writeCompiled(*outPath, stdout, res.Document); err != nil {
+	if err := writeCompiled(opts.outPath, stdout, res.Document); err != nil {
 		emitf(stderr, "morphic: %v\n", err)
 		return 2
 	}
-	return exitCodeFor(res.Diagnostics, *failOn)
+	return exitCodeFor(res.Diagnostics, opts.failOn)
 }
 
 // parseArgs binds fs and collects positional arguments, tolerating flags that
@@ -85,7 +130,9 @@ func parseArgs(fs *flag.FlagSet, args []string) ([]string, error) {
 	rest := args
 	for {
 		if err := fs.Parse(rest); err != nil {
-			return nil, fmt.Errorf("parse flags: %w", err)
+			// Returned verbatim, not wrapped: this error is rendered straight to
+			// the user, and the flag package's messages already name the flag.
+			return nil, err
 		}
 		rest = fs.Args()
 		if len(rest) == 0 {
