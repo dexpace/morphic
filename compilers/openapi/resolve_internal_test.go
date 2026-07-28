@@ -3,6 +3,9 @@ package openapi
 import (
 	"testing"
 
+	oas3 "github.com/speakeasy-api/openapi/jsonschema/oas3"
+	soa "github.com/speakeasy-api/openapi/openapi"
+	"github.com/speakeasy-api/openapi/references"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -51,10 +54,53 @@ components:
 	assert.Equal(t, "target-desc", st.Referent.GetDescription(), "Referent is one hop away")
 }
 
-// TestLowerComponentSchema_RefSiblingConstraintBindsTheSite is a characterization
-// test: it locks in the existing $ref-sibling-constraint behaviour before
-// lowerComponentSchema is rewired through site, so a behaviour change during
-// that rewiring shows up as a failure here rather than passing unnoticed.
+// TestSiteAt_EmptyRefIsDeclaration pins the narrower classification: a $ref
+// pointer present but empty never resolves (IsReference is false for it), so
+// siteAt reports a declaration, not a reference with a nil Referent.
+func TestSiteAt_EmptyRefIsDeclaration(t *testing.T) {
+	t.Parallel()
+	l := newRawLowerer(&soa.OpenAPI{})
+	emptyRef := references.Reference("")
+	js := oas3.NewJSONSchemaFromSchema[oas3.Referenceable](&oas3.Schema{Ref: &emptyRef})
+
+	s := l.siteAt(js, "/p")
+	assert.Equal(t, siteDeclaration, s.Kind, "an empty $ref resolves nowhere, so it is not a reference site")
+	assert.Nil(t, s.Referent)
+}
+
+// TestSiteAt_EmptyPointerPanics covers siteAt's own precondition: pointer is
+// always caller-derived and never empty in practice (every call site already
+// guarantees it), so an empty pointer here is a programmer error, not a spec
+// problem, and siteAt panics rather than build a site for nowhere.
+func TestSiteAt_EmptyPointerPanics(t *testing.T) {
+	t.Parallel()
+	l := newRawLowerer(&soa.OpenAPI{})
+	assert.Panics(t, func() { l.siteAt(oas3.NewJSONSchemaFromBool(true), "") })
+}
+
+// TestSiteAt_NonPointerPanics covers siteAt's second precondition: pointer
+// must be RFC 6901-shaped (starting with "/"), the assumption every pointer-
+// keyed lookup in this file relies on.
+func TestSiteAt_NonPointerPanics(t *testing.T) {
+	t.Parallel()
+	l := newRawLowerer(&soa.OpenAPI{})
+	assert.Panics(t, func() { l.siteAt(oas3.NewJSONSchemaFromBool(true), "components/schemas/S") })
+}
+
+// TestSiteKind_String covers both named values and the default case, so an
+// assertion failure or test diff over a siteKind prints a name instead of a
+// bare int.
+func TestSiteKind_String(t *testing.T) {
+	t.Parallel()
+	assert.Equal(t, "siteDeclaration", siteDeclaration.String())
+	assert.Equal(t, "siteReference", siteReference.String())
+	assert.Equal(t, "siteKind(99)", siteKind(99).String())
+}
+
+// TestLowerComponentSchema_RefSiblingConstraintBindsTheSite locks in the
+// $ref-sibling-constraint behaviour at a named component: lowerComponentSchema
+// resolves the component's own site via siteAt, so a bound written beside the
+// $ref (S: {$ref: Target, minimum: 5}) binds S, not Target.
 func TestLowerComponentSchema_RefSiblingConstraintBindsTheSite(t *testing.T) {
 	t.Parallel()
 	l, _ := loweredFor(t, `openapi: 3.1.0

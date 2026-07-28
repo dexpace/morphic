@@ -1,6 +1,7 @@
 package openapi
 
 import (
+	"fmt"
 	"path"
 	"strings"
 
@@ -18,23 +19,37 @@ const (
 	siteReference
 )
 
+// String renders k by name; an assertion failure or test diff over a bare
+// siteKind would otherwise print the underlying int (0 or 1).
+func (k siteKind) String() string {
+	switch k {
+	case siteDeclaration:
+		return "siteDeclaration"
+	case siteReference:
+		return "siteReference"
+	default:
+		return fmt.Sprintf("siteKind(%d)", int(k))
+	}
+}
+
 // site is a position that owns an IR node. Node is the schema written at the
 // position; Referent is the schema exactly one hop away, set only for a
 // reference site.
 //
-// The split keeps annotations attached where they were written: a site-only
-// annotation (examples, constraints) reads Node alone, while a
-// site-overrides-referent annotation (docs, deprecation, visibility, default)
-// reads Node and falls back to a referent. That fallback has not been moved
-// onto Referent for properties: fillPropertyDetail (schema.go) still resolves
-// its own via refTargetSchema, which follows a $ref chain to its end
-// (GetResolvedSchema) rather than one hop (GetReferenceResolutionInfo, what
-// Referent uses here). The two differ in hop semantics and are not
-// interchangeable.
+// The split exists so an annotation can be read from where it was written
+// rather than from wherever a $ref happens to resolve: a site-only annotation
+// (examples, constraints) reads Node alone, and a site-overrides-referent
+// annotation (docs, deprecation, visibility, default) is meant to read Node
+// and fall back to Referent. No caller does that yet: fillPropertyDetail
+// (schema.go) still resolves its own fallback via refTargetSchema, which
+// follows a $ref chain to its end (GetResolvedSchema) rather than one hop
+// (GetReferenceResolutionInfo, what Referent uses here). The two are not
+// interchangeable — swapping one for the other would silently change
+// property-default and description semantics on a ref-to-ref chain, where the
+// end of the chain and the schema one hop away can be different schemas.
 type site struct {
-	Pointer string
-	Kind    siteKind
-	Node    *oas3.Schema
+	Kind siteKind
+	Node *oas3.Schema
 	// Referent is nil when Kind is siteReference but the $ref does not
 	// resolve; refTypeRef is what diagnoses that, not this.
 	Referent *oas3.Schema
@@ -45,19 +60,58 @@ type site struct {
 // the end of the chain: a sub-schema spelled {$ref: Other, minimum: 7} must read
 // as this position, not as Other, or the bound written beside the $ref is lost
 // before anything can record it.
+//
+// A schema whose $ref pointer is present but empty ({$ref: ""}) is not a
+// reference site: IsReference is false for it (by definition — an empty ref
+// resolves nowhere), so it is classified as a declaration like any other
+// schema body, and this narrower test is what keeps Referent's doc comment
+// below true: a reference site's $ref was genuinely attempted, so "the $ref
+// does not resolve" is the only reason left for Referent to be nil.
+//
+// siteAt cannot verify the one precondition that actually matters: that js is
+// the schema written at pointer, not some other node. That pairing is the
+// caller's responsibility — nothing here can cross-check it from js and
+// pointer alone. What it can check is that pointer is at least shaped like a
+// position: every caller derives it from a JSON pointer (RFC 6901), which is
+// either empty (denoting the whole document — no caller here means that) or
+// starts with "/".
 func (l *lowerer) siteAt(js *oas3.JSONSchema[oas3.Referenceable], pointer string) site {
-	st := site{Pointer: pointer, Kind: siteDeclaration, Node: siteSchema(js)}
+	if pointer == "" {
+		panic("siteAt: empty pointer")
+	}
+	if pointer[0] != '/' {
+		panic(fmt.Sprintf("siteAt: pointer %q is not a JSON pointer", pointer))
+	}
+	s := site{Kind: siteDeclaration, Node: siteSchema(js)}
 	if js == nil || js.IsBool() {
-		return st
+		return s
 	}
-	if !js.IsReference() && (st.Node == nil || st.Node.Ref == nil) {
-		return st
+	if !js.IsReference() {
+		return s
 	}
-	st.Kind = siteReference
+	s.Kind = siteReference
 	if decl := declaredSchema(js); decl != nil {
-		st.Referent = siteSchema(decl)
+		s.Referent = siteSchema(decl)
 	}
-	return st
+	return s
+}
+
+// siteSchema returns the schema body written at this position, including one
+// that also carries a $ref. An example or a bound written beside a $ref applies
+// to the position it is written at rather than to the referent, so it may not be
+// read off the target — the rule fillPropertyExamples and fillPropertyConstraints
+// already apply at a property. It returns nil only where no body is written at
+// all: a nil either, or a boolean schema, which admits no annotations.
+//
+// Every position that owns a node reads it through siteAt: a named component
+// (lowerComponentSchema, schema.go) and a $ref'd internal sub-schema
+// (hoistSubSchema, which declaredSchema feeds one hop at a time for exactly
+// this reason).
+func siteSchema(js *oas3.JSONSchema[oas3.Referenceable]) *oas3.Schema {
+	if js == nil || js.IsBool() {
+		return nil
+	}
+	return js.GetSchema()
 }
 
 // schemaRef is THE schema entry point: every schema position (property, items,
@@ -161,8 +215,8 @@ func declaredSchema(js *oas3.JSONSchema[oas3.Referenceable]) *oas3.JSONSchema[oa
 // lowers a concrete body in place, and either way leaves this to intern the node
 // the pointer owns.
 func (l *lowerer) hoistSubSchema(decl *oas3.JSONSchema[oas3.Referenceable], pointer string) (ir.TypeID, bool) {
-	st := l.siteAt(decl, pointer)
-	if st.Node == nil {
+	s := l.siteAt(decl, pointer)
+	if s.Node == nil {
 		return "", false
 	}
 	hint := refLastSegment(pointer)
@@ -170,10 +224,10 @@ func (l *lowerer) hoistSubSchema(decl *oas3.JSONSchema[oas3.Referenceable], poin
 	if owned, ok := l.byPointer[pointer]; ok {
 		return owned, true
 	}
-	id := l.internAlias(pointer, hint, ref, l.schemaConstraints(st.Node, pointer))
+	id := l.internAlias(pointer, hint, ref, l.schemaConstraints(s.Node, pointer))
 	// As in lowerComponentSchema: this alias is the first node the pointer owns,
 	// so the annotations schemaRef had nowhere to put now have a home.
-	l.attachSchemaExamples(st.Node, pointer)
+	l.attachSchemaExamples(s.Node, pointer)
 	return id, true
 }
 

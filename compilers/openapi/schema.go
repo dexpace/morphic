@@ -48,34 +48,17 @@ func (l *lowerer) lowerComponentSchemas() {
 // `MyId: {type: string, format: uuid}` would leave nothing at its component
 // pointer and every $ref to it would dangle (invariants 1 and 2).
 func (l *lowerer) lowerComponentSchema(js *oas3.JSONSchema[oas3.Referenceable], pointer, name string) {
-	st := l.siteAt(js, pointer)
+	s := l.siteAt(js, pointer)
 	ref := l.schemaRef(js, pointer, name)
 	if _, owned := l.byPointer[pointer]; owned {
 		return // schemaRef interned the component's own node at its component ID
 	}
-	l.internAlias(pointer, name, ref, l.schemaConstraints(st.Node, pointer))
+	l.internAlias(pointer, name, ref, l.schemaConstraints(s.Node, pointer))
 	// This alias is the first node the pointer owns, so the examples schemaBody
 	// had nowhere to put now have a home.
-	if st.Node != nil {
-		l.attachSchemaExamples(st.Node, pointer)
+	if s.Node != nil {
+		l.attachSchemaExamples(s.Node, pointer)
 	}
-}
-
-// siteSchema returns the schema body written at this position, including one
-// that also carries a $ref. An example or a bound written beside a $ref applies
-// to the position it is written at rather than to the referent, so it may not be
-// read off the target — the rule fillPropertyExamples and fillPropertyConstraints
-// already apply at a property. It returns nil only where no body is written at
-// all: a nil either, or a boolean schema, which admits no annotations.
-//
-// Every position that owns a node reads it through siteAt: a named component
-// (lowerComponentSchema) and a $ref'd internal sub-schema (hoistSubSchema,
-// which declaredSchema feeds one hop at a time for exactly this reason).
-func siteSchema(js *oas3.JSONSchema[oas3.Referenceable]) *oas3.Schema {
-	if js == nil || js.IsBool() {
-		return nil
-	}
-	return js.GetSchema()
 }
 
 // schemaConstraints reads the value constraints of a schema and stamps each
