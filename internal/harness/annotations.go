@@ -85,8 +85,10 @@ const (
 // Cell identifies one annotation at one kind of position: the unit annotation
 // retention is checked at.
 type Cell struct {
-	Annotation Annotation `json:"annotation"`
-	SiteKind   SiteKind   `json:"siteKind"`
+	// Annotation is the annotation slot this cell checks.
+	Annotation Annotation
+	// SiteKind is the position kind this cell checks Annotation at.
+	SiteKind SiteKind
 }
 
 // Annotations returns every annotation in a stable order.
