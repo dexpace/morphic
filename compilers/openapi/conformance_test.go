@@ -768,9 +768,11 @@ func assertMultipartEncoding(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) 
 	enc := op.Request.Contents[0].Encoding
 	require.NotEmpty(t, enc, "multipart parts carry PartEncoding keyed by PropID")
 	var sawFile, sawMulti bool
+	var fileHeaders []ir.Property
 	for _, pe := range enc {
 		if pe.Filename {
 			sawFile = true
+			fileHeaders = pe.Headers
 		}
 		if pe.Multi {
 			sawMulti = true
@@ -778,6 +780,36 @@ func assertMultipartEncoding(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) 
 	}
 	assert.True(t, sawFile, "binary file part carries Filename")
 	assert.True(t, sawMulti, "array part carries Multi")
+	assertPartHeaders(t, doc, fileHeaders)
+}
+
+// assertPartHeaders pins encoding.<part>.headers, a TypeRef position reachable
+// only through a PartEncoding and, before this case, exercised by no corpus
+// spec. It covers both hops a header takes — an inline schema and one behind a
+// $ref through components/headers — and requires each target to be in the
+// registry, which is what gives the referential-closure walker something to
+// check here.
+func assertPartHeaders(t *testing.T, doc *ir.Document, headers []ir.Property) {
+	t.Helper()
+	require.Len(t, headers, 2, "the file part declares two per-part headers")
+	byWire := make(map[string]ir.Property, len(headers))
+	for _, h := range headers {
+		byWire[h.WireName] = h
+	}
+
+	id, ok := byWire["X-Part-Id"]
+	require.True(t, ok, "inline part header lowered; got %v", byWire)
+	assert.Equal(t, ir.TypeID("t/prim/uuid"), id.Type.Target)
+	assert.True(t, id.Required, "a required part header keeps its presence bit")
+	assert.Equal(t, "per-part correlation id", id.Docs.Description)
+
+	sum, ok := byWire["X-Part-Checksum"]
+	require.True(t, ok, "$ref'd part header lowered; got %v", byWire)
+	assert.Equal(t, namedID("Digest"), sum.Type.Target, "a $ref'd header takes the referent's schema")
+	assert.Equal(t, "sha-256 digest of this part", sum.Docs.Description)
+	for _, h := range headers {
+		assert.Contains(t, doc.Types, h.Type.Target, "part header %q must reference a live node", h.WireName)
+	}
 }
 
 // assertSequentialMedia pins the 3.2 sequential-media lowering, including the
