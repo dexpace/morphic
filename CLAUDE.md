@@ -187,6 +187,23 @@ context-switch between repos.
     break that thing in a throwaway patch and watch it fail.
   - A limitation that is deliberately out of scope must be stated in the code and in the PR body, in
     a place the next reader will actually reach — not only in a commit message or a scratch note.
+- **Verify by executing, and do not generalise the result.** Every rule below was learned by
+  shipping its opposite in this repo. Reading code agrees with it; only running something disagrees.
+  - **Compile a probe, don't read the source.** Reviews that read the code declared it clean while
+    it was silently dropping data. Compile the input, inspect the emitted IR *and* the full
+    diagnostic list.
+  - **One verified run is not a verified class.** A mutation that reddens the suite proves something
+    about the site it was planted at, not every site of its kind. Naming the site in the sentence is
+    the whole fix.
+  - **A check that runs is not a check that reaches.** A verifier can be complete, well-tested, wired
+    into CI, and still never meet the output it exists to check. Establish where it actually reaches
+    before claiming what it covers.
+  - **A corpus shares the blind spots of the code it covers.** A golden regeneration that changes
+    nothing looks exactly like a broken `-update`. Confirm a deliberate deletion from a source makes
+    the test fail.
+  - **Derive counts; never maintain them.** Counts and universals in prose are where this repo's
+    errors concentrate, and no test can catch them. Prefer the command that derives a number, or
+    omit it. If a claim about code must be written down, name the revision it was true at.
 - **Conventional Commits**: `type(scope): subject`, imperative mood, subject line only (no period,
   ≤72 chars). Common types: `feat`, `fix`, `refactor`, `docs`, `test`, `build`, `chore`, `ci`,
   `perf`. Scope is the touched package (`ir`, `compilers/openapi`, `pass`, `emitters/go`, `engine`)
