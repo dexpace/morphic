@@ -225,6 +225,42 @@ func (l *lowerer) lowerOneOfAnyOf(s *oas3.Schema, pointer, hint string) ir.TypeR
 	return ir.TypeRef{Target: tid, Nullable: schemaAdmitsNull(s)}
 }
 
+// lowerCoDeclaredUnion lowers a schema whose oneOf/anyOf sits beside structural
+// keywords. JSON Schema conjoins keywords, so the schema is an intersection of a
+// structural body and a union, and the IR deliberately has no intersection
+// combinator (ir-design §15). The compiler therefore picks the lowering that
+// keeps both sides classified rather than merged or dropped.
+func (l *lowerer) lowerCoDeclaredUnion(s *oas3.Schema, pointer, hint string) ir.TypeID {
+	if unionBranchesDeclareShape(s) {
+		return l.lowerBesidePreservedUnion(s, pointer, hint, ir.ReasonDegradedLowering)
+	}
+	return l.lowerBesidePreservedUnion(s, pointer, hint, ir.ReasonValidationOnly)
+}
+
+// unionBranchesDeclareShape reports whether any oneOf/anyOf branch contributes
+// data shape. When none does — `oneOf: [{required: [a]}, {required: [b]}]`, the
+// commonest instance — the union narrows what the sibling body accepts without
+// changing it, which is dependentRequired's job description: validation logic,
+// not shape (ir-design §4.7).
+func unionBranchesDeclareShape(s *oas3.Schema) bool {
+	return slices.ContainsFunc(s.GetOneOf(), branchDeclaresShape) ||
+		slices.ContainsFunc(s.GetAnyOf(), branchDeclaresShape)
+}
+
+// branchDeclaresShape reports whether one union branch declares data shape. A
+// $ref always does; a bare `type: null` never does, since it contributes only
+// the enclosing reference's Nullable bit.
+func branchDeclaresShape(b *oas3.JSONSchema[oas3.Referenceable]) bool {
+	if isRefBranch(b) {
+		return true
+	}
+	s := b.GetSchema()
+	if s == nil {
+		return false // a boolean branch declares no shape of its own
+	}
+	return declaresShape(s) || len(s.GetOneOf())+len(s.GetAnyOf()) > 0
+}
+
 // oneOfAnyOfHasNull reports whether any oneOf/anyOf branch is a bare `type: null`
 // schema, so its nullability lifts onto the enclosing union ref rather than
 // degrading to an `any` variant.

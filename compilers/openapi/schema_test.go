@@ -77,10 +77,13 @@ func TestLower_NamedScalarComponentResolves(t *testing.T) {
 	}
 }
 
-func TestLower_OneOfWithStructuralSiblingsPreserved(t *testing.T) {
+func TestLower_ConstraintOnlyUnionIsValidationOnly(t *testing.T) {
 	t.Parallel()
-	// The "exactly one of" idiom co-declares object structure with oneOf. The
-	// structural body must survive AND the union must be preserved verbatim.
+	// The "exactly one of" idiom co-declares object structure with a oneOf whose
+	// branches only narrow which properties are required. That is validation
+	// logic, not shape — dependentRequired's sibling — so the structural body
+	// survives and the union is preserved under ReasonValidationOnly, the reason
+	// a validation emitter selects on (ir-design §4.7).
 	spec := componentSpec(`    Thing:
       type: object
       additionalProperties: false
@@ -101,17 +104,13 @@ func TestLower_OneOfWithStructuralSiblingsPreserved(t *testing.T) {
 	assert.True(t, m.Properties[0].Required)
 	assert.Equal(t, ir.AdditionalClosed, m.Additional)
 	raw, ok := m.Preserved["openapi:oneOf"]
-	require.True(t, ok, "the dropped union is kept verbatim under Preserved")
+	require.True(t, ok, "the union is kept verbatim under Preserved")
 	assert.Contains(t, string(raw.Value), "required")
-	assert.Equal(t, ir.ReasonDegradedLowering, raw.Reason)
-
-	found := false
-	for _, d := range diags {
-		if d.Severity == ir.SeverityInfo && strings.Contains(d.Message, "oneOf/anyOf co-declared") {
-			found = true
-		}
-	}
-	assert.True(t, found, "coexistence emits one info diagnostic")
+	assert.Equal(t, ir.ReasonValidationOnly, raw.Reason,
+		"constraint-only branches narrow the body without reshaping it (ir-design §4.7)")
+	assert.Equal(t, "/components/schemas/Thing/oneOf", raw.Provenance.Pointer)
+	assert.Equal(t, 1, countDiagsAt(diags, codeValidationOnlyKeyword, ir.SeverityInfo),
+		"the union is reported with §4.7's keyword family; got %+v", diags)
 }
 
 func TestLower_AllOfWithOneOfKeepsBoth(t *testing.T) {
@@ -782,7 +781,7 @@ func TestPreserveUnionSiblings_MissingNode(t *testing.T) {
 	l := newRawLowerer(&soa.OpenAPI{})
 	// No node registered under the id: the union branches have nowhere to go, so
 	// the guard reports the broken invariant instead of dropping them quietly.
-	l.preserveUnionSiblings("t/anon/missing", &oas3.Schema{}, "/p")
+	l.preserveUnionSiblings("t/anon/missing", &oas3.Schema{}, "/p", ir.ReasonDegradedLowering)
 	assertHasErrorCode(t, l.diags, codeInternalInvariant)
 }
 

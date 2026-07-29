@@ -106,7 +106,7 @@ func (l *lowerer) lowerSchemaBody(schema *oas3.Schema, pointer, hint string) ir.
 	if len(schema.GetOneOf()) > 0 || len(schema.GetAnyOf()) > 0 {
 		if hasUnionSiblings(schema) {
 			return ir.TypeRef{
-				Target:   l.lowerWithUnionSiblings(schema, pointer, hint),
+				Target:   l.lowerCoDeclaredUnion(schema, pointer, hint),
 				Nullable: schemaAdmitsNull(schema),
 			}
 		}
@@ -116,17 +116,25 @@ func (l *lowerer) lowerSchemaBody(schema *oas3.Schema, pointer, hint string) ir.
 }
 
 // hasUnionSiblings reports whether a oneOf/anyOf schema also carries structural
-// keywords (a type, properties, allOf, const/enum, additionalProperties, ...).
-// When it does, the union alone cannot represent the schema, so the structural
-// body must be lowered too rather than dropped (invariant 2, ir-design §4.3).
+// keywords (a type, properties, allOf, const/enum, additionalProperties, ...) or
+// a `required` list. When it does, the union alone cannot represent the schema,
+// so the sibling body must be lowered too rather than dropped (invariant 2,
+// ir-design §4.3).
 func hasUnionSiblings(s *oas3.Schema) bool {
+	return len(s.GetRequired()) > 0 || declaresShape(s)
+}
+
+// declaresShape reports whether a schema declares data shape — a type, a
+// property set, a value set, composition, or a catch-all — rather than only
+// narrowing what an already-declared shape accepts. `required` is on the
+// narrowing side of that line, which is why hasUnionSiblings counts it
+// separately: it makes a schema's siblings structural, but on its own it
+// declares nothing to build (ir-design §4.7).
+func declaresShape(s *oas3.Schema) bool {
 	if props := s.GetProperties(); props != nil && props.Len() > 0 {
 		return true
 	}
-	if len(s.GetRequired()) > 0 || len(s.GetAllOf()) > 0 {
-		return true
-	}
-	if s.GetConst() != nil || len(s.GetEnum()) > 0 {
+	if s.GetConst() != nil || len(s.GetEnum()) > 0 || len(s.GetAllOf()) > 0 {
 		return true
 	}
 	if s.GetAdditionalProperties() != nil {
@@ -138,11 +146,11 @@ func hasUnionSiblings(s *oas3.Schema) bool {
 	return len(effectiveTypes(s)) > 0
 }
 
-// lowerWithUnionSiblings lowers the structural body of a schema that co-declares
-// oneOf/anyOf, then preserves the union branches verbatim under the resulting
-// node's Preserved with an info diagnostic — so neither the structural shape
-// nor the union is dropped (ir-design §4.7-style preservation).
-func (l *lowerer) lowerWithUnionSiblings(s *oas3.Schema, pointer, hint string) ir.TypeID {
+// lowerBesidePreservedUnion lowers the structural body of a schema that
+// co-declares oneOf/anyOf and keeps the union verbatim beside it, so neither the
+// structural shape nor the union is dropped. reason says which kind of union it
+// is; classifyUnionSiblings picks it.
+func (l *lowerer) lowerBesidePreservedUnion(s *oas3.Schema, pointer, hint string, reason ir.PreserveReason) ir.TypeID {
 	inner := l.lower(s, pointer, hint)
 	owner := inner
 	if l.byPointer[pointer] != inner {
@@ -151,24 +159,32 @@ func (l *lowerer) lowerWithUnionSiblings(s *oas3.Schema, pointer, hint string) i
 		// shared primitive.
 		owner = l.internAlias(pointer, hint, ir.TypeRef{Target: inner}, nil)
 	}
-	l.preserveUnionSiblings(owner, s, pointer)
+	l.preserveUnionSiblings(owner, s, pointer, reason)
 	return owner
 }
 
 // preserveUnionSiblings stores the raw oneOf/anyOf of s under the owning node's
-// Preserved and emits one info diagnostic naming the preserved construct.
-func (l *lowerer) preserveUnionSiblings(id ir.TypeID, s *oas3.Schema, pointer string) {
+// Preserved. A validation-only union joins §4.7's keyword family and is reported
+// with it; anything else is a §4.8 degradation and says so.
+func (l *lowerer) preserveUnionSiblings(id ir.TypeID, s *oas3.Schema, pointer string, reason ir.PreserveReason) {
 	td, ok := l.registeredNode(id, pointer)
 	if !ok {
 		return
 	}
 	c := td.Common()
 	for _, kw := range []string{"oneOf", "anyOf"} {
-		l.preserve(&c.Preserved, "openapi:"+kw, nodeToRaw(rawPropertyNode(s, kw)),
-			ir.ReasonDegradedLowering, pointer+ptr(kw))
+		raw := nodeToRaw(rawPropertyNode(s, kw))
+		if reason == ir.ReasonValidationOnly {
+			l.preserveKeyword(&c.Preserved, "openapi:"+kw, raw, pointer, pointer+ptr(kw), kw)
+			continue
+		}
+		l.preserve(&c.Preserved, "openapi:"+kw, raw, reason, pointer+ptr(kw))
+	}
+	if reason == ir.ReasonValidationOnly {
+		return
 	}
 	l.diag(ir.SeverityInfo, codeDegradedConstruct, pointer,
-		"oneOf/anyOf co-declared with structural keywords; union branches kept verbatim under Preserved")
+		"oneOf/anyOf co-declared with a body carrying no composition to distribute into; union branches kept verbatim under Preserved")
 }
 
 // falseSchema hoists a boolean `false` schema as a closed empty model (it
