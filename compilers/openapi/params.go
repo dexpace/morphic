@@ -154,7 +154,7 @@ func (l *lowerer) fillParamSchemaAnnotations(param *ir.Parameter, s, tgt *oas3.S
 	if a.XML != nil {
 		l.preserveParamXML(param, s, pointer)
 	}
-	param.Unmodeled = mergePreserved(param.Unmodeled, a.Unmodeled)
+	param.Unmodeled = mergeUnmodeled(param.Unmodeled, a.Unmodeled)
 }
 
 // preserveParamXML keeps a parameter schema's xml hints instead of dropping
@@ -188,7 +188,7 @@ func (l *lowerer) fillParamDetail(param *ir.Parameter, p *soa.Parameter, pptr st
 	if ex := l.exampleList(p.GetExample(), p.GetExamples(), pptr); len(ex) > 0 {
 		param.Examples = ex
 	}
-	param.Unmodeled = mergePreserved(param.Unmodeled, l.extensions(p.GetExtensions(), pptr))
+	param.Unmodeled = mergeUnmodeled(param.Unmodeled, l.extensions(p.GetExtensions(), pptr))
 }
 
 // resolveStyleExplode materializes a parameter's resolved serialization style

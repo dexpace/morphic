@@ -35,7 +35,7 @@ func TestServer_JSONContract(t *testing.T) {
 			"kafka": {"groupId": ir.RawValue(`"g1"`)},
 			"amqp":  {"exchange": ir.RawValue(`"e1"`)},
 		},
-		Unmodeled: populatedPreserved(),
+		Unmodeled: populatedUnmodeled(),
 	})
 }
 
@@ -81,6 +81,6 @@ func TestServerVariable_JSONContract(t *testing.T) {
 		Default:   "us-east-1",
 		Enum:      []string{"us-east-1", "eu-west-1", "ap-south-1"},
 		Docs:      populatedDocs(),
-		Unmodeled: populatedPreserved(),
+		Unmodeled: populatedUnmodeled(),
 	})
 }

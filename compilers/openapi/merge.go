@@ -87,7 +87,7 @@ func (g *merger) reconcileProperty(dst *ir.Property, src ir.Property, pointer st
 		// like its neighbors above; the len()==0 predicate is the adoption rule.
 		dst.Examples = src.Examples
 	}
-	dst.Unmodeled = mergePreserved(dst.Unmodeled, src.Unmodeled)
+	dst.Unmodeled = mergeUnmodeled(dst.Unmodeled, src.Unmodeled)
 }
 
 // mergeConstraints folds src's constraint keywords into dst under allOf

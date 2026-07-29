@@ -59,12 +59,12 @@ func TestCollectTypeIDs_SharedPointerVisitedOnce(t *testing.T) {
 	assert.Equal(t, 1, n, "the shared pointer's target is collected once")
 }
 
-// TestCollectTypeIDs_PreservedBytesYieldNoReference states the result half: a
+// TestCollectTypeIDs_UnmodeledBytesYieldNoReference states the result half: a
 // preserved JSON blob is opaque data, so bytes that happen to spell a type ID
 // are not a reference. This holds with or without the byte-sequence skip — a
 // uint8 is not a string and could never be collected — which is why the skip
 // itself is driven separately below.
-func TestCollectTypeIDs_PreservedBytesYieldNoReference(t *testing.T) {
+func TestCollectTypeIDs_UnmodeledBytesYieldNoReference(t *testing.T) {
 	t.Parallel()
 	doc := &ir.Document{Unmodeled: ir.Unmodeled{"openapi:x-thing": {
 		Reason: ir.ReasonVendorExtension,

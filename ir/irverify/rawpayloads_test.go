@@ -41,10 +41,10 @@ func TestVerify_EveryDeclaredReasonIsClean(t *testing.T) {
 	assert.Empty(t, irverify.Verify(docPreserving(p)))
 }
 
-// TestVerify_EmptyPreserveReasonIsAViolation is the mutation the audit found
+// TestVerify_EmptyUnmodeledReasonIsAViolation is the mutation the audit found
 // the verifier blind to: an entry that round-trips clean and passes
 // pass.Validate while carrying a reason no consumer's switch can route.
-func TestVerify_EmptyPreserveReasonIsAViolation(t *testing.T) {
+func TestVerify_EmptyUnmodeledReasonIsAViolation(t *testing.T) {
 	doc := docPreserving(ir.Unmodeled{
 		"openapi:x-rate-limit": {Value: ir.RawValue(`100`)},
 	})
@@ -54,10 +54,10 @@ func TestVerify_EmptyPreserveReasonIsAViolation(t *testing.T) {
 	assert.Equal(t, "doc.Types[t/x/Model].Unmodeled[openapi:x-rate-limit]", got[0].Path)
 }
 
-// TestVerify_UnknownPreserveReasonIsAViolation covers the other way a bare
+// TestVerify_UnknownUnmodeledReasonIsAViolation covers the other way a bare
 // string enum goes wrong: a value that deserializes happily but names no
 // declared reason.
-func TestVerify_UnknownPreserveReasonIsAViolation(t *testing.T) {
+func TestVerify_UnknownUnmodeledReasonIsAViolation(t *testing.T) {
 	doc := docPreserving(ir.Unmodeled{
 		"openapi:x-rate-limit": {Reason: "totally_invented", Value: ir.RawValue(`100`)},
 	})
@@ -67,9 +67,9 @@ func TestVerify_UnknownPreserveReasonIsAViolation(t *testing.T) {
 	assert.Contains(t, got[0].Message, "totally_invented")
 }
 
-// TestVerify_EmptyPreservedKeyIsAViolation checks the key half alone: a valid
+// TestVerify_EmptyUnmodeledKeyIsAViolation checks the key half alone: a valid
 // reason must not mask an unlookupable key.
-func TestVerify_EmptyPreservedKeyIsAViolation(t *testing.T) {
+func TestVerify_EmptyUnmodeledKeyIsAViolation(t *testing.T) {
 	doc := docPreserving(ir.Unmodeled{
 		"": {Reason: ir.ReasonVendorExtension, Value: ir.RawValue(`1`)},
 	})
@@ -89,10 +89,10 @@ func TestVerify_EmptyKeyAndReasonReportBoth(t *testing.T) {
 	assert.Contains(t, codes, "ir/empty-unmodeled-reason")
 }
 
-// TestVerify_PreservedIsCheckedBelowTheTopLevel confirms the check rides the
+// TestVerify_UnmodeledIsCheckedBelowTheTopLevel confirms the check rides the
 // generic walk rather than a hand-listed set of carriers: the same defect must
 // be found on a nested Unmodeled map no registry walk would reach.
-func TestVerify_PreservedIsCheckedBelowTheTopLevel(t *testing.T) {
+func TestVerify_UnmodeledIsCheckedBelowTheTopLevel(t *testing.T) {
 	doc := validDoc()
 	doc.Services = []ir.Service{{
 		ID: "s/x/S",
@@ -115,10 +115,10 @@ var badPayloads = map[string]ir.RawValue{
 	"nil":       nil,
 }
 
-// TestVerify_InvalidPreservedValueIsAViolation covers the field the preserved
+// TestVerify_InvalidUnmodeledValueIsAViolation covers the field the preserved
 // check used to skip: an entry whose key and reason are both fine, carrying
 // bytes the document cannot be marshaled with.
-func TestVerify_InvalidPreservedValueIsAViolation(t *testing.T) {
+func TestVerify_InvalidUnmodeledValueIsAViolation(t *testing.T) {
 	for name, payload := range badPayloads {
 		t.Run(name, func(t *testing.T) {
 			doc := docPreserving(ir.Unmodeled{
@@ -133,10 +133,10 @@ func TestVerify_InvalidPreservedValueIsAViolation(t *testing.T) {
 	}
 }
 
-// TestVerify_ValidPreservedValuesAreClean pins the negative half across the JSON
+// TestVerify_ValidUnmodeledValuesAreClean pins the negative half across the JSON
 // value kinds a preserved construct can be, so the check cannot pass by
 // rejecting everything.
-func TestVerify_ValidPreservedValuesAreClean(t *testing.T) {
+func TestVerify_ValidUnmodeledValuesAreClean(t *testing.T) {
 	p := ir.Unmodeled{}
 	for i, raw := range []string{`null`, `true`, `12.5`, `"s"`, `[1,2]`, `{"a":{"b":[]}}`, ` 1 `} {
 		p["openapi:x-"+string(rune('a'+i))] = ir.UnmodeledEntry{
@@ -242,13 +242,13 @@ func TestVerify_InvalidRawValueIsWhatBreaksTheDocument(t *testing.T) {
 	}
 }
 
-// TestPreservedEntryFields_MatchTheIRShape guards the two fields
+// TestUnmodeledEntryFields_MatchTheIRShape guards the two fields
 // checkRawPayloads reads by name, the coupling the Go compiler cannot check.
 // Reason is read as a string and Value as a byte slice, and Bytes() panics on
 // the zero reflect.Value a rename would leave behind — so a rename in ir must
 // fail here rather than inside Verify on the first document that carries a
 // preserved entry.
-func TestPreservedEntryFields_MatchTheIRShape(t *testing.T) {
+func TestUnmodeledEntryFields_MatchTheIRShape(t *testing.T) {
 	t.Parallel()
 	entry := reflect.TypeOf(ir.UnmodeledEntry{})
 	for field, kind := range map[string]reflect.Kind{

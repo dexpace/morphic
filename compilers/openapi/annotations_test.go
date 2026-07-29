@@ -995,7 +995,7 @@ func TestValidationOnly_BesideARefAtABodyPosition(t *testing.T) {
 		minLength int
 		preserved ir.Unmodeled
 	}{
-		{"parameter", 1, paramPreserved(t, op)},
+		{"parameter", 1, paramUnmodeled(t, op)},
 		{"request body", 2, refSiteAlias(t, doc, requestContent(t, op)).Common().Unmodeled},
 		{"response content", 3, refSiteAlias(t, doc, firstContent(t, op)).Common().Unmodeled},
 	} {
@@ -1013,8 +1013,8 @@ func TestValidationOnly_BesideARefAtABodyPosition(t *testing.T) {
 		"three reference sites, and none of them wrote onto the referent")
 }
 
-// paramPreserved returns the operation's single parameter's preserved entries.
-func paramPreserved(t *testing.T, op ir.Operation) ir.Unmodeled {
+// paramUnmodeled returns the operation's single parameter's preserved entries.
+func paramUnmodeled(t *testing.T, op ir.Operation) ir.Unmodeled {
 	t.Helper()
 	require.Len(t, op.Params, 1)
 	return op.Params[0].Unmodeled

@@ -66,7 +66,7 @@ func annotations(st site, pointer string, srcIndex int) (annotationSet, []ir.Dia
 	diags = append(diags, extDiags...)
 	diags = append(diags, keptDiags...)
 
-	out.Unmodeled = mergePreserved(ext, kept)
+	out.Unmodeled = mergeUnmodeled(ext, kept)
 	return out, diags
 }
 
@@ -85,7 +85,7 @@ func unmodeledAt(s *oas3.Schema, pointer string, srcIndex int) (ir.Unmodeled, []
 	diags = append(diags, nhDiags...)
 	diags = append(diags, dDiags...)
 
-	return mergePreserved(mergePreserved(vOnly, noHome), dialect), diags
+	return mergeUnmodeled(mergeUnmodeled(vOnly, noHome), dialect), diags
 }
 
 // noIRHomeAt collects the keywords a schema declares that describe real data yet

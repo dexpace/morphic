@@ -450,22 +450,22 @@ func (l *lowerer) lowerCoDeclaredUnion(s *oas3.Schema, pointer, hint string) ir.
 	case unionDistributed:
 		return l.lowerDistributedUnion(s, pointer, hint)
 	case unionValidationOnly:
-		return l.lowerBesidePreservedUnion(s, pointer, hint, ir.ReasonValidationOnly, "")
+		return l.lowerBesideUnmodeledUnion(s, pointer, hint, ir.ReasonValidationOnly, "")
 	case unionUncomposableBody:
-		return l.lowerBesidePreservedUnion(s, pointer, hint, ir.ReasonDegradedLowering,
+		return l.lowerBesideUnmodeledUnion(s, pointer, hint, ir.ReasonDegradedLowering,
 			"the body is not a model, so it carries no composition to distribute into")
 	case unionBothCombinators:
-		return l.lowerBesidePreservedUnion(s, pointer, hint, ir.ReasonDegradedLowering,
+		return l.lowerBesideUnmodeledUnion(s, pointer, hint, ir.ReasonDegradedLowering,
 			"oneOf and anyOf are both declared, so distributing either would drop the other")
 	case unionInlineBranch:
-		return l.lowerBesidePreservedUnion(s, pointer, hint, ir.ReasonDegradedLowering,
+		return l.lowerBesideUnmodeledUnion(s, pointer, hint, ir.ReasonDegradedLowering,
 			"a branch is written inline, so it names no referent to conjoin the body with")
 	case unionUnresolvedBranch:
 		l.diagUnresolvedBranches(s, pointer)
-		return l.lowerBesidePreservedUnion(s, pointer, hint, ir.ReasonDegradedLowering,
+		return l.lowerBesideUnmodeledUnion(s, pointer, hint, ir.ReasonDegradedLowering,
 			"a branch's $ref names no referent this compilation resolves")
 	default: // unionDiscriminated
-		return l.lowerBesidePreservedUnion(s, pointer, hint, ir.ReasonDegradedLowering,
+		return l.lowerBesideUnmodeledUnion(s, pointer, hint, ir.ReasonDegradedLowering,
 			"a declared discriminator binds the branches by name, which distributing them would break")
 	}
 }

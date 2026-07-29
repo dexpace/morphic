@@ -328,12 +328,12 @@ func declaresShape(s *oas3.Schema) bool {
 	return len(effectiveTypes(s)) > 0
 }
 
-// lowerBesidePreservedUnion lowers the structural body of a schema that
+// lowerBesideUnmodeledUnion lowers the structural body of a schema that
 // co-declares oneOf/anyOf and keeps the union verbatim beside it, so neither the
 // structural shape nor the union is dropped. reason says which kind of union it
 // is and why says what stopped a classified lowering; classifyUnionSiblings
 // picks both.
-func (l *lowerer) lowerBesidePreservedUnion(s *oas3.Schema, pointer, hint string, reason ir.UnmodeledReason, why string) ir.TypeID {
+func (l *lowerer) lowerBesideUnmodeledUnion(s *oas3.Schema, pointer, hint string, reason ir.UnmodeledReason, why string) ir.TypeID {
 	inner := l.lower(s, pointer, hint)
 	owner := inner
 	if got, _ := l.types.Lookup(pointer); got != inner {
@@ -552,7 +552,7 @@ func (l *lowerer) fillPropertyAnnotations(p *ir.Property, ref, tgt *oas3.Schema,
 	if len(a.Examples) > 0 {
 		p.Examples = a.Examples
 	}
-	p.Unmodeled = mergePreserved(p.Unmodeled, a.Unmodeled)
+	p.Unmodeled = mergeUnmodeled(p.Unmodeled, a.Unmodeled)
 	// nil node: this arm runs only when the schema lowered to no node of its own,
 	// so nothing here can be carrying an Encoding.
 	l.recordUnplacedContent(&p.Unmodeled, ref, nil, pointer)
@@ -635,7 +635,7 @@ func (l *lowerer) attachDeclaredAnnotations(s *oas3.Schema, pointer string) {
 	if a.XML != nil {
 		c.XML = a.XML
 	}
-	c.Unmodeled = mergePreserved(c.Unmodeled, a.Unmodeled)
+	c.Unmodeled = mergeUnmodeled(c.Unmodeled, a.Unmodeled)
 	if len(a.Examples) > 0 {
 		c.Examples = a.Examples
 	}
@@ -1381,8 +1381,8 @@ func (l *lowerer) extensions(ext *extensions.Extensions, owner string) ir.Unmode
 	return out
 }
 
-// mergePreserved overlays src onto dst, allocating dst on first write.
-func mergePreserved(dst, src ir.Unmodeled) ir.Unmodeled {
+// mergeUnmodeled overlays src onto dst, allocating dst on first write.
+func mergeUnmodeled(dst, src ir.Unmodeled) ir.Unmodeled {
 	if len(src) == 0 {
 		return dst
 	}

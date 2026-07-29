@@ -17,13 +17,13 @@ import (
 	"github.com/dexpace/morphic/ir"
 )
 
-// TestPreserved_JSONRoundTrip pins that Unmodeled round-trips through
+// TestUnmodeled_JSONRoundTrip pins that Unmodeled round-trips through
 // assertRoundTrip's byte-level cmp.Diff. RawValue is json.RawMessage, which
 // json.Marshal compacts and HTML-escapes on the way out, so this only works
 // because both fixture values below are already written compact and free of
 // <, > and & — either would round-trip to a semantically equal but
 // byte-different value and fail the diff.
-func TestPreserved_JSONRoundTrip(t *testing.T) {
+func TestUnmodeled_JSONRoundTrip(t *testing.T) {
 	t.Parallel()
 	assertRoundTrip(t, ir.Unmodeled{
 		"openapi:x-rate-limit": {
@@ -42,7 +42,7 @@ func TestPreserved_JSONRoundTrip(t *testing.T) {
 // preserveReasonWire is the hand-maintained expectation of every reason and
 // its serialized form. The strings land in golden IR and in emitter selection
 // logic (`Reason == ReasonValidationOnly`), so they are contract rather than
-// an internal detail. TestPreserveReason_TiesToConstBlock keeps this list from
+// an internal detail. TestUnmodeledReason_TiesToConstBlock keeps this list from
 // drifting behind the const block it mirrors.
 var preserveReasonWire = map[ir.UnmodeledReason]string{
 	ir.ReasonVendorExtension:  "vendor_extension",
@@ -52,14 +52,14 @@ var preserveReasonWire = map[ir.UnmodeledReason]string{
 	ir.ReasonOutOfScope:       "out_of_scope",
 }
 
-func TestPreserveReason_WireStrings(t *testing.T) {
+func TestUnmodeledReason_WireStrings(t *testing.T) {
 	t.Parallel()
 	for reason, want := range preserveReasonWire {
 		assert.Equal(t, want, string(reason))
 	}
 }
 
-// TestPreserveReason_TiesToConstBlock closes the gap a bare string enum leaves:
+// TestUnmodeledReason_TiesToConstBlock closes the gap a bare string enum leaves:
 // nothing rejects an undeclared value on deserialization, so Valid is what the
 // verifier tests against, and Valid has to stay tied to the const block. It
 // parses the ir package with go/ast — the approach
@@ -72,12 +72,12 @@ func TestPreserveReason_WireStrings(t *testing.T) {
 // The converse of the second direction is not enforced, and cannot be from here:
 // a case added to Valid for a value no constant declares leaves this green,
 // because a switch body is not enumerable at run time.
-// TestPreserveReason_UnknownIsInvalid pins only the two values it names.
+// TestUnmodeledReason_UnknownIsInvalid pins only the two values it names.
 //
 // Declared is the bar, not written: ReasonOutOfScope reaches no compiler write
 // path yet (ir-design §15 excludes Smithy and TypeSpec constructs OpenAPI
 // cannot express), and that is a gap in the compilers, not in the enum.
-func TestPreserveReason_TiesToConstBlock(t *testing.T) {
+func TestUnmodeledReason_TiesToConstBlock(t *testing.T) {
 	t.Parallel()
 	declared := parseDeclaredReasons(t)
 
@@ -92,10 +92,10 @@ func TestPreserveReason_TiesToConstBlock(t *testing.T) {
 	}
 }
 
-// TestPreserveReason_UnknownIsInvalid pins the other direction: Valid must
+// TestUnmodeledReason_UnknownIsInvalid pins the other direction: Valid must
 // reject a value no const declares, including the zero value a compiler leaves
 // behind when it forgets the field.
-func TestPreserveReason_UnknownIsInvalid(t *testing.T) {
+func TestUnmodeledReason_UnknownIsInvalid(t *testing.T) {
 	t.Parallel()
 	assert.False(t, ir.UnmodeledReason("totally_invented").Valid())
 	assert.False(t, ir.UnmodeledReason("").Valid())
@@ -203,7 +203,7 @@ func irSourceFiles(t *testing.T) []string {
 	return out
 }
 
-func TestPreserved_DeterministicKeyOrder(t *testing.T) {
+func TestUnmodeled_DeterministicKeyOrder(t *testing.T) {
 	t.Parallel()
 	p := ir.Unmodeled{
 		"graphql:@key":         {Reason: ir.ReasonVendorExtension, Value: ir.RawValue(`"id"`)},

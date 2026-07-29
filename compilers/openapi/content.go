@@ -56,7 +56,7 @@ func (l *lowerer) lowerContent(mt string, media *soa.MediaType, pointer, hint st
 	}
 	l.fillSequential(&c, media, mediaPtr, hint)
 	if ext := l.extensions(media.GetExtensions(), mediaPtr); len(ext) > 0 {
-		c.Unmodeled = mergePreserved(c.Unmodeled, ext)
+		c.Unmodeled = mergeUnmodeled(c.Unmodeled, ext)
 	}
 	return c
 }
@@ -222,7 +222,7 @@ func (l *lowerer) applyHeaderAnnotations(p *ir.Property, h *soa.Header, hdecl st
 	if ex := l.exampleList(h.GetExample(), h.GetExamples(), hdecl); len(ex) > 0 {
 		p.Examples = ex
 	}
-	p.Unmodeled = mergePreserved(p.Unmodeled, l.extensions(h.GetExtensions(), hdecl))
+	p.Unmodeled = mergeUnmodeled(p.Unmodeled, l.extensions(h.GetExtensions(), hdecl))
 }
 
 // mediaExamples lowers a media type's single and plural example values.
