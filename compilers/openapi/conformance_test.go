@@ -331,10 +331,11 @@ func assertAllOfRequiredOnly(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) 
 		"a required-only allOf branch attaches across the whole composition, not just its own properties map (issue #29)")
 }
 
-// assertAllOfOneOfCooccurrence pins both halves of ir-design §4.8's
-// intersection rule: a union whose branches all name referents is distributed
-// across, and one that has an inline branch is kept verbatim rather than
-// distributed halfway.
+// assertAllOfOneOfCooccurrence pins both halves of the co-declared composition
+// rule: §4.3 distributes a union whose branches all name referents, and §4.8
+// keeps one with an inline branch verbatim rather than distributing it halfway.
+// The outside reference to a branch pointer pins the third thing: a composed
+// variant is Morphic's own node, so it cannot be taken by, or take from, a $ref.
 func assertAllOfOneOfCooccurrence(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
 	combo, ok := doc.Types[namedID("Combo")].(*ir.Union)
 	require.True(t, ok, "the union is the value, not a preserved sibling")
@@ -353,6 +354,15 @@ func assertAllOfOneOfCooccurrence(t *testing.T, doc *ir.Document, _ []ir.Diagnos
 	entry, ok := mixed.Preserved["openapi:oneOf"]
 	require.True(t, ok, "and the union it could not absorb survives beside it")
 	assert.Equal(t, ir.ReasonDegradedLowering, entry.Reason)
+
+	outsider, ok := doc.Types[namedID("Outsider")].(*ir.Model)
+	require.True(t, ok)
+	require.Len(t, outsider.Properties, 1)
+	branchNode, ok := doc.Types[outsider.Properties[0].Type.Target].(*ir.Scalar)
+	require.True(t, ok, "the branch pointer hoists an alias of what the branch references")
+	require.NotNil(t, branchNode.Base)
+	assert.Equal(t, namedID("A"), branchNode.Base.Target,
+		"the reference gets the branch schema, never the variant composed for that branch")
 }
 
 func assertOneOfDiscriminated(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {

@@ -242,6 +242,22 @@ func countDiagsAt(diags []ir.Diagnostic, code string, sev ir.Severity) int {
 	return n
 }
 
+// diagMessageAt returns the message of the single diagnostic matching code,
+// severity and provenance pointer. Tests that only compare a diagnostic's code
+// cannot tell two lowerings apart when both report the same code with different
+// reasons, so the reason itself needs an assertable handle.
+func diagMessageAt(t *testing.T, diags []ir.Diagnostic, code string, sev ir.Severity, pointer string) string {
+	t.Helper()
+	var found []string
+	for _, d := range diags {
+		if d.Code == code && d.Severity == sev && d.Provenance.Pointer == pointer {
+			found = append(found, d.Message)
+		}
+	}
+	require.Len(t, found, 1, "want exactly one %v %q at %q, got %+v", sev, code, pointer, diags)
+	return found[0]
+}
+
 // firstOp returns the operation at svc.Groups[0].Operations[0], requiring both
 // to be non-empty first rather than letting a malformed fixture fail with a
 // bare index-out-of-range panic.

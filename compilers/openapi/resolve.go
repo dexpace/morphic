@@ -220,6 +220,28 @@ func (l *lowerer) resolveSchemaRef(js *oas3.JSONSchema[oas3.Referenceable], ref 
 	return l.hoistSubSchema(decl, pointer)
 }
 
+// refNamesReferent reports whether ref names a schema this compilation can
+// point a TypeRef at, answering the question resolveSchemaRef answers without
+// interning anything on the way. A classifier needs that: deciding how to lower
+// a schema must not hoist nodes as a side effect of asking.
+//
+// It sits beside resolveSchemaRef because it must stay in step with it, and
+// mirrors it minus the two steps that are not pure lookups — hoistSubSchema,
+// which interns (its own only failure is a target that declares no schema body,
+// which is the last condition here), and the internedID cache hit, which would
+// make the answer depend on which schema happened to lower first.
+func (l *lowerer) refNamesReferent(js *oas3.JSONSchema[oas3.Referenceable], ref string) bool {
+	pointer, ok := l.internalPointer(ref)
+	if !ok {
+		return false
+	}
+	if _, resolved, handled := l.resolveComponentRef(pointer); handled {
+		return resolved
+	}
+	decl := declaredSchema(js)
+	return decl != nil && siteAt(decl).Node != nil
+}
+
 // declaredSchema returns the schema written at the position js references — one
 // hop, not the end of the chain. GetResolvedSchema follows a reference to a
 // reference all the way through, which is the wrong node to hoist at that

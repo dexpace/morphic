@@ -19,8 +19,26 @@
   ],
   "types": {
     "t/anon/components/schemas/Combo/oneOf/0": {
-      "kind": "model",
+      "kind": "scalar",
       "id": "t/anon/components/schemas/Combo/oneOf/0",
+      "name": {
+        "hint": "0"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Combo/oneOf/0"
+      },
+      "base": {
+        "target": "t/openapi/components/schemas/A",
+        "nullable": false
+      }
+    },
+    "t/composed/components/schemas/Combo/oneOf/0": {
+      "kind": "model",
+      "id": "t/composed/components/schemas/Combo/oneOf/0",
       "name": {
         "hint": "Combo_A"
       },
@@ -45,9 +63,9 @@
       "positional": false,
       "inputOnly": false
     },
-    "t/anon/components/schemas/Combo/oneOf/1": {
+    "t/composed/components/schemas/Combo/oneOf/1": {
       "kind": "model",
-      "id": "t/anon/components/schemas/Combo/oneOf/1",
+      "id": "t/composed/components/schemas/Combo/oneOf/1",
       "name": {
         "hint": "Combo_B"
       },
@@ -233,7 +251,7 @@
             "hint": "A"
           },
           "type": {
-            "target": "t/anon/components/schemas/Combo/oneOf/0",
+            "target": "t/composed/components/schemas/Combo/oneOf/0",
             "nullable": false
           },
           "docs": {}
@@ -243,7 +261,7 @@
             "hint": "B"
           },
           "type": {
-            "target": "t/anon/components/schemas/Combo/oneOf/1",
+            "target": "t/composed/components/schemas/Combo/oneOf/1",
             "nullable": false
           },
           "docs": {}
@@ -316,6 +334,53 @@
       "positional": false,
       "inputOnly": false
     },
+    "t/openapi/components/schemas/Outsider": {
+      "kind": "model",
+      "id": "t/openapi/components/schemas/Outsider",
+      "name": {
+        "source": "Outsider",
+        "canonical": "outsider"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Outsider"
+      },
+      "properties": [
+        {
+          "id": "p/openapi/components/schemas/Outsider/properties/branch",
+          "name": {
+            "source": "branch",
+            "canonical": "branch"
+          },
+          "wireName": "branch",
+          "type": {
+            "target": "t/anon/components/schemas/Combo/oneOf/0",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/Outsider/properties/branch"
+          }
+        }
+      ],
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
     "t/prim/string": {
       "kind": "primitive",
       "id": "t/prim/string",
@@ -350,7 +415,7 @@
     {
       "severity": "info",
       "code": "openapi/degraded-construct",
-      "message": "oneOf/anyOf co-declared with structural keywords intersects with them, and a branch names no referent to conjoin the body with; union branches kept verbatim under Preserved",
+      "message": "oneOf/anyOf co-declared with structural keywords intersects with them, and a branch is written inline, so it names no referent to conjoin the body with; union branches kept verbatim under Preserved",
       "provenance": {
         "source": 0,
         "pointer": "/components/schemas/MixedKinds"
@@ -361,7 +426,7 @@
     {
       "format": "openapi@3.1",
       "path": "allof-oneof-cooccurrence.yaml",
-      "hash": "515b57f8171c733bc8297b005cb2a7e2cff291d73109339de9b08a2fef11fef1"
+      "hash": "36662fbf422f5d6434647c076c4ffab87c91699539d0105d16259f9dc2a22936"
     }
   ]
 }

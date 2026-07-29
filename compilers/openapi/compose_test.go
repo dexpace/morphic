@@ -1,8 +1,10 @@
 package openapi
 
 import (
+	"fmt"
 	"testing"
 
+	"github.com/google/go-cmp/cmp"
 	oas3 "github.com/speakeasy-api/openapi/jsonschema/oas3"
 	soa "github.com/speakeasy-api/openapi/openapi"
 	"github.com/stretchr/testify/assert"
@@ -1228,33 +1230,232 @@ func TestAnyOf_CoDeclaredPropertiesDistributeAsBase(t *testing.T) {
 	assert.Equal(t, ir.AdditionalClosed, v.Additional, "and its openness")
 }
 
-func TestOneOf_CoDeclaredDistributionUnresolvedBranch(t *testing.T) {
+// comboRefStealSpec is the co-declared union of Base with A|B, plus one $ref
+// aimed at a union branch's own pointer. The two orders of the same four
+// components must lower identically: the branch pointer denotes the branch
+// schema in both, and the variants are Morphic's own nodes in both.
+func comboRefStealSpec(branch int, outsiderFirst bool) string {
+	outsider := fmt.Sprintf(
+		"    Outsider: {type: object, properties: {x: {$ref: '#/components/schemas/Combo/oneOf/%d'}}}\n", branch)
+	combo := `    Base: {type: object, properties: {id: {type: string}}}
+    A: {type: object, properties: {a: {type: string}}}
+    B: {type: object, properties: {b: {type: string}}}
+    Combo:
+      allOf: [{$ref: '#/components/schemas/Base'}]
+      oneOf: [{$ref: '#/components/schemas/A'}, {$ref: '#/components/schemas/B'}]
+`
+	if outsiderFirst {
+		return componentSpec(outsider + combo)
+	}
+	return componentSpec(combo + outsider)
+}
+
+// TestOneOf_CoDeclaredVariantNotStolenByRefToBranch is the regression for the
+// pointer collision: the composed variants used to be interned at the branch
+// pointers, which a $ref elsewhere in the document denotes too. Whichever
+// lowered first took the pointer, so an unrelated reference could leave one
+// variant a bare alias of its branch while its siblings carried the body — the
+// disagreement ir-design §4.3 forbids, decided by declaration order.
+func TestOneOf_CoDeclaredVariantNotStolenByRefToBranch(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct {
+		name          string
+		branch        int
+		outsiderFirst bool
+	}{
+		{"outsider declared first", 0, true},
+		{"outsider declared last", 0, false},
+		{"ref to the second branch", 1, true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			doc, diags := lowerSpec(t, comboRefStealSpec(tc.branch, tc.outsiderFirst))
+			requireNoErrorDiags(t, diags)
+
+			u, ok := typeByName(doc, "Combo").(*ir.Union)
+			require.True(t, ok)
+			require.Len(t, u.Variants, 2)
+			for i, branch := range []string{"A", "B"} {
+				v, ok := doc.Types[u.Variants[i].Type.Target].(*ir.Model)
+				require.True(t, ok, "variant %d keeps the composed body", i)
+				require.NotNil(t, v.Base)
+				assert.Equal(t, componentID("Base"), v.Base.Target)
+				require.Len(t, v.Mixins, 1)
+				assert.Equal(t, componentID(branch), v.Mixins[0].Target)
+			}
+
+			// The outside reference gets the branch schema, which is what its
+			// pointer names — never the conjunction the variant stands for.
+			outsider, ok := typeByName(doc, "Outsider").(*ir.Model)
+			require.True(t, ok)
+			require.Len(t, outsider.Properties, 1)
+			branchNode, ok := doc.Types[outsider.Properties[0].Type.Target].(*ir.Scalar)
+			require.True(t, ok, "the branch pointer hoists an alias of the branch's target")
+			require.NotNil(t, branchNode.Base)
+			assert.Equal(t, componentID([]string{"A", "B"}[tc.branch]), branchNode.Base.Target)
+		})
+	}
+}
+
+// TestOneOf_CoDeclaredDistributionIsOrderIndependent states the property the
+// pointer collision broke, over the whole registry rather than one node: the
+// same components in two declaration orders lower to the same types.
+func TestOneOf_CoDeclaredDistributionIsOrderIndependent(t *testing.T) {
+	t.Parallel()
+	first, diags := lowerSpec(t, comboRefStealSpec(0, true))
+	requireNoErrorDiags(t, diags)
+	last, diags := lowerSpec(t, comboRefStealSpec(0, false))
+	requireNoErrorDiags(t, diags)
+	assert.Empty(t, cmp.Diff(first.Types, last.Types),
+		"declaring the outside $ref before or after the union must not change the IR")
+}
+
+// TestOneOf_CoDeclaredVariantCarriesDiscriminatorValue pins the tag the variants
+// inherit. The enclosing schema is an allOf subtype of a discriminated base, so
+// every variant is written on the wire with that subtype's tag — and the tag
+// comes from the base's mapping entry for the *enclosing* schema, since that is
+// the node the mapping names.
+func TestOneOf_CoDeclaredVariantCarriesDiscriminatorValue(t *testing.T) {
+	t.Parallel()
+	spec := componentSpec(`    Base:
+      type: object
+      properties: {kind: {type: string}}
+      discriminator:
+        propertyName: kind
+        mapping: {combo: '#/components/schemas/Combo'}
+    A: {type: object, properties: {a: {type: string}}}
+    B: {type: object, properties: {b: {type: string}}}
+    Combo:
+      allOf: [{$ref: '#/components/schemas/Base'}]
+      oneOf: [{$ref: '#/components/schemas/A'}, {$ref: '#/components/schemas/B'}]
+`)
+	doc, diags := lowerSpec(t, spec)
+	requireNoErrorDiags(t, diags)
+
+	u, ok := typeByName(doc, "Combo").(*ir.Union)
+	require.True(t, ok)
+	require.Len(t, u.Variants, 2)
+	for i := range u.Variants {
+		v, ok := doc.Types[u.Variants[i].Type.Target].(*ir.Model)
+		require.True(t, ok)
+		assert.Equal(t, "combo", v.DiscriminatorValue,
+			"variant %d carries the mapping key naming the enclosing schema, not its own hint", i)
+	}
+}
+
+// TestOneOf_CoDeclaredAdditionalPropsHintNamesTheBody covers the naming of the
+// one node every variant shares. additionalProperties is declared once, on the
+// enclosing schema, and lowers at its pointer — so the first variant to reach it
+// must not stamp its own branch name on the shared node.
+func TestOneOf_CoDeclaredAdditionalPropsHintNamesTheBody(t *testing.T) {
 	t.Parallel()
 	spec := componentSpec(`    A: {type: object, properties: {a: {type: string}}}
+    B: {type: object, properties: {b: {type: string}}}
     Combo:
       type: object
       properties: {kind: {type: string}}
-      oneOf:
-        - {$ref: '#/components/schemas/Ghost'}
-        - {$ref: '#/components/schemas/A'}
+      additionalProperties: {type: object, properties: {v: {type: string}}}
+      oneOf: [{$ref: '#/components/schemas/A'}, {$ref: '#/components/schemas/B'}]
 `)
 	doc, diags := lowerSpec(t, spec)
-	assertHasErrorCode(t, diags, codeUnresolvedRef)
+	requireNoErrorDiags(t, diags)
 
 	u := typeByName(doc, "Combo").(*ir.Union)
-	require.Len(t, u.Variants, 2, "an unresolved branch still gets a variant to hold the body")
-	v := doc.Types[u.Variants[0].Type.Target].(*ir.Model)
-	assert.Nil(t, v.Base, "nothing resolved to compose with")
-	require.Len(t, v.Properties, 1, "the body still rides on the variant")
+	v, ok := doc.Types[u.Variants[0].Type.Target].(*ir.Model)
+	require.True(t, ok)
+	require.NotNil(t, v.AdditionalProps)
+	assert.Equal(t, "Combo_value", doc.Types[v.AdditionalProps.Value.Target].Common().Name.Hint)
 }
 
-// TestOneOf_CoDeclaredNotDistributedReasons pins the three shapes distribution
+// TestOneOf_CoDeclaredNonModelBranchIsCarriedAsWritten pins what §4.3 says
+// Base/Mixins may name. JSON Schema lets a composition conjoin any schema, so a
+// branch can reference a scalar, an enum or another union; the referent is
+// carried as written, because narrowing it would mean dropping a branch the
+// source declared. fillAllOf classifies an allOf entry the same way.
+func TestOneOf_CoDeclaredNonModelBranchIsCarriedAsWritten(t *testing.T) {
+	t.Parallel()
+	spec := componentSpec(`    Scalar: {type: string, minLength: 2}
+    Choice: {enum: [a, b]}
+    Combo:
+      type: object
+      properties: {kind: {type: string}}
+      oneOf: [{$ref: '#/components/schemas/Scalar'}, {$ref: '#/components/schemas/Choice'}]
+`)
+	doc, diags := lowerSpec(t, spec)
+	requireNoErrorDiags(t, diags)
+
+	u, ok := typeByName(doc, "Combo").(*ir.Union)
+	require.True(t, ok)
+	require.Len(t, u.Variants, 2)
+	for i, want := range []string{"Scalar", "Choice"} {
+		v, ok := doc.Types[u.Variants[i].Type.Target].(*ir.Model)
+		require.True(t, ok)
+		require.NotNil(t, v.Base, "variant %d conjoins its branch", i)
+		assert.Equal(t, componentID(want), v.Base.Target)
+	}
+	assert.IsType(t, &ir.Scalar{}, doc.Types[componentID("Scalar")])
+	assert.IsType(t, &ir.Enum{}, doc.Types[componentID("Choice")])
+}
+
+// TestOneOf_CoDeclaredUnresolvableBranchIsNotDistributed covers the branches
+// that are $ref-shaped but name nothing this compilation can resolve. Each
+// would otherwise half-distribute — the variant carrying the body while its
+// branch vanished — so all of them keep the verbatim lowering, which loses
+// nothing, and each still reports the broken reference.
+func TestOneOf_CoDeclaredUnresolvableBranchIsNotDistributed(t *testing.T) {
+	t.Parallel()
+	spec := componentSpec(`    A: {type: object, properties: {a: {type: string}}}
+    Undeclared:
+      type: object
+      properties: {kind: {type: string}}
+      oneOf: [{$ref: '#/components/schemas/Ghost'}, {$ref: '#/components/schemas/A'}]
+    CrossDocument:
+      type: object
+      properties: {kind: {type: string}}
+      oneOf: [{$ref: 'other.yaml#/components/schemas/A'}]
+    EmptyRef:
+      type: object
+      properties: {kind: {type: string}}
+      oneOf: [{$ref: ''}]
+    NoSuchPointer:
+      type: object
+      properties: {kind: {type: string}}
+      oneOf: [{$ref: '#/components/schemas/A/properties/missing'}]
+`)
+	doc, diags := lowerSpec(t, spec)
+
+	for _, name := range []string{"Undeclared", "CrossDocument", "EmptyRef", "NoSuchPointer"} {
+		m, ok := typeByName(doc, name).(*ir.Model)
+		require.True(t, ok, "%s keeps its structural body rather than becoming a union", name)
+		entry, ok := m.Preserved["openapi:oneOf"]
+		require.True(t, ok, "%s keeps every branch verbatim", name)
+		assert.Equal(t, ir.ReasonDegradedLowering, entry.Reason, "%s", name)
+		assert.Contains(t,
+			diagMessageAt(t, diags, codeDegradedConstruct, ir.SeverityInfo, "/components/schemas/"+name),
+			"names no referent this compilation resolves", name)
+		// One error per offending branch, at the branch itself.
+		assert.Contains(t,
+			diagMessageAt(t, diags, codeUnresolvedRef, ir.SeverityError, "/components/schemas/"+name+"/oneOf/0"),
+			"resolves to nothing this document declares", name)
+	}
+	for _, d := range diags {
+		assert.NotEqual(t, "/components/schemas/Undeclared/oneOf/1", d.Provenance.Pointer,
+			"the branch beside the broken one resolves, so nothing is reported against it")
+	}
+}
+
+// TestOneOf_CoDeclaredNotDistributedReasons pins the five shapes distribution
 // declines, each kept verbatim under ReasonDegradedLowering with its own reason
-// (ir-design §4.8). Half-distributing any of them would leave a Union whose
-// variants disagree about whether they carry the body.
+// in the diagnostic (ir-design §4.8). Half-distributing any of them would leave
+// a Union whose variants disagree about whether they carry the body. The
+// messages are asserted, not just the code: the reasons are the only thing
+// telling four otherwise identical diagnostics apart.
 func TestOneOf_CoDeclaredNotDistributedReasons(t *testing.T) {
 	t.Parallel()
 	spec := componentSpec(`    A: {type: object, properties: {a: {type: string}}}
+    NotAModel:
+      const: fixed
+      oneOf: [{$ref: '#/components/schemas/A'}]
     InlineBranch:
       type: object
       properties: {kind: {type: string}}
@@ -1276,12 +1477,19 @@ func TestOneOf_CoDeclaredNotDistributedReasons(t *testing.T) {
 	doc, diags := lowerSpec(t, spec)
 	requireNoErrorDiags(t, diags)
 
-	for _, name := range []string{"InlineBranch", "NullBranch", "BothCombinators", "Discriminated"} {
-		m, ok := typeByName(doc, name).(*ir.Model)
-		require.True(t, ok, "%s keeps its structural body", name)
-		entry, ok := m.Preserved["openapi:oneOf"]
+	for name, reason := range map[string]string{
+		"NotAModel":       "the body is not a model, so it carries no composition to distribute into",
+		"InlineBranch":    "a branch is written inline, so it names no referent to conjoin the body with",
+		"NullBranch":      "a branch is written inline, so it names no referent to conjoin the body with",
+		"BothCombinators": "oneOf and anyOf are both declared, so distributing either would drop the other",
+		"Discriminated":   "a declared discriminator binds the branches by name, which distributing them would break",
+	} {
+		entry, ok := typeByName(doc, name).Common().Preserved["openapi:oneOf"]
 		require.True(t, ok, "%s keeps its union verbatim", name)
 		assert.Equal(t, ir.ReasonDegradedLowering, entry.Reason, "%s", name)
+		assert.Contains(t,
+			diagMessageAt(t, diags, codeDegradedConstruct, ir.SeverityInfo, "/components/schemas/"+name),
+			reason, name)
 	}
 	both := typeByName(doc, "BothCombinators").(*ir.Model)
 	_, ok := both.Preserved["openapi:anyOf"]
@@ -1289,6 +1497,6 @@ func TestOneOf_CoDeclaredNotDistributedReasons(t *testing.T) {
 	nullBranch := typeByName(doc, "NullBranch").(*ir.Model)
 	assert.Contains(t, string(nullBranch.Preserved["openapi:oneOf"].Value), `"null"`,
 		"a null branch is written inline, so it blocks distribution rather than lifting to Nullable")
-	assert.Equal(t, 4, countDiagsAt(diags, codeDegradedConstruct, ir.SeverityInfo),
+	assert.Equal(t, 5, countDiagsAt(diags, codeDegradedConstruct, ir.SeverityInfo),
 		"each declined shape is reported once; got %+v", diags)
 }

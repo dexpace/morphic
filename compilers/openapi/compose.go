@@ -155,6 +155,13 @@ func isRefBranch(b *oas3.JSONSchema[oas3.Referenceable]) bool {
 	return s != nil && s.Ref != nil
 }
 
+// isInlineBranch reports whether a composition branch is written inline rather
+// than as a $ref. It is isRefBranch's negation, named so a search over branches
+// reads as the question being asked.
+func isInlineBranch(b *oas3.JSONSchema[oas3.Referenceable]) bool {
+	return !isRefBranch(b)
+}
+
 // refTargetHasDiscriminator reports whether a $ref branch resolves to a schema
 // that carries a discriminator (it anchors a polymorphic hierarchy).
 func refTargetHasDiscriminator(b *oas3.JSONSchema[oas3.Referenceable]) bool {
@@ -243,10 +250,17 @@ const (
 	// const, an enum, a scalar, a bare catch-all — so there are no composition
 	// fields to distribute into.
 	unionUncomposableBody
-	// unionUncomposableBranch marks a union whose branches cannot each name a
-	// referent to conjoin the body with: an inline branch, or a second
-	// combinator that distributing one of the two would drop.
-	unionUncomposableBranch
+	// unionBothCombinators marks a schema declaring oneOf and anyOf at once:
+	// only one of the two can become the value, so distributing either drops the
+	// other.
+	unionBothCombinators
+	// unionInlineBranch marks a union with a branch written inline rather than as
+	// a $ref, so it names no node for Base/Mixins to point at.
+	unionInlineBranch
+	// unionUnresolvedBranch marks a union whose every branch is a $ref but at
+	// least one names nothing this compilation can resolve — a cross-document
+	// target, an undeclared component, a pointer addressing no schema.
+	unionUnresolvedBranch
 	// unionDiscriminated marks a union whose branches a declared discriminator
 	// binds by name, which distribution would break.
 	unionDiscriminated
@@ -259,19 +273,25 @@ const (
 // classified where the IR can express the conjunction, verbatim where it cannot.
 //
 // A declared discriminator rules distribution out: its mapping is written
-// against the branch schemas, which distribution replaces with anonymous
+// against the branch schemas, which distribution replaces with synthesized
 // composed models the mapping cannot name (pass/validate's
 // discriminator-missing-variant rule states the same requirement from the other
-// side). ir-design §4.8 enumerates this and the other three residual shapes.
-func classifyUnionSiblings(s *oas3.Schema) unionLowering {
+// side). ir-design §4.8 enumerates this and the other four residual shapes.
+func (l *lowerer) classifyUnionSiblings(s *oas3.Schema) unionLowering {
 	if !unionBranchesDeclareShape(s) {
 		return unionValidationOnly
 	}
 	if !composesAsModel(s) {
 		return unionUncomposableBody
 	}
-	if !distributableBranches(s) {
-		return unionUncomposableBranch
+	if len(s.GetOneOf()) > 0 && len(s.GetAnyOf()) > 0 {
+		return unionBothCombinators
+	}
+	if branches, _, _ := unionBranches(s); slices.ContainsFunc(branches, isInlineBranch) {
+		return unionInlineBranch
+	}
+	if !l.branchesNameReferents(s) {
+		return unionUnresolvedBranch
 	}
 	if s.GetDiscriminator() != nil {
 		return unionDiscriminated
@@ -279,19 +299,17 @@ func classifyUnionSiblings(s *oas3.Schema) unionLowering {
 	return unionDistributed
 }
 
-// distributableBranches reports whether every union branch can be conjoined with
+// branchesNameReferents reports whether every union branch can be conjoined with
 // the sibling model. Base and Mixins conjoin *by reference*, so a branch
-// qualifies exactly when it is a $ref and therefore names a node to point at; an
-// inline branch could only be merged in keyword by keyword. The test is over the
+// qualifies exactly when it names a schema this compilation resolves; an inline
+// branch (ruled out before this) could only be merged in keyword by keyword, and
+// an unresolvable $ref names nothing to merge either way. The test is over the
 // whole union because a half-distributed one would leave variants disagreeing
 // about whether they carry the body, with nothing in the IR saying which.
-func distributableBranches(s *oas3.Schema) bool {
-	if len(s.GetOneOf()) > 0 && len(s.GetAnyOf()) > 0 {
-		return false // distributing one combinator would drop the other
-	}
+func (l *lowerer) branchesNameReferents(s *oas3.Schema) bool {
 	branches, _, _ := unionBranches(s)
 	for _, b := range branches {
-		if !isRefBranch(b) {
+		if !l.refNamesReferent(b, b.GetRef().String()) {
 			return false
 		}
 	}
@@ -301,7 +319,7 @@ func distributableBranches(s *oas3.Schema) bool {
 // lowerCoDeclaredUnion lowers a schema whose oneOf/anyOf sits beside structural
 // keywords, per classifyUnionSiblings.
 func (l *lowerer) lowerCoDeclaredUnion(s *oas3.Schema, pointer, hint string) ir.TypeID {
-	switch classifyUnionSiblings(s) {
+	switch l.classifyUnionSiblings(s) {
 	case unionDistributed:
 		return l.lowerDistributedUnion(s, pointer, hint)
 	case unionValidationOnly:
@@ -309,12 +327,36 @@ func (l *lowerer) lowerCoDeclaredUnion(s *oas3.Schema, pointer, hint string) ir.
 	case unionUncomposableBody:
 		return l.lowerBesidePreservedUnion(s, pointer, hint, ir.ReasonDegradedLowering,
 			"the body is not a model, so it carries no composition to distribute into")
-	case unionUncomposableBranch:
+	case unionBothCombinators:
 		return l.lowerBesidePreservedUnion(s, pointer, hint, ir.ReasonDegradedLowering,
-			"a branch names no referent to conjoin the body with")
+			"oneOf and anyOf are both declared, so distributing either would drop the other")
+	case unionInlineBranch:
+		return l.lowerBesidePreservedUnion(s, pointer, hint, ir.ReasonDegradedLowering,
+			"a branch is written inline, so it names no referent to conjoin the body with")
+	case unionUnresolvedBranch:
+		l.diagUnresolvedBranches(s, pointer)
+		return l.lowerBesidePreservedUnion(s, pointer, hint, ir.ReasonDegradedLowering,
+			"a branch's $ref names no referent this compilation resolves")
 	default: // unionDiscriminated
 		return l.lowerBesidePreservedUnion(s, pointer, hint, ir.ReasonDegradedLowering,
 			"a declared discriminator binds the branches by name, which distributing them would break")
+	}
+}
+
+// diagUnresolvedBranches reports each union branch whose $ref names nothing this
+// compilation resolves. The branch text survives verbatim under Preserved, so
+// nothing is dropped — but a reference that resolves nowhere is a defect of the
+// document itself, reported at the same severity as everywhere else, and the
+// info diagnostic beside it explains only the lowering.
+func (l *lowerer) diagUnresolvedBranches(s *oas3.Schema, pointer string) {
+	branches, key, _ := unionBranches(s)
+	for i, b := range branches {
+		ref := b.GetRef().String()
+		if l.refNamesReferent(b, ref) {
+			continue
+		}
+		l.diag(ir.SeverityError, codeUnresolvedRef, pointer+ptr(key, strconv.Itoa(i)),
+			"union branch $ref %q resolves to nothing this document declares; the branch is kept verbatim", ref)
 	}
 }
 
@@ -422,9 +464,10 @@ func (l *lowerer) buildUnion(s *oas3.Schema, common ir.TypeCommon, pointer strin
 // carried on every variant rather than merged into one or dropped.
 func (l *lowerer) lowerDistributedUnion(s *oas3.Schema, pointer, hint string) ir.TypeID {
 	id := l.internNode(pointer, hint, func(common ir.TypeCommon) ir.TypeDef {
+		body := composedBody{schema: s, pointer: pointer, hint: hint, id: common.ID}
 		return l.buildUnion(s, common, pointer,
 			func(b *oas3.JSONSchema[oas3.Referenceable], vptr, vhint string) ir.TypeRef {
-				return l.composedVariant(s, pointer, b, vptr, hint+"_"+vhint)
+				return l.composedVariant(body, b, vptr, vhint)
 			})
 	})
 	l.diag(ir.SeverityInfo, codeCompositionLowering, pointer,
@@ -432,38 +475,68 @@ func (l *lowerer) lowerDistributedUnion(s *oas3.Schema, pointer, hint string) ir
 	return id
 }
 
-// composedVariant interns the Model for one distributed variant at the branch's
-// own pointer: the enclosing schema's composition and own properties conjoined
-// with that branch. The branch is conjoined last so the enclosing composition
+// composedBody is the schema every distributed variant carries: the enclosing
+// schema, where it is written, and the identity of the Union it lowered to —
+// which is the node a base's discriminator mapping names, since the source
+// declares one schema, not one per branch.
+type composedBody struct {
+	schema  *oas3.Schema
+	pointer string
+	hint    string
+	id      ir.TypeID
+}
+
+// composedVariant synthesizes the Model for one distributed variant: the
+// enclosing schema's composition and own properties conjoined with that
+// branch's referent. The branch is conjoined last so the enclosing composition
 // classifies first, keeping ir-design §4.3's "sole $ref becomes Base" reading of
 // the allOf the source actually wrote.
-func (l *lowerer) composedVariant(enc *oas3.Schema, encPtr string,
-	b *oas3.JSONSchema[oas3.Referenceable], vptr, hint string) ir.TypeRef {
-	id := l.internNode(vptr, hint, func(common ir.TypeCommon) ir.TypeDef {
-		m := &ir.Model{TypeCommon: common}
-		l.fillAllOf(m, enc, encPtr)
-		l.fillModelProperties(m, enc, encPtr)
-		l.applyCompositionRequired(m, enc, encPtr)
-		l.fillAdditional(m, enc, encPtr, hint)
-		l.conjoinBranch(m, b, vptr)
-		return m
-	})
+//
+// The Model gets an ID of its own (composedTypeID) rather than the branch
+// pointer's, because the branch pointer already denotes the branch schema.
+// Interning the variant there made the two race for one pointer: whichever
+// lowered first won it, so a $ref to `…/oneOf/N` anywhere in the document could
+// leave that variant as a bare alias of the branch while its siblings carried
+// the body — order-dependent, and exactly the disagreement §4.3 forbids.
+func (l *lowerer) composedVariant(body composedBody,
+	b *oas3.JSONSchema[oas3.Referenceable], vptr, vhint string) ir.TypeRef {
+	// The branch lowers through the ordinary schema path, at its own pointer, so
+	// it keeps whatever it declares beside the $ref and a reference to that
+	// pointer still finds the branch rather than the variant.
+	branch := l.schemaRef(b, vptr, vhint)
+	id := composedTypeID(vptr)
+	common := l.commonFor(id, vptr, body.hint+"_"+vhint)
+	l.out.Types[id] = l.buildComposedVariant(body, branch.Target, common)
 	return ir.TypeRef{Target: id}
+}
+
+// buildComposedVariant assembles the variant Model itself. Every fill reads the
+// enclosing schema at the enclosing pointer, so the properties, their PropIDs
+// and any shared additionalProperties node are the single set the source
+// declared, named after the enclosing schema rather than after whichever branch
+// happened to build them first.
+func (l *lowerer) buildComposedVariant(body composedBody, branch ir.TypeID, common ir.TypeCommon) ir.TypeDef {
+	m := &ir.Model{TypeCommon: common}
+	l.fillAllOf(m, body.schema, body.pointer)
+	l.fillModelProperties(m, body.schema, body.pointer)
+	l.applyCompositionRequired(m, body.schema, body.pointer)
+	l.fillAdditional(m, body.schema, body.pointer, body.hint)
+	conjoinBranch(m, branch)
+	// The tag is the enclosing schema's: it is what a base's mapping names, and
+	// the variants are its lowering. No discriminator of its own can be declared
+	// here — a schema that declares one is never distributed.
+	m.DiscriminatorValue = l.subtypeDiscriminatorValue(body.schema, body.id, body.pointer)
+	return m
 }
 
 // conjoinBranch adds one union branch's referent to the variant model,
 // classified per ir-design §4.3: Base when the enclosing schema composed
-// nothing, a Mixin otherwise. Only $ref branches reach here (classifyUnionSiblings),
-// so there is always a referent to name.
-func (l *lowerer) conjoinBranch(m *ir.Model, b *oas3.JSONSchema[oas3.Referenceable], vptr string) {
-	ref := b.GetRef().String()
-	id, ok := l.resolveSchemaRef(b, ref)
-	if !ok {
-		l.diag(ir.SeverityError, codeUnresolvedRef, vptr,
-			"unresolved union branch $ref %q", ref)
-		return
-	}
-	target := ir.TypeRef{Target: id}
+// nothing, a Mixin otherwise. Only the target is carried, never the branch
+// ref's Nullable bit — fillAllOf drops it for an allOf entry on the same
+// reasoning: Base and Mixins name a conjunct, and nullability is a property of
+// the usage that names the conjunction, not of one side of it.
+func conjoinBranch(m *ir.Model, branch ir.TypeID) {
+	target := ir.TypeRef{Target: branch}
 	if m.Base == nil && len(m.Mixins) == 0 {
 		m.Base = &target
 		return
