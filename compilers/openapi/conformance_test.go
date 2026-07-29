@@ -745,25 +745,24 @@ func assertMultipartEncoding(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) 
 }
 
 // assertSequentialMedia pins the 3.2 sequential-media lowering, including the
-// two forms per-item encoding takes: one Encoding governing every item lands
-// under the reserved ItemEncodingAll key, while a positional prefixEncoding —
-// which the flat map has no ordinals for — takes itself and the tail encoding
+// two forms per-item encoding takes: one Encoding governing every item lands in
+// Content.ItemEncoding, while a positional prefixEncoding — which a single
+// every-item encoding has no ordinals for — takes itself and the tail encoding
 // beside it into Preserved instead.
 func assertSequentialMedia(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
 	events, ok := opByName(doc, "streamEvents")
 	require.True(t, ok)
 	c := firstContent(t, events)
 	require.NotNil(t, c.Item, "itemSchema becomes the element type")
-	itemEnc, ok := c.ItemEncoding[ir.ItemEncodingAll]
-	require.True(t, ok, "an encoding governing every item uses the reserved key")
-	assert.Equal(t, []string{"application/json"}, itemEnc.ContentTypes)
-	assert.True(t, itemEnc.Multi, "the construct describes a repeated tail")
+	require.NotNil(t, c.ItemEncoding, "an encoding governing every item lowers structurally")
+	assert.Equal(t, []string{"application/json"}, c.ItemEncoding.ContentTypes)
+	assert.True(t, c.ItemEncoding.Multi, "the construct describes a repeated tail")
 	assert.Empty(t, c.Preserved, "nothing is left over once it lowers")
 
 	parts, ok := opByName(doc, "streamParts")
 	require.True(t, ok)
 	pc := firstContent(t, parts)
-	assert.Empty(t, pc.ItemEncoding, "positional prefixes have no form in a flat per-item map")
+	assert.Nil(t, pc.ItemEncoding, "positional prefixes have no every-item form")
 	for _, key := range []string{"openapi:prefixEncoding", "openapi:itemEncoding"} {
 		entry, ok := pc.Preserved[key]
 		require.True(t, ok, "%s kept verbatim; got %v", key, pc.Preserved)

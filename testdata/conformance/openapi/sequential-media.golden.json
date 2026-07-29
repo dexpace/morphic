@@ -49,13 +49,11 @@
                           "nullable": false
                         },
                         "itemEncoding": {
-                          "*": {
-                            "contentTypes": [
-                              "application/json"
-                            ],
-                            "multi": true,
-                            "filename": false
-                          }
+                          "contentTypes": [
+                            "application/json"
+                          ],
+                          "multi": true,
+                          "filename": false
                         }
                       }
                     ]

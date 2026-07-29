@@ -346,10 +346,9 @@ func TestContent_SequentialAndEmptyBody(t *testing.T) {
 	require.NotNil(t, resp.Payload)
 	c := resp.Payload.Contents[0]
 	require.NotNil(t, c.Item, "itemSchema becomes the element type")
-	itemEnc, hasItemEnc := c.ItemEncoding[ir.ItemEncodingAll]
-	require.True(t, hasItemEnc, "itemEncoding lowered structurally")
-	assert.Equal(t, []string{"application/json"}, itemEnc.ContentTypes)
-	assert.True(t, itemEnc.Multi, "itemEncoding governs a repeated tail")
+	require.NotNil(t, c.ItemEncoding, "itemEncoding lowered structurally")
+	assert.Equal(t, []string{"application/json"}, c.ItemEncoding.ContentTypes)
+	assert.True(t, c.ItemEncoding.Multi, "itemEncoding governs a repeated tail")
 
 	// Empty request-body content yields no Request payload.
 	empty := findOp(t, doc, "emptyBody")
@@ -545,7 +544,7 @@ func TestFillSequential_EmptyItemEncoding(t *testing.T) {
 	c := &ir.Content{}
 	media := &soa.MediaType{ItemEncoding: &soa.Encoding{}}
 	l.fillSequential(c, media, "/mp", "h")
-	assert.Equal(t, map[string]ir.PartEncoding{ir.ItemEncodingAll: {Multi: true}}, c.ItemEncoding,
+	assert.Equal(t, &ir.PartEncoding{Multi: true}, c.ItemEncoding,
 		"a config-free itemEncoding still records that the tail repeats")
 	assert.Nil(t, c.Preserved, "nothing is preserved raw")
 	assert.Empty(t, l.diags)
@@ -557,7 +556,7 @@ func TestEncodingConfig_NilEncoding(t *testing.T) {
 	assert.Equal(t, ir.PartEncoding{}, l.encodingConfig(nil, "/mp"))
 }
 
-// positionalEncodingSpec declares the 3.2 shape ItemEncodingAll cannot state:
+// positionalEncodingSpec declares the 3.2 shape ItemEncoding cannot state:
 // prefixEncoding fixes the encoding of the leading items, so the itemEncoding
 // beside it governs only the tail after them, not every item.
 const positionalEncodingSpec = `openapi: 3.2.0
@@ -583,7 +582,7 @@ func TestContent_PositionalPrefixEncodingIsPreserved(t *testing.T) {
 	doc, diags := parseFull(t, positionalEncodingSpec)
 	c := findOp(t, doc, "mixed").Responses[0].Payload.Contents[0]
 
-	assert.Empty(t, c.ItemEncoding, "positional prefixes rule out the governs-every-item key")
+	assert.Nil(t, c.ItemEncoding, "positional prefixes rule out an every-item encoding")
 	prefix, ok := c.Preserved["openapi:prefixEncoding"]
 	require.True(t, ok, "prefixEncoding kept verbatim; got %v", c.Preserved)
 	assert.Equal(t, ir.ReasonNoIRHome, prefix.Reason)
@@ -601,7 +600,7 @@ func TestFillSequential_PrefixEncodingWithoutItemEncoding(t *testing.T) {
 	doc, diags := parseFull(t, spec)
 	c := findOp(t, doc, "mixed").Responses[0].Payload.Contents[0]
 
-	assert.Empty(t, c.ItemEncoding)
+	assert.Nil(t, c.ItemEncoding)
 	_, ok := c.Preserved["openapi:prefixEncoding"]
 	assert.True(t, ok, "prefixEncoding alone is still reported rather than dropped")
 	_, ok = c.Preserved["openapi:itemEncoding"]
