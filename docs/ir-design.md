@@ -445,25 +445,58 @@ model (`erlang:pid`, `erlang:fun` — see §4.8).
 
 ### 4.7 Validation-only schema constructs — a documented boundary
 
-JSON Schema's `not`, `if`/`then`/`else`, `dependentSchemas`, `contains`/`minContains`/
-`maxContains`, `propertyNames`, and `unevaluatedItems` express *validation logic*, not data shape;
-no target language's type system represents them, and none of the other source formats has an
-equivalent. The IR deliberately does not model them structurally. Compilers keep them verbatim in
-`Unmodeled` (`openapi:not`, `openapi:if-then-else`, `openapi:contains`, …) under
-`ReasonValidationOnly` and emit an `info` diagnostic, so the information is never silently lost
-and a future validation-oriented emitter (request validators, mock servers) can still consume
-them — selecting on the reason rather than sifting vendor metadata out of the same bag (§12).
+JSON Schema's `not`, `if`/`then`/`else`, `dependentSchemas`, `dependentRequired`,
+`contains`/`minContains`/`maxContains`, `propertyNames`, `unevaluatedItems`, and
+`unevaluatedProperties` express *validation logic*, not data shape; no target language's type
+system represents them, and none of the other source formats has an equivalent. The IR
+deliberately does not model them structurally. Compilers keep them verbatim in `Unmodeled`
+(`openapi:not`, `openapi:if-then-else`, `openapi:contains`, …) under `ReasonValidationOnly` and
+emit an `info` diagnostic, so the information is never silently lost and a future
+validation-oriented emitter (request validators, mock servers) can still consume them — selecting
+on the reason rather than sifting vendor metadata out of the same bag (§12).
 The one structural carve-back: `unevaluatedProperties: false` is *shape* (a closed model after
-composition) and lowers to `Model.Additional = closed_after_composition`; other `unevaluated*`
-forms stay verbatim. `propertyNames` is not a second carve-back onto `AdditionalProps.Key`: it
+composition) and lowers to `Model.Additional = closed_after_composition`. Every other
+`unevaluated*` form stays verbatim, `unevaluatedProperties` with a schema value included.
+`propertyNames` is not a second carve-back onto `AdditionalProps.Key`: it
 constrains *every* key of the object, including the ones `properties` declares — where there is no
 `AdditionalProps` to hold a key type at all — and it is a whole schema rather than a type, so only
 its degenerate `{type: string}` form names one.
-`$dynamicRef` is resolved per reference site by compiler expansion (dynamic scope is static per
-document); irreducible cases are preserved verbatim with a diagnostic.
+
+`$dynamicRef` is resolved per reference site by compiler expansion. What makes that possible is
+that a document's set of `$dynamicAnchor` declarations is fixed before evaluation: a name declared
+exactly once is the only match any dynamic scope containing a match can hold, so it *is* 2020-12
+§8.2.3.2's outermost matching anchor whatever path evaluation took. A reference is irreducible —
+and is then kept verbatim under `ReasonDegradedLowering` with an `info` diagnostic naming which
+case it was — when the name is declared more than once (the target is back under the evaluation
+path's control), when it is unresolvable or names another document, or when it is co-declared with
+a `$ref`, a `oneOf`/`anyOf`, or a shape of its own, since the IR has no node for that intersection.
+One further case is irreducible in the OpenAPI compiler specifically: an anchor declared below the
+top level of `components/schemas` has no ID that is stable without consulting the registry, and
+resolving it would make the reference depend on which position happened to lower first (§4.3), so
+it is preserved instead.
+
+Two neighbouring keyword groups are *not* part of this boundary, and are recorded here so their
+treatment is stated rather than assumed:
+
+- The content vocabulary is modelled, not preserved. `contentEncoding` lowers to `Encoding.Name`
+  and `contentMediaType` to `Encoding.MediaType` (§5.3) on the scalar the position lowers to;
+  where the position lowers to a shape with no `Encoding` field, both stay verbatim under
+  `ReasonNoIRHome`. `contentSchema` is real data shape with no IR field at any position, so it is
+  always verbatim under `ReasonNoIRHome` — a gap expected to close, not a boundary (§12).
+- `$id`, `$schema` and `$vocabulary` identify and configure a JSON Schema *resource*. The IR
+  identifies every type by a synthetic ID derived from its source pointer rather than by `$id`
+  (§3), and describes one API surface rather than a resource graph, so it has no dialect axis and
+  none is coming: they are kept verbatim under `ReasonOutOfScope`, and `$id` is explicitly *not*
+  honoured as a base URI for reference resolution. `$comment` is dropped outright — 2020-12 §8.3
+  forbids presenting it to end users, so no emitter may see it. `$anchor` and `$dynamicAnchor` are
+  consumed as reference targets rather than carried as content.
 
 This is the one intentional carve-out from "lossless means structural": losslessness is
-satisfied by verbatim preservation, and the carve-out is explicit rather than accidental.
+satisfied by verbatim preservation, and the carve-out is explicit rather than accidental. The
+keyword lists above are not a hand-kept inventory to be trusted: the OpenAPI compiler's
+`TestVocabulary2020_12_EveryKeywordIsLoweredOrKept` walks every keyword of the 2020-12
+vocabularies and fails on any that changes nothing in the compiled IR, so a keyword handled by
+neither lowering nor preservation cannot be added — or overlooked — silently.
 
 ### 4.8 Degraded source constructs — documented lowerings
 
@@ -517,6 +550,25 @@ an `info` one.
   A union whose branches declare no shape at all (`oneOf: [{required: [a]}, {required: [b]}]`)
   is not a degradation and is not listed here: it narrows the body without reshaping it, which
   is validation logic, so it is preserved under `ReasonValidationOnly` with §4.7's keyword family.
+- **An inline `allOf` branch declaring more than the merge consumes** — a branch written inline
+  rather than as a `$ref` owns no node, so §4.3's composition has nowhere to point and the branch
+  is merged into the composing model in place. That merge consumes the branch's `properties` and
+  `required` list and nothing else. **The IR** could hold every other keyword a branch writes, and
+  does hold them one level up — the same keywords on the composing schema lower to `Docs`,
+  `Model.Additional`, `Model.Constraints` and `Unmodeled` — but attributing them to the composition
+  means either giving the branch a node (changing the composition shape) or merging them upward
+  with a precedence rule for branches that disagree. So whatever the merge does not consume is kept
+  verbatim in `Unmodeled["openapi:allOf/<index>"]` under `ReasonDegradedLowering`, keyed by branch
+  index so siblings cannot overwrite each other, plus an `openapi/degraded-construct` diagnostic
+  naming the residue keywords. The residue is derived from the branch's own declared key set rather
+  than a fixed list, so a keyword the dialect gains later is residue without anyone maintaining an
+  enumeration. The diagnostic is a `warning` rather than an `info` where the branch declares a
+  `type` that excludes `object`, because the composing `Model` then asserts a shape the source
+  contradicts — `allOf: [{type: string, maxLength: 3}]` composes an empty model of kind `model`
+  over a source that says `string`. Two limits are deliberate: a `$ref` branch's `$ref`-adjacent
+  siblings are still dropped, because giving that branch a node moves what `Base`/`Mixins` point at
+  (GitHub #143), and a boolean branch (`allOf: [false]`) declares no keywords at all, so there is
+  no residue to derive and what it needs is a lowering decision about the composed node.
 - **JSON Schema open tuples** (`prefixItems` with a trailing `items`) — a fixed positional head
   plus a homogeneous tail of unbounded length. **The IR** has `Tuple` (fixed arity) and `List`
   (homogeneous, one element type) and no node that is both; target languages are not the
@@ -864,7 +916,9 @@ type Content struct {
                                   // singular like Item, because it governs every item alike.
                                   // Positional per-item encoding (3.2 prefixEncoding) has no form
                                   // here and stays in Unmodeled — see §12
-    Encoding  map[string]PartEncoding // multipart/form: per-property (part) wire config, keyed by PropID
+    Encoding  map[PropID]PartEncoding // multipart/form: per-property (part) wire config, keyed by the
+                                  // part property's PropID — a position inside the body model, so
+                                  // `pass` resolves a key against that model rather than a registry
     File      *FileInfo           // body is a file upload/download (TypeSpec file bodies, binary payloads)
     Examples  []Example
     Unmodeled  Unmodeled
