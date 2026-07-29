@@ -15,8 +15,10 @@ Nothing here is normative. Where a file disagrees with `ir-design.md`, the desig
 | Review standard in `CLAUDE.md` | merged (#113) |
 | Seven dropped annotations (#114) | on `feat/annotation-gaps-and-preserved` |
 | `Extensions` → `Preserved` (#110) | on `feat/annotation-gaps-and-preserved` |
-| Intersection combinator (#115) | **answered: do not add it** — implement B11 instead, partially done on `wip/b11-distributed-lowering` |
-| Inline positions drop data (#116) | open |
+| Intersection combinator (#115) | **answered and implemented** — no node added; §B11 distribution landed as `998c3a6`+`716d8eb` |
+| Inline positions drop data (#116) | in progress |
+| Name of the `Preserved` field (#120) | open — needs a decision, see the issue |
+| `validate` misses ref-bearing fields (#121) | in progress |
 | `propertyNames` unhandled (#117) | open |
 | CLI truncates `-o` on failure (#118) | on `fix/cli-output-truncation` |
 | `irverify` accepted a meaningless entry | on `fix/irverify-preserved` |
@@ -138,3 +140,60 @@ exists to correct.
 - A repository sweep for miscounted or unverifiable claims in comments was started and not finished.
   Three instances are known and two are fixed; `ir/property_test.go` still says "one map field" where
   `Property` has three.
+
+## Update — #115 resolved
+
+No intersection combinator was added; §B11's distribution landed instead (`998c3a6`, `716d8eb`).
+Two findings from that work are worth carrying forward.
+
+### The distribution gate is syntactic, and all-or-nothing
+
+An earlier attempt stalled trying to decide **per branch** whether a composition could be
+distributed, because a scalar branch cannot absorb one. That framing was wrong. The rule is:
+
+> Distribute only when **every** branch is a `$ref`.
+
+`Base` and `Mixins` conjoin *by reference* — they hold a `TypeRef`, so a conjunct needs a node with
+an ID, which a `$ref` branch has. An inline branch's node would have to be hoisted at the branch
+pointer, which is exactly where the composed variant lives, so it could only be merged keyword by
+keyword with a conjunction rule per keyword — `additionalProperties` open-versus-closed, nested
+`allOf`, nested discriminator, the branch's own annotations and constraints. One wrong rule is a
+silently wrong shape.
+
+The syntactic test subsumes the scalar-branch problem (a scalar branch is inline) and needs no
+reference resolution, so cycles and unresolved targets cannot make the classification unreliable.
+
+Half-distributing was rejected outright: it yields a `Union` whose variants disagree about whether
+they carry the body, with nothing in the IR recording which.
+
+### `reference-learnings.md` §B11's second shape is not implementable
+
+§B11 offers two lowerings. The first — distribute across variants — is what shipped. **The second
+is wrong.** It proposes folding branches into a Model's discriminator mapping for the
+`allOf:[base] + oneOf:[subtypes]` idiom, but that requires each branch to declare the model as its
+`Base`, which `discriminator` + `oneOf` never states. Compiled, `pass/validate` rejects the result
+with `discriminator-missing-variant`, and that error is pre-existing rather than introduced.
+
+So a declared `discriminator` now preserves verbatim with an accurate reason instead.
+
+This matters beyond the immediate fix: §B11 was written from studying four reference
+implementations, which is exactly the kind of document that gets trusted without re-derivation. It
+was right in direction and wrong in one of its two prescriptions, and only implementing it revealed
+which.
+
+## Update — the comment sweep
+
+Ten false claims corrected across `ir/`, `internal/`, `cmd/`, `engine/` and two design docs
+(`dc15bfc`). The pattern held: counts that were wrong, "validated" for properties nothing validates,
+a doc citing a section that makes no such point, and a struct sketch with a field the real type does
+not have.
+
+One instance was a comment wrong **because the code is wrong**, now filed as #121: `validate`'s
+dangling-`TypeRef` check claims to cover every ref and misses six ref-bearing fields. Latent today
+because only the OpenAPI compiler exists and it does not populate them; live the moment AsyncAPI or
+Protobuf lands.
+
+Worth noting one correction became wrong again as the code moved: a comment that had been fixed from
+"every" to "most" is now "0 of 2", because #114 changed which `knownGap` reasons exist. Counts in
+prose rot even after being corrected — which is the argument for deriving them or omitting them
+rather than maintaining them.
