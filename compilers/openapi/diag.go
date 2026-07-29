@@ -47,6 +47,12 @@ const (
 	// default or example — dropped. It marks the lossy lowerings the compiler
 	// reports, not a guarantee that every lossy lowering is reported.
 	codeDegradedConstruct = "openapi/degraded-construct"
+	// codeCompositionLowering reports that a schema conjoining a structural body
+	// with a oneOf/anyOf was lowered by distributing the body across the union
+	// variants (ir-design §4.3, §4.8). Nothing is lost, so this records a
+	// decision rather than a degradation: the IR's shape no longer mirrors the
+	// source's, which is what a reader comparing the two needs told.
+	codeCompositionLowering = "openapi/composition-lowering"
 	// codeConflictingRedecl reports that inline allOf branches redeclare one
 	// field with values that disagree: an incompatible target type (string vs.
 	// integer) is unsatisfiable outright, while a conflicting constraint

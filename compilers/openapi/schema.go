@@ -149,8 +149,9 @@ func declaresShape(s *oas3.Schema) bool {
 // lowerBesidePreservedUnion lowers the structural body of a schema that
 // co-declares oneOf/anyOf and keeps the union verbatim beside it, so neither the
 // structural shape nor the union is dropped. reason says which kind of union it
-// is; classifyUnionSiblings picks it.
-func (l *lowerer) lowerBesidePreservedUnion(s *oas3.Schema, pointer, hint string, reason ir.PreserveReason) ir.TypeID {
+// is and why says what stopped a classified lowering; classifyUnionSiblings
+// picks both.
+func (l *lowerer) lowerBesidePreservedUnion(s *oas3.Schema, pointer, hint string, reason ir.PreserveReason, why string) ir.TypeID {
 	inner := l.lower(s, pointer, hint)
 	owner := inner
 	if l.byPointer[pointer] != inner {
@@ -159,14 +160,14 @@ func (l *lowerer) lowerBesidePreservedUnion(s *oas3.Schema, pointer, hint string
 		// shared primitive.
 		owner = l.internAlias(pointer, hint, ir.TypeRef{Target: inner}, nil)
 	}
-	l.preserveUnionSiblings(owner, s, pointer, reason)
+	l.preserveUnionSiblings(owner, s, pointer, reason, why)
 	return owner
 }
 
 // preserveUnionSiblings stores the raw oneOf/anyOf of s under the owning node's
 // Preserved. A validation-only union joins §4.7's keyword family and is reported
 // with it; anything else is a §4.8 degradation and says so.
-func (l *lowerer) preserveUnionSiblings(id ir.TypeID, s *oas3.Schema, pointer string, reason ir.PreserveReason) {
+func (l *lowerer) preserveUnionSiblings(id ir.TypeID, s *oas3.Schema, pointer string, reason ir.PreserveReason, why string) {
 	td, ok := l.registeredNode(id, pointer)
 	if !ok {
 		return
@@ -184,7 +185,7 @@ func (l *lowerer) preserveUnionSiblings(id ir.TypeID, s *oas3.Schema, pointer st
 		return
 	}
 	l.diag(ir.SeverityInfo, codeDegradedConstruct, pointer,
-		"oneOf/anyOf co-declared with a body carrying no composition to distribute into; union branches kept verbatim under Preserved")
+		"oneOf/anyOf co-declared with structural keywords intersects with them, and %s; union branches kept verbatim under Preserved", why)
 }
 
 // falseSchema hoists a boolean `false` schema as a closed empty model (it
@@ -1110,7 +1111,9 @@ func schemaHasNull(s *oas3.Schema) bool {
 // A null branch counts only when the union is the type itself. Structural
 // siblings intersect with the union (JSON Schema conjoins keywords), so
 // `{type: object, oneOf: [{type: string}, {type: null}]}` admits neither string
-// nor null; that union is kept verbatim under Preserved instead.
+// nor null; that union is kept verbatim under Preserved instead. A `type: null`
+// branch is written inline, so it also blocks distribution — no distributed
+// union can strip a null branch out from under this rule.
 func schemaAdmitsNull(s *oas3.Schema) bool {
 	if schemaHasNull(s) {
 		return true

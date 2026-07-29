@@ -683,6 +683,9 @@ paths:
 	doc, svc, diags := lowerServiceSpec(t, spec)
 	requireNoErrorDiags(t, diags)
 
+	// S witnesses vendor_extension and validation_only (its constraint-only
+	// union joins `not` there); T's open tuple is the only degraded_lowering
+	// witness here, so it must not be folded into another case.
 	seen := map[ir.PreserveReason]bool{}
 	for _, name := range []string{"S", "T"} {
 		for _, entry := range doc.Types[componentID(name)].Common().Preserved {
@@ -781,7 +784,7 @@ func TestPreserveUnionSiblings_MissingNode(t *testing.T) {
 	l := newRawLowerer(&soa.OpenAPI{})
 	// No node registered under the id: the union branches have nowhere to go, so
 	// the guard reports the broken invariant instead of dropping them quietly.
-	l.preserveUnionSiblings("t/anon/missing", &oas3.Schema{}, "/p", ir.ReasonDegradedLowering)
+	l.preserveUnionSiblings("t/anon/missing", &oas3.Schema{}, "/p", ir.ReasonDegradedLowering, "why")
 	assertHasErrorCode(t, l.diags, codeInternalInvariant)
 }
 

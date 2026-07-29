@@ -1156,3 +1156,139 @@ func TestDiscriminatorDefault_EmptyIsNoOp(t *testing.T) {
 	assert.Empty(t, id)
 	assert.Empty(t, l.diags)
 }
+
+// TestOneOf_CoDeclaredCompositionDistributes is the regression from
+// reference-learnings §B11: an allOf composition co-declared with a oneOf used
+// to survive while the union was dropped to Preserved. Both must survive, and
+// the shape that says so is a Union whose every variant carries the composition
+// — `Base ∧ (A | B)` written as `(Base ∧ A) | (Base ∧ B)`.
+func TestOneOf_CoDeclaredCompositionDistributes(t *testing.T) {
+	t.Parallel()
+	spec := componentSpec(`    Base: {type: object, properties: {id: {type: string}}}
+    A: {type: object, properties: {a: {type: string}}}
+    B: {type: object, properties: {b: {type: string}}}
+    Combo:
+      allOf: [{$ref: '#/components/schemas/Base'}]
+      oneOf:
+        - {$ref: '#/components/schemas/A'}
+        - {$ref: '#/components/schemas/B'}
+`)
+	doc, diags := lowerSpec(t, spec)
+	requireNoErrorDiags(t, diags)
+
+	u, ok := typeByName(doc, "Combo").(*ir.Union)
+	require.True(t, ok, "the union is the schema's value, not a preserved sibling")
+	assert.True(t, u.Exclusive, "oneOf stays exclusive")
+	require.Len(t, u.Variants, 2)
+	assert.Empty(t, u.Preserved, "distribution loses nothing, so nothing is kept verbatim")
+
+	for i, branch := range []string{"A", "B"} {
+		v := doc.Types[u.Variants[i].Type.Target].(*ir.Model)
+		require.NotNil(t, v.Base, "the enclosing allOf's sole $ref stays Base (ir-design §4.3)")
+		assert.Equal(t, componentID("Base"), v.Base.Target)
+		require.Len(t, v.Mixins, 1, "the branch joins as a mixin, the composition already having a base")
+		assert.Equal(t, componentID(branch), v.Mixins[0].Target)
+		assert.Equal(t, branch, u.Variants[i].Name.Hint)
+	}
+	assert.Equal(t, 1, countDiagsAt(diags, codeCompositionLowering, ir.SeverityInfo),
+		"the reshaping is reported once; got %+v", diags)
+}
+
+// TestAnyOf_CoDeclaredPropertiesDistributeAsBase covers the other classification
+// arm: with no enclosing composition to take Base, the branch takes it, and an
+// anyOf stays non-exclusive through distribution.
+func TestAnyOf_CoDeclaredPropertiesDistributeAsBase(t *testing.T) {
+	t.Parallel()
+	spec := componentSpec(`    A: {type: object, properties: {a: {type: string}}}
+    B: {type: object, properties: {b: {type: string}}}
+    Combo:
+      type: object
+      required: [kind]
+      additionalProperties: false
+      properties: {kind: {type: string}}
+      anyOf:
+        - {$ref: '#/components/schemas/A'}
+        - {$ref: '#/components/schemas/B'}
+`)
+	doc, diags := lowerSpec(t, spec)
+	requireNoErrorDiags(t, diags)
+
+	u, ok := typeByName(doc, "Combo").(*ir.Union)
+	require.True(t, ok)
+	assert.False(t, u.Exclusive, "anyOf stays non-exclusive")
+	require.Len(t, u.Variants, 2)
+
+	v := doc.Types[u.Variants[0].Type.Target].(*ir.Model)
+	require.NotNil(t, v.Base, "with nothing composed yet, the branch becomes Base")
+	assert.Equal(t, componentID("A"), v.Base.Target)
+	assert.Empty(t, v.Mixins)
+	require.Len(t, v.Properties, 1, "the body's own properties ride on every variant")
+	assert.Equal(t, "kind", v.Properties[0].WireName)
+	assert.True(t, v.Properties[0].Required, "so does its required list")
+	assert.Equal(t, ir.AdditionalClosed, v.Additional, "and its openness")
+}
+
+func TestOneOf_CoDeclaredDistributionUnresolvedBranch(t *testing.T) {
+	t.Parallel()
+	spec := componentSpec(`    A: {type: object, properties: {a: {type: string}}}
+    Combo:
+      type: object
+      properties: {kind: {type: string}}
+      oneOf:
+        - {$ref: '#/components/schemas/Ghost'}
+        - {$ref: '#/components/schemas/A'}
+`)
+	doc, diags := lowerSpec(t, spec)
+	assertHasErrorCode(t, diags, codeUnresolvedRef)
+
+	u := typeByName(doc, "Combo").(*ir.Union)
+	require.Len(t, u.Variants, 2, "an unresolved branch still gets a variant to hold the body")
+	v := doc.Types[u.Variants[0].Type.Target].(*ir.Model)
+	assert.Nil(t, v.Base, "nothing resolved to compose with")
+	require.Len(t, v.Properties, 1, "the body still rides on the variant")
+}
+
+// TestOneOf_CoDeclaredNotDistributedReasons pins the three shapes distribution
+// declines, each kept verbatim under ReasonDegradedLowering with its own reason
+// (ir-design §4.8). Half-distributing any of them would leave a Union whose
+// variants disagree about whether they carry the body.
+func TestOneOf_CoDeclaredNotDistributedReasons(t *testing.T) {
+	t.Parallel()
+	spec := componentSpec(`    A: {type: object, properties: {a: {type: string}}}
+    InlineBranch:
+      type: object
+      properties: {kind: {type: string}}
+      oneOf: [{$ref: '#/components/schemas/A'}, {type: string}]
+    NullBranch:
+      properties: {kind: {type: string}}
+      oneOf: [{$ref: '#/components/schemas/A'}, {type: 'null'}]
+    BothCombinators:
+      type: object
+      properties: {kind: {type: string}}
+      oneOf: [{$ref: '#/components/schemas/A'}]
+      anyOf: [{$ref: '#/components/schemas/A'}]
+    Discriminated:
+      type: object
+      properties: {kind: {type: string}}
+      discriminator: {propertyName: kind}
+      oneOf: [{$ref: '#/components/schemas/A'}]
+`)
+	doc, diags := lowerSpec(t, spec)
+	requireNoErrorDiags(t, diags)
+
+	for _, name := range []string{"InlineBranch", "NullBranch", "BothCombinators", "Discriminated"} {
+		m, ok := typeByName(doc, name).(*ir.Model)
+		require.True(t, ok, "%s keeps its structural body", name)
+		entry, ok := m.Preserved["openapi:oneOf"]
+		require.True(t, ok, "%s keeps its union verbatim", name)
+		assert.Equal(t, ir.ReasonDegradedLowering, entry.Reason, "%s", name)
+	}
+	both := typeByName(doc, "BothCombinators").(*ir.Model)
+	_, ok := both.Preserved["openapi:anyOf"]
+	assert.True(t, ok, "the second combinator is kept too, which is why neither is distributed")
+	nullBranch := typeByName(doc, "NullBranch").(*ir.Model)
+	assert.Contains(t, string(nullBranch.Preserved["openapi:oneOf"].Value), `"null"`,
+		"a null branch is written inline, so it blocks distribution rather than lifting to Nullable")
+	assert.Equal(t, 4, countDiagsAt(diags, codeDegradedConstruct, ir.SeverityInfo),
+		"each declined shape is reported once; got %+v", diags)
+}

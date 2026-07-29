@@ -41,6 +41,7 @@ func TestConformance(t *testing.T) {
 		{"allof-mixins", assertAllOfMixins},
 		{"allof-inline-merge", assertAllOfInlineMerge},
 		{"allof-required-only", assertAllOfRequiredOnly},
+		{"allof-oneof-cooccurrence", assertAllOfOneOfCooccurrence},
 		{"oneof-discriminated", assertOneOfDiscriminated},
 		{"anyof-untagged", assertAnyOfUntagged},
 		{"negation-not", assertNegationNot},
@@ -327,6 +328,30 @@ func assertAllOfRequiredOnly(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) 
 	require.True(t, ok, "the inline branch's own property survives")
 	assert.True(t, name.Required,
 		"a required-only allOf branch attaches across the whole composition, not just its own properties map (issue #29)")
+}
+
+// assertAllOfOneOfCooccurrence pins both halves of ir-design §4.8's
+// intersection rule: a union whose branches all name referents is distributed
+// across, and one that has an inline branch is kept verbatim rather than
+// distributed halfway.
+func assertAllOfOneOfCooccurrence(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
+	combo, ok := doc.Types[namedID("Combo")].(*ir.Union)
+	require.True(t, ok, "the union is the value, not a preserved sibling")
+	require.Len(t, combo.Variants, 2)
+	for i, branch := range []string{"A", "B"} {
+		v, ok := doc.Types[combo.Variants[i].Type.Target].(*ir.Model)
+		require.True(t, ok, "variant %d composes as a model", i)
+		require.NotNil(t, v.Base, "the allOf composition rides on every variant")
+		assert.Equal(t, namedID("Base"), v.Base.Target)
+		require.Len(t, v.Mixins, 1)
+		assert.Equal(t, namedID(branch), v.Mixins[0].Target)
+	}
+
+	mixed, ok := doc.Types[namedID("MixedKinds")].(*ir.Model)
+	require.True(t, ok, "the structural body survives")
+	entry, ok := mixed.Preserved["openapi:oneOf"]
+	require.True(t, ok, "and the union it could not absorb survives beside it")
+	assert.Equal(t, ir.ReasonDegradedLowering, entry.Reason)
 }
 
 func assertOneOfDiscriminated(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
