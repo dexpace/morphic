@@ -30,140 +30,31 @@ func Validate(doc *ir.Document) []ir.Diagnostic {
 	return diags
 }
 
-// refVisitor receives every TypeRef target reached by the walkers, along with a
-// human-readable location used for diagnostic provenance.
-type refVisitor func(target ir.TypeID, where string)
-
-// checkDanglingTypeRefs reports every TypeRef.Target that resolves to no entry
-// in doc.Types.
+// checkDanglingTypeRefs reports every ir.TypeID reference in the document that
+// resolves to no entry in doc.Types — TypeRef.Target and every other
+// TypeID-typed field alike, wherever it sits.
+//
+// The sites come from a reflection walk of the document's own value graph
+// rather than a list of field names (refs.go): referential integrity is the
+// guarantee an emitter relies on, and a hand-written enumeration drifts behind
+// the IR without anything failing.
 func checkDanglingTypeRefs(doc *ir.Document) []ir.Diagnostic {
+	sites, truncated := collectTypeIDs(doc, "doc")
 	var diags []ir.Diagnostic
-	visit := func(target ir.TypeID, where string) {
-		if target == "" {
-			return
-		}
-		if _, ok := doc.Types[target]; !ok {
-			diags = append(diags, diag(ir.SeverityError, "ir/dangling-type-ref",
-				fmt.Sprintf("type reference %q at %s resolves to no type in the registry", target, where),
-				where))
-		}
+	if truncated {
+		diags = append(diags, diag(ir.SeverityError, "ir/walk-truncated",
+			"document nests deeper than the bounded reference walk; some type references went unchecked",
+			"doc"))
 	}
-	for _, id := range sortedKeys(doc.Types) {
-		walkTypeDefRefs(doc.Types[id], visit)
-	}
-	forEachOperation(doc, func(op ir.Operation) { walkOperationRefs(op, visit) })
-	for _, id := range sortedKeys(doc.Messages) {
-		msg := doc.Messages[id]
-		walkPayloadRefs(&msg.Payload, "message/"+string(id), visit)
+	for _, s := range sites {
+		if _, ok := doc.Types[s.target]; ok {
+			continue
+		}
+		diags = append(diags, diag(ir.SeverityError, "ir/dangling-type-ref",
+			fmt.Sprintf("type reference %q at %s resolves to no type in the registry", s.target, s.where),
+			s.where))
 	}
 	return diags
-}
-
-// walkTypeDefRefs visits every TypeRef embedded in a single TypeDef node.
-func walkTypeDefRefs(td ir.TypeDef, visit refVisitor) {
-	where := string(td.Common().ID)
-	switch t := td.(type) {
-	case *ir.Model:
-		walkModelRefs(t, where, visit)
-	case *ir.Union:
-		for i, v := range t.Variants {
-			visit(v.Type.Target, fmt.Sprintf("%s/variants/%d", where, i))
-		}
-	case *ir.Scalar:
-		if t.Base != nil {
-			visit(t.Base.Target, where+"/base")
-		}
-		visitEncoding(t.Encoding, where, visit)
-	case *ir.List:
-		visit(t.Elem.Target, where+"/elem")
-		visitEncoding(t.Encoding, where, visit)
-	case *ir.MapT:
-		visit(t.Key.Target, where+"/key")
-		visit(t.Value.Target, where+"/value")
-	case *ir.Tuple:
-		for i, e := range t.Elems {
-			visit(e.Target, fmt.Sprintf("%s/elems/%d", where, i))
-		}
-	default:
-		// Enum, Literal, Primitive, External, and Any carry no TypeRefs, so
-		// there is nothing to walk. A new ref-bearing TypeDef kind must add a
-		// case above rather than fall through here silently.
-	}
-}
-
-// walkModelRefs visits the TypeRefs owned by a Model: its own properties (and
-// their encodings), single-inheritance base, interfaces, mixins, and catch-all.
-func walkModelRefs(m *ir.Model, where string, visit refVisitor) {
-	for i, p := range m.Properties {
-		site := fmt.Sprintf("%s/properties/%d", where, i)
-		visit(p.Type.Target, site)
-		visitEncoding(p.Encoding, site, visit)
-	}
-	if m.Base != nil {
-		visit(m.Base.Target, where+"/base")
-	}
-	for i, r := range m.Implements {
-		visit(r.Target, fmt.Sprintf("%s/implements/%d", where, i))
-	}
-	for i, r := range m.Mixins {
-		visit(r.Target, fmt.Sprintf("%s/mixins/%d", where, i))
-	}
-	walkAdditionalPropsRefs(m.AdditionalProps, where, visit)
-}
-
-// walkAdditionalPropsRefs visits the value/key/pattern schemas of a model's
-// catch-all property map.
-func walkAdditionalPropsRefs(ap *ir.AdditionalProps, where string, visit refVisitor) {
-	if ap == nil {
-		return
-	}
-	visit(ap.Value.Target, where+"/additionalProps/value")
-	if ap.Key != nil {
-		visit(ap.Key.Target, where+"/additionalProps/key")
-	}
-	for i, pp := range ap.Patterns {
-		visit(pp.Value.Target, fmt.Sprintf("%s/additionalProps/patterns/%d", where, i))
-	}
-}
-
-// visitEncoding visits an encoding's wire-type override, when present.
-func visitEncoding(enc *ir.Encoding, where string, visit refVisitor) {
-	if enc != nil && enc.WireType != nil {
-		visit(enc.WireType.Target, where+"/encoding/wireType")
-	}
-}
-
-// walkOperationRefs visits the TypeRefs on an Operation's params, request,
-// responses (bodies and headers), and errors.
-func walkOperationRefs(op ir.Operation, visit refVisitor) {
-	where := string(op.ID)
-	for i, p := range op.Params {
-		visit(p.Type.Target, fmt.Sprintf("%s/params/%d", where, i))
-	}
-	if op.Request != nil {
-		walkPayloadRefs(op.Request, where+"/request", visit)
-	}
-	for i, r := range op.Responses {
-		if r.Payload != nil {
-			walkPayloadRefs(r.Payload, fmt.Sprintf("%s/responses/%d", where, i), visit)
-		}
-		for j, h := range r.Headers {
-			visit(h.Type.Target, fmt.Sprintf("%s/responses/%d/headers/%d", where, i, j))
-		}
-	}
-	for i, e := range op.Errors {
-		visit(e.Type.Target, fmt.Sprintf("%s/errors/%d", where, i))
-	}
-}
-
-// walkPayloadRefs visits the content and per-item TypeRefs of a Payload.
-func walkPayloadRefs(p *ir.Payload, where string, visit refVisitor) {
-	for i, c := range p.Contents {
-		visit(c.Type.Target, fmt.Sprintf("%s/contents/%d", where, i))
-		if c.Item != nil {
-			visit(c.Item.Target, fmt.Sprintf("%s/contents/%d/item", where, i))
-		}
-	}
 }
 
 // checkDiscriminators reports discriminator mappings whose target either does
@@ -382,10 +273,9 @@ func graphqlReachableTypes(doc *ir.Document) map[ir.TypeID]bool {
 	seen := map[ir.TypeID]bool{}
 	var queue []ir.TypeID
 	forEachOperation(doc, func(op ir.Operation) {
-		if op.Bindings.GraphQL == nil {
-			return
+		if op.Bindings.GraphQL != nil {
+			queue = appendTypeIDs(queue, op)
 		}
-		walkOperationRefs(op, func(t ir.TypeID, _ string) { queue = append(queue, t) })
 	})
 	for len(queue) > 0 {
 		id := queue[len(queue)-1]
@@ -395,10 +285,22 @@ func graphqlReachableTypes(doc *ir.Document) map[ir.TypeID]bool {
 		}
 		seen[id] = true
 		if td, ok := doc.Types[id]; ok {
-			walkTypeDefRefs(td, func(t ir.TypeID, _ string) { queue = append(queue, t) })
+			queue = appendTypeIDs(queue, td)
 		}
 	}
 	return seen
+}
+
+// appendTypeIDs appends every TypeID reachable from root to dst. Truncation is
+// dropped rather than reported: this feeds reachability, where a truncated walk
+// can only under-report, and checkDanglingTypeRefs already reports the same
+// truncation over the whole document.
+func appendTypeIDs(dst []ir.TypeID, root any) []ir.TypeID {
+	sites, _ := collectTypeIDs(root, "")
+	for _, s := range sites {
+		dst = append(dst, s.target)
+	}
+	return dst
 }
 
 // checkAuthRefs reports auth requirements whose scheme does not resolve in
