@@ -1,6 +1,7 @@
 package pass_test
 
 import (
+	"encoding/json"
 	"fmt"
 	"testing"
 
@@ -201,6 +202,49 @@ func TestValidate_DanglingRefInPreviouslyUnwalkedField(t *testing.T) {
 			assert.Contains(t, found[0].Message, string(tc.target))
 			assert.Contains(t, found[0].Provenance.Pointer, tc.where)
 		})
+	}
+}
+
+// aliasRuns is how many times TestValidate_AliasedPointerIsDeterministic repeats
+// the same call. Go randomizes map iteration per range statement, so a two-entry
+// registry disagrees with itself within a few runs; the flaw this pins split
+// 443/57 across two outputs over this many.
+const aliasRuns = 500
+
+// aliasedDoc returns a document whose two registry entries share one *TypeRef.
+// That is the shape the reference walk prunes: the shared pointer is descended
+// into at whichever entry the walk reaches first, so the surviving diagnostic
+// names t/a's Base on one run and t/b's on the next unless the walk's order is
+// fixed. The shared target dangles so the walk has something to report.
+func aliasedDoc() *ir.Document {
+	shared := &ir.TypeRef{Target: "t/ghost/aliased"}
+	a := &ir.Model{TypeCommon: ir.TypeCommon{ID: "t/a"}, Base: shared}
+	b := &ir.Model{TypeCommon: ir.TypeCommon{ID: "t/b"}, Base: shared}
+	return &ir.Document{Types: ir.TypeRegistry{a.ID: a, b.ID: b}}
+}
+
+// diagJSON renders diags whole, so the comparison covers every field rather than
+// a chosen one.
+func diagJSON(t *testing.T, diags []ir.Diagnostic) string {
+	t.Helper()
+	b, err := json.Marshal(diags)
+	require.NoError(t, err)
+	return string(b)
+}
+
+// TestValidate_AliasedPointerIsDeterministic pins invariant 7 against pointer
+// aliasing: repeated runs over one document must produce byte-identical
+// diagnostics. Sorting cannot deliver that on its own — a randomized walk of an
+// aliased graph varies which sites exist, not merely their order — so this fails
+// on any walk whose map iteration is left to Go.
+func TestValidate_AliasedPointerIsDeterministic(t *testing.T) {
+	t.Parallel()
+	doc := aliasedDoc()
+	want := diagJSON(t, pass.Validate(doc))
+	require.Contains(t, want, "t/ghost/aliased", "the shared target must dangle, or nothing is being compared")
+
+	for i := range aliasRuns {
+		require.Equal(t, want, diagJSON(t, pass.Validate(doc)), "run %d disagrees with the first", i)
 	}
 }
 

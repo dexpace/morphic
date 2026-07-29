@@ -1,6 +1,7 @@
 package irverify
 
 import (
+	"fmt"
 	"strings"
 	"testing"
 
@@ -180,4 +181,31 @@ func refIDInMessage(msg string) string {
 	}
 	id, _, _ := strings.Cut(rest, " ")
 	return id
+}
+
+// aliasRuns is how many times TestVerify_AliasedPointerIsDeterministic repeats
+// the same call. Go randomizes map iteration per range statement, so a two-entry
+// registry disagrees with itself within a few runs; the flaw this pins split
+// 431/69 across two outputs over this many.
+const aliasRuns = 500
+
+// TestVerify_AliasedPointerIsDeterministic pins invariant 7 against pointer
+// aliasing. Both models share one *TypeRef, which the walk descends into at
+// whichever registry entry it reaches first, so the surviving violation names
+// t/a's Base on one run and t/b's on the next unless the walk's order is fixed.
+// Verify's final sort cannot repair that: it is the violation set that varies,
+// not merely its order.
+func TestVerify_AliasedPointerIsDeterministic(t *testing.T) {
+	t.Parallel()
+	shared := &ir.TypeRef{Target: "t/ghost/aliased"}
+	a := &ir.Model{TypeCommon: ir.TypeCommon{ID: "t/a"}, Base: shared}
+	b := &ir.Model{TypeCommon: ir.TypeCommon{ID: "t/b"}, Base: shared}
+	doc := &ir.Document{Types: ir.TypeRegistry{a.ID: a, b.ID: b}}
+
+	want := fmt.Sprintf("%+v", Verify(doc))
+	require.Contains(t, want, "t/ghost/aliased", "the shared target must dangle, or nothing is being compared")
+
+	for i := range aliasRuns {
+		require.Equal(t, want, fmt.Sprintf("%+v", Verify(doc)), "run %d disagrees with the first", i)
+	}
 }

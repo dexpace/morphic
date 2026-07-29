@@ -109,13 +109,17 @@ type refWalk struct {
 }
 
 // collectRefs returns every reference reachable from root whose Go type isRef
-// accepts, sorted by location so Go's randomized map iteration never reaches the
-// diagnostics (invariant 7), and reports whether the depth cap truncated the
+// accepts, sorted by location, and reports whether the depth cap truncated the
 // walk.
 //
 // Deriving the sites from the value graph instead of naming fields is what makes
 // the walk complete: a ref-bearing field added to the IR is covered the moment it
 // exists, which a hand-written enumeration cannot promise.
+//
+// The sort alone does not make the result deterministic (invariant 7). Sorting
+// reorders a site set; it cannot repair one whose *membership* varies, which is
+// what a randomized traversal of an aliased value graph produces — hence the
+// ordered map walk in walkMap.
 func collectRefs(root any, path string, isRef func(reflect.Type) bool) ([]refSite, bool) {
 	w := refWalk{isRef: isRef, seen: map[uintptr]bool{}}
 	w.walk(reflect.ValueOf(root), path, 0)
@@ -174,6 +178,10 @@ func (w *refWalk) walk(v reflect.Value, path string, depth int) {
 // cyclic type graphs — normal input for schema languages, not an edge case — and
 // means a target reached through a shared pointer is reported once rather than
 // once per reference to it.
+//
+// Which of an aliased pointer's referrers wins that single visit is decided by
+// traversal order, so the walk's order has to be fixed rather than incidental;
+// walkMap is where that is arranged.
 func (w *refWalk) walkPointer(v reflect.Value, path string, depth int) {
 	if v.IsNil() {
 		return
@@ -184,6 +192,28 @@ func (w *refWalk) walkPointer(v reflect.Value, path string, depth int) {
 	}
 	w.seen[p] = true
 	w.descend(v.Elem(), path, depth+1)
+}
+
+// mapEntry is one map entry paired with its rendered key, which both spells the
+// entry's path and orders the walk.
+type mapEntry struct {
+	label string
+	key   reflect.Value
+	value reflect.Value
+}
+
+// orderedEntries returns v's entries ordered by rendered key. Ordering by the
+// same rendering the path uses keeps the two in step, and it is a total order for
+// every key type the IR declares: named string types, plain strings and ints all
+// render distinct keys distinctly.
+func orderedEntries(v reflect.Value) []mapEntry {
+	entries := make([]mapEntry, 0, v.Len())
+	for iter := v.MapRange(); iter.Next(); {
+		k := iter.Key()
+		entries = append(entries, mapEntry{label: fmt.Sprintf("%v", k), key: k, value: iter.Value()})
+	}
+	slices.SortFunc(entries, func(a, b mapEntry) int { return strings.Compare(a.label, b.label) })
+	return entries
 }
 
 // walkSequence descends into slice and array elements, skipping byte sequences:
@@ -201,11 +231,16 @@ func (w *refWalk) walkSequence(v reflect.Value, path string, depth int) {
 // walkMap descends into keys as well as values: most keys are an entry's own ID,
 // but Service.Renames is map[TypeID]Naming, where the key is the reference and
 // the value is not.
+//
+// Entries are visited in rendered-key order, not Go's randomized map order. A
+// pointer reachable from two entries is descended into at whichever the walk
+// reaches first (walkPointer), so under a random order the two runs record two
+// different paths for it — a different site set, not a different order, which no
+// later sort can repair. Ordering the walk itself is what keeps map iteration out
+// of the diagnostics (invariant 7).
 func (w *refWalk) walkMap(v reflect.Value, path string, depth int) {
-	iter := v.MapRange()
-	for iter.Next() {
-		k := iter.Key()
-		w.descend(k, fmt.Sprintf("%s[%v]/key", path, k), depth+1)
-		w.descend(iter.Value(), fmt.Sprintf("%s[%v]", path, k), depth+1)
+	for _, e := range orderedEntries(v) {
+		w.descend(e.key, fmt.Sprintf("%s[%s]/key", path, e.label), depth+1)
+		w.descend(e.value, fmt.Sprintf("%s[%s]", path, e.label), depth+1)
 	}
 }
