@@ -18,17 +18,25 @@ import (
 // allOf branch it came from.
 func (l *lowerer) lowerAllOf(s *oas3.Schema, pointer, hint string) ir.TypeID {
 	return l.internNode(pointer, hint, func(common ir.TypeCommon) ir.TypeDef {
-		m := &ir.Model{TypeCommon: common}
-		l.fillAllOf(m, s, pointer)
-		l.fillModelProperties(m, s, pointer) // properties declared alongside allOf
-		l.applyCompositionRequired(m, s, pointer)
-		l.fillAdditional(m, s, pointer, hint)
-		if d := l.lowerDiscriminator(s, m, pointer); d != nil {
-			m.Discriminator = d
-		}
-		m.DiscriminatorValue = l.subtypeDiscriminatorValue(s, common.ID, pointer)
-		return m
+		return l.buildAllOfModel(s, common, pointer, hint)
 	})
+}
+
+// buildAllOfModel assembles the Model an allOf schema lowers to. common is
+// already built by the caller (internNode), so this needs no ID of its own. It
+// is split out from lowerAllOf so the subtype-set lowering can extend the same
+// model rather than patch an interned node afterwards.
+func (l *lowerer) buildAllOfModel(s *oas3.Schema, common ir.TypeCommon, pointer, hint string) *ir.Model {
+	m := &ir.Model{TypeCommon: common}
+	l.fillAllOf(m, s, pointer)
+	l.fillModelProperties(m, s, pointer) // properties declared alongside allOf
+	l.applyCompositionRequired(m, s, pointer)
+	l.fillAdditional(m, s, pointer, hint)
+	if d := l.lowerDiscriminator(s, m, pointer); d != nil {
+		m.Discriminator = d
+	}
+	m.DiscriminatorValue = l.subtypeDiscriminatorValue(s, common.ID, pointer)
+	return m
 }
 
 // requiredEntry is one `required` name declared somewhere in an allOf
@@ -220,21 +228,147 @@ func (l *lowerer) lowerOneOfAnyOf(s *oas3.Schema, pointer, hint string) ir.TypeR
 		return ref
 	}
 	tid := l.internNode(pointer, hint, func(common ir.TypeCommon) ir.TypeDef {
-		return l.buildUnion(s, common, pointer)
+		return l.buildUnion(s, common, pointer, l.schemaRef)
 	})
 	return ir.TypeRef{Target: tid, Nullable: schemaAdmitsNull(s)}
 }
 
+// unionLowering names how a oneOf/anyOf co-declared with structural keywords is
+// lowered.
+type unionLowering int
+
+const (
+	// unionDistributed distributes the sibling composition across the union
+	// variants: one Model per branch carrying the enclosing Base/Mixins and own
+	// properties conjoined with that branch. The Union is the value and the
+	// composition rides on every variant, which is exactly the ∧-of-∨ the source
+	// wrote.
+	unionDistributed unionLowering = iota
+	// unionSubtypeSet folds an all-$ref oneOf into the enclosing model's
+	// discriminator mapping, so the `allOf: [base] + oneOf: [subtypes]` idiom
+	// stays one polymorphic Model rather than becoming a synthetic union.
+	unionSubtypeSet
+	// unionValidationOnly marks a union whose branches only narrow what the
+	// sibling body accepts; it is kept verbatim under ReasonValidationOnly.
+	unionValidationOnly
+	// unionUncomposable marks a union beside a body with no composition fields
+	// to distribute into — a const, an enum, a scalar — or beside a second
+	// combinator, which distributing one of the two would drop. It is kept
+	// verbatim under ReasonDegradedLowering.
+	unionUncomposable
+)
+
+// classifyUnionSiblings picks the lowering for a schema whose oneOf/anyOf sits
+// beside structural keywords. JSON Schema conjoins keywords, so such a schema is
+// an intersection of a structural body and a union, and the IR deliberately has
+// no intersection combinator (ir-design §15). Every outcome keeps both sides —
+// classified where the IR can express the conjunction, verbatim where it cannot.
+func classifyUnionSiblings(s *oas3.Schema) unionLowering {
+	if !unionBranchesDeclareShape(s) {
+		return unionValidationOnly
+	}
+	if !composesAsModel(s) {
+		return unionUncomposable
+	}
+	if isSubtypeSet(s) {
+		return unionSubtypeSet
+	}
+	if !isDistributable(s) {
+		return unionUncomposable
+	}
+	return unionDistributed
+}
+
+// isDistributable reports whether every union branch can be conjoined with the
+// sibling model. A branch that declares a shape the IR composes no other way —
+// a bare `type: string` beside an object body — would lose that shape on the way
+// into a Model, so the whole union is kept verbatim instead of half-distributed.
+func isDistributable(s *oas3.Schema) bool {
+	oneOf, anyOf := s.GetOneOf(), s.GetAnyOf()
+	if len(oneOf) > 0 && len(anyOf) > 0 {
+		return false // buildUnion lowers one combinator; distributing it would drop the other
+	}
+	branches := oneOf
+	if len(branches) == 0 {
+		branches = anyOf
+	}
+	for _, b := range branches {
+		if !branchComposesWithModel(b) {
+			return false
+		}
+	}
+	return true
+}
+
+// branchComposesWithModel reports whether one union branch conjoins with a model
+// without loss: a model-shaped branch (inline or referenced) composes per
+// ir-design §4.3, and a branch that declares no shape at all contributes only
+// its `required` names.
+func branchComposesWithModel(b *oas3.JSONSchema[oas3.Referenceable]) bool {
+	if isRefBranch(b) {
+		resolved := b.GetResolvedSchema()
+		if resolved == nil {
+			return false
+		}
+		rs := resolved.GetSchema()
+		return rs != nil && composesAsModel(rs)
+	}
+	s := b.GetSchema()
+	if s == nil {
+		return false // a boolean branch has no shape to compose or to preserve
+	}
+	return composesAsModel(s) || !declaresShape(s)
+}
+
 // lowerCoDeclaredUnion lowers a schema whose oneOf/anyOf sits beside structural
-// keywords. JSON Schema conjoins keywords, so the schema is an intersection of a
-// structural body and a union, and the IR deliberately has no intersection
-// combinator (ir-design §15). The compiler therefore picks the lowering that
-// keeps both sides classified rather than merged or dropped.
+// keywords, per classifyUnionSiblings.
 func (l *lowerer) lowerCoDeclaredUnion(s *oas3.Schema, pointer, hint string) ir.TypeID {
-	if unionBranchesDeclareShape(s) {
+	switch classifyUnionSiblings(s) {
+	case unionDistributed:
+		return l.lowerDistributedUnion(s, pointer, hint)
+	case unionSubtypeSet:
+		return l.lowerSubtypeSet(s, pointer, hint)
+	case unionValidationOnly:
+		return l.lowerBesidePreservedUnion(s, pointer, hint, ir.ReasonValidationOnly)
+	default: // unionUncomposable
 		return l.lowerBesidePreservedUnion(s, pointer, hint, ir.ReasonDegradedLowering)
 	}
-	return l.lowerBesidePreservedUnion(s, pointer, hint, ir.ReasonValidationOnly)
+}
+
+// composesAsModel reports whether the structural siblings lower to a Model,
+// which is the only node with composition fields for a union to distribute
+// across. It mirrors lower's dispatch: const and enum win over everything, then
+// allOf, then a declared object type or a bare property set.
+func composesAsModel(s *oas3.Schema) bool {
+	if s.GetConst() != nil || len(s.GetEnum()) > 0 {
+		return false
+	}
+	if len(s.GetAllOf()) > 0 {
+		return true
+	}
+	types := effectiveTypes(s)
+	if len(types) == 1 && types[0] == oas3.SchemaTypeObject {
+		return true
+	}
+	props := s.GetProperties()
+	return len(types) == 0 && props != nil && props.Len() > 0
+}
+
+// isSubtypeSet reports whether the oneOf lists the subtypes of the hierarchy the
+// schema's own discriminator anchors — the `allOf: [base] + oneOf: [subtypes]`
+// idiom. Every branch must be a $ref: a subtype mapping points at declared
+// schemas, and an inline branch names none.
+func isSubtypeSet(s *oas3.Schema) bool {
+	branches := s.GetOneOf()
+	if s.GetDiscriminator() == nil || len(branches) == 0 {
+		return false
+	}
+	for _, b := range branches {
+		if !isRefBranch(b) {
+			return false
+		}
+	}
+	return true
 }
 
 // unionBranchesDeclareShape reports whether any oneOf/anyOf branch contributes
@@ -271,10 +405,16 @@ func oneOfAnyOfHasNull(s *oas3.Schema) bool {
 	return slices.ContainsFunc(s.GetAnyOf(), isNullSchema)
 }
 
+// variantTypeFunc lowers one union branch to the type its variant refers to. It
+// is a parameter so the distributed lowering can conjoin the sibling composition
+// into each branch while sharing every other rule about union shape — null-branch
+// stripping, hints, exclusivity, the discriminator.
+type variantTypeFunc func(b *oas3.JSONSchema[oas3.Referenceable], vptr, vhint string) ir.TypeRef
+
 // buildUnion assembles the Union node for a oneOf/anyOf schema, attaching a
 // discriminator when one is declared. common is already built by the caller
 // (internNode), so buildUnion needs no hint of its own to build one.
-func (l *lowerer) buildUnion(s *oas3.Schema, common ir.TypeCommon, pointer string) ir.TypeDef {
+func (l *lowerer) buildUnion(s *oas3.Schema, common ir.TypeCommon, pointer string, variantType variantTypeFunc) ir.TypeDef {
 	branches, key, exclusive := s.GetOneOf(), "oneOf", true
 	if len(branches) == 0 {
 		branches, key, exclusive = s.GetAnyOf(), "anyOf", false
@@ -288,7 +428,7 @@ func (l *lowerer) buildUnion(s *oas3.Schema, common ir.TypeCommon, pointer strin
 		vptr := pointer + ptr(key, strconv.Itoa(i))
 		variants = append(variants, ir.Variant{
 			Name: ir.Naming{Hint: vh},
-			Type: l.schemaRef(b, vptr, vh),
+			Type: variantType(b, vptr, vh),
 		})
 	}
 	u := &ir.Union{
@@ -299,6 +439,131 @@ func (l *lowerer) buildUnion(s *oas3.Schema, common ir.TypeCommon, pointer strin
 	}
 	u.Discriminator = l.lowerDiscriminator(s, nil, pointer)
 	return u
+}
+
+// lowerDistributedUnion emits the Union that is the schema's value, distributing
+// the sibling composition across its variants: `S ∧ (X | Y)` becomes
+// `(S ∧ X) | (S ∧ Y)`. Each variant is a Model classifying S's Base/Mixins and
+// own properties (ir-design §4.3) alongside its branch, so the composition is
+// carried on every variant rather than merged into one or dropped.
+func (l *lowerer) lowerDistributedUnion(s *oas3.Schema, pointer, hint string) ir.TypeID {
+	id := l.internNode(pointer, hint, func(common ir.TypeCommon) ir.TypeDef {
+		return l.buildUnion(s, common, pointer,
+			func(b *oas3.JSONSchema[oas3.Referenceable], vptr, vhint string) ir.TypeRef {
+				return l.composedVariant(s, pointer, b, vptr, hint+"_"+vhint)
+			})
+	})
+	l.diag(ir.SeverityInfo, codeCompositionLowering, pointer,
+		"oneOf/anyOf co-declared with structural keywords; the composition is distributed across the union variants")
+	return id
+}
+
+// composedVariant interns the Model for one distributed variant at the branch's
+// own pointer: the enclosing schema's composition and own properties conjoined
+// with that branch.
+func (l *lowerer) composedVariant(enc *oas3.Schema, encPtr string,
+	b *oas3.JSONSchema[oas3.Referenceable], vptr, hint string) ir.TypeRef {
+	id := l.internNode(vptr, hint, func(common ir.TypeCommon) ir.TypeDef {
+		m := &ir.Model{TypeCommon: common}
+		l.fillAllOf(m, enc, encPtr)
+		l.fillModelProperties(m, enc, encPtr)
+		l.composeVariantBranch(m, b, vptr, hint)
+		l.applyCompositionRequired(m, enc, encPtr)
+		l.fillAdditional(m, enc, encPtr, hint)
+		return m
+	})
+	return ir.TypeRef{Target: id}
+}
+
+// composeVariantBranch conjoins one union branch into the variant model. A $ref
+// branch classifies per ir-design §4.3 — Base when the enclosing composition
+// named none, else a Mixin — and an inline branch contributes its own
+// properties, required names, and openness.
+func (l *lowerer) composeVariantBranch(m *ir.Model, b *oas3.JSONSchema[oas3.Referenceable], vptr, hint string) {
+	if !isRefBranch(b) {
+		bs := b.GetSchema()
+		if bs == nil {
+			return // a boolean branch adds no shape
+		}
+		l.fillModelProperties(m, bs, vptr)
+		l.applyCompositionRequired(m, bs, vptr)
+		l.fillAdditional(m, bs, vptr, hint)
+		return
+	}
+	id, ok := l.resolveSchemaRef(b, b.GetRef().String())
+	if !ok {
+		l.diag(ir.SeverityError, codeUnresolvedRef, vptr,
+			"unresolved union branch $ref %q", b.GetRef().String())
+		return
+	}
+	ref := ir.TypeRef{Target: id}
+	if m.Base == nil {
+		m.Base = &ref
+		return
+	}
+	m.Mixins = append(m.Mixins, ref)
+}
+
+// lowerSubtypeSet lowers the `allOf: [base] + oneOf: [subtypes]` idiom as one
+// polymorphic Model: the composition classifies per ir-design §4.3 and the oneOf
+// branches join the discriminator's subtype mapping, which is where the IR
+// already states "these named schemas are the members of this hierarchy".
+func (l *lowerer) lowerSubtypeSet(s *oas3.Schema, pointer, hint string) ir.TypeID {
+	id := l.internNode(pointer, hint, func(common ir.TypeCommon) ir.TypeDef {
+		m := l.modelFor(s, common, pointer, hint)
+		l.attachSubtypeMapping(m, s, pointer)
+		return m
+	})
+	l.diag(ir.SeverityInfo, codeCompositionLowering, pointer,
+		"oneOf beside a discriminator lists the hierarchy's subtypes; folded into the discriminator mapping")
+	return id
+}
+
+// modelFor builds the Model a schema's structural body declares: the allOf
+// composition when it has one, the plain object body otherwise. composesAsModel
+// is the predicate for "declares one of those two".
+func (l *lowerer) modelFor(s *oas3.Schema, common ir.TypeCommon, pointer, hint string) *ir.Model {
+	if len(s.GetAllOf()) > 0 {
+		return l.buildAllOfModel(s, common, pointer, hint)
+	}
+	return l.buildModel(s, common, pointer, hint)
+}
+
+// attachSubtypeMapping adds each oneOf branch to the discriminator's mapping,
+// under the branch's schema name when no explicit mapping entry already points
+// at it — OpenAPI's implicit mapping. The classifier guarantees a declared
+// discriminator here, and lowerDiscriminator lowers every declared one, so
+// m.Discriminator is never nil.
+func (l *lowerer) attachSubtypeMapping(m *ir.Model, s *oas3.Schema, pointer string) {
+	mapping := m.Discriminator.Mapping
+	for i, b := range s.GetOneOf() {
+		ref := b.GetRef().String()
+		id, ok := l.resolveSchemaRef(b, ref)
+		if !ok {
+			l.diag(ir.SeverityError, codeUnresolvedRef, pointer+ptr("oneOf", strconv.Itoa(i)),
+				"unresolved oneOf $ref %q", ref)
+			continue
+		}
+		if alreadyMapped(mapping, id) {
+			continue
+		}
+		if mapping == nil {
+			mapping = map[string]ir.TypeID{}
+		}
+		mapping[refLastSegment(ref)] = id
+	}
+	m.Discriminator.Mapping = mapping
+}
+
+// alreadyMapped reports whether the discriminator mapping already names id, so
+// an explicit mapping key wins over the implicit schema-name one.
+func alreadyMapped(mapping map[string]ir.TypeID, id ir.TypeID) bool {
+	for _, mapped := range mapping {
+		if mapped == id {
+			return true
+		}
+	}
+	return false
 }
 
 // variantHint derives a Union variant's naming hint from its $ref target's name,

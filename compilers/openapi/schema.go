@@ -271,14 +271,21 @@ func (l *lowerer) lowerUnion(s *oas3.Schema, pointer, hint string, types []oas3.
 // no annotations: attachDeclaredAnnotations does that for every destination.
 func (l *lowerer) lowerModel(s *oas3.Schema, pointer, hint string) ir.TypeID {
 	return l.internNode(pointer, hint, func(common ir.TypeCommon) ir.TypeDef {
-		m := &ir.Model{TypeCommon: common}
-		l.fillModelProperties(m, s, pointer)
-		l.fillAdditional(m, s, pointer, hint)
-		if d := l.lowerDiscriminator(s, m, pointer); d != nil {
-			m.Discriminator = d
-		}
-		return m
+		return l.buildModel(s, common, pointer, hint)
 	})
+}
+
+// buildModel assembles the Model an object schema lowers to. common is already
+// built by the caller (internNode). It is split out from lowerModel for the same
+// reason buildAllOfModel is from lowerAllOf.
+func (l *lowerer) buildModel(s *oas3.Schema, common ir.TypeCommon, pointer, hint string) *ir.Model {
+	m := &ir.Model{TypeCommon: common}
+	l.fillModelProperties(m, s, pointer)
+	l.fillAdditional(m, s, pointer, hint)
+	if d := l.lowerDiscriminator(s, m, pointer); d != nil {
+		m.Discriminator = d
+	}
+	return m
 }
 
 // fillModelProperties lowers a model's own properties in source order, each with
@@ -1107,15 +1114,19 @@ func schemaHasNull(s *oas3.Schema) bool {
 // definition site, a union, and a $ref use site must never disagree about the
 // same schema.
 //
-// A null branch counts only when the union is the type itself. Structural
-// siblings intersect with the union (JSON Schema conjoins keywords), so
-// `{type: object, oneOf: [{type: string}, {type: null}]}` admits neither string
-// nor null; that union is kept verbatim under Preserved instead.
+// A null branch counts only when the union is the schema's own type: either it
+// has no structural siblings, or the siblings distribute into its variants, so
+// the Union node is still what the reference points at. When the union is
+// instead kept verbatim beside a body, lifting one of its branches would assert
+// a nullability the lowered type does not have.
 func schemaAdmitsNull(s *oas3.Schema) bool {
 	if schemaHasNull(s) {
 		return true
 	}
-	return oneOfAnyOfHasNull(s) && !hasUnionSiblings(s)
+	if !oneOfAnyOfHasNull(s) {
+		return false
+	}
+	return !hasUnionSiblings(s) || classifyUnionSiblings(s) == unionDistributed
 }
 
 // nullUnionCollapse detects a oneOf/anyOf that has exactly one non-null branch
