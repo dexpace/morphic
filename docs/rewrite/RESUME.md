@@ -74,12 +74,17 @@ What that review found, and what became of it, is worth knowing before re-review
   union lowering, sitting untouched in the inline-position hoist. Fixed, and both carriers that
   inherited the same order-dependence with it. If you look for one class of defect here, look for a
   fix that was scoped to where it was noticed rather than to the mechanism.
-- **`irverify` never ran over compiler output anywhere.** Its checks only saw hand-built fixtures,
-  so a `Reason: ""` planted in the compiler passed `go test ./...` entirely. Now wired: the same
-  mutation fails the corpus sweep on several committed specs. A handful of keys —
-  `verify_corpus_test.go` names them — are reachable from no committed spec at all, and a separate
-  out-of-corpus test exists to cover those; do not mistake that narrow case for the general one, as
-  an earlier draft of this file did.
+- **`irverify` reached less compiler output than it looked.** An earlier draft of this file said it
+  "never ran over compiler output anywhere", which is false — `internal/harness` has always verified
+  compiler output. The true gap is narrower: `harness.Check` returns at the first error diagnostic,
+  so every fixture under `testdata/dangling` went unverified, and no committed spec reaches four of
+  the compiler's preserve calls. State the mutation precisely, because generalising from one run is
+  how the wrong version got written. Planting `Reason: ""` at a preserve call no
+  committed spec reaches — `openapi:servers` is one — passed the entire suite before this branch and
+  fails only the out-of-corpus test after it. Planting it in the shared `preserve` helper, which
+  moves every call at once, failed five packages even before this branch, because most preserve
+  calls *are* corpus-reachable. Both facts are real; neither generalises to the other. When you
+  quote a mutation as evidence, name the site.
 - **Two `pass` tests pinned a sort order neither checked**; `return 0` from the comparator left the
   tree green. Now pinned literally.
 - Everything adjacent was filed rather than fixed, per the directive above.

@@ -56,16 +56,14 @@ func corpusSpecs(t *testing.T) []string {
 }
 
 // TestVerify_Corpus runs the structural oracle over every document the OpenAPI
-// compiler produces from the committed corpus. Without it the checks here only
-// ever see hand-built fixtures, and a compiler that writes a malformed document
-// is caught by nothing.
+// compiler produces from the committed corpus.
 //
-// It verifies documents the compiler faulted on as well as clean ones, which is
-// what it adds over the harness sweep in internal/harness: harness.Check returns
-// at the first error diagnostic and never reaches irverify.Verify, so the
-// deliberately-broken fixtures under testdata/dangling go unverified there.
-// Faulting on a spec is no licence to hand back a document with a dangling
-// reference in it — that is the invariant those fixtures exist for.
+// internal/harness already verifies compiler output, so this is not the first
+// thing to do so. What it adds is the specs harness.Check never reaches:
+// harness.Check returns at the first error diagnostic, before irverify.Verify,
+// so every deliberately-broken fixture under testdata/dangling goes unverified
+// there. Faulting on a spec is no licence to hand back a document with a
+// dangling reference in it — that is the invariant those fixtures exist for.
 //
 // The reach is narrower than the sweep looks, and worth stating rather than
 // leaving to be rediscovered. Every dangling fixture yields a document and is

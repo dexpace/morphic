@@ -68,10 +68,13 @@ nothing. The defects surfaced only when someone broke the thing an assertion des
 whether it failed. Several tests were found asserting nothing; one "safety net" test permitted the
 exact addition it advertised catching.
 
-**A check that never runs is not coverage.** `irverify` gained checks for `Preserved`, provenance and
-the registry indices, each well tested against its own fixtures — and none of them met compiler
-output anywhere, so a defect planted in the compiler passed the whole suite. A verifier's fixtures
-prove it *can* detect a defect; only running it over real pipeline output proves it *will*.
+**A check that runs is not the same as a check that reaches.** `irverify` gained checks for
+`Preserved`, provenance and the registry indices, and it *was* already run over compiler output by
+`internal/harness`. But `harness.Check` returns at the first error diagnostic, so the deliberately
+broken fixtures never reached it, and no committed spec exercises four of the compiler's preserve
+calls — so a defect planted at one of those passed the whole suite. The first telling of this said
+the checks "never met compiler output", which was simply wrong and took three rounds to catch.
+Establish where a check actually reaches before claiming what it covers.
 
 **Claims in prose are where the errors live.** A count referring to a different branch, "every X
 cites Y" when most did, "confirmed by probe" citing a deleted artifact, a doc comment describing an

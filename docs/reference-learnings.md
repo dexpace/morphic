@@ -520,6 +520,26 @@ recording the co-occurrence lowering chosen (provenance). **Corpus item (this is
 `{allOf: [{$ref: Base}], oneOf: [{$ref: A}, {$ref: B}]}` — assert both the Base composition and both
 union variants survive in the IR; a second case with a discriminator to exercise shape #2.
 
+> **Correction, from implementing this.** Shape #1 shipped and is right. **Shape #2 is not
+> implementable as written and was rejected.** Folding the branches into a Model's discriminator
+> mapping requires each branch to declare that model as its `Base`, which `discriminator` + `oneOf`
+> never states — the mapping names branch schemas, not subtypes of the enclosing model. Compiled, the
+> result is rejected by `pass/validate` with `discriminator-missing-variant`, and that error is
+> pre-existing rather than introduced. A declared `discriminator` beside a union therefore preserves
+> verbatim with a reason instead. See `ir-design.md` §4.8.
+>
+> Shape #1 also needed a constraint this section does not mention: distribute **only when every
+> branch is a `$ref`**. `Base`/`Mixins` conjoin by reference, so a conjunct needs a node with an ID.
+> An inline branch would have to be hoisted at the branch pointer, which is where the composed
+> variant lives, so it could only be merged keyword by keyword — one wrong rule is a silently wrong
+> shape. Half-distributing was rejected outright: it yields a `Union` whose variants disagree about
+> whether they carry the body, with nothing in the IR recording which.
+>
+> The general lesson is about this document rather than this section: it was written from studying
+> four reference implementations, which is exactly the kind of source that gets trusted without
+> re-derivation. It was right in direction and wrong in one of its two prescriptions, and only
+> implementing it revealed which.
+
 ---
 
 ## Coverage-corpus items to steal (schema-lowering edge cases the references encode)
