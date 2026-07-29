@@ -49,5 +49,10 @@ func printUsage(w io.Writer) {
 
 const usage = `usage:
   morphic compile <spec-file> [-o out.json] [--fail-on error|warning] [--skip-validate]
+                              [--explain <json-pointer>]
 
-compile lowers an API spec (OpenAPI 3.x) into Morphic IR JSON.`
+compile lowers an API spec (OpenAPI 3.x) into Morphic IR JSON.
+
+--explain reports what compiling produced at one source coordinate — the type
+node interned there, the coordinates interned beneath it, and the diagnostics
+stamped at it — instead of writing the document.`

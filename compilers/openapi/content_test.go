@@ -547,7 +547,7 @@ func TestFillSequential_EmptyItemEncoding(t *testing.T) {
 	assert.Equal(t, &ir.PartEncoding{Multi: true}, c.ItemEncoding,
 		"a config-free itemEncoding still records that the tail repeats")
 	assert.Nil(t, c.Preserved, "nothing is preserved raw")
-	assert.Empty(t, l.diags)
+	assert.Empty(t, l.diags.List())
 }
 
 func TestEncodingConfig_NilEncoding(t *testing.T) {
@@ -616,7 +616,7 @@ func TestPositionalEncoding_WithoutRootNode(t *testing.T) {
 	l.fillSequential(c, media, "/mp", "h")
 	assert.Nil(t, c.ItemEncoding, "prefixes still block the every-item lowering")
 	assert.Nil(t, c.Preserved, "a media type with no source node has nothing verbatim to keep")
-	assertHasCode(t, l.diags, codeDegradedConstruct, ir.SeverityInfo)
+	assertHasCode(t, l.diags.List(), codeDegradedConstruct, ir.SeverityInfo)
 }
 
 func TestBodySchemaPointer_ExternalRefNoFragment(t *testing.T) {

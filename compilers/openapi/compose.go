@@ -521,7 +521,7 @@ func (l *lowerer) composedVariant(body composedBody,
 	branch := l.schemaRef(b, vptr, vhint)
 	id := composedTypeID(vptr)
 	common := l.commonFor(id, vptr, body.hint+"_"+vhint)
-	l.out.Types[id] = l.buildComposedVariant(body, branch.Target, common)
+	l.types.Register(id, l.buildComposedVariant(body, branch.Target, common))
 	return ir.TypeRef{Target: id}
 }
 

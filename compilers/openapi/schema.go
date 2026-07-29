@@ -1,11 +1,8 @@
 package openapi
 
 import (
-	"cmp"
 	"encoding/json"
-	"fmt"
 	"maps"
-	"math/big"
 	"slices"
 	"strconv"
 	"strings"
@@ -50,7 +47,7 @@ func (l *lowerer) lowerComponentSchemas() {
 func (l *lowerer) lowerComponentSchema(js *oas3.JSONSchema[oas3.Referenceable], pointer, name string) {
 	s := siteAt(js)
 	ref := l.schemaRef(js, pointer, name)
-	if _, owned := l.byPointer[pointer]; owned {
+	if _, owned := l.types.Lookup(pointer); owned {
 		return // schemaRef interned the component's own node at its component ID
 	}
 	l.internAlias(pointer, name, ref, l.schemaConstraints(s.Node, pointer))
@@ -126,7 +123,7 @@ func (l *lowerer) hoistDeclarationHome(s *oas3.Schema, ref ir.TypeRef, pointer, 
 	if home != homeOwnNode || s == nil || !declaresPositionScoped(s) {
 		return ref
 	}
-	if id, owned := l.byPointer[pointer]; owned {
+	if id, owned := l.types.Lookup(pointer); owned {
 		return ir.TypeRef{Target: id, Nullable: ref.Nullable}
 	}
 	id := l.internAlias(pointer, hint, ref, l.schemaConstraints(s, pointer))
@@ -255,7 +252,7 @@ func declaresShape(s *oas3.Schema) bool {
 func (l *lowerer) lowerBesidePreservedUnion(s *oas3.Schema, pointer, hint string, reason ir.PreserveReason, why string) ir.TypeID {
 	inner := l.lower(s, pointer, hint)
 	owner := inner
-	if l.byPointer[pointer] != inner {
+	if got, _ := l.types.Lookup(pointer); got != inner {
 		// The structural body reduced to a shared/aliased target; hoist an alias
 		// so the preserved union attaches to a node this pointer owns, never to a
 		// shared primitive.
@@ -403,364 +400,8 @@ func (l *lowerer) fillModelProperties(m *ir.Model, s *oas3.Schema, pointer strin
 			Provenance: ir.Provenance{Source: l.srcIndex, Pointer: ppointer},
 		}
 		l.fillPropertyDetail(&p, js, ppointer)
-		l.mergeProperty(m, byWire, p, ppointer)
+		l.merge.mergeProperty(m, byWire, p, ppointer)
 	}
-}
-
-// wireNameIndex maps each property's wire name to its position in props, so a
-// redeclaration reconciles in one lookup rather than a rescan (fillModelProperties
-// runs once per allOf branch, so a linear scan would be quadratic in a wide model).
-func wireNameIndex(props []ir.Property) map[string]int {
-	idx := make(map[string]int, len(props))
-	for i := range props {
-		idx[props[i].WireName] = i
-	}
-	return idx
-}
-
-// mergeProperty appends p to m and records it in byWire, or folds it into the
-// property that already carries the same wire name — overlapping allOf branches
-// (and properties co-declared alongside allOf) redeclare one logical field under
-// allOf's intersection semantics (ir-design §4.3). Callers must set p.WireName
-// (fillModelProperties always does); it keys byWire directly.
-func (l *lowerer) mergeProperty(m *ir.Model, byWire map[string]int, p ir.Property, pointer string) {
-	if i, ok := byWire[p.WireName]; ok {
-		l.reconcileProperty(&m.Properties[i], p, pointer)
-		return
-	}
-	byWire[p.WireName] = len(m.Properties)
-	m.Properties = append(m.Properties, p)
-}
-
-// reconcileProperty folds a redeclaration src into the already-present property
-// dst under allOf intersection semantics: required and secret are OR-ed, dst
-// keeps its position/identity/type shape (first declaration wins), and every
-// optional detail dst lacks — docs, default, constraints (merged per keyword via
-// mergeConstraints), deprecation, XML, examples — is adopted from src.
-//
-// Preserved is the one field where a later branch wins: its entries are keyed
-// and namespaced, so the two branches' keys union rather than compete, and a key
-// both branches write is the same construct written twice. A description that
-// differs between branches, an incompatible type, or a contradictory constraint
-// keyword are genuine conflicts the merge cannot represent (see
-// codeConflictingRedecl); each is diagnosed before any detail is folded in,
-// rather than silently picking an arbitrary winner.
-func (l *lowerer) reconcileProperty(dst *ir.Property, src ir.Property, pointer string) {
-	l.diagnoseRedeclarationConflict(dst, &src, pointer)
-
-	dst.Required = dst.Required || src.Required
-	dst.Secret = dst.Secret || src.Secret
-
-	if dst.Docs.Description == "" {
-		dst.Docs.Description = src.Docs.Description
-	} else if src.Docs.Description != "" && src.Docs.Description != dst.Docs.Description {
-		l.diag(ir.SeverityInfo, codeDegradedConstruct, pointer,
-			"allOf branches describe field %q differently; kept the first declaration", dst.WireName)
-	}
-	dst.Default = cmp.Or(dst.Default, src.Default)
-	dst.Constraints = mergeConstraints(dst.Constraints, src.Constraints)
-	dst.Deprecation = cmp.Or(dst.Deprecation, src.Deprecation)
-	dst.XML = cmp.Or(dst.XML, src.XML)
-	if len(dst.Examples) == 0 {
-		// Examples is a slice, not comparable, so it cannot go through cmp.Or
-		// like its neighbors above; the len()==0 predicate is the adoption rule.
-		dst.Examples = src.Examples
-	}
-	dst.Preserved = mergePreserved(dst.Preserved, src.Preserved)
-}
-
-// mergeConstraints folds src's constraint keywords into dst under allOf
-// intersection semantics: dst keeps every keyword it already sets, and adopts
-// from src any keyword dst leaves unset (nil/""/false) — a keyword only one
-// branch constrains still applies to the merged field, so it is never dropped.
-//
-// Min and Max are adopted together with their exclusivity flag: taking src.Min
-// without src.ExclusiveMin would silently flip an exclusive "> 5" into an
-// inclusive ">= 5". UniqueItems has no absent state to detect via cmp.Or, but
-// under intersection a true from either branch is always correct, so adopting
-// it via cmp.Or never wrongly downgrades dst from true to false.
-func mergeConstraints(dst, src *ir.Constraints) *ir.Constraints {
-	if dst == nil {
-		return src
-	}
-	if src == nil {
-		return dst
-	}
-	if dst.Min == nil {
-		dst.Min, dst.ExclusiveMin = src.Min, src.ExclusiveMin
-	}
-	if dst.Max == nil {
-		dst.Max, dst.ExclusiveMax = src.Max, src.ExclusiveMax
-	}
-	dst.MultipleOf = cmp.Or(dst.MultipleOf, src.MultipleOf)
-	dst.Precision = cmp.Or(dst.Precision, src.Precision)
-	dst.Scale = cmp.Or(dst.Scale, src.Scale)
-	dst.MinLength = cmp.Or(dst.MinLength, src.MinLength)
-	dst.MaxLength = cmp.Or(dst.MaxLength, src.MaxLength)
-	dst.Pattern = cmp.Or(dst.Pattern, src.Pattern)
-	dst.PatternMessage = cmp.Or(dst.PatternMessage, src.PatternMessage)
-	dst.MinItems = cmp.Or(dst.MinItems, src.MinItems)
-	dst.MaxItems = cmp.Or(dst.MaxItems, src.MaxItems)
-	dst.UniqueItems = cmp.Or(dst.UniqueItems, src.UniqueItems)
-	dst.MinProps = cmp.Or(dst.MinProps, src.MinProps)
-	dst.MaxProps = cmp.Or(dst.MaxProps, src.MaxProps)
-	return dst
-}
-
-// maxTypeResolveDepth bounds Base-chain resolution when classifying a property
-// type for conflict detection (styleguide bounded-recursion rule). A scalar Base
-// chain is far shorter than this in a well-formed document, so the cap only
-// guards a pathological or malformed registry.
-const maxTypeResolveDepth = 64
-
-// diagnoseRedeclarationConflict reports when redeclaration src contradicts dst
-// under allOf intersection — an incompatible target type, or a constraint
-// keyword both branches pin to different values — without altering the merge
-// (dst keeps its shape). A type conflict is genuinely unsatisfiable; a
-// constraint conflict is usually satisfiable alone, but the merge can't
-// represent the true intersection and may keep the looser bound
-// (codeConflictingRedecl). At most one diagnostic fires: a type conflict
-// subsumes any constraint conflict.
-func (l *lowerer) diagnoseRedeclarationConflict(dst, src *ir.Property, pointer string) {
-	if l.typesConflict(dst.Type, src.Type) {
-		l.redeclarationConflictDiag(dst, pointer,
-			fmt.Sprintf("incompatible types %s and %s", dst.Type.Target, src.Type.Target))
-		return
-	}
-	if detail, ok := constraintsConflict(dst.Constraints, src.Constraints); ok {
-		l.redeclarationConflictDiag(dst, pointer, detail)
-	}
-}
-
-// redeclarationConflictDiag emits the shared conflicting-redeclaration warning,
-// naming the field and both declaration sites (dst's own, and the redeclaration
-// at pointer). detail is the caller-formatted disagreement — two type IDs, or a
-// constraint keyword and its two values — so one wording serves both callers.
-// It says "declarations", not "allOf branches": dst's declaration is not always
-// inside an allOf branch (a property can also be declared directly alongside
-// allOf), so the message must read correctly either way. Severity is warning —
-// the merged model is still usable — leaving escalation to the consumer via
-// the stable code.
-func (l *lowerer) redeclarationConflictDiag(dst *ir.Property, pointer, detail string) {
-	l.diag(ir.SeverityWarning, codeConflictingRedecl, pointer,
-		"declarations of field %q disagree: %s; kept the first declaration (%s) over the redeclaration (%s)",
-		dst.WireName, detail, dst.Provenance.Pointer, pointer)
-}
-
-// typesConflict reports whether two reconciled property types describe an
-// unsatisfiable intersection. Identical interned targets and the schemaless top
-// type never conflict. Types resolving to different underlying primitives conflict
-// (string vs integer, string vs uuid), as does a scalar against a structural type.
-// Two distinct composite types of the same kind (two models, two lists) are not
-// provably contradictory, so they are never reported — conflict detection does
-// not guess.
-func (l *lowerer) typesConflict(a, b ir.TypeRef) bool {
-	if a.Target == b.Target || l.isAnyType(a) || l.isAnyType(b) {
-		return false
-	}
-	ak, aok := l.resolvePrimKind(a)
-	bk, bok := l.resolvePrimKind(b)
-	switch {
-	case aok && bok:
-		return ak != bk
-	case aok && !bok:
-		return l.isStructuralType(b)
-	case !aok && bok:
-		return l.isStructuralType(a)
-	default:
-		return l.differentTypeKind(a, b)
-	}
-}
-
-// isAnyType reports whether ref targets the schemaless top type (a PrimAny
-// primitive or an Any node). The top type imposes no constraint under allOf
-// intersection, so it never conflicts with a sibling redeclaration.
-func (l *lowerer) isAnyType(ref ir.TypeRef) bool {
-	td, ok := l.out.Types[ref.Target]
-	if !ok {
-		return false
-	}
-	if p, ok := td.(*ir.Primitive); ok {
-		return p.Prim == ir.PrimAny
-	}
-	return td.Kind() == ir.KindAny
-}
-
-// resolvePrimKind follows ref through the registry to its underlying primitive
-// kind, returning ok=false when the target doesn't ultimately resolve to a
-// single one (a model, union, list, tuple, literal, external, or a base-less
-// opaque scalar). The Base chain is bounded against a malformed registry.
-//
-// An Enum resolves via its already-computed ValueType (ir-design §4.5), so a
-// string enum conflicts with an integer redeclaration but not a string one. A
-// Literal is deliberately left unresolved: Value.Kind doesn't map cleanly to
-// one PrimKind (a ValueNumber literal spans integer/number/float/decimal), so
-// rather than guess it is excluded from isStructuralType below too.
-func (l *lowerer) resolvePrimKind(ref ir.TypeRef) (ir.PrimKind, bool) {
-	id := ref.Target
-	for range maxTypeResolveDepth {
-		td, ok := l.out.Types[id]
-		if !ok {
-			return "", false
-		}
-		switch t := td.(type) {
-		case *ir.Primitive:
-			return t.Prim, true
-		case *ir.Enum:
-			return t.ValueType, true
-		case *ir.Scalar:
-			if t.Base == nil {
-				return "", false
-			}
-			id = t.Base.Target
-		default:
-			return "", false
-		}
-	}
-	return "", false
-}
-
-// differentTypeKind reports whether two registry targets carry different
-// TypeDef kinds (a model vs a union); an unresolvable target is never treated
-// as a conflict. Reached only from typesConflict's default case, when neither
-// side resolved a PrimKind — e.g. a base-less opaque scalar against a Union.
-func (l *lowerer) differentTypeKind(a, b ir.TypeRef) bool {
-	at, aok := l.out.Types[a.Target]
-	bt, bok := l.out.Types[b.Target]
-	if !aok || !bok {
-		return false
-	}
-	return at.Kind() != bt.Kind()
-}
-
-// isStructuralType reports whether ref targets a type that can never be a
-// scalar under allOf intersection: a model, list, map, or tuple — the only
-// shapes provably incompatible with a scalar redeclaration.
-//
-// Enum, Union, and External are deliberately excluded: an enum member or union
-// variant can itself be a scalar of the kind being redeclared, so a bare
-// scalar sibling isn't provably contradictory. Enum instead resolves via its
-// ValueType in resolvePrimKind above; Union/External/Literal stay unresolved
-// (Literal for the same reason as in resolvePrimKind), and a base-less opaque
-// scalar is likewise unknown, not structural — none of these count as
-// conflicts.
-func (l *lowerer) isStructuralType(ref ir.TypeRef) bool {
-	td, ok := l.out.Types[ref.Target]
-	if !ok {
-		return false
-	}
-	switch td.(type) {
-	case *ir.Model, *ir.List, *ir.MapT, *ir.Tuple:
-		return true
-	default:
-		return false
-	}
-}
-
-// constraintsConflict reports whether two constraint sets pin the same keyword
-// to incompatible values, describing which keyword and both values when they
-// do (e.g. "conflicting maxLength (10 and 20)"). A keyword set on only one
-// side is not a conflict — mergeConstraints adopts it, narrowing the merged
-// field rather than discarding it — so only a keyword present and differing on
-// both sides counts; numeric bounds compare by magnitude, so 10 and 10.0
-// aren't a false conflict. UniqueItems is never compared: it's a plain bool
-// with no absent state, so a false on either side can't be told apart from
-// "not set". Keywords are checked in the fixed order below, so the keyword
-// named when several conflict at once is deterministic.
-func constraintsConflict(a, b *ir.Constraints) (string, bool) {
-	if a == nil || b == nil {
-		return "", false
-	}
-	checks := []func() (string, bool){
-		func() (string, bool) {
-			return boundConflictDetail("minimum", a.Min, b.Min, a.ExclusiveMin, b.ExclusiveMin)
-		},
-		func() (string, bool) {
-			return boundConflictDetail("maximum", a.Max, b.Max, a.ExclusiveMax, b.ExclusiveMax)
-		},
-		func() (string, bool) { return bigValConflictDetail("multipleOf", a.MultipleOf, b.MultipleOf) },
-		func() (string, bool) { return intConflictDetail("precision", a.Precision, b.Precision) },
-		func() (string, bool) { return intConflictDetail("scale", a.Scale, b.Scale) },
-		func() (string, bool) { return intConflictDetail("minLength", a.MinLength, b.MinLength) },
-		func() (string, bool) { return intConflictDetail("maxLength", a.MaxLength, b.MaxLength) },
-		func() (string, bool) { return intConflictDetail("minItems", a.MinItems, b.MinItems) },
-		func() (string, bool) { return intConflictDetail("maxItems", a.MaxItems, b.MaxItems) },
-		func() (string, bool) { return intConflictDetail("minProps", a.MinProps, b.MinProps) },
-		func() (string, bool) { return intConflictDetail("maxProps", a.MaxProps, b.MaxProps) },
-		func() (string, bool) { return strConflictDetail("pattern", a.Pattern, b.Pattern) },
-		func() (string, bool) { return strConflictDetail("patternMessage", a.PatternMessage, b.PatternMessage) },
-	}
-	for _, check := range checks {
-		if detail, ok := check(); ok {
-			return detail, ok
-		}
-	}
-	return "", false
-}
-
-// boundConflictDetail reports whether two numeric bounds, each with its
-// exclusivity flag, are both present and disagree in magnitude or in
-// inclusive/exclusive sense, formatting the disagreement when they do. Such a
-// disagreement is usually still individually satisfiable (minimum: 10 and
-// exclusiveMinimum: 10 together just mean "> 10"), but it's diagnosed anyway:
-// the merge keeps dst's bound (first declaration wins) over the true
-// intersection, and the discarded bound is always the stricter one — staying
-// silent would silently loosen the validation the spec intended.
-func boundConflictDetail(keyword string, a, b *ir.BigVal, exclA, exclB bool) (string, bool) {
-	if a == nil || b == nil || (exclA == exclB && bigValEqual(*a, *b)) {
-		return "", false
-	}
-	return fmt.Sprintf("conflicting %s (%s and %s)", keyword, boundText(*a, exclA), boundText(*b, exclB)), true
-}
-
-// boundText renders a numeric bound for a conflict detail, marking an
-// exclusive bound so "conflicting minimum (10 and exclusive 10)" reads as the
-// differing sense it is, not a duplicate magnitude.
-func boundText(v ir.BigVal, exclusive bool) string {
-	if exclusive {
-		return "exclusive " + v.String()
-	}
-	return v.String()
-}
-
-// bigValConflictDetail reports whether two optional numeric values are both
-// present and differ by magnitude, formatting the disagreement when they do.
-func bigValConflictDetail(keyword string, a, b *ir.BigVal) (string, bool) {
-	if a == nil || b == nil || bigValEqual(*a, *b) {
-		return "", false
-	}
-	return fmt.Sprintf("conflicting %s (%s and %s)", keyword, a.String(), b.String()), true
-}
-
-// bigValEqual reports whether two numeric literals denote the same value,
-// comparing by magnitude so equal values spelled differently (10, 10.0, 1e1) are
-// equal. Both are already-validated BigVals, so parsing succeeds; an unparseable
-// pair falls back to exact string equality.
-func bigValEqual(a, b ir.BigVal) bool {
-	ar, aok := new(big.Rat).SetString(a.String())
-	br, bok := new(big.Rat).SetString(b.String())
-	if !aok || !bok {
-		return a == b
-	}
-	return ar.Cmp(br) == 0
-}
-
-// intConflictDetail reports whether two optional integer bounds are both
-// present and differ, formatting the disagreement when they do.
-func intConflictDetail(keyword string, a, b *int64) (string, bool) {
-	if a == nil || b == nil || *a == *b {
-		return "", false
-	}
-	return fmt.Sprintf("conflicting %s (%d and %d)", keyword, *a, *b), true
-}
-
-// strConflictDetail reports whether two string keywords are both set and
-// differ, formatting the disagreement when they do.
-func strConflictDetail(keyword string, a, b string) (string, bool) {
-	if a == "" || b == "" || a == b {
-		return "", false
-	}
-	return fmt.Sprintf("conflicting %s (%q and %q)", keyword, a, b), true
 }
 
 // fillPropertyDetail enriches a property from its schema: the property-scoped
@@ -809,18 +450,20 @@ func (l *lowerer) fillPropertyAnnotations(p *ir.Property, ref, tgt *oas3.Schema,
 	if l.loweredToOwnNode(pointer, p.Type) {
 		return
 	}
-	fillCarrierDocs(&p.Docs, ref, tgt)
-	if effectiveDeprecated(ref, tgt) {
+	a, diags := annotations(site{Kind: siteReference, Node: ref, Referent: tgt}, pointer, l.srcIndex)
+	l.diags.AppendAll(diags)
+
+	p.Docs = a.Docs
+	if a.Deprecated {
 		p.Deprecation = &ir.Deprecation{}
 	}
-	if h := xmlHints(ref.GetXML()); h != nil {
-		p.XML = h
+	if a.XML != nil {
+		p.XML = a.XML
 	}
-	if ex := l.schemaExamples(ref, pointer); len(ex) > 0 {
-		p.Examples = ex
+	if len(a.Examples) > 0 {
+		p.Examples = a.Examples
 	}
-	p.Preserved = mergePreserved(p.Preserved, l.schemaExtensions(ref, pointer))
-	l.fillValidationOnly(&p.Preserved, ref, pointer)
+	p.Preserved = mergePreserved(p.Preserved, a.Preserved)
 }
 
 // loweredToOwnNode reports whether the declaration at pointer lowered to a type
@@ -833,7 +476,7 @@ func (l *lowerer) fillPropertyAnnotations(p *ir.Property, ref, tgt *oas3.Schema,
 // declaration order, and a carrier reading the registry alone would keep its
 // schema's annotations only when it happened to lower first.
 func (l *lowerer) loweredToOwnNode(pointer string, t ir.TypeRef) bool {
-	id, owned := l.byPointer[pointer]
+	id, owned := l.types.Lookup(pointer)
 	return owned && id == t.Target
 }
 
@@ -865,20 +508,6 @@ func (l *lowerer) fillPropertyConstraints(p *ir.Property, ref *oas3.Schema, poin
 	}
 }
 
-// schemaExamples lowers a schema's single (3.0) and plural (3.1) examples into
-// value examples in source order, pointer being the owning schema's own
-// pointer so an unconvertible example's diagnostic can locate it.
-func (l *lowerer) schemaExamples(s *oas3.Schema, pointer string) []ir.Example {
-	var out []ir.Example
-	if node := s.GetExample(); node != nil {
-		out = l.appendExample(out, ir.Example{}, node, pointer, "example")
-	}
-	for i, node := range s.GetExamples() {
-		out = l.appendExample(out, ir.Example{}, node, pointer, "examples", strconv.Itoa(i))
-	}
-	return out
-}
-
 // attachDeclaredAnnotations records every annotation s declares on the type
 // node pointer owns — the one structural home a declaration's annotations have
 // (ir.TypeCommon, embedded in every type node).
@@ -895,26 +524,27 @@ func (l *lowerer) schemaExamples(s *oas3.Schema, pointer string) []ir.Example {
 // checked before conversion because the callers cover a pointer in either
 // order, and only the one that finds a node may emit conversion diagnostics.
 func (l *lowerer) attachDeclaredAnnotations(s *oas3.Schema, pointer string) {
-	id, owned := l.byPointer[pointer]
-	if !owned {
-		return
-	}
-	td, ok := l.registeredNode(id, pointer)
+	// NodeAt rather than Lookup-then-registeredNode: the coordinate and its node
+	// are recorded together, so there is no state where the first resolves and
+	// the second does not, and a branch for one could never be reached.
+	td, ok := l.types.NodeAt(pointer)
 	if !ok {
 		return
 	}
+	a, diags := annotations(site{Kind: siteDeclaration, Node: s}, pointer, l.srcIndex)
+	l.diags.AppendAll(diags)
+
 	c := td.Common()
-	fillTypeDocs(&c.Docs, s)
-	if effectiveDeprecated(s, nil) {
+	c.Docs = a.Docs
+	if a.Deprecated {
 		c.Deprecation = &ir.Deprecation{}
 	}
-	if h := xmlHints(s.GetXML()); h != nil {
-		c.XML = h
+	if a.XML != nil {
+		c.XML = a.XML
 	}
-	c.Preserved = mergePreserved(c.Preserved, l.schemaExtensions(s, pointer))
-	l.fillValidationOnly(&c.Preserved, s, pointer)
-	if ex := l.schemaExamples(s, pointer); len(ex) > 0 {
-		c.Examples = ex
+	c.Preserved = mergePreserved(c.Preserved, a.Preserved)
+	if len(a.Examples) > 0 {
+		c.Examples = a.Examples
 	}
 }
 
@@ -973,58 +603,11 @@ func (l *lowerer) patternProps(s *oas3.Schema, pointer, hint string) []ir.Patter
 	return out
 }
 
-// fillValidationOnly preserves JSON Schema keywords that have no structural IR
-// home verbatim in namespaced Preserved entries, one info diagnostic each
-// (§4.7). It takes the map rather than a node so it serves both homes a
-// declaration's keywords can have: the type node the declaration owns, and the
-// declaring property when it owns none.
-//
-// This set is §4.7's, and five further 2020-12 keywords are knowingly outside
-// it (GitHub #125), each dropped with no diagnostic: dependentRequired, which
-// is the same kind of thing as the dependentSchemas kept below;
-// contentMediaType, contentEncoding and contentSchema, which describe an
-// encoded value rather than validate one; and $dynamicRef, which lowers to any.
-// Taking any of them would edit §4.7's normative list, so #125 argues each on
-// its own terms instead of settling them here.
-func (l *lowerer) fillValidationOnly(ext *ir.Preserved, s *oas3.Schema, pointer string) {
-	if s.GetNot() != nil {
-		l.preserveKeyword(ext, "openapi:not", nodeToRaw(rawPropertyNode(s, "not")),
-			pointer, pointer+ptr("not"), "not")
-	}
-	if ite := ifThenElseRaw(s); ite != nil {
-		l.preserveKeyword(ext, "openapi:if-then-else", ite, pointer, pointer, "if/then/else")
-	}
-	if ds := s.GetDependentSchemas(); ds != nil && ds.Len() > 0 {
-		l.preserveKeyword(ext, "openapi:dependentSchemas", nodeToRaw(rawPropertyNode(s, "dependentSchemas")),
-			pointer, pointer+ptr("dependentSchemas"), "dependentSchemas")
-	}
-	if s.GetPropertyNames() != nil {
-		l.preserveKeyword(ext, "openapi:propertyNames", nodeToRaw(rawPropertyNode(s, "propertyNames")),
-			pointer, pointer+ptr("propertyNames"), "propertyNames")
-	}
-	if craw := containsRaw(s); craw != nil {
-		l.preserveKeyword(ext, "openapi:contains", craw, pointer, pointer, "contains")
-	}
-	if u := unevaluatedRaw(s); u != nil {
-		l.preserveKeyword(ext, "openapi:unevaluated", u, pointer, pointer, "unevaluated")
-	}
-}
-
 // preserve records raw under key in *p with why it was kept and where it was
 // written, allocating the map on first write. An absent or unconvertible
 // payload records nothing, so no caller needs a nil guard of its own.
 func (l *lowerer) preserve(p *ir.Preserved, key string, raw ir.RawValue, reason ir.PreserveReason, pointer string) {
-	if raw == nil {
-		return
-	}
-	if *p == nil {
-		*p = ir.Preserved{}
-	}
-	(*p)[key] = ir.PreservedEntry{
-		Reason:     reason,
-		Value:      raw,
-		Provenance: ir.Provenance{Source: l.srcIndex, Pointer: pointer},
-	}
+	preserveInto(p, key, raw, reason, pointer, l.srcIndex)
 }
 
 // preserveKeyword records a validation-only keyword's raw payload under key in
@@ -1036,12 +619,7 @@ func (l *lowerer) preserve(p *ir.Preserved, key string, raw ir.RawValue, reason 
 // keyword, and declPtr for the three §4.7 entries that combine several keywords
 // into one synthesized object no single node addresses.
 func (l *lowerer) preserveKeyword(p *ir.Preserved, key string, raw ir.RawValue, declPtr, entryPtr, label string) {
-	if raw == nil {
-		return
-	}
-	l.preserve(p, key, raw, ir.ReasonValidationOnly, entryPtr)
-	l.diag(ir.SeverityInfo, codeValidationOnlyKeyword, declPtr,
-		"validation-only keyword %q kept verbatim under Preserved", label)
+	l.diags.AppendAll(preserveKeywordInto(p, key, raw, declPtr, entryPtr, label, l.srcIndex))
 }
 
 // diag appends one diagnostic at pointer with the given severity and code,
@@ -1056,25 +634,7 @@ func (l *lowerer) diag(sev ir.Severity, code, pointer, format string, args ...an
 // provenance and message — was already recorded. It is the single append point
 // for lowering diagnostics, so a shared declaration reported from N use sites
 // yields one diagnostic rather than N indistinguishable copies.
-func (l *lowerer) appendDiag(d ir.Diagnostic) {
-	key := strings.Join([]string{
-		string(d.Severity), d.Code, d.Message,
-		strconv.Itoa(d.Provenance.Source), d.Provenance.Pointer, d.Provenance.Inferred,
-	}, "\x00") // NUL separates: it cannot occur in a code, pointer, or coerced message
-	if l.emitted[key] {
-		return
-	}
-	if l.emitted == nil {
-		l.emitted = make(map[string]bool) // a lowerer built field-by-field still de-duplicates
-	}
-	l.emitted[key] = true
-	l.diags = append(l.diags, d)
-}
-
-// schemaExtensions lowers a schema's x-* extensions into namespaced Preserved.
-func (l *lowerer) schemaExtensions(s *oas3.Schema, pointer string) ir.Preserved {
-	return l.extensions(s.GetExtensions(), pointer)
-}
+func (l *lowerer) appendDiag(d ir.Diagnostic) { l.diags.Append(d) }
 
 // lowerArray hoists an array schema as a Tuple when prefixItems is present, else
 // a List over its item schema with its collection constraints.
@@ -1463,7 +1023,7 @@ func extensionsFrom(ext *extensions.Extensions, srcIndex int, owner string) (ir.
 // extensions all failed to serialize — exactly when the result is empty.
 func (l *lowerer) extensions(ext *extensions.Extensions, owner string) ir.Preserved {
 	out, diags := extensionsFrom(ext, l.srcIndex, owner)
-	l.diags = append(l.diags, diags...)
+	l.diags.AppendAll(diags)
 	return out
 }
 

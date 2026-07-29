@@ -283,7 +283,9 @@ func TestValidate_PerOperationAuthOverride(t *testing.T) {
 
 // TestValidate_ExcessiveGroupNestingIsTruncated drives the maxGroupDepth guard in
 // forEachGroupOperation: an operation buried below the depth cap is never
-// visited, so its one-way violation goes unreported (the recursion stops).
+// visited, so its one-way violation goes unreported (the recursion stops). The
+// truncation itself is reported instead — see
+// TestValidate_GroupWalkTruncationIsReported.
 func TestValidate_ExcessiveGroupNestingIsTruncated(t *testing.T) {
 	t.Parallel()
 	// A one-way op with responses would normally raise oneway-with-responses.

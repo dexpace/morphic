@@ -484,7 +484,7 @@ func TestGrouping_ByPathPrefixInferred(t *testing.T) {
 	l := newLowerer(0, loadedDoc, opts)
 	l.lowerComponentSchemas()
 	svc := l.lowerService()
-	requireNoErrorDiags(t, append(loadDiags, l.diags...))
+	requireNoErrorDiags(t, append(loadDiags, l.diags.List()...))
 	byName := indexBy(svc.Groups, func(g ir.OperationGroup) string { return g.Name.Source })
 	_, hasUsers := byName["users"]
 	_, hasOrders := byName["orders"]
@@ -683,7 +683,7 @@ func TestPreserveErrorHeaders_WithoutRootNode(t *testing.T) {
 	ec := &ir.ErrorCase{}
 	l.preserveErrorHeaders(ec, &soa.Response{Headers: headers}, "/r")
 	assert.Nil(t, ec.Preserved, "headers with no raw node are not preserved")
-	require.Empty(t, l.diags)
+	require.Empty(t, l.diags.List())
 }
 
 func TestLowerResponses_NoResponses(t *testing.T) {
@@ -706,7 +706,7 @@ func TestApplyPathServers_WithoutRootNode(t *testing.T) {
 	op := &ir.Operation{}
 	l.applyPathServers(op, &soa.PathItem{Servers: []*soa.Server{{URL: "https://x"}}}, "/paths/~1a")
 	assert.Nil(t, op.Preserved, "servers with no raw node are not preserved")
-	assert.Empty(t, l.diags)
+	assert.Empty(t, l.diags.List())
 }
 
 func TestLowerTagDefs_NilEntrySkipped(t *testing.T) {
@@ -1164,7 +1164,7 @@ func compileFixture(t *testing.T, path string) *ir.Document {
 
 	l := newLowerer(0, loadedDoc, opts)
 	doc := l.run()
-	requireNoErrorDiags(t, append(loadDiags, l.diags...))
+	requireNoErrorDiags(t, append(loadDiags, l.diags.List()...))
 	return doc
 }
 
@@ -1539,9 +1539,9 @@ func TestDiag_DistinctDefectsAtOnePointerBothSurvive(t *testing.T) {
 	l.diag(ir.SeverityWarning, codeDegradedConstruct, "/p", "first")
 	l.diag(ir.SeverityWarning, codeDegradedConstruct, "/p", "second")
 	l.diag(ir.SeverityWarning, codeDegradedConstruct, "/p", "first")
-	require.Len(t, l.diags, 2, "the repeat is dropped, the distinct message is not")
-	assert.Equal(t, "first", l.diags[0].Message)
-	assert.Equal(t, "second", l.diags[1].Message)
+	require.Len(t, l.diags.List(), 2, "the repeat is dropped, the distinct message is not")
+	assert.Equal(t, "first", l.diags.List()[0].Message)
+	assert.Equal(t, "second", l.diags.List()[1].Message)
 }
 
 const duplicateOperationIDSpec = `openapi: 3.1.0

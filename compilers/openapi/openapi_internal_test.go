@@ -4,6 +4,7 @@ import (
 	"context"
 	"testing"
 
+	soa "github.com/speakeasy-api/openapi/openapi"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -69,5 +70,23 @@ func TestGhostRefs_AllResolversDegradeGracefully(t *testing.T) {
 	l := newLowerer(0, loadedDoc, Options{}.withDefaults())
 	out := l.run()
 	require.NotNil(t, out)
-	assert.True(t, hasDiag(append(diags, l.diags...), codeUnresolvedRef), "unresolved refs reported")
+	assert.True(t, hasDiag(append(diags, l.diags.List()...), codeUnresolvedRef), "unresolved refs reported")
+}
+
+// TestRun_RegistryRefusalsAreSurfaced covers the reporting of an entry
+// compile.Types declined to hold.
+//
+// No spec can provoke one — an empty ID or a nil type definition is a compiler
+// bug — so the refusal is forced directly. Without this the framework would
+// decline garbage and say nothing, which hides the bug instead of the symptom:
+// the node is simply absent and every reference to it dangles.
+func TestRun_RegistryRefusalsAreSurfaced(t *testing.T) {
+	t.Parallel()
+	l := newRawLowerer(&soa.OpenAPI{})
+	l.types.Register("", nil)
+	require.Len(t, l.types.Violations(), 1, "the refusal is recorded before run reports it")
+
+	l.run()
+
+	assertHasErrorCode(t, l.diags.List(), codeInternalInvariant)
 }

@@ -102,7 +102,7 @@ func TestSameFile(t *testing.T) {
 func TestInternedID_ByPointerHit(t *testing.T) {
 	t.Parallel()
 	l := newRawLowerer(&soa.OpenAPI{})
-	l.byPointer[deepPointer] = "t/anon/prev"
+	l.types.Intern(deepPointer, "t/anon/prev", func() ir.TypeDef { return &ir.Any{} })
 
 	id, ok := l.internedID(deepPointer)
 	require.True(t, ok, "a pointer already recorded in byPointer resolves")
@@ -115,7 +115,7 @@ func TestInternedID_RegistryHit(t *testing.T) {
 	// A node lives at the pointer-derived ID without a byPointer entry: internedID
 	// still finds it through the type registry.
 	id := anonTypeID(deepPointer)
-	l.out.Types[id] = &ir.Primitive{TypeCommon: ir.TypeCommon{ID: id}, Prim: ir.PrimString}
+	l.types.Register(id, &ir.Primitive{TypeCommon: ir.TypeCommon{ID: id}, Prim: ir.PrimString})
 
 	got, ok := l.internedID(deepPointer)
 	require.True(t, ok, "a node registered under its pointer-derived ID resolves")
