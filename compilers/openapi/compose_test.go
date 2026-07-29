@@ -1297,17 +1297,67 @@ func TestOneOf_CoDeclaredVariantNotStolenByRefToBranch(t *testing.T) {
 	}
 }
 
+// comboDiscriminatedSpec is the co-declared union of a discriminated Base with
+// A|B. Every variant is written on the wire with the enclosing schema's tag,
+// which the base's mapping supplies, so the base and the schemas naming it are
+// permutable against each other — components lower in source order.
+func comboDiscriminatedSpec(baseFirst bool) string {
+	base := `    Base:
+      type: object
+      properties: {kind: {type: string}}
+      discriminator:
+        propertyName: kind
+        mapping: {combo: '#/components/schemas/Combo'}
+`
+	rest := `    A: {type: object, properties: {a: {type: string}}}
+    B: {type: object, properties: {b: {type: string}}}
+    Combo:
+      allOf: [{$ref: '#/components/schemas/Base'}]
+      oneOf: [{$ref: '#/components/schemas/A'}, {$ref: '#/components/schemas/B'}]
+`
+	if baseFirst {
+		return componentSpec(base + rest)
+	}
+	return componentSpec(rest + base)
+}
+
 // TestOneOf_CoDeclaredDistributionIsOrderIndependent states the property the
-// pointer collision broke, over the whole registry rather than one node: the
-// same components in two declaration orders lower to the same types.
+// pointer collision broke, over the whole compiled document rather than one
+// node: the same components in two declaration orders compile to the same IR.
+// Each case permutes a different site the distribution shares with something
+// outside it — an outside $ref aimed at either union branch, and the
+// discriminated base the variants take their tag from.
+//
+// Comparing whole documents covers the diagnostic list as well as the registry,
+// which is why these cases permute only components that emit none: diagnostics
+// are appended in traversal order, so a document whose two orders diagnose the
+// same facts still lists them in two orders. The registry is then compared a
+// second time with nothing excluded at all, because these shapes settle their
+// name hints identically both ways and orderInvariantIR's Hint exclusion would
+// otherwise hide a regression there.
 func TestOneOf_CoDeclaredDistributionIsOrderIndependent(t *testing.T) {
 	t.Parallel()
-	first, diags := lowerSpec(t, comboRefStealSpec(0, true))
-	requireNoErrorDiags(t, diags)
-	last, diags := lowerSpec(t, comboRefStealSpec(0, false))
-	requireNoErrorDiags(t, diags)
-	assert.Empty(t, cmp.Diff(first.Types, last.Types),
-		"declaring the outside $ref before or after the union must not change the IR")
+	for _, tc := range []struct {
+		name string
+		// spec writes the document with the permuted component declared first.
+		spec func(first bool) string
+	}{
+		{"outside ref at the first branch", func(f bool) string { return comboRefStealSpec(0, f) }},
+		{"outside ref at the second branch", func(f bool) string { return comboRefStealSpec(1, f) }},
+		{"discriminated base", comboDiscriminatedSpec},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			first, diags := parseFull(t, tc.spec(true))
+			requireNoErrorDiags(t, diags)
+			last, diags := parseFull(t, tc.spec(false))
+			requireNoErrorDiags(t, diags)
+
+			assert.Empty(t, cmp.Diff(first, last, orderInvariantIR()...),
+				"declaring the permuted component before or after the union must not change the IR")
+			assert.Empty(t, cmp.Diff(first.Types, last.Types), "nor any name hint in the registry")
+		})
+	}
 }
 
 // TestOneOf_CoDeclaredVariantCarriesDiscriminatorValue pins the tag the variants
@@ -1317,19 +1367,7 @@ func TestOneOf_CoDeclaredDistributionIsOrderIndependent(t *testing.T) {
 // the node the mapping names.
 func TestOneOf_CoDeclaredVariantCarriesDiscriminatorValue(t *testing.T) {
 	t.Parallel()
-	spec := componentSpec(`    Base:
-      type: object
-      properties: {kind: {type: string}}
-      discriminator:
-        propertyName: kind
-        mapping: {combo: '#/components/schemas/Combo'}
-    A: {type: object, properties: {a: {type: string}}}
-    B: {type: object, properties: {b: {type: string}}}
-    Combo:
-      allOf: [{$ref: '#/components/schemas/Base'}]
-      oneOf: [{$ref: '#/components/schemas/A'}, {$ref: '#/components/schemas/B'}]
-`)
-	doc, diags := lowerSpec(t, spec)
+	doc, diags := lowerSpec(t, comboDiscriminatedSpec(true))
 	requireNoErrorDiags(t, diags)
 
 	u, ok := typeByName(doc, "Combo").(*ir.Union)
