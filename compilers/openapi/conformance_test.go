@@ -28,6 +28,15 @@ const conformanceDir = "../../testdata/conformance/openapi"
 // through the full compiler and asserts lossless capture: a focused
 // capability-specific assertion plus a byte-exact golden IR snapshot. Regenerate
 // the goldens with `go test ./compilers/openapi -run TestConformance -update`.
+//
+// The corpus below is knowingly incomplete (GitHub #126): 33 IR fields the
+// compiler assigns are never non-zero anywhere in it, among them
+// Model.DiscriminatorValue and Discriminator.Property, so allOf inheritance
+// under a discriminator has no corpus witness at all. Filling those in one case
+// at a time is deliberately not the plan — a corpus that shares the compiler's
+// blind spots is the thing to fix, so what #126 asks for is the reflective walk
+// that produced the list, run as a test that fails when a field the compiler
+// assigns has no witness here.
 func TestConformance(t *testing.T) {
 	t.Parallel()
 	cases := []struct {

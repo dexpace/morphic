@@ -98,6 +98,21 @@ func (l *lowerer) diagUnattachableRequired(m *ir.Model, e requiredEntry) {
 }
 
 // fillAllOf classifies and lowers the allOf branches into m.
+//
+// An inline branch is merged in place rather than lowered through schemaRef, so
+// all it contributes is its properties — plus its required list, which
+// applyCompositionRequired collects separately. Its own docs, deprecation,
+// extensions, xml, examples, constraints, validation-only keywords and openness
+// are dropped, and a branch declaring no properties at all (`allOf: [{type:
+// string, maxLength: 3}]`) contributes nothing whatever. Nothing diagnoses any
+// of it.
+//
+// That is deliberately left alone here (GitHub #123). A merged branch has no
+// node of its own to carry annotations, so keeping them means either adding one
+// — changing the composition shape — or merging them upward and inventing a
+// precedence for branches that disagree; and a scalar branch constrains the
+// composed value, which ir.Model has no Constraints field to hold. Both are IR
+// questions, not lowering ones.
 func (l *lowerer) fillAllOf(m *ir.Model, s *oas3.Schema, pointer string) {
 	branches := s.GetAllOf()
 	baseIdx := l.selectAllOfBase(branches)

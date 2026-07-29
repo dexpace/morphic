@@ -978,6 +978,14 @@ func (l *lowerer) patternProps(s *oas3.Schema, pointer, hint string) []ir.Patter
 // (§4.7). It takes the map rather than a node so it serves both homes a
 // declaration's keywords can have: the type node the declaration owns, and the
 // declaring property when it owns none.
+//
+// This set is §4.7's, and five further 2020-12 keywords are knowingly outside
+// it (GitHub #125), each dropped with no diagnostic: dependentRequired, which
+// is the same kind of thing as the dependentSchemas kept below;
+// contentMediaType, contentEncoding and contentSchema, which describe an
+// encoded value rather than validate one; and $dynamicRef, which lowers to any.
+// Taking any of them would edit §4.7's normative list, so #125 argues each on
+// its own terms instead of settling them here.
 func (l *lowerer) fillValidationOnly(ext *ir.Preserved, s *oas3.Schema, pointer string) {
 	if s.GetNot() != nil {
 		l.preserveKeyword(ext, "openapi:not", nodeToRaw(rawPropertyNode(s, "not")),
