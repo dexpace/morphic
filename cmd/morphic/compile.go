@@ -143,16 +143,22 @@ func severityRank(s ir.Severity) int {
 }
 
 // writeCompiled emits doc's pretty IR JSON to outPath, or to stdout when outPath
-// is empty.
+// is empty. For a file destination, doc is marshalled in full before outPath is
+// opened, so a failed marshal never truncates a file already there — see
+// marshalDocument.
 func writeCompiled(outPath string, stdout io.Writer, doc *ir.Document) error {
 	if outPath == "" {
 		return writeDocument(stdout, doc)
+	}
+	raw, err := marshalDocument(doc)
+	if err != nil {
+		return err
 	}
 	f, err := openOutput(outPath)
 	if err != nil {
 		return fmt.Errorf("create output %q: %w", outPath, err)
 	}
-	if err := writeDocument(f, doc); err != nil {
+	if err := writeRaw(f, raw); err != nil {
 		_ = f.Close()
 		return err
 	}
@@ -162,14 +168,30 @@ func writeCompiled(outPath string, stdout io.Writer, doc *ir.Document) error {
 	return nil
 }
 
+// marshalDocument renders doc to indented JSON with a trailing newline (the
+// same bytes as irtest.WriteGolden). It is factored out of writeDocument so
+// writeCompiled can marshal a file destination fully in memory before it ever
+// opens — and so truncates — outPath.
+func marshalDocument(doc *ir.Document) ([]byte, error) {
+	raw, err := json.MarshalIndent(doc, "", "  ")
+	if err != nil {
+		return nil, fmt.Errorf("marshal ir document: %w", err)
+	}
+	return append(raw, '\n'), nil
+}
+
 // writeDocument marshals doc to indented JSON with a trailing newline (the same
 // bytes as irtest.WriteGolden) and writes it to w.
 func writeDocument(w io.Writer, doc *ir.Document) error {
-	raw, err := json.MarshalIndent(doc, "", "  ")
+	raw, err := marshalDocument(doc)
 	if err != nil {
-		return fmt.Errorf("marshal ir document: %w", err)
+		return err
 	}
-	raw = append(raw, '\n')
+	return writeRaw(w, raw)
+}
+
+// writeRaw writes raw to w, wrapping any error with context.
+func writeRaw(w io.Writer, raw []byte) error {
 	if _, err := w.Write(raw); err != nil {
 		return fmt.Errorf("write ir document: %w", err)
 	}
