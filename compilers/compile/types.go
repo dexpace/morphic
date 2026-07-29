@@ -2,6 +2,7 @@ package compile
 
 import (
 	"fmt"
+	"reflect"
 
 	"github.com/dexpace/morphic/ir"
 )
@@ -26,7 +27,37 @@ type Types struct {
 	reg       ir.TypeRegistry
 	byPointer map[string]ir.TypeID
 	src       int
+	refused   []string
 }
+
+// isNilTypeDef reports whether td is a nil TypeDef — an untyped nil interface or
+// a typed nil pointer. A typed nil satisfies a type switch case, so a caller
+// cannot screen one by kind.
+func isNilTypeDef(td ir.TypeDef) bool {
+	if td == nil {
+		return true
+	}
+	rv := reflect.ValueOf(td)
+	return rv.Kind() == reflect.Pointer && rv.IsNil()
+}
+
+// refuse records why an entry was rejected. The registry declines to hold it
+// rather than returning an error, because the caller is mid-walk with no useful
+// recovery — but declining silently would make this type the one place able to
+// manufacture the malformed states irverify and pass.Validate exist to report.
+// Violations surfaces them.
+func (t *Types) refuse(format string, args ...any) {
+	t.refused = append(t.refused, fmt.Sprintf(format, args...))
+}
+
+// Violations returns the invariant breaches the registry refused to record, in
+// the order they were attempted.
+//
+// A non-empty result is a compiler bug, not a spec problem: every entry names an
+// empty ID, an empty coordinate, or a nil type definition, none of which any
+// source can produce. The owning compiler surfaces them as internal-invariant
+// diagnostics rather than dropping them.
+func (t *Types) Violations() []string { return t.refused }
 
 // NewTypes returns an empty registry whose interned primitives are stamped with
 // source index src.
@@ -51,8 +82,21 @@ func (t *Types) Intern(pointer string, id ir.TypeID, build func() ir.TypeDef) ir
 	if existing, ok := t.byPointer[pointer]; ok {
 		return existing
 	}
+	if pointer == "" || id == "" || build == nil {
+		t.refuse("intern rejected: pointer=%q id=%q build==nil=%v", pointer, id, build == nil)
+		return id
+	}
+
 	t.byPointer[pointer] = id
-	t.reg[id] = build() // build may recurse; self-references hit byPointer
+	td := build() // may recurse; a self-reference hits byPointer above
+	if isNilTypeDef(td) {
+		// Leaving the coordinate mapped would be the one state NodeAt's contract
+		// rules out: a pointer that resolves to an ID holding no node.
+		delete(t.byPointer, pointer)
+		t.refuse("intern rejected: build returned a nil type definition for id=%q at %q", id, pointer)
+		return id
+	}
+	t.reg[id] = td
 	return id
 }
 
@@ -70,7 +114,17 @@ func (t *Types) Intern(pointer string, id ir.TypeID, build func() ir.TypeDef) ir
 // recursion. Register overwrites a colliding ID rather than deduplicating,
 // because a synthetic ID that collides is a bug in the minting scheme, not a
 // revisit.
-func (t *Types) Register(id ir.TypeID, td ir.TypeDef) { t.reg[id] = td }
+func (t *Types) Register(id ir.TypeID, td ir.TypeDef) {
+	if id == "" {
+		t.refuse("register rejected: empty type id")
+		return
+	}
+	if isNilTypeDef(td) {
+		t.refuse("register rejected: nil type definition for id=%q", id)
+		return
+	}
+	t.reg[id] = td
+}
 
 // Lookup returns the ID interned at pointer, if any.
 func (t *Types) Lookup(pointer string) (ir.TypeID, bool) {

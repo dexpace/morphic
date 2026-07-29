@@ -11,17 +11,18 @@ import (
 	"github.com/dexpace/morphic/ir"
 )
 
-// str and flag build the pointer fields oas3.Schema uses for optional scalars.
-func str(v string) *string { return &v }
-func flag(v bool) *bool    { return &v }
+// strPtr and boolPtr build the pointer fields oas3.Schema uses for optional
+// scalars. Named to avoid shadowing the flag and strings package identifiers.
+func strPtr(v string) *string { return &v }
+func boolPtr(v bool) *bool    { return &v }
 
 // TestAnnotations_SiteOverridesReferent pins the §14 precedence rule at the one
 // place it is now decided. An annotation written beside a $ref describes the
 // position; the target's is the fallback, not the winner.
 func TestAnnotations_SiteOverridesReferent(t *testing.T) {
 	t.Parallel()
-	ref := &oas3.Schema{Description: str("SiteDesc")}
-	tgt := &oas3.Schema{Description: str("TargetDesc"), Deprecated: flag(true)}
+	ref := &oas3.Schema{Description: strPtr("SiteDesc")}
+	tgt := &oas3.Schema{Description: strPtr("TargetDesc"), Deprecated: boolPtr(true)}
 
 	got, diags := annotations(site{Kind: siteReference, Node: ref, Referent: tgt}, "/p", 0)
 
@@ -36,8 +37,8 @@ func TestAnnotations_SiteOverridesReferent(t *testing.T) {
 // still pass.
 func TestAnnotations_DeclarationIgnoresAnyReferent(t *testing.T) {
 	t.Parallel()
-	node := &oas3.Schema{Description: str("OwnDesc")}
-	stray := &oas3.Schema{Title: str("StraySummary"), Deprecated: flag(true)}
+	node := &oas3.Schema{Description: strPtr("OwnDesc")}
+	stray := &oas3.Schema{Title: strPtr("StraySummary"), Deprecated: boolPtr(true)}
 
 	got, _ := annotations(site{Kind: siteDeclaration, Node: node, Referent: stray}, "/p", 0)
 
@@ -49,8 +50,8 @@ func TestAnnotations_DeclarationIgnoresAnyReferent(t *testing.T) {
 func TestAnnotations_ReadsEverySiteLocalAspect(t *testing.T) {
 	t.Parallel()
 	node := &oas3.Schema{
-		Description: str("D"),
-		XML:         &oas3.XML{Name: str("Q")},
+		Description: strPtr("D"),
+		XML:         &oas3.XML{Name: strPtr("Q")},
 		Example:     yamlNode(t, "hello"),
 	}
 	got, diags := annotations(site{Kind: siteDeclaration, Node: node}, "/components/schemas/S", 0)

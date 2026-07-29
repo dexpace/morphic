@@ -163,3 +163,48 @@ func TestDiags_ZeroValueIsUsable(t *testing.T) {
 	assert.Zero(t, d.Len())
 	assert.Empty(t, d.List())
 }
+
+// TestTypes_RefusesEntriesTheRegistryCannotHold covers the boundary this type
+// exists to hold. It owns the registry's invariants, so it is also the one place
+// able to manufacture the malformed states irverify and pass.Validate report —
+// an empty ID or a nil type definition. Neither is producible from any source, so
+// both are compiler bugs, and refusing them silently would hide the bug rather
+// than the symptom.
+func TestTypes_RefusesEntriesTheRegistryCannotHold(t *testing.T) {
+	t.Parallel()
+	cases := map[string]func(*compile.Types){
+		"empty register id": func(x *compile.Types) { x.Register("", &ir.Any{}) },
+		"nil node":          func(x *compile.Types) { x.Register("t/x", nil) },
+		"typed nil node":    func(x *compile.Types) { x.Register("t/x", (*ir.Model)(nil)) },
+		"empty intern id":   func(x *compile.Types) { x.Intern("/p", "", func() ir.TypeDef { return &ir.Any{} }) },
+		"empty coordinate":  func(x *compile.Types) { x.Intern("", "t/x", func() ir.TypeDef { return &ir.Any{} }) },
+		"nil build":         func(x *compile.Types) { x.Intern("/p", "t/x", nil) },
+		"build returns nil": func(x *compile.Types) { x.Intern("/p", "t/x", func() ir.TypeDef { return nil }) },
+		"build returns typed nil": func(x *compile.Types) {
+			x.Intern("/p", "t/x", func() ir.TypeDef { return (*ir.Union)(nil) })
+		},
+	}
+	for name, attempt := range cases {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			types := compile.NewTypes(0)
+			attempt(types)
+
+			assert.Zero(t, types.Len(), "nothing malformed reaches the registry")
+			assert.Len(t, types.Violations(), 1, "and the refusal is recorded, not swallowed")
+			_, coordinated := types.Lookup("/p")
+			assert.False(t, coordinated,
+				"a refused intern leaves no coordinate resolving to a node that is not there")
+		})
+	}
+}
+
+func TestTypes_ViolationsIsEmptyForLegitimateEntries(t *testing.T) {
+	t.Parallel()
+	types := compile.NewTypes(0)
+	types.Intern("/p", "t/x", func() ir.TypeDef { return &ir.Model{TypeCommon: ir.TypeCommon{ID: "t/x"}} })
+	types.Register("t/composed", &ir.Any{})
+
+	assert.Equal(t, 2, types.Len())
+	assert.Empty(t, types.Violations())
+}
