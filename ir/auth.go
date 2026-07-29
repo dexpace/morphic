@@ -68,8 +68,8 @@ type AuthScheme struct {
 	OAuth2MetadataURL string `json:"oauth2MetadataURL,omitempty"`
 	// OpenIDConnectURL is the OpenID Connect discovery URL.
 	OpenIDConnectURL string `json:"openIDConnectURL,omitempty"`
-	// Preserved holds source constructs the IR does not model, kept verbatim.
-	Preserved Preserved `json:"preserved,omitempty"`
+	// Unmodeled holds source constructs the IR does not model, kept verbatim.
+	Unmodeled Unmodeled `json:"unmodeled,omitempty"`
 	// Provenance records where the scheme came from.
 	Provenance Provenance `json:"provenance"`
 }
@@ -88,8 +88,8 @@ type OAuthFlow struct {
 	RefreshURL string `json:"refreshURL,omitempty"`
 	// Scopes maps scope names to their descriptions.
 	Scopes map[string]string `json:"scopes,omitempty"`
-	// Preserved holds source constructs the IR does not model, kept verbatim.
-	Preserved Preserved `json:"preserved,omitempty"`
+	// Unmodeled holds source constructs the IR does not model, kept verbatim.
+	Unmodeled Unmodeled `json:"unmodeled,omitempty"`
 }
 
 // AuthRequirement is one authentication option: all its SchemeUses must be

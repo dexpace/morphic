@@ -182,7 +182,7 @@ func TestParams_AllLocationsAndStyles(t *testing.T) {
 	assert.True(t, logical["id"].Required, "path param always required")
 	require.NotNil(t, logical["q"].Deprecation)
 	assert.NotEmpty(t, logical["q"].Examples)
-	assert.NotEmpty(t, logical["filter"].Preserved)
+	assert.NotEmpty(t, logical["filter"].Unmodeled)
 	require.NotNil(t, logical["q"].Constraints)
 
 	assert.True(t, hasDiagAt(diags, codeDegradedConstruct, ir.SeverityWarning), "malformed param default warns")
@@ -299,7 +299,7 @@ func TestParams_ContentStyleComponentRefInternsOnce(t *testing.T) {
 // TestParams_SchemaAnnotationsReachTheParameter asserts a parameter schema's
 // annotations land on the ir.Parameter that carries the position. Only its
 // constraints used to survive; the rest were dropped with no diagnostic even
-// though Parameter has Docs, Examples and Preserved (GitHub #116).
+// though Parameter has Docs, Examples and Unmodeled (GitHub #116).
 func TestParams_SchemaAnnotationsReachTheParameter(t *testing.T) {
 	t.Parallel()
 	_, svc, diags := lowerServiceSpec(t, pathsSpec(
@@ -312,8 +312,8 @@ func TestParams_SchemaAnnotationsReachTheParameter(t *testing.T) {
 	assertProbeDocsKept(t, p.Docs)
 	assert.NotNil(t, p.Deprecation)
 	assertProbeExample(t, p.Examples)
-	assert.Contains(t, p.Preserved, "openapi:x-vendor")
-	assert.Contains(t, p.Preserved, "openapi:not")
+	assert.Contains(t, p.Unmodeled, "openapi:x-vendor")
+	assert.Contains(t, p.Unmodeled, "openapi:not")
 	require.NotNil(t, p.Constraints)
 	require.NotNil(t, p.Constraints.MaxLength)
 	assert.Equal(t, int64(3), *p.Constraints.MaxLength)
@@ -341,8 +341,8 @@ func TestParams_SchemaAnnotationsSurviveARefNamingTheSchema(t *testing.T) {
 		"the parameter's own type is unchanged by the outside reference")
 	assertProbeDocsKept(t, p.Docs)
 	assert.NotNil(t, p.Deprecation)
-	assert.Contains(t, p.Preserved, "openapi:x-vendor")
-	assert.Contains(t, p.Preserved, "openapi:not")
+	assert.Contains(t, p.Unmodeled, "openapi:x-vendor")
+	assert.Contains(t, p.Unmodeled, "openapi:not")
 
 	sc, ok := doc.Types["t/anon/paths/~1x/get/parameters/0/schema"].(*ir.Scalar)
 	require.True(t, ok, "and the referenced pointer still names the schema written there")
@@ -363,7 +363,7 @@ func TestParams_OwnAnnotationsWinOverTheSchema(t *testing.T) {
 
 	p := firstOp(t, svc).Params[0]
 	assert.Equal(t, "PARAM", p.Docs.Description, "the parameter's own description wins")
-	raw, ok := p.Preserved["openapi:x-scope"]
+	raw, ok := p.Unmodeled["openapi:x-scope"]
 	require.True(t, ok)
 	assert.JSONEq(t, `"param"`, string(raw.Value), "and its own extension overlays the schema's")
 }

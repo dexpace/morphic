@@ -134,10 +134,10 @@ func checkReferentialIntegrity(doc *ir.Document) []Violation {
 // different violation set, not merely a different order — on each run, which
 // Verify's final sort cannot repair (invariant 7).
 //
-// Byte sequences are skipped, matching pass.refWalk.walkSequence. Preserved and
+// Byte sequences are skipped, matching pass.refWalk.walkSequence. Unmodeled and
 // RawConfig payloads are json.RawMessage and are the largest values a document
 // holds, while a uint8 element is none of the things a visitor here looks for —
-// no typed ID, no Preserved map, no Provenance, no index carrier. Descending one
+// no typed ID, no Unmodeled map, no Provenance, no index carrier. Descending one
 // costs a reflect.Value and a formatted path per byte for nothing: Verify over a
 // document holding one 256 KB payload measured 88ms without this skip against
 // 22µs with it, for the same result. Since the result is the same either way, a

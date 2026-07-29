@@ -31,7 +31,7 @@ type annotationSet struct {
 	Deprecated bool
 	XML        *ir.XMLHints
 	Examples   []ir.Example
-	Preserved  ir.Preserved
+	Unmodeled  ir.Unmodeled
 }
 
 // annotations reads every site-local annotation at st.
@@ -66,7 +66,7 @@ func annotations(st site, pointer string, srcIndex int) (annotationSet, []ir.Dia
 	diags = append(diags, extDiags...)
 	diags = append(diags, vDiags...)
 
-	out.Preserved = mergePreserved(ext, vOnly)
+	out.Unmodeled = mergePreserved(ext, vOnly)
 	return out, diags
 }
 
@@ -104,8 +104,8 @@ func appendExampleAt(out []ir.Example, diags []ir.Diagnostic, node *yaml.Node,
 // not model, keeping each verbatim and announcing it.
 //
 // Site-only: these constrain the value at the position that wrote them.
-func validationOnlyAt(s *oas3.Schema, pointer string, srcIndex int) (ir.Preserved, []ir.Diagnostic) {
-	var p ir.Preserved
+func validationOnlyAt(s *oas3.Schema, pointer string, srcIndex int) (ir.Unmodeled, []ir.Diagnostic) {
+	var p ir.Unmodeled
 	var diags []ir.Diagnostic
 	keep := func(key string, raw ir.RawValue, entryPtr, label string) {
 		diags = append(diags, preserveKeywordInto(&p, key, raw, pointer, entryPtr, label, srcIndex)...)
@@ -141,16 +141,16 @@ func validationOnlyAt(s *oas3.Schema, pointer string, srcIndex int) (ir.Preserve
 // states, and an empty payload is the worse of the two. It preserves no
 // construct, and json.Marshal rejects it for the whole document while naming
 // json.RawMessage rather than the entry that carried it.
-func preserveInto(p *ir.Preserved, key string, raw ir.RawValue,
-	reason ir.PreserveReason, pointer string, srcIndex int,
+func preserveInto(p *ir.Unmodeled, key string, raw ir.RawValue,
+	reason ir.UnmodeledReason, pointer string, srcIndex int,
 ) {
 	if len(raw) == 0 {
 		return
 	}
 	if *p == nil {
-		*p = ir.Preserved{}
+		*p = ir.Unmodeled{}
 	}
-	(*p)[key] = ir.PreservedEntry{
+	(*p)[key] = ir.UnmodeledEntry{
 		Reason:     reason,
 		Value:      raw,
 		Provenance: ir.Provenance{Source: srcIndex, Pointer: pointer},
@@ -160,7 +160,7 @@ func preserveInto(p *ir.Preserved, key string, raw ir.RawValue,
 // preserveKeywordInto records a validation-only keyword and returns the one
 // diagnostic announcing it. An absent or unconvertible payload records nothing
 // and announces nothing.
-func preserveKeywordInto(p *ir.Preserved, key string, raw ir.RawValue,
+func preserveKeywordInto(p *ir.Unmodeled, key string, raw ir.RawValue,
 	declPtr, entryPtr, label string, srcIndex int,
 ) []ir.Diagnostic {
 	if len(raw) == 0 {
@@ -169,5 +169,5 @@ func preserveKeywordInto(p *ir.Preserved, key string, raw ir.RawValue,
 	preserveInto(p, key, raw, ir.ReasonValidationOnly, entryPtr, srcIndex)
 	return []ir.Diagnostic{diagf(ir.SeverityInfo, codeValidationOnlyKeyword,
 		ir.Provenance{Source: srcIndex, Pointer: declPtr},
-		"validation-only keyword %q kept verbatim under Preserved", label)}
+		"validation-only keyword %q kept verbatim under Unmodeled", label)}
 }

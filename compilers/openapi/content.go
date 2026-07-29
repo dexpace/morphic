@@ -56,7 +56,7 @@ func (l *lowerer) lowerContent(mt string, media *soa.MediaType, pointer, hint st
 	}
 	l.fillSequential(&c, media, mediaPtr, hint)
 	if ext := l.extensions(media.GetExtensions(), mediaPtr); len(ext) > 0 {
-		c.Preserved = mergePreserved(c.Preserved, ext)
+		c.Unmodeled = mergePreserved(c.Unmodeled, ext)
 	}
 	return c
 }
@@ -96,12 +96,12 @@ func (l *lowerer) fillSequential(c *ir.Content, media *soa.MediaType, mediaPtr, 
 // entries carry ReasonNoIRHome rather than a degraded lowering.
 func (l *lowerer) positionalEncoding(c *ir.Content, media *soa.MediaType, mediaPtr string) {
 	root := media.GetRootNode()
-	l.preserve(&c.Preserved, "openapi:prefixEncoding", nodeToRaw(rawChildNode(root, "prefixEncoding")),
+	l.preserve(&c.Unmodeled, "openapi:prefixEncoding", nodeToRaw(rawChildNode(root, "prefixEncoding")),
 		ir.ReasonNoIRHome, mediaPtr+ptr("prefixEncoding"))
-	l.preserve(&c.Preserved, "openapi:itemEncoding", nodeToRaw(rawChildNode(root, "itemEncoding")),
+	l.preserve(&c.Unmodeled, "openapi:itemEncoding", nodeToRaw(rawChildNode(root, "itemEncoding")),
 		ir.ReasonNoIRHome, mediaPtr+ptr("itemEncoding"))
 	l.diag(ir.SeverityInfo, codeDegradedConstruct, mediaPtr,
-		"prefixEncoding is positional and has no per-item IR home; it and any itemEncoding are kept under Preserved")
+		"prefixEncoding is positional and has no per-item IR home; it and any itemEncoding are kept under Unmodeled")
 }
 
 // partEncodings builds the multipart/form per-part wire config, keyed by each
@@ -222,7 +222,7 @@ func (l *lowerer) applyHeaderAnnotations(p *ir.Property, h *soa.Header, hdecl st
 	if ex := l.exampleList(h.GetExample(), h.GetExamples(), hdecl); len(ex) > 0 {
 		p.Examples = ex
 	}
-	p.Preserved = mergePreserved(p.Preserved, l.extensions(h.GetExtensions(), hdecl))
+	p.Unmodeled = mergePreserved(p.Unmodeled, l.extensions(h.GetExtensions(), hdecl))
 }
 
 // mediaExamples lowers a media type's single and plural example values.
@@ -294,7 +294,7 @@ func (l *lowerer) appendValuelessExample(out []ir.Example, proto ir.Example, poi
 // lowerRequestBody lowers an operation's request body onto op.Request and the
 // binding's RequestContentTypes. The IR expresses body optionality via presence,
 // so a non-required body stays present with its optionality preserved under
-// Preserved plus one info diagnostic (ir-design §7.2 clarification). opDeclPtr
+// Unmodeled plus one info diagnostic (ir-design §7.2 clarification). opDeclPtr
 // is the operation's own declaration pointer, so a $ref'd body interns its
 // content once at its component pointer rather than once per mount site
 // (issue #107) — and under the component's name, since the operationId hint
@@ -309,10 +309,10 @@ func (l *lowerer) lowerRequestBody(op *ir.Operation, hb *ir.HTTPBinding, src *so
 		return
 	}
 	if !rb.GetRequired() {
-		l.preserve(&payload.Preserved, "openapi:required", ir.RawValue("false"),
+		l.preserve(&payload.Unmodeled, "openapi:required", ir.RawValue("false"),
 			ir.ReasonNoIRHome, bodyPtr+ptr("required"))
 		l.diag(ir.SeverityInfo, codeDegradedConstruct, bodyPtr,
-			"request body is not required; optionality kept under Preserved")
+			"request body is not required; optionality kept under Unmodeled")
 	}
 	op.Request = payload
 	hb.RequestContentTypes = contentTypeKeys(rb.GetContent())

@@ -17,7 +17,7 @@ import (
 	"github.com/dexpace/morphic/ir"
 )
 
-// TestPreserved_JSONRoundTrip pins that Preserved round-trips through
+// TestPreserved_JSONRoundTrip pins that Unmodeled round-trips through
 // assertRoundTrip's byte-level cmp.Diff. RawValue is json.RawMessage, which
 // json.Marshal compacts and HTML-escapes on the way out, so this only works
 // because both fixture values below are already written compact and free of
@@ -25,7 +25,7 @@ import (
 // byte-different value and fail the diff.
 func TestPreserved_JSONRoundTrip(t *testing.T) {
 	t.Parallel()
-	assertRoundTrip(t, ir.Preserved{
+	assertRoundTrip(t, ir.Unmodeled{
 		"openapi:x-rate-limit": {
 			Reason:     ir.ReasonVendorExtension,
 			Value:      ir.RawValue(`{"limit":100}`),
@@ -44,7 +44,7 @@ func TestPreserved_JSONRoundTrip(t *testing.T) {
 // logic (`Reason == ReasonValidationOnly`), so they are contract rather than
 // an internal detail. TestPreserveReason_TiesToConstBlock keeps this list from
 // drifting behind the const block it mirrors.
-var preserveReasonWire = map[ir.PreserveReason]string{
+var preserveReasonWire = map[ir.UnmodeledReason]string{
 	ir.ReasonVendorExtension:  "vendor_extension",
 	ir.ReasonValidationOnly:   "validation_only",
 	ir.ReasonDegradedLowering: "degraded_lowering",
@@ -67,7 +67,7 @@ func TestPreserveReason_WireStrings(t *testing.T) {
 // internal/archtest's import rules both use — and enforces two directions: the
 // declared reasons and preserveReasonWire name the same set, and every declared
 // reason is Valid. Adding a constant without teaching Valid about it fails here
-// rather than surfacing later as a spurious ir/unknown-preserve-reason.
+// rather than surfacing later as a spurious ir/unknown-unmodeled-reason.
 //
 // The converse of the second direction is not enforced, and cannot be from here:
 // a case added to Valid for a value no constant declares leaves this green,
@@ -88,7 +88,7 @@ func TestPreserveReason_TiesToConstBlock(t *testing.T) {
 	require.ElementsMatch(t, want, declared)
 
 	for _, d := range declared {
-		assert.True(t, ir.PreserveReason(d).Valid(), "declared reason %q must be Valid", d)
+		assert.True(t, ir.UnmodeledReason(d).Valid(), "declared reason %q must be Valid", d)
 	}
 }
 
@@ -97,22 +97,22 @@ func TestPreserveReason_TiesToConstBlock(t *testing.T) {
 // behind when it forgets the field.
 func TestPreserveReason_UnknownIsInvalid(t *testing.T) {
 	t.Parallel()
-	assert.False(t, ir.PreserveReason("totally_invented").Valid())
-	assert.False(t, ir.PreserveReason("").Valid())
+	assert.False(t, ir.UnmodeledReason("totally_invented").Valid())
+	assert.False(t, ir.UnmodeledReason("").Valid())
 }
 
 // reasonTypeName is the only type spelling a reason declaration may use. Specs
 // are matched against it literally rather than bucketed under whatever identifier
-// appears, so a same-file alias (`type reason = PreserveReason`) cannot join the
+// appears, so a same-file alias (`type reason = UnmodeledReason`) cannot join the
 // taxonomy at every usage site under a key this test never inspects.
-const reasonTypeName = "PreserveReason"
+const reasonTypeName = "UnmodeledReason"
 
 // reasonHomeFile is the reason vocabulary's only home. Every declaration there is
 // held to the strict form because the file holds nothing else; in the package's
-// other files, only PreserveReason-typed declarations are.
+// other files, only UnmodeledReason-typed declarations are.
 const reasonHomeFile = "preserved.go"
 
-// parseDeclaredReasons returns the literal value of every PreserveReason-typed
+// parseDeclaredReasons returns the literal value of every UnmodeledReason-typed
 // constant the ir package declares. It parses every production source rather than
 // preserved.go alone, so a reason declared beside unrelated code is recorded
 // instead of missed.
@@ -136,11 +136,11 @@ func parseDeclaredReasons(t *testing.T) []string {
 			out = append(out, reasonValues(t, gd, filepath.Base(path))...)
 		}
 	}
-	require.NotEmpty(t, out, "no PreserveReason constants found; the parse went wrong")
+	require.NotEmpty(t, out, "no UnmodeledReason constants found; the parse went wrong")
 	return out
 }
 
-// reasonValues returns the unquoted value of each `Name PreserveReason =
+// reasonValues returns the unquoted value of each `Name UnmodeledReason =
 // "literal"` spec in gd, which was declared in the source file named file.
 //
 // Nothing is skipped in silence. A spec naming the reason type in any other form
@@ -148,7 +148,7 @@ func parseDeclaredReasons(t *testing.T) []string {
 // else: skipping would let a constant join the taxonomy at every usage site —
 // untyped, built by a conversion, typed through a same-file alias, or held in a
 // mutable var — without this test ever recording it, producing exactly the
-// spurious ir/unknown-preserve-reason the tie exists to prevent.
+// spurious ir/unknown-unmodeled-reason the tie exists to prevent.
 func reasonValues(t *testing.T, gd *ast.GenDecl, file string) []string {
 	t.Helper()
 	var out []string
@@ -166,7 +166,7 @@ func reasonValues(t *testing.T, gd *ast.GenDecl, file string) []string {
 		}
 		require.Equal(t, token.CONST, gd.Tok,
 			"%s in %s: a reason must be a constant; a var of this type is assignable to "+
-				"PreservedEntry.Reason but need not still hold what this test recorded",
+				"UnmodeledEntry.Reason but need not still hold what this test recorded",
 			vs.Names, file)
 
 		require.Len(t, vs.Values, 1, "%s in %s: expected exactly one literal value", vs.Names, file)
@@ -205,7 +205,7 @@ func irSourceFiles(t *testing.T) []string {
 
 func TestPreserved_DeterministicKeyOrder(t *testing.T) {
 	t.Parallel()
-	p := ir.Preserved{
+	p := ir.Unmodeled{
 		"graphql:@key":         {Reason: ir.ReasonVendorExtension, Value: ir.RawValue(`"id"`)},
 		"openapi:x-rate-limit": {Reason: ir.ReasonVendorExtension, Value: ir.RawValue(`1`)},
 		"erlang:opaque":        {Reason: ir.ReasonDegradedLowering, Value: ir.RawValue(`true`)},

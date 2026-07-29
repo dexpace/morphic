@@ -46,7 +46,7 @@ type registries map[reflect.Type]reflect.Value
 // that is a map keyed by a named string type is an ID-keyed registry, and its key
 // type names the reference class it resolves. Deriving them covers a registry
 // added to Document the moment it exists, where a hand-written list would drift.
-// Document.Preserved is the counterexample: keyed by plain string, it keys on a
+// Document.Unmodeled is the counterexample: keyed by plain string, it keys on a
 // source construct's name rather than an identity, and is no registry.
 func documentRegistries(doc *ir.Document) registries {
 	out := registries{}
@@ -219,7 +219,7 @@ func (w *refWalk) walkPointer(v reflect.Value, path string, depth int) {
 }
 
 // walkSequence descends into slice and array elements, skipping byte sequences:
-// Preserved and RawConfig payloads are json.RawMessage and are the largest thing
+// Unmodeled and RawConfig payloads are json.RawMessage and are the largest thing
 // in a document, while a byte element can hold no typed ID. The result is the
 // same without the skip, so it is guarded by a test that observes the descent
 // itself (TestWalkSequence_ByteSequenceIsNotDescendedInto) rather than the sites.

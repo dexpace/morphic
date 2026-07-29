@@ -28,7 +28,7 @@
       "anonymous": false,
       "docs": {},
       "sensitive": false,
-      "preserved": {
+      "unmodeled": {
         "openapi:x-rate-limit": {
           "reason": "vendor_extension",
           "value": 100,

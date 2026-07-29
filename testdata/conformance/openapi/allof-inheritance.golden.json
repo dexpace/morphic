@@ -78,7 +78,7 @@
       },
       "sensitive": false,
       "deprecation": {},
-      "preserved": {
+      "unmodeled": {
         "openapi:x-team": {
           "reason": "vendor_extension",
           "value": "pets",

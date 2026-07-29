@@ -8,12 +8,12 @@ import (
 )
 
 var (
-	preservedType = reflect.TypeOf(ir.Preserved(nil))
+	unmodeledType = reflect.TypeOf(ir.Unmodeled(nil))
 	rawConfigType = reflect.TypeOf(ir.RawConfig(nil))
 )
 
 // checkRawPayloads asserts the two maps that carry source JSON verbatim hold
-// something a document can be marshaled with, and that each Preserved entry is
+// something a document can be marshaled with, and that each Unmodeled entry is
 // one a consumer can route.
 //
 // Both maps are checked in one walk because their payload is the same type and
@@ -33,8 +33,8 @@ func checkRawPayloads(doc *ir.Document) []Violation {
 			return true
 		}
 		switch v.Type() {
-		case preservedType:
-			vs = appendEntries(vs, v, path, preservedEntry)
+		case unmodeledType:
+			vs = appendEntries(vs, v, path, unmodeledEntry)
 		case rawConfigType:
 			vs = appendEntries(vs, v, path, rawConfigEntry)
 		default:
@@ -57,47 +57,47 @@ func appendEntries(vs []Violation, m reflect.Value, path string,
 	return vs
 }
 
-// preservedEntry checks one entry of a Preserved map: a non-empty
-// origin-namespaced key, a marshalable payload, and a declared PreserveReason.
-// Consumers select entries by reason (see ir.PreservedEntry.Reason), so an entry
+// unmodeledEntry checks one entry of an Unmodeled map: a non-empty
+// origin-namespaced key, a marshalable payload, and a declared UnmodeledReason.
+// Consumers select entries by reason (see ir.UnmodeledEntry.Reason), so an entry
 // left at the zero reason is bytes nothing can route, and one keyed "" cannot be
 // looked up and is overwritten by the next empty-keyed entry. Both are compiler
 // bugs of the same class checkRegistryKeys reports as ir/empty-*-id.
 //
 // The three are checked independently so a doubly-broken entry names each of its
 // defects rather than stopping at the first.
-func preservedEntry(key string, entry reflect.Value, path string) []Violation {
+func unmodeledEntry(key string, entry reflect.Value, path string) []Violation {
 	at := path + "[" + key + "]"
 	var vs []Violation
 	if key == "" {
 		at = path + `[""]`
 		vs = append(vs, Violation{
-			Code:    "ir/empty-preserved-key",
-			Message: "preserved map has an empty key",
+			Code:    "ir/empty-unmodeled-key",
+			Message: "unmodeled map has an empty key",
 			Path:    at,
 		})
 	}
-	vs = appendRawValue(vs, entry.FieldByName("Value"), "preserved entry", at)
+	vs = appendRawValue(vs, entry.FieldByName("Value"), "unmodeled entry", at)
 
-	reason := ir.PreserveReason(entry.FieldByName("Reason").String())
+	reason := ir.UnmodeledReason(entry.FieldByName("Reason").String())
 	if reason == "" {
 		return append(vs, Violation{
-			Code:    "ir/empty-preserve-reason",
-			Message: "preserved entry leaves its reason at the zero value",
+			Code:    "ir/empty-unmodeled-reason",
+			Message: "unmodeled entry leaves its reason at the zero value",
 			Path:    at,
 		})
 	}
 	if !reason.Valid() {
 		vs = append(vs, Violation{
-			Code:    "ir/unknown-preserve-reason",
-			Message: "preserved entry carries undeclared reason " + string(reason),
+			Code:    "ir/unknown-unmodeled-reason",
+			Message: "unmodeled entry carries undeclared reason " + string(reason),
 			Path:    at,
 		})
 	}
 	return vs
 }
 
-// rawConfigEntry checks one entry of a RawConfig map. Unlike a Preserved entry
+// rawConfigEntry checks one entry of a RawConfig map. Unlike an Unmodeled entry
 // it carries no reason to check — the source declared it where the IR expects it
 // — so the payload is all there is to hold it to.
 func rawConfigEntry(key string, entry reflect.Value, path string) []Violation {

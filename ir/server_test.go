@@ -35,7 +35,7 @@ func TestServer_JSONContract(t *testing.T) {
 			"kafka": {"groupId": ir.RawValue(`"g1"`)},
 			"amqp":  {"exchange": ir.RawValue(`"e1"`)},
 		},
-		Preserved: populatedPreserved(),
+		Unmodeled: populatedPreserved(),
 	})
 }
 
@@ -72,7 +72,7 @@ func TestServer_BindingsDeterministic(t *testing.T) {
 
 // TestServerVariable_JSONContract pins ServerVariable's contract that Docs
 // carries no omitempty, since every variable has a (possibly empty)
-// documentation object, while Name/Default/Enum/Preserved stay optional, and
+// documentation object, while Name/Default/Enum/Unmodeled stay optional, and
 // that a fully populated ServerVariable round-trips.
 func TestServerVariable_JSONContract(t *testing.T) {
 	t.Parallel()
@@ -81,6 +81,6 @@ func TestServerVariable_JSONContract(t *testing.T) {
 		Default:   "us-east-1",
 		Enum:      []string{"us-east-1", "eu-west-1", "ap-south-1"},
 		Docs:      populatedDocs(),
-		Preserved: populatedPreserved(),
+		Unmodeled: populatedPreserved(),
 	})
 }

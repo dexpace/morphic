@@ -46,8 +46,8 @@ x-bad: {1: intkey}
 `
 	doc, diags := parseFull(t, spec)
 	assert.True(t, hasDiagAt(diags, codeDegradedConstruct, ir.SeverityWarning),
-		"an entirely unserializable top-level extension still warns even though Preserved ends up empty")
-	assert.Empty(t, doc.Preserved, "the unserializable extension is dropped, not stored")
+		"an entirely unserializable top-level extension still warns even though Unmodeled ends up empty")
+	assert.Empty(t, doc.Unmodeled, "the unserializable extension is dropped, not stored")
 }
 
 func TestMeta_FullDocumentMetadata(t *testing.T) {
@@ -60,7 +60,7 @@ func TestMeta_FullDocumentMetadata(t *testing.T) {
 	require.NotNil(t, doc.License)
 	assert.Equal(t, "Apache-2.0", doc.License.Identifier)
 	assert.NotEmpty(t, doc.Docs.ExternalDocs, "root externalDocs folded into docs")
-	assert.NotEmpty(t, doc.Preserved, "top-level x-* extension")
+	assert.NotEmpty(t, doc.Unmodeled, "top-level x-* extension")
 	require.Len(t, doc.Servers, 1)
 	assert.Equal(t, "primary", doc.Servers[0].Name.Source, "3.2 server name")
 	require.Len(t, doc.Servers[0].Variables, 1)

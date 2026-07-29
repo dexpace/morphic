@@ -59,7 +59,7 @@ func TestHTTPBinding_JSONContract(t *testing.T) {
 			Callbacks: []ir.Callback{
 				{Expression: "$request.body#/callbackUrl", Operations: []ir.OpID{"op/callback"}},
 			},
-			Preserved: populatedPreserved(),
+			Unmodeled: populatedPreserved(),
 		})
 }
 
@@ -144,7 +144,7 @@ func TestRPCBinding_JSONContract(t *testing.T) {
 		InputType:        &ir.TypeRef{Target: "t/request", Nullable: false},
 		ParamStructure:   "by_position",
 		IdempotencyLevel: "idempotent",
-		Preserved:        populatedPreserved(),
+		Unmodeled:        populatedPreserved(),
 	})
 }
 
@@ -168,7 +168,7 @@ func TestMessageBinding_JSONContract(t *testing.T) {
 			"kafka": {"groupId": ir.RawValue(`"g1"`)},
 			"amqp":  {"exchange": ir.RawValue(`"orders"`)},
 		},
-		Preserved: populatedPreserved(),
+		Unmodeled: populatedPreserved(),
 	})
 }
 
@@ -215,7 +215,7 @@ func TestGraphQLBinding_JSONContract(t *testing.T) {
 	assertJSONContract(t, ir.GraphQLBinding{}, `{}`, ir.GraphQLBinding{
 		Kind:      "subscription",
 		FieldPath: []string{"namespace", "onUserSignup"},
-		Preserved: populatedPreserved(),
+		Unmodeled: populatedPreserved(),
 	})
 }
 
@@ -229,6 +229,6 @@ func TestOTPBinding_JSONContract(t *testing.T) {
 		Kind:       "call",
 		Process:    "c/otp/worker",
 		RequestTag: &ir.Value{Kind: ir.ValueSymbol, Str: "get"},
-		Preserved:  populatedPreserved(),
+		Unmodeled:  populatedPreserved(),
 	})
 }

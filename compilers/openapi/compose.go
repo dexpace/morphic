@@ -359,7 +359,7 @@ func (l *lowerer) lowerCoDeclaredUnion(s *oas3.Schema, pointer, hint string) ir.
 }
 
 // diagUnresolvedBranches reports each union branch whose $ref names nothing this
-// compilation resolves. The branch text survives verbatim under Preserved, so
+// compilation resolves. The branch text survives verbatim under Unmodeled, so
 // nothing is dropped — but a reference that resolves nowhere is a defect of the
 // document itself, reported at the same severity as everywhere else, and the
 // info diagnostic beside it explains only the lowering.

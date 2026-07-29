@@ -88,7 +88,7 @@ func TestVerify_Corpus(t *testing.T) {
 	}
 }
 
-// uncorpusedPreserved exercises the four Preserved writes no committed fixture
+// uncorpusedPreserved exercises the four Unmodeled writes no committed fixture
 // reaches: path-item servers, an error response's headers, an error response's
 // second media type, and an `items` tail after `prefixItems`.
 const uncorpusedPreserved = `openapi: 3.1.0
@@ -117,11 +117,11 @@ paths:
             text/plain: {schema: {type: string}}
 `
 
-// preservedKeys returns every Preserved key the document carries, at the three
+// preservedKeys returns every Unmodeled key the document carries, at the three
 // site kinds uncorpusedPreserved writes to.
 func preservedKeys(doc *ir.Document) []string {
 	var keys []string
-	collect := func(p ir.Preserved) {
+	collect := func(p ir.Unmodeled) {
 		for k := range p {
 			keys = append(keys, k)
 		}
@@ -129,15 +129,15 @@ func preservedKeys(doc *ir.Document) []string {
 	for _, svc := range doc.Services {
 		for _, g := range svc.Groups {
 			for _, op := range g.Operations {
-				collect(op.Preserved)
+				collect(op.Unmodeled)
 				for _, ec := range op.Errors {
-					collect(ec.Preserved)
+					collect(ec.Unmodeled)
 				}
 			}
 		}
 	}
 	for _, td := range doc.Types {
-		collect(td.Common().Preserved)
+		collect(td.Common().Unmodeled)
 	}
 	slices.Sort(keys)
 	return keys

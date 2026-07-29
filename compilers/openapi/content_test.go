@@ -173,8 +173,8 @@ func TestContent_NonRequiredRequestBody(t *testing.T) {
 	requireNoErrorDiags(t, diags)
 	op := firstOp(t, svc)
 	require.NotNil(t, op.Request, "a non-required body still lowers to a present Payload")
-	raw, ok := op.Request.Preserved["openapi:required"]
-	require.True(t, ok, "body optionality kept under Preserved")
+	raw, ok := op.Request.Unmodeled["openapi:required"]
+	require.True(t, ok, "body optionality kept under Unmodeled")
 	assert.Equal(t, "false", string(raw.Value))
 	assert.Equal(t, ir.ReasonNoIRHome, raw.Reason)
 	found := false
@@ -285,9 +285,9 @@ func TestContent_FullPipeline(t *testing.T) {
 	doc, diags := parseFull(t, contentSpec)
 	upload := findOp(t, doc, "upload")
 
-	// Non-required body preserved as present with optionality under Preserved.
+	// Non-required body preserved as present with optionality under Unmodeled.
 	require.NotNil(t, upload.Request)
-	_, hasReq := upload.Request.Preserved["openapi:required"]
+	_, hasReq := upload.Request.Unmodeled["openapi:required"]
 	assert.True(t, hasReq, "non-required optionality preserved")
 
 	// Multipart encoding: comma-split content types, header, style/explode, file flag.
@@ -312,7 +312,7 @@ func TestContent_FullPipeline(t *testing.T) {
 	assert.Len(t, resp.Payload.Contents, 2)
 	assert.GreaterOrEqual(t, len(resp.Payload.Contents[0].Examples), 2)
 	assert.NotEmpty(t, resp.Headers)
-	_, hasLinks := resp.Preserved["openapi:links"]
+	_, hasLinks := resp.Unmodeled["openapi:links"]
 	assert.True(t, hasLinks)
 
 	assert.True(t, hasDiag(diags, codeDegradedConstruct))
@@ -330,11 +330,11 @@ func TestContent_OctetAndErrorMulti(t *testing.T) {
 	require.NotEmpty(t, raw.Errors)
 	var multi ir.ErrorCase
 	for _, ec := range raw.Errors {
-		if len(ec.Preserved) > 0 {
+		if len(ec.Unmodeled) > 0 {
 			multi = ec
 		}
 	}
-	_, hasContent := multi.Preserved["openapi:content"]
+	_, hasContent := multi.Unmodeled["openapi:content"]
 	assert.True(t, hasContent, "multi-media error content preserved")
 }
 
@@ -546,7 +546,7 @@ func TestFillSequential_EmptyItemEncoding(t *testing.T) {
 	l.fillSequential(c, media, "/mp", "h")
 	assert.Equal(t, &ir.PartEncoding{Multi: true}, c.ItemEncoding,
 		"a config-free itemEncoding still records that the tail repeats")
-	assert.Nil(t, c.Preserved, "nothing is preserved raw")
+	assert.Nil(t, c.Unmodeled, "nothing is preserved raw")
 	assert.Empty(t, l.diags.List())
 }
 
@@ -583,12 +583,12 @@ func TestContent_PositionalPrefixEncodingIsPreserved(t *testing.T) {
 	c := findOp(t, doc, "mixed").Responses[0].Payload.Contents[0]
 
 	assert.Nil(t, c.ItemEncoding, "positional prefixes rule out an every-item encoding")
-	prefix, ok := c.Preserved["openapi:prefixEncoding"]
-	require.True(t, ok, "prefixEncoding kept verbatim; got %v", c.Preserved)
+	prefix, ok := c.Unmodeled["openapi:prefixEncoding"]
+	require.True(t, ok, "prefixEncoding kept verbatim; got %v", c.Unmodeled)
 	assert.Equal(t, ir.ReasonNoIRHome, prefix.Reason)
 	assert.JSONEq(t, `[{"contentType": "application/json"}, {"contentType": "application/xml"}]`,
 		string(prefix.Value))
-	item, ok := c.Preserved["openapi:itemEncoding"]
+	item, ok := c.Unmodeled["openapi:itemEncoding"]
 	require.True(t, ok, "the tail encoding is kept beside the prefixes it follows")
 	assert.JSONEq(t, `{"contentType": "text/plain"}`, string(item.Value))
 	assertHasCode(t, diags, codeDegradedConstruct, ir.SeverityInfo)
@@ -601,9 +601,9 @@ func TestFillSequential_PrefixEncodingWithoutItemEncoding(t *testing.T) {
 	c := findOp(t, doc, "mixed").Responses[0].Payload.Contents[0]
 
 	assert.Nil(t, c.ItemEncoding)
-	_, ok := c.Preserved["openapi:prefixEncoding"]
+	_, ok := c.Unmodeled["openapi:prefixEncoding"]
 	assert.True(t, ok, "prefixEncoding alone is still reported rather than dropped")
-	_, ok = c.Preserved["openapi:itemEncoding"]
+	_, ok = c.Unmodeled["openapi:itemEncoding"]
 	assert.False(t, ok, "no itemEncoding was declared, so none is recorded")
 	assertHasCode(t, diags, codeDegradedConstruct, ir.SeverityInfo)
 }
@@ -615,7 +615,7 @@ func TestPositionalEncoding_WithoutRootNode(t *testing.T) {
 	media := &soa.MediaType{PrefixEncoding: []*soa.Encoding{{}}, ItemEncoding: &soa.Encoding{}}
 	l.fillSequential(c, media, "/mp", "h")
 	assert.Nil(t, c.ItemEncoding, "prefixes still block the every-item lowering")
-	assert.Nil(t, c.Preserved, "a media type with no source node has nothing verbatim to keep")
+	assert.Nil(t, c.Unmodeled, "a media type with no source node has nothing verbatim to keep")
 	assertHasCode(t, l.diags.List(), codeDegradedConstruct, ir.SeverityInfo)
 }
 
@@ -876,8 +876,8 @@ func TestHeaders_SchemaDetailReachesTheProperty(t *testing.T) {
 	assertProbeExample(t, h.Examples)
 	require.NotNil(t, h.XML)
 	assert.Equal(t, "X", h.XML.Name)
-	assert.Contains(t, h.Preserved, "openapi:x-vendor")
-	assert.Contains(t, h.Preserved, "openapi:not")
+	assert.Contains(t, h.Unmodeled, "openapi:x-vendor")
+	assert.Contains(t, h.Unmodeled, "openapi:not")
 	require.NotNil(t, h.Constraints)
 	require.NotNil(t, h.Constraints.MaxLength)
 	assert.Equal(t, int64(3), *h.Constraints.MaxLength)
@@ -907,8 +907,8 @@ func TestHeaders_OwnAnnotationsOverrideTheSchema(t *testing.T) {
 	require.Len(t, h.Examples, 1, "and its own example replaces the schema's rather than joining it")
 	require.NotNil(t, h.Examples[0].Value)
 	assert.Equal(t, "HEADER", h.Examples[0].Value.Str)
-	require.Contains(t, h.Preserved, "openapi:x-scope")
-	assert.JSONEq(t, `"header"`, string(h.Preserved["openapi:x-scope"].Value),
+	require.Contains(t, h.Unmodeled, "openapi:x-scope")
+	assert.JSONEq(t, `"header"`, string(h.Unmodeled["openapi:x-scope"].Value),
 		"and its own value for a vendor key the schema also writes")
 }
 

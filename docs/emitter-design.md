@@ -455,11 +455,11 @@ type so the second-protocol emitter (open Q4) does not force a plan schema chang
 and messages (`ir-design.md §8.3`) reach a emitter through `MsgView`; a messaging target consumes
 them the same way an HTTP target consumes `HTTP`.
 
-`Raw` is `ir.RawConfig`, not `ir.Preserved`, and the distinction is not cosmetic. It carries
+`Raw` is `ir.RawConfig`, not `ir.Unmodeled`, and the distinction is not cosmetic. It carries
 *declared* protocol configuration the plan chooses to pass through unstructured — the GraphQL
 entry point, the OTP call/cast tag, AsyncAPI deployment bindings — all of which the IR models
 fields for; there is no unmodeled construct to give a reason for, and the source position a
-consumer would want is the owning binding's. The `Preserved` map each binding struct carries
+consumer would want is the owning binding's. The `Unmodeled` map each binding struct carries
 (`ir-design.md §8.1`–`§8.5`) is the other thing entirely: the escape hatch for constructs the IR
 does *not* model — a directive applied to a GraphQL entry-point field, say — where `Reason` and
 `Provenance` are exactly what a policy layer selects on. A refiner reads both, for different
@@ -1088,7 +1088,7 @@ declared poll op `GetExport` is `HTTPBinding{GET /exports/{id}}` returning an `E
   `operation-location` header vs original-URI). The poller *type* and result extraction are typed AST;
   the poll loop's backoff between attempts is `lro.go.tmpl` boilerplate parameterised by policy — the
   same structure/runtime line as the iterator (§8.3) and the stream reader (§8.4). Smithy waiters are
-  *not* folded in here: their acceptor/JMESPath lists arrive verbatim in `Operation.Preserved`
+  *not* folded in here: their acceptor/JMESPath lists arrive verbatim in `Operation.Unmodeled`
   (`ir-design.md §7.3`) and a waiter-aware refiner is a separate, opt-in step.
 - **emit.** Printer emits `StartExport`, `StartExportParams`, and `ExportPoller` +
   `Poll()/PollUntilDone()`. `OneWay` operations take the opposite path — no poller, no response
@@ -1152,10 +1152,10 @@ plan once: docs and mocks agree with the SDK by construction, not by re-derivati
   **wire-consistent by construction** — the mock can *be* the interception target the SDK's
   wire-conformance harness (§13) is diffed against.
 - **Validation emitter (future).** Additionally consumes the validation-only constructs kept
-  verbatim in `Preserved` (`not`/`if-then-else`/`dependentSchemas`, …) that SDK/docs emitters
-  ignore. It selects them by `PreservedEntry.Reason == ir.ReasonValidationOnly` rather than by key
+  verbatim in `Unmodeled` (`not`/`if-then-else`/`dependentSchemas`, …) that SDK/docs emitters
+  ignore. It selects them by `UnmodeledEntry.Reason == ir.ReasonValidationOnly` rather than by key
   prefix, so vendor metadata sharing the same map never reaches it, and reports each finding at
-  `PreservedEntry.Provenance` — the keyword's own position, not the enclosing schema's. The
+  `UnmodeledEntry.Provenance` — the keyword's own position, not the enclosing schema's. The
   contract already carries all of that; no IR change is needed (INV9).
 
 Adding any of these is a registry entry over one `Doc + Plan` — no change to the ABI, no change to

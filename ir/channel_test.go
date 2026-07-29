@@ -34,7 +34,7 @@ func TestChannel_JSONContract(t *testing.T) {
 				"kafka": {"partitions": ir.RawValue(`3`)},
 				"amqp":  {"exchange": ir.RawValue(`"events"`)},
 			},
-			Preserved:  populatedPreserved(),
+			Unmodeled:  populatedPreserved(),
 			Provenance: populatedProvenance(),
 		})
 }
@@ -78,7 +78,7 @@ func TestMessage_JSONContract(t *testing.T) {
 			Bindings: map[string]ir.RawConfig{
 				"kafka": {"key": ir.RawValue(`"userId"`)},
 			},
-			Preserved:  populatedPreserved(),
+			Unmodeled:  populatedPreserved(),
 			Provenance: populatedProvenance(),
 		})
 }

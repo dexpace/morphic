@@ -42,8 +42,8 @@ in the docs.
    visibility, discriminators, encodings, streaming stay in source-semantic form. Lowering to what
    a target language can express happens only in emitter refiners. The one documented carve-out is
    validation-only JSON Schema (`not`/`if-then-else`/`dependentSchemas`), kept verbatim in
-   `Preserved` — see `ir-design.md §4.7`. Every `Preserved` entry records *why* it was kept
-   (`PreserveReason`) and where it came from, so a consumer can take only the subset it wants.
+   `Unmodeled` — see `ir-design.md §4.7`. Every `Unmodeled` entry records *why* it was kept
+   (`UnmodeledReason`) and where it came from, so a consumer can take only the subset it wants.
 3. **Stable IDs; names are presentation.** Every named entity has a synthetic ID derived from its
    source pointer (never from a display name, never rewritten by renames). Entities live in flat,
    ID-keyed registries and reference each other by ID; no node embeds another named node.

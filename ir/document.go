@@ -11,7 +11,7 @@ package ir
 // bump leaves a consumer pinned to the old version accepting a document it
 // cannot read, which is the one thing this constant exists to prevent.
 //
-// 0.2.0 covers three shape changes made together: Extensions became Preserved
+// 0.2.0 covers three shape changes made together: Extensions became Unmodeled
 // with RawConfig split out, Content.ItemEncoding became a single encoding
 // rather than a sentinel-keyed map, and the diagnostic code
 // pass/dangling-auth-ref became ir/dangling-auth-ref (see pass's package doc).
@@ -60,8 +60,8 @@ type Document struct {
 	TagDefs []TagDef `json:"tagDefs,omitempty"`
 	// Versions holds the ordered version labels when availability metadata is used.
 	Versions []string `json:"versions,omitempty"`
-	// Preserved holds source constructs the IR does not model, kept verbatim.
-	Preserved Preserved `json:"preserved,omitempty"`
+	// Unmodeled holds source constructs the IR does not model, kept verbatim.
+	Unmodeled Unmodeled `json:"unmodeled,omitempty"`
 	// Diagnostics is accumulated by the compiler and passes; not part of API
 	// meaning.
 	Diagnostics []Diagnostic `json:"diagnostics,omitempty"`

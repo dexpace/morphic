@@ -236,8 +236,8 @@ type Variant struct {
 	Availability *Availability `json:"availability,omitempty"`
 	// Examples are typed example values for the variant.
 	Examples []Example `json:"examples,omitempty"`
-	// Preserved holds source constructs the IR does not model, kept verbatim.
-	Preserved Preserved `json:"preserved,omitempty"`
+	// Unmodeled holds source constructs the IR does not model, kept verbatim.
+	Unmodeled Unmodeled `json:"unmodeled,omitempty"`
 }
 
 // EventInfo carries per-event metadata when a union is an event stream's event
@@ -284,8 +284,8 @@ type EnumMember struct {
 	Availability *Availability `json:"availability,omitempty"`
 	// Examples are typed example values for the member.
 	Examples []Example `json:"examples,omitempty"`
-	// Preserved holds source constructs the IR does not model, kept verbatim.
-	Preserved Preserved `json:"preserved,omitempty"`
+	// Unmodeled holds source constructs the IR does not model, kept verbatim.
+	Unmodeled Unmodeled `json:"unmodeled,omitempty"`
 }
 
 // List is an ordered collection (ir-design §4.6).

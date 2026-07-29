@@ -310,7 +310,7 @@ func assertAllOfInheritance(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
 	assert.NotNil(t, d.Deprecation, "composed schema keeps deprecated")
 	assert.Equal(t, ir.AdditionalClosed, d.Additional,
 		"composed schema keeps additionalProperties: false")
-	assert.Contains(t, d.Preserved, "openapi:x-team", "composed schema keeps x-* extensions")
+	assert.Contains(t, d.Unmodeled, "openapi:x-team", "composed schema keeps x-* extensions")
 }
 
 func assertAllOfMixins(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
@@ -361,7 +361,7 @@ func assertAllOfOneOfCooccurrence(t *testing.T, doc *ir.Document, _ []ir.Diagnos
 
 	mixed, ok := doc.Types[namedID("MixedKinds")].(*ir.Model)
 	require.True(t, ok, "the structural body survives")
-	entry, ok := mixed.Preserved["openapi:oneOf"]
+	entry, ok := mixed.Unmodeled["openapi:oneOf"]
 	require.True(t, ok, "and the union it could not absorb survives beside it")
 	assert.Equal(t, ir.ReasonDegradedLowering, entry.Reason)
 
@@ -397,8 +397,8 @@ func assertAnyOfUntagged(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
 func assertNegationNot(t *testing.T, doc *ir.Document, diags []ir.Diagnostic) {
 	m, ok := doc.Types[namedID("NotFoo")].(*ir.Model)
 	require.True(t, ok)
-	raw, ok := m.Preserved["openapi:not"]
-	require.True(t, ok, "not-keyword kept verbatim under Preserved")
+	raw, ok := m.Unmodeled["openapi:not"]
+	require.True(t, ok, "not-keyword kept verbatim under Unmodeled")
 	assert.JSONEq(t, `{"required":["b"]}`, string(raw.Value))
 	assert.Equal(t, ir.ReasonValidationOnly, raw.Reason)
 	var found bool
@@ -516,7 +516,7 @@ func assertDefaults(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
 
 	decl, ok := doc.Types[namedID("DeclaredDefault")].(*ir.Scalar)
 	require.True(t, ok)
-	entry, ok := decl.Preserved["openapi:default"]
+	entry, ok := decl.Unmodeled["openapi:default"]
 	require.True(t, ok, "the declaration's own default is kept as residue")
 	assert.Equal(t, ir.ReasonNoIRHome, entry.Reason)
 	assert.JSONEq(t, `41`, string(entry.Value))
@@ -703,7 +703,7 @@ func assertReadOnlyWriteOnly(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) 
 
 	decl, ok := doc.Types[namedID("DeclaredReadOnly")].(*ir.Scalar)
 	require.True(t, ok)
-	entry, ok := decl.Preserved["openapi:readOnly"]
+	entry, ok := decl.Unmodeled["openapi:readOnly"]
 	require.True(t, ok, "the declaration's own readOnly is kept as residue")
 	assert.Equal(t, ir.ReasonNoIRHome, entry.Reason)
 	assert.JSONEq(t, `true`, string(entry.Value))
@@ -862,7 +862,7 @@ func assertPartHeaders(t *testing.T, doc *ir.Document, headers []ir.Property) {
 // two forms per-item encoding takes: one Encoding governing every item lands in
 // Content.ItemEncoding, while a positional prefixEncoding — which a single
 // every-item encoding has no ordinals for — takes itself and the tail encoding
-// beside it into Preserved instead.
+// beside it into Unmodeled instead.
 func assertSequentialMedia(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
 	events, ok := opByName(doc, "streamEvents")
 	require.True(t, ok)
@@ -871,15 +871,15 @@ func assertSequentialMedia(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
 	require.NotNil(t, c.ItemEncoding, "an encoding governing every item lowers structurally")
 	assert.Equal(t, []string{"application/json"}, c.ItemEncoding.ContentTypes)
 	assert.True(t, c.ItemEncoding.Multi, "the construct describes a repeated tail")
-	assert.Empty(t, c.Preserved, "nothing is left over once it lowers")
+	assert.Empty(t, c.Unmodeled, "nothing is left over once it lowers")
 
 	parts, ok := opByName(doc, "streamParts")
 	require.True(t, ok)
 	pc := firstContent(t, parts)
 	assert.Nil(t, pc.ItemEncoding, "positional prefixes have no every-item form")
 	for _, key := range []string{"openapi:prefixEncoding", "openapi:itemEncoding"} {
-		entry, ok := pc.Preserved[key]
-		require.True(t, ok, "%s kept verbatim; got %v", key, pc.Preserved)
+		entry, ok := pc.Unmodeled[key]
+		require.True(t, ok, "%s kept verbatim; got %v", key, pc.Unmodeled)
 		assert.Equal(t, ir.ReasonNoIRHome, entry.Reason)
 	}
 }
@@ -1019,7 +1019,7 @@ func assertDocsSummaryDesc(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
 func assertExtensionsX(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
 	m, ok := doc.Types[namedID("S")].(*ir.Model)
 	require.True(t, ok)
-	raw, ok := m.Preserved["openapi:x-rate-limit"]
+	raw, ok := m.Unmodeled["openapi:x-rate-limit"]
 	require.True(t, ok, "x-* extensions are namespaced under openapi:")
 	assert.JSONEq(t, "100", string(raw.Value))
 	assert.Equal(t, ir.ReasonVendorExtension, raw.Reason)
@@ -1033,7 +1033,7 @@ func assertInlineAnnotations(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) 
 	elem := assertAnnotatedScalar(t, doc, "t/anon/components/schemas/Codes/items", 3)
 	require.NotNil(t, elem.XML)
 	assert.Equal(t, "Code", elem.XML.Name)
-	assert.Contains(t, elem.Preserved, "openapi:x-facet")
+	assert.Contains(t, elem.Unmodeled, "openapi:x-facet")
 
 	assertAnnotatedScalar(t, doc, "t/anon/components/schemas/CodeIndex/additionalProperties", 64)
 	assertAnnotatedScalar(t, doc,
@@ -1047,10 +1047,10 @@ func assertInlineAnnotations(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) 
 	op, ok := opByName(doc, "listCodes")
 	require.True(t, ok)
 	require.Len(t, op.Params, 1)
-	assertCarriedAnnotations(t, op.Params[0].Docs, op.Params[0].Constraints, op.Params[0].Preserved, 4)
+	assertCarriedAnnotations(t, op.Params[0].Docs, op.Params[0].Constraints, op.Params[0].Unmodeled, 4)
 	require.Len(t, op.Responses[0].Headers, 1)
 	h := op.Responses[0].Headers[0]
-	assertCarriedAnnotations(t, h.Docs, h.Constraints, h.Preserved, 64)
+	assertCarriedAnnotations(t, h.Docs, h.Constraints, h.Unmodeled, 64)
 }
 
 // assertAnnotatedScalar requires the node at id to be a Scalar carrying a
@@ -1068,7 +1068,7 @@ func assertAnnotatedScalar(t *testing.T, doc *ir.Document, id ir.TypeID, maxLeng
 
 // assertCarriedAnnotations requires a parameter's or header's own carrier to
 // hold what its schema declared.
-func assertCarriedAnnotations(t *testing.T, docs ir.Docs, c *ir.Constraints, p ir.Preserved, maxLength int64) {
+func assertCarriedAnnotations(t *testing.T, docs ir.Docs, c *ir.Constraints, p ir.Unmodeled, maxLength int64) {
 	t.Helper()
 	assert.NotEmpty(t, docs.Description)
 	require.NotNil(t, c)

@@ -105,8 +105,8 @@ func TestLower_ConstraintOnlyUnionIsValidationOnly(t *testing.T) {
 	assert.Equal(t, "common", m.Properties[0].Name.Source)
 	assert.True(t, m.Properties[0].Required)
 	assert.Equal(t, ir.AdditionalClosed, m.Additional)
-	raw, ok := m.Preserved["openapi:oneOf"]
-	require.True(t, ok, "the union is kept verbatim under Preserved")
+	raw, ok := m.Unmodeled["openapi:oneOf"]
+	require.True(t, ok, "the union is kept verbatim under Unmodeled")
 	assert.Contains(t, string(raw.Value), "required")
 	assert.Equal(t, ir.ReasonValidationOnly, raw.Reason,
 		"constraint-only branches narrow the body without reshaping it (ir-design §4.7)")
@@ -140,8 +140,8 @@ func TestLower_BooleanUnionBranchDeclaresNoShape(t *testing.T) {
 	require.Len(t, m.Properties, 1)
 	assert.Equal(t, "common", m.Properties[0].Name.Source)
 
-	raw, ok := m.Preserved["openapi:oneOf"]
-	require.True(t, ok, "the union is kept verbatim under Preserved")
+	raw, ok := m.Unmodeled["openapi:oneOf"]
+	require.True(t, ok, "the union is kept verbatim under Unmodeled")
 	assert.Equal(t, ir.ReasonValidationOnly, raw.Reason,
 		"boolean branches declare no shape, so the union is validation-only (ir-design §4.7)")
 	assert.Equal(t, "/components/schemas/Flag/oneOf", raw.Provenance.Pointer)
@@ -167,8 +167,8 @@ func TestLower_AllOfWithOneOfKeepsBoth(t *testing.T) {
 	require.True(t, ok, "allOf composition survives (Model), oneOf preserved raw")
 	require.NotNil(t, m.Base, "the allOf $ref becomes Base")
 	assert.Equal(t, componentID("Base"), m.Base.Target)
-	_, ok = m.Preserved["openapi:oneOf"]
-	assert.True(t, ok, "the oneOf is kept verbatim under Preserved")
+	_, ok = m.Unmodeled["openapi:oneOf"]
+	assert.True(t, ok, "the oneOf is kept verbatim under Unmodeled")
 }
 
 func TestLower_RecursiveSchemaTerminates(t *testing.T) {
@@ -319,7 +319,7 @@ func TestLower_TupleWithTrailingItems(t *testing.T) {
 	tup, ok := typeByName(doc, "Tup").(*ir.Tuple)
 	require.True(t, ok)
 	require.Len(t, tup.Elems, 2)
-	residue, hasResidue := tup.Preserved["openapi:items-after-prefix"]
+	residue, hasResidue := tup.Unmodeled["openapi:items-after-prefix"]
 	require.True(t, hasResidue, "trailing items preserved raw")
 	assert.JSONEq(t, `{"type":"boolean"}`, string(residue.Value))
 	assert.Equal(t, ir.ReasonDegradedLowering, residue.Reason,
@@ -398,7 +398,7 @@ func TestLower_ValidationOnlyKeywords(t *testing.T) {
 		"openapi:unevaluated":      "/components/schemas/V",
 	}
 	for key, want := range wantPointer {
-		entry, ok := m.Preserved[key]
+		entry, ok := m.Unmodeled[key]
 		require.True(t, ok, "keyword %s preserved", key)
 		assert.Equal(t, want, entry.Provenance.Pointer, "entry provenance for %s", key)
 	}
@@ -420,8 +420,8 @@ func TestLower_PropertyNamesPreserved(t *testing.T) {
 
 	m, ok := typeByName(doc, "Codes").(*ir.Model)
 	require.True(t, ok)
-	entry, ok := m.Preserved["openapi:propertyNames"]
-	require.True(t, ok, "propertyNames kept verbatim; got %v", m.Preserved)
+	entry, ok := m.Unmodeled["openapi:propertyNames"]
+	require.True(t, ok, "propertyNames kept verbatim; got %v", m.Unmodeled)
 	assert.JSONEq(t, `{"type":"string","pattern":"^[a-z]+$"}`, string(entry.Value))
 	assert.Equal(t, ir.ReasonValidationOnly, entry.Reason)
 	assert.Equal(t, 1, countDiagsAt(diags, codeValidationOnlyKeyword, ir.SeverityInfo))
@@ -454,7 +454,7 @@ func TestLower_PropertyDetailRichSchema(t *testing.T) {
 	assert.Equal(t, "urn:x", byWire["withXml"].XML.Namespace)
 	assert.True(t, byWire["withXml"].XML.Wrapped)
 	assert.Len(t, byWire["withExample"].Examples, 3)
-	assert.NotEmpty(t, byWire["withExt"].Preserved)
+	assert.NotEmpty(t, byWire["withExt"].Unmodeled)
 	var sawDefaultWarn bool
 	for _, d := range diags {
 		if d.Severity == ir.SeverityWarning && strings.Contains(d.Message, "default:") {
@@ -516,8 +516,8 @@ func TestLower_UnionWithStructuralSiblingVariants(t *testing.T) {
 		td := typeByName(doc, name)
 		require.NotNil(t, td, "type %s present", name)
 		c := td.Common()
-		_, hasOneOf := c.Preserved["openapi:oneOf"]
-		_, hasAnyOf := c.Preserved["openapi:anyOf"]
+		_, hasOneOf := c.Unmodeled["openapi:oneOf"]
+		_, hasAnyOf := c.Unmodeled["openapi:anyOf"]
 		assert.True(t, hasOneOf || hasAnyOf, "union preserved for %s", name)
 	}
 }
@@ -558,7 +558,7 @@ func TestModel_ValidationOnlyKeywordPreserved(t *testing.T) {
 `)
 	doc, diags := lowerSpec(t, spec)
 	m := doc.Types[componentID("S")].(*ir.Model)
-	raw, ok := m.Preserved["openapi:not"]
+	raw, ok := m.Unmodeled["openapi:not"]
 	require.True(t, ok, "not-keyword must be preserved verbatim")
 	assert.JSONEq(t, `{"required":["b"]}`, string(raw.Value))
 	assert.Equal(t, ir.ReasonValidationOnly, raw.Reason)
@@ -703,7 +703,7 @@ func TestModel_SchemaExtensionPreserved(t *testing.T) {
 	doc, diags := lowerSpec(t, spec)
 	requireNoErrorDiags(t, diags)
 	m := doc.Types[componentID("S")].(*ir.Model)
-	raw, ok := m.Preserved["openapi:x-rate-limit"]
+	raw, ok := m.Unmodeled["openapi:x-rate-limit"]
 	require.True(t, ok)
 	assert.JSONEq(t, "100", string(raw.Value))
 	assert.Equal(t, ir.ReasonVendorExtension, raw.Reason)
@@ -711,7 +711,7 @@ func TestModel_SchemaExtensionPreserved(t *testing.T) {
 		"an entry locates the construct itself, not the node that carries it")
 }
 
-// TestPreserve_AllReasonsReachable pins that every PreserveReason an OpenAPI
+// TestPreserve_AllReasonsReachable pins that every UnmodeledReason an OpenAPI
 // document can provoke is produced by some lowering here, so a consumer
 // switching on the enum meets no value this compiler can never emit.
 // ReasonOutOfScope is the standing exception: ir-design §15's deliberate
@@ -719,7 +719,7 @@ func TestModel_SchemaExtensionPreserved(t *testing.T) {
 // that lands under it.
 //
 // The reach is per reason, not per entry: an entry left at the zero reason is
-// invisible here, and is irverify's "ir/empty-preserve-reason" to catch across
+// invisible here, and is irverify's "ir/empty-unmodeled-reason" to catch across
 // the whole corpus rather than this one document's.
 func TestPreserve_AllReasonsReachable(t *testing.T) {
 	t.Parallel()
@@ -753,9 +753,9 @@ paths:
 	// S witnesses vendor_extension and validation_only (its constraint-only
 	// union joins `not` there); T's open tuple is the only degraded_lowering
 	// witness here, so it must not be folded into another case.
-	seen := map[ir.PreserveReason]bool{}
+	seen := map[ir.UnmodeledReason]bool{}
 	for _, name := range []string{"S", "T"} {
-		for _, entry := range doc.Types[componentID(name)].Common().Preserved {
+		for _, entry := range doc.Types[componentID(name)].Common().Unmodeled {
 			seen[entry.Reason] = true
 		}
 	}
@@ -763,11 +763,11 @@ paths:
 	// that omits `required`, which the IR has no field for (§14).
 	body := firstOp(t, svc).Request
 	require.NotNil(t, body, "the operation must own a request payload")
-	for _, entry := range body.Preserved {
+	for _, entry := range body.Unmodeled {
 		seen[entry.Reason] = true
 	}
 
-	for _, want := range []ir.PreserveReason{
+	for _, want := range []ir.UnmodeledReason{
 		ir.ReasonVendorExtension, ir.ReasonValidationOnly,
 		ir.ReasonDegradedLowering, ir.ReasonNoIRHome,
 	} {
@@ -1412,7 +1412,7 @@ func TestSchema_UnionSiblingsAdditionalAndRequired(t *testing.T) {
 	doc, diags := lowerSpec(t, spec)
 	requireNoErrorDiags(t, diags)
 	for _, name := range []string{"A", "B"} {
-		_, ok := typeByName(doc, name).Common().Preserved["openapi:oneOf"]
+		_, ok := typeByName(doc, name).Common().Unmodeled["openapi:oneOf"]
 		assert.True(t, ok, "%s preserves its union", name)
 	}
 }
@@ -1442,7 +1442,7 @@ func TestSchema_UnserializableExtension(t *testing.T) {
 	require.NotNil(t, doc)
 	assert.True(t, hasDiagAt(diags, codeDegradedConstruct, ir.SeverityWarning), "unserializable extension warns")
 	m := typeByName(doc, "S").(*ir.Model)
-	_, hasBad := m.Preserved["openapi:x-bad"]
+	_, hasBad := m.Unmodeled["openapi:x-bad"]
 	assert.False(t, hasBad, "unserializable extension is dropped, not stored")
 }
 
@@ -2019,7 +2019,7 @@ func TestAllOf_PropertyAlongsideAllOfConflictMessageIsAccurate(t *testing.T) {
 func TestPreserveKeyword_NilRaw(t *testing.T) {
 	t.Parallel()
 	l := &lowerer{}
-	var ext ir.Preserved
+	var ext ir.Unmodeled
 	l.preserveKeyword(&ext, "openapi:not", nil, "/p", "/p/not", "not")
 	assert.Nil(t, ext, "nil raw is a no-op")
 	assert.Empty(t, l.diags.List())
@@ -2343,13 +2343,13 @@ func assertProbeAnnotationsKept(t *testing.T, sc *ir.Scalar) {
 	if assert.NotNil(t, sc.XML, "xml hints") {
 		assert.Equal(t, "X", sc.XML.Name)
 	}
-	vendor, ok := sc.Preserved["openapi:x-vendor"]
-	if assert.True(t, ok, "vendor extension: got %v", sc.Preserved) {
+	vendor, ok := sc.Unmodeled["openapi:x-vendor"]
+	if assert.True(t, ok, "vendor extension: got %v", sc.Unmodeled) {
 		assert.JSONEq(t, `"V"`, string(vendor.Value))
 		assert.Equal(t, ir.ReasonVendorExtension, vendor.Reason)
 	}
-	not, ok := sc.Preserved["openapi:not"]
-	if assert.True(t, ok, "validation-only keyword: got %v", sc.Preserved) {
+	not, ok := sc.Unmodeled["openapi:not"]
+	if assert.True(t, ok, "validation-only keyword: got %v", sc.Unmodeled) {
 		assert.Equal(t, ir.ReasonValidationOnly, not.Reason)
 	}
 	if assert.NotNil(t, sc.Constraints, "value constraints") {
@@ -2577,8 +2577,8 @@ func TestPropertyAnnotations_KeptWhenAnOutsideRefNamesTheProperty(t *testing.T) 
 			assert.Equal(t, ir.TypeID("t/prim/string"), p.Type.Target,
 				"the property's own type is unchanged by the outside reference")
 			assertProbeDocsKept(t, p.Docs)
-			assert.Contains(t, p.Preserved, "openapi:x-vendor")
-			assert.Contains(t, p.Preserved, "openapi:not")
+			assert.Contains(t, p.Unmodeled, "openapi:x-vendor")
+			assert.Contains(t, p.Unmodeled, "openapi:not")
 
 			sc, ok := doc.Types["t/anon/components/schemas/A/properties/p"].(*ir.Scalar)
 			require.True(t, ok, "and the referenced pointer still names the schema written there")
@@ -2605,7 +2605,7 @@ func TestPropertyAnnotations_OneHomeWhenSchemaOwnsANode(t *testing.T) {
 	assert.Empty(t, p.Docs.Description, "the node the schema owns is the one home")
 	assert.Nil(t, p.Deprecation)
 	assert.Nil(t, p.XML)
-	assert.Empty(t, p.Preserved)
+	assert.Empty(t, p.Unmodeled)
 
 	inner := doc.Types["t/anon/components/schemas/A/properties/p"]
 	require.NotNil(t, inner)
@@ -2614,7 +2614,7 @@ func TestPropertyAnnotations_OneHomeWhenSchemaOwnsANode(t *testing.T) {
 	assert.NotNil(t, c.Deprecation)
 	require.NotNil(t, c.XML)
 	assert.Equal(t, "X", c.XML.Name)
-	assert.Contains(t, c.Preserved, "openapi:x-vendor")
+	assert.Contains(t, c.Unmodeled, "openapi:x-vendor")
 }
 
 // TestPropertyAnnotations_CarriedWhenSchemaOwnsNoNode is the other half of that
@@ -2637,8 +2637,8 @@ func TestPropertyAnnotations_CarriedWhenSchemaOwnsNoNode(t *testing.T) {
 	assertProbeExample(t, p.Examples)
 	require.NotNil(t, p.XML)
 	assert.Equal(t, "X", p.XML.Name)
-	assert.Contains(t, p.Preserved, "openapi:x-vendor")
-	assert.Contains(t, p.Preserved, "openapi:not")
+	assert.Contains(t, p.Unmodeled, "openapi:x-vendor")
+	assert.Contains(t, p.Unmodeled, "openapi:not")
 	require.NotNil(t, p.Constraints)
 	require.NotNil(t, p.Constraints.MaxLength)
 	assert.Equal(t, int64(3), *p.Constraints.MaxLength)
@@ -2824,7 +2824,7 @@ func TestInlinePosition_KeywordsWithNoNodeHomeStaySilent(t *testing.T) {
 
 // TestPreserve_EmptyRawIsRejectedLikeNil pins both halves of the guard. nil and a
 // zero-length slice are distinct states, and only nil was screened — so an empty
-// payload was written into Preserved, where it makes json.Marshal fail for the
+// payload was written into Unmodeled, where it makes json.Marshal fail for the
 // whole document rather than for the entry that carried it.
 //
 // No committed spec reaches this: every call site passes a value re-encoded from
@@ -2840,11 +2840,11 @@ func TestPreserve_EmptyRawIsRejectedLikeNil(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
 			l := &lowerer{}
-			var p ir.Preserved
+			var p ir.Unmodeled
 			l.preserve(&p, "openapi:k", raw, ir.ReasonVendorExtension, "/p/k")
 			assert.Nil(t, p, "a payload with no bytes preserves no construct")
 
-			var q ir.Preserved
+			var q ir.Unmodeled
 			l.preserveKeyword(&q, "openapi:not", raw, "/p", "/p/not", "not")
 			assert.Nil(t, q, "and the validation-only wrapper screens the same states")
 			assert.Empty(t, l.diags.List(), "nothing was preserved, so nothing is announced")

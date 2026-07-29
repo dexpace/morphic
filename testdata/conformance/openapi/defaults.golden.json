@@ -28,7 +28,7 @@
       "anonymous": false,
       "docs": {},
       "sensitive": false,
-      "preserved": {
+      "unmodeled": {
         "openapi:default": {
           "reason": "no_ir_home",
           "value": 41,
@@ -160,7 +160,7 @@
     {
       "severity": "info",
       "code": "openapi/degraded-construct",
-      "message": "default on a type declaration binds a use of the type, not the type; it is applied to referencing properties and kept verbatim under Preserved",
+      "message": "default on a type declaration binds a use of the type, not the type; it is applied to referencing properties and kept verbatim under Unmodeled",
       "provenance": {
         "source": 0,
         "pointer": "/components/schemas/DeclaredDefault/default"

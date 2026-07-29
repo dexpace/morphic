@@ -39,7 +39,7 @@ var notReferences = map[string]string{
 	"IdempotencyKind": "idempotency guarantee",
 	"MsgDirection":    "publish or subscribe",
 	"PageStrategy":    "pagination strategy",
-	"PreserveReason":  "why a construct is preserved rather than modeled",
+	"UnmodeledReason": "why a construct is preserved rather than modeled",
 	"PresenceKind":    "how a property represents absence",
 	"PrimKind":        "which built-in scalar",
 	"Severity":        "how bad a diagnostic is",

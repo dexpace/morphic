@@ -66,7 +66,7 @@ func TestCollectTypeIDs_SharedPointerVisitedOnce(t *testing.T) {
 // itself is driven separately below.
 func TestCollectTypeIDs_PreservedBytesYieldNoReference(t *testing.T) {
 	t.Parallel()
-	doc := &ir.Document{Preserved: ir.Preserved{"openapi:x-thing": {
+	doc := &ir.Document{Unmodeled: ir.Unmodeled{"openapi:x-thing": {
 		Reason: ir.ReasonVendorExtension,
 		Value:  ir.RawValue(`"t/ghost/in-bytes"`),
 	}}}
@@ -76,7 +76,7 @@ func TestCollectTypeIDs_PreservedBytesYieldNoReference(t *testing.T) {
 }
 
 // TestWalkSequence_ByteSequenceIsNotDescendedInto drives the skip itself, which
-// exists for cost: Preserved and RawConfig payloads are the largest values a
+// exists for cost: Unmodeled and RawConfig payloads are the largest values a
 // document holds, and descending one spends a reflect.Value and a formatted path
 // per byte to collect nothing.
 //
@@ -121,7 +121,7 @@ func TestRegistries_ResolvesUnknownClassIsReportOnly(t *testing.T) {
 
 // TestDocumentRegistries_DerivedFromDocumentShape pins the derivation rule that
 // replaces a hand-written registry table: every ID-keyed map on Document is a
-// registry, and a map keyed by plain string — Preserved keys on a source
+// registry, and a map keyed by plain string — Unmodeled keys on a source
 // construct's name, not an identity — is not.
 func TestDocumentRegistries_DerivedFromDocumentShape(t *testing.T) {
 	t.Parallel()

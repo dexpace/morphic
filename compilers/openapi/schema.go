@@ -96,10 +96,10 @@ func (l *lowerer) recordResidue(c *ir.TypeCommon, s *oas3.Schema, pointer string
 		if len(raw) == 0 {
 			continue
 		}
-		l.preserve(&c.Preserved, "openapi:"+keyword, raw, ir.ReasonNoIRHome, pointer+ptr(keyword))
+		l.preserve(&c.Unmodeled, "openapi:"+keyword, raw, ir.ReasonNoIRHome, pointer+ptr(keyword))
 		l.diag(ir.SeverityInfo, codeDegradedConstruct, pointer+ptr(keyword),
 			"%s on a type declaration binds a use of the type, not the type; "+
-				"it is applied to referencing properties and kept verbatim under Preserved", keyword)
+				"it is applied to referencing properties and kept verbatim under Unmodeled", keyword)
 	}
 }
 
@@ -223,7 +223,7 @@ func declaresValueConstraints(s *oas3.Schema) bool {
 }
 
 // declaresValidationOnly reports whether s writes a §4.7 validation-only
-// keyword that fillValidationOnly keeps verbatim under Preserved. A `false`
+// keyword that fillValidationOnly keeps verbatim under Unmodeled. A `false`
 // unevaluatedProperties is excluded on purpose: fillAdditional lowers it into
 // the model's openness, so it is structure rather than a preserved keyword.
 func declaresValidationOnly(s *oas3.Schema) bool {
@@ -294,7 +294,7 @@ func declaresShape(s *oas3.Schema) bool {
 // structural shape nor the union is dropped. reason says which kind of union it
 // is and why says what stopped a classified lowering; classifyUnionSiblings
 // picks both.
-func (l *lowerer) lowerBesidePreservedUnion(s *oas3.Schema, pointer, hint string, reason ir.PreserveReason, why string) ir.TypeID {
+func (l *lowerer) lowerBesidePreservedUnion(s *oas3.Schema, pointer, hint string, reason ir.UnmodeledReason, why string) ir.TypeID {
 	inner := l.lower(s, pointer, hint)
 	owner := inner
 	if got, _ := l.types.Lookup(pointer); got != inner {
@@ -308,9 +308,9 @@ func (l *lowerer) lowerBesidePreservedUnion(s *oas3.Schema, pointer, hint string
 }
 
 // preserveUnionSiblings stores the raw oneOf/anyOf of s under the owning node's
-// Preserved. A validation-only union joins §4.7's keyword family and is reported
+// Unmodeled. A validation-only union joins §4.7's keyword family and is reported
 // with it; anything else is a §4.8 degradation and says so.
-func (l *lowerer) preserveUnionSiblings(id ir.TypeID, s *oas3.Schema, pointer string, reason ir.PreserveReason, why string) {
+func (l *lowerer) preserveUnionSiblings(id ir.TypeID, s *oas3.Schema, pointer string, reason ir.UnmodeledReason, why string) {
 	td, ok := l.registeredNode(id, pointer)
 	if !ok {
 		return
@@ -319,16 +319,16 @@ func (l *lowerer) preserveUnionSiblings(id ir.TypeID, s *oas3.Schema, pointer st
 	for _, kw := range []string{"oneOf", "anyOf"} {
 		raw := nodeToRaw(rawPropertyNode(s, kw))
 		if reason == ir.ReasonValidationOnly {
-			l.preserveKeyword(&c.Preserved, "openapi:"+kw, raw, pointer, pointer+ptr(kw), kw)
+			l.preserveKeyword(&c.Unmodeled, "openapi:"+kw, raw, pointer, pointer+ptr(kw), kw)
 			continue
 		}
-		l.preserve(&c.Preserved, "openapi:"+kw, raw, reason, pointer+ptr(kw))
+		l.preserve(&c.Unmodeled, "openapi:"+kw, raw, reason, pointer+ptr(kw))
 	}
 	if reason == ir.ReasonValidationOnly {
 		return
 	}
 	l.diag(ir.SeverityInfo, codeDegradedConstruct, pointer,
-		"oneOf/anyOf co-declared with structural keywords intersects with them, and %s; union branches kept verbatim under Preserved", why)
+		"oneOf/anyOf co-declared with structural keywords intersects with them, and %s; union branches kept verbatim under Unmodeled", why)
 }
 
 // falseSchema hoists a boolean `false` schema as a closed empty model (it
@@ -513,7 +513,7 @@ func (l *lowerer) fillPropertyAnnotations(p *ir.Property, ref, tgt *oas3.Schema,
 	if len(a.Examples) > 0 {
 		p.Examples = a.Examples
 	}
-	p.Preserved = mergePreserved(p.Preserved, a.Preserved)
+	p.Unmodeled = mergePreserved(p.Unmodeled, a.Unmodeled)
 }
 
 // loweredToOwnNode reports whether the declaration at pointer lowered to a type
@@ -592,7 +592,7 @@ func (l *lowerer) attachDeclaredAnnotations(s *oas3.Schema, pointer string) {
 	if a.XML != nil {
 		c.XML = a.XML
 	}
-	c.Preserved = mergePreserved(c.Preserved, a.Preserved)
+	c.Unmodeled = mergePreserved(c.Unmodeled, a.Unmodeled)
 	if len(a.Examples) > 0 {
 		c.Examples = a.Examples
 	}
@@ -656,7 +656,7 @@ func (l *lowerer) patternProps(s *oas3.Schema, pointer, hint string) []ir.Patter
 // preserve records raw under key in *p with why it was kept and where it was
 // written, allocating the map on first write. An absent or unconvertible
 // payload records nothing, so no caller needs a nil guard of its own.
-func (l *lowerer) preserve(p *ir.Preserved, key string, raw ir.RawValue, reason ir.PreserveReason, pointer string) {
+func (l *lowerer) preserve(p *ir.Unmodeled, key string, raw ir.RawValue, reason ir.UnmodeledReason, pointer string) {
 	preserveInto(p, key, raw, reason, pointer, l.srcIndex)
 }
 
@@ -668,7 +668,7 @@ func (l *lowerer) preserve(p *ir.Preserved, key string, raw ir.RawValue, reason 
 // against: the keyword's own node where the source writes the entry as one
 // keyword, and declPtr for the three §4.7 entries that combine several keywords
 // into one synthesized object no single node addresses.
-func (l *lowerer) preserveKeyword(p *ir.Preserved, key string, raw ir.RawValue, declPtr, entryPtr, label string) {
+func (l *lowerer) preserveKeyword(p *ir.Unmodeled, key string, raw ir.RawValue, declPtr, entryPtr, label string) {
 	l.diags.AppendAll(preserveKeywordInto(p, key, raw, declPtr, entryPtr, label, l.srcIndex))
 }
 
@@ -717,10 +717,10 @@ func (l *lowerer) buildTuple(s *oas3.Schema, common ir.TypeCommon, pointer, hint
 	if s.GetItems() == nil {
 		return t
 	}
-	l.preserve(&t.Preserved, "openapi:items-after-prefix", nodeToRaw(rawPropertyNode(s, "items")),
+	l.preserve(&t.Unmodeled, "openapi:items-after-prefix", nodeToRaw(rawPropertyNode(s, "items")),
 		ir.ReasonDegradedLowering, pointer+ptr("items"))
 	l.diag(ir.SeverityInfo, codeDegradedConstruct, pointer,
-		"items after prefixItems is an open tuple; lowered as a fixed-arity Tuple with the tail kept under Preserved")
+		"items after prefixItems is an open tuple; lowered as a fixed-arity Tuple with the tail kept under Unmodeled")
 	return t
 }
 
@@ -837,7 +837,7 @@ func schemaHasNull(s *oas3.Schema) bool {
 // A null branch counts only when the union is the type itself. Structural
 // siblings intersect with the union (JSON Schema conjoins keywords), so
 // `{type: object, oneOf: [{type: string}, {type: null}]}` admits neither string
-// nor null; that union is kept verbatim under Preserved instead. A `type: null`
+// nor null; that union is kept verbatim under Unmodeled instead. A `type: null`
 // branch is written inline, so it also blocks distribution — no distributed
 // union can strip a null branch out from under this rule.
 func schemaAdmitsNull(s *oas3.Schema) bool {
@@ -913,7 +913,7 @@ func requiredSet(required []string) map[string]bool {
 }
 
 // nodeToRaw converts a YAML node to canonical JSON for lossless preservation in
-// Preserved; a nil node or an unconvertible node yields nil.
+// Unmodeled; a nil node or an unconvertible node yields nil.
 func nodeToRaw(node *yaml.Node) ir.RawValue {
 	if node == nil {
 		return nil
@@ -1034,16 +1034,16 @@ func xmlHints(x *oas3.XML) *ir.XMLHints {
 	return h
 }
 
-// extensionsFrom lowers an x-* extension map into namespaced ir.Preserved, keys
+// extensionsFrom lowers an x-* extension map into namespaced ir.Unmodeled, keys
 // prefixed "openapi:" and values serialized to raw JSON. owner is the pointer of
 // the object the extensions were written on; each entry is located at its own
 // key beneath it and marked ReasonVendorExtension, since the format assigns an
 // x-* key no semantics at all.
-func extensionsFrom(ext *extensions.Extensions, srcIndex int, owner string) (ir.Preserved, []ir.Diagnostic) {
+func extensionsFrom(ext *extensions.Extensions, srcIndex int, owner string) (ir.Unmodeled, []ir.Diagnostic) {
 	if ext == nil || ext.Len() == 0 {
 		return nil, nil
 	}
-	out := ir.Preserved{}
+	out := ir.Unmodeled{}
 	var diags []ir.Diagnostic
 	for name, node := range ext.All() {
 		raw := nodeToRaw(node)
@@ -1053,7 +1053,7 @@ func extensionsFrom(ext *extensions.Extensions, srcIndex int, owner string) (ir.
 				"extension %q could not be serialized", name))
 			continue
 		}
-		out["openapi:"+name] = ir.PreservedEntry{
+		out["openapi:"+name] = ir.UnmodeledEntry{
 			Reason:     ir.ReasonVendorExtension,
 			Value:      raw,
 			Provenance: ir.Provenance{Source: srcIndex, Pointer: owner + ptr(name)},
@@ -1065,25 +1065,25 @@ func extensionsFrom(ext *extensions.Extensions, srcIndex int, owner string) (ir.
 	return out, diags
 }
 
-// extensions lowers ext's x-* extensions into namespaced Preserved, recording
+// extensions lowers ext's x-* extensions into namespaced Unmodeled, recording
 // any serialization-failure diagnostics unconditionally even when the result
 // is empty. Every lowering site should call this rather than extensionsFrom
 // directly: gating the diagnostic append behind the same "len(ext) > 0" that
 // guards the assignment would drop every warning on an object whose
 // extensions all failed to serialize — exactly when the result is empty.
-func (l *lowerer) extensions(ext *extensions.Extensions, owner string) ir.Preserved {
+func (l *lowerer) extensions(ext *extensions.Extensions, owner string) ir.Unmodeled {
 	out, diags := extensionsFrom(ext, l.srcIndex, owner)
 	l.diags.AppendAll(diags)
 	return out
 }
 
 // mergePreserved overlays src onto dst, allocating dst on first write.
-func mergePreserved(dst, src ir.Preserved) ir.Preserved {
+func mergePreserved(dst, src ir.Unmodeled) ir.Unmodeled {
 	if len(src) == 0 {
 		return dst
 	}
 	if dst == nil {
-		dst = ir.Preserved{}
+		dst = ir.Unmodeled{}
 	}
 	maps.Copy(dst, src)
 	return dst

@@ -1162,7 +1162,7 @@ func TestDiscriminatorDefault_EmptyIsNoOp(t *testing.T) {
 
 // TestOneOf_CoDeclaredCompositionDistributes is the regression from
 // reference-learnings §B11: an allOf composition co-declared with a oneOf used
-// to survive while the union was dropped to Preserved. Both must survive, and
+// to survive while the union was dropped to Unmodeled. Both must survive, and
 // the shape that says so is a Union whose every variant carries the composition
 // — `Base ∧ (A | B)` written as `(Base ∧ A) | (Base ∧ B)`.
 func TestOneOf_CoDeclaredCompositionDistributes(t *testing.T) {
@@ -1183,7 +1183,7 @@ func TestOneOf_CoDeclaredCompositionDistributes(t *testing.T) {
 	require.True(t, ok, "the union is the schema's value, not a preserved sibling")
 	assert.True(t, u.Exclusive, "oneOf stays exclusive")
 	require.Len(t, u.Variants, 2)
-	assert.Empty(t, u.Preserved, "distribution loses nothing, so nothing is kept verbatim")
+	assert.Empty(t, u.Unmodeled, "distribution loses nothing, so nothing is kept verbatim")
 
 	for i, branch := range []string{"A", "B"} {
 		v := doc.Types[u.Variants[i].Type.Target].(*ir.Model)
@@ -1466,7 +1466,7 @@ func TestOneOf_CoDeclaredUnresolvableBranchIsNotDistributed(t *testing.T) {
 	for _, name := range []string{"Undeclared", "CrossDocument", "EmptyRef", "NoSuchPointer"} {
 		m, ok := typeByName(doc, name).(*ir.Model)
 		require.True(t, ok, "%s keeps its structural body rather than becoming a union", name)
-		entry, ok := m.Preserved["openapi:oneOf"]
+		entry, ok := m.Unmodeled["openapi:oneOf"]
 		require.True(t, ok, "%s keeps every branch verbatim", name)
 		assert.Equal(t, ir.ReasonDegradedLowering, entry.Reason, "%s", name)
 		assert.Contains(t,
@@ -1523,7 +1523,7 @@ func TestOneOf_CoDeclaredNotDistributedReasons(t *testing.T) {
 		"BothCombinators": "oneOf and anyOf are both declared, so distributing either would drop the other",
 		"Discriminated":   "a declared discriminator binds the branches by name, which distributing them would break",
 	} {
-		entry, ok := typeByName(doc, name).Common().Preserved["openapi:oneOf"]
+		entry, ok := typeByName(doc, name).Common().Unmodeled["openapi:oneOf"]
 		require.True(t, ok, "%s keeps its union verbatim", name)
 		assert.Equal(t, ir.ReasonDegradedLowering, entry.Reason, "%s", name)
 		assert.Contains(t,
@@ -1531,10 +1531,10 @@ func TestOneOf_CoDeclaredNotDistributedReasons(t *testing.T) {
 			reason, name)
 	}
 	both := typeByName(doc, "BothCombinators").(*ir.Model)
-	_, ok := both.Preserved["openapi:anyOf"]
+	_, ok := both.Unmodeled["openapi:anyOf"]
 	assert.True(t, ok, "the second combinator is kept too, which is why neither is distributed")
 	nullBranch := typeByName(doc, "NullBranch").(*ir.Model)
-	assert.Contains(t, string(nullBranch.Preserved["openapi:oneOf"].Value), `"null"`,
+	assert.Contains(t, string(nullBranch.Unmodeled["openapi:oneOf"].Value), `"null"`,
 		"a null branch is written inline, so it blocks distribution rather than lifting to Nullable")
 	assert.Equal(t, 5, countDiagsAt(diags, codeDegradedConstruct, ir.SeverityInfo),
 		"each declined shape is reported once; got %+v", diags)

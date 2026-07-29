@@ -55,8 +55,8 @@ type Example struct {
 	Error *ErrorExample `json:"error,omitempty"`
 	// ExternalURL points to an externally hosted example.
 	ExternalURL string `json:"externalURL,omitempty"`
-	// Preserved holds source constructs the IR does not model, kept verbatim.
-	Preserved Preserved `json:"preserved,omitempty"`
+	// Unmodeled holds source constructs the IR does not model, kept verbatim.
+	Unmodeled Unmodeled `json:"unmodeled,omitempty"`
 }
 
 // ErrorExample is the error arm of an operation-scenario Example.

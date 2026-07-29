@@ -28,7 +28,7 @@
       "anonymous": false,
       "docs": {},
       "sensitive": false,
-      "preserved": {
+      "unmodeled": {
         "openapi:readOnly": {
           "reason": "no_ir_home",
           "value": true,
@@ -187,7 +187,7 @@
     {
       "severity": "info",
       "code": "openapi/degraded-construct",
-      "message": "readOnly on a type declaration binds a use of the type, not the type; it is applied to referencing properties and kept verbatim under Preserved",
+      "message": "readOnly on a type declaration binds a use of the type, not the type; it is applied to referencing properties and kept verbatim under Unmodeled",
       "provenance": {
         "source": 0,
         "pointer": "/components/schemas/DeclaredReadOnly/readOnly"

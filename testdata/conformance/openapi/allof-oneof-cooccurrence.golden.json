@@ -280,7 +280,7 @@
       "anonymous": false,
       "docs": {},
       "sensitive": false,
-      "preserved": {
+      "unmodeled": {
         "openapi:oneOf": {
           "reason": "degraded_lowering",
           "value": [
@@ -415,7 +415,7 @@
     {
       "severity": "info",
       "code": "openapi/degraded-construct",
-      "message": "oneOf/anyOf co-declared with structural keywords intersects with them, and a branch is written inline, so it names no referent to conjoin the body with; union branches kept verbatim under Preserved",
+      "message": "oneOf/anyOf co-declared with structural keywords intersects with them, and a branch is written inline, so it names no referent to conjoin the body with; union branches kept verbatim under Unmodeled",
       "provenance": {
         "source": 0,
         "pointer": "/components/schemas/MixedKinds"

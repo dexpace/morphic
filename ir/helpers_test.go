@@ -127,10 +127,10 @@ func populatedProvenance() ir.Provenance {
 	}
 }
 
-// populatedPreserved returns a Preserved map with several entries whose
+// populatedPreserved returns an Unmodeled map with several entries whose
 // insertion order differs from sorted order, for Class C determinism checks.
-func populatedPreserved() ir.Preserved {
-	return ir.Preserved{
+func populatedPreserved() ir.Unmodeled {
+	return ir.Unmodeled{
 		"openapi:z-ext": {Reason: ir.ReasonVendorExtension, Value: ir.RawValue(`1`), Provenance: populatedProvenance()},
 		"openapi:m-ext": {Reason: ir.ReasonVendorExtension, Value: ir.RawValue(`2`), Provenance: populatedProvenance()},
 		"openapi:a-ext": {Reason: ir.ReasonVendorExtension, Value: ir.RawValue(`3`), Provenance: populatedProvenance()},
@@ -295,7 +295,7 @@ func populatedTypeCommon(id ir.TypeID) ir.TypeCommon {
 			Template: "Page",
 			Args:     []ir.TemplateArg{{Type: &ir.TypeRef{Target: "t/item"}}},
 		},
-		Preserved:  populatedPreserved(),
+		Unmodeled:  populatedPreserved(),
 		Provenance: populatedProvenance(),
 	}
 }
@@ -373,7 +373,7 @@ func populatedProperty() ir.Property {
 		Docs:         populatedDocs(),
 		Deprecation:  populatedDeprecation(),
 		Availability: populatedAvailability(),
-		Preserved:    populatedPreserved(),
+		Unmodeled:    populatedPreserved(),
 		Provenance:   populatedProvenance(),
 	}
 }

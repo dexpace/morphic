@@ -59,7 +59,7 @@ func (g *merger) mergeProperty(m *ir.Model, byWire map[string]int, p ir.Property
 // optional detail dst lacks — docs, default, constraints (merged per keyword via
 // mergeConstraints), deprecation, XML, examples — is adopted from src.
 //
-// Preserved is the one field where a later branch wins: its entries are keyed
+// Unmodeled is the one field where a later branch wins: its entries are keyed
 // and namespaced, so the two branches' keys union rather than compete, and a key
 // both branches write is the same construct written twice. A description that
 // differs between branches, an incompatible type, or a contradictory constraint
@@ -87,7 +87,7 @@ func (g *merger) reconcileProperty(dst *ir.Property, src ir.Property, pointer st
 		// like its neighbors above; the len()==0 predicate is the adoption rule.
 		dst.Examples = src.Examples
 	}
-	dst.Preserved = mergePreserved(dst.Preserved, src.Preserved)
+	dst.Unmodeled = mergePreserved(dst.Unmodeled, src.Unmodeled)
 }
 
 // mergeConstraints folds src's constraint keywords into dst under allOf

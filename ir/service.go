@@ -36,8 +36,8 @@ type Service struct {
 	Renames map[TypeID]Naming `json:"renames,omitempty"`
 	// Servers indexes into Document.Servers scoped to this service.
 	Servers []int `json:"servers,omitempty"`
-	// Preserved holds source constructs the IR does not model, kept verbatim.
-	Preserved Preserved `json:"preserved,omitempty"`
+	// Unmodeled holds source constructs the IR does not model, kept verbatim.
+	Unmodeled Unmodeled `json:"unmodeled,omitempty"`
 	// Provenance records where the service came from.
 	Provenance Provenance `json:"provenance"`
 }
@@ -67,8 +67,8 @@ type OperationGroup struct {
 	// Availability records the group's versioning timeline (TypeSpec interfaces
 	// are versionable).
 	Availability *Availability `json:"availability,omitempty"`
-	// Preserved holds source constructs the IR does not model, kept verbatim.
-	Preserved Preserved `json:"preserved,omitempty"`
+	// Unmodeled holds source constructs the IR does not model, kept verbatim.
+	Unmodeled Unmodeled `json:"unmodeled,omitempty"`
 }
 
 // ResourceInfo carries Smithy resource semantics for an OperationGroup

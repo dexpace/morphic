@@ -28,7 +28,7 @@
       "anonymous": false,
       "docs": {},
       "sensitive": false,
-      "preserved": {
+      "unmodeled": {
         "openapi:not": {
           "reason": "validation_only",
           "value": {
@@ -104,7 +104,7 @@
     {
       "severity": "info",
       "code": "openapi/validation-only-keyword",
-      "message": "validation-only keyword \"not\" kept verbatim under Preserved",
+      "message": "validation-only keyword \"not\" kept verbatim under Unmodeled",
       "provenance": {
         "source": 0,
         "pointer": "/components/schemas/NotFoo"

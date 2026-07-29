@@ -28,7 +28,7 @@ const (
 	// still proceeds, and every cycle the scan did classify is still caught.
 	codeCycleScanFailed = "openapi/cycle-scan-failed"
 	// codeValidationOnlyKeyword reports a validation-only JSON Schema keyword
-	// kept verbatim under Preserved (ir-design §4.7).
+	// kept verbatim under Unmodeled (ir-design §4.7).
 	codeValidationOnlyKeyword = "openapi/validation-only-keyword"
 	// codeFalseSchema reports a boolean `false` schema (matches nothing).
 	codeFalseSchema = "openapi/false-schema"

@@ -86,7 +86,7 @@ func TestVerify_SourcelessDocAdmitsZeroAndTheSentinel(t *testing.T) {
 }
 
 // TestVerify_ProvenanceIsCheckedEverywhere confirms the check is document-wide
-// rather than scoped to one carrier: a diagnostic and a Preserved entry are
+// rather than scoped to one carrier: a diagnostic and an Unmodeled entry are
 // neither of them types, and both must be reached.
 func TestVerify_ProvenanceIsCheckedEverywhere(t *testing.T) {
 	doc := validDoc()
@@ -94,7 +94,7 @@ func TestVerify_ProvenanceIsCheckedEverywhere(t *testing.T) {
 	doc.Diagnostics = []ir.Diagnostic{
 		ir.NewDiagnostic(ir.SeverityWarning, "openapi/x", "m", ir.Provenance{Source: 9}),
 	}
-	doc.Types["t/x/Model"].Common().Preserved = ir.Preserved{
+	doc.Types["t/x/Model"].Common().Unmodeled = ir.Unmodeled{
 		"openapi:x-ext": {
 			Reason:     ir.ReasonVendorExtension,
 			Value:      ir.RawValue(`1`),

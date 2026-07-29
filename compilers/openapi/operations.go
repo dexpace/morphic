@@ -249,7 +249,7 @@ func (l *lowerer) lowerOperation(src *soa.Operation, ctx opContext) (ir.Operatio
 	}
 	op.Bindings = ir.OpBindings{HTTP: []ir.HTTPBinding{hb}}
 	if ext := l.operationExtensions(src, decl); len(ext) > 0 {
-		op.Preserved = ext
+		op.Unmodeled = ext
 	}
 	l.checkOperationIDUnique(op, mount)
 	return op, extra
@@ -299,12 +299,12 @@ func fillOperationDocs(d *ir.Docs, src *soa.Operation) {
 }
 
 // operationExtensions lowers an operation's x-* extensions into namespaced
-// Preserved entries.
-func (l *lowerer) operationExtensions(src *soa.Operation, declPtr string) ir.Preserved {
+// Unmodeled entries.
+func (l *lowerer) operationExtensions(src *soa.Operation, declPtr string) ir.Unmodeled {
 	return l.extensions(src.GetExtensions(), declPtr)
 }
 
-// applyPathServers preserves path-item-level servers verbatim under Preserved
+// applyPathServers preserves path-item-level servers verbatim under Unmodeled
 // on the operation. §10 models servers as Document.Servers with per-scope index
 // lists (Service.Servers, Channel.Servers); ir.Operation just has no such list
 // yet, so the scoping is kept raw with an info diagnostic — a gap the IR can
@@ -317,9 +317,9 @@ func (l *lowerer) applyPathServers(op *ir.Operation, pi *soa.PathItem, declPtr s
 	if raw == nil {
 		return
 	}
-	l.preserve(&op.Preserved, "openapi:servers", raw, ir.ReasonNoIRHome, declPtr+ptr("servers"))
+	l.preserve(&op.Unmodeled, "openapi:servers", raw, ir.ReasonNoIRHome, declPtr+ptr("servers"))
 	l.diags.Append(diagf(ir.SeverityInfo, codeDegradedConstruct, op.Provenance,
-		"path-item servers kept under Preserved; an operation has no server-scope list to bind them to"))
+		"path-item servers kept under Unmodeled; an operation has no server-scope list to bind them to"))
 }
 
 // lowerResponses splits an operation's responses into success responses
@@ -361,7 +361,7 @@ func (l *lowerer) lowerResponse(r *soa.Response, rng ir.StatusRange, rptr string
 		Headers:    l.lowerHeaders(r.GetHeaders(), rptr),
 	}
 	resp.Docs.Description = r.GetDescription()
-	l.preserve(&resp.Preserved, "openapi:links", nodeToRaw(rawChildNode(r.GetRootNode(), "links")),
+	l.preserve(&resp.Unmodeled, "openapi:links", nodeToRaw(rawChildNode(r.GetRootNode(), "links")),
 		ir.ReasonNoIRHome, rptr+ptr("links"))
 	return resp
 }
@@ -381,7 +381,7 @@ func (l *lowerer) lowerErrorCase(r *soa.Response, rng ir.StatusRange, rptr strin
 
 // preserveErrorHeaders keeps an error response's headers from being dropped:
 // ir.ErrorCase has no Headers field (ir-design §7.2), so when the response
-// declares headers they are kept verbatim under Preserved with one info
+// declares headers they are kept verbatim under Unmodeled with one info
 // diagnostic, mirroring the success path's structural header lowering.
 func (l *lowerer) preserveErrorHeaders(ec *ir.ErrorCase, r *soa.Response, rptr string) {
 	headers := r.GetHeaders()
@@ -392,9 +392,9 @@ func (l *lowerer) preserveErrorHeaders(ec *ir.ErrorCase, r *soa.Response, rptr s
 	if raw == nil {
 		return
 	}
-	l.preserve(&ec.Preserved, "openapi:headers", raw, ir.ReasonNoIRHome, rptr+ptr("headers"))
+	l.preserve(&ec.Unmodeled, "openapi:headers", raw, ir.ReasonNoIRHome, rptr+ptr("headers"))
 	l.diag(ir.SeverityInfo, codeDegradedConstruct, rptr,
-		"error response headers have no ErrorCase home; kept verbatim under Preserved")
+		"error response headers have no ErrorCase home; kept verbatim under Unmodeled")
 }
 
 // fillErrorType lowers every content entry's schema into the type registry
@@ -416,10 +416,10 @@ func (l *lowerer) fillErrorType(ec *ir.ErrorCase, r *soa.Response, rptr string) 
 		}
 	}
 	if content.Len() > 1 {
-		l.preserve(&ec.Preserved, "openapi:content", nodeToRaw(rawChildNode(r.GetRootNode(), "content")),
+		l.preserve(&ec.Unmodeled, "openapi:content", nodeToRaw(rawChildNode(r.GetRootNode(), "content")),
 			ir.ReasonNoIRHome, rptr+ptr("content"))
 		l.diag(ir.SeverityInfo, codeDegradedConstruct, rptr,
-			"error response has multiple media types; full content map kept under Preserved")
+			"error response has multiple media types; full content map kept under Unmodeled")
 	}
 }
 
