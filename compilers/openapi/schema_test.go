@@ -2640,6 +2640,107 @@ func TestPropertyAnnotations_CarriedWhenSchemaOwnsNoNode(t *testing.T) {
 	assert.Equal(t, int64(3), *p.Constraints.MaxLength)
 }
 
+// carrierDocKeyword is one of the three documentation keywords a $ref position
+// merges onto its carrier: how to write it with a given value, and which
+// ir.Docs field reading it back means the merge kept it.
+type carrierDocKeyword struct {
+	name  string
+	write func(value string) string
+	read  func(ir.Docs) string
+}
+
+func carrierDocKeywords() []carrierDocKeyword {
+	return []carrierDocKeyword{
+		{"title",
+			func(v string) string { return "title: " + v },
+			func(d ir.Docs) string { return d.Summary }},
+		{"description",
+			func(v string) string { return "description: " + v },
+			func(d ir.Docs) string { return d.Description }},
+		{"externalDocs",
+			func(v string) string { return "externalDocs: {url: 'https://e.example', description: " + v + "}" },
+			func(d ir.Docs) string {
+				if len(d.ExternalDocs) != 1 {
+					return ""
+				}
+				return d.ExternalDocs[0].Description
+			}},
+	}
+}
+
+// docTarget is a component writing all three keywords, each valued after itself
+// so a carrier reading one of them cannot be confused with a carrier reading
+// another.
+func docTarget() string {
+	parts := make([]string, 0, len(carrierDocKeywords()))
+	for _, kw := range carrierDocKeywords() {
+		parts = append(parts, kw.write("REF-"+kw.name))
+	}
+	return "    Target: {type: string, " + strings.Join(parts, ", ") + "}\n"
+}
+
+// propertyOf returns the named component model's property with the given wire
+// name.
+func propertyOf(t *testing.T, doc *ir.Document, model, wire string) ir.Property {
+	t.Helper()
+	m, ok := doc.Types[componentID(model)].(*ir.Model)
+	require.True(t, ok, "%s lowers to a model", model)
+	p, ok := propsByWire(m.Properties)[wire]
+	require.True(t, ok, "%s declares a property %q", model, wire)
+	return p
+}
+
+// TestPropertyDocs_RefTargetReachesTheCarrier pins the referent half of the
+// documentation merge, keyword by keyword: a property that declares nothing but
+// a $ref still carries what its referent documents, and the referent's own node
+// keeps its copy. ir-design §14 asks for that merge uniformly, so the three
+// keywords stand or fall together — a fix that inherited only the description
+// would leave the other two behind at every carrier.
+func TestPropertyDocs_RefTargetReachesTheCarrier(t *testing.T) {
+	t.Parallel()
+	for _, kw := range carrierDocKeywords() {
+		t.Run(kw.name, func(t *testing.T) {
+			t.Parallel()
+			doc, diags := parseFull(t, componentSpec(docTarget()+
+				"    Owner: {type: object, properties: {p: {$ref: '#/components/schemas/Target'}}}\n"))
+			requireNoErrorDiags(t, diags)
+
+			p := propertyOf(t, doc, "Owner", "p")
+			assert.Equal(t, componentID("Target"), p.Type.Target, "a bare $ref needs no alias")
+			assert.Equal(t, "REF-"+kw.name, kw.read(p.Docs), "the carrier reads the referent's %s", kw.name)
+			assert.Equal(t, "REF-"+kw.name, kw.read(doc.Types[componentID("Target")].Common().Docs),
+				"and the referent keeps its own %s", kw.name)
+		})
+	}
+}
+
+// TestPropertyDocs_UseSiteWinsKeywordByKeyword pins the other half: a keyword
+// written beside the $ref replaces that field and only that field, the rest
+// still arriving from the referent. Taking either schema whole passes one of
+// these subtests and fails the other two.
+func TestPropertyDocs_UseSiteWinsKeywordByKeyword(t *testing.T) {
+	t.Parallel()
+	for _, site := range carrierDocKeywords() {
+		t.Run(site.name, func(t *testing.T) {
+			t.Parallel()
+			doc, diags := parseFull(t, componentSpec(docTarget()+
+				"    Owner: {type: object, properties: {p: {$ref: '#/components/schemas/Target', "+
+				site.write("SITE")+"}}}\n"))
+			requireNoErrorDiags(t, diags)
+
+			p := propertyOf(t, doc, "Owner", "p")
+			assert.Equal(t, componentID("Target"), p.Type.Target, "a carrier hoists no alias for its siblings")
+			for _, kw := range carrierDocKeywords() {
+				want := "REF-" + kw.name
+				if kw.name == site.name {
+					want = "SITE"
+				}
+				assert.Equal(t, want, kw.read(p.Docs), "%s, with %s written at the site", kw.name, site.name)
+			}
+		})
+	}
+}
+
 // TestInlinePosition_HoistGateFollowsWhatIsKept walks every keyword that only a
 // node of its own can hold, one at a time, and requires each to give the
 // position that node. The gate and the two things that fill it —

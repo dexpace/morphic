@@ -111,6 +111,14 @@ func (l *lowerer) fillParamSchema(param *ir.Parameter, js *oas3.JSONSchema[oas3.
 // win where both are set. ir.Parameter has a field for every annotation a schema
 // can declare bar one: an `xml` hint governs XML body serialization, which no
 // parameter takes part in, so it alone has nowhere to go here.
+//
+// The referent argument is nil because nothing on this path resolves one: a
+// parameter schema spelled `{$ref: …}` contributes only the keywords written
+// beside the $ref, where a property in the same shape also inherits the
+// referent's (fillCarrierDocs, ir-design §14). That asymmetry is knowingly left
+// alone here — the same gap costs a parameter the referent's default,
+// constraints and deprecation too, so closing it is a change to fillParamSchema
+// as a whole rather than to the documentation it happens to reach first.
 func (l *lowerer) fillParamSchemaAnnotations(param *ir.Parameter, s *oas3.Schema, pointer string) {
 	if l.loweredToOwnNode(pointer, param.Type) {
 		return

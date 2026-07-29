@@ -1371,14 +1371,24 @@ func fillTypeDocs(d *ir.Docs, s *oas3.Schema) {
 	}
 }
 
-// fillCarrierDocs records the documentation a schema declares on the ir.Property
-// or ir.Parameter carrying the position, the use-site keyword winning over the
-// $ref referent's field by field.
+// fillCarrierDocs fills the ir.Property or ir.Parameter carrying a position with
+// the documentation effective there: the $ref referent's title, description and
+// externalDocs first, then the use-site's over them, field by field. A carrier
+// therefore ends up with documentation the position itself need not have
+// written — a bare `$ref` reads all three from the referent, which keeps its own
+// copy on its node.
 //
-// It reads the same three keywords fillTypeDocs does, deliberately: the two are
-// the only homes a declaration's documentation has, declaresAnnotations hoists a
-// node whenever any of the three is written, and one the node home keeps while
-// the carrier drops it is one silently lost wherever a carrier is the home.
+// Both halves are deliberate. The use-site half is the only home a keyword
+// written *at* the position has once the body reduced to a shared node
+// (GitHub #116): dropping it there loses it outright. The referent half is
+// ir-design §14 — ref-target annotations merge onto the referencing
+// Property/Parameter with use-site precedence, applied uniformly — and it is how
+// every other field this compiler reads through a $ref already behaves
+// (fillPropertyDefault, effectiveVisibility, effectiveDeprecated).
+//
+// Uniform is the load-bearing word: description alone inheriting, while title
+// and externalDocs stop at the position, is the ad-hoc per-keyword patching §14
+// names as the counterexample to avoid.
 func fillCarrierDocs(d *ir.Docs, ref, tgt *oas3.Schema) {
 	if tgt != nil {
 		fillTypeDocs(d, tgt)
