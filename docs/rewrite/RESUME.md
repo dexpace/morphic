@@ -60,6 +60,31 @@ Trust the tree over any summary, including `README.md`.
   Also: `internal/harness/internal_test.go` still carries the false `RawMessage.MarshalJSON`
   claim the sweep corrected elsewhere, in a file the same commit edited two lines below.
 
+- An **Important on the `validate` walk**: `pass/refs.go`'s `walkPointer` prunes with a
+  `seen map[uintptr]bool` keyed on *traversal* order, while `doc.Types`/`Messages`/`Channels`
+  iterate randomly. One pointer reachable from two registry entries yields a different recorded
+  **site set** per run, which the later sort cannot repair — proven over 500 runs (443/57 split
+  between two outputs). The doc comment claiming sorting defeats map-iteration randomness is
+  therefore false as written. Unreachable today (0 aliased pointers across 62 corpus docs). Fix:
+  guard with an *ancestor* set (pointers on the current path) rather than a global seen set —
+  order-independent and still terminates the `Value.Ctor→Args→Value.Ctor` cycle. **The same flaw
+  pre-exists in `ir/irverify/refs.go`.**
+
+**Both new guards on `fix/irverify-preserved` are defeated.** The const-block tie test 5/5 (above)
+and `ir/irverify/refkinds_test.go` 3/6 — `type GizmoID TypeID`, `type DoodadID = TypeID`, and
+`type Thingy string` all pass silently, because it requires the literal ident `string` *and* an
+`ID` suffix. Treat both as not-yet-working rather than as coverage.
+
+**Two smaller items on the same branch:** `Discriminator.Mapping` now double-reports
+(`ir/dangling-type-ref` plus `pass/discriminator-missing-variant`), untested either way; and the
+emitted paths carry a bogus `/TypeCommon/` segment that navigates in neither JSON nor Go, since
+JSON inlines the embed and Go promotes it.
+
+**A corpus gap worth closing.** The multipart claim was confirmed and it raises severity: a dangling
+target under `encoding.<part>.headers` is reachable from ordinary OpenAPI 3.0 input, and pre-fix
+`Validate` returned **zero** diagnostics for it. No corpus spec uses `encoding.headers` at all (0 of
+62), so the regression test exercises only hand-built IR. Add a conformance fixture.
+
 **3. Then the remaining issues**, roughly by severity:
 
 | issue | |
