@@ -18,7 +18,13 @@ import (
 )
 
 // compile lowers one OpenAPI source and returns the document, or nil when the
-// compiler refused the input outright (a Go error rather than a diagnostic).
+// compilation produced none to verify.
+//
+// Two different refusals reach that nil. A Go error is an I/O or programmer
+// fault and no corpus spec provokes one; a nil document with a clean error is
+// the compiler declining a spec it cannot lower, which is how every one of the
+// corpus specs that yields nothing here does it. Both leave the oracle with no
+// document, which is not the same as a document that passes.
 func compile(t *testing.T, name string, data []byte) *ir.Document {
 	t.Helper()
 	doc, _, err := openapi.New().Compile(t.Context(),
@@ -57,9 +63,17 @@ func corpusSpecs(t *testing.T) []string {
 // It verifies documents the compiler faulted on as well as clean ones, which is
 // what it adds over the harness sweep in internal/harness: harness.Check returns
 // at the first error diagnostic and never reaches irverify.Verify, so the
-// deliberately-broken fixtures under testdata/dangling and testdata/openapi are
-// unverified there. Refusing a spec is no licence to hand back a document with a
-// dangling reference in it — that is the invariant those fixtures exist for.
+// deliberately-broken fixtures under testdata/dangling go unverified there.
+// Faulting on a spec is no licence to hand back a document with a dangling
+// reference in it — that is the invariant those fixtures exist for.
+//
+// The reach is narrower than the sweep looks, and worth stating rather than
+// leaving to be rediscovered. Every dangling fixture yields a document and is
+// verified. Most of testdata/openapi does not: those specs are cyclic or
+// amplifying by construction and the compiler declines them outright, so the
+// subtest skips with nothing to check. Closing that gap needs the compiler to
+// emit a partial document for a spec it refuses, which is a decision about the
+// compiler and not something a checker can assert its way into.
 func TestVerify_Corpus(t *testing.T) {
 	t.Parallel()
 	for _, f := range corpusSpecs(t) {
