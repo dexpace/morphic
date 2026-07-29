@@ -251,12 +251,25 @@ func TestValidate_GroupWalkTruncationIsReported(t *testing.T) {
 	t.Parallel()
 	oneway := ir.Operation{ID: "deep", OneWay: true, Responses: []ir.Response{{}}}
 
-	within := codes(pass.Validate(nestGroups(127, oneway)))
-	assert.Contains(t, within, "pass/oneway-with-responses")
-	assert.NotContains(t, within, "ir/walk-truncated", "a walk that completed must not claim truncation")
+	// Pinned at the boundary, not near it. Every leaf recurses once into its own
+	// empty Groups, so a cap reported without checking whether anything was
+	// actually skipped fires at exactly the depth where the last operation still
+	// fits — visible only by testing maxGroupDepth itself.
+	for _, depth := range []int{1, 127, 128} {
+		within := codes(pass.Validate(nestGroups(depth, oneway)))
+		assert.Contains(t, within, "pass/oneway-with-responses",
+			"at depth %d the operation is still reached", depth)
+		assert.NotContains(t, within, "ir/walk-truncated",
+			"at depth %d nothing was skipped, so nothing may claim truncation", depth)
+	}
 
-	past := codes(pass.Validate(nestGroups(200, oneway)))
-	assert.Contains(t, past, "ir/walk-truncated", "a walk that stopped early must say so")
+	for _, depth := range []int{129, 200} {
+		past := codes(pass.Validate(nestGroups(depth, oneway)))
+		assert.Contains(t, past, "ir/walk-truncated",
+			"at depth %d the walk stopped early and must say so", depth)
+		assert.NotContains(t, past, "pass/oneway-with-responses",
+			"and the operation past the cap genuinely went unvisited")
+	}
 }
 
 // TestValidate_ArgsCheckFailsOpenWhenWalkTruncated covers the polarity flip: the

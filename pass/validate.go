@@ -498,7 +498,11 @@ func forEachOperation(doc *ir.Document, fn func(ir.Operation)) bool {
 // cut the descent short.
 func forEachGroupOperation(groups []ir.OperationGroup, depth int, fn func(ir.Operation)) bool {
 	if depth > maxGroupDepth {
-		return true
+		// Only a non-empty slice is being skipped. Every leaf recurses once into
+		// its own empty Groups, so reporting the cap unconditionally would claim
+		// truncation for a walk that reached everything — at exactly the depth
+		// where the last operation still fits.
+		return len(groups) > 0
 	}
 	truncated := false
 	for _, g := range groups {
