@@ -679,7 +679,14 @@ func (l *lowerer) fillPropertyDetail(p *ir.Property, js *oas3.JSONSchema[oas3.Re
 // the property's own position, but only when its schema hoisted no node to hold
 // them — the same one-home-per-declaration rule fillPropertyExamples applies.
 // A $ref position never hoists one, which is what gives an if/then/else written
-// beside a $ref somewhere to land (GitHub #114).
+// beside a *property's* $ref somewhere to land (GitHub #114).
+//
+// Only a property's. Every other schema position that can carry a $ref —
+// a request body, a parameter, a response content — goes through schemaRef,
+// which returns from refTypeRef before any of this runs, so keywords written
+// beside those refs are still dropped without a diagnostic even though
+// ir.Parameter and ir.Content both have a Preserved map to hold them
+// (GitHub #116).
 func (l *lowerer) fillPropertyValidationOnly(p *ir.Property, ref *oas3.Schema, pointer string) {
 	if l.ownsNode(pointer) {
 		return

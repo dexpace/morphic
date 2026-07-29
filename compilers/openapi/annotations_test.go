@@ -828,6 +828,14 @@ components:
 
 // validationOnlyCases returns the annotation-retention cases for the
 // validationOnly annotation (if/then/else) at each SiteKind.
+//
+// The reference case below writes the keywords beside a *property's* $ref,
+// and that is the only reference position the compiler keeps them at. The
+// same keywords beside a request-body, parameter, or response-content $ref
+// are still dropped silently (GitHub #116) — schemaRef returns from
+// refTypeRef before the property path that preserves them runs. The grid has
+// one `reference` cell per annotation, not one per position, so this cell
+// going green says nothing about those three.
 func validationOnlyCases() []retentionCase {
 	return []retentionCase{
 		validationOnlyModelCase(), validationOnlyScalarCase(), validationOnlyReferenceCase(),
