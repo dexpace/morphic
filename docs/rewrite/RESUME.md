@@ -3,17 +3,22 @@
 Paste this into a fresh session to pick the work up. It is written to be acted on, not just read.
 `README.md` beside it carries the reasoning; this file carries the state and the next moves.
 
+State that would rot is derived here rather than written down — commit counts, issue lists and
+branch layout all come from commands you run, not from prose in this file. That is not fastidiousness:
+every count this directory has ever hardcoded went stale, including in the commit that claimed to
+refresh it.
+
 ---
 
 You are continuing a multi-session compiler rewrite in `morphic`, a spec-to-SDK compiler.
-Draft PR **#119** is the trunk. Read these first, in order:
+PR **#119** is the trunk. Read these first, in order:
 
 1. `docs/rewrite/README.md` — what was decided and why, including two decisions that were reversed
    by measurement. Read the "What was learned about verifying work here" section before writing any
    test.
 2. `CLAUDE.md` — binding. The **zero nits, zero flaws** standard under "Commits & pull requests" is
    the bar; "Minor" is a severity, not permission to ship.
-3. `gh pr view 119` and the open issues listed below.
+3. `gh pr view 119`, then `gh issue list --state open` for what is filed.
 
 ## Standing directive — file, do not fix
 
@@ -23,57 +28,44 @@ work has a strong tendency to spawn adjacent defects — the corpus gaps, the dr
 later. Fixing them inline is how the PR stops converging.
 
 The exception is a defect **in code this work introduced** — a guard that does not guard, a walk
-that is not deterministic. That is finishing the job, not detouring.
+that is not deterministic, a test that does not check what it claims. That is finishing the job,
+not detouring.
 
-Currently filed and deliberately untouched:
-
-| issue | |
-|---|---|
-| **#123** | a non-object inline `allOf` branch is dropped **whole** — type, constraints, annotations. Partly blocked on `ir.Model` having no `Constraints` field. |
-| **#126** | the conformance corpus never exercises 33 IR fields the compiler assigns, including the entire `allOf`-inheritance-with-discriminator path |
-| **#125** | `dependentRequired`, the `content*` family and `$dynamicRef` are silently dropped; §4.7's keyword list looks hand-assembled |
-| **#127** | `pass` and `irverify` disagree about whether `Provenance.Source = -1` is valid — latent until anything verifies engine output |
-| **#124** | `xml` on a parameter schema is discarded; may want a diagnostic rather than an IR field |
-| **#120** | settle the name of the `Preserved` field — cheap now, breaking once #119 merges |
-
-#121 and #122 were fixed rather than filed, before this directive; both ride the PR.
+`gh issue list --state open` is the authoritative list. Of those, the ones this work filed and
+deliberately did not fix are #120 and #123 through #127; everything numbered below #120 that is
+still open predates this effort.
 
 ## Branch layout
 
-**All four branches are merged.** `feat/annotation-gaps-and-preserved` is the single trunk, 63
-commits from `main`, and is PR **#119** (draft). The others are merged into it and can be deleted:
-`fix/irverify-preserved`, `fix/cli-output-truncation`, `docs/rewrite-working-notes`. Also delete
-`wip/b11-distributed-lowering` — it was superseded, not merged.
+`feat/annotation-gaps-and-preserved` is the single trunk and is PR #119. Everything else that
+carried part of this work — `fix/irverify-preserved`, `fix/cli-output-truncation`,
+`docs/rewrite-working-notes` — is merged into it and can be deleted. So can
+`wip/b11-distributed-lowering`, which was superseded rather than merged.
 
-At the merge point: all four gates green, coverage 100% total and per package, and the conformance
-corpus passes **without** regeneration.
+```sh
+git rev-list --count main..HEAD      # size of the trunk
+git branch --merged feat/annotation-gaps-and-preserved
+```
 
 ## Do these next, in this order
 
-**1. Re-verify the merged trunk.** Do not take the paragraph above on trust — `git status` clean,
-`go build ./...`, `go test ./...`, `./scripts/check-coverage.sh`, and
-`go test ./compilers/openapi -run TestConformance` without `-update`.
+**1. Re-verify the trunk rather than trusting any summary, including this one.**
 
-**2. Run a whole-branch review at the final state.** Every review in this work found something, and
-none of the 63 commits has been reviewed *as merged*. Expect findings; split them by the directive
-above — defects in this branch's own code get fixed, anything pre-existing or adjacent becomes an
-issue.
+```sh
+git status --short                              # clean
+go build ./... && go vet ./... && go test ./...
+gofmt -l $(git ls-files '*.go')                 # prints nothing
+golangci-lint run
+./scripts/check-coverage.sh
+go test ./compilers/openapi -run TestConformance # no -update; must pass unchanged
+```
 
-**3. Take #119 out of draft**, with a PR body that matches what actually landed. The current body
-predates roughly half these commits.
+**2. Review the branch at its final state.** Every review in this work found something, and a review
+that predates later commits is stale by `CLAUDE.md`'s own standard. Split what it finds by the
+directive above.
 
-| issue | |
-|---|---|
-| **#123** | a non-object inline `allOf` branch is dropped **whole** — type, constraints, annotations. Blocked in part on `ir.Model` having no `Constraints` field. |
-| **#122** | `validate` checks no `ChannelID`/`MessageID` refs, and `Servers` integer indices are unbounded |
-| **#117** | `propertyNames` is neither lowered nor preserved |
-| **#124** | `xml` on a parameter schema is discarded; may want a diagnostic rather than a field |
-| **#120** | decide the name of the `Preserved` field — cheap now, breaking after #119 merges |
-
-### Nothing is queued behind those
-
-Every review finding from this session has been landed, and every bug found along the way is filed
-rather than half-fixed. The known-open list is exactly the issues named above.
+**3. Take #119 out of draft**, with a body that matches what actually landed — including a Breaking
+section, which the IR shape changes on this branch require.
 
 ## How to work here
 
@@ -83,14 +75,18 @@ These are not style preferences. Each was learned by shipping the opposite.
 inspecting the emitted IR and the full diagnostic list. Reading the source has repeatedly agreed
 with claims that turned out false — including in review passes that declared the code clean.
 
-**Prove a test by breaking what it describes.** Three tests were found asserting nothing; one
-"safety net" permitted the exact addition it advertised catching. If a test is meant to fail when
-something breaks, break that thing in a throwaway patch and watch it fail, then revert.
+**Prove a test by breaking what it describes.** Several tests here were found asserting nothing, and
+one "safety net" permitted the exact addition it advertised catching. If a test is meant to fail
+when something breaks, break that thing in a throwaway patch and watch it fail, then revert.
 
-**Distrust counts and universals in prose.** Roughly ten were found wrong — a count referring to a
-different branch, "every X cites Y" when five of seven did, "confirmed by probe" citing a deleted
-artifact, "one map field" where there were two or three. None were caught by tests, because none
-were testable. Prefer deriving a count or omitting it to maintaining one.
+**A check that never runs is not coverage.** A verifier can be complete, well-tested against its own
+fixtures, and still never meet the output it exists to check. Before trusting one, plant the defect
+it names in real pipeline output and confirm the suite goes red.
+
+**Distrust counts and universals in prose.** They are where the errors in this work concentrated — a
+count referring to a different branch, "every X cites Y" when most did, "confirmed by probe" citing
+a deleted artifact, a normative definition falsified by its only write site. None were caught by
+tests, because none were testable. Derive a count or omit it; do not maintain one.
 
 **A corpus shares the blind spots of the code it covers.** Fixing #114 produced a zero-byte golden
 diff because no corpus spec exercised the defect. A regeneration that changes nothing looks exactly
