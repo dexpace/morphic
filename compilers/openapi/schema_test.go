@@ -3253,6 +3253,11 @@ func TestDynamicRef_ExpandsAgainstTheOneMatchingAnchor(t *testing.T) {
 		assert.NotContains(t, td.Common().Unmodeled, "openapi:$dynamicRef",
 			"an expanded reference is the position's type; keeping it too would read as ignored")
 	}
+
+	// Expansion collapses an indirection the source left to evaluation, so it is
+	// announced under its own code rather than sharing the composition one.
+	assert.Equal(t, 2, countDiagsAt(diags, codeDynamicRefExpanded, ir.SeverityInfo),
+		"each expanded reference is announced once")
 }
 
 // TestDynamicRef_IrreducibleIsKeptAndSaysWhy pins the other half of that promise.

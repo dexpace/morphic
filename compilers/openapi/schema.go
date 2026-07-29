@@ -281,7 +281,7 @@ func declaresValidationOnly(s *oas3.Schema) bool {
 // the oneOf/anyOf dispatch that precede structural lowering.
 func (l *lowerer) lowerSchemaBody(schema *oas3.Schema, pointer, hint string) ir.TypeRef {
 	if target, why := l.dynamicExpansion(schema); why == "" {
-		l.diag(ir.SeverityInfo, codeCompositionLowering, pointer+ptr("$dynamicRef"),
+		l.diag(ir.SeverityInfo, codeDynamicRefExpanded, pointer+ptr("$dynamicRef"),
 			"$dynamicRef expanded to %q, the one matching $dynamicAnchor in this document", target)
 		return ir.TypeRef{Target: target, Nullable: schemaAdmitsNull(schema)}
 	}
