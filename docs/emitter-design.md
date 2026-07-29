@@ -63,7 +63,7 @@ The definitive design is a **strict three-stage pipeline** with these decisions:
 1. **The plan layer is shared and computed once by the engine, keyed by IR stable IDs, and passed
    into every target.** This is the single most important structural choice: it is what makes the
    docs emitter, the mock emitter, and every language SDK agree *by construction* rather than
-   re-derive decisions and drift (the OpenAPI-Generator failure mode, prior-art.md §3). The
+   re-derive decisions and drift — the OpenAPI Generator failure mode set out above. The
    plan is JSON-serializable and has its own language-independent golden-test corpus.
 
 2. **Refine is an ordered pipeline of small, named, idempotent lowerings — but each one is a *pure
@@ -1173,7 +1173,8 @@ seams; the `Origin`-tagged AST makes the manifest a byproduct of the emit walk.
   a **sorted** file list (deterministic diffs), and an **entity → generated-symbol map keyed by
   `TypeID`/`OpID`/`PropID`** — assembled from the `Origin` on every emitted node. This is the biggest
   win of stable-ID keying: a spec rename is "same ID, new symbol" — a lookup, not oagen's structural
-  rename-inference machinery. Rungs 2–5 of the integration ladder (architecture.md §2.3) rest on it.
+  rename-inference machinery. Write/integrate and surface verification (architecture.md §2.3) both
+  rest on it.
 - **File-header provenance gates pruning.** `Artifact.Header` writes a generated-by header; the
   writer **never deletes a file lacking it** (hand-edited). First adoption (no prior manifest) skips
   pruning, writes a baseline, emits a notice.

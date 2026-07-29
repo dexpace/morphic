@@ -8,7 +8,11 @@ import "strings"
 type Provenance struct {
 	// Source indexes into Document.Sources.
 	Source int `json:"source"`
-	// Pointer is a JSON pointer or line:col into that source.
+	// Pointer locates the construct: a JSON pointer or line:col into Source for
+	// anything read from a file, or an IR-space location — a stable ID, or a path
+	// through the document's own fields — for a finding an IR pass made about the
+	// document rather than about a source. Spelling is the producer's; nothing
+	// parses this.
 	Pointer string `json:"pointer,omitempty"`
 	// Inferred is "" for declared facts; otherwise it names the heuristic that
 	// produced this node (e.g. "pagination-name-match").

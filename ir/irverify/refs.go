@@ -3,6 +3,8 @@ package irverify
 import (
 	"fmt"
 	"reflect"
+	"slices"
+	"strings"
 
 	"github.com/dexpace/morphic/ir"
 )
@@ -121,6 +123,17 @@ func checkReferentialIntegrity(doc *ir.Document) []Violation {
 // that value's children. Map keys are walked too, not just values — see
 // collectRefs for why that matters.
 //
+// A value reached through an unexported field is read-only, and Interface()
+// panics on one where FieldByName does not, so a visitor reads the fields it
+// needs rather than converting the value back to its Go type. That is what keeps
+// Verify an oracle that never crashes on a malformed document.
+//
+// Map entries are visited in rendered-key order rather than Go's randomized map
+// order. A pointer reachable from two entries is descended into at whichever the
+// walk reaches first, so a random order yields a different path for it — and so a
+// different violation set, not merely a different order — on each run, which
+// Verify's final sort cannot repair (invariant 7).
+//
 // The bool return is true only when the depth cap truncated the walk, so
 // callers can surface a too-deep document instead of silently
 // under-checking it.
@@ -156,21 +169,52 @@ func walkValues(root any, visit func(v reflect.Value, path string) bool) bool {
 			}
 		case reflect.Struct:
 			for i := range v.NumField() {
-				descend(v.Field(i), path+"."+v.Type().Field(i).Name, depth+1)
+				descend(v.Field(i), fieldPath(path, v.Type().Field(i)), depth+1)
 			}
 		case reflect.Slice, reflect.Array:
 			for i := range v.Len() {
 				descend(v.Index(i), fmt.Sprintf("%s[%d]", path, i), depth+1)
 			}
 		case reflect.Map:
-			iter := v.MapRange()
-			for iter.Next() {
-				k := iter.Key()
-				descend(k, fmt.Sprintf("%s[%v].key", path, k), depth+1)
-				descend(iter.Value(), fmt.Sprintf("%s[%v]", path, k), depth+1)
+			for _, e := range orderedEntries(v) {
+				descend(e.key, fmt.Sprintf("%s[%s].key", path, e.label), depth+1)
+				descend(e.value, fmt.Sprintf("%s[%s]", path, e.label), depth+1)
 			}
 		}
 	}
 	walk(reflect.ValueOf(root), "doc", 0)
 	return truncated
+}
+
+// fieldPath extends path with f's name, except for an embedded field, which
+// contributes no segment: JSON inlines it and Go promotes its fields, so
+// "….TypeCommon.Examples[0]" names a step neither encoding has — the example is
+// reached as "….Examples[0]" in both.
+func fieldPath(path string, f reflect.StructField) string {
+	if f.Anonymous {
+		return path
+	}
+	return path + "." + f.Name
+}
+
+// mapEntry is one map entry paired with its rendered key, which both spells the
+// entry's path and orders the walk.
+type mapEntry struct {
+	label string
+	key   reflect.Value
+	value reflect.Value
+}
+
+// orderedEntries returns v's entries ordered by rendered key. Ordering by the
+// same rendering the path uses keeps the two in step, and it is a total order for
+// every key type the IR declares: named string types, plain strings and ints all
+// render distinct keys distinctly.
+func orderedEntries(v reflect.Value) []mapEntry {
+	entries := make([]mapEntry, 0, v.Len())
+	for iter := v.MapRange(); iter.Next(); {
+		k := iter.Key()
+		entries = append(entries, mapEntry{label: fmt.Sprintf("%v", k), key: k, value: iter.Value()})
+	}
+	slices.SortFunc(entries, func(a, b mapEntry) int { return strings.Compare(a.label, b.label) })
+	return entries
 }

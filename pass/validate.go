@@ -1,6 +1,7 @@
 package pass
 
 import (
+	"cmp"
 	"fmt"
 	"slices"
 
@@ -20,150 +21,111 @@ func Validate(doc *ir.Document) []ir.Diagnostic {
 		return nil
 	}
 	diags := make([]ir.Diagnostic, 0, 8)
-	diags = append(diags, checkDanglingTypeRefs(doc)...)
+	diags = append(diags, checkDanglingRefs(doc)...)
+	diags = append(diags, checkServerIndices(doc)...)
+	diags = append(diags, checkResponseIndices(doc)...)
 	diags = append(diags, checkDiscriminators(doc)...)
 	diags = append(diags, checkDuplicateWireNames(doc)...)
 	diags = append(diags, checkParamBindings(doc)...)
 	diags = append(diags, checkOneWay(doc)...)
 	diags = append(diags, checkArgsOutsideGraphQL(doc)...)
-	diags = append(diags, checkAuthRefs(doc)...)
 	return diags
 }
 
-// refVisitor receives every TypeRef target reached by the walkers, along with a
-// human-readable location used for diagnostic provenance.
-type refVisitor func(target ir.TypeID, where string)
-
-// checkDanglingTypeRefs reports every TypeRef.Target that resolves to no entry
-// in doc.Types.
-func checkDanglingTypeRefs(doc *ir.Document) []ir.Diagnostic {
+// checkDanglingRefs reports every typed-ID reference in the document that
+// resolves to no entry in the registry that declares that class of ID — a
+// TypeRef.Target into doc.Types, a MessageBinding.Channel into doc.Channels, a
+// SchemeUse.Scheme into doc.Auth — wherever it sits.
+//
+// The sites and the registries both come from reflection over the document's own
+// shape (refs.go) rather than a list of field names: referential integrity is the
+// guarantee an emitter relies on, and a hand-written enumeration drifts behind
+// the IR without anything failing.
+func checkDanglingRefs(doc *ir.Document) []ir.Diagnostic {
+	regs := documentRegistries(doc)
+	sites, truncated := collectRefs(doc, "doc", regs.isRef)
 	var diags []ir.Diagnostic
-	visit := func(target ir.TypeID, where string) {
-		if target == "" {
-			return
-		}
-		if _, ok := doc.Types[target]; !ok {
-			diags = append(diags, diag(ir.SeverityError, "ir/dangling-type-ref",
-				fmt.Sprintf("type reference %q at %s resolves to no type in the registry", target, where),
-				where))
-		}
+	if truncated {
+		diags = append(diags, diag(ir.SeverityError, "ir/walk-truncated",
+			"document nests deeper than the bounded reference walk; some references went unchecked",
+			"doc"))
 	}
-	for _, id := range sortedKeys(doc.Types) {
-		walkTypeDefRefs(doc.Types[id], visit)
-	}
-	forEachOperation(doc, func(op ir.Operation) { walkOperationRefs(op, visit) })
-	for _, id := range sortedKeys(doc.Messages) {
-		msg := doc.Messages[id]
-		walkPayloadRefs(&msg.Payload, "message/"+string(id), visit)
+	for _, s := range sites {
+		if regs.resolves(s) {
+			continue
+		}
+		noun := refNoun(s.idType)
+		diags = append(diags, diag(ir.SeverityError, "ir/dangling-"+noun+"-ref",
+			fmt.Sprintf("%s reference %q at %s resolves to no %s in the registry", noun, s.id, s.where, noun),
+			s.where))
 	}
 	return diags
 }
 
-// walkTypeDefRefs visits every TypeRef embedded in a single TypeDef node.
-func walkTypeDefRefs(td ir.TypeDef, visit refVisitor) {
-	where := string(td.Common().ID)
-	switch t := td.(type) {
-	case *ir.Model:
-		walkModelRefs(t, where, visit)
-	case *ir.Union:
-		for i, v := range t.Variants {
-			visit(v.Type.Target, fmt.Sprintf("%s/variants/%d", where, i))
-		}
-	case *ir.Scalar:
-		if t.Base != nil {
-			visit(t.Base.Target, where+"/base")
-		}
-		visitEncoding(t.Encoding, where, visit)
-	case *ir.List:
-		visit(t.Elem.Target, where+"/elem")
-		visitEncoding(t.Encoding, where, visit)
-	case *ir.MapT:
-		visit(t.Key.Target, where+"/key")
-		visit(t.Value.Target, where+"/value")
-	case *ir.Tuple:
-		for i, e := range t.Elems {
-			visit(e.Target, fmt.Sprintf("%s/elems/%d", where, i))
-		}
-	default:
-		// Enum, Literal, Primitive, External, and Any carry no TypeRefs, so
-		// there is nothing to walk. A new ref-bearing TypeDef kind must add a
-		// case above rather than fall through here silently.
+// checkServerIndices reports Service.Servers and Channel.Servers entries that
+// address no entry of Document.Servers.
+//
+// These are references carried as integer indices, so nothing in their Go type
+// marks them as references and the walk in refs.go cannot reach them — they are
+// enumerated here instead. An emitter iterating them to render base URLs indexes
+// out of range on a document that is otherwise referentially closed.
+func checkServerIndices(doc *ir.Document) []ir.Diagnostic {
+	declared := len(doc.Servers)
+	var diags []ir.Diagnostic
+	for _, svc := range doc.Services {
+		diags = appendServerIndexDiags(diags, svc.Servers, declared, string(svc.ID))
 	}
+	for _, id := range sortedKeys(doc.Channels) {
+		diags = appendServerIndexDiags(diags, doc.Channels[id].Servers, declared, string(id))
+	}
+	return diags
 }
 
-// walkModelRefs visits the TypeRefs owned by a Model: its own properties (and
-// their encodings), single-inheritance base, interfaces, mixins, and catch-all.
-func walkModelRefs(m *ir.Model, where string, visit refVisitor) {
-	for i, p := range m.Properties {
-		site := fmt.Sprintf("%s/properties/%d", where, i)
-		visit(p.Type.Target, site)
-		visitEncoding(p.Encoding, site, visit)
-	}
-	if m.Base != nil {
-		visit(m.Base.Target, where+"/base")
-	}
-	for i, r := range m.Implements {
-		visit(r.Target, fmt.Sprintf("%s/implements/%d", where, i))
-	}
-	for i, r := range m.Mixins {
-		visit(r.Target, fmt.Sprintf("%s/mixins/%d", where, i))
-	}
-	walkAdditionalPropsRefs(m.AdditionalProps, where, visit)
-}
-
-// walkAdditionalPropsRefs visits the value/key/pattern schemas of a model's
-// catch-all property map.
-func walkAdditionalPropsRefs(ap *ir.AdditionalProps, where string, visit refVisitor) {
-	if ap == nil {
-		return
-	}
-	visit(ap.Value.Target, where+"/additionalProps/value")
-	if ap.Key != nil {
-		visit(ap.Key.Target, where+"/additionalProps/key")
-	}
-	for i, pp := range ap.Patterns {
-		visit(pp.Value.Target, fmt.Sprintf("%s/additionalProps/patterns/%d", where, i))
-	}
-}
-
-// visitEncoding visits an encoding's wire-type override, when present.
-func visitEncoding(enc *ir.Encoding, where string, visit refVisitor) {
-	if enc != nil && enc.WireType != nil {
-		visit(enc.WireType.Target, where+"/encoding/wireType")
-	}
-}
-
-// walkOperationRefs visits the TypeRefs on an Operation's params, request,
-// responses (bodies and headers), and errors.
-func walkOperationRefs(op ir.Operation, visit refVisitor) {
-	where := string(op.ID)
-	for i, p := range op.Params {
-		visit(p.Type.Target, fmt.Sprintf("%s/params/%d", where, i))
-	}
-	if op.Request != nil {
-		walkPayloadRefs(op.Request, where+"/request", visit)
-	}
-	for i, r := range op.Responses {
-		if r.Payload != nil {
-			walkPayloadRefs(r.Payload, fmt.Sprintf("%s/responses/%d", where, i), visit)
+// appendServerIndexDiags appends to dst a diagnostic per entry of indices that
+// addresses none of the declared servers; where locates the owning service or
+// channel.
+func appendServerIndexDiags(dst []ir.Diagnostic, indices []int, declared int, where string) []ir.Diagnostic {
+	for i, index := range indices {
+		if index >= 0 && index < declared {
+			continue
 		}
-		for j, h := range r.Headers {
-			visit(h.Type.Target, fmt.Sprintf("%s/responses/%d/headers/%d", where, i, j))
-		}
+		at := fmt.Sprintf("%s/servers/%d", where, i)
+		dst = append(dst, diag(ir.SeverityError, "ir/server-index-out-of-range",
+			fmt.Sprintf("server index %d at %s addresses none of the %d declared servers", index, at, declared),
+			at))
 	}
-	for i, e := range op.Errors {
-		visit(e.Type.Target, fmt.Sprintf("%s/errors/%d", where, i))
-	}
+	return dst
 }
 
-// walkPayloadRefs visits the content and per-item TypeRefs of a Payload.
-func walkPayloadRefs(p *ir.Payload, where string, visit refVisitor) {
-	for i, c := range p.Contents {
-		visit(c.Type.Target, fmt.Sprintf("%s/contents/%d", where, i))
-		if c.Item != nil {
-			visit(c.Item.Target, fmt.Sprintf("%s/contents/%d/item", where, i))
+// checkResponseIndices reports HTTPBinding.SuccessStatus keys that address no
+// entry of the operation's Responses. Its keys are indices into that slice, so
+// they are invisible to the type-driven walk for the same reason server indices
+// are, and are enumerated here for the same reason.
+func checkResponseIndices(doc *ir.Document) []ir.Diagnostic {
+	var diags []ir.Diagnostic
+	forEachOperation(doc, func(op ir.Operation) {
+		for i, b := range op.Bindings.HTTP {
+			where := fmt.Sprintf("%s/bindings/http/%d", op.ID, i)
+			diags = appendSuccessStatusDiags(diags, b.SuccessStatus, len(op.Responses), where)
 		}
+	})
+	return diags
+}
+
+// appendSuccessStatusDiags appends to dst a diagnostic per SuccessStatus key that
+// addresses none of the declared responses, in ascending key order so map
+// iteration cannot reach the output.
+func appendSuccessStatusDiags(dst []ir.Diagnostic, status map[int]int, declared int, where string) []ir.Diagnostic {
+	for _, index := range sortedKeys(status) {
+		if index >= 0 && index < declared {
+			continue
+		}
+		at := fmt.Sprintf("%s/successStatus/%d", where, index)
+		dst = append(dst, diag(ir.SeverityError, "ir/response-index-out-of-range",
+			fmt.Sprintf("response index %d at %s addresses none of the %d declared responses", index, at, declared),
+			at))
 	}
+	return dst
 }
 
 // checkDiscriminators reports discriminator mappings whose target either does
@@ -213,17 +175,42 @@ func checkModelDiscriminator(doc *ir.Document, m *ir.Model) []ir.Diagnostic {
 
 // checkMapping validates a discriminator's wire-value mapping: every target must
 // resolve in the registry and satisfy member.
+//
+// A target that resolves nowhere is reported here and again by checkDanglingRefs,
+// and that double report is deliberate: the two codes make different claims.
+// ir/dangling-type-ref says the document is not referentially closed, which every
+// reference in it is held to; pass/discriminator-missing-variant says this
+// discriminator cannot route that wire value, which is what an emitter building a
+// polymorphic decoder subscribes to. Neither consumer should have to subscribe to
+// the other's code to get its own answer.
 func checkMapping(doc *ir.Document, d *ir.Discriminator, where string, member func(ir.TypeID) bool) []ir.Diagnostic {
 	var diags []ir.Diagnostic
 	for _, key := range sortedKeys(d.Mapping) {
 		target := d.Mapping[key]
-		if _, ok := doc.Types[target]; !ok || !member(target) {
-			diags = append(diags, diag(ir.SeverityError, "pass/discriminator-missing-variant",
-				fmt.Sprintf("discriminator mapping %q on %s references %q, which is not a variant of it", key, where, target),
-				where))
+		legal, why := mappingTarget(doc, target, member)
+		if legal {
+			continue
 		}
+		diags = append(diags, diag(ir.SeverityError, "pass/discriminator-missing-variant",
+			fmt.Sprintf("discriminator mapping %q on %s references %q, which %s", key, where, target, why),
+			where))
 	}
 	return diags
+}
+
+// mappingTarget reports whether target is a legal mapping target and, when it is
+// not, the clause naming why. The two failures read differently on purpose: a
+// target no type declares is a broken reference, while a declared one that fails
+// member is a well-formed reference to the wrong type, and the reader should not
+// have to cross-check the registry to tell them apart.
+func mappingTarget(doc *ir.Document, target ir.TypeID, member func(ir.TypeID) bool) (legal bool, why string) {
+	if _, declared := doc.Types[target]; !declared {
+		return false, "no type in the document declares"
+	}
+	if !member(target) {
+		return false, "is not a variant of it"
+	}
+	return true, ""
 }
 
 // isSubtype reports whether target is a declared subtype of base via single
@@ -382,10 +369,9 @@ func graphqlReachableTypes(doc *ir.Document) map[ir.TypeID]bool {
 	seen := map[ir.TypeID]bool{}
 	var queue []ir.TypeID
 	forEachOperation(doc, func(op ir.Operation) {
-		if op.Bindings.GraphQL == nil {
-			return
+		if op.Bindings.GraphQL != nil {
+			queue = appendTypeIDs(queue, op)
 		}
-		walkOperationRefs(op, func(t ir.TypeID, _ string) { queue = append(queue, t) })
 	})
 	for len(queue) > 0 {
 		id := queue[len(queue)-1]
@@ -395,35 +381,22 @@ func graphqlReachableTypes(doc *ir.Document) map[ir.TypeID]bool {
 		}
 		seen[id] = true
 		if td, ok := doc.Types[id]; ok {
-			walkTypeDefRefs(td, func(t ir.TypeID, _ string) { queue = append(queue, t) })
+			queue = appendTypeIDs(queue, td)
 		}
 	}
 	return seen
 }
 
-// checkAuthRefs reports auth requirements whose scheme does not resolve in
-// doc.Auth, across service defaults and per-operation overrides.
-func checkAuthRefs(doc *ir.Document) []ir.Diagnostic {
-	var diags []ir.Diagnostic
-	check := func(reqs []ir.AuthRequirement, where string) {
-		for _, req := range reqs {
-			for _, use := range req.Schemes {
-				if use.Scheme == "" {
-					continue
-				}
-				if _, ok := doc.Auth[use.Scheme]; !ok {
-					diags = append(diags, diag(ir.SeverityError, "pass/dangling-auth-ref",
-						fmt.Sprintf("auth requirement on %s references unknown scheme %q", where, use.Scheme),
-						where))
-				}
-			}
-		}
+// appendTypeIDs appends every TypeID reachable from root to dst. Truncation is
+// dropped rather than reported: this feeds reachability, where a truncated walk
+// can only under-report, and checkDanglingRefs already reports the same
+// truncation over the whole document.
+func appendTypeIDs(dst []ir.TypeID, root any) []ir.TypeID {
+	sites, _ := collectTypeIDs(root, "")
+	for _, s := range sites {
+		dst = append(dst, ir.TypeID(s.id))
 	}
-	for _, svc := range doc.Services {
-		check(svc.Auth, string(svc.ID))
-	}
-	forEachOperation(doc, func(op ir.Operation) { check(op.Auth, string(op.ID)) })
-	return diags
+	return dst
 }
 
 // forEachOperation invokes fn for every operation in the document, descending
@@ -455,9 +428,10 @@ func diag(sev ir.Severity, code, message, pointer string) ir.Diagnostic {
 	return ir.NewDiagnostic(sev, code, message, ir.Provenance{Source: -1, Pointer: pointer})
 }
 
-// sortedKeys returns the keys of a string-keyed map in ascending order, giving
-// every check deterministic diagnostic ordering.
-func sortedKeys[K ~string, V any](m map[K]V) []K {
+// sortedKeys returns the keys of a map in ascending order, giving every check
+// deterministic diagnostic ordering. Keys are IDs or slice indices, so ordering
+// them by value orders the diagnostics by the node they name.
+func sortedKeys[K cmp.Ordered, V any](m map[K]V) []K {
 	keys := make([]K, 0, len(m))
 	for k := range m {
 		keys = append(keys, k)

@@ -37,13 +37,33 @@ const (
 	ReasonOutOfScope PreserveReason = "out_of_scope"
 )
 
+// Valid reports whether r is one of the reasons declared above. PreserveReason
+// is a bare string enum, so nothing rejects a typo'd or stale value on the
+// wire; irverify calls this so an entry no consumer's switch can route is
+// reported as the compiler bug it is rather than silently dropped.
+func (r PreserveReason) Valid() bool {
+	switch r {
+	case ReasonVendorExtension, ReasonValidationOnly, ReasonDegradedLowering,
+		ReasonNoIRHome, ReasonOutOfScope:
+		return true
+	default:
+		return false
+	}
+}
+
 // PreservedEntry is one preserved construct.
 type PreservedEntry struct {
 	// Reason says why the construct is here rather than modeled, so a consumer
 	// can take the subset it cares about — a validation emitter wants §4.7
 	// entries and not vendor noise; a linter wants the degradations.
 	Reason PreserveReason `json:"reason"`
-	// Value is the source construct, byte-faithful.
+	// Value is the source construct, preserved whole rather than byte-for-byte:
+	// nothing here discards or reshapes it, but two re-encodings sit between the
+	// source bytes and this field. json.Marshal compacts a RawValue and escapes
+	// <, >, & as \uXXXX, and a compiler that rebuilds the value from its parsed
+	// tree (the OpenAPI path does, via a decode/re-marshal) also normalizes
+	// object key order and number spelling and rewrites ill-formed UTF-8 to
+	// U+FFFD. What survives is the construct's meaning, not its spelling.
 	Value RawValue `json:"value"`
 	// Provenance locates the construct itself, which the owning node's own
 	// provenance cannot: a validation emitter reporting on a `not` must point at

@@ -148,7 +148,8 @@ model, so casing/acronym/reserved-word bugs are re-litigated in **204 subclasses
 escaping is per-language data + a hook everywhere (openapi-generator's `escapeReservedWord` throws by
 default; Go appends `_`).
 
-**Recommendation:** store `Naming{Source, Canonical (neutral word sequence), Wire (+numeric ID)}` and
+**Recommendation:** store `Naming{Source, Canonical (neutral word sequence)}` on every named entity,
+with `WireName` (+ numeric wire ID where applicable) as sibling fields on the owning entity, and
 **nothing cased** — validated by all. Model the emitter name resolver as TypeSpec's two-function
 policy (wire namer reads `WireName`; application namer reads `Canonical` + per-language casing +
 reserved words), injectable per emitter (invariant #6). Give anonymous-type `Hint`s enough parent+role

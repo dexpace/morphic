@@ -193,8 +193,8 @@ func TestContent_JSONContract(t *testing.T) {
 	})
 }
 
-// TestContent_EncodingDeterministic pins Class C for Content's one map field:
-// Encoding must marshal with keys in sorted order on every run.
+// TestContent_EncodingDeterministic pins Class C for Content's Encoding map:
+// it must marshal with keys in sorted order on every run.
 func TestContent_EncodingDeterministic(t *testing.T) {
 	t.Parallel()
 	content := ir.Content{

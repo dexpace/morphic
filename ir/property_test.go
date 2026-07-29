@@ -54,8 +54,8 @@ func TestProperty_JSONContract(t *testing.T) {
 		populatedProperty())
 }
 
-// TestProperty_WireNameByFormatDeterministic pins Class C for Property's one
-// map field: WireNameByFormat must marshal with keys in sorted order and
+// TestProperty_WireNameByFormatDeterministic pins Class C for Property's
+// WireNameByFormat map: it must marshal with keys in sorted order and
 // identically on every run, since Documents are compared and cached as
 // serialized bytes (invariant #7).
 func TestProperty_WireNameByFormatDeterministic(t *testing.T) {
