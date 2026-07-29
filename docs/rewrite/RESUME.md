@@ -39,8 +39,9 @@ still open predates this effort.
 
 `feat/annotation-gaps-and-preserved` is the single trunk and is PR #119. Everything else that
 carried part of this work — `fix/irverify-preserved`, `fix/cli-output-truncation`,
-`docs/rewrite-working-notes` — is merged into it and can be deleted. So can
-`wip/b11-distributed-lowering`, which was superseded rather than merged.
+`fix/verifier-review`, `docs/rewrite-working-notes`, `docs/rewrite-notes-truth` — is merged into it
+and can be deleted. So can `wip/b11-distributed-lowering`, which was superseded rather than merged,
+and `backup/pre-reword`, a safety ref from a history rewrite that was abandoned.
 
 ```sh
 git rev-list --count main..HEAD      # size of the trunk
@@ -60,9 +61,38 @@ golangci-lint run
 go test ./compilers/openapi -run TestConformance # no -update; must pass unchanged
 ```
 
-**2. Review the branch at its final state.** Every review in this work found something, and a review
-that predates later commits is stale by `CLAUDE.md`'s own standard. Split what it finds by the
-directive above.
+All of the above were green at the head this file was last updated against, and the coverage gate
+now counts statements exactly rather than reading `%.1f`-rounded output, so 100% means 100%.
+
+**2. Finish the whole-branch review.** One ran at the merged head and returned HOLD with 20
+findings. Everything it raised is either landed or filed, but **the fixes themselves have not been
+reviewed** — they are the newest commits on the trunk, and by `CLAUDE.md`'s own standard a review
+that predates later commits is stale. Re-review the branch as it will be merged.
+
+What that review found, and what became of it, is worth knowing before re-reviewing:
+
+- The **Critical** was the same pointer-collision hazard the branch had already fixed once for the
+  union lowering, sitting untouched in the inline-position hoist. Fixed, and both carriers that
+  inherited the same order-dependence with it. If you look for one class of defect here, look for a
+  fix that was scoped to where it was noticed rather than to the mechanism.
+- **`irverify` never ran over compiler output anywhere.** Its checks only saw hand-built fixtures,
+  so a `Reason: ""` planted in the compiler passed `go test ./...` entirely. Now wired, and the
+  mutation fails. Note the test that catches it is the out-of-corpus one — no committed spec reaches
+  that preserve call.
+- **Two `pass` tests pinned a sort order neither checked**; `return 0` from the comparator left the
+  tree green. Now pinned literally.
+- Everything adjacent was filed rather than fixed, per the directive: #123 through #128.
+
+**3. Take #119 out of draft** once that review is clean. The body is current: it has the Breaking
+section, the `IRVersion` bump, and all eight `Closes` links.
+
+### One thing deliberately left
+
+Four intermediate commit subjects exceed the 72-char cap. Two attempts to reword them across the
+five merge commits failed — the second completed with an identical tree but the rewords silently did
+not apply. It is left alone on purpose: the branch is squash-merged, so the only subject that reaches
+`main` is the PR title, which is within cap. Stated in the PR body too. If you want it fixed anyway,
+rewrite before the merges rather than through them.
 
 **3. Take #119 out of draft**, with a body that matches what actually landed — including a Breaking
 section, which the IR shape changes on this branch require.

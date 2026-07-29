@@ -82,7 +82,15 @@ invisible to the golden suite. This recurred often enough to be filed as #126.
 **A hazard fixed in one place is not fixed.** The pointer-collision defect described below was found
 in the union lowering, fixed there, and written into `ir-design.md` §4.3 — and the same hazard was
 sitting in the inline-position hoist the same branch introduced, because the fix was scoped to the
-namespace where it was noticed rather than to the mechanism that caused it.
+namespace where it was noticed rather than to the mechanism that caused it. Both are fixed now. The
+generalisation is in §4.3: any lowering that mints a node at a pointer the source can also name
+needs a namespace of its own.
+
+**Order-dependence hides from every test that runs one order.** Both pointer collisions produced a
+different IR depending on which of two declarations lowered first, with no diagnostic in either
+order and a clean `pass/validate` on both. Nothing in the suite compared the two, so nothing failed.
+The regression tests now compile both orders and diff the documents, which is the only shape of
+assertion that can catch it.
 
 ## #115 is answered — do not add an intersection combinator
 
