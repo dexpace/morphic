@@ -1,0 +1,321 @@
+{
+  "irVersion": "0.1.0",
+  "name": "SequentialMedia",
+  "version": "1.0.0",
+  "docs": {},
+  "services": [
+    {
+      "id": "s/openapi/0",
+      "name": {
+        "source": "SequentialMedia",
+        "canonical": "sequential_media"
+      },
+      "docs": {},
+      "groups": [
+        {
+          "name": {
+            "hint": "default"
+          },
+          "docs": {},
+          "operations": [
+            {
+              "id": "op/openapi/paths/~1events/get",
+              "name": {
+                "source": "streamEvents",
+                "canonical": "stream_events"
+              },
+              "docs": {},
+              "responses": [
+                {
+                  "name": {},
+                  "conditions": {
+                    "statusCodes": [
+                      {
+                        "from": 200,
+                        "to": 200
+                      }
+                    ]
+                  },
+                  "payload": {
+                    "contents": [
+                      {
+                        "mediaType": "multipart/mixed",
+                        "type": {
+                          "target": "t/prim/any",
+                          "nullable": false
+                        },
+                        "item": {
+                          "target": "t/anon/paths/~1events/get/responses/200/content/multipart~1mixed/itemSchema",
+                          "nullable": false
+                        },
+                        "itemEncoding": {
+                          "*": {
+                            "contentTypes": [
+                              "application/json"
+                            ],
+                            "multi": true,
+                            "filename": false
+                          }
+                        }
+                      }
+                    ]
+                  },
+                  "docs": {
+                    "description": "ok"
+                  }
+                }
+              ],
+              "oneWay": false,
+              "idempotency": {},
+              "auth": null,
+              "bindings": {
+                "http": [
+                  {
+                    "method": "GET",
+                    "uriTemplate": "/events",
+                    "sharedRoute": false,
+                    "checksumRequired": false,
+                    "isWebhook": false
+                  }
+                ]
+              },
+              "provenance": {
+                "source": 0,
+                "pointer": "/paths/~1events/get"
+              }
+            },
+            {
+              "id": "op/openapi/paths/~1parts/get",
+              "name": {
+                "source": "streamParts",
+                "canonical": "stream_parts"
+              },
+              "docs": {},
+              "responses": [
+                {
+                  "name": {},
+                  "conditions": {
+                    "statusCodes": [
+                      {
+                        "from": 200,
+                        "to": 200
+                      }
+                    ]
+                  },
+                  "payload": {
+                    "contents": [
+                      {
+                        "mediaType": "multipart/mixed",
+                        "type": {
+                          "target": "t/prim/any",
+                          "nullable": false
+                        },
+                        "item": {
+                          "target": "t/anon/paths/~1parts/get/responses/200/content/multipart~1mixed/itemSchema",
+                          "nullable": false
+                        },
+                        "preserved": {
+                          "openapi:itemEncoding": {
+                            "reason": "no_ir_home",
+                            "value": {
+                              "contentType": "text/plain"
+                            },
+                            "provenance": {
+                              "source": 0,
+                              "pointer": "/paths/~1parts/get/responses/200/content/multipart~1mixed/itemEncoding"
+                            }
+                          },
+                          "openapi:prefixEncoding": {
+                            "reason": "no_ir_home",
+                            "value": [
+                              {
+                                "contentType": "application/json"
+                              }
+                            ],
+                            "provenance": {
+                              "source": 0,
+                              "pointer": "/paths/~1parts/get/responses/200/content/multipart~1mixed/prefixEncoding"
+                            }
+                          }
+                        }
+                      }
+                    ]
+                  },
+                  "docs": {
+                    "description": "ok"
+                  }
+                }
+              ],
+              "oneWay": false,
+              "idempotency": {},
+              "auth": null,
+              "bindings": {
+                "http": [
+                  {
+                    "method": "GET",
+                    "uriTemplate": "/parts",
+                    "sharedRoute": false,
+                    "checksumRequired": false,
+                    "isWebhook": false
+                  }
+                ]
+              },
+              "provenance": {
+                "source": 0,
+                "pointer": "/paths/~1parts/get"
+              }
+            }
+          ]
+        }
+      ],
+      "auth": null,
+      "provenance": {
+        "source": 0
+      }
+    }
+  ],
+  "types": {
+    "t/anon/paths/~1events/get/responses/200/content/multipart~1mixed/itemSchema": {
+      "kind": "model",
+      "id": "t/anon/paths/~1events/get/responses/200/content/multipart~1mixed/itemSchema",
+      "name": {
+        "hint": "response_item"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/paths/~1events/get/responses/200/content/multipart~1mixed/itemSchema"
+      },
+      "properties": [
+        {
+          "id": "p/openapi/paths/~1events/get/responses/200/content/multipart~1mixed/itemSchema/properties/id",
+          "name": {
+            "source": "id",
+            "canonical": "id"
+          },
+          "wireName": "id",
+          "type": {
+            "target": "t/prim/string",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/paths/~1events/get/responses/200/content/multipart~1mixed/itemSchema/properties/id"
+          }
+        }
+      ],
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
+    "t/anon/paths/~1parts/get/responses/200/content/multipart~1mixed/itemSchema": {
+      "kind": "model",
+      "id": "t/anon/paths/~1parts/get/responses/200/content/multipart~1mixed/itemSchema",
+      "name": {
+        "hint": "response_item"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/paths/~1parts/get/responses/200/content/multipart~1mixed/itemSchema"
+      },
+      "properties": [
+        {
+          "id": "p/openapi/paths/~1parts/get/responses/200/content/multipart~1mixed/itemSchema/properties/body",
+          "name": {
+            "source": "body",
+            "canonical": "body"
+          },
+          "wireName": "body",
+          "type": {
+            "target": "t/prim/string",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/paths/~1parts/get/responses/200/content/multipart~1mixed/itemSchema/properties/body"
+          }
+        }
+      ],
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
+    "t/prim/any": {
+      "kind": "primitive",
+      "id": "t/prim/any",
+      "name": {},
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0
+      },
+      "prim": "any"
+    },
+    "t/prim/string": {
+      "kind": "primitive",
+      "id": "t/prim/string",
+      "name": {},
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0
+      },
+      "prim": "string"
+    }
+  },
+  "servers": [
+    {
+      "name": {},
+      "urlTemplate": "/",
+      "description": {},
+      "auth": null
+    }
+  ],
+  "diagnostics": [
+    {
+      "severity": "info",
+      "code": "openapi/degraded-construct",
+      "message": "prefixEncoding is positional and has no per-item IR home; it and any itemEncoding are kept under Preserved",
+      "provenance": {
+        "source": 0,
+        "pointer": "/paths/~1parts/get/responses/200/content/multipart~1mixed"
+      }
+    }
+  ],
+  "sources": [
+    {
+      "format": "openapi@3.2",
+      "path": "sequential-media.yaml",
+      "hash": "6dac962c61e43a0eb19d09c3f0696840673f3e3cb16f5700bf406f19692e4ccf"
+    }
+  ]
+}

@@ -5,6 +5,7 @@
 package openapi_test // external test package — exercises only the public API
 
 import (
+	"encoding/json"
 	"os"
 	"path/filepath"
 	"strings"
@@ -64,6 +65,7 @@ func TestConformance(t *testing.T) {
 		{"param-styles", assertParamStyles},
 		{"multi-content", assertMultiContent},
 		{"multipart-encoding", assertMultipartEncoding},
+		{"sequential-media", assertSequentialMedia},
 		{"per-status-errors", assertPerStatusErrors},
 		{"webhooks", assertWebhooks},
 		{"callbacks", assertCallbacks},
@@ -82,6 +84,7 @@ func TestConformance(t *testing.T) {
 			assertNoErrorDiags(t, diags)
 			tc.assert(t, doc, diags)
 			irtest.CompareGolden(t, filepath.Join(conformanceDir, tc.file+".golden.json"), doc)
+			assertJSONRoundTrip(t, doc)
 		})
 	}
 }
@@ -96,6 +99,26 @@ func parseCorpus(t *testing.T, name string) (*ir.Document, []ir.Diagnostic) {
 	require.NoError(t, err)
 	require.NotNil(t, doc)
 	return doc, diags
+}
+
+// assertJSONRoundTrip marshals doc, reads it back, and re-marshals, requiring
+// the two encodings to be byte-identical — the serialized oracle fuzz_test.go
+// and internal/harness already apply, compared as JSON so the unpreservable
+// nil-vs-empty-collection distinction is ignored while real loss still shows.
+//
+// Invariant 7 is asserted per corpus document rather than only on the golden
+// one because each spec reaches IR shapes the others never build — a reserved
+// map key, a preserved raw payload, a sum-typed node — and only the shapes a
+// document contains can round-trip wrongly.
+func assertJSONRoundTrip(t *testing.T, doc *ir.Document) {
+	t.Helper()
+	first, err := json.Marshal(doc)
+	require.NoError(t, err)
+	var back ir.Document
+	require.NoError(t, json.Unmarshal(first, &back))
+	second, err := json.Marshal(&back)
+	require.NoError(t, err)
+	assert.Equal(t, string(first), string(second), "round-trip must preserve the document")
 }
 
 // assertNoErrorDiags fails when any diagnostic has error severity.
@@ -719,6 +742,42 @@ func assertMultipartEncoding(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) 
 	}
 	assert.True(t, sawFile, "binary file part carries Filename")
 	assert.True(t, sawMulti, "array part carries Multi")
+}
+
+// assertSequentialMedia pins the 3.2 sequential-media lowering, including the
+// two forms per-item encoding takes: one Encoding governing every item lands
+// under the reserved ItemEncodingAll key, while a positional prefixEncoding —
+// which the flat map has no ordinals for — takes itself and the tail encoding
+// beside it into Preserved instead.
+func assertSequentialMedia(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
+	events, ok := opByName(doc, "streamEvents")
+	require.True(t, ok)
+	c := firstContent(t, events)
+	require.NotNil(t, c.Item, "itemSchema becomes the element type")
+	itemEnc, ok := c.ItemEncoding[ir.ItemEncodingAll]
+	require.True(t, ok, "an encoding governing every item uses the reserved key")
+	assert.Equal(t, []string{"application/json"}, itemEnc.ContentTypes)
+	assert.True(t, itemEnc.Multi, "the construct describes a repeated tail")
+	assert.Empty(t, c.Preserved, "nothing is left over once it lowers")
+
+	parts, ok := opByName(doc, "streamParts")
+	require.True(t, ok)
+	pc := firstContent(t, parts)
+	assert.Empty(t, pc.ItemEncoding, "positional prefixes have no form in a flat per-item map")
+	for _, key := range []string{"openapi:prefixEncoding", "openapi:itemEncoding"} {
+		entry, ok := pc.Preserved[key]
+		require.True(t, ok, "%s kept verbatim; got %v", key, pc.Preserved)
+		assert.Equal(t, ir.ReasonNoIRHome, entry.Reason)
+	}
+}
+
+// firstContent returns an operation's single success-response content.
+func firstContent(t *testing.T, op ir.Operation) ir.Content {
+	t.Helper()
+	require.Len(t, op.Responses, 1)
+	require.NotNil(t, op.Responses[0].Payload)
+	require.Len(t, op.Responses[0].Payload.Contents, 1)
+	return op.Responses[0].Payload.Contents[0]
 }
 
 func assertPerStatusErrors(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
