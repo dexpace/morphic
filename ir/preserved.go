@@ -29,6 +29,12 @@ const (
 	// draws no deliberate boundary against: the position simply has no field for
 	// it yet. A gap expected to close, not a boundary.
 	ReasonNoIRHome PreserveReason = "no_ir_home"
+	// ReasonOutOfScope marks a construct the IR excludes on purpose — runtime
+	// machinery or per-target SDK policy rather than API shape (ir-design §15:
+	// Smithy waiters and @endpointRuleSet, TCGC client-shaping decorators). It
+	// is kept so nothing is lost, but no IR node is coming; the consumer meant
+	// to read it is an emitter policy layer, not a promotion pass.
+	ReasonOutOfScope PreserveReason = "out_of_scope"
 )
 
 // PreservedEntry is one preserved construct.

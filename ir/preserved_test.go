@@ -30,6 +30,29 @@ func TestPreserved_JSONRoundTrip(t *testing.T) {
 	})
 }
 
+// TestPreserveReason_WireStrings pins the serialized form of every reason.
+// They land in golden IR and in emitter selection logic (`Reason ==
+// ReasonValidationOnly`), so the strings are contract rather than an internal
+// detail. The list is maintained by hand — the IR exposes no enumeration of
+// the reasons, and adding one for a five-value closed set is not worth the
+// public surface — so this catches a renamed reason, not an unlisted one.
+func TestPreserveReason_WireStrings(t *testing.T) {
+	t.Parallel()
+	cases := []struct {
+		reason ir.PreserveReason
+		want   string
+	}{
+		{ir.ReasonVendorExtension, "vendor_extension"},
+		{ir.ReasonValidationOnly, "validation_only"},
+		{ir.ReasonDegradedLowering, "degraded_lowering"},
+		{ir.ReasonNoIRHome, "no_ir_home"},
+		{ir.ReasonOutOfScope, "out_of_scope"},
+	}
+	for _, tc := range cases {
+		assert.Equal(t, tc.want, string(tc.reason))
+	}
+}
+
 func TestPreserved_DeterministicKeyOrder(t *testing.T) {
 	t.Parallel()
 	p := ir.Preserved{

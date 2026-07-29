@@ -649,10 +649,12 @@ func TestModel_SchemaExtensionPreserved(t *testing.T) {
 		"an entry locates the construct itself, not the node that carries it")
 }
 
-// TestPreserve_AllReasonsReachable pins that every PreserveReason the IR
-// declares is produced by some OpenAPI lowering, so a consumer switching on the
-// enum meets no value this compiler can never emit — and that no site leaves
-// the field at its zero value.
+// TestPreserve_AllReasonsReachable pins that every PreserveReason an OpenAPI
+// document can provoke is produced by some lowering here, so a consumer
+// switching on the enum meets no value this compiler can never emit — and that
+// no site leaves the field at its zero value. ReasonOutOfScope is the standing
+// exception: ir-design §15's deliberate exclusions are Smithy and TypeSpec
+// constructs, and OpenAPI declares nothing that lands under it.
 func TestPreserve_AllReasonsReachable(t *testing.T) {
 	t.Parallel()
 	spec := `openapi: 3.1.0
