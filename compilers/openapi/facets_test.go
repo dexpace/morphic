@@ -187,3 +187,23 @@ func indentSchema(body string) string {
 	}
 	return b.String()
 }
+
+// TestNoIRHomeAt_ModelSetWithoutRawSourceRecordsNothing pins the guard between
+// the model and the raw tree. contentSchema is kept verbatim, so it is read off
+// the source node rather than the parsed model — and a schema built in memory,
+// or one whose value cannot be converted to JSON, has a model field set with no
+// bytes behind it. Recording an entry there would announce a preservation with
+// nothing preserved, so the collector reports nothing instead.
+func TestNoIRHomeAt_ModelSetWithoutRawSourceRecordsNothing(t *testing.T) {
+	t.Parallel()
+	inner := oas3.NewJSONSchemaFromSchema[oas3.Referenceable](
+		&oas3.Schema{Type: oas3.NewTypeFromString(oas3.SchemaTypeObject)})
+	s := &oas3.Schema{ContentSchema: inner}
+	require.NotNil(t, s.GetContentSchema(), "the model reports the keyword as set")
+	require.Nil(t, rawPropertyNode(s, "contentSchema"), "and no raw node backs it")
+
+	got, diags := noIRHomeAt(s, "/components/schemas/A", 0)
+
+	assert.Nil(t, got, "no entry is recorded when there are no bytes to record")
+	assert.Empty(t, diags, "and nothing is announced, so the two channels agree")
+}

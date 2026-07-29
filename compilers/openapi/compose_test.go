@@ -9,6 +9,7 @@ import (
 	soa "github.com/speakeasy-api/openapi/openapi"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	yaml "gopkg.in/yaml.v3"
 
 	"github.com/dexpace/morphic/ir"
 )
@@ -1750,4 +1751,33 @@ func TestOneOf_CoDeclaredNotDistributedReasons(t *testing.T) {
 		"a null branch is written inline, so it blocks distribution rather than lifting to Nullable")
 	assert.Equal(t, 5, countDiagsAt(diags, codeDegradedConstruct, ir.SeverityInfo),
 		"each declined shape is reported once; got %+v", diags)
+}
+
+// TestRawMappingKeys_OnlyEnumeratesAMapping pins the shape guards on the branch
+// residue's key reader. It is handed whatever the source wrote at a branch, so a
+// sequence or a bare scalar reaches it as readily as a mapping, and the residue
+// derivation depends on it reporting no keys rather than guessing at some.
+func TestRawMappingKeys_OnlyEnumeratesAMapping(t *testing.T) {
+	t.Parallel()
+	var doc yaml.Node
+	require.NoError(t, yaml.Unmarshal([]byte("a: 1\nb: 2\n"), &doc))
+	require.Equal(t, yaml.DocumentNode, doc.Kind)
+
+	cases := []struct {
+		name string
+		node *yaml.Node
+		want []string
+	}{
+		{"a nil node has no keys", nil, nil},
+		{"a sequence is not a mapping", yamlNode(t, "- a\n- b\n"), nil},
+		{"a bare scalar is not a mapping", yamlNode(t, "plain"), nil},
+		{"a mapping yields its keys in source order", yamlNode(t, "b: 1\na: 2\n"), []string{"b", "a"}},
+		{"a document unwraps to the mapping inside it", &doc, []string{"a", "b"}},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			assert.Equal(t, tc.want, rawMappingKeys(tc.node))
+		})
+	}
 }

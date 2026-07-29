@@ -3342,3 +3342,120 @@ func assertDiagContains(t *testing.T, diags []ir.Diagnostic, pointer, substr str
 	}
 	assert.Fail(t, "no diagnostic said why", "nothing at %q mentions %q; got %+v", pointer, substr, diags)
 }
+
+// TestCollectDynamicAnchors_WalksEveryNodeShape drives the raw-tree walk over the
+// shapes a YAML document can present, rather than only the mappings a schema
+// happens to be written as. The walk reads the raw tree because oas3.Schema has
+// no $dynamicAnchor field, so it meets whatever the source wrote — a sequence, a
+// bare scalar, a non-string key — and must index anchors under a sequence while
+// declining the rest without wandering off the tree.
+func TestCollectDynamicAnchors_WalksEveryNodeShape(t *testing.T) {
+	t.Parallel()
+	cases := []struct {
+		name string
+		node *yaml.Node
+		want map[string][]string
+	}{
+		{"a nil node yields nothing", nil, map[string][]string{}},
+		{
+			"a bare scalar declares no anchor",
+			yamlNode(t, `just-a-string`),
+			map[string][]string{},
+		},
+		{
+			"a sequence indexes its elements by ordinal",
+			yamlNode(t, "- {$dynamicAnchor: first}\n- {other: 1}\n- {$dynamicAnchor: third}\n"),
+			map[string][]string{"first": {"/0"}, "third": {"/2"}},
+		},
+		{
+			"a non-string key cannot name a keyword and is skipped",
+			yamlNode(t, "? [a, b]\n: {$dynamicAnchor: buried}\n$dynamicAnchor: reached\n"),
+			map[string][]string{"reached": {""}},
+		},
+		{
+			"an empty anchor name is not indexed",
+			yamlNode(t, `{$dynamicAnchor: ""}`),
+			map[string][]string{},
+		},
+		{
+			"a non-scalar anchor value is not indexed",
+			yamlNode(t, `{$dynamicAnchor: [a]}`),
+			map[string][]string{},
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			got := map[string][]string{}
+			collectDynamicAnchors(tc.node, "", got, 0)
+			assert.Empty(t, cmp.Diff(tc.want, got))
+		})
+	}
+}
+
+// TestCollectDynamicAnchors_DocumentNodeUnwraps pins that the walk accepts a
+// whole document as well as a content node, since dynamicAnchors is handed
+// whatever the loader kept.
+func TestCollectDynamicAnchors_DocumentNodeUnwraps(t *testing.T) {
+	t.Parallel()
+	var doc yaml.Node
+	require.NoError(t, yaml.Unmarshal([]byte("$dynamicAnchor: top\n"), &doc))
+	require.Equal(t, yaml.DocumentNode, doc.Kind)
+
+	assert.Equal(t, map[string][]string{"top": {""}}, dynamicAnchors(&doc))
+}
+
+// TestCollectDynamicAnchors_StopsAtTheDepthCap pins the bound. A raw tree deeper
+// than the cap is a legal document, so the walk must stop rather than recur to
+// exhaustion; anchors above the cap are still indexed.
+func TestCollectDynamicAnchors_StopsAtTheDepthCap(t *testing.T) {
+	t.Parallel()
+	// Built rather than parsed: nesting this deep in source text is indentation
+	// arithmetic, and duplicate keys at one level would not nest at all.
+	nest := func(child *yaml.Node) *yaml.Node {
+		return &yaml.Node{
+			Kind:    yaml.MappingNode,
+			Content: []*yaml.Node{scalarNode("!!str", "k"), child},
+		}
+	}
+	deep := nest(&yaml.Node{
+		Kind:    yaml.MappingNode,
+		Content: []*yaml.Node{scalarNode("!!str", "$dynamicAnchor"), scalarNode("!!str", "toodeep")},
+	})
+	shallow := deep
+	for range maxDynamicAnchorDepth + 2 {
+		deep = nest(deep)
+	}
+
+	assert.NotContains(t, dynamicAnchors(deep), "toodeep",
+		"the walk stops at the cap instead of recurring to exhaustion")
+	assert.Contains(t, dynamicAnchors(shallow), "toodeep",
+		"an anchor within the cap is still indexed, so the cap is what excluded the other")
+}
+
+// TestDynamicRef_NonScalarValueIsKeptNotExpanded covers the one irreducible case
+// the sibling table cannot: a $dynamicRef whose value is not a string is a type
+// error the document validator also reports, so the case arrives with an error
+// diagnostic beside it. The lowering still has to keep the construct rather than
+// treat a malformed reference as absent.
+func TestDynamicRef_NonScalarValueIsKeptNotExpanded(t *testing.T) {
+	t.Parallel()
+	cases := map[string]string{
+		"a sequence": "    A: {$dynamicRef: [not, a, string]}\n",
+		"a mapping":  "    A: {$dynamicRef: {also: not}}\n",
+	}
+	for name, schemas := range cases {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			doc, diags := parseFull(t, componentSpec(
+				"    M1: {$dynamicAnchor: ok, type: string}\n"+schemas))
+
+			td, ok := doc.Types[componentID("A")]
+			require.True(t, ok, "the position owns a node to keep the reference on")
+			entry, ok := td.Common().Unmodeled["openapi:$dynamicRef"]
+			require.True(t, ok, "a malformed $dynamicRef is kept verbatim, not dropped")
+			assert.Equal(t, ir.ReasonDegradedLowering, entry.Reason)
+			assertDiagContains(t, diags, entry.Provenance.Pointer, "not a reference string")
+		})
+	}
+}
