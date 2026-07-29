@@ -183,17 +183,46 @@ func (l *lowerer) lowerHeaders(headers *sequencedmap.Map[string, *soa.Referenced
 		if h == nil {
 			continue
 		}
-		out = append(out, ir.Property{
-			ID:         propID(hptr),
-			Name:       ir.Naming{Source: name, Canonical: canonicalWords(name)},
-			WireName:   name,
-			Type:       l.carriedSchemaRef(h.GetSchema(), hdecl+ptr("schema"), declarationHint(hdecl, name)),
-			Required:   h.GetRequired(),
-			Examples:   l.exampleList(h.GetExample(), h.GetExamples(), hdecl),
-			Provenance: ir.Provenance{Source: l.srcIndex, Pointer: hptr},
-		})
+		out = append(out, l.lowerHeader(h, name, hptr, hdecl))
 	}
 	return out
+}
+
+// lowerHeader lowers one header entry into a Property. Its schema goes through
+// fillPropertyDetail like a model property's: a header schema declares docs,
+// constraints, xml, examples and validation-only keywords the same way, and
+// ir.Property has a field for each, so the header path had no reason to drop
+// them (GitHub #116).
+func (l *lowerer) lowerHeader(h *soa.Header, name, hptr, hdecl string) ir.Property {
+	schemaPtr := hdecl + ptr("schema")
+	p := ir.Property{
+		ID:         propID(hptr),
+		Name:       ir.Naming{Source: name, Canonical: canonicalWords(name)},
+		WireName:   name,
+		Type:       l.carriedSchemaRef(h.GetSchema(), schemaPtr, declarationHint(hdecl, name)),
+		Required:   h.GetRequired(),
+		Provenance: ir.Provenance{Source: l.srcIndex, Pointer: hptr},
+	}
+	l.fillPropertyDetail(&p, h.GetSchema(), schemaPtr)
+	l.applyHeaderAnnotations(&p, h, hdecl)
+	return p
+}
+
+// applyHeaderAnnotations overlays the annotations the header object writes on
+// itself onto p, after its schema's. A header carries both, and the header's
+// own are the more specific of the two — they describe this header rather than
+// the type it happens to be.
+func (l *lowerer) applyHeaderAnnotations(p *ir.Property, h *soa.Header, hdecl string) {
+	if d := h.GetDescription(); d != "" {
+		p.Docs.Description = d
+	}
+	if h.GetDeprecated() {
+		p.Deprecation = &ir.Deprecation{}
+	}
+	if ex := l.exampleList(h.GetExample(), h.GetExamples(), hdecl); len(ex) > 0 {
+		p.Examples = ex
+	}
+	p.Preserved = mergePreserved(p.Preserved, l.extensions(h.GetExtensions(), hdecl))
 }
 
 // mediaExamples lowers a media type's single and plural example values.

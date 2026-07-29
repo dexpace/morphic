@@ -856,3 +856,46 @@ func TestContent_EncodingHeaderRefInternsAtDeclaration(t *testing.T) {
 	assert.Equal(t, headers[0].Provenance.Pointer, string(headers[0].ID)[len("p/openapi"):],
 		"provenance tracks the same use-site pointer as the ID")
 }
+
+// TestHeaders_SchemaDetailReachesTheProperty asserts a header's schema is read
+// with the same detail a model property's is. lowerHeaders built an ir.Property
+// and never filled it, so a header schema dropped its docs, xml, extensions,
+// validation-only keywords and value constraints even though ir.Property has a
+// field for each (GitHub #116).
+func TestHeaders_SchemaDetailReachesTheProperty(t *testing.T) {
+	t.Parallel()
+	_, svc, diags := lowerServiceSpec(t, pathsSpec(
+		"  /x:\n    get:\n      operationId: g\n      responses:\n"+
+			"        \"200\":\n          description: ok\n          headers:\n"+
+			"            X-H: {schema: "+inlineProbeBody+"}\n"))
+	requireNoErrorDiags(t, diags)
+
+	h := firstOp(t, svc).Responses[0].Headers[0]
+	assert.Equal(t, "DOC", h.Docs.Description)
+	require.NotNil(t, h.XML)
+	assert.Equal(t, "X", h.XML.Name)
+	assert.Contains(t, h.Preserved, "openapi:x-vendor")
+	assert.Contains(t, h.Preserved, "openapi:not")
+	require.NotNil(t, h.Constraints)
+	require.NotNil(t, h.Constraints.MaxLength)
+	assert.Equal(t, int64(3), *h.Constraints.MaxLength)
+}
+
+// TestHeaders_OwnAnnotationsOverrideTheSchema checks the precedence between the
+// two annotation sources a header has: what the header object writes about
+// itself is more specific than what its schema writes about the type, so it
+// wins where both are set.
+func TestHeaders_OwnAnnotationsOverrideTheSchema(t *testing.T) {
+	t.Parallel()
+	_, svc, diags := lowerServiceSpec(t, pathsSpec(
+		"  /x:\n    get:\n      operationId: g\n      responses:\n"+
+			"        \"200\":\n          description: ok\n          headers:\n"+
+			"            X-H:\n              description: HEADER\n              deprecated: true\n"+
+			"              x-scope: header\n              schema: {type: string, description: SCHEMA}\n"))
+	requireNoErrorDiags(t, diags)
+
+	h := firstOp(t, svc).Responses[0].Headers[0]
+	assert.Equal(t, "HEADER", h.Docs.Description, "the header's own description wins")
+	assert.NotNil(t, h.Deprecation)
+	assert.Contains(t, h.Preserved, "openapi:x-scope")
+}
