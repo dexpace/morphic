@@ -9,6 +9,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/dexpace/morphic/ir"
+	"github.com/dexpace/morphic/ir/irverify"
 	"github.com/dexpace/morphic/pass"
 )
 
@@ -27,33 +28,33 @@ type refSite struct {
 // binding fields — the cluster no implemented compiler populates yet.
 func eventAndBindingSites() []refSite {
 	return []refSite{
-		{"message headers", "/Headers", func(d *ir.Document, t ir.TypeID) {
+		{"message headers", ".Headers", func(d *ir.Document, t ir.TypeID) {
 			putMessage(d, func(m *ir.Message) { m.Headers = &ir.TypeRef{Target: t} })
 		}, "t/ghost/message-headers"},
-		{"message correlation root", "/CorrelationID/Root", func(d *ir.Document, t ir.TypeID) {
+		{"message correlation root", ".CorrelationID.Root", func(d *ir.Document, t ir.TypeID) {
 			putMessage(d, func(m *ir.Message) { m.CorrelationID = &ir.PropPath{Root: &ir.TypeRef{Target: t}} })
 		}, "t/ghost/correlation-root"},
-		{"channel params", "/Params/0", func(d *ir.Document, t ir.TypeID) {
+		{"channel params", ".Params[0]", func(d *ir.Document, t ir.TypeID) {
 			putChannel(d, func(c *ir.Channel) {
 				c.Params = append(c.Params, ir.Parameter{Name: ir.Naming{Source: "room"}, Type: ir.TypeRef{Target: t}})
 			})
 		}, "t/ghost/channel-param"},
-		{"request stream initial", "/RequestStream/Initial", func(d *ir.Document, t ir.TypeID) {
+		{"request stream initial", ".RequestStream.Initial", func(d *ir.Document, t ir.TypeID) {
 			firstOp(d).RequestStream = &ir.StreamDetail{Initial: &ir.TypeRef{Target: t}}
 		}, "t/ghost/stream-initial"},
-		{"response stream events", "/ResponseStream/Events", func(d *ir.Document, t ir.TypeID) {
+		{"response stream events", ".ResponseStream.Events", func(d *ir.Document, t ir.TypeID) {
 			firstOp(d).ResponseStream = &ir.StreamDetail{Events: &ir.TypeRef{Target: t}}
 		}, "t/ghost/stream-events"},
-		{"long-running polling type", "/LongRunning/PollingType", func(d *ir.Document, t ir.TypeID) {
+		{"long-running polling type", ".LongRunning.PollingType", func(d *ir.Document, t ir.TypeID) {
 			longRunning(d).PollingType = &ir.TypeRef{Target: t}
 		}, "t/ghost/lro-polling"},
-		{"long-running final type", "/LongRunning/FinalType", func(d *ir.Document, t ir.TypeID) {
+		{"long-running final type", ".LongRunning.FinalType", func(d *ir.Document, t ir.TypeID) {
 			longRunning(d).FinalType = &ir.TypeRef{Target: t}
 		}, "t/ghost/lro-final"},
-		{"long-running result path root", "/LongRunning/ResultPath/Root", func(d *ir.Document, t ir.TypeID) {
+		{"long-running result path root", ".LongRunning.ResultPath.Root", func(d *ir.Document, t ir.TypeID) {
 			longRunning(d).ResultPath = &ir.PropPath{Root: &ir.TypeRef{Target: t}}
 		}, "t/ghost/lro-result"},
-		{"rpc binding input type", "/Bindings/RPC/InputType", func(d *ir.Document, t ir.TypeID) {
+		{"rpc binding input type", ".Bindings.RPC.InputType", func(d *ir.Document, t ir.TypeID) {
 			firstOp(d).Bindings.RPC = &ir.RPCBinding{System: "grpc", InputType: &ir.TypeRef{Target: t}}
 		}, "t/ghost/rpc-input"},
 	}
@@ -64,39 +65,39 @@ func eventAndBindingSites() []refSite {
 // renames, discriminator defaults, and the versioning timeline.
 func payloadAndVersioningSites() []refSite {
 	return []refSite{
-		{"content file contents", "/File/Contents", func(d *ir.Document, t ir.TypeID) {
+		{"content file contents", ".File.Contents", func(d *ir.Document, t ir.TypeID) {
 			requestContent(d).File = &ir.FileInfo{Contents: &ir.TypeRef{Target: t}}
 		}, "t/ghost/file-contents"},
-		{"multipart part encoding headers", "/Encoding[", func(d *ir.Document, t ir.TypeID) {
+		{"multipart part encoding headers", ".Encoding[", func(d *ir.Document, t ir.TypeID) {
 			requestContent(d).Encoding = map[string]ir.PartEncoding{"p/part": {Headers: []ir.Property{{
 				ID: "p/hdr", Name: ir.Naming{Source: "X-Meta"}, Type: ir.TypeRef{Target: t},
 			}}}}
 		}, "t/ghost/part-header"},
-		{"property args", "/Args/0", func(d *ir.Document, t ir.TypeID) {
+		{"property args", ".Args[0]", func(d *ir.Document, t ir.TypeID) {
 			model(d).Properties[0].Args = []ir.Parameter{
 				{Name: ir.Naming{Source: "first"}, Type: ir.TypeRef{Target: t}},
 			}
 		}, "t/ghost/field-arg"},
-		{"property default value ref", "/Default/Ref/Type", func(d *ir.Document, t ir.TypeID) {
+		{"property default value ref", ".Default.Ref.Type", func(d *ir.Document, t ir.TypeID) {
 			model(d).Properties[0].Default = &ir.Value{
 				Kind: ir.ValueRefKind, Ref: &ir.ValueRef{Type: t, Member: "a"},
 			}
 		}, "t/ghost/value-ref"},
-		{"availability versioned type", "/Availability/TypeChangedFrom/0", func(d *ir.Document, t ir.TypeID) {
+		{"availability versioned type", ".Availability.TypeChangedFrom[0]", func(d *ir.Document, t ir.TypeID) {
 			model(d).Properties[0].Availability = &ir.Availability{
 				TypeChangedFrom: []ir.VersionedType{{Version: "v1", Type: ir.TypeRef{Target: t}}},
 			}
 		}, "t/ghost/versioned-type"},
-		{"discriminator default", "/Discriminator/Default", func(d *ir.Document, t ir.TypeID) {
+		{"discriminator default", ".Discriminator.Default", func(d *ir.Document, t ir.TypeID) {
 			d.Types["t/u"] = &ir.Union{
 				TypeCommon:    ir.TypeCommon{ID: "t/u"},
 				Discriminator: &ir.Discriminator{PropertyName: "kind", Default: t},
 			}
 		}, "t/ghost/disc-default"},
-		{"service rename key", "/Renames[", func(d *ir.Document, t ir.TypeID) {
+		{"service rename key", ".Renames[", func(d *ir.Document, t ir.TypeID) {
 			service(d).Renames = map[ir.TypeID]ir.Naming{t: {Source: "Ghost"}}
 		}, "t/ghost/rename-key"},
-		{"service common errors", "/CommonErrors/0", func(d *ir.Document, t ir.TypeID) {
+		{"service common errors", ".CommonErrors[0]", func(d *ir.Document, t ir.TypeID) {
 			service(d).CommonErrors = []ir.ErrorCase{{Type: ir.TypeRef{Target: t}}}
 		}, "t/ghost/common-error"},
 	}
@@ -265,23 +266,23 @@ func pointers(diags []ir.Diagnostic) []string {
 // traversal order would satisfy that and still leak map iteration into the
 // output the moment a document made the traversal order vary.
 var sortedRefPointers = []string{
-	"doc/Channels[chan/a]/Params/0/Type/Target",
-	"doc/Messages[msg/a]/CorrelationID/Root/Target",
-	"doc/Messages[msg/a]/Headers/Target",
-	"doc/Services/0/CommonErrors/0/Type/Target",
-	"doc/Services/0/Groups/0/Operations/0/Bindings/RPC/InputType/Target",
-	"doc/Services/0/Groups/0/Operations/0/LongRunning/FinalType/Target",
-	"doc/Services/0/Groups/0/Operations/0/LongRunning/PollingType/Target",
-	"doc/Services/0/Groups/0/Operations/0/LongRunning/ResultPath/Root/Target",
-	"doc/Services/0/Groups/0/Operations/0/Request/Contents/0/Encoding[p/part]/Headers/0/Type/Target",
-	"doc/Services/0/Groups/0/Operations/0/Request/Contents/0/File/Contents/Target",
-	"doc/Services/0/Groups/0/Operations/0/RequestStream/Initial/Target",
-	"doc/Services/0/Groups/0/Operations/0/ResponseStream/Events/Target",
-	"doc/Services/0/Renames[t/ghost/15]/key",
-	"doc/Types[t/m]/Properties/0/Args/0/Type/Target",
-	"doc/Types[t/m]/Properties/0/Availability/TypeChangedFrom/0/Type/Target",
-	"doc/Types[t/m]/Properties/0/Default/Ref/Type",
-	"doc/Types[t/u]/Discriminator/Default",
+	"doc.Channels[chan/a].Params[0].Type.Target",
+	"doc.Messages[msg/a].CorrelationID.Root.Target",
+	"doc.Messages[msg/a].Headers.Target",
+	"doc.Services[0].CommonErrors[0].Type.Target",
+	"doc.Services[0].Groups[0].Operations[0].Bindings.RPC.InputType.Target",
+	"doc.Services[0].Groups[0].Operations[0].LongRunning.FinalType.Target",
+	"doc.Services[0].Groups[0].Operations[0].LongRunning.PollingType.Target",
+	"doc.Services[0].Groups[0].Operations[0].LongRunning.ResultPath.Root.Target",
+	"doc.Services[0].Groups[0].Operations[0].Request.Contents[0].Encoding[p/part].Headers[0].Type.Target",
+	"doc.Services[0].Groups[0].Operations[0].Request.Contents[0].File.Contents.Target",
+	"doc.Services[0].Groups[0].Operations[0].RequestStream.Initial.Target",
+	"doc.Services[0].Groups[0].Operations[0].ResponseStream.Events.Target",
+	"doc.Services[0].Renames[t/ghost/15].key",
+	"doc.Types[t/m].Properties[0].Args[0].Type.Target",
+	"doc.Types[t/m].Properties[0].Availability.TypeChangedFrom[0].Type.Target",
+	"doc.Types[t/m].Properties[0].Default.Ref.Type",
+	"doc.Types[t/u].Discriminator.Default",
 }
 
 // TestValidate_DiagnosticOrderIsDeterministic pins invariant 7 for the
@@ -312,4 +313,31 @@ func TestValidate_ResolvedRefsInEveryFieldAreClean(t *testing.T) {
 		tc.plant(doc, "t/prim/string")
 	}
 	assert.Empty(t, danglingDiags(pass.Validate(doc)))
+}
+
+// TestValidate_LocatesDanglingRefsWhereIrverifyDoes pins the location half of
+// the package doc's one-defect-one-code rule: the two checkers agree on the code
+// already, and a caller running both can only dedupe if they also agree on
+// where. The pinned list is the same one Validate is held to above, so a
+// spelling change on either side breaks this rather than quietly producing two
+// reports of one defect.
+//
+// The two walks stay separate implementations — the layering permits pass to
+// import ir/irverify, but a diagnostic and a violation are different types with
+// different audiences — so nothing except this test keeps them in step.
+func TestValidate_LocatesDanglingRefsWhereIrverifyDoes(t *testing.T) {
+	t.Parallel()
+	doc := validDoc()
+	for i, tc := range unwalkedRefSites() {
+		tc.plant(doc, ir.TypeID(fmt.Sprintf("t/ghost/%02d", i)))
+	}
+
+	var got []string
+	for _, v := range irverify.Verify(doc) {
+		if v.Code == "ir/dangling-type-ref" {
+			got = append(got, v.Path)
+		}
+	}
+	require.Equal(t, sortedRefPointers, got, "irverify must name the same locations")
+	assert.Equal(t, got, pointers(danglingDiags(pass.Validate(doc))))
 }

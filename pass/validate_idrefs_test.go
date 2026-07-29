@@ -29,15 +29,15 @@ type idRefSite struct {
 // channelRefSites are the fields referencing an entry of Document.Channels.
 func channelRefSites() []idRefSite {
 	return []idRefSite{
-		{"message binding channel", "ir/dangling-channel-ref", "/Bindings/Message/Channel",
+		{"message binding channel", "ir/dangling-channel-ref", ".Bindings.Message.Channel",
 			func(d *ir.Document, id string) { messageBinding(d).Channel = ir.ChannelID(id) },
 			"chan/ghost/binding"},
-		{"reply channel", "ir/dangling-channel-ref", "/Bindings/Message/Reply/Channel",
+		{"reply channel", "ir/dangling-channel-ref", ".Bindings.Message.Reply.Channel",
 			func(d *ir.Document, id string) {
 				ch := ir.ChannelID(id)
 				reply(d).Channel = &ch
 			}, "chan/ghost/reply"},
-		{"otp binding process", "ir/dangling-channel-ref", "/Bindings/OTP/Process",
+		{"otp binding process", "ir/dangling-channel-ref", ".Bindings.OTP.Process",
 			func(d *ir.Document, id string) {
 				firstOp(d).Bindings.OTP = &ir.OTPBinding{Behaviour: "gen_server", Kind: "call", Process: ir.ChannelID(id)}
 			}, "chan/ghost/otp"},
@@ -47,15 +47,15 @@ func channelRefSites() []idRefSite {
 // messageRefSites are the fields referencing an entry of Document.Messages.
 func messageRefSites() []idRefSite {
 	return []idRefSite{
-		{"message binding messages", "ir/dangling-message-ref", "/Bindings/Message/Messages/0",
+		{"message binding messages", "ir/dangling-message-ref", ".Bindings.Message.Messages[0]",
 			func(d *ir.Document, id string) {
 				messageBinding(d).Messages = []ir.MessageID{ir.MessageID(id)}
 			}, "msg/ghost/binding"},
-		{"reply messages", "ir/dangling-message-ref", "/Bindings/Message/Reply/Messages/0",
+		{"reply messages", "ir/dangling-message-ref", ".Bindings.Message.Reply.Messages[0]",
 			func(d *ir.Document, id string) {
 				reply(d).Messages = []ir.MessageID{ir.MessageID(id)}
 			}, "msg/ghost/reply"},
-		{"channel messages", "ir/dangling-message-ref", "/Messages/0",
+		{"channel messages", "ir/dangling-message-ref", ".Messages[0]",
 			func(d *ir.Document, id string) {
 				putChannel(d, func(c *ir.Channel) { c.Messages = []ir.MessageID{ir.MessageID(id)} })
 			}, "msg/ghost/channel"},
@@ -65,7 +65,7 @@ func messageRefSites() []idRefSite {
 // authRefSites are the fields referencing an entry of Document.Auth.
 func authRefSites() []idRefSite {
 	return []idRefSite{
-		{"scheme use", "ir/dangling-auth-ref", "/Auth/0/Schemes/0/Scheme",
+		{"scheme use", "ir/dangling-auth-ref", ".Auth[0].Schemes[0].Scheme",
 			func(d *ir.Document, id string) {
 				service(d).Auth = []ir.AuthRequirement{{Schemes: []ir.SchemeUse{{Scheme: ir.AuthID(id)}}}}
 			}, "auth/ghost/service"},
@@ -171,13 +171,13 @@ func TestValidate_ResolvedTypedIDRefsAreClean(t *testing.T) {
 // that two runs agree, which any deterministic order satisfies, including the
 // walk's own.
 var sortedIDRefPointers = []string{
-	"doc/Channels[chan/a]/Messages/0",
-	"doc/Services/0/Auth/0/Schemes/0/Scheme",
-	"doc/Services/0/Groups/0/Operations/0/Bindings/Message/Channel",
-	"doc/Services/0/Groups/0/Operations/0/Bindings/Message/Messages/0",
-	"doc/Services/0/Groups/0/Operations/0/Bindings/Message/Reply/Channel",
-	"doc/Services/0/Groups/0/Operations/0/Bindings/Message/Reply/Messages/0",
-	"doc/Services/0/Groups/0/Operations/0/Bindings/OTP/Process",
+	"doc.Channels[chan/a].Messages[0]",
+	"doc.Services[0].Auth[0].Schemes[0].Scheme",
+	"doc.Services[0].Groups[0].Operations[0].Bindings.Message.Channel",
+	"doc.Services[0].Groups[0].Operations[0].Bindings.Message.Messages[0]",
+	"doc.Services[0].Groups[0].Operations[0].Bindings.Message.Reply.Channel",
+	"doc.Services[0].Groups[0].Operations[0].Bindings.Message.Reply.Messages[0]",
+	"doc.Services[0].Groups[0].Operations[0].Bindings.OTP.Process",
 }
 
 // TestValidate_TypedIDDiagnosticOrderIsDeterministic pins invariant 7 across

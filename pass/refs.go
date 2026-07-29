@@ -116,6 +116,13 @@ type refWalk struct {
 // the walk complete: a ref-bearing field added to the IR is covered the moment it
 // exists, which a hand-written enumeration cannot promise.
 //
+// Locations are spelled as ir/irverify's walk spells them — fields joined by ".",
+// slice indices and map keys in brackets — because the two checkers report a
+// dangling reference under one code (see the package doc) and a caller running
+// both can only dedupe them if one defect reads as one location. The integer-index
+// checks in validate.go stay rooted at a stable ID rather than at doc: those
+// diagnostics are read by a spec author, for whom an ID outlives a position.
+//
 // The sort alone does not make the result deterministic (invariant 7). Sorting
 // reorders a site set; it cannot repair one whose *membership* varies, which is
 // what a randomized traversal of an aliased value graph produces — hence the
@@ -177,15 +184,15 @@ func (w *refWalk) walk(v reflect.Value, path string, depth int) {
 
 // walkStruct descends into a struct's fields. An embedded field contributes no
 // path segment of its own: JSON inlines it and Go promotes its fields, so
-// ".../TypeCommon/Examples/0" names a step that neither encoding has — the
-// example is reached as ".../Examples/0" in both.
+// "….TypeCommon.Examples[0]" names a step that neither encoding has — the
+// example is reached as "….Examples[0]" in both.
 func (w *refWalk) walkStruct(v reflect.Value, path string, depth int) {
 	t := v.Type()
 	for i := range v.NumField() {
 		f := t.Field(i)
 		child := path
 		if !f.Anonymous {
-			child = path + "/" + f.Name
+			child = path + "." + f.Name
 		}
 		w.descend(v.Field(i), child, depth+1)
 	}
@@ -219,7 +226,7 @@ func (w *refWalk) walkSequence(v reflect.Value, path string, depth int) {
 		return
 	}
 	for i := range v.Len() {
-		w.descend(v.Index(i), fmt.Sprintf("%s/%d", path, i), depth+1)
+		w.descend(v.Index(i), fmt.Sprintf("%s[%d]", path, i), depth+1)
 	}
 }
 
@@ -257,7 +264,7 @@ func orderedEntries(v reflect.Value) []mapEntry {
 // of the diagnostics (invariant 7).
 func (w *refWalk) walkMap(v reflect.Value, path string, depth int) {
 	for _, e := range orderedEntries(v) {
-		w.descend(e.key, fmt.Sprintf("%s[%s]/key", path, e.label), depth+1)
+		w.descend(e.key, fmt.Sprintf("%s[%s].key", path, e.label), depth+1)
 		w.descend(e.value, fmt.Sprintf("%s[%s]", path, e.label), depth+1)
 	}
 }
