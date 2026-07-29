@@ -20,14 +20,14 @@ const (
 	// IR's structural picture is complete without it, and neither a target type
 	// system nor a sibling source format has an equivalent (ir-design §4.7).
 	ReasonValidationOnly PreserveReason = "validation_only"
-	// ReasonDegradedLowering marks a construct with no faithful structural target
-	// in any SDK language. It was lowered to a documented weaker shape with the
-	// original kept beside it, so the degradation stays recoverable
-	// (ir-design §4.8).
+	// ReasonDegradedLowering marks a construct with no faithful target as
+	// written — the IR has no combinator for the shape, or no target type system
+	// holds it. It was lowered to a documented weaker shape with the original
+	// kept beside it, so the degradation stays recoverable (ir-design §4.8).
 	ReasonDegradedLowering PreserveReason = "degraded_lowering"
-	// ReasonNoIRHome marks a construct target languages can express and a sibling
-	// IR node already models at an analogous scope, but for which no field exists
-	// at this position yet — a gap expected to close, not a boundary.
+	// ReasonNoIRHome marks a construct target languages can express and the IR
+	// draws no deliberate boundary against: the position simply has no field for
+	// it yet. A gap expected to close, not a boundary.
 	ReasonNoIRHome PreserveReason = "no_ir_home"
 )
 
@@ -40,8 +40,10 @@ type PreservedEntry struct {
 	// Value is the source construct, byte-faithful.
 	Value RawValue `json:"value"`
 	// Provenance locates the construct itself, which the owning node's own
-	// provenance cannot: a validation emitter reporting on an if/then/else must
-	// point at the keyword, not at the schema that carried it.
+	// provenance cannot: a validation emitter reporting on a `not` must point at
+	// the keyword, not at the schema that carried it. It falls back to the
+	// declaring position only for an entry synthesized from several keywords, no
+	// one of which addresses the whole value.
 	Provenance Provenance `json:"provenance"`
 }
 
