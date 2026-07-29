@@ -220,7 +220,9 @@ func (w *refWalk) walkPointer(v reflect.Value, path string, depth int) {
 
 // walkSequence descends into slice and array elements, skipping byte sequences:
 // Preserved and RawConfig payloads are json.RawMessage and are the largest thing
-// in a document, while a byte element can hold no typed ID.
+// in a document, while a byte element can hold no typed ID. The result is the
+// same without the skip, so it is guarded by a test that observes the descent
+// itself (TestWalkSequence_ByteSequenceIsNotDescendedInto) rather than the sites.
 func (w *refWalk) walkSequence(v reflect.Value, path string, depth int) {
 	if v.Type().Elem().Kind() == reflect.Uint8 {
 		return

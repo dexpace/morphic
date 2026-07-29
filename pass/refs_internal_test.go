@@ -59,11 +59,12 @@ func TestCollectTypeIDs_SharedPointerVisitedOnce(t *testing.T) {
 	assert.Equal(t, 1, n, "the shared pointer's target is collected once")
 }
 
-// TestCollectTypeIDs_PreservedBytesAreNotWalked drives the byte-sequence skip: a
+// TestCollectTypeIDs_PreservedBytesYieldNoReference states the result half: a
 // preserved JSON blob is opaque data, so bytes that happen to spell a type ID
-// are not a reference — and skipping them keeps the largest part of a document
-// out of the walk.
-func TestCollectTypeIDs_PreservedBytesAreNotWalked(t *testing.T) {
+// are not a reference. This holds with or without the byte-sequence skip — a
+// uint8 is not a string and could never be collected — which is why the skip
+// itself is driven separately below.
+func TestCollectTypeIDs_PreservedBytesYieldNoReference(t *testing.T) {
 	t.Parallel()
 	doc := &ir.Document{Preserved: ir.Preserved{"openapi:x-thing": {
 		Reason: ir.ReasonVendorExtension,
@@ -72,6 +73,29 @@ func TestCollectTypeIDs_PreservedBytesAreNotWalked(t *testing.T) {
 	sites, truncated := collectTypeIDs(doc, "doc")
 	assert.False(t, truncated)
 	assert.Empty(t, sites)
+}
+
+// TestWalkSequence_ByteSequenceIsNotDescendedInto drives the skip itself, which
+// exists for cost: Preserved and RawConfig payloads are the largest values a
+// document holds, and descending one spends a reflect.Value and a formatted path
+// per byte to collect nothing.
+//
+// Descent is observed through the depth budget, the one effect it has that a
+// visitor-less walk exposes. Starting at the cap, every element the walk
+// descended into would sit one level past it and mark the walk truncated; with
+// the skip nothing below the slice is reached, so it does not.
+func TestWalkSequence_ByteSequenceIsNotDescendedInto(t *testing.T) {
+	t.Parallel()
+	w := refWalk{isRef: func(reflect.Type) bool { return true }, seen: map[uintptr]bool{}}
+	w.walkSequence(reflect.ValueOf(ir.RawValue(`"t/ghost/in-bytes"`)), "doc", maxRefWalkDepth)
+	assert.False(t, w.truncated, "no element of a byte sequence may be descended into")
+	assert.Empty(t, w.sites)
+
+	// The same walk one level shallower, over a sequence that is not bytes, does
+	// descend — so the assertion above is the skip and not the depth arithmetic.
+	deep := refWalk{isRef: func(reflect.Type) bool { return true }, seen: map[uintptr]bool{}}
+	deep.walkSequence(reflect.ValueOf([]ir.TypeID{"t/x"}), "doc", maxRefWalkDepth)
+	assert.True(t, deep.truncated, "a non-byte element is descended into and hits the cap")
 }
 
 // TestCheckDanglingRefs_NilTypeDefIsNotFollowed pins report-only behaviour on

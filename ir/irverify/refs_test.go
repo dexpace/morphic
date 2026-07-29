@@ -2,6 +2,7 @@ package irverify
 
 import (
 	"fmt"
+	"reflect"
 	"strings"
 	"testing"
 
@@ -208,4 +209,37 @@ func TestVerify_AliasedPointerIsDeterministic(t *testing.T) {
 	for i := range aliasRuns {
 		require.Equal(t, want, fmt.Sprintf("%+v", Verify(doc)), "run %d disagrees with the first", i)
 	}
+}
+
+// payloadBytes sizes the preserved payload the byte-skip test walks. It is large
+// enough that descending it would dominate any plausible visit count for a
+// two-node document, and small enough to build inline.
+const payloadBytes = 4096
+
+// TestWalkValues_ByteSequencesAreNotDescendedInto drives the byte-sequence skip,
+// which exists for cost rather than for correctness: a uint8 element is none of
+// the things a visitor looks for — no typed ID, no Preserved map, no Provenance,
+// no index carrier — so collecting nothing from it is the same result either
+// way, and only the price differs. Descending one payload spends a reflect.Value
+// and a formatted path per byte.
+//
+// The visit count is what makes that assertable: the walk reports every value it
+// reaches, so a document whose payload dwarfs its structure must still be walked
+// in a number of steps bounded by the structure. Without the skip the count
+// grows past the payload's length instead.
+func TestWalkValues_ByteSequencesAreNotDescendedInto(t *testing.T) {
+	t.Parallel()
+	doc := &ir.Document{Preserved: ir.Preserved{"openapi:x-thing": {
+		Reason: ir.ReasonVendorExtension,
+		Value:  ir.RawValue(`"` + strings.Repeat("t", payloadBytes) + `"`),
+	}}}
+
+	var visits int
+	truncated := walkValues(doc, func(reflect.Value, string) bool {
+		visits++
+		return true
+	})
+	require.False(t, truncated)
+	assert.Less(t, visits, payloadBytes,
+		"walking %d bytes of payload one value at a time is what the skip exists to avoid", payloadBytes)
 }

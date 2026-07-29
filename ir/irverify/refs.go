@@ -140,8 +140,10 @@ func checkReferentialIntegrity(doc *ir.Document) []Violation {
 // no typed ID, no Preserved map, no Provenance, no index carrier. Descending one
 // costs a reflect.Value and a formatted path per byte for nothing: Verify over a
 // document holding one 256 KB payload measured 88ms without this skip against
-// 22µs with it, for the same result. Both walks skip it; keeping the note in
-// both is what stops one of them quietly growing the cost back.
+// 22µs with it, for the same result. Since the result is the same either way, a
+// test asserting it cannot notice the skip going missing — each walk is guarded
+// by one that counts what it reaches instead
+// (TestWalkValues_ByteSequencesAreNotDescendedInto here, walkSequence's in pass).
 //
 // The bool return is true only when the depth cap truncated the walk, so
 // callers can surface a too-deep document instead of silently
