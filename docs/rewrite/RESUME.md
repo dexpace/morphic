@@ -63,12 +63,13 @@ go test ./compilers/openapi -run TestConformance # no -update; must pass unchang
 All of the above were green at the head this file was last updated against, and the coverage gate
 now counts statements exactly rather than reading `%.1f`-rounded output, so 100% means 100%.
 
-**2. Finish the whole-branch review.** One ran at the merged head and returned HOLD with 20
-findings. Everything it raised is either landed or filed, but **the fixes themselves have not been
-reviewed** — they are the newest commits on the trunk, and by `CLAUDE.md`'s own standard a review
-that predates later commits is stale. Re-review the branch as it will be merged.
+**2. Review the newest commits.** Four independent reviews have now run — the whole branch, the
+first fix wave, `ir`+`pass`, and the shipped prose — and every one returned findings. Everything
+they raised is landed or filed. What has *not* been reviewed is the fixes for the last two, which
+are the newest commits on the trunk. By `CLAUDE.md`'s own standard that makes the branch unreviewed
+at its final state.
 
-What that review found, and what became of it, is worth knowing before re-reviewing:
+What those reviews found is worth knowing before re-reviewing, because the same shapes recur:
 
 - The **Critical** was the same pointer-collision hazard the branch had already fixed once for the
   union lowering, sitting untouched in the inline-position hoist. Fixed, and both carriers that
@@ -87,7 +88,16 @@ What that review found, and what became of it, is worth knowing before re-review
   quote a mutation as evidence, name the site.
 - **Two `pass` tests pinned a sort order neither checked**; `return 0` from the comparator left the
   tree green. Now pinned literally.
-- Everything adjacent was filed rather than fixed, per the directive above.
+- **A new check rejected the pipeline's own output.** `pass` had stamped `Provenance{Source: -1}`
+  for its own findings since before this branch; the normative shape named no sentinel; the verifier
+  added here rejected it. Every `engine.Compile` document with a pass diagnostic failed the oracle.
+  Resolved by declaring `ir.NoSource` — `ir-design.md` §13 now says what `-1` means, and it is the
+  only out-of-table value admitted.
+- **A behaviour shipped unasserted.** `fillCarrierDocs` merges a referent's `title`/`externalDocs`
+  onto the carrier. That is correct — §14 mandates it "applied uniformly" — but nothing tested it,
+  so narrowing it left the whole repo green. Check the contract before calling a behaviour a
+  regression, and check that a behaviour you keep is pinned.
+- Everything adjacent was filed rather than fixed, per the directive above: #123 through #134.
 
 **3. Take #119 out of draft** once that review is clean. The body should match what landed; as of
 this writing it carries the Breaking section, the `IRVersion` bump, and every `Closes` link.
@@ -115,6 +125,13 @@ when something breaks, break that thing in a throwaway patch and watch it fail, 
 **A check that never runs is not coverage.** A verifier can be complete, well-tested against its own
 fixtures, and still never meet the output it exists to check. Before trusting one, plant the defect
 it names in real pipeline output and confirm the suite goes red.
+
+**One verified run is not a verified class.** This is the failure that survived every other rule
+here. A mutation was planted, the suite went red, and the conclusion was written as though it held
+for every site of that kind — it did not, and the same shape produced three separate wrong claims:
+that `irverify` never met compiler output, that a golden count was 44 of 45, and that a preserve
+call's coverage generalised to all of them. Each was *measured*; each was then over-generalised in
+the sentence describing it. When you quote a measurement, name the site it was taken at.
 
 **Distrust counts and universals in prose.** They are where the errors in this work concentrated — a
 count referring to a different branch, "every X cites Y" when most did, "confirmed by probe" citing
