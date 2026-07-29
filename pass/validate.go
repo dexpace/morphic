@@ -175,17 +175,42 @@ func checkModelDiscriminator(doc *ir.Document, m *ir.Model) []ir.Diagnostic {
 
 // checkMapping validates a discriminator's wire-value mapping: every target must
 // resolve in the registry and satisfy member.
+//
+// A target that resolves nowhere is reported here and again by checkDanglingRefs,
+// and that double report is deliberate: the two codes make different claims.
+// ir/dangling-type-ref says the document is not referentially closed, which every
+// reference in it is held to; pass/discriminator-missing-variant says this
+// discriminator cannot route that wire value, which is what an emitter building a
+// polymorphic decoder subscribes to. Neither consumer should have to subscribe to
+// the other's code to get its own answer.
 func checkMapping(doc *ir.Document, d *ir.Discriminator, where string, member func(ir.TypeID) bool) []ir.Diagnostic {
 	var diags []ir.Diagnostic
 	for _, key := range sortedKeys(d.Mapping) {
 		target := d.Mapping[key]
-		if _, ok := doc.Types[target]; !ok || !member(target) {
-			diags = append(diags, diag(ir.SeverityError, "pass/discriminator-missing-variant",
-				fmt.Sprintf("discriminator mapping %q on %s references %q, which is not a variant of it", key, where, target),
-				where))
+		legal, why := mappingTarget(doc, target, member)
+		if legal {
+			continue
 		}
+		diags = append(diags, diag(ir.SeverityError, "pass/discriminator-missing-variant",
+			fmt.Sprintf("discriminator mapping %q on %s references %q, which %s", key, where, target, why),
+			where))
 	}
 	return diags
+}
+
+// mappingTarget reports whether target is a legal mapping target and, when it is
+// not, the clause naming why. The two failures read differently on purpose: a
+// target no type declares is a broken reference, while a declared one that fails
+// member is a well-formed reference to the wrong type, and the reader should not
+// have to cross-check the registry to tell them apart.
+func mappingTarget(doc *ir.Document, target ir.TypeID, member func(ir.TypeID) bool) (legal bool, why string) {
+	if _, declared := doc.Types[target]; !declared {
+		return false, "no type in the document declares"
+	}
+	if !member(target) {
+		return false, "is not a variant of it"
+	}
+	return true, ""
 }
 
 // isSubtype reports whether target is a declared subtype of base via single

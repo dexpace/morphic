@@ -139,6 +139,62 @@ func TestValidate_ModelDiscriminator(t *testing.T) {
 	assert.Equal(t, 2, countCode(t, diags, "pass/discriminator-missing-variant"))
 }
 
+// discriminatedUnion returns a document whose union declares t/m as its only
+// variant and maps the wire value "a" onto target.
+func discriminatedUnion(target ir.TypeID) *ir.Document {
+	doc := validDoc()
+	doc.Types["t/u"] = &ir.Union{
+		TypeCommon: ir.TypeCommon{ID: "t/u"},
+		Variants:   []ir.Variant{{Type: ir.TypeRef{Target: "t/m"}}},
+		Discriminator: &ir.Discriminator{
+			PropertyName: "kind",
+			Mapping:      map[string]ir.TypeID{"a": target},
+		},
+	}
+	return doc
+}
+
+// messageForCode returns the message of the single diagnostic carrying code.
+func messageForCode(t *testing.T, diags []ir.Diagnostic, code string) string {
+	t.Helper()
+	require.Equal(t, 1, countCode(t, diags, code), "expected exactly one %s", code)
+	for _, d := range diags {
+		if d.Code == code {
+			return d.Message
+		}
+	}
+	return ""
+}
+
+// TestValidate_DanglingDiscriminatorTargetIsReportedTwice pins the deliberate
+// double report. A mapping target no type declares breaks two separate
+// guarantees, so both codes fire and each says its own thing: the reference is
+// not closed, and the discriminator cannot route that wire value. Collapsing to
+// one code would make an emitter reading discriminator completeness subscribe to
+// a reference-integrity code to learn about its own defect.
+func TestValidate_DanglingDiscriminatorTargetIsReportedTwice(t *testing.T) {
+	t.Parallel()
+	diags := pass.Validate(discriminatedUnion("t/ghost"))
+
+	assert.Equal(t, 1, countCode(t, diags, "ir/dangling-type-ref"))
+	assert.Contains(t, messageForCode(t, diags, "pass/discriminator-missing-variant"),
+		"no type in the document declares",
+		"the mapping diagnostic must name the cause it found, not the one it did not")
+}
+
+// TestValidate_DeclaredNonVariantIsReportedOnce is the other half: a target that
+// resolves leaves the document referentially closed, so only the discriminator's
+// own code fires — the double report above tracks the dangling reference, not the
+// discriminator check firing twice.
+func TestValidate_DeclaredNonVariantIsReportedOnce(t *testing.T) {
+	t.Parallel()
+	diags := pass.Validate(discriminatedUnion("t/prim/string"))
+
+	assert.Equal(t, 0, countCode(t, diags, "ir/dangling-type-ref"))
+	assert.Contains(t, messageForCode(t, diags, "pass/discriminator-missing-variant"),
+		"is not a variant of it")
+}
+
 // TestValidate_EmptyEffectiveWireNameIsSkipped covers effectiveWireName's
 // source-name fallback and the empty-name continue in checkDuplicateWireNames.
 func TestValidate_EmptyEffectiveWireNameIsSkipped(t *testing.T) {
