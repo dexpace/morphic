@@ -455,6 +455,16 @@ type so the second-protocol emitter (open Q4) does not force a plan schema chang
 and messages (`ir-design.md §8.3`) reach a emitter through `MsgView`; a messaging target consumes
 them the same way an HTTP target consumes `HTTP`.
 
+`Raw` is `ir.RawConfig`, not `ir.Preserved`, and the distinction is not cosmetic. It carries
+*declared* protocol configuration the plan chooses to pass through unstructured — the GraphQL
+entry point, the OTP call/cast tag, AsyncAPI deployment bindings — all of which the IR models
+fields for; there is no unmodeled construct to give a reason for, and the source position a
+consumer would want is the owning binding's. The `Preserved` map each binding struct carries
+(`ir-design.md §8.1`–`§8.5`) is the other thing entirely: the escape hatch for constructs the IR
+does *not* model — a directive applied to a GraphQL entry-point field, say — where `Reason` and
+`Provenance` are exactly what a policy layer selects on. A refiner reads both, for different
+purposes.
+
 `GroupPlan` mirrors the `OperationGroup` tree so a refiner can build sub-clients / fluent navigation:
 
 ```go
@@ -894,9 +904,13 @@ type ShapeHint struct {
     SplitUnionBody bool      // flatten a request-body union into typed wrapper methods — OPT-IN,
                              // the one sanctioned union→arguments collapse (§4.4); default off
     URLBuilder     bool      // expose a URL-builder variant of the operation
-    Extra          ir.RawConfig // free-form, forward-compatible per-target ergonomics
+    Extra          map[string]ir.RawValue // free-form, forward-compatible per-target ergonomics
 }
 ```
+
+`Extra` is a bare raw-JSON map rather than `ir.RawConfig`: `RawConfig` names *declared protocol
+configuration inside the IR* (`ir-design.md §12`), and a hint is neither — it is emitter input
+authored alongside the SDK, and the IR never sees it.
 
 Method-name *derivation* is itself an injectable policy marked `Inferred`, disable-able and
 overridable. Per-target naming/compat overlays are the same shape: a emitter input keyed by IR ID,
