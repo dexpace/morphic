@@ -33,6 +33,8 @@ func runCompile(args []string, stdout, stderr io.Writer) int {
 	failOn := fs.String("fail-on", "error",
 		"fail (exit 1) on diagnostics at or above this severity: error|warning")
 	skipValidate := fs.Bool("skip-validate", false, "skip the referential-integrity validate pass")
+	explain := fs.String("explain", "",
+		"report what compiling produced at this source pointer instead of writing IR JSON")
 
 	positional, err := parseArgs(fs, args)
 	if err != nil {
@@ -63,6 +65,10 @@ func runCompile(args []string, stdout, stderr io.Writer) int {
 	renderDiagnostics(stderr, res)
 	if res.Document == nil {
 		return 1
+	}
+	if *explain != "" {
+		explainDocument(stdout, res.Document, res.Diagnostics, *explain)
+		return exitCodeFor(res.Diagnostics, *failOn)
 	}
 	if err := writeCompiled(*outPath, stdout, res.Document); err != nil {
 		emitf(stderr, "morphic: %v\n", err)
