@@ -37,8 +37,8 @@ var typeIDType = reflect.TypeOf(ir.TypeID(""))
 // because a stale source index is a compiler bug rather than a spec problem, and
 // because this pass stamps ir.NoSource on its own diagnostics, which the engine
 // folds into Document.Diagnostics — a document-wide check here would report its
-// own previous output. A new integer-index reference has to be added
-// to those checks by hand too, because nothing here will find it; irverify's
+// own previous output. A new integer-index reference has to be added to those
+// checks by hand too, because nothing here will find it; irverify's
 // integerFields guard is what stops one being added unnoticed.
 type registries map[reflect.Type]reflect.Value
 

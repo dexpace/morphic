@@ -115,9 +115,9 @@ var badPayloads = map[string]ir.RawValue{
 	"nil":       nil,
 }
 
-// TestVerify_InvalidPreservedValueIsAViolation covers the field checkPreserved
-// used to skip: an entry whose key and reason are both fine, carrying bytes the
-// document cannot be marshaled with.
+// TestVerify_InvalidPreservedValueIsAViolation covers the field the preserved
+// check used to skip: an entry whose key and reason are both fine, carrying
+// bytes the document cannot be marshaled with.
 func TestVerify_InvalidPreservedValueIsAViolation(t *testing.T) {
 	for name, payload := range badPayloads {
 		t.Run(name, func(t *testing.T) {
