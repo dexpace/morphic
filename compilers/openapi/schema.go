@@ -848,20 +848,21 @@ func (l *lowerer) patternProps(s *oas3.Schema, pointer, hint string) []ir.Patter
 // declaring property when it owns none.
 func (l *lowerer) fillValidationOnly(ext *ir.Preserved, s *oas3.Schema, pointer string) {
 	if s.GetNot() != nil {
-		l.preserveKeyword(ext, "openapi:not", nodeToRaw(rawPropertyNode(s, "not")), pointer, "not")
+		l.preserveKeyword(ext, "openapi:not", nodeToRaw(rawPropertyNode(s, "not")),
+			pointer, pointer+ptr("not"), "not")
 	}
 	if ite := ifThenElseRaw(s); ite != nil {
-		l.preserveKeyword(ext, "openapi:if-then-else", ite, pointer, "if/then/else")
+		l.preserveKeyword(ext, "openapi:if-then-else", ite, pointer, pointer, "if/then/else")
 	}
 	if ds := s.GetDependentSchemas(); ds != nil && ds.Len() > 0 {
-		l.preserveKeyword(ext, "openapi:dependentSchemas",
-			nodeToRaw(rawPropertyNode(s, "dependentSchemas")), pointer, "dependentSchemas")
+		l.preserveKeyword(ext, "openapi:dependentSchemas", nodeToRaw(rawPropertyNode(s, "dependentSchemas")),
+			pointer, pointer+ptr("dependentSchemas"), "dependentSchemas")
 	}
 	if craw := containsRaw(s); craw != nil {
-		l.preserveKeyword(ext, "openapi:contains", craw, pointer, "contains")
+		l.preserveKeyword(ext, "openapi:contains", craw, pointer, pointer, "contains")
 	}
 	if u := unevaluatedRaw(s); u != nil {
-		l.preserveKeyword(ext, "openapi:unevaluated", u, pointer, "unevaluated")
+		l.preserveKeyword(ext, "openapi:unevaluated", u, pointer, pointer, "unevaluated")
 	}
 }
 
@@ -883,16 +884,19 @@ func (l *lowerer) preserve(p *ir.Preserved, key string, raw ir.RawValue, reason 
 }
 
 // preserveKeyword records a validation-only keyword's raw payload under key in
-// p and emits one info diagnostic naming it. An absent or unconvertible payload
-// records nothing and reports nothing. The entry is located at the declaring
-// schema rather than at a keyword node: three of the five §4.7 entries combine
-// several keywords into one synthesized object, which no pointer addresses.
-func (l *lowerer) preserveKeyword(p *ir.Preserved, key string, raw ir.RawValue, pointer, label string) {
+// p and emits one info diagnostic naming it at declPtr, the schema that wrote
+// it. An absent or unconvertible payload records nothing and reports nothing.
+//
+// entryPtr locates the entry itself, which is what a validation emitter reports
+// against: the keyword's own node where the source writes the entry as one
+// keyword, and declPtr for the three §4.7 entries that combine several keywords
+// into one synthesized object no single node addresses.
+func (l *lowerer) preserveKeyword(p *ir.Preserved, key string, raw ir.RawValue, declPtr, entryPtr, label string) {
 	if raw == nil {
 		return
 	}
-	l.preserve(p, key, raw, ir.ReasonValidationOnly, pointer)
-	l.diag(ir.SeverityInfo, codeValidationOnlyKeyword, pointer,
+	l.preserve(p, key, raw, ir.ReasonValidationOnly, entryPtr)
+	l.diag(ir.SeverityInfo, codeValidationOnlyKeyword, declPtr,
 		"validation-only keyword %q kept verbatim under Preserved", label)
 }
 

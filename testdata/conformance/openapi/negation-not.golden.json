@@ -38,7 +38,7 @@
           },
           "provenance": {
             "source": 0,
-            "pointer": "/components/schemas/NotFoo"
+            "pointer": "/components/schemas/NotFoo/not"
           }
         }
       },

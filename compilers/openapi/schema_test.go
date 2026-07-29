@@ -336,9 +336,19 @@ func TestLower_ValidationOnlyKeywords(t *testing.T) {
 	doc, diags := lowerSpec(t, spec)
 	requireNoErrorDiags(t, diags)
 	m := typeByName(doc, "V").(*ir.Model)
-	for _, key := range []string{"openapi:if-then-else", "openapi:dependentSchemas", "openapi:contains", "openapi:unevaluated"} {
-		_, ok := m.Preserved[key]
-		assert.True(t, ok, "keyword %s preserved", key)
+	// An entry the source writes as one keyword is located at that keyword; the
+	// three that synthesize several into one object fall back to the schema,
+	// since no single node addresses the synthesized value.
+	wantPointer := map[string]string{
+		"openapi:dependentSchemas": "/components/schemas/V/dependentSchemas",
+		"openapi:if-then-else":     "/components/schemas/V",
+		"openapi:contains":         "/components/schemas/V",
+		"openapi:unevaluated":      "/components/schemas/V",
+	}
+	for key, want := range wantPointer {
+		entry, ok := m.Preserved[key]
+		require.True(t, ok, "keyword %s preserved", key)
+		assert.Equal(t, want, entry.Provenance.Pointer, "entry provenance for %s", key)
 	}
 	assert.GreaterOrEqual(t, countDiagsAt(diags, codeValidationOnlyKeyword, ir.SeverityInfo), 4)
 }
@@ -473,11 +483,15 @@ func TestModel_ValidationOnlyKeywordPreserved(t *testing.T) {
 	require.True(t, ok, "not-keyword must be preserved verbatim")
 	assert.JSONEq(t, `{"required":["b"]}`, string(raw.Value))
 	assert.Equal(t, ir.ReasonValidationOnly, raw.Reason)
+	assert.Equal(t, "/components/schemas/S/not", raw.Provenance.Pointer,
+		"the entry locates the keyword, not the schema that carried it")
 	found := false
 	for _, d := range diags {
 		if d.Code == codeValidationOnlyKeyword {
 			found = true
 			assert.Equal(t, ir.SeverityInfo, d.Severity)
+			assert.Equal(t, "/components/schemas/S", d.Provenance.Pointer,
+				"the diagnostic still reports against the declaring schema")
 		}
 	}
 	assert.True(t, found, "expected a validation-only-keyword info diagnostic")
@@ -1893,7 +1907,7 @@ func TestPreserveKeyword_NilRaw(t *testing.T) {
 	t.Parallel()
 	l := &lowerer{}
 	var ext ir.Preserved
-	l.preserveKeyword(&ext, "openapi:not", nil, "/p", "not")
+	l.preserveKeyword(&ext, "openapi:not", nil, "/p", "/p/not", "not")
 	assert.Nil(t, ext, "nil raw is a no-op")
 	assert.Empty(t, l.diags)
 }
