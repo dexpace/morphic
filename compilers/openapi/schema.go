@@ -113,9 +113,21 @@ func (l *lowerer) schemaBody(schema *oas3.Schema, pointer, hint string, home ann
 // happened to lower to. A schema that declares none of it keeps resolving
 // straight to the shared node: owning one would add nothing and give every
 // bare `items: {type: string}` an anonymous node for nothing.
+//
+// A declaration that has a home already resolves to it instead of hoisting a
+// second one. Usually that home is the node its own body interned, but a $ref
+// naming an inline position hoists the position's home before the position
+// itself is reached (resolveSchemaRef), and taking the body's target there
+// would leave the annotations on a node only the $ref can see — the
+// declaration-order dependence ir-design §4.3 rules out. The lookup stays
+// behind the gate above so a position that declares nothing keeps resolving
+// straight to its target however many references hoisted an alias over it.
 func (l *lowerer) hoistDeclarationHome(s *oas3.Schema, ref ir.TypeRef, pointer, hint string, home annotationHome) ir.TypeRef {
-	if home != homeOwnNode || s == nil || l.ownsNode(pointer) || !declaresPositionScoped(s) {
+	if home != homeOwnNode || s == nil || !declaresPositionScoped(s) {
 		return ref
+	}
+	if id, owned := l.byPointer[pointer]; owned {
+		return ir.TypeRef{Target: id, Nullable: ref.Nullable}
 	}
 	id := l.internAlias(pointer, hint, ref, l.schemaConstraints(s, pointer))
 	return ir.TypeRef{Target: id, Nullable: ref.Nullable}
@@ -777,23 +789,27 @@ func (l *lowerer) fillPropertyDetail(p *ir.Property, js *oas3.JSONSchema[oas3.Re
 
 // fillPropertyAnnotations records the annotations the property's schema
 // declares — docs, deprecation, XML hints, examples, vendor extensions and
-// validation-only keywords — on the property, but only when that schema hoisted
-// no node of its own to hold them. A schema that reduced to a shared primitive
-// has nowhere else to put them, and the shared primitive must never carry one
-// declaration's annotations; a schema that owns a node keeps them there
-// (attachDeclaredAnnotations). One home per declaration means the two can never
-// drift apart.
+// validation-only keywords — on the property, but only when that schema lowered
+// to no node of its own to hold them. A schema that reduced to a shared
+// primitive has nowhere else to put them, and the shared primitive must never
+// carry one declaration's annotations; a schema that lowered to a node keeps
+// them there (attachDeclaredAnnotations). The property never doubles that node,
+// so the two can never drift apart.
+//
+// A node another *reference* hoisted at the property's pointer is not that
+// node: `$ref: '#/…/properties/foo'` names the property's schema, so the node
+// it resolves to carries what that schema declares, and the property carries it
+// too — two IR entities reflecting one source schema, not one entity with two
+// homes. Which of them is reached first must not decide either (GitHub #116).
 //
 // A $ref position never hoists a node, which is what gives an if/then/else, a
 // bound or a description written beside a *property's* $ref somewhere to land
 // (GitHub #114).
 func (l *lowerer) fillPropertyAnnotations(p *ir.Property, ref, tgt *oas3.Schema, pointer string) {
-	if l.ownsNode(pointer) {
+	if l.loweredToOwnNode(pointer, p.Type) {
 		return
 	}
-	if d := effectiveDescription(ref, tgt); d != "" {
-		p.Docs.Description = d
-	}
+	fillCarrierDocs(&p.Docs, ref, tgt)
 	if effectiveDeprecated(ref, tgt) {
 		p.Deprecation = &ir.Deprecation{}
 	}
@@ -807,11 +823,18 @@ func (l *lowerer) fillPropertyAnnotations(p *ir.Property, ref, tgt *oas3.Schema,
 	l.fillValidationOnly(&p.Preserved, ref, pointer)
 }
 
-// ownsNode reports whether the declaration at pointer hoisted a type node of
-// its own — the node that then holds its annotations.
-func (l *lowerer) ownsNode(pointer string) bool {
-	_, ok := l.byPointer[pointer]
-	return ok
+// loweredToOwnNode reports whether the declaration at pointer lowered to a type
+// node of its own — the node attachDeclaredAnnotations then fills, leaving its
+// carrier nothing to hold.
+//
+// It asks whether the node interned at pointer is the one the declaration
+// lowered to, not merely whether a node is interned there. A $ref naming an
+// inline position hoists that position's home for its own use, in either
+// declaration order, and a carrier reading the registry alone would keep its
+// schema's annotations only when it happened to lower first.
+func (l *lowerer) loweredToOwnNode(pointer string, t ir.TypeRef) bool {
+	id, owned := l.byPointer[pointer]
+	return owned && id == t.Target
 }
 
 // fillPropertyDefault sets the property default, preferring the use-site node
@@ -1288,18 +1311,6 @@ func nodeToRaw(node *yaml.Node) ir.RawValue {
 	return ir.RawValue(data)
 }
 
-// effectiveDescription picks the description from the $ref use-site when present,
-// else from the referent.
-func effectiveDescription(ref, tgt *oas3.Schema) string {
-	if ref != nil && ref.Description != nil {
-		return *ref.Description
-	}
-	if tgt != nil && tgt.Description != nil {
-		return *tgt.Description
-	}
-	return ""
-}
-
 // effectiveDeprecated reports the deprecated flag, use-site over referent.
 func effectiveDeprecated(ref, tgt *oas3.Schema) bool {
 	return pickFlag(ref, tgt, func(s *oas3.Schema) *bool { return s.Deprecated })
@@ -1349,6 +1360,23 @@ func fillTypeDocs(d *ir.Docs, s *oas3.Schema) {
 	}
 	if ed := s.GetExternalDocs(); ed != nil {
 		d.ExternalDocs = []ir.Link{{URL: ed.GetURL(), Description: ed.GetDescription()}}
+	}
+}
+
+// fillCarrierDocs records the documentation a schema declares on the ir.Property
+// or ir.Parameter carrying the position, the use-site keyword winning over the
+// $ref referent's field by field.
+//
+// It reads the same three keywords fillTypeDocs does, deliberately: the two are
+// the only homes a declaration's documentation has, declaresAnnotations hoists a
+// node whenever any of the three is written, and one the node home keeps while
+// the carrier drops it is one silently lost wherever a carrier is the home.
+func fillCarrierDocs(d *ir.Docs, ref, tgt *oas3.Schema) {
+	if tgt != nil {
+		fillTypeDocs(d, tgt)
+	}
+	if ref != nil {
+		fillTypeDocs(d, ref)
 	}
 }
 

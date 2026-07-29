@@ -108,15 +108,14 @@ func (l *lowerer) fillParamSchema(param *ir.Parameter, js *oas3.JSONSchema[oas3.
 // declaration.
 //
 // The parameter's own annotations are written afterwards by fillParamDetail and
-// win where both are set. An `xml` hint is the one thing with nowhere to go:
-// it governs XML body serialization, which no parameter takes part in.
+// win where both are set. ir.Parameter has a field for every annotation a schema
+// can declare bar one: an `xml` hint governs XML body serialization, which no
+// parameter takes part in, so it alone has nowhere to go here.
 func (l *lowerer) fillParamSchemaAnnotations(param *ir.Parameter, s *oas3.Schema, pointer string) {
-	if l.ownsNode(pointer) {
+	if l.loweredToOwnNode(pointer, param.Type) {
 		return
 	}
-	if d := s.GetDescription(); d != "" {
-		param.Docs.Description = d
-	}
+	fillCarrierDocs(&param.Docs, s, nil)
 	if effectiveDeprecated(s, nil) {
 		param.Deprecation = &ir.Deprecation{}
 	}

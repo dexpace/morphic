@@ -304,24 +304,49 @@ func TestParams_SchemaAnnotationsReachTheParameter(t *testing.T) {
 	t.Parallel()
 	_, svc, diags := lowerServiceSpec(t, pathsSpec(
 		"  /x:\n    get:\n      operationId: g\n      parameters:\n"+
-			"        - name: q\n          in: query\n          schema:\n"+
-			"            type: string\n            description: DOC\n            maxLength: 3\n"+
-			"            deprecated: true\n            example: abc\n"+
-			"            x-vendor: V\n            not: {const: N}\n"+
+			"        - name: q\n          in: query\n          schema: "+inlineProbeBody+"\n"+
 			"      responses: {\"204\": {description: ok}}\n"))
 	requireNoErrorDiags(t, diags)
 
 	p := firstOp(t, svc).Params[0]
-	assert.Equal(t, "DOC", p.Docs.Description)
+	assertProbeDocsKept(t, p.Docs)
 	assert.NotNil(t, p.Deprecation)
-	require.Len(t, p.Examples, 1)
-	require.NotNil(t, p.Examples[0].Value)
-	assert.Equal(t, "abc", p.Examples[0].Value.Str)
+	assertProbeExample(t, p.Examples)
 	assert.Contains(t, p.Preserved, "openapi:x-vendor")
 	assert.Contains(t, p.Preserved, "openapi:not")
 	require.NotNil(t, p.Constraints)
 	require.NotNil(t, p.Constraints.MaxLength)
 	assert.Equal(t, int64(3), *p.Constraints.MaxLength)
+}
+
+// TestParams_SchemaAnnotationsSurviveARefNamingTheSchema pins the parameter
+// half of the pointer collision. A $ref can name a parameter's schema pointer,
+// which hoists a node there — and components lower before paths, so that node
+// always exists by the time the parameter is reached. Reading it as the
+// declaration's home cost every parameter in this shape all of its schema
+// annotations, in the only order there is.
+func TestParams_SchemaAnnotationsSurviveARefNamingTheSchema(t *testing.T) {
+	t.Parallel()
+	doc, svc, diags := lowerServiceSpec(t,
+		"openapi: 3.1.0\ninfo: {title: T, version: \"1\"}\npaths:\n"+
+			"  /x:\n    get:\n      operationId: g\n      parameters:\n"+
+			"        - name: q\n          in: query\n          schema: "+inlineProbeBody+"\n"+
+			"      responses: {\"204\": {description: ok}}\n"+
+			"components:\n  schemas:\n"+
+			"    Outsider: {$ref: '#/paths/~1x/get/parameters/0/schema'}\n")
+	requireNoErrorDiags(t, diags)
+
+	p := firstOp(t, svc).Params[0]
+	assert.Equal(t, ir.TypeID("t/prim/string"), p.Type.Target,
+		"the parameter's own type is unchanged by the outside reference")
+	assertProbeDocsKept(t, p.Docs)
+	assert.NotNil(t, p.Deprecation)
+	assert.Contains(t, p.Preserved, "openapi:x-vendor")
+	assert.Contains(t, p.Preserved, "openapi:not")
+
+	sc, ok := doc.Types["t/anon/paths/~1x/get/parameters/0/schema"].(*ir.Scalar)
+	require.True(t, ok, "and the referenced pointer still names the schema written there")
+	assertProbeDocsKept(t, sc.Docs)
 }
 
 // TestParams_OwnAnnotationsWinOverTheSchema checks the precedence a parameter

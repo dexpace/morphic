@@ -4,6 +4,8 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/google/go-cmp/cmp"
+	"github.com/google/go-cmp/cmp/cmpopts"
 	oas3 "github.com/speakeasy-api/openapi/jsonschema/oas3"
 	soa "github.com/speakeasy-api/openapi/openapi"
 	"github.com/speakeasy-api/openapi/references"
@@ -2218,8 +2220,12 @@ components:
 // inlineProbeBody is the body every inline-position case below writes: one
 // annotation of each kind attachDeclaredAnnotations reads, one validation-only
 // keyword, and one value constraint — all of them position-scoped, so a
-// position that lowers this to the shared string primitive loses every one.
-const inlineProbeBody = `{type: string, description: DOC, x-vendor: V, xml: {name: X}, not: {const: N}, maxLength: 3}`
+// position that lowers this to the shared string primitive loses every one. All
+// three documentation keywords are here because a home that keeps only the
+// description passes a probe that writes only a description.
+const inlineProbeBody = `{type: string, title: SUM, description: DOC, ` +
+	`externalDocs: {url: 'https://e.example', description: ED}, deprecated: true, ` +
+	`example: abc, x-vendor: V, xml: {name: X}, not: {const: N}, maxLength: 3}`
 
 // inlinePosition is one schema position with no ir.Property or ir.Parameter to
 // carry a declaration's annotations, so the declaration must own a node.
@@ -2295,7 +2301,9 @@ func TestInlinePosition_DeclarationOwnsANode(t *testing.T) {
 // survived onto the node the declaration owns.
 func assertProbeAnnotationsKept(t *testing.T, sc *ir.Scalar) {
 	t.Helper()
-	assert.Equal(t, "DOC", sc.Docs.Description, "docs")
+	assertProbeDocsKept(t, sc.Docs)
+	assert.NotNil(t, sc.Deprecation, "deprecation")
+	assertProbeExample(t, sc.Examples)
 	if assert.NotNil(t, sc.XML, "xml hints") {
 		assert.Equal(t, "X", sc.XML.Name)
 	}
@@ -2312,6 +2320,29 @@ func assertProbeAnnotationsKept(t *testing.T, sc *ir.Scalar) {
 		require.NotNil(t, sc.Constraints.MaxLength)
 		assert.Equal(t, int64(3), *sc.Constraints.MaxLength)
 	}
+}
+
+// assertProbeDocsKept checks all three documentation keywords inlineProbeBody
+// writes reached d, wherever the position's home turned out to be.
+func assertProbeDocsKept(t *testing.T, d ir.Docs) {
+	t.Helper()
+	assert.Equal(t, "SUM", d.Summary, "title")
+	assert.Equal(t, "DOC", d.Description, "description")
+	if assert.Len(t, d.ExternalDocs, 1, "externalDocs") {
+		assert.Equal(t, "https://e.example", d.ExternalDocs[0].URL)
+		assert.Equal(t, "ED", d.ExternalDocs[0].Description)
+	}
+}
+
+// assertProbeExample checks the single example inlineProbeBody writes reached
+// the home under test with its value intact.
+func assertProbeExample(t *testing.T, examples []ir.Example) {
+	t.Helper()
+	if !assert.Len(t, examples, 1, "examples") {
+		return
+	}
+	require.NotNil(t, examples[0].Value)
+	assert.Equal(t, "abc", examples[0].Value.Str)
 }
 
 // TestInlinePosition_BareScalarStaysShared is the control that bounds the fix:
@@ -2393,6 +2424,133 @@ func TestInlinePosition_BareRefStaysDirect(t *testing.T) {
 	assert.NotContains(t, doc.Types, ir.TypeID("t/anon/components/schemas/A/items"))
 }
 
+// stolenPosition is an inline position an outside $ref can name by pointer:
+// the component block declaring it, and the node its declaration owns. The
+// outside component is spelled around the owner so both declaration orders of
+// the same document are available.
+type stolenPosition struct {
+	name  string
+	owner string
+	id    ir.TypeID
+}
+
+// spec writes the position's owner and an outside $ref naming it, the reference
+// declared first or last. Components lower in source order, so the two are the
+// two orders in which the pointer's node can be reached.
+func (p stolenPosition) spec(refFirst bool) string {
+	outsider := "    Outsider: {$ref: '#" + strings.TrimPrefix(string(p.id), "t/anon") + "'}\n"
+	if refFirst {
+		return componentSpec(outsider + p.owner)
+	}
+	return componentSpec(p.owner + outsider)
+}
+
+func stolenPositions() []stolenPosition {
+	return []stolenPosition{
+		{"items", "    A: {type: array, items: " + inlineProbeBody + "}\n",
+			"t/anon/components/schemas/A/items"},
+		{"additionalProperties", "    A: {type: object, additionalProperties: " + inlineProbeBody + "}\n",
+			"t/anon/components/schemas/A/additionalProperties"},
+		{"prefixItems", "    A: {type: array, prefixItems: [" + inlineProbeBody + "]}\n",
+			"t/anon/components/schemas/A/prefixItems/0"},
+		{"patternProperties", "    A: {type: object, patternProperties: {\"^x\": " + inlineProbeBody + "}}\n",
+			"t/anon/components/schemas/A/patternProperties/^x"},
+		{"oneOf-branch", "    A: {oneOf: [" + inlineProbeBody + ", {type: integer}]}\n",
+			"t/anon/components/schemas/A/oneOf/0"},
+	}
+}
+
+// TestInlinePosition_OutsideRefDoesNotMoveTheHome is the regression for the
+// second half of the pointer collision. A $ref naming an inline position hoists
+// that position's home before the position itself is reached, and the position
+// then took the shared node its body reduced to instead — so the annotations
+// stayed on a node only the outside reference could see, and `items` resolved to
+// the bare primitive. Which of the two lowered first decided it, the
+// declaration-order dependence ir-design §4.3 rules out.
+//
+// The strongest statement of the rule is the first assertion: what a component
+// lowers to cannot depend on whether some unrelated schema elsewhere points at
+// one of its inner pointers.
+func TestInlinePosition_OutsideRefDoesNotMoveTheHome(t *testing.T) {
+	t.Parallel()
+	for _, pos := range stolenPositions() {
+		t.Run(pos.name, func(t *testing.T) {
+			t.Parallel()
+			alone, diags := parseFull(t, componentSpec(pos.owner))
+			requireNoErrorDiags(t, diags)
+			refFirst, diags := parseFull(t, pos.spec(true))
+			requireNoErrorDiags(t, diags)
+			refLast, diags := parseFull(t, pos.spec(false))
+			requireNoErrorDiags(t, diags)
+
+			for _, with := range []*ir.Document{refFirst, refLast} {
+				assert.Empty(t, cmp.Diff(alone.Types[componentID("A")], with.Types[componentID("A")]),
+					"an outside reference to an inner pointer must not change what A lowers to")
+			}
+			assert.Empty(t, cmp.Diff(refFirst, refLast, orderInvariantIR()...),
+				"declaring that reference before or after A must not change the IR")
+
+			sc, ok := refFirst.Types[pos.id].(*ir.Scalar)
+			require.True(t, ok, "the position still owns its home; got %v", refFirst.Types[pos.id])
+			assertProbeAnnotationsKept(t, sc)
+		})
+	}
+}
+
+// orderInvariantIR compares two whole IR documents, minus the two fields that
+// differ by construction when the same components are declared in two orders.
+//
+// SourceInfo.Hash digests the source bytes, which are the thing being permuted.
+// Naming.Hint is a live gap: the hint a node hoisted at a pointer carries is
+// minted by whichever of the two namers reaches the pointer first — the
+// declaration's context ("A_item") or the reference's last pointer segment
+// ("items") — because intern keeps the first name it is given. That divergence
+// is naming only, and predates the annotation work: a $ref to an object-bodied
+// `items` shows it with no annotations involved at all. Everything else is
+// compared.
+func orderInvariantIR() []cmp.Option {
+	return []cmp.Option{
+		cmpopts.IgnoreFields(ir.Naming{}, "Hint"),
+		cmpopts.IgnoreFields(ir.SourceInfo{}, "Hash"),
+	}
+}
+
+// TestPropertyAnnotations_KeptWhenAnOutsideRefNamesTheProperty covers the same
+// collision at a position that has a carrier. A $ref naming a property's schema
+// pointer hoists a node there, and the property then read that node as its own
+// home and left its annotations to it — on top of the copy it had already
+// written when it lowered first, and instead of any copy at all when it lowered
+// second.
+func TestPropertyAnnotations_KeptWhenAnOutsideRefNamesTheProperty(t *testing.T) {
+	t.Parallel()
+	owner := "    A: {type: object, properties: {p: " + inlineProbeBody + "}}\n"
+	outsider := "    Outsider: {$ref: '#/components/schemas/A/properties/p'}\n"
+	for _, tc := range []struct{ name, spec string }{
+		{"reference declared first", componentSpec(outsider + owner)},
+		{"reference declared last", componentSpec(owner + outsider)},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			doc, diags := parseFull(t, tc.spec)
+			requireNoErrorDiags(t, diags)
+
+			m, ok := doc.Types[componentID("A")].(*ir.Model)
+			require.True(t, ok)
+			p, ok := propsByWire(m.Properties)["p"]
+			require.True(t, ok)
+			assert.Equal(t, ir.TypeID("t/prim/string"), p.Type.Target,
+				"the property's own type is unchanged by the outside reference")
+			assertProbeDocsKept(t, p.Docs)
+			assert.Contains(t, p.Preserved, "openapi:x-vendor")
+			assert.Contains(t, p.Preserved, "openapi:not")
+
+			sc, ok := doc.Types["t/anon/components/schemas/A/properties/p"].(*ir.Scalar)
+			require.True(t, ok, "and the referenced pointer still names the schema written there")
+			assertProbeAnnotationsKept(t, sc)
+		})
+	}
+}
+
 // TestPropertyAnnotations_OneHomeWhenSchemaOwnsANode asserts the settlement of
 // the double storage: a property whose schema hoists a node keeps that
 // declaration's annotations there and not also on the ir.Property, so the two
@@ -2438,7 +2596,9 @@ func TestPropertyAnnotations_CarriedWhenSchemaOwnsNoNode(t *testing.T) {
 	require.True(t, ok)
 	assert.Equal(t, ir.TypeID("t/prim/string"), p.Type.Target, "a property keeps resolving to the shared primitive")
 	assert.NotContains(t, doc.Types, ir.TypeID("t/anon/components/schemas/A/properties/p"))
-	assert.Equal(t, "DOC", p.Docs.Description)
+	assertProbeDocsKept(t, p.Docs)
+	assert.NotNil(t, p.Deprecation)
+	assertProbeExample(t, p.Examples)
 	require.NotNil(t, p.XML)
 	assert.Equal(t, "X", p.XML.Name)
 	assert.Contains(t, p.Preserved, "openapi:x-vendor")

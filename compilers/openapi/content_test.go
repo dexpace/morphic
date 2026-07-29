@@ -871,7 +871,9 @@ func TestHeaders_SchemaDetailReachesTheProperty(t *testing.T) {
 	requireNoErrorDiags(t, diags)
 
 	h := firstOp(t, svc).Responses[0].Headers[0]
-	assert.Equal(t, "DOC", h.Docs.Description)
+	assertProbeDocsKept(t, h.Docs)
+	assert.NotNil(t, h.Deprecation)
+	assertProbeExample(t, h.Examples)
 	require.NotNil(t, h.XML)
 	assert.Equal(t, "X", h.XML.Name)
 	assert.Contains(t, h.Preserved, "openapi:x-vendor")
