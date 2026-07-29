@@ -1,6 +1,7 @@
 package pass // internal test package — exercises the walk's bounds directly
 
 import (
+	"reflect"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -25,7 +26,7 @@ func TestCollectTypeIDs_DeepValueTreeIsTruncated(t *testing.T) {
 	_, truncated := collectTypeIDs(doc, "doc")
 	assert.True(t, truncated, "a tree nested past the cap must report truncation")
 
-	diags := checkDanglingTypeRefs(doc)
+	diags := checkDanglingRefs(doc)
 	require.NotEmpty(t, diags)
 	assert.Equal(t, "ir/walk-truncated", diags[0].Code)
 	assert.Equal(t, ir.SeverityError, diags[0].Severity)
@@ -51,7 +52,7 @@ func TestCollectTypeIDs_SharedPointerVisitedOnce(t *testing.T) {
 
 	var n int
 	for _, s := range sites {
-		if s.target == "t/ghost/shared" {
+		if s.id == "t/ghost/shared" {
 			n++
 		}
 	}
@@ -73,11 +74,38 @@ func TestCollectTypeIDs_PreservedBytesAreNotWalked(t *testing.T) {
 	assert.Empty(t, sites)
 }
 
-// TestCheckDanglingTypeRefs_NilTypeDefIsNotFollowed pins report-only behaviour on
+// TestCheckDanglingRefs_NilTypeDefIsNotFollowed pins report-only behaviour on
 // a malformed registry: a nil entry is skipped rather than dereferenced, so the
 // pass reports what it can instead of panicking.
-func TestCheckDanglingTypeRefs_NilTypeDefIsNotFollowed(t *testing.T) {
+func TestCheckDanglingRefs_NilTypeDefIsNotFollowed(t *testing.T) {
 	t.Parallel()
 	doc := &ir.Document{Types: ir.TypeRegistry{"t/nil": nil}}
-	assert.Empty(t, checkDanglingTypeRefs(doc))
+	assert.Empty(t, checkDanglingRefs(doc))
+}
+
+// TestRegistries_ResolvesUnknownClassIsReportOnly drives the unknown-class guard:
+// a site whose ID type this document declares no registry for cannot resolve, and
+// saying so beats indexing a zero reflect.Value and panicking. Every site
+// collectRefs builds does have a registry, so nothing reaches this in practice —
+// which is exactly why it is asserted here rather than left to chance.
+func TestRegistries_ResolvesUnknownClassIsReportOnly(t *testing.T) {
+	t.Parallel()
+	regs := documentRegistries(&ir.Document{})
+	site := refSite{idType: reflect.TypeOf(ir.OpID("")), id: "op/x", where: "doc"}
+	assert.False(t, regs.resolves(site), "an ID class with no registry resolves to nothing")
+}
+
+// TestDocumentRegistries_DerivedFromDocumentShape pins the derivation rule that
+// replaces a hand-written registry table: every ID-keyed map on Document is a
+// registry, and a map keyed by plain string — Preserved keys on a source
+// construct's name, not an identity — is not.
+func TestDocumentRegistries_DerivedFromDocumentShape(t *testing.T) {
+	t.Parallel()
+	regs := documentRegistries(&ir.Document{})
+
+	for _, id := range []any{ir.TypeID(""), ir.ChannelID(""), ir.MessageID(""), ir.AuthID("")} {
+		assert.True(t, regs.isRef(reflect.TypeOf(id)), "%T names a Document registry", id)
+	}
+	assert.False(t, regs.isRef(reflect.TypeOf("")), "a plain string key is a name, not an identity")
+	assert.Len(t, regs, 4, "Document declares exactly the four ID-keyed registries")
 }

@@ -162,7 +162,7 @@ func TestValidate_DanglingAuthRef(t *testing.T) {
 	}}
 	diags := pass.Validate(doc)
 	require.NotEmpty(t, diags)
-	assert.Contains(t, codes(diags), "pass/dangling-auth-ref")
+	assert.Contains(t, codes(diags), "ir/dangling-auth-ref")
 }
 
 func TestValidate_DuplicateEnumValuesAreLegal(t *testing.T) {

@@ -16,8 +16,8 @@ func TestValidate_NilDocumentReturnsNil(t *testing.T) {
 }
 
 // TestValidate_DanglingRefInMessagePayload exercises the Messages walk in
-// checkDanglingTypeRefs: a message whose payload content references a missing
-// type must be reported against the message location.
+// checkDanglingRefs: a message whose payload content references a missing type
+// must be reported against the message location.
 func TestValidate_DanglingRefInMessagePayload(t *testing.T) {
 	t.Parallel()
 	doc := validDoc()
@@ -209,8 +209,8 @@ func TestValidate_GraphQLReachableTypesAllowArgs(t *testing.T) {
 	assert.NotContains(t, codes(pass.Validate(doc)), "pass/args-outside-graphql")
 }
 
-// TestValidate_PerOperationAuthOverride covers the per-operation auth path in
-// checkAuthRefs, including the empty-scheme skip and a dangling override scheme.
+// TestValidate_PerOperationAuthOverride covers a per-operation auth override,
+// including the empty-scheme skip and a dangling override scheme.
 func TestValidate_PerOperationAuthOverride(t *testing.T) {
 	t.Parallel()
 	op := ir.Operation{
@@ -222,7 +222,7 @@ func TestValidate_PerOperationAuthOverride(t *testing.T) {
 	}
 	diags := pass.Validate(docWithOperation(op))
 	require.NotEmpty(t, diags)
-	assert.Contains(t, codes(diags), "pass/dangling-auth-ref")
+	assert.Contains(t, codes(diags), "ir/dangling-auth-ref")
 }
 
 // TestValidate_ExcessiveGroupNestingIsTruncated drives the maxGroupDepth guard in

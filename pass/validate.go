@@ -1,6 +1,7 @@
 package pass
 
 import (
+	"cmp"
 	"fmt"
 	"slices"
 
@@ -20,41 +21,111 @@ func Validate(doc *ir.Document) []ir.Diagnostic {
 		return nil
 	}
 	diags := make([]ir.Diagnostic, 0, 8)
-	diags = append(diags, checkDanglingTypeRefs(doc)...)
+	diags = append(diags, checkDanglingRefs(doc)...)
+	diags = append(diags, checkServerIndices(doc)...)
+	diags = append(diags, checkResponseIndices(doc)...)
 	diags = append(diags, checkDiscriminators(doc)...)
 	diags = append(diags, checkDuplicateWireNames(doc)...)
 	diags = append(diags, checkParamBindings(doc)...)
 	diags = append(diags, checkOneWay(doc)...)
 	diags = append(diags, checkArgsOutsideGraphQL(doc)...)
-	diags = append(diags, checkAuthRefs(doc)...)
 	return diags
 }
 
-// checkDanglingTypeRefs reports every ir.TypeID reference in the document that
-// resolves to no entry in doc.Types — TypeRef.Target and every other
-// TypeID-typed field alike, wherever it sits.
+// checkDanglingRefs reports every typed-ID reference in the document that
+// resolves to no entry in the registry that declares that class of ID — a
+// TypeRef.Target into doc.Types, a MessageBinding.Channel into doc.Channels, a
+// SchemeUse.Scheme into doc.Auth — wherever it sits.
 //
-// The sites come from a reflection walk of the document's own value graph
-// rather than a list of field names (refs.go): referential integrity is the
+// The sites and the registries both come from reflection over the document's own
+// shape (refs.go) rather than a list of field names: referential integrity is the
 // guarantee an emitter relies on, and a hand-written enumeration drifts behind
 // the IR without anything failing.
-func checkDanglingTypeRefs(doc *ir.Document) []ir.Diagnostic {
-	sites, truncated := collectTypeIDs(doc, "doc")
+func checkDanglingRefs(doc *ir.Document) []ir.Diagnostic {
+	regs := documentRegistries(doc)
+	sites, truncated := collectRefs(doc, "doc", regs.isRef)
 	var diags []ir.Diagnostic
 	if truncated {
 		diags = append(diags, diag(ir.SeverityError, "ir/walk-truncated",
-			"document nests deeper than the bounded reference walk; some type references went unchecked",
+			"document nests deeper than the bounded reference walk; some references went unchecked",
 			"doc"))
 	}
 	for _, s := range sites {
-		if _, ok := doc.Types[s.target]; ok {
+		if regs.resolves(s) {
 			continue
 		}
-		diags = append(diags, diag(ir.SeverityError, "ir/dangling-type-ref",
-			fmt.Sprintf("type reference %q at %s resolves to no type in the registry", s.target, s.where),
+		noun := refNoun(s.idType)
+		diags = append(diags, diag(ir.SeverityError, "ir/dangling-"+noun+"-ref",
+			fmt.Sprintf("%s reference %q at %s resolves to no %s in the registry", noun, s.id, s.where, noun),
 			s.where))
 	}
 	return diags
+}
+
+// checkServerIndices reports Service.Servers and Channel.Servers entries that
+// address no entry of Document.Servers.
+//
+// These are references carried as integer indices, so nothing in their Go type
+// marks them as references and the walk in refs.go cannot reach them — they are
+// enumerated here instead. An emitter iterating them to render base URLs indexes
+// out of range on a document that is otherwise referentially closed.
+func checkServerIndices(doc *ir.Document) []ir.Diagnostic {
+	declared := len(doc.Servers)
+	var diags []ir.Diagnostic
+	for _, svc := range doc.Services {
+		diags = appendServerIndexDiags(diags, svc.Servers, declared, string(svc.ID))
+	}
+	for _, id := range sortedKeys(doc.Channels) {
+		diags = appendServerIndexDiags(diags, doc.Channels[id].Servers, declared, string(id))
+	}
+	return diags
+}
+
+// appendServerIndexDiags appends to dst a diagnostic per entry of indices that
+// addresses none of the declared servers; where locates the owning service or
+// channel.
+func appendServerIndexDiags(dst []ir.Diagnostic, indices []int, declared int, where string) []ir.Diagnostic {
+	for i, index := range indices {
+		if index >= 0 && index < declared {
+			continue
+		}
+		at := fmt.Sprintf("%s/servers/%d", where, i)
+		dst = append(dst, diag(ir.SeverityError, "ir/server-index-out-of-range",
+			fmt.Sprintf("server index %d at %s addresses none of the %d declared servers", index, at, declared),
+			at))
+	}
+	return dst
+}
+
+// checkResponseIndices reports HTTPBinding.SuccessStatus keys that address no
+// entry of the operation's Responses. Its keys are indices into that slice, so
+// they are invisible to the type-driven walk for the same reason server indices
+// are, and are enumerated here for the same reason.
+func checkResponseIndices(doc *ir.Document) []ir.Diagnostic {
+	var diags []ir.Diagnostic
+	forEachOperation(doc, func(op ir.Operation) {
+		for i, b := range op.Bindings.HTTP {
+			where := fmt.Sprintf("%s/bindings/http/%d", op.ID, i)
+			diags = appendSuccessStatusDiags(diags, b.SuccessStatus, len(op.Responses), where)
+		}
+	})
+	return diags
+}
+
+// appendSuccessStatusDiags appends to dst a diagnostic per SuccessStatus key that
+// addresses none of the declared responses, in ascending key order so map
+// iteration cannot reach the output.
+func appendSuccessStatusDiags(dst []ir.Diagnostic, status map[int]int, declared int, where string) []ir.Diagnostic {
+	for _, index := range sortedKeys(status) {
+		if index >= 0 && index < declared {
+			continue
+		}
+		at := fmt.Sprintf("%s/successStatus/%d", where, index)
+		dst = append(dst, diag(ir.SeverityError, "ir/response-index-out-of-range",
+			fmt.Sprintf("response index %d at %s addresses none of the %d declared responses", index, at, declared),
+			at))
+	}
+	return dst
 }
 
 // checkDiscriminators reports discriminator mappings whose target either does
@@ -293,39 +364,14 @@ func graphqlReachableTypes(doc *ir.Document) map[ir.TypeID]bool {
 
 // appendTypeIDs appends every TypeID reachable from root to dst. Truncation is
 // dropped rather than reported: this feeds reachability, where a truncated walk
-// can only under-report, and checkDanglingTypeRefs already reports the same
+// can only under-report, and checkDanglingRefs already reports the same
 // truncation over the whole document.
 func appendTypeIDs(dst []ir.TypeID, root any) []ir.TypeID {
 	sites, _ := collectTypeIDs(root, "")
 	for _, s := range sites {
-		dst = append(dst, s.target)
+		dst = append(dst, ir.TypeID(s.id))
 	}
 	return dst
-}
-
-// checkAuthRefs reports auth requirements whose scheme does not resolve in
-// doc.Auth, across service defaults and per-operation overrides.
-func checkAuthRefs(doc *ir.Document) []ir.Diagnostic {
-	var diags []ir.Diagnostic
-	check := func(reqs []ir.AuthRequirement, where string) {
-		for _, req := range reqs {
-			for _, use := range req.Schemes {
-				if use.Scheme == "" {
-					continue
-				}
-				if _, ok := doc.Auth[use.Scheme]; !ok {
-					diags = append(diags, diag(ir.SeverityError, "pass/dangling-auth-ref",
-						fmt.Sprintf("auth requirement on %s references unknown scheme %q", where, use.Scheme),
-						where))
-				}
-			}
-		}
-	}
-	for _, svc := range doc.Services {
-		check(svc.Auth, string(svc.ID))
-	}
-	forEachOperation(doc, func(op ir.Operation) { check(op.Auth, string(op.ID)) })
-	return diags
 }
 
 // forEachOperation invokes fn for every operation in the document, descending
@@ -357,9 +403,10 @@ func diag(sev ir.Severity, code, message, pointer string) ir.Diagnostic {
 	return ir.NewDiagnostic(sev, code, message, ir.Provenance{Source: -1, Pointer: pointer})
 }
 
-// sortedKeys returns the keys of a string-keyed map in ascending order, giving
-// every check deterministic diagnostic ordering.
-func sortedKeys[K ~string, V any](m map[K]V) []K {
+// sortedKeys returns the keys of a map in ascending order, giving every check
+// deterministic diagnostic ordering. Keys are IDs or slice indices, so ordering
+// them by value orders the diagnostics by the node they name.
+func sortedKeys[K cmp.Ordered, V any](m map[K]V) []K {
 	keys := make([]K, 0, len(m))
 	for k := range m {
 		keys = append(keys, k)

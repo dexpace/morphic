@@ -11,8 +11,8 @@ import (
 	"github.com/dexpace/morphic/pass"
 )
 
-// refSite is one TypeRef-bearing field that the hand-written walk in
-// checkDanglingTypeRefs never visited. plant writes target into that field and
+// refSite is one TypeRef-bearing field that the hand-written walk predating
+// checkDanglingRefs never visited. plant writes target into that field and
 // nothing else, so a diagnostic naming target attributes the find to that field
 // alone; where is a fragment of the location the diagnostic must point at.
 type refSite struct {
