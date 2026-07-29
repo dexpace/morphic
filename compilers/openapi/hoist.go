@@ -30,7 +30,9 @@ type lowerer struct {
 	// types owns the registry and the coordinate map; see compilers/compile.
 	types *compile.Types
 	// diags accumulates lowering diagnostics, deduped by full identity.
-	diags   compile.Diags
+	diags compile.Diags
+	// merge reconciles properties declared by more than one allOf branch.
+	merge   merger
 	schemas map[string]bool // declared component-schema names (for ref resolution)
 	// diagnosedConstraints records pointers whose constraint diagnostics were
 	// already emitted, so a sub-schema read from two positions (its owning
@@ -48,7 +50,7 @@ type lowerer struct {
 //nolint:unparam // srcIndex varies once Compile drives the multi-source loop
 func newLowerer(srcIndex int, doc *loaded, opts Options) *lowerer {
 	types := compile.NewTypes(srcIndex)
-	return &lowerer{
+	l := &lowerer{
 		srcIndex: srcIndex,
 		doc:      doc.Doc,
 		source:   doc.Source,
@@ -61,6 +63,8 @@ func newLowerer(srcIndex int, doc *loaded, opts Options) *lowerer {
 		diagnosedConstraints: make(map[string]bool),
 		operationIDs:         make(map[string]string),
 	}
+	l.merge = merger{resolve: types.Node, report: l.diag}
+	return l
 }
 
 // intern returns the TypeID for pointer, lowering the schema on first visit.

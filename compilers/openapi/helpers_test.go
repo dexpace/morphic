@@ -148,12 +148,14 @@ func conflictDiags(diags []ir.Diagnostic) []ir.Diagnostic {
 // parser so nil slice/map entries (which the parser panics on) can be exercised.
 func newRawLowerer(doc *soa.OpenAPI) *lowerer {
 	rawTypes := compile.NewTypes(0)
-	return &lowerer{
+	l := &lowerer{
 		doc:                  doc,
 		out:                  &ir.Document{Types: rawTypes.Registry()},
 		types:                rawTypes,
 		diagnosedConstraints: map[string]bool{},
 	}
+	l.merge = merger{resolve: rawTypes.Node, report: l.diag}
+	return l
 }
 
 // emptyEitherSchema is a JSONSchema whose either-value has neither a Left schema
