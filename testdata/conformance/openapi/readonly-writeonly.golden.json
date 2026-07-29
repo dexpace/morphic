@@ -18,6 +18,35 @@
     }
   ],
   "types": {
+    "t/openapi/components/schemas/DeclaredReadOnly": {
+      "kind": "scalar",
+      "id": "t/openapi/components/schemas/DeclaredReadOnly",
+      "name": {
+        "source": "DeclaredReadOnly",
+        "canonical": "declared_read_only"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "preserved": {
+        "openapi:readOnly": {
+          "reason": "no_ir_home",
+          "value": true,
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/DeclaredReadOnly/readOnly"
+          }
+        }
+      },
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/DeclaredReadOnly"
+      },
+      "base": {
+        "target": "t/prim/string",
+        "nullable": false
+      }
+    },
     "t/openapi/components/schemas/S": {
       "kind": "model",
       "id": "t/openapi/components/schemas/S",
@@ -95,6 +124,38 @@
             "source": 0,
             "pointer": "/components/schemas/S/properties/w"
           }
+        },
+        {
+          "id": "p/openapi/components/schemas/S/properties/viaRef",
+          "name": {
+            "source": "viaRef",
+            "canonical": "via_ref"
+          },
+          "wireName": "viaRef",
+          "type": {
+            "target": "t/openapi/components/schemas/DeclaredReadOnly",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "only": [
+              "read",
+              "delete",
+              "query"
+            ],
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/S/properties/viaRef"
+          }
         }
       ],
       "abstract": false,
@@ -122,11 +183,22 @@
       "auth": null
     }
   ],
+  "diagnostics": [
+    {
+      "severity": "info",
+      "code": "openapi/degraded-construct",
+      "message": "readOnly on a type declaration binds a use of the type, not the type; it is applied to referencing properties and kept verbatim under Preserved",
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/DeclaredReadOnly/readOnly"
+      }
+    }
+  ],
   "sources": [
     {
       "format": "openapi@3.1",
       "path": "readonly-writeonly.yaml",
-      "hash": "71302621184a5bd28ede813e2357b1d682fa5cfc4c94d6a81aed315e7dfa5386"
+      "hash": "51457bcde078f37a624ee3562e6e6b7cc9ed832f51815f81d502e3bc6fb3c965"
     }
   ]
 }

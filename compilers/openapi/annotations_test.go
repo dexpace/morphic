@@ -231,11 +231,6 @@ func constraintsCases() []retentionCase {
 func constraintsModelCase() retentionCase {
 	return retentionCase{
 		cell: harness.Cell{Annotation: harness.AnnotationConstraints, SiteKind: harness.SiteDeclarationModel},
-		knownGap: "ir.Model has no Constraints field, and lowerModel already owns the component's " +
-			"pointer before lowerComponentSchema's componentConstraints/internAlias fallback would run, " +
-			"so that fallback never fires for an object-shaped component; minProperties is read into " +
-			"Constraints.MinProps for a property or a scalar component (constraints.go), but an " +
-			"object-shaped component's own minProperties has no field to land in and is dropped",
 		spec: `openapi: 3.1.0
 info: {title: g, version: "1"}
 paths: {}
@@ -249,11 +244,10 @@ components:
 `,
 		assert: func(t *testing.T, doc *ir.Document) {
 			m, ok := doc.Types[namedID("S")].(*ir.Model)
-			require.True(t, ok, "S still owns a Model node even though its minProperties is dropped")
-			node := marshalToMap(t, m)
-			assert.NotContains(t, node, "constraints",
-				"minProperties has no field to land in for an object-shaped component (it is surfaced "+
-					"for a property and a scalar component); closing this gap should turn this red")
+			require.True(t, ok, "S owns a Model node")
+			require.NotNil(t, m.Constraints, "an object component's own minProperties lands in Model.Constraints")
+			require.NotNil(t, m.Constraints.MinProps)
+			assert.Equal(t, int64(1), *m.Constraints.MinProps)
 		},
 	}
 }
@@ -484,8 +478,6 @@ func defaultCases() []retentionCase {
 func defaultModelCase() retentionCase {
 	return retentionCase{
 		cell: harness.Cell{Annotation: harness.AnnotationDefault, SiteKind: harness.SiteDeclarationModel},
-		knownGap: "ir.Model and TypeCommon have no Default field, so a component-level default has " +
-			"nowhere to land regardless of declaration shape",
 		spec: `openapi: 3.1.0
 info: {title: g, version: "1"}
 paths: {}
@@ -499,19 +491,20 @@ components:
 `,
 		assert: func(t *testing.T, doc *ir.Document) {
 			m, ok := doc.Types[namedID("S")].(*ir.Model)
-			require.True(t, ok, "S still owns a Model node even though its default is dropped")
-			node := marshalToMap(t, m)
-			assert.NotContains(t, node, "default",
-				"default has no field to land in on a declaration site today (it is surfaced "+
-					"for a property); closing this gap should turn this red")
+			require.True(t, ok, "S owns a Model node")
+			assert.NotContains(t, marshalToMap(t, m), "default",
+				"a default binds a use of the type, so it gets no field on the type node")
+			assertResidueKept(t, m.Preserved, "openapi:default", `{"f":"x"}`)
+		},
+		assertDiags: func(t *testing.T, diags []ir.Diagnostic) {
+			assertResidueDiag(t, diags, "/components/schemas/S/default")
 		},
 	}
 }
 
 func defaultScalarCase() retentionCase {
 	return retentionCase{
-		cell:     harness.Cell{Annotation: harness.AnnotationDefault, SiteKind: harness.SiteDeclarationScalar},
-		knownGap: "ir.Scalar and ir.TypeCommon have no Default field, so a component-level default has nowhere to land",
+		cell: harness.Cell{Annotation: harness.AnnotationDefault, SiteKind: harness.SiteDeclarationScalar},
 		spec: `openapi: 3.1.0
 info: {title: g, version: "1"}
 paths: {}
@@ -522,14 +515,15 @@ components:
 		assert: func(t *testing.T, doc *ir.Document) {
 			sc, ok := doc.Types[namedID("S")].(*ir.Scalar)
 			require.True(t, ok, "a bare scalar component owns a Scalar node")
-			node := marshalToMap(t, sc)
-			assert.NotContains(t, node, "default",
-				"default has no field to land in on a declaration site today (it is surfaced "+
-					"for a property); closing this gap should turn this red")
+			assert.NotContains(t, marshalToMap(t, sc), "default",
+				"a default binds a use of the type, so it gets no field on the type node")
+			assertResidueKept(t, sc.Preserved, "openapi:default", `7`)
 
-			primNode := marshalToMap(t, primitiveNode(t, doc, ir.TypeID("t/prim/integer")))
-			assert.NotContains(t, primNode, "default",
-				"a default on the declaration must not leak onto the shared primitive")
+			_, leaked := primitiveNode(t, doc, ir.TypeID("t/prim/integer")).Common().Preserved["openapi:default"]
+			assert.False(t, leaked, "a default on the declaration must not leak onto the shared primitive")
+		},
+		assertDiags: func(t *testing.T, diags []ir.Diagnostic) {
+			assertResidueDiag(t, diags, "/components/schemas/S/default")
 		},
 	}
 }
@@ -575,8 +569,6 @@ func visibilityCases() []retentionCase {
 func visibilityModelCase() retentionCase {
 	return retentionCase{
 		cell: harness.Cell{Annotation: harness.AnnotationVisibility, SiteKind: harness.SiteDeclarationModel},
-		knownGap: "ir.TypeCommon has no Visibility field; Access and Usage exist but the compiler " +
-			"never sets them",
 		spec: `openapi: 3.1.0
 info: {title: g, version: "1"}
 paths: {}
@@ -590,18 +582,20 @@ components:
 `,
 		assert: func(t *testing.T, doc *ir.Document) {
 			m, ok := doc.Types[namedID("S")].(*ir.Model)
-			require.True(t, ok, "S still owns a Model node even though its readOnly is dropped")
-			node := marshalToMap(t, m)
-			assert.NotContains(t, node, "visibility",
-				"readOnly has no field to land in on a declaration site today; closing this gap should turn this red")
+			require.True(t, ok, "S owns a Model node")
+			assert.NotContains(t, marshalToMap(t, m), "visibility",
+				"readOnly binds a use of the type, so it gets no field on the type node")
+			assertResidueKept(t, m.Preserved, "openapi:readOnly", `true`)
+		},
+		assertDiags: func(t *testing.T, diags []ir.Diagnostic) {
+			assertResidueDiag(t, diags, "/components/schemas/S/readOnly")
 		},
 	}
 }
 
 func visibilityScalarCase() retentionCase {
 	return retentionCase{
-		cell:     harness.Cell{Annotation: harness.AnnotationVisibility, SiteKind: harness.SiteDeclarationScalar},
-		knownGap: "ir.TypeCommon has no Visibility field; Access and Usage exist but the compiler never sets them",
+		cell: harness.Cell{Annotation: harness.AnnotationVisibility, SiteKind: harness.SiteDeclarationScalar},
 		spec: `openapi: 3.1.0
 info: {title: g, version: "1"}
 paths: {}
@@ -612,13 +606,15 @@ components:
 		assert: func(t *testing.T, doc *ir.Document) {
 			sc, ok := doc.Types[namedID("S")].(*ir.Scalar)
 			require.True(t, ok, "a bare scalar component owns a Scalar node")
-			node := marshalToMap(t, sc)
-			assert.NotContains(t, node, "visibility",
-				"readOnly has no field to land in on a declaration site today; closing this gap should turn this red")
+			assert.NotContains(t, marshalToMap(t, sc), "visibility",
+				"readOnly binds a use of the type, so it gets no field on the type node")
+			assertResidueKept(t, sc.Preserved, "openapi:readOnly", `true`)
 
-			primNode := marshalToMap(t, primitiveNode(t, doc, ir.TypeID("t/prim/string")))
-			assert.NotContains(t, primNode, "visibility",
-				"a readOnly on the declaration must not leak onto the shared primitive")
+			_, leaked := primitiveNode(t, doc, ir.TypeID("t/prim/string")).Common().Preserved["openapi:readOnly"]
+			assert.False(t, leaked, "a readOnly on the declaration must not leak onto the shared primitive")
+		},
+		assertDiags: func(t *testing.T, diags []ir.Diagnostic) {
+			assertResidueDiag(t, diags, "/components/schemas/S/readOnly")
 		},
 	}
 }
@@ -1169,7 +1165,7 @@ func TestAnnotationRetention_OtherDeclarationShapes(t *testing.T) {
 			require.True(t, ok, "component S must own a node")
 			require.Equal(t, shape.kind, td.Kind(), "this shape must reach its own lower() destination")
 			assertDeclaredAnnotationsKept(t, td)
-			assertDeclarationGapsHold(t, td, shape)
+			assertDeclarationResidueKept(t, td, shape)
 		})
 	}
 }
@@ -1199,16 +1195,46 @@ func assertDeclaredAnnotationsKept(t *testing.T, td ir.TypeDef) {
 	assert.NotEqual(t, ir.Value{}, *c.Examples[0].Value, "the example converted to a typed value")
 }
 
-// assertDeclarationGapsHold checks the three annotations with no home on a
-// declaration, so this grid stays red-on-close the same way the model and
-// scalar knownGap cells above do. Only constraints varies by shape.
-func assertDeclarationGapsHold(t *testing.T, td ir.TypeDef, shape declShape) {
+// assertResidueDiag requires one info diagnostic reported at the preserved
+// keyword's own pointer. The code alone would not say which keyword it was
+// reported for, and openapi/degraded-construct is emitted for several things.
+func assertResidueDiag(t *testing.T, diags []ir.Diagnostic, pointerSuffix string) {
+	t.Helper()
+	for _, d := range diags {
+		if d.Code == "openapi/degraded-construct" && d.Severity == ir.SeverityInfo &&
+			strings.HasSuffix(d.Provenance.Pointer, pointerSuffix) {
+			return
+		}
+	}
+	assert.Fail(t, "missing residue diagnostic",
+		"no info degraded-construct at a pointer ending %q; got %+v", pointerSuffix, diags)
+}
+
+// assertResidueKept checks that a keyword binding a use of the type — which
+// therefore gets no field on the type node — is still on the declaring node
+// verbatim, under the reason that says the IR models it nowhere else.
+func assertResidueKept(t *testing.T, p ir.Preserved, key, wantJSON string) {
+	t.Helper()
+	entry, ok := p[key]
+	require.True(t, ok, "%s must be kept verbatim under Preserved", key)
+	assert.JSONEq(t, wantJSON, string(entry.Value))
+	assert.Equal(t, ir.ReasonNoIRHome, entry.Reason)
+}
+
+// assertDeclarationResidueKept checks the two annotations that bind a use of
+// the type rather than the type, for a declaration shape the SiteKind axis does
+// not name individually. Only constraints varies by shape.
+func assertDeclarationResidueKept(t *testing.T, td ir.TypeDef, shape declShape) {
 	t.Helper()
 	node := marshalToMap(t, td)
 	assert.NotContains(t, node, "default",
 		"default has no field on a type node regardless of declaration shape")
 	assert.NotContains(t, node, "visibility",
 		"readOnly has no field on a type node regardless of declaration shape")
+	c := td.Common()
+	assertResidueKept(t, c.Preserved, "openapi:readOnly", `true`)
+	assertResidueKept(t, c.Preserved, "openapi:default", jsonLiteral(shape.value))
+
 	if shape.constraintKept {
 		assert.Contains(t, node, "constraints",
 			"a collection bound has a home on the node this shape lowers to")
@@ -1216,6 +1242,15 @@ func assertDeclarationGapsHold(t *testing.T, td ir.TypeDef, shape declShape) {
 	}
 	assert.NotContains(t, node, "constraints",
 		"this shape lowers to a node with no Constraints field")
+}
+
+// jsonLiteral renders a declShape.value — a YAML scalar or flow sequence — as
+// the JSON the compiler preserves it to.
+func jsonLiteral(value string) string {
+	if strings.HasPrefix(value, "[") {
+		return `["` + strings.Trim(value, "[]") + `"]`
+	}
+	return `"` + value + `"`
 }
 
 // TestAnnotationRetention_EveryCellCovered requires every cell in the

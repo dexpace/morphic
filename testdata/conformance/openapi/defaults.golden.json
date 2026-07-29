@@ -18,6 +18,35 @@
     }
   ],
   "types": {
+    "t/openapi/components/schemas/DeclaredDefault": {
+      "kind": "scalar",
+      "id": "t/openapi/components/schemas/DeclaredDefault",
+      "name": {
+        "source": "DeclaredDefault",
+        "canonical": "declared_default"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "preserved": {
+        "openapi:default": {
+          "reason": "no_ir_home",
+          "value": 41,
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/DeclaredDefault/default"
+          }
+        }
+      },
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/DeclaredDefault"
+      },
+      "base": {
+        "target": "t/prim/integer",
+        "nullable": false
+      }
+    },
     "t/openapi/components/schemas/S": {
       "kind": "model",
       "id": "t/openapi/components/schemas/S",
@@ -66,6 +95,40 @@
             "source": 0,
             "pointer": "/components/schemas/S/properties/n"
           }
+        },
+        {
+          "id": "p/openapi/components/schemas/S/properties/viaRef",
+          "name": {
+            "source": "viaRef",
+            "canonical": "via_ref"
+          },
+          "wireName": "viaRef",
+          "type": {
+            "target": "t/openapi/components/schemas/DeclaredDefault",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "default": {
+            "kind": "number",
+            "num": "41",
+            "bytes": null,
+            "list": null,
+            "object": null
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/S/properties/viaRef"
+          }
         }
       ],
       "abstract": false,
@@ -93,11 +156,22 @@
       "auth": null
     }
   ],
+  "diagnostics": [
+    {
+      "severity": "info",
+      "code": "openapi/degraded-construct",
+      "message": "default on a type declaration binds a use of the type, not the type; it is applied to referencing properties and kept verbatim under Preserved",
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/DeclaredDefault/default"
+      }
+    }
+  ],
   "sources": [
     {
       "format": "openapi@3.1",
       "path": "defaults.yaml",
-      "hash": "dda34f986812439933685360de205ffa48142e20cc0a7ed3bc990b9a7df888d7"
+      "hash": "1f7da4d9ffc8f1d0451a23eadf32355285a96eaf107c8b615ad5d2017894ecd3"
     }
   ]
 }

@@ -69,6 +69,13 @@
           }
         }
       ],
+      "constraints": {
+        "exclusiveMin": false,
+        "exclusiveMax": false,
+        "uniqueItems": false,
+        "minProps": 1,
+        "maxProps": 4
+      },
       "abstract": false,
       "positional": false,
       "inputOnly": false
@@ -98,7 +105,7 @@
     {
       "format": "openapi@3.1",
       "path": "constraints.yaml",
-      "hash": "cbc7bec41f139626fb96ef0977cb8906639e16487902d282c2cf271e88a4a034"
+      "hash": "218bd11da1dbaca3d5eaa2cca080a7d85c8d5b665be98a5ef71bb93374284eaf"
     }
   ]
 }

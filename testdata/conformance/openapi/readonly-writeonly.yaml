@@ -8,3 +8,7 @@ components:
       properties:
         r: {type: string, readOnly: true}
         w: {type: string, writeOnly: true}
+        viaRef: {$ref: '#/components/schemas/DeclaredReadOnly'}
+    # A declaration-site readOnly binds a use of the type, so it reaches the
+    # referencing property and stays on the declaration only as residue.
+    DeclaredReadOnly: {type: string, readOnly: true}

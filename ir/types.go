@@ -118,6 +118,10 @@ type Model struct {
 	AdditionalProps *AdditionalProps `json:"additionalProps,omitempty"`
 	// Additional is the openness of the property set.
 	Additional AdditionalMode `json:"additional,omitempty"`
+	// Constraints bounds the property set's cardinality (JSON Schema
+	// minProperties/maxProperties on an object). Openness is Additional's
+	// concern; this is how many properties an instance may carry.
+	Constraints *Constraints `json:"constraints,omitempty"`
 	// Abstract marks a model that cannot be instantiated directly (GraphQL
 	// interface types).
 	Abstract bool `json:"abstract"`

@@ -29,14 +29,15 @@ const conformanceDir = "../../testdata/conformance/openapi"
 // capability-specific assertion plus a byte-exact golden IR snapshot. Regenerate
 // the goldens with `go test ./compilers/openapi -run TestConformance -update`.
 //
-// The corpus below is knowingly incomplete (GitHub #126): 33 IR fields the
-// compiler assigns are never non-zero anywhere in it, among them
+// The corpus below is knowingly incomplete (GitHub #126): a set of IR fields
+// the compiler assigns are never non-zero anywhere in it, among them
 // Model.DiscriminatorValue and Discriminator.Property, so allOf inheritance
 // under a discriminator has no corpus witness at all. Filling those in one case
 // at a time is deliberately not the plan — a corpus that shares the compiler's
 // blind spots is the thing to fix, so what #126 asks for is the reflective walk
-// that produced the list, run as a test that fails when a field the compiler
-// assigns has no witness here.
+// that produces the list, run as a test that fails when a field the compiler
+// assigns has no witness here. Until that lands the set is not tracked by a
+// number here, because nothing recomputes one.
 func TestConformance(t *testing.T) {
 	t.Parallel()
 	cases := []struct {
@@ -500,10 +501,25 @@ func assertNullable31Ref(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
 func assertDefaults(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
 	m, ok := doc.Types[namedID("S")].(*ir.Model)
 	require.True(t, ok)
-	require.Len(t, m.Properties, 1)
-	require.NotNil(t, m.Properties[0].Default)
-	assert.Equal(t, ir.ValueNumber, m.Properties[0].Default.Kind)
-	assert.Equal(t, ir.BigVal("9007199254740993"), m.Properties[0].Default.Num)
+	n, ok := propByWire(m, "n")
+	require.True(t, ok)
+	require.NotNil(t, n.Default)
+	assert.Equal(t, ir.ValueNumber, n.Default.Kind)
+	assert.Equal(t, ir.BigVal("9007199254740993"), n.Default.Num)
+
+	// A declaration-site default reaches the referencing property, and the
+	// declaration keeps it verbatim because the type node has no field for it.
+	viaRef, ok := propByWire(m, "viaRef")
+	require.True(t, ok)
+	require.NotNil(t, viaRef.Default, "the referent's default binds the reference site")
+	assert.Equal(t, ir.BigVal("41"), viaRef.Default.Num)
+
+	decl, ok := doc.Types[namedID("DeclaredDefault")].(*ir.Scalar)
+	require.True(t, ok)
+	entry, ok := decl.Preserved["openapi:default"]
+	require.True(t, ok, "the declaration's own default is kept as residue")
+	assert.Equal(t, ir.ReasonNoIRHome, entry.Reason)
+	assert.JSONEq(t, `41`, string(entry.Value))
 }
 
 // assertYAMLTimestampScalars covers a YAML 1.1 quirk: an unquoted date like
@@ -558,6 +574,14 @@ func assertConstraints(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
 	assert.Equal(t, ir.BigVal("0.30000000000000004"), *c.Min)
 	assert.Equal(t, ir.BigVal("9007199254740993"), *c.Max)
 	assert.Equal(t, ir.BigVal("0.1"), *c.MultipleOf)
+
+	// The object's own cardinality bound lands on the Model, not on a property
+	// and not nowhere (GitHub #129).
+	require.NotNil(t, m.Constraints)
+	require.NotNil(t, m.Constraints.MinProps)
+	require.NotNil(t, m.Constraints.MaxProps)
+	assert.Equal(t, int64(1), *m.Constraints.MinProps)
+	assert.Equal(t, int64(4), *m.Constraints.MaxProps)
 }
 
 func assertNumericPrecision(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
@@ -670,6 +694,19 @@ func assertReadOnlyWriteOnly(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) 
 	require.True(t, ok)
 	assert.Equal(t, ir.Visibility{Only: []ir.Lifecycle{ir.LifecycleRead, ir.LifecycleDelete, ir.LifecycleQuery}}, r.Visibility)
 	assert.Equal(t, ir.Visibility{Only: []ir.Lifecycle{ir.LifecycleCreate, ir.LifecycleUpdate}}, w.Visibility)
+
+	// A declaration-site readOnly reaches the referencing property, and the
+	// declaration keeps it verbatim because the type node has no field for it.
+	viaRef, ok := propByWire(m, "viaRef")
+	require.True(t, ok)
+	assert.Equal(t, r.Visibility, viaRef.Visibility, "the referent's readOnly binds the reference site")
+
+	decl, ok := doc.Types[namedID("DeclaredReadOnly")].(*ir.Scalar)
+	require.True(t, ok)
+	entry, ok := decl.Preserved["openapi:readOnly"]
+	require.True(t, ok, "the declaration's own readOnly is kept as residue")
+	assert.Equal(t, ir.ReasonNoIRHome, entry.Reason)
+	assert.JSONEq(t, `true`, string(entry.Value))
 }
 
 func assertRecursive(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
