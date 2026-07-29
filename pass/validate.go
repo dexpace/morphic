@@ -3,6 +3,7 @@ package pass
 import (
 	"cmp"
 	"fmt"
+	"reflect"
 	"slices"
 
 	"github.com/dexpace/morphic/ir"
@@ -21,6 +22,7 @@ func Validate(doc *ir.Document) []ir.Diagnostic {
 		return nil
 	}
 	diags := make([]ir.Diagnostic, 0, 8)
+	diags = append(diags, checkNilTypes(doc)...)
 	diags = append(diags, checkDanglingRefs(doc)...)
 	diags = append(diags, checkServerIndices(doc)...)
 	diags = append(diags, checkResponseIndices(doc)...)
@@ -128,11 +130,61 @@ func appendSuccessStatusDiags(dst []ir.Diagnostic, status map[int]int, declared 
 	return dst
 }
 
+// isNilTypeDef reports whether td is a nil TypeDef — an untyped nil interface or
+// a typed nil pointer. A typed nil satisfies a type switch case, so matching a
+// kind says nothing about whether the value is safe to dereference; every walk
+// over doc.Types screens entries through this first.
+func isNilTypeDef(td ir.TypeDef) bool {
+	if td == nil {
+		return true
+	}
+	rv := reflect.ValueOf(td)
+	return rv.Kind() == reflect.Pointer && rv.IsNil()
+}
+
+// liveTypeIDs returns the registry's type IDs in sorted order, omitting entries
+// that hold a nil type definition.
+//
+// Every check that iterates doc.Types dereferences the value it matched, and a
+// typed nil satisfies both a type-switch case and a comma-ok assertion — so the
+// match itself is no evidence the value is safe to read. Screening at each call
+// site instead would leave the next check added here to rediscover the crash;
+// checkNilTypes reports whatever this omits.
+func liveTypeIDs(doc *ir.Document) []ir.TypeID {
+	ids := sortedKeys(doc.Types)
+	live := make([]ir.TypeID, 0, len(ids))
+	for _, id := range ids {
+		if !isNilTypeDef(doc.Types[id]) {
+			live = append(live, id)
+		}
+	}
+	return live
+}
+
+// checkNilTypes reports registry entries holding a nil type definition.
+//
+// Without it a malformed registry reads as internally consistent: the reference
+// walk tolerates nil entries and the remaining checks match no case for most
+// kinds, so Validate returned no diagnostics at all for a document no emitter
+// can consume — and dereferenced the four kinds it did match.
+func checkNilTypes(doc *ir.Document) []ir.Diagnostic {
+	var diags []ir.Diagnostic
+	for _, id := range sortedKeys(doc.Types) {
+		if !isNilTypeDef(doc.Types[id]) {
+			continue
+		}
+		diags = append(diags, diag(ir.SeverityError, "ir/nil-type",
+			fmt.Sprintf("types registry entry %q holds a nil type definition", id),
+			"types["+string(id)+"]"))
+	}
+	return diags
+}
+
 // checkDiscriminators reports discriminator mappings whose target either does
 // not exist or is not a legal variant/subtype.
 func checkDiscriminators(doc *ir.Document) []ir.Diagnostic {
 	var diags []ir.Diagnostic
-	for _, id := range sortedKeys(doc.Types) {
+	for _, id := range liveTypeIDs(doc) {
 		switch t := doc.Types[id].(type) {
 		case *ir.Union:
 			diags = append(diags, checkUnionDiscriminator(doc, t)...)
@@ -235,7 +287,7 @@ func isSubtype(doc *ir.Document, target, base ir.TypeID) bool {
 // own properties.
 func checkDuplicateWireNames(doc *ir.Document) []ir.Diagnostic {
 	var diags []ir.Diagnostic
-	for _, id := range sortedKeys(doc.Types) {
+	for _, id := range liveTypeIDs(doc) {
 		m, ok := doc.Types[id].(*ir.Model)
 		if !ok {
 			continue
@@ -345,7 +397,7 @@ func checkOneWay(doc *ir.Document) []ir.Diagnostic {
 func checkArgsOutsideGraphQL(doc *ir.Document) []ir.Diagnostic {
 	reachable := graphqlReachableTypes(doc)
 	var diags []ir.Diagnostic
-	for _, id := range sortedKeys(doc.Types) {
+	for _, id := range liveTypeIDs(doc) {
 		m, ok := doc.Types[id].(*ir.Model)
 		if !ok || reachable[id] {
 			continue
