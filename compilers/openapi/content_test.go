@@ -887,17 +887,54 @@ func TestHeaders_SchemaDetailReachesTheProperty(t *testing.T) {
 // two annotation sources a header has: what the header object writes about
 // itself is more specific than what its schema writes about the type, so it
 // wins where both are set.
+//
+// Every annotation applyHeaderAnnotations can override is written on both sides
+// here, with a value naming the side it came from. A keyword only one side
+// declares proves nothing about precedence: it reaches the header in either
+// overlay order, so the assertion over it passes whichever side wins.
 func TestHeaders_OwnAnnotationsOverrideTheSchema(t *testing.T) {
 	t.Parallel()
 	_, svc, diags := lowerServiceSpec(t, pathsSpec(
 		"  /x:\n    get:\n      operationId: g\n      responses:\n"+
 			"        \"200\":\n          description: ok\n          headers:\n"+
-			"            X-H:\n              description: HEADER\n              deprecated: true\n"+
-			"              x-scope: header\n              schema: {type: string, description: SCHEMA}\n"))
+			"            X-H:\n              description: HEADER\n              example: HEADER\n"+
+			"              x-scope: header\n              schema:\n"+
+			"                {type: string, description: SCHEMA, example: SCHEMA, x-scope: schema}\n"))
 	requireNoErrorDiags(t, diags)
 
 	h := firstOp(t, svc).Responses[0].Headers[0]
 	assert.Equal(t, "HEADER", h.Docs.Description, "the header's own description wins")
-	assert.NotNil(t, h.Deprecation)
-	assert.Contains(t, h.Preserved, "openapi:x-scope")
+	require.Len(t, h.Examples, 1, "and its own example replaces the schema's rather than joining it")
+	require.NotNil(t, h.Examples[0].Value)
+	assert.Equal(t, "HEADER", h.Examples[0].Value.Str)
+	require.Contains(t, h.Preserved, "openapi:x-scope")
+	assert.JSONEq(t, `"header"`, string(h.Preserved["openapi:x-scope"].Value),
+		"and its own value for a vendor key the schema also writes")
+}
+
+// TestHeaders_DeprecationUnionsWithTheSchema pins the one annotation a header
+// does not override. Both overlays only ever set the flag, so `deprecated`
+// written on either side deprecates the header and neither side can clear the
+// other: a header's own `deprecated: false` does not un-deprecate a type its
+// schema marks deprecated. That is a union rather than the precedence the test
+// above covers, which is why deprecation is asserted here and not there.
+func TestHeaders_DeprecationUnionsWithTheSchema(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct{ name, header, schema string }{
+		{"declared on the header, denied by the schema", "true", "false"},
+		{"declared on the schema, denied by the header", "false", "true"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			_, svc, diags := lowerServiceSpec(t, pathsSpec(
+				"  /x:\n    get:\n      operationId: g\n      responses:\n"+
+					"        \"200\":\n          description: ok\n          headers:\n"+
+					"            X-H:\n              deprecated: "+tc.header+"\n"+
+					"              schema: {type: string, deprecated: "+tc.schema+"}\n"))
+			requireNoErrorDiags(t, diags)
+
+			h := firstOp(t, svc).Responses[0].Headers[0]
+			assert.NotNil(t, h.Deprecation, "either side alone deprecates the header")
+		})
+	}
 }
