@@ -60,10 +60,18 @@ var notReferences = map[string]string{
 // missed; refKindByType is the one piece still written by hand, and this is what
 // stops a newly added registry from going silently unchecked.
 //
-// One kind of reference stays invisible here and needs no exclusion row: one
-// carried in a plain `string` field. It declares no named type to classify, and
-// reflection sees the same `string` every free-form field is. Invariant 3 —
-// every reference is a typed ID — is what rules that out, not this test.
+// One kind of reference stays invisible here and cannot be given an exclusion
+// row: one carried in a plain `string` field. It declares no named type to
+// classify, and reflection sees the same `string` every free-form field is.
+//
+// The IR has one such reference, so nothing rules the class out. Content.Encoding
+// is documented as keyed by PropID and the OpenAPI compiler writes
+// string(propID(…)) into it, which makes the key an identity in a `string`'s
+// clothing — invariant 3 bent, and invisible to both reference walks: an encoding
+// key addressing no property is reported by neither checker. Retyping the field
+// is tracked in #134, which also records why retyping alone would not make the
+// key resolvable (PropID addresses no document-level registry, the notReferences
+// row below).
 func TestStringTypes_AreAllClassified(t *testing.T) {
 	t.Parallel()
 	resolved := map[string]bool{}
