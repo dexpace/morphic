@@ -6,6 +6,7 @@ package openapi_test
 
 import (
 	"encoding/json"
+	"fmt"
 	"slices"
 	"strings"
 	"testing"
@@ -830,12 +831,11 @@ components:
 // validationOnly annotation (if/then/else) at each SiteKind.
 //
 // The reference case below writes the keywords beside a *property's* $ref,
-// and that is the only reference position the compiler keeps them at. The
-// same keywords beside a request-body, parameter, or response-content $ref
-// are still dropped silently (GitHub #116) — schemaRef returns from
-// refTypeRef before the property path that preserves them runs. The grid has
-// one `reference` cell per annotation, not one per position, so this cell
-// going green says nothing about those three.
+// where the property carries them. The grid has one `reference` cell per
+// annotation, not one per position, so this cell going green still says
+// nothing about the request-body, parameter and response-content positions.
+// They keep the keywords too; TestValidationOnly_BesideARefAtABodyPosition is
+// what says so.
 func validationOnlyCases() []retentionCase {
 	return []retentionCase{
 		validationOnlyModelCase(), validationOnlyScalarCase(), validationOnlyReferenceCase(),
@@ -940,6 +940,111 @@ components:
 				"expected a validation-only-keyword info diagnostic")
 		},
 	}
+}
+
+// validationOnlyRefSitesSpec writes if/then beside a $ref at each reference
+// position the grid's single `reference` cell leaves out, with a `then` bound
+// per position so a keyword landing at the wrong one is visible rather than
+// merely present.
+const validationOnlyRefSitesSpec = `openapi: 3.1.0
+info: {title: g, version: "1"}
+paths:
+  /x:
+    post:
+      operationId: g
+      parameters:
+        - name: q
+          in: query
+          schema:
+            $ref: '#/components/schemas/Target'
+            if: {type: string}
+            then: {minLength: 1}
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Target'
+              if: {type: string}
+              then: {minLength: 2}
+      responses:
+        "200":
+          description: ok
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Target'
+                if: {type: string}
+                then: {minLength: 3}
+components:
+  schemas:
+    Target: {type: string}
+`
+
+// TestValidationOnly_BesideARefAtABodyPosition covers the reference positions
+// the retention grid does not reach. A validation-only keyword written beside a
+// $ref binds the reference site rather than the referent, so it can never go on
+// the shared target — and each of these three positions keeps it, by whichever
+// route it has: a parameter carries it on the ir.Parameter itself, while a
+// request body and a response content have no carrier and so hoist an alias of
+// the referent to hold it (GitHub #116).
+func TestValidationOnly_BesideARefAtABodyPosition(t *testing.T) {
+	t.Parallel()
+	doc, diags := compileAnnotationSpec(t, "validation-only-ref-sites", validationOnlyRefSitesSpec)
+	assertNoErrorDiags(t, diags)
+	op, ok := opByName(doc, "g")
+	require.True(t, ok)
+
+	for _, tc := range []struct {
+		name      string
+		minLength int
+		preserved ir.Preserved
+	}{
+		{"parameter", 1, paramPreserved(t, op)},
+		{"request body", 2, refSiteAlias(t, doc, requestContent(t, op)).Common().Preserved},
+		{"response content", 3, refSiteAlias(t, doc, firstContent(t, op)).Common().Preserved},
+	} {
+		raw, found := tc.preserved["openapi:if-then-else"]
+		require.True(t, found, "%s: if/then beside its $ref must be kept", tc.name)
+		assert.JSONEq(t,
+			fmt.Sprintf(`{"if":{"type":"string"},"then":{"minLength":%d}}`, tc.minLength),
+			string(raw.Value), "%s keeps the keywords written at its own site", tc.name)
+		assert.Equal(t, ir.ReasonValidationOnly, raw.Reason, tc.name)
+	}
+
+	target, found := doc.Types[namedID("Target")]
+	require.True(t, found)
+	assert.Empty(t, target.Common().Preserved,
+		"three reference sites, and none of them wrote onto the referent")
+}
+
+// paramPreserved returns the operation's single parameter's preserved entries.
+func paramPreserved(t *testing.T, op ir.Operation) ir.Preserved {
+	t.Helper()
+	require.Len(t, op.Params, 1)
+	return op.Params[0].Preserved
+}
+
+// requestContent returns an operation's single request-body content.
+func requestContent(t *testing.T, op ir.Operation) ir.Content {
+	t.Helper()
+	require.NotNil(t, op.Request)
+	require.Len(t, op.Request.Contents, 1)
+	return op.Request.Contents[0]
+}
+
+// refSiteAlias returns the node a body position hoisted to hold what was
+// written beside its $ref, requiring it to be an alias of the referent rather
+// than the referent itself — which is the difference between keeping the
+// keywords at the reference site and writing them onto a shared target.
+func refSiteAlias(t *testing.T, doc *ir.Document, c ir.Content) ir.TypeDef {
+	t.Helper()
+	td, ok := doc.Types[c.Type.Target]
+	require.True(t, ok, "the content's type is registered")
+	sc, ok := td.(*ir.Scalar)
+	require.True(t, ok, "a $ref with siblings hoists an alias; got %T", td)
+	require.NotNil(t, sc.Base, "and that alias points at what it referenced")
+	assert.Equal(t, namedID("Target"), sc.Base.Target)
+	return td
 }
 
 // marshalToMap JSON-marshals v — a type node — and decodes the result back
