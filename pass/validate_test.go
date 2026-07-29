@@ -232,3 +232,61 @@ func TestValidate_NilTypeDefIsReportedNotPanicked(t *testing.T) {
 		})
 	}
 }
+
+// nestGroups buries op under depth levels of operation groups.
+func nestGroups(depth int, op ir.Operation) *ir.Document {
+	g := ir.OperationGroup{Operations: []ir.Operation{op}}
+	for range depth {
+		g = ir.OperationGroup{Groups: []ir.OperationGroup{g}}
+	}
+	doc := validDoc()
+	doc.Services = []ir.Service{{ID: "s", Groups: []ir.OperationGroup{g}}}
+	return doc
+}
+
+// TestValidate_GroupWalkTruncationIsReported pins the depth bound itself: a walk
+// that stopped early must say so. Without it every check reaching operations
+// walks a subset while Validate still reports the document consistent.
+func TestValidate_GroupWalkTruncationIsReported(t *testing.T) {
+	t.Parallel()
+	oneway := ir.Operation{ID: "deep", OneWay: true, Responses: []ir.Response{{}}}
+
+	within := codes(pass.Validate(nestGroups(127, oneway)))
+	assert.Contains(t, within, "pass/oneway-with-responses")
+	assert.NotContains(t, within, "ir/walk-truncated", "a walk that completed must not claim truncation")
+
+	past := codes(pass.Validate(nestGroups(200, oneway)))
+	assert.Contains(t, past, "ir/walk-truncated", "a walk that stopped early must say so")
+}
+
+// TestValidate_ArgsCheckFailsOpenWhenWalkTruncated covers the polarity flip: the
+// legality of Property.Args is decided from a reachability set built by the same
+// bounded walk, so past the cap a GraphQL operation goes unseen and the types it
+// reaches look unreachable. Accusing them reports a defect that is not there.
+func TestValidate_ArgsCheckFailsOpenWhenWalkTruncated(t *testing.T) {
+	t.Parallel()
+	gqlOp := func() ir.Operation {
+		return ir.Operation{
+			ID:       "gql",
+			Bindings: ir.OpBindings{GraphQL: &ir.GraphQLBinding{}},
+			Params:   []ir.Parameter{{Name: ir.Naming{Source: "in"}, Type: ir.TypeRef{Target: "t/m"}}},
+		}
+	}
+	withArgs := func(doc *ir.Document) *ir.Document {
+		m, ok := doc.Types["t/m"].(*ir.Model)
+		require.True(t, ok)
+		m.Properties[0].Args = []ir.Parameter{
+			{Name: ir.Naming{Source: "first"}, Type: ir.TypeRef{Target: "t/prim/string"}},
+		}
+		return doc
+	}
+
+	within := codes(pass.Validate(withArgs(nestGroups(127, gqlOp()))))
+	assert.NotContains(t, within, "pass/args-outside-graphql",
+		"the binding is visible within the cap, so Args is legal")
+
+	past := codes(pass.Validate(withArgs(nestGroups(200, gqlOp()))))
+	assert.NotContains(t, past, "pass/args-outside-graphql",
+		"past the cap the binding went unseen; unreachable-by-truncation is not evidence of illegality")
+	assert.Contains(t, past, "ir/walk-truncated", "and the truncation must be reported instead")
+}

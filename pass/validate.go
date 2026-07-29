@@ -24,6 +24,7 @@ func Validate(doc *ir.Document) []ir.Diagnostic {
 	diags := make([]ir.Diagnostic, 0, 8)
 	diags = append(diags, checkNilTypes(doc)...)
 	diags = append(diags, checkDanglingRefs(doc)...)
+	diags = append(diags, checkGroupWalkTruncated(doc)...)
 	diags = append(diags, checkServerIndices(doc)...)
 	diags = append(diags, checkResponseIndices(doc)...)
 	diags = append(diags, checkDiscriminators(doc)...)
@@ -391,11 +392,34 @@ func checkOneWay(doc *ir.Document) []ir.Diagnostic {
 	return diags
 }
 
+// checkGroupWalkTruncated reports that operation-group nesting exceeded the
+// bounded walk.
+//
+// The bound itself is deliberate, but an unreported bound makes every check that
+// reaches operations through it describe a subset of the document while Validate
+// still returns "internally consistent". The sibling reference walk reports its
+// own cap the same way.
+func checkGroupWalkTruncated(doc *ir.Document) []ir.Diagnostic {
+	if !forEachOperation(doc, func(ir.Operation) {}) {
+		return nil
+	}
+	return []ir.Diagnostic{diag(ir.SeverityError, "ir/walk-truncated",
+		fmt.Sprintf("operation groups nest deeper than %d; some operations went unchecked", maxGroupDepth),
+		"doc")}
+}
+
 // checkArgsOutsideGraphQL reports field arguments on models that are not
 // reachable from a GraphQL binding (the only scope in which Property.Args is
 // legal). With no GraphQL compiler yet, any Args is a violation.
 func checkArgsOutsideGraphQL(doc *ir.Document) []ir.Diagnostic {
-	reachable := graphqlReachableTypes(doc)
+	reachable, truncated := graphqlReachableTypes(doc)
+	if truncated {
+		// The walk that built the reachability set saw a subset of the document,
+		// so "not reached" no longer means "not reachable" — a GraphQL binding
+		// past the cap goes unseen and the types it legitimises look illegal.
+		// Fail open; checkGroupWalkTruncated reports why nothing is claimed here.
+		return nil
+	}
 	var diags []ir.Diagnostic
 	for _, id := range liveTypeIDs(doc) {
 		m, ok := doc.Types[id].(*ir.Model)
@@ -417,10 +441,12 @@ func checkArgsOutsideGraphQL(doc *ir.Document) []ir.Diagnostic {
 // graphqlReachableTypes returns the set of type IDs transitively reachable from
 // the operations that carry a GraphQL binding. The traversal is iterative with a
 // visited set, so it terminates on cyclic type graphs.
-func graphqlReachableTypes(doc *ir.Document) map[ir.TypeID]bool {
+// It reports whether the operation walk truncated, since a caller cannot tell an
+// unreachable type from an unvisited one without it.
+func graphqlReachableTypes(doc *ir.Document) (map[ir.TypeID]bool, bool) {
 	seen := map[ir.TypeID]bool{}
 	var queue []ir.TypeID
-	forEachOperation(doc, func(op ir.Operation) {
+	truncated := forEachOperation(doc, func(op ir.Operation) {
 		if op.Bindings.GraphQL != nil {
 			queue = appendTypeIDs(queue, op)
 		}
@@ -436,7 +462,7 @@ func graphqlReachableTypes(doc *ir.Document) map[ir.TypeID]bool {
 			queue = appendTypeIDs(queue, td)
 		}
 	}
-	return seen
+	return seen, truncated
 }
 
 // appendTypeIDs appends every TypeID reachable from root to dst. Truncation is
@@ -453,23 +479,37 @@ func appendTypeIDs(dst []ir.TypeID, root any) []ir.TypeID {
 
 // forEachOperation invokes fn for every operation in the document, descending
 // nested operation groups up to maxGroupDepth.
-func forEachOperation(doc *ir.Document, fn func(ir.Operation)) {
+//
+// It reports whether the walk stopped at the cap before reaching every
+// operation, so a caller deciding something from what it saw can tell an absent
+// operation from an unvisited one.
+func forEachOperation(doc *ir.Document, fn func(ir.Operation)) bool {
+	truncated := false
 	for _, svc := range doc.Services {
-		forEachGroupOperation(svc.Groups, 0, fn)
+		if forEachGroupOperation(svc.Groups, 0, fn) {
+			truncated = true
+		}
 	}
+	return truncated
 }
 
 // forEachGroupOperation walks a group tree, invoking fn per operation.
-func forEachGroupOperation(groups []ir.OperationGroup, depth int, fn func(ir.Operation)) {
+// forEachGroupOperation walks groups depth-first, reporting whether the bound
+// cut the descent short.
+func forEachGroupOperation(groups []ir.OperationGroup, depth int, fn func(ir.Operation)) bool {
 	if depth > maxGroupDepth {
-		return
+		return true
 	}
+	truncated := false
 	for _, g := range groups {
 		for _, op := range g.Operations {
 			fn(op)
 		}
-		forEachGroupOperation(g.Groups, depth+1, fn)
+		if forEachGroupOperation(g.Groups, depth+1, fn) {
+			truncated = true
+		}
 	}
+	return truncated
 }
 
 // diag builds a Diagnostic with a location-only provenance. The pointer is an
