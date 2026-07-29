@@ -20,15 +20,15 @@ type Annotation string
 // appear in Annotations(), so a slot added here without also being added
 // there fails that test rather than sitting unused.
 const (
-	AnnotationDocs           Annotation = "docs"
-	AnnotationExamples       Annotation = "examples"
-	AnnotationConstraints    Annotation = "constraints"
-	AnnotationDefault        Annotation = "default"
-	AnnotationDeprecated     Annotation = "deprecated"
-	AnnotationVisibility     Annotation = "visibility"
-	AnnotationExtensions     Annotation = "extensions"
-	AnnotationXMLHints       Annotation = "xmlHints"
-	AnnotationValidationOnly Annotation = "validationOnly"
+	AnnotationDocs            Annotation = "docs"
+	AnnotationExamples        Annotation = "examples"
+	AnnotationConstraints     Annotation = "constraints"
+	AnnotationDefault         Annotation = "default"
+	AnnotationDeprecated      Annotation = "deprecated"
+	AnnotationVisibility      Annotation = "visibility"
+	AnnotationVendorExtension Annotation = "vendorExtension"
+	AnnotationXMLHints        Annotation = "xmlHints"
+	AnnotationValidationOnly  Annotation = "validationOnly"
 )
 
 // SiteKind distinguishes a position that declares a type from one that
@@ -93,7 +93,7 @@ func Annotations() []Annotation {
 		AnnotationDefault,
 		AnnotationDeprecated,
 		AnnotationVisibility,
-		AnnotationExtensions,
+		AnnotationVendorExtension,
 		AnnotationXMLHints,
 		AnnotationValidationOnly,
 	}

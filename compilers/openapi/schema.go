@@ -318,11 +318,15 @@ func (l *lowerer) mergeProperty(m *ir.Model, byWire map[string]int, p ir.Propert
 // dst under allOf intersection semantics: required and secret are OR-ed, dst
 // keeps its position/identity/type shape (first declaration wins), and every
 // optional detail dst lacks — docs, default, constraints (merged per keyword via
-// mergeConstraints), deprecation, XML, examples, extensions — is adopted from
-// src. A description that differs between branches, an incompatible type, or a
-// contradictory constraint keyword are genuine conflicts the merge cannot
-// represent (see codeConflictingRedecl); each is diagnosed before any detail is
-// folded in, rather than silently picking an arbitrary winner.
+// mergeConstraints), deprecation, XML, examples — is adopted from src.
+//
+// Preserved is the one field where a later branch wins: its entries are keyed
+// and namespaced, so the two branches' keys union rather than compete, and a key
+// both branches write is the same construct written twice. A description that
+// differs between branches, an incompatible type, or a contradictory constraint
+// keyword are genuine conflicts the merge cannot represent (see
+// codeConflictingRedecl); each is diagnosed before any detail is folded in,
+// rather than silently picking an arbitrary winner.
 func (l *lowerer) reconcileProperty(dst *ir.Property, src ir.Property, pointer string) {
 	l.diagnoseRedeclarationConflict(dst, &src, pointer)
 
@@ -642,9 +646,9 @@ func strConflictDetail(keyword string, a, b string) (string, bool) {
 }
 
 // fillPropertyDetail enriches a property from its schema: docs, default,
-// visibility, deprecation, secrecy, examples, XML, constraints, extensions, and
-// validation-only keywords. Annotations present at a $ref use-site override the
-// target's (ir-design §14).
+// visibility, deprecation, secrecy, examples, XML, constraints, and the
+// preserved constructs (x-* and validation-only keywords). Annotations present
+// at a $ref use-site override the target's (ir-design §14).
 func (l *lowerer) fillPropertyDetail(p *ir.Property, js *oas3.JSONSchema[oas3.Referenceable], pointer string) {
 	ref := js.GetSchema()
 	if ref == nil {

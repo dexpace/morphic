@@ -305,8 +305,10 @@ func (l *lowerer) operationExtensions(src *soa.Operation, declPtr string) ir.Pre
 }
 
 // applyPathServers preserves path-item-level servers verbatim under Preserved
-// on the operation: sub-document server scoping is out of the §10 server model,
-// so it is kept raw with an info diagnostic rather than dropped.
+// on the operation. §10 models servers as Document.Servers with per-scope index
+// lists (Service.Servers, Channel.Servers); ir.Operation just has no such list
+// yet, so the scoping is kept raw with an info diagnostic — a gap the IR can
+// close by adding one, hence ReasonNoIRHome rather than a boundary.
 func (l *lowerer) applyPathServers(op *ir.Operation, pi *soa.PathItem, declPtr string) {
 	if len(pi.GetServers()) == 0 {
 		return
@@ -317,7 +319,7 @@ func (l *lowerer) applyPathServers(op *ir.Operation, pi *soa.PathItem, declPtr s
 	}
 	l.preserve(&op.Preserved, "openapi:servers", raw, ir.ReasonNoIRHome, declPtr+ptr("servers"))
 	l.diags = append(l.diags, diagf(ir.SeverityInfo, codeDegradedConstruct, op.Provenance,
-		"path-item servers kept under Preserved; sub-document server scoping is out of model"))
+		"path-item servers kept under Preserved; an operation has no server-scope list to bind them to"))
 }
 
 // lowerResponses splits an operation's responses into success responses

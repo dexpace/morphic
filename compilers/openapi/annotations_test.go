@@ -122,7 +122,7 @@ func retentionCases() []retentionCase {
 		deprecatedCases(),
 		defaultCases(),
 		visibilityCases(),
-		extensionsCases(),
+		vendorExtensionCases(),
 		xmlHintsCases(),
 		validationOnlyCases(),
 	)
@@ -655,15 +655,15 @@ components:
 	}
 }
 
-// extensionsCases returns the annotation-retention cases for the extensions
-// annotation (x-vendor) at each SiteKind.
-func extensionsCases() []retentionCase {
-	return []retentionCase{extensionsModelCase(), extensionsScalarCase(), extensionsReferenceCase()}
+// vendorExtensionCases returns the annotation-retention cases for the
+// vendor-extension annotation (x-vendor) at each SiteKind.
+func vendorExtensionCases() []retentionCase {
+	return []retentionCase{vendorExtensionModelCase(), vendorExtensionScalarCase(), vendorExtensionReferenceCase()}
 }
 
-func extensionsModelCase() retentionCase {
+func vendorExtensionModelCase() retentionCase {
 	return retentionCase{
-		cell: harness.Cell{Annotation: harness.AnnotationExtensions, SiteKind: harness.SiteDeclarationModel},
+		cell: harness.Cell{Annotation: harness.AnnotationVendorExtension, SiteKind: harness.SiteDeclarationModel},
 		spec: `openapi: 3.1.0
 info: {title: g, version: "1"}
 paths: {}
@@ -686,9 +686,9 @@ components:
 	}
 }
 
-func extensionsScalarCase() retentionCase {
+func vendorExtensionScalarCase() retentionCase {
 	return retentionCase{
-		cell: harness.Cell{Annotation: harness.AnnotationExtensions, SiteKind: harness.SiteDeclarationScalar},
+		cell: harness.Cell{Annotation: harness.AnnotationVendorExtension, SiteKind: harness.SiteDeclarationScalar},
 		spec: `openapi: 3.1.0
 info: {title: g, version: "1"}
 paths: {}
@@ -710,9 +710,9 @@ components:
 	}
 }
 
-func extensionsReferenceCase() retentionCase {
+func vendorExtensionReferenceCase() retentionCase {
 	return retentionCase{
-		cell: harness.Cell{Annotation: harness.AnnotationExtensions, SiteKind: harness.SiteReference},
+		cell: harness.Cell{Annotation: harness.AnnotationVendorExtension, SiteKind: harness.SiteReference},
 		spec: `openapi: 3.1.0
 info: {title: g, version: "1"}
 paths: {}
