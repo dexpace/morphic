@@ -197,3 +197,53 @@ Worth noting one correction became wrong again as the code moved: a comment that
 "every" to "most" is now "0 of 2", because #114 changed which `knownGap` reasons exist. Counts in
 prose rot even after being corrected — which is the argument for deriving them or omitting them
 rather than maintaining them.
+
+## CRITICAL — open defect in the B11 lowering (`998c3a6`)
+
+**Do not treat `998c3a6` as finished.** Review found a defect that produces silently wrong IR with
+no diagnostic and a clean `pass/validate`.
+
+`composedVariant` (`compose.go`) interns each composed variant Model at the branch's **own** JSON
+pointer, `…/oneOf/N`. `intern` (`hoist.go`) returns any pre-existing node at a pointer without
+checking. So any `$ref` elsewhere in the document that targets `…/oneOf/N` claims that pointer
+first, and the variant silently becomes whatever that reference lowered to.
+
+Two confirmed repros, neither needing a source-order trick:
+
+- `Other.properties.x: {$ref: '#/components/schemas/Combo/oneOf/0'}` declared before `Combo`
+- `A.properties.a: {$ref: '…/Combo/oneOf/1'}` where `A` is branch 0's own target
+
+Result in both: a `Union` whose variant 0 lost the composed body while variant 1 kept it — exactly
+the state §4.3 and the commit message promise cannot occur. It is also order-dependent: swapping the
+two component declarations changes both the IR and what the outside reference resolves to.
+
+**Fix options named by the review:** give the composed variant a distinct synthetic pointer, or
+detect the collision and fall back to the preserved lowering.
+
+The irony is instructive. The implementation's own reasoning was *"an inline branch's node would
+have to be hoisted at the branch pointer, which is exactly where the composed variant lives."* That
+is right — and it holds when the branch is a `$ref` too, which the reasoning did not follow through.
+
+### Two further Important findings on the same commits
+
+**The `$ref` test is not equivalent to the property it stands for, in either direction.**
+`conjoinBranch` puts `Base`/`Mixins` on non-Model nodes — a `$ref` to a scalar component yields
+`Base` = `Scalar`, to a union yields `Base` = `Union` — while §4.8 in the same diff says
+`Base`/`Mixins` is model composition only. And `isRefBranch` is true but unusable for `{$ref: ""}`,
+cross-document refs, and refs to undeclared components, each of which **half-distributes**,
+contradicting the "never halfway" guarantee.
+
+**`oneOf`+`anyOf` co-declared reports a false reason.** Three messages cover four documented shapes,
+so that case emits *"a branch names no referent to conjoin the body with"* when every branch is in
+fact a `$ref`. The test asserts only the `Reason`, never the message, so it cannot catch this —
+the same test-does-not-check-what-it-claims pattern as everywhere else in this work.
+
+### Confirmed good on the same review
+
+§B11 shape #2's rejection was independently verified by compiling the idiom against clean exports of
+both revisions: byte-identical IR, identical pre-existing `discriminator-missing-variant` errors.
+Zero-golden churn was established empirically — all 80 spec files under `testdata/` compiled with
+both compilers, byte-identical — with the cause identified: no corpus spec co-declares a union with
+structural keywords, and the near-miss `oneof-discriminated.yaml` misses because `discriminator` is
+not in `declaresShape`. Termination holds for self-reference, 3-cycles, and self-referencing
+branches.
