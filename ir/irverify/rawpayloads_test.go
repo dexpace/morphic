@@ -2,6 +2,7 @@ package irverify_test
 
 import (
 	"encoding/json"
+	"reflect"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -239,4 +240,27 @@ func TestVerify_InvalidRawValueIsWhatBreaksTheDocument(t *testing.T) {
 			require.Error(t, err, "the whole document must fail to marshal")
 		})
 	}
+}
+
+// TestPreservedEntryFields_MatchTheIRShape guards the two fields
+// checkRawPayloads reads by name, the coupling the Go compiler cannot check.
+// Reason is read as a string and Value as a byte slice, and Bytes() panics on
+// the zero reflect.Value a rename would leave behind — so a rename in ir must
+// fail here rather than inside Verify on the first document that carries a
+// preserved entry.
+func TestPreservedEntryFields_MatchTheIRShape(t *testing.T) {
+	t.Parallel()
+	entry := reflect.TypeOf(ir.PreservedEntry{})
+	for field, kind := range map[string]reflect.Kind{
+		"Reason": reflect.String,
+		"Value":  reflect.Slice,
+	} {
+		f, ok := entry.FieldByName(field)
+		require.True(t, ok, "PreservedEntry has no field %s, which checkRawPayloads reads by name", field)
+		assert.Equal(t, kind, f.Type.Kind(), "PreservedEntry.%s", field)
+	}
+	value, _ := entry.FieldByName("Value")
+	assert.Equal(t, reflect.Uint8, value.Type.Elem().Kind(), "PreservedEntry.Value must stay a byte slice")
+	assert.Equal(t, reflect.Uint8, reflect.TypeOf(ir.RawConfig(nil)).Elem().Elem().Kind(),
+		"RawConfig must stay a map of byte slices")
 }
