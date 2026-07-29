@@ -25,79 +25,42 @@ later. Fixing them inline is how the PR stops converging.
 The exception is a defect **in code this work introduced** — a guard that does not guard, a walk
 that is not deterministic. That is finishing the job, not detouring.
 
-Currently filed and deliberately untouched: #120, #123, #124, #125, #126.
+Currently filed and deliberately untouched:
+
+| issue | |
+|---|---|
+| **#123** | a non-object inline `allOf` branch is dropped **whole** — type, constraints, annotations. Partly blocked on `ir.Model` having no `Constraints` field. |
+| **#126** | the conformance corpus never exercises 33 IR fields the compiler assigns, including the entire `allOf`-inheritance-with-discriminator path |
+| **#125** | `dependentRequired`, the `content*` family and `$dynamicRef` are silently dropped; §4.7's keyword list looks hand-assembled |
+| **#127** | `pass` and `irverify` disagree about whether `Provenance.Source = -1` is valid — latent until anything verifies engine output |
+| **#124** | `xml` on a parameter schema is discarded; may want a diagnostic rather than an IR field |
+| **#120** | settle the name of the `Preserved` field — cheap now, breaking once #119 merges |
+
+#121 and #122 were fixed rather than filed, before this directive; both ride the PR.
 
 ## Branch layout
 
-Five branches, none merged. Work happens in git worktrees so several agents can run at once without
-contending for one index.
+**All four branches are merged.** `feat/annotation-gaps-and-preserved` is the single trunk, 63
+commits from `main`, and is PR **#119** (draft). The others are merged into it and can be deleted:
+`fix/irverify-preserved`, `fix/cli-output-truncation`, `docs/rewrite-working-notes`. Also delete
+`wip/b11-distributed-lowering` — it was superseded, not merged.
 
-| branch | scope | state |
-|---|---|---|
-| `feat/annotation-gaps-and-preserved` | `compilers/openapi/`, `ir/`, `docs/`, `testdata/` | trunk of the work; PR #119 |
-| `fix/irverify-preserved` | `pass/`, `ir/`, `ir/irverify/` | complete-ish |
-| `fix/cli-output-truncation` | `cmd/morphic/` | complete |
-| `docs/rewrite-working-notes` | `docs/rewrite/` | this directory |
-| `wip/b11-distributed-lowering` | — | **superseded, do not merge** |
-
-`integration/rewrite-trial` is a disposable branch used to trial-merge the four; recreate it rather
-than trusting an old one.
-
-**The first two both touch `ir/` heavily.** Trial-merge before assuming they compose — a check added
-on one branch has never seen the other's compiler output.
+At the merge point: all four gates green, coverage 100% total and per package, and the conformance
+corpus passes **without** regeneration.
 
 ## Do these next, in this order
 
-**1. Verify what is actually committed.** Several agents were interrupted mid-run at least once.
-For every branch: `git status` clean, `go build ./...`, `go test ./...`, `./scripts/check-coverage.sh`.
-Trust the tree over any summary, including `README.md`.
+**1. Re-verify the merged trunk.** Do not take the paragraph above on trust — `git status` clean,
+`go build ./...`, `go test ./...`, `./scripts/check-coverage.sh`, and
+`go test ./compilers/openapi -run TestConformance` without `-update`.
 
-**2. Land the outstanding review findings.** Each was reproduced by compiling, not by reading:
+**2. Run a whole-branch review at the final state.** Every review in this work found something, and
+none of the 63 commits has been reviewed *as merged*. Expect findings; split them by the directive
+above — defects in this branch's own code get fixed, anything pre-existing or adjacent becomes an
+issue.
 
-- A **Critical** in the §B11 union lowering: `composedVariant` interns a composed variant at the
-  branch's own JSON pointer (`…/oneOf/N`), and `intern` returns any pre-existing node there without
-  checking — so an unrelated `$ref` to that pointer silently steals it, producing a `Union` whose
-  variants disagree about whether they carry the composed body. No diagnostic; `pass/validate`
-  clean; order-dependent. A fix was dispatched but may not have landed — check `compose.go`.
-- Two Important findings on the same commits: `conjoinBranch` puts `Base`/`Mixins` on non-Model
-  nodes while §4.8 says model-only; and `oneOf`+`anyOf` co-declared reports a false reason, with a
-  test that asserts only the `Reason` and so cannot catch it.
-- An **Important on `fix/irverify-preserved`**: `ir/preserved_test.go`'s `reasonConstValues`
-  `continue`s past any const spec whose type is not the literal ident `PreserveReason`. The
-  precedent it names — `internal/harness/annotations_test.go`'s `collectConstSpecs` — `require`s
-  instead, and says why: skipping lets a constant join the taxonomy at every usage site without the
-  test recording it. **The guard was defeated 5/5** by an untyped const, a `PreserveReason("x")`
-  conversion, a const in another file, a same-file alias, and a `var` — all assignable, all
-  `Valid() == false`, test still green. Only two of the five holes are documented.
-  Also: `internal/harness/internal_test.go` still carries the false `RawMessage.MarshalJSON`
-  claim the sweep corrected elsewhere, in a file the same commit edited two lines below.
-
-- An **Important on the `validate` walk**: `pass/refs.go`'s `walkPointer` prunes with a
-  `seen map[uintptr]bool` keyed on *traversal* order, while `doc.Types`/`Messages`/`Channels`
-  iterate randomly. One pointer reachable from two registry entries yields a different recorded
-  **site set** per run, which the later sort cannot repair — proven over 500 runs (443/57 split
-  between two outputs). The doc comment claiming sorting defeats map-iteration randomness is
-  therefore false as written. Unreachable today (0 aliased pointers across 62 corpus docs). Fix:
-  guard with an *ancestor* set (pointers on the current path) rather than a global seen set —
-  order-independent and still terminates the `Value.Ctor→Args→Value.Ctor` cycle. **The same flaw
-  pre-exists in `ir/irverify/refs.go`.**
-
-**Both new guards on `fix/irverify-preserved` are defeated.** The const-block tie test 5/5 (above)
-and `ir/irverify/refkinds_test.go` 3/6 — `type GizmoID TypeID`, `type DoodadID = TypeID`, and
-`type Thingy string` all pass silently, because it requires the literal ident `string` *and* an
-`ID` suffix. Treat both as not-yet-working rather than as coverage.
-
-**Two smaller items on the same branch:** `Discriminator.Mapping` now double-reports
-(`ir/dangling-type-ref` plus `pass/discriminator-missing-variant`), untested either way; and the
-emitted paths carry a bogus `/TypeCommon/` segment that navigates in neither JSON nor Go, since
-JSON inlines the embed and Go promotes it.
-
-**A corpus gap worth closing.** The multipart claim was confirmed and it raises severity: a dangling
-target under `encoding.<part>.headers` is reachable from ordinary OpenAPI 3.0 input, and pre-fix
-`Validate` returned **zero** diagnostics for it. No corpus spec uses `encoding.headers` at all (0 of
-62), so the regression test exercises only hand-built IR. Add a conformance fixture.
-
-**3. Then the remaining issues**, roughly by severity:
+**3. Take #119 out of draft**, with a PR body that matches what actually landed. The current body
+predates roughly half these commits.
 
 | issue | |
 |---|---|
@@ -107,12 +70,10 @@ target under `encoding.<part>.headers` is reachable from ordinary OpenAPI 3.0 in
 | **#124** | `xml` on a parameter schema is discarded; may want a diagnostic rather than a field |
 | **#120** | decide the name of the `Preserved` field — cheap now, breaking after #119 merges |
 
-**4. One handover not yet done.** `compilers/openapi/schema_test.go`'s
-`TestPreserve_AllReasonsReachable` claims a per-site universal ("no site leaves the field at its
-zero value") while its body asserts a per-reason existential — an entry with `Reason: ""` passes.
-`ir/empty-preserve-reason` now covers this corpus-wide, so narrowing the comment is enough.
+### Nothing is queued behind those
 
-**5. Then merge, review the whole branch, and take #119 out of draft.**
+Every review finding from this session has been landed, and every bug found along the way is filed
+rather than half-fixed. The known-open list is exactly the issues named above.
 
 ## How to work here
 

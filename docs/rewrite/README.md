@@ -8,20 +8,23 @@ Nothing here is normative. Where a file disagrees with `ir-design.md`, the desig
 
 ## Where things stand
 
-| | state |
+Everything below is merged into `feat/annotation-gaps-and-preserved` — PR **#119**, 63 commits,
+draft. Read `RESUME.md` first; it carries the next moves.
+
+| | |
 |---|---|
-| Annotation retention suite | merged (#111) |
-| Reference resolver extraction | merged (#112) |
-| Review standard in `CLAUDE.md` | merged (#113) |
-| Seven dropped annotations (#114) | on `feat/annotation-gaps-and-preserved` |
-| `Extensions` → `Preserved` (#110) | on `feat/annotation-gaps-and-preserved` |
-| Intersection combinator (#115) | **answered and implemented** — no node added; §B11 distribution landed as `998c3a6`+`716d8eb` |
-| Inline positions drop data (#116) | in progress |
-| Name of the `Preserved` field (#120) | open — needs a decision, see the issue |
-| `validate` misses ref-bearing fields (#121) | in progress |
-| `propertyNames` unhandled (#117) | open |
-| CLI truncates `-o` on failure (#118) | on `fix/cli-output-truncation` |
-| `irverify` accepted a meaningless entry | on `fix/irverify-preserved` |
+| Annotation retention suite | merged to `main` (#111) |
+| Reference resolver extraction | merged to `main` (#112) |
+| Review standard in `CLAUDE.md` | merged to `main` (#113) |
+| Seven dropped annotations (#114) | on #119 |
+| `Extensions` → `Preserved` (#110) | on #119 |
+| Intersection combinator (#115) | answered — no node; §B11 distribution implemented instead |
+| Inline positions dropping data (#116) | on #119 |
+| `propertyNames` (#117) | on #119 |
+| CLI `-o` truncation (#118) | on #119 |
+| `validate` reference coverage (#121, #122) | on #119 |
+
+Open and deliberately unstarted: **#120**, **#123**, **#124**, **#125**, **#126**, **#127**.
 
 ## The finding that redirected this work
 
