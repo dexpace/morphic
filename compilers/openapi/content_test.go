@@ -557,6 +557,69 @@ func TestEncodingConfig_NilEncoding(t *testing.T) {
 	assert.Equal(t, ir.PartEncoding{}, l.encodingConfig(nil, "/mp"))
 }
 
+// positionalEncodingSpec declares the 3.2 shape ItemEncodingAll cannot state:
+// prefixEncoding fixes the encoding of the leading items, so the itemEncoding
+// beside it governs only the tail after them, not every item.
+const positionalEncodingSpec = `openapi: 3.2.0
+info: {title: T, version: "1"}
+paths:
+  /mixed:
+    get:
+      operationId: mixed
+      responses:
+        "200":
+          description: ok
+          content:
+            multipart/mixed:
+              itemSchema: {type: object, properties: {a: {type: string}}}
+              prefixEncoding:
+                - contentType: application/json
+                - contentType: application/xml
+              itemEncoding: {contentType: text/plain}
+`
+
+func TestContent_PositionalPrefixEncodingIsPreserved(t *testing.T) {
+	t.Parallel()
+	doc, diags := parseFull(t, positionalEncodingSpec)
+	c := findOp(t, doc, "mixed").Responses[0].Payload.Contents[0]
+
+	assert.Empty(t, c.ItemEncoding, "positional prefixes rule out the governs-every-item key")
+	prefix, ok := c.Preserved["openapi:prefixEncoding"]
+	require.True(t, ok, "prefixEncoding kept verbatim; got %v", c.Preserved)
+	assert.Equal(t, ir.ReasonNoIRHome, prefix.Reason)
+	assert.JSONEq(t, `[{"contentType": "application/json"}, {"contentType": "application/xml"}]`,
+		string(prefix.Value))
+	item, ok := c.Preserved["openapi:itemEncoding"]
+	require.True(t, ok, "the tail encoding is kept beside the prefixes it follows")
+	assert.JSONEq(t, `{"contentType": "text/plain"}`, string(item.Value))
+	assertHasCode(t, diags, codeDegradedConstruct, ir.SeverityInfo)
+}
+
+func TestFillSequential_PrefixEncodingWithoutItemEncoding(t *testing.T) {
+	t.Parallel()
+	spec := strings.ReplaceAll(positionalEncodingSpec, "              itemEncoding: {contentType: text/plain}\n", "")
+	doc, diags := parseFull(t, spec)
+	c := findOp(t, doc, "mixed").Responses[0].Payload.Contents[0]
+
+	assert.Empty(t, c.ItemEncoding)
+	_, ok := c.Preserved["openapi:prefixEncoding"]
+	assert.True(t, ok, "prefixEncoding alone is still reported rather than dropped")
+	_, ok = c.Preserved["openapi:itemEncoding"]
+	assert.False(t, ok, "no itemEncoding was declared, so none is recorded")
+	assertHasCode(t, diags, codeDegradedConstruct, ir.SeverityInfo)
+}
+
+func TestPositionalEncoding_WithoutRootNode(t *testing.T) {
+	t.Parallel()
+	l := newRawLowerer(&soa.OpenAPI{})
+	c := &ir.Content{}
+	media := &soa.MediaType{PrefixEncoding: []*soa.Encoding{{}}, ItemEncoding: &soa.Encoding{}}
+	l.fillSequential(c, media, "/mp", "h")
+	assert.Nil(t, c.ItemEncoding, "prefixes still block the every-item lowering")
+	assert.Nil(t, c.Preserved, "a media type with no source node has nothing verbatim to keep")
+	assertHasCode(t, l.diags, codeDegradedConstruct, ir.SeverityInfo)
+}
+
 func TestBodySchemaPointer_ExternalRefNoFragment(t *testing.T) {
 	t.Parallel()
 	js := oas3.NewJSONSchemaFromReference("external.yaml")

@@ -62,13 +62,21 @@ func (l *lowerer) lowerContent(mt string, media *soa.MediaType, pointer, hint st
 }
 
 // fillSequential lowers 3.2 sequential-media fields: itemSchema becomes the
-// element type, and itemEncoding — one Encoding object governing every item
-// after any prefixEncoding — becomes Content.ItemEncoding's single entry.
-// Multi is set because the construct describes a repeated tail by definition.
+// element type, and itemEncoding becomes Content.ItemEncoding's single entry
+// under ItemEncodingAll, with Multi set because the construct describes a
+// repeated tail by definition.
+//
+// That lowering only holds when no prefixEncoding accompanies it: prefixes make
+// itemEncoding govern the items *after* them rather than every item, which the
+// reserved key would misstate. Those documents take positionalEncoding instead.
 func (l *lowerer) fillSequential(c *ir.Content, media *soa.MediaType, mediaPtr, hint string) {
 	if item := media.GetItemSchema(); item != nil {
 		ref := l.schemaRef(item, mediaPtr+ptr("itemSchema"), hint+"_item")
 		c.Item = &ref
+	}
+	if len(media.GetPrefixEncoding()) > 0 {
+		l.positionalEncoding(c, media, mediaPtr)
+		return
 	}
 	enc := media.GetItemEncoding()
 	if enc == nil {
@@ -77,6 +85,23 @@ func (l *lowerer) fillSequential(c *ir.Content, media *soa.MediaType, mediaPtr, 
 	pe := l.encodingConfig(enc, mediaPtr+ptr("itemEncoding"))
 	pe.Multi = true
 	c.ItemEncoding = map[string]ir.PartEncoding{ir.ItemEncodingAll: pe}
+}
+
+// positionalEncoding keeps 3.2 positional prefixEncoding — and the itemEncoding
+// that governs the tail after it — verbatim, with one info diagnostic.
+// Content.ItemEncoding is a flat map with one entry per item, so it cannot say
+// "these two in order, then the rest alike": lowering only the tail into
+// ItemEncodingAll would drop the prefixes and assert their encoding governs
+// every item. The key ordinal positions need is a gap the IR can close later,
+// so the entries carry ReasonNoIRHome rather than a degraded lowering.
+func (l *lowerer) positionalEncoding(c *ir.Content, media *soa.MediaType, mediaPtr string) {
+	root := media.GetRootNode()
+	l.preserve(&c.Preserved, "openapi:prefixEncoding", nodeToRaw(rawChildNode(root, "prefixEncoding")),
+		ir.ReasonNoIRHome, mediaPtr+ptr("prefixEncoding"))
+	l.preserve(&c.Preserved, "openapi:itemEncoding", nodeToRaw(rawChildNode(root, "itemEncoding")),
+		ir.ReasonNoIRHome, mediaPtr+ptr("itemEncoding"))
+	l.diag(ir.SeverityInfo, codeDegradedConstruct, mediaPtr,
+		"prefixEncoding is positional and has no per-item IR home; it and any itemEncoding are kept under Preserved")
 }
 
 // partEncodings builds the multipart/form per-part wire config, keyed by each
