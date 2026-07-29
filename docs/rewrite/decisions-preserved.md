@@ -88,36 +88,26 @@ const (
 Counts after decisions A and B: `validationOnly` 5 keys, `noIRHome` 5 keys (itemEncoding removed),
 `degradedLowering` 2 keys (oneOf/anyOf, newly documented), `vendorExtension` unbounded from 7 sites.
 
-## Queued for the next fix wave (consumer audit findings)
+## What came out of auditing the taxonomy
 
-1. IMPORTANT — irverify gains a Preserved check. Verified: Reason:"" yields 0 violations today,
-   round-trips clean, passes pass.Validate. Precedent: checkRegistryKeys emits ir/empty-*-id for
-   empty keys; checkDiagnostics validates a scalar field's well-formedness. internal/harness runs
-   Verify over the whole corpus, so the check gets corpus-wide coverage with no new wiring.
-2. IMPORTANT — schema_test.go:635-668 does not guard what its comment claims. `seen[entry.Reason]`
-   means an entry with Reason:"" sets seen[""] and every assertion still passes. Also inspects only
-   Common().Preserved on two component schemas — no operation/param/response/auth site.
-3. IMPORTANT — preserve() (schema.go:877-879) guards raw == nil but not len(raw) == 0. An empty
-   non-nil RawValue makes the WHOLE document unmarshalable. Unreachable today, and the harness
-   would misfile it as OutcomeRoundtrip rather than OutcomeViolations.
-4. MINOR — no enumerate-and-test guard for PreserveReason; nothing rejects unknown/empty on
-   deserialize. Repo precedent: ir/typedef_test.go allKinds + TestNewTypeDef_UnknownKind, and the
-   const-block tie test. TypeKind is also a bare string enum and does have the guard.
-5. NIT — ir/preserved.go:41 "byte-faithful" overstates: json.Marshal compacts and HTML-escapes
-   RawMessage, and the OpenAPI path re-encodes, coercing ill-formed UTF-8 to U+FFFD.
-6. NIT (pre-existing, broader) — Provenance.Source is never bounds-checked against len(doc.Sources)
-   by either verifier. The rename multiplied Provenance instances, so consider it now.
-CLEAN: pass/, engine/, cmd/*, internal/harness, ir/irtest, architecture.md, README.md.
-7. NIT (from the a80f711 review) — ir/operation_test.go:196 says the test "pins Class C for
-   Content's ONE map field". False count: Content has two map-typed fields, Encoding and
-   Preserved (map[string]PreservedEntry). Coverage is fine, the wording is not. Sibling comments
-   (ir/channel_test.go:42) use countless phrasing — match that. Same shape as every other finding
-   this session: a count asserted in prose that nothing verifies, and wrong.
+Everything that audit raised has landed on this branch except one item, filed as **#128**:
+`preserve()` guards `raw == nil` but not `len(raw) == 0`, and an empty non-nil `RawValue` makes the
+whole document fail to marshal. Not reachable from the current compiler, so it is filed rather than
+fixed here.
 
-a80f711 VERDICT: clean, approve. Invariant-9 question answered more strongly than I framed it —
-   the map was the WRONG CONTAINER even hypothetically, since per-stream-item encoding already
-   has homes (Variant.Event/EventInfo, Message.ContentType, Property.Encoding) and all key by
-   variant or message, not PropID. Upstream is ItemEncoding *Encoding, mutually exclusive with
-   Encoding. 9 probe shapes at both revisions: 4 byte-identical, 5 differ only by envelope
-   removal. Verifier reach PROVEN by planting a dangling TypeID and a cased Naming inside
-   ItemEncoding.Headers[0] and confirming both are reported.
+One entry in that audit is worth keeping for the mistake in it rather than the fix. It justified the
+new `irverify` check with:
+
+> `internal/harness` runs `Verify` over the whole corpus, so the check gets corpus-wide coverage
+> with no new wiring.
+
+That sentence was wrong, and it was never checked. The harness is not in the CI gate, and nothing
+runs `irverify` over compiler output, so the check it justified could not fire on anything the
+compiler produced — a defect planted in the compiler passed the entire suite. The claim then
+propagated: it was repeated in `README.md` as "covers this corpus-wide", where it read as
+established fact.
+
+The general shape is the one this work kept meeting: **"no new wiring needed" is a claim about the
+world, not about the code being written, and it is the kind nobody tests.** An audit that recommends
+a check should say how it verified the check will run, not assume existing infrastructure reaches
+it.

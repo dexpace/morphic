@@ -386,60 +386,38 @@ readability.
 
 ## Measured outcome — the grid has run
 
-> **PROVISIONAL — the first table below is wrong and is being corrected.** Review of the grid found
-> that four cells recorded as preserved are *shape-conditional*: they were measured with an
-> object-shaped component, which routes through `lowerModel`/`fillModelDetail`, and they do **not**
-> hold for a scalar-shaped component, which routes through `internAlias` and forwards only
-> `Constraints` and `Examples`. `docs`, `deprecated`, `extensions`, and `validationOnly` are all
-> silently dropped on a declaration like `UserId: {type: string, format: uuid, description: "..."}`
-> — a mainstream pattern, not a contrived one. Verified by direct compilation, not inference.
->
-> The corrected count is nearer **10 preserved / 8 gap-or-conditional**, and the grid is being
-> widened from 18 cells to 27 by splitting the declaration site into its model-shaped and
-> scalar-shaped forms.
->
-> **The conclusion below — that this argues against the facet extraction — does not survive as
-> written.** The model-versus-scalar-alias fork inside `lowerComponentSchema` is itself
-> cross-cutting annotation duplication, the same class the facet extraction targets, on a different
-> seam than the declaration/reference axis this grid measured. Whether the extraction is warranted
-> is open again pending the corrected table.
+This section has been measured twice, and the first measurement was wrong in a way worth keeping on
+the record.
 
-**14 of 18 cells preserve the annotation; 4 do not.** Split by axis, which is what matters:
+**The first pass.** An 18-cell grid recorded 14 preserved, 4 gaps, and concluded that the facet
+extraction was not warranted: the site-versus-referent rule was already right for 8 of 9
+reference-site aspects, and the four gaps were missing structural homes rather than precedence
+failures.
 
-| site kind | preserved | gap |
-|---|---|---|
-| reference | 8 | 1 |
-| declaration | 6 | 3 |
+**Why it was wrong.** Every declaration cell had been measured with an *object-shaped* component,
+which routes through `lowerModel`/`fillModelDetail`. A scalar-shaped component routes through
+`internAlias`, which forwarded only `Constraints` and `Examples`. So `docs`, `deprecated`,
+`extensions` and `validationOnly` were silently dropped on a declaration as ordinary as
+`UserId: {type: string, format: uuid, description: "..."}` — and the grid could not see it, because
+the object shape was baked into the fixture rather than varied. The table was not measuring what its
+row labels said it measured.
 
-The four gaps and their mechanisms:
+**The second pass** split the declaration site into its model-shaped and scalar-shaped forms, taking
+the grid to 27 cells and roughly doubling the gap count. `compilers/openapi/annotations_test.go` is
+the live version; read the `knownGap` markers there rather than a count copied into prose.
 
-- `default` at a declaration site — `ir.Scalar` and `ir.TypeCommon` have no `Default` field.
-- `visibility` at a declaration site — `ir.TypeCommon` has no `Visibility` field; `Access` and
-  `Usage` exist but the compiler never assigns either.
-- `xmlHints` at a declaration site — `TypeCommon.XML` exists but nothing ever writes it.
-  `xmlHints()` is called exactly once in the compiler, inside `fillPropertyDetail`.
-- `validationOnly` at a reference site — `schemaRef` dispatches a `$ref` to `refTypeRef` and
-  returns before `lowerModel`/`fillValidationOnly` can run, so `if`/`then`/`else` beside a
-  property's `$ref` is read by nothing and reported by nothing.
+**What survived.** The conclusion held, but not its reasoning. The facet extraction was still the
+wrong change — not because the compiler reads annotations correctly everywhere, but because the real
+duplication was on a seam this grid never measured: annotation handling was bolted to
+`fillModelDetail`, reachable from two of `lower()`'s six destinations. Making one reader run above
+the dispatch fixed every declaration-site cell at once, and it is a fraction of the decomposition's
+size. That is #114.
 
-**This argues against the facet extraction.** The reasoning above assumed the site-versus-referent
-rule was being re-decided per attachment point and getting it wrong. Measured, it is already right
-for 8 of 9 reference-site aspects — `fillPropertyDetail` and the `effective*` helpers implement
-"site wins over referent" correctly for docs, examples, constraints, default, deprecated,
-visibility, and extensions. The existing per-property helper pattern generalizes; it does not need
-replacing.
-
-Nor are the four gaps precedence failures. Three are *missing structural homes* — an IR field or a
-write path that does not exist — and one is *dispatch order*. A facet extraction fixes none of
-them: they are four targeted changes, and three of the four would require an `ir-design.md` change
-this design explicitly rules out.
-
-**Revised recommendation.** Keep the resolver extraction, which stands on its own merits. Drop the
-facet extraction from the roadmap until something re-motivates it. Treat the four gaps as separate,
-individually-scoped work.
-
-The wider point is that the sequencing earned its keep: shipping the measurement first cost one
-task and killed a multi-PR refactor that reasoning alone had justified twice.
+**What this cost and bought.** The sequencing still earned its keep — shipping a measurement first
+killed a multi-PR refactor that reasoning alone had justified twice. But a grid is a fixture like
+any other, and a fixture that varies one axis while silently pinning another measures the pin. The
+first table was not corrected by review reading it; it was corrected by someone compiling a scalar
+declaration and finding the annotation gone.
 
 ## Risks
 
