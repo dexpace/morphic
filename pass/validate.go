@@ -27,6 +27,7 @@ func Validate(doc *ir.Document) []ir.Diagnostic {
 	diags = append(diags, checkGroupWalkTruncated(doc)...)
 	diags = append(diags, checkServerIndices(doc)...)
 	diags = append(diags, checkResponseIndices(doc)...)
+	diags = append(diags, checkEncodingKeys(doc)...)
 	diags = append(diags, checkDiscriminators(doc)...)
 	diags = append(diags, checkDuplicateWireNames(doc)...)
 	diags = append(diags, checkParamBindings(doc)...)
@@ -127,6 +128,118 @@ func appendSuccessStatusDiags(dst []ir.Diagnostic, status map[int]int, declared 
 		dst = append(dst, diag(ir.SeverityError, "ir/response-index-out-of-range",
 			fmt.Sprintf("response index %d at %s addresses none of the %d declared responses", index, at, declared),
 			at))
+	}
+	return dst
+}
+
+// checkEncodingKeys reports Content.Encoding keys that name no property of the
+// model the content's Type addresses.
+//
+// A key is a PropID, and a property is a position inside its model rather than an
+// entry in a document-level registry, so the type-driven walk has nothing to
+// resolve one against — the keys are enumerated here for the same reason the
+// indices above are. An emitter rendering multipart parts looks the key up among
+// the body's properties and silently renders no part for a key that misses.
+//
+// The code carries the ir/ namespace because it names the defect, not the finder
+// (see the package doc): a key addressing nothing is a broken reference, so a
+// second checker growing this check adopts the code rather than forcing a rename.
+// Only this pass reports it today.
+//
+// The three fields that carry a Payload are named here — Operation.Request,
+// Response.Payload and Message.Payload — so a fourth has to be added by hand.
+func checkEncodingKeys(doc *ir.Document) []ir.Diagnostic {
+	var diags []ir.Diagnostic
+	forEachOperation(doc, func(op ir.Operation) {
+		diags = appendEncodingKeyDiags(diags, doc, op.Request, string(op.ID)+"/request")
+		for i, r := range op.Responses {
+			at := fmt.Sprintf("%s/responses/%d", op.ID, i)
+			diags = appendEncodingKeyDiags(diags, doc, r.Payload, at)
+		}
+	})
+	for _, id := range sortedKeys(doc.Messages) {
+		msg := doc.Messages[id]
+		diags = appendEncodingKeyDiags(diags, doc, &msg.Payload, string(id))
+	}
+	return diags
+}
+
+// appendEncodingKeyDiags appends to dst a diagnostic per unresolvable encoding
+// key in each of the payload's contents; where locates the payload's owner.
+func appendEncodingKeyDiags(dst []ir.Diagnostic, doc *ir.Document, payload *ir.Payload, where string) []ir.Diagnostic {
+	if payload == nil {
+		return dst
+	}
+	for i, c := range payload.Contents {
+		if len(c.Encoding) == 0 {
+			continue
+		}
+		at := fmt.Sprintf("%s/contents/%d", where, i)
+		dst = appendUnknownPartDiags(dst, c, contentPartProps(doc, c.Type.Target), at)
+	}
+	return dst
+}
+
+// appendUnknownPartDiags appends to dst a diagnostic per encoding key of one
+// content that names no property in parts, in ascending key order so map
+// iteration cannot reach the output.
+func appendUnknownPartDiags(dst []ir.Diagnostic, c ir.Content, parts map[ir.PropID]bool, where string) []ir.Diagnostic {
+	for _, key := range sortedKeys(c.Encoding) {
+		if parts[key] {
+			continue
+		}
+		at := where + "/encoding/" + string(key)
+		dst = append(dst, diag(ir.SeverityError, "ir/encoding-key-unknown-property",
+			fmt.Sprintf("encoding key %q at %s addresses no property of the content's type %q",
+				key, at, c.Type.Target), at))
+	}
+	return dst
+}
+
+// contentPartProps returns the property IDs a content's body model exposes as
+// parts: its own, plus the ones it composes in (§4.3), which is the flat set an
+// emitter renders. A target naming no model — one the registry does not declare,
+// or the empty target — exposes none, so every key on such a content is reported
+// beside whatever checkDanglingRefs says about the target itself: the two make
+// different claims, as with checkMapping.
+//
+// The walk is iterative with a visited set, so a cyclic composition terminates
+// and the finite registry bounds it.
+func contentPartProps(doc *ir.Document, root ir.TypeID) map[ir.PropID]bool {
+	props := map[ir.PropID]bool{}
+	seen := map[ir.TypeID]bool{}
+	queue := []ir.TypeID{root}
+	for len(queue) > 0 {
+		id := queue[len(queue)-1]
+		queue = queue[:len(queue)-1]
+		if seen[id] {
+			continue
+		}
+		seen[id] = true
+		m, isModel := doc.Types[id].(*ir.Model)
+		if !isModel || m == nil {
+			continue // not a model, or the typed nil checkNilTypes reports
+		}
+		for _, p := range m.Properties {
+			props[p.ID] = true
+		}
+		queue = appendCompositionParents(queue, m)
+	}
+	return props
+}
+
+// appendCompositionParents appends m's base, interfaces and mixins to dst. All
+// three contribute to the flat property set an emitter computes (§4.3), so a part
+// inherited through any of them is a legal encoding key.
+func appendCompositionParents(dst []ir.TypeID, m *ir.Model) []ir.TypeID {
+	if m.Base != nil {
+		dst = append(dst, m.Base.Target)
+	}
+	for _, r := range m.Implements {
+		dst = append(dst, r.Target)
+	}
+	for _, r := range m.Mixins {
+		dst = append(dst, r.Target)
 	}
 	return dst
 }

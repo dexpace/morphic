@@ -60,14 +60,14 @@ func TestContent_MultipartPartEncoding(t *testing.T) {
 	requireNoErrorDiags(t, diags)
 	content := firstOp(t, svc).Request.Contents[0]
 	metaProp := ir.PropID("p/openapi" + ptr("paths", "/upload", "post", "requestBody", "content", "multipart/form-data", "schema", "properties", "meta"))
-	enc, ok := content.Encoding[string(metaProp)]
+	enc, ok := content.Encoding[metaProp]
 	require.True(t, ok, "encoding keyed by the part property's PropID; got keys %v", content.Encoding)
 	assert.Equal(t, []string{"application/json"}, enc.ContentTypes)
 	require.Len(t, enc.Headers, 1)
 	assert.Equal(t, "X-Part", enc.Headers[0].WireName)
 
 	fileProp := ir.PropID("p/openapi" + ptr("paths", "/upload", "post", "requestBody", "content", "multipart/form-data", "schema", "properties", "file"))
-	fileEnc, ok := content.Encoding[string(fileProp)]
+	fileEnc, ok := content.Encoding[fileProp]
 	require.True(t, ok, "binary part gets a synthesized file PartEncoding")
 	assert.True(t, fileEnc.Filename)
 }
@@ -148,12 +148,12 @@ components:
 	content := firstOp(t, svc).Request.Contents[0]
 	require.NotNil(t, content.Encoding, "referenced multipart body keeps per-part encoding")
 
-	metaProp := "p/openapi" + ptr("components", "schemas", "Form", "properties", "meta")
+	metaProp := ir.PropID("p/openapi" + ptr("components", "schemas", "Form", "properties", "meta"))
 	enc, ok := content.Encoding[metaProp]
 	require.True(t, ok, "encoding keyed by the resolved property's PropID; got %v", content.Encoding)
 	assert.Equal(t, []string{"application/json"}, enc.ContentTypes)
 
-	fileProp := "p/openapi" + ptr("components", "schemas", "Form", "properties", "file")
+	fileProp := ir.PropID("p/openapi" + ptr("components", "schemas", "Form", "properties", "file"))
 	fileEnc, ok := content.Encoding[fileProp]
 	require.True(t, ok, "binary part gets a synthesized file PartEncoding")
 	assert.True(t, fileEnc.Filename)
@@ -203,7 +203,7 @@ func TestContent_ArrayMultipartPartMulti(t *testing.T) {
 	_, svc, diags := lowerServiceSpec(t, spec)
 	requireNoErrorDiags(t, diags)
 	content := firstOp(t, svc).Request.Contents[0]
-	tagsProp := "p/openapi" + ptr("paths", "/bulk", "post", "requestBody", "content", "multipart/form-data", "schema", "properties", "tags")
+	tagsProp := ir.PropID("p/openapi" + ptr("paths", "/bulk", "post", "requestBody", "content", "multipart/form-data", "schema", "properties", "tags"))
 	enc, ok := content.Encoding[tagsProp]
 	require.True(t, ok, "array part gets a synthesized PartEncoding; got keys %v", content.Encoding)
 	assert.True(t, enc.Multi, "array-typed part repeats per item")
@@ -356,7 +356,7 @@ func TestContent_SequentialAndEmptyBody(t *testing.T) {
 }
 
 // multipartEncoding returns the part-encoding map of an operation's request.
-func multipartEncoding(t *testing.T, op ir.Operation) map[string]ir.PartEncoding {
+func multipartEncoding(t *testing.T, op ir.Operation) map[ir.PropID]ir.PartEncoding {
 	t.Helper()
 	require.NotNil(t, op.Request)
 	for _, c := range op.Request.Contents {

@@ -181,7 +181,7 @@ func TestContent_JSONContract(t *testing.T) {
 		Type:         populatedTypeRef(),
 		Item:         &ir.TypeRef{Target: "t/item"},
 		ItemEncoding: &ir.PartEncoding{ContentTypes: []string{"application/json"}, Multi: true},
-		Encoding: map[string]ir.PartEncoding{
+		Encoding: map[ir.PropID]ir.PartEncoding{
 			"p/file": {Filename: true, Multi: true},
 			"p/name": {Style: "form"},
 		},
@@ -199,7 +199,7 @@ func TestContent_EncodingDeterministic(t *testing.T) {
 	t.Parallel()
 	content := ir.Content{
 		Type: populatedTypeRef(),
-		Encoding: map[string]ir.PartEncoding{
+		Encoding: map[ir.PropID]ir.PartEncoding{
 			"z-part": {Style: "z"}, "m-part": {Style: "m"}, "a-part": {Style: "a"},
 			"q-part": {Style: "q"}, "b-part": {Style: "b"},
 		},

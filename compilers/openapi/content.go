@@ -107,7 +107,7 @@ func (l *lowerer) positionalEncoding(c *ir.Content, media *soa.MediaType, mediaP
 // partEncodings builds the multipart/form per-part wire config, keyed by each
 // body-model property's PropID. A part is included when it carries an explicit
 // encoding entry or is itself a repeated (array) or file (binary) part.
-func (l *lowerer) partEncodings(media *soa.MediaType, mediaPtr string) map[string]ir.PartEncoding {
+func (l *lowerer) partEncodings(media *soa.MediaType, mediaPtr string) map[ir.PropID]ir.PartEncoding {
 	model := schemaOf(media.GetSchema())
 	if model == nil {
 		return nil
@@ -120,13 +120,13 @@ func (l *lowerer) partEncodings(media *soa.MediaType, mediaPtr string) map[strin
 	// hoisted model's property IDs (invariant 2/3); see bodySchemaPointer.
 	schemaPtr := bodySchemaPointer(media.GetSchema(), mediaPtr+ptr("schema"))
 	encMap := media.GetEncoding()
-	out := map[string]ir.PartEncoding{}
+	out := map[ir.PropID]ir.PartEncoding{}
 	for name, pjs := range props.All() {
 		pe := l.buildPartEncoding(name, pjs, encMap, mediaPtr)
 		if partEncodingEmpty(pe) {
 			continue
 		}
-		out[string(propID(schemaPtr+ptr("properties", name)))] = pe
+		out[propID(schemaPtr+ptr("properties", name))] = pe
 	}
 	if len(out) == 0 {
 		return nil

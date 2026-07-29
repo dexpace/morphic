@@ -122,9 +122,9 @@ type Content struct {
 	// it governs every item alike; positional per-item encoding has no form here
 	// and stays in Unmodeled.
 	ItemEncoding *PartEncoding `json:"itemEncoding,omitempty"`
-	// Encoding holds multipart/form per-property (part) wire config, keyed by
-	// PropID.
-	Encoding map[string]PartEncoding `json:"encoding,omitempty"`
+	// Encoding holds multipart/form per-property (part) wire config, keyed by the
+	// part property's PropID.
+	Encoding map[PropID]PartEncoding `json:"encoding,omitempty"`
 	// File marks the body as a file upload/download (TypeSpec file bodies, binary
 	// payloads).
 	File *FileInfo `json:"file,omitempty"`

@@ -64,14 +64,13 @@ var notReferences = map[string]string{
 // row: one carried in a plain `string` field. It declares no named type to
 // classify, and reflection sees the same `string` every free-form field is.
 //
-// The IR has one such reference, so nothing rules the class out. Content.Encoding
-// is documented as keyed by PropID and the OpenAPI compiler writes
-// string(propID(…)) into it, which makes the key an identity in a `string`'s
-// clothing — invariant 3 bent, and invisible to both reference walks: an encoding
-// key addressing no property is reported by neither checker. Retyping the field
-// is tracked in #134, which also records why retyping alone would not make the
-// key resolvable (PropID addresses no document-level registry, the notReferences
-// row below).
+// Docs.Description is one such field — CommonMark that may carry {t:TypeID}
+// cross-reference tokens for emitters to resolve — so a token naming a type no
+// registry declares is reported by neither reference walk. Content.Encoding was a
+// second until its keys were retyped map[PropID]PartEncoding (#134): typing them
+// is what let pass.Validate resolve a key where a PropID resolves at all, against
+// the properties of the model the content names rather than a document-level
+// registry (the PropID row below).
 func TestStringTypes_AreAllClassified(t *testing.T) {
 	t.Parallel()
 	resolved := map[string]bool{}
