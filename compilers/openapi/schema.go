@@ -173,7 +173,7 @@ func declaresValueConstraints(s *oas3.Schema) bool {
 // unevaluatedProperties is excluded on purpose: fillAdditional lowers it into
 // the model's openness, so it is structure rather than a preserved keyword.
 func declaresValidationOnly(s *oas3.Schema) bool {
-	if s.GetNot() != nil || s.GetContains() != nil {
+	if s.GetNot() != nil || s.GetContains() != nil || s.GetPropertyNames() != nil {
 		return true
 	}
 	if s.GetIf() != nil || s.GetThen() != nil || s.GetElse() != nil {
@@ -966,6 +966,10 @@ func (l *lowerer) fillValidationOnly(ext *ir.Preserved, s *oas3.Schema, pointer 
 	if ds := s.GetDependentSchemas(); ds != nil && ds.Len() > 0 {
 		l.preserveKeyword(ext, "openapi:dependentSchemas", nodeToRaw(rawPropertyNode(s, "dependentSchemas")),
 			pointer, pointer+ptr("dependentSchemas"), "dependentSchemas")
+	}
+	if s.GetPropertyNames() != nil {
+		l.preserveKeyword(ext, "openapi:propertyNames", nodeToRaw(rawPropertyNode(s, "propertyNames")),
+			pointer, pointer+ptr("propertyNames"), "propertyNames")
 	}
 	if craw := containsRaw(s); craw != nil {
 		l.preserveKeyword(ext, "openapi:contains", craw, pointer, pointer, "contains")

@@ -344,6 +344,7 @@ func TestLower_ValidationOnlyKeywords(t *testing.T) {
       then: {required: [b]}
       else: {required: [c]}
       dependentSchemas: {a: {required: [d]}}
+      propertyNames: {pattern: "^[a-z]+$"}
       contains: {type: string}
       minContains: 1
       unevaluatedProperties: {type: string}
@@ -357,6 +358,7 @@ func TestLower_ValidationOnlyKeywords(t *testing.T) {
 	// since no single node addresses the synthesized value.
 	wantPointer := map[string]string{
 		"openapi:dependentSchemas": "/components/schemas/V/dependentSchemas",
+		"openapi:propertyNames":    "/components/schemas/V/propertyNames",
 		"openapi:if-then-else":     "/components/schemas/V",
 		"openapi:contains":         "/components/schemas/V",
 		"openapi:unevaluated":      "/components/schemas/V",
@@ -366,7 +368,34 @@ func TestLower_ValidationOnlyKeywords(t *testing.T) {
 		require.True(t, ok, "keyword %s preserved", key)
 		assert.Equal(t, want, entry.Provenance.Pointer, "entry provenance for %s", key)
 	}
-	assert.GreaterOrEqual(t, countDiagsAt(diags, codeValidationOnlyKeyword, ir.SeverityInfo), 4)
+	assert.GreaterOrEqual(t, countDiagsAt(diags, codeValidationOnlyKeyword, ir.SeverityInfo), 5)
+}
+
+// TestLower_PropertyNamesPreserved pins the whole §4.7 contract for
+// propertyNames end to end: the verbatim payload, the reason a validation
+// emitter selects on, and the one info diagnostic naming the keyword (#117).
+func TestLower_PropertyNamesPreserved(t *testing.T) {
+	t.Parallel()
+	spec := componentSpec(`    Codes:
+      type: object
+      propertyNames: {type: string, pattern: "^[a-z]+$"}
+      additionalProperties: {type: integer}
+`)
+	doc, diags := lowerSpec(t, spec)
+	requireNoErrorDiags(t, diags)
+
+	m, ok := typeByName(doc, "Codes").(*ir.Model)
+	require.True(t, ok)
+	entry, ok := m.Preserved["openapi:propertyNames"]
+	require.True(t, ok, "propertyNames kept verbatim; got %v", m.Preserved)
+	assert.JSONEq(t, `{"type":"string","pattern":"^[a-z]+$"}`, string(entry.Value))
+	assert.Equal(t, ir.ReasonValidationOnly, entry.Reason)
+	assert.Equal(t, 1, countDiagsAt(diags, codeValidationOnlyKeyword, ir.SeverityInfo))
+
+	// The keyword constrains keys only: the map's value lowering is untouched.
+	require.NotNil(t, m.AdditionalProps)
+	assert.Equal(t, ir.TypeID("t/prim/integer"), m.AdditionalProps.Value.Target)
+	assert.Nil(t, m.AdditionalProps.Key, "a key *constraint* is not a key type")
 }
 
 func TestLower_PropertyDetailRichSchema(t *testing.T) {
@@ -2449,6 +2478,7 @@ func TestInlinePosition_HoistGateFollowsWhatIsKept(t *testing.T) {
 		{"then", "then: {const: a}"},
 		{"else", "else: {const: a}"},
 		{"dependentSchemas", "dependentSchemas: {a: {type: string}}"},
+		{"propertyNames", "propertyNames: {maxLength: 4}"},
 		{"unevaluatedItems", "unevaluatedItems: {type: string}"},
 		{"unevaluatedProperties", "unevaluatedProperties: {type: string}"},
 	}
