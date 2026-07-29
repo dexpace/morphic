@@ -44,6 +44,7 @@ worked example of a plausible design overturned by measurement, not as a plan to
 | `plan-phase-1.md` | The implementation plan for the retention suite and resolver extraction. Both merged; kept because its task structure is a usable template. |
 | `decisions-preserved.md` | The five design decisions behind #110's `PreserveReason` taxonomy, each traced to verified evidence, plus queued audit findings not yet applied. |
 | `findings-inline-positions.md` | Compiled evidence for #116, including the control table proving the mechanism is pointer ownership rather than schema position. |
+| `findings-intersection.md` | The #115 analysis: why an intersection combinator should not be added, the per-format capability table, the cost if it were, and the §B11 prescription the compiler currently inverts. |
 
 ## Queued, not yet applied
 
