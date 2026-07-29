@@ -85,7 +85,7 @@ func siteAt(js *oas3.JSONSchema[oas3.Referenceable]) site {
 
 // siteSchema returns the schema body written at this position, including one
 // that also carries a $ref — an example or bound written beside a $ref binds
-// the position, not the referent, the same rule fillPropertyExamples and
+// the position, not the referent, the same rule fillPropertyAnnotations and
 // fillPropertyConstraints apply at a property. It returns nil only where no
 // body is written: a nil either, or a boolean schema, which admits no
 // annotations.

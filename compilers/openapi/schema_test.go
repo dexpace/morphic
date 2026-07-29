@@ -2360,6 +2360,36 @@ func TestInlinePosition_BareRefStaysDirect(t *testing.T) {
 	assert.NotContains(t, doc.Types, ir.TypeID("t/anon/components/schemas/A/items"))
 }
 
+// TestPropertyAnnotations_OneHomeWhenSchemaOwnsANode asserts the settlement of
+// the double storage: a property whose schema hoists a node keeps that
+// declaration's annotations there and not also on the ir.Property, so the two
+// copies can never drift apart.
+func TestPropertyAnnotations_OneHomeWhenSchemaOwnsANode(t *testing.T) {
+	t.Parallel()
+	doc, diags := parseFull(t, componentSpec(
+		"    A:\n      type: object\n      properties:\n"+
+			"        p: {type: object, description: DOC, deprecated: true, xml: {name: X}, x-vendor: V}\n"))
+	requireNoErrorDiags(t, diags)
+
+	owner, ok := doc.Types[componentID("A")].(*ir.Model)
+	require.True(t, ok)
+	p, ok := propsByWire(owner.Properties)["p"]
+	require.True(t, ok)
+	assert.Empty(t, p.Docs.Description, "the node the schema owns is the one home")
+	assert.Nil(t, p.Deprecation)
+	assert.Nil(t, p.XML)
+	assert.Empty(t, p.Preserved)
+
+	inner := doc.Types["t/anon/components/schemas/A/properties/p"]
+	require.NotNil(t, inner)
+	c := inner.Common()
+	assert.Equal(t, "DOC", c.Docs.Description)
+	assert.NotNil(t, c.Deprecation)
+	require.NotNil(t, c.XML)
+	assert.Equal(t, "X", c.XML.Name)
+	assert.Contains(t, c.Preserved, "openapi:x-vendor")
+}
+
 // TestPropertyAnnotations_CarriedWhenSchemaOwnsNoNode is the other half of that
 // rule, and the reason a property never hoists an alias of its own: a scalar
 // property's declaration has ir.Property to land on already.

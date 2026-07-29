@@ -751,52 +751,59 @@ func strConflictDetail(keyword string, a, b string) (string, bool) {
 	return fmt.Sprintf("conflicting %s (%q and %q)", keyword, a, b), true
 }
 
-// fillPropertyDetail enriches a property from its schema: docs, default,
-// visibility, deprecation, secrecy, examples, XML, constraints, and the
-// preserved constructs (x-* and validation-only keywords). Annotations present
-// at a $ref use-site override the target's (ir-design §14).
+// fillPropertyDetail enriches a property from its schema: the property-scoped
+// facts a type node has no field for (default, visibility, secrecy,
+// constraints), then the declaration's annotations. Annotations present at a
+// $ref use-site override the target's (ir-design §14).
+//
+// Constraints stay unconditional: no node a property's schema can hoist holds
+// them for it — an object lowers to a Model and a formatted scalar to a Scalar
+// with an Encoding, neither of which carries the scalar bounds
+// constraintsFromSchema reads — so ir.Property is their only home.
 func (l *lowerer) fillPropertyDetail(p *ir.Property, js *oas3.JSONSchema[oas3.Referenceable], pointer string) {
 	ref := js.GetSchema()
 	if ref == nil {
 		return
 	}
 	tgt := l.refTargetSchema(js, ref)
-	if d := effectiveDescription(ref, tgt); d != "" {
-		p.Docs.Description = d
-	}
 	l.fillPropertyDefault(p, ref, tgt, pointer)
 	if ref.GetFormat() == "password" {
 		p.Secret = true
 	}
 	p.Visibility = effectiveVisibility(ref, tgt)
-	if effectiveDeprecated(ref, tgt) {
-		p.Deprecation = &ir.Deprecation{}
-	}
-	l.fillPropertyExamples(p, ref, pointer)
-	if h := xmlHints(ref.GetXML()); h != nil {
-		p.XML = h
-	}
 	l.fillPropertyConstraints(p, ref, pointer)
-	p.Preserved = mergePreserved(p.Preserved, l.schemaExtensions(ref, pointer))
-	l.fillPropertyValidationOnly(p, ref, pointer)
+	l.fillPropertyAnnotations(p, ref, tgt, pointer)
 }
 
-// fillPropertyValidationOnly preserves the validation-only keywords written at
-// the property's own position, but only when its schema hoisted no node to hold
-// them — the same one-home-per-declaration rule fillPropertyExamples applies.
-// A $ref position never hoists one, which is what gives an if/then/else written
-// beside a *property's* $ref somewhere to land (GitHub #114).
+// fillPropertyAnnotations records the annotations the property's schema
+// declares — docs, deprecation, XML hints, examples, vendor extensions and
+// validation-only keywords — on the property, but only when that schema hoisted
+// no node of its own to hold them. A schema that reduced to a shared primitive
+// has nowhere else to put them, and the shared primitive must never carry one
+// declaration's annotations; a schema that owns a node keeps them there
+// (attachDeclaredAnnotations). One home per declaration means the two can never
+// drift apart.
 //
-// Only a property's. Every other schema position that can carry a $ref —
-// a request body, a parameter, a response content — goes through schemaRef,
-// which returns from refTypeRef before any of this runs, so keywords written
-// beside those refs are still dropped without a diagnostic even though
-// ir.Parameter and ir.Content both have a Preserved map to hold them
-// (GitHub #116).
-func (l *lowerer) fillPropertyValidationOnly(p *ir.Property, ref *oas3.Schema, pointer string) {
+// A $ref position never hoists a node, which is what gives an if/then/else, a
+// bound or a description written beside a *property's* $ref somewhere to land
+// (GitHub #114).
+func (l *lowerer) fillPropertyAnnotations(p *ir.Property, ref, tgt *oas3.Schema, pointer string) {
 	if l.ownsNode(pointer) {
 		return
 	}
+	if d := effectiveDescription(ref, tgt); d != "" {
+		p.Docs.Description = d
+	}
+	if effectiveDeprecated(ref, tgt) {
+		p.Deprecation = &ir.Deprecation{}
+	}
+	if h := xmlHints(ref.GetXML()); h != nil {
+		p.XML = h
+	}
+	if ex := l.schemaExamples(ref, pointer); len(ex) > 0 {
+		p.Examples = ex
+	}
+	p.Preserved = mergePreserved(p.Preserved, l.schemaExtensions(ref, pointer))
 	l.fillValidationOnly(&p.Preserved, ref, pointer)
 }
 
@@ -823,21 +830,6 @@ func (l *lowerer) fillPropertyDefault(p *ir.Property, ref, tgt *oas3.Schema, poi
 		return
 	}
 	p.Default = &v
-}
-
-// fillPropertyExamples records the schema's examples on the property, but only
-// when the schema hoisted no node of its own to hold them. A schema that reduced
-// to a shared primitive has nowhere else to put them, and the primitive itself
-// must never carry per-declaration annotations; every other schema keeps them on
-// its own node (attachSchemaExamples). One home per declaration means the two can
-// never drift apart.
-func (l *lowerer) fillPropertyExamples(p *ir.Property, ref *oas3.Schema, pointer string) {
-	if l.ownsNode(pointer) {
-		return
-	}
-	if ex := l.schemaExamples(ref, pointer); len(ex) > 0 {
-		p.Examples = ex
-	}
 }
 
 // fillPropertyConstraints attaches the property's scalar constraints and stamps
