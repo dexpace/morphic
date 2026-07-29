@@ -307,6 +307,22 @@ discriminator hierarchy, or the sole `$ref` entry, becomes `Base`; other `$ref` 
 `Mixins`; inline entries merge into `Properties` (with provenance). This mirrors Kiota's
 decision table but keeps every branch reconstructible.
 
+**Composition co-declared with a union.** JSON Schema conjoins sibling keywords, so
+`{allOf: […], oneOf: [{$ref: A}, {$ref: B}]}` is a composition *and* a union at once. A compiler
+must never return early on the combinator and drop the composition. It distributes instead —
+`S ∧ (X | Y)` is lowered as `(S ∧ X) | (S ∧ Y)`: the node is a `Union` whose every `Variant.Type`
+is a `Model` carrying `S`'s own `Base`/`Mixins`/`Properties`/`required`/`Additional`, with that
+branch's referent conjoined by the same rule as an `allOf` entry (`Base` when the composition
+named none, else a `Mixin`). The composition rides on every variant rather than being merged into
+one or dropped, so nothing degrades and no `allOf` branch is flattened. The variant models are
+anonymous, hoisted at the branch's own pointer; a property `S` declares appears on each of them
+under its single source-derived `PropID`, since the source declares it once.
+
+Distribution needs a referent per branch, because `Base`/`Mixins` conjoin by reference. A union
+that cannot supply one for every branch is not distributed *at all* — never halfway, which would
+leave a `Union` whose variants disagree about whether they carry `S` with nothing in the IR
+saying which. Those cases degrade instead, enumerated in §4.8.
+
 ### 4.4 Unions
 
 ```go
@@ -442,22 +458,37 @@ to anything about the construct: a schema nested past the compiler's lowering de
 `any` with an `error` diagnostic, and a boolean `false` schema becomes a closed empty `Model` with
 an `info` one.
 
-- **JSON Schema `oneOf`/`anyOf` co-declared with structural keywords** (`{type: object,
-  properties: {…}, oneOf: […]}`) — the keywords conjoin, so the schema is an *intersection*
-  of a structural type and a union. **The IR** has `Union` but no intersection combinator (§4.3's
-  `Base`/`Mixins` is `allOf`-shaped model composition only) — target languages are not the
-  constraint here; TypeScript writes `{a: string} & (X | Y)` directly. Whatever structural body
-  the schema declares is lowered — `properties` or a declared `type` yields a Model or typed
-  node — and the union branches are kept verbatim in `Preserved["openapi:oneOf"]` /
-  `["openapi:anyOf"]` + `info` diagnostic. A sibling that *constrains* an object shape without
-  declaring one (`required`, `additionalProperties` or `patternProperties` with neither
-  `properties` nor a `type`) leaves no body to build: it reduces to `any` and that sibling is
-  dropped — the co-declaration diagnostic still fires, but it names the union, not the keyword
-  that went missing. A `null` branch in this shape is **not** lifted to
-  `Nullable`: the union it belongs to is no longer structural, so lifting one branch out of it
-  would assert something the lowered type does not say. The degradation is that the generated
-  SDK is *under-constrained* — it admits values the union would reject — which is why the
-  branches must survive for a validating emitter to reach.
+- **JSON Schema `oneOf`/`anyOf` co-declared with structural keywords that cannot be
+  distributed** (`{type: object, properties: {…}, oneOf: [{$ref: A}, {type: string}]}`) — the
+  keywords conjoin, so the schema is an *intersection* of a structural type and a union.
+  **The IR** has `Union` but no intersection combinator (§4.3's `Base`/`Mixins` is `allOf`-shaped
+  model composition only; §15 records why one was not added) — target languages are not the
+  constraint here; TypeScript writes `{a: string} & (X | Y)` directly. Where the conjunction
+  *distributes* it is not degraded at all: §4.3 gives the rule, and the result is an ordinary
+  `Union` of composed `Model`s. What lands here is the residue — the four shapes distribution
+  cannot reach:
+  1. the structural body is not a `Model` (a `const`, an `enum`, a scalar, or a bare
+     `required`/`additionalProperties`/`patternProperties` with neither `properties` nor a
+     `type`), so there are no composition fields for the variants to carry;
+  2. a branch is written inline rather than as a `$ref`, so it names no node for `Base`/`Mixins`
+     to point at — a `type: null` branch included;
+  3. a `discriminator` is declared, binding the branch schemas by name;
+  4. `oneOf` and `anyOf` are both declared, so distributing one would drop the other.
+
+  In all four, whatever structural body the schema declares is lowered — `properties` or a
+  declared `type` yields a Model or typed node — and the union branches are kept verbatim in
+  `Preserved["openapi:oneOf"]` / `["openapi:anyOf"]` + `info` diagnostic naming which of the four
+  applied. Case 1's body-less sibling leaves nothing to build: it reduces to `any` and that
+  sibling is dropped — the diagnostic still fires, but it names the union, not the keyword that
+  went missing. A `null` branch in this shape is **not** lifted to `Nullable`: the union it
+  belongs to is no longer structural, so lifting one branch out of it would assert something the
+  lowered type does not say. The degradation is that the generated SDK is *under-constrained* —
+  it admits values the union would reject — which is why the branches must survive for a
+  validating emitter to reach.
+
+  A union whose branches declare no shape at all (`oneOf: [{required: [a]}, {required: [b]}]`)
+  is not a degradation and is not listed here: it narrows the body without reshaping it, which
+  is validation logic, so it is preserved under `ReasonValidationOnly` with §4.7's keyword family.
 - **JSON Schema open tuples** (`prefixItems` with a trailing `items`) — a fixed positional head
   plus a homogeneous tail of unbounded length. **The IR** has `Tuple` (fixed arity) and `List`
   (homogeneous, one element type) and no node that is both; target languages are not the
@@ -1384,7 +1415,7 @@ How each format's distinctive concepts land in the IR (full details live with ea
 
 | Format | Lowering highlights |
 |---|---|
-| **OpenAPI 3.x** | components/schemas → registry (IDs from pointers); inline schemas hoisted with hints; `allOf` → Base/Mixins per §4.3; `oneOf`/`anyOf` → Union (Exclusive bit), null-variant → Nullable ref, co-declared with structural keywords → structural body + verbatim union per §4.8; `discriminator` → Discriminator (3.2 `defaultMapping` → Discriminator.Default); `nullable`/type-arrays → Nullable; readOnly/writeOnly → Visibility (schema-level readOnly pushed down to referencing properties, residue → Preserved + diagnostic); `additionalProperties: false` → Additional=closed, `unevaluatedProperties: false` → closed_after_composition; parameters → Params + HTTPBinding locations w/ style/explode, 3.2 `in: querystring` → querystring location; requestBody/responses all content types → Payload.Contents, a non-required requestBody → Payload.Preserved (`no_ir_home`, presence is the IR's only body optionality); 3.2 `itemSchema` → Content.Item and `itemEncoding` → Content.ItemEncoding — except beside a positional `prefixEncoding`, where both go to Content.Preserved (`no_ir_home`) because a single every-item encoding cannot state ordinals; per-status responses/default → Conditions + ranges, error-response `headers` and a multi-media error `content` map → ErrorCase.Preserved (`no_ir_home`, ErrorCase has neither field); webhooks → HTTPBinding.IsWebhook; callbacks → Callbacks; links → Response.Preserved (`no_ir_home`, promotable later); path-item `servers` → Operation.Preserved (`no_ir_home`: §10 scopes servers by index list at service and channel, and an operation has no such list yet); securitySchemes/security → Auth OR-of-ANDs, 3.2 device flow + `oauth2MetadataUrl` → Flows/OAuth2MetadataURL; servers+variables (3.2 named) → Servers; tags (3.2 parent/kind) → groups + TagDefs; info contact/license → Document; schema `example(s)` → Examples; `xml` object (incl. 3.2 nodeType) → XMLHints at type and property level; `not`/`if-then-else`/`dependentSchemas`/`contains`/`unevaluated*` → verbatim Preserved per §4.7; `patternProperties` → AdditionalProps.Patterns; `prefixItems` → Tuple, with any trailing `items` → Tuple.Preserved (`degraded_lowering` per §4.8: an open tuple has no IR combinator, so the fixed head is lowered and the tail kept beside it); `x-*` → namespaced Preserved (legal on every object — hence Preserved on every node); `$ref`-adjacent sibling keywords (3.1) and ref-target annotations merge onto the referencing Property/Parameter with **use-site precedence**, applied uniformly (oagen's ad-hoc per-site patching is the counterexample); a oneOf/anyOf whose variants are all string consts normalizes to a closed `Enum` in a `pass/` normalization — not in the compiler — so per-variant `Docs` survive until the collapse is chosen; mutually-exclusive parameter groups (`x-mutually-exclusive-parameter-groups`) stay as namespaced Preserved entries, and their documented *promotion* (no dedicated node needed) is a pass that synthesizes one logical `Parameter` typed by a `Union` of variant models, bound via `HTTPParamBinding.ParamPath` per field; pagination only via injectable policy, marked Inferred |
+| **OpenAPI 3.x** | components/schemas → registry (IDs from pointers); inline schemas hoisted with hints; `allOf` → Base/Mixins per §4.3; `oneOf`/`anyOf` → Union (Exclusive bit), null-variant → Nullable ref, co-declared with structural keywords → the composition distributed across the variants per §4.3, or — for the four shapes that cannot be distributed — structural body + verbatim union per §4.8 (branches that declare no shape at all are `validation_only` per §4.7); `discriminator` → Discriminator (3.2 `defaultMapping` → Discriminator.Default); `nullable`/type-arrays → Nullable; readOnly/writeOnly → Visibility (schema-level readOnly pushed down to referencing properties, residue → Preserved + diagnostic); `additionalProperties: false` → Additional=closed, `unevaluatedProperties: false` → closed_after_composition; parameters → Params + HTTPBinding locations w/ style/explode, 3.2 `in: querystring` → querystring location; requestBody/responses all content types → Payload.Contents, a non-required requestBody → Payload.Preserved (`no_ir_home`, presence is the IR's only body optionality); 3.2 `itemSchema` → Content.Item and `itemEncoding` → Content.ItemEncoding — except beside a positional `prefixEncoding`, where both go to Content.Preserved (`no_ir_home`) because a single every-item encoding cannot state ordinals; per-status responses/default → Conditions + ranges, error-response `headers` and a multi-media error `content` map → ErrorCase.Preserved (`no_ir_home`, ErrorCase has neither field); webhooks → HTTPBinding.IsWebhook; callbacks → Callbacks; links → Response.Preserved (`no_ir_home`, promotable later); path-item `servers` → Operation.Preserved (`no_ir_home`: §10 scopes servers by index list at service and channel, and an operation has no such list yet); securitySchemes/security → Auth OR-of-ANDs, 3.2 device flow + `oauth2MetadataUrl` → Flows/OAuth2MetadataURL; servers+variables (3.2 named) → Servers; tags (3.2 parent/kind) → groups + TagDefs; info contact/license → Document; schema `example(s)` → Examples; `xml` object (incl. 3.2 nodeType) → XMLHints at type and property level; `not`/`if-then-else`/`dependentSchemas`/`contains`/`unevaluated*` → verbatim Preserved per §4.7; `patternProperties` → AdditionalProps.Patterns; `prefixItems` → Tuple, with any trailing `items` → Tuple.Preserved (`degraded_lowering` per §4.8: an open tuple has no IR combinator, so the fixed head is lowered and the tail kept beside it); `x-*` → namespaced Preserved (legal on every object — hence Preserved on every node); `$ref`-adjacent sibling keywords (3.1) and ref-target annotations merge onto the referencing Property/Parameter with **use-site precedence**, applied uniformly (oagen's ad-hoc per-site patching is the counterexample); a oneOf/anyOf whose variants are all string consts normalizes to a closed `Enum` in a `pass/` normalization — not in the compiler — so per-variant `Docs` survive until the collapse is chosen; mutually-exclusive parameter groups (`x-mutually-exclusive-parameter-groups`) stay as namespaced Preserved entries, and their documented *promotion* (no dedicated node needed) is a pass that synthesizes one logical `Parameter` typed by a `Union` of variant models, bound via `HTTPParamBinding.ParamPath` per field; pagination only via injectable policy, marked Inferred |
 | **Swagger 2.0** | lifted to OpenAPI 3.x shape first (body/formData → Payload; host/basePath/schemes → Servers; consumes/produces → content types), then the OpenAPI lowering runs |
 | **TypeSpec** | consumed post-check (monomorphized, `isFinished`); template instances → TypeCommon.Instantiation incl. value args → TemplateArg; models → Model w/ Base + spread provenance → Mixins; scalars → Scalar chains, constructors in values → Value.Ctor; `@encode`/`@format` → Encoding triple; `@encodedName` → WireNameByFormat at property AND type level; unions w/ named variants → Union, `@discriminated` → Discriminator.PropertyName/Envelope/EnvelopeValueName; `| null` → Nullable; visibility classes (incl. custom, `@invisible` → Visibility.None) → Visibility, op overrides → ParameterVisibility/ReturnTypeVisibility; `@patch` implicitOptionality → HTTPBinding.PatchImplicitOptionality; interfaces → OperationGroups (versionable); `@overload` → OverloadOf; `@sharedRoute` → SharedRoute; `@service` → Service; versioning decorators incl. `@typeChangedFrom`/`@madeOptional`/`@madeRequired` and add/remove cycles → Availability timeline (on members/variants/params too); pagination decorators incl. prev/first/last links and header continuation tokens → Pagination PropPaths (In:"header"); Azure.Core `@pollingOperation`/`@finalOperation` → LongRunning; multipart w/ parts → Content.Encoding/PartEncoding, `Http.File` → FileInfo (content-type set, contents chain, filename location); streams/SSE → StreamDetail + Variant.Event (contentType, terminal); `@error` → UsageFlags.Error; `@example`/`@opExample` → Examples (Input/Output pairs); `@pattern` message → Constraints.PatternMessage; `@mediaTypeHint` → TypeCommon.MediaTypeHint; `never` members deleted + diagnostic per §4.8; TCGC client-shaping decorators (`@clientName`, `@access`, `@usage`, `@scope`, `@override`, …) → namespaced Preserved (`out_of_scope`) consumed by emitter policy, never IR semantics; values/consts incl. enum-member refs → Values channel |
 | **Smithy 2.0** | structures → Model, mixins → Mixins (non-structure mixins flattened — spec-sanctioned); `document` → Any; unions → WireTagged Union, member `@jsonName` → Variant.WireName; enum/intEnum → Enum (open by default); `@sparse` → element Nullable; traits: constraints → Constraints, `@paginated` → Pagination (declared), `@retryable` → ErrorCase.Retryable + Throttling, `@error` fault → ErrorCase.Fault, `@readonly` → Idempotency safe, `@idempotent`/`@idempotencyToken` → Idempotency, `@sensitive` → Sensitive/Secret, `@tags` → Tags, `@clientOptional`/`@input` → Property.ClientOptional (+InputOnly), `@addedDefault` → DefaultAdded, root-shape `@default` pushed down to properties w/ provenance; `@streaming` blob → StreamDetail (+`@requiresLength` → RequiresLength); event streams → StreamDetail.Events union + Property.EventHeader/EventPayload + Initial messages; service-level errors → Service.CommonErrors; protocol traits → Service.Protocols; service `rename`/`version` → Service.Renames/Version; resources → OperationGroup + ResourceInfo (identifiers, properties, lifecycle incl. put/@noReplace, instance vs collection ops); http traits → HTTPBinding incl. `@endpoint`/`@hostLabel` → HostPrefix/host location (additive binding), `@httpPrefixHeaders`/`@httpQueryParams` → Prefix bindings, `@httpResponseCode` → Response.StatusCodeProp, `@requestCompression` → Compression, `@httpChecksumRequired` → ChecksumRequired; `@auth` order → priority-ordered Auth, `@optionalAuth` → empty option; `@jsonName` → WireName; `@mediaType` → Encoding.MediaType; xml traits → XMLHints at type and property level; `@examples` → Examples (Input/Output/Error); waiters + rules-engine traits → verbatim Preserved (`out_of_scope`, §15); `smithy.api#Unit` → nil payload / shared empty Model for tag-only variants; other traits → namespaced Preserved |
@@ -1421,6 +1452,17 @@ the IR and preserve nothing.
 - **Capability/interface-typed fields** (Cap'n Proto capability passing) — requires
   services-as-types; out of scope for a data-SDK compiler.
 - **Function types** — Erlang funs degrade per §4.8; no target language marshals closures.
+- **A general intersection combinator** (an `Intersection` node, or an `Intersect` sum arm, for
+  the *struct ∧ union* shape a JSON Schema `oneOf` beside structural keywords writes) — asked and
+  answered, so it does not need re-litigating. The capability is not cross-format: only OpenAPI
+  and AsyncAPI can express it, and they share a compiler code path, so a node would be one
+  format's artifact given IR-wide status against invariant 9. TypeSpec's `&` is *model-only*
+  (`ir-spec-matrix.md`'s Intersection row records it as `⚠ & (model is)`) and so is already
+  covered by §4.3's `Base`/`Mixins`; Smithy, GraphQL, Protobuf and Erlang/OTP cannot express it
+  at all. The shape is instead handled where it arises: distributed across the union's variants
+  per §4.3 when every branch names a referent, and kept verbatim under `ReasonDegradedLowering`
+  in the four residual shapes §4.8 lists. A second format that declares a genuine intersection —
+  not a model-only `&` — is what would reopen this.
 
 ## 16. Open questions (tracked for implementation)
 
