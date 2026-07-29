@@ -97,21 +97,52 @@ func (l *lowerer) fillParamSchema(param *ir.Parameter, js *oas3.JSONSchema[oas3.
 	if c != nil {
 		param.Constraints = c
 	}
+	l.fillParamSchemaAnnotations(param, s, pointer)
+}
+
+// fillParamSchemaAnnotations records the annotations a parameter's schema
+// declares on the parameter itself. ir.Parameter is the carrier for this
+// position the way ir.Property is for a model property, so a schema that
+// reduced to a shared primitive still keeps what it wrote (GitHub #116); a
+// schema that hoisted a node of its own keeps them there instead, one home per
+// declaration.
+//
+// The parameter's own annotations are written afterwards by fillParamDetail and
+// win where both are set. An `xml` hint is the one thing with nowhere to go:
+// it governs XML body serialization, which no parameter takes part in.
+func (l *lowerer) fillParamSchemaAnnotations(param *ir.Parameter, s *oas3.Schema, pointer string) {
+	if l.ownsNode(pointer) {
+		return
+	}
+	if d := s.GetDescription(); d != "" {
+		param.Docs.Description = d
+	}
+	if effectiveDeprecated(s, nil) {
+		param.Deprecation = &ir.Deprecation{}
+	}
+	if ex := l.schemaExamples(s, pointer); len(ex) > 0 {
+		param.Examples = ex
+	}
+	param.Preserved = mergePreserved(param.Preserved, l.schemaExtensions(s, pointer))
+	l.fillValidationOnly(&param.Preserved, s, pointer)
 }
 
 // fillParamDetail enriches a parameter with its docs, deprecation, examples, and
-// extensions. pptr is the parameter's own pointer, for example diagnostics.
+// extensions. pptr is the parameter's own pointer, for example diagnostics. Each
+// field is written only when the parameter declares it, so it overlays the
+// schema-derived annotations fillParamSchema already recorded rather than
+// erasing them with an unset value.
 func (l *lowerer) fillParamDetail(param *ir.Parameter, p *soa.Parameter, pptr string) {
-	param.Docs.Description = p.GetDescription()
+	if d := p.GetDescription(); d != "" {
+		param.Docs.Description = d
+	}
 	if p.GetDeprecated() {
 		param.Deprecation = &ir.Deprecation{}
 	}
 	if ex := l.exampleList(p.GetExample(), p.GetExamples(), pptr); len(ex) > 0 {
 		param.Examples = ex
 	}
-	if ext := l.extensions(p.GetExtensions(), pptr); len(ext) > 0 {
-		param.Preserved = ext
-	}
+	param.Preserved = mergePreserved(param.Preserved, l.extensions(p.GetExtensions(), pptr))
 }
 
 // resolveStyleExplode materializes a parameter's resolved serialization style

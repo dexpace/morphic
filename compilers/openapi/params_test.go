@@ -295,3 +295,50 @@ func TestParams_ContentStyleComponentRefInternsOnce(t *testing.T) {
 	require.True(t, ok, "the schema is registered under the component's own pointer")
 	assert.Equal(t, "application/json", getA.Bindings.HTTP[0].ParamBindings[0].ContentType)
 }
+
+// TestParams_SchemaAnnotationsReachTheParameter asserts a parameter schema's
+// annotations land on the ir.Parameter that carries the position. Only its
+// constraints used to survive; the rest were dropped with no diagnostic even
+// though Parameter has Docs, Examples and Preserved (GitHub #116).
+func TestParams_SchemaAnnotationsReachTheParameter(t *testing.T) {
+	t.Parallel()
+	_, svc, diags := lowerServiceSpec(t, pathsSpec(
+		"  /x:\n    get:\n      operationId: g\n      parameters:\n"+
+			"        - name: q\n          in: query\n          schema:\n"+
+			"            type: string\n            description: DOC\n            maxLength: 3\n"+
+			"            deprecated: true\n            example: abc\n"+
+			"            x-vendor: V\n            not: {const: N}\n"+
+			"      responses: {\"204\": {description: ok}}\n"))
+	requireNoErrorDiags(t, diags)
+
+	p := firstOp(t, svc).Params[0]
+	assert.Equal(t, "DOC", p.Docs.Description)
+	assert.NotNil(t, p.Deprecation)
+	require.Len(t, p.Examples, 1)
+	require.NotNil(t, p.Examples[0].Value)
+	assert.Equal(t, "abc", p.Examples[0].Value.Str)
+	assert.Contains(t, p.Preserved, "openapi:x-vendor")
+	assert.Contains(t, p.Preserved, "openapi:not")
+	require.NotNil(t, p.Constraints)
+	require.NotNil(t, p.Constraints.MaxLength)
+	assert.Equal(t, int64(3), *p.Constraints.MaxLength)
+}
+
+// TestParams_OwnAnnotationsWinOverTheSchema checks the precedence a parameter
+// shares with a header: the parameter object describes this input, its schema
+// describes the type, and the more specific of the two wins.
+func TestParams_OwnAnnotationsWinOverTheSchema(t *testing.T) {
+	t.Parallel()
+	_, svc, diags := lowerServiceSpec(t, pathsSpec(
+		"  /x:\n    get:\n      operationId: g\n      parameters:\n"+
+			"        - name: q\n          in: query\n          description: PARAM\n"+
+			"          x-scope: param\n          schema: {type: string, description: SCHEMA, x-scope: schema}\n"+
+			"      responses: {\"204\": {description: ok}}\n"))
+	requireNoErrorDiags(t, diags)
+
+	p := firstOp(t, svc).Params[0]
+	assert.Equal(t, "PARAM", p.Docs.Description, "the parameter's own description wins")
+	raw, ok := p.Preserved["openapi:x-scope"]
+	require.True(t, ok)
+	assert.JSONEq(t, `"param"`, string(raw.Value), "and its own extension overlays the schema's")
+}
