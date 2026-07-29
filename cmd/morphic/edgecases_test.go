@@ -35,6 +35,21 @@ type closeFailWriteCloser struct {
 func (c *closeFailWriteCloser) Write(p []byte) (int, error) { return c.buf.Write(p) }
 func (c *closeFailWriteCloser) Close() error                { return c.closeErr }
 
+// writeFailWriteCloser opens successfully but fails every Write, to drive
+// writeCompiled's write-then-close-then-return error branch (e.g. the disk
+// filling up mid-write, after outPath was already truncated by the open).
+type writeFailWriteCloser struct {
+	writeErr error
+	closed   bool
+}
+
+func (w *writeFailWriteCloser) Write([]byte) (int, error) { return 0, w.writeErr }
+
+func (w *writeFailWriteCloser) Close() error {
+	w.closed = true
+	return nil
+}
+
 // nilDocCompiler claims openapi 3.1 and lowers to a nil Document with no error,
 // modelling a compiler that refuses to lower (e.g. an unsupported construct)
 // so runCompile's Document==nil branch is exercised.
@@ -279,13 +294,34 @@ func TestWriteParsed_CreateError(t *testing.T) {
 }
 
 func TestWriteParsed_WriteErrorClosesFile(t *testing.T) {
+	orig := openOutput
+	t.Cleanup(func() { openOutput = orig })
+	wc := &writeFailWriteCloser{writeErr: errors.New("disk gone")}
+	openOutput = func(string) (io.WriteCloser, error) { return wc, nil }
+
+	// doc marshals fine; the write to the opened file is what fails, exercising
+	// the close-and-return path.
+	err := writeCompiled("out.json", io.Discard, &ir.Document{Name: "ok"})
+
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "write ir document")
+	assert.True(t, wc.closed, "file must still be closed after a write error")
+}
+
+func TestWriteParsed_MarshalErrorLeavesFileUntouched(t *testing.T) {
 	t.Parallel()
 	out := filepath.Join(t.TempDir(), "ir.json")
-	// A marshal failure surfaces through writeCompiled's writeDocument branch after
-	// the file is created, exercising the close-and-return path.
+	const existing = `{"name":"Existing"}` + "\n"
+	require.NoError(t, os.WriteFile(out, []byte(existing), 0o644))
+
 	err := writeCompiled(out, io.Discard, badDoc())
+
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "marshal ir document")
+	got, readErr := os.ReadFile(out)
+	require.NoError(t, readErr)
+	assert.Equal(t, existing, string(got),
+		"a failed marshal must not truncate a file that already exists at outPath")
 }
 
 func TestWriteParsed_CloseError(t *testing.T) {
