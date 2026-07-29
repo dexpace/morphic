@@ -14,7 +14,8 @@ import (
 )
 
 // badExtDoc returns a document that cannot be marshalled: its Preserved holds an
-// invalid json.RawMessage whose MarshalJSON rejects the malformed bytes. The
+// invalid json.RawMessage, whose malformed bytes json.Marshal's encoder rejects
+// while compacting them — RawMessage.MarshalJSON hands them back unexamined. The
 // reason is deliberately valid so Verify passes the document through to the
 // round-trip oracle this fixture exists to reach.
 func badExtDoc() *ir.Document {
