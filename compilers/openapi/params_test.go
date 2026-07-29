@@ -349,6 +349,158 @@ func TestParams_SchemaAnnotationsSurviveARefNamingTheSchema(t *testing.T) {
 	assertProbeDocsKept(t, sc.Docs)
 }
 
+// paramRefInheritSpec gives every parameter the same referent and varies only
+// what each writes beside its own $ref: Q declares one of each inheritable
+// keyword plus a constraint, and Hop is a bare hop on the way to it.
+const paramRefInheritSpec = `openapi: 3.1.0
+info: {title: T, version: "1"}
+paths:
+  /x:
+    get:
+      operationId: g
+      parameters:
+        - {name: bare, in: query, schema: {$ref: '#/components/schemas/Q'}}
+        - name: override
+          in: query
+          schema:
+            $ref: '#/components/schemas/Q'
+            description: USE_SITE
+            default: use-site
+            deprecated: false
+        - {name: chained, in: query, schema: {$ref: '#/components/schemas/Hop'}}
+      responses: {"200": {description: ok}}
+components:
+  schemas:
+    Q: {type: string, description: REFERENT, deprecated: true, default: referent, maxLength: 9}
+    Hop: {$ref: '#/components/schemas/Q'}
+`
+
+// paramsOf indexes an operation's parameters by source name.
+func paramsOf(t *testing.T, svc ir.Service) map[string]ir.Parameter {
+	t.Helper()
+	return indexBy(firstOp(t, svc).Params, func(p ir.Parameter) string { return p.Name.Source })
+}
+
+// TestParams_RefSchemaInheritsFromItsReferent covers the referent-fallback half
+// of the $ref rule at a parameter (GitHub #131). A parameter whose schema is a
+// bare $ref used to carry nothing at all — no description, no deprecation, no
+// default — because the position never resolved the target it was holding.
+func TestParams_RefSchemaInheritsFromItsReferent(t *testing.T) {
+	t.Parallel()
+	_, svc, diags := lowerServiceSpec(t, paramRefInheritSpec)
+	requireNoErrorDiags(t, diags)
+
+	p := paramsOf(t, svc)["bare"]
+	assert.Equal(t, "REFERENT", p.Docs.Description, "the referent's description reaches the parameter")
+	assert.NotNil(t, p.Deprecation, "and its deprecation")
+	require.NotNil(t, p.Default, "and its default")
+	assert.Equal(t, "referent", p.Default.Str)
+	assert.Nil(t, p.Constraints,
+		"but never its constraints: fillPropertyConstraints keeps those use-site-only too")
+}
+
+// TestParams_RefSchemaUseSiteWinsOverItsReferent pins the half that already
+// worked, so closing the fallback cannot quietly invert the precedence: what is
+// written beside the $ref describes this use of the type and outranks the target.
+func TestParams_RefSchemaUseSiteWinsOverItsReferent(t *testing.T) {
+	t.Parallel()
+	_, svc, diags := lowerServiceSpec(t, paramRefInheritSpec)
+	requireNoErrorDiags(t, diags)
+
+	p := paramsOf(t, svc)["override"]
+	assert.Equal(t, "USE_SITE", p.Docs.Description, "the use-site description wins")
+	require.NotNil(t, p.Default)
+	assert.Equal(t, "use-site", p.Default.Str, "and the use-site default")
+	assert.Nil(t, p.Deprecation, "and an explicit deprecated: false suppresses the referent's true")
+}
+
+// TestParams_RefSchemaInheritsThroughARefChain pins which resolution the
+// fallback must use. Hop writes nothing but its own $ref, so a one-hop referent
+// (siteAt's) would leave the parameter with nothing; only following the chain to
+// its end reaches Q.
+func TestParams_RefSchemaInheritsThroughARefChain(t *testing.T) {
+	t.Parallel()
+	_, svc, diags := lowerServiceSpec(t, paramRefInheritSpec)
+	requireNoErrorDiags(t, diags)
+
+	p := paramsOf(t, svc)["chained"]
+	assert.Equal(t, "REFERENT", p.Docs.Description, "one hop reaches Hop, which declares nothing")
+	assert.NotNil(t, p.Deprecation)
+	require.NotNil(t, p.Default)
+	assert.Equal(t, "referent", p.Default.Str)
+}
+
+const paramXMLSpec = `openapi: 3.1.0
+info: {title: T, version: "1"}
+paths:
+  /x:
+    get:
+      operationId: g
+      parameters:
+        - {name: q, in: query, schema: {type: string, xml: {name: XQ}}}
+        - name: c
+          in: query
+          content:
+            application/xml:
+              schema: {type: string, xml: {name: XCS}}
+      responses: {"200": {description: ok}}
+`
+
+// TestParams_SchemaXMLHintsKeptUnderUnmodeled covers the one annotation
+// ir.Parameter has no field for (GitHub #124), which used to be dropped with no
+// diagnostic at all. It is not inert here: the content-style case binds
+// application/xml, the media type OpenAPI §4.8.26 conditions xml on, and the
+// binding records that content type.
+func TestParams_SchemaXMLHintsKeptUnderUnmodeled(t *testing.T) {
+	t.Parallel()
+	_, svc, diags := lowerServiceSpec(t, paramXMLSpec)
+	requireNoErrorDiags(t, diags)
+	params := paramsOf(t, svc)
+
+	cases := []struct {
+		param, schemaPtr, want string
+	}{
+		{"q", "/paths/~1x/get/parameters/0/schema", `{"name":"XQ"}`},
+		{"c", "/paths/~1x/get/parameters/1/content/application~1xml/schema", `{"name":"XCS"}`},
+	}
+	for _, tc := range cases {
+		t.Run(tc.param, func(t *testing.T) {
+			t.Parallel()
+			entry, ok := params[tc.param].Unmodeled["openapi:xml"]
+			require.True(t, ok, "an xml hint with no Parameter field is kept raw, not dropped")
+			assert.Equal(t, ir.ReasonNoIRHome, entry.Reason)
+			assert.JSONEq(t, tc.want, string(entry.Value), "kept verbatim")
+			assert.Equal(t, tc.schemaPtr+"/xml", entry.Provenance.Pointer,
+				"located at the xml keyword itself")
+			assert.Contains(t,
+				diagMessageAt(t, diags, codeDegradedConstruct, ir.SeverityInfo, tc.schemaPtr),
+				"xml hints", "and announced once")
+		})
+	}
+}
+
+// TestParams_SchemaXMLHintsStayOnAnOwnedNode is the other half of one home per
+// declaration: a parameter schema that hoisted a node of its own already has a
+// structural XML field, so preserving a second copy on the parameter would give
+// one declaration two homes that can drift.
+func TestParams_SchemaXMLHintsStayOnAnOwnedNode(t *testing.T) {
+	t.Parallel()
+	doc, svc, diags := lowerServiceSpec(t, pathsSpec(
+		"  /x:\n    get:\n      operationId: g\n      parameters:\n"+
+			"        - {name: obj, in: query, schema: {type: object, xml: {name: XOBJ}}}\n"+
+			"      responses: {\"204\": {description: ok}}\n"))
+	requireNoErrorDiags(t, diags)
+
+	p := paramsOf(t, svc)["obj"]
+	node, ok := doc.Types[p.Type.Target]
+	require.True(t, ok, "the object schema owns a node of its own")
+	require.NotNil(t, node.Common().XML)
+	assert.Equal(t, "XOBJ", node.Common().XML.Name)
+	assert.NotContains(t, p.Unmodeled, "openapi:xml", "so the parameter keeps no second copy")
+	assert.Equal(t, 0, countDiagsAt(diags, codeDegradedConstruct, ir.SeverityInfo),
+		"and nothing is announced as homeless")
+}
+
 // TestParams_OwnAnnotationsWinOverTheSchema checks the precedence a parameter
 // shares with a header: the parameter object describes this input, its schema
 // describes the type, and the more specific of the two wins.
