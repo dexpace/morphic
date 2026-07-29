@@ -286,8 +286,25 @@ func TestLower_TupleWithTrailingItems(t *testing.T) {
 	tup, ok := typeByName(doc, "Tup").(*ir.Tuple)
 	require.True(t, ok)
 	require.Len(t, tup.Elems, 2)
-	_, hasResidue := tup.Preserved["openapi:items-after-prefix"]
-	assert.True(t, hasResidue, "trailing items preserved raw")
+	residue, hasResidue := tup.Preserved["openapi:items-after-prefix"]
+	require.True(t, hasResidue, "trailing items preserved raw")
+	assert.JSONEq(t, `{"type":"boolean"}`, string(residue.Value))
+	assert.Equal(t, ir.ReasonDegradedLowering, residue.Reason,
+		"an open tuple is lowered to a weaker fixed-arity shape, not left homeless (ir-design §4.8)")
+	assert.Equal(t, "/components/schemas/Tup/items", residue.Provenance.Pointer)
+	assert.True(t, hasDegradedDiag(diags, "open tuple"),
+		"the degradation is reported, not silent; got %+v", diags)
+}
+
+// hasDegradedDiag reports whether diags carries a degraded-construct info
+// diagnostic whose message contains want.
+func hasDegradedDiag(diags []ir.Diagnostic, want string) bool {
+	for _, d := range diags {
+		if d.Code == codeDegradedConstruct && strings.Contains(d.Message, want) {
+			return true
+		}
+	}
+	return false
 }
 
 func TestLower_ListConstraints(t *testing.T) {
@@ -638,7 +655,11 @@ func TestModel_SchemaExtensionPreserved(t *testing.T) {
 // the field at its zero value.
 func TestPreserve_AllReasonsReachable(t *testing.T) {
 	t.Parallel()
-	spec := componentSpec(`    S:
+	spec := `openapi: 3.1.0
+info: {title: T, version: "1"}
+components:
+  schemas:
+    S:
       type: object
       x-vendor: v
       not: {required: [b]}
@@ -650,15 +671,31 @@ func TestPreserve_AllReasonsReachable(t *testing.T) {
       type: array
       prefixItems: [{type: string}]
       items: {type: integer}
-`)
-	doc, diags := lowerSpec(t, spec)
+paths:
+  /p:
+    post:
+      operationId: p
+      requestBody:
+        content: {application/json: {schema: {type: string}}}
+      responses: {"204": {description: ok}}
+`
+	doc, svc, diags := lowerServiceSpec(t, spec)
 	requireNoErrorDiags(t, diags)
+
 	seen := map[ir.PreserveReason]bool{}
 	for _, name := range []string{"S", "T"} {
 		for _, entry := range doc.Types[componentID(name)].Common().Preserved {
 			seen[entry.Reason] = true
 		}
 	}
+	// The one no_ir_home site reachable from a minimal document: a requestBody
+	// that omits `required`, which the IR has no field for (§14).
+	body := firstOp(t, svc).Request
+	require.NotNil(t, body, "the operation must own a request payload")
+	for _, entry := range body.Preserved {
+		seen[entry.Reason] = true
+	}
+
 	for _, want := range []ir.PreserveReason{
 		ir.ReasonVendorExtension, ir.ReasonValidationOnly,
 		ir.ReasonDegradedLowering, ir.ReasonNoIRHome,

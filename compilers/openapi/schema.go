@@ -952,18 +952,25 @@ func (l *lowerer) lowerArray(s *oas3.Schema, pointer, hint string) ir.TypeID {
 	})
 }
 
-// buildTuple lowers prefixItems into a Tuple, preserving any trailing items
-// residue raw so the closed/open distinction is not lost.
+// buildTuple lowers prefixItems into a Tuple. A trailing `items` schema makes
+// the source an *open* tuple — a fixed positional head plus a homogeneous tail
+// — and the IR has no combinator for that: Tuple is fixed-arity, List is
+// homogeneous, and there is no node that is both. The head lowers to a Tuple,
+// which is the documented weaker shape, and the tail is kept beside it so the
+// arity the Tuple now asserts falsely stays recoverable (ir-design §4.8).
 func (l *lowerer) buildTuple(s *oas3.Schema, common ir.TypeCommon, pointer, hint string, prefix []*oas3.JSONSchema[oas3.Referenceable]) ir.TypeDef {
 	elems := make([]ir.TypeRef, 0, len(prefix))
 	for i, ps := range prefix {
 		elems = append(elems, l.schemaRef(ps, pointer+ptr("prefixItems", strconv.Itoa(i)), hint+"_"+strconv.Itoa(i)))
 	}
 	t := &ir.Tuple{TypeCommon: common, Elems: elems}
-	if s.GetItems() != nil {
-		l.preserve(&t.Preserved, "openapi:items-after-prefix", nodeToRaw(rawPropertyNode(s, "items")),
-			ir.ReasonNoIRHome, pointer+ptr("items"))
+	if s.GetItems() == nil {
+		return t
 	}
+	l.preserve(&t.Preserved, "openapi:items-after-prefix", nodeToRaw(rawPropertyNode(s, "items")),
+		ir.ReasonDegradedLowering, pointer+ptr("items"))
+	l.diag(ir.SeverityInfo, codeDegradedConstruct, pointer,
+		"items after prefixItems is an open tuple; lowered as a fixed-arity Tuple with the tail kept under Preserved")
 	return t
 }
 
