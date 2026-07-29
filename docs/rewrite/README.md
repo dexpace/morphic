@@ -42,6 +42,7 @@ worked example of a plausible design overturned by measurement, not as a plan to
 
 | file | what it is |
 |---|---|
+| `RESUME.md` | **Start here after an interruption.** A prompt to paste into a fresh session: branch layout, what to do next in order, and how to verify work in this repo. |
 | `design.md` | The original decomposition design, with a "Measured outcome" section that overturns its central recommendation, and a follow-up list. |
 | `plan-phase-1.md` | The implementation plan for the retention suite and resolver extraction. Both merged; kept because its task structure is a usable template. |
 | `decisions-preserved.md` | The five design decisions behind #110's `PreserveReason` taxonomy, each traced to verified evidence, plus queued audit findings not yet applied. |
