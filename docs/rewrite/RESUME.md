@@ -50,6 +50,15 @@ Trust the tree over any summary, including `README.md`.
 - Two Important findings on the same commits: `conjoinBranch` puts `Base`/`Mixins` on non-Model
   nodes while §4.8 says model-only; and `oneOf`+`anyOf` co-declared reports a false reason, with a
   test that asserts only the `Reason` and so cannot catch it.
+- An **Important on `fix/irverify-preserved`**: `ir/preserved_test.go`'s `reasonConstValues`
+  `continue`s past any const spec whose type is not the literal ident `PreserveReason`. The
+  precedent it names — `internal/harness/annotations_test.go`'s `collectConstSpecs` — `require`s
+  instead, and says why: skipping lets a constant join the taxonomy at every usage site without the
+  test recording it. **The guard was defeated 5/5** by an untyped const, a `PreserveReason("x")`
+  conversion, a const in another file, a same-file alias, and a `var` — all assignable, all
+  `Valid() == false`, test still green. Only two of the five holes are documented.
+  Also: `internal/harness/internal_test.go` still carries the false `RawMessage.MarshalJSON`
+  claim the sweep corrected elsewhere, in a file the same commit edited two lines below.
 
 **3. Then the remaining issues**, roughly by severity:
 
