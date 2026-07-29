@@ -59,34 +59,27 @@ not *reason*. Classify each write site from what it does, never from the diagnos
 
 ## The enum
 
-```go
-// PreserveReason says why a construct was kept verbatim instead of modeled.
-type PreserveReason string
+The reasoning behind each value, which is what this file is for:
 
-const (
-    // ReasonVendorExtension: the source format assigns the key no semantics
-    // (`x-*`). Unbounded set; nothing can be inferred about the value.
-    ReasonVendorExtension PreserveReason = "vendorExtension"
+- **`vendor_extension`** — the source format assigns the key no semantics (`x-*`). Unbounded set;
+  nothing can be inferred about the value.
+- **`validation_only`** — validation logic, not data shape. The IR's structural picture is complete
+  without it, and no target type system or sibling source format has an equivalent (§4.7).
+- **`degraded_lowering`** — no faithful target in any SDK language, so the construct was lowered to
+  a documented weaker shape and the original kept alongside it (§4.8).
+- **`no_ir_home`** — expressible in target languages and modeled by a sibling IR node at analogous
+  scope, but no field exists here yet. A gap, not a boundary; each is a candidate for promotion.
+- **`out_of_scope`** — added after this analysis, for constructs the IR deliberately declines to
+  model at all.
 
-    // ReasonValidationOnly: validation logic, not data shape. The IR's
-    // structural picture is complete without it, and no target type system or
-    // sibling source format has an equivalent (ir-design.md §4.7).
-    ReasonValidationOnly PreserveReason = "validationOnly"
+`ir/preserved.go` is the shipped definition and wins over anything here, including the wire strings
+— an earlier draft of this section spelled them in camelCase, which the shipped enum does not use.
 
-    // ReasonDegradedLowering: no faithful target in any SDK language, so the
-    // construct was lowered to a documented weaker shape and the original kept
-    // alongside it (ir-design.md §4.8).
-    ReasonDegradedLowering PreserveReason = "degradedLowering"
+The per-reason key counts that used to sit here went stale twice. Derive them instead:
 
-    // ReasonNoIRHome: expressible in target languages and modeled by a sibling
-    // IR node at analogous scope, but no field exists here yet. A gap, not a
-    // boundary — each of these is a candidate for promotion.
-    ReasonNoIRHome PreserveReason = "noIRHome"
-)
+```sh
+grep -rn 'ir\.Reason[A-Za-z]*' compilers/openapi/*.go | grep -v _test
 ```
-
-Counts after decisions A and B: `validationOnly` 5 keys, `noIRHome` 5 keys (itemEncoding removed),
-`degradedLowering` 2 keys (oneOf/anyOf, newly documented), `vendorExtension` unbounded from 7 sites.
 
 ## What came out of auditing the taxonomy
 

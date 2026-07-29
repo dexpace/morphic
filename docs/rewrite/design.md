@@ -1,7 +1,14 @@
 # Compiler Decomposition — Design
 
-Status: partially implemented. TEMPORARY WORKING NOTE — see docs/rewrite/README.md. Not normative.
+Status: superseded. TEMPORARY WORKING NOTE — see docs/rewrite/README.md. Not normative.
 Scope: `compilers/openapi`, new `compilers/compile`, `internal/harness`, `internal/archtest`
+
+**Every file:line citation below was taken against `main` at `996e40a`, before the work on this
+branch, and none has been re-anchored.** Most no longer land where they did, and four symbols they
+name — `attachSchemaExamples` among them — no longer exist at all. They are left as written because
+this document records an argument that measurement overturned; re-anchoring evidence for a
+superseded recommendation would suggest it is still live. Read a citation as "this was true then",
+and check the current tree before acting on any of it.
 
 **What shipped, and what this design got wrong.** Two of the four sequenced steps were built: the
 annotation-retention suite (`test/openapi-conformance-grid`) and the resolver extraction

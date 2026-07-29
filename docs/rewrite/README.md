@@ -28,14 +28,17 @@ carries the next moves and how to verify them.
 | CLI `-o` truncation (#118) | on #119 |
 | `validate` reference coverage (#121, #122) | on #119 |
 
-Filed and deliberately unstarted: **#120**, **#123**, **#124**, **#125**, **#126**, **#127**.
+Filed and deliberately unstarted: run `gh issue list --state open`. Everything this work filed and
+chose not to fix is numbered #120 and #123 upward; anything below #120 that is still open predates
+this effort. `RESUME.md` says why that split exists.
 
 ## The finding that redirected this work
 
 The rewrite began as a plan to decompose the OpenAPI compiler into isolated per-annotation units.
 A conformance suite was built first, to measure whether the premise held. **It did not.** The
-site-versus-referent rule the decomposition was meant to fix is already correct for eight of nine
-reference-site annotations.
+site-versus-referent rule the decomposition was meant to fix was already correct for eight of the
+nine reference-site annotations measured against `main`; this branch closed the ninth, so every
+reference-site cell now passes and all five surviving gaps are declaration-site.
 
 The real duplication was on a different seam: annotation handling was bolted to `fillModelDetail`,
 reachable from only two of `lower()`'s six destinations, so a component whose body lowered elsewhere
@@ -100,7 +103,7 @@ records this as `⚠ & (model is)`. Smithy, GraphQL, Protobuf and Erlang cannot 
 `message{kind; oneof}` is already served by Model + Union-typed property + `Property.Flatten`.
 
 The cost if it were added is roughly two dozen edit sites, **none caught by the compiler** — there is
-no `go:generate`, `exhaustive` is not enabled in `.golangci.yml`, and all four sealed-interface
+no `go:generate`, `exhaustive` is not enabled in `.golangci.yml`, and the surviving sealed-interface
 switches have silent `default:` arms. That is worth its own issue independent of #115: `CLAUDE.md`
 mandates a switch-completeness test that is not actually enforced.
 

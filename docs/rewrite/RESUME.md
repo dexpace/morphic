@@ -32,16 +32,15 @@ that is not deterministic, a test that does not check what it claims. That is fi
 not detouring.
 
 `gh issue list --state open` is the authoritative list. Of those, the ones this work filed and
-deliberately did not fix are #120 and #123 through #127; everything numbered below #120 that is
+deliberately did not fix are #120 and everything from #123 upward; anything below #120 that is
 still open predates this effort.
 
 ## Branch layout
 
-`feat/annotation-gaps-and-preserved` is the single trunk and is PR #119. Everything else that
-carried part of this work — `fix/irverify-preserved`, `fix/cli-output-truncation`,
-`fix/verifier-review`, `docs/rewrite-working-notes`, `docs/rewrite-notes-truth` — is merged into it
-and can be deleted. So can `wip/b11-distributed-lowering`, which was superseded rather than merged,
-and `backup/pre-reword`, a safety ref from a history rewrite that was abandoned.
+`feat/annotation-gaps-and-preserved` is the single trunk and is PR #119. Every other branch that
+carried part of this work has been merged into it; the exception is `wip/b11-distributed-lowering`,
+which was superseded rather than merged and so will not show as merged. Naming the rest here is what
+went stale last time — derive them:
 
 ```sh
 git rev-list --count main..HEAD      # size of the trunk
@@ -76,26 +75,25 @@ What that review found, and what became of it, is worth knowing before re-review
   inherited the same order-dependence with it. If you look for one class of defect here, look for a
   fix that was scoped to where it was noticed rather than to the mechanism.
 - **`irverify` never ran over compiler output anywhere.** Its checks only saw hand-built fixtures,
-  so a `Reason: ""` planted in the compiler passed `go test ./...` entirely. Now wired, and the
-  mutation fails. Note the test that catches it is the out-of-corpus one — no committed spec reaches
-  that preserve call.
+  so a `Reason: ""` planted in the compiler passed `go test ./...` entirely. Now wired: the same
+  mutation fails the corpus sweep on several committed specs. A handful of keys —
+  `verify_corpus_test.go` names them — are reachable from no committed spec at all, and a separate
+  out-of-corpus test exists to cover those; do not mistake that narrow case for the general one, as
+  an earlier draft of this file did.
 - **Two `pass` tests pinned a sort order neither checked**; `return 0` from the comparator left the
   tree green. Now pinned literally.
-- Everything adjacent was filed rather than fixed, per the directive: #123 through #128.
+- Everything adjacent was filed rather than fixed, per the directive above.
 
-**3. Take #119 out of draft** once that review is clean. The body is current: it has the Breaking
-section, the `IRVersion` bump, and all eight `Closes` links.
+**3. Take #119 out of draft** once that review is clean. The body should match what landed; as of
+this writing it carries the Breaking section, the `IRVersion` bump, and every `Closes` link.
 
 ### One thing deliberately left
 
 Four intermediate commit subjects exceed the 72-char cap. Two attempts to reword them across the
-five merge commits failed — the second completed with an identical tree but the rewords silently did
-not apply. It is left alone on purpose: the branch is squash-merged, so the only subject that reaches
+merge commits failed — the second completed with an identical tree but the rewords silently did not
+apply. It is left alone on purpose: the branch is squash-merged, so the only subject that reaches
 `main` is the PR title, which is within cap. Stated in the PR body too. If you want it fixed anyway,
 rewrite before the merges rather than through them.
-
-**3. Take #119 out of draft**, with a body that matches what actually landed — including a Breaking
-section, which the IR shape changes on this branch require.
 
 ## How to work here
 
