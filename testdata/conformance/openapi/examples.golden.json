@@ -25,6 +25,32 @@
                 "canonical": "get_item"
               },
               "docs": {},
+              "params": [
+                {
+                  "name": {
+                    "source": "q",
+                    "canonical": "q"
+                  },
+                  "type": {
+                    "target": "t/prim/string",
+                    "nullable": false
+                  },
+                  "required": false,
+                  "docs": {},
+                  "examples": [
+                    {
+                      "name": "one",
+                      "value": {
+                        "kind": "string",
+                        "str": "first",
+                        "bytes": null,
+                        "list": null,
+                        "object": null
+                      }
+                    }
+                  ]
+                }
+              ],
               "responses": [
                 {
                   "name": {},
@@ -140,6 +166,16 @@
                     "method": "GET",
                     "uriTemplate": "/items",
                     "sharedRoute": false,
+                    "paramBindings": [
+                      {
+                        "param": "q",
+                        "location": "query",
+                        "wireName": "q",
+                        "style": "form",
+                        "explode": true,
+                        "allowReserved": false
+                      }
+                    ],
                     "checksumRequired": false,
                     "isWebhook": false
                   }
@@ -388,7 +424,7 @@
     {
       "format": "openapi@3.1",
       "path": "examples.yaml",
-      "hash": "35b1767d0344d8a4aca75527844aa6cac88f1adfb453c67b27fb631c12b52065"
+      "hash": "06445ab295b75f8dedfe951c72e122b80423bf2cea67ffa10ebb67a1065365aa"
     }
   ]
 }

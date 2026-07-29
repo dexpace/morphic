@@ -1,0 +1,24 @@
+openapi: 3.1.0
+info: {title: ParamXMLResidue, version: "1.0.0"}
+paths:
+  /docs:
+    get:
+      operationId: findDocs
+      parameters:
+        - name: tag
+          in: query
+          schema:
+            type: string
+            xml: {name: Tag, namespace: 'urn:example:docs'}
+        # A content-style parameter can bind application/xml, the media type the
+        # hints are conditioned on.
+        - name: body
+          in: query
+          content:
+            application/xml:
+              schema:
+                type: string
+                xml: {name: Body, attribute: true}
+      responses:
+        "200":
+          description: ok

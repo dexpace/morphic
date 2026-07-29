@@ -1,0 +1,13 @@
+openapi: 3.1.0
+info: {title: DialectKeywords, version: "1.0.0"}
+paths: {}
+components:
+  schemas:
+    Resource:
+      $id: 'https://example.com/schemas/resource'
+      $schema: 'https://json-schema.org/draft/2020-12/schema'
+      $vocabulary:
+        'https://json-schema.org/draft/2020-12/vocab/core': true
+      type: object
+      properties:
+        a: {type: string}

@@ -1,0 +1,205 @@
+{
+  "irVersion": "0.2.0",
+  "name": "ContentVocabulary",
+  "version": "1.0.0",
+  "docs": {},
+  "services": [
+    {
+      "id": "s/openapi/0",
+      "name": {
+        "source": "ContentVocabulary",
+        "canonical": "content_vocabulary"
+      },
+      "docs": {},
+      "auth": null,
+      "provenance": {
+        "source": 0
+      }
+    }
+  ],
+  "types": {
+    "t/openapi/components/schemas/Bag": {
+      "kind": "model",
+      "id": "t/openapi/components/schemas/Bag",
+      "name": {
+        "source": "Bag",
+        "canonical": "bag"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "unmodeled": {
+        "openapi:contentEncoding": {
+          "reason": "no_ir_home",
+          "value": "base64",
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/Bag/contentEncoding"
+          }
+        },
+        "openapi:contentMediaType": {
+          "reason": "no_ir_home",
+          "value": "application/json",
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/Bag/contentMediaType"
+          }
+        }
+      },
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Bag"
+      },
+      "properties": [
+        {
+          "id": "p/openapi/components/schemas/Bag/properties/a",
+          "name": {
+            "source": "a",
+            "canonical": "a"
+          },
+          "wireName": "a",
+          "type": {
+            "target": "t/prim/string",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/Bag/properties/a"
+          }
+        }
+      ],
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
+    "t/openapi/components/schemas/Envelope": {
+      "kind": "scalar",
+      "id": "t/openapi/components/schemas/Envelope",
+      "name": {
+        "source": "Envelope",
+        "canonical": "envelope"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "unmodeled": {
+        "openapi:contentSchema": {
+          "reason": "no_ir_home",
+          "value": {
+            "properties": {
+              "id": {
+                "type": "string"
+              }
+            },
+            "type": "object"
+          },
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/Envelope/contentSchema"
+          }
+        }
+      },
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Envelope"
+      },
+      "base": {
+        "target": "t/prim/string",
+        "nullable": false
+      },
+      "encoding": {
+        "mediaType": "application/json"
+      }
+    },
+    "t/openapi/components/schemas/Thumbnail": {
+      "kind": "scalar",
+      "id": "t/openapi/components/schemas/Thumbnail",
+      "name": {
+        "source": "Thumbnail",
+        "canonical": "thumbnail"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Thumbnail"
+      },
+      "base": {
+        "target": "t/prim/string",
+        "nullable": false
+      },
+      "encoding": {
+        "name": "base64",
+        "mediaType": "image/png"
+      }
+    },
+    "t/prim/string": {
+      "kind": "primitive",
+      "id": "t/prim/string",
+      "name": {},
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0
+      },
+      "prim": "string"
+    }
+  },
+  "servers": [
+    {
+      "name": {},
+      "urlTemplate": "/",
+      "description": {},
+      "auth": null
+    }
+  ],
+  "diagnostics": [
+    {
+      "severity": "info",
+      "code": "openapi/degraded-construct",
+      "message": "contentSchema is the shape of the decoded content and no IR position has a field for it; kept verbatim under Unmodeled",
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Envelope/contentSchema"
+      }
+    },
+    {
+      "severity": "info",
+      "code": "openapi/degraded-construct",
+      "message": "contentEncoding encodes a string value and this position lowered to a shape with no Encoding field; kept verbatim under Unmodeled",
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Bag/contentEncoding"
+      }
+    },
+    {
+      "severity": "info",
+      "code": "openapi/degraded-construct",
+      "message": "contentMediaType encodes a string value and this position lowered to a shape with no Encoding field; kept verbatim under Unmodeled",
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Bag/contentMediaType"
+      }
+    }
+  ],
+  "sources": [
+    {
+      "format": "openapi@3.1",
+      "path": "content-vocabulary.yaml",
+      "hash": "b037c671833d74933ede0b2e0dfa2c22ed381955c1cfdec83963882ebf1db6a7"
+    }
+  ]
+}

@@ -2,7 +2,20 @@
   "irVersion": "0.2.0",
   "name": "DocsSummaryDesc",
   "version": "1.0.0",
-  "docs": {},
+  "docs": {
+    "summary": "A one-line summary of the API.",
+    "description": "The long-form description of the API.",
+    "externalDocs": [
+      {
+        "url": "https://example.com/docs",
+        "description": "Full guide"
+      }
+    ]
+  },
+  "license": {
+    "name": "MIT",
+    "identifier": "MIT"
+  },
   "services": [
     {
       "id": "s/openapi/0",
@@ -10,7 +23,9 @@
         "source": "DocsSummaryDesc",
         "canonical": "docs_summary_desc"
       },
-      "docs": {},
+      "docs": {
+        "description": "The long-form description of the API."
+      },
       "groups": [
         {
           "name": {
@@ -26,7 +41,13 @@
               },
               "docs": {
                 "summary": "Ping the server",
-                "description": "Returns pong"
+                "description": "Returns pong",
+                "externalDocs": [
+                  {
+                    "url": "https://example.com/docs/ping",
+                    "description": "Ping reference"
+                  }
+                ]
               },
               "responses": [
                 {
@@ -120,7 +141,7 @@
     {
       "format": "openapi@3.1",
       "path": "docs-summary-desc.yaml",
-      "hash": "09a46fb8c6b4d1c3dfeaf3533cb805aca4b07e86f654b3903e7f1343ec8f1476"
+      "hash": "be90598ddeef51c1a71d66dd0f1b24ca32214b5c9cfc19dd735cf1b269f28e33"
     }
   ]
 }

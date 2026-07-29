@@ -1,14 +1,14 @@
 {
   "irVersion": "0.2.0",
-  "name": "ScalarFormat",
+  "name": "DependentRequired",
   "version": "1.0.0",
   "docs": {},
   "services": [
     {
       "id": "s/openapi/0",
       "name": {
-        "source": "ScalarFormat",
-        "canonical": "scalar_format"
+        "source": "DependentRequired",
+        "canonical": "dependent_required"
       },
       "docs": {},
       "auth": null,
@@ -18,51 +18,44 @@
     }
   ],
   "types": {
-    "t/anon/components/schemas/Holder/properties/color": {
-      "kind": "scalar",
-      "id": "t/anon/components/schemas/Holder/properties/color",
-      "name": {
-        "hint": "color"
-      },
-      "anonymous": true,
-      "docs": {},
-      "sensitive": false,
-      "provenance": {
-        "source": 0,
-        "pointer": "/components/schemas/Holder/properties/color"
-      },
-      "base": {
-        "target": "t/prim/string",
-        "nullable": false
-      },
-      "encoding": {
-        "name": "hex-color"
-      }
-    },
-    "t/openapi/components/schemas/Holder": {
+    "t/openapi/components/schemas/Card": {
       "kind": "model",
-      "id": "t/openapi/components/schemas/Holder",
+      "id": "t/openapi/components/schemas/Card",
       "name": {
-        "source": "Holder",
-        "canonical": "holder"
+        "source": "Card",
+        "canonical": "card"
       },
       "anonymous": false,
       "docs": {},
       "sensitive": false,
+      "unmodeled": {
+        "openapi:dependentRequired": {
+          "reason": "validation_only",
+          "value": {
+            "number": [
+              "cvv"
+            ]
+          },
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/Card/dependentRequired"
+          }
+        }
+      },
       "provenance": {
         "source": 0,
-        "pointer": "/components/schemas/Holder"
+        "pointer": "/components/schemas/Card"
       },
       "properties": [
         {
-          "id": "p/openapi/components/schemas/Holder/properties/color",
+          "id": "p/openapi/components/schemas/Card/properties/number",
           "name": {
-            "source": "color",
-            "canonical": "color"
+            "source": "number",
+            "canonical": "number"
           },
-          "wireName": "color",
+          "wireName": "number",
           "type": {
-            "target": "t/anon/components/schemas/Holder/properties/color",
+            "target": "t/prim/string",
             "nullable": false
           },
           "required": false,
@@ -78,16 +71,16 @@
           "docs": {},
           "provenance": {
             "source": 0,
-            "pointer": "/components/schemas/Holder/properties/color"
+            "pointer": "/components/schemas/Card/properties/number"
           }
         },
         {
-          "id": "p/openapi/components/schemas/Holder/properties/token",
+          "id": "p/openapi/components/schemas/Card/properties/cvv",
           "name": {
-            "source": "token",
-            "canonical": "token"
+            "source": "cvv",
+            "canonical": "cvv"
           },
-          "wireName": "token",
+          "wireName": "cvv",
           "type": {
             "target": "t/prim/string",
             "nullable": false
@@ -101,11 +94,11 @@
           "flatten": false,
           "eventHeader": false,
           "eventPayload": false,
-          "secret": true,
+          "secret": false,
           "docs": {},
           "provenance": {
             "source": 0,
-            "pointer": "/components/schemas/Holder/properties/token"
+            "pointer": "/components/schemas/Card/properties/cvv"
           }
         }
       ],
@@ -134,11 +127,22 @@
       "auth": null
     }
   ],
+  "diagnostics": [
+    {
+      "severity": "info",
+      "code": "openapi/validation-only-keyword",
+      "message": "validation-only keyword \"dependentRequired\" kept verbatim under Unmodeled",
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Card"
+      }
+    }
+  ],
   "sources": [
     {
       "format": "openapi@3.1",
-      "path": "scalar-format.yaml",
-      "hash": "1e1e0e2c7ffa6615dfbc61b8b7eb595b6a9b72660aff073a8ffffe4ad8990238"
+      "path": "dependent-required.yaml",
+      "hash": "674021312966ea617c387f9c72ead21402fd5f282de1e14e83d444e7079b14b9"
     }
   ]
 }

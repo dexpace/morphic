@@ -1,0 +1,192 @@
+{
+  "irVersion": "0.2.0",
+  "name": "ParamXMLResidue",
+  "version": "1.0.0",
+  "docs": {},
+  "services": [
+    {
+      "id": "s/openapi/0",
+      "name": {
+        "source": "ParamXMLResidue",
+        "canonical": "param_xml_residue"
+      },
+      "docs": {},
+      "groups": [
+        {
+          "name": {
+            "hint": "default"
+          },
+          "docs": {},
+          "operations": [
+            {
+              "id": "op/openapi/paths/~1docs/get",
+              "name": {
+                "source": "findDocs",
+                "canonical": "find_docs"
+              },
+              "docs": {},
+              "params": [
+                {
+                  "name": {
+                    "source": "tag",
+                    "canonical": "tag"
+                  },
+                  "type": {
+                    "target": "t/prim/string",
+                    "nullable": false
+                  },
+                  "required": false,
+                  "docs": {},
+                  "unmodeled": {
+                    "openapi:xml": {
+                      "reason": "no_ir_home",
+                      "value": {
+                        "name": "Tag",
+                        "namespace": "urn:example:docs"
+                      },
+                      "provenance": {
+                        "source": 0,
+                        "pointer": "/paths/~1docs/get/parameters/0/schema/xml"
+                      }
+                    }
+                  }
+                },
+                {
+                  "name": {
+                    "source": "body",
+                    "canonical": "body"
+                  },
+                  "type": {
+                    "target": "t/prim/string",
+                    "nullable": false
+                  },
+                  "required": false,
+                  "docs": {},
+                  "unmodeled": {
+                    "openapi:xml": {
+                      "reason": "no_ir_home",
+                      "value": {
+                        "attribute": true,
+                        "name": "Body"
+                      },
+                      "provenance": {
+                        "source": 0,
+                        "pointer": "/paths/~1docs/get/parameters/1/content/application~1xml/schema/xml"
+                      }
+                    }
+                  }
+                }
+              ],
+              "responses": [
+                {
+                  "name": {},
+                  "conditions": {
+                    "statusCodes": [
+                      {
+                        "from": 200,
+                        "to": 200
+                      }
+                    ]
+                  },
+                  "docs": {
+                    "description": "ok"
+                  }
+                }
+              ],
+              "oneWay": false,
+              "idempotency": {},
+              "auth": null,
+              "bindings": {
+                "http": [
+                  {
+                    "method": "GET",
+                    "uriTemplate": "/docs",
+                    "sharedRoute": false,
+                    "paramBindings": [
+                      {
+                        "param": "tag",
+                        "location": "query",
+                        "wireName": "tag",
+                        "style": "form",
+                        "explode": true,
+                        "allowReserved": false
+                      },
+                      {
+                        "param": "body",
+                        "location": "query",
+                        "wireName": "body",
+                        "style": "form",
+                        "explode": true,
+                        "allowReserved": false,
+                        "contentType": "application/xml"
+                      }
+                    ],
+                    "checksumRequired": false,
+                    "isWebhook": false
+                  }
+                ]
+              },
+              "provenance": {
+                "source": 0,
+                "pointer": "/paths/~1docs/get"
+              }
+            }
+          ]
+        }
+      ],
+      "auth": null,
+      "provenance": {
+        "source": 0
+      }
+    }
+  ],
+  "types": {
+    "t/prim/string": {
+      "kind": "primitive",
+      "id": "t/prim/string",
+      "name": {},
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0
+      },
+      "prim": "string"
+    }
+  },
+  "servers": [
+    {
+      "name": {},
+      "urlTemplate": "/",
+      "description": {},
+      "auth": null
+    }
+  ],
+  "diagnostics": [
+    {
+      "severity": "info",
+      "code": "openapi/degraded-construct",
+      "message": "parameter schema xml hints have no ir.Parameter home; kept verbatim under Unmodeled",
+      "provenance": {
+        "source": 0,
+        "pointer": "/paths/~1docs/get/parameters/0/schema"
+      }
+    },
+    {
+      "severity": "info",
+      "code": "openapi/degraded-construct",
+      "message": "parameter schema xml hints have no ir.Parameter home; kept verbatim under Unmodeled",
+      "provenance": {
+        "source": 0,
+        "pointer": "/paths/~1docs/get/parameters/1/content/application~1xml/schema"
+      }
+    }
+  ],
+  "sources": [
+    {
+      "format": "openapi@3.1",
+      "path": "param-xml-residue.yaml",
+      "hash": "b7e0ae79602227a685add84dd1a02ee097c2de3b04bc3859e7741d3abed420f1"
+    }
+  ]
+}

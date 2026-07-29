@@ -1,0 +1,18 @@
+openapi: 3.1.0
+info: {title: XMLHints, version: "1.0.0"}
+paths: {}
+components:
+  schemas:
+    Book:
+      type: object
+      xml: {name: book, namespace: 'urn:example:books', prefix: bk}
+      properties:
+        # A scalar property keeps its hints on the property itself.
+        isbn:
+          type: string
+          xml: {attribute: true, namespace: 'urn:example:books', prefix: bk}
+        # An array hoists a node of its own, which is where its hints land.
+        authors:
+          type: array
+          xml: {name: authors, wrapped: true}
+          items: {type: string, xml: {name: author}}

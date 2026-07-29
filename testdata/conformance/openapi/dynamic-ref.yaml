@@ -1,0 +1,19 @@
+openapi: 3.1.0
+info: {title: DynamicRef, version: "1.0.0"}
+paths: {}
+components:
+  schemas:
+    Node:
+      $dynamicAnchor: T
+      type: object
+      properties:
+        label: {type: string}
+    Tree:
+      type: object
+      properties:
+        # One $dynamicAnchor of this name is declared on a component schema, so
+        # the reference expands to it.
+        child: {$dynamicRef: '#T'}
+        # No anchor declares this name, so the reference is irreducible and is
+        # kept verbatim instead of being dropped.
+        ghost: {$dynamicRef: '#Missing'}

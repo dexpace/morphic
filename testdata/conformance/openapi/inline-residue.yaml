@@ -1,0 +1,23 @@
+openapi: 3.1.0
+info: {title: InlineResidue, version: "1.0.0"}
+paths:
+  /thing:
+    get:
+      operationId: getThing
+      responses:
+        "200":
+          description: ok
+          content:
+            application/json:
+              schema: {type: string, default: "x", readOnly: true}
+components:
+  schemas:
+    Batch:
+      type: array
+      items: {type: integer, default: 7, writeOnly: true}
+    # A property is a carrier: the same keywords land in its own fields, and
+    # nothing is left over to keep.
+    Carried:
+      type: object
+      properties:
+        p: {type: integer, default: 3, readOnly: true}

@@ -1,0 +1,12 @@
+openapi: 3.1.0
+info: {title: DependentRequired, version: "1.0.0"}
+paths: {}
+components:
+  schemas:
+    Card:
+      type: object
+      properties:
+        number: {type: string}
+        cvv: {type: string}
+      dependentRequired:
+        number: [cvv]

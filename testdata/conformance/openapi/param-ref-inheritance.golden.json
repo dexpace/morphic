@@ -1,0 +1,275 @@
+{
+  "irVersion": "0.2.0",
+  "name": "ParamRefInheritance",
+  "version": "1.0.0",
+  "docs": {},
+  "services": [
+    {
+      "id": "s/openapi/0",
+      "name": {
+        "source": "ParamRefInheritance",
+        "canonical": "param_ref_inheritance"
+      },
+      "docs": {},
+      "groups": [
+        {
+          "name": {
+            "hint": "default"
+          },
+          "docs": {},
+          "operations": [
+            {
+              "id": "op/openapi/paths/~1items/get",
+              "name": {
+                "source": "listItems",
+                "canonical": "list_items"
+              },
+              "docs": {},
+              "params": [
+                {
+                  "name": {
+                    "source": "cursor",
+                    "canonical": "cursor"
+                  },
+                  "type": {
+                    "target": "t/openapi/components/schemas/Cursor",
+                    "nullable": false
+                  },
+                  "required": false,
+                  "default": {
+                    "kind": "string",
+                    "str": "0",
+                    "bytes": null,
+                    "list": null,
+                    "object": null
+                  },
+                  "docs": {
+                    "summary": "Cursor",
+                    "description": "Opaque pagination cursor."
+                  },
+                  "deprecation": {}
+                },
+                {
+                  "name": {
+                    "source": "override",
+                    "canonical": "override"
+                  },
+                  "type": {
+                    "target": "t/openapi/components/schemas/Cursor",
+                    "nullable": false
+                  },
+                  "required": false,
+                  "default": {
+                    "kind": "string",
+                    "str": "9",
+                    "bytes": null,
+                    "list": null,
+                    "object": null
+                  },
+                  "docs": {
+                    "summary": "Cursor",
+                    "description": "Cursor for this endpoint only."
+                  },
+                  "deprecation": {}
+                }
+              ],
+              "responses": [
+                {
+                  "name": {},
+                  "conditions": {
+                    "statusCodes": [
+                      {
+                        "from": 200,
+                        "to": 200
+                      }
+                    ]
+                  },
+                  "docs": {
+                    "description": "ok"
+                  }
+                }
+              ],
+              "oneWay": false,
+              "idempotency": {},
+              "auth": null,
+              "bindings": {
+                "http": [
+                  {
+                    "method": "GET",
+                    "uriTemplate": "/items",
+                    "sharedRoute": false,
+                    "paramBindings": [
+                      {
+                        "param": "cursor",
+                        "location": "query",
+                        "wireName": "cursor",
+                        "style": "form",
+                        "explode": true,
+                        "allowReserved": false
+                      },
+                      {
+                        "param": "override",
+                        "location": "query",
+                        "wireName": "override",
+                        "style": "form",
+                        "explode": true,
+                        "allowReserved": false
+                      }
+                    ],
+                    "checksumRequired": false,
+                    "isWebhook": false
+                  }
+                ]
+              },
+              "provenance": {
+                "source": 0,
+                "pointer": "/paths/~1items/get"
+              }
+            }
+          ]
+        }
+      ],
+      "auth": null,
+      "provenance": {
+        "source": 0
+      }
+    }
+  ],
+  "types": {
+    "t/openapi/components/schemas/Cursor": {
+      "kind": "scalar",
+      "id": "t/openapi/components/schemas/Cursor",
+      "name": {
+        "source": "Cursor",
+        "canonical": "cursor"
+      },
+      "anonymous": false,
+      "docs": {
+        "summary": "Cursor",
+        "description": "Opaque pagination cursor."
+      },
+      "sensitive": false,
+      "deprecation": {},
+      "unmodeled": {
+        "openapi:default": {
+          "reason": "no_ir_home",
+          "value": "0",
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/Cursor/default"
+          }
+        }
+      },
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Cursor"
+      },
+      "base": {
+        "target": "t/prim/string",
+        "nullable": false
+      },
+      "constraints": {
+        "exclusiveMin": false,
+        "exclusiveMax": false,
+        "maxLength": 64,
+        "uniqueItems": false
+      }
+    },
+    "t/openapi/components/schemas/Holder": {
+      "kind": "model",
+      "id": "t/openapi/components/schemas/Holder",
+      "name": {
+        "source": "Holder",
+        "canonical": "holder"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Holder"
+      },
+      "properties": [
+        {
+          "id": "p/openapi/components/schemas/Holder/properties/cursor",
+          "name": {
+            "source": "cursor",
+            "canonical": "cursor"
+          },
+          "wireName": "cursor",
+          "type": {
+            "target": "t/openapi/components/schemas/Cursor",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "default": {
+            "kind": "string",
+            "str": "0",
+            "bytes": null,
+            "list": null,
+            "object": null
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {
+            "summary": "Cursor",
+            "description": "Opaque pagination cursor."
+          },
+          "deprecation": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/Holder/properties/cursor"
+          }
+        }
+      ],
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
+    "t/prim/string": {
+      "kind": "primitive",
+      "id": "t/prim/string",
+      "name": {},
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0
+      },
+      "prim": "string"
+    }
+  },
+  "servers": [
+    {
+      "name": {},
+      "urlTemplate": "/",
+      "description": {},
+      "auth": null
+    }
+  ],
+  "diagnostics": [
+    {
+      "severity": "info",
+      "code": "openapi/degraded-construct",
+      "message": "default on a type declaration binds a use of the type, not the type; it is applied to any referencing property or parameter and kept verbatim under Unmodeled",
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Cursor/default"
+      }
+    }
+  ],
+  "sources": [
+    {
+      "format": "openapi@3.1",
+      "path": "param-ref-inheritance.yaml",
+      "hash": "ceaabaa7016e71d9190b69c6ae61fb9a8388ccfc6f7cb9069bd067d65fab5d2a"
+    }
+  ]
+}

@@ -19,7 +19,10 @@
   ],
   "servers": [
     {
-      "name": {},
+      "name": {
+        "source": "primary",
+        "canonical": "primary"
+      },
       "urlTemplate": "https://{env}.example.com/v1",
       "description": {
         "description": "Primary server"
@@ -42,9 +45,9 @@
   ],
   "sources": [
     {
-      "format": "openapi@3.1",
+      "format": "openapi@3.2",
       "path": "servers-variables.yaml",
-      "hash": "786e4afd954146d107c22abe4c6ebf3230c62b18f0a17c603f298754d7a0e355"
+      "hash": "fe37cf81aac70da25632452c649bb85f4e8695efd1a04ef70ad33fa2bf81656f"
     }
   ]
 }

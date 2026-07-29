@@ -1,11 +1,18 @@
 openapi: 3.1.0
-info: {title: DocsSummaryDesc, version: "1.0.0"}
+info:
+  title: DocsSummaryDesc
+  version: "1.0.0"
+  summary: A one-line summary of the API.
+  description: The long-form description of the API.
+  license: {name: MIT, identifier: MIT}
+externalDocs: {url: 'https://example.com/docs', description: Full guide}
 paths:
   /ping:
     get:
       operationId: ping
       summary: Ping the server
       description: Returns pong
+      externalDocs: {url: 'https://example.com/docs/ping', description: Ping reference}
       responses:
         "200":
           description: ok

@@ -18,6 +18,24 @@
     }
   ],
   "types": {
+    "t/anon/components/schemas/S/properties/list": {
+      "kind": "list",
+      "id": "t/anon/components/schemas/S/properties/list",
+      "name": {
+        "hint": "list"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/S/properties/list"
+      },
+      "elem": {
+        "target": "t/prim/integer",
+        "nullable": false
+      }
+    },
     "t/openapi/components/schemas/DeclaredDefault": {
       "kind": "scalar",
       "id": "t/openapi/components/schemas/DeclaredDefault",
@@ -129,11 +147,138 @@
             "source": 0,
             "pointer": "/components/schemas/S/properties/viaRef"
           }
+        },
+        {
+          "id": "p/openapi/components/schemas/S/properties/flag",
+          "name": {
+            "source": "flag",
+            "canonical": "flag"
+          },
+          "wireName": "flag",
+          "type": {
+            "target": "t/prim/bool",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "default": {
+            "kind": "bool",
+            "bool": true,
+            "bytes": null,
+            "list": null,
+            "object": null
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/S/properties/flag"
+          }
+        },
+        {
+          "id": "p/openapi/components/schemas/S/properties/blob",
+          "name": {
+            "source": "blob",
+            "canonical": "blob"
+          },
+          "wireName": "blob",
+          "type": {
+            "target": "t/prim/string",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "default": {
+            "kind": "bytes",
+            "bytes": "aGk=",
+            "list": null,
+            "object": null
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/S/properties/blob"
+          }
+        },
+        {
+          "id": "p/openapi/components/schemas/S/properties/list",
+          "name": {
+            "source": "list",
+            "canonical": "list"
+          },
+          "wireName": "list",
+          "type": {
+            "target": "t/anon/components/schemas/S/properties/list",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "default": {
+            "kind": "list",
+            "bytes": null,
+            "list": [
+              {
+                "kind": "number",
+                "num": "1",
+                "bytes": null,
+                "list": null,
+                "object": null
+              },
+              {
+                "kind": "number",
+                "num": "2",
+                "bytes": null,
+                "list": null,
+                "object": null
+              }
+            ],
+            "object": null
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/S/properties/list"
+          }
         }
       ],
       "abstract": false,
       "positional": false,
       "inputOnly": false
+    },
+    "t/prim/bool": {
+      "kind": "primitive",
+      "id": "t/prim/bool",
+      "name": {},
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0
+      },
+      "prim": "bool"
     },
     "t/prim/integer": {
       "kind": "primitive",
@@ -146,6 +291,18 @@
         "source": 0
       },
       "prim": "integer"
+    },
+    "t/prim/string": {
+      "kind": "primitive",
+      "id": "t/prim/string",
+      "name": {},
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0
+      },
+      "prim": "string"
     }
   },
   "servers": [
@@ -171,7 +328,7 @@
     {
       "format": "openapi@3.1",
       "path": "defaults.yaml",
-      "hash": "1f7da4d9ffc8f1d0451a23eadf32355285a96eaf107c8b615ad5d2017894ecd3"
+      "hash": "aa326a604c12228396e42ee9c189c02531073296861cc10423441502cee6d9fb"
     }
   ]
 }

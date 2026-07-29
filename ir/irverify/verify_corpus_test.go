@@ -88,9 +88,12 @@ func TestVerify_Corpus(t *testing.T) {
 	}
 }
 
-// uncorpusedPreserved exercises the four Unmodeled writes no committed fixture
+// uncorpusedPreserved exercises the Unmodeled writes no committed fixture
 // reaches: path-item servers, an error response's headers, an error response's
-// second media type, and an `items` tail after `prefixItems`.
+// second media type, and an `items` tail after `prefixItems`. The parameter's
+// xml hints are reached by the corpus too, and are here because a parameter is
+// the one carrier whose entries the corpus sweep reads through a different field
+// of the operation than any other site.
 const uncorpusedPreserved = `openapi: 3.1.0
 info: {title: PreservedSites, version: "1"}
 paths:
@@ -99,6 +102,10 @@ paths:
       - url: https://widgets.example.com
     get:
       operationId: listWidgets
+      parameters:
+        - name: tag
+          in: query
+          schema: {type: string, xml: {name: Tag}}
       responses:
         "200":
           description: ok
@@ -117,8 +124,8 @@ paths:
             text/plain: {schema: {type: string}}
 `
 
-// preservedKeys returns every Unmodeled key the document carries, at the three
-// site kinds uncorpusedPreserved writes to.
+// preservedKeys returns every Unmodeled key the document carries, at the site
+// kinds uncorpusedPreserved writes to.
 func preservedKeys(doc *ir.Document) []string {
 	var keys []string
 	collect := func(p ir.Unmodeled) {
@@ -130,6 +137,9 @@ func preservedKeys(doc *ir.Document) []string {
 		for _, g := range svc.Groups {
 			for _, op := range g.Operations {
 				collect(op.Unmodeled)
+				for _, p := range op.Params {
+					collect(p.Unmodeled)
+				}
 				for _, ec := range op.Errors {
 					collect(ec.Unmodeled)
 				}
@@ -158,7 +168,8 @@ func TestVerify_PreservedSitesOutsideTheCorpus(t *testing.T) {
 	doc := compile(t, "preserved-sites.yaml", []byte(uncorpusedPreserved))
 	require.NotNil(t, doc)
 	require.Equal(t, []string{
-		"openapi:content", "openapi:headers", "openapi:items-after-prefix", "openapi:servers",
+		"openapi:content", "openapi:headers", "openapi:items-after-prefix",
+		"openapi:servers", "openapi:xml",
 	}, preservedKeys(doc), "the spec must reach every preserve call this test exists for")
 
 	assert.Empty(t, irverify.Verify(doc))

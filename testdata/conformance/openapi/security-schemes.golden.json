@@ -25,9 +25,22 @@
         "canonical": "api_key_auth"
       },
       "kind": "apiKey",
-      "docs": {},
+      "docs": {
+        "description": "Static per-tenant key."
+      },
+      "deprecation": {},
       "in": "header",
       "keyName": "X-API-Key",
+      "unmodeled": {
+        "openapi:x-rotation-days": {
+          "reason": "vendor_extension",
+          "value": 90,
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/securitySchemes/apiKeyAuth/x-rotation-days"
+          }
+        }
+      },
       "provenance": {
         "source": 0,
         "pointer": "/components/securitySchemes/apiKeyAuth"
@@ -60,6 +73,20 @@
         "pointer": "/components/securitySchemes/bearerAuth"
       }
     },
+    "auth/openapi/components/securitySchemes/digestAuth": {
+      "id": "auth/openapi/components/securitySchemes/digestAuth",
+      "name": {
+        "source": "digestAuth",
+        "canonical": "digest_auth"
+      },
+      "kind": "custom",
+      "docs": {},
+      "scheme": "digest",
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/securitySchemes/digestAuth"
+      }
+    },
     "auth/openapi/components/securitySchemes/mtlsAuth": {
       "id": "auth/openapi/components/securitySchemes/mtlsAuth",
       "name": {
@@ -85,11 +112,13 @@
         {
           "kind": "client_credentials",
           "tokenURL": "https://example.com/token",
+          "refreshURL": "https://example.com/refresh",
           "scopes": {
             "read": "Read access"
           }
         }
       ],
+      "oauth2MetadataURL": "https://example.com/.well-known/oauth-authorization-server",
       "provenance": {
         "source": 0,
         "pointer": "/components/securitySchemes/oauth2Auth"
@@ -120,9 +149,9 @@
   ],
   "sources": [
     {
-      "format": "openapi@3.1",
+      "format": "openapi@3.2",
       "path": "security-schemes.yaml",
-      "hash": "af554e1196ddcbe6fcf8e9bc1b0f921c7b0414666961b1be79e1fcb4da6de591"
+      "hash": "427d72a88e3f9473be8b7be4b2a36bfc6fa8de4fc989057261f62ebaa8d43969"
     }
   ]
 }

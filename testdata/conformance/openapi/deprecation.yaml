@@ -5,6 +5,8 @@ paths:
     get:
       operationId: oldOp
       deprecated: true
+      parameters:
+        - {name: legacy, in: query, deprecated: true, schema: {type: string}}
       responses:
         "200":
           description: ok

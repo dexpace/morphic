@@ -1,0 +1,34 @@
+openapi: 3.1.0
+info: {title: ParamRefInheritance, version: "1.0.0"}
+paths:
+  /items:
+    get:
+      operationId: listItems
+      parameters:
+        # Inherits docs, deprecation and default from the referent.
+        - {name: cursor, in: query, schema: {$ref: '#/components/schemas/Cursor'}}
+        # The use site declares both, so the use site wins.
+        - name: override
+          in: query
+          schema:
+            $ref: '#/components/schemas/Cursor'
+            description: Cursor for this endpoint only.
+            default: "9"
+      responses:
+        "200":
+          description: ok
+components:
+  schemas:
+    Cursor:
+      type: string
+      title: Cursor
+      description: Opaque pagination cursor.
+      deprecated: true
+      default: "0"
+      maxLength: 64
+    # The property form of the same reference: what a parameter inherits, a
+    # property inherits identically, constraints included in neither.
+    Holder:
+      type: object
+      properties:
+        cursor: {$ref: '#/components/schemas/Cursor'}

@@ -1,0 +1,219 @@
+{
+  "irVersion": "0.2.0",
+  "name": "DiscriminatorInheritance",
+  "version": "1.0.0",
+  "docs": {},
+  "services": [
+    {
+      "id": "s/openapi/0",
+      "name": {
+        "source": "DiscriminatorInheritance",
+        "canonical": "discriminator_inheritance"
+      },
+      "docs": {},
+      "auth": null,
+      "provenance": {
+        "source": 0
+      }
+    }
+  ],
+  "types": {
+    "t/openapi/components/schemas/Cat": {
+      "kind": "model",
+      "id": "t/openapi/components/schemas/Cat",
+      "name": {
+        "source": "Cat",
+        "canonical": "cat"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Cat"
+      },
+      "properties": [
+        {
+          "id": "p/openapi/components/schemas/Cat/properties/meow",
+          "name": {
+            "source": "meow",
+            "canonical": "meow"
+          },
+          "wireName": "meow",
+          "type": {
+            "target": "t/prim/bool",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/Cat/properties/meow"
+          }
+        }
+      ],
+      "base": {
+        "target": "t/openapi/components/schemas/Pet",
+        "nullable": false
+      },
+      "abstract": false,
+      "positional": false,
+      "discriminatorValue": "cat",
+      "inputOnly": false
+    },
+    "t/openapi/components/schemas/Dog": {
+      "kind": "model",
+      "id": "t/openapi/components/schemas/Dog",
+      "name": {
+        "source": "Dog",
+        "canonical": "dog"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Dog"
+      },
+      "properties": [
+        {
+          "id": "p/openapi/components/schemas/Dog/properties/bark",
+          "name": {
+            "source": "bark",
+            "canonical": "bark"
+          },
+          "wireName": "bark",
+          "type": {
+            "target": "t/prim/bool",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/Dog/properties/bark"
+          }
+        }
+      ],
+      "base": {
+        "target": "t/openapi/components/schemas/Pet",
+        "nullable": false
+      },
+      "abstract": false,
+      "positional": false,
+      "discriminatorValue": "Dog",
+      "inputOnly": false
+    },
+    "t/openapi/components/schemas/Pet": {
+      "kind": "model",
+      "id": "t/openapi/components/schemas/Pet",
+      "name": {
+        "source": "Pet",
+        "canonical": "pet"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Pet"
+      },
+      "properties": [
+        {
+          "id": "p/openapi/components/schemas/Pet/properties/petType",
+          "name": {
+            "source": "petType",
+            "canonical": "pet_type"
+          },
+          "wireName": "petType",
+          "type": {
+            "target": "t/prim/string",
+            "nullable": false
+          },
+          "required": true,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/Pet/properties/petType"
+          }
+        }
+      ],
+      "abstract": false,
+      "positional": false,
+      "discriminator": {
+        "property": "p/openapi/components/schemas/Pet/properties/petType",
+        "mapping": {
+          "cat": "t/openapi/components/schemas/Cat"
+        },
+        "inferred": false
+      },
+      "inputOnly": false
+    },
+    "t/prim/bool": {
+      "kind": "primitive",
+      "id": "t/prim/bool",
+      "name": {},
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0
+      },
+      "prim": "bool"
+    },
+    "t/prim/string": {
+      "kind": "primitive",
+      "id": "t/prim/string",
+      "name": {},
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0
+      },
+      "prim": "string"
+    }
+  },
+  "servers": [
+    {
+      "name": {},
+      "urlTemplate": "/",
+      "description": {},
+      "auth": null
+    }
+  ],
+  "sources": [
+    {
+      "format": "openapi@3.1",
+      "path": "discriminator-inheritance.yaml",
+      "hash": "88f31fea21da94f90f4df7c41440006e569add474bd4a2a832fa07da40a5dc09"
+    }
+  ]
+}

@@ -18,6 +18,21 @@
     }
   ],
   "types": {
+    "t/openapi/components/schemas/Opaque": {
+      "kind": "any",
+      "id": "t/openapi/components/schemas/Opaque",
+      "name": {
+        "source": "Opaque",
+        "canonical": "opaque"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Opaque"
+      }
+    },
     "t/openapi/components/schemas/Version": {
       "kind": "literal",
       "id": "t/openapi/components/schemas/Version",
@@ -49,11 +64,22 @@
       "auth": null
     }
   ],
+  "diagnostics": [
+    {
+      "severity": "warning",
+      "code": "openapi/degraded-construct",
+      "message": "unconvertible value lowered as the top type: openapi: binary literal: yaml: !!binary value contains invalid base64 data",
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Opaque"
+      }
+    }
+  ],
   "sources": [
     {
       "format": "openapi@3.1",
       "path": "literal-const.yaml",
-      "hash": "3d9007ec05f150a2403280bcdadd49f9b5c6f2ee1e727b90870a154464ddf615"
+      "hash": "20f741af991ee42bf4e650b0feea7b5dd5446de3d172395635f8ad18502ab8dd"
     }
   ]
 }

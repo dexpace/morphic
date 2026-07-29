@@ -1,0 +1,26 @@
+openapi: 3.1.0
+info: {title: ContentVocabulary, version: "1.0.0"}
+paths: {}
+components:
+  schemas:
+    # A string position lowers both keywords into its Encoding.
+    Thumbnail:
+      type: string
+      contentEncoding: base64
+      contentMediaType: image/png
+    # contentSchema is a schema, not an encoding, so it has no IR home at any
+    # position and is kept verbatim beside the encoding that did lower.
+    Envelope:
+      type: string
+      contentMediaType: application/json
+      contentSchema:
+        type: object
+        properties:
+          id: {type: string}
+    # An object position has no Encoding field at all, so both keywords are kept.
+    Bag:
+      type: object
+      contentEncoding: base64
+      contentMediaType: application/json
+      properties:
+        a: {type: string}

@@ -1,6 +1,14 @@
 openapi: 3.1.0
 info: {title: ExtensionsX, version: "1.0.0"}
-paths: {}
+x-audience: public
+paths:
+  /widgets:
+    get:
+      operationId: listWidgets
+      x-internal: true
+      responses:
+        "200":
+          description: ok
 components:
   schemas:
     S:

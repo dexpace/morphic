@@ -1,0 +1,184 @@
+{
+  "irVersion": "0.2.0",
+  "name": "ResponseLinks",
+  "version": "1.0.0",
+  "docs": {},
+  "services": [
+    {
+      "id": "s/openapi/0",
+      "name": {
+        "source": "ResponseLinks",
+        "canonical": "response_links"
+      },
+      "docs": {},
+      "groups": [
+        {
+          "name": {
+            "hint": "default"
+          },
+          "docs": {},
+          "operations": [
+            {
+              "id": "op/openapi/paths/~1orders/post",
+              "name": {
+                "source": "createOrder",
+                "canonical": "create_order"
+              },
+              "docs": {},
+              "responses": [
+                {
+                  "name": {},
+                  "conditions": {
+                    "statusCodes": [
+                      {
+                        "from": 201,
+                        "to": 201
+                      }
+                    ]
+                  },
+                  "docs": {
+                    "description": "created"
+                  },
+                  "unmodeled": {
+                    "openapi:links": {
+                      "reason": "no_ir_home",
+                      "value": {
+                        "GetOrder": {
+                          "operationId": "getOrder",
+                          "parameters": {
+                            "orderId": "$response.body#/id"
+                          }
+                        }
+                      },
+                      "provenance": {
+                        "source": 0,
+                        "pointer": "/paths/~1orders/post/responses/201/links"
+                      }
+                    }
+                  }
+                }
+              ],
+              "oneWay": false,
+              "idempotency": {},
+              "auth": null,
+              "bindings": {
+                "http": [
+                  {
+                    "method": "POST",
+                    "uriTemplate": "/orders",
+                    "sharedRoute": false,
+                    "checksumRequired": false,
+                    "isWebhook": false
+                  }
+                ]
+              },
+              "provenance": {
+                "source": 0,
+                "pointer": "/paths/~1orders/post"
+              }
+            },
+            {
+              "id": "op/openapi/paths/~1orders~1{orderId}/get",
+              "name": {
+                "source": "getOrder",
+                "canonical": "get_order"
+              },
+              "docs": {},
+              "params": [
+                {
+                  "name": {
+                    "source": "orderId",
+                    "canonical": "order_id"
+                  },
+                  "type": {
+                    "target": "t/prim/string",
+                    "nullable": false
+                  },
+                  "required": true,
+                  "docs": {}
+                }
+              ],
+              "responses": [
+                {
+                  "name": {},
+                  "conditions": {
+                    "statusCodes": [
+                      {
+                        "from": 200,
+                        "to": 200
+                      }
+                    ]
+                  },
+                  "docs": {
+                    "description": "ok"
+                  }
+                }
+              ],
+              "oneWay": false,
+              "idempotency": {},
+              "auth": null,
+              "bindings": {
+                "http": [
+                  {
+                    "method": "GET",
+                    "uriTemplate": "/orders/{orderId}",
+                    "sharedRoute": false,
+                    "paramBindings": [
+                      {
+                        "param": "orderId",
+                        "location": "path",
+                        "wireName": "orderId",
+                        "style": "simple",
+                        "explode": false,
+                        "allowReserved": false
+                      }
+                    ],
+                    "checksumRequired": false,
+                    "isWebhook": false
+                  }
+                ]
+              },
+              "provenance": {
+                "source": 0,
+                "pointer": "/paths/~1orders~1{orderId}/get"
+              }
+            }
+          ]
+        }
+      ],
+      "auth": null,
+      "provenance": {
+        "source": 0
+      }
+    }
+  ],
+  "types": {
+    "t/prim/string": {
+      "kind": "primitive",
+      "id": "t/prim/string",
+      "name": {},
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0
+      },
+      "prim": "string"
+    }
+  },
+  "servers": [
+    {
+      "name": {},
+      "urlTemplate": "/",
+      "description": {},
+      "auth": null
+    }
+  ],
+  "sources": [
+    {
+      "format": "openapi@3.1",
+      "path": "response-links.yaml",
+      "hash": "76f06e7ecfec2ebe4bbd3c5ca6e02f781042b76afc35be07e1d4be8a53b0f85c"
+    }
+  ]
+}
