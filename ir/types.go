@@ -401,7 +401,7 @@ func (*Any) Kind() TypeKind { return KindAny }
 // Common returns c itself. TypeCommon embeds by value into every concrete
 // TypeDef kind (Primitive, Scalar, Model, Union, Enum, List, MapT, Tuple,
 // Literal, External, Any), so this single pointer method is promoted to each
-// kind's own pointer type and satisfies the TypeDef.Common contract for all
-// eleven of them; only the unexported typeDef() marker stays declared per
-// kind, so embedding TypeCommon elsewhere cannot join the sealed sum.
+// kind's own pointer type and satisfies the TypeDef.Common contract for every
+// one of them; only the unexported typeDef() marker stays declared per kind, so
+// embedding TypeCommon elsewhere cannot join the sealed sum.
 func (c *TypeCommon) Common() *TypeCommon { return c }

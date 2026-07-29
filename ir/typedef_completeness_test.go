@@ -1,0 +1,295 @@
+package ir_test
+
+import (
+	"encoding/json"
+	"go/ast"
+	"go/parser"
+	"go/token"
+	"os"
+	"path/filepath"
+	"reflect"
+	"runtime"
+	"slices"
+	"strconv"
+	"strings"
+	"testing"
+
+	"github.com/google/go-cmp/cmp"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
+	"github.com/dexpace/morphic/ir"
+)
+
+// typeKindConst is one TypeKind constant as the ir sources declare it.
+type typeKindConst struct {
+	name string      // Go identifier, e.g. KindModel
+	kind ir.TypeKind // declared wire value, e.g. "model"
+}
+
+// TestTypeDef_EveryDeclaredKindIsRegistered fails when a declared TypeKind has no
+// newTypeDefByKind entry, is registered to a type reporting another kind, or shares
+// its concrete type with another kind (one concrete struct per kind, ir-design §4).
+func TestTypeDef_EveryDeclaredKindIsRegistered(t *testing.T) {
+	t.Parallel()
+	byConcrete := map[string]string{}
+	for _, kc := range declaredTypeKinds(t) {
+		td, ok := ir.NewTypeDef(kc.kind)
+		require.True(t, ok, "ir.%s (%q) has no newTypeDefByKind entry: NewTypeDef "+
+			"cannot build it, so TypeRegistry can never decode it", kc.name, kc.kind)
+		assert.Equal(t, kc.kind, td.Kind(),
+			"ir.%s (%q) is registered to a type whose Kind() disagrees", kc.name, kc.kind)
+		assert.NotNil(t, td.Common(), "ir.%s (%q) must embed a TypeCommon", kc.name, kc.kind)
+
+		name := concreteName(t, td)
+		assert.NotContains(t, byConcrete, name,
+			"ir.%s and ir.%s are both registered to ir.%s: one concrete struct per kind",
+			kc.name, byConcrete[name], name)
+		byConcrete[name] = kc.name
+	}
+}
+
+// TestTypeDef_EveryDeclaredKindTagsItsJSON fails when a kind's zero value does not
+// marshal with an adjacent "kind" tag, or does not survive TypeRegistry decoding.
+//
+// MarshalJSON is written once per concrete type in json.go and nothing requires
+// one, so a new kind silently encodes without its tag — and invariant 7 (the
+// document round-trips) breaks with the rest of the gate green.
+func TestTypeDef_EveryDeclaredKindTagsItsJSON(t *testing.T) {
+	t.Parallel()
+	const id ir.TypeID = "t/x"
+	for _, kc := range declaredTypeKinds(t) {
+		t.Run(string(kc.kind), func(t *testing.T) {
+			t.Parallel()
+			td, ok := ir.NewTypeDef(kc.kind)
+			require.True(t, ok, "ir.%s (%q) has no newTypeDefByKind entry", kc.name, kc.kind)
+
+			raw, err := json.Marshal(ir.TypeRegistry{id: td})
+			require.NoError(t, err)
+			assert.Contains(t, string(raw), `"kind":"`+string(kc.kind)+`"`,
+				"ir.%s (%q) marshals without its adjacent kind tag: give %T a MarshalJSON "+
+					"calling marshalWithKind(%s, …)", kc.name, kc.kind, td, kc.name)
+
+			var back ir.TypeRegistry
+			require.NoError(t, json.Unmarshal(raw, &back),
+				"ir.%s (%q) does not survive TypeRegistry decoding, encoded as %s",
+				kc.name, kc.kind, raw)
+			require.Len(t, back, 1)
+			assert.Equal(t, kc.kind, back[id].Kind(), "ir.%s (%q) decodes as another kind",
+				kc.name, kc.kind)
+		})
+	}
+}
+
+// TestTypeDef_EverySealedImplementationHasAKind fails when the types carrying the
+// typeDef() marker and the types NewTypeDef builds are not the same set.
+//
+// The marker is the sum's membership as the compiler sees it, so a variant declared
+// with no TypeKind constant fails here: every other check in this file starts from
+// the constants and so cannot see it at all.
+func TestTypeDef_EverySealedImplementationHasAKind(t *testing.T) {
+	t.Parallel()
+	kinds := declaredTypeKinds(t)
+	registered := make([]string, 0, len(kinds))
+	for _, kc := range kinds {
+		td, ok := ir.NewTypeDef(kc.kind)
+		require.True(t, ok, "ir.%s (%q) has no newTypeDefByKind entry", kc.name, kc.kind)
+		registered = append(registered, concreteName(t, td))
+	}
+	slices.Sort(registered)
+
+	assert.Empty(t, cmp.Diff(sealedTypeDefImpls(t), registered),
+		"every ir type carrying the sealed typeDef() marker needs a TypeKind constant "+
+			"registered to it, and no other (-marker +registered)")
+}
+
+// TestTypeDef_HandWrittenKindListsAreComplete guards every list of the sum's kinds
+// this package spells out by hand. Each one drives a test that iterates it, so a
+// kind missing from a list is a kind that test silently never exercises — allKinds
+// alone gates the switch-completeness and Common()-aliasing tests.
+func TestTypeDef_HandWrittenKindListsAreComplete(t *testing.T) {
+	t.Parallel()
+	want := declaredKindValues(t)
+	for _, tt := range []struct {
+		list  string
+		kinds []ir.TypeKind
+	}{
+		{list: "allKinds (typedef_test.go)", kinds: allKinds},
+		{list: "sampleDocument (json_test.go)", kinds: sampleDocumentKinds(t)},
+		{list: "typeDefZeroShapeTests (types_test.go)", kinds: zeroShapeKinds()},
+	} {
+		t.Run(tt.list, func(t *testing.T) {
+			t.Parallel()
+			got := make([]string, 0, len(tt.kinds))
+			for _, k := range tt.kinds {
+				got = append(got, string(k))
+			}
+			slices.Sort(got)
+
+			assert.Empty(t, cmp.Diff(want, got), "%s must name every TypeKind the ir "+
+				"sources declare, once each (-declared +listed)", tt.list)
+		})
+	}
+}
+
+// sampleDocumentKinds returns the kinds sampleDocument (json_test.go) builds.
+func sampleDocumentKinds(t *testing.T) []ir.TypeKind {
+	t.Helper()
+	types := sampleDocument(t).Types
+	out := make([]ir.TypeKind, 0, len(types))
+	for _, td := range types {
+		out = append(out, td.Kind())
+	}
+	return out
+}
+
+// zeroShapeKinds returns the kinds typeDefZeroShapeTests (types_test.go) pins.
+func zeroShapeKinds() []ir.TypeKind {
+	tests := typeDefZeroShapeTests()
+	out := make([]ir.TypeKind, 0, len(tests))
+	for _, tt := range tests {
+		out = append(out, tt.td.Kind())
+	}
+	return out
+}
+
+// declaredKindValues returns the declared kinds' wire values, sorted.
+func declaredKindValues(t *testing.T) []string {
+	t.Helper()
+	kinds := declaredTypeKinds(t)
+	out := make([]string, 0, len(kinds))
+	for _, kc := range kinds {
+		out = append(out, string(kc.kind))
+	}
+	slices.Sort(out)
+	return out
+}
+
+// concreteName returns the struct name behind a TypeDef pointer.
+func concreteName(t *testing.T, td ir.TypeDef) string {
+	t.Helper()
+	rt := reflect.TypeOf(td)
+	require.Equal(t, reflect.Pointer, rt.Kind(), "NewTypeDef must return a pointer, got %s", rt)
+	return rt.Elem().Name()
+}
+
+// declaredTypeKinds returns every TypeKind constant the ir package's production
+// sources declare, sorted by identifier.
+//
+// The set is derived from the source because any list of the kinds written by hand
+// is one commit away from disagreeing with the sum it claims to enumerate, and
+// disagreeing silently: that is what every test in this file exists to catch.
+func declaredTypeKinds(t *testing.T) []typeKindConst {
+	t.Helper()
+	var out []typeKindConst
+	for _, f := range parseIRSources(t) {
+		for _, decl := range f.Decls {
+			gd, isGen := decl.(*ast.GenDecl)
+			if !isGen || gd.Tok != token.CONST {
+				continue
+			}
+			out = append(out, typeKindConstsIn(t, gd)...)
+		}
+	}
+	require.NotEmpty(t, out, "the ir sources must declare TypeKind constants")
+	slices.SortFunc(out, func(a, b typeKindConst) int { return strings.Compare(a.name, b.name) })
+	return out
+}
+
+// typeKindConstsIn returns the TypeKind constants of one const group. A spec
+// declaring neither type nor value repeats the previous spec, so the group's last
+// explicit type carries forward; a spec with its own value declares its own type.
+func typeKindConstsIn(t *testing.T, gd *ast.GenDecl) []typeKindConst {
+	t.Helper()
+	var out []typeKindConst
+	isKind := false
+	for _, spec := range gd.Specs {
+		vs, isValue := spec.(*ast.ValueSpec)
+		require.True(t, isValue, "const spec is not a ValueSpec: %#v", spec)
+		switch {
+		case vs.Type != nil:
+			id, isIdent := vs.Type.(*ast.Ident)
+			isKind = isIdent && id.Name == "TypeKind"
+		case len(vs.Values) > 0:
+			isKind = false
+		}
+		if !isKind {
+			continue
+		}
+		for i, name := range vs.Names {
+			require.Less(t, i, len(vs.Values),
+				"TypeKind constant %s must declare its own value", name.Name)
+			value := stringLit(t, name.Name, vs.Values[i])
+			out = append(out, typeKindConst{name: name.Name, kind: ir.TypeKind(value)})
+		}
+	}
+	return out
+}
+
+// stringLit returns the string a constant's value expression spells out.
+func stringLit(t *testing.T, constName string, expr ast.Expr) string {
+	t.Helper()
+	lit, isLit := expr.(*ast.BasicLit)
+	require.True(t, isLit, "constant %s must be declared as a string literal", constName)
+	require.Equal(t, token.STRING, lit.Kind, "constant %s must be declared as a string literal", constName)
+	unquoted, err := strconv.Unquote(lit.Value)
+	require.NoError(t, err, "unquoting the value of %s", constName)
+	return unquoted
+}
+
+// sealedTypeDefImpls returns, sorted, the name of every ir type carrying the
+// unexported typeDef() marker.
+func sealedTypeDefImpls(t *testing.T) []string {
+	t.Helper()
+	var out []string
+	for _, f := range parseIRSources(t) {
+		for _, decl := range f.Decls {
+			fd, isFunc := decl.(*ast.FuncDecl)
+			if !isFunc || fd.Recv == nil || fd.Name.Name != "typeDef" {
+				continue
+			}
+			out = append(out, receiverTypeName(t, fd))
+		}
+	}
+	require.NotEmpty(t, out, "the ir sources must declare typeDef() markers")
+	slices.Sort(out)
+	return out
+}
+
+// receiverTypeName returns a method receiver's base type name, ignoring a pointer.
+func receiverTypeName(t *testing.T, fd *ast.FuncDecl) string {
+	t.Helper()
+	require.Len(t, fd.Recv.List, 1, "method %s must declare one receiver", fd.Name.Name)
+	expr := fd.Recv.List[0].Type
+	if star, isStar := expr.(*ast.StarExpr); isStar {
+		expr = star.X
+	}
+	id, isIdent := expr.(*ast.Ident)
+	require.True(t, isIdent, "receiver of %s must be a named type, got %#v", fd.Name.Name, expr)
+	return id.Name
+}
+
+// parseIRSources parses the ir package's production files, located from this file's
+// own path so the result does not depend on the working directory.
+func parseIRSources(t *testing.T) []*ast.File {
+	t.Helper()
+	_, self, _, ok := runtime.Caller(0)
+	require.True(t, ok, "runtime.Caller must report this file's path")
+	dir := filepath.Dir(self)
+	entries, err := os.ReadDir(dir)
+	require.NoError(t, err)
+
+	fset := token.NewFileSet()
+	var out []*ast.File
+	for _, e := range entries {
+		name := e.Name()
+		if e.IsDir() || !strings.HasSuffix(name, ".go") || strings.HasSuffix(name, "_test.go") {
+			continue
+		}
+		f, err := parser.ParseFile(fset, filepath.Join(dir, name), nil, parser.SkipObjectResolution)
+		require.NoError(t, err, "parsing %s", name)
+		out = append(out, f)
+	}
+	require.NotEmpty(t, out, "the ir package must have production sources")
+	return out
+}
