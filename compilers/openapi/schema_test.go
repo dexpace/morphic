@@ -1,6 +1,7 @@
 package openapi
 
 import (
+	"encoding/json"
 	"strings"
 	"testing"
 
@@ -2782,6 +2783,17 @@ func TestInlinePosition_HoistGateFollowsWhatIsKept(t *testing.T) {
 		{"propertyNames", "propertyNames: {maxLength: 4}"},
 		{"unevaluatedItems", "unevaluatedItems: {type: string}"},
 		{"unevaluatedProperties", "unevaluatedProperties: {type: string}"},
+		{"default", "default: a"},
+		{"readOnly", "readOnly: true"},
+		{"writeOnly", "writeOnly: true"},
+		{"dependentRequired", "dependentRequired: {a: [b]}"},
+		{"contentEncoding", "contentEncoding: base64"},
+		{"contentMediaType", "contentMediaType: image/png"},
+		{"contentSchema", "contentSchema: {type: object}"},
+		{"$dynamicRef", "$dynamicRef: '#nosuch'"},
+		{"$id", "$id: 'urn:example:i'"},
+		{"$schema", "$schema: 'https://json-schema.org/draft/2020-12/schema'"},
+		{"$vocabulary", "$vocabulary: {'https://json-schema.org/draft/2020-12/vocab/core': true}"},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -2795,17 +2807,14 @@ func TestInlinePosition_HoistGateFollowsWhatIsKept(t *testing.T) {
 	}
 }
 
-// TestInlinePosition_KeywordsWithNoNodeHomeStaySilent is the negative half of
-// that gate. These three keywords have no field on any type node — a default
-// and a visibility flag have none on TypeCommon, and a `false`
-// unevaluatedProperties is model openness rather than a preserved keyword — so
-// hoisting for them would produce a node holding nothing.
-func TestInlinePosition_KeywordsWithNoNodeHomeStaySilent(t *testing.T) {
+// TestInlinePosition_NothingToHoldHoistsNoNode is the negative half of that
+// gate: a schema that declares nothing position-scoped, and one whose only
+// extra keyword is a `false` unevaluatedProperties — model openness rather than
+// a preserved keyword. Hoisting for either would produce a node holding nothing.
+func TestInlinePosition_NothingToHoldHoistsNoNode(t *testing.T) {
 	t.Parallel()
 	cases := []struct{ name, keyword string }{
 		{"none", "type: string"},
-		{"default", "type: string, default: a"},
-		{"readOnly", "type: string, readOnly: true"},
 		{"unevaluatedProperties-false", "type: string, unevaluatedProperties: false"},
 	}
 	for _, tc := range cases {
@@ -2820,6 +2829,87 @@ func TestInlinePosition_KeywordsWithNoNodeHomeStaySilent(t *testing.T) {
 			assert.Equal(t, ir.TypeID("t/prim/string"), list.Elem.Target)
 		})
 	}
+}
+
+// TestInlinePosition_ResidueIsKeptAtEveryHomeOwnNodePosition pins the other half
+// of the residue rule: default/readOnly/writeOnly bind a *use* of a type, and
+// the position that writes one is usually not a property — so every position
+// that owns its node keeps them, not just a named component declaration
+// (GitHub #138).
+func TestInlinePosition_ResidueIsKeptAtEveryHomeOwnNodePosition(t *testing.T) {
+	t.Parallel()
+	cases := []struct{ name, body, at string }{
+		{"items", "    A: {type: array, items: {type: string, RESIDUE}}\n",
+			"t/anon/components/schemas/A/items"},
+		{"additionalProperties", "    A: {type: object, additionalProperties: {type: string, RESIDUE}}\n",
+			"t/anon/components/schemas/A/additionalProperties"},
+		{"patternProperties", "    A: {type: object, patternProperties: {'^a': {type: string, RESIDUE}}}\n",
+			"t/anon/components/schemas/A/patternProperties/^a"},
+		{"prefixItems", "    A: {type: array, prefixItems: [{type: string, RESIDUE}]}\n",
+			"t/anon/components/schemas/A/prefixItems/0"},
+		{"oneOf branch", "    A: {oneOf: [{type: string, RESIDUE}, {type: integer}]}\n",
+			"t/anon/components/schemas/A/oneOf/0"},
+		{"ref sibling", "    B: {type: string}\n" +
+			"    A: {type: array, items: {$ref: '#/components/schemas/B', RESIDUE}}\n",
+			"t/anon/components/schemas/A/items"},
+	}
+	const residue = "default: a, readOnly: true"
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			doc, diags := parseFull(t, componentSpec(strings.ReplaceAll(tc.body, "RESIDUE", residue)))
+			requireNoErrorDiags(t, diags)
+
+			td, ok := doc.Types[ir.TypeID(tc.at)]
+			require.True(t, ok, "the position owns a node to hold what it wrote")
+			assertKeptResidue(t, td.Common().Unmodeled, diags, "default", `"a"`)
+			assertKeptResidue(t, td.Common().Unmodeled, diags, "readOnly", `true`)
+		})
+	}
+}
+
+// assertKeptResidue checks that keyword survived verbatim under Unmodeled with
+// the reason that says the IR models it nowhere, and that one info diagnostic
+// announces it at the keyword's own pointer.
+func assertKeptResidue(t *testing.T, p ir.Unmodeled, diags []ir.Diagnostic, keyword, wantJSON string) {
+	t.Helper()
+	entry, ok := p["openapi:"+keyword]
+	require.True(t, ok, "%s must be kept verbatim under Unmodeled", keyword)
+	assert.JSONEq(t, wantJSON, string(entry.Value))
+	assert.Equal(t, ir.ReasonNoIRHome, entry.Reason)
+
+	for _, d := range diags {
+		if d.Code == codeDegradedConstruct && d.Severity == ir.SeverityInfo &&
+			strings.HasSuffix(d.Provenance.Pointer, "/"+keyword) {
+			return
+		}
+	}
+	assert.Fail(t, "missing residue diagnostic", "nothing announced %s; got %+v", keyword, diags)
+}
+
+// TestPropertyPosition_ResidueStaysOutOfTheTypeNode is the deliberate non-goal.
+// A property lands all three in their real fields, so recording them again as
+// residue would restate what the carrier already holds.
+func TestPropertyPosition_ResidueStaysOutOfTheTypeNode(t *testing.T) {
+	t.Parallel()
+	doc, diags := parseFull(t, componentSpec(
+		"    A: {type: object, properties: {p: {type: array, items: {type: string}, "+
+			"default: [], readOnly: true}}}\n"))
+	requireNoErrorDiags(t, diags)
+
+	p := propertyOf(t, doc, "A", "p")
+	require.NotNil(t, p.Default, "default lands in the property's own field")
+	assert.Equal(t, ir.Visibility{Only: []ir.Lifecycle{
+		ir.LifecycleRead, ir.LifecycleDelete, ir.LifecycleQuery,
+	}}, p.Visibility, "readOnly lands in the property's own field")
+
+	td, ok := doc.Types[p.Type.Target]
+	require.True(t, ok)
+	assert.NotContains(t, td.Common().Unmodeled, "openapi:default",
+		"the carrier holds it, so the node must not restate it")
+	assert.NotContains(t, td.Common().Unmodeled, "openapi:readOnly",
+		"the carrier holds it, so the node must not restate it")
+	assert.Empty(t, p.Unmodeled, "nor does the property preserve what it modelled")
 }
 
 // TestPreserve_EmptyRawIsRejectedLikeNil pins both halves of the guard. nil and a
@@ -2850,4 +2940,400 @@ func TestPreserve_EmptyRawIsRejectedLikeNil(t *testing.T) {
 			assert.Empty(t, l.diags.List(), "nothing was preserved, so nothing is announced")
 		})
 	}
+}
+
+// vocabCase is one JSON Schema 2020-12 keyword and the minimal document that
+// writes it. schemas must contain the literal "KW, " where the keyword goes: the
+// control replaces that marker with nothing, so the two documents differ in
+// exactly this one keyword. excluded, when set, is why nothing carries it.
+type vocabCase struct {
+	keyword  string
+	write    string
+	schemas  string
+	excluded string
+}
+
+// objectSchema, arraySchema and stringSchema are the three keyword domains the
+// 2020-12 vocabularies split along, so each keyword is written where the
+// specification gives it meaning.
+const (
+	objectSchema = "    A: {KW, type: object, properties: {p: {type: string}}}\n"
+	arraySchema  = "    A: {KW, type: array, items: {type: string}}\n"
+	stringSchema = "    A: {KW, type: string}\n"
+)
+
+// vocabularyCases enumerates every keyword of the JSON Schema 2020-12
+// vocabularies — core (§8), applicator (§10), unevaluated (§11), validation
+// (§6), meta-data (§9), format-annotation (§7) and content (§8.3) — so a keyword
+// the compiler neither lowers nor keeps fails loudly instead of joining the ones
+// GitHub #125 found by hand.
+func vocabularyCases() []vocabCase {
+	return append(append(append(
+		vocabularyCore(), vocabularyApplicator()...), vocabularyValidation()...),
+		vocabularyAnnotation()...)
+}
+
+func vocabularyCore() []vocabCase {
+	return []vocabCase{
+		{keyword: "$schema", write: "$schema: 'https://json-schema.org/draft/2020-12/schema'", schemas: stringSchema},
+		{keyword: "$vocabulary", write: "$vocabulary: {'https://json-schema.org/draft/2020-12/vocab/core': true}", schemas: stringSchema},
+		{keyword: "$id", write: "$id: 'urn:example:a'", schemas: stringSchema},
+		{keyword: "$ref", write: "$ref: '#/components/schemas/B'", schemas: objectSchema + "    B: {type: string}\n"},
+		{keyword: "$dynamicRef", write: "$dynamicRef: '#m'", schemas: stringSchema + "    B: {$dynamicAnchor: m, type: string}\n"},
+		{
+			keyword: "$anchor", write: "$anchor: a", schemas: stringSchema,
+			excluded: "an $anchor is consumed as a reference target, not carried as IR content: " +
+				"$ref: '#a' resolves through it (TestRefToAnchor)",
+		},
+		{
+			keyword: "$dynamicAnchor", write: "$dynamicAnchor: m", schemas: stringSchema,
+			excluded: "read as a reference target by dynamicAnchors, which is what lets a " +
+				"$dynamicRef expand; declaring one says nothing about the shape",
+		},
+		{
+			keyword: "$defs", write: "$defs: {D: {type: string}}", schemas: stringSchema,
+			excluded: "declares nothing about the enclosing shape; a member is lowered on demand " +
+				"when a $ref names it (resolveSchemaRef -> hoistSubSchema)",
+		},
+		{
+			keyword: "$comment", write: "$comment: note", schemas: stringSchema,
+			excluded: "2020-12 §8.3 forbids presenting it to end users, so an SDK emitter must " +
+				"never see it",
+		},
+	}
+}
+
+func vocabularyApplicator() []vocabCase {
+	return []vocabCase{
+		{keyword: "allOf", write: "allOf: [{type: object, properties: {q: {type: integer}}}]", schemas: objectSchema},
+		{keyword: "anyOf", write: "anyOf: [{type: string}, {type: integer}]", schemas: stringSchema},
+		{keyword: "oneOf", write: "oneOf: [{type: string}, {type: integer}]", schemas: stringSchema},
+		{keyword: "not", write: "not: {const: n}", schemas: stringSchema},
+		{keyword: "if", write: "if: {const: a}", schemas: stringSchema},
+		{keyword: "then", write: "then: {const: a}", schemas: stringSchema},
+		{keyword: "else", write: "else: {const: a}", schemas: stringSchema},
+		{keyword: "dependentSchemas", write: "dependentSchemas: {p: {type: object}}", schemas: objectSchema},
+		{keyword: "prefixItems", write: "prefixItems: [{type: integer}]", schemas: arraySchema},
+		{keyword: "items", write: "items: {type: integer}", schemas: "    A: {KW, type: array}\n"},
+		{keyword: "contains", write: "contains: {type: string}", schemas: arraySchema},
+		{keyword: "properties", write: "properties: {p: {type: string}}", schemas: "    A: {KW, type: object}\n"},
+		{keyword: "patternProperties", write: "patternProperties: {'^a': {type: string}}", schemas: objectSchema},
+		{keyword: "additionalProperties", write: "additionalProperties: {type: integer}", schemas: objectSchema},
+		{keyword: "propertyNames", write: "propertyNames: {maxLength: 4}", schemas: objectSchema},
+		{keyword: "unevaluatedItems", write: "unevaluatedItems: {type: string}", schemas: arraySchema},
+		{keyword: "unevaluatedProperties", write: "unevaluatedProperties: false", schemas: objectSchema},
+	}
+}
+
+func vocabularyValidation() []vocabCase {
+	return []vocabCase{
+		{keyword: "type", write: "type: string", schemas: "    A: {KW, title: T}\n"},
+		{keyword: "enum", write: "enum: [a, b]", schemas: stringSchema},
+		{keyword: "const", write: "const: a", schemas: stringSchema},
+		{keyword: "multipleOf", write: "multipleOf: 2", schemas: "    A: {KW, type: integer}\n"},
+		{keyword: "maximum", write: "maximum: 9", schemas: "    A: {KW, type: integer}\n"},
+		{keyword: "exclusiveMaximum", write: "exclusiveMaximum: 9", schemas: "    A: {KW, type: integer}\n"},
+		{keyword: "minimum", write: "minimum: 1", schemas: "    A: {KW, type: integer}\n"},
+		{keyword: "exclusiveMinimum", write: "exclusiveMinimum: 1", schemas: "    A: {KW, type: integer}\n"},
+		{keyword: "maxLength", write: "maxLength: 9", schemas: stringSchema},
+		{keyword: "minLength", write: "minLength: 1", schemas: stringSchema},
+		{keyword: "pattern", write: "pattern: '^a'", schemas: stringSchema},
+		{keyword: "maxItems", write: "maxItems: 9", schemas: arraySchema},
+		{keyword: "minItems", write: "minItems: 1", schemas: arraySchema},
+		{keyword: "uniqueItems", write: "uniqueItems: true", schemas: arraySchema},
+		{keyword: "maxContains", write: "maxContains: 9", schemas: arraySchema},
+		{keyword: "minContains", write: "minContains: 1", schemas: arraySchema},
+		{keyword: "maxProperties", write: "maxProperties: 9", schemas: objectSchema},
+		{keyword: "minProperties", write: "minProperties: 1", schemas: objectSchema},
+		{keyword: "required", write: "required: [p]", schemas: objectSchema},
+		{keyword: "dependentRequired", write: "dependentRequired: {p: [q]}", schemas: objectSchema},
+	}
+}
+
+func vocabularyAnnotation() []vocabCase {
+	return []vocabCase{
+		{keyword: "title", write: "title: T", schemas: stringSchema},
+		{keyword: "description", write: "description: D", schemas: stringSchema},
+		{keyword: "default", write: "default: a", schemas: stringSchema},
+		{keyword: "deprecated", write: "deprecated: true", schemas: stringSchema},
+		{keyword: "readOnly", write: "readOnly: true", schemas: stringSchema},
+		{keyword: "writeOnly", write: "writeOnly: true", schemas: stringSchema},
+		{keyword: "examples", write: "examples: [a]", schemas: stringSchema},
+		{keyword: "format", write: "format: uuid", schemas: stringSchema},
+		{keyword: "contentEncoding", write: "contentEncoding: base64", schemas: stringSchema},
+		{keyword: "contentMediaType", write: "contentMediaType: image/png", schemas: stringSchema},
+		{keyword: "contentSchema", write: "contentSchema: {type: object}", schemas: stringSchema},
+	}
+}
+
+// TestVocabulary2020_12_EveryKeywordIsLoweredOrKept compiles each 2020-12 keyword
+// beside a control that omits it and requires the two IR documents to differ. A
+// keyword the compiler neither lowers nor keeps verbatim produces an identical
+// document, which is exactly the silent drop GitHub #125 catalogued by hand — so
+// this fails on the next one instead of waiting for a reader to notice.
+//
+// The excluded rows are the inverse assertion: each states why nothing carries
+// the keyword, and the test holds them to producing no difference, so a keyword
+// that starts being carried has to move its justification rather than keep it.
+func TestVocabulary2020_12_EveryKeywordIsLoweredOrKept(t *testing.T) {
+	t.Parallel()
+	for _, tc := range vocabularyCases() {
+		t.Run(tc.keyword, func(t *testing.T) {
+			t.Parallel()
+			require.Contains(t, tc.schemas, "KW, ", "the template must mark where the keyword goes")
+
+			with := compileVocabIR(t, strings.Replace(tc.schemas, "KW, ", tc.write+", ", 1))
+			without := compileVocabIR(t, strings.Replace(tc.schemas, "KW, ", "", 1))
+
+			if tc.excluded != "" {
+				assert.Equal(t, without, with, "%s is deliberately not carried: %s", tc.keyword, tc.excluded)
+				return
+			}
+			assert.NotEqual(t, without, with,
+				"%s changed nothing in the IR, so it is neither lowered nor kept verbatim", tc.keyword)
+		})
+	}
+}
+
+// compileVocabIR compiles a components/schemas block and renders the IR it
+// produced. Two fields are cleared first: diagnostics, because a keyword that is
+// only announced and not lowered or kept is still lost, and Sources, whose
+// content hash differs for any two distinct source texts and would make every
+// case "differ" for free.
+func compileVocabIR(t *testing.T, schemas string) string {
+	t.Helper()
+	doc, diags := parseFull(t, componentSpec(schemas))
+	requireNoErrorDiags(t, diags)
+	doc.Diagnostics = nil
+	doc.Sources = nil
+	out, err := json.Marshal(doc)
+	require.NoError(t, err)
+	return string(out)
+}
+
+// TestContentVocabulary_LowersToEncoding pins where the 2020-12 content
+// vocabulary lands: contentEncoding on Encoding.Name, contentMediaType on
+// Encoding.MediaType, on the Scalar node the position hoists rather than on the
+// shared primitive every other declaration of that type also resolves to.
+func TestContentVocabulary_LowersToEncoding(t *testing.T) {
+	t.Parallel()
+	cases := []struct {
+		name, schemas string
+		at            ir.TypeID
+		want          ir.Encoding
+	}{
+		{
+			name:    "component",
+			schemas: "    A: {type: string, contentEncoding: base64, contentMediaType: image/png}\n",
+			at:      componentID("A"),
+			want:    ir.Encoding{Name: "base64", MediaType: "image/png"},
+		},
+		{
+			name:    "property",
+			schemas: "    A: {type: object, properties: {p: {type: string, contentMediaType: text/csv}}}\n",
+			at:      "t/anon/components/schemas/A/properties/p",
+			want:    ir.Encoding{MediaType: "text/csv"},
+		},
+		{
+			name:    "items",
+			schemas: "    A: {type: array, items: {type: string, contentEncoding: base32}}\n",
+			at:      "t/anon/components/schemas/A/items",
+			want:    ir.Encoding{Name: "base32"},
+		},
+		{
+			name:    "beside a known format",
+			schemas: "    A: {type: string, format: date-time, contentMediaType: text/plain}\n",
+			at:      componentID("A"),
+			want:    ir.Encoding{MediaType: "text/plain"},
+		},
+		{
+			name:    "format byte agrees with contentEncoding",
+			schemas: "    A: {type: string, format: byte, contentEncoding: base64}\n",
+			at:      componentID("A"),
+			want:    ir.Encoding{Name: "base64", WireType: &ir.TypeRef{Target: "t/prim/string"}},
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			doc, diags := parseFull(t, componentSpec(tc.schemas))
+			requireNoErrorDiags(t, diags)
+
+			sc, ok := doc.Types[tc.at].(*ir.Scalar)
+			require.True(t, ok, "the content vocabulary needs a Scalar of its own at %s", tc.at)
+			require.NotNil(t, sc.Encoding)
+			assert.Empty(t, cmp.Diff(tc.want, *sc.Encoding))
+			assert.Empty(t, sc.Unmodeled, "a keyword with a field is lowered, never also kept raw")
+		})
+	}
+}
+
+// TestContentVocabulary_KeptWhereNoEncodingHolds covers the other half: a schema
+// with no Encoding field to fill, and contentSchema, which has no IR field at any
+// position.
+func TestContentVocabulary_KeptWhereNoEncodingHolds(t *testing.T) {
+	t.Parallel()
+	cases := []struct {
+		name, schemas, key, wantJSON string
+		at                           ir.TypeID
+	}{
+		{
+			name:    "array position has no Encoding",
+			schemas: "    A: {type: array, items: {type: string}, contentMediaType: application/zip}\n",
+			key:     "openapi:contentMediaType", wantJSON: `"application/zip"`, at: componentID("A"),
+		},
+		{
+			name:    "contentSchema has no field anywhere",
+			schemas: "    A: {type: string, contentSchema: {type: object}}\n",
+			key:     "openapi:contentSchema", wantJSON: `{"type":"object"}`, at: componentID("A"),
+		},
+		{
+			name:    "format loses Encoding.Name to contentEncoding",
+			schemas: "    A: {type: string, format: iban, contentEncoding: base64}\n",
+			key:     "openapi:format", wantJSON: `"iban"`, at: componentID("A"),
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			doc, diags := parseFull(t, componentSpec(tc.schemas))
+			requireNoErrorDiags(t, diags)
+
+			td, ok := doc.Types[tc.at]
+			require.True(t, ok)
+			entry, ok := td.Common().Unmodeled[tc.key]
+			require.True(t, ok, "%s must be kept verbatim under Unmodeled", tc.key)
+			assert.JSONEq(t, tc.wantJSON, string(entry.Value))
+			assert.Equal(t, ir.ReasonNoIRHome, entry.Reason)
+			assertInfoDiagAt(t, diags, entry.Provenance.Pointer)
+		})
+	}
+}
+
+// TestContentVocabulary_KeptOnACarrierWithNoNode covers the position whose
+// schema owns no node at all: a property whose declared shape reduced to a shared
+// primitive, where the ir.Property is the only home the keyword has.
+func TestContentVocabulary_KeptOnACarrierWithNoNode(t *testing.T) {
+	t.Parallel()
+	doc, diags := parseFull(t, componentSpec(
+		"    A: {type: object, properties: {p: {contentMediaType: application/json}}}\n"))
+	requireNoErrorDiags(t, diags)
+
+	p := propertyOf(t, doc, "A", "p")
+	assert.Equal(t, ir.TypeID("t/prim/any"), p.Type.Target, "an untyped schema stays schemaless")
+	entry, ok := p.Unmodeled["openapi:contentMediaType"]
+	require.True(t, ok, "the carrier is the only home when the schema hoisted no node")
+	assert.Equal(t, ir.ReasonNoIRHome, entry.Reason)
+	assertInfoDiagAt(t, diags, entry.Provenance.Pointer)
+}
+
+// TestDynamicRef_ExpandsAgainstTheOneMatchingAnchor pins the resolvable half of
+// ir-design §4.7's $dynamicRef promise, including the recursive shape that makes
+// the keyword worth having.
+func TestDynamicRef_ExpandsAgainstTheOneMatchingAnchor(t *testing.T) {
+	t.Parallel()
+	doc, diags := parseFull(t, componentSpec(
+		"    Meta: {$dynamicAnchor: meta, type: object, properties: {n: {type: string}}}\n"+
+			"    Uses: {type: object, properties: {m: {$dynamicRef: '#meta'}}}\n"+
+			"    Tree: {$dynamicAnchor: node, type: object, properties: {kids: {type: array, items: {$dynamicRef: '#node'}}}}\n"))
+	requireNoErrorDiags(t, diags)
+
+	assert.Equal(t, componentID("Meta"), propertyOf(t, doc, "Uses", "m").Type.Target,
+		"the reference resolves to the anchor's own component, not to the top type")
+
+	kids, ok := doc.Types[ir.TypeID("t/anon/components/schemas/Tree/properties/kids")].(*ir.List)
+	require.True(t, ok)
+	elem, ok := doc.Types[kids.Elem.Target].(*ir.Scalar)
+	require.True(t, ok, "the items position keeps a node of its own")
+	require.NotNil(t, elem.Base)
+	assert.Equal(t, componentID("Tree"), elem.Base.Target,
+		"a self-recursive dynamic reference terminates on the interned component ID")
+
+	for _, td := range doc.Types {
+		assert.NotContains(t, td.Common().Unmodeled, "openapi:$dynamicRef",
+			"an expanded reference is the position's type; keeping it too would read as ignored")
+	}
+}
+
+// TestDynamicRef_IrreducibleIsKeptAndSaysWhy pins the other half of that promise.
+// Each case is a reference no static lowering can resolve, and each must survive
+// verbatim with the reason naming which case it was.
+func TestDynamicRef_IrreducibleIsKeptAndSaysWhy(t *testing.T) {
+	t.Parallel()
+	const anchors = "    M1: {$dynamicAnchor: dup, type: string}\n" +
+		"    M2: {$dynamicAnchor: dup, type: integer}\n" +
+		"    Deep: {type: object, properties: {i: {$dynamicAnchor: deep, type: string}}}\n"
+	cases := []struct{ name, schemas, wantWhy string }{
+		{"no such anchor", "    A: {$dynamicRef: '#nope'}\n", "no $dynamicAnchor \"nope\" is declared"},
+		{"another document", "    A: {$dynamicRef: 'other.json#m'}\n", "is not a plain same-document fragment"},
+		{"a pointer, not an anchor", "    A: {$dynamicRef: '#/components/schemas/M1'}\n", "not a plain same-document fragment"},
+		{"declared twice", anchors + "    A: {$dynamicRef: '#dup'}\n", "declared 2 times"},
+		{"not a component", anchors + "    A: {$dynamicRef: '#deep'}\n", "rather than on a component schema"},
+		{"co-declared with a shape", anchors + "    A: {$dynamicRef: '#deep', type: string}\n", "co-declared with another applicator"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			doc, diags := parseFull(t, componentSpec(tc.schemas))
+			requireNoErrorDiags(t, diags)
+
+			td, ok := doc.Types[componentID("A")]
+			require.True(t, ok, "the position owns a node to keep the reference on")
+			entry, ok := td.Common().Unmodeled["openapi:$dynamicRef"]
+			require.True(t, ok, "an irreducible $dynamicRef is kept verbatim, not dropped")
+			assert.Equal(t, ir.ReasonDegradedLowering, entry.Reason)
+			assertDiagContains(t, diags, entry.Provenance.Pointer, tc.wantWhy)
+		})
+	}
+}
+
+// TestDialectKeywords_KeptOutOfScope pins the exclusion §4.7 records: the IR has
+// no resource or dialect axis, so these are kept verbatim under the reason that
+// says no IR node is coming for them — never dropped in silence, and never read
+// as a base URI for reference resolution.
+func TestDialectKeywords_KeptOutOfScope(t *testing.T) {
+	t.Parallel()
+	doc, diags := parseFull(t, componentSpec(
+		"    A:\n"+
+			"      $id: 'urn:example:a'\n"+
+			"      $schema: 'https://json-schema.org/draft/2020-12/schema'\n"+
+			"      $vocabulary: {'https://json-schema.org/draft/2020-12/vocab/core': true}\n"+
+			"      $comment: not for end users\n"+
+			"      type: string\n"))
+	requireNoErrorDiags(t, diags)
+
+	td, ok := doc.Types[componentID("A")]
+	require.True(t, ok)
+	for _, keyword := range dialectKeywords {
+		entry, ok := td.Common().Unmodeled["openapi:"+keyword]
+		require.True(t, ok, "%s must be kept verbatim", keyword)
+		assert.Equal(t, ir.ReasonOutOfScope, entry.Reason)
+		assertInfoDiagAt(t, diags, entry.Provenance.Pointer)
+	}
+	assert.NotContains(t, td.Common().Unmodeled, "openapi:$comment",
+		"2020-12 §8.3 forbids presenting $comment, so it is dropped rather than kept")
+}
+
+// assertInfoDiagAt requires one info diagnostic stamped at pointer.
+func assertInfoDiagAt(t *testing.T, diags []ir.Diagnostic, pointer string) {
+	t.Helper()
+	for _, d := range diags {
+		if d.Severity == ir.SeverityInfo && d.Provenance.Pointer == pointer {
+			return
+		}
+	}
+	assert.Fail(t, "nothing announced this", "no info diagnostic at %q; got %+v", pointer, diags)
+}
+
+// assertDiagContains requires one diagnostic at pointer whose message carries
+// substr, so a case asserts the reason it was given and not merely that it was
+// reported.
+func assertDiagContains(t *testing.T, diags []ir.Diagnostic, pointer, substr string) {
+	t.Helper()
+	for _, d := range diags {
+		if d.Provenance.Pointer == pointer && strings.Contains(d.Message, substr) {
+			return
+		}
+	}
+	assert.Fail(t, "no diagnostic said why", "nothing at %q mentions %q; got %+v", pointer, substr, diags)
 }

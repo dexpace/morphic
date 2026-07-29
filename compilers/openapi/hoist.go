@@ -34,6 +34,11 @@ type lowerer struct {
 	// merge reconciles properties declared by more than one allOf branch.
 	merge   merger
 	schemas map[string]bool // declared component-schema names (for ref resolution)
+	// dynamicAnchors indexes the document's $dynamicAnchor declarations by name,
+	// built by dynamicAnchorIndex on the first $dynamicRef reached. It stays nil
+	// until then: the index costs a walk of the whole raw source tree, and almost
+	// no document writes either keyword.
+	dynamicAnchors map[string][]string
 	// diagnosedConstraints records pointers whose constraint diagnostics were
 	// already emitted, so a sub-schema read from two positions (its owning
 	// property and a $ref that hoists it) reports a malformed bound only once.

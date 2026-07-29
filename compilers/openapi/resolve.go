@@ -177,6 +177,7 @@ func (l *lowerer) refSiteRef(js *oas3.JSONSchema[oas3.Referenceable], s *oas3.Sc
 	if s != nil {
 		l.attachDeclaredAnnotations(s, pointer)
 	}
+	l.recordDeclarationResidue(s, pointer, home)
 	return ref
 }
 

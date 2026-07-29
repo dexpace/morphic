@@ -1,6 +1,7 @@
 package openapi
 
 import (
+	"strings"
 	"testing"
 
 	oas3 "github.com/speakeasy-api/openapi/jsonschema/oas3"
@@ -106,4 +107,83 @@ func TestPreserveKeywordInto_EmptyPayloadRecordsAndAnnouncesNothing(t *testing.T
 			assert.Empty(t, diags, "nothing was kept, so nothing is announced")
 		})
 	}
+}
+
+// TestValidationOnlyAt_DependentRequiredJoinsItsSiblings pins the keyword the
+// §4.7 family was missing. dependentRequired is pure validation logic exactly as
+// dependentSchemas is, and oas3.Schema has no field for it, which is the whole
+// reason it was dropped where its sibling was kept.
+func TestValidationOnlyAt_DependentRequiredJoinsItsSiblings(t *testing.T) {
+	t.Parallel()
+	s := schemaFromYAML(t, "type: object\ndependentRequired:\n  a: [b]\n")
+
+	got, diags := validationOnlyAt(s, "/components/schemas/S", 7)
+
+	entry, ok := got["openapi:dependentRequired"]
+	require.True(t, ok, "dependentRequired must be kept verbatim")
+	assert.JSONEq(t, `{"a":["b"]}`, string(entry.Value))
+	assert.Equal(t, ir.ReasonValidationOnly, entry.Reason)
+	assert.Equal(t, "/components/schemas/S/dependentRequired", entry.Provenance.Pointer)
+
+	require.Len(t, diags, 1, "and is announced exactly once")
+	assert.Equal(t, codeValidationOnlyKeyword, diags[0].Code)
+	assert.Equal(t, 7, diags[0].Provenance.Source)
+}
+
+// TestDialectAt_KeepsEachKeywordOutOfScope pins that the resource and dialect
+// keywords carry the reason meaning "no IR node is coming", not the one meaning
+// "the field is missing for now".
+func TestDialectAt_KeepsEachKeywordOutOfScope(t *testing.T) {
+	t.Parallel()
+	s := schemaFromYAML(t, "$id: 'urn:example:a'\n$schema: 'https://example.com/dialect'\ntype: string\n")
+
+	got, diags := dialectAt(s, "/components/schemas/S", 0)
+
+	require.Len(t, got, 2, "one entry per keyword written")
+	for _, keyword := range []string{"$id", "$schema"} {
+		entry, ok := got["openapi:"+keyword]
+		require.True(t, ok, "%s must be kept", keyword)
+		assert.Equal(t, ir.ReasonOutOfScope, entry.Reason)
+	}
+	assert.Len(t, diags, 2, "each exclusion is announced where it was written")
+	assert.True(t, declaresDialect(s), "and the hoist gate agrees a node is needed to hold them")
+}
+
+// TestNoIRHomeAt_ContentSchemaIsKeptNotExcluded pins the reason split the other
+// way: contentSchema is real data shape with no field yet, a gap expected to
+// close, so it must not be filed as a deliberate exclusion.
+func TestNoIRHomeAt_ContentSchemaIsKeptNotExcluded(t *testing.T) {
+	t.Parallel()
+	s := schemaFromYAML(t, "type: string\ncontentSchema: {type: object}\n")
+
+	got, diags := noIRHomeAt(s, "/components/schemas/S", 0)
+
+	entry, ok := got["openapi:contentSchema"]
+	require.True(t, ok)
+	assert.JSONEq(t, `{"type":"object"}`, string(entry.Value))
+	assert.Equal(t, ir.ReasonNoIRHome, entry.Reason)
+	require.Len(t, diags, 1)
+	assert.Equal(t, "/components/schemas/S/contentSchema", diags[0].Provenance.Pointer)
+}
+
+// schemaFromYAML loads one component schema through the compiler's own parser, so
+// the raw root node the verbatim readers need is present. A schema built in Go
+// carries none, which TestValidationOnlyAt_NeedsTheRawNode covers separately.
+func schemaFromYAML(t *testing.T, body string) *oas3.Schema {
+	t.Helper()
+	doc, _, err := load(t.Context(), 0, sourceOf(componentSpec("    S:\n"+indentSchema(body))), Options{}.withDefaults())
+	require.NoError(t, err)
+	require.NotNil(t, doc)
+	js, ok := doc.Doc.Components.GetSchemas().Get("S")
+	require.True(t, ok, "the component parsed")
+	return js.GetSchema()
+}
+
+// indentSchema re-indents a schema body's lines to sit under a component name.
+func indentSchema(body string) string {
+	var b strings.Builder
+	for _, line := range strings.Split(strings.TrimRight(body, "\n"), "\n") {
+		b.WriteString("      " + line + "\n")
+	}
+	return b.String()
 }

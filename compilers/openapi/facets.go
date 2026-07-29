@@ -59,15 +59,101 @@ func annotations(st site, pointer string, srcIndex int) (annotationSet, []ir.Dia
 	out.Examples = examples
 
 	ext, extDiags := extensionsFrom(st.Node.GetExtensions(), srcIndex, pointer)
-	vOnly, vDiags := validationOnlyAt(st.Node, pointer, srcIndex)
+	kept, keptDiags := unmodeledAt(st.Node, pointer, srcIndex)
 
-	diags := make([]ir.Diagnostic, 0, len(exDiags)+len(extDiags)+len(vDiags))
+	diags := make([]ir.Diagnostic, 0, len(exDiags)+len(extDiags)+len(keptDiags))
 	diags = append(diags, exDiags...)
 	diags = append(diags, extDiags...)
-	diags = append(diags, vDiags...)
+	diags = append(diags, keptDiags...)
 
-	out.Unmodeled = mergePreserved(ext, vOnly)
+	out.Unmodeled = mergePreserved(ext, kept)
 	return out, diags
+}
+
+// unmodeledAt collects every keyword a site declares that the IR keeps verbatim
+// instead of modelling, each under the reason that says which of those it is
+// (§12): validation logic the IR draws a boundary against (§4.7), data with no IR
+// field yet, and JSON Schema resource/dialect metadata the IR excludes on
+// purpose.
+func unmodeledAt(s *oas3.Schema, pointer string, srcIndex int) (ir.Unmodeled, []ir.Diagnostic) {
+	vOnly, vDiags := validationOnlyAt(s, pointer, srcIndex)
+	noHome, nhDiags := noIRHomeAt(s, pointer, srcIndex)
+	dialect, dDiags := dialectAt(s, pointer, srcIndex)
+
+	diags := make([]ir.Diagnostic, 0, len(vDiags)+len(nhDiags)+len(dDiags))
+	diags = append(diags, vDiags...)
+	diags = append(diags, nhDiags...)
+	diags = append(diags, dDiags...)
+
+	return mergePreserved(mergePreserved(vOnly, noHome), dialect), diags
+}
+
+// noIRHomeAt collects the keywords a schema declares that describe real data yet
+// have no field at any IR position. Unlike the §4.7 family these are gaps
+// expected to close rather than a boundary the IR draws, which is what
+// ReasonNoIRHome says and ReasonValidationOnly would not (§12).
+//
+// Site-only: contentSchema describes the value at the position that wrote it.
+func noIRHomeAt(s *oas3.Schema, pointer string, srcIndex int) (ir.Unmodeled, []ir.Diagnostic) {
+	if s.GetContentSchema() == nil {
+		return nil, nil
+	}
+	at := pointer + ptr("contentSchema")
+	var p ir.Unmodeled
+	preserveInto(&p, "openapi:contentSchema", nodeToRaw(rawPropertyNode(s, "contentSchema")),
+		ir.ReasonNoIRHome, at, srcIndex)
+	if p == nil {
+		return nil, nil
+	}
+	return p, []ir.Diagnostic{diagf(ir.SeverityInfo, codeDegradedConstruct,
+		ir.Provenance{Source: srcIndex, Pointer: at},
+		"contentSchema is the shape of the decoded content and no IR position has a field "+
+			"for it; kept verbatim under Unmodeled")}
+}
+
+// dialectKeywords are the JSON Schema resource and dialect keywords the IR
+// excludes on purpose. It identifies every type by a synthetic ID derived from
+// its source pointer rather than by `$id` (ir-design §3), and describes one API
+// surface rather than a JSON Schema resource graph, so it has no dialect axis for
+// `$schema`/`$vocabulary` to land on and none is coming — ReasonOutOfScope rather
+// than ReasonNoIRHome (§12).
+//
+// `$id` is kept, not honoured: reference resolution addresses same-document JSON
+// pointers, never an `$id` base URI.
+var dialectKeywords = []string{"$id", "$schema", "$vocabulary"}
+
+// dialectAt keeps each dialect keyword s declares verbatim and announces it, so
+// the exclusion is visible in the output rather than only in this comment.
+func dialectAt(s *oas3.Schema, pointer string, srcIndex int) (ir.Unmodeled, []ir.Diagnostic) {
+	var p ir.Unmodeled
+	var diags []ir.Diagnostic
+	for _, keyword := range dialectKeywords {
+		raw := nodeToRaw(rawPropertyNode(s, keyword))
+		if len(raw) == 0 {
+			continue
+		}
+		at := pointer + ptr(keyword)
+		preserveInto(&p, "openapi:"+keyword, raw, ir.ReasonOutOfScope, at, srcIndex)
+		diags = append(diags, diagf(ir.SeverityInfo, codeDegradedConstruct,
+			ir.Provenance{Source: srcIndex, Pointer: at},
+			"%s identifies or configures a JSON Schema resource rather than describing data; "+
+				"the IR models no such axis, so it is kept verbatim under Unmodeled and is not "+
+				"honoured for reference resolution", keyword))
+	}
+	return p, diags
+}
+
+// declaresDialect reports whether s writes a dialectKeywords entry, so a position
+// that wrote one owns a node to keep it on. It reads the raw nodes because
+// dialectAt does, and a predicate consulting a different source could disagree
+// with it in either direction.
+func declaresDialect(s *oas3.Schema) bool {
+	for _, keyword := range dialectKeywords {
+		if rawPropertyNode(s, keyword) != nil {
+			return true
+		}
+	}
+	return false
 }
 
 // schemaExamplesAt reads a schema's example and examples keywords.
@@ -120,6 +206,12 @@ func validationOnlyAt(s *oas3.Schema, pointer string, srcIndex int) (ir.Unmodele
 	if ds := s.GetDependentSchemas(); ds != nil && ds.Len() > 0 {
 		keep("openapi:dependentSchemas", nodeToRaw(rawPropertyNode(s, "dependentSchemas")),
 			pointer+ptr("dependentSchemas"), "dependentSchemas")
+	}
+	// dependentRequired is read off the raw node because oas3.Schema has no field
+	// for it at v1.24.0 — the only reason it was silently dropped where its
+	// sibling dependentSchemas was kept.
+	if dr := nodeToRaw(rawPropertyNode(s, "dependentRequired")); dr != nil {
+		keep("openapi:dependentRequired", dr, pointer+ptr("dependentRequired"), "dependentRequired")
 	}
 	if s.GetPropertyNames() != nil {
 		keep("openapi:propertyNames", nodeToRaw(rawPropertyNode(s, "propertyNames")),
