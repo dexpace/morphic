@@ -1388,6 +1388,39 @@ bindings at server, channel, operation and message level; `ProtocolDecl.Options`
 bare `RawValue`, not `PreservedEntry` — those entries are there because the source declared them
 where the IR expects them, so there is no reason to record and no unmodelled construct to locate.
 
+### 12.1 One structural home per declaration
+
+Documentation, deprecation, XML hints, examples, vendor extensions, validation-only keywords and
+value constraints are **position-scoped**: they bind the position they were written at, not the
+shape that position resolves to. A source schema that reduces to a shared node — the `string`
+primitive, the schemaless top type, or another type reached through a `$ref` — must therefore
+never write them onto that node, because every other position resolving to the same shape would
+then read them as its own.
+
+Each such declaration gets exactly **one** home, chosen by the position rather than by what the
+body lowered to:
+
+| the position | where the declaration's annotations live |
+|---|---|
+| carries an `ir.Property` or `ir.Parameter` of its own — a model property, a header, an operation parameter | that carrier |
+| carries neither — a component, an `items`, `additionalProperties`, `prefixItems[n]`, a `patternProperties` value, a union branch, a media-type or item schema, a `$ref`-hoisted sub-schema | a type node the position owns, hoisting a `Scalar` alias over the shared target when the body reduced to one |
+
+Two consequences a compiler must hold to. **A carrier position never hoists an alias**: a
+documented scalar field keeps its description on `Property.Docs`, where an emitter rendering that
+field reads it, rather than on an anonymous node the field points at. **A non-carrier position
+hoists only when the declaration says something** one of those homes holds — a bare
+`items: {type: string}` gains nothing by owning a node, so it keeps resolving straight to the
+shared primitive and the type graph stays free of an anonymous node per element position.
+
+Where a carrier holds annotations of its own alongside a schema's — a header and a parameter both
+write a `description` beside their schema — the carrier's own win: they describe that input,
+while the schema's describe its type.
+
+Constraints follow the same rule with one exception on the carrier side. `Property.Constraints`
+and `Parameter.Constraints` are filled whether or not the schema hoisted a node, because no node
+such a schema can hoist holds them: an object lowers to a `Model` and a formatted scalar to a
+`Scalar` carrying an `Encoding`, and neither has a field for the scalar bounds.
+
 ## 13. Provenance & diagnostics
 
 ```go
