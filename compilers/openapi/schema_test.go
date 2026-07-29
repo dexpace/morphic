@@ -741,9 +741,10 @@ func TestIsNullSchema_EmptyEitherFalse(t *testing.T) {
 func TestPreserveUnionSiblings_MissingNode(t *testing.T) {
 	t.Parallel()
 	l := newRawLowerer(&soa.OpenAPI{})
-	// No node registered under the id → the guard returns without panicking.
+	// No node registered under the id: the union branches have nowhere to go, so
+	// the guard reports the broken invariant instead of dropping them quietly.
 	l.preserveUnionSiblings("t/anon/missing", &oas3.Schema{}, "/p")
-	assert.Empty(t, l.diags)
+	assertHasErrorCode(t, l.diags, codeInternalInvariant)
 }
 
 // TestSchemaExamples_RefdSubSchemaKeepsThem pins the examples of a $ref'd
@@ -820,15 +821,16 @@ func TestSiteSchema_BodylessPositions(t *testing.T) {
 	assert.Nil(t, siteSchema(oas3.NewJSONSchemaFromBool(true)))
 }
 
-// TestAttachDeclaredAnnotations_MissingNode covers the mid-interning state a
-// self-referential schema can reach: the pointer already owns an ID, but the
-// node it names is still being built and is not in the registry yet.
+// TestAttachDeclaredAnnotations_MissingNode drives the invariant no source can
+// break: a pointer owning an ID the registry never registered. Lowering records
+// the two together, so this state is a compiler bug — and the annotations it
+// would swallow are reported rather than lost.
 func TestAttachDeclaredAnnotations_MissingNode(t *testing.T) {
 	t.Parallel()
 	l := newRawLowerer(&soa.OpenAPI{})
 	l.byPointer["/p"] = "t/anon/missing"
 	l.attachDeclaredAnnotations(&oas3.Schema{}, "/p")
-	assert.Empty(t, l.diags)
+	assertHasErrorCode(t, l.diags, codeInternalInvariant)
 }
 
 // The redeclaration-conflict helpers carry defensive guards for states a

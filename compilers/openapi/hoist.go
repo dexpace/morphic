@@ -79,6 +79,21 @@ func (l *lowerer) intern(pointer string, id ir.TypeID, build func() ir.TypeDef) 
 	return id
 }
 
+// registeredNode returns the node interning registered under id, reporting a
+// broken invariant instead of dropping in silence when there is none. intern
+// records a pointer's ID and its node together, so every ID reached through
+// byPointer resolves; a miss is a compiler bug no source can provoke, and the
+// caller — which was about to attach docs, examples or preserved constructs to
+// that node — would otherwise discard them without a trace.
+func (l *lowerer) registeredNode(id ir.TypeID, pointer string) (ir.TypeDef, bool) {
+	td, ok := l.out.Types[id]
+	if !ok {
+		l.diag(ir.SeverityError, codeInternalInvariant, pointer,
+			"internal: type %q is named at this pointer but absent from the registry; its source constructs are dropped", id)
+	}
+	return td, ok
+}
+
 // internNode is the single hoisting entry point: it derives pointer's stable
 // TypeID (typeIDForPointer) and shared TypeCommon (commonFor) once, then
 // interns build's result under that ID. build receives the already-built

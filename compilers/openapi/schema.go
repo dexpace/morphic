@@ -158,7 +158,7 @@ func (l *lowerer) lowerWithUnionSiblings(s *oas3.Schema, pointer, hint string) i
 // preserveUnionSiblings stores the raw oneOf/anyOf of s under the owning node's
 // Preserved and emits one info diagnostic naming the preserved construct.
 func (l *lowerer) preserveUnionSiblings(id ir.TypeID, s *oas3.Schema, pointer string) {
-	td, ok := l.out.Types[id]
+	td, ok := l.registeredNode(id, pointer)
 	if !ok {
 		return
 	}
@@ -767,7 +767,7 @@ func (l *lowerer) attachDeclaredAnnotations(s *oas3.Schema, pointer string) {
 	if !owned {
 		return
 	}
-	td, ok := l.out.Types[id]
+	td, ok := l.registeredNode(id, pointer)
 	if !ok {
 		return
 	}

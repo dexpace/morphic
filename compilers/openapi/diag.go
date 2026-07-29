@@ -68,6 +68,13 @@ const (
 	// attach to (ir-design §4.3: Properties holds only own properties, and
 	// flattening across Base/Mixins is computed, never stored).
 	codeUnattachableRequired = "openapi/unattachable-required"
+	// codeInternalInvariant reports that lowering's own pointer-to-registry
+	// invariant broke: a pointer named a type ID the registry does not hold, so
+	// whatever was about to be attached there had nowhere to go. No source can
+	// provoke this — it is a compiler bug — but it is reported rather than
+	// dropped in silence, since the alternative is losing constructs with no
+	// trace at all.
+	codeInternalInvariant = "openapi/internal-invariant"
 	// codeDuplicateOperationID reports an operationId claimed by more than one
 	// operation, which OpenAPI forbids. A path item mounted at two paths is the
 	// shape that reaches this without the document repeating the id in source.
