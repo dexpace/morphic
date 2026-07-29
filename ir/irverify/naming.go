@@ -18,10 +18,6 @@ func checkNaming(doc *ir.Document) []Violation {
 		if v.Kind() != reflect.Struct || v.Type() != namingType {
 			return true
 		}
-		// Read Canonical by field rather than v.Interface(): a Naming reached
-		// through an unexported field yields a read-only value that Interface()
-		// panics on, whereas FieldByName().String() works regardless, so the
-		// naming check can never crash the walk.
 		canon := v.FieldByName("Canonical").String()
 		if isCased(canon) {
 			vs = append(vs, Violation{

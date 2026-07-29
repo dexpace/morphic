@@ -123,6 +123,11 @@ func checkReferentialIntegrity(doc *ir.Document) []Violation {
 // that value's children. Map keys are walked too, not just values — see
 // collectRefs for why that matters.
 //
+// A value reached through an unexported field is read-only, and Interface()
+// panics on one where FieldByName does not, so a visitor reads the fields it
+// needs rather than converting the value back to its Go type. That is what keeps
+// Verify an oracle that never crashes on a malformed document.
+//
 // Map entries are visited in rendered-key order rather than Go's randomized map
 // order. A pointer reachable from two entries is descended into at whichever the
 // walk reaches first, so a random order yields a different path for it — and so a

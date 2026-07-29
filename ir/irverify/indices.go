@@ -43,9 +43,7 @@ func checkIndices(doc *ir.Document) []Violation {
 }
 
 // appendServerIndexViolations appends to vs a violation per entry of a Servers
-// field that addresses none of the declared servers. Fields are read by
-// reflection rather than v.Interface(), which panics on a value reached through
-// an unexported field.
+// field that addresses none of the declared servers.
 func appendServerIndexViolations(vs []Violation, servers reflect.Value, declared int, path string) []Violation {
 	for i := range servers.Len() {
 		index := int(servers.Index(i).Int())

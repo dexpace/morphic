@@ -9,12 +9,14 @@ import (
 var preservedType = reflect.TypeOf(ir.Preserved(nil))
 
 // checkPreserved asserts every Preserved entry carries the two things that make
-// it reachable: a non-empty origin-namespaced key and a declared
-// PreserveReason. Consumers select entries by reason — a validation emitter
-// wants the §4.7 subset, a linter wants the degradations — so an entry left at
-// the zero reason is bytes nothing can route, and one keyed "" cannot be looked
-// up and is overwritten by the next empty-keyed entry. Both are compiler bugs
-// of the same class checkRegistryKeys reports as ir/empty-*-id.
+// it reachable: a non-empty origin-namespaced key and a declared PreserveReason.
+// Consumers select entries by reason (see ir.PreservedEntry.Reason), so an entry
+// left at the zero reason is bytes nothing can route, and one keyed "" cannot be
+// looked up and is overwritten by the next empty-keyed entry. Both are compiler
+// bugs of the same class checkRegistryKeys reports as ir/empty-*-id.
+//
+// Entries need no ordering first: each violation carries its key in Path, and
+// Verify orders the whole result by (Code, Path) before returning it.
 func checkPreserved(doc *ir.Document) []Violation {
 	var vs []Violation
 	walkValues(doc, func(v reflect.Value, path string) bool {
@@ -32,10 +34,6 @@ func checkPreserved(doc *ir.Document) []Violation {
 
 // preservedEntry checks one entry of a Preserved map, reporting the key and the
 // reason independently so a doubly-broken entry names both defects.
-//
-// Reason is read by field rather than through entry.Interface(), which panics
-// on a value reached via an unexported field — the same guard checkNaming uses,
-// keeping Verify an oracle that never crashes on a malformed document.
 func preservedEntry(key string, entry reflect.Value, path string) []Violation {
 	at := path + "[" + key + "]"
 	var vs []Violation

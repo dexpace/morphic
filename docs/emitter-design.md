@@ -63,7 +63,7 @@ The definitive design is a **strict three-stage pipeline** with these decisions:
 1. **The plan layer is shared and computed once by the engine, keyed by IR stable IDs, and passed
    into every target.** This is the single most important structural choice: it is what makes the
    docs emitter, the mock emitter, and every language SDK agree *by construction* rather than
-   re-derive decisions and drift — the OpenAPI Generator failure mode detailed in §1.2 above. The
+   re-derive decisions and drift — the OpenAPI Generator failure mode set out above. The
    plan is JSON-serializable and has its own language-independent golden-test corpus.
 
 2. **Refine is an ordered pipeline of small, named, idempotent lowerings — but each one is a *pure

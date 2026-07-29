@@ -25,8 +25,6 @@ func checkProvenance(doc *ir.Document) []Violation {
 		if v.Kind() != reflect.Struct || v.Type() != provenanceType {
 			return true
 		}
-		// Read Source by field: a Provenance reached through an unexported field
-		// is read-only, and Interface() panics on it where FieldByName does not.
 		src := int(v.FieldByName("Source").Int())
 		if sourceOutOfRange(src, declared) {
 			vs = append(vs, Violation{
