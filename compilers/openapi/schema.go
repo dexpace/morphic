@@ -94,10 +94,99 @@ func (l *lowerer) internAlias(pointer, hint string, target ir.TypeRef, constrain
 // pointer. It is shared by schemaRef and by sub-schema hoisting
 // (resolveSchemaRef), which both reach a body only after peeling off any
 // leading $ref.
-func (l *lowerer) schemaBody(schema *oas3.Schema, pointer, hint string) ir.TypeRef {
-	ref := l.lowerSchemaBody(schema, pointer, hint)
+func (l *lowerer) schemaBody(schema *oas3.Schema, pointer, hint string, home annotationHome) ir.TypeRef {
+	ref := l.hoistDeclarationHome(schema, l.lowerSchemaBody(schema, pointer, hint), pointer, hint, home)
 	l.attachDeclaredAnnotations(schema, pointer)
 	return ref
+}
+
+// hoistDeclarationHome gives a declaration a node of its own when its lowering
+// left it none and it wrote something only a node can hold. A body reducing to
+// a shared primitive (or to another type's ID) is what leaves a pointer
+// unowned, and a shared node must never carry one declaration's annotations —
+// so without this the docs, x-*, xml, examples, validation-only keywords and
+// value constraints written at that position are dropped, silently and
+// including the constraints an emitter needs to generate a correct validator
+// (GitHub #116).
+//
+// Ownership therefore follows what a declaration says, not what its body
+// happened to lower to. A schema that declares none of it keeps resolving
+// straight to the shared node: owning one would add nothing and give every
+// bare `items: {type: string}` an anonymous node for nothing.
+func (l *lowerer) hoistDeclarationHome(s *oas3.Schema, ref ir.TypeRef, pointer, hint string, home annotationHome) ir.TypeRef {
+	if home != homeOwnNode || s == nil || l.ownsNode(pointer) || !declaresPositionScoped(s) {
+		return ref
+	}
+	id := l.internAlias(pointer, hint, ref, l.schemaConstraints(s, pointer))
+	return ir.TypeRef{Target: id, Nullable: ref.Nullable}
+}
+
+// declaresPositionScoped reports whether s writes anything that binds the
+// position it is written at rather than the shape it lowers to — an annotation
+// attachDeclaredAnnotations records, or a value constraint internAlias carries.
+// It is the gate on hoisting an alias, so it must stay in step with what those
+// two actually keep: a keyword listed here but stored nowhere would hoist an
+// empty node, and one stored but missing here would still be dropped.
+func declaresPositionScoped(s *oas3.Schema) bool {
+	return declaresAnnotations(s) || declaresValueConstraints(s) || declaresValidationOnly(s)
+}
+
+// declaresAnnotations reports whether s carries documentation, deprecation, XML
+// hints, vendor extensions, or examples — the five TypeCommon fields
+// attachDeclaredAnnotations fills.
+func declaresAnnotations(s *oas3.Schema) bool {
+	if s.GetTitle() != "" || s.GetDescription() != "" || s.GetExternalDocs() != nil {
+		return true
+	}
+	if effectiveDeprecated(s, nil) || s.GetXML() != nil {
+		return true
+	}
+	if ext := s.GetExtensions(); ext != nil && ext.Len() > 0 {
+		return true
+	}
+	return s.GetExample() != nil || len(s.GetExamples()) > 0
+}
+
+// declaresValueConstraints reports whether s sets any keyword
+// constraintsFromSchema reads. It does not call it: that reports a malformed
+// bound, and a predicate must not emit diagnostics. The three numeric bounds
+// are detected on their raw nodes for the same reason numericBounds reads them
+// there — a magnitude beyond float64 leaves the model field nil while the
+// keyword is plainly written.
+func declaresValueConstraints(s *oas3.Schema) bool {
+	for _, keyword := range []string{"minimum", "maximum", "multipleOf"} {
+		if rawPropertyNode(s, keyword) != nil {
+			return true
+		}
+	}
+	if s.GetExclusiveMinimum() != nil || s.GetExclusiveMaximum() != nil {
+		return true
+	}
+	if s.MinLength != nil || s.MaxLength != nil || s.GetPattern() != "" {
+		return true
+	}
+	return s.MinProperties != nil || s.MaxProperties != nil
+}
+
+// declaresValidationOnly reports whether s writes a §4.7 validation-only
+// keyword that fillValidationOnly keeps verbatim under Preserved. A `false`
+// unevaluatedProperties is excluded on purpose: fillAdditional lowers it into
+// the model's openness, so it is structure rather than a preserved keyword.
+func declaresValidationOnly(s *oas3.Schema) bool {
+	if s.GetNot() != nil || s.GetContains() != nil {
+		return true
+	}
+	if s.GetIf() != nil || s.GetThen() != nil || s.GetElse() != nil {
+		return true
+	}
+	if s.GetMinContains() != nil || s.GetMaxContains() != nil {
+		return true
+	}
+	if ds := s.GetDependentSchemas(); ds != nil && ds.Len() > 0 {
+		return true
+	}
+	up := s.GetUnevaluatedProperties()
+	return s.GetUnevaluatedItems() != nil || (up != nil && !isFalseSchema(up))
 }
 
 // lowerSchemaBody lowers the body itself, handling the oneOf/anyOf dispatch that
@@ -297,7 +386,7 @@ func (l *lowerer) fillModelProperties(m *ir.Model, s *oas3.Schema, pointer strin
 			ID:         propID(ppointer),
 			Name:       ir.Naming{Source: name, Canonical: canonicalWords(name)},
 			WireName:   name,
-			Type:       l.schemaRef(js, ppointer, name),
+			Type:       l.carriedSchemaRef(js, ppointer, name),
 			Required:   required[name],
 			Provenance: ir.Provenance{Source: l.srcIndex, Pointer: ppointer},
 		}

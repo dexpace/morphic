@@ -187,7 +187,7 @@ func (l *lowerer) lowerHeaders(headers *sequencedmap.Map[string, *soa.Referenced
 			ID:         propID(hptr),
 			Name:       ir.Naming{Source: name, Canonical: canonicalWords(name)},
 			WireName:   name,
-			Type:       l.schemaRef(h.GetSchema(), hdecl+ptr("schema"), declarationHint(hdecl, name)),
+			Type:       l.carriedSchemaRef(h.GetSchema(), hdecl+ptr("schema"), declarationHint(hdecl, name)),
 			Required:   h.GetRequired(),
 			Examples:   l.exampleList(h.GetExample(), h.GetExamples(), hdecl),
 			Provenance: ir.Provenance{Source: l.srcIndex, Pointer: hptr},

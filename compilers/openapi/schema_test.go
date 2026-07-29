@@ -2181,3 +2181,282 @@ components:
 	_, isModel := doc.Types[ir.TypeID("t/openapi/components/schemas/Base")].(*ir.Model)
 	assert.True(t, isModel, "the structure lives at the component it was declared at")
 }
+
+// inlineProbeBody is the body every inline-position case below writes: one
+// annotation of each kind attachDeclaredAnnotations reads, one validation-only
+// keyword, and one value constraint — all of them position-scoped, so a
+// position that lowers this to the shared string primitive loses every one.
+const inlineProbeBody = `{type: string, description: DOC, x-vendor: V, xml: {name: X}, not: {const: N}, maxLength: 3}`
+
+// inlinePosition is one schema position with no ir.Property or ir.Parameter to
+// carry a declaration's annotations, so the declaration must own a node.
+type inlinePosition struct {
+	name string
+	// spec writes body at the position under test.
+	spec func(body string) string
+	// id is the node the position's declaration owns once it declares anything.
+	id ir.TypeID
+	// target is what a bare {type: string} at the position resolves to instead.
+	target ir.TypeID
+}
+
+func inlinePositions() []inlinePosition {
+	const prim = ir.TypeID("t/prim/string")
+	return []inlinePosition{
+		{"items", func(b string) string { return componentSpec("    A: {type: array, items: " + b + "}\n") },
+			"t/anon/components/schemas/A/items", prim},
+		{"nested-items", func(b string) string {
+			return componentSpec("    A: {type: array, items: {type: array, items: " + b + "}}\n")
+		}, "t/anon/components/schemas/A/items/items", prim},
+		{"additionalProperties", func(b string) string {
+			return componentSpec("    A: {type: object, additionalProperties: " + b + "}\n")
+		}, "t/anon/components/schemas/A/additionalProperties", prim},
+		{"prefixItems", func(b string) string {
+			return componentSpec("    A: {type: array, prefixItems: [" + b + "]}\n")
+		}, "t/anon/components/schemas/A/prefixItems/0", prim},
+		{"patternProperties", func(b string) string {
+			return componentSpec("    A: {type: object, patternProperties: {\"^x\": " + b + "}}\n")
+		}, "t/anon/components/schemas/A/patternProperties/^x", prim},
+		{"oneOf-branch", func(b string) string {
+			return componentSpec("    A: {oneOf: [" + b + ", {type: integer}]}\n")
+		}, "t/anon/components/schemas/A/oneOf/0", prim},
+		{"anyOf-branch", func(b string) string {
+			return componentSpec("    A: {anyOf: [" + b + ", {type: integer}]}\n")
+		}, "t/anon/components/schemas/A/anyOf/0", prim},
+		{"request-media-type", func(b string) string {
+			return pathsSpec("  /x:\n    post:\n      operationId: p\n      requestBody:\n" +
+				"        content: {application/json: {schema: " + b + "}}\n" +
+				"      responses: {\"204\": {description: ok}}\n")
+		}, "t/anon/paths/~1x/post/requestBody/content/application~1json/schema", prim},
+		{"response-media-type", func(b string) string {
+			return pathsSpec("  /x:\n    get:\n      operationId: g\n      responses:\n" +
+				"        \"200\":\n          description: ok\n" +
+				"          content: {application/json: {schema: " + b + "}}\n")
+		}, "t/anon/paths/~1x/get/responses/200/content/application~1json/schema", prim},
+	}
+}
+
+// TestInlinePosition_DeclarationOwnsANode asserts that a schema declaring
+// position-scoped annotations at an inline position keeps every one of them, at
+// each position that has no carrier to hold them (GitHub #116). Before the fix
+// each of these lowered straight to the shared string primitive and dropped all
+// five plus the constraint, with no diagnostic.
+func TestInlinePosition_DeclarationOwnsANode(t *testing.T) {
+	t.Parallel()
+	for _, pos := range inlinePositions() {
+		t.Run(pos.name, func(t *testing.T) {
+			t.Parallel()
+			doc, diags := parseFull(t, pos.spec(inlineProbeBody))
+			requireNoErrorDiags(t, diags)
+
+			sc, ok := doc.Types[pos.id].(*ir.Scalar)
+			require.True(t, ok, "the declaration owns a Scalar at its own pointer; got %v", doc.Types[pos.id])
+			require.NotNil(t, sc.Base)
+			assert.Equal(t, pos.target, sc.Base.Target, "the alias still names the shared primitive it reduced to")
+			assertProbeAnnotationsKept(t, sc)
+		})
+	}
+}
+
+// assertProbeAnnotationsKept checks every keyword inlineProbeBody writes
+// survived onto the node the declaration owns.
+func assertProbeAnnotationsKept(t *testing.T, sc *ir.Scalar) {
+	t.Helper()
+	assert.Equal(t, "DOC", sc.Docs.Description, "docs")
+	if assert.NotNil(t, sc.XML, "xml hints") {
+		assert.Equal(t, "X", sc.XML.Name)
+	}
+	vendor, ok := sc.Preserved["openapi:x-vendor"]
+	if assert.True(t, ok, "vendor extension: got %v", sc.Preserved) {
+		assert.JSONEq(t, `"V"`, string(vendor.Value))
+		assert.Equal(t, ir.ReasonVendorExtension, vendor.Reason)
+	}
+	not, ok := sc.Preserved["openapi:not"]
+	if assert.True(t, ok, "validation-only keyword: got %v", sc.Preserved) {
+		assert.Equal(t, ir.ReasonValidationOnly, not.Reason)
+	}
+	if assert.NotNil(t, sc.Constraints, "value constraints") {
+		require.NotNil(t, sc.Constraints.MaxLength)
+		assert.Equal(t, int64(3), *sc.Constraints.MaxLength)
+	}
+}
+
+// TestInlinePosition_BareScalarStaysShared is the control that bounds the fix:
+// a position declaring nothing of its own gains nothing by owning a node, so it
+// must keep resolving straight to the shared primitive rather than growing an
+// anonymous alias per element position.
+func TestInlinePosition_BareScalarStaysShared(t *testing.T) {
+	t.Parallel()
+	for _, pos := range inlinePositions() {
+		t.Run(pos.name, func(t *testing.T) {
+			t.Parallel()
+			doc, diags := parseFull(t, pos.spec("{type: string}"))
+			requireNoErrorDiags(t, diags)
+			assert.NotContains(t, doc.Types, pos.id, "a bare declaration must not hoist a node")
+			assert.Contains(t, doc.Types, pos.target, "it resolves to the shared primitive instead")
+		})
+	}
+}
+
+// TestInlinePosition_NullStrippedScalarKeepsAnnotations covers the shape that
+// reaches the shared primitive by a second route: effectiveTypes strips the
+// "null" member before dispatch, so `type: [string, "null"]` lands on the same
+// shared node a bare string does. Nullability still lifts onto the refs.
+func TestInlinePosition_NullStrippedScalarKeepsAnnotations(t *testing.T) {
+	t.Parallel()
+	doc, diags := parseFull(t, componentSpec(
+		"    A: {type: array, items: {type: [string, \"null\"], description: DOC}}\n"))
+	requireNoErrorDiags(t, diags)
+
+	sc, ok := doc.Types["t/anon/components/schemas/A/items"].(*ir.Scalar)
+	require.True(t, ok, "a null-stripped scalar declaration owns a node like any other")
+	assert.Equal(t, "DOC", sc.Docs.Description)
+	require.NotNil(t, sc.Base)
+	assert.True(t, sc.Base.Nullable, "the alias records that its base admits null")
+
+	list, ok := doc.Types[componentID("A")].(*ir.List)
+	require.True(t, ok)
+	assert.True(t, list.Elem.Nullable, "and the element position still reads as nullable")
+}
+
+// TestInlinePosition_RefSiblingsKeepTheirPosition covers a $ref written at an
+// inline position with keywords beside it: those bind the position, not the
+// referent, so they cannot go on the shared target and the position must hold
+// them itself.
+func TestInlinePosition_RefSiblingsKeepTheirPosition(t *testing.T) {
+	t.Parallel()
+	doc, diags := parseFull(t, componentSpec(
+		"    S: {type: string}\n"+
+			"    A: {type: array, items: {$ref: '#/components/schemas/S', maxLength: 25, description: D}}\n"))
+	requireNoErrorDiags(t, diags)
+
+	sc, ok := doc.Types["t/anon/components/schemas/A/items"].(*ir.Scalar)
+	require.True(t, ok, "siblings beside a $ref give the position a node of its own")
+	require.NotNil(t, sc.Base)
+	assert.Equal(t, componentID("S"), sc.Base.Target, "the alias points at what it referenced")
+	assert.Equal(t, "D", sc.Docs.Description)
+	require.NotNil(t, sc.Constraints)
+	require.NotNil(t, sc.Constraints.MaxLength)
+	assert.Equal(t, int64(25), *sc.Constraints.MaxLength)
+
+	target, ok := doc.Types[componentID("S")].(*ir.Scalar)
+	require.True(t, ok)
+	assert.Nil(t, target.Constraints, "the referent stays unbounded")
+	assert.Empty(t, target.Docs.Description, "and undocumented")
+}
+
+// TestInlinePosition_BareRefStaysDirect is the control for the case above: a
+// $ref with nothing beside it still points straight at its target.
+func TestInlinePosition_BareRefStaysDirect(t *testing.T) {
+	t.Parallel()
+	doc, diags := parseFull(t, componentSpec(
+		"    S: {type: string}\n"+
+			"    A: {type: array, items: {$ref: '#/components/schemas/S'}}\n"))
+	requireNoErrorDiags(t, diags)
+
+	list, ok := doc.Types[componentID("A")].(*ir.List)
+	require.True(t, ok)
+	assert.Equal(t, componentID("S"), list.Elem.Target, "a bare $ref needs no alias")
+	assert.NotContains(t, doc.Types, ir.TypeID("t/anon/components/schemas/A/items"))
+}
+
+// TestPropertyAnnotations_CarriedWhenSchemaOwnsNoNode is the other half of that
+// rule, and the reason a property never hoists an alias of its own: a scalar
+// property's declaration has ir.Property to land on already.
+func TestPropertyAnnotations_CarriedWhenSchemaOwnsNoNode(t *testing.T) {
+	t.Parallel()
+	doc, diags := parseFull(t, componentSpec(
+		"    A:\n      type: object\n      properties:\n        p: "+inlineProbeBody+"\n"))
+	requireNoErrorDiags(t, diags)
+
+	owner, ok := doc.Types[componentID("A")].(*ir.Model)
+	require.True(t, ok)
+	p, ok := propsByWire(owner.Properties)["p"]
+	require.True(t, ok)
+	assert.Equal(t, ir.TypeID("t/prim/string"), p.Type.Target, "a property keeps resolving to the shared primitive")
+	assert.NotContains(t, doc.Types, ir.TypeID("t/anon/components/schemas/A/properties/p"))
+	assert.Equal(t, "DOC", p.Docs.Description)
+	require.NotNil(t, p.XML)
+	assert.Equal(t, "X", p.XML.Name)
+	assert.Contains(t, p.Preserved, "openapi:x-vendor")
+	assert.Contains(t, p.Preserved, "openapi:not")
+	require.NotNil(t, p.Constraints)
+	require.NotNil(t, p.Constraints.MaxLength)
+	assert.Equal(t, int64(3), *p.Constraints.MaxLength)
+}
+
+// TestInlinePosition_HoistGateFollowsWhatIsKept walks every keyword that only a
+// node of its own can hold, one at a time, and requires each to give the
+// position that node. The gate and the two things that fill it —
+// attachDeclaredAnnotations and internAlias — have to agree keyword for
+// keyword: one listed here but stored nowhere hoists an empty node, and one
+// stored but missing here is still dropped.
+func TestInlinePosition_HoistGateFollowsWhatIsKept(t *testing.T) {
+	t.Parallel()
+	cases := []struct{ name, keyword string }{
+		{"title", "title: T"},
+		{"externalDocs", "externalDocs: {url: 'https://e.example'}"},
+		{"deprecated", "deprecated: true"},
+		{"xml", "xml: {name: X}"},
+		{"extension", "x-vendor: V"},
+		{"example", "example: a"},
+		{"examples", "examples: [a]"},
+		{"minimum", "minimum: 1"},
+		{"maximum", "maximum: 9"},
+		{"multipleOf", "multipleOf: 2"},
+		{"exclusiveMinimum", "exclusiveMinimum: 1"},
+		{"exclusiveMaximum", "exclusiveMaximum: 9"},
+		{"minLength", "minLength: 1"},
+		{"maxLength", "maxLength: 9"},
+		{"pattern", "pattern: '^a'"},
+		{"minProperties", "minProperties: 1"},
+		{"maxProperties", "maxProperties: 9"},
+		{"not", "not: {const: N}"},
+		{"contains", "contains: {type: string}"},
+		{"minContains", "minContains: 1"},
+		{"maxContains", "maxContains: 9"},
+		{"if", "if: {const: a}"},
+		{"then", "then: {const: a}"},
+		{"else", "else: {const: a}"},
+		{"dependentSchemas", "dependentSchemas: {a: {type: string}}"},
+		{"unevaluatedItems", "unevaluatedItems: {type: string}"},
+		{"unevaluatedProperties", "unevaluatedProperties: {type: string}"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			doc, diags := parseFull(t, componentSpec(
+				"    A: {type: array, items: {type: string, "+tc.keyword+"}}\n"))
+			requireNoErrorDiags(t, diags)
+			assert.Contains(t, doc.Types, ir.TypeID("t/anon/components/schemas/A/items"),
+				"%s binds the position it is written at, so the position must own a node", tc.keyword)
+		})
+	}
+}
+
+// TestInlinePosition_KeywordsWithNoNodeHomeStaySilent is the negative half of
+// that gate. These three keywords have no field on any type node — a default
+// and a visibility flag have none on TypeCommon, and a `false`
+// unevaluatedProperties is model openness rather than a preserved keyword — so
+// hoisting for them would produce a node holding nothing.
+func TestInlinePosition_KeywordsWithNoNodeHomeStaySilent(t *testing.T) {
+	t.Parallel()
+	cases := []struct{ name, keyword string }{
+		{"none", "type: string"},
+		{"default", "type: string, default: a"},
+		{"readOnly", "type: string, readOnly: true"},
+		{"unevaluatedProperties-false", "type: string, unevaluatedProperties: false"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			doc, diags := parseFull(t, componentSpec(
+				"    A: {type: array, items: {"+tc.keyword+"}}\n"))
+			requireNoErrorDiags(t, diags)
+			assert.NotContains(t, doc.Types, ir.TypeID("t/anon/components/schemas/A/items"))
+			list, ok := doc.Types[componentID("A")].(*ir.List)
+			require.True(t, ok)
+			assert.Equal(t, ir.TypeID("t/prim/string"), list.Elem.Target)
+		})
+	}
+}

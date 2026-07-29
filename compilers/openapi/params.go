@@ -62,7 +62,7 @@ func (l *lowerer) fillParamType(param *ir.Parameter, binding *ir.HTTPParamBindin
 		// A content parameter has exactly one media type; take the first entry.
 		for mt, media := range content.All() {
 			schemaPtr := pptr + ptr("content", mt, "schema")
-			param.Type = l.schemaRef(media.GetSchema(), schemaPtr, name)
+			param.Type = l.carriedSchemaRef(media.GetSchema(), schemaPtr, name)
 			binding.ContentType = mt
 			l.fillParamSchema(param, media.GetSchema(), schemaPtr)
 			break
@@ -70,7 +70,7 @@ func (l *lowerer) fillParamType(param *ir.Parameter, binding *ir.HTTPParamBindin
 		return
 	}
 	schemaPtr := pptr + ptr("schema")
-	param.Type = l.schemaRef(p.GetSchema(), schemaPtr, name)
+	param.Type = l.carriedSchemaRef(p.GetSchema(), schemaPtr, name)
 	l.fillParamSchema(param, p.GetSchema(), schemaPtr)
 }
 
