@@ -56,6 +56,11 @@ func TestExplainDocument_MissAtACoordinateNamesWhatInternedBelow(t *testing.T) {
 		"t/zzz": &ir.Model{TypeCommon: ir.TypeCommon{
 			ID: "t/zzz", Provenance: ir.Provenance{Pointer: "/components/schemas/Alpha"},
 		}},
+		// A sibling whose pointer shares the query's text but not its path
+		// boundary. "below" means beneath a segment, not sharing a prefix.
+		"t/other": &ir.Model{TypeCommon: ir.TypeCommon{
+			ID: "t/other", Provenance: ir.Provenance{Pointer: "/components/schemasOther/X"},
+		}},
 	}}
 	var w bytes.Buffer
 	explainDocument(&w, doc, nil, "/components/schemas")
@@ -65,6 +70,8 @@ func TestExplainDocument_MissAtACoordinateNamesWhatInternedBelow(t *testing.T) {
 	assert.Contains(t, out, "interned below it (2)")
 	assert.Less(t, strings.Index(out, "/components/schemas/Alpha"), strings.Index(out, "/components/schemas/Zed"),
 		"coordinates are listed in pointer order, not in the registry's ID order")
+	assert.NotContains(t, out, "schemasOther",
+		"a sibling sharing the query's text but not its path boundary is not below it")
 }
 
 func TestExplainDocument_MissWithNothingBelow(t *testing.T) {
