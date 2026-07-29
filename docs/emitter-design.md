@@ -439,7 +439,7 @@ type ProtoBinding struct {
     HTTP     *ir.HTTPBinding // method/URITemplate/status map, when Protocol == http
     RPC      *ir.RPCBinding
     Message  *MsgView        // channel + direction + reply, when Protocol == message
-    Raw      ir.Extensions   // GraphQL entry point / OTP call-cast tag / deployment bindings, verbatim
+    Raw      ir.RawConfig    // GraphQL entry point / OTP call-cast tag / deployment bindings, verbatim
 }
 type ParamBind struct {
     Param    string          // Operation.Params name
@@ -894,7 +894,7 @@ type ShapeHint struct {
     SplitUnionBody bool      // flatten a request-body union into typed wrapper methods — OPT-IN,
                              // the one sanctioned union→arguments collapse (§4.4); default off
     URLBuilder     bool      // expose a URL-builder variant of the operation
-    Extra          ir.Extensions // free-form, forward-compatible per-target ergonomics
+    Extra          ir.RawConfig // free-form, forward-compatible per-target ergonomics
 }
 ```
 
@@ -1074,7 +1074,7 @@ declared poll op `GetExport` is `HTTPBinding{GET /exports/{id}}` returning an `E
   `operation-location` header vs original-URI). The poller *type* and result extraction are typed AST;
   the poll loop's backoff between attempts is `lro.go.tmpl` boilerplate parameterised by policy — the
   same structure/runtime line as the iterator (§8.3) and the stream reader (§8.4). Smithy waiters are
-  *not* folded in here: their acceptor/JMESPath lists arrive verbatim in `Operation.Extensions`
+  *not* folded in here: their acceptor/JMESPath lists arrive verbatim in `Operation.Preserved`
   (`ir-design.md §7.3`) and a waiter-aware refiner is a separate, opt-in step.
 - **emit.** Printer emits `StartExport`, `StartExportParams`, and `ExportPoller` +
   `Poll()/PollUntilDone()`. `OneWay` operations take the opposite path — no poller, no response
@@ -1137,9 +1137,12 @@ plan once: docs and mocks agree with the SDK by construction, not by re-derivati
   handlers validating against constraints). Because the same plan feeds SDK and mock, the two are
   **wire-consistent by construction** — the mock can *be* the interception target the SDK's
   wire-conformance harness (§13) is diffed against.
-- **Validation emitter (future).** Additionally consumes the validation-only constructs preserved
-  verbatim in `Extensions` (`not`/`if-then-else`/`dependentSchemas`) that SDK/docs emitters ignore.
-  The contract already carries them; no IR change is needed (INV9).
+- **Validation emitter (future).** Additionally consumes the validation-only constructs kept
+  verbatim in `Preserved` (`not`/`if-then-else`/`dependentSchemas`, …) that SDK/docs emitters
+  ignore. It selects them by `PreservedEntry.Reason == ir.ReasonValidationOnly` rather than by key
+  prefix, so vendor metadata sharing the same map never reaches it, and reports each finding at
+  `PreservedEntry.Provenance` — the keyword's own position, not the enclosing schema's. The
+  contract already carries all of that; no IR change is needed (INV9).
 
 Adding any of these is a registry entry over one `Doc + Plan` — no change to the ABI, no change to
 the IR.

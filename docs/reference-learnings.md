@@ -394,7 +394,7 @@ interacting flags. **Recommendation:** implement the *recipes* (they're genuinel
   `Pagination.Items` as a `PropPath`; unwrap only in a refiner/opt-in policy.
 - **Type inference from sibling keywords** when `type` absent (ogen `inferTypes`) — implement, but
   **stamp `Provenance.Inferred`** (ogen doesn't — a cheap place Morphic is strictly better).
-Treat `Extensions` as **preserved data**; route any *behavioral* use through explicit `Inferred`-marked
+Treat `Preserved` as **preserved data**; route any *behavioral* use through explicit `Inferred`-marked
 policy/overlays, never inline `x-*` branches. **Do NOT put target-language directives in the IR/spec**
 (ogen's `x-ogen-type`=Go type, `x-oapi-codegen-extra-tags`=Go tags couple spec to one target) — route
 per-target naming/type overrides through per-emitter overlays keyed by IR ID; `x-ogen-name` (a naming
@@ -438,8 +438,9 @@ for parameters only and loses target defaults on $ref-typed fields — the bug).
   reference implementation of ir-design §4.7's "resolve per site by compiler expansion (dynamic scope
   is static per document)". Port the anchor-index logic; add Morphic's promised "irreducible cases
   preserved verbatim + diagnostic" fallback (datamodel just best-effort resolves).
-- **Validation-only (`not`/`if-then-else`/`dependentSchemas`)**: §4.7 carve-out — preserve **verbatim
-  in `Extensions`** + one `info` diagnostic; do **not** model structurally. datamodel's
+- **Validation-only (`not`/`if-then-else`/`dependentSchemas`)**: §4.7 carve-out — keep **verbatim
+  in `Preserved`** under `ReasonValidationOnly` + one `info` diagnostic; do **not** model
+  structurally. datamodel's
   `_merge_conditional_properties` (folds then/else props up as optional) and openapi-generator's ad-hoc
   mix (some fields, some extensions, some dropped) both **silently change the shape** — Morphic's
   verbatim approach is cleaner. Keep the one carve-back: `unevaluatedProperties:false` →
