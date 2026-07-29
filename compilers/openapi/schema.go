@@ -1014,7 +1014,11 @@ func (l *lowerer) fillValidationOnly(ext *ir.Preserved, s *oas3.Schema, pointer 
 // written, allocating the map on first write. An absent or unconvertible
 // payload records nothing, so no caller needs a nil guard of its own.
 func (l *lowerer) preserve(p *ir.Preserved, key string, raw ir.RawValue, reason ir.PreserveReason, pointer string) {
-	if raw == nil {
+	// len rather than a nil comparison: nil and a zero-length slice are distinct
+	// states, and an empty payload is the worse of the two. It preserves no
+	// construct, and json.Marshal rejects it for the whole document while naming
+	// json.RawMessage rather than the entry that carried it.
+	if len(raw) == 0 {
 		return
 	}
 	if *p == nil {
@@ -1036,7 +1040,10 @@ func (l *lowerer) preserve(p *ir.Preserved, key string, raw ir.RawValue, reason 
 // keyword, and declPtr for the three §4.7 entries that combine several keywords
 // into one synthesized object no single node addresses.
 func (l *lowerer) preserveKeyword(p *ir.Preserved, key string, raw ir.RawValue, declPtr, entryPtr, label string) {
-	if raw == nil {
+	// Screened here as well as in preserve: this announces the keyword as kept,
+	// so delegating the check would emit that claim for a payload preserve then
+	// discards.
+	if len(raw) == 0 {
 		return
 	}
 	l.preserve(p, key, raw, ir.ReasonValidationOnly, entryPtr)

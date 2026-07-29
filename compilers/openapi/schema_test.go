@@ -2817,3 +2817,33 @@ func TestInlinePosition_KeywordsWithNoNodeHomeStaySilent(t *testing.T) {
 		})
 	}
 }
+
+// TestPreserve_EmptyRawIsRejectedLikeNil pins both halves of the guard. nil and a
+// zero-length slice are distinct states, and only nil was screened — so an empty
+// payload was written into Preserved, where it makes json.Marshal fail for the
+// whole document rather than for the entry that carried it.
+//
+// No committed spec reaches this: every call site passes a value re-encoded from
+// a parsed YAML node, which is never zero-length. The guard is exercised directly
+// because the hazard is a second compiler copying an asymmetric screen, not a
+// live defect in this one.
+func TestPreserve_EmptyRawIsRejectedLikeNil(t *testing.T) {
+	t.Parallel()
+	for name, raw := range map[string]ir.RawValue{
+		"nil":           nil,
+		"empty non-nil": {},
+	} {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			l := &lowerer{}
+			var p ir.Preserved
+			l.preserve(&p, "openapi:k", raw, ir.ReasonVendorExtension, "/p/k")
+			assert.Nil(t, p, "a payload with no bytes preserves no construct")
+
+			var q ir.Preserved
+			l.preserveKeyword(&q, "openapi:not", raw, "/p", "/p/not", "not")
+			assert.Nil(t, q, "and the validation-only wrapper screens the same states")
+			assert.Empty(t, l.diags, "nothing was preserved, so nothing is announced")
+		})
+	}
+}
