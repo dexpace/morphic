@@ -15,10 +15,11 @@ Nothing here is normative. Where a file disagrees with `ir-design.md`, the desig
 | Review standard in `CLAUDE.md` | merged (#113) |
 | Seven dropped annotations (#114) | on `feat/annotation-gaps-and-preserved` |
 | `Extensions` → `Preserved` (#110) | on `feat/annotation-gaps-and-preserved` |
-| Intersection combinator (#115) | design question open |
+| Intersection combinator (#115) | **answered: do not add it** — implement B11 instead, partially done on `wip/b11-distributed-lowering` |
 | Inline positions drop data (#116) | open |
 | `propertyNames` unhandled (#117) | open |
 | CLI truncates `-o` on failure (#118) | on `fix/cli-output-truncation` |
+| `irverify` accepted a meaningless entry | on `fix/irverify-preserved` |
 
 ## The finding that redirected this work
 
@@ -76,3 +77,63 @@ tests, because none were testable.
 produced a zero-byte diff: no corpus spec annotated a non-model declaration, so the defect was
 invisible to the golden suite. The corpus needed the missing shape added before it could witness
 the fix.
+
+## Resume here
+
+Four branches are open and unmerged. All build and pass; none is on a remote.
+
+| branch | contains |
+|---|---|
+| `feat/annotation-gaps-and-preserved` | #114 and #110, plus review fixes. The trunk of this work. |
+| `fix/cli-output-truncation` | #118. Self-contained, `cmd/morphic` only. |
+| `fix/irverify-preserved` | `irverify` checks for `Preserved`, a `PreserveReason.Valid()` guard, two doc corrections. |
+| `docs/rewrite-working-notes` | this directory. |
+| `wip/b11-distributed-lowering` | **incomplete** — see below. Not for merge. |
+
+Merge order does not matter much; the four complete branches touch disjoint files.
+
+### #115 is answered — do not add an intersection combinator
+
+Only OpenAPI and AsyncAPI can express struct ∧ union, and they share a code path, so that is one
+data point rather than two. TypeSpec's `&` is model-only — `ir-spec-matrix.md` line 20 already
+records this as `⚠ & (model is)`. Smithy, GraphQL, Protobuf and Erlang cannot express it. Protobuf's
+`message{kind; oneof}` is already served by Model + Union-typed property + `Property.Flatten`.
+
+Cost if it were added: roughly 27 edit sites, **none caught by the compiler** — there is no
+`go:generate`, `exhaustive` is not enabled in `.golangci.yml`, and all four sealed-interface
+switches have silent `default:` arms. That is worth its own issue independent of #115: `CLAUDE.md`
+mandates a switch-completeness test that is not actually enforced.
+
+### But the current behaviour is a known bug, and the fix is already prescribed
+
+`docs/reference-learnings.md` §B11 — *"Latent compiler bug #2 — allOf + oneOf co-occurrence dropping
+allOf"* — studied four reference implementations and prescribed **distributing the composition
+across the union variants**, using only nodes the IR already has. The compiler does the inverse:
+keeps the structural body and discards the union to `Preserved`. Worse, this branch *documented*
+that inversion in §4.8 as a deliberate degraded lowering.
+
+### Where `wip/b11-distributed-lowering` stopped
+
+Partial implementation of §B11 across `compose.go`, `diag.go` and `schema.go`. Tests pass, but the
+lowering is not correct yet, and it stopped on a case §B11 does not address:
+
+> Distribution is not universally valid. A branch that is itself a scalar — `oneOf` with a
+> `{type: string}` member — cannot absorb a struct composition. The classifier has to decide **per
+> branch** whether distribution applies before emitting a variant.
+
+Resolve that before continuing. The branches that *can* absorb the composition and those that cannot
+may need different treatment, and forcing one shape onto both would repeat the mistake this fix
+exists to correct.
+
+### Also still open
+
+- **#116** — inline positions drop annotations *and constraints*. Fix shape recommended in
+  `findings-inline-positions.md`: hoist rather than add per-position fallback homes.
+- **#117** — `propertyNames` is neither lowered nor preserved.
+- One handover from the `irverify` work: `compilers/openapi/schema_test.go`'s
+  `TestPreserve_AllReasonsReachable` claims a per-site universal ("no site leaves the field at its
+  zero value") while its body asserts a per-reason existential, so an entry with `Reason: ""` passes.
+  `ir/empty-preserve-reason` now covers this corpus-wide, so the comment can simply be narrowed.
+- A repository sweep for miscounted or unverifiable claims in comments was started and not finished.
+  Three instances are known and two are fixed; `ir/property_test.go` still says "one map field" where
+  `Property` has three.
