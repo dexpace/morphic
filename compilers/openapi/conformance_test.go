@@ -74,6 +74,7 @@ func TestConformance(t *testing.T) {
 		{"examples", assertExamples},
 		{"docs-summary-desc", assertDocsSummaryDesc},
 		{"extensions-x", assertExtensionsX},
+		{"inline-annotations", assertInlineAnnotations},
 		{"servers-variables", assertServersVariables},
 		{"security-schemes", assertSecuritySchemes},
 		{"security-or-and", assertSecurityOrAnd},
@@ -934,6 +935,58 @@ func assertExtensionsX(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
 	require.True(t, ok, "x-* extensions are namespaced under openapi:")
 	assert.JSONEq(t, "100", string(raw.Value))
 	assert.Equal(t, ir.ReasonVendorExtension, raw.Reason)
+}
+
+// assertInlineAnnotations covers the positions with no ir.Property or
+// ir.Parameter to carry what a declaration writes: each keeps its docs, bounds
+// and x-* on a node of its own, while a position declaring nothing still
+// resolves straight to the shared primitive.
+func assertInlineAnnotations(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
+	elem := assertAnnotatedScalar(t, doc, "t/anon/components/schemas/Codes/items", 3)
+	require.NotNil(t, elem.XML)
+	assert.Equal(t, "Code", elem.XML.Name)
+	assert.Contains(t, elem.Preserved, "openapi:x-facet")
+
+	assertAnnotatedScalar(t, doc, "t/anon/components/schemas/CodeIndex/additionalProperties", 64)
+	assertAnnotatedScalar(t, doc,
+		"t/anon/paths/~1codes/get/responses/200/content/application~1json/schema", 8192)
+
+	bare, ok := doc.Types[namedID("Bare")].(*ir.List)
+	require.True(t, ok)
+	assert.Equal(t, ir.TypeID("t/prim/string"), bare.Elem.Target,
+		"an element declaring nothing must not grow a node of its own")
+
+	op, ok := opByName(doc, "listCodes")
+	require.True(t, ok)
+	require.Len(t, op.Params, 1)
+	assertCarriedAnnotations(t, op.Params[0].Docs, op.Params[0].Constraints, op.Params[0].Preserved, 4)
+	require.Len(t, op.Responses[0].Headers, 1)
+	h := op.Responses[0].Headers[0]
+	assertCarriedAnnotations(t, h.Docs, h.Constraints, h.Preserved, 64)
+}
+
+// assertAnnotatedScalar requires the node at id to be a Scalar carrying a
+// description and the given maxLength.
+func assertAnnotatedScalar(t *testing.T, doc *ir.Document, id ir.TypeID, maxLength int64) *ir.Scalar {
+	t.Helper()
+	sc, ok := doc.Types[id].(*ir.Scalar)
+	require.True(t, ok, "%s must own a Scalar; got %v", id, doc.Types[id])
+	assert.NotEmpty(t, sc.Docs.Description)
+	require.NotNil(t, sc.Constraints)
+	require.NotNil(t, sc.Constraints.MaxLength)
+	assert.Equal(t, maxLength, *sc.Constraints.MaxLength)
+	return sc
+}
+
+// assertCarriedAnnotations requires a parameter's or header's own carrier to
+// hold what its schema declared.
+func assertCarriedAnnotations(t *testing.T, docs ir.Docs, c *ir.Constraints, p ir.Preserved, maxLength int64) {
+	t.Helper()
+	assert.NotEmpty(t, docs.Description)
+	require.NotNil(t, c)
+	require.NotNil(t, c.MaxLength)
+	assert.Equal(t, maxLength, *c.MaxLength)
+	assert.NotEmpty(t, p, "the schema's x-* rides on the carrier too")
 }
 
 func assertServersVariables(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {

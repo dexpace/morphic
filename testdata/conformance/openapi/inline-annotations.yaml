@@ -1,0 +1,49 @@
+openapi: 3.1.0
+info: {title: InlineAnnotations, version: "1.0.0"}
+paths:
+  /codes:
+    get:
+      operationId: listCodes
+      parameters:
+        - name: prefix
+          in: query
+          schema:
+            type: string
+            description: Filters codes by leading characters.
+            maxLength: 4
+            x-facet: prefix
+      responses:
+        "200":
+          description: ok
+          headers:
+            X-Page-Token:
+              schema:
+                type: string
+                description: Opaque cursor for the next page.
+                maxLength: 64
+                x-sensitive: false
+          content:
+            application/json:
+              schema:
+                type: string
+                description: A newline-delimited code list.
+                maxLength: 8192
+components:
+  schemas:
+    Codes:
+      type: array
+      items:
+        type: string
+        description: An ISO-4217 currency code.
+        maxLength: 3
+        xml: {name: Code}
+        x-facet: currency
+    CodeIndex:
+      type: object
+      additionalProperties:
+        type: string
+        description: The display label for a code.
+        maxLength: 64
+    Bare:
+      type: array
+      items: {type: string}
