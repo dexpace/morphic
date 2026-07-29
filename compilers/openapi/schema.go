@@ -50,7 +50,7 @@ func (l *lowerer) lowerComponentSchemas() {
 func (l *lowerer) lowerComponentSchema(js *oas3.JSONSchema[oas3.Referenceable], pointer, name string) {
 	s := siteAt(js)
 	ref := l.schemaRef(js, pointer, name)
-	if _, owned := l.byPointer[pointer]; owned {
+	if _, owned := l.types.Lookup(pointer); owned {
 		return // schemaRef interned the component's own node at its component ID
 	}
 	l.internAlias(pointer, name, ref, l.schemaConstraints(s.Node, pointer))
@@ -126,7 +126,7 @@ func (l *lowerer) hoistDeclarationHome(s *oas3.Schema, ref ir.TypeRef, pointer, 
 	if home != homeOwnNode || s == nil || !declaresPositionScoped(s) {
 		return ref
 	}
-	if id, owned := l.byPointer[pointer]; owned {
+	if id, owned := l.types.Lookup(pointer); owned {
 		return ir.TypeRef{Target: id, Nullable: ref.Nullable}
 	}
 	id := l.internAlias(pointer, hint, ref, l.schemaConstraints(s, pointer))
@@ -255,7 +255,7 @@ func declaresShape(s *oas3.Schema) bool {
 func (l *lowerer) lowerBesidePreservedUnion(s *oas3.Schema, pointer, hint string, reason ir.PreserveReason, why string) ir.TypeID {
 	inner := l.lower(s, pointer, hint)
 	owner := inner
-	if l.byPointer[pointer] != inner {
+	if got, _ := l.types.Lookup(pointer); got != inner {
 		// The structural body reduced to a shared/aliased target; hoist an alias
 		// so the preserved union attaches to a node this pointer owns, never to a
 		// shared primitive.
@@ -576,7 +576,7 @@ func (l *lowerer) typesConflict(a, b ir.TypeRef) bool {
 // primitive or an Any node). The top type imposes no constraint under allOf
 // intersection, so it never conflicts with a sibling redeclaration.
 func (l *lowerer) isAnyType(ref ir.TypeRef) bool {
-	td, ok := l.out.Types[ref.Target]
+	td, ok := l.types.Node(ref.Target)
 	if !ok {
 		return false
 	}
@@ -599,7 +599,7 @@ func (l *lowerer) isAnyType(ref ir.TypeRef) bool {
 func (l *lowerer) resolvePrimKind(ref ir.TypeRef) (ir.PrimKind, bool) {
 	id := ref.Target
 	for range maxTypeResolveDepth {
-		td, ok := l.out.Types[id]
+		td, ok := l.types.Node(id)
 		if !ok {
 			return "", false
 		}
@@ -625,8 +625,8 @@ func (l *lowerer) resolvePrimKind(ref ir.TypeRef) (ir.PrimKind, bool) {
 // as a conflict. Reached only from typesConflict's default case, when neither
 // side resolved a PrimKind — e.g. a base-less opaque scalar against a Union.
 func (l *lowerer) differentTypeKind(a, b ir.TypeRef) bool {
-	at, aok := l.out.Types[a.Target]
-	bt, bok := l.out.Types[b.Target]
+	at, aok := l.types.Node(a.Target)
+	bt, bok := l.types.Node(b.Target)
 	if !aok || !bok {
 		return false
 	}
@@ -645,7 +645,7 @@ func (l *lowerer) differentTypeKind(a, b ir.TypeRef) bool {
 // scalar is likewise unknown, not structural — none of these count as
 // conflicts.
 func (l *lowerer) isStructuralType(ref ir.TypeRef) bool {
-	td, ok := l.out.Types[ref.Target]
+	td, ok := l.types.Node(ref.Target)
 	if !ok {
 		return false
 	}
@@ -833,7 +833,7 @@ func (l *lowerer) fillPropertyAnnotations(p *ir.Property, ref, tgt *oas3.Schema,
 // declaration order, and a carrier reading the registry alone would keep its
 // schema's annotations only when it happened to lower first.
 func (l *lowerer) loweredToOwnNode(pointer string, t ir.TypeRef) bool {
-	id, owned := l.byPointer[pointer]
+	id, owned := l.types.Lookup(pointer)
 	return owned && id == t.Target
 }
 
@@ -895,11 +895,10 @@ func (l *lowerer) schemaExamples(s *oas3.Schema, pointer string) []ir.Example {
 // checked before conversion because the callers cover a pointer in either
 // order, and only the one that finds a node may emit conversion diagnostics.
 func (l *lowerer) attachDeclaredAnnotations(s *oas3.Schema, pointer string) {
-	id, owned := l.byPointer[pointer]
-	if !owned {
-		return
-	}
-	td, ok := l.registeredNode(id, pointer)
+	// NodeAt rather than Lookup-then-registeredNode: the coordinate and its node
+	// are recorded together, so there is no state where the first resolves and
+	// the second does not, and a branch for one could never be reached.
+	td, ok := l.types.NodeAt(pointer)
 	if !ok {
 		return
 	}
@@ -1063,20 +1062,7 @@ func (l *lowerer) diag(sev ir.Severity, code, pointer, format string, args ...an
 // provenance and message — was already recorded. It is the single append point
 // for lowering diagnostics, so a shared declaration reported from N use sites
 // yields one diagnostic rather than N indistinguishable copies.
-func (l *lowerer) appendDiag(d ir.Diagnostic) {
-	key := strings.Join([]string{
-		string(d.Severity), d.Code, d.Message,
-		strconv.Itoa(d.Provenance.Source), d.Provenance.Pointer, d.Provenance.Inferred,
-	}, "\x00") // NUL separates: it cannot occur in a code, pointer, or coerced message
-	if l.emitted[key] {
-		return
-	}
-	if l.emitted == nil {
-		l.emitted = make(map[string]bool) // a lowerer built field-by-field still de-duplicates
-	}
-	l.emitted[key] = true
-	l.diags = append(l.diags, d)
-}
+func (l *lowerer) appendDiag(d ir.Diagnostic) { l.diags.Append(d) }
 
 // schemaExtensions lowers a schema's x-* extensions into namespaced Preserved.
 func (l *lowerer) schemaExtensions(s *oas3.Schema, pointer string) ir.Preserved {
@@ -1470,7 +1456,7 @@ func extensionsFrom(ext *extensions.Extensions, srcIndex int, owner string) (ir.
 // extensions all failed to serialize — exactly when the result is empty.
 func (l *lowerer) extensions(ext *extensions.Extensions, owner string) ir.Preserved {
 	out, diags := extensionsFrom(ext, l.srcIndex, owner)
-	l.diags = append(l.diags, diags...)
+	l.diags.AppendAll(diags)
 	return out
 }
 

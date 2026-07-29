@@ -318,7 +318,7 @@ func (l *lowerer) applyPathServers(op *ir.Operation, pi *soa.PathItem, declPtr s
 		return
 	}
 	l.preserve(&op.Preserved, "openapi:servers", raw, ir.ReasonNoIRHome, declPtr+ptr("servers"))
-	l.diags = append(l.diags, diagf(ir.SeverityInfo, codeDegradedConstruct, op.Provenance,
+	l.diags.Append(diagf(ir.SeverityInfo, codeDegradedConstruct, op.Provenance,
 		"path-item servers kept under Preserved; an operation has no server-scope list to bind them to"))
 }
 

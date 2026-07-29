@@ -276,7 +276,7 @@ func (l *lowerer) hoistSubSchema(decl *oas3.JSONSchema[oas3.Referenceable], poin
 	}
 	hint := refLastSegment(pointer)
 	ref := l.schemaRef(decl, pointer, hint)
-	if owned, ok := l.byPointer[pointer]; ok {
+	if owned, ok := l.types.Lookup(pointer); ok {
 		return owned, true
 	}
 	id := l.internAlias(pointer, hint, ref, l.schemaConstraints(s.Node, pointer))
@@ -366,11 +366,11 @@ func (l *lowerer) sameFile(doc string) bool {
 // already exists there — either a previously hoisted sub-schema (via byPointer)
 // or a node registered directly under its pointer-derived ID.
 func (l *lowerer) internedID(pointer string) (ir.TypeID, bool) {
-	if id, ok := l.byPointer[pointer]; ok {
+	if id, ok := l.types.Lookup(pointer); ok {
 		return id, true
 	}
 	id := typeIDForPointer(pointer)
-	if _, ok := l.out.Types[id]; ok {
+	if _, ok := l.types.Node(id); ok {
 		return id, true
 	}
 	return "", false

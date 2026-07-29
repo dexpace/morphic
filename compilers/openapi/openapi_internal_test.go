@@ -69,5 +69,5 @@ func TestGhostRefs_AllResolversDegradeGracefully(t *testing.T) {
 	l := newLowerer(0, loadedDoc, Options{}.withDefaults())
 	out := l.run()
 	require.NotNil(t, out)
-	assert.True(t, hasDiag(append(diags, l.diags...), codeUnresolvedRef), "unresolved refs reported")
+	assert.True(t, hasDiag(append(diags, l.diags.List()...), codeUnresolvedRef), "unresolved refs reported")
 }

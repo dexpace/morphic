@@ -10,6 +10,7 @@ import (
 	yaml "gopkg.in/yaml.v3"
 
 	"github.com/dexpace/morphic/compilers"
+	"github.com/dexpace/morphic/compilers/compile"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -66,7 +67,7 @@ func lowerSpec(t *testing.T, src string) (*ir.Document, []ir.Diagnostic) {
 	t.Helper()
 	l, diags := loweredFor(t, src)
 	l.lowerComponentSchemas() // named components; the entry Compile's run() calls first
-	return l.out, append(diags, l.diags...)
+	return l.out, append(diags, l.diags.List()...)
 }
 
 // requireNoErrorDiags fails the test if any diagnostic has error severity,
@@ -88,7 +89,7 @@ func lowerServiceSpec(t *testing.T, src string) (*ir.Document, ir.Service, []ir.
 		l.lowerComponentSchemas()
 		l.lowerSecuritySchemes()
 		l.out.Services = []ir.Service{l.lowerService()}
-		return l.out, append(loadDiags, l.diags...)
+		return l.out, append(loadDiags, l.diags.List()...)
 	}()
 	require.Len(t, doc.Services, 1)
 	return doc, doc.Services[0], diags
@@ -146,10 +147,11 @@ func conflictDiags(diags []ir.Diagnostic) []ir.Diagnostic {
 // newRawLowerer builds a lowerer over a hand-constructed document, bypassing the
 // parser so nil slice/map entries (which the parser panics on) can be exercised.
 func newRawLowerer(doc *soa.OpenAPI) *lowerer {
+	rawTypes := compile.NewTypes(0)
 	return &lowerer{
 		doc:                  doc,
-		out:                  &ir.Document{Types: ir.TypeRegistry{}},
-		byPointer:            map[string]ir.TypeID{},
+		out:                  &ir.Document{Types: rawTypes.Registry()},
+		types:                rawTypes,
 		diagnosedConstraints: map[string]bool{},
 	}
 }

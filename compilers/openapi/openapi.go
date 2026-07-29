@@ -40,7 +40,7 @@ func (c *Compiler) Compile(ctx context.Context, sources []compilers.Source, opts
 	l := newLowerer(0, loadedDoc, formatOpts)
 	out := l.run() // components schemas → auth → service/operations → meta; assembles Document
 	//nolint:gocritic // deliberate concat: load diagnostics precede lowering diagnostics
-	out.Diagnostics = append(diags, l.diags...)
+	out.Diagnostics = append(diags, l.diags.List()...)
 	return out, out.Diagnostics, nil
 }
 

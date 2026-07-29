@@ -3,6 +3,7 @@ package openapi
 import (
 	soa "github.com/speakeasy-api/openapi/openapi"
 
+	"github.com/dexpace/morphic/compilers/compile"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -21,27 +22,20 @@ const maxSchemaDepth = 256
 // a package global): it threads the interning table, diagnostics, and
 // recursion depth through every schema position.
 type lowerer struct {
-	srcIndex  int
-	doc       *soa.OpenAPI
-	source    ir.SourceInfo // identity of the loaded source, stamped into Document.Sources
-	out       *ir.Document
-	opts      Options
-	diags     []ir.Diagnostic
-	byPointer map[string]ir.TypeID // pointer -> hoisted/interned TypeID
-	schemas   map[string]bool      // declared component-schema names (for ref resolution)
+	srcIndex int
+	doc      *soa.OpenAPI
+	source   ir.SourceInfo // identity of the loaded source, stamped into Document.Sources
+	out      *ir.Document
+	opts     Options
+	// types owns the registry and the coordinate map; see compilers/compile.
+	types *compile.Types
+	// diags accumulates lowering diagnostics, deduped by full identity.
+	diags   compile.Diags
+	schemas map[string]bool // declared component-schema names (for ref resolution)
 	// diagnosedConstraints records pointers whose constraint diagnostics were
 	// already emitted, so a sub-schema read from two positions (its owning
 	// property and a $ref that hoists it) reports a malformed bound only once.
 	diagnosedConstraints map[string]bool
-	// emitted records the identity of every diagnostic already appended, so one
-	// defect is reported once however many times lowering reaches it. Lowering a
-	// referenced component at its declaration rather than at each use site made
-	// this observable: severity, code, provenance and message are then identical
-	// per referencing operation, and a second copy tells a reader nothing the
-	// first did not. Unlike diagnosedConstraints — which silences a whole pointer
-	// once any constraint diagnostic lands there — this compares the full
-	// diagnostic, so two different defects at one pointer both still surface.
-	emitted map[string]bool
 	// operationIDs maps each operationId already lowered to the mount pointer
 	// that claimed it, so a second claim can name the first in its diagnostic.
 	operationIDs map[string]string
@@ -53,15 +47,18 @@ type lowerer struct {
 //
 //nolint:unparam // srcIndex varies once Compile drives the multi-source loop
 func newLowerer(srcIndex int, doc *loaded, opts Options) *lowerer {
+	types := compile.NewTypes(srcIndex)
 	return &lowerer{
-		srcIndex:             srcIndex,
-		doc:                  doc.Doc,
-		source:               doc.Source,
-		out:                  &ir.Document{Types: ir.TypeRegistry{}},
+		srcIndex: srcIndex,
+		doc:      doc.Doc,
+		source:   doc.Source,
+		// The Document shares the framework's live registry rather than being
+		// handed a copy at the end: compile.Types owns every write to it, and the
+		// architecture test is what keeps that true.
+		out:                  &ir.Document{Types: types.Registry()},
 		opts:                 opts,
-		byPointer:            make(map[string]ir.TypeID),
+		types:                types,
 		diagnosedConstraints: make(map[string]bool),
-		emitted:              make(map[string]bool),
 		operationIDs:         make(map[string]string),
 	}
 }
@@ -71,12 +68,7 @@ func newLowerer(srcIndex int, doc *loaded, opts Options) *lowerer {
 // a self-reference reached during build hits byPointer and returns the ID
 // without re-entering build.
 func (l *lowerer) intern(pointer string, id ir.TypeID, build func() ir.TypeDef) ir.TypeID {
-	if existing, ok := l.byPointer[pointer]; ok {
-		return existing
-	}
-	l.byPointer[pointer] = id
-	l.out.Types[id] = build() // build may recurse; self-references hit byPointer
-	return id
+	return l.types.Intern(pointer, id, build)
 }
 
 // registeredNode returns the node interning registered under id, reporting a
@@ -86,7 +78,7 @@ func (l *lowerer) intern(pointer string, id ir.TypeID, build func() ir.TypeDef) 
 // caller — which was about to attach docs, examples or preserved constructs to
 // that node — would otherwise discard them without a trace.
 func (l *lowerer) registeredNode(id ir.TypeID, pointer string) (ir.TypeDef, bool) {
-	td, ok := l.out.Types[id]
+	td, ok := l.types.Node(id)
 	if !ok {
 		l.diag(ir.SeverityError, codeInternalInvariant, pointer,
 			"internal: type %q is named at this pointer but absent from the registry; its source constructs are dropped", id)
@@ -107,21 +99,10 @@ func (l *lowerer) internNode(pointer, hint string, build func(common ir.TypeComm
 // primRef interns the primitive of kind k under its shared ID on first use and
 // returns a reference to it. Primitives are leaves, so they never enter the
 // pointer-keyed interning table.
-func (l *lowerer) primRef(k ir.PrimKind) ir.TypeRef {
-	id := primTypeID(k)
-	if _, ok := l.out.Types[id]; !ok {
-		l.out.Types[id] = &ir.Primitive{
-			TypeCommon: ir.TypeCommon{ID: id, Provenance: ir.Provenance{Source: l.srcIndex}},
-			Prim:       k,
-		}
-	}
-	return ir.TypeRef{Target: id}
-}
+func (l *lowerer) primRef(k ir.PrimKind) ir.TypeRef { return l.types.PrimRef(k) }
 
 // primID interns the primitive of kind k and returns its TypeID.
-func (l *lowerer) primID(k ir.PrimKind) ir.TypeID {
-	return l.primRef(k).Target
-}
+func (l *lowerer) primID(k ir.PrimKind) ir.TypeID { return l.types.PrimID(k) }
 
 // commonFor builds the TypeCommon shared by every hoisted node at pointer. A
 // top-level component schema is named (source + canonical words); any deeper

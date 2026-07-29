@@ -1135,7 +1135,7 @@ func TestDiscriminatorDefault_ResolvesDeclaredComponent(t *testing.T) {
 
 	id := l.discriminatorDefault(d, "/components/schemas/Pet")
 	assert.Equal(t, namedTypeID("/components/schemas/Cat"), id)
-	assert.Empty(t, l.diags, "a resolvable defaultMapping produces no diagnostic")
+	assert.Empty(t, l.diags.List(), "a resolvable defaultMapping produces no diagnostic")
 }
 
 func TestDiscriminatorDefault_DroppedWhenUnresolved(t *testing.T) {
@@ -1147,8 +1147,8 @@ func TestDiscriminatorDefault_DroppedWhenUnresolved(t *testing.T) {
 
 	id := l.discriminatorDefault(d, "/components/schemas/Pet")
 	assert.Empty(t, id, "an unresolved defaultMapping yields no target")
-	require.Len(t, l.diags, 1)
-	assert.Equal(t, codeUnresolvedRef, l.diags[0].Code)
+	require.Len(t, l.diags.List(), 1)
+	assert.Equal(t, codeUnresolvedRef, l.diags.List()[0].Code)
 }
 
 func TestDiscriminatorDefault_EmptyIsNoOp(t *testing.T) {
@@ -1156,7 +1156,7 @@ func TestDiscriminatorDefault_EmptyIsNoOp(t *testing.T) {
 	l := newRawLowerer(&soa.OpenAPI{})
 	id := l.discriminatorDefault(&oas3.Discriminator{PropertyName: "kind"}, "/components/schemas/Pet")
 	assert.Empty(t, id)
-	assert.Empty(t, l.diags)
+	assert.Empty(t, l.diags.List())
 }
 
 // TestOneOf_CoDeclaredCompositionDistributes is the regression from

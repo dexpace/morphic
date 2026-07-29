@@ -852,7 +852,7 @@ func TestPreserveUnionSiblings_MissingNode(t *testing.T) {
 	// No node registered under the id: the union branches have nowhere to go, so
 	// the guard reports the broken invariant instead of dropping them quietly.
 	l.preserveUnionSiblings("t/anon/missing", &oas3.Schema{}, "/p", ir.ReasonDegradedLowering, "why")
-	assertHasErrorCode(t, l.diags, codeInternalInvariant)
+	assertHasErrorCode(t, l.diags.List(), codeInternalInvariant)
 }
 
 // TestSchemaExamples_RefdSubSchemaKeepsThem pins the examples of a $ref'd
@@ -936,9 +936,12 @@ func TestSiteSchema_BodylessPositions(t *testing.T) {
 func TestAttachDeclaredAnnotations_MissingNode(t *testing.T) {
 	t.Parallel()
 	l := newRawLowerer(&soa.OpenAPI{})
-	l.byPointer["/p"] = "t/anon/missing"
-	l.attachDeclaredAnnotations(&oas3.Schema{}, "/p")
-	assertHasErrorCode(t, l.diags, codeInternalInvariant)
+	// Reached through preserveUnionSiblings rather than attachDeclaredAnnotations:
+	// the latter takes its ID from the coordinate map, and compile.Types records a
+	// coordinate and its node together, so that caller can no longer present an ID
+	// the registry does not hold. This one is handed an ID by its caller.
+	l.preserveUnionSiblings("t/anon/missing", &oas3.Schema{}, "/p", ir.ReasonDegradedLowering, "why")
+	assertHasErrorCode(t, l.diags.List(), codeInternalInvariant)
 }
 
 // The redeclaration-conflict helpers carry defensive guards for states a
@@ -956,7 +959,7 @@ func TestResolvePrimKind_DanglingTargetIsNotResolved(t *testing.T) {
 func TestResolvePrimKind_BaselessScalarIsNotResolved(t *testing.T) {
 	t.Parallel()
 	l := newRawLowerer(&soa.OpenAPI{})
-	l.out.Types["t/opaque"] = &ir.Scalar{TypeCommon: ir.TypeCommon{ID: "t/opaque"}}
+	l.types.Register("t/opaque", &ir.Scalar{TypeCommon: ir.TypeCommon{ID: "t/opaque"}})
 	_, ok := l.resolvePrimKind(ir.TypeRef{Target: "t/opaque"})
 	assert.False(t, ok, "a base-less opaque scalar has no underlying primitive")
 }
@@ -967,7 +970,7 @@ func TestResolvePrimKind_CyclicBaseChainTerminates(t *testing.T) {
 	// A scalar whose Base points back at itself: the bounded walk must terminate
 	// and report no primitive rather than spin.
 	self := ir.TypeRef{Target: "t/cycle"}
-	l.out.Types["t/cycle"] = &ir.Scalar{TypeCommon: ir.TypeCommon{ID: "t/cycle"}, Base: &self}
+	l.types.Register("t/cycle", &ir.Scalar{TypeCommon: ir.TypeCommon{ID: "t/cycle"}, Base: &self})
 	_, ok := l.resolvePrimKind(self)
 	assert.False(t, ok, "a cyclic base chain terminates without resolving")
 }
@@ -982,7 +985,7 @@ func TestIsAnyType_DanglingTargetIsNotAny(t *testing.T) {
 func TestDifferentTypeKind_UnresolvableTargetIsNotAConflict(t *testing.T) {
 	t.Parallel()
 	l := newRawLowerer(&soa.OpenAPI{})
-	l.out.Types["t/model"] = &ir.Model{TypeCommon: ir.TypeCommon{ID: "t/model"}}
+	l.types.Register("t/model", &ir.Model{TypeCommon: ir.TypeCommon{ID: "t/model"}})
 	assert.False(t,
 		l.differentTypeKind(ir.TypeRef{Target: "t/model"}, ir.TypeRef{Target: "t/missing"}),
 		"an unresolvable target is not treated as a differing kind")
@@ -998,10 +1001,10 @@ func TestBigValEqual_UnparseableFallsBackToStringEquality(t *testing.T) {
 func TestIsStructuralType_DistinguishesCompositeFromOpaque(t *testing.T) {
 	t.Parallel()
 	l := newRawLowerer(&soa.OpenAPI{})
-	l.out.Types["t/model"] = &ir.Model{TypeCommon: ir.TypeCommon{ID: "t/model"}}
-	l.out.Types["t/list"] = &ir.List{TypeCommon: ir.TypeCommon{ID: "t/list"}}
-	l.out.Types["t/opaque"] = &ir.Scalar{TypeCommon: ir.TypeCommon{ID: "t/opaque"}}
-	l.out.Types["t/string"] = &ir.Primitive{TypeCommon: ir.TypeCommon{ID: "t/string"}, Prim: ir.PrimString}
+	l.types.Register("t/model", &ir.Model{TypeCommon: ir.TypeCommon{ID: "t/model"}})
+	l.types.Register("t/list", &ir.List{TypeCommon: ir.TypeCommon{ID: "t/list"}})
+	l.types.Register("t/opaque", &ir.Scalar{TypeCommon: ir.TypeCommon{ID: "t/opaque"}})
+	l.types.Register("t/string", &ir.Primitive{TypeCommon: ir.TypeCommon{ID: "t/string"}, Prim: ir.PrimString})
 
 	assert.True(t, l.isStructuralType(ir.TypeRef{Target: "t/model"}),
 		"model is a structural type")
@@ -1018,8 +1021,8 @@ func TestIsStructuralType_DistinguishesCompositeFromOpaque(t *testing.T) {
 func TestTypesConflict_OpaqueScalarVsPrimitiveIsNotConflict(t *testing.T) {
 	t.Parallel()
 	l := newRawLowerer(&soa.OpenAPI{})
-	l.out.Types["t/opaque"] = &ir.Scalar{TypeCommon: ir.TypeCommon{ID: "t/opaque"}}
-	l.out.Types["t/string"] = &ir.Primitive{TypeCommon: ir.TypeCommon{ID: "t/string"}, Prim: ir.PrimString}
+	l.types.Register("t/opaque", &ir.Scalar{TypeCommon: ir.TypeCommon{ID: "t/opaque"}})
+	l.types.Register("t/string", &ir.Primitive{TypeCommon: ir.TypeCommon{ID: "t/string"}, Prim: ir.PrimString})
 
 	assert.False(t, l.typesConflict(ir.TypeRef{Target: "t/opaque"}, ir.TypeRef{Target: "t/string"}),
 		"opaque scalar vs primitive is not flagged (never guess)")
@@ -1030,8 +1033,8 @@ func TestTypesConflict_OpaqueScalarVsPrimitiveIsNotConflict(t *testing.T) {
 func TestTypesConflict_StructuralVsPrimitiveIsConflict(t *testing.T) {
 	t.Parallel()
 	l := newRawLowerer(&soa.OpenAPI{})
-	l.out.Types["t/model"] = &ir.Model{TypeCommon: ir.TypeCommon{ID: "t/model"}}
-	l.out.Types["t/string"] = &ir.Primitive{TypeCommon: ir.TypeCommon{ID: "t/string"}, Prim: ir.PrimString}
+	l.types.Register("t/model", &ir.Model{TypeCommon: ir.TypeCommon{ID: "t/model"}})
+	l.types.Register("t/string", &ir.Primitive{TypeCommon: ir.TypeCommon{ID: "t/string"}, Prim: ir.PrimString})
 
 	assert.True(t, l.typesConflict(ir.TypeRef{Target: "t/model"}, ir.TypeRef{Target: "t/string"}),
 		"model vs primitive is a provable conflict")
@@ -2019,7 +2022,7 @@ func TestPreserveKeyword_NilRaw(t *testing.T) {
 	var ext ir.Preserved
 	l.preserveKeyword(&ext, "openapi:not", nil, "/p", "/p/not", "not")
 	assert.Nil(t, ext, "nil raw is a no-op")
-	assert.Empty(t, l.diags)
+	assert.Empty(t, l.diags.List())
 }
 
 func TestNodeToRaw(t *testing.T) {
@@ -2064,7 +2067,7 @@ func TestSchemaConstraints_EmptyRefSchema(t *testing.T) {
 func TestResolveSchemaRef_ReusesInternedSubSchema(t *testing.T) {
 	t.Parallel()
 	l := newRawLowerer(&soa.OpenAPI{})
-	l.byPointer[deepPointer] = "t/anon/prev"
+	l.types.Intern(deepPointer, "t/anon/prev", func() ir.TypeDef { return &ir.Any{} })
 
 	id, ok := l.resolveSchemaRef(emptyEitherSchema(), "#"+deepPointer)
 	require.True(t, ok, "a $ref to an already-hoisted sub-schema reuses its ID")
@@ -2100,7 +2103,8 @@ func TestHoistSubSchema_BodyInternsAtPointer(t *testing.T) {
 	id, ok := l.hoistSubSchema(object, deepPointer)
 	require.True(t, ok)
 	assert.Equal(t, anonTypeID(deepPointer), id)
-	assert.Equal(t, anonTypeID(deepPointer), l.byPointer[deepPointer])
+	seeded, _ := l.types.Lookup(deepPointer)
+	assert.Equal(t, anonTypeID(deepPointer), seeded)
 }
 
 func TestIsRefBranch_Nil(t *testing.T) {
@@ -2163,8 +2167,8 @@ func TestCheckOperationIDUnique_BareLowerer(t *testing.T) {
 	op := ir.Operation{Name: ir.Naming{Source: "dup"}}
 	l.checkOperationIDUnique(op, "/paths/~1a/get")
 	l.checkOperationIDUnique(op, "/paths/~1b/get")
-	require.Len(t, l.diags, 1)
-	assert.Equal(t, codeDuplicateOperationID, l.diags[0].Code)
+	require.Len(t, l.diags.List(), 1)
+	assert.Equal(t, codeDuplicateOperationID, l.diags.List()[0].Code)
 }
 
 // TestSchemaSiblings_RefdSubSchemaKeepsThem is the sub-schema arm of the rule
@@ -2843,7 +2847,7 @@ func TestPreserve_EmptyRawIsRejectedLikeNil(t *testing.T) {
 			var q ir.Preserved
 			l.preserveKeyword(&q, "openapi:not", raw, "/p", "/p/not", "not")
 			assert.Nil(t, q, "and the validation-only wrapper screens the same states")
-			assert.Empty(t, l.diags, "nothing was preserved, so nothing is announced")
+			assert.Empty(t, l.diags.List(), "nothing was preserved, so nothing is announced")
 		})
 	}
 }

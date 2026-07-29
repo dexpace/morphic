@@ -52,9 +52,6 @@ func composedTypeID(branchPointer string) ir.TypeID {
 	return ir.TypeID("t/composed" + branchPointer)
 }
 
-// primTypeID returns the interned ID of primitive kind k.
-func primTypeID(k ir.PrimKind) ir.TypeID { return ir.TypeID("t/prim/" + string(k)) }
-
 // opID returns the stable ID of the operation at pointer.
 func opID(pointer string) ir.OpID { return ir.OpID("op/openapi" + pointer) }
 
