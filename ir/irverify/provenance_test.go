@@ -36,7 +36,7 @@ func TestVerify_OutOfRangeProvenanceSourceIsAViolation(t *testing.T) {
 	got := irverify.Verify(doc)
 	require.Len(t, got, 1)
 	assert.Equal(t, "ir/provenance-source-out-of-range", got[0].Code)
-	assert.Equal(t, "doc.Types[t/x/Model].TypeCommon.Provenance", got[0].Path)
+	assert.Equal(t, "doc.Types[t/x/Model].Provenance", got[0].Path)
 }
 
 // TestVerify_NegativeProvenanceSourceIsAViolation covers the other end of the

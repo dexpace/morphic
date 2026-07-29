@@ -123,8 +123,11 @@ type refWalk struct {
 func collectRefs(root any, path string, isRef func(reflect.Type) bool) ([]refSite, bool) {
 	w := refWalk{isRef: isRef, seen: map[uintptr]bool{}}
 	w.walk(reflect.ValueOf(root), path, 0)
-	// Every site has its own field path, so location alone totally orders them.
-	slices.SortFunc(w.sites, func(a, b refSite) int {
+	// Distinct sites have distinct paths in every shape the IR declares, but two
+	// embedded structs contributing a same-named promoted field would collide;
+	// a stable sort keeps the deterministic walk order in that case rather than
+	// leaving the pair to sort.Interface's unspecified swap order.
+	slices.SortStableFunc(w.sites, func(a, b refSite) int {
 		return strings.Compare(a.where, b.where)
 	})
 	return w.sites, w.truncated
@@ -162,15 +165,29 @@ func (w *refWalk) walk(v reflect.Value, path string, depth int) {
 			w.descend(v.Elem(), path, depth+1)
 		}
 	case reflect.Struct:
-		for i := range v.NumField() {
-			w.descend(v.Field(i), path+"/"+v.Type().Field(i).Name, depth+1)
-		}
+		w.walkStruct(v, path, depth)
 	case reflect.Slice, reflect.Array:
 		w.walkSequence(v, path, depth)
 	case reflect.Map:
 		w.walkMap(v, path, depth)
 	default:
 		// Numbers, bools, funcs, channels and the invalid Value hold no typed ID.
+	}
+}
+
+// walkStruct descends into a struct's fields. An embedded field contributes no
+// path segment of its own: JSON inlines it and Go promotes its fields, so
+// ".../TypeCommon/Examples/0" names a step that neither encoding has — the
+// example is reached as ".../Examples/0" in both.
+func (w *refWalk) walkStruct(v reflect.Value, path string, depth int) {
+	t := v.Type()
+	for i := range v.NumField() {
+		f := t.Field(i)
+		child := path
+		if !f.Anonymous {
+			child = path + "/" + f.Name
+		}
+		w.descend(v.Field(i), child, depth+1)
 	}
 }
 
@@ -194,6 +211,18 @@ func (w *refWalk) walkPointer(v reflect.Value, path string, depth int) {
 	w.descend(v.Elem(), path, depth+1)
 }
 
+// walkSequence descends into slice and array elements, skipping byte sequences:
+// Preserved and RawConfig payloads are json.RawMessage and are the largest thing
+// in a document, while a byte element can hold no typed ID.
+func (w *refWalk) walkSequence(v reflect.Value, path string, depth int) {
+	if v.Type().Elem().Kind() == reflect.Uint8 {
+		return
+	}
+	for i := range v.Len() {
+		w.descend(v.Index(i), fmt.Sprintf("%s/%d", path, i), depth+1)
+	}
+}
+
 // mapEntry is one map entry paired with its rendered key, which both spells the
 // entry's path and orders the walk.
 type mapEntry struct {
@@ -214,18 +243,6 @@ func orderedEntries(v reflect.Value) []mapEntry {
 	}
 	slices.SortFunc(entries, func(a, b mapEntry) int { return strings.Compare(a.label, b.label) })
 	return entries
-}
-
-// walkSequence descends into slice and array elements, skipping byte sequences:
-// Preserved and RawConfig payloads are json.RawMessage and are the largest thing
-// in a document, while a byte element can hold no typed ID.
-func (w *refWalk) walkSequence(v reflect.Value, path string, depth int) {
-	if v.Type().Elem().Kind() == reflect.Uint8 {
-		return
-	}
-	for i := range v.Len() {
-		w.descend(v.Index(i), fmt.Sprintf("%s/%d", path, i), depth+1)
-	}
 }
 
 // walkMap descends into keys as well as values: most keys are an entry's own ID,

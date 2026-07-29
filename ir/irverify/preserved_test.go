@@ -49,7 +49,7 @@ func TestVerify_EmptyPreserveReasonIsAViolation(t *testing.T) {
 	got := irverify.Verify(doc)
 	require.NotEmpty(t, got)
 	assert.Equal(t, "ir/empty-preserve-reason", got[0].Code)
-	assert.Equal(t, "doc.Types[t/x/Model].TypeCommon.Preserved[openapi:x-rate-limit]", got[0].Path)
+	assert.Equal(t, "doc.Types[t/x/Model].Preserved[openapi:x-rate-limit]", got[0].Path)
 }
 
 // TestVerify_UnknownPreserveReasonIsAViolation covers the other way a bare
@@ -74,7 +74,7 @@ func TestVerify_EmptyPreservedKeyIsAViolation(t *testing.T) {
 	got := irverify.Verify(doc)
 	require.Len(t, got, 1)
 	assert.Equal(t, "ir/empty-preserved-key", got[0].Code)
-	assert.Equal(t, `doc.Types[t/x/Model].TypeCommon.Preserved[""]`, got[0].Path)
+	assert.Equal(t, `doc.Types[t/x/Model].Preserved[""]`, got[0].Path)
 }
 
 // TestVerify_EmptyKeyAndReasonReportBoth pins that the two defects are checked

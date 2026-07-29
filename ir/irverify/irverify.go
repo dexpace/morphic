@@ -37,7 +37,11 @@ func Verify(doc *ir.Document) []Violation {
 	vs = append(vs, checkProvenance(doc)...)
 	vs = append(vs, checkIndices(doc)...)
 
-	sort.Slice(vs, func(i, j int) bool {
+	// Stable: two violations can share a (Code, Path) — an embedded field
+	// contributes no path segment, so two promoted fields of the same name would
+	// collide — and a stable sort leaves those in the walk's deterministic order
+	// rather than an unspecified one.
+	sort.SliceStable(vs, func(i, j int) bool {
 		if vs[i].Code != vs[j].Code {
 			return vs[i].Code < vs[j].Code
 		}

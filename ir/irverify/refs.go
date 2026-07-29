@@ -164,7 +164,7 @@ func walkValues(root any, visit func(v reflect.Value, path string) bool) bool {
 			}
 		case reflect.Struct:
 			for i := range v.NumField() {
-				descend(v.Field(i), path+"."+v.Type().Field(i).Name, depth+1)
+				descend(v.Field(i), fieldPath(path, v.Type().Field(i)), depth+1)
 			}
 		case reflect.Slice, reflect.Array:
 			for i := range v.Len() {
@@ -179,6 +179,17 @@ func walkValues(root any, visit func(v reflect.Value, path string) bool) bool {
 	}
 	walk(reflect.ValueOf(root), "doc", 0)
 	return truncated
+}
+
+// fieldPath extends path with f's name, except for an embedded field, which
+// contributes no segment: JSON inlines it and Go promotes its fields, so
+// "….TypeCommon.Examples[0]" names a step neither encoding has — the example is
+// reached as "….Examples[0]" in both.
+func fieldPath(path string, f reflect.StructField) string {
+	if f.Anonymous {
+		return path
+	}
+	return path + "." + f.Name
 }
 
 // mapEntry is one map entry paired with its rendered key, which both spells the
