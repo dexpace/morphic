@@ -422,10 +422,9 @@ func forEachGroupOperation(groups []ir.OperationGroup, depth int, fn func(ir.Ope
 
 // diag builds a Diagnostic with a location-only provenance. The pointer is an
 // IR-space id (a TypeID/OpID/ServiceID), not a location inside any source file,
-// so Source is -1 to mark "no source file" and stop renderers fabricating a
-// file location for it.
+// so Source is ir.NoSource to stop renderers fabricating a file location for it.
 func diag(sev ir.Severity, code, message, pointer string) ir.Diagnostic {
-	return ir.NewDiagnostic(sev, code, message, ir.Provenance{Source: -1, Pointer: pointer})
+	return ir.NewDiagnostic(sev, code, message, ir.Provenance{Source: ir.NoSource, Pointer: pointer})
 }
 
 // sortedKeys returns the keys of a map in ascending order, giving every check

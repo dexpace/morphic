@@ -42,11 +42,22 @@ func checkProvenance(doc *ir.Document) []Violation {
 // sourceOutOfRange reports whether index fails to address one of declared
 // sources.
 //
-// A document declaring none is held only to the zero value: it makes no claim
-// about source indexing, and hand-built fixtures are that shape. Compiler
+// ir.NoSource is in range everywhere: it is the declared way to say the node
+// came from no input file, which is what every diagnostic an IR pass emits about
+// the document itself carries, and engine.Run folds those into
+// Document.Diagnostics. Holding them to the source table would make a document
+// less valid the more spec problems the validator found in it. No other negative
+// index is admitted — a second, undeclared sentinel is exactly the drift this
+// check exists to catch.
+//
+// A document declaring no sources is held only to the zero value: it makes no
+// claim about source indexing, and hand-built fixtures are that shape. Compiler
 // output always stamps its one loaded source, so the tolerance costs nothing on
 // the population this check exists for.
 func sourceOutOfRange(index, declared int) bool {
+	if index == ir.NoSource {
+		return false
+	}
 	if declared == 0 {
 		return index != 0
 	}

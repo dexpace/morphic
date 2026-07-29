@@ -1,6 +1,7 @@
 package irverify_test
 
 import (
+	"math"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -39,27 +40,49 @@ func TestVerify_OutOfRangeProvenanceSourceIsAViolation(t *testing.T) {
 	assert.Equal(t, "doc.Types[t/x/Model].Provenance", got[0].Path)
 }
 
-// TestVerify_NegativeProvenanceSourceIsAViolation covers the other end of the
-// range, which a bare `>= len` test would let through.
-func TestVerify_NegativeProvenanceSourceIsAViolation(t *testing.T) {
+// TestVerify_NoSourceSentinelIsClean pins the declared out-of-table value: a
+// node that came from no input file says so with ir.NoSource, and holding it to
+// the source table would fail every document carrying a pass diagnostic.
+func TestVerify_NoSourceSentinelIsClean(t *testing.T) {
 	doc := validDoc()
 	doc.Sources = oneSource()
-	doc.Types["t/x/Model"].Common().Provenance = ir.Provenance{Source: -1}
-	assert.Contains(t, codesOf(irverify.Verify(doc)), "ir/provenance-source-out-of-range")
+	doc.Types["t/x/Model"].Common().Provenance = ir.Provenance{Source: ir.NoSource}
+	assert.Empty(t, irverify.Verify(doc))
 }
 
-// TestVerify_SourcelessDocAdmitsOnlyZero pins the one tolerance: a document
-// declaring no sources makes no claim about source indexing, so a zero-value
-// Provenance is clean there — but a non-zero index still names a table entry
-// that cannot exist.
-func TestVerify_SourcelessDocAdmitsOnlyZero(t *testing.T) {
+// TestVerify_BelowSentinelProvenanceSourceIsAViolation covers the end of the
+// range a bare `>= len` test would let through, and pins that admitting
+// ir.NoSource admits nothing else negative: a second, undeclared sentinel is the
+// drift this check exists to catch.
+func TestVerify_BelowSentinelProvenanceSourceIsAViolation(t *testing.T) {
+	for _, src := range []int{ir.NoSource - 1, ir.NoSource - 2, math.MinInt} {
+		doc := validDoc()
+		doc.Sources = oneSource()
+		doc.Types["t/x/Model"].Common().Provenance = ir.Provenance{Source: src}
+		assert.Contains(t, codesOf(irverify.Verify(doc)), "ir/provenance-source-out-of-range",
+			"source %d addresses no declared source and is not the declared sentinel", src)
+	}
+}
+
+// TestVerify_SourcelessDocAdmitsZeroAndTheSentinel pins the one tolerance: a
+// document declaring no sources makes no claim about source indexing, so a
+// zero-value Provenance is clean there — but any other index except the
+// no-source sentinel still names a table entry that cannot exist.
+func TestVerify_SourcelessDocAdmitsZeroAndTheSentinel(t *testing.T) {
 	clean := validDoc()
 	require.Empty(t, clean.Sources)
 	assert.Empty(t, irverify.Verify(clean))
 
-	broken := validDoc()
-	broken.Types["t/x/Model"].Common().Provenance = ir.Provenance{Source: 1}
-	assert.Contains(t, codesOf(irverify.Verify(broken)), "ir/provenance-source-out-of-range")
+	sentinel := validDoc()
+	sentinel.Types["t/x/Model"].Common().Provenance = ir.Provenance{Source: ir.NoSource}
+	assert.Empty(t, irverify.Verify(sentinel))
+
+	for _, src := range []int{1, ir.NoSource - 1} {
+		broken := validDoc()
+		broken.Types["t/x/Model"].Common().Provenance = ir.Provenance{Source: src}
+		assert.Contains(t, codesOf(irverify.Verify(broken)), "ir/provenance-source-out-of-range",
+			"source %d addresses no entry of an empty source table", src)
+	}
 }
 
 // TestVerify_ProvenanceIsCheckedEverywhere confirms the check is document-wide
