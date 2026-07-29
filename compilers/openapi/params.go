@@ -123,15 +123,24 @@ func (l *lowerer) fillParamSchemaAnnotations(param *ir.Parameter, s *oas3.Schema
 	if l.loweredToOwnNode(pointer, param.Type) {
 		return
 	}
-	fillCarrierDocs(&param.Docs, s, nil)
-	if effectiveDeprecated(s, nil) {
+	// Referent stays unset: fillParamSchema never resolves the $ref target, so
+	// there is nothing to inherit from. That is the gap tracked as #131 — routing
+	// through annotations does not close it, it makes it a one-line change here
+	// rather than a fourth independent reading of the site rule.
+	//
+	// a.XML is discarded rather than ignored by omission: ir.Parameter is the only
+	// annotation carrier without an XML field (#124).
+	a, diags := annotations(site{Kind: siteReference, Node: s}, pointer, l.srcIndex)
+	l.diags.AppendAll(diags)
+
+	param.Docs = a.Docs
+	if a.Deprecated {
 		param.Deprecation = &ir.Deprecation{}
 	}
-	if ex := l.schemaExamples(s, pointer); len(ex) > 0 {
-		param.Examples = ex
+	if len(a.Examples) > 0 {
+		param.Examples = a.Examples
 	}
-	param.Preserved = mergePreserved(param.Preserved, l.schemaExtensions(s, pointer))
-	l.fillValidationOnly(&param.Preserved, s, pointer)
+	param.Preserved = mergePreserved(param.Preserved, a.Preserved)
 }
 
 // fillParamDetail enriches a parameter with its docs, deprecation, examples, and

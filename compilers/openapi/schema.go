@@ -450,18 +450,20 @@ func (l *lowerer) fillPropertyAnnotations(p *ir.Property, ref, tgt *oas3.Schema,
 	if l.loweredToOwnNode(pointer, p.Type) {
 		return
 	}
-	fillCarrierDocs(&p.Docs, ref, tgt)
-	if effectiveDeprecated(ref, tgt) {
+	a, diags := annotations(site{Kind: siteReference, Node: ref, Referent: tgt}, pointer, l.srcIndex)
+	l.diags.AppendAll(diags)
+
+	p.Docs = a.Docs
+	if a.Deprecated {
 		p.Deprecation = &ir.Deprecation{}
 	}
-	if h := xmlHints(ref.GetXML()); h != nil {
-		p.XML = h
+	if a.XML != nil {
+		p.XML = a.XML
 	}
-	if ex := l.schemaExamples(ref, pointer); len(ex) > 0 {
-		p.Examples = ex
+	if len(a.Examples) > 0 {
+		p.Examples = a.Examples
 	}
-	p.Preserved = mergePreserved(p.Preserved, l.schemaExtensions(ref, pointer))
-	l.fillValidationOnly(&p.Preserved, ref, pointer)
+	p.Preserved = mergePreserved(p.Preserved, a.Preserved)
 }
 
 // loweredToOwnNode reports whether the declaration at pointer lowered to a type
@@ -506,20 +508,6 @@ func (l *lowerer) fillPropertyConstraints(p *ir.Property, ref *oas3.Schema, poin
 	}
 }
 
-// schemaExamples lowers a schema's single (3.0) and plural (3.1) examples into
-// value examples in source order, pointer being the owning schema's own
-// pointer so an unconvertible example's diagnostic can locate it.
-func (l *lowerer) schemaExamples(s *oas3.Schema, pointer string) []ir.Example {
-	var out []ir.Example
-	if node := s.GetExample(); node != nil {
-		out = l.appendExample(out, ir.Example{}, node, pointer, "example")
-	}
-	for i, node := range s.GetExamples() {
-		out = l.appendExample(out, ir.Example{}, node, pointer, "examples", strconv.Itoa(i))
-	}
-	return out
-}
-
 // attachDeclaredAnnotations records every annotation s declares on the type
 // node pointer owns — the one structural home a declaration's annotations have
 // (ir.TypeCommon, embedded in every type node).
@@ -543,18 +531,20 @@ func (l *lowerer) attachDeclaredAnnotations(s *oas3.Schema, pointer string) {
 	if !ok {
 		return
 	}
+	a, diags := annotations(site{Kind: siteDeclaration, Node: s}, pointer, l.srcIndex)
+	l.diags.AppendAll(diags)
+
 	c := td.Common()
-	fillTypeDocs(&c.Docs, s)
-	if effectiveDeprecated(s, nil) {
+	c.Docs = a.Docs
+	if a.Deprecated {
 		c.Deprecation = &ir.Deprecation{}
 	}
-	if h := xmlHints(s.GetXML()); h != nil {
-		c.XML = h
+	if a.XML != nil {
+		c.XML = a.XML
 	}
-	c.Preserved = mergePreserved(c.Preserved, l.schemaExtensions(s, pointer))
-	l.fillValidationOnly(&c.Preserved, s, pointer)
-	if ex := l.schemaExamples(s, pointer); len(ex) > 0 {
-		c.Examples = ex
+	c.Preserved = mergePreserved(c.Preserved, a.Preserved)
+	if len(a.Examples) > 0 {
+		c.Examples = a.Examples
 	}
 }
 
@@ -613,62 +603,11 @@ func (l *lowerer) patternProps(s *oas3.Schema, pointer, hint string) []ir.Patter
 	return out
 }
 
-// fillValidationOnly preserves JSON Schema keywords that have no structural IR
-// home verbatim in namespaced Preserved entries, one info diagnostic each
-// (§4.7). It takes the map rather than a node so it serves both homes a
-// declaration's keywords can have: the type node the declaration owns, and the
-// declaring property when it owns none.
-//
-// This set is §4.7's, and five further 2020-12 keywords are knowingly outside
-// it (GitHub #125), each dropped with no diagnostic: dependentRequired, which
-// is the same kind of thing as the dependentSchemas kept below;
-// contentMediaType, contentEncoding and contentSchema, which describe an
-// encoded value rather than validate one; and $dynamicRef, which lowers to any.
-// Taking any of them would edit §4.7's normative list, so #125 argues each on
-// its own terms instead of settling them here.
-func (l *lowerer) fillValidationOnly(ext *ir.Preserved, s *oas3.Schema, pointer string) {
-	if s.GetNot() != nil {
-		l.preserveKeyword(ext, "openapi:not", nodeToRaw(rawPropertyNode(s, "not")),
-			pointer, pointer+ptr("not"), "not")
-	}
-	if ite := ifThenElseRaw(s); ite != nil {
-		l.preserveKeyword(ext, "openapi:if-then-else", ite, pointer, pointer, "if/then/else")
-	}
-	if ds := s.GetDependentSchemas(); ds != nil && ds.Len() > 0 {
-		l.preserveKeyword(ext, "openapi:dependentSchemas", nodeToRaw(rawPropertyNode(s, "dependentSchemas")),
-			pointer, pointer+ptr("dependentSchemas"), "dependentSchemas")
-	}
-	if s.GetPropertyNames() != nil {
-		l.preserveKeyword(ext, "openapi:propertyNames", nodeToRaw(rawPropertyNode(s, "propertyNames")),
-			pointer, pointer+ptr("propertyNames"), "propertyNames")
-	}
-	if craw := containsRaw(s); craw != nil {
-		l.preserveKeyword(ext, "openapi:contains", craw, pointer, pointer, "contains")
-	}
-	if u := unevaluatedRaw(s); u != nil {
-		l.preserveKeyword(ext, "openapi:unevaluated", u, pointer, pointer, "unevaluated")
-	}
-}
-
 // preserve records raw under key in *p with why it was kept and where it was
 // written, allocating the map on first write. An absent or unconvertible
 // payload records nothing, so no caller needs a nil guard of its own.
 func (l *lowerer) preserve(p *ir.Preserved, key string, raw ir.RawValue, reason ir.PreserveReason, pointer string) {
-	// len rather than a nil comparison: nil and a zero-length slice are distinct
-	// states, and an empty payload is the worse of the two. It preserves no
-	// construct, and json.Marshal rejects it for the whole document while naming
-	// json.RawMessage rather than the entry that carried it.
-	if len(raw) == 0 {
-		return
-	}
-	if *p == nil {
-		*p = ir.Preserved{}
-	}
-	(*p)[key] = ir.PreservedEntry{
-		Reason:     reason,
-		Value:      raw,
-		Provenance: ir.Provenance{Source: l.srcIndex, Pointer: pointer},
-	}
+	preserveInto(p, key, raw, reason, pointer, l.srcIndex)
 }
 
 // preserveKeyword records a validation-only keyword's raw payload under key in
@@ -680,15 +619,7 @@ func (l *lowerer) preserve(p *ir.Preserved, key string, raw ir.RawValue, reason 
 // keyword, and declPtr for the three §4.7 entries that combine several keywords
 // into one synthesized object no single node addresses.
 func (l *lowerer) preserveKeyword(p *ir.Preserved, key string, raw ir.RawValue, declPtr, entryPtr, label string) {
-	// Screened here as well as in preserve: this announces the keyword as kept,
-	// so delegating the check would emit that claim for a payload preserve then
-	// discards.
-	if len(raw) == 0 {
-		return
-	}
-	l.preserve(p, key, raw, ir.ReasonValidationOnly, entryPtr)
-	l.diag(ir.SeverityInfo, codeValidationOnlyKeyword, declPtr,
-		"validation-only keyword %q kept verbatim under Preserved", label)
+	l.diags.AppendAll(preserveKeywordInto(p, key, raw, declPtr, entryPtr, label, l.srcIndex))
 }
 
 // diag appends one diagnostic at pointer with the given severity and code,
@@ -704,11 +635,6 @@ func (l *lowerer) diag(sev ir.Severity, code, pointer, format string, args ...an
 // for lowering diagnostics, so a shared declaration reported from N use sites
 // yields one diagnostic rather than N indistinguishable copies.
 func (l *lowerer) appendDiag(d ir.Diagnostic) { l.diags.Append(d) }
-
-// schemaExtensions lowers a schema's x-* extensions into namespaced Preserved.
-func (l *lowerer) schemaExtensions(s *oas3.Schema, pointer string) ir.Preserved {
-	return l.extensions(s.GetExtensions(), pointer)
-}
 
 // lowerArray hoists an array schema as a Tuple when prefixItems is present, else
 // a List over its item schema with its collection constraints.
