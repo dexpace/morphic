@@ -72,6 +72,11 @@ func (l *lowerer) lowerComponentSchema(js *oas3.JSONSchema[oas3.Referenceable], 
 // lose silently. id is the node lowerComponentSchema guarantees the pointer
 // owns — a registry that disagrees leaves nothing to record on, which
 // registeredNode reports.
+//
+// Only named component declarations are covered. An inline position that owns a
+// node still drops these three, because reaching those means teaching
+// declaresPositionScoped to hoist for them, which moves golden output: GitHub
+// #138.
 func (l *lowerer) preserveDeclarationResidue(s *oas3.Schema, id ir.TypeID, pointer string) {
 	if td, ok := l.registeredNode(id, pointer); ok {
 		l.recordResidue(td.Common(), s, pointer)
