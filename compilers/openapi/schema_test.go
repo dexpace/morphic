@@ -115,6 +115,38 @@ func TestLower_ConstraintOnlyUnionIsValidationOnly(t *testing.T) {
 		"the union is reported with §4.7's keyword family; got %+v", diags)
 }
 
+func TestLower_BooleanUnionBranchDeclaresNoShape(t *testing.T) {
+	t.Parallel()
+	// A JSON Schema boolean branch is a whole schema: `true` accepts anything,
+	// `false` accepts nothing. Neither states a data shape, so a union built
+	// only from them narrows the co-declared body without reshaping it, exactly
+	// as a constraint-only branch does, and takes the same validation-only
+	// lowering. The branch carries no schema object at all, which is what
+	// separates it from a branch that declares nothing structural.
+	spec := componentSpec(`    Flag:
+      type: object
+      required: [common]
+      properties:
+        common: {type: string}
+      oneOf:
+        - true
+        - false
+`)
+	doc, diags := lowerSpec(t, spec)
+	requireNoErrorDiags(t, diags)
+
+	m, ok := doc.Types[componentID("Flag")].(*ir.Model)
+	require.True(t, ok, "the structural body survives as a Model")
+	require.Len(t, m.Properties, 1)
+	assert.Equal(t, "common", m.Properties[0].Name.Source)
+
+	raw, ok := m.Preserved["openapi:oneOf"]
+	require.True(t, ok, "the union is kept verbatim under Preserved")
+	assert.Equal(t, ir.ReasonValidationOnly, raw.Reason,
+		"boolean branches declare no shape, so the union is validation-only (ir-design §4.7)")
+	assert.Equal(t, "/components/schemas/Flag/oneOf", raw.Provenance.Pointer)
+}
+
 func TestLower_AllOfWithOneOfKeepsBoth(t *testing.T) {
 	t.Parallel()
 	// allOf co-declared with oneOf must not drop the allOf composition.
