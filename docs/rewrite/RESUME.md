@@ -15,6 +15,18 @@ Draft PR **#119** is the trunk. Read these first, in order:
    the bar; "Minor" is a severity, not permission to ship.
 3. `gh pr view 119` and the open issues listed below.
 
+## Standing directive — file, do not fix
+
+Prioritise landing the rewrite. **A bug found along the way gets a GitHub issue, not a fix.** This
+work has a strong tendency to spawn adjacent defects — the corpus gaps, the dropped keywords, the
+`allOf` branch loss were all found while doing something else, and each is genuinely worth fixing
+later. Fixing them inline is how the PR stops converging.
+
+The exception is a defect **in code this work introduced** — a guard that does not guard, a walk
+that is not deterministic. That is finishing the job, not detouring.
+
+Currently filed and deliberately untouched: #120, #123, #124, #125, #126.
+
 ## Branch layout
 
 Five branches, none merged. Work happens in git worktrees so several agents can run at once without
