@@ -33,6 +33,8 @@ func Verify(doc *ir.Document) []Violation {
 	vs = append(vs, checkReferentialIntegrity(doc)...)
 	vs = append(vs, checkNaming(doc)...)
 	vs = append(vs, checkDiagnostics(doc)...)
+	vs = append(vs, checkPreserved(doc)...)
+	vs = append(vs, checkProvenance(doc)...)
 
 	sort.Slice(vs, func(i, j int) bool {
 		if vs[i].Code != vs[j].Code {
