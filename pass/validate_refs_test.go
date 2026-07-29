@@ -257,20 +257,47 @@ func pointers(diags []ir.Diagnostic) []string {
 	return out
 }
 
+// sortedRefPointers is the location order every run must produce: ascending by
+// pointer, which is what sorting the sites before building diagnostics yields.
+//
+// It is written out rather than captured from a first run because a captured
+// order proves only that two runs agree — a walk that emitted these in its own
+// traversal order would satisfy that and still leak map iteration into the
+// output the moment a document made the traversal order vary.
+var sortedRefPointers = []string{
+	"doc/Channels[chan/a]/Params/0/Type/Target",
+	"doc/Messages[msg/a]/CorrelationID/Root/Target",
+	"doc/Messages[msg/a]/Headers/Target",
+	"doc/Services/0/CommonErrors/0/Type/Target",
+	"doc/Services/0/Groups/0/Operations/0/Bindings/RPC/InputType/Target",
+	"doc/Services/0/Groups/0/Operations/0/LongRunning/FinalType/Target",
+	"doc/Services/0/Groups/0/Operations/0/LongRunning/PollingType/Target",
+	"doc/Services/0/Groups/0/Operations/0/LongRunning/ResultPath/Root/Target",
+	"doc/Services/0/Groups/0/Operations/0/Request/Contents/0/Encoding[p/part]/Headers/0/Type/Target",
+	"doc/Services/0/Groups/0/Operations/0/Request/Contents/0/File/Contents/Target",
+	"doc/Services/0/Groups/0/Operations/0/RequestStream/Initial/Target",
+	"doc/Services/0/Groups/0/Operations/0/ResponseStream/Events/Target",
+	"doc/Services/0/Renames[t/ghost/15]/key",
+	"doc/Types[t/m]/Properties/0/Args/0/Type/Target",
+	"doc/Types[t/m]/Properties/0/Availability/TypeChangedFrom/0/Type/Target",
+	"doc/Types[t/m]/Properties/0/Default/Ref/Type",
+	"doc/Types[t/u]/Discriminator/Default",
+}
+
 // TestValidate_DiagnosticOrderIsDeterministic pins invariant 7 for the
 // reflection walk: it reaches references through maps, whose iteration order Go
 // randomizes per range, so the sites must be sorted by location before any
-// diagnostic is built.
+// diagnostic is built. Both halves are asserted — the order is the pinned one,
+// and every further run repeats it.
 func TestValidate_DiagnosticOrderIsDeterministic(t *testing.T) {
 	t.Parallel()
 	doc := validDoc()
 	for i, tc := range unwalkedRefSites() {
 		tc.plant(doc, ir.TypeID(fmt.Sprintf("t/ghost/%02d", i)))
 	}
-	want := pointers(pass.Validate(doc))
-	require.NotEmpty(t, want)
+	require.Equal(t, sortedRefPointers, pointers(danglingDiags(pass.Validate(doc))))
 	for range 8 {
-		assert.Equal(t, want, pointers(pass.Validate(doc)))
+		assert.Equal(t, sortedRefPointers, pointers(danglingDiags(pass.Validate(doc))))
 	}
 }
 

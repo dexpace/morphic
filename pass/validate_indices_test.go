@@ -25,22 +25,23 @@ func serverDoc() *ir.Document {
 func TestValidate_ServerIndexOutOfRange(t *testing.T) {
 	t.Parallel()
 	cases := []struct {
-		name  string
-		where string
-		plant func(doc *ir.Document)
+		name    string
+		where   string
+		message string
+		plant   func(doc *ir.Document)
 	}{
-		{"service negative index", "s/servers/0", func(d *ir.Document) {
-			service(d).Servers = []int{-1}
-		}},
-		{"service index past the end", "s/servers/0", func(d *ir.Document) {
-			service(d).Servers = []int{1}
-		}},
-		{"channel negative index", "chan/a/servers/0", func(d *ir.Document) {
-			putChannel(d, func(c *ir.Channel) { c.Servers = []int{-1} })
-		}},
-		{"channel index past the end", "chan/a/servers/0", func(d *ir.Document) {
-			putChannel(d, func(c *ir.Channel) { c.Servers = []int{1} })
-		}},
+		{"service negative index", "s/servers/0",
+			"server index -1 at s/servers/0 addresses none of the 1 declared servers",
+			func(d *ir.Document) { service(d).Servers = []int{-1} }},
+		{"service index past the end", "s/servers/0",
+			"server index 1 at s/servers/0 addresses none of the 1 declared servers",
+			func(d *ir.Document) { service(d).Servers = []int{1} }},
+		{"channel negative index", "chan/a/servers/0",
+			"server index -1 at chan/a/servers/0 addresses none of the 1 declared servers",
+			func(d *ir.Document) { putChannel(d, func(c *ir.Channel) { c.Servers = []int{-1} }) }},
+		{"channel index past the end", "chan/a/servers/0",
+			"server index 1 at chan/a/servers/0 addresses none of the 1 declared servers",
+			func(d *ir.Document) { putChannel(d, func(c *ir.Channel) { c.Servers = []int{1} }) }},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -51,6 +52,8 @@ func TestValidate_ServerIndexOutOfRange(t *testing.T) {
 			require.Len(t, found, 1, "exactly the planted index must be out of range")
 			assert.Equal(t, ir.SeverityError, found[0].Severity)
 			assert.Equal(t, tc.where, found[0].Provenance.Pointer)
+			assert.Equal(t, tc.message, found[0].Message,
+				"the message names the offending index, where it sits, and what it failed to address")
 		})
 	}
 }
@@ -115,12 +118,15 @@ func opWithSuccessStatus(status map[int]int) *ir.Document {
 func TestValidate_ResponseIndexOutOfRange(t *testing.T) {
 	t.Parallel()
 	cases := []struct {
-		name   string
-		status map[int]int
-		where  string
+		name    string
+		status  map[int]int
+		where   string
+		message string
 	}{
-		{"negative index", map[int]int{-1: 200}, "op/bindings/http/0/successStatus/-1"},
-		{"index past the end", map[int]int{1: 202}, "op/bindings/http/0/successStatus/1"},
+		{"negative index", map[int]int{-1: 200}, "op/bindings/http/0/successStatus/-1",
+			"response index -1 at op/bindings/http/0/successStatus/-1 addresses none of the 1 declared responses"},
+		{"index past the end", map[int]int{1: 202}, "op/bindings/http/0/successStatus/1",
+			"response index 1 at op/bindings/http/0/successStatus/1 addresses none of the 1 declared responses"},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -129,6 +135,8 @@ func TestValidate_ResponseIndexOutOfRange(t *testing.T) {
 			require.Len(t, found, 1, "exactly the planted index must be out of range")
 			assert.Equal(t, ir.SeverityError, found[0].Severity)
 			assert.Equal(t, tc.where, found[0].Provenance.Pointer)
+			assert.Equal(t, tc.message, found[0].Message,
+				"the message names the offending index, where it sits, and what it failed to address")
 		})
 	}
 }
