@@ -43,20 +43,21 @@ const (
 // schema.go) produces — const (hoistLiteral -> Literal), enum (lowerEnum ->
 // Enum or a Union of Literals), a multi-type such as `type: [string,
 // integer]` (lowerUnion -> Union), a `type: array` body (lowerArray ->
-// List/Tuple), allOf (lowerAllOf -> Model), and a sibling-less oneOf/anyOf
-// (lowerOneOfAnyOf -> Union) are destinations too. Of those, only lowerAllOf
-// calls fillModelDetail the way lowerModel does, so an allOf-composed
-// component's docs/deprecated/x-* annotations are retained even though this
-// grid does not exercise allOf as its own SiteKind; hoistLiteral, lowerEnum,
-// lowerUnion, lowerArray, and a sibling-less lowerOneOfAnyOf never call
-// fillModelDetail, so an annotation on a const, enum, multi-type, array, or
-// bare oneOf/anyOf declaration is believed — but, unlike allOf, not verified
-// here — to drop the same way SiteDeclarationScalar's cases do. A oneOf/anyOf
-// co-declared with a structural sibling (`type: object` or `properties`)
-// takes neither path: lowerSchemaBody (schema.go) routes it through
-// lowerWithUnionSiblings into lower() -> lowerModel instead, so it retains
-// docs/deprecated/x-* like allOf's composed case, and is likewise
-// unexercised as its own SiteKind.
+// List/Tuple), allOf (lowerAllOf -> Model), a sibling-less oneOf/anyOf
+// (lowerOneOfAnyOf -> Union), and a oneOf/anyOf co-declared with a structural
+// sibling (lowerWithUnionSiblings -> lowerModel) are destinations too. None of
+// them reads annotations: attachDeclaredAnnotations runs above the dispatch,
+// so retention is a property of the reading's position rather than of the
+// destination reached (GitHub #114).
+//
+// That claim is checked rather than assumed, but not at every destination.
+// TestAnnotationRetention_OtherDeclarationShapes (annotations_test.go) runs
+// the full nine-annotation grid at four of them — const, enum, array, and a
+// sibling-less oneOf — and pins the node kind each lowers to, so the four
+// rows stay four distinct destinations. allOf, a multi-type, and a
+// structurally co-declared oneOf/anyOf are still unexercised: each lands on a
+// Model or Union node the checked rows already cover, so nothing about them
+// is expected to differ, but nothing here proves it.
 type SiteKind string
 
 // The kinds of position an annotation can be written at.

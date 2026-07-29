@@ -981,37 +981,128 @@ func hasDiagCode(diags []ir.Diagnostic, code string) bool {
 	return false
 }
 
-// TestAnnotationRetention_OtherDeclarationShapes covers the declaration shapes
-// the SiteKind axis does not name individually: const, enum, array, and a pure
-// oneOf. Each reaches a different lower() destination, and every one of them
-// used to bypass the annotation reading that lived inside the model branch —
-// so this is what says the reading moved above the dispatch rather than being
-// copied onto a second path.
-func TestAnnotationRetention_OtherDeclarationShapes(t *testing.T) {
-	t.Parallel()
-	cases := []struct{ name, body string }{
-		{"const", "      const: c"},
-		{"enum", "      enum: [a, b]"},
-		{"array", "      type: array\n      items: {type: string}"},
-		{"oneOf", "      oneOf:\n        - {type: string}\n        - {type: integer}"},
-	}
-	for _, tc := range cases {
-		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
-			doc, diags := compileAnnotationSpec(t, tc.name, `openapi: 3.1.0
+// declShape is one declaration shape the SiteKind axis does not name
+// individually. body holds the keywords that give component S that shape, and
+// value a literal legal for it, reused for both `example` and `default`.
+type declShape struct {
+	name  string
+	body  string
+	value string
+	// kind is the node this shape must lower to. Asserting it is what keeps the
+	// grid honest: the four shapes are here because they take four different
+	// lower() destinations, and a body that quietly stopped doing so would make
+	// every assertion below a duplicate of another row rather than a new one.
+	kind ir.TypeKind
+	// constraint is a bound legal on this shape, and constraintKept whether the
+	// node it lowers to has a field to hold it. This is the one annotation of
+	// the nine whose answer is shape-dependent: ir.List carries Constraints,
+	// while Literal, Enum and Union do not, so a single blanket expectation
+	// would be wrong either way.
+	constraint     string
+	constraintKept bool
+}
+
+// spec renders a component declaration of this shape carrying every annotation
+// the retention grid names, so one compile answers all nine at once.
+func (s declShape) spec() string {
+	return `openapi: 3.1.0
 info: {title: g, version: "1"}
 paths: {}
 components:
   schemas:
     S:
       description: at-declaration
-`+tc.body+"\n")
+      deprecated: true
+      xml: {name: Renamed}
+      x-vendor: at-declaration
+      if: {type: string}
+      then: {minLength: 1}
+      readOnly: true
+      example: ` + s.value + `
+      default: ` + s.value + "\n" + s.constraint + s.body + "\n"
+}
+
+func declShapes() []declShape {
+	return []declShape{
+		{name: "const", body: "      const: c", value: "c", kind: ir.KindLiteral},
+		{name: "enum", body: "      enum: [a, b]", value: "a", kind: ir.KindEnum},
+		{
+			name: "array", body: "      type: array\n      items: {type: string}", value: "[x]",
+			kind: ir.KindList, constraint: "      minItems: 1\n", constraintKept: true,
+		},
+		{
+			name:  "oneOf",
+			body:  "      oneOf:\n        - {type: string}\n        - {type: integer}",
+			value: "x", kind: ir.KindUnion,
+		},
+	}
+}
+
+// TestAnnotationRetention_OtherDeclarationShapes runs the full nine-annotation
+// grid against the declaration shapes the SiteKind axis does not name
+// individually: const, enum, array, and a sibling-less oneOf. Each reaches a
+// different lower() destination, and every one of them used to bypass the
+// annotation reading that lived inside the model branch — so this is what says
+// the reading moved above the dispatch rather than being copied onto a second
+// path, and it says it for every annotation rather than for docs alone.
+func TestAnnotationRetention_OtherDeclarationShapes(t *testing.T) {
+	t.Parallel()
+	for _, shape := range declShapes() {
+		t.Run(shape.name, func(t *testing.T) {
+			t.Parallel()
+			doc, diags := compileAnnotationSpec(t, shape.name, shape.spec())
 			assertNoErrorDiags(t, diags)
 			td, ok := doc.Types[namedID("S")]
 			require.True(t, ok, "component S must own a node")
-			assert.Equal(t, "at-declaration", td.Common().Docs.Description)
+			require.Equal(t, shape.kind, td.Kind(), "this shape must reach its own lower() destination")
+			assertDeclaredAnnotationsKept(t, td)
+			assertDeclarationGapsHold(t, td, shape)
 		})
 	}
+}
+
+// assertDeclaredAnnotationsKept checks the six annotations
+// attachDeclaredAnnotations reads — the ones whose retention depends on where
+// in the dispatch the reading happens.
+func assertDeclaredAnnotationsKept(t *testing.T, td ir.TypeDef) {
+	t.Helper()
+	c := td.Common()
+	assert.Equal(t, "at-declaration", c.Docs.Description, "docs")
+	assert.NotNil(t, c.Deprecation, "deprecated")
+	if assert.NotNil(t, c.XML, "xmlHints") {
+		assert.Equal(t, "Renamed", c.XML.Name)
+	}
+	vendor, ok := c.Preserved["openapi:x-vendor"]
+	if assert.True(t, ok, "vendorExtension: got %v", c.Preserved) {
+		assert.JSONEq(t, `"at-declaration"`, string(vendor.Value))
+		assert.Equal(t, ir.ReasonVendorExtension, vendor.Reason)
+	}
+	ite, ok := c.Preserved["openapi:if-then-else"]
+	if assert.True(t, ok, "validationOnly: got %v", c.Preserved) {
+		assert.Equal(t, ir.ReasonValidationOnly, ite.Reason)
+	}
+	require.Len(t, c.Examples, 1, "examples")
+	require.NotNil(t, c.Examples[0].Value)
+	assert.NotEqual(t, ir.Value{}, *c.Examples[0].Value, "the example converted to a typed value")
+}
+
+// assertDeclarationGapsHold checks the three annotations with no home on a
+// declaration, so this grid stays red-on-close the same way the model and
+// scalar knownGap cells above do. Only constraints varies by shape.
+func assertDeclarationGapsHold(t *testing.T, td ir.TypeDef, shape declShape) {
+	t.Helper()
+	node := marshalToMap(t, td)
+	assert.NotContains(t, node, "default",
+		"default has no field on a type node regardless of declaration shape")
+	assert.NotContains(t, node, "visibility",
+		"readOnly has no field on a type node regardless of declaration shape")
+	if shape.constraintKept {
+		assert.Contains(t, node, "constraints",
+			"a collection bound has a home on the node this shape lowers to")
+		return
+	}
+	assert.NotContains(t, node, "constraints",
+		"this shape lowers to a node with no Constraints field")
 }
 
 // TestAnnotationRetention_EveryCellCovered requires every cell in the
