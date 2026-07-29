@@ -5,6 +5,8 @@ components:
   schemas:
     S:
       type: object
+      minProperties: 1
+      maxProperties: 4
       properties:
         ratio:
           type: number

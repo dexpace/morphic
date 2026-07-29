@@ -47,14 +47,54 @@ func (l *lowerer) lowerComponentSchemas() {
 func (l *lowerer) lowerComponentSchema(js *oas3.JSONSchema[oas3.Referenceable], pointer, name string) {
 	s := siteAt(js)
 	ref := l.schemaRef(js, pointer, name)
-	if _, owned := l.types.Lookup(pointer); owned {
-		return // schemaRef interned the component's own node at its component ID
+	// A body that interned the component's own node at its component ID needs no
+	// alias, and its annotations were attached where it was lowered.
+	id, owned := l.types.Lookup(pointer)
+	if !owned {
+		id = l.internAlias(pointer, name, ref, l.schemaConstraints(s.Node, pointer))
+		// This alias is the first node the pointer owns, so the annotations
+		// schemaBody had nowhere to put now have a home.
+		if s.Node != nil {
+			l.attachDeclaredAnnotations(s.Node, pointer)
+		}
 	}
-	l.internAlias(pointer, name, ref, l.schemaConstraints(s.Node, pointer))
-	// This alias is the first node the pointer owns, so the annotations
-	// schemaBody had nowhere to put now have a home.
 	if s.Node != nil {
-		l.attachDeclaredAnnotations(s.Node, pointer)
+		l.preserveDeclarationResidue(s.Node, id, pointer)
+	}
+}
+
+// preserveDeclarationResidue keeps, on the node pointer owns, every keyword the
+// component declared that only a use site can hold.
+//
+// ir-design §14's OpenAPI row applies these to referencing properties with
+// use-site precedence, which the property path already does; this is the other
+// half of that rule. It is what a component nothing references would otherwise
+// lose silently. id is the node lowerComponentSchema guarantees the pointer
+// owns — a registry that disagrees leaves nothing to record on, which
+// registeredNode reports.
+func (l *lowerer) preserveDeclarationResidue(s *oas3.Schema, id ir.TypeID, pointer string) {
+	if td, ok := l.registeredNode(id, pointer); ok {
+		l.recordResidue(td.Common(), s, pointer)
+	}
+}
+
+// recordResidue keeps each declared residue keyword verbatim on c and reports
+// it at the keyword's own pointer.
+//
+// The three are the keywords a declaration can write that bind a *use* of the
+// type rather than the type itself, so the declaring node has no field to hold
+// them: `default` (Property/Parameter.Default is its only home) and
+// readOnly/writeOnly (Property.Visibility is theirs).
+func (l *lowerer) recordResidue(c *ir.TypeCommon, s *oas3.Schema, pointer string) {
+	for _, keyword := range []string{"default", "readOnly", "writeOnly"} {
+		raw := nodeToRaw(rawPropertyNode(s, keyword))
+		if len(raw) == 0 {
+			continue
+		}
+		l.preserve(&c.Preserved, "openapi:"+keyword, raw, ir.ReasonNoIRHome, pointer+ptr(keyword))
+		l.diag(ir.SeverityInfo, codeDegradedConstruct, pointer+ptr(keyword),
+			"%s on a type declaration binds a use of the type, not the type; "+
+				"it is applied to referencing properties and kept verbatim under Preserved", keyword)
 	}
 }
 
@@ -366,11 +406,16 @@ func (l *lowerer) lowerUnion(s *oas3.Schema, pointer, hint string, types []oas3.
 }
 
 // lowerModel hoists an object schema as a Model. This task lowers only the
-// property shape (name, type, required); a later pass fills the rest. It reads
-// no annotations: attachDeclaredAnnotations does that for every destination.
+// property shape (name, type, required) and the property-set cardinality; a
+// later pass fills the rest. It reads no annotations: attachDeclaredAnnotations
+// does that for every destination.
+//
+// Cardinality is read here rather than on lowerComponentSchema's internAlias
+// fallback because an object-shaped schema owns its node before that fallback
+// would run, so the fallback never fires for one (GitHub #129).
 func (l *lowerer) lowerModel(s *oas3.Schema, pointer, hint string) ir.TypeID {
 	return l.internNode(pointer, hint, func(common ir.TypeCommon) ir.TypeDef {
-		m := &ir.Model{TypeCommon: common}
+		m := &ir.Model{TypeCommon: common, Constraints: l.schemaConstraints(s, pointer)}
 		l.fillModelProperties(m, s, pointer)
 		l.fillAdditional(m, s, pointer, hint)
 		if d := l.lowerDiscriminator(s, m, pointer); d != nil {

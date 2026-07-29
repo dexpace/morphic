@@ -181,7 +181,8 @@ func TestScalar_PopulatedRoundTrip(t *testing.T) {
 
 // TestModel_PopulatedRoundTrip pins that a fully populated Model — own
 // properties, inheritance, interface conformance, mixins, additional-props
-// catch-all, extension ranges, and discriminator — round-trips.
+// catch-all, property-set cardinality, extension ranges, and discriminator —
+// round-trips.
 func TestModel_PopulatedRoundTrip(t *testing.T) {
 	t.Parallel()
 	want := &ir.Model{
@@ -198,6 +199,7 @@ func TestModel_PopulatedRoundTrip(t *testing.T) {
 			},
 		},
 		Additional:      ir.AdditionalClosedAfterComposition,
+		Constraints:     populatedConstraints(),
 		Abstract:        true,
 		Positional:      true,
 		ExtensionRanges: []ir.WireIDRange{{From: 100, To: 199}},

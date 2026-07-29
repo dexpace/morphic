@@ -7,3 +7,7 @@ components:
       type: object
       properties:
         n: {type: integer, default: 9007199254740993}
+        viaRef: {$ref: '#/components/schemas/DeclaredDefault'}
+    # A declaration-site default binds a use of the type, so it reaches the
+    # referencing property and stays on the declaration only as residue.
+    DeclaredDefault: {type: integer, default: 41}
