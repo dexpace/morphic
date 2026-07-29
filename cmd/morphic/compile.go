@@ -13,9 +13,10 @@ import (
 )
 
 // newEngine constructs the pipeline engine. It is a package var so tests can
-// inject a construction failure — the real engine.New only errors on a
-// duplicate compiler registration, which the default registry never produces —
-// and a stub engine that returns a nil Document.
+// inject a construction failure — the real engine.New registers exactly one
+// compiler into a fresh registry, so neither of Register's failure modes (no
+// formats reported, a format collision) can actually fire — and a stub engine
+// that returns a nil Document.
 var newEngine = engine.New
 
 // openOutput creates the destination file for -o. It is a package var so tests

@@ -68,9 +68,8 @@ const (
 	// which lowers through the compiler's model path (lowerModel).
 	SiteDeclarationModel SiteKind = "declaration-model"
 	// SiteDeclarationScalar is an annotation on a scalar-shaped component,
-	// which lowers through the compiler's alias path: internAlias, the
-	// function most scalar knownGap reasons in annotations_test.go cite as
-	// the boundary an annotation never crosses.
+	// which lowers through the compiler's alias path (internAlias in
+	// schema.go).
 	SiteDeclarationScalar SiteKind = "declaration-scalar"
 	// SiteReference is an annotation written beside a $ref.
 	SiteReference SiteKind = "reference"

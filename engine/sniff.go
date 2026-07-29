@@ -36,8 +36,8 @@ func Sniff(data []byte) (compilers.SourceFormat, error) {
 }
 
 // majorMinor returns the "major.minor" prefix of a dotted version string,
-// e.g. "3.1.0" → "3.1". Strings with fewer than two dot-separated components are
-// returned unchanged.
+// e.g. "3.1.0" → "3.1". Strings with fewer than two dots — a bare major
+// version, or a version already in major.minor form — are returned unchanged.
 func majorMinor(version string) string {
 	firstDot := -1
 	for i := 0; i < len(version); i++ {

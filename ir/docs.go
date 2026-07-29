@@ -30,9 +30,10 @@ type Deprecation struct {
 	RemovalVersion string `json:"removalVersion,omitempty"`
 }
 
-// Example is a documentation example. Field legality is contextual (validated):
+// Example is a documentation example. Field legality is contextual:
 // Value/Headers apply to types, properties, parameters, contents, and messages;
-// Input/Output/Error apply to operations. An Example never mixes the two arms.
+// Input/Output/Error apply to operations. An Example is not meant to mix the
+// two arms, though no pass currently checks that.
 type Example struct {
 	// Name identifies the example.
 	Name string `json:"name,omitempty"`

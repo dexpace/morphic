@@ -53,8 +53,8 @@ func (nilDocCompiler) Compile(context.Context, []compilers.Source, compilers.Opt
 }
 
 // badDoc returns an ir.Document that cannot be marshalled to JSON: its
-// Preserved holds an invalid json.RawMessage, whose MarshalJSON rejects the
-// malformed bytes.
+// Preserved holds an invalid json.RawMessage, whose malformed bytes
+// json.Marshal's encoder rejects while compacting them.
 func badDoc() *ir.Document {
 	return &ir.Document{
 		Name:      "Bad",
