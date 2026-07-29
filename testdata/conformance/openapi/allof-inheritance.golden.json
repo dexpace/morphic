@@ -1,5 +1,5 @@
 {
-  "irVersion": "0.1.0",
+  "irVersion": "0.2.0",
   "name": "AllOfInheritance",
   "version": "1.0.0",
   "docs": {},
@@ -78,8 +78,15 @@
       },
       "sensitive": false,
       "deprecation": {},
-      "extensions": {
-        "openapi:x-team": "pets"
+      "preserved": {
+        "openapi:x-team": {
+          "reason": "vendor_extension",
+          "value": "pets",
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/Derived/x-team"
+          }
+        }
       },
       "provenance": {
         "source": 0,

@@ -2,13 +2,28 @@ package ir
 
 import "strings"
 
+// NoSource is the Source value for a node that came from no input file at all.
+// An IR pass reporting on the document it was handed has no source to name, and
+// every other index — 0 included — names a file the document actually loaded,
+// which would make a renderer fabricate a location for the finding.
+//
+// It is the only out-of-table Source value the IR declares: irverify accepts it
+// and reports every other index that addresses no declared source, so a producer
+// that invents a second sentinel is caught rather than tolerated.
+const NoSource = -1
+
 // Provenance records where a node came from and whether it was declared or
 // inferred (ir-design §13). Everything heuristic is auditable; everything
 // broken is reportable with an exact source location.
 type Provenance struct {
-	// Source indexes into Document.Sources.
+	// Source indexes into Document.Sources, or is NoSource for a node that
+	// addresses no input file. Nothing else is in range.
 	Source int `json:"source"`
-	// Pointer is a JSON pointer or line:col into that source.
+	// Pointer locates the construct: a JSON pointer or line:col into Source for
+	// anything read from a file, or an IR-space location — a stable ID, or a path
+	// through the document's own fields — for a finding an IR pass made about the
+	// document rather than about a source. Spelling is the producer's; nothing
+	// parses this.
 	Pointer string `json:"pointer,omitempty"`
 	// Inferred is "" for declared facts; otherwise it names the heuristic that
 	// produced this node (e.g. "pagination-name-match").

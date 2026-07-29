@@ -1,5 +1,5 @@
 {
-  "irVersion": "0.1.0",
+  "irVersion": "0.2.0",
   "name": "MultipartEncoding",
   "version": "1.0.0",
   "docs": {},
@@ -38,6 +38,66 @@
                         "contentTypes": [
                           "image/png"
                         ],
+                        "headers": [
+                          {
+                            "id": "p/openapi/paths/~1upload/post/requestBody/content/multipart~1form-data/encoding/file/headers/X-Part-Id",
+                            "name": {
+                              "source": "X-Part-Id",
+                              "canonical": "x_part_id"
+                            },
+                            "wireName": "X-Part-Id",
+                            "type": {
+                              "target": "t/prim/uuid",
+                              "nullable": false
+                            },
+                            "required": true,
+                            "clientOptional": false,
+                            "defaultAdded": false,
+                            "visibility": {
+                              "none": false
+                            },
+                            "flatten": false,
+                            "eventHeader": false,
+                            "eventPayload": false,
+                            "secret": false,
+                            "docs": {
+                              "description": "per-part correlation id"
+                            },
+                            "provenance": {
+                              "source": 0,
+                              "pointer": "/paths/~1upload/post/requestBody/content/multipart~1form-data/encoding/file/headers/X-Part-Id"
+                            }
+                          },
+                          {
+                            "id": "p/openapi/paths/~1upload/post/requestBody/content/multipart~1form-data/encoding/file/headers/X-Part-Checksum",
+                            "name": {
+                              "source": "X-Part-Checksum",
+                              "canonical": "x_part_checksum"
+                            },
+                            "wireName": "X-Part-Checksum",
+                            "type": {
+                              "target": "t/openapi/components/schemas/Digest",
+                              "nullable": false
+                            },
+                            "required": false,
+                            "clientOptional": false,
+                            "defaultAdded": false,
+                            "visibility": {
+                              "none": false
+                            },
+                            "flatten": false,
+                            "eventHeader": false,
+                            "eventPayload": false,
+                            "secret": false,
+                            "docs": {
+                              "description": "sha-256 digest of this part"
+                            },
+                            "provenance": {
+                              "source": 0,
+                              "pointer": "/paths/~1upload/post/requestBody/content/multipart~1form-data/encoding/file/headers/X-Part-Checksum"
+                            }
+                          }
+                        ],
                         "multi": false,
                         "filename": true
                       },
@@ -48,8 +108,15 @@
                     }
                   }
                 ],
-                "extensions": {
-                  "openapi:required": false
+                "preserved": {
+                  "openapi:required": {
+                    "reason": "no_ir_home",
+                    "value": false,
+                    "provenance": {
+                      "source": 0,
+                      "pointer": "/paths/~1upload/post/requestBody/required"
+                    }
+                  }
                 }
               },
               "responses": [
@@ -191,6 +258,31 @@
         "nullable": false
       }
     },
+    "t/openapi/components/schemas/Digest": {
+      "kind": "scalar",
+      "id": "t/openapi/components/schemas/Digest",
+      "name": {
+        "source": "Digest",
+        "canonical": "digest"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Digest"
+      },
+      "base": {
+        "target": "t/prim/string",
+        "nullable": false
+      },
+      "constraints": {
+        "exclusiveMin": false,
+        "exclusiveMax": false,
+        "pattern": "^[0-9a-f]{64}$",
+        "uniqueItems": false
+      }
+    },
     "t/prim/bytes": {
       "kind": "primitive",
       "id": "t/prim/bytes",
@@ -214,6 +306,18 @@
         "source": 0
       },
       "prim": "string"
+    },
+    "t/prim/uuid": {
+      "kind": "primitive",
+      "id": "t/prim/uuid",
+      "name": {},
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0
+      },
+      "prim": "uuid"
     }
   },
   "servers": [
@@ -228,7 +332,7 @@
     {
       "severity": "info",
       "code": "openapi/degraded-construct",
-      "message": "request body is not required; optionality preserved under extensions",
+      "message": "request body is not required; optionality kept under Preserved",
       "provenance": {
         "source": 0,
         "pointer": "/paths/~1upload/post/requestBody"
@@ -239,7 +343,7 @@
     {
       "format": "openapi@3.1",
       "path": "multipart-encoding.yaml",
-      "hash": "f9f55921238aa041b3d7c685a222280830466b4cd4ba1b5454183459c58d7302"
+      "hash": "f20bc797ffa54015576ef4b05369f5b274aac30a287e453ae3cea2686e671bb6"
     }
   ]
 }

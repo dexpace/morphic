@@ -62,7 +62,7 @@ func (l *lowerer) fillParamType(param *ir.Parameter, binding *ir.HTTPParamBindin
 		// A content parameter has exactly one media type; take the first entry.
 		for mt, media := range content.All() {
 			schemaPtr := pptr + ptr("content", mt, "schema")
-			param.Type = l.schemaRef(media.GetSchema(), schemaPtr, name)
+			param.Type = l.carriedSchemaRef(media.GetSchema(), schemaPtr, name)
 			binding.ContentType = mt
 			l.fillParamSchema(param, media.GetSchema(), schemaPtr)
 			break
@@ -70,7 +70,7 @@ func (l *lowerer) fillParamType(param *ir.Parameter, binding *ir.HTTPParamBindin
 		return
 	}
 	schemaPtr := pptr + ptr("schema")
-	param.Type = l.schemaRef(p.GetSchema(), schemaPtr, name)
+	param.Type = l.carriedSchemaRef(p.GetSchema(), schemaPtr, name)
 	l.fillParamSchema(param, p.GetSchema(), schemaPtr)
 }
 
@@ -97,21 +97,59 @@ func (l *lowerer) fillParamSchema(param *ir.Parameter, js *oas3.JSONSchema[oas3.
 	if c != nil {
 		param.Constraints = c
 	}
+	l.fillParamSchemaAnnotations(param, s, pointer)
+}
+
+// fillParamSchemaAnnotations records the annotations a parameter's schema
+// declares on the parameter itself. ir.Parameter is the carrier for this
+// position the way ir.Property is for a model property, so a schema that
+// reduced to a shared primitive still keeps what it wrote (GitHub #116); a
+// schema that hoisted a node of its own keeps them there instead, one home per
+// declaration.
+//
+// The parameter's own annotations are written afterwards by fillParamDetail and
+// win where both are set. ir.Parameter has a field for every annotation a schema
+// can declare bar one: an `xml` hint governs XML body serialization, which no
+// parameter takes part in, so it alone has nowhere to go here.
+//
+// The referent argument is nil because nothing on this path resolves one: a
+// parameter schema spelled `{$ref: …}` contributes only the keywords written
+// beside the $ref, where a property in the same shape also inherits the
+// referent's (fillCarrierDocs, ir-design §14). That asymmetry is knowingly left
+// alone here — the same gap costs a parameter the referent's default,
+// constraints and deprecation too, so closing it is a change to fillParamSchema
+// as a whole rather than to the documentation it happens to reach first.
+func (l *lowerer) fillParamSchemaAnnotations(param *ir.Parameter, s *oas3.Schema, pointer string) {
+	if l.loweredToOwnNode(pointer, param.Type) {
+		return
+	}
+	fillCarrierDocs(&param.Docs, s, nil)
+	if effectiveDeprecated(s, nil) {
+		param.Deprecation = &ir.Deprecation{}
+	}
+	if ex := l.schemaExamples(s, pointer); len(ex) > 0 {
+		param.Examples = ex
+	}
+	param.Preserved = mergePreserved(param.Preserved, l.schemaExtensions(s, pointer))
+	l.fillValidationOnly(&param.Preserved, s, pointer)
 }
 
 // fillParamDetail enriches a parameter with its docs, deprecation, examples, and
-// extensions. pptr is the parameter's own pointer, for example diagnostics.
+// extensions. pptr is the parameter's own pointer, for example diagnostics. Each
+// field is written only when the parameter declares it, so it overlays the
+// schema-derived annotations fillParamSchema already recorded rather than
+// erasing them with an unset value.
 func (l *lowerer) fillParamDetail(param *ir.Parameter, p *soa.Parameter, pptr string) {
-	param.Docs.Description = p.GetDescription()
+	if d := p.GetDescription(); d != "" {
+		param.Docs.Description = d
+	}
 	if p.GetDeprecated() {
 		param.Deprecation = &ir.Deprecation{}
 	}
 	if ex := l.exampleList(p.GetExample(), p.GetExamples(), pptr); len(ex) > 0 {
 		param.Examples = ex
 	}
-	if ext := l.extensions(p.GetExtensions()); len(ext) > 0 {
-		param.Extensions = ext
-	}
+	param.Preserved = mergePreserved(param.Preserved, l.extensions(p.GetExtensions(), pptr))
 }
 
 // resolveStyleExplode materializes a parameter's resolved serialization style

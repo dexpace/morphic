@@ -54,10 +54,10 @@ func (l *lowerer) lowerComponentSchema(js *oas3.JSONSchema[oas3.Referenceable], 
 		return // schemaRef interned the component's own node at its component ID
 	}
 	l.internAlias(pointer, name, ref, l.schemaConstraints(s.Node, pointer))
-	// This alias is the first node the pointer owns, so the examples schemaBody
-	// had nowhere to put now have a home.
+	// This alias is the first node the pointer owns, so the annotations
+	// schemaBody had nowhere to put now have a home.
 	if s.Node != nil {
-		l.attachSchemaExamples(s.Node, pointer)
+		l.attachDeclaredAnnotations(s.Node, pointer)
 	}
 }
 
@@ -90,14 +90,115 @@ func (l *lowerer) internAlias(pointer, hint string, target ir.TypeRef, constrain
 }
 
 // schemaBody lowers a concrete (non-reference) schema body to a TypeRef and
-// records the schema's own examples on whatever node the lowering hoisted at
+// records the schema's own annotations on whatever node the lowering hoisted at
 // pointer. It is shared by schemaRef and by sub-schema hoisting
 // (resolveSchemaRef), which both reach a body only after peeling off any
 // leading $ref.
-func (l *lowerer) schemaBody(schema *oas3.Schema, pointer, hint string) ir.TypeRef {
-	ref := l.lowerSchemaBody(schema, pointer, hint)
-	l.attachSchemaExamples(schema, pointer)
+func (l *lowerer) schemaBody(schema *oas3.Schema, pointer, hint string, home annotationHome) ir.TypeRef {
+	ref := l.hoistDeclarationHome(schema, l.lowerSchemaBody(schema, pointer, hint), pointer, hint, home)
+	l.attachDeclaredAnnotations(schema, pointer)
 	return ref
+}
+
+// hoistDeclarationHome gives a declaration a node of its own when its lowering
+// left it none and it wrote something only a node can hold. A body reducing to
+// a shared primitive (or to another type's ID) is what leaves a pointer
+// unowned, and a shared node must never carry one declaration's annotations —
+// so without this the docs, x-*, xml, examples, validation-only keywords and
+// value constraints written at that position are dropped, silently and
+// including the constraints an emitter needs to generate a correct validator
+// (GitHub #116).
+//
+// Ownership therefore follows what a declaration says, not what its body
+// happened to lower to. A schema that declares none of it keeps resolving
+// straight to the shared node: owning one would add nothing and give every
+// bare `items: {type: string}` an anonymous node for nothing.
+//
+// A declaration that has a home already resolves to it instead of hoisting a
+// second one. Usually that home is the node its own body interned, but a $ref
+// naming an inline position hoists the position's home before the position
+// itself is reached (resolveSchemaRef), and taking the body's target there
+// would leave the annotations on a node only the $ref can see — the
+// declaration-order dependence ir-design §4.3 rules out. The lookup stays
+// behind the gate above so a position that declares nothing keeps resolving
+// straight to its target however many references hoisted an alias over it.
+func (l *lowerer) hoistDeclarationHome(s *oas3.Schema, ref ir.TypeRef, pointer, hint string, home annotationHome) ir.TypeRef {
+	if home != homeOwnNode || s == nil || !declaresPositionScoped(s) {
+		return ref
+	}
+	if id, owned := l.byPointer[pointer]; owned {
+		return ir.TypeRef{Target: id, Nullable: ref.Nullable}
+	}
+	id := l.internAlias(pointer, hint, ref, l.schemaConstraints(s, pointer))
+	return ir.TypeRef{Target: id, Nullable: ref.Nullable}
+}
+
+// declaresPositionScoped reports whether s writes anything that binds the
+// position it is written at rather than the shape it lowers to — an annotation
+// attachDeclaredAnnotations records, or a value constraint internAlias carries.
+// It is the gate on hoisting an alias, so it must stay in step with what those
+// two actually keep: a keyword listed here but stored nowhere would hoist an
+// empty node, and one stored but missing here would still be dropped.
+func declaresPositionScoped(s *oas3.Schema) bool {
+	return declaresAnnotations(s) || declaresValueConstraints(s) || declaresValidationOnly(s)
+}
+
+// declaresAnnotations reports whether s carries documentation, deprecation, XML
+// hints, vendor extensions, or examples — the five TypeCommon fields
+// attachDeclaredAnnotations fills.
+func declaresAnnotations(s *oas3.Schema) bool {
+	if s.GetTitle() != "" || s.GetDescription() != "" || s.GetExternalDocs() != nil {
+		return true
+	}
+	if effectiveDeprecated(s, nil) || s.GetXML() != nil {
+		return true
+	}
+	if ext := s.GetExtensions(); ext != nil && ext.Len() > 0 {
+		return true
+	}
+	return s.GetExample() != nil || len(s.GetExamples()) > 0
+}
+
+// declaresValueConstraints reports whether s sets any keyword
+// constraintsFromSchema reads. It does not call it: that reports a malformed
+// bound, and a predicate must not emit diagnostics. The three numeric bounds
+// are detected on their raw nodes for the same reason numericBounds reads them
+// there — a magnitude beyond float64 leaves the model field nil while the
+// keyword is plainly written.
+func declaresValueConstraints(s *oas3.Schema) bool {
+	for _, keyword := range []string{"minimum", "maximum", "multipleOf"} {
+		if rawPropertyNode(s, keyword) != nil {
+			return true
+		}
+	}
+	if s.GetExclusiveMinimum() != nil || s.GetExclusiveMaximum() != nil {
+		return true
+	}
+	if s.MinLength != nil || s.MaxLength != nil || s.GetPattern() != "" {
+		return true
+	}
+	return s.MinProperties != nil || s.MaxProperties != nil
+}
+
+// declaresValidationOnly reports whether s writes a §4.7 validation-only
+// keyword that fillValidationOnly keeps verbatim under Preserved. A `false`
+// unevaluatedProperties is excluded on purpose: fillAdditional lowers it into
+// the model's openness, so it is structure rather than a preserved keyword.
+func declaresValidationOnly(s *oas3.Schema) bool {
+	if s.GetNot() != nil || s.GetContains() != nil || s.GetPropertyNames() != nil {
+		return true
+	}
+	if s.GetIf() != nil || s.GetThen() != nil || s.GetElse() != nil {
+		return true
+	}
+	if s.GetMinContains() != nil || s.GetMaxContains() != nil {
+		return true
+	}
+	if ds := s.GetDependentSchemas(); ds != nil && ds.Len() > 0 {
+		return true
+	}
+	up := s.GetUnevaluatedProperties()
+	return s.GetUnevaluatedItems() != nil || (up != nil && !isFalseSchema(up))
 }
 
 // lowerSchemaBody lowers the body itself, handling the oneOf/anyOf dispatch that
@@ -106,7 +207,7 @@ func (l *lowerer) lowerSchemaBody(schema *oas3.Schema, pointer, hint string) ir.
 	if len(schema.GetOneOf()) > 0 || len(schema.GetAnyOf()) > 0 {
 		if hasUnionSiblings(schema) {
 			return ir.TypeRef{
-				Target:   l.lowerWithUnionSiblings(schema, pointer, hint),
+				Target:   l.lowerCoDeclaredUnion(schema, pointer, hint),
 				Nullable: schemaAdmitsNull(schema),
 			}
 		}
@@ -116,17 +217,25 @@ func (l *lowerer) lowerSchemaBody(schema *oas3.Schema, pointer, hint string) ir.
 }
 
 // hasUnionSiblings reports whether a oneOf/anyOf schema also carries structural
-// keywords (a type, properties, allOf, const/enum, additionalProperties, ...).
-// When it does, the union alone cannot represent the schema, so the structural
-// body must be lowered too rather than dropped (invariant 2, ir-design §4.3).
+// keywords (a type, properties, allOf, const/enum, additionalProperties, ...) or
+// a `required` list. When it does, the union alone cannot represent the schema,
+// so the sibling body must be lowered too rather than dropped (invariant 2,
+// ir-design §4.3).
 func hasUnionSiblings(s *oas3.Schema) bool {
+	return len(s.GetRequired()) > 0 || declaresShape(s)
+}
+
+// declaresShape reports whether a schema declares data shape — a type, a
+// property set, a value set, composition, or a catch-all — rather than only
+// narrowing what an already-declared shape accepts. `required` is on the
+// narrowing side of that line, which is why hasUnionSiblings counts it
+// separately: it makes a schema's siblings structural, but on its own it
+// declares nothing to build (ir-design §4.7).
+func declaresShape(s *oas3.Schema) bool {
 	if props := s.GetProperties(); props != nil && props.Len() > 0 {
 		return true
 	}
-	if len(s.GetRequired()) > 0 || len(s.GetAllOf()) > 0 {
-		return true
-	}
-	if s.GetConst() != nil || len(s.GetEnum()) > 0 {
+	if s.GetConst() != nil || len(s.GetEnum()) > 0 || len(s.GetAllOf()) > 0 {
 		return true
 	}
 	if s.GetAdditionalProperties() != nil {
@@ -138,11 +247,12 @@ func hasUnionSiblings(s *oas3.Schema) bool {
 	return len(effectiveTypes(s)) > 0
 }
 
-// lowerWithUnionSiblings lowers the structural body of a schema that co-declares
-// oneOf/anyOf, then preserves the union branches verbatim under the resulting
-// node's Extensions with an info diagnostic — so neither the structural shape
-// nor the union is dropped (ir-design §4.7-style preservation).
-func (l *lowerer) lowerWithUnionSiblings(s *oas3.Schema, pointer, hint string) ir.TypeID {
+// lowerBesidePreservedUnion lowers the structural body of a schema that
+// co-declares oneOf/anyOf and keeps the union verbatim beside it, so neither the
+// structural shape nor the union is dropped. reason says which kind of union it
+// is and why says what stopped a classified lowering; classifyUnionSiblings
+// picks both.
+func (l *lowerer) lowerBesidePreservedUnion(s *oas3.Schema, pointer, hint string, reason ir.PreserveReason, why string) ir.TypeID {
 	inner := l.lower(s, pointer, hint)
 	owner := inner
 	if l.byPointer[pointer] != inner {
@@ -151,30 +261,32 @@ func (l *lowerer) lowerWithUnionSiblings(s *oas3.Schema, pointer, hint string) i
 		// shared primitive.
 		owner = l.internAlias(pointer, hint, ir.TypeRef{Target: inner}, nil)
 	}
-	l.preserveUnionSiblings(owner, s, pointer)
+	l.preserveUnionSiblings(owner, s, pointer, reason, why)
 	return owner
 }
 
 // preserveUnionSiblings stores the raw oneOf/anyOf of s under the owning node's
-// Extensions and emits one info diagnostic naming the preserved construct.
-func (l *lowerer) preserveUnionSiblings(id ir.TypeID, s *oas3.Schema, pointer string) {
-	td, ok := l.out.Types[id]
+// Preserved. A validation-only union joins §4.7's keyword family and is reported
+// with it; anything else is a §4.8 degradation and says so.
+func (l *lowerer) preserveUnionSiblings(id ir.TypeID, s *oas3.Schema, pointer string, reason ir.PreserveReason, why string) {
+	td, ok := l.registeredNode(id, pointer)
 	if !ok {
 		return
 	}
 	c := td.Common()
-	if len(s.GetOneOf()) > 0 {
-		if raw := nodeToRaw(rawPropertyNode(s, "oneOf")); raw != nil {
-			c.Extensions = mergeExtensions(c.Extensions, ir.Extensions{"openapi:oneOf": raw})
+	for _, kw := range []string{"oneOf", "anyOf"} {
+		raw := nodeToRaw(rawPropertyNode(s, kw))
+		if reason == ir.ReasonValidationOnly {
+			l.preserveKeyword(&c.Preserved, "openapi:"+kw, raw, pointer, pointer+ptr(kw), kw)
+			continue
 		}
+		l.preserve(&c.Preserved, "openapi:"+kw, raw, reason, pointer+ptr(kw))
 	}
-	if len(s.GetAnyOf()) > 0 {
-		if raw := nodeToRaw(rawPropertyNode(s, "anyOf")); raw != nil {
-			c.Extensions = mergeExtensions(c.Extensions, ir.Extensions{"openapi:anyOf": raw})
-		}
+	if reason == ir.ReasonValidationOnly {
+		return
 	}
 	l.diag(ir.SeverityInfo, codeDegradedConstruct, pointer,
-		"oneOf/anyOf co-declared with structural keywords; union branches preserved verbatim under extensions")
+		"oneOf/anyOf co-declared with structural keywords intersects with them, and %s; union branches kept verbatim under Preserved", why)
 }
 
 // falseSchema hoists a boolean `false` schema as a closed empty model (it
@@ -257,12 +369,13 @@ func (l *lowerer) lowerUnion(s *oas3.Schema, pointer, hint string, types []oas3.
 }
 
 // lowerModel hoists an object schema as a Model. This task lowers only the
-// property shape (name, type, required); a later pass fills the rest.
+// property shape (name, type, required); a later pass fills the rest. It reads
+// no annotations: attachDeclaredAnnotations does that for every destination.
 func (l *lowerer) lowerModel(s *oas3.Schema, pointer, hint string) ir.TypeID {
 	return l.internNode(pointer, hint, func(common ir.TypeCommon) ir.TypeDef {
 		m := &ir.Model{TypeCommon: common}
 		l.fillModelProperties(m, s, pointer)
-		l.fillModelDetail(m, s, pointer, hint)
+		l.fillAdditional(m, s, pointer, hint)
 		if d := l.lowerDiscriminator(s, m, pointer); d != nil {
 			m.Discriminator = d
 		}
@@ -285,7 +398,7 @@ func (l *lowerer) fillModelProperties(m *ir.Model, s *oas3.Schema, pointer strin
 			ID:         propID(ppointer),
 			Name:       ir.Naming{Source: name, Canonical: canonicalWords(name)},
 			WireName:   name,
-			Type:       l.schemaRef(js, ppointer, name),
+			Type:       l.carriedSchemaRef(js, ppointer, name),
 			Required:   required[name],
 			Provenance: ir.Provenance{Source: l.srcIndex, Pointer: ppointer},
 		}
@@ -323,11 +436,15 @@ func (l *lowerer) mergeProperty(m *ir.Model, byWire map[string]int, p ir.Propert
 // dst under allOf intersection semantics: required and secret are OR-ed, dst
 // keeps its position/identity/type shape (first declaration wins), and every
 // optional detail dst lacks — docs, default, constraints (merged per keyword via
-// mergeConstraints), deprecation, XML, examples, extensions — is adopted from
-// src. A description that differs between branches, an incompatible type, or a
-// contradictory constraint keyword are genuine conflicts the merge cannot
-// represent (see codeConflictingRedecl); each is diagnosed before any detail is
-// folded in, rather than silently picking an arbitrary winner.
+// mergeConstraints), deprecation, XML, examples — is adopted from src.
+//
+// Preserved is the one field where a later branch wins: its entries are keyed
+// and namespaced, so the two branches' keys union rather than compete, and a key
+// both branches write is the same construct written twice. A description that
+// differs between branches, an incompatible type, or a contradictory constraint
+// keyword are genuine conflicts the merge cannot represent (see
+// codeConflictingRedecl); each is diagnosed before any detail is folded in,
+// rather than silently picking an arbitrary winner.
 func (l *lowerer) reconcileProperty(dst *ir.Property, src ir.Property, pointer string) {
 	l.diagnoseRedeclarationConflict(dst, &src, pointer)
 
@@ -349,7 +466,7 @@ func (l *lowerer) reconcileProperty(dst *ir.Property, src ir.Property, pointer s
 		// like its neighbors above; the len()==0 predicate is the adoption rule.
 		dst.Examples = src.Examples
 	}
-	dst.Extensions = mergeExtensions(dst.Extensions, src.Extensions)
+	dst.Preserved = mergePreserved(dst.Preserved, src.Preserved)
 }
 
 // mergeConstraints folds src's constraint keywords into dst under allOf
@@ -646,34 +763,78 @@ func strConflictDetail(keyword string, a, b string) (string, bool) {
 	return fmt.Sprintf("conflicting %s (%q and %q)", keyword, a, b), true
 }
 
-// fillPropertyDetail enriches a property from its schema: docs, default,
-// visibility, deprecation, secrecy, examples, XML, constraints, and extensions.
-// Annotations present at a $ref use-site override the target's (ir-design §14).
+// fillPropertyDetail enriches a property from its schema: the property-scoped
+// facts a type node has no field for (default, visibility, secrecy,
+// constraints), then the declaration's annotations. Annotations present at a
+// $ref use-site override the target's (ir-design §14).
+//
+// Constraints stay unconditional: no node a property's schema can hoist holds
+// them for it — an object lowers to a Model and a formatted scalar to a Scalar
+// with an Encoding, neither of which carries the scalar bounds
+// constraintsFromSchema reads — so ir.Property is their only home.
 func (l *lowerer) fillPropertyDetail(p *ir.Property, js *oas3.JSONSchema[oas3.Referenceable], pointer string) {
 	ref := js.GetSchema()
 	if ref == nil {
 		return
 	}
 	tgt := l.refTargetSchema(js, ref)
-	if d := effectiveDescription(ref, tgt); d != "" {
-		p.Docs.Description = d
-	}
 	l.fillPropertyDefault(p, ref, tgt, pointer)
 	if ref.GetFormat() == "password" {
 		p.Secret = true
 	}
 	p.Visibility = effectiveVisibility(ref, tgt)
+	l.fillPropertyConstraints(p, ref, pointer)
+	l.fillPropertyAnnotations(p, ref, tgt, pointer)
+}
+
+// fillPropertyAnnotations records the annotations the property's schema
+// declares — docs, deprecation, XML hints, examples, vendor extensions and
+// validation-only keywords — on the property, but only when that schema lowered
+// to no node of its own to hold them. A schema that reduced to a shared
+// primitive has nowhere else to put them, and the shared primitive must never
+// carry one declaration's annotations; a schema that lowered to a node keeps
+// them there (attachDeclaredAnnotations). The property never doubles that node,
+// so the two can never drift apart.
+//
+// A node another *reference* hoisted at the property's pointer is not that
+// node: `$ref: '#/…/properties/foo'` names the property's schema, so the node
+// it resolves to carries what that schema declares, and the property carries it
+// too — two IR entities reflecting one source schema, not one entity with two
+// homes. Which of them is reached first must not decide either (GitHub #116).
+//
+// A $ref position never hoists a node, which is what gives an if/then/else, a
+// bound or a description written beside a *property's* $ref somewhere to land
+// (GitHub #114).
+func (l *lowerer) fillPropertyAnnotations(p *ir.Property, ref, tgt *oas3.Schema, pointer string) {
+	if l.loweredToOwnNode(pointer, p.Type) {
+		return
+	}
+	fillCarrierDocs(&p.Docs, ref, tgt)
 	if effectiveDeprecated(ref, tgt) {
 		p.Deprecation = &ir.Deprecation{}
 	}
-	l.fillPropertyExamples(p, ref, pointer)
 	if h := xmlHints(ref.GetXML()); h != nil {
 		p.XML = h
 	}
-	l.fillPropertyConstraints(p, ref, pointer)
-	if ext := l.schemaExtensions(ref); len(ext) > 0 {
-		p.Extensions = ext
+	if ex := l.schemaExamples(ref, pointer); len(ex) > 0 {
+		p.Examples = ex
 	}
+	p.Preserved = mergePreserved(p.Preserved, l.schemaExtensions(ref, pointer))
+	l.fillValidationOnly(&p.Preserved, ref, pointer)
+}
+
+// loweredToOwnNode reports whether the declaration at pointer lowered to a type
+// node of its own — the node attachDeclaredAnnotations then fills, leaving its
+// carrier nothing to hold.
+//
+// It asks whether the node interned at pointer is the one the declaration
+// lowered to, not merely whether a node is interned there. A $ref naming an
+// inline position hoists that position's home for its own use, in either
+// declaration order, and a carrier reading the registry alone would keep its
+// schema's annotations only when it happened to lower first.
+func (l *lowerer) loweredToOwnNode(pointer string, t ir.TypeRef) bool {
+	id, owned := l.byPointer[pointer]
+	return owned && id == t.Target
 }
 
 // fillPropertyDefault sets the property default, preferring the use-site node
@@ -692,21 +853,6 @@ func (l *lowerer) fillPropertyDefault(p *ir.Property, ref, tgt *oas3.Schema, poi
 		return
 	}
 	p.Default = &v
-}
-
-// fillPropertyExamples records the schema's examples on the property, but only
-// when the schema hoisted no node of its own to hold them. A schema that reduced
-// to a shared primitive has nowhere else to put them, and the primitive itself
-// must never carry per-declaration annotations; every other schema keeps them on
-// its own node (attachSchemaExamples). One home per declaration means the two can
-// never drift apart.
-func (l *lowerer) fillPropertyExamples(p *ir.Property, ref *oas3.Schema, pointer string) {
-	if _, hoisted := l.byPointer[pointer]; hoisted {
-		return
-	}
-	if ex := l.schemaExamples(ref, pointer); len(ex) > 0 {
-		p.Examples = ex
-	}
 }
 
 // fillPropertyConstraints attaches the property's scalar constraints and stamps
@@ -733,23 +879,42 @@ func (l *lowerer) schemaExamples(s *oas3.Schema, pointer string) []ir.Example {
 	return out
 }
 
-// attachSchemaExamples records s's own example annotations on the type node
-// pointer owns, the structural home for a schema's examples (ir.TypeCommon).
-// A schema whose body reduced to a shared primitive owns no node; its examples
-// stay with the declaring property (fillPropertyExamples). Ownership is checked
-// before conversion because the callers cover a pointer in either order, and
-// only the one that finds a node may emit conversion diagnostics.
-func (l *lowerer) attachSchemaExamples(s *oas3.Schema, pointer string) {
+// attachDeclaredAnnotations records every annotation s declares on the type
+// node pointer owns — the one structural home a declaration's annotations have
+// (ir.TypeCommon, embedded in every type node).
+//
+// It is the sole reader of declaration-scoped annotations, and it runs *above*
+// lower()'s dispatch: every declaration reaches it through schemaBody or an
+// alias fallback, whatever its body turns out to lower to. That is what keeps
+// a new lowering destination from silently dropping annotations — a
+// destination never reads them, so it cannot forget to (GitHub #114).
+//
+// A schema whose body reduced to a shared primitive owns no node; its
+// annotations stay with the declaring property (fillPropertyDetail), and the
+// shared primitive must never carry a per-declaration annotation. Ownership is
+// checked before conversion because the callers cover a pointer in either
+// order, and only the one that finds a node may emit conversion diagnostics.
+func (l *lowerer) attachDeclaredAnnotations(s *oas3.Schema, pointer string) {
 	id, owned := l.byPointer[pointer]
 	if !owned {
 		return
 	}
-	td, ok := l.out.Types[id]
+	td, ok := l.registeredNode(id, pointer)
 	if !ok {
 		return
 	}
+	c := td.Common()
+	fillTypeDocs(&c.Docs, s)
+	if effectiveDeprecated(s, nil) {
+		c.Deprecation = &ir.Deprecation{}
+	}
+	if h := xmlHints(s.GetXML()); h != nil {
+		c.XML = h
+	}
+	c.Preserved = mergePreserved(c.Preserved, l.schemaExtensions(s, pointer))
+	l.fillValidationOnly(&c.Preserved, s, pointer)
 	if ex := l.schemaExamples(s, pointer); len(ex) > 0 {
-		td.Common().Examples = ex
+		c.Examples = ex
 	}
 }
 
@@ -769,18 +934,6 @@ func (l *lowerer) appendExample(out []ir.Example, proto ir.Example, node *yaml.N
 	}
 	proto.Value = &v
 	return append(out, proto)
-}
-
-// fillModelDetail lowers the model-level shape: docs, deprecation, additional-
-// property openness, validation-only keywords, and x-* extensions.
-func (l *lowerer) fillModelDetail(m *ir.Model, s *oas3.Schema, pointer, hint string) {
-	fillTypeDocs(&m.Docs, s)
-	if effectiveDeprecated(s, nil) {
-		m.Deprecation = &ir.Deprecation{}
-	}
-	l.fillAdditional(m, s, pointer, hint)
-	l.fillValidationOnly(m, s, pointer)
-	m.Extensions = mergeExtensions(m.Extensions, l.schemaExtensions(s))
 }
 
 // fillAdditional lowers additionalProperties, patternProperties, and
@@ -821,48 +974,74 @@ func (l *lowerer) patternProps(s *oas3.Schema, pointer, hint string) []ir.Patter
 }
 
 // fillValidationOnly preserves JSON Schema keywords that have no structural IR
-// home verbatim in namespaced Extensions, one info diagnostic each (§4.7).
-func (l *lowerer) fillValidationOnly(m *ir.Model, s *oas3.Schema, pointer string) {
+// home verbatim in namespaced Preserved entries, one info diagnostic each
+// (§4.7). It takes the map rather than a node so it serves both homes a
+// declaration's keywords can have: the type node the declaration owns, and the
+// declaring property when it owns none.
+//
+// This set is §4.7's, and five further 2020-12 keywords are knowingly outside
+// it (GitHub #125), each dropped with no diagnostic: dependentRequired, which
+// is the same kind of thing as the dependentSchemas kept below;
+// contentMediaType, contentEncoding and contentSchema, which describe an
+// encoded value rather than validate one; and $dynamicRef, which lowers to any.
+// Taking any of them would edit §4.7's normative list, so #125 argues each on
+// its own terms instead of settling them here.
+func (l *lowerer) fillValidationOnly(ext *ir.Preserved, s *oas3.Schema, pointer string) {
 	if s.GetNot() != nil {
-		l.preserveKeyword(m, "openapi:not", nodeToRaw(rawPropertyNode(s, "not")), pointer, "not")
+		l.preserveKeyword(ext, "openapi:not", nodeToRaw(rawPropertyNode(s, "not")),
+			pointer, pointer+ptr("not"), "not")
 	}
 	if ite := ifThenElseRaw(s); ite != nil {
-		l.preserveKeyword(m, "openapi:if-then-else", ite, pointer, "if/then/else")
+		l.preserveKeyword(ext, "openapi:if-then-else", ite, pointer, pointer, "if/then/else")
 	}
 	if ds := s.GetDependentSchemas(); ds != nil && ds.Len() > 0 {
-		l.preserveKeyword(m, "openapi:dependentSchemas",
-			nodeToRaw(rawPropertyNode(s, "dependentSchemas")), pointer, "dependentSchemas")
+		l.preserveKeyword(ext, "openapi:dependentSchemas", nodeToRaw(rawPropertyNode(s, "dependentSchemas")),
+			pointer, pointer+ptr("dependentSchemas"), "dependentSchemas")
+	}
+	if s.GetPropertyNames() != nil {
+		l.preserveKeyword(ext, "openapi:propertyNames", nodeToRaw(rawPropertyNode(s, "propertyNames")),
+			pointer, pointer+ptr("propertyNames"), "propertyNames")
 	}
 	if craw := containsRaw(s); craw != nil {
-		l.preserveKeyword(m, "openapi:contains", craw, pointer, "contains")
+		l.preserveKeyword(ext, "openapi:contains", craw, pointer, pointer, "contains")
 	}
 	if u := unevaluatedRaw(s); u != nil {
-		l.preserveKeyword(m, "openapi:unevaluated", u, pointer, "unevaluated")
+		l.preserveKeyword(ext, "openapi:unevaluated", u, pointer, pointer, "unevaluated")
+	}
+}
+
+// preserve records raw under key in *p with why it was kept and where it was
+// written, allocating the map on first write. An absent or unconvertible
+// payload records nothing, so no caller needs a nil guard of its own.
+func (l *lowerer) preserve(p *ir.Preserved, key string, raw ir.RawValue, reason ir.PreserveReason, pointer string) {
+	if raw == nil {
+		return
+	}
+	if *p == nil {
+		*p = ir.Preserved{}
+	}
+	(*p)[key] = ir.PreservedEntry{
+		Reason:     reason,
+		Value:      raw,
+		Provenance: ir.Provenance{Source: l.srcIndex, Pointer: pointer},
 	}
 }
 
 // preserveKeyword records a validation-only keyword's raw payload under key in
-// m's Extensions and emits one info diagnostic naming it. It is the
-// fillValidationOnly-specific caller of preserveRaw.
-func (l *lowerer) preserveKeyword(m *ir.Model, key string, raw ir.RawValue, pointer, label string) {
-	l.preserveRaw(&m.Extensions, key, raw, pointer, codeValidationOnlyKeyword,
-		fmt.Sprintf("validation-only keyword %q preserved verbatim in extensions", label))
-}
-
-// preserveRaw records raw under key in *ext (allocating the map on first
-// write) and appends one info diagnostic at pointer with msg. It backs both
-// preserveKeyword's validation-only keywords and fillSequential's itemEncoding
-// preservation, which use different diagnostic codes — why code is a real
-// parameter rather than a constant.
-func (l *lowerer) preserveRaw(ext *ir.Extensions, key string, raw ir.RawValue, pointer, code, msg string) {
+// p and emits one info diagnostic naming it at declPtr, the schema that wrote
+// it. An absent or unconvertible payload records nothing and reports nothing.
+//
+// entryPtr locates the entry itself, which is what a validation emitter reports
+// against: the keyword's own node where the source writes the entry as one
+// keyword, and declPtr for the three §4.7 entries that combine several keywords
+// into one synthesized object no single node addresses.
+func (l *lowerer) preserveKeyword(p *ir.Preserved, key string, raw ir.RawValue, declPtr, entryPtr, label string) {
 	if raw == nil {
 		return
 	}
-	if *ext == nil {
-		*ext = ir.Extensions{}
-	}
-	(*ext)[key] = raw
-	l.diag(ir.SeverityInfo, code, pointer, "%s", msg)
+	l.preserve(p, key, raw, ir.ReasonValidationOnly, entryPtr)
+	l.diag(ir.SeverityInfo, codeValidationOnlyKeyword, declPtr,
+		"validation-only keyword %q kept verbatim under Preserved", label)
 }
 
 // diag appends one diagnostic at pointer with the given severity and code,
@@ -892,9 +1071,9 @@ func (l *lowerer) appendDiag(d ir.Diagnostic) {
 	l.diags = append(l.diags, d)
 }
 
-// schemaExtensions lowers a schema's x-* extensions into namespaced Extensions.
-func (l *lowerer) schemaExtensions(s *oas3.Schema) ir.Extensions {
-	return l.extensions(s.GetExtensions())
+// schemaExtensions lowers a schema's x-* extensions into namespaced Preserved.
+func (l *lowerer) schemaExtensions(s *oas3.Schema, pointer string) ir.Preserved {
+	return l.extensions(s.GetExtensions(), pointer)
 }
 
 // lowerArray hoists an array schema as a Tuple when prefixItems is present, else
@@ -913,19 +1092,25 @@ func (l *lowerer) lowerArray(s *oas3.Schema, pointer, hint string) ir.TypeID {
 	})
 }
 
-// buildTuple lowers prefixItems into a Tuple, preserving any trailing items
-// residue raw so the closed/open distinction is not lost.
+// buildTuple lowers prefixItems into a Tuple. A trailing `items` schema makes
+// the source an *open* tuple — a fixed positional head plus a homogeneous tail
+// — and the IR has no combinator for that: Tuple is fixed-arity, List is
+// homogeneous, and there is no node that is both. The head lowers to a Tuple,
+// which is the documented weaker shape, and the tail is kept beside it so the
+// arity the Tuple now asserts falsely stays recoverable (ir-design §4.8).
 func (l *lowerer) buildTuple(s *oas3.Schema, common ir.TypeCommon, pointer, hint string, prefix []*oas3.JSONSchema[oas3.Referenceable]) ir.TypeDef {
 	elems := make([]ir.TypeRef, 0, len(prefix))
 	for i, ps := range prefix {
 		elems = append(elems, l.schemaRef(ps, pointer+ptr("prefixItems", strconv.Itoa(i)), hint+"_"+strconv.Itoa(i)))
 	}
 	t := &ir.Tuple{TypeCommon: common, Elems: elems}
-	if s.GetItems() != nil {
-		if raw := nodeToRaw(rawPropertyNode(s, "items")); raw != nil {
-			t.Extensions = ir.Extensions{"openapi:items-after-prefix": raw}
-		}
+	if s.GetItems() == nil {
+		return t
 	}
+	l.preserve(&t.Preserved, "openapi:items-after-prefix", nodeToRaw(rawPropertyNode(s, "items")),
+		ir.ReasonDegradedLowering, pointer+ptr("items"))
+	l.diag(ir.SeverityInfo, codeDegradedConstruct, pointer,
+		"items after prefixItems is an open tuple; lowered as a fixed-arity Tuple with the tail kept under Preserved")
 	return t
 }
 
@@ -1042,7 +1227,9 @@ func schemaHasNull(s *oas3.Schema) bool {
 // A null branch counts only when the union is the type itself. Structural
 // siblings intersect with the union (JSON Schema conjoins keywords), so
 // `{type: object, oneOf: [{type: string}, {type: null}]}` admits neither string
-// nor null; that union is preserved verbatim under Extensions instead.
+// nor null; that union is kept verbatim under Preserved instead. A `type: null`
+// branch is written inline, so it also blocks distribution — no distributed
+// union can strip a null branch out from under this rule.
 func schemaAdmitsNull(s *oas3.Schema) bool {
 	if schemaHasNull(s) {
 		return true
@@ -1116,7 +1303,7 @@ func requiredSet(required []string) map[string]bool {
 }
 
 // nodeToRaw converts a YAML node to canonical JSON for lossless preservation in
-// Extensions; a nil node or an unconvertible node yields nil.
+// Preserved; a nil node or an unconvertible node yields nil.
 func nodeToRaw(node *yaml.Node) ir.RawValue {
 	if node == nil {
 		return nil
@@ -1130,18 +1317,6 @@ func nodeToRaw(node *yaml.Node) ir.RawValue {
 		return nil
 	}
 	return ir.RawValue(data)
-}
-
-// effectiveDescription picks the description from the $ref use-site when present,
-// else from the referent.
-func effectiveDescription(ref, tgt *oas3.Schema) string {
-	if ref != nil && ref.Description != nil {
-		return *ref.Description
-	}
-	if tgt != nil && tgt.Description != nil {
-		return *tgt.Description
-	}
-	return ""
 }
 
 // effectiveDeprecated reports the deprecated flag, use-site over referent.
@@ -1181,6 +1356,9 @@ func pickFlag(ref, tgt *oas3.Schema, accessor func(*oas3.Schema) *bool) bool {
 }
 
 // fillTypeDocs maps a schema's title, description, and externalDocs onto Docs.
+// Every field is assigned, never accumulated: a schema declares at most one
+// externalDocs, and a pointer read twice (a sub-schema lowered both in place
+// and through a $ref that hoists it) must not end up with two copies of it.
 func fillTypeDocs(d *ir.Docs, s *oas3.Schema) {
 	if t := s.GetTitle(); t != "" {
 		d.Summary = t
@@ -1189,7 +1367,34 @@ func fillTypeDocs(d *ir.Docs, s *oas3.Schema) {
 		d.Description = desc
 	}
 	if ed := s.GetExternalDocs(); ed != nil {
-		d.ExternalDocs = append(d.ExternalDocs, ir.Link{URL: ed.GetURL(), Description: ed.GetDescription()})
+		d.ExternalDocs = []ir.Link{{URL: ed.GetURL(), Description: ed.GetDescription()}}
+	}
+}
+
+// fillCarrierDocs fills the ir.Property or ir.Parameter carrying a position with
+// the documentation effective there: the $ref referent's title, description and
+// externalDocs first, then the use-site's over them, field by field. A carrier
+// therefore ends up with documentation the position itself need not have
+// written — a bare `$ref` reads all three from the referent, which keeps its own
+// copy on its node.
+//
+// Both halves are deliberate. The use-site half is the only home a keyword
+// written *at* the position has once the body reduced to a shared node
+// (GitHub #116): dropping it there loses it outright. The referent half is
+// ir-design §14 — ref-target annotations merge onto the referencing
+// Property/Parameter with use-site precedence, applied uniformly — and it is how
+// every other field this compiler reads through a $ref already behaves
+// (fillPropertyDefault, effectiveVisibility, effectiveDeprecated).
+//
+// Uniform is the load-bearing word: description alone inheriting, while title
+// and externalDocs stop at the position, is the ad-hoc per-keyword patching §14
+// names as the counterexample to avoid.
+func fillCarrierDocs(d *ir.Docs, ref, tgt *oas3.Schema) {
+	if tgt != nil {
+		fillTypeDocs(d, tgt)
+	}
+	if ref != nil {
+		fillTypeDocs(d, ref)
 	}
 }
 
@@ -1219,22 +1424,30 @@ func xmlHints(x *oas3.XML) *ir.XMLHints {
 	return h
 }
 
-// extensionsFrom lowers an x-* extension map into namespaced ir.Extensions, keys
-// prefixed "openapi:" and values serialized to raw JSON.
-func extensionsFrom(ext *extensions.Extensions) (ir.Extensions, []ir.Diagnostic) {
+// extensionsFrom lowers an x-* extension map into namespaced ir.Preserved, keys
+// prefixed "openapi:" and values serialized to raw JSON. owner is the pointer of
+// the object the extensions were written on; each entry is located at its own
+// key beneath it and marked ReasonVendorExtension, since the format assigns an
+// x-* key no semantics at all.
+func extensionsFrom(ext *extensions.Extensions, srcIndex int, owner string) (ir.Preserved, []ir.Diagnostic) {
 	if ext == nil || ext.Len() == 0 {
 		return nil, nil
 	}
-	out := ir.Extensions{}
+	out := ir.Preserved{}
 	var diags []ir.Diagnostic
 	for name, node := range ext.All() {
 		raw := nodeToRaw(node)
 		if raw == nil {
 			diags = append(diags, diagf(ir.SeverityWarning, codeDegradedConstruct,
-				ir.Provenance{}, "extension %q could not be serialized", name))
+				ir.Provenance{Source: srcIndex, Pointer: owner},
+				"extension %q could not be serialized", name))
 			continue
 		}
-		out["openapi:"+name] = raw
+		out["openapi:"+name] = ir.PreservedEntry{
+			Reason:     ir.ReasonVendorExtension,
+			Value:      raw,
+			Provenance: ir.Provenance{Source: srcIndex, Pointer: owner + ptr(name)},
+		}
 	}
 	if len(out) == 0 {
 		return nil, diags
@@ -1242,25 +1455,25 @@ func extensionsFrom(ext *extensions.Extensions) (ir.Extensions, []ir.Diagnostic)
 	return out, diags
 }
 
-// extensions lowers ext's x-* extensions into namespaced Extensions, recording
+// extensions lowers ext's x-* extensions into namespaced Preserved, recording
 // any serialization-failure diagnostics unconditionally even when the result
 // is empty. Every lowering site should call this rather than extensionsFrom
 // directly: gating the diagnostic append behind the same "len(ext) > 0" that
 // guards the assignment would drop every warning on an object whose
 // extensions all failed to serialize — exactly when the result is empty.
-func (l *lowerer) extensions(ext *extensions.Extensions) ir.Extensions {
-	out, diags := extensionsFrom(ext)
+func (l *lowerer) extensions(ext *extensions.Extensions, owner string) ir.Preserved {
+	out, diags := extensionsFrom(ext, l.srcIndex, owner)
 	l.diags = append(l.diags, diags...)
 	return out
 }
 
-// mergeExtensions overlays src onto dst, allocating dst on first write.
-func mergeExtensions(dst, src ir.Extensions) ir.Extensions {
+// mergePreserved overlays src onto dst, allocating dst on first write.
+func mergePreserved(dst, src ir.Preserved) ir.Preserved {
 	if len(src) == 0 {
 		return dst
 	}
 	if dst == nil {
-		dst = ir.Extensions{}
+		dst = ir.Preserved{}
 	}
 	maps.Copy(dst, src)
 	return dst

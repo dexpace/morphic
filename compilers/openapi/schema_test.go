@@ -4,6 +4,8 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/google/go-cmp/cmp"
+	"github.com/google/go-cmp/cmp/cmpopts"
 	oas3 "github.com/speakeasy-api/openapi/jsonschema/oas3"
 	soa "github.com/speakeasy-api/openapi/openapi"
 	"github.com/speakeasy-api/openapi/references"
@@ -77,10 +79,13 @@ func TestLower_NamedScalarComponentResolves(t *testing.T) {
 	}
 }
 
-func TestLower_OneOfWithStructuralSiblingsPreserved(t *testing.T) {
+func TestLower_ConstraintOnlyUnionIsValidationOnly(t *testing.T) {
 	t.Parallel()
-	// The "exactly one of" idiom co-declares object structure with oneOf. The
-	// structural body must survive AND the union must be preserved verbatim.
+	// The "exactly one of" idiom co-declares object structure with a oneOf whose
+	// branches only narrow which properties are required. That is validation
+	// logic, not shape — dependentRequired's sibling — so the structural body
+	// survives and the union is preserved under ReasonValidationOnly, the reason
+	// a validation emitter selects on (ir-design §4.7).
 	spec := componentSpec(`    Thing:
       type: object
       additionalProperties: false
@@ -100,17 +105,46 @@ func TestLower_OneOfWithStructuralSiblingsPreserved(t *testing.T) {
 	assert.Equal(t, "common", m.Properties[0].Name.Source)
 	assert.True(t, m.Properties[0].Required)
 	assert.Equal(t, ir.AdditionalClosed, m.Additional)
-	raw, ok := m.Extensions["openapi:oneOf"]
-	require.True(t, ok, "the dropped union is preserved verbatim under extensions")
-	assert.Contains(t, string(raw), "required")
+	raw, ok := m.Preserved["openapi:oneOf"]
+	require.True(t, ok, "the union is kept verbatim under Preserved")
+	assert.Contains(t, string(raw.Value), "required")
+	assert.Equal(t, ir.ReasonValidationOnly, raw.Reason,
+		"constraint-only branches narrow the body without reshaping it (ir-design §4.7)")
+	assert.Equal(t, "/components/schemas/Thing/oneOf", raw.Provenance.Pointer)
+	assert.Equal(t, 1, countDiagsAt(diags, codeValidationOnlyKeyword, ir.SeverityInfo),
+		"the union is reported with §4.7's keyword family; got %+v", diags)
+}
 
-	found := false
-	for _, d := range diags {
-		if d.Severity == ir.SeverityInfo && strings.Contains(d.Message, "oneOf/anyOf co-declared") {
-			found = true
-		}
-	}
-	assert.True(t, found, "coexistence emits one info diagnostic")
+func TestLower_BooleanUnionBranchDeclaresNoShape(t *testing.T) {
+	t.Parallel()
+	// A JSON Schema boolean branch is a whole schema: `true` accepts anything,
+	// `false` accepts nothing. Neither states a data shape, so a union built
+	// only from them narrows the co-declared body without reshaping it, exactly
+	// as a constraint-only branch does, and takes the same validation-only
+	// lowering. The branch carries no schema object at all, which is what
+	// separates it from a branch that declares nothing structural.
+	spec := componentSpec(`    Flag:
+      type: object
+      required: [common]
+      properties:
+        common: {type: string}
+      oneOf:
+        - true
+        - false
+`)
+	doc, diags := lowerSpec(t, spec)
+	requireNoErrorDiags(t, diags)
+
+	m, ok := doc.Types[componentID("Flag")].(*ir.Model)
+	require.True(t, ok, "the structural body survives as a Model")
+	require.Len(t, m.Properties, 1)
+	assert.Equal(t, "common", m.Properties[0].Name.Source)
+
+	raw, ok := m.Preserved["openapi:oneOf"]
+	require.True(t, ok, "the union is kept verbatim under Preserved")
+	assert.Equal(t, ir.ReasonValidationOnly, raw.Reason,
+		"boolean branches declare no shape, so the union is validation-only (ir-design §4.7)")
+	assert.Equal(t, "/components/schemas/Flag/oneOf", raw.Provenance.Pointer)
 }
 
 func TestLower_AllOfWithOneOfKeepsBoth(t *testing.T) {
@@ -133,8 +167,8 @@ func TestLower_AllOfWithOneOfKeepsBoth(t *testing.T) {
 	require.True(t, ok, "allOf composition survives (Model), oneOf preserved raw")
 	require.NotNil(t, m.Base, "the allOf $ref becomes Base")
 	assert.Equal(t, componentID("Base"), m.Base.Target)
-	_, ok = m.Extensions["openapi:oneOf"]
-	assert.True(t, ok, "the oneOf is preserved verbatim under extensions")
+	_, ok = m.Preserved["openapi:oneOf"]
+	assert.True(t, ok, "the oneOf is kept verbatim under Preserved")
 }
 
 func TestLower_RecursiveSchemaTerminates(t *testing.T) {
@@ -285,8 +319,25 @@ func TestLower_TupleWithTrailingItems(t *testing.T) {
 	tup, ok := typeByName(doc, "Tup").(*ir.Tuple)
 	require.True(t, ok)
 	require.Len(t, tup.Elems, 2)
-	_, hasResidue := tup.Extensions["openapi:items-after-prefix"]
-	assert.True(t, hasResidue, "trailing items preserved raw")
+	residue, hasResidue := tup.Preserved["openapi:items-after-prefix"]
+	require.True(t, hasResidue, "trailing items preserved raw")
+	assert.JSONEq(t, `{"type":"boolean"}`, string(residue.Value))
+	assert.Equal(t, ir.ReasonDegradedLowering, residue.Reason,
+		"an open tuple is lowered to a weaker fixed-arity shape, not left homeless (ir-design §4.8)")
+	assert.Equal(t, "/components/schemas/Tup/items", residue.Provenance.Pointer)
+	assert.True(t, hasDegradedDiag(diags, "open tuple"),
+		"the degradation is reported, not silent; got %+v", diags)
+}
+
+// hasDegradedDiag reports whether diags carries a degraded-construct info
+// diagnostic whose message contains want.
+func hasDegradedDiag(diags []ir.Diagnostic, want string) bool {
+	for _, d := range diags {
+		if d.Code == codeDegradedConstruct && strings.Contains(d.Message, want) {
+			return true
+		}
+	}
+	return false
 }
 
 func TestLower_ListConstraints(t *testing.T) {
@@ -327,6 +378,7 @@ func TestLower_ValidationOnlyKeywords(t *testing.T) {
       then: {required: [b]}
       else: {required: [c]}
       dependentSchemas: {a: {required: [d]}}
+      propertyNames: {pattern: "^[a-z]+$"}
       contains: {type: string}
       minContains: 1
       unevaluatedProperties: {type: string}
@@ -335,11 +387,49 @@ func TestLower_ValidationOnlyKeywords(t *testing.T) {
 	doc, diags := lowerSpec(t, spec)
 	requireNoErrorDiags(t, diags)
 	m := typeByName(doc, "V").(*ir.Model)
-	for _, key := range []string{"openapi:if-then-else", "openapi:dependentSchemas", "openapi:contains", "openapi:unevaluated"} {
-		_, ok := m.Extensions[key]
-		assert.True(t, ok, "keyword %s preserved", key)
+	// An entry the source writes as one keyword is located at that keyword; the
+	// three that synthesize several into one object fall back to the schema,
+	// since no single node addresses the synthesized value.
+	wantPointer := map[string]string{
+		"openapi:dependentSchemas": "/components/schemas/V/dependentSchemas",
+		"openapi:propertyNames":    "/components/schemas/V/propertyNames",
+		"openapi:if-then-else":     "/components/schemas/V",
+		"openapi:contains":         "/components/schemas/V",
+		"openapi:unevaluated":      "/components/schemas/V",
 	}
-	assert.GreaterOrEqual(t, countDiagsAt(diags, codeValidationOnlyKeyword, ir.SeverityInfo), 4)
+	for key, want := range wantPointer {
+		entry, ok := m.Preserved[key]
+		require.True(t, ok, "keyword %s preserved", key)
+		assert.Equal(t, want, entry.Provenance.Pointer, "entry provenance for %s", key)
+	}
+	assert.GreaterOrEqual(t, countDiagsAt(diags, codeValidationOnlyKeyword, ir.SeverityInfo), 5)
+}
+
+// TestLower_PropertyNamesPreserved pins the whole §4.7 contract for
+// propertyNames end to end: the verbatim payload, the reason a validation
+// emitter selects on, and the one info diagnostic naming the keyword (#117).
+func TestLower_PropertyNamesPreserved(t *testing.T) {
+	t.Parallel()
+	spec := componentSpec(`    Codes:
+      type: object
+      propertyNames: {type: string, pattern: "^[a-z]+$"}
+      additionalProperties: {type: integer}
+`)
+	doc, diags := lowerSpec(t, spec)
+	requireNoErrorDiags(t, diags)
+
+	m, ok := typeByName(doc, "Codes").(*ir.Model)
+	require.True(t, ok)
+	entry, ok := m.Preserved["openapi:propertyNames"]
+	require.True(t, ok, "propertyNames kept verbatim; got %v", m.Preserved)
+	assert.JSONEq(t, `{"type":"string","pattern":"^[a-z]+$"}`, string(entry.Value))
+	assert.Equal(t, ir.ReasonValidationOnly, entry.Reason)
+	assert.Equal(t, 1, countDiagsAt(diags, codeValidationOnlyKeyword, ir.SeverityInfo))
+
+	// The keyword constrains keys only: the map's value lowering is untouched.
+	require.NotNil(t, m.AdditionalProps)
+	assert.Equal(t, ir.TypeID("t/prim/integer"), m.AdditionalProps.Value.Target)
+	assert.Nil(t, m.AdditionalProps.Key, "a key *constraint* is not a key type")
 }
 
 func TestLower_PropertyDetailRichSchema(t *testing.T) {
@@ -364,7 +454,7 @@ func TestLower_PropertyDetailRichSchema(t *testing.T) {
 	assert.Equal(t, "urn:x", byWire["withXml"].XML.Namespace)
 	assert.True(t, byWire["withXml"].XML.Wrapped)
 	assert.Len(t, byWire["withExample"].Examples, 3)
-	assert.NotEmpty(t, byWire["withExt"].Extensions)
+	assert.NotEmpty(t, byWire["withExt"].Preserved)
 	var sawDefaultWarn bool
 	for _, d := range diags {
 		if d.Severity == ir.SeverityWarning && strings.Contains(d.Message, "default:") {
@@ -426,8 +516,8 @@ func TestLower_UnionWithStructuralSiblingVariants(t *testing.T) {
 		td := typeByName(doc, name)
 		require.NotNil(t, td, "type %s present", name)
 		c := td.Common()
-		_, hasOneOf := c.Extensions["openapi:oneOf"]
-		_, hasAnyOf := c.Extensions["openapi:anyOf"]
+		_, hasOneOf := c.Preserved["openapi:oneOf"]
+		_, hasAnyOf := c.Preserved["openapi:anyOf"]
 		assert.True(t, hasOneOf || hasAnyOf, "union preserved for %s", name)
 	}
 }
@@ -468,14 +558,19 @@ func TestModel_ValidationOnlyKeywordPreserved(t *testing.T) {
 `)
 	doc, diags := lowerSpec(t, spec)
 	m := doc.Types[componentID("S")].(*ir.Model)
-	raw, ok := m.Extensions["openapi:not"]
+	raw, ok := m.Preserved["openapi:not"]
 	require.True(t, ok, "not-keyword must be preserved verbatim")
-	assert.JSONEq(t, `{"required":["b"]}`, string(raw))
+	assert.JSONEq(t, `{"required":["b"]}`, string(raw.Value))
+	assert.Equal(t, ir.ReasonValidationOnly, raw.Reason)
+	assert.Equal(t, "/components/schemas/S/not", raw.Provenance.Pointer,
+		"the entry locates the keyword, not the schema that carried it")
 	found := false
 	for _, d := range diags {
 		if d.Code == codeValidationOnlyKeyword {
 			found = true
 			assert.Equal(t, ir.SeverityInfo, d.Severity)
+			assert.Equal(t, "/components/schemas/S", d.Provenance.Pointer,
+				"the diagnostic still reports against the declaring schema")
 		}
 	}
 	assert.True(t, found, "expected a validation-only-keyword info diagnostic")
@@ -608,9 +703,76 @@ func TestModel_SchemaExtensionPreserved(t *testing.T) {
 	doc, diags := lowerSpec(t, spec)
 	requireNoErrorDiags(t, diags)
 	m := doc.Types[componentID("S")].(*ir.Model)
-	raw, ok := m.Extensions["openapi:x-rate-limit"]
+	raw, ok := m.Preserved["openapi:x-rate-limit"]
 	require.True(t, ok)
-	assert.JSONEq(t, "100", string(raw))
+	assert.JSONEq(t, "100", string(raw.Value))
+	assert.Equal(t, ir.ReasonVendorExtension, raw.Reason)
+	assert.Equal(t, "/components/schemas/S/x-rate-limit", raw.Provenance.Pointer,
+		"an entry locates the construct itself, not the node that carries it")
+}
+
+// TestPreserve_AllReasonsReachable pins that every PreserveReason an OpenAPI
+// document can provoke is produced by some lowering here, so a consumer
+// switching on the enum meets no value this compiler can never emit.
+// ReasonOutOfScope is the standing exception: ir-design §15's deliberate
+// exclusions are Smithy and TypeSpec constructs, and OpenAPI declares nothing
+// that lands under it.
+//
+// The reach is per reason, not per entry: an entry left at the zero reason is
+// invisible here, and is irverify's "ir/empty-preserve-reason" to catch across
+// the whole corpus rather than this one document's.
+func TestPreserve_AllReasonsReachable(t *testing.T) {
+	t.Parallel()
+	spec := `openapi: 3.1.0
+info: {title: T, version: "1"}
+components:
+  schemas:
+    S:
+      type: object
+      x-vendor: v
+      not: {required: [b]}
+      properties: {a: {type: string}}
+      oneOf:
+        - {required: [a]}
+        - {required: [b]}
+    T:
+      type: array
+      prefixItems: [{type: string}]
+      items: {type: integer}
+paths:
+  /p:
+    post:
+      operationId: p
+      requestBody:
+        content: {application/json: {schema: {type: string}}}
+      responses: {"204": {description: ok}}
+`
+	doc, svc, diags := lowerServiceSpec(t, spec)
+	requireNoErrorDiags(t, diags)
+
+	// S witnesses vendor_extension and validation_only (its constraint-only
+	// union joins `not` there); T's open tuple is the only degraded_lowering
+	// witness here, so it must not be folded into another case.
+	seen := map[ir.PreserveReason]bool{}
+	for _, name := range []string{"S", "T"} {
+		for _, entry := range doc.Types[componentID(name)].Common().Preserved {
+			seen[entry.Reason] = true
+		}
+	}
+	// The one no_ir_home site reachable from a minimal document: a requestBody
+	// that omits `required`, which the IR has no field for (§14).
+	body := firstOp(t, svc).Request
+	require.NotNil(t, body, "the operation must own a request payload")
+	for _, entry := range body.Preserved {
+		seen[entry.Reason] = true
+	}
+
+	for _, want := range []ir.PreserveReason{
+		ir.ReasonVendorExtension, ir.ReasonValidationOnly,
+		ir.ReasonDegradedLowering, ir.ReasonNoIRHome,
+	} {
+		assert.True(t, seen[want], "no entry carries reason %q", want)
+	}
 }
 
 func TestModel_TitleDescriptionDocs(t *testing.T) {
@@ -687,9 +849,10 @@ func TestIsNullSchema_EmptyEitherFalse(t *testing.T) {
 func TestPreserveUnionSiblings_MissingNode(t *testing.T) {
 	t.Parallel()
 	l := newRawLowerer(&soa.OpenAPI{})
-	// No node registered under the id → the guard returns without panicking.
-	l.preserveUnionSiblings("t/anon/missing", &oas3.Schema{}, "/p")
-	assert.Empty(t, l.diags)
+	// No node registered under the id: the union branches have nowhere to go, so
+	// the guard reports the broken invariant instead of dropping them quietly.
+	l.preserveUnionSiblings("t/anon/missing", &oas3.Schema{}, "/p", ir.ReasonDegradedLowering, "why")
+	assertHasErrorCode(t, l.diags, codeInternalInvariant)
 }
 
 // TestSchemaExamples_RefdSubSchemaKeepsThem pins the examples of a $ref'd
@@ -766,15 +929,16 @@ func TestSiteSchema_BodylessPositions(t *testing.T) {
 	assert.Nil(t, siteSchema(oas3.NewJSONSchemaFromBool(true)))
 }
 
-// TestAttachSchemaExamples_MissingNode covers the mid-interning state a
-// self-referential schema can reach: the pointer already owns an ID, but the
-// node it names is still being built and is not in the registry yet.
-func TestAttachSchemaExamples_MissingNode(t *testing.T) {
+// TestAttachDeclaredAnnotations_MissingNode drives the invariant no source can
+// break: a pointer owning an ID the registry never registered. Lowering records
+// the two together, so this state is a compiler bug — and the annotations it
+// would swallow are reported rather than lost.
+func TestAttachDeclaredAnnotations_MissingNode(t *testing.T) {
 	t.Parallel()
 	l := newRawLowerer(&soa.OpenAPI{})
 	l.byPointer["/p"] = "t/anon/missing"
-	l.attachSchemaExamples(&oas3.Schema{}, "/p")
-	assert.Empty(t, l.diags)
+	l.attachDeclaredAnnotations(&oas3.Schema{}, "/p")
+	assertHasErrorCode(t, l.diags, codeInternalInvariant)
 }
 
 // The redeclaration-conflict helpers carry defensive guards for states a
@@ -1245,7 +1409,7 @@ func TestSchema_UnionSiblingsAdditionalAndRequired(t *testing.T) {
 	doc, diags := lowerSpec(t, spec)
 	requireNoErrorDiags(t, diags)
 	for _, name := range []string{"A", "B"} {
-		_, ok := typeByName(doc, name).Common().Extensions["openapi:oneOf"]
+		_, ok := typeByName(doc, name).Common().Preserved["openapi:oneOf"]
 		assert.True(t, ok, "%s preserves its union", name)
 	}
 }
@@ -1275,7 +1439,7 @@ func TestSchema_UnserializableExtension(t *testing.T) {
 	require.NotNil(t, doc)
 	assert.True(t, hasDiagAt(diags, codeDegradedConstruct, ir.SeverityWarning), "unserializable extension warns")
 	m := typeByName(doc, "S").(*ir.Model)
-	_, hasBad := m.Extensions["openapi:x-bad"]
+	_, hasBad := m.Preserved["openapi:x-bad"]
 	assert.False(t, hasBad, "unserializable extension is dropped, not stored")
 }
 
@@ -1852,9 +2016,9 @@ func TestAllOf_PropertyAlongsideAllOfConflictMessageIsAccurate(t *testing.T) {
 func TestPreserveKeyword_NilRaw(t *testing.T) {
 	t.Parallel()
 	l := &lowerer{}
-	m := &ir.Model{}
-	l.preserveKeyword(m, "openapi:not", nil, "/p", "not")
-	assert.Nil(t, m.Extensions, "nil raw is a no-op")
+	var ext ir.Preserved
+	l.preserveKeyword(&ext, "openapi:not", nil, "/p", "/p/not", "not")
+	assert.Nil(t, ext, "nil raw is a no-op")
 	assert.Empty(t, l.diags)
 }
 
@@ -2083,4 +2247,573 @@ components:
 
 	_, isModel := doc.Types[ir.TypeID("t/openapi/components/schemas/Base")].(*ir.Model)
 	assert.True(t, isModel, "the structure lives at the component it was declared at")
+}
+
+// inlineProbeBody is the body every inline-position case below writes: one
+// annotation of each kind attachDeclaredAnnotations reads, one validation-only
+// keyword, and one value constraint — all of them position-scoped, so a
+// position that lowers this to the shared string primitive loses every one. All
+// three documentation keywords are here because a home that keeps only the
+// description passes a probe that writes only a description.
+const inlineProbeBody = `{type: string, title: SUM, description: DOC, ` +
+	`externalDocs: {url: 'https://e.example', description: ED}, deprecated: true, ` +
+	`example: abc, x-vendor: V, xml: {name: X}, not: {const: N}, maxLength: 3}`
+
+// inlinePosition is one schema position with no ir.Property or ir.Parameter to
+// carry a declaration's annotations, so the declaration must own a node.
+type inlinePosition struct {
+	name string
+	// spec writes body at the position under test.
+	spec func(body string) string
+	// id is the node the position's declaration owns once it declares anything.
+	id ir.TypeID
+	// target is what a bare {type: string} at the position resolves to instead.
+	target ir.TypeID
+}
+
+func inlinePositions() []inlinePosition {
+	const prim = ir.TypeID("t/prim/string")
+	return []inlinePosition{
+		{"items", func(b string) string { return componentSpec("    A: {type: array, items: " + b + "}\n") },
+			"t/anon/components/schemas/A/items", prim},
+		{"nested-items", func(b string) string {
+			return componentSpec("    A: {type: array, items: {type: array, items: " + b + "}}\n")
+		}, "t/anon/components/schemas/A/items/items", prim},
+		{"additionalProperties", func(b string) string {
+			return componentSpec("    A: {type: object, additionalProperties: " + b + "}\n")
+		}, "t/anon/components/schemas/A/additionalProperties", prim},
+		{"prefixItems", func(b string) string {
+			return componentSpec("    A: {type: array, prefixItems: [" + b + "]}\n")
+		}, "t/anon/components/schemas/A/prefixItems/0", prim},
+		{"patternProperties", func(b string) string {
+			return componentSpec("    A: {type: object, patternProperties: {\"^x\": " + b + "}}\n")
+		}, "t/anon/components/schemas/A/patternProperties/^x", prim},
+		{"oneOf-branch", func(b string) string {
+			return componentSpec("    A: {oneOf: [" + b + ", {type: integer}]}\n")
+		}, "t/anon/components/schemas/A/oneOf/0", prim},
+		{"anyOf-branch", func(b string) string {
+			return componentSpec("    A: {anyOf: [" + b + ", {type: integer}]}\n")
+		}, "t/anon/components/schemas/A/anyOf/0", prim},
+		{"request-media-type", func(b string) string {
+			return pathsSpec("  /x:\n    post:\n      operationId: p\n      requestBody:\n" +
+				"        content: {application/json: {schema: " + b + "}}\n" +
+				"      responses: {\"204\": {description: ok}}\n")
+		}, "t/anon/paths/~1x/post/requestBody/content/application~1json/schema", prim},
+		{"response-media-type", func(b string) string {
+			return pathsSpec("  /x:\n    get:\n      operationId: g\n      responses:\n" +
+				"        \"200\":\n          description: ok\n" +
+				"          content: {application/json: {schema: " + b + "}}\n")
+		}, "t/anon/paths/~1x/get/responses/200/content/application~1json/schema", prim},
+	}
+}
+
+// TestInlinePosition_DeclarationOwnsANode asserts that a schema declaring
+// position-scoped annotations at an inline position keeps every one of them, at
+// each position that has no carrier to hold them (GitHub #116). Before the fix
+// each of these lowered straight to the shared string primitive and dropped all
+// five plus the constraint, with no diagnostic.
+func TestInlinePosition_DeclarationOwnsANode(t *testing.T) {
+	t.Parallel()
+	for _, pos := range inlinePositions() {
+		t.Run(pos.name, func(t *testing.T) {
+			t.Parallel()
+			doc, diags := parseFull(t, pos.spec(inlineProbeBody))
+			requireNoErrorDiags(t, diags)
+
+			sc, ok := doc.Types[pos.id].(*ir.Scalar)
+			require.True(t, ok, "the declaration owns a Scalar at its own pointer; got %v", doc.Types[pos.id])
+			require.NotNil(t, sc.Base)
+			assert.Equal(t, pos.target, sc.Base.Target, "the alias still names the shared primitive it reduced to")
+			assertProbeAnnotationsKept(t, sc)
+		})
+	}
+}
+
+// assertProbeAnnotationsKept checks every keyword inlineProbeBody writes
+// survived onto the node the declaration owns.
+func assertProbeAnnotationsKept(t *testing.T, sc *ir.Scalar) {
+	t.Helper()
+	assertProbeDocsKept(t, sc.Docs)
+	assert.NotNil(t, sc.Deprecation, "deprecation")
+	assertProbeExample(t, sc.Examples)
+	if assert.NotNil(t, sc.XML, "xml hints") {
+		assert.Equal(t, "X", sc.XML.Name)
+	}
+	vendor, ok := sc.Preserved["openapi:x-vendor"]
+	if assert.True(t, ok, "vendor extension: got %v", sc.Preserved) {
+		assert.JSONEq(t, `"V"`, string(vendor.Value))
+		assert.Equal(t, ir.ReasonVendorExtension, vendor.Reason)
+	}
+	not, ok := sc.Preserved["openapi:not"]
+	if assert.True(t, ok, "validation-only keyword: got %v", sc.Preserved) {
+		assert.Equal(t, ir.ReasonValidationOnly, not.Reason)
+	}
+	if assert.NotNil(t, sc.Constraints, "value constraints") {
+		require.NotNil(t, sc.Constraints.MaxLength)
+		assert.Equal(t, int64(3), *sc.Constraints.MaxLength)
+	}
+}
+
+// assertProbeDocsKept checks all three documentation keywords inlineProbeBody
+// writes reached d, wherever the position's home turned out to be.
+func assertProbeDocsKept(t *testing.T, d ir.Docs) {
+	t.Helper()
+	assert.Equal(t, "SUM", d.Summary, "title")
+	assert.Equal(t, "DOC", d.Description, "description")
+	if assert.Len(t, d.ExternalDocs, 1, "externalDocs") {
+		assert.Equal(t, "https://e.example", d.ExternalDocs[0].URL)
+		assert.Equal(t, "ED", d.ExternalDocs[0].Description)
+	}
+}
+
+// assertProbeExample checks the single example inlineProbeBody writes reached
+// the home under test with its value intact.
+func assertProbeExample(t *testing.T, examples []ir.Example) {
+	t.Helper()
+	if !assert.Len(t, examples, 1, "examples") {
+		return
+	}
+	require.NotNil(t, examples[0].Value)
+	assert.Equal(t, "abc", examples[0].Value.Str)
+}
+
+// TestInlinePosition_BareScalarStaysShared is the control that bounds the fix:
+// a position declaring nothing of its own gains nothing by owning a node, so it
+// must keep resolving straight to the shared primitive rather than growing an
+// anonymous alias per element position.
+func TestInlinePosition_BareScalarStaysShared(t *testing.T) {
+	t.Parallel()
+	for _, pos := range inlinePositions() {
+		t.Run(pos.name, func(t *testing.T) {
+			t.Parallel()
+			doc, diags := parseFull(t, pos.spec("{type: string}"))
+			requireNoErrorDiags(t, diags)
+			assert.NotContains(t, doc.Types, pos.id, "a bare declaration must not hoist a node")
+			assert.Contains(t, doc.Types, pos.target, "it resolves to the shared primitive instead")
+		})
+	}
+}
+
+// TestInlinePosition_NullStrippedScalarKeepsAnnotations covers the shape that
+// reaches the shared primitive by a second route: effectiveTypes strips the
+// "null" member before dispatch, so `type: [string, "null"]` lands on the same
+// shared node a bare string does. Nullability still lifts onto the refs.
+func TestInlinePosition_NullStrippedScalarKeepsAnnotations(t *testing.T) {
+	t.Parallel()
+	doc, diags := parseFull(t, componentSpec(
+		"    A: {type: array, items: {type: [string, \"null\"], description: DOC}}\n"))
+	requireNoErrorDiags(t, diags)
+
+	sc, ok := doc.Types["t/anon/components/schemas/A/items"].(*ir.Scalar)
+	require.True(t, ok, "a null-stripped scalar declaration owns a node like any other")
+	assert.Equal(t, "DOC", sc.Docs.Description)
+	require.NotNil(t, sc.Base)
+	assert.True(t, sc.Base.Nullable, "the alias records that its base admits null")
+
+	list, ok := doc.Types[componentID("A")].(*ir.List)
+	require.True(t, ok)
+	assert.True(t, list.Elem.Nullable, "and the element position still reads as nullable")
+}
+
+// TestInlinePosition_RefSiblingsKeepTheirPosition covers a $ref written at an
+// inline position with keywords beside it: those bind the position, not the
+// referent, so they cannot go on the shared target and the position must hold
+// them itself.
+func TestInlinePosition_RefSiblingsKeepTheirPosition(t *testing.T) {
+	t.Parallel()
+	doc, diags := parseFull(t, componentSpec(
+		"    S: {type: string}\n"+
+			"    A: {type: array, items: {$ref: '#/components/schemas/S', maxLength: 25, description: D}}\n"))
+	requireNoErrorDiags(t, diags)
+
+	sc, ok := doc.Types["t/anon/components/schemas/A/items"].(*ir.Scalar)
+	require.True(t, ok, "siblings beside a $ref give the position a node of its own")
+	require.NotNil(t, sc.Base)
+	assert.Equal(t, componentID("S"), sc.Base.Target, "the alias points at what it referenced")
+	assert.Equal(t, "D", sc.Docs.Description)
+	require.NotNil(t, sc.Constraints)
+	require.NotNil(t, sc.Constraints.MaxLength)
+	assert.Equal(t, int64(25), *sc.Constraints.MaxLength)
+
+	target, ok := doc.Types[componentID("S")].(*ir.Scalar)
+	require.True(t, ok)
+	assert.Nil(t, target.Constraints, "the referent stays unbounded")
+	assert.Empty(t, target.Docs.Description, "and undocumented")
+}
+
+// TestInlinePosition_BareRefStaysDirect is the control for the case above: a
+// $ref with nothing beside it still points straight at its target.
+func TestInlinePosition_BareRefStaysDirect(t *testing.T) {
+	t.Parallel()
+	doc, diags := parseFull(t, componentSpec(
+		"    S: {type: string}\n"+
+			"    A: {type: array, items: {$ref: '#/components/schemas/S'}}\n"))
+	requireNoErrorDiags(t, diags)
+
+	list, ok := doc.Types[componentID("A")].(*ir.List)
+	require.True(t, ok)
+	assert.Equal(t, componentID("S"), list.Elem.Target, "a bare $ref needs no alias")
+	assert.NotContains(t, doc.Types, ir.TypeID("t/anon/components/schemas/A/items"))
+}
+
+// stolenPosition is an inline position an outside $ref can name by pointer:
+// the component block declaring it, and the node its declaration owns. The
+// outside component is spelled around the owner so both declaration orders of
+// the same document are available.
+type stolenPosition struct {
+	name  string
+	owner string
+	id    ir.TypeID
+}
+
+// spec writes the position's owner and an outside $ref naming it, the reference
+// declared first or last. Components lower in source order, so the two are the
+// two orders in which the pointer's node can be reached.
+func (p stolenPosition) spec(refFirst bool) string {
+	outsider := "    Outsider: {$ref: '#" + strings.TrimPrefix(string(p.id), "t/anon") + "'}\n"
+	if refFirst {
+		return componentSpec(outsider + p.owner)
+	}
+	return componentSpec(p.owner + outsider)
+}
+
+func stolenPositions() []stolenPosition {
+	return []stolenPosition{
+		{"items", "    A: {type: array, items: " + inlineProbeBody + "}\n",
+			"t/anon/components/schemas/A/items"},
+		{"additionalProperties", "    A: {type: object, additionalProperties: " + inlineProbeBody + "}\n",
+			"t/anon/components/schemas/A/additionalProperties"},
+		{"prefixItems", "    A: {type: array, prefixItems: [" + inlineProbeBody + "]}\n",
+			"t/anon/components/schemas/A/prefixItems/0"},
+		{"patternProperties", "    A: {type: object, patternProperties: {\"^x\": " + inlineProbeBody + "}}\n",
+			"t/anon/components/schemas/A/patternProperties/^x"},
+		{"oneOf-branch", "    A: {oneOf: [" + inlineProbeBody + ", {type: integer}]}\n",
+			"t/anon/components/schemas/A/oneOf/0"},
+	}
+}
+
+// TestInlinePosition_OutsideRefDoesNotMoveTheHome is the regression for the
+// second half of the pointer collision. A $ref naming an inline position hoists
+// that position's home before the position itself is reached, and the position
+// then took the shared node its body reduced to instead — so the annotations
+// stayed on a node only the outside reference could see, and `items` resolved to
+// the bare primitive. Which of the two lowered first decided it, the
+// declaration-order dependence ir-design §4.3 rules out.
+//
+// The strongest statement of the rule is the first assertion: what a component
+// lowers to cannot depend on whether some unrelated schema elsewhere points at
+// one of its inner pointers.
+func TestInlinePosition_OutsideRefDoesNotMoveTheHome(t *testing.T) {
+	t.Parallel()
+	for _, pos := range stolenPositions() {
+		t.Run(pos.name, func(t *testing.T) {
+			t.Parallel()
+			alone, diags := parseFull(t, componentSpec(pos.owner))
+			requireNoErrorDiags(t, diags)
+			refFirst, diags := parseFull(t, pos.spec(true))
+			requireNoErrorDiags(t, diags)
+			refLast, diags := parseFull(t, pos.spec(false))
+			requireNoErrorDiags(t, diags)
+
+			for _, with := range []*ir.Document{refFirst, refLast} {
+				assert.Empty(t, cmp.Diff(alone.Types[componentID("A")], with.Types[componentID("A")]),
+					"an outside reference to an inner pointer must not change what A lowers to")
+			}
+			assert.Empty(t, cmp.Diff(refFirst, refLast, orderInvariantIR()...),
+				"declaring that reference before or after A must not change the IR")
+
+			sc, ok := refFirst.Types[pos.id].(*ir.Scalar)
+			require.True(t, ok, "the position still owns its home; got %v", refFirst.Types[pos.id])
+			assertProbeAnnotationsKept(t, sc)
+		})
+	}
+}
+
+// orderInvariantIR compares two whole IR documents, minus the two fields that
+// differ by construction when the same components are declared in two orders.
+//
+// SourceInfo.Hash digests the source bytes, which are the thing being permuted.
+// Naming.Hint is a live gap: the hint a node hoisted at a pointer carries is
+// minted by whichever of the two namers reaches the pointer first — the
+// declaration's context ("A_item") or the reference's last pointer segment
+// ("items") — because intern keeps the first name it is given. That divergence
+// is naming only, and predates the annotation work: a $ref to an object-bodied
+// `items` shows it with no annotations involved at all. Everything else is
+// compared.
+func orderInvariantIR() []cmp.Option {
+	return []cmp.Option{
+		cmpopts.IgnoreFields(ir.Naming{}, "Hint"),
+		cmpopts.IgnoreFields(ir.SourceInfo{}, "Hash"),
+	}
+}
+
+// TestPropertyAnnotations_KeptWhenAnOutsideRefNamesTheProperty covers the same
+// collision at a position that has a carrier. A $ref naming a property's schema
+// pointer hoists a node there, and the property then read that node as its own
+// home and left its annotations to it — on top of the copy it had already
+// written when it lowered first, and instead of any copy at all when it lowered
+// second.
+func TestPropertyAnnotations_KeptWhenAnOutsideRefNamesTheProperty(t *testing.T) {
+	t.Parallel()
+	owner := "    A: {type: object, properties: {p: " + inlineProbeBody + "}}\n"
+	outsider := "    Outsider: {$ref: '#/components/schemas/A/properties/p'}\n"
+	for _, tc := range []struct{ name, spec string }{
+		{"reference declared first", componentSpec(outsider + owner)},
+		{"reference declared last", componentSpec(owner + outsider)},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			doc, diags := parseFull(t, tc.spec)
+			requireNoErrorDiags(t, diags)
+
+			m, ok := doc.Types[componentID("A")].(*ir.Model)
+			require.True(t, ok)
+			p, ok := propsByWire(m.Properties)["p"]
+			require.True(t, ok)
+			assert.Equal(t, ir.TypeID("t/prim/string"), p.Type.Target,
+				"the property's own type is unchanged by the outside reference")
+			assertProbeDocsKept(t, p.Docs)
+			assert.Contains(t, p.Preserved, "openapi:x-vendor")
+			assert.Contains(t, p.Preserved, "openapi:not")
+
+			sc, ok := doc.Types["t/anon/components/schemas/A/properties/p"].(*ir.Scalar)
+			require.True(t, ok, "and the referenced pointer still names the schema written there")
+			assertProbeAnnotationsKept(t, sc)
+		})
+	}
+}
+
+// TestPropertyAnnotations_OneHomeWhenSchemaOwnsANode asserts the settlement of
+// the double storage: a property whose schema hoists a node keeps that
+// declaration's annotations there and not also on the ir.Property, so the two
+// copies can never drift apart.
+func TestPropertyAnnotations_OneHomeWhenSchemaOwnsANode(t *testing.T) {
+	t.Parallel()
+	doc, diags := parseFull(t, componentSpec(
+		"    A:\n      type: object\n      properties:\n"+
+			"        p: {type: object, description: DOC, deprecated: true, xml: {name: X}, x-vendor: V}\n"))
+	requireNoErrorDiags(t, diags)
+
+	owner, ok := doc.Types[componentID("A")].(*ir.Model)
+	require.True(t, ok)
+	p, ok := propsByWire(owner.Properties)["p"]
+	require.True(t, ok)
+	assert.Empty(t, p.Docs.Description, "the node the schema owns is the one home")
+	assert.Nil(t, p.Deprecation)
+	assert.Nil(t, p.XML)
+	assert.Empty(t, p.Preserved)
+
+	inner := doc.Types["t/anon/components/schemas/A/properties/p"]
+	require.NotNil(t, inner)
+	c := inner.Common()
+	assert.Equal(t, "DOC", c.Docs.Description)
+	assert.NotNil(t, c.Deprecation)
+	require.NotNil(t, c.XML)
+	assert.Equal(t, "X", c.XML.Name)
+	assert.Contains(t, c.Preserved, "openapi:x-vendor")
+}
+
+// TestPropertyAnnotations_CarriedWhenSchemaOwnsNoNode is the other half of that
+// rule, and the reason a property never hoists an alias of its own: a scalar
+// property's declaration has ir.Property to land on already.
+func TestPropertyAnnotations_CarriedWhenSchemaOwnsNoNode(t *testing.T) {
+	t.Parallel()
+	doc, diags := parseFull(t, componentSpec(
+		"    A:\n      type: object\n      properties:\n        p: "+inlineProbeBody+"\n"))
+	requireNoErrorDiags(t, diags)
+
+	owner, ok := doc.Types[componentID("A")].(*ir.Model)
+	require.True(t, ok)
+	p, ok := propsByWire(owner.Properties)["p"]
+	require.True(t, ok)
+	assert.Equal(t, ir.TypeID("t/prim/string"), p.Type.Target, "a property keeps resolving to the shared primitive")
+	assert.NotContains(t, doc.Types, ir.TypeID("t/anon/components/schemas/A/properties/p"))
+	assertProbeDocsKept(t, p.Docs)
+	assert.NotNil(t, p.Deprecation)
+	assertProbeExample(t, p.Examples)
+	require.NotNil(t, p.XML)
+	assert.Equal(t, "X", p.XML.Name)
+	assert.Contains(t, p.Preserved, "openapi:x-vendor")
+	assert.Contains(t, p.Preserved, "openapi:not")
+	require.NotNil(t, p.Constraints)
+	require.NotNil(t, p.Constraints.MaxLength)
+	assert.Equal(t, int64(3), *p.Constraints.MaxLength)
+}
+
+// carrierDocKeyword is one of the three documentation keywords a $ref position
+// merges onto its carrier: how to write it with a given value, and which
+// ir.Docs field reading it back means the merge kept it.
+type carrierDocKeyword struct {
+	name  string
+	write func(value string) string
+	read  func(ir.Docs) string
+}
+
+func carrierDocKeywords() []carrierDocKeyword {
+	return []carrierDocKeyword{
+		{"title",
+			func(v string) string { return "title: " + v },
+			func(d ir.Docs) string { return d.Summary }},
+		{"description",
+			func(v string) string { return "description: " + v },
+			func(d ir.Docs) string { return d.Description }},
+		{"externalDocs",
+			func(v string) string { return "externalDocs: {url: 'https://e.example', description: " + v + "}" },
+			func(d ir.Docs) string {
+				if len(d.ExternalDocs) != 1 {
+					return ""
+				}
+				return d.ExternalDocs[0].Description
+			}},
+	}
+}
+
+// docTarget is a component writing all three keywords, each valued after itself
+// so a carrier reading one of them cannot be confused with a carrier reading
+// another.
+func docTarget() string {
+	parts := make([]string, 0, len(carrierDocKeywords()))
+	for _, kw := range carrierDocKeywords() {
+		parts = append(parts, kw.write("REF-"+kw.name))
+	}
+	return "    Target: {type: string, " + strings.Join(parts, ", ") + "}\n"
+}
+
+// propertyOf returns the named component model's property with the given wire
+// name.
+func propertyOf(t *testing.T, doc *ir.Document, model, wire string) ir.Property {
+	t.Helper()
+	m, ok := doc.Types[componentID(model)].(*ir.Model)
+	require.True(t, ok, "%s lowers to a model", model)
+	p, ok := propsByWire(m.Properties)[wire]
+	require.True(t, ok, "%s declares a property %q", model, wire)
+	return p
+}
+
+// TestPropertyDocs_RefTargetReachesTheCarrier pins the referent half of the
+// documentation merge, keyword by keyword: a property that declares nothing but
+// a $ref still carries what its referent documents, and the referent's own node
+// keeps its copy. ir-design §14 asks for that merge uniformly, so the three
+// keywords stand or fall together — a fix that inherited only the description
+// would leave the other two behind at every carrier.
+func TestPropertyDocs_RefTargetReachesTheCarrier(t *testing.T) {
+	t.Parallel()
+	for _, kw := range carrierDocKeywords() {
+		t.Run(kw.name, func(t *testing.T) {
+			t.Parallel()
+			doc, diags := parseFull(t, componentSpec(docTarget()+
+				"    Owner: {type: object, properties: {p: {$ref: '#/components/schemas/Target'}}}\n"))
+			requireNoErrorDiags(t, diags)
+
+			p := propertyOf(t, doc, "Owner", "p")
+			assert.Equal(t, componentID("Target"), p.Type.Target, "a bare $ref needs no alias")
+			assert.Equal(t, "REF-"+kw.name, kw.read(p.Docs), "the carrier reads the referent's %s", kw.name)
+			assert.Equal(t, "REF-"+kw.name, kw.read(doc.Types[componentID("Target")].Common().Docs),
+				"and the referent keeps its own %s", kw.name)
+		})
+	}
+}
+
+// TestPropertyDocs_UseSiteWinsKeywordByKeyword pins the other half: a keyword
+// written beside the $ref replaces that field and only that field, the rest
+// still arriving from the referent. Taking either schema whole passes one of
+// these subtests and fails the other two.
+func TestPropertyDocs_UseSiteWinsKeywordByKeyword(t *testing.T) {
+	t.Parallel()
+	for _, site := range carrierDocKeywords() {
+		t.Run(site.name, func(t *testing.T) {
+			t.Parallel()
+			doc, diags := parseFull(t, componentSpec(docTarget()+
+				"    Owner: {type: object, properties: {p: {$ref: '#/components/schemas/Target', "+
+				site.write("SITE")+"}}}\n"))
+			requireNoErrorDiags(t, diags)
+
+			p := propertyOf(t, doc, "Owner", "p")
+			assert.Equal(t, componentID("Target"), p.Type.Target, "a carrier hoists no alias for its siblings")
+			for _, kw := range carrierDocKeywords() {
+				want := "REF-" + kw.name
+				if kw.name == site.name {
+					want = "SITE"
+				}
+				assert.Equal(t, want, kw.read(p.Docs), "%s, with %s written at the site", kw.name, site.name)
+			}
+		})
+	}
+}
+
+// TestInlinePosition_HoistGateFollowsWhatIsKept walks every keyword that only a
+// node of its own can hold, one at a time, and requires each to give the
+// position that node. The gate and the two things that fill it —
+// attachDeclaredAnnotations and internAlias — have to agree keyword for
+// keyword: one listed here but stored nowhere hoists an empty node, and one
+// stored but missing here is still dropped.
+func TestInlinePosition_HoistGateFollowsWhatIsKept(t *testing.T) {
+	t.Parallel()
+	cases := []struct{ name, keyword string }{
+		{"title", "title: T"},
+		{"externalDocs", "externalDocs: {url: 'https://e.example'}"},
+		{"deprecated", "deprecated: true"},
+		{"xml", "xml: {name: X}"},
+		{"extension", "x-vendor: V"},
+		{"example", "example: a"},
+		{"examples", "examples: [a]"},
+		{"minimum", "minimum: 1"},
+		{"maximum", "maximum: 9"},
+		{"multipleOf", "multipleOf: 2"},
+		{"exclusiveMinimum", "exclusiveMinimum: 1"},
+		{"exclusiveMaximum", "exclusiveMaximum: 9"},
+		{"minLength", "minLength: 1"},
+		{"maxLength", "maxLength: 9"},
+		{"pattern", "pattern: '^a'"},
+		{"minProperties", "minProperties: 1"},
+		{"maxProperties", "maxProperties: 9"},
+		{"not", "not: {const: N}"},
+		{"contains", "contains: {type: string}"},
+		{"minContains", "minContains: 1"},
+		{"maxContains", "maxContains: 9"},
+		{"if", "if: {const: a}"},
+		{"then", "then: {const: a}"},
+		{"else", "else: {const: a}"},
+		{"dependentSchemas", "dependentSchemas: {a: {type: string}}"},
+		{"propertyNames", "propertyNames: {maxLength: 4}"},
+		{"unevaluatedItems", "unevaluatedItems: {type: string}"},
+		{"unevaluatedProperties", "unevaluatedProperties: {type: string}"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			doc, diags := parseFull(t, componentSpec(
+				"    A: {type: array, items: {type: string, "+tc.keyword+"}}\n"))
+			requireNoErrorDiags(t, diags)
+			assert.Contains(t, doc.Types, ir.TypeID("t/anon/components/schemas/A/items"),
+				"%s binds the position it is written at, so the position must own a node", tc.keyword)
+		})
+	}
+}
+
+// TestInlinePosition_KeywordsWithNoNodeHomeStaySilent is the negative half of
+// that gate. These three keywords have no field on any type node — a default
+// and a visibility flag have none on TypeCommon, and a `false`
+// unevaluatedProperties is model openness rather than a preserved keyword — so
+// hoisting for them would produce a node holding nothing.
+func TestInlinePosition_KeywordsWithNoNodeHomeStaySilent(t *testing.T) {
+	t.Parallel()
+	cases := []struct{ name, keyword string }{
+		{"none", "type: string"},
+		{"default", "type: string, default: a"},
+		{"readOnly", "type: string, readOnly: true"},
+		{"unevaluatedProperties-false", "type: string, unevaluatedProperties: false"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			doc, diags := parseFull(t, componentSpec(
+				"    A: {type: array, items: {"+tc.keyword+"}}\n"))
+			requireNoErrorDiags(t, diags)
+			assert.NotContains(t, doc.Types, ir.TypeID("t/anon/components/schemas/A/items"))
+			list, ok := doc.Types[componentID("A")].(*ir.List)
+			require.True(t, ok)
+			assert.Equal(t, ir.TypeID("t/prim/string"), list.Elem.Target)
+		})
+	}
 }

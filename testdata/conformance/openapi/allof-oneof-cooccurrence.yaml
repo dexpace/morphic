@@ -1,0 +1,41 @@
+openapi: 3.1.0
+info: {title: AllOfOneOfCooccurrence, version: "1.0.0"}
+paths: {}
+components:
+  schemas:
+    Base:
+      type: object
+      properties:
+        id: {type: string}
+    A:
+      type: object
+      properties:
+        a: {type: string}
+    B:
+      type: object
+      properties:
+        b: {type: string}
+    # allOf and oneOf at one level conjoin: the value satisfies Base AND exactly
+    # one of A/B. Both sides must survive (reference-learnings B11).
+    Combo:
+      allOf:
+        - {$ref: '#/components/schemas/Base'}
+      oneOf:
+        - {$ref: '#/components/schemas/A'}
+        - {$ref: '#/components/schemas/B'}
+    # An inline branch names no referent to conjoin Base with, so this union is
+    # kept verbatim instead of half-distributed (ir-design 4.8).
+    MixedKinds:
+      type: object
+      properties:
+        kind: {type: string}
+      oneOf:
+        - {$ref: '#/components/schemas/A'}
+        - {type: string}
+    # A branch pointer denotes the branch schema, and a reference to it must get
+    # that schema — not the variant Morphic composes for the same branch, which
+    # is a node of its own with no pointer a $ref can name.
+    Outsider:
+      type: object
+      properties:
+        branch: {$ref: '#/components/schemas/Combo/oneOf/0'}

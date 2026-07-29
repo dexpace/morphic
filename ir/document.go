@@ -2,7 +2,20 @@ package ir
 
 // IRVersion is the semver of the IR schema itself. Compilers stamp it into
 // Document.IRVersion; consumers compare against it to detect schema drift.
-const IRVersion = "0.1.0"
+//
+// It names a schema generation, not a commit. A line of work that changes the
+// JSON shape several times bumps it once, where it lands on main, rather than
+// once per change: a version that moves within an unmerged branch tells a
+// consumer nothing and rewrites every golden each time it moves. Pre-1.0 is no
+// exemption from moving it at all — a shape change that reaches main without a
+// bump leaves a consumer pinned to the old version accepting a document it
+// cannot read, which is the one thing this constant exists to prevent.
+//
+// 0.2.0 covers three shape changes made together: Extensions became Preserved
+// with RawConfig split out, Content.ItemEncoding became a single encoding
+// rather than a sentinel-keyed map, and the diagnostic code
+// pass/dangling-auth-ref became ir/dangling-auth-ref (see pass's package doc).
+const IRVersion = "0.2.0"
 
 // TypeRegistry is the flat, ID-keyed owner of every TypeDef in a Document
 // (ir-design §2, §4); every other node references types by TypeID. JSON
@@ -47,8 +60,8 @@ type Document struct {
 	TagDefs []TagDef `json:"tagDefs,omitempty"`
 	// Versions holds the ordered version labels when availability metadata is used.
 	Versions []string `json:"versions,omitempty"`
-	// Extensions carries source metadata without a first-class IR node.
-	Extensions Extensions `json:"extensions,omitempty"`
+	// Preserved holds source constructs the IR does not model, kept verbatim.
+	Preserved Preserved `json:"preserved,omitempty"`
 	// Diagnostics is accumulated by the compiler and passes; not part of API
 	// meaning.
 	Diagnostics []Diagnostic `json:"diagnostics,omitempty"`

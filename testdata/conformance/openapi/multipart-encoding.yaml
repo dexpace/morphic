@@ -15,7 +15,23 @@ paths:
                   type: array
                   items: {type: string}
             encoding:
-              file: {contentType: image/png}
+              file:
+                contentType: image/png
+                headers:
+                  X-Part-Id:
+                    description: per-part correlation id
+                    required: true
+                    schema: {type: string, format: uuid}
+                  X-Part-Checksum: {$ref: '#/components/headers/PartChecksum'}
       responses:
         "200":
           description: ok
+components:
+  schemas:
+    Digest:
+      type: string
+      pattern: '^[0-9a-f]{64}$'
+  headers:
+    PartChecksum:
+      description: sha-256 digest of this part
+      schema: {$ref: '#/components/schemas/Digest'}

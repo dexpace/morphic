@@ -59,7 +59,7 @@ func TestHTTPBinding_JSONContract(t *testing.T) {
 			Callbacks: []ir.Callback{
 				{Expression: "$request.body#/callbackUrl", Operations: []ir.OpID{"op/callback"}},
 			},
-			Extensions: populatedExtensions(),
+			Preserved: populatedPreserved(),
 		})
 }
 
@@ -144,7 +144,7 @@ func TestRPCBinding_JSONContract(t *testing.T) {
 		InputType:        &ir.TypeRef{Target: "t/request", Nullable: false},
 		ParamStructure:   "by_position",
 		IdempotencyLevel: "idempotent",
-		Extensions:       populatedExtensions(),
+		Preserved:        populatedPreserved(),
 	})
 }
 
@@ -164,11 +164,11 @@ func TestMessageBinding_JSONContract(t *testing.T) {
 			Messages: []ir.MessageID{"m/OrderConfirmed"},
 			Docs:     populatedDocs(),
 		},
-		Bindings: map[string]ir.Extensions{
+		Bindings: map[string]ir.RawConfig{
 			"kafka": {"groupId": ir.RawValue(`"g1"`)},
 			"amqp":  {"exchange": ir.RawValue(`"orders"`)},
 		},
-		Extensions: populatedExtensions(),
+		Preserved: populatedPreserved(),
 	})
 }
 
@@ -213,9 +213,9 @@ func TestReply_JSONContract(t *testing.T) {
 func TestGraphQLBinding_JSONContract(t *testing.T) {
 	t.Parallel()
 	assertJSONContract(t, ir.GraphQLBinding{}, `{}`, ir.GraphQLBinding{
-		Kind:       "subscription",
-		FieldPath:  []string{"namespace", "onUserSignup"},
-		Extensions: populatedExtensions(),
+		Kind:      "subscription",
+		FieldPath: []string{"namespace", "onUserSignup"},
+		Preserved: populatedPreserved(),
 	})
 }
 
@@ -229,6 +229,6 @@ func TestOTPBinding_JSONContract(t *testing.T) {
 		Kind:       "call",
 		Process:    "c/otp/worker",
 		RequestTag: &ir.Value{Kind: ir.ValueSymbol, Str: "get"},
-		Extensions: populatedExtensions(),
+		Preserved:  populatedPreserved(),
 	})
 }

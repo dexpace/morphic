@@ -28,7 +28,7 @@ const (
 	// still proceeds, and every cycle the scan did classify is still caught.
 	codeCycleScanFailed = "openapi/cycle-scan-failed"
 	// codeValidationOnlyKeyword reports a validation-only JSON Schema keyword
-	// preserved verbatim in Extensions (ir-design §4.7).
+	// kept verbatim under Preserved (ir-design §4.7).
 	codeValidationOnlyKeyword = "openapi/validation-only-keyword"
 	// codeFalseSchema reports a boolean `false` schema (matches nothing).
 	codeFalseSchema = "openapi/false-schema"
@@ -47,6 +47,12 @@ const (
 	// default or example — dropped. It marks the lossy lowerings the compiler
 	// reports, not a guarantee that every lossy lowering is reported.
 	codeDegradedConstruct = "openapi/degraded-construct"
+	// codeCompositionLowering reports that a schema conjoining a structural body
+	// with a oneOf/anyOf was lowered by distributing the body across the union
+	// variants (ir-design §4.3, §4.8). Nothing is lost, so this records a
+	// decision rather than a degradation: the IR's shape no longer mirrors the
+	// source's, which is what a reader comparing the two needs told.
+	codeCompositionLowering = "openapi/composition-lowering"
 	// codeConflictingRedecl reports that inline allOf branches redeclare one
 	// field with values that disagree: an incompatible target type (string vs.
 	// integer) is unsatisfiable outright, while a conflicting constraint
@@ -68,6 +74,13 @@ const (
 	// attach to (ir-design §4.3: Properties holds only own properties, and
 	// flattening across Base/Mixins is computed, never stored).
 	codeUnattachableRequired = "openapi/unattachable-required"
+	// codeInternalInvariant reports that lowering's own pointer-to-registry
+	// invariant broke: a pointer named a type ID the registry does not hold, so
+	// whatever was about to be attached there had nowhere to go. No source can
+	// provoke this — it is a compiler bug — but it is reported rather than
+	// dropped in silence, since the alternative is losing constructs with no
+	// trace at all.
+	codeInternalInvariant = "openapi/internal-invariant"
 	// codeDuplicateOperationID reports an operationId claimed by more than one
 	// operation, which OpenAPI forbids. A path item mounted at two paths is the
 	// shape that reaches this without the document repeating the id in source.

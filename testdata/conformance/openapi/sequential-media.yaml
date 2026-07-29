@@ -1,0 +1,31 @@
+openapi: 3.2.0
+info: {title: SequentialMedia, version: "1.0.0"}
+paths:
+  /events:
+    get:
+      operationId: streamEvents
+      responses:
+        "200":
+          description: ok
+          content:
+            multipart/mixed:
+              itemSchema:
+                type: object
+                properties:
+                  id: {type: string}
+              itemEncoding: {contentType: application/json}
+  /parts:
+    get:
+      operationId: streamParts
+      responses:
+        "200":
+          description: ok
+          content:
+            multipart/mixed:
+              itemSchema:
+                type: object
+                properties:
+                  body: {type: string}
+              prefixEncoding:
+                - contentType: application/json
+              itemEncoding: {contentType: text/plain}

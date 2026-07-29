@@ -47,8 +47,8 @@ func TestErrorExample_JSONContract(t *testing.T) {
 // TestExample_JSONContract pins that every Example field is optional, since a
 // legal Example populates only one contextual arm — Value/Headers or
 // Input/Output/Error (ir-design §12). The fixture below sets both arms at
-// once purely to exercise every field in one fixture; arm legality is
-// validated elsewhere, this test only pins serialization.
+// once purely to exercise every field in one fixture; nothing currently
+// checks arm legality, so this test only pins serialization.
 func TestExample_JSONContract(t *testing.T) {
 	t.Parallel()
 	val := ir.Value{Kind: ir.ValueString, Str: "example value"}
@@ -65,6 +65,6 @@ func TestExample_JSONContract(t *testing.T) {
 			Content: val,
 		},
 		ExternalURL: "https://example.com/examples/1",
-		Extensions:  populatedExtensions(),
+		Preserved:   populatedPreserved(),
 	})
 }

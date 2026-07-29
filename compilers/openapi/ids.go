@@ -41,6 +41,17 @@ func namedTypeID(pointer string) ir.TypeID { return ir.TypeID("t/openapi" + poin
 // anonTypeID returns the stable ID of a hoisted inline type at pointer.
 func anonTypeID(pointer string) ir.TypeID { return ir.TypeID("t/anon" + pointer) }
 
+// composedTypeID returns the stable ID of the Model synthesized for the
+// distributed union variant at a branch pointer (§4.3). It is a namespace of
+// its own because no schema in the source occupies that node: the branch
+// pointer denotes the branch schema, so a $ref naming it must keep resolving to
+// the branch, and the variant must not be reachable by any pointer a $ref can
+// spell. typeIDForPointer yields only the t/openapi and t/anon namespaces, so
+// resolveSchemaRef can never hand a t/composed ID to a reference.
+func composedTypeID(branchPointer string) ir.TypeID {
+	return ir.TypeID("t/composed" + branchPointer)
+}
+
 // primTypeID returns the interned ID of primitive kind k.
 func primTypeID(k ir.PrimKind) ir.TypeID { return ir.TypeID("t/prim/" + string(k)) }
 

@@ -83,8 +83,8 @@ type HTTPBinding struct {
 	IsWebhook bool `json:"isWebhook"`
 	// Callbacks are out-of-band operations keyed by runtime expressions.
 	Callbacks []Callback `json:"callbacks,omitempty"`
-	// Extensions carries source metadata without a first-class IR node.
-	Extensions Extensions `json:"extensions,omitempty"`
+	// Preserved holds source constructs the IR does not model, kept verbatim.
+	Preserved Preserved `json:"preserved,omitempty"`
 }
 
 // RequestCompression declares required request-body compression encodings
@@ -157,8 +157,8 @@ type RPCBinding struct {
 	ParamStructure string `json:"paramStructure,omitempty"`
 	// IdempotencyLevel is the RPC-declared idempotency level.
 	IdempotencyLevel string `json:"idempotencyLevel,omitempty"`
-	// Extensions carries source metadata without a first-class IR node.
-	Extensions Extensions `json:"extensions,omitempty"`
+	// Preserved holds source constructs the IR does not model, kept verbatim.
+	Preserved Preserved `json:"preserved,omitempty"`
 }
 
 // MsgDirection is the application-perspective direction of a MessageBinding
@@ -179,17 +179,18 @@ type MessageBinding struct {
 	Channel ChannelID `json:"channel,omitempty"`
 	// Direction is send | receive (application perspective).
 	Direction MsgDirection `json:"direction,omitempty"`
-	// Messages are which of the channel's messages this operation uses (must be a
-	// subset — validated).
+	// Messages are which of the channel's messages this operation uses (should be
+	// a subset of the channel's own Messages; only resolution against the
+	// document-wide registry is currently checked).
 	Messages []MessageID `json:"messages,omitempty"`
 	// Reply carries request-reply semantics; nil = none. A send-op with no Reply
 	// and no Responses is one-way (set Operation.OneWay).
 	Reply *Reply `json:"reply,omitempty"`
 	// Bindings holds operation-level protocol bindings kept raw (kafka
 	// groupId/clientId — constrain SDK client config).
-	Bindings map[string]Extensions `json:"bindings,omitempty"`
-	// Extensions carries source metadata without a first-class IR node.
-	Extensions Extensions `json:"extensions,omitempty"`
+	Bindings map[string]RawConfig `json:"bindings,omitempty"`
+	// Preserved holds source constructs the IR does not model, kept verbatim.
+	Preserved Preserved `json:"preserved,omitempty"`
 }
 
 // Reply describes request-reply semantics of a MessageBinding (ir-design §8.3).
@@ -213,8 +214,8 @@ type GraphQLBinding struct {
 	Kind string `json:"kind,omitempty"`
 	// FieldPath is the entry-point field (nesting for namespaced schemas).
 	FieldPath []string `json:"fieldPath,omitempty"`
-	// Extensions carries source metadata without a first-class IR node.
-	Extensions Extensions `json:"extensions,omitempty"`
+	// Preserved holds source constructs the IR does not model, kept verbatim.
+	Preserved Preserved `json:"preserved,omitempty"`
 }
 
 // OTPBinding maps an Operation onto an Erlang/OTP behaviour callback
@@ -232,6 +233,6 @@ type OTPBinding struct {
 	// RequestTag is the tag of the request tuple (a symbol Value, e.g. 'get');
 	// nil = the whole term is the request.
 	RequestTag *Value `json:"requestTag,omitempty"`
-	// Extensions carries source metadata without a first-class IR node.
-	Extensions Extensions `json:"extensions,omitempty"`
+	// Preserved holds source constructs the IR does not model, kept verbatim.
+	Preserved Preserved `json:"preserved,omitempty"`
 }

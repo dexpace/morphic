@@ -182,7 +182,7 @@ func TestParams_AllLocationsAndStyles(t *testing.T) {
 	assert.True(t, logical["id"].Required, "path param always required")
 	require.NotNil(t, logical["q"].Deprecation)
 	assert.NotEmpty(t, logical["q"].Examples)
-	assert.NotEmpty(t, logical["filter"].Extensions)
+	assert.NotEmpty(t, logical["filter"].Preserved)
 	require.NotNil(t, logical["q"].Constraints)
 
 	assert.True(t, hasDiagAt(diags, codeDegradedConstruct, ir.SeverityWarning), "malformed param default warns")
@@ -294,4 +294,76 @@ func TestParams_ContentStyleComponentRefInternsOnce(t *testing.T) {
 	_, ok := doc.Types[wantID]
 	require.True(t, ok, "the schema is registered under the component's own pointer")
 	assert.Equal(t, "application/json", getA.Bindings.HTTP[0].ParamBindings[0].ContentType)
+}
+
+// TestParams_SchemaAnnotationsReachTheParameter asserts a parameter schema's
+// annotations land on the ir.Parameter that carries the position. Only its
+// constraints used to survive; the rest were dropped with no diagnostic even
+// though Parameter has Docs, Examples and Preserved (GitHub #116).
+func TestParams_SchemaAnnotationsReachTheParameter(t *testing.T) {
+	t.Parallel()
+	_, svc, diags := lowerServiceSpec(t, pathsSpec(
+		"  /x:\n    get:\n      operationId: g\n      parameters:\n"+
+			"        - name: q\n          in: query\n          schema: "+inlineProbeBody+"\n"+
+			"      responses: {\"204\": {description: ok}}\n"))
+	requireNoErrorDiags(t, diags)
+
+	p := firstOp(t, svc).Params[0]
+	assertProbeDocsKept(t, p.Docs)
+	assert.NotNil(t, p.Deprecation)
+	assertProbeExample(t, p.Examples)
+	assert.Contains(t, p.Preserved, "openapi:x-vendor")
+	assert.Contains(t, p.Preserved, "openapi:not")
+	require.NotNil(t, p.Constraints)
+	require.NotNil(t, p.Constraints.MaxLength)
+	assert.Equal(t, int64(3), *p.Constraints.MaxLength)
+}
+
+// TestParams_SchemaAnnotationsSurviveARefNamingTheSchema pins the parameter
+// half of the pointer collision. A $ref can name a parameter's schema pointer,
+// which hoists a node there — and components lower before paths, so that node
+// always exists by the time the parameter is reached. Reading it as the
+// declaration's home cost every parameter in this shape all of its schema
+// annotations, in the only order there is.
+func TestParams_SchemaAnnotationsSurviveARefNamingTheSchema(t *testing.T) {
+	t.Parallel()
+	doc, svc, diags := lowerServiceSpec(t,
+		"openapi: 3.1.0\ninfo: {title: T, version: \"1\"}\npaths:\n"+
+			"  /x:\n    get:\n      operationId: g\n      parameters:\n"+
+			"        - name: q\n          in: query\n          schema: "+inlineProbeBody+"\n"+
+			"      responses: {\"204\": {description: ok}}\n"+
+			"components:\n  schemas:\n"+
+			"    Outsider: {$ref: '#/paths/~1x/get/parameters/0/schema'}\n")
+	requireNoErrorDiags(t, diags)
+
+	p := firstOp(t, svc).Params[0]
+	assert.Equal(t, ir.TypeID("t/prim/string"), p.Type.Target,
+		"the parameter's own type is unchanged by the outside reference")
+	assertProbeDocsKept(t, p.Docs)
+	assert.NotNil(t, p.Deprecation)
+	assert.Contains(t, p.Preserved, "openapi:x-vendor")
+	assert.Contains(t, p.Preserved, "openapi:not")
+
+	sc, ok := doc.Types["t/anon/paths/~1x/get/parameters/0/schema"].(*ir.Scalar)
+	require.True(t, ok, "and the referenced pointer still names the schema written there")
+	assertProbeDocsKept(t, sc.Docs)
+}
+
+// TestParams_OwnAnnotationsWinOverTheSchema checks the precedence a parameter
+// shares with a header: the parameter object describes this input, its schema
+// describes the type, and the more specific of the two wins.
+func TestParams_OwnAnnotationsWinOverTheSchema(t *testing.T) {
+	t.Parallel()
+	_, svc, diags := lowerServiceSpec(t, pathsSpec(
+		"  /x:\n    get:\n      operationId: g\n      parameters:\n"+
+			"        - name: q\n          in: query\n          description: PARAM\n"+
+			"          x-scope: param\n          schema: {type: string, description: SCHEMA, x-scope: schema}\n"+
+			"      responses: {\"204\": {description: ok}}\n"))
+	requireNoErrorDiags(t, diags)
+
+	p := firstOp(t, svc).Params[0]
+	assert.Equal(t, "PARAM", p.Docs.Description, "the parameter's own description wins")
+	raw, ok := p.Preserved["openapi:x-scope"]
+	require.True(t, ok)
+	assert.JSONEq(t, `"param"`, string(raw.Value), "and its own extension overlays the schema's")
 }

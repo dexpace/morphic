@@ -173,9 +173,10 @@ func TestContent_NonRequiredRequestBody(t *testing.T) {
 	requireNoErrorDiags(t, diags)
 	op := firstOp(t, svc)
 	require.NotNil(t, op.Request, "a non-required body still lowers to a present Payload")
-	raw, ok := op.Request.Extensions["openapi:required"]
-	require.True(t, ok, "body optionality preserved under extensions")
-	assert.Equal(t, "false", string(raw))
+	raw, ok := op.Request.Preserved["openapi:required"]
+	require.True(t, ok, "body optionality kept under Preserved")
+	assert.Equal(t, "false", string(raw.Value))
+	assert.Equal(t, ir.ReasonNoIRHome, raw.Reason)
 	found := false
 	for _, d := range diags {
 		if d.Severity == ir.SeverityInfo && strings.Contains(d.Message, "request body") {
@@ -284,9 +285,9 @@ func TestContent_FullPipeline(t *testing.T) {
 	doc, diags := parseFull(t, contentSpec)
 	upload := findOp(t, doc, "upload")
 
-	// Non-required body preserved as present with optionality under extensions.
+	// Non-required body preserved as present with optionality under Preserved.
 	require.NotNil(t, upload.Request)
-	_, hasReq := upload.Request.Extensions["openapi:required"]
+	_, hasReq := upload.Request.Preserved["openapi:required"]
 	assert.True(t, hasReq, "non-required optionality preserved")
 
 	// Multipart encoding: comma-split content types, header, style/explode, file flag.
@@ -311,7 +312,7 @@ func TestContent_FullPipeline(t *testing.T) {
 	assert.Len(t, resp.Payload.Contents, 2)
 	assert.GreaterOrEqual(t, len(resp.Payload.Contents[0].Examples), 2)
 	assert.NotEmpty(t, resp.Headers)
-	_, hasLinks := resp.Extensions["openapi:links"]
+	_, hasLinks := resp.Preserved["openapi:links"]
 	assert.True(t, hasLinks)
 
 	assert.True(t, hasDiag(diags, codeDegradedConstruct))
@@ -329,11 +330,11 @@ func TestContent_OctetAndErrorMulti(t *testing.T) {
 	require.NotEmpty(t, raw.Errors)
 	var multi ir.ErrorCase
 	for _, ec := range raw.Errors {
-		if len(ec.Extensions) > 0 {
+		if len(ec.Preserved) > 0 {
 			multi = ec
 		}
 	}
-	_, hasContent := multi.Extensions["openapi:content"]
+	_, hasContent := multi.Preserved["openapi:content"]
 	assert.True(t, hasContent, "multi-media error content preserved")
 }
 
@@ -345,8 +346,9 @@ func TestContent_SequentialAndEmptyBody(t *testing.T) {
 	require.NotNil(t, resp.Payload)
 	c := resp.Payload.Contents[0]
 	require.NotNil(t, c.Item, "itemSchema becomes the element type")
-	_, hasItemEnc := c.Extensions["openapi:itemEncoding"]
-	assert.True(t, hasItemEnc, "itemEncoding preserved")
+	require.NotNil(t, c.ItemEncoding, "itemEncoding lowered structurally")
+	assert.Equal(t, []string{"application/json"}, c.ItemEncoding.ContentTypes)
+	assert.True(t, c.ItemEncoding.Multi, "itemEncoding governs a repeated tail")
 
 	// Empty request-body content yields no Request payload.
 	empty := findOp(t, doc, "emptyBody")
@@ -536,14 +538,85 @@ func TestContentTypeKeys_Nil(t *testing.T) {
 	assert.Nil(t, contentTypeKeys(nil))
 }
 
-func TestFillSequential_ItemEncodingWithoutRootNode(t *testing.T) {
+func TestFillSequential_EmptyItemEncoding(t *testing.T) {
 	t.Parallel()
 	l := newRawLowerer(&soa.OpenAPI{})
 	c := &ir.Content{}
 	media := &soa.MediaType{ItemEncoding: &soa.Encoding{}}
 	l.fillSequential(c, media, "/mp", "h")
-	assert.Nil(t, c.Extensions, "itemEncoding with no raw node is dropped")
+	assert.Equal(t, &ir.PartEncoding{Multi: true}, c.ItemEncoding,
+		"a config-free itemEncoding still records that the tail repeats")
+	assert.Nil(t, c.Preserved, "nothing is preserved raw")
 	assert.Empty(t, l.diags)
+}
+
+func TestEncodingConfig_NilEncoding(t *testing.T) {
+	t.Parallel()
+	l := newRawLowerer(&soa.OpenAPI{})
+	assert.Equal(t, ir.PartEncoding{}, l.encodingConfig(nil, "/mp"))
+}
+
+// positionalEncodingSpec declares the 3.2 shape ItemEncoding cannot state:
+// prefixEncoding fixes the encoding of the leading items, so the itemEncoding
+// beside it governs only the tail after them, not every item.
+const positionalEncodingSpec = `openapi: 3.2.0
+info: {title: T, version: "1"}
+paths:
+  /mixed:
+    get:
+      operationId: mixed
+      responses:
+        "200":
+          description: ok
+          content:
+            multipart/mixed:
+              itemSchema: {type: object, properties: {a: {type: string}}}
+              prefixEncoding:
+                - contentType: application/json
+                - contentType: application/xml
+              itemEncoding: {contentType: text/plain}
+`
+
+func TestContent_PositionalPrefixEncodingIsPreserved(t *testing.T) {
+	t.Parallel()
+	doc, diags := parseFull(t, positionalEncodingSpec)
+	c := findOp(t, doc, "mixed").Responses[0].Payload.Contents[0]
+
+	assert.Nil(t, c.ItemEncoding, "positional prefixes rule out an every-item encoding")
+	prefix, ok := c.Preserved["openapi:prefixEncoding"]
+	require.True(t, ok, "prefixEncoding kept verbatim; got %v", c.Preserved)
+	assert.Equal(t, ir.ReasonNoIRHome, prefix.Reason)
+	assert.JSONEq(t, `[{"contentType": "application/json"}, {"contentType": "application/xml"}]`,
+		string(prefix.Value))
+	item, ok := c.Preserved["openapi:itemEncoding"]
+	require.True(t, ok, "the tail encoding is kept beside the prefixes it follows")
+	assert.JSONEq(t, `{"contentType": "text/plain"}`, string(item.Value))
+	assertHasCode(t, diags, codeDegradedConstruct, ir.SeverityInfo)
+}
+
+func TestFillSequential_PrefixEncodingWithoutItemEncoding(t *testing.T) {
+	t.Parallel()
+	spec := strings.ReplaceAll(positionalEncodingSpec, "              itemEncoding: {contentType: text/plain}\n", "")
+	doc, diags := parseFull(t, spec)
+	c := findOp(t, doc, "mixed").Responses[0].Payload.Contents[0]
+
+	assert.Nil(t, c.ItemEncoding)
+	_, ok := c.Preserved["openapi:prefixEncoding"]
+	assert.True(t, ok, "prefixEncoding alone is still reported rather than dropped")
+	_, ok = c.Preserved["openapi:itemEncoding"]
+	assert.False(t, ok, "no itemEncoding was declared, so none is recorded")
+	assertHasCode(t, diags, codeDegradedConstruct, ir.SeverityInfo)
+}
+
+func TestPositionalEncoding_WithoutRootNode(t *testing.T) {
+	t.Parallel()
+	l := newRawLowerer(&soa.OpenAPI{})
+	c := &ir.Content{}
+	media := &soa.MediaType{PrefixEncoding: []*soa.Encoding{{}}, ItemEncoding: &soa.Encoding{}}
+	l.fillSequential(c, media, "/mp", "h")
+	assert.Nil(t, c.ItemEncoding, "prefixes still block the every-item lowering")
+	assert.Nil(t, c.Preserved, "a media type with no source node has nothing verbatim to keep")
+	assertHasCode(t, l.diags, codeDegradedConstruct, ir.SeverityInfo)
 }
 
 func TestBodySchemaPointer_ExternalRefNoFragment(t *testing.T) {
@@ -782,4 +855,86 @@ func TestContent_EncodingHeaderRefInternsAtDeclaration(t *testing.T) {
 		headers[0].ID, "the encoding entry that binds the name keeps the header's identity")
 	assert.Equal(t, headers[0].Provenance.Pointer, string(headers[0].ID)[len("p/openapi"):],
 		"provenance tracks the same use-site pointer as the ID")
+}
+
+// TestHeaders_SchemaDetailReachesTheProperty asserts a header's schema is read
+// with the same detail a model property's is. lowerHeaders built an ir.Property
+// and never filled it, so a header schema dropped its docs, xml, extensions,
+// validation-only keywords and value constraints even though ir.Property has a
+// field for each (GitHub #116).
+func TestHeaders_SchemaDetailReachesTheProperty(t *testing.T) {
+	t.Parallel()
+	_, svc, diags := lowerServiceSpec(t, pathsSpec(
+		"  /x:\n    get:\n      operationId: g\n      responses:\n"+
+			"        \"200\":\n          description: ok\n          headers:\n"+
+			"            X-H: {schema: "+inlineProbeBody+"}\n"))
+	requireNoErrorDiags(t, diags)
+
+	h := firstOp(t, svc).Responses[0].Headers[0]
+	assertProbeDocsKept(t, h.Docs)
+	assert.NotNil(t, h.Deprecation)
+	assertProbeExample(t, h.Examples)
+	require.NotNil(t, h.XML)
+	assert.Equal(t, "X", h.XML.Name)
+	assert.Contains(t, h.Preserved, "openapi:x-vendor")
+	assert.Contains(t, h.Preserved, "openapi:not")
+	require.NotNil(t, h.Constraints)
+	require.NotNil(t, h.Constraints.MaxLength)
+	assert.Equal(t, int64(3), *h.Constraints.MaxLength)
+}
+
+// TestHeaders_OwnAnnotationsOverrideTheSchema checks the precedence between the
+// two annotation sources a header has: what the header object writes about
+// itself is more specific than what its schema writes about the type, so it
+// wins where both are set.
+//
+// Every annotation applyHeaderAnnotations can override is written on both sides
+// here, with a value naming the side it came from. A keyword only one side
+// declares proves nothing about precedence: it reaches the header in either
+// overlay order, so the assertion over it passes whichever side wins.
+func TestHeaders_OwnAnnotationsOverrideTheSchema(t *testing.T) {
+	t.Parallel()
+	_, svc, diags := lowerServiceSpec(t, pathsSpec(
+		"  /x:\n    get:\n      operationId: g\n      responses:\n"+
+			"        \"200\":\n          description: ok\n          headers:\n"+
+			"            X-H:\n              description: HEADER\n              example: HEADER\n"+
+			"              x-scope: header\n              schema:\n"+
+			"                {type: string, description: SCHEMA, example: SCHEMA, x-scope: schema}\n"))
+	requireNoErrorDiags(t, diags)
+
+	h := firstOp(t, svc).Responses[0].Headers[0]
+	assert.Equal(t, "HEADER", h.Docs.Description, "the header's own description wins")
+	require.Len(t, h.Examples, 1, "and its own example replaces the schema's rather than joining it")
+	require.NotNil(t, h.Examples[0].Value)
+	assert.Equal(t, "HEADER", h.Examples[0].Value.Str)
+	require.Contains(t, h.Preserved, "openapi:x-scope")
+	assert.JSONEq(t, `"header"`, string(h.Preserved["openapi:x-scope"].Value),
+		"and its own value for a vendor key the schema also writes")
+}
+
+// TestHeaders_DeprecationUnionsWithTheSchema pins the one annotation a header
+// does not override. Both overlays only ever set the flag, so `deprecated`
+// written on either side deprecates the header and neither side can clear the
+// other: a header's own `deprecated: false` does not un-deprecate a type its
+// schema marks deprecated. That is a union rather than the precedence the test
+// above covers, which is why deprecation is asserted here and not there.
+func TestHeaders_DeprecationUnionsWithTheSchema(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct{ name, header, schema string }{
+		{"declared on the header, denied by the schema", "true", "false"},
+		{"declared on the schema, denied by the header", "false", "true"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			_, svc, diags := lowerServiceSpec(t, pathsSpec(
+				"  /x:\n    get:\n      operationId: g\n      responses:\n"+
+					"        \"200\":\n          description: ok\n          headers:\n"+
+					"            X-H:\n              deprecated: "+tc.header+"\n"+
+					"              schema: {type: string, deprecated: "+tc.schema+"}\n"))
+			requireNoErrorDiags(t, diags)
+
+			h := firstOp(t, svc).Responses[0].Headers[0]
+			assert.NotNil(t, h.Deprecation, "either side alone deprecates the header")
+		})
+	}
 }

@@ -96,11 +96,12 @@ Legend: ✅ native concept · ⚠ expressible indirectly · — absent
    Avro ordinals start at 0), and union *variants* need wire names too (Smithy `@jsonName` on
    union members). Generators derive language names; the IR never stores camelCase/PascalCase
    variants.
-6. **Extensions are preserved, namespaced by origin** (`openapi:x-foo`, `smithy:aws.api#arn`,
-   `graphql:@key`), so no source metadata is lost and later generators can opt into them. The
-   escape hatch only holds if *every* node that can carry source metadata has an extensions
-   slot — new spec revisions land fields on exactly the objects one forgets (responses, examples,
-   security schemes, server variables).
+6. **Unmodeled constructs are preserved, namespaced by origin** (`openapi:x-foo`,
+   `smithy:aws.api#arn`, `graphql:@key`), so no source metadata is lost and later generators can
+   opt into them. Each entry records why it was kept and where it came from. The escape hatch
+   only holds if *every* node that can carry source metadata has a `Preserved` slot — new spec
+   revisions land fields on exactly the objects one forgets (responses, examples, security
+   schemes, server variables).
 7. **GraphQL's parameterized fields and selection sets** don't map to fixed operations; the IR
    models schema entry-points as operations with arguments, and keeps the full type graph so a
    generator can offer query-building. This is deliberately lossy for arbitrary client queries —

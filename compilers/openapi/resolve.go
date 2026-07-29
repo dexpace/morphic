@@ -38,10 +38,11 @@ func (k siteKind) String() string {
 //
 // The split lets an annotation be read from where it was written rather than
 // wherever the $ref resolves to, with a fallback to Referent for annotations
-// meant to inherit from the target. Kind and Referent have no production
-// reader yet, but GitHub #114 tracks fixing the annotation gaps where the
-// scalar-alias path never runs the annotation readers — and those readers,
-// effectiveDescription(ref, tgt) and its siblings, take a referent.
+// meant to inherit from the target. Only Node has a production reader: a
+// declaration's annotations bind the position they are written at
+// (attachDeclaredAnnotations), and a component that aliases another keeps the
+// target's own annotations reachable through its Base rather than copying
+// them. Kind and Referent are for a reader that does want to inherit.
 // fillPropertyDetail (schema.go) instead falls back via refTargetSchema,
 // which follows a $ref chain to its end (GetResolvedSchema) rather than one
 // hop (GetReferenceResolutionInfo, what Referent uses). The two are not
@@ -84,7 +85,7 @@ func siteAt(js *oas3.JSONSchema[oas3.Referenceable]) site {
 
 // siteSchema returns the schema body written at this position, including one
 // that also carries a $ref — an example or bound written beside a $ref binds
-// the position, not the referent, the same rule fillPropertyExamples and
+// the position, not the referent, the same rule fillPropertyAnnotations and
 // fillPropertyConstraints apply at a property. It returns nil only where no
 // body is written: a nil either, or a boolean schema, which admits no
 // annotations.
@@ -99,11 +100,49 @@ func siteSchema(js *oas3.JSONSchema[oas3.Referenceable]) *oas3.Schema {
 	return js.GetSchema()
 }
 
+// annotationHome names where the annotations a schema position declares are
+// kept. It is what decides whether a position that lowered to a shared node
+// hoists one of its own, so the two homes can never both hold the same
+// declaration (GitHub #116).
+type annotationHome int
+
+const (
+	// homeOwnNode marks a position with no home but a type node: items,
+	// additionalProperties, prefixItems, patternProperties, a union branch, a
+	// media-type schema, a component, a $ref-hoisted sub-schema. A declaration
+	// there hoists an alias rather than lose what it wrote.
+	homeOwnNode annotationHome = iota
+	// homeCarrier marks a position whose caller carries an ir.Property or
+	// ir.Parameter that holds the declaration's annotations itself
+	// (fillPropertyDetail, fillParamSchema): a model property, a response or
+	// part header, an operation parameter. Hoisting there would give one
+	// declaration two homes.
+	homeCarrier
+)
+
 // schemaRef is THE schema entry point: every schema position (property, items,
 // params, bodies) flows through it, yielding a TypeRef into the type registry.
 // It normalizes the two nullability dialects onto the single IR bit and never
 // lowers a $ref target from the reference site.
+//
+// It defaults to homeOwnNode deliberately: a position added later inherits the
+// lossless behaviour, and only a caller that can prove it already carries the
+// annotations opts out through carriedSchemaRef.
 func (l *lowerer) schemaRef(js *oas3.JSONSchema[oas3.Referenceable], pointer, hint string) ir.TypeRef {
+	return l.schemaRefHomed(js, pointer, hint, homeOwnNode)
+}
+
+// carriedSchemaRef lowers a schema whose annotations the calling position
+// already carries — a model property, a header, a parameter. Those callers
+// copy the declaration onto their own ir.Property/ir.Parameter, so the pointer
+// must not also hoist a node to hold it: one home per declaration.
+func (l *lowerer) carriedSchemaRef(js *oas3.JSONSchema[oas3.Referenceable], pointer, hint string) ir.TypeRef {
+	return l.schemaRefHomed(js, pointer, hint, homeCarrier)
+}
+
+// schemaRefHomed is the shared body of the two entry points above; home only
+// reaches the two places that can hoist an annotation-holding alias.
+func (l *lowerer) schemaRefHomed(js *oas3.JSONSchema[oas3.Referenceable], pointer, hint string, home annotationHome) ir.TypeRef {
 	l.depth++
 	defer func() { l.depth-- }()
 	if l.depth > maxSchemaDepth {
@@ -124,9 +163,21 @@ func (l *lowerer) schemaRef(js *oas3.JSONSchema[oas3.Referenceable], pointer, hi
 	// either reads as a bool), so GetSchema never returns nil here.
 	schema := js.GetSchema()
 	if isRefSite(js, schema) {
-		return l.refTypeRef(js, pointer)
+		return l.refSiteRef(js, schema, pointer, hint, home)
 	}
-	return l.schemaBody(schema, pointer, hint)
+	return l.schemaBody(schema, pointer, hint, home)
+}
+
+// refSiteRef resolves a $ref position and keeps whatever is written beside the
+// $ref. Those siblings bind the position, not the referent, so they cannot go
+// on the target's node; when the position has no carrier to hold them either,
+// an alias over the target becomes their home.
+func (l *lowerer) refSiteRef(js *oas3.JSONSchema[oas3.Referenceable], s *oas3.Schema, pointer, hint string, home annotationHome) ir.TypeRef {
+	ref := l.hoistDeclarationHome(s, l.refTypeRef(js, pointer), pointer, hint, home)
+	if s != nil {
+		l.attachDeclaredAnnotations(s, pointer)
+	}
+	return ref
 }
 
 // refTypeRef resolves a $ref position to its target's stable ID, carrying the
@@ -169,6 +220,28 @@ func (l *lowerer) resolveSchemaRef(js *oas3.JSONSchema[oas3.Referenceable], ref 
 	return l.hoistSubSchema(decl, pointer)
 }
 
+// refNamesReferent reports whether ref names a schema this compilation can
+// point a TypeRef at, answering the question resolveSchemaRef answers without
+// interning anything on the way. A classifier needs that: deciding how to lower
+// a schema must not hoist nodes as a side effect of asking.
+//
+// It sits beside resolveSchemaRef because it must stay in step with it, and
+// mirrors it minus the two steps that are not pure lookups — hoistSubSchema,
+// which interns (its own only failure is a target that declares no schema body,
+// which is the last condition here), and the internedID cache hit, which would
+// make the answer depend on which schema happened to lower first.
+func (l *lowerer) refNamesReferent(js *oas3.JSONSchema[oas3.Referenceable], ref string) bool {
+	pointer, ok := l.internalPointer(ref)
+	if !ok {
+		return false
+	}
+	if _, resolved, handled := l.resolveComponentRef(pointer); handled {
+		return resolved
+	}
+	decl := declaredSchema(js)
+	return decl != nil && siteAt(decl).Node != nil
+}
+
 // declaredSchema returns the schema written at the position js references — one
 // hop, not the end of the chain. GetResolvedSchema follows a reference to a
 // reference all the way through, which is the wrong node to hoist at that
@@ -209,7 +282,7 @@ func (l *lowerer) hoistSubSchema(decl *oas3.JSONSchema[oas3.Referenceable], poin
 	id := l.internAlias(pointer, hint, ref, l.schemaConstraints(s.Node, pointer))
 	// As in lowerComponentSchema: this alias is the first node the pointer owns,
 	// so the annotations schemaRef had nowhere to put now have a home.
-	l.attachSchemaExamples(s.Node, pointer)
+	l.attachDeclaredAnnotations(s.Node, pointer)
 	return id, true
 }
 

@@ -1,0 +1,355 @@
+{
+  "irVersion": "0.2.0",
+  "name": "InlineAnnotations",
+  "version": "1.0.0",
+  "docs": {},
+  "services": [
+    {
+      "id": "s/openapi/0",
+      "name": {
+        "source": "InlineAnnotations",
+        "canonical": "inline_annotations"
+      },
+      "docs": {},
+      "groups": [
+        {
+          "name": {
+            "hint": "default"
+          },
+          "docs": {},
+          "operations": [
+            {
+              "id": "op/openapi/paths/~1codes/get",
+              "name": {
+                "source": "listCodes",
+                "canonical": "list_codes"
+              },
+              "docs": {},
+              "params": [
+                {
+                  "name": {
+                    "source": "prefix",
+                    "canonical": "prefix"
+                  },
+                  "type": {
+                    "target": "t/prim/string",
+                    "nullable": false
+                  },
+                  "required": false,
+                  "constraints": {
+                    "exclusiveMin": false,
+                    "exclusiveMax": false,
+                    "maxLength": 4,
+                    "uniqueItems": false
+                  },
+                  "docs": {
+                    "description": "Filters codes by leading characters."
+                  },
+                  "preserved": {
+                    "openapi:x-facet": {
+                      "reason": "vendor_extension",
+                      "value": "prefix",
+                      "provenance": {
+                        "source": 0,
+                        "pointer": "/paths/~1codes/get/parameters/0/schema/x-facet"
+                      }
+                    }
+                  }
+                }
+              ],
+              "responses": [
+                {
+                  "name": {},
+                  "conditions": {
+                    "statusCodes": [
+                      {
+                        "from": 200,
+                        "to": 200
+                      }
+                    ]
+                  },
+                  "payload": {
+                    "contents": [
+                      {
+                        "mediaType": "application/json",
+                        "type": {
+                          "target": "t/anon/paths/~1codes/get/responses/200/content/application~1json/schema",
+                          "nullable": false
+                        }
+                      }
+                    ]
+                  },
+                  "headers": [
+                    {
+                      "id": "p/openapi/paths/~1codes/get/responses/200/headers/X-Page-Token",
+                      "name": {
+                        "source": "X-Page-Token",
+                        "canonical": "x_page_token"
+                      },
+                      "wireName": "X-Page-Token",
+                      "type": {
+                        "target": "t/prim/string",
+                        "nullable": false
+                      },
+                      "required": false,
+                      "clientOptional": false,
+                      "defaultAdded": false,
+                      "visibility": {
+                        "none": false
+                      },
+                      "constraints": {
+                        "exclusiveMin": false,
+                        "exclusiveMax": false,
+                        "maxLength": 64,
+                        "uniqueItems": false
+                      },
+                      "flatten": false,
+                      "eventHeader": false,
+                      "eventPayload": false,
+                      "secret": false,
+                      "docs": {
+                        "description": "Opaque cursor for the next page."
+                      },
+                      "preserved": {
+                        "openapi:x-sensitive": {
+                          "reason": "vendor_extension",
+                          "value": false,
+                          "provenance": {
+                            "source": 0,
+                            "pointer": "/paths/~1codes/get/responses/200/headers/X-Page-Token/schema/x-sensitive"
+                          }
+                        }
+                      },
+                      "provenance": {
+                        "source": 0,
+                        "pointer": "/paths/~1codes/get/responses/200/headers/X-Page-Token"
+                      }
+                    }
+                  ],
+                  "docs": {
+                    "description": "ok"
+                  }
+                }
+              ],
+              "oneWay": false,
+              "idempotency": {},
+              "auth": null,
+              "bindings": {
+                "http": [
+                  {
+                    "method": "GET",
+                    "uriTemplate": "/codes",
+                    "sharedRoute": false,
+                    "paramBindings": [
+                      {
+                        "param": "prefix",
+                        "location": "query",
+                        "wireName": "prefix",
+                        "style": "form",
+                        "explode": true,
+                        "allowReserved": false
+                      }
+                    ],
+                    "checksumRequired": false,
+                    "isWebhook": false
+                  }
+                ]
+              },
+              "provenance": {
+                "source": 0,
+                "pointer": "/paths/~1codes/get"
+              }
+            }
+          ]
+        }
+      ],
+      "auth": null,
+      "provenance": {
+        "source": 0
+      }
+    }
+  ],
+  "types": {
+    "t/anon/components/schemas/CodeIndex/additionalProperties": {
+      "kind": "scalar",
+      "id": "t/anon/components/schemas/CodeIndex/additionalProperties",
+      "name": {
+        "hint": "CodeIndex_value"
+      },
+      "anonymous": true,
+      "docs": {
+        "description": "The display label for a code."
+      },
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/CodeIndex/additionalProperties"
+      },
+      "base": {
+        "target": "t/prim/string",
+        "nullable": false
+      },
+      "constraints": {
+        "exclusiveMin": false,
+        "exclusiveMax": false,
+        "maxLength": 64,
+        "uniqueItems": false
+      }
+    },
+    "t/anon/components/schemas/Codes/items": {
+      "kind": "scalar",
+      "id": "t/anon/components/schemas/Codes/items",
+      "name": {
+        "hint": "Codes_item"
+      },
+      "anonymous": true,
+      "docs": {
+        "description": "An ISO-4217 currency code."
+      },
+      "sensitive": false,
+      "xml": {
+        "name": "Code",
+        "wrapped": false
+      },
+      "preserved": {
+        "openapi:x-facet": {
+          "reason": "vendor_extension",
+          "value": "currency",
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/Codes/items/x-facet"
+          }
+        }
+      },
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Codes/items"
+      },
+      "base": {
+        "target": "t/prim/string",
+        "nullable": false
+      },
+      "constraints": {
+        "exclusiveMin": false,
+        "exclusiveMax": false,
+        "maxLength": 3,
+        "uniqueItems": false
+      }
+    },
+    "t/anon/paths/~1codes/get/responses/200/content/application~1json/schema": {
+      "kind": "scalar",
+      "id": "t/anon/paths/~1codes/get/responses/200/content/application~1json/schema",
+      "name": {
+        "hint": "response"
+      },
+      "anonymous": true,
+      "docs": {
+        "description": "A newline-delimited code list."
+      },
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/paths/~1codes/get/responses/200/content/application~1json/schema"
+      },
+      "base": {
+        "target": "t/prim/string",
+        "nullable": false
+      },
+      "constraints": {
+        "exclusiveMin": false,
+        "exclusiveMax": false,
+        "maxLength": 8192,
+        "uniqueItems": false
+      }
+    },
+    "t/openapi/components/schemas/Bare": {
+      "kind": "list",
+      "id": "t/openapi/components/schemas/Bare",
+      "name": {
+        "source": "Bare",
+        "canonical": "bare"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Bare"
+      },
+      "elem": {
+        "target": "t/prim/string",
+        "nullable": false
+      }
+    },
+    "t/openapi/components/schemas/CodeIndex": {
+      "kind": "model",
+      "id": "t/openapi/components/schemas/CodeIndex",
+      "name": {
+        "source": "CodeIndex",
+        "canonical": "code_index"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/CodeIndex"
+      },
+      "additionalProps": {
+        "value": {
+          "target": "t/anon/components/schemas/CodeIndex/additionalProperties",
+          "nullable": false
+        }
+      },
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
+    "t/openapi/components/schemas/Codes": {
+      "kind": "list",
+      "id": "t/openapi/components/schemas/Codes",
+      "name": {
+        "source": "Codes",
+        "canonical": "codes"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Codes"
+      },
+      "elem": {
+        "target": "t/anon/components/schemas/Codes/items",
+        "nullable": false
+      }
+    },
+    "t/prim/string": {
+      "kind": "primitive",
+      "id": "t/prim/string",
+      "name": {},
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0
+      },
+      "prim": "string"
+    }
+  },
+  "servers": [
+    {
+      "name": {},
+      "urlTemplate": "/",
+      "description": {},
+      "auth": null
+    }
+  ],
+  "sources": [
+    {
+      "format": "openapi@3.1",
+      "path": "inline-annotations.yaml",
+      "hash": "4471d3c411b3e189087a256b072db3e9eb7d8f56d700184c29233577b69e3479"
+    }
+  ]
+}

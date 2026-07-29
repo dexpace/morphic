@@ -9,3 +9,10 @@ paths:
       responses:
         "200":
           description: ok
+components:
+  schemas:
+    UserId:
+      type: string
+      format: uuid
+      title: User identifier
+      description: Stable identifier for a user.

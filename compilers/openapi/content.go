@@ -55,26 +55,53 @@ func (l *lowerer) lowerContent(mt string, media *soa.MediaType, pointer, hint st
 		}
 	}
 	l.fillSequential(&c, media, mediaPtr, hint)
-	if ext := l.extensions(media.GetExtensions()); len(ext) > 0 {
-		c.Extensions = mergeExtensions(c.Extensions, ext)
+	if ext := l.extensions(media.GetExtensions(), mediaPtr); len(ext) > 0 {
+		c.Preserved = mergePreserved(c.Preserved, ext)
 	}
 	return c
 }
 
 // fillSequential lowers 3.2 sequential-media fields: itemSchema becomes the
-// element type; itemEncoding has no per-property structural home, so it is
-// preserved verbatim under Extensions with one info diagnostic.
+// element type, and itemEncoding becomes Content.ItemEncoding, with Multi set
+// because the construct describes a repeated tail by definition.
+//
+// That lowering only holds when no prefixEncoding accompanies it: prefixes make
+// itemEncoding govern the items *after* them rather than every item, which a
+// single every-item encoding would misstate. Those documents take
+// positionalEncoding instead.
 func (l *lowerer) fillSequential(c *ir.Content, media *soa.MediaType, mediaPtr, hint string) {
 	if item := media.GetItemSchema(); item != nil {
 		ref := l.schemaRef(item, mediaPtr+ptr("itemSchema"), hint+"_item")
 		c.Item = &ref
 	}
-	if media.GetItemEncoding() == nil {
+	if len(media.GetPrefixEncoding()) > 0 {
+		l.positionalEncoding(c, media, mediaPtr)
 		return
 	}
-	raw := nodeToRaw(rawChildNode(media.GetRootNode(), "itemEncoding"))
-	l.preserveRaw(&c.Extensions, "openapi:itemEncoding", raw, mediaPtr, codeDegradedConstruct,
-		"3.2 itemEncoding preserved under extensions; per-item multipart encoding is out of model")
+	enc := media.GetItemEncoding()
+	if enc == nil {
+		return
+	}
+	pe := l.encodingConfig(enc, mediaPtr+ptr("itemEncoding"))
+	pe.Multi = true
+	c.ItemEncoding = &pe
+}
+
+// positionalEncoding keeps 3.2 positional prefixEncoding — and the itemEncoding
+// that governs the tail after it — verbatim, with one info diagnostic.
+// Content.ItemEncoding states one encoding for every item, so it cannot say
+// "these two in order, then the rest alike": lowering only the tail into it
+// would drop the prefixes and assert their encoding governs every item. The
+// ordinals a positional form needs are a gap the IR can close later, so the
+// entries carry ReasonNoIRHome rather than a degraded lowering.
+func (l *lowerer) positionalEncoding(c *ir.Content, media *soa.MediaType, mediaPtr string) {
+	root := media.GetRootNode()
+	l.preserve(&c.Preserved, "openapi:prefixEncoding", nodeToRaw(rawChildNode(root, "prefixEncoding")),
+		ir.ReasonNoIRHome, mediaPtr+ptr("prefixEncoding"))
+	l.preserve(&c.Preserved, "openapi:itemEncoding", nodeToRaw(rawChildNode(root, "itemEncoding")),
+		ir.ReasonNoIRHome, mediaPtr+ptr("itemEncoding"))
+	l.diag(ir.SeverityInfo, codeDegradedConstruct, mediaPtr,
+		"prefixEncoding is positional and has no per-item IR home; it and any itemEncoding are kept under Preserved")
 }
 
 // partEncodings builds the multipart/form per-part wire config, keyed by each
@@ -113,19 +140,31 @@ func (l *lowerer) partEncodings(media *soa.MediaType, mediaPtr string) map[strin
 func (l *lowerer) buildPartEncoding(name string, pjs *oas3.JSONSchema[oas3.Referenceable], encMap *sequencedmap.Map[string, *soa.Encoding], mediaPtr string) ir.PartEncoding {
 	pe := ir.PartEncoding{}
 	if encMap != nil {
-		if enc, ok := encMap.Get(name); ok && enc != nil {
-			pe.ContentTypes = splitContentTypes(enc.GetContentTypeValue())
-			pe.Headers = l.lowerHeaders(enc.GetHeaders(), mediaPtr+ptr("encoding", name))
-			if enc.Style != nil {
-				pe.Style = string(*enc.Style)
-			}
-			pe.Explode = enc.Explode
+		if enc, ok := encMap.Get(name); ok {
+			pe = l.encodingConfig(enc, mediaPtr+ptr("encoding", name))
 		}
 	}
 	if part := schemaOf(pjs); part != nil {
 		pe.Multi = schemaIsArray(part)
 		pe.Filename = schemaIsFilePart(part)
 	}
+	return pe
+}
+
+// encodingConfig lowers one Encoding object's declared wire config: content
+// types, per-part headers, and form-style serialization. The structural flags
+// (Multi, Filename) come from the part's own schema, not from here.
+func (l *lowerer) encodingConfig(enc *soa.Encoding, encPtr string) ir.PartEncoding {
+	pe := ir.PartEncoding{}
+	if enc == nil {
+		return pe
+	}
+	pe.ContentTypes = splitContentTypes(enc.GetContentTypeValue())
+	pe.Headers = l.lowerHeaders(enc.GetHeaders(), encPtr)
+	if enc.Style != nil {
+		pe.Style = string(*enc.Style)
+	}
+	pe.Explode = enc.Explode
 	return pe
 }
 
@@ -144,17 +183,46 @@ func (l *lowerer) lowerHeaders(headers *sequencedmap.Map[string, *soa.Referenced
 		if h == nil {
 			continue
 		}
-		out = append(out, ir.Property{
-			ID:         propID(hptr),
-			Name:       ir.Naming{Source: name, Canonical: canonicalWords(name)},
-			WireName:   name,
-			Type:       l.schemaRef(h.GetSchema(), hdecl+ptr("schema"), declarationHint(hdecl, name)),
-			Required:   h.GetRequired(),
-			Examples:   l.exampleList(h.GetExample(), h.GetExamples(), hdecl),
-			Provenance: ir.Provenance{Source: l.srcIndex, Pointer: hptr},
-		})
+		out = append(out, l.lowerHeader(h, name, hptr, hdecl))
 	}
 	return out
+}
+
+// lowerHeader lowers one header entry into a Property. Its schema goes through
+// fillPropertyDetail like a model property's: a header schema declares docs,
+// constraints, xml, examples and validation-only keywords the same way, and
+// ir.Property has a field for each, so the header path had no reason to drop
+// them (GitHub #116).
+func (l *lowerer) lowerHeader(h *soa.Header, name, hptr, hdecl string) ir.Property {
+	schemaPtr := hdecl + ptr("schema")
+	p := ir.Property{
+		ID:         propID(hptr),
+		Name:       ir.Naming{Source: name, Canonical: canonicalWords(name)},
+		WireName:   name,
+		Type:       l.carriedSchemaRef(h.GetSchema(), schemaPtr, declarationHint(hdecl, name)),
+		Required:   h.GetRequired(),
+		Provenance: ir.Provenance{Source: l.srcIndex, Pointer: hptr},
+	}
+	l.fillPropertyDetail(&p, h.GetSchema(), schemaPtr)
+	l.applyHeaderAnnotations(&p, h, hdecl)
+	return p
+}
+
+// applyHeaderAnnotations overlays the annotations the header object writes on
+// itself onto p, after its schema's. A header carries both, and the header's
+// own are the more specific of the two — they describe this header rather than
+// the type it happens to be.
+func (l *lowerer) applyHeaderAnnotations(p *ir.Property, h *soa.Header, hdecl string) {
+	if d := h.GetDescription(); d != "" {
+		p.Docs.Description = d
+	}
+	if h.GetDeprecated() {
+		p.Deprecation = &ir.Deprecation{}
+	}
+	if ex := l.exampleList(h.GetExample(), h.GetExamples(), hdecl); len(ex) > 0 {
+		p.Examples = ex
+	}
+	p.Preserved = mergePreserved(p.Preserved, l.extensions(h.GetExtensions(), hdecl))
 }
 
 // mediaExamples lowers a media type's single and plural example values.
@@ -226,7 +294,7 @@ func (l *lowerer) appendValuelessExample(out []ir.Example, proto ir.Example, poi
 // lowerRequestBody lowers an operation's request body onto op.Request and the
 // binding's RequestContentTypes. The IR expresses body optionality via presence,
 // so a non-required body stays present with its optionality preserved under
-// Extensions plus one info diagnostic (ir-design §7.2 clarification). opDeclPtr
+// Preserved plus one info diagnostic (ir-design §7.2 clarification). opDeclPtr
 // is the operation's own declaration pointer, so a $ref'd body interns its
 // content once at its component pointer rather than once per mount site
 // (issue #107) — and under the component's name, since the operationId hint
@@ -241,12 +309,10 @@ func (l *lowerer) lowerRequestBody(op *ir.Operation, hb *ir.HTTPBinding, src *so
 		return
 	}
 	if !rb.GetRequired() {
-		if payload.Extensions == nil {
-			payload.Extensions = ir.Extensions{}
-		}
-		payload.Extensions["openapi:required"] = ir.RawValue("false")
+		l.preserve(&payload.Preserved, "openapi:required", ir.RawValue("false"),
+			ir.ReasonNoIRHome, bodyPtr+ptr("required"))
 		l.diag(ir.SeverityInfo, codeDegradedConstruct, bodyPtr,
-			"request body is not required; optionality preserved under extensions")
+			"request body is not required; optionality kept under Preserved")
 	}
 	op.Request = payload
 	hb.RequestContentTypes = contentTypeKeys(rb.GetContent())

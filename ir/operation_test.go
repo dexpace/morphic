@@ -85,7 +85,7 @@ func TestOperation_PopulatedRoundTrip(t *testing.T) {
 		Examples: []ir.Example{
 			{Name: "ex1", Input: &ir.Value{Kind: ir.ValueString, Str: "in"}, Output: &ir.Value{Kind: ir.ValueString, Str: "out"}},
 		},
-		Extensions: populatedExtensions(),
+		Preserved:  populatedPreserved(),
 		Provenance: populatedProvenance(),
 	}
 	assertRoundTrip(t, want)
@@ -151,7 +151,7 @@ func TestParameter_JSONContract(t *testing.T) {
 				{Name: "ex1", Value: &ir.Value{Kind: ir.ValueNumber, Num: ir.BigVal("1")}},
 				{Name: "ex2", Value: &ir.Value{Kind: ir.ValueNumber, Num: ir.BigVal("2")}},
 			},
-			Extensions: populatedExtensions(),
+			Preserved: populatedPreserved(),
 		})
 }
 
@@ -165,7 +165,7 @@ func TestPayload_JSONContract(t *testing.T) {
 			{MediaType: "application/json", Type: populatedTypeRef()},
 			{MediaType: "application/xml", Type: populatedTypeRef()},
 		},
-		Extensions: populatedExtensions(),
+		Preserved: populatedPreserved(),
 	})
 }
 
@@ -180,9 +180,7 @@ func TestContent_JSONContract(t *testing.T) {
 		SchemaFormat: "application/vnd.apache.avro+json",
 		Type:         populatedTypeRef(),
 		Item:         &ir.TypeRef{Target: "t/item"},
-		ItemEncoding: map[string]ir.PartEncoding{
-			"application/json": {ContentTypes: []string{"application/json"}},
-		},
+		ItemEncoding: &ir.PartEncoding{ContentTypes: []string{"application/json"}, Multi: true},
 		Encoding: map[string]ir.PartEncoding{
 			"p/file": {Filename: true, Multi: true},
 			"p/name": {Style: "form"},
@@ -191,13 +189,12 @@ func TestContent_JSONContract(t *testing.T) {
 		Examples: []ir.Example{
 			{Name: "ex1", Value: &ir.Value{Kind: ir.ValueString, Str: "v1"}},
 		},
-		Extensions: populatedExtensions(),
+		Preserved: populatedPreserved(),
 	})
 }
 
-// TestContent_EncodingDeterministic pins Class C for Content's map fields:
-// both Encoding and ItemEncoding must marshal with keys in sorted order on
-// every run.
+// TestContent_EncodingDeterministic pins Class C for Content's Encoding map:
+// it must marshal with keys in sorted order on every run.
 func TestContent_EncodingDeterministic(t *testing.T) {
 	t.Parallel()
 	content := ir.Content{
@@ -215,26 +212,17 @@ func TestContent_EncodingDeterministic(t *testing.T) {
 	assert.True(t, aIdx < bIdx && bIdx < mIdx && mIdx < qIdx && qIdx < zIdx, "map keys must appear in sorted order: %s", got)
 }
 
-// TestContent_ItemEncodingDeterministic pins Class C for Content's other map
-// field: the doc comment above claims ItemEncoding is covered alongside
-// Encoding, but that fixture never sets it, so ItemEncoding's own sort path
-// was untested until this test.
-func TestContent_ItemEncodingDeterministic(t *testing.T) {
+// TestContent_ItemEncodingSingular pins that ItemEncoding encodes as one bare
+// object rather than a keyed envelope: it states the encoding of every item of
+// a sequential stream, so it is singular like the Item it encodes.
+func TestContent_ItemEncodingSingular(t *testing.T) {
 	t.Parallel()
 	content := ir.Content{
-		Type: populatedTypeRef(),
-		ItemEncoding: map[string]ir.PartEncoding{
-			"z-part": {Style: "z"}, "m-part": {Style: "m"}, "a-part": {Style: "a"},
-			"q-part": {Style: "q"}, "b-part": {Style: "b"},
-		},
+		Type:         populatedTypeRef(),
+		ItemEncoding: &ir.PartEncoding{Multi: true, Style: "a"},
 	}
 	got := assertDeterministicMarshal(t, content)
-	assert.Contains(t, got,
-		`"itemEncoding":{"a-part":{"multi":false,"filename":false,"style":"a"},`+
-			`"b-part":{"multi":false,"filename":false,"style":"b"},`+
-			`"m-part":{"multi":false,"filename":false,"style":"m"},`+
-			`"q-part":{"multi":false,"filename":false,"style":"q"},`+
-			`"z-part":{"multi":false,"filename":false,"style":"z"}}`)
+	assert.Contains(t, got, `"itemEncoding":{"multi":true,"filename":false,"style":"a"}`)
 }
 
 // TestPartEncoding_JSONContract pins PartEncoding's omitempty contract — Multi
@@ -282,7 +270,7 @@ func TestResponse_JSONContract(t *testing.T) {
 		Headers:        []ir.Property{populatedProperty()},
 		StatusCodeProp: &ir.PropPath{Segments: []ir.PropID{"p/status"}},
 		Docs:           populatedDocs(),
-		Extensions:     populatedExtensions(),
+		Preserved:      populatedPreserved(),
 	})
 }
 
@@ -341,7 +329,7 @@ func TestErrorCase_JSONContract(t *testing.T) {
 			Retryable:  &retryable,
 			Throttling: &throttling,
 			Docs:       populatedDocs(),
-			Extensions: populatedExtensions(),
+			Preserved:  populatedPreserved(),
 		})
 }
 

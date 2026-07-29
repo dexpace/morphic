@@ -71,7 +71,7 @@ type Document struct {
     TagDefs     []TagDef               // tag metadata registry: {Name, Docs}; tag *membership* stays
                                        // []string on the tagged nodes (OpenAPI/AsyncAPI tag objects)
     Versions    []string               // ordered version labels when availability metadata is used
-    Extensions  Extensions
+    Preserved   Preserved
     Diagnostics []Diagnostic           // accumulated by compiler + passes; not part of API meaning
     Sources     []SourceInfo           // input files: format, path, content hash
 }
@@ -177,7 +177,7 @@ type TypeCommon struct {
     Examples   []Example    // typed example values attached to the type
                             // (TypeSpec @example, OpenAPI schema-level examples)
     Instantiation *TemplateInstantiation // provenance for monomorphized generics (TypeSpec templates)
-    Extensions Extensions
+    Preserved  Preserved
     Provenance Provenance
 }
 
@@ -307,6 +307,39 @@ discriminator hierarchy, or the sole `$ref` entry, becomes `Base`; other `$ref` 
 `Mixins`; inline entries merge into `Properties` (with provenance). This mirrors Kiota's
 decision table but keeps every branch reconstructible.
 
+`Base` and `Mixins` name whatever the source composed with, which in JSON Schema is any schema:
+`allOf: [{$ref: SomeScalar}]` is legal and lowers to a `Base` pointing at a `Scalar`, and the same
+holds for an `Enum`, a `Union`, or the top type. They are typed `TypeRef` rather than "reference
+to a `Model`" for exactly that reason — narrowing them would mean dropping a branch the source
+wrote, against invariant 2. What is *shaped* like `allOf` is the composition itself: one referent
+per conjunct, resolved by reference. Emitters that can only render model inheritance are the ones
+that must lower a non-`Model` conjunct to something their target can express.
+
+**Composition co-declared with a union.** JSON Schema conjoins sibling keywords, so
+`{allOf: […], oneOf: [{$ref: A}, {$ref: B}]}` is a composition *and* a union at once. A compiler
+must never return early on the combinator and drop the composition. It distributes instead —
+`S ∧ (X | Y)` is lowered as `(S ∧ X) | (S ∧ Y)`: the node is a `Union` whose every `Variant.Type`
+is a `Model` carrying `S`'s own `Base`/`Mixins`/`Properties`/`required`/`Additional`, with that
+branch's referent conjoined by the same rule as an `allOf` entry (`Base` when the composition
+named none, else a `Mixin`). The composition rides on every variant rather than being merged into
+one or dropped, so nothing degrades and no `allOf` branch is flattened. A property `S` declares
+appears on each variant under its single source-derived `PropID`, since the source declares it
+once.
+
+The variant models are anonymous and **synthesized**: no schema in the source occupies them, so
+each takes an ID in a namespace of its own, derived from — but not equal to — the ID the branch
+pointer would yield. Provenance still points at the branch, the nearest thing the source wrote.
+Giving them the branch pointer's own ID would put two different types on one pointer: a `$ref` to
+`…/oneOf/N` denotes the *branch schema*, and whichever of the two lowered first would take the
+pointer from the other. That makes the IR depend on declaration order and can produce exactly the
+`Union` the next paragraph forbids.
+
+Distribution needs a referent per branch, because `Base`/`Mixins` conjoin by reference — a branch
+must be a `$ref`, and that `$ref` must resolve. A union that cannot supply a referent for every
+branch is not distributed *at all* — never halfway, which would leave a `Union` whose variants
+disagree about whether they carry `S` with nothing in the IR saying which. Those cases degrade
+instead, enumerated in §4.8.
+
 ### 4.4 Unions
 
 ```go
@@ -332,7 +365,7 @@ type Variant struct {
     Deprecation *Deprecation
     Availability *Availability
     Examples   []Example
-    Extensions Extensions
+    Preserved  Preserved
 }
 
 type EventInfo struct {
@@ -375,7 +408,7 @@ type EnumMember struct {
     Deprecation *Deprecation
     Availability *Availability // members appear/disappear across versions (TypeSpec @added on EnumMember)
     Examples   []Example
-    Extensions Extensions
+    Preserved  Preserved
 }
 ```
 
@@ -410,14 +443,19 @@ model (`erlang:pid`, `erlang:fun` — see §4.8).
 ### 4.7 Validation-only schema constructs — a documented boundary
 
 JSON Schema's `not`, `if`/`then`/`else`, `dependentSchemas`, `contains`/`minContains`/
-`maxContains`, and `unevaluatedItems` express *validation logic*, not data shape; no target
-language's type system represents them, and none of the other source formats has an equivalent.
-The IR deliberately does not model them structurally. Compilers preserve them verbatim in
-`Extensions` (`openapi:not`, `openapi:if-then-else`, `openapi:contains`, …) and emit an `info`
-diagnostic, so the information is never silently lost and a future validation-oriented emitter
-(request validators, mock servers) can still consume them. The one structural carve-back:
-`unevaluatedProperties: false` is *shape* (a closed model after composition) and lowers to
-`Model.Additional = closed_after_composition`; other `unevaluated*` forms stay verbatim.
+`maxContains`, `propertyNames`, and `unevaluatedItems` express *validation logic*, not data shape;
+no target language's type system represents them, and none of the other source formats has an
+equivalent. The IR deliberately does not model them structurally. Compilers keep them verbatim in
+`Preserved` (`openapi:not`, `openapi:if-then-else`, `openapi:contains`, …) under
+`ReasonValidationOnly` and emit an `info` diagnostic, so the information is never silently lost
+and a future validation-oriented emitter (request validators, mock servers) can still consume
+them — selecting on the reason rather than sifting vendor metadata out of the same bag (§12).
+The one structural carve-back: `unevaluatedProperties: false` is *shape* (a closed model after
+composition) and lowers to `Model.Additional = closed_after_composition`; other `unevaluated*`
+forms stay verbatim. `propertyNames` is not a second carve-back onto `AdditionalProps.Key`: it
+constrains *every* key of the object, including the ones `properties` declares — where there is no
+`AdditionalProps` to hold a key type at all — and it is a whole schema rather than a type, so only
+its degenerate `{type: string}` form names one.
 `$dynamicRef` is resolved per reference site by compiler expansion (dynamic scope is static per
 document); irreducible cases are preserved verbatim with a diagnostic.
 
@@ -426,23 +464,81 @@ satisfied by verbatim preservation, and the carve-out is explicit rather than ac
 
 ### 4.8 Degraded source constructs — documented lowerings
 
-A few source constructs have no faithful structural target in any SDK language. Each has a
-*normative* degraded lowering plus verbatim preservation, so degradation is a decision, not an
-accident:
+A few source constructs have no faithful target — either because the IR has no combinator for the
+shape, or because no target language's type system holds it. Each gets a *normative* weaker
+lowering, so the degradation is a decision rather than an accident, and — wherever that weaker
+shape actually loses something — verbatim preservation under `ReasonDegradedLowering` beside it,
+so the loss stays recoverable. A construct kept raw merely for want of an IR field at that
+position is a different situation and carries `ReasonNoIRHome` instead (§12).
 
-- **TypeSpec `never`-typed properties/variants** — the compiler does *not* remove them;
-  compilers delete them and emit an `info` diagnostic. No `never` node exists.
+The list is the set of *source-construct* degradations: one entry per distinctive source shape the
+IR declines to model as written. It is not a list of every lowering that can weaken a type. Two
+whole-schema fallbacks sit outside it, because they answer to a compiler's own limits rather than
+to anything about the construct: a schema nested past the compiler's lowering depth cap becomes
+`any` with an `error` diagnostic, and a boolean `false` schema becomes a closed empty `Model` with
+an `info` one.
+
+- **JSON Schema `oneOf`/`anyOf` co-declared with structural keywords that cannot be
+  distributed** (`{type: object, properties: {…}, oneOf: [{$ref: A}, {type: string}]}`) — the
+  keywords conjoin, so the schema is an *intersection* of a structural type and a union.
+  **The IR** has `Union` but no intersection combinator (§4.3's `Base`/`Mixins` composes one
+  referent per conjunct, the shape `allOf` writes, and cannot state "conjoined with a union";
+  §15 records why one was not added) — target languages are not the constraint here; TypeScript
+  writes `{a: string} & (X | Y)` directly. Where the conjunction *distributes* it is not degraded
+  at all: §4.3 gives the rule, and the result is an ordinary `Union` of composed `Model`s. What
+  lands here is the residue — the five shapes distribution cannot reach:
+  1. the structural body is not a `Model` (a `const`, an `enum`, a scalar, or a bare
+     `required`/`additionalProperties`/`patternProperties` with neither `properties` nor a
+     `type`), so there are no composition fields for the variants to carry;
+  2. a branch is written inline rather than as a `$ref`, so it names no node for `Base`/`Mixins`
+     to point at — a `type: null` branch included;
+  3. a branch *is* a `$ref` but names no referent the compilation resolves — a cross-document
+     target it does not intern, an undeclared component, a pointer addressing no schema. The
+     branch is unusable for the same reason an inline one is, so it declines the same way rather
+     than composing a variant whose branch quietly went missing; the broken reference is reported
+     at `error` severity on top of the `info` below;
+  4. a `discriminator` is declared, binding the branch schemas by name;
+  5. `oneOf` and `anyOf` are both declared, so distributing one would drop the other.
+
+  In all five, whatever structural body the schema declares is lowered — `properties` or a
+  declared `type` yields a Model or typed node — and the union branches are kept verbatim in
+  `Preserved["openapi:oneOf"]` / `["openapi:anyOf"]` + `info` diagnostic naming which of the five
+  applied. Case 1's body-less sibling leaves nothing to build: it reduces to `any` and that
+  sibling is dropped — the diagnostic still fires, but it names the union, not the keyword that
+  went missing. A `null` branch in this shape is **not** lifted to `Nullable`: the union it
+  belongs to is no longer structural, so lifting one branch out of it would assert something the
+  lowered type does not say. The degradation is that the generated SDK is *under-constrained* —
+  it admits values the union would reject — which is why the branches must survive for a
+  validating emitter to reach.
+
+  A union whose branches declare no shape at all (`oneOf: [{required: [a]}, {required: [b]}]`)
+  is not a degradation and is not listed here: it narrows the body without reshaping it, which
+  is validation logic, so it is preserved under `ReasonValidationOnly` with §4.7's keyword family.
+- **JSON Schema open tuples** (`prefixItems` with a trailing `items`) — a fixed positional head
+  plus a homogeneous tail of unbounded length. **The IR** has `Tuple` (fixed arity) and `List`
+  (homogeneous, one element type) and no node that is both; target languages are not the
+  constraint (TypeScript writes `[string, number, ...boolean[]]`). The head lowers to a `Tuple`
+  and the tail schema is kept verbatim in `Preserved["openapi:items-after-prefix"]` + `info`
+  diagnostic. The degradation is that the generated SDK is *over-constrained* in the opposite
+  direction to the union case above — the `Tuple` asserts an exact arity the source does not,
+  so a longer instance no longer type-checks — which is why the tail must survive for an
+  emitter that can express a rest element, or a validating emitter, to reach.
+- **TypeSpec `never`-typed properties/variants** — no `never` node exists, so compilers delete
+  the member and emit an `info` diagnostic. Nothing is preserved beside it: a `never` member
+  admits no value, so there is no content the deletion could lose.
 - **TypeSpec `StringTemplate` types** (interpolating non-literal types) — degrade to `string` +
-  `Extensions["typespec:string-template"]` + `info` diagnostic.
+  `Preserved["typespec:string-template"]` + `info` diagnostic.
 - **Erlang bit-sized binaries** (`<<_:M, _:_*N>>`) — `bytes` + `Min/MaxLength` when
-  byte-aligned, plus `Extensions["erlang:bit-size"] = {base, unit}` + `info` diagnostic.
+  byte-aligned, plus `Preserved["erlang:bit-size"] = {base, unit}` + `info` diagnostic.
 - **Erlang `fun()` types** — `External{Identity: "erlang:fun"}` + full spec text in
-  `Extensions["erlang:fun-spec"]` + `warning` diagnostic (non-portable member). No function
+  `Preserved["erlang:fun-spec"]` + `warning` diagnostic (non-portable member). No function
   type node exists.
 - **Erlang heterogeneous map association lists** (`#{atom() => a(), integer() => b()}`) —
-  lower to union-typed `AdditionalProps` + `Extensions["erlang:map-assocs"]` verbatim.
-- **Erlang `-opaque`** — lowered structurally (lossless) + `Extensions["erlang:opaque"] = true`;
-  emitter policy decides whether to expose or wrap.
+  lower to union-typed `AdditionalProps` + `Preserved["erlang:map-assocs"]` verbatim.
+- **Erlang `-opaque`** — the shape lowers structurally and losslessly; what degrades is the
+  abstraction boundary the attribute declares, which no IR node states.
+  `Preserved["erlang:opaque"] = true` records it, and emitter policy decides whether to expose
+  or wrap.
 
 ---
 
@@ -490,7 +586,7 @@ type Property struct {
     Docs       Docs
     Deprecation *Deprecation
     Availability *Availability
-    Extensions Extensions
+    Preserved  Preserved
     Provenance Provenance
 }
 
@@ -573,7 +669,7 @@ at the scalar definition or overrides at the property — property wins. Protobu
 lower here per element after the compiler resolves the feature cascade (descriptors expose
 resolved values): `field_presence` → `Presence`, `enum_type` → `Closed`,
 `repeated_field_encoding` → `List.Encoding`, `message_encoding` → `"delimited"`; remaining axes
-(`utf8_validation`, `json_format`) → namespaced Extensions.
+(`utf8_validation`, `json_format`) → namespaced `Preserved` entries.
 
 ### 5.4 XML hints
 
@@ -656,13 +752,13 @@ type Service struct {
     Renames    map[TypeID]Naming  // per-service shape presentation names (Smithy service `rename`);
                                   // the TypeID — and Naming on the type — are unchanged
     Servers    []int              // indexes into Document.Servers scoped to this service
-    Extensions Extensions
+    Preserved  Preserved
     Provenance Provenance
 }
 
 type ProtocolDecl struct {
     Name    string                // e.g. "aws.restJson1", "grpc"
-    Options Extensions            // per-protocol options kept raw (the Channel.Bindings pattern)
+    Options RawConfig             // per-protocol options kept raw (the Channel.Bindings pattern)
 }
 
 type OperationGroup struct {
@@ -672,7 +768,7 @@ type OperationGroup struct {
     Operations []Operation
     Resource   *ResourceInfo      // Smithy resource semantics when declared
     Availability *Availability    // groups (TypeSpec interfaces) are versionable
-    Extensions Extensions
+    Preserved  Preserved
 }
 
 type ResourceInfo struct {
@@ -726,7 +822,7 @@ type Operation struct {
 
     Bindings   OpBindings         // §8 — how the core maps onto concrete protocols
     Examples   []Example
-    Extensions Extensions
+    Preserved  Preserved
     Provenance Provenance
 }
 
@@ -743,13 +839,13 @@ type Parameter struct {
     Deprecation *Deprecation
     Availability *Availability
     Examples   []Example
-    Extensions Extensions
+    Preserved  Preserved
     // NOTE: no location here — path/query/header is HTTP-binding detail (§8.1)
 }
 
 type Payload struct {
     Contents []Content            // one per media type / message schema — all kept
-    Extensions Extensions
+    Preserved  Preserved
 }
 
 type Content struct {
@@ -757,15 +853,18 @@ type Content struct {
     SchemaFormat string           // schema *language* the type graph was lowered from, media-type
                                   // form (AsyncAPI multiFormatSchema: Avro/Protobuf/RAML/…);
                                   // "" = source-native. The verbatim source schema is preserved in
-                                  // Extensions (e.g. "asyncapi:schema") for schema-registry workflows
+                                  // Preserved (e.g. "asyncapi:schema") for schema-registry workflows
     Type      TypeRef
     Item      *TypeRef            // element shape of a sequential stream declared per media type
                                   // (OpenAPI 3.2 itemSchema for SSE/JSONL/json-seq); nil = not sequential
-    ItemEncoding map[string]PartEncoding // per-item encoding for sequential media types (3.2 itemEncoding)
+    ItemEncoding *PartEncoding    // wire encoding of a sequential stream's item (3.2 itemEncoding);
+                                  // singular like Item, because it governs every item alike.
+                                  // Positional per-item encoding (3.2 prefixEncoding) has no form
+                                  // here and stays in Preserved — see §12
     Encoding  map[string]PartEncoding // multipart/form: per-property (part) wire config, keyed by PropID
     File      *FileInfo           // body is a file upload/download (TypeSpec file bodies, binary payloads)
     Examples  []Example
-    Extensions Extensions
+    Preserved  Preserved
 }
 
 type PartEncoding struct {
@@ -797,7 +896,7 @@ type Response struct {
                                   // (Smithy @httpResponseCode, TypeSpec non-literal @statusCode);
                                   // the member is suppressed from the body
     Docs       Docs
-    Extensions Extensions
+    Preserved  Preserved
 }
 
 type ResponseConditions struct {
@@ -814,7 +913,7 @@ type ErrorCase struct {
     Throttling *bool              // retryable specifically due to throttling — distinct backoff class
                                   // (Smithy @retryable(throttling: true)); nil = unknown
     Docs       Docs
-    Extensions Extensions
+    Preserved  Preserved
 }
 ```
 
@@ -890,7 +989,7 @@ Streaming mode is on the operation core because it is protocol-independent (gRPC
 WebSocket, Smithy event streams all project onto it); the wire mechanism (SSE vs chunked vs
 WS frames vs length-prefixed events) lives in the binding. Smithy **waiters**
 (`smithy.waiters#waitable`) are *not* folded into `LongRunning` — acceptor lists and JMESPath
-matchers are preserved verbatim in `Operation.Extensions` (§15).
+matchers are preserved verbatim in `Operation.Preserved` (§15).
 
 ---
 
@@ -936,7 +1035,7 @@ type HTTPBinding struct {
                                    // optional); false = disabled (TypeSpec @patch implicitOptionality)
     IsWebhook   bool               // OpenAPI 3.1 webhooks: direction is inbound
     Callbacks   []Callback         // out-of-band operations keyed by runtime expressions
-    Extensions  Extensions
+    Preserved   Preserved
 }
 
 type RequestCompression struct { Encodings []string } // priority-ordered ("gzip", …)
@@ -986,7 +1085,7 @@ type RPCBinding struct {
                            // (JSON-RPC positional vs named; OpenRPC paramStructure). Param order
                            // is already source order per design rule 5; this is the mode
     IdempotencyLevel string
-    Extensions  Extensions
+    Preserved   Preserved
 }
 ```
 
@@ -1000,9 +1099,9 @@ type MessageBinding struct {
                                // (must be a subset — validated)
     Reply     *Reply           // request-reply semantics; nil = none. A send-op with no Reply and
                                // no Responses is one-way (set Operation.OneWay)
-    Bindings  map[string]Extensions // operation-level protocol bindings kept raw
+    Bindings  map[string]RawConfig // operation-level protocol bindings kept raw
                                     // (kafka groupId/clientId — constrain SDK client config)
-    Extensions Extensions
+    Preserved  Preserved
 }
 
 type Reply struct {
@@ -1026,8 +1125,8 @@ type Channel struct {
     Params    []Parameter
     Messages  []MessageID        // the channel's message set — messages live in Document.Messages
     Servers   []int
-    Bindings  map[string]Extensions // protocol-specific ("kafka", "amqp", "ws", "mqtt") kept as namespaced raw config
-    Extensions Extensions
+    Bindings  map[string]RawConfig // protocol-specific ("kafka", "amqp", "ws", "mqtt") kept as namespaced raw config
+    Preserved  Preserved
     Provenance Provenance
 }
 
@@ -1045,13 +1144,13 @@ type Message struct {
     Docs        Docs
     Deprecation *Deprecation
     Examples    []Example          // correlated header+payload example pairs (Example.Headers + .Value)
-    Bindings    map[string]Extensions // message-level protocol bindings (kafka message key, …)
-    Extensions  Extensions
+    Bindings    map[string]RawConfig // message-level protocol bindings (kafka message key, …)
+    Preserved   Preserved
     Provenance  Provenance
 }
 ```
 
-Kafka/AMQP/MQTT binding minutiae stay as namespaced raw extension config rather than modeled
+Kafka/AMQP/MQTT binding minutiae stay as namespaced `RawConfig` rather than modeled
 structs — they are protocol deployment detail, not API shape, and modeling them structurally
 would chase every AsyncAPI binding spec revision. The raw-bindings channel exists at every
 level that AsyncAPI defines bindings: server, channel, operation, and message.
@@ -1062,7 +1161,7 @@ level that AsyncAPI defines bindings: server, channel, operation, and message.
 type GraphQLBinding struct {
     Kind      string    // "query" | "mutation" | "subscription"
     FieldPath []string  // entry-point field (nesting for namespaced schemas)
-    Extensions Extensions
+    Preserved  Preserved
 }
 ```
 
@@ -1076,12 +1175,12 @@ field type → response), nested field arguments → `Property.Args` at any dept
 `GraphQLBinding{Kind: "subscription"}` + `StreamingMode: server` + `ResponseStream`.
 
 Directive conventions (normative): applications are ordered and repeatable, so
-`Extensions["graphql:@<name>"]` holds an **ordered JSON array** of application argument objects
+`Preserved["graphql:@<name>"]` holds an **ordered JSON array** of application argument objects
 — a singleton array for a single application. Directive *definitions* are preserved verbatim at
-document level under `Extensions["graphql:directive-definitions"]`. Type-extension assembly
+document level under `Preserved["graphql:directive-definitions"]`. Type-extension assembly
 (`extend type` across files): the node's `Provenance` points at the original definition, each
 member's `Provenance` at its defining occurrence; the occurrence list goes to
-`Extensions["graphql:extends"]` when SDL round-trip fidelity is wanted.
+`Preserved["graphql:extends"]` when SDL round-trip fidelity is wanted.
 
 Arbitrary client-composed selection sets are out of scope by design: Morphic generates SDK
 surface, and the full type graph — including per-field arguments — is retained so a emitter can
@@ -1099,7 +1198,7 @@ type OTPBinding struct {
                          // (local/global/via) in Channel.Bindings["otp"]
     RequestTag *Value    // tag of the request tuple (a symbol Value, e.g. 'get');
                          // nil = the whole term is the request
-    Extensions Extensions // source metadata without a first-class IR node (§12)
+    Preserved  Preserved  // source constructs the IR does not model, kept verbatim (§12)
 }
 ```
 
@@ -1144,11 +1243,11 @@ type AuthScheme struct {
     // oauth2
     Flows []OAuthFlow    // {Kind: authorization_code|client_credentials|implicit|password|device,
                          //  AuthorizationURL, TokenURL, RefreshURL, Scopes map[string]string,
-                         //  Extensions} — device flow's deviceAuthorizationUrl rides AuthorizationURL
+                         //  Preserved} — device flow's deviceAuthorizationUrl rides AuthorizationURL
     OAuth2MetadataURL string // RFC 8414 authorization-server metadata (OpenAPI 3.2)
     // openid
     OpenIDConnectURL string
-    Extensions Extensions
+    Preserved  Preserved
     Provenance Provenance
 }
 
@@ -1173,15 +1272,15 @@ type Server struct {
                                         // OpenAPI 3.2 Server.name)
     URLTemplate string                  // may contain {variables}
     Description Docs
-    Variables   []ServerVariable        // {Name, Default, Enum []string, Docs, Extensions}
+    Variables   []ServerVariable        // {Name, Default, Enum []string, Docs, Preserved}
     Protocol    string                  // "https" default; "kafka", "wss", … for messaging servers
     ProtocolVersion string              // e.g. Kafka "3.5", AMQP "0-9-1" (AsyncAPI)
     Tags        []string
     Auth        []AuthRequirement       // server-scoped security — AsyncAPI's primary auth placement
                                         // (broker connections authenticate per server; different
                                         // servers of one service may require different schemes)
-    Bindings    map[string]Extensions   // server-level protocol bindings kept raw
-    Extensions  Extensions
+    Bindings    map[string]RawConfig    // server-level protocol bindings kept raw
+    Preserved   Preserved
 }
 ```
 
@@ -1210,9 +1309,9 @@ interpret availability themselves. Formats without versioning semantics simply l
 `Operation`, `Parameter`, `EnumMember`, `Variant`, and `OperationGroup` — a versioned enum
 member or union variant must disappear from pre-`Added` snapshots. Smithy `@since` (free-form,
 no version registry) lowers to `Added` only when the compiler synthesizes labels; otherwise it
-is preserved as an extension.
+is kept verbatim under `Preserved`.
 
-## 12. Docs, deprecation, examples, extensions
+## 12. Docs, deprecation, examples, preserved constructs
 
 ```go
 type Docs struct {
@@ -1236,34 +1335,127 @@ type Example struct {
     Output      *Value        // (Smithy @examples, TypeSpec @opExample parameters/returnType)
     Error       *ErrorExample // the scenario ends in this error instead of Output
     ExternalURL string
-    Extensions  Extensions
+    Preserved   Preserved
 }
 type ErrorExample struct { Type TypeRef; Content Value }
 // Field legality is contextual (validated): Value/Headers on types, properties, parameters,
 // contents, and messages; Input/Output/Error on operations. An Example never mixes the two arms.
 
-type Extensions map[string]RawValue
+type PreserveReason string     // vendor_extension | validation_only | degraded_lowering |
+                               // no_ir_home | out_of_scope
+
+type PreservedEntry struct {
+    Reason     PreserveReason    // why this is here rather than modeled
+    Value      RawValue          // the source construct, verbatim
+    Provenance Provenance        // where the construct itself was written
+}
+
+type Preserved map[string]PreservedEntry
 // keys are namespaced by origin: "openapi:x-rate-limit", "smithy:aws.api#arn",
 // "graphql:@key", "typespec:@myOrg/decorator", "asyncapi:bindings.kafka", "erlang:opaque"
 // RawValue is the source JSON preserved verbatim.
+
+type RawConfig map[string]RawValue
+// declared protocol configuration the IR models a field for but leaves untyped inside:
+// Server/Channel/Message/MessageBinding `Bindings`, `ProtocolDecl.Options`
 ```
 
-Extensions are the lossless escape hatch: any source metadata without a first-class IR node
-survives, namespaced so two formats' extensions never collide, and typed passes can promote
-well-known extensions (`x-ms-pagination` → `Pagination`) without losing the original. For the
-escape hatch to hold, **every node that can carry source metadata has an `Extensions` field** —
-including `Response`, `ErrorCase`, `Payload`, `Content`, `Example`, `ServerVariable`,
+`Preserved` is the lossless escape hatch: any source construct without a first-class IR node
+survives, namespaced so two formats never collide, and typed passes can promote well-known
+entries (`x-ms-pagination` → `Pagination`) without losing the original. The name states the
+guarantee rather than borrowing one format's word for the concept — OpenAPI/AsyncAPI say
+*extensions*, Protobuf *options*, GraphQL *directives*, Smithy *traits*, TypeSpec *decorators*,
+Erlang *module attributes* — and Protobuf's own `extensions` means something else entirely
+(reserved field-number ranges), which the IR models as `Model.ExtensionRanges` and
+`Property.ExtensionOf`.
+
+Each entry carries two things beyond the value. **`Reason`** says why the construct is
+unmodeled, so a consumer can take the subset it cares about: the validation emitter §4.7
+anticipates wants `validation_only` and not vendor noise, while a spec linter wants
+`degraded_lowering` and `no_ir_home` and nothing else. It is a property of the construct, never
+of the diagnostic emitted beside it — one diagnostic code routinely spans preservation,
+weakening, and outright dropping, so it says nothing about why. **`Provenance`** locates the
+construct itself rather than the node carrying it, so an emitter can report on an entry at its
+own source position instead of the enclosing schema's — falling back to the declaring position
+only where the entry combines several keywords into one synthesized object and no single node
+addresses it (`openapi:if-then-else`, `openapi:contains`, `openapi:unevaluated`).
+
+| Reason | Meaning |
+|---|---|
+| `vendor_extension` | The source format assigns the key no semantics at all (`x-*` and every format's equivalent). The key set is unbounded and nothing can be inferred from the value. |
+| `validation_only` | Validation logic rather than data shape: the structural picture is complete without it, and no target type system or sibling source format has an equivalent (§4.7). |
+| `degraded_lowering` | No faithful target for the shape as written — the IR has no combinator for it, or no target type system holds it — so it was lowered to a documented weaker shape with the original kept beside it (§4.8). |
+| `no_ir_home` | Expressible in target languages, and no boundary the IR draws on purpose: the position simply has no field for it yet. A gap expected to close — each of these is a promotion candidate. |
+| `out_of_scope` | A boundary the IR draws on purpose (§15): runtime machinery or per-target SDK policy rather than API shape. Kept so nothing is lost, but no node is coming — the intended consumer is an emitter policy layer, not a promotion pass. |
+
+`no_ir_home` and `out_of_scope` are the pair worth keeping straight, because they read alike and
+mean opposite things: the first is an admission (a field the IR should probably grow), the second
+is a decision (§15's list, which exists precisely so those constructs are never mistaken for
+oversights). A promotion pass mining the IR for its next typed node reads `no_ir_home` and must
+skip `out_of_scope`; nothing about the key or the value distinguishes them, which is the whole
+reason `Reason` is data rather than a comment.
+
+Sorting entries into *typed* buckets instead was considered and rejected: the defining property
+of an entry is that it is unmodeled, so anything with enough known semantics to be sorted into a
+bucket has enough to be modeled properly, and sorting would make the compiler guess — a
+heuristic, which invariant 6 then requires to be injectable, marked `Inferred`, and disableable.
+`Reason` gives the same discrimination as data, and callers already tell formats apart by key
+prefix.
+
+For the escape hatch to hold, **every node that can carry source metadata has a `Preserved`
+field** — including `Response`, `ErrorCase`, `Payload`, `Content`, `Example`, `ServerVariable`,
 `OAuthFlow`, and every binding struct (new spec revisions land fields on exactly these objects).
-Per-file metadata (protobuf file options) is keyed by path in `Document.Extensions`.
+Per-file metadata (protobuf file options) is keyed by path in `Document.Preserved`.
+
+`RawConfig` is the neighbouring map type, not a second escape hatch: it holds declared protocol
+configuration the IR models a field for and deliberately leaves untyped inside (AsyncAPI
+bindings at server, channel, operation and message level; `ProtocolDecl.Options`). Its values are
+bare `RawValue`, not `PreservedEntry` — those entries are there because the source declared them
+where the IR expects them, so there is no reason to record and no unmodelled construct to locate.
+
+### 12.1 One structural home per declaration
+
+Documentation, deprecation, XML hints, examples, vendor extensions, validation-only keywords and
+value constraints are **position-scoped**: they bind the position they were written at, not the
+shape that position resolves to. A source schema that reduces to a shared node — the `string`
+primitive, the schemaless top type, or another type reached through a `$ref` — must therefore
+never write them onto that node, because every other position resolving to the same shape would
+then read them as its own.
+
+Each such declaration gets exactly **one** home, chosen by the position rather than by what the
+body lowered to:
+
+| the position | where the declaration's annotations live |
+|---|---|
+| carries an `ir.Property` or `ir.Parameter` of its own — a model property, a header, an operation parameter | that carrier |
+| carries neither — a component, an `items`, `additionalProperties`, `prefixItems[n]`, a `patternProperties` value, a union branch, a media-type or item schema, a `$ref`-hoisted sub-schema | a type node the position owns, hoisting a `Scalar` alias over the shared target when the body reduced to one |
+
+Two consequences a compiler must hold to. **A carrier position never hoists an alias**: a
+documented scalar field keeps its description on `Property.Docs`, where an emitter rendering that
+field reads it, rather than on an anonymous node the field points at. **A non-carrier position
+hoists only when the declaration says something** one of those homes holds — a bare
+`items: {type: string}` gains nothing by owning a node, so it keeps resolving straight to the
+shared primitive and the type graph stays free of an anonymous node per element position.
+
+Where a carrier holds annotations of its own alongside a schema's — a header and a parameter both
+write a `description` beside their schema — the carrier's own win: they describe that input,
+while the schema's describe its type.
+
+Constraints follow the same rule with one exception on the carrier side. `Property.Constraints`
+and `Parameter.Constraints` are filled whether or not the schema hoisted a node, because no node
+such a schema can hoist holds them: an object lowers to a `Model` and a formatted scalar to a
+`Scalar` carrying an `Encoding`, and neither has a field for the scalar bounds.
 
 ## 13. Provenance & diagnostics
 
 ```go
 type Provenance struct {
-    Source   int       // index into Document.Sources
+    Source   int       // index into Document.Sources, or NoSource (-1)
     Pointer  string    // JSON pointer or line:col into that source
     Inferred string    // "" = declared; else the heuristic that produced this node ("pagination-name-match")
 }
+
+const NoSource = -1 // the node addresses no input file
 
 type Diagnostic struct {
     Severity   Severity  // error | warning | info
@@ -1275,6 +1467,13 @@ type Diagnostic struct {
 
 Everything heuristic is auditable; everything broken is reportable with an exact source location.
 
+The one exception is what `NoSource` exists for. A pass reporting on the document it was handed has
+no input file to name, and every real index — `0` included — names a file the document loaded, so
+reusing one would make a renderer fabricate a location. `NoSource` is therefore the **only**
+out-of-table `Source` value the IR declares: a verifier accepts it and reports every other index
+that addresses no declared source, so a producer inventing a second sentinel is caught rather than
+tolerated.
+
 ---
 
 ## 14. Compiler lowering summaries
@@ -1283,16 +1482,22 @@ How each format's distinctive concepts land in the IR (full details live with ea
 
 | Format | Lowering highlights |
 |---|---|
-| **OpenAPI 3.x** | components/schemas → registry (IDs from pointers); inline schemas hoisted with hints; `allOf` → Base/Mixins per §4.3; `oneOf`/`anyOf` → Union (Exclusive bit), null-variant → Nullable ref; `discriminator` → Discriminator (3.2 `defaultMapping` → Discriminator.Default); `nullable`/type-arrays → Nullable; readOnly/writeOnly → Visibility (schema-level readOnly pushed down to referencing properties, residue → Extensions + diagnostic); `additionalProperties: false` → Additional=closed, `unevaluatedProperties: false` → closed_after_composition; parameters → Params + HTTPBinding locations w/ style/explode, 3.2 `in: querystring` → querystring location; requestBody/responses all content types → Payload.Contents; 3.2 `itemSchema`/`itemEncoding` → Content.Item/ItemEncoding; per-status responses/default → Conditions + ranges; webhooks → HTTPBinding.IsWebhook; callbacks → Callbacks; links → extensions (promotable later); securitySchemes/security → Auth OR-of-ANDs, 3.2 device flow + `oauth2MetadataUrl` → Flows/OAuth2MetadataURL; servers+variables (3.2 named) → Servers; tags (3.2 parent/kind) → groups + TagDefs; info contact/license → Document; schema `example(s)` → Examples; `xml` object (incl. 3.2 nodeType) → XMLHints at type and property level; `not`/`if-then-else`/`dependentSchemas`/`contains`/`unevaluated*` → verbatim Extensions per §4.7; `patternProperties` → AdditionalProps.Patterns; `x-*` → namespaced Extensions (legal on every object — hence Extensions on every node); `$ref`-adjacent sibling keywords (3.1) and ref-target annotations merge onto the referencing Property/Parameter with **use-site precedence**, applied uniformly (oagen's ad-hoc per-site patching is the counterexample); a oneOf/anyOf whose variants are all string consts normalizes to a closed `Enum` in a `pass/` normalization — not in the compiler — so per-variant `Docs` survive until the collapse is chosen; mutually-exclusive parameter groups (`x-mutually-exclusive-parameter-groups`) stay as namespaced Extensions, and their documented *promotion* (no dedicated node needed) is a pass that synthesizes one logical `Parameter` typed by a `Union` of variant models, bound via `HTTPParamBinding.ParamPath` per field; pagination only via injectable policy, marked Inferred |
+| **OpenAPI 3.x** | components/schemas → registry (IDs from pointers); inline schemas hoisted with hints; `allOf` → Base/Mixins per §4.3; `oneOf`/`anyOf` → Union (Exclusive bit), null-variant → Nullable ref, co-declared with structural keywords → the composition distributed across the variants per §4.3, or — for the five shapes that cannot be distributed — structural body + verbatim union per §4.8 (branches that declare no shape at all are `validation_only` per §4.7); `discriminator` → Discriminator (3.2 `defaultMapping` → Discriminator.Default); `nullable`/type-arrays → Nullable; readOnly/writeOnly → Visibility (schema-level readOnly pushed down to referencing properties, residue → Preserved + diagnostic); `additionalProperties: false` → Additional=closed, `unevaluatedProperties: false` → closed_after_composition; parameters → Params + HTTPBinding locations w/ style/explode, 3.2 `in: querystring` → querystring location; requestBody/responses all content types → Payload.Contents, a non-required requestBody → Payload.Preserved (`no_ir_home`, presence is the IR's only body optionality); 3.2 `itemSchema` → Content.Item and `itemEncoding` → Content.ItemEncoding — except beside a positional `prefixEncoding`, where both go to Content.Preserved (`no_ir_home`) because a single every-item encoding cannot state ordinals; per-status responses/default → Conditions + ranges, error-response `headers` and a multi-media error `content` map → ErrorCase.Preserved (`no_ir_home`, ErrorCase has neither field); webhooks → HTTPBinding.IsWebhook; callbacks → Callbacks; links → Response.Preserved (`no_ir_home`, promotable later); path-item `servers` → Operation.Preserved (`no_ir_home`: §10 scopes servers by index list at service and channel, and an operation has no such list yet); securitySchemes/security → Auth OR-of-ANDs, 3.2 device flow + `oauth2MetadataUrl` → Flows/OAuth2MetadataURL; servers+variables (3.2 named) → Servers; tags (3.2 parent/kind) → groups + TagDefs; info contact/license → Document; schema `example(s)` → Examples; `xml` object (incl. 3.2 nodeType) → XMLHints at type and property level; `not`/`if-then-else`/`dependentSchemas`/`contains`/`propertyNames`/`unevaluated*` → verbatim Preserved per §4.7; `patternProperties` → AdditionalProps.Patterns; `prefixItems` → Tuple, with any trailing `items` → Tuple.Preserved (`degraded_lowering` per §4.8: an open tuple has no IR combinator, so the fixed head is lowered and the tail kept beside it); `x-*` → namespaced Preserved (legal on every object — hence Preserved on every node); `$ref`-adjacent sibling keywords (3.1) and ref-target annotations merge onto the referencing Property/Parameter with **use-site precedence**, applied uniformly (oagen's ad-hoc per-site patching is the counterexample); a oneOf/anyOf whose variants are all string consts normalizes to a closed `Enum` in a `pass/` normalization — not in the compiler — so per-variant `Docs` survive until the collapse is chosen; mutually-exclusive parameter groups (`x-mutually-exclusive-parameter-groups`) stay as namespaced Preserved entries, and their documented *promotion* (no dedicated node needed) is a pass that synthesizes one logical `Parameter` typed by a `Union` of variant models, bound via `HTTPParamBinding.ParamPath` per field; pagination only via injectable policy, marked Inferred |
 | **Swagger 2.0** | lifted to OpenAPI 3.x shape first (body/formData → Payload; host/basePath/schemes → Servers; consumes/produces → content types), then the OpenAPI lowering runs |
-| **TypeSpec** | consumed post-check (monomorphized, `isFinished`); template instances → TypeCommon.Instantiation incl. value args → TemplateArg; models → Model w/ Base + spread provenance → Mixins; scalars → Scalar chains, constructors in values → Value.Ctor; `@encode`/`@format` → Encoding triple; `@encodedName` → WireNameByFormat at property AND type level; unions w/ named variants → Union, `@discriminated` → Discriminator.PropertyName/Envelope/EnvelopeValueName; `| null` → Nullable; visibility classes (incl. custom, `@invisible` → Visibility.None) → Visibility, op overrides → ParameterVisibility/ReturnTypeVisibility; `@patch` implicitOptionality → HTTPBinding.PatchImplicitOptionality; interfaces → OperationGroups (versionable); `@overload` → OverloadOf; `@sharedRoute` → SharedRoute; `@service` → Service; versioning decorators incl. `@typeChangedFrom`/`@madeOptional`/`@madeRequired` and add/remove cycles → Availability timeline (on members/variants/params too); pagination decorators incl. prev/first/last links and header continuation tokens → Pagination PropPaths (In:"header"); Azure.Core `@pollingOperation`/`@finalOperation` → LongRunning; multipart w/ parts → Content.Encoding/PartEncoding, `Http.File` → FileInfo (content-type set, contents chain, filename location); streams/SSE → StreamDetail + Variant.Event (contentType, terminal); `@error` → UsageFlags.Error; `@example`/`@opExample` → Examples (Input/Output pairs); `@pattern` message → Constraints.PatternMessage; `@mediaTypeHint` → TypeCommon.MediaTypeHint; `never` members deleted + diagnostic per §4.8; TCGC client-shaping decorators (`@clientName`, `@access`, `@usage`, `@scope`, `@override`, …) → namespaced Extensions consumed by emitter policy, never IR semantics; values/consts incl. enum-member refs → Values channel |
-| **Smithy 2.0** | structures → Model, mixins → Mixins (non-structure mixins flattened — spec-sanctioned); `document` → Any; unions → WireTagged Union, member `@jsonName` → Variant.WireName; enum/intEnum → Enum (open by default); `@sparse` → element Nullable; traits: constraints → Constraints, `@paginated` → Pagination (declared), `@retryable` → ErrorCase.Retryable + Throttling, `@error` fault → ErrorCase.Fault, `@readonly` → Idempotency safe, `@idempotent`/`@idempotencyToken` → Idempotency, `@sensitive` → Sensitive/Secret, `@tags` → Tags, `@clientOptional`/`@input` → Property.ClientOptional (+InputOnly), `@addedDefault` → DefaultAdded, root-shape `@default` pushed down to properties w/ provenance; `@streaming` blob → StreamDetail (+`@requiresLength` → RequiresLength); event streams → StreamDetail.Events union + Property.EventHeader/EventPayload + Initial messages; service-level errors → Service.CommonErrors; protocol traits → Service.Protocols; service `rename`/`version` → Service.Renames/Version; resources → OperationGroup + ResourceInfo (identifiers, properties, lifecycle incl. put/@noReplace, instance vs collection ops); http traits → HTTPBinding incl. `@endpoint`/`@hostLabel` → HostPrefix/host location (additive binding), `@httpPrefixHeaders`/`@httpQueryParams` → Prefix bindings, `@httpResponseCode` → Response.StatusCodeProp, `@requestCompression` → Compression, `@httpChecksumRequired` → ChecksumRequired; `@auth` order → priority-ordered Auth, `@optionalAuth` → empty option; `@jsonName` → WireName; `@mediaType` → Encoding.MediaType; xml traits → XMLHints at type and property level; `@examples` → Examples (Input/Output/Error); waiters + rules-engine traits → verbatim Extensions (§15); `smithy.api#Unit` → nil payload / shared empty Model for tag-only variants; other traits → namespaced Extensions |
-| **GraphQL** | §8.4; interfaces (incl. interface hierarchies) → Abstract models + Implements; field arguments → Property.Args; input objects → `InputOnly` models, `@oneOf` inputs → WireTagged Exclusive Union; non-null wrapping → Required/Nullable (all `[T!]!` combinations via per-layer list nodes); defaults on args AND input fields → Default (list-input coercion normalized); custom scalars → Scalar{Base: nil}, `@specifiedBy` → Extensions; deprecation w/ reason at every location incl. args/input fields; directives → ordered-array Extensions convention + document-level definitions |
-| **AsyncAPI** | servers w/ protocols/protocolVersion/security → Servers (named, w/ Auth); channels → Channels (Address nil = unknown), messages → Document.Messages registry referenced by ID; operations send/receive → Operation + MessageBinding, no-reply sends → OneWay; reply objects → Reply (static channel + dynamic PropPath address + message set); correlation IDs → PropPath (In: header|payload); message headers → hoisted header model (Headers *TypeRef); message examples → Example{Headers, Value} pairs; multi-format payload schemas → Content.SchemaFormat + verbatim schema in Extensions (Avro payloads lower through the type graph: record→Model, enum→closed Enum w/ FallbackMember, fixed→bytes w/ length, decimal→Constraints.Precision/Scale, aliases→Naming.Aliases); parameter `location` → Parameter.ValueFrom; traits applied by merge w/ provenance; protocol bindings at server/channel/operation/message level → raw Bindings maps; payload JSON-Schema lowering shared with OpenAPI |
-| **Protobuf** | messages → Model w/ WireIDs; oneof → WireTagged Exclusive Union w/ variant WireIDs + Flatten on the synthetic wrapper property (oneof members are top-level wire fields; synthetic oneofs from proto3 `optional` do NOT lower to unions — they are presence markers); presence disciplines → Property.Presence (never Nullable); enums → Enum open/closed per syntax/edition, allow_alias → duplicate member values; map/repeated → MapT/List (packed/expanded → List.Encoding); groups / editions DELIMITED → nested Model + Encoding "delimited"; scalar wire variants (sint/fixed) → Encoding; `extend` fields → Property.ExtensionOf, extension ranges → Model.ExtensionRanges; well-known types → External (wrapper types → External or nullable primitive per injectable policy); custom options → namespaced Extensions (proto-JSON), file options keyed by path in Document.Extensions; services/rpcs → Service/Operation + RPCBinding; streaming modifiers → StreamingMode; gRPC transcoding (google.api.http) → additional HTTPBinding entries (slice), path patterns → PathPattern, nested bindings → ParamPath, response_body → ResponseBodyPath; reserved ranges → Extensions (guarded by validate pass) |
-| **Erlang/OTP** | §8.5; `-type`/`-spec` type language → type graph: tuples → Tuple, tagged-tuple unions → Union + Discriminator.Index, records → Model{Positional} w/ 1-based WireIDs, atoms → symbol Values / Literal types / `Scalar{Base: string, Encoding: "erlang:atom"}`, integer ranges → integer Scalar + Min/Max, maps `:=`/`=>` → Properties(Required)/AdditionalProps w/ typed keys, `pid()`/`port()`/`reference()`/`fun()` → External, `string()` → List of char scalar, parametrized types monomorphized w/ Instantiation; behaviours: gen_server call/cast → Operations + OTPBinding (cast → OneWay), info → channel Messages received, gen_event → Channel w/ N messages, gen_statem states → `Extensions["otp:states"]`; registered process → Channel.Address, registration kind → Channel.Bindings["otp"]; reply-union Errors split → injectable Inferred policy; bit-sized binaries/map assoc lists/`-opaque` → §4.8 degraded lowerings; `-deprecated` → Deprecation; `-doc`/EDoc → Docs |
+| **TypeSpec** | consumed post-check (monomorphized, `isFinished`); template instances → TypeCommon.Instantiation incl. value args → TemplateArg; models → Model w/ Base + spread provenance → Mixins; scalars → Scalar chains, constructors in values → Value.Ctor; `@encode`/`@format` → Encoding triple; `@encodedName` → WireNameByFormat at property AND type level; unions w/ named variants → Union, `@discriminated` → Discriminator.PropertyName/Envelope/EnvelopeValueName; `| null` → Nullable; visibility classes (incl. custom, `@invisible` → Visibility.None) → Visibility, op overrides → ParameterVisibility/ReturnTypeVisibility; `@patch` implicitOptionality → HTTPBinding.PatchImplicitOptionality; interfaces → OperationGroups (versionable); `@overload` → OverloadOf; `@sharedRoute` → SharedRoute; `@service` → Service; versioning decorators incl. `@typeChangedFrom`/`@madeOptional`/`@madeRequired` and add/remove cycles → Availability timeline (on members/variants/params too); pagination decorators incl. prev/first/last links and header continuation tokens → Pagination PropPaths (In:"header"); Azure.Core `@pollingOperation`/`@finalOperation` → LongRunning; multipart w/ parts → Content.Encoding/PartEncoding, `Http.File` → FileInfo (content-type set, contents chain, filename location); streams/SSE → StreamDetail + Variant.Event (contentType, terminal); `@error` → UsageFlags.Error; `@example`/`@opExample` → Examples (Input/Output pairs); `@pattern` message → Constraints.PatternMessage; `@mediaTypeHint` → TypeCommon.MediaTypeHint; `never` members deleted + diagnostic per §4.8; TCGC client-shaping decorators (`@clientName`, `@access`, `@usage`, `@scope`, `@override`, …) → namespaced Preserved (`out_of_scope`) consumed by emitter policy, never IR semantics; values/consts incl. enum-member refs → Values channel |
+| **Smithy 2.0** | structures → Model, mixins → Mixins (non-structure mixins flattened — spec-sanctioned); `document` → Any; unions → WireTagged Union, member `@jsonName` → Variant.WireName; enum/intEnum → Enum (open by default); `@sparse` → element Nullable; traits: constraints → Constraints, `@paginated` → Pagination (declared), `@retryable` → ErrorCase.Retryable + Throttling, `@error` fault → ErrorCase.Fault, `@readonly` → Idempotency safe, `@idempotent`/`@idempotencyToken` → Idempotency, `@sensitive` → Sensitive/Secret, `@tags` → Tags, `@clientOptional`/`@input` → Property.ClientOptional (+InputOnly), `@addedDefault` → DefaultAdded, root-shape `@default` pushed down to properties w/ provenance; `@streaming` blob → StreamDetail (+`@requiresLength` → RequiresLength); event streams → StreamDetail.Events union + Property.EventHeader/EventPayload + Initial messages; service-level errors → Service.CommonErrors; protocol traits → Service.Protocols; service `rename`/`version` → Service.Renames/Version; resources → OperationGroup + ResourceInfo (identifiers, properties, lifecycle incl. put/@noReplace, instance vs collection ops); http traits → HTTPBinding incl. `@endpoint`/`@hostLabel` → HostPrefix/host location (additive binding), `@httpPrefixHeaders`/`@httpQueryParams` → Prefix bindings, `@httpResponseCode` → Response.StatusCodeProp, `@requestCompression` → Compression, `@httpChecksumRequired` → ChecksumRequired; `@auth` order → priority-ordered Auth, `@optionalAuth` → empty option; `@jsonName` → WireName; `@mediaType` → Encoding.MediaType; xml traits → XMLHints at type and property level; `@examples` → Examples (Input/Output/Error); waiters + rules-engine traits → verbatim Preserved (`out_of_scope`, §15); `smithy.api#Unit` → nil payload / shared empty Model for tag-only variants; other traits → namespaced Preserved |
+| **GraphQL** | §8.4; interfaces (incl. interface hierarchies) → Abstract models + Implements; field arguments → Property.Args; input objects → `InputOnly` models, `@oneOf` inputs → WireTagged Exclusive Union; non-null wrapping → Required/Nullable (all `[T!]!` combinations via per-layer list nodes); defaults on args AND input fields → Default (list-input coercion normalized); custom scalars → Scalar{Base: nil}, `@specifiedBy` → Preserved; deprecation w/ reason at every location incl. args/input fields; directives → ordered-array Preserved convention + document-level definitions |
+| **AsyncAPI** | servers w/ protocols/protocolVersion/security → Servers (named, w/ Auth); channels → Channels (Address nil = unknown), messages → Document.Messages registry referenced by ID; operations send/receive → Operation + MessageBinding, no-reply sends → OneWay; reply objects → Reply (static channel + dynamic PropPath address + message set); correlation IDs → PropPath (In: header|payload); message headers → hoisted header model (Headers *TypeRef); message examples → Example{Headers, Value} pairs; multi-format payload schemas → Content.SchemaFormat + verbatim schema in Preserved (Avro payloads lower through the type graph: record→Model, enum→closed Enum w/ FallbackMember, fixed→bytes w/ length, decimal→Constraints.Precision/Scale, aliases→Naming.Aliases); parameter `location` → Parameter.ValueFrom; traits applied by merge w/ provenance; protocol bindings at server/channel/operation/message level → raw Bindings maps; payload JSON-Schema lowering shared with OpenAPI |
+| **Protobuf** | messages → Model w/ WireIDs; oneof → WireTagged Exclusive Union w/ variant WireIDs + Flatten on the synthetic wrapper property (oneof members are top-level wire fields; synthetic oneofs from proto3 `optional` do NOT lower to unions — they are presence markers); presence disciplines → Property.Presence (never Nullable); enums → Enum open/closed per syntax/edition, allow_alias → duplicate member values; map/repeated → MapT/List (packed/expanded → List.Encoding); groups / editions DELIMITED → nested Model + Encoding "delimited"; scalar wire variants (sint/fixed) → Encoding; `extend` fields → Property.ExtensionOf, extension ranges → Model.ExtensionRanges; well-known types → External (wrapper types → External or nullable primitive per injectable policy); custom options → namespaced Preserved (proto-JSON), file options keyed by path in Document.Preserved; services/rpcs → Service/Operation + RPCBinding; streaming modifiers → StreamingMode; gRPC transcoding (google.api.http) → additional HTTPBinding entries (slice), path patterns → PathPattern, nested bindings → ParamPath, response_body → ResponseBodyPath; reserved ranges → Preserved (guarded by validate pass) |
+| **Erlang/OTP** | §8.5; `-type`/`-spec` type language → type graph: tuples → Tuple, tagged-tuple unions → Union + Discriminator.Index, records → Model{Positional} w/ 1-based WireIDs, atoms → symbol Values / Literal types / `Scalar{Base: string, Encoding: "erlang:atom"}`, integer ranges → integer Scalar + Min/Max, maps `:=`/`=>` → Properties(Required)/AdditionalProps w/ typed keys, `pid()`/`port()`/`reference()`/`fun()` → External, `string()` → List of char scalar, parametrized types monomorphized w/ Instantiation; behaviours: gen_server call/cast → Operations + OTPBinding (cast → OneWay), info → channel Messages received, gen_event → Channel w/ N messages, gen_statem states → `Preserved["otp:states"]`; registered process → Channel.Address, registration kind → Channel.Bindings["otp"]; reply-union Errors split → injectable Inferred policy; bit-sized binaries/map assoc lists/`-opaque` → §4.8 degraded lowerings; `-deprecated` → Deprecation; `-doc`/EDoc → Docs |
 
 ## 15. Deliberate exclusions
+
+Constructs on this list that a source format actually declares are still kept — losslessness is
+not negotiable — but they are kept under `ReasonOutOfScope` (§12), never `no_ir_home`: the
+boundary is drawn on purpose, so no promotion pass should read them as a gap to close. Entries
+here that no format declares (language casings, generator plan artifacts) are simply absent from
+the IR and preserve nothing.
 
 - **Language names/casings** — emitters own identifier rendering entirely (IR stores neutral
   word sequences + wire names).
@@ -1302,18 +1507,29 @@ How each format's distinctive concepts land in the IR (full details live with ea
 - **Generator plan artifacts** (request builders, executor pairs, per-visibility model variants,
   primary-response selection) — computed views in emitters, not stored.
 - **Structured modeling of transport-deployment minutiae** (Kafka partition configs, AMQP
-  exchange args) — preserved as raw namespaced extensions.
+  exchange args) — preserved as raw namespaced entries.
 - **Smithy rules-engine traits** (`@endpointRuleSet`, context params) — runtime endpoint
-  resolution machinery; preserved as raw namespaced extensions on the service.
-- **Smithy waiters** (`smithy.waiters#waitable`) — preserved verbatim in `Operation.Extensions`,
+  resolution machinery; preserved as raw namespaced entries on the service.
+- **Smithy waiters** (`smithy.waiters#waitable`) — preserved verbatim in `Operation.Preserved`,
   never folded into `LongRunning`; promoted to a typed node only if a second format lands.
 - **TCGC-style client-shaping decorators** (`@clientName`, `@access`, `@usage`, `@scope`, …) —
-  per-language SDK-surface policy, preserved as namespaced extensions for emitter policy layers.
+  per-language SDK-surface policy, preserved as namespaced entries for emitter policy layers.
 - **Arbitrary GraphQL persisted queries** — the type graph and entry points are retained; query
   composition is a emitters/runtime feature.
 - **Capability/interface-typed fields** (Cap'n Proto capability passing) — requires
   services-as-types; out of scope for a data-SDK compiler.
 - **Function types** — Erlang funs degrade per §4.8; no target language marshals closures.
+- **A general intersection combinator** (an `Intersection` node, or an `Intersect` sum arm, for
+  the *struct ∧ union* shape a JSON Schema `oneOf` beside structural keywords writes) — asked and
+  answered, so it does not need re-litigating. The capability is not cross-format: only OpenAPI
+  and AsyncAPI can express it, and they share a compiler code path, so a node would be one
+  format's artifact given IR-wide status against invariant 9. TypeSpec's `&` is *model-only*
+  (`ir-spec-matrix.md`'s Intersection row records it as `⚠ & (model is)`) and so is already
+  covered by §4.3's `Base`/`Mixins`; Smithy, GraphQL, Protobuf and Erlang/OTP cannot express it
+  at all. The shape is instead handled where it arises: distributed across the union's variants
+  per §4.3 when every branch names a referent, and kept verbatim under `ReasonDegradedLowering`
+  in the five residual shapes §4.8 lists. A second format that declares a genuine intersection —
+  not a model-only `&` — is what would reopen this.
 
 ## 16. Open questions (tracked for implementation)
 
@@ -1344,5 +1560,5 @@ How each format's distinctive concepts land in the IR (full details live with ea
    and either validates or strains the current shape.
 7. **Semantic nullability (GraphQL)** — the `@semanticNonNull` RFC ("null only on error") is a
    third nullability state `TypeRef.Nullable` cannot express. Pre-spec today: preserved as
-   `Extensions["graphql:@semanticNonNull"]`. If it merges into the spec, add a `NullKind` (or a
+   `Preserved["graphql:@semanticNonNull"]`. If it merges into the spec, add a `NullKind` (or a
    `NullOnlyOnError` bool) rather than churning every compiler early.

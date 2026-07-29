@@ -6,6 +6,7 @@ package openapi_test
 
 import (
 	"encoding/json"
+	"fmt"
 	"slices"
 	"strings"
 	"testing"
@@ -122,7 +123,7 @@ func retentionCases() []retentionCase {
 		deprecatedCases(),
 		defaultCases(),
 		visibilityCases(),
-		extensionsCases(),
+		vendorExtensionCases(),
 		xmlHintsCases(),
 		validationOnlyCases(),
 	)
@@ -344,8 +345,6 @@ components:
 func docsScalarCase() retentionCase {
 	return retentionCase{
 		cell: harness.Cell{Annotation: harness.AnnotationDocs, SiteKind: harness.SiteDeclarationScalar},
-		knownGap: "fillTypeDocs is only called from fillModelDetail; a scalar component's internAlias " +
-			"path never calls it, so a scalar's own description is dropped",
 		spec: `openapi: 3.1.0
 info: {title: g, version: "1"}
 paths: {}
@@ -356,8 +355,7 @@ components:
 		assert: func(t *testing.T, doc *ir.Document) {
 			sc, ok := doc.Types[namedID("S")].(*ir.Scalar)
 			require.True(t, ok, "a bare scalar component owns a Scalar node")
-			assert.Empty(t, sc.Docs.Description,
-				"docs is never set for a scalar declaration today; closing this gap should turn this red")
+			assert.Equal(t, "at-declaration", sc.Docs.Description)
 
 			assert.Empty(t, primitiveNode(t, doc, ir.TypeID("t/prim/string")).Common().Docs.Description,
 				"a description on the declaration must not leak onto the shared primitive")
@@ -428,9 +426,6 @@ components:
 func deprecatedScalarCase() retentionCase {
 	return retentionCase{
 		cell: harness.Cell{Annotation: harness.AnnotationDeprecated, SiteKind: harness.SiteDeclarationScalar},
-		knownGap: "effectiveDeprecated is only called from fillModelDetail (model) and " +
-			"fillPropertyDetail (property); internAlias never calls it, so a scalar component's own " +
-			"deprecated is dropped",
 		spec: `openapi: 3.1.0
 info: {title: g, version: "1"}
 paths: {}
@@ -441,8 +436,7 @@ components:
 		assert: func(t *testing.T, doc *ir.Document) {
 			sc, ok := doc.Types[namedID("S")].(*ir.Scalar)
 			require.True(t, ok, "a bare scalar component owns a Scalar node")
-			assert.Nil(t, sc.Deprecation,
-				"Deprecation is never set for a scalar declaration today; closing this gap should turn this red")
+			assert.NotNil(t, sc.Deprecation)
 
 			assert.Nil(t, primitiveNode(t, doc, ir.TypeID("t/prim/string")).Common().Deprecation,
 				"a deprecated on the declaration must not leak onto the shared primitive")
@@ -662,15 +656,15 @@ components:
 	}
 }
 
-// extensionsCases returns the annotation-retention cases for the extensions
-// annotation (x-vendor) at each SiteKind.
-func extensionsCases() []retentionCase {
-	return []retentionCase{extensionsModelCase(), extensionsScalarCase(), extensionsReferenceCase()}
+// vendorExtensionCases returns the annotation-retention cases for the
+// vendor-extension annotation (x-vendor) at each SiteKind.
+func vendorExtensionCases() []retentionCase {
+	return []retentionCase{vendorExtensionModelCase(), vendorExtensionScalarCase(), vendorExtensionReferenceCase()}
 }
 
-func extensionsModelCase() retentionCase {
+func vendorExtensionModelCase() retentionCase {
 	return retentionCase{
-		cell: harness.Cell{Annotation: harness.AnnotationExtensions, SiteKind: harness.SiteDeclarationModel},
+		cell: harness.Cell{Annotation: harness.AnnotationVendorExtension, SiteKind: harness.SiteDeclarationModel},
 		spec: `openapi: 3.1.0
 info: {title: g, version: "1"}
 paths: {}
@@ -685,18 +679,17 @@ components:
 		assert: func(t *testing.T, doc *ir.Document) {
 			td, ok := doc.Types[namedID("S")]
 			require.True(t, ok)
-			raw, ok := td.Common().Extensions["openapi:x-vendor"]
+			raw, ok := td.Common().Preserved["openapi:x-vendor"]
 			require.True(t, ok, "x-vendor must be preserved under the openapi: namespace")
-			assert.JSONEq(t, `"at-declaration"`, string(raw))
+			assert.JSONEq(t, `"at-declaration"`, string(raw.Value))
+			assert.Equal(t, ir.ReasonVendorExtension, raw.Reason)
 		},
 	}
 }
 
-func extensionsScalarCase() retentionCase {
+func vendorExtensionScalarCase() retentionCase {
 	return retentionCase{
-		cell: harness.Cell{Annotation: harness.AnnotationExtensions, SiteKind: harness.SiteDeclarationScalar},
-		knownGap: "schemaExtensions is merged into Model.Extensions only inside fillModelDetail; " +
-			"internAlias never attaches it, so a scalar component's own x-vendor is dropped",
+		cell: harness.Cell{Annotation: harness.AnnotationVendorExtension, SiteKind: harness.SiteDeclarationScalar},
 		spec: `openapi: 3.1.0
 info: {title: g, version: "1"}
 paths: {}
@@ -707,18 +700,20 @@ components:
 		assert: func(t *testing.T, doc *ir.Document) {
 			sc, ok := doc.Types[namedID("S")].(*ir.Scalar)
 			require.True(t, ok, "a bare scalar component owns a Scalar node")
-			assert.Empty(t, sc.Extensions,
-				"Extensions is never set for a scalar declaration today; closing this gap should turn this red")
+			raw, ok := sc.Preserved["openapi:x-vendor"]
+			require.True(t, ok, "x-vendor must be preserved under the openapi: namespace")
+			assert.JSONEq(t, `"at-declaration"`, string(raw.Value))
+			assert.Equal(t, ir.ReasonVendorExtension, raw.Reason)
 
-			assert.Empty(t, primitiveNode(t, doc, ir.TypeID("t/prim/string")).Common().Extensions,
+			assert.Empty(t, primitiveNode(t, doc, ir.TypeID("t/prim/string")).Common().Preserved,
 				"an x-vendor on the declaration must not leak onto the shared primitive")
 		},
 	}
 }
 
-func extensionsReferenceCase() retentionCase {
+func vendorExtensionReferenceCase() retentionCase {
 	return retentionCase{
-		cell: harness.Cell{Annotation: harness.AnnotationExtensions, SiteKind: harness.SiteReference},
+		cell: harness.Cell{Annotation: harness.AnnotationVendorExtension, SiteKind: harness.SiteReference},
 		spec: `openapi: 3.1.0
 info: {title: g, version: "1"}
 paths: {}
@@ -737,13 +732,14 @@ components:
 			require.True(t, ok)
 			p, ok := propByWire(m, "f")
 			require.True(t, ok)
-			raw, ok := p.Extensions["openapi:x-vendor"]
+			raw, ok := p.Preserved["openapi:x-vendor"]
 			require.True(t, ok, "x-vendor beside a $ref binds the reference site")
-			assert.JSONEq(t, `"at-reference"`, string(raw))
+			assert.JSONEq(t, `"at-reference"`, string(raw.Value))
+			assert.Equal(t, ir.ReasonVendorExtension, raw.Reason)
 
 			target, ok := doc.Types[namedID("Target")]
 			require.True(t, ok)
-			assert.Empty(t, target.Common().Extensions,
+			assert.Empty(t, target.Common().Preserved,
 				"a reference-site extension must not attach to the referent")
 		},
 	}
@@ -758,9 +754,6 @@ func xmlHintsCases() []retentionCase {
 func xmlHintsModelCase() retentionCase {
 	return retentionCase{
 		cell: harness.Cell{Annotation: harness.AnnotationXMLHints, SiteKind: harness.SiteDeclarationModel},
-		knownGap: "ir.TypeCommon.XML exists but the OpenAPI compiler never assigns it; only " +
-			"Property.XML is filled (fillPropertyDetail), so a component-level xml hint has " +
-			"nowhere to land",
 		spec: `openapi: 3.1.0
 info: {title: g, version: "1"}
 paths: {}
@@ -775,8 +768,8 @@ components:
 		assert: func(t *testing.T, doc *ir.Document) {
 			td, ok := doc.Types[namedID("S")]
 			require.True(t, ok)
-			assert.Nil(t, td.Common().XML,
-				"XML is never set on a declaration site today; closing this gap should turn this red")
+			require.NotNil(t, td.Common().XML)
+			assert.Equal(t, "Renamed", td.Common().XML.Name)
 		},
 	}
 }
@@ -784,8 +777,6 @@ components:
 func xmlHintsScalarCase() retentionCase {
 	return retentionCase{
 		cell: harness.Cell{Annotation: harness.AnnotationXMLHints, SiteKind: harness.SiteDeclarationScalar},
-		knownGap: "xmlHints() is called only from fillPropertyDetail; neither fillModelDetail nor " +
-			"internAlias ever calls it, so a scalar component's own xml hint is dropped same as a model's",
 		spec: `openapi: 3.1.0
 info: {title: g, version: "1"}
 paths: {}
@@ -796,8 +787,8 @@ components:
 		assert: func(t *testing.T, doc *ir.Document) {
 			sc, ok := doc.Types[namedID("S")].(*ir.Scalar)
 			require.True(t, ok, "a bare scalar component owns a Scalar node")
-			assert.Nil(t, sc.XML,
-				"XML is never set on a declaration site today; closing this gap should turn this red")
+			require.NotNil(t, sc.XML)
+			assert.Equal(t, "Renamed", sc.XML.Name)
 
 			assert.Nil(t, primitiveNode(t, doc, ir.TypeID("t/prim/string")).Common().XML,
 				"an xml hint on the declaration must not leak onto the shared primitive")
@@ -838,6 +829,13 @@ components:
 
 // validationOnlyCases returns the annotation-retention cases for the
 // validationOnly annotation (if/then/else) at each SiteKind.
+//
+// The reference case below writes the keywords beside a *property's* $ref,
+// where the property carries them. The grid has one `reference` cell per
+// annotation, not one per position, so this cell going green still says
+// nothing about the request-body, parameter and response-content positions.
+// They keep the keywords too; TestValidationOnly_BesideARefAtABodyPosition is
+// what says so.
 func validationOnlyCases() []retentionCase {
 	return []retentionCase{
 		validationOnlyModelCase(), validationOnlyScalarCase(), validationOnlyReferenceCase(),
@@ -862,9 +860,10 @@ components:
 		assert: func(t *testing.T, doc *ir.Document) {
 			m, ok := doc.Types[namedID("S")].(*ir.Model)
 			require.True(t, ok)
-			raw, ok := m.Extensions["openapi:if-then-else"]
-			require.True(t, ok, "if/then must be preserved verbatim in extensions")
-			assert.JSONEq(t, `{"if":{"type":"string"},"then":{"minLength":1}}`, string(raw))
+			raw, ok := m.Preserved["openapi:if-then-else"]
+			require.True(t, ok, "if/then must be kept verbatim under Preserved")
+			assert.JSONEq(t, `{"if":{"type":"string"},"then":{"minLength":1}}`, string(raw.Value))
+			assert.Equal(t, ir.ReasonValidationOnly, raw.Reason)
 		},
 		assertDiags: func(t *testing.T, diags []ir.Diagnostic) {
 			assert.True(t, hasDiagCode(diags, "openapi/validation-only-keyword"),
@@ -876,9 +875,6 @@ components:
 func validationOnlyScalarCase() retentionCase {
 	return retentionCase{
 		cell: harness.Cell{Annotation: harness.AnnotationValidationOnly, SiteKind: harness.SiteDeclarationScalar},
-		knownGap: "fillValidationOnly takes *ir.Model and is only reached via fillModelDetail; a " +
-			"scalar component's internAlias path never calls it, so if/then/else on a scalar is " +
-			"neither preserved nor diagnosed",
 		spec: `openapi: 3.1.0
 info: {title: g, version: "1"}
 paths: {}
@@ -892,16 +888,17 @@ components:
 		assert: func(t *testing.T, doc *ir.Document) {
 			sc, ok := doc.Types[namedID("S")].(*ir.Scalar)
 			require.True(t, ok, "a bare scalar component owns a Scalar node")
-			_, ok = sc.Extensions["openapi:if-then-else"]
-			assert.False(t, ok, "if/then is never read for a scalar declaration today; closing this gap should turn this red")
+			raw, ok := sc.Preserved["openapi:if-then-else"]
+			require.True(t, ok, "if/then must be kept verbatim under Preserved")
+			assert.JSONEq(t, `{"if":{"type":"string"},"then":{"minLength":1}}`, string(raw.Value))
+			assert.Equal(t, ir.ReasonValidationOnly, raw.Reason)
 
-			_, leaked := primitiveNode(t, doc, ir.TypeID("t/prim/string")).Common().Extensions["openapi:if-then-else"]
+			_, leaked := primitiveNode(t, doc, ir.TypeID("t/prim/string")).Common().Preserved["openapi:if-then-else"]
 			assert.False(t, leaked, "if/then on the declaration must not leak onto the shared primitive")
 		},
 		assertDiags: func(t *testing.T, diags []ir.Diagnostic) {
-			assert.False(t, hasDiagCode(diags, "openapi/validation-only-keyword"),
-				"no keyword is read for a scalar declaration today, so no diagnostic fires; "+
-					"closing this gap should turn this red")
+			assert.True(t, hasDiagCode(diags, "openapi/validation-only-keyword"),
+				"expected a validation-only-keyword info diagnostic")
 		},
 	}
 }
@@ -909,9 +906,6 @@ components:
 func validationOnlyReferenceCase() retentionCase {
 	return retentionCase{
 		cell: harness.Cell{Annotation: harness.AnnotationValidationOnly, SiteKind: harness.SiteReference},
-		knownGap: "$ref dispatch (schemaRef -> refTypeRef) returns before lower()/lowerModel() runs, so " +
-			"fillValidationOnly never sees if/then/else written beside a property's $ref; there is no " +
-			"property-level validation-only preservation to fall back to",
 		spec: `openapi: 3.1.0
 info: {title: g, version: "1"}
 paths: {}
@@ -931,16 +925,126 @@ components:
 			require.True(t, ok)
 			p, ok := propByWire(m, "f")
 			require.True(t, ok)
-			_, ok = p.Extensions["openapi:if-then-else"]
-			assert.False(t, ok,
-				"if/then beside a $ref is never read today; closing this gap should turn this red")
+			raw, ok := p.Preserved["openapi:if-then-else"]
+			require.True(t, ok, "if/then beside a $ref binds the reference site")
+			assert.JSONEq(t, `{"if":{"type":"string"},"then":{"minLength":1}}`, string(raw.Value))
+			assert.Equal(t, ir.ReasonValidationOnly, raw.Reason)
+
+			target, ok := doc.Types[namedID("Target")]
+			require.True(t, ok)
+			assert.Empty(t, target.Common().Preserved,
+				"a reference-site keyword must not attach to the referent")
 		},
 		assertDiags: func(t *testing.T, diags []ir.Diagnostic) {
-			assert.False(t, hasDiagCode(diags, "openapi/validation-only-keyword"),
-				"no keyword is read beside a $ref today, so no diagnostic fires; "+
-					"closing this gap should turn this red")
+			assert.True(t, hasDiagCode(diags, "openapi/validation-only-keyword"),
+				"expected a validation-only-keyword info diagnostic")
 		},
 	}
+}
+
+// validationOnlyRefSitesSpec writes if/then beside a $ref at each reference
+// position the grid's single `reference` cell leaves out, with a `then` bound
+// per position so a keyword landing at the wrong one is visible rather than
+// merely present.
+const validationOnlyRefSitesSpec = `openapi: 3.1.0
+info: {title: g, version: "1"}
+paths:
+  /x:
+    post:
+      operationId: g
+      parameters:
+        - name: q
+          in: query
+          schema:
+            $ref: '#/components/schemas/Target'
+            if: {type: string}
+            then: {minLength: 1}
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Target'
+              if: {type: string}
+              then: {minLength: 2}
+      responses:
+        "200":
+          description: ok
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Target'
+                if: {type: string}
+                then: {minLength: 3}
+components:
+  schemas:
+    Target: {type: string}
+`
+
+// TestValidationOnly_BesideARefAtABodyPosition covers the reference positions
+// the retention grid does not reach. A validation-only keyword written beside a
+// $ref binds the reference site rather than the referent, so it can never go on
+// the shared target — and each of these three positions keeps it, by whichever
+// route it has: a parameter carries it on the ir.Parameter itself, while a
+// request body and a response content have no carrier and so hoist an alias of
+// the referent to hold it (GitHub #116).
+func TestValidationOnly_BesideARefAtABodyPosition(t *testing.T) {
+	t.Parallel()
+	doc, diags := compileAnnotationSpec(t, "validation-only-ref-sites", validationOnlyRefSitesSpec)
+	assertNoErrorDiags(t, diags)
+	op, ok := opByName(doc, "g")
+	require.True(t, ok)
+
+	for _, tc := range []struct {
+		name      string
+		minLength int
+		preserved ir.Preserved
+	}{
+		{"parameter", 1, paramPreserved(t, op)},
+		{"request body", 2, refSiteAlias(t, doc, requestContent(t, op)).Common().Preserved},
+		{"response content", 3, refSiteAlias(t, doc, firstContent(t, op)).Common().Preserved},
+	} {
+		raw, found := tc.preserved["openapi:if-then-else"]
+		require.True(t, found, "%s: if/then beside its $ref must be kept", tc.name)
+		assert.JSONEq(t,
+			fmt.Sprintf(`{"if":{"type":"string"},"then":{"minLength":%d}}`, tc.minLength),
+			string(raw.Value), "%s keeps the keywords written at its own site", tc.name)
+		assert.Equal(t, ir.ReasonValidationOnly, raw.Reason, tc.name)
+	}
+
+	target, found := doc.Types[namedID("Target")]
+	require.True(t, found)
+	assert.Empty(t, target.Common().Preserved,
+		"three reference sites, and none of them wrote onto the referent")
+}
+
+// paramPreserved returns the operation's single parameter's preserved entries.
+func paramPreserved(t *testing.T, op ir.Operation) ir.Preserved {
+	t.Helper()
+	require.Len(t, op.Params, 1)
+	return op.Params[0].Preserved
+}
+
+// requestContent returns an operation's single request-body content.
+func requestContent(t *testing.T, op ir.Operation) ir.Content {
+	t.Helper()
+	require.NotNil(t, op.Request)
+	require.Len(t, op.Request.Contents, 1)
+	return op.Request.Contents[0]
+}
+
+// refSiteAlias returns the node a body position hoisted to hold what was
+// written beside its $ref, requiring it to be an alias of the referent rather
+// than the referent itself — which is the difference between keeping the
+// keywords at the reference site and writing them onto a shared target.
+func refSiteAlias(t *testing.T, doc *ir.Document, c ir.Content) ir.TypeDef {
+	t.Helper()
+	td, ok := doc.Types[c.Type.Target]
+	require.True(t, ok, "the content's type is registered")
+	sc, ok := td.(*ir.Scalar)
+	require.True(t, ok, "a $ref with siblings hoists an alias; got %T", td)
+	require.NotNil(t, sc.Base, "and that alias points at what it referenced")
+	assert.Equal(t, namedID("Target"), sc.Base.Target)
+	return td
 }
 
 // marshalToMap JSON-marshals v — a type node — and decodes the result back
@@ -954,7 +1058,7 @@ components:
 // $ref points at.
 //
 // Either way, NotContains(node, key) only rules out that exact JSON key —
-// not preservation under a different one, such as Extensions (ir-design
+// not preservation under a different one, such as Preserved (ir-design
 // §4.7's carve-out for validation-only keywords with no structural home).
 // A knownGap case is waiting on a real field; this assertion exists to
 // catch exactly that gap, not every other way it could be routed around.
@@ -988,6 +1092,130 @@ func hasDiagCode(diags []ir.Diagnostic, code string) bool {
 		}
 	}
 	return false
+}
+
+// declShape is one declaration shape the SiteKind axis does not name
+// individually. body holds the keywords that give component S that shape, and
+// value a literal legal for it, reused for both `example` and `default`.
+type declShape struct {
+	name  string
+	body  string
+	value string
+	// kind is the node this shape must lower to. Asserting it is what keeps the
+	// grid honest: the four shapes are here because they take four different
+	// lower() destinations, and a body that quietly stopped doing so would make
+	// every assertion below a duplicate of another row rather than a new one.
+	kind ir.TypeKind
+	// constraint is a bound legal on this shape, and constraintKept whether the
+	// node it lowers to has a field to hold it. This is the one annotation of
+	// the nine whose answer is shape-dependent: ir.List carries Constraints,
+	// while Literal, Enum and Union do not, so a single blanket expectation
+	// would be wrong either way.
+	constraint     string
+	constraintKept bool
+}
+
+// spec renders a component declaration of this shape carrying every annotation
+// the retention grid names, so one compile answers all nine at once.
+func (s declShape) spec() string {
+	return `openapi: 3.1.0
+info: {title: g, version: "1"}
+paths: {}
+components:
+  schemas:
+    S:
+      description: at-declaration
+      deprecated: true
+      xml: {name: Renamed}
+      x-vendor: at-declaration
+      if: {type: string}
+      then: {minLength: 1}
+      readOnly: true
+      example: ` + s.value + `
+      default: ` + s.value + "\n" + s.constraint + s.body + "\n"
+}
+
+func declShapes() []declShape {
+	return []declShape{
+		{name: "const", body: "      const: c", value: "c", kind: ir.KindLiteral},
+		{name: "enum", body: "      enum: [a, b]", value: "a", kind: ir.KindEnum},
+		{
+			name: "array", body: "      type: array\n      items: {type: string}", value: "[x]",
+			kind: ir.KindList, constraint: "      minItems: 1\n", constraintKept: true,
+		},
+		{
+			name:  "oneOf",
+			body:  "      oneOf:\n        - {type: string}\n        - {type: integer}",
+			value: "x", kind: ir.KindUnion,
+		},
+	}
+}
+
+// TestAnnotationRetention_OtherDeclarationShapes runs the full nine-annotation
+// grid against the declaration shapes the SiteKind axis does not name
+// individually: const, enum, array, and a sibling-less oneOf. Each reaches a
+// different lower() destination, and every one of them used to bypass the
+// annotation reading that lived inside the model branch — so this is what says
+// the reading moved above the dispatch rather than being copied onto a second
+// path, and it says it for every annotation rather than for docs alone.
+func TestAnnotationRetention_OtherDeclarationShapes(t *testing.T) {
+	t.Parallel()
+	for _, shape := range declShapes() {
+		t.Run(shape.name, func(t *testing.T) {
+			t.Parallel()
+			doc, diags := compileAnnotationSpec(t, shape.name, shape.spec())
+			assertNoErrorDiags(t, diags)
+			td, ok := doc.Types[namedID("S")]
+			require.True(t, ok, "component S must own a node")
+			require.Equal(t, shape.kind, td.Kind(), "this shape must reach its own lower() destination")
+			assertDeclaredAnnotationsKept(t, td)
+			assertDeclarationGapsHold(t, td, shape)
+		})
+	}
+}
+
+// assertDeclaredAnnotationsKept checks the six annotations
+// attachDeclaredAnnotations reads — the ones whose retention depends on where
+// in the dispatch the reading happens.
+func assertDeclaredAnnotationsKept(t *testing.T, td ir.TypeDef) {
+	t.Helper()
+	c := td.Common()
+	assert.Equal(t, "at-declaration", c.Docs.Description, "docs")
+	assert.NotNil(t, c.Deprecation, "deprecated")
+	if assert.NotNil(t, c.XML, "xmlHints") {
+		assert.Equal(t, "Renamed", c.XML.Name)
+	}
+	vendor, ok := c.Preserved["openapi:x-vendor"]
+	if assert.True(t, ok, "vendorExtension: got %v", c.Preserved) {
+		assert.JSONEq(t, `"at-declaration"`, string(vendor.Value))
+		assert.Equal(t, ir.ReasonVendorExtension, vendor.Reason)
+	}
+	ite, ok := c.Preserved["openapi:if-then-else"]
+	if assert.True(t, ok, "validationOnly: got %v", c.Preserved) {
+		assert.Equal(t, ir.ReasonValidationOnly, ite.Reason)
+	}
+	require.Len(t, c.Examples, 1, "examples")
+	require.NotNil(t, c.Examples[0].Value)
+	assert.NotEqual(t, ir.Value{}, *c.Examples[0].Value, "the example converted to a typed value")
+}
+
+// assertDeclarationGapsHold checks the three annotations with no home on a
+// declaration, so this grid stays red-on-close the same way the model and
+// scalar knownGap cells above do. Only constraints varies by shape.
+func assertDeclarationGapsHold(t *testing.T, td ir.TypeDef, shape declShape) {
+	t.Helper()
+	node := marshalToMap(t, td)
+	assert.NotContains(t, node, "default",
+		"default has no field on a type node regardless of declaration shape")
+	assert.NotContains(t, node, "visibility",
+		"readOnly has no field on a type node regardless of declaration shape")
+	if shape.constraintKept {
+		assert.Contains(t, node, "constraints",
+			"a collection bound has a home on the node this shape lowers to")
+		return
+	}
+	assert.NotContains(t, node, "constraints",
+		"this shape lowers to a node with no Constraints field")
 }
 
 // TestAnnotationRetention_EveryCellCovered requires every cell in the

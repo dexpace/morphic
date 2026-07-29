@@ -1,5 +1,5 @@
 {
-  "irVersion": "0.1.0",
+  "irVersion": "0.2.0",
   "name": "Webhooks",
   "version": "1.0.0",
   "docs": {},
@@ -35,8 +35,15 @@
                     }
                   }
                 ],
-                "extensions": {
-                  "openapi:required": false
+                "preserved": {
+                  "openapi:required": {
+                    "reason": "no_ir_home",
+                    "value": false,
+                    "provenance": {
+                      "source": 0,
+                      "pointer": "/webhooks/newPet/post/requestBody/required"
+                    }
+                  }
                 }
               },
               "responses": [
@@ -117,7 +124,7 @@
     {
       "severity": "info",
       "code": "openapi/degraded-construct",
-      "message": "request body is not required; optionality preserved under extensions",
+      "message": "request body is not required; optionality kept under Preserved",
       "provenance": {
         "source": 0,
         "pointer": "/webhooks/newPet/post/requestBody"

@@ -13,10 +13,31 @@ import (
 	"github.com/dexpace/morphic/ir"
 )
 
-// badExtDoc returns a document that cannot be marshalled: its Extensions hold an
-// invalid json.RawMessage whose MarshalJSON rejects the malformed bytes.
+// badExtDoc returns a document that cannot be marshalled: its Preserved holds an
+// invalid json.RawMessage, whose malformed bytes json.Marshal's encoder rejects
+// while compacting them — RawMessage.MarshalJSON hands them back unexamined.
+//
+// Check no longer reaches its round-trip oracle with this: irverify reports the
+// payload as ir/invalid-raw-value first, which is the point of that check. It is
+// used to drive roundTrips and deterministic directly, where the marshal failure
+// is the behaviour under test; dupKeyDoc is the fixture for Check's round-trip
+// outcome.
 func badExtDoc() *ir.Document {
-	return &ir.Document{Extensions: ir.Extensions{"openapi:x": ir.RawValue("{invalid")}}
+	return &ir.Document{Preserved: ir.Preserved{
+		"openapi:x": {Reason: ir.ReasonVendorExtension, Value: ir.RawValue("{invalid")},
+	}}
+}
+
+// dupKeyDoc returns a structurally sound document that loses information in
+// serialization: two type IDs that are distinct invalid-UTF-8 byte strings
+// encode to the same U+FFFD key, so the marshalled object carries a duplicate
+// key that decodes back to a single entry. Each entry is keyed by its own ID, so
+// Verify passes it through to the round-trip oracle.
+func dupKeyDoc() *ir.Document {
+	return &ir.Document{Types: ir.TypeRegistry{
+		ir.TypeID("\xff"): &ir.Primitive{TypeCommon: ir.TypeCommon{ID: "\xff"}},
+		ir.TypeID("\xfe"): &ir.Primitive{TypeCommon: ir.TypeCommon{ID: "\xfe"}},
+	}}
 }
 
 // soundDoc returns a minimal, structurally-sound document: one model keyed by its
@@ -47,15 +68,7 @@ func TestRoundTrips_UnmarshalError(t *testing.T) {
 }
 
 func TestRoundTrips_MismatchIsReported(t *testing.T) {
-	// Two type IDs that are distinct invalid-UTF-8 byte strings both encode to the
-	// same U+FFFD key, so the marshalled object carries a duplicate key that
-	// decodes back to a single entry — a genuine serialization loss the JSON
-	// round-trip comparison catches.
-	doc := &ir.Document{Types: ir.TypeRegistry{
-		ir.TypeID("\xff"): &ir.Primitive{},
-		ir.TypeID("\xfe"): &ir.Primitive{},
-	}}
-	detail, ok := roundTrips(doc)
+	detail, ok := roundTrips(dupKeyDoc())
 	assert.False(t, ok)
 	assert.Contains(t, detail, "round-trip JSON differs")
 }
@@ -144,11 +157,28 @@ func TestCheck_RoundtripOutcome(t *testing.T) {
 	orig := compile
 	t.Cleanup(func() { compile = orig })
 	compile = func(context.Context, string, []byte) (*ir.Document, []ir.Diagnostic, error) {
-		return badExtDoc(), nil, nil
+		return dupKeyDoc(), nil, nil
 	}
 
 	r := Check(context.Background(), "spec", []byte("x"))
 	assert.Equal(t, OutcomeRoundtrip, r.Outcome)
+}
+
+// TestCheck_InvalidRawValueIsAViolationNotARoundTrip pins the reordering the
+// payload check causes: a document whose Preserved payload cannot be marshalled
+// used to be classified by the round-trip oracle, which reports it as a
+// serialization mismatch rather than the compiler bug it is. Verify now names it
+// first.
+func TestCheck_InvalidRawValueIsAViolationNotARoundTrip(t *testing.T) {
+	orig := compile
+	t.Cleanup(func() { compile = orig })
+	compile = func(context.Context, string, []byte) (*ir.Document, []ir.Diagnostic, error) {
+		return badExtDoc(), nil, nil
+	}
+
+	r := Check(context.Background(), "spec", []byte("x"))
+	assert.Equal(t, OutcomeViolations, r.Outcome)
+	assert.Contains(t, r.Detail, "ir/invalid-raw-value")
 }
 
 func TestCheck_NondeterministicOutcome(t *testing.T) {

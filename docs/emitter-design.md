@@ -63,7 +63,7 @@ The definitive design is a **strict three-stage pipeline** with these decisions:
 1. **The plan layer is shared and computed once by the engine, keyed by IR stable IDs, and passed
    into every target.** This is the single most important structural choice: it is what makes the
    docs emitter, the mock emitter, and every language SDK agree *by construction* rather than
-   re-derive decisions and drift (the OpenAPI-Generator failure mode, prior-art.md §3). The
+   re-derive decisions and drift — the OpenAPI Generator failure mode set out above. The
    plan is JSON-serializable and has its own language-independent golden-test corpus.
 
 2. **Refine is an ordered pipeline of small, named, idempotent lowerings — but each one is a *pure
@@ -439,7 +439,7 @@ type ProtoBinding struct {
     HTTP     *ir.HTTPBinding // method/URITemplate/status map, when Protocol == http
     RPC      *ir.RPCBinding
     Message  *MsgView        // channel + direction + reply, when Protocol == message
-    Raw      ir.Extensions   // GraphQL entry point / OTP call-cast tag / deployment bindings, verbatim
+    Raw      ir.RawConfig    // GraphQL entry point / OTP call-cast tag / deployment bindings, verbatim
 }
 type ParamBind struct {
     Param    string          // Operation.Params name
@@ -454,6 +454,16 @@ The Go-first walkthrough (§8) exercises `Protocol == "http"`; the RPC/message/O
 type so the second-protocol emitter (open Q4) does not force a plan schema change (INV9). Channels
 and messages (`ir-design.md §8.3`) reach a emitter through `MsgView`; a messaging target consumes
 them the same way an HTTP target consumes `HTTP`.
+
+`Raw` is `ir.RawConfig`, not `ir.Preserved`, and the distinction is not cosmetic. It carries
+*declared* protocol configuration the plan chooses to pass through unstructured — the GraphQL
+entry point, the OTP call/cast tag, AsyncAPI deployment bindings — all of which the IR models
+fields for; there is no unmodeled construct to give a reason for, and the source position a
+consumer would want is the owning binding's. The `Preserved` map each binding struct carries
+(`ir-design.md §8.1`–`§8.5`) is the other thing entirely: the escape hatch for constructs the IR
+does *not* model — a directive applied to a GraphQL entry-point field, say — where `Reason` and
+`Provenance` are exactly what a policy layer selects on. A refiner reads both, for different
+purposes.
 
 `GroupPlan` mirrors the `OperationGroup` tree so a refiner can build sub-clients / fluent navigation:
 
@@ -894,9 +904,13 @@ type ShapeHint struct {
     SplitUnionBody bool      // flatten a request-body union into typed wrapper methods — OPT-IN,
                              // the one sanctioned union→arguments collapse (§4.4); default off
     URLBuilder     bool      // expose a URL-builder variant of the operation
-    Extra          ir.Extensions // free-form, forward-compatible per-target ergonomics
+    Extra          map[string]ir.RawValue // free-form, forward-compatible per-target ergonomics
 }
 ```
+
+`Extra` is a bare raw-JSON map rather than `ir.RawConfig`: `RawConfig` names *declared protocol
+configuration inside the IR* (`ir-design.md §12`), and a hint is neither — it is emitter input
+authored alongside the SDK, and the IR never sees it.
 
 Method-name *derivation* is itself an injectable policy marked `Inferred`, disable-able and
 overridable. Per-target naming/compat overlays are the same shape: a emitter input keyed by IR ID,
@@ -1074,7 +1088,7 @@ declared poll op `GetExport` is `HTTPBinding{GET /exports/{id}}` returning an `E
   `operation-location` header vs original-URI). The poller *type* and result extraction are typed AST;
   the poll loop's backoff between attempts is `lro.go.tmpl` boilerplate parameterised by policy — the
   same structure/runtime line as the iterator (§8.3) and the stream reader (§8.4). Smithy waiters are
-  *not* folded in here: their acceptor/JMESPath lists arrive verbatim in `Operation.Extensions`
+  *not* folded in here: their acceptor/JMESPath lists arrive verbatim in `Operation.Preserved`
   (`ir-design.md §7.3`) and a waiter-aware refiner is a separate, opt-in step.
 - **emit.** Printer emits `StartExport`, `StartExportParams`, and `ExportPoller` +
   `Poll()/PollUntilDone()`. `OneWay` operations take the opposite path — no poller, no response
@@ -1137,9 +1151,12 @@ plan once: docs and mocks agree with the SDK by construction, not by re-derivati
   handlers validating against constraints). Because the same plan feeds SDK and mock, the two are
   **wire-consistent by construction** — the mock can *be* the interception target the SDK's
   wire-conformance harness (§13) is diffed against.
-- **Validation emitter (future).** Additionally consumes the validation-only constructs preserved
-  verbatim in `Extensions` (`not`/`if-then-else`/`dependentSchemas`) that SDK/docs emitters ignore.
-  The contract already carries them; no IR change is needed (INV9).
+- **Validation emitter (future).** Additionally consumes the validation-only constructs kept
+  verbatim in `Preserved` (`not`/`if-then-else`/`dependentSchemas`, …) that SDK/docs emitters
+  ignore. It selects them by `PreservedEntry.Reason == ir.ReasonValidationOnly` rather than by key
+  prefix, so vendor metadata sharing the same map never reaches it, and reports each finding at
+  `PreservedEntry.Provenance` — the keyword's own position, not the enclosing schema's. The
+  contract already carries all of that; no IR change is needed (INV9).
 
 Adding any of these is a registry entry over one `Doc + Plan` — no change to the ABI, no change to
 the IR.
@@ -1156,7 +1173,8 @@ seams; the `Origin`-tagged AST makes the manifest a byproduct of the emit walk.
   a **sorted** file list (deterministic diffs), and an **entity → generated-symbol map keyed by
   `TypeID`/`OpID`/`PropID`** — assembled from the `Origin` on every emitted node. This is the biggest
   win of stable-ID keying: a spec rename is "same ID, new symbol" — a lookup, not oagen's structural
-  rename-inference machinery. Rungs 2–5 of the integration ladder (architecture.md §2.3) rest on it.
+  rename-inference machinery. Write/integrate and surface verification (architecture.md §2.3) both
+  rest on it.
 - **File-header provenance gates pruning.** `Artifact.Header` writes a generated-by header; the
   writer **never deletes a file lacking it** (hand-edited). First adoption (no prior manifest) skips
   pruning, writes a baseline, emits a notice.

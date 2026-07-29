@@ -1,6 +1,8 @@
 package irverify
 
 import (
+	"fmt"
+	"reflect"
 	"strings"
 	"testing"
 
@@ -180,4 +182,64 @@ func refIDInMessage(msg string) string {
 	}
 	id, _, _ := strings.Cut(rest, " ")
 	return id
+}
+
+// aliasRuns is how many times TestVerify_AliasedPointerIsDeterministic repeats
+// the same call. Go randomizes map iteration per range statement, so a two-entry
+// registry disagrees with itself within a few runs; the flaw this pins split
+// 431/69 across two outputs over this many.
+const aliasRuns = 500
+
+// TestVerify_AliasedPointerIsDeterministic pins invariant 7 against pointer
+// aliasing. Both models share one *TypeRef, which the walk descends into at
+// whichever registry entry it reaches first, so the surviving violation names
+// t/a's Base on one run and t/b's on the next unless the walk's order is fixed.
+// Verify's final sort cannot repair that: it is the violation set that varies,
+// not merely its order.
+func TestVerify_AliasedPointerIsDeterministic(t *testing.T) {
+	t.Parallel()
+	shared := &ir.TypeRef{Target: "t/ghost/aliased"}
+	a := &ir.Model{TypeCommon: ir.TypeCommon{ID: "t/a"}, Base: shared}
+	b := &ir.Model{TypeCommon: ir.TypeCommon{ID: "t/b"}, Base: shared}
+	doc := &ir.Document{Types: ir.TypeRegistry{a.ID: a, b.ID: b}}
+
+	want := fmt.Sprintf("%+v", Verify(doc))
+	require.Contains(t, want, "t/ghost/aliased", "the shared target must dangle, or nothing is being compared")
+
+	for i := range aliasRuns {
+		require.Equal(t, want, fmt.Sprintf("%+v", Verify(doc)), "run %d disagrees with the first", i)
+	}
+}
+
+// payloadBytes sizes the preserved payload the byte-skip test walks. It is large
+// enough that descending it would dominate any plausible visit count for a
+// two-node document, and small enough to build inline.
+const payloadBytes = 4096
+
+// TestWalkValues_ByteSequencesAreNotDescendedInto drives the byte-sequence skip,
+// which exists for cost rather than for correctness: a uint8 element is none of
+// the things a visitor looks for — no typed ID, no Preserved map, no Provenance,
+// no index carrier — so collecting nothing from it is the same result either
+// way, and only the price differs. Descending one payload spends a reflect.Value
+// and a formatted path per byte.
+//
+// The visit count is what makes that assertable: the walk reports every value it
+// reaches, so a document whose payload dwarfs its structure must still be walked
+// in a number of steps bounded by the structure. Without the skip the count
+// grows past the payload's length instead.
+func TestWalkValues_ByteSequencesAreNotDescendedInto(t *testing.T) {
+	t.Parallel()
+	doc := &ir.Document{Preserved: ir.Preserved{"openapi:x-thing": {
+		Reason: ir.ReasonVendorExtension,
+		Value:  ir.RawValue(`"` + strings.Repeat("t", payloadBytes) + `"`),
+	}}}
+
+	var visits int
+	truncated := walkValues(doc, func(reflect.Value, string) bool {
+		visits++
+		return true
+	})
+	require.False(t, truncated)
+	assert.Less(t, visits, payloadBytes,
+		"walking %d bytes of payload one value at a time is what the skip exists to avoid", payloadBytes)
 }

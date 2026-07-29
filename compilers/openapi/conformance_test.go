@@ -5,6 +5,7 @@
 package openapi_test // external test package — exercises only the public API
 
 import (
+	"encoding/json"
 	"os"
 	"path/filepath"
 	"strings"
@@ -27,6 +28,15 @@ const conformanceDir = "../../testdata/conformance/openapi"
 // through the full compiler and asserts lossless capture: a focused
 // capability-specific assertion plus a byte-exact golden IR snapshot. Regenerate
 // the goldens with `go test ./compilers/openapi -run TestConformance -update`.
+//
+// The corpus below is knowingly incomplete (GitHub #126): 33 IR fields the
+// compiler assigns are never non-zero anywhere in it, among them
+// Model.DiscriminatorValue and Discriminator.Property, so allOf inheritance
+// under a discriminator has no corpus witness at all. Filling those in one case
+// at a time is deliberately not the plan — a corpus that shares the compiler's
+// blind spots is the thing to fix, so what #126 asks for is the reflective walk
+// that produced the list, run as a test that fails when a field the compiler
+// assigns has no witness here.
 func TestConformance(t *testing.T) {
 	t.Parallel()
 	cases := []struct {
@@ -40,6 +50,7 @@ func TestConformance(t *testing.T) {
 		{"allof-mixins", assertAllOfMixins},
 		{"allof-inline-merge", assertAllOfInlineMerge},
 		{"allof-required-only", assertAllOfRequiredOnly},
+		{"allof-oneof-cooccurrence", assertAllOfOneOfCooccurrence},
 		{"oneof-discriminated", assertOneOfDiscriminated},
 		{"anyof-untagged", assertAnyOfUntagged},
 		{"negation-not", assertNegationNot},
@@ -64,6 +75,7 @@ func TestConformance(t *testing.T) {
 		{"param-styles", assertParamStyles},
 		{"multi-content", assertMultiContent},
 		{"multipart-encoding", assertMultipartEncoding},
+		{"sequential-media", assertSequentialMedia},
 		{"per-status-errors", assertPerStatusErrors},
 		{"webhooks", assertWebhooks},
 		{"callbacks", assertCallbacks},
@@ -71,6 +83,7 @@ func TestConformance(t *testing.T) {
 		{"examples", assertExamples},
 		{"docs-summary-desc", assertDocsSummaryDesc},
 		{"extensions-x", assertExtensionsX},
+		{"inline-annotations", assertInlineAnnotations},
 		{"servers-variables", assertServersVariables},
 		{"security-schemes", assertSecuritySchemes},
 		{"security-or-and", assertSecurityOrAnd},
@@ -82,6 +95,7 @@ func TestConformance(t *testing.T) {
 			assertNoErrorDiags(t, diags)
 			tc.assert(t, doc, diags)
 			irtest.CompareGolden(t, filepath.Join(conformanceDir, tc.file+".golden.json"), doc)
+			assertJSONRoundTrip(t, doc)
 		})
 	}
 }
@@ -96,6 +110,26 @@ func parseCorpus(t *testing.T, name string) (*ir.Document, []ir.Diagnostic) {
 	require.NoError(t, err)
 	require.NotNil(t, doc)
 	return doc, diags
+}
+
+// assertJSONRoundTrip marshals doc, reads it back, and re-marshals, requiring
+// the two encodings to be byte-identical — the serialized oracle fuzz_test.go
+// and internal/harness already apply, compared as JSON so the unpreservable
+// nil-vs-empty-collection distinction is ignored while real loss still shows.
+//
+// Invariant 7 is asserted per corpus document rather than only on the golden
+// one because each spec reaches IR shapes the others never build — a reserved
+// map key, a preserved raw payload, a sum-typed node — and only the shapes a
+// document contains can round-trip wrongly.
+func assertJSONRoundTrip(t *testing.T, doc *ir.Document) {
+	t.Helper()
+	first, err := json.Marshal(doc)
+	require.NoError(t, err)
+	var back ir.Document
+	require.NoError(t, json.Unmarshal(first, &back))
+	second, err := json.Marshal(&back)
+	require.NoError(t, err)
+	assert.Equal(t, string(first), string(second), "round-trip must preserve the document")
 }
 
 // assertNoErrorDiags fails when any diagnostic has error severity.
@@ -275,7 +309,7 @@ func assertAllOfInheritance(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
 	assert.NotNil(t, d.Deprecation, "composed schema keeps deprecated")
 	assert.Equal(t, ir.AdditionalClosed, d.Additional,
 		"composed schema keeps additionalProperties: false")
-	assert.Contains(t, d.Extensions, "openapi:x-team", "composed schema keeps x-* extensions")
+	assert.Contains(t, d.Preserved, "openapi:x-team", "composed schema keeps x-* extensions")
 }
 
 func assertAllOfMixins(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
@@ -306,6 +340,40 @@ func assertAllOfRequiredOnly(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) 
 		"a required-only allOf branch attaches across the whole composition, not just its own properties map (issue #29)")
 }
 
+// assertAllOfOneOfCooccurrence pins both halves of the co-declared composition
+// rule: §4.3 distributes a union whose branches all name referents, and §4.8
+// keeps one with an inline branch verbatim rather than distributing it halfway.
+// The outside reference to a branch pointer pins the third thing: a composed
+// variant is Morphic's own node, so it cannot be taken by, or take from, a $ref.
+func assertAllOfOneOfCooccurrence(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
+	combo, ok := doc.Types[namedID("Combo")].(*ir.Union)
+	require.True(t, ok, "the union is the value, not a preserved sibling")
+	require.Len(t, combo.Variants, 2)
+	for i, branch := range []string{"A", "B"} {
+		v, ok := doc.Types[combo.Variants[i].Type.Target].(*ir.Model)
+		require.True(t, ok, "variant %d composes as a model", i)
+		require.NotNil(t, v.Base, "the allOf composition rides on every variant")
+		assert.Equal(t, namedID("Base"), v.Base.Target)
+		require.Len(t, v.Mixins, 1)
+		assert.Equal(t, namedID(branch), v.Mixins[0].Target)
+	}
+
+	mixed, ok := doc.Types[namedID("MixedKinds")].(*ir.Model)
+	require.True(t, ok, "the structural body survives")
+	entry, ok := mixed.Preserved["openapi:oneOf"]
+	require.True(t, ok, "and the union it could not absorb survives beside it")
+	assert.Equal(t, ir.ReasonDegradedLowering, entry.Reason)
+
+	outsider, ok := doc.Types[namedID("Outsider")].(*ir.Model)
+	require.True(t, ok)
+	require.Len(t, outsider.Properties, 1)
+	branchNode, ok := doc.Types[outsider.Properties[0].Type.Target].(*ir.Scalar)
+	require.True(t, ok, "the branch pointer hoists an alias of what the branch references")
+	require.NotNil(t, branchNode.Base)
+	assert.Equal(t, namedID("A"), branchNode.Base.Target,
+		"the reference gets the branch schema, never the variant composed for that branch")
+}
+
 func assertOneOfDiscriminated(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
 	pet, ok := doc.Types[namedID("Pet")].(*ir.Union)
 	require.True(t, ok, "oneOf survives as a Union node, never collapsed")
@@ -328,9 +396,10 @@ func assertAnyOfUntagged(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
 func assertNegationNot(t *testing.T, doc *ir.Document, diags []ir.Diagnostic) {
 	m, ok := doc.Types[namedID("NotFoo")].(*ir.Model)
 	require.True(t, ok)
-	raw, ok := m.Extensions["openapi:not"]
-	require.True(t, ok, "not-keyword preserved verbatim in Extensions")
-	assert.JSONEq(t, `{"required":["b"]}`, string(raw))
+	raw, ok := m.Preserved["openapi:not"]
+	require.True(t, ok, "not-keyword kept verbatim under Preserved")
+	assert.JSONEq(t, `{"required":["b"]}`, string(raw.Value))
+	assert.Equal(t, ir.ReasonValidationOnly, raw.Reason)
 	var found bool
 	for _, d := range diags {
 		if d.Code == "openapi/validation-only-keyword" {
@@ -708,9 +777,11 @@ func assertMultipartEncoding(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) 
 	enc := op.Request.Contents[0].Encoding
 	require.NotEmpty(t, enc, "multipart parts carry PartEncoding keyed by PropID")
 	var sawFile, sawMulti bool
+	var fileHeaders []ir.Property
 	for _, pe := range enc {
 		if pe.Filename {
 			sawFile = true
+			fileHeaders = pe.Headers
 		}
 		if pe.Multi {
 			sawMulti = true
@@ -718,6 +789,71 @@ func assertMultipartEncoding(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) 
 	}
 	assert.True(t, sawFile, "binary file part carries Filename")
 	assert.True(t, sawMulti, "array part carries Multi")
+	assertPartHeaders(t, doc, fileHeaders)
+}
+
+// assertPartHeaders pins encoding.<part>.headers, a TypeRef position reachable
+// only through a PartEncoding and, before this case, exercised by no corpus
+// spec. It covers both hops a header takes — an inline schema and one behind a
+// $ref through components/headers — and requires each target to be in the
+// registry, which is what gives the referential-closure walker something to
+// check here.
+func assertPartHeaders(t *testing.T, doc *ir.Document, headers []ir.Property) {
+	t.Helper()
+	require.Len(t, headers, 2, "the file part declares two per-part headers")
+	byWire := make(map[string]ir.Property, len(headers))
+	for _, h := range headers {
+		byWire[h.WireName] = h
+	}
+
+	id, ok := byWire["X-Part-Id"]
+	require.True(t, ok, "inline part header lowered; got %v", byWire)
+	assert.Equal(t, ir.TypeID("t/prim/uuid"), id.Type.Target)
+	assert.True(t, id.Required, "a required part header keeps its presence bit")
+	assert.Equal(t, "per-part correlation id", id.Docs.Description)
+
+	sum, ok := byWire["X-Part-Checksum"]
+	require.True(t, ok, "$ref'd part header lowered; got %v", byWire)
+	assert.Equal(t, namedID("Digest"), sum.Type.Target, "a $ref'd header takes the referent's schema")
+	assert.Equal(t, "sha-256 digest of this part", sum.Docs.Description)
+	for _, h := range headers {
+		assert.Contains(t, doc.Types, h.Type.Target, "part header %q must reference a live node", h.WireName)
+	}
+}
+
+// assertSequentialMedia pins the 3.2 sequential-media lowering, including the
+// two forms per-item encoding takes: one Encoding governing every item lands in
+// Content.ItemEncoding, while a positional prefixEncoding — which a single
+// every-item encoding has no ordinals for — takes itself and the tail encoding
+// beside it into Preserved instead.
+func assertSequentialMedia(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
+	events, ok := opByName(doc, "streamEvents")
+	require.True(t, ok)
+	c := firstContent(t, events)
+	require.NotNil(t, c.Item, "itemSchema becomes the element type")
+	require.NotNil(t, c.ItemEncoding, "an encoding governing every item lowers structurally")
+	assert.Equal(t, []string{"application/json"}, c.ItemEncoding.ContentTypes)
+	assert.True(t, c.ItemEncoding.Multi, "the construct describes a repeated tail")
+	assert.Empty(t, c.Preserved, "nothing is left over once it lowers")
+
+	parts, ok := opByName(doc, "streamParts")
+	require.True(t, ok)
+	pc := firstContent(t, parts)
+	assert.Nil(t, pc.ItemEncoding, "positional prefixes have no every-item form")
+	for _, key := range []string{"openapi:prefixEncoding", "openapi:itemEncoding"} {
+		entry, ok := pc.Preserved[key]
+		require.True(t, ok, "%s kept verbatim; got %v", key, pc.Preserved)
+		assert.Equal(t, ir.ReasonNoIRHome, entry.Reason)
+	}
+}
+
+// firstContent returns an operation's single success-response content.
+func firstContent(t *testing.T, op ir.Operation) ir.Content {
+	t.Helper()
+	require.Len(t, op.Responses, 1)
+	require.NotNil(t, op.Responses[0].Payload)
+	require.Len(t, op.Responses[0].Payload.Contents, 1)
+	return op.Responses[0].Payload.Contents[0]
 }
 
 func assertPerStatusErrors(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
@@ -834,14 +970,74 @@ func assertDocsSummaryDesc(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
 	require.True(t, ok)
 	assert.Equal(t, "Ping the server", op.Docs.Summary)
 	assert.Equal(t, "Returns pong", op.Docs.Description)
+
+	// A documented scalar alias is documented too: its docs must not depend on
+	// what its body happens to lower to (GitHub #114).
+	sc, ok := doc.Types[namedID("UserId")].(*ir.Scalar)
+	require.True(t, ok)
+	assert.Equal(t, "User identifier", sc.Docs.Summary)
+	assert.Equal(t, "Stable identifier for a user.", sc.Docs.Description)
 }
 
 func assertExtensionsX(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
 	m, ok := doc.Types[namedID("S")].(*ir.Model)
 	require.True(t, ok)
-	raw, ok := m.Extensions["openapi:x-rate-limit"]
+	raw, ok := m.Preserved["openapi:x-rate-limit"]
 	require.True(t, ok, "x-* extensions are namespaced under openapi:")
-	assert.JSONEq(t, "100", string(raw))
+	assert.JSONEq(t, "100", string(raw.Value))
+	assert.Equal(t, ir.ReasonVendorExtension, raw.Reason)
+}
+
+// assertInlineAnnotations covers the positions with no ir.Property or
+// ir.Parameter to carry what a declaration writes: each keeps its docs, bounds
+// and x-* on a node of its own, while a position declaring nothing still
+// resolves straight to the shared primitive.
+func assertInlineAnnotations(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
+	elem := assertAnnotatedScalar(t, doc, "t/anon/components/schemas/Codes/items", 3)
+	require.NotNil(t, elem.XML)
+	assert.Equal(t, "Code", elem.XML.Name)
+	assert.Contains(t, elem.Preserved, "openapi:x-facet")
+
+	assertAnnotatedScalar(t, doc, "t/anon/components/schemas/CodeIndex/additionalProperties", 64)
+	assertAnnotatedScalar(t, doc,
+		"t/anon/paths/~1codes/get/responses/200/content/application~1json/schema", 8192)
+
+	bare, ok := doc.Types[namedID("Bare")].(*ir.List)
+	require.True(t, ok)
+	assert.Equal(t, ir.TypeID("t/prim/string"), bare.Elem.Target,
+		"an element declaring nothing must not grow a node of its own")
+
+	op, ok := opByName(doc, "listCodes")
+	require.True(t, ok)
+	require.Len(t, op.Params, 1)
+	assertCarriedAnnotations(t, op.Params[0].Docs, op.Params[0].Constraints, op.Params[0].Preserved, 4)
+	require.Len(t, op.Responses[0].Headers, 1)
+	h := op.Responses[0].Headers[0]
+	assertCarriedAnnotations(t, h.Docs, h.Constraints, h.Preserved, 64)
+}
+
+// assertAnnotatedScalar requires the node at id to be a Scalar carrying a
+// description and the given maxLength.
+func assertAnnotatedScalar(t *testing.T, doc *ir.Document, id ir.TypeID, maxLength int64) *ir.Scalar {
+	t.Helper()
+	sc, ok := doc.Types[id].(*ir.Scalar)
+	require.True(t, ok, "%s must own a Scalar; got %v", id, doc.Types[id])
+	assert.NotEmpty(t, sc.Docs.Description)
+	require.NotNil(t, sc.Constraints)
+	require.NotNil(t, sc.Constraints.MaxLength)
+	assert.Equal(t, maxLength, *sc.Constraints.MaxLength)
+	return sc
+}
+
+// assertCarriedAnnotations requires a parameter's or header's own carrier to
+// hold what its schema declared.
+func assertCarriedAnnotations(t *testing.T, docs ir.Docs, c *ir.Constraints, p ir.Preserved, maxLength int64) {
+	t.Helper()
+	assert.NotEmpty(t, docs.Description)
+	require.NotNil(t, c)
+	require.NotNil(t, c.MaxLength)
+	assert.Equal(t, maxLength, *c.MaxLength)
+	assert.NotEmpty(t, p, "the schema's x-* rides on the carrier too")
 }
 
 func assertServersVariables(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
