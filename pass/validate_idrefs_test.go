@@ -163,40 +163,84 @@ func TestValidate_ResolvedTypedIDRefsAreClean(t *testing.T) {
 	assert.Empty(t, pass.Validate(doc))
 }
 
+// sortedIDRefPointers is the location order every run must produce: ascending by
+// pointer, across all three reference classes rather than grouped by class.
+//
+// It is written out rather than captured from a first run for the reason
+// sortedRefPointers is (validate_refs_test.go): a captured order proves only
+// that two runs agree, which any deterministic order satisfies, including the
+// walk's own.
+var sortedIDRefPointers = []string{
+	"doc/Channels[chan/a]/Messages/0",
+	"doc/Services/0/Auth/0/Schemes/0/Scheme",
+	"doc/Services/0/Groups/0/Operations/0/Bindings/Message/Channel",
+	"doc/Services/0/Groups/0/Operations/0/Bindings/Message/Messages/0",
+	"doc/Services/0/Groups/0/Operations/0/Bindings/Message/Reply/Channel",
+	"doc/Services/0/Groups/0/Operations/0/Bindings/Message/Reply/Messages/0",
+	"doc/Services/0/Groups/0/Operations/0/Bindings/OTP/Process",
+}
+
 // TestValidate_TypedIDDiagnosticOrderIsDeterministic pins invariant 7 across
 // reference classes: the walk reaches channels and messages through maps, whose
 // iteration order Go randomizes, so sites are sorted by location before any
-// diagnostic is built.
+// diagnostic is built. Both halves are asserted — the order is the pinned one,
+// and every further run repeats it.
 func TestValidate_TypedIDDiagnosticOrderIsDeterministic(t *testing.T) {
 	t.Parallel()
 	doc := registryDoc()
 	for i, tc := range idRefSites() {
 		tc.plant(doc, fmt.Sprintf("%s/%02d", tc.id, i))
 	}
-	want := pointers(pass.Validate(doc))
-	require.Len(t, want, len(idRefSites()))
+	require.Len(t, sortedIDRefPointers, len(idRefSites()), "one pinned location per planted site")
+	require.Equal(t, sortedIDRefPointers, pointers(pass.Validate(doc)))
 	for range 8 {
-		assert.Equal(t, want, pointers(pass.Validate(doc)))
+		assert.Equal(t, sortedIDRefPointers, pointers(pass.Validate(doc)))
 	}
 }
 
-// TestValidate_RegistryKeysAndOwnIDsResolve pins the other side of deriving
-// registries from Document's shape: a registry key and the node's own ID are both
-// ChannelID/MessageID/AuthID-typed, so the walk reaches them, and each must
-// resolve against its own entry rather than be reported as dangling.
-func TestValidate_RegistryKeysAndOwnIDsResolve(t *testing.T) {
+// TestValidate_RegistryOwnIDsResolveAndMismatchesDangle pins the other side of
+// deriving registries from Document's shape. A node's own ID is
+// ChannelID/MessageID/AuthID-typed like any cross-reference, so the walk reaches
+// it and it must resolve against its own entry rather than be reported as
+// dangling.
+//
+// Each registry is driven from both ends, because the silent half alone would
+// pass just as well on a walk that never reached these nodes at all: filing an
+// entry under a key that disagrees with its own ID leaves that ID resolving to
+// nothing, and that must be reported. Registry keys are the other half and
+// cannot be driven this way — a key resolves to its own entry by construction,
+// so no key can be made to dangle. That the walk reaches map keys at all is
+// pinned by the Service.Renames case in validate_refs_test.go, where the key is
+// the reference and the value is not.
+func TestValidate_RegistryOwnIDsResolveAndMismatchesDangle(t *testing.T) {
 	t.Parallel()
-	assert.Empty(t, pass.Validate(registryDoc()))
-}
+	cases := []struct {
+		name     string
+		code     string
+		orphanID string
+		mismatch func(doc *ir.Document)
+	}{
+		{"channel", "ir/dangling-channel-ref", "chan/b", func(d *ir.Document) {
+			d.Channels["chan/a"] = ir.Channel{ID: "chan/b"}
+		}},
+		{"message", "ir/dangling-message-ref", "msg/b", func(d *ir.Document) {
+			d.Messages["msg/a"] = ir.Message{ID: "msg/b"}
+		}},
+		{"auth", "ir/dangling-auth-ref", "auth/b", func(d *ir.Document) {
+			d.Auth["auth/a"] = ir.AuthScheme{ID: "auth/b", Kind: ir.AuthKindAPIKey}
+		}},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			require.Empty(t, pass.Validate(registryDoc()), "a consistent registry reports nothing")
 
-// TestValidate_RegistryKeyMismatchDangles pins the converse: an entry filed under
-// a key that disagrees with its own ID leaves that ID resolving to nothing, which
-// is a dangling reference and is reported as one.
-func TestValidate_RegistryKeyMismatchDangles(t *testing.T) {
-	t.Parallel()
-	doc := registryDoc()
-	doc.Channels["chan/a"] = ir.Channel{ID: "chan/b"}
-	found := withCode(pass.Validate(doc), "ir/dangling-channel-ref")
-	require.Len(t, found, 1)
-	assert.Contains(t, found[0].Message, "chan/b")
+			doc := registryDoc()
+			tc.mismatch(doc)
+			found := withCode(pass.Validate(doc), tc.code)
+			require.Len(t, found, 1, "the orphaned own ID must be the only dangling reference")
+			assert.Equal(t, ir.SeverityError, found[0].Severity)
+			assert.Contains(t, found[0].Message, tc.orphanID)
+		})
+	}
 }

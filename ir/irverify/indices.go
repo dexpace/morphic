@@ -22,6 +22,16 @@ var (
 // reach these the way it reaches typed IDs — the carriers are named here
 // instead, and a new integer-index reference has to be named here too.
 // Provenance.Source, the third such index, has its own check in provenance.go.
+//
+// Naming a carrier means reaching its fields by name, which the Go compiler
+// cannot check: renaming or retyping ir.Service.Servers leaves FieldByName
+// returning the zero reflect.Value, and the Len() below panics on it. The
+// guarantee this package makes — that Verify never crashes on a malformed
+// document — is unaffected, since no input can rename a field, but the coupling
+// is real and is guarded the way this package guards its other hand-written
+// couplings: indexCarrierFields (indices_test.go) fails the moment one of these
+// names or shapes drifts, the same role TestStringTypes_AreAllClassified plays
+// for refKindByType.
 func checkIndices(doc *ir.Document) []Violation {
 	declared := len(doc.Servers)
 	var vs []Violation

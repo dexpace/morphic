@@ -134,6 +134,15 @@ func checkReferentialIntegrity(doc *ir.Document) []Violation {
 // different violation set, not merely a different order — on each run, which
 // Verify's final sort cannot repair (invariant 7).
 //
+// Byte sequences are skipped, matching pass.refWalk.walkSequence. Preserved and
+// RawConfig payloads are json.RawMessage and are the largest values a document
+// holds, while a uint8 element is none of the things a visitor here looks for —
+// no typed ID, no Preserved map, no Provenance, no index carrier. Descending one
+// costs a reflect.Value and a formatted path per byte for nothing: Verify over a
+// document holding one 256 KB payload measured 88ms without this skip against
+// 22µs with it, for the same result. Both walks skip it; keeping the note in
+// both is what stops one of them quietly growing the cost back.
+//
 // The bool return is true only when the depth cap truncated the walk, so
 // callers can surface a too-deep document instead of silently
 // under-checking it.
@@ -172,6 +181,9 @@ func walkValues(root any, visit func(v reflect.Value, path string) bool) bool {
 				descend(v.Field(i), fieldPath(path, v.Type().Field(i)), depth+1)
 			}
 		case reflect.Slice, reflect.Array:
+			if v.Type().Elem().Kind() == reflect.Uint8 {
+				return // byte sequences hold nothing any visitor looks for
+			}
 			for i := range v.Len() {
 				descend(v.Index(i), fmt.Sprintf("%s[%d]", path, i), depth+1)
 			}
