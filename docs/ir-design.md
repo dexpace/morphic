@@ -1450,10 +1450,12 @@ such a schema can hoist holds them: an object lowers to a `Model` and a formatte
 
 ```go
 type Provenance struct {
-    Source   int       // index into Document.Sources
+    Source   int       // index into Document.Sources, or NoSource (-1)
     Pointer  string    // JSON pointer or line:col into that source
     Inferred string    // "" = declared; else the heuristic that produced this node ("pagination-name-match")
 }
+
+const NoSource = -1 // the node addresses no input file
 
 type Diagnostic struct {
     Severity   Severity  // error | warning | info
@@ -1464,6 +1466,13 @@ type Diagnostic struct {
 ```
 
 Everything heuristic is auditable; everything broken is reportable with an exact source location.
+
+The one exception is what `NoSource` exists for. A pass reporting on the document it was handed has
+no input file to name, and every real index — `0` included — names a file the document loaded, so
+reusing one would make a renderer fabricate a location. `NoSource` is therefore the **only**
+out-of-table `Source` value the IR declares: a verifier accepts it and reports every other index
+that addresses no declared source, so a producer inventing a second sentinel is caught rather than
+tolerated.
 
 ---
 
