@@ -1,10 +1,12 @@
 # Micro-Compiler Architecture — Design
 
-Status: approved, not yet implemented. Scope: `compilers/compile`, `compilers/openapi`,
-`internal/archtest`, `internal/harness`, `ir/irverify`.
+Status: approved; Phase 0 and the framework promotions have landed, and Tier-0 extraction has
+begun — §12 is the live record of which rows those are. Scope: `compilers/compile`,
+`compilers/openapi`, `internal/archtest`, `internal/harness`, `ir/irverify`.
 
-Claims about code in this document were true at `a095636`. Where a number would rot, this
-document gives the command that derives it instead of the number.
+Claims about code in this document were true at `a095636`, except where a row or an *as landed*
+note says otherwise. Where a number would rot, this document gives the command that derives it
+instead of the number.
 
 **A micro-compiler is a function that lowers one source construct at one position, given only what
 that construct needs.** It takes an immutable context and a coordinate, returns a value and its
@@ -106,9 +108,12 @@ lowercase, so both passed.
 invariant-4 violation rather than an architecture question. `ir-design.md` §3.2 now fixes the
 segmentation — a word is letters and digits, every other character separates — `compilers/openapi`
 implements it, and `irverify` rejects a canonical that is not a word sequence, so a compiler
-disagreeing about `.` is caught wherever the corpus reaches it. What that check cannot see is where
-a compiler puts the boundaries *inside* a word (`foo2bar` against `foo_2_bar`), which is what the
-promotion still buys.
+disagreeing about `.` is caught wherever the corpus reaches it. The boundary *inside* a word
+(`foo2bar` against `foo_2_bar`) was listed here as beyond that check and is no longer: the grammar
+splits every letter/digit boundary, which is decidable from the neutral name alone, so `irverify`
+holds it too. What no check can see from `Canonical` alone is the camel-case boundary, since
+lowercasing has already erased the case change that marked it — comparing against `Naming.Source`
+through the grammar is what would settle that, and the grammar is a layer above the verifier.
 
 So 1.2 was the move rather than the decision, and it has **landed**: `compilers/compile` holds the
 single implementation, `compilers/openapi` derives no name of its own, and the graphql and protobuf
@@ -251,7 +256,7 @@ compilers/openapi/                  the public face, and nothing else
   openapi.go     Compiler, New, Formats, Compile
   options.go     Options, GroupingStrategy
   internal/
-    diag/        OpenAPI diagnostic codes, diagf, hasErrorDiag
+    diag/        OpenAPI diagnostic codes, Newf, HasError
     load/        parse and load the document
     scan/        cycle and amplification refusal over raw source
     ids/         OpenAPI pointer arithmetic and ID derivation
@@ -266,9 +271,9 @@ compilers/openapi/                  the public face, and nothing else
 Imports run one way: `operation` → `schema` → {`resolve`, `annotation`, `merge`, `value`, `ids`} →
 `diag` → `compile` → `ir`. `load` and `scan` sit on the entry side, imported only by `openapi.go`.
 
-`diag` sits at the bottom because `diagf` is the single constructor that populates severity, code and
+`diag` sits at the bottom because its constructor is the single one that populates severity, code and
 provenance, and eight files call it. The OpenAPI diagnostic codes are format-specific strings, so
-they stay in the compiler rather than moving to `compilers/compile`; whether `diagf` itself later
+they stay in the compiler rather than moving to `compilers/compile`; whether the constructor itself later
 promotes is left open, since the promotion rule in §3 requires evidence from all three compilers
 and the drafts' constructors have not been compared.
 
@@ -364,7 +369,11 @@ to move the boundary, not to add a fixture.
 corpus; the ID-collision oracle green; a bounded-recursion test for every package that recurses; and
 every diagnostic-order change explained individually rather than absorbed by a golden update.
 
-### 8.2 Two oracles that do not exist yet
+### 8.2 Two oracles that did not exist yet
+
+**Both landed**, ahead of Tier 1 as this section required. What each was for is kept below, because
+the reasoning is what a reader needs to judge whether they still cover it; what changed on landing is
+noted at the end of each.
 
 **The general two-order diff.** CLAUDE.md prescribes it;
 `TestOneOf_CoDeclaredDistributionIsOrderIndependent` implements it by hand for three cases, at
@@ -380,6 +389,15 @@ document with duplicate mapping keys resolves to the last one (#95), so permutin
 nothing and such sources are excluded. And it proves order-independence only for constructs the
 fixture contains, which is why it belongs on the conformance corpus rather than on one hand-written
 spec.
+
+*As landed*: it reverses **every** mapping rather than three named ones — mapping order is never
+semantic where sequence order is, so the wider permutation costs nothing and reaches more. It
+compares the type registry and the *set* of diagnostics rather than whole documents: operations,
+responses and content types are held in source order by invariant #7 and reorder by design, and the
+three collections a mapping declares inside a type are sorted before comparing rather than ignored.
+The diagnostic set is not redundant — reinstating #108's collision interns the same nine types in
+both orders while reporting two facts against four, so the registry comparison alone would have
+missed it.
 
 **An ID-collision oracle.** Nothing in the repo asserts that two distinct source constructs cannot
 mint the same `ir.TypeID`. Invariant 3's corollary — a minted node needs a namespace of its own —
@@ -406,7 +424,18 @@ fallback. The better answer, to be settled when the grammar moves, is whether th
 in `ir` with compilers choosing only the namespace — in which case `irverify` enforces it for every
 compiler permanently rather than only under test.
 
-Both oracles land before Tier 1, proven against the current code first.
+*As landed*: the better answer was taken, so neither assertion lives in the harness. The kind
+prefixes moved to `ir` and `compilers/compile` spells its grammar from them, which lets
+`irverify.checkIDs` hold every compiler's IDs to the shape and to `path == Provenance.Pointer` —
+permanently, for every consumer of a `Document`, rather than only under test.
+
+Injectivity went the other way, to `compile.Types`, because it is not decidable from a finished
+document: a derivation that collapses two coordinates overwrites one node with the other, and the
+survivor is well-formed, carries its own provenance, and satisfies the agreement check the loser is
+no longer present to fail. Only the registry that saw both interns can see the collision, and it
+refuses the second through the same channel as its other refusals.
+
+Both oracles landed before Tier 1, proven against the current code first.
 
 ### 8.3 What this refactor specifically endangers
 
@@ -414,7 +443,7 @@ Both oracles land before Tier 1, proven against the current code first.
 |---|---|---|
 | `depth` field → parameter | one path forgets to increment; unbounded recursion on a cyclic or deep spec | `FuzzCycleDetector`, cycle corpus — but only through paths a fixture reaches. Add a per-package depth test |
 | ID derivation crosses a package boundary | pointer prefix changes; collision or dangling ref | `danglingcheck_test.go`, plus the new collision oracle |
-| Signature change alters the `at` passed | a node records a wrong-but-valid pointer | The ID-provenance agreement check in §8.2. `irverify.checkProvenance` validates only the source *index range*, so before that check exists this is caught by nothing but a human reading a golden diff — which is why it is a prerequisite rather than a later improvement |
+| Signature change alters the `at` passed | a node records a wrong-but-valid pointer | `irverify.checkIDs`, landed per §8.2. `checkProvenance` validates only the source *index range*, so until that check existed this was caught by nothing but a human reading a golden diff — which is why it was a prerequisite rather than a later improvement |
 | Diagnostics returned instead of accumulated | ordering shifts | Goldens, handled per §6.1 |
 | `diagnosedConstraints` dissolves into memoization | a duplicate diagnostic returns on an unmemoized path | Goldens, but only for corpus-covered shapes. Add a targeted test for the two-position read the field exists to suppress |
 | `Ctx` copied while its maps are shared | a callee's write is visible to its caller | Accessors make it unrepresentable; assert no exported `Ctx` field is a map |
@@ -425,16 +454,17 @@ Both oracles land before Tier 1, proven against the current code first.
 - **`harness.Check` returns at the first error diagnostic, before `irverify` runs.** A fixture
   written to exercise an invariant check that also trips an error diagnostic never reaches it.
   Establish where each new fixture lands rather than assuming it arrives.
-- **The annotation grid cannot express a carrier position** (#142), so annotations landing on
-  `ir.Parameter` or `ir.Property` are not measured by it and still need hand-written tests. The grid
-  looks complete over a set of axes that cannot name the position.
+- ~~**The annotation grid cannot express a carrier position** (#142)~~ — **closed.** The grid gained
+  a kind for each carrier, and they are separate kinds because the two hold different sets:
+  `ir.Property` has XML and Visibility fields and `ir.Parameter` has neither, so one shared row would
+  have had to pick an answer and covering either would have read as covering both.
 - **The golden corpus shares the blind spots of the code that produced it.** A construct no fixture
   contains is unprotected by byte-equality. The conformance corpus is the intended counterweight and
   is only as complete as `ir-spec-matrix.md`.
-- **`irverify` checks provenance index range, not pointer correctness.** The oracle in §8.2 covers
-  the property, but it lives in the harness rather than the verifier, so it holds under test rather
-  than for every consumer of a `Document`. Closing that gap means deciding whether the ID shape
-  belongs in `ir`.
+- ~~**`irverify` checks provenance index range, not pointer correctness.**~~ — **closed**, and in the
+  verifier rather than the harness: the ID shape went to `ir`, so `checkIDs` holds the property for
+  every consumer of a `Document`. What it still cannot see is a pointer that is wrong in a way the ID
+  is wrong in too, since it compares them against each other rather than against the source.
 - **Byte-identical goldens are the load-bearing neutrality guard, and the comparison had a known
   hazard.** `compareGolden` has no line-ending guard, and the repository carried no
   `.gitattributes` (#48), so a checkout with `core.autocrlf=true` converted 346 files and failed
@@ -489,10 +519,10 @@ sorts, which `maps.Keys` + `slices.Sorted` and the existing generic `sortedKeys`
   unrelated change.
 - **The source index.** Indexing the raw tree once (pointer → node + shape) would make resolution a
   lookup, share one walk across cycle and amplification detection, and give `--explain` a substrate.
-  It is held back because `$ref` handling currently carries open defects — #40 (percent-encoded
-  fragments fail to resolve) and #141 (an `$anchor`-resolved schema interns a malformed type ID) —
-  and an index built over them would bake them in. #143 (siblings adjacent to a `$ref` on an allOf
-  branch dropped) is closed. Filed as a follow-up blocked on the rest closing.
+  It is held back because `$ref` handling still carries an open defect — #40, percent-encoded
+  fragments failing to resolve — and an index built over it would bake it in. #143 (siblings
+  adjacent to a `$ref` on an allOf branch dropped) and #141 (an `$anchor` fragment derived from as
+  though it were a pointer) are closed. Filed as a follow-up blocked on the rest closing.
 - **Rebasing the GraphQL and Protobuf drafts.** They are evidence here, not work items.
 - **A new-compiler skeleton demo.**
 
@@ -520,12 +550,13 @@ Each row is one PR unless noted. "Done when" is the acceptance test, not a summa
 | # | Work | Done when | Blocked by |
 |---|---|---|---|
 | ~~0.1~~ | ~~Fix archtest prefix matching so one compiler cannot import another (#57)~~ | **Landed.** Allowlist entries are exact unless suffixed `/...`, and a planted sibling import now fails | — |
-| 0.2 | General two-order oracle in `internal/harness` | Reverses declaration order across the conformance corpus and diffs; proven by reverting #108's fix and watching it redden | — |
-| 0.3 | ID-collision oracle | `TypeID` → source pointer is injective across the corpus, and minted IDs occupy a namespace no source pointer produces; proven by planting a colliding derivation | — |
+| ~~0.2~~ | ~~General two-order oracle in `internal/harness`~~ | **Landed.** Reverses every mapping across the conformance corpus and diffs the registry and the diagnostic set; reverting #108's fix reddens the sweep | — |
+| ~~0.3~~ | ~~ID-collision oracle~~ | **Landed**, split by where each half is decidable (§8.2): `irverify.checkIDs` holds every ID to its shape and to `path == Provenance.Pointer`, and `compile.Types` refuses a derivation that collapses two coordinates. Both proven by planting one | — |
 | ~~1.1~~ | ~~Promote the ID grammar into `compilers/compile`~~ | **Landed.** `compilers/openapi` derives no ID except through the framework, goldens byte-identical, and the minted-namespace rule is refused by `compile.Types` rather than asserted in a comment | — |
 | ~~1.2~~ | ~~Promote the canonical naming grammar (the segmentation is decided — §3.1)~~ | **Landed.** `compilers/compile` holds the one implementation, an architecture test keeps a second from being written, and each rebasing draft carries its own golden update | — |
 | ~~1.3~~ | ~~Extend `irverify` to check segmentation, not only casing (#73, #54)~~ | **Landed with #161**, ahead of 1.2: `ir/naming-not-words` rejects a lowercase but unsegmented canonical, proven by planting the old grammar and watching the corpus sweep redden. #54 (`Hint`) stays open | — |
-| 2.1–2.7 | Tier-0 extractions, one PR each: `diag`, `load`, `scan`, `ids`, `value`, `annotation` (+ site), `merge` | Per §8.1: goldens byte-identical, rules entry added, and each package carries table-driven unit tests needing no document | 0.1 |
+| ~~2.1~~ | ~~Tier-0 extraction: `diag`~~ | **Landed.** Goldens byte-identical, its own rules entry admits `ir` alone, and the package carries table-driven tests needing no document | 0.1 |
+| 2.2–2.7 | The remaining Tier-0 extractions, one PR each: `load`, `scan`, `ids`, `value`, `annotation` (+ site), `merge` | Per §8.1: goldens byte-identical, rules entry added, and each package carries table-driven unit tests needing no document | 0.1 |
 | 3.1 | Introduce `Ctx` with accessors; derive indexes at entry | No exported `Ctx` field is a map; goldens byte-identical | 2.x |
 | 3.2 | Convert the leaves to the contract: `constraints` → `annotation`, `meta` and `auth` → `operation` | Those files hold no `lowerer` method | 3.1 |
 | 3.3 | Extract `internal/resolve` | ditto, plus a bounded-recursion test | 3.2 |
@@ -544,10 +575,10 @@ landing them first would only encode the current one.
 |---|---|
 | #57 archtest cannot enforce compiler isolation | **Closed.** Landed with #161/#143; it was a prerequisite for every package boundary here |
 | #73 naming grammar and primitive IDs are cross-compiler ABI in one compiler | **Answered.** The naming half landed with #161 (grammar + `irverify` check) and 1.2; the ID half with 1.1. Its own text proposed `ir` as the destination, and the framework package is where they went, so it is closed with that reasoning rather than silently |
-| #54 cased `Naming.Hint` passes the neutrality check | **Adjacent to 1.3**; fixed there if the segmentation work reaches `Hint`, otherwise left open |
+| #54 cased `Naming.Hint` passes the neutrality check | **Still open.** 1.3's segmentation work did not reach `Hint`: closing it means changing how hints are derived and regenerating every golden, which is a different change from tightening the checker. The exclusion is now stated in `checkNaming` rather than left to be inferred |
 | #83 enforce size and complexity caps in lint | **Closed by 4.2**, deliberately last |
 | #66 extract a shared JSON-Schema→IR lowering core before the next compilers land | **Superseded.** Its premise expired — the next compilers landed without it (#20, #21). §3 replaces it with evidence-based promotion. To be closed with that reasoning, not silently |
-| #142 the annotation matrix cannot reach a carrier position | **Untouched, and recorded in §8.4** as a standing blind spot. Independently fixable |
-| #40, #141 `$ref` handling defects | **Block the source index** (§10). Not fixed here. #143, listed here before, is closed |
+| #142 the annotation matrix cannot reach a carrier position | **Closed**, independently of this work as §8.4 said it could be: the grid gained a kind per carrier, and the two are separate kinds because their carriers hold different sets |
+| #40, #141 `$ref` handling defects | **#141 closed**: a fragment that is not a JSON pointer is refused rather than derived from, and `irverify` now rejects an ID the grammar could not have produced. #40 still **blocks the source index** (§10). #143, listed here before, is closed |
 | #20, #21 GraphQL and Protobuf drafts | **Evidence, not work items** (§2). Rebasing is later work |
 | Naming grammar divergence across compilers | **Closed by #161**, filed and fixed separately: a live invariant-4 violation, independent of whether this architecture work proceeds |
