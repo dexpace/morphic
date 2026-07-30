@@ -79,10 +79,10 @@ func (l *lowerer) preserveKeyword(p *ir.Unmodeled, key string, raw ir.RawValue, 
 	l.diags.AppendAll(annotation.PreserveKeywordInto(p, key, raw, declPtr, entryPtr, label, l.ctx.SrcIndex))
 }
 
-// diag appends one diagnostic at pointer with the given severity and code,
-// stamping it with the context's source index. It is the single primitive for
-// constructing a Provenance from that index — lowering sites should use it
-// instead of hand-writing the append+diag.Newf+Provenance triple.
+// diag records one diagnostic at pointer with the given severity and code. It is
+// the accumulating form of lowerCtx.diagAt, for the lowerings that still hold an
+// accumulator; a lowering that returns its diagnostics calls diagAt and appends
+// to what it returns. Neither builds a Provenance — provenanceAt does, once.
 func (l *lowerer) diag(sev ir.Severity, code, pointer, format string, args ...any) {
 	l.appendDiag(l.ctx.diagAt(sev, code, pointer, format, args...))
 }
