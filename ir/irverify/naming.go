@@ -14,6 +14,12 @@ var namingType = reflect.TypeFor[ir.Naming]()
 // neutral lower_snake word sequence, carrying no casing an emitter should own
 // and no character that is not part of a word. It reuses walkValues to reach
 // every ir.Naming value in the document.
+//
+// Only Canonical is checked. Naming.Hint — the generated-name channel for
+// anonymous types — is held to none of these rules, so casing and punctuation
+// still reach the IR through it. That is GitHub #54, left open deliberately:
+// closing it means changing how the compilers derive hints and regenerating
+// every golden, which is a different change from tightening this checker.
 func checkNaming(doc *ir.Document) []Violation {
 	var vs []Violation
 	walkValues(doc, func(v reflect.Value, path string) bool {
@@ -26,10 +32,11 @@ func checkNaming(doc *ir.Document) []Violation {
 	return vs
 }
 
-// appendNamingViolations reports both ways canon can break neutrality. They are
-// checked separately because either can hold without the other — "userID" is
-// segmented but cased, "com.example.user" is lowercase but unsegmented — and
-// each names a different repair.
+// appendNamingViolations reports the ways canon can break neutrality. They are
+// checked separately because each can hold without the others — "userID" is
+// segmented but cased, "com.example.user" is lowercase but unsegmented,
+// "foo2bar" is both lowercase and made of word characters yet runs two words
+// together — and each names a different repair.
 func appendNamingViolations(vs []Violation, canon, path string) []Violation {
 	if isCased(canon) {
 		vs = append(vs, Violation{
@@ -45,7 +52,53 @@ func appendNamingViolations(vs []Violation, canon, path string) []Violation {
 			Path:    path,
 		})
 	}
+	if !isSegmented(canon) {
+		vs = append(vs, Violation{
+			Code: "ir/naming-unsegmented",
+			Message: "canonical name " + canon +
+				" runs a letter and a digit together in one word; the grammar splits that boundary",
+			Path: path,
+		})
+	}
 	return vs
+}
+
+// isSegmented reports whether canon puts a boundary everywhere the canonical
+// grammar requires one *inside* a run of word characters. Only the letter/digit
+// boundary is decidable here: the grammar splits "APIKey2" into api|key|2, so no
+// word it produces holds a letter next to a digit.
+//
+// This is the half of segmentation a neutral name still carries evidence of.
+//
+// The other half — the camel-case boundary that turns "userID" into user|id — is
+// unverifiable from Canonical alone, because lowercasing has already erased the
+// case change that marked it: a compiler that neutralized "userID" to "userid"
+// without splitting produces one all-letter word, indistinguishable from a
+// genuine single word. Catching that means reading Naming.Source through the
+// grammar itself, which lives in compilers/compile and is out of reach from
+// Layer 0. It is unchecked here and stays that way until either the grammar
+// moves into ir or a second compiler makes a disagreement possible: today
+// compile.NamingFor is the only constructor that sets Canonical, so it pairs the
+// two by construction (GitHub #164).
+func isSegmented(s string) bool {
+	for _, word := range strings.Split(s, "_") {
+		var prev rune
+		for i, r := range word {
+			if i > 0 && straddlesLetterDigit(prev, r) {
+				return false
+			}
+			prev = r
+		}
+	}
+	return true
+}
+
+// straddlesLetterDigit reports whether prev and r sit either side of a boundary
+// the grammar splits on. A combining mark is transparent: it belongs to the
+// letter it follows rather than starting a run of its own.
+func straddlesLetterDigit(prev, r rune) bool {
+	return (unicode.IsLetter(prev) && unicode.IsDigit(r)) ||
+		(unicode.IsDigit(prev) && unicode.IsLetter(r))
 }
 
 // isWordSequence reports whether s is the shape Naming.Canonical promises: words
@@ -54,11 +107,9 @@ func appendNamingViolations(vs []Violation, canon, path string) []Violation {
 // carry only a Hint, and a source name with no word rune in it has no words to
 // report.
 //
-// What this cannot check is where a compiler puts the boundaries *inside* a
-// word: "foo2bar" and "foo_2_bar" are both word sequences, so two compilers
-// splitting letter/digit runs differently would both pass here. Only one shared
-// implementation of the grammar settles that (GitHub #163); this check holds the
-// line that ships today, which is that a canonical is words at all.
+// It says nothing about where the boundaries fall inside a run of word
+// characters: "foo2bar" and "foo_2_bar" are both word sequences by this test.
+// isSegmented is what holds that line.
 func isWordSequence(s string) bool {
 	if s == "" {
 		return true

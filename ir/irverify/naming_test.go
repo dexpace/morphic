@@ -56,3 +56,42 @@ func TestVerify_WordSequencesAreClean(t *testing.T) {
 			"canonical %q is a word sequence", canon)
 	}
 }
+
+// TestVerify_LetterDigitRunIsAViolation is the half of segmentation a neutral
+// name still carries evidence of: the grammar splits every letter/digit
+// boundary, so no word it produces holds a letter next to a digit. Each value
+// here is correctly lower-cased and made only of word characters, so the two
+// older checks pass it — which is exactly why it went unreported (GitHub #164).
+func TestVerify_LetterDigitRunIsAViolation(t *testing.T) {
+	t.Parallel()
+	for _, canon := range []string{
+		"foo2bar",   // the boundary in both directions, in one word
+		"api2",      // letter then digit
+		"2fa",       // digit then letter
+		"ok_v2beta", // in a later word, so the first must not mask it
+		"count_ℤ2",  // beside a rune with no lowercase form
+		"café2",     // a precomposed accent is a letter, so the boundary is real
+	} {
+		got := irverify.Verify(modelNamed(ir.Naming{Source: "S", Canonical: canon}))
+		require.NotEmpty(t, got, "canonical %q must be reported", canon)
+		assert.Equal(t, "ir/naming-unsegmented", got[0].Code, "canonical %q", canon)
+	}
+}
+
+// TestVerify_SegmentationCheckDoesNotOverreach guards the other direction. A
+// check that rejected every digit, or every word boundary, would satisfy the
+// test above while failing every real document: these are shapes
+// compile.CanonicalWords genuinely produces.
+func TestVerify_SegmentationCheckDoesNotOverreach(t *testing.T) {
+	t.Parallel()
+	for _, canon := range []string{
+		"api_key_2", "v_2", "2", "user_2_id", "oauth_2_token", "a_1_b_2",
+		// A decomposed accent puts a combining mark between the letter and the
+		// digit, and the grammar does not split after a mark: CanonicalWords leaves
+		// "cafe\u0301" + "2" as one word, so reporting it would reject its own output.
+		"cafe\u03012",
+	} {
+		assert.Empty(t, irverify.Verify(modelNamed(ir.Naming{Source: "S", Canonical: canon})),
+			"canonical %q is what the grammar produces", canon)
+	}
+}
