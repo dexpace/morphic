@@ -41,7 +41,7 @@ Every task inherits these. They are not restated per issue.
 
 | Issue | Work |
 |---|---|
-| #57 | Fix archtest prefix matching so one compiler cannot import another. Today an allowlist entry for `compilers` licenses `compilers/graphql`, so the isolation this design rests on is unenforceable |
+| ~~#57~~ | **Landed.** Allowlist entries are exact unless suffixed `/...`, so a `compilers` entry no longer licenses `compilers/graphql`, and a nested directory sharing a ruled sibling's basename is audited rather than skipped |
 | #48 | Pin golden files to LF. The repository has no `.gitattributes`, so the comparison that proves twenty pull requests neutral can fail for reasons unrelated to the IR |
 | #159 | The general two-order oracle. Exists today only as three hand-written cases at the site where the pointer collision was found |
 | #160 | Type-ID integrity: no collisions, **and** every ID agrees with its own provenance pointer. The second assertion is the only mechanical guard on provenance correctness — `irverify` validates the source index range and never the pointer |
@@ -56,14 +56,14 @@ golden diffs at precisely the point where each one has to be treated as a findin
 | Issue | Work | Blocked by |
 |---|---|---|
 | #162 | Identifier grammar into `compilers/compile` | #57, #48 |
-| #163 | Canonical naming grammar into `compilers/compile` — **not behaviour-neutral**, see below | #57 |
-| #164 | `irverify` checks segmentation, not only casing | #163 |
+| #163 | Canonical naming grammar into `compilers/compile`. The segmentation is settled (#161); what is left is the move, and each rebasing draft's goldens with it | #57 |
+| ~~#164~~ | **Landed with #161**, ahead of #163: `ir/naming-not-words` rejects a lowercase but unsegmented canonical | — |
 | #73 | Closed when the three above land | #162, #163, #164 |
 
-#163 is the one step that deliberately changes output. The three copies of the grammar disagree, so
-at most one survives promotion unchanged; whichever segmentation is chosen, some compiler's goldens
-move. It lands with a reddening test and a deliberate golden update, and the choice is argued in
-that PR.
+#163 still changes output, but no longer decides anything: #161 fixed the segmentation in
+`compilers/openapi` and wrote it into `ir-design.md` §3.2, so the move is measured against a rule
+already in the contract. The graphql and protobuf copies disagree with it, so their goldens move as
+those drafts rebase, each with a reddening test and a deliberate golden update.
 
 ### Tier 0 — extractions that are pure moves
 
@@ -130,10 +130,10 @@ Work already filed that lands inside this restructuring rather than alongside it
 
 | Issue | Status |
 |---|---|
-| #179 | Source index — blocked on `$ref` handling being correct first (#40, #141, #143) |
-| #161 | The live naming-divergence defect. Deliberately **not** blocked on #163: promotion would fix it, but it is a contract violation shipping today and must not wait on an architecture programme |
+| #179 | Source index — blocked on `$ref` handling being correct first (#40, #141; #143 is closed) |
+| ~~#161~~ | **Landed**, deliberately unblocked from #163: promotion would have fixed it, but it was a contract violation shipping today and did not wait on an architecture programme |
 | #142 | The annotation matrix cannot address a carrier position. Recorded as a standing blind spot in the design §8.4; independently fixable |
-| #54 | Cased `Naming.Hint` passes the neutrality check. Adjacent to #164 |
+| #54 | Cased `Naming.Hint` passes the neutrality check. #164 landed without reaching `Hint`, so this stays open — `neutral-naming.golden.json` shows one |
 | #66 | Closed as superseded — its premise expired when the next compilers landed without it |
 | #20, #21 | GraphQL and Protobuf drafts are read-only evidence here, not work items |
 
@@ -154,9 +154,8 @@ Work already filed that lands inside this restructuring rather than alongside it
 Twelve steps deep at its longest, with Tier 0 wide enough that six of its seven extractions can
 proceed in parallel once `diag` lands.
 
-Five issues are unblocked and can start immediately: **#57**, **#48**, **#159**, **#160** and
-**#161**. The first four are the prerequisites everything else waits on; #161 is independent by
-design. The graph is acyclic, and the dependency columns above are derived from the API rather than
+Of the five that were unblocked at the start, #57 and #161 have landed. **#48**, **#159** and
+**#160** remain, and are the prerequisites everything else waits on. The graph is acyclic, and the dependency columns above are derived from the API rather than
 maintained by hand — check both rather than trusting either:
 
 ```bash
