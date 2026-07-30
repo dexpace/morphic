@@ -82,8 +82,8 @@ promotion requires evidence from all three, not two and an expectation.
 |---|---|---|---|---|
 | Interning + type registry | `compile.Types` | own `types.go` | own `types.go` | already framework |
 | Diagnostic accumulation | `compile.Diags` | own `diag.go` | own `diag.go` | already framework |
-| Canonical naming grammar | `schema.go` | `naming.go` | `naming.go` | **promote** |
-| ID grammar | `ids.go` | `ids.go` | `ids.go` | **promote grammar, not derivation** |
+| Canonical naming grammar | `schema.go` | `naming.go` | `naming.go` | **promoted** — `compile.CanonicalWords` |
+| ID grammar | `ids.go` | `ids.go` | `ids.go` | **promoted, derivation left behind** — `compile.TypeID` and friends over a `compile.Space` |
 | Bounded-recursion guard | `depth`, cap 256 | — | — | promote only if the drafts show need |
 | Reference resolution | `resolve.go` | `resolve.go` | — | do not promote |
 | Loading, options | yes | yes | yes | do not promote — format-specific |
@@ -110,10 +110,16 @@ disagreeing about `.` is caught wherever the corpus reaches it. What that check 
 a compiler puts the boundaries *inside* a word (`foo2bar` against `foo_2_bar`), which is what the
 promotion still buys.
 
-So 1.2 is now the move rather than the decision: `compilers/compile` gets the single
-implementation, and the graphql and protobuf copies are deleted against it as those drafts rebase.
-Their outputs move at that point — the protobuf copy separates on `.` alone and the graphql copy on
-nothing but `_`/`-`/space — so each rebase carries its own golden update, argued there.
+So 1.2 was the move rather than the decision, and it has **landed**: `compilers/compile` holds the
+single implementation, `compilers/openapi` derives no name of its own, and the graphql and protobuf
+copies are deleted against it as those drafts rebase. Their outputs move at that point — run over
+the same inputs, 8 of 13 spellings differ between the three, because the protobuf copy separates on
+`.` alone and the graphql copy on nothing but `_`/`-`/space — so each rebase carries its own golden
+update, argued there. The OpenAPI goldens did not move, since #161 had already made its copy the
+grammar that ships.
+
+Deleting two copies is a state rather than a rule, so the architecture test now asserts that only
+the framework and `ir` may fill `Naming.Canonical`. What it still cannot see is a `Hint` (#54).
 
 The divergence was filed separately so it would not be lost if this work were deferred; that is
 what it is now closed by.
@@ -326,7 +332,13 @@ some reordering is expected and each instance must be understood rather than abs
 2. **Every new package gets a `rules` entry**, or `TestImportGraph_EveryPackageIsRuledOrExempt`
    fails. An unkeyed subdirectory is audited under its nearest keyed ancestor's allowlist, so
    nesting must not become a way to widen one.
-3. **Anti-regrowth needs a type-surface cap.** Function-size and complexity caps (#83) are worth
+3. **What a package may *write* is enforced beside what it may import.** Deleting a duplicate
+   leaves a state, not a rule, so each promotion into the framework arrives with a sweep over the
+   syntax that would rebuild it: an `ir.TypeRegistry` written outside the framework, a
+   `Naming.Canonical` derived locally, an ID built from a string inside a compiler. Each sweep
+   carries a planted counter-test, because a matcher that recognizes nothing passes a clean tree and
+   reads as proof.
+4. **Anti-regrowth needs a type-surface cap.** Function-size and complexity caps (#83) are worth
    having but were already satisfied while the god object grew; they measure the wrong dimension.
    `internal/archtest` already carries `go/parser`, so a cap on methods per type in `compilers/*` is
    cheap, and it is the only guard that would have caught this happening.
@@ -423,11 +435,13 @@ Both oracles land before Tier 1, proven against the current code first.
   the property, but it lives in the harness rather than the verifier, so it holds under test rather
   than for every consumer of a `Document`. Closing that gap means deciding whether the ID shape
   belongs in `ir`.
-- **Byte-identical goldens are the load-bearing neutrality guard, and the comparison has a known
-  hazard.** `compareGolden` has no line-ending guard and the repository has no `.gitattributes`
-  (#48), so a checkout with `core.autocrlf=true` fails every golden test for reasons unrelated to
-  the IR. Harmless on the Linux runner; corrosive if it trains a reader to treat golden diffs as
-  environmental noise. Fixed before the programme starts rather than during it.
+- **Byte-identical goldens are the load-bearing neutrality guard, and the comparison had a known
+  hazard.** `compareGolden` has no line-ending guard, and the repository carried no
+  `.gitattributes` (#48), so a checkout with `core.autocrlf=true` converted 346 files and failed
+  three test functions for reasons unrelated to the IR. Harmless on the Linux runner; corrosive if
+  it trains a reader to treat golden diffs as environmental noise. **Landed** before the programme
+  started rather than during it: the pin, and the test that reports its removal, since CI checks out
+  LF whether the rule is there or not.
 
 ### 8.5 Held at every step
 
@@ -508,8 +522,8 @@ Each row is one PR unless noted. "Done when" is the acceptance test, not a summa
 | ~~0.1~~ | ~~Fix archtest prefix matching so one compiler cannot import another (#57)~~ | **Landed.** Allowlist entries are exact unless suffixed `/...`, and a planted sibling import now fails | — |
 | 0.2 | General two-order oracle in `internal/harness` | Reverses declaration order across the conformance corpus and diffs; proven by reverting #108's fix and watching it redden | — |
 | 0.3 | ID-collision oracle | `TypeID` → source pointer is injective across the corpus, and minted IDs occupy a namespace no source pointer produces; proven by planting a colliding derivation | — |
-| 1.1 | Promote the ID grammar into `compilers/compile` | `compilers/openapi` derives no ID except through the framework; goldens byte-identical | 0.1 |
-| 1.2 | Promote the canonical naming grammar (the segmentation is decided — §3.1) | `compilers/compile` holds the one implementation and no compiler keeps a copy; each rebasing draft carries its own golden update | 0.1 |
+| ~~1.1~~ | ~~Promote the ID grammar into `compilers/compile`~~ | **Landed.** `compilers/openapi` derives no ID except through the framework, goldens byte-identical, and the minted-namespace rule is refused by `compile.Types` rather than asserted in a comment | — |
+| ~~1.2~~ | ~~Promote the canonical naming grammar (the segmentation is decided — §3.1)~~ | **Landed.** `compilers/compile` holds the one implementation, an architecture test keeps a second from being written, and each rebasing draft carries its own golden update | — |
 | ~~1.3~~ | ~~Extend `irverify` to check segmentation, not only casing (#73, #54)~~ | **Landed with #161**, ahead of 1.2: `ir/naming-not-words` rejects a lowercase but unsegmented canonical, proven by planting the old grammar and watching the corpus sweep redden. #54 (`Hint`) stays open | — |
 | 2.1–2.7 | Tier-0 extractions, one PR each: `diag`, `load`, `scan`, `ids`, `value`, `annotation` (+ site), `merge` | Per §8.1: goldens byte-identical, rules entry added, and each package carries table-driven unit tests needing no document | 0.1 |
 | 3.1 | Introduce `Ctx` with accessors; derive indexes at entry | No exported `Ctx` field is a map; goldens byte-identical | 2.x |
@@ -529,7 +543,7 @@ landing them first would only encode the current one.
 | Issue | Disposition |
 |---|---|
 | #57 archtest cannot enforce compiler isolation | **Closed.** Landed with #161/#143; it was a prerequisite for every package boundary here |
-| #73 naming grammar and primitive IDs are cross-compiler ABI in one compiler | **Half closed.** The naming half landed with #161 (grammar + `irverify` check); the ID half is 1.1 |
+| #73 naming grammar and primitive IDs are cross-compiler ABI in one compiler | **Answered.** The naming half landed with #161 (grammar + `irverify` check) and 1.2; the ID half with 1.1. Its own text proposed `ir` as the destination, and the framework package is where they went, so it is closed with that reasoning rather than silently |
 | #54 cased `Naming.Hint` passes the neutrality check | **Adjacent to 1.3**; fixed there if the segmentation work reaches `Hint`, otherwise left open |
 | #83 enforce size and complexity caps in lint | **Closed by 4.2**, deliberately last |
 | #66 extract a shared JSON-Schema→IR lowering core before the next compilers land | **Superseded.** Its premise expired — the next compilers landed without it (#20, #21). §3 replaces it with evidence-based promotion. To be closed with that reasoning, not silently |
