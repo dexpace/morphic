@@ -112,8 +112,8 @@ func irFieldUniverse(t *testing.T) map[string]bool {
 			walk(rt.Key())
 			walk(rt.Elem())
 		case reflect.Struct:
-			for i := range rt.NumField() {
-				f := rt.Field(i)
+			for f := range rt.Fields() {
+				f := f
 				if f.PkgPath != "" {
 					continue // unexported: no consumer can read it
 				}
@@ -123,7 +123,7 @@ func irFieldUniverse(t *testing.T) map[string]bool {
 		}
 	}
 
-	walk(reflect.TypeOf(ir.Document{}))
+	walk(reflect.TypeFor[ir.Document]())
 	// Sealed TypeDef kinds are reached only through the interface, which
 	// reflection on the static type graph cannot enumerate. Seed each concrete
 	// kind from the kinds the ir sources declare, so a new variant joins the

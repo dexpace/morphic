@@ -1137,7 +1137,7 @@ func (l *lowerer) componentSchemaAt(pointer string) *oas3.Schema {
 func (l *lowerer) declaresResourceIDAbove(pointer string) bool {
 	view := newNodeView()
 	cur := documentRoot(deref(l.doc.GetRootNode()))
-	for _, seg := range strings.Split(pointer, "/") {
+	for seg := range strings.SplitSeq(pointer, "/") {
 		if cur == nil {
 			return false
 		}

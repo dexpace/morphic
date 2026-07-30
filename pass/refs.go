@@ -19,7 +19,7 @@ const maxRefWalkDepth = 4096
 // typeIDType is the reflect.Type of ir.TypeID, the one reference class the
 // reachability analysis in validate.go needs without a document to resolve
 // against.
-var typeIDType = reflect.TypeOf(ir.TypeID(""))
+var typeIDType = reflect.TypeFor[ir.TypeID]()
 
 // registries maps each ID type to the Document registry that declares those IDs.
 // The walk recognizes a reference by its declared Go type, never by field name:
@@ -51,8 +51,8 @@ type registries map[reflect.Type]reflect.Value
 func documentRegistries(doc *ir.Document) registries {
 	out := registries{}
 	fields := reflect.ValueOf(doc).Elem()
-	for i := range fields.NumField() {
-		f := fields.Field(i)
+	for _, f := range fields.Fields() {
+		f := f
 		if f.Kind() != reflect.Map {
 			continue
 		}

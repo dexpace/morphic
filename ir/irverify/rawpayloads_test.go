@@ -250,7 +250,7 @@ func TestVerify_InvalidRawValueIsWhatBreaksTheDocument(t *testing.T) {
 // unmodeled entry.
 func TestUnmodeledEntryFields_MatchTheIRShape(t *testing.T) {
 	t.Parallel()
-	entry := reflect.TypeOf(ir.UnmodeledEntry{})
+	entry := reflect.TypeFor[ir.UnmodeledEntry]()
 	for field, kind := range map[string]reflect.Kind{
 		"Reason": reflect.String,
 		"Value":  reflect.Slice,
@@ -261,6 +261,6 @@ func TestUnmodeledEntryFields_MatchTheIRShape(t *testing.T) {
 	}
 	value, _ := entry.FieldByName("Value")
 	assert.Equal(t, reflect.Uint8, value.Type.Elem().Kind(), "UnmodeledEntry.Value must stay a byte slice")
-	assert.Equal(t, reflect.Uint8, reflect.TypeOf(ir.RawConfig(nil)).Elem().Elem().Kind(),
+	assert.Equal(t, reflect.Uint8, reflect.TypeFor[ir.RawConfig]().Elem().Elem().Kind(),
 		"RawConfig must stay a map of byte slices")
 }

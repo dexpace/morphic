@@ -2,6 +2,7 @@ package main
 
 import (
 	"io"
+	"slices"
 	"sort"
 	"strings"
 
@@ -112,6 +113,6 @@ func sortedTypeIDs(doc *ir.Document) []ir.TypeID {
 	for id := range doc.Types {
 		ids = append(ids, id)
 	}
-	sort.Slice(ids, func(i, j int) bool { return ids[i] < ids[j] })
+	slices.Sort(ids)
 	return ids
 }

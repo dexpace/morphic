@@ -1092,7 +1092,7 @@ func pointerResolves(root *yaml.Node, pointer string) bool {
 	if node.Kind == yaml.DocumentNode && len(node.Content) > 0 {
 		node = node.Content[0]
 	}
-	for _, raw := range strings.Split(strings.TrimPrefix(pointer, "/"), "/") {
+	for raw := range strings.SplitSeq(strings.TrimPrefix(pointer, "/"), "/") {
 		next, ok := pointerStep(node, unescapeSegment(raw))
 		if !ok {
 			return false

@@ -115,7 +115,7 @@ func TestCheckDanglingRefs_NilTypeDefIsNotFollowed(t *testing.T) {
 func TestRegistries_ResolvesUnknownClassIsReportOnly(t *testing.T) {
 	t.Parallel()
 	regs := documentRegistries(&ir.Document{})
-	site := refSite{idType: reflect.TypeOf(ir.OpID("")), id: "op/x", where: "doc"}
+	site := refSite{idType: reflect.TypeFor[ir.OpID](), id: "op/x", where: "doc"}
 	assert.False(t, regs.resolves(site), "an ID class with no registry resolves to nothing")
 }
 
@@ -130,6 +130,6 @@ func TestDocumentRegistries_DerivedFromDocumentShape(t *testing.T) {
 	for _, id := range []any{ir.TypeID(""), ir.ChannelID(""), ir.MessageID(""), ir.AuthID("")} {
 		assert.True(t, regs.isRef(reflect.TypeOf(id)), "%T names a Document registry", id)
 	}
-	assert.False(t, regs.isRef(reflect.TypeOf("")), "a plain string key is a name, not an identity")
+	assert.False(t, regs.isRef(reflect.TypeFor[string]()), "a plain string key is a name, not an identity")
 	assert.Len(t, regs, 4, "Document declares exactly the four ID-keyed registries")
 }

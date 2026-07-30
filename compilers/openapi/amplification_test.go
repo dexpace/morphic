@@ -85,7 +85,7 @@ const bigDocSchemaCount = 2000
 func bigAliasFreeSpec(n int) string {
 	var b strings.Builder
 	b.WriteString("openapi: 3.1.0\ninfo: {title: t, version: '1'}\npaths: {}\ncomponents:\n  schemas:\n")
-	for i := 0; i < n; i++ {
+	for i := range n {
 		fmt.Fprintf(&b, "    S%d: {type: object, properties: {a: {type: string}, b: {type: integer}, c: {type: boolean}}}\n", i)
 	}
 	return b.String()
@@ -122,7 +122,7 @@ func TestDetectCycles_AnchorReuseWithinBudgetIsClean(t *testing.T) {
 	b.WriteString("x-anchors: {base: &base {type: object, properties: {a: {type: string}, b: {type: integer}}}}\n")
 	b.WriteString("components:\n  schemas:\n")
 	const reuses = 40
-	for i := 0; i < reuses; i++ {
+	for i := range reuses {
 		fmt.Fprintf(&b, "    S%d: {properties: {p: *base}}\n", i)
 	}
 
@@ -138,21 +138,21 @@ func wideBaseReuseSpec(props, siblings int) string {
 	var b strings.Builder
 	b.WriteString("openapi: 3.1.0\ninfo: {title: t, version: '1'}\npaths: {}\ncomponents:\n  schemas:\n")
 	b.WriteString("    Base: &base {type: object, properties: {")
-	for i := 0; i < props; i++ {
+	for i := range props {
 		if i > 0 {
 			b.WriteString(", ")
 		}
 		fmt.Fprintf(&b, "p%d: {type: string, description: 'field %d'}", i, i)
 	}
 	b.WriteString("}, required: [")
-	for i := 0; i < props; i++ {
+	for i := range props {
 		if i > 0 {
 			b.WriteString(", ")
 		}
 		fmt.Fprintf(&b, "p%d", i)
 	}
 	b.WriteString("]}\n")
-	for i := 0; i < siblings; i++ {
+	for i := range siblings {
 		fmt.Fprintf(&b, "    S%d: {allOf: [*base, {type: object}]}\n", i)
 	}
 	return b.String()
@@ -217,14 +217,14 @@ func flatFanOutSpec(props, n int) string {
 	var b strings.Builder
 	b.WriteString("openapi: 3.1.0\ninfo: {title: t, version: '1'}\npaths: {}\ncomponents:\n  schemas:\n")
 	b.WriteString("    Leaf: &leaf {type: object, properties: {")
-	for i := 0; i < props; i++ {
+	for i := range props {
 		if i > 0 {
 			b.WriteString(", ")
 		}
 		fmt.Fprintf(&b, "p%d: {type: string}", i)
 	}
 	b.WriteString("}, required: [")
-	for i := 0; i < props; i++ {
+	for i := range props {
 		if i > 0 {
 			b.WriteString(", ")
 		}
@@ -232,7 +232,7 @@ func flatFanOutSpec(props, n int) string {
 	}
 	b.WriteString("]}\n")
 	b.WriteString("    Bomb: {allOf: [")
-	for i := 0; i < n; i++ {
+	for i := range n {
 		if i > 0 {
 			b.WriteString(",")
 		}
@@ -317,7 +317,7 @@ func TestComputeAllowance_TakesTheLesserBound(t *testing.T) {
 // maxAliasSurplus reaches it) rather than one that shifts with levels.
 func aliasFanOutNode(levels int) *yaml.Node {
 	cur := ymap(yscalar("type"), yscalar("string"))
-	for i := 0; i < levels; i++ {
+	for range levels {
 		cur = ymap(yscalar("allOf"), yseq(yalias(cur), yalias(cur)))
 	}
 	return cur

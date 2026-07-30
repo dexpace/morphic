@@ -122,8 +122,8 @@ var indexCarrierFields = []struct {
 	{channelType, "Servers", reflect.Slice, reflect.Int},
 	{operationType, "Responses", reflect.Slice, reflect.Invalid},
 	{operationType, "Bindings", reflect.Struct, reflect.Invalid},
-	{reflect.TypeOf(ir.OpBindings{}), "HTTP", reflect.Slice, reflect.Struct},
-	{reflect.TypeOf(ir.HTTPBinding{}), "SuccessStatus", reflect.Map, reflect.Int},
+	{reflect.TypeFor[ir.OpBindings](), "HTTP", reflect.Slice, reflect.Struct},
+	{reflect.TypeFor[ir.HTTPBinding](), "SuccessStatus", reflect.Map, reflect.Int},
 }
 
 // TestIndexCarrierFields_MatchTheIRShape fails when a field checkIndices reads

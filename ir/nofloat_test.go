@@ -35,14 +35,14 @@ func TestIR_NoFloatFields(t *testing.T) {
 			walk(rt.Key(), path+".key")
 			walk(rt.Elem(), path+".val")
 		case reflect.Struct:
-			for i := range rt.NumField() {
-				f := rt.Field(i)
+			for f := range rt.Fields() {
+				f := f
 				walk(f.Type, path+"."+f.Name)
 			}
 		}
 	}
 
-	walk(reflect.TypeOf(ir.Document{}), "Document")
+	walk(reflect.TypeFor[ir.Document](), "Document")
 	// Sealed TypeDef kinds are reached only via the interface, which reflection on
 	// the static type graph cannot enumerate. Walk each concrete kind explicitly,
 	// seeded from the kinds the ir sources declare so a new variant is float-checked

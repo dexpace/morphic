@@ -1386,13 +1386,14 @@ func TestMappingTargetID(t *testing.T) {
 	assert.NotEqual(t, namedTypeID(ptr("components", "schemas", "")), id)
 }
 
-func strptr(s string) *string { return &s }
+//go:fix inline
+func strptr(s string) *string { return new(s) }
 
 func TestDiscriminatorDefault_ResolvesDeclaredComponent(t *testing.T) {
 	t.Parallel()
 	l := newRawLowerer(&soa.OpenAPI{})
 	l.schemas = map[string]bool{"Cat": true}
-	d := &oas3.Discriminator{PropertyName: "kind", DefaultMapping: strptr("Cat")}
+	d := &oas3.Discriminator{PropertyName: "kind", DefaultMapping: new("Cat")}
 
 	id := l.discriminatorDefault(d, "/components/schemas/Pet")
 	assert.Equal(t, namedTypeID("/components/schemas/Cat"), id)
@@ -1404,7 +1405,7 @@ func TestDiscriminatorDefault_DroppedWhenUnresolved(t *testing.T) {
 	l := newRawLowerer(&soa.OpenAPI{})
 	// "Missing" is neither a declared component nor an internal pointer, so the
 	// defaultMapping does not resolve and is dropped with one error diagnostic.
-	d := &oas3.Discriminator{PropertyName: "kind", DefaultMapping: strptr("Missing")}
+	d := &oas3.Discriminator{PropertyName: "kind", DefaultMapping: new("Missing")}
 
 	id := l.discriminatorDefault(d, "/components/schemas/Pet")
 	assert.Empty(t, id, "an unresolved defaultMapping yields no target")

@@ -55,19 +55,19 @@ type refKind struct {
 // and a positional row could silently swap them, emitting
 // "ir/dangling-types-ref" instead of "ir/dangling-type-ref".
 var refKindByType = map[reflect.Type]refKind{
-	reflect.TypeOf(ir.TypeID("")): {registry: "types", singular: "type", has: func(doc *ir.Document, id string) bool {
+	reflect.TypeFor[ir.TypeID](): {registry: "types", singular: "type", has: func(doc *ir.Document, id string) bool {
 		_, ok := doc.Types[ir.TypeID(id)]
 		return ok
 	}},
-	reflect.TypeOf(ir.AuthID("")): {registry: "auth", singular: "auth", has: func(doc *ir.Document, id string) bool {
+	reflect.TypeFor[ir.AuthID](): {registry: "auth", singular: "auth", has: func(doc *ir.Document, id string) bool {
 		_, ok := doc.Auth[ir.AuthID(id)]
 		return ok
 	}},
-	reflect.TypeOf(ir.ChannelID("")): {registry: "channels", singular: "channel", has: func(doc *ir.Document, id string) bool {
+	reflect.TypeFor[ir.ChannelID](): {registry: "channels", singular: "channel", has: func(doc *ir.Document, id string) bool {
 		_, ok := doc.Channels[ir.ChannelID(id)]
 		return ok
 	}},
-	reflect.TypeOf(ir.MessageID("")): {registry: "messages", singular: "message", has: func(doc *ir.Document, id string) bool {
+	reflect.TypeFor[ir.MessageID](): {registry: "messages", singular: "message", has: func(doc *ir.Document, id string) bool {
 		_, ok := doc.Messages[ir.MessageID(id)]
 		return ok
 	}},

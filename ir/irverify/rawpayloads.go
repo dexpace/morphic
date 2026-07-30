@@ -8,8 +8,8 @@ import (
 )
 
 var (
-	unmodeledType = reflect.TypeOf(ir.Unmodeled(nil))
-	rawConfigType = reflect.TypeOf(ir.RawConfig(nil))
+	unmodeledType = reflect.TypeFor[ir.Unmodeled]()
+	rawConfigType = reflect.TypeFor[ir.RawConfig]()
 )
 
 // checkRawPayloads asserts the two maps that carry source JSON verbatim hold

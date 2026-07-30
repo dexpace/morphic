@@ -674,7 +674,7 @@ func resolveRefAt[T, S any, R interface {
 	// at a declaration written here, which is what keeps a chain that exits the
 	// document from returning the last alias it passed through.
 	pointer, cand := usePtr, usePtr
-	for hop := 0; hop < maxRefChain; hop++ {
+	for range maxRefChain {
 		// GetReferenceResolutionInfo is nil once the chain reaches a
 		// non-reference entry — the terminator, and why an inline entry
 		// exits on the first pass (couples this to that library contract).

@@ -7,7 +7,7 @@ import (
 	"github.com/dexpace/morphic/ir"
 )
 
-var provenanceType = reflect.TypeOf(ir.Provenance{})
+var provenanceType = reflect.TypeFor[ir.Provenance]()
 
 // checkProvenance asserts every Provenance.Source addresses a declared entry of
 // Document.Sources. The index is a reference like any typed ID — a stale or
