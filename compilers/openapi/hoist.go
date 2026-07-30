@@ -1,8 +1,6 @@
 package openapi
 
 import (
-	soa "github.com/speakeasy-api/openapi/openapi"
-
 	"github.com/dexpace/morphic/compilers/compile"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/ids"
@@ -26,18 +24,16 @@ const maxSchemaDepth = 256
 // a package global): it threads the interning table, diagnostics, and
 // recursion depth through every schema position.
 type lowerer struct {
-	srcIndex int
-	doc      *soa.OpenAPI
-	source   ir.SourceInfo // identity of the loaded source, stamped into Document.Sources
-	out      *ir.Document
-	opts     Options
+	// ctx is the immutable half: the document, options and source identity, plus
+	// the indexes derived from them at entry. Everything below it is mutable.
+	ctx lowerCtx
+	out *ir.Document
 	// types owns the registry and the coordinate map; see compilers/compile.
 	types *compile.Types
 	// diags accumulates lowering diagnostics, deduped by full identity.
 	diags compile.Diags
 	// merge reconciles properties declared by more than one allOf branch.
-	merge   merge.Merger
-	schemas map[string]bool // declared component-schema names (for ref resolution)
+	merge merge.Merger
 	// dynamicAnchors indexes the document's $dynamicAnchor declarations by name,
 	// built by dynamicAnchorIndex on the first $dynamicRef reached. It stays nil
 	// until then: the index costs a walk of the whole raw source tree, and almost
@@ -60,14 +56,11 @@ type lowerer struct {
 func newLowerer(srcIndex int, doc *load.Document, opts Options) *lowerer {
 	types := compile.NewTypes(srcIndex)
 	l := &lowerer{
-		srcIndex: srcIndex,
-		doc:      doc.Doc,
-		source:   doc.Source,
+		ctx: newLowerCtx(srcIndex, doc, opts),
 		// The Document shares the framework's live registry rather than being
 		// handed a copy at the end: compile.Types owns every write to it, and the
 		// architecture test is what keeps that true.
 		out:                  &ir.Document{Types: types.Registry()},
-		opts:                 opts,
 		types:                types,
 		diagnosedConstraints: make(map[string]bool),
 		operationIDs:         make(map[string]string),
@@ -123,7 +116,7 @@ func (l *lowerer) primID(k ir.PrimKind) ir.TypeID { return l.types.PrimID(k) }
 func (l *lowerer) commonFor(id ir.TypeID, pointer, hint string) ir.TypeCommon {
 	common := ir.TypeCommon{
 		ID:         id,
-		Provenance: ir.Provenance{Source: l.srcIndex, Pointer: pointer},
+		Provenance: ir.Provenance{Source: l.ctx.SrcIndex, Pointer: pointer},
 	}
 	if name, ok := ids.ComponentSchemaName(pointer); ok {
 		common.Name = compile.NamingFor(name)

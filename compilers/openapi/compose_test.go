@@ -1380,8 +1380,8 @@ func TestRefLastSegment(t *testing.T) {
 func TestMappingTargetID(t *testing.T) {
 	t.Parallel()
 	l := &lowerer{
-		schemas: map[string]bool{"Cat": true, "Dog": true, "A/B": true},
-		out:     &ir.Document{Types: ir.TypeRegistry{}},
+		ctx: lowerCtx{schemas: map[string]bool{"Cat": true, "Dog": true, "A/B": true}},
+		out: &ir.Document{Types: ir.TypeRegistry{}},
 	}
 	// A $ref to a declared component.
 	id, ok := l.mappingTargetID("#/components/schemas/Cat")
@@ -1405,7 +1405,7 @@ func TestMappingTargetID(t *testing.T) {
 	// A declared but empty-named component ("") is interned anonymously, so its
 	// bare mapping name must resolve to that anon ID, not an unbacked ids.NamedType
 	// (issue #14, f31).
-	l.schemas[""] = true
+	l.ctx.schemas[""] = true
 	id, ok = l.mappingTargetID("")
 	require.True(t, ok)
 	assert.Equal(t, ids.AnonType(ids.Ptr("components", "schemas", "")), id)
@@ -1415,7 +1415,7 @@ func TestMappingTargetID(t *testing.T) {
 func TestDiscriminatorDefault_ResolvesDeclaredComponent(t *testing.T) {
 	t.Parallel()
 	l := newRawLowerer(&soa.OpenAPI{})
-	l.schemas = map[string]bool{"Cat": true}
+	l.ctx.schemas = map[string]bool{"Cat": true}
 	d := &oas3.Discriminator{PropertyName: "kind", DefaultMapping: new("Cat")}
 
 	id := l.discriminatorDefault(d, "/components/schemas/Pet")

@@ -21,7 +21,7 @@ components:
   schemas:
     S: {type: string, description: d}
 `)
-	js := l.doc.Components.GetSchemas().GetOrZero("S")
+	js := l.ctx.Doc.Components.GetSchemas().GetOrZero("S")
 	require.NotNil(t, js)
 
 	s := annotation.At(js)
@@ -43,7 +43,7 @@ components:
       $ref: '#/components/schemas/Target'
       description: site-desc
 `)
-	js := l.doc.Components.GetSchemas().GetOrZero("S")
+	js := l.ctx.Doc.Components.GetSchemas().GetOrZero("S")
 	require.NotNil(t, js)
 
 	s := annotation.At(js)

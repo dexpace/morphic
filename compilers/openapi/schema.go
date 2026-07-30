@@ -24,7 +24,7 @@ import (
 // It is the entry Compile's run() calls before any operation lowering so that
 // $refs resolve to already-registered IDs.
 func (l *lowerer) lowerComponentSchemas() {
-	comps := l.doc.Components
+	comps := l.ctx.Doc.Components
 	if comps == nil {
 		return
 	}
@@ -32,13 +32,9 @@ func (l *lowerer) lowerComponentSchemas() {
 	if schemas == nil {
 		return
 	}
-	// Record every declared name before lowering any schema so a $ref or
-	// discriminator mapping resolved mid-lowering sees forward-declared
-	// components as valid targets regardless of source order.
-	l.schemas = make(map[string]bool, schemas.Len())
-	for name := range schemas.All() {
-		l.schemas[name] = true
-	}
+	// The declared-name index the $ref and discriminator-mapping resolutions read
+	// is derived at entry (newLowerCtx), so a component declared later in the document
+	// is already a valid target here regardless of source order.
 	for name, js := range schemas.All() {
 		l.lowerComponentSchema(js, ids.Ptr("components", "schemas", name), name)
 	}
@@ -368,7 +364,7 @@ func (l *lowerer) preserveUnionSiblings(id ir.TypeID, s *oas3.Schema, pointer st
 	for _, kw := range []string{"oneOf", "anyOf"} {
 		raw, err := annotation.RawFromNode(annotation.RawPropertyNode(s, kw))
 		if err != nil {
-			l.appendDiag(annotation.UnpreservableDiag("openapi:"+kw, pointer+ids.Ptr(kw), l.srcIndex, err))
+			l.appendDiag(annotation.UnpreservableDiag("openapi:"+kw, pointer+ids.Ptr(kw), l.ctx.SrcIndex, err))
 			continue
 		}
 		if reason == ir.ReasonValidationOnly {
@@ -636,7 +632,7 @@ func (l *lowerer) fillModelProperties(m *ir.Model, s *oas3.Schema, pointer strin
 			WireName:   name,
 			Type:       l.carriedSchemaRef(js, ppointer, name),
 			Required:   required[name],
-			Provenance: ir.Provenance{Source: l.srcIndex, Pointer: ppointer},
+			Provenance: ir.Provenance{Source: l.ctx.SrcIndex, Pointer: ppointer},
 		}
 		l.fillPropertyDetail(&p, js, ppointer)
 		l.merge.MergeProperty(m, byWire, p, ppointer)
@@ -691,7 +687,7 @@ func (l *lowerer) fillPropertyAnnotations(p *ir.Property, ref, tgt *oas3.Schema,
 	if l.loweredToOwnNode(pointer, p.Type) {
 		return
 	}
-	a, diags := annotation.Read(annotation.Site{Kind: annotation.Reference, Node: ref, Referent: tgt}, pointer, l.srcIndex)
+	a, diags := annotation.Read(annotation.Site{Kind: annotation.Reference, Node: ref, Referent: tgt}, pointer, l.ctx.SrcIndex)
 	l.diags.AppendAll(diags)
 
 	p.Docs = a.Docs
@@ -776,7 +772,7 @@ func (l *lowerer) attachDeclaredAnnotations(s *oas3.Schema, pointer string) {
 	if !ok {
 		return
 	}
-	a, diags := annotation.Read(annotation.Site{Kind: annotation.Declaration, Node: s}, pointer, l.srcIndex)
+	a, diags := annotation.Read(annotation.Site{Kind: annotation.Declaration, Node: s}, pointer, l.ctx.SrcIndex)
 	l.diags.AppendAll(diags)
 
 	c := td.Common()
@@ -854,7 +850,7 @@ func (l *lowerer) patternProps(s *oas3.Schema, pointer, hint string) []ir.Patter
 // written, allocating the map on first write. An absent or unconvertible
 // payload records nothing, so no caller needs a nil guard of its own.
 func (l *lowerer) preserve(p *ir.Unmodeled, key string, raw ir.RawValue, reason ir.UnmodeledReason, pointer string) {
-	annotation.PreserveInto(p, key, raw, reason, pointer, l.srcIndex)
+	annotation.PreserveInto(p, key, raw, reason, pointer, l.ctx.SrcIndex)
 }
 
 // preserveNode records the construct written at node under key in *p, reporting
@@ -863,7 +859,7 @@ func (l *lowerer) preserve(p *ir.Unmodeled, key string, raw ir.RawValue, reason 
 func (l *lowerer) preserveNode(p *ir.Unmodeled, key string, node *yaml.Node,
 	reason ir.UnmodeledReason, pointer string,
 ) bool {
-	ok, diags := annotation.PreserveNodeInto(p, key, node, reason, pointer, l.srcIndex)
+	ok, diags := annotation.PreserveNodeInto(p, key, node, reason, pointer, l.ctx.SrcIndex)
 	l.diags.AppendAll(diags)
 	return ok
 }
@@ -886,15 +882,15 @@ func (l *lowerer) preserveSchemaKeyword(p *ir.Unmodeled, s *oas3.Schema, keyword
 // keyword, and declPtr where a §4.7 entry combines several keywords into one
 // synthesized object that no single node addresses.
 func (l *lowerer) preserveKeyword(p *ir.Unmodeled, key string, raw ir.RawValue, declPtr, entryPtr, label string) {
-	l.diags.AppendAll(annotation.PreserveKeywordInto(p, key, raw, declPtr, entryPtr, label, l.srcIndex))
+	l.diags.AppendAll(annotation.PreserveKeywordInto(p, key, raw, declPtr, entryPtr, label, l.ctx.SrcIndex))
 }
 
 // diag appends one diagnostic at pointer with the given severity and code,
-// stamping it with l.srcIndex. It is the single primitive for constructing a
-// Provenance from l.srcIndex — lowering sites should use it instead of
-// hand-writing the append+diag.Newf+Provenance triple.
+// stamping it with the context's source index. It is the single primitive for
+// constructing a Provenance from that index — lowering sites should use it
+// instead of hand-writing the append+diag.Newf+Provenance triple.
 func (l *lowerer) diag(sev ir.Severity, code, pointer, format string, args ...any) {
-	l.appendDiag(diag.Newf(sev, code, ir.Provenance{Source: l.srcIndex, Pointer: pointer}, format, args...))
+	l.appendDiag(diag.Newf(sev, code, ir.Provenance{Source: l.ctx.SrcIndex, Pointer: pointer}, format, args...))
 }
 
 // appendDiag records d unless one identical to it — same severity, code,
@@ -1284,7 +1280,7 @@ func (l *lowerer) componentSchemaAt(pointer string) *oas3.Schema {
 	if !ok {
 		return nil
 	}
-	js, _ := l.doc.GetComponents().GetSchemas().Get(name)
+	js, _ := l.ctx.Doc.GetComponents().GetSchemas().Get(name)
 	return annotation.At(js).Node
 }
 
@@ -1299,7 +1295,7 @@ func (l *lowerer) componentSchemaAt(pointer string) *oas3.Schema {
 // reference the IR cannot express.
 func (l *lowerer) declaresResourceIDAbove(pointer string) bool {
 	view := nodeview.New()
-	cur := nodeview.DocumentRoot(nodeview.Deref(l.doc.GetRootNode()))
+	cur := nodeview.DocumentRoot(nodeview.Deref(l.ctx.Doc.GetRootNode()))
 	for seg := range strings.SplitSeq(pointer, "/") {
 		if cur == nil {
 			return false
@@ -1361,7 +1357,7 @@ func (l *lowerer) dynamicAnchorIndex() map[string][]string {
 	if l.dynamicAnchors != nil {
 		return l.dynamicAnchors
 	}
-	index, complete := dynamicAnchors(l.doc.GetRootNode())
+	index, complete := dynamicAnchors(l.ctx.Doc.GetRootNode())
 	l.dynamicAnchors = index
 	if !complete {
 		l.diag(ir.SeverityWarning, diag.DegradedConstruct, "",
@@ -1612,7 +1608,7 @@ func requiredSet(required []string) map[string]bool {
 // object whose extensions all failed to serialize — exactly when the result is
 // empty.
 func (l *lowerer) extensions(ext *extensions.Extensions, owner string) ir.Unmodeled {
-	out, diags := annotation.ExtensionsFrom(ext, l.srcIndex, owner)
+	out, diags := annotation.ExtensionsFrom(ext, l.ctx.SrcIndex, owner)
 	l.diags.AppendAll(diags)
 	return out
 }

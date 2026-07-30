@@ -36,15 +36,15 @@ var httpMethods = []struct {
 // placed into groups per the configured grouping strategy (ir-design §7.1).
 func (l *lowerer) lowerService() ir.Service {
 	svc := ir.Service{
-		ID:         ids.Service(l.srcIndex),
-		Provenance: ir.Provenance{Source: l.srcIndex},
+		ID:         ids.Service(l.ctx.SrcIndex),
+		Provenance: ir.Provenance{Source: l.ctx.SrcIndex},
 	}
-	if info := l.doc.GetInfo(); info != nil {
+	if info := l.ctx.Doc.GetInfo(); info != nil {
 		title := info.GetTitle()
 		svc.Name = compile.NamingFor(title)
 		svc.Docs.Description = info.GetDescription()
 	}
-	svc.Auth = l.lowerSecurityRequirements(l.doc.GetSecurity())
+	svc.Auth = l.lowerSecurityRequirements(l.ctx.Doc.GetSecurity())
 	l.lowerTagDefs()
 	groups := newServiceGroups()
 	l.lowerPaths(groups)
@@ -56,7 +56,7 @@ func (l *lowerer) lowerService() ir.Service {
 // lowerTagDefs registers the document's declared tag metadata into TagDefs; tag
 // membership itself stays as []string on each tagged operation.
 func (l *lowerer) lowerTagDefs() {
-	tags := l.doc.GetTags()
+	tags := l.ctx.Doc.GetTags()
 	if len(tags) == 0 {
 		return
 	}
@@ -81,7 +81,7 @@ func tagDocsFrom(t *soa.Tag) ir.Docs {
 
 // lowerPaths lowers every path operation in source order into groups.
 func (l *lowerer) lowerPaths(groups *serviceGroups) {
-	paths := l.doc.GetPaths()
+	paths := l.ctx.Doc.GetPaths()
 	if paths == nil {
 		return
 	}
@@ -128,7 +128,7 @@ func (l *lowerer) lowerPathItem(groups *serviceGroups, path string, pi *soa.Path
 // lowerWebhooks lowers webhook path items into the dedicated "webhooks" group;
 // each webhook operation carries IsWebhook on its HTTP binding.
 func (l *lowerer) lowerWebhooks(groups *serviceGroups) {
-	hooks := l.doc.GetWebhooks()
+	hooks := l.ctx.Doc.GetWebhooks()
 	if hooks == nil || hooks.Len() == 0 {
 		return
 	}
@@ -170,7 +170,7 @@ func (l *lowerer) lowerWebhooks(groups *serviceGroups) {
 // GroupByPathPrefix is a heuristic, so it stamps the inferred marker; grouping by
 // declared tags is a declared fact and leaves it empty.
 func (l *lowerer) groupFor(src *soa.Operation, path string) (key string, name ir.Naming, docs ir.Docs, inferred string) {
-	if l.opts.Grouping == GroupByPathPrefix {
+	if l.ctx.Opts.Grouping == GroupByPathPrefix {
 		seg := firstPathSegment(path)
 		return "seg:" + seg, compile.NamingFor(seg), ir.Docs{}, "group-path-prefix"
 	}
@@ -184,7 +184,7 @@ func (l *lowerer) groupFor(src *soa.Operation, path string) (key string, name ir
 
 // tagDocs returns the declared docs for a tag name, or empty when undeclared.
 func (l *lowerer) tagDocs(name string) ir.Docs {
-	for _, t := range l.doc.GetTags() {
+	for _, t := range l.ctx.Doc.GetTags() {
 		if t != nil && t.GetName() == name {
 			return tagDocsFrom(t)
 		}
@@ -234,7 +234,7 @@ func (l *lowerer) lowerOperation(src *soa.Operation, ctx opContext) (ir.Operatio
 		// for those two is one component. A mount pointer under a $ref'd path
 		// item addresses no node at all, and ir-design §13 defines Pointer as a
 		// pointer into the source, so it has to name the declaration.
-		Provenance: ir.Provenance{Source: l.srcIndex, Pointer: decl, Inferred: ctx.inferred},
+		Provenance: ir.Provenance{Source: l.ctx.SrcIndex, Pointer: decl, Inferred: ctx.inferred},
 	}
 	fillOperationDocs(&op.Docs, src)
 	if src.GetDeprecated() {

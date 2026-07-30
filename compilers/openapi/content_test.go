@@ -334,7 +334,7 @@ func TestBodySchemaPointer_LocalRefFragment(t *testing.T) {
 func TestBodySchemaPointer_ForeignDocumentRefStaysLocal(t *testing.T) {
 	t.Parallel()
 	l := newRawLowerer(&soa.OpenAPI{})
-	l.source = ir.SourceInfo{Path: "spec.yaml"}
+	l.ctx.Source = ir.SourceInfo{Path: "spec.yaml"}
 	js := oas3.NewJSONSchemaFromReference("./ext-form.yaml#/components/schemas/Form")
 	assert.Equal(t, "/local", l.bodySchemaPointer(js, "/local"),
 		"a fragment from another document must not become a pointer into this one")
@@ -346,7 +346,7 @@ func TestBodySchemaPointer_ForeignDocumentRefStaysLocal(t *testing.T) {
 func TestBodySchemaPointer_SelfNamedRefFollowsFragment(t *testing.T) {
 	t.Parallel()
 	l := newRawLowerer(&soa.OpenAPI{})
-	l.source = ir.SourceInfo{Path: "spec.yaml"}
+	l.ctx.Source = ir.SourceInfo{Path: "spec.yaml"}
 	js := oas3.NewJSONSchemaFromReference("spec.yaml#/components/schemas/Form")
 	assert.Equal(t, "/components/schemas/Form", l.bodySchemaPointer(js, "/local"))
 }

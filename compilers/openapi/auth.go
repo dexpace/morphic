@@ -16,7 +16,7 @@ import (
 // registry keyed by ids.Auth(name) (ir-design §9). Run before the service walk
 // so operation- and document-level requirements reference registered IDs.
 func (l *lowerer) lowerSecuritySchemes() {
-	comps := l.doc.Components
+	comps := l.ctx.Doc.Components
 	if comps == nil {
 		return
 	}
@@ -44,7 +44,7 @@ func (l *lowerer) lowerSecurityScheme(name string, ss *soa.SecurityScheme) ir.Au
 		ID:         ids.Auth(name),
 		Name:       compile.NamingFor(name),
 		Docs:       ir.Docs{Description: ss.GetDescription()},
-		Provenance: ir.Provenance{Source: l.srcIndex, Pointer: ids.Ptr("components", "securitySchemes", name)},
+		Provenance: ir.Provenance{Source: l.ctx.SrcIndex, Pointer: ids.Ptr("components", "securitySchemes", name)},
 	}
 	if ss.GetDeprecated() {
 		scheme.Deprecation = &ir.Deprecation{}
