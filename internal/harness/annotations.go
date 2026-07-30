@@ -32,8 +32,11 @@ const (
 )
 
 // SiteKind distinguishes a position that declares a type from one that
-// references another type and may carry annotations of its own. Declaration
-// further splits by the declaring component's own shape, because the
+// references another type and may carry annotations of its own, and both from
+// a carrier — a position whose annotations land on an ir.Property or
+// ir.Parameter instead of on a type node at all.
+//
+// Declaration further splits by the declaring component's own shape, because the
 // compiler routes an object-shaped body and a scalar-shaped body through
 // different lowering paths that do not honor the same keywords: an
 // annotation present on one shape is not evidence it survives on the other.
@@ -73,6 +76,18 @@ const (
 	SiteDeclarationScalar SiteKind = "declaration-scalar"
 	// SiteReference is an annotation written beside a $ref.
 	SiteReference SiteKind = "reference"
+	// SiteCarrierProperty is an annotation on a model property's schema, which
+	// the compiler copies onto the ir.Property rather than onto a type node.
+	SiteCarrierProperty SiteKind = "carrier-property"
+	// SiteCarrierParameter is an annotation on an operation parameter's schema,
+	// which the compiler copies onto the ir.Parameter.
+	//
+	// It is a separate kind from SiteCarrierProperty rather than one "carrier"
+	// row covering both, because the two carriers hold different sets: ir.Property
+	// has XML and Visibility fields and ir.Parameter has neither, so an annotation
+	// surviving at one is no evidence at all that it survives at the other. Both
+	// defects that reached a parameter position were of exactly that shape.
+	SiteCarrierParameter SiteKind = "carrier-parameter"
 )
 
 // Cell identifies one annotation at one kind of position: the unit annotation
@@ -101,7 +116,10 @@ func Annotations() []Annotation {
 
 // SiteKinds returns every site kind in a stable order.
 func SiteKinds() []SiteKind {
-	return []SiteKind{SiteDeclarationModel, SiteDeclarationScalar, SiteReference}
+	return []SiteKind{
+		SiteDeclarationModel, SiteDeclarationScalar, SiteReference,
+		SiteCarrierProperty, SiteCarrierParameter,
+	}
 }
 
 // Cells returns the full annotation-by-site-kind cross product in a stable
