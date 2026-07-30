@@ -15,6 +15,7 @@ import (
 	yaml "gopkg.in/yaml.v3"
 
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
+	"github.com/dexpace/morphic/compilers/openapi/internal/ids"
 	"github.com/dexpace/morphic/ir"
 	"github.com/dexpace/morphic/pass"
 )
@@ -2125,9 +2126,9 @@ func TestHoistSubSchema_BodyInternsAtPointer(t *testing.T) {
 
 	id, ok := l.hoistSubSchema(object, deepPointer)
 	require.True(t, ok)
-	assert.Equal(t, anonTypeID(deepPointer), id)
+	assert.Equal(t, ids.AnonType(deepPointer), id)
 	seeded, _ := l.types.Lookup(deepPointer)
-	assert.Equal(t, anonTypeID(deepPointer), seeded)
+	assert.Equal(t, ids.AnonType(deepPointer), seeded)
 }
 
 func TestIsRefBranch_Nil(t *testing.T) {

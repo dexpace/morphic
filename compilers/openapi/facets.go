@@ -7,6 +7,7 @@ import (
 	yaml "gopkg.in/yaml.v3"
 
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
+	"github.com/dexpace/morphic/compilers/openapi/internal/ids"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -99,7 +100,7 @@ func noIRHomeAt(s *oas3.Schema, pointer string, srcIndex int) (ir.Unmodeled, []i
 	if s.GetContentSchema() == nil {
 		return nil, nil
 	}
-	at := pointer + ptr("contentSchema")
+	at := pointer + ids.Ptr("contentSchema")
 	var p ir.Unmodeled
 	kept, diags := preserveNodeInto(&p, "openapi:contentSchema", rawPropertyNode(s, "contentSchema"),
 		ir.ReasonNoIRHome, at, srcIndex)
@@ -129,7 +130,7 @@ func dialectAt(s *oas3.Schema, pointer string, srcIndex int) (ir.Unmodeled, []ir
 	var p ir.Unmodeled
 	var diags []ir.Diagnostic
 	for _, keyword := range dialectKeywords {
-		at := pointer + ptr(keyword)
+		at := pointer + ids.Ptr(keyword)
 		kept, keptDiags := preserveNodeInto(&p, "openapi:"+keyword, rawPropertyNode(s, keyword),
 			ir.ReasonOutOfScope, at, srcIndex)
 		diags = append(diags, keptDiags...)
@@ -166,7 +167,7 @@ func schemaExamplesAt(s *oas3.Schema, pointer string, srcIndex int) ([]ir.Exampl
 func appendExampleAt(out []ir.Example, diags []ir.Diagnostic, node *yaml.Node,
 	srcIndex int, base string, seg ...string,
 ) ([]ir.Example, []ir.Diagnostic) {
-	at := base + ptr(seg...)
+	at := base + ids.Ptr(seg...)
 	v, err := valueFromNode(node)
 	if err != nil {
 		return out, append(diags, diag.Newf(ir.SeverityWarning, diag.DegradedConstruct,
@@ -199,7 +200,7 @@ func validationOnlyAt(s *oas3.Schema, pointer string, srcIndex int) (ir.Unmodele
 	// no single keyword names those.
 	keepKeyword := func(keyword string) {
 		raw, err := rawFromNode(rawPropertyNode(s, keyword))
-		keep("openapi:"+keyword, raw, err, pointer+ptr(keyword), keyword)
+		keep("openapi:"+keyword, raw, err, pointer+ids.Ptr(keyword), keyword)
 	}
 
 	if s.GetNot() != nil {
@@ -217,7 +218,7 @@ func validationOnlyAt(s *oas3.Schema, pointer string, srcIndex int) (ir.Unmodele
 	// sibling dependentSchemas was kept.
 	dr, drErr := rawFromNode(rawPropertyNode(s, "dependentRequired"))
 	if dr != nil || drErr != nil {
-		keep("openapi:dependentRequired", dr, drErr, pointer+ptr("dependentRequired"), "dependentRequired")
+		keep("openapi:dependentRequired", dr, drErr, pointer+ids.Ptr("dependentRequired"), "dependentRequired")
 	}
 	if s.GetPropertyNames() != nil {
 		keepKeyword("propertyNames")

@@ -6,6 +6,7 @@ import (
 
 	"github.com/dexpace/morphic/compilers/compile"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
+	"github.com/dexpace/morphic/compilers/openapi/internal/ids"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -65,13 +66,13 @@ func (l *lowerer) fillParamType(param *ir.Parameter, binding *ir.HTTPParamBindin
 	// takes it and reports a document that declares more, rather than dropping the
 	// extras in the silence the header spelling was fixed out of (GitHub #139).
 	if mt, media, ok := l.singleContentEntry(p.GetContent(), pptr); ok {
-		schemaPtr := pptr + ptr("content", mt, "schema")
+		schemaPtr := pptr + ids.Ptr("content", mt, "schema")
 		param.Type = l.carriedSchemaRef(media.GetSchema(), schemaPtr, name)
 		binding.ContentType = mt
 		l.fillParamSchema(param, media.GetSchema(), schemaPtr)
 		return
 	}
-	schemaPtr := pptr + ptr("schema")
+	schemaPtr := pptr + ids.Ptr("schema")
 	param.Type = l.carriedSchemaRef(p.GetSchema(), schemaPtr, name)
 	l.fillParamSchema(param, p.GetSchema(), schemaPtr)
 }
@@ -171,7 +172,7 @@ func (l *lowerer) fillParamSchemaAnnotations(param *ir.Parameter, s, tgt *oas3.S
 // binding records that content type. ReasonNoIRHome, since the IR can close the
 // gap by adding the field (GitHub #124).
 func (l *lowerer) preserveParamXML(param *ir.Parameter, s *oas3.Schema, pointer string) {
-	at := pointer + ptr("xml")
+	at := pointer + ids.Ptr("xml")
 	if l.preserveSchemaKeyword(&param.Unmodeled, s, "xml", ir.ReasonNoIRHome, at) {
 		l.diag(ir.SeverityInfo, diag.DegradedConstruct, at,
 			"parameter schema xml hints have no ir.Parameter home; kept verbatim under Unmodeled")
@@ -192,7 +193,7 @@ func (l *lowerer) preserveParamVisibility(param *ir.Parameter, s *oas3.Schema, p
 		if paramHoldsResidue(keyword) {
 			continue
 		}
-		at := pointer + ptr(keyword)
+		at := pointer + ids.Ptr(keyword)
 		if !l.preserveSchemaKeyword(&param.Unmodeled, s, keyword, ir.ReasonNoIRHome, at) {
 			continue
 		}

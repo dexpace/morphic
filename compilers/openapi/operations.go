@@ -10,6 +10,7 @@ import (
 
 	"github.com/dexpace/morphic/compilers/compile"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
+	"github.com/dexpace/morphic/compilers/openapi/internal/ids"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -35,7 +36,7 @@ var httpMethods = []struct {
 // placed into groups per the configured grouping strategy (ir-design §7.1).
 func (l *lowerer) lowerService() ir.Service {
 	svc := ir.Service{
-		ID:         serviceID(l.srcIndex),
+		ID:         ids.Service(l.srcIndex),
 		Provenance: ir.Provenance{Source: l.srcIndex},
 	}
 	if info := l.doc.GetInfo(); info != nil {
@@ -85,7 +86,7 @@ func (l *lowerer) lowerPaths(groups *serviceGroups) {
 		return
 	}
 	for path, rp := range paths.All() {
-		pi, declPtr := resolveRefAt[soa.PathItem](l, rp, ptr("paths", path))
+		pi, declPtr := resolveRefAt[soa.PathItem](l, rp, ids.Ptr("paths", path))
 		if pi == nil {
 			continue
 		}
@@ -100,14 +101,14 @@ func (l *lowerer) lowerPaths(groups *serviceGroups) {
 // shared parameters and bodies lower from there, while each operation keeps
 // its mount pointer (under path) as its identity.
 func (l *lowerer) lowerPathItem(groups *serviceGroups, path string, pi *soa.PathItem, declPtr string) {
-	pathPtr := ptr("paths", path)
+	pathPtr := ids.Ptr("paths", path)
 	for _, m := range httpMethods {
 		src := m.get(pi)
 		if src == nil {
 			continue
 		}
 		key, name, docs, inferred := l.groupFor(src, path)
-		ptrs := opPointers{mount: pathPtr + ptr(m.name), decl: declPtr + ptr(m.name)}
+		ptrs := opPointers{mount: pathPtr + ids.Ptr(m.name), decl: declPtr + ids.Ptr(m.name)}
 		ctx := opContext{
 			method:        m.name,
 			uriTemplate:   path,
@@ -132,7 +133,7 @@ func (l *lowerer) lowerWebhooks(groups *serviceGroups) {
 		return
 	}
 	for name, rp := range hooks.All() {
-		hookPtr := ptr("webhooks", name)
+		hookPtr := ids.Ptr("webhooks", name)
 		pi, declPtr := resolveRefAt[soa.PathItem](l, rp, hookPtr)
 		if pi == nil {
 			continue
@@ -142,7 +143,7 @@ func (l *lowerer) lowerWebhooks(groups *serviceGroups) {
 			if src == nil {
 				continue
 			}
-			ptrs := opPointers{mount: hookPtr + ptr(m.name), decl: declPtr + ptr(m.name)}
+			ptrs := opPointers{mount: hookPtr + ids.Ptr(m.name), decl: declPtr + ids.Ptr(m.name)}
 			ctx := opContext{
 				method:        m.name,
 				uriTemplate:   name,
@@ -224,7 +225,7 @@ type opContext struct {
 func (l *lowerer) lowerOperation(src *soa.Operation, ctx opContext) (ir.Operation, []ir.Operation) {
 	mount, decl := ctx.ptrs.mount, ctx.ptrs.decl
 	op := ir.Operation{
-		ID:   opID(mount),
+		ID:   ids.Op(mount),
 		Name: operationName(src, ctx.method, ctx.uriTemplate),
 		Tags: src.GetTags(),
 		Auth: l.lowerSecurityRequirements(src.Security),
@@ -320,7 +321,7 @@ func (l *lowerer) applyPathServers(op *ir.Operation, pi *soa.PathItem, declPtr s
 		return
 	}
 	if !l.preserveNode(&op.Unmodeled, "openapi:servers", rawChildNode(pi.GetRootNode(), "servers"),
-		ir.ReasonNoIRHome, declPtr+ptr("servers")) {
+		ir.ReasonNoIRHome, declPtr+ids.Ptr("servers")) {
 		return
 	}
 	l.diags.Append(diag.Newf(ir.SeverityInfo, diag.DegradedConstruct, op.Provenance,
@@ -339,7 +340,7 @@ func (l *lowerer) lowerResponses(src *soa.Operation, opDeclPtr string) ([]ir.Res
 	var responses []ir.Response
 	var errs []ir.ErrorCase
 	for code, rr := range resps.All() {
-		r, rptr := resolveRefAt[soa.Response](l, rr, opDeclPtr+ptr("responses", code))
+		r, rptr := resolveRefAt[soa.Response](l, rr, opDeclPtr+ids.Ptr("responses", code))
 		if r == nil {
 			continue
 		}
@@ -350,7 +351,7 @@ func (l *lowerer) lowerResponses(src *soa.Operation, opDeclPtr string) ([]ir.Res
 			responses = append(responses, l.lowerResponse(r, rng, rptr))
 		}
 	}
-	def, dptr := resolveRefAt[soa.Response](l, resps.GetDefault(), opDeclPtr+ptr("responses", "default"))
+	def, dptr := resolveRefAt[soa.Response](l, resps.GetDefault(), opDeclPtr+ids.Ptr("responses", "default"))
 	if def != nil {
 		errs = append(errs, l.lowerErrorCase(def, ir.StatusRange{}, dptr))
 	}
@@ -367,7 +368,7 @@ func (l *lowerer) lowerResponse(r *soa.Response, rng ir.StatusRange, rptr string
 	}
 	resp.Docs.Description = r.GetDescription()
 	l.preserveNode(&resp.Unmodeled, "openapi:links", rawChildNode(r.GetRootNode(), "links"),
-		ir.ReasonNoIRHome, rptr+ptr("links"))
+		ir.ReasonNoIRHome, rptr+ids.Ptr("links"))
 	return resp
 }
 
@@ -394,7 +395,7 @@ func (l *lowerer) preserveErrorHeaders(ec *ir.ErrorCase, r *soa.Response, rptr s
 		return
 	}
 	if !l.preserveNode(&ec.Unmodeled, "openapi:headers", rawChildNode(r.GetRootNode(), "headers"),
-		ir.ReasonNoIRHome, rptr+ptr("headers")) {
+		ir.ReasonNoIRHome, rptr+ids.Ptr("headers")) {
 		return
 	}
 	l.diag(ir.SeverityInfo, diag.DegradedConstruct, rptr,
@@ -413,14 +414,14 @@ func (l *lowerer) fillErrorType(ec *ir.ErrorCase, r *soa.Response, rptr string) 
 	}
 	first := true
 	for mt, media := range content.All() {
-		ref := l.schemaRef(media.GetSchema(), rptr+ptr("content", mt, "schema"), "error")
+		ref := l.schemaRef(media.GetSchema(), rptr+ids.Ptr("content", mt, "schema"), "error")
 		if first {
 			ec.Type = ref
 			first = false
 		}
 	}
 	if content.Len() > 1 && l.preserveNode(&ec.Unmodeled, "openapi:content",
-		rawChildNode(r.GetRootNode(), "content"), ir.ReasonNoIRHome, rptr+ptr("content")) {
+		rawChildNode(r.GetRootNode(), "content"), ir.ReasonNoIRHome, rptr+ids.Ptr("content")) {
 		l.diag(ir.SeverityInfo, diag.DegradedConstruct, rptr,
 			"error response has multiple media types; full content map kept under Unmodeled")
 	}
@@ -440,17 +441,17 @@ func (l *lowerer) lowerCallbacks(src *soa.Operation, parent opPointers, inferred
 	var callbacks []ir.Callback
 	var ops []ir.Operation
 	for cbName, rcb := range cbMap.All() {
-		cb, cbDecl := resolveRefAt[soa.Callback](l, rcb, parent.decl+ptr("callbacks", cbName))
+		cb, cbDecl := resolveRefAt[soa.Callback](l, rcb, parent.decl+ids.Ptr("callbacks", cbName))
 		if cb == nil {
 			continue
 		}
 		for expr, rp := range cb.All() {
 			exprStr := string(expr)
-			pi, piDecl := resolveRefAt[soa.PathItem](l, rp, cbDecl+ptr(exprStr))
+			pi, piDecl := resolveRefAt[soa.PathItem](l, rp, cbDecl+ids.Ptr(exprStr))
 			if pi == nil {
 				continue
 			}
-			cbPtrs := opPointers{mount: parent.mount + ptr("callbacks", cbName, exprStr), decl: piDecl}
+			cbPtrs := opPointers{mount: parent.mount + ids.Ptr("callbacks", cbName, exprStr), decl: piDecl}
 			ids, cbOps := l.lowerCallbackOps(pi, cbPtrs, exprStr, inferred)
 			callbacks = append(callbacks, ir.Callback{Expression: exprStr, Operations: ids})
 			ops = append(ops, cbOps...)
@@ -466,14 +467,14 @@ func (l *lowerer) lowerCallbacks(src *soa.Operation, parent opPointers, inferred
 // declaration base (shared when the callback or its path item is $ref'd;
 // issue #107).
 func (l *lowerer) lowerCallbackOps(pi *soa.PathItem, cb opPointers, expr, inferred string) ([]ir.OpID, []ir.Operation) {
-	var ids []ir.OpID
+	var opIDs []ir.OpID
 	var ops []ir.Operation
 	for _, m := range httpMethods {
 		src := m.get(pi)
 		if src == nil {
 			continue
 		}
-		ptrs := opPointers{mount: cb.mount + ptr(m.name), decl: cb.decl + ptr(m.name)}
+		ptrs := opPointers{mount: cb.mount + ids.Ptr(m.name), decl: cb.decl + ids.Ptr(m.name)}
 		ctx := opContext{
 			method:      m.name,
 			uriTemplate: expr,
@@ -482,10 +483,10 @@ func (l *lowerer) lowerCallbackOps(pi *soa.PathItem, cb opPointers, expr, inferr
 			params:      mergeParameters(pi.GetParameters(), src.GetParameters(), cb.decl, ptrs.decl),
 		}
 		op, _ := l.lowerOperation(src, ctx)
-		ids = append(ids, op.ID)
+		opIDs = append(opIDs, op.ID)
 		ops = append(ops, op)
 	}
-	return ids, ops
+	return opIDs, ops
 }
 
 // sourcedParam pairs a parameter with its declaring list entry's pointer,
@@ -522,7 +523,7 @@ func appendSourced(dst []sourcedParam, params []*soa.ReferencedParameter, base s
 		if key, ok := paramKey(p); ok && shadowed[key] {
 			continue
 		}
-		dst = append(dst, sourcedParam{ref: p, pointer: base + ptr("parameters", strconv.Itoa(i))})
+		dst = append(dst, sourcedParam{ref: p, pointer: base + ids.Ptr("parameters", strconv.Itoa(i))})
 	}
 	return dst
 }

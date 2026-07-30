@@ -47,6 +47,12 @@ var rules = map[string][]string{
 	// nothing but ir. Its own entry says that, rather than letting it inherit the
 	// compiler's much wider allowlist by being an unkeyed subdirectory.
 	"compilers/openapi/internal/diag": {module + "/ir"},
+	// Pointer arithmetic and the OpenAPI derivation of an ID from a pointer. It
+	// reaches the framework for the grammar wrapped around a path and nothing
+	// else: what is OpenAPI's here is the path, and a package that could reach
+	// the compiler would be able to derive one from something other than a
+	// source coordinate.
+	"compilers/openapi/internal/ids": {module + "/ir", module + "/compilers/compile"},
 	"pass":                            {module + "/ir"},
 	"engine": {module + "/ir", module + "/compilers", module + "/compilers/openapi",
 		module + "/pass", "gopkg.in/yaml.v3"},

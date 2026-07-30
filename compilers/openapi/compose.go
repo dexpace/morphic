@@ -12,6 +12,7 @@ import (
 
 	"github.com/dexpace/morphic/compilers/compile"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
+	"github.com/dexpace/morphic/compilers/openapi/internal/ids"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -57,7 +58,7 @@ func compositionRequired(s *oas3.Schema, pointer string) []requiredEntry {
 		if bs == nil {
 			continue
 		}
-		bptr := pointer + ptr("allOf", strconv.Itoa(i))
+		bptr := pointer + ids.Ptr("allOf", strconv.Itoa(i))
 		for _, name := range bs.GetRequired() {
 			out = append(out, requiredEntry{name: name, pointer: bptr})
 		}
@@ -125,7 +126,7 @@ func (l *lowerer) fillAllOf(m *ir.Model, s *oas3.Schema, pointer string) {
 	branches := s.GetAllOf()
 	baseIdx := l.selectAllOfBase(branches)
 	for i, b := range branches {
-		bptr := pointer + ptr("allOf", strconv.Itoa(i))
+		bptr := pointer + ids.Ptr("allOf", strconv.Itoa(i))
 		if !isRefBranch(b) {
 			l.fillModelProperties(m, b.GetSchema(), bptr)
 			l.preserveUnmergedBranch(m, b.GetSchema(), i, bptr)
@@ -174,7 +175,7 @@ func (l *lowerer) applyFalseBranches(m *ir.Model, s *oas3.Schema, pointer string
 		if v := b.GetBool(); v == nil || *v {
 			continue // `true` constrains nothing.
 		}
-		bptr := pointer + ptr("allOf", strconv.Itoa(i))
+		bptr := pointer + ids.Ptr("allOf", strconv.Itoa(i))
 		m.Additional = ir.AdditionalClosed
 		l.preserve(&m.Unmodeled, "openapi:allOf/"+strconv.Itoa(i),
 			ir.RawValue("false"), ir.ReasonDegradedLowering, bptr)
@@ -557,7 +558,7 @@ func (l *lowerer) diagUnresolvedBranches(s *oas3.Schema, pointer string) {
 		if l.refNamesReferent(b, ref) {
 			continue
 		}
-		l.diag(ir.SeverityError, diag.UnresolvedRef, pointer+ptr(key, strconv.Itoa(i)),
+		l.diag(ir.SeverityError, diag.UnresolvedRef, pointer+ids.Ptr(key, strconv.Itoa(i)),
 			"union branch $ref %q resolves to nothing this document declares; the branch is kept verbatim", ref)
 	}
 }
@@ -643,7 +644,7 @@ func (l *lowerer) buildUnion(s *oas3.Schema, common ir.TypeCommon, pointer strin
 			continue // null branches lift to the enclosing ref's Nullable bit
 		}
 		vh := branchHint(b, i)
-		vptr := pointer + ptr(key, strconv.Itoa(i))
+		vptr := pointer + ids.Ptr(key, strconv.Itoa(i))
 		variants = append(variants, ir.Variant{
 			Name: ir.Naming{Hint: vh},
 			Type: variantType(b, vptr, vh),
@@ -694,7 +695,7 @@ type composedBody struct {
 // classifies first, keeping ir-design §4.3's "sole $ref becomes Base" reading of
 // the allOf the source actually wrote.
 //
-// The Model gets an ID of its own (composedTypeID) rather than the branch
+// The Model gets an ID of its own (ids.ComposedType) rather than the branch
 // pointer's, because the branch pointer already denotes the branch schema.
 // Interning the variant there made the two race for one pointer: whichever
 // lowered first won it, so a $ref to `…/oneOf/N` anywhere in the document could
@@ -706,7 +707,7 @@ func (l *lowerer) composedVariant(body composedBody,
 	// it keeps whatever it declares beside the $ref and a reference to that
 	// pointer still finds the branch rather than the variant.
 	branch := l.schemaRef(b, vptr, vhint)
-	id := composedTypeID(vptr)
+	id := ids.ComposedType(vptr)
 	common := l.commonFor(id, vptr, body.hint+"_"+vhint)
 	l.types.Register(id, l.buildComposedVariant(body, branch.Target, common))
 	return ir.TypeRef{Target: id}
@@ -856,7 +857,7 @@ func (l *lowerer) discriminatorMapping(d *oas3.Discriminator, pointer string) ma
 	for value, target := range m.All() {
 		id, ok := l.mappingTargetID(target)
 		if !ok {
-			l.diag(ir.SeverityError, diag.UnresolvedRef, pointer+ptr("discriminator", "mapping", value),
+			l.diag(ir.SeverityError, diag.UnresolvedRef, pointer+ids.Ptr("discriminator", "mapping", value),
 				"discriminator mapping %q references unresolved schema %q", value, target)
 			continue
 		}
@@ -877,7 +878,7 @@ func (l *lowerer) discriminatorDefault(d *oas3.Discriminator, pointer string) ir
 	}
 	id, ok := l.mappingTargetID(dm)
 	if !ok {
-		l.diag(ir.SeverityError, diag.UnresolvedRef, pointer+ptr("discriminator", "defaultMapping"),
+		l.diag(ir.SeverityError, diag.UnresolvedRef, pointer+ids.Ptr("discriminator", "defaultMapping"),
 			"discriminator defaultMapping references unresolved schema %q", dm)
 		return ""
 	}
@@ -887,17 +888,17 @@ func (l *lowerer) discriminatorDefault(d *oas3.Discriminator, pointer string) ir
 // mappingTargetID resolves a discriminator mapping target — a bare schema
 // name or a $ref string — to the stable TypeID of an interned schema. A bare
 // name (even one containing '/') that names a declared component resolves to
-// it via typeIDForPointer regardless of source order, since every declared
+// it via ids.ForPointer regardless of source order, since every declared
 // name is recorded before lowering begins — this also makes a degenerate
 // empty-named component resolve to its real (anonymous) ID rather than an
-// unbacked namedTypeID. Otherwise the target must be a same-file $ref to a
+// unbacked ids.NamedType. Otherwise the target must be a same-file $ref to a
 // declared component or an already-interned node; a target that resolves to
 // neither yields ok=false, since unlike a schema position, a discriminator
 // subtype cannot be hoisted from a bare pointer — the caller drops and
 // diagnoses it.
 func (l *lowerer) mappingTargetID(target string) (ir.TypeID, bool) {
 	if l.schemas[target] {
-		return typeIDForPointer(ptr("components", "schemas", target)), true
+		return ids.ForPointer(ids.Ptr("components", "schemas", target)), true
 	}
 	pointer, ok := l.internalPointer(target)
 	if !ok {
@@ -982,7 +983,7 @@ func (l *lowerer) enumAsUnion(s *oas3.Schema, common ir.TypeCommon, pointer, hin
 	variants := make([]ir.Variant, 0, len(nodes))
 	for i, node := range nodes {
 		vh := hint + "_" + strconv.Itoa(i)
-		lptr := pointer + ptr("enum", strconv.Itoa(i))
+		lptr := pointer + ids.Ptr("enum", strconv.Itoa(i))
 		variants = append(variants, ir.Variant{
 			Name: ir.Naming{Hint: vh},
 			Type: ir.TypeRef{Target: l.hoistLiteral(node, lptr, vh)},
@@ -999,7 +1000,7 @@ func (l *lowerer) enumAsUnion(s *oas3.Schema, common ir.TypeCommon, pointer, hin
 // falls back to the schemaless top type when the node is structurally
 // unconvertible — never a Literal whose Value lies about being null. It is
 // the single entry point for lowering both a bare `const` schema (pointer may
-// be a top-level component, so internNode's typeIDForPointer keeps that
+// be a top-level component, so internNode's ids.ForPointer keeps that
 // component's stable named ID) and each individual member of a heterogeneous
 // enum (enumAsUnion, always an anonymous sub-pointer).
 func (l *lowerer) hoistLiteral(node values.Value, pointer, hint string) ir.TypeID {

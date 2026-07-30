@@ -5,6 +5,7 @@ import (
 
 	"github.com/dexpace/morphic/compilers/compile"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
+	"github.com/dexpace/morphic/compilers/openapi/internal/ids"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -97,12 +98,12 @@ func (l *lowerer) registeredNode(id ir.TypeID, pointer string) (ir.TypeDef, bool
 }
 
 // internNode is the single hoisting entry point: it derives pointer's stable
-// TypeID (typeIDForPointer) and shared TypeCommon (commonFor) once, then
+// TypeID (ids.ForPointer) and shared TypeCommon (commonFor) once, then
 // interns build's result under that ID. build receives the already-built
 // TypeCommon (its ID field is the same id), so it never needs pointer, hint,
 // or a bare id to re-derive it.
 func (l *lowerer) internNode(pointer, hint string, build func(common ir.TypeCommon) ir.TypeDef) ir.TypeID {
-	id := typeIDForPointer(pointer)
+	id := ids.ForPointer(pointer)
 	return l.intern(pointer, id, func() ir.TypeDef { return build(l.commonFor(id, pointer, hint)) })
 }
 
@@ -122,30 +123,11 @@ func (l *lowerer) commonFor(id ir.TypeID, pointer, hint string) ir.TypeCommon {
 		ID:         id,
 		Provenance: ir.Provenance{Source: l.srcIndex, Pointer: pointer},
 	}
-	if name, ok := componentSchemaName(pointer); ok {
+	if name, ok := ids.ComponentSchemaName(pointer); ok {
 		common.Name = compile.NamingFor(name)
 	} else {
 		common.Anonymous = true
 		common.Name = ir.Naming{Hint: hint}
 	}
 	return common
-}
-
-// typeIDForPointer returns the stable TypeID for a schema hoisted at pointer:
-// the named-component ID for a top-level component schema, the anonymous
-// (hoisted-inline) ID otherwise.
-func typeIDForPointer(pointer string) ir.TypeID {
-	if _, ok := componentSchemaName(pointer); ok {
-		return namedTypeID(pointer)
-	}
-	return anonTypeID(pointer)
-}
-
-// componentSchemaName reports whether pointer addresses a top-level component
-// schema (/components/schemas/<name> with no deeper path) and returns its name.
-// Only this kind of component declares a named type in OpenAPI, which is why it
-// alone gates namedTypeID.
-func componentSchemaName(pointer string) (string, bool) {
-	kind, name, ok := componentEntry(pointer)
-	return name, ok && kind == "schemas"
 }

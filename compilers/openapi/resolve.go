@@ -8,6 +8,7 @@ import (
 	oas3 "github.com/speakeasy-api/openapi/jsonschema/oas3"
 
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
+	"github.com/dexpace/morphic/compilers/openapi/internal/ids"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -419,7 +420,7 @@ func (l *lowerer) internedID(pointer string) (ir.TypeID, bool) {
 	if id, ok := l.types.Lookup(pointer); ok {
 		return id, true
 	}
-	id := typeIDForPointer(pointer)
+	id := ids.ForPointer(pointer)
 	if _, ok := l.types.Node(id); ok {
 		return id, true
 	}
@@ -432,17 +433,17 @@ func (l *lowerer) internedID(pointer string) (ir.TypeID, bool) {
 // component pointer (declared or not), so callers can stop; a declared
 // component yields ok=true, an undeclared one ok=false (a dangling reference to
 // drop). The ID is rebuilt from the component's canonical name — unescaped, then
-// re-escaped by ptr — rather than from the incoming pointer text, so a
+// re-escaped by ids.Ptr — rather than from the incoming pointer text, so a
 // non-canonically escaped reference (e.g. `A~B` for a component named "A~B",
 // interned under `A~0B`) still resolves to the interned node instead of an
 // unbacked ID.
 func (l *lowerer) resolveComponentRef(pointer string) (id ir.TypeID, ok, handled bool) {
-	name, isComponent := componentSchemaName(pointer)
+	name, isComponent := ids.ComponentSchemaName(pointer)
 	if !isComponent {
 		return "", false, false
 	}
 	if l.schemas[name] {
-		return namedTypeID(ptr("components", "schemas", name)), true, true
+		return ids.NamedType(ids.Ptr("components", "schemas", name)), true, true
 	}
 	return "", false, true
 }

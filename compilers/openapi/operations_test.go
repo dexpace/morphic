@@ -14,6 +14,7 @@ import (
 
 	"github.com/dexpace/morphic/compilers"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
+	"github.com/dexpace/morphic/compilers/openapi/internal/ids"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -240,8 +241,8 @@ func TestParameters_PathItemMergeOverride(t *testing.T) {
 	require.NotNil(t, pi)
 	op := pi.Get()
 	require.NotNil(t, op)
-	pathPtr := ptr("paths", "/users/{id}")
-	opPtr := pathPtr + ptr("get")
+	pathPtr := ids.Ptr("paths", "/users/{id}")
+	opPtr := pathPtr + ids.Ptr("get")
 	merged := mergeParameters(pi.GetParameters(), op.GetParameters(), pathPtr, opPtr)
 	require.Len(t, merged, 2, "shared (name,in) collapses to one; op wins")
 	assert.Same(t, op.GetParameters()[0], merged[0].ref, "operation parameter overrides the path-item one")
@@ -1085,7 +1086,7 @@ func headersOf(op ir.Operation) []ir.Property {
 
 // pointerResolves reports whether an RFC 6901 JSON pointer resolves to some
 // node in a parsed YAML document: each segment (unescaped ~1 then ~0, via the
-// production unescapeSegment) is followed as a mapping key, or, in a
+// production ids.UnescapeSegment) is followed as a mapping key, or, in a
 // sequence, a decimal index. The empty pointer is skipped by callers, not
 // treated as resolving here.
 func pointerResolves(root *yaml.Node, pointer string) bool {
@@ -1094,7 +1095,7 @@ func pointerResolves(root *yaml.Node, pointer string) bool {
 		node = node.Content[0]
 	}
 	for raw := range strings.SplitSeq(strings.TrimPrefix(pointer, "/"), "/") {
-		next, ok := pointerStep(node, unescapeSegment(raw))
+		next, ok := pointerStep(node, ids.UnescapeSegment(raw))
 		if !ok {
 			return false
 		}

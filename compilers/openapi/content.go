@@ -11,6 +11,7 @@ import (
 
 	"github.com/dexpace/morphic/compilers/compile"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
+	"github.com/dexpace/morphic/compilers/openapi/internal/ids"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -39,10 +40,10 @@ func (l *lowerer) lowerPayload(content *sequencedmap.Map[string, *soa.MediaType]
 // lowerContent lowers one media-type view: its type graph, examples, binary/
 // form specialization, sequential-media shape, and extensions.
 func (l *lowerer) lowerContent(mt string, media *soa.MediaType, pointer, hint string) ir.Content {
-	mediaPtr := pointer + ptr("content", mt)
+	mediaPtr := pointer + ids.Ptr("content", mt)
 	c := ir.Content{
 		MediaType: mt,
-		Type:      l.schemaRef(media.GetSchema(), mediaPtr+ptr("schema"), hint),
+		Type:      l.schemaRef(media.GetSchema(), mediaPtr+ids.Ptr("schema"), hint),
 	}
 	if ex := l.mediaExamples(media, mediaPtr); len(ex) > 0 {
 		c.Examples = ex
@@ -73,7 +74,7 @@ func (l *lowerer) lowerContent(mt string, media *soa.MediaType, pointer, hint st
 // positionalEncoding instead.
 func (l *lowerer) fillSequential(c *ir.Content, media *soa.MediaType, mediaPtr, hint string) {
 	if item := media.GetItemSchema(); item != nil {
-		ref := l.schemaRef(item, mediaPtr+ptr("itemSchema"), hint+"_item")
+		ref := l.schemaRef(item, mediaPtr+ids.Ptr("itemSchema"), hint+"_item")
 		c.Item = &ref
 	}
 	if len(media.GetPrefixEncoding()) > 0 {
@@ -84,7 +85,7 @@ func (l *lowerer) fillSequential(c *ir.Content, media *soa.MediaType, mediaPtr, 
 	if enc == nil {
 		return
 	}
-	pe := l.encodingConfig(enc, mediaPtr+ptr("itemEncoding"))
+	pe := l.encodingConfig(enc, mediaPtr+ids.Ptr("itemEncoding"))
 	pe.Multi = true
 	c.ItemEncoding = &pe
 }
@@ -101,11 +102,11 @@ func (l *lowerer) positionalEncoding(c *ir.Content, media *soa.MediaType, mediaP
 	// The announcement follows prefixEncoding, the construct that brought this
 	// lowering here: an itemEncoding beside it is optional, so its absence must not
 	// suppress the message, and its own conversion failure reports separately.
-	at := mediaPtr + ptr("prefixEncoding")
+	at := mediaPtr + ids.Ptr("prefixEncoding")
 	kept := l.preserveNode(&c.Unmodeled, "openapi:prefixEncoding", rawChildNode(root, "prefixEncoding"),
 		ir.ReasonNoIRHome, at)
 	l.preserveNode(&c.Unmodeled, "openapi:itemEncoding", rawChildNode(root, "itemEncoding"),
-		ir.ReasonNoIRHome, mediaPtr+ptr("itemEncoding"))
+		ir.ReasonNoIRHome, mediaPtr+ids.Ptr("itemEncoding"))
 	if !kept {
 		// Reaching here means prefixEncoding is declared — that is the only reason
 		// this lowering runs — yet nothing of it was written. Unlike every other
@@ -135,7 +136,7 @@ func (l *lowerer) partEncodings(media *soa.MediaType, mediaPtr string, body ir.T
 	// while a pointer cut from the ref string names only its first hop.
 	schemaPtr, ok := l.bodyModelPointer(body)
 	if !ok {
-		schemaPtr = l.bodySchemaPointer(media.GetSchema(), mediaPtr+ptr("schema"))
+		schemaPtr = l.bodySchemaPointer(media.GetSchema(), mediaPtr+ids.Ptr("schema"))
 	}
 	encMap := media.GetEncoding()
 	out := map[ir.PropID]ir.PartEncoding{}
@@ -221,7 +222,7 @@ func (l *lowerer) partPropID(body ir.TypeID, wire, schemaPtr string) ir.PropID {
 	if id, ok := l.propIDByWire(body, wire, 0); ok {
 		return id
 	}
-	return propID(schemaPtr + ptr("properties", wire))
+	return ids.Prop(schemaPtr + ids.Ptr("properties", wire))
 }
 
 // propIDByWire searches the type body denotes for a property with the given wire
@@ -276,7 +277,7 @@ func (l *lowerer) buildPartEncoding(name string, pjs *oas3.JSONSchema[oas3.Refer
 	pe := ir.PartEncoding{}
 	if encMap != nil {
 		if enc, ok := encMap.Get(name); ok {
-			pe = l.encodingConfig(enc, mediaPtr+ptr("encoding", name))
+			pe = l.encodingConfig(enc, mediaPtr+ids.Ptr("encoding", name))
 		}
 	}
 	if part := schemaOf(pjs); part != nil {
@@ -313,7 +314,7 @@ func (l *lowerer) lowerHeaders(headers *sequencedmap.Map[string, *soa.Referenced
 	}
 	out := make([]ir.Property, 0, headers.Len())
 	for name, rh := range headers.All() {
-		hptr := basePtr + ptr("headers", name)
+		hptr := basePtr + ids.Ptr("headers", name)
 		h, hdecl := resolveRefAt[soa.Header](l, rh, hptr)
 		if h == nil {
 			continue
@@ -331,10 +332,10 @@ func (l *lowerer) lowerHeaders(headers *sequencedmap.Map[string, *soa.Referenced
 func (l *lowerer) lowerHeader(h *soa.Header, name, hptr, hdecl string) ir.Property {
 	js, schemaPtr, mediaType := l.headerSchema(h, hdecl)
 	p := ir.Property{
-		ID:         propID(hptr),
+		ID:         ids.Prop(hptr),
 		Name:       compile.NamingFor(name),
 		WireName:   name,
-		Type:       l.carriedSchemaRef(js, schemaPtr, declarationHint(hdecl, name)),
+		Type:       l.carriedSchemaRef(js, schemaPtr, ids.DeclarationHint(hdecl, name)),
 		Required:   h.GetRequired(),
 		Provenance: ir.Provenance{Source: l.srcIndex, Pointer: hptr},
 	}
@@ -361,13 +362,13 @@ func (l *lowerer) lowerHeader(h *soa.Header, name, hptr, hdecl string) ir.Proper
 // why request headers never showed the defect.
 func (l *lowerer) headerSchema(h *soa.Header, hdecl string) (*oas3.JSONSchema[oas3.Referenceable], string, string) {
 	if js := h.GetSchema(); js != nil {
-		return js, hdecl + ptr("schema"), ""
+		return js, hdecl + ids.Ptr("schema"), ""
 	}
 	mt, media, ok := l.singleContentEntry(h.GetContent(), hdecl)
 	if !ok {
-		return nil, hdecl + ptr("schema"), ""
+		return nil, hdecl + ids.Ptr("schema"), ""
 	}
-	return media.GetSchema(), hdecl + ptr("content", mt, "schema"), mt
+	return media.GetSchema(), hdecl + ids.Ptr("content", mt, "schema"), mt
 }
 
 // singleContentEntry returns the one entry a content-style header or parameter
@@ -393,7 +394,7 @@ func (l *lowerer) singleContentEntry(content *sequencedmap.Map[string, *soa.Medi
 		ignored = append(ignored, mt)
 	}
 	if len(ignored) > 0 {
-		l.diag(ir.SeverityWarning, diag.DegradedConstruct, at+ptr("content"),
+		l.diag(ir.SeverityWarning, diag.DegradedConstruct, at+ids.Ptr("content"),
 			"a content-style header or parameter must declare exactly one media type; "+
 				"%q is lowered and %s ignored", first, strings.Join(ignored, ", "))
 	}
@@ -476,7 +477,7 @@ func (l *lowerer) appendPluralExample(out []ir.Example, re *soa.ReferencedExampl
 // with a warning rather than in silence.
 func (l *lowerer) appendValuelessExample(out []ir.Example, proto ir.Example, pointer, name string) []ir.Example {
 	if proto.ExternalURL == "" {
-		l.diag(ir.SeverityWarning, diag.DegradedConstruct, pointer+ptr("examples", name),
+		l.diag(ir.SeverityWarning, diag.DegradedConstruct, pointer+ids.Ptr("examples", name),
 			"example declares neither value nor externalValue")
 		return out
 	}
@@ -492,17 +493,17 @@ func (l *lowerer) appendValuelessExample(out []ir.Example, proto ir.Example, poi
 // (issue #107) — and under the component's name, since the operationId hint
 // would otherwise name the shared node after one arbitrary referencing site.
 func (l *lowerer) lowerRequestBody(op *ir.Operation, hb *ir.HTTPBinding, src *soa.Operation, opDeclPtr string) {
-	rb, bodyPtr := resolveRefAt[soa.RequestBody](l, src.GetRequestBody(), opDeclPtr+ptr("requestBody"))
+	rb, bodyPtr := resolveRefAt[soa.RequestBody](l, src.GetRequestBody(), opDeclPtr+ids.Ptr("requestBody"))
 	if rb == nil {
 		return
 	}
-	payload := l.lowerPayload(rb.GetContent(), bodyPtr, declarationHint(bodyPtr, requestBodyHint(src)))
+	payload := l.lowerPayload(rb.GetContent(), bodyPtr, ids.DeclarationHint(bodyPtr, requestBodyHint(src)))
 	if payload == nil {
 		return
 	}
 	if !rb.GetRequired() {
 		l.preserve(&payload.Unmodeled, "openapi:required", ir.RawValue("false"),
-			ir.ReasonNoIRHome, bodyPtr+ptr("required"))
+			ir.ReasonNoIRHome, bodyPtr+ids.Ptr("required"))
 		l.diag(ir.SeverityInfo, diag.DegradedConstruct, bodyPtr,
 			"request body is not required; optionality kept under Unmodeled")
 	}

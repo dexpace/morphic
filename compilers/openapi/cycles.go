@@ -8,6 +8,7 @@ import (
 	"gopkg.in/yaml.v3"
 
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
+	"github.com/dexpace/morphic/compilers/openapi/internal/ids"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -775,7 +776,7 @@ func (v *nodeView) resolvePointer(root *yaml.Node, ref string) *yaml.Node {
 		if raw == "" {
 			continue
 		}
-		cur = v.childByToken(deref(cur), unescapeSegment(raw))
+		cur = v.childByToken(deref(cur), ids.UnescapeSegment(raw))
 		if cur == nil {
 			return nil
 		}

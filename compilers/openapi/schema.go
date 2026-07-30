@@ -14,6 +14,7 @@ import (
 
 	"github.com/dexpace/morphic/compilers/compile"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
+	"github.com/dexpace/morphic/compilers/openapi/internal/ids"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -37,7 +38,7 @@ func (l *lowerer) lowerComponentSchemas() {
 		l.schemas[name] = true
 	}
 	for name, js := range schemas.All() {
-		l.lowerComponentSchema(js, ptr("components", "schemas", name), name)
+		l.lowerComponentSchema(js, ids.Ptr("components", "schemas", name), name)
 	}
 }
 
@@ -117,10 +118,10 @@ var residueKeywords = []string{"default", "readOnly", "writeOnly"}
 // carrier at all, which is the case Unmodeled is rescuing.
 func (l *lowerer) recordResidue(c *ir.TypeCommon, s *oas3.Schema, pointer string) {
 	for _, keyword := range residueKeywords {
-		if !l.preserveSchemaKeyword(&c.Unmodeled, s, keyword, ir.ReasonNoIRHome, pointer+ptr(keyword)) {
+		if !l.preserveSchemaKeyword(&c.Unmodeled, s, keyword, ir.ReasonNoIRHome, pointer+ids.Ptr(keyword)) {
 			continue
 		}
-		l.diag(ir.SeverityInfo, diag.DegradedConstruct, pointer+ptr(keyword),
+		l.diag(ir.SeverityInfo, diag.DegradedConstruct, pointer+ids.Ptr(keyword),
 			"%s on a type declaration binds a use of the type, not the type; it is kept "+
 				"verbatim under Unmodeled and applied to a referencing property, header or "+
 				"parameter wherever that carrier has a field for it", keyword)
@@ -290,7 +291,7 @@ func declaresValidationOnly(s *oas3.Schema) bool {
 // the oneOf/anyOf dispatch that precede structural lowering.
 func (l *lowerer) lowerSchemaBody(schema *oas3.Schema, pointer, hint string) ir.TypeRef {
 	if target, _, ok := l.dynamicExpansion(schema, pointer); ok {
-		l.diag(ir.SeverityInfo, diag.DynamicRefExpanded, pointer+ptr("$dynamicRef"),
+		l.diag(ir.SeverityInfo, diag.DynamicRefExpanded, pointer+ids.Ptr("$dynamicRef"),
 			"$dynamicRef expanded to %q, the one matching $dynamicAnchor in this document", target)
 		return ir.TypeRef{Target: target, Nullable: schemaAdmitsNull(schema)}
 	}
@@ -378,14 +379,14 @@ func (l *lowerer) preserveUnionSiblings(id ir.TypeID, s *oas3.Schema, pointer st
 	for _, kw := range []string{"oneOf", "anyOf"} {
 		raw, err := rawFromNode(rawPropertyNode(s, kw))
 		if err != nil {
-			l.appendDiag(unpreservableDiag("openapi:"+kw, pointer+ptr(kw), l.srcIndex, err))
+			l.appendDiag(unpreservableDiag("openapi:"+kw, pointer+ids.Ptr(kw), l.srcIndex, err))
 			continue
 		}
 		if reason == ir.ReasonValidationOnly {
-			l.preserveKeyword(&c.Unmodeled, "openapi:"+kw, raw, pointer, pointer+ptr(kw), kw)
+			l.preserveKeyword(&c.Unmodeled, "openapi:"+kw, raw, pointer, pointer+ids.Ptr(kw), kw)
 			continue
 		}
-		l.preserve(&c.Unmodeled, "openapi:"+kw, raw, reason, pointer+ptr(kw))
+		l.preserve(&c.Unmodeled, "openapi:"+kw, raw, reason, pointer+ids.Ptr(kw))
 		kept = kept || len(raw) > 0
 	}
 	if reason == ir.ReasonValidationOnly || !kept {
@@ -555,7 +556,7 @@ func (l *lowerer) recordUnhomedKeywords(owner ir.TypeID, s *oas3.Schema, unhomed
 	// one that failed to convert and was reported unpreservable instead.
 	kept := make([]string, 0, len(unhomed))
 	for _, keyword := range unhomed {
-		if l.preserveSchemaKeyword(&c.Unmodeled, s, keyword, ir.ReasonDegradedLowering, pointer+ptr(keyword)) {
+		if l.preserveSchemaKeyword(&c.Unmodeled, s, keyword, ir.ReasonDegradedLowering, pointer+ids.Ptr(keyword)) {
 			kept = append(kept, keyword)
 		}
 	}
@@ -595,7 +596,7 @@ func (l *lowerer) lowerUnion(s *oas3.Schema, pointer, hint string, types []oas3.
 	return l.internNode(pointer, hint, func(common ir.TypeCommon) ir.TypeDef {
 		variants := make([]ir.Variant, 0, len(types))
 		for i, st := range types {
-			vptr := pointer + ptr("type", strconv.Itoa(i))
+			vptr := pointer + ids.Ptr("type", strconv.Itoa(i))
 			variants = append(variants, ir.Variant{
 				Name: ir.Naming{Hint: string(st)},
 				Type: ir.TypeRef{Target: l.lowerTyped(s, vptr, hint, st)},
@@ -639,9 +640,9 @@ func (l *lowerer) fillModelProperties(m *ir.Model, s *oas3.Schema, pointer strin
 	required := requiredSet(s.GetRequired())
 	byWire := wireNameIndex(m.Properties)
 	for name, js := range props.All() {
-		ppointer := pointer + ptr("properties", name)
+		ppointer := pointer + ids.Ptr("properties", name)
 		p := ir.Property{
-			ID:         propID(ppointer),
+			ID:         ids.Prop(ppointer),
 			Name:       compile.NamingFor(name),
 			WireName:   name,
 			Type:       l.carriedSchemaRef(js, ppointer, name),
@@ -816,7 +817,7 @@ func (l *lowerer) attachDeclaredAnnotations(s *oas3.Schema, pointer string) {
 func (l *lowerer) appendExample(out []ir.Example, proto ir.Example, node *yaml.Node, base string, seg ...string) []ir.Example {
 	v, err := valueFromNode(node)
 	if err != nil {
-		l.diag(ir.SeverityWarning, diag.DegradedConstruct, base+ptr(seg...), "example: %s", err.Error())
+		l.diag(ir.SeverityWarning, diag.DegradedConstruct, base+ids.Ptr(seg...), "example: %s", err.Error())
 		return out
 	}
 	proto.Value = &v
@@ -831,7 +832,7 @@ func (l *lowerer) fillAdditional(m *ir.Model, s *oas3.Schema, pointer, hint stri
 	case isFalseSchema(ap):
 		m.Additional = ir.AdditionalClosed
 	case ap != nil && !ap.IsBool():
-		ref := l.schemaRef(ap, pointer+ptr("additionalProperties"), hint+"_value")
+		ref := l.schemaRef(ap, pointer+ids.Ptr("additionalProperties"), hint+"_value")
 		m.AdditionalProps = &ir.AdditionalProps{Value: ref}
 	}
 	if patterns := l.patternProps(s, pointer, hint); len(patterns) > 0 {
@@ -854,7 +855,7 @@ func (l *lowerer) patternProps(s *oas3.Schema, pointer, hint string) []ir.Patter
 	}
 	out := make([]ir.PatternProps, 0, pp.Len())
 	for pattern, js := range pp.All() {
-		ref := l.schemaRef(js, pointer+ptr("patternProperties", pattern), hint+"_pattern")
+		ref := l.schemaRef(js, pointer+ids.Ptr("patternProperties", pattern), hint+"_pattern")
 		out = append(out, ir.PatternProps{Pattern: pattern, Value: ref})
 	}
 	return out
@@ -922,7 +923,7 @@ func (l *lowerer) lowerArray(s *oas3.Schema, pointer, hint string) ir.TypeID {
 		}
 		list := &ir.List{
 			TypeCommon:  common,
-			Elem:        l.schemaRef(s.GetItems(), pointer+ptr("items"), hint+"_item"),
+			Elem:        l.schemaRef(s.GetItems(), pointer+ids.Ptr("items"), hint+"_item"),
 			Constraints: listConstraints(s),
 		}
 		return list
@@ -938,14 +939,14 @@ func (l *lowerer) lowerArray(s *oas3.Schema, pointer, hint string) ir.TypeID {
 func (l *lowerer) buildTuple(s *oas3.Schema, common ir.TypeCommon, pointer, hint string, prefix []*oas3.JSONSchema[oas3.Referenceable]) ir.TypeDef {
 	elems := make([]ir.TypeRef, 0, len(prefix))
 	for i, ps := range prefix {
-		elems = append(elems, l.schemaRef(ps, pointer+ptr("prefixItems", strconv.Itoa(i)), hint+"_"+strconv.Itoa(i)))
+		elems = append(elems, l.schemaRef(ps, pointer+ids.Ptr("prefixItems", strconv.Itoa(i)), hint+"_"+strconv.Itoa(i)))
 	}
 	t := &ir.Tuple{TypeCommon: common, Elems: elems}
 	if s.GetItems() == nil {
 		return t
 	}
 	if l.preserveNode(&t.Unmodeled, "openapi:items-after-prefix", rawPropertyNode(s, "items"),
-		ir.ReasonDegradedLowering, pointer+ptr("items")) {
+		ir.ReasonDegradedLowering, pointer+ids.Ptr("items")) {
 		l.diag(ir.SeverityInfo, diag.DegradedConstruct, pointer,
 			"items after prefixItems is an open tuple; lowered as a fixed-arity Tuple with the tail kept under Unmodeled")
 	}
@@ -1050,7 +1051,7 @@ func (l *lowerer) scalarEncoding(s *oas3.Schema, formatName string, c *ir.TypeCo
 	if formatName == "" {
 		return enc
 	}
-	at := pointer + ptr("format")
+	at := pointer + ids.Ptr("format")
 	if l.preserveSchemaKeyword(&c.Unmodeled, s, "format", ir.ReasonNoIRHome, at) {
 		l.diag(ir.SeverityInfo, diag.DegradedConstruct, at,
 			"format and contentEncoding both name an encoding and ir.Encoding holds one; "+
@@ -1091,10 +1092,10 @@ func (l *lowerer) recordUnplacedContent(p *ir.Unmodeled, s *oas3.Schema, td ir.T
 		return
 	}
 	for _, keyword := range contentKeywords {
-		if !l.preserveSchemaKeyword(p, s, keyword, ir.ReasonNoIRHome, pointer+ptr(keyword)) {
+		if !l.preserveSchemaKeyword(p, s, keyword, ir.ReasonNoIRHome, pointer+ids.Ptr(keyword)) {
 			continue
 		}
-		l.diag(ir.SeverityInfo, diag.DegradedConstruct, pointer+ptr(keyword),
+		l.diag(ir.SeverityInfo, diag.DegradedConstruct, pointer+ids.Ptr(keyword),
 			"%s encodes a string value and this position lowered to a shape with no "+
 				"Encoding field; kept verbatim under Unmodeled", keyword)
 	}
@@ -1289,7 +1290,7 @@ func (l *lowerer) dynamicHop(at string) (string, bool) {
 // nil-safe and siteAt reads a missing entry as "no body written", so the one
 // guard is what distinguishes a component pointer from a deeper one.
 func (l *lowerer) componentSchemaAt(pointer string) *oas3.Schema {
-	name, ok := componentSchemaName(pointer)
+	name, ok := ids.ComponentSchemaName(pointer)
 	if !ok {
 		return nil
 	}
@@ -1317,7 +1318,7 @@ func (l *lowerer) declaresResourceIDAbove(pointer string) bool {
 			return true
 		}
 		if seg != "" { // every pointer starts with the empty segment
-			cur = deref(view.childByToken(cur, unescapeSegment(seg)))
+			cur = deref(view.childByToken(cur, ids.UnescapeSegment(seg)))
 		}
 	}
 	return cur != nil && view.childByToken(cur, "$id") != nil
@@ -1345,7 +1346,7 @@ func (l *lowerer) recordUnexpandedDynamicRef(p *ir.Unmodeled, s *oas3.Schema, po
 	if expanded {
 		return
 	}
-	at := pointer + ptr("$dynamicRef")
+	at := pointer + ids.Ptr("$dynamicRef")
 	if l.preserveSchemaKeyword(p, s, "$dynamicRef", ir.ReasonDegradedLowering, at) {
 		l.diag(ir.SeverityInfo, diag.DegradedConstruct, at,
 			"$dynamicRef was not expanded because %s; it is kept verbatim under Unmodeled", why)
@@ -1427,7 +1428,7 @@ func (w *anchorWalk) walk(n *yaml.Node, pointer string, depth int) {
 		}
 	case yaml.SequenceNode:
 		for i, c := range n.Content {
-			w.walk(c, pointer+ptr(strconv.Itoa(i)), depth+1)
+			w.walk(c, pointer+ids.Ptr(strconv.Itoa(i)), depth+1)
 		}
 	case yaml.MappingNode:
 		w.walkMapping(n, pointer, depth)
@@ -1445,7 +1446,7 @@ func (w *anchorWalk) walkMapping(n *yaml.Node, pointer string, depth int) {
 			w.record(p.val, pointer)
 			continue
 		}
-		w.walk(p.val, pointer+ptr(p.key), depth+1)
+		w.walk(p.val, pointer+ids.Ptr(p.key), depth+1)
 	}
 }
 
@@ -1571,7 +1572,7 @@ func nullUnionCollapse(s *oas3.Schema, pointer, hint string) (*oas3.JSONSchema[o
 	if nullCount == 0 || nonNullCount != 1 {
 		return nil, "", "", false
 	}
-	return nonNull, pointer + ptr(key, strconv.Itoa(nonNullIdx)), hint, true
+	return nonNull, pointer + ids.Ptr(key, strconv.Itoa(nonNullIdx)), hint, true
 }
 
 // isNullSchema reports whether a variant schema is the bare null-typed schema.
@@ -1766,7 +1767,7 @@ func extensionsFrom(ext *extensions.Extensions, srcIndex int, owner string) (ir.
 		out["openapi:"+name] = ir.UnmodeledEntry{
 			Reason:     ir.ReasonVendorExtension,
 			Value:      raw,
-			Provenance: ir.Provenance{Source: srcIndex, Pointer: owner + ptr(name)},
+			Provenance: ir.Provenance{Source: srcIndex, Pointer: owner + ids.Ptr(name)},
 		}
 	}
 	if len(out) == 0 {

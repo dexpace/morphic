@@ -7,6 +7,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
+	"github.com/dexpace/morphic/compilers/openapi/internal/ids"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -79,7 +80,7 @@ func TestAuth_SchemeKinds(t *testing.T) {
 				"    s: " + tc.scheme + "\n"
 			doc, _, diags := lowerServiceSpec(t, spec)
 			requireNoErrorDiags(t, diags)
-			s, ok := doc.Auth[authIDFor("s")]
+			s, ok := doc.Auth[ids.Auth("s")]
 			require.True(t, ok)
 			tc.check(t, s)
 		})
@@ -109,14 +110,14 @@ components:
 	doc, svc, diags := lowerServiceSpec(t, spec)
 	requireNoErrorDiags(t, diags)
 
-	keyID := authIDFor("key")
+	keyID := ids.Auth("key")
 	scheme, ok := doc.Auth[keyID]
 	require.True(t, ok)
 	assert.Equal(t, ir.AuthKindAPIKey, scheme.Kind)
 	assert.Equal(t, "header", scheme.In)
 	assert.Equal(t, "X-Key", scheme.KeyName)
 
-	oauth := doc.Auth[authIDFor("oauth")]
+	oauth := doc.Auth[ids.Auth("oauth")]
 	require.Len(t, oauth.Flows, 1)
 	assert.Equal(t, "client_credentials", oauth.Flows[0].Kind)
 	assert.Equal(t, "https://a.example/token", oauth.Flows[0].TokenURL)
@@ -147,7 +148,7 @@ components:
 	doc, _, diags := lowerServiceSpec(t, spec)
 	assert.True(t, hasDiagAt(diags, diag.DegradedConstruct, ir.SeverityWarning),
 		"an entirely unserializable extension still warns even though the scheme's own Unmodeled ends up empty")
-	scheme, ok := doc.Auth[authIDFor("s")]
+	scheme, ok := doc.Auth[ids.Auth("s")]
 	require.True(t, ok)
 	assert.Empty(t, scheme.Unmodeled, "the unserializable extension is dropped, not stored")
 }

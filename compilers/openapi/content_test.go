@@ -11,6 +11,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
+	"github.com/dexpace/morphic/compilers/openapi/internal/ids"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -60,14 +61,14 @@ func TestContent_MultipartPartEncoding(t *testing.T) {
 	_, svc, diags := lowerServiceSpec(t, spec)
 	requireNoErrorDiags(t, diags)
 	content := firstOp(t, svc).Request.Contents[0]
-	metaProp := ir.PropID("p/openapi" + ptr("paths", "/upload", "post", "requestBody", "content", "multipart/form-data", "schema", "properties", "meta"))
+	metaProp := ir.PropID("p/openapi" + ids.Ptr("paths", "/upload", "post", "requestBody", "content", "multipart/form-data", "schema", "properties", "meta"))
 	enc, ok := content.Encoding[metaProp]
 	require.True(t, ok, "encoding keyed by the part property's PropID; got keys %v", content.Encoding)
 	assert.Equal(t, []string{"application/json"}, enc.ContentTypes)
 	require.Len(t, enc.Headers, 1)
 	assert.Equal(t, "X-Part", enc.Headers[0].WireName)
 
-	fileProp := ir.PropID("p/openapi" + ptr("paths", "/upload", "post", "requestBody", "content", "multipart/form-data", "schema", "properties", "file"))
+	fileProp := ir.PropID("p/openapi" + ids.Ptr("paths", "/upload", "post", "requestBody", "content", "multipart/form-data", "schema", "properties", "file"))
 	fileEnc, ok := content.Encoding[fileProp]
 	require.True(t, ok, "binary part gets a synthesized file PartEncoding")
 	assert.True(t, fileEnc.Filename)
@@ -149,12 +150,12 @@ components:
 	content := firstOp(t, svc).Request.Contents[0]
 	require.NotNil(t, content.Encoding, "referenced multipart body keeps per-part encoding")
 
-	metaProp := ir.PropID("p/openapi" + ptr("components", "schemas", "Form", "properties", "meta"))
+	metaProp := ir.PropID("p/openapi" + ids.Ptr("components", "schemas", "Form", "properties", "meta"))
 	enc, ok := content.Encoding[metaProp]
 	require.True(t, ok, "encoding keyed by the resolved property's PropID; got %v", content.Encoding)
 	assert.Equal(t, []string{"application/json"}, enc.ContentTypes)
 
-	fileProp := ir.PropID("p/openapi" + ptr("components", "schemas", "Form", "properties", "file"))
+	fileProp := ir.PropID("p/openapi" + ids.Ptr("components", "schemas", "Form", "properties", "file"))
 	fileEnc, ok := content.Encoding[fileProp]
 	require.True(t, ok, "binary part gets a synthesized file PartEncoding")
 	assert.True(t, fileEnc.Filename)
@@ -247,13 +248,13 @@ func TestContent_MultipartBodyStandingForNoModelKeepsItsOwnPointer(t *testing.T)
 		{
 			name:        "an inline body",
 			mediaSchema: `{enum: [x], properties: {file: {type: string, format: binary}}}`,
-			want: ir.PropID("p/openapi" + ptr("paths", "/upload", "post", "requestBody",
+			want: ir.PropID("p/openapi" + ids.Ptr("paths", "/upload", "post", "requestBody",
 				"content", "multipart/form-data", "schema", "properties", "file")),
 		},
 		{
 			name:        "a $ref'd component",
 			mediaSchema: `{$ref: "#/components/schemas/NotAModel"}`,
-			want:        ir.PropID("p/openapi" + ptr("components", "schemas", "NotAModel", "properties", "file")),
+			want:        ir.PropID("p/openapi" + ids.Ptr("components", "schemas", "NotAModel", "properties", "file")),
 		},
 	}
 	for _, tc := range cases {
@@ -394,7 +395,7 @@ func TestContent_ArrayMultipartPartMulti(t *testing.T) {
 	_, svc, diags := lowerServiceSpec(t, spec)
 	requireNoErrorDiags(t, diags)
 	content := firstOp(t, svc).Request.Contents[0]
-	tagsProp := ir.PropID("p/openapi" + ptr("paths", "/bulk", "post", "requestBody", "content", "multipart/form-data", "schema", "properties", "tags"))
+	tagsProp := ir.PropID("p/openapi" + ids.Ptr("paths", "/bulk", "post", "requestBody", "content", "multipart/form-data", "schema", "properties", "tags"))
 	enc, ok := content.Encoding[tagsProp]
 	require.True(t, ok, "array part gets a synthesized PartEncoding; got keys %v", content.Encoding)
 	assert.True(t, enc.Multi, "array-typed part repeats per item")
@@ -1283,7 +1284,7 @@ components:
 	requireNoErrorDiags(t, diags)
 	enc := firstOp(t, svc).Request.Contents[0].Encoding
 
-	want := ir.PropID("p/openapi" + ptr("components", "schemas", "Extra", "properties", "note"))
+	want := ir.PropID("p/openapi" + ids.Ptr("components", "schemas", "Extra", "properties", "note"))
 	pe, ok := enc[want]
 	require.True(t, ok, "a mixin's part is keyed on the mixin that declares it; got %v", enc)
 	assert.Equal(t, []string{"text/plain"}, pe.ContentTypes)
