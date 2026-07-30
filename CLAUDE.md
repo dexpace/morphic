@@ -128,6 +128,11 @@ assertion shapes:
 - **Order-dependence needs a two-order diff.** Compile the same source twice with the declaration
   order swapped and `cmp.Diff` the two documents. A single-order test passes on *both* orders of a
   colliding lowering, which is why the pointer collisions survived the suite.
+  - A fixture's own declaration order is part of the test. A golden that happens to declare things
+    in the order the *correct* lowering already produced cannot see the fix at all: reverting it
+    leaves the golden green, and only the two-order oracle reddens. If a single-order case is meant
+    to guard an order-dependent fix, declare them in the order that was wrong, and confirm the
+    revert reddens it rather than assuming the case covers what its name says.
 - **A negative fixture must be reachable.** `harness.Check` returns at the *first* error diagnostic,
   before `irverify` ever runs, so a fixture that trips one never reaches the invariant checks it was
   written to exercise. Verify the fixture lands where you think it does, not merely that the check
@@ -225,6 +230,13 @@ context-switch between repos.
   - Prefer proving a claim over asserting it — see "verify by executing" below.
   - A limitation that is deliberately out of scope must be stated in the code and in the PR body, in
     a place the next reader will actually reach — not only in a commit message or a scratch note.
+  - **A line you were forced onto may already have a decision recorded.** When a change makes an
+    unrelated line fail to compile or fail a new check, search the tracker for it before choosing —
+    `gh issue list --search "<file or symbol>"`. A guard tightened in #185 made one `ir.Naming`
+    literal a violation; the fix picked one of two spellings without knowing #184 had already framed
+    that exact choice, said which way it should go, and said it wanted its own change. Correcting it
+    took a second PR. Follow the recorded reasoning or say why you are departing from it, but do not
+    settle a recorded decision as a side effect of something else.
 - **Verify by executing.** Every rule below was learned by shipping its opposite here, and they are
   all one mistake: *asking a question whose answer the thing under test already controls.* Reading
   the code, reading the test, regenerating the golden, compiling one declaration order — none of
