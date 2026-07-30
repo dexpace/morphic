@@ -50,7 +50,7 @@ func (l *lowerer) lowerContent(mt string, media *soa.MediaType, pointer, hint st
 		c.File = &ir.FileInfo{IsText: false, ContentTypes: []string{mt}}
 		c.Type = l.primRef(ir.PrimBytes)
 	case isFormContent(mt):
-		if enc := l.partEncodings(media, mediaPtr); len(enc) > 0 {
+		if enc := l.partEncodings(media, mediaPtr, c.Type.Target); len(enc) > 0 {
 			c.Encoding = enc
 		}
 	}
@@ -106,8 +106,9 @@ func (l *lowerer) positionalEncoding(c *ir.Content, media *soa.MediaType, mediaP
 
 // partEncodings builds the multipart/form per-part wire config, keyed by each
 // body-model property's PropID. A part is included when it carries an explicit
-// encoding entry or is itself a repeated (array) or file (binary) part.
-func (l *lowerer) partEncodings(media *soa.MediaType, mediaPtr string) map[ir.PropID]ir.PartEncoding {
+// encoding entry or is itself a repeated (array) or file (binary) part. body is
+// the TypeID the content's own schema position lowered to.
+func (l *lowerer) partEncodings(media *soa.MediaType, mediaPtr string, body ir.TypeID) map[ir.PropID]ir.PartEncoding {
 	model := schemaOf(media.GetSchema())
 	if model == nil {
 		return nil
@@ -116,9 +117,14 @@ func (l *lowerer) partEncodings(media *soa.MediaType, mediaPtr string) map[ir.Pr
 	if props == nil || props.Len() == 0 {
 		return nil
 	}
-	// Use the ref target's pointer, not mediaPtr, so encoding keys align with the
-	// hoisted model's property IDs (invariant 2/3); see bodySchemaPointer.
-	schemaPtr := bodySchemaPointer(media.GetSchema(), mediaPtr+ptr("schema"))
+	// Key by the pointer the body model was interned at, not by mediaPtr, so the
+	// keys align with that model's property IDs (invariant 2/3). Asking the IR is
+	// what keeps this in step with schemaOf, which reads the end of a $ref chain
+	// while a pointer cut from the ref string names only its first hop.
+	schemaPtr, ok := l.bodyModelPointer(body)
+	if !ok {
+		schemaPtr = bodySchemaPointer(media.GetSchema(), mediaPtr+ptr("schema"))
+	}
 	encMap := media.GetEncoding()
 	out := map[ir.PropID]ir.PartEncoding{}
 	for name, pjs := range props.All() {
@@ -414,10 +420,48 @@ func schemaOf(js *oas3.JSONSchema[oas3.Referenceable]) *oas3.Schema {
 	return s
 }
 
+// maxBodyAliasHops bounds the alias chain bodyModelPointer follows. A $ref cycle
+// is refused at load, so no source document can spell a chain that long — the
+// bound is what keeps the walk terminating without relying on that.
+const maxBodyAliasHops = 64
+
+// bodyModelPointer returns the pointer the model behind body was interned at,
+// following the alias scalars a $ref-with-siblings position hoists to reach it.
+// That pointer is the one whose /properties/<name> children minted the model's
+// PropIDs, so an encoding key derived from it addresses a property that exists.
+//
+// It reports ok=false for a body that stands for no model at all — a primitive,
+// an enum, an opaque scalar — where no pointer would name a property either.
+func (l *lowerer) bodyModelPointer(body ir.TypeID) (string, bool) {
+	id := body
+	for range maxBodyAliasHops {
+		td, found := l.types.Node(id)
+		if !found {
+			return "", false
+		}
+		switch t := td.(type) {
+		case *ir.Model:
+			return t.Provenance.Pointer, true
+		case *ir.Scalar:
+			if t.Base == nil {
+				return "", false
+			}
+			id = t.Base.Target
+		default:
+			return "", false
+		}
+	}
+	return "", false
+}
+
 // bodySchemaPointer returns the JSON pointer under which a body schema's
 // properties were interned: the local ref target's pointer when the media schema
-// is a local $ref, else localPtr for an inline schema. Encoding keys derived from
-// this pointer align with the hoisted model's property IDs.
+// is a local $ref, else localPtr for an inline schema.
+//
+// It is the fallback for a body the IR gives no model for (bodyModelPointer),
+// where the schema declares properties that nothing in the IR holds — a
+// contradictory `enum` or scalar `type` beside them — and no pointer can name a
+// property that was never lowered.
 func bodySchemaPointer(js *oas3.JSONSchema[oas3.Referenceable], localPtr string) string {
 	if js == nil {
 		return localPtr

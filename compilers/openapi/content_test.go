@@ -159,6 +159,171 @@ components:
 	assert.True(t, fileEnc.Filename)
 }
 
+// aliasedMultipartSpec is a multipart body whose media schema is written as
+// mediaSchema, over a Form component reachable both directly and through a
+// second component that is a bare $ref to it.
+func aliasedMultipartSpec(mediaSchema string) string {
+	return pathsSpec(`  /upload:
+    post:
+      operationId: upload
+      requestBody:
+        content:
+          multipart/form-data:
+            schema: ` + mediaSchema + `
+            encoding:
+              meta:
+                contentType: application/json
+      responses: {"200": {description: ok}}
+components:
+  schemas:
+    Form:
+      type: object
+      properties:
+        meta: {type: object, properties: {k: {type: string}}}
+        file: {type: string, format: binary}
+    AliasForm: {$ref: "#/components/schemas/Form"}
+`)
+}
+
+// TestContent_MultipartAliasBodyKeyedByAliasedModel covers the spellings that put
+// an alias scalar between a content and its body model: a $ref carrying siblings,
+// which has nowhere but an alias to keep them, and a $ref to a component that is
+// itself a bare $ref.
+//
+// The parts belong to the model at the end of that chain, so the keys must be its
+// property IDs. A pointer cut from the media schema's own $ref names the first
+// hop instead, which for an alias component addresses no property anywhere.
+func TestContent_MultipartAliasBodyKeyedByAliasedModel(t *testing.T) {
+	t.Parallel()
+	cases := []struct {
+		name        string
+		mediaSchema string
+	}{
+		{"a $ref carrying siblings", `{$ref: "#/components/schemas/Form", title: Upload}`},
+		{"a $ref to an alias component", `{$ref: "#/components/schemas/AliasForm"}`},
+		{"a $ref carrying siblings to an alias component",
+			`{$ref: "#/components/schemas/AliasForm", title: Upload}`},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			doc, svc, diags := lowerServiceSpec(t, aliasedMultipartSpec(tc.mediaSchema))
+			requireNoErrorDiags(t, diags)
+			content := firstOp(t, svc).Request.Contents[0]
+			form, isModel := typeByName(doc, "Form").(*ir.Model)
+			require.True(t, isModel, "the body model is the component at the end of the chain")
+
+			declared := indexBy(form.Properties, func(p ir.Property) ir.PropID { return p.ID })
+			require.NotEmpty(t, content.Encoding, "an aliased multipart body still carries per-part encoding")
+			for key := range content.Encoding {
+				assert.Contains(t, declared, key,
+					"every encoding key addresses a property the aliased model declares")
+			}
+
+			byWire := propsByWire(form.Properties)
+			enc, ok := content.Encoding[byWire["meta"].ID]
+			require.True(t, ok, "the declared encoding entry keys the aliased model's property")
+			assert.Equal(t, []string{"application/json"}, enc.ContentTypes)
+			assert.True(t, content.Encoding[byWire["file"].ID].Filename,
+				"the binary part is still detected through the alias")
+		})
+	}
+}
+
+// TestContent_MultipartBodyStandingForNoModelKeepsItsOwnPointer pins the fallback:
+// a schema declaring `properties` beside a contradictory `enum` or scalar `type`
+// lowers to a node that holds none of them, so no pointer can name a property
+// that was never lowered. The key stays derived from the schema's own position,
+// where pass.Validate reports it as addressing nothing — which is the truth about
+// this document, not a false alarm about an aliased one.
+func TestContent_MultipartBodyStandingForNoModelKeepsItsOwnPointer(t *testing.T) {
+	t.Parallel()
+	cases := []struct {
+		name        string
+		mediaSchema string
+		want        ir.PropID
+	}{
+		{
+			name:        "an inline body",
+			mediaSchema: `{enum: [x], properties: {file: {type: string, format: binary}}}`,
+			want: ir.PropID("p/openapi" + ptr("paths", "/upload", "post", "requestBody",
+				"content", "multipart/form-data", "schema", "properties", "file")),
+		},
+		{
+			name:        "a $ref'd component",
+			mediaSchema: `{$ref: "#/components/schemas/NotAModel"}`,
+			want:        ir.PropID("p/openapi" + ptr("components", "schemas", "NotAModel", "properties", "file")),
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			spec := pathsSpec(`  /upload:
+    post:
+      operationId: upload
+      requestBody:
+        content:
+          multipart/form-data:
+            schema: ` + tc.mediaSchema + `
+      responses: {"200": {description: ok}}
+components:
+  schemas:
+    NotAModel: {enum: [x], properties: {file: {type: string, format: binary}}}
+`)
+			_, svc, diags := lowerServiceSpec(t, spec)
+			requireNoErrorDiags(t, diags)
+			content := firstOp(t, svc).Request.Contents[0]
+			require.Contains(t, content.Encoding, tc.want,
+				"the key falls back to the schema's own position; got %v", content.Encoding)
+		})
+	}
+}
+
+// TestBodyModelPointer_NoModelBehindBody covers the walk's dead ends on a
+// hand-built registry: an ID nothing declares, an opaque scalar, a kind that is
+// no model, and an alias chain that closes on itself. The last is what the bound
+// is for — a $ref cycle is refused at load, so no document can spell one, and a
+// walk that relied on that would loop forever the day one arrived by another
+// route.
+func TestBodyModelPointer_NoModelBehindBody(t *testing.T) {
+	t.Parallel()
+	l := newRawLowerer(&soa.OpenAPI{})
+	l.types.Register("t/opaque", &ir.Scalar{TypeCommon: ir.TypeCommon{ID: "t/opaque"}})
+	l.types.Register("t/cycle/a", &ir.Scalar{
+		TypeCommon: ir.TypeCommon{ID: "t/cycle/a"}, Base: &ir.TypeRef{Target: "t/cycle/b"},
+	})
+	l.types.Register("t/cycle/b", &ir.Scalar{
+		TypeCommon: ir.TypeCommon{ID: "t/cycle/b"}, Base: &ir.TypeRef{Target: "t/cycle/a"},
+	})
+	prim := l.primID(ir.PrimString)
+
+	cases := []struct {
+		name string
+		body ir.TypeID
+	}{
+		{"an ID no registry entry declares", "t/absent"},
+		{"an opaque scalar standing for nothing", "t/opaque"},
+		{"a kind that declares no properties", prim},
+		{"an alias chain that closes on itself", "t/cycle/a"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			pointer, ok := l.bodyModelPointer(tc.body)
+			assert.False(t, ok, "no model stands behind this body")
+			assert.Empty(t, pointer, "and no pointer is invented for one")
+		})
+	}
+}
+
+// TestBodySchemaPointer_LocalRefFragment pins the fallback's own ref hop, which
+// the production path reaches only for a body standing for no model.
+func TestBodySchemaPointer_LocalRefFragment(t *testing.T) {
+	t.Parallel()
+	js := oas3.NewJSONSchemaFromReference("#/components/schemas/Form")
+	assert.Equal(t, "/components/schemas/Form", bodySchemaPointer(js, "/local"))
+}
+
 func TestContent_NonRequiredRequestBody(t *testing.T) {
 	t.Parallel()
 	spec := pathsSpec(`  /maybe:

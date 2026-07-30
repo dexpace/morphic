@@ -203,8 +203,12 @@ func appendUnknownPartDiags(dst []ir.Diagnostic, c ir.Content, parts map[ir.Prop
 // beside whatever checkDanglingRefs says about the target itself: the two make
 // different claims, as with checkMapping.
 //
-// The walk is iterative with a visited set, so a cyclic composition terminates
-// and the finite registry bounds it.
+// A body typed by an alias scalar exposes the parts of the model its Base names.
+// A $ref carrying siblings hoists exactly that shape, so it is how an ordinary
+// referenced multipart body arrives here.
+//
+// The walk is iterative with a visited set, so a cyclic composition or alias
+// chain terminates and the finite registry bounds it.
 func contentPartProps(doc *ir.Document, root ir.TypeID) map[ir.PropID]bool {
 	props := map[ir.PropID]bool{}
 	seen := map[ir.TypeID]bool{}
@@ -216,16 +220,33 @@ func contentPartProps(doc *ir.Document, root ir.TypeID) map[ir.PropID]bool {
 			continue
 		}
 		seen[id] = true
-		m, isModel := doc.Types[id].(*ir.Model)
-		if !isModel || m == nil {
-			continue // not a model, or the typed nil checkNilTypes reports
+		td := doc.Types[id]
+		if isNilTypeDef(td) {
+			continue // undeclared, or the typed nil checkNilTypes reports
 		}
-		for _, p := range m.Properties {
-			props[p.ID] = true
-		}
-		queue = appendCompositionParents(queue, m)
+		queue = appendPartSources(queue, props, td)
 	}
 	return props
+}
+
+// appendPartSources records td's own part properties in props and appends the
+// nodes the rest come from: a model's composition parents, an alias scalar's
+// base. No other kind carries parts or says where to find them.
+func appendPartSources(dst []ir.TypeID, props map[ir.PropID]bool, td ir.TypeDef) []ir.TypeID {
+	switch t := td.(type) {
+	case *ir.Model:
+		for _, p := range t.Properties {
+			props[p.ID] = true
+		}
+		return appendCompositionParents(dst, t)
+	case *ir.Scalar:
+		if t.Base == nil {
+			return dst // an opaque scalar stands for nothing.
+		}
+		return append(dst, t.Base.Target)
+	default:
+		return dst // no other kind exposes parts.
+	}
 }
 
 // appendCompositionParents appends m's base, interfaces and mixins to dst. All
