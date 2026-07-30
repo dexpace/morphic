@@ -215,18 +215,75 @@ func (l *lowerer) lowerHeaders(headers *sequencedmap.Map[string, *soa.Referenced
 // ir.Property has a field for each, so the header path had no reason to drop
 // them (GitHub #116).
 func (l *lowerer) lowerHeader(h *soa.Header, name, hptr, hdecl string) ir.Property {
-	schemaPtr := hdecl + ptr("schema")
+	js, schemaPtr, mediaType := l.headerSchema(h, hdecl)
 	p := ir.Property{
 		ID:         propID(hptr),
 		Name:       compile.NamingFor(name),
 		WireName:   name,
-		Type:       l.carriedSchemaRef(h.GetSchema(), schemaPtr, declarationHint(hdecl, name)),
+		Type:       l.carriedSchemaRef(js, schemaPtr, declarationHint(hdecl, name)),
 		Required:   h.GetRequired(),
 		Provenance: ir.Provenance{Source: l.srcIndex, Pointer: hptr},
 	}
-	l.fillPropertyDetail(&p, h.GetSchema(), schemaPtr)
+	if mediaType != "" {
+		// The media type a content-style header serializes its value in, which is
+		// what ir.Encoding.MediaType holds. Nothing else on this path writes
+		// Property.Encoding, so the content spelling loses nothing the schema
+		// spelling keeps.
+		p.Encoding = &ir.Encoding{MediaType: mediaType}
+	}
+	l.fillPropertyDetail(&p, js, schemaPtr)
 	l.applyHeaderAnnotations(&p, h, hdecl)
 	return p
+}
+
+// headerSchema returns the schema a header declares, the pointer that schema sits
+// at, and the media type serializing it — empty for the schema spelling.
+//
+// OpenAPI lets a header state its type as either `schema` or a `content` map
+// holding exactly one entry, and only the first spelling was read: a
+// content-style header lowered as if it had no schema at all, discarding its
+// type, its constraints and its xml hints together and without a diagnostic
+// (GitHub #139). The parameter path already read both (fillParamType), which is
+// why request headers never showed the defect.
+func (l *lowerer) headerSchema(h *soa.Header, hdecl string) (*oas3.JSONSchema[oas3.Referenceable], string, string) {
+	if js := h.GetSchema(); js != nil {
+		return js, hdecl + ptr("schema"), ""
+	}
+	mt, media, ok := l.singleContentEntry(h.GetContent(), hdecl)
+	if !ok {
+		return nil, hdecl + ptr("schema"), ""
+	}
+	return media.GetSchema(), hdecl + ptr("content", mt, "schema"), mt
+}
+
+// singleContentEntry returns the one entry a content-style header or parameter
+// declares, and reports a document declaring more than one.
+//
+// OpenAPI requires exactly one entry at both positions, so only the first can
+// lower — ir.Property and ir.Parameter each hold a single type. Taking it in
+// silence dropped a declared schema without a word, which is the loss GitHub #139
+// fixed at this position in its other spelling; the extras are named instead so
+// the document's own error is visible rather than absorbed.
+func (l *lowerer) singleContentEntry(content *sequencedmap.Map[string, *soa.MediaType], at string) (string, *soa.MediaType, bool) {
+	if content == nil || content.Len() == 0 {
+		return "", nil, false
+	}
+	var first string
+	var chosen *soa.MediaType
+	ignored := make([]string, 0, content.Len()-1)
+	for mt, media := range content.All() {
+		if chosen == nil {
+			first, chosen = mt, media
+			continue
+		}
+		ignored = append(ignored, mt)
+	}
+	if len(ignored) > 0 {
+		l.diag(ir.SeverityWarning, codeDegradedConstruct, at+ptr("content"),
+			"a content-style header or parameter must declare exactly one media type; "+
+				"%q is lowered and %s ignored", first, strings.Join(ignored, ", "))
+	}
+	return first, chosen, chosen != nil
 }
 
 // applyHeaderAnnotations overlays the annotations the header object writes on

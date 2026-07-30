@@ -1137,3 +1137,76 @@ func TestHeaders_DeprecationUnionsWithTheSchema(t *testing.T) {
 		})
 	}
 }
+
+// TestSingleContentEntry_ReportsExtraMediaTypes covers the invalid document
+// OpenAPI forbids: a content-style header or parameter declaring more than one
+// media type. Only the first can lower — ir.Property and ir.Parameter each hold
+// one type — so the rest were dropped without a word until the position that
+// takes the first started naming what it left (GitHub #139).
+func TestSingleContentEntry_ReportsExtraMediaTypes(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		name string
+		spec string
+		at   string
+	}{
+		{
+			name: "response header",
+			spec: pathsSpec("  /x:\n    get:\n      responses:\n" +
+				"        \"200\":\n          description: ok\n          headers:\n" +
+				"            H:\n              content:\n" +
+				"                application/xml: {schema: {type: string}}\n" +
+				"                application/json: {schema: {type: integer}}\n"),
+			at: "/paths/~1x/get/responses/200/headers/H/content",
+		},
+		{
+			name: "operation parameter",
+			spec: pathsSpec("  /x:\n    get:\n      parameters:\n" +
+				"        - name: p\n          in: query\n          content:\n" +
+				"              application/xml: {schema: {type: string}}\n" +
+				"              application/json: {schema: {type: integer}}\n" +
+				"      responses: {\"200\": {description: ok}}\n"),
+			at: "/paths/~1x/get/parameters/0/content",
+		},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			_, diags := parseFull(t, tc.spec)
+			assert.True(t, hasDiagCodeAt(diags, codeDegradedConstruct, tc.at),
+				"the ignored media types are named at the content map: %+v", diags)
+			assert.Contains(t, diagMessageAt(t, diags, codeDegradedConstruct, ir.SeverityWarning, tc.at),
+				"application/json", "the message names what was ignored, not only that something was")
+		})
+	}
+}
+
+// TestSingleContentEntry_OneEntryIsSilent is the control: the legal one-entry
+// spelling must not warn, or every content-style header and parameter would.
+func TestSingleContentEntry_OneEntryIsSilent(t *testing.T) {
+	t.Parallel()
+	_, diags := parseFull(t, pathsSpec("  /x:\n    get:\n      responses:\n"+
+		"        \"200\":\n          description: ok\n          headers:\n"+
+		"            H:\n              content:\n"+
+		"                application/xml: {schema: {type: string}}\n"))
+	assert.Equal(t, 0, countDiagsAt(diags, codeDegradedConstruct, ir.SeverityWarning),
+		"one media type is the legal spelling: %+v", diags)
+}
+
+// TestHeaderSchema_NeitherSpelling covers a header that declares no type at all.
+// It is legal — a header may carry only a description — and must lower to the top
+// type without reporting a loss, since nothing was written to lose.
+func TestHeaderSchema_NeitherSpelling(t *testing.T) {
+	t.Parallel()
+	doc, diags := parseFull(t, pathsSpec("  /x:\n    get:\n      operationId: untypedHeader\n      responses:\n"+
+		"        \"200\":\n          description: ok\n          headers:\n"+
+		"            H: {description: untyped}\n"))
+	requireNoErrorDiags(t, diags)
+
+	headers := findOp(t, doc, "untypedHeader").Responses[0].Headers
+	require.Len(t, headers, 1)
+	assert.Equal(t, ir.TypeID("t/prim/any"), headers[0].Type.Target,
+		"a header declaring no type lowers to the top type")
+	assert.Nil(t, headers[0].Encoding, "no content map means no media type")
+	assert.Equal(t, "untyped", headers[0].Docs.Description)
+}

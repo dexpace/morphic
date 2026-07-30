@@ -179,6 +179,7 @@ func conformanceCases() []conformanceCase {
 		{"param-styles", assertParamStyles},
 		{"param-xml-residue", assertParamXMLResidue},
 		{"param-ref-inheritance", assertParamRefInheritance},
+		{"header-content-schema", assertHeaderContentSchema},
 		{"multi-content", assertMultiContent},
 		{"multipart-encoding", assertMultipartEncoding},
 		{"file-body", assertFileBody},
@@ -1167,6 +1168,59 @@ func assertParamRefInheritance(t *testing.T, doc *ir.Document, _ []ir.Diagnostic
 	require.NotNil(t, decl.Constraints.MaxLength)
 	assert.Equal(t, int64(64), *decl.Constraints.MaxLength,
 		"a consumer that wants the bound reads it off the referent")
+}
+
+// assertHeaderContentSchema pins that both spellings of a header's type lower
+// alike. The content spelling used to reach lowerHeader with no schema at all —
+// the header became t/prim/any and its constraints and xml hints went with it,
+// without a diagnostic (GitHub #139).
+//
+// The two headers declare the same type deliberately: comparing them against
+// each other, rather than against a written-out expectation, is what makes the
+// assertion about the spellings agreeing rather than about one of them.
+func assertHeaderContentSchema(t *testing.T, doc *ir.Document, diags []ir.Diagnostic) {
+	op, ok := opByName(doc, "getReport")
+	require.True(t, ok)
+	require.Len(t, op.Responses, 1)
+	headers := op.Responses[0].Headers
+	require.Len(t, headers, 3)
+
+	bySchema, ok := headerByWire(headers, "X-Report-Schema")
+	require.True(t, ok)
+	byContent, ok := headerByWire(headers, "X-Report-Content")
+	require.True(t, ok)
+
+	assert.Equal(t, bySchema.Type, byContent.Type,
+		"a content-style header resolves the same type as the schema spelling")
+	assert.NotEqual(t, ir.TypeID("t/prim/any"), byContent.Type.Target,
+		"the type is resolved rather than degraded to the top type")
+	assert.Equal(t, bySchema.Constraints, byContent.Constraints,
+		"the constraints written under content are not dropped with the schema")
+	require.NotNil(t, byContent.XML)
+	assert.Equal(t, "ReportContent", byContent.XML.Name,
+		"the xml hints written under content reach the header")
+
+	require.NotNil(t, byContent.Encoding)
+	assert.Equal(t, "application/xml", byContent.Encoding.MediaType,
+		"the media type serializing the header's value is kept, which the schema spelling has none of")
+	assert.Nil(t, bySchema.Encoding, "the schema spelling names no media type")
+
+	byRef, ok := headerByWire(headers, "X-Report-Ref")
+	require.True(t, ok)
+	assert.Equal(t, namedID("ReportID"), byRef.Type.Target,
+		"a $ref under content resolves to the named component, not to an anonymous copy")
+
+	assertNoErrorDiags(t, diags)
+}
+
+// headerByWire returns the response header with the given wire name.
+func headerByWire(headers []ir.Property, wire string) (ir.Property, bool) {
+	for _, h := range headers {
+		if h.WireName == wire {
+			return h, true
+		}
+	}
+	return ir.Property{}, false
 }
 
 func assertMultiContent(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {

@@ -60,15 +60,14 @@ func (l *lowerer) lowerParameter(p *soa.Parameter, pptr string) (ir.Parameter, i
 // type on the binding). Constraints come from that same schema position;
 // the default comes from it too, falling back to its $ref target (§14).
 func (l *lowerer) fillParamType(param *ir.Parameter, binding *ir.HTTPParamBinding, p *soa.Parameter, pptr, name string) {
-	if content := p.GetContent(); content != nil && content.Len() > 0 {
-		// A content parameter has exactly one media type; take the first entry.
-		for mt, media := range content.All() {
-			schemaPtr := pptr + ptr("content", mt, "schema")
-			param.Type = l.carriedSchemaRef(media.GetSchema(), schemaPtr, name)
-			binding.ContentType = mt
-			l.fillParamSchema(param, media.GetSchema(), schemaPtr)
-			break
-		}
+	// A content parameter declares exactly one media type; singleContentEntry
+	// takes it and reports a document that declares more, rather than dropping the
+	// extras in the silence the header spelling was fixed out of (GitHub #139).
+	if mt, media, ok := l.singleContentEntry(p.GetContent(), pptr); ok {
+		schemaPtr := pptr + ptr("content", mt, "schema")
+		param.Type = l.carriedSchemaRef(media.GetSchema(), schemaPtr, name)
+		binding.ContentType = mt
+		l.fillParamSchema(param, media.GetSchema(), schemaPtr)
 		return
 	}
 	schemaPtr := pptr + ptr("schema")

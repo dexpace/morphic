@@ -162,7 +162,6 @@ Property.Args
 Property.Availability
 Property.ClientOptional
 Property.DefaultAdded
-Property.Encoding
 Property.EventHeader
 Property.EventPayload
 Property.ExtensionOf
