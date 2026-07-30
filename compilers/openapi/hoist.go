@@ -69,27 +69,19 @@ func newLowerer(srcIndex int, doc *load.Document, opts Options) *lowerer {
 	return l
 }
 
-// intern returns the TypeID for pointer, lowering the schema on first visit.
-// Registering the ID before descending is what terminates recursive schemas:
-// a self-reference reached during build hits byPointer and returns the ID
-// without re-entering build.
-func (l *lowerer) intern(pointer string, id ir.TypeID, build func() ir.TypeDef) ir.TypeID {
-	return l.types.Intern(pointer, id, build)
-}
-
 // registeredNode returns the node interning registered under id, reporting a
-// broken invariant instead of dropping in silence when there is none. intern
-// records a pointer's ID and its node together, so every ID reached through
-// byPointer resolves; a miss is a compiler bug no source can provoke, and the
+// broken invariant instead of dropping in silence when there is none.
+// compile.Types records a pointer's ID and its node together, so every ID
+// reached through its pointer map resolves; a miss is a compiler bug no source can provoke, and the
 // caller — which was about to attach docs, examples or preserved constructs to
 // that node — would otherwise discard them without a trace.
-func (l *lowerer) registeredNode(id ir.TypeID, pointer string) (ir.TypeDef, bool) {
-	td, ok := l.types.Node(id)
-	if !ok {
-		l.diag(ir.SeverityError, diag.InternalInvariant, pointer,
-			"internal: type %q is named at this pointer but absent from the registry; its source constructs are dropped", id)
+func registeredNode(c lowerCtx, ts *compile.Types, id ir.TypeID, pointer string) (ir.TypeDef, bool, []ir.Diagnostic) {
+	td, ok := ts.Node(id)
+	if ok {
+		return td, true, nil
 	}
-	return td, ok
+	return td, false, []ir.Diagnostic{c.diagAt(ir.SeverityError, diag.InternalInvariant, pointer,
+		"internal: type %q is named at this pointer but absent from the registry; its source constructs are dropped", id)}
 }
 
 // internNode is the single hoisting entry point: it derives pointer's stable
@@ -97,26 +89,20 @@ func (l *lowerer) registeredNode(id ir.TypeID, pointer string) (ir.TypeDef, bool
 // interns build's result under that ID. build receives the already-built
 // TypeCommon (its ID field is the same id), so it never needs pointer, hint,
 // or a bare id to re-derive it.
-func (l *lowerer) internNode(pointer, hint string, build func(common ir.TypeCommon) ir.TypeDef) ir.TypeID {
+func internNode(c lowerCtx, ts *compile.Types, pointer, hint string,
+	build func(common ir.TypeCommon) ir.TypeDef,
+) ir.TypeID {
 	id := ids.ForPointer(pointer)
-	return l.intern(pointer, id, func() ir.TypeDef { return build(l.commonFor(id, pointer, hint)) })
+	return ts.Intern(pointer, id, func() ir.TypeDef { return build(commonFor(c, id, pointer, hint)) })
 }
-
-// primRef interns the primitive of kind k under its shared ID on first use and
-// returns a reference to it. Primitives are leaves, so they never enter the
-// pointer-keyed interning table.
-func (l *lowerer) primRef(k ir.PrimKind) ir.TypeRef { return l.types.PrimRef(k) }
-
-// primID interns the primitive of kind k and returns its TypeID.
-func (l *lowerer) primID(k ir.PrimKind) ir.TypeID { return l.types.PrimID(k) }
 
 // commonFor builds the TypeCommon shared by every hoisted node at pointer. A
 // top-level component schema is named (source + canonical words); any deeper
 // inline position is anonymous and carries only the context-derived hint.
-func (l *lowerer) commonFor(id ir.TypeID, pointer, hint string) ir.TypeCommon {
+func commonFor(c lowerCtx, id ir.TypeID, pointer, hint string) ir.TypeCommon {
 	common := ir.TypeCommon{
 		ID:         id,
-		Provenance: l.ctx.provenanceAt(pointer),
+		Provenance: c.provenanceAt(pointer),
 	}
 	if name, ok := ids.ComponentSchemaName(pointer); ok {
 		common.Name = compile.NamingFor(name)

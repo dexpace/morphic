@@ -18,8 +18,8 @@ func TestIntern_IdempotentOnSamePointer(t *testing.T) {
 		calls++
 		return &ir.Primitive{TypeCommon: ir.TypeCommon{ID: "x"}, Prim: ir.PrimString}
 	}
-	first := l.intern("/p", "x", build)
-	second := l.intern("/p", "x", build)
+	first := l.types.Intern("/p", "x", build)
+	second := l.types.Intern("/p", "x", build)
 	assert.Equal(t, first, second)
 	assert.Equal(t, 1, calls, "build runs only on first intern of a pointer")
 }
@@ -27,7 +27,7 @@ func TestIntern_IdempotentOnSamePointer(t *testing.T) {
 func TestPrimID_SecondCallReuses(t *testing.T) {
 	t.Parallel()
 	l := newLowerer(0, &load.Document{Doc: nil, Source: ir.SourceInfo{}}, Options{}.withDefaults())
-	first := l.primID(ir.PrimString)
-	second := l.primID(ir.PrimString)
+	first := l.types.PrimID(ir.PrimString)
+	second := l.types.PrimID(ir.PrimString)
 	assert.Equal(t, first, second, "interned primitive reused on second call")
 }

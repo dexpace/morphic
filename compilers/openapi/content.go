@@ -53,7 +53,7 @@ func (l *lowerer) lowerContent(mt string, media *soa.MediaType, pointer, hint st
 	switch {
 	case isBinaryBody(mt, media.GetSchema()):
 		c.File = &ir.FileInfo{IsText: false, ContentTypes: []string{mt}}
-		c.Type = l.primRef(ir.PrimBytes)
+		c.Type = l.types.PrimRef(ir.PrimBytes)
 	case isFormContent(mt):
 		if enc := l.partEncodings(media, mediaPtr, c.Type.Target); len(enc) > 0 {
 			c.Encoding = enc
