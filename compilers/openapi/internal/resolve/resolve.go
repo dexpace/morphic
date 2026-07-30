@@ -46,6 +46,12 @@ type Scope struct {
 // inside m.yaml). A doc part carrying its own directory is matched in full,
 // never on basename alone — otherwise `dir2/m.yaml` referenced from
 // `dir1/m.yaml` would misread as a self-reference.
+//
+// The equality alone already gives that, since path.Base never yields a string
+// containing a separator; the explicit slash test states the rule rather than
+// leaving it to be re-derived, and is what holds if the comparison is ever
+// loosened. The two answers differ only for a source path of "/", which is not
+// a document.
 func (s Scope) sameFile(doc string) bool {
 	self := s.SelfPath
 	if self == "" {

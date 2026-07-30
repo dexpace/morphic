@@ -652,7 +652,7 @@ func (l *lowerer) bodyModelPointer(body ir.TypeID) (string, bool) {
 // contradictory `enum` or scalar `type` beside them — and no pointer can name a
 // property that was never lowered.
 //
-// The document half of the $ref decides, via internalPointer, rather than being
+// The document half of the $ref decides, via resolve.Scope.InternalPointer, rather than being
 // cut off and discarded. A fragment lifted from a ref into another document
 // would otherwise become an identity in *this* one, naming whichever local
 // schema happened to share the path — a property of a different document

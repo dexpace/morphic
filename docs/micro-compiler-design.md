@@ -158,9 +158,10 @@ The promotion rule wants evidence from all three compilers, and the drafts now s
 Read from the drafts rather than assumed:
 
 ```bash
-for b in feat/graphql-compiler feat/protobuf-compiler; do
-  for f in $(git ls-tree -r --name-only "origin/$b" | grep -E '^compilers/.*\.go$' | grep -v _test); do
-    git show "origin/$b:$f" | grep -nE 'max[A-Za-z]*Depth' | sed "s|^|$f:|"
+for b in graphql protobuf; do
+  for f in $(git ls-tree -r --name-only "origin/feat/$b-compiler" |
+             grep -E "^compilers/$b/.*\.go$" | grep -v _test); do
+    git show "origin/feat/$b-compiler:$f" | grep -nE 'max[A-Za-z]*Depth *=' | sed "s|^|$f:|"
   done
 done
 ```

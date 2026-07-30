@@ -96,7 +96,7 @@ func (l *lowerer) fillParamSchema(param *ir.Parameter, js *oas3.JSONSchema[oas3.
 	if s == nil {
 		return
 	}
-	// refTargetSchema, not annotation.At's Referent: the fallback must read the
+	// resolve.TargetSchema, not annotation.At's Referent: the fallback must read the
 	// end of a $ref chain, since one hop would take the default and description
 	// off an intermediate reference instead of the schema that declares them.
 	tgt := resolve.TargetSchema(js, s)

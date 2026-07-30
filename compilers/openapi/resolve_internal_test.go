@@ -103,7 +103,7 @@ components:
 // beside a $ref binds the property, not the referent, because
 // fillPropertyExamples resolves it directly rather than through site.
 // Property f's $ref targets a named component (Target), so
-// resolveComponentRef resolves it directly without ever calling
+// resolve.Scope.ComponentRef resolves it directly without ever calling
 // hoistSubSchema. TestSchemaSiblings_RefdSubSchemaKeepsThem covers the
 // analogous hoistSubSchema path, where the $ref target is an internal
 // sub-schema pointer rather than a named component.
