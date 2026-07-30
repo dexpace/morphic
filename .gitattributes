@@ -1,0 +1,12 @@
+# Line endings are pinned rather than left to the platform.
+#
+# The golden corpus is compared byte-for-byte against JSON that ir/irtest always
+# encodes with "\n", so a checkout that rewrote the fixtures to CRLF would fail
+# every golden and conformance test for a reason unrelated to the IR. That is the
+# default on Windows (core.autocrlf=true), and CI is Linux-only, so nothing here
+# would report it.
+#
+# One rule covers the repository because every tracked file is text: Go, YAML,
+# JSON, Markdown, SVG, shell. text=auto still leaves genuinely binary content
+# alone if any is ever added.
+* text=auto eol=lf
