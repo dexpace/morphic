@@ -1,24 +1,28 @@
-package openapi
+package annotation
 
 import (
 	oas3 "github.com/speakeasy-api/openapi/jsonschema/oas3"
 
-	"github.com/dexpace/morphic/compilers/openapi/internal/annotation"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
-	"github.com/dexpace/morphic/compilers/openapi/internal/load"
 	"github.com/dexpace/morphic/compilers/openapi/internal/value"
 	"github.com/dexpace/morphic/ir"
 )
 
-// constraintsFromSchema reads a schema's scalar (string/number/object-count)
-// value constraints into an ir.Constraints. Numeric bounds are read from the raw
-// YAML nodes, never the *float64 model fields, to preserve full decimal
-// precision (the no-float64 invariant). Collection bounds (minItems/maxItems/
-// uniqueItems) are List-owned and read elsewhere. A non-finite bound literal
-// yields an error-severity diag.NumericPrecision diagnostic and is skipped; nil
-// is returned when no constraint is present. exclusiveBoolean selects the
+// Constraints reads a schema's scalar (string/number/object-count) value
+// constraints into an ir.Constraints. Numeric bounds are read from the raw YAML
+// nodes, never the *float64 model fields, to preserve full decimal precision
+// (the no-float64 invariant). Collection bounds (minItems/maxItems/uniqueItems)
+// are List-owned and read elsewhere. A non-finite bound literal yields an
+// error-severity diag.NumericPrecision diagnostic and is skipped; nil is
+// returned when no constraint is present. exclusiveBoolean selects the
 // exclusiveMinimum/exclusiveMaximum dialect (see applyExclusive).
-func constraintsFromSchema(s *oas3.Schema, exclusiveBoolean bool) (*ir.Constraints, []ir.Diagnostic) {
+//
+// It reads beside the other readers here for the reason they are here at all:
+// what a schema says about the values admitted at a position is read the same
+// way whoever asks, and none of it needs the lowering walk. Which dialect
+// applies is the caller's to decide — that is a fact about the document, not
+// about the schema, and it is the one thing this reader will not go and find.
+func Constraints(s *oas3.Schema, exclusiveBoolean bool) (*ir.Constraints, []ir.Diagnostic) {
 	if s == nil {
 		return nil, nil
 	}
@@ -50,7 +54,7 @@ func numericBounds(c *ir.Constraints, s *oas3.Schema) []ir.Diagnostic {
 		{"multipleOf", &c.MultipleOf},
 	}
 	for _, b := range bounds {
-		node := annotation.RawPropertyNode(s, b.prop)
+		node := RawPropertyNode(s, b.prop)
 		if node == nil {
 			continue
 		}
@@ -98,7 +102,7 @@ func applyExclusive(c *ir.Constraints, s *oas3.Schema, isMin, exclusiveBoolean b
 		}
 		return nil
 	}
-	node := annotation.RawPropertyNode(s, prop)
+	node := RawPropertyNode(s, prop)
 	if node == nil {
 		return nil
 	}
@@ -145,8 +149,8 @@ func setExclusiveBound(c *ir.Constraints, isMin bool, v *ir.BigVal) {
 }
 
 // emptyConstraints reports whether c carries no scalar constraint set by
-// constraintsFromSchema (collection bounds are not read here). Every scalar
-// field that constraintsFromSchema populates must appear in this check; a
+// Constraints (collection bounds are not read here). Every scalar field that
+// Constraints populates must appear in this check; a
 // missing field silently leaks a non-nil *Constraints when it should be nil.
 func emptyConstraints(c *ir.Constraints) bool {
 	return c.Min == nil && c.Max == nil && !c.ExclusiveMin && !c.ExclusiveMax &&
@@ -154,29 +158,4 @@ func emptyConstraints(c *ir.Constraints) bool {
 		c.MinLength == nil && c.MaxLength == nil &&
 		c.Pattern == "" && c.PatternMessage == "" &&
 		c.MinProps == nil && c.MaxProps == nil
-}
-
-// exclusiveBoundIsBoolean reports whether this document's dialect spells
-// exclusiveMinimum/exclusiveMaximum as a boolean modifier (OpenAPI 3.0) rather
-// than a numeric bound (the 2020-12 dialect of 3.1 and 3.2). An unrecognized
-// version defaults to the 2020-12 numeric form.
-func (l *lowerer) exclusiveBoundIsBoolean() bool {
-	minor, _ := load.SupportedMinor(l.ctx.Doc.OpenAPI)
-	return minor == "3.0"
-}
-
-// appendConstraintDiags stamps constraint diagnostics with pointer's provenance,
-// recording them at most once per pointer: a sub-schema reached from both its
-// owning property and a $ref that hoists it is read twice, but a malformed bound
-// must be reported only once. Constraint data still lands on both nodes; only
-// the diagnostic is de-duplicated.
-func (l *lowerer) appendConstraintDiags(diags []ir.Diagnostic, pointer string) {
-	if l.diagnosedConstraints[pointer] {
-		return
-	}
-	l.diagnosedConstraints[pointer] = true
-	for i := range diags {
-		diags[i].Provenance = ir.Provenance{Source: l.ctx.SrcIndex, Pointer: pointer}
-		l.appendDiag(diags[i])
-	}
 }

@@ -93,3 +93,16 @@ func declaredSchemaNames(doc *soa.OpenAPI) map[string]bool {
 // DeclaresSchema reports whether the document declares a component schema of
 // this name. A name it does not declare is not a resolvable $ref target.
 func (c lowerCtx) DeclaresSchema(name string) bool { return c.schemas[name] }
+
+// exclusiveBoundIsBoolean reports whether this document's dialect spells
+// exclusiveMinimum/exclusiveMaximum as a boolean modifier (OpenAPI 3.0) rather
+// than a numeric bound (the 2020-12 dialect of 3.1 and 3.2). An unrecognized
+// version defaults to the 2020-12 numeric form.
+//
+// It reads the document version, which makes it a question about the context
+// rather than about any schema — annotation.Constraints takes the answer as a
+// parameter precisely so the reader never has to ask it.
+func (c lowerCtx) exclusiveBoundIsBoolean() bool {
+	minor, _ := load.SupportedMinor(c.Doc.OpenAPI)
+	return minor == "3.0"
+}
