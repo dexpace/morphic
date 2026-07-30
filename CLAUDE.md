@@ -4,10 +4,9 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project status
 
-Morphic is in **early development**, past the design stage. Milestone 1 (the `ir` package +
-OpenAPI 3.x compiler) is implemented and exercised end-to-end by the `morphic compile` CLI; see
-`README.md` for the current milestone table and up-to-date status — read that rather than this
-section, which is not kept in sync with it.
+Morphic is in **early development**, past the design stage. `README.md` carries the milestone table
+and what is implemented — read it there. Restating it here would only give it a second place to rot,
+which is the same rule as "derive counts; never maintain them" below.
 
 Standard Go tooling works today: `go build ./...`, `go test ./...`,
 `go test ./ir -run TestName` for a single test, `go vet ./...`.
@@ -47,6 +46,12 @@ in the docs.
 3. **Stable IDs; names are presentation.** Every named entity has a synthetic ID derived from its
    source pointer (never from a display name, never rewritten by renames). Entities live in flat,
    ID-keyed registries and reference each other by ID; no node embeds another named node.
+   Corollary — **a minted node needs a namespace of its own.** Any lowering that synthesizes a node
+   at a pointer the source can *also* name must derive its ID in a separate namespace, never equal
+   to the pointer's own ID. Two types on one pointer makes the IR depend on which declaration
+   lowered first, and it does so silently: no diagnostic in either order, `pass/validate` clean on
+   both. `ir-design.md §4.3` records this for distributed unions; the rule is the mechanism, not
+   that one site.
 4. **Names are neutral, never cased.** `Naming` stores source name + neutral canonical word
    sequence + wire name (+ numeric wire ID where applicable). The IR never stores camelCase /
    PascalCase — emitters own all identifier rendering, casing, and reserved-word escaping.
@@ -81,24 +86,49 @@ in the docs.
 
 ```
 ir/          Layer 0 — IR nodes, IDs, traversal, JSON round-trip. Imports ONLY the stdlib.
+  irverify/  Layer 0 — structural-invariant checks over a compiled Document. Imports ir only.
+  irtest/    Layer 0 — golden-file helper (`-update` rewrites). Imports ir + go-cmp.
 compilers/*  Layer 1 — one compiler per format. Imports ir (+ own format libs); never each
              other, never emitters/engine.
 pass/        Layer 1 — IR → IR passes. Imports ir only.
-emitters/*   Layer 2 — imports ir + emitter contract; never compiler.
+emitters/*   Layer 2 — imports ir + emitter contract; never compiler. (Not built yet.)
 engine/      Layer 3 — orchestration; imports everything below.
 cmd/morphic/ Layer 4 — CLI; imports engine.
+internal/    Test/tooling infrastructure, outside the pipeline (harness, archtest, testspec).
 ```
 
-Write the import-graph assertion test alongside the first packages — it is part of the design, not
-an afterthought.
+The layering is enforced by `internal/archtest`, and **its `rules` map is the source of truth** —
+this diagram is prose. Two things follow when you add a package: put it in `rules` (or in `exempt`
+with the reason it is out), because `TestImportGraph_EveryPackageIsRuledOrExempt` fails otherwise;
+and remember an unkeyed subdirectory is audited under its nearest keyed ancestor's allowlist, so
+nesting is not a way to widen one.
 
-## Testing strategy (build these as the code lands)
+## Testing strategy
 
-- **Golden IR snapshots**: `spec → IR → JSON` snapshot-compared per compiler corpus.
-- **Capability conformance corpus**: one minimal spec per `ir-spec-matrix.md` row per format that
-  can express it, asserting lossless capture. This is what keeps "lossless by default" honest.
-- **Round-trip property**: `parse → serialize → deserialize → deep-equal` for every corpus doc.
-- **Architecture test**: the import-graph assertions above.
+These all exist already — extend them rather than building a parallel mechanism:
+
+- **Golden IR snapshots**: `spec → IR → JSON`, compared via `ir/irtest` (`-update` rewrites).
+  Corpus under `testdata/golden/`.
+- **Capability conformance corpus** (`testdata/conformance/`): one minimal spec per
+  `ir-spec-matrix.md` row per format that can express it, asserting lossless capture. This is what
+  keeps "lossless by default" honest.
+- **Oracles**: `internal/harness` drives a spec through no-panic → no error diagnostic →
+  `irverify` invariants → JSON round-trip → determinism. `irverify` is the structural-invariant
+  checker (stable IDs, no dangling refs, neutral naming, routable `Unmodeled`, in-range
+  provenance); its findings are `Violation` values — *our* bugs — deliberately a channel separate
+  from `ir.Diagnostic`, which reports problems in the source spec.
+- **Architecture test**: `internal/archtest`, per the layering section above.
+
+Beyond those, "verify by executing" below has consequences specific enough to write down as
+assertion shapes:
+
+- **Order-dependence needs a two-order diff.** Compile the same source twice with the declaration
+  order swapped and `cmp.Diff` the two documents. A single-order test passes on *both* orders of a
+  colliding lowering, which is why the pointer collisions survived the suite.
+- **A negative fixture must be reachable.** `harness.Check` returns at the *first* error diagnostic,
+  before `irverify` ever runs, so a fixture that trips one never reaches the invariant checks it was
+  written to exercise. Verify the fixture lands where you think it does, not merely that the check
+  exists.
 
 ## Go code style — the dexpace styleguide is binding
 
@@ -145,19 +175,25 @@ below are the ones most likely to bite in this codebase — the full guide gover
   comment on every package; comments explain *why*, not what.
 - **Serialization:** explicit JSON struct tags on every field; `omitempty` only on optional
   fields; custom `MarshalJSON`/`UnmarshalJSON` for special forms (the IR's sum types and
-  `BigVal` do this); never `float64` for money — and in this repo, never `float64` in the IR at
-  all.
+  `BigVal` do this); never `float64` for money — and in this repo, never in the IR at all, per the
+  representation conventions above.
 - **Logging:** `log/slog` only, injected — but note the stronger repo invariant: pipeline
   stages don't log at all; they return diagnostics.
 
-Before claiming any Go work done, run and pass:
+Before claiming any Go work done, run and pass the same checks CI's `gate` job runs
+(`.github/workflows/gate.yml`), in that order:
 
 ```bash
-gofmt -l .          # must print nothing
-golangci-lint run   # must pass clean
+gofmt -l $(git ls-files '*.go')   # must print nothing
 go vet ./...
-go test ./...
+golangci-lint run                 # must pass clean
+go build ./...
+./scripts/check-coverage.sh       # go test ./... + exactly 100% statement coverage
 ```
+
+**Coverage is a gate at exactly 100%, not a target.** `scripts/check-coverage.sh` counts
+statements from the profile rather than reading `go test`'s rounded percentage, so one uncovered
+statement fails the build — `go test ./...` passing locally is not evidence the gate passes.
 
 ## Repository rules
 
@@ -169,9 +205,9 @@ context-switch between repos.
   `fix/ir-nullable-defaulting`, `docs/architecture-milestone-2`).
 - No CODEOWNERS, PR/issue templates, or CODE_OF_CONDUCT.md exist in this repo — don't assume them
   or invent content for files that aren't there.
-- Once CI exists, keep it a small number of gating jobs (build, vet, test, the architecture
-  import-graph test) required on PR and on push to `main`, rather than many fragmented workflows —
-  both reference repos converge on one bundled "gate" job over granular per-check pipelines.
+- CI is one bundled `gate` job (`.github/workflows/gate.yml`) on PR and on push to `main`. Keep it
+  that way — add steps to it rather than new workflows; both reference repos converge on one
+  bundled gate over granular per-check pipelines.
 
 ## Commits & pull requests
 
@@ -183,36 +219,59 @@ context-switch between repos.
   a permission to ship it.
   - Review the **final** state, not an intermediate one. If commits land after a review, that review
     is stale — re-review the branch as it will be merged.
-  - Prefer proving a claim over asserting it. If a test is meant to fail when something breaks,
-    break that thing in a throwaway patch and watch it fail.
+  - Prefer proving a claim over asserting it — see "verify by executing" below.
   - A limitation that is deliberately out of scope must be stated in the code and in the PR body, in
     a place the next reader will actually reach — not only in a commit message or a scratch note.
-- **Verify by executing, and do not generalise the result.** Every rule below was learned by
-  shipping its opposite in this repo. Reading code agrees with it; only running something disagrees.
-  - **Compile a probe, don't read the source.** Reviews that read the code declared it clean while
-    it was silently dropping data. Compile the input, inspect the emitted IR *and* the full
-    diagnostic list.
-  - **One verified run is not a verified class.** A mutation that reddens the suite proves something
-    about the site it was planted at, not every site of its kind. Naming the site in the sentence is
-    the whole fix.
-  - **A check that runs is not a check that reaches.** A verifier can be complete, well-tested, wired
-    into CI, and still never meet the output it exists to check. Establish where it actually reaches
-    before claiming what it covers.
-  - **A corpus shares the blind spots of the code it covers.** A golden regeneration that changes
-    nothing looks exactly like a broken `-update`. Confirm a deliberate deletion from a source makes
-    the test fail.
+- **Verify by executing.** Every rule below was learned by shipping its opposite here, and they are
+  all one mistake: *asking a question whose answer the thing under test already controls.* Reading
+  the code, reading the test, regenerating the golden, compiling one declaration order — none of
+  these can disagree with you. Disagreement has to enter from outside: a planted mutation, a probe,
+  the opposite order.
+  - **Probe, don't read.** Reviews that read the code pronounced it clean while it was silently
+    dropping data. Compile the input; inspect the emitted IR *and* the full diagnostic list.
+  - **Break what a test claims to catch.** Assertions that look correct on the page find nothing.
+    Tests here have been caught asserting nothing at all, and one "safety net" permitted the exact
+    addition it advertised catching. Plant the defect and watch it go red.
+  - **A regeneration that changes nothing looks exactly like a broken `-update`.** A corpus shares
+    the blind spots of the code it covers, so confirm a deliberate deletion from a source spec
+    reddens the suite.
+  - **A check that runs is not a check that reaches.** A verifier can be complete, well-tested and
+    wired into CI while never meeting the output it exists to check — an early return upstream, or
+    an input class no committed fixture produces, is enough. Establish where it reaches before
+    claiming what it covers; the testing section names the live instance.
+  - **Scope a result narrowly, a defect widely.** These pull opposite ways on purpose. A mutation
+    proves something about the site it was planted at, not every site of its kind — so name the site
+    in the sentence. But a defect is a property of its *mechanism*: the pointer collision was fixed
+    in the union lowering and left standing in the inline-position hoist on the same branch, because
+    the fix was scoped to where it was noticed. Sweep every site of the mechanism before closing it.
   - **Derive counts; never maintain them.** Counts and universals in prose are where this repo's
     errors concentrate, and no test can catch them. Prefer the command that derives a number, or
     omit it. If a claim about code must be written down, name the revision it was true at.
 - **Conventional Commits**: `type(scope): subject`, imperative mood, subject line only (no period,
   ≤72 chars). Common types: `feat`, `fix`, `refactor`, `docs`, `test`, `build`, `chore`, `ci`,
   `perf`. Scope is the touched package (`ir`, `compilers/openapi`, `pass`, `emitters/go`, `engine`)
-  when it narrows things down — omit it when the change is repo-wide. The existing
-  `chore: initial ir spec draft` commit already follows this.
+  when it narrows things down — omit it when the change is repo-wide.
 - **Breaking changes** mark the type with `!` (`feat!:`, `refactor!:`) and explain the break in the
   commit body — don't bury it in the subject line alone.
-- PRs are squash-merged, and GitHub appends the PR number (`(#NNN)`) to the squashed commit
-  automatically — don't add it yourself.
+- **The PR title is the commit subject.** PRs are squash-merged, so the *title* — not the branch's
+  commit subjects — is what lands on `main`. It takes the same Conventional Commits form and the
+  same rules: `type(scope): subject`, imperative, no trailing period. A well-formed commit under a
+  prose PR title still merges as a non-conforming commit, and since the squashed subject *is* the
+  title, every non-conforming subject in this history arrived exactly that way. To see the current
+  state rather than trust this sentence:
+
+  ```bash
+  git log --format='%s' origin/main | grep -E '\(#[0-9]+\)$' |
+    grep -vE '^(feat|fix|refactor|docs|test|build|chore|ci|perf)(\(.+\))?!?: '
+  ```
+
+- **Budget the appended number inside the 72-char cap.** GitHub appends ` (#NNN)` to the squashed
+  subject automatically — never type it yourself, but do count it: a three-digit PR leaves the title
+  65 characters, not 72. Measure before opening, don't eyeball —
+  `printf '%s (#999)' "<title>" | wc -c`. Most over-length subjects in this history were *within*
+  the cap until the number was appended, which is the whole failure mode; to see that split rather
+  than trust it, pipe the log above through `awk 'length($0) > 72'` and then through
+  `sed -E 's/ \(#[0-9]+\)$//'` before the same `awk`.
 - PR description: Summary / Test plan (/ Breaking, when applicable). Keep PRs scoped to one
   logical change; split unrelated changes into separate PRs.
 - Write self-contained, human-framed titles/descriptions. No LLM/session artifacts, no internal
