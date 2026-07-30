@@ -197,7 +197,7 @@ func bodyParts(js *oas3.JSONSchema[oas3.Referenceable], depth int) []bodyPart {
 // encoding entry rather than depend on which branch was walked last.
 func dedupeParts(parts []bodyPart) []bodyPart {
 	seen := make(map[string]bool, len(parts))
-	out := parts[:0]
+	out := make([]bodyPart, 0, len(parts))
 	for _, part := range parts {
 		if seen[part.name] {
 			continue
