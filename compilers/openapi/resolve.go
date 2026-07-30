@@ -302,19 +302,28 @@ func (l *lowerer) hoistSubSchema(decl *oas3.JSONSchema[oas3.Referenceable], poin
 }
 
 // subSchemaHint names the node a $ref'd sub-schema pointer owns: the target it
-// aliases when the sub-schema is itself a $ref carrying siblings, the pointer's
-// last segment otherwise.
+// aliases when the sub-schema is itself a $ref carrying siblings, the branch
+// hint when the pointer addresses a composition branch, the pointer's last
+// segment otherwise.
 //
-// The first case exists because a composition branch can own the same pointer
-// and derives its hint that way (branchHint). Both lowerings reach the pointer
-// — the branch through its composition, this one through an outside $ref naming
-// it — and only the first to arrive interns the node, so a hint derived
-// differently here would make the document depend on declaration order.
+// The first two cases exist because a composition branch can own the same
+// pointer and derives its hint that way (branchHint). Both lowerings reach the
+// pointer — the branch through its composition, this one through an outside $ref
+// naming it — and only the first to arrive interns the node, so a hint derived
+// differently here makes the document depend on declaration order.
+//
+// The branch case is the second half of that agreement. Falling through to the
+// last segment named an inline branch after its own ordinal — "0" — which is a
+// hint an emitter cannot build an identifier from, and which disagreed with the
+// composition's "variant_0" (GitHub #181).
 func subSchemaHint(decl *oas3.JSONSchema[oas3.Referenceable], pointer string) string {
 	if decl != nil && decl.IsReference() {
 		if name := refLastSegment(decl.GetRef().String()); name != "" {
 			return name
 		}
+	}
+	if hint, ok := branchPointerHint(pointer); ok {
+		return hint
 	}
 	return refLastSegment(pointer)
 }

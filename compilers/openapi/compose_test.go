@@ -2,6 +2,7 @@ package openapi
 
 import (
 	"fmt"
+	"strconv"
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
@@ -1958,5 +1959,68 @@ func TestEnumMemberForm_ClassifiesEveryValueKind(t *testing.T) {
 			assert.Empty(t, prim, "a refused kind asserts no primitive")
 			assert.Empty(t, text)
 		})
+	}
+}
+
+// TestBranchPointerHint_Shapes pins which pointers name a composition branch.
+//
+// The parse decides whether hoistSubSchema answers what the composition would,
+// so a pointer it misreads either reintroduces the disagreement (GitHub #181) or
+// invents a variant hint for something that is not a branch. The rows that are
+// not branches matter as much as the rows that are: `oneOf` is a legal property
+// name, and a schema keyword taking numbered children is not necessarily a
+// composition.
+func TestBranchPointerHint_Shapes(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		name    string
+		pointer string
+		want    string
+	}{
+		{name: "a oneOf branch", pointer: "/components/schemas/S/oneOf/0", want: "variant_0"},
+		{name: "an anyOf branch", pointer: "/components/schemas/S/anyOf/12", want: "variant_12"},
+		{name: "an allOf branch", pointer: "/components/schemas/S/allOf/1", want: "variant_1"},
+		{
+			name:    "a branch of a schema reached through a property named oneOf",
+			pointer: "/components/schemas/S/properties/oneOf/anyOf/0", want: "variant_0",
+		},
+
+		{name: "prefixItems takes indices but composes nothing", pointer: "/components/schemas/S/prefixItems/0"},
+		{name: "items is not indexed at all", pointer: "/components/schemas/S/items"},
+		{name: "a property named oneOf is not a branch", pointer: "/components/schemas/S/properties/oneOf"},
+		{name: "a non-numeric child of a composition keyword", pointer: "/components/schemas/S/oneOf/x"},
+		{name: "a negative index is not a segment the compiler writes", pointer: "/components/schemas/S/oneOf/-1"},
+		{name: "an empty index", pointer: "/components/schemas/S/oneOf/"},
+		{name: "a bare segment", pointer: "oneOf"},
+		{name: "the empty pointer", pointer: ""},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			got, ok := branchPointerHint(tc.pointer)
+			assert.Equal(t, tc.want != "", ok, "pointer %q", tc.pointer)
+			assert.Equal(t, tc.want, got, "pointer %q", tc.pointer)
+		})
+	}
+}
+
+// TestBranchHint_AgreesWithThePointerWalk states the property the two
+// derivations exist to share, at the functions rather than through a compile: for
+// an inline branch, what the composition names the node and what a pointer walk
+// names it are the same string. Whichever lowering arrives first, the node ends
+// up with the same hint.
+func TestBranchHint_AgreesWithThePointerWalk(t *testing.T) {
+	t.Parallel()
+	for i := range 3 {
+		inline := oas3.NewJSONSchemaFromSchema[oas3.Referenceable](&oas3.Schema{})
+		pointer := "/components/schemas/Host/oneOf/" + strconv.Itoa(i)
+
+		fromComposition := branchHint(inline, i)
+		fromPointer, ok := branchPointerHint(pointer)
+		require.True(t, ok, "the branch pointer is recognized as one")
+		assert.Equal(t, fromComposition, fromPointer,
+			"branch %d must be named the same whichever lowering interns it first", i)
+		assert.Equal(t, fromComposition, subSchemaHint(inline, pointer),
+			"and subSchemaHint is the path that actually asks")
 	}
 }

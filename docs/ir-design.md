@@ -137,10 +137,28 @@ and digits (with the combining marks that belong to them), a camel-case or lette
 starts a new one, and **every other character separates** — `.`, `/`, `[`, `-`, a space alike. So
 `com.example.User` and `com-example-user` canonicalize the same, and an emitter reading `Canonical`
 never has to ask which compiler produced it. A source name with no word character in it
-canonicalizes to the empty string; `Source` keeps the spelling. `irverify` checks the shape, so an
-unsegmented canonical is a compiler bug rather than a variant reading — and one implementation
-serves every compiler, since what the check cannot see is where a compiler puts the boundaries
-*inside* a word (`foo2bar` against `foo_2_bar`).
+canonicalizes to the empty string; `Source` keeps the spelling.
+
+**A camel-case boundary is where lowercasing changes the rune**, not where Unicode reports an
+uppercase category. The two differ: double-struck `ℤ`, GREEK UPSILON WITH HOOK `ϒ` and the Roman
+numerals are uppercase with no lowercase form, so they survive lowercasing unchanged and are not
+boundaries — `COUNTℤ` is one word. The titlecase letters are boundaries and are not uppercase —
+`xǅy` is two. Defining it by the effect rather than the category is what makes the grammar a fixed
+point: a rune it split on but lowercasing left alone would still look like a boundary in the output,
+and re-canonicalizing would split it again (GitHub #187). It is also the definition `irverify`
+already applied to a whole canonical, so the producer and the checker agree by construction.
+
+The **acronym tail** — the last capital of a run, before a lowercase letter — asks a different
+question, and takes the category rather than the effect: `ℤServer` is `ℤ_server` because `ℤ` belongs
+to a run of capitals whether or not lowercasing would change it, and `ǅBc` is `ǆ_bc` because a
+titlecase letter belongs to one too. A transition test there would lose the first; the uppercase
+category alone would lose the second.
+
+`irverify` holds every `Naming` to this: it recomputes the canonical from the `Source` beside it, so
+a boundary in the wrong place is a compiler bug rather than a variant reading. What no check can say
+is that the grammar itself is right — a check that recomputes moves with what it recomputes through
+— so the answers are pinned by a conformance table and the properties every answer must satisfy by
+a fuzz target beside it (GitHub #186).
 
 ### 3.3 Type references
 

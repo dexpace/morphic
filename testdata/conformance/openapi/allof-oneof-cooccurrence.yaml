@@ -39,3 +39,22 @@ components:
       type: object
       properties:
         branch: {$ref: '#/components/schemas/Combo/oneOf/0'}
+    # The same collision at an inline branch, which is the half a $ref cannot
+    # cover: an inline branch has no target to take a name from, so the union
+    # names it by position and an outside reference to the same pointer has only
+    # the pointer. Both lowerings reach the node and only the first interns it,
+    # so the two must derive the same hint or the document depends on which
+    # component was declared first.
+    #
+    # The reference is declared first on purpose. Interning through it is the
+    # path that used to name the node after its bare ordinal, so this order is
+    # the one a single-order golden can see the difference in; the two-order
+    # oracle covers the other.
+    InlineOutsider:
+      type: object
+      properties:
+        branch: {$ref: '#/components/schemas/InlineHost/oneOf/0'}
+    InlineHost:
+      oneOf:
+        - {type: integer, description: named by position, not by target}
+        - {type: string}

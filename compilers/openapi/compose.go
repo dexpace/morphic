@@ -762,7 +762,52 @@ func branchHint(b *oas3.JSONSchema[oas3.Referenceable], i int) string {
 			return name
 		}
 	}
-	return "variant_" + strconv.Itoa(i)
+	return positionalBranchHint(strconv.Itoa(i))
+}
+
+// compositionKeywords are the schema keywords whose numbered children are
+// composition branches.
+var compositionKeywords = map[string]bool{"allOf": true, "oneOf": true, "anyOf": true}
+
+// positionalBranchHint names an inline composition branch by its position, which
+// is all there is to name it by: it has no $ref target to take a name from.
+func positionalBranchHint(index string) string { return "variant_" + index }
+
+// branchPointerHint returns the hint the branch at pointer takes, for a caller
+// holding only the pointer.
+//
+// It exists so hoistSubSchema answers what the composition would have
+// (GitHub #181). An outside $ref can name a branch's pointer, and only the first
+// lowering to arrive interns the node, so a hint derived differently there makes
+// the document depend on declaration order — silently, since either spelling is a
+// valid hint and nothing compares them. The $ref-branch half of that already
+// agrees; this is the inline half, where the composition knows the branch's
+// ordinal and a bare pointer walk knew only the last segment, which is the
+// ordinal with nothing to say it is one.
+func branchPointerHint(pointer string) (string, bool) {
+	segments := strings.Split(pointer, "/")
+	if len(segments) < 2 {
+		return "", false
+	}
+	keyword, index := segments[len(segments)-2], segments[len(segments)-1]
+	if !compositionKeywords[keyword] || !isDecimalIndex(index) {
+		return "", false
+	}
+	return positionalBranchHint(index), true
+}
+
+// isDecimalIndex reports whether s is a non-empty run of ASCII digits — the
+// shape a composition branch's pointer segment takes.
+func isDecimalIndex(s string) bool {
+	if s == "" {
+		return false
+	}
+	for _, r := range s {
+		if r < '0' || r > '9' {
+			return false
+		}
+	}
+	return true
 }
 
 // refLastSegment returns the final path segment of a $ref string.

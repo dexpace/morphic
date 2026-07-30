@@ -36,6 +36,26 @@
         "nullable": false
       }
     },
+    "t/anon/components/schemas/InlineHost/oneOf/0": {
+      "kind": "scalar",
+      "id": "t/anon/components/schemas/InlineHost/oneOf/0",
+      "name": {
+        "hint": "variant_0"
+      },
+      "anonymous": true,
+      "docs": {
+        "description": "named by position"
+      },
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/InlineHost/oneOf/0"
+      },
+      "base": {
+        "target": "t/prim/integer",
+        "nullable": false
+      }
+    },
     "t/composed/components/schemas/Combo/oneOf/0": {
       "kind": "model",
       "id": "t/composed/components/schemas/Combo/oneOf/0",
@@ -270,6 +290,94 @@
       "exclusive": true,
       "wireTagged": false
     },
+    "t/openapi/components/schemas/InlineHost": {
+      "kind": "union",
+      "id": "t/openapi/components/schemas/InlineHost",
+      "name": {
+        "source": "InlineHost",
+        "canonical": "inline_host"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/InlineHost"
+      },
+      "variants": [
+        {
+          "name": {
+            "hint": "variant_0"
+          },
+          "type": {
+            "target": "t/anon/components/schemas/InlineHost/oneOf/0",
+            "nullable": false
+          },
+          "docs": {}
+        },
+        {
+          "name": {
+            "hint": "variant_1"
+          },
+          "type": {
+            "target": "t/prim/string",
+            "nullable": false
+          },
+          "docs": {}
+        }
+      ],
+      "exclusive": true,
+      "wireTagged": false
+    },
+    "t/openapi/components/schemas/InlineOutsider": {
+      "kind": "model",
+      "id": "t/openapi/components/schemas/InlineOutsider",
+      "name": {
+        "source": "InlineOutsider",
+        "canonical": "inline_outsider"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/InlineOutsider"
+      },
+      "properties": [
+        {
+          "id": "p/openapi/components/schemas/InlineOutsider/properties/branch",
+          "name": {
+            "source": "branch",
+            "canonical": "branch"
+          },
+          "wireName": "branch",
+          "type": {
+            "target": "t/anon/components/schemas/InlineHost/oneOf/0",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {
+            "description": "named by position"
+          },
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/InlineOutsider/properties/branch"
+          }
+        }
+      ],
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
     "t/openapi/components/schemas/MixedKinds": {
       "kind": "model",
       "id": "t/openapi/components/schemas/MixedKinds",
@@ -381,6 +489,18 @@
       "positional": false,
       "inputOnly": false
     },
+    "t/prim/integer": {
+      "kind": "primitive",
+      "id": "t/prim/integer",
+      "name": {},
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0
+      },
+      "prim": "integer"
+    },
     "t/prim/string": {
       "kind": "primitive",
       "id": "t/prim/string",
@@ -426,7 +546,7 @@
     {
       "format": "openapi@3.1",
       "path": "allof-oneof-cooccurrence.yaml",
-      "hash": "36662fbf422f5d6434647c076c4ffab87c91699539d0105d16259f9dc2a22936"
+      "hash": "cb7fb6bc613222b0211fc363b9028e7739b44a1d14b04f74cf709b8d603655f2"
     }
   ]
 }
