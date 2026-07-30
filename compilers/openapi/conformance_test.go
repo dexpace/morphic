@@ -136,6 +136,7 @@ type conformanceCase struct {
 func conformanceCases() []conformanceCase {
 	return []conformanceCase{
 		{"named-types", assertNamedTypes},
+		{"neutral-naming", assertNeutralNaming},
 		{"inline-types", assertInlineTypes},
 		{"component-reuse", assertComponentReuse},
 		{"allof-inheritance", assertAllOfInheritance},
@@ -144,6 +145,7 @@ func conformanceCases() []conformanceCase {
 		{"allof-required-only", assertAllOfRequiredOnly},
 		{"allof-oneof-cooccurrence", assertAllOfOneOfCooccurrence},
 		{"allof-inline-residue", assertAllOfInlineResidue},
+		{"allof-ref-branch-siblings", assertAllOfRefBranchSiblings},
 		{"allof-boolean-branch", assertAllOfBooleanBranch},
 		{"oneof-discriminated", assertOneOfDiscriminated},
 		{"discriminator-inheritance", assertDiscriminatorInheritance},
@@ -307,6 +309,73 @@ func assertNamedTypes(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
 	assert.Equal(t, namedID("Address"), addr.Type.Target)
 	_, ok = doc.Types[namedID("Address")].(*ir.Model)
 	assert.True(t, ok, "referenced Address resolves in the registry")
+}
+
+// assertNeutralNaming covers invariant 4's second half: Naming.Canonical is a
+// neutral word sequence whatever the source spelled the word boundaries as. Real
+// specs name things with dots (a namespaced component, a versioned field, an
+// enum value), brackets (a deep-object query parameter) and hyphens (a header),
+// and each of those characters used to reach Canonical verbatim.
+//
+// The corpus needed a spec that writes them at all: every other fixture names
+// things in plain identifiers, so the compiler and the goldens shared one blind
+// spot and the segmentation could not be wrong in a way any of them saw.
+//
+// Naming.Hint is deliberately not covered: it is built from context strings
+// rather than through the grammar, and the golden shows one ("rollout.state")
+// still carrying the source punctuation. That is GitHub #54, left open.
+func assertNeutralNaming(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
+	require.Len(t, doc.Services, 1)
+	svc := doc.Services[0]
+	assert.Equal(t, "neutral_naming_api", svc.Name.Canonical, "info.title")
+	require.Len(t, svc.Groups, 1)
+	assert.Equal(t, "inventory_core", svc.Groups[0].Name.Canonical, "tag")
+
+	op, ok := opByName(doc, "widgets.list")
+	require.True(t, ok, "operation present under its source operationId")
+	assert.Equal(t, "widgets_list", op.Name.Canonical, "operationId")
+	byParam := map[string]string{}
+	for _, p := range op.Params {
+		byParam[p.Name.Source] = p.Name.Canonical
+	}
+	assert.Equal(t, "widget_id", byParam["widget.id"], "path parameter")
+	assert.Equal(t, "filter_name", byParam["filter[name]"], "bracketed query parameter")
+
+	widget, ok := doc.Types[namedID("com.example.Widget")].(*ir.Model)
+	require.True(t, ok, "namespaced component keeps its pointer-derived ID")
+	assert.Equal(t, "com_example_widget", widget.Name.Canonical, "component name")
+	assert.Equal(t, "com.example.Widget", widget.Name.Source, "the source spelling is kept beside it")
+	name, ok := propByWire(widget, "widget.name")
+	require.True(t, ok)
+	assert.Equal(t, "widget_name", name.Name.Canonical, "property name")
+	version, ok := propByWire(widget, "api.version.v2")
+	require.True(t, ok)
+	assert.Equal(t, "api_version_v_2", version.Name.Canonical,
+		"the letter/digit boundary still splits inside a dotted segment")
+
+	assertNeutralNamingLeaves(t, doc, widget, op)
+}
+
+// assertNeutralNamingLeaves checks the three canonicals that hang off another
+// node rather than off the service walk: an enum member under a property, a
+// header under a response, a scheme in the auth registry.
+func assertNeutralNamingLeaves(t *testing.T, doc *ir.Document, widget *ir.Model, op ir.Operation) {
+	t.Helper()
+	state, ok := propByWire(widget, "rollout.state")
+	require.True(t, ok)
+	rollout, ok := doc.Types[state.Type.Target].(*ir.Enum)
+	require.True(t, ok, "the enum property hoists an Enum node")
+	require.NotEmpty(t, rollout.Members)
+	assert.Equal(t, "in_progress", rollout.Members[0].Name.Canonical, "enum member")
+
+	require.Len(t, op.Responses, 1)
+	require.Len(t, op.Responses[0].Headers, 1)
+	assert.Equal(t, "x_rate_limit", op.Responses[0].Headers[0].Name.Canonical, "response header")
+
+	require.Len(t, doc.Auth, 1)
+	for _, scheme := range doc.Auth {
+		assert.Equal(t, "oauth_2_client", scheme.Name.Canonical, "security scheme")
+	}
 }
 
 func assertInlineTypes(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {

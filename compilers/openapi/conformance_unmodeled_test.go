@@ -157,6 +157,59 @@ func assertAllOfInlineResidue(t *testing.T, doc *ir.Document, diags []ir.Diagnos
 		"a branch excluding object contradicts the composed model and is a warning")
 }
 
+// assertAllOfRefBranchSiblings covers the other branch kind: keywords written
+// beside a `$ref` in an allOf branch bind that branch, not the schema it names,
+// so they cannot go on the shared target's node. The branch position gets a node
+// of its own to hold them — the alias any $ref position hoists when it carries no
+// Property or Parameter to hold them instead — and the composition points at that
+// (GitHub #143).
+//
+// The bare branch is here to pin the other half: a `$ref` that writes nothing
+// beside itself still composes straight to the target, so the fix costs no node
+// where there was nothing to keep.
+func assertAllOfRefBranchSiblings(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
+	annotated, ok := doc.Types[namedID("Annotated")].(*ir.Model)
+	require.True(t, ok)
+	require.NotNil(t, annotated.Base, "the $ref branch still composes as Base")
+	assert.Equal(t, ir.TypeID("t/anon/components/schemas/Annotated/allOf/0"), annotated.Base.Target,
+		"Base names the branch's own node, not the shared target")
+
+	branch, ok := doc.Types[annotated.Base.Target].(*ir.Scalar)
+	require.True(t, ok, "the branch position hoists an alias over its target")
+	require.NotNil(t, branch.Base)
+	assert.Equal(t, namedID("Base"), branch.Base.Target, "the alias still resolves to the referenced schema")
+	assert.Equal(t, "Base as this composition uses it", branch.Docs.Description)
+	require.NotNil(t, branch.Constraints)
+	require.NotNil(t, branch.Constraints.MinProps)
+	assert.Equal(t, int64(3), *branch.Constraints.MinProps)
+	entry := unmodeledEntry(t, branch.Unmodeled, "openapi:x-vendor")
+	assert.Equal(t, ir.ReasonVendorExtension, entry.Reason)
+	assert.JSONEq(t, `"keepme"`, string(entry.Value))
+
+	assertAllOfRefBranchShapes(t, doc)
+}
+
+// assertAllOfRefBranchShapes checks the two branch shapes the annotated case
+// does not reach: a mixin position, and a bare $ref that hoists nothing.
+func assertAllOfRefBranchShapes(t *testing.T, doc *ir.Document) {
+	t.Helper()
+	mixed, ok := doc.Types[namedID("Mixed")].(*ir.Model)
+	require.True(t, ok)
+	require.Len(t, mixed.Mixins, 2, "two unqualified refs stay mixins")
+	assert.Equal(t, ir.TypeID("t/anon/components/schemas/Mixed/allOf/0"), mixed.Mixins[0].Target,
+		"a mixin's siblings get the same home a base's do")
+	assert.Equal(t, namedID("Extra"), mixed.Mixins[1].Target,
+		"the branch writing nothing beside its $ref is untouched")
+
+	bare, ok := doc.Types[namedID("Bare")].(*ir.Model)
+	require.True(t, ok)
+	require.NotNil(t, bare.Base)
+	assert.Equal(t, namedID("Base"), bare.Base.Target,
+		"a bare $ref branch composes straight to its target, hoisting no node")
+	_, hoisted := doc.Types[ir.TypeID("t/anon/components/schemas/Bare/allOf/0")]
+	assert.False(t, hoisted, "nothing to keep, so no node for the branch position")
+}
+
 // assertParamXMLResidue pins a parameter schema's xml hints: ir.Parameter is the
 // one annotation carrier with no XML field, and the hint is not inert here — a
 // content-style parameter can bind application/xml (GitHub #124). Both parameter

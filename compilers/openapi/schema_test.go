@@ -218,6 +218,33 @@ func TestCanonicalWords(t *testing.T) {
 	}
 }
 
+// TestCanonicalWords_NonWordRunesSeparate pins the segmentation rule: a word is
+// letters, digits and the combining marks that belong to them, and every other
+// rune separates two words. Names written with a dot, a slash, a bracket or a
+// space reach the compiler from real specs — a namespaced component name, a
+// bracketed query parameter, a path template — and each used to land in
+// Canonical verbatim, which is not the word sequence ir.Naming promises.
+func TestCanonicalWords_NonWordRunesSeparate(t *testing.T) {
+	t.Parallel()
+	for in, want := range map[string]string{
+		"com.example.User":  "com_example_user",
+		"filter[name]":      "filter_name",
+		"application/json":  "application_json",
+		"X-Trace.Id":        "x_trace_id",
+		"get /pets/{petId}": "get_pets_pet_id",
+		"..padded.name..":   "padded_name",
+		"$weird@name!":      "weird_name",
+		// A decomposed é (e + combining acute) is one letter written as two
+		// runes: the mark belongs to the letter before it, so reading it as a
+		// separator would split a word in half.
+		"cafe\u0301_v2": "cafe\u0301_v_2",
+		"***":           "",
+		"":              "",
+	} {
+		assert.Equal(t, want, canonicalWords(in), "input %q", in)
+	}
+}
+
 func TestSchemaRef_BooleanAndUntypedShapes(t *testing.T) {
 	t.Parallel()
 	spec := componentSpec(`    S:
@@ -1465,7 +1492,7 @@ func TestSchema_EmptyStringRefMirrorBranches(t *testing.T) {
 	t.Parallel()
 	// An empty-string $ref has IsReference()==false (the ref value is "") yet a
 	// non-nil Ref pointer, exercising the schema.Ref mirror path in schemaRef and
-	// the variantHint fallback.
+	// the branchHint fallback.
 	spec := componentSpec(`    Owner:
       type: object
       properties:

@@ -1,0 +1,33 @@
+openapi: 3.1.0
+info: {title: Neutral.Naming API, version: "1.0.0"}
+paths:
+  /widgets/{widget.id}:
+    get:
+      operationId: widgets.list
+      tags: [inventory.core]
+      parameters:
+        - {name: widget.id, in: path, required: true, schema: {type: string}}
+        - {name: "filter[name]", in: query, schema: {type: string}}
+      responses:
+        "200":
+          description: ok
+          headers:
+            X-Rate.Limit:
+              schema: {type: integer}
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/com.example.Widget'}
+      security:
+        - oauth2.client: []
+components:
+  securitySchemes:
+    oauth2.client: {type: http, scheme: bearer}
+  schemas:
+    com.example.Widget:
+      type: object
+      properties:
+        widget.name: {type: string}
+        api.version.v2: {type: string}
+        rollout.state:
+          type: string
+          enum: [in.progress, done]

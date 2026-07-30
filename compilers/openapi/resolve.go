@@ -173,7 +173,20 @@ func (l *lowerer) schemaRefHomed(js *oas3.JSONSchema[oas3.Referenceable], pointe
 // on the target's node; when the position has no carrier to hold them either,
 // an alias over the target becomes their home.
 func (l *lowerer) refSiteRef(js *oas3.JSONSchema[oas3.Referenceable], s *oas3.Schema, pointer, hint string, home annotationHome) ir.TypeRef {
-	ref := l.hoistDeclarationHome(s, l.refTypeRef(js, pointer), pointer, hint, home)
+	return l.homeDeclaration(s, l.refTypeRef(js, pointer), pointer, hint, home)
+}
+
+// homeDeclaration gives what s writes at this position a home and returns the
+// reference the position resolves to — an alias over target where the keywords
+// need a node of their own, target itself where the position declares none.
+//
+// It is the one statement of that step, so every schema position keeps its
+// declaration the same way: a $ref site, a lowered body, and an allOf branch's
+// $ref, which reached none of it until it was routed here. A position that
+// skips it drops what was written at it without a word — which is what both
+// GitHub #116 and #143 were.
+func (l *lowerer) homeDeclaration(s *oas3.Schema, target ir.TypeRef, pointer, hint string, home annotationHome) ir.TypeRef {
+	ref := l.hoistDeclarationHome(s, target, pointer, hint, home)
 	if s != nil {
 		l.attachDeclaredAnnotations(s, pointer)
 	}
@@ -275,7 +288,7 @@ func (l *lowerer) hoistSubSchema(decl *oas3.JSONSchema[oas3.Referenceable], poin
 	if s.Node == nil {
 		return "", false
 	}
-	hint := refLastSegment(pointer)
+	hint := subSchemaHint(decl, pointer)
 	ref := l.schemaRef(decl, pointer, hint)
 	if owned, ok := l.types.Lookup(pointer); ok {
 		return owned, true
@@ -285,6 +298,24 @@ func (l *lowerer) hoistSubSchema(decl *oas3.JSONSchema[oas3.Referenceable], poin
 	// so the annotations schemaRef had nowhere to put now have a home.
 	l.attachDeclaredAnnotations(s.Node, pointer)
 	return id, true
+}
+
+// subSchemaHint names the node a $ref'd sub-schema pointer owns: the target it
+// aliases when the sub-schema is itself a $ref carrying siblings, the pointer's
+// last segment otherwise.
+//
+// The first case exists because a composition branch can own the same pointer
+// and derives its hint that way (branchHint). Both lowerings reach the pointer
+// — the branch through its composition, this one through an outside $ref naming
+// it — and only the first to arrive interns the node, so a hint derived
+// differently here would make the document depend on declaration order.
+func subSchemaHint(decl *oas3.JSONSchema[oas3.Referenceable], pointer string) string {
+	if decl != nil && decl.IsReference() {
+		if name := refLastSegment(decl.GetRef().String()); name != "" {
+			return name
+		}
+	}
+	return refLastSegment(pointer)
 }
 
 // refNullable reports whether a $ref usage admits null: the reference site or

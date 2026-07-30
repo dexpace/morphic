@@ -139,6 +139,49 @@ func TestValidate_ModelDiscriminator(t *testing.T) {
 	assert.Equal(t, 2, countCode(t, diags, "pass/discriminator-missing-variant"))
 }
 
+// TestValidate_SubtypeThroughAliasChain pins that a subtype composing an alias
+// of the base is still a subtype. A `$ref` carrying siblings composes the
+// branch's own node (ir-design §4.3), so a hierarchy written that way names its
+// base one hop away — two hops where the alias itself was reached through
+// another, which a single dereference would still miss.
+//
+// The cyclic chain is here because the IR permits one and the walk must
+// terminate on it: the alias resolves to no base, so the mapping is reported
+// rather than hanging the pass.
+func TestValidate_SubtypeThroughAliasChain(t *testing.T) {
+	t.Parallel()
+	doc := validDoc()
+	doc.Types["t/base"] = &ir.Model{TypeCommon: ir.TypeCommon{ID: "t/base"}, Abstract: true}
+	doc.Types["t/alias"] = &ir.Scalar{
+		TypeCommon: ir.TypeCommon{ID: "t/alias"}, Base: &ir.TypeRef{Target: "t/aliasOfAlias"},
+	}
+	doc.Types["t/aliasOfAlias"] = &ir.Scalar{
+		TypeCommon: ir.TypeCommon{ID: "t/aliasOfAlias"}, Base: &ir.TypeRef{Target: "t/base"},
+	}
+	doc.Types["t/sub"] = &ir.Model{
+		TypeCommon: ir.TypeCommon{ID: "t/sub"}, Base: &ir.TypeRef{Target: "t/alias"},
+	}
+	// A two-node alias cycle: following it must stop, not recurse forever.
+	doc.Types["t/loopA"] = &ir.Scalar{
+		TypeCommon: ir.TypeCommon{ID: "t/loopA"}, Base: &ir.TypeRef{Target: "t/loopB"},
+	}
+	doc.Types["t/loopB"] = &ir.Scalar{
+		TypeCommon: ir.TypeCommon{ID: "t/loopB"}, Base: &ir.TypeRef{Target: "t/loopA"},
+	}
+	doc.Types["t/looped"] = &ir.Model{
+		TypeCommon: ir.TypeCommon{ID: "t/looped"}, Base: &ir.TypeRef{Target: "t/loopA"},
+	}
+	doc.Types["t/base"].(*ir.Model).Discriminator = &ir.Discriminator{
+		PropertyName: "kind",
+		Mapping:      map[string]ir.TypeID{"a": "t/sub", "b": "t/looped"},
+	}
+
+	diags := pass.Validate(doc)
+	assert.Equal(t, 1, countCode(t, diags, "pass/discriminator-missing-variant"),
+		"only the cyclic alias fails to reach the base: %v", codes(diags))
+	assert.Contains(t, messageForCode(t, diags, "pass/discriminator-missing-variant"), "t/looped")
+}
+
 // discriminatedUnion returns a document whose union declares t/m as its only
 // variant and maps the wire value "a" onto target.
 func discriminatedUnion(target ir.TypeID) *ir.Document {

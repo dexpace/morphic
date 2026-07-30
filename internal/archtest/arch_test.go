@@ -1,6 +1,7 @@
 package archtest_test
 
 import (
+	"fmt"
 	"go/parser"
 	"go/token"
 	"io/fs"
@@ -18,18 +19,30 @@ import (
 
 const module = "github.com/dexpace/morphic"
 
+// subtreeSuffix marks an allowlist entry that admits a whole subtree rather than
+// one package.
+const subtreeSuffix = "/..."
+
 // rules maps a directory (relative to repo root) to its allowed non-stdlib
-// import prefixes; test files are exempt. The walk starts only at keyed
-// directories and recurses into their subtrees, so an unkeyed subdirectory
-// nested under a keyed one is still audited, under the ancestor's allowlist.
+// imports; test files are exempt. The walk starts only at keyed directories and
+// recurses into their subtrees, so an unkeyed subdirectory nested under a keyed
+// one is still audited, under the ancestor's allowlist.
+//
+// An entry is one exact import path, or a subtree when it ends in "/...".
+// The distinction is what makes "compilers never import each other" expressible:
+// compilers/openapi may import the contract package and the shared framework
+// package, and each is named in its own right, so no sibling compiler rides in
+// beside them. Prefer the exact form — a subtree entry is for an external module
+// whose package layout is not ours to enumerate.
 var rules = map[string][]string{
-	"ir":                  {},
-	"ir/irtest":           {module + "/ir", "github.com/google/go-cmp"},
-	"ir/irverify":         {module + "/ir"},
-	"compilers":           {module + "/ir"},
-	"compilers/openapi":   {module + "/ir", module + "/compilers", "github.com/speakeasy-api/openapi", "gopkg.in/yaml.v3"},
-	"pass":                {module + "/ir"},
-	"engine":              {module + "/ir", module + "/compilers", module + "/pass", "gopkg.in/yaml.v3"},
+	"ir":                {},
+	"ir/irtest":         {module + "/ir", "github.com/google/go-cmp" + subtreeSuffix},
+	"ir/irverify":       {module + "/ir"},
+	"compilers":         {module + "/ir"},
+	"compilers/openapi": {module + "/ir", module + "/compilers", module + "/compilers/compile", "github.com/speakeasy-api/openapi" + subtreeSuffix, "gopkg.in/yaml.v3"},
+	"pass":              {module + "/ir"},
+	"engine": {module + "/ir", module + "/compilers", module + "/compilers/openapi",
+		module + "/pass", "gopkg.in/yaml.v3"},
 	"cmd/morphic":         {module + "/ir", module + "/engine"},
 	"cmd/morphic-harness": {module + "/internal/harness"},
 	"internal/testspec":   {},
@@ -60,9 +73,65 @@ func TestImportGraph_LayeringHolds(t *testing.T) {
 			if _, err := os.Stat(base); os.IsNotExist(err) {
 				t.Skipf("directory %s does not exist yet", dir)
 			}
-			require.NoError(t, walkImports(t, dir, base, allowed))
+			violations, err := walkImports(dir, base, allowed)
+			require.NoError(t, err)
+			for _, v := range violations {
+				t.Error(v)
+			}
 		})
 	}
+}
+
+// TestImportGraph_ContractEntryAdmitsNoSiblingCompiler states the rule the
+// allowlist exists for, at the matcher rather than through the tree: a compiler
+// reaches the contract package and the shared framework package by naming each,
+// and no sibling compiler comes with them.
+//
+// It is asked of the live rules entry, not a fixture, because the hole was in
+// how that entry was read: every path here was allowed while the match was a
+// segment prefix, so a compiler could import another and the suite stayed green
+// (GitHub #57).
+func TestImportGraph_ContractEntryAdmitsNoSiblingCompiler(t *testing.T) {
+	t.Parallel()
+	allowed := rules["compilers/openapi"]
+	require.NotEmpty(t, allowed, "rules must still carry the compilers/openapi entry")
+	assert.True(t, importAllowed(module+"/compilers", allowed), "the contract package")
+	assert.True(t, importAllowed(module+"/compilers/compile", allowed), "the shared framework package")
+	assert.True(t, importAllowed("github.com/speakeasy-api/openapi/jsonschema/oas3", allowed),
+		"a subtree entry still admits the packages under it")
+	assert.False(t, importAllowed(module+"/compilers/graphql", allowed),
+		"a sibling compiler must not ride in on the contract entry")
+	assert.False(t, importAllowed(module+"/engine", allowed), "nor a layer above")
+}
+
+// TestWalkImports_NestedLookAlikeIsAudited plants the tree the skip decision
+// used to miss: a directory whose basename matches a ruled sibling's but whose
+// path carries no rule of its own. Skipping it left it audited by nothing at
+// all, while TestImportGraph_EveryPackageIsRuledOrExempt still reported it
+// covered — its ancestor is ruled (GitHub #57).
+//
+// Both directories are planted so the fix cannot be "stop skipping": the real
+// ir/irtest child must still be skipped for its own rule, or it would be judged
+// by ir's empty allowlist and fail for imports it is entitled to.
+func TestWalkImports_NestedLookAlikeIsAudited(t *testing.T) {
+	t.Parallel()
+	root := t.TempDir()
+	writeImporter(t, filepath.Join(root, "sub", "irtest", "nested.go"), "github.com/google/go-cmp/cmp")
+	writeImporter(t, filepath.Join(root, "irtest", "child.go"), "github.com/google/go-cmp/cmp")
+
+	violations, err := walkImports("ir", root, rules["ir"])
+	require.NoError(t, err)
+	require.Len(t, violations, 1, "exactly the nested look-alike is audited: %v", violations)
+	assert.Contains(t, violations[0], filepath.Join("sub", "irtest", "nested.go"))
+}
+
+// writeImporter writes a minimal parseable Go file at path importing imp, so a
+// planted tree exercises walkImports without a buildable package.
+func writeImporter(t *testing.T, path, imp string) {
+	t.Helper()
+	require.NoError(t, os.MkdirAll(filepath.Dir(path), 0o755))
+	src := "package planted\n\nimport _ \"" + imp + "\"\n"
+	require.NoError(t, os.WriteFile(path, []byte(src), 0o644))
 }
 
 // TestImportGraph_EveryPackageIsRuledOrExempt requires every directory holding
@@ -143,60 +212,89 @@ func isProductionGoFile(name string) bool {
 	return strings.HasSuffix(name, ".go") && !strings.HasSuffix(name, "_test.go")
 }
 
-// walkImports traverses base, checking every production Go file's imports
-// against allowed. It excludes nested directories that carry their own rule so
-// each subtree is checked exactly once under its most specific rule.
-func walkImports(t *testing.T, dir, base string, allowed []string) error {
-	t.Helper()
-	return filepath.WalkDir(base, func(path string, d fs.DirEntry, err error) error {
+// walkImports traverses base and returns one message per production Go file
+// import that allowed does not cover. It excludes nested directories that carry
+// their own rule so each subtree is checked exactly once under its most specific
+// rule.
+//
+// It returns violations rather than reporting them, so the planted-tree tests
+// above can assert what a walk finds instead of only that a real walk is clean.
+func walkImports(dir, base string, allowed []string) ([]string, error) {
+	var violations []string
+	err := filepath.WalkDir(base, func(p string, d fs.DirEntry, err error) error {
 		if err != nil {
 			return err
 		}
 		if d.IsDir() {
-			if path != base && hasOwnRule(dir, filepath.Base(path)) {
-				return filepath.SkipDir
-			}
-			return nil
+			return skipIfRuled(dir, base, p)
 		}
 		if !isProductionGoFile(d.Name()) {
 			return nil
 		}
-		checkFileImports(t, path, dir, allowed)
+		found, ferr := fileViolations(p, dir, allowed)
+		if ferr != nil {
+			return ferr
+		}
+		violations = append(violations, found...)
 		return nil
 	})
+	return violations, err
 }
 
-// checkFileImports parses one file's import declarations and reports any
-// disallowed non-stdlib import via t.Errorf.
-func checkFileImports(t *testing.T, path, dir string, allowed []string) {
-	t.Helper()
-	f, err := parser.ParseFile(token.NewFileSet(), path, nil, parser.ImportsOnly)
-	require.NoError(t, err)
+// skipIfRuled reports filepath.SkipDir for a directory carrying its own rules
+// entry, which walkImports visits under that entry instead.
+//
+// The entry is looked up by the directory's full path under dir, not by its
+// basename: with a basename, *any* directory at any depth sharing a ruled
+// sibling's name was skipped — and skipped by a walk that never reached it under
+// its own rule either, so nothing audited it (GitHub #57).
+func skipIfRuled(dir, base, p string) error {
+	if p == base {
+		return nil
+	}
+	rel, err := filepath.Rel(base, p)
+	if err != nil {
+		return err
+	}
+	if _, own := rules[path.Join(dir, filepath.ToSlash(rel))]; own {
+		return filepath.SkipDir
+	}
+	return nil
+}
+
+// fileViolations parses one file's import declarations and returns a message for
+// each disallowed non-stdlib import.
+func fileViolations(p, dir string, allowed []string) ([]string, error) {
+	f, err := parser.ParseFile(token.NewFileSet(), p, nil, parser.ImportsOnly)
+	if err != nil {
+		return nil, err
+	}
+	var violations []string
 	for _, imp := range f.Imports {
 		ip := strings.Trim(imp.Path.Value, `"`)
 		if !strings.Contains(strings.SplitN(ip, "/", 2)[0], ".") {
 			continue // stdlib: first path element has no dot
 		}
 		// An empty allowlist (the "ir" rule) forbids every non-stdlib import.
-		if !hasAllowedPrefix(ip, allowed) {
-			t.Errorf("%s imports %q: not allowed for %s (allowed: %v)", path, ip, dir, allowed)
+		if !importAllowed(ip, allowed) {
+			violations = append(violations,
+				fmt.Sprintf("%s imports %q: not allowed for %s (allowed: %v)", p, ip, dir, allowed))
 		}
 	}
+	return violations, nil
 }
 
-// hasOwnRule reports whether the child directory named child, nested directly
-// under dir, has its own entry in rules and must therefore be walked under that
-// entry instead of the parent's.
-func hasOwnRule(dir, child string) bool {
-	_, ok := rules[dir+"/"+child]
-	return ok
-}
-
-// hasAllowedPrefix reports whether the import path ip is covered by any allowed
-// prefix, matching on path-segment boundaries so "ir" never matches "irtest".
-func hasAllowedPrefix(ip string, allowed []string) bool {
-	for _, prefix := range allowed {
-		if ip == prefix || strings.HasPrefix(ip, prefix+"/") {
+// importAllowed reports whether the import path ip is covered by allowed: an
+// entry matches ip exactly, or — written with the subtree suffix — matches ip
+// and everything under it. Matching a subtree on segment boundaries is what
+// keeps "ir" from admitting "irtest".
+func importAllowed(ip string, allowed []string) bool {
+	for _, entry := range allowed {
+		root, subtree := strings.CutSuffix(entry, subtreeSuffix)
+		if ip == root {
+			return true
+		}
+		if subtree && strings.HasPrefix(ip, root+"/") {
 			return true
 		}
 	}

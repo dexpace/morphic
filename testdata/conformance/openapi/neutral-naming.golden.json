@@ -1,0 +1,372 @@
+{
+  "irVersion": "0.3.0",
+  "name": "Neutral.Naming API",
+  "version": "1.0.0",
+  "docs": {},
+  "services": [
+    {
+      "id": "s/openapi/0",
+      "name": {
+        "source": "Neutral.Naming API",
+        "canonical": "neutral_naming_api"
+      },
+      "docs": {},
+      "groups": [
+        {
+          "name": {
+            "source": "inventory.core",
+            "canonical": "inventory_core"
+          },
+          "docs": {},
+          "operations": [
+            {
+              "id": "op/openapi/paths/~1widgets~1{widget.id}/get",
+              "name": {
+                "source": "widgets.list",
+                "canonical": "widgets_list"
+              },
+              "docs": {},
+              "params": [
+                {
+                  "name": {
+                    "source": "widget.id",
+                    "canonical": "widget_id"
+                  },
+                  "type": {
+                    "target": "t/prim/string",
+                    "nullable": false
+                  },
+                  "required": true,
+                  "docs": {}
+                },
+                {
+                  "name": {
+                    "source": "filter[name]",
+                    "canonical": "filter_name"
+                  },
+                  "type": {
+                    "target": "t/prim/string",
+                    "nullable": false
+                  },
+                  "required": false,
+                  "docs": {}
+                }
+              ],
+              "responses": [
+                {
+                  "name": {},
+                  "conditions": {
+                    "statusCodes": [
+                      {
+                        "from": 200,
+                        "to": 200
+                      }
+                    ]
+                  },
+                  "payload": {
+                    "contents": [
+                      {
+                        "mediaType": "application/json",
+                        "type": {
+                          "target": "t/openapi/components/schemas/com.example.Widget",
+                          "nullable": false
+                        }
+                      }
+                    ]
+                  },
+                  "headers": [
+                    {
+                      "id": "p/openapi/paths/~1widgets~1{widget.id}/get/responses/200/headers/X-Rate.Limit",
+                      "name": {
+                        "source": "X-Rate.Limit",
+                        "canonical": "x_rate_limit"
+                      },
+                      "wireName": "X-Rate.Limit",
+                      "type": {
+                        "target": "t/prim/integer",
+                        "nullable": false
+                      },
+                      "required": false,
+                      "clientOptional": false,
+                      "defaultAdded": false,
+                      "visibility": {
+                        "none": false
+                      },
+                      "flatten": false,
+                      "eventHeader": false,
+                      "eventPayload": false,
+                      "secret": false,
+                      "docs": {},
+                      "provenance": {
+                        "source": 0,
+                        "pointer": "/paths/~1widgets~1{widget.id}/get/responses/200/headers/X-Rate.Limit"
+                      }
+                    }
+                  ],
+                  "docs": {
+                    "description": "ok"
+                  }
+                }
+              ],
+              "oneWay": false,
+              "idempotency": {},
+              "auth": [
+                {
+                  "schemes": [
+                    {
+                      "scheme": "auth/openapi/components/securitySchemes/oauth2.client"
+                    }
+                  ]
+                }
+              ],
+              "tags": [
+                "inventory.core"
+              ],
+              "bindings": {
+                "http": [
+                  {
+                    "method": "GET",
+                    "uriTemplate": "/widgets/{widget.id}",
+                    "sharedRoute": false,
+                    "paramBindings": [
+                      {
+                        "param": "widget.id",
+                        "location": "path",
+                        "wireName": "widget.id",
+                        "style": "simple",
+                        "explode": false,
+                        "allowReserved": false
+                      },
+                      {
+                        "param": "filter[name]",
+                        "location": "query",
+                        "wireName": "filter[name]",
+                        "style": "form",
+                        "explode": true,
+                        "allowReserved": false
+                      }
+                    ],
+                    "checksumRequired": false,
+                    "isWebhook": false
+                  }
+                ]
+              },
+              "provenance": {
+                "source": 0,
+                "pointer": "/paths/~1widgets~1{widget.id}/get"
+              }
+            }
+          ]
+        }
+      ],
+      "auth": null,
+      "provenance": {
+        "source": 0
+      }
+    }
+  ],
+  "types": {
+    "t/anon/components/schemas/com.example.Widget/properties/rollout.state": {
+      "kind": "enum",
+      "id": "t/anon/components/schemas/com.example.Widget/properties/rollout.state",
+      "name": {
+        "hint": "rollout.state"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/com.example.Widget/properties/rollout.state"
+      },
+      "valueType": "string",
+      "members": [
+        {
+          "name": {
+            "source": "in.progress",
+            "canonical": "in_progress"
+          },
+          "value": {
+            "kind": "string",
+            "str": "in.progress",
+            "bytes": null,
+            "list": null,
+            "object": null
+          },
+          "docs": {}
+        },
+        {
+          "name": {
+            "source": "done",
+            "canonical": "done"
+          },
+          "value": {
+            "kind": "string",
+            "str": "done",
+            "bytes": null,
+            "list": null,
+            "object": null
+          },
+          "docs": {}
+        }
+      ],
+      "closed": true,
+      "flags": false
+    },
+    "t/openapi/components/schemas/com.example.Widget": {
+      "kind": "model",
+      "id": "t/openapi/components/schemas/com.example.Widget",
+      "name": {
+        "source": "com.example.Widget",
+        "canonical": "com_example_widget"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/com.example.Widget"
+      },
+      "properties": [
+        {
+          "id": "p/openapi/components/schemas/com.example.Widget/properties/widget.name",
+          "name": {
+            "source": "widget.name",
+            "canonical": "widget_name"
+          },
+          "wireName": "widget.name",
+          "type": {
+            "target": "t/prim/string",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/com.example.Widget/properties/widget.name"
+          }
+        },
+        {
+          "id": "p/openapi/components/schemas/com.example.Widget/properties/api.version.v2",
+          "name": {
+            "source": "api.version.v2",
+            "canonical": "api_version_v_2"
+          },
+          "wireName": "api.version.v2",
+          "type": {
+            "target": "t/prim/string",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/com.example.Widget/properties/api.version.v2"
+          }
+        },
+        {
+          "id": "p/openapi/components/schemas/com.example.Widget/properties/rollout.state",
+          "name": {
+            "source": "rollout.state",
+            "canonical": "rollout_state"
+          },
+          "wireName": "rollout.state",
+          "type": {
+            "target": "t/anon/components/schemas/com.example.Widget/properties/rollout.state",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/com.example.Widget/properties/rollout.state"
+          }
+        }
+      ],
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
+    "t/prim/integer": {
+      "kind": "primitive",
+      "id": "t/prim/integer",
+      "name": {},
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0
+      },
+      "prim": "integer"
+    },
+    "t/prim/string": {
+      "kind": "primitive",
+      "id": "t/prim/string",
+      "name": {},
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0
+      },
+      "prim": "string"
+    }
+  },
+  "auth": {
+    "auth/openapi/components/securitySchemes/oauth2.client": {
+      "id": "auth/openapi/components/securitySchemes/oauth2.client",
+      "name": {
+        "source": "oauth2.client",
+        "canonical": "oauth_2_client"
+      },
+      "kind": "http_bearer",
+      "docs": {},
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/securitySchemes/oauth2.client"
+      }
+    }
+  },
+  "servers": [
+    {
+      "name": {},
+      "urlTemplate": "/",
+      "description": {},
+      "auth": null
+    }
+  ],
+  "sources": [
+    {
+      "format": "openapi@3.1",
+      "path": "neutral-naming.yaml",
+      "hash": "13e0c92db80817482b453f13f23f0af03675a009e1af936b3f61c95b700eb029"
+    }
+  ]
+}

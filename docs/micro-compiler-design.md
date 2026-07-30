@@ -98,25 +98,25 @@ opinions", and invariant 4 makes neutral naming a property of the IR rather than
 today `example.v1` canonicalizes to `example_v1` from one compiler and `example.v1` from another,
 and an emitter reading `Canonical` cannot tell which grammar produced it.
 
-Nothing catches this. `irverify.checkNaming` tests lowercase-idempotence — it enforces the
-"never cased" half of invariant 4 and is silent on the "neutral canonical word sequence" half. Both
-spellings are lowercase, so both pass.
+Nothing caught this: `irverify.checkNaming` tested lowercase-idempotence — the "never cased" half
+of invariant 4 — and was silent on the "neutral canonical word sequence" half. Both spellings are
+lowercase, so both passed.
 
-Promotion therefore lands with a test, not just a home: the grammar moves to `compilers/compile`
-with a conformance suite, and `irverify` gains a segmentation check. That closes the live half of
-#73 and is adjacent to #54.
+**The grammar and its check landed ahead of this plan** (#161), because the divergence is a live
+invariant-4 violation rather than an architecture question. `ir-design.md` §3.2 now fixes the
+segmentation — a word is letters and digits, every other character separates — `compilers/openapi`
+implements it, and `irverify` rejects a canonical that is not a word sequence, so a compiler
+disagreeing about `.` is caught wherever the corpus reaches it. What that check cannot see is where
+a compiler puts the boundaries *inside* a word (`foo2bar` against `foo_2_bar`), which is what the
+promotion still buys.
 
-**Promoting the grammar is not behaviour-neutral, and the plan must budget for that.** The three
-copies disagree, so at most one survives promotion unchanged. If the promoted grammar treats `.` as
-a separator, OpenAPI's output changes for every name containing a dot; if it does not, Protobuf's
-does. Under decision 2 this is a structural fix rather than a move: its own PR, a test that reddens
-first, an explicit golden update, and the choice of grammar argued there rather than assumed here.
-The IR's own wording — "lower_snake words" — is an argument that `.` should separate everywhere,
-since a dot is not a word character. That is a recommendation, not a decision.
+So 1.2 is now the move rather than the decision: `compilers/compile` gets the single
+implementation, and the graphql and protobuf copies are deleted against it as those drafts rebase.
+Their outputs move at that point — the protobuf copy separates on `.` alone and the graphql copy on
+nothing but `_`/`-`/space — so each rebase carries its own golden update, argued there.
 
-The divergence is also a live defect independent of this work: two compilers producing different
-`Naming.Canonical` grammars is a violation of invariant 4 that ships today. It is filed separately
-so it is not lost if the architecture work is deferred.
+The divergence was filed separately so it would not be lost if this work were deferred; that is
+what it is now closed by.
 
 ### 3.2 What the framework must not absorb
 
@@ -476,9 +476,9 @@ sorts, which `maps.Keys` + `slices.Sorted` and the existing generic `sortedKeys`
 - **The source index.** Indexing the raw tree once (pointer → node + shape) would make resolution a
   lookup, share one walk across cycle and amplification detection, and give `--explain` a substrate.
   It is held back because `$ref` handling currently carries open defects — #40 (percent-encoded
-  fragments fail to resolve), #141 (an `$anchor`-resolved schema interns a malformed type ID), #143
-  (siblings adjacent to a `$ref` on an allOf branch are dropped) — and an index built over them
-  would bake them in. Filed as a follow-up blocked on those closing.
+  fragments fail to resolve) and #141 (an `$anchor`-resolved schema interns a malformed type ID) —
+  and an index built over them would bake them in. #143 (siblings adjacent to a `$ref` on an allOf
+  branch dropped) is closed. Filed as a follow-up blocked on the rest closing.
 - **Rebasing the GraphQL and Protobuf drafts.** They are evidence here, not work items.
 - **A new-compiler skeleton demo.**
 
@@ -505,12 +505,12 @@ Each row is one PR unless noted. "Done when" is the acceptance test, not a summa
 
 | # | Work | Done when | Blocked by |
 |---|---|---|---|
-| 0.1 | Fix archtest prefix matching so one compiler cannot import another (#57) | A test asserting `compilers/openapi` may not import `compilers/graphql` fails before the fix and passes after | — |
+| ~~0.1~~ | ~~Fix archtest prefix matching so one compiler cannot import another (#57)~~ | **Landed.** Allowlist entries are exact unless suffixed `/...`, and a planted sibling import now fails | — |
 | 0.2 | General two-order oracle in `internal/harness` | Reverses declaration order across the conformance corpus and diffs; proven by reverting #108's fix and watching it redden | — |
 | 0.3 | ID-collision oracle | `TypeID` → source pointer is injective across the corpus, and minted IDs occupy a namespace no source pointer produces; proven by planting a colliding derivation | — |
 | 1.1 | Promote the ID grammar into `compilers/compile` | `compilers/openapi` derives no ID except through the framework; goldens byte-identical | 0.1 |
-| 1.2 | Promote the canonical naming grammar, choosing one segmentation | Grammar has a conformance suite; the chosen rule is argued in the PR; goldens updated deliberately with a reddening test (**not** neutral — §3.1) | 0.1 |
-| 1.3 | Extend `irverify` to check segmentation, not only casing (#73, #54) | A cased-correct but wrongly-segmented `Canonical` is rejected; proven by planting one | 1.2 |
+| 1.2 | Promote the canonical naming grammar (the segmentation is decided — §3.1) | `compilers/compile` holds the one implementation and no compiler keeps a copy; each rebasing draft carries its own golden update | 0.1 |
+| ~~1.3~~ | ~~Extend `irverify` to check segmentation, not only casing (#73, #54)~~ | **Landed with #161**, ahead of 1.2: `ir/naming-not-words` rejects a lowercase but unsegmented canonical, proven by planting the old grammar and watching the corpus sweep redden. #54 (`Hint`) stays open | — |
 | 2.1–2.7 | Tier-0 extractions, one PR each: `diag`, `load`, `scan`, `ids`, `value`, `annotation` (+ site), `merge` | Per §8.1: goldens byte-identical, rules entry added, and each package carries table-driven unit tests needing no document | 0.1 |
 | 3.1 | Introduce `Ctx` with accessors; derive indexes at entry | No exported `Ctx` field is a map; goldens byte-identical | 2.x |
 | 3.2 | Convert the leaves to the contract: `constraints` → `annotation`, `meta` and `auth` → `operation` | Those files hold no `lowerer` method | 3.1 |
@@ -528,12 +528,12 @@ landing them first would only encode the current one.
 
 | Issue | Disposition |
 |---|---|
-| #57 archtest cannot enforce compiler isolation | **Closed by 0.1.** Prerequisite for every package boundary here |
-| #73 naming grammar and primitive IDs are cross-compiler ABI in one compiler | **Closed by 1.1–1.3.** This design is the answer to it |
+| #57 archtest cannot enforce compiler isolation | **Closed.** Landed with #161/#143; it was a prerequisite for every package boundary here |
+| #73 naming grammar and primitive IDs are cross-compiler ABI in one compiler | **Half closed.** The naming half landed with #161 (grammar + `irverify` check); the ID half is 1.1 |
 | #54 cased `Naming.Hint` passes the neutrality check | **Adjacent to 1.3**; fixed there if the segmentation work reaches `Hint`, otherwise left open |
 | #83 enforce size and complexity caps in lint | **Closed by 4.2**, deliberately last |
 | #66 extract a shared JSON-Schema→IR lowering core before the next compilers land | **Superseded.** Its premise expired — the next compilers landed without it (#20, #21). §3 replaces it with evidence-based promotion. To be closed with that reasoning, not silently |
 | #142 the annotation matrix cannot reach a carrier position | **Untouched, and recorded in §8.4** as a standing blind spot. Independently fixable |
-| #40, #141, #143 `$ref` handling defects | **Block the source index** (§10). Not fixed here |
+| #40, #141 `$ref` handling defects | **Block the source index** (§10). Not fixed here. #143, listed here before, is closed |
 | #20, #21 GraphQL and Protobuf drafts | **Evidence, not work items** (§2). Rebasing is later work |
-| Naming grammar divergence across compilers | **New issue**, filed separately: a live invariant-4 violation that ships today, independent of whether this architecture work proceeds |
+| Naming grammar divergence across compilers | **Closed by #161**, filed and fixed separately: a live invariant-4 violation, independent of whether this architecture work proceeds |

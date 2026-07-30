@@ -469,20 +469,42 @@ func mappingTarget(doc *ir.Document, target ir.TypeID, member func(ir.TypeID) bo
 
 // isSubtype reports whether target is a declared subtype of base via single
 // inheritance or interface conformance.
+//
+// A composition parent naming an alias scalar is read through it: a `$ref`
+// carrying siblings composes the branch's own node rather than the referenced
+// schema directly (ir-design §4.3), so a subtype declared that way names its
+// parent one hop further away than the discriminator mapping spells it.
+// exposedProps reads composition the same way.
 func isSubtype(doc *ir.Document, target, base ir.TypeID) bool {
 	sub, ok := doc.Types[target].(*ir.Model)
 	if !ok {
 		return false
 	}
-	if sub.Base != nil && sub.Base.Target == base {
+	if sub.Base != nil && aliasedType(doc, sub.Base.Target) == base {
 		return true
 	}
 	for _, r := range sub.Implements {
-		if r.Target == base {
+		if aliasedType(doc, r.Target) == base {
 			return true
 		}
 	}
 	return false
+}
+
+// aliasedType follows a chain of alias scalars — a Scalar whose Base names
+// another type — to the type it stands for, returning id unchanged when it names
+// no alias. The visited set bounds it: the IR permits a cyclic alias chain, and
+// a walk over one must terminate rather than spin.
+func aliasedType(doc *ir.Document, id ir.TypeID) ir.TypeID {
+	seen := make(map[ir.TypeID]bool)
+	for {
+		s, ok := doc.Types[id].(*ir.Scalar)
+		if !ok || s.Base == nil || seen[id] {
+			return id
+		}
+		seen[id] = true
+		id = s.Base.Target
+	}
 }
 
 // checkDuplicateWireNames reports wire-name collisions within a single model's
