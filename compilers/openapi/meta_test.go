@@ -36,7 +36,7 @@ paths:
 // TestMeta_UnserializableExtensionStillWarns pins the document-level twin of
 // TestAuth_UnserializableExtensionStillWarns: when every top-level x-* extension
 // fails to serialize, lowerMeta's "if len(ext) > 0" guard is false, so the
-// warning must already have been recorded by l.extensions rather than appended
+// warning must already have been recorded by the extension reader rather than appended
 // inside the guard — the shape that used to drop it silently.
 func TestMeta_UnserializableExtensionStillWarns(t *testing.T) {
 	t.Parallel()
@@ -82,10 +82,10 @@ func TestMeta_NoInfoNoServers(t *testing.T) {
 func TestLowerServers_NilEntrySkipped(t *testing.T) {
 	t.Parallel()
 	doc := &soa.OpenAPI{Servers: []*soa.Server{nil, {URL: "https://x.example.com"}}}
-	l := newRawLowerer(doc)
-	l.lowerServers()
-	require.Len(t, l.out.Servers, 1, "nil server entry skipped, valid one lowered")
-	assert.Equal(t, "https://x.example.com", l.out.Servers[0].URLTemplate)
+	got := lowerServers(lowerCtx{Doc: doc})
+
+	require.Len(t, got, 1, "nil server entry skipped, valid one lowered")
+	assert.Equal(t, "https://x.example.com", got[0].URLTemplate)
 }
 
 func TestServerVariables_NilEntrySkipped(t *testing.T) {
@@ -97,4 +97,14 @@ func TestServerVariables_NilEntrySkipped(t *testing.T) {
 	srv := lowerServer(&soa.Server{URL: "https://x", Variables: vars})
 	require.Len(t, srv.Variables, 1, "nil variable entry skipped")
 	assert.Equal(t, "keep", srv.Variables[0].Name)
+}
+
+// TestLowerServers_EveryEntrySkippedIsNil pins the same guard on the servers
+// side: when no entry survives, the field stays unset rather than becoming an
+// empty list the source never declared.
+func TestLowerServers_EveryEntrySkippedIsNil(t *testing.T) {
+	t.Parallel()
+	doc := &soa.OpenAPI{Servers: []*soa.Server{nil, nil}}
+
+	assert.Nil(t, lowerServers(lowerCtx{Doc: doc}))
 }

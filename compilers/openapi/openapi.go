@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	"github.com/dexpace/morphic/compilers"
+	"github.com/dexpace/morphic/compilers/openapi/internal/annotation"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/load"
 	"github.com/dexpace/morphic/ir"
@@ -53,9 +54,21 @@ func (c *Compiler) Compile(ctx context.Context, sources []compilers.Source, opts
 // the Document.
 func (l *lowerer) run() *ir.Document {
 	l.lowerComponentSchemas()
-	l.lowerSecuritySchemes()
+	auth, authDiags := lowerSecuritySchemes(l.ctx)
+	l.out.Auth = auth
+	l.diags.AppendAll(authDiags)
 	l.out.Services = []ir.Service{l.lowerService()}
-	l.lowerMeta()
+	m, metaDiags := lowerMeta(l.ctx)
+	l.out.Name, l.out.Version = m.Name, m.Version
+	l.out.TermsOfService, l.out.Docs = m.TermsOfService, m.Docs
+	l.out.Contact, l.out.License = m.Contact, m.License
+	if len(m.Servers) > 0 {
+		l.out.Servers = m.Servers
+	}
+	if len(m.Unmodeled) > 0 {
+		l.out.Unmodeled = annotation.MergeUnmodeled(l.out.Unmodeled, m.Unmodeled)
+	}
+	l.diags.AppendAll(metaDiags)
 	l.out.IRVersion = ir.IRVersion
 	l.out.Sources = []ir.SourceInfo{l.ctx.Source}
 	// An entry the registry refused is a compiler bug no source can provoke, and

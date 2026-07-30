@@ -138,7 +138,7 @@ func (l *lowerer) schemaConstraints(s *oas3.Schema, pointer string) *ir.Constrai
 	if s == nil {
 		return nil
 	}
-	c, diags := constraintsFromSchema(s, l.exclusiveBoundIsBoolean())
+	c, diags := annotation.Constraints(s, l.ctx.exclusiveBoundIsBoolean())
 	l.appendConstraintDiags(diags, pointer)
 	return c
 }
@@ -228,7 +228,7 @@ func declaresAnnotations(s *oas3.Schema) bool {
 }
 
 // declaresValueConstraints reports whether s sets any keyword
-// constraintsFromSchema reads. It does not call it: that reports a malformed
+// annotation.Constraints reads. It does not call it: that reports a malformed
 // bound, and a predicate must not emit diagnostics. The three numeric bounds
 // are detected on their raw nodes for the same reason numericBounds reads them
 // there — a magnitude beyond float64 leaves the model field nil while the
@@ -742,7 +742,7 @@ func (l *lowerer) fillPropertyDefault(p *ir.Property, ref, tgt *oas3.Schema, poi
 // fillPropertyConstraints attaches the property's scalar constraints and stamps
 // each constraint diagnostic with the property's provenance.
 func (l *lowerer) fillPropertyConstraints(p *ir.Property, ref *oas3.Schema, pointer string) {
-	c, diags := constraintsFromSchema(ref, l.exclusiveBoundIsBoolean())
+	c, diags := annotation.Constraints(ref, l.ctx.exclusiveBoundIsBoolean())
 	l.appendConstraintDiags(diags, pointer)
 	if c != nil {
 		p.Constraints = c
@@ -891,6 +891,22 @@ func (l *lowerer) preserveKeyword(p *ir.Unmodeled, key string, raw ir.RawValue, 
 // instead of hand-writing the append+diag.Newf+Provenance triple.
 func (l *lowerer) diag(sev ir.Severity, code, pointer, format string, args ...any) {
 	l.appendDiag(diag.Newf(sev, code, ir.Provenance{Source: l.ctx.SrcIndex, Pointer: pointer}, format, args...))
+}
+
+// appendConstraintDiags stamps constraint diagnostics with pointer's provenance,
+// recording them at most once per pointer: a sub-schema reached from both its
+// owning property and a $ref that hoists it is read twice, but a malformed bound
+// must be reported only once. Constraint data still lands on both nodes; only
+// the diagnostic is de-duplicated.
+func (l *lowerer) appendConstraintDiags(diags []ir.Diagnostic, pointer string) {
+	if l.diagnosedConstraints[pointer] {
+		return
+	}
+	l.diagnosedConstraints[pointer] = true
+	for i := range diags {
+		diags[i].Provenance = ir.Provenance{Source: l.ctx.SrcIndex, Pointer: pointer}
+		l.appendDiag(diags[i])
+	}
 }
 
 // appendDiag records d unless one identical to it — same severity, code,

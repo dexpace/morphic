@@ -80,7 +80,7 @@ func (l *lowerer) fillParamType(param *ir.Parameter, binding *ir.HTTPParamBindin
 }
 
 // fillParamSchema reads a parameter schema's default value and scalar
-// constraints. Numeric bounds flow through constraintsFromSchema, which reads
+// constraints. Numeric bounds flow through annotation.Constraints, which reads
 // raw decimal nodes rather than the *float64 model fields.
 //
 // A schema spelled {$ref: …} resolves its target so the annotations that
@@ -101,7 +101,7 @@ func (l *lowerer) fillParamSchema(param *ir.Parameter, js *oas3.JSONSchema[oas3.
 	tgt := l.refTargetSchema(js, s)
 	l.fillParamDefault(param, s, tgt, pointer)
 
-	c, diags := constraintsFromSchema(s, l.exclusiveBoundIsBoolean())
+	c, diags := annotation.Constraints(s, l.ctx.exclusiveBoundIsBoolean())
 	l.appendConstraintDiags(diags, pointer)
 	if c != nil {
 		param.Constraints = c

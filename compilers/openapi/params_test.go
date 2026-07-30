@@ -119,7 +119,7 @@ func TestParams_SchemaConstraints(t *testing.T) {
 	op := firstOp(t, svc)
 	require.Len(t, op.Params, 1)
 	c := op.Params[0].Constraints
-	require.NotNil(t, c, "param scalar constraints land via constraintsFromSchema")
+	require.NotNil(t, c, "param scalar constraints land via annotation.Constraints")
 	require.NotNil(t, c.Max)
 	assert.Equal(t, ir.BigVal("120"), *c.Max, "numeric bound read at full precision")
 }

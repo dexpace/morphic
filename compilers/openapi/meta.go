@@ -8,49 +8,73 @@ import (
 	"github.com/dexpace/morphic/ir"
 )
 
+// docMeta is the document-level metadata: what ir.Document carries that belongs
+// to neither the type graph nor the service graph.
+//
+// It exists so the lowering can return what it read instead of writing into the
+// document as it goes. The caller owns the document and does the assigning,
+// which is what lets every function below be checked against a literal context
+// and nothing else.
+type docMeta struct {
+	Name           string
+	Version        string
+	TermsOfService string
+	Docs           ir.Docs
+	Contact        *ir.Contact
+	License        *ir.License
+	Servers        []ir.Server
+	Unmodeled      ir.Unmodeled
+}
+
 // lowerMeta lowers the document-level metadata that is not part of the type or
 // service graph: info, servers, and top-level extensions (ir-design §10, §12).
-func (l *lowerer) lowerMeta() {
-	l.lowerInfo()
-	l.lowerServers()
-	if ext := l.extensions(l.ctx.Doc.GetExtensions(), ""); len(ext) > 0 {
-		l.out.Unmodeled = annotation.MergeUnmodeled(l.out.Unmodeled, ext)
-	}
+func lowerMeta(c lowerCtx) (docMeta, []ir.Diagnostic) {
+	m := lowerInfo(c)
+	m.Servers = lowerServers(c)
+
+	ext, diags := annotation.ExtensionsFrom(c.Doc.GetExtensions(), c.SrcIndex, "")
+	m.Unmodeled = ext
+	return m, diags
 }
 
 // lowerInfo maps info onto the document identity, docs, contact, and license.
 // GetInfo always returns a non-nil Info (it addresses an embedded struct value),
 // so no nil guard is needed.
-func (l *lowerer) lowerInfo() {
-	info := l.ctx.Doc.GetInfo()
-	l.out.Name = info.GetTitle()
-	l.out.Version = info.GetVersion()
-	l.out.TermsOfService = info.GetTermsOfService()
-	l.out.Docs = l.infoDocs(info)
-	if c := info.GetContact(); c != nil {
-		l.out.Contact = &ir.Contact{Name: c.GetName(), URL: c.GetURL(), Email: c.GetEmail()}
+func lowerInfo(c lowerCtx) docMeta {
+	info := c.Doc.GetInfo()
+	m := docMeta{
+		Name:           info.GetTitle(),
+		Version:        info.GetVersion(),
+		TermsOfService: info.GetTermsOfService(),
+		Docs:           infoDocs(c, info),
+	}
+	if ct := info.GetContact(); ct != nil {
+		m.Contact = &ir.Contact{Name: ct.GetName(), URL: ct.GetURL(), Email: ct.GetEmail()}
 	}
 	if lic := info.GetLicense(); lic != nil {
-		l.out.License = &ir.License{Name: lic.GetName(), Identifier: lic.GetIdentifier(), URL: lic.GetURL()}
+		m.License = &ir.License{Name: lic.GetName(), Identifier: lic.GetIdentifier(), URL: lic.GetURL()}
 	}
+	return m
 }
 
 // infoDocs builds the document docs from info summary and description, folding
 // in the root externalDocs link when present.
-func (l *lowerer) infoDocs(info *soa.Info) ir.Docs {
+func infoDocs(c lowerCtx, info *soa.Info) ir.Docs {
 	d := ir.Docs{Summary: info.GetSummary(), Description: info.GetDescription()}
-	if ed := l.ctx.Doc.GetExternalDocs(); ed != nil {
+	if ed := c.Doc.GetExternalDocs(); ed != nil {
 		d.ExternalDocs = append(d.ExternalDocs, ir.Link{URL: ed.GetURL(), Description: ed.GetDescription()})
 	}
 	return d
 }
 
 // lowerServers lowers the document's servers in source order, each with its URL
-// template, description, and templated variables (ir-design §10).
-func (l *lowerer) lowerServers() {
+// template, description, and templated variables (ir-design §10). It returns nil
+// rather than an empty slice when every entry was skipped, so a document
+// declaring no usable server leaves the field unset.
+func lowerServers(c lowerCtx) []ir.Server {
 	// GetServers never returns an empty slice — it injects a default "/" server
 	// when none are declared — so the loop always runs at least once.
-	servers := l.ctx.Doc.GetServers()
+	servers := c.Doc.GetServers()
 	out := make([]ir.Server, 0, len(servers))
 	for _, s := range servers {
 		if s == nil {
@@ -58,9 +82,10 @@ func (l *lowerer) lowerServers() {
 		}
 		out = append(out, lowerServer(s))
 	}
-	if len(out) > 0 {
-		l.out.Servers = out
+	if len(out) == 0 {
+		return nil
 	}
+	return out
 }
 
 // lowerServer lowers one server. The OpenAPI 3.2 server name, when present,

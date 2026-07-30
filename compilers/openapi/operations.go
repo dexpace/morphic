@@ -44,7 +44,9 @@ func (l *lowerer) lowerService() ir.Service {
 		svc.Name = compile.NamingFor(title)
 		svc.Docs.Description = info.GetDescription()
 	}
-	svc.Auth = l.lowerSecurityRequirements(l.ctx.Doc.GetSecurity())
+	svcAuth, svcAuthDiags := lowerSecurityRequirements(l.ctx, l.ctx.Doc.GetSecurity(), l.out.Auth)
+	svc.Auth = svcAuth
+	l.diags.AppendAll(svcAuthDiags)
 	l.lowerTagDefs()
 	groups := newServiceGroups()
 	l.lowerPaths(groups)
@@ -224,11 +226,13 @@ type opContext struct {
 // registered alongside it in the same group (ir-design §7.2, §8.1).
 func (l *lowerer) lowerOperation(src *soa.Operation, ctx opContext) (ir.Operation, []ir.Operation) {
 	mount, decl := ctx.ptrs.mount, ctx.ptrs.decl
+	opAuth, opAuthDiags := lowerSecurityRequirements(l.ctx, src.Security, l.out.Auth)
+	l.diags.AppendAll(opAuthDiags)
 	op := ir.Operation{
 		ID:   ids.Op(mount),
 		Name: operationName(src, ctx.method, ctx.uriTemplate),
 		Tags: src.GetTags(),
-		Auth: l.lowerSecurityRequirements(src.Security),
+		Auth: opAuth,
 		// The ID is the mount — two mounts of one $ref'd path item are two
 		// operations — but provenance is where the operation is written, which
 		// for those two is one component. A mount pointer under a $ref'd path

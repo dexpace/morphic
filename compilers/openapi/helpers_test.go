@@ -90,7 +90,9 @@ func lowerServiceSpec(t *testing.T, src string) (*ir.Document, ir.Service, []ir.
 		require.NotNil(t, loadedDoc)
 		l := newLowerer(0, loadedDoc, Options{}.withDefaults())
 		l.lowerComponentSchemas()
-		l.lowerSecuritySchemes()
+		auth, authDiags := lowerSecuritySchemes(l.ctx)
+		l.out.Auth = auth
+		l.diags.AppendAll(authDiags)
 		l.out.Services = []ir.Service{l.lowerService()}
 		return l.out, append(loadDiags, l.diags.List()...)
 	}()
