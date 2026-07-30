@@ -6,6 +6,13 @@ Status: approved, not yet implemented. Scope: `compilers/compile`, `compilers/op
 Claims about code in this document were true at `a095636`. Where a number would rot, this
 document gives the command that derives it instead of the number.
 
+**A micro-compiler is a function that lowers one source construct at one position, given only what
+that construct needs.** It takes an immutable context and a coordinate, returns a value and its
+diagnostics, and touches no state its caller cannot see. The unit is a *position in the source*, not
+a stage in a pipeline — §4 records why the pipeline framing does not survive contact with the
+recursion. A type may own several such functions when they serve one construct, which is what
+`merger` and `refScan` already do; it becomes a god object when they serve eleven.
+
 ## 1. Problem
 
 `compilers/openapi` is one Go package. Its ~20 files are a filing convention, not a boundary:
@@ -63,7 +70,7 @@ Four constraints were settled before this design and are not re-opened here.
 No functional-programming dependency is adopted. The architecture is functional in the way that
 pays here — pure functions over explicit inputs, values returned rather than mutated — and Go
 expresses that with parameters and return values. A combinator library was evaluated and rejected;
-§8 records why, because the reasoning is not obvious and will otherwise be re-litigated.
+§9 records why, because the reasoning is not obvious and will otherwise be re-litigated.
 
 ## 3. The framework boundary
 
@@ -99,6 +106,18 @@ Promotion therefore lands with a test, not just a home: the grammar moves to `co
 with a conformance suite, and `irverify` gains a segmentation check. That closes the live half of
 #73 and is adjacent to #54.
 
+**Promoting the grammar is not behaviour-neutral, and the plan must budget for that.** The three
+copies disagree, so at most one survives promotion unchanged. If the promoted grammar treats `.` as
+a separator, OpenAPI's output changes for every name containing a dot; if it does not, Protobuf's
+does. Under decision 2 this is a structural fix rather than a move: its own PR, a test that reddens
+first, an explicit golden update, and the choice of grammar argued there rather than assumed here.
+The IR's own wording — "lower_snake words" — is an argument that `.` should separate everywhere,
+since a dot is not a word character. That is a recommendation, not a decision.
+
+The divergence is also a live defect independent of this work: two compilers producing different
+`Naming.Canonical` grammars is a violation of invariant 4 that ships today. It is filed separately
+so it is not lost if the architecture work is deferred.
+
 ### 3.2 What the framework must not absorb
 
 Loading and options are format-specific and stay put. Reference resolution is needed by two of three
@@ -130,6 +149,25 @@ func lowerX(ctx Ctx, ts *compile.Types, node N, at string) (Out, []ir.Diagnostic
   effect, which is the property being removed.
 
 Every function is then constructible in a test from a literal `Ctx` and a fresh `compile.NewTypes(0)`.
+
+```go
+// Ctx is everything a lowering needs and must not change. Copied, not shared.
+type Ctx struct {
+    Doc      *soa.OpenAPI  // the parsed source
+    Opts     Options       // the caller's options
+    Source   ir.SourceInfo // identity of the loaded source
+    SrcIndex int           // index into Document.Sources
+    // contains the derived indexes; see below
+}
+
+func (c Ctx) DeclaresSchema(name string) bool   // was the `schemas` field
+func (c Ctx) AnchorsNamed(name string) []string // was the `dynamicAnchors` field
+```
+
+The derived indexes are maps, and a struct copy shares a map rather than copying it — so "immutable
+by value" would be a half-truth if they were exported fields. They are unexported and read through
+accessors instead, which makes the immutability real rather than conventional. This costs two
+methods and removes a class of bug where a callee's write is visible to its caller's caller.
 
 ### 4.1 Where the thirteen fields go
 
@@ -180,15 +218,76 @@ done
 wc -l compilers/openapi/{value,ids,amplification,cycles,merge,facets,load,diag}.go | tail -1
 ```
 
+One Tier-0 file does not move alone. `facets.go` reads a `site`, and `site`, `siteKind`, `siteAt`
+and `siteSchema` are declared in `resolve.go` — as free functions and types, not as `lowerer`
+methods. They belong with the readers that consume them: a site is a position, and annotations are
+what a position carries. So `internal/annotation` takes `facets.go` plus those four declarations,
+and `resolve.go` keeps only its fourteen methods.
+
 **Tier 1 — the god object.** Every method lives in eleven files: `schema`, `compose`, `operations`,
-`content`, `resolve`, `params`, `hoist`, `auth`, `meta`, `constraints`, `openapi`. Target packages
-follow the call graph: `internal/schema` (schema ⇄ compose), `internal/operation` (operations,
-params, content), `internal/resolve`, with the small leaves distributed.
+`content`, `resolve`, `params`, `hoist`, `auth`, `meta`, `constraints`, `openapi`.
 
 **Unsettled:** `hoist` is called from four places and its job — intern an anonymous type at a
-pointer, return a ref — is close to `compile.Types.Intern`. Whether it becomes a package or largely
-dissolves into the framework is determined by reading its methods during implementation, not
-decided here.
+pointer, return a ref — is close to `compile.Types.Intern`. Whether it becomes part of
+`internal/schema` or largely dissolves into the framework is determined by reading its methods
+during implementation, not decided here.
+
+### 5.1 Target layout
+
+```
+compilers/compile/                  framework — imports ir only
+  types.go       interning and the type registry                (exists)
+  diags.go       accumulation and identity dedup                (exists)
+  naming.go      canonical word grammar                         (promoted, §3.1)
+  ids.go         ID grammar and the minted-node namespace rule   (promoted)
+
+compilers/openapi/                  the public face, and nothing else
+  openapi.go     Compiler, New, Formats, Compile
+  options.go     Options, GroupingStrategy
+  internal/
+    diag/        OpenAPI diagnostic codes, diagf, hasErrorDiag
+    load/        parse and load the document
+    scan/        cycle and amplification refusal over raw source
+    ids/         OpenAPI pointer arithmetic and ID derivation
+    value/       value and BigVal lowering
+    annotation/  site, siteAt, the facet readers (+ constraints, from 3.2)
+    merge/       allOf property reconciliation
+    resolve/     reference resolution
+    schema/      schema ⇄ compose (⇄ hoist) — the recursive core
+    operation/   operations, params, content, auth, meta
+```
+
+Imports run one way: `operation` → `schema` → {`resolve`, `annotation`, `merge`, `value`, `ids`} →
+`diag` → `compile` → `ir`. `load` and `scan` sit on the entry side, imported only by `openapi.go`.
+
+`diag` sits at the bottom because `diagf` is the single constructor that populates severity, code and
+provenance, and eight files call it. The OpenAPI diagnostic codes are format-specific strings, so
+they stay in the compiler rather than moving to `compilers/compile`; whether `diagf` itself later
+promotes is left open, since the promotion rule in §3 requires evidence from all three compilers
+and the drafts' constructors have not been compared.
+
+Two files in the Tier-0 list join a package later rather than founding one. `constraints.go` carries
+two `lowerer` methods, so it is Tier 1 by the definition above and moves into `annotation` at step
+3.2; `hoist.go` is unsettled per §5. Everything else in the Tier-0 set founds a package directly.
+
+### 5.2 Test migration is not free
+
+Twenty-one of the package's thirty-one test files are `package openapi` — internal tests reaching
+unexported symbols:
+
+```bash
+grep -h '^package ' $(git ls-files 'compilers/openapi/*_test.go') | sort | uniq -c
+```
+
+Tests move with the code they cover, and an internal test for `value.go` becomes an internal test of
+`internal/value` unchanged. The ones that will bite are the suites spanning concerns —
+`conformance_test.go`, `golden_test.go`, `annotations_test.go`, `fuzz_test.go` — which exercise the
+whole compiler and belong at the top level as external tests against `Compile`. Any test that
+survives only by reaching across a new boundary is evidence the boundary is in the wrong place, and
+should be treated as such rather than worked around with an export.
+
+The 100% coverage gate is what makes this safe: a helper stranded on the wrong side of a split shows
+up immediately as an uncovered statement rather than as quietly dead code.
 
 ## 6. Data flow
 
@@ -216,9 +315,7 @@ during a Tier-1 step is a stop-and-explain, never an `-update`.** `compile.Diags
 first-seen order, but "first-seen" differs between central accumulation and bottom-up returns, so
 some reordering is expected and each instance must be understood rather than absorbed.
 
-## 7. Enforcement and testing
-
-### 7.1 Enforcement
+## 7. Enforcement
 
 1. **`internal/archtest`'s prefix matching is a live hole and is fixed first.** `hasAllowedPrefix`
    accepts `ip == prefix || strings.HasPrefix(ip, prefix+"/")`, and `compilers/openapi`'s allowlist
@@ -234,26 +331,88 @@ some reordering is expected and each instance must be understood rather than abs
    `internal/archtest` already carries `go/parser`, so a cap on methods per type in `compilers/*` is
    cheap, and it is the only guard that would have caught this happening.
 
-### 7.2 The missing oracle
+## 8. Testing
 
-**The general two-order diff does not exist.** CLAUDE.md prescribes it;
+Most of this work is not writing behaviour but proving behaviour did not change, so the testing
+obligations are the design rather than a postscript to it.
+
+### 8.1 What each step must prove
+
+**A Tier-0 move must show:** goldens byte-identical with no `-update`; coverage still exactly 100%;
+an `internal/archtest` rules entry for the new package; and — the obligation that makes the move
+worth doing — **table-driven unit tests for the package's own surface**, built from a literal `Ctx`
+and a fresh `compile.NewTypes(0)`, calling neither `Compile` nor a document fixture.
+
+That last requirement is the acceptance criterion separating this from a file shuffle. Today's suite
+is integration-heavy enough that a purely cosmetic split would keep passing. **If a package cannot
+be tested without constructing a document, its boundary is in the wrong place** — that is a signal
+to move the boundary, not to add a fixture.
+
+**A Tier-1 conversion must additionally show:** the two-order oracle green across the conformance
+corpus; the ID-collision oracle green; a bounded-recursion test for every package that recurses; and
+every diagnostic-order change explained individually rather than absorbed by a golden update.
+
+### 8.2 Two oracles that do not exist yet
+
+**The general two-order diff.** CLAUDE.md prescribes it;
 `TestOneOf_CoDeclaredDistributionIsOrderIndependent` implements it by hand for three cases, at
 exactly the site where the pointer-collision bug was found. `harness.deterministic` looks like the
 general version and is not — it recompiles *the same bytes*, proving same-input-same-output rather
-than permuted-input-same-output. Only the second property catches order-dependent interning.
+than permuted-input-same-output. Only the second catches order-dependent interning, and this
+refactor moves interning.
 
-This refactor moves interning, which is what order dependence is sensitive to. The oracle — permute
-declaration order in a source, `cmp.Diff` the two documents — therefore lands **before Tier 1**, not
-after. A byte-identical golden cannot provide this guarantee, because a golden is one order.
+Mechanism: permute *declaration order* — reverse the entries of `components/schemas`, of `paths`,
+and of each `properties` map — then compile both and `cmp.Diff` the documents. Two limits belong in
+the doc comment so the oracle is not over-trusted. Some permutations are not meaning-preserving: a
+document with duplicate mapping keys resolves to the last one (#95), so permuting those tests
+nothing and such sources are excluded. And it proves order-independence only for constructs the
+fixture contains, which is why it belongs on the conformance corpus rather than on one hand-written
+spec.
 
-### 7.3 Held at every step
+**An ID-collision oracle.** Nothing in the repo asserts that two distinct source constructs cannot
+mint the same `ir.TypeID`. Invariant 3's corollary — a minted node needs a namespace of its own —
+is currently held by reading alone, and CLAUDE.md records the failure mode precisely: violating it
+produces no diagnostic in either order, with `pass/validate` clean on both.
+
+This is the most likely way the refactor breaks something no existing guard sees, because moving
+lowering between packages is exactly when an ID derivation gets rewritten. The check: over every
+corpus spec, assert the map from `ir.TypeID` to originating source pointer is injective, and that
+every minted ID sits in a namespace no source pointer can produce. It lands before Tier 1 alongside
+the two-order oracle.
+
+### 8.3 What this refactor specifically endangers
+
+| Change | How it breaks | What catches it |
+|---|---|---|
+| `depth` field → parameter | one path forgets to increment; unbounded recursion on a cyclic or deep spec | `FuzzCycleDetector`, cycle corpus — but only through paths a fixture reaches. Add a per-package depth test |
+| ID derivation crosses a package boundary | pointer prefix changes; collision or dangling ref | `danglingcheck_test.go`, plus the new collision oracle |
+| Signature change alters the `at` passed | a node records a wrong-but-valid pointer | **Nothing directly.** `irverify.checkProvenance` validates the source *index range*, not pointer correctness. Goldens carry provenance, so it surfaces as a golden diff — which is precisely why §6.1's no-`-update` rule is load-bearing rather than fussy |
+| Diagnostics returned instead of accumulated | ordering shifts | Goldens, handled per §6.1 |
+| `diagnosedConstraints` dissolves into memoization | a duplicate diagnostic returns on an unmemoized path | Goldens, but only for corpus-covered shapes. Add a targeted test for the two-position read the field exists to suppress |
+| `Ctx` copied while its maps are shared | a callee's write is visible to its caller | Accessors make it unrepresentable; assert no exported `Ctx` field is a map |
+| Tests move with their code | a test stops reaching what it claims to cover | The coverage gate protects the *code*, not the *test*. Plant a defect in each moved package and confirm that package's own suite reddens |
+
+### 8.4 Blind spots, stated so they are not mistaken for coverage
+
+- **`harness.Check` returns at the first error diagnostic, before `irverify` runs.** A fixture
+  written to exercise an invariant check that also trips an error diagnostic never reaches it.
+  Establish where each new fixture lands rather than assuming it arrives.
+- **The annotation grid cannot express a carrier position** (#142), so annotations landing on
+  `ir.Parameter` or `ir.Property` are not measured by it and still need hand-written tests. The grid
+  looks complete over a set of axes that cannot name the position.
+- **The golden corpus shares the blind spots of the code that produced it.** A construct no fixture
+  contains is unprotected by byte-equality. The conformance corpus is the intended counterweight and
+  is only as complete as `ir-spec-matrix.md`.
+- **`irverify` checks provenance index range, not pointer correctness** — see the table above.
+
+### 8.5 Held at every step
 
 Goldens byte-identical; the 27-cell annotation grid green with no `knownGap` reintroduced;
-`irverify` extended with the naming-segmentation check; 100% statement coverage. Per the repo's
-verification discipline, every new guard gets a planted defect to prove it reddens — including the
-new oracle, which is proven against a known order-dependent input before it is trusted.
+`irverify` extended with the naming-segmentation check; all three fuzz targets still building and
+seeded; 100% statement coverage. Every new guard gets a planted defect to prove it reddens —
+including both new oracles, each proven against a known-bad input before it is trusted.
 
-## 8. Rejected: a functional-programming dependency
+## 9. Rejected: a functional-programming dependency
 
 `IBM/fp-go`, `TeaEntityLab/fpGo` and `emirpasic/gods` were evaluated. Recorded here so the
 evaluation is not repeated.
@@ -283,8 +442,13 @@ Neither is adopted, for four reasons:
 `v2.0.0-alpha` since January 2024. The actual need is a few dozen set-shaped maps and a handful of
 sorts, which `maps.Keys` + `slices.Sorted` and the existing generic `sortedKeys` already cover.
 
-## 9. Deliberately out of scope
+## 10. Deliberately out of scope
 
+- **The compiler's public surface.** `openapi.Compiler`, `New`, `Options` and `GroupingStrategy`
+  are unchanged, and so is the `compilers.Compiler` contract they satisfy. Every package this design
+  creates lives under `internal/`, so none of it is reachable from outside the compiler. The IR is
+  the ABI (invariant 1); a restructuring that altered the compiler's own surface would be a second,
+  unrelated change.
 - **The source index.** Indexing the raw tree once (pointer → node + shape) would make resolution a
   lookup, share one walk across cycle and amplification detection, and give `--explain` a substrate.
   It is held back because `$ref` handling currently carries open defects — #40 (percent-encoded
@@ -294,7 +458,7 @@ sorts, which `maps.Keys` + `slices.Sorted` and the existing generic `sortedKeys`
 - **Rebasing the GraphQL and Protobuf drafts.** They are evidence here, not work items.
 - **A new-compiler skeleton demo.**
 
-## 10. Risks
+## 11. Risks
 
 - **A framework nothing else compiles against is still a guess.** No second compiler is rebased
   during this work, so generalization is argued from written evidence rather than proven. Mitigated
@@ -306,19 +470,46 @@ sorts, which `maps.Keys` + `slices.Sorted` and the existing generic `sortedKeys`
 - **Tier 1 is large.** `schema` ⇄ `compose` is the single biggest unit and cannot be split further
   without breaking the recursion. It is sequenced last, after the contract is proven on smaller
   concerns.
+- **A guard written during a refactor is a guard calibrated to the refactor.** Both new oracles are
+  written by the same effort they are meant to police. Each is therefore proven against a
+  known-bad input *before* the code it guards changes — an oracle first seen passing has
+  demonstrated nothing.
 
-## 11. Sequencing
+## 12. Sequencing
 
-Each phase is one or more PRs, each scoped to one logical change.
+Each row is one PR unless noted. "Done when" is the acceptance test, not a summary of the work.
 
-| Phase | Work | Depends on |
-|---|---|---|
-| 0 | Fix the archtest prefix hole (#57); build the general two-order oracle and prove it reddens | — |
-| 1 | Promote naming grammar and ID grammar into `compilers/compile`; extend `irverify` with the segmentation check (#73) | 0 |
-| 2 | Tier-0 extractions into packages, one per PR, each byte-identical | 0 |
-| 3 | Introduce `Ctx`; convert leaves, then `resolve`, then `operation`, then `schema` ⇄ `compose`; delete the `lowerer` struct | 1, 2 |
-| 4 | Type-surface cap in archtest; function-size and complexity caps in lint (#83) | 3 |
-| 5 | Follow-ups: source index (blocked on #40, #141, #143); draft rebases; disposition of #66 and #142 | 4 |
+| # | Work | Done when | Blocked by |
+|---|---|---|---|
+| 0.1 | Fix archtest prefix matching so one compiler cannot import another (#57) | A test asserting `compilers/openapi` may not import `compilers/graphql` fails before the fix and passes after | — |
+| 0.2 | General two-order oracle in `internal/harness` | Reverses declaration order across the conformance corpus and diffs; proven by reverting #108's fix and watching it redden | — |
+| 0.3 | ID-collision oracle | `TypeID` → source pointer is injective across the corpus, and minted IDs occupy a namespace no source pointer produces; proven by planting a colliding derivation | — |
+| 1.1 | Promote the ID grammar into `compilers/compile` | `compilers/openapi` derives no ID except through the framework; goldens byte-identical | 0.1 |
+| 1.2 | Promote the canonical naming grammar, choosing one segmentation | Grammar has a conformance suite; the chosen rule is argued in the PR; goldens updated deliberately with a reddening test (**not** neutral — §3.1) | 0.1 |
+| 1.3 | Extend `irverify` to check segmentation, not only casing (#73, #54) | A cased-correct but wrongly-segmented `Canonical` is rejected; proven by planting one | 1.2 |
+| 2.1–2.7 | Tier-0 extractions, one PR each: `diag`, `load`, `scan`, `ids`, `value`, `annotation` (+ site), `merge` | Per §8.1: goldens byte-identical, rules entry added, and each package carries table-driven unit tests needing no document | 0.1 |
+| 3.1 | Introduce `Ctx` with accessors; derive indexes at entry | No exported `Ctx` field is a map; goldens byte-identical | 2.x |
+| 3.2 | Convert the leaves to the contract: `constraints` → `annotation`, `meta` and `auth` → `operation` | Those files hold no `lowerer` method | 3.1 |
+| 3.3 | Extract `internal/resolve` | ditto, plus a bounded-recursion test | 3.2 |
+| 3.4 | Extract `internal/operation` (operations, params, content) | ditto | 3.3 |
+| 3.5 | Extract `internal/schema` (schema ⇄ compose ⇄ hoist); settle `hoist` and `diagnosedConstraints` | ditto; both open questions in §4.1 and §5 resolved by test, not assertion | 3.4 |
+| 3.6 | Delete the `lowerer` struct | `grep -c '^func (l \*\?lowerer)'` returns 0 | 3.5 |
+| 4.1 | Type-surface cap in `internal/archtest` | Re-adding ten methods to one type fails the build | 3.6 |
+| 4.2 | Function-size and complexity caps in `golangci-lint` (#83) | The gate runs them; a 71-line function fails | 3.6 |
 
-Phase 4 lands after Phase 3 rather than before it, because the caps are calibrated against the
-finished shape; landing them first would only encode the current one.
+Phase 4 lands after Phase 3, not before: the caps are calibrated against the finished shape, and
+landing them first would only encode the current one.
+
+## 13. Disposition of the existing backlog
+
+| Issue | Disposition |
+|---|---|
+| #57 archtest cannot enforce compiler isolation | **Closed by 0.1.** Prerequisite for every package boundary here |
+| #73 naming grammar and primitive IDs are cross-compiler ABI in one compiler | **Closed by 1.1–1.3.** This design is the answer to it |
+| #54 cased `Naming.Hint` passes the neutrality check | **Adjacent to 1.3**; fixed there if the segmentation work reaches `Hint`, otherwise left open |
+| #83 enforce size and complexity caps in lint | **Closed by 4.2**, deliberately last |
+| #66 extract a shared JSON-Schema→IR lowering core before the next compilers land | **Superseded.** Its premise expired — the next compilers landed without it (#20, #21). §3 replaces it with evidence-based promotion. To be closed with that reasoning, not silently |
+| #142 the annotation matrix cannot reach a carrier position | **Untouched, and recorded in §8.4** as a standing blind spot. Independently fixable |
+| #40, #141, #143 `$ref` handling defects | **Block the source index** (§10). Not fixed here |
+| #20, #21 GraphQL and Protobuf drafts | **Evidence, not work items** (§2). Rebasing is later work |
+| Naming grammar divergence across compilers | **New issue**, filed separately: a live invariant-4 violation that ships today, independent of whether this architecture work proceeds |
