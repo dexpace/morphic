@@ -88,9 +88,9 @@ func recoverCycleScan(srcIndex int, scan func() []ir.Diagnostic) (diags []ir.Dia
 }
 
 // scanCycles decodes source bytes and reports the first degenerate cycle found,
-// or nil. nodeview.DocumentRoot may return nil for an empty or malformed root; the anchor
-// and ref walks both treat a nil root as "nothing to scan", so no explicit nil
-// guard is needed here.
+// or nil. nodeview.DocumentRoot may return nil for an empty or malformed root;
+// the anchor and ref walks both treat a nil root as "nothing to scan", so no
+// explicit nil guard is needed here.
 func scanCycles(srcIndex int, data []byte) []ir.Diagnostic {
 	if len(data) == 0 {
 		return nil

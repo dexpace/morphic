@@ -28,7 +28,7 @@ import (
 const maxAliasChain = 10000
 
 // MergeDepthLimit bounds how deep a chain of `<<` merge keys the mapping view
-// expands. It is far tighter than maxCycleDepth: each merge level
+// expands. It is far tighter than maxAliasChain: each merge level
 // re-materializes every pair beneath it, so expanding a chain of depth d costs
 // O(d²), and real specs nest merge keys one or two levels deep. A chain that
 // hits the bound is reported via a diag.CycleScanFailed warning (see
