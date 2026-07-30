@@ -46,6 +46,13 @@ func TestInternalPointer(t *testing.T) {
 		{"Bare", "", false}, // bare name, no fragment
 		{"", "", false},
 		{"#", "", false}, // empty fragment
+		// A fragment that is not a JSON pointer names a JSON Schema $anchor, not a
+		// coordinate. Milestone 1 resolves no anchors, and returning the anchor name
+		// as though it were a pointer derived IDs from a path no source coordinate
+		// spells (GitHub #141).
+		{"#addr", "", false},
+		{"m.yaml#addr", "", false},
+		{"#a/b", "", false}, // pointer-shaped only from the second segment on
 	}
 	for _, tc := range cases {
 		got, ok := l.internalPointer(tc.ref)

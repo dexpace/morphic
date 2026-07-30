@@ -24,16 +24,20 @@ type Space string
 // this distinction exists to make visible.
 const PrimSpace Space = "prim"
 
-// The kind prefix that opens an ID. They are spelled once here because a
-// consumer switching on a prefix — a diagnostic renderer, an IR diff — reads
-// every compiler's IDs, so a compiler with its own vocabulary breaks it
-// (GitHub #162).
+// The kind prefix that opens an ID. A consumer switching on a prefix — a
+// diagnostic renderer, an IR diff, the structural verifier — reads every
+// compiler's IDs, so a compiler with its own vocabulary breaks it (GitHub #162).
+//
+// They are the ir constants rather than copies: irverify holds every compiler's
+// IDs to this shape, and a second spelling here would let the builder and the
+// checker drift apart, which is the divergence GitHub #163 fixed for the
+// neighbouring naming grammar.
 const (
-	typeKind    = "t"
-	opKind      = "op"
-	propKind    = "p"
-	authKind    = "auth"
-	serviceKind = "s"
+	typeKind    = ir.IDKindType
+	opKind      = ir.IDKindOp
+	propKind    = ir.IDKindProp
+	authKind    = ir.IDKindAuth
+	serviceKind = ir.IDKindService
 )
 
 // TypeID returns the ID of the type at path within space.
@@ -70,18 +74,18 @@ func PrimTypeID(k ir.PrimKind) ir.TypeID { return TypeID(PrimSpace, string(k)) }
 // with no path is an ID in its own right — the space names one node — and gets no
 // trailing separator.
 func idFor(kind string, space Space, path string) string {
-	trimmed := strings.TrimPrefix(path, "/")
+	trimmed := strings.TrimPrefix(path, ir.IDSeparator)
 	if trimmed == "" {
-		return kind + "/" + string(space)
+		return kind + ir.IDSeparator + string(space)
 	}
-	return kind + "/" + string(space) + "/" + trimmed
+	return kind + ir.IDSeparator + string(space) + ir.IDSeparator + trimmed
 }
 
 // spaceOf returns the space id is addressed in — the segment after the kind
 // prefix — or "" when there is none. Only an ID that was not built here, or one
 // built with an empty Space, has none.
 func spaceOf(id ir.TypeID) Space {
-	parts := strings.SplitN(string(id), "/", 3)
+	parts := strings.SplitN(string(id), ir.IDSeparator, 3)
 	if len(parts) < 2 {
 		return ""
 	}
