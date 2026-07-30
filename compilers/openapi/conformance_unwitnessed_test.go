@@ -113,7 +113,6 @@ func irFieldUniverse(t *testing.T) map[string]bool {
 			walk(rt.Elem())
 		case reflect.Struct:
 			for f := range rt.Fields() {
-				f := f
 				if f.PkgPath != "" {
 					continue // unexported: no consumer can read it
 				}

@@ -1386,9 +1386,6 @@ func TestMappingTargetID(t *testing.T) {
 	assert.NotEqual(t, namedTypeID(ptr("components", "schemas", "")), id)
 }
 
-//go:fix inline
-func strptr(s string) *string { return new(s) }
-
 func TestDiscriminatorDefault_ResolvesDeclaredComponent(t *testing.T) {
 	t.Parallel()
 	l := newRawLowerer(&soa.OpenAPI{})

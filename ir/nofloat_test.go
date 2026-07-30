@@ -36,7 +36,6 @@ func TestIR_NoFloatFields(t *testing.T) {
 			walk(rt.Elem(), path+".val")
 		case reflect.Struct:
 			for f := range rt.Fields() {
-				f := f
 				walk(f.Type, path+"."+f.Name)
 			}
 		}

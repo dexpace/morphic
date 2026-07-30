@@ -12,15 +12,6 @@ import (
 	"github.com/dexpace/morphic/ir"
 )
 
-// strPtr and boolPtr build the pointer fields oas3.Schema uses for optional
-// scalars. Named to avoid shadowing the flag and strings package identifiers.
-//
-//go:fix inline
-func strPtr(v string) *string { return new(v) }
-
-//go:fix inline
-func boolPtr(v bool) *bool { return new(v) }
-
 // TestAnnotations_SiteOverridesReferent pins the §14 precedence rule at the one
 // place it is now decided. An annotation written beside a $ref describes the
 // position; the target's is the fallback, not the winner.

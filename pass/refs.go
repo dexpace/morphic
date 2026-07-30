@@ -52,7 +52,6 @@ func documentRegistries(doc *ir.Document) registries {
 	out := registries{}
 	fields := reflect.ValueOf(doc).Elem()
 	for _, f := range fields.Fields() {
-		f := f
 		if f.Kind() != reflect.Map {
 			continue
 		}
