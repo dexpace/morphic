@@ -5,6 +5,7 @@ import (
 	soa "github.com/speakeasy-api/openapi/openapi"
 
 	"github.com/dexpace/morphic/compilers/compile"
+	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -119,7 +120,7 @@ func (l *lowerer) fillParamDefault(param *ir.Parameter, s, tgt *oas3.Schema, poi
 	}
 	v, err := valueFromNode(node)
 	if err != nil {
-		l.diag(ir.SeverityWarning, codeDegradedConstruct, pointer, "default: %s", err.Error())
+		l.diag(ir.SeverityWarning, diag.DegradedConstruct, pointer, "default: %s", err.Error())
 		return
 	}
 	param.Default = &v
@@ -172,7 +173,7 @@ func (l *lowerer) fillParamSchemaAnnotations(param *ir.Parameter, s, tgt *oas3.S
 func (l *lowerer) preserveParamXML(param *ir.Parameter, s *oas3.Schema, pointer string) {
 	at := pointer + ptr("xml")
 	if l.preserveSchemaKeyword(&param.Unmodeled, s, "xml", ir.ReasonNoIRHome, at) {
-		l.diag(ir.SeverityInfo, codeDegradedConstruct, at,
+		l.diag(ir.SeverityInfo, diag.DegradedConstruct, at,
 			"parameter schema xml hints have no ir.Parameter home; kept verbatim under Unmodeled")
 	}
 }
@@ -195,7 +196,7 @@ func (l *lowerer) preserveParamVisibility(param *ir.Parameter, s *oas3.Schema, p
 		if !l.preserveSchemaKeyword(&param.Unmodeled, s, keyword, ir.ReasonNoIRHome, at) {
 			continue
 		}
-		l.diag(ir.SeverityInfo, codeDegradedConstruct, at,
+		l.diag(ir.SeverityInfo, diag.DegradedConstruct, at,
 			"parameter schema %s has no ir.Parameter home; kept verbatim under Unmodeled", keyword)
 	}
 }

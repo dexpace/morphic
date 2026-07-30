@@ -10,6 +10,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -505,7 +506,7 @@ func TestContent_FullPipeline(t *testing.T) {
 	_, hasLinks := resp.Unmodeled["openapi:links"]
 	assert.True(t, hasLinks)
 
-	assert.True(t, hasDiag(diags, codeDegradedConstruct))
+	assert.True(t, hasDiag(diags, diag.DegradedConstruct))
 }
 
 func TestContent_OctetAndErrorMulti(t *testing.T) {
@@ -668,10 +669,10 @@ func TestContent_UnconvertibleExamplesDiagnosed(t *testing.T) {
 	c := op.Responses[0].Payload.Contents[0]
 	assert.Empty(t, c.Examples, "both unconvertible examples are skipped, not appended")
 
-	require.Equal(t, 2, countDiagsAt(diags, codeDegradedConstruct, ir.SeverityWarning))
+	require.Equal(t, 2, countDiagsAt(diags, diag.DegradedConstruct, ir.SeverityWarning))
 	pointers := map[string]bool{}
 	for _, d := range diags {
-		if d.Code == codeDegradedConstruct && d.Severity == ir.SeverityWarning {
+		if d.Code == diag.DegradedConstruct && d.Severity == ir.SeverityWarning {
 			pointers[d.Provenance.Pointer] = true
 			assert.Contains(t, d.Message, "example:")
 		}
@@ -715,7 +716,7 @@ components:
 	require.NotNil(t, c.Examples[0].Value)
 	assert.Equal(t, ir.Value{Kind: ir.ValueString, Str: "fine"}, *c.Examples[0].Value)
 
-	require.Equal(t, 1, countDiagsAt(diags, codeDegradedConstruct, ir.SeverityWarning))
+	require.Equal(t, 1, countDiagsAt(diags, diag.DegradedConstruct, ir.SeverityWarning))
 	d, ok := firstDegradedWarning(diags)
 	require.True(t, ok)
 	assert.Equal(t, "/paths/~1items/get/responses/200/content/application~1json/examples/bad",
@@ -781,7 +782,7 @@ func TestContent_PositionalPrefixEncodingIsPreserved(t *testing.T) {
 	item, ok := c.Unmodeled["openapi:itemEncoding"]
 	require.True(t, ok, "the tail encoding is kept beside the prefixes it follows")
 	assert.JSONEq(t, `{"contentType": "text/plain"}`, string(item.Value))
-	assertHasCode(t, diags, codeDegradedConstruct, ir.SeverityInfo)
+	assertHasCode(t, diags, diag.DegradedConstruct, ir.SeverityInfo)
 }
 
 func TestFillSequential_PrefixEncodingWithoutItemEncoding(t *testing.T) {
@@ -795,7 +796,7 @@ func TestFillSequential_PrefixEncodingWithoutItemEncoding(t *testing.T) {
 	assert.True(t, ok, "prefixEncoding alone is still reported rather than dropped")
 	_, ok = c.Unmodeled["openapi:itemEncoding"]
 	assert.False(t, ok, "no itemEncoding was declared, so none is recorded")
-	assertHasCode(t, diags, codeDegradedConstruct, ir.SeverityInfo)
+	assertHasCode(t, diags, diag.DegradedConstruct, ir.SeverityInfo)
 }
 
 // TestPositionalEncoding_WithoutRootNode covers the media type whose source node
@@ -811,8 +812,8 @@ func TestPositionalEncoding_WithoutRootNode(t *testing.T) {
 	l.fillSequential(c, media, "/mp", "h")
 	assert.Nil(t, c.ItemEncoding, "prefixes still block the every-item lowering")
 	assert.Nil(t, c.Unmodeled, "a media type with no source node has nothing verbatim to keep")
-	assertHasCode(t, l.diags.List(), codeUnpreservableConstruct, ir.SeverityError)
-	assert.False(t, hasDiagAt(l.diags.List(), codeDegradedConstruct, ir.SeverityInfo),
+	assertHasCode(t, l.diags.List(), diag.UnpreservableConstruct, ir.SeverityError)
+	assert.False(t, hasDiagAt(l.diags.List(), diag.DegradedConstruct, ir.SeverityInfo),
 		"nothing was kept, so nothing announces that it was")
 }
 
@@ -1173,9 +1174,9 @@ func TestSingleContentEntry_ReportsExtraMediaTypes(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			_, diags := parseFull(t, tc.spec)
-			assert.True(t, hasDiagCodeAt(diags, codeDegradedConstruct, tc.at),
+			assert.True(t, hasDiagCodeAt(diags, diag.DegradedConstruct, tc.at),
 				"the ignored media types are named at the content map: %+v", diags)
-			assert.Contains(t, diagMessageAt(t, diags, codeDegradedConstruct, ir.SeverityWarning, tc.at),
+			assert.Contains(t, diagMessageAt(t, diags, diag.DegradedConstruct, ir.SeverityWarning, tc.at),
 				"application/json", "the message names what was ignored, not only that something was")
 		})
 	}
@@ -1189,7 +1190,7 @@ func TestSingleContentEntry_OneEntryIsSilent(t *testing.T) {
 		"        \"200\":\n          description: ok\n          headers:\n"+
 		"            H:\n              content:\n"+
 		"                application/xml: {schema: {type: string}}\n"))
-	assert.Equal(t, 0, countDiagsAt(diags, codeDegradedConstruct, ir.SeverityWarning),
+	assert.Equal(t, 0, countDiagsAt(diags, diag.DegradedConstruct, ir.SeverityWarning),
 		"one media type is the legal spelling: %+v", diags)
 }
 

@@ -9,6 +9,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/dexpace/morphic/compilers"
+	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 )
 
 func TestParse_UnsupportedVersion(t *testing.T) {
@@ -17,7 +18,7 @@ func TestParse_UnsupportedVersion(t *testing.T) {
 	doc, diags, err := New().Compile(context.Background(), []compilers.Source{sourceOf(spec)}, compilers.Options{})
 	require.NoError(t, err)
 	assert.Nil(t, doc, "unsupported version refuses to lower")
-	assert.True(t, hasDiag(diags, codeUnsupportedVersion))
+	assert.True(t, hasDiag(diags, diag.UnsupportedVersion))
 }
 
 func TestParse_UnmarshalError(t *testing.T) {
@@ -70,7 +71,7 @@ func TestGhostRefs_AllResolversDegradeGracefully(t *testing.T) {
 	l := newLowerer(0, loadedDoc, Options{}.withDefaults())
 	out := l.run()
 	require.NotNil(t, out)
-	assert.True(t, hasDiag(append(diags, l.diags.List()...), codeUnresolvedRef), "unresolved refs reported")
+	assert.True(t, hasDiag(append(diags, l.diags.List()...), diag.UnresolvedRef), "unresolved refs reported")
 }
 
 // TestRun_RegistryRefusalsAreSurfaced covers the reporting of an entry
@@ -88,5 +89,5 @@ func TestRun_RegistryRefusalsAreSurfaced(t *testing.T) {
 
 	l.run()
 
-	assertHasErrorCode(t, l.diags.List(), codeInternalInvariant)
+	assertHasErrorCode(t, l.diags.List(), diag.InternalInvariant)
 }

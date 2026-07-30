@@ -14,6 +14,7 @@ import (
 	"github.com/stretchr/testify/require"
 	yaml "gopkg.in/yaml.v3"
 
+	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/ir"
 	"github.com/dexpace/morphic/pass"
 )
@@ -112,7 +113,7 @@ func TestLower_ConstraintOnlyUnionIsValidationOnly(t *testing.T) {
 	assert.Equal(t, ir.ReasonValidationOnly, raw.Reason,
 		"constraint-only branches narrow the body without reshaping it (ir-design §4.7)")
 	assert.Equal(t, "/components/schemas/Thing/oneOf", raw.Provenance.Pointer)
-	assert.Equal(t, 1, countDiagsAt(diags, codeValidationOnlyKeyword, ir.SeverityInfo),
+	assert.Equal(t, 1, countDiagsAt(diags, diag.ValidationOnlyKeyword, ir.SeverityInfo),
 		"the union is reported with §4.7's keyword family; got %+v", diags)
 }
 
@@ -231,7 +232,7 @@ func TestSchemaRef_BooleanAndUntypedShapes(t *testing.T) {
 	assert.Equal(t, ir.TypeID("t/prim/any"), byWire["untyped"].Type.Target)
 	assert.Equal(t, ir.KindModel, doc.Types[byWire["withprops"].Type.Target].Kind())
 
-	assert.True(t, hasDiagAt(diags, codeFalseSchema, ir.SeverityInfo), "false schema info diagnostic")
+	assert.True(t, hasDiagAt(diags, diag.FalseSchema, ir.SeverityInfo), "false schema info diagnostic")
 }
 
 func TestLower_MultiTypeUnion(t *testing.T) {
@@ -291,7 +292,7 @@ func TestLower_DepthCapExceeded(t *testing.T) {
 	require.NotNil(t, doc)
 	var sawCap bool
 	for _, d := range diags {
-		if d.Code == codeDegradedConstruct && strings.Contains(d.Message, "nesting exceeds") {
+		if d.Code == diag.DegradedConstruct && strings.Contains(d.Message, "nesting exceeds") {
 			sawCap = true
 		}
 	}
@@ -324,7 +325,7 @@ func TestLower_TupleWithTrailingItems(t *testing.T) {
 // diagnostic whose message contains want.
 func hasDegradedDiag(diags []ir.Diagnostic, want string) bool {
 	for _, d := range diags {
-		if d.Code == codeDegradedConstruct && strings.Contains(d.Message, want) {
+		if d.Code == diag.DegradedConstruct && strings.Contains(d.Message, want) {
 			return true
 		}
 	}
@@ -393,7 +394,7 @@ func TestLower_ValidationOnlyKeywords(t *testing.T) {
 		require.True(t, ok, "keyword %s preserved", key)
 		assert.Equal(t, want, entry.Provenance.Pointer, "entry provenance for %s", key)
 	}
-	assert.GreaterOrEqual(t, countDiagsAt(diags, codeValidationOnlyKeyword, ir.SeverityInfo), 5)
+	assert.GreaterOrEqual(t, countDiagsAt(diags, diag.ValidationOnlyKeyword, ir.SeverityInfo), 5)
 }
 
 // TestLower_PropertyNamesPreserved pins the whole §4.7 contract for
@@ -415,7 +416,7 @@ func TestLower_PropertyNamesPreserved(t *testing.T) {
 	require.True(t, ok, "propertyNames kept verbatim; got %v", m.Unmodeled)
 	assert.JSONEq(t, `{"type":"string","pattern":"^[a-z]+$"}`, string(entry.Value))
 	assert.Equal(t, ir.ReasonValidationOnly, entry.Reason)
-	assert.Equal(t, 1, countDiagsAt(diags, codeValidationOnlyKeyword, ir.SeverityInfo))
+	assert.Equal(t, 1, countDiagsAt(diags, diag.ValidationOnlyKeyword, ir.SeverityInfo))
 
 	// The keyword constrains keys only: the map's value lowering is untouched.
 	require.NotNil(t, m.AdditionalProps)
@@ -480,7 +481,7 @@ func TestLower_UnresolvedRefDiagnostics(t *testing.T) {
 `)
 	doc, diags := lowerSpec(t, spec)
 	require.NotNil(t, doc)
-	assert.True(t, hasDiag(diags, codeUnresolvedRef), "unresolved ref diagnostic emitted")
+	assert.True(t, hasDiag(diags, diag.UnresolvedRef), "unresolved ref diagnostic emitted")
 }
 
 func TestLower_UnionWithStructuralSiblingVariants(t *testing.T) {
@@ -557,7 +558,7 @@ func TestModel_ValidationOnlyKeywordPreserved(t *testing.T) {
 		"the entry locates the keyword, not the schema that carried it")
 	found := false
 	for _, d := range diags {
-		if d.Code == codeValidationOnlyKeyword {
+		if d.Code == diag.ValidationOnlyKeyword {
 			found = true
 			assert.Equal(t, ir.SeverityInfo, d.Severity)
 			assert.Equal(t, "/components/schemas/S", d.Provenance.Pointer,
@@ -592,7 +593,7 @@ func TestFillPropertyDetail_UnconvertibleExampleDiagnosed(t *testing.T) {
 	m, ok := doc.Types[componentID("S")].(*ir.Model)
 	require.True(t, ok)
 	assert.Empty(t, m.Properties[0].Examples, "the unconvertible example is skipped, not appended")
-	require.Equal(t, 1, countDiagsAt(diags, codeDegradedConstruct, ir.SeverityWarning))
+	require.Equal(t, 1, countDiagsAt(diags, diag.DegradedConstruct, ir.SeverityWarning))
 	d, ok := firstDegradedWarning(diags)
 	require.True(t, ok)
 	assert.Equal(t, "/components/schemas/S/properties/n/example", d.Provenance.Pointer)
@@ -845,7 +846,7 @@ func TestPreserveUnionSiblings_MissingNode(t *testing.T) {
 	// No node registered under the id: the union branches have nowhere to go, so
 	// the guard reports the broken invariant instead of dropping them quietly.
 	l.preserveUnionSiblings("t/anon/missing", &oas3.Schema{}, "/p", ir.ReasonDegradedLowering, "why")
-	assertHasErrorCode(t, l.diags.List(), codeInternalInvariant)
+	assertHasErrorCode(t, l.diags.List(), diag.InternalInvariant)
 }
 
 // TestSchemaExamples_RefdSubSchemaKeepsThem pins the examples of a $ref'd
@@ -934,7 +935,7 @@ func TestAttachDeclaredAnnotations_MissingNode(t *testing.T) {
 	// coordinate and its node together, so that caller can no longer present an ID
 	// the registry does not hold. This one is handed an ID by its caller.
 	l.preserveUnionSiblings("t/anon/missing", &oas3.Schema{}, "/p", ir.ReasonDegradedLowering, "why")
-	assertHasErrorCode(t, l.diags.List(), codeInternalInvariant)
+	assertHasErrorCode(t, l.diags.List(), diag.InternalInvariant)
 }
 
 // The redeclaration-conflict helpers carry defensive guards for states a
@@ -1433,7 +1434,7 @@ func TestSchema_UnserializableExtension(t *testing.T) {
 `)
 	doc, diags := lowerSpec(t, spec)
 	require.NotNil(t, doc)
-	assert.True(t, hasDiagAt(diags, codeDegradedConstruct, ir.SeverityWarning), "unserializable extension warns")
+	assert.True(t, hasDiagAt(diags, diag.DegradedConstruct, ir.SeverityWarning), "unserializable extension warns")
 	m := typeByName(doc, "S").(*ir.Model)
 	_, hasBad := m.Unmodeled["openapi:x-bad"]
 	assert.False(t, hasBad, "unserializable extension is dropped, not stored")
@@ -1448,7 +1449,7 @@ func TestSchema_EmptyFragmentRef(t *testing.T) {
 `)
 	doc, diags := lowerSpec(t, spec)
 	require.NotNil(t, doc)
-	assert.True(t, hasDiag(diags, codeUnresolvedRef), "the '#' ref form is unresolved")
+	assert.True(t, hasDiag(diags, diag.UnresolvedRef), "the '#' ref form is unresolved")
 }
 
 func TestSchema_EmptyStringRefMirrorBranches(t *testing.T) {
@@ -1467,7 +1468,7 @@ func TestSchema_EmptyStringRefMirrorBranches(t *testing.T) {
 `)
 	doc, diags := lowerSpec(t, spec)
 	require.NotNil(t, doc)
-	assert.GreaterOrEqual(t, countDiagsAt(diags, codeUnresolvedRef, ir.SeverityError), 2, "both empty refs are unresolved")
+	assert.GreaterOrEqual(t, countDiagsAt(diags, diag.UnresolvedRef, ir.SeverityError), 2, "both empty refs are unresolved")
 	u, ok := typeByName(doc, "U").(*ir.Union)
 	require.True(t, ok)
 	assert.Contains(t, []string{u.Variants[0].Name.Hint, u.Variants[1].Name.Hint}, "variant_0")
@@ -2190,7 +2191,7 @@ func TestCheckOperationIDUnique_BareLowerer(t *testing.T) {
 	l.checkOperationIDUnique(op, "/paths/~1a/get")
 	l.checkOperationIDUnique(op, "/paths/~1b/get")
 	require.Len(t, l.diags.List(), 1)
-	assert.Equal(t, codeDuplicateOperationID, l.diags.List()[0].Code)
+	assert.Equal(t, diag.DuplicateOperationID, l.diags.List()[0].Code)
 }
 
 // TestSchemaSiblings_RefdSubSchemaKeepsThem is the sub-schema arm of the rule
@@ -2902,7 +2903,7 @@ func assertResidueKeptAndAnnounced(t *testing.T, p ir.Unmodeled, diags []ir.Diag
 	assert.Equal(t, ir.ReasonNoIRHome, entry.Reason)
 
 	for _, d := range diags {
-		if d.Code == codeDegradedConstruct && d.Severity == ir.SeverityInfo &&
+		if d.Code == diag.DegradedConstruct && d.Severity == ir.SeverityInfo &&
 			strings.HasSuffix(d.Provenance.Pointer, "/"+keyword) {
 			return
 		}
@@ -3418,7 +3419,7 @@ func TestDynamicRef_ExpandsAgainstTheOneMatchingAnchor(t *testing.T) {
 
 	// Expansion collapses an indirection the source left to evaluation, so it is
 	// announced under its own code rather than sharing the composition one.
-	assert.Equal(t, 2, countDiagsAt(diags, codeDynamicRefExpanded, ir.SeverityInfo),
+	assert.Equal(t, 2, countDiagsAt(diags, diag.DynamicRefExpanded, ir.SeverityInfo),
 		"each expanded reference is announced once")
 }
 
@@ -3537,7 +3538,7 @@ func TestDynamicRef_CycleIsRefusedAtEveryEdge(t *testing.T) {
 		assert.Contains(t, sc.Unmodeled, "openapi:$dynamicRef",
 			"%s keeps the reference it could not take", name)
 	}
-	assert.Equal(t, 0, countDiagsAt(diags, codeDynamicRefExpanded, ir.SeverityInfo),
+	assert.Equal(t, 0, countDiagsAt(diags, diag.DynamicRefExpanded, ir.SeverityInfo),
 		"no edge of the cycle is reported as expanded")
 }
 
@@ -3879,7 +3880,7 @@ func TestPreserveUnhomedKeywords_MissingNode(t *testing.T) {
 	l := newRawLowerer(&soa.OpenAPI{})
 	got := l.preserveUnhomedKeywords(&oas3.Schema{}, "/p", "h", "t/anon/missing")
 	assert.Equal(t, ir.TypeID("t/anon/missing"), got, "the lowering's own ID still stands")
-	assertHasErrorCode(t, l.diags.List(), codeInternalInvariant)
+	assertHasErrorCode(t, l.diags.List(), diag.InternalInvariant)
 }
 
 // TestRecordUnhomedKeywords_MissingOwner drives the same invariant one step
@@ -3890,5 +3891,5 @@ func TestRecordUnhomedKeywords_MissingOwner(t *testing.T) {
 	t.Parallel()
 	l := newRawLowerer(&soa.OpenAPI{})
 	l.recordUnhomedKeywords("t/anon/missing", &oas3.Schema{}, []string{"items"}, ir.KindPrimitive, "/p")
-	assertHasErrorCode(t, l.diags.List(), codeInternalInvariant)
+	assertHasErrorCode(t, l.diags.List(), diag.InternalInvariant)
 }

@@ -9,6 +9,7 @@ import (
 	yaml "gopkg.in/yaml.v3"
 
 	"github.com/dexpace/morphic/compilers/compile"
+	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -268,7 +269,7 @@ func (l *lowerer) checkOperationIDUnique(op ir.Operation, mount string) {
 		return // no operationId: emitters synthesize from the method and path
 	}
 	if first, seen := l.operationIDs[op.Name.Source]; seen {
-		l.diag(ir.SeverityWarning, codeDuplicateOperationID, mount,
+		l.diag(ir.SeverityWarning, diag.DuplicateOperationID, mount,
 			"operationId %q is already used by the operation at %s; "+
 				"OpenAPI requires it to be unique across the API", op.Name.Source, first)
 		return
@@ -318,7 +319,7 @@ func (l *lowerer) applyPathServers(op *ir.Operation, pi *soa.PathItem, declPtr s
 		ir.ReasonNoIRHome, declPtr+ptr("servers")) {
 		return
 	}
-	l.diags.Append(diagf(ir.SeverityInfo, codeDegradedConstruct, op.Provenance,
+	l.diags.Append(diag.Newf(ir.SeverityInfo, diag.DegradedConstruct, op.Provenance,
 		"path-item servers kept under Unmodeled; an operation has no server-scope list to bind them to"))
 }
 
@@ -392,7 +393,7 @@ func (l *lowerer) preserveErrorHeaders(ec *ir.ErrorCase, r *soa.Response, rptr s
 		ir.ReasonNoIRHome, rptr+ptr("headers")) {
 		return
 	}
-	l.diag(ir.SeverityInfo, codeDegradedConstruct, rptr,
+	l.diag(ir.SeverityInfo, diag.DegradedConstruct, rptr,
 		"error response headers have no ErrorCase home; kept verbatim under Unmodeled")
 }
 
@@ -416,7 +417,7 @@ func (l *lowerer) fillErrorType(ec *ir.ErrorCase, r *soa.Response, rptr string) 
 	}
 	if content.Len() > 1 && l.preserveNode(&ec.Unmodeled, "openapi:content",
 		rawChildNode(r.GetRootNode(), "content"), ir.ReasonNoIRHome, rptr+ptr("content")) {
-		l.diag(ir.SeverityInfo, codeDegradedConstruct, rptr,
+		l.diag(ir.SeverityInfo, diag.DegradedConstruct, rptr,
 			"error response has multiple media types; full content map kept under Unmodeled")
 	}
 }

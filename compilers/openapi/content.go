@@ -10,6 +10,7 @@ import (
 	yaml "gopkg.in/yaml.v3"
 
 	"github.com/dexpace/morphic/compilers/compile"
+	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -110,12 +111,12 @@ func (l *lowerer) positionalEncoding(c *ir.Content, media *soa.MediaType, mediaP
 		// this lowering runs — yet nothing of it was written. Unlike every other
 		// preservation site, an empty payload here cannot mean "there was no
 		// construct", so it is reported rather than passed over (GitHub #144).
-		l.diag(ir.SeverityError, codeUnpreservableConstruct, at,
+		l.diag(ir.SeverityError, diag.UnpreservableConstruct, at,
 			"prefixEncoding is declared but its source node could not be read; it is "+
 				"represented in the IR in no form at all")
 		return
 	}
-	l.diag(ir.SeverityInfo, codeDegradedConstruct, mediaPtr,
+	l.diag(ir.SeverityInfo, diag.DegradedConstruct, mediaPtr,
 		"prefixEncoding is positional and has no per-item IR home; it and any itemEncoding are kept under Unmodeled")
 }
 
@@ -392,7 +393,7 @@ func (l *lowerer) singleContentEntry(content *sequencedmap.Map[string, *soa.Medi
 		ignored = append(ignored, mt)
 	}
 	if len(ignored) > 0 {
-		l.diag(ir.SeverityWarning, codeDegradedConstruct, at+ptr("content"),
+		l.diag(ir.SeverityWarning, diag.DegradedConstruct, at+ptr("content"),
 			"a content-style header or parameter must declare exactly one media type; "+
 				"%q is lowered and %s ignored", first, strings.Join(ignored, ", "))
 	}
@@ -475,7 +476,7 @@ func (l *lowerer) appendPluralExample(out []ir.Example, re *soa.ReferencedExampl
 // with a warning rather than in silence.
 func (l *lowerer) appendValuelessExample(out []ir.Example, proto ir.Example, pointer, name string) []ir.Example {
 	if proto.ExternalURL == "" {
-		l.diag(ir.SeverityWarning, codeDegradedConstruct, pointer+ptr("examples", name),
+		l.diag(ir.SeverityWarning, diag.DegradedConstruct, pointer+ptr("examples", name),
 			"example declares neither value nor externalValue")
 		return out
 	}
@@ -502,7 +503,7 @@ func (l *lowerer) lowerRequestBody(op *ir.Operation, hb *ir.HTTPBinding, src *so
 	if !rb.GetRequired() {
 		l.preserve(&payload.Unmodeled, "openapi:required", ir.RawValue("false"),
 			ir.ReasonNoIRHome, bodyPtr+ptr("required"))
-		l.diag(ir.SeverityInfo, codeDegradedConstruct, bodyPtr,
+		l.diag(ir.SeverityInfo, diag.DegradedConstruct, bodyPtr,
 			"request body is not required; optionality kept under Unmodeled")
 	}
 	op.Request = payload

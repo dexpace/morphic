@@ -7,6 +7,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -84,7 +85,7 @@ func TestUnpreservable_AnnouncementNeverOutrunsTheEntry(t *testing.T) {
 			t.Parallel()
 			_, diags := parseFull(t, tc.spec)
 
-			assert.True(t, hasDiagCodeAt(diags, codeUnpreservableConstruct, tc.at),
+			assert.True(t, hasDiagCodeAt(diags, diag.UnpreservableConstruct, tc.at),
 				"the case must reach the site it is named for: %+v", diags)
 			assert.Empty(t, preservationClaims(diags),
 				"nothing was written under Unmodeled, so nothing may announce that it was")
@@ -136,7 +137,7 @@ func TestUnpreservable_SchemaKeywordSites(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			_, diags := parseFull(t, componentSpec("    S:\n"+tc.body))
-			assert.True(t, hasDiagCodeAt(diags, codeUnpreservableConstruct, tc.at),
+			assert.True(t, hasDiagCodeAt(diags, diag.UnpreservableConstruct, tc.at),
 				"the case must reach the site it is named for: %+v", diags)
 			assert.Empty(t, preservationClaims(diags),
 				"nothing was written under Unmodeled, so nothing may announce that it was")
@@ -155,7 +156,7 @@ func TestUnpreservable_ReportsTheFailureItself(t *testing.T) {
 		"      items: {type: string, x-t: " + unpreservableValue + "}\n")
 	_, diags := parseFull(t, spec)
 
-	d, ok := firstDiagWithCode(diags, codeUnpreservableConstruct)
+	d, ok := firstDiagWithCode(diags, diag.UnpreservableConstruct)
 	require.True(t, ok, "the unconvertible construct is reported: %+v", diags)
 	assert.Equal(t, ir.SeverityError, d.Severity,
 		"a construct that reached the IR in no form at all is a losslessness failure, not a degradation")
@@ -170,7 +171,7 @@ func TestUnpreservable_ReportsTheFailureItself(t *testing.T) {
 func TestUnpreservable_AbsentConstructIsSilent(t *testing.T) {
 	t.Parallel()
 	_, diags := parseFull(t, componentSpec("    T:\n      type: array\n      items: {type: string}\n"))
-	_, ok := firstDiagWithCode(diags, codeUnpreservableConstruct)
+	_, ok := firstDiagWithCode(diags, diag.UnpreservableConstruct)
 	assert.False(t, ok, "an absent construct is not an unpreservable one: %+v", diags)
 }
 
@@ -186,7 +187,7 @@ func TestUnpreservable_CompositeFailsWhole(t *testing.T) {
 		"      else: {required: [b]}\n")
 	doc, diags := parseFull(t, spec)
 
-	_, ok := firstDiagWithCode(diags, codeUnpreservableConstruct)
+	_, ok := firstDiagWithCode(diags, diag.UnpreservableConstruct)
 	require.True(t, ok, "the unconvertible arm is reported: %+v", diags)
 	for key, entry := range typeUnmodeled(t, doc, namedTypeID(ptr("components", "schemas", "C"))) {
 		assert.NotContains(t, key, "if-then-else",
@@ -202,7 +203,7 @@ func preservationClaims(diags []ir.Diagnostic) []string {
 	var out []string
 	for _, d := range diags {
 		if strings.Contains(d.Message, "under Unmodeled") &&
-			d.Code != codeUnpreservableConstruct {
+			d.Code != diag.UnpreservableConstruct {
 			out = append(out, d.Message)
 		}
 	}

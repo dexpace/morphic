@@ -11,6 +11,7 @@ import (
 	"github.com/stretchr/testify/require"
 	yaml "gopkg.in/yaml.v3"
 
+	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -145,7 +146,7 @@ func TestAllOf_ConflictingRedeclaredDescriptionDiagnosed(t *testing.T) {
 	require.Len(t, m.Properties, 1, "id still reconciles to one property")
 	assert.Equal(t, "the first meaning", m.Properties[0].Docs.Description,
 		"the first declaration in source order wins the description")
-	assert.True(t, hasDiagAt(diags, codeDegradedConstruct, ir.SeverityInfo),
+	assert.True(t, hasDiagAt(diags, diag.DegradedConstruct, ir.SeverityInfo),
 		"a differing redeclared description is surfaced, not dropped silently")
 }
 
@@ -366,7 +367,7 @@ func TestAllOf_CompositionRequiredAttaches(t *testing.T) {
 			p, ok := propsByWire(m.Properties)[tc.wire]
 			require.True(t, ok, "%s should have a %q property", tc.model, tc.wire)
 			assert.True(t, p.Required, "%s.%s should be required via composition-scope required", tc.model, tc.wire)
-			assert.False(t, hasDiag(diags, codeUnattachableRequired),
+			assert.False(t, hasDiag(diags, diag.UnattachableRequired),
 				"every required name matches an own property; no unattachable-required diagnostic expected")
 		})
 	}
@@ -406,7 +407,7 @@ func TestAllOf_RequiredOnlyBranchNamingBaseOwnedPropertyDiagnosed(t *testing.T) 
 
 	var unattachable []ir.Diagnostic
 	for _, d := range diags {
-		if d.Code == codeUnattachableRequired {
+		if d.Code == diag.UnattachableRequired {
 			unattachable = append(unattachable, d)
 		}
 	}
@@ -447,11 +448,11 @@ func TestAllOf_RequiredOnlyBranchNoBaseOrMixinDiagnosedInfo(t *testing.T) {
 	_, hasGhost := propsByWire(m.Properties)["ghost"]
 	assert.False(t, hasGhost, "ghost is never invented as a property")
 
-	require.Equal(t, 1, countDiagsAt(diags, codeUnattachableRequired, ir.SeverityInfo),
+	require.Equal(t, 1, countDiagsAt(diags, diag.UnattachableRequired, ir.SeverityInfo),
 		"exactly one info-severity unattachable-required diagnostic")
 	var unattachable ir.Diagnostic
 	for _, d := range diags {
-		if d.Code == codeUnattachableRequired {
+		if d.Code == diag.UnattachableRequired {
 			unattachable = d
 		}
 	}
@@ -531,7 +532,7 @@ func TestAllOf_InlineBranchResidueKeptVerbatim(t *testing.T) {
 		assert.Contains(t, string(entry.Value), kept, "the whole branch is preserved")
 	}
 	assert.Contains(t,
-		diagMessageAt(t, diags, codeDegradedConstruct, ir.SeverityInfo, "/components/schemas/S/allOf/0"),
+		diagMessageAt(t, diags, diag.DegradedConstruct, ir.SeverityInfo, "/components/schemas/S/allOf/0"),
 		"additionalProperties, not, minProperties, description, x-vendor",
 		"the diagnostic names every keyword the merge left behind, in source order")
 }
@@ -558,9 +559,9 @@ func TestAllOf_InlineBranchNonObjectTypeWarns(t *testing.T) {
 	assert.Equal(t, ir.ReasonDegradedLowering, entry.Reason)
 	assert.JSONEq(t, `{"type":"string","maxLength":3}`, string(entry.Value))
 	assert.Contains(t,
-		diagMessageAt(t, diags, codeDegradedConstruct, ir.SeverityWarning, "/components/schemas/T/allOf/0"),
+		diagMessageAt(t, diags, diag.DegradedConstruct, ir.SeverityWarning, "/components/schemas/T/allOf/0"),
 		"declares a type that is not an object")
-	assert.False(t, hasDiagAt(diags, codeDegradedConstruct, ir.SeverityInfo),
+	assert.False(t, hasDiagAt(diags, diag.DegradedConstruct, ir.SeverityInfo),
 		"a contradicted model is a warning, not the info a merely narrowed one gets")
 }
 
@@ -601,7 +602,7 @@ func TestAllOf_BranchWrittenByReferenceStillDerivesResidue(t *testing.T) {
 			assert.Contains(t, string(entry.Value), `"maxLength":3`,
 				"the payload resolves the reference too, so the branch is recoverable")
 			assert.Contains(t,
-				diagMessageAt(t, diags, codeDegradedConstruct, tc.sev,
+				diagMessageAt(t, diags, diag.DegradedConstruct, tc.sev,
 					"/components/schemas/"+tc.name+"/allOf/0"),
 				"the branch ("+tc.wantKeys+")",
 				"the keywords the branch effectively declares are named, not `<<`")
@@ -644,7 +645,7 @@ func TestAllOf_MergedBranchKeywordsAreNotResidue(t *testing.T) {
 		assert.Empty(t, m.Unmodeled,
 			"%s: properties, required and a bare `type: object` are merged, not residue", name)
 	}
-	assert.Zero(t, countDiagsAt(diags, codeDegradedConstruct, ir.SeverityInfo),
+	assert.Zero(t, countDiagsAt(diags, diag.DegradedConstruct, ir.SeverityInfo),
 		"a branch the merge fully consumes announces nothing; got %+v", diags)
 }
 
@@ -680,7 +681,7 @@ func TestAllOf_BranchResidueDerivedFromDeclaredKeys(t *testing.T) {
 		require.True(t, ok, "%s keeps the branch verbatim; got %+v", name, m.Unmodeled)
 		assert.Contains(t, string(entry.Value), want, "%s", name)
 		assert.Contains(t,
-			diagMessageAt(t, diags, codeDegradedConstruct, ir.SeverityInfo,
+			diagMessageAt(t, diags, diag.DegradedConstruct, ir.SeverityInfo,
 				"/components/schemas/"+name+"/allOf/0"),
 			"kept verbatim under Unmodeled", name)
 	}
@@ -710,7 +711,7 @@ func TestAllOf_EachInlineBranchKeyedSeparately(t *testing.T) {
 
 	for i, want := range []string{"description", "minProperties"} {
 		at := fmt.Sprintf("/components/schemas/Multi/allOf/%d", i)
-		assert.Contains(t, diagMessageAt(t, diags, codeDegradedConstruct, ir.SeverityInfo, at), want,
+		assert.Contains(t, diagMessageAt(t, diags, diag.DegradedConstruct, ir.SeverityInfo, at), want,
 			"branch %d is reported at its own pointer, naming its own residue", i)
 	}
 }
@@ -748,7 +749,7 @@ func TestAllOf_BranchResidueRidesEveryDistributedVariant(t *testing.T) {
 		require.True(t, ok, "variant %d carries the branch residue; got %+v", i, variant.Unmodeled)
 		assert.Contains(t, string(entry.Value), `"description":"BranchDoc"`, "variant %d", i)
 	}
-	assert.Equal(t, 1, countDiagsAt(diags, codeDegradedConstruct, ir.SeverityInfo),
+	assert.Equal(t, 1, countDiagsAt(diags, diag.DegradedConstruct, ir.SeverityInfo),
 		"one branch, one diagnostic, however many variants carry it; got %+v", diags)
 }
 
@@ -770,7 +771,7 @@ func TestModel_PlainRequiredUndeclaredPropertyUnaffected(t *testing.T) {
 	m, ok := doc.Types[componentID("Plain")].(*ir.Model)
 	require.True(t, ok, "Plain should be a model")
 	require.Len(t, m.Properties, 1)
-	assert.False(t, hasDiag(diags, codeUnattachableRequired),
+	assert.False(t, hasDiag(diags, diag.UnattachableRequired),
 		"the plain (non-allOf) path is untouched by this fix; no new diagnostic")
 }
 
@@ -991,7 +992,7 @@ func TestHoistLiteral_UnconvertibleConstBecomesAny(t *testing.T) {
 		_, isLiteral := td.(*ir.Literal)
 		assert.False(t, isLiteral, "no Literal is produced anywhere; nothing lies about the value being null")
 	}
-	require.Equal(t, 1, countDiagsAt(diags, codeDegradedConstruct, ir.SeverityWarning),
+	require.Equal(t, 1, countDiagsAt(diags, diag.DegradedConstruct, ir.SeverityWarning),
 		"exactly one warning fires for the unconvertible value")
 	d, ok := firstDegradedWarning(diags)
 	require.True(t, ok)
@@ -1016,7 +1017,7 @@ func TestEnumAsUnion_UnconvertibleMemberBecomesAny(t *testing.T) {
 	require.True(t, ok, "the unconvertible member hoists the schemaless top type, not a lying null Literal")
 	assert.Equal(t, ir.KindAny, member1.Kind())
 
-	require.Equal(t, 1, countDiagsAt(diags, codeDegradedConstruct, ir.SeverityWarning),
+	require.Equal(t, 1, countDiagsAt(diags, diag.DegradedConstruct, ir.SeverityWarning),
 		"exactly one warning for the unconvertible member, distinct from the heterogeneous-enum info diagnostic")
 	d, ok := firstDegradedWarning(diags)
 	require.True(t, ok)
@@ -1129,7 +1130,7 @@ func TestModelDiscriminator_UndeclaredPropertyAndBadMapping(t *testing.T) {
 	require.NotNil(t, v.Discriminator)
 	assert.Empty(t, v.Discriminator.Property, "undeclared property")
 	assert.Equal(t, "kind", v.Discriminator.PropertyName)
-	assert.True(t, hasDiag(diags, codeUnresolvedRef), "bad mapping target diagnostic")
+	assert.True(t, hasDiag(diags, diag.UnresolvedRef), "bad mapping target diagnostic")
 }
 
 func TestOneOf_DiscriminatorWithDefault(t *testing.T) {
@@ -1193,7 +1194,7 @@ func TestAllOf_UnresolvedRefBranch(t *testing.T) {
 `)
 	doc, diags := lowerSpec(t, spec)
 	require.NotNil(t, doc)
-	assert.True(t, hasDiag(diags, codeUnresolvedRef))
+	assert.True(t, hasDiag(diags, diag.UnresolvedRef))
 }
 
 func TestAllOf_MultiRefWithUnresolvedDoesNotAnchor(t *testing.T) {
@@ -1269,9 +1270,9 @@ func TestEnum_HeterogeneousBecomesUnionWithBadValue(t *testing.T) {
 	u, ok := typeByName(doc, "Mixed").(*ir.Union)
 	require.True(t, ok, "heterogeneous enum lowers to a union of literals")
 	assert.Len(t, u.Variants, 2)
-	assert.True(t, hasDiagAt(diags, codeDegradedConstruct, ir.SeverityInfo),
+	assert.True(t, hasDiagAt(diags, diag.DegradedConstruct, ir.SeverityInfo),
 		"heterogeneous-enum info diagnostic")
-	assert.True(t, hasDiagAt(diags, codeDegradedConstruct, ir.SeverityWarning),
+	assert.True(t, hasDiagAt(diags, diag.DegradedConstruct, ir.SeverityWarning),
 		"unconvertible literal value warning")
 }
 
@@ -1335,7 +1336,7 @@ func TestAllOf_BoolBranchSkippedInCompositionRequired(t *testing.T) {
 	id, hasID := propsByWire(m.Properties)["id"]
 	require.True(t, hasID, "the object branch's own property still lowers despite the sibling bool branch")
 	assert.True(t, id.Required, "the object branch's own required still attaches to its own property")
-	assert.False(t, hasDiag(diags, codeUnattachableRequired),
+	assert.False(t, hasDiag(diags, diag.UnattachableRequired),
 		"the boolean branch contributes no required names, so nothing goes unattached")
 }
 
@@ -1429,7 +1430,7 @@ func TestDiscriminatorDefault_DroppedWhenUnresolved(t *testing.T) {
 	id := l.discriminatorDefault(d, "/components/schemas/Pet")
 	assert.Empty(t, id, "an unresolved defaultMapping yields no target")
 	require.Len(t, l.diags.List(), 1)
-	assert.Equal(t, codeUnresolvedRef, l.diags.List()[0].Code)
+	assert.Equal(t, diag.UnresolvedRef, l.diags.List()[0].Code)
 }
 
 func TestDiscriminatorDefault_EmptyIsNoOp(t *testing.T) {
@@ -1473,7 +1474,7 @@ func TestOneOf_CoDeclaredCompositionDistributes(t *testing.T) {
 		assert.Equal(t, componentID(branch), v.Mixins[0].Target)
 		assert.Equal(t, branch, u.Variants[i].Name.Hint)
 	}
-	assert.Equal(t, 1, countDiagsAt(diags, codeCompositionLowering, ir.SeverityInfo),
+	assert.Equal(t, 1, countDiagsAt(diags, diag.CompositionLowering, ir.SeverityInfo),
 		"the reshaping is reported once; got %+v", diags)
 }
 
@@ -1795,11 +1796,11 @@ func TestOneOf_CoDeclaredUnresolvableBranchIsNotDistributed(t *testing.T) {
 		require.True(t, ok, "%s keeps every branch verbatim", name)
 		assert.Equal(t, ir.ReasonDegradedLowering, entry.Reason, "%s", name)
 		assert.Contains(t,
-			diagMessageAt(t, diags, codeDegradedConstruct, ir.SeverityInfo, "/components/schemas/"+name),
+			diagMessageAt(t, diags, diag.DegradedConstruct, ir.SeverityInfo, "/components/schemas/"+name),
 			"names no referent this compilation resolves", name)
 		// One error per offending branch, at the branch itself.
 		assert.Contains(t,
-			diagMessageAt(t, diags, codeUnresolvedRef, ir.SeverityError, "/components/schemas/"+name+"/oneOf/0"),
+			diagMessageAt(t, diags, diag.UnresolvedRef, ir.SeverityError, "/components/schemas/"+name+"/oneOf/0"),
 			"resolves to nothing this document declares", name)
 	}
 	for _, d := range diags {
@@ -1852,7 +1853,7 @@ func TestOneOf_CoDeclaredNotDistributedReasons(t *testing.T) {
 		require.True(t, ok, "%s keeps its union verbatim", name)
 		assert.Equal(t, ir.ReasonDegradedLowering, entry.Reason, "%s", name)
 		assert.Contains(t,
-			diagMessageAt(t, diags, codeDegradedConstruct, ir.SeverityInfo, "/components/schemas/"+name),
+			diagMessageAt(t, diags, diag.DegradedConstruct, ir.SeverityInfo, "/components/schemas/"+name),
 			reason, name)
 	}
 	both := typeByName(doc, "BothCombinators").(*ir.Model)
@@ -1861,7 +1862,7 @@ func TestOneOf_CoDeclaredNotDistributedReasons(t *testing.T) {
 	nullBranch := typeByName(doc, "NullBranch").(*ir.Model)
 	assert.Contains(t, string(nullBranch.Unmodeled["openapi:oneOf"].Value), `"null"`,
 		"a null branch is written inline, so it blocks distribution rather than lifting to Nullable")
-	assert.Equal(t, 5, countDiagsAt(diags, codeDegradedConstruct, ir.SeverityInfo),
+	assert.Equal(t, 5, countDiagsAt(diags, diag.DegradedConstruct, ir.SeverityInfo),
 		"each declined shape is reported once; got %+v", diags)
 }
 

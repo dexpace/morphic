@@ -7,6 +7,7 @@ import (
 	soa "github.com/speakeasy-api/openapi/openapi"
 
 	"github.com/dexpace/morphic/compilers/compile"
+	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -180,7 +181,7 @@ func (l *lowerer) lowerSecurityRequirement(req *soa.SecurityRequirement) ir.Auth
 	for name, scopes := range req.All() {
 		id := authIDFor(name)
 		if _, ok := l.out.Auth[id]; !ok {
-			l.diag(ir.SeverityError, codeUnresolvedRef, ptr("components", "securitySchemes", name),
+			l.diag(ir.SeverityError, diag.UnresolvedRef, ptr("components", "securitySchemes", name),
 				"security requirement references undeclared scheme %q", name)
 			continue
 		}

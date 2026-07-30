@@ -17,6 +17,7 @@ import (
 
 	"github.com/dexpace/morphic/compilers"
 	"github.com/dexpace/morphic/compilers/openapi"
+	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/ir"
 	"github.com/dexpace/morphic/ir/irverify"
 )
@@ -40,7 +41,7 @@ func FuzzCompile(f *testing.F) {
 	seedCorpus(f)
 	f.Fuzz(func(t *testing.T, data []byte) {
 		doc, diags, err := compileSpec(t.Context(), "fuzz.yaml", data)
-		if err != nil || doc == nil || hasErrorDiag(diags) {
+		if err != nil || doc == nil || diag.HasError(diags) {
 			return // malformed input or a spec-author problem is not a compiler defect
 		}
 		assertOracles(t, "fuzz.yaml", data, doc)
@@ -63,7 +64,7 @@ func FuzzLowerSchema(f *testing.F) {
 			return // fragment is not valid JSON; nothing to embed
 		}
 		doc, diags, err := compileSpec(t.Context(), "fuzz-schema.json", spec)
-		if err != nil || doc == nil || hasErrorDiag(diags) {
+		if err != nil || doc == nil || diag.HasError(diags) {
 			return
 		}
 		assertOracles(t, "fuzz-schema.json", spec, doc)
@@ -76,15 +77,6 @@ func FuzzLowerSchema(f *testing.F) {
 func compileSpec(ctx context.Context, path string, data []byte) (*ir.Document, []ir.Diagnostic, error) {
 	return openapi.New().Compile(ctx,
 		[]compilers.Source{{Path: path, Data: data}}, compilers.Options{})
-}
-
-// hasErrorDiag reports whether any diagnostic is error severity — the same gate
-// internal/harness.Check applies before running the structural oracles. An
-// error-severity diagnostic marks a spec-author problem, not a compiler defect,
-// so the oracles must not run on the resulting degraded document. It is also
-// shared by danglingcheck_test.go, in this same external test package.
-func hasErrorDiag(diags []ir.Diagnostic) bool {
-	return ir.HasError(diags)
 }
 
 // assertOracles applies the structural oracles to a cleanly compiled document:

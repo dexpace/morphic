@@ -13,6 +13,7 @@ import (
 	yaml "gopkg.in/yaml.v3"
 
 	"github.com/dexpace/morphic/compilers/compile"
+	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -119,7 +120,7 @@ func (l *lowerer) recordResidue(c *ir.TypeCommon, s *oas3.Schema, pointer string
 		if !l.preserveSchemaKeyword(&c.Unmodeled, s, keyword, ir.ReasonNoIRHome, pointer+ptr(keyword)) {
 			continue
 		}
-		l.diag(ir.SeverityInfo, codeDegradedConstruct, pointer+ptr(keyword),
+		l.diag(ir.SeverityInfo, diag.DegradedConstruct, pointer+ptr(keyword),
 			"%s on a type declaration binds a use of the type, not the type; it is kept "+
 				"verbatim under Unmodeled and applied to a referencing property, header or "+
 				"parameter wherever that carrier has a field for it", keyword)
@@ -289,7 +290,7 @@ func declaresValidationOnly(s *oas3.Schema) bool {
 // the oneOf/anyOf dispatch that precede structural lowering.
 func (l *lowerer) lowerSchemaBody(schema *oas3.Schema, pointer, hint string) ir.TypeRef {
 	if target, _, ok := l.dynamicExpansion(schema, pointer); ok {
-		l.diag(ir.SeverityInfo, codeDynamicRefExpanded, pointer+ptr("$dynamicRef"),
+		l.diag(ir.SeverityInfo, diag.DynamicRefExpanded, pointer+ptr("$dynamicRef"),
 			"$dynamicRef expanded to %q, the one matching $dynamicAnchor in this document", target)
 		return ir.TypeRef{Target: target, Nullable: schemaAdmitsNull(schema)}
 	}
@@ -390,7 +391,7 @@ func (l *lowerer) preserveUnionSiblings(id ir.TypeID, s *oas3.Schema, pointer st
 	if reason == ir.ReasonValidationOnly || !kept {
 		return
 	}
-	l.diag(ir.SeverityInfo, codeDegradedConstruct, pointer,
+	l.diag(ir.SeverityInfo, diag.DegradedConstruct, pointer,
 		"oneOf/anyOf co-declared with structural keywords intersects with them, and %s; union branches kept verbatim under Unmodeled", why)
 }
 
@@ -398,7 +399,7 @@ func (l *lowerer) preserveUnionSiblings(id ir.TypeID, s *oas3.Schema, pointer st
 // matches nothing) and records one info diagnostic on first visit.
 func (l *lowerer) falseSchema(pointer, hint string) ir.TypeID {
 	return l.internNode(pointer, hint, func(common ir.TypeCommon) ir.TypeDef {
-		l.diag(ir.SeverityInfo, codeFalseSchema, pointer,
+		l.diag(ir.SeverityInfo, diag.FalseSchema, pointer,
 			"boolean false schema matches nothing; lowered as a closed empty model")
 		return &ir.Model{TypeCommon: common, Additional: ir.AdditionalClosed}
 	})
@@ -561,7 +562,7 @@ func (l *lowerer) recordUnhomedKeywords(owner ir.TypeID, s *oas3.Schema, unhomed
 	if len(kept) == 0 {
 		return
 	}
-	l.diag(ir.SeverityInfo, codeDegradedConstruct, pointer,
+	l.diag(ir.SeverityInfo, diag.DegradedConstruct, pointer,
 		"this position lowered to a node of kind %q, which has no home for %s declared beside it; kept verbatim under Unmodeled",
 		kind, strings.Join(kept, ", "))
 }
@@ -746,7 +747,7 @@ func (l *lowerer) fillPropertyDefault(p *ir.Property, ref, tgt *oas3.Schema, poi
 	}
 	v, err := valueFromNode(node)
 	if err != nil {
-		l.diag(ir.SeverityWarning, codeDegradedConstruct, pointer, "default: %s", err.Error())
+		l.diag(ir.SeverityWarning, diag.DegradedConstruct, pointer, "default: %s", err.Error())
 		return
 	}
 	p.Default = &v
@@ -815,7 +816,7 @@ func (l *lowerer) attachDeclaredAnnotations(s *oas3.Schema, pointer string) {
 func (l *lowerer) appendExample(out []ir.Example, proto ir.Example, node *yaml.Node, base string, seg ...string) []ir.Example {
 	v, err := valueFromNode(node)
 	if err != nil {
-		l.diag(ir.SeverityWarning, codeDegradedConstruct, base+ptr(seg...), "example: %s", err.Error())
+		l.diag(ir.SeverityWarning, diag.DegradedConstruct, base+ptr(seg...), "example: %s", err.Error())
 		return out
 	}
 	proto.Value = &v
@@ -901,9 +902,9 @@ func (l *lowerer) preserveKeyword(p *ir.Unmodeled, key string, raw ir.RawValue, 
 // diag appends one diagnostic at pointer with the given severity and code,
 // stamping it with l.srcIndex. It is the single primitive for constructing a
 // Provenance from l.srcIndex — lowering sites should use it instead of
-// hand-writing the append+diagf+Provenance triple.
+// hand-writing the append+diag.Newf+Provenance triple.
 func (l *lowerer) diag(sev ir.Severity, code, pointer, format string, args ...any) {
-	l.appendDiag(diagf(sev, code, ir.Provenance{Source: l.srcIndex, Pointer: pointer}, format, args...))
+	l.appendDiag(diag.Newf(sev, code, ir.Provenance{Source: l.srcIndex, Pointer: pointer}, format, args...))
 }
 
 // appendDiag records d unless one identical to it — same severity, code,
@@ -945,7 +946,7 @@ func (l *lowerer) buildTuple(s *oas3.Schema, common ir.TypeCommon, pointer, hint
 	}
 	if l.preserveNode(&t.Unmodeled, "openapi:items-after-prefix", rawPropertyNode(s, "items"),
 		ir.ReasonDegradedLowering, pointer+ptr("items")) {
-		l.diag(ir.SeverityInfo, codeDegradedConstruct, pointer,
+		l.diag(ir.SeverityInfo, diag.DegradedConstruct, pointer,
 			"items after prefixItems is an open tuple; lowered as a fixed-arity Tuple with the tail kept under Unmodeled")
 	}
 	return t
@@ -1051,7 +1052,7 @@ func (l *lowerer) scalarEncoding(s *oas3.Schema, formatName string, c *ir.TypeCo
 	}
 	at := pointer + ptr("format")
 	if l.preserveSchemaKeyword(&c.Unmodeled, s, "format", ir.ReasonNoIRHome, at) {
-		l.diag(ir.SeverityInfo, codeDegradedConstruct, at,
+		l.diag(ir.SeverityInfo, diag.DegradedConstruct, at,
 			"format and contentEncoding both name an encoding and ir.Encoding holds one; "+
 				"contentEncoding %q is lowered and format is kept verbatim under Unmodeled", content)
 	}
@@ -1093,7 +1094,7 @@ func (l *lowerer) recordUnplacedContent(p *ir.Unmodeled, s *oas3.Schema, td ir.T
 		if !l.preserveSchemaKeyword(p, s, keyword, ir.ReasonNoIRHome, pointer+ptr(keyword)) {
 			continue
 		}
-		l.diag(ir.SeverityInfo, codeDegradedConstruct, pointer+ptr(keyword),
+		l.diag(ir.SeverityInfo, diag.DegradedConstruct, pointer+ptr(keyword),
 			"%s encodes a string value and this position lowered to a shape with no "+
 				"Encoding field; kept verbatim under Unmodeled", keyword)
 	}
@@ -1346,7 +1347,7 @@ func (l *lowerer) recordUnexpandedDynamicRef(p *ir.Unmodeled, s *oas3.Schema, po
 	}
 	at := pointer + ptr("$dynamicRef")
 	if l.preserveSchemaKeyword(p, s, "$dynamicRef", ir.ReasonDegradedLowering, at) {
-		l.diag(ir.SeverityInfo, codeDegradedConstruct, at,
+		l.diag(ir.SeverityInfo, diag.DegradedConstruct, at,
 			"$dynamicRef was not expanded because %s; it is kept verbatim under Unmodeled", why)
 	}
 }
@@ -1363,7 +1364,7 @@ func declaresDynamicRef(s *oas3.Schema) bool {
 // A truncated index can only undercount, and every verdict resting on it reads
 // an undercount as "declared exactly once" — the one count that expands. So the
 // warning is what tells a reader that an expansion reported below was decided
-// against an index nothing verified, which is exactly what codeCycleScanFailed
+// against an index nothing verified, which is exactly what diag.CycleScanFailed
 // says for the pre-parse scan.
 func (l *lowerer) dynamicAnchorIndex() map[string][]string {
 	if l.dynamicAnchors != nil {
@@ -1372,7 +1373,7 @@ func (l *lowerer) dynamicAnchorIndex() map[string][]string {
 	index, complete := dynamicAnchors(l.doc.GetRootNode())
 	l.dynamicAnchors = index
 	if !complete {
-		l.diag(ir.SeverityWarning, codeDegradedConstruct, "",
+		l.diag(ir.SeverityWarning, diag.DegradedConstruct, "",
 			"the $dynamicAnchor index stopped at its walk bounds (%d levels, %d nodes); "+
 				"a $dynamicRef expanded below is not verified to name the document's only anchor of its name",
 			maxDynamicAnchorDepth, maxDynamicAnchorNodes)
@@ -1757,7 +1758,7 @@ func extensionsFrom(ext *extensions.Extensions, srcIndex int, owner string) (ir.
 	for name, node := range ext.All() {
 		raw, err := rawFromNode(node)
 		if err != nil || raw == nil {
-			diags = append(diags, diagf(ir.SeverityWarning, codeDegradedConstruct,
+			diags = append(diags, diag.Newf(ir.SeverityWarning, diag.DegradedConstruct,
 				ir.Provenance{Source: srcIndex, Pointer: owner},
 				"extension %q could not be serialized", name))
 			continue

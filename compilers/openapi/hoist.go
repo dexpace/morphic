@@ -4,6 +4,7 @@ import (
 	soa "github.com/speakeasy-api/openapi/openapi"
 
 	"github.com/dexpace/morphic/compilers/compile"
+	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -89,7 +90,7 @@ func (l *lowerer) intern(pointer string, id ir.TypeID, build func() ir.TypeDef) 
 func (l *lowerer) registeredNode(id ir.TypeID, pointer string) (ir.TypeDef, bool) {
 	td, ok := l.types.Node(id)
 	if !ok {
-		l.diag(ir.SeverityError, codeInternalInvariant, pointer,
+		l.diag(ir.SeverityError, diag.InternalInvariant, pointer,
 			"internal: type %q is named at this pointer but absent from the registry; its source constructs are dropped", id)
 	}
 	return td, ok

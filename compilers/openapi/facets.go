@@ -6,6 +6,7 @@ import (
 	oas3 "github.com/speakeasy-api/openapi/jsonschema/oas3"
 	yaml "gopkg.in/yaml.v3"
 
+	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -105,7 +106,7 @@ func noIRHomeAt(s *oas3.Schema, pointer string, srcIndex int) (ir.Unmodeled, []i
 	if !kept {
 		return nil, diags
 	}
-	return p, []ir.Diagnostic{diagf(ir.SeverityInfo, codeDegradedConstruct,
+	return p, []ir.Diagnostic{diag.Newf(ir.SeverityInfo, diag.DegradedConstruct,
 		ir.Provenance{Source: srcIndex, Pointer: at},
 		"contentSchema is the shape of the decoded content and no IR position has a field "+
 			"for it; kept verbatim under Unmodeled")}
@@ -135,7 +136,7 @@ func dialectAt(s *oas3.Schema, pointer string, srcIndex int) (ir.Unmodeled, []ir
 		if !kept {
 			continue
 		}
-		diags = append(diags, diagf(ir.SeverityInfo, codeDegradedConstruct,
+		diags = append(diags, diag.Newf(ir.SeverityInfo, diag.DegradedConstruct,
 			ir.Provenance{Source: srcIndex, Pointer: at},
 			"%s identifies or configures a JSON Schema resource rather than describing data; "+
 				"the IR models no such axis, so it is kept verbatim under Unmodeled and is not "+
@@ -168,7 +169,7 @@ func appendExampleAt(out []ir.Example, diags []ir.Diagnostic, node *yaml.Node,
 	at := base + ptr(seg...)
 	v, err := valueFromNode(node)
 	if err != nil {
-		return out, append(diags, diagf(ir.SeverityWarning, codeDegradedConstruct,
+		return out, append(diags, diag.Newf(ir.SeverityWarning, diag.DegradedConstruct,
 			ir.Provenance{Source: srcIndex, Pointer: at}, "example: %s", err.Error()))
 	}
 	return append(out, ir.Example{Value: &v}), diags
@@ -287,7 +288,7 @@ func preserveNodeInto(p *ir.Unmodeled, key string, node *yaml.Node,
 // error and never claimed to have kept anything, so it is not the defect this
 // code exists for.
 func unpreservableDiag(key, pointer string, srcIndex int, err error) ir.Diagnostic {
-	return diagf(ir.SeverityError, codeUnpreservableConstruct,
+	return diag.Newf(ir.SeverityError, diag.UnpreservableConstruct,
 		ir.Provenance{Source: srcIndex, Pointer: pointer},
 		"%s could not be kept verbatim under Unmodeled and is represented in the IR "+
 			"in no form at all: %s", key, err.Error())
@@ -304,7 +305,7 @@ func preserveKeywordInto(p *ir.Unmodeled, key string, raw ir.RawValue,
 		return nil
 	}
 	preserveInto(p, key, raw, ir.ReasonValidationOnly, entryPtr, srcIndex)
-	return []ir.Diagnostic{diagf(ir.SeverityInfo, codeValidationOnlyKeyword,
+	return []ir.Diagnostic{diag.Newf(ir.SeverityInfo, diag.ValidationOnlyKeyword,
 		ir.Provenance{Source: srcIndex, Pointer: declPtr},
 		"validation-only keyword %q kept verbatim under Unmodeled", label)}
 }

@@ -8,6 +8,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -96,7 +97,7 @@ func TestParams_UnconvertibleExampleDiagnosed(t *testing.T) {
 	op := firstOp(t, svc)
 	require.Len(t, op.Params, 1)
 	assert.Empty(t, op.Params[0].Examples, "the unconvertible example is skipped, not appended")
-	require.Equal(t, 1, countDiagsAt(diags, codeDegradedConstruct, ir.SeverityWarning))
+	require.Equal(t, 1, countDiagsAt(diags, diag.DegradedConstruct, ir.SeverityWarning))
 	d, ok := firstDegradedWarning(diags)
 	require.True(t, ok)
 	assert.Equal(t, "/paths/~1items/get/parameters/0/example", d.Provenance.Pointer)
@@ -186,8 +187,8 @@ func TestParams_AllLocationsAndStyles(t *testing.T) {
 	assert.NotEmpty(t, logical["filter"].Unmodeled)
 	require.NotNil(t, logical["q"].Constraints)
 
-	assert.True(t, hasDiagAt(diags, codeDegradedConstruct, ir.SeverityWarning), "malformed param default warns")
-	assert.True(t, hasDiag(diags, codeNumericPrecision), "malformed param constraint warns")
+	assert.True(t, hasDiagAt(diags, diag.DegradedConstruct, ir.SeverityWarning), "malformed param default warns")
+	assert.True(t, hasDiag(diags, diag.NumericPrecision), "malformed param constraint warns")
 }
 
 func TestParams_QueryStringLocation(t *testing.T) {
@@ -474,7 +475,7 @@ func TestParams_SchemaXMLHintsKeptUnderUnmodeled(t *testing.T) {
 			assert.Equal(t, tc.schemaPtr+"/xml", entry.Provenance.Pointer,
 				"located at the xml keyword itself")
 			assert.Contains(t,
-				diagMessageAt(t, diags, codeDegradedConstruct, ir.SeverityInfo, tc.schemaPtr+"/xml"),
+				diagMessageAt(t, diags, diag.DegradedConstruct, ir.SeverityInfo, tc.schemaPtr+"/xml"),
 				"xml hints", "and announced once, at the same keyword the entry locates")
 		})
 	}
@@ -498,7 +499,7 @@ func TestParams_SchemaXMLHintsStayOnAnOwnedNode(t *testing.T) {
 	require.NotNil(t, node.Common().XML)
 	assert.Equal(t, "XOBJ", node.Common().XML.Name)
 	assert.NotContains(t, p.Unmodeled, "openapi:xml", "so the parameter keeps no second copy")
-	assert.Equal(t, 0, countDiagsAt(diags, codeDegradedConstruct, ir.SeverityInfo),
+	assert.Equal(t, 0, countDiagsAt(diags, diag.DegradedConstruct, ir.SeverityInfo),
 		"and nothing is announced as homeless")
 }
 
@@ -545,7 +546,7 @@ func TestParams_SchemaVisibilityKeptUnderUnmodeled(t *testing.T) {
 			assert.JSONEq(t, `true`, string(entry.Value), "kept verbatim")
 			assert.Equal(t, at, entry.Provenance.Pointer, "located at the keyword itself")
 			assert.Contains(t,
-				diagMessageAt(t, diags, codeDegradedConstruct, ir.SeverityInfo, at),
+				diagMessageAt(t, diags, diag.DegradedConstruct, ir.SeverityInfo, at),
 				tc.keyword+" has no ir.Parameter home", "and announced once")
 		})
 	}

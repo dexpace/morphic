@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	"github.com/dexpace/morphic/compilers"
+	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -60,7 +61,7 @@ func (l *lowerer) run() *ir.Document {
 	// a refusal nothing reports hides the bug rather than the symptom: the node is
 	// simply absent and every reference to it dangles.
 	for _, v := range l.types.Violations() {
-		l.diag(ir.SeverityError, codeInternalInvariant, "", "internal: %s", v)
+		l.diag(ir.SeverityError, diag.InternalInvariant, "", "internal: %s", v)
 	}
 	return l.out
 }

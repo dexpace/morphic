@@ -6,6 +6,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -144,7 +145,7 @@ components:
     s: {type: apiKey, in: header, name: X-Key, x-bad: {1: intkey}}
 `
 	doc, _, diags := lowerServiceSpec(t, spec)
-	assert.True(t, hasDiagAt(diags, codeDegradedConstruct, ir.SeverityWarning),
+	assert.True(t, hasDiagAt(diags, diag.DegradedConstruct, ir.SeverityWarning),
 		"an entirely unserializable extension still warns even though the scheme's own Unmodeled ends up empty")
 	scheme, ok := doc.Auth[authIDFor("s")]
 	require.True(t, ok)

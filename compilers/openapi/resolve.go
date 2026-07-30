@@ -7,6 +7,7 @@ import (
 
 	oas3 "github.com/speakeasy-api/openapi/jsonschema/oas3"
 
+	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -146,7 +147,7 @@ func (l *lowerer) schemaRefHomed(js *oas3.JSONSchema[oas3.Referenceable], pointe
 	l.depth++
 	defer func() { l.depth-- }()
 	if l.depth > maxSchemaDepth {
-		l.diag(ir.SeverityError, codeDegradedConstruct, pointer,
+		l.diag(ir.SeverityError, diag.DegradedConstruct, pointer,
 			"schema nesting exceeds %d; lowered as any", maxSchemaDepth)
 		return l.primRef(ir.PrimAny)
 	}
@@ -203,7 +204,7 @@ func (l *lowerer) refTypeRef(js *oas3.JSONSchema[oas3.Referenceable], pointer st
 	ref := js.GetRef().String()
 	id, ok := l.resolveSchemaRef(js, ref)
 	if !ok {
-		l.diag(ir.SeverityError, codeUnresolvedRef, pointer,
+		l.diag(ir.SeverityError, diag.UnresolvedRef, pointer,
 			"unresolved $ref %q", ref)
 		return l.primRef(ir.PrimAny)
 	}

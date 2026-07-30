@@ -11,6 +11,7 @@ import (
 
 	"github.com/dexpace/morphic/compilers"
 	"github.com/dexpace/morphic/compilers/compile"
+	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -137,7 +138,7 @@ func typeByName(doc *ir.Document, name string) ir.TypeDef {
 func conflictDiags(diags []ir.Diagnostic) []ir.Diagnostic {
 	var out []ir.Diagnostic
 	for _, d := range diags {
-		if d.Code == codeConflictingRedecl {
+		if d.Code == diag.ConflictingRedecl {
 			out = append(out, d)
 		}
 	}
@@ -218,13 +219,13 @@ func hasDiagAt(diags []ir.Diagnostic, code string, sev ir.Severity) bool {
 	return countDiagsAt(diags, code, sev) > 0
 }
 
-// firstDegradedWarning returns the first codeDegradedConstruct warning in
+// firstDegradedWarning returns the first diag.DegradedConstruct warning in
 // diags, and whether one was found — the pointer/message inspection
 // counterpart to hasDiagAt/countDiagsAt for the degraded-value warning tests
 // that need more than a yes/no answer.
 func firstDegradedWarning(diags []ir.Diagnostic) (ir.Diagnostic, bool) {
 	for _, d := range diags {
-		if d.Code == codeDegradedConstruct && d.Severity == ir.SeverityWarning {
+		if d.Code == diag.DegradedConstruct && d.Severity == ir.SeverityWarning {
 			return d, true
 		}
 	}

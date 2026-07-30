@@ -7,6 +7,7 @@ import (
 
 	"gopkg.in/yaml.v3"
 
+	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -19,7 +20,7 @@ const maxCycleDepth = 10000
 // expands. It is far tighter than maxCycleDepth: each merge level
 // re-materializes every pair beneath it, so expanding a chain of depth d costs
 // O(d²), and real specs nest merge keys one or two levels deep. A chain that
-// hits the bound is reported via a codeCycleScanFailed warning (see
+// hits the bound is reported via a diag.CycleScanFailed warning (see
 // nodeView.expand and refCycles), not silently truncated.
 const maxMergeDepth = 64
 
@@ -110,14 +111,14 @@ func detectCycles(srcIndex int, data []byte) []ir.Diagnostic {
 }
 
 // recoverCycleScan runs scan and, on any panic from the recursive walks,
-// degrades to a codeCycleScanFailed warning instead of propagating — a bug in
+// degrades to a diag.CycleScanFailed warning instead of propagating — a bug in
 // the detector must not crash the compiler on a degenerate spec (GitHub #12).
 // The compile still proceeds to the parser; only the pre-parse guarantee is
 // flagged incomplete for this source.
 func recoverCycleScan(srcIndex int, scan func() []ir.Diagnostic) (diags []ir.Diagnostic) {
 	defer func() {
 		if r := recover(); r != nil {
-			diags = []ir.Diagnostic{diagf(ir.SeverityWarning, codeCycleScanFailed,
+			diags = []ir.Diagnostic{diag.Newf(ir.SeverityWarning, diag.CycleScanFailed,
 				ir.Provenance{Source: srcIndex},
 				"cycle pre-scan aborted (%v); reference-cycle protection is incomplete for this source", r)}
 		}
@@ -146,14 +147,14 @@ func scanCycles(srcIndex int, data []byte) []ir.Diagnostic {
 	// infinite, and having already refused those is what makes the alias
 	// graph a DAG and the weigh walk below provably terminating.
 	diags := refCycles(srcIndex, docRoot)
-	if hasErrorDiag(diags) {
+	if diag.HasError(diags) {
 		return diags
 	}
 
 	// refCycles runs first: a genuine $ref cycle should win the diagnostic over
 	// an amplification finding on the same document, and refCycles is safe to
 	// run on an amplifying document since it never materializes the expansion.
-	// Appending (rather than replacing) preserves any codeCycleScanFailed
+	// Appending (rather than replacing) preserves any diag.CycleScanFailed
 	// warning refCycles already produced, so a document that both truncates a
 	// merge chain and amplifies reports both findings.
 	if d, ok := aliasAmplification(srcIndex, docRoot); ok {
@@ -222,7 +223,7 @@ func anchorName(alias *yaml.Node) string {
 // that carries no top-level $ref (which terminates the chain, matching where
 // speakeasy stops resolving).
 //
-// If the mapping view hit maxMergeDepth, it returns a codeCycleScanFailed
+// If the mapping view hit maxMergeDepth, it returns a diag.CycleScanFailed
 // warning instead of a clean nil: truncation only ever drops pairs, so a cycle
 // found despite it is still real, but a clean result only means "no cycle found
 // in what could be expanded."
@@ -239,7 +240,7 @@ func refCycles(srcIndex int, root *yaml.Node) []ir.Diagnostic {
 		return []ir.Diagnostic{d}
 	}
 	if s.view.exhausted {
-		return []ir.Diagnostic{diagf(ir.SeverityWarning, codeCycleScanFailed,
+		return []ir.Diagnostic{diag.Newf(ir.SeverityWarning, diag.CycleScanFailed,
 			ir.Provenance{Source: srcIndex},
 			"cycle pre-scan stopped at its %d-level merge-key expansion bound; "+
 				"reference-cycle protection is incomplete for this source",
@@ -360,7 +361,7 @@ func (s *refScan) collect(root *yaml.Node) {
 			// and every declared role has a case above. A role added without
 			// one is a programmer error, so fail loudly rather than silently
 			// walking it as the wrong kind of node — recoverCycleScan turns
-			// this into the codeCycleScanFailed warning, never a crash.
+			// this into the diag.CycleScanFailed warning, never a crash.
 			panic(fmt.Sprintf("cycle scan: unhandled walk role %d", t.role))
 		}
 	}
@@ -816,12 +817,12 @@ func deref(n *yaml.Node) *yaml.Node {
 	return n
 }
 
-// cyclicDiag builds a codeCyclicRef error diagnostic anchored at a node's
+// cyclicDiag builds a diag.CyclicRef error diagnostic anchored at a node's
 // line:col position, matching the provenance convention of the resolve path.
 func cyclicDiag(srcIndex int, n *yaml.Node, format string, args ...any) ir.Diagnostic {
 	prov := ir.Provenance{Source: srcIndex}
 	if n != nil {
 		prov.Pointer = fmt.Sprintf("%d:%d", n.Line, n.Column)
 	}
-	return diagf(ir.SeverityError, codeCyclicRef, prov, format, args...)
+	return diag.Newf(ir.SeverityError, diag.CyclicRef, prov, format, args...)
 }

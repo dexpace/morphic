@@ -8,6 +8,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -76,7 +77,7 @@ func TestConstraints_MalformedNumericLiterals(t *testing.T) {
 	require.NotNil(t, doc)
 	var count int
 	for _, d := range diags {
-		if d.Code == codeNumericPrecision {
+		if d.Code == diag.NumericPrecision {
 			count++
 			assert.Equal(t, ir.SeverityError, d.Severity)
 		}
@@ -146,7 +147,7 @@ func TestConstraints_HoistedSubSchemaBadBoundSingleError(t *testing.T) {
 	spec := componentSpec("    Foo:\n      type: object\n      properties:\n        bar: {type: number, minimum: hello}\n" +
 		"    User:\n      type: object\n      properties:\n        b: {$ref: '#/components/schemas/Foo/properties/bar'}\n")
 	_, diags := lowerSpec(t, spec)
-	assert.Equal(t, 1, countDiagsAt(diags, codeNumericPrecision, ir.SeverityError),
+	assert.Equal(t, 1, countDiagsAt(diags, diag.NumericPrecision, ir.SeverityError),
 		"one error for the shared bad bound, got: %+v", diags)
 }
 
@@ -170,7 +171,7 @@ func TestConstraints_ExclusiveWrongDialectForm(t *testing.T) {
 				"    S:\n      type: object\n      properties:\n        n: {type: number, exclusiveMinimum: "+tc.value+"}\n")
 			doc, diags := lowerSpec(t, spec)
 			require.NotNil(t, doc)
-			assert.Equal(t, 1, countDiagsAt(diags, codeExclusiveBoundForm, ir.SeverityError),
+			assert.Equal(t, 1, countDiagsAt(diags, diag.ExclusiveBoundForm, ir.SeverityError),
 				"one dialect-form error, got: %+v", diags)
 			// The degenerate bound is dropped, not recorded.
 			m, ok := typeByName(doc, "S").(*ir.Model)
@@ -192,7 +193,7 @@ func TestConstraints_TypeWrongBoundYieldsSingleError(t *testing.T) {
 	// The library emits two redundant float64 type-mismatch findings on the same
 	// keyword; load suppresses both because Morphic owns numeric-bound keywords.
 	require.Len(t, diags, 1, "one diagnostic for a type-wrong bound, got: %+v", diags)
-	assert.Equal(t, codeNumericPrecision, diags[0].Code)
+	assert.Equal(t, diag.NumericPrecision, diags[0].Code)
 	assert.Equal(t, ir.SeverityError, diags[0].Severity)
 	assert.NotEmpty(t, diags[0].Provenance.Pointer)
 }
@@ -206,7 +207,7 @@ func TestConstraints_NonNumericMinimumErrors(t *testing.T) {
 	// keyword and reports it as an error with the property's exact provenance.
 	var reported bool
 	for _, d := range diags {
-		if d.Code == codeNumericPrecision {
+		if d.Code == diag.NumericPrecision {
 			reported = true
 			assert.Equal(t, ir.SeverityError, d.Severity)
 		}
@@ -250,7 +251,7 @@ func TestComponentConstraints_DiagnosticProvenance(t *testing.T) {
 	_, diags := lowerSpec(t, spec)
 	var found bool
 	for _, d := range diags {
-		if d.Code == codeNumericPrecision {
+		if d.Code == diag.NumericPrecision {
 			found = true
 			assert.NotEmpty(t, d.Provenance.Pointer, "component numeric diagnostic carries its pointer")
 			assert.Equal(t, ir.SeverityError, d.Severity, "a non-numeric bound is an error")

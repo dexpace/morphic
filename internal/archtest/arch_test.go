@@ -35,12 +35,19 @@ const subtreeSuffix = "/..."
 // beside them. Prefer the exact form — a subtree entry is for an external module
 // whose package layout is not ours to enumerate.
 var rules = map[string][]string{
-	"ir":                {},
-	"ir/irtest":         {module + "/ir", "github.com/google/go-cmp" + subtreeSuffix},
-	"ir/irverify":       {module + "/ir"},
-	"compilers":         {module + "/ir"},
-	"compilers/openapi": {module + "/ir", module + "/compilers", module + "/compilers/compile", "github.com/speakeasy-api/openapi" + subtreeSuffix, "gopkg.in/yaml.v3"},
-	"pass":              {module + "/ir"},
+	"ir":          {},
+	"ir/irtest":   {module + "/ir", "github.com/google/go-cmp" + subtreeSuffix},
+	"ir/irverify": {module + "/ir"},
+	"compilers":   {module + "/ir"},
+	"compilers/openapi": {module + "/ir", module + "/compilers", module + "/compilers/compile",
+		module + "/compilers/openapi/internal" + subtreeSuffix,
+		"github.com/speakeasy-api/openapi" + subtreeSuffix, "gopkg.in/yaml.v3"},
+	// The diagnostic vocabulary sits at the bottom of the compiler's own import
+	// graph: every package that reports anything reaches it, so it must reach
+	// nothing but ir. Its own entry says that, rather than letting it inherit the
+	// compiler's much wider allowlist by being an unkeyed subdirectory.
+	"compilers/openapi/internal/diag": {module + "/ir"},
+	"pass":                            {module + "/ir"},
 	"engine": {module + "/ir", module + "/compilers", module + "/compilers/openapi",
 		module + "/pass", "gopkg.in/yaml.v3"},
 	"cmd/morphic":         {module + "/ir", module + "/engine"},

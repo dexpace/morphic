@@ -13,6 +13,7 @@ import (
 	yaml "gopkg.in/yaml.v3"
 
 	"github.com/dexpace/morphic/compilers"
+	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -1526,7 +1527,7 @@ func TestDiag_SharedDeclarationReportsEachDefectOnce(t *testing.T) {
 	}
 
 	// Both defects still surface — de-duplication must not silence either.
-	assert.Equal(t, 2, countDiagsAt(diags, codeDegradedConstruct, ir.SeverityInfo),
+	assert.Equal(t, 2, countDiagsAt(diags, diag.DegradedConstruct, ir.SeverityInfo),
 		"the optional body and the homeless error headers are two distinct defects")
 }
 
@@ -1536,9 +1537,9 @@ func TestDiag_SharedDeclarationReportsEachDefectOnce(t *testing.T) {
 func TestDiag_DistinctDefectsAtOnePointerBothSurvive(t *testing.T) {
 	t.Parallel()
 	l := newRawLowerer(nil)
-	l.diag(ir.SeverityWarning, codeDegradedConstruct, "/p", "first")
-	l.diag(ir.SeverityWarning, codeDegradedConstruct, "/p", "second")
-	l.diag(ir.SeverityWarning, codeDegradedConstruct, "/p", "first")
+	l.diag(ir.SeverityWarning, diag.DegradedConstruct, "/p", "first")
+	l.diag(ir.SeverityWarning, diag.DegradedConstruct, "/p", "second")
+	l.diag(ir.SeverityWarning, diag.DegradedConstruct, "/p", "first")
 	require.Len(t, l.diags.List(), 2, "the repeat is dropped, the distinct message is not")
 	assert.Equal(t, "first", l.diags.List()[0].Message)
 	assert.Equal(t, "second", l.diags.List()[1].Message)
@@ -1569,10 +1570,10 @@ func TestOperations_DuplicateOperationIDReported(t *testing.T) {
 	opB := opByPath(t, doc, "GET", "/b")
 	assert.Equal(t, opA.Name.Source, opB.Name.Source, "the IR still records what the document said")
 
-	require.Equal(t, 1, countDiagsAt(diags, codeDuplicateOperationID, ir.SeverityWarning),
+	require.Equal(t, 1, countDiagsAt(diags, diag.DuplicateOperationID, ir.SeverityWarning),
 		"the second claim is reported once, not both claims")
 	for _, d := range diags {
-		if d.Code == codeDuplicateOperationID {
+		if d.Code == diag.DuplicateOperationID {
 			assert.Equal(t, "/paths/~1b/get", d.Provenance.Pointer, "reported at the mount that collided")
 			assert.Contains(t, d.Message, "/paths/~1a/get", "and names the mount that claimed it first")
 		}
@@ -1591,5 +1592,5 @@ func TestOperations_DistinctOperationIDsClean(t *testing.T) {
     get:
       responses: {"200": {description: ok}}
 `))
-	assert.False(t, hasDiag(diags, codeDuplicateOperationID))
+	assert.False(t, hasDiag(diags, diag.DuplicateOperationID))
 }
