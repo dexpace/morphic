@@ -7,6 +7,7 @@ import (
 	soa "github.com/speakeasy-api/openapi/openapi"
 
 	"github.com/dexpace/morphic/compilers/compile"
+	"github.com/dexpace/morphic/compilers/openapi/internal/annotation"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/ids"
 	"github.com/dexpace/morphic/ir"
@@ -15,45 +16,50 @@ import (
 // lowerSecuritySchemes interns every declared security scheme into the auth
 // registry keyed by ids.Auth(name) (ir-design §9). Run before the service walk
 // so operation- and document-level requirements reference registered IDs.
-func (l *lowerer) lowerSecuritySchemes() {
-	comps := l.ctx.Doc.Components
+func lowerSecuritySchemes(c lowerCtx) (map[ir.AuthID]ir.AuthScheme, []ir.Diagnostic) {
+	comps := c.Doc.Components
 	if comps == nil {
-		return
+		return nil, nil
 	}
 	schemes := comps.GetSecuritySchemes()
 	if schemes == nil || schemes.Len() == 0 {
-		return
+		return nil, nil
 	}
 	out := make(map[ir.AuthID]ir.AuthScheme, schemes.Len())
+	var diags []ir.Diagnostic
 	for name, rs := range schemes.All() {
 		ss := resolveRef[soa.SecurityScheme](rs)
 		if ss == nil {
 			continue
 		}
-		out[ids.Auth(name)] = l.lowerSecurityScheme(name, ss)
+		scheme, schemeDiags := lowerSecurityScheme(c, name, ss)
+		out[ids.Auth(name)] = scheme
+		diags = append(diags, schemeDiags...)
 	}
-	if len(out) > 0 {
-		l.out.Auth = out
+	if len(out) == 0 {
+		return nil, diags
 	}
+	return out, diags
 }
 
 // lowerSecurityScheme lowers one named security scheme into its AuthScheme,
 // dispatching the mechanism-specific fields by type.
-func (l *lowerer) lowerSecurityScheme(name string, ss *soa.SecurityScheme) ir.AuthScheme {
+func lowerSecurityScheme(c lowerCtx, name string, ss *soa.SecurityScheme) (ir.AuthScheme, []ir.Diagnostic) {
 	scheme := ir.AuthScheme{
 		ID:         ids.Auth(name),
 		Name:       compile.NamingFor(name),
 		Docs:       ir.Docs{Description: ss.GetDescription()},
-		Provenance: ir.Provenance{Source: l.ctx.SrcIndex, Pointer: ids.Ptr("components", "securitySchemes", name)},
+		Provenance: ir.Provenance{Source: c.SrcIndex, Pointer: ids.Ptr("components", "securitySchemes", name)},
 	}
 	if ss.GetDeprecated() {
 		scheme.Deprecation = &ir.Deprecation{}
 	}
 	fillSchemeKind(&scheme, ss)
-	if ext := l.extensions(ss.GetExtensions(), scheme.Provenance.Pointer); len(ext) > 0 {
+	ext, diags := annotation.ExtensionsFrom(ss.GetExtensions(), c.SrcIndex, scheme.Provenance.Pointer)
+	if len(ext) > 0 {
 		scheme.Unmodeled = ext
 	}
-	return scheme
+	return scheme, diags
 }
 
 // fillSchemeKind sets the mechanism kind and its per-kind fields (ir-design §9).
@@ -158,15 +164,20 @@ func scopeMap(f *soa.OAuthFlow) map[string]string {
 // nil list inherits the enclosing default; a non-nil list yields one
 // AuthRequirement per option in source order. An empty option object {} means
 // "no auth is one acceptable choice".
-func (l *lowerer) lowerSecurityRequirements(reqs []*soa.SecurityRequirement) []ir.AuthRequirement {
+func lowerSecurityRequirements(c lowerCtx, reqs []*soa.SecurityRequirement,
+	declared map[ir.AuthID]ir.AuthScheme,
+) ([]ir.AuthRequirement, []ir.Diagnostic) {
 	if reqs == nil {
-		return nil
+		return nil, nil
 	}
 	out := make([]ir.AuthRequirement, 0, len(reqs))
+	var diags []ir.Diagnostic
 	for _, req := range reqs {
-		out = append(out, l.lowerSecurityRequirement(req))
+		r, reqDiags := lowerSecurityRequirement(c, req, declared)
+		out = append(out, r)
+		diags = append(diags, reqDiags...)
 	}
-	return out
+	return out, diags
 }
 
 // lowerSecurityRequirement lowers one requirement option: each member is a
@@ -174,19 +185,23 @@ func (l *lowerer) lowerSecurityRequirements(reqs []*soa.SecurityRequirement) []i
 // naming a scheme that is not declared under components.securitySchemes (or one
 // that failed to resolve into the auth registry) is dropped with one error
 // diagnostic rather than writing a dangling AuthID (issue #14).
-func (l *lowerer) lowerSecurityRequirement(req *soa.SecurityRequirement) ir.AuthRequirement {
+func lowerSecurityRequirement(c lowerCtx, req *soa.SecurityRequirement,
+	declared map[ir.AuthID]ir.AuthScheme,
+) (ir.AuthRequirement, []ir.Diagnostic) {
 	if req == nil {
-		return ir.AuthRequirement{}
+		return ir.AuthRequirement{}, nil
 	}
 	var uses []ir.SchemeUse
+	var diags []ir.Diagnostic
 	for name, scopes := range req.All() {
 		id := ids.Auth(name)
-		if _, ok := l.out.Auth[id]; !ok {
-			l.diag(ir.SeverityError, diag.UnresolvedRef, ids.Ptr("components", "securitySchemes", name),
-				"security requirement references undeclared scheme %q", name)
+		if _, ok := declared[id]; !ok {
+			diags = append(diags, diag.Newf(ir.SeverityError, diag.UnresolvedRef,
+				ir.Provenance{Source: c.SrcIndex, Pointer: ids.Ptr("components", "securitySchemes", name)},
+				"security requirement references undeclared scheme %q", name))
 			continue
 		}
 		uses = append(uses, ir.SchemeUse{Scheme: id, Scopes: scopes})
 	}
-	return ir.AuthRequirement{Schemes: uses}
+	return ir.AuthRequirement{Schemes: uses}, diags
 }

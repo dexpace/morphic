@@ -3,6 +3,8 @@ package openapi
 import (
 	"testing"
 
+	soa "github.com/speakeasy-api/openapi/openapi"
+	"github.com/speakeasy-api/openapi/sequencedmap"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -131,11 +133,11 @@ components:
 }
 
 // TestAuth_UnserializableExtensionStillWarns pins that a security scheme whose
-// sole x-* extension fails to serialize still surfaces the warning: l.extensions
-// records the diagnostic unconditionally, so a caller must not gate the append
-// behind the same "if len(ext) > 0" that guards the assignment — that guard is
-// exactly false in the all-unserializable case, which used to drop the warning
-// silently.
+// sole x-* extension fails to serialize still surfaces the warning:
+// lowerSecurityScheme returns the diagnostic unconditionally, so a caller must
+// not gate it behind the same "if len(ext) > 0" that guards the assignment —
+// that guard is exactly false in the all-unserializable case, which used to
+// drop the warning silently.
 func TestAuth_UnserializableExtensionStillWarns(t *testing.T) {
 	t.Parallel()
 	spec := `openapi: 3.1.0
@@ -217,8 +219,10 @@ func TestAuth_AllSchemeKinds(t *testing.T) {
 
 func TestLowerSecurityRequirement_Nil(t *testing.T) {
 	t.Parallel()
-	got := (&lowerer{out: &ir.Document{}}).lowerSecurityRequirement(nil)
+	got, diags := lowerSecurityRequirement(lowerCtx{}, nil, nil)
+
 	assert.Empty(t, got.Schemes)
+	assert.Empty(t, diags)
 }
 
 func TestAuth_OAuthNoFlowsUnknownTypeAndGhostRef(t *testing.T) {
@@ -244,4 +248,34 @@ components:
 	assert.Equal(t, ir.AuthKindOAuth2, oauth.Kind)
 	assert.Nil(t, oauth.Flows, "oauth2 with no flows lowers to nil flows")
 	assert.Equal(t, "bananas", custom.Scheme, "unknown scheme type degrades to custom")
+}
+
+// TestLowerSecuritySchemes_NothingLoweredIsNilNotEmpty pins the guard that
+// keeps an empty map out of the document. A components.securitySchemes block
+// whose every entry fails to resolve declares no scheme the IR can carry, and
+// an empty Auth map would be a field the source never wrote.
+func TestLowerSecuritySchemes_NothingLoweredIsNilNotEmpty(t *testing.T) {
+	t.Parallel()
+	doc := &soa.OpenAPI{Components: &soa.Components{
+		SecuritySchemes: sequencedmap.New(
+			sequencedmap.NewElem("ghost", (*soa.ReferencedSecurityScheme)(nil))),
+	}}
+
+	got, diags := lowerSecuritySchemes(lowerCtx{Doc: doc})
+
+	assert.Nil(t, got, "an unresolvable entry leaves no map behind")
+	assert.Empty(t, diags)
+}
+
+// TestLowerSecuritySchemes_NoComponentsAtAll pins the two earlier exits: a
+// document with no components, and one whose components declare no schemes.
+func TestLowerSecuritySchemes_NoComponentsAtAll(t *testing.T) {
+	t.Parallel()
+	got, diags := lowerSecuritySchemes(lowerCtx{Doc: &soa.OpenAPI{}})
+	assert.Nil(t, got)
+	assert.Empty(t, diags)
+
+	got, diags = lowerSecuritySchemes(lowerCtx{Doc: &soa.OpenAPI{Components: &soa.Components{}}})
+	assert.Nil(t, got)
+	assert.Empty(t, diags)
 }
