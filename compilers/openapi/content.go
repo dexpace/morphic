@@ -97,10 +97,24 @@ func (l *lowerer) fillSequential(c *ir.Content, media *soa.MediaType, mediaPtr, 
 // entries carry ReasonNoIRHome rather than a degraded lowering.
 func (l *lowerer) positionalEncoding(c *ir.Content, media *soa.MediaType, mediaPtr string) {
 	root := media.GetRootNode()
-	l.preserve(&c.Unmodeled, "openapi:prefixEncoding", nodeToRaw(rawChildNode(root, "prefixEncoding")),
-		ir.ReasonNoIRHome, mediaPtr+ptr("prefixEncoding"))
-	l.preserve(&c.Unmodeled, "openapi:itemEncoding", nodeToRaw(rawChildNode(root, "itemEncoding")),
+	// The announcement follows prefixEncoding, the construct that brought this
+	// lowering here: an itemEncoding beside it is optional, so its absence must not
+	// suppress the message, and its own conversion failure reports separately.
+	at := mediaPtr + ptr("prefixEncoding")
+	kept := l.preserveNode(&c.Unmodeled, "openapi:prefixEncoding", rawChildNode(root, "prefixEncoding"),
+		ir.ReasonNoIRHome, at)
+	l.preserveNode(&c.Unmodeled, "openapi:itemEncoding", rawChildNode(root, "itemEncoding"),
 		ir.ReasonNoIRHome, mediaPtr+ptr("itemEncoding"))
+	if !kept {
+		// Reaching here means prefixEncoding is declared — that is the only reason
+		// this lowering runs — yet nothing of it was written. Unlike every other
+		// preservation site, an empty payload here cannot mean "there was no
+		// construct", so it is reported rather than passed over (GitHub #144).
+		l.diag(ir.SeverityError, codeUnpreservableConstruct, at,
+			"prefixEncoding is declared but its source node could not be read; it is "+
+				"represented in the IR in no form at all")
+		return
+	}
 	l.diag(ir.SeverityInfo, codeDegradedConstruct, mediaPtr,
 		"prefixEncoding is positional and has no per-item IR home; it and any itemEncoding are kept under Unmodeled")
 }

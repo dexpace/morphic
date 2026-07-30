@@ -2018,13 +2018,42 @@ func TestPreserveKeyword_NilRaw(t *testing.T) {
 	assert.Empty(t, l.diags.List())
 }
 
-func TestNodeToRaw(t *testing.T) {
+// TestRawFromNode_SeparatesAbsentFromUnconvertible pins the distinction the
+// signature exists for (GitHub #144). A caller that cannot tell "there was
+// nothing here" from "there was something and it did not survive" announces a
+// preservation that never happened, so each row states which of the two it is.
+func TestRawFromNode_SeparatesAbsentFromUnconvertible(t *testing.T) {
 	t.Parallel()
-	assert.Nil(t, nodeToRaw(nil), "nil node")
-	assert.Nil(t, nodeToRaw(&yaml.Node{Kind: yaml.Kind(99)}), "decode error")
-	assert.Nil(t, nodeToRaw(yamlNode(t, "1: a\n2: b")), "int-key map: json marshal error")
-	raw := nodeToRaw(yamlNode(t, "{a: 1}"))
-	assert.JSONEq(t, `{"a":1}`, string(raw))
+	tests := []struct {
+		name    string
+		node    *yaml.Node
+		want    string
+		wantErr bool
+	}{
+		{name: "absent node is neither raw nor error", node: nil},
+		{name: "undecodable node errors", node: &yaml.Node{Kind: yaml.Kind(99)}, wantErr: true},
+		{name: "non-string key does not decode", node: yamlNode(t, "? [a, b]\n: v"), wantErr: true},
+		{name: "int key does not marshal", node: yamlNode(t, "1: a\n2: b"), wantErr: true},
+		{name: "nan decodes but does not marshal", node: yamlNode(t, "{a: .nan}"), wantErr: true},
+		{name: "convertible node yields json", node: yamlNode(t, "{a: 1}"), want: `{"a":1}`},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			raw, err := rawFromNode(tc.node)
+			if tc.wantErr {
+				require.Error(t, err, "an unconvertible node must be distinguishable from an absent one")
+				assert.Nil(t, raw, "nothing is recorded for a node that did not convert")
+				return
+			}
+			require.NoError(t, err)
+			if tc.want == "" {
+				assert.Nil(t, raw, "an absent node records nothing and reports nothing")
+				return
+			}
+			assert.JSONEq(t, tc.want, string(raw))
+		})
+	}
 }
 
 func TestRawPropertyNode_NilSchema(t *testing.T) {

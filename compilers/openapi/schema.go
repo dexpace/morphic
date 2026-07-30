@@ -116,11 +116,9 @@ var residueKeywords = []string{"default", "readOnly", "writeOnly"}
 // carrier at all, which is the case Unmodeled is rescuing.
 func (l *lowerer) recordResidue(c *ir.TypeCommon, s *oas3.Schema, pointer string) {
 	for _, keyword := range residueKeywords {
-		raw := nodeToRaw(rawPropertyNode(s, keyword))
-		if len(raw) == 0 {
+		if !l.preserveSchemaKeyword(&c.Unmodeled, s, keyword, ir.ReasonNoIRHome, pointer+ptr(keyword)) {
 			continue
 		}
-		l.preserve(&c.Unmodeled, "openapi:"+keyword, raw, ir.ReasonNoIRHome, pointer+ptr(keyword))
 		l.diag(ir.SeverityInfo, codeDegradedConstruct, pointer+ptr(keyword),
 			"%s on a type declaration binds a use of the type, not the type; it is kept "+
 				"verbatim under Unmodeled and applied to a referencing property, header or "+
@@ -375,15 +373,21 @@ func (l *lowerer) preserveUnionSiblings(id ir.TypeID, s *oas3.Schema, pointer st
 		return
 	}
 	c := td.Common()
+	kept := false
 	for _, kw := range []string{"oneOf", "anyOf"} {
-		raw := nodeToRaw(rawPropertyNode(s, kw))
+		raw, err := rawFromNode(rawPropertyNode(s, kw))
+		if err != nil {
+			l.appendDiag(unpreservableDiag("openapi:"+kw, pointer+ptr(kw), l.srcIndex, err))
+			continue
+		}
 		if reason == ir.ReasonValidationOnly {
 			l.preserveKeyword(&c.Unmodeled, "openapi:"+kw, raw, pointer, pointer+ptr(kw), kw)
 			continue
 		}
 		l.preserve(&c.Unmodeled, "openapi:"+kw, raw, reason, pointer+ptr(kw))
+		kept = kept || len(raw) > 0
 	}
-	if reason == ir.ReasonValidationOnly {
+	if reason == ir.ReasonValidationOnly || !kept {
 		return
 	}
 	l.diag(ir.SeverityInfo, codeDegradedConstruct, pointer,
@@ -546,13 +550,20 @@ func (l *lowerer) recordUnhomedKeywords(owner ir.TypeID, s *oas3.Schema, unhomed
 		return
 	}
 	c := td.Common()
+	// Only the keywords actually written are named, so the message cannot claim
+	// one that failed to convert and was reported unpreservable instead.
+	kept := make([]string, 0, len(unhomed))
 	for _, keyword := range unhomed {
-		l.preserve(&c.Unmodeled, "openapi:"+keyword, nodeToRaw(rawPropertyNode(s, keyword)),
-			ir.ReasonDegradedLowering, pointer+ptr(keyword))
+		if l.preserveSchemaKeyword(&c.Unmodeled, s, keyword, ir.ReasonDegradedLowering, pointer+ptr(keyword)) {
+			kept = append(kept, keyword)
+		}
+	}
+	if len(kept) == 0 {
+		return
 	}
 	l.diag(ir.SeverityInfo, codeDegradedConstruct, pointer,
 		"this position lowered to a node of kind %q, which has no home for %s declared beside it; kept verbatim under Unmodeled",
-		kind, strings.Join(unhomed, ", "))
+		kind, strings.Join(kept, ", "))
 }
 
 // lowerTyped dispatches a single-typed schema to its structural or scalar form.
@@ -855,6 +866,26 @@ func (l *lowerer) preserve(p *ir.Unmodeled, key string, raw ir.RawValue, reason 
 	preserveInto(p, key, raw, reason, pointer, l.srcIndex)
 }
 
+// preserveNode records the construct written at node under key in *p, reporting
+// one that could not be converted at all. It returns whether an entry was
+// written, so a caller announces only what it actually kept (GitHub #144).
+func (l *lowerer) preserveNode(p *ir.Unmodeled, key string, node *yaml.Node,
+	reason ir.UnmodeledReason, pointer string,
+) bool {
+	ok, diags := preserveNodeInto(p, key, node, reason, pointer, l.srcIndex)
+	l.diags.AppendAll(diags)
+	return ok
+}
+
+// preserveSchemaKeyword records the top-level keyword s writes under key. It is
+// preserveNode addressed by keyword rather than by node, which is how all but a
+// handful of preservation sites reach their payload.
+func (l *lowerer) preserveSchemaKeyword(p *ir.Unmodeled, s *oas3.Schema, keyword string,
+	reason ir.UnmodeledReason, pointer string,
+) bool {
+	return l.preserveNode(p, "openapi:"+keyword, rawPropertyNode(s, keyword), reason, pointer)
+}
+
 // preserveKeyword records a validation-only keyword's raw payload under key in
 // p and emits one info diagnostic naming it at declPtr, the schema that wrote
 // it. An absent or unconvertible payload records nothing and reports nothing.
@@ -912,10 +943,11 @@ func (l *lowerer) buildTuple(s *oas3.Schema, common ir.TypeCommon, pointer, hint
 	if s.GetItems() == nil {
 		return t
 	}
-	l.preserve(&t.Unmodeled, "openapi:items-after-prefix", nodeToRaw(rawPropertyNode(s, "items")),
-		ir.ReasonDegradedLowering, pointer+ptr("items"))
-	l.diag(ir.SeverityInfo, codeDegradedConstruct, pointer,
-		"items after prefixItems is an open tuple; lowered as a fixed-arity Tuple with the tail kept under Unmodeled")
+	if l.preserveNode(&t.Unmodeled, "openapi:items-after-prefix", rawPropertyNode(s, "items"),
+		ir.ReasonDegradedLowering, pointer+ptr("items")) {
+		l.diag(ir.SeverityInfo, codeDegradedConstruct, pointer,
+			"items after prefixItems is an open tuple; lowered as a fixed-arity Tuple with the tail kept under Unmodeled")
+	}
 	return t
 }
 
@@ -1018,11 +1050,11 @@ func (l *lowerer) scalarEncoding(s *oas3.Schema, formatName string, c *ir.TypeCo
 		return enc
 	}
 	at := pointer + ptr("format")
-	l.preserve(&c.Unmodeled, "openapi:format", nodeToRaw(rawPropertyNode(s, "format")),
-		ir.ReasonNoIRHome, at)
-	l.diag(ir.SeverityInfo, codeDegradedConstruct, at,
-		"format and contentEncoding both name an encoding and ir.Encoding holds one; "+
-			"contentEncoding %q is lowered and format is kept verbatim under Unmodeled", content)
+	if l.preserveSchemaKeyword(&c.Unmodeled, s, "format", ir.ReasonNoIRHome, at) {
+		l.diag(ir.SeverityInfo, codeDegradedConstruct, at,
+			"format and contentEncoding both name an encoding and ir.Encoding holds one; "+
+				"contentEncoding %q is lowered and format is kept verbatim under Unmodeled", content)
+	}
 	return enc
 }
 
@@ -1058,11 +1090,9 @@ func (l *lowerer) recordUnplacedContent(p *ir.Unmodeled, s *oas3.Schema, td ir.T
 		return
 	}
 	for _, keyword := range contentKeywords {
-		raw := nodeToRaw(rawPropertyNode(s, keyword))
-		if len(raw) == 0 {
+		if !l.preserveSchemaKeyword(p, s, keyword, ir.ReasonNoIRHome, pointer+ptr(keyword)) {
 			continue
 		}
-		l.preserve(p, "openapi:"+keyword, raw, ir.ReasonNoIRHome, pointer+ptr(keyword))
 		l.diag(ir.SeverityInfo, codeDegradedConstruct, pointer+ptr(keyword),
 			"%s encodes a string value and this position lowered to a shape with no "+
 				"Encoding field; kept verbatim under Unmodeled", keyword)
@@ -1311,14 +1341,14 @@ func dynamicFragment(ref string) (string, bool) {
 // ignored it.
 func (l *lowerer) recordUnexpandedDynamicRef(p *ir.Unmodeled, s *oas3.Schema, pointer string) {
 	_, why, expanded := l.dynamicExpansion(s, pointer)
-	raw := nodeToRaw(rawPropertyNode(s, "$dynamicRef"))
-	if expanded || len(raw) == 0 {
+	if expanded {
 		return
 	}
 	at := pointer + ptr("$dynamicRef")
-	l.preserve(p, "openapi:$dynamicRef", raw, ir.ReasonDegradedLowering, at)
-	l.diag(ir.SeverityInfo, codeDegradedConstruct, at,
-		"$dynamicRef was not expanded because %s; it is kept verbatim under Unmodeled", why)
+	if l.preserveSchemaKeyword(p, s, "$dynamicRef", ir.ReasonDegradedLowering, at) {
+		l.diag(ir.SeverityInfo, codeDegradedConstruct, at,
+			"$dynamicRef was not expanded because %s; it is kept verbatim under Unmodeled", why)
+	}
 }
 
 // declaresDynamicRef reports whether s writes a $dynamicRef, so a position that
@@ -1582,21 +1612,30 @@ func requiredSet(required []string) map[string]bool {
 	return set
 }
 
-// nodeToRaw converts a YAML node to canonical JSON for lossless preservation in
-// Unmodeled; a nil node or an unconvertible node yields nil.
-func nodeToRaw(node *yaml.Node) ir.RawValue {
+// rawFromNode converts a YAML node to the canonical JSON an Unmodeled entry
+// holds.
+//
+// Its three outcomes are deliberately distinct, because collapsing the first two
+// into one nil return is what let a diagnostic announce a preservation that never
+// happened (GitHub #144): an absent node yields (nil, nil) — there was no
+// construct here — while a node that cannot be represented yields an error.
+//
+// Legal YAML reaches that second failure by two routes: a mapping with a
+// non-string key does not decode into Go's JSON model at all, and .nan/.inf
+// decode but do not marshal.
+func rawFromNode(node *yaml.Node) (ir.RawValue, error) {
 	if node == nil {
-		return nil
+		return nil, nil
 	}
 	var v any
 	if err := node.Decode(&v); err != nil {
-		return nil
+		return nil, fmt.Errorf("decode yaml node: %w", err)
 	}
 	data, err := json.Marshal(v)
 	if err != nil {
-		return nil
+		return nil, fmt.Errorf("encode as json: %w", err)
 	}
-	return ir.RawValue(data)
+	return ir.RawValue(data), nil
 }
 
 // effectiveDeprecated reports the deprecated flag, use-site over referent.
@@ -1716,8 +1755,8 @@ func extensionsFrom(ext *extensions.Extensions, srcIndex int, owner string) (ir.
 	out := ir.Unmodeled{}
 	var diags []ir.Diagnostic
 	for name, node := range ext.All() {
-		raw := nodeToRaw(node)
-		if raw == nil {
+		raw, err := rawFromNode(node)
+		if err != nil || raw == nil {
 			diags = append(diags, diagf(ir.SeverityWarning, codeDegradedConstruct,
 				ir.Provenance{Source: srcIndex, Pointer: owner},
 				"extension %q could not be serialized", name))
@@ -1765,46 +1804,63 @@ func isFalseSchema(js *oas3.JSONSchema[oas3.Referenceable]) bool {
 }
 
 // ifThenElseRaw combines the present if/then/else arms into one raw JSON object.
-func ifThenElseRaw(s *oas3.Schema) ir.RawValue {
-	return jsonObject(presentMembers(s, "if", "then", "else"))
+func ifThenElseRaw(s *oas3.Schema) (ir.RawValue, error) {
+	members, err := presentMembers(s, "if", "then", "else")
+	if err != nil {
+		return nil, err
+	}
+	return jsonObject(members), nil
 }
 
 // containsRaw combines contains/minContains/maxContains into one raw JSON object.
-func containsRaw(s *oas3.Schema) ir.RawValue {
+func containsRaw(s *oas3.Schema) (ir.RawValue, error) {
 	if s.GetContains() == nil && s.GetMinContains() == nil && s.GetMaxContains() == nil {
-		return nil
+		return nil, nil
 	}
-	return jsonObject(presentMembers(s, "contains", "minContains", "maxContains"))
+	members, err := presentMembers(s, "contains", "minContains", "maxContains")
+	if err != nil {
+		return nil, err
+	}
+	return jsonObject(members), nil
 }
 
 // unevaluatedRaw combines a non-false unevaluatedProperties and any
 // unevaluatedItems into one raw JSON object (a false unevaluatedProperties is a
 // structural mode, handled in fillAdditional).
-func unevaluatedRaw(s *oas3.Schema) ir.RawValue {
-	var members []rawMember
+func unevaluatedRaw(s *oas3.Schema) (ir.RawValue, error) {
+	var want []string
 	if up := s.GetUnevaluatedProperties(); up != nil && !isFalseSchema(up) {
-		if raw := nodeToRaw(rawPropertyNode(s, "unevaluatedProperties")); raw != nil {
-			members = append(members, rawMember{key: "unevaluatedProperties", val: raw})
-		}
+		want = append(want, "unevaluatedProperties")
 	}
 	if s.GetUnevaluatedItems() != nil {
-		if raw := nodeToRaw(rawPropertyNode(s, "unevaluatedItems")); raw != nil {
-			members = append(members, rawMember{key: "unevaluatedItems", val: raw})
-		}
+		want = append(want, "unevaluatedItems")
 	}
-	return jsonObject(members)
+	members, err := presentMembers(s, want...)
+	if err != nil {
+		return nil, err
+	}
+	return jsonObject(members), nil
 }
 
 // presentMembers collects the given keywords that are present on s as raw JSON
 // members, preserving the requested order.
-func presentMembers(s *oas3.Schema, keys ...string) []rawMember {
+// A member that cannot be converted fails the whole combination rather than
+// being skipped. The entry these build is one object presented as the verbatim
+// source, so dropping a member from it would restate GitHub #144 in miniature:
+// an object labelled verbatim that silently omits one of its keywords.
+func presentMembers(s *oas3.Schema, keys ...string) ([]rawMember, error) {
 	var members []rawMember
 	for _, k := range keys {
-		if raw := nodeToRaw(rawPropertyNode(s, k)); raw != nil {
-			members = append(members, rawMember{key: k, val: raw})
+		raw, err := rawFromNode(rawPropertyNode(s, k))
+		if err != nil {
+			return nil, fmt.Errorf("%s: %w", k, err)
 		}
+		if raw == nil {
+			continue
+		}
+		members = append(members, rawMember{key: k, val: raw})
 	}
-	return members
+	return members, nil
 }
 
 // rawPropertyNode returns the raw YAML value node of a top-level schema keyword,

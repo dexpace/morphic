@@ -92,6 +92,13 @@ const (
 	// operation, which OpenAPI forbids. A path item mounted at two paths is the
 	// shape that reaches this without the document repeating the id in source.
 	codeDuplicateOperationID = "openapi/duplicate-operation-id"
+	// codeUnpreservableConstruct reports a construct that reached the IR in no
+	// form at all: the compiler had no field to model it and its source node could
+	// not be converted to JSON either, so Unmodeled could not hold it. It is an
+	// error because it is a losslessness failure rather than a degradation —
+	// codeDegradedConstruct's constructs survive in a weaker shape, and these
+	// survive in none (GitHub #144).
+	codeUnpreservableConstruct = "openapi/unpreservable-construct"
 )
 
 // diagf builds an ir.Diagnostic with a formatted message. It is the single

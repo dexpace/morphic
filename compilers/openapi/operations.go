@@ -314,11 +314,10 @@ func (l *lowerer) applyPathServers(op *ir.Operation, pi *soa.PathItem, declPtr s
 	if len(pi.GetServers()) == 0 {
 		return
 	}
-	raw := nodeToRaw(rawChildNode(pi.GetRootNode(), "servers"))
-	if raw == nil {
+	if !l.preserveNode(&op.Unmodeled, "openapi:servers", rawChildNode(pi.GetRootNode(), "servers"),
+		ir.ReasonNoIRHome, declPtr+ptr("servers")) {
 		return
 	}
-	l.preserve(&op.Unmodeled, "openapi:servers", raw, ir.ReasonNoIRHome, declPtr+ptr("servers"))
 	l.diags.Append(diagf(ir.SeverityInfo, codeDegradedConstruct, op.Provenance,
 		"path-item servers kept under Unmodeled; an operation has no server-scope list to bind them to"))
 }
@@ -362,7 +361,7 @@ func (l *lowerer) lowerResponse(r *soa.Response, rng ir.StatusRange, rptr string
 		Headers:    l.lowerHeaders(r.GetHeaders(), rptr),
 	}
 	resp.Docs.Description = r.GetDescription()
-	l.preserve(&resp.Unmodeled, "openapi:links", nodeToRaw(rawChildNode(r.GetRootNode(), "links")),
+	l.preserveNode(&resp.Unmodeled, "openapi:links", rawChildNode(r.GetRootNode(), "links"),
 		ir.ReasonNoIRHome, rptr+ptr("links"))
 	return resp
 }
@@ -389,11 +388,10 @@ func (l *lowerer) preserveErrorHeaders(ec *ir.ErrorCase, r *soa.Response, rptr s
 	if headers == nil || headers.Len() == 0 {
 		return
 	}
-	raw := nodeToRaw(rawChildNode(r.GetRootNode(), "headers"))
-	if raw == nil {
+	if !l.preserveNode(&ec.Unmodeled, "openapi:headers", rawChildNode(r.GetRootNode(), "headers"),
+		ir.ReasonNoIRHome, rptr+ptr("headers")) {
 		return
 	}
-	l.preserve(&ec.Unmodeled, "openapi:headers", raw, ir.ReasonNoIRHome, rptr+ptr("headers"))
 	l.diag(ir.SeverityInfo, codeDegradedConstruct, rptr,
 		"error response headers have no ErrorCase home; kept verbatim under Unmodeled")
 }
@@ -416,9 +414,8 @@ func (l *lowerer) fillErrorType(ec *ir.ErrorCase, r *soa.Response, rptr string) 
 			first = false
 		}
 	}
-	if content.Len() > 1 {
-		l.preserve(&ec.Unmodeled, "openapi:content", nodeToRaw(rawChildNode(r.GetRootNode(), "content")),
-			ir.ReasonNoIRHome, rptr+ptr("content"))
+	if content.Len() > 1 && l.preserveNode(&ec.Unmodeled, "openapi:content",
+		rawChildNode(r.GetRootNode(), "content"), ir.ReasonNoIRHome, rptr+ptr("content")) {
 		l.diag(ir.SeverityInfo, codeDegradedConstruct, rptr,
 			"error response has multiple media types; full content map kept under Unmodeled")
 	}

@@ -798,6 +798,11 @@ func TestFillSequential_PrefixEncodingWithoutItemEncoding(t *testing.T) {
 	assertHasCode(t, diags, codeDegradedConstruct, ir.SeverityInfo)
 }
 
+// TestPositionalEncoding_WithoutRootNode covers the media type whose source node
+// cannot be read. prefixEncoding is declared — nothing else routes a content
+// entry here — so nothing being written is a construct lost rather than one that
+// was never there, and the position reports that instead of announcing a
+// preservation it did not make (GitHub #144).
 func TestPositionalEncoding_WithoutRootNode(t *testing.T) {
 	t.Parallel()
 	l := newRawLowerer(&soa.OpenAPI{})
@@ -806,7 +811,9 @@ func TestPositionalEncoding_WithoutRootNode(t *testing.T) {
 	l.fillSequential(c, media, "/mp", "h")
 	assert.Nil(t, c.ItemEncoding, "prefixes still block the every-item lowering")
 	assert.Nil(t, c.Unmodeled, "a media type with no source node has nothing verbatim to keep")
-	assertHasCode(t, l.diags.List(), codeDegradedConstruct, ir.SeverityInfo)
+	assertHasCode(t, l.diags.List(), codeUnpreservableConstruct, ir.SeverityError)
+	assert.False(t, hasDiagAt(l.diags.List(), codeDegradedConstruct, ir.SeverityInfo),
+		"nothing was kept, so nothing announces that it was")
 }
 
 func TestBodySchemaPointer_ExternalRefNoFragment(t *testing.T) {

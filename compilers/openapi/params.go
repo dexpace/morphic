@@ -171,14 +171,11 @@ func (l *lowerer) fillParamSchemaAnnotations(param *ir.Parameter, s, tgt *oas3.S
 // binding records that content type. ReasonNoIRHome, since the IR can close the
 // gap by adding the field (GitHub #124).
 func (l *lowerer) preserveParamXML(param *ir.Parameter, s *oas3.Schema, pointer string) {
-	raw := nodeToRaw(rawPropertyNode(s, "xml"))
-	if raw == nil {
-		return
-	}
 	at := pointer + ptr("xml")
-	l.preserve(&param.Unmodeled, "openapi:xml", raw, ir.ReasonNoIRHome, at)
-	l.diag(ir.SeverityInfo, codeDegradedConstruct, at,
-		"parameter schema xml hints have no ir.Parameter home; kept verbatim under Unmodeled")
+	if l.preserveSchemaKeyword(&param.Unmodeled, s, "xml", ir.ReasonNoIRHome, at) {
+		l.diag(ir.SeverityInfo, codeDegradedConstruct, at,
+			"parameter schema xml hints have no ir.Parameter home; kept verbatim under Unmodeled")
+	}
 }
 
 // preserveParamVisibility keeps the residue keywords a parameter schema writes
@@ -195,12 +192,10 @@ func (l *lowerer) preserveParamVisibility(param *ir.Parameter, s *oas3.Schema, p
 		if paramHoldsResidue(keyword) {
 			continue
 		}
-		raw := nodeToRaw(rawPropertyNode(s, keyword))
-		if len(raw) == 0 {
+		at := pointer + ptr(keyword)
+		if !l.preserveSchemaKeyword(&param.Unmodeled, s, keyword, ir.ReasonNoIRHome, at) {
 			continue
 		}
-		at := pointer + ptr(keyword)
-		l.preserve(&param.Unmodeled, "openapi:"+keyword, raw, ir.ReasonNoIRHome, at)
 		l.diag(ir.SeverityInfo, codeDegradedConstruct, at,
 			"parameter schema %s has no ir.Parameter home; kept verbatim under Unmodeled", keyword)
 	}
