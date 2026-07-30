@@ -7,12 +7,12 @@ import (
 	"slices"
 	"strconv"
 	"strings"
-	"unicode"
 
 	"github.com/speakeasy-api/openapi/extensions"
 	oas3 "github.com/speakeasy-api/openapi/jsonschema/oas3"
 	yaml "gopkg.in/yaml.v3"
 
+	"github.com/dexpace/morphic/compilers/compile"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -630,7 +630,7 @@ func (l *lowerer) fillModelProperties(m *ir.Model, s *oas3.Schema, pointer strin
 		ppointer := pointer + ptr("properties", name)
 		p := ir.Property{
 			ID:         propID(ppointer),
-			Name:       ir.Naming{Source: name, Canonical: canonicalWords(name)},
+			Name:       compile.NamingFor(name),
 			WireName:   name,
 			Type:       l.carriedSchemaRef(js, ppointer, name),
 			Required:   required[name],
@@ -1842,65 +1842,4 @@ func jsonObject(members []rawMember) ir.RawValue {
 	}
 	b.WriteByte('}')
 	return ir.RawValue(b.String())
-}
-
-// canonicalWords renders name as a neutral lower_snake word sequence: it splits
-// on every non-word rune and on camel-case and letter/digit boundaries,
-// lowercases, and joins with "_". It holds no acronym opinion beyond boundary
-// detection; casing policy is a emitter concern.
-//
-// A name written with no word rune in it at all ("***") canonicalizes to the
-// empty string. Naming.Source keeps the spelling either way, so nothing is lost
-// — there is simply no word sequence to report, and inventing one from the
-// punctuation would be a naming opinion the IR does not hold.
-func canonicalWords(name string) string {
-	var words []string
-	var cur []rune
-	flush := func() {
-		if len(cur) > 0 {
-			words = append(words, strings.ToLower(string(cur)))
-			cur = cur[:0]
-		}
-	}
-	runes := []rune(name)
-	for i, r := range runes {
-		if !isWordRune(r) {
-			flush()
-			continue
-		}
-		if len(cur) > 0 && wordBoundary(cur[len(cur)-1], r, runes, i) {
-			flush()
-		}
-		cur = append(cur, r)
-	}
-	flush()
-	return strings.Join(words, "_")
-}
-
-// isWordRune reports whether r belongs to a word rather than separating two.
-// Letters and digits are the word characters, and a combining mark is part of
-// the letter it follows — a decomposed "é" is one letter written as two runes,
-// so reading the mark as a separator would split a word in half.
-//
-// Everything else separates, which is what makes the result a word sequence
-// whatever the source spelled the boundary as: a dot in a namespaced component
-// name, a slash in a media type or a path template, brackets around a query
-// parameter, and the _/-/space a name may already use.
-func isWordRune(r rune) bool {
-	return unicode.IsLetter(r) || unicode.IsDigit(r) || unicode.IsMark(r)
-}
-
-// wordBoundary reports whether a new word starts at runes[i] given the previous
-// accumulated rune prev.
-func wordBoundary(prev, r rune, runes []rune, i int) bool {
-	switch {
-	case unicode.IsUpper(r) && (unicode.IsLower(prev) || unicode.IsDigit(prev)):
-		return true // lower/digit -> Upper: "userID" -> user|ID
-	case unicode.IsUpper(prev) && unicode.IsUpper(r) && i+1 < len(runes) && unicode.IsLower(runes[i+1]):
-		return true // acronym tail: "HTTPServer" -> HTTP|Server
-	case unicode.IsLetter(prev) && unicode.IsDigit(r), unicode.IsDigit(prev) && unicode.IsLetter(r):
-		return true // letter<->digit: "APIKey2" -> ...Key|2
-	default:
-		return false
-	}
 }

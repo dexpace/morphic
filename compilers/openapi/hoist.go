@@ -122,7 +122,7 @@ func (l *lowerer) commonFor(id ir.TypeID, pointer, hint string) ir.TypeCommon {
 		Provenance: ir.Provenance{Source: l.srcIndex, Pointer: pointer},
 	}
 	if name, ok := componentSchemaName(pointer); ok {
-		common.Name = ir.Naming{Source: name, Canonical: canonicalWords(name)}
+		common.Name = compile.NamingFor(name)
 	} else {
 		common.Anonymous = true
 		common.Name = ir.Naming{Hint: hint}

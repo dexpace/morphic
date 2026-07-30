@@ -8,6 +8,7 @@ import (
 	"github.com/speakeasy-api/openapi/references"
 	yaml "gopkg.in/yaml.v3"
 
+	"github.com/dexpace/morphic/compilers/compile"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -38,7 +39,7 @@ func (l *lowerer) lowerService() ir.Service {
 	}
 	if info := l.doc.GetInfo(); info != nil {
 		title := info.GetTitle()
-		svc.Name = ir.Naming{Source: title, Canonical: canonicalWords(title)}
+		svc.Name = compile.NamingFor(title)
 		svc.Docs.Description = info.GetDescription()
 	}
 	svc.Auth = l.lowerSecurityRequirements(l.doc.GetSecurity())
@@ -165,14 +166,14 @@ func (l *lowerer) lowerWebhooks(groups *serviceGroups) {
 func (l *lowerer) groupFor(src *soa.Operation, path string) (key string, name ir.Naming, docs ir.Docs, inferred string) {
 	if l.opts.Grouping == GroupByPathPrefix {
 		seg := firstPathSegment(path)
-		return "seg:" + seg, ir.Naming{Source: seg, Canonical: canonicalWords(seg)}, ir.Docs{}, "group-path-prefix"
+		return "seg:" + seg, compile.NamingFor(seg), ir.Docs{}, "group-path-prefix"
 	}
 	tags := src.GetTags()
 	if len(tags) == 0 {
 		return "default", ir.Naming{Hint: "default"}, ir.Docs{}, ""
 	}
 	first := tags[0]
-	return "tag:" + first, ir.Naming{Source: first, Canonical: canonicalWords(first)}, l.tagDocs(first), ""
+	return "tag:" + first, compile.NamingFor(first), l.tagDocs(first), ""
 }
 
 // tagDocs returns the declared docs for a tag name, or empty when undeclared.
@@ -283,9 +284,9 @@ func (l *lowerer) checkOperationIDUnique(op ir.Operation, mount string) {
 // hint so emitters can synthesize a name.
 func operationName(src *soa.Operation, method, uriTemplate string) ir.Naming {
 	if id := src.GetOperationID(); id != "" {
-		return ir.Naming{Source: id, Canonical: canonicalWords(id)}
+		return compile.NamingFor(id)
 	}
-	return ir.Naming{Hint: canonicalWords(method + " " + uriTemplate)}
+	return ir.Naming{Hint: compile.CanonicalWords(method + " " + uriTemplate)}
 }
 
 // fillOperationDocs maps an operation's summary, description, and externalDocs

@@ -1,16 +1,15 @@
 package archtest_test
 
 import (
+	"fmt"
 	"go/ast"
 	"go/parser"
 	"go/token"
 	"io/fs"
-	"path/filepath"
 	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 )
 
 // registryOwners are the packages permitted to write an ir.TypeRegistry
@@ -38,29 +37,7 @@ var registryOwners = []string{"compilers/compile", "ir"}
 // package would obtain a registry to write in the first place.
 func TestRegistryWrites_StayInsideTheFramework(t *testing.T) {
 	t.Parallel()
-	root := repoRoot(t)
-
-	var offenders []string
-	err := filepath.WalkDir(root, func(path string, d fs.DirEntry, err error) error {
-		if err != nil {
-			return err
-		}
-		if d.IsDir() {
-			return skipUninterestingDir(root, path, d)
-		}
-		if !strings.HasSuffix(path, ".go") || strings.HasSuffix(path, "_test.go") {
-			return nil
-		}
-		rel, relErr := filepath.Rel(root, path)
-		require.NoError(t, relErr)
-		if hasPrefixDir(filepath.ToSlash(rel), registryOwners) {
-			return nil
-		}
-		offenders = append(offenders, registryWrites(t, path, filepath.ToSlash(rel))...)
-		return nil
-	})
-	require.NoError(t, err)
-
+	offenders := sweepProduction(t, repoRoot(t), registryOwners, registryWrites)
 	assert.Empty(t, offenders,
 		"only %v may write an ir.TypeRegistry; everything else goes through compile.Types",
 		registryOwners)
@@ -90,12 +67,13 @@ func hasPrefixDir(rel string, dirs []string) bool {
 }
 
 // registryWrites returns a description of every registry construction or write
-// in the file at path.
-func registryWrites(t *testing.T, path, rel string) []string {
-	t.Helper()
+// in the file at path. src is nil to read that file, or the source itself.
+func registryWrites(path, rel string, src any) ([]string, error) {
 	fset := token.NewFileSet()
-	file, err := parser.ParseFile(fset, path, nil, 0)
-	require.NoError(t, err)
+	file, err := parser.ParseFile(fset, path, src, 0)
+	if err != nil {
+		return nil, fmt.Errorf("archtest: parse %s: %w", path, err)
+	}
 
 	var found []string
 	ast.Inspect(file, func(n ast.Node) bool {
@@ -114,7 +92,7 @@ func registryWrites(t *testing.T, path, rel string) []string {
 		}
 		return true
 	})
-	return found
+	return found, nil
 }
 
 // isSelector reports whether e is the qualified identifier pkg.name.

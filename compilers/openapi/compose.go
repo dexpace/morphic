@@ -10,6 +10,7 @@ import (
 	"github.com/speakeasy-api/openapi/values"
 	yaml "gopkg.in/yaml.v3"
 
+	"github.com/dexpace/morphic/compilers/compile"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -917,7 +918,7 @@ func (l *lowerer) enumMembers(nodes []values.Value) ([]ir.EnumMember, ir.PrimKin
 			return nil, "", false
 		}
 		members = append(members, ir.EnumMember{
-			Name:  ir.Naming{Source: text, Canonical: canonicalWords(text)},
+			Name:  compile.NamingFor(text),
 			Value: val,
 		})
 	}

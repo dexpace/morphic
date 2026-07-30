@@ -1,14 +1,16 @@
 // Package compile holds the state every spec compiler needs and the invariants
 // that state carries, so each compiler does not reimplement them.
 //
-// It owns two things: the type registry together with the source-coordinate map
-// that keeps invariant 3 true (stable IDs; one node per source coordinate), and
-// diagnostic accumulation with identity dedup. Nothing else. It imports only ir.
+// It owns three things: the type registry together with the source-coordinate
+// map that keeps invariant 3 true (stable IDs; one node per source coordinate),
+// diagnostic accumulation with identity dedup, and the canonical naming grammar
+// invariant 4 makes a property of the IR rather than of a compiler. Nothing else.
+// It imports only ir.
 //
-// The package boundary is the point. An architecture test asserts that no
-// package outside this one writes to an ir.TypeRegistry directly, and that rule
-// is inexpressible without an outside — which is why a package this small is
-// worth its own directory.
+// The package boundary is the point. Architecture tests assert that no package
+// outside this one writes to an ir.TypeRegistry or derives a canonical name of
+// its own, and rules like those are inexpressible without an outside — which is
+// why a package this small is worth its own directory.
 //
 // What deliberately stays with the compiler: ir.Document assembly (seventeen of
 // its eighteen fields carry no framework invariant), recursion depth bounds (the

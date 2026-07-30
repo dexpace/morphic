@@ -9,6 +9,7 @@ import (
 	"github.com/speakeasy-api/openapi/sequencedmap"
 	yaml "gopkg.in/yaml.v3"
 
+	"github.com/dexpace/morphic/compilers/compile"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -203,7 +204,7 @@ func (l *lowerer) lowerHeader(h *soa.Header, name, hptr, hdecl string) ir.Proper
 	schemaPtr := hdecl + ptr("schema")
 	p := ir.Property{
 		ID:         propID(hptr),
-		Name:       ir.Naming{Source: name, Canonical: canonicalWords(name)},
+		Name:       compile.NamingFor(name),
 		WireName:   name,
 		Type:       l.carriedSchemaRef(h.GetSchema(), schemaPtr, declarationHint(hdecl, name)),
 		Required:   h.GetRequired(),
