@@ -16,9 +16,11 @@ import (
 // how a construct the IR keeps verbatim is written down.
 //
 // It lived in schema.go, which made every file that reports a diagnostic look
-// like it depended on schema lowering. It does not — operations, parameters and
-// content reach for this and nothing else there, which is why the upper layer
-// could not be separated while it sat where it did.
+// like it depended on schema lowering. Most did not: with it moved, operations
+// reaches nothing in schema.go at all, content reaches one symbol and parameters
+// two. Those three are real schema lowering and are what the upper layer still
+// waits on; the rest of the apparent coupling was this, filed in the wrong
+// place.
 
 // appendExample converts node into proto's value and appends the result to out;
 // an unconvertible node is skipped with a warning diagnostic rather than silently
