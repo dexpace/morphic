@@ -57,7 +57,7 @@ func (l *lowerer) run() *ir.Document {
 	l.out.Services = []ir.Service{l.lowerService()}
 	l.lowerMeta()
 	l.out.IRVersion = ir.IRVersion
-	l.out.Sources = []ir.SourceInfo{l.source}
+	l.out.Sources = []ir.SourceInfo{l.ctx.Source}
 	// An entry the registry refused is a compiler bug no source can provoke, and
 	// a refusal nothing reports hides the bug rather than the symptom: the node is
 	// simply absent and every reference to it dangles.

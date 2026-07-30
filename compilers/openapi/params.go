@@ -152,7 +152,7 @@ func (l *lowerer) fillParamSchemaAnnotations(param *ir.Parameter, s, tgt *oas3.S
 	if l.loweredToOwnNode(pointer, param.Type) {
 		return
 	}
-	a, diags := annotation.Read(annotation.Site{Kind: annotation.Reference, Node: s, Referent: tgt}, pointer, l.srcIndex)
+	a, diags := annotation.Read(annotation.Site{Kind: annotation.Reference, Node: s, Referent: tgt}, pointer, l.ctx.SrcIndex)
 	l.diags.AppendAll(diags)
 
 	param.Docs = a.Docs

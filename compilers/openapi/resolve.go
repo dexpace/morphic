@@ -279,7 +279,7 @@ func (l *lowerer) internalPointer(ref string) (string, bool) {
 // never on basename alone — otherwise `dir2/m.yaml` referenced from
 // `dir1/m.yaml` would misread as a self-reference.
 func (l *lowerer) sameFile(doc string) bool {
-	self := l.source.Path
+	self := l.ctx.Source.Path
 	if self == "" {
 		return false
 	}
@@ -318,7 +318,7 @@ func (l *lowerer) resolveComponentRef(pointer string) (id ir.TypeID, ok, handled
 	if !isComponent {
 		return "", false, false
 	}
-	if l.schemas[name] {
+	if l.ctx.DeclaresSchema(name) {
 		return ids.NamedType(ids.Ptr("components", "schemas", name)), true, true
 	}
 	return "", false, true

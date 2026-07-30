@@ -901,7 +901,7 @@ func (l *lowerer) discriminatorDefault(d *oas3.Discriminator, pointer string) ir
 // subtype cannot be hoisted from a bare pointer — the caller drops and
 // diagnoses it.
 func (l *lowerer) mappingTargetID(target string) (ir.TypeID, bool) {
-	if l.schemas[target] {
+	if l.ctx.DeclaresSchema(target) {
 		return ids.ForPointer(ids.Ptr("components", "schemas", target)), true
 	}
 	pointer, ok := l.internalPointer(target)

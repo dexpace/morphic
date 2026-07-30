@@ -161,7 +161,7 @@ func emptyConstraints(c *ir.Constraints) bool {
 // than a numeric bound (the 2020-12 dialect of 3.1 and 3.2). An unrecognized
 // version defaults to the 2020-12 numeric form.
 func (l *lowerer) exclusiveBoundIsBoolean() bool {
-	minor, _ := load.SupportedMinor(l.doc.OpenAPI)
+	minor, _ := load.SupportedMinor(l.ctx.Doc.OpenAPI)
 	return minor == "3.0"
 }
 
@@ -176,7 +176,7 @@ func (l *lowerer) appendConstraintDiags(diags []ir.Diagnostic, pointer string) {
 	}
 	l.diagnosedConstraints[pointer] = true
 	for i := range diags {
-		diags[i].Provenance = ir.Provenance{Source: l.srcIndex, Pointer: pointer}
+		diags[i].Provenance = ir.Provenance{Source: l.ctx.SrcIndex, Pointer: pointer}
 		l.appendDiag(diags[i])
 	}
 }

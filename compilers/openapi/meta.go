@@ -13,7 +13,7 @@ import (
 func (l *lowerer) lowerMeta() {
 	l.lowerInfo()
 	l.lowerServers()
-	if ext := l.extensions(l.doc.GetExtensions(), ""); len(ext) > 0 {
+	if ext := l.extensions(l.ctx.Doc.GetExtensions(), ""); len(ext) > 0 {
 		l.out.Unmodeled = annotation.MergeUnmodeled(l.out.Unmodeled, ext)
 	}
 }
@@ -22,7 +22,7 @@ func (l *lowerer) lowerMeta() {
 // GetInfo always returns a non-nil Info (it addresses an embedded struct value),
 // so no nil guard is needed.
 func (l *lowerer) lowerInfo() {
-	info := l.doc.GetInfo()
+	info := l.ctx.Doc.GetInfo()
 	l.out.Name = info.GetTitle()
 	l.out.Version = info.GetVersion()
 	l.out.TermsOfService = info.GetTermsOfService()
@@ -39,7 +39,7 @@ func (l *lowerer) lowerInfo() {
 // in the root externalDocs link when present.
 func (l *lowerer) infoDocs(info *soa.Info) ir.Docs {
 	d := ir.Docs{Summary: info.GetSummary(), Description: info.GetDescription()}
-	if ed := l.doc.GetExternalDocs(); ed != nil {
+	if ed := l.ctx.Doc.GetExternalDocs(); ed != nil {
 		d.ExternalDocs = append(d.ExternalDocs, ir.Link{URL: ed.GetURL(), Description: ed.GetDescription()})
 	}
 	return d
@@ -50,7 +50,7 @@ func (l *lowerer) infoDocs(info *soa.Info) ir.Docs {
 func (l *lowerer) lowerServers() {
 	// GetServers never returns an empty slice — it injects a default "/" server
 	// when none are declared — so the loop always runs at least once.
-	servers := l.doc.GetServers()
+	servers := l.ctx.Doc.GetServers()
 	out := make([]ir.Server, 0, len(servers))
 	for _, s := range servers {
 		if s == nil {

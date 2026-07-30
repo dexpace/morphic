@@ -13,7 +13,7 @@ import (
 
 func TestInternalPointer(t *testing.T) {
 	t.Parallel()
-	l := &lowerer{source: ir.SourceInfo{Path: "m.yaml"}}
+	l := &lowerer{ctx: ctx{Source: ir.SourceInfo{Path: "m.yaml"}}}
 	cases := []struct {
 		ref    string
 		want   string
@@ -43,7 +43,7 @@ func TestInternalPointer(t *testing.T) {
 
 func TestResolveComponentRef(t *testing.T) {
 	t.Parallel()
-	l := &lowerer{schemas: map[string]bool{"User": true}}
+	l := &lowerer{ctx: ctx{schemas: map[string]bool{"User": true}}}
 
 	id, ok, handled := l.resolveComponentRef("/components/schemas/User")
 	assert.True(t, handled)
@@ -64,7 +64,7 @@ func TestResolveComponentRef(t *testing.T) {
 // the interned node rather than an unbacked ID (issue #14).
 func TestResolveComponentRef_NonCanonicalEscape(t *testing.T) {
 	t.Parallel()
-	l := &lowerer{schemas: map[string]bool{"A~B": true}}
+	l := &lowerer{ctx: ctx{schemas: map[string]bool{"A~B": true}}}
 
 	id, ok, handled := l.resolveComponentRef("/components/schemas/A~B")
 	assert.True(t, handled)
@@ -77,7 +77,7 @@ func TestResolveComponentRef_NonCanonicalEscape(t *testing.T) {
 
 func TestSameFile(t *testing.T) {
 	t.Parallel()
-	l := &lowerer{source: ir.SourceInfo{Path: "dir/m.yaml"}}
+	l := &lowerer{ctx: ctx{Source: ir.SourceInfo{Path: "dir/m.yaml"}}}
 	assert.True(t, l.sameFile("dir/m.yaml"), "exact path")
 	assert.True(t, l.sameFile("m.yaml"), "bare filename equal to our basename")
 	assert.False(t, l.sameFile("other.yaml"))
