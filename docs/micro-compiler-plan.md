@@ -97,9 +97,9 @@ Strictly sequential: each conversion depends on the layer below it having moved.
 | #172 | `Ctx` with accessors; derive indexes at entry | all of Tier 0 |
 | #173 | Convert the leaves — constraints, metadata, auth | #172, #159, #160 |
 | #174 | `internal/resolve` — the pointer-and-identity half only; see below | #173 |
-| #175 | `internal/operation` | #174 |
-| #176 | `internal/schema` — the recursive core, which takes the rest of `resolve.go` with it. Both its open questions are settled: `hoist` dissolved, `diagnosedConstraints` was redundant and is gone | — |
-| #177 | Remove the `lowerer` struct | #176 |
+| #176 | `internal/schema` — the recursive core, which takes the rest of `resolve.go` with it. Both its open questions are settled: `hoist` dissolved, `diagnosedConstraints` was redundant and is gone | #174 |
+| #175 | `internal/operation` — after the core, not before it; see below | #176 |
+| #177 | Remove the `lowerer` struct | #175 |
 
 Both oracles gate the *first* Tier-1 conversion rather than the whole tier, so they are proven
 against the old code before any of it moves.
@@ -147,7 +147,7 @@ Work already filed that lands inside this restructuring rather than alongside it
 ```
 #57 ─┬─ #162 ─── #168 ──┐
 #48 ─┤  #163 ─── #164   │                                          ┌─ #178
-     └─ #165 ─┬─────────┼─ #172 ─ #173 ─ #174 ─ #175 ─ #176 ─ #177 ─┼─ #83
+     └─ #165 ─┬─────────┼─ #172 ─ #173 ─ #174 ─ #176 ─ #175 ─ #177 ─┼─ #83
               ├─ #166 ──┤          │              │                 └─ #180
               ├─ #167 ──┤          └─ #86         └─ #84
               ├─ #169 ──┤
@@ -167,6 +167,17 @@ rather than maintained by hand — check both rather than trusting either:
 ```bash
 gh api repos/dexpace/morphic/issues/N/dependencies/blocked_by --jq '[.[].number]'
 ```
+
+### #175 runs after #176, not before
+
+The upper layer calls `schemaRef`, `carriedSchemaRef` and `fillPropertyDetail`, which are methods on
+the lowerer. A free function cannot call a method without a lowerer to call it on, so converting
+operations, parameters and content first would mean passing the lowerer through — which is not a
+conversion — or injecting those entries as function values, which is the cycle rewritten as a struct
+and was already rejected once at #174.
+
+So the core converts first. The dependency is one-way and checkable: the core reaches nothing in
+`operations.go`, `params.go` or `content.go`.
 
 ### #174 did not split where the file did
 

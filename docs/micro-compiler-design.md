@@ -671,8 +671,8 @@ Each row is one PR unless noted. "Done when" is the acceptance test, not a summa
 | 3.1 | Introduce `Ctx` with accessors; derive indexes at entry | No exported `Ctx` field is a map; goldens byte-identical | 2.x |
 | 3.2 | Convert the leaves to the contract: `constraints` → `annotation`, `meta` and `auth` → `operation` | Those files hold no `lowerer` method | 3.1 |
 | 3.3 | Extract `internal/resolve` | ditto, plus a bounded-recursion test | 3.2 |
-| 3.4 | Extract `internal/operation` (operations, params, content) | ditto | 3.3 |
-| 3.5 | Extract `internal/schema` (schema ⇄ compose ⇄ resolve) | ditto. Both open questions are already settled: `hoist` dissolved into the framework, and `diagnosedConstraints` was redundant and is gone | 3.4 |
+| 3.4 | Extract `internal/schema` (schema ⇄ compose ⇄ resolve) | ditto. Both open questions are already settled: `hoist` dissolved into the framework, and `diagnosedConstraints` was redundant and is gone | 3.3 |
+| 3.5 | Extract `internal/operation` (operations, params, content) | ditto | 3.4 |
 | 3.6 | Delete the `lowerer` struct | `grep -c '^func (l \*\?lowerer)'` returns 0 | 3.5 |
 | 4.1 | Type-surface cap in `internal/archtest` | Re-adding ten methods to one type fails the build | 3.6 |
 | 4.2 | Function-size and complexity caps in `golangci-lint` (#83) | The gate runs them; a 71-line function fails | 3.6 |
