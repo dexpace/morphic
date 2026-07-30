@@ -6,6 +6,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -21,7 +22,7 @@ func stubMerger(reg map[ir.TypeID]ir.TypeDef) (*merger, *[]ir.Diagnostic) {
 	g := &merger{
 		resolve: func(id ir.TypeID) (ir.TypeDef, bool) { td, ok := reg[id]; return td, ok },
 		report: func(sev ir.Severity, code, pointer, format string, args ...any) {
-			*recorded = append(*recorded, diagf(sev, code, ir.Provenance{Pointer: pointer}, format, args...))
+			*recorded = append(*recorded, diag.Newf(sev, code, ir.Provenance{Pointer: pointer}, format, args...))
 		},
 	}
 	return g, recorded
@@ -64,7 +65,7 @@ func TestMerger_ReconcileReportsDisagreementAndKeepsAWinner(t *testing.T) {
 
 	require.Len(t, *recorded, 1, "one disagreement, one diagnostic")
 	d := (*recorded)[0]
-	assert.Equal(t, codeConflictingRedecl, d.Code)
+	assert.Equal(t, diag.ConflictingRedecl, d.Code)
 	assert.Contains(t, d.Message, `"id"`, "the diagnostic names the field that disagrees")
 }
 

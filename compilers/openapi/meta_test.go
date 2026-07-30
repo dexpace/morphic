@@ -8,6 +8,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -45,7 +46,7 @@ paths: {}
 x-bad: {1: intkey}
 `
 	doc, diags := parseFull(t, spec)
-	assert.True(t, hasDiagAt(diags, codeDegradedConstruct, ir.SeverityWarning),
+	assert.True(t, hasDiagAt(diags, diag.DegradedConstruct, ir.SeverityWarning),
 		"an entirely unserializable top-level extension still warns even though Unmodeled ends up empty")
 	assert.Empty(t, doc.Unmodeled, "the unserializable extension is dropped, not stored")
 }

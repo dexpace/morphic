@@ -22,7 +22,9 @@ func oneSource() []ir.SourceInfo {
 func TestVerify_InRangeProvenanceSourceIsClean(t *testing.T) {
 	doc := validDoc()
 	doc.Sources = oneSource()
-	doc.Types["t/x/Model"].Common().Provenance = ir.Provenance{Source: 0, Pointer: "/components/schemas/Model"}
+	// The pointer matches the ID's own path, as a derived ID's always does: an ID
+	// disagreeing with the coordinate it records is its own violation.
+	doc.Types["t/x/Model"].Common().Provenance = ir.Provenance{Source: 0, Pointer: "/Model"}
 	assert.Empty(t, irverify.Verify(doc))
 }
 

@@ -208,3 +208,86 @@ func TestTypes_ViolationsIsEmptyForLegitimateEntries(t *testing.T) {
 	assert.Equal(t, 2, types.Len())
 	assert.Empty(t, types.Violations())
 }
+
+// TestTypes_RefusesADerivationThatCollapsesTwoCoordinates covers invariant 3's
+// injectivity half: two distinct source coordinates must not derive one ID.
+//
+// Nothing downstream can see this happen. Intern keys by coordinate, so both
+// pointers map cleanly and the second node overwrites the first in the registry.
+// The survivor is well-formed, carries its own provenance, and satisfies every
+// structural check — including irverify's ID-to-provenance agreement, which the
+// node that was overwritten is no longer present to fail.
+func TestTypes_RefusesADerivationThatCollapsesTwoCoordinates(t *testing.T) {
+	t.Parallel()
+	types := compile.NewTypes(0)
+	node := func(id ir.TypeID) func() ir.TypeDef {
+		return func() ir.TypeDef { return &ir.Model{TypeCommon: ir.TypeCommon{ID: id}} }
+	}
+	types.Intern("/components/schemas/A~1B", "t/openapi/collapsed", node("t/openapi/collapsed"))
+	types.Intern("/components/schemas/A/B", "t/openapi/collapsed", node("t/openapi/collapsed"))
+
+	require.Len(t, types.Violations(), 1, "the second coordinate claiming the ID is refused")
+	assert.Contains(t, types.Violations()[0], "collapses two coordinates")
+	assert.Contains(t, types.Violations()[0], "/components/schemas/A~1B", "the message names both derivations")
+	assert.Contains(t, types.Violations()[0], "/components/schemas/A/B")
+}
+
+// TestTypes_ReinterningOneCoordinateIsNotACollision is the control. Intern is
+// the interning table, not a constructor: a second visit to the same coordinate
+// returns the first ID and is the mechanism that terminates recursive schemas,
+// so it must not be mistaken for two coordinates colliding.
+func TestTypes_ReinterningOneCoordinateIsNotACollision(t *testing.T) {
+	t.Parallel()
+	types := compile.NewTypes(0)
+	build := func() ir.TypeDef { return &ir.Model{TypeCommon: ir.TypeCommon{ID: "t/x/A"}} }
+	types.Intern("/p", "t/x/A", build)
+	types.Intern("/p", "t/x/A", build)
+
+	assert.Empty(t, types.Violations(), "one coordinate visited twice is a revisit, not a collision")
+	assert.Equal(t, 1, types.Len())
+}
+
+// TestTypes_RefusedInternReleasesItsID pins that a build returning nothing frees
+// the ID it had claimed. Leaving it claimed would report the *next* coordinate
+// that legitimately derives it as a collision — a second, misleading violation
+// caused by the first.
+func TestTypes_RefusedInternReleasesItsID(t *testing.T) {
+	t.Parallel()
+	types := compile.NewTypes(0)
+	types.Intern("/first", "t/x/A", func() ir.TypeDef { return nil })
+	require.Len(t, types.Violations(), 1, "the nil build is refused")
+
+	types.Intern("/second", "t/x/A", func() ir.TypeDef {
+		return &ir.Model{TypeCommon: ir.TypeCommon{ID: "t/x/A"}}
+	})
+	assert.Len(t, types.Violations(), 1, "no second violation: the refused intern left no claim behind")
+	assert.Equal(t, 1, types.Len())
+}
+
+// TestTypes_RefusesANamespaceUsedBothWays pins invariant 3's corollary, the half
+// claimID does not cover: a namespace holding both minted and source-addressed
+// nodes leaves the two racing for one ID, with declaration order deciding.
+func TestTypes_RefusesANamespaceUsedBothWays(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct {
+		name string
+		use  func(*compile.Types)
+	}{
+		{"minted after source-addressed", func(x *compile.Types) {
+			x.Intern("/p", "t/shared/p", func() ir.TypeDef { return &ir.Model{TypeCommon: ir.TypeCommon{ID: "t/shared/p"}} })
+			x.Register("t/shared/minted", &ir.Any{TypeCommon: ir.TypeCommon{ID: "t/shared/minted"}})
+		}},
+		{"source-addressed after minted", func(x *compile.Types) {
+			x.Register("t/shared/minted", &ir.Any{TypeCommon: ir.TypeCommon{ID: "t/shared/minted"}})
+			x.Intern("/p", "t/shared/p", func() ir.TypeDef { return &ir.Model{TypeCommon: ir.TypeCommon{ID: "t/shared/p"}} })
+		}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			types := compile.NewTypes(0)
+			tc.use(types)
+			require.Len(t, types.Violations(), 1, "whichever arrives second is refused")
+			assert.Contains(t, types.Violations()[0], "needs a namespace of its own")
+		})
+	}
+}

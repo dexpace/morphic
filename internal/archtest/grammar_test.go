@@ -16,8 +16,9 @@ import (
 )
 
 // grammarOwners are the packages permitted to spell the naming grammar
-// themselves: the framework that implements it, and ir, which declares the field
-// it fills.
+// themselves: ir, which declares the field and implements the grammar beside it,
+// and the framework, whose NamingFor pairs a source spelling with the words
+// derived from it.
 var grammarOwners = []string{"compilers/compile", "ir"}
 
 // TestNamingGrammar_CanonicalIsFilledByTheFrameworkOnly asserts that no
@@ -39,7 +40,7 @@ func TestNamingGrammar_CanonicalIsFilledByTheFrameworkOnly(t *testing.T) {
 	t.Parallel()
 	offenders := sweepProduction(t, repoRoot(t), "", grammarOwners, canonicalViolations)
 	assert.Empty(t, offenders,
-		"only %v may derive a canonical name; everything else goes through compile.NamingFor or compile.CanonicalWords",
+		"only %v may derive a canonical name; everything else goes through compile.NamingFor or ir.CanonicalWords",
 		grammarOwners)
 }
 
@@ -54,7 +55,7 @@ func TestCanonicalViolations_LocalGrammarIsCaught(t *testing.T) {
 
 func lower(name string) []ir.Naming {
 	declared := ir.Naming{Source: name, Canonical: canonicalWords(name)}
-	framework := ir.Naming{Source: name, Canonical: compile.CanonicalWords(name)}
+	framework := ir.Naming{Source: name, Canonical: ir.CanonicalWords(name)}
 	hint := ir.Naming{Hint: localWords(name)}
 	var late ir.Naming
 	late.Canonical = strings.ToLower(name)
@@ -259,9 +260,12 @@ func reportCanonicalAssign(stmt *ast.AssignStmt, report func(ast.Expr)) {
 	}
 }
 
-// isFrameworkCall reports whether expr is a call on the framework package, such
-// as compile.CanonicalWords(name). Any of its functions counts: the rule is where
-// the grammar lives, not which entry point reaches it.
+// isFrameworkCall reports whether expr is a call on a package that owns the
+// grammar — compile.NamingFor(name) or ir.CanonicalWords(name). Any of their
+// functions counts: the rule is where the grammar lives, not which entry point
+// reaches it, and the two entry points sit in different packages because the
+// grammar is beside the field it fills while the constructor that pairs it with
+// a source spelling is compiler-facing.
 func isFrameworkCall(expr ast.Expr) bool {
 	call, ok := expr.(*ast.CallExpr)
 	if !ok {
@@ -272,7 +276,7 @@ func isFrameworkCall(expr ast.Expr) bool {
 		return false
 	}
 	pkg, ok := sel.X.(*ast.Ident)
-	return ok && pkg.Name == "compile"
+	return ok && (pkg.Name == "compile" || pkg.Name == "ir")
 }
 
 // exprText renders expr as source, so a failure names the expression a reader has

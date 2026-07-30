@@ -5,6 +5,7 @@ import (
 
 	"gopkg.in/yaml.v3"
 
+	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -115,7 +116,7 @@ func rawNodeCount(root *yaml.Node) int64 {
 	return count
 }
 
-// aliasAmplificationDiag builds a codeAliasAmplification error diagnostic
+// aliasAmplificationDiag builds a diag.AliasAmplification error diagnostic
 // anchored at the node whose expansion first crossed allowance, following
 // cyclicDiag's line:col provenance convention. The reported node count is a
 // lower bound ("at least"), not the exact expansion: aliasWeigher saturates
@@ -127,7 +128,7 @@ func aliasAmplificationDiag(srcIndex int, n *yaml.Node, allowance, raw int64) ir
 	if n != nil {
 		prov.Pointer = fmt.Sprintf("%d:%d", n.Line, n.Column)
 	}
-	return diagf(ir.SeverityError, codeAliasAmplification, prov,
+	return diag.Newf(ir.SeverityError, diag.AliasAmplification, prov,
 		"YAML alias expansion reaches at least %d nodes, past the %d-node budget for a %d-node document",
 		allowance+1, allowance, raw)
 }

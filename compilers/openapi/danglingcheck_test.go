@@ -17,6 +17,7 @@ import (
 
 	"github.com/dexpace/morphic/compilers"
 	"github.com/dexpace/morphic/compilers/openapi"
+	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/ir"
 	"github.com/dexpace/morphic/ir/irverify"
 )
@@ -117,7 +118,7 @@ func TestDanglingRefs_Reproducers(t *testing.T) {
 				assert.True(t, hasErrorRef(diags),
 					"a dropped entry must leave an error-severity unresolved-ref diagnostic")
 			case interns:
-				assert.False(t, hasErrorDiag(diags),
+				assert.False(t, diag.HasError(diags),
 					"an interned reference must not raise an error diagnostic")
 			case internsNoisy:
 				// f12 resolves the same-file ref internally; the loader still reports
@@ -132,7 +133,7 @@ func TestDanglingRefs_Reproducers(t *testing.T) {
 func TestDanglingRefs_f07(t *testing.T) {
 	t.Parallel()
 	doc, diags := compileFile(t, danglingDir, "f07-discriminator.yaml", "f07.yaml")
-	assert.False(t, hasErrorDiag(diags))
+	assert.False(t, diag.HasError(diags))
 	pet, ok := doc.Types[namedID("Pet")].(*ir.Union)
 	require.True(t, ok)
 	require.NotNil(t, pet.Discriminator)

@@ -75,3 +75,79 @@ func TestPropID_UsableAsMapKey(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, `{"p/a":2,"p/z":1}`, string(raw), "map keys sort lexically, matching invariant #7")
 }
+
+// TestWellFormedID_Shape pins the shape every synthetic ID must take. The rows
+// are the ways a derivation can go wrong: a missing kind, a missing space, a
+// missing separator, an empty segment.
+//
+// "t/anonaddr" is in the well-formed set deliberately. It is the malformed ID
+// GitHub #141 reported — the separator between space and path went missing — and
+// it is well-formed by shape, because a space with no path is legal and
+// "anonaddr" is a space like any other. Recording it here states the limit
+// rather than leaving a reader to assume shape catches everything; what catches
+// it is the ID agreeing with the pointer it was derived from, which irverify
+// checks.
+func TestWellFormedID_Shape(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		name string
+		kind string
+		id   string
+		want bool
+	}{
+		{name: "kind, space and path", kind: ir.IDKindType, id: "t/openapi/components/schemas/User", want: true},
+		{name: "space alone names one node", kind: ir.IDKindType, id: "t/prim", want: true},
+		{name: "a path with its own separators", kind: ir.IDKindProp, id: "p/openapi/a/b/c", want: true},
+		{name: "a lost separator still reads as a space", kind: ir.IDKindType, id: "t/anonaddr", want: true},
+		{name: "multi-character kind", kind: ir.IDKindOp, id: "op/openapi/paths/~1x/get", want: true},
+
+		{name: "empty", kind: ir.IDKindType, id: "", want: false},
+		{name: "kind alone", kind: ir.IDKindType, id: "t", want: false},
+		{name: "kind and separator, no space", kind: ir.IDKindType, id: "t/", want: false},
+		{name: "empty space", kind: ir.IDKindType, id: "t//path", want: false},
+		{name: "empty path", kind: ir.IDKindType, id: "t/openapi/", want: false},
+		{name: "another kind's prefix", kind: ir.IDKindType, id: "op/openapi/x", want: false},
+		{name: "kind as a prefix of a longer word", kind: ir.IDKindType, id: "types/openapi/x", want: false},
+		{name: "no separator after the kind", kind: ir.IDKindOp, id: "openapi/x", want: false},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			if got := ir.WellFormedID(tc.kind, tc.id); got != tc.want {
+				t.Errorf("WellFormedID(%q, %q) = %v, want %v", tc.kind, tc.id, got, tc.want)
+			}
+		})
+	}
+}
+
+// TestIDPath_Extraction pins what an ID's path is, including the two answers
+// that are not a path: a malformed ID has none to report, and a space-only ID
+// carries none by construction.
+func TestIDPath_Extraction(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		name    string
+		kind    string
+		id      string
+		want    string
+		wantHas bool
+	}{
+		{
+			name: "everything after the space", kind: ir.IDKindType,
+			id: "t/openapi/components/schemas/User", want: "components/schemas/User", wantHas: true,
+		},
+		{name: "a space-only ID carries no path", kind: ir.IDKindType, id: "t/prim"},
+		{name: "a malformed ID reports none", kind: ir.IDKindType, id: "t//x"},
+		{name: "a wrong-kind ID reports none", kind: ir.IDKindType, id: "op/openapi/x"},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			got, has := ir.IDPath(tc.kind, tc.id)
+			if got != tc.want || has != tc.wantHas {
+				t.Errorf("IDPath(%q, %q) = (%q, %v), want (%q, %v)",
+					tc.kind, tc.id, got, has, tc.want, tc.wantHas)
+			}
+		})
+	}
+}

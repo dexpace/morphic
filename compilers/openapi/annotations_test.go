@@ -126,6 +126,7 @@ func retentionCases() []retentionCase {
 		vendorExtensionCases(),
 		xmlHintsCases(),
 		validationOnlyCases(),
+		carrierCases(),
 	)
 }
 

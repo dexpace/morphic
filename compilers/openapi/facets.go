@@ -6,6 +6,7 @@ import (
 	oas3 "github.com/speakeasy-api/openapi/jsonschema/oas3"
 	yaml "gopkg.in/yaml.v3"
 
+	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -100,12 +101,12 @@ func noIRHomeAt(s *oas3.Schema, pointer string, srcIndex int) (ir.Unmodeled, []i
 	}
 	at := pointer + ptr("contentSchema")
 	var p ir.Unmodeled
-	preserveInto(&p, "openapi:contentSchema", nodeToRaw(rawPropertyNode(s, "contentSchema")),
+	kept, diags := preserveNodeInto(&p, "openapi:contentSchema", rawPropertyNode(s, "contentSchema"),
 		ir.ReasonNoIRHome, at, srcIndex)
-	if p == nil {
-		return nil, nil
+	if !kept {
+		return nil, diags
 	}
-	return p, []ir.Diagnostic{diagf(ir.SeverityInfo, codeDegradedConstruct,
+	return p, []ir.Diagnostic{diag.Newf(ir.SeverityInfo, diag.DegradedConstruct,
 		ir.Provenance{Source: srcIndex, Pointer: at},
 		"contentSchema is the shape of the decoded content and no IR position has a field "+
 			"for it; kept verbatim under Unmodeled")}
@@ -128,13 +129,14 @@ func dialectAt(s *oas3.Schema, pointer string, srcIndex int) (ir.Unmodeled, []ir
 	var p ir.Unmodeled
 	var diags []ir.Diagnostic
 	for _, keyword := range dialectKeywords {
-		raw := nodeToRaw(rawPropertyNode(s, keyword))
-		if len(raw) == 0 {
+		at := pointer + ptr(keyword)
+		kept, keptDiags := preserveNodeInto(&p, "openapi:"+keyword, rawPropertyNode(s, keyword),
+			ir.ReasonOutOfScope, at, srcIndex)
+		diags = append(diags, keptDiags...)
+		if !kept {
 			continue
 		}
-		at := pointer + ptr(keyword)
-		preserveInto(&p, "openapi:"+keyword, raw, ir.ReasonOutOfScope, at, srcIndex)
-		diags = append(diags, diagf(ir.SeverityInfo, codeDegradedConstruct,
+		diags = append(diags, diag.Newf(ir.SeverityInfo, diag.DegradedConstruct,
 			ir.Provenance{Source: srcIndex, Pointer: at},
 			"%s identifies or configures a JSON Schema resource rather than describing data; "+
 				"the IR models no such axis, so it is kept verbatim under Unmodeled and is not "+
@@ -167,7 +169,7 @@ func appendExampleAt(out []ir.Example, diags []ir.Diagnostic, node *yaml.Node,
 	at := base + ptr(seg...)
 	v, err := valueFromNode(node)
 	if err != nil {
-		return out, append(diags, diagf(ir.SeverityWarning, codeDegradedConstruct,
+		return out, append(diags, diag.Newf(ir.SeverityWarning, diag.DegradedConstruct,
 			ir.Provenance{Source: srcIndex, Pointer: at}, "example: %s", err.Error()))
 	}
 	return append(out, ir.Example{Value: &v}), diags
@@ -180,35 +182,53 @@ func appendExampleAt(out []ir.Example, diags []ir.Diagnostic, node *yaml.Node,
 func validationOnlyAt(s *oas3.Schema, pointer string, srcIndex int) (ir.Unmodeled, []ir.Diagnostic) {
 	var p ir.Unmodeled
 	var diags []ir.Diagnostic
-	keep := func(key string, raw ir.RawValue, entryPtr, label string) {
+
+	// keep takes the conversion's error alongside its payload so a keyword that
+	// could not be converted is reported rather than passed on as an absent one —
+	// the two were indistinguishable here before GitHub #144.
+	keep := func(key string, raw ir.RawValue, err error, entryPtr, label string) {
+		if err != nil {
+			diags = append(diags, unpreservableDiag(key, entryPtr, srcIndex, err))
+			return
+		}
 		diags = append(diags, preserveKeywordInto(&p, key, raw, pointer, entryPtr, label, srcIndex)...)
+	}
+	// A keyword whose entry is its own node needs no label of its own: the
+	// keyword names it. Only the §4.7 entries combining several keywords into one
+	// object — if/then/else, contains, unevaluated — reach keep directly, because
+	// no single keyword names those.
+	keepKeyword := func(keyword string) {
+		raw, err := rawFromNode(rawPropertyNode(s, keyword))
+		keep("openapi:"+keyword, raw, err, pointer+ptr(keyword), keyword)
 	}
 
 	if s.GetNot() != nil {
-		keep("openapi:not", nodeToRaw(rawPropertyNode(s, "not")), pointer+ptr("not"), "not")
+		keepKeyword("not")
 	}
-	if ite := ifThenElseRaw(s); ite != nil {
-		keep("openapi:if-then-else", ite, pointer, "if/then/else")
+	ite, iteErr := ifThenElseRaw(s)
+	if ite != nil || iteErr != nil {
+		keep("openapi:if-then-else", ite, iteErr, pointer, "if/then/else")
 	}
 	if ds := s.GetDependentSchemas(); ds != nil && ds.Len() > 0 {
-		keep("openapi:dependentSchemas", nodeToRaw(rawPropertyNode(s, "dependentSchemas")),
-			pointer+ptr("dependentSchemas"), "dependentSchemas")
+		keepKeyword("dependentSchemas")
 	}
 	// dependentRequired is read off the raw node because oas3.Schema has no field
 	// for it at v1.24.0 — the only reason it was silently dropped where its
 	// sibling dependentSchemas was kept.
-	if dr := nodeToRaw(rawPropertyNode(s, "dependentRequired")); dr != nil {
-		keep("openapi:dependentRequired", dr, pointer+ptr("dependentRequired"), "dependentRequired")
+	dr, drErr := rawFromNode(rawPropertyNode(s, "dependentRequired"))
+	if dr != nil || drErr != nil {
+		keep("openapi:dependentRequired", dr, drErr, pointer+ptr("dependentRequired"), "dependentRequired")
 	}
 	if s.GetPropertyNames() != nil {
-		keep("openapi:propertyNames", nodeToRaw(rawPropertyNode(s, "propertyNames")),
-			pointer+ptr("propertyNames"), "propertyNames")
+		keepKeyword("propertyNames")
 	}
-	if craw := containsRaw(s); craw != nil {
-		keep("openapi:contains", craw, pointer, "contains")
+	craw, cErr := containsRaw(s)
+	if craw != nil || cErr != nil {
+		keep("openapi:contains", craw, cErr, pointer, "contains")
 	}
-	if u := unevaluatedRaw(s); u != nil {
-		keep("openapi:unevaluated", u, pointer, "unevaluated")
+	u, uErr := unevaluatedRaw(s)
+	if u != nil || uErr != nil {
+		keep("openapi:unevaluated", u, uErr, pointer, "unevaluated")
 	}
 	return p, diags
 }
@@ -236,9 +256,52 @@ func preserveInto(p *ir.Unmodeled, key string, raw ir.RawValue,
 	}
 }
 
+// preserveNodeInto converts node and records it under key, reporting a construct
+// that reached the IR in no form at all rather than leaving its caller to
+// announce a preservation that did not happen (GitHub #144).
+//
+// It reports whether an entry was written, which is what a caller with an
+// announcement to make gates on. The three outcomes it distinguishes are the
+// point: an absent node writes nothing and says nothing, because there was no
+// construct; a converted one writes the entry; an unconvertible one writes
+// nothing and yields the diagnostic that says so.
+func preserveNodeInto(p *ir.Unmodeled, key string, node *yaml.Node,
+	reason ir.UnmodeledReason, pointer string, srcIndex int,
+) (bool, []ir.Diagnostic) {
+	raw, err := rawFromNode(node)
+	if err != nil {
+		return false, []ir.Diagnostic{unpreservableDiag(key, pointer, srcIndex, err)}
+	}
+	if len(raw) == 0 {
+		return false, nil
+	}
+	preserveInto(p, key, raw, reason, pointer, srcIndex)
+	return true, nil
+}
+
+// unpreservableDiag reports a construct the compiler could neither model nor keep
+// verbatim, so nothing of it reached the IR.
+//
+// Error rather than the degradation severity its callers otherwise use: a
+// degraded lowering still describes the source in a weaker shape, while this one
+// leaves no trace at all, which is a losslessness failure rather than a
+// compromise (GitHub #144).
+//
+// The vendor-extension reader (extensionsFrom) reports the same conversion
+// failure as a warning and is deliberately left alone: it already branches on the
+// error and never claimed to have kept anything, so it is not the defect this
+// code exists for.
+func unpreservableDiag(key, pointer string, srcIndex int, err error) ir.Diagnostic {
+	return diag.Newf(ir.SeverityError, diag.UnpreservableConstruct,
+		ir.Provenance{Source: srcIndex, Pointer: pointer},
+		"%s could not be kept verbatim under Unmodeled and is represented in the IR "+
+			"in no form at all: %s", key, err.Error())
+}
+
 // preserveKeywordInto records a validation-only keyword and returns the one
-// diagnostic announcing it. An absent or unconvertible payload records nothing
-// and announces nothing.
+// diagnostic announcing it. An absent payload records nothing and announces
+// nothing; an unconvertible one never reaches here, because its caller reports it
+// through unpreservableDiag first.
 func preserveKeywordInto(p *ir.Unmodeled, key string, raw ir.RawValue,
 	declPtr, entryPtr, label string, srcIndex int,
 ) []ir.Diagnostic {
@@ -246,7 +309,7 @@ func preserveKeywordInto(p *ir.Unmodeled, key string, raw ir.RawValue,
 		return nil
 	}
 	preserveInto(p, key, raw, ir.ReasonValidationOnly, entryPtr, srcIndex)
-	return []ir.Diagnostic{diagf(ir.SeverityInfo, codeValidationOnlyKeyword,
+	return []ir.Diagnostic{diag.Newf(ir.SeverityInfo, diag.ValidationOnlyKeyword,
 		ir.Provenance{Source: srcIndex, Pointer: declPtr},
 		"validation-only keyword %q kept verbatim under Unmodeled", label)}
 }

@@ -7,6 +7,7 @@ import (
 
 	oas3 "github.com/speakeasy-api/openapi/jsonschema/oas3"
 
+	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -146,7 +147,7 @@ func (l *lowerer) schemaRefHomed(js *oas3.JSONSchema[oas3.Referenceable], pointe
 	l.depth++
 	defer func() { l.depth-- }()
 	if l.depth > maxSchemaDepth {
-		l.diag(ir.SeverityError, codeDegradedConstruct, pointer,
+		l.diag(ir.SeverityError, diag.DegradedConstruct, pointer,
 			"schema nesting exceeds %d; lowered as any", maxSchemaDepth)
 		return l.primRef(ir.PrimAny)
 	}
@@ -203,7 +204,7 @@ func (l *lowerer) refTypeRef(js *oas3.JSONSchema[oas3.Referenceable], pointer st
 	ref := js.GetRef().String()
 	id, ok := l.resolveSchemaRef(js, ref)
 	if !ok {
-		l.diag(ir.SeverityError, codeUnresolvedRef, pointer,
+		l.diag(ir.SeverityError, diag.UnresolvedRef, pointer,
 			"unresolved $ref %q", ref)
 		return l.primRef(ir.PrimAny)
 	}
@@ -365,9 +366,17 @@ func (l *lowerer) refTargetSchema(js *oas3.JSONSchema[oas3.Referenceable], ref *
 // a bare schema name, or a malformed ref. A document part naming this same source
 // file (an OpenAPI self-reference) is treated as internal — Milestone 1 interns
 // only same-file targets; genuinely external ones are diagnosed and dropped.
+//
+// A fragment that is not a JSON pointer is refused here rather than passed on.
+// `#addr` names a JSON Schema `$anchor`, not a coordinate, and Milestone 1
+// resolves no anchors; letting it through returned "addr" as though it were a
+// pointer, and every ID derived from it was a path no source coordinate spells
+// (GitHub #141). The resolver library happens to reject it too, but relying on
+// that puts the refusal outside this compiler, where a library that started
+// resolving anchors would silently reinstate the malformed derivation.
 func (l *lowerer) internalPointer(ref string) (string, bool) {
 	doc, pointer, found := strings.Cut(ref, "#")
-	if !found || pointer == "" {
+	if !found || !strings.HasPrefix(pointer, "/") {
 		return "", false
 	}
 	if doc != "" && !l.sameFile(doc) {

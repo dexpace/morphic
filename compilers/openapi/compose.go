@@ -11,6 +11,7 @@ import (
 	yaml "gopkg.in/yaml.v3"
 
 	"github.com/dexpace/morphic/compilers/compile"
+	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -93,11 +94,11 @@ func (l *lowerer) applyCompositionRequired(m *ir.Model, s *oas3.Schema, pointer 
 // nothing declares, which is legal JSON Schema with nothing to lose.
 func (l *lowerer) diagUnattachableRequired(m *ir.Model, e requiredEntry) {
 	if m.Base != nil || len(m.Mixins) > 0 {
-		l.diag(ir.SeverityWarning, codeUnattachableRequired, e.pointer,
+		l.diag(ir.SeverityWarning, diag.UnattachableRequired, e.pointer,
 			"required %q matches no property declared here; a base or mixin may declare it, and the requirement cannot be carried across composition", e.name)
 		return
 	}
-	l.diag(ir.SeverityInfo, codeUnattachableRequired, e.pointer,
+	l.diag(ir.SeverityInfo, diag.UnattachableRequired, e.pointer,
 		"required %q matches no property declared here", e.name)
 }
 
@@ -132,7 +133,7 @@ func (l *lowerer) fillAllOf(m *ir.Model, s *oas3.Schema, pointer string) {
 		}
 		id, ok := l.resolveSchemaRef(b, b.GetRef().String())
 		if !ok {
-			l.diag(ir.SeverityError, codeUnresolvedRef, bptr,
+			l.diag(ir.SeverityError, diag.UnresolvedRef, bptr,
 				"unresolved allOf $ref %q", b.GetRef().String())
 			continue
 		}
@@ -177,7 +178,7 @@ func (l *lowerer) applyFalseBranches(m *ir.Model, s *oas3.Schema, pointer string
 		m.Additional = ir.AdditionalClosed
 		l.preserve(&m.Unmodeled, "openapi:allOf/"+strconv.Itoa(i),
 			ir.RawValue("false"), ir.ReasonDegradedLowering, bptr)
-		l.diag(ir.SeverityInfo, codeFalseSchema, bptr,
+		l.diag(ir.SeverityInfo, diag.FalseSchema, bptr,
 			"boolean false allOf branch matches nothing, so the composition matches nothing; "+
 				"composed model closed and the branch kept verbatim under Unmodeled")
 	}
@@ -203,8 +204,10 @@ func (l *lowerer) preserveUnmergedBranch(m *ir.Model, bs *oas3.Schema, branchIdx
 	if len(residue) == 0 {
 		return
 	}
-	l.preserve(&m.Unmodeled, "openapi:allOf/"+strconv.Itoa(branchIdx),
-		nodeToRaw(bs.GetRootNode()), ir.ReasonDegradedLowering, bptr)
+	if !l.preserveNode(&m.Unmodeled, "openapi:allOf/"+strconv.Itoa(branchIdx),
+		bs.GetRootNode(), ir.ReasonDegradedLowering, bptr) {
+		return
+	}
 	l.diagUnmergedBranch(bs, residue, bptr)
 }
 
@@ -220,11 +223,11 @@ func (l *lowerer) preserveUnmergedBranch(m *ir.Model, bs *oas3.Schema, branchIdx
 func (l *lowerer) diagUnmergedBranch(bs *oas3.Schema, residue []string, bptr string) {
 	kept := strings.Join(residue, ", ")
 	if branchExcludesObject(bs) {
-		l.diag(ir.SeverityWarning, codeDegradedConstruct, bptr,
+		l.diag(ir.SeverityWarning, diag.DegradedConstruct, bptr,
 			"inline allOf branch declares a type that is not an object, which the composed model asserts it is; the branch (%s) is kept verbatim under Unmodeled", kept)
 		return
 	}
-	l.diag(ir.SeverityInfo, codeDegradedConstruct, bptr,
+	l.diag(ir.SeverityInfo, diag.DegradedConstruct, bptr,
 		"inline allOf branch is merged in place, so only its properties and required list compose; the branch (%s) is kept verbatim under Unmodeled", kept)
 }
 
@@ -554,7 +557,7 @@ func (l *lowerer) diagUnresolvedBranches(s *oas3.Schema, pointer string) {
 		if l.refNamesReferent(b, ref) {
 			continue
 		}
-		l.diag(ir.SeverityError, codeUnresolvedRef, pointer+ptr(key, strconv.Itoa(i)),
+		l.diag(ir.SeverityError, diag.UnresolvedRef, pointer+ptr(key, strconv.Itoa(i)),
 			"union branch $ref %q resolves to nothing this document declares; the branch is kept verbatim", ref)
 	}
 }
@@ -669,7 +672,7 @@ func (l *lowerer) lowerDistributedUnion(s *oas3.Schema, pointer, hint string) ir
 				return l.composedVariant(body, b, vptr, vhint)
 			})
 	})
-	l.diag(ir.SeverityInfo, codeCompositionLowering, pointer,
+	l.diag(ir.SeverityInfo, diag.CompositionLowering, pointer,
 		"oneOf/anyOf co-declared with structural keywords; the composition is distributed across the union variants")
 	return id
 }
@@ -808,7 +811,7 @@ func (l *lowerer) discriminatorMapping(d *oas3.Discriminator, pointer string) ma
 	for value, target := range m.All() {
 		id, ok := l.mappingTargetID(target)
 		if !ok {
-			l.diag(ir.SeverityError, codeUnresolvedRef, pointer+ptr("discriminator", "mapping", value),
+			l.diag(ir.SeverityError, diag.UnresolvedRef, pointer+ptr("discriminator", "mapping", value),
 				"discriminator mapping %q references unresolved schema %q", value, target)
 			continue
 		}
@@ -829,7 +832,7 @@ func (l *lowerer) discriminatorDefault(d *oas3.Discriminator, pointer string) ir
 	}
 	id, ok := l.mappingTargetID(dm)
 	if !ok {
-		l.diag(ir.SeverityError, codeUnresolvedRef, pointer+ptr("discriminator", "defaultMapping"),
+		l.diag(ir.SeverityError, diag.UnresolvedRef, pointer+ptr("discriminator", "defaultMapping"),
 			"discriminator defaultMapping references unresolved schema %q", dm)
 		return ""
 	}
@@ -928,7 +931,7 @@ func (l *lowerer) enumMembers(nodes []values.Value) ([]ir.EnumMember, ir.PrimKin
 // enumAsUnion lowers a heterogeneous or non-scalar enum to an exclusive Union of
 // hoisted Literals, emitting one info diagnostic.
 func (l *lowerer) enumAsUnion(s *oas3.Schema, common ir.TypeCommon, pointer, hint string) ir.TypeDef {
-	l.diag(ir.SeverityInfo, codeDegradedConstruct, pointer,
+	l.diag(ir.SeverityInfo, diag.DegradedConstruct, pointer,
 		"heterogeneous or non-scalar enum lowered as a union of literals")
 	nodes := s.GetEnum()
 	variants := make([]ir.Variant, 0, len(nodes))
@@ -958,7 +961,7 @@ func (l *lowerer) hoistLiteral(node values.Value, pointer, hint string) ir.TypeI
 	return l.internNode(pointer, hint, func(common ir.TypeCommon) ir.TypeDef {
 		val, err := valueFromNode(node)
 		if err != nil {
-			l.diag(ir.SeverityWarning, codeDegradedConstruct, pointer,
+			l.diag(ir.SeverityWarning, diag.DegradedConstruct, pointer,
 				"unconvertible value lowered as the top type: %s", err.Error())
 			return &ir.Any{TypeCommon: common}
 		}

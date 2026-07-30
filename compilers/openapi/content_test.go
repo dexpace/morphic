@@ -10,6 +10,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -505,7 +506,7 @@ func TestContent_FullPipeline(t *testing.T) {
 	_, hasLinks := resp.Unmodeled["openapi:links"]
 	assert.True(t, hasLinks)
 
-	assert.True(t, hasDiag(diags, codeDegradedConstruct))
+	assert.True(t, hasDiag(diags, diag.DegradedConstruct))
 }
 
 func TestContent_OctetAndErrorMulti(t *testing.T) {
@@ -668,10 +669,10 @@ func TestContent_UnconvertibleExamplesDiagnosed(t *testing.T) {
 	c := op.Responses[0].Payload.Contents[0]
 	assert.Empty(t, c.Examples, "both unconvertible examples are skipped, not appended")
 
-	require.Equal(t, 2, countDiagsAt(diags, codeDegradedConstruct, ir.SeverityWarning))
+	require.Equal(t, 2, countDiagsAt(diags, diag.DegradedConstruct, ir.SeverityWarning))
 	pointers := map[string]bool{}
 	for _, d := range diags {
-		if d.Code == codeDegradedConstruct && d.Severity == ir.SeverityWarning {
+		if d.Code == diag.DegradedConstruct && d.Severity == ir.SeverityWarning {
 			pointers[d.Provenance.Pointer] = true
 			assert.Contains(t, d.Message, "example:")
 		}
@@ -715,7 +716,7 @@ components:
 	require.NotNil(t, c.Examples[0].Value)
 	assert.Equal(t, ir.Value{Kind: ir.ValueString, Str: "fine"}, *c.Examples[0].Value)
 
-	require.Equal(t, 1, countDiagsAt(diags, codeDegradedConstruct, ir.SeverityWarning))
+	require.Equal(t, 1, countDiagsAt(diags, diag.DegradedConstruct, ir.SeverityWarning))
 	d, ok := firstDegradedWarning(diags)
 	require.True(t, ok)
 	assert.Equal(t, "/paths/~1items/get/responses/200/content/application~1json/examples/bad",
@@ -781,7 +782,7 @@ func TestContent_PositionalPrefixEncodingIsPreserved(t *testing.T) {
 	item, ok := c.Unmodeled["openapi:itemEncoding"]
 	require.True(t, ok, "the tail encoding is kept beside the prefixes it follows")
 	assert.JSONEq(t, `{"contentType": "text/plain"}`, string(item.Value))
-	assertHasCode(t, diags, codeDegradedConstruct, ir.SeverityInfo)
+	assertHasCode(t, diags, diag.DegradedConstruct, ir.SeverityInfo)
 }
 
 func TestFillSequential_PrefixEncodingWithoutItemEncoding(t *testing.T) {
@@ -795,9 +796,14 @@ func TestFillSequential_PrefixEncodingWithoutItemEncoding(t *testing.T) {
 	assert.True(t, ok, "prefixEncoding alone is still reported rather than dropped")
 	_, ok = c.Unmodeled["openapi:itemEncoding"]
 	assert.False(t, ok, "no itemEncoding was declared, so none is recorded")
-	assertHasCode(t, diags, codeDegradedConstruct, ir.SeverityInfo)
+	assertHasCode(t, diags, diag.DegradedConstruct, ir.SeverityInfo)
 }
 
+// TestPositionalEncoding_WithoutRootNode covers the media type whose source node
+// cannot be read. prefixEncoding is declared — nothing else routes a content
+// entry here — so nothing being written is a construct lost rather than one that
+// was never there, and the position reports that instead of announcing a
+// preservation it did not make (GitHub #144).
 func TestPositionalEncoding_WithoutRootNode(t *testing.T) {
 	t.Parallel()
 	l := newRawLowerer(&soa.OpenAPI{})
@@ -806,7 +812,9 @@ func TestPositionalEncoding_WithoutRootNode(t *testing.T) {
 	l.fillSequential(c, media, "/mp", "h")
 	assert.Nil(t, c.ItemEncoding, "prefixes still block the every-item lowering")
 	assert.Nil(t, c.Unmodeled, "a media type with no source node has nothing verbatim to keep")
-	assertHasCode(t, l.diags.List(), codeDegradedConstruct, ir.SeverityInfo)
+	assertHasCode(t, l.diags.List(), diag.UnpreservableConstruct, ir.SeverityError)
+	assert.False(t, hasDiagAt(l.diags.List(), diag.DegradedConstruct, ir.SeverityInfo),
+		"nothing was kept, so nothing announces that it was")
 }
 
 func TestBodySchemaPointer_ExternalRefNoFragment(t *testing.T) {
@@ -1129,4 +1137,189 @@ func TestHeaders_DeprecationUnionsWithTheSchema(t *testing.T) {
 			assert.NotNil(t, h.Deprecation, "either side alone deprecates the header")
 		})
 	}
+}
+
+// TestSingleContentEntry_ReportsExtraMediaTypes covers the invalid document
+// OpenAPI forbids: a content-style header or parameter declaring more than one
+// media type. Only the first can lower — ir.Property and ir.Parameter each hold
+// one type — so the rest were dropped without a word until the position that
+// takes the first started naming what it left (GitHub #139).
+func TestSingleContentEntry_ReportsExtraMediaTypes(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		name string
+		spec string
+		at   string
+	}{
+		{
+			name: "response header",
+			spec: pathsSpec("  /x:\n    get:\n      responses:\n" +
+				"        \"200\":\n          description: ok\n          headers:\n" +
+				"            H:\n              content:\n" +
+				"                application/xml: {schema: {type: string}}\n" +
+				"                application/json: {schema: {type: integer}}\n"),
+			at: "/paths/~1x/get/responses/200/headers/H/content",
+		},
+		{
+			name: "operation parameter",
+			spec: pathsSpec("  /x:\n    get:\n      parameters:\n" +
+				"        - name: p\n          in: query\n          content:\n" +
+				"              application/xml: {schema: {type: string}}\n" +
+				"              application/json: {schema: {type: integer}}\n" +
+				"      responses: {\"200\": {description: ok}}\n"),
+			at: "/paths/~1x/get/parameters/0/content",
+		},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			_, diags := parseFull(t, tc.spec)
+			assert.True(t, hasDiagCodeAt(diags, diag.DegradedConstruct, tc.at),
+				"the ignored media types are named at the content map: %+v", diags)
+			assert.Contains(t, diagMessageAt(t, diags, diag.DegradedConstruct, ir.SeverityWarning, tc.at),
+				"application/json", "the message names what was ignored, not only that something was")
+		})
+	}
+}
+
+// TestSingleContentEntry_OneEntryIsSilent is the control: the legal one-entry
+// spelling must not warn, or every content-style header and parameter would.
+func TestSingleContentEntry_OneEntryIsSilent(t *testing.T) {
+	t.Parallel()
+	_, diags := parseFull(t, pathsSpec("  /x:\n    get:\n      responses:\n"+
+		"        \"200\":\n          description: ok\n          headers:\n"+
+		"            H:\n              content:\n"+
+		"                application/xml: {schema: {type: string}}\n"))
+	assert.Equal(t, 0, countDiagsAt(diags, diag.DegradedConstruct, ir.SeverityWarning),
+		"one media type is the legal spelling: %+v", diags)
+}
+
+// TestHeaderSchema_NeitherSpelling covers a header that declares no type at all.
+// It is legal — a header may carry only a description — and must lower to the top
+// type without reporting a loss, since nothing was written to lose.
+func TestHeaderSchema_NeitherSpelling(t *testing.T) {
+	t.Parallel()
+	doc, diags := parseFull(t, pathsSpec("  /x:\n    get:\n      operationId: untypedHeader\n      responses:\n"+
+		"        \"200\":\n          description: ok\n          headers:\n"+
+		"            H: {description: untyped}\n"))
+	requireNoErrorDiags(t, diags)
+
+	headers := findOp(t, doc, "untypedHeader").Responses[0].Headers
+	require.Len(t, headers, 1)
+	assert.Equal(t, ir.TypeID("t/prim/any"), headers[0].Type.Target,
+		"a header declaring no type lowers to the top type")
+	assert.Nil(t, headers[0].Encoding, "no content map means no media type")
+	assert.Equal(t, "untyped", headers[0].Docs.Description)
+}
+
+// TestPropIDByWire_DeadEnds mirrors TestBodyModelPointer_NoModelBehindBody for
+// the property walk: the same dead ends, asked for a part name rather than a
+// pointer. Neither may invent an ID — a part keyed by a PropID nothing declares
+// is a dangling reference the encoding map would carry silently.
+func TestPropIDByWire_DeadEnds(t *testing.T) {
+	t.Parallel()
+	l := newRawLowerer(&soa.OpenAPI{})
+	l.types.Register("t/opaque", &ir.Scalar{TypeCommon: ir.TypeCommon{ID: "t/opaque"}})
+	l.types.Register("t/cycle/a", &ir.Scalar{
+		TypeCommon: ir.TypeCommon{ID: "t/cycle/a"}, Base: &ir.TypeRef{Target: "t/cycle/b"},
+	})
+	l.types.Register("t/cycle/b", &ir.Scalar{
+		TypeCommon: ir.TypeCommon{ID: "t/cycle/b"}, Base: &ir.TypeRef{Target: "t/cycle/a"},
+	})
+	l.types.Register("t/model/cycle", &ir.Model{
+		TypeCommon: ir.TypeCommon{ID: "t/model/cycle"}, Base: &ir.TypeRef{Target: "t/model/cycle"},
+	})
+	prim := l.primID(ir.PrimString)
+
+	cases := []struct {
+		name string
+		body ir.TypeID
+	}{
+		{"an ID no registry entry declares", "t/absent"},
+		{"an opaque scalar standing for nothing", "t/opaque"},
+		{"a kind that declares no properties", prim},
+		{"an alias chain that closes on itself", "t/cycle/a"},
+		{"a model whose base closes on itself", "t/model/cycle"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			id, ok := l.propIDByWire(tc.body, "file", 0)
+			assert.False(t, ok, "no property with that wire name stands behind this body")
+			assert.Empty(t, id, "and no ID is invented for one")
+		})
+	}
+}
+
+// TestPartEncodings_MixinPartIsKeyedOnTheMixin covers the second composition
+// channel. An allOf of two $refs makes the first the Base and the rest Mixins
+// (§4.3), so a part contributed by the second is reachable only by searching
+// them — and its key must be the ID that mixin declares.
+func TestPartEncodings_MixinPartIsKeyedOnTheMixin(t *testing.T) {
+	t.Parallel()
+	spec := pathsSpec(`  /upload:
+    post:
+      operationId: upload
+      requestBody:
+        content:
+          multipart/form-data:
+            schema:
+              allOf:
+                - {$ref: "#/components/schemas/Core"}
+                - {$ref: "#/components/schemas/Extra"}
+            encoding:
+              note: {contentType: text/plain}
+      responses: {"200": {description: ok}}
+components:
+  schemas:
+    Core:
+      type: object
+      properties: {id: {type: string}}
+    Extra:
+      type: object
+      properties: {note: {type: string}}
+`)
+	_, svc, diags := lowerServiceSpec(t, spec)
+	requireNoErrorDiags(t, diags)
+	enc := firstOp(t, svc).Request.Contents[0].Encoding
+
+	want := ir.PropID("p/openapi" + ptr("components", "schemas", "Extra", "properties", "note"))
+	pe, ok := enc[want]
+	require.True(t, ok, "a mixin's part is keyed on the mixin that declares it; got %v", enc)
+	assert.Equal(t, []string{"text/plain"}, pe.ContentTypes)
+}
+
+// TestBodyParts_RedeclaredNameIsOnePart pins that a part named by two allOf
+// branches yields one entry rather than depending on which branch was walked
+// last. The encoding entry describes one part on the wire either way.
+func TestBodyParts_RedeclaredNameIsOnePart(t *testing.T) {
+	t.Parallel()
+	spec := pathsSpec(`  /upload:
+    post:
+      operationId: upload
+      requestBody:
+        content:
+          multipart/form-data:
+            schema:
+              allOf:
+                - {type: object, properties: {note: {type: string}}}
+                - {type: object, properties: {note: {type: string}}}
+            encoding:
+              note: {contentType: text/plain}
+      responses: {"200": {description: ok}}
+`)
+	_, svc, diags := lowerServiceSpec(t, spec)
+	requireNoErrorDiags(t, diags)
+	enc := firstOp(t, svc).Request.Contents[0].Encoding
+	assert.Len(t, enc, 1, "one wire part is one encoding entry; got %v", enc)
+}
+
+// TestBodyParts_DepthBound covers the composition walk's bound. A $ref cycle is
+// refused at load, so no document can spell a composition this deep; the bound is
+// what keeps the walk terminating without relying on that.
+func TestBodyParts_DepthBound(t *testing.T) {
+	t.Parallel()
+	js := oas3.NewJSONSchemaFromSchema[oas3.Referenceable](&oas3.Schema{})
+	assert.Nil(t, bodyParts(js, maxPartCompositionDepth+1),
+		"past the bound the walk stops rather than descending further")
 }

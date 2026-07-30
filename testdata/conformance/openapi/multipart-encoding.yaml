@@ -26,6 +26,29 @@ paths:
       responses:
         "200":
           description: ok
+  # The same wire format written as a composition rather than a declaration. A
+  # body whose parts arrive through allOf has no properties of its own, so the
+  # parts must be enumerated across the composition and keyed by the property
+  # the IR actually holds — which §4.3 keeps on the Base, not on the composed
+  # node.
+  /upload-composed:
+    post:
+      operationId: uploadComposed
+      requestBody:
+        content:
+          multipart/form-data:
+            schema:
+              allOf:
+                - {$ref: '#/components/schemas/UploadForm'}
+                - type: object
+                  properties:
+                    note: {type: string}
+            encoding:
+              file: {contentType: image/png}
+              note: {contentType: text/plain}
+      responses:
+        "200":
+          description: ok
   /submit:
     post:
       operationId: submitForm
@@ -48,6 +71,13 @@ components:
     Digest:
       type: string
       pattern: '^[0-9a-f]{64}$'
+    UploadForm:
+      type: object
+      properties:
+        file: {type: string, format: binary}
+        tags:
+          type: array
+          items: {type: string}
   headers:
     PartChecksum:
       description: sha-256 digest of this part

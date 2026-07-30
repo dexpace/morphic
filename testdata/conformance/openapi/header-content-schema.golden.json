@@ -1,0 +1,239 @@
+{
+  "irVersion": "0.3.0",
+  "name": "HeaderContentSchema",
+  "version": "1.0.0",
+  "docs": {},
+  "services": [
+    {
+      "id": "s/openapi/0",
+      "name": {
+        "source": "HeaderContentSchema",
+        "canonical": "header_content_schema"
+      },
+      "docs": {},
+      "groups": [
+        {
+          "name": {
+            "hint": "default"
+          },
+          "docs": {},
+          "operations": [
+            {
+              "id": "op/openapi/paths/~1reports/get",
+              "name": {
+                "source": "getReport",
+                "canonical": "get_report"
+              },
+              "docs": {},
+              "responses": [
+                {
+                  "name": {},
+                  "conditions": {
+                    "statusCodes": [
+                      {
+                        "from": 200,
+                        "to": 200
+                      }
+                    ]
+                  },
+                  "headers": [
+                    {
+                      "id": "p/openapi/paths/~1reports/get/responses/200/headers/X-Report-Schema",
+                      "name": {
+                        "source": "X-Report-Schema",
+                        "canonical": "x_report_schema"
+                      },
+                      "wireName": "X-Report-Schema",
+                      "type": {
+                        "target": "t/prim/string",
+                        "nullable": false
+                      },
+                      "required": false,
+                      "clientOptional": false,
+                      "defaultAdded": false,
+                      "visibility": {
+                        "none": false
+                      },
+                      "constraints": {
+                        "exclusiveMin": false,
+                        "exclusiveMax": false,
+                        "maxLength": 4,
+                        "uniqueItems": false
+                      },
+                      "flatten": false,
+                      "eventHeader": false,
+                      "eventPayload": false,
+                      "secret": false,
+                      "xml": {
+                        "name": "ReportSchema",
+                        "wrapped": false
+                      },
+                      "docs": {
+                        "description": "the schema spelling"
+                      },
+                      "provenance": {
+                        "source": 0,
+                        "pointer": "/paths/~1reports/get/responses/200/headers/X-Report-Schema"
+                      }
+                    },
+                    {
+                      "id": "p/openapi/paths/~1reports/get/responses/200/headers/X-Report-Content",
+                      "name": {
+                        "source": "X-Report-Content",
+                        "canonical": "x_report_content"
+                      },
+                      "wireName": "X-Report-Content",
+                      "type": {
+                        "target": "t/prim/string",
+                        "nullable": false
+                      },
+                      "required": false,
+                      "clientOptional": false,
+                      "defaultAdded": false,
+                      "visibility": {
+                        "none": false
+                      },
+                      "constraints": {
+                        "exclusiveMin": false,
+                        "exclusiveMax": false,
+                        "maxLength": 4,
+                        "uniqueItems": false
+                      },
+                      "encoding": {
+                        "mediaType": "application/xml"
+                      },
+                      "flatten": false,
+                      "eventHeader": false,
+                      "eventPayload": false,
+                      "secret": false,
+                      "xml": {
+                        "name": "ReportContent",
+                        "wrapped": false
+                      },
+                      "docs": {
+                        "description": "the content spelling"
+                      },
+                      "provenance": {
+                        "source": 0,
+                        "pointer": "/paths/~1reports/get/responses/200/headers/X-Report-Content"
+                      }
+                    },
+                    {
+                      "id": "p/openapi/paths/~1reports/get/responses/200/headers/X-Report-Ref",
+                      "name": {
+                        "source": "X-Report-Ref",
+                        "canonical": "x_report_ref"
+                      },
+                      "wireName": "X-Report-Ref",
+                      "type": {
+                        "target": "t/openapi/components/schemas/ReportID",
+                        "nullable": false
+                      },
+                      "required": false,
+                      "clientOptional": false,
+                      "defaultAdded": false,
+                      "visibility": {
+                        "none": false
+                      },
+                      "encoding": {
+                        "mediaType": "application/json"
+                      },
+                      "flatten": false,
+                      "eventHeader": false,
+                      "eventPayload": false,
+                      "secret": false,
+                      "docs": {},
+                      "provenance": {
+                        "source": 0,
+                        "pointer": "/paths/~1reports/get/responses/200/headers/X-Report-Ref"
+                      }
+                    }
+                  ],
+                  "docs": {
+                    "description": "ok"
+                  }
+                }
+              ],
+              "oneWay": false,
+              "idempotency": {},
+              "auth": null,
+              "bindings": {
+                "http": [
+                  {
+                    "method": "GET",
+                    "uriTemplate": "/reports",
+                    "sharedRoute": false,
+                    "checksumRequired": false,
+                    "isWebhook": false
+                  }
+                ]
+              },
+              "provenance": {
+                "source": 0,
+                "pointer": "/paths/~1reports/get"
+              }
+            }
+          ]
+        }
+      ],
+      "auth": null,
+      "provenance": {
+        "source": 0
+      }
+    }
+  ],
+  "types": {
+    "t/openapi/components/schemas/ReportID": {
+      "kind": "scalar",
+      "id": "t/openapi/components/schemas/ReportID",
+      "name": {
+        "source": "ReportID",
+        "canonical": "report_id"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/ReportID"
+      },
+      "base": {
+        "target": "t/prim/string",
+        "nullable": false
+      },
+      "constraints": {
+        "exclusiveMin": false,
+        "exclusiveMax": false,
+        "pattern": "^r-[0-9]+$",
+        "uniqueItems": false
+      }
+    },
+    "t/prim/string": {
+      "kind": "primitive",
+      "id": "t/prim/string",
+      "name": {},
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0
+      },
+      "prim": "string"
+    }
+  },
+  "servers": [
+    {
+      "name": {},
+      "urlTemplate": "/",
+      "description": {},
+      "auth": null
+    }
+  ],
+  "sources": [
+    {
+      "format": "openapi@3.1",
+      "path": "header-content-schema.yaml",
+      "hash": "17ace78b333229b8c03cfdc4c1b40ccbefdab45603653c131de122cce2bd7a87"
+    }
+  ]
+}

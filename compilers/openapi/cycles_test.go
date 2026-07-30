@@ -13,6 +13,7 @@ import (
 	"gopkg.in/yaml.v3"
 
 	"github.com/dexpace/morphic/compilers"
+	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -66,7 +67,7 @@ func TestDetectCycles_Reproducers(t *testing.T) {
 			data := readReproducer(t, tc.file)
 			diags := detectCycles(0, data)
 			require.NotEmpty(t, diags, "degenerate cycle must be diagnosed")
-			assert.Equal(t, codeCyclicRef, diags[0].Code)
+			assert.Equal(t, diag.CyclicRef, diags[0].Code)
 			assert.Equal(t, ir.SeverityError, diags[0].Severity)
 			assert.NotEmpty(t, diags[0].Provenance.Pointer, "line:col provenance")
 		})
@@ -87,7 +88,7 @@ func TestCompile_CyclicSpecDoesNotCrash(t *testing.T) {
 				[]compilers.Source{{Path: tc.file + ".yaml", Data: data}}, compilers.Options{})
 			require.NoError(t, err, "cyclic spec is a spec problem, not a Go error")
 			assert.Nil(t, doc, "the compiler refuses to lower a cyclic spec")
-			assertHasErrorCode(t, diags, codeCyclicRef)
+			assertHasErrorCode(t, diags, diag.CyclicRef)
 		})
 	}
 }
@@ -137,7 +138,7 @@ func TestDetectCycles_ComponentOnlyCyclesLeftToResolver(t *testing.T) {
 			_, diags, err := New().Compile(t.Context(),
 				[]compilers.Source{{Path: tc.name + ".yaml", Data: []byte(tc.data)}}, compilers.Options{})
 			require.NoError(t, err)
-			assertHasErrorCode(t, diags, codeUnresolvedRef)
+			assertHasErrorCode(t, diags, diag.UnresolvedRef)
 		})
 	}
 }
@@ -270,7 +271,7 @@ func TestCompile_RefShapedDataNotRefused(t *testing.T) {
 			require.NoError(t, err)
 			assert.NotNil(t, doc, "a legal ref-shaped-data spec must still lower")
 			for _, d := range diags {
-				assert.NotEqualf(t, codeCyclicRef, d.Code, "must not refuse as a cyclic ref: %+v", d)
+				assert.NotEqualf(t, diag.CyclicRef, d.Code, "must not refuse as a cyclic ref: %+v", d)
 			}
 		})
 	}
@@ -327,7 +328,7 @@ func TestRecoverCycleScan_PanicYieldsWarning(t *testing.T) {
 		panic("detector bug")
 	})
 	require.Len(t, got, 1, "a panicking scan degrades to one diagnostic")
-	assert.Equal(t, codeCycleScanFailed, got[0].Code)
+	assert.Equal(t, diag.CycleScanFailed, got[0].Code)
 	assert.Equal(t, ir.SeverityWarning, got[0].Severity, "the scan failure must not refuse a spec")
 	assert.Equal(t, 3, got[0].Provenance.Source, "the diagnostic carries the source index")
 }
@@ -336,7 +337,7 @@ func TestRecoverCycleScan_PanicYieldsWarning(t *testing.T) {
 // returns its diagnostics unchanged.
 func TestRecoverCycleScan_PassesThroughResult(t *testing.T) {
 	t.Parallel()
-	want := []ir.Diagnostic{{Code: codeCyclicRef, Severity: ir.SeverityError}}
+	want := []ir.Diagnostic{{Code: diag.CyclicRef, Severity: ir.SeverityError}}
 	got := recoverCycleScan(0, func() []ir.Diagnostic {
 		return want
 	})
@@ -1011,7 +1012,7 @@ func TestDetectCycles_TruncationDoesNotDisableTheRestOfTheScan(t *testing.T) {
 
 	diags := detectCycles(0, []byte(b.String()))
 	require.NotEmpty(t, diags)
-	assert.Equal(t, codeCyclicRef, diags[0].Code,
+	assert.Equal(t, diag.CyclicRef, diags[0].Code,
 		"a cycle outside the truncated chain is still found, and outranks the warning")
 	assert.Equal(t, ir.SeverityError, diags[0].Severity)
 }
@@ -1141,7 +1142,7 @@ func TestDetectCycles_ChainedAliasFanOutIsRefusedFast(t *testing.T) {
 
 	diags := scanWithin(t, b.String(), "exponential blowup on chained aliases")
 	require.Len(t, diags, 1, "a fan-out this deep is refused, not silently accepted")
-	assert.Equal(t, codeAliasAmplification, diags[0].Code)
+	assert.Equal(t, diag.AliasAmplification, diags[0].Code)
 	assert.Equal(t, ir.SeverityError, diags[0].Severity)
 }
 
@@ -1190,10 +1191,10 @@ func TestDetectCycles_MergeChainPastBoundStaysFastAndWarns(t *testing.T) {
 	t.Parallel()
 	diags := scanWithin(t, mergeChainSpec(1600), "super-linear blowup on a long merge chain")
 	require.Len(t, diags, 2, "both the truncation warning and the amplification refusal are reported")
-	assert.Equal(t, codeCycleScanFailed, diags[0].Code)
+	assert.Equal(t, diag.CycleScanFailed, diags[0].Code)
 	assert.Equal(t, ir.SeverityWarning, diags[0].Severity,
 		"incomplete protection is a warning, never a refusal")
-	assert.Equal(t, codeAliasAmplification, diags[1].Code)
+	assert.Equal(t, diag.AliasAmplification, diags[1].Code)
 	assert.Equal(t, ir.SeverityError, diags[1].Severity,
 		"the document's alias expansion is also refused outright")
 }
@@ -1209,7 +1210,7 @@ func TestCompile_MergeChainPastBoundStillCompiles(t *testing.T) {
 		compilers.Options{})
 	require.NoError(t, err)
 	require.NotNil(t, doc, "a legal document is still compiled")
-	assertHasCode(t, diags, codeCycleScanFailed, ir.SeverityWarning)
+	assertHasCode(t, diags, diag.CycleScanFailed, ir.SeverityWarning)
 	for _, d := range diags {
 		assert.NotEqual(t, ir.SeverityError, d.Severity, "no diagnostic refuses the source")
 	}

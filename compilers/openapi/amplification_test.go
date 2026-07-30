@@ -12,6 +12,7 @@ import (
 	"gopkg.in/yaml.v3"
 
 	"github.com/dexpace/morphic/compilers"
+	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -31,7 +32,7 @@ func TestAliasAmplification_BombFixtureIsRefused(t *testing.T) {
 
 	diags := detectCycles(0, data)
 	require.NotEmpty(t, diags, "an amplifying document must be diagnosed")
-	assert.Equal(t, codeAliasAmplification, diags[0].Code)
+	assert.Equal(t, diag.AliasAmplification, diags[0].Code)
 	assert.Equal(t, ir.SeverityError, diags[0].Severity)
 	assert.NotEmpty(t, diags[0].Provenance.Pointer, "line:col provenance")
 }
@@ -68,7 +69,7 @@ func TestCompile_AliasBombDoesNotExhaustMemory(t *testing.T) {
 	case r := <-done:
 		require.NoError(t, r.err, "an alias bomb is a spec problem, not a Go error")
 		assert.Nil(t, r.doc, "the compiler refuses to lower an amplifying document")
-		assertHasErrorCode(t, r.diags, codeAliasAmplification)
+		assertHasErrorCode(t, r.diags, diag.AliasAmplification)
 	case <-time.After(bound):
 		t.Fatalf("Compile did not return within %v — the bomb likely reached soa.Unmarshal", bound)
 	}
@@ -205,7 +206,7 @@ func TestDetectCycles_SyntheticWideBaseReuseIsNowRefused(t *testing.T) {
 
 	diags := detectCycles(0, []byte(src))
 	require.NotEmpty(t, diags, "44x beyond any real spec's surplus must be refused")
-	assert.Equal(t, codeAliasAmplification, diags[0].Code)
+	assert.Equal(t, diag.AliasAmplification, diags[0].Code)
 	assert.Equal(t, ir.SeverityError, diags[0].Severity)
 }
 
@@ -280,7 +281,7 @@ func TestDetectCycles_FlatFanOutOfModestAnchorIsEventuallyRefused(t *testing.T) 
 
 	diags := detectCycles(0, []byte(src))
 	require.NotEmpty(t, diags, "unbounded reuse of even a modest anchor must eventually be refused")
-	assert.Equal(t, codeAliasAmplification, diags[0].Code)
+	assert.Equal(t, diag.AliasAmplification, diags[0].Code)
 	assert.Equal(t, ir.SeverityError, diags[0].Severity)
 }
 
@@ -339,10 +340,10 @@ func TestAliasAmplification_BoundaryPair(t *testing.T) {
 
 	over := aliasFanOutNode(13)
 	require.Equal(t, int64(5), rawNodeCount(over), "sanity: the raw count aliasFanOutNode promises")
-	diag, refused := aliasAmplification(0, over)
+	d, refused := aliasAmplification(0, over)
 	require.True(t, refused, "expandedWeight 49,149 crosses the 32,768 floor")
-	assert.Equal(t, codeAliasAmplification, diag.Code)
-	assert.Equal(t, ir.SeverityError, diag.Severity)
+	assert.Equal(t, diag.AliasAmplification, d.Code)
+	assert.Equal(t, ir.SeverityError, d.Severity)
 }
 
 // TestAliasWeigher_NilRoot pins that a nil root has no weight and is never

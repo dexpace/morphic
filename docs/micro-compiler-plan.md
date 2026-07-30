@@ -43,8 +43,8 @@ Every task inherits these. They are not restated per issue.
 |---|---|
 | ~~#57~~ | **Landed.** Allowlist entries are exact unless suffixed `/...`, so a `compilers` entry no longer licenses `compilers/graphql`, and a nested directory sharing a ruled sibling's basename is audited rather than skipped |
 | ~~#48~~ | **Landed.** `* text=auto eol=lf`, so the comparison that proves twenty pull requests neutral cannot fail for reasons unrelated to the IR. A clone with `core.autocrlf=true` converted 346 files and failed three test functions before it |
-| #159 | The general two-order oracle. Exists today only as three hand-written cases at the site where the pointer collision was found |
-| #160 | Type-ID integrity: no collisions, **and** every ID agrees with its own provenance pointer. The second assertion is the only mechanical guard on provenance correctness — `irverify` validates the source index range and never the pointer |
+| ~~#159~~ | **Landed.** The general two-order oracle: every mapping's entry order reversed across the corpus, comparing the type registry and the set of diagnostics. Reverting the #108 fix reddens the sweep |
+| ~~#160~~ | **Landed**, split by where each half is decidable. The agreement went to `irverify.checkIDs`, which needed the ID shape in `ir` — so it holds for every consumer of a `Document` rather than only under test. Injectivity went to `compile.Types`: a collapsing derivation overwrites one node with the other, and only the registry that saw both interns can still see it |
 
 #48 looked like hygiene and was not. Byte-identical goldens are the sole proof of neutrality across
 every conformance snapshot, and a comparison that fails environmentally teaches a reader to dismiss
@@ -58,7 +58,7 @@ landed with it, in that order, in one pull request.
 |---|---|---|
 | ~~#162~~ | **Landed.** Identifier grammar into `compilers/compile`: `compile.TypeID` and friends over a `compile.Space`, with the minted-namespace rule refused by `compile.Types` | — |
 | ~~#163~~ | **Landed.** Canonical naming grammar into `compilers/compile`, with `compile.NamingFor` beside it and a conformance suite pinning the boundaries `irverify` cannot see | — |
-| ~~#164~~ | **Landed with #161**, ahead of #163: `ir/naming-not-words` rejects a lowercase but unsegmented canonical | — |
+| ~~#164~~ | **Landed** in three parts: #161 brought `ir/naming-not-words`; `ir/naming-unsegmented` followed for the letter/digit boundary, which a neutral name still carries evidence of; and `ir/naming-not-derived` closed the rest by moving the grammar to `ir` so the verifier can recompute a canonical from its source, which is the only way to see a camel-case boundary. `Hint` (#54) stays out | — |
 | #73 | Answered by the three above; to be closed with the reasoning that they landed in `compilers/compile` rather than in `ir` as its text proposed | — |
 
 #163 changed no output here: #161 had already fixed the segmentation in `compilers/openapi` and
@@ -69,12 +69,12 @@ each with a reddening test and a deliberate golden update.
 
 ### Tier 0 — extractions that are pure moves
 
-Each is one PR. All wait on #57 and #48; the rest wait on `diag` because `diagf` is the single
+Each is one PR. All wait on #57 and #48; the rest wait on `diag` because its constructor is the single
 diagnostic constructor and sits at the bottom of the import graph.
 
 | Issue | Package | Blocked by |
 |---|---|---|
-| #165 | `internal/diag` | #57, #48 |
+| ~~#165~~ | **Landed.** `internal/diag` — goldens byte-identical, its own rules entry admits `ir` alone | #57, #48 |
 | #166 | `internal/load` | #57, #165 |
 | #167 | `internal/scan` — cycles and alias amplification share one walk | #57, #165 |
 | #168 | `internal/ids` — after the grammar moves, so no second copy lands | #57, #162 |
@@ -124,7 +124,7 @@ Work already filed that lands inside this restructuring rather than alongside it
 
 | Issue | Relationship | Blocked by |
 |---|---|---|
-| #86 | Hand-built provenance at 24 sites. Its proposed fix — a method on the lowerer — is invalidated by #177; the equivalent is a constructor in `internal/diag` taking the context. Until #160 lands this is the one change with no mechanical guard behind it; afterwards the ID-provenance agreement check covers the property and this issue removes the way to get it wrong in the first place | #172 |
+| #86 | Hand-built provenance at 24 sites. Its proposed fix — a method on the lowerer — is invalidated by #177; the equivalent is a constructor in `internal/diag` taking the context. #160 has landed, so the ID-provenance agreement check now covers the property and this issue removes the way to get it wrong in the first place | #172 |
 | #84 | Eight copy-pasted reference-resolution helpers, in files that relocate. Sequenced after the move so the relocation and the collapse stay separate reviews | #175 |
 | #87 | Mostly overtaken by #97 — the `*_edgecases_test.go` files are gone. The surviving concern, `newRawLowerer` hand-constructing its subject, resolves when there is nothing left to construct | — |
 
@@ -132,9 +132,9 @@ Work already filed that lands inside this restructuring rather than alongside it
 
 | Issue | Status |
 |---|---|
-| #179 | Source index — blocked on `$ref` handling being correct first (#40, #141; #143 is closed) |
+| #179 | Source index — blocked on `$ref` handling being correct first (#40; #141 and #143 are closed) |
 | ~~#161~~ | **Landed**, deliberately unblocked from #163: promotion would have fixed it, but it was a contract violation shipping today and did not wait on an architecture programme |
-| #142 | The annotation matrix cannot address a carrier position. Recorded as a standing blind spot in the design §8.4; independently fixable |
+| ~~#142~~ | **Landed**, independently as its entry said it could be: the matrix gained a kind per carrier, and property and parameter are separate kinds because their carriers hold different sets |
 | #54 | Cased `Naming.Hint` passes the neutrality check. #164 landed without reaching `Hint`, so this stays open — `neutral-naming.golden.json` shows one |
 | #66 | Closed as superseded — its premise expired when the next compilers landed without it |
 | #20, #21 | GraphQL and Protobuf drafts are read-only evidence here, not work items |
@@ -157,8 +157,8 @@ Twelve steps deep at its longest, with Tier 0 wide enough that six of its seven 
 proceed in parallel once `diag` lands.
 
 Of the five that were unblocked at the start, #57, #161 and #48 have landed, and the framework
-promotion (#162, #163) with them. **#159** and **#160** remain, and are the prerequisites the two
-new oracles wait on. The graph is acyclic, and the dependency columns above are derived from the API
+promotion (#162, #163) with them. **#159** and **#160** have since landed too, so the prerequisites
+the later steps wait on are met and `diag` has opened Tier 0. The graph is acyclic, and the dependency columns above are derived from the API
 rather than maintained by hand — check both rather than trusting either:
 
 ```bash

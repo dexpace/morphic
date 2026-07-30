@@ -3,6 +3,7 @@ package openapi
 import (
 	oas3 "github.com/speakeasy-api/openapi/jsonschema/oas3"
 
+	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -11,7 +12,7 @@ import (
 // YAML nodes, never the *float64 model fields, to preserve full decimal
 // precision (the no-float64 invariant). Collection bounds (minItems/maxItems/
 // uniqueItems) are List-owned and read elsewhere. A non-finite bound literal
-// yields an error-severity codeNumericPrecision diagnostic and is skipped; nil
+// yields an error-severity diag.NumericPrecision diagnostic and is skipped; nil
 // is returned when no constraint is present. exclusiveBoolean selects the
 // exclusiveMinimum/exclusiveMaximum dialect (see applyExclusive).
 func constraintsFromSchema(s *oas3.Schema, exclusiveBoolean bool) (*ir.Constraints, []ir.Diagnostic) {
@@ -66,7 +67,7 @@ func numericBounds(c *ir.Constraints, s *oas3.Schema) []ir.Diagnostic {
 // spec), so this is the sole diagnostic for a bad bound — hence error severity:
 // a non-numeric bound is an invalid schema, not a lossy-but-tolerable value.
 func boundLiteralDiag(prop, literal string, err error) ir.Diagnostic {
-	return diagf(ir.SeverityError, codeNumericPrecision, ir.Provenance{},
+	return diag.Newf(ir.SeverityError, diag.NumericPrecision, ir.Provenance{},
 		"%s literal %q: %s", prop, literal, err.Error())
 }
 
@@ -116,7 +117,7 @@ func exclusiveFormDiag(prop string, exclusiveBoolean bool) ir.Diagnostic {
 	if exclusiveBoolean {
 		want = "a boolean"
 	}
-	return diagf(ir.SeverityError, codeExclusiveBoundForm, ir.Provenance{},
+	return diag.Newf(ir.SeverityError, diag.ExclusiveBoundForm, ir.Provenance{},
 		"%s must be %s in this OpenAPI dialect", prop, want)
 }
 

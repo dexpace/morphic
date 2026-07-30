@@ -10,6 +10,7 @@ import (
 	yaml "gopkg.in/yaml.v3"
 
 	"github.com/dexpace/morphic/compilers/compile"
+	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -97,11 +98,25 @@ func (l *lowerer) fillSequential(c *ir.Content, media *soa.MediaType, mediaPtr, 
 // entries carry ReasonNoIRHome rather than a degraded lowering.
 func (l *lowerer) positionalEncoding(c *ir.Content, media *soa.MediaType, mediaPtr string) {
 	root := media.GetRootNode()
-	l.preserve(&c.Unmodeled, "openapi:prefixEncoding", nodeToRaw(rawChildNode(root, "prefixEncoding")),
-		ir.ReasonNoIRHome, mediaPtr+ptr("prefixEncoding"))
-	l.preserve(&c.Unmodeled, "openapi:itemEncoding", nodeToRaw(rawChildNode(root, "itemEncoding")),
+	// The announcement follows prefixEncoding, the construct that brought this
+	// lowering here: an itemEncoding beside it is optional, so its absence must not
+	// suppress the message, and its own conversion failure reports separately.
+	at := mediaPtr + ptr("prefixEncoding")
+	kept := l.preserveNode(&c.Unmodeled, "openapi:prefixEncoding", rawChildNode(root, "prefixEncoding"),
+		ir.ReasonNoIRHome, at)
+	l.preserveNode(&c.Unmodeled, "openapi:itemEncoding", rawChildNode(root, "itemEncoding"),
 		ir.ReasonNoIRHome, mediaPtr+ptr("itemEncoding"))
-	l.diag(ir.SeverityInfo, codeDegradedConstruct, mediaPtr,
+	if !kept {
+		// Reaching here means prefixEncoding is declared — that is the only reason
+		// this lowering runs — yet nothing of it was written. Unlike every other
+		// preservation site, an empty payload here cannot mean "there was no
+		// construct", so it is reported rather than passed over (GitHub #144).
+		l.diag(ir.SeverityError, diag.UnpreservableConstruct, at,
+			"prefixEncoding is declared but its source node could not be read; it is "+
+				"represented in the IR in no form at all")
+		return
+	}
+	l.diag(ir.SeverityInfo, diag.DegradedConstruct, mediaPtr,
 		"prefixEncoding is positional and has no per-item IR home; it and any itemEncoding are kept under Unmodeled")
 }
 
@@ -110,12 +125,8 @@ func (l *lowerer) positionalEncoding(c *ir.Content, media *soa.MediaType, mediaP
 // encoding entry or is itself a repeated (array) or file (binary) part. body is
 // the TypeID the content's own schema position lowered to.
 func (l *lowerer) partEncodings(media *soa.MediaType, mediaPtr string, body ir.TypeID) map[ir.PropID]ir.PartEncoding {
-	model := schemaOf(media.GetSchema())
-	if model == nil {
-		return nil
-	}
-	props := model.GetProperties()
-	if props == nil || props.Len() == 0 {
+	parts := bodyParts(media.GetSchema(), 0)
+	if len(parts) == 0 {
 		return nil
 	}
 	// Key by the pointer the body model was interned at, not by mediaPtr, so the
@@ -128,17 +139,134 @@ func (l *lowerer) partEncodings(media *soa.MediaType, mediaPtr string, body ir.T
 	}
 	encMap := media.GetEncoding()
 	out := map[ir.PropID]ir.PartEncoding{}
-	for name, pjs := range props.All() {
-		pe := l.buildPartEncoding(name, pjs, encMap, mediaPtr)
+	for _, part := range parts {
+		pe := l.buildPartEncoding(part.name, part.schema, encMap, mediaPtr)
 		if partEncodingEmpty(pe) {
 			continue
 		}
-		out[propID(schemaPtr+ptr("properties", name))] = pe
+		out[l.partPropID(body, part.name, schemaPtr)] = pe
 	}
 	if len(out) == 0 {
 		return nil
 	}
 	return out
+}
+
+// bodyPart is one multipart part: the name keying its encoding entry, and the
+// schema whose shape decides the structural flags.
+type bodyPart struct {
+	name   string
+	schema *oas3.JSONSchema[oas3.Referenceable]
+}
+
+// maxPartCompositionDepth bounds the allOf walk bodyParts makes. A $ref cycle is
+// refused at load, so no source document can spell a composition that deep; the
+// bound is what keeps the walk terminating without relying on that.
+const maxPartCompositionDepth = 16
+
+// bodyParts returns the parts a multipart body declares, in source order: the
+// properties written on the schema itself, then those each allOf branch
+// contributes, with the first declaration of a name winning.
+//
+// A body that composes rather than declares — `allOf: [{$ref: Form}]` — has no
+// properties of its own, so reading only those found nothing to key against and
+// discarded the whole encoding block without a word (GitHub #140). The two
+// spellings describe the same wire format, so they must enumerate the same parts.
+func bodyParts(js *oas3.JSONSchema[oas3.Referenceable], depth int) []bodyPart {
+	if depth > maxPartCompositionDepth {
+		return nil
+	}
+	s := schemaOf(js)
+	if s == nil {
+		return nil
+	}
+	var out []bodyPart
+	if props := s.GetProperties(); props != nil {
+		for name, pjs := range props.All() {
+			out = append(out, bodyPart{name: name, schema: pjs})
+		}
+	}
+	for _, branch := range s.GetAllOf() {
+		out = append(out, bodyParts(branch, depth+1)...)
+	}
+	return dedupeParts(out)
+}
+
+// dedupeParts keeps the first declaration of each part name, in order. A name
+// redeclared across allOf branches is one part on the wire, so it must key one
+// encoding entry rather than depend on which branch was walked last.
+func dedupeParts(parts []bodyPart) []bodyPart {
+	seen := make(map[string]bool, len(parts))
+	out := make([]bodyPart, 0, len(parts))
+	for _, part := range parts {
+		if seen[part.name] {
+			continue
+		}
+		seen[part.name] = true
+		out = append(out, part)
+	}
+	return out
+}
+
+// partPropID returns the ID of the property carrying the given wire name on the
+// model body stands for, falling back to deriving one under schemaPtr.
+//
+// The IR is asked first because §4.3 stores only a model's *own* properties:
+// a composed body holds its parts on the Base it inherits them from, so a key
+// derived from the composed node's pointer would name a property that exists
+// nowhere. Deriving one remains the answer for a body the IR holds no model for
+// — a contradictory schema declaring properties beside an enum or a scalar type —
+// where no property was lowered for any pointer to name.
+func (l *lowerer) partPropID(body ir.TypeID, wire, schemaPtr string) ir.PropID {
+	if id, ok := l.propIDByWire(body, wire, 0); ok {
+		return id
+	}
+	return propID(schemaPtr + ptr("properties", wire))
+}
+
+// propIDByWire searches the type body denotes for a property with the given wire
+// name: what it declares itself, then what it inherits through Base and mixes in
+// through Mixins, following the alias scalars a $ref-with-siblings position
+// hoists on the way. depth bounds the walk against a chain no source can spell.
+func (l *lowerer) propIDByWire(body ir.TypeID, wire string, depth int) (ir.PropID, bool) {
+	if depth > maxBodyAliasHops {
+		return "", false
+	}
+	td, found := l.types.Node(body)
+	if !found {
+		return "", false
+	}
+	switch t := td.(type) {
+	case *ir.Model:
+		for _, p := range t.Properties {
+			if p.WireName == wire {
+				return p.ID, true
+			}
+		}
+		return l.propIDInComposition(t, wire, depth)
+	case *ir.Scalar:
+		if t.Base == nil {
+			return "", false
+		}
+		return l.propIDByWire(t.Base.Target, wire, depth+1)
+	default:
+		return "", false
+	}
+}
+
+// propIDInComposition searches a model's Base and Mixins, in that order.
+func (l *lowerer) propIDInComposition(m *ir.Model, wire string, depth int) (ir.PropID, bool) {
+	if m.Base != nil {
+		if id, ok := l.propIDByWire(m.Base.Target, wire, depth+1); ok {
+			return id, true
+		}
+	}
+	for _, mixin := range m.Mixins {
+		if id, ok := l.propIDByWire(mixin.Target, wire, depth+1); ok {
+			return id, true
+		}
+	}
+	return "", false
 }
 
 // buildPartEncoding assembles one part's PartEncoding: explicit encoding config
@@ -201,18 +329,75 @@ func (l *lowerer) lowerHeaders(headers *sequencedmap.Map[string, *soa.Referenced
 // ir.Property has a field for each, so the header path had no reason to drop
 // them (GitHub #116).
 func (l *lowerer) lowerHeader(h *soa.Header, name, hptr, hdecl string) ir.Property {
-	schemaPtr := hdecl + ptr("schema")
+	js, schemaPtr, mediaType := l.headerSchema(h, hdecl)
 	p := ir.Property{
 		ID:         propID(hptr),
 		Name:       compile.NamingFor(name),
 		WireName:   name,
-		Type:       l.carriedSchemaRef(h.GetSchema(), schemaPtr, declarationHint(hdecl, name)),
+		Type:       l.carriedSchemaRef(js, schemaPtr, declarationHint(hdecl, name)),
 		Required:   h.GetRequired(),
 		Provenance: ir.Provenance{Source: l.srcIndex, Pointer: hptr},
 	}
-	l.fillPropertyDetail(&p, h.GetSchema(), schemaPtr)
+	if mediaType != "" {
+		// The media type a content-style header serializes its value in, which is
+		// what ir.Encoding.MediaType holds. Nothing else on this path writes
+		// Property.Encoding, so the content spelling loses nothing the schema
+		// spelling keeps.
+		p.Encoding = &ir.Encoding{MediaType: mediaType}
+	}
+	l.fillPropertyDetail(&p, js, schemaPtr)
 	l.applyHeaderAnnotations(&p, h, hdecl)
 	return p
+}
+
+// headerSchema returns the schema a header declares, the pointer that schema sits
+// at, and the media type serializing it — empty for the schema spelling.
+//
+// OpenAPI lets a header state its type as either `schema` or a `content` map
+// holding exactly one entry, and only the first spelling was read: a
+// content-style header lowered as if it had no schema at all, discarding its
+// type, its constraints and its xml hints together and without a diagnostic
+// (GitHub #139). The parameter path already read both (fillParamType), which is
+// why request headers never showed the defect.
+func (l *lowerer) headerSchema(h *soa.Header, hdecl string) (*oas3.JSONSchema[oas3.Referenceable], string, string) {
+	if js := h.GetSchema(); js != nil {
+		return js, hdecl + ptr("schema"), ""
+	}
+	mt, media, ok := l.singleContentEntry(h.GetContent(), hdecl)
+	if !ok {
+		return nil, hdecl + ptr("schema"), ""
+	}
+	return media.GetSchema(), hdecl + ptr("content", mt, "schema"), mt
+}
+
+// singleContentEntry returns the one entry a content-style header or parameter
+// declares, and reports a document declaring more than one.
+//
+// OpenAPI requires exactly one entry at both positions, so only the first can
+// lower — ir.Property and ir.Parameter each hold a single type. Taking it in
+// silence dropped a declared schema without a word, which is the loss GitHub #139
+// fixed at this position in its other spelling; the extras are named instead so
+// the document's own error is visible rather than absorbed.
+func (l *lowerer) singleContentEntry(content *sequencedmap.Map[string, *soa.MediaType], at string) (string, *soa.MediaType, bool) {
+	if content == nil || content.Len() == 0 {
+		return "", nil, false
+	}
+	var first string
+	var chosen *soa.MediaType
+	ignored := make([]string, 0, content.Len()-1)
+	for mt, media := range content.All() {
+		if chosen == nil {
+			first, chosen = mt, media
+			continue
+		}
+		ignored = append(ignored, mt)
+	}
+	if len(ignored) > 0 {
+		l.diag(ir.SeverityWarning, diag.DegradedConstruct, at+ptr("content"),
+			"a content-style header or parameter must declare exactly one media type; "+
+				"%q is lowered and %s ignored", first, strings.Join(ignored, ", "))
+	}
+	return first, chosen, chosen != nil
 }
 
 // applyHeaderAnnotations overlays the annotations the header object writes on
@@ -291,7 +476,7 @@ func (l *lowerer) appendPluralExample(out []ir.Example, re *soa.ReferencedExampl
 // with a warning rather than in silence.
 func (l *lowerer) appendValuelessExample(out []ir.Example, proto ir.Example, pointer, name string) []ir.Example {
 	if proto.ExternalURL == "" {
-		l.diag(ir.SeverityWarning, codeDegradedConstruct, pointer+ptr("examples", name),
+		l.diag(ir.SeverityWarning, diag.DegradedConstruct, pointer+ptr("examples", name),
 			"example declares neither value nor externalValue")
 		return out
 	}
@@ -318,7 +503,7 @@ func (l *lowerer) lowerRequestBody(op *ir.Operation, hb *ir.HTTPBinding, src *so
 	if !rb.GetRequired() {
 		l.preserve(&payload.Unmodeled, "openapi:required", ir.RawValue("false"),
 			ir.ReasonNoIRHome, bodyPtr+ptr("required"))
-		l.diag(ir.SeverityInfo, codeDegradedConstruct, bodyPtr,
+		l.diag(ir.SeverityInfo, diag.DegradedConstruct, bodyPtr,
 			"request body is not required; optionality kept under Unmodeled")
 	}
 	op.Request = payload

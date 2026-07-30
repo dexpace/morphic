@@ -33,10 +33,14 @@ func badExtDoc() *ir.Document {
 // encode to the same U+FFFD key, so the marshalled object carries a duplicate
 // key that decodes back to a single entry. Each entry is keyed by its own ID, so
 // Verify passes it through to the round-trip oracle.
+// The IDs are well-shaped so the document reaches the round-trip oracle: an ID
+// the grammar could not have produced is a structural violation, and Check
+// returns at the first one. Only their paths carry the ill-formed bytes that make
+// two distinct keys collide once JSON coerces them to U+FFFD.
 func dupKeyDoc() *ir.Document {
 	return &ir.Document{Types: ir.TypeRegistry{
-		ir.TypeID("\xff"): &ir.Primitive{TypeCommon: ir.TypeCommon{ID: "\xff"}},
-		ir.TypeID("\xfe"): &ir.Primitive{TypeCommon: ir.TypeCommon{ID: "\xfe"}},
+		ir.TypeID("t/x/\xff"): &ir.Primitive{TypeCommon: ir.TypeCommon{ID: "t/x/\xff"}},
+		ir.TypeID("t/x/\xfe"): &ir.Primitive{TypeCommon: ir.TypeCommon{ID: "t/x/\xfe"}},
 	}}
 }
 

@@ -13,6 +13,7 @@ import (
 	yaml "gopkg.in/yaml.v3"
 
 	"github.com/dexpace/morphic/compilers"
+	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -41,7 +42,7 @@ func TestLoad_UnsupportedVersion(t *testing.T) {
 	require.NoError(t, err) // spec problems are diagnostics, not Go errors
 	assert.Nil(t, got)
 	require.NotEmpty(t, diags)
-	assert.Equal(t, codeUnsupportedVersion, diags[0].Code)
+	assert.Equal(t, diag.UnsupportedVersion, diags[0].Code)
 	assert.Equal(t, ir.SeverityError, diags[0].Severity)
 }
 
@@ -72,7 +73,7 @@ func TestLoad_ExternalRefResolutionErrors(t *testing.T) {
 	ld, diags, loadErr := load(t.Context(), 0, compilers.Source{Path: path, Data: data}, Options{}.withDefaults())
 	require.NoError(t, loadErr)
 	require.NotNil(t, ld)
-	assert.GreaterOrEqual(t, countDiagsAt(diags, codeUnresolvedRef, ir.SeverityError), 1,
+	assert.GreaterOrEqual(t, countDiagsAt(diags, diag.UnresolvedRef, ir.SeverityError), 1,
 		"external resolution validation errors surface as diagnostics")
 }
 
@@ -121,7 +122,7 @@ func TestCompile_ResolverPanicIsADiagnostic(t *testing.T) {
 		compilers.Options{})
 	require.NoError(t, err, "a malformed spec is a spec problem, not a Go error")
 	assert.NotNil(t, doc, "resolution failure does not stop the document being lowered")
-	assertHasErrorCode(t, diags, codeUnresolvedRef)
+	assertHasErrorCode(t, diags, diag.UnresolvedRef)
 }
 
 func TestMapSeverity(t *testing.T) {
@@ -152,22 +153,22 @@ func TestValidationDiag(t *testing.T) {
 	t.Parallel()
 	structured := validationDiag(0, validation.Error{Severity: "warning", Rule: "dup-tag", UnderlyingError: errors.New("x")})
 	assert.Equal(t, ir.SeverityWarning, structured.Severity)
-	assert.Equal(t, codeValidation+"/dup-tag", structured.Code)
+	assert.Equal(t, diag.Validation+"/dup-tag", structured.Code)
 
 	bare := validationDiag(3, errors.New("plain problem"))
 	assert.Equal(t, ir.SeverityError, bare.Severity)
-	assert.Equal(t, codeValidation, bare.Code)
+	assert.Equal(t, diag.Validation, bare.Code)
 	assert.Equal(t, 3, bare.Provenance.Source)
 }
 
 func TestResolveDiag(t *testing.T) {
 	t.Parallel()
 	structured := resolveDiag(0, validation.Error{Severity: "error", Rule: "bad-ref", UnderlyingError: errors.New("x")})
-	assert.Equal(t, codeUnresolvedRef, structured.Code)
+	assert.Equal(t, diag.UnresolvedRef, structured.Code)
 	assert.NotEmpty(t, structured.Provenance.Pointer, "line:col provenance from validation error")
 
 	bare := resolveDiag(2, errors.New("io problem"))
-	assert.Equal(t, codeUnresolvedRef, bare.Code)
+	assert.Equal(t, diag.UnresolvedRef, bare.Code)
 	assert.Equal(t, 2, bare.Provenance.Source)
 }
 
@@ -265,7 +266,7 @@ func TestInvalidSyntaxOnValidNumbers_Candidacy(t *testing.T) {
 func TestLoad_RecoverableLiteralSuppressesFindingAmongOtherScalars(t *testing.T) {
 	t.Parallel()
 	_, diags := parseFull(t, componentSpec(`    S: {type: string, default: !custom foo, example: .5}`))
-	assert.False(t, hasDiag(diags, codeValidation+"/"+string(validation.RuleValidationInvalidSyntax)),
+	assert.False(t, hasDiag(diags, diag.Validation+"/"+string(validation.RuleValidationInvalidSyntax)),
 		"a finding a recoverable literal explains stays suppressed: %+v", diags)
 }
 

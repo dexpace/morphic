@@ -1,0 +1,40 @@
+openapi: 3.1.0
+info: {title: HeaderContentSchema, version: "1.0.0"}
+paths:
+  /reports:
+    get:
+      operationId: getReport
+      responses:
+        "200":
+          description: ok
+          headers:
+            # A header states its type as either `schema` or a one-entry
+            # `content` map. Both spellings are legal and describe the same
+            # header, so both must keep the type, its constraints and its xml
+            # hints; only the `content` one also names a media type.
+            X-Report-Schema:
+              description: the schema spelling
+              schema:
+                type: string
+                maxLength: 4
+                xml: {name: ReportSchema}
+            X-Report-Content:
+              description: the content spelling
+              content:
+                application/xml:
+                  schema:
+                    type: string
+                    maxLength: 4
+                    xml: {name: ReportContent}
+            # A content header whose media type wraps a named component, so the
+            # spelling composes with reference resolution rather than only with
+            # inline scalars.
+            X-Report-Ref:
+              content:
+                application/json:
+                  schema: {$ref: '#/components/schemas/ReportID'}
+components:
+  schemas:
+    ReportID:
+      type: string
+      pattern: '^r-[0-9]+$'

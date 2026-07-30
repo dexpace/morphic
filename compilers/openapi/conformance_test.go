@@ -179,6 +179,7 @@ func conformanceCases() []conformanceCase {
 		{"param-styles", assertParamStyles},
 		{"param-xml-residue", assertParamXMLResidue},
 		{"param-ref-inheritance", assertParamRefInheritance},
+		{"header-content-schema", assertHeaderContentSchema},
 		{"multi-content", assertMultiContent},
 		{"multipart-encoding", assertMultipartEncoding},
 		{"file-body", assertFileBody},
@@ -1169,6 +1170,59 @@ func assertParamRefInheritance(t *testing.T, doc *ir.Document, _ []ir.Diagnostic
 		"a consumer that wants the bound reads it off the referent")
 }
 
+// assertHeaderContentSchema pins that both spellings of a header's type lower
+// alike. The content spelling used to reach lowerHeader with no schema at all —
+// the header became t/prim/any and its constraints and xml hints went with it,
+// without a diagnostic (GitHub #139).
+//
+// The two headers declare the same type deliberately: comparing them against
+// each other, rather than against a written-out expectation, is what makes the
+// assertion about the spellings agreeing rather than about one of them.
+func assertHeaderContentSchema(t *testing.T, doc *ir.Document, diags []ir.Diagnostic) {
+	op, ok := opByName(doc, "getReport")
+	require.True(t, ok)
+	require.Len(t, op.Responses, 1)
+	headers := op.Responses[0].Headers
+	require.Len(t, headers, 3)
+
+	bySchema, ok := headerByWire(headers, "X-Report-Schema")
+	require.True(t, ok)
+	byContent, ok := headerByWire(headers, "X-Report-Content")
+	require.True(t, ok)
+
+	assert.Equal(t, bySchema.Type, byContent.Type,
+		"a content-style header resolves the same type as the schema spelling")
+	assert.NotEqual(t, ir.TypeID("t/prim/any"), byContent.Type.Target,
+		"the type is resolved rather than degraded to the top type")
+	assert.Equal(t, bySchema.Constraints, byContent.Constraints,
+		"the constraints written under content are not dropped with the schema")
+	require.NotNil(t, byContent.XML)
+	assert.Equal(t, "ReportContent", byContent.XML.Name,
+		"the xml hints written under content reach the header")
+
+	require.NotNil(t, byContent.Encoding)
+	assert.Equal(t, "application/xml", byContent.Encoding.MediaType,
+		"the media type serializing the header's value is kept, which the schema spelling has none of")
+	assert.Nil(t, bySchema.Encoding, "the schema spelling names no media type")
+
+	byRef, ok := headerByWire(headers, "X-Report-Ref")
+	require.True(t, ok)
+	assert.Equal(t, namedID("ReportID"), byRef.Type.Target,
+		"a $ref under content resolves to the named component, not to an anonymous copy")
+
+	assertNoErrorDiags(t, diags)
+}
+
+// headerByWire returns the response header with the given wire name.
+func headerByWire(headers []ir.Property, wire string) (ir.Property, bool) {
+	for _, h := range headers {
+		if h.WireName == wire {
+			return h, true
+		}
+	}
+	return ir.Property{}, false
+}
+
 func assertMultiContent(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
 	op, ok := opByName(doc, "getData")
 	require.True(t, ok)
@@ -1201,6 +1255,56 @@ func assertMultipartEncoding(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) 
 	assert.True(t, sawMulti, "array part carries Multi")
 	assertPartHeaders(t, doc, fileHeaders)
 	assertFormPartStyle(t, doc)
+	assertComposedPartEncoding(t, doc)
+}
+
+// assertComposedPartEncoding pins the body that composes its parts rather than
+// declaring them. Reading only the schema node's own properties found none on an
+// allOf wrapper, so the whole encoding block was discarded with no diagnostic and
+// a Content that still looked well-formed, just smaller (GitHub #140).
+//
+// The keys are asserted to be the properties the IR actually holds: §4.3 keeps a
+// composed model's inherited parts on its Base, so a key derived from the
+// composed node's own pointer would name a property that exists nowhere.
+func assertComposedPartEncoding(t *testing.T, doc *ir.Document) {
+	t.Helper()
+	op, ok := opByName(doc, "uploadComposed")
+	require.True(t, ok)
+	require.NotNil(t, op.Request)
+	require.Len(t, op.Request.Contents, 1)
+
+	enc := op.Request.Contents[0].Encoding
+	require.NotEmpty(t, enc, "a composed body keeps the encoding a declared one does")
+
+	inherited := ir.PropID("p/openapi/components/schemas/UploadForm/properties/file")
+	file, ok := enc[inherited]
+	require.True(t, ok, "the inherited part is keyed on the Base that holds it; got keys %v", enc)
+	assert.Equal(t, []string{"image/png"}, file.ContentTypes)
+	assert.True(t, file.Filename, "the structural flag still comes from the part's own schema")
+
+	// Every key must name a property some type in the document declares. A part
+	// keyed by a PropID nothing holds is the failure this lowering can produce
+	// while still looking well-formed.
+	for id := range enc {
+		assert.True(t, propIDExists(doc, id), "encoding key %s names no property in the document", id)
+	}
+}
+
+// propIDExists reports whether any type in doc declares a property with the
+// given ID.
+func propIDExists(doc *ir.Document, id ir.PropID) bool {
+	for _, td := range doc.Types {
+		m, ok := td.(*ir.Model)
+		if !ok {
+			continue
+		}
+		for _, p := range m.Properties {
+			if p.ID == id {
+				return true
+			}
+		}
+	}
+	return false
 }
 
 // assertFormPartStyle pins the form-serialization half of a part's encoding: a

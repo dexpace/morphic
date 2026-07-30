@@ -9,6 +9,7 @@ import (
 	"github.com/stretchr/testify/require"
 	yaml "gopkg.in/yaml.v3"
 
+	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -86,7 +87,7 @@ func TestSchemaExamplesAt_UnconvertibleValueIsReportedNotDropped(t *testing.T) {
 
 	assert.Empty(t, got, "an unconvertible example yields no value")
 	require.Len(t, diags, 1, "and is reported rather than dropped")
-	assert.Equal(t, codeDegradedConstruct, diags[0].Code)
+	assert.Equal(t, diag.DegradedConstruct, diags[0].Code)
 	assert.Equal(t, 3, diags[0].Provenance.Source, "stamped with the source it was handed")
 	assert.Equal(t, "/p/example", diags[0].Provenance.Pointer)
 }
@@ -121,7 +122,7 @@ func TestValidationOnlyAt_DependentRequiredJoinsItsSiblings(t *testing.T) {
 	assert.Equal(t, "/components/schemas/S/dependentRequired", entry.Provenance.Pointer)
 
 	require.Len(t, diags, 1, "and is announced exactly once")
-	assert.Equal(t, codeValidationOnlyKeyword, diags[0].Code)
+	assert.Equal(t, diag.ValidationOnlyKeyword, diags[0].Code)
 	assert.Equal(t, 7, diags[0].Provenance.Source)
 }
 

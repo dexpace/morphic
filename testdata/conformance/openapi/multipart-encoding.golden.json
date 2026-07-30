@@ -158,6 +158,92 @@
               }
             },
             {
+              "id": "op/openapi/paths/~1upload-composed/post",
+              "name": {
+                "source": "uploadComposed",
+                "canonical": "upload_composed"
+              },
+              "docs": {},
+              "request": {
+                "contents": [
+                  {
+                    "mediaType": "multipart/form-data",
+                    "type": {
+                      "target": "t/anon/paths/~1upload-composed/post/requestBody/content/multipart~1form-data/schema",
+                      "nullable": false
+                    },
+                    "encoding": {
+                      "p/openapi/components/schemas/UploadForm/properties/file": {
+                        "contentTypes": [
+                          "image/png"
+                        ],
+                        "multi": false,
+                        "filename": true
+                      },
+                      "p/openapi/components/schemas/UploadForm/properties/tags": {
+                        "multi": true,
+                        "filename": false
+                      },
+                      "p/openapi/paths/~1upload-composed/post/requestBody/content/multipart~1form-data/schema/allOf/1/properties/note": {
+                        "contentTypes": [
+                          "text/plain"
+                        ],
+                        "multi": false,
+                        "filename": false
+                      }
+                    }
+                  }
+                ],
+                "unmodeled": {
+                  "openapi:required": {
+                    "reason": "no_ir_home",
+                    "value": false,
+                    "provenance": {
+                      "source": 0,
+                      "pointer": "/paths/~1upload-composed/post/requestBody/required"
+                    }
+                  }
+                }
+              },
+              "responses": [
+                {
+                  "name": {},
+                  "conditions": {
+                    "statusCodes": [
+                      {
+                        "from": 200,
+                        "to": 200
+                      }
+                    ]
+                  },
+                  "docs": {
+                    "description": "ok"
+                  }
+                }
+              ],
+              "oneWay": false,
+              "idempotency": {},
+              "auth": null,
+              "bindings": {
+                "http": [
+                  {
+                    "method": "POST",
+                    "uriTemplate": "/upload-composed",
+                    "sharedRoute": false,
+                    "requestContentTypes": [
+                      "multipart/form-data"
+                    ],
+                    "checksumRequired": false,
+                    "isWebhook": false
+                  }
+                ]
+              },
+              "provenance": {
+                "source": 0,
+                "pointer": "/paths/~1upload-composed/post"
+              }
+            },
+            {
               "id": "op/openapi/paths/~1submit/post",
               "name": {
                 "source": "submitForm",
@@ -241,6 +327,24 @@
     }
   ],
   "types": {
+    "t/anon/components/schemas/UploadForm/properties/tags": {
+      "kind": "list",
+      "id": "t/anon/components/schemas/UploadForm/properties/tags",
+      "name": {
+        "hint": "tags"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/UploadForm/properties/tags"
+      },
+      "elem": {
+        "target": "t/prim/string",
+        "nullable": false
+      }
+    },
     "t/anon/paths/~1submit/post/requestBody/content/application~1x-www-form-urlencoded/schema": {
       "kind": "model",
       "id": "t/anon/paths/~1submit/post/requestBody/content/application~1x-www-form-urlencoded/schema",
@@ -304,6 +408,56 @@
         "target": "t/prim/string",
         "nullable": false
       }
+    },
+    "t/anon/paths/~1upload-composed/post/requestBody/content/multipart~1form-data/schema": {
+      "kind": "model",
+      "id": "t/anon/paths/~1upload-composed/post/requestBody/content/multipart~1form-data/schema",
+      "name": {
+        "hint": "uploadComposed_request"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/paths/~1upload-composed/post/requestBody/content/multipart~1form-data/schema"
+      },
+      "properties": [
+        {
+          "id": "p/openapi/paths/~1upload-composed/post/requestBody/content/multipart~1form-data/schema/allOf/1/properties/note",
+          "name": {
+            "source": "note",
+            "canonical": "note"
+          },
+          "wireName": "note",
+          "type": {
+            "target": "t/prim/string",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/paths/~1upload-composed/post/requestBody/content/multipart~1form-data/schema/allOf/1/properties/note"
+          }
+        }
+      ],
+      "base": {
+        "target": "t/openapi/components/schemas/UploadForm",
+        "nullable": false
+      },
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
     },
     "t/anon/paths/~1upload/post/requestBody/content/multipart~1form-data/schema": {
       "kind": "model",
@@ -421,6 +575,80 @@
         "uniqueItems": false
       }
     },
+    "t/openapi/components/schemas/UploadForm": {
+      "kind": "model",
+      "id": "t/openapi/components/schemas/UploadForm",
+      "name": {
+        "source": "UploadForm",
+        "canonical": "upload_form"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/UploadForm"
+      },
+      "properties": [
+        {
+          "id": "p/openapi/components/schemas/UploadForm/properties/file",
+          "name": {
+            "source": "file",
+            "canonical": "file"
+          },
+          "wireName": "file",
+          "type": {
+            "target": "t/prim/bytes",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/UploadForm/properties/file"
+          }
+        },
+        {
+          "id": "p/openapi/components/schemas/UploadForm/properties/tags",
+          "name": {
+            "source": "tags",
+            "canonical": "tags"
+          },
+          "wireName": "tags",
+          "type": {
+            "target": "t/anon/components/schemas/UploadForm/properties/tags",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/UploadForm/properties/tags"
+          }
+        }
+      ],
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
     "t/prim/bytes": {
       "kind": "primitive",
       "id": "t/prim/bytes",
@@ -482,6 +710,15 @@
       "message": "request body is not required; optionality kept under Unmodeled",
       "provenance": {
         "source": 0,
+        "pointer": "/paths/~1upload-composed/post/requestBody"
+      }
+    },
+    {
+      "severity": "info",
+      "code": "openapi/degraded-construct",
+      "message": "request body is not required; optionality kept under Unmodeled",
+      "provenance": {
+        "source": 0,
         "pointer": "/paths/~1submit/post/requestBody"
       }
     }
@@ -490,7 +727,7 @@
     {
       "format": "openapi@3.1",
       "path": "multipart-encoding.yaml",
-      "hash": "3f1b9a6b3c8fc4916a0a82ca4229dd09d0d24d28c8f89ace641df404deb6ff52"
+      "hash": "3fc8c047afb3b7a847d3875de98e50a9b09052a495631f6f884ae197e2a17423"
     }
   ]
 }

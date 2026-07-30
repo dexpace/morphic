@@ -17,6 +17,7 @@ import (
 	yaml "gopkg.in/yaml.v3"
 
 	"github.com/dexpace/morphic/compilers"
+	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -49,7 +50,7 @@ type loaded struct {
 //nolint:unparam // srcIndex varies once Compile drives the multi-source loop
 func load(ctx context.Context, srcIndex int, src compilers.Source, opts Options) (*loaded, []ir.Diagnostic, error) {
 	cyc := detectCycles(srcIndex, src.Data)
-	if hasErrorDiag(cyc) {
+	if diag.HasError(cyc) {
 		return nil, cyc, nil // degenerate cycle: refuse to lower, do not crash the parser
 	}
 	// cyc may still hold a non-fatal scan-incomplete warning; carry it forward.
@@ -61,7 +62,7 @@ func load(ctx context.Context, srcIndex int, src compilers.Source, opts Options)
 
 	minor, ok := supportedMinor(doc.OpenAPI)
 	if !ok {
-		return nil, append(cyc, diagf(ir.SeverityError, codeUnsupportedVersion,
+		return nil, append(cyc, diag.Newf(ir.SeverityError, diag.UnsupportedVersion,
 			ir.Provenance{Source: srcIndex},
 			"unsupported OpenAPI version %q; want 3.0, 3.1, or 3.2", doc.OpenAPI)), nil
 	}
@@ -327,13 +328,13 @@ func resolveAll(ctx context.Context, doc *soa.OpenAPI, opts soa.ResolveAllOption
 // line:col provenance; anything else degrades to an error with the bare message.
 func validationDiag(srcIndex int, err error) ir.Diagnostic {
 	if verr, ok := asValidationError(err); ok {
-		return diagf(mapSeverity(verr.Severity), codeValidation+"/"+verr.Rule,
+		return diag.Newf(mapSeverity(verr.Severity), diag.Validation+"/"+verr.Rule,
 			validationProvenance(srcIndex, verr), "%s", verr.Error())
 	}
-	return diagf(ir.SeverityError, codeValidation, ir.Provenance{Source: srcIndex}, "%s", err.Error())
+	return diag.Newf(ir.SeverityError, diag.Validation, ir.Provenance{Source: srcIndex}, "%s", err.Error())
 }
 
-// resolveDiag converts one reference-resolution error into a codeUnresolvedRef
+// resolveDiag converts one reference-resolution error into a diag.UnresolvedRef
 // diagnostic. Resolution failures never abort lowering: the validate pass
 // reports dangling references downstream.
 func resolveDiag(srcIndex int, err error) ir.Diagnostic {
@@ -341,7 +342,7 @@ func resolveDiag(srcIndex int, err error) ir.Diagnostic {
 	if verr, ok := asValidationError(err); ok {
 		prov = validationProvenance(srcIndex, verr)
 	}
-	return diagf(ir.SeverityError, codeUnresolvedRef, prov, "%s", err.Error())
+	return diag.Newf(ir.SeverityError, diag.UnresolvedRef, prov, "%s", err.Error())
 }
 
 // asValidationError extracts a structured validation error. The wrapped value

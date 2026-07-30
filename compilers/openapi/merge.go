@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"math/big"
 
+	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -64,7 +65,7 @@ func (g *merger) mergeProperty(m *ir.Model, byWire map[string]int, p ir.Property
 // both branches write is the same construct written twice. A description that
 // differs between branches, an incompatible type, or a contradictory constraint
 // keyword are genuine conflicts the merge cannot represent (see
-// codeConflictingRedecl); each is diagnosed before any detail is folded in,
+// diag.ConflictingRedecl); each is diagnosed before any detail is folded in,
 // rather than silently picking an arbitrary winner.
 func (g *merger) reconcileProperty(dst *ir.Property, src ir.Property, pointer string) {
 	g.diagnoseRedeclarationConflict(dst, &src, pointer)
@@ -75,7 +76,7 @@ func (g *merger) reconcileProperty(dst *ir.Property, src ir.Property, pointer st
 	if dst.Docs.Description == "" {
 		dst.Docs.Description = src.Docs.Description
 	} else if src.Docs.Description != "" && src.Docs.Description != dst.Docs.Description {
-		g.report(ir.SeverityInfo, codeDegradedConstruct, pointer,
+		g.report(ir.SeverityInfo, diag.DegradedConstruct, pointer,
 			"allOf branches describe field %q differently; kept the first declaration", dst.WireName)
 	}
 	dst.Default = cmp.Or(dst.Default, src.Default)
@@ -140,7 +141,7 @@ const maxTypeResolveDepth = 64
 // (dst keeps its shape). A type conflict is genuinely unsatisfiable; a
 // constraint conflict is usually satisfiable alone, but the merge can't
 // represent the true intersection and may keep the looser bound
-// (codeConflictingRedecl). At most one diagnostic fires: a type conflict
+// (diag.ConflictingRedecl). At most one diagnostic fires: a type conflict
 // subsumes any constraint conflict.
 func (g *merger) diagnoseRedeclarationConflict(dst, src *ir.Property, pointer string) {
 	if g.typesConflict(dst.Type, src.Type) {
@@ -163,7 +164,7 @@ func (g *merger) diagnoseRedeclarationConflict(dst, src *ir.Property, pointer st
 // the merged model is still usable — leaving escalation to the consumer via
 // the stable code.
 func (g *merger) redeclarationConflictDiag(dst *ir.Property, pointer, detail string) {
-	g.report(ir.SeverityWarning, codeConflictingRedecl, pointer,
+	g.report(ir.SeverityWarning, diag.ConflictingRedecl, pointer,
 		"declarations of field %q disagree: %s; kept the first declaration (%s) over the redeclaration (%s)",
 		dst.WireName, detail, dst.Provenance.Pointer, pointer)
 }

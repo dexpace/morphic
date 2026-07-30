@@ -5,6 +5,7 @@ import (
 	soa "github.com/speakeasy-api/openapi/openapi"
 
 	"github.com/dexpace/morphic/compilers/compile"
+	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -60,15 +61,14 @@ func (l *lowerer) lowerParameter(p *soa.Parameter, pptr string) (ir.Parameter, i
 // type on the binding). Constraints come from that same schema position;
 // the default comes from it too, falling back to its $ref target (§14).
 func (l *lowerer) fillParamType(param *ir.Parameter, binding *ir.HTTPParamBinding, p *soa.Parameter, pptr, name string) {
-	if content := p.GetContent(); content != nil && content.Len() > 0 {
-		// A content parameter has exactly one media type; take the first entry.
-		for mt, media := range content.All() {
-			schemaPtr := pptr + ptr("content", mt, "schema")
-			param.Type = l.carriedSchemaRef(media.GetSchema(), schemaPtr, name)
-			binding.ContentType = mt
-			l.fillParamSchema(param, media.GetSchema(), schemaPtr)
-			break
-		}
+	// A content parameter declares exactly one media type; singleContentEntry
+	// takes it and reports a document that declares more, rather than dropping the
+	// extras in the silence the header spelling was fixed out of (GitHub #139).
+	if mt, media, ok := l.singleContentEntry(p.GetContent(), pptr); ok {
+		schemaPtr := pptr + ptr("content", mt, "schema")
+		param.Type = l.carriedSchemaRef(media.GetSchema(), schemaPtr, name)
+		binding.ContentType = mt
+		l.fillParamSchema(param, media.GetSchema(), schemaPtr)
 		return
 	}
 	schemaPtr := pptr + ptr("schema")
@@ -120,7 +120,7 @@ func (l *lowerer) fillParamDefault(param *ir.Parameter, s, tgt *oas3.Schema, poi
 	}
 	v, err := valueFromNode(node)
 	if err != nil {
-		l.diag(ir.SeverityWarning, codeDegradedConstruct, pointer, "default: %s", err.Error())
+		l.diag(ir.SeverityWarning, diag.DegradedConstruct, pointer, "default: %s", err.Error())
 		return
 	}
 	param.Default = &v
@@ -171,14 +171,11 @@ func (l *lowerer) fillParamSchemaAnnotations(param *ir.Parameter, s, tgt *oas3.S
 // binding records that content type. ReasonNoIRHome, since the IR can close the
 // gap by adding the field (GitHub #124).
 func (l *lowerer) preserveParamXML(param *ir.Parameter, s *oas3.Schema, pointer string) {
-	raw := nodeToRaw(rawPropertyNode(s, "xml"))
-	if raw == nil {
-		return
-	}
 	at := pointer + ptr("xml")
-	l.preserve(&param.Unmodeled, "openapi:xml", raw, ir.ReasonNoIRHome, at)
-	l.diag(ir.SeverityInfo, codeDegradedConstruct, at,
-		"parameter schema xml hints have no ir.Parameter home; kept verbatim under Unmodeled")
+	if l.preserveSchemaKeyword(&param.Unmodeled, s, "xml", ir.ReasonNoIRHome, at) {
+		l.diag(ir.SeverityInfo, diag.DegradedConstruct, at,
+			"parameter schema xml hints have no ir.Parameter home; kept verbatim under Unmodeled")
+	}
 }
 
 // preserveParamVisibility keeps the residue keywords a parameter schema writes
@@ -195,13 +192,11 @@ func (l *lowerer) preserveParamVisibility(param *ir.Parameter, s *oas3.Schema, p
 		if paramHoldsResidue(keyword) {
 			continue
 		}
-		raw := nodeToRaw(rawPropertyNode(s, keyword))
-		if len(raw) == 0 {
+		at := pointer + ptr(keyword)
+		if !l.preserveSchemaKeyword(&param.Unmodeled, s, keyword, ir.ReasonNoIRHome, at) {
 			continue
 		}
-		at := pointer + ptr(keyword)
-		l.preserve(&param.Unmodeled, "openapi:"+keyword, raw, ir.ReasonNoIRHome, at)
-		l.diag(ir.SeverityInfo, codeDegradedConstruct, at,
+		l.diag(ir.SeverityInfo, diag.DegradedConstruct, at,
 			"parameter schema %s has no ir.Parameter home; kept verbatim under Unmodeled", keyword)
 	}
 }

@@ -203,6 +203,8 @@ morphic/
 │   ├── compile/         #           What every compiler shares: type registry + coordinates,
 │   │                    #           diagnostics, naming and identifier grammars. Imports ir only.
 │   ├── openapi/         #           OpenAPI 3.x → IR (milestone 1).
+│   │   └── internal/    #             Its own packages, below its public face:
+│   │                    #             diag (codes + constructor). More per micro-compiler-design §5.1.
 │   ├── swagger/         #           2.0 lift → openapi compiler (future).
 │   ├── typespec/ smithy/ graphql/ asyncapi/ protobuf/ otp/   (future)
 ├── pass/                # Layer 1 — IR → IR passes (validate, dedup, filter, slice, overlay).
