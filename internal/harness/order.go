@@ -167,16 +167,14 @@ var encodeYAML = yaml.Marshal
 // reports false for a mapping with a duplicate key, and for a tree deeper than
 // the bound.
 //
-// An alias is not descended into: its content belongs to the anchor that
-// declares it, which the walk reaches at the anchor's own position, and
-// following it would both reverse that mapping twice and revisit it once per
-// alias.
+// An alias needs no case of its own. It holds its target in Alias rather than in
+// Content, so the descent below reaches nothing through it and the anchored
+// mapping is reversed exactly once, at the anchor's own position — which is what
+// a guard here would have had to arrange, for a state the parser does not
+// produce. TestReverseMappings_AliasIsNotFollowed pins the resulting shape.
 func reverseNode(n *yaml.Node, depth int) bool {
 	if n == nil || depth > maxReverseDepth {
 		return n == nil
-	}
-	if n.Kind == yaml.AliasNode {
-		return true
 	}
 	if n.Kind == yaml.MappingNode {
 		if duplicateKeys(n) {

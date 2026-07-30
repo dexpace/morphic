@@ -193,20 +193,24 @@ func validationOnlyAt(s *oas3.Schema, pointer string, srcIndex int) (ir.Unmodele
 		}
 		diags = append(diags, preserveKeywordInto(&p, key, raw, pointer, entryPtr, label, srcIndex)...)
 	}
-	keepKeyword := func(keyword, label string) {
+	// A keyword whose entry is its own node needs no label of its own: the
+	// keyword names it. Only the §4.7 entries combining several keywords into one
+	// object — if/then/else, contains, unevaluated — reach keep directly, because
+	// no single keyword names those.
+	keepKeyword := func(keyword string) {
 		raw, err := rawFromNode(rawPropertyNode(s, keyword))
-		keep("openapi:"+keyword, raw, err, pointer+ptr(keyword), label)
+		keep("openapi:"+keyword, raw, err, pointer+ptr(keyword), keyword)
 	}
 
 	if s.GetNot() != nil {
-		keepKeyword("not", "not")
+		keepKeyword("not")
 	}
 	ite, iteErr := ifThenElseRaw(s)
 	if ite != nil || iteErr != nil {
 		keep("openapi:if-then-else", ite, iteErr, pointer, "if/then/else")
 	}
 	if ds := s.GetDependentSchemas(); ds != nil && ds.Len() > 0 {
-		keepKeyword("dependentSchemas", "dependentSchemas")
+		keepKeyword("dependentSchemas")
 	}
 	// dependentRequired is read off the raw node because oas3.Schema has no field
 	// for it at v1.24.0 — the only reason it was silently dropped where its
@@ -216,7 +220,7 @@ func validationOnlyAt(s *oas3.Schema, pointer string, srcIndex int) (ir.Unmodele
 		keep("openapi:dependentRequired", dr, drErr, pointer+ptr("dependentRequired"), "dependentRequired")
 	}
 	if s.GetPropertyNames() != nil {
-		keepKeyword("propertyNames", "propertyNames")
+		keepKeyword("propertyNames")
 	}
 	craw, cErr := containsRaw(s)
 	if craw != nil || cErr != nil {
