@@ -1437,6 +1437,30 @@ func assertWebhooks(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
 	require.True(t, ok)
 	require.Len(t, op.Bindings.HTTP, 1)
 	assert.True(t, op.Bindings.HTTP[0].IsWebhook, "webhook operation carries IsWebhook")
+	assertWebhookGroupIsAHint(t, doc)
+}
+
+// assertWebhookGroupIsAHint pins which of the two things the group's name is.
+// The compiler synthesizes the group to hold webhook operations, so no document
+// declares it and Naming.Source — the spelling the source used — is the wrong
+// channel; the "default" group the tag walk synthesizes carries a Hint for the
+// same reason (GitHub #184).
+//
+// Asserted here rather than left to the golden because the golden records the
+// value either way: a reader diffing it sees a name move between two fields
+// without being told which one is correct.
+func assertWebhookGroupIsAHint(t *testing.T, doc *ir.Document) {
+	t.Helper()
+	require.Len(t, doc.Services, 1)
+	for _, g := range doc.Services[0].Groups {
+		if g.Name.Hint != "webhooks" {
+			continue
+		}
+		assert.Empty(t, g.Name.Source, "a group no document declares carries no source spelling")
+		assert.Empty(t, g.Name.Canonical, "and no words derived from one")
+		return
+	}
+	t.Fatal("no group carries the webhooks hint")
 }
 
 func assertCallbacks(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {

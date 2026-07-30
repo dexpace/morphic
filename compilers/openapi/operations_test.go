@@ -152,7 +152,7 @@ webhooks:
 	var group ir.OperationGroup
 	found := false
 	for _, g := range svc.Groups {
-		if g.Name.Source == "webhooks" {
+		if g.Name.Hint == "webhooks" {
 			group, found = g, true
 		}
 	}

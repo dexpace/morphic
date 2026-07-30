@@ -153,7 +153,11 @@ func (l *lowerer) lowerWebhooks(groups *serviceGroups) {
 			}
 			op, extra := l.lowerOperation(src, ctx)
 			grp := groups.group("webhook", func() ir.OperationGroup {
-				return ir.OperationGroup{Name: compile.NamingFor("webhooks")}
+				// A hint, not a source name: no document declares this group. The
+				// compiler synthesizes it to hold webhook operations, exactly as it
+				// synthesizes the "default" group above, and Naming.Source is the
+				// spelling the source used (GitHub #184).
+				return ir.OperationGroup{Name: ir.Naming{Hint: "webhooks"}}
 			})
 			grp.Operations = append(grp.Operations, op)
 			grp.Operations = append(grp.Operations, extra...)
