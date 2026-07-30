@@ -154,10 +154,9 @@ func conflictDiags(diags []ir.Diagnostic) []ir.Diagnostic {
 func newRawLowerer(doc *soa.OpenAPI) *lowerer {
 	rawTypes := compile.NewTypes(0)
 	l := &lowerer{
-		ctx:                  lowerCtx{Doc: doc, schemas: declaredSchemaNames(doc)},
-		out:                  &ir.Document{Types: rawTypes.Registry()},
-		types:                rawTypes,
-		diagnosedConstraints: map[string]bool{},
+		ctx:   lowerCtx{Doc: doc, schemas: declaredSchemaNames(doc)},
+		out:   &ir.Document{Types: rawTypes.Registry()},
+		types: rawTypes,
 	}
 	l.merge = merge.Merger{Resolve: rawTypes.Node, Report: l.diag}
 	return l

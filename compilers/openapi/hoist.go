@@ -39,10 +39,6 @@ type lowerer struct {
 	// until then: the index costs a walk of the whole raw source tree, and almost
 	// no document writes either keyword.
 	dynamicAnchors map[string][]string
-	// diagnosedConstraints records pointers whose constraint diagnostics were
-	// already emitted, so a sub-schema read from two positions (its owning
-	// property and a $ref that hoists it) reports a malformed bound only once.
-	diagnosedConstraints map[string]bool
 	// operationIDs maps each operationId already lowered to the mount pointer
 	// that claimed it, so a second claim can name the first in its diagnostic.
 	operationIDs map[string]string
@@ -60,10 +56,9 @@ func newLowerer(srcIndex int, doc *load.Document, opts Options) *lowerer {
 		// The Document shares the framework's live registry rather than being
 		// handed a copy at the end: compile.Types owns every write to it, and the
 		// architecture test is what keeps that true.
-		out:                  &ir.Document{Types: types.Registry()},
-		types:                types,
-		diagnosedConstraints: make(map[string]bool),
-		operationIDs:         make(map[string]string),
+		out:          &ir.Document{Types: types.Registry()},
+		types:        types,
+		operationIDs: make(map[string]string),
 	}
 	l.merge = merge.Merger{Resolve: types.Node, Report: l.diag}
 	return l
