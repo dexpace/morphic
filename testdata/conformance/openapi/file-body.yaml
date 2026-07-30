@@ -1,0 +1,16 @@
+openapi: 3.1.0
+info: {title: FileBody, version: "1.0.0"}
+paths:
+  /blob:
+    put:
+      operationId: putBlob
+      requestBody:
+        content:
+          # No schema: the media type alone makes this a file body.
+          application/octet-stream: {}
+      responses:
+        "200":
+          description: ok
+          content:
+            image/png:
+              schema: {type: string, format: binary}

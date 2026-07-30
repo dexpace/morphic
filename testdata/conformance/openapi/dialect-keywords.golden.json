@@ -1,0 +1,153 @@
+{
+  "irVersion": "0.3.0",
+  "name": "DialectKeywords",
+  "version": "1.0.0",
+  "docs": {},
+  "services": [
+    {
+      "id": "s/openapi/0",
+      "name": {
+        "source": "DialectKeywords",
+        "canonical": "dialect_keywords"
+      },
+      "docs": {},
+      "auth": null,
+      "provenance": {
+        "source": 0
+      }
+    }
+  ],
+  "types": {
+    "t/openapi/components/schemas/Resource": {
+      "kind": "model",
+      "id": "t/openapi/components/schemas/Resource",
+      "name": {
+        "source": "Resource",
+        "canonical": "resource"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "unmodeled": {
+        "openapi:$id": {
+          "reason": "out_of_scope",
+          "value": "https://example.com/schemas/resource",
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/Resource/$id"
+          }
+        },
+        "openapi:$schema": {
+          "reason": "out_of_scope",
+          "value": "https://json-schema.org/draft/2020-12/schema",
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/Resource/$schema"
+          }
+        },
+        "openapi:$vocabulary": {
+          "reason": "out_of_scope",
+          "value": {
+            "https://json-schema.org/draft/2020-12/vocab/core": true
+          },
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/Resource/$vocabulary"
+          }
+        }
+      },
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Resource"
+      },
+      "properties": [
+        {
+          "id": "p/openapi/components/schemas/Resource/properties/a",
+          "name": {
+            "source": "a",
+            "canonical": "a"
+          },
+          "wireName": "a",
+          "type": {
+            "target": "t/prim/string",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/Resource/properties/a"
+          }
+        }
+      ],
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
+    "t/prim/string": {
+      "kind": "primitive",
+      "id": "t/prim/string",
+      "name": {},
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0
+      },
+      "prim": "string"
+    }
+  },
+  "servers": [
+    {
+      "name": {},
+      "urlTemplate": "/",
+      "description": {},
+      "auth": null
+    }
+  ],
+  "diagnostics": [
+    {
+      "severity": "info",
+      "code": "openapi/degraded-construct",
+      "message": "$id identifies or configures a JSON Schema resource rather than describing data; the IR models no such axis, so it is kept verbatim under Unmodeled and is not honoured for reference resolution",
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Resource/$id"
+      }
+    },
+    {
+      "severity": "info",
+      "code": "openapi/degraded-construct",
+      "message": "$schema identifies or configures a JSON Schema resource rather than describing data; the IR models no such axis, so it is kept verbatim under Unmodeled and is not honoured for reference resolution",
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Resource/$schema"
+      }
+    },
+    {
+      "severity": "info",
+      "code": "openapi/degraded-construct",
+      "message": "$vocabulary identifies or configures a JSON Schema resource rather than describing data; the IR models no such axis, so it is kept verbatim under Unmodeled and is not honoured for reference resolution",
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Resource/$vocabulary"
+      }
+    }
+  ],
+  "sources": [
+    {
+      "format": "openapi@3.1",
+      "path": "dialect-keywords.yaml",
+      "hash": "b6afc6531240450ea301ff58d451d81406ce0d69bcf1564cd2a11af1f77d95e8"
+    }
+  ]
+}

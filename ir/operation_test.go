@@ -85,7 +85,7 @@ func TestOperation_PopulatedRoundTrip(t *testing.T) {
 		Examples: []ir.Example{
 			{Name: "ex1", Input: &ir.Value{Kind: ir.ValueString, Str: "in"}, Output: &ir.Value{Kind: ir.ValueString, Str: "out"}},
 		},
-		Preserved:  populatedPreserved(),
+		Unmodeled:  populatedUnmodeled(),
 		Provenance: populatedProvenance(),
 	}
 	assertRoundTrip(t, want)
@@ -151,7 +151,7 @@ func TestParameter_JSONContract(t *testing.T) {
 				{Name: "ex1", Value: &ir.Value{Kind: ir.ValueNumber, Num: ir.BigVal("1")}},
 				{Name: "ex2", Value: &ir.Value{Kind: ir.ValueNumber, Num: ir.BigVal("2")}},
 			},
-			Preserved: populatedPreserved(),
+			Unmodeled: populatedUnmodeled(),
 		})
 }
 
@@ -165,7 +165,7 @@ func TestPayload_JSONContract(t *testing.T) {
 			{MediaType: "application/json", Type: populatedTypeRef()},
 			{MediaType: "application/xml", Type: populatedTypeRef()},
 		},
-		Preserved: populatedPreserved(),
+		Unmodeled: populatedUnmodeled(),
 	})
 }
 
@@ -181,7 +181,7 @@ func TestContent_JSONContract(t *testing.T) {
 		Type:         populatedTypeRef(),
 		Item:         &ir.TypeRef{Target: "t/item"},
 		ItemEncoding: &ir.PartEncoding{ContentTypes: []string{"application/json"}, Multi: true},
-		Encoding: map[string]ir.PartEncoding{
+		Encoding: map[ir.PropID]ir.PartEncoding{
 			"p/file": {Filename: true, Multi: true},
 			"p/name": {Style: "form"},
 		},
@@ -189,7 +189,7 @@ func TestContent_JSONContract(t *testing.T) {
 		Examples: []ir.Example{
 			{Name: "ex1", Value: &ir.Value{Kind: ir.ValueString, Str: "v1"}},
 		},
-		Preserved: populatedPreserved(),
+		Unmodeled: populatedUnmodeled(),
 	})
 }
 
@@ -199,7 +199,7 @@ func TestContent_EncodingDeterministic(t *testing.T) {
 	t.Parallel()
 	content := ir.Content{
 		Type: populatedTypeRef(),
-		Encoding: map[string]ir.PartEncoding{
+		Encoding: map[ir.PropID]ir.PartEncoding{
 			"z-part": {Style: "z"}, "m-part": {Style: "m"}, "a-part": {Style: "a"},
 			"q-part": {Style: "q"}, "b-part": {Style: "b"},
 		},
@@ -270,7 +270,7 @@ func TestResponse_JSONContract(t *testing.T) {
 		Headers:        []ir.Property{populatedProperty()},
 		StatusCodeProp: &ir.PropPath{Segments: []ir.PropID{"p/status"}},
 		Docs:           populatedDocs(),
-		Preserved:      populatedPreserved(),
+		Unmodeled:      populatedUnmodeled(),
 	})
 }
 
@@ -329,7 +329,7 @@ func TestErrorCase_JSONContract(t *testing.T) {
 			Retryable:  &retryable,
 			Throttling: &throttling,
 			Docs:       populatedDocs(),
-			Preserved:  populatedPreserved(),
+			Unmodeled:  populatedUnmodeled(),
 		})
 }
 

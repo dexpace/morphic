@@ -48,7 +48,7 @@ func TestService_JSONContract(t *testing.T) {
 				"t/a": {Source: "ARenamed"},
 			},
 			Servers:    []int{0, 1},
-			Preserved:  populatedPreserved(),
+			Unmodeled:  populatedUnmodeled(),
 			Provenance: populatedProvenance(),
 		})
 }
@@ -119,7 +119,7 @@ func TestOperationGroup_JSONContract(t *testing.T) {
 			Lifecycle:   map[string]ir.OpID{"create": "op/create", "read": "op/read"},
 		},
 		Availability: populatedAvailability(),
-		Preserved:    populatedPreserved(),
+		Unmodeled:    populatedUnmodeled(),
 	})
 }
 

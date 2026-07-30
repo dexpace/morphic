@@ -13,7 +13,7 @@ import (
 	"github.com/dexpace/morphic/ir"
 )
 
-// badExtDoc returns a document that cannot be marshalled: its Preserved holds an
+// badExtDoc returns a document that cannot be marshalled: its Unmodeled holds an
 // invalid json.RawMessage, whose malformed bytes json.Marshal's encoder rejects
 // while compacting them — RawMessage.MarshalJSON hands them back unexamined.
 //
@@ -23,7 +23,7 @@ import (
 // is the behaviour under test; dupKeyDoc is the fixture for Check's round-trip
 // outcome.
 func badExtDoc() *ir.Document {
-	return &ir.Document{Preserved: ir.Preserved{
+	return &ir.Document{Unmodeled: ir.Unmodeled{
 		"openapi:x": {Reason: ir.ReasonVendorExtension, Value: ir.RawValue("{invalid")},
 	}}
 }
@@ -165,7 +165,7 @@ func TestCheck_RoundtripOutcome(t *testing.T) {
 }
 
 // TestCheck_InvalidRawValueIsAViolationNotARoundTrip pins the reordering the
-// payload check causes: a document whose Preserved payload cannot be marshalled
+// payload check causes: a document whose Unmodeled payload cannot be marshalled
 // used to be classified by the round-trip oracle, which reports it as a
 // serialization mismatch rather than the compiler bug it is. Verify now names it
 // first.

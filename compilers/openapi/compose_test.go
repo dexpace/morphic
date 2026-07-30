@@ -9,6 +9,7 @@ import (
 	soa "github.com/speakeasy-api/openapi/openapi"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	yaml "gopkg.in/yaml.v3"
 
 	"github.com/dexpace/morphic/ir"
 )
@@ -490,6 +491,265 @@ func TestAllOf_RefBranchWithSiblingRequired31(t *testing.T) {
 	require.True(t, ok, "level is declared by the inline branch")
 	assert.True(t, level.Required,
 		"a required sibling on a $ref branch is read off the branch's own local schema and attaches to level")
+}
+
+// TestAllOf_InlineBranchResidueKeptVerbatim covers GitHub #123: an inline allOf
+// branch is merged in place, so the merge reads only its properties and its
+// required list and everything else it declared used to be dropped without a
+// diagnostic. The branch now survives verbatim beside the composed model.
+func TestAllOf_InlineBranchResidueKeptVerbatim(t *testing.T) {
+	t.Parallel()
+	spec := componentSpec(`    S:
+      allOf:
+        - type: object
+          properties: {a: {type: string}}
+          required: [a]
+          additionalProperties: false
+          not: {type: string}
+          minProperties: 2
+          description: BranchDoc
+          x-vendor: keepme
+`)
+	doc, diags := lowerSpec(t, spec)
+	requireNoErrorDiags(t, diags)
+	m, ok := typeByName(doc, "S").(*ir.Model)
+	require.True(t, ok, "S should be a model")
+
+	a, ok := propsByWire(m.Properties)["a"]
+	require.True(t, ok, "the merge still contributes the branch's properties")
+	assert.True(t, a.Required, "and still ORs the branch's required list onto them")
+
+	entry, ok := m.Unmodeled["openapi:allOf/0"]
+	require.True(t, ok, "the branch is kept verbatim; got %+v", m.Unmodeled)
+	assert.Equal(t, ir.ReasonDegradedLowering, entry.Reason)
+	assert.Equal(t, "/components/schemas/S/allOf/0", entry.Provenance.Pointer,
+		"the entry locates the branch, not the composed schema")
+	for _, kept := range []string{
+		`"additionalProperties":false`, `"not":{"type":"string"}`, `"minProperties":2`,
+		`"description":"BranchDoc"`, `"x-vendor":"keepme"`,
+	} {
+		assert.Contains(t, string(entry.Value), kept, "the whole branch is preserved")
+	}
+	assert.Contains(t,
+		diagMessageAt(t, diags, codeDegradedConstruct, ir.SeverityInfo, "/components/schemas/S/allOf/0"),
+		"additionalProperties, not, minProperties, description, x-vendor",
+		"the diagnostic names every keyword the merge left behind, in source order")
+}
+
+// TestAllOf_InlineBranchNonObjectTypeWarns is the worse half of #123: a scalar
+// branch declares no properties, so the merge composed an *empty* ir.Model —
+// which asserts the value is an object the source says is a string. Preserving
+// the branch keeps the source recoverable, and the severity says the IR states
+// something wrong rather than merely incomplete.
+func TestAllOf_InlineBranchNonObjectTypeWarns(t *testing.T) {
+	t.Parallel()
+	spec := componentSpec(`    T:
+      allOf:
+        - {type: string, maxLength: 3}
+`)
+	doc, diags := lowerSpec(t, spec)
+	requireNoErrorDiags(t, diags)
+	m, ok := typeByName(doc, "T").(*ir.Model)
+	require.True(t, ok, "the composed node is still a model")
+	assert.Empty(t, m.Properties, "a scalar branch declares no properties to merge")
+
+	entry, ok := m.Unmodeled["openapi:allOf/0"]
+	require.True(t, ok, "the whole branch is kept verbatim; got %+v", m.Unmodeled)
+	assert.Equal(t, ir.ReasonDegradedLowering, entry.Reason)
+	assert.JSONEq(t, `{"type":"string","maxLength":3}`, string(entry.Value))
+	assert.Contains(t,
+		diagMessageAt(t, diags, codeDegradedConstruct, ir.SeverityWarning, "/components/schemas/T/allOf/0"),
+		"declares a type that is not an object")
+	assert.False(t, hasDiagAt(diags, codeDegradedConstruct, ir.SeverityInfo),
+		"a contradicted model is a warning, not the info a merely narrowed one gets")
+}
+
+// TestAllOf_BranchWrittenByReferenceStillDerivesResidue pins the residue against
+// the two ways YAML lets a branch be written by reference rather than in place.
+// A branch spelled `*anchor` writes no keys of its own and one spelled
+// `<<: *anchor` writes only `<<`, so reading the literal text reports either no
+// residue at all — merging a branch that declares plenty to an empty model, in
+// silence, which is exactly the loss #123 closed for branches written in place —
+// or a residue named `<<`, which names nothing a reader can act on.
+func TestAllOf_BranchWrittenByReferenceStillDerivesResidue(t *testing.T) {
+	t.Parallel()
+	spec := componentSpec(`    Shared: &br {type: string, maxLength: 3, description: Aliased}
+    Aliased: {allOf: [*br]}
+    Merged: {allOf: [{<<: *br}]}
+    Overridden: {allOf: [{<<: *br, type: object, properties: {a: {type: string}}}]}
+`)
+	doc, diags := lowerSpec(t, spec)
+	requireNoErrorDiags(t, diags)
+
+	cases := []struct {
+		name, wantKeys string
+		sev            ir.Severity
+	}{
+		{"Aliased", "type, maxLength, description", ir.SeverityWarning},
+		{"Merged", "type, maxLength, description", ir.SeverityWarning},
+		{"Overridden", "maxLength, description", ir.SeverityInfo},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			m, ok := typeByName(doc, tc.name).(*ir.Model)
+			require.True(t, ok, "%s should be a model", tc.name)
+
+			entry, ok := m.Unmodeled["openapi:allOf/0"]
+			require.True(t, ok, "%s keeps the branch verbatim; got %+v", tc.name, m.Unmodeled)
+			assert.Equal(t, ir.ReasonDegradedLowering, entry.Reason)
+			assert.Contains(t, string(entry.Value), `"maxLength":3`,
+				"the payload resolves the reference too, so the branch is recoverable")
+			assert.Contains(t,
+				diagMessageAt(t, diags, codeDegradedConstruct, tc.sev,
+					"/components/schemas/"+tc.name+"/allOf/0"),
+				"the branch ("+tc.wantKeys+")",
+				"the keywords the branch effectively declares are named, not `<<`")
+		})
+	}
+}
+
+// TestAllOf_MergedBranchKeywordsAreNotResidue guards the opposite direction: the
+// keywords the merge does consume must not be preserved, or every allOf in the
+// corpus would grow an Unmodeled entry restating what the composed model already
+// holds. `type: object` counts as consumed because the composed node is a Model
+// already. TypedBranch is the shape allof-inline-merge.yaml writes and
+// RequiredOnlyBranch is allof-required-only.yaml's last branch; UntypedBranch —
+// properties with no `type` at all — is written out here rather than borrowed
+// from the corpus, which writes no such branch.
+func TestAllOf_MergedBranchKeywordsAreNotResidue(t *testing.T) {
+	t.Parallel()
+	spec := componentSpec(`    Base: {type: object, properties: {id: {type: string}}}
+    TypedBranch:
+      allOf:
+        - {$ref: '#/components/schemas/Base'}
+        - type: object
+          properties: {name: {type: string}}
+    UntypedBranch:
+      allOf:
+        - {$ref: '#/components/schemas/Base'}
+        - properties: {name: {type: string}}
+    RequiredOnlyBranch:
+      allOf:
+        - {$ref: '#/components/schemas/Base'}
+        - type: object
+          properties: {name: {type: string}}
+        - required: [name]
+`)
+	doc, diags := lowerSpec(t, spec)
+	requireNoErrorDiags(t, diags)
+	for _, name := range []string{"TypedBranch", "UntypedBranch", "RequiredOnlyBranch"} {
+		m, ok := typeByName(doc, name).(*ir.Model)
+		require.True(t, ok, "%s should be a model", name)
+		assert.Empty(t, m.Unmodeled,
+			"%s: properties, required and a bare `type: object` are merged, not residue", name)
+	}
+	assert.Zero(t, countDiagsAt(diags, codeDegradedConstruct, ir.SeverityInfo),
+		"a branch the merge fully consumes announces nothing; got %+v", diags)
+}
+
+// TestAllOf_BranchResidueDerivedFromDeclaredKeys pins that the residue is derived
+// from the branch's own declared keys rather than from a list of keywords worth
+// keeping — a keyword this compiler models nothing for still counts, so a keyword
+// a later dialect adds needs no change here to survive. The `[object, "null"]`
+// case is the same rule from the other side: `type` is consumed only when it is
+// exactly `object`, so the null a set also declares stays recoverable.
+func TestAllOf_BranchResidueDerivedFromDeclaredKeys(t *testing.T) {
+	t.Parallel()
+	spec := componentSpec(`    Unknown:
+      allOf:
+        - type: object
+          properties: {a: {type: string}}
+          futureKeyword: {some: thing}
+    NullableBranch:
+      allOf:
+        - type: [object, 'null']
+          properties: {a: {type: string}}
+`)
+	doc, diags := lowerSpec(t, spec)
+	requireNoErrorDiags(t, diags)
+
+	for name, want := range map[string]string{
+		"Unknown":        `"futureKeyword":{"some":"thing"}`,
+		"NullableBranch": `"type":["object","null"]`,
+	} {
+		m, ok := typeByName(doc, name).(*ir.Model)
+		require.True(t, ok, "%s should be a model", name)
+		require.Len(t, m.Properties, 1, "%s still merges the branch's properties", name)
+		entry, ok := m.Unmodeled["openapi:allOf/0"]
+		require.True(t, ok, "%s keeps the branch verbatim; got %+v", name, m.Unmodeled)
+		assert.Contains(t, string(entry.Value), want, "%s", name)
+		assert.Contains(t,
+			diagMessageAt(t, diags, codeDegradedConstruct, ir.SeverityInfo,
+				"/components/schemas/"+name+"/allOf/0"),
+			"kept verbatim under Unmodeled", name)
+	}
+}
+
+// TestAllOf_EachInlineBranchKeyedSeparately: two branches that both leave residue
+// must not overwrite each other's entry, and each is reported at its own branch.
+func TestAllOf_EachInlineBranchKeyedSeparately(t *testing.T) {
+	t.Parallel()
+	spec := componentSpec(`    Multi:
+      allOf:
+        - type: object
+          properties: {a: {type: string}}
+          description: FirstDoc
+        - type: object
+          properties: {b: {type: string}}
+          minProperties: 1
+`)
+	doc, diags := lowerSpec(t, spec)
+	requireNoErrorDiags(t, diags)
+	m, ok := typeByName(doc, "Multi").(*ir.Model)
+	require.True(t, ok, "Multi should be a model")
+	require.Len(t, m.Properties, 2, "both branches still merge their properties")
+	require.Len(t, m.Unmodeled, 2, "one entry per branch; got %+v", m.Unmodeled)
+	assert.Contains(t, string(m.Unmodeled["openapi:allOf/0"].Value), `"description":"FirstDoc"`)
+	assert.Contains(t, string(m.Unmodeled["openapi:allOf/1"].Value), `"minProperties":1`)
+
+	for i, want := range []string{"description", "minProperties"} {
+		at := fmt.Sprintf("/components/schemas/Multi/allOf/%d", i)
+		assert.Contains(t, diagMessageAt(t, diags, codeDegradedConstruct, ir.SeverityInfo, at), want,
+			"branch %d is reported at its own pointer, naming its own residue", i)
+	}
+}
+
+// TestAllOf_BranchResidueRidesEveryDistributedVariant covers fillAllOf's second
+// caller: buildComposedVariant re-runs the same merge once per union variant, so
+// the residue has to land on every variant the composition rides on. The
+// diagnostic is announced once even so — the branch is one source construct
+// however many variants carry it.
+func TestAllOf_BranchResidueRidesEveryDistributedVariant(t *testing.T) {
+	t.Parallel()
+	spec := componentSpec(`    Base: {type: object, properties: {id: {type: string}}}
+    A: {type: object, properties: {a: {type: string}}}
+    B: {type: object, properties: {b: {type: string}}}
+    Distributed:
+      allOf:
+        - {$ref: '#/components/schemas/Base'}
+        - type: object
+          properties: {c: {type: string}}
+          description: BranchDoc
+      oneOf:
+        - {$ref: '#/components/schemas/A'}
+        - {$ref: '#/components/schemas/B'}
+`)
+	doc, diags := lowerSpec(t, spec)
+	requireNoErrorDiags(t, diags)
+	u, ok := typeByName(doc, "Distributed").(*ir.Union)
+	require.True(t, ok, "Distributed distributes into a union")
+	require.Len(t, u.Variants, 2)
+
+	for i, v := range u.Variants {
+		variant, ok := doc.Types[v.Type.Target].(*ir.Model)
+		require.True(t, ok, "variant %d is a composed model", i)
+		entry, ok := variant.Unmodeled["openapi:allOf/1"]
+		require.True(t, ok, "variant %d carries the branch residue; got %+v", i, variant.Unmodeled)
+		assert.Contains(t, string(entry.Value), `"description":"BranchDoc"`, "variant %d", i)
+	}
+	assert.Equal(t, 1, countDiagsAt(diags, codeDegradedConstruct, ir.SeverityInfo),
+		"one branch, one diagnostic, however many variants carry it; got %+v", diags)
 }
 
 // TestModel_PlainRequiredUndeclaredPropertyUnaffected is a regression guard:
@@ -1126,13 +1386,11 @@ func TestMappingTargetID(t *testing.T) {
 	assert.NotEqual(t, namedTypeID(ptr("components", "schemas", "")), id)
 }
 
-func strptr(s string) *string { return &s }
-
 func TestDiscriminatorDefault_ResolvesDeclaredComponent(t *testing.T) {
 	t.Parallel()
 	l := newRawLowerer(&soa.OpenAPI{})
 	l.schemas = map[string]bool{"Cat": true}
-	d := &oas3.Discriminator{PropertyName: "kind", DefaultMapping: strptr("Cat")}
+	d := &oas3.Discriminator{PropertyName: "kind", DefaultMapping: new("Cat")}
 
 	id := l.discriminatorDefault(d, "/components/schemas/Pet")
 	assert.Equal(t, namedTypeID("/components/schemas/Cat"), id)
@@ -1144,7 +1402,7 @@ func TestDiscriminatorDefault_DroppedWhenUnresolved(t *testing.T) {
 	l := newRawLowerer(&soa.OpenAPI{})
 	// "Missing" is neither a declared component nor an internal pointer, so the
 	// defaultMapping does not resolve and is dropped with one error diagnostic.
-	d := &oas3.Discriminator{PropertyName: "kind", DefaultMapping: strptr("Missing")}
+	d := &oas3.Discriminator{PropertyName: "kind", DefaultMapping: new("Missing")}
 
 	id := l.discriminatorDefault(d, "/components/schemas/Pet")
 	assert.Empty(t, id, "an unresolved defaultMapping yields no target")
@@ -1162,7 +1420,7 @@ func TestDiscriminatorDefault_EmptyIsNoOp(t *testing.T) {
 
 // TestOneOf_CoDeclaredCompositionDistributes is the regression from
 // reference-learnings §B11: an allOf composition co-declared with a oneOf used
-// to survive while the union was dropped to Preserved. Both must survive, and
+// to survive while the union was dropped to Unmodeled. Both must survive, and
 // the shape that says so is a Union whose every variant carries the composition
 // — `Base ∧ (A | B)` written as `(Base ∧ A) | (Base ∧ B)`.
 func TestOneOf_CoDeclaredCompositionDistributes(t *testing.T) {
@@ -1183,7 +1441,7 @@ func TestOneOf_CoDeclaredCompositionDistributes(t *testing.T) {
 	require.True(t, ok, "the union is the schema's value, not a preserved sibling")
 	assert.True(t, u.Exclusive, "oneOf stays exclusive")
 	require.Len(t, u.Variants, 2)
-	assert.Empty(t, u.Preserved, "distribution loses nothing, so nothing is kept verbatim")
+	assert.Empty(t, u.Unmodeled, "distribution loses nothing, so nothing is kept verbatim")
 
 	for i, branch := range []string{"A", "B"} {
 		v := doc.Types[u.Variants[i].Type.Target].(*ir.Model)
@@ -1466,7 +1724,7 @@ func TestOneOf_CoDeclaredUnresolvableBranchIsNotDistributed(t *testing.T) {
 	for _, name := range []string{"Undeclared", "CrossDocument", "EmptyRef", "NoSuchPointer"} {
 		m, ok := typeByName(doc, name).(*ir.Model)
 		require.True(t, ok, "%s keeps its structural body rather than becoming a union", name)
-		entry, ok := m.Preserved["openapi:oneOf"]
+		entry, ok := m.Unmodeled["openapi:oneOf"]
 		require.True(t, ok, "%s keeps every branch verbatim", name)
 		assert.Equal(t, ir.ReasonDegradedLowering, entry.Reason, "%s", name)
 		assert.Contains(t,
@@ -1523,7 +1781,7 @@ func TestOneOf_CoDeclaredNotDistributedReasons(t *testing.T) {
 		"BothCombinators": "oneOf and anyOf are both declared, so distributing either would drop the other",
 		"Discriminated":   "a declared discriminator binds the branches by name, which distributing them would break",
 	} {
-		entry, ok := typeByName(doc, name).Common().Preserved["openapi:oneOf"]
+		entry, ok := typeByName(doc, name).Common().Unmodeled["openapi:oneOf"]
 		require.True(t, ok, "%s keeps its union verbatim", name)
 		assert.Equal(t, ir.ReasonDegradedLowering, entry.Reason, "%s", name)
 		assert.Contains(t,
@@ -1531,11 +1789,63 @@ func TestOneOf_CoDeclaredNotDistributedReasons(t *testing.T) {
 			reason, name)
 	}
 	both := typeByName(doc, "BothCombinators").(*ir.Model)
-	_, ok := both.Preserved["openapi:anyOf"]
+	_, ok := both.Unmodeled["openapi:anyOf"]
 	assert.True(t, ok, "the second combinator is kept too, which is why neither is distributed")
 	nullBranch := typeByName(doc, "NullBranch").(*ir.Model)
-	assert.Contains(t, string(nullBranch.Preserved["openapi:oneOf"].Value), `"null"`,
+	assert.Contains(t, string(nullBranch.Unmodeled["openapi:oneOf"].Value), `"null"`,
 		"a null branch is written inline, so it blocks distribution rather than lifting to Nullable")
 	assert.Equal(t, 5, countDiagsAt(diags, codeDegradedConstruct, ir.SeverityInfo),
 		"each declined shape is reported once; got %+v", diags)
+}
+
+// TestRawMappingKeys_OnlyEnumeratesAMapping pins the shape guards on the branch
+// residue's key reader. It is handed whatever the source wrote at a branch, so a
+// sequence or a bare scalar reaches it as readily as a mapping, and the residue
+// derivation depends on it reporting no keys rather than guessing at some.
+//
+// The alias and `<<` rows are the same guard read the other way: a node written
+// by reference stands for keys, so answering "none" there would report a branch
+// that declares plenty as one the merge consumed entirely.
+func TestRawMappingKeys_OnlyEnumeratesAMapping(t *testing.T) {
+	t.Parallel()
+	var doc yaml.Node
+	require.NoError(t, yaml.Unmarshal([]byte("a: 1\nb: 2\n"), &doc))
+	require.Equal(t, yaml.DocumentNode, doc.Kind)
+
+	cases := []struct {
+		name string
+		node *yaml.Node
+		want []string
+	}{
+		{"a nil node has no keys", nil, nil},
+		{"a sequence is not a mapping", yamlNode(t, "- a\n- b\n"), nil},
+		{"a bare scalar is not a mapping", yamlNode(t, "plain"), nil},
+		{"a mapping yields its keys in source order", yamlNode(t, "b: 1\na: 2\n"), []string{"b", "a"}},
+		{"a document unwraps to the mapping inside it", &doc, []string{"a", "b"}},
+		{"an alias yields the anchored mapping's keys",
+			useValue(t, "anchor: &a {b: 1, c: 2}\nuse: *a\n"), []string{"b", "c"}},
+		{"an alias to a scalar is still not a mapping",
+			useValue(t, "anchor: &a plain\nuse: *a\n"), nil},
+		{"a merge key yields the keys it merges in",
+			useValue(t, "anchor: &a {b: 1, c: 2}\nuse: {<<: *a}\n"), []string{"b", "c"}},
+		{"an explicit key beats the one it merges over",
+			useValue(t, "anchor: &a {b: 1, c: 2}\nuse: {c: 9, <<: *a}\n"), []string{"c", "b"}},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			assert.Equal(t, tc.want, rawMappingKeys(tc.node))
+		})
+	}
+}
+
+// useValue parses src — an anchor plus a `use:` key written against it — and
+// returns the raw node at `use` undereferenced, so a value spelled `*anchor`
+// arrives as the alias node a branch reader is really handed rather than as the
+// mapping it stands for.
+func useValue(t *testing.T, src string) *yaml.Node {
+	t.Helper()
+	node := rawChildNode(yamlNode(t, src), "use")
+	require.NotNil(t, node, `src writes no "use" key`)
+	return node
 }

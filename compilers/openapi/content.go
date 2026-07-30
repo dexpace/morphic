@@ -50,13 +50,13 @@ func (l *lowerer) lowerContent(mt string, media *soa.MediaType, pointer, hint st
 		c.File = &ir.FileInfo{IsText: false, ContentTypes: []string{mt}}
 		c.Type = l.primRef(ir.PrimBytes)
 	case isFormContent(mt):
-		if enc := l.partEncodings(media, mediaPtr); len(enc) > 0 {
+		if enc := l.partEncodings(media, mediaPtr, c.Type.Target); len(enc) > 0 {
 			c.Encoding = enc
 		}
 	}
 	l.fillSequential(&c, media, mediaPtr, hint)
 	if ext := l.extensions(media.GetExtensions(), mediaPtr); len(ext) > 0 {
-		c.Preserved = mergePreserved(c.Preserved, ext)
+		c.Unmodeled = mergeUnmodeled(c.Unmodeled, ext)
 	}
 	return c
 }
@@ -96,18 +96,19 @@ func (l *lowerer) fillSequential(c *ir.Content, media *soa.MediaType, mediaPtr, 
 // entries carry ReasonNoIRHome rather than a degraded lowering.
 func (l *lowerer) positionalEncoding(c *ir.Content, media *soa.MediaType, mediaPtr string) {
 	root := media.GetRootNode()
-	l.preserve(&c.Preserved, "openapi:prefixEncoding", nodeToRaw(rawChildNode(root, "prefixEncoding")),
+	l.preserve(&c.Unmodeled, "openapi:prefixEncoding", nodeToRaw(rawChildNode(root, "prefixEncoding")),
 		ir.ReasonNoIRHome, mediaPtr+ptr("prefixEncoding"))
-	l.preserve(&c.Preserved, "openapi:itemEncoding", nodeToRaw(rawChildNode(root, "itemEncoding")),
+	l.preserve(&c.Unmodeled, "openapi:itemEncoding", nodeToRaw(rawChildNode(root, "itemEncoding")),
 		ir.ReasonNoIRHome, mediaPtr+ptr("itemEncoding"))
 	l.diag(ir.SeverityInfo, codeDegradedConstruct, mediaPtr,
-		"prefixEncoding is positional and has no per-item IR home; it and any itemEncoding are kept under Preserved")
+		"prefixEncoding is positional and has no per-item IR home; it and any itemEncoding are kept under Unmodeled")
 }
 
 // partEncodings builds the multipart/form per-part wire config, keyed by each
 // body-model property's PropID. A part is included when it carries an explicit
-// encoding entry or is itself a repeated (array) or file (binary) part.
-func (l *lowerer) partEncodings(media *soa.MediaType, mediaPtr string) map[string]ir.PartEncoding {
+// encoding entry or is itself a repeated (array) or file (binary) part. body is
+// the TypeID the content's own schema position lowered to.
+func (l *lowerer) partEncodings(media *soa.MediaType, mediaPtr string, body ir.TypeID) map[ir.PropID]ir.PartEncoding {
 	model := schemaOf(media.GetSchema())
 	if model == nil {
 		return nil
@@ -116,17 +117,22 @@ func (l *lowerer) partEncodings(media *soa.MediaType, mediaPtr string) map[strin
 	if props == nil || props.Len() == 0 {
 		return nil
 	}
-	// Use the ref target's pointer, not mediaPtr, so encoding keys align with the
-	// hoisted model's property IDs (invariant 2/3); see bodySchemaPointer.
-	schemaPtr := bodySchemaPointer(media.GetSchema(), mediaPtr+ptr("schema"))
+	// Key by the pointer the body model was interned at, not by mediaPtr, so the
+	// keys align with that model's property IDs (invariant 2/3). Asking the IR is
+	// what keeps this in step with schemaOf, which reads the end of a $ref chain
+	// while a pointer cut from the ref string names only its first hop.
+	schemaPtr, ok := l.bodyModelPointer(body)
+	if !ok {
+		schemaPtr = bodySchemaPointer(media.GetSchema(), mediaPtr+ptr("schema"))
+	}
 	encMap := media.GetEncoding()
-	out := map[string]ir.PartEncoding{}
+	out := map[ir.PropID]ir.PartEncoding{}
 	for name, pjs := range props.All() {
 		pe := l.buildPartEncoding(name, pjs, encMap, mediaPtr)
 		if partEncodingEmpty(pe) {
 			continue
 		}
-		out[string(propID(schemaPtr+ptr("properties", name)))] = pe
+		out[propID(schemaPtr+ptr("properties", name))] = pe
 	}
 	if len(out) == 0 {
 		return nil
@@ -222,7 +228,7 @@ func (l *lowerer) applyHeaderAnnotations(p *ir.Property, h *soa.Header, hdecl st
 	if ex := l.exampleList(h.GetExample(), h.GetExamples(), hdecl); len(ex) > 0 {
 		p.Examples = ex
 	}
-	p.Preserved = mergePreserved(p.Preserved, l.extensions(h.GetExtensions(), hdecl))
+	p.Unmodeled = mergeUnmodeled(p.Unmodeled, l.extensions(h.GetExtensions(), hdecl))
 }
 
 // mediaExamples lowers a media type's single and plural example values.
@@ -294,7 +300,7 @@ func (l *lowerer) appendValuelessExample(out []ir.Example, proto ir.Example, poi
 // lowerRequestBody lowers an operation's request body onto op.Request and the
 // binding's RequestContentTypes. The IR expresses body optionality via presence,
 // so a non-required body stays present with its optionality preserved under
-// Preserved plus one info diagnostic (ir-design §7.2 clarification). opDeclPtr
+// Unmodeled plus one info diagnostic (ir-design §7.2 clarification). opDeclPtr
 // is the operation's own declaration pointer, so a $ref'd body interns its
 // content once at its component pointer rather than once per mount site
 // (issue #107) — and under the component's name, since the operationId hint
@@ -309,10 +315,10 @@ func (l *lowerer) lowerRequestBody(op *ir.Operation, hb *ir.HTTPBinding, src *so
 		return
 	}
 	if !rb.GetRequired() {
-		l.preserve(&payload.Preserved, "openapi:required", ir.RawValue("false"),
+		l.preserve(&payload.Unmodeled, "openapi:required", ir.RawValue("false"),
 			ir.ReasonNoIRHome, bodyPtr+ptr("required"))
 		l.diag(ir.SeverityInfo, codeDegradedConstruct, bodyPtr,
-			"request body is not required; optionality kept under Preserved")
+			"request body is not required; optionality kept under Unmodeled")
 	}
 	op.Request = payload
 	hb.RequestContentTypes = contentTypeKeys(rb.GetContent())
@@ -414,10 +420,48 @@ func schemaOf(js *oas3.JSONSchema[oas3.Referenceable]) *oas3.Schema {
 	return s
 }
 
+// maxBodyAliasHops bounds the alias chain bodyModelPointer follows. A $ref cycle
+// is refused at load, so no source document can spell a chain that long — the
+// bound is what keeps the walk terminating without relying on that.
+const maxBodyAliasHops = 64
+
+// bodyModelPointer returns the pointer the model behind body was interned at,
+// following the alias scalars a $ref-with-siblings position hoists to reach it.
+// That pointer is the one whose /properties/<name> children minted the model's
+// PropIDs, so an encoding key derived from it addresses a property that exists.
+//
+// It reports ok=false for a body that stands for no model at all — a primitive,
+// an enum, an opaque scalar — where no pointer would name a property either.
+func (l *lowerer) bodyModelPointer(body ir.TypeID) (string, bool) {
+	id := body
+	for range maxBodyAliasHops {
+		td, found := l.types.Node(id)
+		if !found {
+			return "", false
+		}
+		switch t := td.(type) {
+		case *ir.Model:
+			return t.Provenance.Pointer, true
+		case *ir.Scalar:
+			if t.Base == nil {
+				return "", false
+			}
+			id = t.Base.Target
+		default:
+			return "", false
+		}
+	}
+	return "", false
+}
+
 // bodySchemaPointer returns the JSON pointer under which a body schema's
 // properties were interned: the local ref target's pointer when the media schema
-// is a local $ref, else localPtr for an inline schema. Encoding keys derived from
-// this pointer align with the hoisted model's property IDs.
+// is a local $ref, else localPtr for an inline schema.
+//
+// It is the fallback for a body the IR gives no model for (bodyModelPointer),
+// where the schema declares properties that nothing in the IR holds — a
+// contradictory `enum` or scalar `type` beside them — and no pointer can name a
+// property that was never lowered.
 func bodySchemaPointer(js *oas3.JSONSchema[oas3.Referenceable], localPtr string) string {
 	if js == nil {
 		return localPtr

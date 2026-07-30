@@ -1,0 +1,179 @@
+{
+  "irVersion": "0.3.0",
+  "name": "XMLHints",
+  "version": "1.0.0",
+  "docs": {},
+  "services": [
+    {
+      "id": "s/openapi/0",
+      "name": {
+        "source": "XMLHints",
+        "canonical": "xml_hints"
+      },
+      "docs": {},
+      "auth": null,
+      "provenance": {
+        "source": 0
+      }
+    }
+  ],
+  "types": {
+    "t/anon/components/schemas/Book/properties/authors": {
+      "kind": "list",
+      "id": "t/anon/components/schemas/Book/properties/authors",
+      "name": {
+        "hint": "authors"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "xml": {
+        "name": "authors",
+        "wrapped": true
+      },
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Book/properties/authors"
+      },
+      "elem": {
+        "target": "t/anon/components/schemas/Book/properties/authors/items",
+        "nullable": false
+      }
+    },
+    "t/anon/components/schemas/Book/properties/authors/items": {
+      "kind": "scalar",
+      "id": "t/anon/components/schemas/Book/properties/authors/items",
+      "name": {
+        "hint": "authors_item"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "xml": {
+        "name": "author",
+        "wrapped": false
+      },
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Book/properties/authors/items"
+      },
+      "base": {
+        "target": "t/prim/string",
+        "nullable": false
+      }
+    },
+    "t/openapi/components/schemas/Book": {
+      "kind": "model",
+      "id": "t/openapi/components/schemas/Book",
+      "name": {
+        "source": "Book",
+        "canonical": "book"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "xml": {
+        "name": "book",
+        "namespace": "urn:example:books",
+        "prefix": "bk",
+        "wrapped": false
+      },
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Book"
+      },
+      "properties": [
+        {
+          "id": "p/openapi/components/schemas/Book/properties/isbn",
+          "name": {
+            "source": "isbn",
+            "canonical": "isbn"
+          },
+          "wireName": "isbn",
+          "type": {
+            "target": "t/prim/string",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "xml": {
+            "namespace": "urn:example:books",
+            "prefix": "bk",
+            "nodeType": "attribute",
+            "wrapped": false
+          },
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/Book/properties/isbn"
+          }
+        },
+        {
+          "id": "p/openapi/components/schemas/Book/properties/authors",
+          "name": {
+            "source": "authors",
+            "canonical": "authors"
+          },
+          "wireName": "authors",
+          "type": {
+            "target": "t/anon/components/schemas/Book/properties/authors",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/Book/properties/authors"
+          }
+        }
+      ],
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
+    "t/prim/string": {
+      "kind": "primitive",
+      "id": "t/prim/string",
+      "name": {},
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0
+      },
+      "prim": "string"
+    }
+  },
+  "servers": [
+    {
+      "name": {},
+      "urlTemplate": "/",
+      "description": {},
+      "auth": null
+    }
+  ],
+  "sources": [
+    {
+      "format": "openapi@3.1",
+      "path": "xml-hints.yaml",
+      "hash": "7e0b19cd368d9823b7a14ec7a58bc04fe1ecde6c3c38155099b3c222fa91a905"
+    }
+  ]
+}

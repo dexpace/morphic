@@ -7,7 +7,7 @@ import (
 	"github.com/dexpace/morphic/ir"
 )
 
-var provenanceType = reflect.TypeOf(ir.Provenance{})
+var provenanceType = reflect.TypeFor[ir.Provenance]()
 
 // checkProvenance asserts every Provenance.Source addresses a declared entry of
 // Document.Sources. The index is a reference like any typed ID — a stale or
@@ -16,7 +16,7 @@ var provenanceType = reflect.TypeOf(ir.Provenance{})
 // refKindByType and gets its own check.
 //
 // It is document-wide rather than scoped to any one carrier: the defect reads
-// the same on a type, a diagnostic, or a Preserved entry, and walkValues
+// the same on a type, a diagnostic, or an Unmodeled entry, and walkValues
 // reaches all of them for one traversal.
 func checkProvenance(doc *ir.Document) []Violation {
 	var vs []Violation

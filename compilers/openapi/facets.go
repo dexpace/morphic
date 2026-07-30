@@ -31,7 +31,7 @@ type annotationSet struct {
 	Deprecated bool
 	XML        *ir.XMLHints
 	Examples   []ir.Example
-	Preserved  ir.Preserved
+	Unmodeled  ir.Unmodeled
 }
 
 // annotations reads every site-local annotation at st.
@@ -59,15 +59,88 @@ func annotations(st site, pointer string, srcIndex int) (annotationSet, []ir.Dia
 	out.Examples = examples
 
 	ext, extDiags := extensionsFrom(st.Node.GetExtensions(), srcIndex, pointer)
-	vOnly, vDiags := validationOnlyAt(st.Node, pointer, srcIndex)
+	kept, keptDiags := unmodeledAt(st.Node, pointer, srcIndex)
 
-	diags := make([]ir.Diagnostic, 0, len(exDiags)+len(extDiags)+len(vDiags))
+	diags := make([]ir.Diagnostic, 0, len(exDiags)+len(extDiags)+len(keptDiags))
 	diags = append(diags, exDiags...)
 	diags = append(diags, extDiags...)
-	diags = append(diags, vDiags...)
+	diags = append(diags, keptDiags...)
 
-	out.Preserved = mergePreserved(ext, vOnly)
+	out.Unmodeled = mergeUnmodeled(ext, kept)
 	return out, diags
+}
+
+// unmodeledAt collects every keyword a site declares that the IR keeps verbatim
+// instead of modelling, each under the reason that says which of those it is
+// (§12): validation logic the IR draws a boundary against (§4.7), data with no IR
+// field yet, and JSON Schema resource/dialect metadata the IR excludes on
+// purpose.
+func unmodeledAt(s *oas3.Schema, pointer string, srcIndex int) (ir.Unmodeled, []ir.Diagnostic) {
+	vOnly, vDiags := validationOnlyAt(s, pointer, srcIndex)
+	noHome, nhDiags := noIRHomeAt(s, pointer, srcIndex)
+	dialect, dDiags := dialectAt(s, pointer, srcIndex)
+
+	diags := make([]ir.Diagnostic, 0, len(vDiags)+len(nhDiags)+len(dDiags))
+	diags = append(diags, vDiags...)
+	diags = append(diags, nhDiags...)
+	diags = append(diags, dDiags...)
+
+	return mergeUnmodeled(mergeUnmodeled(vOnly, noHome), dialect), diags
+}
+
+// noIRHomeAt collects the keywords a schema declares that describe real data yet
+// have no field at any IR position. Unlike the §4.7 family these are gaps
+// expected to close rather than a boundary the IR draws, which is what
+// ReasonNoIRHome says and ReasonValidationOnly would not (§12).
+//
+// Site-only: contentSchema describes the value at the position that wrote it.
+func noIRHomeAt(s *oas3.Schema, pointer string, srcIndex int) (ir.Unmodeled, []ir.Diagnostic) {
+	if s.GetContentSchema() == nil {
+		return nil, nil
+	}
+	at := pointer + ptr("contentSchema")
+	var p ir.Unmodeled
+	preserveInto(&p, "openapi:contentSchema", nodeToRaw(rawPropertyNode(s, "contentSchema")),
+		ir.ReasonNoIRHome, at, srcIndex)
+	if p == nil {
+		return nil, nil
+	}
+	return p, []ir.Diagnostic{diagf(ir.SeverityInfo, codeDegradedConstruct,
+		ir.Provenance{Source: srcIndex, Pointer: at},
+		"contentSchema is the shape of the decoded content and no IR position has a field "+
+			"for it; kept verbatim under Unmodeled")}
+}
+
+// dialectKeywords are the JSON Schema resource and dialect keywords the IR
+// excludes on purpose. It identifies every type by a synthetic ID derived from
+// its source pointer rather than by `$id` (ir-design §3), and describes one API
+// surface rather than a JSON Schema resource graph, so it has no dialect axis for
+// `$schema`/`$vocabulary` to land on and none is coming — ReasonOutOfScope rather
+// than ReasonNoIRHome (§12).
+//
+// `$id` is kept, not honoured: reference resolution addresses same-document JSON
+// pointers, never an `$id` base URI.
+var dialectKeywords = []string{"$id", "$schema", "$vocabulary"}
+
+// dialectAt keeps each dialect keyword s declares verbatim and announces it, so
+// the exclusion is visible in the output rather than only in this comment.
+func dialectAt(s *oas3.Schema, pointer string, srcIndex int) (ir.Unmodeled, []ir.Diagnostic) {
+	var p ir.Unmodeled
+	var diags []ir.Diagnostic
+	for _, keyword := range dialectKeywords {
+		raw := nodeToRaw(rawPropertyNode(s, keyword))
+		if len(raw) == 0 {
+			continue
+		}
+		at := pointer + ptr(keyword)
+		preserveInto(&p, "openapi:"+keyword, raw, ir.ReasonOutOfScope, at, srcIndex)
+		diags = append(diags, diagf(ir.SeverityInfo, codeDegradedConstruct,
+			ir.Provenance{Source: srcIndex, Pointer: at},
+			"%s identifies or configures a JSON Schema resource rather than describing data; "+
+				"the IR models no such axis, so it is kept verbatim under Unmodeled and is not "+
+				"honoured for reference resolution", keyword))
+	}
+	return p, diags
 }
 
 // schemaExamplesAt reads a schema's example and examples keywords.
@@ -104,8 +177,8 @@ func appendExampleAt(out []ir.Example, diags []ir.Diagnostic, node *yaml.Node,
 // not model, keeping each verbatim and announcing it.
 //
 // Site-only: these constrain the value at the position that wrote them.
-func validationOnlyAt(s *oas3.Schema, pointer string, srcIndex int) (ir.Preserved, []ir.Diagnostic) {
-	var p ir.Preserved
+func validationOnlyAt(s *oas3.Schema, pointer string, srcIndex int) (ir.Unmodeled, []ir.Diagnostic) {
+	var p ir.Unmodeled
 	var diags []ir.Diagnostic
 	keep := func(key string, raw ir.RawValue, entryPtr, label string) {
 		diags = append(diags, preserveKeywordInto(&p, key, raw, pointer, entryPtr, label, srcIndex)...)
@@ -120,6 +193,12 @@ func validationOnlyAt(s *oas3.Schema, pointer string, srcIndex int) (ir.Preserve
 	if ds := s.GetDependentSchemas(); ds != nil && ds.Len() > 0 {
 		keep("openapi:dependentSchemas", nodeToRaw(rawPropertyNode(s, "dependentSchemas")),
 			pointer+ptr("dependentSchemas"), "dependentSchemas")
+	}
+	// dependentRequired is read off the raw node because oas3.Schema has no field
+	// for it at v1.24.0 — the only reason it was silently dropped where its
+	// sibling dependentSchemas was kept.
+	if dr := nodeToRaw(rawPropertyNode(s, "dependentRequired")); dr != nil {
+		keep("openapi:dependentRequired", dr, pointer+ptr("dependentRequired"), "dependentRequired")
 	}
 	if s.GetPropertyNames() != nil {
 		keep("openapi:propertyNames", nodeToRaw(rawPropertyNode(s, "propertyNames")),
@@ -141,16 +220,16 @@ func validationOnlyAt(s *oas3.Schema, pointer string, srcIndex int) (ir.Preserve
 // states, and an empty payload is the worse of the two. It preserves no
 // construct, and json.Marshal rejects it for the whole document while naming
 // json.RawMessage rather than the entry that carried it.
-func preserveInto(p *ir.Preserved, key string, raw ir.RawValue,
-	reason ir.PreserveReason, pointer string, srcIndex int,
+func preserveInto(p *ir.Unmodeled, key string, raw ir.RawValue,
+	reason ir.UnmodeledReason, pointer string, srcIndex int,
 ) {
 	if len(raw) == 0 {
 		return
 	}
 	if *p == nil {
-		*p = ir.Preserved{}
+		*p = ir.Unmodeled{}
 	}
-	(*p)[key] = ir.PreservedEntry{
+	(*p)[key] = ir.UnmodeledEntry{
 		Reason:     reason,
 		Value:      raw,
 		Provenance: ir.Provenance{Source: srcIndex, Pointer: pointer},
@@ -160,7 +239,7 @@ func preserveInto(p *ir.Preserved, key string, raw ir.RawValue,
 // preserveKeywordInto records a validation-only keyword and returns the one
 // diagnostic announcing it. An absent or unconvertible payload records nothing
 // and announces nothing.
-func preserveKeywordInto(p *ir.Preserved, key string, raw ir.RawValue,
+func preserveKeywordInto(p *ir.Unmodeled, key string, raw ir.RawValue,
 	declPtr, entryPtr, label string, srcIndex int,
 ) []ir.Diagnostic {
 	if len(raw) == 0 {
@@ -169,5 +248,5 @@ func preserveKeywordInto(p *ir.Preserved, key string, raw ir.RawValue,
 	preserveInto(p, key, raw, ir.ReasonValidationOnly, entryPtr, srcIndex)
 	return []ir.Diagnostic{diagf(ir.SeverityInfo, codeValidationOnlyKeyword,
 		ir.Provenance{Source: srcIndex, Pointer: declPtr},
-		"validation-only keyword %q kept verbatim under Preserved", label)}
+		"validation-only keyword %q kept verbatim under Unmodeled", label)}
 }

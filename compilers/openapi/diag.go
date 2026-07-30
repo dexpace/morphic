@@ -28,7 +28,7 @@ const (
 	// still proceeds, and every cycle the scan did classify is still caught.
 	codeCycleScanFailed = "openapi/cycle-scan-failed"
 	// codeValidationOnlyKeyword reports a validation-only JSON Schema keyword
-	// kept verbatim under Preserved (ir-design §4.7).
+	// kept verbatim under Unmodeled (ir-design §4.7).
 	codeValidationOnlyKeyword = "openapi/validation-only-keyword"
 	// codeFalseSchema reports a boolean `false` schema (matches nothing).
 	codeFalseSchema = "openapi/false-schema"
@@ -53,6 +53,13 @@ const (
 	// decision rather than a degradation: the IR's shape no longer mirrors the
 	// source's, which is what a reader comparing the two needs told.
 	codeCompositionLowering = "openapi/composition-lowering"
+	// codeDynamicRefExpanded reports that a $dynamicRef was resolved to the one
+	// $dynamicAnchor matching it in this document (ir-design §4.7). Like
+	// codeCompositionLowering this records a decision rather than a loss: the
+	// reference resolved, but what the source wrote as dynamic is now a fixed
+	// target, so a reader comparing IR to source needs telling that the
+	// indirection was collapsed at compile time rather than left to evaluation.
+	codeDynamicRefExpanded = "openapi/dynamic-ref-expanded"
 	// codeConflictingRedecl reports that inline allOf branches redeclare one
 	// field with values that disagree: an incompatible target type (string vs.
 	// integer) is unsatisfiable outright, while a conflicting constraint

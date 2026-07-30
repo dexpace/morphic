@@ -1,5 +1,5 @@
 {
-  "irVersion": "0.2.0",
+  "irVersion": "0.3.0",
   "name": "Deprecation",
   "version": "1.0.0",
   "docs": {},
@@ -26,6 +26,21 @@
               },
               "docs": {},
               "deprecation": {},
+              "params": [
+                {
+                  "name": {
+                    "source": "legacy",
+                    "canonical": "legacy"
+                  },
+                  "type": {
+                    "target": "t/prim/string",
+                    "nullable": false
+                  },
+                  "required": false,
+                  "docs": {},
+                  "deprecation": {}
+                }
+              ],
               "responses": [
                 {
                   "name": {},
@@ -51,6 +66,16 @@
                     "method": "GET",
                     "uriTemplate": "/old",
                     "sharedRoute": false,
+                    "paramBindings": [
+                      {
+                        "param": "legacy",
+                        "location": "query",
+                        "wireName": "legacy",
+                        "style": "form",
+                        "explode": true,
+                        "allowReserved": false
+                      }
+                    ],
                     "checksumRequired": false,
                     "isWebhook": false
                   }
@@ -145,7 +170,7 @@
     {
       "format": "openapi@3.1",
       "path": "deprecation.yaml",
-      "hash": "d49a7c4feae86b417ae352791aa78e03957409ca8d5b3a0f94fd5695311c12d5"
+      "hash": "9d8bfa71e7bb6b2f5d3a13a69e70b9f48ef73e4411de2571f757ac8b8e929556"
     }
   ]
 }

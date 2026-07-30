@@ -12,21 +12,21 @@ import (
 	"github.com/dexpace/morphic/ir/irverify"
 )
 
-// allReasons is the closed reason set from ir/preserved.go, listed by name so
+// allReasons is the closed reason set from ir/unmodeled.go, listed by name so
 // deleting or renaming a constant breaks the build here. ReasonOutOfScope is
-// included even though no compiler writes it yet: it is declared, so the
-// verifier must accept it — an unwritten reason is a gap in the compilers, not
-// in the enum.
-var allReasons = []ir.PreserveReason{
+// reached like the rest: the OpenAPI compiler's dialect walk writes it for the
+// `$id`, `$schema` and `$vocabulary` keywords it keeps but the IR excludes on
+// purpose (compilers/openapi/facets.go, dialectAt).
+var allReasons = []ir.UnmodeledReason{
 	ir.ReasonVendorExtension, ir.ReasonValidationOnly, ir.ReasonDegradedLowering,
 	ir.ReasonNoIRHome, ir.ReasonOutOfScope,
 }
 
-// docPreserving hangs p off validDoc's model, a Preserved site the walk reaches
-// through the Types registry.
-func docPreserving(p ir.Preserved) *ir.Document {
+// docWithUnmodeled hangs p off validDoc's model, an Unmodeled site the walk
+// reaches through the Types registry.
+func docWithUnmodeled(p ir.Unmodeled) *ir.Document {
 	doc := validDoc()
-	doc.Types["t/x/Model"].Common().Preserved = p
+	doc.Types["t/x/Model"].Common().Unmodeled = p
 	return doc
 }
 
@@ -34,76 +34,76 @@ func docPreserving(p ir.Preserved) *ir.Document {
 // check: none of the declared values may be reported, or the check would fail
 // documents it exists to pass.
 func TestVerify_EveryDeclaredReasonIsClean(t *testing.T) {
-	p := ir.Preserved{}
+	p := ir.Unmodeled{}
 	for _, r := range allReasons {
-		p["openapi:"+string(r)] = ir.PreservedEntry{Reason: r, Value: ir.RawValue(`1`)}
+		p["openapi:"+string(r)] = ir.UnmodeledEntry{Reason: r, Value: ir.RawValue(`1`)}
 	}
-	assert.Empty(t, irverify.Verify(docPreserving(p)))
+	assert.Empty(t, irverify.Verify(docWithUnmodeled(p)))
 }
 
-// TestVerify_EmptyPreserveReasonIsAViolation is the mutation the audit found
-// the verifier blind to: an entry that round-trips clean and passes
-// pass.Validate while carrying a reason no consumer's switch can route.
-func TestVerify_EmptyPreserveReasonIsAViolation(t *testing.T) {
-	doc := docPreserving(ir.Preserved{
+// TestVerify_EmptyUnmodeledReasonIsAViolation pins the defect every other check
+// let through: an entry that round-trips clean and passes pass.Validate while
+// carrying a reason no consumer's switch can route.
+func TestVerify_EmptyUnmodeledReasonIsAViolation(t *testing.T) {
+	doc := docWithUnmodeled(ir.Unmodeled{
 		"openapi:x-rate-limit": {Value: ir.RawValue(`100`)},
 	})
 	got := irverify.Verify(doc)
 	require.NotEmpty(t, got)
-	assert.Equal(t, "ir/empty-preserve-reason", got[0].Code)
-	assert.Equal(t, "doc.Types[t/x/Model].Preserved[openapi:x-rate-limit]", got[0].Path)
+	assert.Equal(t, "ir/empty-unmodeled-reason", got[0].Code)
+	assert.Equal(t, "doc.Types[t/x/Model].Unmodeled[openapi:x-rate-limit]", got[0].Path)
 }
 
-// TestVerify_UnknownPreserveReasonIsAViolation covers the other way a bare
+// TestVerify_UnknownUnmodeledReasonIsAViolation covers the other way a bare
 // string enum goes wrong: a value that deserializes happily but names no
 // declared reason.
-func TestVerify_UnknownPreserveReasonIsAViolation(t *testing.T) {
-	doc := docPreserving(ir.Preserved{
+func TestVerify_UnknownUnmodeledReasonIsAViolation(t *testing.T) {
+	doc := docWithUnmodeled(ir.Unmodeled{
 		"openapi:x-rate-limit": {Reason: "totally_invented", Value: ir.RawValue(`100`)},
 	})
 	got := irverify.Verify(doc)
 	require.NotEmpty(t, got)
-	assert.Equal(t, "ir/unknown-preserve-reason", got[0].Code)
+	assert.Equal(t, "ir/unknown-unmodeled-reason", got[0].Code)
 	assert.Contains(t, got[0].Message, "totally_invented")
 }
 
-// TestVerify_EmptyPreservedKeyIsAViolation checks the key half alone: a valid
+// TestVerify_EmptyUnmodeledKeyIsAViolation checks the key half alone: a valid
 // reason must not mask an unlookupable key.
-func TestVerify_EmptyPreservedKeyIsAViolation(t *testing.T) {
-	doc := docPreserving(ir.Preserved{
+func TestVerify_EmptyUnmodeledKeyIsAViolation(t *testing.T) {
+	doc := docWithUnmodeled(ir.Unmodeled{
 		"": {Reason: ir.ReasonVendorExtension, Value: ir.RawValue(`1`)},
 	})
 	got := irverify.Verify(doc)
 	require.Len(t, got, 1)
-	assert.Equal(t, "ir/empty-preserved-key", got[0].Code)
-	assert.Equal(t, `doc.Types[t/x/Model].Preserved[""]`, got[0].Path)
+	assert.Equal(t, "ir/empty-unmodeled-key", got[0].Code)
+	assert.Equal(t, `doc.Types[t/x/Model].Unmodeled[""]`, got[0].Path)
 }
 
 // TestVerify_EmptyKeyAndReasonReportBoth pins that the two defects are checked
 // independently, so a doubly-broken entry names both rather than stopping at
 // the first.
 func TestVerify_EmptyKeyAndReasonReportBoth(t *testing.T) {
-	doc := docPreserving(ir.Preserved{"": {Value: ir.RawValue(`1`)}})
+	doc := docWithUnmodeled(ir.Unmodeled{"": {Value: ir.RawValue(`1`)}})
 	codes := codesOf(irverify.Verify(doc))
-	assert.Contains(t, codes, "ir/empty-preserved-key")
-	assert.Contains(t, codes, "ir/empty-preserve-reason")
+	assert.Contains(t, codes, "ir/empty-unmodeled-key")
+	assert.Contains(t, codes, "ir/empty-unmodeled-reason")
 }
 
-// TestVerify_PreservedIsCheckedBelowTheTopLevel confirms the check rides the
+// TestVerify_UnmodeledIsCheckedBelowTheTopLevel confirms the check rides the
 // generic walk rather than a hand-listed set of carriers: the same defect must
-// be found on a nested Preserved map no registry walk would reach.
-func TestVerify_PreservedIsCheckedBelowTheTopLevel(t *testing.T) {
+// be found on a nested Unmodeled map no registry walk would reach.
+func TestVerify_UnmodeledIsCheckedBelowTheTopLevel(t *testing.T) {
 	doc := validDoc()
 	doc.Services = []ir.Service{{
 		ID: "s/x/S",
 		Groups: []ir.OperationGroup{{
 			Operations: []ir.Operation{{
 				ID:        "o/x/S/op",
-				Preserved: ir.Preserved{"openapi:x-internal": {Value: ir.RawValue(`true`)}},
+				Unmodeled: ir.Unmodeled{"openapi:x-internal": {Value: ir.RawValue(`true`)}},
 			}},
 		}},
 	}}
-	assert.Contains(t, codesOf(irverify.Verify(doc)), "ir/empty-preserve-reason")
+	assert.Contains(t, codesOf(irverify.Verify(doc)), "ir/empty-unmodeled-reason")
 }
 
 // badPayloads is every shape of ir.RawValue that is not a JSON value. Empty is
@@ -115,36 +115,36 @@ var badPayloads = map[string]ir.RawValue{
 	"nil":       nil,
 }
 
-// TestVerify_InvalidPreservedValueIsAViolation covers the field the preserved
+// TestVerify_InvalidUnmodeledValueIsAViolation covers the field the unmodeled
 // check used to skip: an entry whose key and reason are both fine, carrying
 // bytes the document cannot be marshaled with.
-func TestVerify_InvalidPreservedValueIsAViolation(t *testing.T) {
+func TestVerify_InvalidUnmodeledValueIsAViolation(t *testing.T) {
 	for name, payload := range badPayloads {
 		t.Run(name, func(t *testing.T) {
-			doc := docPreserving(ir.Preserved{
+			doc := docWithUnmodeled(ir.Unmodeled{
 				"openapi:x-rate-limit": {Reason: ir.ReasonVendorExtension, Value: payload},
 			})
 			got := irverify.Verify(doc)
 			require.Len(t, got, 1)
 			assert.Equal(t, "ir/invalid-raw-value", got[0].Code)
-			assert.Equal(t, "doc.Types[t/x/Model].Preserved[openapi:x-rate-limit]", got[0].Path)
-			assert.Contains(t, got[0].Message, "preserved entry")
+			assert.Equal(t, "doc.Types[t/x/Model].Unmodeled[openapi:x-rate-limit]", got[0].Path)
+			assert.Contains(t, got[0].Message, "unmodeled entry")
 		})
 	}
 }
 
-// TestVerify_ValidPreservedValuesAreClean pins the negative half across the JSON
+// TestVerify_ValidUnmodeledValuesAreClean pins the negative half across the JSON
 // value kinds a preserved construct can be, so the check cannot pass by
 // rejecting everything.
-func TestVerify_ValidPreservedValuesAreClean(t *testing.T) {
-	p := ir.Preserved{}
+func TestVerify_ValidUnmodeledValuesAreClean(t *testing.T) {
+	p := ir.Unmodeled{}
 	for i, raw := range []string{`null`, `true`, `12.5`, `"s"`, `[1,2]`, `{"a":{"b":[]}}`, ` 1 `} {
-		p["openapi:x-"+string(rune('a'+i))] = ir.PreservedEntry{
+		p["openapi:x-"+string(rune('a'+i))] = ir.UnmodeledEntry{
 			Reason: ir.ReasonVendorExtension,
 			Value:  ir.RawValue(raw),
 		}
 	}
-	assert.Empty(t, irverify.Verify(docPreserving(p)))
+	assert.Empty(t, irverify.Verify(docWithUnmodeled(p)))
 }
 
 // rawConfigCarriers builds one document per field that carries an ir.RawConfig,
@@ -222,7 +222,7 @@ func TestVerify_ValidRawConfigIsClean(t *testing.T) {
 func TestVerify_InvalidRawValueIsWhatBreaksTheDocument(t *testing.T) {
 	for name, payload := range badPayloads {
 		t.Run(name, func(t *testing.T) {
-			doc := docPreserving(ir.Preserved{
+			doc := docWithUnmodeled(ir.Unmodeled{
 				"openapi:x": {Reason: ir.ReasonVendorExtension, Value: payload},
 			})
 			require.Equal(t, []string{"ir/invalid-raw-value"}, codesOf(irverify.Verify(doc)))
@@ -233,7 +233,7 @@ func TestVerify_InvalidRawValueIsWhatBreaksTheDocument(t *testing.T) {
 				var back ir.Document
 				require.NoError(t, json.Unmarshal(encoded, &back))
 				assert.Equal(t, ir.RawValue("null"),
-					back.Types["t/x/Model"].Common().Preserved["openapi:x"].Value,
+					back.Types["t/x/Model"].Common().Unmodeled["openapi:x"].Value,
 					"a nil payload does not come back as one")
 				return
 			}
@@ -242,25 +242,25 @@ func TestVerify_InvalidRawValueIsWhatBreaksTheDocument(t *testing.T) {
 	}
 }
 
-// TestPreservedEntryFields_MatchTheIRShape guards the two fields
+// TestUnmodeledEntryFields_MatchTheIRShape guards the fields
 // checkRawPayloads reads by name, the coupling the Go compiler cannot check.
 // Reason is read as a string and Value as a byte slice, and Bytes() panics on
 // the zero reflect.Value a rename would leave behind — so a rename in ir must
-// fail here rather than inside Verify on the first document that carries a
-// preserved entry.
-func TestPreservedEntryFields_MatchTheIRShape(t *testing.T) {
+// fail here rather than inside Verify on the first document that carries an
+// unmodeled entry.
+func TestUnmodeledEntryFields_MatchTheIRShape(t *testing.T) {
 	t.Parallel()
-	entry := reflect.TypeOf(ir.PreservedEntry{})
+	entry := reflect.TypeFor[ir.UnmodeledEntry]()
 	for field, kind := range map[string]reflect.Kind{
 		"Reason": reflect.String,
 		"Value":  reflect.Slice,
 	} {
 		f, ok := entry.FieldByName(field)
-		require.True(t, ok, "PreservedEntry has no field %s, which checkRawPayloads reads by name", field)
-		assert.Equal(t, kind, f.Type.Kind(), "PreservedEntry.%s", field)
+		require.True(t, ok, "UnmodeledEntry has no field %s, which checkRawPayloads reads by name", field)
+		assert.Equal(t, kind, f.Type.Kind(), "UnmodeledEntry.%s", field)
 	}
 	value, _ := entry.FieldByName("Value")
-	assert.Equal(t, reflect.Uint8, value.Type.Elem().Kind(), "PreservedEntry.Value must stay a byte slice")
-	assert.Equal(t, reflect.Uint8, reflect.TypeOf(ir.RawConfig(nil)).Elem().Elem().Kind(),
+	assert.Equal(t, reflect.Uint8, value.Type.Elem().Kind(), "UnmodeledEntry.Value must stay a byte slice")
+	assert.Equal(t, reflect.Uint8, reflect.TypeFor[ir.RawConfig]().Elem().Elem().Kind(),
 		"RawConfig must stay a map of byte slices")
 }

@@ -97,8 +97,8 @@ type TypeCommon struct {
 	// Instantiation records provenance for monomorphized generics (TypeSpec
 	// templates).
 	Instantiation *TemplateInstantiation `json:"instantiation,omitempty"`
-	// Preserved holds source constructs the IR does not model, kept verbatim.
-	Preserved Preserved `json:"preserved,omitempty"`
+	// Unmodeled holds source constructs the IR does not model, kept verbatim.
+	Unmodeled Unmodeled `json:"unmodeled,omitempty"`
 	// Provenance records where the type came from.
 	Provenance Provenance `json:"provenance"`
 }

@@ -1,0 +1,33 @@
+openapi: 3.1.0
+info: {title: DiscriminatorInheritance, version: "1.0.0"}
+paths: {}
+components:
+  schemas:
+    # The base declares the tag property itself, so the discriminator binds a
+    # PropID rather than a bare wire name.
+    Pet:
+      type: object
+      required: [petType]
+      properties:
+        petType: {type: string}
+      # No defaultMapping here, and not by choice: speakeasy/openapi v1.24.0
+      # validates every schema against the 3.1 meta-schema regardless of the
+      # document version (JSONSchema[T].Validate drops its options), so the 3.2
+      # keyword is reported as an invalid schema. Discriminator.Default therefore
+      # has no error-free witness until that is fixed upstream (GitHub #146).
+      discriminator:
+        propertyName: petType
+        mapping:
+          cat: '#/components/schemas/Cat'
+    # Named by the mapping: its tag value is the mapping key.
+    Cat:
+      allOf:
+        - {$ref: '#/components/schemas/Pet'}
+      properties:
+        meow: {type: boolean}
+    # Absent from the mapping: its tag value is OpenAPI's implicit schema name.
+    Dog:
+      allOf:
+        - {$ref: '#/components/schemas/Pet'}
+      properties:
+        bark: {type: boolean}

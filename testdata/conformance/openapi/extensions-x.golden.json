@@ -1,5 +1,5 @@
 {
-  "irVersion": "0.2.0",
+  "irVersion": "0.3.0",
   "name": "ExtensionsX",
   "version": "1.0.0",
   "docs": {},
@@ -11,6 +11,68 @@
         "canonical": "extensions_x"
       },
       "docs": {},
+      "groups": [
+        {
+          "name": {
+            "hint": "default"
+          },
+          "docs": {},
+          "operations": [
+            {
+              "id": "op/openapi/paths/~1widgets/get",
+              "name": {
+                "source": "listWidgets",
+                "canonical": "list_widgets"
+              },
+              "docs": {},
+              "responses": [
+                {
+                  "name": {},
+                  "conditions": {
+                    "statusCodes": [
+                      {
+                        "from": 200,
+                        "to": 200
+                      }
+                    ]
+                  },
+                  "docs": {
+                    "description": "ok"
+                  }
+                }
+              ],
+              "oneWay": false,
+              "idempotency": {},
+              "auth": null,
+              "bindings": {
+                "http": [
+                  {
+                    "method": "GET",
+                    "uriTemplate": "/widgets",
+                    "sharedRoute": false,
+                    "checksumRequired": false,
+                    "isWebhook": false
+                  }
+                ]
+              },
+              "unmodeled": {
+                "openapi:x-internal": {
+                  "reason": "vendor_extension",
+                  "value": true,
+                  "provenance": {
+                    "source": 0,
+                    "pointer": "/paths/~1widgets/get/x-internal"
+                  }
+                }
+              },
+              "provenance": {
+                "source": 0,
+                "pointer": "/paths/~1widgets/get"
+              }
+            }
+          ]
+        }
+      ],
       "auth": null,
       "provenance": {
         "source": 0
@@ -28,7 +90,7 @@
       "anonymous": false,
       "docs": {},
       "sensitive": false,
-      "preserved": {
+      "unmodeled": {
         "openapi:x-rate-limit": {
           "reason": "vendor_extension",
           "value": 100,
@@ -96,11 +158,21 @@
       "auth": null
     }
   ],
+  "unmodeled": {
+    "openapi:x-audience": {
+      "reason": "vendor_extension",
+      "value": "public",
+      "provenance": {
+        "source": 0,
+        "pointer": "/x-audience"
+      }
+    }
+  },
   "sources": [
     {
       "format": "openapi@3.1",
       "path": "extensions-x.yaml",
-      "hash": "6778d8fc9bddafa4ea2050fe8f44f7eaa24290a68a80c9a335158087f472003b"
+      "hash": "3ee41a0e3e10e8b30944e1582b149ac0ab178a4c9dcf78cacc911f48d43d886f"
     }
   ]
 }

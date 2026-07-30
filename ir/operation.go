@@ -59,8 +59,8 @@ type Operation struct {
 	Bindings OpBindings `json:"bindings"`
 	// Examples are operation-scenario examples.
 	Examples []Example `json:"examples,omitempty"`
-	// Preserved holds source constructs the IR does not model, kept verbatim.
-	Preserved Preserved `json:"preserved,omitempty"`
+	// Unmodeled holds source constructs the IR does not model, kept verbatim.
+	Unmodeled Unmodeled `json:"unmodeled,omitempty"`
 	// Provenance records where the operation came from.
 	Provenance Provenance `json:"provenance"`
 }
@@ -91,8 +91,8 @@ type Parameter struct {
 	Availability *Availability `json:"availability,omitempty"`
 	// Examples are parameter-level example values.
 	Examples []Example `json:"examples,omitempty"`
-	// Preserved holds source constructs the IR does not model, kept verbatim.
-	Preserved Preserved `json:"preserved,omitempty"`
+	// Unmodeled holds source constructs the IR does not model, kept verbatim.
+	Unmodeled Unmodeled `json:"unmodeled,omitempty"`
 }
 
 // Payload is the body/message content of a request, response, or message
@@ -100,8 +100,8 @@ type Parameter struct {
 type Payload struct {
 	// Contents holds one entry per media type / message schema — all kept.
 	Contents []Content `json:"contents,omitempty"`
-	// Preserved holds source constructs the IR does not model, kept verbatim.
-	Preserved Preserved `json:"preserved,omitempty"`
+	// Unmodeled holds source constructs the IR does not model, kept verbatim.
+	Unmodeled Unmodeled `json:"unmodeled,omitempty"`
 }
 
 // Content is one media-type view of a Payload (ir-design §7.2).
@@ -110,7 +110,7 @@ type Content struct {
 	MediaType string `json:"mediaType,omitempty"`
 	// SchemaFormat is the schema language the type graph was lowered from, in
 	// media-type form (AsyncAPI multiFormatSchema: Avro/Protobuf/RAML/…);
-	// "" = source-native. The verbatim source schema is kept in Preserved.
+	// "" = source-native. The verbatim source schema is kept in Unmodeled.
 	SchemaFormat string `json:"schemaFormat,omitempty"`
 	// Type is the content's type.
 	Type TypeRef `json:"type"`
@@ -120,18 +120,18 @@ type Content struct {
 	// ItemEncoding is the wire encoding of a sequential stream's item
 	// (3.2 itemEncoding); nil = none declared. It is singular like Item because
 	// it governs every item alike; positional per-item encoding has no form here
-	// and stays in Preserved.
+	// and stays in Unmodeled.
 	ItemEncoding *PartEncoding `json:"itemEncoding,omitempty"`
-	// Encoding holds multipart/form per-property (part) wire config, keyed by
-	// PropID.
-	Encoding map[string]PartEncoding `json:"encoding,omitempty"`
+	// Encoding holds multipart/form per-property (part) wire config, keyed by the
+	// part property's PropID.
+	Encoding map[PropID]PartEncoding `json:"encoding,omitempty"`
 	// File marks the body as a file upload/download (TypeSpec file bodies, binary
 	// payloads).
 	File *FileInfo `json:"file,omitempty"`
 	// Examples are content-level example values.
 	Examples []Example `json:"examples,omitempty"`
-	// Preserved holds source constructs the IR does not model, kept verbatim.
-	Preserved Preserved `json:"preserved,omitempty"`
+	// Unmodeled holds source constructs the IR does not model, kept verbatim.
+	Unmodeled Unmodeled `json:"unmodeled,omitempty"`
 }
 
 // PartEncoding is the wire configuration of one multipart part or sequential
@@ -188,8 +188,8 @@ type Response struct {
 	StatusCodeProp *PropPath `json:"statusCodeProp,omitempty"`
 	// Docs is the response's documentation.
 	Docs Docs `json:"docs"`
-	// Preserved holds source constructs the IR does not model, kept verbatim.
-	Preserved Preserved `json:"preserved,omitempty"`
+	// Unmodeled holds source constructs the IR does not model, kept verbatim.
+	Unmodeled Unmodeled `json:"unmodeled,omitempty"`
 }
 
 // ResponseConditions selects the status codes a Response or ErrorCase applies to
@@ -227,8 +227,8 @@ type ErrorCase struct {
 	Throttling *bool `json:"throttling,omitempty"`
 	// Docs is the error case's documentation.
 	Docs Docs `json:"docs"`
-	// Preserved holds source constructs the IR does not model, kept verbatim.
-	Preserved Preserved `json:"preserved,omitempty"`
+	// Unmodeled holds source constructs the IR does not model, kept verbatim.
+	Unmodeled Unmodeled `json:"unmodeled,omitempty"`
 }
 
 // StreamingMode is the protocol-independent streaming direction of an Operation

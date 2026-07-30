@@ -7,6 +7,7 @@ import (
 
 	oas3 "github.com/speakeasy-api/openapi/jsonschema/oas3"
 	"github.com/speakeasy-api/openapi/values"
+	yaml "gopkg.in/yaml.v3"
 
 	"github.com/dexpace/morphic/ir"
 )
@@ -100,19 +101,16 @@ func (l *lowerer) diagUnattachableRequired(m *ir.Model, e requiredEntry) {
 // fillAllOf classifies and lowers the allOf branches into m.
 //
 // An inline branch is merged in place rather than lowered through schemaRef, so
-// all it contributes is its properties — plus its required list, which
-// applyCompositionRequired collects separately. Its own docs, deprecation,
-// extensions, xml, examples, constraints, validation-only keywords and openness
-// are dropped, and a branch declaring no properties at all (`allOf: [{type:
-// string, maxLength: 3}]`) contributes nothing whatever. Nothing diagnoses any
-// of it.
+// it has no node of its own and the merge reads only its `properties` — plus its
+// `required` list, which applyCompositionRequired collects separately. Whatever
+// else the branch declares is kept verbatim beside the composed model instead of
+// being dropped (preserveUnmergedBranch, GitHub #123).
 //
-// That is deliberately left alone here (GitHub #123). A merged branch has no
-// node of its own to carry annotations, so keeping them means either adding one
-// — changing the composition shape — or merging them upward and inventing a
-// precedence for branches that disagree; and a scalar branch constrains the
-// composed value, which ir.Model has no Constraints field to hold. Both are IR
-// questions, not lowering ones.
+// The merge itself is left as it is: merging a branch's own docs, constraints or
+// openness upward onto m would need a precedence rule for branches that disagree,
+// and some of it has no home to merge into at all — Model.Constraints bounds the
+// property set's cardinality, so a scalar branch's maxLength cannot go there.
+// Verbatim beside the model needs neither, and keeps the branch recoverable.
 func (l *lowerer) fillAllOf(m *ir.Model, s *oas3.Schema, pointer string) {
 	branches := s.GetAllOf()
 	baseIdx := l.selectAllOfBase(branches)
@@ -120,6 +118,7 @@ func (l *lowerer) fillAllOf(m *ir.Model, s *oas3.Schema, pointer string) {
 		bptr := pointer + ptr("allOf", strconv.Itoa(i))
 		if !isRefBranch(b) {
 			l.fillModelProperties(m, b.GetSchema(), bptr)
+			l.preserveUnmergedBranch(m, b.GetSchema(), i, bptr)
 			continue
 		}
 		id, ok := l.resolveSchemaRef(b, b.GetRef().String())
@@ -135,6 +134,145 @@ func (l *lowerer) fillAllOf(m *ir.Model, s *oas3.Schema, pointer string) {
 			m.Mixins = append(m.Mixins, ref)
 		}
 	}
+}
+
+// preserveUnmergedBranch keeps an inline allOf branch verbatim beside the
+// composed model when the branch declares more than the merge consumes, under
+// ReasonDegradedLowering and located at the branch itself (ir-design §4.8).
+// branchIdx keys the entry, so sibling branches never overwrite one another.
+//
+// Two shapes are deliberately not covered. A boolean branch (`allOf: [false]`,
+// which matches nothing) has no keywords for a residue to be derived from, so it
+// still merges to nothing silently; giving it a lowering is a question about the
+// composed node's shape, not about which of a branch's keywords survive. And a
+// $ref branch is not an inline branch at all, so its `$ref`-adjacent siblings
+// (`allOf: [{$ref: X, description: d}]`) are still dropped: fillAllOf reads only
+// the ref off it, and giving it a node of its own would move what Base/Mixins
+// point at (GitHub #143).
+func (l *lowerer) preserveUnmergedBranch(m *ir.Model, bs *oas3.Schema, branchIdx int, bptr string) {
+	if bs == nil {
+		return // boolean branch; see above
+	}
+	residue := unmergedBranchKeys(bs)
+	if len(residue) == 0 {
+		return
+	}
+	l.preserve(&m.Unmodeled, "openapi:allOf/"+strconv.Itoa(branchIdx),
+		nodeToRaw(bs.GetRootNode()), ir.ReasonDegradedLowering, bptr)
+	l.diagUnmergedBranch(bs, residue, bptr)
+}
+
+// diagUnmergedBranch announces one merged branch's residue, naming the keywords
+// so two branches of the same schema are told apart.
+//
+// A branch declaring a type that cannot be an object is a warning rather than
+// info: the composed node is an ir.Model, which asserts the value *is* an object,
+// so the IR states something the branch contradicts — `allOf: [{type: string,
+// maxLength: 3}]` lowers to an empty model. Any other residue leaves a model the
+// IR describes correctly and only narrows it further, which is §4.8's
+// under-constrained case.
+func (l *lowerer) diagUnmergedBranch(bs *oas3.Schema, residue []string, bptr string) {
+	kept := strings.Join(residue, ", ")
+	if branchExcludesObject(bs) {
+		l.diag(ir.SeverityWarning, codeDegradedConstruct, bptr,
+			"inline allOf branch declares a type that is not an object, which the composed model asserts it is; the branch (%s) is kept verbatim under Unmodeled", kept)
+		return
+	}
+	l.diag(ir.SeverityInfo, codeDegradedConstruct, bptr,
+		"inline allOf branch is merged in place, so only its properties and required list compose; the branch (%s) is kept verbatim under Unmodeled", kept)
+}
+
+// unmergedBranchKeys returns the keywords the branch declares that the merge does
+// not consume, in source order.
+//
+// The keys come off the branch's own raw mapping rather than from a list of
+// keywords worth preserving, which is what keeps this from rotting: a keyword a
+// later dialect adds counts as unconsumed the moment a source writes it, with
+// nobody to remember it here.
+func unmergedBranchKeys(bs *oas3.Schema) []string {
+	declared := rawMappingKeys(bs.GetRootNode())
+	out := make([]string, 0, len(declared))
+	for _, key := range declared {
+		if mergeConsumes(bs, key) {
+			continue
+		}
+		out = append(out, key)
+	}
+	return out
+}
+
+// mergeConsumes reports whether fillAllOf's in-place merge reads branch keyword
+// key. It is the complete statement of what the merge keeps; everything else the
+// branch wrote is residue.
+func mergeConsumes(bs *oas3.Schema, key string) bool {
+	switch key {
+	case "properties":
+		return true // fillModelProperties merges these onto m
+	case "required":
+		return true // applyCompositionRequired ORs these onto m's properties
+	case "type":
+		return declaresObjectOnly(bs) // a bare `object` only restates the composed Model
+	default:
+		return false
+	}
+}
+
+// declaresObjectOnly reports whether the branch's declared type is exactly
+// `object`, which the composed ir.Model already restates so the merge loses
+// nothing by reading it. A set — `[object, "null"]` included — says more than
+// that, and the more is what the merge would drop.
+func declaresObjectOnly(bs *oas3.Schema) bool {
+	types := bs.GetType()
+	return len(types) == 1 && types[0] == oas3.SchemaTypeObject
+}
+
+// branchExcludesObject reports whether the branch declares a type set with no
+// `object` in it. An undeclared type set excludes nothing.
+func branchExcludesObject(bs *oas3.Schema) bool {
+	types := bs.GetType()
+	return len(types) > 0 && !slices.Contains(types, oas3.SchemaTypeObject)
+}
+
+// rawMappingKeys returns the keys a YAML mapping effectively writes, in source
+// order, or nil when the node is no mapping. It is rawChildNode's enumerating
+// counterpart: that answers "what is written at this key", this one "which keys
+// are written".
+//
+// Effective, not literal: a branch spelled `*anchor` writes the anchored
+// mapping's keys and one spelled `<<: *anchor` writes the merged-in keys, so
+// deriving a residue from the literal text would report `<<` — or, for a whole
+// branch replaced by an alias, no keys at all, which reads as "the merge consumed
+// everything" and drops the branch silently. nodeView is the package's statement
+// of how speakeasy reads a mapping, and bounds the expansion (maxMergeDepth).
+func rawMappingKeys(root *yaml.Node) []string {
+	mapping := rawMapping(root)
+	if mapping == nil {
+		return nil
+	}
+	pairs := newNodeView().mappingPairs(mapping)
+	keys := make([]string, 0, len(pairs))
+	for _, p := range pairs {
+		keys = append(keys, p.key)
+	}
+	return keys
+}
+
+// rawMapping returns the mapping node root stands for: a document wrapper is
+// unwrapped and an alias followed to its anchor (bounded by deref). Anything
+// that is not a mapping after that — a scalar, a sequence, nil — yields nil, so
+// a caller needs no kind check of its own.
+func rawMapping(root *yaml.Node) *yaml.Node {
+	if root == nil {
+		return nil
+	}
+	if root.Kind == yaml.DocumentNode && len(root.Content) > 0 {
+		root = root.Content[0]
+	}
+	root = deref(root)
+	if root == nil || root.Kind != yaml.MappingNode {
+		return nil
+	}
+	return root
 }
 
 // selectAllOfBase returns the branch index that becomes Model.Base, or -1 when
@@ -338,28 +476,28 @@ func (l *lowerer) lowerCoDeclaredUnion(s *oas3.Schema, pointer, hint string) ir.
 	case unionDistributed:
 		return l.lowerDistributedUnion(s, pointer, hint)
 	case unionValidationOnly:
-		return l.lowerBesidePreservedUnion(s, pointer, hint, ir.ReasonValidationOnly, "")
+		return l.lowerBesideUnmodeledUnion(s, pointer, hint, ir.ReasonValidationOnly, "")
 	case unionUncomposableBody:
-		return l.lowerBesidePreservedUnion(s, pointer, hint, ir.ReasonDegradedLowering,
+		return l.lowerBesideUnmodeledUnion(s, pointer, hint, ir.ReasonDegradedLowering,
 			"the body is not a model, so it carries no composition to distribute into")
 	case unionBothCombinators:
-		return l.lowerBesidePreservedUnion(s, pointer, hint, ir.ReasonDegradedLowering,
+		return l.lowerBesideUnmodeledUnion(s, pointer, hint, ir.ReasonDegradedLowering,
 			"oneOf and anyOf are both declared, so distributing either would drop the other")
 	case unionInlineBranch:
-		return l.lowerBesidePreservedUnion(s, pointer, hint, ir.ReasonDegradedLowering,
+		return l.lowerBesideUnmodeledUnion(s, pointer, hint, ir.ReasonDegradedLowering,
 			"a branch is written inline, so it names no referent to conjoin the body with")
 	case unionUnresolvedBranch:
 		l.diagUnresolvedBranches(s, pointer)
-		return l.lowerBesidePreservedUnion(s, pointer, hint, ir.ReasonDegradedLowering,
+		return l.lowerBesideUnmodeledUnion(s, pointer, hint, ir.ReasonDegradedLowering,
 			"a branch's $ref names no referent this compilation resolves")
 	default: // unionDiscriminated
-		return l.lowerBesidePreservedUnion(s, pointer, hint, ir.ReasonDegradedLowering,
+		return l.lowerBesideUnmodeledUnion(s, pointer, hint, ir.ReasonDegradedLowering,
 			"a declared discriminator binds the branches by name, which distributing them would break")
 	}
 }
 
 // diagUnresolvedBranches reports each union branch whose $ref names nothing this
-// compilation resolves. The branch text survives verbatim under Preserved, so
+// compilation resolves. The branch text survives verbatim under Unmodeled, so
 // nothing is dropped — but a reference that resolves nowhere is a defect of the
 // document itself, reported at the same severity as everywhere else, and the
 // info diagnostic beside it explains only the lowering.

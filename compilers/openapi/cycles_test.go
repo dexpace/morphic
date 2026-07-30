@@ -716,7 +716,7 @@ func mergeChain(levels int) *yaml.Node {
 	for i := range nodes {
 		nodes[i] = &yaml.Node{Kind: yaml.MappingNode}
 	}
-	for i := 0; i < levels; i++ {
+	for i := range levels {
 		nodes[i].Content = []*yaml.Node{ymerge(), yalias(nodes[i+1])}
 	}
 	nodes[levels].Content = []*yaml.Node{yscalar("leaf"), yscalar("v")}
@@ -1101,7 +1101,7 @@ func TestRefScanCollect_DeepNestingIsNotTruncated(t *testing.T) {
 	t.Parallel()
 	ref := ymap(yscalar("$ref"), yscalar("#/components/schemas/A"))
 	deep := ref
-	for i := 0; i < maxCycleDepth+10; i++ {
+	for range maxCycleDepth + 10 {
 		deep = ymap(yscalar("items"), deep)
 	}
 	root := ymap(yscalar("schemas"), ymap(yscalar("A"), deep))

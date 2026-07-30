@@ -59,14 +59,14 @@ func TestCollectTypeIDs_SharedPointerVisitedOnce(t *testing.T) {
 	assert.Equal(t, 1, n, "the shared pointer's target is collected once")
 }
 
-// TestCollectTypeIDs_PreservedBytesYieldNoReference states the result half: a
+// TestCollectTypeIDs_UnmodeledBytesYieldNoReference states the result half: a
 // preserved JSON blob is opaque data, so bytes that happen to spell a type ID
 // are not a reference. This holds with or without the byte-sequence skip — a
 // uint8 is not a string and could never be collected — which is why the skip
 // itself is driven separately below.
-func TestCollectTypeIDs_PreservedBytesYieldNoReference(t *testing.T) {
+func TestCollectTypeIDs_UnmodeledBytesYieldNoReference(t *testing.T) {
 	t.Parallel()
-	doc := &ir.Document{Preserved: ir.Preserved{"openapi:x-thing": {
+	doc := &ir.Document{Unmodeled: ir.Unmodeled{"openapi:x-thing": {
 		Reason: ir.ReasonVendorExtension,
 		Value:  ir.RawValue(`"t/ghost/in-bytes"`),
 	}}}
@@ -76,7 +76,7 @@ func TestCollectTypeIDs_PreservedBytesYieldNoReference(t *testing.T) {
 }
 
 // TestWalkSequence_ByteSequenceIsNotDescendedInto drives the skip itself, which
-// exists for cost: Preserved and RawConfig payloads are the largest values a
+// exists for cost: Unmodeled and RawConfig payloads are the largest values a
 // document holds, and descending one spends a reflect.Value and a formatted path
 // per byte to collect nothing.
 //
@@ -115,13 +115,13 @@ func TestCheckDanglingRefs_NilTypeDefIsNotFollowed(t *testing.T) {
 func TestRegistries_ResolvesUnknownClassIsReportOnly(t *testing.T) {
 	t.Parallel()
 	regs := documentRegistries(&ir.Document{})
-	site := refSite{idType: reflect.TypeOf(ir.OpID("")), id: "op/x", where: "doc"}
+	site := refSite{idType: reflect.TypeFor[ir.OpID](), id: "op/x", where: "doc"}
 	assert.False(t, regs.resolves(site), "an ID class with no registry resolves to nothing")
 }
 
 // TestDocumentRegistries_DerivedFromDocumentShape pins the derivation rule that
 // replaces a hand-written registry table: every ID-keyed map on Document is a
-// registry, and a map keyed by plain string — Preserved keys on a source
+// registry, and a map keyed by plain string — Unmodeled keys on a source
 // construct's name, not an identity — is not.
 func TestDocumentRegistries_DerivedFromDocumentShape(t *testing.T) {
 	t.Parallel()
@@ -130,6 +130,6 @@ func TestDocumentRegistries_DerivedFromDocumentShape(t *testing.T) {
 	for _, id := range []any{ir.TypeID(""), ir.ChannelID(""), ir.MessageID(""), ir.AuthID("")} {
 		assert.True(t, regs.isRef(reflect.TypeOf(id)), "%T names a Document registry", id)
 	}
-	assert.False(t, regs.isRef(reflect.TypeOf("")), "a plain string key is a name, not an identity")
+	assert.False(t, regs.isRef(reflect.TypeFor[string]()), "a plain string key is a name, not an identity")
 	assert.Len(t, regs, 4, "Document declares exactly the four ID-keyed registries")
 }

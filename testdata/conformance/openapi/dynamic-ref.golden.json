@@ -1,0 +1,212 @@
+{
+  "irVersion": "0.3.0",
+  "name": "DynamicRef",
+  "version": "1.0.0",
+  "docs": {},
+  "services": [
+    {
+      "id": "s/openapi/0",
+      "name": {
+        "source": "DynamicRef",
+        "canonical": "dynamic_ref"
+      },
+      "docs": {},
+      "auth": null,
+      "provenance": {
+        "source": 0
+      }
+    }
+  ],
+  "types": {
+    "t/openapi/components/schemas/Node": {
+      "kind": "model",
+      "id": "t/openapi/components/schemas/Node",
+      "name": {
+        "source": "Node",
+        "canonical": "node"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Node"
+      },
+      "properties": [
+        {
+          "id": "p/openapi/components/schemas/Node/properties/label",
+          "name": {
+            "source": "label",
+            "canonical": "label"
+          },
+          "wireName": "label",
+          "type": {
+            "target": "t/prim/string",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/Node/properties/label"
+          }
+        }
+      ],
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
+    "t/openapi/components/schemas/Tree": {
+      "kind": "model",
+      "id": "t/openapi/components/schemas/Tree",
+      "name": {
+        "source": "Tree",
+        "canonical": "tree"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Tree"
+      },
+      "properties": [
+        {
+          "id": "p/openapi/components/schemas/Tree/properties/child",
+          "name": {
+            "source": "child",
+            "canonical": "child"
+          },
+          "wireName": "child",
+          "type": {
+            "target": "t/openapi/components/schemas/Node",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/Tree/properties/child"
+          }
+        },
+        {
+          "id": "p/openapi/components/schemas/Tree/properties/ghost",
+          "name": {
+            "source": "ghost",
+            "canonical": "ghost"
+          },
+          "wireName": "ghost",
+          "type": {
+            "target": "t/prim/any",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "unmodeled": {
+            "openapi:$dynamicRef": {
+              "reason": "degraded_lowering",
+              "value": "#Missing",
+              "provenance": {
+                "source": 0,
+                "pointer": "/components/schemas/Tree/properties/ghost/$dynamicRef"
+              }
+            }
+          },
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/Tree/properties/ghost"
+          }
+        }
+      ],
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
+    "t/prim/any": {
+      "kind": "primitive",
+      "id": "t/prim/any",
+      "name": {},
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0
+      },
+      "prim": "any"
+    },
+    "t/prim/string": {
+      "kind": "primitive",
+      "id": "t/prim/string",
+      "name": {},
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0
+      },
+      "prim": "string"
+    }
+  },
+  "servers": [
+    {
+      "name": {},
+      "urlTemplate": "/",
+      "description": {},
+      "auth": null
+    }
+  ],
+  "diagnostics": [
+    {
+      "severity": "info",
+      "code": "openapi/dynamic-ref-expanded",
+      "message": "$dynamicRef expanded to \"t/openapi/components/schemas/Node\", the one matching $dynamicAnchor in this document",
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Tree/properties/child/$dynamicRef"
+      }
+    },
+    {
+      "severity": "info",
+      "code": "openapi/degraded-construct",
+      "message": "$dynamicRef was not expanded because no $dynamicAnchor \"Missing\" is declared in this document; it is kept verbatim under Unmodeled",
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Tree/properties/ghost/$dynamicRef"
+      }
+    }
+  ],
+  "sources": [
+    {
+      "format": "openapi@3.1",
+      "path": "dynamic-ref.yaml",
+      "hash": "5232d8fc85addaa79bbe944d295786dbd6f206d0c74bdb02f1b1ee2a4f829baa"
+    }
+  ]
+}

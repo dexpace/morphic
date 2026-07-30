@@ -1,5 +1,5 @@
 {
-  "irVersion": "0.2.0",
+  "irVersion": "0.3.0",
   "name": "ScalarFormat",
   "version": "1.0.0",
   "docs": {},
@@ -80,6 +80,33 @@
             "source": 0,
             "pointer": "/components/schemas/Holder/properties/color"
           }
+        },
+        {
+          "id": "p/openapi/components/schemas/Holder/properties/token",
+          "name": {
+            "source": "token",
+            "canonical": "token"
+          },
+          "wireName": "token",
+          "type": {
+            "target": "t/prim/string",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": true,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/Holder/properties/token"
+          }
         }
       ],
       "abstract": false,
@@ -111,7 +138,7 @@
     {
       "format": "openapi@3.1",
       "path": "scalar-format.yaml",
-      "hash": "91e3ea2c136a93c72d882d3edc72567f2976ea5477e7a1d9a1e8fcc9ae6714b4"
+      "hash": "1e1e0e2c7ffa6615dfbc61b8b7eb595b6a9b72660aff073a8ffffe4ad8990238"
     }
   ]
 }

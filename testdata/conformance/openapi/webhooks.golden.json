@@ -1,5 +1,5 @@
 {
-  "irVersion": "0.2.0",
+  "irVersion": "0.3.0",
   "name": "Webhooks",
   "version": "1.0.0",
   "docs": {},
@@ -35,7 +35,7 @@
                     }
                   }
                 ],
-                "preserved": {
+                "unmodeled": {
                   "openapi:required": {
                     "reason": "no_ir_home",
                     "value": false,
@@ -124,7 +124,7 @@
     {
       "severity": "info",
       "code": "openapi/degraded-construct",
-      "message": "request body is not required; optionality kept under Preserved",
+      "message": "request body is not required; optionality kept under Unmodeled",
       "provenance": {
         "source": 0,
         "pointer": "/webhooks/newPet/post/requestBody"

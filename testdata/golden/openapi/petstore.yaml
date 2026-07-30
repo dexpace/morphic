@@ -3,8 +3,8 @@ info:
   title: Petstore
   version: "1.0.0"
   termsOfService: https://example.com/terms
-  contact: {name: API Team, email: api@example.com}
-  license: {name: MIT}
+  contact: {name: API Team, url: 'https://example.com/support', email: api@example.com}
+  license: {name: MIT, url: 'https://opensource.org/license/mit'}
 servers:
   - url: https://{env}.example.com/v1
     description: Primary server

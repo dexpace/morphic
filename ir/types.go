@@ -236,8 +236,8 @@ type Variant struct {
 	Availability *Availability `json:"availability,omitempty"`
 	// Examples are typed example values for the variant.
 	Examples []Example `json:"examples,omitempty"`
-	// Preserved holds source constructs the IR does not model, kept verbatim.
-	Preserved Preserved `json:"preserved,omitempty"`
+	// Unmodeled holds source constructs the IR does not model, kept verbatim.
+	Unmodeled Unmodeled `json:"unmodeled,omitempty"`
 }
 
 // EventInfo carries per-event metadata when a union is an event stream's event
@@ -284,8 +284,8 @@ type EnumMember struct {
 	Availability *Availability `json:"availability,omitempty"`
 	// Examples are typed example values for the member.
 	Examples []Example `json:"examples,omitempty"`
-	// Preserved holds source constructs the IR does not model, kept verbatim.
-	Preserved Preserved `json:"preserved,omitempty"`
+	// Unmodeled holds source constructs the IR does not model, kept verbatim.
+	Unmodeled Unmodeled `json:"unmodeled,omitempty"`
 }
 
 // List is an ordered collection (ir-design §4.6).
@@ -401,7 +401,7 @@ func (*Any) Kind() TypeKind { return KindAny }
 // Common returns c itself. TypeCommon embeds by value into every concrete
 // TypeDef kind (Primitive, Scalar, Model, Union, Enum, List, MapT, Tuple,
 // Literal, External, Any), so this single pointer method is promoted to each
-// kind's own pointer type and satisfies the TypeDef.Common contract for all
-// eleven of them; only the unexported typeDef() marker stays declared per
-// kind, so embedding TypeCommon elsewhere cannot join the sealed sum.
+// kind's own pointer type and satisfies the TypeDef.Common contract for every
+// one of them; only the unexported typeDef() marker stays declared per kind, so
+// embedding TypeCommon elsewhere cannot join the sealed sum.
 func (c *TypeCommon) Common() *TypeCommon { return c }

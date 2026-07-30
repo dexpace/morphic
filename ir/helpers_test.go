@@ -1,10 +1,16 @@
 // Package ir_test holds the per-source serialization-contract tests for the ir
 // package. Shared fixtures live here so no single test file has to reconstruct
-// a fully populated Docs, Naming, or Provenance from scratch.
+// a fully populated Docs, Naming, or Provenance from scratch, and so do the
+// helpers more than one file needs — two files listing the package's own
+// sources two different ways is how those lists drift apart.
 package ir_test
 
 import (
 	"encoding/json"
+	"os"
+	"path/filepath"
+	"runtime"
+	"strings"
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
@@ -13,6 +19,31 @@ import (
 
 	"github.com/dexpace/morphic/ir"
 )
+
+// irSourceFiles lists the ir package's production Go files, located relative to
+// this file's own path so the result does not depend on the working directory.
+// Every test that reads the package's own source starts here, so a file the
+// listing misses is missed by all of them at once rather than by one.
+func irSourceFiles(t *testing.T) []string {
+	t.Helper()
+	_, thisFile, _, ok := runtime.Caller(0)
+	require.True(t, ok, "runtime.Caller must report this file's path")
+
+	dir := filepath.Dir(thisFile)
+	entries, err := os.ReadDir(dir)
+	require.NoError(t, err)
+
+	out := make([]string, 0, len(entries))
+	for _, e := range entries {
+		name := e.Name()
+		if e.IsDir() || !strings.HasSuffix(name, ".go") || strings.HasSuffix(name, "_test.go") {
+			continue
+		}
+		out = append(out, filepath.Join(dir, name))
+	}
+	require.NotEmpty(t, out, "the ir package must have production sources")
+	return out
+}
 
 // assertRoundTrip marshals want, unmarshals into a fresh T, and asserts the
 // result equals want via cmp.Diff (never reflect.DeepEqual, per CLAUDE.md).
@@ -127,10 +158,10 @@ func populatedProvenance() ir.Provenance {
 	}
 }
 
-// populatedPreserved returns a Preserved map with several entries whose
+// populatedUnmodeled returns an Unmodeled map with several entries whose
 // insertion order differs from sorted order, for Class C determinism checks.
-func populatedPreserved() ir.Preserved {
-	return ir.Preserved{
+func populatedUnmodeled() ir.Unmodeled {
+	return ir.Unmodeled{
 		"openapi:z-ext": {Reason: ir.ReasonVendorExtension, Value: ir.RawValue(`1`), Provenance: populatedProvenance()},
 		"openapi:m-ext": {Reason: ir.ReasonVendorExtension, Value: ir.RawValue(`2`), Provenance: populatedProvenance()},
 		"openapi:a-ext": {Reason: ir.ReasonVendorExtension, Value: ir.RawValue(`3`), Provenance: populatedProvenance()},
@@ -295,7 +326,7 @@ func populatedTypeCommon(id ir.TypeID) ir.TypeCommon {
 			Template: "Page",
 			Args:     []ir.TemplateArg{{Type: &ir.TypeRef{Target: "t/item"}}},
 		},
-		Preserved:  populatedPreserved(),
+		Unmodeled:  populatedUnmodeled(),
 		Provenance: populatedProvenance(),
 	}
 }
@@ -373,7 +404,7 @@ func populatedProperty() ir.Property {
 		Docs:         populatedDocs(),
 		Deprecation:  populatedDeprecation(),
 		Availability: populatedAvailability(),
-		Preserved:    populatedPreserved(),
+		Unmodeled:    populatedUnmodeled(),
 		Provenance:   populatedProvenance(),
 	}
 }

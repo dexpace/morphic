@@ -117,8 +117,8 @@ type Property struct {
 	Deprecation *Deprecation `json:"deprecation,omitempty"`
 	// Availability records the property's versioning timeline.
 	Availability *Availability `json:"availability,omitempty"`
-	// Preserved holds source constructs the IR does not model, kept verbatim.
-	Preserved Preserved `json:"preserved,omitempty"`
+	// Unmodeled holds source constructs the IR does not model, kept verbatim.
+	Unmodeled Unmodeled `json:"unmodeled,omitempty"`
 	// Provenance records where the property came from.
 	Provenance Provenance `json:"provenance"`
 }

@@ -1,5 +1,5 @@
 {
-  "irVersion": "0.2.0",
+  "irVersion": "0.3.0",
   "name": "SequentialMedia",
   "version": "1.0.0",
   "docs": {},
@@ -112,7 +112,7 @@
                           "target": "t/anon/paths/~1parts/get/responses/200/content/multipart~1mixed/itemSchema",
                           "nullable": false
                         },
-                        "preserved": {
+                        "unmodeled": {
                           "openapi:itemEncoding": {
                             "reason": "no_ir_home",
                             "value": {
@@ -302,7 +302,7 @@
     {
       "severity": "info",
       "code": "openapi/degraded-construct",
-      "message": "prefixEncoding is positional and has no per-item IR home; it and any itemEncoding are kept under Preserved",
+      "message": "prefixEncoding is positional and has no per-item IR home; it and any itemEncoding are kept under Unmodeled",
       "provenance": {
         "source": 0,
         "pointer": "/paths/~1parts/get/responses/200/content/multipart~1mixed"

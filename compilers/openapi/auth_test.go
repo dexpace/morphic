@@ -145,10 +145,10 @@ components:
 `
 	doc, _, diags := lowerServiceSpec(t, spec)
 	assert.True(t, hasDiagAt(diags, codeDegradedConstruct, ir.SeverityWarning),
-		"an entirely unserializable extension still warns even though the scheme's own Preserved ends up empty")
+		"an entirely unserializable extension still warns even though the scheme's own Unmodeled ends up empty")
 	scheme, ok := doc.Auth[authIDFor("s")]
 	require.True(t, ok)
-	assert.Empty(t, scheme.Preserved, "the unserializable extension is dropped, not stored")
+	assert.Empty(t, scheme.Unmodeled, "the unserializable extension is dropped, not stored")
 }
 
 const authSpec = `openapi: 3.1.0
@@ -195,7 +195,7 @@ func TestAuth_AllSchemeKinds(t *testing.T) {
 	assert.True(t, hasMTLS)
 
 	oauth := byKind[ir.AuthKindOAuth2]
-	assert.NotEmpty(t, oauth.Preserved, "oauth x-* extension")
+	assert.NotEmpty(t, oauth.Unmodeled, "oauth x-* extension")
 	kinds := indexBy(oauth.Flows, func(f ir.OAuthFlow) string { return f.Kind })
 	assert.Len(t, oauth.Flows, 5)
 	assert.Equal(t, "https://r", kinds["authorization_code"].RefreshURL)

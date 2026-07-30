@@ -7,7 +7,7 @@ import (
 	"github.com/dexpace/morphic/ir"
 )
 
-var namingType = reflect.TypeOf(ir.Naming{})
+var namingType = reflect.TypeFor[ir.Naming]()
 
 // checkNaming asserts no Naming.Canonical carries casing: the IR stores neutral
 // lower_snake words and leaves all casing to emitters (invariant #4). It reuses

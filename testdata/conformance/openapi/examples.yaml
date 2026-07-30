@@ -4,6 +4,12 @@ paths:
   /items:
     get:
       operationId: getItem
+      parameters:
+        - name: q
+          in: query
+          schema: {type: string}
+          examples:
+            one: {value: first}
       responses:
         "200":
           description: ok

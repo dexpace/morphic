@@ -1,5 +1,5 @@
 {
-  "irVersion": "0.2.0",
+  "irVersion": "0.3.0",
   "name": "InlineAnnotations",
   "version": "1.0.0",
   "docs": {},
@@ -45,7 +45,7 @@
                   "docs": {
                     "description": "Filters codes by leading characters."
                   },
-                  "preserved": {
+                  "unmodeled": {
                     "openapi:x-facet": {
                       "reason": "vendor_extension",
                       "value": "prefix",
@@ -110,7 +110,7 @@
                       "docs": {
                         "description": "Opaque cursor for the next page."
                       },
-                      "preserved": {
+                      "unmodeled": {
                         "openapi:x-sensitive": {
                           "reason": "vendor_extension",
                           "value": false,
@@ -211,7 +211,7 @@
         "name": "Code",
         "wrapped": false
       },
-      "preserved": {
+      "unmodeled": {
         "openapi:x-facet": {
           "reason": "vendor_extension",
           "value": "currency",

@@ -1,14 +1,16 @@
 {
-  "irVersion": "0.2.0",
+  "irVersion": "0.3.0",
   "name": "Petstore",
   "version": "1.0.0",
   "docs": {},
   "contact": {
     "name": "API Team",
+    "url": "https://example.com/support",
     "email": "api@example.com"
   },
   "license": {
-    "name": "MIT"
+    "name": "MIT",
+    "url": "https://opensource.org/license/mit"
   },
   "termsOfService": "https://example.com/terms",
   "services": [
@@ -783,7 +785,7 @@
     {
       "format": "openapi@3.1",
       "path": "petstore.yaml",
-      "hash": "ffc27a400be94eb159f931287acea26e4ae7da58e11ef06ef9e02a5476011ae2"
+      "hash": "29a5b9e8f3a94fc031fd87bd456569af0ac75d13e21c8f8eb581cb14628458e0"
     }
   ]
 }

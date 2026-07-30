@@ -770,7 +770,7 @@ func pureRefTargetOf(pairs []yamlPair) (string, bool) {
 // nodes along the path are dereferenced so navigation follows structure.
 func (v *nodeView) resolvePointer(root *yaml.Node, ref string) *yaml.Node {
 	cur := deref(root)
-	for _, raw := range strings.Split(strings.TrimPrefix(ref, "#"), "/") {
+	for raw := range strings.SplitSeq(strings.TrimPrefix(ref, "#"), "/") {
 		if raw == "" {
 			continue
 		}

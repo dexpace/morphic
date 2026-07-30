@@ -1,0 +1,24 @@
+openapi: 3.1.0
+info: {title: AllOfInlineResidue, version: "1.0.0"}
+paths: {}
+components:
+  schemas:
+    Base:
+      type: object
+      properties:
+        id: {type: string}
+    # The inline branch contributes its properties; the cardinality bound it also
+    # declares is not merged, so it survives beside the composed model.
+    Narrowed:
+      allOf:
+        - {$ref: '#/components/schemas/Base'}
+        - type: object
+          properties:
+            name: {type: string}
+          maxProperties: 3
+    # This branch declares a type that cannot be an object, which the composed
+    # model asserts it is — the same residue, reported one severity higher.
+    Contradicted:
+      allOf:
+        - {$ref: '#/components/schemas/Base'}
+        - {type: string, maxLength: 3}

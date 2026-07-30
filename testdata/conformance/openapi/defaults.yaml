@@ -8,6 +8,12 @@ components:
       properties:
         n: {type: integer, default: 9007199254740993}
         viaRef: {$ref: '#/components/schemas/DeclaredDefault'}
+        flag: {type: boolean, default: true}
+        blob: {type: string, default: !!binary "aGk="}
+        list:
+          type: array
+          items: {type: integer}
+          default: [1, 2]
     # A declaration-site default binds a use of the type, so it reaches the
     # referencing property and stays on the declaration only as residue.
     DeclaredDefault: {type: integer, default: 41}

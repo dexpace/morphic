@@ -1,5 +1,5 @@
 {
-  "irVersion": "0.2.0",
+  "irVersion": "0.3.0",
   "name": "ParamStyles",
   "version": "1.0.0",
   "docs": {},
@@ -52,11 +52,23 @@
                 },
                 {
                   "name": {
+                    "source": "path",
+                    "canonical": "path"
+                  },
+                  "type": {
+                    "target": "t/prim/string",
+                    "nullable": false
+                  },
+                  "required": false,
+                  "docs": {}
+                },
+                {
+                  "name": {
                     "source": "payload",
                     "canonical": "payload"
                   },
                   "type": {
-                    "target": "t/anon/paths/~1search/get/parameters/2/content/application~1json/schema",
+                    "target": "t/anon/paths/~1search/get/parameters/3/content/application~1json/schema",
                     "nullable": false
                   },
                   "required": false,
@@ -116,6 +128,14 @@
                         "style": "deepObject",
                         "explode": true,
                         "allowReserved": false
+                      },
+                      {
+                        "param": "path",
+                        "location": "query",
+                        "wireName": "path",
+                        "style": "form",
+                        "explode": true,
+                        "allowReserved": true
                       },
                       {
                         "param": "payload",
@@ -238,9 +258,9 @@
       "positional": false,
       "inputOnly": false
     },
-    "t/anon/paths/~1search/get/parameters/2/content/application~1json/schema": {
+    "t/anon/paths/~1search/get/parameters/3/content/application~1json/schema": {
       "kind": "model",
-      "id": "t/anon/paths/~1search/get/parameters/2/content/application~1json/schema",
+      "id": "t/anon/paths/~1search/get/parameters/3/content/application~1json/schema",
       "name": {
         "hint": "payload"
       },
@@ -249,7 +269,7 @@
       "sensitive": false,
       "provenance": {
         "source": 0,
-        "pointer": "/paths/~1search/get/parameters/2/content/application~1json/schema"
+        "pointer": "/paths/~1search/get/parameters/3/content/application~1json/schema"
       },
       "abstract": false,
       "positional": false,
@@ -327,7 +347,7 @@
     {
       "format": "openapi@3.1",
       "path": "param-styles.yaml",
-      "hash": "e815dd74d4bb367205a941d95f669d03754775a7c32c4bc74632a3fe8ce3e18b"
+      "hash": "e8ff405aa817f069496ca1c8e55355c1caf83bc4014866b4b90f96390a9dc43c"
     }
   ]
 }

@@ -1,0 +1,148 @@
+{
+  "irVersion": "0.3.0",
+  "name": "DependentRequired",
+  "version": "1.0.0",
+  "docs": {},
+  "services": [
+    {
+      "id": "s/openapi/0",
+      "name": {
+        "source": "DependentRequired",
+        "canonical": "dependent_required"
+      },
+      "docs": {},
+      "auth": null,
+      "provenance": {
+        "source": 0
+      }
+    }
+  ],
+  "types": {
+    "t/openapi/components/schemas/Card": {
+      "kind": "model",
+      "id": "t/openapi/components/schemas/Card",
+      "name": {
+        "source": "Card",
+        "canonical": "card"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "unmodeled": {
+        "openapi:dependentRequired": {
+          "reason": "validation_only",
+          "value": {
+            "number": [
+              "cvv"
+            ]
+          },
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/Card/dependentRequired"
+          }
+        }
+      },
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Card"
+      },
+      "properties": [
+        {
+          "id": "p/openapi/components/schemas/Card/properties/number",
+          "name": {
+            "source": "number",
+            "canonical": "number"
+          },
+          "wireName": "number",
+          "type": {
+            "target": "t/prim/string",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/Card/properties/number"
+          }
+        },
+        {
+          "id": "p/openapi/components/schemas/Card/properties/cvv",
+          "name": {
+            "source": "cvv",
+            "canonical": "cvv"
+          },
+          "wireName": "cvv",
+          "type": {
+            "target": "t/prim/string",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/Card/properties/cvv"
+          }
+        }
+      ],
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
+    "t/prim/string": {
+      "kind": "primitive",
+      "id": "t/prim/string",
+      "name": {},
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0
+      },
+      "prim": "string"
+    }
+  },
+  "servers": [
+    {
+      "name": {},
+      "urlTemplate": "/",
+      "description": {},
+      "auth": null
+    }
+  ],
+  "diagnostics": [
+    {
+      "severity": "info",
+      "code": "openapi/validation-only-keyword",
+      "message": "validation-only keyword \"dependentRequired\" kept verbatim under Unmodeled",
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Card"
+      }
+    }
+  ],
+  "sources": [
+    {
+      "format": "openapi@3.1",
+      "path": "dependent-required.yaml",
+      "hash": "674021312966ea617c387f9c72ead21402fd5f282de1e14e83d444e7079b14b9"
+    }
+  ]
+}

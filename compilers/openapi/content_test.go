@@ -60,14 +60,14 @@ func TestContent_MultipartPartEncoding(t *testing.T) {
 	requireNoErrorDiags(t, diags)
 	content := firstOp(t, svc).Request.Contents[0]
 	metaProp := ir.PropID("p/openapi" + ptr("paths", "/upload", "post", "requestBody", "content", "multipart/form-data", "schema", "properties", "meta"))
-	enc, ok := content.Encoding[string(metaProp)]
+	enc, ok := content.Encoding[metaProp]
 	require.True(t, ok, "encoding keyed by the part property's PropID; got keys %v", content.Encoding)
 	assert.Equal(t, []string{"application/json"}, enc.ContentTypes)
 	require.Len(t, enc.Headers, 1)
 	assert.Equal(t, "X-Part", enc.Headers[0].WireName)
 
 	fileProp := ir.PropID("p/openapi" + ptr("paths", "/upload", "post", "requestBody", "content", "multipart/form-data", "schema", "properties", "file"))
-	fileEnc, ok := content.Encoding[string(fileProp)]
+	fileEnc, ok := content.Encoding[fileProp]
 	require.True(t, ok, "binary part gets a synthesized file PartEncoding")
 	assert.True(t, fileEnc.Filename)
 }
@@ -148,15 +148,180 @@ components:
 	content := firstOp(t, svc).Request.Contents[0]
 	require.NotNil(t, content.Encoding, "referenced multipart body keeps per-part encoding")
 
-	metaProp := "p/openapi" + ptr("components", "schemas", "Form", "properties", "meta")
+	metaProp := ir.PropID("p/openapi" + ptr("components", "schemas", "Form", "properties", "meta"))
 	enc, ok := content.Encoding[metaProp]
 	require.True(t, ok, "encoding keyed by the resolved property's PropID; got %v", content.Encoding)
 	assert.Equal(t, []string{"application/json"}, enc.ContentTypes)
 
-	fileProp := "p/openapi" + ptr("components", "schemas", "Form", "properties", "file")
+	fileProp := ir.PropID("p/openapi" + ptr("components", "schemas", "Form", "properties", "file"))
 	fileEnc, ok := content.Encoding[fileProp]
 	require.True(t, ok, "binary part gets a synthesized file PartEncoding")
 	assert.True(t, fileEnc.Filename)
+}
+
+// aliasedMultipartSpec is a multipart body whose media schema is written as
+// mediaSchema, over a Form component reachable both directly and through a
+// second component that is a bare $ref to it.
+func aliasedMultipartSpec(mediaSchema string) string {
+	return pathsSpec(`  /upload:
+    post:
+      operationId: upload
+      requestBody:
+        content:
+          multipart/form-data:
+            schema: ` + mediaSchema + `
+            encoding:
+              meta:
+                contentType: application/json
+      responses: {"200": {description: ok}}
+components:
+  schemas:
+    Form:
+      type: object
+      properties:
+        meta: {type: object, properties: {k: {type: string}}}
+        file: {type: string, format: binary}
+    AliasForm: {$ref: "#/components/schemas/Form"}
+`)
+}
+
+// TestContent_MultipartAliasBodyKeyedByAliasedModel covers the spellings that put
+// an alias scalar between a content and its body model: a $ref carrying siblings,
+// which has nowhere but an alias to keep them, and a $ref to a component that is
+// itself a bare $ref.
+//
+// The parts belong to the model at the end of that chain, so the keys must be its
+// property IDs. A pointer cut from the media schema's own $ref names the first
+// hop instead, which for an alias component addresses no property anywhere.
+func TestContent_MultipartAliasBodyKeyedByAliasedModel(t *testing.T) {
+	t.Parallel()
+	cases := []struct {
+		name        string
+		mediaSchema string
+	}{
+		{"a $ref carrying siblings", `{$ref: "#/components/schemas/Form", title: Upload}`},
+		{"a $ref to an alias component", `{$ref: "#/components/schemas/AliasForm"}`},
+		{"a $ref carrying siblings to an alias component",
+			`{$ref: "#/components/schemas/AliasForm", title: Upload}`},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			doc, svc, diags := lowerServiceSpec(t, aliasedMultipartSpec(tc.mediaSchema))
+			requireNoErrorDiags(t, diags)
+			content := firstOp(t, svc).Request.Contents[0]
+			form, isModel := typeByName(doc, "Form").(*ir.Model)
+			require.True(t, isModel, "the body model is the component at the end of the chain")
+
+			declared := indexBy(form.Properties, func(p ir.Property) ir.PropID { return p.ID })
+			require.NotEmpty(t, content.Encoding, "an aliased multipart body still carries per-part encoding")
+			for key := range content.Encoding {
+				assert.Contains(t, declared, key,
+					"every encoding key addresses a property the aliased model declares")
+			}
+
+			byWire := propsByWire(form.Properties)
+			enc, ok := content.Encoding[byWire["meta"].ID]
+			require.True(t, ok, "the declared encoding entry keys the aliased model's property")
+			assert.Equal(t, []string{"application/json"}, enc.ContentTypes)
+			assert.True(t, content.Encoding[byWire["file"].ID].Filename,
+				"the binary part is still detected through the alias")
+		})
+	}
+}
+
+// TestContent_MultipartBodyStandingForNoModelKeepsItsOwnPointer pins the fallback:
+// a schema declaring `properties` beside a contradictory `enum` or scalar `type`
+// lowers to a node that holds none of them, so no pointer can name a property
+// that was never lowered. The key stays derived from the schema's own position,
+// where pass.Validate reports it as addressing nothing — which is the truth about
+// this document, not a false alarm about an aliased one.
+func TestContent_MultipartBodyStandingForNoModelKeepsItsOwnPointer(t *testing.T) {
+	t.Parallel()
+	cases := []struct {
+		name        string
+		mediaSchema string
+		want        ir.PropID
+	}{
+		{
+			name:        "an inline body",
+			mediaSchema: `{enum: [x], properties: {file: {type: string, format: binary}}}`,
+			want: ir.PropID("p/openapi" + ptr("paths", "/upload", "post", "requestBody",
+				"content", "multipart/form-data", "schema", "properties", "file")),
+		},
+		{
+			name:        "a $ref'd component",
+			mediaSchema: `{$ref: "#/components/schemas/NotAModel"}`,
+			want:        ir.PropID("p/openapi" + ptr("components", "schemas", "NotAModel", "properties", "file")),
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			spec := pathsSpec(`  /upload:
+    post:
+      operationId: upload
+      requestBody:
+        content:
+          multipart/form-data:
+            schema: ` + tc.mediaSchema + `
+      responses: {"200": {description: ok}}
+components:
+  schemas:
+    NotAModel: {enum: [x], properties: {file: {type: string, format: binary}}}
+`)
+			_, svc, diags := lowerServiceSpec(t, spec)
+			requireNoErrorDiags(t, diags)
+			content := firstOp(t, svc).Request.Contents[0]
+			require.Contains(t, content.Encoding, tc.want,
+				"the key falls back to the schema's own position; got %v", content.Encoding)
+		})
+	}
+}
+
+// TestBodyModelPointer_NoModelBehindBody covers the walk's dead ends on a
+// hand-built registry: an ID nothing declares, an opaque scalar, a kind that is
+// no model, and an alias chain that closes on itself. The last is what the bound
+// is for — a $ref cycle is refused at load, so no document can spell one, and a
+// walk that relied on that would loop forever the day one arrived by another
+// route.
+func TestBodyModelPointer_NoModelBehindBody(t *testing.T) {
+	t.Parallel()
+	l := newRawLowerer(&soa.OpenAPI{})
+	l.types.Register("t/opaque", &ir.Scalar{TypeCommon: ir.TypeCommon{ID: "t/opaque"}})
+	l.types.Register("t/cycle/a", &ir.Scalar{
+		TypeCommon: ir.TypeCommon{ID: "t/cycle/a"}, Base: &ir.TypeRef{Target: "t/cycle/b"},
+	})
+	l.types.Register("t/cycle/b", &ir.Scalar{
+		TypeCommon: ir.TypeCommon{ID: "t/cycle/b"}, Base: &ir.TypeRef{Target: "t/cycle/a"},
+	})
+	prim := l.primID(ir.PrimString)
+
+	cases := []struct {
+		name string
+		body ir.TypeID
+	}{
+		{"an ID no registry entry declares", "t/absent"},
+		{"an opaque scalar standing for nothing", "t/opaque"},
+		{"a kind that declares no properties", prim},
+		{"an alias chain that closes on itself", "t/cycle/a"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			pointer, ok := l.bodyModelPointer(tc.body)
+			assert.False(t, ok, "no model stands behind this body")
+			assert.Empty(t, pointer, "and no pointer is invented for one")
+		})
+	}
+}
+
+// TestBodySchemaPointer_LocalRefFragment pins the fallback's own ref hop, which
+// the production path reaches only for a body standing for no model.
+func TestBodySchemaPointer_LocalRefFragment(t *testing.T) {
+	t.Parallel()
+	js := oas3.NewJSONSchemaFromReference("#/components/schemas/Form")
+	assert.Equal(t, "/components/schemas/Form", bodySchemaPointer(js, "/local"))
 }
 
 func TestContent_NonRequiredRequestBody(t *testing.T) {
@@ -173,8 +338,8 @@ func TestContent_NonRequiredRequestBody(t *testing.T) {
 	requireNoErrorDiags(t, diags)
 	op := firstOp(t, svc)
 	require.NotNil(t, op.Request, "a non-required body still lowers to a present Payload")
-	raw, ok := op.Request.Preserved["openapi:required"]
-	require.True(t, ok, "body optionality kept under Preserved")
+	raw, ok := op.Request.Unmodeled["openapi:required"]
+	require.True(t, ok, "body optionality kept under Unmodeled")
 	assert.Equal(t, "false", string(raw.Value))
 	assert.Equal(t, ir.ReasonNoIRHome, raw.Reason)
 	found := false
@@ -203,7 +368,7 @@ func TestContent_ArrayMultipartPartMulti(t *testing.T) {
 	_, svc, diags := lowerServiceSpec(t, spec)
 	requireNoErrorDiags(t, diags)
 	content := firstOp(t, svc).Request.Contents[0]
-	tagsProp := "p/openapi" + ptr("paths", "/bulk", "post", "requestBody", "content", "multipart/form-data", "schema", "properties", "tags")
+	tagsProp := ir.PropID("p/openapi" + ptr("paths", "/bulk", "post", "requestBody", "content", "multipart/form-data", "schema", "properties", "tags"))
 	enc, ok := content.Encoding[tagsProp]
 	require.True(t, ok, "array part gets a synthesized PartEncoding; got keys %v", content.Encoding)
 	assert.True(t, enc.Multi, "array-typed part repeats per item")
@@ -285,9 +450,9 @@ func TestContent_FullPipeline(t *testing.T) {
 	doc, diags := parseFull(t, contentSpec)
 	upload := findOp(t, doc, "upload")
 
-	// Non-required body preserved as present with optionality under Preserved.
+	// Non-required body preserved as present with optionality under Unmodeled.
 	require.NotNil(t, upload.Request)
-	_, hasReq := upload.Request.Preserved["openapi:required"]
+	_, hasReq := upload.Request.Unmodeled["openapi:required"]
 	assert.True(t, hasReq, "non-required optionality preserved")
 
 	// Multipart encoding: comma-split content types, header, style/explode, file flag.
@@ -312,7 +477,7 @@ func TestContent_FullPipeline(t *testing.T) {
 	assert.Len(t, resp.Payload.Contents, 2)
 	assert.GreaterOrEqual(t, len(resp.Payload.Contents[0].Examples), 2)
 	assert.NotEmpty(t, resp.Headers)
-	_, hasLinks := resp.Preserved["openapi:links"]
+	_, hasLinks := resp.Unmodeled["openapi:links"]
 	assert.True(t, hasLinks)
 
 	assert.True(t, hasDiag(diags, codeDegradedConstruct))
@@ -330,11 +495,11 @@ func TestContent_OctetAndErrorMulti(t *testing.T) {
 	require.NotEmpty(t, raw.Errors)
 	var multi ir.ErrorCase
 	for _, ec := range raw.Errors {
-		if len(ec.Preserved) > 0 {
+		if len(ec.Unmodeled) > 0 {
 			multi = ec
 		}
 	}
-	_, hasContent := multi.Preserved["openapi:content"]
+	_, hasContent := multi.Unmodeled["openapi:content"]
 	assert.True(t, hasContent, "multi-media error content preserved")
 }
 
@@ -356,7 +521,7 @@ func TestContent_SequentialAndEmptyBody(t *testing.T) {
 }
 
 // multipartEncoding returns the part-encoding map of an operation's request.
-func multipartEncoding(t *testing.T, op ir.Operation) map[string]ir.PartEncoding {
+func multipartEncoding(t *testing.T, op ir.Operation) map[ir.PropID]ir.PartEncoding {
 	t.Helper()
 	require.NotNil(t, op.Request)
 	for _, c := range op.Request.Contents {
@@ -546,7 +711,7 @@ func TestFillSequential_EmptyItemEncoding(t *testing.T) {
 	l.fillSequential(c, media, "/mp", "h")
 	assert.Equal(t, &ir.PartEncoding{Multi: true}, c.ItemEncoding,
 		"a config-free itemEncoding still records that the tail repeats")
-	assert.Nil(t, c.Preserved, "nothing is preserved raw")
+	assert.Nil(t, c.Unmodeled, "nothing is preserved raw")
 	assert.Empty(t, l.diags.List())
 }
 
@@ -583,12 +748,12 @@ func TestContent_PositionalPrefixEncodingIsPreserved(t *testing.T) {
 	c := findOp(t, doc, "mixed").Responses[0].Payload.Contents[0]
 
 	assert.Nil(t, c.ItemEncoding, "positional prefixes rule out an every-item encoding")
-	prefix, ok := c.Preserved["openapi:prefixEncoding"]
-	require.True(t, ok, "prefixEncoding kept verbatim; got %v", c.Preserved)
+	prefix, ok := c.Unmodeled["openapi:prefixEncoding"]
+	require.True(t, ok, "prefixEncoding kept verbatim; got %v", c.Unmodeled)
 	assert.Equal(t, ir.ReasonNoIRHome, prefix.Reason)
 	assert.JSONEq(t, `[{"contentType": "application/json"}, {"contentType": "application/xml"}]`,
 		string(prefix.Value))
-	item, ok := c.Preserved["openapi:itemEncoding"]
+	item, ok := c.Unmodeled["openapi:itemEncoding"]
 	require.True(t, ok, "the tail encoding is kept beside the prefixes it follows")
 	assert.JSONEq(t, `{"contentType": "text/plain"}`, string(item.Value))
 	assertHasCode(t, diags, codeDegradedConstruct, ir.SeverityInfo)
@@ -601,9 +766,9 @@ func TestFillSequential_PrefixEncodingWithoutItemEncoding(t *testing.T) {
 	c := findOp(t, doc, "mixed").Responses[0].Payload.Contents[0]
 
 	assert.Nil(t, c.ItemEncoding)
-	_, ok := c.Preserved["openapi:prefixEncoding"]
+	_, ok := c.Unmodeled["openapi:prefixEncoding"]
 	assert.True(t, ok, "prefixEncoding alone is still reported rather than dropped")
-	_, ok = c.Preserved["openapi:itemEncoding"]
+	_, ok = c.Unmodeled["openapi:itemEncoding"]
 	assert.False(t, ok, "no itemEncoding was declared, so none is recorded")
 	assertHasCode(t, diags, codeDegradedConstruct, ir.SeverityInfo)
 }
@@ -615,7 +780,7 @@ func TestPositionalEncoding_WithoutRootNode(t *testing.T) {
 	media := &soa.MediaType{PrefixEncoding: []*soa.Encoding{{}}, ItemEncoding: &soa.Encoding{}}
 	l.fillSequential(c, media, "/mp", "h")
 	assert.Nil(t, c.ItemEncoding, "prefixes still block the every-item lowering")
-	assert.Nil(t, c.Preserved, "a media type with no source node has nothing verbatim to keep")
+	assert.Nil(t, c.Unmodeled, "a media type with no source node has nothing verbatim to keep")
 	assertHasCode(t, l.diags.List(), codeDegradedConstruct, ir.SeverityInfo)
 }
 
@@ -876,8 +1041,8 @@ func TestHeaders_SchemaDetailReachesTheProperty(t *testing.T) {
 	assertProbeExample(t, h.Examples)
 	require.NotNil(t, h.XML)
 	assert.Equal(t, "X", h.XML.Name)
-	assert.Contains(t, h.Preserved, "openapi:x-vendor")
-	assert.Contains(t, h.Preserved, "openapi:not")
+	assert.Contains(t, h.Unmodeled, "openapi:x-vendor")
+	assert.Contains(t, h.Unmodeled, "openapi:not")
 	require.NotNil(t, h.Constraints)
 	require.NotNil(t, h.Constraints.MaxLength)
 	assert.Equal(t, int64(3), *h.Constraints.MaxLength)
@@ -907,8 +1072,8 @@ func TestHeaders_OwnAnnotationsOverrideTheSchema(t *testing.T) {
 	require.Len(t, h.Examples, 1, "and its own example replaces the schema's rather than joining it")
 	require.NotNil(t, h.Examples[0].Value)
 	assert.Equal(t, "HEADER", h.Examples[0].Value.Str)
-	require.Contains(t, h.Preserved, "openapi:x-scope")
-	assert.JSONEq(t, `"header"`, string(h.Preserved["openapi:x-scope"].Value),
+	require.Contains(t, h.Unmodeled, "openapi:x-scope")
+	assert.JSONEq(t, `"header"`, string(h.Unmodeled["openapi:x-scope"].Value),
 		"and its own value for a vendor key the schema also writes")
 }
 

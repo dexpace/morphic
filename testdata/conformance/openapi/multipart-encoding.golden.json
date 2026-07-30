@@ -1,5 +1,5 @@
 {
-  "irVersion": "0.2.0",
+  "irVersion": "0.3.0",
   "name": "MultipartEncoding",
   "version": "1.0.0",
   "docs": {},
@@ -108,7 +108,7 @@
                     }
                   }
                 ],
-                "preserved": {
+                "unmodeled": {
                   "openapi:required": {
                     "reason": "no_ir_home",
                     "value": false,
@@ -156,6 +156,80 @@
                 "source": 0,
                 "pointer": "/paths/~1upload/post"
               }
+            },
+            {
+              "id": "op/openapi/paths/~1submit/post",
+              "name": {
+                "source": "submitForm",
+                "canonical": "submit_form"
+              },
+              "docs": {},
+              "request": {
+                "contents": [
+                  {
+                    "mediaType": "application/x-www-form-urlencoded",
+                    "type": {
+                      "target": "t/anon/paths/~1submit/post/requestBody/content/application~1x-www-form-urlencoded/schema",
+                      "nullable": false
+                    },
+                    "encoding": {
+                      "p/openapi/paths/~1submit/post/requestBody/content/application~1x-www-form-urlencoded/schema/properties/ids": {
+                        "multi": true,
+                        "filename": false,
+                        "style": "form",
+                        "explode": true
+                      }
+                    }
+                  }
+                ],
+                "unmodeled": {
+                  "openapi:required": {
+                    "reason": "no_ir_home",
+                    "value": false,
+                    "provenance": {
+                      "source": 0,
+                      "pointer": "/paths/~1submit/post/requestBody/required"
+                    }
+                  }
+                }
+              },
+              "responses": [
+                {
+                  "name": {},
+                  "conditions": {
+                    "statusCodes": [
+                      {
+                        "from": 200,
+                        "to": 200
+                      }
+                    ]
+                  },
+                  "docs": {
+                    "description": "ok"
+                  }
+                }
+              ],
+              "oneWay": false,
+              "idempotency": {},
+              "auth": null,
+              "bindings": {
+                "http": [
+                  {
+                    "method": "POST",
+                    "uriTemplate": "/submit",
+                    "sharedRoute": false,
+                    "requestContentTypes": [
+                      "application/x-www-form-urlencoded"
+                    ],
+                    "checksumRequired": false,
+                    "isWebhook": false
+                  }
+                ]
+              },
+              "provenance": {
+                "source": 0,
+                "pointer": "/paths/~1submit/post"
+              }
             }
           ]
         }
@@ -167,6 +241,70 @@
     }
   ],
   "types": {
+    "t/anon/paths/~1submit/post/requestBody/content/application~1x-www-form-urlencoded/schema": {
+      "kind": "model",
+      "id": "t/anon/paths/~1submit/post/requestBody/content/application~1x-www-form-urlencoded/schema",
+      "name": {
+        "hint": "submitForm_request"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/paths/~1submit/post/requestBody/content/application~1x-www-form-urlencoded/schema"
+      },
+      "properties": [
+        {
+          "id": "p/openapi/paths/~1submit/post/requestBody/content/application~1x-www-form-urlencoded/schema/properties/ids",
+          "name": {
+            "source": "ids",
+            "canonical": "ids"
+          },
+          "wireName": "ids",
+          "type": {
+            "target": "t/anon/paths/~1submit/post/requestBody/content/application~1x-www-form-urlencoded/schema/properties/ids",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/paths/~1submit/post/requestBody/content/application~1x-www-form-urlencoded/schema/properties/ids"
+          }
+        }
+      ],
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
+    "t/anon/paths/~1submit/post/requestBody/content/application~1x-www-form-urlencoded/schema/properties/ids": {
+      "kind": "list",
+      "id": "t/anon/paths/~1submit/post/requestBody/content/application~1x-www-form-urlencoded/schema/properties/ids",
+      "name": {
+        "hint": "ids"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/paths/~1submit/post/requestBody/content/application~1x-www-form-urlencoded/schema/properties/ids"
+      },
+      "elem": {
+        "target": "t/prim/string",
+        "nullable": false
+      }
+    },
     "t/anon/paths/~1upload/post/requestBody/content/multipart~1form-data/schema": {
       "kind": "model",
       "id": "t/anon/paths/~1upload/post/requestBody/content/multipart~1form-data/schema",
@@ -332,10 +470,19 @@
     {
       "severity": "info",
       "code": "openapi/degraded-construct",
-      "message": "request body is not required; optionality kept under Preserved",
+      "message": "request body is not required; optionality kept under Unmodeled",
       "provenance": {
         "source": 0,
         "pointer": "/paths/~1upload/post/requestBody"
+      }
+    },
+    {
+      "severity": "info",
+      "code": "openapi/degraded-construct",
+      "message": "request body is not required; optionality kept under Unmodeled",
+      "provenance": {
+        "source": 0,
+        "pointer": "/paths/~1submit/post/requestBody"
       }
     }
   ],
@@ -343,7 +490,7 @@
     {
       "format": "openapi@3.1",
       "path": "multipart-encoding.yaml",
-      "hash": "f20bc797ffa54015576ef4b05369f5b274aac30a287e453ae3cea2686e671bb6"
+      "hash": "3f1b9a6b3c8fc4916a0a82ca4229dd09d0d24d28c8f89ace641df404deb6ff52"
     }
   ]
 }

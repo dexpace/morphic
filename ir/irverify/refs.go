@@ -55,19 +55,19 @@ type refKind struct {
 // and a positional row could silently swap them, emitting
 // "ir/dangling-types-ref" instead of "ir/dangling-type-ref".
 var refKindByType = map[reflect.Type]refKind{
-	reflect.TypeOf(ir.TypeID("")): {registry: "types", singular: "type", has: func(doc *ir.Document, id string) bool {
+	reflect.TypeFor[ir.TypeID](): {registry: "types", singular: "type", has: func(doc *ir.Document, id string) bool {
 		_, ok := doc.Types[ir.TypeID(id)]
 		return ok
 	}},
-	reflect.TypeOf(ir.AuthID("")): {registry: "auth", singular: "auth", has: func(doc *ir.Document, id string) bool {
+	reflect.TypeFor[ir.AuthID](): {registry: "auth", singular: "auth", has: func(doc *ir.Document, id string) bool {
 		_, ok := doc.Auth[ir.AuthID(id)]
 		return ok
 	}},
-	reflect.TypeOf(ir.ChannelID("")): {registry: "channels", singular: "channel", has: func(doc *ir.Document, id string) bool {
+	reflect.TypeFor[ir.ChannelID](): {registry: "channels", singular: "channel", has: func(doc *ir.Document, id string) bool {
 		_, ok := doc.Channels[ir.ChannelID(id)]
 		return ok
 	}},
-	reflect.TypeOf(ir.MessageID("")): {registry: "messages", singular: "message", has: func(doc *ir.Document, id string) bool {
+	reflect.TypeFor[ir.MessageID](): {registry: "messages", singular: "message", has: func(doc *ir.Document, id string) bool {
 		_, ok := doc.Messages[ir.MessageID(id)]
 		return ok
 	}},
@@ -134,10 +134,10 @@ func checkReferentialIntegrity(doc *ir.Document) []Violation {
 // different violation set, not merely a different order — on each run, which
 // Verify's final sort cannot repair (invariant 7).
 //
-// Byte sequences are skipped, matching pass.refWalk.walkSequence. Preserved and
+// Byte sequences are skipped, matching pass.refWalk.walkSequence. Unmodeled and
 // RawConfig payloads are json.RawMessage and are the largest values a document
 // holds, while a uint8 element is none of the things a visitor here looks for —
-// no typed ID, no Preserved map, no Provenance, no index carrier. Descending one
+// no typed ID, no Unmodeled map, no Provenance, no index carrier. Descending one
 // costs a reflect.Value and a formatted path per byte for nothing: Verify over a
 // document holding one 256 KB payload measured 88ms without this skip against
 // 22µs with it, for the same result. Since the result is the same either way, a

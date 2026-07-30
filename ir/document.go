@@ -15,7 +15,11 @@ package ir
 // with RawConfig split out, Content.ItemEncoding became a single encoding
 // rather than a sentinel-keyed map, and the diagnostic code
 // pass/dangling-auth-ref became ir/dangling-auth-ref (see pass's package doc).
-const IRVersion = "0.2.0"
+//
+// 0.3.0 renames that field to Unmodeled on every carrier, so the JSON key
+// "preserved" is now "unmodeled". A consumer pinned to 0.2.0 finds no key it
+// recognizes and drops every unmodeled construct in silence.
+const IRVersion = "0.3.0"
 
 // TypeRegistry is the flat, ID-keyed owner of every TypeDef in a Document
 // (ir-design §2, §4); every other node references types by TypeID. JSON
@@ -60,8 +64,8 @@ type Document struct {
 	TagDefs []TagDef `json:"tagDefs,omitempty"`
 	// Versions holds the ordered version labels when availability metadata is used.
 	Versions []string `json:"versions,omitempty"`
-	// Preserved holds source constructs the IR does not model, kept verbatim.
-	Preserved Preserved `json:"preserved,omitempty"`
+	// Unmodeled holds source constructs the IR does not model, kept verbatim.
+	Unmodeled Unmodeled `json:"unmodeled,omitempty"`
 	// Diagnostics is accumulated by the compiler and passes; not part of API
 	// meaning.
 	Diagnostics []Diagnostic `json:"diagnostics,omitempty"`

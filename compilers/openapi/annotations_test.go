@@ -494,7 +494,7 @@ components:
 			require.True(t, ok, "S owns a Model node")
 			assert.NotContains(t, marshalToMap(t, m), "default",
 				"a default binds a use of the type, so it gets no field on the type node")
-			assertResidueKept(t, m.Preserved, "openapi:default", `{"f":"x"}`)
+			assertResidueKept(t, m.Unmodeled, "openapi:default", `{"f":"x"}`)
 		},
 		assertDiags: func(t *testing.T, diags []ir.Diagnostic) {
 			assertResidueDiag(t, diags, "/components/schemas/S/default")
@@ -517,9 +517,9 @@ components:
 			require.True(t, ok, "a bare scalar component owns a Scalar node")
 			assert.NotContains(t, marshalToMap(t, sc), "default",
 				"a default binds a use of the type, so it gets no field on the type node")
-			assertResidueKept(t, sc.Preserved, "openapi:default", `7`)
+			assertResidueKept(t, sc.Unmodeled, "openapi:default", `7`)
 
-			_, leaked := primitiveNode(t, doc, ir.TypeID("t/prim/integer")).Common().Preserved["openapi:default"]
+			_, leaked := primitiveNode(t, doc, ir.TypeID("t/prim/integer")).Common().Unmodeled["openapi:default"]
 			assert.False(t, leaked, "a default on the declaration must not leak onto the shared primitive")
 		},
 		assertDiags: func(t *testing.T, diags []ir.Diagnostic) {
@@ -585,7 +585,7 @@ components:
 			require.True(t, ok, "S owns a Model node")
 			assert.NotContains(t, marshalToMap(t, m), "visibility",
 				"readOnly binds a use of the type, so it gets no field on the type node")
-			assertResidueKept(t, m.Preserved, "openapi:readOnly", `true`)
+			assertResidueKept(t, m.Unmodeled, "openapi:readOnly", `true`)
 		},
 		assertDiags: func(t *testing.T, diags []ir.Diagnostic) {
 			assertResidueDiag(t, diags, "/components/schemas/S/readOnly")
@@ -608,9 +608,9 @@ components:
 			require.True(t, ok, "a bare scalar component owns a Scalar node")
 			assert.NotContains(t, marshalToMap(t, sc), "visibility",
 				"readOnly binds a use of the type, so it gets no field on the type node")
-			assertResidueKept(t, sc.Preserved, "openapi:readOnly", `true`)
+			assertResidueKept(t, sc.Unmodeled, "openapi:readOnly", `true`)
 
-			_, leaked := primitiveNode(t, doc, ir.TypeID("t/prim/string")).Common().Preserved["openapi:readOnly"]
+			_, leaked := primitiveNode(t, doc, ir.TypeID("t/prim/string")).Common().Unmodeled["openapi:readOnly"]
 			assert.False(t, leaked, "a readOnly on the declaration must not leak onto the shared primitive")
 		},
 		assertDiags: func(t *testing.T, diags []ir.Diagnostic) {
@@ -675,7 +675,7 @@ components:
 		assert: func(t *testing.T, doc *ir.Document) {
 			td, ok := doc.Types[namedID("S")]
 			require.True(t, ok)
-			raw, ok := td.Common().Preserved["openapi:x-vendor"]
+			raw, ok := td.Common().Unmodeled["openapi:x-vendor"]
 			require.True(t, ok, "x-vendor must be preserved under the openapi: namespace")
 			assert.JSONEq(t, `"at-declaration"`, string(raw.Value))
 			assert.Equal(t, ir.ReasonVendorExtension, raw.Reason)
@@ -696,12 +696,12 @@ components:
 		assert: func(t *testing.T, doc *ir.Document) {
 			sc, ok := doc.Types[namedID("S")].(*ir.Scalar)
 			require.True(t, ok, "a bare scalar component owns a Scalar node")
-			raw, ok := sc.Preserved["openapi:x-vendor"]
+			raw, ok := sc.Unmodeled["openapi:x-vendor"]
 			require.True(t, ok, "x-vendor must be preserved under the openapi: namespace")
 			assert.JSONEq(t, `"at-declaration"`, string(raw.Value))
 			assert.Equal(t, ir.ReasonVendorExtension, raw.Reason)
 
-			assert.Empty(t, primitiveNode(t, doc, ir.TypeID("t/prim/string")).Common().Preserved,
+			assert.Empty(t, primitiveNode(t, doc, ir.TypeID("t/prim/string")).Common().Unmodeled,
 				"an x-vendor on the declaration must not leak onto the shared primitive")
 		},
 	}
@@ -728,14 +728,14 @@ components:
 			require.True(t, ok)
 			p, ok := propByWire(m, "f")
 			require.True(t, ok)
-			raw, ok := p.Preserved["openapi:x-vendor"]
+			raw, ok := p.Unmodeled["openapi:x-vendor"]
 			require.True(t, ok, "x-vendor beside a $ref binds the reference site")
 			assert.JSONEq(t, `"at-reference"`, string(raw.Value))
 			assert.Equal(t, ir.ReasonVendorExtension, raw.Reason)
 
 			target, ok := doc.Types[namedID("Target")]
 			require.True(t, ok)
-			assert.Empty(t, target.Common().Preserved,
+			assert.Empty(t, target.Common().Unmodeled,
 				"a reference-site extension must not attach to the referent")
 		},
 	}
@@ -856,8 +856,8 @@ components:
 		assert: func(t *testing.T, doc *ir.Document) {
 			m, ok := doc.Types[namedID("S")].(*ir.Model)
 			require.True(t, ok)
-			raw, ok := m.Preserved["openapi:if-then-else"]
-			require.True(t, ok, "if/then must be kept verbatim under Preserved")
+			raw, ok := m.Unmodeled["openapi:if-then-else"]
+			require.True(t, ok, "if/then must be kept verbatim under Unmodeled")
 			assert.JSONEq(t, `{"if":{"type":"string"},"then":{"minLength":1}}`, string(raw.Value))
 			assert.Equal(t, ir.ReasonValidationOnly, raw.Reason)
 		},
@@ -884,12 +884,12 @@ components:
 		assert: func(t *testing.T, doc *ir.Document) {
 			sc, ok := doc.Types[namedID("S")].(*ir.Scalar)
 			require.True(t, ok, "a bare scalar component owns a Scalar node")
-			raw, ok := sc.Preserved["openapi:if-then-else"]
-			require.True(t, ok, "if/then must be kept verbatim under Preserved")
+			raw, ok := sc.Unmodeled["openapi:if-then-else"]
+			require.True(t, ok, "if/then must be kept verbatim under Unmodeled")
 			assert.JSONEq(t, `{"if":{"type":"string"},"then":{"minLength":1}}`, string(raw.Value))
 			assert.Equal(t, ir.ReasonValidationOnly, raw.Reason)
 
-			_, leaked := primitiveNode(t, doc, ir.TypeID("t/prim/string")).Common().Preserved["openapi:if-then-else"]
+			_, leaked := primitiveNode(t, doc, ir.TypeID("t/prim/string")).Common().Unmodeled["openapi:if-then-else"]
 			assert.False(t, leaked, "if/then on the declaration must not leak onto the shared primitive")
 		},
 		assertDiags: func(t *testing.T, diags []ir.Diagnostic) {
@@ -921,14 +921,14 @@ components:
 			require.True(t, ok)
 			p, ok := propByWire(m, "f")
 			require.True(t, ok)
-			raw, ok := p.Preserved["openapi:if-then-else"]
+			raw, ok := p.Unmodeled["openapi:if-then-else"]
 			require.True(t, ok, "if/then beside a $ref binds the reference site")
 			assert.JSONEq(t, `{"if":{"type":"string"},"then":{"minLength":1}}`, string(raw.Value))
 			assert.Equal(t, ir.ReasonValidationOnly, raw.Reason)
 
 			target, ok := doc.Types[namedID("Target")]
 			require.True(t, ok)
-			assert.Empty(t, target.Common().Preserved,
+			assert.Empty(t, target.Common().Unmodeled,
 				"a reference-site keyword must not attach to the referent")
 		},
 		assertDiags: func(t *testing.T, diags []ir.Diagnostic) {
@@ -993,11 +993,11 @@ func TestValidationOnly_BesideARefAtABodyPosition(t *testing.T) {
 	for _, tc := range []struct {
 		name      string
 		minLength int
-		preserved ir.Preserved
+		preserved ir.Unmodeled
 	}{
-		{"parameter", 1, paramPreserved(t, op)},
-		{"request body", 2, refSiteAlias(t, doc, requestContent(t, op)).Common().Preserved},
-		{"response content", 3, refSiteAlias(t, doc, firstContent(t, op)).Common().Preserved},
+		{"parameter", 1, paramUnmodeled(t, op)},
+		{"request body", 2, refSiteAlias(t, doc, requestContent(t, op)).Common().Unmodeled},
+		{"response content", 3, refSiteAlias(t, doc, firstContent(t, op)).Common().Unmodeled},
 	} {
 		raw, found := tc.preserved["openapi:if-then-else"]
 		require.True(t, found, "%s: if/then beside its $ref must be kept", tc.name)
@@ -1009,15 +1009,15 @@ func TestValidationOnly_BesideARefAtABodyPosition(t *testing.T) {
 
 	target, found := doc.Types[namedID("Target")]
 	require.True(t, found)
-	assert.Empty(t, target.Common().Preserved,
+	assert.Empty(t, target.Common().Unmodeled,
 		"three reference sites, and none of them wrote onto the referent")
 }
 
-// paramPreserved returns the operation's single parameter's preserved entries.
-func paramPreserved(t *testing.T, op ir.Operation) ir.Preserved {
+// paramUnmodeled returns the operation's single parameter's preserved entries.
+func paramUnmodeled(t *testing.T, op ir.Operation) ir.Unmodeled {
 	t.Helper()
 	require.Len(t, op.Params, 1)
-	return op.Params[0].Preserved
+	return op.Params[0].Unmodeled
 }
 
 // requestContent returns an operation's single request-body content.
@@ -1054,7 +1054,7 @@ func refSiteAlias(t *testing.T, doc *ir.Document, c ir.Content) ir.TypeDef {
 // $ref points at.
 //
 // Either way, NotContains(node, key) only rules out that exact JSON key —
-// not preservation under a different one, such as Preserved (ir-design
+// not preservation under a different one, such as Unmodeled (ir-design
 // §4.7's carve-out for validation-only keywords with no structural home).
 // A knownGap case is waiting on a real field; this assertion exists to
 // catch exactly that gap, not every other way it could be routed around.
@@ -1181,13 +1181,13 @@ func assertDeclaredAnnotationsKept(t *testing.T, td ir.TypeDef) {
 	if assert.NotNil(t, c.XML, "xmlHints") {
 		assert.Equal(t, "Renamed", c.XML.Name)
 	}
-	vendor, ok := c.Preserved["openapi:x-vendor"]
-	if assert.True(t, ok, "vendorExtension: got %v", c.Preserved) {
+	vendor, ok := c.Unmodeled["openapi:x-vendor"]
+	if assert.True(t, ok, "vendorExtension: got %v", c.Unmodeled) {
 		assert.JSONEq(t, `"at-declaration"`, string(vendor.Value))
 		assert.Equal(t, ir.ReasonVendorExtension, vendor.Reason)
 	}
-	ite, ok := c.Preserved["openapi:if-then-else"]
-	if assert.True(t, ok, "validationOnly: got %v", c.Preserved) {
+	ite, ok := c.Unmodeled["openapi:if-then-else"]
+	if assert.True(t, ok, "validationOnly: got %v", c.Unmodeled) {
 		assert.Equal(t, ir.ReasonValidationOnly, ite.Reason)
 	}
 	require.Len(t, c.Examples, 1, "examples")
@@ -1213,10 +1213,10 @@ func assertResidueDiag(t *testing.T, diags []ir.Diagnostic, pointerSuffix string
 // assertResidueKept checks that a keyword binding a use of the type — which
 // therefore gets no field on the type node — is still on the declaring node
 // verbatim, under the reason that says the IR models it nowhere else.
-func assertResidueKept(t *testing.T, p ir.Preserved, key, wantJSON string) {
+func assertResidueKept(t *testing.T, p ir.Unmodeled, key, wantJSON string) {
 	t.Helper()
 	entry, ok := p[key]
-	require.True(t, ok, "%s must be kept verbatim under Preserved", key)
+	require.True(t, ok, "%s must be kept verbatim under Unmodeled", key)
 	assert.JSONEq(t, wantJSON, string(entry.Value))
 	assert.Equal(t, ir.ReasonNoIRHome, entry.Reason)
 }
@@ -1232,8 +1232,8 @@ func assertDeclarationResidueKept(t *testing.T, td ir.TypeDef, shape declShape) 
 	assert.NotContains(t, node, "visibility",
 		"readOnly has no field on a type node regardless of declaration shape")
 	c := td.Common()
-	assertResidueKept(t, c.Preserved, "openapi:readOnly", `true`)
-	assertResidueKept(t, c.Preserved, "openapi:default", jsonLiteral(shape.value))
+	assertResidueKept(t, c.Unmodeled, "openapi:readOnly", `true`)
+	assertResidueKept(t, c.Unmodeled, "openapi:default", jsonLiteral(shape.value))
 
 	if shape.constraintKept {
 		assert.Contains(t, node, "constraints",

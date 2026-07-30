@@ -218,7 +218,7 @@ const payloadBytes = 4096
 
 // TestWalkValues_ByteSequencesAreNotDescendedInto drives the byte-sequence skip,
 // which exists for cost rather than for correctness: a uint8 element is none of
-// the things a visitor looks for — no typed ID, no Preserved map, no Provenance,
+// the things a visitor looks for — no typed ID, no Unmodeled map, no Provenance,
 // no index carrier — so collecting nothing from it is the same result either
 // way, and only the price differs. Descending one payload spends a reflect.Value
 // and a formatted path per byte.
@@ -229,7 +229,7 @@ const payloadBytes = 4096
 // grows past the payload's length instead.
 func TestWalkValues_ByteSequencesAreNotDescendedInto(t *testing.T) {
 	t.Parallel()
-	doc := &ir.Document{Preserved: ir.Preserved{"openapi:x-thing": {
+	doc := &ir.Document{Unmodeled: ir.Unmodeled{"openapi:x-thing": {
 		Reason: ir.ReasonVendorExtension,
 		Value:  ir.RawValue(`"` + strings.Repeat("t", payloadBytes) + `"`),
 	}}}

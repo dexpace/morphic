@@ -1,8 +1,10 @@
-package irverify_test
+package ir_test
 
 import (
 	"reflect"
 	"testing"
+
+	"github.com/stretchr/testify/require"
 
 	"github.com/dexpace/morphic/ir"
 )
@@ -11,6 +13,11 @@ import (
 // field: numeric IR data must use ir.BigVal decimal strings, never float32 or
 // float64 (the TypeSpec Numeric lesson). The seen set bounds the walk: each
 // distinct reflect.Type is visited exactly once, so recursive shapes terminate.
+//
+// It sits with the ir package's other source-derived completeness checks rather
+// than in irverify, which checks compiled documents: nothing here calls Verify,
+// and the kinds it walks come from the declaredTypeKinds those checks already
+// share.
 func TestIR_NoFloatFields(t *testing.T) {
 	seen := map[reflect.Type]bool{}
 	var walk func(rt reflect.Type, path string)
@@ -28,21 +35,22 @@ func TestIR_NoFloatFields(t *testing.T) {
 			walk(rt.Key(), path+".key")
 			walk(rt.Elem(), path+".val")
 		case reflect.Struct:
-			for i := range rt.NumField() {
-				f := rt.Field(i)
+			for f := range rt.Fields() {
 				walk(f.Type, path+"."+f.Name)
 			}
 		}
 	}
 
-	walk(reflect.TypeOf(ir.Document{}), "Document")
+	walk(reflect.TypeFor[ir.Document](), "Document")
 	// Sealed TypeDef kinds are reached only via the interface, which reflection on
-	// the static type graph cannot enumerate; walk each concrete kind explicitly.
-	for _, td := range []any{
-		ir.Primitive{}, ir.Scalar{}, ir.Model{}, ir.Union{}, ir.Enum{},
-		ir.List{}, ir.MapT{}, ir.Tuple{}, ir.Literal{}, ir.External{}, ir.Any{},
-	} {
+	// the static type graph cannot enumerate. Walk each concrete kind explicitly,
+	// seeded from the kinds the ir sources declare so a new variant is float-checked
+	// the day it is added, not the day someone remembers to extend a list here.
+	for _, kc := range declaredTypeKinds(t) {
+		td, ok := ir.NewTypeDef(kc.kind)
+		require.True(t, ok, "no concrete type registered for kind %q", kc.kind)
 		rt := reflect.TypeOf(td)
-		walk(rt, rt.Name())
+		require.Equal(t, reflect.Pointer, rt.Kind(), "NewTypeDef must return a pointer for %q", kc.kind)
+		walk(rt.Elem(), rt.Elem().Name())
 	}
 }

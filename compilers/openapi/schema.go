@@ -2,6 +2,7 @@ package openapi
 
 import (
 	"encoding/json"
+	"fmt"
 	"maps"
 	"slices"
 	"strconv"
@@ -49,57 +50,81 @@ func (l *lowerer) lowerComponentSchema(js *oas3.JSONSchema[oas3.Referenceable], 
 	ref := l.schemaRef(js, pointer, name)
 	// A body that interned the component's own node at its component ID needs no
 	// alias, and its annotations were attached where it was lowered.
-	id, owned := l.types.Lookup(pointer)
-	if !owned {
-		id = l.internAlias(pointer, name, ref, l.schemaConstraints(s.Node, pointer))
-		// This alias is the first node the pointer owns, so the annotations
-		// schemaBody had nowhere to put now have a home.
-		if s.Node != nil {
-			l.attachDeclaredAnnotations(s.Node, pointer)
-		}
+	if _, owned := l.types.Lookup(pointer); owned {
+		return
 	}
+	l.internAlias(pointer, name, ref, l.schemaConstraints(s.Node, pointer))
+	// This alias is the first node the pointer owns, so the annotations
+	// schemaBody had nowhere to put now have a home.
 	if s.Node != nil {
-		l.preserveDeclarationResidue(s.Node, id, pointer)
+		l.attachDeclaredAnnotations(s.Node, pointer)
 	}
 }
 
-// preserveDeclarationResidue keeps, on the node pointer owns, every keyword the
-// component declared that only a use site can hold.
+// recordDeclarationResidue keeps, on the node pointer owns, every keyword the
+// declaration wrote that only a use site can hold.
 //
 // ir-design §14's OpenAPI row applies these to referencing properties with
 // use-site precedence, which the property path already does; this is the other
-// half of that rule. It is what a component nothing references would otherwise
-// lose silently. id is the node lowerComponentSchema guarantees the pointer
-// owns — a registry that disagrees leaves nothing to record on, which
-// registeredNode reports.
+// half of that rule, and it is what a declaration nothing references would
+// otherwise lose silently (GitHub #138).
 //
-// Only named component declarations are covered. An inline position that owns a
-// node still drops these three, because reaching those means teaching
-// declaresPositionScoped to hoist for them, which moves golden output: GitHub
-// #138.
-func (l *lowerer) preserveDeclarationResidue(s *oas3.Schema, id ir.TypeID, pointer string) {
-	if td, ok := l.registeredNode(id, pointer); ok {
-		l.recordResidue(td.Common(), s, pointer)
+// It runs only at a homeOwnNode position, the one position with no carrier at
+// all. Every homeCarrier position has one that already keeps these: `default`
+// lands in a real field at each of them (fillPropertyDefault, fillParamDefault),
+// readOnly/writeOnly land in ir.Property.Visibility at a model property and at a
+// header (effectiveVisibility, both carried as ir.Property), and at a parameter —
+// the one carrier ir-design gives no Visibility field — params.go's
+// preserveParamVisibility keeps them verbatim on the ir.Parameter instead.
+// Residue on the node would restate what one of those holds rather than rescue
+// anything.
+//
+// residueKeywords is what declaresPositionScoped gates hoisting on, so a
+// position that wrote one of them owns a node by the time this runs; a pointer
+// with none is a position whose declaration wrote nothing at all.
+func (l *lowerer) recordDeclarationResidue(s *oas3.Schema, pointer string, home annotationHome) {
+	if home != homeOwnNode || s == nil {
+		return
 	}
+	td, ok := l.types.NodeAt(pointer)
+	if !ok {
+		return
+	}
+	l.recordResidue(td.Common(), s, pointer)
 }
+
+// residueKeywords are the keywords a schema can write that bind a *use* of the
+// type rather than the type itself, so no type node has a field to hold them:
+// `default` (Property/Parameter.Default is its only home) and
+// readOnly/writeOnly (Property.Visibility is theirs).
+//
+// One list, read by both the predicate that hoists a node for them
+// (declaresPositionScoped, via declaresAny) and the recorder that fills it
+// (recordResidue), so the two can never drift into either half of
+// declaresPositionScoped's trap.
+var residueKeywords = []string{"default", "readOnly", "writeOnly"}
 
 // recordResidue keeps each declared residue keyword verbatim on c and reports
 // it at the keyword's own pointer.
 //
-// The three are the keywords a declaration can write that bind a *use* of the
-// type rather than the type itself, so the declaring node has no field to hold
-// them: `default` (Property/Parameter.Default is its only home) and
-// readOnly/writeOnly (Property.Visibility is theirs).
+// The message qualifies where §14 applies the keyword, because a carrier applies
+// it only where it has a field for it. `default` reaches one at every carrier,
+// but readOnly/writeOnly reach ir.Property.Visibility at a property or a header
+// and nothing at all at a parameter, which has no such field — so a $ref'd
+// declaration's readOnly is visible to a referencing parameter only here, on the
+// declaration's own node. An inline position that owns a node has no referencing
+// carrier at all, which is the case Unmodeled is rescuing.
 func (l *lowerer) recordResidue(c *ir.TypeCommon, s *oas3.Schema, pointer string) {
-	for _, keyword := range []string{"default", "readOnly", "writeOnly"} {
+	for _, keyword := range residueKeywords {
 		raw := nodeToRaw(rawPropertyNode(s, keyword))
 		if len(raw) == 0 {
 			continue
 		}
-		l.preserve(&c.Preserved, "openapi:"+keyword, raw, ir.ReasonNoIRHome, pointer+ptr(keyword))
+		l.preserve(&c.Unmodeled, "openapi:"+keyword, raw, ir.ReasonNoIRHome, pointer+ptr(keyword))
 		l.diag(ir.SeverityInfo, codeDegradedConstruct, pointer+ptr(keyword),
-			"%s on a type declaration binds a use of the type, not the type; "+
-				"it is applied to referencing properties and kept verbatim under Preserved", keyword)
+			"%s on a type declaration binds a use of the type, not the type; it is kept "+
+				"verbatim under Unmodeled and applied to a referencing property, header or "+
+				"parameter wherever that carrier has a field for it", keyword)
 	}
 }
 
@@ -139,6 +164,7 @@ func (l *lowerer) internAlias(pointer, hint string, target ir.TypeRef, constrain
 func (l *lowerer) schemaBody(schema *oas3.Schema, pointer, hint string, home annotationHome) ir.TypeRef {
 	ref := l.hoistDeclarationHome(schema, l.lowerSchemaBody(schema, pointer, hint), pointer, hint, home)
 	l.attachDeclaredAnnotations(schema, pointer)
+	l.recordDeclarationResidue(schema, pointer, home)
 	return ref
 }
 
@@ -177,12 +203,30 @@ func (l *lowerer) hoistDeclarationHome(s *oas3.Schema, ref ir.TypeRef, pointer, 
 
 // declaresPositionScoped reports whether s writes anything that binds the
 // position it is written at rather than the shape it lowers to — an annotation
-// attachDeclaredAnnotations records, or a value constraint internAlias carries.
-// It is the gate on hoisting an alias, so it must stay in step with what those
-// two actually keep: a keyword listed here but stored nowhere would hoist an
-// empty node, and one stored but missing here would still be dropped.
+// attachDeclaredAnnotations records, a value constraint internAlias carries, or
+// a keyword recordDeclarationResidue keeps. It is the gate on hoisting an alias,
+// so it must stay in step with what those actually keep: a keyword listed here
+// but stored nowhere would hoist an empty node, and one stored but missing here
+// would still be dropped.
 func declaresPositionScoped(s *oas3.Schema) bool {
-	return declaresAnnotations(s) || declaresValueConstraints(s) || declaresValidationOnly(s)
+	return declaresAnnotations(s) || declaresValueConstraints(s) ||
+		declaresValidationOnly(s) || declaresAny(s, residueKeywords) ||
+		declaresContentVocabulary(s) || declaresDynamicRef(s) ||
+		declaresAny(s, dialectKeywords)
+}
+
+// declaresAny reports whether s writes any of keywords. It reads the raw nodes
+// rather than the model fields for the reason declaresValueConstraints does: the
+// recorders these gate (recordResidue, dialectAt) read them there, and a
+// predicate consulting a different source could disagree with them in either
+// direction.
+func declaresAny(s *oas3.Schema, keywords []string) bool {
+	for _, keyword := range keywords {
+		if rawPropertyNode(s, keyword) != nil {
+			return true
+		}
+	}
+	return false
 }
 
 // declaresAnnotations reports whether s carries documentation, deprecation, XML
@@ -223,7 +267,7 @@ func declaresValueConstraints(s *oas3.Schema) bool {
 }
 
 // declaresValidationOnly reports whether s writes a §4.7 validation-only
-// keyword that fillValidationOnly keeps verbatim under Preserved. A `false`
+// keyword that fillValidationOnly keeps verbatim under Unmodeled. A `false`
 // unevaluatedProperties is excluded on purpose: fillAdditional lowers it into
 // the model's openness, so it is structure rather than a preserved keyword.
 func declaresValidationOnly(s *oas3.Schema) bool {
@@ -239,13 +283,21 @@ func declaresValidationOnly(s *oas3.Schema) bool {
 	if ds := s.GetDependentSchemas(); ds != nil && ds.Len() > 0 {
 		return true
 	}
+	if rawPropertyNode(s, "dependentRequired") != nil {
+		return true
+	}
 	up := s.GetUnevaluatedProperties()
 	return s.GetUnevaluatedItems() != nil || (up != nil && !isFalseSchema(up))
 }
 
-// lowerSchemaBody lowers the body itself, handling the oneOf/anyOf dispatch that
-// precedes structural lowering.
+// lowerSchemaBody lowers the body itself, handling the $dynamicRef expansion and
+// the oneOf/anyOf dispatch that precede structural lowering.
 func (l *lowerer) lowerSchemaBody(schema *oas3.Schema, pointer, hint string) ir.TypeRef {
+	if target, _, ok := l.dynamicExpansion(schema, pointer); ok {
+		l.diag(ir.SeverityInfo, codeDynamicRefExpanded, pointer+ptr("$dynamicRef"),
+			"$dynamicRef expanded to %q, the one matching $dynamicAnchor in this document", target)
+		return ir.TypeRef{Target: target, Nullable: schemaAdmitsNull(schema)}
+	}
 	if len(schema.GetOneOf()) > 0 || len(schema.GetAnyOf()) > 0 {
 		if hasUnionSiblings(schema) {
 			return ir.TypeRef{
@@ -289,12 +341,12 @@ func declaresShape(s *oas3.Schema) bool {
 	return len(effectiveTypes(s)) > 0
 }
 
-// lowerBesidePreservedUnion lowers the structural body of a schema that
+// lowerBesideUnmodeledUnion lowers the structural body of a schema that
 // co-declares oneOf/anyOf and keeps the union verbatim beside it, so neither the
 // structural shape nor the union is dropped. reason says which kind of union it
 // is and why says what stopped a classified lowering; classifyUnionSiblings
 // picks both.
-func (l *lowerer) lowerBesidePreservedUnion(s *oas3.Schema, pointer, hint string, reason ir.PreserveReason, why string) ir.TypeID {
+func (l *lowerer) lowerBesideUnmodeledUnion(s *oas3.Schema, pointer, hint string, reason ir.UnmodeledReason, why string) ir.TypeID {
 	inner := l.lower(s, pointer, hint)
 	owner := inner
 	if got, _ := l.types.Lookup(pointer); got != inner {
@@ -308,9 +360,9 @@ func (l *lowerer) lowerBesidePreservedUnion(s *oas3.Schema, pointer, hint string
 }
 
 // preserveUnionSiblings stores the raw oneOf/anyOf of s under the owning node's
-// Preserved. A validation-only union joins §4.7's keyword family and is reported
+// Unmodeled. A validation-only union joins §4.7's keyword family and is reported
 // with it; anything else is a §4.8 degradation and says so.
-func (l *lowerer) preserveUnionSiblings(id ir.TypeID, s *oas3.Schema, pointer string, reason ir.PreserveReason, why string) {
+func (l *lowerer) preserveUnionSiblings(id ir.TypeID, s *oas3.Schema, pointer string, reason ir.UnmodeledReason, why string) {
 	td, ok := l.registeredNode(id, pointer)
 	if !ok {
 		return
@@ -319,16 +371,16 @@ func (l *lowerer) preserveUnionSiblings(id ir.TypeID, s *oas3.Schema, pointer st
 	for _, kw := range []string{"oneOf", "anyOf"} {
 		raw := nodeToRaw(rawPropertyNode(s, kw))
 		if reason == ir.ReasonValidationOnly {
-			l.preserveKeyword(&c.Preserved, "openapi:"+kw, raw, pointer, pointer+ptr(kw), kw)
+			l.preserveKeyword(&c.Unmodeled, "openapi:"+kw, raw, pointer, pointer+ptr(kw), kw)
 			continue
 		}
-		l.preserve(&c.Preserved, "openapi:"+kw, raw, reason, pointer+ptr(kw))
+		l.preserve(&c.Unmodeled, "openapi:"+kw, raw, reason, pointer+ptr(kw))
 	}
 	if reason == ir.ReasonValidationOnly {
 		return
 	}
 	l.diag(ir.SeverityInfo, codeDegradedConstruct, pointer,
-		"oneOf/anyOf co-declared with structural keywords intersects with them, and %s; union branches kept verbatim under Preserved", why)
+		"oneOf/anyOf co-declared with structural keywords intersects with them, and %s; union branches kept verbatim under Unmodeled", why)
 }
 
 // falseSchema hoists a boolean `false` schema as a closed empty model (it
@@ -459,10 +511,12 @@ func (l *lowerer) fillModelProperties(m *ir.Model, s *oas3.Schema, pointer strin
 // constraints), then the declaration's annotations. Annotations present at a
 // $ref use-site override the target's (ir-design §14).
 //
-// Constraints stay unconditional: no node a property's schema can hoist holds
-// them for it — an object lowers to a Model and a formatted scalar to a Scalar
-// with an Encoding, neither of which carries the scalar bounds
-// constraintsFromSchema reads — so ir.Property is their only home.
+// Constraints stay unconditional: ir.Property is the only home every property
+// has. Some nodes a property's schema can hoist carry the same bounds (a Model,
+// and the Scalar the content vocabulary hoists) and some carry none (the Scalar
+// a byte or unknown format hoists, or no node at all), so reading the node
+// instead would drop them wherever it carries none. Restating them is the safe
+// half of that trade.
 func (l *lowerer) fillPropertyDetail(p *ir.Property, js *oas3.JSONSchema[oas3.Referenceable], pointer string) {
 	ref := js.GetSchema()
 	if ref == nil {
@@ -513,7 +567,11 @@ func (l *lowerer) fillPropertyAnnotations(p *ir.Property, ref, tgt *oas3.Schema,
 	if len(a.Examples) > 0 {
 		p.Examples = a.Examples
 	}
-	p.Preserved = mergePreserved(p.Preserved, a.Preserved)
+	p.Unmodeled = mergeUnmodeled(p.Unmodeled, a.Unmodeled)
+	// nil node: this arm runs only when the schema lowered to no node of its own,
+	// so nothing here can be carrying an Encoding.
+	l.recordUnplacedContent(&p.Unmodeled, ref, nil, pointer)
+	l.recordUnexpandedDynamicRef(&p.Unmodeled, ref, pointer)
 }
 
 // loweredToOwnNode reports whether the declaration at pointer lowered to a type
@@ -592,10 +650,12 @@ func (l *lowerer) attachDeclaredAnnotations(s *oas3.Schema, pointer string) {
 	if a.XML != nil {
 		c.XML = a.XML
 	}
-	c.Preserved = mergePreserved(c.Preserved, a.Preserved)
+	c.Unmodeled = mergeUnmodeled(c.Unmodeled, a.Unmodeled)
 	if len(a.Examples) > 0 {
 		c.Examples = a.Examples
 	}
+	l.recordUnplacedContent(&c.Unmodeled, s, td, pointer)
+	l.recordUnexpandedDynamicRef(&c.Unmodeled, s, pointer)
 }
 
 // appendExample converts node into proto's value and appends the result to out;
@@ -656,7 +716,7 @@ func (l *lowerer) patternProps(s *oas3.Schema, pointer, hint string) []ir.Patter
 // preserve records raw under key in *p with why it was kept and where it was
 // written, allocating the map on first write. An absent or unconvertible
 // payload records nothing, so no caller needs a nil guard of its own.
-func (l *lowerer) preserve(p *ir.Preserved, key string, raw ir.RawValue, reason ir.PreserveReason, pointer string) {
+func (l *lowerer) preserve(p *ir.Unmodeled, key string, raw ir.RawValue, reason ir.UnmodeledReason, pointer string) {
 	preserveInto(p, key, raw, reason, pointer, l.srcIndex)
 }
 
@@ -666,9 +726,9 @@ func (l *lowerer) preserve(p *ir.Preserved, key string, raw ir.RawValue, reason 
 //
 // entryPtr locates the entry itself, which is what a validation emitter reports
 // against: the keyword's own node where the source writes the entry as one
-// keyword, and declPtr for the three §4.7 entries that combine several keywords
-// into one synthesized object no single node addresses.
-func (l *lowerer) preserveKeyword(p *ir.Preserved, key string, raw ir.RawValue, declPtr, entryPtr, label string) {
+// keyword, and declPtr where a §4.7 entry combines several keywords into one
+// synthesized object that no single node addresses.
+func (l *lowerer) preserveKeyword(p *ir.Unmodeled, key string, raw ir.RawValue, declPtr, entryPtr, label string) {
 	l.diags.AppendAll(preserveKeywordInto(p, key, raw, declPtr, entryPtr, label, l.srcIndex))
 }
 
@@ -717,55 +777,524 @@ func (l *lowerer) buildTuple(s *oas3.Schema, common ir.TypeCommon, pointer, hint
 	if s.GetItems() == nil {
 		return t
 	}
-	l.preserve(&t.Preserved, "openapi:items-after-prefix", nodeToRaw(rawPropertyNode(s, "items")),
+	l.preserve(&t.Unmodeled, "openapi:items-after-prefix", nodeToRaw(rawPropertyNode(s, "items")),
 		ir.ReasonDegradedLowering, pointer+ptr("items"))
 	l.diag(ir.SeverityInfo, codeDegradedConstruct, pointer,
-		"items after prefixItems is an open tuple; lowered as a fixed-arity Tuple with the tail kept under Preserved")
+		"items after prefixItems is an open tuple; lowered as a fixed-arity Tuple with the tail kept under Unmodeled")
 	return t
 }
 
-// scalarTypeID maps a scalar (type, format) pair to a TypeID via formatTable:
-// a known pairing interns the shared primitive; byte and unknown formats hoist
-// a named Scalar wrapping the base primitive with an Encoding.
+// scalarTypeID maps a scalar (type, format) pair to a TypeID via formatTable: a
+// known pairing interns the shared primitive; byte, an unknown format, and the
+// 2020-12 content vocabulary each hoist a named Scalar wrapping the base
+// primitive with an Encoding, so what the position wrote never leaks onto the
+// shared primitive every other declaration of that type also resolves to.
 func (l *lowerer) scalarTypeID(s *oas3.Schema, st oas3.SchemaType, pointer, hint string) ir.TypeID {
 	format := s.GetFormat()
 	if st == oas3.SchemaTypeString && format == "byte" {
-		return l.hoistByteScalar(pointer, hint)
+		return l.hoistByteScalar(s, pointer, hint)
 	}
 	key := string(st)
 	if format != "" {
 		key += "/" + format
 	}
-	if prim, ok := formatTable[key]; ok {
+	prim, known := formatTable[key]
+	if !known {
+		return l.hoistFormatScalar(s, baseForType(st), format, pointer, hint)
+	}
+	if !declaresContent(s) {
 		return l.primID(prim)
 	}
-	return l.hoistFormatScalar(baseForType(st), format, pointer, hint)
+	return l.hoistContentScalar(s, prim, pointer, hint)
 }
 
 // hoistByteScalar hoists a base64-encoded byte scalar (string+byte).
-func (l *lowerer) hoistByteScalar(pointer, hint string) ir.TypeID {
+func (l *lowerer) hoistByteScalar(s *oas3.Schema, pointer, hint string) ir.TypeID {
 	return l.internNode(pointer, hint, func(common ir.TypeCommon) ir.TypeDef {
 		base := l.primRef(ir.PrimBytes)
 		wire := l.primRef(ir.PrimString)
-		return &ir.Scalar{
-			TypeCommon: common,
-			Base:       &base,
-			Encoding:   &ir.Encoding{Name: "base64", WireType: &wire},
-		}
+		enc := l.scalarEncoding(s, "base64", &common, pointer)
+		enc.WireType = &wire
+		return &ir.Scalar{TypeCommon: common, Base: &base, Encoding: enc}
 	})
 }
 
 // hoistFormatScalar hoists a scalar over base carrying an unknown format as its
 // encoding name, preserving the format losslessly.
-func (l *lowerer) hoistFormatScalar(base ir.PrimKind, format, pointer, hint string) ir.TypeID {
+func (l *lowerer) hoistFormatScalar(s *oas3.Schema, base ir.PrimKind, format, pointer, hint string) ir.TypeID {
 	return l.internNode(pointer, hint, func(common ir.TypeCommon) ir.TypeDef {
 		baseRef := l.primRef(base)
+		enc := l.scalarEncoding(s, format, &common, pointer)
+		return &ir.Scalar{TypeCommon: common, Base: &baseRef, Encoding: enc}
+	})
+}
+
+// hoistContentScalar hoists a scalar over the shared primitive a known
+// (type, format) pair maps to, giving the content vocabulary written here a node
+// of its own to sit on.
+//
+// It carries the position's value constraints itself, because owning a node is
+// what stops hoistDeclarationHome hoisting the alias that would otherwise carry
+// them: that fallback resolves to whatever node the pointer already owns. A
+// scalar that gained an Encoding by writing contentEncoding must not lose the
+// bounds it wrote beside it (invariant 2).
+func (l *lowerer) hoistContentScalar(s *oas3.Schema, prim ir.PrimKind, pointer, hint string) ir.TypeID {
+	return l.internNode(pointer, hint, func(common ir.TypeCommon) ir.TypeDef {
+		base := l.primRef(prim)
+		enc := l.scalarEncoding(s, "", &common, pointer)
 		return &ir.Scalar{
-			TypeCommon: common,
-			Base:       &baseRef,
-			Encoding:   &ir.Encoding{Name: format},
+			TypeCommon:  common,
+			Base:        &base,
+			Encoding:    enc,
+			Constraints: l.schemaConstraints(s, pointer),
 		}
 	})
+}
+
+// scalarEncoding builds the Encoding a scalar position declares: the 2020-12
+// content vocabulary over the OpenAPI `format` spelling of the same thing.
+// formatName is the encoding name the format contributes — "base64" for
+// format: byte, an unrecognized format verbatim, "" when the pairing is already
+// captured by the primitive kind.
+//
+// contentEncoding wins Encoding.Name: it is the standard keyword, where a format
+// the IR could not place is only parked there. Encoding holds one name, so a
+// format that named a *different* encoding is kept verbatim on c rather than
+// overwritten away.
+func (l *lowerer) scalarEncoding(s *oas3.Schema, formatName string, c *ir.TypeCommon, pointer string) *ir.Encoding {
+	enc := &ir.Encoding{Name: formatName, MediaType: s.GetContentMediaType()}
+	content := s.GetContentEncoding()
+	if content == "" || content == formatName {
+		return enc
+	}
+	enc.Name = content
+	if formatName == "" {
+		return enc
+	}
+	at := pointer + ptr("format")
+	l.preserve(&c.Unmodeled, "openapi:format", nodeToRaw(rawPropertyNode(s, "format")),
+		ir.ReasonNoIRHome, at)
+	l.diag(ir.SeverityInfo, codeDegradedConstruct, at,
+		"format and contentEncoding both name an encoding and ir.Encoding holds one; "+
+			"contentEncoding %q is lowered and format is kept verbatim under Unmodeled", content)
+	return enc
+}
+
+// contentKeywords are the content-vocabulary keywords that lower into
+// ir.Encoding: contentEncoding names Encoding.Name and contentMediaType names
+// Encoding.MediaType (ir/constraints.go, ir-design §5.3). contentSchema is not
+// one of them — it is a schema rather than an encoding, and noIRHomeAt keeps it
+// verbatim at every position.
+var contentKeywords = []string{"contentEncoding", "contentMediaType"}
+
+// declaresContent reports whether s writes a contentKeywords entry.
+func declaresContent(s *oas3.Schema) bool {
+	return s.GetContentEncoding() != "" || s.GetContentMediaType() != ""
+}
+
+// declaresContentVocabulary reports whether s writes any content-vocabulary
+// keyword, so a position that wrote one owns a node to keep it on.
+func declaresContentVocabulary(s *oas3.Schema) bool {
+	return declaresContent(s) || s.GetContentSchema() != nil
+}
+
+// recordUnplacedContent keeps each content keyword verbatim on p, for a position
+// whose lowering produced no ir.Encoding to hold it.
+//
+// A string position lowers them (scalarEncoding). An object, an array, a union,
+// an alias over a $ref, or a schema with no declared type at all has no Encoding
+// field — yet 2020-12 §8.3 gives these keywords meaning on whatever instance
+// turns out to be a string, so they are kept rather than dropped. It asks the
+// node the position actually lowered to instead of re-deriving lower()'s
+// dispatch, so the two cannot drift apart.
+func (l *lowerer) recordUnplacedContent(p *ir.Unmodeled, s *oas3.Schema, td ir.TypeDef, pointer string) {
+	if !declaresContent(s) || scalarHasEncoding(td) {
+		return
+	}
+	for _, keyword := range contentKeywords {
+		raw := nodeToRaw(rawPropertyNode(s, keyword))
+		if len(raw) == 0 {
+			continue
+		}
+		l.preserve(p, "openapi:"+keyword, raw, ir.ReasonNoIRHome, pointer+ptr(keyword))
+		l.diag(ir.SeverityInfo, codeDegradedConstruct, pointer+ptr(keyword),
+			"%s encodes a string value and this position lowered to a shape with no "+
+				"Encoding field; kept verbatim under Unmodeled", keyword)
+	}
+}
+
+// scalarHasEncoding reports whether td is a Scalar already carrying the
+// position's Encoding. A nil td is the property-carrier case — no node, so no
+// Encoding.
+func scalarHasEncoding(td ir.TypeDef) bool {
+	sc, ok := td.(*ir.Scalar)
+	return ok && sc.Encoding != nil
+}
+
+// maxDynamicAnchorDepth bounds the raw-source walk that indexes $dynamicAnchor
+// declarations (styleguide bounded-recursion rule). Document trees nest far
+// shallower — a schema under a media type under a response is about ten levels —
+// so the cap only ever fires on a pathological structure.
+const maxDynamicAnchorDepth = 512
+
+// maxDynamicAnchorNodes bounds how many nodes that walk visits in total. Depth
+// stopped bounding it once the walk began following YAML aliases: an alias graph
+// is a DAG, so a shallow document can present far more paths than it has nodes.
+// Both bounds report the same incomplete-index warning when they fire.
+const maxDynamicAnchorNodes = 1 << 20
+
+// dynamicExpansion resolves the $dynamicRef s writes at pointer to the type it
+// names, or reports why it is irreducible; a schema writing no $dynamicRef is
+// irreducible with the cheapest possible reason, so no caller pays for the index.
+//
+// Dynamic scope is static per document (ir-design §4.7): the set of
+// $dynamicAnchor declarations is fixed before evaluation, so a name declared
+// exactly once is the only match any dynamic scope containing a match can hold —
+// which makes it JSON Schema 2020-12 §8.2.3.2's "outermost scope with a matching
+// anchor" whatever path evaluation took. That reasoning holds only while the
+// whole document is one schema resource, which is why an $id anywhere on the
+// path to either end makes the reference irreducible (dynamicChainVerdict):
+// §8.2.1 says $id starts a new resource, and the IR honours no resource
+// boundaries at all (dialectKeywords). An anchor reached through *different*
+// dynamic scopes of one resource still expands, and correctly so: with no $id
+// in play the outermost resource of every dynamic scope is the document itself.
+//
+// Only an anchor declared on a top-level component schema resolves: that is the
+// one target whose TypeID is stable without reading the registry, so expansion
+// cannot depend on which position happened to lower first (ir-design §4.3). An
+// anchor deeper in the document is reported as irreducible rather than resolved
+// order-dependently.
+//
+// A $dynamicRef co-declared with a $ref, a oneOf/anyOf, or a shape of its own is
+// a conjunction of applicators the IR has no node for, so it is irreducible too
+// — recordUnexpandedDynamicRef keeps the reference beside the shape that did
+// lower. The one caller that expands and the one that preserves both decide
+// through this function, so neither can act on a verdict the other did not
+// reach.
+func (l *lowerer) dynamicExpansion(s *oas3.Schema, pointer string) (target ir.TypeID, why string, ok bool) {
+	name, why, ok := dynamicRefName(s)
+	if !ok {
+		return "", why, false
+	}
+	at, why, ok := l.soleAnchorSite(name)
+	if !ok {
+		return "", why, false
+	}
+	id, resolved, handled := l.resolveComponentRef(at)
+	if !handled || !resolved {
+		return "", fmt.Sprintf("$dynamicAnchor %q is declared at %q rather than on a component schema", name, at), false
+	}
+	if why, ok := l.dynamicChainVerdict(at, pointer); !ok {
+		return "", why, false
+	}
+	return id, "", true
+}
+
+// dynamicRefName returns the $dynamicAnchor name the $dynamicRef s writes
+// addresses, or the reason it addresses none. It stops short of the index, so
+// the chain walk and the lowering path ask one function what a schema requests.
+func dynamicRefName(s *oas3.Schema) (name, why string, ok bool) {
+	node := rawPropertyNode(s, "$dynamicRef")
+	if node == nil {
+		return "", "no $dynamicRef is written here", false
+	}
+	if dynamicRefSiblings(s) {
+		return "", "it is co-declared with another applicator, which the IR cannot intersect with it", false
+	}
+	if node.Kind != yaml.ScalarNode {
+		return "", "its value is not a reference string", false
+	}
+	fragment, found := dynamicFragment(node.Value)
+	if !found {
+		return "", fmt.Sprintf("%q is not a plain same-document fragment", node.Value), false
+	}
+	return fragment, "", true
+}
+
+// dynamicRefSiblings reports whether s writes anything beside its $dynamicRef
+// that the expansion would have to intersect with. JSON Schema conjoins
+// keywords and the IR has no node that intersects a reference with a shape, so
+// any of these makes the reference irreducible; expanding regardless would
+// assert the target's shape and drop the sibling in silence.
+//
+// It is broader than declaresShape by `items`, `prefixItems` and `required` —
+// the keywords declaresShape leaves out because they narrow an instance rather
+// than declare one. That distinction is about what to *build*, and there is
+// nothing to build here: an expansion takes the target whole, so a keyword it
+// cannot carry is lost whether or not it declares a shape by itself.
+func dynamicRefSiblings(s *oas3.Schema) bool {
+	if s.Ref != nil || len(s.GetOneOf()) > 0 || len(s.GetAnyOf()) > 0 {
+		return true
+	}
+	if s.GetItems() != nil || len(s.GetPrefixItems()) > 0 {
+		return true
+	}
+	return len(s.GetRequired()) > 0 || declaresShape(s)
+}
+
+// soleAnchorSite returns the one pointer declaring the named $dynamicAnchor, or
+// the reason no single declaration answers for it. Two declarations put the
+// target back under the evaluation path's control, which no static lowering can
+// resolve (ir-design §4.7).
+func (l *lowerer) soleAnchorSite(name string) (at, why string, ok bool) {
+	sites := l.dynamicAnchorIndex()[name]
+	if len(sites) == 0 {
+		return "", fmt.Sprintf("no $dynamicAnchor %q is declared in this document", name), false
+	}
+	if len(sites) > 1 {
+		return "", fmt.Sprintf("$dynamicAnchor %q is declared %d times, so the target depends on the evaluation path",
+			name, len(sites)), false
+	}
+	return sites[0], "", true
+}
+
+// dynamicChainVerdict reports whether the position at from may take the
+// expansion landing on the anchor declared at at, by following the chain of
+// expansions the target would take in turn.
+//
+// Two things end it. A chain that comes back to from would make the position's
+// own type its base — a Scalar alias loop no emitter resolving Base can
+// terminate on, and the shape refCycles refuses for every pure-$ref cycle.
+// Every member of such a cycle reaches this verdict independently, so the whole
+// cycle is preserved rather than one arbitrary edge of it. An $id on the path to
+// any link means the two ends are in different schema resources, which §8.2.3.2
+// degrades to a plain $ref against a base URI the IR does not model.
+//
+// The loop is bounded by seen: cur only ever takes values from the anchor
+// index, and each turn either returns or adds one of them.
+func (l *lowerer) dynamicChainVerdict(at, from string) (why string, ok bool) {
+	if l.declaresResourceIDAbove(from) {
+		return resourceBoundaryWhy(from), false
+	}
+	seen := map[string]bool{}
+	for cur := at; !seen[cur]; {
+		if cur == from {
+			return fmt.Sprintf("expanding it closes a cycle of $dynamicRef expansions back onto %q, "+
+				"leaving a type whose own base chain never terminates", from), false
+		}
+		if l.declaresResourceIDAbove(cur) {
+			return resourceBoundaryWhy(cur), false
+		}
+		seen[cur] = true
+		next, hops := l.dynamicHop(cur)
+		if !hops {
+			break
+		}
+		cur = next
+	}
+	return "", true
+}
+
+// resourceBoundaryWhy words the one irreducible case that is about resources
+// rather than shapes, for either end of a chain.
+func resourceBoundaryWhy(at string) string {
+	return fmt.Sprintf("an $id at or above %q starts a schema resource of its own, "+
+		"and the IR resolves no resource base URIs", at)
+}
+
+// dynamicHop returns the anchor declaration the schema at a component pointer
+// would itself expand to, when it writes an expandable $dynamicRef of its own.
+// Anything else ends the chain: a position that lowers to a shape rather than to
+// another reference cannot extend a cycle of references.
+func (l *lowerer) dynamicHop(at string) (string, bool) {
+	s := l.componentSchemaAt(at)
+	if s == nil {
+		return "", false
+	}
+	name, _, ok := dynamicRefName(s)
+	if !ok {
+		return "", false
+	}
+	next := l.dynamicAnchorIndex()[name]
+	if len(next) != 1 {
+		return "", false
+	}
+	return next[0], true
+}
+
+// componentSchemaAt returns the schema body of the top-level component pointer
+// addresses, and nil for any other pointer. Every accessor on the way is
+// nil-safe and siteAt reads a missing entry as "no body written", so the one
+// guard is what distinguishes a component pointer from a deeper one.
+func (l *lowerer) componentSchemaAt(pointer string) *oas3.Schema {
+	name, ok := componentSchemaName(pointer)
+	if !ok {
+		return nil
+	}
+	js, _ := l.doc.GetComponents().GetSchemas().Get(name)
+	return siteAt(js).Node
+}
+
+// declaresResourceIDAbove reports whether any mapping on the path from the
+// document root down to pointer writes $id, which §8.2.1 makes the root of a
+// schema resource of its own.
+//
+// It reads every step of the path, not only the schema-shaped ones, so a
+// property literally named "$id" reads as a resource boundary that is not
+// there. That is the same direction the anchor index errs in: a false boundary
+// costs an expansion that would have been safe, where a missed one mints a
+// reference the IR cannot express.
+func (l *lowerer) declaresResourceIDAbove(pointer string) bool {
+	view := newNodeView()
+	cur := documentRoot(deref(l.doc.GetRootNode()))
+	for seg := range strings.SplitSeq(pointer, "/") {
+		if cur == nil {
+			return false
+		}
+		if view.childByToken(cur, "$id") != nil {
+			return true
+		}
+		if seg != "" { // every pointer starts with the empty segment
+			cur = deref(view.childByToken(cur, unescapeSegment(seg)))
+		}
+	}
+	return cur != nil && view.childByToken(cur, "$id") != nil
+}
+
+// dynamicFragment returns the plain fragment name a $dynamicRef addresses. Only
+// the same-document `#name` spelling resolves here: a URI part names another
+// resource (Milestone 1 interns only same-file targets) and a `#/…` pointer
+// addresses a position rather than an anchor.
+func dynamicFragment(ref string) (string, bool) {
+	name, found := strings.CutPrefix(ref, "#")
+	if !found || name == "" || strings.Contains(name, "/") {
+		return "", false
+	}
+	return name, true
+}
+
+// recordUnexpandedDynamicRef keeps a $dynamicRef verbatim on p when it was not
+// expanded, so the reference survives the position lowering without it
+// (ir-design §4.7's irreducible half). An expanded one is already the position's
+// type and must not also be preserved — that would tell a consumer the compiler
+// ignored it.
+func (l *lowerer) recordUnexpandedDynamicRef(p *ir.Unmodeled, s *oas3.Schema, pointer string) {
+	_, why, expanded := l.dynamicExpansion(s, pointer)
+	raw := nodeToRaw(rawPropertyNode(s, "$dynamicRef"))
+	if expanded || len(raw) == 0 {
+		return
+	}
+	at := pointer + ptr("$dynamicRef")
+	l.preserve(p, "openapi:$dynamicRef", raw, ir.ReasonDegradedLowering, at)
+	l.diag(ir.SeverityInfo, codeDegradedConstruct, at,
+		"$dynamicRef was not expanded because %s; it is kept verbatim under Unmodeled", why)
+}
+
+// declaresDynamicRef reports whether s writes a $dynamicRef, so a position that
+// wrote one owns a node to keep an unexpanded reference on.
+func declaresDynamicRef(s *oas3.Schema) bool {
+	return rawPropertyNode(s, "$dynamicRef") != nil
+}
+
+// dynamicAnchorIndex returns the document's $dynamicAnchor index, building it on
+// first use and announcing once when a bound stopped the walk short.
+//
+// A truncated index can only undercount, and every verdict resting on it reads
+// an undercount as "declared exactly once" — the one count that expands. So the
+// warning is what tells a reader that an expansion reported below was decided
+// against an index nothing verified, which is exactly what codeCycleScanFailed
+// says for the pre-parse scan.
+func (l *lowerer) dynamicAnchorIndex() map[string][]string {
+	if l.dynamicAnchors != nil {
+		return l.dynamicAnchors
+	}
+	index, complete := dynamicAnchors(l.doc.GetRootNode())
+	l.dynamicAnchors = index
+	if !complete {
+		l.diag(ir.SeverityWarning, codeDegradedConstruct, "",
+			"the $dynamicAnchor index stopped at its walk bounds (%d levels, %d nodes); "+
+				"a $dynamicRef expanded below is not verified to name the document's only anchor of its name",
+			maxDynamicAnchorDepth, maxDynamicAnchorNodes)
+	}
+	return l.dynamicAnchors
+}
+
+// dynamicAnchors indexes every $dynamicAnchor in the raw source by name, mapping
+// it to the JSON pointers that declare it, in document order, and reports
+// whether the walk ran to completion. It reads the raw tree because oas3.Schema
+// has no field for the keyword at v1.24.0 — the reason nothing expanded a
+// $dynamicRef before.
+func dynamicAnchors(root *yaml.Node) (map[string][]string, bool) {
+	w := newAnchorWalk(maxDynamicAnchorNodes)
+	w.walk(root, "", 0)
+	return w.out, !w.truncated && !w.view.exhausted
+}
+
+// anchorWalk is the state of one $dynamicAnchor index build: the source view,
+// the index under construction, and what is left of the visit budget.
+//
+// It reads mappings through a nodeView, so a `<<` merge key and a YAML alias
+// contribute the anchors they carry to every position that pulls them in —
+// which is what the parser downstream sees, and what makes "declared exactly
+// once" a count of what the document declares rather than of what it spells
+// out. The count decides whether a $dynamicRef expands, so an anchor reached
+// only through an alias must not be invisible to it.
+type anchorWalk struct {
+	view      *nodeView
+	out       map[string][]string
+	budget    int
+	truncated bool
+}
+
+// newAnchorWalk returns a walk that will visit at most budget nodes.
+func newAnchorWalk(budget int) *anchorWalk {
+	return &anchorWalk{view: newNodeView(), out: map[string][]string{}, budget: budget}
+}
+
+// walk indexes the anchors n declares, under the pointer of the mapping
+// declaring each.
+func (w *anchorWalk) walk(n *yaml.Node, pointer string, depth int) {
+	n = deref(n)
+	if n == nil || !w.charge(depth) {
+		return
+	}
+	switch n.Kind {
+	case yaml.DocumentNode:
+		for _, c := range n.Content {
+			w.walk(c, pointer, depth+1)
+		}
+	case yaml.SequenceNode:
+		for i, c := range n.Content {
+			w.walk(c, pointer+ptr(strconv.Itoa(i)), depth+1)
+		}
+	case yaml.MappingNode:
+		w.walkMapping(n, pointer, depth)
+	default:
+		// A scalar declares no anchor and has no children; an alias survived
+		// deref only by dangling, so it has nothing to stand in for.
+	}
+}
+
+// walkMapping reads one mapping's effective pairs: a $dynamicAnchor names this
+// mapping, and every other value is walked in turn.
+func (w *anchorWalk) walkMapping(n *yaml.Node, pointer string, depth int) {
+	for _, p := range w.view.mappingPairs(n) {
+		if p.key == "$dynamicAnchor" {
+			w.record(p.val, pointer)
+			continue
+		}
+		w.walk(p.val, pointer+ptr(p.key), depth+1)
+	}
+}
+
+// record indexes the anchor val names at pointer. A value that is not a
+// non-empty scalar names nothing a $dynamicRef could spell.
+func (w *anchorWalk) record(val *yaml.Node, pointer string) {
+	if val == nil || val.Kind != yaml.ScalarNode || val.Value == "" {
+		return
+	}
+	w.out[val.Value] = append(w.out[val.Value], pointer)
+}
+
+// charge reports whether the walk may read one more node, recording the refusal
+// when it may not so the caller of dynamicAnchors learns the index is partial.
+func (w *anchorWalk) charge(depth int) bool {
+	if depth > maxDynamicAnchorDepth || w.budget == 0 {
+		w.truncated = true
+		return false
+	}
+	w.budget--
+	return true
 }
 
 // formatTable maps a scalar "type" or "type/format" key to its IR primitive.
@@ -837,7 +1366,7 @@ func schemaHasNull(s *oas3.Schema) bool {
 // A null branch counts only when the union is the type itself. Structural
 // siblings intersect with the union (JSON Schema conjoins keywords), so
 // `{type: object, oneOf: [{type: string}, {type: null}]}` admits neither string
-// nor null; that union is kept verbatim under Preserved instead. A `type: null`
+// nor null; that union is kept verbatim under Unmodeled instead. A `type: null`
 // branch is written inline, so it also blocks distribution — no distributed
 // union can strip a null branch out from under this rule.
 func schemaAdmitsNull(s *oas3.Schema) bool {
@@ -913,7 +1442,7 @@ func requiredSet(required []string) map[string]bool {
 }
 
 // nodeToRaw converts a YAML node to canonical JSON for lossless preservation in
-// Preserved; a nil node or an unconvertible node yields nil.
+// Unmodeled; a nil node or an unconvertible node yields nil.
 func nodeToRaw(node *yaml.Node) ir.RawValue {
 	if node == nil {
 		return nil
@@ -1034,16 +1563,16 @@ func xmlHints(x *oas3.XML) *ir.XMLHints {
 	return h
 }
 
-// extensionsFrom lowers an x-* extension map into namespaced ir.Preserved, keys
+// extensionsFrom lowers an x-* extension map into namespaced ir.Unmodeled, keys
 // prefixed "openapi:" and values serialized to raw JSON. owner is the pointer of
 // the object the extensions were written on; each entry is located at its own
 // key beneath it and marked ReasonVendorExtension, since the format assigns an
 // x-* key no semantics at all.
-func extensionsFrom(ext *extensions.Extensions, srcIndex int, owner string) (ir.Preserved, []ir.Diagnostic) {
+func extensionsFrom(ext *extensions.Extensions, srcIndex int, owner string) (ir.Unmodeled, []ir.Diagnostic) {
 	if ext == nil || ext.Len() == 0 {
 		return nil, nil
 	}
-	out := ir.Preserved{}
+	out := ir.Unmodeled{}
 	var diags []ir.Diagnostic
 	for name, node := range ext.All() {
 		raw := nodeToRaw(node)
@@ -1053,7 +1582,7 @@ func extensionsFrom(ext *extensions.Extensions, srcIndex int, owner string) (ir.
 				"extension %q could not be serialized", name))
 			continue
 		}
-		out["openapi:"+name] = ir.PreservedEntry{
+		out["openapi:"+name] = ir.UnmodeledEntry{
 			Reason:     ir.ReasonVendorExtension,
 			Value:      raw,
 			Provenance: ir.Provenance{Source: srcIndex, Pointer: owner + ptr(name)},
@@ -1065,25 +1594,25 @@ func extensionsFrom(ext *extensions.Extensions, srcIndex int, owner string) (ir.
 	return out, diags
 }
 
-// extensions lowers ext's x-* extensions into namespaced Preserved, recording
+// extensions lowers ext's x-* extensions into namespaced Unmodeled, recording
 // any serialization-failure diagnostics unconditionally even when the result
 // is empty. Every lowering site should call this rather than extensionsFrom
 // directly: gating the diagnostic append behind the same "len(ext) > 0" that
 // guards the assignment would drop every warning on an object whose
 // extensions all failed to serialize — exactly when the result is empty.
-func (l *lowerer) extensions(ext *extensions.Extensions, owner string) ir.Preserved {
+func (l *lowerer) extensions(ext *extensions.Extensions, owner string) ir.Unmodeled {
 	out, diags := extensionsFrom(ext, l.srcIndex, owner)
 	l.diags.AppendAll(diags)
 	return out
 }
 
-// mergePreserved overlays src onto dst, allocating dst on first write.
-func mergePreserved(dst, src ir.Preserved) ir.Preserved {
+// mergeUnmodeled overlays src onto dst, allocating dst on first write.
+func mergeUnmodeled(dst, src ir.Unmodeled) ir.Unmodeled {
 	if len(src) == 0 {
 		return dst
 	}
 	if dst == nil {
-		dst = ir.Preserved{}
+		dst = ir.Unmodeled{}
 	}
 	maps.Copy(dst, src)
 	return dst

@@ -81,7 +81,7 @@ func TestResponses_ErrorSplitAndRanges(t *testing.T) {
 func TestResponses_ErrorHeadersPreserved(t *testing.T) {
 	t.Parallel()
 	// ErrorCase has no Headers field; a 429's Retry-After header must not be
-	// dropped silently — it is kept verbatim under Preserved with a diag.
+	// dropped silently — it is kept verbatim under Unmodeled with a diag.
 	spec := pathsSpec(`  /w:
     get:
       operationId: w
@@ -96,8 +96,8 @@ func TestResponses_ErrorHeadersPreserved(t *testing.T) {
 	requireNoErrorDiags(t, diags)
 	op := firstOp(t, svc)
 	require.Len(t, op.Errors, 1)
-	raw, ok := op.Errors[0].Preserved["openapi:headers"]
-	require.True(t, ok, "error response headers kept under Preserved")
+	raw, ok := op.Errors[0].Unmodeled["openapi:headers"]
+	require.True(t, ok, "error response headers kept under Unmodeled")
 	assert.Contains(t, string(raw.Value), "Retry-After")
 	assert.Equal(t, ir.ReasonNoIRHome, raw.Reason)
 
@@ -464,7 +464,7 @@ func TestResponses_LinksPreserved(t *testing.T) {
 	requireNoErrorDiags(t, diags)
 	op := firstOp(t, svc)
 	require.Len(t, op.Responses, 1)
-	raw, ok := op.Responses[0].Preserved["openapi:links"]
+	raw, ok := op.Responses[0].Unmodeled["openapi:links"]
 	require.True(t, ok, "response links preserved raw for later promotion")
 	assert.Contains(t, string(raw.Value), "GetUserByUserId")
 	assert.Equal(t, ir.ReasonNoIRHome, raw.Reason)
@@ -579,9 +579,9 @@ func TestOperations_MethodsTagsServersRefs(t *testing.T) {
 	}
 
 	getA := findOp(t, doc, "getA")
-	assert.NotEmpty(t, getA.Preserved, "op x-* extension")
+	assert.NotEmpty(t, getA.Unmodeled, "op x-* extension")
 	assert.NotEmpty(t, getA.Docs.ExternalDocs, "op externalDocs")
-	_, hasServers := getA.Preserved["openapi:servers"]
+	_, hasServers := getA.Unmodeled["openapi:servers"]
 	assert.True(t, hasServers, "path-item servers preserved")
 	require.NotEmpty(t, getA.Params, "component-ref parameter resolved")
 	assert.Equal(t, "page", getA.Params[0].Name.Source)
@@ -682,7 +682,7 @@ func TestPreserveErrorHeaders_WithoutRootNode(t *testing.T) {
 	)
 	ec := &ir.ErrorCase{}
 	l.preserveErrorHeaders(ec, &soa.Response{Headers: headers}, "/r")
-	assert.Nil(t, ec.Preserved, "headers with no raw node are not preserved")
+	assert.Nil(t, ec.Unmodeled, "headers with no raw node are not preserved")
 	require.Empty(t, l.diags.List())
 }
 
@@ -705,7 +705,7 @@ func TestApplyPathServers_WithoutRootNode(t *testing.T) {
 	l := newRawLowerer(&soa.OpenAPI{})
 	op := &ir.Operation{}
 	l.applyPathServers(op, &soa.PathItem{Servers: []*soa.Server{{URL: "https://x"}}}, "/paths/~1a")
-	assert.Nil(t, op.Preserved, "servers with no raw node are not preserved")
+	assert.Nil(t, op.Unmodeled, "servers with no raw node are not preserved")
 	assert.Empty(t, l.diags.List())
 }
 
@@ -1092,7 +1092,7 @@ func pointerResolves(root *yaml.Node, pointer string) bool {
 	if node.Kind == yaml.DocumentNode && len(node.Content) > 0 {
 		node = node.Content[0]
 	}
-	for _, raw := range strings.Split(strings.TrimPrefix(pointer, "/"), "/") {
+	for raw := range strings.SplitSeq(strings.TrimPrefix(pointer, "/"), "/") {
 		next, ok := pointerStep(node, unescapeSegment(raw))
 		if !ok {
 			return false

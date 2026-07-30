@@ -39,12 +39,12 @@ var notReferences = map[string]string{
 	"IdempotencyKind": "idempotency guarantee",
 	"MsgDirection":    "publish or subscribe",
 	"PageStrategy":    "pagination strategy",
-	"PreserveReason":  "why a construct is preserved rather than modeled",
 	"PresenceKind":    "how a property represents absence",
 	"PrimKind":        "which built-in scalar",
 	"Severity":        "how bad a diagnostic is",
 	"StreamingMode":   "shape of a streaming exchange",
 	"TypeKind":        "TypeDef sum tag",
+	"UnmodeledReason": "why a construct is kept verbatim rather than modeled",
 	"ValueKind":       "Value sum tag",
 
 	// An alias is not a distinct type at run time, so refKindByType can never key
@@ -64,14 +64,15 @@ var notReferences = map[string]string{
 // row: one carried in a plain `string` field. It declares no named type to
 // classify, and reflection sees the same `string` every free-form field is.
 //
-// The IR has one such reference, so nothing rules the class out. Content.Encoding
-// is documented as keyed by PropID and the OpenAPI compiler writes
-// string(propID(…)) into it, which makes the key an identity in a `string`'s
-// clothing — invariant 3 bent, and invisible to both reference walks: an encoding
-// key addressing no property is reported by neither checker. Retyping the field
-// is tracked in #134, which also records why retyping alone would not make the
-// key resolvable (PropID addresses no document-level registry, the notReferences
-// row below).
+// Docs.Description is one such field — CommonMark that may carry {t:TypeID}
+// cross-reference tokens for emitters to resolve — so a token naming a type no
+// registry declares is reported by neither reference walk. Content.Encoding's
+// keys were another until they were retyped map[PropID]PartEncoding (#134). The
+// retype bought an honest shape and compile-time protection against passing a
+// TypeID or a bare string, not resolution: PropID addresses no document-level
+// registry (its row below), so neither reference walk can resolve a key either
+// way. pass.Validate resolves each one by hand instead, against the properties
+// of the model the content's type names.
 func TestStringTypes_AreAllClassified(t *testing.T) {
 	t.Parallel()
 	resolved := map[string]bool{}

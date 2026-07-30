@@ -8,9 +8,9 @@ import (
 )
 
 var (
-	serviceType   = reflect.TypeOf(ir.Service{})
-	channelType   = reflect.TypeOf(ir.Channel{})
-	operationType = reflect.TypeOf(ir.Operation{})
+	serviceType   = reflect.TypeFor[ir.Service]()
+	channelType   = reflect.TypeFor[ir.Channel]()
+	operationType = reflect.TypeFor[ir.Operation]()
 )
 
 // checkIndices asserts every reference the IR carries as an integer index into a

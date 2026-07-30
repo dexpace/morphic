@@ -69,7 +69,9 @@ func payloadAndVersioningSites() []refSite {
 			requestContent(d).File = &ir.FileInfo{Contents: &ir.TypeRef{Target: t}}
 		}, "t/ghost/file-contents"},
 		{"multipart part encoding headers", ".Encoding[", func(d *ir.Document, t ir.TypeID) {
-			requestContent(d).Encoding = map[string]ir.PartEncoding{"p/part": {Headers: []ir.Property{{
+			// The key names t/m's own property, so only the header target dangles:
+			// an unknown key is its own defect (checkEncodingKeys).
+			requestContent(d).Encoding = map[ir.PropID]ir.PartEncoding{"p/m/a": {Headers: []ir.Property{{
 				ID: "p/hdr", Name: ir.Naming{Source: "X-Meta"}, Type: ir.TypeRef{Target: t},
 			}}}}
 		}, "t/ghost/part-header"},
@@ -274,7 +276,7 @@ var sortedRefPointers = []string{
 	"doc.Services[0].Groups[0].Operations[0].LongRunning.FinalType.Target",
 	"doc.Services[0].Groups[0].Operations[0].LongRunning.PollingType.Target",
 	"doc.Services[0].Groups[0].Operations[0].LongRunning.ResultPath.Root.Target",
-	"doc.Services[0].Groups[0].Operations[0].Request.Contents[0].Encoding[p/part].Headers[0].Type.Target",
+	"doc.Services[0].Groups[0].Operations[0].Request.Contents[0].Encoding[p/m/a].Headers[0].Type.Target",
 	"doc.Services[0].Groups[0].Operations[0].Request.Contents[0].File.Contents.Target",
 	"doc.Services[0].Groups[0].Operations[0].RequestStream.Initial.Target",
 	"doc.Services[0].Groups[0].Operations[0].ResponseStream.Events.Target",

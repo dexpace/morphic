@@ -3,6 +3,7 @@ package openapi
 import (
 	"testing"
 
+	oas3 "github.com/speakeasy-api/openapi/jsonschema/oas3"
 	soa "github.com/speakeasy-api/openapi/openapi"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -182,7 +183,7 @@ func TestParams_AllLocationsAndStyles(t *testing.T) {
 	assert.True(t, logical["id"].Required, "path param always required")
 	require.NotNil(t, logical["q"].Deprecation)
 	assert.NotEmpty(t, logical["q"].Examples)
-	assert.NotEmpty(t, logical["filter"].Preserved)
+	assert.NotEmpty(t, logical["filter"].Unmodeled)
 	require.NotNil(t, logical["q"].Constraints)
 
 	assert.True(t, hasDiagAt(diags, codeDegradedConstruct, ir.SeverityWarning), "malformed param default warns")
@@ -299,7 +300,7 @@ func TestParams_ContentStyleComponentRefInternsOnce(t *testing.T) {
 // TestParams_SchemaAnnotationsReachTheParameter asserts a parameter schema's
 // annotations land on the ir.Parameter that carries the position. Only its
 // constraints used to survive; the rest were dropped with no diagnostic even
-// though Parameter has Docs, Examples and Preserved (GitHub #116).
+// though Parameter has Docs, Examples and Unmodeled (GitHub #116).
 func TestParams_SchemaAnnotationsReachTheParameter(t *testing.T) {
 	t.Parallel()
 	_, svc, diags := lowerServiceSpec(t, pathsSpec(
@@ -312,8 +313,8 @@ func TestParams_SchemaAnnotationsReachTheParameter(t *testing.T) {
 	assertProbeDocsKept(t, p.Docs)
 	assert.NotNil(t, p.Deprecation)
 	assertProbeExample(t, p.Examples)
-	assert.Contains(t, p.Preserved, "openapi:x-vendor")
-	assert.Contains(t, p.Preserved, "openapi:not")
+	assert.Contains(t, p.Unmodeled, "openapi:x-vendor")
+	assert.Contains(t, p.Unmodeled, "openapi:not")
 	require.NotNil(t, p.Constraints)
 	require.NotNil(t, p.Constraints.MaxLength)
 	assert.Equal(t, int64(3), *p.Constraints.MaxLength)
@@ -341,12 +342,231 @@ func TestParams_SchemaAnnotationsSurviveARefNamingTheSchema(t *testing.T) {
 		"the parameter's own type is unchanged by the outside reference")
 	assertProbeDocsKept(t, p.Docs)
 	assert.NotNil(t, p.Deprecation)
-	assert.Contains(t, p.Preserved, "openapi:x-vendor")
-	assert.Contains(t, p.Preserved, "openapi:not")
+	assert.Contains(t, p.Unmodeled, "openapi:x-vendor")
+	assert.Contains(t, p.Unmodeled, "openapi:not")
 
 	sc, ok := doc.Types["t/anon/paths/~1x/get/parameters/0/schema"].(*ir.Scalar)
 	require.True(t, ok, "and the referenced pointer still names the schema written there")
 	assertProbeDocsKept(t, sc.Docs)
+}
+
+// paramRefInheritSpec gives every parameter the same referent and varies only
+// what each writes beside its own $ref: Q declares one of each inheritable
+// keyword plus a constraint, and Hop is a bare hop on the way to it.
+const paramRefInheritSpec = `openapi: 3.1.0
+info: {title: T, version: "1"}
+paths:
+  /x:
+    get:
+      operationId: g
+      parameters:
+        - {name: bare, in: query, schema: {$ref: '#/components/schemas/Q'}}
+        - name: override
+          in: query
+          schema:
+            $ref: '#/components/schemas/Q'
+            description: USE_SITE
+            default: use-site
+            deprecated: false
+        - {name: chained, in: query, schema: {$ref: '#/components/schemas/Hop'}}
+      responses: {"200": {description: ok}}
+components:
+  schemas:
+    Q: {type: string, description: REFERENT, deprecated: true, default: referent, maxLength: 9}
+    Hop: {$ref: '#/components/schemas/Q'}
+`
+
+// paramsOf indexes an operation's parameters by source name.
+func paramsOf(t *testing.T, svc ir.Service) map[string]ir.Parameter {
+	t.Helper()
+	return indexBy(firstOp(t, svc).Params, func(p ir.Parameter) string { return p.Name.Source })
+}
+
+// TestParams_RefSchemaInheritsFromItsReferent covers the referent-fallback half
+// of the $ref rule at a parameter (GitHub #131). A parameter whose schema is a
+// bare $ref used to carry nothing at all — no description, no deprecation, no
+// default — because the position never resolved the target it was holding.
+func TestParams_RefSchemaInheritsFromItsReferent(t *testing.T) {
+	t.Parallel()
+	_, svc, diags := lowerServiceSpec(t, paramRefInheritSpec)
+	requireNoErrorDiags(t, diags)
+
+	p := paramsOf(t, svc)["bare"]
+	assert.Equal(t, "REFERENT", p.Docs.Description, "the referent's description reaches the parameter")
+	assert.NotNil(t, p.Deprecation, "and its deprecation")
+	require.NotNil(t, p.Default, "and its default")
+	assert.Equal(t, "referent", p.Default.Str)
+	assert.Nil(t, p.Constraints,
+		"but never its constraints: fillPropertyConstraints keeps those use-site-only too")
+}
+
+// TestParams_RefSchemaUseSiteWinsOverItsReferent pins the half that already
+// worked, so closing the fallback cannot quietly invert the precedence: what is
+// written beside the $ref describes this use of the type and outranks the target.
+func TestParams_RefSchemaUseSiteWinsOverItsReferent(t *testing.T) {
+	t.Parallel()
+	_, svc, diags := lowerServiceSpec(t, paramRefInheritSpec)
+	requireNoErrorDiags(t, diags)
+
+	p := paramsOf(t, svc)["override"]
+	assert.Equal(t, "USE_SITE", p.Docs.Description, "the use-site description wins")
+	require.NotNil(t, p.Default)
+	assert.Equal(t, "use-site", p.Default.Str, "and the use-site default")
+	assert.Nil(t, p.Deprecation, "and an explicit deprecated: false suppresses the referent's true")
+}
+
+// TestParams_RefSchemaInheritsThroughARefChain pins which resolution the
+// fallback must use. Hop writes nothing but its own $ref, so a one-hop referent
+// (siteAt's) would leave the parameter with nothing; only following the chain to
+// its end reaches Q.
+func TestParams_RefSchemaInheritsThroughARefChain(t *testing.T) {
+	t.Parallel()
+	_, svc, diags := lowerServiceSpec(t, paramRefInheritSpec)
+	requireNoErrorDiags(t, diags)
+
+	p := paramsOf(t, svc)["chained"]
+	assert.Equal(t, "REFERENT", p.Docs.Description, "one hop reaches Hop, which declares nothing")
+	assert.NotNil(t, p.Deprecation)
+	require.NotNil(t, p.Default)
+	assert.Equal(t, "referent", p.Default.Str)
+}
+
+const paramXMLSpec = `openapi: 3.1.0
+info: {title: T, version: "1"}
+paths:
+  /x:
+    get:
+      operationId: g
+      parameters:
+        - {name: q, in: query, schema: {type: string, xml: {name: XQ}}}
+        - name: c
+          in: query
+          content:
+            application/xml:
+              schema: {type: string, xml: {name: XCS}}
+      responses: {"200": {description: ok}}
+`
+
+// TestParams_SchemaXMLHintsKeptUnderUnmodeled covers the one annotation
+// ir.Parameter has no field for (GitHub #124), which used to be dropped with no
+// diagnostic at all. It is not inert here: the content-style case binds
+// application/xml, the media type OpenAPI §4.8.26 conditions xml on, and the
+// binding records that content type.
+func TestParams_SchemaXMLHintsKeptUnderUnmodeled(t *testing.T) {
+	t.Parallel()
+	_, svc, diags := lowerServiceSpec(t, paramXMLSpec)
+	requireNoErrorDiags(t, diags)
+	params := paramsOf(t, svc)
+
+	cases := []struct {
+		param, schemaPtr, want string
+	}{
+		{"q", "/paths/~1x/get/parameters/0/schema", `{"name":"XQ"}`},
+		{"c", "/paths/~1x/get/parameters/1/content/application~1xml/schema", `{"name":"XCS"}`},
+	}
+	for _, tc := range cases {
+		t.Run(tc.param, func(t *testing.T) {
+			t.Parallel()
+			entry, ok := params[tc.param].Unmodeled["openapi:xml"]
+			require.True(t, ok, "an xml hint with no Parameter field is kept raw, not dropped")
+			assert.Equal(t, ir.ReasonNoIRHome, entry.Reason)
+			assert.JSONEq(t, tc.want, string(entry.Value), "kept verbatim")
+			assert.Equal(t, tc.schemaPtr+"/xml", entry.Provenance.Pointer,
+				"located at the xml keyword itself")
+			assert.Contains(t,
+				diagMessageAt(t, diags, codeDegradedConstruct, ir.SeverityInfo, tc.schemaPtr+"/xml"),
+				"xml hints", "and announced once, at the same keyword the entry locates")
+		})
+	}
+}
+
+// TestParams_SchemaXMLHintsStayOnAnOwnedNode is the other half of one home per
+// declaration: a parameter schema that hoisted a node of its own already has a
+// structural XML field, so preserving a second copy on the parameter would give
+// one declaration two homes that can drift.
+func TestParams_SchemaXMLHintsStayOnAnOwnedNode(t *testing.T) {
+	t.Parallel()
+	doc, svc, diags := lowerServiceSpec(t, pathsSpec(
+		"  /x:\n    get:\n      operationId: g\n      parameters:\n"+
+			"        - {name: obj, in: query, schema: {type: object, xml: {name: XOBJ}}}\n"+
+			"      responses: {\"204\": {description: ok}}\n"))
+	requireNoErrorDiags(t, diags)
+
+	p := paramsOf(t, svc)["obj"]
+	node, ok := doc.Types[p.Type.Target]
+	require.True(t, ok, "the object schema owns a node of its own")
+	require.NotNil(t, node.Common().XML)
+	assert.Equal(t, "XOBJ", node.Common().XML.Name)
+	assert.NotContains(t, p.Unmodeled, "openapi:xml", "so the parameter keeps no second copy")
+	assert.Equal(t, 0, countDiagsAt(diags, codeDegradedConstruct, ir.SeverityInfo),
+		"and nothing is announced as homeless")
+}
+
+const paramVisibilitySpec = `openapi: 3.1.0
+info: {title: T, version: "1"}
+paths:
+  /x:
+    get:
+      operationId: g
+      parameters:
+        - {name: ro, in: query, schema: {type: string, default: dq, readOnly: true}}
+        - {name: wo, in: query, schema: {type: string, writeOnly: true}}
+        - name: c
+          in: query
+          content:
+            application/xml:
+              schema: {type: string, readOnly: true}
+      responses: {"200": {description: ok}}
+`
+
+// TestParams_SchemaVisibilityKeptUnderUnmodeled covers the residue keywords a
+// parameter has no field for. ir-design §14 lowers readOnly/writeOnly to a
+// Visibility, which only ir.Property carries, so at a parameter both reached no
+// field and were dropped with no diagnostic at all — the silent loss this
+// compiler exists to make impossible.
+func TestParams_SchemaVisibilityKeptUnderUnmodeled(t *testing.T) {
+	t.Parallel()
+	_, svc, diags := lowerServiceSpec(t, paramVisibilitySpec)
+	requireNoErrorDiags(t, diags)
+	params := paramsOf(t, svc)
+
+	cases := []struct{ param, keyword, schemaPtr string }{
+		{"ro", "readOnly", "/paths/~1x/get/parameters/0/schema"},
+		{"wo", "writeOnly", "/paths/~1x/get/parameters/1/schema"},
+		{"c", "readOnly", "/paths/~1x/get/parameters/2/content/application~1xml/schema"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.param, func(t *testing.T) {
+			t.Parallel()
+			at := tc.schemaPtr + "/" + tc.keyword
+			entry, ok := params[tc.param].Unmodeled["openapi:"+tc.keyword]
+			require.True(t, ok, "%s has no ir.Parameter field, so it is kept raw, not dropped", tc.keyword)
+			assert.Equal(t, ir.ReasonNoIRHome, entry.Reason)
+			assert.JSONEq(t, `true`, string(entry.Value), "kept verbatim")
+			assert.Equal(t, at, entry.Provenance.Pointer, "located at the keyword itself")
+			assert.Contains(t,
+				diagMessageAt(t, diags, codeDegradedConstruct, ir.SeverityInfo, at),
+				tc.keyword+" has no ir.Parameter home", "and announced once")
+		})
+	}
+}
+
+// TestParams_SchemaDefaultIsNotAlsoKeptVerbatim is the other side of that list:
+// `default` is a residue keyword too, but Parameter.Default is a real home for
+// it, so a verbatim copy beside it would give one declaration two homes.
+func TestParams_SchemaDefaultIsNotAlsoKeptVerbatim(t *testing.T) {
+	t.Parallel()
+	_, svc, diags := lowerServiceSpec(t, paramVisibilitySpec)
+	requireNoErrorDiags(t, diags)
+
+	p := paramsOf(t, svc)["ro"]
+	require.NotNil(t, p.Default, "the default lands in its own field")
+	assert.Equal(t, "dq", p.Default.Str)
+	assert.NotContains(t, p.Unmodeled, "openapi:default", "and is not restated verbatim beside it")
+	for _, d := range diags {
+		assert.NotEqual(t, "/paths/~1x/get/parameters/0/schema/default", d.Provenance.Pointer,
+			"nor announced as homeless; got %+v", d)
+	}
 }
 
 // TestParams_OwnAnnotationsWinOverTheSchema checks the precedence a parameter
@@ -363,7 +583,53 @@ func TestParams_OwnAnnotationsWinOverTheSchema(t *testing.T) {
 
 	p := firstOp(t, svc).Params[0]
 	assert.Equal(t, "PARAM", p.Docs.Description, "the parameter's own description wins")
-	raw, ok := p.Preserved["openapi:x-scope"]
+	raw, ok := p.Unmodeled["openapi:x-scope"]
 	require.True(t, ok)
 	assert.JSONEq(t, `"param"`, string(raw.Value), "and its own extension overlays the schema's")
+}
+
+// TestPreserveParamXML_ModelSetWithoutRawSourceRecordsNothing pins the same guard
+// on the parameter carrier. The hint is kept verbatim, so it is read off the
+// source node, and a schema whose model reports xml with no bytes behind it must
+// record nothing rather than announce a preservation it did not make.
+func TestPreserveParamXML_ModelSetWithoutRawSourceRecordsNothing(t *testing.T) {
+	t.Parallel()
+	l, _ := loweredFor(t, componentSpec("    A: {type: string}\n"))
+	s := &oas3.Schema{XML: &oas3.XML{}}
+	require.NotNil(t, s.GetXML(), "the model reports the hint as set")
+	require.Nil(t, rawPropertyNode(s, "xml"), "and no raw node backs it")
+
+	var param ir.Parameter
+	l.preserveParamXML(&param, s, "/paths/~1x/get/parameters/0/schema")
+
+	assert.Nil(t, param.Unmodeled, "no entry is recorded when there are no bytes to record")
+	assert.Empty(t, l.diags.List(), "and nothing is announced, so the two channels agree")
+}
+
+// TestParams_SchemaVisibilityKeptWhenTheSchemaOwnsANode pins the half of the
+// parameter-visibility rescue that the own-node guard used to swallow. A
+// parameter whose schema is an object, an enum or an array hoists a node, and
+// neither home held the keywords: recordDeclarationResidue skips the position
+// because a parameter is a homeCarrier, and ir.Parameter has no Visibility
+// field, so they were dropped for exactly the shapes that own a node.
+func TestParams_SchemaVisibilityKeptWhenTheSchemaOwnsANode(t *testing.T) {
+	t.Parallel()
+	doc, diags := parseFull(t, pathsSpec(`  /x:
+    get:
+      parameters:
+        - {name: obj, in: query, schema: {type: object, properties: {a: {type: string}}, readOnly: true}}
+        - {name: arr, in: query, schema: {type: array, items: {type: string}, writeOnly: true}}
+        - {name: enm, in: query, schema: {type: string, enum: [a, b], readOnly: true}}
+      responses: {"200": {description: ok}}
+`))
+	op := findOp(t, doc, "")
+	require.Len(t, op.Params, 3)
+
+	for i, want := range []string{"openapi:readOnly", "openapi:writeOnly", "openapi:readOnly"} {
+		param := op.Params[i]
+		entry, ok := param.Unmodeled[want]
+		require.True(t, ok, "%s: %s kept on the carrier that has no field for it", param.Name.Source, want)
+		assert.Equal(t, ir.ReasonNoIRHome, entry.Reason)
+		assertInfoDiagAt(t, diags, entry.Provenance.Pointer)
+	}
 }

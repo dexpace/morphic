@@ -83,10 +83,7 @@ func aliasAmplification(srcIndex int, root *yaml.Node) (ir.Diagnostic, bool) {
 // flat list. Taking the minimum keeps this a single number the weigher can
 // enforce in one early-exiting walk.
 func computeAllowance(raw int64) int64 {
-	ratioAllowance := maxAliasAmplification * raw
-	if ratioAllowance < minExpandedNodes {
-		ratioAllowance = minExpandedNodes
-	}
+	ratioAllowance := max(maxAliasAmplification*raw, minExpandedNodes)
 
 	surplusAllowance := raw + maxAliasSurplus
 	if surplusAllowance < ratioAllowance {

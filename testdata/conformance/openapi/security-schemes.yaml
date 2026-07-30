@@ -1,4 +1,4 @@
-openapi: 3.1.0
+openapi: 3.2.0
 info: {title: SecuritySchemes, version: "1.0.0"}
 paths: {}
 components:
@@ -7,6 +7,9 @@ components:
       type: apiKey
       in: header
       name: X-API-Key
+      description: Static per-tenant key.
+      deprecated: true
+      x-rotation-days: 90
     basicAuth:
       type: http
       scheme: basic
@@ -14,11 +17,17 @@ components:
       type: http
       scheme: bearer
       bearerFormat: JWT
+    # Any other RFC 7235 token has no first-class kind; the token itself is kept.
+    digestAuth:
+      type: http
+      scheme: digest
     oauth2Auth:
       type: oauth2
+      oauth2MetadataUrl: https://example.com/.well-known/oauth-authorization-server
       flows:
         clientCredentials:
           tokenUrl: https://example.com/token
+          refreshUrl: https://example.com/refresh
           scopes:
             read: Read access
     oidcAuth:

@@ -5,3 +5,7 @@ components:
   schemas:
     Version:
       const: "v1"
+    # A const the IR's Value model cannot represent degrades to the schemaless
+    # top type rather than to a Literal whose value lies about what was written.
+    Opaque:
+      const: !!binary "###"

@@ -1,0 +1,337 @@
+{
+  "irVersion": "0.3.0",
+  "name": "InlineResidue",
+  "version": "1.0.0",
+  "docs": {},
+  "services": [
+    {
+      "id": "s/openapi/0",
+      "name": {
+        "source": "InlineResidue",
+        "canonical": "inline_residue"
+      },
+      "docs": {},
+      "groups": [
+        {
+          "name": {
+            "hint": "default"
+          },
+          "docs": {},
+          "operations": [
+            {
+              "id": "op/openapi/paths/~1thing/get",
+              "name": {
+                "source": "getThing",
+                "canonical": "get_thing"
+              },
+              "docs": {},
+              "responses": [
+                {
+                  "name": {},
+                  "conditions": {
+                    "statusCodes": [
+                      {
+                        "from": 200,
+                        "to": 200
+                      }
+                    ]
+                  },
+                  "payload": {
+                    "contents": [
+                      {
+                        "mediaType": "application/json",
+                        "type": {
+                          "target": "t/anon/paths/~1thing/get/responses/200/content/application~1json/schema",
+                          "nullable": false
+                        }
+                      }
+                    ]
+                  },
+                  "docs": {
+                    "description": "ok"
+                  }
+                }
+              ],
+              "oneWay": false,
+              "idempotency": {},
+              "auth": null,
+              "bindings": {
+                "http": [
+                  {
+                    "method": "GET",
+                    "uriTemplate": "/thing",
+                    "sharedRoute": false,
+                    "checksumRequired": false,
+                    "isWebhook": false
+                  }
+                ]
+              },
+              "provenance": {
+                "source": 0,
+                "pointer": "/paths/~1thing/get"
+              }
+            }
+          ]
+        }
+      ],
+      "auth": null,
+      "provenance": {
+        "source": 0
+      }
+    }
+  ],
+  "types": {
+    "t/anon/components/schemas/Batch/items": {
+      "kind": "scalar",
+      "id": "t/anon/components/schemas/Batch/items",
+      "name": {
+        "hint": "Batch_item"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "unmodeled": {
+        "openapi:default": {
+          "reason": "no_ir_home",
+          "value": 7,
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/Batch/items/default"
+          }
+        },
+        "openapi:writeOnly": {
+          "reason": "no_ir_home",
+          "value": true,
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/Batch/items/writeOnly"
+          }
+        }
+      },
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Batch/items"
+      },
+      "base": {
+        "target": "t/prim/integer",
+        "nullable": false
+      }
+    },
+    "t/anon/components/schemas/Carried/properties/p": {
+      "kind": "list",
+      "id": "t/anon/components/schemas/Carried/properties/p",
+      "name": {
+        "hint": "p"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Carried/properties/p"
+      },
+      "elem": {
+        "target": "t/prim/integer",
+        "nullable": false
+      }
+    },
+    "t/anon/paths/~1thing/get/responses/200/content/application~1json/schema": {
+      "kind": "scalar",
+      "id": "t/anon/paths/~1thing/get/responses/200/content/application~1json/schema",
+      "name": {
+        "hint": "response"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "unmodeled": {
+        "openapi:default": {
+          "reason": "no_ir_home",
+          "value": "x",
+          "provenance": {
+            "source": 0,
+            "pointer": "/paths/~1thing/get/responses/200/content/application~1json/schema/default"
+          }
+        },
+        "openapi:readOnly": {
+          "reason": "no_ir_home",
+          "value": true,
+          "provenance": {
+            "source": 0,
+            "pointer": "/paths/~1thing/get/responses/200/content/application~1json/schema/readOnly"
+          }
+        }
+      },
+      "provenance": {
+        "source": 0,
+        "pointer": "/paths/~1thing/get/responses/200/content/application~1json/schema"
+      },
+      "base": {
+        "target": "t/prim/string",
+        "nullable": false
+      }
+    },
+    "t/openapi/components/schemas/Batch": {
+      "kind": "list",
+      "id": "t/openapi/components/schemas/Batch",
+      "name": {
+        "source": "Batch",
+        "canonical": "batch"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Batch"
+      },
+      "elem": {
+        "target": "t/anon/components/schemas/Batch/items",
+        "nullable": false
+      }
+    },
+    "t/openapi/components/schemas/Carried": {
+      "kind": "model",
+      "id": "t/openapi/components/schemas/Carried",
+      "name": {
+        "source": "Carried",
+        "canonical": "carried"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Carried"
+      },
+      "properties": [
+        {
+          "id": "p/openapi/components/schemas/Carried/properties/p",
+          "name": {
+            "source": "p",
+            "canonical": "p"
+          },
+          "wireName": "p",
+          "type": {
+            "target": "t/anon/components/schemas/Carried/properties/p",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "only": [
+              "read",
+              "delete",
+              "query"
+            ],
+            "none": false
+          },
+          "default": {
+            "kind": "list",
+            "bytes": null,
+            "list": [
+              {
+                "kind": "number",
+                "num": "3",
+                "bytes": null,
+                "list": null,
+                "object": null
+              }
+            ],
+            "object": null
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/Carried/properties/p"
+          }
+        }
+      ],
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
+    "t/prim/integer": {
+      "kind": "primitive",
+      "id": "t/prim/integer",
+      "name": {},
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0
+      },
+      "prim": "integer"
+    },
+    "t/prim/string": {
+      "kind": "primitive",
+      "id": "t/prim/string",
+      "name": {},
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0
+      },
+      "prim": "string"
+    }
+  },
+  "servers": [
+    {
+      "name": {},
+      "urlTemplate": "/",
+      "description": {},
+      "auth": null
+    }
+  ],
+  "diagnostics": [
+    {
+      "severity": "info",
+      "code": "openapi/degraded-construct",
+      "message": "default on a type declaration binds a use of the type, not the type; it is kept verbatim under Unmodeled and applied to a referencing property, header or parameter wherever that carrier has a field for it",
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Batch/items/default"
+      }
+    },
+    {
+      "severity": "info",
+      "code": "openapi/degraded-construct",
+      "message": "writeOnly on a type declaration binds a use of the type, not the type; it is kept verbatim under Unmodeled and applied to a referencing property, header or parameter wherever that carrier has a field for it",
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Batch/items/writeOnly"
+      }
+    },
+    {
+      "severity": "info",
+      "code": "openapi/degraded-construct",
+      "message": "default on a type declaration binds a use of the type, not the type; it is kept verbatim under Unmodeled and applied to a referencing property, header or parameter wherever that carrier has a field for it",
+      "provenance": {
+        "source": 0,
+        "pointer": "/paths/~1thing/get/responses/200/content/application~1json/schema/default"
+      }
+    },
+    {
+      "severity": "info",
+      "code": "openapi/degraded-construct",
+      "message": "readOnly on a type declaration binds a use of the type, not the type; it is kept verbatim under Unmodeled and applied to a referencing property, header or parameter wherever that carrier has a field for it",
+      "provenance": {
+        "source": 0,
+        "pointer": "/paths/~1thing/get/responses/200/content/application~1json/schema/readOnly"
+      }
+    }
+  ],
+  "sources": [
+    {
+      "format": "openapi@3.1",
+      "path": "inline-residue.yaml",
+      "hash": "0eff6ab53f12b031e47502f328d67031724fab4266ad2c4c40ba8e68c3208e7e"
+    }
+  ]
+}

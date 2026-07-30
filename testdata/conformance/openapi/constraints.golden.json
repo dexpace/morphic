@@ -1,5 +1,5 @@
 {
-  "irVersion": "0.2.0",
+  "irVersion": "0.3.0",
   "name": "Constraints",
   "version": "1.0.0",
   "docs": {},
@@ -18,6 +18,31 @@
     }
   ],
   "types": {
+    "t/anon/components/schemas/S/properties/tags": {
+      "kind": "list",
+      "id": "t/anon/components/schemas/S/properties/tags",
+      "name": {
+        "hint": "tags"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/S/properties/tags"
+      },
+      "elem": {
+        "target": "t/prim/string",
+        "nullable": false
+      },
+      "constraints": {
+        "exclusiveMin": false,
+        "exclusiveMax": false,
+        "minItems": 1,
+        "maxItems": 5,
+        "uniqueItems": true
+      }
+    },
     "t/openapi/components/schemas/S": {
       "kind": "model",
       "id": "t/openapi/components/schemas/S",
@@ -67,6 +92,67 @@
             "source": 0,
             "pointer": "/components/schemas/S/properties/ratio"
           }
+        },
+        {
+          "id": "p/openapi/components/schemas/S/properties/label",
+          "name": {
+            "source": "label",
+            "canonical": "label"
+          },
+          "wireName": "label",
+          "type": {
+            "target": "t/prim/string",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "constraints": {
+            "exclusiveMin": false,
+            "exclusiveMax": false,
+            "minLength": 2,
+            "maxLength": 8,
+            "uniqueItems": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/S/properties/label"
+          }
+        },
+        {
+          "id": "p/openapi/components/schemas/S/properties/tags",
+          "name": {
+            "source": "tags",
+            "canonical": "tags"
+          },
+          "wireName": "tags",
+          "type": {
+            "target": "t/anon/components/schemas/S/properties/tags",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/S/properties/tags"
+          }
         }
       ],
       "constraints": {
@@ -91,6 +177,18 @@
         "source": 0
       },
       "prim": "number"
+    },
+    "t/prim/string": {
+      "kind": "primitive",
+      "id": "t/prim/string",
+      "name": {},
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0
+      },
+      "prim": "string"
     }
   },
   "servers": [
@@ -105,7 +203,7 @@
     {
       "format": "openapi@3.1",
       "path": "constraints.yaml",
-      "hash": "218bd11da1dbaca3d5eaa2cca080a7d85c8d5b665be98a5ef71bb93374284eaf"
+      "hash": "f17e97c5ad1b01b8abaf78d584c35de4fb773693441b4068f9f87db515d0f743"
     }
   ]
 }

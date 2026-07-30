@@ -7,3 +7,5 @@ components:
       type: object
       properties:
         color: {type: string, format: hex-color}
+        # A password format is a redaction request, not just an encoding.
+        token: {type: string, format: password}

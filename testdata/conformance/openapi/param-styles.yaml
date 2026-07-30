@@ -15,6 +15,7 @@ paths:
           style: deepObject
           explode: true
           schema: {type: object}
+        - {name: path, in: query, allowReserved: true, schema: {type: string}}
         - name: payload
           in: query
           content:
