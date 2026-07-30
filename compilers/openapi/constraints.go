@@ -3,6 +3,7 @@ package openapi
 import (
 	oas3 "github.com/speakeasy-api/openapi/jsonschema/oas3"
 
+	"github.com/dexpace/morphic/compilers/openapi/internal/annotation"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/value"
 	"github.com/dexpace/morphic/ir"
@@ -48,7 +49,7 @@ func numericBounds(c *ir.Constraints, s *oas3.Schema) []ir.Diagnostic {
 		{"multipleOf", &c.MultipleOf},
 	}
 	for _, b := range bounds {
-		node := rawPropertyNode(s, b.prop)
+		node := annotation.RawPropertyNode(s, b.prop)
 		if node == nil {
 			continue
 		}
@@ -96,7 +97,7 @@ func applyExclusive(c *ir.Constraints, s *oas3.Schema, isMin, exclusiveBoolean b
 		}
 		return nil
 	}
-	node := rawPropertyNode(s, prop)
+	node := annotation.RawPropertyNode(s, prop)
 	if node == nil {
 		return nil
 	}

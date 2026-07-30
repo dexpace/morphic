@@ -11,6 +11,7 @@ import (
 	yaml "gopkg.in/yaml.v3"
 
 	"github.com/dexpace/morphic/compilers/compile"
+	"github.com/dexpace/morphic/compilers/openapi/internal/annotation"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/ids"
 	"github.com/dexpace/morphic/compilers/openapi/internal/nodeview"
@@ -140,7 +141,7 @@ func (l *lowerer) fillAllOf(m *ir.Model, s *oas3.Schema, pointer string) {
 				"unresolved allOf $ref %q", b.GetRef().String())
 			continue
 		}
-		ref := l.homeDeclaration(b.GetSchema(), ir.TypeRef{Target: id}, bptr, branchHint(b, i), homeOwnNode)
+		ref := l.homeDeclaration(b.GetSchema(), ir.TypeRef{Target: id}, bptr, branchHint(b, i), annotation.HomeOwnNode)
 		if i == baseIdx {
 			m.Base = &ref
 		} else {
@@ -286,9 +287,9 @@ func branchExcludesObject(bs *oas3.Schema) bool {
 }
 
 // rawMappingKeys returns the keys a YAML mapping effectively writes, in source
-// order, or nil when the node is no mapping. It is rawChildNode's enumerating
-// counterpart: that answers "what is written at this key", this one "which keys
-// are written".
+// order, or nil when the node is no mapping. It is annotation.RawChildNode's
+// enumerating counterpart: that answers "what is written at this key", this one
+// "which keys are written".
 //
 // Effective, not literal: a branch spelled `*anchor` writes the anchored
 // mapping's keys and one spelled `<<: *anchor` writes the merged-in keys, so

@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"math/big"
 
+	"github.com/dexpace/morphic/compilers/openapi/internal/annotation"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/ir"
 )
@@ -88,7 +89,7 @@ func (g *merger) reconcileProperty(dst *ir.Property, src ir.Property, pointer st
 		// like its neighbors above; the len()==0 predicate is the adoption rule.
 		dst.Examples = src.Examples
 	}
-	dst.Unmodeled = mergeUnmodeled(dst.Unmodeled, src.Unmodeled)
+	dst.Unmodeled = annotation.MergeUnmodeled(dst.Unmodeled, src.Unmodeled)
 }
 
 // mergeConstraints folds src's constraint keywords into dst under allOf

@@ -8,6 +8,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/dexpace/morphic/compilers/openapi/internal/annotation"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -23,8 +24,8 @@ components:
 	js := l.doc.Components.GetSchemas().GetOrZero("S")
 	require.NotNil(t, js)
 
-	s := siteAt(js)
-	assert.Equal(t, siteDeclaration, s.Kind)
+	s := annotation.At(js)
+	assert.Equal(t, annotation.Declaration, s.Kind)
 	require.NotNil(t, s.Node)
 	assert.Equal(t, "d", s.Node.GetDescription())
 	assert.Nil(t, s.Referent, "a declaration site has no referent")
@@ -45,8 +46,8 @@ components:
 	js := l.doc.Components.GetSchemas().GetOrZero("S")
 	require.NotNil(t, js)
 
-	s := siteAt(js)
-	assert.Equal(t, siteReference, s.Kind)
+	s := annotation.At(js)
+	assert.Equal(t, annotation.Reference, s.Kind)
 	require.NotNil(t, s.Node)
 	assert.Equal(t, "site-desc", s.Node.GetDescription(), "Node is the schema written here")
 	require.NotNil(t, s.Referent)
@@ -55,31 +56,21 @@ components:
 
 // TestSiteAt_EmptyRefIsDeclaration pins the narrower classification: a $ref
 // pointer present but empty never resolves (IsReference is false for it), so
-// siteAt reports a declaration, not a reference with a nil Referent.
+// annotation.At reports a declaration, not a reference with a nil Referent.
 func TestSiteAt_EmptyRefIsDeclaration(t *testing.T) {
 	t.Parallel()
 	emptyRef := references.Reference("")
 	js := oas3.NewJSONSchemaFromSchema[oas3.Referenceable](&oas3.Schema{Ref: &emptyRef})
 
-	s := siteAt(js)
-	assert.Equal(t, siteDeclaration, s.Kind, "an empty $ref resolves nowhere, so it is not a reference site")
+	s := annotation.At(js)
+	assert.Equal(t, annotation.Declaration, s.Kind, "an empty $ref resolves nowhere, so it is not a reference site")
 	assert.Nil(t, s.Referent)
-}
-
-// TestSiteKind_String covers both named values and the default case, so an
-// assertion failure or test diff over a siteKind prints a name instead of a
-// bare int.
-func TestSiteKind_String(t *testing.T) {
-	t.Parallel()
-	assert.Equal(t, "siteDeclaration", siteDeclaration.String())
-	assert.Equal(t, "siteReference", siteReference.String())
-	assert.Equal(t, "siteKind(99)", siteKind(99).String())
 }
 
 // TestLowerComponentSchema_RefSiblingConstraintBindsTheSite locks in the
 // $ref-sibling-constraint behaviour at a named component: lowerComponentSchema
-// resolves the component's own site via siteAt, so a bound written beside the
-// $ref (S: {$ref: Target, minimum: 5}) binds S, not Target.
+// resolves the component's own site via annotation.At, so a bound written
+// beside the $ref (S: {$ref: Target, minimum: 5}) binds S, not Target.
 func TestLowerComponentSchema_RefSiblingConstraintBindsTheSite(t *testing.T) {
 	t.Parallel()
 	l, _ := loweredFor(t, `openapi: 3.1.0

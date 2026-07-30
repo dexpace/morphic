@@ -10,6 +10,7 @@ import (
 	yaml "gopkg.in/yaml.v3"
 
 	"github.com/dexpace/morphic/compilers/compile"
+	"github.com/dexpace/morphic/compilers/openapi/internal/annotation"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/ids"
 	"github.com/dexpace/morphic/ir"
@@ -59,7 +60,7 @@ func (l *lowerer) lowerContent(mt string, media *soa.MediaType, pointer, hint st
 	}
 	l.fillSequential(&c, media, mediaPtr, hint)
 	if ext := l.extensions(media.GetExtensions(), mediaPtr); len(ext) > 0 {
-		c.Unmodeled = mergeUnmodeled(c.Unmodeled, ext)
+		c.Unmodeled = annotation.MergeUnmodeled(c.Unmodeled, ext)
 	}
 	return c
 }
@@ -103,9 +104,9 @@ func (l *lowerer) positionalEncoding(c *ir.Content, media *soa.MediaType, mediaP
 	// lowering here: an itemEncoding beside it is optional, so its absence must not
 	// suppress the message, and its own conversion failure reports separately.
 	at := mediaPtr + ids.Ptr("prefixEncoding")
-	kept := l.preserveNode(&c.Unmodeled, "openapi:prefixEncoding", rawChildNode(root, "prefixEncoding"),
+	kept := l.preserveNode(&c.Unmodeled, "openapi:prefixEncoding", annotation.RawChildNode(root, "prefixEncoding"),
 		ir.ReasonNoIRHome, at)
-	l.preserveNode(&c.Unmodeled, "openapi:itemEncoding", rawChildNode(root, "itemEncoding"),
+	l.preserveNode(&c.Unmodeled, "openapi:itemEncoding", annotation.RawChildNode(root, "itemEncoding"),
 		ir.ReasonNoIRHome, mediaPtr+ids.Ptr("itemEncoding"))
 	if !kept {
 		// Reaching here means prefixEncoding is declared — that is the only reason
@@ -415,7 +416,7 @@ func (l *lowerer) applyHeaderAnnotations(p *ir.Property, h *soa.Header, hdecl st
 	if ex := l.exampleList(h.GetExample(), h.GetExamples(), hdecl); len(ex) > 0 {
 		p.Examples = ex
 	}
-	p.Unmodeled = mergeUnmodeled(p.Unmodeled, l.extensions(h.GetExtensions(), hdecl))
+	p.Unmodeled = annotation.MergeUnmodeled(p.Unmodeled, l.extensions(h.GetExtensions(), hdecl))
 }
 
 // mediaExamples lowers a media type's single and plural example values.

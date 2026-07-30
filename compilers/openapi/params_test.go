@@ -8,6 +8,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/dexpace/morphic/compilers/openapi/internal/annotation"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/ir"
 )
@@ -418,8 +419,8 @@ func TestParams_RefSchemaUseSiteWinsOverItsReferent(t *testing.T) {
 
 // TestParams_RefSchemaInheritsThroughARefChain pins which resolution the
 // fallback must use. Hop writes nothing but its own $ref, so a one-hop referent
-// (siteAt's) would leave the parameter with nothing; only following the chain to
-// its end reaches Q.
+// (annotation.At's) would leave the parameter with nothing; only following the
+// chain to its end reaches Q.
 func TestParams_RefSchemaInheritsThroughARefChain(t *testing.T) {
 	t.Parallel()
 	_, svc, diags := lowerServiceSpec(t, paramRefInheritSpec)
@@ -598,7 +599,7 @@ func TestPreserveParamXML_ModelSetWithoutRawSourceRecordsNothing(t *testing.T) {
 	l, _ := loweredFor(t, componentSpec("    A: {type: string}\n"))
 	s := &oas3.Schema{XML: &oas3.XML{}}
 	require.NotNil(t, s.GetXML(), "the model reports the hint as set")
-	require.Nil(t, rawPropertyNode(s, "xml"), "and no raw node backs it")
+	require.Nil(t, annotation.RawPropertyNode(s, "xml"), "and no raw node backs it")
 
 	var param ir.Parameter
 	l.preserveParamXML(&param, s, "/paths/~1x/get/parameters/0/schema")
@@ -611,8 +612,9 @@ func TestPreserveParamXML_ModelSetWithoutRawSourceRecordsNothing(t *testing.T) {
 // parameter-visibility rescue that the own-node guard used to swallow. A
 // parameter whose schema is an object, an enum or an array hoists a node, and
 // neither home held the keywords: recordDeclarationResidue skips the position
-// because a parameter is a homeCarrier, and ir.Parameter has no Visibility
-// field, so they were dropped for exactly the shapes that own a node.
+// because a parameter is an annotation.HomeCarrier, and ir.Parameter has no
+// Visibility field, so they were dropped for exactly the shapes that own a
+// node.
 func TestParams_SchemaVisibilityKeptWhenTheSchemaOwnsANode(t *testing.T) {
 	t.Parallel()
 	doc, diags := parseFull(t, pathsSpec(`  /x:

@@ -142,8 +142,8 @@ func metaSchemaVersionArtifacts(ctx context.Context, doc *soa.OpenAPI, minor str
 	atDocumentVersion := schemaFindings(ctx, doc,
 		validation.WithContextObject(&oas3.ParentDocumentVersion{OpenAPI: &version}))
 	asLibraryChecks := schemaFindings(ctx, doc)
-	for site := range atDocumentVersion {
-		delete(asLibraryChecks, site)
+	for key := range atDocumentVersion {
+		delete(asLibraryChecks, key)
 	}
 	return asLibraryChecks
 }

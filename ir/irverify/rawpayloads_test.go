@@ -16,7 +16,7 @@ import (
 // deleting or renaming a constant breaks the build here. ReasonOutOfScope is
 // reached like the rest: the OpenAPI compiler's dialect walk writes it for the
 // `$id`, `$schema` and `$vocabulary` keywords it keeps but the IR excludes on
-// purpose (compilers/openapi/facets.go, dialectAt).
+// purpose (compilers/openapi/internal/annotation, dialectAt).
 var allReasons = []ir.UnmodeledReason{
 	ir.ReasonVendorExtension, ir.ReasonValidationOnly, ir.ReasonDegradedLowering,
 	ir.ReasonNoIRHome, ir.ReasonOutOfScope,

@@ -6,9 +6,9 @@ import (
 
 	soa "github.com/speakeasy-api/openapi/openapi"
 	"github.com/speakeasy-api/openapi/references"
-	yaml "gopkg.in/yaml.v3"
 
 	"github.com/dexpace/morphic/compilers/compile"
+	"github.com/dexpace/morphic/compilers/openapi/internal/annotation"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/ids"
 	"github.com/dexpace/morphic/ir"
@@ -320,7 +320,7 @@ func (l *lowerer) applyPathServers(op *ir.Operation, pi *soa.PathItem, declPtr s
 	if len(pi.GetServers()) == 0 {
 		return
 	}
-	if !l.preserveNode(&op.Unmodeled, "openapi:servers", rawChildNode(pi.GetRootNode(), "servers"),
+	if !l.preserveNode(&op.Unmodeled, "openapi:servers", annotation.RawChildNode(pi.GetRootNode(), "servers"),
 		ir.ReasonNoIRHome, declPtr+ids.Ptr("servers")) {
 		return
 	}
@@ -367,7 +367,7 @@ func (l *lowerer) lowerResponse(r *soa.Response, rng ir.StatusRange, rptr string
 		Headers:    l.lowerHeaders(r.GetHeaders(), rptr),
 	}
 	resp.Docs.Description = r.GetDescription()
-	l.preserveNode(&resp.Unmodeled, "openapi:links", rawChildNode(r.GetRootNode(), "links"),
+	l.preserveNode(&resp.Unmodeled, "openapi:links", annotation.RawChildNode(r.GetRootNode(), "links"),
 		ir.ReasonNoIRHome, rptr+ids.Ptr("links"))
 	return resp
 }
@@ -394,7 +394,7 @@ func (l *lowerer) preserveErrorHeaders(ec *ir.ErrorCase, r *soa.Response, rptr s
 	if headers == nil || headers.Len() == 0 {
 		return
 	}
-	if !l.preserveNode(&ec.Unmodeled, "openapi:headers", rawChildNode(r.GetRootNode(), "headers"),
+	if !l.preserveNode(&ec.Unmodeled, "openapi:headers", annotation.RawChildNode(r.GetRootNode(), "headers"),
 		ir.ReasonNoIRHome, rptr+ids.Ptr("headers")) {
 		return
 	}
@@ -421,7 +421,7 @@ func (l *lowerer) fillErrorType(ec *ir.ErrorCase, r *soa.Response, rptr string) 
 		}
 	}
 	if content.Len() > 1 && l.preserveNode(&ec.Unmodeled, "openapi:content",
-		rawChildNode(r.GetRootNode(), "content"), ir.ReasonNoIRHome, rptr+ids.Ptr("content")) {
+		annotation.RawChildNode(r.GetRootNode(), "content"), ir.ReasonNoIRHome, rptr+ids.Ptr("content")) {
 		l.diag(ir.SeverityInfo, diag.DegradedConstruct, rptr,
 			"error response has multiple media types; full content map kept under Unmodeled")
 	}
@@ -591,27 +591,6 @@ func firstPathSegment(path string) string {
 		}
 	}
 	return ""
-}
-
-// rawChildNode returns the raw YAML value node of a mapping child keyed by the
-// on-wire name, unwrapping a document node first; nil when absent. It reads exact
-// literals the high-level model does not preserve (links, servers, content maps).
-func rawChildNode(root *yaml.Node, key string) *yaml.Node {
-	if root == nil {
-		return nil
-	}
-	if root.Kind == yaml.DocumentNode && len(root.Content) > 0 {
-		root = root.Content[0]
-	}
-	if root.Kind != yaml.MappingNode {
-		return nil
-	}
-	for i := 0; i+1 < len(root.Content); i += 2 {
-		if root.Content[i].Value == key {
-			return root.Content[i+1]
-		}
-	}
-	return nil
 }
 
 // referencedEntry is the method set every soa "Referenced*" alias exposes: it

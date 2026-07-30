@@ -1,10 +1,11 @@
-package openapi
+package annotation
 
 import (
 	"strings"
 	"testing"
 
 	oas3 "github.com/speakeasy-api/openapi/jsonschema/oas3"
+	"github.com/speakeasy-api/openapi/marshaller"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	yaml "gopkg.in/yaml.v3"
@@ -21,7 +22,7 @@ func TestAnnotations_SiteOverridesReferent(t *testing.T) {
 	ref := &oas3.Schema{Description: new("SiteDesc")}
 	tgt := &oas3.Schema{Description: new("TargetDesc"), Deprecated: new(true)}
 
-	got, diags := annotations(site{Kind: siteReference, Node: ref, Referent: tgt}, "/p", 0)
+	got, diags := Read(Site{Kind: Reference, Node: ref, Referent: tgt}, "/p", 0)
 
 	assert.Empty(t, diags)
 	assert.Equal(t, "SiteDesc", got.Docs.Description, "the site's own description wins")
@@ -37,7 +38,7 @@ func TestAnnotations_DeclarationIgnoresAnyReferent(t *testing.T) {
 	node := &oas3.Schema{Description: new("OwnDesc")}
 	stray := &oas3.Schema{Title: new("StraySummary"), Deprecated: new(true)}
 
-	got, _ := annotations(site{Kind: siteDeclaration, Node: node, Referent: stray}, "/p", 0)
+	got, _ := Read(Site{Kind: Declaration, Node: node, Referent: stray}, "/p", 0)
 
 	assert.Equal(t, "OwnDesc", got.Docs.Description)
 	assert.Empty(t, got.Docs.Summary, "a declaration inherits nothing, whatever it is handed")
@@ -51,7 +52,7 @@ func TestAnnotations_ReadsEverySiteLocalAspect(t *testing.T) {
 		XML:         &oas3.XML{Name: new("Q")},
 		Example:     yamlNode(t, "hello"),
 	}
-	got, diags := annotations(site{Kind: siteDeclaration, Node: node}, "/components/schemas/S", 0)
+	got, diags := Read(Site{Kind: Declaration, Node: node}, "/components/schemas/S", 0)
 
 	assert.Equal(t, "D", got.Docs.Description)
 	require.NotNil(t, got.XML)
@@ -98,7 +99,7 @@ func TestPreserveKeywordInto_EmptyPayloadRecordsAndAnnouncesNothing(t *testing.T
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
 			var p ir.Unmodeled
-			diags := preserveKeywordInto(&p, "openapi:not", raw, "/p", "/p/not", "not", 0)
+			diags := PreserveKeywordInto(&p, "openapi:not", raw, "/p", "/p/not", "not", 0)
 			assert.Nil(t, p)
 			assert.Empty(t, diags, "nothing was kept, so nothing is announced")
 		})
@@ -142,7 +143,7 @@ func TestDialectAt_KeepsEachKeywordOutOfScope(t *testing.T) {
 		assert.Equal(t, ir.ReasonOutOfScope, entry.Reason)
 	}
 	assert.Len(t, diags, 2, "each exclusion is announced where it was written")
-	assert.True(t, declaresAny(s, dialectKeywords),
+	assert.True(t, DeclaresAny(s, DialectKeywords),
 		"and the hoist gate agrees a node is needed to hold them")
 }
 
@@ -163,26 +164,19 @@ func TestNoIRHomeAt_ContentSchemaIsKeptNotExcluded(t *testing.T) {
 	assert.Equal(t, "/components/schemas/S/contentSchema", diags[0].Provenance.Pointer)
 }
 
-// schemaFromYAML loads one component schema through the compiler's own parser, so
-// the raw root node the verbatim readers need is present. A schema built in Go
-// carries none, which TestValidationOnlyAt_NeedsTheRawNode covers separately.
+// schemaFromYAML unmarshals body as a bare schema through the same marshaller
+// the compiler's loader parses documents with, so the raw nodes the verbatim
+// readers read off are present. A schema built in Go carries none, which
+// TestValidationOnlyAt_NeedsTheRawNode covers separately.
 func schemaFromYAML(t *testing.T, body string) *oas3.Schema {
 	t.Helper()
-	doc, _, err := load(t.Context(), 0, sourceOf(componentSpec("    S:\n"+indentSchema(body))), Options{}.withDefaults())
+	var js oas3.JSONSchema[oas3.Referenceable]
+	valErrs, err := marshaller.Unmarshal(t.Context(), strings.NewReader(body), &js)
 	require.NoError(t, err)
-	require.NotNil(t, doc)
-	js, ok := doc.Doc.Components.GetSchemas().Get("S")
-	require.True(t, ok, "the component parsed")
-	return js.GetSchema()
-}
-
-// indentSchema re-indents a schema body's lines to sit under a component name.
-func indentSchema(body string) string {
-	var b strings.Builder
-	for line := range strings.SplitSeq(strings.TrimRight(body, "\n"), "\n") {
-		b.WriteString("      " + line + "\n")
-	}
-	return b.String()
+	require.Empty(t, valErrs, "the fixture parses cleanly")
+	s := js.GetSchema()
+	require.NotNil(t, s, "the fixture is a schema, not a bare boolean")
+	return s
 }
 
 // TestNoIRHomeAt_ModelSetWithoutRawSourceRecordsNothing pins the guard between
@@ -197,10 +191,29 @@ func TestNoIRHomeAt_ModelSetWithoutRawSourceRecordsNothing(t *testing.T) {
 		&oas3.Schema{Type: oas3.NewTypeFromString(oas3.SchemaTypeObject)})
 	s := &oas3.Schema{ContentSchema: inner}
 	require.NotNil(t, s.GetContentSchema(), "the model reports the keyword as set")
-	require.Nil(t, rawPropertyNode(s, "contentSchema"), "and no raw node backs it")
+	require.Nil(t, RawPropertyNode(s, "contentSchema"), "and no raw node backs it")
 
 	got, diags := noIRHomeAt(s, "/components/schemas/A", 0)
 
 	assert.Nil(t, got, "no entry is recorded when there are no bytes to record")
 	assert.Empty(t, diags, "and nothing is announced, so the two channels agree")
+}
+
+// yamlNode parses src as a single YAML document and returns its root node.
+func yamlNode(t *testing.T, src string) *yaml.Node {
+	t.Helper()
+	var doc yaml.Node
+	require.NoError(t, yaml.Unmarshal([]byte(src), &doc))
+	require.Len(t, doc.Content, 1, "expected a single document node")
+	return doc.Content[0]
+}
+
+// TestKind_String covers both named values and the default case, so an
+// assertion failure or test diff over a Kind prints a name instead of a bare
+// int.
+func TestKind_String(t *testing.T) {
+	t.Parallel()
+	assert.Equal(t, "Declaration", Declaration.String())
+	assert.Equal(t, "Reference", Reference.String())
+	assert.Equal(t, "Kind(99)", Kind(99).String())
 }

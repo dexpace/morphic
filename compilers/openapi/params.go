@@ -5,6 +5,7 @@ import (
 	soa "github.com/speakeasy-api/openapi/openapi"
 
 	"github.com/dexpace/morphic/compilers/compile"
+	"github.com/dexpace/morphic/compilers/openapi/internal/annotation"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/ids"
 	"github.com/dexpace/morphic/compilers/openapi/internal/value"
@@ -94,9 +95,9 @@ func (l *lowerer) fillParamSchema(param *ir.Parameter, js *oas3.JSONSchema[oas3.
 	if s == nil {
 		return
 	}
-	// refTargetSchema, not siteAt's Referent: the fallback must read the end of a
-	// $ref chain, since one hop would take the default and description off an
-	// intermediate reference instead of the schema that declares them.
+	// refTargetSchema, not annotation.At's Referent: the fallback must read the
+	// end of a $ref chain, since one hop would take the default and description
+	// off an intermediate reference instead of the schema that declares them.
 	tgt := l.refTargetSchema(js, s)
 	l.fillParamDefault(param, s, tgt, pointer)
 
@@ -142,15 +143,16 @@ func (l *lowerer) fillParamDefault(param *ir.Parameter, s, tgt *oas3.Schema, poi
 func (l *lowerer) fillParamSchemaAnnotations(param *ir.Parameter, s, tgt *oas3.Schema, pointer string) {
 	// Visibility is kept before the own-node guard, not after it. The guard exists
 	// so an annotation with a home on the node is not also copied to the carrier,
-	// but readOnly/writeOnly have no home on either: recordDeclarationResidue skips
-	// this position because a parameter is a homeCarrier, and ir.Parameter has no
-	// Visibility field. Keeping them after the guard would drop them for exactly
-	// the parameters whose schema owns a node — an object, an enum, an array.
+	// but readOnly/writeOnly have no home on either: recordDeclarationResidue
+	// skips this position because a parameter is an annotation.HomeCarrier, and
+	// ir.Parameter has no Visibility field. Keeping them after the guard would
+	// drop them for exactly the parameters whose schema owns a node — an object,
+	// an enum, an array.
 	l.preserveParamVisibility(param, s, pointer)
 	if l.loweredToOwnNode(pointer, param.Type) {
 		return
 	}
-	a, diags := annotations(site{Kind: siteReference, Node: s, Referent: tgt}, pointer, l.srcIndex)
+	a, diags := annotation.Read(annotation.Site{Kind: annotation.Reference, Node: s, Referent: tgt}, pointer, l.srcIndex)
 	l.diags.AppendAll(diags)
 
 	param.Docs = a.Docs
@@ -163,7 +165,7 @@ func (l *lowerer) fillParamSchemaAnnotations(param *ir.Parameter, s, tgt *oas3.S
 	if a.XML != nil {
 		l.preserveParamXML(param, s, pointer)
 	}
-	param.Unmodeled = mergeUnmodeled(param.Unmodeled, a.Unmodeled)
+	param.Unmodeled = annotation.MergeUnmodeled(param.Unmodeled, a.Unmodeled)
 }
 
 // preserveParamXML keeps a parameter schema's xml hints instead of dropping
@@ -225,7 +227,7 @@ func (l *lowerer) fillParamDetail(param *ir.Parameter, p *soa.Parameter, pptr st
 	if ex := l.exampleList(p.GetExample(), p.GetExamples(), pptr); len(ex) > 0 {
 		param.Examples = ex
 	}
-	param.Unmodeled = mergeUnmodeled(param.Unmodeled, l.extensions(p.GetExtensions(), pptr))
+	param.Unmodeled = annotation.MergeUnmodeled(param.Unmodeled, l.extensions(p.GetExtensions(), pptr))
 }
 
 // resolveStyleExplode materializes a parameter's resolved serialization style

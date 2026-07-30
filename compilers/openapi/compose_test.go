@@ -12,6 +12,7 @@ import (
 	"github.com/stretchr/testify/require"
 	yaml "gopkg.in/yaml.v3"
 
+	"github.com/dexpace/morphic/compilers/openapi/internal/annotation"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/ids"
 	"github.com/dexpace/morphic/ir"
@@ -1915,7 +1916,7 @@ func TestRawMappingKeys_OnlyEnumeratesAMapping(t *testing.T) {
 // mapping it stands for.
 func useValue(t *testing.T, src string) *yaml.Node {
 	t.Helper()
-	node := rawChildNode(yamlNode(t, src), "use")
+	node := annotation.RawChildNode(yamlNode(t, src), "use")
 	require.NotNil(t, node, `src writes no "use" key`)
 	return node
 }

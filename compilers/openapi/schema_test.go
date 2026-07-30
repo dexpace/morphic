@@ -14,6 +14,7 @@ import (
 	"github.com/stretchr/testify/require"
 	yaml "gopkg.in/yaml.v3"
 
+	"github.com/dexpace/morphic/compilers/openapi/internal/annotation"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/ids"
 	"github.com/dexpace/morphic/ir"
@@ -920,8 +921,8 @@ components:
 // body to read annotations from: a nil either and a boolean schema.
 func TestSiteSchema_BodylessPositions(t *testing.T) {
 	t.Parallel()
-	assert.Nil(t, siteSchema(nil))
-	assert.Nil(t, siteSchema(oas3.NewJSONSchemaFromBool(true)))
+	assert.Nil(t, annotation.SchemaOf(nil))
+	assert.Nil(t, annotation.SchemaOf(oas3.NewJSONSchemaFromBool(true)))
 }
 
 // TestAttachDeclaredAnnotations_MissingNode drives the invariant no source can
@@ -2042,7 +2043,7 @@ func TestRawFromNode_SeparatesAbsentFromUnconvertible(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			raw, err := rawFromNode(tc.node)
+			raw, err := annotation.RawFromNode(tc.node)
 			if tc.wantErr {
 				require.Error(t, err, "an unconvertible node must be distinguishable from an absent one")
 				assert.Nil(t, raw, "nothing is recorded for a node that did not convert")
@@ -2060,32 +2061,32 @@ func TestRawFromNode_SeparatesAbsentFromUnconvertible(t *testing.T) {
 
 func TestRawPropertyNode_NilSchema(t *testing.T) {
 	t.Parallel()
-	assert.Nil(t, rawPropertyNode(nil, "x"))
+	assert.Nil(t, annotation.RawPropertyNode(nil, "x"))
 }
 
-// TestSchemaConstraints_NonSchemaInputs covers siteSchema's nil and boolean
-// early return, plus a well-formed reference besides: none of the three
+// TestSchemaConstraints_NonSchemaInputs covers annotation.SchemaOf's nil and
+// boolean early return, plus a well-formed reference besides: none of the three
 // leaves a body with constraint keywords on it, so schemaConstraints reports
 // none either way.
 func TestSchemaConstraints_NonSchemaInputs(t *testing.T) {
 	t.Parallel()
 	l := newRawLowerer(&soa.OpenAPI{})
-	assert.Nil(t, l.schemaConstraints(siteSchema(nil), "/p"))
-	assert.Nil(t, l.schemaConstraints(siteSchema(oas3.NewJSONSchemaFromBool(true)), "/p"))
-	assert.Nil(t, l.schemaConstraints(siteSchema(oas3.NewJSONSchemaFromReference("#/components/schemas/Other")), "/p"))
+	assert.Nil(t, l.schemaConstraints(annotation.SchemaOf(nil), "/p"))
+	assert.Nil(t, l.schemaConstraints(annotation.SchemaOf(oas3.NewJSONSchemaFromBool(true)), "/p"))
+	assert.Nil(t, l.schemaConstraints(annotation.SchemaOf(oas3.NewJSONSchemaFromReference("#/components/schemas/Other")), "/p"))
 }
 
 // TestSchemaConstraints_EmptyRefSchema covers a $ref pointer that is present
-// but empty: IsReference is false for it, so siteSchema has no early return
-// here — the Schema body reaches schemaConstraints, which finds no
-// constraint keywords on a body that carries only Ref. The parser never
-// emits this shape, so it is built by hand.
+// but empty: IsReference is false for it, so annotation.SchemaOf has no early
+// return here — the Schema body reaches schemaConstraints, which finds no
+// constraint keywords on a body that carries only Ref. The parser never emits
+// this shape, so it is built by hand.
 func TestSchemaConstraints_EmptyRefSchema(t *testing.T) {
 	t.Parallel()
 	l := newRawLowerer(&soa.OpenAPI{})
 	emptyRef := references.Reference("")
 	js := oas3.NewJSONSchemaFromSchema[oas3.Referenceable](&oas3.Schema{Ref: &emptyRef})
-	assert.Nil(t, l.schemaConstraints(siteSchema(js), "/p"))
+	assert.Nil(t, l.schemaConstraints(annotation.SchemaOf(js), "/p"))
 }
 
 func TestResolveSchemaRef_ReusesInternedSubSchema(t *testing.T) {
@@ -2748,22 +2749,22 @@ func TestPropertyDocs_RefTargetReachesTheCarrier(t *testing.T) {
 // these subtests and fails the other two.
 func TestPropertyDocs_UseSiteWinsKeywordByKeyword(t *testing.T) {
 	t.Parallel()
-	for _, site := range carrierDocKeywords() {
-		t.Run(site.name, func(t *testing.T) {
+	for _, written := range carrierDocKeywords() {
+		t.Run(written.name, func(t *testing.T) {
 			t.Parallel()
 			doc, diags := parseFull(t, componentSpec(docTarget()+
 				"    Owner: {type: object, properties: {p: {$ref: '#/components/schemas/Target', "+
-				site.write("SITE")+"}}}\n"))
+				written.write("SITE")+"}}}\n"))
 			requireNoErrorDiags(t, diags)
 
 			p := propertyOf(t, doc, "Owner", "p")
 			assert.Equal(t, componentID("Target"), p.Type.Target, "a carrier hoists no alias for its siblings")
 			for _, kw := range carrierDocKeywords() {
 				want := "REF-" + kw.name
-				if kw.name == site.name {
+				if kw.name == written.name {
 					want = "SITE"
 				}
-				assert.Equal(t, want, kw.read(p.Docs), "%s, with %s written at the site", kw.name, site.name)
+				assert.Equal(t, want, kw.read(p.Docs), "%s, with %s written at the site", kw.name, written.name)
 			}
 		})
 	}
@@ -3594,14 +3595,14 @@ func TestDynamicRef_ChainEndsAtAnAnchorItCannotFollow(t *testing.T) {
 // says no IR node is coming for them — never dropped in silence, and never read
 // as a base URI for reference resolution.
 //
-// The keyword list is written out here rather than read from dialectKeywords:
-// ranging over the production slice would let a keyword dropped from it narrow
-// this test instead of failing it, so the two are compared as sets and each is
-// then exercised.
+// The keyword list is written out here rather than read from
+// annotation.DialectKeywords: ranging over the production slice would let a
+// keyword dropped from it narrow this test instead of failing it, so the two
+// are compared as sets and each is then exercised.
 func TestDialectKeywords_KeptOutOfScope(t *testing.T) {
 	t.Parallel()
 	want := []string{"$id", "$schema", "$vocabulary"}
-	require.ElementsMatch(t, want, dialectKeywords,
+	require.ElementsMatch(t, want, annotation.DialectKeywords,
 		"a keyword joining or leaving the exclusion must be decided here too")
 
 	doc, diags := parseFull(t, componentSpec(

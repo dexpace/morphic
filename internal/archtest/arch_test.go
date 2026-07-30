@@ -69,6 +69,17 @@ var rules = map[string][]string{
 	"compilers/openapi/internal/scan": {module + "/ir",
 		module + "/compilers/openapi/internal/diag",
 		module + "/compilers/openapi/internal/nodeview", "gopkg.in/yaml.v3"},
+	// What a schema or a carrier says about itself rather than about its shape,
+	// plus the validation-only keywords the IR keeps verbatim. It reads the
+	// parsed model and the raw nodes behind it, and holds no opinion about
+	// lowering — so it sits below the schema lowering that asks it questions and
+	// above nothing that asks it any.
+	"compilers/openapi/internal/annotation": {module + "/ir",
+		module + "/compilers/openapi/internal/diag",
+		module + "/compilers/openapi/internal/ids",
+		module + "/compilers/openapi/internal/value",
+		"github.com/speakeasy-api/openapi/extensions",
+		"github.com/speakeasy-api/openapi/jsonschema/oas3", "gopkg.in/yaml.v3"},
 	"pass": {module + "/ir"},
 	"engine": {module + "/ir", module + "/compilers", module + "/compilers/openapi",
 		module + "/pass", "gopkg.in/yaml.v3"},

@@ -13,6 +13,7 @@ import (
 	yaml "gopkg.in/yaml.v3"
 
 	"github.com/dexpace/morphic/compilers"
+	"github.com/dexpace/morphic/compilers/openapi/internal/annotation"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/ids"
 	"github.com/dexpace/morphic/ir"
@@ -720,16 +721,16 @@ func TestLowerTagDefs_NilEntrySkipped(t *testing.T) {
 
 func TestRawChildNode(t *testing.T) {
 	t.Parallel()
-	assert.Nil(t, rawChildNode(nil, "x"), "nil root")
-	assert.Nil(t, rawChildNode(scalarNode("!!str", "x"), "k"), "non-mapping root")
+	assert.Nil(t, annotation.RawChildNode(nil, "x"), "nil root")
+	assert.Nil(t, annotation.RawChildNode(scalarNode("!!str", "x"), "k"), "non-mapping root")
 
 	var doc yaml.Node
 	require.NoError(t, yaml.Unmarshal([]byte("a: 1\nb: 2"), &doc))
 	// doc is a DocumentNode wrapping the mapping — exercises the unwrap branch.
-	got := rawChildNode(&doc, "b")
+	got := annotation.RawChildNode(&doc, "b")
 	require.NotNil(t, got)
 	assert.Equal(t, "2", got.Value)
-	assert.Nil(t, rawChildNode(&doc, "missing"), "absent key")
+	assert.Nil(t, annotation.RawChildNode(&doc, "missing"), "absent key")
 }
 
 func TestResolvers_NilInputs(t *testing.T) {
