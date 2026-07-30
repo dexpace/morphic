@@ -5,10 +5,7 @@ import (
 	"go/ast"
 	"go/parser"
 	"go/token"
-	"os"
-	"path/filepath"
 	"reflect"
-	"runtime"
 	"slices"
 	"strconv"
 	"strings"
@@ -103,6 +100,23 @@ func TestTypeDef_EverySealedImplementationHasAKind(t *testing.T) {
 			"registered to it, and no other (-marker +registered)")
 }
 
+// TestTypeDef_HandWrittenConcreteListIsComplete guards allConcreteTypeDefs
+// (typedef_test.go), the one hand-written list naming the sum's members as
+// concrete types. The kind lists below cannot stand in for it: a variant absent
+// from every list is absent from nothing they compare against each other.
+func TestTypeDef_HandWrittenConcreteListIsComplete(t *testing.T) {
+	t.Parallel()
+	listed := make([]string, 0, len(allConcreteTypeDefs))
+	for _, td := range allConcreteTypeDefs {
+		listed = append(listed, concreteName(t, td))
+	}
+	slices.Sort(listed)
+
+	assert.Empty(t, cmp.Diff(sealedTypeDefImpls(t), listed),
+		"allConcreteTypeDefs must name every ir type carrying the sealed typeDef() "+
+			"marker, once each (-marker +listed)")
+}
+
 // TestTypeDef_HandWrittenKindListsAreComplete guards every list of the sum's kinds
 // this package spells out by hand. Each one drives a test that iterates it, so a
 // kind missing from a list is a kind that test silently never exercises — allKinds
@@ -133,6 +147,11 @@ func TestTypeDef_HandWrittenKindListsAreComplete(t *testing.T) {
 }
 
 // sampleDocumentKinds returns the kinds sampleDocument (json_test.go) builds.
+//
+// That fixture keys its registry by kind, so the row's "once each" is enforced
+// over what the document ends up holding rather than over what the fixture spells
+// out: a second entry of a kind already present collapses onto its twin at
+// construction and never reaches this list.
 func sampleDocumentKinds(t *testing.T) []ir.TypeKind {
 	t.Helper()
 	types := sampleDocument(t).Types
@@ -269,25 +288,15 @@ func receiverTypeName(t *testing.T, fd *ast.FuncDecl) string {
 	return id.Name
 }
 
-// parseIRSources parses the ir package's production files, located from this file's
-// own path so the result does not depend on the working directory.
+// parseIRSources parses every file irSourceFiles lists, under one FileSet.
 func parseIRSources(t *testing.T) []*ast.File {
 	t.Helper()
-	_, self, _, ok := runtime.Caller(0)
-	require.True(t, ok, "runtime.Caller must report this file's path")
-	dir := filepath.Dir(self)
-	entries, err := os.ReadDir(dir)
-	require.NoError(t, err)
-
+	paths := irSourceFiles(t)
 	fset := token.NewFileSet()
-	var out []*ast.File
-	for _, e := range entries {
-		name := e.Name()
-		if e.IsDir() || !strings.HasSuffix(name, ".go") || strings.HasSuffix(name, "_test.go") {
-			continue
-		}
-		f, err := parser.ParseFile(fset, filepath.Join(dir, name), nil, parser.SkipObjectResolution)
-		require.NoError(t, err, "parsing %s", name)
+	out := make([]*ast.File, 0, len(paths))
+	for _, path := range paths {
+		f, err := parser.ParseFile(fset, path, nil, parser.SkipObjectResolution)
+		require.NoError(t, err, "parsing %s", path)
 		out = append(out, f)
 	}
 	require.NotEmpty(t, out, "the ir package must have production sources")

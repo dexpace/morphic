@@ -35,13 +35,19 @@ func TestNewTypeDef_UnknownKind(t *testing.T) {
 	assert.False(t, ok)
 }
 
+// allConcreteTypeDefs names the sum's members as concrete types rather than as
+// kinds, so a type that stops satisfying ir.TypeDef fails to compile here.
+// TestTypeDef_HandWrittenConcreteListIsComplete holds the list to the sealed
+// marker set derived from the ir sources: nothing that compares hand-written
+// lists against each other can see a variant absent from all of them.
+var allConcreteTypeDefs = []ir.TypeDef{
+	&ir.Primitive{}, &ir.Scalar{}, &ir.Model{}, &ir.Union{}, &ir.Enum{},
+	&ir.List{}, &ir.MapT{}, &ir.Tuple{}, &ir.Literal{}, &ir.External{}, &ir.Any{},
+}
+
 func TestTypeDef_ConcreteTypesImplementInterface(t *testing.T) {
 	t.Parallel()
-	// Compile-time completeness: one entry per kind.
-	for _, td := range []ir.TypeDef{
-		&ir.Primitive{}, &ir.Scalar{}, &ir.Model{}, &ir.Union{}, &ir.Enum{},
-		&ir.List{}, &ir.MapT{}, &ir.Tuple{}, &ir.Literal{}, &ir.External{}, &ir.Any{},
-	} {
+	for _, td := range allConcreteTypeDefs {
 		assert.Contains(t, allKinds, td.Kind())
 	}
 }

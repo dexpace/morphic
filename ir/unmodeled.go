@@ -82,10 +82,10 @@ type UnmodeledEntry struct {
 // it — rather than any one format's word for the concept. OpenAPI calls these
 // extensions, Protobuf options, GraphQL directives, Smithy traits, TypeSpec
 // decorators, and Protobuf's own "extensions" means something else entirely
-// (reserved field-number ranges), so a spec-agnostic IR can carry none of them.
-// Being unmodeled is the reason an entry is here; surviving verbatim is what
-// the field guarantees about it, and UnmodeledReason records which flavour of
-// unmodeled each entry is.
+// (reserved field-number ranges), so a spec-agnostic IR can adopt none of those
+// names. Being unmodeled is the reason an entry is here; surviving verbatim is
+// what the field guarantees about it, and UnmodeledReason records which flavour
+// of unmodeled each entry is.
 type Unmodeled map[string]UnmodeledEntry
 
 // RawConfig is declared protocol configuration the IR models a field for but

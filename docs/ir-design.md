@@ -465,15 +465,28 @@ its degenerate `{type: string}` form names one.
 `$dynamicRef` is resolved per reference site by compiler expansion. What makes that possible is
 that a document's set of `$dynamicAnchor` declarations is fixed before evaluation: a name declared
 exactly once is the only match any dynamic scope containing a match can hold, so it *is* 2020-12
-§8.2.3.2's outermost matching anchor whatever path evaluation took. A reference is irreducible —
-and is then kept verbatim under `ReasonDegradedLowering` with an `info` diagnostic naming which
-case it was — when the name is declared more than once (the target is back under the evaluation
-path's control), when it is unresolvable or names another document, or when it is co-declared with
-a `$ref`, a `oneOf`/`anyOf`, or a shape of its own, since the IR has no node for that intersection.
-One further case is irreducible in the OpenAPI compiler specifically: an anchor declared below the
-top level of `components/schemas` has no ID that is stable without consulting the registry, and
-resolving it would make the reference depend on which position happened to lower first (§4.3), so
-it is preserved instead.
+§8.2.3.2's outermost matching anchor whatever path evaluation took. That argument assumes the
+document declares no `$id`, which the compiler enforces rather than hopes for: `$id` starts a new
+schema resource, so an `$id` anywhere on the path between a reference and a candidate anchor makes
+the reference irreducible.
+
+A reference is irreducible — and is then kept verbatim under `ReasonDegradedLowering` with an
+`info` diagnostic naming which case it was — when the name is declared more than once (the target
+is back under the evaluation path's control), when it is unresolvable, names another document, or
+is not a plain fragment, when its value is not a string at all, when a resource boundary stands
+between it and the anchor as above, when expanding it would close a cycle of aliases (a `$ref`
+cycle is refused outright for the same reason, and expansion must not mint one the refusal cannot
+see), or when it is co-declared with a `$ref`, a `oneOf`/`anyOf`, a shape of its own, or one of
+`items`/`prefixItems`/`required` — an expansion takes its target whole, so it has nowhere to put a
+sibling applicator. One further case is irreducible in the OpenAPI compiler specifically: an anchor
+declared anywhere but the top level of `components/schemas` has no ID that is stable without
+consulting the registry, and resolving it would make the reference depend on which position
+happened to lower first (§4.3), so it is preserved instead.
+
+Anchors are counted through YAML aliases and merge keys, so an anchor reached only by an alias
+still makes its name a duplicate. The walk is bounded by depth and by node count, and says so with
+a `warning` when it truncates, since a truncated index undercounts declarations and an undercount
+is what turns "irreducible" into a confident expansion.
 
 Two neighbouring keyword groups are *not* part of this boundary, and are recorded here so their
 treatment is stated rather than assumed:
@@ -488,15 +501,29 @@ treatment is stated rather than assumed:
   (§3), and describes one API surface rather than a resource graph, so it has no dialect axis and
   none is coming: they are kept verbatim under `ReasonOutOfScope`, and `$id` is explicitly *not*
   honoured as a base URI for reference resolution. `$comment` is dropped outright — 2020-12 §8.3
-  forbids presenting it to end users, so no emitter may see it. `$anchor` and `$dynamicAnchor` are
-  consumed as reference targets rather than carried as content.
+  forbids presenting it to end users, so no emitter may see it. `$dynamicAnchor` is consumed as a
+  reference target rather than carried as content — it is what lets a `$dynamicRef` expand.
+  `$anchor` is currently neither: Milestone 1 resolves same-document JSON pointers only, so a
+  `$ref` naming an anchor is reported unresolved rather than resolving through it (GitHub #141).
+  It is excluded here because the compiler does nothing with it today, not because dropping it is
+  settled.
 
 This is the one intentional carve-out from "lossless means structural": losslessness is
 satisfied by verbatim preservation, and the carve-out is explicit rather than accidental. The
-keyword lists above are not a hand-kept inventory to be trusted: the OpenAPI compiler's
-`TestVocabulary2020_12_EveryKeywordIsLoweredOrKept` walks every keyword of the 2020-12
-vocabularies and fails on any that changes nothing in the compiled IR, so a keyword handled by
-neither lowering nor preservation cannot be added — or overlooked — silently.
+keyword lists above are held to the compiler rather than merely asserted. The OpenAPI compiler's
+`TestVocabulary2020_12_EveryKeywordIsLoweredOrKept` enumerates the 2020-12 vocabularies keyword by
+keyword and, for each, compiles three documents — the keyword absent, written with one value,
+written with a second — requiring that the absent form differs from the first and the first from
+the second. So it holds both the keyword's *presence* and its *value* to reaching the compiled IR,
+by lowering or by verbatim preservation; a keyword that stops being carried fails there rather than
+waiting for a reader to notice.
+
+Two limits are worth stating, because the guarantee is a floor rather than an inventory. It
+compares one pair of values per keyword, so a lowering that carried one spelling and dropped
+another would still pass. And rows that legitimately change nothing assert the inverse and carry
+a written justification — `$comment`, which the spec forbids surfacing; `$defs`, whose members
+lower on demand through a `$ref`; `$dynamicAnchor`, read as a reference target; and `$anchor`,
+which the compiler does not yet honour.
 
 ### 4.8 Degraded source constructs — documented lowerings
 
@@ -552,17 +579,21 @@ an `info` one.
   is validation logic, so it is preserved under `ReasonValidationOnly` with §4.7's keyword family.
 - **An inline `allOf` branch declaring more than the merge consumes** — a branch written inline
   rather than as a `$ref` owns no node, so §4.3's composition has nowhere to point and the branch
-  is merged into the composing model in place. That merge consumes the branch's `properties` and
-  `required` list and nothing else. **The IR** could hold every other keyword a branch writes, and
+  is merged into the composing model in place. That merge consumes the branch's `properties`, its
+  `required` list, and a `type` that is exactly `object` — which the composed `Model` already
+  restates — and nothing else. **The IR** could hold every other keyword a branch writes, and
   does hold them one level up — the same keywords on the composing schema lower to `Docs`,
   `Model.Additional`, `Model.Constraints` and `Unmodeled` — but attributing them to the composition
   means either giving the branch a node (changing the composition shape) or merging them upward
-  with a precedence rule for branches that disagree. So whatever the merge does not consume is kept
-  verbatim in `Unmodeled["openapi:allOf/<index>"]` under `ReasonDegradedLowering`, keyed by branch
-  index so siblings cannot overwrite each other, plus an `openapi/degraded-construct` diagnostic
-  naming the residue keywords. The residue is derived from the branch's own declared key set rather
-  than a fixed list, so a keyword the dialect gains later is residue without anyone maintaining an
-  enumeration. The diagnostic is a `warning` rather than an `info` where the branch declares a
+  with a precedence rule for branches that disagree. So a branch declaring anything the merge does
+  not consume is kept verbatim in `Unmodeled["openapi:allOf/<index>"]` under
+  `ReasonDegradedLowering` — the *whole* branch, consumed keywords included, so the source stays
+  reconstructable rather than having to be reassembled from two places — keyed by branch index so
+  siblings cannot overwrite each other, plus an `openapi/degraded-construct` diagnostic naming the
+  keywords that made it residue. Which keywords those are is derived from the branch's own declared
+  key set rather than from a fixed list, so a keyword the dialect gains later is residue without
+  anyone maintaining an enumeration. The key set is read through YAML aliases and merge keys, so a
+  branch written `[*shared]` or `[{<<: *shared}]` derives the same residue as one written out. The diagnostic is a `warning` rather than an `info` where the branch declares a
   `type` that excludes `object`, because the composing `Model` then asserts a shape the source
   contradicts — `allOf: [{type: string, maxLength: 3}]` composes an empty model of kind `model`
   over a source that says `string`. Two limits are deliberate: a `$ref` branch's `$ref`-adjacent
@@ -1368,7 +1399,7 @@ member or union variant must disappear from pre-`Added` snapshots. Smithy `@sinc
 no version registry) lowers to `Added` only when the compiler synthesizes labels; otherwise it
 is kept verbatim under `Unmodeled`.
 
-## 12. Docs, deprecation, examples, preserved constructs
+## 12. Docs, deprecation, examples, unmodeled constructs
 
 ```go
 type Docs struct {
@@ -1462,7 +1493,7 @@ heuristic, which invariant 6 then requires to be injectable, marked `Inferred`, 
 `Reason` gives the same discrimination as data, and callers already tell formats apart by key
 prefix.
 
-For the escape hatch to hold, **every node that can carry source metadata has a `Unmodeled`
+For the escape hatch to hold, **every node that can carry source metadata has an `Unmodeled`
 field** — including `Response`, `ErrorCase`, `Payload`, `Content`, `Example`, `ServerVariable`,
 `OAuthFlow`, and every binding struct (new spec revisions land fields on exactly these objects).
 Per-file metadata (protobuf file options) is keyed by path in `Document.Unmodeled`.
@@ -1542,7 +1573,7 @@ How each format's distinctive concepts land in the IR (full details live with ea
 
 | Format | Lowering highlights |
 |---|---|
-| **OpenAPI 3.x** | components/schemas → registry (IDs from pointers); inline schemas hoisted with hints; `allOf` → Base/Mixins per §4.3; `oneOf`/`anyOf` → Union (Exclusive bit), null-variant → Nullable ref, co-declared with structural keywords → the composition distributed across the variants per §4.3, or — for the five shapes that cannot be distributed — structural body + verbatim union per §4.8 (branches that declare no shape at all are `validation_only` per §4.7); `discriminator` → Discriminator (3.2 `defaultMapping` → Discriminator.Default); `nullable`/type-arrays → Nullable; readOnly/writeOnly → Visibility and schema-level `default` → the referencing Property/Parameter's Default: both bind a *use* of the type rather than the type, so a declaration-site one is pushed down to referencing properties with use-site precedence and the declaration keeps its own copy verbatim (`no_ir_home` Unmodeled + diagnostic) — which is what a component nothing references would otherwise lose silently; `additionalProperties: false` → Additional=closed, `unevaluatedProperties: false` → closed_after_composition, `minProperties`/`maxProperties` → Model.Constraints (the property set's cardinality, as against Additional's openness); parameters → Params + HTTPBinding locations w/ style/explode, 3.2 `in: querystring` → querystring location; requestBody/responses all content types → Payload.Contents, a non-required requestBody → Payload.Unmodeled (`no_ir_home`, presence is the IR's only body optionality); 3.2 `itemSchema` → Content.Item and `itemEncoding` → Content.ItemEncoding — except beside a positional `prefixEncoding`, where both go to Content.Unmodeled (`no_ir_home`) because a single every-item encoding cannot state ordinals; per-status responses/default → Conditions + ranges, error-response `headers` and a multi-media error `content` map → ErrorCase.Unmodeled (`no_ir_home`, ErrorCase has neither field); webhooks → HTTPBinding.IsWebhook; callbacks → Callbacks; links → Response.Unmodeled (`no_ir_home`, promotable later); path-item `servers` → Operation.Unmodeled (`no_ir_home`: §10 scopes servers by index list at service and channel, and an operation has no such list yet); securitySchemes/security → Auth OR-of-ANDs, 3.2 device flow + `oauth2MetadataUrl` → Flows/OAuth2MetadataURL; servers+variables (3.2 named) → Servers; tags (3.2 parent/kind) → groups + TagDefs; info contact/license → Document; schema `example(s)` → Examples; `xml` object (incl. 3.2 nodeType) → XMLHints at type and property level; `not`/`if-then-else`/`dependentSchemas`/`contains`/`propertyNames`/`unevaluated*` → verbatim Unmodeled per §4.7; `patternProperties` → AdditionalProps.Patterns; `prefixItems` → Tuple, with any trailing `items` → Tuple.Unmodeled (`degraded_lowering` per §4.8: an open tuple has no IR combinator, so the fixed head is lowered and the tail kept beside it); `x-*` → namespaced Unmodeled (legal on every object — hence Unmodeled on every node); `$ref`-adjacent sibling keywords (3.1) and ref-target annotations merge onto the referencing Property/Parameter with **use-site precedence**, applied uniformly (oagen's ad-hoc per-site patching is the counterexample); a oneOf/anyOf whose variants are all string consts normalizes to a closed `Enum` in a `pass/` normalization — not in the compiler — so per-variant `Docs` survive until the collapse is chosen; mutually-exclusive parameter groups (`x-mutually-exclusive-parameter-groups`) stay as namespaced Unmodeled entries, and their documented *promotion* (no dedicated node needed) is a pass that synthesizes one logical `Parameter` typed by a `Union` of variant models, bound via `HTTPParamBinding.ParamPath` per field; pagination only via injectable policy, marked Inferred |
+| **OpenAPI 3.x** | components/schemas → registry (IDs from pointers); inline schemas hoisted with hints; `allOf` → Base/Mixins per §4.3; `oneOf`/`anyOf` → Union (Exclusive bit), null-variant → Nullable ref, co-declared with structural keywords → the composition distributed across the variants per §4.3, or — for the five shapes that cannot be distributed — structural body + verbatim union per §4.8 (branches that declare no shape at all are `validation_only` per §4.7); `discriminator` → Discriminator (3.2 `defaultMapping` → Discriminator.Default); `nullable`/type-arrays → Nullable; readOnly/writeOnly → Visibility and schema-level `default` → the referencing Property/Parameter's Default: both bind a *use* of the type rather than the type, so a declaration-site one is pushed down to referencing properties with use-site precedence and the declaration keeps its own copy verbatim (`no_ir_home` Unmodeled + diagnostic) — which is what a component nothing references would otherwise lose silently; `additionalProperties: false` → Additional=closed, `unevaluatedProperties: false` → closed_after_composition, `minProperties`/`maxProperties` → Model.Constraints (the property set's cardinality, as against Additional's openness); parameters → Params + HTTPBinding locations w/ style/explode, 3.2 `in: querystring` → querystring location; requestBody/responses all content types → Payload.Contents, a non-required requestBody → Payload.Unmodeled (`no_ir_home`, presence is the IR's only body optionality); 3.2 `itemSchema` → Content.Item and `itemEncoding` → Content.ItemEncoding — except beside a positional `prefixEncoding`, where both go to Content.Unmodeled (`no_ir_home`) because a single every-item encoding cannot state ordinals; per-status responses/default → Conditions + ranges, error-response `headers` and a multi-media error `content` map → ErrorCase.Unmodeled (`no_ir_home`, ErrorCase has neither field); webhooks → HTTPBinding.IsWebhook; callbacks → Callbacks; links → Response.Unmodeled (`no_ir_home`, promotable later); path-item `servers` → Operation.Unmodeled (`no_ir_home`: §10 scopes servers by index list at service and channel, and an operation has no such list yet); securitySchemes/security → Auth OR-of-ANDs, 3.2 device flow + `oauth2MetadataUrl` → Flows/OAuth2MetadataURL; servers+variables (3.2 named) → Servers; tags (3.2 parent/kind) → groups + TagDefs; info contact/license → Document; schema `example(s)` → Examples; `xml` object (incl. 3.2 nodeType) → XMLHints at type and property level; `not`/`if-then-else`/`dependentSchemas`/`dependentRequired`/`contains`/`propertyNames`/`unevaluated*` → verbatim Unmodeled per §4.7; `contentEncoding`/`contentMediaType` → `Encoding` on the scalar the position lowers to and `contentSchema` → Unmodeled (`no_ir_home`) per §4.7; `$id`/`$schema`/`$vocabulary` → Unmodeled (`out_of_scope`, `$id` not honoured for resolution); `$dynamicRef` → the anchored type by compiler expansion, else verbatim Unmodeled with the reason it was irreducible; an inline `allOf` branch declaring more than the merge consumes → verbatim Unmodeled (`degraded_lowering`) per §4.8; a parameter schema's `xml` and its `readOnly`/`writeOnly` → Parameter.Unmodeled (`no_ir_home`: Parameter has no field for either); `patternProperties` → AdditionalProps.Patterns; `prefixItems` → Tuple, with any trailing `items` → Tuple.Unmodeled (`degraded_lowering` per §4.8: an open tuple has no IR combinator, so the fixed head is lowered and the tail kept beside it); `x-*` → namespaced Unmodeled (legal on every object — hence Unmodeled on every node); `$ref`-adjacent sibling keywords (3.1) and ref-target annotations merge onto the referencing Property/Parameter with **use-site precedence**, applied uniformly (oagen's ad-hoc per-site patching is the counterexample); a oneOf/anyOf whose variants are all string consts normalizes to a closed `Enum` in a `pass/` normalization — not in the compiler — so per-variant `Docs` survive until the collapse is chosen; mutually-exclusive parameter groups (`x-mutually-exclusive-parameter-groups`) stay as namespaced Unmodeled entries, and their documented *promotion* (no dedicated node needed) is a pass that synthesizes one logical `Parameter` typed by a `Union` of variant models, bound via `HTTPParamBinding.ParamPath` per field; pagination only via injectable policy, marked Inferred |
 | **Swagger 2.0** | lifted to OpenAPI 3.x shape first (body/formData → Payload; host/basePath/schemes → Servers; consumes/produces → content types), then the OpenAPI lowering runs |
 | **TypeSpec** | consumed post-check (monomorphized, `isFinished`); template instances → TypeCommon.Instantiation incl. value args → TemplateArg; models → Model w/ Base + spread provenance → Mixins; scalars → Scalar chains, constructors in values → Value.Ctor; `@encode`/`@format` → Encoding triple; `@encodedName` → WireNameByFormat at property AND type level; unions w/ named variants → Union, `@discriminated` → Discriminator.PropertyName/Envelope/EnvelopeValueName; `| null` → Nullable; visibility classes (incl. custom, `@invisible` → Visibility.None) → Visibility, op overrides → ParameterVisibility/ReturnTypeVisibility; `@patch` implicitOptionality → HTTPBinding.PatchImplicitOptionality; interfaces → OperationGroups (versionable); `@overload` → OverloadOf; `@sharedRoute` → SharedRoute; `@service` → Service; versioning decorators incl. `@typeChangedFrom`/`@madeOptional`/`@madeRequired` and add/remove cycles → Availability timeline (on members/variants/params too); pagination decorators incl. prev/first/last links and header continuation tokens → Pagination PropPaths (In:"header"); Azure.Core `@pollingOperation`/`@finalOperation` → LongRunning; multipart w/ parts → Content.Encoding/PartEncoding, `Http.File` → FileInfo (content-type set, contents chain, filename location); streams/SSE → StreamDetail + Variant.Event (contentType, terminal); `@error` → UsageFlags.Error; `@example`/`@opExample` → Examples (Input/Output pairs); `@pattern` message → Constraints.PatternMessage; `@mediaTypeHint` → TypeCommon.MediaTypeHint; `never` members deleted + diagnostic per §4.8; TCGC client-shaping decorators (`@clientName`, `@access`, `@usage`, `@scope`, `@override`, …) → namespaced Unmodeled (`out_of_scope`) consumed by emitter policy, never IR semantics; values/consts incl. enum-member refs → Values channel |
 | **Smithy 2.0** | structures → Model, mixins → Mixins (non-structure mixins flattened — spec-sanctioned); `document` → Any; unions → WireTagged Union, member `@jsonName` → Variant.WireName; enum/intEnum → Enum (open by default); `@sparse` → element Nullable; traits: constraints → Constraints, `@paginated` → Pagination (declared), `@retryable` → ErrorCase.Retryable + Throttling, `@error` fault → ErrorCase.Fault, `@readonly` → Idempotency safe, `@idempotent`/`@idempotencyToken` → Idempotency, `@sensitive` → Sensitive/Secret, `@tags` → Tags, `@clientOptional`/`@input` → Property.ClientOptional (+InputOnly), `@addedDefault` → DefaultAdded, root-shape `@default` pushed down to properties w/ provenance; `@streaming` blob → StreamDetail (+`@requiresLength` → RequiresLength); event streams → StreamDetail.Events union + Property.EventHeader/EventPayload + Initial messages; service-level errors → Service.CommonErrors; protocol traits → Service.Protocols; service `rename`/`version` → Service.Renames/Version; resources → OperationGroup + ResourceInfo (identifiers, properties, lifecycle incl. put/@noReplace, instance vs collection ops); http traits → HTTPBinding incl. `@endpoint`/`@hostLabel` → HostPrefix/host location (additive binding), `@httpPrefixHeaders`/`@httpQueryParams` → Prefix bindings, `@httpResponseCode` → Response.StatusCodeProp, `@requestCompression` → Compression, `@httpChecksumRequired` → ChecksumRequired; `@auth` order → priority-ordered Auth, `@optionalAuth` → empty option; `@jsonName` → WireName; `@mediaType` → Encoding.MediaType; xml traits → XMLHints at type and property level; `@examples` → Examples (Input/Output/Error); waiters + rules-engine traits → verbatim Unmodeled (`out_of_scope`, §15); `smithy.api#Unit` → nil payload / shared empty Model for tag-only variants; other traits → namespaced Unmodeled |

@@ -39,12 +39,12 @@ var notReferences = map[string]string{
 	"IdempotencyKind": "idempotency guarantee",
 	"MsgDirection":    "publish or subscribe",
 	"PageStrategy":    "pagination strategy",
-	"UnmodeledReason": "why a construct is preserved rather than modeled",
 	"PresenceKind":    "how a property represents absence",
 	"PrimKind":        "which built-in scalar",
 	"Severity":        "how bad a diagnostic is",
 	"StreamingMode":   "shape of a streaming exchange",
 	"TypeKind":        "TypeDef sum tag",
+	"UnmodeledReason": "why a construct is kept verbatim rather than modeled",
 	"ValueKind":       "Value sum tag",
 
 	// An alias is not a distinct type at run time, so refKindByType can never key
@@ -66,11 +66,13 @@ var notReferences = map[string]string{
 //
 // Docs.Description is one such field — CommonMark that may carry {t:TypeID}
 // cross-reference tokens for emitters to resolve — so a token naming a type no
-// registry declares is reported by neither reference walk. Content.Encoding was a
-// second until its keys were retyped map[PropID]PartEncoding (#134): typing them
-// is what let pass.Validate resolve a key where a PropID resolves at all, against
-// the properties of the model the content names rather than a document-level
-// registry (the PropID row below).
+// registry declares is reported by neither reference walk. Content.Encoding's
+// keys were another until they were retyped map[PropID]PartEncoding (#134). The
+// retype bought an honest shape and compile-time protection against passing a
+// TypeID or a bare string, not resolution: PropID addresses no document-level
+// registry (its row below), so neither reference walk can resolve a key either
+// way. pass.Validate resolves each one by hand instead, against the properties
+// of the model the content's type names.
 func TestStringTypes_AreAllClassified(t *testing.T) {
 	t.Parallel()
 	resolved := map[string]bool{}

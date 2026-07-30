@@ -99,7 +99,7 @@ Legend: ✅ native concept · ⚠ expressible indirectly · — absent
 6. **Unmodeled constructs are preserved, namespaced by origin** (`openapi:x-foo`,
    `smithy:aws.api#arn`, `graphql:@key`), so no source metadata is lost and later generators can
    opt into them. Each entry records why it was kept and where it came from. The escape hatch
-   only holds if *every* node that can carry source metadata has a `Unmodeled` slot — new spec
+   only holds if *every* node that can carry source metadata has an `Unmodeled` slot — new spec
    revisions land fields on exactly the objects one forgets (responses, examples, security
    schemes, server variables).
 7. **GraphQL's parameterized fields and selection sets** don't map to fixed operations; the IR

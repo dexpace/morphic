@@ -4,11 +4,8 @@ import (
 	"go/ast"
 	"go/parser"
 	"go/token"
-	"os"
 	"path/filepath"
-	"runtime"
 	"strconv"
-	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -39,12 +36,12 @@ func TestUnmodeled_JSONRoundTrip(t *testing.T) {
 	})
 }
 
-// preserveReasonWire is the hand-maintained expectation of every reason and
+// unmodeledReasonWire is the hand-maintained expectation of every reason and
 // its serialized form. The strings land in golden IR and in emitter selection
 // logic (`Reason == ReasonValidationOnly`), so they are contract rather than
 // an internal detail. TestUnmodeledReason_TiesToConstBlock keeps this list from
 // drifting behind the const block it mirrors.
-var preserveReasonWire = map[ir.UnmodeledReason]string{
+var unmodeledReasonWire = map[ir.UnmodeledReason]string{
 	ir.ReasonVendorExtension:  "vendor_extension",
 	ir.ReasonValidationOnly:   "validation_only",
 	ir.ReasonDegradedLowering: "degraded_lowering",
@@ -54,7 +51,7 @@ var preserveReasonWire = map[ir.UnmodeledReason]string{
 
 func TestUnmodeledReason_WireStrings(t *testing.T) {
 	t.Parallel()
-	for reason, want := range preserveReasonWire {
+	for reason, want := range unmodeledReasonWire {
 		assert.Equal(t, want, string(reason))
 	}
 }
@@ -65,7 +62,7 @@ func TestUnmodeledReason_WireStrings(t *testing.T) {
 // parses the ir package with go/ast — the approach
 // internal/harness's TestConstBlock_TiesToAnnotationsAndSiteKinds and
 // internal/archtest's import rules both use — and enforces two directions: the
-// declared reasons and preserveReasonWire name the same set, and every declared
+// declared reasons and unmodeledReasonWire name the same set, and every declared
 // reason is Valid. Adding a constant without teaching Valid about it fails here
 // rather than surfacing later as a spurious ir/unknown-unmodeled-reason.
 //
@@ -74,15 +71,14 @@ func TestUnmodeledReason_WireStrings(t *testing.T) {
 // because a switch body is not enumerable at run time.
 // TestUnmodeledReason_UnknownIsInvalid pins only the two values it names.
 //
-// Declared is the bar, not written: ReasonOutOfScope reaches no compiler write
-// path yet (ir-design §15 excludes Smithy and TypeSpec constructs OpenAPI
-// cannot express), and that is a gap in the compilers, not in the enum.
+// Declared is the bar, not written: a reason no compiler has written yet must
+// still be Valid, because the wire can carry it the moment one does.
 func TestUnmodeledReason_TiesToConstBlock(t *testing.T) {
 	t.Parallel()
 	declared := parseDeclaredReasons(t)
 
-	want := make([]string, 0, len(preserveReasonWire))
-	for _, s := range preserveReasonWire {
+	want := make([]string, 0, len(unmodeledReasonWire))
+	for _, s := range unmodeledReasonWire {
 		want = append(want, s)
 	}
 	require.ElementsMatch(t, want, declared)
@@ -107,23 +103,61 @@ func TestUnmodeledReason_UnknownIsInvalid(t *testing.T) {
 // taxonomy at every usage site under a key this test never inspects.
 const reasonTypeName = "UnmodeledReason"
 
-// reasonHomeFile is the reason vocabulary's only home. Every declaration there is
+// reasonHomeFile returns the base name of the ir source that declares
+// reasonTypeName — the reason vocabulary's only home. Every declaration there is
 // held to the strict form because the file holds nothing else; in the package's
 // other files, only UnmodeledReason-typed declarations are.
-const reasonHomeFile = "preserved.go"
+//
+// It is derived rather than written down. A constant naming the file by hand
+// keeps matching nothing once the file is renamed, which disarms the strict check
+// without failing anything — the shape this test carried when ir/preserved.go
+// became ir/unmodeled.go.
+func reasonHomeFile(t *testing.T) string {
+	t.Helper()
+	var homes []string
+	for _, path := range irSourceFiles(t) {
+		f, err := parser.ParseFile(token.NewFileSet(), path, nil, parser.SkipObjectResolution)
+		require.NoError(t, err, "parsing %s", path)
+		if declaresType(t, f, reasonTypeName) {
+			homes = append(homes, filepath.Base(path))
+		}
+	}
+	require.Len(t, homes, 1, "exactly one ir source must declare %s, found %v", reasonTypeName, homes)
+	return homes[0]
+}
+
+// declaresType reports whether f declares a package-level type named name.
+func declaresType(t *testing.T, f *ast.File, name string) bool {
+	t.Helper()
+	for _, decl := range f.Decls {
+		gd, isGen := decl.(*ast.GenDecl)
+		if !isGen || gd.Tok != token.TYPE {
+			continue
+		}
+		for _, spec := range gd.Specs {
+			ts, isType := spec.(*ast.TypeSpec)
+			require.True(t, isType, "type decl spec is not a TypeSpec: %#v", spec)
+			if ts.Name.Name == name {
+				return true
+			}
+		}
+	}
+	return false
+}
 
 // parseDeclaredReasons returns the literal value of every UnmodeledReason-typed
 // constant the ir package declares. It parses every production source rather than
-// preserved.go alone, so a reason declared beside unrelated code is recorded
-// instead of missed.
+// the reason type's own file alone, so a reason declared beside unrelated code is
+// recorded instead of missed.
 //
 // Two spellings stay out of reach, both needing go/types rather than a parse to
 // see: an untyped constant in another file (`const legacy = "x"` acquires the
 // type only where it is assigned), and one typed through an alias declared in a
-// different file. Neither is reachable inside reasonHomeFile, where every
+// different file. Neither is reachable inside the home file, where every
 // declaration must spell the type literally.
 func parseDeclaredReasons(t *testing.T) []string {
 	t.Helper()
+	home := reasonHomeFile(t)
 	var out []string
 	for _, path := range irSourceFiles(t) {
 		f, err := parser.ParseFile(token.NewFileSet(), path, nil, parser.SkipObjectResolution)
@@ -133,7 +167,7 @@ func parseDeclaredReasons(t *testing.T) []string {
 			if !isGen || (gd.Tok != token.CONST && gd.Tok != token.VAR) {
 				continue
 			}
-			out = append(out, reasonValues(t, gd, filepath.Base(path))...)
+			out = append(out, reasonValues(t, gd, filepath.Base(path), home)...)
 		}
 	}
 	require.NotEmpty(t, out, "no UnmodeledReason constants found; the parse went wrong")
@@ -141,15 +175,16 @@ func parseDeclaredReasons(t *testing.T) []string {
 }
 
 // reasonValues returns the unquoted value of each `Name UnmodeledReason =
-// "literal"` spec in gd, which was declared in the source file named file.
+// "literal"` spec in gd, which was declared in the source file named file. home
+// is the reason type's own file, whose every declaration is held to that form.
 //
 // Nothing is skipped in silence. A spec naming the reason type in any other form
-// fails here, and so does any spec at all in reasonHomeFile, which holds nothing
-// else: skipping would let a constant join the taxonomy at every usage site —
-// untyped, built by a conversion, typed through a same-file alias, or held in a
-// mutable var — without this test ever recording it, producing exactly the
-// spurious ir/unknown-unmodeled-reason the tie exists to prevent.
-func reasonValues(t *testing.T, gd *ast.GenDecl, file string) []string {
+// fails here, and so does any spec at all in home, which holds nothing else:
+// skipping would let a constant join the taxonomy at every usage site — untyped,
+// built by a conversion, typed through a same-file alias, or held in a mutable
+// var — without this test ever recording it, producing exactly the spurious
+// ir/unknown-unmodeled-reason the tie exists to prevent.
+func reasonValues(t *testing.T, gd *ast.GenDecl, file, home string) []string {
 	t.Helper()
 	var out []string
 	for _, spec := range gd.Specs {
@@ -158,7 +193,7 @@ func reasonValues(t *testing.T, gd *ast.GenDecl, file string) []string {
 
 		id, isIdent := vs.Type.(*ast.Ident)
 		if !isIdent || id.Name != reasonTypeName {
-			require.NotEqual(t, reasonHomeFile, file,
+			require.NotEqual(t, home, file,
 				"%s in %s declares no %s type; every declaration in this file must spell it "+
 					"literally, so an untyped constant, a conversion or a same-file alias cannot "+
 					"join the taxonomy unrecorded", vs.Names, file, reasonTypeName)
@@ -178,28 +213,6 @@ func reasonValues(t *testing.T, gd *ast.GenDecl, file string) []string {
 		require.NoError(t, err)
 		out = append(out, unquoted)
 	}
-	return out
-}
-
-// irSourceFiles lists the ir package's production Go files, located relative to
-// this test's own path so the result does not depend on the working directory.
-func irSourceFiles(t *testing.T) []string {
-	t.Helper()
-	_, thisFile, _, ok := runtime.Caller(0)
-	require.True(t, ok, "runtime.Caller failed")
-
-	entries, err := os.ReadDir(filepath.Dir(thisFile))
-	require.NoError(t, err)
-
-	out := make([]string, 0, len(entries))
-	for _, e := range entries {
-		name := e.Name()
-		if e.IsDir() || !strings.HasSuffix(name, ".go") || strings.HasSuffix(name, "_test.go") {
-			continue
-		}
-		out = append(out, filepath.Join(filepath.Dir(thisFile), name))
-	}
-	require.NotEmpty(t, out, "the ir package must have production sources")
 	return out
 }
 

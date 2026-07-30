@@ -11,11 +11,15 @@ package ir
 // bump leaves a consumer pinned to the old version accepting a document it
 // cannot read, which is the one thing this constant exists to prevent.
 //
-// 0.2.0 covers three shape changes made together: Extensions became Unmodeled
+// 0.2.0 covers three shape changes made together: Extensions became Preserved
 // with RawConfig split out, Content.ItemEncoding became a single encoding
 // rather than a sentinel-keyed map, and the diagnostic code
 // pass/dangling-auth-ref became ir/dangling-auth-ref (see pass's package doc).
-const IRVersion = "0.2.0"
+//
+// 0.3.0 renames that field to Unmodeled on every carrier, so the JSON key
+// "preserved" is now "unmodeled". A consumer pinned to 0.2.0 finds no key it
+// recognizes and drops every unmodeled construct in silence.
+const IRVersion = "0.3.0"
 
 // TypeRegistry is the flat, ID-keyed owner of every TypeDef in a Document
 // (ir-design §2, §4); every other node references types by TypeID. JSON

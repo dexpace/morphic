@@ -88,14 +88,15 @@ func TestVerify_Corpus(t *testing.T) {
 	}
 }
 
-// uncorpusedPreserved exercises the Unmodeled writes no committed fixture
+// uncorpusedUnmodeled exercises the Unmodeled writes no committed fixture
 // reaches: path-item servers, an error response's headers, an error response's
 // second media type, and an `items` tail after `prefixItems`. The parameter's
-// xml hints are reached by the corpus too, and are here because a parameter is
-// the one carrier whose entries the corpus sweep reads through a different field
-// of the operation than any other site.
-const uncorpusedPreserved = `openapi: 3.1.0
-info: {title: PreservedSites, version: "1"}
+// xml hints are reached by the corpus too, and are here so the spec covers every
+// field unmodeledKeys reads — the operation itself, its parameters, its errors
+// and the type registry — leaving a collector that stopped reading one of them
+// to fail the precondition below rather than quietly narrow what is verified.
+const uncorpusedUnmodeled = `openapi: 3.1.0
+info: {title: UnmodeledSites, version: "1"}
 paths:
   /widgets:
     servers:
@@ -124,9 +125,9 @@ paths:
             text/plain: {schema: {type: string}}
 `
 
-// preservedKeys returns every Unmodeled key the document carries, at the site
-// kinds uncorpusedPreserved writes to.
-func preservedKeys(doc *ir.Document) []string {
+// unmodeledKeys returns every Unmodeled key the document carries, at the site
+// kinds uncorpusedUnmodeled writes to.
+func unmodeledKeys(doc *ir.Document) []string {
 	var keys []string
 	collect := func(p ir.Unmodeled) {
 		for k := range p {
@@ -153,24 +154,23 @@ func preservedKeys(doc *ir.Document) []string {
 	return keys
 }
 
-// TestVerify_PreservedSitesOutsideTheCorpus verifies a document built from the
+// TestVerify_UnmodeledSitesOutsideTheCorpus verifies a document built from the
 // compiler write paths the committed corpus leaves unreached. A checker only
-// sees what some spec makes the compiler write: measured against the corpus
-// sweep alone, four of the compiler's preserve calls are dead statements, so the
-// reason each of them passes is inspected by nothing. This spec reaches all
-// four.
+// sees what some spec makes the compiler write, and measured against the corpus
+// sweep alone the preserve calls behind the sites listed above are dead
+// statements, so the reason each of them passes is inspected by nothing.
 //
 // The key assertion is the precondition, not the oracle: without it a compiler
 // that stopped writing these entries would leave Verify with nothing to check
 // and the test would still pass.
-func TestVerify_PreservedSitesOutsideTheCorpus(t *testing.T) {
+func TestVerify_UnmodeledSitesOutsideTheCorpus(t *testing.T) {
 	t.Parallel()
-	doc := compile(t, "preserved-sites.yaml", []byte(uncorpusedPreserved))
+	doc := compile(t, "unmodeled-sites.yaml", []byte(uncorpusedUnmodeled))
 	require.NotNil(t, doc)
 	require.Equal(t, []string{
 		"openapi:content", "openapi:headers", "openapi:items-after-prefix",
 		"openapi:servers", "openapi:xml",
-	}, preservedKeys(doc), "the spec must reach every preserve call this test exists for")
+	}, unmodeledKeys(doc), "the spec must reach every preserve call this test exists for")
 
 	assert.Empty(t, irverify.Verify(doc))
 }
