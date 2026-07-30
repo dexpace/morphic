@@ -94,23 +94,40 @@ Strictly sequential: each conversion depends on the layer below it having moved.
 Both oracles gate the *first* Tier-1 conversion rather than the whole tier, so they are proven
 against the old code before any of it moves.
 
-### Guards — last, not first
+### After the split
 
 | Issue | Work | Blocked by |
 |---|---|---|
 | #178 | Cap methods per type in `internal/archtest` | #177 |
 | #83 | Function-size and complexity caps in `golangci-lint` | #177 |
+| #180 | Refresh the package layout and testing strategy in `architecture.md` and `CLAUDE.md` | #177 |
 
-These land after the restructuring because the caps are calibrated against the finished shape.
-Landing them first would encode the current one. #178 exists because #83 alone would not have
+The caps land after the restructuring because they are calibrated against the finished shape;
+landing them first would encode the current one. #178 exists because #83 alone would not have
 prevented this: no function body in the package exceeds 50 lines against a 70-line cap, and the
 failure was type surface, which nothing measured.
+
+#180 matters more than routine doc upkeep. `CLAUDE.md` states the documents are the spec and are
+read first, and both it and `architecture.md` §3 carry a package-layout tree that this work
+invalidates. A layout diagram that no longer matches the tree actively misleads.
+
+### Absorbed from the existing backlog
+
+Work already filed that lands inside this restructuring rather than alongside it.
+
+| Issue | Relationship | Blocked by |
+|---|---|---|
+| #86 | Hand-built provenance at 24 sites. Its proposed fix — a method on the lowerer — is invalidated by #177; the equivalent is a constructor in `internal/diag` taking the context. Design §8.3 identifies this as the one change with **no guard behind it**, since `irverify` checks provenance index range but never pointer correctness | #172 |
+| #84 | Eight copy-pasted reference-resolution helpers, in files that relocate. Sequenced after the move so the relocation and the collapse stay separate reviews | #175 |
+| #87 | Mostly overtaken by #97 — the `*_edgecases_test.go` files are gone. The surviving concern, `newRawLowerer` hand-constructing its subject, resolves when there is nothing left to construct | — |
+| #48 | Golden comparison has no line-ending guard. Not a blocker on a Linux runner, but byte-identical goldens are what prove ~20 pull requests neutral, and a comparison that fails for unrelated reasons trains a reader to dismiss exactly the diffs that matter | — |
 
 ### Deferred, with reasons
 
 | Issue | Status |
 |---|---|
 | #179 | Source index — blocked on `$ref` handling being correct first (#40, #141, #143) |
+| #161 | The live naming-divergence defect. Deliberately **not** blocked on #163: promotion would fix it, but it is a contract violation shipping today and must not wait on an architecture programme |
 | #142 | The annotation matrix cannot address a carrier position. Recorded as a standing blind spot in the design §8.4; independently fixable |
 | #54 | Cased `Naming.Hint` passes the neutrality check. Adjacent to #164 |
 | #66 | Closed as superseded — its premise expired when the next compilers landed without it |
@@ -119,16 +136,24 @@ failure was type surface, which nothing measured.
 ## Critical path
 
 ```
-#57 ─┬─ #162 ── #168 ─┐
-     ├─ #163 ── #164  │
-     └─ #165 ─┬───────┼── #172 ── #173 ── #174 ── #175 ── #176 ── #177 ─┬─ #178
-               ├─ #166 ┤                                                 └─ #83
-               ├─ #167 ┤
-               ├─ #169 ┤
-               ├─ #170 ┤
-               └─ #171 ┘
-#159, #160 ────────────────────────── #173
+#57 ─┬─ #162 ─── #168 ──┐
+     ├─ #163 ─── #164   │                                          ┌─ #178
+     └─ #165 ─┬─────────┼─ #172 ─ #173 ─ #174 ─ #175 ─ #176 ─ #177 ─┼─ #83
+              ├─ #166 ──┤          │              │                 └─ #180
+              ├─ #167 ──┤          └─ #86         └─ #84
+              ├─ #169 ──┤
+              ├─ #170 ──┤
+              └─ #171 ──┘
+#159, #160 ──────────────── #173
 ```
 
 Twelve steps deep at its longest, with Tier 0 wide enough that six of its seven extractions can
 proceed in parallel once `diag` lands.
+
+Four issues are unblocked and can start immediately: **#57**, **#159**, **#160** and **#161**. The
+first three are the prerequisites everything else waits on; #161 is independent by design. The graph
+is acyclic — verify rather than trust it:
+
+```bash
+gh api repos/dexpace/morphic/issues/N/dependencies/blocked_by --jq '[.[].number]'
+```
