@@ -14,6 +14,7 @@ import (
 	"github.com/dexpace/morphic/compilers/openapi/internal/annotation"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/ids"
+	"github.com/dexpace/morphic/compilers/openapi/internal/merge"
 	"github.com/dexpace/morphic/compilers/openapi/internal/nodeview"
 	"github.com/dexpace/morphic/compilers/openapi/internal/value"
 	"github.com/dexpace/morphic/ir"
@@ -81,7 +82,7 @@ func (l *lowerer) applyCompositionRequired(m *ir.Model, s *oas3.Schema, pointer 
 	if len(entries) == 0 {
 		return
 	}
-	byWire := wireNameIndex(m.Properties)
+	byWire := merge.WireNameIndex(m.Properties)
 	for _, e := range entries {
 		if i, ok := byWire[e.name]; ok {
 			m.Properties[i].Required = true

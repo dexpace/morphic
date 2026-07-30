@@ -80,6 +80,13 @@ var rules = map[string][]string{
 		module + "/compilers/openapi/internal/value",
 		"github.com/speakeasy-api/openapi/extensions",
 		"github.com/speakeasy-api/openapi/jsonschema/oas3", "gopkg.in/yaml.v3"},
+	// allOf property reconciliation. It reaches annotation for the one field a
+	// redeclaration unions rather than intersects, and takes everything else it
+	// needs from lowering — the registry lookup and the recorder — as function
+	// fields, which is what keeps the conflict lattice drivable without a walk.
+	"compilers/openapi/internal/merge": {module + "/ir",
+		module + "/compilers/openapi/internal/annotation",
+		module + "/compilers/openapi/internal/diag"},
 	"pass": {module + "/ir"},
 	"engine": {module + "/ir", module + "/compilers", module + "/compilers/openapi",
 		module + "/pass", "gopkg.in/yaml.v3"},

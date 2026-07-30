@@ -12,6 +12,7 @@ import (
 	"github.com/dexpace/morphic/compilers"
 	"github.com/dexpace/morphic/compilers/compile"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
+	"github.com/dexpace/morphic/compilers/openapi/internal/merge"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -155,7 +156,7 @@ func newRawLowerer(doc *soa.OpenAPI) *lowerer {
 		types:                rawTypes,
 		diagnosedConstraints: map[string]bool{},
 	}
-	l.merge = merger{resolve: rawTypes.Node, report: l.diag}
+	l.merge = merge.Merger{Resolve: rawTypes.Node, Report: l.diag}
 	return l
 }
 
