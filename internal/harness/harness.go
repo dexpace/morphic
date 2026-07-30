@@ -27,6 +27,7 @@ const (
 	OutcomeViolations       Outcome = "violations"
 	OutcomeRoundtrip        Outcome = "roundtrip-mismatch"
 	OutcomeNondeterministic Outcome = "nondeterministic"
+	OutcomeOrderDependent   Outcome = "order-dependent"
 )
 
 // Result is one spec's outcome plus human-readable detail. Detail is empty when
@@ -76,6 +77,12 @@ func Check(ctx context.Context, spec string, data []byte) (res Result) {
 	}
 	if detail, ok := deterministic(ctx, spec, data, doc); !ok {
 		return Result{Spec: spec, Outcome: OutcomeNondeterministic, Detail: detail}
+	}
+	// Last, and after deterministic: this one permutes the input, so a compiler
+	// that is not even same-input-same-output should be reported as that rather
+	// than as order-dependence.
+	if detail, ok := orderInvariant(ctx, spec, data, doc); !ok {
+		return Result{Spec: spec, Outcome: OutcomeOrderDependent, Detail: detail}
 	}
 	return res
 }
