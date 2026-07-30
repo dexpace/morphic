@@ -59,7 +59,7 @@ landed with it, in that order, in one pull request.
 | ~~#162~~ | **Landed.** Identifier grammar into `compilers/compile`: `compile.TypeID` and friends over a `compile.Space`, with the minted-namespace rule refused by `compile.Types` | — |
 | ~~#163~~ | **Landed.** Canonical naming grammar into `compilers/compile`, with `compile.NamingFor` beside it and a conformance suite pinning the boundaries `irverify` cannot see | — |
 | ~~#164~~ | **Landed** in three parts: #161 brought `ir/naming-not-words`; `ir/naming-unsegmented` followed for the letter/digit boundary, which a neutral name still carries evidence of; and `ir/naming-not-derived` closed the rest by moving the grammar to `ir` so the verifier can recompute a canonical from its source, which is the only way to see a camel-case boundary. `Hint` (#54) stays out | — |
-| #73 | Answered by the three above; to be closed with the reasoning that they landed in `compilers/compile` rather than in `ir` as its text proposed | — |
+| #73 | **Partly answered.** Its text proposed `ir` for both halves. The naming grammar went there after all, and `irverify` validates against it — which is exactly its first acceptance bullet. The ID *grammar* went to `compilers/compile` and the `t/prim/<kind>` constructor it also asks for is still there, so its second bullet is open | — |
 
 #163 changed no output here: #161 had already fixed the segmentation in `compilers/openapi` and
 written it into `ir-design.md` §3.2, so the move was measured against a rule already in the
