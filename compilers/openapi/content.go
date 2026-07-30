@@ -339,7 +339,7 @@ func (l *lowerer) lowerHeader(h *soa.Header, name, hptr, hdecl string) ir.Proper
 		WireName:   name,
 		Type:       l.carriedSchemaRef(js, schemaPtr, ids.DeclarationHint(hdecl, name)),
 		Required:   h.GetRequired(),
-		Provenance: ir.Provenance{Source: l.ctx.SrcIndex, Pointer: hptr},
+		Provenance: l.ctx.provenanceAt(hptr),
 	}
 	if mediaType != "" {
 		// The media type a content-style header serializes its value in, which is

@@ -116,7 +116,7 @@ func (l *lowerer) primID(k ir.PrimKind) ir.TypeID { return l.types.PrimID(k) }
 func (l *lowerer) commonFor(id ir.TypeID, pointer, hint string) ir.TypeCommon {
 	common := ir.TypeCommon{
 		ID:         id,
-		Provenance: ir.Provenance{Source: l.ctx.SrcIndex, Pointer: pointer},
+		Provenance: l.ctx.provenanceAt(pointer),
 	}
 	if name, ok := ids.ComponentSchemaName(pointer); ok {
 		common.Name = compile.NamingFor(name)

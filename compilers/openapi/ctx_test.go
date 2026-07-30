@@ -10,6 +10,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/load"
 	"github.com/dexpace/morphic/ir"
 )
@@ -124,4 +125,34 @@ func TestNewLowerCtx_KeepsTheDocumentItWasGiven(t *testing.T) {
 	assert.Equal(t, src, c.Source)
 	assert.Equal(t, opts, c.Opts)
 	assert.Equal(t, 7, c.SrcIndex)
+}
+
+// TestProvenanceAt_IsTheOnlyPlaceASourceIndexIsSpelled pins the guarantee
+// GitHub #86 exists for. Provenance built by hand is how a diagnostic shipped
+// with none (#43) — and a source index written wrong misattributes a node just
+// as silently, since nothing downstream can tell a wrong one from a right one.
+func TestProvenanceAt_IsTheOnlyPlaceASourceIndexIsSpelled(t *testing.T) {
+	t.Parallel()
+	c := lowerCtx{SrcIndex: 7}
+
+	assert.Equal(t, ir.Provenance{Source: 7, Pointer: "/components/schemas/User"},
+		c.provenanceAt("/components/schemas/User"))
+	assert.Equal(t, ir.Provenance{Source: 7}, c.provenanceAt(""),
+		"a document-level position carries the index and no pointer")
+}
+
+// TestDiagAt_StampsAndHandsBack pins the split the Tier-1 conversion needs: the
+// diagnostic arrives already located, and arrives as a value. A lowering with no
+// accumulator can therefore still be sure of its provenance, which is what the
+// converted leaves could not be while only the accumulating form existed.
+func TestDiagAt_StampsAndHandsBack(t *testing.T) {
+	t.Parallel()
+	c := lowerCtx{SrcIndex: 3}
+
+	got := c.diagAt(ir.SeverityWarning, diag.DegradedConstruct, "/paths/~1x", "dropped %d of %d", 1, 2)
+
+	assert.Equal(t, ir.SeverityWarning, got.Severity)
+	assert.Equal(t, diag.DegradedConstruct, got.Code)
+	assert.Equal(t, ir.Provenance{Source: 3, Pointer: "/paths/~1x"}, got.Provenance)
+	assert.Equal(t, "dropped 1 of 2", got.Message, "the format arguments are applied")
 }

@@ -37,7 +37,7 @@ var httpMethods = []struct {
 func (l *lowerer) lowerService() ir.Service {
 	svc := ir.Service{
 		ID:         ids.Service(l.ctx.SrcIndex),
-		Provenance: ir.Provenance{Source: l.ctx.SrcIndex},
+		Provenance: l.ctx.provenanceAt(""),
 	}
 	if info := l.ctx.Doc.GetInfo(); info != nil {
 		title := info.GetTitle()
@@ -226,6 +226,10 @@ type opContext struct {
 // registered alongside it in the same group (ir-design §7.2, §8.1).
 func (l *lowerer) lowerOperation(src *soa.Operation, ctx opContext) (ir.Operation, []ir.Operation) {
 	mount, decl := ctx.ptrs.mount, ctx.ptrs.decl
+	// Built through the context so the source index is spelled in one place, then
+	// marked inferred — the one provenance in this compiler that is.
+	opProv := l.ctx.provenanceAt(decl)
+	opProv.Inferred = ctx.inferred
 	opAuth, opAuthDiags := lowerSecurityRequirements(l.ctx, src.Security, l.out.Auth)
 	l.diags.AppendAll(opAuthDiags)
 	op := ir.Operation{
@@ -238,7 +242,7 @@ func (l *lowerer) lowerOperation(src *soa.Operation, ctx opContext) (ir.Operatio
 		// for those two is one component. A mount pointer under a $ref'd path
 		// item addresses no node at all, and ir-design §13 defines Pointer as a
 		// pointer into the source, so it has to name the declaration.
-		Provenance: ir.Provenance{Source: l.ctx.SrcIndex, Pointer: decl, Inferred: ctx.inferred},
+		Provenance: opProv,
 	}
 	fillOperationDocs(&op.Docs, src)
 	if src.GetDeprecated() {

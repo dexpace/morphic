@@ -3,6 +3,7 @@ package openapi
 import (
 	soa "github.com/speakeasy-api/openapi/openapi"
 
+	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/load"
 	"github.com/dexpace/morphic/compilers/openapi/internal/resolve"
 	"github.com/dexpace/morphic/ir"
@@ -117,4 +118,30 @@ func (c lowerCtx) exclusiveBoundIsBoolean() bool {
 // there is one answer.
 func (c lowerCtx) refScope() resolve.Scope {
 	return resolve.Scope{SelfPath: c.Source.Path, Declares: c.DeclaresSchema}
+}
+
+// diagAt builds one diagnostic at pointer, stamped with this compile's source
+// index.
+//
+// It returns rather than records. Those are two different jobs, and separating
+// them is what lets both rules hold at once: GitHub #86 wants provenance built
+// in exactly one place, because hand-writing it is how a diagnostic shipped with
+// none (GitHub #43); micro-compiler-design §4 wants diagnostics returned rather
+// than accumulated through a handle, because accumulation is the side effect the
+// conversion exists to remove. A constructor that stamps and hands back satisfies
+// both, and a lowering that has no accumulator yet can still be sure of its
+// provenance.
+func (c lowerCtx) diagAt(sev ir.Severity, code, pointer, format string, args ...any) ir.Diagnostic {
+	return diag.Newf(sev, code, c.provenanceAt(pointer), format, args...)
+}
+
+// provenanceAt is where a Provenance is built, and the only place this compiler
+// spells the source index into one.
+//
+// It covers the entities as well as the diagnostics. GitHub #86 scoped itself to
+// diagnostic sites because that is where the defect it chased showed up, but the
+// defect is hand-writing the pair at all: a Provenance whose source index is
+// wrong misattributes a node just as surely as it misattributes a report.
+func (c lowerCtx) provenanceAt(pointer string) ir.Provenance {
+	return ir.Provenance{Source: c.SrcIndex, Pointer: pointer}
 }
