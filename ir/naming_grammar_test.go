@@ -59,6 +59,13 @@ var canonicalCases = []struct {
 	{"a titlecase letter is a boundary, and lowercases", "x\u01C5y", "x_\u01C6y"},
 	{"an uppercase whose lowercase is a different letter", "a\u1E9Eb", "a_\u00DFb"},
 	{"an uppercase whose lowercase is two runes", "\u0130stanbul", "istanbul"},
+	// The acronym-tail rule asks a different question from the one above: not
+	// whether a rune is a case transition, but whether it belongs to a run of
+	// capitals. A letter with no lowercase form is one; a titlecase letter is one
+	// and is not IsUpper.
+	{"a run of capitals ends at one with no lowercase form", "\u2124Server", "\u2124_server"},
+	{"and such a letter can be the tail itself", "HTTP\u2124erver", "http_\u2124erver"},
+	{"a titlecase letter opens a run", "\u01C5Bc", "\u01C6_bc"},
 	{"a name with no word rune has no words", "***", ""},
 	{"the empty name is empty", "", ""},
 }

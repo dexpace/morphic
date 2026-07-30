@@ -89,7 +89,7 @@ func wordBoundary(prev, r rune, runes []rune, i int) bool {
 	switch {
 	case carriesCase(r) && (unicode.IsLower(prev) || unicode.IsDigit(prev)):
 		return true // lower/digit -> Upper: "userID" -> user|ID
-	case carriesCase(prev) && carriesCase(r) && i+1 < len(runes) && unicode.IsLower(runes[i+1]):
+	case isCapital(prev) && isCapital(r) && i+1 < len(runes) && unicode.IsLower(runes[i+1]):
 		return true // acronym tail: "HTTPServer" -> HTTP|Server
 	case unicode.IsLetter(prev) && unicode.IsDigit(r), unicode.IsDigit(prev) && unicode.IsLetter(r):
 		return true // letter<->digit: "APIKey2" -> ...Key|2
@@ -98,17 +98,28 @@ func wordBoundary(prev, r rune, runes []rune, i int) bool {
 	}
 }
 
-// carriesCase reports whether r is a cased form that lowercasing will change —
-// the rune the boundary rules above mean by "upper".
+// The two boundary rules above ask different questions about a rune, and the
+// difference is what GitHub #187 turned on.
 //
-// It asks whether lowercasing changes the rune rather than unicode.IsUpper,
-// which is the same test irverify.isCased applies to a whole canonical, and the
+// carriesCase asks whether lowercasing *changes* r, which is what a case
+// transition means and what irverify.isCased applies to a whole canonical. The
 // two must agree: a rune the grammar splits on but lowercasing leaves alone
 // survives into the output still looking like a boundary, so feeding that output
 // back through the grammar splits it again. Double-struck ℤ, GREEK UPSILON WITH
 // HOOK ϒ and the Roman numerals are IsUpper with no lowercase form of their own,
-// and made the grammar disagree with itself on the second pass (GitHub #187).
+// and made the grammar disagree with itself on the second pass. It also takes in
+// the titlecase letters, which IsUpper reports false for.
 //
-// It also takes in the titlecase letters, which are a case boundary — ǅ is the
-// form that opens a word — and which IsUpper reports false for.
+// isCapital asks whether r *belongs to a run of capitals*, which is a question
+// about the letter's form rather than about a transition — the acronym-tail rule
+// splits at the last capital of a run, and ℤ is one of those whether or not
+// lowercasing would change it. Using carriesCase there instead would lose
+// ℤ_server, and using IsUpper alone would lose the titlecase forms.
+//
+// Both stay idempotent: after one pass the only capitals left are the ones
+// lowercasing does not change, and the tail rule needs a lowercase letter
+// following, which such a run does not produce on its own.
 func carriesCase(r rune) bool { return unicode.ToLower(r) != r }
+
+// isCapital reports whether r is a capital letter form — uppercase or titlecase.
+func isCapital(r rune) bool { return unicode.IsUpper(r) || unicode.IsTitle(r) }

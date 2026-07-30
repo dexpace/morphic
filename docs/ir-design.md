@@ -148,6 +148,12 @@ point: a rune it split on but lowercasing left alone would still look like a bou
 and re-canonicalizing would split it again (GitHub #187). It is also the definition `irverify`
 already applied to a whole canonical, so the producer and the checker agree by construction.
 
+The **acronym tail** — the last capital of a run, before a lowercase letter — asks a different
+question, and takes the category rather than the effect: `ℤServer` is `ℤ_server` because `ℤ` belongs
+to a run of capitals whether or not lowercasing would change it, and `ǅBc` is `ǆ_bc` because a
+titlecase letter belongs to one too. A transition test there would lose the first; the uppercase
+category alone would lose the second.
+
 `irverify` holds every `Naming` to this: it recomputes the canonical from the `Source` beside it, so
 a boundary in the wrong place is a compiler bug rather than a variant reading. What no check can say
 is that the grammar itself is right — a check that recomputes moves with what it recomputes through
