@@ -146,8 +146,8 @@ func appendSuccessStatusDiags(dst []ir.Diagnostic, status map[int]int, declared 
 // second checker growing this check adopts the code rather than forcing a rename.
 // Only this pass reports it today.
 //
-// The three fields that carry a Payload are named here — Operation.Request,
-// Response.Payload and Message.Payload — so a fourth has to be added by hand.
+// The fields that carry a Payload are named here — Operation.Request,
+// Response.Payload and Message.Payload — so a new one has to be added by hand.
 func checkEncodingKeys(doc *ir.Document) []ir.Diagnostic {
 	var diags []ir.Diagnostic
 	forEachOperation(doc, func(op ir.Operation) {

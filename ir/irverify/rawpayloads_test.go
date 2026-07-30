@@ -242,7 +242,7 @@ func TestVerify_InvalidRawValueIsWhatBreaksTheDocument(t *testing.T) {
 	}
 }
 
-// TestUnmodeledEntryFields_MatchTheIRShape guards the two fields
+// TestUnmodeledEntryFields_MatchTheIRShape guards the fields
 // checkRawPayloads reads by name, the coupling the Go compiler cannot check.
 // Reason is read as a string and Value as a byte slice, and Bytes() panics on
 // the zero reflect.Value a rename would leave behind — so a rename in ir must
