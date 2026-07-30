@@ -1384,29 +1384,29 @@ func TestMappingTargetID(t *testing.T) {
 		out: &ir.Document{Types: ir.TypeRegistry{}},
 	}
 	// A $ref to a declared component.
-	id, ok := l.mappingTargetID("#/components/schemas/Cat")
+	id, ok := mappingTargetID(l.ctx, l.types, "#/components/schemas/Cat")
 	require.True(t, ok)
 	assert.Equal(t, ids.NamedType("/components/schemas/Cat"), id)
 	// A bare schema name.
-	id, ok = l.mappingTargetID("Dog")
+	id, ok = mappingTargetID(l.ctx, l.types, "Dog")
 	require.True(t, ok)
 	assert.Equal(t, ids.NamedType(ids.Ptr("components", "schemas", "Dog")), id)
 	// A bare name that contains '/' but names an existing schema must resolve, not
 	// dangle as a misclassified external $ref (issue #14, f07).
-	id, ok = l.mappingTargetID("A/B")
+	id, ok = mappingTargetID(l.ctx, l.types, "A/B")
 	require.True(t, ok)
 	assert.Equal(t, ids.NamedType(ids.Ptr("components", "schemas", "A/B")), id)
 	// An undeclared component and a genuine external ref are dropped, never
 	// synthesized into a dangling ID.
-	_, ok = l.mappingTargetID("#/components/schemas/Ghost")
+	_, ok = mappingTargetID(l.ctx, l.types, "#/components/schemas/Ghost")
 	assert.False(t, ok, "undeclared component target dropped")
-	_, ok = l.mappingTargetID("a.yaml#/A")
+	_, ok = mappingTargetID(l.ctx, l.types, "a.yaml#/A")
 	assert.False(t, ok, "external target dropped")
 	// A declared but empty-named component ("") is interned anonymously, so its
 	// bare mapping name must resolve to that anon ID, not an unbacked ids.NamedType
 	// (issue #14, f31).
 	l.ctx.schemas[""] = true
-	id, ok = l.mappingTargetID("")
+	id, ok = mappingTargetID(l.ctx, l.types, "")
 	require.True(t, ok)
 	assert.Equal(t, ids.AnonType(ids.Ptr("components", "schemas", "")), id)
 	assert.NotEqual(t, ids.NamedType(ids.Ptr("components", "schemas", "")), id)

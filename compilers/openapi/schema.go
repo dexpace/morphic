@@ -53,7 +53,7 @@ func (l *lowerer) lowerComponentSchema(js *oas3.JSONSchema[oas3.Referenceable], 
 	if _, owned := l.types.Lookup(pointer); owned {
 		return
 	}
-	l.internAlias(pointer, name, ref, l.schemaConstraints(s.Node, pointer))
+	internAlias(l.ctx, l.types, pointer, name, ref, l.schemaConstraints(s.Node, pointer))
 	// This alias is the first node the pointer owns, so the annotations
 	// schemaBody had nowhere to put now have a home.
 	if s.Node != nil {
@@ -148,8 +148,10 @@ func (l *lowerer) schemaConstraints(s *oas3.Schema, pointer string) *ir.Constrai
 // referenced target still owns a resolvable node at its own TypeID. Any value
 // constraints the schema carried are attached so a scalar component never drops
 // them.
-func (l *lowerer) internAlias(pointer, hint string, target ir.TypeRef, constraints *ir.Constraints) ir.TypeID {
-	return internNode(l.ctx, l.types, pointer, hint, func(common ir.TypeCommon) ir.TypeDef {
+func internAlias(c lowerCtx, ts *compile.Types, pointer, hint string,
+	target ir.TypeRef, constraints *ir.Constraints,
+) ir.TypeID {
+	return internNode(c, ts, pointer, hint, func(common ir.TypeCommon) ir.TypeDef {
 		base := target
 		return &ir.Scalar{TypeCommon: common, Base: &base, Constraints: constraints}
 	})
@@ -194,7 +196,7 @@ func (l *lowerer) hoistDeclarationHome(s *oas3.Schema, ref ir.TypeRef, pointer, 
 	if id, owned := l.types.Lookup(pointer); owned {
 		return ir.TypeRef{Target: id, Nullable: ref.Nullable}
 	}
-	id := l.internAlias(pointer, hint, ref, l.schemaConstraints(s, pointer))
+	id := internAlias(l.ctx, l.types, pointer, hint, ref, l.schemaConstraints(s, pointer))
 	return ir.TypeRef{Target: id, Nullable: ref.Nullable}
 }
 
@@ -346,7 +348,7 @@ func (l *lowerer) lowerBesideUnmodeledUnion(s *oas3.Schema, pointer, hint string
 		// The structural body reduced to a shared/aliased target; hoist an alias
 		// so the preserved union attaches to a node this pointer owns, never to a
 		// shared primitive.
-		owner = l.internAlias(pointer, hint, ir.TypeRef{Target: inner}, nil)
+		owner = internAlias(l.ctx, l.types, pointer, hint, ir.TypeRef{Target: inner}, nil)
 	}
 	l.preserveUnionSiblings(owner, s, pointer, reason, why)
 	return owner
@@ -526,7 +528,7 @@ func (l *lowerer) preserveUnhomedKeywords(s *oas3.Schema, pointer, hint string, 
 	}
 	owner := id
 	if got, _ := l.types.Lookup(pointer); got != id {
-		owner = l.internAlias(pointer, hint, ir.TypeRef{Target: id}, l.schemaConstraints(s, pointer))
+		owner = internAlias(l.ctx, l.types, pointer, hint, ir.TypeRef{Target: id}, l.schemaConstraints(s, pointer))
 	}
 	l.recordUnhomedKeywords(owner, s, unhomed, td.Kind(), pointer)
 	return owner
@@ -691,7 +693,7 @@ func (l *lowerer) fillPropertyDetail(p *ir.Property, js *oas3.JSONSchema[oas3.Re
 // bound or a description written beside a *property's* $ref somewhere to land
 // (GitHub #114).
 func (l *lowerer) fillPropertyAnnotations(p *ir.Property, ref, tgt *oas3.Schema, pointer string) {
-	if l.loweredToOwnNode(pointer, p.Type) {
+	if loweredToOwnNode(l.types, pointer, p.Type) {
 		return
 	}
 	a, diags := annotation.Read(annotation.Site{Kind: annotation.Reference, Node: ref, Referent: tgt}, pointer, l.ctx.SrcIndex)
@@ -723,8 +725,8 @@ func (l *lowerer) fillPropertyAnnotations(p *ir.Property, ref, tgt *oas3.Schema,
 // inline position hoists that position's home for its own use, in either
 // declaration order, and a carrier reading the registry alone would keep its
 // schema's annotations only when it happened to lower first.
-func (l *lowerer) loweredToOwnNode(pointer string, t ir.TypeRef) bool {
-	id, owned := l.types.Lookup(pointer)
+func loweredToOwnNode(ts *compile.Types, pointer string, t ir.TypeRef) bool {
+	id, owned := ts.Lookup(pointer)
 	return owned && id == t.Target
 }
 
@@ -1145,7 +1147,7 @@ func (l *lowerer) soleAnchorSite(name string) (at, why string, ok bool) {
 // The loop is bounded by seen: cur only ever takes values from the anchor
 // index, and each turn either returns or adds one of them.
 func (l *lowerer) dynamicChainVerdict(at, from string) (why string, ok bool) {
-	if l.declaresResourceIDAbove(from) {
+	if declaresResourceIDAbove(l.ctx, from) {
 		return resourceBoundaryWhy(from), false
 	}
 	seen := map[string]bool{}
@@ -1154,7 +1156,7 @@ func (l *lowerer) dynamicChainVerdict(at, from string) (why string, ok bool) {
 			return fmt.Sprintf("expanding it closes a cycle of $dynamicRef expansions back onto %q, "+
 				"leaving a type whose own base chain never terminates", from), false
 		}
-		if l.declaresResourceIDAbove(cur) {
+		if declaresResourceIDAbove(l.ctx, cur) {
 			return resourceBoundaryWhy(cur), false
 		}
 		seen[cur] = true
@@ -1179,7 +1181,7 @@ func resourceBoundaryWhy(at string) string {
 // Anything else ends the chain: a position that lowers to a shape rather than to
 // another reference cannot extend a cycle of references.
 func (l *lowerer) dynamicHop(at string) (string, bool) {
-	s := l.componentSchemaAt(at)
+	s := componentSchemaAt(l.ctx, at)
 	if s == nil {
 		return "", false
 	}
@@ -1198,12 +1200,12 @@ func (l *lowerer) dynamicHop(at string) (string, bool) {
 // addresses, and nil for any other pointer. Every accessor on the way is
 // nil-safe and annotation.At reads a missing entry as "no body written", so the
 // one guard is what distinguishes a component pointer from a deeper one.
-func (l *lowerer) componentSchemaAt(pointer string) *oas3.Schema {
+func componentSchemaAt(c lowerCtx, pointer string) *oas3.Schema {
 	name, ok := ids.ComponentSchemaName(pointer)
 	if !ok {
 		return nil
 	}
-	js, _ := l.ctx.Doc.GetComponents().GetSchemas().Get(name)
+	js, _ := c.Doc.GetComponents().GetSchemas().Get(name)
 	return annotation.At(js).Node
 }
 
@@ -1216,9 +1218,9 @@ func (l *lowerer) componentSchemaAt(pointer string) *oas3.Schema {
 // there. That is the same direction the anchor index errs in: a false boundary
 // costs an expansion that would have been safe, where a missed one mints a
 // reference the IR cannot express.
-func (l *lowerer) declaresResourceIDAbove(pointer string) bool {
+func declaresResourceIDAbove(c lowerCtx, pointer string) bool {
 	view := nodeview.New()
-	cur := nodeview.DocumentRoot(nodeview.Deref(l.ctx.Doc.GetRootNode()))
+	cur := nodeview.DocumentRoot(nodeview.Deref(c.Doc.GetRootNode()))
 	for seg := range strings.SplitSeq(pointer, "/") {
 		if cur == nil {
 			return false

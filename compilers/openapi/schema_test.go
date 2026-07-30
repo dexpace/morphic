@@ -3428,7 +3428,7 @@ func TestDeclaresResourceIDAbove_WithoutARawTree(t *testing.T) {
 	t.Parallel()
 	l := newRawLowerer(&soa.OpenAPI{})
 
-	assert.False(t, l.declaresResourceIDAbove("/components/schemas/A"),
+	assert.False(t, declaresResourceIDAbove(l.ctx, "/components/schemas/A"),
 		"a document with no raw tree declares no resource anywhere")
 }
 

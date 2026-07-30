@@ -130,7 +130,7 @@ func (l *lowerer) diagUnattachableRequired(m *ir.Model, e requiredEntry) {
 // Verbatim beside the model needs neither, and keeps the branch recoverable.
 func (l *lowerer) fillAllOf(m *ir.Model, s *oas3.Schema, pointer string) {
 	branches := s.GetAllOf()
-	baseIdx := l.selectAllOfBase(branches)
+	baseIdx := selectAllOfBase(branches)
 	for i, b := range branches {
 		bptr := pointer + ids.Ptr("allOf", strconv.Itoa(i))
 		if !isRefBranch(b) {
@@ -333,7 +333,7 @@ func rawMapping(root *yaml.Node) *yaml.Node {
 
 // selectAllOfBase returns the branch index that becomes Model.Base, or -1 when
 // none qualifies (multiple non-hierarchy refs stay Mixins).
-func (l *lowerer) selectAllOfBase(branches []*oas3.JSONSchema[oas3.Referenceable]) int {
+func selectAllOfBase(branches []*oas3.JSONSchema[oas3.Referenceable]) int {
 	refIdxs := make([]int, 0, len(branches))
 	for i, b := range branches {
 		if isRefBranch(b) {
@@ -394,7 +394,7 @@ func (l *lowerer) subtypeDiscriminatorValue(s *oas3.Schema, id ir.TypeID, pointe
 	}
 	if m := d.GetMapping(); m != nil {
 		for value, target := range m.All() {
-			if tid, ok := l.mappingTargetID(target); ok && tid == id {
+			if tid, ok := mappingTargetID(l.ctx, l.types, target); ok && tid == id {
 				return value
 			}
 		}
@@ -500,7 +500,7 @@ func (l *lowerer) classifyUnionSiblings(s *oas3.Schema) unionLowering {
 	if branches, _, _ := unionBranches(s); slices.ContainsFunc(branches, isInlineBranch) {
 		return unionInlineBranch
 	}
-	if !l.branchesNameReferents(s) {
+	if !branchesNameReferents(l.ctx, s) {
 		return unionUnresolvedBranch
 	}
 	if s.GetDiscriminator() != nil {
@@ -516,10 +516,10 @@ func (l *lowerer) classifyUnionSiblings(s *oas3.Schema) unionLowering {
 // an unresolvable $ref names nothing to merge either way. The test is over the
 // whole union because a half-distributed one would leave variants disagreeing
 // about whether they carry the body, with nothing in the IR saying which.
-func (l *lowerer) branchesNameReferents(s *oas3.Schema) bool {
+func branchesNameReferents(c lowerCtx, s *oas3.Schema) bool {
 	branches, _, _ := unionBranches(s)
 	for _, b := range branches {
-		if !l.ctx.refScope().NamesReferent(b, b.GetRef().String()) {
+		if !c.refScope().NamesReferent(b, b.GetRef().String()) {
 			return false
 		}
 	}
@@ -863,7 +863,7 @@ func (l *lowerer) discriminatorMapping(d *oas3.Discriminator, pointer string) ma
 	}
 	out := make(map[string]ir.TypeID, m.Len())
 	for value, target := range m.All() {
-		id, ok := l.mappingTargetID(target)
+		id, ok := mappingTargetID(l.ctx, l.types, target)
 		if !ok {
 			l.diag(ir.SeverityError, diag.UnresolvedRef, pointer+ids.Ptr("discriminator", "mapping", value),
 				"discriminator mapping %q references unresolved schema %q", value, target)
@@ -884,7 +884,7 @@ func (l *lowerer) discriminatorDefault(d *oas3.Discriminator, pointer string) ir
 	if dm == "" {
 		return ""
 	}
-	id, ok := l.mappingTargetID(dm)
+	id, ok := mappingTargetID(l.ctx, l.types, dm)
 	if !ok {
 		l.diag(ir.SeverityError, diag.UnresolvedRef, pointer+ids.Ptr("discriminator", "defaultMapping"),
 			"discriminator defaultMapping references unresolved schema %q", dm)
@@ -904,18 +904,18 @@ func (l *lowerer) discriminatorDefault(d *oas3.Discriminator, pointer string) ir
 // neither yields ok=false, since unlike a schema position, a discriminator
 // subtype cannot be hoisted from a bare pointer — the caller drops and
 // diagnoses it.
-func (l *lowerer) mappingTargetID(target string) (ir.TypeID, bool) {
-	if l.ctx.DeclaresSchema(target) {
+func mappingTargetID(c lowerCtx, ts *compile.Types, target string) (ir.TypeID, bool) {
+	if c.DeclaresSchema(target) {
 		return ids.ForPointer(ids.Ptr("components", "schemas", target)), true
 	}
-	pointer, ok := l.ctx.refScope().InternalPointer(target)
+	pointer, ok := c.refScope().InternalPointer(target)
 	if !ok {
 		return "", false
 	}
-	if id, resolved, handled := l.ctx.refScope().ComponentRef(pointer); handled {
+	if id, resolved, handled := c.refScope().ComponentRef(pointer); handled {
 		return id, resolved
 	}
-	return resolve.InternedID(l.types, pointer)
+	return resolve.InternedID(ts, pointer)
 }
 
 // propIDByName returns the PropID of the model property with the given source
@@ -938,7 +938,7 @@ func propIDByName(m *ir.Model, name string) (ir.PropID, bool) {
 // Literals with an info diagnostic — nothing is dropped.
 func (l *lowerer) lowerEnum(s *oas3.Schema, pointer, hint string) ir.TypeID {
 	return internNode(l.ctx, l.types, pointer, hint, func(common ir.TypeCommon) ir.TypeDef {
-		members, memberPrim, ok := l.enumMembers(s.GetEnum())
+		members, memberPrim, ok := enumMembers(s.GetEnum())
 		if !ok {
 			return l.enumAsUnion(s, common, pointer, hint)
 		}
@@ -957,7 +957,7 @@ func (l *lowerer) lowerEnum(s *oas3.Schema, pointer, hint string) ir.TypeID {
 // returned PrimKind is the one every member's kind maps to; it is meaningful
 // only when ok, and lowerEnum is reached only for a non-empty enum, so it is
 // never the zero PrimKind there.
-func (l *lowerer) enumMembers(nodes []values.Value) ([]ir.EnumMember, ir.PrimKind, bool) {
+func enumMembers(nodes []values.Value) ([]ir.EnumMember, ir.PrimKind, bool) {
 	members := make([]ir.EnumMember, 0, len(nodes))
 	var kind ir.ValueKind
 	var prim ir.PrimKind
