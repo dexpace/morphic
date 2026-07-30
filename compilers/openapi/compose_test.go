@@ -1380,7 +1380,7 @@ func TestRefLastSegment(t *testing.T) {
 func TestMappingTargetID(t *testing.T) {
 	t.Parallel()
 	l := &lowerer{
-		ctx: ctx{schemas: map[string]bool{"Cat": true, "Dog": true, "A/B": true}},
+		ctx: lowerCtx{schemas: map[string]bool{"Cat": true, "Dog": true, "A/B": true}},
 		out: &ir.Document{Types: ir.TypeRegistry{}},
 	}
 	// A $ref to a declared component.

@@ -33,7 +33,7 @@ func (l *lowerer) lowerComponentSchemas() {
 		return
 	}
 	// The declared-name index the $ref and discriminator-mapping resolutions read
-	// is derived at entry (newCtx), so a component declared later in the document
+	// is derived at entry (newLowerCtx), so a component declared later in the document
 	// is already a valid target here regardless of source order.
 	for name, js := range schemas.All() {
 		l.lowerComponentSchema(js, ids.Ptr("components", "schemas", name), name)

@@ -26,7 +26,7 @@ func docDeclaring(names ...string) *soa.OpenAPI {
 	return &soa.OpenAPI{Components: &soa.Components{Schemas: sequencedmap.New(elems...)}}
 }
 
-// TestCtx_HasNoExportedMap is the guard that makes "immutable by value" true
+// TestLowerCtx_HasNoExportedMap is the guard that makes "immutable by value" true
 // rather than conventional. A struct copy shares a map rather than copying it,
 // so an exported map field would be the one part of the context a callee could
 // write to — and the write would be visible to its caller's caller, which is
@@ -35,10 +35,10 @@ func docDeclaring(names ...string) *soa.OpenAPI {
 // Slices are held to the same rule for the same reason: a copy shares the
 // backing array. The exported pointer to the document is deliberately not
 // covered — it is shared by design and lowering never writes through it, which
-// TestNewCtx_KeepsTheDocumentItWasGiven pins.
-func TestCtx_HasNoExportedMap(t *testing.T) {
+// TestNewLowerCtx_KeepsTheDocumentItWasGiven pins.
+func TestLowerCtx_HasNoExportedMap(t *testing.T) {
 	t.Parallel()
-	rt := reflect.TypeOf(ctx{})
+	rt := reflect.TypeOf(lowerCtx{})
 	require.Positive(t, rt.NumField(), "a context with no fields would pass this vacuously")
 
 	var checked int
@@ -56,11 +56,11 @@ func TestCtx_HasNoExportedMap(t *testing.T) {
 	assert.Positive(t, checked, "no exported field was examined, so this asserted nothing")
 }
 
-// TestNewCtx_DerivesTheDeclaredSchemaNames pins the index the $ref and
+// TestNewLowerCtx_DerivesTheDeclaredSchemaNames pins the index the $ref and
 // discriminator-mapping resolutions read. A name missing from it is not a
 // resolvable target, so under-deriving turns a valid $ref into a dangling one;
 // over-deriving mints an ID for a component the document never declared.
-func TestNewCtx_DerivesTheDeclaredSchemaNames(t *testing.T) {
+func TestNewLowerCtx_DerivesTheDeclaredSchemaNames(t *testing.T) {
 	t.Parallel()
 	tests := []struct {
 		name     string
@@ -88,7 +88,7 @@ func TestNewCtx_DerivesTheDeclaredSchemaNames(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			c := newCtx(0, &load.Document{Doc: tc.doc}, Options{})
+			c := newLowerCtx(0, &load.Document{Doc: tc.doc}, Options{})
 			for _, n := range tc.declares {
 				assert.True(t, c.DeclaresSchema(n), "%q is declared", n)
 			}
@@ -104,21 +104,21 @@ func TestNewCtx_DerivesTheDeclaredSchemaNames(t *testing.T) {
 // on a nil map rather than assume one was built.
 func TestDeclaresSchema_TheZeroContextDeclaresNothing(t *testing.T) {
 	t.Parallel()
-	var c ctx
+	var c lowerCtx
 	assert.False(t, c.DeclaresSchema("User"))
 	assert.False(t, c.DeclaresSchema(""))
 }
 
-// TestNewCtx_KeepsTheDocumentItWasGiven pins the rest of the context: the
+// TestNewLowerCtx_KeepsTheDocumentItWasGiven pins the rest of the context: the
 // document, options, source identity and index arrive unchanged, since every
 // Provenance the compile stamps is built from the last two.
-func TestNewCtx_KeepsTheDocumentItWasGiven(t *testing.T) {
+func TestNewLowerCtx_KeepsTheDocumentItWasGiven(t *testing.T) {
 	t.Parallel()
 	doc := docDeclaring("User")
 	src := ir.SourceInfo{Format: "openapi@3.1", Path: "spec.yaml", Hash: "abc"}
 	opts := Options{Grouping: GroupByPathPrefix, DisableExternalRefs: true}
 
-	c := newCtx(7, &load.Document{Doc: doc, Source: src}, opts)
+	c := newLowerCtx(7, &load.Document{Doc: doc, Source: src}, opts)
 
 	assert.Same(t, doc, c.Doc, "the document is referenced, never copied")
 	assert.Equal(t, src, c.Source)

@@ -7,19 +7,27 @@ import (
 	"github.com/dexpace/morphic/ir"
 )
 
-// ctx is everything a lowering may read and none may change: the parsed
+// lowerCtx is everything a lowering may read and none may change: the parsed
 // document, the caller's options, the identity of the source being lowered, and
 // the indexes derived from them once at entry.
 //
-// It is passed and copied by value. That is what makes "immutable" mean
-// something here — a callee cannot hand a changed context back to its caller by
-// writing to one, because it never holds the caller's.
+// It is a value rather than a pointer, so a function that takes one takes a
+// copy. That is what will make "immutable" enforceable rather than conventional
+// once the lowering methods become functions over it (GitHub #173 onward);
+// today it is held by the lowerer and read through l.ctx, and no lowering
+// writes to it. What already holds either way is the map below: a copy shares
+// it, so it is not reachable to write at all.
 //
-// It is unexported for now. Every lowering that reads it lives in this package,
-// and micro-compiler-design §5.1 gives compilers/openapi the compiler's public
-// face and nothing else; it exports when it first has to cross a package
-// boundary, which is the reference-resolution extraction (GitHub #174).
-type ctx struct {
+// The name is deliberately not ctx. This package already spends that identifier
+// twice — on the context.Context Compile takes, which the styleguide reserves it
+// for, and on an opContext local in operations.go — so a third meaning would be
+// shadowed at both sites and ambiguous to a reader everywhere else.
+//
+// It stays unexported for now: micro-compiler-design §5.1 gives compilers/openapi
+// the compiler's public face and nothing else, and every lowering that reads this
+// still lives here. It becomes an exported Ctx when it first has to cross a
+// package boundary, which is the reference-resolution extraction (GitHub #174).
+type lowerCtx struct {
 	// Doc is the parsed, reference-resolved source document. Lowering reads it
 	// and never writes through it.
 	Doc *soa.OpenAPI
@@ -37,12 +45,12 @@ type ctx struct {
 	// shares a map rather than copying it: as an exported field it would be the
 	// one part of a by-value context a callee could write to, and the write would
 	// be visible to its caller's caller. An accessor makes that unrepresentable
-	// rather than merely discouraged, which is what TestCtx_HasNoExportedMap
-	// holds the struct to.
+	// rather than merely discouraged, which is what
+	// TestLowerCtx_HasNoExportedMap holds the struct to.
 	schemas map[string]bool
 }
 
-// newCtx derives the immutable context for one loaded source.
+// newLowerCtx derives the immutable context for one loaded source.
 //
 // The schema-name index is built here rather than on first use so that every
 // reader sees the same set regardless of source order: a $ref or a discriminator
@@ -55,8 +63,8 @@ type ctx struct {
 // building it is a lowering action rather than context: done at entry, that
 // warning would reach documents that never write $dynamicRef, changing what the
 // compiler reports about them. It stays where it is, built on first use.
-func newCtx(srcIndex int, doc *load.Document, opts Options) ctx {
-	return ctx{
+func newLowerCtx(srcIndex int, doc *load.Document, opts Options) lowerCtx {
+	return lowerCtx{
 		Doc:      doc.Doc,
 		Opts:     opts,
 		Source:   doc.Source,
@@ -84,4 +92,4 @@ func declaredSchemaNames(doc *soa.OpenAPI) map[string]bool {
 
 // DeclaresSchema reports whether the document declares a component schema of
 // this name. A name it does not declare is not a resolvable $ref target.
-func (c ctx) DeclaresSchema(name string) bool { return c.schemas[name] }
+func (c lowerCtx) DeclaresSchema(name string) bool { return c.schemas[name] }

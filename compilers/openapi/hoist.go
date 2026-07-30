@@ -26,7 +26,7 @@ const maxSchemaDepth = 256
 type lowerer struct {
 	// ctx is the immutable half: the document, options and source identity, plus
 	// the indexes derived from them at entry. Everything below it is mutable.
-	ctx ctx
+	ctx lowerCtx
 	out *ir.Document
 	// types owns the registry and the coordinate map; see compilers/compile.
 	types *compile.Types
@@ -56,7 +56,7 @@ type lowerer struct {
 func newLowerer(srcIndex int, doc *load.Document, opts Options) *lowerer {
 	types := compile.NewTypes(srcIndex)
 	l := &lowerer{
-		ctx: newCtx(srcIndex, doc, opts),
+		ctx: newLowerCtx(srcIndex, doc, opts),
 		// The Document shares the framework's live registry rather than being
 		// handed a copy at the end: compile.Types owns every write to it, and the
 		// architecture test is what keeps that true.
