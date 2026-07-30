@@ -21,7 +21,7 @@
             {
               "id": "op/openapi/paths/~1widgets/get",
               "name": {
-                "hint": "get_/widgets"
+                "hint": "get_widgets"
               },
               "docs": {},
               "params": [
@@ -126,7 +126,7 @@
             {
               "id": "op/openapi/paths/~1gadgets/get",
               "name": {
-                "hint": "get_/gadgets"
+                "hint": "get_gadgets"
               },
               "docs": {},
               "params": [

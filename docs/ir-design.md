@@ -125,6 +125,14 @@ type Naming struct {
 policy, and reserved-word escaping. Anonymous (hoisted) types have empty `Source` and a `Hint`;
 whether a emitter inlines them or names them is its choice.
 
+The segmentation is part of the contract, not each compiler's dialect: a word is a run of letters
+and digits (with the combining marks that belong to them), a camel-case or letter/digit boundary
+starts a new one, and **every other character separates** — `.`, `/`, `[`, `-`, a space alike. So
+`com.example.User` and `com-example-user` canonicalize the same, and an emitter reading `Canonical`
+never has to ask which compiler produced it. A source name with no word character in it
+canonicalizes to the empty string; `Source` keeps the spelling. `irverify` checks the shape, so an
+unsegmented canonical is a compiler bug rather than a variant reading.
+
 ### 3.3 Type references
 
 ```go

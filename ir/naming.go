@@ -8,7 +8,9 @@ type Naming struct {
 	// name, a GraphQL field).
 	Source string `json:"source,omitempty"`
 	// Canonical is the IR-normalized identifier in neutral form: lower_snake
-	// words with no casing opinions.
+	// words with no casing opinions. A word is letters and digits (plus the
+	// combining marks belonging to them); every other character in the source
+	// name separates two words rather than surviving into the sequence.
 	Canonical string `json:"canonical,omitempty"`
 	// Hint is a context-derived suggestion for anonymous types only
 	// (e.g. "connection_domain").

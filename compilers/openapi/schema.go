@@ -1848,9 +1848,14 @@ func jsonObject(members []rawMember) ir.RawValue {
 }
 
 // canonicalWords renders name as a neutral lower_snake word sequence: it splits
-// on _/-/space and on camel-case and letter/digit boundaries, lowercases, and
-// joins with "_". It holds no acronym opinion beyond boundary detection; casing
-// policy is a emitter concern.
+// on every non-word rune and on camel-case and letter/digit boundaries,
+// lowercases, and joins with "_". It holds no acronym opinion beyond boundary
+// detection; casing policy is a emitter concern.
+//
+// A name written with no word rune in it at all ("***") canonicalizes to the
+// empty string. Naming.Source keeps the spelling either way, so nothing is lost
+// — there is simply no word sequence to report, and inventing one from the
+// punctuation would be a naming opinion the IR does not hold.
 func canonicalWords(name string) string {
 	var words []string
 	var cur []rune
@@ -1862,7 +1867,7 @@ func canonicalWords(name string) string {
 	}
 	runes := []rune(name)
 	for i, r := range runes {
-		if r == '_' || r == '-' || r == ' ' {
+		if !isWordRune(r) {
 			flush()
 			continue
 		}
@@ -1873,6 +1878,19 @@ func canonicalWords(name string) string {
 	}
 	flush()
 	return strings.Join(words, "_")
+}
+
+// isWordRune reports whether r belongs to a word rather than separating two.
+// Letters and digits are the word characters, and a combining mark is part of
+// the letter it follows — a decomposed "é" is one letter written as two runes,
+// so reading the mark as a separator would split a word in half.
+//
+// Everything else separates, which is what makes the result a word sequence
+// whatever the source spelled the boundary as: a dot in a namespaced component
+// name, a slash in a media type or a path template, brackets around a query
+// parameter, and the _/-/space a name may already use.
+func isWordRune(r rune) bool {
+	return unicode.IsLetter(r) || unicode.IsDigit(r) || unicode.IsMark(r)
 }
 
 // wordBoundary reports whether a new word starts at runes[i] given the previous
