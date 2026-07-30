@@ -70,9 +70,9 @@ func newLowerer(srcIndex int, doc *load.Document, opts Options) *lowerer {
 }
 
 // registeredNode returns the node interning registered under id, reporting a
-// broken invariant instead of dropping in silence when there is none. intern
-// records a pointer's ID and its node together, so every ID reached through
-// byPointer resolves; a miss is a compiler bug no source can provoke, and the
+// broken invariant instead of dropping in silence when there is none.
+// compile.Types records a pointer's ID and its node together, so every ID
+// reached through its pointer map resolves; a miss is a compiler bug no source can provoke, and the
 // caller — which was about to attach docs, examples or preserved constructs to
 // that node — would otherwise discard them without a trace.
 func registeredNode(c lowerCtx, ts *compile.Types, id ir.TypeID, pointer string) (ir.TypeDef, bool, []ir.Diagnostic) {
