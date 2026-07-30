@@ -670,7 +670,7 @@ func resolveRefAt[T, S any, R interface {
 			pointer = cand
 			break
 		}
-		target, ok := l.internalPointer(ref.GetReference().String())
+		target, ok := l.ctx.refScope().InternalPointer(ref.GetReference().String())
 		if !ok {
 			break // another document: nothing addressable here, so usePtr stands
 		}

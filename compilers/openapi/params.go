@@ -8,6 +8,7 @@ import (
 	"github.com/dexpace/morphic/compilers/openapi/internal/annotation"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/ids"
+	"github.com/dexpace/morphic/compilers/openapi/internal/resolve"
 	"github.com/dexpace/morphic/compilers/openapi/internal/value"
 	"github.com/dexpace/morphic/ir"
 )
@@ -98,7 +99,7 @@ func (l *lowerer) fillParamSchema(param *ir.Parameter, js *oas3.JSONSchema[oas3.
 	// refTargetSchema, not annotation.At's Referent: the fallback must read the
 	// end of a $ref chain, since one hop would take the default and description
 	// off an intermediate reference instead of the schema that declares them.
-	tgt := l.refTargetSchema(js, s)
+	tgt := resolve.TargetSchema(js, s)
 	l.fillParamDefault(param, s, tgt, pointer)
 
 	c, diags := annotation.Constraints(s, l.ctx.exclusiveBoundIsBoolean())

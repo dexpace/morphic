@@ -13,6 +13,7 @@ import (
 	"github.com/dexpace/morphic/compilers/openapi/internal/annotation"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/ids"
+	"github.com/dexpace/morphic/compilers/openapi/internal/resolve"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -658,10 +659,10 @@ func (l *lowerer) bodyModelPointer(body ir.TypeID) (string, bool) {
 // addressed as if it were ours. localPtr is the honest fallback there: it is
 // the position the reference itself occupies here.
 func (l *lowerer) bodySchemaPointer(js *oas3.JSONSchema[oas3.Referenceable], localPtr string) string {
-	if js == nil || !isRefSite(js, js.GetSchema()) {
+	if js == nil || !resolve.IsRefSite(js, js.GetSchema()) {
 		return localPtr
 	}
-	if pointer, ok := l.internalPointer(js.GetRef().String()); ok {
+	if pointer, ok := l.ctx.refScope().InternalPointer(js.GetRef().String()); ok {
 		return pointer
 	}
 	return localPtr

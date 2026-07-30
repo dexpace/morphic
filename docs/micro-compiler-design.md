@@ -86,7 +86,7 @@ promotion requires evidence from all three, not two and an expectation.
 | Diagnostic accumulation | `compile.Diags` | own `diag.go` | own `diag.go` | already framework |
 | Canonical naming grammar | `schema.go` | `naming.go` | `naming.go` | **promoted to `ir`** — `ir.CanonicalWords`, with `compile.NamingFor` the compiler-facing constructor |
 | ID grammar | `ids.go` | `ids.go` | `ids.go` | **promoted, derivation left behind** — `compile.TypeID` and friends over a `compile.Space` |
-| Bounded-recursion guard | `depth`, cap 256 | — | — | promote only if the drafts show need |
+| Bounded-recursion guard | `depth`, cap 256 | `depth`, cap 256 | `depth`, cap 32 | **do not promote** — see §3.2 |
 | Reference resolution | `resolve.go` | `resolve.go` | — | do not promote |
 | Loading, options | yes | yes | yes | do not promote — format-specific |
 
@@ -142,6 +142,43 @@ what it is now closed by.
 Loading and options are format-specific and stay put. Reference resolution is needed by two of three
 compilers and by different mechanisms, which is exactly the shape that looks promotable and is not.
 `ir.Document` stays out: only `Types` carries a framework invariant.
+
+### 3.3 The recursion guard is not promoted
+
+The promotion rule wants evidence from all three compilers, and the drafts now supply it.
+
+| Compiler | What is bounded | Cap | Shape |
+|---|---|---|---|
+| openapi | schema nesting | 256 | counter on the lowerer |
+| openapi | value nesting | 128 | explicit parameter |
+| graphql | type nesting | 256 | counter on the lowerer |
+| graphql | value nesting | 128 | explicit parameter |
+| protobuf | custom-option nesting | 32 | explicit parameter |
+
+Read from the drafts rather than assumed:
+
+```bash
+for b in feat/graphql-compiler feat/protobuf-compiler; do
+  for f in $(git ls-tree -r --name-only "origin/$b" | grep -E '^compilers/.*\.go$' | grep -v _test); do
+    git show "origin/$b:$f" | grep -nE 'max[A-Za-z]*Depth' | sed "s|^|$f:|"
+  done
+done
+```
+
+Three findings, and the third contradicts what this section previously assumed.
+
+1. All five sites are the same three lines: a counter, a named cap, and a degradation that reports
+   rather than crashes. There is no shared state and no shared cap — only a shared shape.
+2. The caps track **what is bounded**, not which compiler bounds it. Both compilers that lower
+   values chose 128; both that lower types chose 256. Protobuf's 32 is a different construct, not a
+   different opinion.
+3. GitHub #174 asserted "the OpenAPI cap of 256 is known to be wrong for an SDL-shaped source". It
+   is not: the GraphQL draft independently chose 256 for exactly that. The argument that the guard
+   might be shared while the cap stays per-compiler rested on a difference that does not exist.
+
+So there is nothing to promote. A helper wrapping three lines that share no state would add an
+indirection to every recursion site and remove nothing, and the per-site degradation — lowered as
+any, dropped, unrepresentable — differs at every one of them.
 
 ## 4. The micro-compiler contract
 
@@ -214,11 +251,33 @@ The call graph is a DAG with exactly one cycle:
 ```
 operations (called by nobody)
   → params → content ┐
-                     ├→ schema ⇄ compose      the one genuine cycle
-                     └→ hoist, resolve, constraints
+                     ├→ schema ⇄ compose ⇄ resolve   the genuine cycle
+                     └→ hoist, constraints
 ```
 
-`schema` and `compose` are mutually recursive and stay one package. Everything else can be layered.
+`schema`, `compose` and `resolve` are mutually recursive and stay one package. Everything else can
+be layered.
+
+*As landed:* this diagram first put `resolve` beneath the cycle rather than inside it, and called
+`schema ⇄ compose` "the one genuine cycle". The type checker disagrees — `resolve.go` used nine
+symbols from `schema.go` and two from `compose.go`, while `schema.go` used five back. Resolving a
+`$ref` hoists the sub-schema it names, which lowers a schema, which resolves the references inside
+it: one algorithm, not three layers.
+
+What that hid is where the boundary actually is. It does not run between files; it runs between two
+questions. *What does this `$ref` name, and is something already interned there* needs two facts
+about the document and nothing else — that is `internal/resolve`. *Follow it far enough to lower
+what it points at* is the schema walk reached through a reference, and recurses back into it. Seven
+of `resolve.go`'s functions answered the first question and left; eight answered the second and
+stayed. Deriving that split is what the command below does:
+
+The split is derivable rather than asserted: a function belongs on the resolution side exactly when
+its body reaches nothing but the two document facts and the type registry.
+
+```bash
+# every lowerer method left in resolve.go, and what it reaches for
+awk '/^func \(l \*lowerer\)/{name=$4} /^\tl\./{print name, $0}' compilers/openapi/resolve.go
+```
 
 **Tier 0 — already pure.** Eight files contain no `*lowerer` method at all: `value`, `ids`,
 `amplification`, `cycles`, `merge`, `facets`, `load`, `diag` — roughly a third of the package's
