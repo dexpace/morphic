@@ -87,9 +87,9 @@ func isWordRune(r rune) bool {
 // accumulated rune prev.
 func wordBoundary(prev, r rune, runes []rune, i int) bool {
 	switch {
-	case unicode.IsUpper(r) && (unicode.IsLower(prev) || unicode.IsDigit(prev)):
+	case carriesCase(r) && (unicode.IsLower(prev) || unicode.IsDigit(prev)):
 		return true // lower/digit -> Upper: "userID" -> user|ID
-	case unicode.IsUpper(prev) && unicode.IsUpper(r) && i+1 < len(runes) && unicode.IsLower(runes[i+1]):
+	case carriesCase(prev) && carriesCase(r) && i+1 < len(runes) && unicode.IsLower(runes[i+1]):
 		return true // acronym tail: "HTTPServer" -> HTTP|Server
 	case unicode.IsLetter(prev) && unicode.IsDigit(r), unicode.IsDigit(prev) && unicode.IsLetter(r):
 		return true // letter<->digit: "APIKey2" -> ...Key|2
@@ -97,3 +97,18 @@ func wordBoundary(prev, r rune, runes []rune, i int) bool {
 		return false
 	}
 }
+
+// carriesCase reports whether r is a cased form that lowercasing will change —
+// the rune the boundary rules above mean by "upper".
+//
+// It asks whether lowercasing changes the rune rather than unicode.IsUpper,
+// which is the same test irverify.isCased applies to a whole canonical, and the
+// two must agree: a rune the grammar splits on but lowercasing leaves alone
+// survives into the output still looking like a boundary, so feeding that output
+// back through the grammar splits it again. Double-struck ℤ, GREEK UPSILON WITH
+// HOOK ϒ and the Roman numerals are IsUpper with no lowercase form of their own,
+// and made the grammar disagree with itself on the second pass (GitHub #187).
+//
+// It also takes in the titlecase letters, which are a case boundary — ǅ is the
+// form that opens a word — and which IsUpper reports false for.
+func carriesCase(r rune) bool { return unicode.ToLower(r) != r }

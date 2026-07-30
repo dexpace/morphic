@@ -49,6 +49,16 @@ var canonicalCases = []struct {
 	// the mark belongs to the letter before it, so reading it as a separator
 	// would split a word in half.
 	{"a combining mark belongs to its letter", "cafe\u0301_v2", "cafe\u0301_v_2"},
+	// What "upper" means, settled in GitHub #187. The grammar splits where
+	// lowercasing will change the rune, which is the test irverify.isCased applies
+	// to a whole canonical; a rune the two disagreed about made the grammar split
+	// its own output on a second pass.
+	{"a letter with no lowercase form is not a case boundary", "A\u2124", "a\u2124"},
+	{"so a name carrying one is already a fixed point", "a\u2124", "a\u2124"},
+	{"nor does an acronym run end at one", "COUNT\u2124", "count\u2124"},
+	{"a titlecase letter is a boundary, and lowercases", "x\u01C5y", "x_\u01C6y"},
+	{"an uppercase whose lowercase is a different letter", "a\u1E9Eb", "a_\u00DFb"},
+	{"an uppercase whose lowercase is two runes", "\u0130stanbul", "istanbul"},
 	{"a name with no word rune has no words", "***", ""},
 	{"the empty name is empty", "", ""},
 }
