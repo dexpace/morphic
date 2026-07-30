@@ -49,7 +49,7 @@ func lowerSecurityScheme(c lowerCtx, name string, ss *soa.SecurityScheme) (ir.Au
 		ID:         ids.Auth(name),
 		Name:       compile.NamingFor(name),
 		Docs:       ir.Docs{Description: ss.GetDescription()},
-		Provenance: ir.Provenance{Source: c.SrcIndex, Pointer: ids.Ptr("components", "securitySchemes", name)},
+		Provenance: c.provenanceAt(ids.Ptr("components", "securitySchemes", name)),
 	}
 	if ss.GetDeprecated() {
 		scheme.Deprecation = &ir.Deprecation{}
@@ -196,8 +196,8 @@ func lowerSecurityRequirement(c lowerCtx, req *soa.SecurityRequirement,
 	for name, scopes := range req.All() {
 		id := ids.Auth(name)
 		if _, ok := declared[id]; !ok {
-			diags = append(diags, diag.Newf(ir.SeverityError, diag.UnresolvedRef,
-				ir.Provenance{Source: c.SrcIndex, Pointer: ids.Ptr("components", "securitySchemes", name)},
+			diags = append(diags, c.diagAt(ir.SeverityError, diag.UnresolvedRef,
+				ids.Ptr("components", "securitySchemes", name),
 				"security requirement references undeclared scheme %q", name))
 			continue
 		}
