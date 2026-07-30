@@ -47,7 +47,58 @@ var rules = map[string][]string{
 	// nothing but ir. Its own entry says that, rather than letting it inherit the
 	// compiler's much wider allowlist by being an unkeyed subdirectory.
 	"compilers/openapi/internal/diag": {module + "/ir"},
-	"pass":                            {module + "/ir"},
+	// Pointer arithmetic and the OpenAPI derivation of an ID from a pointer. It
+	// reaches the framework for the grammar wrapped around a path and nothing
+	// else: what is OpenAPI's here is the path, and a package that could reach
+	// the compiler would be able to derive one from something other than a
+	// source coordinate.
+	"compilers/openapi/internal/ids": {module + "/ir", module + "/compilers/compile"},
+	// Scalar and BigVal lowering. It reaches ir for the value types and yaml for
+	// the node it reads, and nothing else: a value is decided by its own wire
+	// spelling, so a package that could reach the compiler would be able to let a
+	// surrounding schema type change what a literal means.
+	"compilers/openapi/internal/value": {module + "/ir", "gopkg.in/yaml.v3"},
+	// A view over the raw source: mappings read the way the resolver reads them,
+	// through aliases and `<<` merge keys. It reaches ids for the pointer
+	// unescaping one lookup needs, and is below both the scans that first wanted
+	// it and the schema lowering that wants the same view.
+	"compilers/openapi/internal/nodeview": {module + "/compilers/openapi/internal/ids", "gopkg.in/yaml.v3"},
+	// The pre-lowering refusals. They read the source through nodeview and report
+	// through diag, and reach no part of the lowering — nothing here has a
+	// document to lower yet.
+	"compilers/openapi/internal/scan": {module + "/ir",
+		module + "/compilers/openapi/internal/diag",
+		module + "/compilers/openapi/internal/nodeview", "gopkg.in/yaml.v3"},
+	// What a schema or a carrier says about itself rather than about its shape,
+	// plus the validation-only keywords the IR keeps verbatim. It reads the
+	// parsed model and the raw nodes behind it, and holds no opinion about
+	// lowering — so it sits below the schema lowering that asks it questions and
+	// above nothing that asks it any.
+	"compilers/openapi/internal/annotation": {module + "/ir",
+		module + "/compilers/openapi/internal/diag",
+		module + "/compilers/openapi/internal/ids",
+		module + "/compilers/openapi/internal/value",
+		"github.com/speakeasy-api/openapi/extensions",
+		"github.com/speakeasy-api/openapi/jsonschema/oas3", "gopkg.in/yaml.v3"},
+	// The entry side: parse, validate, resolve. It runs the pre-lowering refusals
+	// through scan and reads value only to tell a real numeric-literal problem
+	// from a library artifact, and it reaches nothing that lowers — at this point
+	// there is no document to lower.
+	"compilers/openapi/internal/load": {module + "/ir", module + "/compilers",
+		module + "/compilers/openapi/internal/diag",
+		module + "/compilers/openapi/internal/scan",
+		module + "/compilers/openapi/internal/value",
+		"github.com/speakeasy-api/openapi/jsonschema/oas3",
+		"github.com/speakeasy-api/openapi/openapi",
+		"github.com/speakeasy-api/openapi/validation", "gopkg.in/yaml.v3"},
+	// allOf property reconciliation. It reaches annotation for the one field a
+	// redeclaration unions rather than intersects, and takes everything else it
+	// needs from lowering — the registry lookup and the recorder — as function
+	// fields, which is what keeps the conflict lattice drivable without a walk.
+	"compilers/openapi/internal/merge": {module + "/ir",
+		module + "/compilers/openapi/internal/annotation",
+		module + "/compilers/openapi/internal/diag"},
+	"pass": {module + "/ir"},
 	"engine": {module + "/ir", module + "/compilers", module + "/compilers/openapi",
 		module + "/pass", "gopkg.in/yaml.v3"},
 	"cmd/morphic":         {module + "/ir", module + "/engine"},

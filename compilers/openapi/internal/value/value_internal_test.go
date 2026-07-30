@@ -1,4 +1,4 @@
-package openapi
+package value
 
 import (
 	"testing"
@@ -26,7 +26,7 @@ func TestValueFromNode_Scalars(t *testing.T) {
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			got, err := valueFromNode(yamlNode(t, tc.src))
+			got, err := FromNode(yamlNode(t, tc.src))
 			require.NoError(t, err)
 			if diff := cmp.Diff(tc.want, got); diff != "" {
 				t.Errorf("mismatch (-want +got):\n%s", diff)
@@ -64,7 +64,7 @@ func TestNumericLiteral_YAMLBases(t *testing.T) {
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			got, err := numericLiteral(yamlNode(t, tc.src))
+			got, err := NumericLiteral(yamlNode(t, tc.src))
 			require.NoError(t, err)
 			assert.Equal(t, tc.want, got)
 		})
@@ -89,7 +89,7 @@ func TestNumericLiteral_ExplicitIntBeyondUint64(t *testing.T) {
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			got, err := numericLiteral(yamlNode(t, tc.src))
+			got, err := NumericLiteral(yamlNode(t, tc.src))
 			require.NoError(t, err)
 			assert.Equal(t, tc.want, got)
 		})
@@ -99,7 +99,7 @@ func TestNumericLiteral_ExplicitIntBeyondUint64(t *testing.T) {
 // TestNumericLiteral_NilNode covers the nil guard.
 func TestNumericLiteral_NilNode(t *testing.T) {
 	t.Parallel()
-	_, err := numericLiteral(nil)
+	_, err := NumericLiteral(nil)
 	require.Error(t, err)
 }
 
@@ -111,7 +111,7 @@ func TestNumericLiteral_UndecodableInt(t *testing.T) {
 	for _, src := range []string{"12abc", "077777777777777777777777", "0x1FFFFFFFFFFFFFFFFFFFF", ""} {
 		t.Run(src, func(t *testing.T) {
 			t.Parallel()
-			_, err := numericLiteral(scalarNode("!!int", src))
+			_, err := NumericLiteral(scalarNode("!!int", src))
 			require.Error(t, err)
 		})
 	}
@@ -119,7 +119,7 @@ func TestNumericLiteral_UndecodableInt(t *testing.T) {
 
 func TestValueFromNode_ObjectPreservesOrder(t *testing.T) {
 	t.Parallel()
-	got, err := valueFromNode(yamlNode(t, "b: 1\na: 2\n"))
+	got, err := FromNode(yamlNode(t, "b: 1\na: 2\n"))
 	require.NoError(t, err)
 	require.Equal(t, ir.ValueObject, got.Kind)
 	require.Len(t, got.Object, 2)
@@ -129,7 +129,7 @@ func TestValueFromNode_ObjectPreservesOrder(t *testing.T) {
 
 func TestValueFromNode_NilYieldsNull(t *testing.T) {
 	t.Parallel()
-	got, err := valueFromNode(nil)
+	got, err := FromNode(nil)
 	require.NoError(t, err)
 	assert.Equal(t, ir.ValueNull, got.Kind)
 }
@@ -138,7 +138,7 @@ func TestValueFromNode_AliasFollowed(t *testing.T) {
 	t.Parallel()
 	target := scalarNode("!!str", "hi")
 	alias := &yaml.Node{Kind: yaml.AliasNode, Alias: target}
-	got, err := valueFromNode(alias)
+	got, err := FromNode(alias)
 	require.NoError(t, err)
 	assert.Equal(t, ir.ValueString, got.Kind)
 	assert.Equal(t, "hi", got.Str)
@@ -149,7 +149,7 @@ func TestValueFromNode_Sequence(t *testing.T) {
 	seq := &yaml.Node{Kind: yaml.SequenceNode, Content: []*yaml.Node{
 		scalarNode("!!int", "1"), scalarNode("!!str", "x"),
 	}}
-	got, err := valueFromNode(seq)
+	got, err := FromNode(seq)
 	require.NoError(t, err)
 	require.Equal(t, ir.ValueList, got.Kind)
 	require.Len(t, got.List, 2)
@@ -159,7 +159,7 @@ func TestValueFromNode_Sequence(t *testing.T) {
 
 func TestValueFromNode_Binary(t *testing.T) {
 	t.Parallel()
-	got, err := valueFromNode(yamlNode(t, "!!binary aGVsbG8="))
+	got, err := FromNode(yamlNode(t, "!!binary aGVsbG8="))
 	require.NoError(t, err)
 	require.Equal(t, ir.ValueBytes, got.Kind)
 	assert.Equal(t, []byte("hello"), got.Bytes)
@@ -176,7 +176,7 @@ func TestValueFromNode_Timestamp(t *testing.T) {
 			t.Parallel()
 			node := yamlNode(t, src)
 			require.Equal(t, "!!timestamp", node.Tag, "precondition: this spelling must resolve to !!timestamp")
-			got, err := valueFromNode(node)
+			got, err := FromNode(node)
 			require.NoError(t, err)
 			assert.Equal(t, ir.ValueString, got.Kind)
 			assert.Equal(t, src, got.Str, "verbatim spelling survives, not a canonicalized or parsed form")
@@ -199,7 +199,7 @@ func TestValueFromNode_ScalarErrors(t *testing.T) {
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			_, err := valueFromNode(tc.node)
+			_, err := FromNode(tc.node)
 			require.Error(t, err)
 		})
 	}
@@ -209,7 +209,7 @@ func TestValueFromNode_OverflowNumberIsNumber(t *testing.T) {
 	t.Parallel()
 	// A float64-overflow literal resolves to a plain !!str node; it must be
 	// captured as the number it is, canonicalized, not as a string.
-	got, err := valueFromNode(scalarNode("!!str", "1.8e308"))
+	got, err := FromNode(scalarNode("!!str", "1.8e308"))
 	require.NoError(t, err)
 	assert.Equal(t, ir.ValueNumber, got.Kind)
 	assert.Equal(t, ir.BigVal("1.8e308"), got.Num)
@@ -220,7 +220,7 @@ func TestValueFromNode_QuotedNumericStaysString(t *testing.T) {
 	// A quoted numeric string is not plain, so it stays a string.
 	node := scalarNode("!!str", "123")
 	node.Style = yaml.DoubleQuotedStyle
-	got, err := valueFromNode(node)
+	got, err := FromNode(node)
 	require.NoError(t, err)
 	assert.Equal(t, ir.ValueString, got.Kind)
 	assert.Equal(t, "123", got.Str)
@@ -228,7 +228,7 @@ func TestValueFromNode_QuotedNumericStaysString(t *testing.T) {
 
 func TestValueFromNode_UnsupportedNodeKind(t *testing.T) {
 	t.Parallel()
-	_, err := valueFromNode(&yaml.Node{Kind: yaml.Kind(99)})
+	_, err := FromNode(&yaml.Node{Kind: yaml.Kind(99)})
 	require.Error(t, err)
 }
 
@@ -237,7 +237,7 @@ func TestValueFromNode_SequenceChildError(t *testing.T) {
 	seq := &yaml.Node{Kind: yaml.SequenceNode, Content: []*yaml.Node{
 		scalarNode("!custom", "x"),
 	}}
-	_, err := valueFromNode(seq)
+	_, err := FromNode(seq)
 	require.Error(t, err)
 }
 
@@ -246,7 +246,7 @@ func TestValueFromNode_MappingValueError(t *testing.T) {
 	m := &yaml.Node{Kind: yaml.MappingNode, Content: []*yaml.Node{
 		scalarNode("!!str", "k"), scalarNode("!custom", "x"),
 	}}
-	_, err := valueFromNode(m)
+	_, err := FromNode(m)
 	require.Error(t, err)
 }
 
@@ -256,6 +256,54 @@ func TestValueFromNode_DepthCapExceeded(t *testing.T) {
 	for range maxValueDepth + 2 {
 		n = &yaml.Node{Kind: yaml.SequenceNode, Content: []*yaml.Node{n}}
 	}
-	_, err := valueFromNode(n)
+	_, err := FromNode(n)
 	require.Error(t, err)
+}
+
+// yamlNode parses src and returns its single document's root node. It is a copy
+// of the compiler package's helper rather than a shared one: a test helper that
+// crossed a package boundary would be the first thing to make this package
+// depend on its parent, which is the direction the extraction exists to remove.
+func yamlNode(t *testing.T, src string) *yaml.Node {
+	t.Helper()
+	var doc yaml.Node
+	require.NoError(t, yaml.Unmarshal([]byte(src), &doc))
+	require.Len(t, doc.Content, 1, "expected a single document node")
+	return doc.Content[0]
+}
+
+// scalarNode builds a bare scalar yaml.Node with the given tag and value.
+func scalarNode(tag, val string) *yaml.Node {
+	return &yaml.Node{Kind: yaml.ScalarNode, Tag: tag, Value: val}
+}
+
+// TestNumericLiteral_NonNumericTagReadsAsDecimal covers the tag this package
+// does not recognise as numeric. A quoted bound reaches it — YAML resolves
+// `minimum: "10"` to !!str — and carries no YAML-assigned base, so its text is
+// the decimal it looks like rather than something to reinterpret.
+func TestNumericLiteral_NonNumericTagReadsAsDecimal(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		name string
+		tag  string
+		val  string
+		want ir.BigVal
+	}{
+		{name: "a quoted integer", tag: "!!str", val: "10", want: "10"},
+		{name: "a quoted decimal", tag: "!!str", val: "1.5", want: "1.5"},
+		// The leading zero is not an octal prefix at this tag, and BigVal is a
+		// canonical decimal, so it is dropped rather than reinterpreted — 0644 is
+		// 644 here and 420 under !!int, which is the whole reason the two paths
+		// are separate.
+		{name: "a leading zero is dropped, not read as octal", tag: "!!str", val: "0644", want: "644"},
+		{name: "a signed value", tag: "!!str", val: "-7", want: "-7"},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			got, err := NumericLiteral(scalarNode(tc.tag, tc.val))
+			require.NoError(t, err)
+			assert.Equal(t, tc.want, got)
+		})
+	}
 }

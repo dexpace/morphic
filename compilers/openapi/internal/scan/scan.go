@@ -1,13 +1,20 @@
-package openapi
+// Package scan refuses a source document before any of it is lowered.
+//
+// Two refusals share a phase and a subject: a reference cycle that never reaches
+// a concrete schema, which would recurse without bound inside the resolver, and a
+// YAML alias fan-out that expands to far more nodes than the document declares,
+// which would exhaust memory inside the parser. Both read the raw text through
+// nodeview, and both run before the document is handed to either.
+package scan
 
 import (
 	"fmt"
-	"strconv"
 	"strings"
 
-	"gopkg.in/yaml.v3"
+	yaml "gopkg.in/yaml.v3"
 
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
+	"github.com/dexpace/morphic/compilers/openapi/internal/nodeview"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -15,52 +22,6 @@ import (
 // the walk against a runaway structure per the bounded-recursion rule; real
 // specs nest far shallower, so the cap only ever fires on a detector bug.
 const maxCycleDepth = 10000
-
-// maxMergeDepth bounds how deep a chain of `<<` merge keys the mapping view
-// expands. It is far tighter than maxCycleDepth: each merge level
-// re-materializes every pair beneath it, so expanding a chain of depth d costs
-// O(d²), and real specs nest merge keys one or two levels deep. A chain that
-// hits the bound is reported via a diag.CycleScanFailed warning (see
-// nodeView.expand and refCycles), not silently truncated.
-const maxMergeDepth = 64
-
-// maxCachedPairs bounds total expanded pairs one nodeView retains, roughly
-// 50 MB at 2²¹. It complements maxMergeDepth: that bound caps one mapping's
-// expansion depth, this one caps a document with many merged mappings. Past the
-// budget the view still answers correctly — it just stops memoizing, trading a
-// cache hit for a recomputation.
-const maxCachedPairs = 1 << 21
-
-// The pure-$ref scan reads schema positions and reference-object positions
-// under different rules, because speakeasy's resolver guards them unevenly.
-//
-// In a schema position, any pure-$ref cycle overflows its stack, so every one
-// is refused here. Outside a schema, the resolver refuses a cycle whose hops all
-// name components ('#/components/responses/A' -> '.../B' -> '.../A') and reports
-// the chain by name — but it has no guard for a hop that names a node by
-// document position ('#/paths/~1a', '#/webhooks/onA'), and resolving one of
-// those faults the process. So only the chains that leave the components section
-// are refused here; the rest are left to the resolver's better message
-// (refCycles, outsideCycle).
-//
-// A $ref inside example/default/enum data is never followed in either mode.
-// Descending into those positions would refuse legal documents (GitHub #12's fix
-// must not regress valid specs).
-//
-// This scoping encodes the resolver behavior of github.com/speakeasy-api/openapi
-// v1.24.0 (see go.mod), not an OpenAPI guarantee, and covers only cycles inside
-// one document — external ('other.yaml#/...') and cross-document refs are left
-// to speakeasy's resolver, which reports them as resolve errors rather than
-// faulting. Re-validate against FuzzCycleDetector (cycles_fuzz_test.go) on any
-// bump to that dependency.
-//
-// Five key sets drive the walk. Four mirror every *JSONSchema[Referenceable]
-// field of oas3.Schema (jsonschema/oas3/schema.go): subSchemaObjectKeys,
-// subSchemaListKeys, subSchemaMapKeys, and schemaEntryMapKeys for schema maps
-// that appear outside a schema. schemaDataKeys names positions the walk must
-// never descend into. Two entries have no corresponding field at this
-// version — additionalItems and definitions — and are real JSON Schema
-// keywords the library doesn't type yet; re-check both on a dependency bump.
 
 // schemaEntryMapKeys name a mapping of schemas encountered outside a schema
 // (e.g. components.schemas, $defs): every value is a schema root.
@@ -95,7 +56,7 @@ var schemaDataKeys = map[string]bool{
 	"const": true, "enum": true,
 }
 
-// detectCycles scans raw source bytes for degenerate reference structures that
+// Cycles scans raw source bytes for degenerate reference structures that
 // would otherwise crash or exhaust memory in the third-party parser (GitHub
 // #12, GitHub #27), before soa.Unmarshal ever runs. It reports three classes as
 // error diagnostics: a recursive YAML anchor, a pure-$ref cycle (a chain of
@@ -104,7 +65,7 @@ var schemaDataKeys = map[string]bool{
 // cycles — the main parser reports that as a parse problem — and the scan runs
 // under recoverCycleScan so a detector bug degrades to "no cycle found" rather
 // than aborting.
-func detectCycles(srcIndex int, data []byte) []ir.Diagnostic {
+func Cycles(srcIndex int, data []byte) []ir.Diagnostic {
 	return recoverCycleScan(srcIndex, func() []ir.Diagnostic {
 		return scanCycles(srcIndex, data)
 	})
@@ -127,9 +88,9 @@ func recoverCycleScan(srcIndex int, scan func() []ir.Diagnostic) (diags []ir.Dia
 }
 
 // scanCycles decodes source bytes and reports the first degenerate cycle found,
-// or nil. documentRoot may return nil for an empty or malformed root; the anchor
-// and ref walks both treat a nil root as "nothing to scan", so no explicit nil
-// guard is needed here.
+// or nil. nodeview.DocumentRoot may return nil for an empty or malformed root;
+// the anchor and ref walks both treat a nil root as "nothing to scan", so no
+// explicit nil guard is needed here.
 func scanCycles(srcIndex int, data []byte) []ir.Diagnostic {
 	if len(data) == 0 {
 		return nil
@@ -138,7 +99,7 @@ func scanCycles(srcIndex int, data []byte) []ir.Diagnostic {
 	if err := yaml.Unmarshal(data, &root); err != nil {
 		return nil
 	}
-	docRoot := documentRoot(&root)
+	docRoot := nodeview.DocumentRoot(&root)
 	if d, ok := anchorCycle(srcIndex, docRoot); ok {
 		return []ir.Diagnostic{d}
 	}
@@ -161,22 +122,6 @@ func scanCycles(srcIndex int, data []byte) []ir.Diagnostic {
 		return append(diags, d)
 	}
 	return diags
-}
-
-// documentRoot returns the effective root node to scan: the content of a
-// document node, or the node itself otherwise. It returns nil for an empty
-// document.
-func documentRoot(n *yaml.Node) *yaml.Node {
-	if n == nil {
-		return nil
-	}
-	if n.Kind == yaml.DocumentNode {
-		if len(n.Content) == 0 {
-			return nil
-		}
-		return n.Content[0]
-	}
-	return n
 }
 
 // anchorCycle reports the first alias whose resolved target is one of its own
@@ -223,7 +168,7 @@ func anchorName(alias *yaml.Node) string {
 // that carries no top-level $ref (which terminates the chain, matching where
 // speakeasy stops resolving).
 //
-// If the mapping view hit maxMergeDepth, it returns a diag.CycleScanFailed
+// If the mapping view hit nodeview.MergeDepthLimit, it returns a diag.CycleScanFailed
 // warning instead of a clean nil: truncation only ever drops pairs, so a cycle
 // found despite it is still real, but a clean result only means "no cycle found
 // in what could be expanded."
@@ -239,12 +184,12 @@ func refCycles(srcIndex int, root *yaml.Node) []ir.Diagnostic {
 	if d, found := s.outsideCycle(srcIndex, root); found {
 		return []ir.Diagnostic{d}
 	}
-	if s.view.exhausted {
+	if s.view.Exhausted() {
 		return []ir.Diagnostic{diag.Newf(ir.SeverityWarning, diag.CycleScanFailed,
 			ir.Provenance{Source: srcIndex},
 			"cycle pre-scan stopped at its %d-level merge-key expansion bound; "+
 				"reference-cycle protection is incomplete for this source",
-			maxMergeDepth)}
+			nodeview.MergeDepthLimit)}
 	}
 	return nil
 }
@@ -315,7 +260,7 @@ type refTask struct {
 // removes the cap: push() enqueues each (node, role) pair at most once, so the
 // loop runs at most roleCount times the number of tree nodes.
 type refScan struct {
-	view  *nodeView
+	view  *nodeview.View
 	stack []refTask
 	seen  [roleCount]map[*yaml.Node]bool
 	out   []*yaml.Node
@@ -330,7 +275,7 @@ type refScan struct {
 // visited sets as one array indexed by role — rather than a field per role —
 // makes it impossible to add a role and forget its set.
 func newRefScan() *refScan {
-	s := &refScan{view: newNodeView(), safe: map[*yaml.Node]bool{}}
+	s := &refScan{view: nodeview.New(), safe: map[*yaml.Node]bool{}}
 	for i := range s.seen {
 		s.seen[i] = map[*yaml.Node]bool{}
 	}
@@ -372,7 +317,7 @@ func (s *refScan) collect(root *yaml.Node) {
 // (or for any position outside one) and still be followed. Marking at push time
 // is what bounds collect: no pair is ever enqueued twice.
 func (s *refScan) push(n *yaml.Node, role walkRole) {
-	n = deref(n)
+	n = nodeview.Deref(n)
 	if n == nil || s.seen[role][n] {
 		return
 	}
@@ -396,21 +341,21 @@ func (s *refScan) visitOutside(n *yaml.Node) {
 		s.pushReversed(n.Content, roleOutside)
 		return
 	}
-	pairs := s.view.mappingPairs(n)
-	if _, ok := pureRefTargetOf(pairs); ok {
+	pairs := s.view.MappingPairs(n)
+	if _, ok := nodeview.PureRefTargetOf(pairs); ok {
 		s.outside = append(s.outside, n)
 	}
 	for i := len(pairs) - 1; i >= 0; i-- {
 		p := pairs[i]
 		switch {
-		case strings.HasPrefix(p.key, "x-"), schemaDataKeys[p.key]:
+		case strings.HasPrefix(p.Key, "x-"), schemaDataKeys[p.Key]:
 			// extension or example/default data: not a schema position
-		case p.key == "schema":
-			s.push(p.val, roleSchema)
-		case schemaEntryMapKeys[p.key]:
-			s.push(p.val, roleSchemaMap)
+		case p.Key == "schema":
+			s.push(p.Val, roleSchema)
+		case schemaEntryMapKeys[p.Key]:
+			s.push(p.Val, roleSchemaMap)
 		default:
-			s.push(p.val, roleOutside)
+			s.push(p.Val, roleOutside)
 		}
 	}
 }
@@ -423,19 +368,19 @@ func (s *refScan) visitSchema(n *yaml.Node) {
 	if n.Kind != yaml.MappingNode {
 		return
 	}
-	pairs := s.view.mappingPairs(n)
-	if _, ok := pureRefTargetOf(pairs); ok {
+	pairs := s.view.MappingPairs(n)
+	if _, ok := nodeview.PureRefTargetOf(pairs); ok {
 		s.out = append(s.out, n)
 	}
 	for i := len(pairs) - 1; i >= 0; i-- {
 		p := pairs[i]
 		switch {
-		case subSchemaObjectKeys[p.key]:
-			s.push(p.val, roleSchema)
-		case subSchemaMapKeys[p.key]:
-			s.push(p.val, roleSchemaMap)
-		case subSchemaListKeys[p.key]:
-			s.push(p.val, roleSchemaList)
+		case subSchemaObjectKeys[p.Key]:
+			s.push(p.Val, roleSchema)
+		case subSchemaMapKeys[p.Key]:
+			s.push(p.Val, roleSchemaMap)
+		case subSchemaListKeys[p.Key]:
+			s.push(p.Val, roleSchemaList)
 		}
 	}
 }
@@ -445,9 +390,9 @@ func (s *refScan) visitSchemaMap(n *yaml.Node) {
 	if n.Kind != yaml.MappingNode {
 		return
 	}
-	pairs := s.view.mappingPairs(n)
+	pairs := s.view.MappingPairs(n)
 	for i := len(pairs) - 1; i >= 0; i-- {
-		s.push(pairs[i].val, roleSchema)
+		s.push(pairs[i].Val, roleSchema)
 	}
 }
 
@@ -486,7 +431,7 @@ func (s *refScan) followRefChain(root, start *yaml.Node) (cyclic, leftComponents
 		if onPath[cur] {
 			return true, leftComponents // revisited a node on this chain — cyclic
 		}
-		ref, ok := s.view.pureRefTarget(cur)
+		ref, ok := s.view.PureRefTarget(cur)
 		if !ok {
 			s.safe[cur] = true
 			markSafe(path, s.safe)
@@ -497,7 +442,7 @@ func (s *refScan) followRefChain(root, start *yaml.Node) (cyclic, leftComponents
 		}
 		onPath[cur] = true
 		path = append(path, cur)
-		next := s.view.resolvePointer(root, ref)
+		next := s.view.ResolvePointer(root, ref)
 		if next == nil {
 			markSafe(path, s.safe)
 			return false, leftComponents // dangling ref — reported downstream as unresolved
@@ -515,308 +460,6 @@ func markSafe(path []*yaml.Node, safe map[*yaml.Node]bool) {
 	}
 }
 
-// yamlPair is one effective key/value pair of a mapping node, after alias and
-// merge-key resolution.
-type yamlPair struct {
-	key string
-	val *yaml.Node
-}
-
-// nodeView reads a raw yaml.Node tree the way speakeasy's unmarshaller reads
-// it: alias keys and values dereferenced, `<<` merge keys expanded
-// (yml.ResolveAlias and yml.ResolveMergeKeys, applied per mapping in
-// marshaller/unmarshaller.go). Every gap between the raw tree this scan reads
-// and the resolved one speakeasy's resolver reads is a cycle that reaches the
-// resolver and faults the process (GitHub #26) — so every mapping read in this
-// file goes through a nodeView.
-//
-// It memoizes each mapping's expansion for the scan's lifetime: without that, a
-// merge chain costs O(n) per expansion and O(n) expansions per walk, going
-// cubic in chain length — a hang where the bug being fixed was a crash. A
-// cached expansion is always the depth-0 expansion, independent of the path
-// that first reached it. maxMergeDepth and maxCachedPairs bound the chain
-// depth and cache size respectively, so unlimited memoization can't trade the
-// crash for exhausted memory instead.
-type nodeView struct {
-	pairs       map[*yaml.Node][]yamlPair
-	cachedPairs int
-	inFlight    map[*yaml.Node]bool
-	exhausted   bool
-}
-
-// newNodeView returns an empty view; a view must not outlive the node tree whose
-// expansions it caches.
-func newNodeView() *nodeView {
-	return &nodeView{
-		pairs:    map[*yaml.Node][]yamlPair{},
-		inFlight: map[*yaml.Node]bool{},
-	}
-}
-
-// mappingPairs returns the effective pairs of a mapping node, following
-// speakeasy's precedence: an explicit key beats one from a merge regardless of
-// where the `<<` appears, an earlier merge source beats a later one on a
-// shared key (yml.resolveMergeKeys), and a key repeated explicitly resolves to
-// its last value.
-//
-// n is dereferenced, so an alias standing in for a whole mapping can be passed
-// directly; a non-mapping node (including nil) yields no pairs. The returned
-// slice is the view's own memo — callers must treat it as read-only.
-func (v *nodeView) mappingPairs(n *yaml.Node) []yamlPair {
-	pairs, _ := v.expand(deref(n), 0)
-	return pairs
-}
-
-// expand returns n's effective pairs and whether the expansion is complete —
-// false if a merge cycle was broken or maxMergeDepth was reached. Only a
-// complete expansion is memoized: caching an incomplete one could make one
-// traversal order silently lose a $ref another would find.
-//
-// Truncation is not contagious — only the node that hit the bound is refused,
-// every other mapping still expands in full — because truncation only ever
-// drops pairs, never invents an edge. Letting one over-deep chain disable the
-// whole view would let an attacker disable the scan by prefixing a document
-// with one; refCycles records the fact via the exhausted flag instead.
-//
-// An incomplete expansion entered at depth 0 is memoized anyway, because at
-// depth 0 nothing is in flight and the result is a deterministic function of n
-// alone (unlike inside a chain, where how much survived depends on the entry
-// depth). Every walk-level read enters at depth 0, so this is what stops a
-// truncated chain from re-expanding once per node that references it.
-//
-// The in-flight (merge-cycle) case needs no bound of its own: it requires an
-// alias to an ancestor, which anchorCycle already refuses before refCycles runs.
-func (v *nodeView) expand(n *yaml.Node, depth int) ([]yamlPair, bool) {
-	if n == nil || n.Kind != yaml.MappingNode {
-		return nil, true
-	}
-	if cached, ok := v.pairs[n]; ok {
-		return cached, true
-	}
-	if v.inFlight[n] {
-		return nil, false
-	}
-	if depth > maxMergeDepth {
-		v.exhausted = true
-		return nil, false
-	}
-
-	v.inFlight[n] = true
-	pairs, complete := v.expandContent(n, depth)
-	delete(v.inFlight, n)
-
-	if complete || v.isEntryPoint(depth) {
-		v.memoize(n, pairs)
-	}
-	return pairs, complete
-}
-
-// isEntryPoint reports whether an expansion that just finished at this depth was
-// the outermost one, with no other expansion of the same view in flight around
-// it — the condition under which even a truncated result is reproducible.
-func (v *nodeView) isEntryPoint(depth int) bool {
-	return depth == 0 && len(v.inFlight) == 0
-}
-
-// memoize retains a complete expansion while the view's pair budget allows.
-// Declining to cache costs a recomputation and nothing else — the cache is pure
-// memoization, so a miss recomputes exactly the same pairs — which makes the
-// budget a memory bound the scan can enforce without touching what it reports.
-func (v *nodeView) memoize(n *yaml.Node, pairs []yamlPair) {
-	if v.cachedPairs+len(pairs) > maxCachedPairs {
-		return
-	}
-	v.pairs[n] = pairs
-	v.cachedPairs += len(pairs)
-}
-
-// expandContent splits a mapping's raw content into the pairs it declares itself
-// and the pairs its `<<` keys merge in, then applies the two precedence rules
-// that govern them. They point in opposite directions, so they cannot share one
-// pass: a repeated explicit key resolves to its last value, while a merged key
-// yields to an explicit one and to any earlier merge source.
-func (v *nodeView) expandContent(n *yaml.Node, depth int) ([]yamlPair, bool) {
-	var explicit, merged []yamlPair
-	complete := true
-
-	for i := 0; i+1 < len(n.Content); i += 2 {
-		raw, val := n.Content[i], deref(n.Content[i+1])
-		if isMergeKey(raw) {
-			got, ok := v.mergeSource(val, depth+1)
-			merged = append(merged, got...)
-			complete = complete && ok
-			continue
-		}
-		key := deref(raw)
-		if key == nil || key.Kind != yaml.ScalarNode {
-			continue // a non-scalar key (after deref) cannot name a schema keyword
-		}
-		explicit = append(explicit, yamlPair{key: key.Value, val: val})
-	}
-
-	return appendUnseen(dedupeLastWins(explicit), merged), complete
-}
-
-// dedupeLastWins keeps the last pair for each key, at that last occurrence's
-// position, matching speakeasy: a mapping that repeats a key is ill-formed, but
-// speakeasy neither refuses it nor keeps the first one — it unmarshals every
-// occurrence in turn, so the final value is what the resolver then works from.
-func dedupeLastWins(pairs []yamlPair) []yamlPair {
-	last := make(map[string]int, len(pairs))
-	for i, p := range pairs {
-		last[p.key] = i
-	}
-	out := make([]yamlPair, 0, len(last))
-	for i, p := range pairs {
-		if last[p.key] == i {
-			out = append(out, p)
-		}
-	}
-	return out
-}
-
-// appendUnseen appends the pairs of add whose key is not already present,
-// keeping the first contributor of each — the rule for merged keys, which yield
-// both to an explicit key and to an earlier merge source.
-func appendUnseen(base, add []yamlPair) []yamlPair {
-	if len(add) == 0 {
-		return base
-	}
-	seenKey := make(map[string]bool, len(base)+len(add))
-	for _, p := range base {
-		seenKey[p.key] = true
-	}
-	out := base
-	for _, p := range add {
-		if seenKey[p.key] {
-			continue
-		}
-		seenKey[p.key] = true
-		out = append(out, p)
-	}
-	return out
-}
-
-// mergeSource expands one `<<` value into the pairs it contributes: a mapping is
-// a single merge source, a sequence is several with an earlier element taking
-// precedence over a later one on a shared key.
-func (v *nodeView) mergeSource(val *yaml.Node, depth int) ([]yamlPair, bool) {
-	if val == nil || val.Kind != yaml.SequenceNode {
-		return v.expand(val, depth)
-	}
-	var out []yamlPair
-	complete := true
-	for _, item := range val.Content {
-		got, ok := v.expand(deref(item), depth)
-		out = append(out, got...)
-		complete = complete && ok
-	}
-	return dedupeFirstWins(out), complete
-}
-
-// mergeTag is the tag yaml.v3 resolves every `<<` merge key to, and the exact
-// tag speakeasy's yml.IsMergeKey requires before treating one as a merge.
-const mergeTag = "!!merge"
-
-// isMergeKey reports whether a raw mapping key node is a `<<` merge key,
-// applying the same test speakeasy does: yml.IsMergeKey (yml/yml.go), run over
-// every mapping via yml.ResolveMergeKeys. The key is checked undereferenced (an
-// alias standing in for the key is not a scalar) and by resolved tag (a quoted
-// '<<' resolves to !!str) — speakeasy treats both as ordinary keys, and
-// expanding them would invent pairs it never sees.
-//
-// yaml.v3's own decoder (isMerge in decode.go) is the wrong model to copy: it's
-// laxer about the tag (also accepts an empty or non-specific one) and stricter
-// about repetition (honors only the last `<<`, where speakeasy merges every
-// one — why expandContent accumulates them all). Neither difference is
-// reachable from a parsed document today, but re-check this against
-// yml.IsMergeKey on any dependency bump.
-func isMergeKey(n *yaml.Node) bool {
-	return n != nil && n.Kind == yaml.ScalarNode && n.Value == "<<" && n.Tag == mergeTag
-}
-
-// dedupeFirstWins keeps only the first pair for each key, preserving order — the
-// rule across the elements of a merge sequence, where an earlier source outranks
-// a later one.
-func dedupeFirstWins(pairs []yamlPair) []yamlPair {
-	return appendUnseen(nil, pairs)
-}
-
-// pureRefTarget reports the internal $ref target of a node that carries a
-// top-level internal ('#/...') $ref. Sibling keys do not disqualify it:
-// speakeasy follows a node's top-level $ref before any concrete sibling, so a
-// $ref node with a type or properties sibling still drives the crash. The chain
-// terminates only at a node with no top-level $ref at all.
-func (v *nodeView) pureRefTarget(n *yaml.Node) (string, bool) {
-	return pureRefTargetOf(v.mappingPairs(n))
-}
-
-// pureRefTargetOf is pureRefTarget over an already-expanded pair list, so a
-// caller that needs both the pairs and the target expands the mapping once.
-func pureRefTargetOf(pairs []yamlPair) (string, bool) {
-	for _, p := range pairs {
-		if p.key != "$ref" {
-			continue
-		}
-		if p.val == nil || p.val.Kind != yaml.ScalarNode || !strings.HasPrefix(p.val.Value, "#/") {
-			return "", false
-		}
-		return p.val.Value, true
-	}
-	return "", false
-}
-
-// resolvePointer resolves an internal JSON pointer ('#/a/b') against the root
-// node, returning the targeted node or nil when the path does not exist. Alias
-// nodes along the path are dereferenced so navigation follows structure.
-func (v *nodeView) resolvePointer(root *yaml.Node, ref string) *yaml.Node {
-	cur := deref(root)
-	for raw := range strings.SplitSeq(strings.TrimPrefix(ref, "#"), "/") {
-		if raw == "" {
-			continue
-		}
-		cur = v.childByToken(deref(cur), unescapeSegment(raw))
-		if cur == nil {
-			return nil
-		}
-	}
-	return deref(cur)
-}
-
-// childByToken returns the child of a mapping (by key) or sequence (by index)
-// node named by one JSON pointer token, or nil when absent. The mapping arm
-// reads through the view, so pointer navigation resolves an alias key and an
-// aliased or merged value exactly as pureRefTarget does.
-func (v *nodeView) childByToken(n *yaml.Node, token string) *yaml.Node {
-	if n == nil {
-		return nil
-	}
-	switch n.Kind {
-	case yaml.MappingNode:
-		for _, p := range v.mappingPairs(n) {
-			if p.key == token {
-				return p.val
-			}
-		}
-	case yaml.SequenceNode:
-		idx, err := strconv.Atoi(token)
-		if err != nil || idx < 0 || idx >= len(n.Content) {
-			return nil
-		}
-		return n.Content[idx]
-	}
-	return nil
-}
-
-// deref follows AliasNode links to the anchored node, bounded against an alias
-// chain that loops (the anchor-cycle detector reports those separately).
-func deref(n *yaml.Node) *yaml.Node {
-	for i := 0; n != nil && n.Kind == yaml.AliasNode && i <= maxCycleDepth; i++ {
-		n = n.Alias
-	}
-	return n
-}
-
 // cyclicDiag builds a diag.CyclicRef error diagnostic anchored at a node's
 // line:col position, matching the provenance convention of the resolve path.
 func cyclicDiag(srcIndex int, n *yaml.Node, format string, args ...any) ir.Diagnostic {
@@ -825,4 +468,292 @@ func cyclicDiag(srcIndex int, n *yaml.Node, format string, args ...any) ir.Diagn
 		prov.Pointer = fmt.Sprintf("%d:%d", n.Line, n.Column)
 	}
 	return diag.Newf(ir.SeverityError, diag.CyclicRef, prov, format, args...)
+}
+
+// maxAliasAmplification bounds how many times larger a document's alias-
+// expanded form may be than the document as parsed. An alias-free document
+// expands to exactly its own node count, so a large spec is never refused by
+// this rule; what crosses it is a few hundred bytes standing in, through
+// nested aliases, for a structure vastly larger — the billion-laughs shape
+// that exhausts memory inside soa.Unmarshal (GitHub #27).
+//
+// Calibrated against 1,693 real OpenAPI and Swagger specs (1,491 from
+// APIs.guru, 199 hand-authored anchor-using ones, plus GitHub's, Stripe's and
+// Kubernetes' flagship specs), whose highest ratio is 3.728. 128 leaves a 34x
+// margin — wider than maxAliasSurplus's, deliberately: a `<<` merge chain
+// inflates this ratio far past its cost, since merged pairs are deduplicated
+// by key rather than turned into objects (a 200-level chain measures ratio 67
+// while compiling in 16 MiB). The extra room costs nothing, because past
+// roughly 2,000 raw nodes maxAliasSurplus is always the lesser bound (see
+// computeAllowance), so this constant only decides which small documents are
+// refused, never how large an expansion can get.
+const maxAliasAmplification = 128
+
+// minExpandedNodes is the expansion budget granted regardless of source size,
+// so a small document with ordinary anchor reuse is never refused on a noisy
+// ratio. It binds only under 256 raw nodes; at or above that,
+// maxAliasAmplification*rawNodeCount already exceeds it. Real specs that small
+// carry surpluses in the low hundreds, nowhere near this floor.
+const minExpandedNodes = 1 << 15 // 32768
+
+// maxAliasSurplus bounds the nodes aliasing may add beyond the document's own
+// size (expandedWeight minus rawNodeCount). It is a second, independent
+// refusal because the ratio alone cannot bound every shape: for one anchor
+// referenced N times in a flat list, expandedWeight grows as N*L and
+// rawNodeCount as N, so the ratio converges to the anchor's own weight L and
+// stops growing while real memory keeps climbing with N (see
+// TestDetectCycles_FlatFanOutOfModestAnchorIsEventuallyRefused). The surplus
+// is N*(L-1) there, so it still grows.
+//
+// Being additive rather than relative, it is exactly zero for an alias-free
+// document, so it can never refuse one for its size alone. Against the corpus
+// maxAliasAmplification cites, the largest real surplus is 15,727 nodes; 1<<18
+// leaves a 16.7x margin. This is also the bound that sets the worst case an
+// attacker can force, since padding a document's raw size lifts the ratio
+// allowance out of the way: at 1<<20 a purpose-built 93 KiB document was
+// measured peaking at 4.4 GiB; at 1<<18 the largest still accepted peaks at
+// 1.65 GiB.
+const maxAliasSurplus = 1 << 18
+
+// aliasAmplification reports whether root's alias-substituted form would
+// contain far more nodes than the document declares, and if so returns an
+// error diagnostic anchored at the innermost node that crossed the allowance —
+// the one the post-order walk finishes first, and a useful place to point the
+// author.
+//
+// Callers must run this only after anchorCycle has refused a recursive YAML
+// anchor: that is what makes the alias graph a DAG and this walk's termination
+// provable without a cap of its own. See scanCycles for the ordering, and
+// aliasWeigher.pushChildren for the defensive guard kept anyway.
+func aliasAmplification(srcIndex int, root *yaml.Node) (ir.Diagnostic, bool) {
+	raw := rawNodeCount(root)
+	allowance := computeAllowance(raw)
+
+	culprit, exceeded := newAliasWeigher(allowance).weigh(root)
+	if !exceeded {
+		return ir.Diagnostic{}, false
+	}
+	return aliasAmplificationDiag(srcIndex, culprit, allowance, raw), true
+}
+
+// computeAllowance returns the expandedWeight a document with this many raw
+// nodes may reach before it is refused: the lesser of a ratio-relative
+// allowance (maxAliasAmplification*raw, floored at minExpandedNodes) and an
+// absolute one (raw+maxAliasSurplus). A document must clear both, because
+// each bounds a shape the other cannot: the ratio catches nested, compounding
+// aliasing, while the surplus catches one anchor repeated without limit in a
+// flat list. Taking the minimum keeps this a single number the weigher can
+// enforce in one early-exiting walk.
+func computeAllowance(raw int64) int64 {
+	ratioAllowance := max(maxAliasAmplification*raw, minExpandedNodes)
+
+	surplusAllowance := raw + maxAliasSurplus
+	if surplusAllowance < ratioAllowance {
+		return surplusAllowance
+	}
+	return ratioAllowance
+}
+
+// rawNodeCount returns the number of nodes in the parsed tree rooted at n,
+// before any alias is substituted. An alias node counts as one and is never
+// descended into: yaml.v3 gives alias nodes empty Content, so no special
+// casing is needed to keep one from being read as a copy of its target.
+//
+// The raw parse tree is a tree, not a graph — aliasing only adds edges this
+// walk never follows — so the iterative stack visits each node exactly once
+// and is bounded by the tree's own size.
+func rawNodeCount(root *yaml.Node) int64 {
+	if root == nil {
+		return 0
+	}
+	var count int64
+	stack := []*yaml.Node{root}
+	for len(stack) > 0 {
+		n := stack[len(stack)-1]
+		stack = stack[:len(stack)-1]
+		count++
+		stack = append(stack, n.Content...)
+	}
+	return count
+}
+
+// aliasAmplificationDiag builds a diag.AliasAmplification error diagnostic
+// anchored at the node whose expansion first crossed allowance, following
+// cyclicDiag's line:col provenance convention. The reported node count is a
+// lower bound ("at least"), not the exact expansion: aliasWeigher saturates
+// its arithmetic at the allowance, so the true expansion of a severe bomb
+// (the 10-level x 10-way fixture expands past 37 billion nodes) is never
+// actually computed, only proven to exceed the budget.
+func aliasAmplificationDiag(srcIndex int, n *yaml.Node, allowance, raw int64) ir.Diagnostic {
+	prov := ir.Provenance{Source: srcIndex}
+	if n != nil {
+		prov.Pointer = fmt.Sprintf("%d:%d", n.Line, n.Column)
+	}
+	return diag.Newf(ir.SeverityError, diag.AliasAmplification, prov,
+		"YAML alias expansion reaches at least %d nodes, past the %d-node budget for a %d-node document",
+		allowance+1, allowance, raw)
+}
+
+// weighFrame is one entry of aliasWeigher's iterative post-order stack: a
+// node awaiting the weight of what it depends on (its Content, or for an
+// alias node, its target), and whether that dependency step has already run.
+type weighFrame struct {
+	n        *yaml.Node
+	expanded bool
+}
+
+// aliasWeigher computes expandedWeight(n) for every node reachable from a
+// root, stopping the instant one node's weight exceeds its allowance: nil
+// weighs 0, an alias node weighs whatever its target weighs (an alias stands
+// in for a copy of its target, not a reference to it), and every other node
+// weighs 1 plus the weight of its own Content.
+//
+// That count is what soa.Unmarshal actually pays, not an estimate of it.
+// speakeasy v1.24.0's yml.ResolveAlias returns the one shared *yaml.Node per
+// alias, but nothing in marshaller/ or jsonschema/ memoizes on that pointer,
+// so unmarshalModel builds a fresh model subtree for every path reaching a
+// node — one object per path, which is exactly what this walk counts. It is
+// exact for alias substitution and an over-count, the safe direction, for `<<`
+// merge keys, whose pairs are deduplicated by key rather than turned into
+// objects. A dependency bump should re-check that, as nodeview.IsMergeKey's comment in
+// cycles.go does for the resolver behavior it depends on.
+type aliasWeigher struct {
+	allowance int64
+	ceiling   int64
+	weight    map[*yaml.Node]int64
+	inFlight  map[*yaml.Node]bool
+
+	// computations counts how many times computeWeight actually ran, as
+	// opposed to how many times a node's weight was merely read from the
+	// memo. It exists so the memoization invariant — every distinct node is
+	// computed at most once, however many aliases point to it — is a plain
+	// equality check (computations == len(weight)) rather than something only
+	// a timing bound can observe.
+	computations int64
+}
+
+// newAliasWeigher returns a weigher that refuses at allowance, capping every
+// intermediate sum at allowance+1 so no addition can overflow regardless of
+// how large the document's true expansion is.
+func newAliasWeigher(allowance int64) *aliasWeigher {
+	return &aliasWeigher{
+		allowance: allowance,
+		ceiling:   allowance + 1,
+		weight:    map[*yaml.Node]int64{},
+		inFlight:  map[*yaml.Node]bool{},
+	}
+}
+
+// weigh computes expandedWeight for every node reachable from root and
+// returns the first node (in post-order) whose weight exceeds w.allowance,
+// or nil if none does. Post-order is what makes the returned node the
+// innermost amplifier: a node's weight is finished, and checked, before any
+// of its ancestors' — so the walk exits at the smallest structure already
+// known to be too large, rather than only at the document root.
+//
+// Each distinct node enters the stack at most once: pushChildren skips a node
+// whose weight is already known or that is already in flight, so the stack is
+// bounded by the number of distinct nodes reachable from root.
+func (w *aliasWeigher) weigh(root *yaml.Node) (*yaml.Node, bool) {
+	if root == nil {
+		return nil, false
+	}
+	stack := []*weighFrame{{n: root}}
+	for len(stack) > 0 {
+		top := stack[len(stack)-1]
+		if _, done := w.weight[top.n]; done {
+			stack = stack[:len(stack)-1]
+			continue
+		}
+		if !top.expanded {
+			top.expanded = true
+			w.inFlight[top.n] = true
+			w.pushChildren(&stack, top.n)
+			continue
+		}
+
+		delete(w.inFlight, top.n)
+		wt := w.computeWeight(top.n)
+		w.computations++
+		w.weight[top.n] = wt
+		stack = stack[:len(stack)-1]
+		if wt > w.allowance {
+			return top.n, true
+		}
+	}
+	return nil, false
+}
+
+// pushChildren enqueues the nodes n's weight depends on (see childrenOf). A
+// child whose weight is already known is not re-pushed. A child already in
+// flight is a cycle that slipped past anchorCycle having refused every
+// recursive anchor — unreachable from a parsed document, but defended against
+// anyway: rather than re-enter it and loop, its weight is saturated at
+// w.ceiling, which is always large enough to carry the document to refusal
+// without ever pretending the cyclic subtree is small.
+func (w *aliasWeigher) pushChildren(stack *[]*weighFrame, n *yaml.Node) {
+	for _, c := range childrenOf(n) {
+		if c == nil {
+			continue
+		}
+		if w.inFlight[c] {
+			w.weight[c] = w.ceiling
+			continue
+		}
+		if _, done := w.weight[c]; done {
+			continue
+		}
+		*stack = append(*stack, &weighFrame{n: c})
+	}
+}
+
+// computeWeight returns n's expandedWeight, given that every node it depends
+// on (via childrenOf) already has a recorded weight. An alias node's weight is
+// exactly its target's — substituting a copy of the target, unexpanded
+// further, is what an alias stands in for. Every other node's weight is 1
+// (itself) plus its children's, saturated at w.ceiling so the running sum can
+// never overflow, with the loop exiting the moment the total already exceeds
+// the allowance, since nothing further down the same Content list can change
+// that verdict.
+func (w *aliasWeigher) computeWeight(n *yaml.Node) int64 {
+	if n.Kind == yaml.AliasNode {
+		if n.Alias == nil {
+			return 0
+		}
+		return w.weight[n.Alias]
+	}
+	total := int64(1)
+	for _, c := range n.Content {
+		total = saturatingAdd(total, w.weight[c], w.ceiling)
+		if total > w.allowance {
+			return total
+		}
+	}
+	return total
+}
+
+// childrenOf returns the nodes n's expandedWeight depends on: an alias node
+// depends only on its target, never on its own (always empty) Content, and
+// every other node depends on its Content. This is the one place the two node
+// kinds are told apart, so every other method can treat "the nodes n depends
+// on" uniformly.
+func childrenOf(n *yaml.Node) []*yaml.Node {
+	if n.Kind == yaml.AliasNode {
+		if n.Alias == nil {
+			return nil
+		}
+		return []*yaml.Node{n.Alias}
+	}
+	return n.Content
+}
+
+// saturatingAdd returns a+b clamped to ceiling. Both aliasWeigher's addends
+// are always non-negative and individually at most ceiling, which is what
+// makes the comparison overflow-free: b >= ceiling-a can be evaluated without
+// a+b ever being computed when it would exceed ceiling.
+func saturatingAdd(a, b, ceiling int64) int64 {
+	if b >= ceiling-a {
+		return ceiling
+	}
+	return a + b
 }

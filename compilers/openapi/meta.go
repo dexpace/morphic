@@ -4,6 +4,7 @@ import (
 	soa "github.com/speakeasy-api/openapi/openapi"
 
 	"github.com/dexpace/morphic/compilers/compile"
+	"github.com/dexpace/morphic/compilers/openapi/internal/annotation"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -13,7 +14,7 @@ func (l *lowerer) lowerMeta() {
 	l.lowerInfo()
 	l.lowerServers()
 	if ext := l.extensions(l.doc.GetExtensions(), ""); len(ext) > 0 {
-		l.out.Unmodeled = mergeUnmodeled(l.out.Unmodeled, ext)
+		l.out.Unmodeled = annotation.MergeUnmodeled(l.out.Unmodeled, ext)
 	}
 }
 

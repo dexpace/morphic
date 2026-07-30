@@ -3,7 +3,10 @@ package openapi
 import (
 	oas3 "github.com/speakeasy-api/openapi/jsonschema/oas3"
 
+	"github.com/dexpace/morphic/compilers/openapi/internal/annotation"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
+	"github.com/dexpace/morphic/compilers/openapi/internal/load"
+	"github.com/dexpace/morphic/compilers/openapi/internal/value"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -47,11 +50,11 @@ func numericBounds(c *ir.Constraints, s *oas3.Schema) []ir.Diagnostic {
 		{"multipleOf", &c.MultipleOf},
 	}
 	for _, b := range bounds {
-		node := rawPropertyNode(s, b.prop)
+		node := annotation.RawPropertyNode(s, b.prop)
 		if node == nil {
 			continue
 		}
-		v, err := numericLiteral(node)
+		v, err := value.NumericLiteral(node)
 		if err != nil {
 			diags = append(diags, boundLiteralDiag(b.prop, node.Value, err))
 			continue
@@ -95,11 +98,11 @@ func applyExclusive(c *ir.Constraints, s *oas3.Schema, isMin, exclusiveBoolean b
 		}
 		return nil
 	}
-	node := rawPropertyNode(s, prop)
+	node := annotation.RawPropertyNode(s, prop)
 	if node == nil {
 		return nil
 	}
-	v, err := numericLiteral(node)
+	v, err := value.NumericLiteral(node)
 	if err != nil {
 		return []ir.Diagnostic{boundLiteralDiag(prop, node.Value, err)}
 	}
@@ -158,7 +161,7 @@ func emptyConstraints(c *ir.Constraints) bool {
 // than a numeric bound (the 2020-12 dialect of 3.1 and 3.2). An unrecognized
 // version defaults to the 2020-12 numeric form.
 func (l *lowerer) exclusiveBoundIsBoolean() bool {
-	minor, _ := supportedMinor(l.doc.OpenAPI)
+	minor, _ := load.SupportedMinor(l.doc.OpenAPI)
 	return minor == "3.0"
 }
 

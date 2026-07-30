@@ -12,6 +12,8 @@ import (
 	"github.com/dexpace/morphic/compilers"
 	"github.com/dexpace/morphic/compilers/compile"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
+	"github.com/dexpace/morphic/compilers/openapi/internal/load"
+	"github.com/dexpace/morphic/compilers/openapi/internal/merge"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -54,8 +56,8 @@ func findOp(t *testing.T, doc *ir.Document, source string) ir.Operation {
 // time. lowerSpec builds on this same load path to also lower components.
 func loweredFor(t *testing.T, src string) (*lowerer, []ir.Diagnostic) {
 	t.Helper()
-	loadedDoc, diags, err := load(t.Context(), 0,
-		compilers.Source{Path: "spec.yaml", Data: []byte(src)}, Options{}.withDefaults())
+	loadedDoc, diags, err := load.Load(t.Context(), 0,
+		compilers.Source{Path: "spec.yaml", Data: []byte(src)}, loadOptions(Options{}.withDefaults()))
 	require.NoError(t, err)
 	require.NotNil(t, loadedDoc, "load returned no document: %+v", diags)
 	return newLowerer(0, loadedDoc, Options{}.withDefaults()), diags
@@ -83,7 +85,7 @@ func requireNoErrorDiags(t *testing.T, diags []ir.Diagnostic) {
 func lowerServiceSpec(t *testing.T, src string) (*ir.Document, ir.Service, []ir.Diagnostic) {
 	t.Helper()
 	doc, diags := func() (*ir.Document, []ir.Diagnostic) {
-		loadedDoc, loadDiags, err := load(t.Context(), 0, compilers.Source{Path: "spec.yaml", Data: []byte(src)}, Options{}.withDefaults())
+		loadedDoc, loadDiags, err := load.Load(t.Context(), 0, compilers.Source{Path: "spec.yaml", Data: []byte(src)}, loadOptions(Options{}.withDefaults()))
 		require.NoError(t, err)
 		require.NotNil(t, loadedDoc)
 		l := newLowerer(0, loadedDoc, Options{}.withDefaults())
@@ -155,7 +157,7 @@ func newRawLowerer(doc *soa.OpenAPI) *lowerer {
 		types:                rawTypes,
 		diagnosedConstraints: map[string]bool{},
 	}
-	l.merge = merger{resolve: rawTypes.Node, report: l.diag}
+	l.merge = merge.Merger{Resolve: rawTypes.Node, Report: l.diag}
 	return l
 }
 
@@ -176,9 +178,12 @@ func yamlNode(t *testing.T, src string) *yaml.Node {
 	return doc.Content[0]
 }
 
-// scalarNode builds a bare scalar yaml.Node with the given tag and value.
-func scalarNode(tag, val string) *yaml.Node {
-	return &yaml.Node{Kind: yaml.ScalarNode, Tag: tag, Value: val}
+// strNode builds a bare string-scalar yaml.Node. The tag is fixed rather than a
+// parameter: every raw-node reader driven from this package reads mapping keys
+// and plain string values, and a test needing another tag reads better naming it
+// inline than threading one through here.
+func strNode(val string) *yaml.Node {
+	return &yaml.Node{Kind: yaml.ScalarNode, Tag: "!!str", Value: val}
 }
 
 // assertHasErrorCode requires diags to carry an error-severity diagnostic with

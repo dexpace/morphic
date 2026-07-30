@@ -1,9 +1,7 @@
 package openapi
 
 import (
-	"encoding/json"
 	"fmt"
-	"maps"
 	"slices"
 	"strconv"
 	"strings"
@@ -13,7 +11,12 @@ import (
 	yaml "gopkg.in/yaml.v3"
 
 	"github.com/dexpace/morphic/compilers/compile"
+	"github.com/dexpace/morphic/compilers/openapi/internal/annotation"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
+	"github.com/dexpace/morphic/compilers/openapi/internal/ids"
+	"github.com/dexpace/morphic/compilers/openapi/internal/merge"
+	"github.com/dexpace/morphic/compilers/openapi/internal/nodeview"
+	"github.com/dexpace/morphic/compilers/openapi/internal/value"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -37,7 +40,7 @@ func (l *lowerer) lowerComponentSchemas() {
 		l.schemas[name] = true
 	}
 	for name, js := range schemas.All() {
-		l.lowerComponentSchema(js, ptr("components", "schemas", name), name)
+		l.lowerComponentSchema(js, ids.Ptr("components", "schemas", name), name)
 	}
 }
 
@@ -47,7 +50,7 @@ func (l *lowerer) lowerComponentSchemas() {
 // `MyId: {type: string, format: uuid}` would leave nothing at its component
 // pointer and every $ref to it would dangle (invariants 1 and 2).
 func (l *lowerer) lowerComponentSchema(js *oas3.JSONSchema[oas3.Referenceable], pointer, name string) {
-	s := siteAt(js)
+	s := annotation.At(js)
 	ref := l.schemaRef(js, pointer, name)
 	// A body that interned the component's own node at its component ID needs no
 	// alias, and its annotations were attached where it was lowered.
@@ -70,12 +73,13 @@ func (l *lowerer) lowerComponentSchema(js *oas3.JSONSchema[oas3.Referenceable], 
 // half of that rule, and it is what a declaration nothing references would
 // otherwise lose silently (GitHub #138).
 //
-// It runs only at a homeOwnNode position, the one position with no carrier at
-// all. Every homeCarrier position has one that already keeps these: `default`
-// lands in a real field at each of them (fillPropertyDefault, fillParamDefault),
-// readOnly/writeOnly land in ir.Property.Visibility at a model property and at a
-// header (effectiveVisibility, both carried as ir.Property), and at a parameter —
-// the one carrier ir-design gives no Visibility field — params.go's
+// It runs only at an annotation.HomeOwnNode position, the one position with no
+// carrier at all. Every annotation.HomeCarrier position has one that already
+// keeps these: `default` lands in a real field at each of them
+// (fillPropertyDefault, fillParamDefault), readOnly/writeOnly land in
+// ir.Property.Visibility at a model property and at a header
+// (annotation.EffectiveVisibility, both carried as ir.Property), and at a
+// parameter — the one carrier ir-design gives no Visibility field — params.go's
 // preserveParamVisibility keeps them verbatim on the ir.Parameter instead.
 // Residue on the node would restate what one of those holds rather than rescue
 // anything.
@@ -83,8 +87,8 @@ func (l *lowerer) lowerComponentSchema(js *oas3.JSONSchema[oas3.Referenceable], 
 // residueKeywords is what declaresPositionScoped gates hoisting on, so a
 // position that wrote one of them owns a node by the time this runs; a pointer
 // with none is a position whose declaration wrote nothing at all.
-func (l *lowerer) recordDeclarationResidue(s *oas3.Schema, pointer string, home annotationHome) {
-	if home != homeOwnNode || s == nil {
+func (l *lowerer) recordDeclarationResidue(s *oas3.Schema, pointer string, home annotation.Home) {
+	if home != annotation.HomeOwnNode || s == nil {
 		return
 	}
 	td, ok := l.types.NodeAt(pointer)
@@ -100,8 +104,8 @@ func (l *lowerer) recordDeclarationResidue(s *oas3.Schema, pointer string, home 
 // readOnly/writeOnly (Property.Visibility is theirs).
 //
 // One list, read by both the predicate that hoists a node for them
-// (declaresPositionScoped, via declaresAny) and the recorder that fills it
-// (recordResidue), so the two can never drift into either half of
+// (declaresPositionScoped, via annotation.DeclaresAny) and the recorder that
+// fills it (recordResidue), so the two can never drift into either half of
 // declaresPositionScoped's trap.
 var residueKeywords = []string{"default", "readOnly", "writeOnly"}
 
@@ -117,10 +121,10 @@ var residueKeywords = []string{"default", "readOnly", "writeOnly"}
 // carrier at all, which is the case Unmodeled is rescuing.
 func (l *lowerer) recordResidue(c *ir.TypeCommon, s *oas3.Schema, pointer string) {
 	for _, keyword := range residueKeywords {
-		if !l.preserveSchemaKeyword(&c.Unmodeled, s, keyword, ir.ReasonNoIRHome, pointer+ptr(keyword)) {
+		if !l.preserveSchemaKeyword(&c.Unmodeled, s, keyword, ir.ReasonNoIRHome, pointer+ids.Ptr(keyword)) {
 			continue
 		}
-		l.diag(ir.SeverityInfo, diag.DegradedConstruct, pointer+ptr(keyword),
+		l.diag(ir.SeverityInfo, diag.DegradedConstruct, pointer+ids.Ptr(keyword),
 			"%s on a type declaration binds a use of the type, not the type; it is kept "+
 				"verbatim under Unmodeled and applied to a referencing property, header or "+
 				"parameter wherever that carrier has a field for it", keyword)
@@ -160,7 +164,7 @@ func (l *lowerer) internAlias(pointer, hint string, target ir.TypeRef, constrain
 // pointer. It is shared by schemaRef and by sub-schema hoisting
 // (resolveSchemaRef), which both reach a body only after peeling off any
 // leading $ref.
-func (l *lowerer) schemaBody(schema *oas3.Schema, pointer, hint string, home annotationHome) ir.TypeRef {
+func (l *lowerer) schemaBody(schema *oas3.Schema, pointer, hint string, home annotation.Home) ir.TypeRef {
 	return l.homeDeclaration(schema, l.lowerSchemaBody(schema, pointer, hint), pointer, hint, home)
 }
 
@@ -186,8 +190,8 @@ func (l *lowerer) schemaBody(schema *oas3.Schema, pointer, hint string, home ann
 // declaration-order dependence ir-design §4.3 rules out. The lookup stays
 // behind the gate above so a position that declares nothing keeps resolving
 // straight to its target however many references hoisted an alias over it.
-func (l *lowerer) hoistDeclarationHome(s *oas3.Schema, ref ir.TypeRef, pointer, hint string, home annotationHome) ir.TypeRef {
-	if home != homeOwnNode || s == nil || !declaresPositionScoped(s) {
+func (l *lowerer) hoistDeclarationHome(s *oas3.Schema, ref ir.TypeRef, pointer, hint string, home annotation.Home) ir.TypeRef {
+	if home != annotation.HomeOwnNode || s == nil || !declaresPositionScoped(s) {
 		return ref
 	}
 	if id, owned := l.types.Lookup(pointer); owned {
@@ -206,23 +210,9 @@ func (l *lowerer) hoistDeclarationHome(s *oas3.Schema, ref ir.TypeRef, pointer, 
 // would still be dropped.
 func declaresPositionScoped(s *oas3.Schema) bool {
 	return declaresAnnotations(s) || declaresValueConstraints(s) ||
-		declaresValidationOnly(s) || declaresAny(s, residueKeywords) ||
+		declaresValidationOnly(s) || annotation.DeclaresAny(s, residueKeywords) ||
 		declaresContentVocabulary(s) || declaresDynamicRef(s) ||
-		declaresAny(s, dialectKeywords)
-}
-
-// declaresAny reports whether s writes any of keywords. It reads the raw nodes
-// rather than the model fields for the reason declaresValueConstraints does: the
-// recorders these gate (recordResidue, dialectAt) read them there, and a
-// predicate consulting a different source could disagree with them in either
-// direction.
-func declaresAny(s *oas3.Schema, keywords []string) bool {
-	for _, keyword := range keywords {
-		if rawPropertyNode(s, keyword) != nil {
-			return true
-		}
-	}
-	return false
+		annotation.DeclaresAny(s, annotation.DialectKeywords)
 }
 
 // declaresAnnotations reports whether s carries documentation, deprecation, XML
@@ -232,7 +222,7 @@ func declaresAnnotations(s *oas3.Schema) bool {
 	if s.GetTitle() != "" || s.GetDescription() != "" || s.GetExternalDocs() != nil {
 		return true
 	}
-	if effectiveDeprecated(s, nil) || s.GetXML() != nil {
+	if annotation.EffectiveDeprecated(s, nil) || s.GetXML() != nil {
 		return true
 	}
 	if ext := s.GetExtensions(); ext != nil && ext.Len() > 0 {
@@ -249,7 +239,7 @@ func declaresAnnotations(s *oas3.Schema) bool {
 // keyword is plainly written.
 func declaresValueConstraints(s *oas3.Schema) bool {
 	for _, keyword := range []string{"minimum", "maximum", "multipleOf"} {
-		if rawPropertyNode(s, keyword) != nil {
+		if annotation.RawPropertyNode(s, keyword) != nil {
 			return true
 		}
 	}
@@ -279,18 +269,18 @@ func declaresValidationOnly(s *oas3.Schema) bool {
 	if ds := s.GetDependentSchemas(); ds != nil && ds.Len() > 0 {
 		return true
 	}
-	if rawPropertyNode(s, "dependentRequired") != nil {
+	if annotation.RawPropertyNode(s, "dependentRequired") != nil {
 		return true
 	}
 	up := s.GetUnevaluatedProperties()
-	return s.GetUnevaluatedItems() != nil || (up != nil && !isFalseSchema(up))
+	return s.GetUnevaluatedItems() != nil || (up != nil && !annotation.IsFalseSchema(up))
 }
 
 // lowerSchemaBody lowers the body itself, handling the $dynamicRef expansion and
 // the oneOf/anyOf dispatch that precede structural lowering.
 func (l *lowerer) lowerSchemaBody(schema *oas3.Schema, pointer, hint string) ir.TypeRef {
 	if target, _, ok := l.dynamicExpansion(schema, pointer); ok {
-		l.diag(ir.SeverityInfo, diag.DynamicRefExpanded, pointer+ptr("$dynamicRef"),
+		l.diag(ir.SeverityInfo, diag.DynamicRefExpanded, pointer+ids.Ptr("$dynamicRef"),
 			"$dynamicRef expanded to %q, the one matching $dynamicAnchor in this document", target)
 		return ir.TypeRef{Target: target, Nullable: schemaAdmitsNull(schema)}
 	}
@@ -376,16 +366,16 @@ func (l *lowerer) preserveUnionSiblings(id ir.TypeID, s *oas3.Schema, pointer st
 	c := td.Common()
 	kept := false
 	for _, kw := range []string{"oneOf", "anyOf"} {
-		raw, err := rawFromNode(rawPropertyNode(s, kw))
+		raw, err := annotation.RawFromNode(annotation.RawPropertyNode(s, kw))
 		if err != nil {
-			l.appendDiag(unpreservableDiag("openapi:"+kw, pointer+ptr(kw), l.srcIndex, err))
+			l.appendDiag(annotation.UnpreservableDiag("openapi:"+kw, pointer+ids.Ptr(kw), l.srcIndex, err))
 			continue
 		}
 		if reason == ir.ReasonValidationOnly {
-			l.preserveKeyword(&c.Unmodeled, "openapi:"+kw, raw, pointer, pointer+ptr(kw), kw)
+			l.preserveKeyword(&c.Unmodeled, "openapi:"+kw, raw, pointer, pointer+ids.Ptr(kw), kw)
 			continue
 		}
-		l.preserve(&c.Unmodeled, "openapi:"+kw, raw, reason, pointer+ptr(kw))
+		l.preserve(&c.Unmodeled, "openapi:"+kw, raw, reason, pointer+ids.Ptr(kw))
 		kept = kept || len(raw) > 0
 	}
 	if reason == ir.ReasonValidationOnly || !kept {
@@ -485,12 +475,12 @@ func applicatorHome(td ir.TypeDef, keyword string) bool {
 func unhomedKeywords(s *oas3.Schema, td ir.TypeDef) []string {
 	var out []string
 	for _, keyword := range shapeApplicators {
-		if rawPropertyNode(s, keyword) == nil || applicatorHome(td, keyword) {
+		if annotation.RawPropertyNode(s, keyword) == nil || applicatorHome(td, keyword) {
 			continue
 		}
 		out = append(out, keyword)
 	}
-	if len(effectiveTypes(s)) == 0 && rawPropertyNode(s, "format") != nil {
+	if len(effectiveTypes(s)) == 0 && annotation.RawPropertyNode(s, "format") != nil {
 		out = append(out, "format")
 	}
 	return out
@@ -555,7 +545,7 @@ func (l *lowerer) recordUnhomedKeywords(owner ir.TypeID, s *oas3.Schema, unhomed
 	// one that failed to convert and was reported unpreservable instead.
 	kept := make([]string, 0, len(unhomed))
 	for _, keyword := range unhomed {
-		if l.preserveSchemaKeyword(&c.Unmodeled, s, keyword, ir.ReasonDegradedLowering, pointer+ptr(keyword)) {
+		if l.preserveSchemaKeyword(&c.Unmodeled, s, keyword, ir.ReasonDegradedLowering, pointer+ids.Ptr(keyword)) {
 			kept = append(kept, keyword)
 		}
 	}
@@ -595,7 +585,7 @@ func (l *lowerer) lowerUnion(s *oas3.Schema, pointer, hint string, types []oas3.
 	return l.internNode(pointer, hint, func(common ir.TypeCommon) ir.TypeDef {
 		variants := make([]ir.Variant, 0, len(types))
 		for i, st := range types {
-			vptr := pointer + ptr("type", strconv.Itoa(i))
+			vptr := pointer + ids.Ptr("type", strconv.Itoa(i))
 			variants = append(variants, ir.Variant{
 				Name: ir.Naming{Hint: string(st)},
 				Type: ir.TypeRef{Target: l.lowerTyped(s, vptr, hint, st)},
@@ -637,11 +627,11 @@ func (l *lowerer) fillModelProperties(m *ir.Model, s *oas3.Schema, pointer strin
 		return
 	}
 	required := requiredSet(s.GetRequired())
-	byWire := wireNameIndex(m.Properties)
+	byWire := merge.WireNameIndex(m.Properties)
 	for name, js := range props.All() {
-		ppointer := pointer + ptr("properties", name)
+		ppointer := pointer + ids.Ptr("properties", name)
 		p := ir.Property{
-			ID:         propID(ppointer),
+			ID:         ids.Prop(ppointer),
 			Name:       compile.NamingFor(name),
 			WireName:   name,
 			Type:       l.carriedSchemaRef(js, ppointer, name),
@@ -649,7 +639,7 @@ func (l *lowerer) fillModelProperties(m *ir.Model, s *oas3.Schema, pointer strin
 			Provenance: ir.Provenance{Source: l.srcIndex, Pointer: ppointer},
 		}
 		l.fillPropertyDetail(&p, js, ppointer)
-		l.merge.mergeProperty(m, byWire, p, ppointer)
+		l.merge.MergeProperty(m, byWire, p, ppointer)
 	}
 }
 
@@ -674,7 +664,7 @@ func (l *lowerer) fillPropertyDetail(p *ir.Property, js *oas3.JSONSchema[oas3.Re
 	if ref.GetFormat() == "password" {
 		p.Secret = true
 	}
-	p.Visibility = effectiveVisibility(ref, tgt)
+	p.Visibility = annotation.EffectiveVisibility(ref, tgt)
 	l.fillPropertyConstraints(p, ref, pointer)
 	l.fillPropertyAnnotations(p, ref, tgt, pointer)
 }
@@ -701,7 +691,7 @@ func (l *lowerer) fillPropertyAnnotations(p *ir.Property, ref, tgt *oas3.Schema,
 	if l.loweredToOwnNode(pointer, p.Type) {
 		return
 	}
-	a, diags := annotations(site{Kind: siteReference, Node: ref, Referent: tgt}, pointer, l.srcIndex)
+	a, diags := annotation.Read(annotation.Site{Kind: annotation.Reference, Node: ref, Referent: tgt}, pointer, l.srcIndex)
 	l.diags.AppendAll(diags)
 
 	p.Docs = a.Docs
@@ -714,7 +704,7 @@ func (l *lowerer) fillPropertyAnnotations(p *ir.Property, ref, tgt *oas3.Schema,
 	if len(a.Examples) > 0 {
 		p.Examples = a.Examples
 	}
-	p.Unmodeled = mergeUnmodeled(p.Unmodeled, a.Unmodeled)
+	p.Unmodeled = annotation.MergeUnmodeled(p.Unmodeled, a.Unmodeled)
 	// nil node: this arm runs only when the schema lowered to no node of its own,
 	// so nothing here can be carrying an Encoding.
 	l.recordUnplacedContent(&p.Unmodeled, ref, nil, pointer)
@@ -745,7 +735,7 @@ func (l *lowerer) fillPropertyDefault(p *ir.Property, ref, tgt *oas3.Schema, poi
 	if node == nil {
 		return
 	}
-	v, err := valueFromNode(node)
+	v, err := value.FromNode(node)
 	if err != nil {
 		l.diag(ir.SeverityWarning, diag.DegradedConstruct, pointer, "default: %s", err.Error())
 		return
@@ -786,7 +776,7 @@ func (l *lowerer) attachDeclaredAnnotations(s *oas3.Schema, pointer string) {
 	if !ok {
 		return
 	}
-	a, diags := annotations(site{Kind: siteDeclaration, Node: s}, pointer, l.srcIndex)
+	a, diags := annotation.Read(annotation.Site{Kind: annotation.Declaration, Node: s}, pointer, l.srcIndex)
 	l.diags.AppendAll(diags)
 
 	c := td.Common()
@@ -797,7 +787,7 @@ func (l *lowerer) attachDeclaredAnnotations(s *oas3.Schema, pointer string) {
 	if a.XML != nil {
 		c.XML = a.XML
 	}
-	c.Unmodeled = mergeUnmodeled(c.Unmodeled, a.Unmodeled)
+	c.Unmodeled = annotation.MergeUnmodeled(c.Unmodeled, a.Unmodeled)
 	if len(a.Examples) > 0 {
 		c.Examples = a.Examples
 	}
@@ -814,9 +804,9 @@ func (l *lowerer) attachDeclaredAnnotations(s *oas3.Schema, pointer string) {
 // pointer string at all. Shared by every example site: schema (schemaExamples),
 // media type, header, and parameter (exampleList).
 func (l *lowerer) appendExample(out []ir.Example, proto ir.Example, node *yaml.Node, base string, seg ...string) []ir.Example {
-	v, err := valueFromNode(node)
+	v, err := value.FromNode(node)
 	if err != nil {
-		l.diag(ir.SeverityWarning, diag.DegradedConstruct, base+ptr(seg...), "example: %s", err.Error())
+		l.diag(ir.SeverityWarning, diag.DegradedConstruct, base+ids.Ptr(seg...), "example: %s", err.Error())
 		return out
 	}
 	proto.Value = &v
@@ -828,10 +818,10 @@ func (l *lowerer) appendExample(out []ir.Example, proto ir.Example, node *yaml.N
 func (l *lowerer) fillAdditional(m *ir.Model, s *oas3.Schema, pointer, hint string) {
 	ap := s.GetAdditionalProperties()
 	switch {
-	case isFalseSchema(ap):
+	case annotation.IsFalseSchema(ap):
 		m.Additional = ir.AdditionalClosed
 	case ap != nil && !ap.IsBool():
-		ref := l.schemaRef(ap, pointer+ptr("additionalProperties"), hint+"_value")
+		ref := l.schemaRef(ap, pointer+ids.Ptr("additionalProperties"), hint+"_value")
 		m.AdditionalProps = &ir.AdditionalProps{Value: ref}
 	}
 	if patterns := l.patternProps(s, pointer, hint); len(patterns) > 0 {
@@ -840,7 +830,7 @@ func (l *lowerer) fillAdditional(m *ir.Model, s *oas3.Schema, pointer, hint stri
 		}
 		m.AdditionalProps.Patterns = patterns
 	}
-	if isFalseSchema(s.GetUnevaluatedProperties()) {
+	if annotation.IsFalseSchema(s.GetUnevaluatedProperties()) {
 		m.Additional = ir.AdditionalClosedAfterComposition
 	}
 }
@@ -854,7 +844,7 @@ func (l *lowerer) patternProps(s *oas3.Schema, pointer, hint string) []ir.Patter
 	}
 	out := make([]ir.PatternProps, 0, pp.Len())
 	for pattern, js := range pp.All() {
-		ref := l.schemaRef(js, pointer+ptr("patternProperties", pattern), hint+"_pattern")
+		ref := l.schemaRef(js, pointer+ids.Ptr("patternProperties", pattern), hint+"_pattern")
 		out = append(out, ir.PatternProps{Pattern: pattern, Value: ref})
 	}
 	return out
@@ -864,7 +854,7 @@ func (l *lowerer) patternProps(s *oas3.Schema, pointer, hint string) []ir.Patter
 // written, allocating the map on first write. An absent or unconvertible
 // payload records nothing, so no caller needs a nil guard of its own.
 func (l *lowerer) preserve(p *ir.Unmodeled, key string, raw ir.RawValue, reason ir.UnmodeledReason, pointer string) {
-	preserveInto(p, key, raw, reason, pointer, l.srcIndex)
+	annotation.PreserveInto(p, key, raw, reason, pointer, l.srcIndex)
 }
 
 // preserveNode records the construct written at node under key in *p, reporting
@@ -873,7 +863,7 @@ func (l *lowerer) preserve(p *ir.Unmodeled, key string, raw ir.RawValue, reason 
 func (l *lowerer) preserveNode(p *ir.Unmodeled, key string, node *yaml.Node,
 	reason ir.UnmodeledReason, pointer string,
 ) bool {
-	ok, diags := preserveNodeInto(p, key, node, reason, pointer, l.srcIndex)
+	ok, diags := annotation.PreserveNodeInto(p, key, node, reason, pointer, l.srcIndex)
 	l.diags.AppendAll(diags)
 	return ok
 }
@@ -884,7 +874,7 @@ func (l *lowerer) preserveNode(p *ir.Unmodeled, key string, node *yaml.Node,
 func (l *lowerer) preserveSchemaKeyword(p *ir.Unmodeled, s *oas3.Schema, keyword string,
 	reason ir.UnmodeledReason, pointer string,
 ) bool {
-	return l.preserveNode(p, "openapi:"+keyword, rawPropertyNode(s, keyword), reason, pointer)
+	return l.preserveNode(p, "openapi:"+keyword, annotation.RawPropertyNode(s, keyword), reason, pointer)
 }
 
 // preserveKeyword records a validation-only keyword's raw payload under key in
@@ -896,7 +886,7 @@ func (l *lowerer) preserveSchemaKeyword(p *ir.Unmodeled, s *oas3.Schema, keyword
 // keyword, and declPtr where a §4.7 entry combines several keywords into one
 // synthesized object that no single node addresses.
 func (l *lowerer) preserveKeyword(p *ir.Unmodeled, key string, raw ir.RawValue, declPtr, entryPtr, label string) {
-	l.diags.AppendAll(preserveKeywordInto(p, key, raw, declPtr, entryPtr, label, l.srcIndex))
+	l.diags.AppendAll(annotation.PreserveKeywordInto(p, key, raw, declPtr, entryPtr, label, l.srcIndex))
 }
 
 // diag appends one diagnostic at pointer with the given severity and code,
@@ -922,7 +912,7 @@ func (l *lowerer) lowerArray(s *oas3.Schema, pointer, hint string) ir.TypeID {
 		}
 		list := &ir.List{
 			TypeCommon:  common,
-			Elem:        l.schemaRef(s.GetItems(), pointer+ptr("items"), hint+"_item"),
+			Elem:        l.schemaRef(s.GetItems(), pointer+ids.Ptr("items"), hint+"_item"),
 			Constraints: listConstraints(s),
 		}
 		return list
@@ -938,14 +928,14 @@ func (l *lowerer) lowerArray(s *oas3.Schema, pointer, hint string) ir.TypeID {
 func (l *lowerer) buildTuple(s *oas3.Schema, common ir.TypeCommon, pointer, hint string, prefix []*oas3.JSONSchema[oas3.Referenceable]) ir.TypeDef {
 	elems := make([]ir.TypeRef, 0, len(prefix))
 	for i, ps := range prefix {
-		elems = append(elems, l.schemaRef(ps, pointer+ptr("prefixItems", strconv.Itoa(i)), hint+"_"+strconv.Itoa(i)))
+		elems = append(elems, l.schemaRef(ps, pointer+ids.Ptr("prefixItems", strconv.Itoa(i)), hint+"_"+strconv.Itoa(i)))
 	}
 	t := &ir.Tuple{TypeCommon: common, Elems: elems}
 	if s.GetItems() == nil {
 		return t
 	}
-	if l.preserveNode(&t.Unmodeled, "openapi:items-after-prefix", rawPropertyNode(s, "items"),
-		ir.ReasonDegradedLowering, pointer+ptr("items")) {
+	if l.preserveNode(&t.Unmodeled, "openapi:items-after-prefix", annotation.RawPropertyNode(s, "items"),
+		ir.ReasonDegradedLowering, pointer+ids.Ptr("items")) {
 		l.diag(ir.SeverityInfo, diag.DegradedConstruct, pointer,
 			"items after prefixItems is an open tuple; lowered as a fixed-arity Tuple with the tail kept under Unmodeled")
 	}
@@ -1050,7 +1040,7 @@ func (l *lowerer) scalarEncoding(s *oas3.Schema, formatName string, c *ir.TypeCo
 	if formatName == "" {
 		return enc
 	}
-	at := pointer + ptr("format")
+	at := pointer + ids.Ptr("format")
 	if l.preserveSchemaKeyword(&c.Unmodeled, s, "format", ir.ReasonNoIRHome, at) {
 		l.diag(ir.SeverityInfo, diag.DegradedConstruct, at,
 			"format and contentEncoding both name an encoding and ir.Encoding holds one; "+
@@ -1091,10 +1081,10 @@ func (l *lowerer) recordUnplacedContent(p *ir.Unmodeled, s *oas3.Schema, td ir.T
 		return
 	}
 	for _, keyword := range contentKeywords {
-		if !l.preserveSchemaKeyword(p, s, keyword, ir.ReasonNoIRHome, pointer+ptr(keyword)) {
+		if !l.preserveSchemaKeyword(p, s, keyword, ir.ReasonNoIRHome, pointer+ids.Ptr(keyword)) {
 			continue
 		}
-		l.diag(ir.SeverityInfo, diag.DegradedConstruct, pointer+ptr(keyword),
+		l.diag(ir.SeverityInfo, diag.DegradedConstruct, pointer+ids.Ptr(keyword),
 			"%s encodes a string value and this position lowered to a shape with no "+
 				"Encoding field; kept verbatim under Unmodeled", keyword)
 	}
@@ -1126,15 +1116,16 @@ const maxDynamicAnchorNodes = 1 << 20
 //
 // Dynamic scope is static per document (ir-design §4.7): the set of
 // $dynamicAnchor declarations is fixed before evaluation, so a name declared
-// exactly once is the only match any dynamic scope containing a match can hold —
-// which makes it JSON Schema 2020-12 §8.2.3.2's "outermost scope with a matching
-// anchor" whatever path evaluation took. That reasoning holds only while the
-// whole document is one schema resource, which is why an $id anywhere on the
-// path to either end makes the reference irreducible (dynamicChainVerdict):
-// §8.2.1 says $id starts a new resource, and the IR honours no resource
-// boundaries at all (dialectKeywords). An anchor reached through *different*
-// dynamic scopes of one resource still expands, and correctly so: with no $id
-// in play the outermost resource of every dynamic scope is the document itself.
+// exactly once is the only match any dynamic scope containing a match can hold
+// — which makes it JSON Schema 2020-12 §8.2.3.2's "outermost scope with a
+// matching anchor" whatever path evaluation took. That reasoning holds only
+// while the whole document is one schema resource, which is why an $id anywhere
+// on the path to either end makes the reference irreducible
+// (dynamicChainVerdict): §8.2.1 says $id starts a new resource, and the IR
+// honours no resource boundaries at all (annotation.DialectKeywords). An anchor
+// reached through *different* dynamic scopes of one resource still expands, and
+// correctly so: with no $id in play the outermost resource of every dynamic
+// scope is the document itself.
 //
 // Only an anchor declared on a top-level component schema resolves: that is the
 // one target whose TypeID is stable without reading the registry, so expansion
@@ -1171,7 +1162,7 @@ func (l *lowerer) dynamicExpansion(s *oas3.Schema, pointer string) (target ir.Ty
 // addresses, or the reason it addresses none. It stops short of the index, so
 // the chain walk and the lowering path ask one function what a schema requests.
 func dynamicRefName(s *oas3.Schema) (name, why string, ok bool) {
-	node := rawPropertyNode(s, "$dynamicRef")
+	node := annotation.RawPropertyNode(s, "$dynamicRef")
 	if node == nil {
 		return "", "no $dynamicRef is written here", false
 	}
@@ -1286,15 +1277,15 @@ func (l *lowerer) dynamicHop(at string) (string, bool) {
 
 // componentSchemaAt returns the schema body of the top-level component pointer
 // addresses, and nil for any other pointer. Every accessor on the way is
-// nil-safe and siteAt reads a missing entry as "no body written", so the one
-// guard is what distinguishes a component pointer from a deeper one.
+// nil-safe and annotation.At reads a missing entry as "no body written", so the
+// one guard is what distinguishes a component pointer from a deeper one.
 func (l *lowerer) componentSchemaAt(pointer string) *oas3.Schema {
-	name, ok := componentSchemaName(pointer)
+	name, ok := ids.ComponentSchemaName(pointer)
 	if !ok {
 		return nil
 	}
 	js, _ := l.doc.GetComponents().GetSchemas().Get(name)
-	return siteAt(js).Node
+	return annotation.At(js).Node
 }
 
 // declaresResourceIDAbove reports whether any mapping on the path from the
@@ -1307,20 +1298,20 @@ func (l *lowerer) componentSchemaAt(pointer string) *oas3.Schema {
 // costs an expansion that would have been safe, where a missed one mints a
 // reference the IR cannot express.
 func (l *lowerer) declaresResourceIDAbove(pointer string) bool {
-	view := newNodeView()
-	cur := documentRoot(deref(l.doc.GetRootNode()))
+	view := nodeview.New()
+	cur := nodeview.DocumentRoot(nodeview.Deref(l.doc.GetRootNode()))
 	for seg := range strings.SplitSeq(pointer, "/") {
 		if cur == nil {
 			return false
 		}
-		if view.childByToken(cur, "$id") != nil {
+		if view.ChildByToken(cur, "$id") != nil {
 			return true
 		}
 		if seg != "" { // every pointer starts with the empty segment
-			cur = deref(view.childByToken(cur, unescapeSegment(seg)))
+			cur = nodeview.Deref(view.ChildByToken(cur, ids.UnescapeSegment(seg)))
 		}
 	}
-	return cur != nil && view.childByToken(cur, "$id") != nil
+	return cur != nil && view.ChildByToken(cur, "$id") != nil
 }
 
 // dynamicFragment returns the plain fragment name a $dynamicRef addresses. Only
@@ -1345,7 +1336,7 @@ func (l *lowerer) recordUnexpandedDynamicRef(p *ir.Unmodeled, s *oas3.Schema, po
 	if expanded {
 		return
 	}
-	at := pointer + ptr("$dynamicRef")
+	at := pointer + ids.Ptr("$dynamicRef")
 	if l.preserveSchemaKeyword(p, s, "$dynamicRef", ir.ReasonDegradedLowering, at) {
 		l.diag(ir.SeverityInfo, diag.DegradedConstruct, at,
 			"$dynamicRef was not expanded because %s; it is kept verbatim under Unmodeled", why)
@@ -1355,7 +1346,7 @@ func (l *lowerer) recordUnexpandedDynamicRef(p *ir.Unmodeled, s *oas3.Schema, po
 // declaresDynamicRef reports whether s writes a $dynamicRef, so a position that
 // wrote one owns a node to keep an unexpanded reference on.
 func declaresDynamicRef(s *oas3.Schema) bool {
-	return rawPropertyNode(s, "$dynamicRef") != nil
+	return annotation.RawPropertyNode(s, "$dynamicRef") != nil
 }
 
 // dynamicAnchorIndex returns the document's $dynamicAnchor index, building it on
@@ -1389,20 +1380,20 @@ func (l *lowerer) dynamicAnchorIndex() map[string][]string {
 func dynamicAnchors(root *yaml.Node) (map[string][]string, bool) {
 	w := newAnchorWalk(maxDynamicAnchorNodes)
 	w.walk(root, "", 0)
-	return w.out, !w.truncated && !w.view.exhausted
+	return w.out, !w.truncated && !w.view.Exhausted()
 }
 
 // anchorWalk is the state of one $dynamicAnchor index build: the source view,
 // the index under construction, and what is left of the visit budget.
 //
-// It reads mappings through a nodeView, so a `<<` merge key and a YAML alias
+// It reads mappings through a nodeview.View, so a `<<` merge key and a YAML alias
 // contribute the anchors they carry to every position that pulls them in —
 // which is what the parser downstream sees, and what makes "declared exactly
 // once" a count of what the document declares rather than of what it spells
 // out. The count decides whether a $dynamicRef expands, so an anchor reached
 // only through an alias must not be invisible to it.
 type anchorWalk struct {
-	view      *nodeView
+	view      *nodeview.View
 	out       map[string][]string
 	budget    int
 	truncated bool
@@ -1410,13 +1401,13 @@ type anchorWalk struct {
 
 // newAnchorWalk returns a walk that will visit at most budget nodes.
 func newAnchorWalk(budget int) *anchorWalk {
-	return &anchorWalk{view: newNodeView(), out: map[string][]string{}, budget: budget}
+	return &anchorWalk{view: nodeview.New(), out: map[string][]string{}, budget: budget}
 }
 
 // walk indexes the anchors n declares, under the pointer of the mapping
 // declaring each.
 func (w *anchorWalk) walk(n *yaml.Node, pointer string, depth int) {
-	n = deref(n)
+	n = nodeview.Deref(n)
 	if n == nil || !w.charge(depth) {
 		return
 	}
@@ -1427,25 +1418,25 @@ func (w *anchorWalk) walk(n *yaml.Node, pointer string, depth int) {
 		}
 	case yaml.SequenceNode:
 		for i, c := range n.Content {
-			w.walk(c, pointer+ptr(strconv.Itoa(i)), depth+1)
+			w.walk(c, pointer+ids.Ptr(strconv.Itoa(i)), depth+1)
 		}
 	case yaml.MappingNode:
 		w.walkMapping(n, pointer, depth)
 	default:
 		// A scalar declares no anchor and has no children; an alias survived
-		// deref only by dangling, so it has nothing to stand in for.
+		// nodeview.Deref only by dangling, so it has nothing to stand in for.
 	}
 }
 
 // walkMapping reads one mapping's effective pairs: a $dynamicAnchor names this
 // mapping, and every other value is walked in turn.
 func (w *anchorWalk) walkMapping(n *yaml.Node, pointer string, depth int) {
-	for _, p := range w.view.mappingPairs(n) {
-		if p.key == "$dynamicAnchor" {
-			w.record(p.val, pointer)
+	for _, p := range w.view.MappingPairs(n) {
+		if p.Key == "$dynamicAnchor" {
+			w.record(p.Val, pointer)
 			continue
 		}
-		w.walk(p.val, pointer+ptr(p.key), depth+1)
+		w.walk(p.Val, pointer+ids.Ptr(p.Key), depth+1)
 	}
 }
 
@@ -1571,7 +1562,7 @@ func nullUnionCollapse(s *oas3.Schema, pointer, hint string) (*oas3.JSONSchema[o
 	if nullCount == 0 || nonNullCount != 1 {
 		return nil, "", "", false
 	}
-	return nonNull, pointer + ptr(key, strconv.Itoa(nonNullIdx)), hint, true
+	return nonNull, pointer + ids.Ptr(key, strconv.Itoa(nonNullIdx)), hint, true
 }
 
 // isNullSchema reports whether a variant schema is the bare null-typed schema.
@@ -1613,290 +1604,15 @@ func requiredSet(required []string) map[string]bool {
 	return set
 }
 
-// rawFromNode converts a YAML node to the canonical JSON an Unmodeled entry
-// holds.
-//
-// Its three outcomes are deliberately distinct, because collapsing the first two
-// into one nil return is what let a diagnostic announce a preservation that never
-// happened (GitHub #144): an absent node yields (nil, nil) — there was no
-// construct here — while a node that cannot be represented yields an error.
-//
-// Legal YAML reaches that second failure by two routes: a mapping with a
-// non-string key does not decode into Go's JSON model at all, and .nan/.inf
-// decode but do not marshal.
-func rawFromNode(node *yaml.Node) (ir.RawValue, error) {
-	if node == nil {
-		return nil, nil
-	}
-	var v any
-	if err := node.Decode(&v); err != nil {
-		return nil, fmt.Errorf("decode yaml node: %w", err)
-	}
-	data, err := json.Marshal(v)
-	if err != nil {
-		return nil, fmt.Errorf("encode as json: %w", err)
-	}
-	return ir.RawValue(data), nil
-}
-
-// effectiveDeprecated reports the deprecated flag, use-site over referent.
-func effectiveDeprecated(ref, tgt *oas3.Schema) bool {
-	return pickFlag(ref, tgt, func(s *oas3.Schema) *bool { return s.Deprecated })
-}
-
-// effectiveVisibility maps readOnly/writeOnly to a lifecycle visibility set
-// (ir-design §5.2): readOnly is present in every response lifecycle
-// (read/delete/query) and absent only from requests; writeOnly is create+update.
-func effectiveVisibility(ref, tgt *oas3.Schema) ir.Visibility {
-	switch {
-	case pickFlag(ref, tgt, func(s *oas3.Schema) *bool { return s.ReadOnly }):
-		return ir.Visibility{Only: []ir.Lifecycle{ir.LifecycleRead, ir.LifecycleDelete, ir.LifecycleQuery}}
-	case pickFlag(ref, tgt, func(s *oas3.Schema) *bool { return s.WriteOnly }):
-		return ir.Visibility{Only: []ir.Lifecycle{ir.LifecycleCreate, ir.LifecycleUpdate}}
-	default:
-		return ir.Visibility{}
-	}
-}
-
-// pickFlag returns the bool field extracted by accessor from ref when present,
-// else from tgt, else false. It is the single nil-safe "use-site overrides
-// referent" primitive for boolean schema flags (readOnly, writeOnly, deprecated).
-func pickFlag(ref, tgt *oas3.Schema, accessor func(*oas3.Schema) *bool) bool {
-	if ref != nil {
-		if v := accessor(ref); v != nil {
-			return *v
-		}
-	}
-	if tgt != nil {
-		if v := accessor(tgt); v != nil {
-			return *v
-		}
-	}
-	return false
-}
-
-// fillTypeDocs maps a schema's title, description, and externalDocs onto Docs.
-// Every field is assigned, never accumulated: a schema declares at most one
-// externalDocs, and a pointer read twice (a sub-schema lowered both in place
-// and through a $ref that hoists it) must not end up with two copies of it.
-func fillTypeDocs(d *ir.Docs, s *oas3.Schema) {
-	if t := s.GetTitle(); t != "" {
-		d.Summary = t
-	}
-	if desc := s.GetDescription(); desc != "" {
-		d.Description = desc
-	}
-	if ed := s.GetExternalDocs(); ed != nil {
-		d.ExternalDocs = []ir.Link{{URL: ed.GetURL(), Description: ed.GetDescription()}}
-	}
-}
-
-// fillCarrierDocs fills the ir.Property or ir.Parameter carrying a position with
-// the documentation effective there: the $ref referent's title, description and
-// externalDocs first, then the use-site's over them, field by field. A carrier
-// therefore ends up with documentation the position itself need not have
-// written — a bare `$ref` reads all three from the referent, which keeps its own
-// copy on its node.
-//
-// Both halves are deliberate. The use-site half is the only home a keyword
-// written *at* the position has once the body reduced to a shared node
-// (GitHub #116): dropping it there loses it outright. The referent half is
-// ir-design §14 — ref-target annotations merge onto the referencing
-// Property/Parameter with use-site precedence, applied uniformly — and it is how
-// every other field this compiler reads through a $ref already behaves
-// (fillPropertyDefault, effectiveVisibility, effectiveDeprecated).
-//
-// Uniform is the load-bearing word: description alone inheriting, while title
-// and externalDocs stop at the position, is the ad-hoc per-keyword patching §14
-// names as the counterexample to avoid.
-func fillCarrierDocs(d *ir.Docs, ref, tgt *oas3.Schema) {
-	if tgt != nil {
-		fillTypeDocs(d, tgt)
-	}
-	if ref != nil {
-		fillTypeDocs(d, ref)
-	}
-}
-
-// xmlHints maps an OpenAPI XML object onto ir.XMLHints; an attribute flag becomes
-// the "attribute" node type. Fields are read directly rather than via the
-// library getters, which dereference unset (nil) field pointers.
-func xmlHints(x *oas3.XML) *ir.XMLHints {
-	if x == nil {
-		return nil
-	}
-	h := &ir.XMLHints{}
-	if x.Name != nil {
-		h.Name = *x.Name
-	}
-	if x.Namespace != nil {
-		h.Namespace = *x.Namespace
-	}
-	if x.Prefix != nil {
-		h.Prefix = *x.Prefix
-	}
-	if x.Wrapped != nil {
-		h.Wrapped = *x.Wrapped
-	}
-	if x.Attribute != nil && *x.Attribute {
-		h.NodeType = "attribute"
-	}
-	return h
-}
-
-// extensionsFrom lowers an x-* extension map into namespaced ir.Unmodeled, keys
-// prefixed "openapi:" and values serialized to raw JSON. owner is the pointer of
-// the object the extensions were written on; each entry is located at its own
-// key beneath it and marked ReasonVendorExtension, since the format assigns an
-// x-* key no semantics at all.
-func extensionsFrom(ext *extensions.Extensions, srcIndex int, owner string) (ir.Unmodeled, []ir.Diagnostic) {
-	if ext == nil || ext.Len() == 0 {
-		return nil, nil
-	}
-	out := ir.Unmodeled{}
-	var diags []ir.Diagnostic
-	for name, node := range ext.All() {
-		raw, err := rawFromNode(node)
-		if err != nil || raw == nil {
-			diags = append(diags, diag.Newf(ir.SeverityWarning, diag.DegradedConstruct,
-				ir.Provenance{Source: srcIndex, Pointer: owner},
-				"extension %q could not be serialized", name))
-			continue
-		}
-		out["openapi:"+name] = ir.UnmodeledEntry{
-			Reason:     ir.ReasonVendorExtension,
-			Value:      raw,
-			Provenance: ir.Provenance{Source: srcIndex, Pointer: owner + ptr(name)},
-		}
-	}
-	if len(out) == 0 {
-		return nil, diags
-	}
-	return out, diags
-}
-
 // extensions lowers ext's x-* extensions into namespaced Unmodeled, recording
-// any serialization-failure diagnostics unconditionally even when the result
-// is empty. Every lowering site should call this rather than extensionsFrom
-// directly: gating the diagnostic append behind the same "len(ext) > 0" that
-// guards the assignment would drop every warning on an object whose
-// extensions all failed to serialize — exactly when the result is empty.
+// any serialization-failure diagnostics unconditionally even when the result is
+// empty. Every lowering site should call this rather than
+// annotation.ExtensionsFrom directly: gating the diagnostic append behind the
+// same "len(ext) > 0" that guards the assignment would drop every warning on an
+// object whose extensions all failed to serialize — exactly when the result is
+// empty.
 func (l *lowerer) extensions(ext *extensions.Extensions, owner string) ir.Unmodeled {
-	out, diags := extensionsFrom(ext, l.srcIndex, owner)
+	out, diags := annotation.ExtensionsFrom(ext, l.srcIndex, owner)
 	l.diags.AppendAll(diags)
 	return out
-}
-
-// mergeUnmodeled overlays src onto dst, allocating dst on first write.
-func mergeUnmodeled(dst, src ir.Unmodeled) ir.Unmodeled {
-	if len(src) == 0 {
-		return dst
-	}
-	if dst == nil {
-		dst = ir.Unmodeled{}
-	}
-	maps.Copy(dst, src)
-	return dst
-}
-
-// isFalseSchema reports whether js is the boolean `false` schema.
-func isFalseSchema(js *oas3.JSONSchema[oas3.Referenceable]) bool {
-	return js != nil && js.IsBool() && js.GetBool() != nil && !*js.GetBool()
-}
-
-// ifThenElseRaw combines the present if/then/else arms into one raw JSON object.
-func ifThenElseRaw(s *oas3.Schema) (ir.RawValue, error) {
-	members, err := presentMembers(s, "if", "then", "else")
-	if err != nil {
-		return nil, err
-	}
-	return jsonObject(members), nil
-}
-
-// containsRaw combines contains/minContains/maxContains into one raw JSON object.
-func containsRaw(s *oas3.Schema) (ir.RawValue, error) {
-	if s.GetContains() == nil && s.GetMinContains() == nil && s.GetMaxContains() == nil {
-		return nil, nil
-	}
-	members, err := presentMembers(s, "contains", "minContains", "maxContains")
-	if err != nil {
-		return nil, err
-	}
-	return jsonObject(members), nil
-}
-
-// unevaluatedRaw combines a non-false unevaluatedProperties and any
-// unevaluatedItems into one raw JSON object (a false unevaluatedProperties is a
-// structural mode, handled in fillAdditional).
-func unevaluatedRaw(s *oas3.Schema) (ir.RawValue, error) {
-	var want []string
-	if up := s.GetUnevaluatedProperties(); up != nil && !isFalseSchema(up) {
-		want = append(want, "unevaluatedProperties")
-	}
-	if s.GetUnevaluatedItems() != nil {
-		want = append(want, "unevaluatedItems")
-	}
-	members, err := presentMembers(s, want...)
-	if err != nil {
-		return nil, err
-	}
-	return jsonObject(members), nil
-}
-
-// presentMembers collects the given keywords that are present on s as raw JSON
-// members, preserving the requested order.
-// A member that cannot be converted fails the whole combination rather than
-// being skipped. The entry these build is one object presented as the verbatim
-// source, so dropping a member from it would restate GitHub #144 in miniature:
-// an object labelled verbatim that silently omits one of its keywords.
-func presentMembers(s *oas3.Schema, keys ...string) ([]rawMember, error) {
-	var members []rawMember
-	for _, k := range keys {
-		raw, err := rawFromNode(rawPropertyNode(s, k))
-		if err != nil {
-			return nil, fmt.Errorf("%s: %w", k, err)
-		}
-		if raw == nil {
-			continue
-		}
-		members = append(members, rawMember{key: k, val: raw})
-	}
-	return members, nil
-}
-
-// rawPropertyNode returns the raw YAML value node of a top-level schema keyword,
-// or nil when absent. The library's GetPropertyNode resolves Go core field names
-// and returns key nodes; this scans the schema's root mapping for the on-wire
-// keyword and returns its value node, which is where exact literals live.
-func rawPropertyNode(s *oas3.Schema, key string) *yaml.Node {
-	if s == nil {
-		return nil
-	}
-	return rawChildNode(s.GetRootNode(), key)
-}
-
-// rawMember is one key/raw-JSON pair of a combined validation-only object.
-type rawMember struct {
-	key string
-	val ir.RawValue
-}
-
-// jsonObject renders ordered raw members into a JSON object, or nil when empty.
-func jsonObject(members []rawMember) ir.RawValue {
-	if len(members) == 0 {
-		return nil
-	}
-	var b strings.Builder
-	b.WriteByte('{')
-	for i, m := range members {
-		if i > 0 {
-			b.WriteByte(',')
-		}
-		key, _ := json.Marshal(m.key)
-		b.Write(key)
-		b.WriteByte(':')
-		b.Write(m.val)
-	}
-	b.WriteByte('}')
-	return ir.RawValue(b.String())
 }

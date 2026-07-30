@@ -10,6 +10,7 @@ import (
 
 	"github.com/dexpace/morphic/compilers"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
+	"github.com/dexpace/morphic/compilers/openapi/internal/load"
 )
 
 func TestParse_UnsupportedVersion(t *testing.T) {
@@ -65,7 +66,7 @@ func TestGhostRefs_AllResolversDegradeGracefully(t *testing.T) {
 	// Uses the internal lowerer directly so resolution errors surface as
 	// diagnostics without failing the parse; the point is no panic and coverage
 	// of every resolve-or-skip branch.
-	loadedDoc, diags, err := load(t.Context(), 0, sourceOf(ghostRefsSpec), Options{}.withDefaults())
+	loadedDoc, diags, err := load.Load(t.Context(), 0, sourceOf(ghostRefsSpec), loadOptions(Options{}.withDefaults()))
 	require.NoError(t, err)
 	require.NotNil(t, loadedDoc)
 	l := newLowerer(0, loadedDoc, Options{}.withDefaults())

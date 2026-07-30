@@ -1,4 +1,12 @@
-package openapi
+// Package load turns one source document into a parsed, reference-resolved
+// OpenAPI document plus the identity metadata the rest of the compiler stamps
+// into the IR.
+//
+// It sits on the entry side of the pipeline: nothing below it in the compiler
+// calls back into it, and it knows nothing about lowering. Spec problems leave
+// as ir.Diagnostic values; the Go error return is reserved for I/O and
+// programmer errors.
+package load
 
 import (
 	"bytes"
@@ -18,8 +26,20 @@ import (
 
 	"github.com/dexpace/morphic/compilers"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
+	"github.com/dexpace/morphic/compilers/openapi/internal/scan"
+	"github.com/dexpace/morphic/compilers/openapi/internal/value"
 	"github.com/dexpace/morphic/ir"
 )
+
+// Options is what Load needs from the compiler's own options. It is a separate
+// type rather than the compiler's, because openapi.Options is public API whose
+// shape is fixed by ir-design §10 and most of it describes lowering, which
+// nothing here can see.
+type Options struct {
+	// DisableExternalRefs stops reference resolution reaching outside the
+	// document — off the filesystem or over the network.
+	DisableExternalRefs bool
+}
 
 // errParse marks a hard failure to parse a source document — an I/O- or
 // programmer-level error, distinct from a spec problem reported as a diagnostic.
@@ -30,26 +50,26 @@ var errParse = errors.New("parse source")
 // compiler is expected to classify.
 const maxSchemaScanDepth = 512
 
-// loaded is the successful output of the load phase: a parsed, resolved
+// Document is the successful output of the load phase: a parsed, resolved
 // speakeasy document plus the identity metadata the rest of the compiler needs.
-// A nil *loaded with error-severity diagnostics means the document is a spec
+// A nil *Document with error-severity diagnostics means the source is a spec
 // problem the compiler refuses to lower (e.g. an unsupported version). The
 // normalized "openapi" + major.minor format reaches the IR through
-// Source.Format alone; loaded does not separately carry a
+// Source.Format alone; Document does not separately carry a
 // compilers.SourceFormat, since nothing downstream ever read one.
-type loaded struct {
+type Document struct {
 	Doc    *soa.OpenAPI  // parsed, reference-resolved document
 	Source ir.SourceInfo // format tag, path, content hash
 }
 
-// load parses, validates, and resolves one source document. Spec problems
+// Load parses, validates, and resolves one source document. Spec problems
 // become ir.Diagnostic values; the Go error return is reserved for I/O and
 // programmer errors (a hard unmarshal failure). A nil document with diagnostics
 // signals a refusal to lower (unsupported version) without aborting the batch.
 //
 //nolint:unparam // srcIndex varies once Compile drives the multi-source loop
-func load(ctx context.Context, srcIndex int, src compilers.Source, opts Options) (*loaded, []ir.Diagnostic, error) {
-	cyc := detectCycles(srcIndex, src.Data)
+func Load(ctx context.Context, srcIndex int, src compilers.Source, opts Options) (*Document, []ir.Diagnostic, error) {
+	cyc := scan.Cycles(srcIndex, src.Data)
 	if diag.HasError(cyc) {
 		return nil, cyc, nil // degenerate cycle: refuse to lower, do not crash the parser
 	}
@@ -60,7 +80,7 @@ func load(ctx context.Context, srcIndex int, src compilers.Source, opts Options)
 		return nil, nil, fmt.Errorf("openapi: unmarshal source %d: %w", srcIndex, err)
 	}
 
-	minor, ok := supportedMinor(doc.OpenAPI)
+	minor, ok := SupportedMinor(doc.OpenAPI)
 	if !ok {
 		return nil, append(cyc, diag.Newf(ir.SeverityError, diag.UnsupportedVersion,
 			ir.Provenance{Source: srcIndex},
@@ -88,7 +108,7 @@ func load(ctx context.Context, srcIndex int, src compilers.Source, opts Options)
 		diags = append(diags, resolveDiag(srcIndex, re))
 	}
 
-	return &loaded{
+	return &Document{
 		Doc: doc,
 		Source: ir.SourceInfo{
 			Format: "openapi@" + minor,
@@ -140,8 +160,8 @@ func metaSchemaVersionArtifacts(ctx context.Context, doc *soa.OpenAPI, minor str
 	atDocumentVersion := schemaFindings(ctx, doc,
 		validation.WithContextObject(&oas3.ParentDocumentVersion{OpenAPI: &version}))
 	asLibraryChecks := schemaFindings(ctx, doc)
-	for site := range atDocumentVersion {
-		delete(asLibraryChecks, site)
+	for key := range atDocumentVersion {
+		delete(asLibraryChecks, key)
 	}
 	return asLibraryChecks
 }
@@ -247,7 +267,7 @@ func isNumericBoundKeyword(verr validation.Error) bool {
 // A literal is only a candidate cause when json.Valid rejects its source text —
 // that is the grammar the library's YAML-to-JSON conversion has to satisfy, so a
 // spelling JSON already accepts provoked nothing and cannot excuse the finding.
-// Every rejected literal must then be one numericLiteral recovers, the very
+// Every rejected literal must then be one value.NumericLiteral recovers, the very
 // conversion the lowerer will run; a single unrecoverable one (.inf) keeps the
 // finding. Because the scan covers every numeric scalar under the node, no
 // candidate cause goes unclassified.
@@ -260,7 +280,7 @@ func invalidSyntaxOnValidNumbers(node *yaml.Node) bool {
 		if json.Valid([]byte(scalar.Value)) {
 			return
 		}
-		if _, err := numericLiteral(scalar); err != nil {
+		if _, err := value.NumericLiteral(scalar); err != nil {
 			unrepresentable = true
 			return
 		}
@@ -384,9 +404,9 @@ func mapSeverity(s validation.Severity) ir.Severity {
 	}
 }
 
-// supportedMinor returns the normalized major.minor prefix of an OpenAPI version
+// SupportedMinor returns the normalized major.minor prefix of an OpenAPI version
 // string and whether the compiler supports it (3.0, 3.1, or 3.2).
-func supportedMinor(version string) (string, bool) {
+func SupportedMinor(version string) (string, bool) {
 	parts := strings.SplitN(version, ".", 3)
 	if len(parts) < 2 {
 		return "", false

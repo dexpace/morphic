@@ -8,11 +8,12 @@ import (
 
 	"github.com/dexpace/morphic/compilers/compile"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
+	"github.com/dexpace/morphic/compilers/openapi/internal/ids"
 	"github.com/dexpace/morphic/ir"
 )
 
 // lowerSecuritySchemes interns every declared security scheme into the auth
-// registry keyed by authIDFor(name) (ir-design §9). Run before the service walk
+// registry keyed by ids.Auth(name) (ir-design §9). Run before the service walk
 // so operation- and document-level requirements reference registered IDs.
 func (l *lowerer) lowerSecuritySchemes() {
 	comps := l.doc.Components
@@ -29,7 +30,7 @@ func (l *lowerer) lowerSecuritySchemes() {
 		if ss == nil {
 			continue
 		}
-		out[authIDFor(name)] = l.lowerSecurityScheme(name, ss)
+		out[ids.Auth(name)] = l.lowerSecurityScheme(name, ss)
 	}
 	if len(out) > 0 {
 		l.out.Auth = out
@@ -40,10 +41,10 @@ func (l *lowerer) lowerSecuritySchemes() {
 // dispatching the mechanism-specific fields by type.
 func (l *lowerer) lowerSecurityScheme(name string, ss *soa.SecurityScheme) ir.AuthScheme {
 	scheme := ir.AuthScheme{
-		ID:         authIDFor(name),
+		ID:         ids.Auth(name),
 		Name:       compile.NamingFor(name),
 		Docs:       ir.Docs{Description: ss.GetDescription()},
-		Provenance: ir.Provenance{Source: l.srcIndex, Pointer: ptr("components", "securitySchemes", name)},
+		Provenance: ir.Provenance{Source: l.srcIndex, Pointer: ids.Ptr("components", "securitySchemes", name)},
 	}
 	if ss.GetDeprecated() {
 		scheme.Deprecation = &ir.Deprecation{}
@@ -179,9 +180,9 @@ func (l *lowerer) lowerSecurityRequirement(req *soa.SecurityRequirement) ir.Auth
 	}
 	var uses []ir.SchemeUse
 	for name, scopes := range req.All() {
-		id := authIDFor(name)
+		id := ids.Auth(name)
 		if _, ok := l.out.Auth[id]; !ok {
-			l.diag(ir.SeverityError, diag.UnresolvedRef, ptr("components", "securitySchemes", name),
+			l.diag(ir.SeverityError, diag.UnresolvedRef, ids.Ptr("components", "securitySchemes", name),
 				"security requirement references undeclared scheme %q", name)
 			continue
 		}

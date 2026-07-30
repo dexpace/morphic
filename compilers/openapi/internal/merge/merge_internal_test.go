@@ -1,4 +1,4 @@
-package openapi
+package merge
 
 import (
 	"testing"
@@ -10,18 +10,18 @@ import (
 	"github.com/dexpace/morphic/ir"
 )
 
-// stubMerger returns a merger backed by a plain map and a diagnostic recorder,
+// stubMerger returns a Merger backed by a plain map and a diagnostic recorder,
 // with no lowerer, no parser and no document anywhere in the setup.
 //
 // This is the extraction's whole purpose. Reaching the conflict lattice
 // previously meant standing up a compiler and feeding it a spec that happened to
 // produce the pair of declarations under test; the registry dependency is narrow
 // enough to pass as a function, so the lattice can be driven directly.
-func stubMerger(reg map[ir.TypeID]ir.TypeDef) (*merger, *[]ir.Diagnostic) {
+func stubMerger(reg map[ir.TypeID]ir.TypeDef) (*Merger, *[]ir.Diagnostic) {
 	recorded := &[]ir.Diagnostic{}
-	g := &merger{
-		resolve: func(id ir.TypeID) (ir.TypeDef, bool) { td, ok := reg[id]; return td, ok },
-		report: func(sev ir.Severity, code, pointer, format string, args ...any) {
+	g := &Merger{
+		Resolve: func(id ir.TypeID) (ir.TypeDef, bool) { td, ok := reg[id]; return td, ok },
+		Report: func(sev ir.Severity, code, pointer, format string, args ...any) {
 			*recorded = append(*recorded, diag.Newf(sev, code, ir.Provenance{Pointer: pointer}, format, args...))
 		},
 	}

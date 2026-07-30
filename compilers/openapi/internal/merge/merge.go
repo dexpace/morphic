@@ -1,38 +1,40 @@
-package openapi
+// Package merge reconciles the properties more than one allOf branch declares:
+// either folding two declarations into one or reporting that they disagree.
+//
+// It is the compiler's most intricate logic and the part least tied to the walk
+// that drives it. Everything it needs from the rest of lowering arrives as the
+// two function fields on Merger, so the conflict lattice can be exercised
+// against a map and a recorder rather than a document.
+package merge
 
 import (
 	"cmp"
 	"fmt"
 	"math/big"
 
+	"github.com/dexpace/morphic/compilers/openapi/internal/annotation"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/ir"
 )
 
-// A merger reconciles properties that more than one allOf branch declares:
+// Merger reconciles properties that more than one allOf branch declares:
 // either merging the two declarations or reporting that they disagree.
 //
-// This is the package's largest cohesive block and its most intricate logic, and
-// it sits apart from the walk so it can be exercised without one. Its only
-// couplings to the rest of lowering are the two fields below, which is what makes
-// that possible: a test supplies a map lookup and a recorder rather than standing
-// up a compiler.
-//
 // It is not pure — deciding whether two TypeRefs conflict needs the registry —
-// but that dependency is narrow enough to pass as a function, so the conflict
+// but that dependency is narrow enough to arrive as a function, so the conflict
 // lattice stays testable against a stub.
-type merger struct {
-	// resolve looks a type up in the registry. Conflict detection compares what
+type Merger struct {
+	// Resolve looks a type up in the registry. Conflict detection compares what
 	// two references point at, not the references themselves.
-	resolve func(ir.TypeID) (ir.TypeDef, bool)
-	// report records one diagnostic, stamped with the compile's source index.
-	report func(sev ir.Severity, code, pointer, format string, args ...any)
+	Resolve func(ir.TypeID) (ir.TypeDef, bool)
+	// Report records one diagnostic, stamped with the compile's source index.
+	Report func(sev ir.Severity, code, pointer, format string, args ...any)
 }
 
-// wireNameIndex maps each property's wire name to its position in props, so a
+// WireNameIndex maps each property's wire name to its position in props, so a
 // redeclaration reconciles in one lookup rather than a rescan (fillModelProperties
 // runs once per allOf branch, so a linear scan would be quadratic in a wide model).
-func wireNameIndex(props []ir.Property) map[string]int {
+func WireNameIndex(props []ir.Property) map[string]int {
 	idx := make(map[string]int, len(props))
 	for i := range props {
 		idx[props[i].WireName] = i
@@ -40,12 +42,12 @@ func wireNameIndex(props []ir.Property) map[string]int {
 	return idx
 }
 
-// mergeProperty appends p to m and records it in byWire, or folds it into the
+// MergeProperty appends p to m and records it in byWire, or folds it into the
 // property that already carries the same wire name — overlapping allOf branches
 // (and properties co-declared alongside allOf) redeclare one logical field under
 // allOf's intersection semantics (ir-design §4.3). Callers must set p.WireName
 // (fillModelProperties always does); it keys byWire directly.
-func (g *merger) mergeProperty(m *ir.Model, byWire map[string]int, p ir.Property, pointer string) {
+func (g *Merger) MergeProperty(m *ir.Model, byWire map[string]int, p ir.Property, pointer string) {
 	if i, ok := byWire[p.WireName]; ok {
 		g.reconcileProperty(&m.Properties[i], p, pointer)
 		return
@@ -67,7 +69,7 @@ func (g *merger) mergeProperty(m *ir.Model, byWire map[string]int, p ir.Property
 // keyword are genuine conflicts the merge cannot represent (see
 // diag.ConflictingRedecl); each is diagnosed before any detail is folded in,
 // rather than silently picking an arbitrary winner.
-func (g *merger) reconcileProperty(dst *ir.Property, src ir.Property, pointer string) {
+func (g *Merger) reconcileProperty(dst *ir.Property, src ir.Property, pointer string) {
 	g.diagnoseRedeclarationConflict(dst, &src, pointer)
 
 	dst.Required = dst.Required || src.Required
@@ -76,7 +78,7 @@ func (g *merger) reconcileProperty(dst *ir.Property, src ir.Property, pointer st
 	if dst.Docs.Description == "" {
 		dst.Docs.Description = src.Docs.Description
 	} else if src.Docs.Description != "" && src.Docs.Description != dst.Docs.Description {
-		g.report(ir.SeverityInfo, diag.DegradedConstruct, pointer,
+		g.Report(ir.SeverityInfo, diag.DegradedConstruct, pointer,
 			"allOf branches describe field %q differently; kept the first declaration", dst.WireName)
 	}
 	dst.Default = cmp.Or(dst.Default, src.Default)
@@ -88,7 +90,7 @@ func (g *merger) reconcileProperty(dst *ir.Property, src ir.Property, pointer st
 		// like its neighbors above; the len()==0 predicate is the adoption rule.
 		dst.Examples = src.Examples
 	}
-	dst.Unmodeled = mergeUnmodeled(dst.Unmodeled, src.Unmodeled)
+	dst.Unmodeled = annotation.MergeUnmodeled(dst.Unmodeled, src.Unmodeled)
 }
 
 // mergeConstraints folds src's constraint keywords into dst under allOf
@@ -143,7 +145,7 @@ const maxTypeResolveDepth = 64
 // represent the true intersection and may keep the looser bound
 // (diag.ConflictingRedecl). At most one diagnostic fires: a type conflict
 // subsumes any constraint conflict.
-func (g *merger) diagnoseRedeclarationConflict(dst, src *ir.Property, pointer string) {
+func (g *Merger) diagnoseRedeclarationConflict(dst, src *ir.Property, pointer string) {
 	if g.typesConflict(dst.Type, src.Type) {
 		g.redeclarationConflictDiag(dst, pointer,
 			fmt.Sprintf("incompatible types %s and %s", dst.Type.Target, src.Type.Target))
@@ -163,8 +165,8 @@ func (g *merger) diagnoseRedeclarationConflict(dst, src *ir.Property, pointer st
 // allOf), so the message must read correctly either way. Severity is warning —
 // the merged model is still usable — leaving escalation to the consumer via
 // the stable code.
-func (g *merger) redeclarationConflictDiag(dst *ir.Property, pointer, detail string) {
-	g.report(ir.SeverityWarning, diag.ConflictingRedecl, pointer,
+func (g *Merger) redeclarationConflictDiag(dst *ir.Property, pointer, detail string) {
+	g.Report(ir.SeverityWarning, diag.ConflictingRedecl, pointer,
 		"declarations of field %q disagree: %s; kept the first declaration (%s) over the redeclaration (%s)",
 		dst.WireName, detail, dst.Provenance.Pointer, pointer)
 }
@@ -176,7 +178,7 @@ func (g *merger) redeclarationConflictDiag(dst *ir.Property, pointer, detail str
 // Two distinct composite types of the same kind (two models, two lists) are not
 // provably contradictory, so they are never reported — conflict detection does
 // not guess.
-func (g *merger) typesConflict(a, b ir.TypeRef) bool {
+func (g *Merger) typesConflict(a, b ir.TypeRef) bool {
 	if a.Target == b.Target || g.isAnyType(a) || g.isAnyType(b) {
 		return false
 	}
@@ -204,11 +206,11 @@ func (g *merger) typesConflict(a, b ir.TypeRef) bool {
 // resolvePrimKind answer PrimAny below and then compare it unequal to the
 // sibling's kind — reporting the top type as a conflict, which is the one thing
 // this function exists to rule out.
-func (g *merger) isAnyType(ref ir.TypeRef) bool {
+func (g *Merger) isAnyType(ref ir.TypeRef) bool {
 	if k, ok := g.resolvePrimKind(ref); ok {
 		return k == ir.PrimAny
 	}
-	td, ok := g.resolve(ref.Target)
+	td, ok := g.Resolve(ref.Target)
 	return ok && td.Kind() == ir.KindAny
 }
 
@@ -222,10 +224,10 @@ func (g *merger) isAnyType(ref ir.TypeRef) bool {
 // Literal is deliberately left unresolved: Value.Kind doesn't map cleanly to
 // one PrimKind (a ValueNumber literal spans integer/number/float/decimal), so
 // rather than guess it is excluded from isStructuralType below too.
-func (g *merger) resolvePrimKind(ref ir.TypeRef) (ir.PrimKind, bool) {
+func (g *Merger) resolvePrimKind(ref ir.TypeRef) (ir.PrimKind, bool) {
 	id := ref.Target
 	for range maxTypeResolveDepth {
-		td, ok := g.resolve(id)
+		td, ok := g.Resolve(id)
 		if !ok {
 			return "", false
 		}
@@ -250,9 +252,9 @@ func (g *merger) resolvePrimKind(ref ir.TypeRef) (ir.PrimKind, bool) {
 // TypeDef kinds (a model vs a union); an unresolvable target is never treated
 // as a conflict. Reached only from typesConflict's default case, when neither
 // side resolved a PrimKind — e.g. a base-less opaque scalar against a Union.
-func (g *merger) differentTypeKind(a, b ir.TypeRef) bool {
-	at, aok := g.resolve(a.Target)
-	bt, bok := g.resolve(b.Target)
+func (g *Merger) differentTypeKind(a, b ir.TypeRef) bool {
+	at, aok := g.Resolve(a.Target)
+	bt, bok := g.Resolve(b.Target)
 	if !aok || !bok {
 		return false
 	}
@@ -270,8 +272,8 @@ func (g *merger) differentTypeKind(a, b ir.TypeRef) bool {
 // (Literal for the same reason as in resolvePrimKind), and a base-less opaque
 // scalar is likewise unknown, not structural — none of these count as
 // conflicts.
-func (g *merger) isStructuralType(ref ir.TypeRef) bool {
-	td, ok := g.resolve(ref.Target)
+func (g *Merger) isStructuralType(ref ir.TypeRef) bool {
+	td, ok := g.Resolve(ref.Target)
 	if !ok {
 		return false
 	}
@@ -304,7 +306,7 @@ func constraintsConflict(a, b *ir.Constraints) (string, bool) {
 		func() (string, bool) {
 			return boundConflictDetail("maximum", a.Max, b.Max, a.ExclusiveMax, b.ExclusiveMax)
 		},
-		func() (string, bool) { return bigValConflictDetail("multipleOf", a.MultipleOf, b.MultipleOf) },
+		func() (string, bool) { return multipleOfConflictDetail(a.MultipleOf, b.MultipleOf) },
 		func() (string, bool) { return intConflictDetail("precision", a.Precision, b.Precision) },
 		func() (string, bool) { return intConflictDetail("scale", a.Scale, b.Scale) },
 		func() (string, bool) { return intConflictDetail("minLength", a.MinLength, b.MinLength) },
@@ -349,13 +351,16 @@ func boundText(v ir.BigVal, exclusive bool) string {
 	return v.String()
 }
 
-// bigValConflictDetail reports whether two optional numeric values are both
-// present and differ by magnitude, formatting the disagreement when they do.
-func bigValConflictDetail(keyword string, a, b *ir.BigVal) (string, bool) {
+// multipleOfConflictDetail reports whether both branches pin multipleOf and pin
+// it to different magnitudes, formatting the disagreement when they do. It is
+// the one BigVal constraint with no exclusivity sense, so unlike a bound it
+// compares by magnitude alone — the keyword is named here rather than passed
+// because there is nothing else with that shape to compare.
+func multipleOfConflictDetail(a, b *ir.BigVal) (string, bool) {
 	if a == nil || b == nil || bigValEqual(*a, *b) {
 		return "", false
 	}
-	return fmt.Sprintf("conflicting %s (%s and %s)", keyword, a.String(), b.String()), true
+	return fmt.Sprintf("conflicting multipleOf (%s and %s)", a.String(), b.String()), true
 }
 
 // bigValEqual reports whether two numeric literals denote the same value,

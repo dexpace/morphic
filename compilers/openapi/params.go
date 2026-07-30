@@ -5,7 +5,10 @@ import (
 	soa "github.com/speakeasy-api/openapi/openapi"
 
 	"github.com/dexpace/morphic/compilers/compile"
+	"github.com/dexpace/morphic/compilers/openapi/internal/annotation"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
+	"github.com/dexpace/morphic/compilers/openapi/internal/ids"
+	"github.com/dexpace/morphic/compilers/openapi/internal/value"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -65,13 +68,13 @@ func (l *lowerer) fillParamType(param *ir.Parameter, binding *ir.HTTPParamBindin
 	// takes it and reports a document that declares more, rather than dropping the
 	// extras in the silence the header spelling was fixed out of (GitHub #139).
 	if mt, media, ok := l.singleContentEntry(p.GetContent(), pptr); ok {
-		schemaPtr := pptr + ptr("content", mt, "schema")
+		schemaPtr := pptr + ids.Ptr("content", mt, "schema")
 		param.Type = l.carriedSchemaRef(media.GetSchema(), schemaPtr, name)
 		binding.ContentType = mt
 		l.fillParamSchema(param, media.GetSchema(), schemaPtr)
 		return
 	}
-	schemaPtr := pptr + ptr("schema")
+	schemaPtr := pptr + ids.Ptr("schema")
 	param.Type = l.carriedSchemaRef(p.GetSchema(), schemaPtr, name)
 	l.fillParamSchema(param, p.GetSchema(), schemaPtr)
 }
@@ -92,9 +95,9 @@ func (l *lowerer) fillParamSchema(param *ir.Parameter, js *oas3.JSONSchema[oas3.
 	if s == nil {
 		return
 	}
-	// refTargetSchema, not siteAt's Referent: the fallback must read the end of a
-	// $ref chain, since one hop would take the default and description off an
-	// intermediate reference instead of the schema that declares them.
+	// refTargetSchema, not annotation.At's Referent: the fallback must read the
+	// end of a $ref chain, since one hop would take the default and description
+	// off an intermediate reference instead of the schema that declares them.
 	tgt := l.refTargetSchema(js, s)
 	l.fillParamDefault(param, s, tgt, pointer)
 
@@ -118,7 +121,7 @@ func (l *lowerer) fillParamDefault(param *ir.Parameter, s, tgt *oas3.Schema, poi
 	if node == nil {
 		return
 	}
-	v, err := valueFromNode(node)
+	v, err := value.FromNode(node)
 	if err != nil {
 		l.diag(ir.SeverityWarning, diag.DegradedConstruct, pointer, "default: %s", err.Error())
 		return
@@ -140,15 +143,16 @@ func (l *lowerer) fillParamDefault(param *ir.Parameter, s, tgt *oas3.Schema, poi
 func (l *lowerer) fillParamSchemaAnnotations(param *ir.Parameter, s, tgt *oas3.Schema, pointer string) {
 	// Visibility is kept before the own-node guard, not after it. The guard exists
 	// so an annotation with a home on the node is not also copied to the carrier,
-	// but readOnly/writeOnly have no home on either: recordDeclarationResidue skips
-	// this position because a parameter is a homeCarrier, and ir.Parameter has no
-	// Visibility field. Keeping them after the guard would drop them for exactly
-	// the parameters whose schema owns a node — an object, an enum, an array.
+	// but readOnly/writeOnly have no home on either: recordDeclarationResidue
+	// skips this position because a parameter is an annotation.HomeCarrier, and
+	// ir.Parameter has no Visibility field. Keeping them after the guard would
+	// drop them for exactly the parameters whose schema owns a node — an object,
+	// an enum, an array.
 	l.preserveParamVisibility(param, s, pointer)
 	if l.loweredToOwnNode(pointer, param.Type) {
 		return
 	}
-	a, diags := annotations(site{Kind: siteReference, Node: s, Referent: tgt}, pointer, l.srcIndex)
+	a, diags := annotation.Read(annotation.Site{Kind: annotation.Reference, Node: s, Referent: tgt}, pointer, l.srcIndex)
 	l.diags.AppendAll(diags)
 
 	param.Docs = a.Docs
@@ -161,7 +165,7 @@ func (l *lowerer) fillParamSchemaAnnotations(param *ir.Parameter, s, tgt *oas3.S
 	if a.XML != nil {
 		l.preserveParamXML(param, s, pointer)
 	}
-	param.Unmodeled = mergeUnmodeled(param.Unmodeled, a.Unmodeled)
+	param.Unmodeled = annotation.MergeUnmodeled(param.Unmodeled, a.Unmodeled)
 }
 
 // preserveParamXML keeps a parameter schema's xml hints instead of dropping
@@ -171,7 +175,7 @@ func (l *lowerer) fillParamSchemaAnnotations(param *ir.Parameter, s, tgt *oas3.S
 // binding records that content type. ReasonNoIRHome, since the IR can close the
 // gap by adding the field (GitHub #124).
 func (l *lowerer) preserveParamXML(param *ir.Parameter, s *oas3.Schema, pointer string) {
-	at := pointer + ptr("xml")
+	at := pointer + ids.Ptr("xml")
 	if l.preserveSchemaKeyword(&param.Unmodeled, s, "xml", ir.ReasonNoIRHome, at) {
 		l.diag(ir.SeverityInfo, diag.DegradedConstruct, at,
 			"parameter schema xml hints have no ir.Parameter home; kept verbatim under Unmodeled")
@@ -192,7 +196,7 @@ func (l *lowerer) preserveParamVisibility(param *ir.Parameter, s *oas3.Schema, p
 		if paramHoldsResidue(keyword) {
 			continue
 		}
-		at := pointer + ptr(keyword)
+		at := pointer + ids.Ptr(keyword)
 		if !l.preserveSchemaKeyword(&param.Unmodeled, s, keyword, ir.ReasonNoIRHome, at) {
 			continue
 		}
@@ -223,7 +227,7 @@ func (l *lowerer) fillParamDetail(param *ir.Parameter, p *soa.Parameter, pptr st
 	if ex := l.exampleList(p.GetExample(), p.GetExamples(), pptr); len(ex) > 0 {
 		param.Examples = ex
 	}
-	param.Unmodeled = mergeUnmodeled(param.Unmodeled, l.extensions(p.GetExtensions(), pptr))
+	param.Unmodeled = annotation.MergeUnmodeled(param.Unmodeled, l.extensions(p.GetExtensions(), pptr))
 }
 
 // resolveStyleExplode materializes a parameter's resolved serialization style

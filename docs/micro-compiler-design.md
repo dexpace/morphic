@@ -229,19 +229,33 @@ problem. These need only a package. Extraction is a move, so goldens are byte-id
 construction and each step is near-zero risk.
 
 ```bash
-# the tier-0 set: no lowerer methods, and what it weighs
-for f in value ids amplification cycles merge facets load diag; do
+# the tier-0 set as it was diagnosed, before any of it moved
+git show a095636 --stat >/dev/null && for f in value ids amplification cycles merge facets load diag; do
   printf '%s lowerer-methods  %s\n' \
-    "$(grep -cE '^func \(l \*?lowerer\)' compilers/openapi/$f.go)" "compilers/openapi/$f.go"
+    "$(git show a095636:compilers/openapi/$f.go | grep -cE '^func \(l \*?lowerer\)')" "$f.go"
 done
-wc -l compilers/openapi/{value,ids,amplification,cycles,merge,facets,load,diag}.go | tail -1
+
+# and where each landed: every tier-0 file is now a package under internal/
+ls compilers/openapi/internal/
 ```
 
-One Tier-0 file does not move alone. `facets.go` reads a `site`, and `site`, `siteKind`, `siteAt`
-and `siteSchema` are declared in `resolve.go` — as free functions and types, not as `lowerer`
-methods. They belong with the readers that consume them: a site is a position, and annotations are
-what a position carries. So `internal/annotation` takes `facets.go` plus those four declarations,
-and `resolve.go` keeps only its fourteen methods.
+Those eight files are no longer files. Reading the set from the working tree finds nothing, which is
+why the command above reads it from the revision it was diagnosed at.
+
+One Tier-0 file does not move alone, and it moved with more than this section predicted. `facets.go`
+reads a `site`, and `site`, `siteKind`, `siteAt` and `siteSchema` are declared in `resolve.go` — as
+free functions and types, not as `lowerer` methods. They belong with the readers that consume them:
+a site is a position, and annotations are what a position carries.
+
+Those four were not the whole of it. `facets.go` and `schema.go` were mutually dependent, so the
+readers `schema.go` declared — the raw-node and JSON-object helpers, the docs, flag, XML and
+extension readers, and the keyword combinations kept verbatim — had to move as well, along with the
+site-home constants and the one-hop reference resolution the site model is built on. What is left in
+`resolve.go` is the methods; to see the split as it stands rather than trust this sentence:
+
+```bash
+grep -cE '^func ' compilers/openapi/resolve.go compilers/openapi/internal/annotation/annotation.go
+```
 
 **Tier 1 — the god object.** Every method lives in eleven files: `schema`, `compose`, `operations`,
 `content`, `resolve`, `params`, `hoist`, `auth`, `meta`, `constraints`, `openapi`.
@@ -267,9 +281,10 @@ compilers/openapi/                  the public face, and nothing else
     diag/        OpenAPI diagnostic codes, Newf, HasError
     load/        parse and load the document
     scan/        cycle and amplification refusal over raw source
+    nodeview/    the raw source read the way the resolver reads it
     ids/         OpenAPI pointer arithmetic and ID derivation
     value/       value and BigVal lowering
-    annotation/  site, siteAt, the facet readers (+ constraints, from 3.2)
+    annotation/  the site model and the facet readers (+ constraints, from 3.2)
     merge/       allOf property reconciliation
     resolve/     reference resolution
     schema/      schema ⇄ compose (⇄ hoist) — the recursive core
@@ -277,7 +292,22 @@ compilers/openapi/                  the public face, and nothing else
 ```
 
 Imports run one way: `operation` → `schema` → {`resolve`, `annotation`, `merge`, `value`, `ids`} →
-`diag` → `compile` → `ir`. `load` and `scan` sit on the entry side, imported only by `openapi.go`.
+`diag` → `compile` → `ir`. `load` and `scan` sit on the entry side.
+
+*As landed:* not, as this section first claimed, "imported only by `openapi.go`". Extraction found
+three edges the file-level reading missed — `load` calls `scan` before it parses, `constraints`
+reads `load.SupportedMinor` for the document minor, and `hoist` takes the loaded document as its
+input. Entry-side means nothing on the entry side calls back into lowering, which holds; it does not
+mean one importer. The same reading put `nodeView` inside the cycle scan, where it is declared;
+`schema` and `compose` read the source through it too, so it founded a package of its own beneath
+both. The lesson generalizes past these two: which file declares a type says nothing about how many
+packages consume it, and only the type checker answers that.
+
+```bash
+# what actually imports a package, rather than what its declaring file suggests
+go list -f '{{$p := .ImportPath}}{{range .Imports}}{{$p}} -> {{.}}
+{{end}}' ./compilers/openapi/... | grep -E '> .*internal/(nodeview|load)$'
+```
 
 `diag` sits at the bottom because its constructor is the single one that populates severity, code and
 provenance, and eight files call it. The OpenAPI diagnostic codes are format-specific strings, so
@@ -564,7 +594,7 @@ Each row is one PR unless noted. "Done when" is the acceptance test, not a summa
 | ~~1.2~~ | ~~Promote the canonical naming grammar (the segmentation is decided — §3.1)~~ | **Landed.** `compilers/compile` holds the one implementation, an architecture test keeps a second from being written, and each rebasing draft carries its own golden update | — |
 | ~~1.3~~ | ~~Extend `irverify` to check segmentation, not only casing (#73, #54)~~ | **Landed with #161**, ahead of 1.2: `ir/naming-not-words` rejects a lowercase but unsegmented canonical, proven by planting the old grammar and watching the corpus sweep redden. #54 (`Hint`) stays open | — |
 | ~~2.1~~ | ~~Tier-0 extraction: `diag`~~ | **Landed.** Goldens byte-identical, its own rules entry admits `ir` alone, and the package carries table-driven tests needing no document | 0.1 |
-| 2.2–2.7 | The remaining Tier-0 extractions, one PR each: `load`, `scan`, `ids`, `value`, `annotation` (+ site), `merge` | Per §8.1: goldens byte-identical, rules entry added, and each package carries table-driven unit tests needing no document | 0.1 |
+| ~~2.2–2.7~~ | ~~The remaining Tier-0 extractions: `load`, `scan`, `ids`, `value`, `annotation` (+ site), `merge`~~ | **Landed.** Goldens byte-identical, each package carries its own rules entry proven by planting a forbidden import, and each carries unit tests needing no document. Two departures from the plan above: the scan took `nodeview` with it as a package of its own, because `schema` and `compose` read the source through it too, and `annotation` took the readers `schema.go` declared as well as the four in `resolve.go` — the two files were mutually dependent | 0.1 |
 | 3.1 | Introduce `Ctx` with accessors; derive indexes at entry | No exported `Ctx` field is a map; goldens byte-identical | 2.x |
 | 3.2 | Convert the leaves to the contract: `constraints` → `annotation`, `meta` and `auth` → `operation` | Those files hold no `lowerer` method | 3.1 |
 | 3.3 | Extract `internal/resolve` | ditto, plus a bounded-recursion test | 3.2 |

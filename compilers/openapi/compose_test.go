@@ -12,7 +12,9 @@ import (
 	"github.com/stretchr/testify/require"
 	yaml "gopkg.in/yaml.v3"
 
+	"github.com/dexpace/morphic/compilers/openapi/internal/annotation"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
+	"github.com/dexpace/morphic/compilers/openapi/internal/ids"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -1384,16 +1386,16 @@ func TestMappingTargetID(t *testing.T) {
 	// A $ref to a declared component.
 	id, ok := l.mappingTargetID("#/components/schemas/Cat")
 	require.True(t, ok)
-	assert.Equal(t, namedTypeID("/components/schemas/Cat"), id)
+	assert.Equal(t, ids.NamedType("/components/schemas/Cat"), id)
 	// A bare schema name.
 	id, ok = l.mappingTargetID("Dog")
 	require.True(t, ok)
-	assert.Equal(t, namedTypeID(ptr("components", "schemas", "Dog")), id)
+	assert.Equal(t, ids.NamedType(ids.Ptr("components", "schemas", "Dog")), id)
 	// A bare name that contains '/' but names an existing schema must resolve, not
 	// dangle as a misclassified external $ref (issue #14, f07).
 	id, ok = l.mappingTargetID("A/B")
 	require.True(t, ok)
-	assert.Equal(t, namedTypeID(ptr("components", "schemas", "A/B")), id)
+	assert.Equal(t, ids.NamedType(ids.Ptr("components", "schemas", "A/B")), id)
 	// An undeclared component and a genuine external ref are dropped, never
 	// synthesized into a dangling ID.
 	_, ok = l.mappingTargetID("#/components/schemas/Ghost")
@@ -1401,13 +1403,13 @@ func TestMappingTargetID(t *testing.T) {
 	_, ok = l.mappingTargetID("a.yaml#/A")
 	assert.False(t, ok, "external target dropped")
 	// A declared but empty-named component ("") is interned anonymously, so its
-	// bare mapping name must resolve to that anon ID, not an unbacked namedTypeID
+	// bare mapping name must resolve to that anon ID, not an unbacked ids.NamedType
 	// (issue #14, f31).
 	l.schemas[""] = true
 	id, ok = l.mappingTargetID("")
 	require.True(t, ok)
-	assert.Equal(t, anonTypeID(ptr("components", "schemas", "")), id)
-	assert.NotEqual(t, namedTypeID(ptr("components", "schemas", "")), id)
+	assert.Equal(t, ids.AnonType(ids.Ptr("components", "schemas", "")), id)
+	assert.NotEqual(t, ids.NamedType(ids.Ptr("components", "schemas", "")), id)
 }
 
 func TestDiscriminatorDefault_ResolvesDeclaredComponent(t *testing.T) {
@@ -1417,7 +1419,7 @@ func TestDiscriminatorDefault_ResolvesDeclaredComponent(t *testing.T) {
 	d := &oas3.Discriminator{PropertyName: "kind", DefaultMapping: new("Cat")}
 
 	id := l.discriminatorDefault(d, "/components/schemas/Pet")
-	assert.Equal(t, namedTypeID("/components/schemas/Cat"), id)
+	assert.Equal(t, ids.NamedType("/components/schemas/Cat"), id)
 	assert.Empty(t, l.diags.List(), "a resolvable defaultMapping produces no diagnostic")
 }
 
@@ -1914,7 +1916,7 @@ func TestRawMappingKeys_OnlyEnumeratesAMapping(t *testing.T) {
 // mapping it stands for.
 func useValue(t *testing.T, src string) *yaml.Node {
 	t.Helper()
-	node := rawChildNode(yamlNode(t, src), "use")
+	node := annotation.RawChildNode(yamlNode(t, src), "use")
 	require.NotNil(t, node, `src writes no "use" key`)
 	return node
 }
