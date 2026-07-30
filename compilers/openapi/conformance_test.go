@@ -69,14 +69,7 @@ func TestConformance(t *testing.T) {
 // sorted lists rather than sets also catches a spec named by two rows.
 func TestConformance_TableNamesEveryCorpusSpec(t *testing.T) {
 	t.Parallel()
-	specs, err := filepath.Glob(filepath.Join(conformanceDir, "*.yaml"))
-	require.NoError(t, err)
-	require.NotEmpty(t, specs, "the corpus directory must hold specs")
-
-	onDisk := make([]string, 0, len(specs))
-	for _, path := range specs {
-		onDisk = append(onDisk, strings.TrimSuffix(filepath.Base(path), ".yaml"))
-	}
+	onDisk := corpusSpecNames(t)
 	cases := conformanceCases()
 	inTable := make([]string, 0, len(cases))
 	for _, tc := range cases {
@@ -87,6 +80,48 @@ func TestConformance_TableNamesEveryCorpusSpec(t *testing.T) {
 	if diff := cmp.Diff(onDisk, inTable); diff != "" {
 		t.Errorf("corpus and table disagree (-on disk +in table):\n%s", diff)
 	}
+}
+
+// corpusSpecNames returns the base name of every spec in the corpus directory,
+// failing on any file that is neither a .yaml spec nor a golden beside one.
+//
+// The .yaml-only restriction is asserted here rather than assumed by a narrower
+// glob. parseCorpus reads "<name>.yaml", so a spec committed as .yml or .json
+// cannot be named by a table row at all — while the corpus-wide sweep in
+// conformance_unwitnessed_test.go reads all three extensions and counts the
+// fields such a spec exercises as witnessed. Left to a glob, that spec would
+// pass through carrying neither a capability assertion nor a golden: the hole
+// this test exists to close, reached by a different spelling.
+func corpusSpecNames(t *testing.T) []string {
+	t.Helper()
+	entries, err := os.ReadDir(conformanceDir)
+	require.NoError(t, err)
+
+	specs := make([]string, 0, len(entries))
+	goldens := make([]string, 0, len(entries))
+	for _, e := range entries {
+		name := e.Name()
+		require.False(t, e.IsDir(), "corpus directory holds a subdirectory %q; no sweep descends into one", name)
+		switch {
+		case name == filepath.Base(unwitnessedGolden):
+			// The derived never-witnessed snapshot: a corpus-wide artifact, not
+			// a spec's golden, so it pairs with nothing.
+		case strings.HasSuffix(name, ".golden.json"):
+			goldens = append(goldens, strings.TrimSuffix(name, ".golden.json"))
+		case strings.HasSuffix(name, ".yaml"):
+			specs = append(specs, strings.TrimSuffix(name, ".yaml"))
+		default:
+			t.Errorf("corpus file %q is neither a .yaml spec nor a golden; "+
+				"parseCorpus reads only .yaml, so a spec in any other extension gets no table row", name)
+		}
+	}
+	require.NotEmpty(t, specs, "the corpus directory must hold specs")
+	slices.Sort(specs)
+	slices.Sort(goldens)
+	if diff := cmp.Diff(specs, goldens); diff != "" {
+		t.Errorf("corpus specs and goldens disagree (-specs +goldens):\n%s", diff)
+	}
+	return specs
 }
 
 // conformanceCase pairs one corpus spec with the assertion that says what
@@ -109,8 +144,11 @@ func conformanceCases() []conformanceCase {
 		{"allof-required-only", assertAllOfRequiredOnly},
 		{"allof-oneof-cooccurrence", assertAllOfOneOfCooccurrence},
 		{"allof-inline-residue", assertAllOfInlineResidue},
+		{"allof-boolean-branch", assertAllOfBooleanBranch},
 		{"oneof-discriminated", assertOneOfDiscriminated},
 		{"discriminator-inheritance", assertDiscriminatorInheritance},
+		{"discriminator-default-mapping", assertDiscriminatorDefaultMapping},
+		{"unhomed-keywords", assertUnhomedKeywords},
 		{"anyof-untagged", assertAnyOfUntagged},
 		{"negation-not", assertNegationNot},
 		{"dependent-required", assertDependentRequired},
@@ -474,6 +512,25 @@ func assertDiscriminatorInheritance(t *testing.T, doc *ir.Document, _ []ir.Diagn
 	}
 }
 
+// assertDiscriminatorDefaultMapping pins Discriminator.Default, whose only source
+// is the 3.2 discriminator.defaultMapping — and with it that a 3.2-only schema
+// keyword compiles without an error diagnostic (GitHub #146). The library checks
+// every schema object against the 3.1 meta-schema whatever the document says, so
+// before this the spec below failed to compile and the field had no witness.
+func assertDiscriminatorDefaultMapping(t *testing.T, doc *ir.Document, diags []ir.Diagnostic) {
+	assert.Empty(t, diagsAt(diags, "openapi/validation/validation-invalid-schema",
+		"/components/schemas/Pet/discriminator/defaultMapping"),
+		"a 3.2 keyword in a 3.2 document is not an invalid schema")
+
+	pet, ok := doc.Types[namedID("Pet")].(*ir.Model)
+	require.True(t, ok)
+	require.NotNil(t, pet.Discriminator)
+	assert.Equal(t, namedID("Dog"), pet.Discriminator.Default,
+		"defaultMapping names the variant an unrecognized tag falls back to")
+	assert.Equal(t, namedID("Cat"), pet.Discriminator.Mapping["cat"],
+		"and it is read separately from the mapping")
+}
+
 func assertAnyOfUntagged(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
 	u, ok := doc.Types[namedID("StringOrNumber")].(*ir.Union)
 	require.True(t, ok)
@@ -531,6 +588,10 @@ func assertScalarFormat(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
 	require.NotNil(t, sc.Base)
 	assert.Equal(t, ir.TypeID("t/prim/string"), sc.Base.Target)
 	assert.False(t, color.Secret, "an ordinary format asks for no redaction")
+	// The bound survives the hoist the unknown format forced (GitHub #147).
+	require.NotNil(t, sc.Constraints, "the hoisted format scalar carries its own bounds")
+	require.NotNil(t, sc.Constraints.MinLength)
+	assert.Equal(t, int64(4), *sc.Constraints.MinLength)
 
 	// format: password is a redaction request about a use of the value, so it
 	// lands on the property rather than on the shared encoding node.
@@ -580,6 +641,15 @@ func assertEncodingByte(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
 	assert.Equal(t, ir.TypeID("t/prim/string"), sc.Encoding.WireType.Target)
 	require.NotNil(t, sc.Base)
 	assert.Equal(t, ir.TypeID("t/prim/bytes"), sc.Base.Target)
+
+	// A scalar that hoists a node because of its format must keep the bounds it
+	// wrote beside it: owning the pointer is what stops the shared alias path
+	// attaching them afterwards (GitHub #147).
+	require.NotNil(t, sc.Constraints, "the hoisted byte scalar carries its own bounds")
+	require.NotNil(t, sc.Constraints.MinLength)
+	assert.Equal(t, int64(5), *sc.Constraints.MinLength)
+	require.NotNil(t, sc.Constraints.MaxLength)
+	assert.Equal(t, int64(9), *sc.Constraints.MaxLength)
 }
 
 func assertNullabilityFourStates(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {

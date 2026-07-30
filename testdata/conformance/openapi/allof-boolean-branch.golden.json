@@ -1,0 +1,193 @@
+{
+  "irVersion": "0.3.0",
+  "name": "AllOfBooleanBranch",
+  "version": "1.0.0",
+  "docs": {},
+  "services": [
+    {
+      "id": "s/openapi/0",
+      "name": {
+        "source": "AllOfBooleanBranch",
+        "canonical": "all_of_boolean_branch"
+      },
+      "docs": {},
+      "auth": null,
+      "provenance": {
+        "source": 0
+      }
+    }
+  ],
+  "types": {
+    "t/openapi/components/schemas/Always": {
+      "kind": "model",
+      "id": "t/openapi/components/schemas/Always",
+      "name": {
+        "source": "Always",
+        "canonical": "always"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Always"
+      },
+      "properties": [
+        {
+          "id": "p/openapi/components/schemas/Always/allOf/1/properties/id",
+          "name": {
+            "source": "id",
+            "canonical": "id"
+          },
+          "wireName": "id",
+          "type": {
+            "target": "t/prim/string",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/Always/allOf/1/properties/id"
+          }
+        }
+      ],
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
+    "t/openapi/components/schemas/BareFalse": {
+      "kind": "model",
+      "id": "t/openapi/components/schemas/BareFalse",
+      "name": {
+        "source": "BareFalse",
+        "canonical": "bare_false"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/BareFalse"
+      },
+      "additional": "closed",
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
+    "t/openapi/components/schemas/Never": {
+      "kind": "model",
+      "id": "t/openapi/components/schemas/Never",
+      "name": {
+        "source": "Never",
+        "canonical": "never"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "unmodeled": {
+        "openapi:allOf/0": {
+          "reason": "degraded_lowering",
+          "value": false,
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/Never/allOf/0"
+          }
+        }
+      },
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Never"
+      },
+      "properties": [
+        {
+          "id": "p/openapi/components/schemas/Never/allOf/1/properties/id",
+          "name": {
+            "source": "id",
+            "canonical": "id"
+          },
+          "wireName": "id",
+          "type": {
+            "target": "t/prim/string",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/Never/allOf/1/properties/id"
+          }
+        }
+      ],
+      "additional": "closed",
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
+    "t/prim/string": {
+      "kind": "primitive",
+      "id": "t/prim/string",
+      "name": {},
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0
+      },
+      "prim": "string"
+    }
+  },
+  "servers": [
+    {
+      "name": {},
+      "urlTemplate": "/",
+      "description": {},
+      "auth": null
+    }
+  ],
+  "diagnostics": [
+    {
+      "severity": "info",
+      "code": "openapi/false-schema",
+      "message": "boolean false allOf branch matches nothing, so the composition matches nothing; composed model closed and the branch kept verbatim under Unmodeled",
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Never/allOf/0"
+      }
+    },
+    {
+      "severity": "info",
+      "code": "openapi/false-schema",
+      "message": "boolean false schema matches nothing; lowered as a closed empty model",
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/BareFalse"
+      }
+    }
+  ],
+  "sources": [
+    {
+      "format": "openapi@3.1",
+      "path": "allof-boolean-branch.yaml",
+      "hash": "8dfa63f600320e6f52e6a34aeaf1723eac8e8595ed3031b284d1116d631c1d1e"
+    }
+  ]
+}

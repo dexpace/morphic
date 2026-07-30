@@ -1224,20 +1224,42 @@ func TestEnum_ValueTypeVariants(t *testing.T) {
     ENoTypeBool: {enum: [true, false]}
     ENoTypeNum: {enum: [1, 2]}
     ENoTypeStr: {enum: [a, b]}
-    EBytes: {enum: [!!binary aGk=]}
+    EBytes: {enum: [!!binary aGk=, !!binary Ynll]}
 `)
 	doc, diags := lowerSpec(t, spec)
 	requireNoErrorDiags(t, diags)
 	want := map[string]ir.PrimKind{
 		"EInt": ir.PrimInteger, "ENum": ir.PrimNumber, "EBool": ir.PrimBool,
 		"ENoTypeBool": ir.PrimBool, "ENoTypeNum": ir.PrimNumber,
-		"ENoTypeStr": ir.PrimString, "EBytes": ir.PrimString,
+		"ENoTypeStr": ir.PrimString, "EBytes": ir.PrimBytes,
 	}
 	for name, prim := range want {
 		e, ok := typeByName(doc, name).(*ir.Enum)
 		require.True(t, ok, "%s is an enum", name)
 		assert.Equal(t, prim, e.ValueType, "%s value type", name)
 	}
+}
+
+// TestEnum_ByteMembersAreNamedAndTyped pins the pair of defects an undeclared
+// ValueKind produced: a !!binary member is a ValueBytes, which the old
+// classification described as a string and gave no text form at all, so every
+// byte member of an enum arrived with an empty source name — two members, one
+// name, no diagnostic.
+func TestEnum_ByteMembersAreNamedAndTyped(t *testing.T) {
+	t.Parallel()
+	spec := componentSpec("    EBytes: {enum: [!!binary aGk=, !!binary Ynll]}\n")
+	doc, diags := lowerSpec(t, spec)
+	requireNoErrorDiags(t, diags)
+
+	e, ok := typeByName(doc, "EBytes").(*ir.Enum)
+	require.True(t, ok, "a homogeneous byte enum stays an enum")
+	assert.Equal(t, ir.PrimBytes, e.ValueType, "byte members declare the byte primitive, not string")
+	require.Len(t, e.Members, 2)
+	assert.Equal(t, "aGk=", e.Members[0].Name.Source, "a byte member is named by its base64 text")
+	assert.Equal(t, "Ynll", e.Members[1].Name.Source)
+	assert.NotEqual(t, e.Members[0].Name.Source, e.Members[1].Name.Source,
+		"distinct byte members must not collapse onto one name")
+	assert.NotEmpty(t, e.Members[0].Name.Canonical, "a named member has canonical words")
 }
 
 func TestEnum_HeterogeneousBecomesUnionWithBadValue(t *testing.T) {
@@ -1848,4 +1870,47 @@ func useValue(t *testing.T, src string) *yaml.Node {
 	node := rawChildNode(yamlNode(t, src), "use")
 	require.NotNil(t, node, `src writes no "use" key`)
 	return node
+}
+
+// TestEnumMemberForm_ClassifiesEveryValueKind pins the classification arm by arm,
+// including the kinds OpenAPI cannot produce. ValueKind is IR-wide, and
+// TestEnumMemberForm_NamesEveryValueKind requires every member of it to be named
+// here — this is what says the naming is a decision rather than a formality.
+func TestEnumMemberForm_ClassifiesEveryValueKind(t *testing.T) {
+	t.Parallel()
+	admissible := []struct {
+		name string
+		val  ir.Value
+		prim ir.PrimKind
+		text string
+	}{
+		{"string", ir.Value{Kind: ir.ValueString, Str: "s"}, ir.PrimString, "s"},
+		{"symbol", ir.Value{Kind: ir.ValueSymbol, Str: "ok"}, ir.PrimString, "ok"},
+		{"number", ir.Value{Kind: ir.ValueNumber, Num: ir.BigVal("1.5")}, ir.PrimNumber, "1.5"},
+		{"bool", ir.Value{Kind: ir.ValueBool, Bool: true}, ir.PrimBool, "true"},
+		{"bytes", ir.Value{Kind: ir.ValueBytes, Bytes: []byte("hi")}, ir.PrimBytes, "aGk="},
+	}
+	for _, tc := range admissible {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			prim, text, ok := enumMemberForm(tc.val)
+			require.True(t, ok, "%s is admissible as an enum member", tc.name)
+			assert.Equal(t, tc.prim, prim)
+			assert.Equal(t, tc.text, text)
+		})
+	}
+
+	refused := []ir.ValueKind{
+		ir.ValueNull, ir.ValueList, ir.ValueObject, ir.ValueRefKind, ir.ValueCtor,
+		ir.ValueKind("a kind ir does not declare"),
+	}
+	for _, kind := range refused {
+		t.Run(string(kind), func(t *testing.T) {
+			t.Parallel()
+			prim, text, ok := enumMemberForm(ir.Value{Kind: kind})
+			assert.False(t, ok, "%q has no place in an Enum", kind)
+			assert.Empty(t, prim, "a refused kind asserts no primitive")
+			assert.Empty(t, text)
+		})
+	}
 }

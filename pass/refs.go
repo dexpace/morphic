@@ -21,6 +21,21 @@ const maxRefWalkDepth = 4096
 // against.
 var typeIDType = reflect.TypeFor[ir.TypeID]()
 
+// propIDType and propertyType are the reflect.Types of ir.PropID and the struct
+// that declares one. A PropID references no document-level registry — a property
+// is a position inside its model — so both halves of resolving one come from the
+// walk itself: the sites that carry a PropID, and the ir.Property values that
+// declare them.
+var (
+	propIDType   = reflect.TypeFor[ir.PropID]()
+	propertyType = reflect.TypeFor[ir.Property]()
+)
+
+// mapKeySuffix marks a site reached as a map key rather than as a field or an
+// element. walkMap spells it and collectPropIDs reads it, so the two cannot
+// disagree about which sites are keys.
+const mapKeySuffix = ".key"
+
 // registries maps each ID type to the Document registry that declares those IDs.
 // The walk recognizes a reference by its declared Go type, never by field name:
 // an ir.ChannelID-typed field is a reference into Document.Channels wherever it
@@ -40,6 +55,11 @@ var typeIDType = reflect.TypeFor[ir.TypeID]()
 // own previous output. A new integer-index reference has to be added to those
 // checks by hand too, because nothing here will find it; irverify's
 // integerFields guard is what stops one being added unnoticed.
+//
+// A second category is visible to the walk but resolvable by no registry:
+// ir.PropID names a position inside a model rather than an entry in a
+// document-level map, so it is collected by collectPropIDs and resolved against
+// the ir.Property values the same traversal saw.
 type registries map[reflect.Type]reflect.Value
 
 // documentRegistries derives doc's registries from Document's own shape: a field
@@ -101,7 +121,11 @@ type refSite struct {
 
 // refWalk carries the mutable state of one bounded, cycle-guarded traversal.
 type refWalk struct {
-	isRef     func(reflect.Type) bool
+	isRef func(reflect.Type) bool
+	// onStruct, when set, is called for every struct value the walk reaches, so a
+	// caller can collect declarations alongside references in the same traversal
+	// rather than standing up a second bounded walker beside this one.
+	onStruct  func(reflect.Value)
 	sites     []refSite
 	seen      map[uintptr]bool
 	truncated bool
@@ -127,7 +151,12 @@ type refWalk struct {
 // what a randomized traversal of an aliased value graph produces — hence the
 // ordered map walk in walkMap.
 func collectRefs(root any, path string, isRef func(reflect.Type) bool) ([]refSite, bool) {
-	w := refWalk{isRef: isRef, seen: map[uintptr]bool{}}
+	return collectWalk(root, path, isRef, nil)
+}
+
+// collectWalk is collectRefs with an optional per-struct hook; see refWalk.onStruct.
+func collectWalk(root any, path string, isRef func(reflect.Type) bool, onStruct func(reflect.Value)) ([]refSite, bool) {
+	w := refWalk{isRef: isRef, onStruct: onStruct, seen: map[uintptr]bool{}}
 	w.walk(reflect.ValueOf(root), path, 0)
 	// Distinct sites have distinct paths in every shape the IR declares, but two
 	// embedded structs contributing a same-named promoted field would collide;
@@ -144,6 +173,36 @@ func collectRefs(root any, path string, isRef func(reflect.Type) bool) ([]refSit
 // document it is not handed.
 func collectTypeIDs(root any, path string) ([]refSite, bool) {
 	return collectRefs(root, path, func(t reflect.Type) bool { return t == typeIDType })
+}
+
+// collectPropIDs returns every ir.PropID reference reachable from root together
+// with the set of PropIDs the same traversal saw declared, on an ir.Property.
+// Both halves come from the value graph, so a PropID-carrying field or a new
+// Property-bearing list is covered the moment it exists.
+//
+// A PropID reached as a map key is left out. The one PropID-keyed map the IR
+// declares is Content.Encoding, and checkEncodingKeys resolves those keys against
+// the properties of the model the content names — a tighter claim about the same
+// defect. Reporting both would give one defect two locations and two codes, which
+// the package doc rules out.
+func collectPropIDs(root any, path string) ([]refSite, map[ir.PropID]bool) {
+	declared := map[ir.PropID]bool{}
+	sites, _ := collectWalk(root, path,
+		func(t reflect.Type) bool { return t == propIDType },
+		func(v reflect.Value) {
+			if v.Type() != propertyType {
+				return
+			}
+			if id := v.FieldByName("ID").String(); id != "" {
+				declared[ir.PropID(id)] = true
+			}
+		})
+	// Truncation is dropped rather than returned: this walks the same document
+	// to the same cap as checkDanglingRefs, which reports ir/walk-truncated for
+	// both.
+	return slices.DeleteFunc(sites, func(s refSite) bool {
+		return strings.HasSuffix(s.where, mapKeySuffix)
+	}), declared
 }
 
 // descend walks child one level deeper, marking the walk truncated at the cap.
@@ -186,6 +245,9 @@ func (w *refWalk) walk(v reflect.Value, path string, depth int) {
 // "….TypeCommon.Examples[0]" names a step that neither encoding has — the
 // example is reached as "….Examples[0]" in both.
 func (w *refWalk) walkStruct(v reflect.Value, path string, depth int) {
+	if w.onStruct != nil {
+		w.onStruct(v)
+	}
 	t := v.Type()
 	for i := range v.NumField() {
 		f := t.Field(i)
@@ -265,7 +327,7 @@ func orderedEntries(v reflect.Value) []mapEntry {
 // of the diagnostics (invariant 7).
 func (w *refWalk) walkMap(v reflect.Value, path string, depth int) {
 	for _, e := range orderedEntries(v) {
-		w.descend(e.key, fmt.Sprintf("%s[%s].key", path, e.label), depth+1)
+		w.descend(e.key, fmt.Sprintf("%s[%s]%s", path, e.label, mapKeySuffix), depth+1)
 		w.descend(e.value, fmt.Sprintf("%s[%s]", path, e.label), depth+1)
 	}
 }

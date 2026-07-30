@@ -10,11 +10,8 @@ components:
       required: [petType]
       properties:
         petType: {type: string}
-      # No defaultMapping here, and not by choice: speakeasy/openapi v1.24.0
-      # validates every schema against the 3.1 meta-schema regardless of the
-      # document version (JSONSchema[T].Validate drops its options), so the 3.2
-      # keyword is reported as an invalid schema. Discriminator.Default therefore
-      # has no error-free witness until that is fixed upstream (GitHub #146).
+      # No defaultMapping here: it is a 3.2 keyword and this is a 3.1 document.
+      # discriminator-default-mapping.yaml is its witness.
       discriminator:
         propertyName: petType
         mapping:

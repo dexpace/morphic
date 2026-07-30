@@ -1,6 +1,7 @@
 package openapi
 
 import (
+	"encoding/base64"
 	"slices"
 	"strconv"
 	"strings"
@@ -24,6 +25,7 @@ func (l *lowerer) lowerAllOf(s *oas3.Schema, pointer, hint string) ir.TypeID {
 		l.fillModelProperties(m, s, pointer) // properties declared alongside allOf
 		l.applyCompositionRequired(m, s, pointer)
 		l.fillAdditional(m, s, pointer, hint)
+		l.applyFalseBranches(m, s, pointer) // after fillAdditional: it closes m
 		if d := l.lowerDiscriminator(s, m, pointer); d != nil {
 			m.Discriminator = d
 		}
@@ -136,22 +138,60 @@ func (l *lowerer) fillAllOf(m *ir.Model, s *oas3.Schema, pointer string) {
 	}
 }
 
+// applyFalseBranches applies the lowering a boolean `false` allOf branch calls
+// for. It runs after fillAdditional, whose result it overrides.
+//
+// A `false` branch admits nothing, so the composition it joins admits nothing.
+// ir-design §4.8 already fixes the lowering of a `false` schema in its own right
+// — a closed empty Model with an info diagnostic, which falseSchema applies —
+// and the merge did not carry that rule across composition, so the same source
+// construct lowered two ways depending on where it appeared: `allOf: [false]`
+// became an *open* empty model, the most permissive shape the IR has, for a
+// source that admits nothing.
+//
+// The composed model keeps what the other branches contributed rather than being
+// emptied to match §4.8 literally: closing it is the nearest shape the IR has,
+// and discarding the rest would trade one silent loss for another. The branch is
+// kept verbatim beside it, which is what distinguishes a composition containing
+// `false` from a model that merely wrote `additionalProperties: false` — the
+// diagnostic says so too, but a diagnostic is not part of the document.
+//
+// A `true` branch admits everything, so contributing nothing from it is exact
+// and there is nothing to report.
+func (l *lowerer) applyFalseBranches(m *ir.Model, s *oas3.Schema, pointer string) {
+	for i, b := range s.GetAllOf() {
+		if b == nil || !b.IsBool() {
+			continue
+		}
+		if v := b.GetBool(); v == nil || *v {
+			continue // `true` constrains nothing.
+		}
+		bptr := pointer + ptr("allOf", strconv.Itoa(i))
+		m.Additional = ir.AdditionalClosed
+		l.preserve(&m.Unmodeled, "openapi:allOf/"+strconv.Itoa(i),
+			ir.RawValue("false"), ir.ReasonDegradedLowering, bptr)
+		l.diag(ir.SeverityInfo, codeFalseSchema, bptr,
+			"boolean false allOf branch matches nothing, so the composition matches nothing; "+
+				"composed model closed and the branch kept verbatim under Unmodeled")
+	}
+}
+
 // preserveUnmergedBranch keeps an inline allOf branch verbatim beside the
 // composed model when the branch declares more than the merge consumes, under
 // ReasonDegradedLowering and located at the branch itself (ir-design §4.8).
 // branchIdx keys the entry, so sibling branches never overwrite one another.
 //
-// Two shapes are deliberately not covered. A boolean branch (`allOf: [false]`,
-// which matches nothing) has no keywords for a residue to be derived from, so it
-// still merges to nothing silently; giving it a lowering is a question about the
-// composed node's shape, not about which of a branch's keywords survive. And a
-// $ref branch is not an inline branch at all, so its `$ref`-adjacent siblings
-// (`allOf: [{$ref: X, description: d}]`) are still dropped: fillAllOf reads only
-// the ref off it, and giving it a node of its own would move what Base/Mixins
-// point at (GitHub #143).
+// A boolean branch has no keywords for a residue to be derived from and is
+// handled by applyFalseBranches instead, which is a question about the composed
+// node's shape rather than about which of a branch's keywords survive.
+//
+// One shape is deliberately not covered: a $ref branch is not an inline branch
+// at all, so its `$ref`-adjacent siblings (`allOf: [{$ref: X, description: d}]`)
+// are still dropped — fillAllOf reads only the ref off it, and giving it a node
+// of its own would move what Base/Mixins point at (GitHub #143).
 func (l *lowerer) preserveUnmergedBranch(m *ir.Model, bs *oas3.Schema, branchIdx int, bptr string) {
 	if bs == nil {
-		return // boolean branch; see above
+		return // boolean branch; applyFalseBranches handles it.
 	}
 	residue := unmergedBranchKeys(bs)
 	if len(residue) == 0 {
@@ -830,13 +870,13 @@ func propIDByName(m *ir.Model, name string) (ir.PropID, bool) {
 // Literals with an info diagnostic — nothing is dropped.
 func (l *lowerer) lowerEnum(s *oas3.Schema, pointer, hint string) ir.TypeID {
 	return l.internNode(pointer, hint, func(common ir.TypeCommon) ir.TypeDef {
-		members, kind, ok := l.enumMembers(s.GetEnum())
+		members, memberPrim, ok := l.enumMembers(s.GetEnum())
 		if !ok {
 			return l.enumAsUnion(s, common, pointer, hint)
 		}
 		return &ir.Enum{
 			TypeCommon: common,
-			ValueType:  enumValueType(s, kind),
+			ValueType:  enumValueType(s, memberPrim),
 			Members:    members,
 			Closed:     true,
 		}
@@ -844,27 +884,34 @@ func (l *lowerer) lowerEnum(s *oas3.Schema, pointer, hint string) ir.TypeID {
 }
 
 // enumMembers converts enum nodes into scalar members, reporting ok=false when
-// any member is non-scalar or the members are heterogeneous (mixed kinds).
-func (l *lowerer) enumMembers(nodes []values.Value) ([]ir.EnumMember, ir.ValueKind, bool) {
+// any member is non-scalar or the members are heterogeneous (mixed kinds). The
+// returned PrimKind is the one every member's kind maps to; it is meaningful
+// only when ok, and lowerEnum is reached only for a non-empty enum, so it is
+// never the zero PrimKind there.
+func (l *lowerer) enumMembers(nodes []values.Value) ([]ir.EnumMember, ir.PrimKind, bool) {
 	members := make([]ir.EnumMember, 0, len(nodes))
 	var kind ir.ValueKind
+	var prim ir.PrimKind
 	for i, node := range nodes {
 		val, err := valueFromNode(node)
-		if err != nil || !isScalarValueKind(val.Kind) {
+		if err != nil {
+			return nil, "", false
+		}
+		memberPrim, text, admissible := enumMemberForm(val)
+		if !admissible {
 			return nil, "", false
 		}
 		if i == 0 {
-			kind = val.Kind
+			kind, prim = val.Kind, memberPrim
 		} else if val.Kind != kind {
 			return nil, "", false
 		}
-		text := valueText(val)
 		members = append(members, ir.EnumMember{
 			Name:  ir.Naming{Source: text, Canonical: canonicalWords(text)},
 			Value: val,
 		})
 	}
-	return members, kind, true
+	return members, prim, true
 }
 
 // enumAsUnion lowers a heterogeneous or non-scalar enum to an exclusive Union of
@@ -909,8 +956,10 @@ func (l *lowerer) hoistLiteral(node values.Value, pointer, hint string) ir.TypeI
 }
 
 // enumValueType picks an Enum's ValueType from the schema's declared scalar
-// type, falling back to the kind inferred from its members.
-func enumValueType(s *oas3.Schema, kind ir.ValueKind) ir.PrimKind {
+// type, falling back to the primitive its members classified to. It no longer
+// re-derives that primitive from a ValueKind: enumMemberForm decided it once,
+// for the same members, so there is nothing here to disagree with.
+func enumValueType(s *oas3.Schema, memberPrim ir.PrimKind) ir.PrimKind {
 	if types := effectiveTypes(s); len(types) == 1 {
 		switch types[0] {
 		case oas3.SchemaTypeString:
@@ -923,40 +972,46 @@ func enumValueType(s *oas3.Schema, kind ir.ValueKind) ir.PrimKind {
 			return ir.PrimBool
 		}
 	}
-	switch kind {
-	case ir.ValueString:
-		return ir.PrimString
-	case ir.ValueBool:
-		return ir.PrimBool
-	case ir.ValueNumber:
-		return ir.PrimNumber
-	default:
-		return ir.PrimString
-	}
+	return memberPrim
 }
 
-// isScalarValueKind reports whether a value kind is a scalar admissible as an
-// enum member (composite and reference kinds are not).
-func isScalarValueKind(k ir.ValueKind) bool {
-	switch k {
-	case ir.ValueBool, ir.ValueString, ir.ValueNumber, ir.ValueBytes, ir.ValueSymbol:
-		return true
-	default:
-		return false
-	}
-}
-
-// valueText renders a scalar value's literal string form for use as a member's
-// source name.
-func valueText(v ir.Value) string {
+// enumMemberForm classifies one lowered value as an Enum member: the PrimKind an
+// Enum over members of that kind declares, and the literal text the member takes
+// as its source name. ok=false means the kind has no place in an Enum at all, and
+// the caller degrades the whole enum to a Union of Literals with a diagnostic —
+// nothing is dropped and nothing is guessed.
+//
+// This is the compiler's single switch over ir.ValueKind. It replaced three that
+// each fell through to a guess, so a kind none of them named was described as a
+// string by one, given no text by another, and admitted by the third. Every kind
+// ir declares is named in exactly one arm here; the default is unreachable by
+// construction, and TestEnumMemberForm_NamesEveryValueKind derives the sealed set
+// from the ir sources so a kind added there without an arm reddens rather than
+// being reclassified in silence.
+//
+// The default arm is the conservative half — refusing a kind degrades an enum
+// with a diagnostic, where admitting one would assert a type the source never
+// wrote.
+func enumMemberForm(v ir.Value) (ir.PrimKind, string, bool) {
 	switch v.Kind {
-	case ir.ValueString, ir.ValueSymbol:
-		return v.Str
+	case ir.ValueString:
+		return ir.PrimString, v.Str, true
+	case ir.ValueSymbol:
+		// An interned symbol has no primitive of its own; PrimString is the form
+		// it takes on a JSON wire. Unreachable from OpenAPI, whose values come
+		// from YAML nodes, but ValueKind is IR-wide and this is its enum home.
+		return ir.PrimString, v.Str, true
 	case ir.ValueNumber:
-		return string(v.Num)
+		return ir.PrimNumber, string(v.Num), true
 	case ir.ValueBool:
-		return strconv.FormatBool(v.Bool)
+		return ir.PrimBool, strconv.FormatBool(v.Bool), true
+	case ir.ValueBytes:
+		return ir.PrimBytes, base64.StdEncoding.EncodeToString(v.Bytes), true
+	case ir.ValueNull, ir.ValueList, ir.ValueObject, ir.ValueRefKind, ir.ValueCtor:
+		// Composite, reference and null values are not enum members: none has a
+		// primitive to declare or a literal text form to name a member by.
+		return "", "", false
 	default:
-		return ""
+		return "", "", false
 	}
 }

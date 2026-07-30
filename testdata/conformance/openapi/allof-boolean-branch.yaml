@@ -1,0 +1,27 @@
+openapi: 3.1.0
+info: {title: AllOfBooleanBranch, version: "1.0.0"}
+paths: {}
+components:
+  schemas:
+    # A boolean branch declares no keywords, so the residue derivation has
+    # nothing to rescue and the question is what the composed node should be.
+    # `false` admits nothing, so the composition admits nothing: the composed
+    # model closes, matching what ir-design §4.8 already says a bare `false`
+    # schema lowers to, and the branch is kept verbatim beside it.
+    Never:
+      allOf:
+        - false
+        - type: object
+          properties:
+            id: {type: string}
+    # `true` admits everything, so contributing nothing from it is exact and
+    # there is nothing to report.
+    Always:
+      allOf:
+        - true
+        - type: object
+          properties:
+            id: {type: string}
+    # The same rule reached the other way: a bare `false` schema in its own
+    # right, which is the lowering the composed case is being held to.
+    BareFalse: false

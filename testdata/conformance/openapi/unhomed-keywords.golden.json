@@ -1,0 +1,468 @@
+{
+  "irVersion": "0.3.0",
+  "name": "UnhomedKeywords",
+  "version": "1.0.0",
+  "docs": {},
+  "services": [
+    {
+      "id": "s/openapi/0",
+      "name": {
+        "source": "UnhomedKeywords",
+        "canonical": "unhomed_keywords"
+      },
+      "docs": {},
+      "auth": null,
+      "provenance": {
+        "source": 0
+      }
+    }
+  ],
+  "types": {
+    "t/openapi/components/schemas/EnumWithProperties": {
+      "kind": "enum",
+      "id": "t/openapi/components/schemas/EnumWithProperties",
+      "name": {
+        "source": "EnumWithProperties",
+        "canonical": "enum_with_properties"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "unmodeled": {
+        "openapi:properties": {
+          "reason": "degraded_lowering",
+          "value": {
+            "f": {
+              "type": "integer"
+            }
+          },
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/EnumWithProperties/properties"
+          }
+        }
+      },
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/EnumWithProperties"
+      },
+      "valueType": "string",
+      "members": [
+        {
+          "name": {
+            "source": "a",
+            "canonical": "a"
+          },
+          "value": {
+            "kind": "string",
+            "str": "a",
+            "bytes": null,
+            "list": null,
+            "object": null
+          },
+          "docs": {}
+        },
+        {
+          "name": {
+            "source": "b",
+            "canonical": "b"
+          },
+          "value": {
+            "kind": "string",
+            "str": "b",
+            "bytes": null,
+            "list": null,
+            "object": null
+          },
+          "docs": {}
+        }
+      ],
+      "closed": true,
+      "flags": false
+    },
+    "t/openapi/components/schemas/ObjectWithItems": {
+      "kind": "model",
+      "id": "t/openapi/components/schemas/ObjectWithItems",
+      "name": {
+        "source": "ObjectWithItems",
+        "canonical": "object_with_items"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "unmodeled": {
+        "openapi:items": {
+          "reason": "degraded_lowering",
+          "value": {
+            "type": "integer"
+          },
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/ObjectWithItems/items"
+          }
+        }
+      },
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/ObjectWithItems"
+      },
+      "properties": [
+        {
+          "id": "p/openapi/components/schemas/ObjectWithItems/properties/h",
+          "name": {
+            "source": "h",
+            "canonical": "h"
+          },
+          "wireName": "h",
+          "type": {
+            "target": "t/prim/string",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/ObjectWithItems/properties/h"
+          }
+        }
+      ],
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
+    "t/openapi/components/schemas/ScalarWithProperties": {
+      "kind": "scalar",
+      "id": "t/openapi/components/schemas/ScalarWithProperties",
+      "name": {
+        "source": "ScalarWithProperties",
+        "canonical": "scalar_with_properties"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "unmodeled": {
+        "openapi:properties": {
+          "reason": "degraded_lowering",
+          "value": {
+            "g": {
+              "type": "integer"
+            }
+          },
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/ScalarWithProperties/properties"
+          }
+        }
+      },
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/ScalarWithProperties"
+      },
+      "base": {
+        "target": "t/prim/string",
+        "nullable": false
+      }
+    },
+    "t/openapi/components/schemas/UnionWithItems": {
+      "kind": "scalar",
+      "id": "t/openapi/components/schemas/UnionWithItems",
+      "name": {
+        "source": "UnionWithItems",
+        "canonical": "union_with_items"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "unmodeled": {
+        "openapi:items": {
+          "reason": "degraded_lowering",
+          "value": {
+            "type": "string"
+          },
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/UnionWithItems/items"
+          }
+        },
+        "openapi:oneOf": {
+          "reason": "degraded_lowering",
+          "value": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "integer"
+            }
+          ],
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/UnionWithItems/oneOf"
+          }
+        }
+      },
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/UnionWithItems"
+      },
+      "base": {
+        "target": "t/prim/any",
+        "nullable": false
+      }
+    },
+    "t/openapi/components/schemas/UntypedFormat": {
+      "kind": "scalar",
+      "id": "t/openapi/components/schemas/UntypedFormat",
+      "name": {
+        "source": "UntypedFormat",
+        "canonical": "untyped_format"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "unmodeled": {
+        "openapi:format": {
+          "reason": "degraded_lowering",
+          "value": "uuid",
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/UntypedFormat/format"
+          }
+        }
+      },
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/UntypedFormat"
+      },
+      "base": {
+        "target": "t/prim/any",
+        "nullable": false
+      }
+    },
+    "t/openapi/components/schemas/UntypedItems": {
+      "kind": "scalar",
+      "id": "t/openapi/components/schemas/UntypedItems",
+      "name": {
+        "source": "UntypedItems",
+        "canonical": "untyped_items"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "unmodeled": {
+        "openapi:items": {
+          "reason": "degraded_lowering",
+          "value": {
+            "type": "string"
+          },
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/UntypedItems/items"
+          }
+        }
+      },
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/UntypedItems"
+      },
+      "base": {
+        "target": "t/prim/any",
+        "nullable": false
+      }
+    },
+    "t/openapi/components/schemas/UntypedPrefixItems": {
+      "kind": "scalar",
+      "id": "t/openapi/components/schemas/UntypedPrefixItems",
+      "name": {
+        "source": "UntypedPrefixItems",
+        "canonical": "untyped_prefix_items"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "unmodeled": {
+        "openapi:prefixItems": {
+          "reason": "degraded_lowering",
+          "value": [
+            {
+              "type": "string"
+            }
+          ],
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/UntypedPrefixItems/prefixItems"
+          }
+        }
+      },
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/UntypedPrefixItems"
+      },
+      "base": {
+        "target": "t/prim/any",
+        "nullable": false
+      }
+    },
+    "t/openapi/components/schemas/UntypedRequired": {
+      "kind": "scalar",
+      "id": "t/openapi/components/schemas/UntypedRequired",
+      "name": {
+        "source": "UntypedRequired",
+        "canonical": "untyped_required"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "unmodeled": {
+        "openapi:required": {
+          "reason": "degraded_lowering",
+          "value": [
+            "name"
+          ],
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/UntypedRequired/required"
+          }
+        }
+      },
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/UntypedRequired"
+      },
+      "base": {
+        "target": "t/prim/any",
+        "nullable": false
+      }
+    },
+    "t/prim/any": {
+      "kind": "primitive",
+      "id": "t/prim/any",
+      "name": {},
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0
+      },
+      "prim": "any"
+    },
+    "t/prim/string": {
+      "kind": "primitive",
+      "id": "t/prim/string",
+      "name": {},
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0
+      },
+      "prim": "string"
+    }
+  },
+  "servers": [
+    {
+      "name": {},
+      "urlTemplate": "/",
+      "description": {},
+      "auth": null
+    }
+  ],
+  "diagnostics": [
+    {
+      "severity": "info",
+      "code": "openapi/degraded-construct",
+      "message": "this position lowered to a node of kind \"primitive\", which has no home for items declared beside it; kept verbatim under Unmodeled",
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/UntypedItems"
+      }
+    },
+    {
+      "severity": "info",
+      "code": "openapi/degraded-construct",
+      "message": "this position lowered to a node of kind \"primitive\", which has no home for prefixItems declared beside it; kept verbatim under Unmodeled",
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/UntypedPrefixItems"
+      }
+    },
+    {
+      "severity": "info",
+      "code": "openapi/degraded-construct",
+      "message": "this position lowered to a node of kind \"primitive\", which has no home for required declared beside it; kept verbatim under Unmodeled",
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/UntypedRequired"
+      }
+    },
+    {
+      "severity": "info",
+      "code": "openapi/degraded-construct",
+      "message": "this position lowered to a node of kind \"primitive\", which has no home for format declared beside it; kept verbatim under Unmodeled",
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/UntypedFormat"
+      }
+    },
+    {
+      "severity": "info",
+      "code": "openapi/degraded-construct",
+      "message": "this position lowered to a node of kind \"enum\", which has no home for properties declared beside it; kept verbatim under Unmodeled",
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/EnumWithProperties"
+      }
+    },
+    {
+      "severity": "info",
+      "code": "openapi/degraded-construct",
+      "message": "this position lowered to a node of kind \"primitive\", which has no home for properties declared beside it; kept verbatim under Unmodeled",
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/ScalarWithProperties"
+      }
+    },
+    {
+      "severity": "info",
+      "code": "openapi/degraded-construct",
+      "message": "this position lowered to a node of kind \"model\", which has no home for items declared beside it; kept verbatim under Unmodeled",
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/ObjectWithItems"
+      }
+    },
+    {
+      "severity": "info",
+      "code": "openapi/degraded-construct",
+      "message": "this position lowered to a node of kind \"primitive\", which has no home for items declared beside it; kept verbatim under Unmodeled",
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/UnionWithItems"
+      }
+    },
+    {
+      "severity": "info",
+      "code": "openapi/degraded-construct",
+      "message": "oneOf/anyOf co-declared with structural keywords intersects with them, and the body is not a model, so it carries no composition to distribute into; union branches kept verbatim under Unmodeled",
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/UnionWithItems"
+      }
+    }
+  ],
+  "sources": [
+    {
+      "format": "openapi@3.1",
+      "path": "unhomed-keywords.yaml",
+      "hash": "093fbd1c4be0e24a7d21597c9526bdb2233b7f5a709e65c61561f900f7db0535"
+    }
+  ]
+}

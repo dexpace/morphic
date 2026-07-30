@@ -1,0 +1,46 @@
+openapi: 3.1.0
+info: {title: UnhomedKeywords, version: "1.0.0"}
+paths: {}
+components:
+  schemas:
+    # An applicator constrains an instance whether or not a type is written
+    # beside it: this says every array instance has string elements. The IR has
+    # taken no decision to read an untyped applicator as a list shape, so the
+    # position lowers to the top type and the applicator is kept verbatim rather
+    # than dropped.
+    UntypedItems: {items: {type: string}}
+    # Same shape, positional: an untyped prefixItems.
+    UntypedPrefixItems: {prefixItems: [{type: string}]}
+    # required narrows an instance without declaring one; the top type has no
+    # property set for it to narrow.
+    UntypedRequired: {required: [name]}
+    # format pairs with a declared type to select a primitive or hoist a scalar.
+    # With no type beside it, nothing reads it.
+    UntypedFormat: {format: uuid}
+    # A contradictory schema: an instance cannot be both a two-member string
+    # enum and an object. The enum is taken and the property set kept beside it,
+    # so which half the IR describes stays recoverable (ir-design §4.8).
+    EnumWithProperties:
+      type: string
+      enum: [a, b]
+      properties:
+        f: {type: integer}
+    # The same contradiction without the enum: a scalar type wins and the
+    # property set is kept.
+    ScalarWithProperties:
+      type: string
+      properties:
+        g: {type: integer}
+    # The mirror case — an object that also writes an array applicator. A Model
+    # has no element type, so items is kept beside it.
+    ObjectWithItems:
+      type: object
+      properties:
+        h: {type: string}
+      items: {type: integer}
+    # A union co-declared with an applicator. items narrows an instance without
+    # declaring a shape, so it used to count as not-a-sibling and the union
+    # lowered over it; an ir.Union has no element type either way.
+    UnionWithItems:
+      oneOf: [{type: string}, {type: integer}]
+      items: {type: string}

@@ -6,6 +6,9 @@ components:
     Holder:
       type: object
       properties:
-        color: {type: string, format: hex-color}
+        # The bound is declared beside the unknown format on purpose: the format
+        # hoists a node of its own, which is what stops the shared alias path
+        # attaching the position's constraints afterwards.
+        color: {type: string, format: hex-color, minLength: 4}
         # A password format is a redaction request, not just an encoding.
         token: {type: string, format: password}

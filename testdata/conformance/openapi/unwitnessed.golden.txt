@@ -26,7 +26,6 @@ CtorValue.Scalar
 Deprecation.Message
 Deprecation.RemovalVersion
 Deprecation.Since
-Discriminator.Default
 Discriminator.Envelope
 Discriminator.EnvelopeValueName
 Discriminator.Index

@@ -4,16 +4,12 @@
 package openapi_test // external test package — exercises only the public API
 
 import (
-	"go/ast"
-	"go/parser"
-	"go/token"
 	"io/fs"
 	"os"
 	"path/filepath"
 	"reflect"
 	"runtime"
 	"slices"
-	"strconv"
 	"strings"
 	"testing"
 
@@ -221,59 +217,11 @@ func corpusSpecs(t *testing.T) []string {
 // implementation from outside that package.
 func sealedTypeKinds(t *testing.T) []ir.TypeKind {
 	t.Helper()
-	var out []ir.TypeKind
-	for _, path := range irSourceFiles(t) {
-		f, err := parser.ParseFile(token.NewFileSet(), path, nil, parser.SkipObjectResolution)
-		require.NoError(t, err, "parsing %s", path)
-		for _, decl := range f.Decls {
-			gd, isGen := decl.(*ast.GenDecl)
-			if !isGen || gd.Tok != token.CONST {
-				continue
-			}
-			out = append(out, typeKindValues(t, gd)...)
-		}
-	}
-	require.NotEmpty(t, out, "the ir sources must declare TypeKind constants")
-	return out
-}
-
-// typeKindValues returns one const group's TypeKind values. A spec declaring
-// neither type nor value repeats the previous spec, so the group's last explicit
-// type carries forward; a spec with a value of its own declares its own type.
-func typeKindValues(t *testing.T, gd *ast.GenDecl) []ir.TypeKind {
-	t.Helper()
-	var out []ir.TypeKind
-	isKind := false
-	for _, spec := range gd.Specs {
-		vs, isValue := spec.(*ast.ValueSpec)
-		require.True(t, isValue, "const spec is not a ValueSpec: %#v", spec)
-		switch {
-		case vs.Type != nil:
-			id, isIdent := vs.Type.(*ast.Ident)
-			isKind = isIdent && id.Name == "TypeKind"
-		case len(vs.Values) > 0:
-			isKind = false
-		}
-		if !isKind {
-			continue
-		}
-		out = append(out, stringLiteralValues(t, vs)...)
-	}
-	return out
-}
-
-// stringLiteralValues returns a value spec's string-literal constant values.
-func stringLiteralValues(t *testing.T, vs *ast.ValueSpec) []ir.TypeKind {
-	t.Helper()
-	out := make([]ir.TypeKind, 0, len(vs.Names))
-	for i, name := range vs.Names {
-		require.Less(t, i, len(vs.Values), "TypeKind constant %s must declare its own value", name.Name)
-		lit, isLit := vs.Values[i].(*ast.BasicLit)
-		require.True(t, isLit && lit.Kind == token.STRING,
-			"TypeKind constant %s must be a string literal", name.Name)
-		unquoted, err := strconv.Unquote(lit.Value)
-		require.NoError(t, err, "unquoting the value of %s", name.Name)
-		out = append(out, ir.TypeKind(unquoted))
+	consts := irConstsOfType(t, "TypeKind")
+	require.NotEmpty(t, consts, "the ir sources must declare TypeKind constants")
+	out := make([]ir.TypeKind, 0, len(consts))
+	for _, c := range consts {
+		out = append(out, ir.TypeKind(c.value))
 	}
 	return out
 }

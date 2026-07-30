@@ -43,7 +43,14 @@ func (s refSite) resolves(doc *ir.Document) bool {
 // silently dropped by missing it from one of several parallel lists.
 //
 // PropID and ServiceID are intentionally absent: neither lives in a
-// document-level flat registry, so they are out of scope for Phase 1.
+// document-level flat registry, so neither can be resolved by a
+// registry-driven walk.
+//
+// PropID stays out here rather than growing a second implementation. Resolving
+// one means collecting the ir.Property values a document declares and looking
+// the ID up among them, which pass.Validate's checkPropIDRefs does; a copy of
+// that in this checker would be a second answer to maintain in step with the
+// first, for a class this walk's own mechanism cannot reach either way.
 type refKind struct {
 	registry string
 	singular string

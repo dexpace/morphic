@@ -5,6 +5,7 @@ import (
 	"os"
 	"testing"
 
+	oas3 "github.com/speakeasy-api/openapi/jsonschema/oas3"
 	soa "github.com/speakeasy-api/openapi/openapi"
 	"github.com/speakeasy-api/openapi/validation"
 	"github.com/stretchr/testify/assert"
@@ -266,4 +267,39 @@ func TestLoad_RecoverableLiteralSuppressesFindingAmongOtherScalars(t *testing.T)
 	_, diags := parseFull(t, componentSpec(`    S: {type: string, default: !custom foo, example: .5}`))
 	assert.False(t, hasDiag(diags, codeValidation+"/"+string(validation.RuleValidationInvalidSyntax)),
 		"a finding a recoverable literal explains stays suppressed: %+v", diags)
+}
+
+// TestMatchSchemas_StopsOnMatchError drives the branch no document can reach:
+// WalkItem.Match returns exactly what the matcher handed it, and the collector
+// schemaFindings passes returns nil unconditionally. A hand-built item is the
+// only way to observe the stop, and observing it is what says the walk ends
+// there rather than skipping the item and carrying on — the difference between
+// a smaller reconciliation and a wrong one.
+func TestMatchSchemas_StopsOnMatchError(t *testing.T) {
+	t.Parallel()
+	visited := 0
+	failing := soa.WalkItem{Match: func(soa.Matcher) error { return errors.New("walk stopped") }}
+	after := soa.WalkItem{Match: func(m soa.Matcher) error {
+		visited++
+		return nil
+	}}
+	matchSchemas(func(yield func(soa.WalkItem) bool) {
+		if !yield(failing) {
+			return
+		}
+		yield(after)
+	}, func(*oas3.JSONSchema[oas3.Referenceable]) error { return nil })
+	assert.Zero(t, visited, "a failed match ends the walk rather than skipping one item")
+}
+
+// TestMetaSchemaVersionArtifacts_OtherMinorsUntouched pins the gate: only 3.2
+// findings are reconciled, because the library defaults to the 3.1 meta-schema
+// and reconciling 3.0 changes what a 3.0 document reports rather than removing a
+// false positive.
+func TestMetaSchemaVersionArtifacts_OtherMinorsUntouched(t *testing.T) {
+	t.Parallel()
+	doc, _, err := unmarshal(t.Context(), []byte(minimal31))
+	require.NoError(t, err)
+	assert.Nil(t, metaSchemaVersionArtifacts(t.Context(), doc, "3.1"))
+	assert.Nil(t, metaSchemaVersionArtifacts(t.Context(), doc, "3.0"))
 }

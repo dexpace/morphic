@@ -34,6 +34,99 @@ func diagsAt(diags []ir.Diagnostic, code, pointer string) []ir.Severity {
 	return out
 }
 
+// assertUnhomedKeywords pins the keywords a position writes that the node its
+// lowering produced has nowhere to carry (GitHub #148, #151).
+//
+// Two source shapes reach it. A contradictory schema takes one half and keeps the
+// other beside it, which is ir-design §4.8's rule about a degraded lowering. And
+// an applicator with no `type` beside it still constrains an instance —
+// {items: {type: string}} constrains every array — where the position lowers to
+// the top type, which understates it entirely.
+func assertUnhomedKeywords(t *testing.T, doc *ir.Document, diags []ir.Diagnostic) {
+	untyped := map[string]struct{ keyword, raw string }{
+		"UntypedItems":       {"items", `{"type":"string"}`},
+		"UntypedPrefixItems": {"prefixItems", `[{"type":"string"}]`},
+		"UntypedRequired":    {"required", `["name"]`},
+		"UntypedFormat":      {"format", `"uuid"`},
+	}
+	for name, want := range untyped {
+		sc, ok := doc.Types[namedID(name)].(*ir.Scalar)
+		require.True(t, ok, "%s owns a node of its own to keep the keyword on", name)
+		require.NotNil(t, sc.Base)
+		assert.Equal(t, ir.TypeID("t/prim/any"), sc.Base.Target,
+			"%s still lowers to the top type; only the loss is now recorded", name)
+		entry := unmodeledEntry(t, sc.Unmodeled, "openapi:"+want.keyword)
+		assert.Equal(t, ir.ReasonDegradedLowering, entry.Reason)
+		assert.JSONEq(t, want.raw, string(entry.Value))
+		assert.Equal(t, []ir.Severity{ir.SeverityInfo},
+			diagsAt(diags, "openapi/degraded-construct", "/components/schemas/"+name))
+	}
+
+	e, ok := doc.Types[namedID("EnumWithProperties")].(*ir.Enum)
+	require.True(t, ok, "the enum half is taken")
+	assert.JSONEq(t, `{"f":{"type":"integer"}}`,
+		string(unmodeledEntry(t, e.Unmodeled, "openapi:properties").Value),
+		"the property set the enum contradicts is kept beside it")
+
+	sc, ok := doc.Types[namedID("ScalarWithProperties")].(*ir.Scalar)
+	require.True(t, ok, "the scalar half is taken")
+	assert.JSONEq(t, `{"g":{"type":"integer"}}`,
+		string(unmodeledEntry(t, sc.Unmodeled, "openapi:properties").Value))
+
+	m, ok := doc.Types[namedID("ObjectWithItems")].(*ir.Model)
+	require.True(t, ok)
+	assert.JSONEq(t, `{"type":"integer"}`,
+		string(unmodeledEntry(t, m.Unmodeled, "openapi:items").Value),
+		"a Model has no element type, so the array applicator is kept beside it")
+	_, ok = propByWire(m, "h")
+	assert.True(t, ok, "the half that did lower is untouched")
+
+	// The union case reaches this through hasUnionSiblings, which used to treat
+	// items as not-a-sibling and lower the union over it. Both halves survive:
+	// the applicator here, the branches under the union's own keys.
+	u, ok := doc.Types[namedID("UnionWithItems")].(*ir.Scalar)
+	require.True(t, ok, "a union with siblings lowers its structural body and keeps the union")
+	assert.JSONEq(t, `{"type":"string"}`,
+		string(unmodeledEntry(t, u.Unmodeled, "openapi:items").Value))
+	assert.JSONEq(t, `[{"type":"string"},{"type":"integer"}]`,
+		string(unmodeledEntry(t, u.Unmodeled, "openapi:oneOf").Value))
+}
+
+// assertAllOfBooleanBranch pins the lowering of a boolean allOf branch, which
+// declares no keywords and so has no residue to rescue (GitHub #154).
+//
+// The claim is that `false` lowers the same way wherever it appears. ir-design
+// §4.8 fixes a bare `false` schema as a closed empty Model with an info
+// diagnostic; before this, the same construct as a branch composed an *open*
+// empty model — the most permissive shape the IR has, for a source that admits
+// nothing.
+func assertAllOfBooleanBranch(t *testing.T, doc *ir.Document, diags []ir.Diagnostic) {
+	never, ok := doc.Types[namedID("Never")].(*ir.Model)
+	require.True(t, ok)
+	assert.Equal(t, ir.AdditionalClosed, never.Additional,
+		"a false conjunct closes the composition, as a bare false schema closes its own model")
+	entry := unmodeledEntry(t, never.Unmodeled, "openapi:allOf/0")
+	assert.Equal(t, ir.ReasonDegradedLowering, entry.Reason)
+	assert.JSONEq(t, `false`, string(entry.Value),
+		"the branch is kept, so `false` stays distinguishable from additionalProperties: false")
+	assert.Equal(t, []ir.Severity{ir.SeverityInfo},
+		diagsAt(diags, "openapi/false-schema", "/components/schemas/Never/allOf/0"))
+	_, ok = propByWire(never, "id")
+	assert.True(t, ok, "the other branch still contributes; closing is not emptying")
+
+	always, ok := doc.Types[namedID("Always")].(*ir.Model)
+	require.True(t, ok)
+	assert.Empty(t, always.Additional, "a true conjunct constrains nothing, so it closes nothing")
+	assert.Empty(t, always.Unmodeled, "and there is nothing about it to keep")
+	assert.Empty(t, diagsAt(diags, "openapi/false-schema", "/components/schemas/Always/allOf/0"),
+		"nor anything to report")
+
+	bare, ok := doc.Types[namedID("BareFalse")].(*ir.Model)
+	require.True(t, ok)
+	assert.Equal(t, ir.AdditionalClosed, bare.Additional, "the rule the composed case is held to")
+	assert.Empty(t, bare.Properties)
+}
+
 // assertAllOfInlineResidue pins the residue of an inline allOf branch: the merge
 // reads only its properties and required list, so whatever else the branch wrote
 // survives beside the composed model rather than vanishing into it (GitHub #123).

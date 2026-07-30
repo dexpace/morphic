@@ -28,6 +28,7 @@ func Validate(doc *ir.Document) []ir.Diagnostic {
 	diags = append(diags, checkServerIndices(doc)...)
 	diags = append(diags, checkResponseIndices(doc)...)
 	diags = append(diags, checkEncodingKeys(doc)...)
+	diags = append(diags, checkPropIDRefs(doc)...)
 	diags = append(diags, checkDiscriminators(doc)...)
 	diags = append(diags, checkDuplicateWireNames(doc)...)
 	diags = append(diags, checkParamBindings(doc)...)
@@ -132,6 +133,50 @@ func appendSuccessStatusDiags(dst []ir.Diagnostic, status map[int]int, declared 
 	return dst
 }
 
+// checkPropIDRefs reports every PropID a document carries that names no property
+// it declares.
+//
+// Retyping Content.Encoding made one carrier of a PropID honest about its shape,
+// and checkEncodingKeys resolves those keys; every other carrier was resolved by
+// nothing. PropPath.Segments, ParamPath.Segments, HTTPParamBinding.ParamPath and
+// Discriminator.Property are all invisible to checkDanglingRefs, because that
+// walk is registry-driven and a PropID addresses no registry — a property is a
+// position inside its model, so resolving one means finding the model that owns
+// it. Nothing produces a bad one today, since each is derived from the pointer
+// that interned the thing it names; what was missing is that a bad one would have
+// gone unreported.
+//
+// The claim is membership: the ID names a property the document declares
+// somewhere. Reflection supplies the sites but not the root each path is meant to
+// be walked from, and a root read off a field name would be the hand-maintained
+// enumeration this avoids. checkDiscriminators makes the tighter, model-scoped
+// claim for the one carrier whose root is written down.
+//
+// The code carries the ir/ namespace for the reason checkEncodingKeys does: it
+// names the defect rather than the finder, so a second checker growing this check
+// adopts the code instead of forcing a rename. Only this pass reports it today —
+// irverify's walk is registry-driven and cannot reach the class at all.
+//
+// One member of the same class is deliberately left unchecked. Docs.Description
+// is CommonMark that may carry {t:TypeID} cross-reference tokens for emitters to
+// resolve (ir/docs.go, normative at ir-design §12), so a description naming a type
+// that does not exist is a broken reference inside a plain string, invisible here
+// for the same reason a PropID was. Reaching it needs a token parser rather than a
+// lookup, and a false positive inside prose is noisier than a missing check.
+func checkPropIDRefs(doc *ir.Document) []ir.Diagnostic {
+	sites, declared := collectPropIDs(doc, "doc")
+	var diags []ir.Diagnostic
+	for _, s := range sites {
+		if declared[ir.PropID(s.id)] {
+			continue
+		}
+		diags = append(diags, diag(ir.SeverityError, "ir/dangling-prop-ref",
+			fmt.Sprintf("prop reference %q at %s resolves to no property declared in the document", s.id, s.where),
+			s.where))
+	}
+	return diags
+}
+
 // checkEncodingKeys reports Content.Encoding keys that name no property of the
 // model the content's Type addresses.
 //
@@ -175,7 +220,7 @@ func appendEncodingKeyDiags(dst []ir.Diagnostic, doc *ir.Document, payload *ir.P
 			continue
 		}
 		at := fmt.Sprintf("%s/contents/%d", where, i)
-		dst = appendUnknownPartDiags(dst, c, contentPartProps(doc, c.Type.Target), at)
+		dst = appendUnknownPartDiags(dst, c, exposedProps(doc, c.Type.Target), at)
 	}
 	return dst
 }
@@ -196,20 +241,22 @@ func appendUnknownPartDiags(dst []ir.Diagnostic, c ir.Content, parts map[ir.Prop
 	return dst
 }
 
-// contentPartProps returns the property IDs a content's body model exposes as
-// parts: its own, plus the ones it composes in (§4.3), which is the flat set an
-// emitter renders. A target naming no model — one the registry does not declare,
-// or the empty target — exposes none, so every key on such a content is reported
-// beside whatever checkDanglingRefs says about the target itself: the two make
-// different claims, as with checkMapping.
+// exposedProps returns the property IDs a type exposes: its own, plus the ones it
+// composes in (§4.3), which is the flat set an emitter renders. A root naming no
+// model — one the registry does not declare, or the empty target — exposes none,
+// so every reference against such a root is reported beside whatever
+// checkDanglingRefs says about the root itself: the two make different claims, as
+// with checkMapping.
 //
-// A body typed by an alias scalar exposes the parts of the model its Base names.
-// A $ref carrying siblings hoists exactly that shape, so it is how an ordinary
-// referenced multipart body arrives here.
+// It answers the two checks with a root written down — a content's multipart
+// parts and a model discriminator's tag property. A body typed by an alias scalar
+// exposes the parts of the model its Base names; a $ref carrying siblings hoists
+// exactly that shape, so it is how an ordinary referenced multipart body arrives
+// here.
 //
 // The walk is iterative with a visited set, so a cyclic composition or alias
 // chain terminates and the finite registry bounds it.
-func contentPartProps(doc *ir.Document, root ir.TypeID) map[ir.PropID]bool {
+func exposedProps(doc *ir.Document, root ir.TypeID) map[ir.PropID]bool {
 	props := map[ir.PropID]bool{}
 	seen := map[ir.TypeID]bool{}
 	queue := []ir.TypeID{root}
@@ -350,14 +397,34 @@ func checkUnionDiscriminator(doc *ir.Document, u *ir.Union) []ir.Diagnostic {
 }
 
 // checkModelDiscriminator requires each mapping target to be a declared subtype
-// of the discriminated base model.
+// of the discriminated base model, and the tag property to be one this model
+// exposes.
 func checkModelDiscriminator(doc *ir.Document, m *ir.Model) []ir.Diagnostic {
 	if m.Discriminator == nil {
 		return nil
 	}
-	return checkMapping(doc, m.Discriminator, string(m.ID), func(target ir.TypeID) bool {
+	diags := checkDiscriminatorProperty(doc, m)
+	return append(diags, checkMapping(doc, m.Discriminator, string(m.ID), func(target ir.TypeID) bool {
 		return isSubtype(doc, target, m.ID)
-	})
+	})...)
+}
+
+// checkDiscriminatorProperty requires a model discriminator's tag property to be
+// one the model exposes — its own, or one it composes in.
+//
+// checkPropIDRefs already holds every PropID to naming a property the document
+// declares somewhere. This is the tighter claim available where the root is
+// written down: a tag on a property of some unrelated model routes nothing, and
+// an emitter building a decoder reads the tag off *this* model's instance.
+func checkDiscriminatorProperty(doc *ir.Document, m *ir.Model) []ir.Diagnostic {
+	prop := m.Discriminator.Property
+	if prop == "" || exposedProps(doc, m.ID)[prop] {
+		return nil
+	}
+	where := string(m.ID)
+	return []ir.Diagnostic{diag(ir.SeverityError, "pass/discriminator-unknown-property",
+		fmt.Sprintf("discriminator on %s tags property %q, which the model neither declares nor composes in", where, prop),
+		where)}
 }
 
 // checkMapping validates a discriminator's wire-value mapping: every target must
