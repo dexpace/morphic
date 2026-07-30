@@ -37,16 +37,16 @@ func (l *lowerer) schemaRefHomed(js *oas3.JSONSchema[oas3.Referenceable], pointe
 	if l.depth > maxSchemaDepth {
 		l.diag(ir.SeverityError, diag.DegradedConstruct, pointer,
 			"schema nesting exceeds %d; lowered as any", maxSchemaDepth)
-		return l.primRef(ir.PrimAny)
+		return l.types.PrimRef(ir.PrimAny)
 	}
 	if js == nil {
-		return l.primRef(ir.PrimAny)
+		return l.types.PrimRef(ir.PrimAny)
 	}
 	if js.IsBool() {
 		if b := js.GetBool(); b != nil && !*b {
 			return ir.TypeRef{Target: l.falseSchema(pointer, hint)}
 		}
-		return l.primRef(ir.PrimAny)
+		return l.types.PrimRef(ir.PrimAny)
 	}
 	// Past the IsBool check, the either's left schema is always set (an empty
 	// either reads as a bool), so GetSchema never returns nil here.
@@ -94,7 +94,7 @@ func (l *lowerer) refTypeRef(js *oas3.JSONSchema[oas3.Referenceable], pointer st
 	if !ok {
 		l.diag(ir.SeverityError, diag.UnresolvedRef, pointer,
 			"unresolved $ref %q", ref)
-		return l.primRef(ir.PrimAny)
+		return l.types.PrimRef(ir.PrimAny)
 	}
 	return ir.TypeRef{Target: id, Nullable: l.refNullable(js)}
 }

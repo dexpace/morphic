@@ -149,10 +149,11 @@ func (l *lowerer) schemaConstraints(s *oas3.Schema, pointer string) *ir.Constrai
 // constraints the schema carried are attached so a scalar component never drops
 // them.
 func (l *lowerer) internAlias(pointer, hint string, target ir.TypeRef, constraints *ir.Constraints) ir.TypeID {
-	return l.internNode(pointer, hint, func(common ir.TypeCommon) ir.TypeDef {
+	return internNode(l.ctx, l.types, pointer, hint, func(common ir.TypeCommon) ir.TypeDef {
 		base := target
 		return &ir.Scalar{TypeCommon: common, Base: &base, Constraints: constraints}
 	})
+
 }
 
 // schemaBody lowers a concrete (non-reference) schema body to a TypeRef and
@@ -355,7 +356,8 @@ func (l *lowerer) lowerBesideUnmodeledUnion(s *oas3.Schema, pointer, hint string
 // Unmodeled. A validation-only union joins §4.7's keyword family and is reported
 // with it; anything else is a §4.8 degradation and says so.
 func (l *lowerer) preserveUnionSiblings(id ir.TypeID, s *oas3.Schema, pointer string, reason ir.UnmodeledReason, why string) {
-	td, ok := l.registeredNode(id, pointer)
+	td, ok, diags := registeredNode(l.ctx, l.types, id, pointer)
+	l.diags.AppendAll(diags)
 	if !ok {
 		return
 	}
@@ -384,11 +386,12 @@ func (l *lowerer) preserveUnionSiblings(id ir.TypeID, s *oas3.Schema, pointer st
 // falseSchema hoists a boolean `false` schema as a closed empty model (it
 // matches nothing) and records one info diagnostic on first visit.
 func (l *lowerer) falseSchema(pointer, hint string) ir.TypeID {
-	return l.internNode(pointer, hint, func(common ir.TypeCommon) ir.TypeDef {
+	return internNode(l.ctx, l.types, pointer, hint, func(common ir.TypeCommon) ir.TypeDef {
 		l.diag(ir.SeverityInfo, diag.FalseSchema, pointer,
 			"boolean false schema matches nothing; lowered as a closed empty model")
 		return &ir.Model{TypeCommon: common, Additional: ir.AdditionalClosed}
 	})
+
 }
 
 // lower interns the inline schema at pointer and returns its TypeID. Value
@@ -512,7 +515,8 @@ func unhomedKeywords(s *oas3.Schema, td ir.TypeDef) []string {
 // the position's constraints too, because owning the pointer is what stops
 // hoistDeclarationHome attaching them afterwards.
 func (l *lowerer) preserveUnhomedKeywords(s *oas3.Schema, pointer, hint string, id ir.TypeID) ir.TypeID {
-	td, ok := l.registeredNode(id, pointer)
+	td, ok, diags := registeredNode(l.ctx, l.types, id, pointer)
+	l.diags.AppendAll(diags)
 	if !ok {
 		return id
 	}
@@ -532,7 +536,8 @@ func (l *lowerer) preserveUnhomedKeywords(s *oas3.Schema, pointer, hint string, 
 // reports them once, naming the form the lowering took so a reader is told which
 // half of a contradictory schema the IR describes.
 func (l *lowerer) recordUnhomedKeywords(owner ir.TypeID, s *oas3.Schema, unhomed []string, kind ir.TypeKind, pointer string) {
-	td, ok := l.registeredNode(owner, pointer)
+	td, ok, diags := registeredNode(l.ctx, l.types, owner, pointer)
+	l.diags.AppendAll(diags)
 	if !ok {
 		return
 	}
@@ -572,13 +577,13 @@ func (l *lowerer) lowerUntyped(s *oas3.Schema, pointer, hint string) ir.TypeID {
 	if props := s.GetProperties(); props != nil && props.Len() > 0 {
 		return l.lowerModel(s, pointer, hint)
 	}
-	return l.primID(ir.PrimAny)
+	return l.types.PrimID(ir.PrimAny)
 }
 
 // lowerUnion hoists a multi-typed schema (e.g. type: [string, integer]) as an
 // exclusive, untagged union with one variant per declared type.
 func (l *lowerer) lowerUnion(s *oas3.Schema, pointer, hint string, types []oas3.SchemaType) ir.TypeID {
-	return l.internNode(pointer, hint, func(common ir.TypeCommon) ir.TypeDef {
+	return internNode(l.ctx, l.types, pointer, hint, func(common ir.TypeCommon) ir.TypeDef {
 		variants := make([]ir.Variant, 0, len(types))
 		for i, st := range types {
 			vptr := pointer + ids.Ptr("type", strconv.Itoa(i))
@@ -593,6 +598,7 @@ func (l *lowerer) lowerUnion(s *oas3.Schema, pointer, hint string, types []oas3.
 			Exclusive:  true,
 		}
 	})
+
 }
 
 // lowerModel hoists an object schema as a Model. This task lowers only the
@@ -604,7 +610,7 @@ func (l *lowerer) lowerUnion(s *oas3.Schema, pointer, hint string, types []oas3.
 // fallback because an object-shaped schema owns its node before that fallback
 // would run, so the fallback never fires for one (GitHub #129).
 func (l *lowerer) lowerModel(s *oas3.Schema, pointer, hint string) ir.TypeID {
-	return l.internNode(pointer, hint, func(common ir.TypeCommon) ir.TypeDef {
+	return internNode(l.ctx, l.types, pointer, hint, func(common ir.TypeCommon) ir.TypeDef {
 		m := &ir.Model{TypeCommon: common, Constraints: l.schemaConstraints(s, pointer)}
 		l.fillModelProperties(m, s, pointer)
 		l.fillAdditional(m, s, pointer, hint)
@@ -613,6 +619,7 @@ func (l *lowerer) lowerModel(s *oas3.Schema, pointer, hint string) ir.TypeID {
 		}
 		return m
 	})
+
 }
 
 // fillModelProperties lowers a model's own properties in source order, each with
@@ -804,7 +811,7 @@ func (l *lowerer) fillAdditional(m *ir.Model, s *oas3.Schema, pointer, hint stri
 	}
 	if patterns := l.patternProps(s, pointer, hint); len(patterns) > 0 {
 		if m.AdditionalProps == nil {
-			m.AdditionalProps = &ir.AdditionalProps{Value: l.primRef(ir.PrimAny)}
+			m.AdditionalProps = &ir.AdditionalProps{Value: l.types.PrimRef(ir.PrimAny)}
 		}
 		m.AdditionalProps.Patterns = patterns
 	}
@@ -870,7 +877,7 @@ func (l *lowerer) scalarTypeID(s *oas3.Schema, st oas3.SchemaType, pointer, hint
 		return l.hoistFormatScalar(s, baseForType(st), format, pointer, hint)
 	}
 	if !declaresContent(s) {
-		return l.primID(prim)
+		return l.types.PrimID(prim)
 	}
 	return l.hoistContentScalar(s, prim, pointer, hint)
 }
@@ -883,9 +890,9 @@ func (l *lowerer) scalarTypeID(s *oas3.Schema, st oas3.SchemaType, pointer, hint
 // already owns and returns early. A scalar that hoisted because it wrote a
 // format must not lose the bounds it wrote beside it (invariant 2).
 func (l *lowerer) hoistByteScalar(s *oas3.Schema, pointer, hint string) ir.TypeID {
-	return l.internNode(pointer, hint, func(common ir.TypeCommon) ir.TypeDef {
-		base := l.primRef(ir.PrimBytes)
-		wire := l.primRef(ir.PrimString)
+	return internNode(l.ctx, l.types, pointer, hint, func(common ir.TypeCommon) ir.TypeDef {
+		base := l.types.PrimRef(ir.PrimBytes)
+		wire := l.types.PrimRef(ir.PrimString)
 		enc := l.scalarEncoding(s, "base64", &common, pointer)
 		enc.WireType = &wire
 		return &ir.Scalar{
@@ -895,13 +902,14 @@ func (l *lowerer) hoistByteScalar(s *oas3.Schema, pointer, hint string) ir.TypeI
 			Constraints: l.schemaConstraints(s, pointer),
 		}
 	})
+
 }
 
 // hoistFormatScalar hoists a scalar over base carrying an unknown format as its
 // encoding name, preserving the format losslessly.
 func (l *lowerer) hoistFormatScalar(s *oas3.Schema, base ir.PrimKind, format, pointer, hint string) ir.TypeID {
-	return l.internNode(pointer, hint, func(common ir.TypeCommon) ir.TypeDef {
-		baseRef := l.primRef(base)
+	return internNode(l.ctx, l.types, pointer, hint, func(common ir.TypeCommon) ir.TypeDef {
+		baseRef := l.types.PrimRef(base)
 		enc := l.scalarEncoding(s, format, &common, pointer)
 		return &ir.Scalar{
 			TypeCommon:  common,
@@ -910,6 +918,7 @@ func (l *lowerer) hoistFormatScalar(s *oas3.Schema, base ir.PrimKind, format, po
 			Constraints: l.schemaConstraints(s, pointer),
 		}
 	})
+
 }
 
 // hoistContentScalar hoists a scalar over the shared primitive a known
@@ -917,8 +926,8 @@ func (l *lowerer) hoistFormatScalar(s *oas3.Schema, base ir.PrimKind, format, po
 // of its own to sit on. It carries the position's value constraints for the
 // reason hoistByteScalar records.
 func (l *lowerer) hoistContentScalar(s *oas3.Schema, prim ir.PrimKind, pointer, hint string) ir.TypeID {
-	return l.internNode(pointer, hint, func(common ir.TypeCommon) ir.TypeDef {
-		base := l.primRef(prim)
+	return internNode(l.ctx, l.types, pointer, hint, func(common ir.TypeCommon) ir.TypeDef {
+		base := l.types.PrimRef(prim)
 		enc := l.scalarEncoding(s, "", &common, pointer)
 		return &ir.Scalar{
 			TypeCommon:  common,
@@ -927,6 +936,7 @@ func (l *lowerer) hoistContentScalar(s *oas3.Schema, prim ir.PrimKind, pointer, 
 			Constraints: l.schemaConstraints(s, pointer),
 		}
 	})
+
 }
 
 // scalarEncoding builds the Encoding a scalar position declares: the 2020-12

@@ -27,19 +27,20 @@ import (
 // branches contribute their properties, each carrying provenance into the
 // allOf branch it came from.
 func (l *lowerer) lowerAllOf(s *oas3.Schema, pointer, hint string) ir.TypeID {
-	return l.internNode(pointer, hint, func(common ir.TypeCommon) ir.TypeDef {
+	return internNode(l.ctx, l.types, pointer, hint, func(common ir.TypeCommon) ir.TypeDef {
 		m := &ir.Model{TypeCommon: common}
 		l.fillAllOf(m, s, pointer)
-		l.fillModelProperties(m, s, pointer) // properties declared alongside allOf
+		l.fillModelProperties(m, s, pointer)
 		l.applyCompositionRequired(m, s, pointer)
 		l.fillAdditional(m, s, pointer, hint)
-		l.applyFalseBranches(m, s, pointer) // after fillAdditional: it closes m
+		l.applyFalseBranches(m, s, pointer)
 		if d := l.lowerDiscriminator(s, m, pointer); d != nil {
 			m.Discriminator = d
 		}
 		m.DiscriminatorValue = l.subtypeDiscriminatorValue(s, common.ID, pointer)
 		return m
 	})
+
 }
 
 // requiredEntry is one `required` name declared somewhere in an allOf
@@ -434,9 +435,10 @@ func (l *lowerer) lowerOneOfAnyOf(s *oas3.Schema, pointer, hint string) ir.TypeR
 		ref.Nullable = true
 		return ref
 	}
-	tid := l.internNode(pointer, hint, func(common ir.TypeCommon) ir.TypeDef {
+	tid := internNode(l.ctx, l.types, pointer, hint, func(common ir.TypeCommon) ir.TypeDef {
 		return l.buildUnion(s, common, pointer, l.schemaRef)
 	})
+
 	return ir.TypeRef{Target: tid, Nullable: schemaAdmitsNull(s)}
 }
 
@@ -671,13 +673,14 @@ func (l *lowerer) buildUnion(s *oas3.Schema, common ir.TypeCommon, pointer strin
 // own properties (ir-design §4.3) alongside its branch, so the composition is
 // carried on every variant rather than merged into one or dropped.
 func (l *lowerer) lowerDistributedUnion(s *oas3.Schema, pointer, hint string) ir.TypeID {
-	id := l.internNode(pointer, hint, func(common ir.TypeCommon) ir.TypeDef {
+	id := internNode(l.ctx, l.types, pointer, hint, func(common ir.TypeCommon) ir.TypeDef {
 		body := composedBody{schema: s, pointer: pointer, hint: hint, id: common.ID}
 		return l.buildUnion(s, common, pointer,
 			func(b *oas3.JSONSchema[oas3.Referenceable], vptr, vhint string) ir.TypeRef {
 				return l.composedVariant(body, b, vptr, vhint)
 			})
 	})
+
 	l.diag(ir.SeverityInfo, diag.CompositionLowering, pointer,
 		"oneOf/anyOf co-declared with structural keywords; the composition is distributed across the union variants")
 	return id
@@ -713,7 +716,7 @@ func (l *lowerer) composedVariant(body composedBody,
 	// pointer still finds the branch rather than the variant.
 	branch := l.schemaRef(b, vptr, vhint)
 	id := ids.ComposedType(vptr)
-	common := l.commonFor(id, vptr, body.hint+"_"+vhint)
+	common := commonFor(l.ctx, id, vptr, body.hint+"_"+vhint)
 	l.types.Register(id, l.buildComposedVariant(body, branch.Target, common))
 	return ir.TypeRef{Target: id}
 }
@@ -934,7 +937,7 @@ func propIDByName(m *ir.Model, name string) (ir.PropID, bool) {
 // non-scalar member set has no Enum home, so it falls back to a Union of
 // Literals with an info diagnostic — nothing is dropped.
 func (l *lowerer) lowerEnum(s *oas3.Schema, pointer, hint string) ir.TypeID {
-	return l.internNode(pointer, hint, func(common ir.TypeCommon) ir.TypeDef {
+	return internNode(l.ctx, l.types, pointer, hint, func(common ir.TypeCommon) ir.TypeDef {
 		members, memberPrim, ok := l.enumMembers(s.GetEnum())
 		if !ok {
 			return l.enumAsUnion(s, common, pointer, hint)
@@ -946,6 +949,7 @@ func (l *lowerer) lowerEnum(s *oas3.Schema, pointer, hint string) ir.TypeID {
 			Closed:     true,
 		}
 	})
+
 }
 
 // enumMembers converts enum nodes into scalar members, reporting ok=false when
@@ -1009,7 +1013,7 @@ func (l *lowerer) enumAsUnion(s *oas3.Schema, common ir.TypeCommon, pointer, hin
 // component's stable named ID) and each individual member of a heterogeneous
 // enum (enumAsUnion, always an anonymous sub-pointer).
 func (l *lowerer) hoistLiteral(node values.Value, pointer, hint string) ir.TypeID {
-	return l.internNode(pointer, hint, func(common ir.TypeCommon) ir.TypeDef {
+	return internNode(l.ctx, l.types, pointer, hint, func(common ir.TypeCommon) ir.TypeDef {
 		val, err := value.FromNode(node)
 		if err != nil {
 			l.diag(ir.SeverityWarning, diag.DegradedConstruct, pointer,
@@ -1018,6 +1022,7 @@ func (l *lowerer) hoistLiteral(node values.Value, pointer, hint string) ir.TypeI
 		}
 		return &ir.Literal{TypeCommon: common, Value: val}
 	})
+
 }
 
 // enumValueType picks an Enum's ValueType from the schema's declared scalar

@@ -112,7 +112,7 @@ func (l *lowerer) appendDiag(d ir.Diagnostic) { l.diags.Append(d) }
 // lowerArray hoists an array schema as a Tuple when prefixItems is present, else
 // a List over its item schema with its collection constraints.
 func (l *lowerer) lowerArray(s *oas3.Schema, pointer, hint string) ir.TypeID {
-	return l.internNode(pointer, hint, func(common ir.TypeCommon) ir.TypeDef {
+	return internNode(l.ctx, l.types, pointer, hint, func(common ir.TypeCommon) ir.TypeDef {
 		if prefix := s.GetPrefixItems(); len(prefix) > 0 {
 			return l.buildTuple(s, common, pointer, hint, prefix)
 		}
@@ -123,6 +123,7 @@ func (l *lowerer) lowerArray(s *oas3.Schema, pointer, hint string) ir.TypeID {
 		}
 		return list
 	})
+
 }
 
 // extensions lowers ext's x-* extensions into namespaced Unmodeled, recording

@@ -297,7 +297,7 @@ func TestBodyModelPointer_NoModelBehindBody(t *testing.T) {
 	l.types.Register("t/cycle/b", &ir.Scalar{
 		TypeCommon: ir.TypeCommon{ID: "t/cycle/b"}, Base: &ir.TypeRef{Target: "t/cycle/a"},
 	})
-	prim := l.primID(ir.PrimString)
+	prim := l.types.PrimID(ir.PrimString)
 
 	cases := []struct {
 		name string
@@ -1230,7 +1230,7 @@ func TestPropIDByWire_DeadEnds(t *testing.T) {
 	l.types.Register("t/model/cycle", &ir.Model{
 		TypeCommon: ir.TypeCommon{ID: "t/model/cycle"}, Base: &ir.TypeRef{Target: "t/model/cycle"},
 	})
-	prim := l.primID(ir.PrimString)
+	prim := l.types.PrimID(ir.PrimString)
 
 	cases := []struct {
 		name string
