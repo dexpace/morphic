@@ -8,6 +8,7 @@ import (
 
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/ids"
+	"github.com/dexpace/morphic/compilers/openapi/internal/value"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -168,7 +169,7 @@ func appendExampleAt(out []ir.Example, diags []ir.Diagnostic, node *yaml.Node,
 	srcIndex int, base string, seg ...string,
 ) ([]ir.Example, []ir.Diagnostic) {
 	at := base + ids.Ptr(seg...)
-	v, err := valueFromNode(node)
+	v, err := value.FromNode(node)
 	if err != nil {
 		return out, append(diags, diag.Newf(ir.SeverityWarning, diag.DegradedConstruct,
 			ir.Provenance{Source: srcIndex, Pointer: at}, "example: %s", err.Error()))

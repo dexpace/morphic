@@ -18,6 +18,7 @@ import (
 
 	"github.com/dexpace/morphic/compilers"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
+	"github.com/dexpace/morphic/compilers/openapi/internal/value"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -247,7 +248,7 @@ func isNumericBoundKeyword(verr validation.Error) bool {
 // A literal is only a candidate cause when json.Valid rejects its source text —
 // that is the grammar the library's YAML-to-JSON conversion has to satisfy, so a
 // spelling JSON already accepts provoked nothing and cannot excuse the finding.
-// Every rejected literal must then be one numericLiteral recovers, the very
+// Every rejected literal must then be one value.NumericLiteral recovers, the very
 // conversion the lowerer will run; a single unrecoverable one (.inf) keeps the
 // finding. Because the scan covers every numeric scalar under the node, no
 // candidate cause goes unclassified.
@@ -260,7 +261,7 @@ func invalidSyntaxOnValidNumbers(node *yaml.Node) bool {
 		if json.Valid([]byte(scalar.Value)) {
 			return
 		}
-		if _, err := numericLiteral(scalar); err != nil {
+		if _, err := value.NumericLiteral(scalar); err != nil {
 			unrepresentable = true
 			return
 		}

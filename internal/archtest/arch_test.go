@@ -53,7 +53,12 @@ var rules = map[string][]string{
 	// the compiler would be able to derive one from something other than a
 	// source coordinate.
 	"compilers/openapi/internal/ids": {module + "/ir", module + "/compilers/compile"},
-	"pass":                            {module + "/ir"},
+	// Scalar and BigVal lowering. It reaches ir for the value types and yaml for
+	// the node it reads, and nothing else: a value is decided by its own wire
+	// spelling, so a package that could reach the compiler would be able to let a
+	// surrounding schema type change what a literal means.
+	"compilers/openapi/internal/value": {module + "/ir", "gopkg.in/yaml.v3"},
+	"pass":                             {module + "/ir"},
 	"engine": {module + "/ir", module + "/compilers", module + "/compilers/openapi",
 		module + "/pass", "gopkg.in/yaml.v3"},
 	"cmd/morphic":         {module + "/ir", module + "/engine"},

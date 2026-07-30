@@ -15,6 +15,7 @@ import (
 	"github.com/dexpace/morphic/compilers/compile"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/ids"
+	"github.com/dexpace/morphic/compilers/openapi/internal/value"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -746,7 +747,7 @@ func (l *lowerer) fillPropertyDefault(p *ir.Property, ref, tgt *oas3.Schema, poi
 	if node == nil {
 		return
 	}
-	v, err := valueFromNode(node)
+	v, err := value.FromNode(node)
 	if err != nil {
 		l.diag(ir.SeverityWarning, diag.DegradedConstruct, pointer, "default: %s", err.Error())
 		return
@@ -815,7 +816,7 @@ func (l *lowerer) attachDeclaredAnnotations(s *oas3.Schema, pointer string) {
 // pointer string at all. Shared by every example site: schema (schemaExamples),
 // media type, header, and parameter (exampleList).
 func (l *lowerer) appendExample(out []ir.Example, proto ir.Example, node *yaml.Node, base string, seg ...string) []ir.Example {
-	v, err := valueFromNode(node)
+	v, err := value.FromNode(node)
 	if err != nil {
 		l.diag(ir.SeverityWarning, diag.DegradedConstruct, base+ids.Ptr(seg...), "example: %s", err.Error())
 		return out

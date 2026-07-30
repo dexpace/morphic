@@ -1,3 +1,11 @@
+// Package ids derives IR identifiers from OpenAPI source coordinates: the RFC
+// 6901 pointer arithmetic that names a position, and the namespace each kind of
+// node is addressed in.
+//
+// The path is OpenAPI's and stays here — a JSON Pointer is not a GraphQL
+// structural path or a protobuf fully-qualified name, and nothing above this
+// package can compute one. The grammar wrapped around it belongs to the
+// framework, which is the only thing this package reaches besides ir.
 package ids
 
 import (

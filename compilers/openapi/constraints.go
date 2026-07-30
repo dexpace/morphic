@@ -4,6 +4,7 @@ import (
 	oas3 "github.com/speakeasy-api/openapi/jsonschema/oas3"
 
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
+	"github.com/dexpace/morphic/compilers/openapi/internal/value"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -51,7 +52,7 @@ func numericBounds(c *ir.Constraints, s *oas3.Schema) []ir.Diagnostic {
 		if node == nil {
 			continue
 		}
-		v, err := numericLiteral(node)
+		v, err := value.NumericLiteral(node)
 		if err != nil {
 			diags = append(diags, boundLiteralDiag(b.prop, node.Value, err))
 			continue
@@ -99,7 +100,7 @@ func applyExclusive(c *ir.Constraints, s *oas3.Schema, isMin, exclusiveBoolean b
 	if node == nil {
 		return nil
 	}
-	v, err := numericLiteral(node)
+	v, err := value.NumericLiteral(node)
 	if err != nil {
 		return []ir.Diagnostic{boundLiteralDiag(prop, node.Value, err)}
 	}

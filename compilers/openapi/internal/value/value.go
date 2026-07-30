@@ -1,4 +1,10 @@
-package openapi
+// Package value lowers source scalars into ir.Value, keeping numeric literals as
+// their exact source text so nothing rounds through float64.
+//
+// Classification is by wire spelling alone, independent of any surrounding
+// schema type — the Type-vs-Value split — which is why the package needs nothing
+// from the compiler above it.
+package value
 
 import (
 	"fmt"
@@ -10,22 +16,30 @@ import (
 	"github.com/dexpace/morphic/ir"
 )
 
-// maxValueDepth bounds valueFromNode recursion (styleguide bounded-recursion
+// maxValueDepth bounds FromNode recursion (styleguide bounded-recursion
 // rule). Values nested deeper than this are a pathological input, not a spec
 // the compiler is expected to lower.
 const maxValueDepth = 128
 
-// valueFromNode converts a YAML node into an ir.Value. Numeric literals are kept
-// as their exact source text (the no-float64 escape), object member order is
-// preserved, and alias nodes are followed. The Go error return is reserved for
-// structurally impossible nodes (unknown kinds/tags, over-deep nesting); it
-// never reports a spec-level problem.
-func valueFromNode(node *yaml.Node) (ir.Value, error) {
-	return valueFromNodeAt(node, 0)
+// FromNode converts a YAML node into an ir.Value. Numeric literals are kept as
+// their exact source text (the no-float64 escape), object member order is
+// preserved, and alias nodes are followed.
+//
+// The error return does report spec-level problems, and a source document
+// reaches three of them: a default nested past the depth cap, a !!binary whose
+// payload is not base64, and a scalar carrying a tag this package does not lower
+// (`!!python/object`). It stays an error rather than a diagnostic because the
+// caller decides what one means — constraints.go reports a bad numeric bound at
+// error severity under its own code, while an example or a default that will not
+// convert is a warning — and because the provenance a diagnostic needs is the
+// caller's, not this package's. What this package knows is that the conversion
+// failed and why (GitHub #169).
+func FromNode(node *yaml.Node) (ir.Value, error) {
+	return fromNodeAt(node, 0)
 }
 
-// valueFromNodeAt is valueFromNode with an explicit recursion depth counter.
-func valueFromNodeAt(node *yaml.Node, depth int) (ir.Value, error) {
+// fromNodeAt is FromNode with an explicit recursion depth counter.
+func fromNodeAt(node *yaml.Node, depth int) (ir.Value, error) {
 	if depth > maxValueDepth {
 		return ir.Value{}, fmt.Errorf("openapi: value nesting exceeds %d", maxValueDepth)
 	}
@@ -34,7 +48,7 @@ func valueFromNodeAt(node *yaml.Node, depth int) (ir.Value, error) {
 	}
 	switch node.Kind {
 	case yaml.AliasNode:
-		return valueFromNodeAt(node.Alias, depth+1)
+		return fromNodeAt(node.Alias, depth+1)
 	case yaml.ScalarNode:
 		return scalarValue(node)
 	case yaml.SequenceNode:
@@ -78,7 +92,7 @@ func scalarValue(node *yaml.Node) (ir.Value, error) {
 		// above, independent of any surrounding schema type.
 		return ir.Value{Kind: ir.ValueString, Str: node.Value}, nil
 	case "!!int", "!!float":
-		num, err := numericLiteral(node)
+		num, err := NumericLiteral(node)
 		if err != nil {
 			return ir.Value{}, fmt.Errorf("openapi: numeric literal %q: %w", node.Value, err)
 		}
@@ -96,7 +110,7 @@ func scalarValue(node *yaml.Node) (ir.Value, error) {
 	}
 }
 
-// numericLiteral converts a numeric-tagged YAML scalar into the BigVal of the
+// NumericLiteral converts a numeric-tagged YAML scalar into the BigVal of the
 // value YAML resolved it to, which is not what its source text means in base
 // 10. YAML takes an !!int's base from its prefix and drops "_" separators, so
 // 0644 is 420 and 0x1f is 31; passing that spelling to NewBigVal — a base-10
@@ -106,7 +120,7 @@ func scalarValue(node *yaml.Node) (ir.Value, error) {
 // so that decode is exact. A !!float keeps its text, because decoding one would
 // round it through float64 and lose the arbitrary precision BigVal exists to
 // preserve; only its separators are dropped.
-func numericLiteral(node *yaml.Node) (ir.BigVal, error) {
+func NumericLiteral(node *yaml.Node) (ir.BigVal, error) {
 	if node == nil {
 		return "", fmt.Errorf("openapi: nil numeric node")
 	}
@@ -164,7 +178,7 @@ func isPlainDecimal(s string) bool {
 func sequenceValue(node *yaml.Node, depth int) (ir.Value, error) {
 	list := make([]ir.Value, 0, len(node.Content))
 	for _, child := range node.Content {
-		v, err := valueFromNodeAt(child, depth+1)
+		v, err := fromNodeAt(child, depth+1)
 		if err != nil {
 			return ir.Value{}, err
 		}
@@ -179,7 +193,7 @@ func mappingValue(node *yaml.Node, depth int) (ir.Value, error) {
 	fields := make([]ir.Field, 0, len(node.Content)/2)
 	for i := 0; i+1 < len(node.Content); i += 2 {
 		key := node.Content[i]
-		val, err := valueFromNodeAt(node.Content[i+1], depth+1)
+		val, err := fromNodeAt(node.Content[i+1], depth+1)
 		if err != nil {
 			return ir.Value{}, err
 		}

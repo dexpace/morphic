@@ -13,6 +13,7 @@ import (
 	"github.com/dexpace/morphic/compilers/compile"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/ids"
+	"github.com/dexpace/morphic/compilers/openapi/internal/value"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -953,7 +954,7 @@ func (l *lowerer) enumMembers(nodes []values.Value) ([]ir.EnumMember, ir.PrimKin
 	var kind ir.ValueKind
 	var prim ir.PrimKind
 	for i, node := range nodes {
-		val, err := valueFromNode(node)
+		val, err := value.FromNode(node)
 		if err != nil {
 			return nil, "", false
 		}
@@ -1005,7 +1006,7 @@ func (l *lowerer) enumAsUnion(s *oas3.Schema, common ir.TypeCommon, pointer, hin
 // enum (enumAsUnion, always an anonymous sub-pointer).
 func (l *lowerer) hoistLiteral(node values.Value, pointer, hint string) ir.TypeID {
 	return l.internNode(pointer, hint, func(common ir.TypeCommon) ir.TypeDef {
-		val, err := valueFromNode(node)
+		val, err := value.FromNode(node)
 		if err != nil {
 			l.diag(ir.SeverityWarning, diag.DegradedConstruct, pointer,
 				"unconvertible value lowered as the top type: %s", err.Error())
