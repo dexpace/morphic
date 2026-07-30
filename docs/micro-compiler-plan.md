@@ -1,0 +1,134 @@
+# Micro-Compiler Architecture — Implementation Plan
+
+The design is `docs/micro-compiler-design.md`; this is the order the work lands in and how the
+pieces block each other. **Each unit of work is a GitHub issue carrying its own files, steps and
+acceptance test** — that detail lives there rather than being repeated here, and the dependencies
+below are recorded as real GitHub issue dependencies, not only as prose.
+
+**Goal:** dissolve the `lowerer` god object into packages of pure functions over explicit positions,
+and promote what every compiler must agree on into `compilers/compile`.
+
+**Approach:** each lowering step becomes `f(ctx, ts, node, at) → (value, []ir.Diagnostic)` — an
+immutable context by value, type interning as the single shared effect, diagnostics returned rather
+than accumulated. Concerns become packages under `compilers/openapi/internal/` so the Go compiler
+enforces the boundary. Behaviour-neutral by default, with structural fixes carved out explicitly.
+
+## Global constraints
+
+Every task inherits these. They are not restated per issue.
+
+- **Golden output byte-identical**, except where an issue says otherwise. A golden diff is a
+  stop-and-explain, never an `-update`.
+- **Coverage stays at exactly 100%.** `./scripts/check-coverage.sh` counts statements from the
+  profile; one uncovered statement fails the build.
+- **The gate, in order:** `gofmt -l`, `go vet ./...`, `golangci-lint run`, `go build ./...`,
+  `./scripts/check-coverage.sh`.
+- **Every new package needs an `internal/archtest` rules entry**, or
+  `TestImportGraph_EveryPackageIsRuledOrExempt` fails.
+- **Every extracted package ships table-driven unit tests** built without calling `Compile` and
+  without a document fixture. A package that cannot be tested that way has its boundary in the wrong
+  place.
+- **Every new guard is proven by planting a defect.** A check first observed passing has
+  demonstrated nothing.
+- **The compiler's public surface does not change:** `Compiler`, `New`, `Formats`, `Compile`,
+  `Options`, `GroupingStrategy`.
+- One logical change per PR; Conventional Commits; subject ≤72 characters including the ` (#NNN)`
+  GitHub appends.
+
+## Order of work
+
+### Prerequisites — nothing else can start
+
+| Issue | Work |
+|---|---|
+| #57 | Fix archtest prefix matching so one compiler cannot import another. Today an allowlist entry for `compilers` licenses `compilers/graphql`, so the isolation this design rests on is unenforceable |
+| #159 | The general two-order oracle. Exists today only as three hand-written cases at the site where the pointer collision was found |
+| #160 | The ID-collision oracle. Nothing anywhere asserts two distinct source constructs cannot mint the same `ir.TypeID` |
+
+### Framework promotion
+
+| Issue | Work | Blocked by |
+|---|---|---|
+| #162 | Identifier grammar into `compilers/compile` | #57 |
+| #163 | Canonical naming grammar into `compilers/compile` — **not behaviour-neutral**, see below | #57 |
+| #164 | `irverify` checks segmentation, not only casing | #163 |
+| #73 | Closed when the three above land | #162, #163, #164 |
+| #161 | The live naming-divergence defect, fixed by #163 | #163 |
+
+#163 is the one step that deliberately changes output. The three copies of the grammar disagree, so
+at most one survives promotion unchanged; whichever segmentation is chosen, some compiler's goldens
+move. It lands with a reddening test and a deliberate golden update, and the choice is argued in
+that PR.
+
+### Tier 0 — extractions that are pure moves
+
+Each is one PR. All are unblocked by #57; the rest wait on `diag` because `diagf` is the single
+diagnostic constructor and sits at the bottom of the import graph.
+
+| Issue | Package | Blocked by |
+|---|---|---|
+| #165 | `internal/diag` | #57 |
+| #166 | `internal/load` | #57, #165 |
+| #167 | `internal/scan` — cycles and alias amplification share one walk | #57, #165 |
+| #168 | `internal/ids` — after the grammar moves, so no second copy lands | #57, #162 |
+| #169 | `internal/value` | #57, #165 |
+| #170 | `internal/annotation` — takes `site` with it, see below | #57, #165 |
+| #171 | `internal/merge` | #57, #165 |
+
+#170 is the one that does not move alone: `facets.go` reads a `site`, and `site`, `siteKind`,
+`siteAt` and `siteSchema` are declared in `resolve.go` as free functions. They move together.
+
+### Tier 1 — dissolving the god object
+
+Strictly sequential: each conversion depends on the layer below it having moved.
+
+| Issue | Work | Blocked by |
+|---|---|---|
+| #172 | `Ctx` with accessors; derive indexes at entry | all of Tier 0 |
+| #173 | Convert the leaves — constraints, metadata, auth | #172, #159, #160 |
+| #174 | `internal/resolve` | #173 |
+| #175 | `internal/operation` | #174 |
+| #176 | `internal/schema` — the recursive core; settles `hoist` and `diagnosedConstraints` | #175 |
+| #177 | Remove the `lowerer` struct | #176 |
+
+Both oracles gate the *first* Tier-1 conversion rather than the whole tier, so they are proven
+against the old code before any of it moves.
+
+### Guards — last, not first
+
+| Issue | Work | Blocked by |
+|---|---|---|
+| #178 | Cap methods per type in `internal/archtest` | #177 |
+| #83 | Function-size and complexity caps in `golangci-lint` | #177 |
+
+These land after the restructuring because the caps are calibrated against the finished shape.
+Landing them first would encode the current one. #178 exists because #83 alone would not have
+prevented this: no function body in the package exceeds 50 lines against a 70-line cap, and the
+failure was type surface, which nothing measured.
+
+### Deferred, with reasons
+
+| Issue | Status |
+|---|---|
+| #179 | Source index — blocked on `$ref` handling being correct first (#40, #141, #143) |
+| #142 | The annotation matrix cannot address a carrier position. Recorded as a standing blind spot in the design §8.4; independently fixable |
+| #54 | Cased `Naming.Hint` passes the neutrality check. Adjacent to #164 |
+| #66 | Closed as superseded — its premise expired when the next compilers landed without it |
+| #20, #21 | GraphQL and Protobuf drafts are read-only evidence here, not work items |
+
+## Critical path
+
+```
+#57 ─┬─ #162 ── #168 ─┐
+     ├─ #163 ── #164  │
+     └─ #165 ─┬───────┼── #172 ── #173 ── #174 ── #175 ── #176 ── #177 ─┬─ #178
+               ├─ #166 ┤                                                 └─ #83
+               ├─ #167 ┤
+               ├─ #169 ┤
+               ├─ #170 ┤
+               └─ #171 ┘
+#159, #160 ────────────────────────── #173
+```
+
+Twelve steps deep at its longest, with Tier 0 wide enough that six of its seven extractions can
+proceed in parallel once `diag` lands.
