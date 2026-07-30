@@ -37,7 +37,7 @@ var registryOwners = []string{"compilers/compile", "ir"}
 // package would obtain a registry to write in the first place.
 func TestRegistryWrites_StayInsideTheFramework(t *testing.T) {
 	t.Parallel()
-	offenders := sweepProduction(t, repoRoot(t), registryOwners, registryWrites)
+	offenders := sweepProduction(t, repoRoot(t), "", registryOwners, registryWrites)
 	assert.Empty(t, offenders,
 		"only %v may write an ir.TypeRegistry; everything else goes through compile.Types",
 		registryOwners)

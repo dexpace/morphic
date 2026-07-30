@@ -37,7 +37,7 @@ var grammarOwners = []string{"compilers/compile", "ir"}
 // reason ir is an owner rather than a swept package.
 func TestNamingGrammar_CanonicalIsFilledByTheFrameworkOnly(t *testing.T) {
 	t.Parallel()
-	offenders := sweepProduction(t, repoRoot(t), grammarOwners, canonicalViolations)
+	offenders := sweepProduction(t, repoRoot(t), "", grammarOwners, canonicalViolations)
 	assert.Empty(t, offenders,
 		"only %v may derive a canonical name; everything else goes through compile.NamingFor or compile.CanonicalWords",
 		grammarOwners)
@@ -67,6 +67,80 @@ func lower(name string) []ir.Naming {
 		"the literal and the later assignment, not the framework call or the hint: %v", offenders)
 	assert.Contains(t, offenders[0], "canonicalWords(name)")
 	assert.Contains(t, offenders[1], "strings.ToLower(name)")
+}
+
+// idOwners is the package permitted to construct an ir ID type from a string.
+var idOwners = []string{"compilers/compile"}
+
+// idTypes are ir's ID types. A compiler converting a string into one of them is
+// deriving an identifier.
+var idTypes = []string{"TypeID", "OpID", "PropID", "AuthID", "ServiceID", "ChannelID", "MessageID"}
+
+// TestIDGrammar_CompilersDeriveIDsThroughTheFramework asserts that no compiler
+// but the framework builds an ir ID out of a string.
+//
+// The derivation stays with the compiler — a JSON Pointer, a GraphQL structural
+// path and a protobuf fully-qualified name are different things — but the grammar
+// around it does not: the kind prefix, the namespace, and the rule that a minted
+// node takes a namespace of its own (GitHub #162). Three compilers each spelled
+// that themselves, and two of the three left the anonymous namespace unqualified
+// by format, so nothing but coincidence kept their IDs apart.
+//
+// The sweep is the compilers rather than the repository because converting a
+// string that is already an ID back into its type is legitimate elsewhere:
+// pass and irverify do it to look a node up, which derives nothing.
+func TestIDGrammar_CompilersDeriveIDsThroughTheFramework(t *testing.T) {
+	t.Parallel()
+	offenders := sweepProduction(t, repoRoot(t), "compilers", idOwners, idDerivations)
+	assert.Empty(t, offenders,
+		"only %v may build an ID from a string; a compiler supplies the path and the namespace", idOwners)
+}
+
+// TestIDDerivations_LocalGrammarIsCaught plants a compiler spelling an ID prefix
+// itself — the shape every compiler used before the promotion — and pins that
+// deriving through the framework beside it stays clean.
+func TestIDDerivations_LocalGrammarIsCaught(t *testing.T) {
+	t.Parallel()
+	const src = `package graphql
+
+func ids(pointer string) (ir.TypeID, ir.OpID, ir.PropID) {
+	named := ir.TypeID("t/graphql" + pointer)
+	op := compile.OpID(graphqlSpace, pointer)
+	prop := ir.PropID("p/graphql" + pointer)
+	return named, op, prop
+}
+`
+	offenders, err := idDerivations("planted.go", "compilers/graphql/ids.go", src)
+	require.NoError(t, err)
+	require.Len(t, offenders, 2, "the two local derivations, not the framework call: %v", offenders)
+	assert.Contains(t, offenders[0], "ir.TypeID")
+	assert.Contains(t, offenders[1], "ir.PropID")
+}
+
+// idDerivations reports every conversion of a string into one of ir's ID types
+// in one file. src is nil to read the file at path, or the source itself.
+func idDerivations(path, rel string, src any) ([]string, error) {
+	fset := token.NewFileSet()
+	file, err := parser.ParseFile(fset, path, src, 0)
+	if err != nil {
+		return nil, fmt.Errorf("archtest: parse %s: %w", path, err)
+	}
+
+	var found []string
+	ast.Inspect(file, func(n ast.Node) bool {
+		call, ok := n.(*ast.CallExpr)
+		if !ok {
+			return true
+		}
+		for _, idType := range idTypes {
+			if isSelector(call.Fun, "ir", idType) {
+				found = append(found, fmt.Sprintf("%s:%d: builds an ir.%s from a string rather than through the framework",
+					rel, fset.Position(call.Pos()).Line, idType))
+			}
+		}
+		return true
+	})
+	return found, nil
 }
 
 // canonicalViolations reports every place in one file that fills
@@ -165,24 +239,26 @@ func exprText(fset *token.FileSet, expr ast.Expr) string {
 	return b.String()
 }
 
-// sweepProduction runs scan over every production Go file under root except
-// those inside owners, and returns everything the scans found.
+// sweepProduction runs scan over every production Go file under the repo-relative
+// subtree (empty for the whole repository), except those inside owners, and
+// returns everything the scans found. Paths reported to scan stay repo-relative
+// whatever the subtree, so a failure names a file the reader can open.
 //
-// It is shared by the rules that are about what a package may write rather than
-// what it may import, so each new rule is a scan function rather than another
-// tree walk.
-func sweepProduction(t *testing.T, root string, owners []string,
+// It is shared by the rules about what a package may write rather than what it
+// may import, so each new rule is a scan function rather than another tree walk.
+func sweepProduction(t *testing.T, root, subtree string, owners []string,
 	scan func(path, rel string, src any) ([]string, error),
 ) []string {
 	t.Helper()
+	base := filepath.Join(root, subtree)
 	var found []string
 	var scanned int
-	err := filepath.WalkDir(root, func(p string, d fs.DirEntry, err error) error {
+	err := filepath.WalkDir(base, func(p string, d fs.DirEntry, err error) error {
 		if err != nil {
 			return err
 		}
 		if d.IsDir() {
-			return skipUninterestingDir(root, p, d)
+			return skipUninterestingDir(base, p, d)
 		}
 		if !isProductionGoFile(d.Name()) {
 			return nil
