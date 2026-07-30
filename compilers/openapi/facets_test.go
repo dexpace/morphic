@@ -146,7 +146,8 @@ func TestDialectAt_KeepsEachKeywordOutOfScope(t *testing.T) {
 		assert.Equal(t, ir.ReasonOutOfScope, entry.Reason)
 	}
 	assert.Len(t, diags, 2, "each exclusion is announced where it was written")
-	assert.True(t, declaresDialect(s), "and the hoist gate agrees a node is needed to hold them")
+	assert.True(t, declaresAny(s, dialectKeywords),
+		"and the hoist gate agrees a node is needed to hold them")
 }
 
 // TestNoIRHomeAt_ContentSchemaIsKeptNotExcluded pins the reason split the other

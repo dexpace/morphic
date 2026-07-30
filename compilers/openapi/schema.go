@@ -69,10 +69,15 @@ func (l *lowerer) lowerComponentSchema(js *oas3.JSONSchema[oas3.Referenceable], 
 // half of that rule, and it is what a declaration nothing references would
 // otherwise lose silently (GitHub #138).
 //
-// It runs only at a homeOwnNode position. A homeCarrier one — a model property,
-// a header, a parameter — already lands all three in their real fields
-// (fillPropertyDefault, effectiveVisibility), so residue there would restate
-// what the carrier holds rather than rescue anything.
+// It runs only at a homeOwnNode position, the one position with no carrier at
+// all. Every homeCarrier position has one that already keeps these: `default`
+// lands in a real field at each of them (fillPropertyDefault, fillParamDefault),
+// readOnly/writeOnly land in ir.Property.Visibility at a model property and at a
+// header (effectiveVisibility, both carried as ir.Property), and at a parameter —
+// the one carrier ir-design gives no Visibility field — params.go's
+// preserveParamVisibility keeps them verbatim on the ir.Parameter instead.
+// Residue on the node would restate what one of those holds rather than rescue
+// anything.
 //
 // residueKeywords is what declaresPositionScoped gates hoisting on, so a
 // position that wrote one of them owns a node by the time this runs; a pointer
@@ -94,15 +99,21 @@ func (l *lowerer) recordDeclarationResidue(s *oas3.Schema, pointer string, home 
 // readOnly/writeOnly (Property.Visibility is theirs).
 //
 // One list, read by both the predicate that hoists a node for them
-// (declaresResidue) and the recorder that fills it (recordResidue), so the two
-// can never drift into either half of declaresPositionScoped's trap.
+// (declaresPositionScoped, via declaresAny) and the recorder that fills it
+// (recordResidue), so the two can never drift into either half of
+// declaresPositionScoped's trap.
 var residueKeywords = []string{"default", "readOnly", "writeOnly"}
 
 // recordResidue keeps each declared residue keyword verbatim on c and reports
-// it at the keyword's own pointer. The message says "any referencing property or
-// parameter" because both halves vary: §14 pushes the keyword down to referencing
-// carriers where there are some, and an inline position that owns a node has
-// none at all — which is the case Unmodeled is rescuing.
+// it at the keyword's own pointer.
+//
+// The message qualifies where §14 applies the keyword, because a carrier applies
+// it only where it has a field for it. `default` reaches one at every carrier,
+// but readOnly/writeOnly reach ir.Property.Visibility at a property or a header
+// and nothing at all at a parameter, which has no such field — so a $ref'd
+// declaration's readOnly is visible to a referencing parameter only here, on the
+// declaration's own node. An inline position that owns a node has no referencing
+// carrier at all, which is the case Unmodeled is rescuing.
 func (l *lowerer) recordResidue(c *ir.TypeCommon, s *oas3.Schema, pointer string) {
 	for _, keyword := range residueKeywords {
 		raw := nodeToRaw(rawPropertyNode(s, keyword))
@@ -111,9 +122,9 @@ func (l *lowerer) recordResidue(c *ir.TypeCommon, s *oas3.Schema, pointer string
 		}
 		l.preserve(&c.Unmodeled, "openapi:"+keyword, raw, ir.ReasonNoIRHome, pointer+ptr(keyword))
 		l.diag(ir.SeverityInfo, codeDegradedConstruct, pointer+ptr(keyword),
-			"%s on a type declaration binds a use of the type, not the type; "+
-				"it is applied to any referencing property or parameter and kept "+
-				"verbatim under Unmodeled", keyword)
+			"%s on a type declaration binds a use of the type, not the type; it is kept "+
+				"verbatim under Unmodeled and applied to a referencing property, header or "+
+				"parameter wherever that carrier has a field for it", keyword)
 	}
 }
 
@@ -199,16 +210,18 @@ func (l *lowerer) hoistDeclarationHome(s *oas3.Schema, ref ir.TypeRef, pointer, 
 // would still be dropped.
 func declaresPositionScoped(s *oas3.Schema) bool {
 	return declaresAnnotations(s) || declaresValueConstraints(s) ||
-		declaresValidationOnly(s) || declaresResidue(s) ||
-		declaresContentVocabulary(s) || declaresDynamicRef(s) || declaresDialect(s)
+		declaresValidationOnly(s) || declaresAny(s, residueKeywords) ||
+		declaresContentVocabulary(s) || declaresDynamicRef(s) ||
+		declaresAny(s, dialectKeywords)
 }
 
-// declaresResidue reports whether s writes a keyword recordResidue keeps. It
-// reads the raw nodes rather than the model fields for the reason
-// declaresValueConstraints does: the recorder reads them there, and a predicate
-// that consulted a different source could disagree with it in either direction.
-func declaresResidue(s *oas3.Schema) bool {
-	for _, keyword := range residueKeywords {
+// declaresAny reports whether s writes any of keywords. It reads the raw nodes
+// rather than the model fields for the reason declaresValueConstraints does: the
+// recorders these gate (recordResidue, dialectAt) read them there, and a
+// predicate consulting a different source could disagree with them in either
+// direction.
+func declaresAny(s *oas3.Schema, keywords []string) bool {
+	for _, keyword := range keywords {
 		if rawPropertyNode(s, keyword) != nil {
 			return true
 		}
@@ -280,7 +293,7 @@ func declaresValidationOnly(s *oas3.Schema) bool {
 // lowerSchemaBody lowers the body itself, handling the $dynamicRef expansion and
 // the oneOf/anyOf dispatch that precede structural lowering.
 func (l *lowerer) lowerSchemaBody(schema *oas3.Schema, pointer, hint string) ir.TypeRef {
-	if target, why := l.dynamicExpansion(schema); why == "" {
+	if target, _, ok := l.dynamicExpansion(schema, pointer); ok {
 		l.diag(ir.SeverityInfo, codeDynamicRefExpanded, pointer+ptr("$dynamicRef"),
 			"$dynamicRef expanded to %q, the one matching $dynamicAnchor in this document", target)
 		return ir.TypeRef{Target: target, Nullable: schemaAdmitsNull(schema)}
@@ -498,10 +511,12 @@ func (l *lowerer) fillModelProperties(m *ir.Model, s *oas3.Schema, pointer strin
 // constraints), then the declaration's annotations. Annotations present at a
 // $ref use-site override the target's (ir-design §14).
 //
-// Constraints stay unconditional: no node a property's schema can hoist holds
-// them for it — an object lowers to a Model and a formatted scalar to a Scalar
-// with an Encoding, neither of which carries the scalar bounds
-// constraintsFromSchema reads — so ir.Property is their only home.
+// Constraints stay unconditional: ir.Property is the only home every property
+// has. Some nodes a property's schema can hoist carry the same bounds (a Model,
+// and the Scalar the content vocabulary hoists) and some carry none (the Scalar
+// a byte or unknown format hoists, or no node at all), so reading the node
+// instead would drop them wherever it carries none. Restating them is the safe
+// half of that trade.
 func (l *lowerer) fillPropertyDetail(p *ir.Property, js *oas3.JSONSchema[oas3.Referenceable], pointer string) {
 	ref := js.GetSchema()
 	if ref == nil {
@@ -817,11 +832,22 @@ func (l *lowerer) hoistFormatScalar(s *oas3.Schema, base ir.PrimKind, format, po
 // hoistContentScalar hoists a scalar over the shared primitive a known
 // (type, format) pair maps to, giving the content vocabulary written here a node
 // of its own to sit on.
+//
+// It carries the position's value constraints itself, because owning a node is
+// what stops hoistDeclarationHome hoisting the alias that would otherwise carry
+// them: that fallback resolves to whatever node the pointer already owns. A
+// scalar that gained an Encoding by writing contentEncoding must not lose the
+// bounds it wrote beside it (invariant 2).
 func (l *lowerer) hoistContentScalar(s *oas3.Schema, prim ir.PrimKind, pointer, hint string) ir.TypeID {
 	return l.internNode(pointer, hint, func(common ir.TypeCommon) ir.TypeDef {
 		base := l.primRef(prim)
 		enc := l.scalarEncoding(s, "", &common, pointer)
-		return &ir.Scalar{TypeCommon: common, Base: &base, Encoding: enc}
+		return &ir.Scalar{
+			TypeCommon:  common,
+			Base:        &base,
+			Encoding:    enc,
+			Constraints: l.schemaConstraints(s, pointer),
+		}
 	})
 }
 
@@ -911,17 +937,33 @@ func scalarHasEncoding(td ir.TypeDef) bool {
 // so the cap only ever fires on a pathological structure.
 const maxDynamicAnchorDepth = 512
 
-// dynamicExpansion resolves the $dynamicRef s writes to the type it names, or
-// reports why it is irreducible; a schema writing no $dynamicRef is irreducible
-// with the cheapest possible reason, so no caller pays for the index.
+// maxDynamicAnchorNodes bounds how many nodes that walk visits in total. Depth
+// stopped bounding it once the walk began following YAML aliases: an alias graph
+// is a DAG, so a shallow document can present far more paths than it has nodes.
+// Both bounds report the same incomplete-index warning when they fire.
+const maxDynamicAnchorNodes = 1 << 20
+
+// dynamicExpansion resolves the $dynamicRef s writes at pointer to the type it
+// names, or reports why it is irreducible; a schema writing no $dynamicRef is
+// irreducible with the cheapest possible reason, so no caller pays for the index.
 //
 // Dynamic scope is static per document (ir-design §4.7): the set of
 // $dynamicAnchor declarations is fixed before evaluation, so a name declared
 // exactly once is the only match any dynamic scope containing a match can hold —
 // which makes it JSON Schema 2020-12 §8.2.3.2's "outermost scope with a matching
-// anchor" whatever path evaluation took. Two declarations of one name put the
-// target back under the evaluation path's control, and no static lowering can
-// pick between them; those are the irreducible cases §4.7 preserves.
+// anchor" whatever path evaluation took. That reasoning holds only while the
+// whole document is one schema resource, which is why an $id anywhere on the
+// path to either end makes the reference irreducible (dynamicChainVerdict):
+// §8.2.1 says $id starts a new resource, and the IR honours no resource
+// boundaries at all (dialectKeywords). An anchor reached through *different*
+// dynamic scopes of one resource still expands, and correctly so: with no $id
+// in play the outermost resource of every dynamic scope is the document itself.
+//
+// Only an anchor declared on a top-level component schema resolves: that is the
+// one target whose TypeID is stable without reading the registry, so expansion
+// cannot depend on which position happened to lower first (ir-design §4.3). An
+// anchor deeper in the document is reported as irreducible rather than resolved
+// order-dependently.
 //
 // A $dynamicRef co-declared with a $ref, a oneOf/anyOf, or a shape of its own is
 // a conjunction of applicators the IR has no node for, so it is irreducible too
@@ -929,46 +971,184 @@ const maxDynamicAnchorDepth = 512
 // lower. The one caller that expands and the one that preserves both decide
 // through this function, so neither can act on a verdict the other did not
 // reach.
-func (l *lowerer) dynamicExpansion(s *oas3.Schema) (ir.TypeID, string) {
-	node := rawPropertyNode(s, "$dynamicRef")
-	if node == nil {
-		return "", "no $dynamicRef is written here"
+func (l *lowerer) dynamicExpansion(s *oas3.Schema, pointer string) (target ir.TypeID, why string, ok bool) {
+	name, why, ok := dynamicRefName(s)
+	if !ok {
+		return "", why, false
 	}
-	if s.Ref != nil || len(s.GetOneOf()) > 0 || len(s.GetAnyOf()) > 0 || declaresShape(s) {
-		return "", "it is co-declared with another applicator, which the IR cannot intersect with it"
+	at, why, ok := l.soleAnchorSite(name)
+	if !ok {
+		return "", why, false
 	}
-	if node.Kind != yaml.ScalarNode {
-		return "", "its value is not a reference string"
+	id, resolved, handled := l.resolveComponentRef(at)
+	if !handled || !resolved {
+		return "", fmt.Sprintf("$dynamicAnchor %q is declared at %q rather than on a component schema", name, at), false
 	}
-	return l.dynamicAnchorTarget(node.Value)
+	if why, ok := l.dynamicChainVerdict(at, pointer); !ok {
+		return "", why, false
+	}
+	return id, "", true
 }
 
-// dynamicAnchorTarget resolves one $dynamicRef reference string against the
-// document's $dynamicAnchor index.
+// dynamicRefName returns the $dynamicAnchor name the $dynamicRef s writes
+// addresses, or the reason it addresses none. It stops short of the index, so
+// the chain walk and the lowering path ask one function what a schema requests.
+func dynamicRefName(s *oas3.Schema) (name, why string, ok bool) {
+	node := rawPropertyNode(s, "$dynamicRef")
+	if node == nil {
+		return "", "no $dynamicRef is written here", false
+	}
+	if dynamicRefSiblings(s) {
+		return "", "it is co-declared with another applicator, which the IR cannot intersect with it", false
+	}
+	if node.Kind != yaml.ScalarNode {
+		return "", "its value is not a reference string", false
+	}
+	fragment, found := dynamicFragment(node.Value)
+	if !found {
+		return "", fmt.Sprintf("%q is not a plain same-document fragment", node.Value), false
+	}
+	return fragment, "", true
+}
+
+// dynamicRefSiblings reports whether s writes anything beside its $dynamicRef
+// that the expansion would have to intersect with. JSON Schema conjoins
+// keywords and the IR has no node that intersects a reference with a shape, so
+// any of these makes the reference irreducible; expanding regardless would
+// assert the target's shape and drop the sibling in silence.
 //
-// Only an anchor declared on a top-level component schema resolves: that is the
-// one target whose TypeID is stable without reading the registry, so expansion
-// cannot depend on which position happened to lower first (ir-design §4.3). An
-// anchor deeper in the document is reported as irreducible rather than resolved
-// order-dependently.
-func (l *lowerer) dynamicAnchorTarget(ref string) (ir.TypeID, string) {
-	name, ok := dynamicFragment(ref)
-	if !ok {
-		return "", fmt.Sprintf("%q is not a plain same-document fragment", ref)
+// It is broader than declaresShape by `items`, `prefixItems` and `required` —
+// the keywords declaresShape leaves out because they narrow an instance rather
+// than declare one. That distinction is about what to *build*, and there is
+// nothing to build here: an expansion takes the target whole, so a keyword it
+// cannot carry is lost whether or not it declares a shape by itself.
+func dynamicRefSiblings(s *oas3.Schema) bool {
+	if s.Ref != nil || len(s.GetOneOf()) > 0 || len(s.GetAnyOf()) > 0 {
+		return true
 	}
-	at := l.dynamicAnchorIndex()[name]
-	if len(at) == 0 {
-		return "", fmt.Sprintf("no $dynamicAnchor %q is declared in this document", name)
+	if s.GetItems() != nil || len(s.GetPrefixItems()) > 0 {
+		return true
 	}
-	if len(at) > 1 {
+	return len(s.GetRequired()) > 0 || declaresShape(s)
+}
+
+// soleAnchorSite returns the one pointer declaring the named $dynamicAnchor, or
+// the reason no single declaration answers for it. Two declarations put the
+// target back under the evaluation path's control, which no static lowering can
+// resolve (ir-design §4.7).
+func (l *lowerer) soleAnchorSite(name string) (at, why string, ok bool) {
+	sites := l.dynamicAnchorIndex()[name]
+	if len(sites) == 0 {
+		return "", fmt.Sprintf("no $dynamicAnchor %q is declared in this document", name), false
+	}
+	if len(sites) > 1 {
 		return "", fmt.Sprintf("$dynamicAnchor %q is declared %d times, so the target depends on the evaluation path",
-			name, len(at))
+			name, len(sites)), false
 	}
-	id, resolved, handled := l.resolveComponentRef(at[0])
-	if !handled || !resolved {
-		return "", fmt.Sprintf("$dynamicAnchor %q is declared at %q rather than on a component schema", name, at[0])
+	return sites[0], "", true
+}
+
+// dynamicChainVerdict reports whether the position at from may take the
+// expansion landing on the anchor declared at at, by following the chain of
+// expansions the target would take in turn.
+//
+// Two things end it. A chain that comes back to from would make the position's
+// own type its base — a Scalar alias loop no emitter resolving Base can
+// terminate on, and the shape refCycles refuses for every pure-$ref cycle.
+// Every member of such a cycle reaches this verdict independently, so the whole
+// cycle is preserved rather than one arbitrary edge of it. An $id on the path to
+// any link means the two ends are in different schema resources, which §8.2.3.2
+// degrades to a plain $ref against a base URI the IR does not model.
+//
+// The loop is bounded by seen: cur only ever takes values from the anchor
+// index, and each turn either returns or adds one of them.
+func (l *lowerer) dynamicChainVerdict(at, from string) (why string, ok bool) {
+	if l.declaresResourceIDAbove(from) {
+		return resourceBoundaryWhy(from), false
 	}
-	return id, ""
+	seen := map[string]bool{}
+	for cur := at; !seen[cur]; {
+		if cur == from {
+			return fmt.Sprintf("expanding it closes a cycle of $dynamicRef expansions back onto %q, "+
+				"leaving a type whose own base chain never terminates", from), false
+		}
+		if l.declaresResourceIDAbove(cur) {
+			return resourceBoundaryWhy(cur), false
+		}
+		seen[cur] = true
+		next, hops := l.dynamicHop(cur)
+		if !hops {
+			break
+		}
+		cur = next
+	}
+	return "", true
+}
+
+// resourceBoundaryWhy words the one irreducible case that is about resources
+// rather than shapes, for either end of a chain.
+func resourceBoundaryWhy(at string) string {
+	return fmt.Sprintf("an $id at or above %q starts a schema resource of its own, "+
+		"and the IR resolves no resource base URIs", at)
+}
+
+// dynamicHop returns the anchor declaration the schema at a component pointer
+// would itself expand to, when it writes an expandable $dynamicRef of its own.
+// Anything else ends the chain: a position that lowers to a shape rather than to
+// another reference cannot extend a cycle of references.
+func (l *lowerer) dynamicHop(at string) (string, bool) {
+	s := l.componentSchemaAt(at)
+	if s == nil {
+		return "", false
+	}
+	name, _, ok := dynamicRefName(s)
+	if !ok {
+		return "", false
+	}
+	next := l.dynamicAnchorIndex()[name]
+	if len(next) != 1 {
+		return "", false
+	}
+	return next[0], true
+}
+
+// componentSchemaAt returns the schema body of the top-level component pointer
+// addresses, and nil for any other pointer. Every accessor on the way is
+// nil-safe and siteAt reads a missing entry as "no body written", so the one
+// guard is what distinguishes a component pointer from a deeper one.
+func (l *lowerer) componentSchemaAt(pointer string) *oas3.Schema {
+	name, ok := componentSchemaName(pointer)
+	if !ok {
+		return nil
+	}
+	js, _ := l.doc.GetComponents().GetSchemas().Get(name)
+	return siteAt(js).Node
+}
+
+// declaresResourceIDAbove reports whether any mapping on the path from the
+// document root down to pointer writes $id, which §8.2.1 makes the root of a
+// schema resource of its own.
+//
+// It reads every step of the path, not only the schema-shaped ones, so a
+// property literally named "$id" reads as a resource boundary that is not
+// there. That is the same direction the anchor index errs in: a false boundary
+// costs an expansion that would have been safe, where a missed one mints a
+// reference the IR cannot express.
+func (l *lowerer) declaresResourceIDAbove(pointer string) bool {
+	view := newNodeView()
+	cur := documentRoot(deref(l.doc.GetRootNode()))
+	for _, seg := range strings.Split(pointer, "/") {
+		if cur == nil {
+			return false
+		}
+		if view.childByToken(cur, "$id") != nil {
+			return true
+		}
+		if seg != "" { // every pointer starts with the empty segment
+			cur = deref(view.childByToken(cur, unescapeSegment(seg)))
+		}
+	}
+	return cur != nil && view.childByToken(cur, "$id") != nil
 }
 
 // dynamicFragment returns the plain fragment name a $dynamicRef addresses. Only
@@ -989,9 +1169,9 @@ func dynamicFragment(ref string) (string, bool) {
 // type and must not also be preserved — that would tell a consumer the compiler
 // ignored it.
 func (l *lowerer) recordUnexpandedDynamicRef(p *ir.Unmodeled, s *oas3.Schema, pointer string) {
-	_, why := l.dynamicExpansion(s)
+	_, why, expanded := l.dynamicExpansion(s, pointer)
 	raw := nodeToRaw(rawPropertyNode(s, "$dynamicRef"))
-	if why == "" || len(raw) == 0 {
+	if expanded || len(raw) == 0 {
 		return
 	}
 	at := pointer + ptr("$dynamicRef")
@@ -1007,69 +1187,114 @@ func declaresDynamicRef(s *oas3.Schema) bool {
 }
 
 // dynamicAnchorIndex returns the document's $dynamicAnchor index, building it on
-// first use.
+// first use and announcing once when a bound stopped the walk short.
+//
+// A truncated index can only undercount, and every verdict resting on it reads
+// an undercount as "declared exactly once" — the one count that expands. So the
+// warning is what tells a reader that an expansion reported below was decided
+// against an index nothing verified, which is exactly what codeCycleScanFailed
+// says for the pre-parse scan.
 func (l *lowerer) dynamicAnchorIndex() map[string][]string {
-	if l.dynamicAnchors == nil {
-		l.dynamicAnchors = dynamicAnchors(l.doc.GetRootNode())
+	if l.dynamicAnchors != nil {
+		return l.dynamicAnchors
+	}
+	index, complete := dynamicAnchors(l.doc.GetRootNode())
+	l.dynamicAnchors = index
+	if !complete {
+		l.diag(ir.SeverityWarning, codeDegradedConstruct, "",
+			"the $dynamicAnchor index stopped at its walk bounds (%d levels, %d nodes); "+
+				"a $dynamicRef expanded below is not verified to name the document's only anchor of its name",
+			maxDynamicAnchorDepth, maxDynamicAnchorNodes)
 	}
 	return l.dynamicAnchors
 }
 
 // dynamicAnchors indexes every $dynamicAnchor in the raw source by name, mapping
-// it to the JSON pointers that declare it, in document order. It reads the raw
-// tree because oas3.Schema has no field for the keyword at v1.24.0 — the reason
-// nothing expanded a $dynamicRef before.
+// it to the JSON pointers that declare it, in document order, and reports
+// whether the walk ran to completion. It reads the raw tree because oas3.Schema
+// has no field for the keyword at v1.24.0 — the reason nothing expanded a
+// $dynamicRef before.
+func dynamicAnchors(root *yaml.Node) (map[string][]string, bool) {
+	w := newAnchorWalk(maxDynamicAnchorNodes)
+	w.walk(root, "", 0)
+	return w.out, !w.truncated && !w.view.exhausted
+}
+
+// anchorWalk is the state of one $dynamicAnchor index build: the source view,
+// the index under construction, and what is left of the visit budget.
 //
-// It does not follow YAML aliases. An anchored mapping reached only through an
-// alias is left out of the index, so a $dynamicRef naming it reads as
-// irreducible and is preserved rather than resolved — the safe direction — and
-// the walk stays bounded by the raw tree alone.
-func dynamicAnchors(root *yaml.Node) map[string][]string {
-	out := map[string][]string{}
-	collectDynamicAnchors(root, "", out, 0)
-	return out
+// It reads mappings through a nodeView, so a `<<` merge key and a YAML alias
+// contribute the anchors they carry to every position that pulls them in —
+// which is what the parser downstream sees, and what makes "declared exactly
+// once" a count of what the document declares rather than of what it spells
+// out. The count decides whether a $dynamicRef expands, so an anchor reached
+// only through an alias must not be invisible to it.
+type anchorWalk struct {
+	view      *nodeView
+	out       map[string][]string
+	budget    int
+	truncated bool
 }
 
-// collectDynamicAnchors walks n, recording each $dynamicAnchor it declares under
-// the pointer of the mapping that declares it.
-func collectDynamicAnchors(n *yaml.Node, pointer string, out map[string][]string, depth int) {
-	if n == nil || depth > maxDynamicAnchorDepth {
+// newAnchorWalk returns a walk that will visit at most budget nodes.
+func newAnchorWalk(budget int) *anchorWalk {
+	return &anchorWalk{view: newNodeView(), out: map[string][]string{}, budget: budget}
+}
+
+// walk indexes the anchors n declares, under the pointer of the mapping
+// declaring each.
+func (w *anchorWalk) walk(n *yaml.Node, pointer string, depth int) {
+	n = deref(n)
+	if n == nil || !w.charge(depth) {
 		return
 	}
-	if n.Kind == yaml.DocumentNode {
+	switch n.Kind {
+	case yaml.DocumentNode:
 		for _, c := range n.Content {
-			collectDynamicAnchors(c, pointer, out, depth+1)
+			w.walk(c, pointer, depth+1)
 		}
-		return
-	}
-	if n.Kind == yaml.SequenceNode {
+	case yaml.SequenceNode:
 		for i, c := range n.Content {
-			collectDynamicAnchors(c, pointer+ptr(strconv.Itoa(i)), out, depth+1)
+			w.walk(c, pointer+ptr(strconv.Itoa(i)), depth+1)
 		}
-		return
+	case yaml.MappingNode:
+		w.walkMapping(n, pointer, depth)
+	default:
+		// A scalar declares no anchor and has no children; an alias survived
+		// deref only by dangling, so it has nothing to stand in for.
 	}
-	if n.Kind != yaml.MappingNode {
-		return
-	}
-	collectMappingAnchors(n, pointer, out, depth)
 }
 
-// collectMappingAnchors reads one mapping's pairs: a $dynamicAnchor scalar names
-// this mapping, and every other value is walked in turn.
-func collectMappingAnchors(n *yaml.Node, pointer string, out map[string][]string, depth int) {
-	for i := 0; i+1 < len(n.Content); i += 2 {
-		key, val := n.Content[i], n.Content[i+1]
-		if key.Kind != yaml.ScalarNode {
-			continue // a non-scalar key cannot name a schema keyword
-		}
-		if key.Value == "$dynamicAnchor" {
-			if val.Kind == yaml.ScalarNode && val.Value != "" {
-				out[val.Value] = append(out[val.Value], pointer)
-			}
+// walkMapping reads one mapping's effective pairs: a $dynamicAnchor names this
+// mapping, and every other value is walked in turn.
+func (w *anchorWalk) walkMapping(n *yaml.Node, pointer string, depth int) {
+	for _, p := range w.view.mappingPairs(n) {
+		if p.key == "$dynamicAnchor" {
+			w.record(p.val, pointer)
 			continue
 		}
-		collectDynamicAnchors(val, pointer+ptr(key.Value), out, depth+1)
+		w.walk(p.val, pointer+ptr(p.key), depth+1)
 	}
+}
+
+// record indexes the anchor val names at pointer. A value that is not a
+// non-empty scalar names nothing a $dynamicRef could spell.
+func (w *anchorWalk) record(val *yaml.Node, pointer string) {
+	if val == nil || val.Kind != yaml.ScalarNode || val.Value == "" {
+		return
+	}
+	w.out[val.Value] = append(w.out[val.Value], pointer)
+}
+
+// charge reports whether the walk may read one more node, recording the refusal
+// when it may not so the caller of dynamicAnchors learns the index is partial.
+func (w *anchorWalk) charge(depth int) bool {
+	if depth > maxDynamicAnchorDepth || w.budget == 0 {
+		w.truncated = true
+		return false
+	}
+	w.budget--
+	return true
 }
 
 // formatTable maps a scalar "type" or "type/format" key to its IR primitive.

@@ -714,10 +714,10 @@ func TestModel_SchemaExtensionPreserved(t *testing.T) {
 
 // TestPreserve_AllReasonsReachable pins that every UnmodeledReason an OpenAPI
 // document can provoke is produced by some lowering here, so a consumer
-// switching on the enum meets no value this compiler can never emit.
-// ReasonOutOfScope is the standing exception: ir-design §15's deliberate
-// exclusions are Smithy and TypeSpec constructs, and OpenAPI declares nothing
-// that lands under it.
+// switching on the enum meets no value this compiler can never emit. There is no
+// longer an exception: ReasonOutOfScope was once only ir-design §15's Smithy and
+// TypeSpec exclusions, but the JSON Schema resource and dialect keywords land
+// under it too (dialectAt, TestDialectKeywords_KeptOutOfScope), so S declares one.
 //
 // The reach is per reason, not per entry: an entry left at the zero reason is
 // invisible here, and is irverify's "ir/empty-unmodeled-reason" to catch across
@@ -731,6 +731,7 @@ components:
     S:
       type: object
       x-vendor: v
+      $schema: 'https://json-schema.org/draft/2020-12/schema'
       not: {required: [b]}
       properties: {a: {type: string}}
       oneOf:
@@ -751,9 +752,10 @@ paths:
 	doc, svc, diags := lowerServiceSpec(t, spec)
 	requireNoErrorDiags(t, diags)
 
-	// S witnesses vendor_extension and validation_only (its constraint-only
-	// union joins `not` there); T's open tuple is the only degraded_lowering
-	// witness here, so it must not be folded into another case.
+	// S witnesses vendor_extension, validation_only (its constraint-only union
+	// joins `not` there) and out_of_scope (its $schema); T's open tuple is the
+	// only degraded_lowering witness here, so it must not be folded into another
+	// case.
 	seen := map[ir.UnmodeledReason]bool{}
 	for _, name := range []string{"S", "T"} {
 		for _, entry := range doc.Types[componentID(name)].Common().Unmodeled {
@@ -770,7 +772,7 @@ paths:
 
 	for _, want := range []ir.UnmodeledReason{
 		ir.ReasonVendorExtension, ir.ReasonValidationOnly,
-		ir.ReasonDegradedLowering, ir.ReasonNoIRHome,
+		ir.ReasonDegradedLowering, ir.ReasonNoIRHome, ir.ReasonOutOfScope,
 	} {
 		assert.True(t, seen[want], "no entry carries reason %q", want)
 	}
@@ -2862,16 +2864,18 @@ func TestInlinePosition_ResidueIsKeptAtEveryHomeOwnNodePosition(t *testing.T) {
 
 			td, ok := doc.Types[ir.TypeID(tc.at)]
 			require.True(t, ok, "the position owns a node to hold what it wrote")
-			assertKeptResidue(t, td.Common().Unmodeled, diags, "default", `"a"`)
-			assertKeptResidue(t, td.Common().Unmodeled, diags, "readOnly", `true`)
+			assertResidueKeptAndAnnounced(t, td.Common().Unmodeled, diags, "default", `"a"`)
+			assertResidueKeptAndAnnounced(t, td.Common().Unmodeled, diags, "readOnly", `true`)
 		})
 	}
 }
 
-// assertKeptResidue checks that keyword survived verbatim under Unmodeled with
-// the reason that says the IR models it nowhere, and that one info diagnostic
-// announces it at the keyword's own pointer.
-func assertKeptResidue(t *testing.T, p ir.Unmodeled, diags []ir.Diagnostic, keyword, wantJSON string) {
+// assertResidueKeptAndAnnounced checks one residue keyword's entry and its
+// diagnostic together. The external test package has assertResidueKept and
+// assertResidueDiag for the same job in two calls; this package cannot reach
+// them, so the pairing lives here under a name that is not a transposition of
+// either.
+func assertResidueKeptAndAnnounced(t *testing.T, p ir.Unmodeled, diags []ir.Diagnostic, keyword, wantJSON string) {
 	t.Helper()
 	entry, ok := p["openapi:"+keyword]
 	require.True(t, ok, "%s must be kept verbatim under Unmodeled", keyword)
@@ -2945,10 +2949,17 @@ func TestPreserve_EmptyRawIsRejectedLikeNil(t *testing.T) {
 // vocabCase is one JSON Schema 2020-12 keyword and the minimal document that
 // writes it. schemas must contain the literal "KW, " where the keyword goes: the
 // control replaces that marker with nothing, so the two documents differ in
-// exactly this one keyword. excluded, when set, is why nothing carries it.
+// exactly this one keyword.
+//
+// write and alt write the same keyword with *different* values. A keyword whose
+// presence reshapes the IR while its value is discarded passes a presence check
+// and fails this one, which is the whole difference between "the keyword was
+// noticed" and "the keyword was carried". excluded, when set, is why nothing
+// carries it, and leaves alt unused.
 type vocabCase struct {
 	keyword  string
 	write    string
+	alt      string
 	schemas  string
 	excluded string
 }
@@ -2975,15 +2986,31 @@ func vocabularyCases() []vocabCase {
 
 func vocabularyCore() []vocabCase {
 	return []vocabCase{
-		{keyword: "$schema", write: "$schema: 'https://json-schema.org/draft/2020-12/schema'", schemas: stringSchema},
-		{keyword: "$vocabulary", write: "$vocabulary: {'https://json-schema.org/draft/2020-12/vocab/core': true}", schemas: stringSchema},
-		{keyword: "$id", write: "$id: 'urn:example:a'", schemas: stringSchema},
-		{keyword: "$ref", write: "$ref: '#/components/schemas/B'", schemas: objectSchema + "    B: {type: string}\n"},
-		{keyword: "$dynamicRef", write: "$dynamicRef: '#m'", schemas: stringSchema + "    B: {$dynamicAnchor: m, type: string}\n"},
+		{
+			keyword: "$schema", schemas: stringSchema,
+			write: "$schema: 'https://json-schema.org/draft/2020-12/schema'",
+			alt:   "$schema: 'https://json-schema.org/draft/2019-09/schema'",
+		},
+		{
+			keyword: "$vocabulary", schemas: stringSchema,
+			write: "$vocabulary: {'https://json-schema.org/draft/2020-12/vocab/core': true}",
+			alt:   "$vocabulary: {'https://json-schema.org/draft/2020-12/vocab/validation': true}",
+		},
+		{keyword: "$id", write: "$id: 'urn:example:a'", alt: "$id: 'urn:example:z'", schemas: stringSchema},
+		{
+			keyword: "$ref", schemas: objectSchema + "    B: {type: string}\n    C: {type: integer}\n",
+			write: "$ref: '#/components/schemas/B'", alt: "$ref: '#/components/schemas/C'",
+		},
+		{
+			keyword: "$dynamicRef", schemas: stringSchema + "    B: {$dynamicAnchor: m, type: string}\n",
+			write: "$dynamicRef: '#m'", alt: "$dynamicRef: '#n'",
+		},
 		{
 			keyword: "$anchor", write: "$anchor: a", schemas: stringSchema,
-			excluded: "an $anchor is consumed as a reference target, not carried as IR content: " +
-				"$ref: '#a' resolves through it (TestRefToAnchor)",
+			excluded: "neither carried nor honoured: Milestone 1 resolves same-document JSON " +
+				"pointers only, so $ref: '#a' is reported unresolved rather than resolving " +
+				"through the anchor (GitHub #141). Excluded because the compiler changes " +
+				"nothing for it today, not because dropping it is settled",
 		},
 		{
 			keyword: "$dynamicAnchor", write: "$dynamicAnchor: m", schemas: stringSchema,
@@ -3005,76 +3032,144 @@ func vocabularyCore() []vocabCase {
 
 func vocabularyApplicator() []vocabCase {
 	return []vocabCase{
-		{keyword: "allOf", write: "allOf: [{type: object, properties: {q: {type: integer}}}]", schemas: objectSchema},
-		{keyword: "anyOf", write: "anyOf: [{type: string}, {type: integer}]", schemas: stringSchema},
-		{keyword: "oneOf", write: "oneOf: [{type: string}, {type: integer}]", schemas: stringSchema},
-		{keyword: "not", write: "not: {const: n}", schemas: stringSchema},
-		{keyword: "if", write: "if: {const: a}", schemas: stringSchema},
-		{keyword: "then", write: "then: {const: a}", schemas: stringSchema},
-		{keyword: "else", write: "else: {const: a}", schemas: stringSchema},
-		{keyword: "dependentSchemas", write: "dependentSchemas: {p: {type: object}}", schemas: objectSchema},
-		{keyword: "prefixItems", write: "prefixItems: [{type: integer}]", schemas: arraySchema},
-		{keyword: "items", write: "items: {type: integer}", schemas: "    A: {KW, type: array}\n"},
-		{keyword: "contains", write: "contains: {type: string}", schemas: arraySchema},
-		{keyword: "properties", write: "properties: {p: {type: string}}", schemas: "    A: {KW, type: object}\n"},
-		{keyword: "patternProperties", write: "patternProperties: {'^a': {type: string}}", schemas: objectSchema},
-		{keyword: "additionalProperties", write: "additionalProperties: {type: integer}", schemas: objectSchema},
-		{keyword: "propertyNames", write: "propertyNames: {maxLength: 4}", schemas: objectSchema},
-		{keyword: "unevaluatedItems", write: "unevaluatedItems: {type: string}", schemas: arraySchema},
-		{keyword: "unevaluatedProperties", write: "unevaluatedProperties: false", schemas: objectSchema},
+		{
+			keyword: "allOf", schemas: objectSchema,
+			write: "allOf: [{type: object, properties: {q: {type: integer}}}]",
+			alt:   "allOf: [{type: object, properties: {q: {type: boolean}}}]",
+		},
+		{
+			keyword: "anyOf", schemas: stringSchema,
+			write: "anyOf: [{type: string}, {type: integer}]",
+			alt:   "anyOf: [{type: string}, {type: boolean}]",
+		},
+		{
+			keyword: "oneOf", schemas: stringSchema,
+			write: "oneOf: [{type: string}, {type: integer}]",
+			alt:   "oneOf: [{type: string}, {type: boolean}]",
+		},
+		{keyword: "not", write: "not: {const: n}", alt: "not: {const: z}", schemas: stringSchema},
+		{keyword: "if", write: "if: {const: a}", alt: "if: {const: z}", schemas: stringSchema},
+		{keyword: "then", write: "then: {const: a}", alt: "then: {const: z}", schemas: stringSchema},
+		{keyword: "else", write: "else: {const: a}", alt: "else: {const: z}", schemas: stringSchema},
+		{
+			keyword: "dependentSchemas", schemas: objectSchema,
+			write: "dependentSchemas: {p: {type: object}}", alt: "dependentSchemas: {p: {type: array}}",
+		},
+		{
+			keyword: "prefixItems", schemas: arraySchema,
+			write: "prefixItems: [{type: integer}]", alt: "prefixItems: [{type: boolean}]",
+		},
+		{
+			keyword: "items", schemas: "    A: {KW, type: array}\n",
+			write: "items: {type: integer}", alt: "items: {type: boolean}",
+		},
+		{
+			keyword: "contains", schemas: arraySchema,
+			write: "contains: {type: string}", alt: "contains: {type: boolean}",
+		},
+		{
+			keyword: "properties", schemas: "    A: {KW, type: object}\n",
+			write: "properties: {p: {type: string}}", alt: "properties: {p: {type: boolean}}",
+		},
+		{
+			keyword: "patternProperties", schemas: objectSchema,
+			write: "patternProperties: {'^a': {type: string}}", alt: "patternProperties: {'^a': {type: boolean}}",
+		},
+		{
+			keyword: "additionalProperties", schemas: objectSchema,
+			write: "additionalProperties: {type: integer}", alt: "additionalProperties: {type: boolean}",
+		},
+		{
+			keyword: "propertyNames", schemas: objectSchema,
+			write: "propertyNames: {maxLength: 4}", alt: "propertyNames: {maxLength: 5}",
+		},
+		{
+			keyword: "unevaluatedItems", schemas: arraySchema,
+			write: "unevaluatedItems: {type: string}", alt: "unevaluatedItems: {type: boolean}",
+		},
+		{
+			keyword: "unevaluatedProperties", schemas: objectSchema,
+			write: "unevaluatedProperties: false", alt: "unevaluatedProperties: {type: string}",
+		},
 	}
 }
 
 func vocabularyValidation() []vocabCase {
+	const intSchema = "    A: {KW, type: integer}\n"
 	return []vocabCase{
-		{keyword: "type", write: "type: string", schemas: "    A: {KW, title: T}\n"},
-		{keyword: "enum", write: "enum: [a, b]", schemas: stringSchema},
-		{keyword: "const", write: "const: a", schemas: stringSchema},
-		{keyword: "multipleOf", write: "multipleOf: 2", schemas: "    A: {KW, type: integer}\n"},
-		{keyword: "maximum", write: "maximum: 9", schemas: "    A: {KW, type: integer}\n"},
-		{keyword: "exclusiveMaximum", write: "exclusiveMaximum: 9", schemas: "    A: {KW, type: integer}\n"},
-		{keyword: "minimum", write: "minimum: 1", schemas: "    A: {KW, type: integer}\n"},
-		{keyword: "exclusiveMinimum", write: "exclusiveMinimum: 1", schemas: "    A: {KW, type: integer}\n"},
-		{keyword: "maxLength", write: "maxLength: 9", schemas: stringSchema},
-		{keyword: "minLength", write: "minLength: 1", schemas: stringSchema},
-		{keyword: "pattern", write: "pattern: '^a'", schemas: stringSchema},
-		{keyword: "maxItems", write: "maxItems: 9", schemas: arraySchema},
-		{keyword: "minItems", write: "minItems: 1", schemas: arraySchema},
-		{keyword: "uniqueItems", write: "uniqueItems: true", schemas: arraySchema},
-		{keyword: "maxContains", write: "maxContains: 9", schemas: arraySchema},
-		{keyword: "minContains", write: "minContains: 1", schemas: arraySchema},
-		{keyword: "maxProperties", write: "maxProperties: 9", schemas: objectSchema},
-		{keyword: "minProperties", write: "minProperties: 1", schemas: objectSchema},
-		{keyword: "required", write: "required: [p]", schemas: objectSchema},
-		{keyword: "dependentRequired", write: "dependentRequired: {p: [q]}", schemas: objectSchema},
+		{keyword: "type", write: "type: string", alt: "type: boolean", schemas: "    A: {KW, title: T}\n"},
+		{keyword: "enum", write: "enum: [a, b]", alt: "enum: [y, z]", schemas: stringSchema},
+		{keyword: "const", write: "const: a", alt: "const: z", schemas: stringSchema},
+		{keyword: "multipleOf", write: "multipleOf: 2", alt: "multipleOf: 3", schemas: intSchema},
+		{keyword: "maximum", write: "maximum: 9", alt: "maximum: 8", schemas: intSchema},
+		{keyword: "exclusiveMaximum", write: "exclusiveMaximum: 9", alt: "exclusiveMaximum: 8", schemas: intSchema},
+		{keyword: "minimum", write: "minimum: 1", alt: "minimum: 2", schemas: intSchema},
+		{keyword: "exclusiveMinimum", write: "exclusiveMinimum: 1", alt: "exclusiveMinimum: 2", schemas: intSchema},
+		{keyword: "maxLength", write: "maxLength: 9", alt: "maxLength: 8", schemas: stringSchema},
+		{keyword: "minLength", write: "minLength: 1", alt: "minLength: 2", schemas: stringSchema},
+		{keyword: "pattern", write: "pattern: '^a'", alt: "pattern: '^z'", schemas: stringSchema},
+		{keyword: "maxItems", write: "maxItems: 9", alt: "maxItems: 8", schemas: arraySchema},
+		{keyword: "minItems", write: "minItems: 1", alt: "minItems: 2", schemas: arraySchema},
+		{keyword: "uniqueItems", write: "uniqueItems: true", alt: "uniqueItems: false", schemas: arraySchema},
+		{keyword: "maxContains", write: "maxContains: 9", alt: "maxContains: 8", schemas: arraySchema},
+		{keyword: "minContains", write: "minContains: 1", alt: "minContains: 2", schemas: arraySchema},
+		{keyword: "maxProperties", write: "maxProperties: 9", alt: "maxProperties: 8", schemas: objectSchema},
+		{keyword: "minProperties", write: "minProperties: 1", alt: "minProperties: 2", schemas: objectSchema},
+		{keyword: "required", write: "required: [p]", alt: "required: []", schemas: objectSchema},
+		{
+			keyword: "dependentRequired", schemas: objectSchema,
+			write: "dependentRequired: {p: [q]}", alt: "dependentRequired: {p: [z]}",
+		},
 	}
 }
 
 func vocabularyAnnotation() []vocabCase {
 	return []vocabCase{
-		{keyword: "title", write: "title: T", schemas: stringSchema},
-		{keyword: "description", write: "description: D", schemas: stringSchema},
-		{keyword: "default", write: "default: a", schemas: stringSchema},
-		{keyword: "deprecated", write: "deprecated: true", schemas: stringSchema},
-		{keyword: "readOnly", write: "readOnly: true", schemas: stringSchema},
-		{keyword: "writeOnly", write: "writeOnly: true", schemas: stringSchema},
-		{keyword: "examples", write: "examples: [a]", schemas: stringSchema},
-		{keyword: "format", write: "format: uuid", schemas: stringSchema},
-		{keyword: "contentEncoding", write: "contentEncoding: base64", schemas: stringSchema},
-		{keyword: "contentMediaType", write: "contentMediaType: image/png", schemas: stringSchema},
-		{keyword: "contentSchema", write: "contentSchema: {type: object}", schemas: stringSchema},
+		{keyword: "title", write: "title: T", alt: "title: Z", schemas: stringSchema},
+		{keyword: "description", write: "description: D", alt: "description: Z", schemas: stringSchema},
+		{keyword: "default", write: "default: a", alt: "default: z", schemas: stringSchema},
+		{keyword: "deprecated", write: "deprecated: true", alt: "deprecated: false", schemas: stringSchema},
+		{keyword: "readOnly", write: "readOnly: true", alt: "readOnly: false", schemas: stringSchema},
+		{keyword: "writeOnly", write: "writeOnly: true", alt: "writeOnly: false", schemas: stringSchema},
+		{keyword: "examples", write: "examples: [a]", alt: "examples: [z]", schemas: stringSchema},
+		{keyword: "format", write: "format: uuid", alt: "format: date", schemas: stringSchema},
+		{
+			keyword: "contentEncoding", schemas: stringSchema,
+			write: "contentEncoding: base64", alt: "contentEncoding: base32",
+		},
+		{
+			keyword: "contentMediaType", schemas: stringSchema,
+			write: "contentMediaType: image/png", alt: "contentMediaType: text/csv",
+		},
+		{
+			keyword: "contentSchema", schemas: stringSchema,
+			write: "contentSchema: {type: object}", alt: "contentSchema: {type: array}",
+		},
 	}
 }
 
 // TestVocabulary2020_12_EveryKeywordIsLoweredOrKept compiles each 2020-12 keyword
-// beside a control that omits it and requires the two IR documents to differ. A
-// keyword the compiler neither lowers nor keeps verbatim produces an identical
-// document, which is exactly the silent drop GitHub #125 catalogued by hand — so
-// this fails on the next one instead of waiting for a reader to notice.
+// twice with different values, and once more with the keyword omitted, then
+// requires all three IR documents to differ. A keyword the compiler neither
+// lowers nor keeps verbatim produces an identical document, which is exactly the
+// silent drop GitHub #125 catalogued by hand — so this fails on the next one
+// instead of waiting for a reader to notice.
+//
+// What the two values buy is the difference between noticing a keyword and
+// carrying it. A keyword whose mere presence reshapes the IR — hoisting a node,
+// switching a lowering — moves the document without its value going anywhere,
+// and a control-versus-written comparison alone cannot tell the two apart. Two
+// values that produce one document say the value was read and discarded.
+//
+// What it does not claim: that every spelling of a keyword survives. It compares
+// one pair of values per keyword, so a lowering that carried one value and
+// dropped another would still pass. It is a floor on what reaches the IR, not an
+// inventory of it.
 //
 // The excluded rows are the inverse assertion: each states why nothing carries
-// the keyword, and the test holds them to producing no difference, so a keyword
-// that starts being carried has to move its justification rather than keep it.
+// the keyword, and the test holds them to producing no difference at all, so a
+// keyword that starts being carried has to move its justification rather than
+// keep it.
 func TestVocabulary2020_12_EveryKeywordIsLoweredOrKept(t *testing.T) {
 	t.Parallel()
 	for _, tc := range vocabularyCases() {
@@ -3089,8 +3184,14 @@ func TestVocabulary2020_12_EveryKeywordIsLoweredOrKept(t *testing.T) {
 				assert.Equal(t, without, with, "%s is deliberately not carried: %s", tc.keyword, tc.excluded)
 				return
 			}
+			require.NotEmpty(t, tc.alt, "a carried keyword needs a second value to be checked against")
 			assert.NotEqual(t, without, with,
 				"%s changed nothing in the IR, so it is neither lowered nor kept verbatim", tc.keyword)
+
+			other := compileVocabIR(t, strings.Replace(tc.schemas, "KW, ", tc.alt+", ", 1))
+			assert.NotEqual(t, with, other,
+				"%s reshaped the IR by being present but two values of it produced one document, "+
+					"so the value itself is read and discarded", tc.keyword)
 		})
 	}
 }
@@ -3164,6 +3265,48 @@ func TestContentVocabulary_LowersToEncoding(t *testing.T) {
 			require.NotNil(t, sc.Encoding)
 			assert.Empty(t, cmp.Diff(tc.want, *sc.Encoding))
 			assert.Empty(t, sc.Unmodeled, "a keyword with a field is lowered, never also kept raw")
+		})
+	}
+}
+
+// TestContentVocabulary_KeepsTheBoundsWrittenBesideIt pins that hoisting a node
+// for the content vocabulary does not cost the position its value constraints.
+// Owning a node is what stops hoistDeclarationHome hoisting the alias that
+// carries them, so the node the content vocabulary lands on has to carry them
+// itself — otherwise adding contentEncoding to a bounded string deletes its
+// bounds, which is a lossy lowering nothing reports (invariant 2).
+func TestContentVocabulary_KeepsTheBoundsWrittenBesideIt(t *testing.T) {
+	t.Parallel()
+	five, nine := int64(5), int64(9)
+	cases := []struct {
+		name, schemas string
+		at            ir.TypeID
+		want          ir.Constraints
+	}{
+		{
+			name:    "a component",
+			schemas: "    A: {type: string, contentEncoding: base64, minLength: 5, maxLength: 9, pattern: '^[a-z]+$'}\n",
+			at:      componentID("A"),
+			want:    ir.Constraints{MinLength: &five, MaxLength: &nine, Pattern: "^[a-z]+$"},
+		},
+		{
+			name:    "an inline position",
+			schemas: "    A: {type: array, items: {type: string, contentMediaType: text/csv, minLength: 5}}\n",
+			at:      "t/anon/components/schemas/A/items",
+			want:    ir.Constraints{MinLength: &five},
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			doc, diags := parseFull(t, componentSpec(tc.schemas))
+			requireNoErrorDiags(t, diags)
+
+			sc, ok := doc.Types[tc.at].(*ir.Scalar)
+			require.True(t, ok, "the content vocabulary hoists a Scalar at %s", tc.at)
+			require.NotNil(t, sc.Encoding, "and lowers the keyword onto it")
+			require.NotNil(t, sc.Constraints, "while keeping the bounds written beside it")
+			assert.Empty(t, cmp.Diff(tc.want, *sc.Constraints))
 		})
 	}
 }
@@ -3268,13 +3411,69 @@ func TestDynamicRef_IrreducibleIsKeptAndSaysWhy(t *testing.T) {
 	const anchors = "    M1: {$dynamicAnchor: dup, type: string}\n" +
 		"    M2: {$dynamicAnchor: dup, type: integer}\n" +
 		"    Deep: {type: object, properties: {i: {$dynamicAnchor: deep, type: string}}}\n"
-	cases := []struct{ name, schemas, wantWhy string }{
-		{"no such anchor", "    A: {$dynamicRef: '#nope'}\n", "no $dynamicAnchor \"nope\" is declared"},
-		{"another document", "    A: {$dynamicRef: 'other.json#m'}\n", "is not a plain same-document fragment"},
-		{"a pointer, not an anchor", "    A: {$dynamicRef: '#/components/schemas/M1'}\n", "not a plain same-document fragment"},
-		{"declared twice", anchors + "    A: {$dynamicRef: '#dup'}\n", "declared 2 times"},
-		{"not a component", anchors + "    A: {$dynamicRef: '#deep'}\n", "rather than on a component schema"},
-		{"co-declared with a shape", anchors + "    A: {$dynamicRef: '#deep', type: string}\n", "co-declared with another applicator"},
+	const anchor = "    M: {$dynamicAnchor: m, type: string}\n"
+	// at is the node keeping the reference, defaulting to the component A itself.
+	cases := []struct {
+		name, schemas, wantWhy string
+		at                     ir.TypeID
+	}{
+		{name: "no such anchor", schemas: "    A: {$dynamicRef: '#nope'}\n",
+			wantWhy: "no $dynamicAnchor \"nope\" is declared"},
+		{name: "another document", schemas: "    A: {$dynamicRef: 'other.json#m'}\n",
+			wantWhy: "is not a plain same-document fragment"},
+		{name: "a pointer, not an anchor", schemas: "    A: {$dynamicRef: '#/components/schemas/M1'}\n",
+			wantWhy: "not a plain same-document fragment"},
+		{name: "declared twice", schemas: anchors + "    A: {$dynamicRef: '#dup'}\n",
+			wantWhy: "declared 2 times"},
+		{name: "not a component", schemas: anchors + "    A: {$dynamicRef: '#deep'}\n",
+			wantWhy: "rather than on a component schema"},
+		{name: "co-declared with a shape", schemas: anchors + "    A: {$dynamicRef: '#deep', type: string}\n",
+			wantWhy: "co-declared with another applicator"},
+		{name: "co-declared with items", schemas: anchor + "    A: {$dynamicRef: '#m', items: {type: integer}}\n",
+			wantWhy: "co-declared with another applicator"},
+		{name: "co-declared with prefixItems", schemas: anchor + "    A: {$dynamicRef: '#m', prefixItems: [{type: integer}]}\n",
+			wantWhy: "co-declared with another applicator"},
+		{name: "co-declared with required", schemas: anchor + "    A: {$dynamicRef: '#m', required: [p]}\n",
+			wantWhy: "co-declared with another applicator"},
+		{
+			name:    "co-declared with a $ref",
+			schemas: anchor + "    A: {$dynamicRef: '#m', $ref: '#/components/schemas/M'}\n",
+			wantWhy: "co-declared with another applicator",
+		},
+		{
+			name:    "co-declared with a union",
+			schemas: anchor + "    A: {$dynamicRef: '#m', oneOf: [{type: string}, {type: integer}]}\n",
+			wantWhy: "co-declared with another applicator",
+		},
+		{
+			name: "the anchor is in a resource of its own",
+			schemas: "    M: {$id: 'https://example.com/m', $dynamicAnchor: m, type: string}\n" +
+				"    A: {$dynamicRef: '#m'}\n",
+			wantWhy: `an $id at or above "/components/schemas/M"`,
+		},
+		{
+			name:    "the reference is in a resource of its own",
+			schemas: anchor + "    A: {$id: 'https://example.com/a', $dynamicRef: '#m'}\n",
+			wantWhy: `an $id at or above "/components/schemas/A"`,
+		},
+		{
+			name: "an enclosing schema starts the resource",
+			schemas: anchor +
+				"    A: {$id: 'https://example.com/a', type: array, items: {$dynamicRef: '#m'}}\n",
+			wantWhy: `an $id at or above "/components/schemas/A/items"`,
+			at:      "t/anon/components/schemas/A/items",
+		},
+		{
+			name: "expanding it would close a cycle",
+			schemas: "    A: {$dynamicAnchor: a, $dynamicRef: '#b'}\n" +
+				"    B: {$dynamicAnchor: b, $dynamicRef: '#a'}\n",
+			wantWhy: `closes a cycle of $dynamicRef expansions back onto "/components/schemas/A"`,
+		},
+		{
+			name:    "a self-reference is that cycle at length one",
+			schemas: "    A: {$dynamicAnchor: a, $dynamicRef: '#a'}\n",
+			wantWhy: `closes a cycle of $dynamicRef expansions back onto "/components/schemas/A"`,
+		},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -3282,7 +3481,11 @@ func TestDynamicRef_IrreducibleIsKeptAndSaysWhy(t *testing.T) {
 			doc, diags := parseFull(t, componentSpec(tc.schemas))
 			requireNoErrorDiags(t, diags)
 
-			td, ok := doc.Types[componentID("A")]
+			at := tc.at
+			if at == "" {
+				at = componentID("A")
+			}
+			td, ok := doc.Types[at]
 			require.True(t, ok, "the position owns a node to keep the reference on")
 			entry, ok := td.Common().Unmodeled["openapi:$dynamicRef"]
 			require.True(t, ok, "an irreducible $dynamicRef is kept verbatim, not dropped")
@@ -3292,12 +3495,94 @@ func TestDynamicRef_IrreducibleIsKeptAndSaysWhy(t *testing.T) {
 	}
 }
 
+// TestDynamicRef_CycleIsRefusedAtEveryEdge pins that a cycle of $dynamicRef
+// expansions is preserved whole rather than broken at whichever edge lowered
+// first. Each member reaches the verdict from its own position, so no Scalar
+// ends up with a Base chain that never terminates — the shape refCycles already
+// refuses for every pure-$ref cycle, and which neither pass.Validate nor
+// irverify checks for aliases.
+func TestDynamicRef_CycleIsRefusedAtEveryEdge(t *testing.T) {
+	t.Parallel()
+	doc, diags := parseFull(t, componentSpec(
+		"    A: {$dynamicAnchor: a, $dynamicRef: '#b'}\n"+
+			"    B: {$dynamicAnchor: b, $dynamicRef: '#a'}\n"+
+			"    Self: {$dynamicAnchor: s, $dynamicRef: '#s'}\n"))
+	requireNoErrorDiags(t, diags)
+
+	for _, name := range []string{"A", "B", "Self"} {
+		sc, ok := doc.Types[componentID(name)].(*ir.Scalar)
+		require.True(t, ok, "%s still owns a node", name)
+		require.NotNil(t, sc.Base)
+		assert.Equal(t, ir.TypeID("t/prim/any"), sc.Base.Target,
+			"%s aliases the top type, never a link of the cycle", name)
+		assert.Contains(t, sc.Unmodeled, "openapi:$dynamicRef",
+			"%s keeps the reference it could not take", name)
+	}
+	assert.Equal(t, 0, countDiagsAt(diags, codeDynamicRefExpanded, ir.SeverityInfo),
+		"no edge of the cycle is reported as expanded")
+}
+
+// TestDynamicRef_ExpandsIntoACycleItIsNotPartOf pins the other side of that
+// verdict: a position outside a cycle still expands onto it. Every member of the
+// cycle refuses its own expansion, so the target is an ordinary alias over the
+// top type rather than a link that loops.
+func TestDynamicRef_ExpandsIntoACycleItIsNotPartOf(t *testing.T) {
+	t.Parallel()
+	doc, diags := parseFull(t, componentSpec(
+		"    A: {$dynamicAnchor: a, $dynamicRef: '#b'}\n"+
+			"    B: {$dynamicAnchor: b, $dynamicRef: '#a'}\n"+
+			"    Outside: {$dynamicRef: '#a'}\n"))
+	requireNoErrorDiags(t, diags)
+
+	sc, ok := doc.Types[componentID("Outside")].(*ir.Scalar)
+	require.True(t, ok)
+	require.NotNil(t, sc.Base)
+	assert.Equal(t, componentID("A"), sc.Base.Target, "the expansion is taken")
+	assert.NotContains(t, sc.Unmodeled, "openapi:$dynamicRef",
+		"an expanded reference is the position's type, so it is not also kept")
+}
+
+// TestDynamicRef_ChainEndsAtAnAnchorItCannotFollow pins where the chain walk
+// stops. A hop landing on an anchor that is not a component schema, or on a name
+// declared more than once, cannot be followed any further — and a chain it
+// cannot follow is not a chain that returns, so the expansion still stands.
+func TestDynamicRef_ChainEndsAtAnAnchorItCannotFollow(t *testing.T) {
+	t.Parallel()
+	cases := map[string]string{
+		"the hop lands off the components section": "    Mid: {$dynamicAnchor: mid, $dynamicRef: '#deep'}\n" +
+			"    Holder: {type: object, properties: {i: {$dynamicAnchor: deep, type: string}}}\n",
+		"the hop lands on a name declared twice": "    Mid: {$dynamicAnchor: mid, $dynamicRef: '#dup'}\n" +
+			"    D1: {$dynamicAnchor: dup, type: string}\n    D2: {$dynamicAnchor: dup, type: integer}\n",
+	}
+	for name, schemas := range cases {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			doc, diags := parseFull(t, componentSpec(schemas+"    A: {$dynamicRef: '#mid'}\n"))
+			requireNoErrorDiags(t, diags)
+
+			sc, ok := doc.Types[componentID("A")].(*ir.Scalar)
+			require.True(t, ok)
+			require.NotNil(t, sc.Base)
+			assert.Equal(t, componentID("Mid"), sc.Base.Target)
+		})
+	}
+}
+
 // TestDialectKeywords_KeptOutOfScope pins the exclusion §4.7 records: the IR has
 // no resource or dialect axis, so these are kept verbatim under the reason that
 // says no IR node is coming for them — never dropped in silence, and never read
 // as a base URI for reference resolution.
+//
+// The keyword list is written out here rather than read from dialectKeywords:
+// ranging over the production slice would let a keyword dropped from it narrow
+// this test instead of failing it, so the two are compared as sets and each is
+// then exercised.
 func TestDialectKeywords_KeptOutOfScope(t *testing.T) {
 	t.Parallel()
+	want := []string{"$id", "$schema", "$vocabulary"}
+	require.ElementsMatch(t, want, dialectKeywords,
+		"a keyword joining or leaving the exclusion must be decided here too")
+
 	doc, diags := parseFull(t, componentSpec(
 		"    A:\n"+
 			"      $id: 'urn:example:a'\n"+
@@ -3309,7 +3594,7 @@ func TestDialectKeywords_KeptOutOfScope(t *testing.T) {
 
 	td, ok := doc.Types[componentID("A")]
 	require.True(t, ok)
-	for _, keyword := range dialectKeywords {
+	for _, keyword := range want {
 		entry, ok := td.Common().Unmodeled["openapi:"+keyword]
 		require.True(t, ok, "%s must be kept verbatim", keyword)
 		assert.Equal(t, ir.ReasonOutOfScope, entry.Reason)
@@ -3343,13 +3628,31 @@ func assertDiagContains(t *testing.T, diags []ir.Diagnostic, pointer, substr str
 	assert.Fail(t, "no diagnostic said why", "nothing at %q mentions %q; got %+v", pointer, substr, diags)
 }
 
-// TestCollectDynamicAnchors_WalksEveryNodeShape drives the raw-tree walk over the
+// TestDeclaresResourceIDAbove_WithoutARawTree pins the guard on the path walk.
+// The walk reads the raw source because $id has no oas3.Schema field, so a
+// document with no raw tree behind it — one built in memory, or a pointer naming
+// a position the source does not have — must read as "no resource boundary
+// found" rather than wander off the tree.
+//
+// No committed spec reaches this: every pointer a $dynamicRef is lowered at was
+// built by walking the very tree this re-walks. The guard is exercised directly
+// because the hazard is a later caller passing a synthesized pointer, not a live
+// defect.
+func TestDeclaresResourceIDAbove_WithoutARawTree(t *testing.T) {
+	t.Parallel()
+	l := newRawLowerer(&soa.OpenAPI{})
+
+	assert.False(t, l.declaresResourceIDAbove("/components/schemas/A"),
+		"a document with no raw tree declares no resource anywhere")
+}
+
+// TestDynamicAnchors_WalksEveryNodeShape drives the raw-tree walk over the
 // shapes a YAML document can present, rather than only the mappings a schema
 // happens to be written as. The walk reads the raw tree because oas3.Schema has
 // no $dynamicAnchor field, so it meets whatever the source wrote — a sequence, a
 // bare scalar, a non-string key — and must index anchors under a sequence while
 // declining the rest without wandering off the tree.
-func TestCollectDynamicAnchors_WalksEveryNodeShape(t *testing.T) {
+func TestDynamicAnchors_WalksEveryNodeShape(t *testing.T) {
 	t.Parallel()
 	cases := []struct {
 		name string
@@ -3366,6 +3669,11 @@ func TestCollectDynamicAnchors_WalksEveryNodeShape(t *testing.T) {
 			"a sequence indexes its elements by ordinal",
 			yamlNode(t, "- {$dynamicAnchor: first}\n- {other: 1}\n- {$dynamicAnchor: third}\n"),
 			map[string][]string{"first": {"/0"}, "third": {"/2"}},
+		},
+		{
+			"a sequence element standing in for a mapping is followed",
+			yamlNode(t, "- &a {$dynamicAnchor: first}\n- *a\n"),
+			map[string][]string{"first": {"/0", "/1"}},
 		},
 		{
 			"a non-string key cannot name a keyword and is skipped",
@@ -3386,51 +3694,134 @@ func TestCollectDynamicAnchors_WalksEveryNodeShape(t *testing.T) {
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			got := map[string][]string{}
-			collectDynamicAnchors(tc.node, "", got, 0)
+			got, complete := dynamicAnchors(tc.node)
 			assert.Empty(t, cmp.Diff(tc.want, got))
+			assert.True(t, complete, "nothing here reaches a walk bound")
 		})
 	}
 }
 
-// TestCollectDynamicAnchors_DocumentNodeUnwraps pins that the walk accepts a
-// whole document as well as a content node, since dynamicAnchors is handed
-// whatever the loader kept.
-func TestCollectDynamicAnchors_DocumentNodeUnwraps(t *testing.T) {
+// TestDynamicAnchors_CountsWhatAnAliasBringsIn pins the count the whole
+// expansion rests on. A YAML alias and a `<<` merge key each hand a second
+// position the anchor the first one wrote, and the parser downstream reads both
+// positions as declaring it — so an index that walked only the spelled-out tree
+// would report one declaration where the document has three, and "declared
+// exactly once" would expand a reference that is genuinely ambiguous.
+func TestDynamicAnchors_CountsWhatAnAliasBringsIn(t *testing.T) {
+	t.Parallel()
+	cases := []struct {
+		name, source string
+		want         []string
+	}{
+		{
+			name:   "an alias re-declares the anchor at its own position",
+			source: "A: &base {$dynamicAnchor: tail}\nB: *base\n",
+			want:   []string{"/A", "/B"},
+		},
+		{
+			name:   "a merge key does too",
+			source: "A: &base {$dynamicAnchor: tail}\nB: {<<: *base, description: merged}\n",
+			want:   []string{"/A", "/B"},
+		},
+		{
+			name:   "an explicit key still beats the merged one",
+			source: "A: &base {$dynamicAnchor: tail}\nB: {<<: *base, $dynamicAnchor: own}\n",
+			want:   []string{"/A"},
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			got, complete := dynamicAnchors(yamlNode(t, tc.source))
+			assert.True(t, complete)
+			assert.Equal(t, tc.want, got["tail"])
+		})
+	}
+}
+
+// TestDynamicAnchors_DocumentNodeUnwraps pins that the walk accepts a whole
+// document as well as a content node, since dynamicAnchors is handed whatever
+// the loader kept.
+func TestDynamicAnchors_DocumentNodeUnwraps(t *testing.T) {
 	t.Parallel()
 	var doc yaml.Node
 	require.NoError(t, yaml.Unmarshal([]byte("$dynamicAnchor: top\n"), &doc))
 	require.Equal(t, yaml.DocumentNode, doc.Kind)
 
-	assert.Equal(t, map[string][]string{"top": {""}}, dynamicAnchors(&doc))
+	got, complete := dynamicAnchors(&doc)
+	assert.Equal(t, map[string][]string{"top": {""}}, got)
+	assert.True(t, complete)
 }
 
-// TestCollectDynamicAnchors_StopsAtTheDepthCap pins the bound. A raw tree deeper
-// than the cap is a legal document, so the walk must stop rather than recur to
-// exhaustion; anchors above the cap are still indexed.
-func TestCollectDynamicAnchors_StopsAtTheDepthCap(t *testing.T) {
+// TestDynamicAnchors_StopsAtTheDepthCap pins the bound. A raw tree deeper than
+// the cap is a legal document, so the walk must stop rather than recur to
+// exhaustion; anchors above the cap are still indexed, and the truncation is
+// reported rather than passed off as a complete index.
+func TestDynamicAnchors_StopsAtTheDepthCap(t *testing.T) {
 	t.Parallel()
-	// Built rather than parsed: nesting this deep in source text is indentation
-	// arithmetic, and duplicate keys at one level would not nest at all.
-	nest := func(child *yaml.Node) *yaml.Node {
-		return &yaml.Node{
-			Kind:    yaml.MappingNode,
-			Content: []*yaml.Node{scalarNode("!!str", "k"), child},
-		}
-	}
-	deep := nest(&yaml.Node{
+	deep, shallow := nestedAnchor(maxDynamicAnchorDepth+2), nestedAnchor(0)
+
+	deepIndex, deepComplete := dynamicAnchors(deep)
+	assert.NotContains(t, deepIndex, "toodeep",
+		"the walk stops at the cap instead of recurring to exhaustion")
+	assert.False(t, deepComplete, "and says so, since an unseen anchor undercounts every name")
+
+	shallowIndex, shallowComplete := dynamicAnchors(shallow)
+	assert.Contains(t, shallowIndex, "toodeep",
+		"an anchor within the cap is still indexed, so the cap is what excluded the other")
+	assert.True(t, shallowComplete)
+}
+
+// TestAnchorWalk_StopsAtTheNodeBudget pins the other bound. Depth alone stopped
+// bounding the walk once it began following aliases, since an alias DAG presents
+// many more paths than the tree has nodes; the budget is what caps the total.
+func TestAnchorWalk_StopsAtTheNodeBudget(t *testing.T) {
+	t.Parallel()
+	source := yamlNode(t, "a: {$dynamicAnchor: first}\nb: {$dynamicAnchor: second}\n")
+
+	w := newAnchorWalk(2) // the root mapping and its first value, and no more
+	w.walk(source, "", 0)
+
+	assert.True(t, w.truncated, "the budget ran out mid-walk")
+	assert.NotContains(t, w.out, "second", "so the anchors past it are missing")
+}
+
+// nestedAnchor builds a mapping chain of the given depth with a $dynamicAnchor
+// at the bottom. It is built rather than parsed because nesting this deep in
+// source text is indentation arithmetic, and duplicate keys at one level would
+// not nest at all.
+func nestedAnchor(depth int) *yaml.Node {
+	n := &yaml.Node{
 		Kind:    yaml.MappingNode,
 		Content: []*yaml.Node{scalarNode("!!str", "$dynamicAnchor"), scalarNode("!!str", "toodeep")},
-	})
-	shallow := deep
-	for range maxDynamicAnchorDepth + 2 {
-		deep = nest(deep)
 	}
+	for range depth + 1 {
+		n = &yaml.Node{Kind: yaml.MappingNode, Content: []*yaml.Node{scalarNode("!!str", "k"), n}}
+	}
+	return n
+}
 
-	assert.NotContains(t, dynamicAnchors(deep), "toodeep",
-		"the walk stops at the cap instead of recurring to exhaustion")
-	assert.Contains(t, dynamicAnchors(shallow), "toodeep",
-		"an anchor within the cap is still indexed, so the cap is what excluded the other")
+// TestDynamicAnchorIndex_ReportsATruncatedWalk pins what a reader is told when
+// the index is partial. Truncation only ever drops declarations, and a dropped
+// duplicate reads as "declared exactly once" — the count that expands — so an
+// unreported truncation would turn an ambiguous reference into a confident one.
+func TestDynamicAnchorIndex_ReportsATruncatedWalk(t *testing.T) {
+	t.Parallel()
+	// The walk descends into every key, so an extension at the document root
+	// nests the tree past the cap without the schema lowering ever seeing it.
+	deep := strings.Repeat("{a: ", maxDynamicAnchorDepth) + "1" + strings.Repeat("}", maxDynamicAnchorDepth)
+	l, diags := loweredFor(t, componentSpec("    A: {type: string}\n")+"x-deep: "+deep+"\n")
+	requireNoErrorDiags(t, diags)
+
+	require.NotNil(t, l.dynamicAnchorIndex(), "the index is built even when partial")
+
+	got := l.diags.List()
+	require.Len(t, got, 1, "the truncation is announced exactly once: %+v", got)
+	assert.Equal(t, ir.SeverityWarning, got[0].Severity)
+	assert.Contains(t, got[0].Message, "not verified")
+
+	l.dynamicAnchorIndex()
+	assert.Len(t, l.diags.List(), 1, "and the cached index does not announce it again")
 }
 
 // TestDynamicRef_NonScalarValueIsKeptNotExpanded covers the one irreducible case

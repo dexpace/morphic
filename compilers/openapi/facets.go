@@ -143,19 +143,6 @@ func dialectAt(s *oas3.Schema, pointer string, srcIndex int) (ir.Unmodeled, []ir
 	return p, diags
 }
 
-// declaresDialect reports whether s writes a dialectKeywords entry, so a position
-// that wrote one owns a node to keep it on. It reads the raw nodes because
-// dialectAt does, and a predicate consulting a different source could disagree
-// with it in either direction.
-func declaresDialect(s *oas3.Schema) bool {
-	for _, keyword := range dialectKeywords {
-		if rawPropertyNode(s, keyword) != nil {
-			return true
-		}
-	}
-	return false
-}
-
 // schemaExamplesAt reads a schema's example and examples keywords.
 //
 // Site-only: an example written beside a $ref describes the position, never the
