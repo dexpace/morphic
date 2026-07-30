@@ -85,6 +85,18 @@ Internal phases every compiler follows (each format implements them its own way)
    detection, envelope unwrapping) run only if the corresponding policy is enabled and mark
    their output as inferred.
 
+What a compiler does *not* own is in `compilers/compile`: the state and the grammars every compiler
+must agree on. That is the type registry with the source-coordinate map behind stable IDs (and the
+rule that a minted node takes a namespace no source coordinate addresses), diagnostic accumulation,
+the canonical naming grammar, and the identifier grammar — the kind prefix and the namespace after
+it. What stays with the compiler is what only it can compute: the path an ID derives from, since a
+JSON Pointer, a GraphQL structural path and a protobuf fully-qualified name are different things.
+
+The split is enforced rather than documented: architecture tests fail a package outside the
+framework that writes the type registry, derives a canonical name, or builds an ID out of a string.
+Promoting something into the framework later is additive, while demoting it breaks every compiler,
+so borderline machinery starts outside and moves in on evidence from more than one format.
+
 Compilers are registered in a registry keyed by detected format; the engine sniffs the source
 format and dispatches. Milestone 1 ships the OpenAPI 3.x compiler only; the compiler registry,
 provenance model, and IR are built for all eight from day one.
@@ -188,6 +200,8 @@ morphic/
 │   ├── irtest/          #           Golden-snapshot helpers for IR documents.
 │   └── irverify/        #           Structural-invariant oracle (dangling refs, IDs, naming).
 ├── compilers/           # Layer 1 — compiler contract + registry.
+│   ├── compile/         #           What every compiler shares: type registry + coordinates,
+│   │                    #           diagnostics, naming and identifier grammars. Imports ir only.
 │   ├── openapi/         #           OpenAPI 3.x → IR (milestone 1).
 │   ├── swagger/         #           2.0 lift → openapi compiler (future).
 │   ├── typespec/ smithy/ graphql/ asyncapi/ protobuf/ otp/   (future)
@@ -202,8 +216,11 @@ morphic/
 Dependency rules, enforced by an architecture test as in oagen:
 
 - `ir` imports only the standard library. It contains no parsing, no generation, no I/O.
+- `compilers/compile` imports only `ir`: it is below every compiler, not beside them.
 - `compilers/*` and `pass` import `ir` (and their own format libraries) — never each other,
-  never `emitter` or `engine`.
+  never `emitter` or `engine`. A compiler also names the contract package and
+  `compilers/compile`; each is allowed in its own right, so no sibling compiler rides in beside
+  them.
 - `emitters/*` imports `ir` and `emitter` (contract) — never `compiler`.
 - `engine` imports everything below it; `cmd` imports `engine`.
 

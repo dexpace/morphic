@@ -88,8 +88,11 @@ in the docs.
 ir/          Layer 0 — IR nodes, IDs, traversal, JSON round-trip. Imports ONLY the stdlib.
   irverify/  Layer 0 — structural-invariant checks over a compiled Document. Imports ir only.
   irtest/    Layer 0 — golden-file helper (`-update` rewrites). Imports ir + go-cmp.
-compilers/*  Layer 1 — one compiler per format. Imports ir (+ own format libs); never each
-             other, never emitters/engine.
+compilers/   Layer 1 — the Compiler contract and the format-keyed registry. Imports ir only.
+  compile/   Layer 1 — what every compiler shares: the type registry with its coordinate map,
+             diagnostics, and the naming and identifier grammars. Imports ir only.
+  <format>/  Layer 1 — one compiler per format. Imports ir, compilers, compilers/compile
+             (+ own format libs); never each other, never emitters/engine.
 pass/        Layer 1 — IR → IR passes. Imports ir only.
 emitters/*   Layer 2 — imports ir + emitter contract; never compiler. (Not built yet.)
 engine/      Layer 3 — orchestration; imports everything below.
