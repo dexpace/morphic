@@ -75,15 +75,18 @@ diagnostic constructor and sits at the bottom of the import graph.
 | Issue | Package | Blocked by |
 |---|---|---|
 | ~~#165~~ | **Landed.** `internal/diag` — goldens byte-identical, its own rules entry admits `ir` alone | #57, #48 |
-| #166 | `internal/load` | #57, #165 |
-| #167 | `internal/scan` — cycles and alias amplification share one walk | #57, #165 |
-| #168 | `internal/ids` — after the grammar moves, so no second copy lands | #57, #162 |
-| #169 | `internal/value` | #57, #165 |
-| #170 | `internal/annotation` — takes `site` with it, see below | #57, #165 |
-| #171 | `internal/merge` | #57, #165 |
+| ~~#166~~ | **Landed.** `internal/load` — goldens byte-identical; takes the one Options field it reads | #57, #165 |
+| ~~#167~~ | **Landed.** `internal/scan` — cycles and alias amplification share one walk; `nodeview` split out beneath it | #57, #165 |
+| ~~#168~~ | **Landed.** `internal/ids` — after the grammar moves, so no second copy lands | #57, #165 |
+| ~~#169~~ | **Landed.** `internal/value` — goldens byte-identical | #57, #165 |
+| ~~#170~~ | **Landed.** `internal/annotation` — took the site model and the readers `schema.go` declared | #57, #165 |
+| ~~#171~~ | **Landed.** `internal/merge` — the conflict lattice is drivable without a lowerer | #57, #165 |
 
-#170 is the one that does not move alone: `facets.go` reads a `site`, and `site`, `siteKind`,
-`siteAt` and `siteSchema` are declared in `resolve.go` as free functions. They move together.
+#170 was the one that did not move alone, and it took more than this line predicted. `facets.go`
+reads a `site`, whose declarations live in `resolve.go` — but `facets.go` and `schema.go` were also
+mutually dependent, so the readers `schema.go` declared moved with them. #167 split similarly:
+`nodeview` is read by `schema` and `compose` as well as by the scan, so it founded a package of its
+own beneath both. See `micro-compiler-design.md` §5.1.
 
 ### Tier 1 — dissolving the god object
 
