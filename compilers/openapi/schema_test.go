@@ -3579,10 +3579,10 @@ func TestAnchorWalk_StopsAtTheNodeBudget(t *testing.T) {
 func nestedAnchor(depth int) *yaml.Node {
 	n := &yaml.Node{
 		Kind:    yaml.MappingNode,
-		Content: []*yaml.Node{scalarNode("!!str", "$dynamicAnchor"), scalarNode("!!str", "toodeep")},
+		Content: []*yaml.Node{strNode("$dynamicAnchor"), strNode("toodeep")},
 	}
 	for range depth + 1 {
-		n = &yaml.Node{Kind: yaml.MappingNode, Content: []*yaml.Node{scalarNode("!!str", "k"), n}}
+		n = &yaml.Node{Kind: yaml.MappingNode, Content: []*yaml.Node{strNode("k"), n}}
 	}
 	return n
 }

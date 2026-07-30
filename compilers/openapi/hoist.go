@@ -6,6 +6,7 @@ import (
 	"github.com/dexpace/morphic/compilers/compile"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/ids"
+	"github.com/dexpace/morphic/compilers/openapi/internal/load"
 	"github.com/dexpace/morphic/compilers/openapi/internal/merge"
 	"github.com/dexpace/morphic/ir"
 )
@@ -56,7 +57,7 @@ type lowerer struct {
 // document and interning table ready for schema lowering.
 //
 //nolint:unparam // srcIndex varies once Compile drives the multi-source loop
-func newLowerer(srcIndex int, doc *loaded, opts Options) *lowerer {
+func newLowerer(srcIndex int, doc *load.Document, opts Options) *lowerer {
 	types := compile.NewTypes(srcIndex)
 	l := &lowerer{
 		srcIndex: srcIndex,

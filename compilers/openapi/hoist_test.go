@@ -6,6 +6,7 @@ import (
 	soa "github.com/speakeasy-api/openapi/openapi"
 	"github.com/stretchr/testify/assert"
 
+	"github.com/dexpace/morphic/compilers/openapi/internal/load"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -25,7 +26,7 @@ func TestIntern_IdempotentOnSamePointer(t *testing.T) {
 
 func TestPrimID_SecondCallReuses(t *testing.T) {
 	t.Parallel()
-	l := newLowerer(0, &loaded{Doc: nil, Source: ir.SourceInfo{}}, Options{}.withDefaults())
+	l := newLowerer(0, &load.Document{Doc: nil, Source: ir.SourceInfo{}}, Options{}.withDefaults())
 	first := l.primID(ir.PrimString)
 	second := l.primID(ir.PrimString)
 	assert.Equal(t, first, second, "interned primitive reused on second call")

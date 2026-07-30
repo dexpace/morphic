@@ -5,6 +5,7 @@ import (
 
 	"github.com/dexpace/morphic/compilers/openapi/internal/annotation"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
+	"github.com/dexpace/morphic/compilers/openapi/internal/load"
 	"github.com/dexpace/morphic/compilers/openapi/internal/value"
 	"github.com/dexpace/morphic/ir"
 )
@@ -160,7 +161,7 @@ func emptyConstraints(c *ir.Constraints) bool {
 // than a numeric bound (the 2020-12 dialect of 3.1 and 3.2). An unrecognized
 // version defaults to the 2020-12 numeric form.
 func (l *lowerer) exclusiveBoundIsBoolean() bool {
-	minor, _ := supportedMinor(l.doc.OpenAPI)
+	minor, _ := load.SupportedMinor(l.doc.OpenAPI)
 	return minor == "3.0"
 }
 

@@ -16,6 +16,7 @@ import (
 	"github.com/dexpace/morphic/compilers/openapi/internal/annotation"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/ids"
+	"github.com/dexpace/morphic/compilers/openapi/internal/load"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -232,7 +233,7 @@ func TestParameters_PathItemMergeOverride(t *testing.T) {
         - {name: id, in: path, required: true, schema: {type: integer}, description: op-level}
       responses: {"200": {description: ok}}
 `)
-	loadedDoc, _, err := load(t.Context(), 0, compilers.Source{Path: "spec.yaml", Data: []byte(spec)}, Options{}.withDefaults())
+	loadedDoc, _, err := load.Load(t.Context(), 0, compilers.Source{Path: "spec.yaml", Data: []byte(spec)}, loadOptions(Options{}.withDefaults()))
 	require.NoError(t, err)
 	require.NotNil(t, loadedDoc)
 	var pi *soa.PathItem
@@ -481,7 +482,7 @@ func TestGrouping_ByPathPrefixInferred(t *testing.T) {
     get: {operationId: listOrders, responses: {"200": {description: ok}}}
 `)
 	opts := Options{Grouping: GroupByPathPrefix}.withDefaults()
-	loadedDoc, loadDiags, err := load(t.Context(), 0, compilers.Source{Path: "spec.yaml", Data: []byte(spec)}, opts)
+	loadedDoc, loadDiags, err := load.Load(t.Context(), 0, compilers.Source{Path: "spec.yaml", Data: []byte(spec)}, loadOptions(opts))
 	require.NoError(t, err)
 	require.NotNil(t, loadedDoc)
 	l := newLowerer(0, loadedDoc, opts)
@@ -639,7 +640,7 @@ func TestGrouping_PathPrefixRootPath(t *testing.T) {
     get: {operationId: root, responses: {"200": {description: ok}}}
 `)
 	opts := Options{Grouping: GroupByPathPrefix}.withDefaults()
-	loadedDoc, _, err := load(t.Context(), 0, sourceOf(spec), opts)
+	loadedDoc, _, err := load.Load(t.Context(), 0, sourceOf(spec), loadOptions(opts))
 	require.NoError(t, err)
 	l := newLowerer(0, loadedDoc, opts)
 	l.lowerComponentSchemas()
@@ -722,7 +723,7 @@ func TestLowerTagDefs_NilEntrySkipped(t *testing.T) {
 func TestRawChildNode(t *testing.T) {
 	t.Parallel()
 	assert.Nil(t, annotation.RawChildNode(nil, "x"), "nil root")
-	assert.Nil(t, annotation.RawChildNode(scalarNode("!!str", "x"), "k"), "non-mapping root")
+	assert.Nil(t, annotation.RawChildNode(strNode("x"), "k"), "non-mapping root")
 
 	var doc yaml.Node
 	require.NoError(t, yaml.Unmarshal([]byte("a: 1\nb: 2"), &doc))
@@ -1161,7 +1162,7 @@ func compileFixture(t *testing.T, path string) *ir.Document {
 	require.NoError(t, err)
 
 	opts := Options{}.withDefaults()
-	loadedDoc, loadDiags, err := load(t.Context(), 0, compilers.Source{Path: path, Data: data}, opts)
+	loadedDoc, loadDiags, err := load.Load(t.Context(), 0, compilers.Source{Path: path, Data: data}, loadOptions(opts))
 	require.NoError(t, err)
 	require.NotNil(t, loadedDoc)
 

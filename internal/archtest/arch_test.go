@@ -80,6 +80,17 @@ var rules = map[string][]string{
 		module + "/compilers/openapi/internal/value",
 		"github.com/speakeasy-api/openapi/extensions",
 		"github.com/speakeasy-api/openapi/jsonschema/oas3", "gopkg.in/yaml.v3"},
+	// The entry side: parse, validate, resolve. It runs the pre-lowering refusals
+	// through scan and reads value only to tell a real numeric-literal problem
+	// from a library artifact, and it reaches nothing that lowers — at this point
+	// there is no document to lower.
+	"compilers/openapi/internal/load": {module + "/ir", module + "/compilers",
+		module + "/compilers/openapi/internal/diag",
+		module + "/compilers/openapi/internal/scan",
+		module + "/compilers/openapi/internal/value",
+		"github.com/speakeasy-api/openapi/jsonschema/oas3",
+		"github.com/speakeasy-api/openapi/openapi",
+		"github.com/speakeasy-api/openapi/validation", "gopkg.in/yaml.v3"},
 	// allOf property reconciliation. It reaches annotation for the one field a
 	// redeclaration unions rather than intersects, and takes everything else it
 	// needs from lowering — the registry lookup and the recorder — as function

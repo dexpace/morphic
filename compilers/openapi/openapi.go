@@ -6,6 +6,7 @@ import (
 
 	"github.com/dexpace/morphic/compilers"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
+	"github.com/dexpace/morphic/compilers/openapi/internal/load"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -34,7 +35,7 @@ func (c *Compiler) Compile(ctx context.Context, sources []compilers.Source, opts
 	if err != nil {
 		return nil, nil, err
 	}
-	loadedDoc, diags, err := load(ctx, 0, sources[0], formatOpts)
+	loadedDoc, diags, err := load.Load(ctx, 0, sources[0], loadOptions(formatOpts))
 	if err != nil || loadedDoc == nil {
 		return nil, diags, err
 	}
@@ -78,4 +79,12 @@ func optionsFrom(opts compilers.Options) (Options, error) {
 	default:
 		return Options{}, fmt.Errorf("openapi: FormatOptions must be openapi.Options, got %T", opts.FormatOptions)
 	}
+}
+
+// loadOptions projects Options onto the subset the load phase reads. It exists
+// so the mapping lives in one place: load.Options is that package's own input,
+// deliberately not this public type, whose shape ir-design §10 fixes and most of
+// which describes lowering the loader cannot see.
+func loadOptions(o Options) load.Options {
+	return load.Options{DisableExternalRefs: o.DisableExternalRefs}
 }
