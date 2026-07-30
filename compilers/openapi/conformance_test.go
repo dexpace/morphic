@@ -539,6 +539,43 @@ func assertAllOfOneOfCooccurrence(t *testing.T, doc *ir.Document, _ []ir.Diagnos
 	require.NotNil(t, branchNode.Base)
 	assert.Equal(t, namedID("A"), branchNode.Base.Target,
 		"the reference gets the branch schema, never the variant composed for that branch")
+
+	assertInlineBranchHint(t, doc)
+}
+
+// assertInlineBranchHint pins the hint an inline composition branch takes when an
+// outside reference names its pointer too.
+//
+// Both lowerings reach that node — the union through its composition, the
+// reference through hoistSubSchema — and only the first to arrive interns it, so
+// the two must derive the same hint. A $ref branch has a target to take a name
+// from and both already read it; an inline branch has only its position, and the
+// reference path used to name it after the bare ordinal, "0" (GitHub #181).
+//
+// The value is asserted rather than left to the golden because the golden records
+// whichever hint won without saying the two agree, which is the property at
+// stake. The corpus carries the shape so the two-order oracle covers it: the
+// oracle detects this class, and until now no committed spec put it in reach.
+func assertInlineBranchHint(t *testing.T, doc *ir.Document) {
+	t.Helper()
+	const branchID = ir.TypeID("t/anon/components/schemas/InlineHost/oneOf/0")
+
+	host, ok := doc.Types[namedID("InlineHost")].(*ir.Union)
+	require.True(t, ok, "the inline union is the value")
+	require.Len(t, host.Variants, 2)
+	assert.Equal(t, branchID, host.Variants[0].Type.Target,
+		"the union's first variant is the node the branch pointer owns")
+
+	branch, ok := doc.Types[branchID]
+	require.True(t, ok, "the branch pointer owns a node")
+	assert.Equal(t, "variant_0", branch.Common().Name.Hint,
+		"named by position, which is all an inline branch has to be named by")
+
+	outsider, ok := doc.Types[namedID("InlineOutsider")].(*ir.Model)
+	require.True(t, ok)
+	require.Len(t, outsider.Properties, 1)
+	assert.Equal(t, branchID, outsider.Properties[0].Type.Target,
+		"the outside reference resolves to that same node rather than hoisting a second")
 }
 
 func assertOneOfDiscriminated(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
