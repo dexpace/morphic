@@ -131,8 +131,12 @@ func TestConstraints_LosslessNumericLiterals(t *testing.T) {
 // TestConstraints_HoistedSubSchemaBadBoundSingleError pins that a malformed bound
 // on a component-property sub-schema reached by a $ref is reported exactly once,
 // even though the sub-schema's constraints are read from two positions (the owning
-// property and the $ref hoist). Without per-pointer de-duplication both reads
-// would emit the same error at the same pointer.
+// property and the $ref hoist).
+//
+// What holds it is identity de-duplication in compile.Diags. Both reads stamp
+// this same pointer, so the two diagnostics agree in severity, code, message and
+// provenance, and the second is dropped as a repeat. Removing that dedup is what
+// reddens this test — it then reports the identical error twice.
 func TestConstraints_HoistedSubSchemaBadBoundSingleError(t *testing.T) {
 	t.Parallel()
 	spec := componentSpec("    Foo:\n      type: object\n      properties:\n        bar: {type: number, minimum: hello}\n" +

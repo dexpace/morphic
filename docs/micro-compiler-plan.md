@@ -98,7 +98,7 @@ Strictly sequential: each conversion depends on the layer below it having moved.
 | #173 | Convert the leaves — constraints, metadata, auth | #172, #159, #160 |
 | #174 | `internal/resolve` — the pointer-and-identity half only; see below | #173 |
 | #175 | `internal/operation` | #174 |
-| #176 | `internal/schema` — the recursive core, which takes the rest of `resolve.go` with it; settles `hoist` and `diagnosedConstraints` | #175 |
+| #176 | `internal/schema` — the recursive core, which takes the rest of `resolve.go` with it. Both its open questions are settled: `hoist` dissolved, `diagnosedConstraints` was redundant and is gone | — |
 | #177 | Remove the `lowerer` struct | #176 |
 
 Both oracles gate the *first* Tier-1 conversion rather than the whole tier, so they are proven

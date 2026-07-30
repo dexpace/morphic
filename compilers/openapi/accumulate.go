@@ -87,16 +87,16 @@ func (l *lowerer) diag(sev ir.Severity, code, pointer, format string, args ...an
 	l.appendDiag(l.ctx.diagAt(sev, code, pointer, format, args...))
 }
 
-// appendConstraintDiags stamps constraint diagnostics with pointer's provenance,
-// recording them at most once per pointer: a sub-schema reached from both its
-// owning property and a $ref that hoists it is read twice, but a malformed bound
-// must be reported only once. Constraint data still lands on both nodes; only
-// the diagnostic is de-duplicated.
+// appendConstraintDiags stamps constraint diagnostics with pointer's provenance
+// and records them.
+//
+// A sub-schema reached from both its owning property and a $ref that hoists it
+// is read twice, and a malformed bound must still be reported once. Nothing here
+// suppresses the repeat: both reads stamp this same pointer, so the two
+// diagnostics are identical in severity, code, message and provenance, and
+// Diags.Append drops the second by identity. The per-pointer set this used to
+// keep could only ever fire where identity already had (GitHub #176).
 func (l *lowerer) appendConstraintDiags(diags []ir.Diagnostic, pointer string) {
-	if l.diagnosedConstraints[pointer] {
-		return
-	}
-	l.diagnosedConstraints[pointer] = true
 	for i := range diags {
 		diags[i].Provenance = l.ctx.provenanceAt(pointer)
 		l.appendDiag(diags[i])

@@ -236,14 +236,27 @@ methods and removes a class of bug where a callee's write is visible to its call
 | `diags`, `out`, `merge` | return values |
 | `depth` | explicit parameter — which the bounded-recursion rule wants regardless |
 | `operationIDs` | local to the operations loop, which is not recursive |
-| `diagnosedConstraints` | hypothesis: dissolves into memoization — see below |
+| `diagnosedConstraints` | **removed** — it was subsumed by identity dedup all along; see below |
 
-`diagnosedConstraints` suppresses duplicate constraint diagnostics when a sub-schema is read from
-two positions. It is **not** subsumed by `Diags` identity dedup, because the two reads carry
-different provenance. But if lowering a pointer is memoized, its diagnostics are produced once and
-the field is unnecessary — and `Types.Intern` already memoizes the node. The previous design left
-this as "a policy question for the migration to settle with a test". It is settled by trying
-memoization and keeping the field only if a test demands it.
+`diagnosedConstraints` suppressed duplicate constraint diagnostics when a sub-schema is read from
+two positions.
+
+*As landed:* it was removed, and memoization never came into it. This section asserted the field was
+**not** subsumed by `Diags` identity dedup "because the two reads carry different provenance". They
+do not. The stamping overwrites provenance with the pointer being read, and both reads pass the same
+pointer — so the two diagnostics agree in severity, code, message *and* provenance, and the second
+was already being dropped as a repeat. The field could only ever fire where identity had fired
+first.
+
+The two-position read is real and reached, which is why the answer is not obvious from the field's
+absence: instrumenting the call shows it entered twice for one pointer with the set reporting
+already-seen. What settles it is removing the dedup underneath instead — the targeted test then
+reports the identical error twice, printing the two provenances side by side.
+
+```bash
+# the test that holds it, and what reddens it
+go test ./compilers/openapi -run TestConstraints_HoistedSubSchemaBadBoundSingleError
+```
 
 ## 5. The OpenAPI split
 
@@ -543,7 +556,7 @@ Both oracles landed before Tier 1, proven against the current code first.
 | ID derivation crosses a package boundary | pointer prefix changes; collision or dangling ref | `danglingcheck_test.go`, plus the new collision oracle |
 | Signature change alters the `at` passed | a node records a wrong-but-valid pointer | `irverify.checkIDs`, landed per §8.2. `checkProvenance` validates only the source *index range*, so until that check existed this was caught by nothing but a human reading a golden diff — which is why it was a prerequisite rather than a later improvement |
 | Diagnostics returned instead of accumulated | ordering shifts | Goldens, handled per §6.1 |
-| `diagnosedConstraints` dissolves into memoization | a duplicate diagnostic returns on an unmemoized path | Goldens, but only for corpus-covered shapes. Add a targeted test for the two-position read the field exists to suppress |
+| ~~`diagnosedConstraints` dissolves into memoization~~ | **Not the risk it looked like.** The field was redundant with identity dedup, so removing it changes nothing; the targeted test for the two-position read already existed and still holds | — |
 | `Ctx` copied while its maps are shared | a callee's write is visible to its caller | Accessors make it unrepresentable; assert no exported `Ctx` field is a map |
 | Tests move with their code | a test stops reaching what it claims to cover | The coverage gate protects the *code*, not the *test*. Plant a defect in each moved package and confirm that package's own suite reddens |
 
@@ -659,7 +672,7 @@ Each row is one PR unless noted. "Done when" is the acceptance test, not a summa
 | 3.2 | Convert the leaves to the contract: `constraints` → `annotation`, `meta` and `auth` → `operation` | Those files hold no `lowerer` method | 3.1 |
 | 3.3 | Extract `internal/resolve` | ditto, plus a bounded-recursion test | 3.2 |
 | 3.4 | Extract `internal/operation` (operations, params, content) | ditto | 3.3 |
-| 3.5 | Extract `internal/schema` (schema ⇄ compose ⇄ hoist); settle `hoist` and `diagnosedConstraints` | ditto; both open questions in §4.1 and §5 resolved by test, not assertion | 3.4 |
+| 3.5 | Extract `internal/schema` (schema ⇄ compose ⇄ resolve) | ditto. Both open questions are already settled: `hoist` dissolved into the framework, and `diagnosedConstraints` was redundant and is gone | 3.4 |
 | 3.6 | Delete the `lowerer` struct | `grep -c '^func (l \*\?lowerer)'` returns 0 | 3.5 |
 | 4.1 | Type-surface cap in `internal/archtest` | Re-adding ten methods to one type fails the build | 3.6 |
 | 4.2 | Function-size and complexity caps in `golangci-lint` (#83) | The gate runs them; a 71-line function fails | 3.6 |
