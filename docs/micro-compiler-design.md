@@ -84,7 +84,7 @@ promotion requires evidence from all three, not two and an expectation.
 |---|---|---|---|---|
 | Interning + type registry | `compile.Types` | own `types.go` | own `types.go` | already framework |
 | Diagnostic accumulation | `compile.Diags` | own `diag.go` | own `diag.go` | already framework |
-| Canonical naming grammar | `schema.go` | `naming.go` | `naming.go` | **promoted** — `compile.CanonicalWords` |
+| Canonical naming grammar | `schema.go` | `naming.go` | `naming.go` | **promoted to `ir`** — `ir.CanonicalWords`, with `compile.NamingFor` the compiler-facing constructor |
 | ID grammar | `ids.go` | `ids.go` | `ids.go` | **promoted, derivation left behind** — `compile.TypeID` and friends over a `compile.Space` |
 | Bounded-recursion guard | `depth`, cap 256 | — | — | promote only if the drafts show need |
 | Reference resolution | `resolve.go` | `resolve.go` | — | do not promote |
@@ -108,16 +108,24 @@ lowercase, so both passed.
 invariant-4 violation rather than an architecture question. `ir-design.md` §3.2 now fixes the
 segmentation — a word is letters and digits, every other character separates — `compilers/openapi`
 implements it, and `irverify` rejects a canonical that is not a word sequence, so a compiler
-disagreeing about `.` is caught wherever the corpus reaches it. The boundary *inside* a word
-(`foo2bar` against `foo_2_bar`) was listed here as beyond that check and is no longer: the grammar
-splits every letter/digit boundary, which is decidable from the neutral name alone, so `irverify`
-holds it too. What no check can see from `Canonical` alone is the camel-case boundary, since
-lowercasing has already erased the case change that marked it — comparing against `Naming.Source`
-through the grammar is what would settle that, and the grammar is a layer above the verifier.
+disagreeing about `.` is caught wherever the corpus reaches it.
 
-So 1.2 was the move rather than the decision, and it has **landed**: `compilers/compile` holds the
-single implementation, `compilers/openapi` derives no name of its own, and the graphql and protobuf
-copies are deleted against it as those drafts rebase. Their outputs move at that point — the
+Two boundaries were listed here as beyond that check and are no longer. The letter/digit split
+(`foo2bar` against `foo_2_bar`) is decidable from the neutral name alone. The camel-case split is
+not — lowercasing erases the case change that marked it — so the grammar itself moved to `ir`,
+beside the field whose doc comment already states it in prose, and `irverify` recomputes a canonical
+from the `Naming.Source` next to it. `compilers/compile` keeps `NamingFor`, the compiler-facing
+constructor that pairs the two; what moved is the derivation, not the API a compiler calls.
+
+That matters because the architecture sweep reaches only this repository's own compilers. A
+`Document` arriving any other way — decoded from JSON, produced by a compiler outside this tree,
+rewritten by a pass — is held by `irverify` alone. Wiring the check found a live instance
+immediately: the webhook group named itself and shipped no words at all, leaving every emitter to
+segment `webhooks` itself, which is the work invariant 4 moves out of compilers.
+
+So 1.2 was the move rather than the decision, and it has **landed**: there is one implementation,
+`compilers/openapi` derives no name of its own, and the graphql and protobuf copies are deleted
+against it as those drafts rebase. Their outputs move at that point — the
 protobuf copy separates on `_`, `-`, space and `.`, and the graphql copy on the first three alone,
 so both leave `/`, `[`, `]`, `+`, `:` and braces inside a word — and each rebase carries its own
 golden update, argued there. The OpenAPI goldens did not move, since #161 had already made its copy

@@ -14,7 +14,8 @@
       "groups": [
         {
           "name": {
-            "source": "webhooks"
+            "source": "webhooks",
+            "canonical": "webhooks"
           },
           "docs": {},
           "operations": [

@@ -26,7 +26,8 @@ func checkNaming(doc *ir.Document) []Violation {
 		if v.Kind() != reflect.Struct || v.Type() != namingType {
 			return true
 		}
-		vs = appendNamingViolations(vs, v.FieldByName("Canonical").String(), path)
+		vs = appendNamingViolations(vs,
+			v.FieldByName("Source").String(), v.FieldByName("Canonical").String(), path)
 		return false // Naming holds no references or nested Naming to descend into
 	})
 	return vs
@@ -37,7 +38,8 @@ func checkNaming(doc *ir.Document) []Violation {
 // segmented but cased, "com.example.user" is lowercase but unsegmented,
 // "foo2bar" is both lowercase and made of word characters yet runs two words
 // together — and each names a different repair.
-func appendNamingViolations(vs []Violation, canon, path string) []Violation {
+func appendNamingViolations(vs []Violation, source, canon, path string) []Violation {
+	vs = appendGrammarViolation(vs, source, canon, path)
 	if isCased(canon) {
 		vs = append(vs, Violation{
 			Code:    "ir/naming-cased",
@@ -63,23 +65,49 @@ func appendNamingViolations(vs []Violation, canon, path string) []Violation {
 	return vs
 }
 
+// appendGrammarViolation reports a canonical that is not what the grammar
+// derives from the source beside it.
+//
+// This is the complete statement of invariant 4's second half, and it is the only
+// check here that can see a camel-case boundary. Lowercasing erases the case
+// change that marked one, so "userid" and "user_id" are both lower-cased word
+// sequences with no letter/digit straddle: nothing decidable from Canonical alone
+// separates a compiler that neutralized "userID" without splitting it from one
+// that had a genuine single word. Recomputing from Source separates them
+// (GitHub #164).
+//
+// Asked only of a Naming that carries a Source. An anonymous type has none — it
+// carries a Hint instead — and a Naming with neither is the zero value, which no
+// grammar produced and none should be measured against.
+//
+// The three checks below still stand on their own rather than being subsumed:
+// they hold a Canonical carried without a Source, which this one cannot ask
+// about, and they name the specific way a value is wrong where this one can only
+// say it disagrees.
+func appendGrammarViolation(vs []Violation, source, canon, path string) []Violation {
+	if source == "" {
+		return vs
+	}
+	want := ir.CanonicalWords(source)
+	if canon == want {
+		return vs
+	}
+	return append(vs, Violation{
+		Code: "ir/naming-not-derived",
+		Message: "canonical name " + canon + " is not what the grammar derives from source " +
+			source + " (" + want + "); emitters cannot tell which grammar produced it",
+		Path: path,
+	})
+}
+
 // isSegmented reports whether canon puts a boundary everywhere the canonical
 // grammar requires one *inside* a run of word characters. Only the letter/digit
-// boundary is decidable here: the grammar splits "APIKey2" into api|key|2, so no
-// word it produces holds a letter next to a digit.
+// boundary is decidable from the value alone: the grammar splits "APIKey2" into
+// api|key|2, so no word it produces holds a letter next to a digit.
 //
-// This is the half of segmentation a neutral name still carries evidence of.
-//
-// The other half — the camel-case boundary that turns "userID" into user|id — is
-// unverifiable from Canonical alone, because lowercasing has already erased the
-// case change that marked it: a compiler that neutralized "userID" to "userid"
-// without splitting produces one all-letter word, indistinguishable from a
-// genuine single word. Catching that means reading Naming.Source through the
-// grammar itself, which lives in compilers/compile and is out of reach from
-// Layer 0. It is unchecked here and stays that way until either the grammar
-// moves into ir or a second compiler makes a disagreement possible: today
-// compile.NamingFor is the only constructor that sets Canonical, so it pairs the
-// two by construction (GitHub #164).
+// It overlaps appendGrammarViolation wherever a Source is present, and is kept
+// because it does not need one: a Canonical carried without a Source is measured
+// by this and by nothing else.
 func isSegmented(s string) bool {
 	for _, word := range strings.Split(s, "_") {
 		var prev rune

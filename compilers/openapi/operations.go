@@ -153,7 +153,7 @@ func (l *lowerer) lowerWebhooks(groups *serviceGroups) {
 			}
 			op, extra := l.lowerOperation(src, ctx)
 			grp := groups.group("webhook", func() ir.OperationGroup {
-				return ir.OperationGroup{Name: ir.Naming{Source: "webhooks"}}
+				return ir.OperationGroup{Name: compile.NamingFor("webhooks")}
 			})
 			grp.Operations = append(grp.Operations, op)
 			grp.Operations = append(grp.Operations, extra...)
@@ -287,7 +287,7 @@ func operationName(src *soa.Operation, method, uriTemplate string) ir.Naming {
 	if id := src.GetOperationID(); id != "" {
 		return compile.NamingFor(id)
 	}
-	return ir.Naming{Hint: compile.CanonicalWords(method + " " + uriTemplate)}
+	return ir.Naming{Hint: ir.CanonicalWords(method + " " + uriTemplate)}
 }
 
 // fillOperationDocs maps an operation's summary, description, and externalDocs
