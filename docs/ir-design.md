@@ -101,6 +101,13 @@ snapshots, cachable, diffable across spec revisions). IDs are never derived from
 and never rewritten by renames. The `dedup` pass may alias two structurally identical anonymous
 types; aliases are recorded so both IDs stay resolvable.
 
+The shape around the pointer is one grammar every compiler shares: a kind prefix (`t`, `op`, `p`,
+`s`, `auth`), then the namespace, then the path. Only the path is the format's, because a JSON
+Pointer, a GraphQL structural path and a protobuf fully-qualified name are different things and
+nothing outside the format can compute one. A node a lowering *mints* rather than finds takes a
+namespace of its own, so no pointer a reference can spell ever reaches it — the general form of the
+rule §4.3 states for distributed unions.
+
 Every named entity has an ID — including services (Thrift `service B extends A`, WSDL 2.0
 interface extension, and Cap'n Proto interface inheritance all reference services by identity)
 and messages (AsyncAPI reuses one named message across channels, operations, and replies).
@@ -131,7 +138,9 @@ starts a new one, and **every other character separates** — `.`, `/`, `[`, `-`
 `com.example.User` and `com-example-user` canonicalize the same, and an emitter reading `Canonical`
 never has to ask which compiler produced it. A source name with no word character in it
 canonicalizes to the empty string; `Source` keeps the spelling. `irverify` checks the shape, so an
-unsegmented canonical is a compiler bug rather than a variant reading.
+unsegmented canonical is a compiler bug rather than a variant reading — and one implementation
+serves every compiler, since what the check cannot see is where a compiler puts the boundaries
+*inside* a word (`foo2bar` against `foo_2_bar`).
 
 ### 3.3 Type references
 

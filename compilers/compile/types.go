@@ -7,15 +7,6 @@ import (
 	"github.com/dexpace/morphic/ir"
 )
 
-// PrimTypeID returns the shared ID of the primitive of kind k.
-//
-// Primitives are IR-universal: every compiler must intern t/prim/string under
-// the same ID, or two documents lowered from different formats disagree about
-// the identity of the same leaf type. The scheme lives here rather than in a
-// compiler for that reason — unlike named and anonymous IDs, which stay
-// per-compiler and reach Intern as a parameter.
-func PrimTypeID(k ir.PrimKind) ir.TypeID { return ir.TypeID("t/prim/" + string(k)) }
-
 // Types owns the type registry and the source-coordinate to ir.TypeID map that
 // together keep invariant 3 true: one node per source coordinate, addressed by a
 // stable synthetic ID.
@@ -28,6 +19,10 @@ type Types struct {
 	byPointer map[string]ir.TypeID
 	src       int
 	refused   []string
+	// spaces records how each namespace is addressed — true for minted, false
+	// for source-addressed — so claimSpace can catch one namespace used both
+	// ways whichever way round it happens.
+	spaces map[Space]bool
 }
 
 // isNilTypeDef reports whether td is a nil TypeDef — an untyped nil interface or
@@ -66,7 +61,36 @@ func NewTypes(src int) *Types {
 		reg:       ir.TypeRegistry{},
 		byPointer: make(map[string]ir.TypeID),
 		src:       src,
+		spaces:    make(map[Space]bool),
 	}
+}
+
+// claimSpace records whether id's namespace holds minted or source-addressed
+// nodes, and refuses the second one to arrive when they disagree.
+//
+// This is invariant 3's corollary made mechanical: a node a lowering mints must
+// occupy a namespace no source coordinate can produce. Sharing one leaves the two
+// racing for a single ID, and the winner is whichever declaration lowered first —
+// silently, because the document is well-formed either way. Reversing the branch
+// order of a colliding spec produces no diagnostic, irverify is clean, and
+// pass.Validate passes; only a golden diff shows it, and regenerating the golden
+// makes it green again.
+//
+// The check is at the namespace rather than the ID because a minted ID that
+// happens not to collide today collides as soon as the source names one more
+// position — safety that rests on which paths a format's pointers cannot spell is
+// the reasoning the corollary exists to replace.
+func (t *Types) claimSpace(id ir.TypeID, minted bool) {
+	space := spaceOf(id)
+	if space == "" {
+		return // no space segment to share; the ID grammar is checked elsewhere
+	}
+	if was, seen := t.spaces[space]; seen && was != minted {
+		t.refuse("namespace %q holds both minted and source-addressed nodes (at id=%q); "+
+			"a minted node needs a namespace of its own", space, id)
+		return
+	}
+	t.spaces[space] = minted
 }
 
 // Intern returns the ID for pointer, calling build on first visit only.
@@ -87,6 +111,7 @@ func (t *Types) Intern(pointer string, id ir.TypeID, build func() ir.TypeDef) ir
 		return id
 	}
 
+	t.claimSpace(id, false)
 	t.byPointer[pointer] = id
 	td := build() // may recurse; a self-reference hits byPointer above
 	if isNilTypeDef(td) {
@@ -114,6 +139,9 @@ func (t *Types) Intern(pointer string, id ir.TypeID, build func() ir.TypeDef) ir
 // recursion. Register overwrites a colliding ID rather than deduplicating,
 // because a synthetic ID that collides is a bug in the minting scheme, not a
 // revisit.
+//
+// The namespace a minted node lands in is checked rather than assumed: see
+// claimSpace.
 func (t *Types) Register(id ir.TypeID, td ir.TypeDef) {
 	if id == "" {
 		t.refuse("register rejected: empty type id")
@@ -123,6 +151,10 @@ func (t *Types) Register(id ir.TypeID, td ir.TypeDef) {
 		t.refuse("register rejected: nil type definition for id=%q", id)
 		return
 	}
+	// A namespace refusal does not withhold the node: the diagnostic names the
+	// cause, and dropping the node would add dangling references on top of it —
+	// a second symptom of the same bug, further from its source.
+	t.claimSpace(id, true)
 	t.reg[id] = td
 }
 

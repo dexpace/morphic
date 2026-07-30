@@ -4,6 +4,7 @@ import (
 	oas3 "github.com/speakeasy-api/openapi/jsonschema/oas3"
 	soa "github.com/speakeasy-api/openapi/openapi"
 
+	"github.com/dexpace/morphic/compilers/compile"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -37,7 +38,7 @@ func (l *lowerer) lowerParameters(params []sourcedParam) ([]ir.Parameter, []ir.H
 func (l *lowerer) lowerParameter(p *soa.Parameter, pptr string) (ir.Parameter, ir.HTTPParamBinding) {
 	name, in := p.GetName(), p.GetIn()
 	param := ir.Parameter{
-		Name:     ir.Naming{Source: name, Canonical: canonicalWords(name)},
+		Name:     compile.NamingFor(name),
 		Required: p.GetRequired() || in == soa.ParameterInPath,
 	}
 	style, explode := resolveStyleExplode(p, in)

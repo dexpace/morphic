@@ -507,7 +507,7 @@ func TestOperation_NoOperationIdHint(t *testing.T) {
 	requireNoErrorDiags(t, diags)
 	op := firstOp(t, svc)
 	assert.Empty(t, op.Name.Source, "no operationId leaves an empty source name")
-	assert.Equal(t, canonicalWords("get /ping"), op.Name.Hint)
+	assert.Equal(t, "get_ping", op.Name.Hint, "the hint is canonicalized, not the raw method and template")
 }
 
 const opsSpec = `openapi: 3.1.0

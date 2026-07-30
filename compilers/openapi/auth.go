@@ -6,6 +6,7 @@ import (
 
 	soa "github.com/speakeasy-api/openapi/openapi"
 
+	"github.com/dexpace/morphic/compilers/compile"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -39,7 +40,7 @@ func (l *lowerer) lowerSecuritySchemes() {
 func (l *lowerer) lowerSecurityScheme(name string, ss *soa.SecurityScheme) ir.AuthScheme {
 	scheme := ir.AuthScheme{
 		ID:         authIDFor(name),
-		Name:       ir.Naming{Source: name, Canonical: canonicalWords(name)},
+		Name:       compile.NamingFor(name),
 		Docs:       ir.Docs{Description: ss.GetDescription()},
 		Provenance: ir.Provenance{Source: l.srcIndex, Pointer: ptr("components", "securitySchemes", name)},
 	}

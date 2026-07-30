@@ -145,7 +145,8 @@ package may import only the packages one layer below it.
 | Package | Layer | Imports |
 |---|---|---|
 | `ir/` | 0 — IR nodes, IDs, traversal, JSON round-trip | stdlib only |
-| `compilers/*` | 1 — one compiler per format (`compilers/openapi`) | `ir` + own format libs |
+| `compilers/compile/` | 1 — what every compiler shares: type registry, diagnostics, naming and identifier grammars | `ir` only |
+| `compilers/*` | 1 — one compiler per format (`compilers/openapi`) | `ir` + `compilers` + `compilers/compile` + own format libs |
 | `pass/` | 1 — IR → IR passes | `ir` only |
 | `emitters/*` | 2 — IR → artifacts (future) | `ir` + emitter contract |
 | `engine/` | 3 — orchestration | everything below |

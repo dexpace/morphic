@@ -3,6 +3,7 @@ package openapi
 import (
 	soa "github.com/speakeasy-api/openapi/openapi"
 
+	"github.com/dexpace/morphic/compilers/compile"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -70,7 +71,7 @@ func lowerServer(s *soa.Server) ir.Server {
 		Variables:   serverVariables(s),
 	}
 	if name := s.GetName(); name != "" {
-		srv.Name = ir.Naming{Source: name, Canonical: canonicalWords(name)}
+		srv.Name = compile.NamingFor(name)
 	}
 	return srv
 }

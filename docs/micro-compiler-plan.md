@@ -42,28 +42,30 @@ Every task inherits these. They are not restated per issue.
 | Issue | Work |
 |---|---|
 | ~~#57~~ | **Landed.** Allowlist entries are exact unless suffixed `/...`, so a `compilers` entry no longer licenses `compilers/graphql`, and a nested directory sharing a ruled sibling's basename is audited rather than skipped |
-| #48 | Pin golden files to LF. The repository has no `.gitattributes`, so the comparison that proves twenty pull requests neutral can fail for reasons unrelated to the IR |
+| ~~#48~~ | **Landed.** `* text=auto eol=lf`, so the comparison that proves twenty pull requests neutral cannot fail for reasons unrelated to the IR. A clone with `core.autocrlf=true` converted 346 files and failed three test functions before it |
 | #159 | The general two-order oracle. Exists today only as three hand-written cases at the site where the pointer collision was found |
 | #160 | Type-ID integrity: no collisions, **and** every ID agrees with its own provenance pointer. The second assertion is the only mechanical guard on provenance correctness — `irverify` validates the source index range and never the pointer |
 
-#48 looks like hygiene and is not. Byte-identical goldens are the sole proof of neutrality across all
-59 conformance snapshots, and a comparison that fails environmentally teaches a reader to dismiss
-golden diffs at precisely the point where each one has to be treated as a finding. It blocks #162 and
-#165, the two entry points, so the ordering is inherited rather than remembered.
+#48 looked like hygiene and was not. Byte-identical goldens are the sole proof of neutrality across
+every conformance snapshot, and a comparison that fails environmentally teaches a reader to dismiss
+golden diffs at precisely the point where each one has to be treated as a finding. It blocked #162
+and #165, the two entry points, so the ordering was inherited rather than remembered — and #162
+landed with it, in that order, in one pull request.
 
 ### Framework promotion
 
 | Issue | Work | Blocked by |
 |---|---|---|
-| #162 | Identifier grammar into `compilers/compile` | #57, #48 |
-| #163 | Canonical naming grammar into `compilers/compile`. The segmentation is settled (#161); what is left is the move, and each rebasing draft's goldens with it | #57 |
+| ~~#162~~ | **Landed.** Identifier grammar into `compilers/compile`: `compile.TypeID` and friends over a `compile.Space`, with the minted-namespace rule refused by `compile.Types` | — |
+| ~~#163~~ | **Landed.** Canonical naming grammar into `compilers/compile`, with `compile.NamingFor` beside it and a conformance suite pinning the boundaries `irverify` cannot see | — |
 | ~~#164~~ | **Landed with #161**, ahead of #163: `ir/naming-not-words` rejects a lowercase but unsegmented canonical | — |
-| #73 | Closed when the three above land | #162, #163, #164 |
+| #73 | Answered by the three above; to be closed with the reasoning that they landed in `compilers/compile` rather than in `ir` as its text proposed | — |
 
-#163 still changes output, but no longer decides anything: #161 fixed the segmentation in
-`compilers/openapi` and wrote it into `ir-design.md` §3.2, so the move is measured against a rule
-already in the contract. The graphql and protobuf copies disagree with it, so their goldens move as
-those drafts rebase, each with a reddening test and a deliberate golden update.
+#163 changed no output here: #161 had already fixed the segmentation in `compilers/openapi` and
+written it into `ir-design.md` §3.2, so the move was measured against a rule already in the
+contract. The graphql and protobuf copies disagree with it — each splits on a short list of
+separators rather than on every non-word character — so their goldens move as those drafts rebase,
+each with a reddening test and a deliberate golden update.
 
 ### Tier 0 — extractions that are pure moves
 
@@ -154,9 +156,10 @@ Work already filed that lands inside this restructuring rather than alongside it
 Twelve steps deep at its longest, with Tier 0 wide enough that six of its seven extractions can
 proceed in parallel once `diag` lands.
 
-Of the five that were unblocked at the start, #57 and #161 have landed. **#48**, **#159** and
-**#160** remain, and are the prerequisites everything else waits on. The graph is acyclic, and the dependency columns above are derived from the API rather than
-maintained by hand — check both rather than trusting either:
+Of the five that were unblocked at the start, #57, #161 and #48 have landed, and the framework
+promotion (#162, #163) with them. **#159** and **#160** remain, and are the prerequisites the two
+new oracles wait on. The graph is acyclic, and the dependency columns above are derived from the API
+rather than maintained by hand — check both rather than trusting either:
 
 ```bash
 gh api repos/dexpace/morphic/issues/N/dependencies/blocked_by --jq '[.[].number]'
