@@ -124,12 +124,8 @@ func (l *lowerer) positionalEncoding(c *ir.Content, media *soa.MediaType, mediaP
 // encoding entry or is itself a repeated (array) or file (binary) part. body is
 // the TypeID the content's own schema position lowered to.
 func (l *lowerer) partEncodings(media *soa.MediaType, mediaPtr string, body ir.TypeID) map[ir.PropID]ir.PartEncoding {
-	model := schemaOf(media.GetSchema())
-	if model == nil {
-		return nil
-	}
-	props := model.GetProperties()
-	if props == nil || props.Len() == 0 {
+	parts := bodyParts(media.GetSchema(), 0)
+	if len(parts) == 0 {
 		return nil
 	}
 	// Key by the pointer the body model was interned at, not by mediaPtr, so the
@@ -142,17 +138,134 @@ func (l *lowerer) partEncodings(media *soa.MediaType, mediaPtr string, body ir.T
 	}
 	encMap := media.GetEncoding()
 	out := map[ir.PropID]ir.PartEncoding{}
-	for name, pjs := range props.All() {
-		pe := l.buildPartEncoding(name, pjs, encMap, mediaPtr)
+	for _, part := range parts {
+		pe := l.buildPartEncoding(part.name, part.schema, encMap, mediaPtr)
 		if partEncodingEmpty(pe) {
 			continue
 		}
-		out[propID(schemaPtr+ptr("properties", name))] = pe
+		out[l.partPropID(body, part.name, schemaPtr)] = pe
 	}
 	if len(out) == 0 {
 		return nil
 	}
 	return out
+}
+
+// bodyPart is one multipart part: the name keying its encoding entry, and the
+// schema whose shape decides the structural flags.
+type bodyPart struct {
+	name   string
+	schema *oas3.JSONSchema[oas3.Referenceable]
+}
+
+// maxPartCompositionDepth bounds the allOf walk bodyParts makes. A $ref cycle is
+// refused at load, so no source document can spell a composition that deep; the
+// bound is what keeps the walk terminating without relying on that.
+const maxPartCompositionDepth = 16
+
+// bodyParts returns the parts a multipart body declares, in source order: the
+// properties written on the schema itself, then those each allOf branch
+// contributes, with the first declaration of a name winning.
+//
+// A body that composes rather than declares — `allOf: [{$ref: Form}]` — has no
+// properties of its own, so reading only those found nothing to key against and
+// discarded the whole encoding block without a word (GitHub #140). The two
+// spellings describe the same wire format, so they must enumerate the same parts.
+func bodyParts(js *oas3.JSONSchema[oas3.Referenceable], depth int) []bodyPart {
+	if depth > maxPartCompositionDepth {
+		return nil
+	}
+	s := schemaOf(js)
+	if s == nil {
+		return nil
+	}
+	var out []bodyPart
+	if props := s.GetProperties(); props != nil {
+		for name, pjs := range props.All() {
+			out = append(out, bodyPart{name: name, schema: pjs})
+		}
+	}
+	for _, branch := range s.GetAllOf() {
+		out = append(out, bodyParts(branch, depth+1)...)
+	}
+	return dedupeParts(out)
+}
+
+// dedupeParts keeps the first declaration of each part name, in order. A name
+// redeclared across allOf branches is one part on the wire, so it must key one
+// encoding entry rather than depend on which branch was walked last.
+func dedupeParts(parts []bodyPart) []bodyPart {
+	seen := make(map[string]bool, len(parts))
+	out := parts[:0]
+	for _, part := range parts {
+		if seen[part.name] {
+			continue
+		}
+		seen[part.name] = true
+		out = append(out, part)
+	}
+	return out
+}
+
+// partPropID returns the ID of the property carrying the given wire name on the
+// model body stands for, falling back to deriving one under schemaPtr.
+//
+// The IR is asked first because §4.3 stores only a model's *own* properties:
+// a composed body holds its parts on the Base it inherits them from, so a key
+// derived from the composed node's pointer would name a property that exists
+// nowhere. Deriving one remains the answer for a body the IR holds no model for
+// — a contradictory schema declaring properties beside an enum or a scalar type —
+// where no property was lowered for any pointer to name.
+func (l *lowerer) partPropID(body ir.TypeID, wire, schemaPtr string) ir.PropID {
+	if id, ok := l.propIDByWire(body, wire, 0); ok {
+		return id
+	}
+	return propID(schemaPtr + ptr("properties", wire))
+}
+
+// propIDByWire searches the type body denotes for a property with the given wire
+// name: what it declares itself, then what it inherits through Base and mixes in
+// through Mixins, following the alias scalars a $ref-with-siblings position
+// hoists on the way. depth bounds the walk against a chain no source can spell.
+func (l *lowerer) propIDByWire(body ir.TypeID, wire string, depth int) (ir.PropID, bool) {
+	if depth > maxBodyAliasHops {
+		return "", false
+	}
+	td, found := l.types.Node(body)
+	if !found {
+		return "", false
+	}
+	switch t := td.(type) {
+	case *ir.Model:
+		for _, p := range t.Properties {
+			if p.WireName == wire {
+				return p.ID, true
+			}
+		}
+		return l.propIDInComposition(t, wire, depth)
+	case *ir.Scalar:
+		if t.Base == nil {
+			return "", false
+		}
+		return l.propIDByWire(t.Base.Target, wire, depth+1)
+	default:
+		return "", false
+	}
+}
+
+// propIDInComposition searches a model's Base and Mixins, in that order.
+func (l *lowerer) propIDInComposition(m *ir.Model, wire string, depth int) (ir.PropID, bool) {
+	if m.Base != nil {
+		if id, ok := l.propIDByWire(m.Base.Target, wire, depth+1); ok {
+			return id, true
+		}
+	}
+	for _, mixin := range m.Mixins {
+		if id, ok := l.propIDByWire(mixin.Target, wire, depth+1); ok {
+			return id, true
+		}
+	}
+	return "", false
 }
 
 // buildPartEncoding assembles one part's PartEncoding: explicit encoding config

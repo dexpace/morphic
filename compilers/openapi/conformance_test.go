@@ -1255,6 +1255,56 @@ func assertMultipartEncoding(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) 
 	assert.True(t, sawMulti, "array part carries Multi")
 	assertPartHeaders(t, doc, fileHeaders)
 	assertFormPartStyle(t, doc)
+	assertComposedPartEncoding(t, doc)
+}
+
+// assertComposedPartEncoding pins the body that composes its parts rather than
+// declaring them. Reading only the schema node's own properties found none on an
+// allOf wrapper, so the whole encoding block was discarded with no diagnostic and
+// a Content that still looked well-formed, just smaller (GitHub #140).
+//
+// The keys are asserted to be the properties the IR actually holds: §4.3 keeps a
+// composed model's inherited parts on its Base, so a key derived from the
+// composed node's own pointer would name a property that exists nowhere.
+func assertComposedPartEncoding(t *testing.T, doc *ir.Document) {
+	t.Helper()
+	op, ok := opByName(doc, "uploadComposed")
+	require.True(t, ok)
+	require.NotNil(t, op.Request)
+	require.Len(t, op.Request.Contents, 1)
+
+	enc := op.Request.Contents[0].Encoding
+	require.NotEmpty(t, enc, "a composed body keeps the encoding a declared one does")
+
+	inherited := ir.PropID("p/openapi/components/schemas/UploadForm/properties/file")
+	file, ok := enc[inherited]
+	require.True(t, ok, "the inherited part is keyed on the Base that holds it; got keys %v", enc)
+	assert.Equal(t, []string{"image/png"}, file.ContentTypes)
+	assert.True(t, file.Filename, "the structural flag still comes from the part's own schema")
+
+	// Every key must name a property some type in the document declares. A part
+	// keyed by a PropID nothing holds is the failure this lowering can produce
+	// while still looking well-formed.
+	for id := range enc {
+		assert.True(t, propIDExists(doc, id), "encoding key %s names no property in the document", id)
+	}
+}
+
+// propIDExists reports whether any type in doc declares a property with the
+// given ID.
+func propIDExists(doc *ir.Document, id ir.PropID) bool {
+	for _, td := range doc.Types {
+		m, ok := td.(*ir.Model)
+		if !ok {
+			continue
+		}
+		for _, p := range m.Properties {
+			if p.ID == id {
+				return true
+			}
+		}
+	}
+	return false
 }
 
 // assertFormPartStyle pins the form-serialization half of a part's encoding: a

@@ -1210,3 +1210,115 @@ func TestHeaderSchema_NeitherSpelling(t *testing.T) {
 	assert.Nil(t, headers[0].Encoding, "no content map means no media type")
 	assert.Equal(t, "untyped", headers[0].Docs.Description)
 }
+
+// TestPropIDByWire_DeadEnds mirrors TestBodyModelPointer_NoModelBehindBody for
+// the property walk: the same dead ends, asked for a part name rather than a
+// pointer. Neither may invent an ID — a part keyed by a PropID nothing declares
+// is a dangling reference the encoding map would carry silently.
+func TestPropIDByWire_DeadEnds(t *testing.T) {
+	t.Parallel()
+	l := newRawLowerer(&soa.OpenAPI{})
+	l.types.Register("t/opaque", &ir.Scalar{TypeCommon: ir.TypeCommon{ID: "t/opaque"}})
+	l.types.Register("t/cycle/a", &ir.Scalar{
+		TypeCommon: ir.TypeCommon{ID: "t/cycle/a"}, Base: &ir.TypeRef{Target: "t/cycle/b"},
+	})
+	l.types.Register("t/cycle/b", &ir.Scalar{
+		TypeCommon: ir.TypeCommon{ID: "t/cycle/b"}, Base: &ir.TypeRef{Target: "t/cycle/a"},
+	})
+	l.types.Register("t/model/cycle", &ir.Model{
+		TypeCommon: ir.TypeCommon{ID: "t/model/cycle"}, Base: &ir.TypeRef{Target: "t/model/cycle"},
+	})
+	prim := l.primID(ir.PrimString)
+
+	cases := []struct {
+		name string
+		body ir.TypeID
+	}{
+		{"an ID no registry entry declares", "t/absent"},
+		{"an opaque scalar standing for nothing", "t/opaque"},
+		{"a kind that declares no properties", prim},
+		{"an alias chain that closes on itself", "t/cycle/a"},
+		{"a model whose base closes on itself", "t/model/cycle"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			id, ok := l.propIDByWire(tc.body, "file", 0)
+			assert.False(t, ok, "no property with that wire name stands behind this body")
+			assert.Empty(t, id, "and no ID is invented for one")
+		})
+	}
+}
+
+// TestPartEncodings_MixinPartIsKeyedOnTheMixin covers the second composition
+// channel. An allOf of two $refs makes the first the Base and the rest Mixins
+// (§4.3), so a part contributed by the second is reachable only by searching
+// them — and its key must be the ID that mixin declares.
+func TestPartEncodings_MixinPartIsKeyedOnTheMixin(t *testing.T) {
+	t.Parallel()
+	spec := pathsSpec(`  /upload:
+    post:
+      operationId: upload
+      requestBody:
+        content:
+          multipart/form-data:
+            schema:
+              allOf:
+                - {$ref: "#/components/schemas/Core"}
+                - {$ref: "#/components/schemas/Extra"}
+            encoding:
+              note: {contentType: text/plain}
+      responses: {"200": {description: ok}}
+components:
+  schemas:
+    Core:
+      type: object
+      properties: {id: {type: string}}
+    Extra:
+      type: object
+      properties: {note: {type: string}}
+`)
+	_, svc, diags := lowerServiceSpec(t, spec)
+	requireNoErrorDiags(t, diags)
+	enc := firstOp(t, svc).Request.Contents[0].Encoding
+
+	want := ir.PropID("p/openapi" + ptr("components", "schemas", "Extra", "properties", "note"))
+	pe, ok := enc[want]
+	require.True(t, ok, "a mixin's part is keyed on the mixin that declares it; got %v", enc)
+	assert.Equal(t, []string{"text/plain"}, pe.ContentTypes)
+}
+
+// TestBodyParts_RedeclaredNameIsOnePart pins that a part named by two allOf
+// branches yields one entry rather than depending on which branch was walked
+// last. The encoding entry describes one part on the wire either way.
+func TestBodyParts_RedeclaredNameIsOnePart(t *testing.T) {
+	t.Parallel()
+	spec := pathsSpec(`  /upload:
+    post:
+      operationId: upload
+      requestBody:
+        content:
+          multipart/form-data:
+            schema:
+              allOf:
+                - {type: object, properties: {note: {type: string}}}
+                - {type: object, properties: {note: {type: string}}}
+            encoding:
+              note: {contentType: text/plain}
+      responses: {"200": {description: ok}}
+`)
+	_, svc, diags := lowerServiceSpec(t, spec)
+	requireNoErrorDiags(t, diags)
+	enc := firstOp(t, svc).Request.Contents[0].Encoding
+	assert.Len(t, enc, 1, "one wire part is one encoding entry; got %v", enc)
+}
+
+// TestBodyParts_DepthBound covers the composition walk's bound. A $ref cycle is
+// refused at load, so no document can spell a composition this deep; the bound is
+// what keeps the walk terminating without relying on that.
+func TestBodyParts_DepthBound(t *testing.T) {
+	t.Parallel()
+	js := oas3.NewJSONSchemaFromSchema[oas3.Referenceable](&oas3.Schema{})
+	assert.Nil(t, bodyParts(js, maxPartCompositionDepth+1),
+		"past the bound the walk stops rather than descending further")
+}
