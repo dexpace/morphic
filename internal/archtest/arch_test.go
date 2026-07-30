@@ -58,7 +58,18 @@ var rules = map[string][]string{
 	// spelling, so a package that could reach the compiler would be able to let a
 	// surrounding schema type change what a literal means.
 	"compilers/openapi/internal/value": {module + "/ir", "gopkg.in/yaml.v3"},
-	"pass":                             {module + "/ir"},
+	// A view over the raw source: mappings read the way the resolver reads them,
+	// through aliases and `<<` merge keys. It reaches ids for the pointer
+	// unescaping one lookup needs, and is below both the scans that first wanted
+	// it and the schema lowering that wants the same view.
+	"compilers/openapi/internal/nodeview": {module + "/compilers/openapi/internal/ids", "gopkg.in/yaml.v3"},
+	// The pre-lowering refusals. They read the source through nodeview and report
+	// through diag, and reach no part of the lowering — nothing here has a
+	// document to lower yet.
+	"compilers/openapi/internal/scan": {module + "/ir",
+		module + "/compilers/openapi/internal/diag",
+		module + "/compilers/openapi/internal/nodeview", "gopkg.in/yaml.v3"},
+	"pass": {module + "/ir"},
 	"engine": {module + "/ir", module + "/compilers", module + "/compilers/openapi",
 		module + "/pass", "gopkg.in/yaml.v3"},
 	"cmd/morphic":         {module + "/ir", module + "/engine"},

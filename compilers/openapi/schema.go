@@ -15,6 +15,7 @@ import (
 	"github.com/dexpace/morphic/compilers/compile"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/ids"
+	"github.com/dexpace/morphic/compilers/openapi/internal/nodeview"
 	"github.com/dexpace/morphic/compilers/openapi/internal/value"
 	"github.com/dexpace/morphic/ir"
 )
@@ -1309,20 +1310,20 @@ func (l *lowerer) componentSchemaAt(pointer string) *oas3.Schema {
 // costs an expansion that would have been safe, where a missed one mints a
 // reference the IR cannot express.
 func (l *lowerer) declaresResourceIDAbove(pointer string) bool {
-	view := newNodeView()
-	cur := documentRoot(deref(l.doc.GetRootNode()))
+	view := nodeview.New()
+	cur := nodeview.DocumentRoot(nodeview.Deref(l.doc.GetRootNode()))
 	for seg := range strings.SplitSeq(pointer, "/") {
 		if cur == nil {
 			return false
 		}
-		if view.childByToken(cur, "$id") != nil {
+		if view.ChildByToken(cur, "$id") != nil {
 			return true
 		}
 		if seg != "" { // every pointer starts with the empty segment
-			cur = deref(view.childByToken(cur, ids.UnescapeSegment(seg)))
+			cur = nodeview.Deref(view.ChildByToken(cur, ids.UnescapeSegment(seg)))
 		}
 	}
-	return cur != nil && view.childByToken(cur, "$id") != nil
+	return cur != nil && view.ChildByToken(cur, "$id") != nil
 }
 
 // dynamicFragment returns the plain fragment name a $dynamicRef addresses. Only
@@ -1391,20 +1392,20 @@ func (l *lowerer) dynamicAnchorIndex() map[string][]string {
 func dynamicAnchors(root *yaml.Node) (map[string][]string, bool) {
 	w := newAnchorWalk(maxDynamicAnchorNodes)
 	w.walk(root, "", 0)
-	return w.out, !w.truncated && !w.view.exhausted
+	return w.out, !w.truncated && !w.view.Exhausted()
 }
 
 // anchorWalk is the state of one $dynamicAnchor index build: the source view,
 // the index under construction, and what is left of the visit budget.
 //
-// It reads mappings through a nodeView, so a `<<` merge key and a YAML alias
+// It reads mappings through a nodeview.View, so a `<<` merge key and a YAML alias
 // contribute the anchors they carry to every position that pulls them in —
 // which is what the parser downstream sees, and what makes "declared exactly
 // once" a count of what the document declares rather than of what it spells
 // out. The count decides whether a $dynamicRef expands, so an anchor reached
 // only through an alias must not be invisible to it.
 type anchorWalk struct {
-	view      *nodeView
+	view      *nodeview.View
 	out       map[string][]string
 	budget    int
 	truncated bool
@@ -1412,13 +1413,13 @@ type anchorWalk struct {
 
 // newAnchorWalk returns a walk that will visit at most budget nodes.
 func newAnchorWalk(budget int) *anchorWalk {
-	return &anchorWalk{view: newNodeView(), out: map[string][]string{}, budget: budget}
+	return &anchorWalk{view: nodeview.New(), out: map[string][]string{}, budget: budget}
 }
 
 // walk indexes the anchors n declares, under the pointer of the mapping
 // declaring each.
 func (w *anchorWalk) walk(n *yaml.Node, pointer string, depth int) {
-	n = deref(n)
+	n = nodeview.Deref(n)
 	if n == nil || !w.charge(depth) {
 		return
 	}
@@ -1435,19 +1436,19 @@ func (w *anchorWalk) walk(n *yaml.Node, pointer string, depth int) {
 		w.walkMapping(n, pointer, depth)
 	default:
 		// A scalar declares no anchor and has no children; an alias survived
-		// deref only by dangling, so it has nothing to stand in for.
+		// nodeview.Deref only by dangling, so it has nothing to stand in for.
 	}
 }
 
 // walkMapping reads one mapping's effective pairs: a $dynamicAnchor names this
 // mapping, and every other value is walked in turn.
 func (w *anchorWalk) walkMapping(n *yaml.Node, pointer string, depth int) {
-	for _, p := range w.view.mappingPairs(n) {
-		if p.key == "$dynamicAnchor" {
-			w.record(p.val, pointer)
+	for _, p := range w.view.MappingPairs(n) {
+		if p.Key == "$dynamicAnchor" {
+			w.record(p.Val, pointer)
 			continue
 		}
-		w.walk(p.val, pointer+ids.Ptr(p.key), depth+1)
+		w.walk(p.Val, pointer+ids.Ptr(p.Key), depth+1)
 	}
 }
 

@@ -18,6 +18,7 @@ import (
 
 	"github.com/dexpace/morphic/compilers"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
+	"github.com/dexpace/morphic/compilers/openapi/internal/scan"
 	"github.com/dexpace/morphic/compilers/openapi/internal/value"
 	"github.com/dexpace/morphic/ir"
 )
@@ -50,7 +51,7 @@ type loaded struct {
 //
 //nolint:unparam // srcIndex varies once Compile drives the multi-source loop
 func load(ctx context.Context, srcIndex int, src compilers.Source, opts Options) (*loaded, []ir.Diagnostic, error) {
-	cyc := detectCycles(srcIndex, src.Data)
+	cyc := scan.Cycles(srcIndex, src.Data)
 	if diag.HasError(cyc) {
 		return nil, cyc, nil // degenerate cycle: refuse to lower, do not crash the parser
 	}

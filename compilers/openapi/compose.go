@@ -13,6 +13,7 @@ import (
 	"github.com/dexpace/morphic/compilers/compile"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/ids"
+	"github.com/dexpace/morphic/compilers/openapi/internal/nodeview"
 	"github.com/dexpace/morphic/compilers/openapi/internal/value"
 	"github.com/dexpace/morphic/ir"
 )
@@ -293,23 +294,23 @@ func branchExcludesObject(bs *oas3.Schema) bool {
 // mapping's keys and one spelled `<<: *anchor` writes the merged-in keys, so
 // deriving a residue from the literal text would report `<<` — or, for a whole
 // branch replaced by an alias, no keys at all, which reads as "the merge consumed
-// everything" and drops the branch silently. nodeView is the package's statement
+// everything" and drops the branch silently. nodeview.View is the package's statement
 // of how speakeasy reads a mapping, and bounds the expansion (maxMergeDepth).
 func rawMappingKeys(root *yaml.Node) []string {
 	mapping := rawMapping(root)
 	if mapping == nil {
 		return nil
 	}
-	pairs := newNodeView().mappingPairs(mapping)
+	pairs := nodeview.New().MappingPairs(mapping)
 	keys := make([]string, 0, len(pairs))
 	for _, p := range pairs {
-		keys = append(keys, p.key)
+		keys = append(keys, p.Key)
 	}
 	return keys
 }
 
 // rawMapping returns the mapping node root stands for: a document wrapper is
-// unwrapped and an alias followed to its anchor (bounded by deref). Anything
+// unwrapped and an alias followed to its anchor (bounded by nodeview.Deref). Anything
 // that is not a mapping after that — a scalar, a sequence, nil — yields nil, so
 // a caller needs no kind check of its own.
 func rawMapping(root *yaml.Node) *yaml.Node {
@@ -319,7 +320,7 @@ func rawMapping(root *yaml.Node) *yaml.Node {
 	if root.Kind == yaml.DocumentNode && len(root.Content) > 0 {
 		root = root.Content[0]
 	}
-	root = deref(root)
+	root = nodeview.Deref(root)
 	if root == nil || root.Kind != yaml.MappingNode {
 		return nil
 	}
