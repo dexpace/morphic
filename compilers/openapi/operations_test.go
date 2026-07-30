@@ -1132,7 +1132,7 @@ func pointerStep(node *yaml.Node, seg string) (*yaml.Node, bool) {
 // counterpart to the same-document sharing tests above (issue #107). The
 // fixture's operation $refs a parameter and a response into a sibling
 // document; both resolve to real objects (resolveAll follows external refs),
-// but resolveRefAt's internalPointer check rejects the target because it lives
+// but resolveRefAt's internal-pointer check rejects the target because it lives
 // in another document, so the use-site pointer is kept rather than a pointer
 // into a document this IR has no node for.
 func TestResolveRefAt_CrossDocumentKeepsUseSitePointer(t *testing.T) {

@@ -96,9 +96,9 @@ Strictly sequential: each conversion depends on the layer below it having moved.
 |---|---|---|
 | #172 | `Ctx` with accessors; derive indexes at entry | all of Tier 0 |
 | #173 | Convert the leaves — constraints, metadata, auth | #172, #159, #160 |
-| #174 | `internal/resolve` | #173 |
+| #174 | `internal/resolve` — the pointer-and-identity half only; see below | #173 |
 | #175 | `internal/operation` | #174 |
-| #176 | `internal/schema` — the recursive core; settles `hoist` and `diagnosedConstraints` | #175 |
+| #176 | `internal/schema` — the recursive core, which takes the rest of `resolve.go` with it; settles `hoist` and `diagnosedConstraints` | #175 |
 | #177 | Remove the `lowerer` struct | #176 |
 
 Both oracles gate the *first* Tier-1 conversion rather than the whole tier, so they are proven
@@ -167,3 +167,15 @@ rather than maintained by hand — check both rather than trusting either:
 ```bash
 gh api repos/dexpace/morphic/issues/N/dependencies/blocked_by --jq '[.[].number]'
 ```
+
+### #174 did not split where the file did
+
+`resolve.go` turned out to answer two questions, not one. *What does this `$ref` name, and is
+something already interned there* needs the document's own path, what it declares, and the type
+registry — nothing else, so it became `internal/resolve`. *Follow it far enough to lower what it
+points at* is the schema walk reached through a reference: it calls into `schema.go` and
+`compose.go`, which call back, and no package boundary can be drawn through it.
+
+So seven functions left and eight stayed, and the eight go to `internal/schema` at #176 rather than
+forming a package of their own. `micro-compiler-design.md` §5 records the corrected dependency
+diagram — the cycle is `schema ⇄ compose ⇄ resolve`, which is why this looked separable and was not.

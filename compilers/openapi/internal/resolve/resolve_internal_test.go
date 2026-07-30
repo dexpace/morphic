@@ -1,19 +1,19 @@
-package openapi
+package resolve
 
 import (
 	"testing"
 
-	soa "github.com/speakeasy-api/openapi/openapi"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/dexpace/morphic/compilers/compile"
 	"github.com/dexpace/morphic/compilers/openapi/internal/ids"
 	"github.com/dexpace/morphic/ir"
 )
 
 func TestInternalPointer(t *testing.T) {
 	t.Parallel()
-	l := &lowerer{ctx: lowerCtx{Source: ir.SourceInfo{Path: "m.yaml"}}}
+	sc := Scope{SelfPath: "m.yaml", Declares: func(string) bool { return false }}
 	cases := []struct {
 		ref    string
 		want   string
@@ -35,26 +35,25 @@ func TestInternalPointer(t *testing.T) {
 		{"#a/b", "", false}, // pointer-shaped only from the second segment on
 	}
 	for _, tc := range cases {
-		got, ok := l.internalPointer(tc.ref)
+		got, ok := sc.InternalPointer(tc.ref)
 		assert.Equal(t, tc.wantOK, ok, tc.ref)
 		assert.Equal(t, tc.want, got, tc.ref)
 	}
 }
-
 func TestResolveComponentRef(t *testing.T) {
 	t.Parallel()
-	l := &lowerer{ctx: lowerCtx{schemas: map[string]bool{"User": true}}}
+	sc := Scope{Declares: func(n string) bool { return n == "User" }}
 
-	id, ok, handled := l.resolveComponentRef("/components/schemas/User")
+	id, ok, handled := sc.ComponentRef("/components/schemas/User")
 	assert.True(t, handled)
 	assert.True(t, ok)
 	assert.Equal(t, ids.NamedType("/components/schemas/User"), id)
 
-	_, ok, handled = l.resolveComponentRef("/components/schemas/Missing")
+	_, ok, handled = sc.ComponentRef("/components/schemas/Missing")
 	assert.True(t, handled, "an undeclared component pointer is still classified as a component")
 	assert.False(t, ok, "an undeclared component does not resolve")
 
-	_, _, handled = l.resolveComponentRef("/components/schemas/Foo/properties/bar")
+	_, _, handled = sc.ComponentRef("/components/schemas/Foo/properties/bar")
 	assert.False(t, handled, "a sub-schema pointer is not a top-level component pointer")
 }
 
@@ -64,9 +63,9 @@ func TestResolveComponentRef(t *testing.T) {
 // the interned node rather than an unbacked ID (issue #14).
 func TestResolveComponentRef_NonCanonicalEscape(t *testing.T) {
 	t.Parallel()
-	l := &lowerer{ctx: lowerCtx{schemas: map[string]bool{"A~B": true}}}
+	sc := Scope{Declares: func(n string) bool { return n == "A~B" }}
 
-	id, ok, handled := l.resolveComponentRef("/components/schemas/A~B")
+	id, ok, handled := sc.ComponentRef("/components/schemas/A~B")
 	assert.True(t, handled)
 	assert.True(t, ok)
 	assert.Equal(t, ids.NamedType("/components/schemas/A~0B"), id,
@@ -74,44 +73,47 @@ func TestResolveComponentRef_NonCanonicalEscape(t *testing.T) {
 	assert.Equal(t, ids.NamedType(ids.Ptr("components", "schemas", "A~B")), id,
 		"and equals the ID the component was interned under")
 }
-
 func TestSameFile(t *testing.T) {
 	t.Parallel()
-	l := &lowerer{ctx: lowerCtx{Source: ir.SourceInfo{Path: "dir/m.yaml"}}}
-	assert.True(t, l.sameFile("dir/m.yaml"), "exact path")
-	assert.True(t, l.sameFile("m.yaml"), "bare filename equal to our basename")
-	assert.False(t, l.sameFile("other.yaml"))
-	assert.False(t, l.sameFile("other/m.yaml"),
+	sc := Scope{SelfPath: "dir/m.yaml"}
+	assert.True(t, sc.sameFile("dir/m.yaml"), "exact path")
+	assert.True(t, sc.sameFile("m.yaml"), "bare filename equal to our basename")
+	assert.False(t, sc.sameFile("other.yaml"))
+	assert.False(t, sc.sameFile("other/m.yaml"),
 		"a doc part with its own directory is a distinct path, not a basename match")
-	assert.False(t, (&lowerer{}).sameFile("m.yaml"), "empty source path never matches")
+	assert.False(t, Scope{}.sameFile("m.yaml"), "empty source path never matches")
 }
 
 func TestInternedID_ByPointerHit(t *testing.T) {
 	t.Parallel()
-	l := newRawLowerer(&soa.OpenAPI{})
-	l.types.Intern(deepPointer, "t/anon/prev", func() ir.TypeDef { return &ir.Any{} })
+	ts := compile.NewTypes(0)
+	ts.Intern(deepPointer, "t/anon/prev", func() ir.TypeDef { return &ir.Any{} })
 
-	id, ok := l.internedID(deepPointer)
+	id, ok := InternedID(ts, deepPointer)
 	require.True(t, ok, "a pointer already recorded in byPointer resolves")
 	assert.Equal(t, ir.TypeID("t/anon/prev"), id)
 }
 
 func TestInternedID_RegistryHit(t *testing.T) {
 	t.Parallel()
-	l := newRawLowerer(&soa.OpenAPI{})
+	ts := compile.NewTypes(0)
 	// A node lives at the pointer-derived ID without a byPointer entry: internedID
 	// still finds it through the type registry.
 	id := ids.AnonType(deepPointer)
-	l.types.Register(id, &ir.Primitive{TypeCommon: ir.TypeCommon{ID: id}, Prim: ir.PrimString})
+	ts.Register(id, &ir.Primitive{TypeCommon: ir.TypeCommon{ID: id}, Prim: ir.PrimString})
 
-	got, ok := l.internedID(deepPointer)
+	got, ok := InternedID(ts, deepPointer)
 	require.True(t, ok, "a node registered under its pointer-derived ID resolves")
 	assert.Equal(t, id, got)
 }
 
 func TestInternedID_Miss(t *testing.T) {
 	t.Parallel()
-	l := newRawLowerer(&soa.OpenAPI{})
-	_, ok := l.internedID(deepPointer)
+	ts := compile.NewTypes(0)
+	_, ok := InternedID(ts, deepPointer)
 	assert.False(t, ok, "an un-interned pointer does not resolve")
 }
+
+// deepPointer is a sub-schema coordinate, deep enough that no component-name
+// rule could classify it as a top-level declaration.
+const deepPointer = "/components/schemas/Obj/properties/inner"

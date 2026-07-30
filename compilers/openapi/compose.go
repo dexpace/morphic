@@ -16,6 +16,7 @@ import (
 	"github.com/dexpace/morphic/compilers/openapi/internal/ids"
 	"github.com/dexpace/morphic/compilers/openapi/internal/merge"
 	"github.com/dexpace/morphic/compilers/openapi/internal/nodeview"
+	"github.com/dexpace/morphic/compilers/openapi/internal/resolve"
 	"github.com/dexpace/morphic/compilers/openapi/internal/value"
 	"github.com/dexpace/morphic/ir"
 )
@@ -516,7 +517,7 @@ func (l *lowerer) classifyUnionSiblings(s *oas3.Schema) unionLowering {
 func (l *lowerer) branchesNameReferents(s *oas3.Schema) bool {
 	branches, _, _ := unionBranches(s)
 	for _, b := range branches {
-		if !l.refNamesReferent(b, b.GetRef().String()) {
+		if !l.ctx.refScope().NamesReferent(b, b.GetRef().String()) {
 			return false
 		}
 	}
@@ -559,7 +560,7 @@ func (l *lowerer) diagUnresolvedBranches(s *oas3.Schema, pointer string) {
 	branches, key, _ := unionBranches(s)
 	for i, b := range branches {
 		ref := b.GetRef().String()
-		if l.refNamesReferent(b, ref) {
+		if l.ctx.refScope().NamesReferent(b, ref) {
 			continue
 		}
 		l.diag(ir.SeverityError, diag.UnresolvedRef, pointer+ids.Ptr(key, strconv.Itoa(i)),
@@ -904,14 +905,14 @@ func (l *lowerer) mappingTargetID(target string) (ir.TypeID, bool) {
 	if l.ctx.DeclaresSchema(target) {
 		return ids.ForPointer(ids.Ptr("components", "schemas", target)), true
 	}
-	pointer, ok := l.internalPointer(target)
+	pointer, ok := l.ctx.refScope().InternalPointer(target)
 	if !ok {
 		return "", false
 	}
-	if id, resolved, handled := l.resolveComponentRef(pointer); handled {
+	if id, resolved, handled := l.ctx.refScope().ComponentRef(pointer); handled {
 		return id, resolved
 	}
-	return l.internedID(pointer)
+	return resolve.InternedID(l.types, pointer)
 }
 
 // propIDByName returns the PropID of the model property with the given source

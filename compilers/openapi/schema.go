@@ -16,6 +16,7 @@ import (
 	"github.com/dexpace/morphic/compilers/openapi/internal/ids"
 	"github.com/dexpace/morphic/compilers/openapi/internal/merge"
 	"github.com/dexpace/morphic/compilers/openapi/internal/nodeview"
+	"github.com/dexpace/morphic/compilers/openapi/internal/resolve"
 	"github.com/dexpace/morphic/compilers/openapi/internal/value"
 	"github.com/dexpace/morphic/ir"
 )
@@ -655,7 +656,7 @@ func (l *lowerer) fillPropertyDetail(p *ir.Property, js *oas3.JSONSchema[oas3.Re
 	if ref == nil {
 		return
 	}
-	tgt := l.refTargetSchema(js, ref)
+	tgt := resolve.TargetSchema(js, ref)
 	l.fillPropertyDefault(p, ref, tgt, pointer)
 	if ref.GetFormat() == "password" {
 		p.Secret = true
@@ -1160,7 +1161,7 @@ func (l *lowerer) dynamicExpansion(s *oas3.Schema, pointer string) (target ir.Ty
 	if !ok {
 		return "", why, false
 	}
-	id, resolved, handled := l.resolveComponentRef(at)
+	id, resolved, handled := l.ctx.refScope().ComponentRef(at)
 	if !handled || !resolved {
 		return "", fmt.Sprintf("$dynamicAnchor %q is declared at %q rather than on a component schema", name, at), false
 	}

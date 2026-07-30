@@ -4,6 +4,7 @@ import (
 	soa "github.com/speakeasy-api/openapi/openapi"
 
 	"github.com/dexpace/morphic/compilers/openapi/internal/load"
+	"github.com/dexpace/morphic/compilers/openapi/internal/resolve"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -105,4 +106,15 @@ func (c lowerCtx) DeclaresSchema(name string) bool { return c.schemas[name] }
 func (c lowerCtx) exclusiveBoundIsBoolean() bool {
 	minor, _ := load.SupportedMinor(c.Doc.OpenAPI)
 	return minor == "3.0"
+}
+
+// refScope is the context seen as a reference-resolution scope: the document's
+// own path, and what it declares.
+//
+// It is derived on use rather than stored beside the context. A stored copy
+// would be a second place the same two facts live, free to disagree with the
+// context after any change to it — and the whole point of the context is that
+// there is one answer.
+func (c lowerCtx) refScope() resolve.Scope {
+	return resolve.Scope{SelfPath: c.Source.Path, Declares: c.DeclaresSchema}
 }
