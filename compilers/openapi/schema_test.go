@@ -3850,3 +3850,26 @@ func TestDynamicRef_NonScalarValueIsKeptNotExpanded(t *testing.T) {
 		})
 	}
 }
+
+// TestPreserveUnhomedKeywords_MissingNode drives the invariant no source can
+// break: an ID a lowering returned that the registry does not hold. The keywords
+// it would keep have nowhere to go, so the guard reports the broken invariant
+// rather than preserving them onto nothing.
+func TestPreserveUnhomedKeywords_MissingNode(t *testing.T) {
+	t.Parallel()
+	l := newRawLowerer(&soa.OpenAPI{})
+	got := l.preserveUnhomedKeywords(&oas3.Schema{}, "/p", "h", "t/anon/missing")
+	assert.Equal(t, ir.TypeID("t/anon/missing"), got, "the lowering's own ID still stands")
+	assertHasErrorCode(t, l.diags.List(), codeInternalInvariant)
+}
+
+// TestRecordUnhomedKeywords_MissingOwner drives the same invariant one step
+// later, where the owning node is the one absent. Its caller cannot produce this
+// state — the owner is either the node it just looked up or one internAlias just
+// interned — so it is reached directly, as preserveUnionSiblings' guard is.
+func TestRecordUnhomedKeywords_MissingOwner(t *testing.T) {
+	t.Parallel()
+	l := newRawLowerer(&soa.OpenAPI{})
+	l.recordUnhomedKeywords("t/anon/missing", &oas3.Schema{}, []string{"items"}, ir.KindPrimitive, "/p")
+	assertHasErrorCode(t, l.diags.List(), codeInternalInvariant)
+}

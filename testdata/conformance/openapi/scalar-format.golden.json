@@ -35,6 +35,12 @@
         "target": "t/prim/string",
         "nullable": false
       },
+      "constraints": {
+        "exclusiveMin": false,
+        "exclusiveMax": false,
+        "minLength": 4,
+        "uniqueItems": false
+      },
       "encoding": {
         "name": "hex-color"
       }
@@ -70,6 +76,12 @@
           "defaultAdded": false,
           "visibility": {
             "none": false
+          },
+          "constraints": {
+            "exclusiveMin": false,
+            "exclusiveMax": false,
+            "minLength": 4,
+            "uniqueItems": false
           },
           "flatten": false,
           "eventHeader": false,
@@ -138,7 +150,7 @@
     {
       "format": "openapi@3.1",
       "path": "scalar-format.yaml",
-      "hash": "1e1e0e2c7ffa6615dfbc61b8b7eb595b6a9b72660aff073a8ffffe4ad8990238"
+      "hash": "29040493d9b854b2c89186c126d9d672f2e93e85bc9b008ace64891d2ae3f5ef"
     }
   ]
 }

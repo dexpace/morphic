@@ -8,8 +8,10 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"iter"
 	"strings"
 
+	oas3 "github.com/speakeasy-api/openapi/jsonschema/oas3"
 	soa "github.com/speakeasy-api/openapi/openapi"
 	"github.com/speakeasy-api/openapi/validation"
 	yaml "gopkg.in/yaml.v3"
@@ -65,8 +67,10 @@ func load(ctx context.Context, srcIndex int, src compilers.Source, opts Options)
 	}
 
 	diags := cyc
+	wrongMetaSchema := metaSchemaVersionArtifacts(ctx, doc, minor)
 	for _, ve := range valErrs {
-		if verr, ok := asValidationError(ve); ok && numericLiteralArtifact(verr) {
+		if verr, ok := asValidationError(ve); ok &&
+			(numericLiteralArtifact(verr) || wrongMetaSchema[findingSite(verr)]) {
 			continue
 		}
 		diags = append(diags, validationDiag(srcIndex, ve))
@@ -91,6 +95,98 @@ func load(ctx context.Context, srcIndex int, src compilers.Source, opts Options)
 			Hash:   sourceHash(src.Data),
 		},
 	}, diags, nil
+}
+
+// metaSchemaReconciledMinor is the OpenAPI minor whose schema findings are
+// reconciled against the document's own meta-schema.
+//
+// The library defaults to the 3.1 meta-schema when no version reaches schema
+// validation (jsonschema/oas3/validation.go), so a 3.1 document is checked
+// correctly by accident and needs no reconciling. A 3.0 document is mis-checked
+// in the other direction, and is deliberately left alone: the 3.0 meta-schema
+// words the same defect differently and raises findings 3.1 does not, so
+// reconciling it is a change to what a 3.0 document reports rather than the
+// removal of a false positive, and belongs to its own change.
+const metaSchemaReconciledMinor = "3.2"
+
+// metaSchemaVersionArtifacts returns the validation findings the library produced
+// only because it checked schema objects against the wrong meta-schema, keyed by
+// findingSite.
+//
+// JSONSchema[T].Validate discards its options and calls Schema.Validate with none
+// (jsonschema/oas3/jsonschema.go, under a "for now" comment), so the
+// ParentDocumentVersion the document walk supplies never reaches schema
+// validation: every schema object is checked against the 3.1 meta-schema whatever
+// the document claims to be. A conformant 3.2 document writing a 3.2-only schema
+// keyword — discriminator.defaultMapping is the one that surfaced — then fails
+// against a meta-schema that does not declare it, and under the CLI's default
+// --fail-on error a valid spec exits 1.
+//
+// Which findings to drop is derived, not listed. oas3.Validate does honour the
+// option, so validating every schema twice — once at the document's own version,
+// once as the library does — bounds the artifact exactly: a finding the second run
+// raises and the first does not is the library checking against a meta-schema the
+// document never claimed. Everything else is kept, including a finding on a schema
+// this walk did not reach, which appears in neither run and so is never in the
+// difference. Nothing names a keyword, so a 3.2 addition beyond defaultMapping is
+// covered without an edit — and once the library stops dropping its options the
+// two runs agree and this drops nothing.
+func metaSchemaVersionArtifacts(ctx context.Context, doc *soa.OpenAPI, minor string) map[string]bool {
+	if minor != metaSchemaReconciledMinor {
+		return nil
+	}
+	version := doc.OpenAPI
+	atDocumentVersion := schemaFindings(ctx, doc,
+		validation.WithContextObject(&oas3.ParentDocumentVersion{OpenAPI: &version}))
+	asLibraryChecks := schemaFindings(ctx, doc)
+	for site := range atDocumentVersion {
+		delete(asLibraryChecks, site)
+	}
+	return asLibraryChecks
+}
+
+// schemaFindings validates every schema object the document walk reaches under
+// opts, returning each finding's site.
+func schemaFindings(ctx context.Context, doc *soa.OpenAPI, opts ...validation.Option) map[string]bool {
+	out := map[string]bool{}
+	matchSchemas(soa.Walk(ctx, doc), func(js *oas3.JSONSchema[oas3.Referenceable]) error {
+		for _, found := range oas3.Validate(ctx, js, opts...) {
+			if verr, ok := asValidationError(found); ok {
+				out[findingSite(verr)] = true
+			}
+		}
+		return nil
+	})
+	return out
+}
+
+// matchSchemas dispatches every walk item to collect, stopping at the first match
+// that reports an error.
+//
+// Stopping is safe rather than silent. The two runs this feeds walk the same
+// document the same way, so a schema neither run reached contributes to neither
+// set and can never fall into the difference between them: what is left is a
+// smaller reconciliation, not a wrong one. Propagating the error instead would
+// only give the caller the same choice, with a branch no input can take —
+// Match returns exactly what the matcher handed it, and collect returns nil.
+func matchSchemas(items iter.Seq[soa.WalkItem], collect func(*oas3.JSONSchema[oas3.Referenceable]) error) {
+	for item := range items {
+		if err := item.Match(soa.Matcher{Schema: collect}); err != nil {
+			return
+		}
+	}
+}
+
+// findingSite identifies a validation finding by its rule and position, not by
+// its rendered message.
+//
+// Two meta-schemas word the same defect differently — 3.0 omits 'null' from the
+// admissible type list 3.1 prints — so comparing messages would read a rewording
+// as a disappearance and drop a real finding. Rule and position are what both runs
+// agree on when they are describing the same thing.
+func findingSite(verr validation.Error) string {
+	return fmt.Sprintf("%s\x00%s\x00%d\x00%d",
+		verr.Rule, verr.GetDocumentLocation(), verr.GetLineNumber(), verr.GetColumnNumber())
 }
 
 // numericBoundKeywords are the schema keywords the library binds to *float64 and

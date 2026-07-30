@@ -123,7 +123,7 @@ func (l *lowerer) partEncodings(media *soa.MediaType, mediaPtr string, body ir.T
 	// while a pointer cut from the ref string names only its first hop.
 	schemaPtr, ok := l.bodyModelPointer(body)
 	if !ok {
-		schemaPtr = bodySchemaPointer(media.GetSchema(), mediaPtr+ptr("schema"))
+		schemaPtr = l.bodySchemaPointer(media.GetSchema(), mediaPtr+ptr("schema"))
 	}
 	encMap := media.GetEncoding()
 	out := map[ir.PropID]ir.PartEncoding{}
@@ -455,21 +455,25 @@ func (l *lowerer) bodyModelPointer(body ir.TypeID) (string, bool) {
 }
 
 // bodySchemaPointer returns the JSON pointer under which a body schema's
-// properties were interned: the local ref target's pointer when the media schema
-// is a local $ref, else localPtr for an inline schema.
+// properties were interned: the ref target's pointer when the media schema is a
+// same-document $ref, else localPtr.
 //
 // It is the fallback for a body the IR gives no model for (bodyModelPointer),
 // where the schema declares properties that nothing in the IR holds — a
 // contradictory `enum` or scalar `type` beside them — and no pointer can name a
 // property that was never lowered.
-func bodySchemaPointer(js *oas3.JSONSchema[oas3.Referenceable], localPtr string) string {
-	if js == nil {
+//
+// The document half of the $ref decides, via internalPointer, rather than being
+// cut off and discarded. A fragment lifted from a ref into another document
+// would otherwise become an identity in *this* one, naming whichever local
+// schema happened to share the path — a property of a different document
+// addressed as if it were ours. localPtr is the honest fallback there: it is
+// the position the reference itself occupies here.
+func (l *lowerer) bodySchemaPointer(js *oas3.JSONSchema[oas3.Referenceable], localPtr string) string {
+	if js == nil || !isRefSite(js, js.GetSchema()) {
 		return localPtr
 	}
-	if !isRefSite(js, js.GetSchema()) {
-		return localPtr
-	}
-	if _, pointer, found := strings.Cut(js.GetRef().String(), "#"); found && pointer != "" {
+	if pointer, ok := l.internalPointer(js.GetRef().String()); ok {
 		return pointer
 	}
 	return localPtr

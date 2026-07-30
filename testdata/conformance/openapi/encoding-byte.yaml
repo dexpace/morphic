@@ -6,4 +6,7 @@ components:
     Holder:
       type: object
       properties:
-        blob: {type: string, format: byte}
+        # The bounds are declared beside the format on purpose: format: byte
+        # hoists a node of its own, which is what stops the shared alias path
+        # attaching the position's constraints afterwards.
+        blob: {type: string, format: byte, minLength: 5, maxLength: 9}

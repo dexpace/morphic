@@ -196,15 +196,19 @@ func (g *merger) typesConflict(a, b ir.TypeRef) bool {
 // isAnyType reports whether ref targets the schemaless top type (a PrimAny
 // primitive or an Any node). The top type imposes no constraint under allOf
 // intersection, so it never conflicts with a sibling redeclaration.
+//
+// It follows the Base chain rather than reading only the target node, because a
+// position that wrote something only a node can hold gets an alias over the top
+// type instead of resolving straight to it. Reading the alias alone would let
+// resolvePrimKind answer PrimAny below and then compare it unequal to the
+// sibling's kind — reporting the top type as a conflict, which is the one thing
+// this function exists to rule out.
 func (g *merger) isAnyType(ref ir.TypeRef) bool {
+	if k, ok := g.resolvePrimKind(ref); ok {
+		return k == ir.PrimAny
+	}
 	td, ok := g.resolve(ref.Target)
-	if !ok {
-		return false
-	}
-	if p, ok := td.(*ir.Primitive); ok {
-		return p.Prim == ir.PrimAny
-	}
-	return td.Kind() == ir.KindAny
+	return ok && td.Kind() == ir.KindAny
 }
 
 // resolvePrimKind follows ref through the registry to its underlying primitive

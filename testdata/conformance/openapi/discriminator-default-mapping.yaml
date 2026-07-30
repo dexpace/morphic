@@ -1,0 +1,32 @@
+openapi: 3.2.0
+info: {title: DiscriminatorDefaultMapping, version: "1.0.0"}
+paths: {}
+components:
+  schemas:
+    # defaultMapping is a 3.2 addition to the discriminator object, and the only
+    # source Discriminator.Default has. It lives on a schema object, which
+    # speakeasy/openapi v1.24.0 checks against the 3.1 meta-schema whatever the
+    # document says — so this spec is also the witness that the compiler
+    # reconciles those findings against the version the document declares.
+    Pet:
+      type: object
+      required: [petType]
+      properties:
+        petType: {type: string}
+      discriminator:
+        propertyName: petType
+        # Deliberately a different subtype from the one the mapping names, so an
+        # assertion on Default cannot pass by reading Mapping.
+        defaultMapping: '#/components/schemas/Dog'
+        mapping:
+          cat: '#/components/schemas/Cat'
+    Cat:
+      allOf:
+        - {$ref: '#/components/schemas/Pet'}
+      properties:
+        meow: {type: boolean}
+    Dog:
+      allOf:
+        - {$ref: '#/components/schemas/Pet'}
+      properties:
+        bark: {type: boolean}

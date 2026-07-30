@@ -35,6 +35,13 @@
         "target": "t/prim/bytes",
         "nullable": false
       },
+      "constraints": {
+        "exclusiveMin": false,
+        "exclusiveMax": false,
+        "minLength": 5,
+        "maxLength": 9,
+        "uniqueItems": false
+      },
       "encoding": {
         "name": "base64",
         "wireType": {
@@ -74,6 +81,13 @@
           "defaultAdded": false,
           "visibility": {
             "none": false
+          },
+          "constraints": {
+            "exclusiveMin": false,
+            "exclusiveMax": false,
+            "minLength": 5,
+            "maxLength": 9,
+            "uniqueItems": false
           },
           "flatten": false,
           "eventHeader": false,
@@ -127,7 +141,7 @@
     {
       "format": "openapi@3.1",
       "path": "encoding-byte.yaml",
-      "hash": "36b33305f6de700c178b981840b3a0b33a99c029ec23b157303a129bacd0a9d4"
+      "hash": "7af36b6d4e0ba2cac557e13326187b074a24eefd281dc754363335772cba2281"
     }
   ]
 }

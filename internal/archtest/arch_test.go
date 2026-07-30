@@ -5,11 +5,14 @@ import (
 	"go/token"
 	"io/fs"
 	"os"
+	"path"
 	"path/filepath"
 	"runtime"
+	"slices"
 	"strings"
 	"testing"
 
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
@@ -19,11 +22,6 @@ const module = "github.com/dexpace/morphic"
 // import prefixes; test files are exempt. The walk starts only at keyed
 // directories and recurses into their subtrees, so an unkeyed subdirectory
 // nested under a keyed one is still audited, under the ancestor's allowlist.
-//
-// internal/harness is intentionally unkeyed: as test/tooling infrastructure
-// that drives specs through the oracles, it legitimately imports the
-// Layer-1 compilers/openapi package. No keyed directory is its ancestor, so
-// it's simply never walked.
 var rules = map[string][]string{
 	"ir":                  {},
 	"ir/irtest":           {module + "/ir", "github.com/google/go-cmp"},
@@ -34,6 +32,19 @@ var rules = map[string][]string{
 	"engine":              {module + "/ir", module + "/compilers", module + "/pass", "gopkg.in/yaml.v3"},
 	"cmd/morphic":         {module + "/ir", module + "/engine"},
 	"cmd/morphic-harness": {module + "/internal/harness"},
+	"internal/testspec":   {},
+}
+
+// exempt names the production packages deliberately outside the layering rules,
+// each with the reason it is out.
+//
+// Being unkeyed in rules is not by itself a decision — an omission looks
+// identical to one — so TestImportGraph_EveryPackageIsRuledOrExempt requires
+// every production package to appear in one map or the other. Adding a package
+// to neither fails, which is what stops both lists rotting.
+var exempt = map[string]string{
+	"internal/harness": "test/tooling infrastructure that drives specs through the oracles, " +
+		"so it legitimately imports the Layer-1 compilers/openapi package",
 }
 
 // TestImportGraph_LayeringHolds parses every non-test Go file under each ruled
@@ -54,6 +65,84 @@ func TestImportGraph_LayeringHolds(t *testing.T) {
 	}
 }
 
+// TestImportGraph_EveryPackageIsRuledOrExempt requires every directory holding
+// production Go files to be reached by rules — through itself or an ancestor —
+// or named in exempt with its reason.
+//
+// A package in neither is audited by nothing, and looks no different from one
+// deliberately left out: the layering gate stays green while that package
+// imports whatever it likes. Requiring the choice to be recorded is what makes
+// the next package added an explicit decision rather than a silent omission.
+func TestImportGraph_EveryPackageIsRuledOrExempt(t *testing.T) {
+	t.Parallel()
+	root := repoRoot(t)
+	pkgs := productionPackages(t, root)
+	require.NotEmpty(t, pkgs, "found no production packages to audit")
+
+	for _, dir := range pkgs {
+		if _, ok := exempt[dir]; ok {
+			assert.False(t, coveredByRule(dir), "%s is both ruled and exempt; pick one", dir)
+			continue
+		}
+		assert.True(t, coveredByRule(dir),
+			"%s holds production Go files but no import rule reaches it; "+
+				"add it to rules, or name it in exempt with the reason it is out", dir)
+	}
+	for dir := range exempt {
+		assert.Contains(t, pkgs, dir, "exempt names %s, which holds no production Go files", dir)
+	}
+}
+
+// coveredByRule reports whether dir or one of its ancestors carries an import
+// rule, which is what decides whether walkImports ever reaches it.
+func coveredByRule(dir string) bool {
+	for d := dir; ; d = path.Dir(d) {
+		if _, ok := rules[d]; ok {
+			return true
+		}
+		if d == "." || d == "/" {
+			return false
+		}
+	}
+}
+
+// productionPackages returns every repo-relative directory holding at least one
+// non-test Go file, deduplicated and in lexical order. Dot-directories are
+// skipped whole, so neither .git nor tooling state reaches the audit.
+func productionPackages(t *testing.T, root string) []string {
+	t.Helper()
+	var out []string
+	err := filepath.WalkDir(root, func(p string, d fs.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		if d.IsDir() {
+			if p != root && strings.HasPrefix(d.Name(), ".") {
+				return filepath.SkipDir
+			}
+			return nil
+		}
+		if !isProductionGoFile(d.Name()) {
+			return nil
+		}
+		rel, relErr := filepath.Rel(root, filepath.Dir(p))
+		require.NoError(t, relErr)
+		out = append(out, filepath.ToSlash(rel))
+		return nil
+	})
+	require.NoError(t, err)
+	slices.Sort(out)
+	return slices.Compact(out)
+}
+
+// isProductionGoFile reports whether name is a Go file the layering rules apply
+// to. walkImports exempts test files, so the package sweep must exempt them too
+// — otherwise a test-only directory would be required to carry a rule that
+// governs none of its files.
+func isProductionGoFile(name string) bool {
+	return strings.HasSuffix(name, ".go") && !strings.HasSuffix(name, "_test.go")
+}
+
 // walkImports traverses base, checking every production Go file's imports
 // against allowed. It excludes nested directories that carry their own rule so
 // each subtree is checked exactly once under its most specific rule.
@@ -69,7 +158,7 @@ func walkImports(t *testing.T, dir, base string, allowed []string) error {
 			}
 			return nil
 		}
-		if !strings.HasSuffix(path, ".go") || strings.HasSuffix(path, "_test.go") {
+		if !isProductionGoFile(d.Name()) {
 			return nil
 		}
 		checkFileImports(t, path, dir, allowed)

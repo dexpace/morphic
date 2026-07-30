@@ -1,14 +1,14 @@
 {
   "irVersion": "0.3.0",
-  "name": "DiscriminatorInheritance",
+  "name": "DiscriminatorDefaultMapping",
   "version": "1.0.0",
   "docs": {},
   "services": [
     {
       "id": "s/openapi/0",
       "name": {
-        "source": "DiscriminatorInheritance",
-        "canonical": "discriminator_inheritance"
+        "source": "DiscriminatorDefaultMapping",
+        "canonical": "discriminator_default_mapping"
       },
       "docs": {},
       "auth": null,
@@ -172,6 +172,7 @@
         "mapping": {
           "cat": "t/openapi/components/schemas/Cat"
         },
+        "default": "t/openapi/components/schemas/Dog",
         "inferred": false
       },
       "inputOnly": false
@@ -211,9 +212,9 @@
   ],
   "sources": [
     {
-      "format": "openapi@3.1",
-      "path": "discriminator-inheritance.yaml",
-      "hash": "f301cab21ed2c0ecb02a56b3554cad43134e4cbc65cf56a23bb5409f31ff1566"
+      "format": "openapi@3.2",
+      "path": "discriminator-default-mapping.yaml",
+      "hash": "b11fc09b3bf6c9f01c6852b69dd7e235bea5072b6e0c695c79e24a7c736dc02c"
     }
   ]
 }

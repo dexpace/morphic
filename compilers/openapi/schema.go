@@ -267,7 +267,7 @@ func declaresValueConstraints(s *oas3.Schema) bool {
 }
 
 // declaresValidationOnly reports whether s writes a §4.7 validation-only
-// keyword that fillValidationOnly keeps verbatim under Unmodeled. A `false`
+// keyword that preserveKeyword keeps verbatim under Unmodeled. A `false`
 // unevaluatedProperties is excluded on purpose: fillAdditional lowers it into
 // the model's openness, so it is structure rather than a preserved keyword.
 func declaresValidationOnly(s *oas3.Schema) bool {
@@ -312,19 +312,29 @@ func (l *lowerer) lowerSchemaBody(schema *oas3.Schema, pointer, hint string) ir.
 
 // hasUnionSiblings reports whether a oneOf/anyOf schema also carries structural
 // keywords (a type, properties, allOf, const/enum, additionalProperties, ...) or
-// a `required` list. When it does, the union alone cannot represent the schema,
-// so the sibling body must be lowered too rather than dropped (invariant 2,
-// ir-design §4.3).
+// a keyword that narrows an instance without declaring one. When it does, the
+// union alone cannot represent the schema, so the sibling body must be lowered
+// too rather than dropped (invariant 2, ir-design §4.3).
 func hasUnionSiblings(s *oas3.Schema) bool {
-	return len(s.GetRequired()) > 0 || declaresShape(s)
+	return narrowsInstance(s) || declaresShape(s)
+}
+
+// narrowsInstance reports whether s writes a keyword that constrains an instance
+// without declaring a shape to build: `required`, `items`, `prefixItems`.
+//
+// These sit on the narrowing side of declaresShape's line, and that line is about
+// what to *build*. Wherever the question is instead whether a lowering can carry
+// what the position wrote, the distinction does not apply: an ir.Union has no
+// element type, so `{oneOf: [...], items: {...}}` loses the `items` as surely as
+// it would lose a co-declared property set.
+func narrowsInstance(s *oas3.Schema) bool {
+	return len(s.GetRequired()) > 0 || s.GetItems() != nil || len(s.GetPrefixItems()) > 0
 }
 
 // declaresShape reports whether a schema declares data shape — a type, a
 // property set, a value set, composition, or a catch-all — rather than only
-// narrowing what an already-declared shape accepts. `required` is on the
-// narrowing side of that line, which is why hasUnionSiblings counts it
-// separately: it makes a schema's siblings structural, but on its own it
-// declares nothing to build (ir-design §4.7).
+// narrowing what an already-declared shape accepts. The narrowing keywords are
+// narrowsInstance's, which is why the callers combine the two (ir-design §4.7).
 func declaresShape(s *oas3.Schema) bool {
 	if props := s.GetProperties(); props != nil && props.Len() > 0 {
 		return true
@@ -401,23 +411,151 @@ func (l *lowerer) falseSchema(pointer, hint string) ir.TypeID {
 // a bare `const` schema is exactly a Literal at its own pointer.
 func (l *lowerer) lower(s *oas3.Schema, pointer, hint string) ir.TypeID {
 	if c := s.GetConst(); c != nil {
-		return l.hoistLiteral(c, pointer, hint)
+		return l.preserveUnhomedKeywords(s, pointer, hint, l.hoistLiteral(c, pointer, hint))
 	}
 	if len(s.GetEnum()) > 0 {
-		return l.lowerEnum(s, pointer, hint)
+		return l.preserveUnhomedKeywords(s, pointer, hint, l.lowerEnum(s, pointer, hint))
 	}
 	if len(s.GetAllOf()) > 0 {
-		return l.lowerAllOf(s, pointer, hint)
+		return l.preserveUnhomedKeywords(s, pointer, hint, l.lowerAllOf(s, pointer, hint))
 	}
 	types := effectiveTypes(s)
 	switch {
 	case len(types) > 1:
+		// A multi-typed schema lowers one variant per declared type, each from
+		// this same schema, so an applicator with no home in one variant has one
+		// in another: `{type: [string, object], properties: {...}}` puts the
+		// property set on the object variant. The homes here are the variants',
+		// not the Union's, so the applicator check does not apply.
 		return l.lowerUnion(s, pointer, hint, types)
 	case len(types) == 1:
-		return l.lowerTyped(s, pointer, hint, types[0])
+		return l.preserveUnhomedKeywords(s, pointer, hint, l.lowerTyped(s, pointer, hint, types[0]))
 	default:
-		return l.lowerUntyped(s, pointer, hint)
+		return l.preserveUnhomedKeywords(s, pointer, hint, l.lowerUntyped(s, pointer, hint))
 	}
+}
+
+// shapeApplicators are the JSON Schema applicator keywords that constrain
+// instance shape. Each has exactly one IR home: a Model's property set, openness
+// and pattern bindings, or a List's element and a Tuple's positions.
+//
+// Everything else a schema can write is captured elsewhere — annotations by
+// attachDeclaredAnnotations, bounds by schemaConstraints, the §4.7
+// validation-only family by preserveKeyword, the content vocabulary by
+// recordUnplacedContent, use-site keywords by recordResidue. The keywords listed
+// here had no such recorder, so a position writing one that its lowering could
+// not consume dropped it in silence.
+var shapeApplicators = []string{
+	"properties", "patternProperties", "additionalProperties", "required",
+	"items", "prefixItems",
+}
+
+// applicatorHome reports whether the node a position lowered to has a field that
+// carries the named applicator. It asks the node rather than re-deriving lower()'s
+// dispatch, so the two cannot drift apart (the rule recordUnplacedContent states).
+func applicatorHome(td ir.TypeDef, keyword string) bool {
+	switch td.(type) {
+	case *ir.Model:
+		switch keyword {
+		case "properties", "patternProperties", "additionalProperties", "required":
+			return true
+		default:
+			return false
+		}
+	case *ir.List, *ir.Tuple:
+		return keyword == "items" || keyword == "prefixItems"
+	default:
+		// An Enum, Literal, Scalar, Primitive or Union carries no property set
+		// and no element type, so every applicator written beside one is homeless.
+		return false
+	}
+}
+
+// unhomedKeywords returns the keywords s declares that nothing reading this
+// position can carry, in the order shapeApplicators lists them, with `format`
+// last. It reads the raw nodes for the reason declaresValueConstraints does: a
+// keyword the model layer failed to parse is still plainly written.
+//
+// `format` is homed by a declared type, not by a node kind: scalarTypeID pairs
+// the two to select a primitive or hoist a Scalar carrying the encoding. Written
+// with no type beside it, nothing reads it at all — which is the one case that
+// can be decided here without asking how the pairing turned out.
+func unhomedKeywords(s *oas3.Schema, td ir.TypeDef) []string {
+	var out []string
+	for _, keyword := range shapeApplicators {
+		if rawPropertyNode(s, keyword) == nil || applicatorHome(td, keyword) {
+			continue
+		}
+		out = append(out, keyword)
+	}
+	if len(effectiveTypes(s)) == 0 && rawPropertyNode(s, "format") != nil {
+		out = append(out, "format")
+	}
+	return out
+}
+
+// preserveUnhomedKeywords keeps verbatim the shape applicators a position
+// declared that the node it lowered to has nowhere to carry, and returns the ID
+// the position resolves to afterwards.
+//
+// Two losses share this shape. A contradictory schema — `{type: string, enum:
+// [a, b], properties: {f: ...}}` — cannot be both a two-member string enum and an
+// object, so lowering to one half is a reasonable degradation, but §4.8 requires
+// the other half to stay beside it rather than vanish; dropping it reported
+// nothing and surfaced only downstream, as a multipart encoding key addressing a
+// model the IR no longer held. And an applicator written with no `type` beside it
+// still constrains an instance — `{items: {type: string}}` constrains every array
+// — where the position lowers to the top type, which understates it entirely.
+//
+// Lowering an untyped applicator on its own (reading `items` as a list shape) is
+// a §4 decision this compiler has not taken. Keeping the source is the honest
+// alternative, and it leaves that decision open.
+//
+// What it does not do is stop a multipart body's encoding keys being minted from
+// a property set the lowered node no longer holds, so pass.Validate still reports
+// ir/encoding-key-unknown-property for such a body. That diagnostic is correct
+// about what it checks — the document does carry a key addressing no property —
+// and the reader now gets the cause beside the symptom rather than only the
+// symptom. Whether a contradictory schema should mint those keys at all is a
+// separate question about Content.Encoding, not about what is dropped here.
+//
+// A lowering that reduced to a shared node gets an alias of its own first: a
+// shared primitive must never carry one declaration's keywords. The alias takes
+// the position's constraints too, because owning the pointer is what stops
+// hoistDeclarationHome attaching them afterwards.
+func (l *lowerer) preserveUnhomedKeywords(s *oas3.Schema, pointer, hint string, id ir.TypeID) ir.TypeID {
+	td, ok := l.registeredNode(id, pointer)
+	if !ok {
+		return id
+	}
+	unhomed := unhomedKeywords(s, td)
+	if len(unhomed) == 0 {
+		return id
+	}
+	owner := id
+	if got, _ := l.types.Lookup(pointer); got != id {
+		owner = l.internAlias(pointer, hint, ir.TypeRef{Target: id}, l.schemaConstraints(s, pointer))
+	}
+	l.recordUnhomedKeywords(owner, s, unhomed, td.Kind(), pointer)
+	return owner
+}
+
+// recordUnhomedKeywords stores each unhomed applicator on the owning node and
+// reports them once, naming the form the lowering took so a reader is told which
+// half of a contradictory schema the IR describes.
+func (l *lowerer) recordUnhomedKeywords(owner ir.TypeID, s *oas3.Schema, unhomed []string, kind ir.TypeKind, pointer string) {
+	td, ok := l.registeredNode(owner, pointer)
+	if !ok {
+		return
+	}
+	c := td.Common()
+	for _, keyword := range unhomed {
+		l.preserve(&c.Unmodeled, "openapi:"+keyword, nodeToRaw(rawPropertyNode(s, keyword)),
+			ir.ReasonDegradedLowering, pointer+ptr(keyword))
+	}
+	l.diag(ir.SeverityInfo, codeDegradedConstruct, pointer,
+		"this position lowered to a node of kind %q, which has no home for %s declared beside it; kept verbatim under Unmodeled",
+		kind, strings.Join(unhomed, ", "))
 }
 
 // lowerTyped dispatches a single-typed schema to its structural or scalar form.
@@ -809,13 +947,24 @@ func (l *lowerer) scalarTypeID(s *oas3.Schema, st oas3.SchemaType, pointer, hint
 }
 
 // hoistByteScalar hoists a base64-encoded byte scalar (string+byte).
+//
+// Every hoister here carries the position's value constraints itself, because
+// owning a node is what stops hoistDeclarationHome hoisting the alias that would
+// otherwise carry them: that fallback resolves to whatever node the pointer
+// already owns and returns early. A scalar that hoisted because it wrote a
+// format must not lose the bounds it wrote beside it (invariant 2).
 func (l *lowerer) hoistByteScalar(s *oas3.Schema, pointer, hint string) ir.TypeID {
 	return l.internNode(pointer, hint, func(common ir.TypeCommon) ir.TypeDef {
 		base := l.primRef(ir.PrimBytes)
 		wire := l.primRef(ir.PrimString)
 		enc := l.scalarEncoding(s, "base64", &common, pointer)
 		enc.WireType = &wire
-		return &ir.Scalar{TypeCommon: common, Base: &base, Encoding: enc}
+		return &ir.Scalar{
+			TypeCommon:  common,
+			Base:        &base,
+			Encoding:    enc,
+			Constraints: l.schemaConstraints(s, pointer),
+		}
 	})
 }
 
@@ -825,19 +974,19 @@ func (l *lowerer) hoistFormatScalar(s *oas3.Schema, base ir.PrimKind, format, po
 	return l.internNode(pointer, hint, func(common ir.TypeCommon) ir.TypeDef {
 		baseRef := l.primRef(base)
 		enc := l.scalarEncoding(s, format, &common, pointer)
-		return &ir.Scalar{TypeCommon: common, Base: &baseRef, Encoding: enc}
+		return &ir.Scalar{
+			TypeCommon:  common,
+			Base:        &baseRef,
+			Encoding:    enc,
+			Constraints: l.schemaConstraints(s, pointer),
+		}
 	})
 }
 
 // hoistContentScalar hoists a scalar over the shared primitive a known
 // (type, format) pair maps to, giving the content vocabulary written here a node
-// of its own to sit on.
-//
-// It carries the position's value constraints itself, because owning a node is
-// what stops hoistDeclarationHome hoisting the alias that would otherwise carry
-// them: that fallback resolves to whatever node the pointer already owns. A
-// scalar that gained an Encoding by writing contentEncoding must not lose the
-// bounds it wrote beside it (invariant 2).
+// of its own to sit on. It carries the position's value constraints for the
+// reason hoistByteScalar records.
 func (l *lowerer) hoistContentScalar(s *oas3.Schema, prim ir.PrimKind, pointer, hint string) ir.TypeID {
 	return l.internNode(pointer, hint, func(common ir.TypeCommon) ir.TypeDef {
 		base := l.primRef(prim)
@@ -1017,19 +1166,14 @@ func dynamicRefName(s *oas3.Schema) (name, why string, ok bool) {
 // any of these makes the reference irreducible; expanding regardless would
 // assert the target's shape and drop the sibling in silence.
 //
-// It is broader than declaresShape by `items`, `prefixItems` and `required` —
-// the keywords declaresShape leaves out because they narrow an instance rather
-// than declare one. That distinction is about what to *build*, and there is
-// nothing to build here: an expansion takes the target whole, so a keyword it
+// It is broader than declaresShape by narrowsInstance's keywords, for the reason
+// that predicate records: an expansion takes the target whole, so a keyword it
 // cannot carry is lost whether or not it declares a shape by itself.
 func dynamicRefSiblings(s *oas3.Schema) bool {
 	if s.Ref != nil || len(s.GetOneOf()) > 0 || len(s.GetAnyOf()) > 0 {
 		return true
 	}
-	if s.GetItems() != nil || len(s.GetPrefixItems()) > 0 {
-		return true
-	}
-	return len(s.GetRequired()) > 0 || declaresShape(s)
+	return narrowsInstance(s) || declaresShape(s)
 }
 
 // soleAnchorSite returns the one pointer declaring the named $dynamicAnchor, or
