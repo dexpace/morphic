@@ -1,0 +1,27 @@
+openapi: 3.1.0
+info: {title: AllOfRefBranchSiblings, version: "1.0.0"}
+paths: {}
+components:
+  schemas:
+    Base:
+      type: object
+      properties: {a: {type: string}}
+    Extra:
+      type: object
+      properties: {b: {type: string}}
+    Annotated:
+      allOf:
+        - $ref: '#/components/schemas/Base'
+          description: Base as this composition uses it
+          minProperties: 3
+          x-vendor: keepme
+      type: object
+      properties: {c: {type: string}}
+    Mixed:
+      allOf:
+        - $ref: '#/components/schemas/Base'
+          description: narrowed here
+        - $ref: '#/components/schemas/Extra'
+    Bare:
+      allOf:
+        - $ref: '#/components/schemas/Base'

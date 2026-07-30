@@ -22,7 +22,7 @@
       "kind": "scalar",
       "id": "t/anon/components/schemas/Combo/oneOf/0",
       "name": {
-        "hint": "0"
+        "hint": "A"
       },
       "anonymous": true,
       "docs": {},

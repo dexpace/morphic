@@ -145,6 +145,7 @@ func conformanceCases() []conformanceCase {
 		{"allof-required-only", assertAllOfRequiredOnly},
 		{"allof-oneof-cooccurrence", assertAllOfOneOfCooccurrence},
 		{"allof-inline-residue", assertAllOfInlineResidue},
+		{"allof-ref-branch-siblings", assertAllOfRefBranchSiblings},
 		{"allof-boolean-branch", assertAllOfBooleanBranch},
 		{"oneof-discriminated", assertOneOfDiscriminated},
 		{"discriminator-inheritance", assertDiscriminatorInheritance},

@@ -1,0 +1,300 @@
+{
+  "irVersion": "0.3.0",
+  "name": "AllOfRefBranchSiblings",
+  "version": "1.0.0",
+  "docs": {},
+  "services": [
+    {
+      "id": "s/openapi/0",
+      "name": {
+        "source": "AllOfRefBranchSiblings",
+        "canonical": "all_of_ref_branch_siblings"
+      },
+      "docs": {},
+      "auth": null,
+      "provenance": {
+        "source": 0
+      }
+    }
+  ],
+  "types": {
+    "t/anon/components/schemas/Annotated/allOf/0": {
+      "kind": "scalar",
+      "id": "t/anon/components/schemas/Annotated/allOf/0",
+      "name": {
+        "hint": "Base"
+      },
+      "anonymous": true,
+      "docs": {
+        "description": "Base as this composition uses it"
+      },
+      "sensitive": false,
+      "unmodeled": {
+        "openapi:x-vendor": {
+          "reason": "vendor_extension",
+          "value": "keepme",
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/Annotated/allOf/0/x-vendor"
+          }
+        }
+      },
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Annotated/allOf/0"
+      },
+      "base": {
+        "target": "t/openapi/components/schemas/Base",
+        "nullable": false
+      },
+      "constraints": {
+        "exclusiveMin": false,
+        "exclusiveMax": false,
+        "uniqueItems": false,
+        "minProps": 3
+      }
+    },
+    "t/anon/components/schemas/Mixed/allOf/0": {
+      "kind": "scalar",
+      "id": "t/anon/components/schemas/Mixed/allOf/0",
+      "name": {
+        "hint": "Base"
+      },
+      "anonymous": true,
+      "docs": {
+        "description": "narrowed here"
+      },
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Mixed/allOf/0"
+      },
+      "base": {
+        "target": "t/openapi/components/schemas/Base",
+        "nullable": false
+      }
+    },
+    "t/openapi/components/schemas/Annotated": {
+      "kind": "model",
+      "id": "t/openapi/components/schemas/Annotated",
+      "name": {
+        "source": "Annotated",
+        "canonical": "annotated"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Annotated"
+      },
+      "properties": [
+        {
+          "id": "p/openapi/components/schemas/Annotated/properties/c",
+          "name": {
+            "source": "c",
+            "canonical": "c"
+          },
+          "wireName": "c",
+          "type": {
+            "target": "t/prim/string",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/Annotated/properties/c"
+          }
+        }
+      ],
+      "base": {
+        "target": "t/anon/components/schemas/Annotated/allOf/0",
+        "nullable": false
+      },
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
+    "t/openapi/components/schemas/Bare": {
+      "kind": "model",
+      "id": "t/openapi/components/schemas/Bare",
+      "name": {
+        "source": "Bare",
+        "canonical": "bare"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Bare"
+      },
+      "base": {
+        "target": "t/openapi/components/schemas/Base",
+        "nullable": false
+      },
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
+    "t/openapi/components/schemas/Base": {
+      "kind": "model",
+      "id": "t/openapi/components/schemas/Base",
+      "name": {
+        "source": "Base",
+        "canonical": "base"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Base"
+      },
+      "properties": [
+        {
+          "id": "p/openapi/components/schemas/Base/properties/a",
+          "name": {
+            "source": "a",
+            "canonical": "a"
+          },
+          "wireName": "a",
+          "type": {
+            "target": "t/prim/string",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/Base/properties/a"
+          }
+        }
+      ],
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
+    "t/openapi/components/schemas/Extra": {
+      "kind": "model",
+      "id": "t/openapi/components/schemas/Extra",
+      "name": {
+        "source": "Extra",
+        "canonical": "extra"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Extra"
+      },
+      "properties": [
+        {
+          "id": "p/openapi/components/schemas/Extra/properties/b",
+          "name": {
+            "source": "b",
+            "canonical": "b"
+          },
+          "wireName": "b",
+          "type": {
+            "target": "t/prim/string",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/Extra/properties/b"
+          }
+        }
+      ],
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
+    "t/openapi/components/schemas/Mixed": {
+      "kind": "model",
+      "id": "t/openapi/components/schemas/Mixed",
+      "name": {
+        "source": "Mixed",
+        "canonical": "mixed"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Mixed"
+      },
+      "mixins": [
+        {
+          "target": "t/anon/components/schemas/Mixed/allOf/0",
+          "nullable": false
+        },
+        {
+          "target": "t/openapi/components/schemas/Extra",
+          "nullable": false
+        }
+      ],
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
+    "t/prim/string": {
+      "kind": "primitive",
+      "id": "t/prim/string",
+      "name": {},
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0
+      },
+      "prim": "string"
+    }
+  },
+  "servers": [
+    {
+      "name": {},
+      "urlTemplate": "/",
+      "description": {},
+      "auth": null
+    }
+  ],
+  "sources": [
+    {
+      "format": "openapi@3.1",
+      "path": "allof-ref-branch-siblings.yaml",
+      "hash": "dd090c2a38373b187c147286011326856946aa500396478077f4297eb9d7150d"
+    }
+  ]
+}

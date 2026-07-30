@@ -108,6 +108,12 @@ func (l *lowerer) diagUnattachableRequired(m *ir.Model, e requiredEntry) {
 // else the branch declares is kept verbatim beside the composed model instead of
 // being dropped (preserveUnmergedBranch, GitHub #123).
 //
+// A $ref branch does own a node, so keywords written beside its $ref are modeled
+// rather than preserved: homeDeclaration hoists an alias at the branch position
+// to carry them, and the composition points at that (GitHub #143). A branch
+// writing nothing beside its $ref hoists nothing and composes straight to the
+// target, so this costs a node only where there is something to keep.
+//
 // The merge itself is left as it is: merging a branch's own docs, constraints or
 // openness upward onto m would need a precedence rule for branches that disagree,
 // and some of it has no home to merge into at all — Model.Constraints bounds the
@@ -129,7 +135,7 @@ func (l *lowerer) fillAllOf(m *ir.Model, s *oas3.Schema, pointer string) {
 				"unresolved allOf $ref %q", b.GetRef().String())
 			continue
 		}
-		ref := ir.TypeRef{Target: id}
+		ref := l.homeDeclaration(b.GetSchema(), ir.TypeRef{Target: id}, bptr, branchHint(b, i), homeOwnNode)
 		if i == baseIdx {
 			m.Base = &ref
 		} else {
@@ -185,10 +191,9 @@ func (l *lowerer) applyFalseBranches(m *ir.Model, s *oas3.Schema, pointer string
 // handled by applyFalseBranches instead, which is a question about the composed
 // node's shape rather than about which of a branch's keywords survive.
 //
-// One shape is deliberately not covered: a $ref branch is not an inline branch
-// at all, so its `$ref`-adjacent siblings (`allOf: [{$ref: X, description: d}]`)
-// are still dropped — fillAllOf reads only the ref off it, and giving it a node
-// of its own would move what Base/Mixins point at (GitHub #143).
+// A $ref branch is not an inline branch at all and takes neither path: it owns a
+// node, so fillAllOf homes its `$ref`-adjacent siblings on an alias over the
+// target rather than preserving them here.
 func (l *lowerer) preserveUnmergedBranch(m *ir.Model, bs *oas3.Schema, branchIdx int, bptr string) {
 	if bs == nil {
 		return // boolean branch; applyFalseBranches handles it.
@@ -633,7 +638,7 @@ func (l *lowerer) buildUnion(s *oas3.Schema, common ir.TypeCommon, pointer strin
 		if isNullSchema(b) {
 			continue // null branches lift to the enclosing ref's Nullable bit
 		}
-		vh := variantHint(b, i)
+		vh := branchHint(b, i)
 		vptr := pointer + ptr(key, strconv.Itoa(i))
 		variants = append(variants, ir.Variant{
 			Name: ir.Naming{Hint: vh},
@@ -737,9 +742,14 @@ func conjoinBranch(m *ir.Model, branch ir.TypeID) {
 	m.Mixins = append(m.Mixins, target)
 }
 
-// variantHint derives a Union variant's naming hint from its $ref target's name,
-// falling back to a positional hint for inline branches.
-func variantHint(b *oas3.JSONSchema[oas3.Referenceable], i int) string {
+// branchHint derives a composition branch's naming hint from its $ref target's
+// name, falling back to a positional hint for inline branches. It names both a
+// union variant and an allOf branch, which reach it as the same question.
+//
+// A $ref branch's answer is also hoistSubSchema's (subSchemaHint), and must
+// stay so: an outside $ref can name the branch pointer, and the node it owns
+// would otherwise be hinted by whichever of the two lowerings arrived first.
+func branchHint(b *oas3.JSONSchema[oas3.Referenceable], i int) string {
 	// Only a true reference carries a target name: IsReference() is precisely
 	// GetSchema().Ref != "" for a non-bool branch, so a schema whose Ref pointer is
 	// set but empty (IsReference() false) has no usable last segment.

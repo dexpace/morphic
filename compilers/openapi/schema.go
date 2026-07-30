@@ -162,10 +162,7 @@ func (l *lowerer) internAlias(pointer, hint string, target ir.TypeRef, constrain
 // (resolveSchemaRef), which both reach a body only after peeling off any
 // leading $ref.
 func (l *lowerer) schemaBody(schema *oas3.Schema, pointer, hint string, home annotationHome) ir.TypeRef {
-	ref := l.hoistDeclarationHome(schema, l.lowerSchemaBody(schema, pointer, hint), pointer, hint, home)
-	l.attachDeclaredAnnotations(schema, pointer)
-	l.recordDeclarationResidue(schema, pointer, home)
-	return ref
+	return l.homeDeclaration(schema, l.lowerSchemaBody(schema, pointer, hint), pointer, hint, home)
 }
 
 // hoistDeclarationHome gives a declaration a node of its own when its lowering

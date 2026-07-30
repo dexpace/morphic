@@ -1641,6 +1641,51 @@ func TestOneOf_CoDeclaredDistributionIsOrderIndependent(t *testing.T) {
 	}
 }
 
+// branchAliasSpec writes a composition whose first branch is a $ref carrying a
+// sibling — so the branch position owns a node — with an outside component
+// naming that branch pointer. hostFirst permutes which of the two is declared
+// first, and kind selects the composition keyword.
+func branchAliasSpec(kind string, hostFirst bool) string {
+	host := "    Host:\n      " + kind + ":\n" +
+		"        - $ref: '#/components/schemas/Base'\n" +
+		"          description: narrowed at this branch\n"
+	if kind != "allOf" {
+		host += "        - type: string\n" // a union needs a second variant
+	}
+	rest := "    Base: {type: object, properties: {a: {type: string}}}\n" +
+		"    Outside: {$ref: '#/components/schemas/Host/" + kind + "/0'}\n"
+	if hostFirst {
+		return componentSpec(host + rest)
+	}
+	return componentSpec(rest + host)
+}
+
+// TestComposition_BranchAliasIsOrderIndependent pins the hint on the node a
+// composition branch and an outside $ref both reach. Only the first lowering to
+// arrive interns it, so the two must derive the same hint or the document
+// depends on declaration order — silently, since either spelling is a valid hint
+// and no check compares them.
+//
+// Hints are compared here rather than excluded (orderInvariantIR drops them for
+// shapes that legitimately settle two ways): the hint *is* what differed.
+func TestComposition_BranchAliasIsOrderIndependent(t *testing.T) {
+	t.Parallel()
+	for _, kind := range []string{"allOf", "oneOf", "anyOf"} {
+		t.Run(kind, func(t *testing.T) {
+			t.Parallel()
+			first, diags := parseFull(t, branchAliasSpec(kind, true))
+			requireNoErrorDiags(t, diags)
+			last, diags := parseFull(t, branchAliasSpec(kind, false))
+			requireNoErrorDiags(t, diags)
+
+			branch := ir.TypeID("t/anon/components/schemas/Host/" + kind + "/0")
+			require.Contains(t, first.Types, branch, "the branch position owns a node")
+			assert.Empty(t, cmp.Diff(first.Types, last.Types),
+				"declaring the composition before or after the outside $ref must not change the registry")
+		})
+	}
+}
+
 // TestOneOf_CoDeclaredVariantCarriesDiscriminatorValue pins the tag the variants
 // inherit. The enclosing schema is an allOf subtype of a discriminated base, so
 // every variant is written on the wire with that subtype's tag — and the tag

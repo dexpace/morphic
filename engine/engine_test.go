@@ -36,6 +36,59 @@ func TestEngine_RunEndToEnd(t *testing.T) {
 	}
 }
 
+// annotatedSubtypeSpec is a discriminator hierarchy whose subtype writes a
+// description beside the `$ref` that names its base — legal OpenAPI 3.1, and the
+// shape where the compiler's lowering and the validate pass have to agree about
+// what a composition parent is.
+const annotatedSubtypeSpec = `openapi: 3.1.0
+info: {title: Pets, version: "1"}
+paths: {}
+components:
+  schemas:
+    Pet:
+      type: object
+      required: [petType]
+      properties: {petType: {type: string}}
+      discriminator:
+        propertyName: petType
+        mapping: {cat: '#/components/schemas/Cat'}
+    Cat:
+      allOf:
+        - $ref: '#/components/schemas/Pet'
+          description: the base as this subtype narrows it
+      type: object
+      properties: {meow: {type: boolean}}
+`
+
+// TestEngine_AnnotatedSubtypeValidatesClean drives the compiler and the validate
+// pass together, which is the only place their disagreement shows. Keeping the
+// `$ref` branch's siblings gives the branch a node of its own, so the subtype's
+// Base names an alias over the discriminated base rather than the base itself —
+// and a subtype check comparing one hop reported the mapping as naming a
+// non-variant, an error on a document with nothing wrong with it.
+//
+// Neither side's own suite can see this: the compiler corpus never runs the
+// pass, and the pass's tests build documents by hand.
+func TestEngine_AnnotatedSubtypeValidatesClean(t *testing.T) {
+	t.Parallel()
+	eng, err := engine.New()
+	require.NoError(t, err)
+	res, err := eng.Run(t.Context(), writeSpec(t, annotatedSubtypeSpec), engine.RunOptions{})
+	require.NoError(t, err)
+	require.NotNil(t, res.Document)
+
+	cat, ok := res.Document.Types["t/openapi/components/schemas/Cat"].(*ir.Model)
+	require.True(t, ok)
+	require.NotNil(t, cat.Base)
+	assert.Equal(t, ir.TypeID("t/anon/components/schemas/Cat/allOf/0"), cat.Base.Target,
+		"the annotated branch owns the node the subtype composes")
+	for _, d := range res.Diagnostics {
+		assert.NotEqual(t, ir.SeverityError, d.Severity, "diag: %+v", d)
+	}
+	assert.False(t, hasDiagCode(res.Diagnostics, "pass/discriminator-missing-variant"),
+		"the mapping names a genuine subtype, whatever its Base points through")
+}
+
 func TestEngine_RunMissingFile(t *testing.T) {
 	t.Parallel()
 	eng, err := engine.New()
