@@ -474,8 +474,8 @@ func TestParams_SchemaXMLHintsKeptUnderUnmodeled(t *testing.T) {
 			assert.Equal(t, tc.schemaPtr+"/xml", entry.Provenance.Pointer,
 				"located at the xml keyword itself")
 			assert.Contains(t,
-				diagMessageAt(t, diags, codeDegradedConstruct, ir.SeverityInfo, tc.schemaPtr),
-				"xml hints", "and announced once")
+				diagMessageAt(t, diags, codeDegradedConstruct, ir.SeverityInfo, tc.schemaPtr+"/xml"),
+				"xml hints", "and announced once, at the same keyword the entry locates")
 		})
 	}
 }
@@ -500,6 +500,73 @@ func TestParams_SchemaXMLHintsStayOnAnOwnedNode(t *testing.T) {
 	assert.NotContains(t, p.Unmodeled, "openapi:xml", "so the parameter keeps no second copy")
 	assert.Equal(t, 0, countDiagsAt(diags, codeDegradedConstruct, ir.SeverityInfo),
 		"and nothing is announced as homeless")
+}
+
+const paramVisibilitySpec = `openapi: 3.1.0
+info: {title: T, version: "1"}
+paths:
+  /x:
+    get:
+      operationId: g
+      parameters:
+        - {name: ro, in: query, schema: {type: string, default: dq, readOnly: true}}
+        - {name: wo, in: query, schema: {type: string, writeOnly: true}}
+        - name: c
+          in: query
+          content:
+            application/xml:
+              schema: {type: string, readOnly: true}
+      responses: {"200": {description: ok}}
+`
+
+// TestParams_SchemaVisibilityKeptUnderUnmodeled covers the residue keywords a
+// parameter has no field for. ir-design §14 lowers readOnly/writeOnly to a
+// Visibility, which only ir.Property carries, so at a parameter both reached no
+// field and were dropped with no diagnostic at all — the silent loss this
+// compiler exists to make impossible.
+func TestParams_SchemaVisibilityKeptUnderUnmodeled(t *testing.T) {
+	t.Parallel()
+	_, svc, diags := lowerServiceSpec(t, paramVisibilitySpec)
+	requireNoErrorDiags(t, diags)
+	params := paramsOf(t, svc)
+
+	cases := []struct{ param, keyword, schemaPtr string }{
+		{"ro", "readOnly", "/paths/~1x/get/parameters/0/schema"},
+		{"wo", "writeOnly", "/paths/~1x/get/parameters/1/schema"},
+		{"c", "readOnly", "/paths/~1x/get/parameters/2/content/application~1xml/schema"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.param, func(t *testing.T) {
+			t.Parallel()
+			at := tc.schemaPtr + "/" + tc.keyword
+			entry, ok := params[tc.param].Unmodeled["openapi:"+tc.keyword]
+			require.True(t, ok, "%s has no ir.Parameter field, so it is kept raw, not dropped", tc.keyword)
+			assert.Equal(t, ir.ReasonNoIRHome, entry.Reason)
+			assert.JSONEq(t, `true`, string(entry.Value), "kept verbatim")
+			assert.Equal(t, at, entry.Provenance.Pointer, "located at the keyword itself")
+			assert.Contains(t,
+				diagMessageAt(t, diags, codeDegradedConstruct, ir.SeverityInfo, at),
+				tc.keyword+" has no ir.Parameter home", "and announced once")
+		})
+	}
+}
+
+// TestParams_SchemaDefaultIsNotAlsoKeptVerbatim is the other side of that list:
+// `default` is a residue keyword too, but Parameter.Default is a real home for
+// it, so a verbatim copy beside it would give one declaration two homes.
+func TestParams_SchemaDefaultIsNotAlsoKeptVerbatim(t *testing.T) {
+	t.Parallel()
+	_, svc, diags := lowerServiceSpec(t, paramVisibilitySpec)
+	requireNoErrorDiags(t, diags)
+
+	p := paramsOf(t, svc)["ro"]
+	require.NotNil(t, p.Default, "the default lands in its own field")
+	assert.Equal(t, "dq", p.Default.Str)
+	assert.NotContains(t, p.Unmodeled, "openapi:default", "and is not restated verbatim beside it")
+	for _, d := range diags {
+		assert.NotEqual(t, "/paths/~1x/get/parameters/0/schema/default", d.Provenance.Pointer,
+			"nor announced as homeless; got %+v", d)
+	}
 }
 
 // TestParams_OwnAnnotationsWinOverTheSchema checks the precedence a parameter
@@ -537,4 +604,32 @@ func TestPreserveParamXML_ModelSetWithoutRawSourceRecordsNothing(t *testing.T) {
 
 	assert.Nil(t, param.Unmodeled, "no entry is recorded when there are no bytes to record")
 	assert.Empty(t, l.diags.List(), "and nothing is announced, so the two channels agree")
+}
+
+// TestParams_SchemaVisibilityKeptWhenTheSchemaOwnsANode pins the half of the
+// parameter-visibility rescue that the own-node guard used to swallow. A
+// parameter whose schema is an object, an enum or an array hoists a node, and
+// neither home held the keywords: recordDeclarationResidue skips the position
+// because a parameter is a homeCarrier, and ir.Parameter has no Visibility
+// field, so they were dropped for exactly the shapes that own a node.
+func TestParams_SchemaVisibilityKeptWhenTheSchemaOwnsANode(t *testing.T) {
+	t.Parallel()
+	doc, diags := parseFull(t, pathsSpec(`  /x:
+    get:
+      parameters:
+        - {name: obj, in: query, schema: {type: object, properties: {a: {type: string}}, readOnly: true}}
+        - {name: arr, in: query, schema: {type: array, items: {type: string}, writeOnly: true}}
+        - {name: enm, in: query, schema: {type: string, enum: [a, b], readOnly: true}}
+      responses: {"200": {description: ok}}
+`))
+	op := findOp(t, doc, "")
+	require.Len(t, op.Params, 3)
+
+	for i, want := range []string{"openapi:readOnly", "openapi:writeOnly", "openapi:readOnly"} {
+		param := op.Params[i]
+		entry, ok := param.Unmodeled[want]
+		require.True(t, ok, "%s: %s kept on the carrier that has no field for it", param.Name.Source, want)
+		assert.Equal(t, ir.ReasonNoIRHome, entry.Reason)
+		assertInfoDiagAt(t, diags, entry.Provenance.Pointer)
+	}
 }

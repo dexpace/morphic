@@ -125,19 +125,25 @@ func (l *lowerer) fillParamDefault(param *ir.Parameter, s, tgt *oas3.Schema, poi
 	param.Default = &v
 }
 
-// fillParamSchemaAnnotations records the annotations a parameter's schema
-// declares on the parameter itself. ir.Parameter is the carrier for this
-// position the way ir.Property is for a model property, so a schema that
-// reduced to a shared primitive still keeps what it wrote (GitHub #116); a
-// schema that hoisted a node of its own keeps them there instead, one home per
-// declaration.
+// fillParamSchemaAnnotations records what a parameter's schema declares on the
+// parameter itself. ir.Parameter is the carrier for this position the way
+// ir.Property is for a model property, so a schema that reduced to a shared
+// primitive still keeps what it wrote (GitHub #116); a schema that hoisted a node
+// of its own keeps them there instead, one home per declaration.
 //
 // The parameter's own annotations are written afterwards by fillParamDetail and
 // win where both are set. tgt is the schema the use-site $ref resolves to, which
 // docs and deprecation fall back to when the use-site is silent about them
-// (ir-design §14); examples and xml stay site-only, since they describe the
-// position rather than the type.
+// (ir-design §14); examples, xml and the visibility keywords stay site-only,
+// since they describe the position rather than the type.
 func (l *lowerer) fillParamSchemaAnnotations(param *ir.Parameter, s, tgt *oas3.Schema, pointer string) {
+	// Visibility is kept before the own-node guard, not after it. The guard exists
+	// so an annotation with a home on the node is not also copied to the carrier,
+	// but readOnly/writeOnly have no home on either: recordDeclarationResidue skips
+	// this position because a parameter is a homeCarrier, and ir.Parameter has no
+	// Visibility field. Keeping them after the guard would drop them for exactly
+	// the parameters whose schema owns a node — an object, an enum, an array.
+	l.preserveParamVisibility(param, s, pointer)
 	if l.loweredToOwnNode(pointer, param.Type) {
 		return
 	}
@@ -168,9 +174,42 @@ func (l *lowerer) preserveParamXML(param *ir.Parameter, s *oas3.Schema, pointer 
 	if raw == nil {
 		return
 	}
-	l.preserve(&param.Unmodeled, "openapi:xml", raw, ir.ReasonNoIRHome, pointer+ptr("xml"))
-	l.diag(ir.SeverityInfo, codeDegradedConstruct, pointer,
+	at := pointer + ptr("xml")
+	l.preserve(&param.Unmodeled, "openapi:xml", raw, ir.ReasonNoIRHome, at)
+	l.diag(ir.SeverityInfo, codeDegradedConstruct, at,
 		"parameter schema xml hints have no ir.Parameter home; kept verbatim under Unmodeled")
+}
+
+// preserveParamVisibility keeps the residue keywords a parameter schema writes
+// that ir.Parameter has no field for. §14 lowers readOnly/writeOnly to a
+// Visibility, which only ir.Property has (ir/operation.go) — so at a parameter
+// they reach no field, and nothing else on this path reads them. ReasonNoIRHome,
+// since the IR can close the gap by adding the field, exactly as the xml hints
+// beside them are kept.
+//
+// The list is schema.go's residueKeywords rather than a copy, so a keyword added
+// there is preserved here too instead of being dropped at this one carrier.
+func (l *lowerer) preserveParamVisibility(param *ir.Parameter, s *oas3.Schema, pointer string) {
+	for _, keyword := range residueKeywords {
+		if paramHoldsResidue(keyword) {
+			continue
+		}
+		raw := nodeToRaw(rawPropertyNode(s, keyword))
+		if len(raw) == 0 {
+			continue
+		}
+		at := pointer + ptr(keyword)
+		l.preserve(&param.Unmodeled, "openapi:"+keyword, raw, ir.ReasonNoIRHome, at)
+		l.diag(ir.SeverityInfo, codeDegradedConstruct, at,
+			"parameter schema %s has no ir.Parameter home; kept verbatim under Unmodeled", keyword)
+	}
+}
+
+// paramHoldsResidue reports whether ir.Parameter has a field for a residue
+// keyword. Only `default` does — Parameter.Default, which fillParamDefault
+// fills — so recording it verbatim as well would give one declaration two homes.
+func paramHoldsResidue(keyword string) bool {
+	return keyword == "default"
 }
 
 // fillParamDetail enriches a parameter with its docs, deprecation, examples, and

@@ -138,14 +138,18 @@ func (l *lowerer) fillAllOf(m *ir.Model, s *oas3.Schema, pointer string) {
 
 // preserveUnmergedBranch keeps an inline allOf branch verbatim beside the
 // composed model when the branch declares more than the merge consumes, under
-// ReasonDegradedLowering and located at the branch itself (ir-design §4.8). i
-// keys the entry, so sibling branches never overwrite one another.
+// ReasonDegradedLowering and located at the branch itself (ir-design §4.8).
+// branchIdx keys the entry, so sibling branches never overwrite one another.
 //
-// Not covered: a boolean branch (`allOf: [false]`, which matches nothing) has no
-// keywords for a residue to be derived from, so it still merges to nothing
-// silently. Giving it a lowering is a question about the composed node's shape,
-// not about which of a branch's keywords survive.
-func (l *lowerer) preserveUnmergedBranch(m *ir.Model, bs *oas3.Schema, i int, bptr string) {
+// Two shapes are deliberately not covered. A boolean branch (`allOf: [false]`,
+// which matches nothing) has no keywords for a residue to be derived from, so it
+// still merges to nothing silently; giving it a lowering is a question about the
+// composed node's shape, not about which of a branch's keywords survive. And a
+// $ref branch is not an inline branch at all, so its `$ref`-adjacent siblings
+// (`allOf: [{$ref: X, description: d}]`) are still dropped: fillAllOf reads only
+// the ref off it, and giving it a node of its own would move what Base/Mixins
+// point at (GitHub #143).
+func (l *lowerer) preserveUnmergedBranch(m *ir.Model, bs *oas3.Schema, branchIdx int, bptr string) {
 	if bs == nil {
 		return // boolean branch; see above
 	}
@@ -153,7 +157,7 @@ func (l *lowerer) preserveUnmergedBranch(m *ir.Model, bs *oas3.Schema, i int, bp
 	if len(residue) == 0 {
 		return
 	}
-	l.preserve(&m.Unmodeled, "openapi:allOf/"+strconv.Itoa(i),
+	l.preserve(&m.Unmodeled, "openapi:allOf/"+strconv.Itoa(branchIdx),
 		nodeToRaw(bs.GetRootNode()), ir.ReasonDegradedLowering, bptr)
 	l.diagUnmergedBranch(bs, residue, bptr)
 }
@@ -229,24 +233,46 @@ func branchExcludesObject(bs *oas3.Schema) bool {
 	return len(types) > 0 && !slices.Contains(types, oas3.SchemaTypeObject)
 }
 
-// rawMappingKeys returns a YAML mapping's on-wire keys in source order, or nil
-// when the node is not a mapping. It is rawChildNode's enumerating counterpart:
-// that answers "what is written at this key", this one "which keys are written".
+// rawMappingKeys returns the keys a YAML mapping effectively writes, in source
+// order, or nil when the node is no mapping. It is rawChildNode's enumerating
+// counterpart: that answers "what is written at this key", this one "which keys
+// are written".
+//
+// Effective, not literal: a branch spelled `*anchor` writes the anchored
+// mapping's keys and one spelled `<<: *anchor` writes the merged-in keys, so
+// deriving a residue from the literal text would report `<<` — or, for a whole
+// branch replaced by an alias, no keys at all, which reads as "the merge consumed
+// everything" and drops the branch silently. nodeView is the package's statement
+// of how speakeasy reads a mapping, and bounds the expansion (maxMergeDepth).
 func rawMappingKeys(root *yaml.Node) []string {
+	mapping := rawMapping(root)
+	if mapping == nil {
+		return nil
+	}
+	pairs := newNodeView().mappingPairs(mapping)
+	keys := make([]string, 0, len(pairs))
+	for _, p := range pairs {
+		keys = append(keys, p.key)
+	}
+	return keys
+}
+
+// rawMapping returns the mapping node root stands for: a document wrapper is
+// unwrapped and an alias followed to its anchor (bounded by deref). Anything
+// that is not a mapping after that — a scalar, a sequence, nil — yields nil, so
+// a caller needs no kind check of its own.
+func rawMapping(root *yaml.Node) *yaml.Node {
 	if root == nil {
 		return nil
 	}
 	if root.Kind == yaml.DocumentNode && len(root.Content) > 0 {
 		root = root.Content[0]
 	}
-	if root.Kind != yaml.MappingNode {
+	root = deref(root)
+	if root == nil || root.Kind != yaml.MappingNode {
 		return nil
 	}
-	keys := make([]string, 0, len(root.Content)/2)
-	for i := 0; i+1 < len(root.Content); i += 2 {
-		keys = append(keys, root.Content[i].Value)
-	}
-	return keys
+	return root
 }
 
 // selectAllOfBase returns the branch index that becomes Model.Base, or -1 when

@@ -564,12 +564,59 @@ func TestAllOf_InlineBranchNonObjectTypeWarns(t *testing.T) {
 		"a contradicted model is a warning, not the info a merely narrowed one gets")
 }
 
+// TestAllOf_BranchWrittenByReferenceStillDerivesResidue pins the residue against
+// the two ways YAML lets a branch be written by reference rather than in place.
+// A branch spelled `*anchor` writes no keys of its own and one spelled
+// `<<: *anchor` writes only `<<`, so reading the literal text reports either no
+// residue at all — merging a branch that declares plenty to an empty model, in
+// silence, which is exactly the loss #123 closed for branches written in place —
+// or a residue named `<<`, which names nothing a reader can act on.
+func TestAllOf_BranchWrittenByReferenceStillDerivesResidue(t *testing.T) {
+	t.Parallel()
+	spec := componentSpec(`    Shared: &br {type: string, maxLength: 3, description: Aliased}
+    Aliased: {allOf: [*br]}
+    Merged: {allOf: [{<<: *br}]}
+    Overridden: {allOf: [{<<: *br, type: object, properties: {a: {type: string}}}]}
+`)
+	doc, diags := lowerSpec(t, spec)
+	requireNoErrorDiags(t, diags)
+
+	cases := []struct {
+		name, wantKeys string
+		sev            ir.Severity
+	}{
+		{"Aliased", "type, maxLength, description", ir.SeverityWarning},
+		{"Merged", "type, maxLength, description", ir.SeverityWarning},
+		{"Overridden", "maxLength, description", ir.SeverityInfo},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			m, ok := typeByName(doc, tc.name).(*ir.Model)
+			require.True(t, ok, "%s should be a model", tc.name)
+
+			entry, ok := m.Unmodeled["openapi:allOf/0"]
+			require.True(t, ok, "%s keeps the branch verbatim; got %+v", tc.name, m.Unmodeled)
+			assert.Equal(t, ir.ReasonDegradedLowering, entry.Reason)
+			assert.Contains(t, string(entry.Value), `"maxLength":3`,
+				"the payload resolves the reference too, so the branch is recoverable")
+			assert.Contains(t,
+				diagMessageAt(t, diags, codeDegradedConstruct, tc.sev,
+					"/components/schemas/"+tc.name+"/allOf/0"),
+				"the branch ("+tc.wantKeys+")",
+				"the keywords the branch effectively declares are named, not `<<`")
+		})
+	}
+}
+
 // TestAllOf_MergedBranchKeywordsAreNotResidue guards the opposite direction: the
 // keywords the merge does consume must not be preserved, or every allOf in the
 // corpus would grow an Unmodeled entry restating what the composed model already
 // holds. `type: object` counts as consumed because the composed node is a Model
-// already; the no-`type` and required-only branches are the shapes
-// allof-inline-merge.yaml and allof-required-only.yaml write.
+// already. TypedBranch is the shape allof-inline-merge.yaml writes and
+// RequiredOnlyBranch is allof-required-only.yaml's last branch; UntypedBranch —
+// properties with no `type` at all — is written out here rather than borrowed
+// from the corpus, which writes no such branch.
 func TestAllOf_MergedBranchKeywordsAreNotResidue(t *testing.T) {
 	t.Parallel()
 	spec := componentSpec(`    Base: {type: object, properties: {id: {type: string}}}
@@ -1757,6 +1804,10 @@ func TestOneOf_CoDeclaredNotDistributedReasons(t *testing.T) {
 // residue's key reader. It is handed whatever the source wrote at a branch, so a
 // sequence or a bare scalar reaches it as readily as a mapping, and the residue
 // derivation depends on it reporting no keys rather than guessing at some.
+//
+// The alias and `<<` rows are the same guard read the other way: a node written
+// by reference stands for keys, so answering "none" there would report a branch
+// that declares plenty as one the merge consumed entirely.
 func TestRawMappingKeys_OnlyEnumeratesAMapping(t *testing.T) {
 	t.Parallel()
 	var doc yaml.Node
@@ -1773,6 +1824,14 @@ func TestRawMappingKeys_OnlyEnumeratesAMapping(t *testing.T) {
 		{"a bare scalar is not a mapping", yamlNode(t, "plain"), nil},
 		{"a mapping yields its keys in source order", yamlNode(t, "b: 1\na: 2\n"), []string{"b", "a"}},
 		{"a document unwraps to the mapping inside it", &doc, []string{"a", "b"}},
+		{"an alias yields the anchored mapping's keys",
+			useValue(t, "anchor: &a {b: 1, c: 2}\nuse: *a\n"), []string{"b", "c"}},
+		{"an alias to a scalar is still not a mapping",
+			useValue(t, "anchor: &a plain\nuse: *a\n"), nil},
+		{"a merge key yields the keys it merges in",
+			useValue(t, "anchor: &a {b: 1, c: 2}\nuse: {<<: *a}\n"), []string{"b", "c"}},
+		{"an explicit key beats the one it merges over",
+			useValue(t, "anchor: &a {b: 1, c: 2}\nuse: {c: 9, <<: *a}\n"), []string{"c", "b"}},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -1780,4 +1839,15 @@ func TestRawMappingKeys_OnlyEnumeratesAMapping(t *testing.T) {
 			assert.Equal(t, tc.want, rawMappingKeys(tc.node))
 		})
 	}
+}
+
+// useValue parses src — an anchor plus a `use:` key written against it — and
+// returns the raw node at `use` undereferenced, so a value spelled `*anchor`
+// arrives as the alias node a branch reader is really handed rather than as the
+// mapping it stands for.
+func useValue(t *testing.T, src string) *yaml.Node {
+	t.Helper()
+	node := rawChildNode(yamlNode(t, src), "use")
+	require.NotNil(t, node, `src writes no "use" key`)
+	return node
 }
