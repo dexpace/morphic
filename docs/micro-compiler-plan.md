@@ -63,9 +63,9 @@ landed with it, in that order, in one pull request.
 
 #163 changed no output here: #161 had already fixed the segmentation in `compilers/openapi` and
 written it into `ir-design.md` §3.2, so the move was measured against a rule already in the
-contract. The graphql and protobuf copies disagree with it — 8 of 13 spellings differ across the
-three — so their goldens move as those drafts rebase, each with a reddening test and a deliberate
-golden update.
+contract. The graphql and protobuf copies disagree with it — each splits on a short list of
+separators rather than on every non-word character — so their goldens move as those drafts rebase,
+each with a reddening test and a deliberate golden update.
 
 ### Tier 0 — extractions that are pure moves
 

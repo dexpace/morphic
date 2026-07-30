@@ -77,8 +77,9 @@ func idFor(kind string, space Space, path string) string {
 	return kind + "/" + string(space) + "/" + trimmed
 }
 
-// spaceOf returns the space id is addressed in, or "" when id carries no space
-// segment — which no ID built through this package does.
+// spaceOf returns the space id is addressed in — the segment after the kind
+// prefix — or "" when there is none. Only an ID that was not built here, or one
+// built with an empty Space, has none.
 func spaceOf(id ir.TypeID) Space {
 	parts := strings.SplitN(string(id), "/", 3)
 	if len(parts) < 2 {

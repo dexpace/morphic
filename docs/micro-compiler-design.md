@@ -112,11 +112,11 @@ promotion still buys.
 
 So 1.2 was the move rather than the decision, and it has **landed**: `compilers/compile` holds the
 single implementation, `compilers/openapi` derives no name of its own, and the graphql and protobuf
-copies are deleted against it as those drafts rebase. Their outputs move at that point — run over
-the same inputs, 8 of 13 spellings differ between the three, because the protobuf copy separates on
-`.` alone and the graphql copy on nothing but `_`/`-`/space — so each rebase carries its own golden
-update, argued there. The OpenAPI goldens did not move, since #161 had already made its copy the
-grammar that ships.
+copies are deleted against it as those drafts rebase. Their outputs move at that point — the
+protobuf copy separates on `_`, `-`, space and `.`, and the graphql copy on the first three alone,
+so both leave `/`, `[`, `]`, `+`, `:` and braces inside a word — and each rebase carries its own
+golden update, argued there. The OpenAPI goldens did not move, since #161 had already made its copy
+the grammar that ships.
 
 Deleting two copies is a state rather than a rule, so the architecture test now asserts that only
 the framework and `ir` may fill `Naming.Canonical`. What it still cannot see is a `Hint` (#54).

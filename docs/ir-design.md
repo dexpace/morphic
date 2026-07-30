@@ -106,7 +106,7 @@ The shape around the pointer is one grammar every compiler shares: a kind prefix
 Pointer, a GraphQL structural path and a protobuf fully-qualified name are different things and
 nothing outside the format can compute one. A node a lowering *mints* rather than finds takes a
 namespace of its own, so no pointer a reference can spell ever reaches it — the general form of the
-rule §4.3 applies to distributed unions.
+rule §4.3 states for distributed unions.
 
 Every named entity has an ID — including services (Thrift `service B extends A`, WSDL 2.0
 interface extension, and Cap'n Proto interface inheritance all reference services by identity)

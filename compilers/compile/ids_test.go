@@ -95,9 +95,9 @@ func TestTypes_SeparateSpacesAreNotRefused(t *testing.T) {
 }
 
 // TestTypes_IDWithNoSpaceSegmentClaimsNothing covers the one shape the namespace
-// check cannot judge. Nothing built through this package produces it, so it is
-// left alone rather than refused: an ID with no namespace cannot be a namespace
-// used two ways.
+// check cannot judge: an ID that was not built here, or was built with an empty
+// Space. It is left alone rather than refused, because an ID with no namespace
+// cannot be a namespace used two ways.
 func TestTypes_IDWithNoSpaceSegmentClaimsNothing(t *testing.T) {
 	t.Parallel()
 	types := compile.NewTypes(0)

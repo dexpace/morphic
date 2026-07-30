@@ -14,10 +14,12 @@
 //   - The identifier grammar: the kind prefix that opens an ID and the namespace
 //     that follows it.
 //
-// The package boundary is the point. Architecture tests assert that no package
-// outside this one writes to an ir.TypeRegistry, derives a canonical name, or
-// builds an ID from a string, and rules like those are inexpressible without an
-// outside — which is why a package this small is worth its own directory.
+// The package boundary is the point. Architecture tests assert that nothing but
+// this package and ir writes an ir.TypeRegistry or derives a canonical name, and
+// that no compiler builds an ID out of a string — that last one is asked of the
+// compilers alone, because re-typing an ID that already exists is legitimate
+// above them. Rules like those are inexpressible without an outside, which is
+// why a package this small is worth its own directory.
 //
 // What deliberately stays with the compiler: ir.Document assembly (seventeen of
 // its eighteen fields carry no framework invariant), recursion depth bounds (the

@@ -58,15 +58,16 @@ func lower(name string) []ir.Naming {
 	hint := ir.Naming{Hint: localWords(name)}
 	var late ir.Naming
 	late.Canonical = strings.ToLower(name)
-	return []ir.Naming{declared, framework, hint, late}
+	return []ir.Naming{declared, framework, hint, late, {Canonical: lower(name)}}
 }
 `
 	offenders, err := canonicalViolations("planted.go", "compilers/graphql/naming.go", src)
 	require.NoError(t, err)
-	require.Len(t, offenders, 2,
-		"the literal and the later assignment, not the framework call or the hint: %v", offenders)
+	require.Len(t, offenders, 3,
+		"the literal, the assignment and the elided literal — not the framework call or the hint: %v", offenders)
 	assert.Contains(t, offenders[0], "canonicalWords(name)")
 	assert.Contains(t, offenders[1], "strings.ToLower(name)")
+	assert.Contains(t, offenders[2], "lower(name)", "an element of a []ir.Naming elides the type")
 }
 
 // idOwners is the package permitted to construct an ir ID type from a string.
@@ -103,22 +104,29 @@ func TestIDDerivations_LocalGrammarIsCaught(t *testing.T) {
 	t.Parallel()
 	const src = `package graphql
 
-func ids(pointer string) (ir.TypeID, ir.OpID, ir.PropID) {
+const anyTypeID ir.TypeID = "t/graphql/any"
+
+func ids(pointer string, existing ir.OpID) (ir.TypeID, ir.OpID, ir.PropID) {
 	named := ir.TypeID("t/graphql" + pointer)
 	op := compile.OpID(graphqlSpace, pointer)
+	var copied ir.OpID = existing
 	prop := ir.PropID("p/graphql" + pointer)
 	return named, op, prop
 }
 `
 	offenders, err := idDerivations("planted.go", "compilers/graphql/ids.go", src)
 	require.NoError(t, err)
-	require.Len(t, offenders, 2, "the two local derivations, not the framework call: %v", offenders)
-	assert.Contains(t, offenders[0], "ir.TypeID")
-	assert.Contains(t, offenders[1], "ir.PropID")
+	require.Len(t, offenders, 3,
+		"the constant and the two conversions, not the framework call or the copy: %v", offenders)
+	assert.Contains(t, offenders[0], "declares a literal as an ir.TypeID")
+	assert.Contains(t, offenders[1], "converts a string to an ir.TypeID")
+	assert.Contains(t, offenders[2], "converts a string to an ir.PropID")
 }
 
-// idDerivations reports every conversion of a string into one of ir's ID types
-// in one file. src is nil to read the file at path, or the source itself.
+// idDerivations reports every place in one file that builds an ir ID out of a
+// string: a conversion, and a typed declaration holding a literal — the shape
+// that spells an ID without converting anything. src is nil to read the file at
+// path, or the source itself.
 func idDerivations(path, rel string, src any) ([]string, error) {
 	fset := token.NewFileSet()
 	file, err := parser.ParseFile(fset, path, src, 0)
@@ -127,20 +135,56 @@ func idDerivations(path, rel string, src any) ([]string, error) {
 	}
 
 	var found []string
+	report := func(pos token.Pos, how, idType string) {
+		found = append(found, fmt.Sprintf("%s:%d: %s an ir.%s rather than deriving it through the framework",
+			rel, fset.Position(pos).Line, how, idType))
+	}
 	ast.Inspect(file, func(n ast.Node) bool {
-		call, ok := n.(*ast.CallExpr)
-		if !ok {
-			return true
-		}
-		for _, idType := range idTypes {
-			if isSelector(call.Fun, "ir", idType) {
-				found = append(found, fmt.Sprintf("%s:%d: builds an ir.%s from a string rather than through the framework",
-					rel, fset.Position(call.Pos()).Line, idType))
+		switch node := n.(type) {
+		case *ast.CallExpr:
+			if idType, ok := idTypeName(node.Fun); ok {
+				report(node.Pos(), "converts a string to", idType)
 			}
+		case *ast.ValueSpec:
+			// `const anyTypeID ir.TypeID = "t/protobuf/any"` — the Protobuf draft's
+			// shape, which spells a whole ID and converts nothing. A declaration
+			// with no literal in it is copying an ID, not deriving one.
+			if idType, ok := idTypeName(node.Type); ok && holdsStringLiteral(node.Values) {
+				report(node.Pos(), "declares a literal as", idType)
+			}
+		default:
 		}
 		return true
 	})
 	return found, nil
+}
+
+// idTypeName returns the name of the ir ID type expr names, if it names one.
+func idTypeName(expr ast.Expr) (string, bool) {
+	for _, idType := range idTypes {
+		if isSelector(expr, "ir", idType) {
+			return idType, true
+		}
+	}
+	return "", false
+}
+
+// holdsStringLiteral reports whether any of exprs contains a string literal, so
+// a declaration built from one is told apart from one assigned an existing ID.
+func holdsStringLiteral(exprs []ast.Expr) bool {
+	for _, expr := range exprs {
+		var seen bool
+		ast.Inspect(expr, func(n ast.Node) bool {
+			if lit, ok := n.(*ast.BasicLit); ok && lit.Kind == token.STRING {
+				seen = true
+			}
+			return !seen
+		})
+		if seen {
+			return true
+		}
+	}
+	return false
 }
 
 // canonicalViolations reports every place in one file that fills
@@ -174,12 +218,14 @@ func canonicalViolations(path, rel string, src any) ([]string, error) {
 	return found, nil
 }
 
-// reportCanonicalField reports the Canonical field of an ir.Naming composite
-// literal when it is not filled by a framework call.
+// reportCanonicalField reports a Canonical field of a composite literal when it
+// is not filled by a framework call.
+//
+// The literal's type is not required to be ir.Naming, and not only because an
+// element of a []ir.Naming elides it: ir.Naming is the one type in the repository
+// with a Canonical field, so the field name identifies it. A second type carrying
+// that name would need this narrowed — and would be worth a look on its own.
 func reportCanonicalField(lit *ast.CompositeLit, report func(ast.Expr)) {
-	if !isSelector(lit.Type, "ir", "Naming") {
-		return
-	}
 	for _, elt := range lit.Elts {
 		kv, ok := elt.(*ast.KeyValueExpr)
 		if !ok {

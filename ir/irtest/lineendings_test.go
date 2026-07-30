@@ -1,6 +1,7 @@
 package irtest_test
 
 import (
+	"bytes"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -74,6 +75,41 @@ func TestGitAttributes_ResolveToLF(t *testing.T) {
 		assert.Equal(t, eolProbes[i]+": eol: lf", line,
 			"git must check %s out with LF endings", eolProbes[i])
 	}
+}
+
+// TestTrackedFiles_HoldNoCarriageReturn checks the working tree the tests
+// actually read, which the two above do not: `.gitattributes` governs new
+// checkouts, and a clone taken before it landed keeps its CRLF files until they
+// are renormalized. That checkout fails the golden and conformance suites with
+// whole-file diffs, and the diff says the IR changed when the line endings did.
+//
+// It reaches only where the problem exists, so it can never redden on the Linux
+// runner — the same shape as the pin it accompanies.
+func TestTrackedFiles_HoldNoCarriageReturn(t *testing.T) {
+	t.Parallel()
+	root := repoRoot(t)
+	cmd := exec.Command("git", "ls-files", "-z")
+	cmd.Dir = root
+	out, err := cmd.Output()
+	if err != nil {
+		t.Skipf("git ls-files unavailable (%v)", err)
+	}
+
+	var offenders []string
+	tracked := strings.Split(strings.TrimSuffix(string(out), "\x00"), "\x00")
+	require.NotEmpty(t, tracked, "git tracks no files, so an empty result proves nothing")
+	for _, rel := range tracked {
+		raw, readErr := os.ReadFile(filepath.Join(root, rel))
+		if readErr != nil {
+			continue // a file staged for deletion, or a submodule entry
+		}
+		if bytes.ContainsRune(raw, '\r') {
+			offenders = append(offenders, rel)
+		}
+	}
+	assert.Empty(t, offenders,
+		"these tracked files hold CR bytes; run `git add --renormalize .` to bring the checkout "+
+			"back to LF, or mark a file that needs them `-text` in .gitattributes")
 }
 
 // repoRoot walks up from this file to the directory holding go.mod.
