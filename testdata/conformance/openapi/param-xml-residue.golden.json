@@ -1,5 +1,5 @@
 {
-  "irVersion": "0.2.0",
+  "irVersion": "0.3.0",
   "name": "ParamXMLResidue",
   "version": "1.0.0",
   "docs": {},
@@ -169,7 +169,7 @@
       "message": "parameter schema xml hints have no ir.Parameter home; kept verbatim under Unmodeled",
       "provenance": {
         "source": 0,
-        "pointer": "/paths/~1docs/get/parameters/0/schema"
+        "pointer": "/paths/~1docs/get/parameters/0/schema/xml"
       }
     },
     {
@@ -178,7 +178,7 @@
       "message": "parameter schema xml hints have no ir.Parameter home; kept verbatim under Unmodeled",
       "provenance": {
         "source": 0,
-        "pointer": "/paths/~1docs/get/parameters/1/content/application~1xml/schema"
+        "pointer": "/paths/~1docs/get/parameters/1/content/application~1xml/schema/xml"
       }
     }
   ],

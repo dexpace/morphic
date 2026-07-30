@@ -14,7 +14,7 @@ components:
       # validates every schema against the 3.1 meta-schema regardless of the
       # document version (JSONSchema[T].Validate drops its options), so the 3.2
       # keyword is reported as an invalid schema. Discriminator.Default therefore
-      # has no error-free witness until that is fixed upstream.
+      # has no error-free witness until that is fixed upstream (GitHub #146).
       discriminator:
         propertyName: petType
         mapping:

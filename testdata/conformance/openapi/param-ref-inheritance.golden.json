@@ -1,5 +1,5 @@
 {
-  "irVersion": "0.2.0",
+  "irVersion": "0.3.0",
   "name": "ParamRefInheritance",
   "version": "1.0.0",
   "docs": {},
@@ -258,7 +258,7 @@
     {
       "severity": "info",
       "code": "openapi/degraded-construct",
-      "message": "default on a type declaration binds a use of the type, not the type; it is applied to any referencing property or parameter and kept verbatim under Unmodeled",
+      "message": "default on a type declaration binds a use of the type, not the type; it is kept verbatim under Unmodeled and applied to a referencing property, header or parameter wherever that carrier has a field for it",
       "provenance": {
         "source": 0,
         "pointer": "/components/schemas/Cursor/default"

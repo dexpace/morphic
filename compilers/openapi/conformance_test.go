@@ -8,9 +8,11 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 
+	"github.com/google/go-cmp/cmp"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -48,9 +50,42 @@ func TestConformance(t *testing.T) {
 			doc, diags := parseCorpus(t, tc.file)
 			assertNoErrorDiags(t, diags)
 			tc.assert(t, doc, diags)
+			// A failed capability assertion must not reach the golden. require
+			// aborts, but assert does not, and under -update a non-fatal failure
+			// would rewrite the snapshot with the regressed document — leaving a
+			// loud run behind a file that now agrees with the regression.
+			require.False(t, t.Failed(), "capability assertion failed; not comparing or rewriting the golden")
 			irtest.CompareGolden(t, filepath.Join(conformanceDir, tc.file+".golden.json"), doc)
 			assertJSONRoundTrip(t, doc)
 		})
+	}
+}
+
+// TestConformance_TableNamesEveryCorpusSpec requires the table and the corpus
+// directory to name the same specs. Both directions matter: a spec with no row
+// gets neither a capability assertion nor a golden while the corpus-wide sweeps
+// (dangling references, the fuzz seed, the unwitnessed walk) still read it, so
+// it looks covered; a row naming a deleted spec fails the other way. Comparing
+// sorted lists rather than sets also catches a spec named by two rows.
+func TestConformance_TableNamesEveryCorpusSpec(t *testing.T) {
+	t.Parallel()
+	specs, err := filepath.Glob(filepath.Join(conformanceDir, "*.yaml"))
+	require.NoError(t, err)
+	require.NotEmpty(t, specs, "the corpus directory must hold specs")
+
+	onDisk := make([]string, 0, len(specs))
+	for _, path := range specs {
+		onDisk = append(onDisk, strings.TrimSuffix(filepath.Base(path), ".yaml"))
+	}
+	cases := conformanceCases()
+	inTable := make([]string, 0, len(cases))
+	for _, tc := range cases {
+		inTable = append(inTable, tc.file)
+	}
+	slices.Sort(onDisk)
+	slices.Sort(inTable)
+	if diff := cmp.Diff(onDisk, inTable); diff != "" {
+		t.Errorf("corpus and table disagree (-on disk +in table):\n%s", diff)
 	}
 }
 

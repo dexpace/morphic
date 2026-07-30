@@ -88,8 +88,8 @@ func assertParamXMLResidue(t *testing.T, doc *ir.Document, diags []ir.Diagnostic
 		"the media type the hints are conditioned on is the one the binding records")
 
 	for _, pointer := range []string{
-		"/paths/~1docs/get/parameters/0/schema",
-		"/paths/~1docs/get/parameters/1/content/application~1xml/schema",
+		"/paths/~1docs/get/parameters/0/schema/xml",
+		"/paths/~1docs/get/parameters/1/content/application~1xml/schema/xml",
 	} {
 		assert.Equal(t, []ir.Severity{ir.SeverityInfo},
 			diagsAt(diags, "openapi/degraded-construct", pointer))
@@ -150,8 +150,12 @@ func assertDialectKeywords(t *testing.T, doc *ir.Document, diags []ir.Diagnostic
 		assert.Equal(t, []ir.Severity{ir.SeverityInfo},
 			diagsAt(diags, "openapi/degraded-construct", "/components/schemas/Resource/"+keyword))
 	}
-	assert.Equal(t, ir.TypeID("t/openapi/components/schemas/Resource"), res.ID,
-		"$id is kept, never honoured: identity stays the source pointer")
+	declared := unmodeledEntry(t, res.Unmodeled, "openapi:$id")
+	assert.JSONEq(t, `"https://example.com/schemas/resource"`, string(declared.Value))
+	for id := range doc.Types {
+		assert.NotContains(t, string(id), "example.com",
+			"$id is kept, never honoured: no type is keyed by the identity it declares")
+	}
 }
 
 // assertDynamicRef pins both halves of $dynamicRef lowering (GitHub #125). A name
@@ -185,8 +189,8 @@ func assertDynamicRef(t *testing.T, doc *ir.Document, diags []ir.Diagnostic) {
 // declaration there wrote would otherwise be lost (GitHub #138).
 //
 // The carrier case is asserted too, because it is what stops the fix from
-// double-recording: a property lands all three in its own fields and must keep no
-// residue.
+// double-recording: a property lands all three in its own fields, so neither it
+// nor the node its own shape owns may keep residue.
 func assertInlineResidue(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
 	op, ok := opByName(doc, "getThing")
 	require.True(t, ok)
@@ -210,10 +214,19 @@ func assertInlineResidue(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
 	p, ok := propByWire(carried, "p")
 	require.True(t, ok)
 	require.NotNil(t, p.Default)
-	assert.Equal(t, ir.BigVal("3"), p.Default.Num, "a carrier lands the default in its own field")
+	require.Len(t, p.Default.List, 1)
+	assert.Equal(t, ir.BigVal("3"), p.Default.List[0].Num,
+		"a carrier lands the default in its own field")
 	assert.Equal(t, []ir.Lifecycle{ir.LifecycleRead, ir.LifecycleDelete, ir.LifecycleQuery},
 		p.Visibility.Only)
 	assert.Empty(t, p.Unmodeled, "a carrier records no residue for what it already holds")
+
+	// The carrier's array shape interns a node at the property's own pointer,
+	// which is where a recorder that stopped distinguishing the two homes would
+	// put the residue.
+	pNode, ok := doc.Types[p.Type.Target].(*ir.List)
+	require.True(t, ok, "the carrier's array shape owns a node")
+	assert.Empty(t, pNode.Unmodeled, "nor on the node that shape owns")
 }
 
 // assertResidue requires p to hold exactly the given keys, each under

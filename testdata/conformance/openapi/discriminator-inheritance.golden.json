@@ -1,5 +1,5 @@
 {
-  "irVersion": "0.2.0",
+  "irVersion": "0.3.0",
   "name": "DiscriminatorInheritance",
   "version": "1.0.0",
   "docs": {},
@@ -213,7 +213,7 @@
     {
       "format": "openapi@3.1",
       "path": "discriminator-inheritance.yaml",
-      "hash": "88f31fea21da94f90f4df7c41440006e569add474bd4a2a832fa07da40a5dc09"
+      "hash": "ce60359effde53362503064ac1fa7ff6a5b2f181070a1c55102880b10f0b5de2"
     }
   ]
 }

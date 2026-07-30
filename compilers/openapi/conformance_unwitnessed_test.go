@@ -51,7 +51,9 @@ const maxValueDepth = 128
 // say whether a corpus case landed or an IR field was deleted — the diff shows
 // which, the file does not. And IsZero cannot see an assignment of a zero value,
 // so a bool field written false, or an int index written 0, stays listed however
-// many times the compiler writes it.
+// many times the compiler writes it. FileInfo.IsText is the standing case of
+// that: the compiler's only construction site writes it false, so no spec can
+// ever remove its line — it is listed permanently, not uncovered.
 func TestConformance_UnwitnessedIRFields(t *testing.T) {
 	t.Parallel()
 	universe := irFieldUniverse(t)

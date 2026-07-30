@@ -1,5 +1,5 @@
 {
-  "irVersion": "0.2.0",
+  "irVersion": "0.3.0",
   "name": "InlineResidue",
   "version": "1.0.0",
   "docs": {},
@@ -117,6 +117,24 @@
         "nullable": false
       }
     },
+    "t/anon/components/schemas/Carried/properties/p": {
+      "kind": "list",
+      "id": "t/anon/components/schemas/Carried/properties/p",
+      "name": {
+        "hint": "p"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Carried/properties/p"
+      },
+      "elem": {
+        "target": "t/prim/integer",
+        "nullable": false
+      }
+    },
     "t/anon/paths/~1thing/get/responses/200/content/application~1json/schema": {
       "kind": "scalar",
       "id": "t/anon/paths/~1thing/get/responses/200/content/application~1json/schema",
@@ -195,7 +213,7 @@
           },
           "wireName": "p",
           "type": {
-            "target": "t/prim/integer",
+            "target": "t/anon/components/schemas/Carried/properties/p",
             "nullable": false
           },
           "required": false,
@@ -210,10 +228,17 @@
             "none": false
           },
           "default": {
-            "kind": "number",
-            "num": "3",
+            "kind": "list",
             "bytes": null,
-            "list": null,
+            "list": [
+              {
+                "kind": "number",
+                "num": "3",
+                "bytes": null,
+                "list": null,
+                "object": null
+              }
+            ],
             "object": null
           },
           "flatten": false,
@@ -268,7 +293,7 @@
     {
       "severity": "info",
       "code": "openapi/degraded-construct",
-      "message": "default on a type declaration binds a use of the type, not the type; it is applied to any referencing property or parameter and kept verbatim under Unmodeled",
+      "message": "default on a type declaration binds a use of the type, not the type; it is kept verbatim under Unmodeled and applied to a referencing property, header or parameter wherever that carrier has a field for it",
       "provenance": {
         "source": 0,
         "pointer": "/components/schemas/Batch/items/default"
@@ -277,7 +302,7 @@
     {
       "severity": "info",
       "code": "openapi/degraded-construct",
-      "message": "writeOnly on a type declaration binds a use of the type, not the type; it is applied to any referencing property or parameter and kept verbatim under Unmodeled",
+      "message": "writeOnly on a type declaration binds a use of the type, not the type; it is kept verbatim under Unmodeled and applied to a referencing property, header or parameter wherever that carrier has a field for it",
       "provenance": {
         "source": 0,
         "pointer": "/components/schemas/Batch/items/writeOnly"
@@ -286,7 +311,7 @@
     {
       "severity": "info",
       "code": "openapi/degraded-construct",
-      "message": "default on a type declaration binds a use of the type, not the type; it is applied to any referencing property or parameter and kept verbatim under Unmodeled",
+      "message": "default on a type declaration binds a use of the type, not the type; it is kept verbatim under Unmodeled and applied to a referencing property, header or parameter wherever that carrier has a field for it",
       "provenance": {
         "source": 0,
         "pointer": "/paths/~1thing/get/responses/200/content/application~1json/schema/default"
@@ -295,7 +320,7 @@
     {
       "severity": "info",
       "code": "openapi/degraded-construct",
-      "message": "readOnly on a type declaration binds a use of the type, not the type; it is applied to any referencing property or parameter and kept verbatim under Unmodeled",
+      "message": "readOnly on a type declaration binds a use of the type, not the type; it is kept verbatim under Unmodeled and applied to a referencing property, header or parameter wherever that carrier has a field for it",
       "provenance": {
         "source": 0,
         "pointer": "/paths/~1thing/get/responses/200/content/application~1json/schema/readOnly"
@@ -306,7 +331,7 @@
     {
       "format": "openapi@3.1",
       "path": "inline-residue.yaml",
-      "hash": "532802887470126e96547b65f62167206beace8dd984dc617b2c0889ce0bf10e"
+      "hash": "0eff6ab53f12b031e47502f328d67031724fab4266ad2c4c40ba8e68c3208e7e"
     }
   ]
 }
