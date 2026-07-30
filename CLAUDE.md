@@ -253,8 +253,25 @@ context-switch between repos.
   when it narrows things down — omit it when the change is repo-wide.
 - **Breaking changes** mark the type with `!` (`feat!:`, `refactor!:`) and explain the break in the
   commit body — don't bury it in the subject line alone.
-- PRs are squash-merged, and GitHub appends the PR number (`(#NNN)`) to the squashed commit
-  automatically — don't add it yourself.
+- **The PR title is the commit subject.** PRs are squash-merged, so the *title* — not the branch's
+  commit subjects — is what lands on `main`. It takes the same Conventional Commits form and the
+  same rules: `type(scope): subject`, imperative, no trailing period. A well-formed commit under a
+  prose PR title still merges as a non-conforming commit, and since the squashed subject *is* the
+  title, every non-conforming subject in this history arrived exactly that way. To see the current
+  state rather than trust this sentence:
+
+  ```bash
+  git log --format='%s' origin/main | grep -E '\(#[0-9]+\)$' |
+    grep -vE '^(feat|fix|refactor|docs|test|build|chore|ci|perf)(\(.+\))?!?: '
+  ```
+
+- **Budget the appended number inside the 72-char cap.** GitHub appends ` (#NNN)` to the squashed
+  subject automatically — never type it yourself, but do count it: a three-digit PR leaves the title
+  65 characters, not 72. Measure before opening, don't eyeball —
+  `printf '%s (#999)' "<title>" | wc -c`. Most over-length subjects in this history were *within*
+  the cap until the number was appended, which is the whole failure mode; to see that split rather
+  than trust it, pipe the log above through `awk 'length($0) > 72'` and then through
+  `sed -E 's/ \(#[0-9]+\)$//'` before the same `awk`.
 - PR description: Summary / Test plan (/ Breaking, when applicable). Keep PRs scoped to one
   logical change; split unrelated changes into separate PRs.
 - Write self-contained, human-framed titles/descriptions. No LLM/session artifacts, no internal
