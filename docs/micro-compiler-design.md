@@ -375,10 +375,26 @@ is currently held by reading alone, and CLAUDE.md records the failure mode preci
 produces no diagnostic in either order, with `pass/validate` clean on both.
 
 This is the most likely way the refactor breaks something no existing guard sees, because moving
-lowering between packages is exactly when an ID derivation gets rewritten. The check: over every
-corpus spec, assert the map from `ir.TypeID` to originating source pointer is injective, and that
-every minted ID sits in a namespace no source pointer can produce. It lands before Tier 1 alongside
-the two-order oracle.
+lowering between packages is exactly when an ID derivation gets rewritten.
+
+The same traversal answers a second question nothing else can — whether a node's provenance pointer
+is *correct*. Invariant 3 derives every named entity's ID from its source pointer, so
+`grammar(type.Provenance.Pointer) == type.ID` is exact for any type in a pointer-derived namespace.
+Two assertions, neither implying the other:
+
+- `grammar(pointer) == ID` catches an ID minted from the **wrong** pointer — the failure a signature
+  change introduces when it passes the wrong `at`.
+- `ID → pointer` injectivity catches a grammar that **collapses** two distinct pointers.
+
+Primitives are excluded: `t/prim/<kind>` is shared and derives from no source position.
+
+`irverify` cannot host this as things stand — it is Layer 0 and imports only `ir`, while the grammar
+is headed for `compilers/compile`. `internal/harness` is outside the pipeline and can, which is the
+fallback. The better answer, to be settled when the grammar moves, is whether the ID *shape* belongs
+in `ir` with compilers choosing only the namespace — in which case `irverify` enforces it for every
+compiler permanently rather than only under test.
+
+Both oracles land before Tier 1, proven against the current code first.
 
 ### 8.3 What this refactor specifically endangers
 
@@ -386,7 +402,7 @@ the two-order oracle.
 |---|---|---|
 | `depth` field → parameter | one path forgets to increment; unbounded recursion on a cyclic or deep spec | `FuzzCycleDetector`, cycle corpus — but only through paths a fixture reaches. Add a per-package depth test |
 | ID derivation crosses a package boundary | pointer prefix changes; collision or dangling ref | `danglingcheck_test.go`, plus the new collision oracle |
-| Signature change alters the `at` passed | a node records a wrong-but-valid pointer | **Nothing directly.** `irverify.checkProvenance` validates the source *index range*, not pointer correctness. Goldens carry provenance, so it surfaces as a golden diff — which is precisely why §6.1's no-`-update` rule is load-bearing rather than fussy |
+| Signature change alters the `at` passed | a node records a wrong-but-valid pointer | The ID-provenance agreement check in §8.2. `irverify.checkProvenance` validates only the source *index range*, so before that check exists this is caught by nothing but a human reading a golden diff — which is why it is a prerequisite rather than a later improvement |
 | Diagnostics returned instead of accumulated | ordering shifts | Goldens, handled per §6.1 |
 | `diagnosedConstraints` dissolves into memoization | a duplicate diagnostic returns on an unmemoized path | Goldens, but only for corpus-covered shapes. Add a targeted test for the two-position read the field exists to suppress |
 | `Ctx` copied while its maps are shared | a callee's write is visible to its caller | Accessors make it unrepresentable; assert no exported `Ctx` field is a map |
@@ -403,7 +419,15 @@ the two-order oracle.
 - **The golden corpus shares the blind spots of the code that produced it.** A construct no fixture
   contains is unprotected by byte-equality. The conformance corpus is the intended counterweight and
   is only as complete as `ir-spec-matrix.md`.
-- **`irverify` checks provenance index range, not pointer correctness** — see the table above.
+- **`irverify` checks provenance index range, not pointer correctness.** The oracle in §8.2 covers
+  the property, but it lives in the harness rather than the verifier, so it holds under test rather
+  than for every consumer of a `Document`. Closing that gap means deciding whether the ID shape
+  belongs in `ir`.
+- **Byte-identical goldens are the load-bearing neutrality guard, and the comparison has a known
+  hazard.** `compareGolden` has no line-ending guard and the repository has no `.gitattributes`
+  (#48), so a checkout with `core.autocrlf=true` fails every golden test for reasons unrelated to
+  the IR. Harmless on the Linux runner; corrosive if it trains a reader to treat golden diffs as
+  environmental noise. Fixed before the programme starts rather than during it.
 
 ### 8.5 Held at every step
 

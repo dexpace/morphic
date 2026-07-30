@@ -42,18 +42,23 @@ Every task inherits these. They are not restated per issue.
 | Issue | Work |
 |---|---|
 | #57 | Fix archtest prefix matching so one compiler cannot import another. Today an allowlist entry for `compilers` licenses `compilers/graphql`, so the isolation this design rests on is unenforceable |
+| #48 | Pin golden files to LF. The repository has no `.gitattributes`, so the comparison that proves twenty pull requests neutral can fail for reasons unrelated to the IR |
 | #159 | The general two-order oracle. Exists today only as three hand-written cases at the site where the pointer collision was found |
-| #160 | The ID-collision oracle. Nothing anywhere asserts two distinct source constructs cannot mint the same `ir.TypeID` |
+| #160 | Type-ID integrity: no collisions, **and** every ID agrees with its own provenance pointer. The second assertion is the only mechanical guard on provenance correctness — `irverify` validates the source index range and never the pointer |
+
+#48 looks like hygiene and is not. Byte-identical goldens are the sole proof of neutrality across all
+59 conformance snapshots, and a comparison that fails environmentally teaches a reader to dismiss
+golden diffs at precisely the point where each one has to be treated as a finding. It blocks #162 and
+#165, the two entry points, so the ordering is inherited rather than remembered.
 
 ### Framework promotion
 
 | Issue | Work | Blocked by |
 |---|---|---|
-| #162 | Identifier grammar into `compilers/compile` | #57 |
+| #162 | Identifier grammar into `compilers/compile` | #57, #48 |
 | #163 | Canonical naming grammar into `compilers/compile` — **not behaviour-neutral**, see below | #57 |
 | #164 | `irverify` checks segmentation, not only casing | #163 |
 | #73 | Closed when the three above land | #162, #163, #164 |
-| #161 | The live naming-divergence defect, fixed by #163 | #163 |
 
 #163 is the one step that deliberately changes output. The three copies of the grammar disagree, so
 at most one survives promotion unchanged; whichever segmentation is chosen, some compiler's goldens
@@ -62,12 +67,12 @@ that PR.
 
 ### Tier 0 — extractions that are pure moves
 
-Each is one PR. All are unblocked by #57; the rest wait on `diag` because `diagf` is the single
+Each is one PR. All wait on #57 and #48; the rest wait on `diag` because `diagf` is the single
 diagnostic constructor and sits at the bottom of the import graph.
 
 | Issue | Package | Blocked by |
 |---|---|---|
-| #165 | `internal/diag` | #57 |
+| #165 | `internal/diag` | #57, #48 |
 | #166 | `internal/load` | #57, #165 |
 | #167 | `internal/scan` — cycles and alias amplification share one walk | #57, #165 |
 | #168 | `internal/ids` — after the grammar moves, so no second copy lands | #57, #162 |
@@ -117,10 +122,9 @@ Work already filed that lands inside this restructuring rather than alongside it
 
 | Issue | Relationship | Blocked by |
 |---|---|---|
-| #86 | Hand-built provenance at 24 sites. Its proposed fix — a method on the lowerer — is invalidated by #177; the equivalent is a constructor in `internal/diag` taking the context. Design §8.3 identifies this as the one change with **no guard behind it**, since `irverify` checks provenance index range but never pointer correctness | #172 |
+| #86 | Hand-built provenance at 24 sites. Its proposed fix — a method on the lowerer — is invalidated by #177; the equivalent is a constructor in `internal/diag` taking the context. Until #160 lands this is the one change with no mechanical guard behind it; afterwards the ID-provenance agreement check covers the property and this issue removes the way to get it wrong in the first place | #172 |
 | #84 | Eight copy-pasted reference-resolution helpers, in files that relocate. Sequenced after the move so the relocation and the collapse stay separate reviews | #175 |
 | #87 | Mostly overtaken by #97 — the `*_edgecases_test.go` files are gone. The surviving concern, `newRawLowerer` hand-constructing its subject, resolves when there is nothing left to construct | — |
-| #48 | Golden comparison has no line-ending guard. Not a blocker on a Linux runner, but byte-identical goldens are what prove ~20 pull requests neutral, and a comparison that fails for unrelated reasons trains a reader to dismiss exactly the diffs that matter | — |
 
 ### Deferred, with reasons
 
@@ -137,7 +141,7 @@ Work already filed that lands inside this restructuring rather than alongside it
 
 ```
 #57 ─┬─ #162 ─── #168 ──┐
-     ├─ #163 ─── #164   │                                          ┌─ #178
+#48 ─┤  #163 ─── #164   │                                          ┌─ #178
      └─ #165 ─┬─────────┼─ #172 ─ #173 ─ #174 ─ #175 ─ #176 ─ #177 ─┼─ #83
               ├─ #166 ──┤          │              │                 └─ #180
               ├─ #167 ──┤          └─ #86         └─ #84
@@ -150,9 +154,10 @@ Work already filed that lands inside this restructuring rather than alongside it
 Twelve steps deep at its longest, with Tier 0 wide enough that six of its seven extractions can
 proceed in parallel once `diag` lands.
 
-Four issues are unblocked and can start immediately: **#57**, **#159**, **#160** and **#161**. The
-first three are the prerequisites everything else waits on; #161 is independent by design. The graph
-is acyclic — verify rather than trust it:
+Five issues are unblocked and can start immediately: **#57**, **#48**, **#159**, **#160** and
+**#161**. The first four are the prerequisites everything else waits on; #161 is independent by
+design. The graph is acyclic, and the dependency columns above are derived from the API rather than
+maintained by hand — check both rather than trusting either:
 
 ```bash
 gh api repos/dexpace/morphic/issues/N/dependencies/blocked_by --jq '[.[].number]'
