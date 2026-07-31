@@ -128,9 +128,10 @@ func TestFillParamSchema_EmptyEitherNoOp(t *testing.T) {
 	t.Parallel()
 	l := newRawLowerer(&soa.OpenAPI{})
 	param := &ir.Parameter{}
-	l.fillParamSchema(param, emptyEitherSchema(), "/p")
+	diags := fillParamSchema(l.ctx, l.types, param, emptyEitherSchema(), "/p")
 	assert.Nil(t, param.Constraints)
 	assert.Nil(t, param.Default)
+	assert.Empty(t, diags)
 }
 
 const paramSpec = `openapi: 3.1.0
@@ -602,10 +603,10 @@ func TestPreserveParamXML_ModelSetWithoutRawSourceRecordsNothing(t *testing.T) {
 	require.Nil(t, annotation.RawPropertyNode(s, "xml"), "and no raw node backs it")
 
 	var param ir.Parameter
-	l.preserveParamXML(&param, s, "/paths/~1x/get/parameters/0/schema")
+	diags := preserveParamXML(l.ctx, &param, s, "/paths/~1x/get/parameters/0/schema")
 
 	assert.Nil(t, param.Unmodeled, "no entry is recorded when there are no bytes to record")
-	assert.Empty(t, l.diags.List(), "and nothing is announced, so the two channels agree")
+	assert.Empty(t, diags, "and nothing is announced, so the two channels agree")
 }
 
 // TestParams_SchemaVisibilityKeptWhenTheSchemaOwnsANode pins the half of the

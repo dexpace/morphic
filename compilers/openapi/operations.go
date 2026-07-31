@@ -47,7 +47,7 @@ func (l *lowerer) lowerService() ir.Service {
 	svcAuth, svcAuthDiags := lowerSecurityRequirements(l.ctx, l.ctx.Doc.GetSecurity(), l.out.Auth)
 	svc.Auth = svcAuth
 	l.diags.AppendAll(svcAuthDiags)
-	l.lowerTagDefs()
+	l.out.TagDefs = lowerTagDefs(l.ctx)
 	groups := newServiceGroups()
 	l.lowerPaths(groups)
 	l.lowerWebhooks(groups)
@@ -57,10 +57,10 @@ func (l *lowerer) lowerService() ir.Service {
 
 // lowerTagDefs registers the document's declared tag metadata into TagDefs; tag
 // membership itself stays as []string on each tagged operation.
-func (l *lowerer) lowerTagDefs() {
-	tags := l.ctx.Doc.GetTags()
+func lowerTagDefs(c lowerCtx) []ir.TagDef {
+	tags := c.Doc.GetTags()
 	if len(tags) == 0 {
-		return
+		return nil
 	}
 	defs := make([]ir.TagDef, 0, len(tags))
 	for _, t := range tags {
@@ -69,7 +69,7 @@ func (l *lowerer) lowerTagDefs() {
 		}
 		defs = append(defs, ir.TagDef{Name: t.GetName(), Docs: tagDocsFrom(t)})
 	}
-	l.out.TagDefs = defs
+	return defs
 }
 
 // tagDocsFrom maps a Tag's summary, description, and externalDocs onto Docs.
@@ -88,7 +88,7 @@ func (l *lowerer) lowerPaths(groups *serviceGroups) {
 		return
 	}
 	for path, rp := range paths.All() {
-		pi, declPtr := resolveRefAt[soa.PathItem](l, rp, ids.Ptr("paths", path))
+		pi, declPtr := resolveRefAt[soa.PathItem](l.ctx, rp, ids.Ptr("paths", path))
 		if pi == nil {
 			continue
 		}
@@ -120,7 +120,7 @@ func (l *lowerer) lowerPathItem(groups *serviceGroups, path string, pi *soa.Path
 			params:        mergeParameters(pi.GetParameters(), src.GetParameters(), declPtr, ptrs.decl),
 		}
 		op, extra := l.lowerOperation(src, ctx)
-		l.applyPathServers(&op, pi, declPtr)
+		l.diags.AppendAll(applyPathServers(l.ctx, &op, pi, declPtr))
 		grp := groups.group(key, func() ir.OperationGroup { return ir.OperationGroup{Name: name, Docs: docs} })
 		grp.Operations = append(grp.Operations, op)
 		grp.Operations = append(grp.Operations, extra...)
@@ -136,7 +136,7 @@ func (l *lowerer) lowerWebhooks(groups *serviceGroups) {
 	}
 	for name, rp := range hooks.All() {
 		hookPtr := ids.Ptr("webhooks", name)
-		pi, declPtr := resolveRefAt[soa.PathItem](l, rp, hookPtr)
+		pi, declPtr := resolveRefAt[soa.PathItem](l.ctx, rp, hookPtr)
 		if pi == nil {
 			continue
 		}
@@ -181,12 +181,12 @@ func (l *lowerer) groupFor(src *soa.Operation, path string) (key string, name ir
 		return "default", ir.Naming{Hint: "default"}, ir.Docs{}, ""
 	}
 	first := tags[0]
-	return "tag:" + first, compile.NamingFor(first), l.tagDocs(first), ""
+	return "tag:" + first, compile.NamingFor(first), tagDocs(l.ctx, first), ""
 }
 
 // tagDocs returns the declared docs for a tag name, or empty when undeclared.
-func (l *lowerer) tagDocs(name string) ir.Docs {
-	for _, t := range l.ctx.Doc.GetTags() {
+func tagDocs(c lowerCtx, name string) ir.Docs {
+	for _, t := range c.Doc.GetTags() {
 		if t != nil && t.GetName() == name {
 			return tagDocsFrom(t)
 		}
@@ -248,7 +248,8 @@ func (l *lowerer) lowerOperation(src *soa.Operation, ctx opContext) (ir.Operatio
 	if src.GetDeprecated() {
 		op.Deprecation = &ir.Deprecation{}
 	}
-	params, bindings := l.lowerParameters(ctx.params)
+	params, bindings, paramDiags := lowerParameters(l.ctx, l.types, &l.anchors, ctx.params)
+	l.diags.AppendAll(paramDiags)
 	op.Params = params
 	op.Responses, op.Errors = l.lowerResponses(src, decl)
 	hb := ir.HTTPBinding{
@@ -263,7 +264,9 @@ func (l *lowerer) lowerOperation(src *soa.Operation, ctx opContext) (ir.Operatio
 		hb.Callbacks, extra = l.lowerCallbacks(src, ctx.ptrs, ctx.inferred)
 	}
 	op.Bindings = ir.OpBindings{HTTP: []ir.HTTPBinding{hb}}
-	if ext := l.operationExtensions(src, decl); len(ext) > 0 {
+	ext, extDiags := extensionsOf(l.ctx, src.GetExtensions(), decl)
+	l.diags.AppendAll(extDiags)
+	if len(ext) > 0 {
 		op.Unmodeled = ext
 	}
 	l.checkOperationIDUnique(op, mount)
@@ -313,30 +316,21 @@ func fillOperationDocs(d *ir.Docs, src *soa.Operation) {
 	}
 }
 
-// operationExtensions lowers an operation's x-* extensions into namespaced
-// Unmodeled entries.
-func (l *lowerer) operationExtensions(src *soa.Operation, declPtr string) ir.Unmodeled {
-	ext, diags := extensionsOf(l.ctx, src.GetExtensions(), declPtr)
-	l.diags.AppendAll(diags)
-	return ext
-}
-
 // applyPathServers preserves path-item-level servers verbatim under Unmodeled
 // on the operation. §10 models servers as Document.Servers with per-scope index
 // lists (Service.Servers, Channel.Servers); ir.Operation just has no such list
 // yet, so the scoping is kept raw with an info diagnostic — a gap the IR can
 // close by adding one, hence ReasonNoIRHome rather than a boundary.
-func (l *lowerer) applyPathServers(op *ir.Operation, pi *soa.PathItem, declPtr string) {
+func applyPathServers(c lowerCtx, op *ir.Operation, pi *soa.PathItem, declPtr string) []ir.Diagnostic {
 	if len(pi.GetServers()) == 0 {
-		return
+		return nil
 	}
-	kept, keptDiags := preserveNode(l.ctx, &op.Unmodeled, "openapi:servers",
+	kept, diags := preserveNode(c, &op.Unmodeled, "openapi:servers",
 		annotation.RawChildNode(pi.GetRootNode(), "servers"), ir.ReasonNoIRHome, declPtr+ids.Ptr("servers"))
-	l.diags.AppendAll(keptDiags)
 	if !kept {
-		return
+		return diags
 	}
-	l.diags.Append(diag.Newf(ir.SeverityInfo, diag.DegradedConstruct, op.Provenance,
+	return append(diags, diag.Newf(ir.SeverityInfo, diag.DegradedConstruct, op.Provenance,
 		"path-item servers kept under Unmodeled; an operation has no server-scope list to bind them to"))
 }
 
@@ -352,7 +346,7 @@ func (l *lowerer) lowerResponses(src *soa.Operation, opDeclPtr string) ([]ir.Res
 	var responses []ir.Response
 	var errs []ir.ErrorCase
 	for code, rr := range resps.All() {
-		r, rptr := resolveRefAt[soa.Response](l, rr, opDeclPtr+ids.Ptr("responses", code))
+		r, rptr := resolveRefAt[soa.Response](l.ctx, rr, opDeclPtr+ids.Ptr("responses", code))
 		if r == nil {
 			continue
 		}
@@ -363,7 +357,7 @@ func (l *lowerer) lowerResponses(src *soa.Operation, opDeclPtr string) ([]ir.Res
 			responses = append(responses, l.lowerResponse(r, rng, rptr))
 		}
 	}
-	def, dptr := resolveRefAt[soa.Response](l, resps.GetDefault(), opDeclPtr+ids.Ptr("responses", "default"))
+	def, dptr := resolveRefAt[soa.Response](l.ctx, resps.GetDefault(), opDeclPtr+ids.Ptr("responses", "default"))
 	if def != nil {
 		errs = append(errs, l.lowerErrorCase(def, ir.StatusRange{}, dptr))
 	}
@@ -461,13 +455,13 @@ func (l *lowerer) lowerCallbacks(src *soa.Operation, parent opPointers, inferred
 	var callbacks []ir.Callback
 	var ops []ir.Operation
 	for cbName, rcb := range cbMap.All() {
-		cb, cbDecl := resolveRefAt[soa.Callback](l, rcb, parent.decl+ids.Ptr("callbacks", cbName))
+		cb, cbDecl := resolveRefAt[soa.Callback](l.ctx, rcb, parent.decl+ids.Ptr("callbacks", cbName))
 		if cb == nil {
 			continue
 		}
 		for expr, rp := range cb.All() {
 			exprStr := string(expr)
-			pi, piDecl := resolveRefAt[soa.PathItem](l, rp, cbDecl+ids.Ptr(exprStr))
+			pi, piDecl := resolveRefAt[soa.PathItem](l.ctx, rp, cbDecl+ids.Ptr(exprStr))
 			if pi == nil {
 				continue
 			}
@@ -668,7 +662,7 @@ const maxRefChain = 32
 func resolveRefAt[T, S any, R interface {
 	*S
 	referencedEntry[T, S]
-}](l *lowerer, ref R, usePtr string) (*T, string) {
+}](c lowerCtx, ref R, usePtr string) (*T, string) {
 	obj := resolveRef[T, S, R](ref)
 	if obj == nil {
 		return nil, usePtr
@@ -686,7 +680,7 @@ func resolveRefAt[T, S any, R interface {
 			pointer = cand
 			break
 		}
-		target, ok := l.ctx.refScope().InternalPointer(ref.GetReference().String())
+		target, ok := c.refScope().InternalPointer(ref.GetReference().String())
 		if !ok {
 			break // another document: nothing addressable here, so usePtr stands
 		}

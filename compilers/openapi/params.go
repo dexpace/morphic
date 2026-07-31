@@ -19,28 +19,30 @@ import (
 // input; the binding side carries the location, style, and explode facts.
 // Each parameter lowers at its declaration: the $ref target for a referenced
 // entry, else the list entry itself (issue #107).
-func (l *lowerer) lowerParameters(params []sourcedParam) ([]ir.Parameter, []ir.HTTPParamBinding) {
+func lowerParameters(c lowerCtx, ts *compile.Types, anchors *anchorIndex, params []sourcedParam) ([]ir.Parameter, []ir.HTTPParamBinding, []ir.Diagnostic) {
 	if len(params) == 0 {
-		return nil, nil
+		return nil, nil, nil
 	}
+	var diags []ir.Diagnostic
 	logical := make([]ir.Parameter, 0, len(params))
 	bindings := make([]ir.HTTPParamBinding, 0, len(params))
 	for _, sp := range params {
-		p, pptr := resolveRefAt[soa.Parameter](l, sp.ref, sp.pointer)
+		p, pptr := resolveRefAt[soa.Parameter](c, sp.ref, sp.pointer)
 		if p == nil {
 			continue
 		}
-		param, binding := l.lowerParameter(p, pptr)
+		param, binding, paramDiags := lowerParameter(c, ts, anchors, p, pptr)
+		diags = append(diags, paramDiags...)
 		logical = append(logical, param)
 		bindings = append(bindings, binding)
 	}
-	return logical, bindings
+	return logical, bindings, diags
 }
 
 // lowerParameter lowers one resolved parameter into its logical Parameter and
 // HTTP binding. Path parameters are always required regardless of the declared
 // flag (OpenAPI requires it).
-func (l *lowerer) lowerParameter(p *soa.Parameter, pptr string) (ir.Parameter, ir.HTTPParamBinding) {
+func lowerParameter(c lowerCtx, ts *compile.Types, anchors *anchorIndex, p *soa.Parameter, pptr string) (ir.Parameter, ir.HTTPParamBinding, []ir.Diagnostic) {
 	name, in := p.GetName(), p.GetIn()
 	param := ir.Parameter{
 		Name:     compile.NamingFor(name),
@@ -55,33 +57,32 @@ func (l *lowerer) lowerParameter(p *soa.Parameter, pptr string) (ir.Parameter, i
 		Explode:       explode,
 		AllowReserved: p.GetAllowReserved(),
 	}
-	l.fillParamType(&param, &binding, p, pptr, name)
-	l.fillParamDetail(&param, p, pptr)
-	return param, binding
+	diags := fillParamType(c, ts, anchors, &param, &binding, p, pptr, name)
+	return param, binding, append(diags, fillParamDetail(c, &param, p, pptr)...)
 }
 
 // fillParamType lowers a parameter's type from either its schema or, for a
 // content-style parameter, its single media-type entry (recording the media
 // type on the binding). Constraints come from that same schema position;
 // the default comes from it too, falling back to its $ref target (§14).
-func (l *lowerer) fillParamType(param *ir.Parameter, binding *ir.HTTPParamBinding, p *soa.Parameter, pptr, name string) {
+func fillParamType(c lowerCtx, ts *compile.Types, anchors *anchorIndex, param *ir.Parameter, binding *ir.HTTPParamBinding, p *soa.Parameter, pptr, name string) []ir.Diagnostic {
 	// A content parameter declares exactly one media type; singleContentEntry
 	// takes it and reports a document that declares more, rather than dropping the
 	// extras in the silence the header spelling was fixed out of (GitHub #139).
-	if mt, media, ok := l.singleContentEntry(p.GetContent(), pptr); ok {
+	mt, media, ok, diags := singleContentEntry(c, p.GetContent(), pptr)
+	if ok {
 		schemaPtr := pptr + ids.Ptr("content", mt, "schema")
-		contentType, contentDiags := carriedSchemaRef(l.ctx, l.types, &l.anchors, topLevelDepth, media.GetSchema(), schemaPtr, name)
-		l.diags.AppendAll(contentDiags)
+		contentType, contentDiags := carriedSchemaRef(c, ts, anchors, topLevelDepth, media.GetSchema(), schemaPtr, name)
+		diags = append(diags, contentDiags...)
 		param.Type = contentType
 		binding.ContentType = mt
-		l.fillParamSchema(param, media.GetSchema(), schemaPtr)
-		return
+		return append(diags, fillParamSchema(c, ts, param, media.GetSchema(), schemaPtr)...)
 	}
 	schemaPtr := pptr + ids.Ptr("schema")
-	paramType, paramDiags := carriedSchemaRef(l.ctx, l.types, &l.anchors, topLevelDepth, p.GetSchema(), schemaPtr, name)
-	l.diags.AppendAll(paramDiags)
+	paramType, paramDiags := carriedSchemaRef(c, ts, anchors, topLevelDepth, p.GetSchema(), schemaPtr, name)
+	diags = append(diags, paramDiags...)
 	param.Type = paramType
-	l.fillParamSchema(param, p.GetSchema(), schemaPtr)
+	return append(diags, fillParamSchema(c, ts, param, p.GetSchema(), schemaPtr)...)
 }
 
 // fillParamSchema reads a parameter schema's default value and scalar
@@ -92,46 +93,46 @@ func (l *lowerer) fillParamType(param *ir.Parameter, binding *ir.HTTPParamBindin
 // inherit from it still reach the parameter (ir-design §14, GitHub #131).
 // Constraints stay use-site-only, exactly as fillPropertyConstraints keeps
 // them: a parameter must not inherit more from a referent than a property does.
-func (l *lowerer) fillParamSchema(param *ir.Parameter, js *oas3.JSONSchema[oas3.Referenceable], pointer string) {
+func fillParamSchema(c lowerCtx, ts *compile.Types, param *ir.Parameter, js *oas3.JSONSchema[oas3.Referenceable], pointer string) []ir.Diagnostic {
 	if js == nil || !js.IsSchema() {
-		return
+		return nil
 	}
 	s := js.GetSchema()
 	if s == nil {
-		return
+		return nil
 	}
 	// resolve.TargetSchema, not annotation.At's Referent: the fallback must read the
 	// end of a $ref chain, since one hop would take the default and description
 	// off an intermediate reference instead of the schema that declares them.
 	tgt := resolve.TargetSchema(js, s)
-	l.fillParamDefault(param, s, tgt, pointer)
+	diags := fillParamDefault(c, param, s, tgt, pointer)
 
-	c, diags := annotation.Constraints(s, l.ctx.exclusiveBoundIsBoolean())
-	l.appendConstraintDiags(diags, pointer)
-	if c != nil {
-		param.Constraints = c
+	cons, consDiags := annotation.Constraints(s, c.exclusiveBoundIsBoolean())
+	diags = append(diags, stampConstraintDiags(c, consDiags, pointer)...)
+	if cons != nil {
+		param.Constraints = cons
 	}
-	l.fillParamSchemaAnnotations(param, s, tgt, pointer)
+	return append(diags, fillParamSchemaAnnotations(c, ts, param, s, tgt, pointer)...)
 }
 
 // fillParamDefault sets the parameter default, preferring the use-site node
 // over the $ref target's; an unconvertible node yields a diagnostic. It mirrors
 // fillPropertyDefault — the same keyword, read the same way, at the other
 // carrier.
-func (l *lowerer) fillParamDefault(param *ir.Parameter, s, tgt *oas3.Schema, pointer string) {
+func fillParamDefault(c lowerCtx, param *ir.Parameter, s, tgt *oas3.Schema, pointer string) []ir.Diagnostic {
 	node := s.GetDefault()
 	if node == nil && tgt != nil {
 		node = tgt.GetDefault()
 	}
 	if node == nil {
-		return
+		return nil
 	}
 	v, err := value.FromNode(node)
 	if err != nil {
-		l.diag(ir.SeverityWarning, diag.DegradedConstruct, pointer, "default: %s", err.Error())
-		return
+		return []ir.Diagnostic{c.diagAt(ir.SeverityWarning, diag.DegradedConstruct, pointer, "default: %s", err.Error())}
 	}
 	param.Default = &v
+	return nil
 }
 
 // fillParamSchemaAnnotations records what a parameter's schema declares on the
@@ -145,7 +146,7 @@ func (l *lowerer) fillParamDefault(param *ir.Parameter, s, tgt *oas3.Schema, poi
 // docs and deprecation fall back to when the use-site is silent about them
 // (ir-design §14); examples, xml and the visibility keywords stay site-only,
 // since they describe the position rather than the type.
-func (l *lowerer) fillParamSchemaAnnotations(param *ir.Parameter, s, tgt *oas3.Schema, pointer string) {
+func fillParamSchemaAnnotations(c lowerCtx, ts *compile.Types, param *ir.Parameter, s, tgt *oas3.Schema, pointer string) []ir.Diagnostic {
 	// Visibility is kept before the own-node guard, not after it. The guard exists
 	// so an annotation with a home on the node is not also copied to the carrier,
 	// but readOnly/writeOnly have no home on either: recordDeclarationResidue
@@ -153,12 +154,12 @@ func (l *lowerer) fillParamSchemaAnnotations(param *ir.Parameter, s, tgt *oas3.S
 	// ir.Parameter has no Visibility field. Keeping them after the guard would
 	// drop them for exactly the parameters whose schema owns a node — an object,
 	// an enum, an array.
-	l.preserveParamVisibility(param, s, pointer)
-	if loweredToOwnNode(l.types, pointer, param.Type) {
-		return
+	diags := preserveParamVisibility(c, param, s, pointer)
+	if loweredToOwnNode(ts, pointer, param.Type) {
+		return diags
 	}
-	a, diags := annotation.Read(annotation.Site{Kind: annotation.Reference, Node: s, Referent: tgt}, pointer, l.ctx.SrcIndex)
-	l.diags.AppendAll(diags)
+	a, readDiags := annotation.Read(annotation.Site{Kind: annotation.Reference, Node: s, Referent: tgt}, pointer, c.SrcIndex)
+	diags = append(diags, readDiags...)
 
 	param.Docs = a.Docs
 	if a.Deprecated {
@@ -168,9 +169,10 @@ func (l *lowerer) fillParamSchemaAnnotations(param *ir.Parameter, s, tgt *oas3.S
 		param.Examples = a.Examples
 	}
 	if a.XML != nil {
-		l.preserveParamXML(param, s, pointer)
+		diags = append(diags, preserveParamXML(c, param, s, pointer)...)
 	}
 	param.Unmodeled = annotation.MergeUnmodeled(param.Unmodeled, a.Unmodeled)
+	return diags
 }
 
 // preserveParamXML keeps a parameter schema's xml hints instead of dropping
@@ -179,14 +181,14 @@ func (l *lowerer) fillParamSchemaAnnotations(param *ir.Parameter, s, tgt *oas3.S
 // application/xml, the media type OpenAPI §4.8.26 conditions xml on, and the
 // binding records that content type. ReasonNoIRHome, since the IR can close the
 // gap by adding the field (GitHub #124).
-func (l *lowerer) preserveParamXML(param *ir.Parameter, s *oas3.Schema, pointer string) {
+func preserveParamXML(c lowerCtx, param *ir.Parameter, s *oas3.Schema, pointer string) []ir.Diagnostic {
 	at := pointer + ids.Ptr("xml")
-	kept, keptDiags := preserveSchemaKeyword(l.ctx, &param.Unmodeled, s, "xml", ir.ReasonNoIRHome, at)
-	l.diags.AppendAll(keptDiags)
+	kept, diags := preserveSchemaKeyword(c, &param.Unmodeled, s, "xml", ir.ReasonNoIRHome, at)
 	if kept {
-		l.diag(ir.SeverityInfo, diag.DegradedConstruct, at,
-			"parameter schema xml hints have no ir.Parameter home; kept verbatim under Unmodeled")
+		diags = append(diags, c.diagAt(ir.SeverityInfo, diag.DegradedConstruct, at,
+			"parameter schema xml hints have no ir.Parameter home; kept verbatim under Unmodeled"))
 	}
+	return diags
 }
 
 // preserveParamVisibility keeps the residue keywords a parameter schema writes
@@ -198,20 +200,22 @@ func (l *lowerer) preserveParamXML(param *ir.Parameter, s *oas3.Schema, pointer 
 //
 // The list is schema.go's residueKeywords rather than a copy, so a keyword added
 // there is preserved here too instead of being dropped at this one carrier.
-func (l *lowerer) preserveParamVisibility(param *ir.Parameter, s *oas3.Schema, pointer string) {
+func preserveParamVisibility(c lowerCtx, param *ir.Parameter, s *oas3.Schema, pointer string) []ir.Diagnostic {
+	var diags []ir.Diagnostic
 	for _, keyword := range residueKeywords {
 		if paramHoldsResidue(keyword) {
 			continue
 		}
 		at := pointer + ids.Ptr(keyword)
-		kept, keptDiags := preserveSchemaKeyword(l.ctx, &param.Unmodeled, s, keyword, ir.ReasonNoIRHome, at)
-		l.diags.AppendAll(keptDiags)
+		kept, keptDiags := preserveSchemaKeyword(c, &param.Unmodeled, s, keyword, ir.ReasonNoIRHome, at)
+		diags = append(diags, keptDiags...)
 		if !kept {
 			continue
 		}
-		l.diag(ir.SeverityInfo, diag.DegradedConstruct, at,
-			"parameter schema %s has no ir.Parameter home; kept verbatim under Unmodeled", keyword)
+		diags = append(diags, c.diagAt(ir.SeverityInfo, diag.DegradedConstruct, at,
+			"parameter schema %s has no ir.Parameter home; kept verbatim under Unmodeled", keyword))
 	}
+	return diags
 }
 
 // paramHoldsResidue reports whether ir.Parameter has a field for a residue
@@ -226,19 +230,21 @@ func paramHoldsResidue(keyword string) bool {
 // field is written only when the parameter declares it, so it overlays the
 // schema-derived annotations fillParamSchema already recorded rather than
 // erasing them with an unset value.
-func (l *lowerer) fillParamDetail(param *ir.Parameter, p *soa.Parameter, pptr string) {
+func fillParamDetail(c lowerCtx, param *ir.Parameter, p *soa.Parameter, pptr string) []ir.Diagnostic {
 	if d := p.GetDescription(); d != "" {
 		param.Docs.Description = d
 	}
 	if p.GetDeprecated() {
 		param.Deprecation = &ir.Deprecation{}
 	}
-	if ex := l.exampleList(p.GetExample(), p.GetExamples(), pptr); len(ex) > 0 {
+	ex, diags := exampleList(c, p.GetExample(), p.GetExamples(), pptr)
+	if len(ex) > 0 {
 		param.Examples = ex
 	}
-	pExt, pExtDiags := extensionsOf(l.ctx, p.GetExtensions(), pptr)
-	l.diags.AppendAll(pExtDiags)
+	pExt, extDiags := extensionsOf(c, p.GetExtensions(), pptr)
+	diags = append(diags, extDiags...)
 	param.Unmodeled = annotation.MergeUnmodeled(param.Unmodeled, pExt)
+	return diags
 }
 
 // resolveStyleExplode materializes a parameter's resolved serialization style

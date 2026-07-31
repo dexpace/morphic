@@ -49,7 +49,9 @@ func (l *lowerer) lowerContent(mt string, media *soa.MediaType, pointer, hint st
 		MediaType: mt,
 		Type:      mediaType,
 	}
-	if ex := l.mediaExamples(media, mediaPtr); len(ex) > 0 {
+	ex, exDiags := exampleList(l.ctx, media.GetExample(), media.GetExamples(), mediaPtr)
+	l.diags.AppendAll(exDiags)
+	if len(ex) > 0 {
 		c.Examples = ex
 	}
 	switch {
@@ -143,9 +145,9 @@ func (l *lowerer) partEncodings(media *soa.MediaType, mediaPtr string, body ir.T
 	// keys align with that model's property IDs (invariant 2/3). Asking the IR is
 	// what keeps this in step with schemaOf, which reads the end of a $ref chain
 	// while a pointer cut from the ref string names only its first hop.
-	schemaPtr, ok := l.bodyModelPointer(body)
+	schemaPtr, ok := bodyModelPointer(l.types, body)
 	if !ok {
-		schemaPtr = l.bodySchemaPointer(media.GetSchema(), mediaPtr+ids.Ptr("schema"))
+		schemaPtr = bodySchemaPointer(l.ctx, media.GetSchema(), mediaPtr+ids.Ptr("schema"))
 	}
 	encMap := media.GetEncoding()
 	out := map[ir.PropID]ir.PartEncoding{}
@@ -324,7 +326,7 @@ func (l *lowerer) lowerHeaders(headers *sequencedmap.Map[string, *soa.Referenced
 	out := make([]ir.Property, 0, headers.Len())
 	for name, rh := range headers.All() {
 		hptr := basePtr + ids.Ptr("headers", name)
-		h, hdecl := resolveRefAt[soa.Header](l, rh, hptr)
+		h, hdecl := resolveRefAt[soa.Header](l.ctx, rh, hptr)
 		if h == nil {
 			continue
 		}
@@ -339,7 +341,8 @@ func (l *lowerer) lowerHeaders(headers *sequencedmap.Map[string, *soa.Referenced
 // ir.Property has a field for each, so the header path had no reason to drop
 // them (GitHub #116).
 func (l *lowerer) lowerHeader(h *soa.Header, name, hptr, hdecl string) ir.Property {
-	js, schemaPtr, mediaType := l.headerSchema(h, hdecl)
+	js, schemaPtr, mediaType, schemaDiags := headerSchema(l.ctx, h, hdecl)
+	l.diags.AppendAll(schemaDiags)
 	headerType, headerDiags := carriedSchemaRef(l.ctx, l.types, &l.anchors, topLevelDepth, js, schemaPtr, ids.DeclarationHint(hdecl, name))
 	l.diags.AppendAll(headerDiags)
 	p := ir.Property{
@@ -358,7 +361,7 @@ func (l *lowerer) lowerHeader(h *soa.Header, name, hptr, hdecl string) ir.Proper
 		p.Encoding = &ir.Encoding{MediaType: mediaType}
 	}
 	l.diags.AppendAll(fillPropertyDetail(l.ctx, l.types, &l.anchors, &p, js, schemaPtr))
-	l.applyHeaderAnnotations(&p, h, hdecl)
+	l.diags.AppendAll(applyHeaderAnnotations(l.ctx, &p, h, hdecl))
 	return p
 }
 
@@ -371,15 +374,15 @@ func (l *lowerer) lowerHeader(h *soa.Header, name, hptr, hdecl string) ir.Proper
 // type, its constraints and its xml hints together and without a diagnostic
 // (GitHub #139). The parameter path already read both (fillParamType), which is
 // why request headers never showed the defect.
-func (l *lowerer) headerSchema(h *soa.Header, hdecl string) (*oas3.JSONSchema[oas3.Referenceable], string, string) {
+func headerSchema(c lowerCtx, h *soa.Header, hdecl string) (*oas3.JSONSchema[oas3.Referenceable], string, string, []ir.Diagnostic) {
 	if js := h.GetSchema(); js != nil {
-		return js, hdecl + ids.Ptr("schema"), ""
+		return js, hdecl + ids.Ptr("schema"), "", nil
 	}
-	mt, media, ok := l.singleContentEntry(h.GetContent(), hdecl)
+	mt, media, ok, diags := singleContentEntry(c, h.GetContent(), hdecl)
 	if !ok {
-		return nil, hdecl + ids.Ptr("schema"), ""
+		return nil, hdecl + ids.Ptr("schema"), "", diags
 	}
-	return media.GetSchema(), hdecl + ids.Ptr("content", mt, "schema"), mt
+	return media.GetSchema(), hdecl + ids.Ptr("content", mt, "schema"), mt, diags
 }
 
 // singleContentEntry returns the one entry a content-style header or parameter
@@ -390,9 +393,9 @@ func (l *lowerer) headerSchema(h *soa.Header, hdecl string) (*oas3.JSONSchema[oa
 // silence dropped a declared schema without a word, which is the loss GitHub #139
 // fixed at this position in its other spelling; the extras are named instead so
 // the document's own error is visible rather than absorbed.
-func (l *lowerer) singleContentEntry(content *sequencedmap.Map[string, *soa.MediaType], at string) (string, *soa.MediaType, bool) {
+func singleContentEntry(c lowerCtx, content *sequencedmap.Map[string, *soa.MediaType], at string) (string, *soa.MediaType, bool, []ir.Diagnostic) {
 	if content == nil || content.Len() == 0 {
-		return "", nil, false
+		return "", nil, false, nil
 	}
 	var first string
 	var chosen *soa.MediaType
@@ -404,56 +407,57 @@ func (l *lowerer) singleContentEntry(content *sequencedmap.Map[string, *soa.Medi
 		}
 		ignored = append(ignored, mt)
 	}
+	var diags []ir.Diagnostic
 	if len(ignored) > 0 {
-		l.diag(ir.SeverityWarning, diag.DegradedConstruct, at+ids.Ptr("content"),
+		diags = append(diags, c.diagAt(ir.SeverityWarning, diag.DegradedConstruct, at+ids.Ptr("content"),
 			"a content-style header or parameter must declare exactly one media type; "+
-				"%q is lowered and %s ignored", first, strings.Join(ignored, ", "))
+				"%q is lowered and %s ignored", first, strings.Join(ignored, ", ")))
 	}
-	return first, chosen, chosen != nil
+	return first, chosen, chosen != nil, diags
 }
 
 // applyHeaderAnnotations overlays the annotations the header object writes on
 // itself onto p, after its schema's. A header carries both, and the header's
 // own are the more specific of the two — they describe this header rather than
 // the type it happens to be.
-func (l *lowerer) applyHeaderAnnotations(p *ir.Property, h *soa.Header, hdecl string) {
+func applyHeaderAnnotations(c lowerCtx, p *ir.Property, h *soa.Header, hdecl string) []ir.Diagnostic {
 	if d := h.GetDescription(); d != "" {
 		p.Docs.Description = d
 	}
 	if h.GetDeprecated() {
 		p.Deprecation = &ir.Deprecation{}
 	}
-	if ex := l.exampleList(h.GetExample(), h.GetExamples(), hdecl); len(ex) > 0 {
+	ex, diags := exampleList(c, h.GetExample(), h.GetExamples(), hdecl)
+	if len(ex) > 0 {
 		p.Examples = ex
 	}
-	hExt, hExtDiags := extensionsOf(l.ctx, h.GetExtensions(), hdecl)
-	l.diags.AppendAll(hExtDiags)
+	hExt, extDiags := extensionsOf(c, h.GetExtensions(), hdecl)
+	diags = append(diags, extDiags...)
 	p.Unmodeled = annotation.MergeUnmodeled(p.Unmodeled, hExt)
-}
-
-// mediaExamples lowers a media type's single and plural example values.
-func (l *lowerer) mediaExamples(media *soa.MediaType, pointer string) []ir.Example {
-	return l.exampleList(media.GetExample(), media.GetExamples(), pointer)
+	return diags
 }
 
 // exampleList lowers a single example node and a plural example map into value
 // examples, in source order. An unconvertible node is skipped with a warning
 // diagnostic rather than silently. The singular `example` keyword is a bare
 // value with nowhere to hang a name or summary, so it lowers to a value alone.
-func (l *lowerer) exampleList(single *yaml.Node, plural *sequencedmap.Map[string, *soa.ReferencedExample], pointer string) []ir.Example {
+func exampleList(c lowerCtx, single *yaml.Node, plural *sequencedmap.Map[string, *soa.ReferencedExample], pointer string) ([]ir.Example, []ir.Diagnostic) {
 	var out []ir.Example
+	var diags []ir.Diagnostic
 	if single != nil {
 		var exDiags []ir.Diagnostic
-		out, exDiags = appendExample(l.ctx, out, ir.Example{}, single, pointer, "example")
-		l.diags.AppendAll(exDiags)
+		out, exDiags = appendExample(c, out, ir.Example{}, single, pointer, "example")
+		diags = append(diags, exDiags...)
 	}
 	if plural == nil {
-		return out
+		return out, diags
 	}
 	for name, re := range plural.All() {
-		out = l.appendPluralExample(out, re, pointer, name)
+		var pluralDiags []ir.Diagnostic
+		out, pluralDiags = appendPluralExample(c, out, re, pointer, name)
+		diags = append(diags, pluralDiags...)
 	}
-	return out
+	return out, diags
 }
 
 // appendPluralExample lowers one named entry of a plural `examples` map with the
@@ -464,10 +468,10 @@ func (l *lowerer) exampleList(single *yaml.Node, plural *sequencedmap.Map[string
 // entry never had; an inline entry is stamped at its own `value`. Only this hop
 // is de-referenced: an enclosing $ref'd response or parameter is already
 // flattened into pointer.
-func (l *lowerer) appendPluralExample(out []ir.Example, re *soa.ReferencedExample, pointer, name string) []ir.Example {
+func appendPluralExample(c lowerCtx, out []ir.Example, re *soa.ReferencedExample, pointer, name string) ([]ir.Example, []ir.Diagnostic) {
 	ex := resolveRef[soa.Example](re)
 	if ex == nil {
-		return out
+		return out, nil
 	}
 	proto := ir.Example{
 		Name:        name,
@@ -477,16 +481,12 @@ func (l *lowerer) appendPluralExample(out []ir.Example, re *soa.ReferencedExampl
 	}
 	node := ex.GetValue()
 	if node == nil {
-		return l.appendValuelessExample(out, proto, pointer, name)
+		return appendValuelessExample(c, out, proto, pointer, name)
 	}
 	if re.IsReference() {
-		got, diags := appendExample(l.ctx, out, proto, node, pointer, "examples", name)
-		l.diags.AppendAll(diags)
-		return got
+		return appendExample(c, out, proto, node, pointer, "examples", name)
 	}
-	got, diags := appendExample(l.ctx, out, proto, node, pointer, "examples", name, "value")
-	l.diags.AppendAll(diags)
-	return got
+	return appendExample(c, out, proto, node, pointer, "examples", name, "value")
 }
 
 // appendValuelessExample records an entry that declares no inline `value`. The
@@ -494,13 +494,12 @@ func (l *lowerer) appendPluralExample(out []ir.Example, re *soa.ReferencedExampl
 // its home, so it is kept whole. Any other value-less entry carries no example
 // at all — a 3.2 dataValue/serializedValue, or an empty stub — and is dropped
 // with a warning rather than in silence.
-func (l *lowerer) appendValuelessExample(out []ir.Example, proto ir.Example, pointer, name string) []ir.Example {
+func appendValuelessExample(c lowerCtx, out []ir.Example, proto ir.Example, pointer, name string) ([]ir.Example, []ir.Diagnostic) {
 	if proto.ExternalURL == "" {
-		l.diag(ir.SeverityWarning, diag.DegradedConstruct, pointer+ids.Ptr("examples", name),
-			"example declares neither value nor externalValue")
-		return out
+		return out, []ir.Diagnostic{c.diagAt(ir.SeverityWarning, diag.DegradedConstruct,
+			pointer+ids.Ptr("examples", name), "example declares neither value nor externalValue")}
 	}
-	return append(out, proto)
+	return append(out, proto), nil
 }
 
 // lowerRequestBody lowers an operation's request body onto op.Request and the
@@ -512,7 +511,7 @@ func (l *lowerer) appendValuelessExample(out []ir.Example, proto ir.Example, poi
 // (issue #107) — and under the component's name, since the operationId hint
 // would otherwise name the shared node after one arbitrary referencing site.
 func (l *lowerer) lowerRequestBody(op *ir.Operation, hb *ir.HTTPBinding, src *soa.Operation, opDeclPtr string) {
-	rb, bodyPtr := resolveRefAt[soa.RequestBody](l, src.GetRequestBody(), opDeclPtr+ids.Ptr("requestBody"))
+	rb, bodyPtr := resolveRefAt[soa.RequestBody](l.ctx, src.GetRequestBody(), opDeclPtr+ids.Ptr("requestBody"))
 	if rb == nil {
 		return
 	}
@@ -639,10 +638,10 @@ const maxBodyAliasHops = 64
 //
 // It reports ok=false for a body that stands for no model at all — a primitive,
 // an enum, an opaque scalar — where no pointer would name a property either.
-func (l *lowerer) bodyModelPointer(body ir.TypeID) (string, bool) {
+func bodyModelPointer(ts *compile.Types, body ir.TypeID) (string, bool) {
 	id := body
 	for range maxBodyAliasHops {
-		td, found := l.types.Node(id)
+		td, found := ts.Node(id)
 		if !found {
 			return "", false
 		}
@@ -676,11 +675,11 @@ func (l *lowerer) bodyModelPointer(body ir.TypeID) (string, bool) {
 // schema happened to share the path — a property of a different document
 // addressed as if it were ours. localPtr is the honest fallback there: it is
 // the position the reference itself occupies here.
-func (l *lowerer) bodySchemaPointer(js *oas3.JSONSchema[oas3.Referenceable], localPtr string) string {
+func bodySchemaPointer(c lowerCtx, js *oas3.JSONSchema[oas3.Referenceable], localPtr string) string {
 	if js == nil || !resolve.IsRefSite(js, js.GetSchema()) {
 		return localPtr
 	}
-	if pointer, ok := l.ctx.refScope().InternalPointer(js.GetRef().String()); ok {
+	if pointer, ok := c.refScope().InternalPointer(js.GetRef().String()); ok {
 		return pointer
 	}
 	return localPtr
