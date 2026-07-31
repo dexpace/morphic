@@ -1144,14 +1144,12 @@ func dynamicRefSiblings(s *oas3.Schema) bool {
 // target back under the evaluation path's control, which no static lowering can
 // resolve (ir-design §4.7).
 //
-// The index is an explicit parameter and its diagnostics are returned rather
-// than recorded, per micro-compiler-design §4: the memo is state the caller
-// owns, and accumulation through a handle is the side effect the conversion
-// exists to remove. Diagnostics come back on every path, including the two that
-// answer "no single declaration" — the walk bound they report is a fact about
-// the document, not about this lookup's verdict.
-func soleAnchorSite(c lowerCtx, ax *anchorIndex, name string) (at, why string, ok bool, diags []ir.Diagnostic) {
-	sites, diags := ax.sites(c, name)
+// The index is a parameter because the memo is state the caller owns. Its
+// diagnostics come back on every path, including the two answering "no single
+// declaration": the walk bound they report is a fact about the document, not
+// about this lookup's verdict, so a failed lookup must not swallow it.
+func soleAnchorSite(c lowerCtx, anchors *anchorIndex, name string) (at, why string, ok bool, diags []ir.Diagnostic) {
+	sites, diags := anchors.sites(c, name)
 	if len(sites) == 0 {
 		return "", fmt.Sprintf("no $dynamicAnchor %q is declared in this document", name), false, diags
 	}
@@ -1211,7 +1209,12 @@ func resourceBoundaryWhy(at string) string {
 // would itself expand to, when it writes an expandable $dynamicRef of its own.
 // Anything else ends the chain: a position that lowers to a shape rather than to
 // another reference cannot extend a cycle of references.
-func dynamicHop(c lowerCtx, ax *anchorIndex, at string) (string, bool, []ir.Diagnostic) {
+//
+// The diagnostics are the index's, so the paths that return before consulting
+// it carry none. Once it is consulted they come back even if the chain ends
+// there: whether the hop happened and whether the index was complete are
+// independent answers.
+func dynamicHop(c lowerCtx, anchors *anchorIndex, at string) (string, bool, []ir.Diagnostic) {
 	s := componentSchemaAt(c, at)
 	if s == nil {
 		return "", false, nil
@@ -1220,7 +1223,7 @@ func dynamicHop(c lowerCtx, ax *anchorIndex, at string) (string, bool, []ir.Diag
 	if !ok {
 		return "", false, nil
 	}
-	next, nextDiags := ax.sites(c, name)
+	next, nextDiags := anchors.sites(c, name)
 	if len(next) != 1 {
 		return "", false, nextDiags
 	}
