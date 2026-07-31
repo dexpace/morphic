@@ -22,54 +22,58 @@ import (
 // content selection (ir-design §7.2). The pointer is the payload owner (the
 // response or requestBody); each Content's schema hoists under
 // <pointer>/content/<mt>/schema.
-func (l *lowerer) lowerPayload(content *sequencedmap.Map[string, *soa.MediaType], pointer, hint string) *ir.Payload {
+func lowerPayload(c lowerCtx, ts *compile.Types, anchors *anchorIndex, content *sequencedmap.Map[string, *soa.MediaType], pointer, hint string) (*ir.Payload, []ir.Diagnostic) {
 	if content == nil || content.Len() == 0 {
-		return nil
+		return nil, nil
 	}
+	var diags []ir.Diagnostic
 	payload := &ir.Payload{}
 	for mt, media := range content.All() {
 		if media == nil {
 			continue
 		}
-		payload.Contents = append(payload.Contents, l.lowerContent(mt, media, pointer, hint))
+		one, contentDiags := lowerContent(c, ts, anchors, mt, media, pointer, hint)
+		diags = append(diags, contentDiags...)
+		payload.Contents = append(payload.Contents, one)
 	}
 	if len(payload.Contents) == 0 {
-		return nil
+		return nil, diags
 	}
-	return payload
+	return payload, diags
 }
 
 // lowerContent lowers one media-type view: its type graph, examples, binary/
 // form specialization, sequential-media shape, and extensions.
-func (l *lowerer) lowerContent(mt string, media *soa.MediaType, pointer, hint string) ir.Content {
+func lowerContent(c lowerCtx, ts *compile.Types, anchors *anchorIndex, mt string, media *soa.MediaType, pointer, hint string) (ir.Content, []ir.Diagnostic) {
 	mediaPtr := pointer + ids.Ptr("content", mt)
-	mediaType, mediaDiags := schemaRef(l.ctx, l.types, &l.anchors, topLevelDepth, media.GetSchema(), mediaPtr+ids.Ptr("schema"), hint)
-	l.diags.AppendAll(mediaDiags)
-	c := ir.Content{
+	mediaType, diags := schemaRef(c, ts, anchors, topLevelDepth, media.GetSchema(), mediaPtr+ids.Ptr("schema"), hint)
+	content := ir.Content{
 		MediaType: mt,
 		Type:      mediaType,
 	}
-	ex, exDiags := exampleList(l.ctx, media.GetExample(), media.GetExamples(), mediaPtr)
-	l.diags.AppendAll(exDiags)
+	ex, exDiags := exampleList(c, media.GetExample(), media.GetExamples(), mediaPtr)
+	diags = append(diags, exDiags...)
 	if len(ex) > 0 {
-		c.Examples = ex
+		content.Examples = ex
 	}
 	switch {
 	case isBinaryBody(mt, media.GetSchema()):
-		c.File = &ir.FileInfo{IsText: false, ContentTypes: []string{mt}}
-		c.Type = l.types.PrimRef(ir.PrimBytes)
+		content.File = &ir.FileInfo{IsText: false, ContentTypes: []string{mt}}
+		content.Type = ts.PrimRef(ir.PrimBytes)
 	case isFormContent(mt):
-		if enc := l.partEncodings(media, mediaPtr, c.Type.Target); len(enc) > 0 {
-			c.Encoding = enc
+		enc, encDiags := partEncodings(c, ts, anchors, media, mediaPtr, content.Type.Target)
+		diags = append(diags, encDiags...)
+		if len(enc) > 0 {
+			content.Encoding = enc
 		}
 	}
-	l.fillSequential(&c, media, mediaPtr, hint)
-	ext, extDiags := extensionsOf(l.ctx, media.GetExtensions(), mediaPtr)
-	l.diags.AppendAll(extDiags)
+	diags = append(diags, fillSequential(c, ts, anchors, &content, media, mediaPtr, hint)...)
+	ext, extDiags := extensionsOf(c, media.GetExtensions(), mediaPtr)
+	diags = append(diags, extDiags...)
 	if len(ext) > 0 {
-		c.Unmodeled = annotation.MergeUnmodeled(c.Unmodeled, ext)
+		content.Unmodeled = annotation.MergeUnmodeled(content.Unmodeled, ext)
 	}
-	return c
+	return content, diags
 }
 
 // fillSequential lowers 3.2 sequential-media fields: itemSchema becomes the
@@ -80,23 +84,24 @@ func (l *lowerer) lowerContent(mt string, media *soa.MediaType, pointer, hint st
 // itemEncoding govern the items *after* them rather than every item, which a
 // single every-item encoding would misstate. Those documents take
 // positionalEncoding instead.
-func (l *lowerer) fillSequential(c *ir.Content, media *soa.MediaType, mediaPtr, hint string) {
+func fillSequential(c lowerCtx, ts *compile.Types, anchors *anchorIndex, content *ir.Content, media *soa.MediaType, mediaPtr, hint string) []ir.Diagnostic {
+	var diags []ir.Diagnostic
 	if item := media.GetItemSchema(); item != nil {
-		ref, itemDiags := schemaRef(l.ctx, l.types, &l.anchors, topLevelDepth, item, mediaPtr+ids.Ptr("itemSchema"), hint+"_item")
-		l.diags.AppendAll(itemDiags)
-		c.Item = &ref
+		ref, itemDiags := schemaRef(c, ts, anchors, topLevelDepth, item, mediaPtr+ids.Ptr("itemSchema"), hint+"_item")
+		diags = append(diags, itemDiags...)
+		content.Item = &ref
 	}
 	if len(media.GetPrefixEncoding()) > 0 {
-		l.positionalEncoding(c, media, mediaPtr)
-		return
+		return append(diags, positionalEncoding(c, content, media, mediaPtr)...)
 	}
 	enc := media.GetItemEncoding()
 	if enc == nil {
-		return
+		return diags
 	}
-	pe := l.encodingConfig(enc, mediaPtr+ids.Ptr("itemEncoding"))
+	pe, encDiags := encodingConfig(c, ts, anchors, enc, mediaPtr+ids.Ptr("itemEncoding"))
 	pe.Multi = true
-	c.ItemEncoding = &pe
+	content.ItemEncoding = &pe
+	return append(diags, encDiags...)
 }
 
 // positionalEncoding keeps 3.2 positional prefixEncoding — and the itemEncoding
@@ -106,62 +111,62 @@ func (l *lowerer) fillSequential(c *ir.Content, media *soa.MediaType, mediaPtr, 
 // would drop the prefixes and assert their encoding governs every item. The
 // ordinals a positional form needs are a gap the IR can close later, so the
 // entries carry ReasonNoIRHome rather than a degraded lowering.
-func (l *lowerer) positionalEncoding(c *ir.Content, media *soa.MediaType, mediaPtr string) {
+func positionalEncoding(c lowerCtx, content *ir.Content, media *soa.MediaType, mediaPtr string) []ir.Diagnostic {
 	root := media.GetRootNode()
 	// The announcement follows prefixEncoding, the construct that brought this
 	// lowering here: an itemEncoding beside it is optional, so its absence must not
 	// suppress the message, and its own conversion failure reports separately.
 	at := mediaPtr + ids.Ptr("prefixEncoding")
-	kept, prefixDiags := preserveNode(l.ctx, &c.Unmodeled, "openapi:prefixEncoding",
+	kept, diags := preserveNode(c, &content.Unmodeled, "openapi:prefixEncoding",
 		annotation.RawChildNode(root, "prefixEncoding"), ir.ReasonNoIRHome, at)
-	l.diags.AppendAll(prefixDiags)
-	_, itemDiags := preserveNode(l.ctx, &c.Unmodeled, "openapi:itemEncoding",
+	_, itemDiags := preserveNode(c, &content.Unmodeled, "openapi:itemEncoding",
 		annotation.RawChildNode(root, "itemEncoding"), ir.ReasonNoIRHome, mediaPtr+ids.Ptr("itemEncoding"))
-	l.diags.AppendAll(itemDiags)
+	diags = append(diags, itemDiags...)
 	if !kept {
 		// Reaching here means prefixEncoding is declared — that is the only reason
 		// this lowering runs — yet nothing of it was written. Unlike every other
 		// preservation site, an empty payload here cannot mean "there was no
 		// construct", so it is reported rather than passed over (GitHub #144).
-		l.diag(ir.SeverityError, diag.UnpreservableConstruct, at,
+		return append(diags, c.diagAt(ir.SeverityError, diag.UnpreservableConstruct, at,
 			"prefixEncoding is declared but its source node could not be read; it is "+
-				"represented in the IR in no form at all")
-		return
+				"represented in the IR in no form at all"))
 	}
-	l.diag(ir.SeverityInfo, diag.DegradedConstruct, mediaPtr,
-		"prefixEncoding is positional and has no per-item IR home; it and any itemEncoding are kept under Unmodeled")
+	return append(diags, c.diagAt(ir.SeverityInfo, diag.DegradedConstruct, mediaPtr,
+		"prefixEncoding is positional and has no per-item IR home; it and any itemEncoding are kept under Unmodeled"))
 }
 
 // partEncodings builds the multipart/form per-part wire config, keyed by each
 // body-model property's PropID. A part is included when it carries an explicit
 // encoding entry or is itself a repeated (array) or file (binary) part. body is
 // the TypeID the content's own schema position lowered to.
-func (l *lowerer) partEncodings(media *soa.MediaType, mediaPtr string, body ir.TypeID) map[ir.PropID]ir.PartEncoding {
+func partEncodings(c lowerCtx, ts *compile.Types, anchors *anchorIndex, media *soa.MediaType, mediaPtr string, body ir.TypeID) (map[ir.PropID]ir.PartEncoding, []ir.Diagnostic) {
 	parts := bodyParts(media.GetSchema(), 0)
 	if len(parts) == 0 {
-		return nil
+		return nil, nil
 	}
 	// Key by the pointer the body model was interned at, not by mediaPtr, so the
 	// keys align with that model's property IDs (invariant 2/3). Asking the IR is
 	// what keeps this in step with schemaOf, which reads the end of a $ref chain
 	// while a pointer cut from the ref string names only its first hop.
-	schemaPtr, ok := bodyModelPointer(l.types, body)
+	schemaPtr, ok := bodyModelPointer(ts, body)
 	if !ok {
-		schemaPtr = bodySchemaPointer(l.ctx, media.GetSchema(), mediaPtr+ids.Ptr("schema"))
+		schemaPtr = bodySchemaPointer(c, media.GetSchema(), mediaPtr+ids.Ptr("schema"))
 	}
+	var diags []ir.Diagnostic
 	encMap := media.GetEncoding()
 	out := map[ir.PropID]ir.PartEncoding{}
 	for _, part := range parts {
-		pe := l.buildPartEncoding(part.name, part.schema, encMap, mediaPtr)
+		pe, partDiags := buildPartEncoding(c, ts, anchors, part.name, part.schema, encMap, mediaPtr)
+		diags = append(diags, partDiags...)
 		if partEncodingEmpty(pe) {
 			continue
 		}
-		out[l.partPropID(body, part.name, schemaPtr)] = pe
+		out[partPropID(ts, body, part.name, schemaPtr)] = pe
 	}
 	if len(out) == 0 {
-		return nil
+		return nil, diags
 	}
-	return out
+	return out, diags
 }
 
 // bodyPart is one multipart part: the name keying its encoding entry, and the
@@ -229,8 +234,8 @@ func dedupeParts(parts []bodyPart) []bodyPart {
 // nowhere. Deriving one remains the answer for a body the IR holds no model for
 // — a contradictory schema declaring properties beside an enum or a scalar type —
 // where no property was lowered for any pointer to name.
-func (l *lowerer) partPropID(body ir.TypeID, wire, schemaPtr string) ir.PropID {
-	if id, ok := l.propIDByWire(body, wire, 0); ok {
+func partPropID(ts *compile.Types, body ir.TypeID, wire, schemaPtr string) ir.PropID {
+	if id, ok := propIDByWire(ts, body, wire, 0); ok {
 		return id
 	}
 	return ids.Prop(schemaPtr + ids.Ptr("properties", wire))
@@ -240,11 +245,11 @@ func (l *lowerer) partPropID(body ir.TypeID, wire, schemaPtr string) ir.PropID {
 // name: what it declares itself, then what it inherits through Base and mixes in
 // through Mixins, following the alias scalars a $ref-with-siblings position
 // hoists on the way. depth bounds the walk against a chain no source can spell.
-func (l *lowerer) propIDByWire(body ir.TypeID, wire string, depth int) (ir.PropID, bool) {
+func propIDByWire(ts *compile.Types, body ir.TypeID, wire string, depth int) (ir.PropID, bool) {
 	if depth > maxBodyAliasHops {
 		return "", false
 	}
-	td, found := l.types.Node(body)
+	td, found := ts.Node(body)
 	if !found {
 		return "", false
 	}
@@ -255,26 +260,26 @@ func (l *lowerer) propIDByWire(body ir.TypeID, wire string, depth int) (ir.PropI
 				return p.ID, true
 			}
 		}
-		return l.propIDInComposition(t, wire, depth)
+		return propIDInComposition(ts, t, wire, depth)
 	case *ir.Scalar:
 		if t.Base == nil {
 			return "", false
 		}
-		return l.propIDByWire(t.Base.Target, wire, depth+1)
+		return propIDByWire(ts, t.Base.Target, wire, depth+1)
 	default:
 		return "", false
 	}
 }
 
 // propIDInComposition searches a model's Base and Mixins, in that order.
-func (l *lowerer) propIDInComposition(m *ir.Model, wire string, depth int) (ir.PropID, bool) {
+func propIDInComposition(ts *compile.Types, m *ir.Model, wire string, depth int) (ir.PropID, bool) {
 	if m.Base != nil {
-		if id, ok := l.propIDByWire(m.Base.Target, wire, depth+1); ok {
+		if id, ok := propIDByWire(ts, m.Base.Target, wire, depth+1); ok {
 			return id, true
 		}
 	}
 	for _, mixin := range m.Mixins {
-		if id, ok := l.propIDByWire(mixin.Target, wire, depth+1); ok {
+		if id, ok := propIDByWire(ts, mixin.Target, wire, depth+1); ok {
 			return id, true
 		}
 	}
@@ -284,55 +289,60 @@ func (l *lowerer) propIDInComposition(m *ir.Model, wire string, depth int) (ir.P
 // buildPartEncoding assembles one part's PartEncoding: explicit encoding config
 // (content types, headers, style, explode) merged with the structural flags Multi
 // (array part) and Filename (binary/file part).
-func (l *lowerer) buildPartEncoding(name string, pjs *oas3.JSONSchema[oas3.Referenceable], encMap *sequencedmap.Map[string, *soa.Encoding], mediaPtr string) ir.PartEncoding {
+func buildPartEncoding(c lowerCtx, ts *compile.Types, anchors *anchorIndex, name string, pjs *oas3.JSONSchema[oas3.Referenceable], encMap *sequencedmap.Map[string, *soa.Encoding], mediaPtr string) (ir.PartEncoding, []ir.Diagnostic) {
 	pe := ir.PartEncoding{}
+	var diags []ir.Diagnostic
 	if encMap != nil {
 		if enc, ok := encMap.Get(name); ok {
-			pe = l.encodingConfig(enc, mediaPtr+ids.Ptr("encoding", name))
+			pe, diags = encodingConfig(c, ts, anchors, enc, mediaPtr+ids.Ptr("encoding", name))
 		}
 	}
 	if part := schemaOf(pjs); part != nil {
 		pe.Multi = schemaIsArray(part)
 		pe.Filename = schemaIsFilePart(part)
 	}
-	return pe
+	return pe, diags
 }
 
 // encodingConfig lowers one Encoding object's declared wire config: content
 // types, per-part headers, and form-style serialization. The structural flags
 // (Multi, Filename) come from the part's own schema, not from here.
-func (l *lowerer) encodingConfig(enc *soa.Encoding, encPtr string) ir.PartEncoding {
+func encodingConfig(c lowerCtx, ts *compile.Types, anchors *anchorIndex, enc *soa.Encoding, encPtr string) (ir.PartEncoding, []ir.Diagnostic) {
 	pe := ir.PartEncoding{}
 	if enc == nil {
-		return pe
+		return pe, nil
 	}
 	pe.ContentTypes = splitContentTypes(enc.GetContentTypeValue())
-	pe.Headers = l.lowerHeaders(enc.GetHeaders(), encPtr)
+	headers, diags := lowerHeaders(c, ts, anchors, enc.GetHeaders(), encPtr)
+	pe.Headers = headers
 	if enc.Style != nil {
 		pe.Style = string(*enc.Style)
 	}
 	pe.Explode = enc.Explode
-	return pe
+	return pe, diags
 }
 
 // lowerHeaders lowers a header map into Properties in source order. Each
 // entry's own pointer stays its ID and Provenance (two keys $ref'ing the same
 // header must not collide), but its schema — and the name hint that schema is
 // hoisted under — follow the ref target's declaration instead (issue #107).
-func (l *lowerer) lowerHeaders(headers *sequencedmap.Map[string, *soa.ReferencedHeader], basePtr string) []ir.Property {
+func lowerHeaders(c lowerCtx, ts *compile.Types, anchors *anchorIndex, headers *sequencedmap.Map[string, *soa.ReferencedHeader], basePtr string) ([]ir.Property, []ir.Diagnostic) {
 	if headers == nil || headers.Len() == 0 {
-		return nil
+		return nil, nil
 	}
+	var diags []ir.Diagnostic
 	out := make([]ir.Property, 0, headers.Len())
 	for name, rh := range headers.All() {
 		hptr := basePtr + ids.Ptr("headers", name)
-		h, hdecl := resolveRefAt[soa.Header](l.ctx, rh, hptr)
+		h, hdecl := resolveRefAt[soa.Header](c, rh, hptr)
 		if h == nil {
 			continue
 		}
-		out = append(out, l.lowerHeader(h, name, hptr, hdecl))
+		p, headerDiags := lowerHeader(c, ts, anchors, h, name, hptr, hdecl)
+		diags = append(diags, headerDiags...)
+		out = append(out, p)
 	}
-	return out
+	return out, diags
 }
 
 // lowerHeader lowers one header entry into a Property. Its schema goes through
@@ -340,18 +350,17 @@ func (l *lowerer) lowerHeaders(headers *sequencedmap.Map[string, *soa.Referenced
 // constraints, xml, examples and validation-only keywords the same way, and
 // ir.Property has a field for each, so the header path had no reason to drop
 // them (GitHub #116).
-func (l *lowerer) lowerHeader(h *soa.Header, name, hptr, hdecl string) ir.Property {
-	js, schemaPtr, mediaType, schemaDiags := headerSchema(l.ctx, h, hdecl)
-	l.diags.AppendAll(schemaDiags)
-	headerType, headerDiags := carriedSchemaRef(l.ctx, l.types, &l.anchors, topLevelDepth, js, schemaPtr, ids.DeclarationHint(hdecl, name))
-	l.diags.AppendAll(headerDiags)
+func lowerHeader(c lowerCtx, ts *compile.Types, anchors *anchorIndex, h *soa.Header, name, hptr, hdecl string) (ir.Property, []ir.Diagnostic) {
+	js, schemaPtr, mediaType, diags := headerSchema(c, h, hdecl)
+	headerType, headerDiags := carriedSchemaRef(c, ts, anchors, topLevelDepth, js, schemaPtr, ids.DeclarationHint(hdecl, name))
+	diags = append(diags, headerDiags...)
 	p := ir.Property{
 		ID:         ids.Prop(hptr),
 		Name:       compile.NamingFor(name),
 		WireName:   name,
 		Type:       headerType,
 		Required:   h.GetRequired(),
-		Provenance: l.ctx.provenanceAt(hptr),
+		Provenance: c.provenanceAt(hptr),
 	}
 	if mediaType != "" {
 		// The media type a content-style header serializes its value in, which is
@@ -360,9 +369,8 @@ func (l *lowerer) lowerHeader(h *soa.Header, name, hptr, hdecl string) ir.Proper
 		// spelling keeps.
 		p.Encoding = &ir.Encoding{MediaType: mediaType}
 	}
-	l.diags.AppendAll(fillPropertyDetail(l.ctx, l.types, &l.anchors, &p, js, schemaPtr))
-	l.diags.AppendAll(applyHeaderAnnotations(l.ctx, &p, h, hdecl))
-	return p
+	diags = append(diags, fillPropertyDetail(c, ts, anchors, &p, js, schemaPtr)...)
+	return p, append(diags, applyHeaderAnnotations(c, &p, h, hdecl)...)
 }
 
 // headerSchema returns the schema a header declares, the pointer that schema sits
@@ -510,24 +518,25 @@ func appendValuelessExample(c lowerCtx, out []ir.Example, proto ir.Example, poin
 // content once at its component pointer rather than once per mount site
 // (issue #107) — and under the component's name, since the operationId hint
 // would otherwise name the shared node after one arbitrary referencing site.
-func (l *lowerer) lowerRequestBody(op *ir.Operation, hb *ir.HTTPBinding, src *soa.Operation, opDeclPtr string) {
-	rb, bodyPtr := resolveRefAt[soa.RequestBody](l.ctx, src.GetRequestBody(), opDeclPtr+ids.Ptr("requestBody"))
+func lowerRequestBody(c lowerCtx, ts *compile.Types, anchors *anchorIndex, op *ir.Operation, hb *ir.HTTPBinding, src *soa.Operation, opDeclPtr string) []ir.Diagnostic {
+	rb, bodyPtr := resolveRefAt[soa.RequestBody](c, src.GetRequestBody(), opDeclPtr+ids.Ptr("requestBody"))
 	if rb == nil {
-		return
+		return nil
 	}
-	payload := l.lowerPayload(rb.GetContent(), bodyPtr, ids.DeclarationHint(bodyPtr, requestBodyHint(src)))
+	payload, diags := lowerPayload(c, ts, anchors, rb.GetContent(), bodyPtr, ids.DeclarationHint(bodyPtr, requestBodyHint(src)))
 	if payload == nil {
-		return
+		return diags
 	}
 	if !rb.GetRequired() {
-		preserve(l.ctx, &payload.Unmodeled, "openapi:required", ir.RawValue("false"),
+		preserve(c, &payload.Unmodeled, "openapi:required", ir.RawValue("false"),
 			ir.ReasonNoIRHome, bodyPtr+ids.Ptr("required"))
 
-		l.diag(ir.SeverityInfo, diag.DegradedConstruct, bodyPtr,
-			"request body is not required; optionality kept under Unmodeled")
+		diags = append(diags, c.diagAt(ir.SeverityInfo, diag.DegradedConstruct, bodyPtr,
+			"request body is not required; optionality kept under Unmodeled"))
 	}
 	op.Request = payload
 	hb.RequestContentTypes = contentTypeKeys(rb.GetContent())
+	return diags
 }
 
 // contentTypeKeys returns a content map's media-type keys in source order —

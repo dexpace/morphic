@@ -733,19 +733,21 @@ func TestContentTypeKeys_Nil(t *testing.T) {
 func TestFillSequential_EmptyItemEncoding(t *testing.T) {
 	t.Parallel()
 	l := newRawLowerer(&soa.OpenAPI{})
-	c := &ir.Content{}
+	content := &ir.Content{}
 	media := &soa.MediaType{ItemEncoding: &soa.Encoding{}}
-	l.fillSequential(c, media, "/mp", "h")
-	assert.Equal(t, &ir.PartEncoding{Multi: true}, c.ItemEncoding,
+	diags := fillSequential(l.ctx, l.types, &l.anchors, content, media, "/mp", "h")
+	assert.Equal(t, &ir.PartEncoding{Multi: true}, content.ItemEncoding,
 		"a config-free itemEncoding still records that the tail repeats")
-	assert.Nil(t, c.Unmodeled, "nothing is preserved raw")
-	assert.Empty(t, l.diags.List())
+	assert.Nil(t, content.Unmodeled, "nothing is preserved raw")
+	assert.Empty(t, diags)
 }
 
 func TestEncodingConfig_NilEncoding(t *testing.T) {
 	t.Parallel()
 	l := newRawLowerer(&soa.OpenAPI{})
-	assert.Equal(t, ir.PartEncoding{}, l.encodingConfig(nil, "/mp"))
+	pe, diags := encodingConfig(l.ctx, l.types, &l.anchors, nil, "/mp")
+	assert.Equal(t, ir.PartEncoding{}, pe)
+	assert.Empty(t, diags)
 }
 
 // positionalEncodingSpec declares the 3.2 shape ItemEncoding cannot state:
@@ -808,13 +810,13 @@ func TestFillSequential_PrefixEncodingWithoutItemEncoding(t *testing.T) {
 func TestPositionalEncoding_WithoutRootNode(t *testing.T) {
 	t.Parallel()
 	l := newRawLowerer(&soa.OpenAPI{})
-	c := &ir.Content{}
+	content := &ir.Content{}
 	media := &soa.MediaType{PrefixEncoding: []*soa.Encoding{{}}, ItemEncoding: &soa.Encoding{}}
-	l.fillSequential(c, media, "/mp", "h")
-	assert.Nil(t, c.ItemEncoding, "prefixes still block the every-item lowering")
-	assert.Nil(t, c.Unmodeled, "a media type with no source node has nothing verbatim to keep")
-	assertHasCode(t, l.diags.List(), diag.UnpreservableConstruct, ir.SeverityError)
-	assert.False(t, hasDiagAt(l.diags.List(), diag.DegradedConstruct, ir.SeverityInfo),
+	diags := fillSequential(l.ctx, l.types, &l.anchors, content, media, "/mp", "h")
+	assert.Nil(t, content.ItemEncoding, "prefixes still block the every-item lowering")
+	assert.Nil(t, content.Unmodeled, "a media type with no source node has nothing verbatim to keep")
+	assertHasCode(t, diags, diag.UnpreservableConstruct, ir.SeverityError)
+	assert.False(t, hasDiagAt(diags, diag.DegradedConstruct, ir.SeverityInfo),
 		"nothing was kept, so nothing announces that it was")
 }
 
@@ -837,7 +839,9 @@ func TestLowerPayload_NilMediaEntriesYieldNil(t *testing.T) {
 	content := sequencedmap.New(
 		sequencedmap.NewElem("application/json", (*soa.MediaType)(nil)),
 	)
-	assert.Nil(t, l.lowerPayload(content, "/p", "hint"), "all-nil media map yields no payload")
+	payload, diags := lowerPayload(l.ctx, l.types, &l.anchors, content, "/p", "hint")
+	assert.Nil(t, payload, "all-nil media map yields no payload")
+	assert.Empty(t, diags)
 }
 
 const componentBodyRefSpec = `openapi: 3.1.0
@@ -1245,7 +1249,7 @@ func TestPropIDByWire_DeadEnds(t *testing.T) {
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			id, ok := l.propIDByWire(tc.body, "file", 0)
+			id, ok := propIDByWire(l.types, tc.body, "file", 0)
 			assert.False(t, ok, "no property with that wire name stands behind this body")
 			assert.Empty(t, id, "and no ID is invented for one")
 		})

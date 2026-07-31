@@ -258,7 +258,7 @@ func (l *lowerer) lowerOperation(src *soa.Operation, ctx opContext) (ir.Operatio
 		IsWebhook:     ctx.isWebhook,
 		ParamBindings: bindings,
 	}
-	l.lowerRequestBody(&op, &hb, src, decl)
+	l.diags.AppendAll(lowerRequestBody(l.ctx, l.types, &l.anchors, &op, &hb, src, decl))
 	var extra []ir.Operation
 	if ctx.withCallbacks {
 		hb.Callbacks, extra = l.lowerCallbacks(src, ctx.ptrs, ctx.inferred)
@@ -367,10 +367,14 @@ func (l *lowerer) lowerResponses(src *soa.Operation, opDeclPtr string) ([]ir.Res
 // lowerResponse lowers one success response: its status condition, payload (all
 // media types), headers, docs, and any raw links preserved for later promotion.
 func (l *lowerer) lowerResponse(r *soa.Response, rng ir.StatusRange, rptr string) ir.Response {
+	headers, headerDiags := lowerHeaders(l.ctx, l.types, &l.anchors, r.GetHeaders(), rptr)
+	l.diags.AppendAll(headerDiags)
+	payload, payloadDiags := lowerPayload(l.ctx, l.types, &l.anchors, r.GetContent(), rptr, "response")
+	l.diags.AppendAll(payloadDiags)
 	resp := ir.Response{
 		Conditions: ir.ResponseConditions{StatusCodes: []ir.StatusRange{rng}},
-		Payload:    l.lowerPayload(r.GetContent(), rptr, "response"),
-		Headers:    l.lowerHeaders(r.GetHeaders(), rptr),
+		Payload:    payload,
+		Headers:    headers,
 	}
 	resp.Docs.Description = r.GetDescription()
 	_, linkDiags := preserveNode(l.ctx, &resp.Unmodeled, "openapi:links",
