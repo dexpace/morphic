@@ -67,7 +67,7 @@ func TestMain_ExitCode(t *testing.T) {
 
 	var got int
 	osExit = func(code int) { got = code }
-	os.Args = []string{"morphic"} // no subcommand → usage → exit 2
+	os.Args = []string{"morphic", "bogus"} // unknown command → usage → exit 2
 
 	main()
 

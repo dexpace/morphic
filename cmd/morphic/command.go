@@ -27,7 +27,7 @@ type command struct {
 }
 
 // commands is the subcommand table. Adding a subcommand means adding one entry.
-var commands = []command{compileCommand}
+var commands = []command{newCompileCommand()}
 
 // lookup resolves a subcommand by name. The empty name never resolves, so an
 // empty argv element cannot select a command.

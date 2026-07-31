@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"flag"
 	"fmt"
 	"io"
@@ -23,18 +24,24 @@ var newEngine = engine.New
 // not fail after a successful write on the platforms Morphic targets.
 var openOutput = func(path string) (io.WriteCloser, error) { return os.Create(path) }
 
-// compileCommand is compile's entry in the command table.
-var compileCommand = command{
-	name:    "compile",
-	summary: "lower an API spec (OpenAPI 3.x) into Morphic IR JSON",
-	usage:   "morphic compile <spec-file> [flags]",
-	description: "Lower an API spec (OpenAPI 3.x) into Morphic IR JSON on stdout, and write\n" +
-		"diagnostics to stderr.",
-	flagSet: func() *flag.FlagSet {
-		fs, _ := newCompileFlags()
-		return fs
-	},
-	run: runCompile,
+// newCompileCommand builds compile's command-table entry. It is a function,
+// not a package-level var, because its run field refers to runCompile, and
+// runCompile itself needs this same metadata to render help and usage text;
+// a var holding that cycle back to itself would be a Go initialization
+// cycle, while two package-level functions may freely refer to each other.
+func newCompileCommand() command {
+	return command{
+		name:    "compile",
+		summary: "lower an API spec (OpenAPI 3.x) into Morphic IR JSON",
+		usage:   "morphic compile <spec-file> [flags]",
+		description: "Lower an API spec (OpenAPI 3.x) into Morphic IR JSON on stdout, and write\n" +
+			"diagnostics to stderr.",
+		flagSet: func() *flag.FlagSet {
+			fs, _ := newCompileFlags()
+			return fs
+		},
+		run: runCompile,
+	}
 }
 
 // compileOptions holds the values compile's flags parse into.
@@ -68,23 +75,29 @@ func runCompile(args []string, stdout, stderr io.Writer) int {
 	fs, opts := newCompileFlags()
 
 	positional, err := parseArgs(fs, args)
+	if errors.Is(err, flag.ErrHelp) {
+		writeCommandHelp(stdout, newCompileCommand())
+		return 0
+	}
 	if err != nil {
-		emitf(stderr, "morphic: %v\n", err)
-		printUsage(stderr)
-		return 2
+		return compileUsageError(stderr, "%v", err)
 	}
 	if opts.failOn != "error" && opts.failOn != "warning" {
-		emitf(stderr, "morphic: invalid --fail-on %q (want error or warning)\n", opts.failOn)
-		printUsage(stderr)
-		return 2
+		return compileUsageError(stderr, "invalid --fail-on %q (want error or warning)", opts.failOn)
 	}
 	if len(positional) != 1 {
-		emitf(stderr, "morphic: compile requires exactly one spec file\n")
-		printUsage(stderr)
-		return 2
+		return compileUsageError(stderr, "compile requires exactly one spec file")
 	}
 
 	return compileSpec(positional[0], *opts, stdout, stderr)
+}
+
+// compileUsageError reports a misuse of compile: one reason line, one short
+// usage pointer, exit 2. It never touches stdout.
+func compileUsageError(stderr io.Writer, format string, args ...any) int {
+	emitf(stderr, "morphic: "+format+"\n", args...)
+	writeCommandUsage(stderr, newCompileCommand())
+	return 2
 }
 
 // compileSpec runs the pipeline over specPath, writes the IR document and its

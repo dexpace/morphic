@@ -84,7 +84,6 @@ components:
 func TestRun_UsageErrors(t *testing.T) {
 	t.Parallel()
 	var stdout, stderr bytes.Buffer
-	assert.Equal(t, 2, run(nil, &stdout, &stderr))
 	assert.Equal(t, 2, run([]string{"bogus"}, &stdout, &stderr))
 	assert.Equal(t, 2, run([]string{"compile", "x.yaml", "--fail-on", "hint"}, &stdout, &stderr))
 	assert.True(t, strings.Contains(stderr.String(), "usage"))

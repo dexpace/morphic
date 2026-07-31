@@ -22,14 +22,18 @@ func main() {
 // run dispatches subcommands and returns the process exit code. It exists so
 // tests can drive the CLI without a subprocess; only main calls os.Exit.
 func run(args []string, stdout, stderr io.Writer) int {
-	if len(args) == 0 {
-		printUsage(stderr)
-		return 2
+	if len(args) == 0 || isHelpFlag(args[0]) {
+		writeRootHelp(stdout)
+		return 0
 	}
+	if args[0] == "help" {
+		return runHelp(args[1:], stdout, stderr)
+	}
+
 	c, ok := lookup(args[0])
 	if !ok {
 		emitf(stderr, "morphic: unknown command %q\n", args[0])
-		printUsage(stderr)
+		writeRootHelp(stderr)
 		return 2
 	}
 	return c.run(args[1:], stdout, stderr)
@@ -40,13 +44,3 @@ func run(args []string, stdout, stderr io.Writer) int {
 func emitf(w io.Writer, format string, args ...any) {
 	_, _ = fmt.Fprintf(w, format, args...)
 }
-
-// printUsage writes the usage text to w.
-func printUsage(w io.Writer) {
-	emitf(w, "%s\n", usage)
-}
-
-const usage = `usage:
-  morphic compile <spec-file> [-o out.json] [--fail-on error|warning] [--skip-validate]
-
-compile lowers an API spec (OpenAPI 3.x) into Morphic IR JSON.`
