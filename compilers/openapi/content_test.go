@@ -733,12 +733,12 @@ func TestContentTypeKeys_Nil(t *testing.T) {
 func TestFillSequential_EmptyItemEncoding(t *testing.T) {
 	t.Parallel()
 	l := newRawLowerer(&soa.OpenAPI{})
-	c := &ir.Content{}
+	content := &ir.Content{}
 	media := &soa.MediaType{ItemEncoding: &soa.Encoding{}}
-	diags := fillSequential(l.ctx, l.types, &l.anchors, c, media, "/mp", "h")
-	assert.Equal(t, &ir.PartEncoding{Multi: true}, c.ItemEncoding,
+	diags := fillSequential(l.ctx, l.types, &l.anchors, content, media, "/mp", "h")
+	assert.Equal(t, &ir.PartEncoding{Multi: true}, content.ItemEncoding,
 		"a config-free itemEncoding still records that the tail repeats")
-	assert.Nil(t, c.Unmodeled, "nothing is preserved raw")
+	assert.Nil(t, content.Unmodeled, "nothing is preserved raw")
 	assert.Empty(t, diags)
 }
 
@@ -810,11 +810,11 @@ func TestFillSequential_PrefixEncodingWithoutItemEncoding(t *testing.T) {
 func TestPositionalEncoding_WithoutRootNode(t *testing.T) {
 	t.Parallel()
 	l := newRawLowerer(&soa.OpenAPI{})
-	c := &ir.Content{}
+	content := &ir.Content{}
 	media := &soa.MediaType{PrefixEncoding: []*soa.Encoding{{}}, ItemEncoding: &soa.Encoding{}}
-	diags := fillSequential(l.ctx, l.types, &l.anchors, c, media, "/mp", "h")
-	assert.Nil(t, c.ItemEncoding, "prefixes still block the every-item lowering")
-	assert.Nil(t, c.Unmodeled, "a media type with no source node has nothing verbatim to keep")
+	diags := fillSequential(l.ctx, l.types, &l.anchors, content, media, "/mp", "h")
+	assert.Nil(t, content.ItemEncoding, "prefixes still block the every-item lowering")
+	assert.Nil(t, content.Unmodeled, "a media type with no source node has nothing verbatim to keep")
 	assertHasCode(t, diags, diag.UnpreservableConstruct, ir.SeverityError)
 	assert.False(t, hasDiagAt(diags, diag.DegradedConstruct, ir.SeverityInfo),
 		"nothing was kept, so nothing announces that it was")
