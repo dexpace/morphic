@@ -227,6 +227,17 @@ methods and removes a class of bug where a callee's write is visible to its call
 
 ### 4.1 Where the thirteen fields go
 
+| Field | Becomes |
+|---|---|
+| `doc`, `opts`, `source`, `srcIndex` | `Ctx`, by value |
+| `schemas` | derived once at entry, into `Ctx` |
+| `dynamicAnchors` | **stays a memo** — deriving it at entry reports on documents that never ask; see below |
+| `types` | the one effect handle |
+| `diags`, `out`, `merge` | return values |
+| `depth` | explicit parameter — which the bounded-recursion rule wants regardless |
+| `operationIDs` | local to the operations loop, which is not recursive |
+| `diagnosedConstraints` | **removed** — it was subsumed by identity dedup all along; see below |
+
 *As landed:* two of these rows were written before the code was tried and did not
 survive it.
 
@@ -251,20 +262,6 @@ That makes it the one counterexample to §4's claim that interning is
 that phrasing suggests — a memo caches a pure function of the document, where the
 interning table accumulates decisions — but it is shared and it is mutated, and
 the claim as written does not admit it.
-
-#### The table
-
-
-| Field | Becomes |
-|---|---|
-| `doc`, `opts`, `source`, `srcIndex` | `Ctx`, by value |
-| `schemas` | derived once at entry, into `Ctx` |
-| `dynamicAnchors` | **stays a memo** — deriving it at entry reports on documents that never ask; see below |
-| `types` | the one effect handle |
-| `diags`, `out`, `merge` | return values |
-| `depth` | explicit parameter — which the bounded-recursion rule wants regardless |
-| `operationIDs` | local to the operations loop, which is not recursive |
-| `diagnosedConstraints` | **removed** — it was subsumed by identity dedup all along; see below |
 
 `diagnosedConstraints` suppressed duplicate constraint diagnostics when a sub-schema is read from
 two positions.
