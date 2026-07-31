@@ -132,8 +132,14 @@ func loweringCallGraph(t *testing.T) map[string]map[string]bool {
 		}
 	}
 
+	// Methods and free functions share one namespace here, which is what lets a
+	// converted lowering keep its edges. Go would allow a method and a function
+	// of the same name; this graph would silently keep one and drop the other's
+	// edges, so the collision is refused rather than resolved.
 	known := map[string]bool{}
 	for _, d := range decls {
+		require.False(t, known[d.name],
+			"two lowerings are named %q; the call graph cannot tell them apart", d.name)
 		known[d.name] = true
 	}
 
@@ -190,8 +196,9 @@ func lowererMethod(decl ast.Decl) (name, recv string, ok bool) {
 }
 
 // stronglyConnected returns the graph's strongly connected components (Tarjan).
-// Edges to names that are not methods — anything reached on some other receiver —
-// are ignored, so only the lowerer's own recursion is described.
+// Edges to names the graph does not hold — anything reached on some other
+// receiver or in another package — are ignored, so only recursion within
+// compilers/openapi's own lowerings is described.
 func stronglyConnected(graph map[string]map[string]bool) [][]string {
 	var (
 		index  = map[string]int{}
@@ -210,7 +217,7 @@ func stronglyConnected(graph map[string]map[string]bool) [][]string {
 
 		succ := make([]string, 0, len(graph[v]))
 		for w := range graph[v] {
-			if _, isMethod := graph[w]; isMethod {
+			if _, isLowering := graph[w]; isLowering {
 				succ = append(succ, w)
 			}
 		}
