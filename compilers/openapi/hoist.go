@@ -5,7 +5,6 @@ import (
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/ids"
 	"github.com/dexpace/morphic/compilers/openapi/internal/load"
-	"github.com/dexpace/morphic/compilers/openapi/internal/merge"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -32,8 +31,6 @@ type lowerer struct {
 	types *compile.Types
 	// diags accumulates lowering diagnostics, deduped by full identity.
 	diags compile.Diags
-	// merge reconciles properties declared by more than one allOf branch.
-	merge merge.Merger
 	// anchors memoizes the document's $dynamicAnchor index, built on the first
 	// $dynamicRef reached and not before: the walk costs about 1.4% of a compile,
 	// and almost no document writes either keyword.
@@ -59,7 +56,6 @@ func newLowerer(srcIndex int, doc *load.Document, opts Options) *lowerer {
 		types:        types,
 		operationIDs: make(map[string]string),
 	}
-	l.merge = merge.Merger{Resolve: types.Node, Report: l.diag}
 	return l
 }
 

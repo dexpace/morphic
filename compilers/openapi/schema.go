@@ -659,7 +659,8 @@ func (l *lowerer) fillModelProperties(m *ir.Model, s *oas3.Schema, pointer strin
 			Provenance: l.ctx.provenanceAt(ppointer),
 		}
 		l.fillPropertyDetail(&p, js, ppointer)
-		l.merge.MergeProperty(m, byWire, p, ppointer)
+		mg := l.merger()
+		mg.MergeProperty(m, byWire, p, ppointer)
 	}
 }
 
@@ -1565,4 +1566,15 @@ func requiredSet(required []string) map[string]bool {
 		set[r] = true
 	}
 	return set
+}
+
+// merger builds the allOf property reconciler.
+//
+// It is built where it is used rather than held on the lowerer, because its two
+// fields close over the lowerer itself — Report is the diagnostic recorder — and
+// a field that captures its own owner keeps the owner alive in every reader that
+// only wanted the reconciler. It is two closures over state already at hand, so
+// building it per use costs nothing worth measuring.
+func (l *lowerer) merger() merge.Merger {
+	return merge.Merger{Resolve: l.types.Node, Report: l.diag}
 }
