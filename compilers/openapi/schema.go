@@ -117,9 +117,9 @@ var residueKeywords = []string{"default", "readOnly", "writeOnly"}
 // carrier at all, which is the case Unmodeled is rescuing.
 func (l *lowerer) recordResidue(c *ir.TypeCommon, s *oas3.Schema, pointer string) {
 	for _, keyword := range residueKeywords {
-		kept1, keptDiags1 := preserveSchemaKeyword(l.ctx, &c.Unmodeled, s, keyword, ir.ReasonNoIRHome, pointer+ids.Ptr(keyword))
-		l.diags.AppendAll(keptDiags1)
-		if !kept1 {
+		kept, keptDiags := preserveSchemaKeyword(l.ctx, &c.Unmodeled, s, keyword, ir.ReasonNoIRHome, pointer+ids.Ptr(keyword))
+		l.diags.AppendAll(keptDiags)
+		if !kept {
 			continue
 		}
 		l.diag(ir.SeverityInfo, diag.DegradedConstruct, pointer+ids.Ptr(keyword),
@@ -560,9 +560,10 @@ func (l *lowerer) recordUnhomedKeywords(owner ir.TypeID, s *oas3.Schema, unhomed
 	// one that failed to convert and was reported unpreservable instead.
 	kept := make([]string, 0, len(unhomed))
 	for _, keyword := range unhomed {
-		kept1, keptDiags1 := preserveSchemaKeyword(l.ctx, &c.Unmodeled, s, keyword, ir.ReasonDegradedLowering, pointer+ids.Ptr(keyword))
-		l.diags.AppendAll(keptDiags1)
-		if kept1 {
+		ok, keptDiags := preserveSchemaKeyword(l.ctx, &c.Unmodeled, s, keyword,
+			ir.ReasonDegradedLowering, pointer+ids.Ptr(keyword))
+		l.diags.AppendAll(keptDiags)
+		if ok {
 			kept = append(kept, keyword)
 		}
 	}
@@ -867,9 +868,9 @@ func (l *lowerer) buildTuple(s *oas3.Schema, common ir.TypeCommon, pointer, hint
 	if s.GetItems() == nil {
 		return t
 	}
-	kept2, keptDiags2 := preserveNode(l.ctx, &t.Unmodeled, "openapi:items-after-prefix", annotation.RawPropertyNode(s, "items"), ir.ReasonDegradedLowering, pointer+ids.Ptr("items"))
-	l.diags.AppendAll(keptDiags2)
-	if kept2 {
+	kept, keptDiags := preserveNode(l.ctx, &t.Unmodeled, "openapi:items-after-prefix", annotation.RawPropertyNode(s, "items"), ir.ReasonDegradedLowering, pointer+ids.Ptr("items"))
+	l.diags.AppendAll(keptDiags)
+	if kept {
 		l.diag(ir.SeverityInfo, diag.DegradedConstruct, pointer,
 			"items after prefixItems is an open tuple; lowered as a fixed-arity Tuple with the tail kept under Unmodeled")
 	}
@@ -978,9 +979,9 @@ func (l *lowerer) scalarEncoding(s *oas3.Schema, formatName string, c *ir.TypeCo
 		return enc
 	}
 	at := pointer + ids.Ptr("format")
-	kept3, keptDiags3 := preserveSchemaKeyword(l.ctx, &c.Unmodeled, s, "format", ir.ReasonNoIRHome, at)
-	l.diags.AppendAll(keptDiags3)
-	if kept3 {
+	kept, keptDiags := preserveSchemaKeyword(l.ctx, &c.Unmodeled, s, "format", ir.ReasonNoIRHome, at)
+	l.diags.AppendAll(keptDiags)
+	if kept {
 		l.diag(ir.SeverityInfo, diag.DegradedConstruct, at,
 			"format and contentEncoding both name an encoding and ir.Encoding holds one; "+
 				"contentEncoding %q is lowered and format is kept verbatim under Unmodeled", content)
@@ -1020,9 +1021,9 @@ func (l *lowerer) recordUnplacedContent(p *ir.Unmodeled, s *oas3.Schema, td ir.T
 		return
 	}
 	for _, keyword := range contentKeywords {
-		kept2, keptDiags2 := preserveSchemaKeyword(l.ctx, p, s, keyword, ir.ReasonNoIRHome, pointer+ids.Ptr(keyword))
-		l.diags.AppendAll(keptDiags2)
-		if !kept2 {
+		kept, keptDiags := preserveSchemaKeyword(l.ctx, p, s, keyword, ir.ReasonNoIRHome, pointer+ids.Ptr(keyword))
+		l.diags.AppendAll(keptDiags)
+		if !kept {
 			continue
 		}
 		l.diag(ir.SeverityInfo, diag.DegradedConstruct, pointer+ids.Ptr(keyword),
@@ -1278,9 +1279,9 @@ func (l *lowerer) recordUnexpandedDynamicRef(p *ir.Unmodeled, s *oas3.Schema, po
 		return
 	}
 	at := pointer + ids.Ptr("$dynamicRef")
-	kept4, keptDiags4 := preserveSchemaKeyword(l.ctx, p, s, "$dynamicRef", ir.ReasonDegradedLowering, at)
-	l.diags.AppendAll(keptDiags4)
-	if kept4 {
+	kept, keptDiags := preserveSchemaKeyword(l.ctx, p, s, "$dynamicRef", ir.ReasonDegradedLowering, at)
+	l.diags.AppendAll(keptDiags)
+	if kept {
 		l.diag(ir.SeverityInfo, diag.DegradedConstruct, at,
 			"$dynamicRef was not expanded because %s; it is kept verbatim under Unmodeled", why)
 	}

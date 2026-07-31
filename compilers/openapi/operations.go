@@ -435,15 +435,14 @@ func (l *lowerer) fillErrorType(ec *ir.ErrorCase, r *soa.Response, rptr string) 
 			first = false
 		}
 	}
-	multi, contentDiags := false, []ir.Diagnostic(nil)
 	if content.Len() > 1 {
-		multi, contentDiags = preserveNode(l.ctx, &ec.Unmodeled, "openapi:content",
+		kept, keptDiags := preserveNode(l.ctx, &ec.Unmodeled, "openapi:content",
 			annotation.RawChildNode(r.GetRootNode(), "content"), ir.ReasonNoIRHome, rptr+ids.Ptr("content"))
-		l.diags.AppendAll(contentDiags)
-	}
-	if multi {
-		l.diag(ir.SeverityInfo, diag.DegradedConstruct, rptr,
-			"error response has multiple media types; full content map kept under Unmodeled")
+		l.diags.AppendAll(keptDiags)
+		if kept {
+			l.diag(ir.SeverityInfo, diag.DegradedConstruct, rptr,
+				"error response has multiple media types; full content map kept under Unmodeled")
+		}
 	}
 }
 
