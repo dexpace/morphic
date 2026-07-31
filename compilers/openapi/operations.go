@@ -330,8 +330,10 @@ func (l *lowerer) applyPathServers(op *ir.Operation, pi *soa.PathItem, declPtr s
 	if len(pi.GetServers()) == 0 {
 		return
 	}
-	if !l.preserveNode(&op.Unmodeled, "openapi:servers", annotation.RawChildNode(pi.GetRootNode(), "servers"),
-		ir.ReasonNoIRHome, declPtr+ids.Ptr("servers")) {
+	kept, keptDiags := preserveNode(l.ctx, &op.Unmodeled, "openapi:servers",
+		annotation.RawChildNode(pi.GetRootNode(), "servers"), ir.ReasonNoIRHome, declPtr+ids.Ptr("servers"))
+	l.diags.AppendAll(keptDiags)
+	if !kept {
 		return
 	}
 	l.diags.Append(diag.Newf(ir.SeverityInfo, diag.DegradedConstruct, op.Provenance,
@@ -377,8 +379,9 @@ func (l *lowerer) lowerResponse(r *soa.Response, rng ir.StatusRange, rptr string
 		Headers:    l.lowerHeaders(r.GetHeaders(), rptr),
 	}
 	resp.Docs.Description = r.GetDescription()
-	l.preserveNode(&resp.Unmodeled, "openapi:links", annotation.RawChildNode(r.GetRootNode(), "links"),
-		ir.ReasonNoIRHome, rptr+ids.Ptr("links"))
+	_, linkDiags := preserveNode(l.ctx, &resp.Unmodeled, "openapi:links",
+		annotation.RawChildNode(r.GetRootNode(), "links"), ir.ReasonNoIRHome, rptr+ids.Ptr("links"))
+	l.diags.AppendAll(linkDiags)
 	return resp
 }
 
@@ -404,8 +407,10 @@ func (l *lowerer) preserveErrorHeaders(ec *ir.ErrorCase, r *soa.Response, rptr s
 	if headers == nil || headers.Len() == 0 {
 		return
 	}
-	if !l.preserveNode(&ec.Unmodeled, "openapi:headers", annotation.RawChildNode(r.GetRootNode(), "headers"),
-		ir.ReasonNoIRHome, rptr+ids.Ptr("headers")) {
+	kept, hdrDiags := preserveNode(l.ctx, &ec.Unmodeled, "openapi:headers",
+		annotation.RawChildNode(r.GetRootNode(), "headers"), ir.ReasonNoIRHome, rptr+ids.Ptr("headers"))
+	l.diags.AppendAll(hdrDiags)
+	if !kept {
 		return
 	}
 	l.diag(ir.SeverityInfo, diag.DegradedConstruct, rptr,
@@ -430,10 +435,14 @@ func (l *lowerer) fillErrorType(ec *ir.ErrorCase, r *soa.Response, rptr string) 
 			first = false
 		}
 	}
-	if content.Len() > 1 && l.preserveNode(&ec.Unmodeled, "openapi:content",
-		annotation.RawChildNode(r.GetRootNode(), "content"), ir.ReasonNoIRHome, rptr+ids.Ptr("content")) {
-		l.diag(ir.SeverityInfo, diag.DegradedConstruct, rptr,
-			"error response has multiple media types; full content map kept under Unmodeled")
+	if content.Len() > 1 {
+		kept, keptDiags := preserveNode(l.ctx, &ec.Unmodeled, "openapi:content",
+			annotation.RawChildNode(r.GetRootNode(), "content"), ir.ReasonNoIRHome, rptr+ids.Ptr("content"))
+		l.diags.AppendAll(keptDiags)
+		if kept {
+			l.diag(ir.SeverityInfo, diag.DegradedConstruct, rptr,
+				"error response has multiple media types; full content map kept under Unmodeled")
+		}
 	}
 }
 

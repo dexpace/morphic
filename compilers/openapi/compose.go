@@ -211,8 +211,10 @@ func (l *lowerer) preserveUnmergedBranch(m *ir.Model, bs *oas3.Schema, branchIdx
 	if len(residue) == 0 {
 		return
 	}
-	if !l.preserveNode(&m.Unmodeled, "openapi:allOf/"+strconv.Itoa(branchIdx),
-		bs.GetRootNode(), ir.ReasonDegradedLowering, bptr) {
+	kept, keptDiags := preserveNode(l.ctx, &m.Unmodeled, "openapi:allOf/"+strconv.Itoa(branchIdx),
+		bs.GetRootNode(), ir.ReasonDegradedLowering, bptr)
+	l.diags.AppendAll(keptDiags)
+	if !kept {
 		return
 	}
 	l.appendDiag(diagUnmergedBranch(l.ctx, bs, residue, bptr))
