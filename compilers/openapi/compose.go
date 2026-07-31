@@ -405,9 +405,9 @@ func subtypeDiscriminatorValue(c lowerCtx, ts *compile.Types, s *oas3.Schema, id
 		return ""
 	}
 	if m := d.GetMapping(); m != nil {
-		for value, target := range m.All() {
+		for tag, target := range m.All() {
 			if tid, ok := mappingTargetID(c, ts, target); ok && tid == id {
-				return value
+				return tag
 			}
 		}
 	}
@@ -896,15 +896,15 @@ func discriminatorMapping(c lowerCtx, ts *compile.Types, d *oas3.Discriminator, 
 	}
 	var diags []ir.Diagnostic
 	out := make(map[string]ir.TypeID, m.Len())
-	for value, target := range m.All() {
+	for tag, target := range m.All() {
 		id, ok := mappingTargetID(c, ts, target)
 		if !ok {
 			diags = append(diags, c.diagAt(ir.SeverityError, diag.UnresolvedRef,
-				pointer+ids.Ptr("discriminator", "mapping", value),
-				"discriminator mapping %q references unresolved schema %q", value, target))
+				pointer+ids.Ptr("discriminator", "mapping", tag),
+				"discriminator mapping %q references unresolved schema %q", tag, target))
 			continue
 		}
-		out[value] = id
+		out[tag] = id
 	}
 	if len(out) == 0 {
 		return nil, diags

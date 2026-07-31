@@ -685,9 +685,9 @@ func TestPreserveErrorHeaders_WithoutRootNode(t *testing.T) {
 		sequencedmap.NewElem("X-H", &soa.ReferencedHeader{}),
 	)
 	ec := &ir.ErrorCase{}
-	l.preserveErrorHeaders(ec, &soa.Response{Headers: headers}, "/r")
+	diags := preserveErrorHeaders(l.ctx, ec, &soa.Response{Headers: headers}, "/r")
 	assert.Nil(t, ec.Unmodeled, "headers with no raw node are not preserved")
-	require.Empty(t, l.diags.List())
+	require.Empty(t, diags)
 }
 
 func TestLowerResponses_NoResponses(t *testing.T) {
@@ -928,14 +928,14 @@ func TestCallbacks_RefSharedAcrossParentsKeepsDistinctOpIDs(t *testing.T) {
 // exists because findOp disambiguates by Name.Source, which two mounts of one
 // $ref'd path item or callback share (they are the same declared operationId
 // mounted twice); OpID is the only thing that still tells them apart.
-func opsByID(t *testing.T, doc *ir.Document, ids ...ir.OpID) map[ir.OpID]ir.Operation {
+func opsByID(t *testing.T, doc *ir.Document, opIDs ...ir.OpID) map[ir.OpID]ir.Operation {
 	t.Helper()
 	require.NotEmpty(t, doc.Services, "the spec lowers to at least one service")
-	want := make(map[ir.OpID]bool, len(ids))
-	for _, id := range ids {
+	want := make(map[ir.OpID]bool, len(opIDs))
+	for _, id := range opIDs {
 		want[id] = true
 	}
-	out := make(map[ir.OpID]ir.Operation, len(ids))
+	out := make(map[ir.OpID]ir.Operation, len(opIDs))
 	for _, g := range doc.Services[0].Groups {
 		for _, op := range g.Operations {
 			if want[op.ID] {
