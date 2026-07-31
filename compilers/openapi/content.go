@@ -43,7 +43,7 @@ func (l *lowerer) lowerPayload(content *sequencedmap.Map[string, *soa.MediaType]
 // form specialization, sequential-media shape, and extensions.
 func (l *lowerer) lowerContent(mt string, media *soa.MediaType, pointer, hint string) ir.Content {
 	mediaPtr := pointer + ids.Ptr("content", mt)
-	mediaType, mediaDiags := schemaRef(l.ctx, l.types, &l.anchors, 0, media.GetSchema(), mediaPtr+ids.Ptr("schema"), hint)
+	mediaType, mediaDiags := schemaRef(l.ctx, l.types, &l.anchors, topLevelDepth, media.GetSchema(), mediaPtr+ids.Ptr("schema"), hint)
 	l.diags.AppendAll(mediaDiags)
 	c := ir.Content{
 		MediaType: mt,
@@ -80,7 +80,7 @@ func (l *lowerer) lowerContent(mt string, media *soa.MediaType, pointer, hint st
 // positionalEncoding instead.
 func (l *lowerer) fillSequential(c *ir.Content, media *soa.MediaType, mediaPtr, hint string) {
 	if item := media.GetItemSchema(); item != nil {
-		ref, itemDiags := schemaRef(l.ctx, l.types, &l.anchors, 0, item, mediaPtr+ids.Ptr("itemSchema"), hint+"_item")
+		ref, itemDiags := schemaRef(l.ctx, l.types, &l.anchors, topLevelDepth, item, mediaPtr+ids.Ptr("itemSchema"), hint+"_item")
 		l.diags.AppendAll(itemDiags)
 		c.Item = &ref
 	}
@@ -340,7 +340,7 @@ func (l *lowerer) lowerHeaders(headers *sequencedmap.Map[string, *soa.Referenced
 // them (GitHub #116).
 func (l *lowerer) lowerHeader(h *soa.Header, name, hptr, hdecl string) ir.Property {
 	js, schemaPtr, mediaType := l.headerSchema(h, hdecl)
-	headerType, headerDiags := carriedSchemaRef(l.ctx, l.types, &l.anchors, 0, js, schemaPtr, ids.DeclarationHint(hdecl, name))
+	headerType, headerDiags := carriedSchemaRef(l.ctx, l.types, &l.anchors, topLevelDepth, js, schemaPtr, ids.DeclarationHint(hdecl, name))
 	l.diags.AppendAll(headerDiags)
 	p := ir.Property{
 		ID:         ids.Prop(hptr),

@@ -47,7 +47,7 @@ func (l *lowerer) lowerComponentSchemas() {
 // pointer and every $ref to it would dangle (invariants 1 and 2).
 func (l *lowerer) lowerComponentSchema(js *oas3.JSONSchema[oas3.Referenceable], pointer, name string) {
 	s := annotation.At(js)
-	ref, refDiags := schemaRef(l.ctx, l.types, &l.anchors, 0, js, pointer, name)
+	ref, refDiags := schemaRef(l.ctx, l.types, &l.anchors, topLevelDepth, js, pointer, name)
 	l.diags.AppendAll(refDiags)
 	// A body that interned the component's own node at its component ID needs no
 	// alias, and its annotations were attached where it was lowered.
@@ -1633,13 +1633,14 @@ func requiredSet(required []string) map[string]bool {
 	return set
 }
 
-// merger builds the allOf property reconciler.
+// merger builds the allOf property reconciler over an explicit diagnostic sink.
 //
-// It is built where it is used rather than held on the lowerer, because its two
-// fields close over the lowerer itself — Report is the diagnostic recorder — and
-// a field that captures its own owner keeps the owner alive in every reader that
-// only wanted the reconciler. It is two closures over state already at hand, so
-// building it per use costs nothing worth measuring.
+// Merger.Report records rather than returns, which is the one place this package
+// still hands diagnostics to a callback. diags is the caller's own slice, so what
+// the reconciler reports travels out the way everything else does; the callback
+// is the merge package's contract, not accumulation surviving here. It is two
+// closures over state already at hand, so building it per use costs nothing
+// worth measuring.
 func merger(c lowerCtx, ts *compile.Types, diags *[]ir.Diagnostic) merge.Merger {
 	return merge.Merger{
 		Resolve: ts.Node,

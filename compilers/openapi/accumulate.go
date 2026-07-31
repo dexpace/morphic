@@ -18,10 +18,12 @@ import (
 //
 // It lived in schema.go, which made every file that reports a diagnostic look
 // like it depended on schema lowering. Most did not: with it moved, operations
-// reaches nothing in schema.go at all, content reaches one symbol and parameters
-// two. Those three are real schema lowering and are what the upper layer still
-// waits on; the rest of the apparent coupling was this, filed in the wrong
-// place.
+// reaches nothing in schema.go, and content and parameters reach one symbol each
+// — fillPropertyDetail and loweredToOwnNode. Naming them rather than counting
+// them is deliberate: the count was two when this was written and went stale
+// silently when residueKeywords was deleted. Those are real schema lowering and
+// are what the upper layer still waits on; the rest of the apparent coupling was
+// this, filed in the wrong place.
 
 // appendExample converts node into proto's value and appends the result to out;
 // an unconvertible node is skipped and yields a warning diagnostic for the

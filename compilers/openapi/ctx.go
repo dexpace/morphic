@@ -14,11 +14,11 @@ import (
 // the indexes derived from them once at entry.
 //
 // It is a value rather than a pointer, so a function that takes one takes a
-// copy. That is what will make "immutable" enforceable rather than conventional
-// once the lowering methods become functions over it (GitHub #173 onward);
-// today it is held by the lowerer and read through l.ctx, and no lowering
-// writes to it. What already holds either way is the map below: a copy shares
-// it, so it is not reachable to write at all.
+// copy. That now makes "immutable" enforceable rather than conventional for
+// every lowering that takes it as a parameter — the schema walk and everything
+// below it. The upper layer still reads it through l.ctx until #175 converts,
+// and no lowering writes to it either way. What already holds everywhere is the
+// map below: a copy shares it, so it is not reachable to write at all.
 //
 // The name is deliberately not ctx. This package already spends that identifier
 // twice — on the context.Context Compile takes, which the styleguide reserves it
@@ -28,7 +28,8 @@ import (
 // It stays unexported for now: micro-compiler-design §5.1 gives compilers/openapi
 // the compiler's public face and nothing else, and every lowering that reads this
 // still lives here. It becomes an exported Ctx when it first has to cross a
-// package boundary, which is the reference-resolution extraction (GitHub #174).
+// package boundary, which is now the schema extraction (GitHub #176) — #174 was
+// named here before, and resolution moved without taking the context with it.
 type lowerCtx struct {
 	// Doc is the parsed, reference-resolved source document. Lowering reads it
 	// and never writes through it.

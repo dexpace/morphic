@@ -70,7 +70,7 @@ func (l *lowerer) fillParamType(param *ir.Parameter, binding *ir.HTTPParamBindin
 	// extras in the silence the header spelling was fixed out of (GitHub #139).
 	if mt, media, ok := l.singleContentEntry(p.GetContent(), pptr); ok {
 		schemaPtr := pptr + ids.Ptr("content", mt, "schema")
-		contentType, contentDiags := carriedSchemaRef(l.ctx, l.types, &l.anchors, 0, media.GetSchema(), schemaPtr, name)
+		contentType, contentDiags := carriedSchemaRef(l.ctx, l.types, &l.anchors, topLevelDepth, media.GetSchema(), schemaPtr, name)
 		l.diags.AppendAll(contentDiags)
 		param.Type = contentType
 		binding.ContentType = mt
@@ -78,7 +78,7 @@ func (l *lowerer) fillParamType(param *ir.Parameter, binding *ir.HTTPParamBindin
 		return
 	}
 	schemaPtr := pptr + ids.Ptr("schema")
-	paramType, paramDiags := carriedSchemaRef(l.ctx, l.types, &l.anchors, 0, p.GetSchema(), schemaPtr, name)
+	paramType, paramDiags := carriedSchemaRef(l.ctx, l.types, &l.anchors, topLevelDepth, p.GetSchema(), schemaPtr, name)
 	l.diags.AppendAll(paramDiags)
 	param.Type = paramType
 	l.fillParamSchema(param, p.GetSchema(), schemaPtr)

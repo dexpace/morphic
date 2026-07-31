@@ -833,8 +833,9 @@ func TestModel_RefSiblingDescriptionWins(t *testing.T) {
 func TestSchemaRef_EmptyEitherIsAny(t *testing.T) {
 	t.Parallel()
 	l := newRawLowerer(&soa.OpenAPI{})
-	ref, _ := schemaRef(l.ctx, l.types, &l.anchors, 0, emptyEitherSchema(), "/p", "h")
+	ref, diags := schemaRef(l.ctx, l.types, &l.anchors, topLevelDepth, emptyEitherSchema(), "/p", "h")
 	assert.Equal(t, ir.TypeID("t/prim/any"), ref.Target)
+	assert.Empty(t, diags, "an empty either lowers to any without complaint")
 }
 
 func TestIsNullSchema_EmptyEitherFalse(t *testing.T) {
@@ -1865,9 +1866,10 @@ func TestResolveSchemaRef_ReusesInternedSubSchema(t *testing.T) {
 	l := newRawLowerer(&soa.OpenAPI{})
 	l.types.Intern(deepPointer, "t/anon/prev", func() ir.TypeDef { return &ir.Any{} })
 
-	id, ok, _ := resolveSchemaRef(l.ctx, l.types, &l.anchors, 0, emptyEitherSchema(), "#"+deepPointer)
+	id, ok, diags := resolveSchemaRef(l.ctx, l.types, &l.anchors, topLevelDepth, emptyEitherSchema(), "#"+deepPointer)
 	require.True(t, ok, "a $ref to an already-hoisted sub-schema reuses its ID")
 	assert.Equal(t, ir.TypeID("t/anon/prev"), id)
+	assert.Empty(t, diags, "reusing an interned node reports nothing")
 }
 
 func TestResolveSchemaRef_UnresolvedDeepRefDropped(t *testing.T) {
@@ -1877,15 +1879,17 @@ func TestResolveSchemaRef_UnresolvedDeepRefDropped(t *testing.T) {
 	// node, GetResolvedSchema is nil, so the reference is dropped (ok=false).
 	js := oas3.NewJSONSchemaFromReference("#" + deepPointer)
 
-	_, ok, _ := resolveSchemaRef(l.ctx, l.types, &l.anchors, 0, js, "#"+deepPointer)
+	_, ok, diags := resolveSchemaRef(l.ctx, l.types, &l.anchors, topLevelDepth, js, "#"+deepPointer)
 	assert.False(t, ok, "an unresolved deep sub-schema $ref is dropped, not synthesized")
+	assert.Empty(t, diags, "the drop is reported by refTypeRef, which owns the pointer to report it at")
 }
 
 func TestHoistSubSchema_NilSchema(t *testing.T) {
 	t.Parallel()
 	l := newRawLowerer(&soa.OpenAPI{})
-	_, ok, _ := hoistSubSchema(l.ctx, l.types, &l.anchors, 0, nil, deepPointer)
+	_, ok, diags := hoistSubSchema(l.ctx, l.types, &l.anchors, topLevelDepth, nil, deepPointer)
 	assert.False(t, ok, "a nil resolved sub-schema cannot be hoisted")
+	assert.Empty(t, diags)
 }
 
 func TestHoistSubSchema_BodyInternsAtPointer(t *testing.T) {
@@ -1896,8 +1900,9 @@ func TestHoistSubSchema_BodyInternsAtPointer(t *testing.T) {
 	object := oas3.NewJSONSchemaFromSchema[oas3.Referenceable](
 		&oas3.Schema{Type: oas3.NewTypeFromString(oas3.SchemaTypeObject)})
 
-	id, ok, _ := hoistSubSchema(l.ctx, l.types, &l.anchors, 0, object, deepPointer)
+	id, ok, diags := hoistSubSchema(l.ctx, l.types, &l.anchors, topLevelDepth, object, deepPointer)
 	require.True(t, ok)
+	assert.Empty(t, diags, "an object body hoists cleanly")
 	assert.Equal(t, ids.AnonType(deepPointer), id)
 	seeded, _ := l.types.Lookup(deepPointer)
 	assert.Equal(t, ids.AnonType(deepPointer), seeded)

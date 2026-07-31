@@ -13,6 +13,11 @@ import (
 // this bound only guards pathologically deep inline nesting.
 const maxSchemaDepth = 256
 
+// topLevelDepth is the nesting a schema position outside the walk starts at.
+// The walk counts its own frames, so every entry point into it begins at zero;
+// naming it keeps a bare 0 out of the call sites that only pass it through.
+const topLevelDepth = 0
+
 // A lowerer performs lowering: the translation of one source-shaped OpenAPI
 // document into Morphic's spec-agnostic IR (OpenAPI schemas -> ir.TypeDef
 // nodes, one step per lower* method). This is the lossless source -> IR sense
