@@ -38,7 +38,6 @@ type lowerer struct {
 	// operationIDs maps each operationId already lowered to the mount pointer
 	// that claimed it, so a second claim can name the first in its diagnostic.
 	operationIDs map[string]string
-	depth        int
 }
 
 // newLowerer allocates a lowerer over one loaded document, with an empty IR

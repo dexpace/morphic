@@ -26,23 +26,24 @@ import (
 // hierarchy) becomes Base; other $refs become Mixins in source order; inline
 // branches contribute their properties, each carrying provenance into the
 // allOf branch it came from.
-func (l *lowerer) lowerAllOf(s *oas3.Schema, pointer, hint string) ir.TypeID {
-	return internNode(l.ctx, l.types, pointer, hint, func(common ir.TypeCommon) ir.TypeDef {
+func lowerAllOf(c lowerCtx, ts *compile.Types, anchors *anchorIndex, depth int, s *oas3.Schema, pointer, hint string) (ir.TypeID, []ir.Diagnostic) {
+	var diags []ir.Diagnostic
+	id := internNode(c, ts, pointer, hint, func(common ir.TypeCommon) ir.TypeDef {
 		m := &ir.Model{TypeCommon: common}
-		l.fillAllOf(m, s, pointer)
-		l.fillModelProperties(m, s, pointer)
-		l.diags.AppendAll(applyCompositionRequired(l.ctx, m, s, pointer))
-		l.fillAdditional(m, s, pointer, hint)
-		l.diags.AppendAll(applyFalseBranches(l.ctx, m, s, pointer))
-		d, discDiags := lowerDiscriminator(l.ctx, l.types, s, m, pointer)
-		l.diags.AppendAll(discDiags)
+		diags = append(diags, fillAllOf(c, ts, anchors, depth, m, s, pointer)...)
+		diags = append(diags, fillModelProperties(c, ts, anchors, depth, m, s, pointer)...)
+		diags = append(diags, applyCompositionRequired(c, m, s, pointer)...)
+		diags = append(diags, fillAdditional(c, ts, anchors, depth, m, s, pointer, hint)...)
+		diags = append(diags, applyFalseBranches(c, m, s, pointer)...)
+		d, discDiags := lowerDiscriminator(c, ts, s, m, pointer)
+		diags = append(diags, discDiags...)
 		if d != nil {
 			m.Discriminator = d
 		}
-		m.DiscriminatorValue = subtypeDiscriminatorValue(l.ctx, l.types, s, common.ID, pointer)
+		m.DiscriminatorValue = subtypeDiscriminatorValue(c, ts, s, common.ID, pointer)
 		return m
 	})
-
+	return id, diags
 }
 
 // requiredEntry is one `required` name declared somewhere in an allOf
@@ -131,30 +132,33 @@ func diagUnattachableRequired(c lowerCtx, m *ir.Model, e requiredEntry) ir.Diagn
 // and some of it has no home to merge into at all — Model.Constraints bounds the
 // property set's cardinality, so a scalar branch's maxLength cannot go there.
 // Verbatim beside the model needs neither, and keeps the branch recoverable.
-func (l *lowerer) fillAllOf(m *ir.Model, s *oas3.Schema, pointer string) {
+func fillAllOf(c lowerCtx, ts *compile.Types, anchors *anchorIndex, depth int, m *ir.Model, s *oas3.Schema, pointer string) []ir.Diagnostic {
+	var diags []ir.Diagnostic
 	branches := s.GetAllOf()
 	baseIdx := selectAllOfBase(branches)
 	for i, b := range branches {
 		bptr := pointer + ids.Ptr("allOf", strconv.Itoa(i))
 		if !isRefBranch(b) {
-			l.fillModelProperties(m, b.GetSchema(), bptr)
-			l.diags.AppendAll(preserveUnmergedBranch(l.ctx, m, b.GetSchema(), i, bptr))
+			diags = append(diags, fillModelProperties(c, ts, anchors, depth, m, b.GetSchema(), bptr)...)
+			diags = append(diags, preserveUnmergedBranch(c, m, b.GetSchema(), i, bptr)...)
 			continue
 		}
-		id, ok := l.resolveSchemaRef(b, b.GetRef().String())
+		id, ok, refDiags := resolveSchemaRef(c, ts, anchors, depth, b, b.GetRef().String())
+		diags = append(diags, refDiags...)
 		if !ok {
-			l.diag(ir.SeverityError, diag.UnresolvedRef, bptr,
-				"unresolved allOf $ref %q", b.GetRef().String())
+			diags = append(diags, c.diagAt(ir.SeverityError, diag.UnresolvedRef, bptr,
+				"unresolved allOf $ref %q", b.GetRef().String()))
 			continue
 		}
-		ref, homeDiags := homeDeclaration(l.ctx, l.types, &l.anchors, b.GetSchema(), ir.TypeRef{Target: id}, bptr, branchHint(b, i), annotation.HomeOwnNode)
-		l.diags.AppendAll(homeDiags)
+		ref, homeDiags := homeDeclaration(c, ts, anchors, b.GetSchema(), ir.TypeRef{Target: id}, bptr, branchHint(b, i), annotation.HomeOwnNode)
+		diags = append(diags, homeDiags...)
 		if i == baseIdx {
 			m.Base = &ref
 		} else {
 			m.Mixins = append(m.Mixins, ref)
 		}
 	}
+	return diags
 }
 
 // applyFalseBranches applies the lowering a boolean `false` allOf branch calls
@@ -437,19 +441,24 @@ func baseBranchDiscriminator(branches []*oas3.JSONSchema[oas3.Referenceable]) *o
 // collapses to nullable X (ir-design §3.3); everything else becomes a Union
 // with one Variant per branch (oneOf exclusive, anyOf not), never collapsing a
 // union into optional fields.
-func (l *lowerer) lowerOneOfAnyOf(s *oas3.Schema, pointer, hint string) ir.TypeRef {
+func lowerOneOfAnyOf(c lowerCtx, ts *compile.Types, anchors *anchorIndex, depth int, s *oas3.Schema, pointer, hint string) (ir.TypeRef, []ir.Diagnostic) {
 	if inner, ip, ih, ok := nullUnionCollapse(s, pointer, hint); ok {
-		ref := l.schemaRef(inner, ip, ih)
+		ref, diags := schemaRef(c, ts, anchors, depth, inner, ip, ih)
 		ref.Nullable = true
-		return ref
+		return ref, diags
 	}
-	tid := internNode(l.ctx, l.types, pointer, hint, func(common ir.TypeCommon) ir.TypeDef {
-		def, unionDiags := buildUnion(l.ctx, l.types, s, common, pointer, l.schemaRef)
-		l.diags.AppendAll(unionDiags)
+	var diags []ir.Diagnostic
+	tid := internNode(c, ts, pointer, hint, func(common ir.TypeCommon) ir.TypeDef {
+		def, unionDiags := buildUnion(c, ts, s, common, pointer,
+			func(b *oas3.JSONSchema[oas3.Referenceable], vptr, vhint string) ir.TypeRef {
+				ref, refDiags := schemaRef(c, ts, anchors, depth, b, vptr, vhint)
+				diags = append(diags, refDiags...)
+				return ref
+			})
+		diags = append(diags, unionDiags...)
 		return def
 	})
-
-	return ir.TypeRef{Target: tid, Nullable: schemaAdmitsNull(s)}
+	return ir.TypeRef{Target: tid, Nullable: schemaAdmitsNull(s)}, diags
 }
 
 // unionLowering names how a oneOf/anyOf co-declared with structural keywords is
@@ -538,27 +547,30 @@ func branchesNameReferents(c lowerCtx, s *oas3.Schema) bool {
 
 // lowerCoDeclaredUnion lowers a schema whose oneOf/anyOf sits beside structural
 // keywords, per classifyUnionSiblings.
-func (l *lowerer) lowerCoDeclaredUnion(s *oas3.Schema, pointer, hint string) ir.TypeID {
-	switch classifyUnionSiblings(l.ctx, s) {
+func lowerCoDeclaredUnion(c lowerCtx, ts *compile.Types, anchors *anchorIndex, depth int, s *oas3.Schema, pointer, hint string) (ir.TypeID, []ir.Diagnostic) {
+	beside := func(reason ir.UnmodeledReason, why string) (ir.TypeID, []ir.Diagnostic) {
+		return lowerBesideUnmodeledUnion(c, ts, anchors, depth, s, pointer, hint, reason, why)
+	}
+	switch classifyUnionSiblings(c, s) {
 	case unionDistributed:
-		return l.lowerDistributedUnion(s, pointer, hint)
+		return lowerDistributedUnion(c, ts, anchors, depth, s, pointer, hint)
 	case unionValidationOnly:
-		return l.lowerBesideUnmodeledUnion(s, pointer, hint, ir.ReasonValidationOnly, "")
+		return beside(ir.ReasonValidationOnly, "")
 	case unionUncomposableBody:
-		return l.lowerBesideUnmodeledUnion(s, pointer, hint, ir.ReasonDegradedLowering,
+		return beside(ir.ReasonDegradedLowering,
 			"the body is not a model, so it carries no composition to distribute into")
 	case unionBothCombinators:
-		return l.lowerBesideUnmodeledUnion(s, pointer, hint, ir.ReasonDegradedLowering,
+		return beside(ir.ReasonDegradedLowering,
 			"oneOf and anyOf are both declared, so distributing either would drop the other")
 	case unionInlineBranch:
-		return l.lowerBesideUnmodeledUnion(s, pointer, hint, ir.ReasonDegradedLowering,
+		return beside(ir.ReasonDegradedLowering,
 			"a branch is written inline, so it names no referent to conjoin the body with")
 	case unionUnresolvedBranch:
-		l.diags.AppendAll(diagUnresolvedBranches(l.ctx, s, pointer))
-		return l.lowerBesideUnmodeledUnion(s, pointer, hint, ir.ReasonDegradedLowering,
+		id, diags := beside(ir.ReasonDegradedLowering,
 			"a branch's $ref names no referent this compilation resolves")
+		return id, append(diagUnresolvedBranches(c, s, pointer), diags...)
 	default: // unionDiscriminated
-		return l.lowerBesideUnmodeledUnion(s, pointer, hint, ir.ReasonDegradedLowering,
+		return beside(ir.ReasonDegradedLowering,
 			"a declared discriminator binds the branches by name, which distributing them would break")
 	}
 }
@@ -686,20 +698,21 @@ func buildUnion(c lowerCtx, ts *compile.Types, s *oas3.Schema, common ir.TypeCom
 // `(S ∧ X) | (S ∧ Y)`. Each variant is a Model classifying S's Base/Mixins and
 // own properties (ir-design §4.3) alongside its branch, so the composition is
 // carried on every variant rather than merged into one or dropped.
-func (l *lowerer) lowerDistributedUnion(s *oas3.Schema, pointer, hint string) ir.TypeID {
-	id := internNode(l.ctx, l.types, pointer, hint, func(common ir.TypeCommon) ir.TypeDef {
+func lowerDistributedUnion(c lowerCtx, ts *compile.Types, anchors *anchorIndex, depth int, s *oas3.Schema, pointer, hint string) (ir.TypeID, []ir.Diagnostic) {
+	var diags []ir.Diagnostic
+	id := internNode(c, ts, pointer, hint, func(common ir.TypeCommon) ir.TypeDef {
 		body := composedBody{schema: s, pointer: pointer, hint: hint, id: common.ID}
-		def, unionDiags := buildUnion(l.ctx, l.types, s, common, pointer,
+		def, unionDiags := buildUnion(c, ts, s, common, pointer,
 			func(b *oas3.JSONSchema[oas3.Referenceable], vptr, vhint string) ir.TypeRef {
-				return l.composedVariant(body, b, vptr, vhint)
+				ref, variantDiags := composedVariant(c, ts, anchors, depth, body, b, vptr, vhint)
+				diags = append(diags, variantDiags...)
+				return ref
 			})
-		l.diags.AppendAll(unionDiags)
+		diags = append(diags, unionDiags...)
 		return def
 	})
-
-	l.diag(ir.SeverityInfo, diag.CompositionLowering, pointer,
-		"oneOf/anyOf co-declared with structural keywords; the composition is distributed across the union variants")
-	return id
+	return id, append(diags, c.diagAt(ir.SeverityInfo, diag.CompositionLowering, pointer,
+		"oneOf/anyOf co-declared with structural keywords; the composition is distributed across the union variants"))
 }
 
 // composedBody is the schema every distributed variant carries: the enclosing
@@ -725,16 +738,18 @@ type composedBody struct {
 // lowered first won it, so a $ref to `…/oneOf/N` anywhere in the document could
 // leave that variant as a bare alias of the branch while its siblings carried
 // the body — order-dependent, and exactly the disagreement §4.3 forbids.
-func (l *lowerer) composedVariant(body composedBody,
-	b *oas3.JSONSchema[oas3.Referenceable], vptr, vhint string) ir.TypeRef {
+func composedVariant(c lowerCtx, ts *compile.Types, anchors *anchorIndex, depth int, body composedBody,
+	b *oas3.JSONSchema[oas3.Referenceable], vptr, vhint string,
+) (ir.TypeRef, []ir.Diagnostic) {
 	// The branch lowers through the ordinary schema path, at its own pointer, so
 	// it keeps whatever it declares beside the $ref and a reference to that
 	// pointer still finds the branch rather than the variant.
-	branch := l.schemaRef(b, vptr, vhint)
+	branch, diags := schemaRef(c, ts, anchors, depth, b, vptr, vhint)
 	id := ids.ComposedType(vptr)
-	common := commonFor(l.ctx, id, vptr, body.hint+"_"+vhint)
-	l.types.Register(id, l.buildComposedVariant(body, branch.Target, common))
-	return ir.TypeRef{Target: id}
+	common := commonFor(c, id, vptr, body.hint+"_"+vhint)
+	def, variantDiags := buildComposedVariant(c, ts, anchors, depth, body, branch.Target, common)
+	ts.Register(id, def)
+	return ir.TypeRef{Target: id}, append(diags, variantDiags...)
 }
 
 // buildComposedVariant assembles the variant Model itself. Every fill reads the
@@ -742,18 +757,18 @@ func (l *lowerer) composedVariant(body composedBody,
 // and any shared additionalProperties node are the single set the source
 // declared, named after the enclosing schema rather than after whichever branch
 // happened to build them first.
-func (l *lowerer) buildComposedVariant(body composedBody, branch ir.TypeID, common ir.TypeCommon) ir.TypeDef {
+func buildComposedVariant(c lowerCtx, ts *compile.Types, anchors *anchorIndex, depth int, body composedBody, branch ir.TypeID, common ir.TypeCommon) (ir.TypeDef, []ir.Diagnostic) {
 	m := &ir.Model{TypeCommon: common}
-	l.fillAllOf(m, body.schema, body.pointer)
-	l.fillModelProperties(m, body.schema, body.pointer)
-	l.diags.AppendAll(applyCompositionRequired(l.ctx, m, body.schema, body.pointer))
-	l.fillAdditional(m, body.schema, body.pointer, body.hint)
+	diags := fillAllOf(c, ts, anchors, depth, m, body.schema, body.pointer)
+	diags = append(diags, fillModelProperties(c, ts, anchors, depth, m, body.schema, body.pointer)...)
+	diags = append(diags, applyCompositionRequired(c, m, body.schema, body.pointer)...)
+	diags = append(diags, fillAdditional(c, ts, anchors, depth, m, body.schema, body.pointer, body.hint)...)
 	conjoinBranch(m, branch)
 	// The tag is the enclosing schema's: it is what a base's mapping names, and
 	// the variants are its lowering. No discriminator of its own can be declared
 	// here — a schema that declares one is never distributed.
-	m.DiscriminatorValue = subtypeDiscriminatorValue(l.ctx, l.types, body.schema, body.id, body.pointer)
-	return m
+	m.DiscriminatorValue = subtypeDiscriminatorValue(c, ts, body.schema, body.id, body.pointer)
+	return m, diags
 }
 
 // conjoinBranch adds one union branch's referent to the variant model,

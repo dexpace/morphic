@@ -833,7 +833,7 @@ func TestModel_RefSiblingDescriptionWins(t *testing.T) {
 func TestSchemaRef_EmptyEitherIsAny(t *testing.T) {
 	t.Parallel()
 	l := newRawLowerer(&soa.OpenAPI{})
-	ref := l.schemaRef(emptyEitherSchema(), "/p", "h")
+	ref, _ := schemaRef(l.ctx, l.types, &l.anchors, 0, emptyEitherSchema(), "/p", "h")
 	assert.Equal(t, ir.TypeID("t/prim/any"), ref.Target)
 }
 
@@ -1865,7 +1865,7 @@ func TestResolveSchemaRef_ReusesInternedSubSchema(t *testing.T) {
 	l := newRawLowerer(&soa.OpenAPI{})
 	l.types.Intern(deepPointer, "t/anon/prev", func() ir.TypeDef { return &ir.Any{} })
 
-	id, ok := l.resolveSchemaRef(emptyEitherSchema(), "#"+deepPointer)
+	id, ok, _ := resolveSchemaRef(l.ctx, l.types, &l.anchors, 0, emptyEitherSchema(), "#"+deepPointer)
 	require.True(t, ok, "a $ref to an already-hoisted sub-schema reuses its ID")
 	assert.Equal(t, ir.TypeID("t/anon/prev"), id)
 }
@@ -1877,14 +1877,14 @@ func TestResolveSchemaRef_UnresolvedDeepRefDropped(t *testing.T) {
 	// node, GetResolvedSchema is nil, so the reference is dropped (ok=false).
 	js := oas3.NewJSONSchemaFromReference("#" + deepPointer)
 
-	_, ok := l.resolveSchemaRef(js, "#"+deepPointer)
+	_, ok, _ := resolveSchemaRef(l.ctx, l.types, &l.anchors, 0, js, "#"+deepPointer)
 	assert.False(t, ok, "an unresolved deep sub-schema $ref is dropped, not synthesized")
 }
 
 func TestHoistSubSchema_NilSchema(t *testing.T) {
 	t.Parallel()
 	l := newRawLowerer(&soa.OpenAPI{})
-	_, ok := l.hoistSubSchema(nil, deepPointer)
+	_, ok, _ := hoistSubSchema(l.ctx, l.types, &l.anchors, 0, nil, deepPointer)
 	assert.False(t, ok, "a nil resolved sub-schema cannot be hoisted")
 }
 
@@ -1896,7 +1896,7 @@ func TestHoistSubSchema_BodyInternsAtPointer(t *testing.T) {
 	object := oas3.NewJSONSchemaFromSchema[oas3.Referenceable](
 		&oas3.Schema{Type: oas3.NewTypeFromString(oas3.SchemaTypeObject)})
 
-	id, ok := l.hoistSubSchema(object, deepPointer)
+	id, ok, _ := hoistSubSchema(l.ctx, l.types, &l.anchors, 0, object, deepPointer)
 	require.True(t, ok)
 	assert.Equal(t, ids.AnonType(deepPointer), id)
 	seeded, _ := l.types.Lookup(deepPointer)

@@ -47,7 +47,8 @@ func (l *lowerer) lowerComponentSchemas() {
 // pointer and every $ref to it would dangle (invariants 1 and 2).
 func (l *lowerer) lowerComponentSchema(js *oas3.JSONSchema[oas3.Referenceable], pointer, name string) {
 	s := annotation.At(js)
-	ref := l.schemaRef(js, pointer, name)
+	ref, refDiags := schemaRef(l.ctx, l.types, &l.anchors, 0, js, pointer, name)
+	l.diags.AppendAll(refDiags)
 	// A body that interned the component's own node at its component ID needs no
 	// alias, and its annotations were attached where it was lowered.
 	if _, owned := l.types.Lookup(pointer); owned {
@@ -179,10 +180,10 @@ func internAlias(c lowerCtx, ts *compile.Types, pointer, hint string,
 // pointer. It is shared by schemaRef and by sub-schema hoisting
 // (resolveSchemaRef), which both reach a body only after peeling off any
 // leading $ref.
-func (l *lowerer) schemaBody(schema *oas3.Schema, pointer, hint string, home annotation.Home) ir.TypeRef {
-	ref, diags := homeDeclaration(l.ctx, l.types, &l.anchors, schema, l.lowerSchemaBody(schema, pointer, hint), pointer, hint, home)
-	l.diags.AppendAll(diags)
-	return ref
+func schemaBody(c lowerCtx, ts *compile.Types, anchors *anchorIndex, depth int, schema *oas3.Schema, pointer, hint string, home annotation.Home) (ir.TypeRef, []ir.Diagnostic) {
+	target, diags := lowerSchemaBody(c, ts, anchors, depth, schema, pointer, hint)
+	ref, homeDiags := homeDeclaration(c, ts, anchors, schema, target, pointer, hint, home)
+	return ref, append(diags, homeDiags...)
 }
 
 // hoistDeclarationHome gives a declaration a node of its own when its lowering
@@ -296,24 +297,23 @@ func declaresValidationOnly(s *oas3.Schema) bool {
 
 // lowerSchemaBody lowers the body itself, handling the $dynamicRef expansion and
 // the oneOf/anyOf dispatch that precede structural lowering.
-func (l *lowerer) lowerSchemaBody(schema *oas3.Schema, pointer, hint string) ir.TypeRef {
-	target, _, expanded, expansionDiags := dynamicExpansion(l.ctx, &l.anchors, schema, pointer)
-	l.diags.AppendAll(expansionDiags)
+func lowerSchemaBody(c lowerCtx, ts *compile.Types, anchors *anchorIndex, depth int, schema *oas3.Schema, pointer, hint string) (ir.TypeRef, []ir.Diagnostic) {
+	target, _, expanded, diags := dynamicExpansion(c, anchors, schema, pointer)
 	if expanded {
-		l.diag(ir.SeverityInfo, diag.DynamicRefExpanded, pointer+ids.Ptr("$dynamicRef"),
-			"$dynamicRef expanded to %q, the one matching $dynamicAnchor in this document", target)
-		return ir.TypeRef{Target: target, Nullable: schemaAdmitsNull(schema)}
+		diags = append(diags, c.diagAt(ir.SeverityInfo, diag.DynamicRefExpanded, pointer+ids.Ptr("$dynamicRef"),
+			"$dynamicRef expanded to %q, the one matching $dynamicAnchor in this document", target))
+		return ir.TypeRef{Target: target, Nullable: schemaAdmitsNull(schema)}, diags
 	}
 	if len(schema.GetOneOf()) > 0 || len(schema.GetAnyOf()) > 0 {
 		if hasUnionSiblings(schema) {
-			return ir.TypeRef{
-				Target:   l.lowerCoDeclaredUnion(schema, pointer, hint),
-				Nullable: schemaAdmitsNull(schema),
-			}
+			id, unionDiags := lowerCoDeclaredUnion(c, ts, anchors, depth, schema, pointer, hint)
+			return ir.TypeRef{Target: id, Nullable: schemaAdmitsNull(schema)}, append(diags, unionDiags...)
 		}
-		return l.lowerOneOfAnyOf(schema, pointer, hint)
+		ref, unionDiags := lowerOneOfAnyOf(c, ts, anchors, depth, schema, pointer, hint)
+		return ref, append(diags, unionDiags...)
 	}
-	return ir.TypeRef{Target: l.lower(schema, pointer, hint), Nullable: schemaAdmitsNull(schema)}
+	id, bodyDiags := lower(c, ts, anchors, depth, schema, pointer, hint)
+	return ir.TypeRef{Target: id, Nullable: schemaAdmitsNull(schema)}, append(diags, bodyDiags...)
 }
 
 // hasUnionSiblings reports whether a oneOf/anyOf schema also carries structural
@@ -362,17 +362,16 @@ func declaresShape(s *oas3.Schema) bool {
 // structural shape nor the union is dropped. reason says which kind of union it
 // is and why says what stopped a classified lowering; classifyUnionSiblings
 // picks both.
-func (l *lowerer) lowerBesideUnmodeledUnion(s *oas3.Schema, pointer, hint string, reason ir.UnmodeledReason, why string) ir.TypeID {
-	inner := l.lower(s, pointer, hint)
+func lowerBesideUnmodeledUnion(c lowerCtx, ts *compile.Types, anchors *anchorIndex, depth int, s *oas3.Schema, pointer, hint string, reason ir.UnmodeledReason, why string) (ir.TypeID, []ir.Diagnostic) {
+	inner, diags := lower(c, ts, anchors, depth, s, pointer, hint)
 	owner := inner
-	if got, _ := l.types.Lookup(pointer); got != inner {
+	if got, _ := ts.Lookup(pointer); got != inner {
 		// The structural body reduced to a shared/aliased target; hoist an alias
 		// so the preserved union attaches to a node this pointer owns, never to a
 		// shared primitive.
-		owner = internAlias(l.ctx, l.types, pointer, hint, ir.TypeRef{Target: inner}, nil)
+		owner = internAlias(c, ts, pointer, hint, ir.TypeRef{Target: inner}, nil)
 	}
-	l.diags.AppendAll(preserveUnionSiblings(l.ctx, l.types, owner, s, pointer, reason, why))
-	return owner
+	return owner, append(diags, preserveUnionSiblings(c, ts, owner, s, pointer, reason, why)...)
 }
 
 // preserveUnionSiblings stores the raw oneOf/anyOf of s under the owning node's
@@ -430,19 +429,19 @@ func falseSchema(c lowerCtx, ts *compile.Types, pointer, hint string) (ir.TypeID
 // type set. const hoists through hoistLiteral — the same primitive that
 // hoists each individual member of a heterogeneous enum (enumAsUnion) — since
 // a bare `const` schema is exactly a Literal at its own pointer.
-func (l *lowerer) lower(s *oas3.Schema, pointer, hint string) ir.TypeID {
-	if c := s.GetConst(); c != nil {
-		lit, litDiags := hoistLiteral(l.ctx, l.types, c, pointer, hint)
-		l.diags.AppendAll(litDiags)
-		return l.unhomed(s, pointer, hint, lit)
+func lower(c lowerCtx, ts *compile.Types, anchors *anchorIndex, depth int, s *oas3.Schema, pointer, hint string) (ir.TypeID, []ir.Diagnostic) {
+	unhomed := func(id ir.TypeID, diags []ir.Diagnostic) (ir.TypeID, []ir.Diagnostic) {
+		owner, ownDiags := preserveUnhomedKeywords(c, ts, s, pointer, hint, id)
+		return owner, append(diags, ownDiags...)
+	}
+	if constVal := s.GetConst(); constVal != nil {
+		return unhomed(hoistLiteral(c, ts, constVal, pointer, hint))
 	}
 	if len(s.GetEnum()) > 0 {
-		enumID, enumDiags := lowerEnum(l.ctx, l.types, s, pointer, hint)
-		l.diags.AppendAll(enumDiags)
-		return l.unhomed(s, pointer, hint, enumID)
+		return unhomed(lowerEnum(c, ts, s, pointer, hint))
 	}
 	if len(s.GetAllOf()) > 0 {
-		return l.unhomed(s, pointer, hint, l.lowerAllOf(s, pointer, hint))
+		return unhomed(lowerAllOf(c, ts, anchors, depth, s, pointer, hint))
 	}
 	types := effectiveTypes(s)
 	switch {
@@ -452,21 +451,12 @@ func (l *lowerer) lower(s *oas3.Schema, pointer, hint string) ir.TypeID {
 		// in another: `{type: [string, object], properties: {...}}` puts the
 		// property set on the object variant. The homes here are the variants',
 		// not the Union's, so the applicator check does not apply.
-		return l.lowerUnion(s, pointer, hint, types)
+		return lowerUnion(c, ts, anchors, depth, s, pointer, hint, types)
 	case len(types) == 1:
-		return l.unhomed(s, pointer, hint, l.lowerTyped(s, pointer, hint, types[0]))
+		return unhomed(lowerTyped(c, ts, anchors, depth, s, pointer, hint, types[0]))
 	default:
-		return l.unhomed(s, pointer, hint, l.lowerUntyped(s, pointer, hint))
+		return unhomed(lowerUntyped(c, ts, anchors, depth, s, pointer, hint))
 	}
-}
-
-// unhomed is lower's one-line adapter onto preserveUnhomedKeywords: every arm
-// of the switch above ends the same way, and the accumulator is still the
-// lowerer's until the schema walk itself converts.
-func (l *lowerer) unhomed(s *oas3.Schema, pointer, hint string, id ir.TypeID) ir.TypeID {
-	owner, diags := preserveUnhomedKeywords(l.ctx, l.types, s, pointer, hint, id)
-	l.diags.AppendAll(diags)
-	return owner
 }
 
 // shapeApplicators are the JSON Schema applicator keywords that constrain
@@ -604,39 +594,40 @@ func recordUnhomedKeywords(c lowerCtx, ts *compile.Types, owner ir.TypeID, s *oa
 }
 
 // lowerTyped dispatches a single-typed schema to its structural or scalar form.
-func (l *lowerer) lowerTyped(s *oas3.Schema, pointer, hint string, st oas3.SchemaType) ir.TypeID {
+func lowerTyped(c lowerCtx, ts *compile.Types, anchors *anchorIndex, depth int, s *oas3.Schema, pointer, hint string, st oas3.SchemaType) (ir.TypeID, []ir.Diagnostic) {
 	switch st {
 	case oas3.SchemaTypeObject:
-		return l.lowerModel(s, pointer, hint)
+		return lowerModel(c, ts, anchors, depth, s, pointer, hint)
 	case oas3.SchemaTypeArray:
-		return l.lowerArray(s, pointer, hint)
+		return lowerArray(c, ts, anchors, depth, s, pointer, hint)
 	default:
-		id, scalarDiags := scalarTypeID(l.ctx, l.types, s, st, pointer, hint)
-		l.diags.AppendAll(scalarDiags)
-		return id
+		return scalarTypeID(c, ts, s, st, pointer, hint)
 	}
 }
 
 // lowerUntyped handles a schema with no declared type: a property set makes it a
 // model; enum/const and composition are lowered by later passes; anything else
 // is schemaless.
-func (l *lowerer) lowerUntyped(s *oas3.Schema, pointer, hint string) ir.TypeID {
+func lowerUntyped(c lowerCtx, ts *compile.Types, anchors *anchorIndex, depth int, s *oas3.Schema, pointer, hint string) (ir.TypeID, []ir.Diagnostic) {
 	if props := s.GetProperties(); props != nil && props.Len() > 0 {
-		return l.lowerModel(s, pointer, hint)
+		return lowerModel(c, ts, anchors, depth, s, pointer, hint)
 	}
-	return l.types.PrimID(ir.PrimAny)
+	return ts.PrimID(ir.PrimAny), nil
 }
 
 // lowerUnion hoists a multi-typed schema (e.g. type: [string, integer]) as an
 // exclusive, untagged union with one variant per declared type.
-func (l *lowerer) lowerUnion(s *oas3.Schema, pointer, hint string, types []oas3.SchemaType) ir.TypeID {
-	return internNode(l.ctx, l.types, pointer, hint, func(common ir.TypeCommon) ir.TypeDef {
+func lowerUnion(c lowerCtx, ts *compile.Types, anchors *anchorIndex, depth int, s *oas3.Schema, pointer, hint string, types []oas3.SchemaType) (ir.TypeID, []ir.Diagnostic) {
+	var diags []ir.Diagnostic
+	id := internNode(c, ts, pointer, hint, func(common ir.TypeCommon) ir.TypeDef {
 		variants := make([]ir.Variant, 0, len(types))
 		for i, st := range types {
 			vptr := pointer + ids.Ptr("type", strconv.Itoa(i))
+			vid, vDiags := lowerTyped(c, ts, anchors, depth, s, vptr, hint, st)
+			diags = append(diags, vDiags...)
 			variants = append(variants, ir.Variant{
 				Name: ir.Naming{Hint: string(st)},
-				Type: ir.TypeRef{Target: l.lowerTyped(s, vptr, hint, st)},
+				Type: ir.TypeRef{Target: vid},
 			})
 		}
 		return &ir.Union{
@@ -645,7 +636,7 @@ func (l *lowerer) lowerUnion(s *oas3.Schema, pointer, hint string, types []oas3.
 			Exclusive:  true,
 		}
 	})
-
+	return id, diags
 }
 
 // lowerModel hoists an object schema as a Model. This task lowers only the
@@ -656,48 +647,53 @@ func (l *lowerer) lowerUnion(s *oas3.Schema, pointer, hint string, types []oas3.
 // Cardinality is read here rather than on lowerComponentSchema's internAlias
 // fallback because an object-shaped schema owns its node before that fallback
 // would run, so the fallback never fires for one (GitHub #129).
-func (l *lowerer) lowerModel(s *oas3.Schema, pointer, hint string) ir.TypeID {
-	return internNode(l.ctx, l.types, pointer, hint, func(common ir.TypeCommon) ir.TypeDef {
-		cons, consDiags := schemaConstraints(l.ctx, s, pointer)
-		l.diags.AppendAll(consDiags)
+func lowerModel(c lowerCtx, ts *compile.Types, anchors *anchorIndex, depth int, s *oas3.Schema, pointer, hint string) (ir.TypeID, []ir.Diagnostic) {
+	var diags []ir.Diagnostic
+	id := internNode(c, ts, pointer, hint, func(common ir.TypeCommon) ir.TypeDef {
+		cons, consDiags := schemaConstraints(c, s, pointer)
+		diags = append(diags, consDiags...)
 		m := &ir.Model{TypeCommon: common, Constraints: cons}
-		l.fillModelProperties(m, s, pointer)
-		l.fillAdditional(m, s, pointer, hint)
-		d, discDiags := lowerDiscriminator(l.ctx, l.types, s, m, pointer)
-		l.diags.AppendAll(discDiags)
+		diags = append(diags, fillModelProperties(c, ts, anchors, depth, m, s, pointer)...)
+		diags = append(diags, fillAdditional(c, ts, anchors, depth, m, s, pointer, hint)...)
+		d, discDiags := lowerDiscriminator(c, ts, s, m, pointer)
+		diags = append(diags, discDiags...)
 		if d != nil {
 			m.Discriminator = d
 		}
 		return m
 	})
-
+	return id, diags
 }
 
 // fillModelProperties lowers a model's own properties in source order, each with
 // its full property-level detail (constraints, visibility, defaults, docs, ...).
-func (l *lowerer) fillModelProperties(m *ir.Model, s *oas3.Schema, pointer string) {
+func fillModelProperties(c lowerCtx, ts *compile.Types, anchors *anchorIndex, depth int, m *ir.Model, s *oas3.Schema, pointer string) []ir.Diagnostic {
 	props := s.GetProperties()
 	if props == nil {
-		return
+		return nil
 	}
+	var diags []ir.Diagnostic
 	required := requiredSet(s.GetRequired())
 	byWire := merge.WireNameIndex(m.Properties)
 	for name, js := range props.All() {
 		ppointer := pointer + ids.Ptr("properties", name)
+		ref, refDiags := carriedSchemaRef(c, ts, anchors, depth, js, ppointer, name)
+		diags = append(diags, refDiags...)
 		p := ir.Property{
 			ID:         ids.Prop(ppointer),
 			Name:       compile.NamingFor(name),
 			WireName:   name,
-			Type:       l.carriedSchemaRef(js, ppointer, name),
+			Type:       ref,
 			Required:   required[name],
-			Provenance: l.ctx.provenanceAt(ppointer),
+			Provenance: c.provenanceAt(ppointer),
 		}
-		l.diags.AppendAll(fillPropertyDetail(l.ctx, l.types, &l.anchors, &p, js, ppointer))
+		diags = append(diags, fillPropertyDetail(c, ts, anchors, &p, js, ppointer)...)
 		var mergeDiags []ir.Diagnostic
-		mg := merger(l.ctx, l.types, &mergeDiags)
+		mg := merger(c, ts, &mergeDiags)
 		mg.MergeProperty(m, byWire, p, ppointer)
-		l.diags.AppendAll(mergeDiags)
+		diags = append(diags, mergeDiags...)
 	}
+	return diags
 }
 
 // fillPropertyDetail enriches a property from its schema: the property-scoped
@@ -853,39 +849,46 @@ func attachDeclaredAnnotations(c lowerCtx, ts *compile.Types, anchors *anchorInd
 
 // fillAdditional lowers additionalProperties, patternProperties, and
 // unevaluatedProperties into the model's openness and catch-all shape.
-func (l *lowerer) fillAdditional(m *ir.Model, s *oas3.Schema, pointer, hint string) {
+func fillAdditional(c lowerCtx, ts *compile.Types, anchors *anchorIndex, depth int, m *ir.Model, s *oas3.Schema, pointer, hint string) []ir.Diagnostic {
+	var diags []ir.Diagnostic
 	ap := s.GetAdditionalProperties()
 	switch {
 	case annotation.IsFalseSchema(ap):
 		m.Additional = ir.AdditionalClosed
 	case ap != nil && !ap.IsBool():
-		ref := l.schemaRef(ap, pointer+ids.Ptr("additionalProperties"), hint+"_value")
+		ref, refDiags := schemaRef(c, ts, anchors, depth, ap, pointer+ids.Ptr("additionalProperties"), hint+"_value")
+		diags = append(diags, refDiags...)
 		m.AdditionalProps = &ir.AdditionalProps{Value: ref}
 	}
-	if patterns := l.patternProps(s, pointer, hint); len(patterns) > 0 {
+	patterns, patternDiags := patternProps(c, ts, anchors, depth, s, pointer, hint)
+	diags = append(diags, patternDiags...)
+	if len(patterns) > 0 {
 		if m.AdditionalProps == nil {
-			m.AdditionalProps = &ir.AdditionalProps{Value: l.types.PrimRef(ir.PrimAny)}
+			m.AdditionalProps = &ir.AdditionalProps{Value: ts.PrimRef(ir.PrimAny)}
 		}
 		m.AdditionalProps.Patterns = patterns
 	}
 	if annotation.IsFalseSchema(s.GetUnevaluatedProperties()) {
 		m.Additional = ir.AdditionalClosedAfterComposition
 	}
+	return diags
 }
 
 // patternProps lowers patternProperties into pattern/value bindings in source
 // order.
-func (l *lowerer) patternProps(s *oas3.Schema, pointer, hint string) []ir.PatternProps {
+func patternProps(c lowerCtx, ts *compile.Types, anchors *anchorIndex, depth int, s *oas3.Schema, pointer, hint string) ([]ir.PatternProps, []ir.Diagnostic) {
 	pp := s.GetPatternProperties()
 	if pp == nil || pp.Len() == 0 {
-		return nil
+		return nil, nil
 	}
+	var diags []ir.Diagnostic
 	out := make([]ir.PatternProps, 0, pp.Len())
 	for pattern, js := range pp.All() {
-		ref := l.schemaRef(js, pointer+ids.Ptr("patternProperties", pattern), hint+"_pattern")
+		ref, refDiags := schemaRef(c, ts, anchors, depth, js, pointer+ids.Ptr("patternProperties", pattern), hint+"_pattern")
+		diags = append(diags, refDiags...)
 		out = append(out, ir.PatternProps{Pattern: pattern, Value: ref})
 	}
-	return out
+	return out, diags
 }
 
 // buildTuple lowers prefixItems into a Tuple. A trailing `items` schema makes
@@ -894,22 +897,25 @@ func (l *lowerer) patternProps(s *oas3.Schema, pointer, hint string) []ir.Patter
 // homogeneous, and there is no node that is both. The head lowers to a Tuple,
 // which is the documented weaker shape, and the tail is kept beside it so the
 // arity the Tuple now asserts falsely stays recoverable (ir-design §4.8).
-func (l *lowerer) buildTuple(s *oas3.Schema, common ir.TypeCommon, pointer, hint string, prefix []*oas3.JSONSchema[oas3.Referenceable]) ir.TypeDef {
+func buildTuple(c lowerCtx, ts *compile.Types, anchors *anchorIndex, depth int, s *oas3.Schema, common ir.TypeCommon, pointer, hint string, prefix []*oas3.JSONSchema[oas3.Referenceable]) (ir.TypeDef, []ir.Diagnostic) {
+	var diags []ir.Diagnostic
 	elems := make([]ir.TypeRef, 0, len(prefix))
 	for i, ps := range prefix {
-		elems = append(elems, l.schemaRef(ps, pointer+ids.Ptr("prefixItems", strconv.Itoa(i)), hint+"_"+strconv.Itoa(i)))
+		ref, refDiags := schemaRef(c, ts, anchors, depth, ps, pointer+ids.Ptr("prefixItems", strconv.Itoa(i)), hint+"_"+strconv.Itoa(i))
+		diags = append(diags, refDiags...)
+		elems = append(elems, ref)
 	}
 	t := &ir.Tuple{TypeCommon: common, Elems: elems}
 	if s.GetItems() == nil {
-		return t
+		return t, diags
 	}
-	kept, keptDiags := preserveNode(l.ctx, &t.Unmodeled, "openapi:items-after-prefix", annotation.RawPropertyNode(s, "items"), ir.ReasonDegradedLowering, pointer+ids.Ptr("items"))
-	l.diags.AppendAll(keptDiags)
+	kept, keptDiags := preserveNode(c, &t.Unmodeled, "openapi:items-after-prefix", annotation.RawPropertyNode(s, "items"), ir.ReasonDegradedLowering, pointer+ids.Ptr("items"))
+	diags = append(diags, keptDiags...)
 	if kept {
-		l.diag(ir.SeverityInfo, diag.DegradedConstruct, pointer,
-			"items after prefixItems is an open tuple; lowered as a fixed-arity Tuple with the tail kept under Unmodeled")
+		diags = append(diags, c.diagAt(ir.SeverityInfo, diag.DegradedConstruct, pointer,
+			"items after prefixItems is an open tuple; lowered as a fixed-arity Tuple with the tail kept under Unmodeled"))
 	}
-	return t
+	return t, diags
 }
 
 // scalarTypeID maps a scalar (type, format) pair to a TypeID via formatTable: a
