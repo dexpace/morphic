@@ -1,0 +1,10 @@
+morphic: unknown command "bogus"
+usage:
+  morphic <command> [flags]
+
+morphic lowers an API spec into Morphic IR.
+
+commands:
+  compile   lower an API spec (OpenAPI 3.x) into Morphic IR JSON
+
+run "morphic help <command>" for command details.
