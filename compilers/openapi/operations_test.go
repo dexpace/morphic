@@ -1597,3 +1597,26 @@ func TestOperations_DistinctOperationIDsClean(t *testing.T) {
 `))
 	assert.False(t, hasDiag(diags, diag.DuplicateOperationID))
 }
+
+// TestOperation_UnserializableExtensionStillWarns pins the operation's half of
+// what TestAuth_UnserializableExtensionStillWarns pins for a security scheme: an
+// x-* extension that cannot be serialized is announced even though nothing of it
+// is kept, so the operation's own Unmodeled ends up empty.
+//
+// The warning and the entry travel separately, and only the entry is gated on
+// being non-empty. Recording one without the other is the shape this catches —
+// an operation that quietly loses an extension it could not represent.
+func TestOperation_UnserializableExtensionStillWarns(t *testing.T) {
+	t.Parallel()
+	spec := pathsSpec(`  /x:
+    get:
+      x-bad: {1: intkey}
+      responses: {"200": {description: ok}}
+`)
+	doc, diags := parseFull(t, spec)
+
+	assert.NotZero(t, countDiagsAt(diags, diag.DegradedConstruct, ir.SeverityWarning),
+		"an unserializable operation extension is announced: %+v", diags)
+	op := doc.Services[0].Groups[0].Operations[0]
+	assert.Empty(t, op.Unmodeled, "and is dropped rather than stored half-converted")
+}

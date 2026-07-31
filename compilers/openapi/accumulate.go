@@ -30,21 +30,25 @@ import (
 // into a pointer only on the failure path, so an example that converts builds no
 // pointer string at all. Shared by every example site: schema (schemaExamples),
 // media type, header, and parameter (exampleList).
-func (l *lowerer) appendExample(out []ir.Example, proto ir.Example, node *yaml.Node, base string, seg ...string) []ir.Example {
+func appendExample(c lowerCtx, out []ir.Example, proto ir.Example, node *yaml.Node,
+	base string, seg ...string,
+) ([]ir.Example, []ir.Diagnostic) {
 	v, err := value.FromNode(node)
 	if err != nil {
-		l.diag(ir.SeverityWarning, diag.DegradedConstruct, base+ids.Ptr(seg...), "example: %s", err.Error())
-		return out
+		return out, []ir.Diagnostic{c.diagAt(ir.SeverityWarning, diag.DegradedConstruct,
+			base+ids.Ptr(seg...), "example: %s", err.Error())}
 	}
 	proto.Value = &v
-	return append(out, proto)
+	return append(out, proto), nil
 }
 
 // preserve records raw under key in *p with why it was kept and where it was
 // written, allocating the map on first write. An absent or unconvertible
 // payload records nothing, so no caller needs a nil guard of its own.
-func (l *lowerer) preserve(p *ir.Unmodeled, key string, raw ir.RawValue, reason ir.UnmodeledReason, pointer string) {
-	annotation.PreserveInto(p, key, raw, reason, pointer, l.ctx.SrcIndex)
+func preserve(c lowerCtx, p *ir.Unmodeled, key string, raw ir.RawValue,
+	reason ir.UnmodeledReason, pointer string,
+) {
+	annotation.PreserveInto(p, key, raw, reason, pointer, c.SrcIndex)
 }
 
 // preserveNode records the construct written at node under key in *p, reporting
@@ -75,8 +79,10 @@ func (l *lowerer) preserveSchemaKeyword(p *ir.Unmodeled, s *oas3.Schema, keyword
 // against: the keyword's own node where the source writes the entry as one
 // keyword, and declPtr where a §4.7 entry combines several keywords into one
 // synthesized object that no single node addresses.
-func (l *lowerer) preserveKeyword(p *ir.Unmodeled, key string, raw ir.RawValue, declPtr, entryPtr, label string) {
-	l.diags.AppendAll(annotation.PreserveKeywordInto(p, key, raw, declPtr, entryPtr, label, l.ctx.SrcIndex))
+func preserveKeyword(c lowerCtx, p *ir.Unmodeled, key string, raw ir.RawValue,
+	declPtr, entryPtr, label string,
+) []ir.Diagnostic {
+	return annotation.PreserveKeywordInto(p, key, raw, declPtr, entryPtr, label, c.SrcIndex)
 }
 
 // diag records one diagnostic at pointer with the given severity and code. It is
@@ -133,8 +139,6 @@ func (l *lowerer) lowerArray(s *oas3.Schema, pointer, hint string) ir.TypeID {
 // same "len(ext) > 0" that guards the assignment would drop every warning on an
 // object whose extensions all failed to serialize — exactly when the result is
 // empty.
-func (l *lowerer) extensions(ext *extensions.Extensions, owner string) ir.Unmodeled {
-	out, diags := annotation.ExtensionsFrom(ext, l.ctx.SrcIndex, owner)
-	l.diags.AppendAll(diags)
-	return out
+func extensionsOf(c lowerCtx, ext *extensions.Extensions, owner string) (ir.Unmodeled, []ir.Diagnostic) {
+	return annotation.ExtensionsFrom(ext, c.SrcIndex, owner)
 }

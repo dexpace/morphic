@@ -372,10 +372,11 @@ func (l *lowerer) preserveUnionSiblings(id ir.TypeID, s *oas3.Schema, pointer st
 			continue
 		}
 		if reason == ir.ReasonValidationOnly {
-			l.preserveKeyword(&c.Unmodeled, "openapi:"+kw, raw, pointer, pointer+ids.Ptr(kw), kw)
+			l.diags.AppendAll(preserveKeyword(l.ctx, &c.Unmodeled, "openapi:"+kw, raw,
+				pointer, pointer+ids.Ptr(kw), kw))
 			continue
 		}
-		l.preserve(&c.Unmodeled, "openapi:"+kw, raw, reason, pointer+ids.Ptr(kw))
+		preserve(l.ctx, &c.Unmodeled, "openapi:"+kw, raw, reason, pointer+ids.Ptr(kw))
 		kept = kept || len(raw) > 0
 	}
 	if reason == ir.ReasonValidationOnly || !kept {

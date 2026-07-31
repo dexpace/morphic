@@ -60,7 +60,9 @@ func (l *lowerer) lowerContent(mt string, media *soa.MediaType, pointer, hint st
 		}
 	}
 	l.fillSequential(&c, media, mediaPtr, hint)
-	if ext := l.extensions(media.GetExtensions(), mediaPtr); len(ext) > 0 {
+	ext, extDiags := extensionsOf(l.ctx, media.GetExtensions(), mediaPtr)
+	l.diags.AppendAll(extDiags)
+	if len(ext) > 0 {
 		c.Unmodeled = annotation.MergeUnmodeled(c.Unmodeled, ext)
 	}
 	return c
@@ -417,7 +419,9 @@ func (l *lowerer) applyHeaderAnnotations(p *ir.Property, h *soa.Header, hdecl st
 	if ex := l.exampleList(h.GetExample(), h.GetExamples(), hdecl); len(ex) > 0 {
 		p.Examples = ex
 	}
-	p.Unmodeled = annotation.MergeUnmodeled(p.Unmodeled, l.extensions(h.GetExtensions(), hdecl))
+	hExt, hExtDiags := extensionsOf(l.ctx, h.GetExtensions(), hdecl)
+	l.diags.AppendAll(hExtDiags)
+	p.Unmodeled = annotation.MergeUnmodeled(p.Unmodeled, hExt)
 }
 
 // mediaExamples lowers a media type's single and plural example values.
@@ -432,7 +436,9 @@ func (l *lowerer) mediaExamples(media *soa.MediaType, pointer string) []ir.Examp
 func (l *lowerer) exampleList(single *yaml.Node, plural *sequencedmap.Map[string, *soa.ReferencedExample], pointer string) []ir.Example {
 	var out []ir.Example
 	if single != nil {
-		out = l.appendExample(out, ir.Example{}, single, pointer, "example")
+		var exDiags []ir.Diagnostic
+		out, exDiags = appendExample(l.ctx, out, ir.Example{}, single, pointer, "example")
+		l.diags.AppendAll(exDiags)
 	}
 	if plural == nil {
 		return out
@@ -467,9 +473,13 @@ func (l *lowerer) appendPluralExample(out []ir.Example, re *soa.ReferencedExampl
 		return l.appendValuelessExample(out, proto, pointer, name)
 	}
 	if re.IsReference() {
-		return l.appendExample(out, proto, node, pointer, "examples", name)
+		got, diags := appendExample(l.ctx, out, proto, node, pointer, "examples", name)
+		l.diags.AppendAll(diags)
+		return got
 	}
-	return l.appendExample(out, proto, node, pointer, "examples", name, "value")
+	got, diags := appendExample(l.ctx, out, proto, node, pointer, "examples", name, "value")
+	l.diags.AppendAll(diags)
+	return got
 }
 
 // appendValuelessExample records an entry that declares no inline `value`. The
@@ -504,8 +514,9 @@ func (l *lowerer) lowerRequestBody(op *ir.Operation, hb *ir.HTTPBinding, src *so
 		return
 	}
 	if !rb.GetRequired() {
-		l.preserve(&payload.Unmodeled, "openapi:required", ir.RawValue("false"),
+		preserve(l.ctx, &payload.Unmodeled, "openapi:required", ir.RawValue("false"),
 			ir.ReasonNoIRHome, bodyPtr+ids.Ptr("required"))
+
 		l.diag(ir.SeverityInfo, diag.DegradedConstruct, bodyPtr,
 			"request body is not required; optionality kept under Unmodeled")
 	}

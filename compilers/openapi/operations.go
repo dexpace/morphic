@@ -316,7 +316,9 @@ func fillOperationDocs(d *ir.Docs, src *soa.Operation) {
 // operationExtensions lowers an operation's x-* extensions into namespaced
 // Unmodeled entries.
 func (l *lowerer) operationExtensions(src *soa.Operation, declPtr string) ir.Unmodeled {
-	return l.extensions(src.GetExtensions(), declPtr)
+	ext, diags := extensionsOf(l.ctx, src.GetExtensions(), declPtr)
+	l.diags.AppendAll(diags)
+	return ext
 }
 
 // applyPathServers preserves path-item-level servers verbatim under Unmodeled
