@@ -1245,7 +1245,7 @@ func TestPropIDByWire_DeadEnds(t *testing.T) {
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			id, ok := l.propIDByWire(tc.body, "file", 0)
+			id, ok := propIDByWire(l.types, tc.body, "file", 0)
 			assert.False(t, ok, "no property with that wire name stands behind this body")
 			assert.Empty(t, id, "and no ID is invented for one")
 		})

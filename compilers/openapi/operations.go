@@ -367,10 +367,12 @@ func (l *lowerer) lowerResponses(src *soa.Operation, opDeclPtr string) ([]ir.Res
 // lowerResponse lowers one success response: its status condition, payload (all
 // media types), headers, docs, and any raw links preserved for later promotion.
 func (l *lowerer) lowerResponse(r *soa.Response, rng ir.StatusRange, rptr string) ir.Response {
+	headers, headerDiags := lowerHeaders(l.ctx, l.types, &l.anchors, r.GetHeaders(), rptr)
+	l.diags.AppendAll(headerDiags)
 	resp := ir.Response{
 		Conditions: ir.ResponseConditions{StatusCodes: []ir.StatusRange{rng}},
 		Payload:    l.lowerPayload(r.GetContent(), rptr, "response"),
-		Headers:    l.lowerHeaders(r.GetHeaders(), rptr),
+		Headers:    headers,
 	}
 	resp.Docs.Description = r.GetDescription()
 	_, linkDiags := preserveNode(l.ctx, &resp.Unmodeled, "openapi:links",
