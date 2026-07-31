@@ -5,6 +5,7 @@ import (
 	oas3 "github.com/speakeasy-api/openapi/jsonschema/oas3"
 	yaml "gopkg.in/yaml.v3"
 
+	"github.com/dexpace/morphic/compilers/compile"
 	"github.com/dexpace/morphic/compilers/openapi/internal/annotation"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/ids"
@@ -17,10 +18,12 @@ import (
 //
 // It lived in schema.go, which made every file that reports a diagnostic look
 // like it depended on schema lowering. Most did not: with it moved, operations
-// reaches nothing in schema.go at all, content reaches one symbol and parameters
-// two. Those three are real schema lowering and are what the upper layer still
-// waits on; the rest of the apparent coupling was this, filed in the wrong
-// place.
+// reaches nothing in schema.go, and content and parameters reach one symbol each
+// — fillPropertyDetail and loweredToOwnNode. Naming them rather than counting
+// them is deliberate: the count was two when this was written and went stale
+// silently when residueKeywords was deleted. Those are real schema lowering and
+// are what the upper layer still waits on; the rest of the apparent coupling was
+// this, filed in the wrong place.
 
 // appendExample converts node into proto's value and appends the result to out;
 // an unconvertible node is skipped and yields a warning diagnostic for the
@@ -116,19 +119,23 @@ func (l *lowerer) appendDiag(d ir.Diagnostic) { l.diags.Append(d) }
 
 // lowerArray hoists an array schema as a Tuple when prefixItems is present, else
 // a List over its item schema with its collection constraints.
-func (l *lowerer) lowerArray(s *oas3.Schema, pointer, hint string) ir.TypeID {
-	return internNode(l.ctx, l.types, pointer, hint, func(common ir.TypeCommon) ir.TypeDef {
+func lowerArray(c lowerCtx, ts *compile.Types, anchors *anchorIndex, depth int, s *oas3.Schema, pointer, hint string) (ir.TypeID, []ir.Diagnostic) {
+	var diags []ir.Diagnostic
+	id := internNode(c, ts, pointer, hint, func(common ir.TypeCommon) ir.TypeDef {
 		if prefix := s.GetPrefixItems(); len(prefix) > 0 {
-			return l.buildTuple(s, common, pointer, hint, prefix)
+			t, tupleDiags := buildTuple(c, ts, anchors, depth, s, common, pointer, hint, prefix)
+			diags = append(diags, tupleDiags...)
+			return t
 		}
-		list := &ir.List{
+		elem, elemDiags := schemaRef(c, ts, anchors, depth, s.GetItems(), pointer+ids.Ptr("items"), hint+"_item")
+		diags = append(diags, elemDiags...)
+		return &ir.List{
 			TypeCommon:  common,
-			Elem:        l.schemaRef(s.GetItems(), pointer+ids.Ptr("items"), hint+"_item"),
+			Elem:        elem,
 			Constraints: listConstraints(s),
 		}
-		return list
 	})
-
+	return id, diags
 }
 
 // extensionsOf lowers ext's x-* extensions into namespaced Unmodeled, returning

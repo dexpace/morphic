@@ -13,16 +13,20 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// lowererRecursions are every set of lowerer methods that call each other, and
-// why each set is allowed to.
+// loweringRecursions are every set of lowerings in compilers/openapi that call
+// each other, and why each set is allowed to.
 //
-// A method inside one of these cannot be converted, tested or moved on its own:
-// its callees include something that calls back to it, so the whole set changes
+// A lowering inside one of these cannot be tested or moved on its own: its
+// callees include something that calls back to it, so the whole set changes
 // together or not at all. That is what makes the membership worth pinning rather
-// than measuring — it decides the shape of the remaining conversion work.
+// than measuring — it decides the shape of the remaining work.
+//
+// The sets are no longer all methods. The schema walk converted to free
+// functions and is just as recursive for it, which is the point: what binds
+// these together is the call graph, not the receiver.
 //
 // The sets are listed longest first, which is also the order they matter in.
-var lowererRecursions = [][]string{
+var loweringRecursions = [][]string{
 	// The schema walk. Lowering a schema resolves the references inside it, and
 	// resolving a reference lowers what it names. micro-compiler-design §5
 	// records this as the reason schema, compose and resolve cannot be separated
@@ -39,7 +43,8 @@ var lowererRecursions = [][]string{
 }
 
 // schemaRecursion is the largest of them, named because the design refers to it
-// directly and because the remaining conversion is sized by it.
+// directly and because #176's package split is sized by it. Its members are free
+// functions now; the set did not change when they stopped being methods.
 var schemaRecursion = []string{
 	"buildComposedVariant", "buildTuple", "carriedSchemaRef", "composedVariant",
 	"fillAdditional", "fillAllOf", "fillModelProperties", "hoistSubSchema",
@@ -50,8 +55,8 @@ var schemaRecursion = []string{
 	"schemaRefHomed",
 }
 
-// TestLowererRecursion_IsOnlyTheKnownCycles pins which lowerer methods are
-// mutually recursive, and holds the answer to the sets above.
+// TestLoweringRecursion_IsOnlyTheKnownCycles pins which lowerings are mutually
+// recursive, and holds the answer to the sets above.
 //
 // It exists because measuring this with a regex got it wrong by more than
 // double. A pattern ending a function at the first `}` in column zero runs past
@@ -64,10 +69,10 @@ var schemaRecursion = []string{
 // Every cycle is asserted, not only the largest. Checking one would let a new
 // recursion appear anywhere else unnoticed, which is the same blindness as not
 // checking at all — and the two smaller ones are as unconvertible as the big one.
-func TestLowererRecursion_IsOnlyTheKnownCycles(t *testing.T) {
+func TestLoweringRecursion_IsOnlyTheKnownCycles(t *testing.T) {
 	t.Parallel()
-	calls := lowererCallGraph(t)
-	require.NotEmpty(t, calls, "no lowerer methods found; the parse or the receiver name changed")
+	calls := loweringCallGraph(t)
+	require.NotEmpty(t, calls, "no lowerings found; the parse or the package path changed")
 
 	var cycles [][]string
 	for _, c := range stronglyConnected(calls) {
@@ -79,20 +84,32 @@ func TestLowererRecursion_IsOnlyTheKnownCycles(t *testing.T) {
 	sort.Slice(cycles, func(i, j int) bool { return len(cycles[i]) > len(cycles[j]) })
 	require.NotEmpty(t, cycles, "the schema walk is mutually recursive; finding none means the graph is wrong")
 
-	assert.Equal(t, lowererRecursions, cycles,
-		"the lowerer's mutual recursion changed; a method joining one of these sets can no longer be converted alone")
+	assert.Equal(t, loweringRecursions, cycles,
+		"the lowering call graph's mutual recursion changed; anything joining one of these sets can no longer be moved alone")
 }
 
-// lowererCallGraph maps each method on *lowerer to the methods it calls on its
-// own receiver. Calls are read as l.<name>(…) selectors, which is exact within a
-// method whose receiver is named l — the parser supplies the boundaries a
-// pattern cannot.
-func lowererCallGraph(t *testing.T) map[string]map[string]bool {
+// loweringCallGraph maps every lowering in compilers/openapi — free function or
+// lowerer method — to the ones it calls.
+//
+// It reads both call shapes: a bare name(…) for a free function, and l.name(…)
+// for a call on the method's own receiver. Reading only the receiver form would
+// have described an empty graph the moment the schema walk stopped being
+// methods, which is exactly when the recursion still mattered most: those
+// functions are as mutually recursive as the methods were, and #176 cannot split
+// them across packages any more than it could before.
+//
+// A method value (Report: l.diag) is still not an edge here; #210 tracks that.
+func loweringCallGraph(t *testing.T) map[string]map[string]bool {
 	t.Helper()
 	files, err := filepath.Glob(filepath.Join("..", "..", "compilers", "openapi", "*.go"))
 	require.NoError(t, err)
 
-	graph := map[string]map[string]bool{}
+	type decl struct {
+		name string
+		recv string
+		body *ast.BlockStmt
+	}
+	var decls []decl
 	for _, path := range files {
 		if strings.HasSuffix(path, "_test.go") {
 			continue
@@ -100,26 +117,54 @@ func lowererCallGraph(t *testing.T) map[string]map[string]bool {
 		f, err := parser.ParseFile(token.NewFileSet(), path, nil, 0)
 		require.NoError(t, err, "parse %s", path)
 
-		for _, decl := range f.Decls {
-			name, recv, ok := lowererMethod(decl)
-			if !ok {
+		for _, d := range f.Decls {
+			fn, isFunc := d.(*ast.FuncDecl)
+			if !isFunc || fn.Body == nil {
 				continue
 			}
-			out := map[string]bool{}
-			ast.Inspect(decl.(*ast.FuncDecl).Body, func(n ast.Node) bool {
-				call, ok := n.(*ast.CallExpr)
-				if !ok {
-					return true
-				}
-				if sel, ok := call.Fun.(*ast.SelectorExpr); ok {
-					if id, ok := sel.X.(*ast.Ident); ok && id.Name == recv && sel.Sel.Name != name {
-						out[sel.Sel.Name] = true
-					}
-				}
-				return true
-			})
-			graph[name] = out
+			if name, recv, ok := lowererMethod(d); ok {
+				decls = append(decls, decl{name: name, recv: recv, body: fn.Body})
+				continue
+			}
+			if fn.Recv == nil {
+				decls = append(decls, decl{name: fn.Name.Name, body: fn.Body})
+			}
 		}
+	}
+
+	// Methods and free functions share one namespace here, which is what lets a
+	// converted lowering keep its edges. Go would allow a method and a function
+	// of the same name; this graph would silently keep one and drop the other's
+	// edges, so the collision is refused rather than resolved.
+	known := map[string]bool{}
+	for _, d := range decls {
+		require.False(t, known[d.name],
+			"two lowerings are named %q; the call graph cannot tell them apart", d.name)
+		known[d.name] = true
+	}
+
+	graph := map[string]map[string]bool{}
+	for _, d := range decls {
+		out := map[string]bool{}
+		ast.Inspect(d.body, func(n ast.Node) bool {
+			call, isCall := n.(*ast.CallExpr)
+			if !isCall {
+				return true
+			}
+			switch fun := call.Fun.(type) {
+			case *ast.Ident:
+				if fun.Name != d.name && known[fun.Name] {
+					out[fun.Name] = true
+				}
+			case *ast.SelectorExpr:
+				id, isIdent := fun.X.(*ast.Ident)
+				if isIdent && d.recv != "" && id.Name == d.recv && fun.Sel.Name != d.name {
+					out[fun.Sel.Name] = true
+				}
+			}
+			return true
+		})
+		graph[d.name] = out
 	}
 	return graph
 }
@@ -151,8 +196,9 @@ func lowererMethod(decl ast.Decl) (name, recv string, ok bool) {
 }
 
 // stronglyConnected returns the graph's strongly connected components (Tarjan).
-// Edges to names that are not methods — anything reached on some other receiver —
-// are ignored, so only the lowerer's own recursion is described.
+// Edges to names the graph does not hold — anything reached on some other
+// receiver or in another package — are ignored, so only recursion within
+// compilers/openapi's own lowerings is described.
 func stronglyConnected(graph map[string]map[string]bool) [][]string {
 	var (
 		index  = map[string]int{}
@@ -171,7 +217,7 @@ func stronglyConnected(graph map[string]map[string]bool) [][]string {
 
 		succ := make([]string, 0, len(graph[v]))
 		for w := range graph[v] {
-			if _, isMethod := graph[w]; isMethod {
+			if _, isLowering := graph[w]; isLowering {
 				succ = append(succ, w)
 			}
 		}

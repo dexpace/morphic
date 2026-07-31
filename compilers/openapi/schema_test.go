@@ -833,8 +833,9 @@ func TestModel_RefSiblingDescriptionWins(t *testing.T) {
 func TestSchemaRef_EmptyEitherIsAny(t *testing.T) {
 	t.Parallel()
 	l := newRawLowerer(&soa.OpenAPI{})
-	ref := l.schemaRef(emptyEitherSchema(), "/p", "h")
+	ref, diags := schemaRef(l.ctx, l.types, &l.anchors, topLevelDepth, emptyEitherSchema(), "/p", "h")
 	assert.Equal(t, ir.TypeID("t/prim/any"), ref.Target)
+	assert.Empty(t, diags, "an empty either lowers to any without complaint")
 }
 
 func TestIsNullSchema_EmptyEitherFalse(t *testing.T) {
@@ -847,8 +848,8 @@ func TestPreserveUnionSiblings_MissingNode(t *testing.T) {
 	l := newRawLowerer(&soa.OpenAPI{})
 	// No node registered under the id: the union branches have nowhere to go, so
 	// the guard reports the broken invariant instead of dropping them quietly.
-	l.preserveUnionSiblings("t/anon/missing", &oas3.Schema{}, "/p", ir.ReasonDegradedLowering, "why")
-	assertHasErrorCode(t, l.diags.List(), diag.InternalInvariant)
+	diags := preserveUnionSiblings(l.ctx, l.types, "t/anon/missing", &oas3.Schema{}, "/p", ir.ReasonDegradedLowering, "why")
+	assertHasErrorCode(t, diags, diag.InternalInvariant)
 }
 
 // TestSchemaExamples_RefdSubSchemaKeepsThem pins the examples of a $ref'd
@@ -936,8 +937,8 @@ func TestAttachDeclaredAnnotations_MissingNode(t *testing.T) {
 	// the latter takes its ID from the coordinate map, and compile.Types records a
 	// coordinate and its node together, so that caller can no longer present an ID
 	// the registry does not hold. This one is handed an ID by its caller.
-	l.preserveUnionSiblings("t/anon/missing", &oas3.Schema{}, "/p", ir.ReasonDegradedLowering, "why")
-	assertHasErrorCode(t, l.diags.List(), diag.InternalInvariant)
+	diags := preserveUnionSiblings(l.ctx, l.types, "t/anon/missing", &oas3.Schema{}, "/p", ir.ReasonDegradedLowering, "why")
+	assertHasErrorCode(t, diags, diag.InternalInvariant)
 }
 
 func TestSchema_Ref30NullableSiblings(t *testing.T) {
@@ -1834,9 +1835,15 @@ func TestRawPropertyNode_NilSchema(t *testing.T) {
 func TestSchemaConstraints_NonSchemaInputs(t *testing.T) {
 	t.Parallel()
 	l := newRawLowerer(&soa.OpenAPI{})
-	assert.Nil(t, l.schemaConstraints(annotation.SchemaOf(nil), "/p"))
-	assert.Nil(t, l.schemaConstraints(annotation.SchemaOf(oas3.NewJSONSchemaFromBool(true)), "/p"))
-	assert.Nil(t, l.schemaConstraints(annotation.SchemaOf(oas3.NewJSONSchemaFromReference("#/components/schemas/Other")), "/p"))
+	for _, js := range []*oas3.Schema{
+		annotation.SchemaOf(nil),
+		annotation.SchemaOf(oas3.NewJSONSchemaFromBool(true)),
+		annotation.SchemaOf(oas3.NewJSONSchemaFromReference("#/components/schemas/Other")),
+	} {
+		cons, diags := schemaConstraints(l.ctx, js, "/p")
+		assert.Nil(t, cons)
+		assert.Empty(t, diags)
+	}
 }
 
 // TestSchemaConstraints_EmptyRefSchema covers a $ref pointer that is present
@@ -1849,7 +1856,9 @@ func TestSchemaConstraints_EmptyRefSchema(t *testing.T) {
 	l := newRawLowerer(&soa.OpenAPI{})
 	emptyRef := references.Reference("")
 	js := oas3.NewJSONSchemaFromSchema[oas3.Referenceable](&oas3.Schema{Ref: &emptyRef})
-	assert.Nil(t, l.schemaConstraints(annotation.SchemaOf(js), "/p"))
+	cons, diags := schemaConstraints(l.ctx, annotation.SchemaOf(js), "/p")
+	assert.Nil(t, cons)
+	assert.Empty(t, diags)
 }
 
 func TestResolveSchemaRef_ReusesInternedSubSchema(t *testing.T) {
@@ -1857,9 +1866,10 @@ func TestResolveSchemaRef_ReusesInternedSubSchema(t *testing.T) {
 	l := newRawLowerer(&soa.OpenAPI{})
 	l.types.Intern(deepPointer, "t/anon/prev", func() ir.TypeDef { return &ir.Any{} })
 
-	id, ok := l.resolveSchemaRef(emptyEitherSchema(), "#"+deepPointer)
+	id, ok, diags := resolveSchemaRef(l.ctx, l.types, &l.anchors, topLevelDepth, emptyEitherSchema(), "#"+deepPointer)
 	require.True(t, ok, "a $ref to an already-hoisted sub-schema reuses its ID")
 	assert.Equal(t, ir.TypeID("t/anon/prev"), id)
+	assert.Empty(t, diags, "reusing an interned node reports nothing")
 }
 
 func TestResolveSchemaRef_UnresolvedDeepRefDropped(t *testing.T) {
@@ -1869,15 +1879,17 @@ func TestResolveSchemaRef_UnresolvedDeepRefDropped(t *testing.T) {
 	// node, GetResolvedSchema is nil, so the reference is dropped (ok=false).
 	js := oas3.NewJSONSchemaFromReference("#" + deepPointer)
 
-	_, ok := l.resolveSchemaRef(js, "#"+deepPointer)
+	_, ok, diags := resolveSchemaRef(l.ctx, l.types, &l.anchors, topLevelDepth, js, "#"+deepPointer)
 	assert.False(t, ok, "an unresolved deep sub-schema $ref is dropped, not synthesized")
+	assert.Empty(t, diags, "the drop is reported by refTypeRef, which owns the pointer to report it at")
 }
 
 func TestHoistSubSchema_NilSchema(t *testing.T) {
 	t.Parallel()
 	l := newRawLowerer(&soa.OpenAPI{})
-	_, ok := l.hoistSubSchema(nil, deepPointer)
+	_, ok, diags := hoistSubSchema(l.ctx, l.types, &l.anchors, topLevelDepth, nil, deepPointer)
 	assert.False(t, ok, "a nil resolved sub-schema cannot be hoisted")
+	assert.Empty(t, diags)
 }
 
 func TestHoistSubSchema_BodyInternsAtPointer(t *testing.T) {
@@ -1888,8 +1900,9 @@ func TestHoistSubSchema_BodyInternsAtPointer(t *testing.T) {
 	object := oas3.NewJSONSchemaFromSchema[oas3.Referenceable](
 		&oas3.Schema{Type: oas3.NewTypeFromString(oas3.SchemaTypeObject)})
 
-	id, ok := l.hoistSubSchema(object, deepPointer)
+	id, ok, diags := hoistSubSchema(l.ctx, l.types, &l.anchors, topLevelDepth, object, deepPointer)
 	require.True(t, ok)
+	assert.Empty(t, diags, "an object body hoists cleanly")
 	assert.Equal(t, ids.AnonType(deepPointer), id)
 	seeded, _ := l.types.Lookup(deepPointer)
 	assert.Equal(t, ids.AnonType(deepPointer), seeded)
@@ -3642,9 +3655,9 @@ func TestDynamicRef_NonScalarValueIsKeptNotExpanded(t *testing.T) {
 func TestPreserveUnhomedKeywords_MissingNode(t *testing.T) {
 	t.Parallel()
 	l := newRawLowerer(&soa.OpenAPI{})
-	got := l.preserveUnhomedKeywords(&oas3.Schema{}, "/p", "h", "t/anon/missing")
+	got, diags := preserveUnhomedKeywords(l.ctx, l.types, &oas3.Schema{}, "/p", "h", "t/anon/missing")
 	assert.Equal(t, ir.TypeID("t/anon/missing"), got, "the lowering's own ID still stands")
-	assertHasErrorCode(t, l.diags.List(), diag.InternalInvariant)
+	assertHasErrorCode(t, diags, diag.InternalInvariant)
 }
 
 // TestRecordUnhomedKeywords_MissingOwner drives the same invariant one step
@@ -3654,6 +3667,6 @@ func TestPreserveUnhomedKeywords_MissingNode(t *testing.T) {
 func TestRecordUnhomedKeywords_MissingOwner(t *testing.T) {
 	t.Parallel()
 	l := newRawLowerer(&soa.OpenAPI{})
-	l.recordUnhomedKeywords("t/anon/missing", &oas3.Schema{}, []string{"items"}, ir.KindPrimitive, "/p")
-	assertHasErrorCode(t, l.diags.List(), diag.InternalInvariant)
+	diags := recordUnhomedKeywords(l.ctx, l.types, "t/anon/missing", &oas3.Schema{}, []string{"items"}, ir.KindPrimitive, "/p")
+	assertHasErrorCode(t, diags, diag.InternalInvariant)
 }

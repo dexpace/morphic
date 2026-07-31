@@ -3,6 +3,7 @@ package openapi
 import (
 	oas3 "github.com/speakeasy-api/openapi/jsonschema/oas3"
 
+	"github.com/dexpace/morphic/compilers/compile"
 	"github.com/dexpace/morphic/compilers/openapi/internal/annotation"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/resolve"
@@ -17,54 +18,56 @@ import (
 // It defaults to annotation.HomeOwnNode deliberately: a position added later
 // inherits the lossless behaviour, and only a caller that can prove it already
 // carries the annotations opts out through carriedSchemaRef.
-func (l *lowerer) schemaRef(js *oas3.JSONSchema[oas3.Referenceable], pointer, hint string) ir.TypeRef {
-	return l.schemaRefHomed(js, pointer, hint, annotation.HomeOwnNode)
+func schemaRef(c lowerCtx, ts *compile.Types, anchors *anchorIndex, depth int, js *oas3.JSONSchema[oas3.Referenceable], pointer, hint string) (ir.TypeRef, []ir.Diagnostic) {
+	return schemaRefHomed(c, ts, anchors, depth, js, pointer, hint, annotation.HomeOwnNode)
 }
 
 // carriedSchemaRef lowers a schema whose annotations the calling position
 // already carries — a model property, a header, a parameter. Those callers
 // copy the declaration onto their own ir.Property/ir.Parameter, so the pointer
 // must not also hoist a node to hold it: one home per declaration.
-func (l *lowerer) carriedSchemaRef(js *oas3.JSONSchema[oas3.Referenceable], pointer, hint string) ir.TypeRef {
-	return l.schemaRefHomed(js, pointer, hint, annotation.HomeCarrier)
+func carriedSchemaRef(c lowerCtx, ts *compile.Types, anchors *anchorIndex, depth int, js *oas3.JSONSchema[oas3.Referenceable], pointer, hint string) (ir.TypeRef, []ir.Diagnostic) {
+	return schemaRefHomed(c, ts, anchors, depth, js, pointer, hint, annotation.HomeCarrier)
 }
 
 // schemaRefHomed is the shared body of the two entry points above; home only
 // reaches the two places that can hoist an annotation-holding alias.
-func (l *lowerer) schemaRefHomed(js *oas3.JSONSchema[oas3.Referenceable], pointer, hint string, home annotation.Home) ir.TypeRef {
-	l.depth++
-	defer func() { l.depth-- }()
-	if l.depth > maxSchemaDepth {
-		l.diag(ir.SeverityError, diag.DegradedConstruct, pointer,
-			"schema nesting exceeds %d; lowered as any", maxSchemaDepth)
-		return l.types.PrimRef(ir.PrimAny)
+func schemaRefHomed(c lowerCtx, ts *compile.Types, anchors *anchorIndex, depth int, js *oas3.JSONSchema[oas3.Referenceable], pointer, hint string, home annotation.Home) (ir.TypeRef, []ir.Diagnostic) {
+	// depth counts the active frames of this function, which is where every
+	// recursive descent re-enters. Incrementing on entry and passing the result
+	// down is the parameter form of the counter the lowerer used to hold.
+	depth++
+	if depth > maxSchemaDepth {
+		return ts.PrimRef(ir.PrimAny), []ir.Diagnostic{c.diagAt(ir.SeverityError, diag.DegradedConstruct, pointer,
+			"schema nesting exceeds %d; lowered as any", maxSchemaDepth)}
 	}
 	if js == nil {
-		return l.types.PrimRef(ir.PrimAny)
+		return ts.PrimRef(ir.PrimAny), nil
 	}
 	if js.IsBool() {
 		if b := js.GetBool(); b != nil && !*b {
-			id, diags := falseSchema(l.ctx, l.types, pointer, hint)
-			l.diags.AppendAll(diags)
-			return ir.TypeRef{Target: id}
+			id, diags := falseSchema(c, ts, pointer, hint)
+			return ir.TypeRef{Target: id}, diags
 		}
-		return l.types.PrimRef(ir.PrimAny)
+		return ts.PrimRef(ir.PrimAny), nil
 	}
 	// Past the IsBool check, the either's left schema is always set (an empty
 	// either reads as a bool), so GetSchema never returns nil here.
 	schema := js.GetSchema()
 	if resolve.IsRefSite(js, schema) {
-		return l.refSiteRef(js, schema, pointer, hint, home)
+		return refSiteRef(c, ts, anchors, depth, js, schema, pointer, hint, home)
 	}
-	return l.schemaBody(schema, pointer, hint, home)
+	return schemaBody(c, ts, anchors, depth, schema, pointer, hint, home)
 }
 
 // refSiteRef resolves a $ref position and keeps whatever is written beside the
 // $ref. Those siblings bind the position, not the referent, so they cannot go
 // on the target's node; when the position has no carrier to hold them either,
 // an alias over the target becomes their home.
-func (l *lowerer) refSiteRef(js *oas3.JSONSchema[oas3.Referenceable], s *oas3.Schema, pointer, hint string, home annotation.Home) ir.TypeRef {
-	return l.homeDeclaration(s, l.refTypeRef(js, pointer), pointer, hint, home)
+func refSiteRef(c lowerCtx, ts *compile.Types, anchors *anchorIndex, depth int, js *oas3.JSONSchema[oas3.Referenceable], s *oas3.Schema, pointer, hint string, home annotation.Home) (ir.TypeRef, []ir.Diagnostic) {
+	target, diags := refTypeRef(c, ts, anchors, depth, js, pointer)
+	ref, homeDiags := homeDeclaration(c, ts, anchors, s, target, pointer, hint, home)
+	return ref, append(diags, homeDiags...)
 }
 
 // homeDeclaration gives what s writes at this position a home and returns the
@@ -76,13 +79,12 @@ func (l *lowerer) refSiteRef(js *oas3.JSONSchema[oas3.Referenceable], s *oas3.Sc
 // $ref, which reached none of it until it was routed here. A position that
 // skips it drops what was written at it without a word — which is what both
 // GitHub #116 and #143 were.
-func (l *lowerer) homeDeclaration(s *oas3.Schema, target ir.TypeRef, pointer, hint string, home annotation.Home) ir.TypeRef {
-	ref := l.hoistDeclarationHome(s, target, pointer, hint, home)
+func homeDeclaration(c lowerCtx, ts *compile.Types, anchors *anchorIndex, s *oas3.Schema, target ir.TypeRef, pointer, hint string, home annotation.Home) (ir.TypeRef, []ir.Diagnostic) {
+	ref, diags := hoistDeclarationHome(c, ts, s, target, pointer, hint, home)
 	if s != nil {
-		l.attachDeclaredAnnotations(s, pointer)
+		diags = append(diags, attachDeclaredAnnotations(c, ts, anchors, s, pointer)...)
 	}
-	l.recordDeclarationResidue(s, pointer, home)
-	return ref
+	return ref, append(diags, recordDeclarationResidue(c, ts, s, pointer, home)...)
 }
 
 // refTypeRef resolves a $ref position to its target's stable ID, carrying the
@@ -90,15 +92,14 @@ func (l *lowerer) homeDeclaration(s *oas3.Schema, target ir.TypeRef, pointer, hi
 // its stable named ID (lowered where it is defined); an internal sub-schema
 // target is hoisted at its pointer-derived ID so the reference never dangles. A
 // genuinely external or unresolvable target is diagnosed and dropped to any.
-func (l *lowerer) refTypeRef(js *oas3.JSONSchema[oas3.Referenceable], pointer string) ir.TypeRef {
+func refTypeRef(c lowerCtx, ts *compile.Types, anchors *anchorIndex, depth int, js *oas3.JSONSchema[oas3.Referenceable], pointer string) (ir.TypeRef, []ir.Diagnostic) {
 	ref := js.GetRef().String()
-	id, ok := l.resolveSchemaRef(js, ref)
+	id, ok, diags := resolveSchemaRef(c, ts, anchors, depth, js, ref)
 	if !ok {
-		l.diag(ir.SeverityError, diag.UnresolvedRef, pointer,
-			"unresolved $ref %q", ref)
-		return l.types.PrimRef(ir.PrimAny)
+		return ts.PrimRef(ir.PrimAny), append(diags, c.diagAt(ir.SeverityError, diag.UnresolvedRef, pointer,
+			"unresolved $ref %q", ref))
 	}
-	return ir.TypeRef{Target: id, Nullable: refNullable(js)}
+	return ir.TypeRef{Target: id, Nullable: refNullable(js)}, diags
 }
 
 // resolveSchemaRef resolves a schema-position $ref to an interned TypeID, never
@@ -107,22 +108,22 @@ func (l *lowerer) refTypeRef(js *oas3.JSONSchema[oas3.Referenceable], pointer st
 // resolver library resolved is hoisted at its pointer-derived ID. It returns
 // ok=false for a cross-document reference, a reference to an undeclared
 // component, or a pointer the library could not resolve.
-func (l *lowerer) resolveSchemaRef(js *oas3.JSONSchema[oas3.Referenceable], ref string) (ir.TypeID, bool) {
-	pointer, ok := l.ctx.refScope().InternalPointer(ref)
+func resolveSchemaRef(c lowerCtx, ts *compile.Types, anchors *anchorIndex, depth int, js *oas3.JSONSchema[oas3.Referenceable], ref string) (ir.TypeID, bool, []ir.Diagnostic) {
+	pointer, ok := c.refScope().InternalPointer(ref)
 	if !ok {
-		return "", false
+		return "", false, nil
 	}
-	if id, resolved, handled := l.ctx.refScope().ComponentRef(pointer); handled {
-		return id, resolved
+	if id, resolved, handled := c.refScope().ComponentRef(pointer); handled {
+		return id, resolved, nil
 	}
-	if id, ok := resolve.InternedID(l.types, pointer); ok {
-		return id, true
+	if id, ok := resolve.InternedID(ts, pointer); ok {
+		return id, true, nil
 	}
 	decl := annotation.DeclaredSchema(js)
 	if decl == nil {
-		return "", false
+		return "", false, nil
 	}
-	return l.hoistSubSchema(decl, pointer)
+	return hoistSubSchema(c, ts, anchors, depth, decl, pointer)
 }
 
 // hoistSubSchema lowers the internal sub-schema declared at pointer and
@@ -138,21 +139,22 @@ func (l *lowerer) resolveSchemaRef(js *oas3.JSONSchema[oas3.Referenceable], ref 
 // already draws that distinction — peeling a $ref off to a TypeRef and
 // lowering a concrete body in place — leaving this to intern whichever node
 // the pointer ends up owning.
-func (l *lowerer) hoistSubSchema(decl *oas3.JSONSchema[oas3.Referenceable], pointer string) (ir.TypeID, bool) {
+func hoistSubSchema(c lowerCtx, ts *compile.Types, anchors *anchorIndex, depth int, decl *oas3.JSONSchema[oas3.Referenceable], pointer string) (ir.TypeID, bool, []ir.Diagnostic) {
 	s := annotation.At(decl)
 	if s.Node == nil {
-		return "", false
+		return "", false, nil
 	}
 	hint := subSchemaHint(decl, pointer)
-	ref := l.schemaRef(decl, pointer, hint)
-	if owned, ok := l.types.Lookup(pointer); ok {
-		return owned, true
+	ref, diags := schemaRef(c, ts, anchors, depth, decl, pointer, hint)
+	if owned, ok := ts.Lookup(pointer); ok {
+		return owned, true, diags
 	}
-	id := internAlias(l.ctx, l.types, pointer, hint, ref, l.schemaConstraints(s.Node, pointer))
+	cons, consDiags := schemaConstraints(c, s.Node, pointer)
+	diags = append(diags, consDiags...)
+	id := internAlias(c, ts, pointer, hint, ref, cons)
 	// As in lowerComponentSchema: this alias is the first node the pointer owns,
 	// so the annotations schemaRef had nowhere to put now have a home.
-	l.attachDeclaredAnnotations(s.Node, pointer)
-	return id, true
+	return id, true, append(diags, attachDeclaredAnnotations(c, ts, anchors, s.Node, pointer)...)
 }
 
 // subSchemaHint names the node a $ref'd sub-schema pointer owns: the target it

@@ -429,7 +429,8 @@ func (l *lowerer) fillErrorType(ec *ir.ErrorCase, r *soa.Response, rptr string) 
 	}
 	first := true
 	for mt, media := range content.All() {
-		ref := l.schemaRef(media.GetSchema(), rptr+ids.Ptr("content", mt, "schema"), "error")
+		ref, refDiags := schemaRef(l.ctx, l.types, &l.anchors, topLevelDepth, media.GetSchema(), rptr+ids.Ptr("content", mt, "schema"), "error")
+		l.diags.AppendAll(refDiags)
 		if first {
 			ec.Type = ref
 			first = false

@@ -43,9 +43,11 @@ func (l *lowerer) lowerPayload(content *sequencedmap.Map[string, *soa.MediaType]
 // form specialization, sequential-media shape, and extensions.
 func (l *lowerer) lowerContent(mt string, media *soa.MediaType, pointer, hint string) ir.Content {
 	mediaPtr := pointer + ids.Ptr("content", mt)
+	mediaType, mediaDiags := schemaRef(l.ctx, l.types, &l.anchors, topLevelDepth, media.GetSchema(), mediaPtr+ids.Ptr("schema"), hint)
+	l.diags.AppendAll(mediaDiags)
 	c := ir.Content{
 		MediaType: mt,
-		Type:      l.schemaRef(media.GetSchema(), mediaPtr+ids.Ptr("schema"), hint),
+		Type:      mediaType,
 	}
 	if ex := l.mediaExamples(media, mediaPtr); len(ex) > 0 {
 		c.Examples = ex
@@ -78,7 +80,8 @@ func (l *lowerer) lowerContent(mt string, media *soa.MediaType, pointer, hint st
 // positionalEncoding instead.
 func (l *lowerer) fillSequential(c *ir.Content, media *soa.MediaType, mediaPtr, hint string) {
 	if item := media.GetItemSchema(); item != nil {
-		ref := l.schemaRef(item, mediaPtr+ids.Ptr("itemSchema"), hint+"_item")
+		ref, itemDiags := schemaRef(l.ctx, l.types, &l.anchors, topLevelDepth, item, mediaPtr+ids.Ptr("itemSchema"), hint+"_item")
+		l.diags.AppendAll(itemDiags)
 		c.Item = &ref
 	}
 	if len(media.GetPrefixEncoding()) > 0 {
@@ -337,11 +340,13 @@ func (l *lowerer) lowerHeaders(headers *sequencedmap.Map[string, *soa.Referenced
 // them (GitHub #116).
 func (l *lowerer) lowerHeader(h *soa.Header, name, hptr, hdecl string) ir.Property {
 	js, schemaPtr, mediaType := l.headerSchema(h, hdecl)
+	headerType, headerDiags := carriedSchemaRef(l.ctx, l.types, &l.anchors, topLevelDepth, js, schemaPtr, ids.DeclarationHint(hdecl, name))
+	l.diags.AppendAll(headerDiags)
 	p := ir.Property{
 		ID:         ids.Prop(hptr),
 		Name:       compile.NamingFor(name),
 		WireName:   name,
-		Type:       l.carriedSchemaRef(js, schemaPtr, ids.DeclarationHint(hdecl, name)),
+		Type:       headerType,
 		Required:   h.GetRequired(),
 		Provenance: l.ctx.provenanceAt(hptr),
 	}
@@ -352,7 +357,7 @@ func (l *lowerer) lowerHeader(h *soa.Header, name, hptr, hdecl string) ir.Proper
 		// spelling keeps.
 		p.Encoding = &ir.Encoding{MediaType: mediaType}
 	}
-	l.fillPropertyDetail(&p, js, schemaPtr)
+	l.diags.AppendAll(fillPropertyDetail(l.ctx, l.types, &l.anchors, &p, js, schemaPtr))
 	l.applyHeaderAnnotations(&p, h, hdecl)
 	return p
 }
