@@ -77,11 +77,12 @@ func (l *lowerer) refSiteRef(js *oas3.JSONSchema[oas3.Referenceable], s *oas3.Sc
 // skips it drops what was written at it without a word — which is what both
 // GitHub #116 and #143 were.
 func (l *lowerer) homeDeclaration(s *oas3.Schema, target ir.TypeRef, pointer, hint string, home annotation.Home) ir.TypeRef {
-	ref := l.hoistDeclarationHome(s, target, pointer, hint, home)
+	ref, homeDiags := hoistDeclarationHome(l.ctx, l.types, s, target, pointer, hint, home)
+	l.diags.AppendAll(homeDiags)
 	if s != nil {
-		l.attachDeclaredAnnotations(s, pointer)
+		l.diags.AppendAll(attachDeclaredAnnotations(l.ctx, l.types, &l.anchors, s, pointer))
 	}
-	l.recordDeclarationResidue(s, pointer, home)
+	l.diags.AppendAll(recordDeclarationResidue(l.ctx, l.types, s, pointer, home))
 	return ref
 }
 
@@ -153,7 +154,7 @@ func (l *lowerer) hoistSubSchema(decl *oas3.JSONSchema[oas3.Referenceable], poin
 	id := internAlias(l.ctx, l.types, pointer, hint, ref, cons)
 	// As in lowerComponentSchema: this alias is the first node the pointer owns,
 	// so the annotations schemaRef had nowhere to put now have a home.
-	l.attachDeclaredAnnotations(s.Node, pointer)
+	l.diags.AppendAll(attachDeclaredAnnotations(l.ctx, l.types, &l.anchors, s.Node, pointer))
 	return id, true
 }
 

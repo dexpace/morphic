@@ -34,7 +34,9 @@ func (l *lowerer) lowerAllOf(s *oas3.Schema, pointer, hint string) ir.TypeID {
 		l.diags.AppendAll(applyCompositionRequired(l.ctx, m, s, pointer))
 		l.fillAdditional(m, s, pointer, hint)
 		l.diags.AppendAll(applyFalseBranches(l.ctx, m, s, pointer))
-		if d := l.lowerDiscriminator(s, m, pointer); d != nil {
+		d, discDiags := lowerDiscriminator(l.ctx, l.types, s, m, pointer)
+		l.diags.AppendAll(discDiags)
+		if d != nil {
 			m.Discriminator = d
 		}
 		m.DiscriminatorValue = subtypeDiscriminatorValue(l.ctx, l.types, s, common.ID, pointer)
@@ -671,7 +673,9 @@ func (l *lowerer) buildUnion(s *oas3.Schema, common ir.TypeCommon, pointer strin
 		Exclusive:  exclusive,
 		WireTagged: false,
 	}
-	u.Discriminator = l.lowerDiscriminator(s, nil, pointer)
+	disc, discDiags := lowerDiscriminator(l.ctx, l.types, s, nil, pointer)
+	l.diags.AppendAll(discDiags)
+	u.Discriminator = disc
 	return u
 }
 
@@ -844,23 +848,21 @@ func refLastSegment(ref string) string {
 // single model and so is named only by PropertyName; otherwise the tag
 // resolves to the declaring property's PropID, falling back to PropertyName
 // if undeclared.
-func (l *lowerer) lowerDiscriminator(s *oas3.Schema, m *ir.Model, pointer string) *ir.Discriminator {
+func lowerDiscriminator(c lowerCtx, ts *compile.Types, s *oas3.Schema, m *ir.Model, pointer string) (*ir.Discriminator, []ir.Diagnostic) {
 	d := s.GetDiscriminator()
 	if d == nil {
-		return nil
+		return nil, nil
 	}
-	mapping, mappingDiags := discriminatorMapping(l.ctx, l.types, d, pointer)
-	l.diags.AppendAll(mappingDiags)
+	mapping, diags := discriminatorMapping(c, ts, d, pointer)
 	disc := &ir.Discriminator{Mapping: mapping}
 	if pid, ok := propIDByName(m, d.GetPropertyName()); ok {
 		disc.Property = pid
 	} else {
 		disc.PropertyName = d.GetPropertyName()
 	}
-	defaultID, defaultDiags := discriminatorDefault(l.ctx, l.types, d, pointer)
-	l.diags.AppendAll(defaultDiags)
+	defaultID, defaultDiags := discriminatorDefault(c, ts, d, pointer)
 	disc.Default = defaultID
-	return disc
+	return disc, append(diags, defaultDiags...)
 }
 
 // discriminatorMapping resolves a discriminator's wire-value-to-schema mapping
@@ -950,12 +952,13 @@ func propIDByName(m *ir.Model, name string) (ir.PropID, bool) {
 // lowerEnum hoists a schema with `enum` as a closed Enum. A heterogeneous or
 // non-scalar member set has no Enum home, so it falls back to a Union of
 // Literals with an info diagnostic — nothing is dropped.
-func (l *lowerer) lowerEnum(s *oas3.Schema, pointer, hint string) ir.TypeID {
-	return internNode(l.ctx, l.types, pointer, hint, func(common ir.TypeCommon) ir.TypeDef {
+func lowerEnum(c lowerCtx, ts *compile.Types, s *oas3.Schema, pointer, hint string) (ir.TypeID, []ir.Diagnostic) {
+	var diags []ir.Diagnostic
+	id := internNode(c, ts, pointer, hint, func(common ir.TypeCommon) ir.TypeDef {
 		members, memberPrim, ok := enumMembers(s.GetEnum())
 		if !ok {
-			def, enumDiags := enumAsUnion(l.ctx, l.types, s, common, pointer, hint)
-			l.diags.AppendAll(enumDiags)
+			def, enumDiags := enumAsUnion(c, ts, s, common, pointer, hint)
+			diags = append(diags, enumDiags...)
 			return def
 		}
 		return &ir.Enum{
@@ -965,7 +968,7 @@ func (l *lowerer) lowerEnum(s *oas3.Schema, pointer, hint string) ir.TypeID {
 			Closed:     true,
 		}
 	})
-
+	return id, diags
 }
 
 // enumMembers converts enum nodes into scalar members, reporting ok=false when

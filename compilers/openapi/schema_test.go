@@ -3650,9 +3650,9 @@ func TestDynamicRef_NonScalarValueIsKeptNotExpanded(t *testing.T) {
 func TestPreserveUnhomedKeywords_MissingNode(t *testing.T) {
 	t.Parallel()
 	l := newRawLowerer(&soa.OpenAPI{})
-	got := l.preserveUnhomedKeywords(&oas3.Schema{}, "/p", "h", "t/anon/missing")
+	got, diags := preserveUnhomedKeywords(l.ctx, l.types, &oas3.Schema{}, "/p", "h", "t/anon/missing")
 	assert.Equal(t, ir.TypeID("t/anon/missing"), got, "the lowering's own ID still stands")
-	assertHasErrorCode(t, l.diags.List(), diag.InternalInvariant)
+	assertHasErrorCode(t, diags, diag.InternalInvariant)
 }
 
 // TestRecordUnhomedKeywords_MissingOwner drives the same invariant one step
