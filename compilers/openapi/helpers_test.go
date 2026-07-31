@@ -59,7 +59,7 @@ func loweredFor(t *testing.T, src string) (*lowerer, []ir.Diagnostic) {
 		compilers.Source{Path: "spec.yaml", Data: []byte(src)}, loadOptions(Options{}.withDefaults()))
 	require.NoError(t, err)
 	require.NotNil(t, loadedDoc, "load returned no document: %+v", diags)
-	return newLowerer(0, loadedDoc, Options{}.withDefaults()), diags
+	return newLowerer(loadedDoc, Options{}.withDefaults()), diags
 }
 
 // lowerSpec loads src and lowers its component schemas, returning the document
@@ -87,12 +87,15 @@ func lowerServiceSpec(t *testing.T, src string) (*ir.Document, ir.Service, []ir.
 		loadedDoc, loadDiags, err := load.Load(t.Context(), 0, compilers.Source{Path: "spec.yaml", Data: []byte(src)}, loadOptions(Options{}.withDefaults()))
 		require.NoError(t, err)
 		require.NotNil(t, loadedDoc)
-		l := newLowerer(0, loadedDoc, Options{}.withDefaults())
+		l := newLowerer(loadedDoc, Options{}.withDefaults())
 		l.diags.AppendAll(lowerComponentSchemas(l.ctx, l.types, &l.anchors))
 		auth, authDiags := lowerSecuritySchemes(l.ctx)
 		l.out.Auth = auth
 		l.diags.AppendAll(authDiags)
-		l.out.Services = []ir.Service{l.lowerService()}
+		svc, tagDefs, svcDiags := lowerService(l.ctx.withAuth(l.out.Auth), l.types, &l.anchors, l.operationIDs)
+		l.out.TagDefs = tagDefs
+		l.diags.AppendAll(svcDiags)
+		l.out.Services = []ir.Service{svc}
 		return l.out, append(loadDiags, l.diags.List()...)
 	}()
 	require.Len(t, doc.Services, 1)
@@ -146,6 +149,33 @@ func conflictDiags(diags []ir.Diagnostic) []ir.Diagnostic {
 		}
 	}
 	return out
+}
+
+// lowerer is test scaffolding, not a compiler type. The compiler has no such
+// struct: every lowering is a function of the context, the registry and the
+// memos, and run owns the document being built (#177). Tests that drive one
+// lowering in isolation still want those five things in one place, and holding
+// them here keeps that convenience out of the production call graph.
+type lowerer struct {
+	ctx          lowerCtx
+	out          *ir.Document
+	types        *compile.Types
+	diags        compile.Diags
+	anchors      anchorIndex
+	operationIDs map[string]string
+}
+
+// newLowerer builds the fixture over one loaded document, as run would. There
+// is no srcIndex parameter: every test drives a single source, and the one the
+// compiler varies lives in run's caller now.
+func newLowerer(doc *load.Document, opts Options) *lowerer {
+	types := compile.NewTypes(0)
+	return &lowerer{
+		ctx:          newLowerCtx(0, doc, opts),
+		out:          &ir.Document{Types: types.Registry()},
+		types:        types,
+		operationIDs: make(map[string]string),
+	}
 }
 
 // newRawLowerer builds a lowerer over a hand-constructed document, bypassing the
