@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"io"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"testing"
@@ -49,6 +50,16 @@ func (w *writeFailWriteCloser) Close() error {
 	w.closed = true
 	return nil
 }
+
+// writeFailFile is a real file that has already been created (and so truncated)
+// but fails every Write, modelling the disk filling up after the destination was
+// opened — the exact sequence that used to destroy the previous output.
+type writeFailFile struct {
+	*os.File
+	writeErr error
+}
+
+func (w *writeFailFile) Write([]byte) (int, error) { return 0, w.writeErr }
 
 // nilDocCompiler claims openapi 3.1 and lowers to a nil Document with no error,
 // modelling a compiler that refuses to lower (e.g. an unsupported construct)
@@ -293,19 +304,57 @@ func TestWriteParsed_CreateError(t *testing.T) {
 	assert.Contains(t, err.Error(), "create output")
 }
 
-func TestWriteParsed_WriteErrorClosesFile(t *testing.T) {
-	orig := openOutput
-	t.Cleanup(func() { openOutput = orig })
-	wc := &writeFailWriteCloser{writeErr: errors.New("disk gone")}
-	openOutput = func(string) (io.WriteCloser, error) { return wc, nil }
+// swapCreateOutput installs fn as the temp-file creator for one test.
+func swapCreateOutput(t *testing.T, fn func(string, os.FileMode) (io.WriteCloser, error)) {
+	t.Helper()
+	orig := createOutput
+	t.Cleanup(func() { createOutput = orig })
+	createOutput = fn
+}
 
-	// doc marshals fine; the write to the opened file is what fails, exercising
+func TestWriteParsed_WriteErrorClosesFile(t *testing.T) {
+	wc := &writeFailWriteCloser{writeErr: errors.New("disk gone")}
+	swapCreateOutput(t, func(string, os.FileMode) (io.WriteCloser, error) { return wc, nil })
+
+	// doc marshals fine; the write to the temp file is what fails, exercising
 	// the close-and-return path.
-	err := writeCompiled("out.json", io.Discard, &ir.Document{Name: "ok"})
+	err := writeCompiled(filepath.Join(t.TempDir(), "out.json"), io.Discard, &ir.Document{Name: "ok"})
 
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "write ir document")
 	assert.True(t, wc.closed, "file must still be closed after a write error")
+}
+
+// TestWriteParsed_WriteErrorPreservesDestination is the regression guard for a
+// failed run destroying the previous output: the bytes must go to a temp file, so
+// a mid-write failure leaves the existing destination byte-for-byte intact.
+func TestWriteParsed_WriteErrorPreservesDestination(t *testing.T) {
+	out := filepath.Join(t.TempDir(), "ir.json")
+	const existing = `{"name":"Existing"}` + "\n"
+	require.NoError(t, os.WriteFile(out, []byte(existing), 0o644))
+
+	// The creator truncates whatever path it is handed, exactly as the os.Create
+	// this fix replaced did, and then fails the write. So if the code under test
+	// ever opens the destination directly, the old content is really gone and the
+	// assertion below really fires — the test cannot pass by using a fake that
+	// never touches the disk.
+	var opened string
+	swapCreateOutput(t, func(path string, perm os.FileMode) (io.WriteCloser, error) {
+		opened = path
+		f, err := os.OpenFile(path, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, perm)
+		if err != nil {
+			return nil, err
+		}
+		return &writeFailFile{File: f, writeErr: errors.New("disk full")}, nil
+	})
+
+	err := writeCompiled(out, io.Discard, &ir.Document{Name: "ok"})
+
+	require.Error(t, err)
+	assert.NotEqual(t, out, opened, "the write must go through a temp file, never the destination")
+	got, readErr := os.ReadFile(out)
+	require.NoError(t, readErr)
+	assert.Equal(t, existing, string(got), "a failed write must not disturb the previous output")
 }
 
 func TestWriteParsed_MarshalErrorLeavesFileUntouched(t *testing.T) {
@@ -325,16 +374,117 @@ func TestWriteParsed_MarshalErrorLeavesFileUntouched(t *testing.T) {
 }
 
 func TestWriteParsed_CloseError(t *testing.T) {
-	orig := openOutput
-	t.Cleanup(func() { openOutput = orig })
 	wc := &closeFailWriteCloser{closeErr: errors.New("close failed")}
-	openOutput = func(string) (io.WriteCloser, error) { return wc, nil }
+	swapCreateOutput(t, func(string, os.FileMode) (io.WriteCloser, error) { return wc, nil })
 
-	err := writeCompiled("out.json", io.Discard, &ir.Document{Name: "ok"})
+	err := writeCompiled(filepath.Join(t.TempDir(), "out.json"), io.Discard, &ir.Document{Name: "ok"})
 
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "close output")
 	assert.NotEmpty(t, wc.buf.Bytes(), "document should have been written before close")
+}
+
+// TestWriteParsed_ReplacesAtomically pins the success path end to end: the
+// destination gains the new bytes, keeps the mode it already had, and no temp
+// file is left beside it.
+func TestWriteParsed_ReplacesAtomically(t *testing.T) {
+	t.Parallel()
+	dir := t.TempDir()
+	out := filepath.Join(dir, "ir.json")
+	require.NoError(t, os.WriteFile(out, []byte("stale\n"), 0o640))
+
+	require.NoError(t, writeCompiled(out, io.Discard, &ir.Document{Name: "Fresh"}))
+
+	got, err := os.ReadFile(out)
+	require.NoError(t, err)
+	assert.Contains(t, string(got), `"Fresh"`)
+
+	info, err := os.Stat(out)
+	require.NoError(t, err)
+	assert.Equal(t, os.FileMode(0o640), info.Mode().Perm(),
+		"replacing a file must preserve the mode it already carried")
+
+	entries, err := os.ReadDir(dir)
+	require.NoError(t, err)
+	assert.Len(t, entries, 1, "no temp file may survive a successful write")
+}
+
+func TestWriteParsed_StatError(t *testing.T) {
+	t.Parallel()
+	// A regular file used as a parent directory makes Stat fail with ENOTDIR,
+	// which is an error but not "does not exist".
+	notDir := filepath.Join(t.TempDir(), "file")
+	require.NoError(t, os.WriteFile(notDir, []byte("x"), 0o644))
+
+	err := writeCompiled(filepath.Join(notDir, "ir.json"), io.Discard, &ir.Document{Name: "ok"})
+
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "stat output")
+}
+
+func TestWriteParsed_TempNameCollisionRetries(t *testing.T) {
+	var names []string
+	swapCreateOutput(t, func(path string, perm os.FileMode) (io.WriteCloser, error) {
+		names = append(names, path)
+		if len(names) == 1 {
+			return nil, fs.ErrExist // first name taken; the loop must draw another
+		}
+		return os.OpenFile(path, os.O_WRONLY|os.O_CREATE|os.O_EXCL, perm)
+	})
+
+	out := filepath.Join(t.TempDir(), "ir.json")
+	require.NoError(t, writeCompiled(out, io.Discard, &ir.Document{Name: "ok"}))
+
+	require.Len(t, names, 2, "a taken temp name must be retried, not reused")
+	assert.NotEqual(t, names[0], names[1], "each attempt must draw a fresh name")
+}
+
+func TestWriteParsed_TempNamesExhausted(t *testing.T) {
+	attempts := 0
+	swapCreateOutput(t, func(string, os.FileMode) (io.WriteCloser, error) {
+		attempts++
+		return nil, fs.ErrExist
+	})
+
+	err := writeCompiled(filepath.Join(t.TempDir(), "ir.json"), io.Discard, &ir.Document{Name: "ok"})
+
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "no unused temp name")
+	assert.Equal(t, maxTempAttempts, attempts, "the name search must be bounded")
+}
+
+func TestWriteParsed_ChmodError(t *testing.T) {
+	out := filepath.Join(t.TempDir(), "ir.json")
+	require.NoError(t, os.WriteFile(out, []byte("old\n"), 0o644))
+
+	origChmod := chmodOutput
+	t.Cleanup(func() { chmodOutput = origChmod })
+	chmodOutput = func(string, os.FileMode) error { return errors.New("chmod refused") }
+
+	err := writeCompiled(out, io.Discard, &ir.Document{Name: "ok"})
+
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "chmod output")
+	got, readErr := os.ReadFile(out)
+	require.NoError(t, readErr)
+	assert.Equal(t, "old\n", string(got), "a failed chmod must not disturb the destination")
+}
+
+func TestWriteParsed_RenameError(t *testing.T) {
+	dir := t.TempDir()
+	out := filepath.Join(dir, "ir.json")
+
+	origRename := renameOutput
+	t.Cleanup(func() { renameOutput = origRename })
+	renameOutput = func(string, string) error { return errors.New("rename refused") }
+
+	err := writeCompiled(out, io.Discard, &ir.Document{Name: "ok"})
+
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "replace output")
+	entries, readErr := os.ReadDir(dir)
+	require.NoError(t, readErr)
+	assert.Empty(t, entries, "a failed rename must remove the temp file it left behind")
 }
 
 func TestWriteParsed_ToStdoutSuccess(t *testing.T) {

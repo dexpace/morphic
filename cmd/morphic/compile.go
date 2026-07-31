@@ -3,10 +3,14 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"flag"
 	"fmt"
 	"io"
+	"io/fs"
+	"math/rand/v2"
 	"os"
+	"path/filepath"
 
 	"github.com/dexpace/morphic/engine"
 	"github.com/dexpace/morphic/ir"
@@ -19,10 +23,33 @@ import (
 // that returns a nil Document.
 var newEngine = engine.New
 
-// openOutput creates the destination file for -o. It is a package var so tests
-// can inject an io.WriteCloser whose Close fails; a real *os.File's Close does
-// not fail after a successful write on the platforms Morphic targets.
-var openOutput = func(path string) (io.WriteCloser, error) { return os.Create(path) }
+// createOutput creates the temp file that -o writes through. It is a package var
+// so tests can inject an io.WriteCloser whose Write or Close fails; a real
+// *os.File's Close does not fail after a successful write on the platforms
+// Morphic targets.
+var createOutput = func(path string, perm os.FileMode) (io.WriteCloser, error) {
+	return os.OpenFile(path, os.O_WRONLY|os.O_CREATE|os.O_EXCL, perm)
+}
+
+// chmodOutput restores a replaced destination's mode onto the temp file. It is a
+// package var so tests can inject a chmod failure, which is otherwise reachable
+// only by racing the filesystem.
+var chmodOutput = os.Chmod
+
+// renameOutput publishes a fully written temp file over the destination. It is a
+// package var so tests can inject a rename failure, which is otherwise reachable
+// only by racing the filesystem.
+var renameOutput = os.Rename
+
+// maxTempAttempts bounds the search for an unused temp-file name. Each attempt
+// draws a fresh random suffix, so exhausting it means the destination directory
+// is unusable rather than that the names happened to collide.
+const maxTempAttempts = 10
+
+// newFilePerm is the mode a temp file is created with: the same 0666 os.Create
+// requests, so the umask narrows it identically. A destination that already
+// exists overrides this via chmodOutput — see destMode.
+const newFilePerm os.FileMode = 0o666
 
 // runCompile implements the `compile` subcommand: lower one spec file to IR JSON,
 // render its diagnostics to stderr, and return the process exit code.
@@ -149,9 +176,9 @@ func severityRank(s ir.Severity) int {
 }
 
 // writeCompiled emits doc's pretty IR JSON to outPath, or to stdout when outPath
-// is empty. For a file destination, doc is marshalled in full before outPath is
-// opened, so a failed marshal never truncates a file already there — see
-// marshalDocument.
+// is empty. For a file destination, doc is marshalled in full before any file is
+// touched, so a failed marshal never disturbs a file already there — see
+// marshalDocument — and the bytes are then published atomically by replaceFile.
 func writeCompiled(outPath string, stdout io.Writer, doc *ir.Document) error {
 	if outPath == "" {
 		return writeDocument(stdout, doc)
@@ -160,16 +187,92 @@ func writeCompiled(outPath string, stdout io.Writer, doc *ir.Document) error {
 	if err != nil {
 		return err
 	}
-	f, err := openOutput(outPath)
+	return replaceFile(outPath, raw)
+}
+
+// replaceFile writes raw to outPath atomically: the bytes land in a temp file in
+// the destination's own directory — so the publishing rename never crosses a
+// filesystem boundary — and replace outPath only once all of them are on disk.
+// A failed or partial write therefore leaves outPath's previous content intact
+// instead of truncating it.
+func replaceFile(outPath string, raw []byte) error {
+	perm, replacing, err := destMode(outPath)
 	if err != nil {
-		return fmt.Errorf("create output %q: %w", outPath, err)
+		return err
 	}
+
+	tmp, err := writeTemp(outPath, raw)
+	if err != nil {
+		return err
+	}
+
+	// A brand-new file keeps the umask-narrowed mode it was created with; one
+	// that replaces an existing destination inherits that destination's mode,
+	// which is what truncating it in place would have preserved.
+	if replacing {
+		if err := chmodOutput(tmp, perm); err != nil {
+			_ = os.Remove(tmp)
+			return fmt.Errorf("chmod output %q: %w", outPath, err)
+		}
+	}
+
+	if err := renameOutput(tmp, outPath); err != nil {
+		_ = os.Remove(tmp)
+		return fmt.Errorf("replace output %q: %w", outPath, err)
+	}
+	return nil
+}
+
+// destMode reports the mode an existing destination carries, and whether there
+// is one at all. A missing destination is the ordinary case, not an error.
+func destMode(outPath string) (os.FileMode, bool, error) {
+	info, err := os.Stat(outPath)
+	if errors.Is(err, fs.ErrNotExist) {
+		return 0, false, nil
+	}
+	if err != nil {
+		return 0, false, fmt.Errorf("stat output %q: %w", outPath, err)
+	}
+	return info.Mode().Perm(), true, nil
+}
+
+// writeTemp writes raw to a newly created file beside outPath and returns that
+// file's path. Creation is O_EXCL under a random name, so it neither clobbers an
+// existing file nor follows a symlink planted at the name it drew; that makes the
+// unpredictability of the suffix a convenience, not a security boundary.
+func writeTemp(outPath string, raw []byte) (string, error) {
+	dir := filepath.Dir(outPath)
+	base := filepath.Base(outPath)
+
+	for range maxTempAttempts {
+		tmp := filepath.Join(dir, fmt.Sprintf(".%s.tmp%016x", base, rand.Uint64()))
+		f, err := createOutput(tmp, newFilePerm)
+		if errors.Is(err, fs.ErrExist) {
+			continue
+		}
+		if err != nil {
+			return "", fmt.Errorf("create output %q: %w", outPath, err)
+		}
+		if err := fillTemp(f, tmp, raw); err != nil {
+			return "", err
+		}
+		return tmp, nil
+	}
+	return "", fmt.Errorf("create output %q: no unused temp name in %d attempts",
+		outPath, maxTempAttempts)
+}
+
+// fillTemp writes raw to f and closes it, removing tmp if either step fails so a
+// failed run leaves no debris beside the destination.
+func fillTemp(f io.WriteCloser, tmp string, raw []byte) error {
 	if err := writeRaw(f, raw); err != nil {
 		_ = f.Close()
+		_ = os.Remove(tmp)
 		return err
 	}
 	if err := f.Close(); err != nil {
-		return fmt.Errorf("close output %q: %w", outPath, err)
+		_ = os.Remove(tmp)
+		return fmt.Errorf("close output %q: %w", tmp, err)
 	}
 	return nil
 }
