@@ -68,7 +68,7 @@ func loweredFor(t *testing.T, src string) (*lowerer, []ir.Diagnostic) {
 func lowerSpec(t *testing.T, src string) (*ir.Document, []ir.Diagnostic) {
 	t.Helper()
 	l, diags := loweredFor(t, src)
-	l.lowerComponentSchemas() // named components; the entry Compile's run() calls first
+	l.diags.AppendAll(lowerComponentSchemas(l.ctx, l.types, &l.anchors)) // named components; the entry Compile's run() calls first
 	return l.out, append(diags, l.diags.List()...)
 }
 
@@ -88,7 +88,7 @@ func lowerServiceSpec(t *testing.T, src string) (*ir.Document, ir.Service, []ir.
 		require.NoError(t, err)
 		require.NotNil(t, loadedDoc)
 		l := newLowerer(0, loadedDoc, Options{}.withDefaults())
-		l.lowerComponentSchemas()
+		l.diags.AppendAll(lowerComponentSchemas(l.ctx, l.types, &l.anchors))
 		auth, authDiags := lowerSecuritySchemes(l.ctx)
 		l.out.Auth = auth
 		l.diags.AppendAll(authDiags)

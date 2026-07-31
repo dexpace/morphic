@@ -53,7 +53,7 @@ func (c *Compiler) Compile(ctx context.Context, sources []compilers.Source, opts
 // IDs; then the service walk; then document metadata. It assembles and returns
 // the Document.
 func (l *lowerer) run() *ir.Document {
-	l.lowerComponentSchemas()
+	l.diags.AppendAll(lowerComponentSchemas(l.ctx, l.types, &l.anchors))
 	auth, authDiags := lowerSecuritySchemes(l.ctx)
 	l.out.Auth = auth
 	l.diags.AppendAll(authDiags)

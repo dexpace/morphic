@@ -486,7 +486,7 @@ func TestGrouping_ByPathPrefixInferred(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, loadedDoc)
 	l := newLowerer(0, loadedDoc, opts)
-	l.lowerComponentSchemas()
+	l.diags.AppendAll(lowerComponentSchemas(l.ctx, l.types, &l.anchors))
 	svc := l.lowerService()
 	requireNoErrorDiags(t, append(loadDiags, l.diags.List()...))
 	byName := indexBy(svc.Groups, func(g ir.OperationGroup) string { return g.Name.Source })
@@ -643,7 +643,7 @@ func TestGrouping_PathPrefixRootPath(t *testing.T) {
 	loadedDoc, _, err := load.Load(t.Context(), 0, sourceOf(spec), loadOptions(opts))
 	require.NoError(t, err)
 	l := newLowerer(0, loadedDoc, opts)
-	l.lowerComponentSchemas()
+	l.diags.AppendAll(lowerComponentSchemas(l.ctx, l.types, &l.anchors))
 	svc := l.lowerService()
 	require.NotEmpty(t, svc.Groups)
 	assert.Equal(t, "", svc.Groups[0].Name.Source, "root path yields empty first segment")
@@ -693,9 +693,10 @@ func TestPreserveErrorHeaders_WithoutRootNode(t *testing.T) {
 func TestLowerResponses_NoResponses(t *testing.T) {
 	t.Parallel()
 	l := newRawLowerer(&soa.OpenAPI{})
-	responses, errs := l.lowerResponses(&soa.Operation{}, "/op")
+	responses, errs, diags := lowerResponses(l.ctx, l.types, &l.anchors, &soa.Operation{}, "/op")
 	assert.Nil(t, responses)
 	assert.Nil(t, errs)
+	assert.Empty(t, diags)
 }
 
 func TestFirstPathSegment_Empty(t *testing.T) {

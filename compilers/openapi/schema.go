@@ -23,21 +23,23 @@ import (
 // lowerComponentSchemas interns every named component schema in source order.
 // It is the entry Compile's run() calls before any operation lowering so that
 // $refs resolve to already-registered IDs.
-func (l *lowerer) lowerComponentSchemas() {
-	comps := l.ctx.Doc.Components
+func lowerComponentSchemas(c lowerCtx, ts *compile.Types, anchors *anchorIndex) []ir.Diagnostic {
+	comps := c.Doc.Components
 	if comps == nil {
-		return
+		return nil
 	}
 	schemas := comps.GetSchemas()
 	if schemas == nil {
-		return
+		return nil
 	}
+	var diags []ir.Diagnostic
 	// The declared-name index the $ref and discriminator-mapping resolutions read
 	// is derived at entry (newLowerCtx), so a component declared later in the document
 	// is already a valid target here regardless of source order.
 	for name, js := range schemas.All() {
-		l.diags.AppendAll(lowerComponentSchema(l.ctx, l.types, &l.anchors, js, ids.Ptr("components", "schemas", name), name))
+		diags = append(diags, lowerComponentSchema(c, ts, anchors, js, ids.Ptr("components", "schemas", name), name)...)
 	}
+	return diags
 }
 
 // lowerComponentSchema lowers one named component schema and guarantees a node

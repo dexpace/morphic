@@ -251,7 +251,9 @@ func (l *lowerer) lowerOperation(src *soa.Operation, ctx opContext) (ir.Operatio
 	params, bindings, paramDiags := lowerParameters(l.ctx, l.types, &l.anchors, ctx.params)
 	l.diags.AppendAll(paramDiags)
 	op.Params = params
-	op.Responses, op.Errors = l.lowerResponses(src, decl)
+	responses, errs, responseDiags := lowerResponses(l.ctx, l.types, &l.anchors, src, decl)
+	l.diags.AppendAll(responseDiags)
+	op.Responses, op.Errors = responses, errs
 	hb := ir.HTTPBinding{
 		Method:        strings.ToUpper(ctx.method),
 		URITemplate:   ctx.uriTemplate,
@@ -340,35 +342,36 @@ func applyPathServers(c lowerCtx, op *ir.Operation, pi *soa.PathItem, declPtr st
 // with the default last (ir-design §7.2). opDeclPtr is the operation's own
 // declaration pointer, so a $ref'd response interns its content once at its
 // component pointer rather than once per mount site (issue #107).
-func (l *lowerer) lowerResponses(src *soa.Operation, opDeclPtr string) ([]ir.Response, []ir.ErrorCase) {
+func lowerResponses(c lowerCtx, ts *compile.Types, anchors *anchorIndex, src *soa.Operation, opDeclPtr string) ([]ir.Response, []ir.ErrorCase, []ir.Diagnostic) {
 	// GetResponses never returns nil (it addresses an always-present map), so the
 	// loop simply yields nothing when no responses are declared.
 	resps := src.GetResponses()
 	var responses []ir.Response
 	var errs []ir.ErrorCase
+	var diags []ir.Diagnostic
 	for code, rr := range resps.All() {
-		r, rptr := resolveRefAt[soa.Response](l.ctx, rr, opDeclPtr+ids.Ptr("responses", code))
+		r, rptr := resolveRefAt[soa.Response](c, rr, opDeclPtr+ids.Ptr("responses", code))
 		if r == nil {
 			continue
 		}
 		rng := statusRange(code)
 		if isErrorRange(rng) {
-			ec, ecDiags := lowerErrorCase(l.ctx, l.types, &l.anchors, r, rng, rptr)
-			l.diags.AppendAll(ecDiags)
+			ec, ecDiags := lowerErrorCase(c, ts, anchors, r, rng, rptr)
+			diags = append(diags, ecDiags...)
 			errs = append(errs, ec)
 		} else {
-			resp, respDiags := lowerResponse(l.ctx, l.types, &l.anchors, r, rng, rptr)
-			l.diags.AppendAll(respDiags)
+			resp, respDiags := lowerResponse(c, ts, anchors, r, rng, rptr)
+			diags = append(diags, respDiags...)
 			responses = append(responses, resp)
 		}
 	}
-	def, dptr := resolveRefAt[soa.Response](l.ctx, resps.GetDefault(), opDeclPtr+ids.Ptr("responses", "default"))
+	def, dptr := resolveRefAt[soa.Response](c, resps.GetDefault(), opDeclPtr+ids.Ptr("responses", "default"))
 	if def != nil {
-		ec, ecDiags := lowerErrorCase(l.ctx, l.types, &l.anchors, def, ir.StatusRange{}, dptr)
-		l.diags.AppendAll(ecDiags)
+		ec, ecDiags := lowerErrorCase(c, ts, anchors, def, ir.StatusRange{}, dptr)
+		diags = append(diags, ecDiags...)
 		errs = append(errs, ec)
 	}
-	return responses, errs
+	return responses, errs, diags
 }
 
 // lowerResponse lowers one success response: its status condition, payload (all
