@@ -44,7 +44,9 @@ func (l *lowerer) schemaRefHomed(js *oas3.JSONSchema[oas3.Referenceable], pointe
 	}
 	if js.IsBool() {
 		if b := js.GetBool(); b != nil && !*b {
-			return ir.TypeRef{Target: l.falseSchema(pointer, hint)}
+			id, diags := falseSchema(l.ctx, l.types, pointer, hint)
+			l.diags.AppendAll(diags)
+			return ir.TypeRef{Target: id}
 		}
 		return l.types.PrimRef(ir.PrimAny)
 	}

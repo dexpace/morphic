@@ -387,13 +387,19 @@ func (l *lowerer) preserveUnionSiblings(id ir.TypeID, s *oas3.Schema, pointer st
 
 // falseSchema hoists a boolean `false` schema as a closed empty model (it
 // matches nothing) and records one info diagnostic on first visit.
-func (l *lowerer) falseSchema(pointer, hint string) ir.TypeID {
-	return internNode(l.ctx, l.types, pointer, hint, func(common ir.TypeCommon) ir.TypeDef {
-		l.diag(ir.SeverityInfo, diag.FalseSchema, pointer,
-			"boolean false schema matches nothing; lowered as a closed empty model")
+func falseSchema(c lowerCtx, ts *compile.Types, pointer, hint string) (ir.TypeID, []ir.Diagnostic) {
+	// Captured from inside the build rather than reported around it, which keeps
+	// the report tied to the node actually being constructed. Reporting eagerly
+	// would be indistinguishable today — a second visit produces the identical
+	// diagnostic, which Diags.Append drops — so nothing observable rests on this;
+	// it is the honest place for it, not a load-bearing one.
+	var diags []ir.Diagnostic
+	id := internNode(c, ts, pointer, hint, func(common ir.TypeCommon) ir.TypeDef {
+		diags = append(diags, c.diagAt(ir.SeverityInfo, diag.FalseSchema, pointer,
+			"boolean false schema matches nothing; lowered as a closed empty model"))
 		return &ir.Model{TypeCommon: common, Additional: ir.AdditionalClosed}
 	})
-
+	return id, diags
 }
 
 // lower interns the inline schema at pointer and returns its TypeID. Value
@@ -404,7 +410,9 @@ func (l *lowerer) falseSchema(pointer, hint string) ir.TypeID {
 // a bare `const` schema is exactly a Literal at its own pointer.
 func (l *lowerer) lower(s *oas3.Schema, pointer, hint string) ir.TypeID {
 	if c := s.GetConst(); c != nil {
-		return l.preserveUnhomedKeywords(s, pointer, hint, l.hoistLiteral(c, pointer, hint))
+		lit, litDiags := hoistLiteral(l.ctx, l.types, c, pointer, hint)
+		l.diags.AppendAll(litDiags)
+		return l.preserveUnhomedKeywords(s, pointer, hint, lit)
 	}
 	if len(s.GetEnum()) > 0 {
 		return l.preserveUnhomedKeywords(s, pointer, hint, l.lowerEnum(s, pointer, hint))
@@ -665,7 +673,7 @@ func (l *lowerer) fillPropertyDetail(p *ir.Property, js *oas3.JSONSchema[oas3.Re
 		return
 	}
 	tgt := resolve.TargetSchema(js, ref)
-	l.fillPropertyDefault(p, ref, tgt, pointer)
+	l.diags.AppendAll(fillPropertyDefault(l.ctx, p, ref, tgt, pointer))
 	if ref.GetFormat() == "password" {
 		p.Secret = true
 	}
@@ -732,20 +740,21 @@ func loweredToOwnNode(ts *compile.Types, pointer string, t ir.TypeRef) bool {
 
 // fillPropertyDefault sets the property default, preferring the use-site node
 // over the $ref target's; an unconvertible node yields a diagnostic.
-func (l *lowerer) fillPropertyDefault(p *ir.Property, ref, tgt *oas3.Schema, pointer string) {
+func fillPropertyDefault(c lowerCtx, p *ir.Property, ref, tgt *oas3.Schema, pointer string) []ir.Diagnostic {
 	node := ref.GetDefault()
 	if node == nil && tgt != nil {
 		node = tgt.GetDefault()
 	}
 	if node == nil {
-		return
+		return nil
 	}
 	v, err := value.FromNode(node)
 	if err != nil {
-		l.diag(ir.SeverityWarning, diag.DegradedConstruct, pointer, "default: %s", err.Error())
-		return
+		return []ir.Diagnostic{c.diagAt(ir.SeverityWarning, diag.DegradedConstruct, pointer,
+			"default: %s", err.Error())}
 	}
 	p.Default = &v
+	return nil
 }
 
 // fillPropertyConstraints attaches the property's scalar constraints and stamps

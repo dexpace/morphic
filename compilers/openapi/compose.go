@@ -90,7 +90,7 @@ func (l *lowerer) applyCompositionRequired(m *ir.Model, s *oas3.Schema, pointer 
 			m.Properties[i].Required = true
 			continue
 		}
-		l.diagUnattachableRequired(m, e)
+		l.appendDiag(diagUnattachableRequired(l.ctx, m, e))
 	}
 }
 
@@ -99,13 +99,12 @@ func (l *lowerer) applyCompositionRequired(m *ir.Model, s *oas3.Schema, pointer 
 // the requirement plausibly belongs to that base/mixin's own property, so real
 // fidelity is lost. Otherwise it is info: the spec just names a property
 // nothing declares, which is legal JSON Schema with nothing to lose.
-func (l *lowerer) diagUnattachableRequired(m *ir.Model, e requiredEntry) {
+func diagUnattachableRequired(c lowerCtx, m *ir.Model, e requiredEntry) ir.Diagnostic {
 	if m.Base != nil || len(m.Mixins) > 0 {
-		l.diag(ir.SeverityWarning, diag.UnattachableRequired, e.pointer,
+		return c.diagAt(ir.SeverityWarning, diag.UnattachableRequired, e.pointer,
 			"required %q matches no property declared here; a base or mixin may declare it, and the requirement cannot be carried across composition", e.name)
-		return
 	}
-	l.diag(ir.SeverityInfo, diag.UnattachableRequired, e.pointer,
+	return c.diagAt(ir.SeverityInfo, diag.UnattachableRequired, e.pointer,
 		"required %q matches no property declared here", e.name)
 }
 
@@ -215,7 +214,7 @@ func (l *lowerer) preserveUnmergedBranch(m *ir.Model, bs *oas3.Schema, branchIdx
 		bs.GetRootNode(), ir.ReasonDegradedLowering, bptr) {
 		return
 	}
-	l.diagUnmergedBranch(bs, residue, bptr)
+	l.appendDiag(diagUnmergedBranch(l.ctx, bs, residue, bptr))
 }
 
 // diagUnmergedBranch announces one merged branch's residue, naming the keywords
@@ -227,14 +226,13 @@ func (l *lowerer) preserveUnmergedBranch(m *ir.Model, bs *oas3.Schema, branchIdx
 // maxLength: 3}]` lowers to an empty model. Any other residue leaves a model the
 // IR describes correctly and only narrows it further, which is §4.8's
 // under-constrained case.
-func (l *lowerer) diagUnmergedBranch(bs *oas3.Schema, residue []string, bptr string) {
+func diagUnmergedBranch(c lowerCtx, bs *oas3.Schema, residue []string, bptr string) ir.Diagnostic {
 	kept := strings.Join(residue, ", ")
 	if branchExcludesObject(bs) {
-		l.diag(ir.SeverityWarning, diag.DegradedConstruct, bptr,
+		return c.diagAt(ir.SeverityWarning, diag.DegradedConstruct, bptr,
 			"inline allOf branch declares a type that is not an object, which the composed model asserts it is; the branch (%s) is kept verbatim under Unmodeled", kept)
-		return
 	}
-	l.diag(ir.SeverityInfo, diag.DegradedConstruct, bptr,
+	return c.diagAt(ir.SeverityInfo, diag.DegradedConstruct, bptr,
 		"inline allOf branch is merged in place, so only its properties and required list compose; the branch (%s) is kept verbatim under Unmodeled", kept)
 }
 
@@ -544,7 +542,7 @@ func (l *lowerer) lowerCoDeclaredUnion(s *oas3.Schema, pointer, hint string) ir.
 		return l.lowerBesideUnmodeledUnion(s, pointer, hint, ir.ReasonDegradedLowering,
 			"a branch is written inline, so it names no referent to conjoin the body with")
 	case unionUnresolvedBranch:
-		l.diagUnresolvedBranches(s, pointer)
+		l.diags.AppendAll(diagUnresolvedBranches(l.ctx, s, pointer))
 		return l.lowerBesideUnmodeledUnion(s, pointer, hint, ir.ReasonDegradedLowering,
 			"a branch's $ref names no referent this compilation resolves")
 	default: // unionDiscriminated
@@ -558,16 +556,19 @@ func (l *lowerer) lowerCoDeclaredUnion(s *oas3.Schema, pointer, hint string) ir.
 // nothing is dropped — but a reference that resolves nowhere is a defect of the
 // document itself, reported at the same severity as everywhere else, and the
 // info diagnostic beside it explains only the lowering.
-func (l *lowerer) diagUnresolvedBranches(s *oas3.Schema, pointer string) {
+func diagUnresolvedBranches(c lowerCtx, s *oas3.Schema, pointer string) []ir.Diagnostic {
 	branches, key, _ := unionBranches(s)
+	var diags []ir.Diagnostic
 	for i, b := range branches {
 		ref := b.GetRef().String()
-		if l.ctx.refScope().NamesReferent(b, ref) {
+		if c.refScope().NamesReferent(b, ref) {
 			continue
 		}
-		l.diag(ir.SeverityError, diag.UnresolvedRef, pointer+ids.Ptr(key, strconv.Itoa(i)),
-			"union branch $ref %q resolves to nothing this document declares; the branch is kept verbatim", ref)
+		diags = append(diags, c.diagAt(ir.SeverityError, diag.UnresolvedRef,
+			pointer+ids.Ptr(key, strconv.Itoa(i)),
+			"union branch $ref %q resolves to nothing this document declares; the branch is kept verbatim", ref))
 	}
+	return diags
 }
 
 // composesAsModel reports whether the structural siblings lower to a Model,
@@ -993,9 +994,11 @@ func (l *lowerer) enumAsUnion(s *oas3.Schema, common ir.TypeCommon, pointer, hin
 	for i, node := range nodes {
 		vh := hint + "_" + strconv.Itoa(i)
 		lptr := pointer + ids.Ptr("enum", strconv.Itoa(i))
+		litID, litDiags := hoistLiteral(l.ctx, l.types, node, lptr, vh)
+		l.diags.AppendAll(litDiags)
 		variants = append(variants, ir.Variant{
 			Name: ir.Naming{Hint: vh},
-			Type: ir.TypeRef{Target: l.hoistLiteral(node, lptr, vh)},
+			Type: ir.TypeRef{Target: litID},
 		})
 	}
 	return &ir.Union{
@@ -1012,17 +1015,24 @@ func (l *lowerer) enumAsUnion(s *oas3.Schema, common ir.TypeCommon, pointer, hin
 // be a top-level component, so internNode's ids.ForPointer keeps that
 // component's stable named ID) and each individual member of a heterogeneous
 // enum (enumAsUnion, always an anonymous sub-pointer).
-func (l *lowerer) hoistLiteral(node values.Value, pointer, hint string) ir.TypeID {
-	return internNode(l.ctx, l.types, pointer, hint, func(common ir.TypeCommon) ir.TypeDef {
+func hoistLiteral(c lowerCtx, ts *compile.Types, node values.Value, pointer, hint string,
+) (ir.TypeID, []ir.Diagnostic) {
+	// Captured from inside the build rather than reported around it, which keeps
+	// the report tied to the node actually being constructed. Reporting eagerly
+	// would be indistinguishable today — a second visit produces the identical
+	// diagnostic, which Diags.Append drops — so nothing observable rests on this;
+	// it is the honest place for it, not a load-bearing one.
+	var diags []ir.Diagnostic
+	id := internNode(c, ts, pointer, hint, func(common ir.TypeCommon) ir.TypeDef {
 		val, err := value.FromNode(node)
 		if err != nil {
-			l.diag(ir.SeverityWarning, diag.DegradedConstruct, pointer,
-				"unconvertible value lowered as the top type: %s", err.Error())
+			diags = append(diags, c.diagAt(ir.SeverityWarning, diag.DegradedConstruct, pointer,
+				"unconvertible value lowered as the top type: %s", err.Error()))
 			return &ir.Any{TypeCommon: common}
 		}
 		return &ir.Literal{TypeCommon: common, Value: val}
 	})
-
+	return id, diags
 }
 
 // enumValueType picks an Enum's ValueType from the schema's declared scalar
