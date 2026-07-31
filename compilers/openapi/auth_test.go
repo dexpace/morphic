@@ -219,7 +219,7 @@ func TestAuth_AllSchemeKinds(t *testing.T) {
 
 func TestLowerSecurityRequirement_Nil(t *testing.T) {
 	t.Parallel()
-	got, diags := lowerSecurityRequirement(lowerCtx{}, nil, nil)
+	got, diags := lowerSecurityRequirement(lowerCtx{}, nil)
 
 	assert.Empty(t, got.Schemes)
 	assert.Empty(t, diags)

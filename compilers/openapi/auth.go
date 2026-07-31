@@ -164,16 +164,14 @@ func scopeMap(f *soa.OAuthFlow) map[string]string {
 // nil list inherits the enclosing default; a non-nil list yields one
 // AuthRequirement per option in source order. An empty option object {} means
 // "no auth is one acceptable choice".
-func lowerSecurityRequirements(c lowerCtx, reqs []*soa.SecurityRequirement,
-	declared map[ir.AuthID]ir.AuthScheme,
-) ([]ir.AuthRequirement, []ir.Diagnostic) {
+func lowerSecurityRequirements(c lowerCtx, reqs []*soa.SecurityRequirement) ([]ir.AuthRequirement, []ir.Diagnostic) {
 	if reqs == nil {
 		return nil, nil
 	}
 	out := make([]ir.AuthRequirement, 0, len(reqs))
 	var diags []ir.Diagnostic
 	for _, req := range reqs {
-		r, reqDiags := lowerSecurityRequirement(c, req, declared)
+		r, reqDiags := lowerSecurityRequirement(c, req)
 		out = append(out, r)
 		diags = append(diags, reqDiags...)
 	}
@@ -186,7 +184,6 @@ func lowerSecurityRequirements(c lowerCtx, reqs []*soa.SecurityRequirement,
 // that failed to resolve into the auth registry) is dropped with one error
 // diagnostic rather than writing a dangling AuthID (issue #14).
 func lowerSecurityRequirement(c lowerCtx, req *soa.SecurityRequirement,
-	declared map[ir.AuthID]ir.AuthScheme,
 ) (ir.AuthRequirement, []ir.Diagnostic) {
 	if req == nil {
 		return ir.AuthRequirement{}, nil
@@ -195,7 +192,7 @@ func lowerSecurityRequirement(c lowerCtx, req *soa.SecurityRequirement,
 	var diags []ir.Diagnostic
 	for name, scopes := range req.All() {
 		id := ids.Auth(name)
-		if _, ok := declared[id]; !ok {
+		if !c.DeclaresAuth(id) {
 			diags = append(diags, c.diagAt(ir.SeverityError, diag.UnresolvedRef,
 				ids.Ptr("components", "securitySchemes", name),
 				"security requirement references undeclared scheme %q", name))

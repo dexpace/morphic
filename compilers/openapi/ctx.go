@@ -14,11 +14,11 @@ import (
 // the indexes derived from them once at entry.
 //
 // It is a value rather than a pointer, so a function that takes one takes a
-// copy. That now makes "immutable" enforceable rather than conventional for
-// every lowering that takes it as a parameter — the schema walk and everything
-// below it. The upper layer still reads it through l.ctx until #175 converts,
-// and no lowering writes to it either way. What already holds everywhere is the
-// map below: a copy shares it, so it is not reachable to write at all.
+// copy. Every lowering takes it as a parameter now (#177), which is what makes
+// "immutable" enforceable rather than conventional: there is no shared holder
+// left to write through. The maps below stay unexported for the other half of
+// it — a copy shares a map rather than copying it, so an exported one would be
+// the single part of a by-value context a callee could still reach.
 //
 // The name is deliberately not ctx. This package already spends that identifier
 // twice — on the context.Context Compile takes, which the styleguide reserves it
@@ -53,7 +53,8 @@ type lowerCtx struct {
 	schemas map[string]bool
 
 	// auth is the document's declared security schemes, keyed by the IDs a
-	// requirement names. It is unexported for the reason schemas is.
+	// requirement names. It is unexported, and read through a predicate rather
+	// than handed back, for the reason schemas is.
 	//
 	// Unlike every other field it is not derived at entry: resolving the schemes
 	// is a lowering that reports, and micro-compiler-design §4.1 keeps such work
@@ -74,8 +75,10 @@ func (c lowerCtx) withAuth(auth map[ir.AuthID]ir.AuthScheme) lowerCtx {
 	return c
 }
 
-// DeclaredAuth returns the security schemes a requirement may name.
-func (c lowerCtx) DeclaredAuth() map[ir.AuthID]ir.AuthScheme { return c.auth }
+// DeclaresAuth reports whether the document declares the security scheme a
+// requirement names. It is a predicate rather than a getter for the reason
+// DeclaresSchema is: handing back the map would make it writable by every
+// caller, which is the one thing keeping it unexported was for.
 
 // newLowerCtx derives the immutable context for one loaded source.
 //
@@ -120,6 +123,8 @@ func declaredSchemaNames(doc *soa.OpenAPI) map[string]bool {
 // DeclaresSchema reports whether the document declares a component schema of
 // this name. A name it does not declare is not a resolvable $ref target.
 func (c lowerCtx) DeclaresSchema(name string) bool { return c.schemas[name] }
+
+func (c lowerCtx) DeclaresAuth(id ir.AuthID) bool { _, ok := c.auth[id]; return ok }
 
 // exclusiveBoundIsBoolean reports whether this document's dialect spells
 // exclusiveMinimum/exclusiveMaximum as a boolean modifier (OpenAPI 3.0) rather

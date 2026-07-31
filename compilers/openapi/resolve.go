@@ -35,7 +35,8 @@ func carriedSchemaRef(c lowerCtx, ts *compile.Types, anchors *anchorIndex, depth
 func schemaRefHomed(c lowerCtx, ts *compile.Types, anchors *anchorIndex, depth int, js *oas3.JSONSchema[oas3.Referenceable], pointer, hint string, home annotation.Home) (ir.TypeRef, []ir.Diagnostic) {
 	// depth counts the active frames of this function, which is where every
 	// recursive descent re-enters. Incrementing on entry and passing the result
-	// down is the parameter form of the counter the lowerer used to hold.
+	// down is the parameter form of a counter that used to live on a shared
+	// struct, back when one held the whole compile.
 	depth++
 	if depth > maxSchemaDepth {
 		return ts.PrimRef(ir.PrimAny), []ir.Diagnostic{c.diagAt(ir.SeverityError, diag.DegradedConstruct, pointer,

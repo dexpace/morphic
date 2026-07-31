@@ -44,7 +44,7 @@ func lowerService(c lowerCtx, ts *compile.Types, anchors *anchorIndex, operation
 		svc.Name = compile.NamingFor(title)
 		svc.Docs.Description = info.GetDescription()
 	}
-	svcAuth, diags := lowerSecurityRequirements(c, c.Doc.GetSecurity(), c.DeclaredAuth())
+	svcAuth, diags := lowerSecurityRequirements(c, c.Doc.GetSecurity())
 	svc.Auth = svcAuth
 	groups := newServiceGroups()
 	diags = append(diags, lowerPaths(c, ts, anchors, operationIDs, groups)...)
@@ -236,7 +236,7 @@ func lowerOperation(c lowerCtx, ts *compile.Types, anchors *anchorIndex, operati
 	// marked inferred — the one provenance in this compiler that is.
 	opProv := c.provenanceAt(decl)
 	opProv.Inferred = opCtx.inferred
-	opAuth, diags := lowerSecurityRequirements(c, src.Security, c.DeclaredAuth())
+	opAuth, diags := lowerSecurityRequirements(c, src.Security)
 	op := ir.Operation{
 		ID:   ids.Op(mount),
 		Name: operationName(src, opCtx.method, opCtx.uriTemplate),
