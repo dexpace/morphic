@@ -54,21 +54,19 @@ func preserve(c lowerCtx, p *ir.Unmodeled, key string, raw ir.RawValue,
 // preserveNode records the construct written at node under key in *p, reporting
 // one that could not be converted at all. It returns whether an entry was
 // written, so a caller announces only what it actually kept (GitHub #144).
-func (l *lowerer) preserveNode(p *ir.Unmodeled, key string, node *yaml.Node,
+func preserveNode(c lowerCtx, p *ir.Unmodeled, key string, node *yaml.Node,
 	reason ir.UnmodeledReason, pointer string,
-) bool {
-	ok, diags := annotation.PreserveNodeInto(p, key, node, reason, pointer, l.ctx.SrcIndex)
-	l.diags.AppendAll(diags)
-	return ok
+) (bool, []ir.Diagnostic) {
+	return annotation.PreserveNodeInto(p, key, node, reason, pointer, c.SrcIndex)
 }
 
 // preserveSchemaKeyword records the top-level keyword s writes under key. It is
 // preserveNode addressed by keyword rather than by node, which is how all but a
 // handful of preservation sites reach their payload.
-func (l *lowerer) preserveSchemaKeyword(p *ir.Unmodeled, s *oas3.Schema, keyword string,
+func preserveSchemaKeyword(c lowerCtx, p *ir.Unmodeled, s *oas3.Schema, keyword string,
 	reason ir.UnmodeledReason, pointer string,
-) bool {
-	return l.preserveNode(p, "openapi:"+keyword, annotation.RawPropertyNode(s, keyword), reason, pointer)
+) (bool, []ir.Diagnostic) {
+	return preserveNode(c, p, "openapi:"+keyword, annotation.RawPropertyNode(s, keyword), reason, pointer)
 }
 
 // preserveKeyword records a validation-only keyword's raw payload under key in

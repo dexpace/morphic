@@ -107,10 +107,12 @@ func (l *lowerer) positionalEncoding(c *ir.Content, media *soa.MediaType, mediaP
 	// lowering here: an itemEncoding beside it is optional, so its absence must not
 	// suppress the message, and its own conversion failure reports separately.
 	at := mediaPtr + ids.Ptr("prefixEncoding")
-	kept := l.preserveNode(&c.Unmodeled, "openapi:prefixEncoding", annotation.RawChildNode(root, "prefixEncoding"),
-		ir.ReasonNoIRHome, at)
-	l.preserveNode(&c.Unmodeled, "openapi:itemEncoding", annotation.RawChildNode(root, "itemEncoding"),
-		ir.ReasonNoIRHome, mediaPtr+ids.Ptr("itemEncoding"))
+	kept, prefixDiags := preserveNode(l.ctx, &c.Unmodeled, "openapi:prefixEncoding",
+		annotation.RawChildNode(root, "prefixEncoding"), ir.ReasonNoIRHome, at)
+	l.diags.AppendAll(prefixDiags)
+	_, itemDiags := preserveNode(l.ctx, &c.Unmodeled, "openapi:itemEncoding",
+		annotation.RawChildNode(root, "itemEncoding"), ir.ReasonNoIRHome, mediaPtr+ids.Ptr("itemEncoding"))
+	l.diags.AppendAll(itemDiags)
 	if !kept {
 		// Reaching here means prefixEncoding is declared — that is the only reason
 		// this lowering runs — yet nothing of it was written. Unlike every other

@@ -177,7 +177,9 @@ func (l *lowerer) fillParamSchemaAnnotations(param *ir.Parameter, s, tgt *oas3.S
 // gap by adding the field (GitHub #124).
 func (l *lowerer) preserveParamXML(param *ir.Parameter, s *oas3.Schema, pointer string) {
 	at := pointer + ids.Ptr("xml")
-	if l.preserveSchemaKeyword(&param.Unmodeled, s, "xml", ir.ReasonNoIRHome, at) {
+	kept0, keptDiags0 := preserveSchemaKeyword(l.ctx, &param.Unmodeled, s, "xml", ir.ReasonNoIRHome, at)
+	l.diags.AppendAll(keptDiags0)
+	if kept0 {
 		l.diag(ir.SeverityInfo, diag.DegradedConstruct, at,
 			"parameter schema xml hints have no ir.Parameter home; kept verbatim under Unmodeled")
 	}
@@ -198,7 +200,9 @@ func (l *lowerer) preserveParamVisibility(param *ir.Parameter, s *oas3.Schema, p
 			continue
 		}
 		at := pointer + ids.Ptr(keyword)
-		if !l.preserveSchemaKeyword(&param.Unmodeled, s, keyword, ir.ReasonNoIRHome, at) {
+		kept0, keptDiags0 := preserveSchemaKeyword(l.ctx, &param.Unmodeled, s, keyword, ir.ReasonNoIRHome, at)
+		l.diags.AppendAll(keptDiags0)
+		if !kept0 {
 			continue
 		}
 		l.diag(ir.SeverityInfo, diag.DegradedConstruct, at,
