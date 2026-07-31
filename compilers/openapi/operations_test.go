@@ -1615,8 +1615,15 @@ func TestOperation_UnserializableExtensionStillWarns(t *testing.T) {
 `)
 	doc, diags := parseFull(t, spec)
 
-	assert.NotZero(t, countDiagsAt(diags, diag.DegradedConstruct, ir.SeverityWarning),
-		"an unserializable operation extension is announced: %+v", diags)
+	var announced bool
+	for _, d := range diags {
+		if d.Code == diag.DegradedConstruct && d.Severity == ir.SeverityWarning &&
+			strings.Contains(d.Message, "x-bad") {
+			announced = true
+		}
+	}
+	assert.True(t, announced,
+		"the unserializable extension is named in a warning, not merely some warning: %+v", diags)
 	op := doc.Services[0].Groups[0].Operations[0]
 	assert.Empty(t, op.Unmodeled, "and is dropped rather than stored half-converted")
 }

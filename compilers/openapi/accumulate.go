@@ -23,8 +23,8 @@ import (
 // place.
 
 // appendExample converts node into proto's value and appends the result to out;
-// an unconvertible node is skipped with a warning diagnostic rather than silently
-// dropped — an example is an annotation, not a structural hole, so losing it is
+// an unconvertible node is skipped and yields a warning diagnostic for the
+// caller to record, rather than being silently dropped — an example is an annotation, not a structural hole, so losing it is
 // fine as long as it isn't silent. proto carries the annotations that surround
 // the value (name, summary, description); base and seg locate the node, joined
 // into a pointer only on the failure path, so an example that converts builds no
@@ -72,8 +72,9 @@ func (l *lowerer) preserveSchemaKeyword(p *ir.Unmodeled, s *oas3.Schema, keyword
 }
 
 // preserveKeyword records a validation-only keyword's raw payload under key in
-// p and emits one info diagnostic naming it at declPtr, the schema that wrote
-// it. An absent or unconvertible payload records nothing and reports nothing.
+// p and returns the one info diagnostic naming it at declPtr, the schema that
+// wrote it. An absent or unconvertible payload records nothing and returns
+// nothing.
 //
 // entryPtr locates the entry itself, which is what a validation emitter reports
 // against: the keyword's own node where the source writes the entry as one
@@ -132,13 +133,17 @@ func (l *lowerer) lowerArray(s *oas3.Schema, pointer, hint string) ir.TypeID {
 
 }
 
-// extensions lowers ext's x-* extensions into namespaced Unmodeled, recording
-// any serialization-failure diagnostics unconditionally even when the result is
-// empty. Every lowering site should call this rather than
-// annotation.ExtensionsFrom directly: gating the diagnostic append behind the
-// same "len(ext) > 0" that guards the assignment would drop every warning on an
+// extensionsOf lowers ext's x-* extensions into namespaced Unmodeled, returning
+// the entries and any serialization-failure diagnostics separately. It is named
+// for what it returns rather than for the construct, because this package also
+// imports the extensions library.
+//
+// The two returns are independent on purpose, and a caller must record the
+// diagnostics whether or not it keeps the entries: gating the append behind the
+// same "len(ext) > 0" that guards the assignment drops every warning on an
 // object whose extensions all failed to serialize — exactly when the result is
-// empty.
+// empty. TestOperation_UnserializableExtensionStillWarns and its security-scheme
+// twin hold two of the callers to that.
 func extensionsOf(c lowerCtx, ext *extensions.Extensions, owner string) (ir.Unmodeled, []ir.Diagnostic) {
 	return annotation.ExtensionsFrom(ext, c.SrcIndex, owner)
 }
