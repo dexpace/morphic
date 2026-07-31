@@ -96,7 +96,7 @@ func (l *lowerer) refTypeRef(js *oas3.JSONSchema[oas3.Referenceable], pointer st
 			"unresolved $ref %q", ref)
 		return l.types.PrimRef(ir.PrimAny)
 	}
-	return ir.TypeRef{Target: id, Nullable: l.refNullable(js)}
+	return ir.TypeRef{Target: id, Nullable: refNullable(js)}
 }
 
 // resolveSchemaRef resolves a schema-position $ref to an interned TypeID, never
@@ -146,7 +146,7 @@ func (l *lowerer) hoistSubSchema(decl *oas3.JSONSchema[oas3.Referenceable], poin
 	if owned, ok := l.types.Lookup(pointer); ok {
 		return owned, true
 	}
-	id := l.internAlias(pointer, hint, ref, l.schemaConstraints(s.Node, pointer))
+	id := internAlias(l.ctx, l.types, pointer, hint, ref, l.schemaConstraints(s.Node, pointer))
 	// As in lowerComponentSchema: this alias is the first node the pointer owns,
 	// so the annotations schemaRef had nowhere to put now have a home.
 	l.attachDeclaredAnnotations(s.Node, pointer)
@@ -184,7 +184,7 @@ func subSchemaHint(decl *oas3.JSONSchema[oas3.Referenceable], pointer string) st
 // its resolved target admits null in any spelling. The ref site must recompute
 // this because a target interned at its own ID (a model, a union) discards the
 // TypeRef its definition produced, so the bit survives nowhere else.
-func (l *lowerer) refNullable(js *oas3.JSONSchema[oas3.Referenceable]) bool {
+func refNullable(js *oas3.JSONSchema[oas3.Referenceable]) bool {
 	if s := js.GetSchema(); s != nil && schemaAdmitsNull(s) {
 		return true
 	}

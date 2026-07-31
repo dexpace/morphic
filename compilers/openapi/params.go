@@ -150,7 +150,7 @@ func (l *lowerer) fillParamSchemaAnnotations(param *ir.Parameter, s, tgt *oas3.S
 	// drop them for exactly the parameters whose schema owns a node — an object,
 	// an enum, an array.
 	l.preserveParamVisibility(param, s, pointer)
-	if l.loweredToOwnNode(pointer, param.Type) {
+	if loweredToOwnNode(l.types, pointer, param.Type) {
 		return
 	}
 	a, diags := annotation.Read(annotation.Site{Kind: annotation.Reference, Node: s, Referent: tgt}, pointer, l.ctx.SrcIndex)
