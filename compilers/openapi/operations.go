@@ -280,6 +280,7 @@ func (l *lowerer) lowerOperation(src *soa.Operation, ctx opContext) (ir.Operatio
 // presentation, so the IR still records what the document said (invariant 4) —
 // but an emitter renders both under one identifier, so the collision has to be
 // reported rather than discovered downstream.
+//
 // operationIDs is the caller's, allocated where the lowering starts, so this
 // only ever writes into it — the lazy make it used to carry was unreachable
 // from newLowerer, which has always allocated the map up front.
@@ -474,8 +475,8 @@ func (l *lowerer) lowerCallbacks(src *soa.Operation, parent opPointers, inferred
 				continue
 			}
 			cbPtrs := opPointers{mount: parent.mount + ids.Ptr("callbacks", cbName, exprStr), decl: piDecl}
-			ids, cbOps := l.lowerCallbackOps(pi, cbPtrs, exprStr, inferred)
-			callbacks = append(callbacks, ir.Callback{Expression: exprStr, Operations: ids})
+			opIDs, cbOps := l.lowerCallbackOps(pi, cbPtrs, exprStr, inferred)
+			callbacks = append(callbacks, ir.Callback{Expression: exprStr, Operations: opIDs})
 			ops = append(ops, cbOps...)
 		}
 	}

@@ -17,6 +17,9 @@ linters:
       rules:
         - name: exported # GoDoc on every exported symbol
         - name: package-comments
+        # A local that shadows an imported package compiles until someone adds a
+        # call to that package below it. compilers/openapi had one live instance.
+        - name: import-shadowing
 
 formatters:
   enable:

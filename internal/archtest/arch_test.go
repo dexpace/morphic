@@ -192,13 +192,13 @@ func TestWalkImports_NestedLookAlikeIsAudited(t *testing.T) {
 	assert.Contains(t, violations[0], filepath.Join("sub", "irtest", "nested.go"))
 }
 
-// writeImporter writes a minimal parseable Go file at path importing imp, so a
+// writeImporter writes a minimal parseable Go file at file importing imp, so a
 // planted tree exercises walkImports without a buildable package.
-func writeImporter(t *testing.T, path, imp string) {
+func writeImporter(t *testing.T, file, imp string) {
 	t.Helper()
-	require.NoError(t, os.MkdirAll(filepath.Dir(path), 0o755))
+	require.NoError(t, os.MkdirAll(filepath.Dir(file), 0o755))
 	src := "package planted\n\nimport _ \"" + imp + "\"\n"
-	require.NoError(t, os.WriteFile(path, []byte(src), 0o644))
+	require.NoError(t, os.WriteFile(file, []byte(src), 0o644))
 }
 
 // TestImportGraph_EveryPackageIsRuledOrExempt requires every directory holding
