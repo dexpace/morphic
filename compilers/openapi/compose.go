@@ -37,7 +37,7 @@ func (l *lowerer) lowerAllOf(s *oas3.Schema, pointer, hint string) ir.TypeID {
 		if d := l.lowerDiscriminator(s, m, pointer); d != nil {
 			m.Discriminator = d
 		}
-		m.DiscriminatorValue = l.subtypeDiscriminatorValue(s, common.ID, pointer)
+		m.DiscriminatorValue = subtypeDiscriminatorValue(l.ctx, l.types, s, common.ID, pointer)
 		return m
 	})
 
@@ -389,14 +389,14 @@ func refTargetHasDiscriminator(b *oas3.JSONSchema[oas3.Referenceable]) bool {
 // anchors one. Per ir-design §4.3 the value is the base mapping key that points
 // at this subtype, falling back to the subtype's own schema name (OpenAPI's
 // implicit mapping) when the mapping omits it.
-func (l *lowerer) subtypeDiscriminatorValue(s *oas3.Schema, id ir.TypeID, pointer string) string {
+func subtypeDiscriminatorValue(c lowerCtx, ts *compile.Types, s *oas3.Schema, id ir.TypeID, pointer string) string {
 	d := baseBranchDiscriminator(s.GetAllOf())
 	if d == nil {
 		return ""
 	}
 	if m := d.GetMapping(); m != nil {
 		for value, target := range m.All() {
-			if tid, ok := mappingTargetID(l.ctx, l.types, target); ok && tid == id {
+			if tid, ok := mappingTargetID(c, ts, target); ok && tid == id {
 				return value
 			}
 		}
@@ -489,7 +489,7 @@ const (
 // composed models the mapping cannot name (pass/validate's
 // discriminator-missing-variant rule states the same requirement from the other
 // side). ir-design §4.8 enumerates this and the other four residual shapes.
-func (l *lowerer) classifyUnionSiblings(s *oas3.Schema) unionLowering {
+func classifyUnionSiblings(c lowerCtx, s *oas3.Schema) unionLowering {
 	if !unionBranchesDeclareShape(s) {
 		return unionValidationOnly
 	}
@@ -502,7 +502,7 @@ func (l *lowerer) classifyUnionSiblings(s *oas3.Schema) unionLowering {
 	if branches, _, _ := unionBranches(s); slices.ContainsFunc(branches, isInlineBranch) {
 		return unionInlineBranch
 	}
-	if !branchesNameReferents(l.ctx, s) {
+	if !branchesNameReferents(c, s) {
 		return unionUnresolvedBranch
 	}
 	if s.GetDiscriminator() != nil {
@@ -531,7 +531,7 @@ func branchesNameReferents(c lowerCtx, s *oas3.Schema) bool {
 // lowerCoDeclaredUnion lowers a schema whose oneOf/anyOf sits beside structural
 // keywords, per classifyUnionSiblings.
 func (l *lowerer) lowerCoDeclaredUnion(s *oas3.Schema, pointer, hint string) ir.TypeID {
-	switch l.classifyUnionSiblings(s) {
+	switch classifyUnionSiblings(l.ctx, s) {
 	case unionDistributed:
 		return l.lowerDistributedUnion(s, pointer, hint)
 	case unionValidationOnly:
@@ -741,7 +741,7 @@ func (l *lowerer) buildComposedVariant(body composedBody, branch ir.TypeID, comm
 	// The tag is the enclosing schema's: it is what a base's mapping names, and
 	// the variants are its lowering. No discriminator of its own can be declared
 	// here — a schema that declares one is never distributed.
-	m.DiscriminatorValue = l.subtypeDiscriminatorValue(body.schema, body.id, body.pointer)
+	m.DiscriminatorValue = subtypeDiscriminatorValue(l.ctx, l.types, body.schema, body.id, body.pointer)
 	return m
 }
 
