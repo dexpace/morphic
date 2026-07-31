@@ -228,7 +228,9 @@ func (l *lowerer) fillParamDetail(param *ir.Parameter, p *soa.Parameter, pptr st
 	if ex := l.exampleList(p.GetExample(), p.GetExamples(), pptr); len(ex) > 0 {
 		param.Examples = ex
 	}
-	param.Unmodeled = annotation.MergeUnmodeled(param.Unmodeled, l.extensions(p.GetExtensions(), pptr))
+	pExt, pExtDiags := extensionsOf(l.ctx, p.GetExtensions(), pptr)
+	l.diags.AppendAll(pExtDiags)
+	param.Unmodeled = annotation.MergeUnmodeled(param.Unmodeled, pExt)
 }
 
 // resolveStyleExplode materializes a parameter's resolved serialization style

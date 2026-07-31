@@ -182,8 +182,9 @@ func (l *lowerer) applyFalseBranches(m *ir.Model, s *oas3.Schema, pointer string
 		}
 		bptr := pointer + ids.Ptr("allOf", strconv.Itoa(i))
 		m.Additional = ir.AdditionalClosed
-		l.preserve(&m.Unmodeled, "openapi:allOf/"+strconv.Itoa(i),
+		preserve(l.ctx, &m.Unmodeled, "openapi:allOf/"+strconv.Itoa(i),
 			ir.RawValue("false"), ir.ReasonDegradedLowering, bptr)
+
 		l.diag(ir.SeverityInfo, diag.FalseSchema, bptr,
 			"boolean false allOf branch matches nothing, so the composition matches nothing; "+
 				"composed model closed and the branch kept verbatim under Unmodeled")

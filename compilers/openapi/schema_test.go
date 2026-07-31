@@ -1778,11 +1778,10 @@ func TestAllOf_PropertyAlongsideAllOfConflictMessageIsAccurate(t *testing.T) {
 
 func TestPreserveKeyword_NilRaw(t *testing.T) {
 	t.Parallel()
-	l := &lowerer{}
 	var ext ir.Unmodeled
-	l.preserveKeyword(&ext, "openapi:not", nil, "/p", "/p/not", "not")
+	diags := preserveKeyword(lowerCtx{}, &ext, "openapi:not", nil, "/p", "/p/not", "not")
 	assert.Nil(t, ext, "nil raw is a no-op")
-	assert.Empty(t, l.diags.List())
+	assert.Empty(t, diags)
 }
 
 // TestRawFromNode_SeparatesAbsentFromUnconvertible pins the distinction the
@@ -2721,13 +2720,13 @@ func TestPreserve_EmptyRawIsRejectedLikeNil(t *testing.T) {
 			t.Parallel()
 			l := &lowerer{}
 			var p ir.Unmodeled
-			l.preserve(&p, "openapi:k", raw, ir.ReasonVendorExtension, "/p/k")
+			preserve(l.ctx, &p, "openapi:k", raw, ir.ReasonVendorExtension, "/p/k")
 			assert.Nil(t, p, "a payload with no bytes preserves no construct")
 
 			var q ir.Unmodeled
-			l.preserveKeyword(&q, "openapi:not", raw, "/p", "/p/not", "not")
+			kwDiags := preserveKeyword(lowerCtx{}, &q, "openapi:not", raw, "/p", "/p/not", "not")
 			assert.Nil(t, q, "and the validation-only wrapper screens the same states")
-			assert.Empty(t, l.diags.List(), "nothing was preserved, so nothing is announced")
+			assert.Empty(t, kwDiags, "nothing was preserved, so nothing is announced")
 		})
 	}
 }
