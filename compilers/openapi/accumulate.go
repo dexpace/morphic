@@ -91,15 +91,13 @@ func preserveKeyword(c lowerCtx, p *ir.Unmodeled, key string, raw ir.RawValue,
 // the accumulating form of lowerCtx.diagAt, for the lowerings that still hold an
 // accumulator; a lowering that returns its diagnostics calls diagAt and appends
 // to what it returns. Neither builds a Provenance — provenanceAt does, once.
+//
+// The identity dedup that keeps a shared declaration from reporting once per use
+// site lives in compile.Diags.Append, which every path reaches — the returned
+// diagnostics as much as these.
 func (l *lowerer) diag(sev ir.Severity, code, pointer, format string, args ...any) {
-	l.appendDiag(l.ctx.diagAt(sev, code, pointer, format, args...))
+	l.diags.Append(l.ctx.diagAt(sev, code, pointer, format, args...))
 }
-
-// appendDiag records d unless one identical to it — same severity, code,
-// provenance and message — was already recorded. It is the single append point
-// for lowering diagnostics, so a shared declaration reported from N use sites
-// yields one diagnostic rather than N indistinguishable copies.
-func (l *lowerer) appendDiag(d ir.Diagnostic) { l.diags.Append(d) }
 
 // lowerArray hoists an array schema as a Tuple when prefixItems is present, else
 // a List over its item schema with its collection constraints.

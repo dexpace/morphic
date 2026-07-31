@@ -264,7 +264,7 @@ func (l *lowerer) lowerOperation(src *soa.Operation, ctx opContext) (ir.Operatio
 		hb.Callbacks, extra = l.lowerCallbacks(src, ctx.ptrs, ctx.inferred)
 	}
 	op.Bindings = ir.OpBindings{HTTP: []ir.HTTPBinding{hb}}
-	ext, extDiags := operationExtensions(l.ctx, src, decl)
+	ext, extDiags := extensionsOf(l.ctx, src.GetExtensions(), decl)
 	l.diags.AppendAll(extDiags)
 	if len(ext) > 0 {
 		op.Unmodeled = ext
@@ -314,12 +314,6 @@ func fillOperationDocs(d *ir.Docs, src *soa.Operation) {
 	if ed := src.GetExternalDocs(); ed != nil {
 		d.ExternalDocs = append(d.ExternalDocs, ir.Link{URL: ed.GetURL(), Description: ed.GetDescription()})
 	}
-}
-
-// operationExtensions lowers an operation's x-* extensions into namespaced
-// Unmodeled entries.
-func operationExtensions(c lowerCtx, src *soa.Operation, declPtr string) (ir.Unmodeled, []ir.Diagnostic) {
-	return extensionsOf(c, src.GetExtensions(), declPtr)
 }
 
 // applyPathServers preserves path-item-level servers verbatim under Unmodeled

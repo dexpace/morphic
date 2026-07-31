@@ -49,7 +49,7 @@ func (l *lowerer) lowerContent(mt string, media *soa.MediaType, pointer, hint st
 		MediaType: mt,
 		Type:      mediaType,
 	}
-	ex, exDiags := mediaExamples(l.ctx, media, mediaPtr)
+	ex, exDiags := exampleList(l.ctx, media.GetExample(), media.GetExamples(), mediaPtr)
 	l.diags.AppendAll(exDiags)
 	if len(ex) > 0 {
 		c.Examples = ex
@@ -435,11 +435,6 @@ func applyHeaderAnnotations(c lowerCtx, p *ir.Property, h *soa.Header, hdecl str
 	diags = append(diags, extDiags...)
 	p.Unmodeled = annotation.MergeUnmodeled(p.Unmodeled, hExt)
 	return diags
-}
-
-// mediaExamples lowers a media type's single and plural example values.
-func mediaExamples(c lowerCtx, media *soa.MediaType, pointer string) ([]ir.Example, []ir.Diagnostic) {
-	return exampleList(c, media.GetExample(), media.GetExamples(), pointer)
 }
 
 // exampleList lowers a single example node and a plural example map into value
