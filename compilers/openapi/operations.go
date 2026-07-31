@@ -109,7 +109,7 @@ func (l *lowerer) lowerPathItem(groups *serviceGroups, path string, pi *soa.Path
 		if src == nil {
 			continue
 		}
-		key, name, docs, inferred := l.groupFor(src, path)
+		key, name, docs, inferred := groupFor(l.ctx, src, path)
 		ptrs := opPointers{mount: pathPtr + ids.Ptr(m.name), decl: declPtr + ids.Ptr(m.name)}
 		ctx := opContext{
 			method:        m.name,
@@ -171,8 +171,8 @@ func (l *lowerer) lowerWebhooks(groups *serviceGroups) {
 // groupFor resolves the group an operation belongs to under the active strategy.
 // GroupByPathPrefix is a heuristic, so it stamps the inferred marker; grouping by
 // declared tags is a declared fact and leaves it empty.
-func (l *lowerer) groupFor(src *soa.Operation, path string) (key string, name ir.Naming, docs ir.Docs, inferred string) {
-	if l.ctx.Opts.Grouping == GroupByPathPrefix {
+func groupFor(c lowerCtx, src *soa.Operation, path string) (key string, name ir.Naming, docs ir.Docs, inferred string) {
+	if c.Opts.Grouping == GroupByPathPrefix {
 		seg := firstPathSegment(path)
 		return "seg:" + seg, compile.NamingFor(seg), ir.Docs{}, "group-path-prefix"
 	}
@@ -181,7 +181,7 @@ func (l *lowerer) groupFor(src *soa.Operation, path string) (key string, name ir
 		return "default", ir.Naming{Hint: "default"}, ir.Docs{}, ""
 	}
 	first := tags[0]
-	return "tag:" + first, compile.NamingFor(first), tagDocs(l.ctx, first), ""
+	return "tag:" + first, compile.NamingFor(first), tagDocs(c, first), ""
 }
 
 // tagDocs returns the declared docs for a tag name, or empty when undeclared.
@@ -269,7 +269,7 @@ func (l *lowerer) lowerOperation(src *soa.Operation, ctx opContext) (ir.Operatio
 	if len(ext) > 0 {
 		op.Unmodeled = ext
 	}
-	l.checkOperationIDUnique(op, mount)
+	l.diags.AppendAll(checkOperationIDUnique(l.ctx, l.operationIDs, op, mount))
 	return op, extra
 }
 
@@ -280,20 +280,20 @@ func (l *lowerer) lowerOperation(src *soa.Operation, ctx opContext) (ir.Operatio
 // presentation, so the IR still records what the document said (invariant 4) —
 // but an emitter renders both under one identifier, so the collision has to be
 // reported rather than discovered downstream.
-func (l *lowerer) checkOperationIDUnique(op ir.Operation, mount string) {
+// operationIDs is the caller's, allocated where the lowering starts, so this
+// only ever writes into it — the lazy make it used to carry was unreachable
+// from newLowerer, which has always allocated the map up front.
+func checkOperationIDUnique(c lowerCtx, operationIDs map[string]string, op ir.Operation, mount string) []ir.Diagnostic {
 	if op.Name.Source == "" {
-		return // no operationId: emitters synthesize from the method and path
+		return nil // no operationId: emitters synthesize from the method and path
 	}
-	if first, seen := l.operationIDs[op.Name.Source]; seen {
-		l.diag(ir.SeverityWarning, diag.DuplicateOperationID, mount,
+	if first, seen := operationIDs[op.Name.Source]; seen {
+		return []ir.Diagnostic{c.diagAt(ir.SeverityWarning, diag.DuplicateOperationID, mount,
 			"operationId %q is already used by the operation at %s; "+
-				"OpenAPI requires it to be unique across the API", op.Name.Source, first)
-		return
+				"OpenAPI requires it to be unique across the API", op.Name.Source, first)}
 	}
-	if l.operationIDs == nil {
-		l.operationIDs = make(map[string]string)
-	}
-	l.operationIDs[op.Name.Source] = mount
+	operationIDs[op.Name.Source] = mount
+	return nil
 }
 
 // operationName builds an operation's neutral naming: the operationId when
@@ -352,67 +352,69 @@ func (l *lowerer) lowerResponses(src *soa.Operation, opDeclPtr string) ([]ir.Res
 		}
 		rng := statusRange(code)
 		if isErrorRange(rng) {
-			errs = append(errs, l.lowerErrorCase(r, rng, rptr))
+			ec, ecDiags := lowerErrorCase(l.ctx, l.types, &l.anchors, r, rng, rptr)
+			l.diags.AppendAll(ecDiags)
+			errs = append(errs, ec)
 		} else {
-			responses = append(responses, l.lowerResponse(r, rng, rptr))
+			resp, respDiags := lowerResponse(l.ctx, l.types, &l.anchors, r, rng, rptr)
+			l.diags.AppendAll(respDiags)
+			responses = append(responses, resp)
 		}
 	}
 	def, dptr := resolveRefAt[soa.Response](l.ctx, resps.GetDefault(), opDeclPtr+ids.Ptr("responses", "default"))
 	if def != nil {
-		errs = append(errs, l.lowerErrorCase(def, ir.StatusRange{}, dptr))
+		ec, ecDiags := lowerErrorCase(l.ctx, l.types, &l.anchors, def, ir.StatusRange{}, dptr)
+		l.diags.AppendAll(ecDiags)
+		errs = append(errs, ec)
 	}
 	return responses, errs
 }
 
 // lowerResponse lowers one success response: its status condition, payload (all
 // media types), headers, docs, and any raw links preserved for later promotion.
-func (l *lowerer) lowerResponse(r *soa.Response, rng ir.StatusRange, rptr string) ir.Response {
-	headers, headerDiags := lowerHeaders(l.ctx, l.types, &l.anchors, r.GetHeaders(), rptr)
-	l.diags.AppendAll(headerDiags)
-	payload, payloadDiags := lowerPayload(l.ctx, l.types, &l.anchors, r.GetContent(), rptr, "response")
-	l.diags.AppendAll(payloadDiags)
+func lowerResponse(c lowerCtx, ts *compile.Types, anchors *anchorIndex, r *soa.Response, rng ir.StatusRange, rptr string) (ir.Response, []ir.Diagnostic) {
+	headers, diags := lowerHeaders(c, ts, anchors, r.GetHeaders(), rptr)
+	payload, payloadDiags := lowerPayload(c, ts, anchors, r.GetContent(), rptr, "response")
+	diags = append(diags, payloadDiags...)
 	resp := ir.Response{
 		Conditions: ir.ResponseConditions{StatusCodes: []ir.StatusRange{rng}},
 		Payload:    payload,
 		Headers:    headers,
 	}
 	resp.Docs.Description = r.GetDescription()
-	_, linkDiags := preserveNode(l.ctx, &resp.Unmodeled, "openapi:links",
+	_, linkDiags := preserveNode(c, &resp.Unmodeled, "openapi:links",
 		annotation.RawChildNode(r.GetRootNode(), "links"), ir.ReasonNoIRHome, rptr+ids.Ptr("links"))
-	l.diags.AppendAll(linkDiags)
-	return resp
+	return resp, append(diags, linkDiags...)
 }
 
 // lowerErrorCase lowers one error response into an ErrorCase, classifying its
 // fault from the status range and lowering its error-model content.
-func (l *lowerer) lowerErrorCase(r *soa.Response, rng ir.StatusRange, rptr string) ir.ErrorCase {
+func lowerErrorCase(c lowerCtx, ts *compile.Types, anchors *anchorIndex, r *soa.Response, rng ir.StatusRange, rptr string) (ir.ErrorCase, []ir.Diagnostic) {
 	ec := ir.ErrorCase{
 		Conditions: ir.ResponseConditions{StatusCodes: []ir.StatusRange{rng}},
 		Fault:      faultFor(rng),
 	}
 	ec.Docs.Description = r.GetDescription()
-	l.fillErrorType(&ec, r, rptr)
-	l.preserveErrorHeaders(&ec, r, rptr)
-	return ec
+	diags := fillErrorType(c, ts, anchors, &ec, r, rptr)
+	return ec, append(diags, preserveErrorHeaders(c, &ec, r, rptr)...)
 }
 
 // preserveErrorHeaders keeps an error response's headers from being dropped:
 // ir.ErrorCase has no Headers field (ir-design §7.2), so when the response
 // declares headers they are kept verbatim under Unmodeled with one info
 // diagnostic, mirroring the success path's structural header lowering.
-func (l *lowerer) preserveErrorHeaders(ec *ir.ErrorCase, r *soa.Response, rptr string) {
+func preserveErrorHeaders(c lowerCtx, ec *ir.ErrorCase, r *soa.Response, rptr string) []ir.Diagnostic {
 	headers := r.GetHeaders()
 	if headers == nil || headers.Len() == 0 {
-		return
+		return nil
 	}
-	kept, hdrDiags := preserveNode(l.ctx, &ec.Unmodeled, "openapi:headers",
+	kept, diags := preserveNode(c, &ec.Unmodeled, "openapi:headers",
 		annotation.RawChildNode(r.GetRootNode(), "headers"), ir.ReasonNoIRHome, rptr+ids.Ptr("headers"))
-	l.diags.AppendAll(hdrDiags)
 	if !kept {
-		return
+		return diags
 	}
-	l.diag(ir.SeverityInfo, diag.DegradedConstruct, rptr,
-		"error response headers have no ErrorCase home; kept verbatim under Unmodeled")
+	return append(diags, c.diagAt(ir.SeverityInfo, diag.DegradedConstruct, rptr,
+		"error response headers have no ErrorCase home; kept verbatim under Unmodeled"))
 }
 
 // fillErrorType lowers every content entry's schema into the type registry
@@ -420,29 +422,31 @@ func (l *lowerer) preserveErrorHeaders(ec *ir.ErrorCase, r *soa.Response, rptr s
 // media type exists, the full content map is preserved raw with an info
 // diagnostic, since ErrorCase.Type holds a single model reference (ir-design
 // §7.2 clarification).
-func (l *lowerer) fillErrorType(ec *ir.ErrorCase, r *soa.Response, rptr string) {
+func fillErrorType(c lowerCtx, ts *compile.Types, anchors *anchorIndex, ec *ir.ErrorCase, r *soa.Response, rptr string) []ir.Diagnostic {
 	content := r.GetContent()
 	if content == nil || content.Len() == 0 {
-		return
+		return nil
 	}
+	var diags []ir.Diagnostic
 	first := true
 	for mt, media := range content.All() {
-		ref, refDiags := schemaRef(l.ctx, l.types, &l.anchors, topLevelDepth, media.GetSchema(), rptr+ids.Ptr("content", mt, "schema"), "error")
-		l.diags.AppendAll(refDiags)
+		ref, refDiags := schemaRef(c, ts, anchors, topLevelDepth, media.GetSchema(), rptr+ids.Ptr("content", mt, "schema"), "error")
+		diags = append(diags, refDiags...)
 		if first {
 			ec.Type = ref
 			first = false
 		}
 	}
 	if content.Len() > 1 {
-		kept, keptDiags := preserveNode(l.ctx, &ec.Unmodeled, "openapi:content",
+		kept, keptDiags := preserveNode(c, &ec.Unmodeled, "openapi:content",
 			annotation.RawChildNode(r.GetRootNode(), "content"), ir.ReasonNoIRHome, rptr+ids.Ptr("content"))
-		l.diags.AppendAll(keptDiags)
+		diags = append(diags, keptDiags...)
 		if kept {
-			l.diag(ir.SeverityInfo, diag.DegradedConstruct, rptr,
-				"error response has multiple media types; full content map kept under Unmodeled")
+			diags = append(diags, c.diagAt(ir.SeverityInfo, diag.DegradedConstruct, rptr,
+				"error response has multiple media types; full content map kept under Unmodeled"))
 		}
 	}
+	return diags
 }
 
 // lowerCallbacks lowers each callback expression's path-item operations as

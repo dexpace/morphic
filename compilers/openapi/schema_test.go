@@ -1959,17 +1959,22 @@ components:
 	}
 }
 
-// TestCheckOperationIDUnique_BareLowerer covers the lazy map init: a lowerer
-// built field-by-field rather than through newLowerer still tracks claims.
-func TestCheckOperationIDUnique_BareLowerer(t *testing.T) {
+// TestCheckOperationIDUnique_ReportsTheSecondClaim pins what the check is for:
+// the first claim on an operationId is recorded silently and the second names
+// it. This used to cover a lazy map init instead, which is gone — the map is
+// the caller's and is allocated where the lowering starts.
+func TestCheckOperationIDUnique_ReportsTheSecondClaim(t *testing.T) {
 	t.Parallel()
 	l := newRawLowerer(nil)
-	l.operationIDs = nil
 	op := ir.Operation{Name: ir.Naming{Source: "dup"}}
-	l.checkOperationIDUnique(op, "/paths/~1a/get")
-	l.checkOperationIDUnique(op, "/paths/~1b/get")
-	require.Len(t, l.diags.List(), 1)
-	assert.Equal(t, diag.DuplicateOperationID, l.diags.List()[0].Code)
+
+	assert.Empty(t, checkOperationIDUnique(l.ctx, l.operationIDs, op, "/paths/~1a/get"),
+		"the first claim is recorded without a word")
+
+	diags := checkOperationIDUnique(l.ctx, l.operationIDs, op, "/paths/~1b/get")
+	require.Len(t, diags, 1)
+	assert.Equal(t, diag.DuplicateOperationID, diags[0].Code)
+	assert.Contains(t, diags[0].Message, "/paths/~1a/get", "and it names the operation that claimed it first")
 }
 
 // TestSchemaSiblings_RefdSubSchemaKeepsThem is the sub-schema arm of the rule

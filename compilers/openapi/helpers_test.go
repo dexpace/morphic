@@ -153,9 +153,10 @@ func conflictDiags(diags []ir.Diagnostic) []ir.Diagnostic {
 func newRawLowerer(doc *soa.OpenAPI) *lowerer {
 	rawTypes := compile.NewTypes(0)
 	l := &lowerer{
-		ctx:   lowerCtx{Doc: doc, schemas: declaredSchemaNames(doc)},
-		out:   &ir.Document{Types: rawTypes.Registry()},
-		types: rawTypes,
+		ctx:          lowerCtx{Doc: doc, schemas: declaredSchemaNames(doc)},
+		out:          &ir.Document{Types: rawTypes.Registry()},
+		types:        rawTypes,
+		operationIDs: make(map[string]string),
 	}
 	return l
 }
