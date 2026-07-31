@@ -94,8 +94,8 @@ func (l *lowerer) applyCompositionRequired(m *ir.Model, s *oas3.Schema, pointer 
 	}
 }
 
-// diagUnattachableRequired reports a composition-scope required name matching
-// no own property. It is a warning when m composes a ref (Base or a Mixin):
+// diagUnattachableRequired builds the diagnostic for a composition-scope
+// required name matching no own property; the caller records it. It is a warning when m composes a ref (Base or a Mixin):
 // the requirement plausibly belongs to that base/mixin's own property, so real
 // fidelity is lost. Otherwise it is info: the spec just names a property
 // nothing declares, which is legal JSON Schema with nothing to lose.
@@ -217,8 +217,9 @@ func (l *lowerer) preserveUnmergedBranch(m *ir.Model, bs *oas3.Schema, branchIdx
 	l.appendDiag(diagUnmergedBranch(l.ctx, bs, residue, bptr))
 }
 
-// diagUnmergedBranch announces one merged branch's residue, naming the keywords
-// so two branches of the same schema are told apart.
+// diagUnmergedBranch builds the diagnostic announcing one merged branch's
+// residue, naming the keywords so two branches of the same schema are told
+// apart. The caller records it.
 //
 // A branch declaring a type that cannot be an object is a warning rather than
 // info: the composed node is an ir.Model, which asserts the value *is* an object,
@@ -551,8 +552,8 @@ func (l *lowerer) lowerCoDeclaredUnion(s *oas3.Schema, pointer, hint string) ir.
 	}
 }
 
-// diagUnresolvedBranches reports each union branch whose $ref names nothing this
-// compilation resolves. The branch text survives verbatim under Unmodeled, so
+// diagUnresolvedBranches returns one diagnostic per union branch whose $ref
+// names nothing this compilation resolves, or none when they all resolve. The branch text survives verbatim under Unmodeled, so
 // nothing is dropped — but a reference that resolves nowhere is a defect of the
 // document itself, reported at the same severity as everywhere else, and the
 // info diagnostic beside it explains only the lowering.
@@ -1015,6 +1016,9 @@ func (l *lowerer) enumAsUnion(s *oas3.Schema, common ir.TypeCommon, pointer, hin
 // be a top-level component, so internNode's ids.ForPointer keeps that
 // component's stable named ID) and each individual member of a heterogeneous
 // enum (enumAsUnion, always an anonymous sub-pointer).
+//
+// It returns the interned ID, plus the diagnostic an unconvertible node
+// produces — none when the node converts.
 func hoistLiteral(c lowerCtx, ts *compile.Types, node values.Value, pointer, hint string,
 ) (ir.TypeID, []ir.Diagnostic) {
 	// Captured from inside the build rather than reported around it, which keeps

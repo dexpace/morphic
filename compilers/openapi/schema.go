@@ -386,7 +386,8 @@ func (l *lowerer) preserveUnionSiblings(id ir.TypeID, s *oas3.Schema, pointer st
 }
 
 // falseSchema hoists a boolean `false` schema as a closed empty model (it
-// matches nothing) and records one info diagnostic on first visit.
+// matches nothing), returning the interned ID and the one info diagnostic that
+// announces it.
 func falseSchema(c lowerCtx, ts *compile.Types, pointer, hint string) (ir.TypeID, []ir.Diagnostic) {
 	// Captured from inside the build rather than reported around it, which keeps
 	// the report tied to the node actually being constructed. Reporting eagerly
