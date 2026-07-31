@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	"github.com/dexpace/morphic/compilers"
+	"github.com/dexpace/morphic/compilers/compile"
 	"github.com/dexpace/morphic/compilers/openapi/internal/annotation"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/load"
@@ -40,10 +41,10 @@ func (c *Compiler) Compile(ctx context.Context, sources []compilers.Source, opts
 	if err != nil || loadedDoc == nil {
 		return nil, diags, err
 	}
-	l := newLowerer(0, loadedDoc, formatOpts)
-	out := l.run() // components schemas → auth → service/operations → meta; assembles Document
+	// components schemas → auth → service/operations → meta; assembles Document
+	out, lowerDiags := run(newLowerCtx(0, loadedDoc, formatOpts), compile.NewTypes(0))
 	//nolint:gocritic // deliberate concat: load diagnostics precede lowering diagnostics
-	out.Diagnostics = append(diags, l.diags.List()...)
+	out.Diagnostics = append(diags, lowerDiags...)
 	return out, out.Diagnostics, nil
 }
 
@@ -52,32 +53,53 @@ func (c *Compiler) Compile(ctx context.Context, sources []compilers.Source, opts
 // find interned IDs; then security schemes, so requirements reference registered
 // IDs; then the service walk; then document metadata. It assembles and returns
 // the Document.
-func (l *lowerer) run() *ir.Document {
-	l.diags.AppendAll(lowerComponentSchemas(l.ctx, l.types, &l.anchors))
-	auth, authDiags := lowerSecuritySchemes(l.ctx)
-	l.out.Auth = auth
-	l.diags.AppendAll(authDiags)
-	l.out.Services = []ir.Service{l.lowerService()}
-	m, metaDiags := lowerMeta(l.ctx)
-	l.out.Name, l.out.Version = m.Name, m.Version
-	l.out.TermsOfService, l.out.Docs = m.TermsOfService, m.Docs
-	l.out.Contact, l.out.License = m.Contact, m.License
+func run(c lowerCtx, ts *compile.Types) (*ir.Document, []ir.Diagnostic) {
+	// out, the anchor memo and the claimed-operationId set are this function's,
+	// not a struct's: a document being built, a memo, and a loop-local set
+	// (micro-compiler-design §4.1). Nothing below allocates them.
+	out := &ir.Document{Types: ts.Registry()}
+	var anchors anchorIndex
+	operationIDs := make(map[string]string)
+
+	// acc is what makes the identity dedup still hold. Every lowering returns its
+	// diagnostics now, so a shared declaration reported from N use sites returns N
+	// copies; compile.Diags.Append is what collapses them, and it has to see the
+	// whole stream to do it.
+	var acc compile.Diags
+	acc.AppendAll(lowerComponentSchemas(c, ts, &anchors))
+
+	auth, authDiags := lowerSecuritySchemes(c)
+	out.Auth = auth
+	acc.AppendAll(authDiags)
+	// Only the service walk gets the auth-carrying context; run keeps the plain
+	// one, so no lowering above the schemes can read them as empty.
+	svcCtx := c.withAuth(auth)
+
+	svc, tagDefs, svcDiags := lowerService(svcCtx, ts, &anchors, operationIDs)
+	out.Services = []ir.Service{svc}
+	out.TagDefs = tagDefs
+	acc.AppendAll(svcDiags)
+
+	m, metaDiags := lowerMeta(c)
+	out.Name, out.Version = m.Name, m.Version
+	out.TermsOfService, out.Docs = m.TermsOfService, m.Docs
+	out.Contact, out.License = m.Contact, m.License
 	if len(m.Servers) > 0 {
-		l.out.Servers = m.Servers
+		out.Servers = m.Servers
 	}
 	if len(m.Unmodeled) > 0 {
-		l.out.Unmodeled = annotation.MergeUnmodeled(l.out.Unmodeled, m.Unmodeled)
+		out.Unmodeled = annotation.MergeUnmodeled(out.Unmodeled, m.Unmodeled)
 	}
-	l.diags.AppendAll(metaDiags)
-	l.out.IRVersion = ir.IRVersion
-	l.out.Sources = []ir.SourceInfo{l.ctx.Source}
+	acc.AppendAll(metaDiags)
+	out.IRVersion = ir.IRVersion
+	out.Sources = []ir.SourceInfo{c.Source}
 	// An entry the registry refused is a compiler bug no source can provoke, and
 	// a refusal nothing reports hides the bug rather than the symptom: the node is
 	// simply absent and every reference to it dangles.
-	for _, v := range l.types.Violations() {
-		l.diag(ir.SeverityError, diag.InternalInvariant, "", "internal: %s", v)
+	for _, v := range ts.Violations() {
+		acc.Append(c.diagAt(ir.SeverityError, diag.InternalInvariant, "", "internal: %s", v))
 	}
-	return l.out
+	return out, acc.List()
 }
 
 // optionsFrom resolves the compiler-specific options: a nil FormatOptions gets

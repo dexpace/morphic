@@ -9,6 +9,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/dexpace/morphic/compilers"
+	"github.com/dexpace/morphic/compilers/compile"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/load"
 )
@@ -69,10 +70,9 @@ func TestGhostRefs_AllResolversDegradeGracefully(t *testing.T) {
 	loadedDoc, diags, err := load.Load(t.Context(), 0, sourceOf(ghostRefsSpec), loadOptions(Options{}.withDefaults()))
 	require.NoError(t, err)
 	require.NotNil(t, loadedDoc)
-	l := newLowerer(0, loadedDoc, Options{}.withDefaults())
-	out := l.run()
+	out, lowerDiags := run(newLowerCtx(0, loadedDoc, Options{}.withDefaults()), compile.NewTypes(0))
 	require.NotNil(t, out)
-	assert.True(t, hasDiag(append(diags, l.diags.List()...), diag.UnresolvedRef), "unresolved refs reported")
+	assert.True(t, hasDiag(append(diags, lowerDiags...), diag.UnresolvedRef), "unresolved refs reported")
 }
 
 // TestRun_RegistryRefusalsAreSurfaced covers the reporting of an entry
@@ -84,11 +84,11 @@ func TestGhostRefs_AllResolversDegradeGracefully(t *testing.T) {
 // the node is simply absent and every reference to it dangles.
 func TestRun_RegistryRefusalsAreSurfaced(t *testing.T) {
 	t.Parallel()
-	l := newRawLowerer(&soa.OpenAPI{})
-	l.types.Register("", nil)
-	require.Len(t, l.types.Violations(), 1, "the refusal is recorded before run reports it")
+	types := compile.NewTypes(0)
+	types.Register("", nil)
+	require.Len(t, types.Violations(), 1, "the refusal is recorded before run reports it")
 
-	l.run()
+	_, diags := run(lowerCtx{Doc: &soa.OpenAPI{}}, types)
 
-	assertHasErrorCode(t, l.diags.List(), diag.InternalInvariant)
+	assertHasErrorCode(t, diags, diag.InternalInvariant)
 }

@@ -51,7 +51,31 @@ type lowerCtx struct {
 	// rather than merely discouraged, which is what
 	// TestLowerCtx_HasNoExportedMap holds the struct to.
 	schemas map[string]bool
+
+	// auth is the document's declared security schemes, keyed by the IDs a
+	// requirement names. It is unexported for the reason schemas is.
+	//
+	// Unlike every other field it is not derived at entry: resolving the schemes
+	// is a lowering that reports, and micro-compiler-design §4.1 keeps such work
+	// out of newLowerCtx so it cannot report on documents that never ask. run
+	// resolves it once and extends the context with withAuth, so the derivation
+	// stays a lowering and only its result becomes context.
+	auth map[ir.AuthID]ir.AuthScheme
 }
+
+// withAuth returns a copy of c carrying the resolved security schemes.
+//
+// Only the service walk is given the extended value; run keeps the plain one.
+// That is what keeps "populated partway through" from being a trap: the
+// lowerings that run before the schemes are resolved never hold a context that
+// could answer this, so there is no window in which it reads empty.
+func (c lowerCtx) withAuth(auth map[ir.AuthID]ir.AuthScheme) lowerCtx {
+	c.auth = auth
+	return c
+}
+
+// DeclaredAuth returns the security schemes a requirement may name.
+func (c lowerCtx) DeclaredAuth() map[ir.AuthID]ir.AuthScheme { return c.auth }
 
 // newLowerCtx derives the immutable context for one loaded source.
 //

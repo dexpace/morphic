@@ -4,7 +4,6 @@ import (
 	"github.com/dexpace/morphic/compilers/compile"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/ids"
-	"github.com/dexpace/morphic/compilers/openapi/internal/load"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -17,51 +16,6 @@ const maxSchemaDepth = 256
 // The walk counts its own frames, so every entry point into it begins at zero;
 // naming it keeps a bare 0 out of the call sites that only pass it through.
 const topLevelDepth = 0
-
-// A lowerer performs lowering: the translation of one source-shaped OpenAPI
-// document into Morphic's spec-agnostic IR (OpenAPI schemas -> ir.TypeDef
-// nodes, one step per lower* method). This is the lossless source -> IR sense
-// of "lowering" — not the lossy, target-shaped "lowered late" of invariant #2,
-// which happens only in emitter refiners, never here.
-//
-// The struct is the single mutable context of one Compile call (local, never
-// a package global): it threads the interning table, diagnostics, and
-// recursion depth through every schema position.
-type lowerer struct {
-	// ctx is the immutable half: the document, options and source identity, plus
-	// the indexes derived from them at entry. Everything below it is mutable.
-	ctx lowerCtx
-	out *ir.Document
-	// types owns the registry and the coordinate map; see compilers/compile.
-	types *compile.Types
-	// diags accumulates lowering diagnostics, deduped by full identity.
-	diags compile.Diags
-	// anchors memoizes the document's $dynamicAnchor index, built on the first
-	// $dynamicRef reached and not before: the walk costs about 1.4% of a compile,
-	// and almost no document writes either keyword.
-	anchors anchorIndex
-	// operationIDs maps each operationId already lowered to the mount pointer
-	// that claimed it, so a second claim can name the first in its diagnostic.
-	operationIDs map[string]string
-}
-
-// newLowerer allocates a lowerer over one loaded document, with an empty IR
-// document and interning table ready for schema lowering.
-//
-//nolint:unparam // srcIndex varies once Compile drives the multi-source loop
-func newLowerer(srcIndex int, doc *load.Document, opts Options) *lowerer {
-	types := compile.NewTypes(srcIndex)
-	l := &lowerer{
-		ctx: newLowerCtx(srcIndex, doc, opts),
-		// The Document shares the framework's live registry rather than being
-		// handed a copy at the end: compile.Types owns every write to it, and the
-		// architecture test is what keeps that true.
-		out:          &ir.Document{Types: types.Registry()},
-		types:        types,
-		operationIDs: make(map[string]string),
-	}
-	return l
-}
 
 // registeredNode returns the node interning registered under id, reporting a
 // broken invariant instead of dropping in silence when there is none.

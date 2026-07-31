@@ -13,6 +13,7 @@ import (
 	yaml "gopkg.in/yaml.v3"
 
 	"github.com/dexpace/morphic/compilers"
+	"github.com/dexpace/morphic/compilers/compile"
 	"github.com/dexpace/morphic/compilers/openapi/internal/annotation"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/ids"
@@ -485,9 +486,11 @@ func TestGrouping_ByPathPrefixInferred(t *testing.T) {
 	loadedDoc, loadDiags, err := load.Load(t.Context(), 0, compilers.Source{Path: "spec.yaml", Data: []byte(spec)}, loadOptions(opts))
 	require.NoError(t, err)
 	require.NotNil(t, loadedDoc)
-	l := newLowerer(0, loadedDoc, opts)
+	l := newLowerer(loadedDoc, opts)
 	l.diags.AppendAll(lowerComponentSchemas(l.ctx, l.types, &l.anchors))
-	svc := l.lowerService()
+	svc, tagDefs, svcDiags := lowerService(l.ctx.withAuth(l.out.Auth), l.types, &l.anchors, l.operationIDs)
+	l.out.TagDefs = tagDefs
+	l.diags.AppendAll(svcDiags)
 	requireNoErrorDiags(t, append(loadDiags, l.diags.List()...))
 	byName := indexBy(svc.Groups, func(g ir.OperationGroup) string { return g.Name.Source })
 	_, hasUsers := byName["users"]
@@ -642,9 +645,11 @@ func TestGrouping_PathPrefixRootPath(t *testing.T) {
 	opts := Options{Grouping: GroupByPathPrefix}.withDefaults()
 	loadedDoc, _, err := load.Load(t.Context(), 0, sourceOf(spec), loadOptions(opts))
 	require.NoError(t, err)
-	l := newLowerer(0, loadedDoc, opts)
+	l := newLowerer(loadedDoc, opts)
 	l.diags.AppendAll(lowerComponentSchemas(l.ctx, l.types, &l.anchors))
-	svc := l.lowerService()
+	svc, tagDefs, svcDiags := lowerService(l.ctx.withAuth(l.out.Auth), l.types, &l.anchors, l.operationIDs)
+	l.out.TagDefs = tagDefs
+	l.diags.AppendAll(svcDiags)
 	require.NotEmpty(t, svc.Groups)
 	assert.Equal(t, "", svc.Groups[0].Name.Source, "root path yields empty first segment")
 }
@@ -1166,9 +1171,8 @@ func compileFixture(t *testing.T, path string) *ir.Document {
 	require.NoError(t, err)
 	require.NotNil(t, loadedDoc)
 
-	l := newLowerer(0, loadedDoc, opts)
-	doc := l.run()
-	requireNoErrorDiags(t, append(loadDiags, l.diags.List()...))
+	doc, lowerDiags := run(newLowerCtx(0, loadedDoc, opts), compile.NewTypes(0))
+	requireNoErrorDiags(t, append(loadDiags, lowerDiags...))
 	return doc
 }
 
@@ -1539,13 +1543,14 @@ func TestDiag_SharedDeclarationReportsEachDefectOnce(t *testing.T) {
 // at one pointer are two findings, not one repeated.
 func TestDiag_DistinctDefectsAtOnePointerBothSurvive(t *testing.T) {
 	t.Parallel()
-	l := newRawLowerer(nil)
-	l.diag(ir.SeverityWarning, diag.DegradedConstruct, "/p", "first")
-	l.diag(ir.SeverityWarning, diag.DegradedConstruct, "/p", "second")
-	l.diag(ir.SeverityWarning, diag.DegradedConstruct, "/p", "first")
-	require.Len(t, l.diags.List(), 2, "the repeat is dropped, the distinct message is not")
-	assert.Equal(t, "first", l.diags.List()[0].Message)
-	assert.Equal(t, "second", l.diags.List()[1].Message)
+	var c lowerCtx
+	var acc compile.Diags
+	acc.Append(c.diagAt(ir.SeverityWarning, diag.DegradedConstruct, "/p", "first"))
+	acc.Append(c.diagAt(ir.SeverityWarning, diag.DegradedConstruct, "/p", "second"))
+	acc.Append(c.diagAt(ir.SeverityWarning, diag.DegradedConstruct, "/p", "first"))
+	require.Len(t, acc.List(), 2, "the repeat is dropped, the distinct message is not")
+	assert.Equal(t, "first", acc.List()[0].Message)
+	assert.Equal(t, "second", acc.List()[1].Message)
 }
 
 const duplicateOperationIDSpec = `openapi: 3.1.0

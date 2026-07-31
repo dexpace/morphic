@@ -34,25 +34,23 @@ var httpMethods = []struct {
 // lowerService lowers one document into a single Service: its identity and docs,
 // the declared tag registry, and every path, webhook, and callback operation
 // placed into groups per the configured grouping strategy (ir-design §7.1).
-func (l *lowerer) lowerService() ir.Service {
+func lowerService(c lowerCtx, ts *compile.Types, anchors *anchorIndex, operationIDs map[string]string) (ir.Service, []ir.TagDef, []ir.Diagnostic) {
 	svc := ir.Service{
-		ID:         ids.Service(l.ctx.SrcIndex),
-		Provenance: l.ctx.provenanceAt(""),
+		ID:         ids.Service(c.SrcIndex),
+		Provenance: c.provenanceAt(""),
 	}
-	if info := l.ctx.Doc.GetInfo(); info != nil {
+	if info := c.Doc.GetInfo(); info != nil {
 		title := info.GetTitle()
 		svc.Name = compile.NamingFor(title)
 		svc.Docs.Description = info.GetDescription()
 	}
-	svcAuth, svcAuthDiags := lowerSecurityRequirements(l.ctx, l.ctx.Doc.GetSecurity(), l.out.Auth)
+	svcAuth, diags := lowerSecurityRequirements(c, c.Doc.GetSecurity(), c.DeclaredAuth())
 	svc.Auth = svcAuth
-	l.diags.AppendAll(svcAuthDiags)
-	l.out.TagDefs = lowerTagDefs(l.ctx)
 	groups := newServiceGroups()
-	l.lowerPaths(groups)
-	l.lowerWebhooks(groups)
+	diags = append(diags, lowerPaths(c, ts, anchors, operationIDs, groups)...)
+	diags = append(diags, lowerWebhooks(c, ts, anchors, operationIDs, groups)...)
 	svc.Groups = groups.finalize()
-	return svc
+	return svc, lowerTagDefs(c), diags
 }
 
 // lowerTagDefs registers the document's declared tag metadata into TagDefs; tag
@@ -82,18 +80,20 @@ func tagDocsFrom(t *soa.Tag) ir.Docs {
 }
 
 // lowerPaths lowers every path operation in source order into groups.
-func (l *lowerer) lowerPaths(groups *serviceGroups) {
-	paths := l.ctx.Doc.GetPaths()
+func lowerPaths(c lowerCtx, ts *compile.Types, anchors *anchorIndex, operationIDs map[string]string, groups *serviceGroups) []ir.Diagnostic {
+	paths := c.Doc.GetPaths()
 	if paths == nil {
-		return
+		return nil
 	}
+	var diags []ir.Diagnostic
 	for path, rp := range paths.All() {
-		pi, declPtr := resolveRefAt[soa.PathItem](l.ctx, rp, ids.Ptr("paths", path))
+		pi, declPtr := resolveRefAt[soa.PathItem](c, rp, ids.Ptr("paths", path))
 		if pi == nil {
 			continue
 		}
-		l.lowerPathItem(groups, path, pi, declPtr)
+		diags = append(diags, lowerPathItem(c, ts, anchors, operationIDs, groups, path, pi, declPtr)...)
 	}
+	return diags
 }
 
 // lowerPathItem lowers each method operation on one path into its group,
@@ -102,16 +102,17 @@ func (l *lowerer) lowerPaths(groups *serviceGroups) {
 // path item, or a referenced path item's component pointer (issue #107) —
 // shared parameters and bodies lower from there, while each operation keeps
 // its mount pointer (under path) as its identity.
-func (l *lowerer) lowerPathItem(groups *serviceGroups, path string, pi *soa.PathItem, declPtr string) {
+func lowerPathItem(c lowerCtx, ts *compile.Types, anchors *anchorIndex, operationIDs map[string]string, groups *serviceGroups, path string, pi *soa.PathItem, declPtr string) []ir.Diagnostic {
+	var diags []ir.Diagnostic
 	pathPtr := ids.Ptr("paths", path)
 	for _, m := range httpMethods {
 		src := m.get(pi)
 		if src == nil {
 			continue
 		}
-		key, name, docs, inferred := groupFor(l.ctx, src, path)
+		key, name, docs, inferred := groupFor(c, src, path)
 		ptrs := opPointers{mount: pathPtr + ids.Ptr(m.name), decl: declPtr + ids.Ptr(m.name)}
-		ctx := opContext{
+		opCtx := opContext{
 			method:        m.name,
 			uriTemplate:   path,
 			withCallbacks: true,
@@ -119,24 +120,27 @@ func (l *lowerer) lowerPathItem(groups *serviceGroups, path string, pi *soa.Path
 			ptrs:          ptrs,
 			params:        mergeParameters(pi.GetParameters(), src.GetParameters(), declPtr, ptrs.decl),
 		}
-		op, extra := l.lowerOperation(src, ctx)
-		l.diags.AppendAll(applyPathServers(l.ctx, &op, pi, declPtr))
+		op, extra, opDiags := lowerOperation(c, ts, anchors, operationIDs, src, opCtx)
+		diags = append(diags, opDiags...)
+		diags = append(diags, applyPathServers(c, &op, pi, declPtr)...)
 		grp := groups.group(key, func() ir.OperationGroup { return ir.OperationGroup{Name: name, Docs: docs} })
 		grp.Operations = append(grp.Operations, op)
 		grp.Operations = append(grp.Operations, extra...)
 	}
+	return diags
 }
 
 // lowerWebhooks lowers webhook path items into the dedicated "webhooks" group;
 // each webhook operation carries IsWebhook on its HTTP binding.
-func (l *lowerer) lowerWebhooks(groups *serviceGroups) {
-	hooks := l.ctx.Doc.GetWebhooks()
+func lowerWebhooks(c lowerCtx, ts *compile.Types, anchors *anchorIndex, operationIDs map[string]string, groups *serviceGroups) []ir.Diagnostic {
+	hooks := c.Doc.GetWebhooks()
 	if hooks == nil || hooks.Len() == 0 {
-		return
+		return nil
 	}
+	var diags []ir.Diagnostic
 	for name, rp := range hooks.All() {
 		hookPtr := ids.Ptr("webhooks", name)
-		pi, declPtr := resolveRefAt[soa.PathItem](l.ctx, rp, hookPtr)
+		pi, declPtr := resolveRefAt[soa.PathItem](c, rp, hookPtr)
 		if pi == nil {
 			continue
 		}
@@ -146,7 +150,7 @@ func (l *lowerer) lowerWebhooks(groups *serviceGroups) {
 				continue
 			}
 			ptrs := opPointers{mount: hookPtr + ids.Ptr(m.name), decl: declPtr + ids.Ptr(m.name)}
-			ctx := opContext{
+			opCtx := opContext{
 				method:        m.name,
 				uriTemplate:   name,
 				isWebhook:     true,
@@ -154,7 +158,8 @@ func (l *lowerer) lowerWebhooks(groups *serviceGroups) {
 				ptrs:          ptrs,
 				params:        mergeParameters(pi.GetParameters(), src.GetParameters(), declPtr, ptrs.decl),
 			}
-			op, extra := l.lowerOperation(src, ctx)
+			op, extra, opDiags := lowerOperation(c, ts, anchors, operationIDs, src, opCtx)
+			diags = append(diags, opDiags...)
 			grp := groups.group("webhook", func() ir.OperationGroup {
 				// A hint, not a source name: no document declares this group. The
 				// compiler synthesizes it to hold webhook operations, exactly as it
@@ -166,6 +171,7 @@ func (l *lowerer) lowerWebhooks(groups *serviceGroups) {
 			grp.Operations = append(grp.Operations, extra...)
 		}
 	}
+	return diags
 }
 
 // groupFor resolves the group an operation belongs to under the active strategy.
@@ -224,17 +230,16 @@ type opContext struct {
 // lowerOperation lowers one source operation into the neutral core plus its HTTP
 // binding. It returns the operation and any callback operations that must be
 // registered alongside it in the same group (ir-design §7.2, §8.1).
-func (l *lowerer) lowerOperation(src *soa.Operation, ctx opContext) (ir.Operation, []ir.Operation) {
-	mount, decl := ctx.ptrs.mount, ctx.ptrs.decl
+func lowerOperation(c lowerCtx, ts *compile.Types, anchors *anchorIndex, operationIDs map[string]string, src *soa.Operation, opCtx opContext) (ir.Operation, []ir.Operation, []ir.Diagnostic) {
+	mount, decl := opCtx.ptrs.mount, opCtx.ptrs.decl
 	// Built through the context so the source index is spelled in one place, then
 	// marked inferred — the one provenance in this compiler that is.
-	opProv := l.ctx.provenanceAt(decl)
-	opProv.Inferred = ctx.inferred
-	opAuth, opAuthDiags := lowerSecurityRequirements(l.ctx, src.Security, l.out.Auth)
-	l.diags.AppendAll(opAuthDiags)
+	opProv := c.provenanceAt(decl)
+	opProv.Inferred = opCtx.inferred
+	opAuth, diags := lowerSecurityRequirements(c, src.Security, c.DeclaredAuth())
 	op := ir.Operation{
 		ID:   ids.Op(mount),
-		Name: operationName(src, ctx.method, ctx.uriTemplate),
+		Name: operationName(src, opCtx.method, opCtx.uriTemplate),
 		Tags: src.GetTags(),
 		Auth: opAuth,
 		// The ID is the mount — two mounts of one $ref'd path item are two
@@ -248,31 +253,32 @@ func (l *lowerer) lowerOperation(src *soa.Operation, ctx opContext) (ir.Operatio
 	if src.GetDeprecated() {
 		op.Deprecation = &ir.Deprecation{}
 	}
-	params, bindings, paramDiags := lowerParameters(l.ctx, l.types, &l.anchors, ctx.params)
-	l.diags.AppendAll(paramDiags)
+	params, bindings, paramDiags := lowerParameters(c, ts, anchors, opCtx.params)
+	diags = append(diags, paramDiags...)
 	op.Params = params
-	responses, errs, responseDiags := lowerResponses(l.ctx, l.types, &l.anchors, src, decl)
-	l.diags.AppendAll(responseDiags)
+	responses, errs, responseDiags := lowerResponses(c, ts, anchors, src, decl)
+	diags = append(diags, responseDiags...)
 	op.Responses, op.Errors = responses, errs
 	hb := ir.HTTPBinding{
-		Method:        strings.ToUpper(ctx.method),
-		URITemplate:   ctx.uriTemplate,
-		IsWebhook:     ctx.isWebhook,
+		Method:        strings.ToUpper(opCtx.method),
+		URITemplate:   opCtx.uriTemplate,
+		IsWebhook:     opCtx.isWebhook,
 		ParamBindings: bindings,
 	}
-	l.diags.AppendAll(lowerRequestBody(l.ctx, l.types, &l.anchors, &op, &hb, src, decl))
+	diags = append(diags, lowerRequestBody(c, ts, anchors, &op, &hb, src, decl)...)
 	var extra []ir.Operation
-	if ctx.withCallbacks {
-		hb.Callbacks, extra = l.lowerCallbacks(src, ctx.ptrs, ctx.inferred)
+	if opCtx.withCallbacks {
+		var cbDiags []ir.Diagnostic
+		hb.Callbacks, extra, cbDiags = lowerCallbacks(c, ts, anchors, operationIDs, src, opCtx.ptrs, opCtx.inferred)
+		diags = append(diags, cbDiags...)
 	}
 	op.Bindings = ir.OpBindings{HTTP: []ir.HTTPBinding{hb}}
-	ext, extDiags := extensionsOf(l.ctx, src.GetExtensions(), decl)
-	l.diags.AppendAll(extDiags)
+	ext, extDiags := extensionsOf(c, src.GetExtensions(), decl)
+	diags = append(diags, extDiags...)
 	if len(ext) > 0 {
 		op.Unmodeled = ext
 	}
-	l.diags.AppendAll(checkOperationIDUnique(l.ctx, l.operationIDs, op, mount))
-	return op, extra
+	return op, extra, append(diags, checkOperationIDUnique(c, operationIDs, op, mount)...)
 }
 
 // checkOperationIDUnique reports an operationId claimed by more than one
@@ -459,31 +465,33 @@ func fillErrorType(c lowerCtx, ts *compile.Types, anchors *anchorIndex, ec *ir.E
 // parent.mount roots callback operation identity, so two parents sharing one
 // $ref'd callback keep distinct callback operations; parent.decl is the base a
 // $ref'd callback or path item resolves against (issue #107).
-func (l *lowerer) lowerCallbacks(src *soa.Operation, parent opPointers, inferred string) ([]ir.Callback, []ir.Operation) {
+func lowerCallbacks(c lowerCtx, ts *compile.Types, anchors *anchorIndex, operationIDs map[string]string, src *soa.Operation, parent opPointers, inferred string) ([]ir.Callback, []ir.Operation, []ir.Diagnostic) {
 	cbMap := src.GetCallbacks()
 	if cbMap == nil || cbMap.Len() == 0 {
-		return nil, nil
+		return nil, nil, nil
 	}
 	var callbacks []ir.Callback
 	var ops []ir.Operation
+	var diags []ir.Diagnostic
 	for cbName, rcb := range cbMap.All() {
-		cb, cbDecl := resolveRefAt[soa.Callback](l.ctx, rcb, parent.decl+ids.Ptr("callbacks", cbName))
+		cb, cbDecl := resolveRefAt[soa.Callback](c, rcb, parent.decl+ids.Ptr("callbacks", cbName))
 		if cb == nil {
 			continue
 		}
 		for expr, rp := range cb.All() {
 			exprStr := string(expr)
-			pi, piDecl := resolveRefAt[soa.PathItem](l.ctx, rp, cbDecl+ids.Ptr(exprStr))
+			pi, piDecl := resolveRefAt[soa.PathItem](c, rp, cbDecl+ids.Ptr(exprStr))
 			if pi == nil {
 				continue
 			}
 			cbPtrs := opPointers{mount: parent.mount + ids.Ptr("callbacks", cbName, exprStr), decl: piDecl}
-			opIDs, cbOps := l.lowerCallbackOps(pi, cbPtrs, exprStr, inferred)
+			opIDs, cbOps, cbDiags := lowerCallbackOps(c, ts, anchors, operationIDs, pi, cbPtrs, exprStr, inferred)
+			diags = append(diags, cbDiags...)
 			callbacks = append(callbacks, ir.Callback{Expression: exprStr, Operations: opIDs})
 			ops = append(ops, cbOps...)
 		}
 	}
-	return callbacks, ops
+	return callbacks, ops, diags
 }
 
 // lowerCallbackOps lowers a callback expression's path-item operations. Callback
@@ -492,27 +500,29 @@ func (l *lowerer) lowerCallbacks(src *soa.Operation, parent opPointers, inferred
 // the expression's identity base (distinct per parent operation) with its
 // declaration base (shared when the callback or its path item is $ref'd;
 // issue #107).
-func (l *lowerer) lowerCallbackOps(pi *soa.PathItem, cb opPointers, expr, inferred string) ([]ir.OpID, []ir.Operation) {
+func lowerCallbackOps(c lowerCtx, ts *compile.Types, anchors *anchorIndex, operationIDs map[string]string, pi *soa.PathItem, cb opPointers, expr, inferred string) ([]ir.OpID, []ir.Operation, []ir.Diagnostic) {
 	var opIDs []ir.OpID
 	var ops []ir.Operation
+	var diags []ir.Diagnostic
 	for _, m := range httpMethods {
 		src := m.get(pi)
 		if src == nil {
 			continue
 		}
 		ptrs := opPointers{mount: cb.mount + ids.Ptr(m.name), decl: cb.decl + ids.Ptr(m.name)}
-		ctx := opContext{
+		opCtx := opContext{
 			method:      m.name,
 			uriTemplate: expr,
 			inferred:    inferred,
 			ptrs:        ptrs,
 			params:      mergeParameters(pi.GetParameters(), src.GetParameters(), cb.decl, ptrs.decl),
 		}
-		op, _ := l.lowerOperation(src, ctx)
+		op, _, opDiags := lowerOperation(c, ts, anchors, operationIDs, src, opCtx)
+		diags = append(diags, opDiags...)
 		opIDs = append(opIDs, op.ID)
 		ops = append(ops, op)
 	}
-	return opIDs, ops
+	return opIDs, ops, diags
 }
 
 // sourcedParam pairs a parameter with its declaring list entry's pointer,

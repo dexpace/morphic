@@ -26,7 +26,7 @@ func TestIntern_IdempotentOnSamePointer(t *testing.T) {
 
 func TestPrimID_SecondCallReuses(t *testing.T) {
 	t.Parallel()
-	l := newLowerer(0, &load.Document{Doc: nil, Source: ir.SourceInfo{}}, Options{}.withDefaults())
+	l := newLowerer(&load.Document{Doc: nil, Source: ir.SourceInfo{}}, Options{}.withDefaults())
 	first := l.types.PrimID(ir.PrimString)
 	second := l.types.PrimID(ir.PrimString)
 	assert.Equal(t, first, second, "interned primitive reused on second call")
