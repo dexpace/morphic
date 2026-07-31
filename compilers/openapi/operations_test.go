@@ -708,16 +708,15 @@ func TestApplyPathServers_WithoutRootNode(t *testing.T) {
 	t.Parallel()
 	l := newRawLowerer(&soa.OpenAPI{})
 	op := &ir.Operation{}
-	l.applyPathServers(op, &soa.PathItem{Servers: []*soa.Server{{URL: "https://x"}}}, "/paths/~1a")
+	diags := applyPathServers(l.ctx, op, &soa.PathItem{Servers: []*soa.Server{{URL: "https://x"}}}, "/paths/~1a")
 	assert.Nil(t, op.Unmodeled, "servers with no raw node are not preserved")
-	assert.Empty(t, l.diags.List())
+	assert.Empty(t, diags)
 }
 
 func TestLowerTagDefs_NilEntrySkipped(t *testing.T) {
 	t.Parallel()
 	l := newRawLowerer(&soa.OpenAPI{Tags: []*soa.Tag{nil, {}}})
-	l.lowerTagDefs()
-	assert.Len(t, l.out.TagDefs, 1, "nil tag entry skipped")
+	assert.Len(t, lowerTagDefs(l.ctx), 1, "nil tag entry skipped")
 }
 
 func TestRawChildNode(t *testing.T) {

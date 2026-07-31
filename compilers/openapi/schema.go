@@ -36,7 +36,7 @@ func (l *lowerer) lowerComponentSchemas() {
 	// is derived at entry (newLowerCtx), so a component declared later in the document
 	// is already a valid target here regardless of source order.
 	for name, js := range schemas.All() {
-		l.lowerComponentSchema(js, ids.Ptr("components", "schemas", name), name)
+		l.diags.AppendAll(lowerComponentSchema(l.ctx, l.types, &l.anchors, js, ids.Ptr("components", "schemas", name), name))
 	}
 }
 
@@ -45,23 +45,23 @@ func (l *lowerer) lowerComponentSchemas() {
 // shared primitive/any or aliases another type. Without this, a component like
 // `MyId: {type: string, format: uuid}` would leave nothing at its component
 // pointer and every $ref to it would dangle (invariants 1 and 2).
-func (l *lowerer) lowerComponentSchema(js *oas3.JSONSchema[oas3.Referenceable], pointer, name string) {
+func lowerComponentSchema(c lowerCtx, ts *compile.Types, anchors *anchorIndex, js *oas3.JSONSchema[oas3.Referenceable], pointer, name string) []ir.Diagnostic {
 	s := annotation.At(js)
-	ref, refDiags := schemaRef(l.ctx, l.types, &l.anchors, topLevelDepth, js, pointer, name)
-	l.diags.AppendAll(refDiags)
+	ref, diags := schemaRef(c, ts, anchors, topLevelDepth, js, pointer, name)
 	// A body that interned the component's own node at its component ID needs no
 	// alias, and its annotations were attached where it was lowered.
-	if _, owned := l.types.Lookup(pointer); owned {
-		return
+	if _, owned := ts.Lookup(pointer); owned {
+		return diags
 	}
-	cons, consDiags := schemaConstraints(l.ctx, s.Node, pointer)
-	l.diags.AppendAll(consDiags)
-	internAlias(l.ctx, l.types, pointer, name, ref, cons)
+	cons, consDiags := schemaConstraints(c, s.Node, pointer)
+	diags = append(diags, consDiags...)
+	internAlias(c, ts, pointer, name, ref, cons)
 	// This alias is the first node the pointer owns, so the annotations
 	// schemaBody had nowhere to put now have a home.
 	if s.Node != nil {
-		l.diags.AppendAll(attachDeclaredAnnotations(l.ctx, l.types, &l.anchors, s.Node, pointer))
+		diags = append(diags, attachDeclaredAnnotations(c, ts, anchors, s.Node, pointer)...)
 	}
+	return diags
 }
 
 // recordDeclarationResidue keeps, on the node pointer owns, every keyword the

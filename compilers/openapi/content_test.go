@@ -311,7 +311,7 @@ func TestBodyModelPointer_NoModelBehindBody(t *testing.T) {
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			pointer, ok := l.bodyModelPointer(tc.body)
+			pointer, ok := bodyModelPointer(l.types, tc.body)
 			assert.False(t, ok, "no model stands behind this body")
 			assert.Empty(t, pointer, "and no pointer is invented for one")
 		})
@@ -324,7 +324,7 @@ func TestBodySchemaPointer_LocalRefFragment(t *testing.T) {
 	t.Parallel()
 	l := newRawLowerer(&soa.OpenAPI{})
 	js := oas3.NewJSONSchemaFromReference("#/components/schemas/Form")
-	assert.Equal(t, "/components/schemas/Form", l.bodySchemaPointer(js, "/local"))
+	assert.Equal(t, "/components/schemas/Form", bodySchemaPointer(l.ctx, js, "/local"))
 }
 
 // TestBodySchemaPointer_ForeignDocumentRefStaysLocal pins the document half of a
@@ -336,7 +336,7 @@ func TestBodySchemaPointer_ForeignDocumentRefStaysLocal(t *testing.T) {
 	l := newRawLowerer(&soa.OpenAPI{})
 	l.ctx.Source = ir.SourceInfo{Path: "spec.yaml"}
 	js := oas3.NewJSONSchemaFromReference("./ext-form.yaml#/components/schemas/Form")
-	assert.Equal(t, "/local", l.bodySchemaPointer(js, "/local"),
+	assert.Equal(t, "/local", bodySchemaPointer(l.ctx, js, "/local"),
 		"a fragment from another document must not become a pointer into this one")
 }
 
@@ -348,7 +348,7 @@ func TestBodySchemaPointer_SelfNamedRefFollowsFragment(t *testing.T) {
 	l := newRawLowerer(&soa.OpenAPI{})
 	l.ctx.Source = ir.SourceInfo{Path: "spec.yaml"}
 	js := oas3.NewJSONSchemaFromReference("spec.yaml#/components/schemas/Form")
-	assert.Equal(t, "/components/schemas/Form", l.bodySchemaPointer(js, "/local"))
+	assert.Equal(t, "/components/schemas/Form", bodySchemaPointer(l.ctx, js, "/local"))
 }
 
 func TestContent_NonRequiredRequestBody(t *testing.T) {
@@ -822,13 +822,13 @@ func TestBodySchemaPointer_ExternalRefNoFragment(t *testing.T) {
 	t.Parallel()
 	l := newRawLowerer(&soa.OpenAPI{})
 	js := oas3.NewJSONSchemaFromReference("external.yaml")
-	assert.Equal(t, "/local", l.bodySchemaPointer(js, "/local"), "a fragmentless ref falls back to the local pointer")
+	assert.Equal(t, "/local", bodySchemaPointer(l.ctx, js, "/local"), "a fragmentless ref falls back to the local pointer")
 }
 
 func TestBodySchemaPointer_NilSchema(t *testing.T) {
 	t.Parallel()
 	l := newRawLowerer(&soa.OpenAPI{})
-	assert.Equal(t, "/local", l.bodySchemaPointer(nil, "/local"))
+	assert.Equal(t, "/local", bodySchemaPointer(l.ctx, nil, "/local"))
 }
 
 func TestLowerPayload_NilMediaEntriesYieldNil(t *testing.T) {

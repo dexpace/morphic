@@ -49,7 +49,9 @@ func (l *lowerer) lowerContent(mt string, media *soa.MediaType, pointer, hint st
 		MediaType: mt,
 		Type:      mediaType,
 	}
-	if ex := l.mediaExamples(media, mediaPtr); len(ex) > 0 {
+	ex, exDiags := mediaExamples(l.ctx, media, mediaPtr)
+	l.diags.AppendAll(exDiags)
+	if len(ex) > 0 {
 		c.Examples = ex
 	}
 	switch {
@@ -143,9 +145,9 @@ func (l *lowerer) partEncodings(media *soa.MediaType, mediaPtr string, body ir.T
 	// keys align with that model's property IDs (invariant 2/3). Asking the IR is
 	// what keeps this in step with schemaOf, which reads the end of a $ref chain
 	// while a pointer cut from the ref string names only its first hop.
-	schemaPtr, ok := l.bodyModelPointer(body)
+	schemaPtr, ok := bodyModelPointer(l.types, body)
 	if !ok {
-		schemaPtr = l.bodySchemaPointer(media.GetSchema(), mediaPtr+ids.Ptr("schema"))
+		schemaPtr = bodySchemaPointer(l.ctx, media.GetSchema(), mediaPtr+ids.Ptr("schema"))
 	}
 	encMap := media.GetEncoding()
 	out := map[ir.PropID]ir.PartEncoding{}
@@ -339,7 +341,8 @@ func (l *lowerer) lowerHeaders(headers *sequencedmap.Map[string, *soa.Referenced
 // ir.Property has a field for each, so the header path had no reason to drop
 // them (GitHub #116).
 func (l *lowerer) lowerHeader(h *soa.Header, name, hptr, hdecl string) ir.Property {
-	js, schemaPtr, mediaType := l.headerSchema(h, hdecl)
+	js, schemaPtr, mediaType, schemaDiags := headerSchema(l.ctx, h, hdecl)
+	l.diags.AppendAll(schemaDiags)
 	headerType, headerDiags := carriedSchemaRef(l.ctx, l.types, &l.anchors, topLevelDepth, js, schemaPtr, ids.DeclarationHint(hdecl, name))
 	l.diags.AppendAll(headerDiags)
 	p := ir.Property{
@@ -358,7 +361,7 @@ func (l *lowerer) lowerHeader(h *soa.Header, name, hptr, hdecl string) ir.Proper
 		p.Encoding = &ir.Encoding{MediaType: mediaType}
 	}
 	l.diags.AppendAll(fillPropertyDetail(l.ctx, l.types, &l.anchors, &p, js, schemaPtr))
-	l.applyHeaderAnnotations(&p, h, hdecl)
+	l.diags.AppendAll(applyHeaderAnnotations(l.ctx, &p, h, hdecl))
 	return p
 }
 
@@ -371,16 +374,15 @@ func (l *lowerer) lowerHeader(h *soa.Header, name, hptr, hdecl string) ir.Proper
 // type, its constraints and its xml hints together and without a diagnostic
 // (GitHub #139). The parameter path already read both (fillParamType), which is
 // why request headers never showed the defect.
-func (l *lowerer) headerSchema(h *soa.Header, hdecl string) (*oas3.JSONSchema[oas3.Referenceable], string, string) {
+func headerSchema(c lowerCtx, h *soa.Header, hdecl string) (*oas3.JSONSchema[oas3.Referenceable], string, string, []ir.Diagnostic) {
 	if js := h.GetSchema(); js != nil {
-		return js, hdecl + ids.Ptr("schema"), ""
+		return js, hdecl + ids.Ptr("schema"), "", nil
 	}
-	mt, media, ok, entryDiags := singleContentEntry(l.ctx, h.GetContent(), hdecl)
-	l.diags.AppendAll(entryDiags)
+	mt, media, ok, diags := singleContentEntry(c, h.GetContent(), hdecl)
 	if !ok {
-		return nil, hdecl + ids.Ptr("schema"), ""
+		return nil, hdecl + ids.Ptr("schema"), "", diags
 	}
-	return media.GetSchema(), hdecl + ids.Ptr("content", mt, "schema"), mt
+	return media.GetSchema(), hdecl + ids.Ptr("content", mt, "schema"), mt, diags
 }
 
 // singleContentEntry returns the one entry a content-style header or parameter
@@ -418,28 +420,26 @@ func singleContentEntry(c lowerCtx, content *sequencedmap.Map[string, *soa.Media
 // itself onto p, after its schema's. A header carries both, and the header's
 // own are the more specific of the two — they describe this header rather than
 // the type it happens to be.
-func (l *lowerer) applyHeaderAnnotations(p *ir.Property, h *soa.Header, hdecl string) {
+func applyHeaderAnnotations(c lowerCtx, p *ir.Property, h *soa.Header, hdecl string) []ir.Diagnostic {
 	if d := h.GetDescription(); d != "" {
 		p.Docs.Description = d
 	}
 	if h.GetDeprecated() {
 		p.Deprecation = &ir.Deprecation{}
 	}
-	ex, exDiags := exampleList(l.ctx, h.GetExample(), h.GetExamples(), hdecl)
-	l.diags.AppendAll(exDiags)
+	ex, diags := exampleList(c, h.GetExample(), h.GetExamples(), hdecl)
 	if len(ex) > 0 {
 		p.Examples = ex
 	}
-	hExt, hExtDiags := extensionsOf(l.ctx, h.GetExtensions(), hdecl)
-	l.diags.AppendAll(hExtDiags)
+	hExt, extDiags := extensionsOf(c, h.GetExtensions(), hdecl)
+	diags = append(diags, extDiags...)
 	p.Unmodeled = annotation.MergeUnmodeled(p.Unmodeled, hExt)
+	return diags
 }
 
 // mediaExamples lowers a media type's single and plural example values.
-func (l *lowerer) mediaExamples(media *soa.MediaType, pointer string) []ir.Example {
-	ex, diags := exampleList(l.ctx, media.GetExample(), media.GetExamples(), pointer)
-	l.diags.AppendAll(diags)
-	return ex
+func mediaExamples(c lowerCtx, media *soa.MediaType, pointer string) ([]ir.Example, []ir.Diagnostic) {
+	return exampleList(c, media.GetExample(), media.GetExamples(), pointer)
 }
 
 // exampleList lowers a single example node and a plural example map into value
@@ -643,10 +643,10 @@ const maxBodyAliasHops = 64
 //
 // It reports ok=false for a body that stands for no model at all — a primitive,
 // an enum, an opaque scalar — where no pointer would name a property either.
-func (l *lowerer) bodyModelPointer(body ir.TypeID) (string, bool) {
+func bodyModelPointer(ts *compile.Types, body ir.TypeID) (string, bool) {
 	id := body
 	for range maxBodyAliasHops {
-		td, found := l.types.Node(id)
+		td, found := ts.Node(id)
 		if !found {
 			return "", false
 		}
@@ -680,11 +680,11 @@ func (l *lowerer) bodyModelPointer(body ir.TypeID) (string, bool) {
 // schema happened to share the path — a property of a different document
 // addressed as if it were ours. localPtr is the honest fallback there: it is
 // the position the reference itself occupies here.
-func (l *lowerer) bodySchemaPointer(js *oas3.JSONSchema[oas3.Referenceable], localPtr string) string {
+func bodySchemaPointer(c lowerCtx, js *oas3.JSONSchema[oas3.Referenceable], localPtr string) string {
 	if js == nil || !resolve.IsRefSite(js, js.GetSchema()) {
 		return localPtr
 	}
-	if pointer, ok := l.ctx.refScope().InternalPointer(js.GetRef().String()); ok {
+	if pointer, ok := c.refScope().InternalPointer(js.GetRef().String()); ok {
 		return pointer
 	}
 	return localPtr
