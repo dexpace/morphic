@@ -31,7 +31,7 @@ func (l *lowerer) lowerAllOf(s *oas3.Schema, pointer, hint string) ir.TypeID {
 		m := &ir.Model{TypeCommon: common}
 		l.fillAllOf(m, s, pointer)
 		l.fillModelProperties(m, s, pointer)
-		l.applyCompositionRequired(m, s, pointer)
+		l.diags.AppendAll(applyCompositionRequired(l.ctx, m, s, pointer))
 		l.fillAdditional(m, s, pointer, hint)
 		l.applyFalseBranches(m, s, pointer)
 		if d := l.lowerDiscriminator(s, m, pointer); d != nil {
@@ -79,19 +79,21 @@ func compositionRequired(s *oas3.Schema, pointer string) []requiredEntry {
 // own properties, matching by wire name; it never clears a Required already
 // set. An entry matching no own property has no IR home (ir-design §4.3) and
 // is diagnosed via diagUnattachableRequired instead of dropped silently.
-func (l *lowerer) applyCompositionRequired(m *ir.Model, s *oas3.Schema, pointer string) {
+func applyCompositionRequired(c lowerCtx, m *ir.Model, s *oas3.Schema, pointer string) []ir.Diagnostic {
 	entries := compositionRequired(s, pointer)
 	if len(entries) == 0 {
-		return
+		return nil
 	}
 	byWire := merge.WireNameIndex(m.Properties)
+	var diags []ir.Diagnostic
 	for _, e := range entries {
 		if i, ok := byWire[e.name]; ok {
 			m.Properties[i].Required = true
 			continue
 		}
-		l.appendDiag(diagUnattachableRequired(l.ctx, m, e))
+		diags = append(diags, diagUnattachableRequired(c, m, e))
 	}
+	return diags
 }
 
 // diagUnattachableRequired builds the diagnostic for a composition-scope
@@ -134,7 +136,7 @@ func (l *lowerer) fillAllOf(m *ir.Model, s *oas3.Schema, pointer string) {
 		bptr := pointer + ids.Ptr("allOf", strconv.Itoa(i))
 		if !isRefBranch(b) {
 			l.fillModelProperties(m, b.GetSchema(), bptr)
-			l.preserveUnmergedBranch(m, b.GetSchema(), i, bptr)
+			l.diags.AppendAll(preserveUnmergedBranch(l.ctx, m, b.GetSchema(), i, bptr))
 			continue
 		}
 		id, ok := l.resolveSchemaRef(b, b.GetRef().String())
@@ -203,21 +205,20 @@ func (l *lowerer) applyFalseBranches(m *ir.Model, s *oas3.Schema, pointer string
 // A $ref branch is not an inline branch at all and takes neither path: it owns a
 // node, so fillAllOf homes its `$ref`-adjacent siblings on an alias over the
 // target rather than preserving them here.
-func (l *lowerer) preserveUnmergedBranch(m *ir.Model, bs *oas3.Schema, branchIdx int, bptr string) {
+func preserveUnmergedBranch(c lowerCtx, m *ir.Model, bs *oas3.Schema, branchIdx int, bptr string) []ir.Diagnostic {
 	if bs == nil {
-		return // boolean branch; applyFalseBranches handles it.
+		return nil // boolean branch; applyFalseBranches handles it.
 	}
 	residue := unmergedBranchKeys(bs)
 	if len(residue) == 0 {
-		return
+		return nil
 	}
-	kept, keptDiags := preserveNode(l.ctx, &m.Unmodeled, "openapi:allOf/"+strconv.Itoa(branchIdx),
+	kept, keptDiags := preserveNode(c, &m.Unmodeled, "openapi:allOf/"+strconv.Itoa(branchIdx),
 		bs.GetRootNode(), ir.ReasonDegradedLowering, bptr)
-	l.diags.AppendAll(keptDiags)
 	if !kept {
-		return
+		return keptDiags
 	}
-	l.appendDiag(diagUnmergedBranch(l.ctx, bs, residue, bptr))
+	return append(keptDiags, diagUnmergedBranch(c, bs, residue, bptr))
 }
 
 // diagUnmergedBranch builds the diagnostic announcing one merged branch's
@@ -735,7 +736,7 @@ func (l *lowerer) buildComposedVariant(body composedBody, branch ir.TypeID, comm
 	m := &ir.Model{TypeCommon: common}
 	l.fillAllOf(m, body.schema, body.pointer)
 	l.fillModelProperties(m, body.schema, body.pointer)
-	l.applyCompositionRequired(m, body.schema, body.pointer)
+	l.diags.AppendAll(applyCompositionRequired(l.ctx, m, body.schema, body.pointer))
 	l.fillAdditional(m, body.schema, body.pointer, body.hint)
 	conjoinBranch(m, branch)
 	// The tag is the enclosing schema's: it is what a base's mapping names, and

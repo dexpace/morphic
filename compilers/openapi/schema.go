@@ -280,7 +280,9 @@ func declaresValidationOnly(s *oas3.Schema) bool {
 // lowerSchemaBody lowers the body itself, handling the $dynamicRef expansion and
 // the oneOf/anyOf dispatch that precede structural lowering.
 func (l *lowerer) lowerSchemaBody(schema *oas3.Schema, pointer, hint string) ir.TypeRef {
-	if target, _, ok := l.dynamicExpansion(schema, pointer); ok {
+	target, _, expanded, expansionDiags := dynamicExpansion(l.ctx, &l.anchors, schema, pointer)
+	l.diags.AppendAll(expansionDiags)
+	if expanded {
 		l.diag(ir.SeverityInfo, diag.DynamicRefExpanded, pointer+ids.Ptr("$dynamicRef"),
 			"$dynamicRef expanded to %q, the one matching $dynamicAnchor in this document", target)
 		return ir.TypeRef{Target: target, Nullable: schemaAdmitsNull(schema)}
@@ -1082,24 +1084,25 @@ const maxDynamicAnchorNodes = 1 << 20
 // lower. The one caller that expands and the one that preserves both decide
 // through this function, so neither can act on a verdict the other did not
 // reach.
-func (l *lowerer) dynamicExpansion(s *oas3.Schema, pointer string) (target ir.TypeID, why string, ok bool) {
+func dynamicExpansion(c lowerCtx, anchors *anchorIndex, s *oas3.Schema, pointer string) (target ir.TypeID, why string, ok bool, diags []ir.Diagnostic) {
 	name, why, ok := dynamicRefName(s)
 	if !ok {
-		return "", why, false
+		return "", why, false, nil
 	}
-	at, why, ok, anchorDiags := soleAnchorSite(l.ctx, &l.anchors, name)
-	l.diags.AppendAll(anchorDiags)
+	at, why, ok, diags := soleAnchorSite(c, anchors, name)
 	if !ok {
-		return "", why, false
+		return "", why, false, diags
 	}
-	id, resolved, handled := l.ctx.refScope().ComponentRef(at)
+	id, resolved, handled := c.refScope().ComponentRef(at)
 	if !handled || !resolved {
-		return "", fmt.Sprintf("$dynamicAnchor %q is declared at %q rather than on a component schema", name, at), false
+		return "", fmt.Sprintf("$dynamicAnchor %q is declared at %q rather than on a component schema", name, at), false, diags
 	}
-	if why, ok := l.dynamicChainVerdict(at, pointer); !ok {
-		return "", why, false
+	chainWhy, chainOK, chainDiags := dynamicChainVerdict(c, anchors, at, pointer)
+	diags = append(diags, chainDiags...)
+	if !chainOK {
+		return "", chainWhy, false, diags
 	}
-	return id, "", true
+	return id, "", true, diags
 }
 
 // dynamicRefName returns the $dynamicAnchor name the $dynamicRef s writes
@@ -1174,28 +1177,28 @@ func soleAnchorSite(c lowerCtx, anchors *anchorIndex, name string) (at, why stri
 //
 // The loop is bounded by seen: cur only ever takes values from the anchor
 // index, and each turn either returns or adds one of them.
-func (l *lowerer) dynamicChainVerdict(at, from string) (why string, ok bool) {
-	if declaresResourceIDAbove(l.ctx, from) {
-		return resourceBoundaryWhy(from), false
+func dynamicChainVerdict(c lowerCtx, anchors *anchorIndex, at, from string) (why string, ok bool, diags []ir.Diagnostic) {
+	if declaresResourceIDAbove(c, from) {
+		return resourceBoundaryWhy(from), false, nil
 	}
 	seen := map[string]bool{}
 	for cur := at; !seen[cur]; {
 		if cur == from {
 			return fmt.Sprintf("expanding it closes a cycle of $dynamicRef expansions back onto %q, "+
-				"leaving a type whose own base chain never terminates", from), false
+				"leaving a type whose own base chain never terminates", from), false, diags
 		}
-		if declaresResourceIDAbove(l.ctx, cur) {
-			return resourceBoundaryWhy(cur), false
+		if declaresResourceIDAbove(c, cur) {
+			return resourceBoundaryWhy(cur), false, diags
 		}
 		seen[cur] = true
-		next, hops, hopDiags := dynamicHop(l.ctx, &l.anchors, cur)
-		l.diags.AppendAll(hopDiags)
+		next, hops, hopDiags := dynamicHop(c, anchors, cur)
+		diags = append(diags, hopDiags...)
 		if !hops {
 			break
 		}
 		cur = next
 	}
-	return "", true
+	return "", true, diags
 }
 
 // resourceBoundaryWhy words the one irreducible case that is about resources
@@ -1287,7 +1290,8 @@ func dynamicFragment(ref string) (string, bool) {
 // type and must not also be preserved — that would tell a consumer the compiler
 // ignored it.
 func (l *lowerer) recordUnexpandedDynamicRef(p *ir.Unmodeled, s *oas3.Schema, pointer string) {
-	_, why, expanded := l.dynamicExpansion(s, pointer)
+	_, why, expanded, expansionDiags := dynamicExpansion(l.ctx, &l.anchors, s, pointer)
+	l.diags.AppendAll(expansionDiags)
 	if expanded {
 		return
 	}
