@@ -83,8 +83,34 @@ components:
 
 func TestRun_UsageErrors(t *testing.T) {
 	t.Parallel()
-	var stdout, stderr bytes.Buffer
-	assert.Equal(t, 2, run([]string{"bogus"}, &stdout, &stderr))
-	assert.Equal(t, 2, run([]string{"compile", "x.yaml", "--fail-on", "hint"}, &stdout, &stderr))
-	assert.True(t, strings.Contains(stderr.String(), "usage"))
+
+	spec := writeFile(t, "spec.yaml", tinySpec)
+	tests := []struct {
+		name   string
+		args   []string
+		reason string
+	}{
+		{"unknown command", []string{"bogus"}, `unknown command "bogus"`},
+		{"help of unknown command", []string{"help", "bogus"}, `unknown command "bogus"`},
+		{"help of unknown command with help flag", []string{"help", "bogus", "--help"}, `unknown command "bogus"`},
+		{"help with extra args", []string{"help", "compile", "extra"}, "help accepts at most one command"},
+		{"help with extra args and help flag", []string{"help", "a", "b", "--help"}, "help accepts at most one command"},
+		{"unknown flag", []string{"compile", spec, "--bogus"}, "flag provided but not defined: -bogus"},
+		{"no spec file", []string{"compile"}, "compile requires exactly one spec file"},
+		{"two spec files", []string{"compile", spec, spec}, "compile requires exactly one spec file"},
+		{"bad fail-on", []string{"compile", spec, "--fail-on", "hint"}, `invalid --fail-on "hint"`},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			var stdout, stderr bytes.Buffer
+
+			assert.Equal(t, 2, run(tt.args, &stdout, &stderr))
+			assert.Empty(t, stdout.String(), "usage errors must never write to stdout")
+			assert.Contains(t, stderr.String(), tt.reason)
+			assert.Equal(t, 1, strings.Count(stderr.String(), "usage:"),
+				"exactly one usage block per misuse, got:\n%s", stderr.String())
+		})
+	}
 }

@@ -109,38 +109,6 @@ func TestRunParse_NilDocumentReturnsOne(t *testing.T) {
 	assert.Contains(t, stderr.String(), "openapi/unsupported-version")
 }
 
-func TestRunParse_UnknownFlagIsUsageError(t *testing.T) {
-	t.Parallel()
-	spec := writeFile(t, "spec.yaml", tinySpec)
-	var stdout, stderr bytes.Buffer
-
-	code := run([]string{"compile", spec, "--bogus"}, &stdout, &stderr)
-
-	assert.Equal(t, 2, code)
-	assert.Contains(t, stderr.String(), "usage")
-}
-
-func TestRunParse_WrongPositionalCount(t *testing.T) {
-	t.Parallel()
-	spec := writeFile(t, "spec.yaml", tinySpec)
-	tests := []struct {
-		name string
-		args []string
-	}{
-		{"no spec file", []string{"compile"}},
-		{"two spec files", []string{"compile", spec, spec}},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-			var stdout, stderr bytes.Buffer
-			code := run(tt.args, &stdout, &stderr)
-			assert.Equal(t, 2, code)
-			assert.Contains(t, stderr.String(), "requires exactly one spec file")
-		})
-	}
-}
-
 func TestRunParse_SkipValidateToStdout(t *testing.T) {
 	t.Parallel()
 	spec := writeFile(t, "spec.yaml", tinySpec)
