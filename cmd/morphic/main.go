@@ -23,14 +23,20 @@ func main() {
 // tests can drive the CLI without a subprocess; only main calls os.Exit.
 func run(args []string, stdout, stderr io.Writer) int {
 	if len(args) == 0 {
-		printUsage(stderr)
-		return 2
+		writeRootHelp(stdout)
+		return 0
 	}
+	// A leading help flag is the help command spelled differently, so it takes
+	// the same path rather than a shortcut to root help. That is what makes
+	// "morphic -h compile" print compile's help instead of silently dropping
+	// the name, and "morphic -h bogus" report it instead of masking it.
+	if args[0] == "help" || isHelpFlag(args[0]) {
+		return runHelp(args[1:], stdout, stderr)
+	}
+
 	c, ok := lookup(args[0])
 	if !ok {
-		emitf(stderr, "morphic: unknown command %q\n", args[0])
-		printUsage(stderr)
-		return 2
+		return rootUsageError(stderr, fmt.Sprintf("unknown command %q", args[0]))
 	}
 	return c.run(args[1:], stdout, stderr)
 }
@@ -40,18 +46,3 @@ func run(args []string, stdout, stderr io.Writer) int {
 func emitf(w io.Writer, format string, args ...any) {
 	_, _ = fmt.Fprintf(w, format, args...)
 }
-
-// printUsage writes the usage text to w.
-func printUsage(w io.Writer) {
-	emitf(w, "%s\n", usage)
-}
-
-const usage = `usage:
-  morphic compile <spec-file> [-o out.json] [--fail-on error|warning] [--skip-validate]
-                              [--explain <json-pointer>]
-
-compile lowers an API spec (OpenAPI 3.x) into Morphic IR JSON.
-
---explain reports what compiling produced at one source coordinate — the type
-node interned there, the coordinates interned beneath it, and the diagnostics
-stamped at it — instead of writing the document.`
