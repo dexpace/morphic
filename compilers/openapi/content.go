@@ -324,7 +324,7 @@ func (l *lowerer) lowerHeaders(headers *sequencedmap.Map[string, *soa.Referenced
 	out := make([]ir.Property, 0, headers.Len())
 	for name, rh := range headers.All() {
 		hptr := basePtr + ids.Ptr("headers", name)
-		h, hdecl := resolveRefAt[soa.Header](l, rh, hptr)
+		h, hdecl := resolveRefAt[soa.Header](l.ctx, rh, hptr)
 		if h == nil {
 			continue
 		}
@@ -375,7 +375,8 @@ func (l *lowerer) headerSchema(h *soa.Header, hdecl string) (*oas3.JSONSchema[oa
 	if js := h.GetSchema(); js != nil {
 		return js, hdecl + ids.Ptr("schema"), ""
 	}
-	mt, media, ok := l.singleContentEntry(h.GetContent(), hdecl)
+	mt, media, ok, entryDiags := singleContentEntry(l.ctx, h.GetContent(), hdecl)
+	l.diags.AppendAll(entryDiags)
 	if !ok {
 		return nil, hdecl + ids.Ptr("schema"), ""
 	}
@@ -390,9 +391,9 @@ func (l *lowerer) headerSchema(h *soa.Header, hdecl string) (*oas3.JSONSchema[oa
 // silence dropped a declared schema without a word, which is the loss GitHub #139
 // fixed at this position in its other spelling; the extras are named instead so
 // the document's own error is visible rather than absorbed.
-func (l *lowerer) singleContentEntry(content *sequencedmap.Map[string, *soa.MediaType], at string) (string, *soa.MediaType, bool) {
+func singleContentEntry(c lowerCtx, content *sequencedmap.Map[string, *soa.MediaType], at string) (string, *soa.MediaType, bool, []ir.Diagnostic) {
 	if content == nil || content.Len() == 0 {
-		return "", nil, false
+		return "", nil, false, nil
 	}
 	var first string
 	var chosen *soa.MediaType
@@ -404,12 +405,13 @@ func (l *lowerer) singleContentEntry(content *sequencedmap.Map[string, *soa.Medi
 		}
 		ignored = append(ignored, mt)
 	}
+	var diags []ir.Diagnostic
 	if len(ignored) > 0 {
-		l.diag(ir.SeverityWarning, diag.DegradedConstruct, at+ids.Ptr("content"),
+		diags = append(diags, c.diagAt(ir.SeverityWarning, diag.DegradedConstruct, at+ids.Ptr("content"),
 			"a content-style header or parameter must declare exactly one media type; "+
-				"%q is lowered and %s ignored", first, strings.Join(ignored, ", "))
+				"%q is lowered and %s ignored", first, strings.Join(ignored, ", ")))
 	}
-	return first, chosen, chosen != nil
+	return first, chosen, chosen != nil, diags
 }
 
 // applyHeaderAnnotations overlays the annotations the header object writes on
@@ -423,7 +425,9 @@ func (l *lowerer) applyHeaderAnnotations(p *ir.Property, h *soa.Header, hdecl st
 	if h.GetDeprecated() {
 		p.Deprecation = &ir.Deprecation{}
 	}
-	if ex := l.exampleList(h.GetExample(), h.GetExamples(), hdecl); len(ex) > 0 {
+	ex, exDiags := exampleList(l.ctx, h.GetExample(), h.GetExamples(), hdecl)
+	l.diags.AppendAll(exDiags)
+	if len(ex) > 0 {
 		p.Examples = ex
 	}
 	hExt, hExtDiags := extensionsOf(l.ctx, h.GetExtensions(), hdecl)
@@ -433,27 +437,32 @@ func (l *lowerer) applyHeaderAnnotations(p *ir.Property, h *soa.Header, hdecl st
 
 // mediaExamples lowers a media type's single and plural example values.
 func (l *lowerer) mediaExamples(media *soa.MediaType, pointer string) []ir.Example {
-	return l.exampleList(media.GetExample(), media.GetExamples(), pointer)
+	ex, diags := exampleList(l.ctx, media.GetExample(), media.GetExamples(), pointer)
+	l.diags.AppendAll(diags)
+	return ex
 }
 
 // exampleList lowers a single example node and a plural example map into value
 // examples, in source order. An unconvertible node is skipped with a warning
 // diagnostic rather than silently. The singular `example` keyword is a bare
 // value with nowhere to hang a name or summary, so it lowers to a value alone.
-func (l *lowerer) exampleList(single *yaml.Node, plural *sequencedmap.Map[string, *soa.ReferencedExample], pointer string) []ir.Example {
+func exampleList(c lowerCtx, single *yaml.Node, plural *sequencedmap.Map[string, *soa.ReferencedExample], pointer string) ([]ir.Example, []ir.Diagnostic) {
 	var out []ir.Example
+	var diags []ir.Diagnostic
 	if single != nil {
 		var exDiags []ir.Diagnostic
-		out, exDiags = appendExample(l.ctx, out, ir.Example{}, single, pointer, "example")
-		l.diags.AppendAll(exDiags)
+		out, exDiags = appendExample(c, out, ir.Example{}, single, pointer, "example")
+		diags = append(diags, exDiags...)
 	}
 	if plural == nil {
-		return out
+		return out, diags
 	}
 	for name, re := range plural.All() {
-		out = l.appendPluralExample(out, re, pointer, name)
+		var pluralDiags []ir.Diagnostic
+		out, pluralDiags = appendPluralExample(c, out, re, pointer, name)
+		diags = append(diags, pluralDiags...)
 	}
-	return out
+	return out, diags
 }
 
 // appendPluralExample lowers one named entry of a plural `examples` map with the
@@ -464,10 +473,10 @@ func (l *lowerer) exampleList(single *yaml.Node, plural *sequencedmap.Map[string
 // entry never had; an inline entry is stamped at its own `value`. Only this hop
 // is de-referenced: an enclosing $ref'd response or parameter is already
 // flattened into pointer.
-func (l *lowerer) appendPluralExample(out []ir.Example, re *soa.ReferencedExample, pointer, name string) []ir.Example {
+func appendPluralExample(c lowerCtx, out []ir.Example, re *soa.ReferencedExample, pointer, name string) ([]ir.Example, []ir.Diagnostic) {
 	ex := resolveRef[soa.Example](re)
 	if ex == nil {
-		return out
+		return out, nil
 	}
 	proto := ir.Example{
 		Name:        name,
@@ -477,16 +486,12 @@ func (l *lowerer) appendPluralExample(out []ir.Example, re *soa.ReferencedExampl
 	}
 	node := ex.GetValue()
 	if node == nil {
-		return l.appendValuelessExample(out, proto, pointer, name)
+		return appendValuelessExample(c, out, proto, pointer, name)
 	}
 	if re.IsReference() {
-		got, diags := appendExample(l.ctx, out, proto, node, pointer, "examples", name)
-		l.diags.AppendAll(diags)
-		return got
+		return appendExample(c, out, proto, node, pointer, "examples", name)
 	}
-	got, diags := appendExample(l.ctx, out, proto, node, pointer, "examples", name, "value")
-	l.diags.AppendAll(diags)
-	return got
+	return appendExample(c, out, proto, node, pointer, "examples", name, "value")
 }
 
 // appendValuelessExample records an entry that declares no inline `value`. The
@@ -494,13 +499,12 @@ func (l *lowerer) appendPluralExample(out []ir.Example, re *soa.ReferencedExampl
 // its home, so it is kept whole. Any other value-less entry carries no example
 // at all — a 3.2 dataValue/serializedValue, or an empty stub — and is dropped
 // with a warning rather than in silence.
-func (l *lowerer) appendValuelessExample(out []ir.Example, proto ir.Example, pointer, name string) []ir.Example {
+func appendValuelessExample(c lowerCtx, out []ir.Example, proto ir.Example, pointer, name string) ([]ir.Example, []ir.Diagnostic) {
 	if proto.ExternalURL == "" {
-		l.diag(ir.SeverityWarning, diag.DegradedConstruct, pointer+ids.Ptr("examples", name),
-			"example declares neither value nor externalValue")
-		return out
+		return out, []ir.Diagnostic{c.diagAt(ir.SeverityWarning, diag.DegradedConstruct,
+			pointer+ids.Ptr("examples", name), "example declares neither value nor externalValue")}
 	}
-	return append(out, proto)
+	return append(out, proto), nil
 }
 
 // lowerRequestBody lowers an operation's request body onto op.Request and the
@@ -512,7 +516,7 @@ func (l *lowerer) appendValuelessExample(out []ir.Example, proto ir.Example, poi
 // (issue #107) — and under the component's name, since the operationId hint
 // would otherwise name the shared node after one arbitrary referencing site.
 func (l *lowerer) lowerRequestBody(op *ir.Operation, hb *ir.HTTPBinding, src *soa.Operation, opDeclPtr string) {
-	rb, bodyPtr := resolveRefAt[soa.RequestBody](l, src.GetRequestBody(), opDeclPtr+ids.Ptr("requestBody"))
+	rb, bodyPtr := resolveRefAt[soa.RequestBody](l.ctx, src.GetRequestBody(), opDeclPtr+ids.Ptr("requestBody"))
 	if rb == nil {
 		return
 	}

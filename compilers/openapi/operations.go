@@ -88,7 +88,7 @@ func (l *lowerer) lowerPaths(groups *serviceGroups) {
 		return
 	}
 	for path, rp := range paths.All() {
-		pi, declPtr := resolveRefAt[soa.PathItem](l, rp, ids.Ptr("paths", path))
+		pi, declPtr := resolveRefAt[soa.PathItem](l.ctx, rp, ids.Ptr("paths", path))
 		if pi == nil {
 			continue
 		}
@@ -136,7 +136,7 @@ func (l *lowerer) lowerWebhooks(groups *serviceGroups) {
 	}
 	for name, rp := range hooks.All() {
 		hookPtr := ids.Ptr("webhooks", name)
-		pi, declPtr := resolveRefAt[soa.PathItem](l, rp, hookPtr)
+		pi, declPtr := resolveRefAt[soa.PathItem](l.ctx, rp, hookPtr)
 		if pi == nil {
 			continue
 		}
@@ -248,7 +248,8 @@ func (l *lowerer) lowerOperation(src *soa.Operation, ctx opContext) (ir.Operatio
 	if src.GetDeprecated() {
 		op.Deprecation = &ir.Deprecation{}
 	}
-	params, bindings := l.lowerParameters(ctx.params)
+	params, bindings, paramDiags := lowerParameters(l.ctx, l.types, &l.anchors, ctx.params)
+	l.diags.AppendAll(paramDiags)
 	op.Params = params
 	op.Responses, op.Errors = l.lowerResponses(src, decl)
 	hb := ir.HTTPBinding{
@@ -352,7 +353,7 @@ func (l *lowerer) lowerResponses(src *soa.Operation, opDeclPtr string) ([]ir.Res
 	var responses []ir.Response
 	var errs []ir.ErrorCase
 	for code, rr := range resps.All() {
-		r, rptr := resolveRefAt[soa.Response](l, rr, opDeclPtr+ids.Ptr("responses", code))
+		r, rptr := resolveRefAt[soa.Response](l.ctx, rr, opDeclPtr+ids.Ptr("responses", code))
 		if r == nil {
 			continue
 		}
@@ -363,7 +364,7 @@ func (l *lowerer) lowerResponses(src *soa.Operation, opDeclPtr string) ([]ir.Res
 			responses = append(responses, l.lowerResponse(r, rng, rptr))
 		}
 	}
-	def, dptr := resolveRefAt[soa.Response](l, resps.GetDefault(), opDeclPtr+ids.Ptr("responses", "default"))
+	def, dptr := resolveRefAt[soa.Response](l.ctx, resps.GetDefault(), opDeclPtr+ids.Ptr("responses", "default"))
 	if def != nil {
 		errs = append(errs, l.lowerErrorCase(def, ir.StatusRange{}, dptr))
 	}
@@ -461,13 +462,13 @@ func (l *lowerer) lowerCallbacks(src *soa.Operation, parent opPointers, inferred
 	var callbacks []ir.Callback
 	var ops []ir.Operation
 	for cbName, rcb := range cbMap.All() {
-		cb, cbDecl := resolveRefAt[soa.Callback](l, rcb, parent.decl+ids.Ptr("callbacks", cbName))
+		cb, cbDecl := resolveRefAt[soa.Callback](l.ctx, rcb, parent.decl+ids.Ptr("callbacks", cbName))
 		if cb == nil {
 			continue
 		}
 		for expr, rp := range cb.All() {
 			exprStr := string(expr)
-			pi, piDecl := resolveRefAt[soa.PathItem](l, rp, cbDecl+ids.Ptr(exprStr))
+			pi, piDecl := resolveRefAt[soa.PathItem](l.ctx, rp, cbDecl+ids.Ptr(exprStr))
 			if pi == nil {
 				continue
 			}
@@ -668,7 +669,7 @@ const maxRefChain = 32
 func resolveRefAt[T, S any, R interface {
 	*S
 	referencedEntry[T, S]
-}](l *lowerer, ref R, usePtr string) (*T, string) {
+}](c lowerCtx, ref R, usePtr string) (*T, string) {
 	obj := resolveRef[T, S, R](ref)
 	if obj == nil {
 		return nil, usePtr
@@ -686,7 +687,7 @@ func resolveRefAt[T, S any, R interface {
 			pointer = cand
 			break
 		}
-		target, ok := l.ctx.refScope().InternalPointer(ref.GetReference().String())
+		target, ok := c.refScope().InternalPointer(ref.GetReference().String())
 		if !ok {
 			break // another document: nothing addressable here, so usePtr stands
 		}
