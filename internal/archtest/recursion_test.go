@@ -13,14 +13,33 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// schemaRecursion is the one mutual recursion the OpenAPI lowering is allowed to
-// have: lowering a schema resolves the references inside it, and resolving a
-// reference lowers what it names.
+// lowererRecursions are every set of lowerer methods that call each other, and
+// why each set is allowed to.
 //
-// micro-compiler-design §5 records this as the reason schema, compose and
-// resolve cannot be separated into packages. Everything else in the compiler is
-// expected to be acyclic, and a method joining this set is a method that can no
-// longer be converted, tested or moved on its own.
+// A method inside one of these cannot be converted, tested or moved on its own:
+// its callees include something that calls back to it, so the whole set changes
+// together or not at all. That is what makes the membership worth pinning rather
+// than measuring — it decides the shape of the remaining conversion work.
+//
+// The sets are listed longest first, which is also the order they matter in.
+var lowererRecursions = [][]string{
+	// The schema walk. Lowering a schema resolves the references inside it, and
+	// resolving a reference lowers what it names. micro-compiler-design §5
+	// records this as the reason schema, compose and resolve cannot be separated
+	// into packages.
+	schemaRecursion,
+	// Callbacks. An operation may declare callbacks, each of which is a path item
+	// holding operations of its own (ir-design §8.1), so the operation lowering
+	// reaches itself through them.
+	{"lowerCallbackOps", "lowerCallbacks", "lowerOperation"},
+	// Property lookup through a composition. Finding a property by wire name
+	// descends into a model's base and mixins, each of which is a model whose
+	// properties are looked up the same way.
+	{"propIDByWire", "propIDInComposition"},
+}
+
+// schemaRecursion is the largest of them, named because the design refers to it
+// directly and because the remaining conversion is sized by it.
 var schemaRecursion = []string{
 	"buildComposedVariant", "buildTuple", "carriedSchemaRef", "composedVariant",
 	"fillAdditional", "fillAllOf", "fillModelProperties", "hoistSubSchema",
@@ -31,8 +50,8 @@ var schemaRecursion = []string{
 	"schemaRefHomed",
 }
 
-// TestLowererRecursion_IsOnlyTheSchemaWalk pins which lowerer methods are
-// mutually recursive, and holds the answer to the set above.
+// TestLowererRecursion_IsOnlyTheKnownCycles pins which lowerer methods are
+// mutually recursive, and holds the answer to the sets above.
 //
 // It exists because measuring this with a regex got it wrong by more than
 // double. A pattern ending a function at the first `}` in column zero runs past
@@ -42,10 +61,10 @@ var schemaRecursion = []string{
 // whole diagnostic path into the schema cycle. A parser cannot make that mistake:
 // it is told where a function ends.
 //
-// The set is asserted rather than merely reported so the claim is checked. A
-// method that joins the recursion changes what the remaining conversion work is,
-// and that should fail here rather than be discovered by someone measuring again.
-func TestLowererRecursion_IsOnlyTheSchemaWalk(t *testing.T) {
+// Every cycle is asserted, not only the largest. Checking one would let a new
+// recursion appear anywhere else unnoticed, which is the same blindness as not
+// checking at all — and the two smaller ones are as unconvertible as the big one.
+func TestLowererRecursion_IsOnlyTheKnownCycles(t *testing.T) {
 	t.Parallel()
 	calls := lowererCallGraph(t)
 	require.NotEmpty(t, calls, "no lowerer methods found; the parse or the receiver name changed")
@@ -60,8 +79,8 @@ func TestLowererRecursion_IsOnlyTheSchemaWalk(t *testing.T) {
 	sort.Slice(cycles, func(i, j int) bool { return len(cycles[i]) > len(cycles[j]) })
 	require.NotEmpty(t, cycles, "the schema walk is mutually recursive; finding none means the graph is wrong")
 
-	assert.Equal(t, schemaRecursion, cycles[0],
-		"the schema recursion's membership changed; a method joining it can no longer be converted alone")
+	assert.Equal(t, lowererRecursions, cycles,
+		"the lowerer's mutual recursion changed; a method joining one of these sets can no longer be converted alone")
 }
 
 // lowererCallGraph maps each method on *lowerer to the methods it calls on its
@@ -105,19 +124,27 @@ func lowererCallGraph(t *testing.T) map[string]map[string]bool {
 	return graph
 }
 
-// lowererMethod reports whether decl is a method on *lowerer, with its name and
-// receiver identifier.
+// lowererMethod reports whether decl is a method on the lowerer, with its name
+// and receiver identifier.
+//
+// Both receiver forms count. Every method is on *lowerer today, but a value
+// receiver is still a method that can join a recursion, and reading only the
+// pointer form would hide one — the blind spot is worth closing while there is
+// nothing in it.
 func lowererMethod(decl ast.Decl) (name, recv string, ok bool) {
 	fn, isFunc := decl.(*ast.FuncDecl)
 	if !isFunc || fn.Recv == nil || len(fn.Recv.List) != 1 || fn.Body == nil {
 		return "", "", false
 	}
-	star, isPtr := fn.Recv.List[0].Type.(*ast.StarExpr)
-	if !isPtr {
+	if len(fn.Recv.List[0].Names) != 1 {
 		return "", "", false
 	}
-	id, isIdent := star.X.(*ast.Ident)
-	if !isIdent || id.Name != "lowerer" || len(fn.Recv.List[0].Names) != 1 {
+	base := fn.Recv.List[0].Type
+	if star, isPtr := base.(*ast.StarExpr); isPtr {
+		base = star.X
+	}
+	id, isIdent := base.(*ast.Ident)
+	if !isIdent || id.Name != "lowerer" {
 		return "", "", false
 	}
 	return fn.Name.Name, fn.Recv.List[0].Names[0].Name, true
