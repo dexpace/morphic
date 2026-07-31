@@ -1087,7 +1087,8 @@ func (l *lowerer) dynamicExpansion(s *oas3.Schema, pointer string) (target ir.Ty
 	if !ok {
 		return "", why, false
 	}
-	at, why, ok := l.soleAnchorSite(name)
+	at, why, ok, anchorDiags := soleAnchorSite(l.ctx, &l.anchors, name)
+	l.diags.AppendAll(anchorDiags)
 	if !ok {
 		return "", why, false
 	}
@@ -1142,17 +1143,23 @@ func dynamicRefSiblings(s *oas3.Schema) bool {
 // the reason no single declaration answers for it. Two declarations put the
 // target back under the evaluation path's control, which no static lowering can
 // resolve (ir-design §4.7).
-func (l *lowerer) soleAnchorSite(name string) (at, why string, ok bool) {
-	sites, diags := l.anchors.sites(l.ctx, name)
-	l.diags.AppendAll(diags)
+//
+// The index is an explicit parameter and its diagnostics are returned rather
+// than recorded, per micro-compiler-design §4: the memo is state the caller
+// owns, and accumulation through a handle is the side effect the conversion
+// exists to remove. Diagnostics come back on every path, including the two that
+// answer "no single declaration" — the walk bound they report is a fact about
+// the document, not about this lookup's verdict.
+func soleAnchorSite(c lowerCtx, ax *anchorIndex, name string) (at, why string, ok bool, diags []ir.Diagnostic) {
+	sites, diags := ax.sites(c, name)
 	if len(sites) == 0 {
-		return "", fmt.Sprintf("no $dynamicAnchor %q is declared in this document", name), false
+		return "", fmt.Sprintf("no $dynamicAnchor %q is declared in this document", name), false, diags
 	}
 	if len(sites) > 1 {
 		return "", fmt.Sprintf("$dynamicAnchor %q is declared %d times, so the target depends on the evaluation path",
-			name, len(sites)), false
+			name, len(sites)), false, diags
 	}
-	return sites[0], "", true
+	return sites[0], "", true, diags
 }
 
 // dynamicChainVerdict reports whether the position at from may take the
@@ -1183,7 +1190,8 @@ func (l *lowerer) dynamicChainVerdict(at, from string) (why string, ok bool) {
 			return resourceBoundaryWhy(cur), false
 		}
 		seen[cur] = true
-		next, hops := l.dynamicHop(cur)
+		next, hops, hopDiags := dynamicHop(l.ctx, &l.anchors, cur)
+		l.diags.AppendAll(hopDiags)
 		if !hops {
 			break
 		}
@@ -1203,21 +1211,20 @@ func resourceBoundaryWhy(at string) string {
 // would itself expand to, when it writes an expandable $dynamicRef of its own.
 // Anything else ends the chain: a position that lowers to a shape rather than to
 // another reference cannot extend a cycle of references.
-func (l *lowerer) dynamicHop(at string) (string, bool) {
-	s := componentSchemaAt(l.ctx, at)
+func dynamicHop(c lowerCtx, ax *anchorIndex, at string) (string, bool, []ir.Diagnostic) {
+	s := componentSchemaAt(c, at)
 	if s == nil {
-		return "", false
+		return "", false, nil
 	}
 	name, _, ok := dynamicRefName(s)
 	if !ok {
-		return "", false
+		return "", false, nil
 	}
-	next, nextDiags := l.anchors.sites(l.ctx, name)
-	l.diags.AppendAll(nextDiags)
+	next, nextDiags := ax.sites(c, name)
 	if len(next) != 1 {
-		return "", false
+		return "", false, nextDiags
 	}
-	return next[0], true
+	return next[0], true, nextDiags
 }
 
 // componentSchemaAt returns the schema body of the top-level component pointer
