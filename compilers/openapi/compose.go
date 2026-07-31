@@ -147,7 +147,8 @@ func (l *lowerer) fillAllOf(m *ir.Model, s *oas3.Schema, pointer string) {
 				"unresolved allOf $ref %q", b.GetRef().String())
 			continue
 		}
-		ref := l.homeDeclaration(b.GetSchema(), ir.TypeRef{Target: id}, bptr, branchHint(b, i), annotation.HomeOwnNode)
+		ref, homeDiags := homeDeclaration(l.ctx, l.types, &l.anchors, b.GetSchema(), ir.TypeRef{Target: id}, bptr, branchHint(b, i), annotation.HomeOwnNode)
+		l.diags.AppendAll(homeDiags)
 		if i == baseIdx {
 			m.Base = &ref
 		} else {
@@ -443,7 +444,9 @@ func (l *lowerer) lowerOneOfAnyOf(s *oas3.Schema, pointer, hint string) ir.TypeR
 		return ref
 	}
 	tid := internNode(l.ctx, l.types, pointer, hint, func(common ir.TypeCommon) ir.TypeDef {
-		return l.buildUnion(s, common, pointer, l.schemaRef)
+		def, unionDiags := buildUnion(l.ctx, l.types, s, common, pointer, l.schemaRef)
+		l.diags.AppendAll(unionDiags)
+		return def
 	})
 
 	return ir.TypeRef{Target: tid, Nullable: schemaAdmitsNull(s)}
@@ -653,7 +656,7 @@ type variantTypeFunc func(b *oas3.JSONSchema[oas3.Referenceable], vptr, vhint st
 // buildUnion assembles the Union node for a oneOf/anyOf schema, attaching a
 // discriminator when one is declared. common is already built by the caller
 // (internNode), so buildUnion needs no hint of its own to build one.
-func (l *lowerer) buildUnion(s *oas3.Schema, common ir.TypeCommon, pointer string, variantType variantTypeFunc) ir.TypeDef {
+func buildUnion(c lowerCtx, ts *compile.Types, s *oas3.Schema, common ir.TypeCommon, pointer string, variantType variantTypeFunc) (ir.TypeDef, []ir.Diagnostic) {
 	branches, key, exclusive := unionBranches(s)
 	variants := make([]ir.Variant, 0, len(branches))
 	for i, b := range branches {
@@ -673,10 +676,9 @@ func (l *lowerer) buildUnion(s *oas3.Schema, common ir.TypeCommon, pointer strin
 		Exclusive:  exclusive,
 		WireTagged: false,
 	}
-	disc, discDiags := lowerDiscriminator(l.ctx, l.types, s, nil, pointer)
-	l.diags.AppendAll(discDiags)
+	disc, diags := lowerDiscriminator(c, ts, s, nil, pointer)
 	u.Discriminator = disc
-	return u
+	return u, diags
 }
 
 // lowerDistributedUnion emits the Union that is the schema's value, distributing
@@ -687,10 +689,12 @@ func (l *lowerer) buildUnion(s *oas3.Schema, common ir.TypeCommon, pointer strin
 func (l *lowerer) lowerDistributedUnion(s *oas3.Schema, pointer, hint string) ir.TypeID {
 	id := internNode(l.ctx, l.types, pointer, hint, func(common ir.TypeCommon) ir.TypeDef {
 		body := composedBody{schema: s, pointer: pointer, hint: hint, id: common.ID}
-		return l.buildUnion(s, common, pointer,
+		def, unionDiags := buildUnion(l.ctx, l.types, s, common, pointer,
 			func(b *oas3.JSONSchema[oas3.Referenceable], vptr, vhint string) ir.TypeRef {
 				return l.composedVariant(body, b, vptr, vhint)
 			})
+		l.diags.AppendAll(unionDiags)
+		return def
 	})
 
 	l.diag(ir.SeverityInfo, diag.CompositionLowering, pointer,

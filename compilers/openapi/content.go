@@ -352,7 +352,7 @@ func (l *lowerer) lowerHeader(h *soa.Header, name, hptr, hdecl string) ir.Proper
 		// spelling keeps.
 		p.Encoding = &ir.Encoding{MediaType: mediaType}
 	}
-	l.fillPropertyDetail(&p, js, schemaPtr)
+	l.diags.AppendAll(fillPropertyDetail(l.ctx, l.types, &l.anchors, &p, js, schemaPtr))
 	l.applyHeaderAnnotations(&p, h, hdecl)
 	return p
 }

@@ -3,6 +3,7 @@ package openapi
 import (
 	oas3 "github.com/speakeasy-api/openapi/jsonschema/oas3"
 
+	"github.com/dexpace/morphic/compilers/compile"
 	"github.com/dexpace/morphic/compilers/openapi/internal/annotation"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/resolve"
@@ -64,7 +65,9 @@ func (l *lowerer) schemaRefHomed(js *oas3.JSONSchema[oas3.Referenceable], pointe
 // on the target's node; when the position has no carrier to hold them either,
 // an alias over the target becomes their home.
 func (l *lowerer) refSiteRef(js *oas3.JSONSchema[oas3.Referenceable], s *oas3.Schema, pointer, hint string, home annotation.Home) ir.TypeRef {
-	return l.homeDeclaration(s, l.refTypeRef(js, pointer), pointer, hint, home)
+	ref, diags := homeDeclaration(l.ctx, l.types, &l.anchors, s, l.refTypeRef(js, pointer), pointer, hint, home)
+	l.diags.AppendAll(diags)
+	return ref
 }
 
 // homeDeclaration gives what s writes at this position a home and returns the
@@ -76,14 +79,12 @@ func (l *lowerer) refSiteRef(js *oas3.JSONSchema[oas3.Referenceable], s *oas3.Sc
 // $ref, which reached none of it until it was routed here. A position that
 // skips it drops what was written at it without a word — which is what both
 // GitHub #116 and #143 were.
-func (l *lowerer) homeDeclaration(s *oas3.Schema, target ir.TypeRef, pointer, hint string, home annotation.Home) ir.TypeRef {
-	ref, homeDiags := hoistDeclarationHome(l.ctx, l.types, s, target, pointer, hint, home)
-	l.diags.AppendAll(homeDiags)
+func homeDeclaration(c lowerCtx, ts *compile.Types, anchors *anchorIndex, s *oas3.Schema, target ir.TypeRef, pointer, hint string, home annotation.Home) (ir.TypeRef, []ir.Diagnostic) {
+	ref, diags := hoistDeclarationHome(c, ts, s, target, pointer, hint, home)
 	if s != nil {
-		l.diags.AppendAll(attachDeclaredAnnotations(l.ctx, l.types, &l.anchors, s, pointer))
+		diags = append(diags, attachDeclaredAnnotations(c, ts, anchors, s, pointer)...)
 	}
-	l.diags.AppendAll(recordDeclarationResidue(l.ctx, l.types, s, pointer, home))
-	return ref
+	return ref, append(diags, recordDeclarationResidue(c, ts, s, pointer, home)...)
 }
 
 // refTypeRef resolves a $ref position to its target's stable ID, carrying the

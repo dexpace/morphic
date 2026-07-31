@@ -180,7 +180,9 @@ func internAlias(c lowerCtx, ts *compile.Types, pointer, hint string,
 // (resolveSchemaRef), which both reach a body only after peeling off any
 // leading $ref.
 func (l *lowerer) schemaBody(schema *oas3.Schema, pointer, hint string, home annotation.Home) ir.TypeRef {
-	return l.homeDeclaration(schema, l.lowerSchemaBody(schema, pointer, hint), pointer, hint, home)
+	ref, diags := homeDeclaration(l.ctx, l.types, &l.anchors, schema, l.lowerSchemaBody(schema, pointer, hint), pointer, hint, home)
+	l.diags.AppendAll(diags)
+	return ref
 }
 
 // hoistDeclarationHome gives a declaration a node of its own when its lowering
@@ -609,7 +611,9 @@ func (l *lowerer) lowerTyped(s *oas3.Schema, pointer, hint string, st oas3.Schem
 	case oas3.SchemaTypeArray:
 		return l.lowerArray(s, pointer, hint)
 	default:
-		return l.scalarTypeID(s, st, pointer, hint)
+		id, scalarDiags := scalarTypeID(l.ctx, l.types, s, st, pointer, hint)
+		l.diags.AppendAll(scalarDiags)
+		return id
 	}
 }
 
@@ -688,7 +692,7 @@ func (l *lowerer) fillModelProperties(m *ir.Model, s *oas3.Schema, pointer strin
 			Required:   required[name],
 			Provenance: l.ctx.provenanceAt(ppointer),
 		}
-		l.fillPropertyDetail(&p, js, ppointer)
+		l.diags.AppendAll(fillPropertyDetail(l.ctx, l.types, &l.anchors, &p, js, ppointer))
 		var mergeDiags []ir.Diagnostic
 		mg := merger(l.ctx, l.types, &mergeDiags)
 		mg.MergeProperty(m, byWire, p, ppointer)
@@ -707,19 +711,19 @@ func (l *lowerer) fillModelProperties(m *ir.Model, s *oas3.Schema, pointer strin
 // a byte or unknown format hoists, or no node at all), so reading the node
 // instead would drop them wherever it carries none. Restating them is the safe
 // half of that trade.
-func (l *lowerer) fillPropertyDetail(p *ir.Property, js *oas3.JSONSchema[oas3.Referenceable], pointer string) {
+func fillPropertyDetail(c lowerCtx, ts *compile.Types, anchors *anchorIndex, p *ir.Property, js *oas3.JSONSchema[oas3.Referenceable], pointer string) []ir.Diagnostic {
 	ref := js.GetSchema()
 	if ref == nil {
-		return
+		return nil
 	}
 	tgt := resolve.TargetSchema(js, ref)
-	l.diags.AppendAll(fillPropertyDefault(l.ctx, p, ref, tgt, pointer))
+	diags := fillPropertyDefault(c, p, ref, tgt, pointer)
 	if ref.GetFormat() == "password" {
 		p.Secret = true
 	}
 	p.Visibility = annotation.EffectiveVisibility(ref, tgt)
-	l.diags.AppendAll(fillPropertyConstraints(l.ctx, p, ref, pointer))
-	l.diags.AppendAll(fillPropertyAnnotations(l.ctx, l.types, &l.anchors, p, ref, tgt, pointer))
+	diags = append(diags, fillPropertyConstraints(c, p, ref, pointer)...)
+	return append(diags, fillPropertyAnnotations(c, ts, anchors, p, ref, tgt, pointer)...)
 }
 
 // fillPropertyAnnotations records the annotations the property's schema
@@ -913,12 +917,10 @@ func (l *lowerer) buildTuple(s *oas3.Schema, common ir.TypeCommon, pointer, hint
 // 2020-12 content vocabulary each hoist a named Scalar wrapping the base
 // primitive with an Encoding, so what the position wrote never leaks onto the
 // shared primitive every other declaration of that type also resolves to.
-func (l *lowerer) scalarTypeID(s *oas3.Schema, st oas3.SchemaType, pointer, hint string) ir.TypeID {
+func scalarTypeID(c lowerCtx, ts *compile.Types, s *oas3.Schema, st oas3.SchemaType, pointer, hint string) (ir.TypeID, []ir.Diagnostic) {
 	format := s.GetFormat()
 	if st == oas3.SchemaTypeString && format == "byte" {
-		id, hoistDiags := hoistByteScalar(l.ctx, l.types, s, pointer, hint)
-		l.diags.AppendAll(hoistDiags)
-		return id
+		return hoistByteScalar(c, ts, s, pointer, hint)
 	}
 	key := string(st)
 	if format != "" {
@@ -926,16 +928,12 @@ func (l *lowerer) scalarTypeID(s *oas3.Schema, st oas3.SchemaType, pointer, hint
 	}
 	prim, known := formatTable[key]
 	if !known {
-		id, hoistDiags := hoistFormatScalar(l.ctx, l.types, s, baseForType(st), format, pointer, hint)
-		l.diags.AppendAll(hoistDiags)
-		return id
+		return hoistFormatScalar(c, ts, s, baseForType(st), format, pointer, hint)
 	}
 	if !declaresContent(s) {
-		return l.types.PrimID(prim)
+		return ts.PrimID(prim), nil
 	}
-	id, hoistDiags := hoistContentScalar(l.ctx, l.types, s, prim, pointer, hint)
-	l.diags.AppendAll(hoistDiags)
-	return id
+	return hoistContentScalar(c, ts, s, prim, pointer, hint)
 }
 
 // hoistByteScalar hoists a base64-encoded byte scalar (string+byte).
