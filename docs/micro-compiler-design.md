@@ -218,7 +218,6 @@ type Ctx struct {
 }
 
 func (c Ctx) DeclaresSchema(name string) bool   // was the `schemas` field
-func (c Ctx) AnchorsNamed(name string) []string // was the `dynamicAnchors` field
 ```
 
 The derived indexes are maps, and a struct copy shares a map rather than copying it — so "immutable
@@ -231,12 +230,38 @@ methods and removes a class of bug where a callee's write is visible to its call
 | Field | Becomes |
 |---|---|
 | `doc`, `opts`, `source`, `srcIndex` | `Ctx`, by value |
-| `schemas`, `dynamicAnchors` | derived once at entry, into `Ctx` |
+| `schemas` | derived once at entry, into `Ctx` |
+| `dynamicAnchors` | **stays a memo** — deriving it at entry reports on documents that never ask; see below |
 | `types` | the one effect handle |
 | `diags`, `out`, `merge` | return values |
 | `depth` | explicit parameter — which the bounded-recursion rule wants regardless |
 | `operationIDs` | local to the operations loop, which is not recursive |
 | `diagnosedConstraints` | **removed** — it was subsumed by identity dedup all along; see below |
+
+*As landed:* two of these rows were written before the code was tried and did not
+survive it.
+
+`dynamicAnchors` stays a memo. This section put it in `Ctx` alongside `schemas`,
+and §4 offered an `AnchorsNamed` accessor for it. Neither happened, for two
+reasons that only appear once you build it. Deriving the index emits a
+diagnostic — it warns when a bound stopped the walk short — so deriving it at
+entry reports on every document whose tree exceeds those bounds, including the
+overwhelming majority that never write `$dynamicRef`. And the walk is not free:
+
+```bash
+# what deriving it at entry would cost a document that never asks
+go test ./compilers/openapi -run XXX -bench BenchmarkAnchorWalk -benchtime=2000x
+```
+
+It measured about 3.7µs and 75 allocations against a compile's 270µs and 2,767 —
+roughly 1.4% of the time and 2.7% of the allocations, spent on a keyword almost
+nothing uses. So it is a memo, built on the first `$dynamicRef` and not before.
+
+That makes it the one counterexample to §4's claim that interning is
+"irreducibly shared and stateful; nothing else is". It is a weaker exception than
+that phrasing suggests — a memo caches a pure function of the document, where the
+interning table accumulates decisions — but it is shared and it is mutated, and
+the claim as written does not admit it.
 
 `diagnosedConstraints` suppressed duplicate constraint diagnostics when a sub-schema is read from
 two positions.

@@ -3598,15 +3598,14 @@ func TestDynamicAnchorIndex_ReportsATruncatedWalk(t *testing.T) {
 	l, diags := loweredFor(t, componentSpec("    A: {type: string}\n")+"x-deep: "+deep+"\n")
 	requireNoErrorDiags(t, diags)
 
-	require.NotNil(t, l.dynamicAnchorIndex(), "the index is built even when partial")
-
-	got := l.diags.List()
+	_, got := l.anchors.sites(l.ctx, "absent")
+	require.NotNil(t, l.anchors.byName, "the index is built even when partial")
 	require.Len(t, got, 1, "the truncation is announced exactly once: %+v", got)
 	assert.Equal(t, ir.SeverityWarning, got[0].Severity)
 	assert.Contains(t, got[0].Message, "not verified")
 
-	l.dynamicAnchorIndex()
-	assert.Len(t, l.diags.List(), 1, "and the cached index does not announce it again")
+	_, again := l.anchors.sites(l.ctx, "absent")
+	assert.Empty(t, again, "and the cached index does not announce it again")
 }
 
 // TestDynamicRef_NonScalarValueIsKeptNotExpanded covers the one irreducible case

@@ -34,11 +34,10 @@ type lowerer struct {
 	diags compile.Diags
 	// merge reconciles properties declared by more than one allOf branch.
 	merge merge.Merger
-	// dynamicAnchors indexes the document's $dynamicAnchor declarations by name,
-	// built by dynamicAnchorIndex on the first $dynamicRef reached. It stays nil
-	// until then: the index costs a walk of the whole raw source tree, and almost
-	// no document writes either keyword.
-	dynamicAnchors map[string][]string
+	// anchors memoizes the document's $dynamicAnchor index, built on the first
+	// $dynamicRef reached and not before: the walk costs about 1.4% of a compile,
+	// and almost no document writes either keyword.
+	anchors anchorIndex
 	// operationIDs maps each operationId already lowered to the mount pointer
 	// that claimed it, so a second claim can name the first in its diagnostic.
 	operationIDs map[string]string

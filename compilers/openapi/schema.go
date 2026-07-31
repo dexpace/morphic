@@ -1142,7 +1142,8 @@ func dynamicRefSiblings(s *oas3.Schema) bool {
 // target back under the evaluation path's control, which no static lowering can
 // resolve (ir-design §4.7).
 func (l *lowerer) soleAnchorSite(name string) (at, why string, ok bool) {
-	sites := l.dynamicAnchorIndex()[name]
+	sites, diags := l.anchors.sites(l.ctx, name)
+	l.diags.AppendAll(diags)
 	if len(sites) == 0 {
 		return "", fmt.Sprintf("no $dynamicAnchor %q is declared in this document", name), false
 	}
@@ -1210,7 +1211,8 @@ func (l *lowerer) dynamicHop(at string) (string, bool) {
 	if !ok {
 		return "", false
 	}
-	next := l.dynamicAnchorIndex()[name]
+	next, nextDiags := l.anchors.sites(l.ctx, name)
+	l.diags.AppendAll(nextDiags)
 	if len(next) != 1 {
 		return "", false
 	}
@@ -1293,27 +1295,44 @@ func declaresDynamicRef(s *oas3.Schema) bool {
 	return annotation.RawPropertyNode(s, "$dynamicRef") != nil
 }
 
-// dynamicAnchorIndex returns the document's $dynamicAnchor index, building it on
-// first use and announcing once when a bound stopped the walk short.
+// anchorIndex memoizes the document's $dynamicAnchor index.
+//
+// It is the one thing this compiler shares and mutates besides the interning
+// table, which micro-compiler-design §4 did not expect: it holds that interning
+// is "irreducibly shared and stateful; nothing else is". This is the exception,
+// and it is a memo rather than an accumulator — the value it caches is a pure
+// function of the document.
+//
+// It stays a memo rather than moving into the immutable context, which §4.1
+// prescribes, for two measured reasons recorded there: building it emits a
+// diagnostic, so deriving it at entry reports on documents that never write
+// $dynamicRef; and the walk costs about 1.4% of a compile, which is a poor
+// trade for a keyword almost no document uses.
+type anchorIndex struct {
+	byName map[string][]string
+}
+
+// sites returns the pointers declaring the named $dynamicAnchor, building the
+// index on first use and announcing once when a bound stopped the walk short.
 //
 // A truncated index can only undercount, and every verdict resting on it reads
 // an undercount as "declared exactly once" — the one count that expands. So the
 // warning is what tells a reader that an expansion reported below was decided
 // against an index nothing verified, which is exactly what diag.CycleScanFailed
 // says for the pre-parse scan.
-func (l *lowerer) dynamicAnchorIndex() map[string][]string {
-	if l.dynamicAnchors != nil {
-		return l.dynamicAnchors
+func (a *anchorIndex) sites(c lowerCtx, name string) ([]string, []ir.Diagnostic) {
+	if a.byName != nil {
+		return a.byName[name], nil
 	}
-	index, complete := dynamicAnchors(l.ctx.Doc.GetRootNode())
-	l.dynamicAnchors = index
-	if !complete {
-		l.diag(ir.SeverityWarning, diag.DegradedConstruct, "",
-			"the $dynamicAnchor index stopped at its walk bounds (%d levels, %d nodes); "+
-				"a $dynamicRef expanded below is not verified to name the document's only anchor of its name",
-			maxDynamicAnchorDepth, maxDynamicAnchorNodes)
+	index, complete := dynamicAnchors(c.Doc.GetRootNode())
+	a.byName = index
+	if complete {
+		return a.byName[name], nil
 	}
-	return l.dynamicAnchors
+	return a.byName[name], []ir.Diagnostic{c.diagAt(ir.SeverityWarning, diag.DegradedConstruct, "",
+		"the $dynamicAnchor index stopped at its walk bounds (%d levels, %d nodes); "+
+			"a $dynamicRef expanded below is not verified to name the document's only anchor of its name",
+		maxDynamicAnchorDepth, maxDynamicAnchorNodes)}
 }
 
 // dynamicAnchors indexes every $dynamicAnchor in the raw source by name, mapping
