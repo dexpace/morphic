@@ -33,7 +33,7 @@ func (l *lowerer) lowerAllOf(s *oas3.Schema, pointer, hint string) ir.TypeID {
 		l.fillModelProperties(m, s, pointer)
 		l.diags.AppendAll(applyCompositionRequired(l.ctx, m, s, pointer))
 		l.fillAdditional(m, s, pointer, hint)
-		l.applyFalseBranches(m, s, pointer)
+		l.diags.AppendAll(applyFalseBranches(l.ctx, m, s, pointer))
 		if d := l.lowerDiscriminator(s, m, pointer); d != nil {
 			m.Discriminator = d
 		}
@@ -174,7 +174,8 @@ func (l *lowerer) fillAllOf(m *ir.Model, s *oas3.Schema, pointer string) {
 //
 // A `true` branch admits everything, so contributing nothing from it is exact
 // and there is nothing to report.
-func (l *lowerer) applyFalseBranches(m *ir.Model, s *oas3.Schema, pointer string) {
+func applyFalseBranches(c lowerCtx, m *ir.Model, s *oas3.Schema, pointer string) []ir.Diagnostic {
+	var diags []ir.Diagnostic
 	for i, b := range s.GetAllOf() {
 		if b == nil || !b.IsBool() {
 			continue
@@ -184,13 +185,14 @@ func (l *lowerer) applyFalseBranches(m *ir.Model, s *oas3.Schema, pointer string
 		}
 		bptr := pointer + ids.Ptr("allOf", strconv.Itoa(i))
 		m.Additional = ir.AdditionalClosed
-		preserve(l.ctx, &m.Unmodeled, "openapi:allOf/"+strconv.Itoa(i),
+		preserve(c, &m.Unmodeled, "openapi:allOf/"+strconv.Itoa(i),
 			ir.RawValue("false"), ir.ReasonDegradedLowering, bptr)
 
-		l.diag(ir.SeverityInfo, diag.FalseSchema, bptr,
+		diags = append(diags, c.diagAt(ir.SeverityInfo, diag.FalseSchema, bptr,
 			"boolean false allOf branch matches nothing, so the composition matches nothing; "+
-				"composed model closed and the branch kept verbatim under Unmodeled")
+				"composed model closed and the branch kept verbatim under Unmodeled"))
 	}
+	return diags
 }
 
 // preserveUnmergedBranch keeps an inline allOf branch verbatim beside the
@@ -847,13 +849,17 @@ func (l *lowerer) lowerDiscriminator(s *oas3.Schema, m *ir.Model, pointer string
 	if d == nil {
 		return nil
 	}
-	disc := &ir.Discriminator{Mapping: l.discriminatorMapping(d, pointer)}
+	mapping, mappingDiags := discriminatorMapping(l.ctx, l.types, d, pointer)
+	l.diags.AppendAll(mappingDiags)
+	disc := &ir.Discriminator{Mapping: mapping}
 	if pid, ok := propIDByName(m, d.GetPropertyName()); ok {
 		disc.Property = pid
 	} else {
 		disc.PropertyName = d.GetPropertyName()
 	}
-	disc.Default = l.discriminatorDefault(d, pointer)
+	defaultID, defaultDiags := discriminatorDefault(l.ctx, l.types, d, pointer)
+	l.diags.AppendAll(defaultDiags)
+	disc.Default = defaultID
 	return disc
 }
 
@@ -862,41 +868,43 @@ func (l *lowerer) lowerDiscriminator(s *oas3.Schema, m *ir.Model, pointer string
 // schema yields one error diagnostic and is dropped — never a synthesized ID
 // that nothing backs (issue #14). An all-dropped mapping collapses to nil,
 // preserving infer-by-name semantics and a clean round-trip.
-func (l *lowerer) discriminatorMapping(d *oas3.Discriminator, pointer string) map[string]ir.TypeID {
+func discriminatorMapping(c lowerCtx, ts *compile.Types, d *oas3.Discriminator, pointer string) (map[string]ir.TypeID, []ir.Diagnostic) {
 	m := d.GetMapping()
 	if m == nil || m.Len() == 0 {
-		return nil
+		return nil, nil
 	}
+	var diags []ir.Diagnostic
 	out := make(map[string]ir.TypeID, m.Len())
 	for value, target := range m.All() {
-		id, ok := mappingTargetID(l.ctx, l.types, target)
+		id, ok := mappingTargetID(c, ts, target)
 		if !ok {
-			l.diag(ir.SeverityError, diag.UnresolvedRef, pointer+ids.Ptr("discriminator", "mapping", value),
-				"discriminator mapping %q references unresolved schema %q", value, target)
+			diags = append(diags, c.diagAt(ir.SeverityError, diag.UnresolvedRef,
+				pointer+ids.Ptr("discriminator", "mapping", value),
+				"discriminator mapping %q references unresolved schema %q", value, target))
 			continue
 		}
 		out[value] = id
 	}
 	if len(out) == 0 {
-		return nil
+		return nil, diags
 	}
-	return out
+	return out, diags
 }
 
 // discriminatorDefault resolves an OpenAPI 3.2 defaultMapping to its target ID,
 // dropping it with one diagnostic when it does not resolve to an interned schema.
-func (l *lowerer) discriminatorDefault(d *oas3.Discriminator, pointer string) ir.TypeID {
+func discriminatorDefault(c lowerCtx, ts *compile.Types, d *oas3.Discriminator, pointer string) (ir.TypeID, []ir.Diagnostic) {
 	dm := d.GetDefaultMapping()
 	if dm == "" {
-		return ""
+		return "", nil
 	}
-	id, ok := mappingTargetID(l.ctx, l.types, dm)
+	id, ok := mappingTargetID(c, ts, dm)
 	if !ok {
-		l.diag(ir.SeverityError, diag.UnresolvedRef, pointer+ids.Ptr("discriminator", "defaultMapping"),
-			"discriminator defaultMapping references unresolved schema %q", dm)
-		return ""
+		return "", []ir.Diagnostic{c.diagAt(ir.SeverityError, diag.UnresolvedRef,
+			pointer+ids.Ptr("discriminator", "defaultMapping"),
+			"discriminator defaultMapping references unresolved schema %q", dm)}
 	}
-	return id
+	return id, nil
 }
 
 // mappingTargetID resolves a discriminator mapping target — a bare schema
@@ -946,7 +954,9 @@ func (l *lowerer) lowerEnum(s *oas3.Schema, pointer, hint string) ir.TypeID {
 	return internNode(l.ctx, l.types, pointer, hint, func(common ir.TypeCommon) ir.TypeDef {
 		members, memberPrim, ok := enumMembers(s.GetEnum())
 		if !ok {
-			return l.enumAsUnion(s, common, pointer, hint)
+			def, enumDiags := enumAsUnion(l.ctx, l.types, s, common, pointer, hint)
+			l.diags.AppendAll(enumDiags)
+			return def
 		}
 		return &ir.Enum{
 			TypeCommon: common,
@@ -991,16 +1001,16 @@ func enumMembers(nodes []values.Value) ([]ir.EnumMember, ir.PrimKind, bool) {
 
 // enumAsUnion lowers a heterogeneous or non-scalar enum to an exclusive Union of
 // hoisted Literals, emitting one info diagnostic.
-func (l *lowerer) enumAsUnion(s *oas3.Schema, common ir.TypeCommon, pointer, hint string) ir.TypeDef {
-	l.diag(ir.SeverityInfo, diag.DegradedConstruct, pointer,
-		"heterogeneous or non-scalar enum lowered as a union of literals")
+func enumAsUnion(c lowerCtx, ts *compile.Types, s *oas3.Schema, common ir.TypeCommon, pointer, hint string) (ir.TypeDef, []ir.Diagnostic) {
+	diags := []ir.Diagnostic{c.diagAt(ir.SeverityInfo, diag.DegradedConstruct, pointer,
+		"heterogeneous or non-scalar enum lowered as a union of literals")}
 	nodes := s.GetEnum()
 	variants := make([]ir.Variant, 0, len(nodes))
 	for i, node := range nodes {
 		vh := hint + "_" + strconv.Itoa(i)
 		lptr := pointer + ids.Ptr("enum", strconv.Itoa(i))
-		litID, litDiags := hoistLiteral(l.ctx, l.types, node, lptr, vh)
-		l.diags.AppendAll(litDiags)
+		litID, litDiags := hoistLiteral(c, ts, node, lptr, vh)
+		diags = append(diags, litDiags...)
 		variants = append(variants, ir.Variant{
 			Name: ir.Naming{Hint: vh},
 			Type: ir.TypeRef{Target: litID},
@@ -1010,7 +1020,7 @@ func (l *lowerer) enumAsUnion(s *oas3.Schema, common ir.TypeCommon, pointer, hin
 		TypeCommon: common,
 		Variants:   variants,
 		Exclusive:  true,
-	}
+	}, diags
 }
 
 // hoistLiteral hoists a single node as a Literal type at its own pointer, or

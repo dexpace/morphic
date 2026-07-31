@@ -1418,9 +1418,9 @@ func TestDiscriminatorDefault_ResolvesDeclaredComponent(t *testing.T) {
 	l.ctx.schemas = map[string]bool{"Cat": true}
 	d := &oas3.Discriminator{PropertyName: "kind", DefaultMapping: new("Cat")}
 
-	id := l.discriminatorDefault(d, "/components/schemas/Pet")
+	id, diags := discriminatorDefault(l.ctx, l.types, d, "/components/schemas/Pet")
 	assert.Equal(t, ids.NamedType("/components/schemas/Cat"), id)
-	assert.Empty(t, l.diags.List(), "a resolvable defaultMapping produces no diagnostic")
+	assert.Empty(t, diags, "a resolvable defaultMapping produces no diagnostic")
 }
 
 func TestDiscriminatorDefault_DroppedWhenUnresolved(t *testing.T) {
@@ -1430,18 +1430,18 @@ func TestDiscriminatorDefault_DroppedWhenUnresolved(t *testing.T) {
 	// defaultMapping does not resolve and is dropped with one error diagnostic.
 	d := &oas3.Discriminator{PropertyName: "kind", DefaultMapping: new("Missing")}
 
-	id := l.discriminatorDefault(d, "/components/schemas/Pet")
+	id, diags := discriminatorDefault(l.ctx, l.types, d, "/components/schemas/Pet")
 	assert.Empty(t, id, "an unresolved defaultMapping yields no target")
-	require.Len(t, l.diags.List(), 1)
-	assert.Equal(t, diag.UnresolvedRef, l.diags.List()[0].Code)
+	require.Len(t, diags, 1)
+	assert.Equal(t, diag.UnresolvedRef, diags[0].Code)
 }
 
 func TestDiscriminatorDefault_EmptyIsNoOp(t *testing.T) {
 	t.Parallel()
 	l := newRawLowerer(&soa.OpenAPI{})
-	id := l.discriminatorDefault(&oas3.Discriminator{PropertyName: "kind"}, "/components/schemas/Pet")
+	id, diags := discriminatorDefault(l.ctx, l.types, &oas3.Discriminator{PropertyName: "kind"}, "/components/schemas/Pet")
 	assert.Empty(t, id)
-	assert.Empty(t, l.diags.List())
+	assert.Empty(t, diags)
 }
 
 // TestOneOf_CoDeclaredCompositionDistributes is the regression from

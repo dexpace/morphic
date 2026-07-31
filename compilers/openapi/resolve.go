@@ -148,7 +148,9 @@ func (l *lowerer) hoistSubSchema(decl *oas3.JSONSchema[oas3.Referenceable], poin
 	if owned, ok := l.types.Lookup(pointer); ok {
 		return owned, true
 	}
-	id := internAlias(l.ctx, l.types, pointer, hint, ref, l.schemaConstraints(s.Node, pointer))
+	cons, consDiags := schemaConstraints(l.ctx, s.Node, pointer)
+	l.diags.AppendAll(consDiags)
+	id := internAlias(l.ctx, l.types, pointer, hint, ref, cons)
 	// As in lowerComponentSchema: this alias is the first node the pointer owns,
 	// so the annotations schemaRef had nowhere to put now have a home.
 	l.attachDeclaredAnnotations(s.Node, pointer)

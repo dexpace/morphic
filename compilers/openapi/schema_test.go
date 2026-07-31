@@ -847,8 +847,8 @@ func TestPreserveUnionSiblings_MissingNode(t *testing.T) {
 	l := newRawLowerer(&soa.OpenAPI{})
 	// No node registered under the id: the union branches have nowhere to go, so
 	// the guard reports the broken invariant instead of dropping them quietly.
-	l.preserveUnionSiblings("t/anon/missing", &oas3.Schema{}, "/p", ir.ReasonDegradedLowering, "why")
-	assertHasErrorCode(t, l.diags.List(), diag.InternalInvariant)
+	diags := preserveUnionSiblings(l.ctx, l.types, "t/anon/missing", &oas3.Schema{}, "/p", ir.ReasonDegradedLowering, "why")
+	assertHasErrorCode(t, diags, diag.InternalInvariant)
 }
 
 // TestSchemaExamples_RefdSubSchemaKeepsThem pins the examples of a $ref'd
@@ -936,8 +936,8 @@ func TestAttachDeclaredAnnotations_MissingNode(t *testing.T) {
 	// the latter takes its ID from the coordinate map, and compile.Types records a
 	// coordinate and its node together, so that caller can no longer present an ID
 	// the registry does not hold. This one is handed an ID by its caller.
-	l.preserveUnionSiblings("t/anon/missing", &oas3.Schema{}, "/p", ir.ReasonDegradedLowering, "why")
-	assertHasErrorCode(t, l.diags.List(), diag.InternalInvariant)
+	diags := preserveUnionSiblings(l.ctx, l.types, "t/anon/missing", &oas3.Schema{}, "/p", ir.ReasonDegradedLowering, "why")
+	assertHasErrorCode(t, diags, diag.InternalInvariant)
 }
 
 func TestSchema_Ref30NullableSiblings(t *testing.T) {
@@ -1834,9 +1834,15 @@ func TestRawPropertyNode_NilSchema(t *testing.T) {
 func TestSchemaConstraints_NonSchemaInputs(t *testing.T) {
 	t.Parallel()
 	l := newRawLowerer(&soa.OpenAPI{})
-	assert.Nil(t, l.schemaConstraints(annotation.SchemaOf(nil), "/p"))
-	assert.Nil(t, l.schemaConstraints(annotation.SchemaOf(oas3.NewJSONSchemaFromBool(true)), "/p"))
-	assert.Nil(t, l.schemaConstraints(annotation.SchemaOf(oas3.NewJSONSchemaFromReference("#/components/schemas/Other")), "/p"))
+	for _, js := range []*oas3.Schema{
+		annotation.SchemaOf(nil),
+		annotation.SchemaOf(oas3.NewJSONSchemaFromBool(true)),
+		annotation.SchemaOf(oas3.NewJSONSchemaFromReference("#/components/schemas/Other")),
+	} {
+		cons, diags := schemaConstraints(l.ctx, js, "/p")
+		assert.Nil(t, cons)
+		assert.Empty(t, diags)
+	}
 }
 
 // TestSchemaConstraints_EmptyRefSchema covers a $ref pointer that is present
@@ -1849,7 +1855,9 @@ func TestSchemaConstraints_EmptyRefSchema(t *testing.T) {
 	l := newRawLowerer(&soa.OpenAPI{})
 	emptyRef := references.Reference("")
 	js := oas3.NewJSONSchemaFromSchema[oas3.Referenceable](&oas3.Schema{Ref: &emptyRef})
-	assert.Nil(t, l.schemaConstraints(annotation.SchemaOf(js), "/p"))
+	cons, diags := schemaConstraints(l.ctx, annotation.SchemaOf(js), "/p")
+	assert.Nil(t, cons)
+	assert.Empty(t, diags)
 }
 
 func TestResolveSchemaRef_ReusesInternedSubSchema(t *testing.T) {
@@ -3654,6 +3662,6 @@ func TestPreserveUnhomedKeywords_MissingNode(t *testing.T) {
 func TestRecordUnhomedKeywords_MissingOwner(t *testing.T) {
 	t.Parallel()
 	l := newRawLowerer(&soa.OpenAPI{})
-	l.recordUnhomedKeywords("t/anon/missing", &oas3.Schema{}, []string{"items"}, ir.KindPrimitive, "/p")
-	assertHasErrorCode(t, l.diags.List(), diag.InternalInvariant)
+	diags := recordUnhomedKeywords(l.ctx, l.types, "t/anon/missing", &oas3.Schema{}, []string{"items"}, ir.KindPrimitive, "/p")
+	assertHasErrorCode(t, diags, diag.InternalInvariant)
 }
