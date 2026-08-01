@@ -412,3 +412,116 @@ func TestRefNullable_AnUnresolvedRefIsNotNullable(t *testing.T) {
 
 	assert.False(t, refNullable(js))
 }
+
+// TestComponentSchemaAt_OnlyATopLevelComponentPointerHasABody pins the split
+// the function exists for: a component pointer has a body, and a pointer into
+// that same component does not.
+//
+// The fixture declares an empty-named component beside the real one, and that is
+// the whole point of it. A deeper pointer's component name comes back empty, so
+// with the guard removed the lookup asks for "" — and against a document that
+// declares no such name it misses, hands back nil, and the misclassification
+// looks exactly like the right answer. That masking is why this function read as
+// covered while nothing held it to anything (#202). Declaring "" is what makes
+// the wrong answer visible: it is a name like any other here.
+func TestComponentSchemaAt_OnlyATopLevelComponentPointerHasABody(t *testing.T) {
+	t.Parallel()
+	l, diags := loweredFor(t, componentSpec(
+		"    Outer:\n      type: object\n      title: outer\n"+
+			"      properties: {inner: {type: string, title: inner}}\n"+
+			"    \"\": {type: string, title: empty}\n"))
+	requireNoErrorDiags(t, diags)
+
+	tests := []struct {
+		name, pointer, wantTitle string
+	}{
+		{name: "the component itself", pointer: "/components/schemas/Outer", wantTitle: "outer"},
+		// The empty name is a name the document may declare, but it is not one this
+		// grammar addresses: a pointer ending at the slash names no entry, so the
+		// component it declares is reached as an anonymous position instead.
+		{name: "the pointer that names no entry", pointer: "/components/schemas/"},
+		{name: "a property inside that component", pointer: "/components/schemas/Outer/properties/inner"},
+		{name: "a component of another kind", pointer: "/components/parameters/Outer"},
+		{name: "no component pointer at all", pointer: "/paths/~1a/get"},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			got := componentSchemaAt(l.ctx, tc.pointer)
+			if tc.wantTitle == "" {
+				assert.Nil(t, got, "only a top-level component schema has a body here")
+				return
+			}
+			require.NotNil(t, got)
+			assert.Equal(t, tc.wantTitle, got.GetTitle(), "and it is that component's own body")
+		})
+	}
+}
+
+// TestDynamicHop_HopsOnlyWhenExactlyOneAnchorSiteIsNamed pins every way the
+// chain walk can stop, which is the half of #202's "why it matters" that is
+// about the verdict: a wrong one either expands what it should refuse or
+// refuses what it should expand.
+//
+// A hop needs three things — a component at the pointer, a $dynamicRef written
+// on it, and exactly one site declaring the anchor it names. Anything else ends
+// the chain, and a chain that ends is a chain with no cycle in it, which
+// expands. That is the direction sites already errs in. Reaching for a site when
+// there is not exactly one would either pick an arbitrary branch, reporting a
+// cycle the document does not have, or index an empty slice.
+func TestDynamicHop_HopsOnlyWhenExactlyOneAnchorSiteIsNamed(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		name, schemas, at, anchor string
+		wantSites                 int
+		wantNext                  string
+	}{
+		{
+			name: "the anchor is declared twice, so it names no single target",
+			schemas: "    A: {$dynamicAnchor: m, type: string}\n" +
+				"    B: {$dynamicAnchor: m, type: integer}\n" +
+				"    C: {$dynamicRef: '#m'}\n",
+			at: "/components/schemas/C", anchor: "m", wantSites: 2,
+		},
+		{
+			name:    "the anchor is declared nowhere, so it names nothing",
+			schemas: "    C: {$dynamicRef: '#ghost'}\n",
+			at:      "/components/schemas/C", anchor: "ghost", wantSites: 0,
+		},
+		{
+			name:    "the component writes no $dynamicRef at all",
+			schemas: "    C: {type: string}\n",
+			at:      "/components/schemas/C",
+		},
+		{
+			name:    "the pointer names no component",
+			schemas: "    C: {type: string}\n",
+			at:      "/components/schemas/C/properties/inner",
+		},
+		{
+			name: "declared once, which is the only shape that hops",
+			schemas: "    A: {$dynamicAnchor: m, type: string}\n" +
+				"    C: {$dynamicRef: '#m'}\n",
+			at: "/components/schemas/C", anchor: "m", wantSites: 1,
+			wantNext: "/components/schemas/A",
+		},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			l, diags := loweredFor(t, componentSpec(tc.schemas))
+			requireNoErrorDiags(t, diags)
+			if tc.anchor != "" {
+				sites, siteDiags := l.anchors.sites(l.ctx, tc.anchor)
+				require.Len(t, sites, tc.wantSites, "the fixture must set up the case it is named for")
+				require.Empty(t, siteDiags)
+			}
+
+			next, hops, hopDiags := dynamicHop(l.ctx, &l.anchors, tc.at)
+
+			assert.Equal(t, tc.wantNext != "", hops)
+			assert.Equal(t, tc.wantNext, next)
+			assert.Empty(t, hopDiags)
+		})
+	}
+}
