@@ -12,6 +12,7 @@ import (
 
 	"github.com/dexpace/morphic/compilers"
 	"github.com/dexpace/morphic/compilers/compile"
+	"github.com/dexpace/morphic/compilers/openapi/internal/auth"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/load"
 	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
@@ -87,7 +88,7 @@ func lowerServiceSpec(t *testing.T, src string) (*ir.Document, ir.Service, []ir.
 		require.NotNil(t, loadedDoc)
 		l := newLowerer(loadedDoc, Options{}.withDefaults())
 		l.diags.AppendAll(schema.LowerComponentSchemas(l.ctx, l.types, &l.anchors))
-		auth, authDiags := lowerSecuritySchemes(l.ctx)
+		auth, authDiags := auth.LowerSecuritySchemes(l.ctx)
 		l.out.Auth = auth
 		l.diags.AppendAll(authDiags)
 		svc, tagDefs, svcDiags := lowerService(l.ctx.WithAuth(l.out.Auth), l.types, &l.anchors, l.operationIDs)

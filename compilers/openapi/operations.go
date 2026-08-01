@@ -8,6 +8,7 @@ import (
 
 	"github.com/dexpace/morphic/compilers/compile"
 	"github.com/dexpace/morphic/compilers/openapi/internal/annotation"
+	"github.com/dexpace/morphic/compilers/openapi/internal/auth"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/ids"
 	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
@@ -46,7 +47,7 @@ func lowerService(c lowering.Ctx, ts *compile.Types, anchors *schema.AnchorIndex
 		svc.Name = compile.NamingFor(title)
 		svc.Docs.Description = info.GetDescription()
 	}
-	svcAuth, diags := lowerSecurityRequirements(c, c.Doc.GetSecurity())
+	svcAuth, diags := auth.LowerSecurityRequirements(c, c.Doc.GetSecurity())
 	svc.Auth = svcAuth
 	groups := newServiceGroups()
 	diags = append(diags, lowerPaths(c, ts, anchors, operationIDs, groups)...)
@@ -238,7 +239,7 @@ func lowerOperation(c lowering.Ctx, ts *compile.Types, anchors *schema.AnchorInd
 	// marked inferred — the one provenance in this compiler that is.
 	opProv := c.ProvenanceAt(decl)
 	opProv.Inferred = opCtx.inferred
-	opAuth, diags := lowerSecurityRequirements(c, src.Security)
+	opAuth, diags := auth.LowerSecurityRequirements(c, src.Security)
 	op := ir.Operation{
 		ID:   ids.Op(mount),
 		Name: operationName(src, opCtx.method, opCtx.uriTemplate),

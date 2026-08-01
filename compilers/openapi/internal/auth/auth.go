@@ -1,4 +1,12 @@
-package openapi
+// Package auth lowers what a document says about authentication: the security
+// schemes it declares, and the requirements that name them.
+//
+// It is a package of its own because both halves of the compiler reach it and
+// neither may reach the other. The document walk lowers the schemes once, before
+// anything references them; the service and operation walks lower requirements
+// against the result. Putting either half's lowering with its caller would make
+// the other import it.
+package auth
 
 import (
 	"maps"
@@ -15,10 +23,10 @@ import (
 	"github.com/dexpace/morphic/ir"
 )
 
-// lowerSecuritySchemes interns every declared security scheme into the auth
+// LowerSecuritySchemes interns every declared security scheme into the auth
 // registry keyed by ids.Auth(name) (ir-design §9). Run before the service walk
 // so operation- and document-level requirements reference registered IDs.
-func lowerSecuritySchemes(c lowering.Ctx) (map[ir.AuthID]ir.AuthScheme, []ir.Diagnostic) {
+func LowerSecuritySchemes(c lowering.Ctx) (map[ir.AuthID]ir.AuthScheme, []ir.Diagnostic) {
 	comps := c.Doc.Components
 	if comps == nil {
 		return nil, nil
@@ -162,11 +170,11 @@ func scopeMap(f *soa.OAuthFlow) map[string]string {
 	return out
 }
 
-// lowerSecurityRequirements lowers an OR-of-ANDs security list (ir-design §9): a
+// LowerSecurityRequirements lowers an OR-of-ANDs security list (ir-design §9): a
 // nil list inherits the enclosing default; a non-nil list yields one
 // AuthRequirement per option in source order. An empty option object {} means
 // "no auth is one acceptable choice".
-func lowerSecurityRequirements(c lowering.Ctx, reqs []*soa.SecurityRequirement) ([]ir.AuthRequirement, []ir.Diagnostic) {
+func LowerSecurityRequirements(c lowering.Ctx, reqs []*soa.SecurityRequirement) ([]ir.AuthRequirement, []ir.Diagnostic) {
 	if reqs == nil {
 		return nil, nil
 	}
