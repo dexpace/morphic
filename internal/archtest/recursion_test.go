@@ -4,6 +4,7 @@ import (
 	"go/ast"
 	"go/parser"
 	"go/token"
+	"io/fs"
 	"path/filepath"
 	"sort"
 	"strings"
@@ -58,6 +59,18 @@ var schemaRecursion = []string{
 	"schemaBody", "schemaRefHomed",
 }
 
+// loweringPackages are the directories whose sources the call graph reads,
+// repo-relative. A lowering is a function over the immutable context, so a
+// package declaring one belongs here — which is a fact about the tree, and
+// TestLoweringCallGraph_ReadsEveryPackageThatLowers derives it rather than
+// trusting this list.
+var loweringPackages = []string{
+	"compilers/openapi",
+	"compilers/openapi/internal/auth",
+	"compilers/openapi/internal/operation",
+	"compilers/openapi/internal/schema",
+}
+
 // TestLoweringRecursion_IsOnlyTheKnownCycles pins which lowerings are mutually
 // recursive, and holds the answer to the sets above.
 //
@@ -91,45 +104,35 @@ func TestLoweringRecursion_IsOnlyTheKnownCycles(t *testing.T) {
 		"the lowering call graph's mutual recursion changed; anything joining one of these sets can no longer be moved alone")
 }
 
-// loweringCallGraph maps every lowering in compilers/openapi — free function or
-// lowerer method — to the ones it calls.
+// loweringCallGraph maps every lowering to the ones it depends on.
 //
-// It reads both call shapes: a bare name(…) for a free function, and l.name(…)
-// for a call on the method's own receiver. Reading only the receiver form would
-// have described an empty graph the moment the schema walk stopped being
-// methods, which is exactly when the recursion still mattered most: those
-// functions are as mutually recursive as the methods were, and #176 cannot split
-// them across packages any more than it could before.
-//
-// A method value (Report: l.diag) is still not an edge here; #210 tracks that.
+// Lowerings are free functions here, and only free functions are read: no method
+// takes part in a lowering recursion today, and one that did would have to be
+// added deliberately rather than picked up by a receiver name that no longer
+// exists. GitHub #224 records the receivers this therefore does not see.
 //
 // The lowering spans packages now, and all of them are read into one namespace.
 // That is sound rather than convenient: a call from openapi into the schema
 // package is a selector this graph does not record, but no such edge can close a
 // cycle, because Go refuses the import that would let the schema package call
-// back. Every cycle there can be is inside one package, and every package
-// holding lowerings is listed here — a new one that is not is a directory this
-// pin stops seeing, which is why the list is spelled out rather than globbed
-// from the tree.
+// back. Every cycle there can be is inside one package.
+//
+// The packages are named rather than globbed, and
+// TestLoweringCallGraph_ReadsEveryPackageThatLowers derives the same set from
+// the tree so the naming cannot go stale in silence.
 func loweringCallGraph(t *testing.T) map[string]map[string]bool {
 	t.Helper()
-	loweringDirs := [][]string{
-		{"..", "..", "compilers", "openapi"},
-		{"..", "..", "compilers", "openapi", "internal", "auth"},
-		{"..", "..", "compilers", "openapi", "internal", "operation"},
-		{"..", "..", "compilers", "openapi", "internal", "schema"},
-	}
+	root := repoRoot(t)
 	var files []string
-	for _, dir := range loweringDirs {
-		found, err := filepath.Glob(filepath.Join(append(dir, "*.go")...))
+	for _, pkg := range loweringPackages {
+		found, err := filepath.Glob(filepath.Join(root, pkg, "*.go"))
 		require.NoError(t, err)
-		require.NotEmpty(t, found, "no sources under %v; the lowering moved and this pin no longer reads it", dir)
+		require.NotEmpty(t, found, "no sources under %s; the lowering moved and this pin no longer reads it", pkg)
 		files = append(files, found...)
 	}
 
 	type decl struct {
 		name string
-		recv string
 		body *ast.BlockStmt
 	}
 	var decls []decl
@@ -142,23 +145,16 @@ func loweringCallGraph(t *testing.T) map[string]map[string]bool {
 
 		for _, d := range f.Decls {
 			fn, isFunc := d.(*ast.FuncDecl)
-			if !isFunc || fn.Body == nil {
+			if !isFunc || fn.Body == nil || fn.Recv != nil {
 				continue
 			}
-			if name, recv, ok := lowererMethod(d); ok {
-				decls = append(decls, decl{name: name, recv: recv, body: fn.Body})
-				continue
-			}
-			if fn.Recv == nil {
-				decls = append(decls, decl{name: fn.Name.Name, body: fn.Body})
-			}
+			decls = append(decls, decl{name: fn.Name.Name, body: fn.Body})
 		}
 	}
 
-	// Methods and free functions share one namespace here, which is what lets a
-	// converted lowering keep its edges. Go would allow a method and a function
-	// of the same name; this graph would silently keep one and drop the other's
-	// edges, so the collision is refused rather than resolved.
+	// One namespace across every package read. Go would allow the same name in
+	// two of them; this graph would silently keep one and drop the other's edges,
+	// so the collision is refused rather than resolved.
 	known := map[string]bool{}
 	for _, d := range decls {
 		require.False(t, known[d.name],
@@ -168,54 +164,65 @@ func loweringCallGraph(t *testing.T) map[string]map[string]bool {
 
 	graph := map[string]map[string]bool{}
 	for _, d := range decls {
-		out := map[string]bool{}
-		ast.Inspect(d.body, func(n ast.Node) bool {
-			call, isCall := n.(*ast.CallExpr)
-			if !isCall {
-				return true
-			}
-			switch fun := call.Fun.(type) {
-			case *ast.Ident:
-				if fun.Name != d.name && known[fun.Name] {
-					out[fun.Name] = true
-				}
-			case *ast.SelectorExpr:
-				id, isIdent := fun.X.(*ast.Ident)
-				if isIdent && d.recv != "" && id.Name == d.recv && fun.Sel.Name != d.name {
-					out[fun.Sel.Name] = true
-				}
-			}
-			return true
-		})
-		graph[d.name] = out
+		graph[d.name] = calleesOf(d.body, d.name, known)
 	}
 	return graph
 }
 
-// lowererMethod reports whether decl is a method on the lowerer, with its name
-// and receiver identifier.
+// calleesOf returns the lowerings body names, whether it calls them or hands
+// them on as a value.
 //
-// Both receiver forms count. Every method is on *lowerer today, but a value
-// receiver is still a method that can join a recursion, and reading only the
-// pointer form would hide one — the blind spot is worth closing while there is
-// nothing in it.
-func lowererMethod(decl ast.Decl) (name, recv string, ok bool) {
-	fn, isFunc := decl.(*ast.FuncDecl)
-	if !isFunc || fn.Recv == nil || len(fn.Recv.List) != 1 || fn.Body == nil {
-		return "", "", false
-	}
-	if len(fn.Recv.List[0].Names) != 1 {
-		return "", "", false
-	}
-	base := fn.Recv.List[0].Type
-	if star, isPtr := base.(*ast.StarExpr); isPtr {
-		base = star.X
-	}
-	id, isIdent := base.(*ast.Ident)
-	if !isIdent || id.Name != "lowerer" {
-		return "", "", false
-	}
-	return fn.Name.Name, fn.Recv.List[0].Names[0].Name, true
+// Both are edges, and for the same reason: the name is written here, so this
+// function decides which lowering runs and cannot be moved without it. What is
+// not an edge is a function this one receives as a parameter — that name is
+// written by its caller, and the caller's own body is where it is recorded.
+// Reading call position alone missed three live handoffs to slices.ContainsFunc
+// (GitHub #210).
+//
+// An identifier only counts in value position. A selector's field, a composite
+// literal's key and a parameter's own name are identifiers too, and every one of
+// them collides with some lowering here — `.Ref` on a parsed schema is the
+// spelling that matters most, since it would otherwise tie the whole package to
+// the schema entry point.
+//
+// Position is judged, scope is not: a local that shadowed a lowering's name
+// would read as an edge to it. Nothing here does that, and the error runs in the
+// safe direction for a pin whose job is to notice dependencies — a spurious
+// member shows up in a pinned set and gets read, where a missing one is the
+// silence #210 was about.
+func calleesOf(body *ast.BlockStmt, self string, known map[string]bool) map[string]bool {
+	skip := map[*ast.Ident]bool{}
+	ast.Inspect(body, func(n ast.Node) bool {
+		switch v := n.(type) {
+		case *ast.SelectorExpr:
+			skip[v.Sel] = true
+		case *ast.KeyValueExpr:
+			if id, ok := v.Key.(*ast.Ident); ok {
+				skip[id] = true
+			}
+		case *ast.Field:
+			for _, id := range v.Names {
+				skip[id] = true
+			}
+		}
+		return true
+	})
+
+	out := map[string]bool{}
+	ast.Inspect(body, func(n ast.Node) bool {
+		if call, isCall := n.(*ast.CallExpr); isCall {
+			if fun, isIdent := call.Fun.(*ast.Ident); isIdent && fun.Name != self && known[fun.Name] {
+				out[fun.Name] = true
+			}
+			return true
+		}
+		id, isIdent := n.(*ast.Ident)
+		if isIdent && !skip[id] && id.Name != self && known[id.Name] {
+			out[id.Name] = true
+		}
+		return true
+	})
+	return out
 }
 
 // stronglyConnected returns the graph's strongly connected components (Tarjan).
@@ -287,4 +294,156 @@ func stronglyConnected(graph map[string]map[string]bool) [][]string {
 func visited(index map[string]int, n string) bool {
 	_, ok := index[n]
 	return ok
+}
+
+// TestLoweringCallGraph_RecordsAHandoffAsAnEdge holds the graph to the fix for
+// GitHub #210. Reading call position alone described these three functions as
+// depending on nothing, while each decides which lowering runs by naming it.
+//
+// It asserts the edges rather than the cycles because none of them closes one
+// today: a dependency the graph cannot see is unheld whether or not it currently
+// changes an answer, and that was the whole finding.
+func TestLoweringCallGraph_RecordsAHandoffAsAnEdge(t *testing.T) {
+	t.Parallel()
+	graph := loweringCallGraph(t)
+
+	handoffs := map[string]string{
+		"classifyUnionSiblings":     "isInlineBranch",
+		"unionBranchesDeclareShape": "branchDeclaresShape",
+		"oneOfAnyOfHasNull":         "isNullSchema",
+	}
+	for from, to := range handoffs {
+		require.Contains(t, graph, from, "the graph no longer holds %q", from)
+		assert.True(t, graph[from][to],
+			"%q hands %q on as a value, which is an edge; the graph records only calls again", from, to)
+	}
+}
+
+// TestCalleesOf_SeparatesAValueFromWhatIsNotOne pins the two halves of the
+// judgement calleesOf makes, on planted sources rather than on the tree: an
+// identifier written in value position is an edge, and one that only looks like
+// a name — a selector's field, a literal's key, a parameter — is not.
+//
+// The negative half is what the first attempt at #210 got wrong. Recording every
+// matching identifier read `.Ref` on a parsed schema as a reference to the schema
+// entry point, which tied nine unrelated functions into the walk's cycle.
+func TestCalleesOf_SeparatesAValueFromWhatIsNotOne(t *testing.T) {
+	t.Parallel()
+	known := map[string]bool{"Ref": true, "lower": true, "self": true}
+	tests := []struct {
+		name, body string
+		want       []string
+	}{
+		{name: "a call", body: "lower(x)", want: []string{"lower"}},
+		{name: "a value handed to another function", body: "apply(x, lower)", want: []string{"lower"}},
+		{name: "a value assigned", body: "f := lower; _ = f", want: []string{"lower"}},
+		{name: "a selector's field", body: "_ = x.Ref", want: nil},
+		{name: "a composite literal's key", body: "_ = T{Ref: 1}", want: nil},
+		// The shape #210 was filed about: merge.Merger{Report: l.diag}. A skip that
+		// dropped the whole key-value pair rather than its key would take the
+		// issue's own example back out of the graph.
+		{name: "a composite literal's field value", body: "_ = T{Ref: lower}", want: []string{"lower"}},
+		// One name in both positions at once, which is what makes the skip
+		// positional rather than by name: a set keyed on the identifier's text
+		// would drop the value along with the key.
+		{name: "a key and a value spelled the same", body: "_ = T{lower: lower}", want: []string{"lower"}},
+		{name: "a closure's parameter list", body: "_ = func(lower int) int { return 1 }", want: nil},
+		{name: "the function itself", body: "self(x)", want: nil},
+		{name: "both forms of one name", body: "lower(x); apply(y, lower)", want: []string{"lower"}},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			src := "package p\nfunc self(x, y int) { " + tc.body + " }\n"
+			f, err := parser.ParseFile(token.NewFileSet(), "planted.go", src, 0)
+			require.NoError(t, err)
+			fn, ok := f.Decls[0].(*ast.FuncDecl)
+			require.True(t, ok)
+
+			got := calleesOf(fn.Body, "self", known)
+			names := make([]string, 0, len(got))
+			for n := range got {
+				names = append(names, n)
+			}
+			sort.Strings(names)
+			assert.Equal(t, tc.want, orNil(names))
+		})
+	}
+}
+
+// orNil normalizes an empty slice to nil so a case expecting no edges reads as
+// want: nil rather than want: []string{}.
+func orNil(s []string) []string {
+	if len(s) == 0 {
+		return nil
+	}
+	return s
+}
+
+// TestLoweringCallGraph_ReadsEveryPackageThatLowers derives the set of packages
+// the pin has to read, instead of trusting the list beside it.
+//
+// A lowering is a function over the immutable context (micro-compiler-design
+// §4), so a package declaring one holds lowerings by definition. A package added
+// without being listed is a directory the pin silently stops reading: its
+// recursions never appear, the pinned sets still match, and nothing says so.
+// That is the same class of unheld invariant as the value edges this file was
+// changed for — one level up, in the input rather than the graph.
+func TestLoweringCallGraph_ReadsEveryPackageThatLowers(t *testing.T) {
+	t.Parallel()
+	root := repoRoot(t)
+	found := map[string]bool{}
+	err := filepath.WalkDir(filepath.Join(root, "compilers"), func(p string, d fs.DirEntry, err error) error {
+		if err != nil || d.IsDir() || !isProductionGoFile(d.Name()) {
+			return err
+		}
+		f, parseErr := parser.ParseFile(token.NewFileSet(), p, nil, parser.SkipObjectResolution)
+		if parseErr != nil {
+			return parseErr
+		}
+		if !declaresLowering(f) {
+			return nil
+		}
+		rel, relErr := filepath.Rel(root, filepath.Dir(p))
+		if relErr != nil {
+			return relErr
+		}
+		found[filepath.ToSlash(rel)] = true
+		return nil
+	})
+	require.NoError(t, err)
+	require.NotEmpty(t, found, "no package declares a lowering; the walk or the context type moved")
+
+	derived := make([]string, 0, len(found))
+	for pkg := range found {
+		derived = append(derived, pkg)
+	}
+	sort.Strings(derived)
+	listed := append([]string(nil), loweringPackages...)
+	sort.Strings(listed)
+
+	assert.Equal(t, derived, listed,
+		"the packages this pin reads must be the packages that lower; a listed one that no longer "+
+			"lowers is dead, and an unlisted one is a recursion the pin cannot see")
+}
+
+// declaresLowering reports whether f declares a function taking the lowering
+// context by value, which is what every lowering in this compiler is.
+func declaresLowering(f *ast.File) bool {
+	for _, d := range f.Decls {
+		fn, isFunc := d.(*ast.FuncDecl)
+		if !isFunc || fn.Type.Params == nil {
+			continue
+		}
+		for _, p := range fn.Type.Params.List {
+			sel, isSel := p.Type.(*ast.SelectorExpr)
+			if !isSel || sel.Sel.Name != "Ctx" {
+				continue
+			}
+			if pkg, isIdent := sel.X.(*ast.Ident); isIdent && pkg.Name == "lowering" {
+				return true
+			}
+		}
+	}
+	return false
 }
