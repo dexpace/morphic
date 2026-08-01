@@ -1,4 +1,4 @@
-package openapi
+package schema
 
 import (
 	"encoding/base64"
@@ -27,7 +27,7 @@ import (
 // hierarchy) becomes Base; other $refs become Mixins in source order; inline
 // branches contribute their properties, each carrying provenance into the
 // allOf branch it came from.
-func lowerAllOf(c lowering.Ctx, ts *compile.Types, anchors *anchorIndex, depth int, s *oas3.Schema, pointer, hint string) (ir.TypeID, []ir.Diagnostic) {
+func lowerAllOf(c lowering.Ctx, ts *compile.Types, anchors *AnchorIndex, depth int, s *oas3.Schema, pointer, hint string) (ir.TypeID, []ir.Diagnostic) {
 	var diags []ir.Diagnostic
 	id := internNode(c, ts, pointer, hint, func(common ir.TypeCommon) ir.TypeDef {
 		m := &ir.Model{TypeCommon: common}
@@ -116,7 +116,7 @@ func diagUnattachableRequired(c lowering.Ctx, m *ir.Model, e requiredEntry) ir.D
 
 // fillAllOf classifies and lowers the allOf branches into m.
 //
-// An inline branch is merged in place rather than lowered through schemaRef, so
+// An inline branch is merged in place rather than lowered through Ref, so
 // it has no node of its own and the merge reads only its `properties` — plus its
 // `required` list, which applyCompositionRequired collects separately. Whatever
 // else the branch declares is kept verbatim beside the composed model instead of
@@ -133,7 +133,7 @@ func diagUnattachableRequired(c lowering.Ctx, m *ir.Model, e requiredEntry) ir.D
 // and some of it has no home to merge into at all — Model.Constraints bounds the
 // property set's cardinality, so a scalar branch's maxLength cannot go there.
 // Verbatim beside the model needs neither, and keeps the branch recoverable.
-func fillAllOf(c lowering.Ctx, ts *compile.Types, anchors *anchorIndex, depth int, m *ir.Model, s *oas3.Schema, pointer string) []ir.Diagnostic {
+func fillAllOf(c lowering.Ctx, ts *compile.Types, anchors *AnchorIndex, depth int, m *ir.Model, s *oas3.Schema, pointer string) []ir.Diagnostic {
 	var diags []ir.Diagnostic
 	branches := s.GetAllOf()
 	baseIdx := selectAllOfBase(branches)
@@ -193,7 +193,7 @@ func applyFalseBranches(c lowering.Ctx, m *ir.Model, s *oas3.Schema, pointer str
 		}
 		bptr := pointer + ids.Ptr("allOf", strconv.Itoa(i))
 		m.Additional = ir.AdditionalClosed
-		preserve(c, &m.Unmodeled, "openapi:allOf/"+strconv.Itoa(i),
+		Preserve(c, &m.Unmodeled, "openapi:allOf/"+strconv.Itoa(i),
 			ir.RawValue("false"), ir.ReasonDegradedLowering, bptr)
 
 		diags = append(diags, c.DiagAt(ir.SeverityInfo, diag.FalseSchema, bptr,
@@ -223,7 +223,7 @@ func preserveUnmergedBranch(c lowering.Ctx, m *ir.Model, bs *oas3.Schema, branch
 	if len(residue) == 0 {
 		return nil
 	}
-	kept, keptDiags := preserveNode(c, &m.Unmodeled, "openapi:allOf/"+strconv.Itoa(branchIdx),
+	kept, keptDiags := PreserveNode(c, &m.Unmodeled, "openapi:allOf/"+strconv.Itoa(branchIdx),
 		bs.GetRootNode(), ir.ReasonDegradedLowering, bptr)
 	if !kept {
 		return keptDiags
@@ -442,9 +442,9 @@ func baseBranchDiscriminator(branches []*oas3.JSONSchema[oas3.Referenceable]) *o
 // collapses to nullable X (ir-design §3.3); everything else becomes a Union
 // with one Variant per branch (oneOf exclusive, anyOf not), never collapsing a
 // union into optional fields.
-func lowerOneOfAnyOf(c lowering.Ctx, ts *compile.Types, anchors *anchorIndex, depth int, s *oas3.Schema, pointer, hint string) (ir.TypeRef, []ir.Diagnostic) {
+func lowerOneOfAnyOf(c lowering.Ctx, ts *compile.Types, anchors *AnchorIndex, depth int, s *oas3.Schema, pointer, hint string) (ir.TypeRef, []ir.Diagnostic) {
 	if inner, ip, ih, ok := nullUnionCollapse(s, pointer, hint); ok {
-		ref, diags := schemaRef(c, ts, anchors, depth, inner, ip, ih)
+		ref, diags := Ref(c, ts, anchors, depth, inner, ip, ih)
 		ref.Nullable = true
 		return ref, diags
 	}
@@ -452,7 +452,7 @@ func lowerOneOfAnyOf(c lowering.Ctx, ts *compile.Types, anchors *anchorIndex, de
 	tid := internNode(c, ts, pointer, hint, func(common ir.TypeCommon) ir.TypeDef {
 		def, unionDiags := buildUnion(c, ts, s, common, pointer,
 			func(b *oas3.JSONSchema[oas3.Referenceable], vptr, vhint string) ir.TypeRef {
-				ref, refDiags := schemaRef(c, ts, anchors, depth, b, vptr, vhint)
+				ref, refDiags := Ref(c, ts, anchors, depth, b, vptr, vhint)
 				diags = append(diags, refDiags...)
 				return ref
 			})
@@ -548,7 +548,7 @@ func branchesNameReferents(c lowering.Ctx, s *oas3.Schema) bool {
 
 // lowerCoDeclaredUnion lowers a schema whose oneOf/anyOf sits beside structural
 // keywords, per classifyUnionSiblings.
-func lowerCoDeclaredUnion(c lowering.Ctx, ts *compile.Types, anchors *anchorIndex, depth int, s *oas3.Schema, pointer, hint string) (ir.TypeID, []ir.Diagnostic) {
+func lowerCoDeclaredUnion(c lowering.Ctx, ts *compile.Types, anchors *AnchorIndex, depth int, s *oas3.Schema, pointer, hint string) (ir.TypeID, []ir.Diagnostic) {
 	beside := func(reason ir.UnmodeledReason, why string) (ir.TypeID, []ir.Diagnostic) {
 		return lowerBesideUnmodeledUnion(c, ts, anchors, depth, s, pointer, hint, reason, why)
 	}
@@ -699,7 +699,7 @@ func buildUnion(c lowering.Ctx, ts *compile.Types, s *oas3.Schema, common ir.Typ
 // `(S ∧ X) | (S ∧ Y)`. Each variant is a Model classifying S's Base/Mixins and
 // own properties (ir-design §4.3) alongside its branch, so the composition is
 // carried on every variant rather than merged into one or dropped.
-func lowerDistributedUnion(c lowering.Ctx, ts *compile.Types, anchors *anchorIndex, depth int, s *oas3.Schema, pointer, hint string) (ir.TypeID, []ir.Diagnostic) {
+func lowerDistributedUnion(c lowering.Ctx, ts *compile.Types, anchors *AnchorIndex, depth int, s *oas3.Schema, pointer, hint string) (ir.TypeID, []ir.Diagnostic) {
 	var diags []ir.Diagnostic
 	id := internNode(c, ts, pointer, hint, func(common ir.TypeCommon) ir.TypeDef {
 		body := composedBody{schema: s, pointer: pointer, hint: hint, id: common.ID}
@@ -739,13 +739,13 @@ type composedBody struct {
 // lowered first won it, so a $ref to `…/oneOf/N` anywhere in the document could
 // leave that variant as a bare alias of the branch while its siblings carried
 // the body — order-dependent, and exactly the disagreement §4.3 forbids.
-func composedVariant(c lowering.Ctx, ts *compile.Types, anchors *anchorIndex, depth int, body composedBody,
+func composedVariant(c lowering.Ctx, ts *compile.Types, anchors *AnchorIndex, depth int, body composedBody,
 	b *oas3.JSONSchema[oas3.Referenceable], vptr, vhint string,
 ) (ir.TypeRef, []ir.Diagnostic) {
 	// The branch lowers through the ordinary schema path, at its own pointer, so
 	// it keeps whatever it declares beside the $ref and a reference to that
 	// pointer still finds the branch rather than the variant.
-	branch, diags := schemaRef(c, ts, anchors, depth, b, vptr, vhint)
+	branch, diags := Ref(c, ts, anchors, depth, b, vptr, vhint)
 	id := ids.ComposedType(vptr)
 	common := commonFor(c, id, vptr, body.hint+"_"+vhint)
 	def, variantDiags := buildComposedVariant(c, ts, anchors, depth, body, branch.Target, common)
@@ -758,7 +758,7 @@ func composedVariant(c lowering.Ctx, ts *compile.Types, anchors *anchorIndex, de
 // and any shared additionalProperties node are the single set the source
 // declared, named after the enclosing schema rather than after whichever branch
 // happened to build them first.
-func buildComposedVariant(c lowering.Ctx, ts *compile.Types, anchors *anchorIndex, depth int, body composedBody, branch ir.TypeID, common ir.TypeCommon) (ir.TypeDef, []ir.Diagnostic) {
+func buildComposedVariant(c lowering.Ctx, ts *compile.Types, anchors *AnchorIndex, depth int, body composedBody, branch ir.TypeID, common ir.TypeCommon) (ir.TypeDef, []ir.Diagnostic) {
 	m := &ir.Model{TypeCommon: common}
 	diags := fillAllOf(c, ts, anchors, depth, m, body.schema, body.pointer)
 	diags = append(diags, fillModelProperties(c, ts, anchors, depth, m, body.schema, body.pointer)...)

@@ -18,7 +18,12 @@ import (
 // valueKindSwitchFile and valueKindSwitchFunc locate the compiler's only switch
 // over ir.ValueKind, addressed relative to this test file.
 const (
-	valueKindSwitchFile = "compose.go"
+	// The switch lives in another package now, so the path is spelled from this
+	// package's directory. This suite stays here rather than following it: it
+	// already reads the ir package's sources by path, it is about the compiler
+	// rather than about the schema walk, and moving it would mean a second copy
+	// of every ir-source reader below, shared with the unwitnessed-reason suite.
+	valueKindSwitchFile = "internal/schema/compose.go"
 	valueKindSwitchFunc = "enumMemberForm"
 )
 

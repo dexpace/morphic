@@ -1,4 +1,4 @@
-package openapi
+package schema
 
 import (
 	"github.com/dexpace/morphic/compilers/compile"
@@ -13,10 +13,10 @@ import (
 // this bound only guards pathologically deep inline nesting.
 const maxSchemaDepth = 256
 
-// topLevelDepth is the nesting a schema position outside the walk starts at.
+// TopLevelDepth is the nesting a schema position outside the walk starts at.
 // The walk counts its own frames, so every entry point into it begins at zero;
 // naming it keeps a bare 0 out of the call sites that only pass it through.
-const topLevelDepth = 0
+const TopLevelDepth = 0
 
 // registeredNode returns the node interning registered under id, reporting a
 // broken invariant instead of dropping in silence when there is none.

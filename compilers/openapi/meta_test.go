@@ -47,7 +47,7 @@ paths: {}
 x-bad: {1: intkey}
 `
 	doc, diags := parseFull(t, spec)
-	assert.True(t, hasDiagAt(diags, diag.DegradedConstruct, ir.SeverityWarning),
+	assert.True(t, countDiagsAt(diags, diag.DegradedConstruct, ir.SeverityWarning) > 0,
 		"an entirely unserializable top-level extension still warns even though Unmodeled ends up empty")
 	assert.Empty(t, doc.Unmodeled, "the unserializable extension is dropped, not stored")
 }

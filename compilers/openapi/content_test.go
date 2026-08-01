@@ -816,7 +816,7 @@ func TestPositionalEncoding_WithoutRootNode(t *testing.T) {
 	assert.Nil(t, content.ItemEncoding, "prefixes still block the every-item lowering")
 	assert.Nil(t, content.Unmodeled, "a media type with no source node has nothing verbatim to keep")
 	assertHasCode(t, diags, diag.UnpreservableConstruct, ir.SeverityError)
-	assert.False(t, hasDiagAt(diags, diag.DegradedConstruct, ir.SeverityInfo),
+	assert.False(t, countDiagsAt(diags, diag.DegradedConstruct, ir.SeverityInfo) > 0,
 		"nothing was kept, so nothing announces that it was")
 }
 

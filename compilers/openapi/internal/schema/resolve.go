@@ -1,4 +1,4 @@
-package openapi
+package schema
 
 import (
 	oas3 "github.com/speakeasy-api/openapi/jsonschema/oas3"
@@ -11,29 +11,29 @@ import (
 	"github.com/dexpace/morphic/ir"
 )
 
-// schemaRef is THE schema entry point: every schema position (property, items,
+// Ref is THE schema entry point: every schema position (property, items,
 // params, bodies) flows through it, yielding a TypeRef into the type registry.
 // It normalizes the two nullability dialects onto the single IR bit and never
 // lowers a $ref target from the reference site.
 //
 // It defaults to annotation.HomeOwnNode deliberately: a position added later
 // inherits the lossless behaviour, and only a caller that can prove it already
-// carries the annotations opts out through carriedSchemaRef.
-func schemaRef(c lowering.Ctx, ts *compile.Types, anchors *anchorIndex, depth int, js *oas3.JSONSchema[oas3.Referenceable], pointer, hint string) (ir.TypeRef, []ir.Diagnostic) {
+// carries the annotations opts out through CarriedRef.
+func Ref(c lowering.Ctx, ts *compile.Types, anchors *AnchorIndex, depth int, js *oas3.JSONSchema[oas3.Referenceable], pointer, hint string) (ir.TypeRef, []ir.Diagnostic) {
 	return schemaRefHomed(c, ts, anchors, depth, js, pointer, hint, annotation.HomeOwnNode)
 }
 
-// carriedSchemaRef lowers a schema whose annotations the calling position
+// CarriedRef lowers a schema whose annotations the calling position
 // already carries — a model property, a header, a parameter. Those callers
 // copy the declaration onto their own ir.Property/ir.Parameter, so the pointer
 // must not also hoist a node to hold it: one home per declaration.
-func carriedSchemaRef(c lowering.Ctx, ts *compile.Types, anchors *anchorIndex, depth int, js *oas3.JSONSchema[oas3.Referenceable], pointer, hint string) (ir.TypeRef, []ir.Diagnostic) {
+func CarriedRef(c lowering.Ctx, ts *compile.Types, anchors *AnchorIndex, depth int, js *oas3.JSONSchema[oas3.Referenceable], pointer, hint string) (ir.TypeRef, []ir.Diagnostic) {
 	return schemaRefHomed(c, ts, anchors, depth, js, pointer, hint, annotation.HomeCarrier)
 }
 
 // schemaRefHomed is the shared body of the two entry points above; home only
 // reaches the two places that can hoist an annotation-holding alias.
-func schemaRefHomed(c lowering.Ctx, ts *compile.Types, anchors *anchorIndex, depth int, js *oas3.JSONSchema[oas3.Referenceable], pointer, hint string, home annotation.Home) (ir.TypeRef, []ir.Diagnostic) {
+func schemaRefHomed(c lowering.Ctx, ts *compile.Types, anchors *AnchorIndex, depth int, js *oas3.JSONSchema[oas3.Referenceable], pointer, hint string, home annotation.Home) (ir.TypeRef, []ir.Diagnostic) {
 	// depth counts the active frames of this function, which is where every
 	// recursive descent re-enters. Incrementing on entry and passing the result
 	// down is the parameter form of a counter that used to live on a shared
@@ -66,7 +66,7 @@ func schemaRefHomed(c lowering.Ctx, ts *compile.Types, anchors *anchorIndex, dep
 // $ref. Those siblings bind the position, not the referent, so they cannot go
 // on the target's node; when the position has no carrier to hold them either,
 // an alias over the target becomes their home.
-func refSiteRef(c lowering.Ctx, ts *compile.Types, anchors *anchorIndex, depth int, js *oas3.JSONSchema[oas3.Referenceable], s *oas3.Schema, pointer, hint string, home annotation.Home) (ir.TypeRef, []ir.Diagnostic) {
+func refSiteRef(c lowering.Ctx, ts *compile.Types, anchors *AnchorIndex, depth int, js *oas3.JSONSchema[oas3.Referenceable], s *oas3.Schema, pointer, hint string, home annotation.Home) (ir.TypeRef, []ir.Diagnostic) {
 	target, diags := refTypeRef(c, ts, anchors, depth, js, pointer)
 	ref, homeDiags := homeDeclaration(c, ts, anchors, s, target, pointer, hint, home)
 	return ref, append(diags, homeDiags...)
@@ -81,7 +81,7 @@ func refSiteRef(c lowering.Ctx, ts *compile.Types, anchors *anchorIndex, depth i
 // $ref, which reached none of it until it was routed here. A position that
 // skips it drops what was written at it without a word — which is what both
 // GitHub #116 and #143 were.
-func homeDeclaration(c lowering.Ctx, ts *compile.Types, anchors *anchorIndex, s *oas3.Schema, target ir.TypeRef, pointer, hint string, home annotation.Home) (ir.TypeRef, []ir.Diagnostic) {
+func homeDeclaration(c lowering.Ctx, ts *compile.Types, anchors *AnchorIndex, s *oas3.Schema, target ir.TypeRef, pointer, hint string, home annotation.Home) (ir.TypeRef, []ir.Diagnostic) {
 	ref, diags := hoistDeclarationHome(c, ts, s, target, pointer, hint, home)
 	if s != nil {
 		diags = append(diags, attachDeclaredAnnotations(c, ts, anchors, s, pointer)...)
@@ -94,7 +94,7 @@ func homeDeclaration(c lowering.Ctx, ts *compile.Types, anchors *anchorIndex, s 
 // its stable named ID (lowered where it is defined); an internal sub-schema
 // target is hoisted at its pointer-derived ID so the reference never dangles. A
 // genuinely external or unresolvable target is diagnosed and dropped to any.
-func refTypeRef(c lowering.Ctx, ts *compile.Types, anchors *anchorIndex, depth int, js *oas3.JSONSchema[oas3.Referenceable], pointer string) (ir.TypeRef, []ir.Diagnostic) {
+func refTypeRef(c lowering.Ctx, ts *compile.Types, anchors *AnchorIndex, depth int, js *oas3.JSONSchema[oas3.Referenceable], pointer string) (ir.TypeRef, []ir.Diagnostic) {
 	ref := js.GetRef().String()
 	id, ok, diags := resolveSchemaRef(c, ts, anchors, depth, js, ref)
 	if !ok {
@@ -110,7 +110,7 @@ func refTypeRef(c lowering.Ctx, ts *compile.Types, anchors *anchorIndex, depth i
 // resolver library resolved is hoisted at its pointer-derived ID. It returns
 // ok=false for a cross-document reference, a reference to an undeclared
 // component, or a pointer the library could not resolve.
-func resolveSchemaRef(c lowering.Ctx, ts *compile.Types, anchors *anchorIndex, depth int, js *oas3.JSONSchema[oas3.Referenceable], ref string) (ir.TypeID, bool, []ir.Diagnostic) {
+func resolveSchemaRef(c lowering.Ctx, ts *compile.Types, anchors *AnchorIndex, depth int, js *oas3.JSONSchema[oas3.Referenceable], ref string) (ir.TypeID, bool, []ir.Diagnostic) {
 	pointer, ok := c.RefScope().InternalPointer(ref)
 	if !ok {
 		return "", false, nil
@@ -137,17 +137,17 @@ func resolveSchemaRef(c lowering.Ctx, ts *compile.Types, anchors *anchorIndex, d
 // ({type: number, minimum: 5}) does not silently drop them.
 //
 // decl is the declaration itself, not its resolved form, so a sub-schema that
-// is a $ref carrying siblings aliases its target while keeping them. schemaRef
+// is a $ref carrying siblings aliases its target while keeping them. Ref
 // already draws that distinction — peeling a $ref off to a TypeRef and
 // lowering a concrete body in place — leaving this to intern whichever node
 // the pointer ends up owning.
-func hoistSubSchema(c lowering.Ctx, ts *compile.Types, anchors *anchorIndex, depth int, decl *oas3.JSONSchema[oas3.Referenceable], pointer string) (ir.TypeID, bool, []ir.Diagnostic) {
+func hoistSubSchema(c lowering.Ctx, ts *compile.Types, anchors *AnchorIndex, depth int, decl *oas3.JSONSchema[oas3.Referenceable], pointer string) (ir.TypeID, bool, []ir.Diagnostic) {
 	s := annotation.At(decl)
 	if s.Node == nil {
 		return "", false, nil
 	}
 	hint := subSchemaHint(decl, pointer)
-	ref, diags := schemaRef(c, ts, anchors, depth, decl, pointer, hint)
+	ref, diags := Ref(c, ts, anchors, depth, decl, pointer, hint)
 	if owned, ok := ts.Lookup(pointer); ok {
 		return owned, true, diags
 	}
@@ -155,7 +155,7 @@ func hoistSubSchema(c lowering.Ctx, ts *compile.Types, anchors *anchorIndex, dep
 	diags = append(diags, consDiags...)
 	id := internAlias(c, ts, pointer, hint, ref, cons)
 	// As in lowerComponentSchema: this alias is the first node the pointer owns,
-	// so the annotations schemaRef had nowhere to put now have a home.
+	// so the annotations Ref had nowhere to put now have a home.
 	return id, true, append(diags, attachDeclaredAnnotations(c, ts, anchors, s.Node, pointer)...)
 }
 

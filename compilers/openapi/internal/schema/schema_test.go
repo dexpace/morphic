@@ -1,4 +1,4 @@
-package openapi
+package schema_test
 
 import (
 	"encoding/json"
@@ -9,15 +9,14 @@ import (
 	"github.com/google/go-cmp/cmp/cmpopts"
 	oas3 "github.com/speakeasy-api/openapi/jsonschema/oas3"
 	soa "github.com/speakeasy-api/openapi/openapi"
-	"github.com/speakeasy-api/openapi/references"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	yaml "gopkg.in/yaml.v3"
 
 	"github.com/dexpace/morphic/compilers/openapi/internal/annotation"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
-	"github.com/dexpace/morphic/compilers/openapi/internal/ids"
 	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
+	"github.com/dexpace/morphic/compilers/openapi/internal/schema"
 	"github.com/dexpace/morphic/ir"
 	"github.com/dexpace/morphic/pass"
 )
@@ -280,28 +279,6 @@ func TestScalar_UnknownFormatPerBaseType(t *testing.T) {
 	assert.Equal(t, ir.PrimString, bases["s"])
 }
 
-func TestLower_DepthCapExceeded(t *testing.T) {
-	t.Parallel()
-	var b strings.Builder
-	b.WriteString("    Deep:\n")
-	indent := "      "
-	for range maxSchemaDepth + 4 {
-		b.WriteString(indent + "type: array\n")
-		b.WriteString(indent + "items:\n")
-		indent += "  "
-	}
-	b.WriteString(indent + "type: string\n")
-	doc, diags := lowerSpec(t, componentSpec(b.String()))
-	require.NotNil(t, doc)
-	var sawCap bool
-	for _, d := range diags {
-		if d.Code == diag.DegradedConstruct && strings.Contains(d.Message, "nesting exceeds") {
-			sawCap = true
-		}
-	}
-	assert.True(t, sawCap, "schema depth-cap diagnostic emitted")
-}
-
 func TestLower_TupleWithTrailingItems(t *testing.T) {
 	t.Parallel()
 	spec := componentSpec(`    Tup:
@@ -356,7 +333,7 @@ func TestLower_ListConstraints(t *testing.T) {
 
 func TestLower_ListWithoutItems(t *testing.T) {
 	t.Parallel()
-	// No `items` → schemaRef(nil) → element is `any`.
+	// No `items` → schema.Ref(nil) → element is `any`.
 	doc, diags := lowerSpec(t, componentSpec("    L: {type: array}\n"))
 	requireNoErrorDiags(t, diags)
 	l, ok := typeByName(doc, "L").(*ir.List)
@@ -706,72 +683,6 @@ func TestModel_SchemaExtensionPreserved(t *testing.T) {
 		"an entry locates the construct itself, not the node that carries it")
 }
 
-// TestPreserve_AllReasonsReachable pins that every UnmodeledReason an OpenAPI
-// document can provoke is produced by some lowering here, so a consumer
-// switching on the enum meets no value this compiler can never emit. There is no
-// longer an exception: ReasonOutOfScope was once only ir-design §15's Smithy and
-// TypeSpec exclusions, but the JSON Schema resource and dialect keywords land
-// under it too (dialectAt, TestDialectKeywords_KeptOutOfScope), so S declares one.
-//
-// The reach is per reason, not per entry: an entry left at the zero reason is
-// invisible here, and is irverify's "ir/empty-unmodeled-reason" to catch across
-// the whole corpus rather than this one document's.
-func TestPreserve_AllReasonsReachable(t *testing.T) {
-	t.Parallel()
-	spec := `openapi: 3.1.0
-info: {title: T, version: "1"}
-components:
-  schemas:
-    S:
-      type: object
-      x-vendor: v
-      $schema: 'https://json-schema.org/draft/2020-12/schema'
-      not: {required: [b]}
-      properties: {a: {type: string}}
-      oneOf:
-        - {required: [a]}
-        - {required: [b]}
-    T:
-      type: array
-      prefixItems: [{type: string}]
-      items: {type: integer}
-paths:
-  /p:
-    post:
-      operationId: p
-      requestBody:
-        content: {application/json: {schema: {type: string}}}
-      responses: {"204": {description: ok}}
-`
-	doc, svc, diags := lowerServiceSpec(t, spec)
-	requireNoErrorDiags(t, diags)
-
-	// S witnesses vendor_extension, validation_only (its constraint-only union
-	// joins `not` there) and out_of_scope (its $schema); T's open tuple is the
-	// only degraded_lowering witness here, so it must not be folded into another
-	// case.
-	seen := map[ir.UnmodeledReason]bool{}
-	for _, name := range []string{"S", "T"} {
-		for _, entry := range doc.Types[componentID(name)].Common().Unmodeled {
-			seen[entry.Reason] = true
-		}
-	}
-	// The one no_ir_home site reachable from a minimal document: a requestBody
-	// that omits `required`, which the IR has no field for (§14).
-	body := firstOp(t, svc).Request
-	require.NotNil(t, body, "the operation must own a request payload")
-	for _, entry := range body.Unmodeled {
-		seen[entry.Reason] = true
-	}
-
-	for _, want := range []ir.UnmodeledReason{
-		ir.ReasonVendorExtension, ir.ReasonValidationOnly,
-		ir.ReasonDegradedLowering, ir.ReasonNoIRHome, ir.ReasonOutOfScope,
-	} {
-		assert.True(t, seen[want], "no entry carries reason %q", want)
-	}
-}
-
 func TestModel_TitleDescriptionDocs(t *testing.T) {
 	t.Parallel()
 	spec := componentSpec(`    S:
@@ -834,23 +745,9 @@ func TestModel_RefSiblingDescriptionWins(t *testing.T) {
 func TestSchemaRef_EmptyEitherIsAny(t *testing.T) {
 	t.Parallel()
 	l := newRawLowerer(&soa.OpenAPI{})
-	ref, diags := schemaRef(l.ctx, l.types, &l.anchors, topLevelDepth, emptyEitherSchema(), "/p", "h")
+	ref, diags := schema.Ref(l.ctx, l.types, &l.anchors, schema.TopLevelDepth, emptyEitherSchema(), "/p", "h")
 	assert.Equal(t, ir.TypeID("t/prim/any"), ref.Target)
 	assert.Empty(t, diags, "an empty either lowers to any without complaint")
-}
-
-func TestIsNullSchema_EmptyEitherFalse(t *testing.T) {
-	t.Parallel()
-	assert.False(t, isNullSchema(emptyEitherSchema()), "empty either is not a null schema")
-}
-
-func TestPreserveUnionSiblings_MissingNode(t *testing.T) {
-	t.Parallel()
-	l := newRawLowerer(&soa.OpenAPI{})
-	// No node registered under the id: the union branches have nowhere to go, so
-	// the guard reports the broken invariant instead of dropping them quietly.
-	diags := preserveUnionSiblings(l.ctx, l.types, "t/anon/missing", &oas3.Schema{}, "/p", ir.ReasonDegradedLowering, "why")
-	assertHasErrorCode(t, diags, diag.InternalInvariant)
 }
 
 // TestSchemaExamples_RefdSubSchemaKeepsThem pins the examples of a $ref'd
@@ -925,21 +822,6 @@ func TestSiteSchema_BodylessPositions(t *testing.T) {
 	t.Parallel()
 	assert.Nil(t, annotation.SchemaOf(nil))
 	assert.Nil(t, annotation.SchemaOf(oas3.NewJSONSchemaFromBool(true)))
-}
-
-// TestAttachDeclaredAnnotations_MissingNode drives the invariant no source can
-// break: a pointer owning an ID the registry never registered. Lowering records
-// the two together, so this state is a compiler bug — and the annotations it
-// would swallow are reported rather than lost.
-func TestAttachDeclaredAnnotations_MissingNode(t *testing.T) {
-	t.Parallel()
-	l := newRawLowerer(&soa.OpenAPI{})
-	// Reached through preserveUnionSiblings rather than attachDeclaredAnnotations:
-	// the latter takes its ID from the coordinate map, and compile.Types records a
-	// coordinate and its node together, so that caller can no longer present an ID
-	// the registry does not hold. This one is handed an ID by its caller.
-	diags := preserveUnionSiblings(l.ctx, l.types, "t/anon/missing", &oas3.Schema{}, "/p", ir.ReasonDegradedLowering, "why")
-	assertHasErrorCode(t, diags, diag.InternalInvariant)
 }
 
 func TestSchema_Ref30NullableSiblings(t *testing.T) {
@@ -1361,8 +1243,8 @@ func TestSchema_EmptyFragmentRef(t *testing.T) {
 func TestSchema_EmptyStringRefMirrorBranches(t *testing.T) {
 	t.Parallel()
 	// An empty-string $ref has IsReference()==false (the ref value is "") yet a
-	// non-nil Ref pointer, exercising the schema.Ref mirror path in schemaRef and
-	// the branchHint fallback.
+	// non-nil oas3 Ref pointer, exercising that mirror path in schema.Ref and the
+	// branchHint fallback.
 	spec := componentSpec(`    Owner:
       type: object
       properties:
@@ -1778,14 +1660,6 @@ func TestAllOf_PropertyAlongsideAllOfConflictMessageIsAccurate(t *testing.T) {
 		"the diagnostic's own site is the co-declared property, not an allOf branch")
 }
 
-func TestPreserveKeyword_NilRaw(t *testing.T) {
-	t.Parallel()
-	var ext ir.Unmodeled
-	diags := preserveKeyword(lowering.Ctx{}, &ext, "openapi:not", nil, "/p", "/p/not", "not")
-	assert.Nil(t, ext, "nil raw is a no-op")
-	assert.Empty(t, diags)
-}
-
 // TestRawFromNode_SeparatesAbsentFromUnconvertible pins the distinction the
 // signature exists for (GitHub #144). A caller that cannot tell "there was
 // nothing here" from "there was something and it did not survive" announces a
@@ -1827,91 +1701,6 @@ func TestRawFromNode_SeparatesAbsentFromUnconvertible(t *testing.T) {
 func TestRawPropertyNode_NilSchema(t *testing.T) {
 	t.Parallel()
 	assert.Nil(t, annotation.RawPropertyNode(nil, "x"))
-}
-
-// TestSchemaConstraints_NonSchemaInputs covers annotation.SchemaOf's nil and
-// boolean early return, plus a well-formed reference besides: none of the three
-// leaves a body with constraint keywords on it, so schemaConstraints reports
-// none either way.
-func TestSchemaConstraints_NonSchemaInputs(t *testing.T) {
-	t.Parallel()
-	l := newRawLowerer(&soa.OpenAPI{})
-	for _, js := range []*oas3.Schema{
-		annotation.SchemaOf(nil),
-		annotation.SchemaOf(oas3.NewJSONSchemaFromBool(true)),
-		annotation.SchemaOf(oas3.NewJSONSchemaFromReference("#/components/schemas/Other")),
-	} {
-		cons, diags := schemaConstraints(l.ctx, js, "/p")
-		assert.Nil(t, cons)
-		assert.Empty(t, diags)
-	}
-}
-
-// TestSchemaConstraints_EmptyRefSchema covers a $ref pointer that is present
-// but empty: IsReference is false for it, so annotation.SchemaOf has no early
-// return here — the Schema body reaches schemaConstraints, which finds no
-// constraint keywords on a body that carries only Ref. The parser never emits
-// this shape, so it is built by hand.
-func TestSchemaConstraints_EmptyRefSchema(t *testing.T) {
-	t.Parallel()
-	l := newRawLowerer(&soa.OpenAPI{})
-	emptyRef := references.Reference("")
-	js := oas3.NewJSONSchemaFromSchema[oas3.Referenceable](&oas3.Schema{Ref: &emptyRef})
-	cons, diags := schemaConstraints(l.ctx, annotation.SchemaOf(js), "/p")
-	assert.Nil(t, cons)
-	assert.Empty(t, diags)
-}
-
-func TestResolveSchemaRef_ReusesInternedSubSchema(t *testing.T) {
-	t.Parallel()
-	l := newRawLowerer(&soa.OpenAPI{})
-	l.types.Intern(deepPointer, "t/anon/prev", func() ir.TypeDef { return &ir.Any{} })
-
-	id, ok, diags := resolveSchemaRef(l.ctx, l.types, &l.anchors, topLevelDepth, emptyEitherSchema(), "#"+deepPointer)
-	require.True(t, ok, "a $ref to an already-hoisted sub-schema reuses its ID")
-	assert.Equal(t, ir.TypeID("t/anon/prev"), id)
-	assert.Empty(t, diags, "reusing an interned node reports nothing")
-}
-
-func TestResolveSchemaRef_UnresolvedDeepRefDropped(t *testing.T) {
-	t.Parallel()
-	l := newRawLowerer(&soa.OpenAPI{})
-	// A same-file $ref to a deep pointer the library never resolved: no interned
-	// node, GetResolvedSchema is nil, so the reference is dropped (ok=false).
-	js := oas3.NewJSONSchemaFromReference("#" + deepPointer)
-
-	_, ok, diags := resolveSchemaRef(l.ctx, l.types, &l.anchors, topLevelDepth, js, "#"+deepPointer)
-	assert.False(t, ok, "an unresolved deep sub-schema $ref is dropped, not synthesized")
-	assert.Empty(t, diags, "the drop is reported by refTypeRef, which owns the pointer to report it at")
-}
-
-func TestHoistSubSchema_NilSchema(t *testing.T) {
-	t.Parallel()
-	l := newRawLowerer(&soa.OpenAPI{})
-	_, ok, diags := hoistSubSchema(l.ctx, l.types, &l.anchors, topLevelDepth, nil, deepPointer)
-	assert.False(t, ok, "a nil resolved sub-schema cannot be hoisted")
-	assert.Empty(t, diags)
-}
-
-func TestHoistSubSchema_BodyInternsAtPointer(t *testing.T) {
-	t.Parallel()
-	l := newRawLowerer(&soa.OpenAPI{})
-	// An object body interns a node at the sub-schema's own pointer, so the
-	// pointer-owns-a-node branch returns that node rather than aliasing it.
-	object := oas3.NewJSONSchemaFromSchema[oas3.Referenceable](
-		&oas3.Schema{Type: oas3.NewTypeFromString(oas3.SchemaTypeObject)})
-
-	id, ok, diags := hoistSubSchema(l.ctx, l.types, &l.anchors, topLevelDepth, object, deepPointer)
-	require.True(t, ok)
-	assert.Empty(t, diags, "an object body hoists cleanly")
-	assert.Equal(t, ids.AnonType(deepPointer), id)
-	seeded, _ := l.types.Lookup(deepPointer)
-	assert.Equal(t, ids.AnonType(deepPointer), seeded)
-}
-
-func TestIsRefBranch_Nil(t *testing.T) {
-	t.Parallel()
-	assert.False(t, isRefBranch(nil))
 }
 
 func TestSchema_OneOfWithBoolBranch(t *testing.T) {
@@ -1958,24 +1747,6 @@ components:
 	if s, isScalar := base.(*ir.Scalar); isScalar {
 		assert.Nil(t, s.Constraints, "the referent stays unbounded")
 	}
-}
-
-// TestCheckOperationIDUnique_ReportsTheSecondClaim pins what the check is for:
-// the first claim on an operationId is recorded silently and the second names
-// it. This used to cover a lazy map init instead, which is gone — the map is
-// the caller's and is allocated where the lowering starts.
-func TestCheckOperationIDUnique_ReportsTheSecondClaim(t *testing.T) {
-	t.Parallel()
-	l := newRawLowerer(nil)
-	op := ir.Operation{Name: ir.Naming{Source: "dup"}}
-
-	assert.Empty(t, checkOperationIDUnique(l.ctx, l.operationIDs, op, "/paths/~1a/get"),
-		"the first claim is recorded without a word")
-
-	diags := checkOperationIDUnique(l.ctx, l.operationIDs, op, "/paths/~1b/get")
-	require.Len(t, diags, 1)
-	assert.Equal(t, diag.DuplicateOperationID, diags[0].Code)
-	assert.Contains(t, diags[0].Message, "/paths/~1a/get", "and it names the operation that claimed it first")
 }
 
 // TestSchemaSiblings_RefdSubSchemaKeepsThem is the sub-schema arm of the rule
@@ -2720,36 +2491,6 @@ func TestPropertyPosition_ResidueStaysOutOfTheTypeNode(t *testing.T) {
 	assert.Empty(t, p.Unmodeled, "nor does the property preserve what it modelled")
 }
 
-// TestPreserve_EmptyRawIsRejectedLikeNil pins both halves of the guard. nil and a
-// zero-length slice are distinct states, and only nil was screened — so an empty
-// payload was written into Unmodeled, where it makes json.Marshal fail for the
-// whole document rather than for the entry that carried it.
-//
-// No committed spec reaches this: every call site passes a value re-encoded from
-// a parsed YAML node, which is never zero-length. The guard is exercised directly
-// because the hazard is a second compiler copying an asymmetric screen, not a
-// live defect in this one.
-func TestPreserve_EmptyRawIsRejectedLikeNil(t *testing.T) {
-	t.Parallel()
-	for name, raw := range map[string]ir.RawValue{
-		"nil":           nil,
-		"empty non-nil": {},
-	} {
-		t.Run(name, func(t *testing.T) {
-			t.Parallel()
-			l := &lowerer{}
-			var p ir.Unmodeled
-			preserve(l.ctx, &p, "openapi:k", raw, ir.ReasonVendorExtension, "/p/k")
-			assert.Nil(t, p, "a payload with no bytes preserves no construct")
-
-			var q ir.Unmodeled
-			kwDiags := preserveKeyword(lowering.Ctx{}, &q, "openapi:not", raw, "/p", "/p/not", "not")
-			assert.Nil(t, q, "and the validation-only wrapper screens the same states")
-			assert.Empty(t, kwDiags, "nothing was preserved, so nothing is announced")
-		})
-	}
-}
-
 // vocabCase is one JSON Schema 2020-12 keyword and the minimal document that
 // writes it. schemas must contain the literal "KW, " where the keyword goes: the
 // control replaces that marker with nothing, so the two documents differ in
@@ -3432,201 +3173,6 @@ func assertDiagContains(t *testing.T, diags []ir.Diagnostic, pointer, substr str
 	assert.Fail(t, "no diagnostic said why", "nothing at %q mentions %q; got %+v", pointer, substr, diags)
 }
 
-// TestDeclaresResourceIDAbove_WithoutARawTree pins the guard on the path walk.
-// The walk reads the raw source because $id has no oas3.Schema field, so a
-// document with no raw tree behind it — one built in memory, or a pointer naming
-// a position the source does not have — must read as "no resource boundary
-// found" rather than wander off the tree.
-//
-// No committed spec reaches this: every pointer a $dynamicRef is lowered at was
-// built by walking the very tree this re-walks. The guard is exercised directly
-// because the hazard is a later caller passing a synthesized pointer, not a live
-// defect.
-func TestDeclaresResourceIDAbove_WithoutARawTree(t *testing.T) {
-	t.Parallel()
-	l := newRawLowerer(&soa.OpenAPI{})
-
-	assert.False(t, declaresResourceIDAbove(l.ctx, "/components/schemas/A"),
-		"a document with no raw tree declares no resource anywhere")
-}
-
-// TestDynamicAnchors_WalksEveryNodeShape drives the raw-tree walk over the
-// shapes a YAML document can present, rather than only the mappings a schema
-// happens to be written as. The walk reads the raw tree because oas3.Schema has
-// no $dynamicAnchor field, so it meets whatever the source wrote — a sequence, a
-// bare scalar, a non-string key — and must index anchors under a sequence while
-// declining the rest without wandering off the tree.
-func TestDynamicAnchors_WalksEveryNodeShape(t *testing.T) {
-	t.Parallel()
-	cases := []struct {
-		name string
-		node *yaml.Node
-		want map[string][]string
-	}{
-		{"a nil node yields nothing", nil, map[string][]string{}},
-		{
-			"a bare scalar declares no anchor",
-			yamlNode(t, `just-a-string`),
-			map[string][]string{},
-		},
-		{
-			"a sequence indexes its elements by ordinal",
-			yamlNode(t, "- {$dynamicAnchor: first}\n- {other: 1}\n- {$dynamicAnchor: third}\n"),
-			map[string][]string{"first": {"/0"}, "third": {"/2"}},
-		},
-		{
-			"a sequence element standing in for a mapping is followed",
-			yamlNode(t, "- &a {$dynamicAnchor: first}\n- *a\n"),
-			map[string][]string{"first": {"/0", "/1"}},
-		},
-		{
-			"a non-string key cannot name a keyword and is skipped",
-			yamlNode(t, "? [a, b]\n: {$dynamicAnchor: buried}\n$dynamicAnchor: reached\n"),
-			map[string][]string{"reached": {""}},
-		},
-		{
-			"an empty anchor name is not indexed",
-			yamlNode(t, `{$dynamicAnchor: ""}`),
-			map[string][]string{},
-		},
-		{
-			"a non-scalar anchor value is not indexed",
-			yamlNode(t, `{$dynamicAnchor: [a]}`),
-			map[string][]string{},
-		},
-	}
-	for _, tc := range cases {
-		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
-			got, complete := dynamicAnchors(tc.node)
-			assert.Empty(t, cmp.Diff(tc.want, got))
-			assert.True(t, complete, "nothing here reaches a walk bound")
-		})
-	}
-}
-
-// TestDynamicAnchors_CountsWhatAnAliasBringsIn pins the count the whole
-// expansion rests on. A YAML alias and a `<<` merge key each hand a second
-// position the anchor the first one wrote, and the parser downstream reads both
-// positions as declaring it — so an index that walked only the spelled-out tree
-// would report one declaration where the document has three, and "declared
-// exactly once" would expand a reference that is genuinely ambiguous.
-func TestDynamicAnchors_CountsWhatAnAliasBringsIn(t *testing.T) {
-	t.Parallel()
-	cases := []struct {
-		name, source string
-		want         []string
-	}{
-		{
-			name:   "an alias re-declares the anchor at its own position",
-			source: "A: &base {$dynamicAnchor: tail}\nB: *base\n",
-			want:   []string{"/A", "/B"},
-		},
-		{
-			name:   "a merge key does too",
-			source: "A: &base {$dynamicAnchor: tail}\nB: {<<: *base, description: merged}\n",
-			want:   []string{"/A", "/B"},
-		},
-		{
-			name:   "an explicit key still beats the merged one",
-			source: "A: &base {$dynamicAnchor: tail}\nB: {<<: *base, $dynamicAnchor: own}\n",
-			want:   []string{"/A"},
-		},
-	}
-	for _, tc := range cases {
-		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
-			got, complete := dynamicAnchors(yamlNode(t, tc.source))
-			assert.True(t, complete)
-			assert.Equal(t, tc.want, got["tail"])
-		})
-	}
-}
-
-// TestDynamicAnchors_DocumentNodeUnwraps pins that the walk accepts a whole
-// document as well as a content node, since dynamicAnchors is handed whatever
-// the loader kept.
-func TestDynamicAnchors_DocumentNodeUnwraps(t *testing.T) {
-	t.Parallel()
-	var doc yaml.Node
-	require.NoError(t, yaml.Unmarshal([]byte("$dynamicAnchor: top\n"), &doc))
-	require.Equal(t, yaml.DocumentNode, doc.Kind)
-
-	got, complete := dynamicAnchors(&doc)
-	assert.Equal(t, map[string][]string{"top": {""}}, got)
-	assert.True(t, complete)
-}
-
-// TestDynamicAnchors_StopsAtTheDepthCap pins the bound. A raw tree deeper than
-// the cap is a legal document, so the walk must stop rather than recur to
-// exhaustion; anchors above the cap are still indexed, and the truncation is
-// reported rather than passed off as a complete index.
-func TestDynamicAnchors_StopsAtTheDepthCap(t *testing.T) {
-	t.Parallel()
-	deep, shallow := nestedAnchor(maxDynamicAnchorDepth+2), nestedAnchor(0)
-
-	deepIndex, deepComplete := dynamicAnchors(deep)
-	assert.NotContains(t, deepIndex, "toodeep",
-		"the walk stops at the cap instead of recurring to exhaustion")
-	assert.False(t, deepComplete, "and says so, since an unseen anchor undercounts every name")
-
-	shallowIndex, shallowComplete := dynamicAnchors(shallow)
-	assert.Contains(t, shallowIndex, "toodeep",
-		"an anchor within the cap is still indexed, so the cap is what excluded the other")
-	assert.True(t, shallowComplete)
-}
-
-// TestAnchorWalk_StopsAtTheNodeBudget pins the other bound. Depth alone stopped
-// bounding the walk once it began following aliases, since an alias DAG presents
-// many more paths than the tree has nodes; the budget is what caps the total.
-func TestAnchorWalk_StopsAtTheNodeBudget(t *testing.T) {
-	t.Parallel()
-	source := yamlNode(t, "a: {$dynamicAnchor: first}\nb: {$dynamicAnchor: second}\n")
-
-	w := newAnchorWalk(2) // the root mapping and its first value, and no more
-	w.walk(source, "", 0)
-
-	assert.True(t, w.truncated, "the budget ran out mid-walk")
-	assert.NotContains(t, w.out, "second", "so the anchors past it are missing")
-}
-
-// nestedAnchor builds a mapping chain of the given depth with a $dynamicAnchor
-// at the bottom. It is built rather than parsed because nesting this deep in
-// source text is indentation arithmetic, and duplicate keys at one level would
-// not nest at all.
-func nestedAnchor(depth int) *yaml.Node {
-	n := &yaml.Node{
-		Kind:    yaml.MappingNode,
-		Content: []*yaml.Node{strNode("$dynamicAnchor"), strNode("toodeep")},
-	}
-	for range depth + 1 {
-		n = &yaml.Node{Kind: yaml.MappingNode, Content: []*yaml.Node{strNode("k"), n}}
-	}
-	return n
-}
-
-// TestDynamicAnchorIndex_ReportsATruncatedWalk pins what a reader is told when
-// the index is partial. Truncation only ever drops declarations, and a dropped
-// duplicate reads as "declared exactly once" — the count that expands — so an
-// unreported truncation would turn an ambiguous reference into a confident one.
-func TestDynamicAnchorIndex_ReportsATruncatedWalk(t *testing.T) {
-	t.Parallel()
-	// The walk descends into every key, so an extension at the document root
-	// nests the tree past the cap without the schema lowering ever seeing it.
-	deep := strings.Repeat("{a: ", maxDynamicAnchorDepth) + "1" + strings.Repeat("}", maxDynamicAnchorDepth)
-	l, diags := loweredFor(t, componentSpec("    A: {type: string}\n")+"x-deep: "+deep+"\n")
-	requireNoErrorDiags(t, diags)
-
-	_, got := l.anchors.sites(l.ctx, "absent")
-	require.NotNil(t, l.anchors.byName, "the index is built even when partial")
-	require.Len(t, got, 1, "the truncation is announced exactly once: %+v", got)
-	assert.Equal(t, ir.SeverityWarning, got[0].Severity)
-	assert.Contains(t, got[0].Message, "not verified")
-
-	_, again := l.anchors.sites(l.ctx, "absent")
-	assert.Empty(t, again, "and the cached index does not announce it again")
-}
-
 // TestDynamicRef_NonScalarValueIsKeptNotExpanded covers the one irreducible case
 // the sibling table cannot: a $dynamicRef whose value is not a string is a type
 // error the document validator also reports, so the case arrives with an error
@@ -3654,25 +3200,244 @@ func TestDynamicRef_NonScalarValueIsKeptNotExpanded(t *testing.T) {
 	}
 }
 
-// TestPreserveUnhomedKeywords_MissingNode drives the invariant no source can
-// break: an ID a lowering returned that the registry does not hold. The keywords
-// it would keep have nowhere to go, so the guard reports the broken invariant
-// rather than preserving them onto nothing.
-func TestPreserveUnhomedKeywords_MissingNode(t *testing.T) {
+// TestAppendExample_ConvertsAndAppends pins the accumulator every example site
+// shares. The example's value is the converted node and nothing else about the
+// prototype changes, so a site that fills in a name or a description keeps it.
+func TestAppendExample_ConvertsAndAppends(t *testing.T) {
 	t.Parallel()
-	l := newRawLowerer(&soa.OpenAPI{})
-	got, diags := preserveUnhomedKeywords(l.ctx, l.types, &oas3.Schema{}, "/p", "h", "t/anon/missing")
-	assert.Equal(t, ir.TypeID("t/anon/missing"), got, "the lowering's own ID still stands")
-	assertHasErrorCode(t, diags, diag.InternalInvariant)
+	c := lowering.New(0, &soa.OpenAPI{}, ir.SourceInfo{}, "")
+	proto := ir.Example{Name: "n", Summary: "s", Description: "d"}
+
+	out, diags := schema.AppendExample(c, nil, proto, strNode("hello"), "/p", "examples", "n")
+
+	assert.Empty(t, diags, "a convertible node is announced by nothing")
+	require.Len(t, out, 1)
+	assert.Equal(t, "n", out[0].Name, "the prototype's own fields survive")
+	require.NotNil(t, out[0].Value)
+	assert.Equal(t, "hello", out[0].Value.Str)
 }
 
-// TestRecordUnhomedKeywords_MissingOwner drives the same invariant one step
-// later, where the owning node is the one absent. Its caller cannot produce this
-// state — the owner is either the node it just looked up or one internAlias just
-// interned — so it is reached directly, as preserveUnionSiblings' guard is.
-func TestRecordUnhomedKeywords_MissingOwner(t *testing.T) {
+// TestAppendExample_UnconvertibleValueIsReported pins the other half: a node
+// that cannot become a value adds nothing to the list, and the pointer it is
+// reported at is built from the base and the segments — which is the only path
+// that joins them, so a wrong join shows up nowhere else.
+func TestAppendExample_UnconvertibleValueIsReported(t *testing.T) {
 	t.Parallel()
-	l := newRawLowerer(&soa.OpenAPI{})
-	diags := recordUnhomedKeywords(l.ctx, l.types, "t/anon/missing", &oas3.Schema{}, []string{"items"}, ir.KindPrimitive, "/p")
-	assertHasErrorCode(t, diags, diag.InternalInvariant)
+	c := lowering.New(0, &soa.OpenAPI{}, ir.SourceInfo{}, "")
+	nan := &yaml.Node{Kind: yaml.ScalarNode, Tag: "!!float", Value: ".nan"}
+
+	out, diags := schema.AppendExample(c, nil, ir.Example{}, nan, "/p", "examples", "n")
+
+	assert.Empty(t, out, "nothing is appended when the value does not convert")
+	require.Len(t, diags, 1)
+	assert.Equal(t, diag.DegradedConstruct, diags[0].Code)
+	assert.Equal(t, "/p/examples/n", diags[0].Provenance.Pointer)
+}
+
+// TestStampConstraintDiags_RelocatesEveryDiagnosticToTheReadingPointer pins what
+// makes two reads of one sub-schema dedup rather than report twice: the
+// diagnostics a constraint read produces are located at the position that read
+// it, not at the position that declared it.
+func TestStampConstraintDiags_RelocatesEveryDiagnosticToTheReadingPointer(t *testing.T) {
+	t.Parallel()
+	c := lowering.New(0, &soa.OpenAPI{}, ir.SourceInfo{}, "")
+	in := []ir.Diagnostic{
+		{Code: diag.DegradedConstruct, Provenance: ir.Provenance{Pointer: "/elsewhere"}},
+		{Code: diag.NumericPrecision, Provenance: ir.Provenance{Source: 9, Pointer: "/other"}},
+	}
+
+	got := schema.StampConstraintDiags(c, in, "/components/schemas/S")
+
+	require.Len(t, got, 2)
+	for _, d := range got {
+		assert.Equal(t, ir.Provenance{Source: 0, Pointer: "/components/schemas/S"}, d.Provenance,
+			"every diagnostic is relocated, not just the first")
+	}
+	assert.Equal(t, diag.NumericPrecision, got[1].Code, "only the provenance changes")
+}
+
+// TestAllOf_FalseBranchClosesTheComposition pins what a `false` allOf branch
+// does to the composed node. `false` admits nothing, so the composition admits
+// nothing: the model closes and the branch is kept verbatim beside it, which is
+// the same answer a bare `false` schema gets in its own right.
+func TestAllOf_FalseBranchClosesTheComposition(t *testing.T) {
+	t.Parallel()
+	doc, diags := lowerSpec(t, componentSpec(`    Never:
+      allOf:
+        - false
+        - type: object
+          properties: {id: {type: string}}
+`))
+	requireNoErrorDiags(t, diags)
+
+	m, ok := typeByName(doc, "Never").(*ir.Model)
+	require.True(t, ok, "the composition still lowers to a model")
+	assert.Equal(t, ir.AdditionalClosed, m.Additional, "a branch matching nothing closes the composition")
+	require.Len(t, m.Unmodeled, 1, "the branch is kept verbatim")
+	assert.Equal(t, ir.RawValue("false"), m.Unmodeled["openapi:allOf/0"].Value,
+		"keyed by the branch index, so sibling branches cannot overwrite one another")
+	assert.True(t, hasDiagAt(diags, diag.FalseSchema, ir.SeverityInfo), "and it is announced")
+}
+
+// TestUnhomedApplicator_KeptOnAListAndAnnounced pins the arm of the home
+// question that a list answers: items and prefixItems have a home on it, and
+// anything else written beside them does not, so `properties` on an array is
+// kept verbatim and reported rather than silently dropped.
+func TestUnhomedApplicator_KeptOnAListAndAnnounced(t *testing.T) {
+	t.Parallel()
+	doc, diags := lowerSpec(t, componentSpec(`    Odd:
+      type: array
+      items: {type: string}
+      properties: {p: {type: string}}
+`))
+	requireNoErrorDiags(t, diags)
+
+	td := typeByName(doc, "Odd")
+	require.NotNil(t, td, "the array still lowers")
+	assert.Contains(t, td.Common().Unmodeled, "openapi:properties",
+		"a list has no home for properties, so it is kept")
+	assert.True(t, hasDiagAt(diags, diag.DegradedConstruct, ir.SeverityInfo),
+		"and the position says which keywords it could not carry")
+}
+
+// unpreservableValue is a value that is legal YAML, decodes, and then cannot be
+// marshalled as JSON: json.Marshal rejects NaN, so any preserved payload
+// containing one fails whole. It is the shortest reachable trigger for the
+// conversion failure the announcement tests need.
+const unpreservableValue = ".nan"
+
+// TestUnhomedApplicator_ObjectCarriesNoItemKeyword pins the other arm of the
+// home question. A model has a home for the property applicators and for
+// nothing else, so `items` written on an object is kept verbatim rather than
+// read as though the object were an array.
+func TestUnhomedApplicator_ObjectCarriesNoItemKeyword(t *testing.T) {
+	t.Parallel()
+	doc, diags := lowerSpec(t, componentSpec(`    Odd:
+      type: object
+      properties: {p: {type: string}}
+      items: {type: string}
+`))
+	requireNoErrorDiags(t, diags)
+
+	m, ok := typeByName(doc, "Odd").(*ir.Model)
+	require.True(t, ok, "it is still a model")
+	assert.Contains(t, m.Unmodeled, "openapi:items", "a model has no home for items")
+	assert.Len(t, m.Properties, 1, "and the applicators it does have a home for still land")
+}
+
+// TestUnhomedApplicator_UnpreservableKeywordIsNotAnnounced pins the pairing
+// GitHub #144 exists for, at this site: when the only unhomed keyword fails to
+// convert, the position must say nothing about keeping it. A diagnostic naming a
+// keyword that was never written is worse than silence — it sends a reader
+// looking in Unmodeled for something that is not there.
+func TestUnhomedApplicator_UnpreservableKeywordIsNotAnnounced(t *testing.T) {
+	t.Parallel()
+	doc, diags := lowerSpec(t, componentSpec(`    Odd:
+      type: object
+      properties: {p: {type: string}}
+      items: {type: string, x-t: `+unpreservableValue+`}
+`))
+
+	m, ok := typeByName(doc, "Odd").(*ir.Model)
+	require.True(t, ok)
+	assert.NotContains(t, m.Unmodeled, "openapi:items", "the conversion failed, so nothing was kept")
+	assert.True(t, hasDiag(diags, diag.UnpreservableConstruct), "the failure itself is reported")
+	assert.Empty(t, preservationClaims(diags),
+		"nothing was written under Unmodeled, so nothing may announce that it was")
+}
+
+// TestAllOf_UnpreservableBranchIsNotAnnounced is the same pairing on the
+// composition path: a branch the merge does not consume whole is normally kept
+// beside the model and reported, and when the keeping fails the report must not
+// happen either.
+func TestAllOf_UnpreservableBranchIsNotAnnounced(t *testing.T) {
+	t.Parallel()
+	doc, diags := lowerSpec(t, componentSpec(`    M:
+      allOf:
+        - {type: string, maxLength: 3, x-t: `+unpreservableValue+`}
+`))
+
+	td := typeByName(doc, "M")
+	require.NotNil(t, td)
+	assert.NotContains(t, td.Common().Unmodeled, "openapi:allOf/0", "the branch did not convert")
+	assert.True(t, hasDiag(diags, diag.UnpreservableConstruct))
+	assert.Empty(t, preservationClaims(diags),
+		"no degradation is announced for a branch that was not kept")
+}
+
+// TestUnionSiblings_UnpreservableIsReportedNotClaimed pins the announcement
+// pairing at the union-sibling site. A oneOf the lowering keeps beside a
+// structural body is kept verbatim when it converts; when it does not, the
+// failure is reported at the keyword and nothing claims it was kept. The
+// structural sibling here is unconvertible too, so the case has no legitimately
+// preserved construct that a claim could be about.
+func TestUnionSiblings_UnpreservableIsReportedNotClaimed(t *testing.T) {
+	t.Parallel()
+	_, diags := lowerSpec(t, componentSpec(`    S:
+      items: {type: string, x-t: `+unpreservableValue+`}
+      oneOf: [{type: string, x-t: `+unpreservableValue+`}, {type: integer}]
+`))
+
+	var at []string
+	for _, d := range diags {
+		if d.Code == diag.UnpreservableConstruct {
+			at = append(at, d.Provenance.Pointer)
+		}
+	}
+	assert.Contains(t, at, "/components/schemas/S/oneOf",
+		"the union siblings are reported where they are written: %+v", diags)
+	assert.Empty(t, preservationClaims(diags),
+		"nothing converted, so nothing may say it was kept")
+}
+
+// preservationClaims returns the messages announcing that something was kept
+// under Unmodeled. The unpreservable report is excluded by code rather than by
+// wording: it says a construct "could not be kept verbatim under Unmodeled",
+// which contains the phrase and is the opposite of a claim.
+func preservationClaims(diags []ir.Diagnostic) []string {
+	var out []string
+	for _, d := range diags {
+		if strings.Contains(d.Message, "under Unmodeled") && d.Code != diag.UnpreservableConstruct {
+			out = append(out, d.Message)
+		}
+	}
+	return out
+}
+
+// TestResidueKeywords_HandsBackACopy pins the reason this is a function and not
+// the slice. One list is the whole point — a keyword added to it has to reach
+// every position that preserves one — so the list itself must not be reachable
+// from outside. An exported slice would let any importer rewrite what every
+// schema position in the process preserves, for the life of the process.
+func TestResidueKeywords_HandsBackACopy(t *testing.T) {
+	t.Parallel()
+	first := schema.ResidueKeywords()
+	require.NotEmpty(t, first, "an empty list would make this pass vacuously")
+
+	clobbered := append([]string(nil), first...)
+	for i := range first {
+		first[i] = "clobbered"
+	}
+
+	assert.Equal(t, clobbered, schema.ResidueKeywords(),
+		"writing through one caller's slice must not change what the next one reads")
+}
+
+// TestUnhomedApplicator_FormatWithNoTypeIsKept pins the one keyword the home
+// question answers from the declaration rather than from the node kind.
+//
+// `format` is homed by a declared type: scalarTypeID pairs the two to select a
+// primitive or hoist a Scalar carrying the encoding. Written with no type beside
+// it there is no pairing to make, so nothing reads it — and it is kept verbatim
+// rather than dropped, which is the whole of §4.8 for this keyword.
+func TestUnhomedApplicator_FormatWithNoTypeIsKept(t *testing.T) {
+	t.Parallel()
+	doc, diags := lowerSpec(t, componentSpec("    Odd: {format: date-time}\n"))
+	requireNoErrorDiags(t, diags)
+
+	td := typeByName(doc, "Odd")
+	require.NotNil(t, td, "the position still lowers to something")
+	assert.Contains(t, td.Common().Unmodeled, "openapi:format",
+		"a format with no type to pair with reaches no field, so it is kept")
+	assert.True(t, hasDiag(diags, diag.DegradedConstruct), "and the position says so")
 }

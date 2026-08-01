@@ -1,4 +1,4 @@
-package openapi
+package schema
 
 import (
 	"github.com/speakeasy-api/openapi/extensions"
@@ -20,13 +20,13 @@ import (
 // It lived in schema.go, which made every file that reports a diagnostic look
 // like it depended on schema lowering. Most did not: with it moved, operations
 // reaches nothing in schema.go, and content and parameters reach one symbol each
-// — fillPropertyDetail and loweredToOwnNode. Naming them rather than counting
+// — FillPropertyDetail and LoweredToOwnNode. Naming them rather than counting
 // them is deliberate: the count was two when this was written and went stale
 // silently when residueKeywords was deleted. Those are real schema lowering and
 // are what the upper layer still waits on; the rest of the apparent coupling was
 // this, filed in the wrong place.
 
-// appendExample converts node into proto's value and appends the result to out;
+// AppendExample converts node into proto's value and appends the result to out;
 // an unconvertible node is skipped and yields a warning diagnostic for the
 // caller to record, rather than being silently dropped — an example is an annotation, not a structural hole, so losing it is
 // fine as long as it isn't silent. proto carries the annotations that surround
@@ -34,7 +34,7 @@ import (
 // into a pointer only on the failure path, so an example that converts builds no
 // pointer string at all. Shared by every example site: schema (schemaExamples),
 // media type, header, and parameter (exampleList).
-func appendExample(c lowering.Ctx, out []ir.Example, proto ir.Example, node *yaml.Node,
+func AppendExample(c lowering.Ctx, out []ir.Example, proto ir.Example, node *yaml.Node,
 	base string, seg ...string,
 ) ([]ir.Example, []ir.Diagnostic) {
 	v, err := value.FromNode(node)
@@ -46,31 +46,31 @@ func appendExample(c lowering.Ctx, out []ir.Example, proto ir.Example, node *yam
 	return append(out, proto), nil
 }
 
-// preserve records raw under key in *p with why it was kept and where it was
+// Preserve records raw under key in *p with why it was kept and where it was
 // written, allocating the map on first write. An absent or unconvertible
 // payload records nothing, so no caller needs a nil guard of its own.
-func preserve(c lowering.Ctx, p *ir.Unmodeled, key string, raw ir.RawValue,
+func Preserve(c lowering.Ctx, p *ir.Unmodeled, key string, raw ir.RawValue,
 	reason ir.UnmodeledReason, pointer string,
 ) {
 	annotation.PreserveInto(p, key, raw, reason, pointer, c.SrcIndex)
 }
 
-// preserveNode records the construct written at node under key in *p, reporting
+// PreserveNode records the construct written at node under key in *p, reporting
 // one that could not be converted at all. It returns whether an entry was
 // written, so a caller announces only what it actually kept (GitHub #144).
-func preserveNode(c lowering.Ctx, p *ir.Unmodeled, key string, node *yaml.Node,
+func PreserveNode(c lowering.Ctx, p *ir.Unmodeled, key string, node *yaml.Node,
 	reason ir.UnmodeledReason, pointer string,
 ) (bool, []ir.Diagnostic) {
 	return annotation.PreserveNodeInto(p, key, node, reason, pointer, c.SrcIndex)
 }
 
-// preserveSchemaKeyword records the top-level keyword s writes under key. It is
-// preserveNode addressed by keyword rather than by node, which is how all but a
+// PreserveSchemaKeyword records the top-level keyword s writes under key. It is
+// PreserveNode addressed by keyword rather than by node, which is how all but a
 // handful of preservation sites reach their payload.
-func preserveSchemaKeyword(c lowering.Ctx, p *ir.Unmodeled, s *oas3.Schema, keyword string,
+func PreserveSchemaKeyword(c lowering.Ctx, p *ir.Unmodeled, s *oas3.Schema, keyword string,
 	reason ir.UnmodeledReason, pointer string,
 ) (bool, []ir.Diagnostic) {
-	return preserveNode(c, p, "openapi:"+keyword, annotation.RawPropertyNode(s, keyword), reason, pointer)
+	return PreserveNode(c, p, "openapi:"+keyword, annotation.RawPropertyNode(s, keyword), reason, pointer)
 }
 
 // preserveKeyword records a validation-only keyword's raw payload under key in
@@ -90,7 +90,7 @@ func preserveKeyword(c lowering.Ctx, p *ir.Unmodeled, key string, raw ir.RawValu
 
 // lowerArray hoists an array schema as a Tuple when prefixItems is present, else
 // a List over its item schema with its collection constraints.
-func lowerArray(c lowering.Ctx, ts *compile.Types, anchors *anchorIndex, depth int, s *oas3.Schema, pointer, hint string) (ir.TypeID, []ir.Diagnostic) {
+func lowerArray(c lowering.Ctx, ts *compile.Types, anchors *AnchorIndex, depth int, s *oas3.Schema, pointer, hint string) (ir.TypeID, []ir.Diagnostic) {
 	var diags []ir.Diagnostic
 	id := internNode(c, ts, pointer, hint, func(common ir.TypeCommon) ir.TypeDef {
 		if prefix := s.GetPrefixItems(); len(prefix) > 0 {
@@ -98,7 +98,7 @@ func lowerArray(c lowering.Ctx, ts *compile.Types, anchors *anchorIndex, depth i
 			diags = append(diags, tupleDiags...)
 			return t
 		}
-		elem, elemDiags := schemaRef(c, ts, anchors, depth, s.GetItems(), pointer+ids.Ptr("items"), hint+"_item")
+		elem, elemDiags := Ref(c, ts, anchors, depth, s.GetItems(), pointer+ids.Ptr("items"), hint+"_item")
 		diags = append(diags, elemDiags...)
 		return &ir.List{
 			TypeCommon:  common,
@@ -109,7 +109,7 @@ func lowerArray(c lowering.Ctx, ts *compile.Types, anchors *anchorIndex, depth i
 	return id, diags
 }
 
-// extensionsOf lowers ext's x-* extensions into namespaced Unmodeled, returning
+// ExtensionsOf lowers ext's x-* extensions into namespaced Unmodeled, returning
 // the entries and any serialization-failure diagnostics separately. It is named
 // for what it returns rather than for the construct, because this package also
 // imports the extensions library.
@@ -120,6 +120,6 @@ func lowerArray(c lowering.Ctx, ts *compile.Types, anchors *anchorIndex, depth i
 // object whose extensions all failed to serialize — exactly when the result is
 // empty. TestOperation_UnserializableExtensionStillWarns and its security-scheme
 // twin hold two of the callers to that.
-func extensionsOf(c lowering.Ctx, ext *extensions.Extensions, owner string) (ir.Unmodeled, []ir.Diagnostic) {
+func ExtensionsOf(c lowering.Ctx, ext *extensions.Extensions, owner string) (ir.Unmodeled, []ir.Diagnostic) {
 	return annotation.ExtensionsFrom(ext, c.SrcIndex, owner)
 }

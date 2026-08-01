@@ -12,6 +12,7 @@ import (
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/ids"
 	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
+	"github.com/dexpace/morphic/compilers/openapi/internal/schema"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -35,7 +36,7 @@ var httpMethods = []struct {
 // lowerService lowers one document into a single Service: its identity and docs,
 // the declared tag registry, and every path, webhook, and callback operation
 // placed into groups per the configured grouping strategy (ir-design §7.1).
-func lowerService(c lowering.Ctx, ts *compile.Types, anchors *anchorIndex, operationIDs map[string]string) (ir.Service, []ir.TagDef, []ir.Diagnostic) {
+func lowerService(c lowering.Ctx, ts *compile.Types, anchors *schema.AnchorIndex, operationIDs map[string]string) (ir.Service, []ir.TagDef, []ir.Diagnostic) {
 	svc := ir.Service{
 		ID:         ids.Service(c.SrcIndex),
 		Provenance: c.ProvenanceAt(""),
@@ -81,7 +82,7 @@ func tagDocsFrom(t *soa.Tag) ir.Docs {
 }
 
 // lowerPaths lowers every path operation in source order into groups.
-func lowerPaths(c lowering.Ctx, ts *compile.Types, anchors *anchorIndex, operationIDs map[string]string, groups *serviceGroups) []ir.Diagnostic {
+func lowerPaths(c lowering.Ctx, ts *compile.Types, anchors *schema.AnchorIndex, operationIDs map[string]string, groups *serviceGroups) []ir.Diagnostic {
 	paths := c.Doc.GetPaths()
 	if paths == nil {
 		return nil
@@ -103,7 +104,7 @@ func lowerPaths(c lowering.Ctx, ts *compile.Types, anchors *anchorIndex, operati
 // path item, or a referenced path item's component pointer (issue #107) —
 // shared parameters and bodies lower from there, while each operation keeps
 // its mount pointer (under path) as its identity.
-func lowerPathItem(c lowering.Ctx, ts *compile.Types, anchors *anchorIndex, operationIDs map[string]string, groups *serviceGroups, path string, pi *soa.PathItem, declPtr string) []ir.Diagnostic {
+func lowerPathItem(c lowering.Ctx, ts *compile.Types, anchors *schema.AnchorIndex, operationIDs map[string]string, groups *serviceGroups, path string, pi *soa.PathItem, declPtr string) []ir.Diagnostic {
 	var diags []ir.Diagnostic
 	pathPtr := ids.Ptr("paths", path)
 	for _, m := range httpMethods {
@@ -133,7 +134,7 @@ func lowerPathItem(c lowering.Ctx, ts *compile.Types, anchors *anchorIndex, oper
 
 // lowerWebhooks lowers webhook path items into the dedicated "webhooks" group;
 // each webhook operation carries IsWebhook on its HTTP binding.
-func lowerWebhooks(c lowering.Ctx, ts *compile.Types, anchors *anchorIndex, operationIDs map[string]string, groups *serviceGroups) []ir.Diagnostic {
+func lowerWebhooks(c lowering.Ctx, ts *compile.Types, anchors *schema.AnchorIndex, operationIDs map[string]string, groups *serviceGroups) []ir.Diagnostic {
 	hooks := c.Doc.GetWebhooks()
 	if hooks == nil || hooks.Len() == 0 {
 		return nil
@@ -231,7 +232,7 @@ type opContext struct {
 // lowerOperation lowers one source operation into the neutral core plus its HTTP
 // binding. It returns the operation and any callback operations that must be
 // registered alongside it in the same group (ir-design §7.2, §8.1).
-func lowerOperation(c lowering.Ctx, ts *compile.Types, anchors *anchorIndex, operationIDs map[string]string, src *soa.Operation, opCtx opContext) (ir.Operation, []ir.Operation, []ir.Diagnostic) {
+func lowerOperation(c lowering.Ctx, ts *compile.Types, anchors *schema.AnchorIndex, operationIDs map[string]string, src *soa.Operation, opCtx opContext) (ir.Operation, []ir.Operation, []ir.Diagnostic) {
 	mount, decl := opCtx.ptrs.mount, opCtx.ptrs.decl
 	// Built through the context so the source index is spelled in one place, then
 	// marked inferred — the one provenance in this compiler that is.
@@ -274,7 +275,7 @@ func lowerOperation(c lowering.Ctx, ts *compile.Types, anchors *anchorIndex, ope
 		diags = append(diags, cbDiags...)
 	}
 	op.Bindings = ir.OpBindings{HTTP: []ir.HTTPBinding{hb}}
-	ext, extDiags := extensionsOf(c, src.GetExtensions(), decl)
+	ext, extDiags := schema.ExtensionsOf(c, src.GetExtensions(), decl)
 	diags = append(diags, extDiags...)
 	if len(ext) > 0 {
 		op.Unmodeled = ext
@@ -335,7 +336,7 @@ func applyPathServers(c lowering.Ctx, op *ir.Operation, pi *soa.PathItem, declPt
 	if len(pi.GetServers()) == 0 {
 		return nil
 	}
-	kept, diags := preserveNode(c, &op.Unmodeled, "openapi:servers",
+	kept, diags := schema.PreserveNode(c, &op.Unmodeled, "openapi:servers",
 		annotation.RawChildNode(pi.GetRootNode(), "servers"), ir.ReasonNoIRHome, declPtr+ids.Ptr("servers"))
 	if !kept {
 		return diags
@@ -349,7 +350,7 @@ func applyPathServers(c lowering.Ctx, op *ir.Operation, pi *soa.PathItem, declPt
 // with the default last (ir-design §7.2). opDeclPtr is the operation's own
 // declaration pointer, so a $ref'd response interns its content once at its
 // component pointer rather than once per mount site (issue #107).
-func lowerResponses(c lowering.Ctx, ts *compile.Types, anchors *anchorIndex, src *soa.Operation, opDeclPtr string) ([]ir.Response, []ir.ErrorCase, []ir.Diagnostic) {
+func lowerResponses(c lowering.Ctx, ts *compile.Types, anchors *schema.AnchorIndex, src *soa.Operation, opDeclPtr string) ([]ir.Response, []ir.ErrorCase, []ir.Diagnostic) {
 	// GetResponses never returns nil (it addresses an always-present map), so the
 	// loop simply yields nothing when no responses are declared.
 	resps := src.GetResponses()
@@ -383,7 +384,7 @@ func lowerResponses(c lowering.Ctx, ts *compile.Types, anchors *anchorIndex, src
 
 // lowerResponse lowers one success response: its status condition, payload (all
 // media types), headers, docs, and any raw links preserved for later promotion.
-func lowerResponse(c lowering.Ctx, ts *compile.Types, anchors *anchorIndex, r *soa.Response, rng ir.StatusRange, rptr string) (ir.Response, []ir.Diagnostic) {
+func lowerResponse(c lowering.Ctx, ts *compile.Types, anchors *schema.AnchorIndex, r *soa.Response, rng ir.StatusRange, rptr string) (ir.Response, []ir.Diagnostic) {
 	headers, diags := lowerHeaders(c, ts, anchors, r.GetHeaders(), rptr)
 	payload, payloadDiags := lowerPayload(c, ts, anchors, r.GetContent(), rptr, "response")
 	diags = append(diags, payloadDiags...)
@@ -393,14 +394,14 @@ func lowerResponse(c lowering.Ctx, ts *compile.Types, anchors *anchorIndex, r *s
 		Headers:    headers,
 	}
 	resp.Docs.Description = r.GetDescription()
-	_, linkDiags := preserveNode(c, &resp.Unmodeled, "openapi:links",
+	_, linkDiags := schema.PreserveNode(c, &resp.Unmodeled, "openapi:links",
 		annotation.RawChildNode(r.GetRootNode(), "links"), ir.ReasonNoIRHome, rptr+ids.Ptr("links"))
 	return resp, append(diags, linkDiags...)
 }
 
 // lowerErrorCase lowers one error response into an ErrorCase, classifying its
 // fault from the status range and lowering its error-model content.
-func lowerErrorCase(c lowering.Ctx, ts *compile.Types, anchors *anchorIndex, r *soa.Response, rng ir.StatusRange, rptr string) (ir.ErrorCase, []ir.Diagnostic) {
+func lowerErrorCase(c lowering.Ctx, ts *compile.Types, anchors *schema.AnchorIndex, r *soa.Response, rng ir.StatusRange, rptr string) (ir.ErrorCase, []ir.Diagnostic) {
 	ec := ir.ErrorCase{
 		Conditions: ir.ResponseConditions{StatusCodes: []ir.StatusRange{rng}},
 		Fault:      faultFor(rng),
@@ -419,7 +420,7 @@ func preserveErrorHeaders(c lowering.Ctx, ec *ir.ErrorCase, r *soa.Response, rpt
 	if headers == nil || headers.Len() == 0 {
 		return nil
 	}
-	kept, diags := preserveNode(c, &ec.Unmodeled, "openapi:headers",
+	kept, diags := schema.PreserveNode(c, &ec.Unmodeled, "openapi:headers",
 		annotation.RawChildNode(r.GetRootNode(), "headers"), ir.ReasonNoIRHome, rptr+ids.Ptr("headers"))
 	if !kept {
 		return diags
@@ -433,7 +434,7 @@ func preserveErrorHeaders(c lowering.Ctx, ec *ir.ErrorCase, r *soa.Response, rpt
 // media type exists, the full content map is preserved raw with an info
 // diagnostic, since ErrorCase.Type holds a single model reference (ir-design
 // §7.2 clarification).
-func fillErrorType(c lowering.Ctx, ts *compile.Types, anchors *anchorIndex, ec *ir.ErrorCase, r *soa.Response, rptr string) []ir.Diagnostic {
+func fillErrorType(c lowering.Ctx, ts *compile.Types, anchors *schema.AnchorIndex, ec *ir.ErrorCase, r *soa.Response, rptr string) []ir.Diagnostic {
 	content := r.GetContent()
 	if content == nil || content.Len() == 0 {
 		return nil
@@ -441,7 +442,7 @@ func fillErrorType(c lowering.Ctx, ts *compile.Types, anchors *anchorIndex, ec *
 	var diags []ir.Diagnostic
 	first := true
 	for mt, media := range content.All() {
-		ref, refDiags := schemaRef(c, ts, anchors, topLevelDepth, media.GetSchema(), rptr+ids.Ptr("content", mt, "schema"), "error")
+		ref, refDiags := schema.Ref(c, ts, anchors, schema.TopLevelDepth, media.GetSchema(), rptr+ids.Ptr("content", mt, "schema"), "error")
 		diags = append(diags, refDiags...)
 		if first {
 			ec.Type = ref
@@ -449,7 +450,7 @@ func fillErrorType(c lowering.Ctx, ts *compile.Types, anchors *anchorIndex, ec *
 		}
 	}
 	if content.Len() > 1 {
-		kept, keptDiags := preserveNode(c, &ec.Unmodeled, "openapi:content",
+		kept, keptDiags := schema.PreserveNode(c, &ec.Unmodeled, "openapi:content",
 			annotation.RawChildNode(r.GetRootNode(), "content"), ir.ReasonNoIRHome, rptr+ids.Ptr("content"))
 		diags = append(diags, keptDiags...)
 		if kept {
@@ -466,7 +467,7 @@ func fillErrorType(c lowering.Ctx, ts *compile.Types, anchors *anchorIndex, ec *
 // parent.mount roots callback operation identity, so two parents sharing one
 // $ref'd callback keep distinct callback operations; parent.decl is the base a
 // $ref'd callback or path item resolves against (issue #107).
-func lowerCallbacks(c lowering.Ctx, ts *compile.Types, anchors *anchorIndex, operationIDs map[string]string, src *soa.Operation, parent opPointers, inferred string) ([]ir.Callback, []ir.Operation, []ir.Diagnostic) {
+func lowerCallbacks(c lowering.Ctx, ts *compile.Types, anchors *schema.AnchorIndex, operationIDs map[string]string, src *soa.Operation, parent opPointers, inferred string) ([]ir.Callback, []ir.Operation, []ir.Diagnostic) {
 	cbMap := src.GetCallbacks()
 	if cbMap == nil || cbMap.Len() == 0 {
 		return nil, nil, nil
@@ -501,7 +502,7 @@ func lowerCallbacks(c lowering.Ctx, ts *compile.Types, anchors *anchorIndex, ope
 // the expression's identity base (distinct per parent operation) with its
 // declaration base (shared when the callback or its path item is $ref'd;
 // issue #107).
-func lowerCallbackOps(c lowering.Ctx, ts *compile.Types, anchors *anchorIndex, operationIDs map[string]string, pi *soa.PathItem, cb opPointers, expr, inferred string) ([]ir.OpID, []ir.Operation, []ir.Diagnostic) {
+func lowerCallbackOps(c lowering.Ctx, ts *compile.Types, anchors *schema.AnchorIndex, operationIDs map[string]string, pi *soa.PathItem, cb opPointers, expr, inferred string) ([]ir.OpID, []ir.Operation, []ir.Diagnostic) {
 	var opIDs []ir.OpID
 	var ops []ir.Operation
 	var diags []ir.Diagnostic

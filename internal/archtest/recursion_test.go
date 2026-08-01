@@ -45,14 +45,17 @@ var loweringRecursions = [][]string{
 // schemaRecursion is the largest of them, named because the design refers to it
 // directly and because #176's package split is sized by it. Its members are free
 // functions now; the set did not change when they stopped being methods.
+// The two exported names are the walk's entry points, which is what the
+// operation lowering reaches it by; the rest of the set is unexported because
+// nothing outside the schema package has any business entering mid-walk.
 var schemaRecursion = []string{
-	"buildComposedVariant", "buildTuple", "carriedSchemaRef", "composedVariant",
-	"fillAdditional", "fillAllOf", "fillModelProperties", "hoistSubSchema",
-	"lower", "lowerAllOf", "lowerArray", "lowerBesideUnmodeledUnion",
-	"lowerCoDeclaredUnion", "lowerDistributedUnion", "lowerModel", "lowerOneOfAnyOf",
-	"lowerSchemaBody", "lowerTyped", "lowerUnion", "lowerUntyped", "patternProps",
-	"refSiteRef", "refTypeRef", "resolveSchemaRef", "schemaBody", "schemaRef",
-	"schemaRefHomed",
+	"CarriedRef", "Ref", "buildComposedVariant", "buildTuple",
+	"composedVariant", "fillAdditional", "fillAllOf", "fillModelProperties",
+	"hoistSubSchema", "lower", "lowerAllOf", "lowerArray",
+	"lowerBesideUnmodeledUnion", "lowerCoDeclaredUnion", "lowerDistributedUnion",
+	"lowerModel", "lowerOneOfAnyOf", "lowerSchemaBody", "lowerTyped", "lowerUnion",
+	"lowerUntyped", "patternProps", "refSiteRef", "refTypeRef", "resolveSchemaRef",
+	"schemaBody", "schemaRefHomed",
 }
 
 // TestLoweringRecursion_IsOnlyTheKnownCycles pins which lowerings are mutually
@@ -99,10 +102,28 @@ func TestLoweringRecursion_IsOnlyTheKnownCycles(t *testing.T) {
 // them across packages any more than it could before.
 //
 // A method value (Report: l.diag) is still not an edge here; #210 tracks that.
+//
+// The lowering spans packages now, and all of them are read into one namespace.
+// That is sound rather than convenient: a call from openapi into the schema
+// package is a selector this graph does not record, but no such edge can close a
+// cycle, because Go refuses the import that would let the schema package call
+// back. Every cycle there can be is inside one package, and every package
+// holding lowerings is listed here — a new one that is not is a directory this
+// pin stops seeing, which is why the list is spelled out rather than globbed
+// from the tree.
 func loweringCallGraph(t *testing.T) map[string]map[string]bool {
 	t.Helper()
-	files, err := filepath.Glob(filepath.Join("..", "..", "compilers", "openapi", "*.go"))
-	require.NoError(t, err)
+	loweringDirs := [][]string{
+		{"..", "..", "compilers", "openapi"},
+		{"..", "..", "compilers", "openapi", "internal", "schema"},
+	}
+	var files []string
+	for _, dir := range loweringDirs {
+		found, err := filepath.Glob(filepath.Join(append(dir, "*.go")...))
+		require.NoError(t, err)
+		require.NotEmpty(t, found, "no sources under %v; the lowering moved and this pin no longer reads it", dir)
+		files = append(files, found...)
+	}
 
 	type decl struct {
 		name string

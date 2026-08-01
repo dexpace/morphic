@@ -149,7 +149,7 @@ components:
     s: {type: apiKey, in: header, name: X-Key, x-bad: {1: intkey}}
 `
 	doc, _, diags := lowerServiceSpec(t, spec)
-	assert.True(t, hasDiagAt(diags, diag.DegradedConstruct, ir.SeverityWarning),
+	assert.True(t, countDiagsAt(diags, diag.DegradedConstruct, ir.SeverityWarning) > 0,
 		"an entirely unserializable extension still warns even though the scheme's own Unmodeled ends up empty")
 	scheme, ok := doc.Auth[ids.Auth("s")]
 	require.True(t, ok)
