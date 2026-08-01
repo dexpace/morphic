@@ -8,6 +8,7 @@ import (
 	"github.com/dexpace/morphic/compilers/openapi/internal/annotation"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/ids"
+	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
 	"github.com/dexpace/morphic/compilers/openapi/internal/resolve"
 	"github.com/dexpace/morphic/compilers/openapi/internal/value"
 	"github.com/dexpace/morphic/ir"
@@ -19,7 +20,7 @@ import (
 // input; the binding side carries the location, style, and explode facts.
 // Each parameter lowers at its declaration: the $ref target for a referenced
 // entry, else the list entry itself (issue #107).
-func lowerParameters(c lowerCtx, ts *compile.Types, anchors *anchorIndex, params []sourcedParam) ([]ir.Parameter, []ir.HTTPParamBinding, []ir.Diagnostic) {
+func lowerParameters(c lowering.Ctx, ts *compile.Types, anchors *anchorIndex, params []sourcedParam) ([]ir.Parameter, []ir.HTTPParamBinding, []ir.Diagnostic) {
 	if len(params) == 0 {
 		return nil, nil, nil
 	}
@@ -42,7 +43,7 @@ func lowerParameters(c lowerCtx, ts *compile.Types, anchors *anchorIndex, params
 // lowerParameter lowers one resolved parameter into its logical Parameter and
 // HTTP binding. Path parameters are always required regardless of the declared
 // flag (OpenAPI requires it).
-func lowerParameter(c lowerCtx, ts *compile.Types, anchors *anchorIndex, p *soa.Parameter, pptr string) (ir.Parameter, ir.HTTPParamBinding, []ir.Diagnostic) {
+func lowerParameter(c lowering.Ctx, ts *compile.Types, anchors *anchorIndex, p *soa.Parameter, pptr string) (ir.Parameter, ir.HTTPParamBinding, []ir.Diagnostic) {
 	name, in := p.GetName(), p.GetIn()
 	param := ir.Parameter{
 		Name:     compile.NamingFor(name),
@@ -65,7 +66,7 @@ func lowerParameter(c lowerCtx, ts *compile.Types, anchors *anchorIndex, p *soa.
 // content-style parameter, its single media-type entry (recording the media
 // type on the binding). Constraints come from that same schema position;
 // the default comes from it too, falling back to its $ref target (§14).
-func fillParamType(c lowerCtx, ts *compile.Types, anchors *anchorIndex, param *ir.Parameter, binding *ir.HTTPParamBinding, p *soa.Parameter, pptr, name string) []ir.Diagnostic {
+func fillParamType(c lowering.Ctx, ts *compile.Types, anchors *anchorIndex, param *ir.Parameter, binding *ir.HTTPParamBinding, p *soa.Parameter, pptr, name string) []ir.Diagnostic {
 	// A content parameter declares exactly one media type; singleContentEntry
 	// takes it and reports a document that declares more, rather than dropping the
 	// extras in the silence the header spelling was fixed out of (GitHub #139).
@@ -93,7 +94,7 @@ func fillParamType(c lowerCtx, ts *compile.Types, anchors *anchorIndex, param *i
 // inherit from it still reach the parameter (ir-design §14, GitHub #131).
 // Constraints stay use-site-only, exactly as fillPropertyConstraints keeps
 // them: a parameter must not inherit more from a referent than a property does.
-func fillParamSchema(c lowerCtx, ts *compile.Types, param *ir.Parameter, js *oas3.JSONSchema[oas3.Referenceable], pointer string) []ir.Diagnostic {
+func fillParamSchema(c lowering.Ctx, ts *compile.Types, param *ir.Parameter, js *oas3.JSONSchema[oas3.Referenceable], pointer string) []ir.Diagnostic {
 	if js == nil || !js.IsSchema() {
 		return nil
 	}
@@ -107,7 +108,7 @@ func fillParamSchema(c lowerCtx, ts *compile.Types, param *ir.Parameter, js *oas
 	tgt := resolve.TargetSchema(js, s)
 	diags := fillParamDefault(c, param, s, tgt, pointer)
 
-	cons, consDiags := annotation.Constraints(s, c.exclusiveBoundIsBoolean())
+	cons, consDiags := annotation.Constraints(s, c.ExclusiveBoundIsBoolean())
 	diags = append(diags, stampConstraintDiags(c, consDiags, pointer)...)
 	if cons != nil {
 		param.Constraints = cons
@@ -119,7 +120,7 @@ func fillParamSchema(c lowerCtx, ts *compile.Types, param *ir.Parameter, js *oas
 // over the $ref target's; an unconvertible node yields a diagnostic. It mirrors
 // fillPropertyDefault — the same keyword, read the same way, at the other
 // carrier.
-func fillParamDefault(c lowerCtx, param *ir.Parameter, s, tgt *oas3.Schema, pointer string) []ir.Diagnostic {
+func fillParamDefault(c lowering.Ctx, param *ir.Parameter, s, tgt *oas3.Schema, pointer string) []ir.Diagnostic {
 	node := s.GetDefault()
 	if node == nil && tgt != nil {
 		node = tgt.GetDefault()
@@ -129,7 +130,7 @@ func fillParamDefault(c lowerCtx, param *ir.Parameter, s, tgt *oas3.Schema, poin
 	}
 	v, err := value.FromNode(node)
 	if err != nil {
-		return []ir.Diagnostic{c.diagAt(ir.SeverityWarning, diag.DegradedConstruct, pointer, "default: %s", err.Error())}
+		return []ir.Diagnostic{c.DiagAt(ir.SeverityWarning, diag.DegradedConstruct, pointer, "default: %s", err.Error())}
 	}
 	param.Default = &v
 	return nil
@@ -146,7 +147,7 @@ func fillParamDefault(c lowerCtx, param *ir.Parameter, s, tgt *oas3.Schema, poin
 // docs and deprecation fall back to when the use-site is silent about them
 // (ir-design §14); examples, xml and the visibility keywords stay site-only,
 // since they describe the position rather than the type.
-func fillParamSchemaAnnotations(c lowerCtx, ts *compile.Types, param *ir.Parameter, s, tgt *oas3.Schema, pointer string) []ir.Diagnostic {
+func fillParamSchemaAnnotations(c lowering.Ctx, ts *compile.Types, param *ir.Parameter, s, tgt *oas3.Schema, pointer string) []ir.Diagnostic {
 	// Visibility is kept before the own-node guard, not after it. The guard exists
 	// so an annotation with a home on the node is not also copied to the carrier,
 	// but readOnly/writeOnly have no home on either: recordDeclarationResidue
@@ -181,11 +182,11 @@ func fillParamSchemaAnnotations(c lowerCtx, ts *compile.Types, param *ir.Paramet
 // application/xml, the media type OpenAPI §4.8.26 conditions xml on, and the
 // binding records that content type. ReasonNoIRHome, since the IR can close the
 // gap by adding the field (GitHub #124).
-func preserveParamXML(c lowerCtx, param *ir.Parameter, s *oas3.Schema, pointer string) []ir.Diagnostic {
+func preserveParamXML(c lowering.Ctx, param *ir.Parameter, s *oas3.Schema, pointer string) []ir.Diagnostic {
 	at := pointer + ids.Ptr("xml")
 	kept, diags := preserveSchemaKeyword(c, &param.Unmodeled, s, "xml", ir.ReasonNoIRHome, at)
 	if kept {
-		diags = append(diags, c.diagAt(ir.SeverityInfo, diag.DegradedConstruct, at,
+		diags = append(diags, c.DiagAt(ir.SeverityInfo, diag.DegradedConstruct, at,
 			"parameter schema xml hints have no ir.Parameter home; kept verbatim under Unmodeled"))
 	}
 	return diags
@@ -200,7 +201,7 @@ func preserveParamXML(c lowerCtx, param *ir.Parameter, s *oas3.Schema, pointer s
 //
 // The list is schema.go's residueKeywords rather than a copy, so a keyword added
 // there is preserved here too instead of being dropped at this one carrier.
-func preserveParamVisibility(c lowerCtx, param *ir.Parameter, s *oas3.Schema, pointer string) []ir.Diagnostic {
+func preserveParamVisibility(c lowering.Ctx, param *ir.Parameter, s *oas3.Schema, pointer string) []ir.Diagnostic {
 	var diags []ir.Diagnostic
 	for _, keyword := range residueKeywords {
 		if paramHoldsResidue(keyword) {
@@ -212,7 +213,7 @@ func preserveParamVisibility(c lowerCtx, param *ir.Parameter, s *oas3.Schema, po
 		if !kept {
 			continue
 		}
-		diags = append(diags, c.diagAt(ir.SeverityInfo, diag.DegradedConstruct, at,
+		diags = append(diags, c.DiagAt(ir.SeverityInfo, diag.DegradedConstruct, at,
 			"parameter schema %s has no ir.Parameter home; kept verbatim under Unmodeled", keyword))
 	}
 	return diags
@@ -230,7 +231,7 @@ func paramHoldsResidue(keyword string) bool {
 // field is written only when the parameter declares it, so it overlays the
 // schema-derived annotations fillParamSchema already recorded rather than
 // erasing them with an unset value.
-func fillParamDetail(c lowerCtx, param *ir.Parameter, p *soa.Parameter, pptr string) []ir.Diagnostic {
+func fillParamDetail(c lowering.Ctx, param *ir.Parameter, p *soa.Parameter, pptr string) []ir.Diagnostic {
 	if d := p.GetDescription(); d != "" {
 		param.Docs.Description = d
 	}

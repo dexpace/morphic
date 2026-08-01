@@ -15,6 +15,7 @@ import (
 	"github.com/dexpace/morphic/compilers/openapi/internal/annotation"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/ids"
+	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -1380,7 +1381,7 @@ func TestRefLastSegment(t *testing.T) {
 func TestMappingTargetID(t *testing.T) {
 	t.Parallel()
 	l := &lowerer{
-		ctx: lowerCtx{schemas: map[string]bool{"Cat": true, "Dog": true, "A/B": true}},
+		ctx: lowering.New(0, docDeclaring("Cat", "Dog", "A/B"), ir.SourceInfo{}, ""),
 		out: &ir.Document{Types: ir.TypeRegistry{}},
 	}
 	// A $ref to a declared component.
@@ -1404,9 +1405,11 @@ func TestMappingTargetID(t *testing.T) {
 	assert.False(t, ok, "external target dropped")
 	// A declared but empty-named component ("") is interned anonymously, so its
 	// bare mapping name must resolve to that anon ID, not an unbacked ids.NamedType
-	// (issue #14, f31).
-	l.ctx.schemas[""] = true
-	id, ok = mappingTargetID(l.ctx, l.types, "")
+	// (issue #14, f31). It gets a context of its own rather than being added to the
+	// one above: the declared set is derived from the document now, so saying "and
+	// also this one" means saying it to a document.
+	empty := lowering.New(0, docDeclaring(""), ir.SourceInfo{}, "")
+	id, ok = mappingTargetID(empty, l.types, "")
 	require.True(t, ok)
 	assert.Equal(t, ids.AnonType(ids.Ptr("components", "schemas", "")), id)
 	assert.NotEqual(t, ids.NamedType(ids.Ptr("components", "schemas", "")), id)
@@ -1414,8 +1417,7 @@ func TestMappingTargetID(t *testing.T) {
 
 func TestDiscriminatorDefault_ResolvesDeclaredComponent(t *testing.T) {
 	t.Parallel()
-	l := newRawLowerer(&soa.OpenAPI{})
-	l.ctx.schemas = map[string]bool{"Cat": true}
+	l := newRawLowerer(docDeclaring("Cat"))
 	d := &oas3.Discriminator{PropertyName: "kind", DefaultMapping: new("Cat")}
 
 	id, diags := discriminatorDefault(l.ctx, l.types, d, "/components/schemas/Pet")

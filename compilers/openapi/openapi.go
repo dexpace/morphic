@@ -9,8 +9,19 @@ import (
 	"github.com/dexpace/morphic/compilers/openapi/internal/annotation"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/load"
+	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
 	"github.com/dexpace/morphic/ir"
 )
+
+// rootSrcIndex is the index of the only source milestone 1 compiles.
+//
+// Three places stamp it and all three have to agree: the loader records it in
+// the SourceInfo, the type registry stamps the primitives it interns, and the
+// lowering stamps every Provenance it builds. Naming it says they must, where a
+// bare 0 written at each site only happens to.
+//
+// A varying index arrives with the link pass, from Compile's caller.
+const rootSrcIndex = 0
 
 // Compiler lowers OpenAPI 3.x documents into the IR.
 type Compiler struct{}
@@ -37,12 +48,12 @@ func (c *Compiler) Compile(ctx context.Context, sources []compilers.Source, opts
 	if err != nil {
 		return nil, nil, err
 	}
-	loadedDoc, diags, err := load.Load(ctx, 0, sources[0], loadOptions(formatOpts))
+	loadedDoc, diags, err := load.Load(ctx, rootSrcIndex, sources[0], loadOptions(formatOpts))
 	if err != nil || loadedDoc == nil {
 		return nil, diags, err
 	}
 	// components schemas → auth → service/operations → meta; assembles Document
-	out, lowerDiags := run(newLowerCtx(0, loadedDoc, formatOpts), compile.NewTypes(0))
+	out, lowerDiags := run(loweringCtx(loadedDoc, formatOpts), compile.NewTypes(rootSrcIndex))
 	//nolint:gocritic // deliberate concat: load diagnostics precede lowering diagnostics
 	out.Diagnostics = append(diags, lowerDiags...)
 	return out, out.Diagnostics, nil
@@ -53,7 +64,7 @@ func (c *Compiler) Compile(ctx context.Context, sources []compilers.Source, opts
 // find interned IDs; then security schemes, so requirements reference registered
 // IDs; then the service walk; then document metadata. It assembles and returns
 // the Document.
-func run(c lowerCtx, ts *compile.Types) (*ir.Document, []ir.Diagnostic) {
+func run(c lowering.Ctx, ts *compile.Types) (*ir.Document, []ir.Diagnostic) {
 	// out, the anchor memo and the claimed-operationId set are this function's,
 	// not a struct's: a document being built, a memo, and a loop-local set
 	// (micro-compiler-design §4.1). Nothing below allocates them.
@@ -73,7 +84,7 @@ func run(c lowerCtx, ts *compile.Types) (*ir.Document, []ir.Diagnostic) {
 	acc.AppendAll(authDiags)
 	// Only the service walk gets the auth-carrying context; run keeps the plain
 	// one, so no lowering above the schemes can read them as empty.
-	svcCtx := c.withAuth(auth)
+	svcCtx := c.WithAuth(auth)
 
 	svc, tagDefs, svcDiags := lowerService(svcCtx, ts, &anchors, operationIDs)
 	out.Services = []ir.Service{svc}
@@ -97,7 +108,7 @@ func run(c lowerCtx, ts *compile.Types) (*ir.Document, []ir.Diagnostic) {
 	// a refusal nothing reports hides the bug rather than the symptom: the node is
 	// simply absent and every reference to it dangles.
 	for _, v := range ts.Violations() {
-		acc.Append(c.diagAt(ir.SeverityError, diag.InternalInvariant, "", "internal: %s", v))
+		acc.Append(c.DiagAt(ir.SeverityError, diag.InternalInvariant, "", "internal: %s", v))
 	}
 	return out, acc.List()
 }
@@ -122,4 +133,12 @@ func optionsFrom(opts compilers.Options) (Options, error) {
 // which describes lowering the loader cannot see.
 func loadOptions(o Options) load.Options {
 	return load.Options{DisableExternalRefs: o.DisableExternalRefs}
+}
+
+// loweringCtx projects a loaded document and the caller's options onto the
+// lowering context, and is the loadOptions of the phase below: it is the one
+// place the loader's result type meets the lowering, so lowering.New can take
+// the two facts it needs rather than the loader's struct.
+func loweringCtx(doc *load.Document, o Options) lowering.Ctx {
+	return lowering.New(rootSrcIndex, doc.Doc, doc.Source, o.Grouping)
 }

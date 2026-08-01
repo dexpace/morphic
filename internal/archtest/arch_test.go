@@ -107,6 +107,16 @@ var rules = map[string][]string{
 	"compilers/openapi/internal/merge": {module + "/ir",
 		module + "/compilers/openapi/internal/annotation",
 		module + "/compilers/openapi/internal/diag"},
+	// What is being lowered: the parsed document, the identity of the source, and
+	// the indexes derived from them at entry. It is the substrate both walks share
+	// and so must reach neither, which is why it sits here rather than with either
+	// one. It reaches load for the version grammar alone — the dialect question is
+	// asked of the document, and the grammar that answers it is the loader's.
+	"compilers/openapi/internal/lowering": {module + "/ir",
+		module + "/compilers/openapi/internal/diag",
+		module + "/compilers/openapi/internal/load",
+		module + "/compilers/openapi/internal/resolve",
+		"github.com/speakeasy-api/openapi/openapi"},
 	"pass": {module + "/ir"},
 	"engine": {module + "/ir", module + "/compilers", module + "/compilers/openapi",
 		module + "/pass", "gopkg.in/yaml.v3"},

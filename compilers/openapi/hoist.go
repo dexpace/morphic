@@ -4,6 +4,7 @@ import (
 	"github.com/dexpace/morphic/compilers/compile"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/ids"
+	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -23,12 +24,12 @@ const topLevelDepth = 0
 // reached through its pointer map resolves; a miss is a compiler bug no source can provoke, and the
 // caller — which was about to attach docs, examples or preserved constructs to
 // that node — would otherwise discard them without a trace.
-func registeredNode(c lowerCtx, ts *compile.Types, id ir.TypeID, pointer string) (ir.TypeDef, bool, []ir.Diagnostic) {
+func registeredNode(c lowering.Ctx, ts *compile.Types, id ir.TypeID, pointer string) (ir.TypeDef, bool, []ir.Diagnostic) {
 	td, ok := ts.Node(id)
 	if ok {
 		return td, true, nil
 	}
-	return td, false, []ir.Diagnostic{c.diagAt(ir.SeverityError, diag.InternalInvariant, pointer,
+	return td, false, []ir.Diagnostic{c.DiagAt(ir.SeverityError, diag.InternalInvariant, pointer,
 		"internal: type %q is named at this pointer but absent from the registry; its source constructs are dropped", id)}
 }
 
@@ -37,7 +38,7 @@ func registeredNode(c lowerCtx, ts *compile.Types, id ir.TypeID, pointer string)
 // interns build's result under that ID. build receives the already-built
 // TypeCommon (its ID field is the same id), so it never needs pointer, hint,
 // or a bare id to re-derive it.
-func internNode(c lowerCtx, ts *compile.Types, pointer, hint string,
+func internNode(c lowering.Ctx, ts *compile.Types, pointer, hint string,
 	build func(common ir.TypeCommon) ir.TypeDef,
 ) ir.TypeID {
 	id := ids.ForPointer(pointer)
@@ -47,10 +48,10 @@ func internNode(c lowerCtx, ts *compile.Types, pointer, hint string,
 // commonFor builds the TypeCommon shared by every hoisted node at pointer. A
 // top-level component schema is named (source + canonical words); any deeper
 // inline position is anonymous and carries only the context-derived hint.
-func commonFor(c lowerCtx, id ir.TypeID, pointer, hint string) ir.TypeCommon {
+func commonFor(c lowering.Ctx, id ir.TypeID, pointer, hint string) ir.TypeCommon {
 	common := ir.TypeCommon{
 		ID:         id,
-		Provenance: c.provenanceAt(pointer),
+		Provenance: c.ProvenanceAt(pointer),
 	}
 	if name, ok := ids.ComponentSchemaName(pointer); ok {
 		common.Name = compile.NamingFor(name)

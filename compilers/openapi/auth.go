@@ -10,13 +10,14 @@ import (
 	"github.com/dexpace/morphic/compilers/openapi/internal/annotation"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/ids"
+	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
 	"github.com/dexpace/morphic/ir"
 )
 
 // lowerSecuritySchemes interns every declared security scheme into the auth
 // registry keyed by ids.Auth(name) (ir-design §9). Run before the service walk
 // so operation- and document-level requirements reference registered IDs.
-func lowerSecuritySchemes(c lowerCtx) (map[ir.AuthID]ir.AuthScheme, []ir.Diagnostic) {
+func lowerSecuritySchemes(c lowering.Ctx) (map[ir.AuthID]ir.AuthScheme, []ir.Diagnostic) {
 	comps := c.Doc.Components
 	if comps == nil {
 		return nil, nil
@@ -44,12 +45,12 @@ func lowerSecuritySchemes(c lowerCtx) (map[ir.AuthID]ir.AuthScheme, []ir.Diagnos
 
 // lowerSecurityScheme lowers one named security scheme into its AuthScheme,
 // dispatching the mechanism-specific fields by type.
-func lowerSecurityScheme(c lowerCtx, name string, ss *soa.SecurityScheme) (ir.AuthScheme, []ir.Diagnostic) {
+func lowerSecurityScheme(c lowering.Ctx, name string, ss *soa.SecurityScheme) (ir.AuthScheme, []ir.Diagnostic) {
 	scheme := ir.AuthScheme{
 		ID:         ids.Auth(name),
 		Name:       compile.NamingFor(name),
 		Docs:       ir.Docs{Description: ss.GetDescription()},
-		Provenance: c.provenanceAt(ids.Ptr("components", "securitySchemes", name)),
+		Provenance: c.ProvenanceAt(ids.Ptr("components", "securitySchemes", name)),
 	}
 	if ss.GetDeprecated() {
 		scheme.Deprecation = &ir.Deprecation{}
@@ -164,7 +165,7 @@ func scopeMap(f *soa.OAuthFlow) map[string]string {
 // nil list inherits the enclosing default; a non-nil list yields one
 // AuthRequirement per option in source order. An empty option object {} means
 // "no auth is one acceptable choice".
-func lowerSecurityRequirements(c lowerCtx, reqs []*soa.SecurityRequirement) ([]ir.AuthRequirement, []ir.Diagnostic) {
+func lowerSecurityRequirements(c lowering.Ctx, reqs []*soa.SecurityRequirement) ([]ir.AuthRequirement, []ir.Diagnostic) {
 	if reqs == nil {
 		return nil, nil
 	}
@@ -183,7 +184,7 @@ func lowerSecurityRequirements(c lowerCtx, reqs []*soa.SecurityRequirement) ([]i
 // naming a scheme that is not declared under components.securitySchemes (or one
 // that failed to resolve into the auth registry) is dropped with one error
 // diagnostic rather than writing a dangling AuthID (issue #14).
-func lowerSecurityRequirement(c lowerCtx, req *soa.SecurityRequirement,
+func lowerSecurityRequirement(c lowering.Ctx, req *soa.SecurityRequirement,
 ) (ir.AuthRequirement, []ir.Diagnostic) {
 	if req == nil {
 		return ir.AuthRequirement{}, nil
@@ -193,7 +194,7 @@ func lowerSecurityRequirement(c lowerCtx, req *soa.SecurityRequirement,
 	for name, scopes := range req.All() {
 		id := ids.Auth(name)
 		if !c.DeclaresAuth(id) {
-			diags = append(diags, c.diagAt(ir.SeverityError, diag.UnresolvedRef,
+			diags = append(diags, c.DiagAt(ir.SeverityError, diag.UnresolvedRef,
 				ids.Ptr("components", "securitySchemes", name),
 				"security requirement references undeclared scheme %q", name))
 			continue

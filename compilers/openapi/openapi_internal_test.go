@@ -12,6 +12,7 @@ import (
 	"github.com/dexpace/morphic/compilers/compile"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/load"
+	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
 )
 
 func TestParse_UnsupportedVersion(t *testing.T) {
@@ -70,7 +71,7 @@ func TestGhostRefs_AllResolversDegradeGracefully(t *testing.T) {
 	loadedDoc, diags, err := load.Load(t.Context(), 0, sourceOf(ghostRefsSpec), loadOptions(Options{}.withDefaults()))
 	require.NoError(t, err)
 	require.NotNil(t, loadedDoc)
-	out, lowerDiags := run(newLowerCtx(0, loadedDoc, Options{}.withDefaults()), compile.NewTypes(0))
+	out, lowerDiags := run(loweringCtx(loadedDoc, Options{}.withDefaults()), compile.NewTypes(0))
 	require.NotNil(t, out)
 	assert.True(t, hasDiag(append(diags, lowerDiags...), diag.UnresolvedRef), "unresolved refs reported")
 }
@@ -88,7 +89,7 @@ func TestRun_RegistryRefusalsAreSurfaced(t *testing.T) {
 	types.Register("", nil)
 	require.Len(t, types.Violations(), 1, "the refusal is recorded before run reports it")
 
-	_, diags := run(lowerCtx{Doc: &soa.OpenAPI{}}, types)
+	_, diags := run(lowering.Ctx{Doc: &soa.OpenAPI{}}, types)
 
 	assertHasErrorCode(t, diags, diag.InternalInvariant)
 }

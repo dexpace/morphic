@@ -13,6 +13,7 @@ import (
 	"github.com/dexpace/morphic/compilers/openapi/internal/annotation"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/ids"
+	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
 	"github.com/dexpace/morphic/compilers/openapi/internal/resolve"
 	"github.com/dexpace/morphic/ir"
 )
@@ -22,7 +23,7 @@ import (
 // content selection (ir-design §7.2). The pointer is the payload owner (the
 // response or requestBody); each Content's schema hoists under
 // <pointer>/content/<mt>/schema.
-func lowerPayload(c lowerCtx, ts *compile.Types, anchors *anchorIndex, content *sequencedmap.Map[string, *soa.MediaType], pointer, hint string) (*ir.Payload, []ir.Diagnostic) {
+func lowerPayload(c lowering.Ctx, ts *compile.Types, anchors *anchorIndex, content *sequencedmap.Map[string, *soa.MediaType], pointer, hint string) (*ir.Payload, []ir.Diagnostic) {
 	if content == nil || content.Len() == 0 {
 		return nil, nil
 	}
@@ -44,7 +45,7 @@ func lowerPayload(c lowerCtx, ts *compile.Types, anchors *anchorIndex, content *
 
 // lowerContent lowers one media-type view: its type graph, examples, binary/
 // form specialization, sequential-media shape, and extensions.
-func lowerContent(c lowerCtx, ts *compile.Types, anchors *anchorIndex, mt string, media *soa.MediaType, pointer, hint string) (ir.Content, []ir.Diagnostic) {
+func lowerContent(c lowering.Ctx, ts *compile.Types, anchors *anchorIndex, mt string, media *soa.MediaType, pointer, hint string) (ir.Content, []ir.Diagnostic) {
 	mediaPtr := pointer + ids.Ptr("content", mt)
 	mediaType, diags := schemaRef(c, ts, anchors, topLevelDepth, media.GetSchema(), mediaPtr+ids.Ptr("schema"), hint)
 	content := ir.Content{
@@ -84,7 +85,7 @@ func lowerContent(c lowerCtx, ts *compile.Types, anchors *anchorIndex, mt string
 // itemEncoding govern the items *after* them rather than every item, which a
 // single every-item encoding would misstate. Those documents take
 // positionalEncoding instead.
-func fillSequential(c lowerCtx, ts *compile.Types, anchors *anchorIndex, content *ir.Content, media *soa.MediaType, mediaPtr, hint string) []ir.Diagnostic {
+func fillSequential(c lowering.Ctx, ts *compile.Types, anchors *anchorIndex, content *ir.Content, media *soa.MediaType, mediaPtr, hint string) []ir.Diagnostic {
 	var diags []ir.Diagnostic
 	if item := media.GetItemSchema(); item != nil {
 		ref, itemDiags := schemaRef(c, ts, anchors, topLevelDepth, item, mediaPtr+ids.Ptr("itemSchema"), hint+"_item")
@@ -111,7 +112,7 @@ func fillSequential(c lowerCtx, ts *compile.Types, anchors *anchorIndex, content
 // would drop the prefixes and assert their encoding governs every item. The
 // ordinals a positional form needs are a gap the IR can close later, so the
 // entries carry ReasonNoIRHome rather than a degraded lowering.
-func positionalEncoding(c lowerCtx, content *ir.Content, media *soa.MediaType, mediaPtr string) []ir.Diagnostic {
+func positionalEncoding(c lowering.Ctx, content *ir.Content, media *soa.MediaType, mediaPtr string) []ir.Diagnostic {
 	root := media.GetRootNode()
 	// The announcement follows prefixEncoding, the construct that brought this
 	// lowering here: an itemEncoding beside it is optional, so its absence must not
@@ -127,11 +128,11 @@ func positionalEncoding(c lowerCtx, content *ir.Content, media *soa.MediaType, m
 		// this lowering runs — yet nothing of it was written. Unlike every other
 		// preservation site, an empty payload here cannot mean "there was no
 		// construct", so it is reported rather than passed over (GitHub #144).
-		return append(diags, c.diagAt(ir.SeverityError, diag.UnpreservableConstruct, at,
+		return append(diags, c.DiagAt(ir.SeverityError, diag.UnpreservableConstruct, at,
 			"prefixEncoding is declared but its source node could not be read; it is "+
 				"represented in the IR in no form at all"))
 	}
-	return append(diags, c.diagAt(ir.SeverityInfo, diag.DegradedConstruct, mediaPtr,
+	return append(diags, c.DiagAt(ir.SeverityInfo, diag.DegradedConstruct, mediaPtr,
 		"prefixEncoding is positional and has no per-item IR home; it and any itemEncoding are kept under Unmodeled"))
 }
 
@@ -139,7 +140,7 @@ func positionalEncoding(c lowerCtx, content *ir.Content, media *soa.MediaType, m
 // body-model property's PropID. A part is included when it carries an explicit
 // encoding entry or is itself a repeated (array) or file (binary) part. body is
 // the TypeID the content's own schema position lowered to.
-func partEncodings(c lowerCtx, ts *compile.Types, anchors *anchorIndex, media *soa.MediaType, mediaPtr string, body ir.TypeID) (map[ir.PropID]ir.PartEncoding, []ir.Diagnostic) {
+func partEncodings(c lowering.Ctx, ts *compile.Types, anchors *anchorIndex, media *soa.MediaType, mediaPtr string, body ir.TypeID) (map[ir.PropID]ir.PartEncoding, []ir.Diagnostic) {
 	parts := bodyParts(media.GetSchema(), 0)
 	if len(parts) == 0 {
 		return nil, nil
@@ -289,7 +290,7 @@ func propIDInComposition(ts *compile.Types, m *ir.Model, wire string, depth int)
 // buildPartEncoding assembles one part's PartEncoding: explicit encoding config
 // (content types, headers, style, explode) merged with the structural flags Multi
 // (array part) and Filename (binary/file part).
-func buildPartEncoding(c lowerCtx, ts *compile.Types, anchors *anchorIndex, name string, pjs *oas3.JSONSchema[oas3.Referenceable], encMap *sequencedmap.Map[string, *soa.Encoding], mediaPtr string) (ir.PartEncoding, []ir.Diagnostic) {
+func buildPartEncoding(c lowering.Ctx, ts *compile.Types, anchors *anchorIndex, name string, pjs *oas3.JSONSchema[oas3.Referenceable], encMap *sequencedmap.Map[string, *soa.Encoding], mediaPtr string) (ir.PartEncoding, []ir.Diagnostic) {
 	pe := ir.PartEncoding{}
 	var diags []ir.Diagnostic
 	if encMap != nil {
@@ -307,7 +308,7 @@ func buildPartEncoding(c lowerCtx, ts *compile.Types, anchors *anchorIndex, name
 // encodingConfig lowers one Encoding object's declared wire config: content
 // types, per-part headers, and form-style serialization. The structural flags
 // (Multi, Filename) come from the part's own schema, not from here.
-func encodingConfig(c lowerCtx, ts *compile.Types, anchors *anchorIndex, enc *soa.Encoding, encPtr string) (ir.PartEncoding, []ir.Diagnostic) {
+func encodingConfig(c lowering.Ctx, ts *compile.Types, anchors *anchorIndex, enc *soa.Encoding, encPtr string) (ir.PartEncoding, []ir.Diagnostic) {
 	pe := ir.PartEncoding{}
 	if enc == nil {
 		return pe, nil
@@ -326,7 +327,7 @@ func encodingConfig(c lowerCtx, ts *compile.Types, anchors *anchorIndex, enc *so
 // entry's own pointer stays its ID and Provenance (two keys $ref'ing the same
 // header must not collide), but its schema — and the name hint that schema is
 // hoisted under — follow the ref target's declaration instead (issue #107).
-func lowerHeaders(c lowerCtx, ts *compile.Types, anchors *anchorIndex, headers *sequencedmap.Map[string, *soa.ReferencedHeader], basePtr string) ([]ir.Property, []ir.Diagnostic) {
+func lowerHeaders(c lowering.Ctx, ts *compile.Types, anchors *anchorIndex, headers *sequencedmap.Map[string, *soa.ReferencedHeader], basePtr string) ([]ir.Property, []ir.Diagnostic) {
 	if headers == nil || headers.Len() == 0 {
 		return nil, nil
 	}
@@ -350,7 +351,7 @@ func lowerHeaders(c lowerCtx, ts *compile.Types, anchors *anchorIndex, headers *
 // constraints, xml, examples and validation-only keywords the same way, and
 // ir.Property has a field for each, so the header path had no reason to drop
 // them (GitHub #116).
-func lowerHeader(c lowerCtx, ts *compile.Types, anchors *anchorIndex, h *soa.Header, name, hptr, hdecl string) (ir.Property, []ir.Diagnostic) {
+func lowerHeader(c lowering.Ctx, ts *compile.Types, anchors *anchorIndex, h *soa.Header, name, hptr, hdecl string) (ir.Property, []ir.Diagnostic) {
 	js, schemaPtr, mediaType, diags := headerSchema(c, h, hdecl)
 	headerType, headerDiags := carriedSchemaRef(c, ts, anchors, topLevelDepth, js, schemaPtr, ids.DeclarationHint(hdecl, name))
 	diags = append(diags, headerDiags...)
@@ -360,7 +361,7 @@ func lowerHeader(c lowerCtx, ts *compile.Types, anchors *anchorIndex, h *soa.Hea
 		WireName:   name,
 		Type:       headerType,
 		Required:   h.GetRequired(),
-		Provenance: c.provenanceAt(hptr),
+		Provenance: c.ProvenanceAt(hptr),
 	}
 	if mediaType != "" {
 		// The media type a content-style header serializes its value in, which is
@@ -382,7 +383,7 @@ func lowerHeader(c lowerCtx, ts *compile.Types, anchors *anchorIndex, h *soa.Hea
 // type, its constraints and its xml hints together and without a diagnostic
 // (GitHub #139). The parameter path already read both (fillParamType), which is
 // why request headers never showed the defect.
-func headerSchema(c lowerCtx, h *soa.Header, hdecl string) (*oas3.JSONSchema[oas3.Referenceable], string, string, []ir.Diagnostic) {
+func headerSchema(c lowering.Ctx, h *soa.Header, hdecl string) (*oas3.JSONSchema[oas3.Referenceable], string, string, []ir.Diagnostic) {
 	if js := h.GetSchema(); js != nil {
 		return js, hdecl + ids.Ptr("schema"), "", nil
 	}
@@ -401,7 +402,7 @@ func headerSchema(c lowerCtx, h *soa.Header, hdecl string) (*oas3.JSONSchema[oas
 // silence dropped a declared schema without a word, which is the loss GitHub #139
 // fixed at this position in its other spelling; the extras are named instead so
 // the document's own error is visible rather than absorbed.
-func singleContentEntry(c lowerCtx, content *sequencedmap.Map[string, *soa.MediaType], at string) (string, *soa.MediaType, bool, []ir.Diagnostic) {
+func singleContentEntry(c lowering.Ctx, content *sequencedmap.Map[string, *soa.MediaType], at string) (string, *soa.MediaType, bool, []ir.Diagnostic) {
 	if content == nil || content.Len() == 0 {
 		return "", nil, false, nil
 	}
@@ -417,7 +418,7 @@ func singleContentEntry(c lowerCtx, content *sequencedmap.Map[string, *soa.Media
 	}
 	var diags []ir.Diagnostic
 	if len(ignored) > 0 {
-		diags = append(diags, c.diagAt(ir.SeverityWarning, diag.DegradedConstruct, at+ids.Ptr("content"),
+		diags = append(diags, c.DiagAt(ir.SeverityWarning, diag.DegradedConstruct, at+ids.Ptr("content"),
 			"a content-style header or parameter must declare exactly one media type; "+
 				"%q is lowered and %s ignored", first, strings.Join(ignored, ", ")))
 	}
@@ -428,7 +429,7 @@ func singleContentEntry(c lowerCtx, content *sequencedmap.Map[string, *soa.Media
 // itself onto p, after its schema's. A header carries both, and the header's
 // own are the more specific of the two — they describe this header rather than
 // the type it happens to be.
-func applyHeaderAnnotations(c lowerCtx, p *ir.Property, h *soa.Header, hdecl string) []ir.Diagnostic {
+func applyHeaderAnnotations(c lowering.Ctx, p *ir.Property, h *soa.Header, hdecl string) []ir.Diagnostic {
 	if d := h.GetDescription(); d != "" {
 		p.Docs.Description = d
 	}
@@ -449,7 +450,7 @@ func applyHeaderAnnotations(c lowerCtx, p *ir.Property, h *soa.Header, hdecl str
 // examples, in source order. An unconvertible node is skipped with a warning
 // diagnostic rather than silently. The singular `example` keyword is a bare
 // value with nowhere to hang a name or summary, so it lowers to a value alone.
-func exampleList(c lowerCtx, single *yaml.Node, plural *sequencedmap.Map[string, *soa.ReferencedExample], pointer string) ([]ir.Example, []ir.Diagnostic) {
+func exampleList(c lowering.Ctx, single *yaml.Node, plural *sequencedmap.Map[string, *soa.ReferencedExample], pointer string) ([]ir.Example, []ir.Diagnostic) {
 	var out []ir.Example
 	var diags []ir.Diagnostic
 	if single != nil {
@@ -476,7 +477,7 @@ func exampleList(c lowerCtx, single *yaml.Node, plural *sequencedmap.Map[string,
 // entry never had; an inline entry is stamped at its own `value`. Only this hop
 // is de-referenced: an enclosing $ref'd response or parameter is already
 // flattened into pointer.
-func appendPluralExample(c lowerCtx, out []ir.Example, re *soa.ReferencedExample, pointer, name string) ([]ir.Example, []ir.Diagnostic) {
+func appendPluralExample(c lowering.Ctx, out []ir.Example, re *soa.ReferencedExample, pointer, name string) ([]ir.Example, []ir.Diagnostic) {
 	ex := resolveRef[soa.Example](re)
 	if ex == nil {
 		return out, nil
@@ -502,9 +503,9 @@ func appendPluralExample(c lowerCtx, out []ir.Example, re *soa.ReferencedExample
 // its home, so it is kept whole. Any other value-less entry carries no example
 // at all — a 3.2 dataValue/serializedValue, or an empty stub — and is dropped
 // with a warning rather than in silence.
-func appendValuelessExample(c lowerCtx, out []ir.Example, proto ir.Example, pointer, name string) ([]ir.Example, []ir.Diagnostic) {
+func appendValuelessExample(c lowering.Ctx, out []ir.Example, proto ir.Example, pointer, name string) ([]ir.Example, []ir.Diagnostic) {
 	if proto.ExternalURL == "" {
-		return out, []ir.Diagnostic{c.diagAt(ir.SeverityWarning, diag.DegradedConstruct,
+		return out, []ir.Diagnostic{c.DiagAt(ir.SeverityWarning, diag.DegradedConstruct,
 			pointer+ids.Ptr("examples", name), "example declares neither value nor externalValue")}
 	}
 	return append(out, proto), nil
@@ -518,7 +519,7 @@ func appendValuelessExample(c lowerCtx, out []ir.Example, proto ir.Example, poin
 // content once at its component pointer rather than once per mount site
 // (issue #107) — and under the component's name, since the operationId hint
 // would otherwise name the shared node after one arbitrary referencing site.
-func lowerRequestBody(c lowerCtx, ts *compile.Types, anchors *anchorIndex, op *ir.Operation, hb *ir.HTTPBinding, src *soa.Operation, opDeclPtr string) []ir.Diagnostic {
+func lowerRequestBody(c lowering.Ctx, ts *compile.Types, anchors *anchorIndex, op *ir.Operation, hb *ir.HTTPBinding, src *soa.Operation, opDeclPtr string) []ir.Diagnostic {
 	rb, bodyPtr := resolveRefAt[soa.RequestBody](c, src.GetRequestBody(), opDeclPtr+ids.Ptr("requestBody"))
 	if rb == nil {
 		return nil
@@ -531,7 +532,7 @@ func lowerRequestBody(c lowerCtx, ts *compile.Types, anchors *anchorIndex, op *i
 		preserve(c, &payload.Unmodeled, "openapi:required", ir.RawValue("false"),
 			ir.ReasonNoIRHome, bodyPtr+ids.Ptr("required"))
 
-		diags = append(diags, c.diagAt(ir.SeverityInfo, diag.DegradedConstruct, bodyPtr,
+		diags = append(diags, c.DiagAt(ir.SeverityInfo, diag.DegradedConstruct, bodyPtr,
 			"request body is not required; optionality kept under Unmodeled"))
 	}
 	op.Request = payload
@@ -684,11 +685,11 @@ func bodyModelPointer(ts *compile.Types, body ir.TypeID) (string, bool) {
 // schema happened to share the path — a property of a different document
 // addressed as if it were ours. localPtr is the honest fallback there: it is
 // the position the reference itself occupies here.
-func bodySchemaPointer(c lowerCtx, js *oas3.JSONSchema[oas3.Referenceable], localPtr string) string {
+func bodySchemaPointer(c lowering.Ctx, js *oas3.JSONSchema[oas3.Referenceable], localPtr string) string {
 	if js == nil || !resolve.IsRefSite(js, js.GetSchema()) {
 		return localPtr
 	}
-	if pointer, ok := c.refScope().InternalPointer(js.GetRef().String()); ok {
+	if pointer, ok := c.RefScope().InternalPointer(js.GetRef().String()); ok {
 		return pointer
 	}
 	return localPtr

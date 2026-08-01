@@ -9,6 +9,7 @@ import (
 	"github.com/dexpace/morphic/compilers/openapi/internal/annotation"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/ids"
+	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
 	"github.com/dexpace/morphic/compilers/openapi/internal/value"
 	"github.com/dexpace/morphic/ir"
 )
@@ -33,12 +34,12 @@ import (
 // into a pointer only on the failure path, so an example that converts builds no
 // pointer string at all. Shared by every example site: schema (schemaExamples),
 // media type, header, and parameter (exampleList).
-func appendExample(c lowerCtx, out []ir.Example, proto ir.Example, node *yaml.Node,
+func appendExample(c lowering.Ctx, out []ir.Example, proto ir.Example, node *yaml.Node,
 	base string, seg ...string,
 ) ([]ir.Example, []ir.Diagnostic) {
 	v, err := value.FromNode(node)
 	if err != nil {
-		return out, []ir.Diagnostic{c.diagAt(ir.SeverityWarning, diag.DegradedConstruct,
+		return out, []ir.Diagnostic{c.DiagAt(ir.SeverityWarning, diag.DegradedConstruct,
 			base+ids.Ptr(seg...), "example: %s", err.Error())}
 	}
 	proto.Value = &v
@@ -48,7 +49,7 @@ func appendExample(c lowerCtx, out []ir.Example, proto ir.Example, node *yaml.No
 // preserve records raw under key in *p with why it was kept and where it was
 // written, allocating the map on first write. An absent or unconvertible
 // payload records nothing, so no caller needs a nil guard of its own.
-func preserve(c lowerCtx, p *ir.Unmodeled, key string, raw ir.RawValue,
+func preserve(c lowering.Ctx, p *ir.Unmodeled, key string, raw ir.RawValue,
 	reason ir.UnmodeledReason, pointer string,
 ) {
 	annotation.PreserveInto(p, key, raw, reason, pointer, c.SrcIndex)
@@ -57,7 +58,7 @@ func preserve(c lowerCtx, p *ir.Unmodeled, key string, raw ir.RawValue,
 // preserveNode records the construct written at node under key in *p, reporting
 // one that could not be converted at all. It returns whether an entry was
 // written, so a caller announces only what it actually kept (GitHub #144).
-func preserveNode(c lowerCtx, p *ir.Unmodeled, key string, node *yaml.Node,
+func preserveNode(c lowering.Ctx, p *ir.Unmodeled, key string, node *yaml.Node,
 	reason ir.UnmodeledReason, pointer string,
 ) (bool, []ir.Diagnostic) {
 	return annotation.PreserveNodeInto(p, key, node, reason, pointer, c.SrcIndex)
@@ -66,7 +67,7 @@ func preserveNode(c lowerCtx, p *ir.Unmodeled, key string, node *yaml.Node,
 // preserveSchemaKeyword records the top-level keyword s writes under key. It is
 // preserveNode addressed by keyword rather than by node, which is how all but a
 // handful of preservation sites reach their payload.
-func preserveSchemaKeyword(c lowerCtx, p *ir.Unmodeled, s *oas3.Schema, keyword string,
+func preserveSchemaKeyword(c lowering.Ctx, p *ir.Unmodeled, s *oas3.Schema, keyword string,
 	reason ir.UnmodeledReason, pointer string,
 ) (bool, []ir.Diagnostic) {
 	return preserveNode(c, p, "openapi:"+keyword, annotation.RawPropertyNode(s, keyword), reason, pointer)
@@ -81,7 +82,7 @@ func preserveSchemaKeyword(c lowerCtx, p *ir.Unmodeled, s *oas3.Schema, keyword 
 // against: the keyword's own node where the source writes the entry as one
 // keyword, and declPtr where a §4.7 entry combines several keywords into one
 // synthesized object that no single node addresses.
-func preserveKeyword(c lowerCtx, p *ir.Unmodeled, key string, raw ir.RawValue,
+func preserveKeyword(c lowering.Ctx, p *ir.Unmodeled, key string, raw ir.RawValue,
 	declPtr, entryPtr, label string,
 ) []ir.Diagnostic {
 	return annotation.PreserveKeywordInto(p, key, raw, declPtr, entryPtr, label, c.SrcIndex)
@@ -89,7 +90,7 @@ func preserveKeyword(c lowerCtx, p *ir.Unmodeled, key string, raw ir.RawValue,
 
 // lowerArray hoists an array schema as a Tuple when prefixItems is present, else
 // a List over its item schema with its collection constraints.
-func lowerArray(c lowerCtx, ts *compile.Types, anchors *anchorIndex, depth int, s *oas3.Schema, pointer, hint string) (ir.TypeID, []ir.Diagnostic) {
+func lowerArray(c lowering.Ctx, ts *compile.Types, anchors *anchorIndex, depth int, s *oas3.Schema, pointer, hint string) (ir.TypeID, []ir.Diagnostic) {
 	var diags []ir.Diagnostic
 	id := internNode(c, ts, pointer, hint, func(common ir.TypeCommon) ir.TypeDef {
 		if prefix := s.GetPrefixItems(); len(prefix) > 0 {
@@ -119,6 +120,6 @@ func lowerArray(c lowerCtx, ts *compile.Types, anchors *anchorIndex, depth int, 
 // object whose extensions all failed to serialize — exactly when the result is
 // empty. TestOperation_UnserializableExtensionStillWarns and its security-scheme
 // twin hold two of the callers to that.
-func extensionsOf(c lowerCtx, ext *extensions.Extensions, owner string) (ir.Unmodeled, []ir.Diagnostic) {
+func extensionsOf(c lowering.Ctx, ext *extensions.Extensions, owner string) (ir.Unmodeled, []ir.Diagnostic) {
 	return annotation.ExtensionsFrom(ext, c.SrcIndex, owner)
 }

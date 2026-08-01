@@ -17,6 +17,7 @@ import (
 	"github.com/dexpace/morphic/compilers/openapi/internal/annotation"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/ids"
+	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
 	"github.com/dexpace/morphic/ir"
 	"github.com/dexpace/morphic/pass"
 )
@@ -1780,7 +1781,7 @@ func TestAllOf_PropertyAlongsideAllOfConflictMessageIsAccurate(t *testing.T) {
 func TestPreserveKeyword_NilRaw(t *testing.T) {
 	t.Parallel()
 	var ext ir.Unmodeled
-	diags := preserveKeyword(lowerCtx{}, &ext, "openapi:not", nil, "/p", "/p/not", "not")
+	diags := preserveKeyword(lowering.Ctx{}, &ext, "openapi:not", nil, "/p", "/p/not", "not")
 	assert.Nil(t, ext, "nil raw is a no-op")
 	assert.Empty(t, diags)
 }
@@ -2742,7 +2743,7 @@ func TestPreserve_EmptyRawIsRejectedLikeNil(t *testing.T) {
 			assert.Nil(t, p, "a payload with no bytes preserves no construct")
 
 			var q ir.Unmodeled
-			kwDiags := preserveKeyword(lowerCtx{}, &q, "openapi:not", raw, "/p", "/p/not", "not")
+			kwDiags := preserveKeyword(lowering.Ctx{}, &q, "openapi:not", raw, "/p", "/p/not", "not")
 			assert.Nil(t, q, "and the validation-only wrapper screens the same states")
 			assert.Empty(t, kwDiags, "nothing was preserved, so nothing is announced")
 		})

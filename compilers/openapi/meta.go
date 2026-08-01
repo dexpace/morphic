@@ -5,6 +5,7 @@ import (
 
 	"github.com/dexpace/morphic/compilers/compile"
 	"github.com/dexpace/morphic/compilers/openapi/internal/annotation"
+	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -28,7 +29,7 @@ type docMeta struct {
 
 // lowerMeta lowers the document-level metadata that is not part of the type or
 // service graph: info, servers, and top-level extensions (ir-design §10, §12).
-func lowerMeta(c lowerCtx) (docMeta, []ir.Diagnostic) {
+func lowerMeta(c lowering.Ctx) (docMeta, []ir.Diagnostic) {
 	m := lowerInfo(c)
 	m.Servers = lowerServers(c)
 
@@ -40,7 +41,7 @@ func lowerMeta(c lowerCtx) (docMeta, []ir.Diagnostic) {
 // lowerInfo maps info onto the document identity, docs, contact, and license.
 // GetInfo always returns a non-nil Info (it addresses an embedded struct value),
 // so no nil guard is needed.
-func lowerInfo(c lowerCtx) docMeta {
+func lowerInfo(c lowering.Ctx) docMeta {
 	info := c.Doc.GetInfo()
 	m := docMeta{
 		Name:           info.GetTitle(),
@@ -59,7 +60,7 @@ func lowerInfo(c lowerCtx) docMeta {
 
 // infoDocs builds the document docs from info summary and description, folding
 // in the root externalDocs link when present.
-func infoDocs(c lowerCtx, info *soa.Info) ir.Docs {
+func infoDocs(c lowering.Ctx, info *soa.Info) ir.Docs {
 	d := ir.Docs{Summary: info.GetSummary(), Description: info.GetDescription()}
 	if ed := c.Doc.GetExternalDocs(); ed != nil {
 		d.ExternalDocs = append(d.ExternalDocs, ir.Link{URL: ed.GetURL(), Description: ed.GetDescription()})
@@ -71,7 +72,7 @@ func infoDocs(c lowerCtx, info *soa.Info) ir.Docs {
 // template, description, and templated variables (ir-design §10). It returns nil
 // rather than an empty slice when every entry was skipped, so a document
 // declaring no usable server leaves the field unset.
-func lowerServers(c lowerCtx) []ir.Server {
+func lowerServers(c lowering.Ctx) []ir.Server {
 	// GetServers never returns an empty slice — it injects a default "/" server
 	// when none are declared — so the loop always runs at least once.
 	servers := c.Doc.GetServers()
