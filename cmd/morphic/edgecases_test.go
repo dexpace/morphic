@@ -409,6 +409,88 @@ func TestWriteParsed_ReplacesAtomically(t *testing.T) {
 	assert.Len(t, entries, 1, "no temp file may survive a successful write")
 }
 
+// The three tests below pin the behaviours publishing by rename gives up, all
+// documented on replaceFile. None is a bug: each is a way to reach the
+// destination's bytes other than through its own name, and honouring any of them
+// means writing in place, which is the truncation replaceFile exists to remove.
+// They are pinned so that changing one is a change to a stated contract rather
+// than silent drift.
+
+// TestWriteParsed_ReadOnlyDirFails pins that writing needs permission on the
+// destination's directory, not merely on the destination. Truncating an existing
+// writable file in a read-only directory used to succeed.
+func TestWriteParsed_ReadOnlyDirFails(t *testing.T) {
+	t.Parallel()
+	if os.Geteuid() == 0 {
+		t.Skip("root bypasses directory permission checks, so the write would succeed")
+	}
+	dir := t.TempDir()
+	out := filepath.Join(dir, "ir.json")
+	require.NoError(t, os.WriteFile(out, []byte("PREVIOUS\n"), 0o644))
+	require.NoError(t, os.Chmod(dir, 0o555))
+	// Restore write permission so t.TempDir's own cleanup can remove the tree.
+	t.Cleanup(func() { _ = os.Chmod(dir, 0o755) })
+
+	err := writeCompiled(out, io.Discard, &ir.Document{Name: "Fresh"})
+
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "create output")
+	got, readErr := os.ReadFile(out)
+	require.NoError(t, readErr)
+	assert.Equal(t, "PREVIOUS\n", string(got),
+		"a destination that cannot be replaced must keep its previous content")
+}
+
+// TestWriteParsed_SymlinkIsReplaced pins that a symlink destination is replaced
+// by a regular file rather than followed and written through, so its target
+// keeps its old content.
+func TestWriteParsed_SymlinkIsReplaced(t *testing.T) {
+	t.Parallel()
+	dir := t.TempDir()
+	target := filepath.Join(dir, "target.json")
+	link := filepath.Join(dir, "link.json")
+	require.NoError(t, os.WriteFile(target, []byte("PREVIOUS\n"), 0o644))
+	require.NoError(t, os.Symlink(target, link))
+
+	require.NoError(t, writeCompiled(link, io.Discard, &ir.Document{Name: "Fresh"}))
+
+	info, err := os.Lstat(link)
+	require.NoError(t, err)
+	assert.Zero(t, info.Mode()&os.ModeSymlink, "the symlink must be replaced, not followed")
+
+	got, err := os.ReadFile(link)
+	require.NoError(t, err)
+	assert.Contains(t, string(got), `"Fresh"`)
+
+	behind, err := os.ReadFile(target)
+	require.NoError(t, err)
+	assert.Equal(t, "PREVIOUS\n", string(behind),
+		"the symlink's former target must be left untouched")
+}
+
+// TestWriteParsed_HardLinkIsBroken pins that other hard links to the destination
+// keep pointing at the old inode, and so keep the old content, instead of
+// observing the new bytes.
+func TestWriteParsed_HardLinkIsBroken(t *testing.T) {
+	t.Parallel()
+	dir := t.TempDir()
+	out := filepath.Join(dir, "a.json")
+	other := filepath.Join(dir, "b.json")
+	require.NoError(t, os.WriteFile(out, []byte("PREVIOUS\n"), 0o644))
+	require.NoError(t, os.Link(out, other))
+
+	require.NoError(t, writeCompiled(out, io.Discard, &ir.Document{Name: "Fresh"}))
+
+	got, err := os.ReadFile(out)
+	require.NoError(t, err)
+	assert.Contains(t, string(got), `"Fresh"`)
+
+	kept, err := os.ReadFile(other)
+	require.NoError(t, err)
+	assert.Equal(t, "PREVIOUS\n", string(kept),
+		"the other hard link must keep the old inode's content")
+}
+
 func TestWriteParsed_StatError(t *testing.T) {
 	t.Parallel()
 	// A regular file used as a parent directory makes Stat fail with ENOTDIR,
