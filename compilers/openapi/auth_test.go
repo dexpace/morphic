@@ -10,6 +10,7 @@ import (
 
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/ids"
+	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -219,7 +220,7 @@ func TestAuth_AllSchemeKinds(t *testing.T) {
 
 func TestLowerSecurityRequirement_Nil(t *testing.T) {
 	t.Parallel()
-	got, diags := lowerSecurityRequirement(lowerCtx{}, nil)
+	got, diags := lowerSecurityRequirement(lowering.Ctx{}, nil)
 
 	assert.Empty(t, got.Schemes)
 	assert.Empty(t, diags)
@@ -261,7 +262,7 @@ func TestLowerSecuritySchemes_NothingLoweredIsNilNotEmpty(t *testing.T) {
 			sequencedmap.NewElem("ghost", (*soa.ReferencedSecurityScheme)(nil))),
 	}}
 
-	got, diags := lowerSecuritySchemes(lowerCtx{Doc: doc})
+	got, diags := lowerSecuritySchemes(lowering.Ctx{Doc: doc})
 
 	assert.Nil(t, got, "an unresolvable entry leaves no map behind")
 	assert.Empty(t, diags)
@@ -271,11 +272,11 @@ func TestLowerSecuritySchemes_NothingLoweredIsNilNotEmpty(t *testing.T) {
 // document with no components, and one whose components declare no schemes.
 func TestLowerSecuritySchemes_NoComponentsAtAll(t *testing.T) {
 	t.Parallel()
-	got, diags := lowerSecuritySchemes(lowerCtx{Doc: &soa.OpenAPI{}})
+	got, diags := lowerSecuritySchemes(lowering.Ctx{Doc: &soa.OpenAPI{}})
 	assert.Nil(t, got)
 	assert.Empty(t, diags)
 
-	got, diags = lowerSecuritySchemes(lowerCtx{Doc: &soa.OpenAPI{Components: &soa.Components{}}})
+	got, diags = lowerSecuritySchemes(lowering.Ctx{Doc: &soa.OpenAPI{Components: &soa.Components{}}})
 	assert.Nil(t, got)
 	assert.Empty(t, diags)
 }

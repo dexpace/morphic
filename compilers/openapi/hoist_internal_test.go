@@ -9,6 +9,7 @@ import (
 	"github.com/dexpace/morphic/compilers/compile"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/ids"
+	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -19,7 +20,7 @@ import (
 // one it did declare.
 func TestCommonFor_NamesOnlyAComponent(t *testing.T) {
 	t.Parallel()
-	c := lowerCtx{SrcIndex: 2}
+	c := lowering.Ctx{SrcIndex: 2}
 
 	named := commonFor(c, "t/x", "/components/schemas/User", "ignored_hint")
 	assert.False(t, named.Anonymous, "a component schema is a declaration")
@@ -38,7 +39,7 @@ func TestCommonFor_NamesOnlyAComponent(t *testing.T) {
 // traces a type back through.
 func TestCommonFor_StampsTheDeclaringPointer(t *testing.T) {
 	t.Parallel()
-	got := commonFor(lowerCtx{SrcIndex: 5}, "t/x", "/components/schemas/User", "")
+	got := commonFor(lowering.Ctx{SrcIndex: 5}, "t/x", "/components/schemas/User", "")
 
 	assert.Equal(t, ir.TypeID("t/x"), got.ID)
 	assert.Equal(t, ir.Provenance{Source: 5, Pointer: "/components/schemas/User"}, got.Provenance)
@@ -50,7 +51,7 @@ func TestCommonFor_StampsTheDeclaringPointer(t *testing.T) {
 // schema would do forever.
 func TestInternNode_DerivesTheIDAndInternsOnce(t *testing.T) {
 	t.Parallel()
-	c := lowerCtx{SrcIndex: 0}
+	c := lowering.Ctx{SrcIndex: 0}
 	ts := compile.NewTypes(0)
 	const at = "/components/schemas/User"
 
@@ -78,7 +79,7 @@ func TestInternNode_DerivesTheIDAndInternsOnce(t *testing.T) {
 // or preserved constructs to that node, which would vanish without a word.
 func TestRegisteredNode_ReportsAMissRatherThanDroppingIt(t *testing.T) {
 	t.Parallel()
-	c := lowerCtx{SrcIndex: 4}
+	c := lowering.Ctx{SrcIndex: 4}
 	ts := compile.NewTypes(0)
 
 	_, ok, diags := registeredNode(c, ts, "t/absent", "/components/schemas/Ghost")

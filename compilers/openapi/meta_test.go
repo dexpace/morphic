@@ -9,6 +9,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
+	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -82,7 +83,7 @@ func TestMeta_NoInfoNoServers(t *testing.T) {
 func TestLowerServers_NilEntrySkipped(t *testing.T) {
 	t.Parallel()
 	doc := &soa.OpenAPI{Servers: []*soa.Server{nil, {URL: "https://x.example.com"}}}
-	got := lowerServers(lowerCtx{Doc: doc})
+	got := lowerServers(lowering.Ctx{Doc: doc})
 
 	require.Len(t, got, 1, "nil server entry skipped, valid one lowered")
 	assert.Equal(t, "https://x.example.com", got[0].URLTemplate)
@@ -106,5 +107,5 @@ func TestLowerServers_EveryEntrySkippedIsNil(t *testing.T) {
 	t.Parallel()
 	doc := &soa.OpenAPI{Servers: []*soa.Server{nil, nil}}
 
-	assert.Nil(t, lowerServers(lowerCtx{Doc: doc}))
+	assert.Nil(t, lowerServers(lowering.Ctx{Doc: doc}))
 }

@@ -18,6 +18,7 @@ import (
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/ids"
 	"github.com/dexpace/morphic/compilers/openapi/internal/load"
+	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -488,7 +489,7 @@ func TestGrouping_ByPathPrefixInferred(t *testing.T) {
 	require.NotNil(t, loadedDoc)
 	l := newLowerer(loadedDoc, opts)
 	l.diags.AppendAll(lowerComponentSchemas(l.ctx, l.types, &l.anchors))
-	svc, tagDefs, svcDiags := lowerService(l.ctx.withAuth(l.out.Auth), l.types, &l.anchors, l.operationIDs)
+	svc, tagDefs, svcDiags := lowerService(l.ctx.WithAuth(l.out.Auth), l.types, &l.anchors, l.operationIDs)
 	l.out.TagDefs = tagDefs
 	l.diags.AppendAll(svcDiags)
 	requireNoErrorDiags(t, append(loadDiags, l.diags.List()...))
@@ -647,7 +648,7 @@ func TestGrouping_PathPrefixRootPath(t *testing.T) {
 	require.NoError(t, err)
 	l := newLowerer(loadedDoc, opts)
 	l.diags.AppendAll(lowerComponentSchemas(l.ctx, l.types, &l.anchors))
-	svc, tagDefs, svcDiags := lowerService(l.ctx.withAuth(l.out.Auth), l.types, &l.anchors, l.operationIDs)
+	svc, tagDefs, svcDiags := lowerService(l.ctx.WithAuth(l.out.Auth), l.types, &l.anchors, l.operationIDs)
 	l.out.TagDefs = tagDefs
 	l.diags.AppendAll(svcDiags)
 	require.NotEmpty(t, svc.Groups)
@@ -1171,7 +1172,7 @@ func compileFixture(t *testing.T, path string) *ir.Document {
 	require.NoError(t, err)
 	require.NotNil(t, loadedDoc)
 
-	doc, lowerDiags := run(newLowerCtx(0, loadedDoc, opts), compile.NewTypes(0))
+	doc, lowerDiags := run(loweringCtx(loadedDoc, opts), compile.NewTypes(0))
 	requireNoErrorDiags(t, append(loadDiags, lowerDiags...))
 	return doc
 }
@@ -1543,11 +1544,11 @@ func TestDiag_SharedDeclarationReportsEachDefectOnce(t *testing.T) {
 // at one pointer are two findings, not one repeated.
 func TestDiag_DistinctDefectsAtOnePointerBothSurvive(t *testing.T) {
 	t.Parallel()
-	var c lowerCtx
+	var c lowering.Ctx
 	var acc compile.Diags
-	acc.Append(c.diagAt(ir.SeverityWarning, diag.DegradedConstruct, "/p", "first"))
-	acc.Append(c.diagAt(ir.SeverityWarning, diag.DegradedConstruct, "/p", "second"))
-	acc.Append(c.diagAt(ir.SeverityWarning, diag.DegradedConstruct, "/p", "first"))
+	acc.Append(c.DiagAt(ir.SeverityWarning, diag.DegradedConstruct, "/p", "first"))
+	acc.Append(c.DiagAt(ir.SeverityWarning, diag.DegradedConstruct, "/p", "second"))
+	acc.Append(c.DiagAt(ir.SeverityWarning, diag.DegradedConstruct, "/p", "first"))
 	require.Len(t, acc.List(), 2, "the repeat is dropped, the distinct message is not")
 	assert.Equal(t, "first", acc.List()[0].Message)
 	assert.Equal(t, "second", acc.List()[1].Message)

@@ -6,6 +6,7 @@ import (
 
 	oas3 "github.com/speakeasy-api/openapi/jsonschema/oas3"
 	soa "github.com/speakeasy-api/openapi/openapi"
+	"github.com/speakeasy-api/openapi/sequencedmap"
 	"github.com/stretchr/testify/require"
 	yaml "gopkg.in/yaml.v3"
 
@@ -13,6 +14,7 @@ import (
 	"github.com/dexpace/morphic/compilers/compile"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/load"
+	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -92,7 +94,7 @@ func lowerServiceSpec(t *testing.T, src string) (*ir.Document, ir.Service, []ir.
 		auth, authDiags := lowerSecuritySchemes(l.ctx)
 		l.out.Auth = auth
 		l.diags.AppendAll(authDiags)
-		svc, tagDefs, svcDiags := lowerService(l.ctx.withAuth(l.out.Auth), l.types, &l.anchors, l.operationIDs)
+		svc, tagDefs, svcDiags := lowerService(l.ctx.WithAuth(l.out.Auth), l.types, &l.anchors, l.operationIDs)
 		l.out.TagDefs = tagDefs
 		l.diags.AppendAll(svcDiags)
 		l.out.Services = []ir.Service{svc}
@@ -157,7 +159,7 @@ func conflictDiags(diags []ir.Diagnostic) []ir.Diagnostic {
 // lowering in isolation still want those five things in one place, and holding
 // them here keeps that convenience out of the production call graph.
 type lowerer struct {
-	ctx          lowerCtx
+	ctx          lowering.Ctx
 	out          *ir.Document
 	types        *compile.Types
 	diags        compile.Diags
@@ -171,7 +173,7 @@ type lowerer struct {
 func newLowerer(doc *load.Document, opts Options) *lowerer {
 	types := compile.NewTypes(0)
 	return &lowerer{
-		ctx:          newLowerCtx(0, doc, opts),
+		ctx:          loweringCtx(doc, opts),
 		out:          &ir.Document{Types: types.Registry()},
 		types:        types,
 		operationIDs: make(map[string]string),
@@ -183,12 +185,24 @@ func newLowerer(doc *load.Document, opts Options) *lowerer {
 func newRawLowerer(doc *soa.OpenAPI) *lowerer {
 	rawTypes := compile.NewTypes(0)
 	l := &lowerer{
-		ctx:          lowerCtx{Doc: doc, schemas: declaredSchemaNames(doc)},
+		ctx:          lowering.New(0, doc, ir.SourceInfo{}, ""),
 		out:          &ir.Document{Types: rawTypes.Registry()},
 		types:        rawTypes,
 		operationIDs: make(map[string]string),
 	}
 	return l
+}
+
+// docDeclaring builds a document declaring the named component schemas, with no
+// parser and no fixture — the shape a test wants when what it needs from the
+// document is only which components it declares.
+func docDeclaring(names ...string) *soa.OpenAPI {
+	elems := make([]*sequencedmap.Element[string, *oas3.JSONSchema[oas3.Referenceable]], 0, len(names))
+	for _, n := range names {
+		elems = append(elems, sequencedmap.NewElem(n,
+			oas3.NewJSONSchemaFromSchema[oas3.Referenceable](&oas3.Schema{})))
+	}
+	return &soa.OpenAPI{Components: &soa.Components{Schemas: sequencedmap.New(elems...)}}
 }
 
 // emptyEitherSchema is a JSONSchema whose either-value has neither a Left schema

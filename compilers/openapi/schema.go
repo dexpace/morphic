@@ -13,6 +13,7 @@ import (
 	"github.com/dexpace/morphic/compilers/openapi/internal/annotation"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/ids"
+	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
 	"github.com/dexpace/morphic/compilers/openapi/internal/merge"
 	"github.com/dexpace/morphic/compilers/openapi/internal/nodeview"
 	"github.com/dexpace/morphic/compilers/openapi/internal/resolve"
@@ -23,7 +24,7 @@ import (
 // lowerComponentSchemas interns every named component schema in source order.
 // It is the entry Compile's run() calls before any operation lowering so that
 // $refs resolve to already-registered IDs.
-func lowerComponentSchemas(c lowerCtx, ts *compile.Types, anchors *anchorIndex) []ir.Diagnostic {
+func lowerComponentSchemas(c lowering.Ctx, ts *compile.Types, anchors *anchorIndex) []ir.Diagnostic {
 	comps := c.Doc.Components
 	if comps == nil {
 		return nil
@@ -34,8 +35,8 @@ func lowerComponentSchemas(c lowerCtx, ts *compile.Types, anchors *anchorIndex) 
 	}
 	var diags []ir.Diagnostic
 	// The declared-name index the $ref and discriminator-mapping resolutions read
-	// is derived at entry (newLowerCtx), so a component declared later in the document
-	// is already a valid target here regardless of source order.
+	// is derived at entry (lowering.New), so a component declared later in the
+	// document is already a valid target here regardless of source order.
 	for name, js := range schemas.All() {
 		diags = append(diags, lowerComponentSchema(c, ts, anchors, js, ids.Ptr("components", "schemas", name), name)...)
 	}
@@ -47,7 +48,7 @@ func lowerComponentSchemas(c lowerCtx, ts *compile.Types, anchors *anchorIndex) 
 // shared primitive/any or aliases another type. Without this, a component like
 // `MyId: {type: string, format: uuid}` would leave nothing at its component
 // pointer and every $ref to it would dangle (invariants 1 and 2).
-func lowerComponentSchema(c lowerCtx, ts *compile.Types, anchors *anchorIndex, js *oas3.JSONSchema[oas3.Referenceable], pointer, name string) []ir.Diagnostic {
+func lowerComponentSchema(c lowering.Ctx, ts *compile.Types, anchors *anchorIndex, js *oas3.JSONSchema[oas3.Referenceable], pointer, name string) []ir.Diagnostic {
 	s := annotation.At(js)
 	ref, diags := schemaRef(c, ts, anchors, topLevelDepth, js, pointer, name)
 	// A body that interned the component's own node at its component ID needs no
@@ -88,7 +89,7 @@ func lowerComponentSchema(c lowerCtx, ts *compile.Types, anchors *anchorIndex, j
 // residueKeywords is what declaresPositionScoped gates hoisting on, so a
 // position that wrote one of them owns a node by the time this runs; a pointer
 // with none is a position whose declaration wrote nothing at all.
-func recordDeclarationResidue(c lowerCtx, ts *compile.Types, s *oas3.Schema, pointer string, home annotation.Home) []ir.Diagnostic {
+func recordDeclarationResidue(c lowering.Ctx, ts *compile.Types, s *oas3.Schema, pointer string, home annotation.Home) []ir.Diagnostic {
 	if home != annotation.HomeOwnNode || s == nil {
 		return nil
 	}
@@ -120,7 +121,7 @@ var residueKeywords = []string{"default", "readOnly", "writeOnly"}
 // declaration's readOnly is visible to a referencing parameter only here, on the
 // declaration's own node. An inline position that owns a node has no referencing
 // carrier at all, which is the case Unmodeled is rescuing.
-func recordResidue(c lowerCtx, common *ir.TypeCommon, s *oas3.Schema, pointer string) []ir.Diagnostic {
+func recordResidue(c lowering.Ctx, common *ir.TypeCommon, s *oas3.Schema, pointer string) []ir.Diagnostic {
 	var diags []ir.Diagnostic
 	for _, keyword := range residueKeywords {
 		kept, keptDiags := preserveSchemaKeyword(c, &common.Unmodeled, s, keyword, ir.ReasonNoIRHome, pointer+ids.Ptr(keyword))
@@ -128,7 +129,7 @@ func recordResidue(c lowerCtx, common *ir.TypeCommon, s *oas3.Schema, pointer st
 		if !kept {
 			continue
 		}
-		diags = append(diags, c.diagAt(ir.SeverityInfo, diag.DegradedConstruct, pointer+ids.Ptr(keyword),
+		diags = append(diags, c.DiagAt(ir.SeverityInfo, diag.DegradedConstruct, pointer+ids.Ptr(keyword),
 			"%s on a type declaration binds a use of the type, not the type; it is kept "+
 				"verbatim under Unmodeled and applied to a referencing property, header or "+
 				"parameter wherever that carrier has a field for it", keyword))
@@ -143,11 +144,11 @@ func recordResidue(c lowerCtx, common *ir.TypeCommon, s *oas3.Schema, pointer st
 // internal sub-schema (hoistSubSchema) — so a scalar that aliases a shared
 // primitive never drops the constraints it carried, including a bound written
 // beside a $ref, which constrains the position it is written at.
-func schemaConstraints(c lowerCtx, s *oas3.Schema, pointer string) (*ir.Constraints, []ir.Diagnostic) {
+func schemaConstraints(c lowering.Ctx, s *oas3.Schema, pointer string) (*ir.Constraints, []ir.Diagnostic) {
 	if s == nil {
 		return nil, nil
 	}
-	cons, diags := annotation.Constraints(s, c.exclusiveBoundIsBoolean())
+	cons, diags := annotation.Constraints(s, c.ExclusiveBoundIsBoolean())
 	return cons, stampConstraintDiags(c, diags, pointer)
 }
 
@@ -155,9 +156,9 @@ func schemaConstraints(c lowerCtx, s *oas3.Schema, pointer string) (*ir.Constrai
 // pointer that read the schema, which is what makes two reads of one sub-schema
 // — its owning property and a $ref that hoists it — identical and so deduped by
 // Diags.Append rather than reported twice.
-func stampConstraintDiags(c lowerCtx, diags []ir.Diagnostic, pointer string) []ir.Diagnostic {
+func stampConstraintDiags(c lowering.Ctx, diags []ir.Diagnostic, pointer string) []ir.Diagnostic {
 	for i := range diags {
-		diags[i].Provenance = c.provenanceAt(pointer)
+		diags[i].Provenance = c.ProvenanceAt(pointer)
 	}
 	return diags
 }
@@ -167,7 +168,7 @@ func stampConstraintDiags(c lowerCtx, diags []ir.Diagnostic, pointer string) []i
 // referenced target still owns a resolvable node at its own TypeID. Any value
 // constraints the schema carried are attached so a scalar component never drops
 // them.
-func internAlias(c lowerCtx, ts *compile.Types, pointer, hint string,
+func internAlias(c lowering.Ctx, ts *compile.Types, pointer, hint string,
 	target ir.TypeRef, constraints *ir.Constraints,
 ) ir.TypeID {
 	return internNode(c, ts, pointer, hint, func(common ir.TypeCommon) ir.TypeDef {
@@ -182,7 +183,7 @@ func internAlias(c lowerCtx, ts *compile.Types, pointer, hint string,
 // pointer. It is shared by schemaRef and by sub-schema hoisting
 // (resolveSchemaRef), which both reach a body only after peeling off any
 // leading $ref.
-func schemaBody(c lowerCtx, ts *compile.Types, anchors *anchorIndex, depth int, schema *oas3.Schema, pointer, hint string, home annotation.Home) (ir.TypeRef, []ir.Diagnostic) {
+func schemaBody(c lowering.Ctx, ts *compile.Types, anchors *anchorIndex, depth int, schema *oas3.Schema, pointer, hint string, home annotation.Home) (ir.TypeRef, []ir.Diagnostic) {
 	target, diags := lowerSchemaBody(c, ts, anchors, depth, schema, pointer, hint)
 	ref, homeDiags := homeDeclaration(c, ts, anchors, schema, target, pointer, hint, home)
 	return ref, append(diags, homeDiags...)
@@ -210,7 +211,7 @@ func schemaBody(c lowerCtx, ts *compile.Types, anchors *anchorIndex, depth int, 
 // declaration-order dependence ir-design §4.3 rules out. The lookup stays
 // behind the gate above so a position that declares nothing keeps resolving
 // straight to its target however many references hoisted an alias over it.
-func hoistDeclarationHome(c lowerCtx, ts *compile.Types, s *oas3.Schema, ref ir.TypeRef, pointer, hint string, home annotation.Home) (ir.TypeRef, []ir.Diagnostic) {
+func hoistDeclarationHome(c lowering.Ctx, ts *compile.Types, s *oas3.Schema, ref ir.TypeRef, pointer, hint string, home annotation.Home) (ir.TypeRef, []ir.Diagnostic) {
 	if home != annotation.HomeOwnNode || s == nil || !declaresPositionScoped(s) {
 		return ref, nil
 	}
@@ -299,10 +300,10 @@ func declaresValidationOnly(s *oas3.Schema) bool {
 
 // lowerSchemaBody lowers the body itself, handling the $dynamicRef expansion and
 // the oneOf/anyOf dispatch that precede structural lowering.
-func lowerSchemaBody(c lowerCtx, ts *compile.Types, anchors *anchorIndex, depth int, schema *oas3.Schema, pointer, hint string) (ir.TypeRef, []ir.Diagnostic) {
+func lowerSchemaBody(c lowering.Ctx, ts *compile.Types, anchors *anchorIndex, depth int, schema *oas3.Schema, pointer, hint string) (ir.TypeRef, []ir.Diagnostic) {
 	target, _, expanded, diags := dynamicExpansion(c, anchors, schema, pointer)
 	if expanded {
-		diags = append(diags, c.diagAt(ir.SeverityInfo, diag.DynamicRefExpanded, pointer+ids.Ptr("$dynamicRef"),
+		diags = append(diags, c.DiagAt(ir.SeverityInfo, diag.DynamicRefExpanded, pointer+ids.Ptr("$dynamicRef"),
 			"$dynamicRef expanded to %q, the one matching $dynamicAnchor in this document", target))
 		return ir.TypeRef{Target: target, Nullable: schemaAdmitsNull(schema)}, diags
 	}
@@ -364,7 +365,7 @@ func declaresShape(s *oas3.Schema) bool {
 // structural shape nor the union is dropped. reason says which kind of union it
 // is and why says what stopped a classified lowering; classifyUnionSiblings
 // picks both.
-func lowerBesideUnmodeledUnion(c lowerCtx, ts *compile.Types, anchors *anchorIndex, depth int, s *oas3.Schema, pointer, hint string, reason ir.UnmodeledReason, why string) (ir.TypeID, []ir.Diagnostic) {
+func lowerBesideUnmodeledUnion(c lowering.Ctx, ts *compile.Types, anchors *anchorIndex, depth int, s *oas3.Schema, pointer, hint string, reason ir.UnmodeledReason, why string) (ir.TypeID, []ir.Diagnostic) {
 	inner, diags := lower(c, ts, anchors, depth, s, pointer, hint)
 	owner := inner
 	if got, _ := ts.Lookup(pointer); got != inner {
@@ -379,7 +380,7 @@ func lowerBesideUnmodeledUnion(c lowerCtx, ts *compile.Types, anchors *anchorInd
 // preserveUnionSiblings stores the raw oneOf/anyOf of s under the owning node's
 // Unmodeled. A validation-only union joins §4.7's keyword family and is reported
 // with it; anything else is a §4.8 degradation and says so.
-func preserveUnionSiblings(c lowerCtx, ts *compile.Types, id ir.TypeID, s *oas3.Schema, pointer string, reason ir.UnmodeledReason, why string) []ir.Diagnostic {
+func preserveUnionSiblings(c lowering.Ctx, ts *compile.Types, id ir.TypeID, s *oas3.Schema, pointer string, reason ir.UnmodeledReason, why string) []ir.Diagnostic {
 	td, ok, diags := registeredNode(c, ts, id, pointer)
 	if !ok {
 		return diags
@@ -403,14 +404,14 @@ func preserveUnionSiblings(c lowerCtx, ts *compile.Types, id ir.TypeID, s *oas3.
 	if reason == ir.ReasonValidationOnly || !kept {
 		return diags
 	}
-	return append(diags, c.diagAt(ir.SeverityInfo, diag.DegradedConstruct, pointer,
+	return append(diags, c.DiagAt(ir.SeverityInfo, diag.DegradedConstruct, pointer,
 		"oneOf/anyOf co-declared with structural keywords intersects with them, and %s; union branches kept verbatim under Unmodeled", why))
 }
 
 // falseSchema hoists a boolean `false` schema as a closed empty model (it
 // matches nothing), returning the interned ID and the one info diagnostic that
 // announces it.
-func falseSchema(c lowerCtx, ts *compile.Types, pointer, hint string) (ir.TypeID, []ir.Diagnostic) {
+func falseSchema(c lowering.Ctx, ts *compile.Types, pointer, hint string) (ir.TypeID, []ir.Diagnostic) {
 	// Captured from inside the build rather than reported around it, which keeps
 	// the report tied to the node actually being constructed. Reporting eagerly
 	// would be indistinguishable today — a second visit produces the identical
@@ -418,7 +419,7 @@ func falseSchema(c lowerCtx, ts *compile.Types, pointer, hint string) (ir.TypeID
 	// it is the honest place for it, not a load-bearing one.
 	var diags []ir.Diagnostic
 	id := internNode(c, ts, pointer, hint, func(common ir.TypeCommon) ir.TypeDef {
-		diags = append(diags, c.diagAt(ir.SeverityInfo, diag.FalseSchema, pointer,
+		diags = append(diags, c.DiagAt(ir.SeverityInfo, diag.FalseSchema, pointer,
 			"boolean false schema matches nothing; lowered as a closed empty model"))
 		return &ir.Model{TypeCommon: common, Additional: ir.AdditionalClosed}
 	})
@@ -431,7 +432,7 @@ func falseSchema(c lowerCtx, ts *compile.Types, pointer, hint string) (ir.TypeID
 // type set. const hoists through hoistLiteral — the same primitive that
 // hoists each individual member of a heterogeneous enum (enumAsUnion) — since
 // a bare `const` schema is exactly a Literal at its own pointer.
-func lower(c lowerCtx, ts *compile.Types, anchors *anchorIndex, depth int, s *oas3.Schema, pointer, hint string) (ir.TypeID, []ir.Diagnostic) {
+func lower(c lowering.Ctx, ts *compile.Types, anchors *anchorIndex, depth int, s *oas3.Schema, pointer, hint string) (ir.TypeID, []ir.Diagnostic) {
 	unhomed := func(id ir.TypeID, diags []ir.Diagnostic) (ir.TypeID, []ir.Diagnostic) {
 		owner, ownDiags := preserveUnhomedKeywords(c, ts, s, pointer, hint, id)
 		return owner, append(diags, ownDiags...)
@@ -549,7 +550,7 @@ func unhomedKeywords(s *oas3.Schema, td ir.TypeDef) []string {
 // shared primitive must never carry one declaration's keywords. The alias takes
 // the position's constraints too, because owning the pointer is what stops
 // hoistDeclarationHome attaching them afterwards.
-func preserveUnhomedKeywords(c lowerCtx, ts *compile.Types, s *oas3.Schema, pointer, hint string, id ir.TypeID) (ir.TypeID, []ir.Diagnostic) {
+func preserveUnhomedKeywords(c lowering.Ctx, ts *compile.Types, s *oas3.Schema, pointer, hint string, id ir.TypeID) (ir.TypeID, []ir.Diagnostic) {
 	td, ok, diags := registeredNode(c, ts, id, pointer)
 	if !ok {
 		return id, diags
@@ -570,7 +571,7 @@ func preserveUnhomedKeywords(c lowerCtx, ts *compile.Types, s *oas3.Schema, poin
 // recordUnhomedKeywords stores each unhomed applicator on the owning node and
 // reports them once, naming the form the lowering took so a reader is told which
 // half of a contradictory schema the IR describes.
-func recordUnhomedKeywords(c lowerCtx, ts *compile.Types, owner ir.TypeID, s *oas3.Schema, unhomed []string, kind ir.TypeKind, pointer string) []ir.Diagnostic {
+func recordUnhomedKeywords(c lowering.Ctx, ts *compile.Types, owner ir.TypeID, s *oas3.Schema, unhomed []string, kind ir.TypeKind, pointer string) []ir.Diagnostic {
 	td, ok, diags := registeredNode(c, ts, owner, pointer)
 	if !ok {
 		return diags
@@ -590,13 +591,13 @@ func recordUnhomedKeywords(c lowerCtx, ts *compile.Types, owner ir.TypeID, s *oa
 	if len(kept) == 0 {
 		return diags
 	}
-	return append(diags, c.diagAt(ir.SeverityInfo, diag.DegradedConstruct, pointer,
+	return append(diags, c.DiagAt(ir.SeverityInfo, diag.DegradedConstruct, pointer,
 		"this position lowered to a node of kind %q, which has no home for %s declared beside it; kept verbatim under Unmodeled",
 		kind, strings.Join(kept, ", ")))
 }
 
 // lowerTyped dispatches a single-typed schema to its structural or scalar form.
-func lowerTyped(c lowerCtx, ts *compile.Types, anchors *anchorIndex, depth int, s *oas3.Schema, pointer, hint string, st oas3.SchemaType) (ir.TypeID, []ir.Diagnostic) {
+func lowerTyped(c lowering.Ctx, ts *compile.Types, anchors *anchorIndex, depth int, s *oas3.Schema, pointer, hint string, st oas3.SchemaType) (ir.TypeID, []ir.Diagnostic) {
 	switch st {
 	case oas3.SchemaTypeObject:
 		return lowerModel(c, ts, anchors, depth, s, pointer, hint)
@@ -610,7 +611,7 @@ func lowerTyped(c lowerCtx, ts *compile.Types, anchors *anchorIndex, depth int, 
 // lowerUntyped handles a schema with no declared type: a property set makes it a
 // model; enum/const and composition are lowered by later passes; anything else
 // is schemaless.
-func lowerUntyped(c lowerCtx, ts *compile.Types, anchors *anchorIndex, depth int, s *oas3.Schema, pointer, hint string) (ir.TypeID, []ir.Diagnostic) {
+func lowerUntyped(c lowering.Ctx, ts *compile.Types, anchors *anchorIndex, depth int, s *oas3.Schema, pointer, hint string) (ir.TypeID, []ir.Diagnostic) {
 	if props := s.GetProperties(); props != nil && props.Len() > 0 {
 		return lowerModel(c, ts, anchors, depth, s, pointer, hint)
 	}
@@ -619,7 +620,7 @@ func lowerUntyped(c lowerCtx, ts *compile.Types, anchors *anchorIndex, depth int
 
 // lowerUnion hoists a multi-typed schema (e.g. type: [string, integer]) as an
 // exclusive, untagged union with one variant per declared type.
-func lowerUnion(c lowerCtx, ts *compile.Types, anchors *anchorIndex, depth int, s *oas3.Schema, pointer, hint string, types []oas3.SchemaType) (ir.TypeID, []ir.Diagnostic) {
+func lowerUnion(c lowering.Ctx, ts *compile.Types, anchors *anchorIndex, depth int, s *oas3.Schema, pointer, hint string, types []oas3.SchemaType) (ir.TypeID, []ir.Diagnostic) {
 	var diags []ir.Diagnostic
 	id := internNode(c, ts, pointer, hint, func(common ir.TypeCommon) ir.TypeDef {
 		variants := make([]ir.Variant, 0, len(types))
@@ -649,7 +650,7 @@ func lowerUnion(c lowerCtx, ts *compile.Types, anchors *anchorIndex, depth int, 
 // Cardinality is read here rather than on lowerComponentSchema's internAlias
 // fallback because an object-shaped schema owns its node before that fallback
 // would run, so the fallback never fires for one (GitHub #129).
-func lowerModel(c lowerCtx, ts *compile.Types, anchors *anchorIndex, depth int, s *oas3.Schema, pointer, hint string) (ir.TypeID, []ir.Diagnostic) {
+func lowerModel(c lowering.Ctx, ts *compile.Types, anchors *anchorIndex, depth int, s *oas3.Schema, pointer, hint string) (ir.TypeID, []ir.Diagnostic) {
 	var diags []ir.Diagnostic
 	id := internNode(c, ts, pointer, hint, func(common ir.TypeCommon) ir.TypeDef {
 		cons, consDiags := schemaConstraints(c, s, pointer)
@@ -669,7 +670,7 @@ func lowerModel(c lowerCtx, ts *compile.Types, anchors *anchorIndex, depth int, 
 
 // fillModelProperties lowers a model's own properties in source order, each with
 // its full property-level detail (constraints, visibility, defaults, docs, ...).
-func fillModelProperties(c lowerCtx, ts *compile.Types, anchors *anchorIndex, depth int, m *ir.Model, s *oas3.Schema, pointer string) []ir.Diagnostic {
+func fillModelProperties(c lowering.Ctx, ts *compile.Types, anchors *anchorIndex, depth int, m *ir.Model, s *oas3.Schema, pointer string) []ir.Diagnostic {
 	props := s.GetProperties()
 	if props == nil {
 		return nil
@@ -687,7 +688,7 @@ func fillModelProperties(c lowerCtx, ts *compile.Types, anchors *anchorIndex, de
 			WireName:   name,
 			Type:       ref,
 			Required:   required[name],
-			Provenance: c.provenanceAt(ppointer),
+			Provenance: c.ProvenanceAt(ppointer),
 		}
 		diags = append(diags, fillPropertyDetail(c, ts, anchors, &p, js, ppointer)...)
 		var mergeDiags []ir.Diagnostic
@@ -709,7 +710,7 @@ func fillModelProperties(c lowerCtx, ts *compile.Types, anchors *anchorIndex, de
 // a byte or unknown format hoists, or no node at all), so reading the node
 // instead would drop them wherever it carries none. Restating them is the safe
 // half of that trade.
-func fillPropertyDetail(c lowerCtx, ts *compile.Types, anchors *anchorIndex, p *ir.Property, js *oas3.JSONSchema[oas3.Referenceable], pointer string) []ir.Diagnostic {
+func fillPropertyDetail(c lowering.Ctx, ts *compile.Types, anchors *anchorIndex, p *ir.Property, js *oas3.JSONSchema[oas3.Referenceable], pointer string) []ir.Diagnostic {
 	ref := js.GetSchema()
 	if ref == nil {
 		return nil
@@ -742,7 +743,7 @@ func fillPropertyDetail(c lowerCtx, ts *compile.Types, anchors *anchorIndex, p *
 // A $ref position never hoists a node, which is what gives an if/then/else, a
 // bound or a description written beside a *property's* $ref somewhere to land
 // (GitHub #114).
-func fillPropertyAnnotations(c lowerCtx, ts *compile.Types, anchors *anchorIndex, p *ir.Property, ref, tgt *oas3.Schema, pointer string) []ir.Diagnostic {
+func fillPropertyAnnotations(c lowering.Ctx, ts *compile.Types, anchors *anchorIndex, p *ir.Property, ref, tgt *oas3.Schema, pointer string) []ir.Diagnostic {
 	if loweredToOwnNode(ts, pointer, p.Type) {
 		return nil
 	}
@@ -781,7 +782,7 @@ func loweredToOwnNode(ts *compile.Types, pointer string, t ir.TypeRef) bool {
 
 // fillPropertyDefault sets the property default, preferring the use-site node
 // over the $ref target's; an unconvertible node yields a diagnostic.
-func fillPropertyDefault(c lowerCtx, p *ir.Property, ref, tgt *oas3.Schema, pointer string) []ir.Diagnostic {
+func fillPropertyDefault(c lowering.Ctx, p *ir.Property, ref, tgt *oas3.Schema, pointer string) []ir.Diagnostic {
 	node := ref.GetDefault()
 	if node == nil && tgt != nil {
 		node = tgt.GetDefault()
@@ -791,7 +792,7 @@ func fillPropertyDefault(c lowerCtx, p *ir.Property, ref, tgt *oas3.Schema, poin
 	}
 	v, err := value.FromNode(node)
 	if err != nil {
-		return []ir.Diagnostic{c.diagAt(ir.SeverityWarning, diag.DegradedConstruct, pointer,
+		return []ir.Diagnostic{c.DiagAt(ir.SeverityWarning, diag.DegradedConstruct, pointer,
 			"default: %s", err.Error())}
 	}
 	p.Default = &v
@@ -800,8 +801,8 @@ func fillPropertyDefault(c lowerCtx, p *ir.Property, ref, tgt *oas3.Schema, poin
 
 // fillPropertyConstraints attaches the property's scalar constraints and stamps
 // each constraint diagnostic with the property's provenance.
-func fillPropertyConstraints(c lowerCtx, p *ir.Property, ref *oas3.Schema, pointer string) []ir.Diagnostic {
-	cons, diags := annotation.Constraints(ref, c.exclusiveBoundIsBoolean())
+func fillPropertyConstraints(c lowering.Ctx, p *ir.Property, ref *oas3.Schema, pointer string) []ir.Diagnostic {
+	cons, diags := annotation.Constraints(ref, c.ExclusiveBoundIsBoolean())
 	if cons != nil {
 		p.Constraints = cons
 	}
@@ -823,7 +824,7 @@ func fillPropertyConstraints(c lowerCtx, p *ir.Property, ref *oas3.Schema, point
 // shared primitive must never carry a per-declaration annotation. Ownership is
 // checked before conversion because the callers cover a pointer in either
 // order, and only the one that finds a node may emit conversion diagnostics.
-func attachDeclaredAnnotations(c lowerCtx, ts *compile.Types, anchors *anchorIndex, s *oas3.Schema, pointer string) []ir.Diagnostic {
+func attachDeclaredAnnotations(c lowering.Ctx, ts *compile.Types, anchors *anchorIndex, s *oas3.Schema, pointer string) []ir.Diagnostic {
 	// NodeAt rather than Lookup-then-registeredNode: the coordinate and its node
 	// are recorded together, so there is no state where the first resolves and
 	// the second does not, and a branch for one could never be reached.
@@ -851,7 +852,7 @@ func attachDeclaredAnnotations(c lowerCtx, ts *compile.Types, anchors *anchorInd
 
 // fillAdditional lowers additionalProperties, patternProperties, and
 // unevaluatedProperties into the model's openness and catch-all shape.
-func fillAdditional(c lowerCtx, ts *compile.Types, anchors *anchorIndex, depth int, m *ir.Model, s *oas3.Schema, pointer, hint string) []ir.Diagnostic {
+func fillAdditional(c lowering.Ctx, ts *compile.Types, anchors *anchorIndex, depth int, m *ir.Model, s *oas3.Schema, pointer, hint string) []ir.Diagnostic {
 	var diags []ir.Diagnostic
 	ap := s.GetAdditionalProperties()
 	switch {
@@ -878,7 +879,7 @@ func fillAdditional(c lowerCtx, ts *compile.Types, anchors *anchorIndex, depth i
 
 // patternProps lowers patternProperties into pattern/value bindings in source
 // order.
-func patternProps(c lowerCtx, ts *compile.Types, anchors *anchorIndex, depth int, s *oas3.Schema, pointer, hint string) ([]ir.PatternProps, []ir.Diagnostic) {
+func patternProps(c lowering.Ctx, ts *compile.Types, anchors *anchorIndex, depth int, s *oas3.Schema, pointer, hint string) ([]ir.PatternProps, []ir.Diagnostic) {
 	pp := s.GetPatternProperties()
 	if pp == nil || pp.Len() == 0 {
 		return nil, nil
@@ -899,7 +900,7 @@ func patternProps(c lowerCtx, ts *compile.Types, anchors *anchorIndex, depth int
 // homogeneous, and there is no node that is both. The head lowers to a Tuple,
 // which is the documented weaker shape, and the tail is kept beside it so the
 // arity the Tuple now asserts falsely stays recoverable (ir-design §4.8).
-func buildTuple(c lowerCtx, ts *compile.Types, anchors *anchorIndex, depth int, s *oas3.Schema, common ir.TypeCommon, pointer, hint string, prefix []*oas3.JSONSchema[oas3.Referenceable]) (ir.TypeDef, []ir.Diagnostic) {
+func buildTuple(c lowering.Ctx, ts *compile.Types, anchors *anchorIndex, depth int, s *oas3.Schema, common ir.TypeCommon, pointer, hint string, prefix []*oas3.JSONSchema[oas3.Referenceable]) (ir.TypeDef, []ir.Diagnostic) {
 	var diags []ir.Diagnostic
 	elems := make([]ir.TypeRef, 0, len(prefix))
 	for i, ps := range prefix {
@@ -914,7 +915,7 @@ func buildTuple(c lowerCtx, ts *compile.Types, anchors *anchorIndex, depth int, 
 	kept, keptDiags := preserveNode(c, &t.Unmodeled, "openapi:items-after-prefix", annotation.RawPropertyNode(s, "items"), ir.ReasonDegradedLowering, pointer+ids.Ptr("items"))
 	diags = append(diags, keptDiags...)
 	if kept {
-		diags = append(diags, c.diagAt(ir.SeverityInfo, diag.DegradedConstruct, pointer,
+		diags = append(diags, c.DiagAt(ir.SeverityInfo, diag.DegradedConstruct, pointer,
 			"items after prefixItems is an open tuple; lowered as a fixed-arity Tuple with the tail kept under Unmodeled"))
 	}
 	return t, diags
@@ -925,7 +926,7 @@ func buildTuple(c lowerCtx, ts *compile.Types, anchors *anchorIndex, depth int, 
 // 2020-12 content vocabulary each hoist a named Scalar wrapping the base
 // primitive with an Encoding, so what the position wrote never leaks onto the
 // shared primitive every other declaration of that type also resolves to.
-func scalarTypeID(c lowerCtx, ts *compile.Types, s *oas3.Schema, st oas3.SchemaType, pointer, hint string) (ir.TypeID, []ir.Diagnostic) {
+func scalarTypeID(c lowering.Ctx, ts *compile.Types, s *oas3.Schema, st oas3.SchemaType, pointer, hint string) (ir.TypeID, []ir.Diagnostic) {
 	format := s.GetFormat()
 	if st == oas3.SchemaTypeString && format == "byte" {
 		return hoistByteScalar(c, ts, s, pointer, hint)
@@ -951,7 +952,7 @@ func scalarTypeID(c lowerCtx, ts *compile.Types, s *oas3.Schema, st oas3.SchemaT
 // otherwise carry them: that fallback resolves to whatever node the pointer
 // already owns and returns early. A scalar that hoisted because it wrote a
 // format must not lose the bounds it wrote beside it (invariant 2).
-func hoistByteScalar(c lowerCtx, ts *compile.Types, s *oas3.Schema, pointer, hint string) (ir.TypeID, []ir.Diagnostic) {
+func hoistByteScalar(c lowering.Ctx, ts *compile.Types, s *oas3.Schema, pointer, hint string) (ir.TypeID, []ir.Diagnostic) {
 	var diags []ir.Diagnostic
 	id := internNode(c, ts, pointer, hint, func(common ir.TypeCommon) ir.TypeDef {
 		base := ts.PrimRef(ir.PrimBytes)
@@ -973,7 +974,7 @@ func hoistByteScalar(c lowerCtx, ts *compile.Types, s *oas3.Schema, pointer, hin
 
 // hoistFormatScalar hoists a scalar over base carrying an unknown format as its
 // encoding name, preserving the format losslessly.
-func hoistFormatScalar(c lowerCtx, ts *compile.Types, s *oas3.Schema, base ir.PrimKind, format, pointer, hint string) (ir.TypeID, []ir.Diagnostic) {
+func hoistFormatScalar(c lowering.Ctx, ts *compile.Types, s *oas3.Schema, base ir.PrimKind, format, pointer, hint string) (ir.TypeID, []ir.Diagnostic) {
 	var diags []ir.Diagnostic
 	id := internNode(c, ts, pointer, hint, func(common ir.TypeCommon) ir.TypeDef {
 		baseRef := ts.PrimRef(base)
@@ -995,7 +996,7 @@ func hoistFormatScalar(c lowerCtx, ts *compile.Types, s *oas3.Schema, base ir.Pr
 // (type, format) pair maps to, giving the content vocabulary written here a node
 // of its own to sit on. It carries the position's value constraints for the
 // reason hoistByteScalar records.
-func hoistContentScalar(c lowerCtx, ts *compile.Types, s *oas3.Schema, prim ir.PrimKind, pointer, hint string) (ir.TypeID, []ir.Diagnostic) {
+func hoistContentScalar(c lowering.Ctx, ts *compile.Types, s *oas3.Schema, prim ir.PrimKind, pointer, hint string) (ir.TypeID, []ir.Diagnostic) {
 	var diags []ir.Diagnostic
 	id := internNode(c, ts, pointer, hint, func(common ir.TypeCommon) ir.TypeDef {
 		base := ts.PrimRef(prim)
@@ -1023,7 +1024,7 @@ func hoistContentScalar(c lowerCtx, ts *compile.Types, s *oas3.Schema, prim ir.P
 // the IR could not place is only parked there. Encoding holds one name, so a
 // format that named a *different* encoding is kept verbatim on c rather than
 // overwritten away.
-func scalarEncoding(c lowerCtx, s *oas3.Schema, formatName string, common *ir.TypeCommon, pointer string) (*ir.Encoding, []ir.Diagnostic) {
+func scalarEncoding(c lowering.Ctx, s *oas3.Schema, formatName string, common *ir.TypeCommon, pointer string) (*ir.Encoding, []ir.Diagnostic) {
 	enc := &ir.Encoding{Name: formatName, MediaType: s.GetContentMediaType()}
 	content := s.GetContentEncoding()
 	if content == "" || content == formatName {
@@ -1036,7 +1037,7 @@ func scalarEncoding(c lowerCtx, s *oas3.Schema, formatName string, common *ir.Ty
 	at := pointer + ids.Ptr("format")
 	kept, diags := preserveSchemaKeyword(c, &common.Unmodeled, s, "format", ir.ReasonNoIRHome, at)
 	if kept {
-		diags = append(diags, c.diagAt(ir.SeverityInfo, diag.DegradedConstruct, at,
+		diags = append(diags, c.DiagAt(ir.SeverityInfo, diag.DegradedConstruct, at,
 			"format and contentEncoding both name an encoding and ir.Encoding holds one; "+
 				"contentEncoding %q is lowered and format is kept verbatim under Unmodeled", content))
 	}
@@ -1070,7 +1071,7 @@ func declaresContentVocabulary(s *oas3.Schema) bool {
 // turns out to be a string, so they are kept rather than dropped. It asks the
 // node the position actually lowered to instead of re-deriving lower()'s
 // dispatch, so the two cannot drift apart.
-func recordUnplacedContent(c lowerCtx, p *ir.Unmodeled, s *oas3.Schema, td ir.TypeDef, pointer string) []ir.Diagnostic {
+func recordUnplacedContent(c lowering.Ctx, p *ir.Unmodeled, s *oas3.Schema, td ir.TypeDef, pointer string) []ir.Diagnostic {
 	if !declaresContent(s) || scalarHasEncoding(td) {
 		return nil
 	}
@@ -1081,7 +1082,7 @@ func recordUnplacedContent(c lowerCtx, p *ir.Unmodeled, s *oas3.Schema, td ir.Ty
 		if !kept {
 			continue
 		}
-		diags = append(diags, c.diagAt(ir.SeverityInfo, diag.DegradedConstruct, pointer+ids.Ptr(keyword),
+		diags = append(diags, c.DiagAt(ir.SeverityInfo, diag.DegradedConstruct, pointer+ids.Ptr(keyword),
 			"%s encodes a string value and this position lowered to a shape with no "+
 				"Encoding field; kept verbatim under Unmodeled", keyword))
 	}
@@ -1137,7 +1138,7 @@ const maxDynamicAnchorNodes = 1 << 20
 // lower. The one caller that expands and the one that preserves both decide
 // through this function, so neither can act on a verdict the other did not
 // reach.
-func dynamicExpansion(c lowerCtx, anchors *anchorIndex, s *oas3.Schema, pointer string) (target ir.TypeID, why string, ok bool, diags []ir.Diagnostic) {
+func dynamicExpansion(c lowering.Ctx, anchors *anchorIndex, s *oas3.Schema, pointer string) (target ir.TypeID, why string, ok bool, diags []ir.Diagnostic) {
 	name, why, ok := dynamicRefName(s)
 	if !ok {
 		return "", why, false, nil
@@ -1146,7 +1147,7 @@ func dynamicExpansion(c lowerCtx, anchors *anchorIndex, s *oas3.Schema, pointer 
 	if !ok {
 		return "", why, false, diags
 	}
-	id, resolved, handled := c.refScope().ComponentRef(at)
+	id, resolved, handled := c.RefScope().ComponentRef(at)
 	if !handled || !resolved {
 		return "", fmt.Sprintf("$dynamicAnchor %q is declared at %q rather than on a component schema", name, at), false, diags
 	}
@@ -1204,7 +1205,7 @@ func dynamicRefSiblings(s *oas3.Schema) bool {
 // diagnostics come back on every path, including the two answering "no single
 // declaration": the walk bound they report is a fact about the document, not
 // about this lookup's verdict, so a failed lookup must not swallow it.
-func soleAnchorSite(c lowerCtx, anchors *anchorIndex, name string) (at, why string, ok bool, diags []ir.Diagnostic) {
+func soleAnchorSite(c lowering.Ctx, anchors *anchorIndex, name string) (at, why string, ok bool, diags []ir.Diagnostic) {
 	sites, diags := anchors.sites(c, name)
 	if len(sites) == 0 {
 		return "", fmt.Sprintf("no $dynamicAnchor %q is declared in this document", name), false, diags
@@ -1230,7 +1231,7 @@ func soleAnchorSite(c lowerCtx, anchors *anchorIndex, name string) (at, why stri
 //
 // The loop is bounded by seen: cur only ever takes values from the anchor
 // index, and each turn either returns or adds one of them.
-func dynamicChainVerdict(c lowerCtx, anchors *anchorIndex, at, from string) (why string, ok bool, diags []ir.Diagnostic) {
+func dynamicChainVerdict(c lowering.Ctx, anchors *anchorIndex, at, from string) (why string, ok bool, diags []ir.Diagnostic) {
 	if declaresResourceIDAbove(c, from) {
 		return resourceBoundaryWhy(from), false, nil
 	}
@@ -1270,7 +1271,7 @@ func resourceBoundaryWhy(at string) string {
 // it carry none. Once it is consulted they come back even if the chain ends
 // there: whether the hop happened and whether the index was complete are
 // independent answers.
-func dynamicHop(c lowerCtx, anchors *anchorIndex, at string) (string, bool, []ir.Diagnostic) {
+func dynamicHop(c lowering.Ctx, anchors *anchorIndex, at string) (string, bool, []ir.Diagnostic) {
 	s := componentSchemaAt(c, at)
 	if s == nil {
 		return "", false, nil
@@ -1290,7 +1291,7 @@ func dynamicHop(c lowerCtx, anchors *anchorIndex, at string) (string, bool, []ir
 // addresses, and nil for any other pointer. Every accessor on the way is
 // nil-safe and annotation.At reads a missing entry as "no body written", so the
 // one guard is what distinguishes a component pointer from a deeper one.
-func componentSchemaAt(c lowerCtx, pointer string) *oas3.Schema {
+func componentSchemaAt(c lowering.Ctx, pointer string) *oas3.Schema {
 	name, ok := ids.ComponentSchemaName(pointer)
 	if !ok {
 		return nil
@@ -1308,7 +1309,7 @@ func componentSchemaAt(c lowerCtx, pointer string) *oas3.Schema {
 // there. That is the same direction the anchor index errs in: a false boundary
 // costs an expansion that would have been safe, where a missed one mints a
 // reference the IR cannot express.
-func declaresResourceIDAbove(c lowerCtx, pointer string) bool {
+func declaresResourceIDAbove(c lowering.Ctx, pointer string) bool {
 	view := nodeview.New()
 	cur := nodeview.DocumentRoot(nodeview.Deref(c.Doc.GetRootNode()))
 	for seg := range strings.SplitSeq(pointer, "/") {
@@ -1342,7 +1343,7 @@ func dynamicFragment(ref string) (string, bool) {
 // (ir-design §4.7's irreducible half). An expanded one is already the position's
 // type and must not also be preserved — that would tell a consumer the compiler
 // ignored it.
-func recordUnexpandedDynamicRef(c lowerCtx, anchors *anchorIndex, p *ir.Unmodeled, s *oas3.Schema, pointer string) []ir.Diagnostic {
+func recordUnexpandedDynamicRef(c lowering.Ctx, anchors *anchorIndex, p *ir.Unmodeled, s *oas3.Schema, pointer string) []ir.Diagnostic {
 	_, why, expanded, diags := dynamicExpansion(c, anchors, s, pointer)
 	if expanded {
 		return diags
@@ -1351,7 +1352,7 @@ func recordUnexpandedDynamicRef(c lowerCtx, anchors *anchorIndex, p *ir.Unmodele
 	kept, keptDiags := preserveSchemaKeyword(c, p, s, "$dynamicRef", ir.ReasonDegradedLowering, at)
 	diags = append(diags, keptDiags...)
 	if kept {
-		diags = append(diags, c.diagAt(ir.SeverityInfo, diag.DegradedConstruct, at,
+		diags = append(diags, c.DiagAt(ir.SeverityInfo, diag.DegradedConstruct, at,
 			"$dynamicRef was not expanded because %s; it is kept verbatim under Unmodeled", why))
 	}
 	return diags
@@ -1388,7 +1389,7 @@ type anchorIndex struct {
 // warning is what tells a reader that an expansion reported below was decided
 // against an index nothing verified, which is exactly what diag.CycleScanFailed
 // says for the pre-parse scan.
-func (a *anchorIndex) sites(c lowerCtx, name string) ([]string, []ir.Diagnostic) {
+func (a *anchorIndex) sites(c lowering.Ctx, name string) ([]string, []ir.Diagnostic) {
 	if a.byName != nil {
 		return a.byName[name], nil
 	}
@@ -1397,7 +1398,7 @@ func (a *anchorIndex) sites(c lowerCtx, name string) ([]string, []ir.Diagnostic)
 	if complete {
 		return a.byName[name], nil
 	}
-	return a.byName[name], []ir.Diagnostic{c.diagAt(ir.SeverityWarning, diag.DegradedConstruct, "",
+	return a.byName[name], []ir.Diagnostic{c.DiagAt(ir.SeverityWarning, diag.DegradedConstruct, "",
 		"the $dynamicAnchor index stopped at its walk bounds (%d levels, %d nodes); "+
 			"a $dynamicRef expanded below is not verified to name the document's only anchor of its name",
 		maxDynamicAnchorDepth, maxDynamicAnchorNodes)}
@@ -1643,11 +1644,11 @@ func requiredSet(required []string) map[string]bool {
 // is the merge package's contract, not accumulation surviving here. It is two
 // closures over state already at hand, so building it per use costs nothing
 // worth measuring.
-func merger(c lowerCtx, ts *compile.Types, diags *[]ir.Diagnostic) merge.Merger {
+func merger(c lowering.Ctx, ts *compile.Types, diags *[]ir.Diagnostic) merge.Merger {
 	return merge.Merger{
 		Resolve: ts.Node,
 		Report: func(sev ir.Severity, code, pointer, format string, args ...any) {
-			*diags = append(*diags, c.diagAt(sev, code, pointer, format, args...))
+			*diags = append(*diags, c.DiagAt(sev, code, pointer, format, args...))
 		},
 	}
 }
