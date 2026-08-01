@@ -1,12 +1,19 @@
 # Micro-Compiler Architecture — Design
 
-Status: approved; Phase 0 and the framework promotions have landed, and Tier-0 extraction has
-begun — §12 is the live record of which rows those are. Scope: `compilers/compile`,
-`compilers/openapi`, `internal/archtest`, `internal/harness`, `ir/irverify`.
+Status: **implemented**. This is a record of a restructuring that happened, not a proposal —
+`compilers/openapi` is now its public face over thirteen internal packages, the god object §1 is
+about is gone, and the caps that stop it regrowing are in force. §12 remains the row-by-row record.
+Scope: `compilers/compile`, `compilers/openapi`, `internal/archtest`, `internal/harness`,
+`ir/irverify`.
+
+To read the shape it describes off the tree rather than off this page, see
+`docs/architecture.md` §3, which gives the command.
 
 Claims about code in this document were true at `a095636`, except where a row or an *as landed*
 note says otherwise. Where a number would rot, this document gives the command that derives it
-instead of the number.
+instead of the number — and now that the restructuring has landed, several of those commands name
+files that no longer exist. That is the point of the revision above: they described the tree the
+work started from, and re-pointing them at the tree it ended at would turn a record into a claim.
 
 **A micro-compiler is a function that lowers one source construct at one position, given only what
 that construct needs.** It takes an immutable context and a coordinate, returns a value and its

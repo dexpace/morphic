@@ -1,5 +1,9 @@
 # Micro-Compiler Architecture — Implementation Plan
 
+Status: **done**. Every unit below has landed; what follows is the order it landed in, kept as the
+record of how the pieces blocked each other rather than as work outstanding. `gh issue list --state
+open` is the truth about what remains.
+
 The design is `docs/micro-compiler-design.md`; this is the order the work lands in and how the
 pieces block each other. **Each unit of work is a GitHub issue carrying its own files, steps and
 acceptance test** — that detail lives there rather than being repeated here, and the dependencies

@@ -145,15 +145,21 @@ package may import only the packages one layer below it.
 | Package | Layer | Imports |
 |---|---|---|
 | `ir/` | 0 — IR nodes, IDs, traversal, JSON round-trip | stdlib only |
+| `ir/irverify/`, `ir/irtest/` | 0 — structural-invariant oracle; golden-snapshot helper | `ir` |
 | `compilers/compile/` | 1 — what every compiler shares: type registry, diagnostics, naming and identifier grammars | `ir` only |
-| `compilers/*` | 1 — one compiler per format (`compilers/openapi`) | `ir` + `compilers` + `compilers/compile` + own format libs |
+| `compilers/*` | 1 — one compiler per format; a public face over its own `internal/` packages | `ir` + `compilers` + `compilers/compile` + own `internal/*` + format libs |
 | `pass/` | 1 — IR → IR passes | `ir` only |
 | `emitters/*` | 2 — IR → artifacts (future) | `ir` + emitter contract |
 | `engine/` | 3 — orchestration | everything below |
-| `cmd/morphic/` | 4 — CLI | `engine` |
+| `cmd/morphic/` | 4 — CLI | `engine` + `ir` |
+| `cmd/morphic-harness/`, `internal/*` | tooling, outside the pipeline: the oracle sweep, the architecture rules, shared fixtures | as their entries allow |
 
 Compilers and emitters never import each other; the IR is the only thing that crosses between
-them.
+them. A compiler's own `internal/` packages each carry their own entry rather than inheriting the
+compiler's, so the ordering among them is enforced too — and none may reach the compiler above it.
+
+This table is prose; `internal/archtest`'s `rules` map is the source of truth. To read the layout
+off the tree: `git ls-files '*/*.go' | xargs -n1 dirname | sort -u`.
 
 ## Design docs
 

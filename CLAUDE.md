@@ -91,8 +91,13 @@ ir/          Layer 0 — IR nodes, IDs, traversal, JSON round-trip. Imports ONLY
 compilers/   Layer 1 — the Compiler contract and the format-keyed registry. Imports ir only.
   compile/   Layer 1 — what every compiler shares: the type registry with its coordinate map,
              diagnostics, and the naming and identifier grammars. Imports ir only.
-  <format>/  Layer 1 — one compiler per format. Imports ir, compilers, compilers/compile
-             (+ own format libs); never each other, never emitters/engine.
+  <format>/  Layer 1 — one compiler per format: its public face and nothing else — the
+             Compiler, its Options, and the run that calls its lowerings in order. Imports ir,
+             compilers, compilers/compile, its own internal/* (+ own format libs); never each
+             other, never emitters/engine.
+    internal/  Layer 1 — that compiler's own packages, each with its own allowlist rather than
+             the compiler's. openapi has thirteen; the ordering among them is real and enforced,
+             from diag (reaches only ir) up to operation. None may reach the compiler above it.
 pass/        Layer 1 — IR → IR passes. Imports ir only.
 emitters/*   Layer 2 — imports ir + emitter contract; never compiler. (Not built yet.)
 engine/      Layer 3 — orchestration; imports everything below.
@@ -101,10 +106,23 @@ internal/    Test/tooling infrastructure, outside the pipeline (harness, archtes
 ```
 
 The layering is enforced by `internal/archtest`, and **its `rules` map is the source of truth** —
-this diagram is prose. Two things follow when you add a package: put it in `rules` (or in `exempt`
-with the reason it is out), because `TestImportGraph_EveryPackageIsRuledOrExempt` fails otherwise;
-and remember an unkeyed subdirectory is audited under its nearest keyed ancestor's allowlist, so
-nesting is not a way to widen one.
+this diagram is prose, and deliberately does not name the thirteen. Read them off the tree:
+
+```bash
+git ls-files '*/*.go' | xargs -n1 dirname | sort -u
+```
+
+Three things follow when you add a package: put it in `rules` (or in `exempt` with the reason it
+is out), because `TestImportGraph_EveryPackageIsRuledOrExempt` fails otherwise; remember an
+unkeyed subdirectory is audited under its nearest keyed ancestor's allowlist, so nesting is not a
+way to widen one; and give it its own entry rather than letting it inherit a wider one, since an
+inherited allowlist says nothing about where the package sits.
+
+Two caps guard shape rather than the graph. No type under `compilers/` may carry more than 20
+methods (`internal/archtest`), and no function may exceed 70 lines or a cognitive complexity of 20
+(`.golangci.yml`, tests excluded). The method cap is the one that matters: the god object this
+structure replaced reached 159 methods without ever writing a long function, so every rule then in
+force stayed green while it grew. A failure is a prompt to ask what the type has started doing.
 
 ## Testing strategy
 
