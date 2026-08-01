@@ -156,55 +156,79 @@ func checkReferentialIntegrity(doc *ir.Document) []Violation {
 // callers can surface a too-deep document instead of silently
 // under-checking it.
 func walkValues(root any, visit func(v reflect.Value, path string) bool) bool {
-	seen := map[uintptr]bool{}
-	truncated := false
-	var walk func(v reflect.Value, path string, depth int)
-	descend := func(child reflect.Value, path string, depth int) {
-		if depth > maxWalkDepth {
-			truncated = true
+	w := valueWalk{seen: map[uintptr]bool{}, visit: visit}
+	w.walk(reflect.ValueOf(root), "doc", 0)
+	return w.truncated
+}
+
+// valueWalk is one walk's state: the pointers already followed, the visitor, and
+// whether the depth cap cut the walk short.
+//
+// It is a value being walked rather than a walker being configured, so it is
+// built at the entry point and discarded with it. Nothing here is reentrant and
+// nothing outside this file holds one.
+type valueWalk struct {
+	seen      map[uintptr]bool
+	visit     func(v reflect.Value, path string) bool
+	truncated bool
+}
+
+// walk visits v and then descends into whatever it holds, stopping wherever the
+// visitor says it has seen enough.
+func (w *valueWalk) walk(v reflect.Value, path string, depth int) {
+	if !v.IsValid() || !w.visit(v, path) {
+		return
+	}
+	w.children(v, path, depth)
+}
+
+// descend continues into a child unless that would pass the depth cap, which it
+// records rather than reports: the caller decides whether a truncated walk is a
+// finding, and it is the only one that knows what was being checked.
+func (w *valueWalk) descend(child reflect.Value, path string, depth int) {
+	if depth > maxWalkDepth {
+		w.truncated = true
+		return
+	}
+	w.walk(child, path, depth)
+}
+
+// children descends into every child of v. It is where the walk's shape lives —
+// what counts as a child of a pointer, an interface, a struct, a sequence and a
+// map, and which path each child is addressed by.
+func (w *valueWalk) children(v reflect.Value, path string, depth int) {
+	switch v.Kind() {
+	case reflect.Pointer:
+		if v.IsNil() {
 			return
 		}
-		walk(child, path, depth)
-	}
-	walk = func(v reflect.Value, path string, depth int) {
-		if !v.IsValid() || !visit(v, path) {
+		p := v.Pointer()
+		if w.seen[p] {
 			return
 		}
-		switch v.Kind() {
-		case reflect.Pointer:
-			if v.IsNil() {
-				return
-			}
-			p := v.Pointer()
-			if seen[p] {
-				return
-			}
-			seen[p] = true
-			descend(v.Elem(), path, depth+1)
-		case reflect.Interface:
-			if !v.IsNil() {
-				descend(v.Elem(), path, depth+1)
-			}
-		case reflect.Struct:
-			for i := range v.NumField() {
-				descend(v.Field(i), fieldPath(path, v.Type().Field(i)), depth+1)
-			}
-		case reflect.Slice, reflect.Array:
-			if v.Type().Elem().Kind() == reflect.Uint8 {
-				return // byte sequences hold nothing any visitor looks for
-			}
-			for i := range v.Len() {
-				descend(v.Index(i), fmt.Sprintf("%s[%d]", path, i), depth+1)
-			}
-		case reflect.Map:
-			for _, e := range orderedEntries(v) {
-				descend(e.key, fmt.Sprintf("%s[%s].key", path, e.label), depth+1)
-				descend(e.value, fmt.Sprintf("%s[%s]", path, e.label), depth+1)
-			}
+		w.seen[p] = true
+		w.descend(v.Elem(), path, depth+1)
+	case reflect.Interface:
+		if !v.IsNil() {
+			w.descend(v.Elem(), path, depth+1)
+		}
+	case reflect.Struct:
+		for i := range v.NumField() {
+			w.descend(v.Field(i), fieldPath(path, v.Type().Field(i)), depth+1)
+		}
+	case reflect.Slice, reflect.Array:
+		if v.Type().Elem().Kind() == reflect.Uint8 {
+			return // byte sequences hold nothing any visitor looks for
+		}
+		for i := range v.Len() {
+			w.descend(v.Index(i), fmt.Sprintf("%s[%d]", path, i), depth+1)
+		}
+	case reflect.Map:
+		for _, e := range orderedEntries(v) {
+			w.descend(e.key, fmt.Sprintf("%s[%s].key", path, e.label), depth+1)
+			w.descend(e.value, fmt.Sprintf("%s[%s]", path, e.label), depth+1)
 		}
 	}
-	walk(reflect.ValueOf(root), "doc", 0)
-	return truncated
 }
 
 // fieldPath extends path with f's name, except for an embedded field, which

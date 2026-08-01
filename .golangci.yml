@@ -5,6 +5,8 @@ linters:
   enable:
     - copyloopvar
     - errorlint # %w discipline: errors.Is/As over == and type assertions
+    - funlen # the styleguide's 70-line cap, enforced rather than declared
+    - gocognit # nesting-weighted complexity: the reason the cap is 70 and not 200
     - gocritic
     - misspell
     - nilerr
@@ -13,6 +15,18 @@ linters:
     - unconvert
     - unparam
   settings:
+    funlen:
+      # The styleguide's hard cap. Statements are not capped as well: a function
+      # is long because of what it does, and two limits on the same axis only
+      # means the tighter one is the rule and the other is noise.
+      lines: 70
+      statements: -1
+      ignore-comments: true
+    gocognit:
+      # Calibrated against the finished tree, whose worst function scores 21.
+      # Raising this is how a function that should have been split stays whole,
+      # so a failure is a prompt to name the inner step, not to move the number.
+      min-complexity: 20
     revive:
       rules:
         - name: exported # GoDoc on every exported symbol
@@ -20,6 +34,15 @@ linters:
         # A local that shadows an imported package compiles until someone adds a
         # call to that package below it. compilers/openapi had one live instance.
         - name: import-shadowing
+  exclusions:
+    rules:
+      # A table-driven test is long because its table is long, and the table is
+      # data. Splitting one to satisfy a size cap moves cases away from the
+      # assertion that reads them, which is the opposite of what the cap is for.
+      - path: _test\.go
+        linters:
+          - funlen
+          - gocognit
 
 formatters:
   enable:

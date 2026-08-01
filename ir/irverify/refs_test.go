@@ -243,3 +243,31 @@ func TestWalkValues_ByteSequencesAreNotDescendedInto(t *testing.T) {
 	assert.Less(t, visits, payloadBytes,
 		"walking %d bytes of payload one value at a time is what the skip exists to avoid", payloadBytes)
 }
+
+// TestWalkValues_APointerReachedTwiceIsDescendedIntoOnce holds the cycle guard.
+//
+// Nothing in the corpus reaches it: a compiled Document is a flat registry of
+// values referenced by ID, so no two fields point at one struct and no field
+// points back. That is exactly why it needs planting — the guard is what keeps
+// the walk terminating on a document that does share a pointer, and without a
+// document that does, removing it changes nothing any test observes.
+//
+// Visiting once is also what makes the walk's paths deterministic: a value
+// reached twice would be reported at whichever path the walk happened to take
+// first (invariant 7).
+func TestWalkValues_APointerReachedTwiceIsDescendedIntoOnce(t *testing.T) {
+	t.Parallel()
+	shared := &ir.Naming{Source: "shared"}
+	doc := struct{ A, B *ir.Naming }{A: shared, B: shared}
+
+	var sources int
+	truncated := walkValues(&doc, func(v reflect.Value, _ string) bool {
+		if v.Kind() == reflect.String && v.String() == "shared" {
+			sources++
+		}
+		return true
+	})
+
+	require.False(t, truncated, "two fields are not deep")
+	assert.Equal(t, 1, sources, "the second field finds the pointer already seen and stops there")
+}
