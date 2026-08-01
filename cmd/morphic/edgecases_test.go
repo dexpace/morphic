@@ -6,7 +6,6 @@ import (
 	"encoding/json"
 	"errors"
 	"io"
-	"io/fs"
 	"os"
 	"path/filepath"
 	"testing"
@@ -509,7 +508,7 @@ func TestWriteParsed_TempNameCollisionRetries(t *testing.T) {
 	swapCreateOutput(t, func(path string, perm os.FileMode) (io.WriteCloser, error) {
 		names = append(names, path)
 		if len(names) == 1 {
-			return nil, fs.ErrExist // first name taken; the loop must draw another
+			return nil, os.ErrExist // first name taken; the loop must draw another
 		}
 		return os.OpenFile(path, os.O_WRONLY|os.O_CREATE|os.O_EXCL, perm)
 	})
@@ -525,7 +524,7 @@ func TestWriteParsed_TempNamesExhausted(t *testing.T) {
 	attempts := 0
 	swapCreateOutput(t, func(string, os.FileMode) (io.WriteCloser, error) {
 		attempts++
-		return nil, fs.ErrExist
+		return nil, os.ErrExist
 	})
 
 	err := writeCompiled(filepath.Join(t.TempDir(), "ir.json"), io.Discard, &ir.Document{Name: "ok"})

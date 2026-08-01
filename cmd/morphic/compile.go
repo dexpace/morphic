@@ -7,7 +7,6 @@ import (
 	"flag"
 	"fmt"
 	"io"
-	"io/fs"
 	"math/rand/v2"
 	"os"
 	"path/filepath"
@@ -243,7 +242,7 @@ func replaceFile(outPath string, raw []byte) error {
 // is one at all. A missing destination is the ordinary case, not an error.
 func destMode(outPath string) (os.FileMode, bool, error) {
 	info, err := os.Stat(outPath)
-	if errors.Is(err, fs.ErrNotExist) {
+	if errors.Is(err, os.ErrNotExist) {
 		return 0, false, nil
 	}
 	if err != nil {
@@ -263,7 +262,7 @@ func writeTemp(outPath string, raw []byte) (string, error) {
 	for range maxTempAttempts {
 		tmp := filepath.Join(dir, fmt.Sprintf(".%s.tmp%016x", base, rand.Uint64()))
 		f, err := createOutput(tmp, newFilePerm)
-		if errors.Is(err, fs.ErrExist) {
+		if errors.Is(err, os.ErrExist) {
 			continue
 		}
 		if err != nil {
