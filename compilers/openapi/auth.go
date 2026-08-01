@@ -11,6 +11,7 @@ import (
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/ids"
 	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
+	"github.com/dexpace/morphic/compilers/openapi/internal/resolve"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -29,7 +30,7 @@ func lowerSecuritySchemes(c lowering.Ctx) (map[ir.AuthID]ir.AuthScheme, []ir.Dia
 	out := make(map[ir.AuthID]ir.AuthScheme, schemes.Len())
 	var diags []ir.Diagnostic
 	for name, rs := range schemes.All() {
-		ss := resolveRef[soa.SecurityScheme](rs)
+		ss := resolve.Object[soa.SecurityScheme](rs)
 		if ss == nil {
 			continue
 		}

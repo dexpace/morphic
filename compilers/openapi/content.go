@@ -336,7 +336,7 @@ func lowerHeaders(c lowering.Ctx, ts *compile.Types, anchors *schema.AnchorIndex
 	out := make([]ir.Property, 0, headers.Len())
 	for name, rh := range headers.All() {
 		hptr := basePtr + ids.Ptr("headers", name)
-		h, hdecl := resolveRefAt[soa.Header](c, rh, hptr)
+		h, hdecl := resolve.ObjectAt[soa.Header](c.RefScope(), rh, hptr)
 		if h == nil {
 			continue
 		}
@@ -479,7 +479,7 @@ func exampleList(c lowering.Ctx, single *yaml.Node, plural *sequencedmap.Map[str
 // is de-referenced: an enclosing $ref'd response or parameter is already
 // flattened into pointer.
 func appendPluralExample(c lowering.Ctx, out []ir.Example, re *soa.ReferencedExample, pointer, name string) ([]ir.Example, []ir.Diagnostic) {
-	ex := resolveRef[soa.Example](re)
+	ex := resolve.Object[soa.Example](re)
 	if ex == nil {
 		return out, nil
 	}
@@ -521,7 +521,7 @@ func appendValuelessExample(c lowering.Ctx, out []ir.Example, proto ir.Example, 
 // (issue #107) — and under the component's name, since the operationId hint
 // would otherwise name the shared node after one arbitrary referencing site.
 func lowerRequestBody(c lowering.Ctx, ts *compile.Types, anchors *schema.AnchorIndex, op *ir.Operation, hb *ir.HTTPBinding, src *soa.Operation, opDeclPtr string) []ir.Diagnostic {
-	rb, bodyPtr := resolveRefAt[soa.RequestBody](c, src.GetRequestBody(), opDeclPtr+ids.Ptr("requestBody"))
+	rb, bodyPtr := resolve.ObjectAt[soa.RequestBody](c.RefScope(), src.GetRequestBody(), opDeclPtr+ids.Ptr("requestBody"))
 	if rb == nil {
 		return nil
 	}
