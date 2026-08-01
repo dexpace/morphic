@@ -195,6 +195,22 @@ func writeCompiled(outPath string, stdout io.Writer, doc *ir.Document) error {
 // filesystem boundary — and replace outPath only once all of them are on disk.
 // A failed or partial write therefore leaves outPath's previous content intact
 // instead of truncating it.
+//
+// Publishing by rename replaces the directory entry rather than the bytes behind
+// it, which is what makes the swap atomic and which costs three things a
+// truncating write gave for free. All three are accepted deliberately:
+//
+//   - Writing needs permission on the destination's directory, not just on the
+//     destination. Rewriting an existing writable file inside a read-only
+//     directory used to succeed and now fails at temp-file creation.
+//   - A symlink at outPath is replaced by a regular file instead of being
+//     followed and written through, so its target keeps its old content.
+//   - Other hard links to outPath keep pointing at the old inode, and so keep
+//     the old content, instead of observing the new bytes.
+//
+// Losing them is the price of the guarantee: each is a way for the destination's
+// bytes to be reached other than through its own name, and honouring any of them
+// means writing in place, which is exactly the truncation this replaces.
 func replaceFile(outPath string, raw []byte) error {
 	perm, replacing, err := destMode(outPath)
 	if err != nil {
