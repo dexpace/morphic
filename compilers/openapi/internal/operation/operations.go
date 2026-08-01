@@ -1,4 +1,4 @@
-package openapi
+package operation
 
 import (
 	"strconv"
@@ -34,10 +34,10 @@ var httpMethods = []struct {
 	{"trace", (*soa.PathItem).Trace},
 }
 
-// lowerService lowers one document into a single Service: its identity and docs,
+// LowerService lowers one document into a single Service: its identity and docs,
 // the declared tag registry, and every path, webhook, and callback operation
 // placed into groups per the configured grouping strategy (ir-design §7.1).
-func lowerService(c lowering.Ctx, ts *compile.Types, anchors *schema.AnchorIndex, operationIDs map[string]string) (ir.Service, []ir.TagDef, []ir.Diagnostic) {
+func LowerService(c lowering.Ctx, ts *compile.Types, anchors *schema.AnchorIndex, operationIDs map[string]string) (ir.Service, []ir.TagDef, []ir.Diagnostic) {
 	svc := ir.Service{
 		ID:         ids.Service(c.SrcIndex),
 		Provenance: c.ProvenanceAt(""),
@@ -178,10 +178,10 @@ func lowerWebhooks(c lowering.Ctx, ts *compile.Types, anchors *schema.AnchorInde
 }
 
 // groupFor resolves the group an operation belongs to under the active strategy.
-// GroupByPathPrefix is a heuristic, so it stamps the inferred marker; grouping by
+// lowering.GroupByPathPrefix is a heuristic, so it stamps the inferred marker; grouping by
 // declared tags is a declared fact and leaves it empty.
 func groupFor(c lowering.Ctx, src *soa.Operation, path string) (key string, name ir.Naming, docs ir.Docs, inferred string) {
-	if c.Grouping == GroupByPathPrefix {
+	if c.Grouping == lowering.GroupByPathPrefix {
 		seg := firstPathSegment(path)
 		return "seg:" + seg, compile.NamingFor(seg), ir.Docs{}, "group-path-prefix"
 	}

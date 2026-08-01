@@ -146,6 +146,21 @@ var rules = map[string][]string{
 		"github.com/speakeasy-api/openapi/extensions",
 		"github.com/speakeasy-api/openapi/jsonschema/oas3",
 		"github.com/speakeasy-api/openapi/values", "gopkg.in/yaml.v3"},
+	// The operation walk: path items, webhooks and callbacks, the parameters
+	// merged onto them, and the content of every body, response and header. It
+	// reaches the schema walk for the positions it hoists and auth for the
+	// requirements it reads, and nothing above itself — the compiler assembles
+	// the document from what this returns rather than the other way round.
+	"compilers/openapi/internal/operation": {module + "/ir", module + "/compilers/compile",
+		module + "/compilers/openapi/internal/annotation",
+		module + "/compilers/openapi/internal/auth",
+		module + "/compilers/openapi/internal/diag",
+		module + "/compilers/openapi/internal/ids",
+		module + "/compilers/openapi/internal/lowering",
+		module + "/compilers/openapi/internal/resolve",
+		module + "/compilers/openapi/internal/schema",
+		module + "/compilers/openapi/internal/value",
+		"github.com/speakeasy-api/openapi" + subtreeSuffix, "gopkg.in/yaml.v3"},
 	"pass": {module + "/ir"},
 	"engine": {module + "/ir", module + "/compilers", module + "/compilers/openapi",
 		module + "/pass", "gopkg.in/yaml.v3"},

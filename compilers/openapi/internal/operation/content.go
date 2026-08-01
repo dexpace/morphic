@@ -1,4 +1,17 @@
-package openapi
+// Package operation lowers what a document says an API does: its path items,
+// webhooks and callbacks, the parameters merged onto each operation, and the
+// content of every request body, response and header.
+//
+// It sits above the schema walk and reaches down into it for every type
+// position it meets, and above auth for the requirements an operation names. It
+// reaches nothing above itself: the compiler assembles a Document from what
+// LowerService returns rather than the walk writing into one.
+//
+// The recursion here is callbacks — an operation may declare callbacks, each a
+// path item holding operations of its own — which is why lowerOperation,
+// lowerCallbacks and lowerCallbackOps cannot be separated. internal/archtest
+// pins that set.
+package operation
 
 import (
 	"slices"

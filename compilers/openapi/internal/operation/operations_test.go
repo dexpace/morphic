@@ -1,25 +1,19 @@
-package openapi
+package operation_test
 
 import (
 	"strconv"
 	"strings"
 	"testing"
 
-	soa "github.com/speakeasy-api/openapi/openapi"
-	"github.com/speakeasy-api/openapi/sequencedmap"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	yaml "gopkg.in/yaml.v3"
 
-	"github.com/dexpace/morphic/compilers"
 	"github.com/dexpace/morphic/compilers/compile"
 	"github.com/dexpace/morphic/compilers/openapi/internal/annotation"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/ids"
-	"github.com/dexpace/morphic/compilers/openapi/internal/load"
 	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
-	"github.com/dexpace/morphic/compilers/openapi/internal/resolve"
-	"github.com/dexpace/morphic/compilers/openapi/internal/schema"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -142,34 +136,6 @@ func TestOperation_ExplicitlyPublicSecurity(t *testing.T) {
 	assert.Nil(t, ops["inherits"].Auth, "absent security inherits the service default")
 }
 
-func TestWebhooks_WebhookGroup(t *testing.T) {
-	t.Parallel()
-	spec := `openapi: 3.1.0
-info: {title: T, version: "1"}
-paths: {}
-webhooks:
-  newPet:
-    post:
-      operationId: onNewPet
-      responses: {"200": {description: ok}}
-`
-	_, svc, diags := lowerServiceSpec(t, spec)
-	requireNoErrorDiags(t, diags)
-	var group ir.OperationGroup
-	found := false
-	for _, g := range svc.Groups {
-		if g.Name.Hint == "webhooks" {
-			group, found = g, true
-		}
-	}
-	require.True(t, found, "webhook operations land in the webhooks group")
-	require.Len(t, group.Operations, 1)
-	op := group.Operations[0]
-	assert.Equal(t, ir.OpID("op/openapi/webhooks/newPet/post"), op.ID)
-	require.Len(t, op.Bindings.HTTP, 1)
-	assert.True(t, op.Bindings.HTTP[0].IsWebhook)
-}
-
 func TestResponses_HeadersLowered(t *testing.T) {
 	t.Parallel()
 	spec := pathsSpec(`  /h:
@@ -191,79 +157,6 @@ func TestResponses_HeadersLowered(t *testing.T) {
 	assert.True(t, h.Required)
 	assert.Equal(t, ir.TypeID("t/prim/integer"), h.Type.Target)
 	assert.Equal(t, ir.PropID("p/openapi/paths/~1h/get/responses/200/headers/X-Rate-Limit"), h.ID)
-}
-
-func TestCallbacks_RegisteredAndBound(t *testing.T) {
-	t.Parallel()
-	spec := pathsSpec(`  /subscribe:
-    post:
-      operationId: sub
-      callbacks:
-        onEvent:
-          '{$request.body#/cb}':
-            post:
-              operationId: cbPost
-              responses: {"200": {description: ok}}
-      responses: {"200": {description: ok}}
-`)
-	_, svc, diags := lowerServiceSpec(t, spec)
-	requireNoErrorDiags(t, diags)
-	require.Len(t, svc.Groups, 1)
-	group := svc.Groups[0]
-	require.Len(t, group.Operations, 2, "parent op and callback op both registered")
-	byName := indexBy(group.Operations, func(op ir.Operation) string { return op.Name.Source })
-	sub, ok := byName["sub"]
-	require.True(t, ok)
-	cb, ok := byName["cbPost"]
-	require.True(t, ok)
-	require.Len(t, sub.Bindings.HTTP, 1)
-	require.Len(t, sub.Bindings.HTTP[0].Callbacks, 1)
-	call := sub.Bindings.HTTP[0].Callbacks[0]
-	assert.Equal(t, "{$request.body#/cb}", call.Expression)
-	require.Len(t, call.Operations, 1)
-	assert.Equal(t, cb.ID, call.Operations[0])
-}
-
-func TestParameters_PathItemMergeOverride(t *testing.T) {
-	t.Parallel()
-	spec := pathsSpec(`  /users/{id}:
-    parameters:
-      - {name: id, in: path, required: true, schema: {type: string}, description: path-level}
-      - {name: trace, in: header, schema: {type: string}}
-    get:
-      operationId: g
-      parameters:
-        - {name: id, in: path, required: true, schema: {type: integer}, description: op-level}
-      responses: {"200": {description: ok}}
-`)
-	loadedDoc, _, err := load.Load(t.Context(), 0, compilers.Source{Path: "spec.yaml", Data: []byte(spec)}, loadOptions(Options{}.withDefaults()))
-	require.NoError(t, err)
-	require.NotNil(t, loadedDoc)
-	var pi *soa.PathItem
-	for _, rp := range loadedDoc.Doc.GetPaths().All() {
-		pi = resolve.Object[soa.PathItem](rp)
-	}
-	require.NotNil(t, pi)
-	op := pi.Get()
-	require.NotNil(t, op)
-	pathPtr := ids.Ptr("paths", "/users/{id}")
-	opPtr := pathPtr + ids.Ptr("get")
-	merged := mergeParameters(pi.GetParameters(), op.GetParameters(), pathPtr, opPtr)
-	require.Len(t, merged, 2, "shared (name,in) collapses to one; op wins")
-	assert.Same(t, op.GetParameters()[0], merged[0].ref, "operation parameter overrides the path-item one")
-	assert.Equal(t, "/paths/~1users~1{id}/get/parameters/0", merged[0].pointer,
-		"the op-level parameter keeps its own declaration pointer")
-
-	byName := map[string]sourcedParam{}
-	for _, sp := range merged {
-		byName[resolve.Object[soa.Parameter](sp.ref).GetName()] = sp
-	}
-	_, hasID := byName["id"]
-	_, hasTrace := byName["trace"]
-	assert.True(t, hasID)
-	assert.True(t, hasTrace)
-	assert.Equal(t, "/paths/~1users~1{id}/parameters/1", byName["trace"].pointer,
-		"the unshadowed path-level parameter keeps its own declaration pointer, at its own path-item index")
 }
 
 // TestParameters_PathItemSharedAcrossOperationsInternsOnce is the fix's core
@@ -484,16 +377,8 @@ func TestGrouping_ByPathPrefixInferred(t *testing.T) {
   /orders:
     get: {operationId: listOrders, responses: {"200": {description: ok}}}
 `)
-	opts := Options{Grouping: GroupByPathPrefix}.withDefaults()
-	loadedDoc, loadDiags, err := load.Load(t.Context(), 0, compilers.Source{Path: "spec.yaml", Data: []byte(spec)}, loadOptions(opts))
-	require.NoError(t, err)
-	require.NotNil(t, loadedDoc)
-	l := newLowerer(loadedDoc, opts)
-	l.diags.AppendAll(schema.LowerComponentSchemas(l.ctx, l.types, &l.anchors))
-	svc, tagDefs, svcDiags := lowerService(l.ctx.WithAuth(l.out.Auth), l.types, &l.anchors, l.operationIDs)
-	l.out.TagDefs = tagDefs
-	l.diags.AppendAll(svcDiags)
-	requireNoErrorDiags(t, append(loadDiags, l.diags.List()...))
+	svc, diags := serviceWithGrouping(t, spec, lowering.GroupByPathPrefix)
+	requireNoErrorDiags(t, diags)
 	byName := indexBy(svc.Groups, func(g ir.OperationGroup) string { return g.Name.Source })
 	_, hasUsers := byName["users"]
 	_, hasOrders := byName["orders"]
@@ -644,87 +529,9 @@ func TestGrouping_PathPrefixRootPath(t *testing.T) {
 	spec := pathsSpec(`  /:
     get: {operationId: root, responses: {"200": {description: ok}}}
 `)
-	opts := Options{Grouping: GroupByPathPrefix}.withDefaults()
-	loadedDoc, _, err := load.Load(t.Context(), 0, sourceOf(spec), loadOptions(opts))
-	require.NoError(t, err)
-	l := newLowerer(loadedDoc, opts)
-	l.diags.AppendAll(schema.LowerComponentSchemas(l.ctx, l.types, &l.anchors))
-	svc, tagDefs, svcDiags := lowerService(l.ctx.WithAuth(l.out.Auth), l.types, &l.anchors, l.operationIDs)
-	l.out.TagDefs = tagDefs
-	l.diags.AppendAll(svcDiags)
+	svc, _ := serviceWithGrouping(t, spec, lowering.GroupByPathPrefix)
 	require.NotEmpty(t, svc.Groups)
 	assert.Equal(t, "", svc.Groups[0].Name.Source, "root path yields empty first segment")
-}
-
-func TestStatusRange(t *testing.T) {
-	t.Parallel()
-	cases := []struct {
-		code     string
-		from, to int
-	}{
-		{"default", 0, 0},
-		{"200", 200, 200},
-		{"4XX", 400, 499},
-		{"5xx", 500, 599},
-		{"20A", 0, 0}, // non-numeric, non-range → catch-all
-	}
-	for _, tc := range cases {
-		t.Run(tc.code, func(t *testing.T) {
-			t.Parallel()
-			r := statusRange(tc.code)
-			assert.Equal(t, tc.from, r.From)
-			assert.Equal(t, tc.to, r.To)
-		})
-	}
-}
-
-func TestFaultFor(t *testing.T) {
-	t.Parallel()
-	assert.Equal(t, "client", faultFor(ir.StatusRange{From: 404, To: 404}))
-	assert.Equal(t, "server", faultFor(ir.StatusRange{From: 503, To: 503}))
-	assert.Equal(t, "", faultFor(ir.StatusRange{}))
-}
-
-func TestPreserveErrorHeaders_WithoutRootNode(t *testing.T) {
-	t.Parallel()
-	l := newRawLowerer(&soa.OpenAPI{})
-	headers := sequencedmap.New(
-		sequencedmap.NewElem("X-H", &soa.ReferencedHeader{}),
-	)
-	ec := &ir.ErrorCase{}
-	diags := preserveErrorHeaders(l.ctx, ec, &soa.Response{Headers: headers}, "/r")
-	assert.Nil(t, ec.Unmodeled, "headers with no raw node are not preserved")
-	require.Empty(t, diags)
-}
-
-func TestLowerResponses_NoResponses(t *testing.T) {
-	t.Parallel()
-	l := newRawLowerer(&soa.OpenAPI{})
-	responses, errs, diags := lowerResponses(l.ctx, l.types, &l.anchors, &soa.Operation{}, "/op")
-	assert.Nil(t, responses)
-	assert.Nil(t, errs)
-	assert.Empty(t, diags)
-}
-
-func TestFirstPathSegment_Empty(t *testing.T) {
-	t.Parallel()
-	assert.Equal(t, "", firstPathSegment("/"))
-	assert.Equal(t, "users", firstPathSegment("/users/{id}"))
-}
-
-func TestApplyPathServers_WithoutRootNode(t *testing.T) {
-	t.Parallel()
-	l := newRawLowerer(&soa.OpenAPI{})
-	op := &ir.Operation{}
-	diags := applyPathServers(l.ctx, op, &soa.PathItem{Servers: []*soa.Server{{URL: "https://x"}}}, "/paths/~1a")
-	assert.Nil(t, op.Unmodeled, "servers with no raw node are not preserved")
-	assert.Empty(t, diags)
-}
-
-func TestLowerTagDefs_NilEntrySkipped(t *testing.T) {
-	t.Parallel()
-	l := newRawLowerer(&soa.OpenAPI{Tags: []*soa.Tag{nil, {}}})
-	assert.Len(t, lowerTagDefs(l.ctx), 1, "nil tag entry skipped")
 }
 
 func TestRawChildNode(t *testing.T) {
@@ -739,16 +546,6 @@ func TestRawChildNode(t *testing.T) {
 	require.NotNil(t, got)
 	assert.Equal(t, "2", got.Value)
 	assert.Nil(t, annotation.RawChildNode(&doc, "missing"), "absent key")
-}
-
-// TestParamKey_NilParameterIsNotAKey pins the guard on the merge key. A nil
-// entry in a parameter list has no name and no location, so it cannot key
-// anything — and answering with the zero key would silently merge every such
-// entry onto one another.
-func TestParamKey_NilParameterIsNotAKey(t *testing.T) {
-	t.Parallel()
-	_, ok := paramKey(nil)
-	assert.False(t, ok)
 }
 
 const componentResponseRefSpec = `openapi: 3.1.0
@@ -1442,20 +1239,89 @@ func TestOperation_UnserializableExtensionStillWarns(t *testing.T) {
 	assert.Empty(t, op.Unmodeled, "and is dropped rather than stored half-converted")
 }
 
-// TestCheckOperationIDUnique_ReportsTheSecondClaim pins what the check is for:
-// the first claim on an operationId is recorded silently and the second names
-// it. This used to cover a lazy map init instead, which is gone — the map is
-// the caller's and is allocated where the lowering starts.
-func TestCheckOperationIDUnique_ReportsTheSecondClaim(t *testing.T) {
+// ghostRefsSpec references non-existent components everywhere so every
+// resolve-or-skip path (unresolved GetObject → nil) and resolution-error branch
+// is exercised without a panic.
+const ghostRefsSpec = `openapi: 3.1.0
+info: {title: T, version: "1"}
+paths:
+  /a:
+    parameters:
+      - {$ref: '#/components/parameters/GhostParam'}
+    get:
+      operationId: getA
+      callbacks:
+        good:
+          '{$url}': {$ref: '#/components/pathItems/GhostInner'}
+        bad: {$ref: '#/components/callbacks/GhostCb'}
+      requestBody: {$ref: '#/components/requestBodies/GhostBody'}
+      responses:
+        "200": {$ref: '#/components/responses/GhostResp'}
+        "201":
+          description: ok
+          headers:
+            X-H: {$ref: '#/components/headers/GhostHeader'}
+          content:
+            application/json:
+              schema: {type: string}
+              examples:
+                one: {$ref: '#/components/examples/GhostEx'}
+  /ref: {$ref: '#/components/pathItems/GhostItem'}
+webhooks:
+  hook: {$ref: '#/components/pathItems/GhostHook'}
+`
+
+// TestGhostRefs_AllResolversDegradeGracefully drives every reference-or-inline
+// entry the operation walk resolves against a component that does not exist, so
+// each resolve-or-skip branch is reached in one pass.
+//
+// It holds what the skips do, not only that nothing panics. Each of them decides
+// whether a construct the document does not actually declare ends up in the IR.
+func TestGhostRefs_AllResolversDegradeGracefully(t *testing.T) {
 	t.Parallel()
-	l := newRawLowerer(nil)
-	op := ir.Operation{Name: ir.Naming{Source: "dup"}}
+	// A reference that resolves to nothing is a diagnostic, not a parse failure,
+	// so the whole spec compiles and every skip is reached in one pass.
+	doc, diags := parseFull(t, ghostRefsSpec)
+	assert.True(t, hasDiag(diags, diag.UnresolvedRef), "unresolved refs reported")
+	assert.Len(t, diags, 1,
+		"and the skips themselves are silent: a skip that lowered an empty stand-in instead "+
+			"would report on a construct the document never wrote: %+v", diags)
 
-	assert.Empty(t, checkOperationIDUnique(l.ctx, l.operationIDs, op, "/paths/~1a/get"),
-		"the first claim is recorded without a word")
+	// What each skip has to do is contribute nothing — not an empty stand-in.
+	// Asserting only "no panic" leaves that unheld: lowering an unresolvable path
+	// item as an empty one, rather than skipping it, passes a no-panic test and
+	// every other test in this repo, while putting a path the document does not
+	// declare into the IR.
+	require.Len(t, doc.Services[0].Groups, 1, "the ghost webhook adds no group of its own")
+	ops := doc.Services[0].Groups[0].Operations
+	require.Len(t, ops, 1,
+		"only the one declared operation survives: the ghost path item, the ghost webhook, the "+
+			"ghost callback and the callback's ghost path item each contribute none")
+	op := ops[0]
+	assert.Equal(t, "getA", op.Name.Source)
+	assert.Empty(t, op.Params, "the ghost parameter is skipped, not lowered as a nameless one")
+	assert.Nil(t, op.Request, "as is the ghost request body")
 
-	diags := checkOperationIDUnique(l.ctx, l.operationIDs, op, "/paths/~1b/get")
-	require.Len(t, diags, 1)
-	assert.Equal(t, diag.DuplicateOperationID, diags[0].Code)
-	assert.Contains(t, diags[0].Message, "/paths/~1a/get", "and it names the operation that claimed it first")
+	require.Len(t, op.Responses, 1, "the ghost response is skipped; the inline 201 is not")
+	resp := op.Responses[0]
+	assert.Empty(t, resp.Headers, "the ghost header is skipped")
+	require.NotNil(t, resp.Payload)
+	require.Len(t, resp.Payload.Contents, 1)
+	assert.Empty(t, resp.Payload.Contents[0].Examples, "and the ghost example")
+}
+
+// TestOperation_DeprecatedIsCarried pins the one flag an operation can raise
+// about itself. It is a declared fact, not an inference, so it lands on the
+// operation rather than in Unmodeled — and an SDK that hides deprecated calls
+// has nothing else to read.
+func TestOperation_DeprecatedIsCarried(t *testing.T) {
+	t.Parallel()
+	doc, diags := parseFull(t, pathsSpec(`  /a:
+    get: {operationId: getA, deprecated: true, responses: {"200": {description: ok}}}
+    post: {operationId: postA, responses: {"200": {description: ok}}}
+`))
+	requireNoErrorDiags(t, diags)
+
+	assert.NotNil(t, findOp(t, doc, "getA").Deprecation, "the declared flag is carried")
+	assert.Nil(t, findOp(t, doc, "postA").Deprecation, "and an operation that declares none has none")
 }

@@ -1,4 +1,4 @@
-package openapi
+package operation
 
 import (
 	oas3 "github.com/speakeasy-api/openapi/jsonschema/oas3"
