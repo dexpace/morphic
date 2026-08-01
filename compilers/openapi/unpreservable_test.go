@@ -238,3 +238,69 @@ func firstDiagWithCode(diags []ir.Diagnostic, code string) (ir.Diagnostic, bool)
 	}
 	return ir.Diagnostic{}, false
 }
+
+// TestPreserve_AllReasonsReachable pins that every UnmodeledReason an OpenAPI
+// document can provoke is produced by some lowering here, so a consumer
+// switching on the enum meets no value this compiler can never emit. There is no
+// longer an exception: ReasonOutOfScope was once only ir-design §15's Smithy and
+// TypeSpec exclusions, but the JSON Schema resource and dialect keywords land
+// under it too (dialectAt, TestDialectKeywords_KeptOutOfScope), so S declares one.
+//
+// The reach is per reason, not per entry: an entry left at the zero reason is
+// invisible here, and is irverify's "ir/empty-unmodeled-reason" to catch across
+// the whole corpus rather than this one document's.
+func TestPreserve_AllReasonsReachable(t *testing.T) {
+	t.Parallel()
+	spec := `openapi: 3.1.0
+info: {title: T, version: "1"}
+components:
+  schemas:
+    S:
+      type: object
+      x-vendor: v
+      $schema: 'https://json-schema.org/draft/2020-12/schema'
+      not: {required: [b]}
+      properties: {a: {type: string}}
+      oneOf:
+        - {required: [a]}
+        - {required: [b]}
+    T:
+      type: array
+      prefixItems: [{type: string}]
+      items: {type: integer}
+paths:
+  /p:
+    post:
+      operationId: p
+      requestBody:
+        content: {application/json: {schema: {type: string}}}
+      responses: {"204": {description: ok}}
+`
+	doc, svc, diags := lowerServiceSpec(t, spec)
+	requireNoErrorDiags(t, diags)
+
+	// S witnesses vendor_extension, validation_only (its constraint-only union
+	// joins `not` there) and out_of_scope (its $schema); T's open tuple is the
+	// only degraded_lowering witness here, so it must not be folded into another
+	// case.
+	seen := map[ir.UnmodeledReason]bool{}
+	for _, name := range []string{"S", "T"} {
+		for _, entry := range doc.Types[componentID(name)].Common().Unmodeled {
+			seen[entry.Reason] = true
+		}
+	}
+	// The one no_ir_home site reachable from a minimal document: a requestBody
+	// that omits `required`, which the IR has no field for (§14).
+	body := firstOp(t, svc).Request
+	require.NotNil(t, body, "the operation must own a request payload")
+	for _, entry := range body.Unmodeled {
+		seen[entry.Reason] = true
+	}
+
+	for _, want := range []ir.UnmodeledReason{
+		ir.ReasonVendorExtension, ir.ReasonValidationOnly,
+		ir.ReasonDegradedLowering, ir.ReasonNoIRHome, ir.ReasonOutOfScope,
+	} {
+		assert.True(t, seen[want], "no entry carries reason %q", want)
+	}
+}

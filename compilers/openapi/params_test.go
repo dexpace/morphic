@@ -189,7 +189,7 @@ func TestParams_AllLocationsAndStyles(t *testing.T) {
 	assert.NotEmpty(t, logical["filter"].Unmodeled)
 	require.NotNil(t, logical["q"].Constraints)
 
-	assert.True(t, hasDiagAt(diags, diag.DegradedConstruct, ir.SeverityWarning), "malformed param default warns")
+	assert.True(t, countDiagsAt(diags, diag.DegradedConstruct, ir.SeverityWarning) > 0, "malformed param default warns")
 	assert.True(t, hasDiag(diags, diag.NumericPrecision), "malformed param constraint warns")
 }
 

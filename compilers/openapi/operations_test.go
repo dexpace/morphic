@@ -19,6 +19,7 @@ import (
 	"github.com/dexpace/morphic/compilers/openapi/internal/ids"
 	"github.com/dexpace/morphic/compilers/openapi/internal/load"
 	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
+	"github.com/dexpace/morphic/compilers/openapi/internal/schema"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -488,7 +489,7 @@ func TestGrouping_ByPathPrefixInferred(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, loadedDoc)
 	l := newLowerer(loadedDoc, opts)
-	l.diags.AppendAll(lowerComponentSchemas(l.ctx, l.types, &l.anchors))
+	l.diags.AppendAll(schema.LowerComponentSchemas(l.ctx, l.types, &l.anchors))
 	svc, tagDefs, svcDiags := lowerService(l.ctx.WithAuth(l.out.Auth), l.types, &l.anchors, l.operationIDs)
 	l.out.TagDefs = tagDefs
 	l.diags.AppendAll(svcDiags)
@@ -647,7 +648,7 @@ func TestGrouping_PathPrefixRootPath(t *testing.T) {
 	loadedDoc, _, err := load.Load(t.Context(), 0, sourceOf(spec), loadOptions(opts))
 	require.NoError(t, err)
 	l := newLowerer(loadedDoc, opts)
-	l.diags.AppendAll(lowerComponentSchemas(l.ctx, l.types, &l.anchors))
+	l.diags.AppendAll(schema.LowerComponentSchemas(l.ctx, l.types, &l.anchors))
 	svc, tagDefs, svcDiags := lowerService(l.ctx.WithAuth(l.out.Auth), l.types, &l.anchors, l.operationIDs)
 	l.out.TagDefs = tagDefs
 	l.diags.AppendAll(svcDiags)
@@ -1632,4 +1633,22 @@ func TestOperation_UnserializableExtensionStillWarns(t *testing.T) {
 		"the unserializable extension is named in a warning, not merely some warning: %+v", diags)
 	op := doc.Services[0].Groups[0].Operations[0]
 	assert.Empty(t, op.Unmodeled, "and is dropped rather than stored half-converted")
+}
+
+// TestCheckOperationIDUnique_ReportsTheSecondClaim pins what the check is for:
+// the first claim on an operationId is recorded silently and the second names
+// it. This used to cover a lazy map init instead, which is gone — the map is
+// the caller's and is allocated where the lowering starts.
+func TestCheckOperationIDUnique_ReportsTheSecondClaim(t *testing.T) {
+	t.Parallel()
+	l := newRawLowerer(nil)
+	op := ir.Operation{Name: ir.Naming{Source: "dup"}}
+
+	assert.Empty(t, checkOperationIDUnique(l.ctx, l.operationIDs, op, "/paths/~1a/get"),
+		"the first claim is recorded without a word")
+
+	diags := checkOperationIDUnique(l.ctx, l.operationIDs, op, "/paths/~1b/get")
+	require.Len(t, diags, 1)
+	assert.Equal(t, diag.DuplicateOperationID, diags[0].Code)
+	assert.Contains(t, diags[0].Message, "/paths/~1a/get", "and it names the operation that claimed it first")
 }

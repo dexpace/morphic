@@ -10,6 +10,7 @@ import (
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/load"
 	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
+	"github.com/dexpace/morphic/compilers/openapi/internal/schema"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -69,7 +70,7 @@ func run(c lowering.Ctx, ts *compile.Types) (*ir.Document, []ir.Diagnostic) {
 	// not a struct's: a document being built, a memo, and a loop-local set
 	// (micro-compiler-design §4.1). Nothing below allocates them.
 	out := &ir.Document{Types: ts.Registry()}
-	var anchors anchorIndex
+	var anchors schema.AnchorIndex
 	operationIDs := make(map[string]string)
 
 	// acc is what makes the identity dedup still hold. Every lowering returns its
@@ -77,7 +78,7 @@ func run(c lowering.Ctx, ts *compile.Types) (*ir.Document, []ir.Diagnostic) {
 	// copies; compile.Diags.Append is what collapses them, and it has to see the
 	// whole stream to do it.
 	var acc compile.Diags
-	acc.AppendAll(lowerComponentSchemas(c, ts, &anchors))
+	acc.AppendAll(schema.LowerComponentSchemas(c, ts, &anchors))
 
 	auth, authDiags := lowerSecuritySchemes(c)
 	out.Auth = auth

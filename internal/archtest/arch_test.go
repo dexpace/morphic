@@ -117,6 +117,23 @@ var rules = map[string][]string{
 		module + "/compilers/openapi/internal/load",
 		module + "/compilers/openapi/internal/resolve",
 		"github.com/speakeasy-api/openapi/openapi"},
+	// The schema walk, and everything that recurses with it: composition,
+	// reference following, and the preservation that hangs off both. It is one
+	// package because they are one cycle (micro-compiler-design §5), and it
+	// reaches every part of the compiler below it — but nothing above: an import
+	// of the compiler package from here is the cycle the extraction removed.
+	"compilers/openapi/internal/schema": {module + "/ir", module + "/compilers/compile",
+		module + "/compilers/openapi/internal/annotation",
+		module + "/compilers/openapi/internal/diag",
+		module + "/compilers/openapi/internal/ids",
+		module + "/compilers/openapi/internal/lowering",
+		module + "/compilers/openapi/internal/merge",
+		module + "/compilers/openapi/internal/nodeview",
+		module + "/compilers/openapi/internal/resolve",
+		module + "/compilers/openapi/internal/value",
+		"github.com/speakeasy-api/openapi/extensions",
+		"github.com/speakeasy-api/openapi/jsonschema/oas3",
+		"github.com/speakeasy-api/openapi/values", "gopkg.in/yaml.v3"},
 	"pass": {module + "/ir"},
 	"engine": {module + "/ir", module + "/compilers", module + "/compilers/openapi",
 		module + "/pass", "gopkg.in/yaml.v3"},

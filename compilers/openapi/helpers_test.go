@@ -6,7 +6,7 @@ import (
 
 	oas3 "github.com/speakeasy-api/openapi/jsonschema/oas3"
 	soa "github.com/speakeasy-api/openapi/openapi"
-	"github.com/speakeasy-api/openapi/sequencedmap"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	yaml "gopkg.in/yaml.v3"
 
@@ -15,13 +15,9 @@ import (
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/load"
 	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
+	"github.com/dexpace/morphic/compilers/openapi/internal/schema"
 	"github.com/dexpace/morphic/ir"
 )
-
-// deepPointer is a sub-schema pointer (not a top-level component pointer), so it
-// exercises the interning-lookup paths rather than the named-component path.
-// Shared across ids_test.go and schema_test.go.
-const deepPointer = "/components/schemas/Obj/properties/inner"
 
 // sourceOf wraps a spec string as a compilers.Source.
 func sourceOf(src string) compilers.Source {
@@ -70,7 +66,7 @@ func loweredFor(t *testing.T, src string) (*lowerer, []ir.Diagnostic) {
 func lowerSpec(t *testing.T, src string) (*ir.Document, []ir.Diagnostic) {
 	t.Helper()
 	l, diags := loweredFor(t, src)
-	l.diags.AppendAll(lowerComponentSchemas(l.ctx, l.types, &l.anchors)) // named components; the entry Compile's run() calls first
+	l.diags.AppendAll(schema.LowerComponentSchemas(l.ctx, l.types, &l.anchors)) // named components; the entry Compile's run() calls first
 	return l.out, append(diags, l.diags.List()...)
 }
 
@@ -90,7 +86,7 @@ func lowerServiceSpec(t *testing.T, src string) (*ir.Document, ir.Service, []ir.
 		require.NoError(t, err)
 		require.NotNil(t, loadedDoc)
 		l := newLowerer(loadedDoc, Options{}.withDefaults())
-		l.diags.AppendAll(lowerComponentSchemas(l.ctx, l.types, &l.anchors))
+		l.diags.AppendAll(schema.LowerComponentSchemas(l.ctx, l.types, &l.anchors))
 		auth, authDiags := lowerSecuritySchemes(l.ctx)
 		l.out.Auth = auth
 		l.diags.AppendAll(authDiags)
@@ -142,17 +138,6 @@ func typeByName(doc *ir.Document, name string) ir.TypeDef {
 	return doc.Types[componentID(name)]
 }
 
-// conflictDiags returns every conflicting-redeclaration diagnostic in diags.
-func conflictDiags(diags []ir.Diagnostic) []ir.Diagnostic {
-	var out []ir.Diagnostic
-	for _, d := range diags {
-		if d.Code == diag.ConflictingRedecl {
-			out = append(out, d)
-		}
-	}
-	return out
-}
-
 // lowerer is test scaffolding, not a compiler type. The compiler has no such
 // struct: every lowering is a function of the context, the registry and the
 // memos, and run owns the document being built (#177). Tests that drive one
@@ -163,7 +148,7 @@ type lowerer struct {
 	out          *ir.Document
 	types        *compile.Types
 	diags        compile.Diags
-	anchors      anchorIndex
+	anchors      schema.AnchorIndex
 	operationIDs map[string]string
 }
 
@@ -193,33 +178,11 @@ func newRawLowerer(doc *soa.OpenAPI) *lowerer {
 	return l
 }
 
-// docDeclaring builds a document declaring the named component schemas, with no
-// parser and no fixture — the shape a test wants when what it needs from the
-// document is only which components it declares.
-func docDeclaring(names ...string) *soa.OpenAPI {
-	elems := make([]*sequencedmap.Element[string, *oas3.JSONSchema[oas3.Referenceable]], 0, len(names))
-	for _, n := range names {
-		elems = append(elems, sequencedmap.NewElem(n,
-			oas3.NewJSONSchemaFromSchema[oas3.Referenceable](&oas3.Schema{})))
-	}
-	return &soa.OpenAPI{Components: &soa.Components{Schemas: sequencedmap.New(elems...)}}
-}
-
 // emptyEitherSchema is a JSONSchema whose either-value has neither a Left schema
 // nor a Right bool set: IsSchema() is true (IsLeft defaults true) yet GetSchema()
 // is nil. The parser never produces this, so it drives the nil-schema guards.
 func emptyEitherSchema() *oas3.JSONSchema[oas3.Referenceable] {
 	return oas3.NewJSONSchemaFromSchema[oas3.Referenceable](nil)
-}
-
-// yamlNode parses a YAML snippet and returns its root value node (the
-// document node's single content child), matching what schema fields expose.
-func yamlNode(t *testing.T, src string) *yaml.Node {
-	t.Helper()
-	var doc yaml.Node
-	require.NoError(t, yaml.Unmarshal([]byte(src), &doc))
-	require.Len(t, doc.Content, 1, "expected a single document node")
-	return doc.Content[0]
 }
 
 // strNode builds a bare string-scalar yaml.Node. The tag is fixed rather than a
@@ -260,12 +223,6 @@ func hasDiag(diags []ir.Diagnostic, code string) bool {
 		}
 	}
 	return false
-}
-
-// hasDiagAt reports whether diags contains a diagnostic with the exact code at
-// the exact severity.
-func hasDiagAt(diags []ir.Diagnostic, code string, sev ir.Severity) bool {
-	return countDiagsAt(diags, code, sev) > 0
 }
 
 // firstDegradedWarning returns the first diag.DegradedConstruct warning in
@@ -336,4 +293,52 @@ func indexBy[T any, K comparable](items []T, key func(T) K) map[K]T {
 // propsByWire indexes a model's properties by wire name.
 func propsByWire(props []ir.Property) map[string]ir.Property {
 	return indexBy(props, func(p ir.Property) string { return p.WireName })
+}
+
+// The inline-probe helpers below are duplicated in the schema package's own
+// tests. Both sides need them and neither package can see the other's test
+// scaffolding, which is the cost of the split; each copy is held to its meaning
+// by the tests that use it, so a copy that drifts fails on its own side.
+// inlineProbeBody is the body every inline-position case below writes: one
+// annotation of each kind attachDeclaredAnnotations reads, one validation-only
+// keyword, and one value constraint — all of them position-scoped, so a
+// position that lowers this to the shared string primitive loses every one. All
+// three documentation keywords are here because a home that keeps only the
+// description passes a probe that writes only a description.
+const inlineProbeBody = `{type: string, title: SUM, description: DOC, ` +
+	`externalDocs: {url: 'https://e.example', description: ED}, deprecated: true, ` +
+	`example: abc, x-vendor: V, xml: {name: X}, not: {const: N}, maxLength: 3}`
+
+// assertProbeDocsKept checks all three documentation keywords inlineProbeBody
+// writes reached d, wherever the position's home turned out to be.
+func assertProbeDocsKept(t *testing.T, d ir.Docs) {
+	t.Helper()
+	assert.Equal(t, "SUM", d.Summary, "title")
+	assert.Equal(t, "DOC", d.Description, "description")
+	if assert.Len(t, d.ExternalDocs, 1, "externalDocs") {
+		assert.Equal(t, "https://e.example", d.ExternalDocs[0].URL)
+		assert.Equal(t, "ED", d.ExternalDocs[0].Description)
+	}
+}
+
+// assertProbeExample checks the single example inlineProbeBody writes reached
+// the home under test with its value intact.
+func assertProbeExample(t *testing.T, examples []ir.Example) {
+	t.Helper()
+	if !assert.Len(t, examples, 1, "examples") {
+		return
+	}
+	require.NotNil(t, examples[0].Value)
+	assert.Equal(t, "abc", examples[0].Value.Str)
+}
+
+// assertInfoDiagAt requires one info diagnostic stamped at pointer.
+func assertInfoDiagAt(t *testing.T, diags []ir.Diagnostic, pointer string) {
+	t.Helper()
+	for _, d := range diags {
+		if d.Severity == ir.SeverityInfo && d.Provenance.Pointer == pointer {
+			return
+		}
+	}
+	assert.Fail(t, "nothing announced this", "no info diagnostic at %q; got %+v", pointer, diags)
 }
