@@ -1,0 +1,10 @@
+# A self-reference that only the resolver's pointer normalization reveals.
+# speakeasy trims whitespace around the pointer half of a $ref
+# (references/reference.go GetJSONPointer), so '#/paths/~1a ' names /a there
+# while a scan reading the raw value calls it dangling and lets it through.
+openapi: 3.1.0
+info: {title: Pointer Whitespace Self, version: "1"}
+paths:
+  /a:
+    $ref: '#/paths/~1a '
+    get: {operationId: a, responses: {"200": {description: ok}}}

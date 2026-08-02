@@ -1,0 +1,8 @@
+# A path item whose $ref names a position *inside itself*. The pointer does not
+# resolve — there is no `t` key — so the chain looks dangling, but the resolver
+# never evaluates the last segment: it deadlocks walking the prefix
+# '#/paths/~1a', which is the reference it is already resolving.
+openapi: 3.1.0
+info: {title: Path Item Prefix Self, version: "1"}
+paths:
+  /a: {$ref: '#/paths/~1a/t'}

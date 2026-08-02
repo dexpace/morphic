@@ -9,6 +9,7 @@
 package nodeview
 
 import (
+	"net/url"
 	"strconv"
 	"strings"
 
@@ -26,6 +27,12 @@ import (
 // the same number for its descents: the scan sits above this package and a bound
 // borrowed upward would invert the dependency.
 const maxAliasChain = 10000
+
+// maxPointerSegments bounds how many tokens one JSON pointer walk follows. A
+// pointer names a position in the document, so a real one is a handful of
+// segments deep; the bound is what keeps the walk terminating on a pointer built
+// to be long rather than to name anything, per the bounded-recursion rule.
+const maxPointerSegments = 1024
 
 // MergeDepthLimit bounds how deep a chain of `<<` merge keys the mapping view
 // expands. It is far tighter than maxAliasChain: each merge level
@@ -301,35 +308,84 @@ func (v *View) PureRefTarget(n *yaml.Node) (string, bool) {
 }
 
 // PureRefTargetOf is PureRefTarget over an already-expanded pair list, so a
-// caller that needs both the pairs and the target expands the mapping once.
+// caller that needs both the pairs and the target expands the mapping once. The
+// target is normalized by InternalPointer, so it is a bare pointer ('/a/b'),
+// not the '#/a/b' the source spells.
 func PureRefTargetOf(pairs []Pair) (string, bool) {
 	for _, p := range pairs {
 		if p.Key != "$ref" {
 			continue
 		}
-		if p.Val == nil || p.Val.Kind != yaml.ScalarNode || !strings.HasPrefix(p.Val.Value, "#/") {
+		if p.Val == nil || p.Val.Kind != yaml.ScalarNode {
 			return "", false
 		}
-		return p.Val.Value, true
+		return InternalPointer(p.Val.Value)
 	}
 	return "", false
 }
 
-// ResolvePointer resolves an internal JSON pointer ('#/a/b') against the root
-// node, returning the targeted node or nil when the path does not exist. Alias
-// nodes along the path are dereferenced so navigation follows structure.
-func (v *View) ResolvePointer(root *yaml.Node, ref string) *yaml.Node {
+// InternalPointer reports the JSON pointer a $ref value names inside this
+// document, and whether it names this document at all.
+//
+// It mirrors the resolver exactly: speakeasy splits a $ref on '#', treats what
+// precedes it as a URI and what follows as the pointer, trims whitespace from
+// both, and percent-decodes the pointer (references/reference.go GetURI and
+// GetJSONPointer, v1.24.0). A ref whose URI half is empty names this document.
+//
+// Reading the raw value instead is not a near-enough approximation, it is a hole
+// in the cycle scan: a pointer this package calls dangling but the resolver
+// resolves is a reference the scan cannot see, and '#/paths/~1a ' — one trailing
+// space — is enough to be one. A dependency bump should re-check those two
+// methods, as MergeDepthLimit's comment does for the behavior it tracks.
+func InternalPointer(ref string) (string, bool) {
+	parts := strings.Split(ref, "#")
+	if len(parts) < 2 || strings.TrimSpace(parts[0]) != "" {
+		return "", false // no fragment, or a fragment in another document
+	}
+	pointer := strings.TrimSpace(parts[1])
+	if decoded, err := url.QueryUnescape(pointer); err == nil {
+		pointer = decoded
+	}
+	return pointer, true
+}
+
+// PointerPath walks a normalized internal JSON pointer ('/a/b', as
+// InternalPointer returns it) against the root node, keeping every node it
+// passes through: element 0 is the root and each later element is the node
+// reached by one more token. complete reports whether every token resolved;
+// when it is false the walk stopped at the last element returned, and there is
+// no destination. Alias nodes along the path are dereferenced so navigation
+// follows structure.
+//
+// It yields the whole path rather than just the target because a pointer's
+// danger is not always at its destination. speakeasy resolves a reference while
+// holding that reference's own lock and read-locks every reference the pointer
+// walk passes through, so a pointer that traverses a reference already being
+// resolved deadlocks before it ever arrives (v1.24.0, openapi/reference.go
+// resolve/GetObject). A target alone cannot express that.
+func (v *View) PointerPath(root *yaml.Node, pointer string) (path []*yaml.Node, complete bool) {
 	cur := Deref(root)
-	for raw := range strings.SplitSeq(strings.TrimPrefix(ref, "#"), "/") {
+	if cur == nil {
+		return nil, false
+	}
+	path = append(path, cur)
+
+	segments := 0
+	for raw := range strings.SplitSeq(pointer, "/") {
 		if raw == "" {
 			continue
 		}
-		cur = v.ChildByToken(Deref(cur), ids.UnescapeSegment(raw))
-		if cur == nil {
-			return nil
+		segments++
+		if segments > maxPointerSegments {
+			return path, false
 		}
+		cur = Deref(v.ChildByToken(cur, ids.UnescapeSegment(raw)))
+		if cur == nil {
+			return path, false
+		}
+		path = append(path, cur)
 	}
-	return Deref(cur)
+	return path, true
 }
 
 // ChildByToken returns the child of a mapping (by key) or sequence (by index)

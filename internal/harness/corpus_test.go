@@ -45,6 +45,20 @@ import (
 //     document position ('#/paths/~1a', '#/webhooks/onA') rather than through
 //     components. Speakeasy guards the components spelling and faults on these,
 //     so the pre-parse scan refuses them too.
+//   - cycle_path_item_prefix_self.yaml, cycle_path_item_prefix_sibling.yaml,
+//     cycle_path_item_prefix_chain.yaml, cycle_component_path_item_prefix.yaml,
+//     and cycle_webhook_prefix_self.yaml: a $ref whose pointer passes *through*
+//     a reference already being resolved. Speakeasy resolves a reference while
+//     holding its own write lock and read-locks every reference the pointer walk
+//     traverses, so re-entering one deadlocks the process on a non-reentrant
+//     RWMutex — and inside a hop that never completes, so its own cycle guard
+//     never runs. Unlike the cycles above, the components spelling deadlocks
+//     too, so all spellings are refused.
+//   - cycle_pointer_whitespace_self.yaml: the same self-reference, visible only
+//     once the pointer is normalized the way the resolver normalizes it.
+//     Speakeasy trims whitespace around the pointer half of a $ref, so
+//     '#/paths/~1a ' names /a there; a scan reading the raw value called it
+//     dangling and let a stack-overflowing self-reference through.
 //   - amplification_alias_bomb.yaml: a 10-level x 10-way YAML alias fan-out
 //     ("billion laughs"). Every alias's target is acyclic, so neither the
 //     anchor nor $ref cycle detector catches it, and unguarded it exhausts
@@ -90,6 +104,12 @@ func knownInvalid() map[string]bool {
 		filepath.FromSlash("../../testdata/openapi/cycle_webhook_mutual.yaml"):                 true,
 		filepath.FromSlash("../../testdata/openapi/cycle_response_via_path.yaml"):              true,
 		filepath.FromSlash("../../testdata/openapi/cycle_path_item_via_component.yaml"):        true,
+		filepath.FromSlash("../../testdata/openapi/cycle_path_item_prefix_self.yaml"):          true,
+		filepath.FromSlash("../../testdata/openapi/cycle_path_item_prefix_sibling.yaml"):       true,
+		filepath.FromSlash("../../testdata/openapi/cycle_path_item_prefix_chain.yaml"):         true,
+		filepath.FromSlash("../../testdata/openapi/cycle_component_path_item_prefix.yaml"):     true,
+		filepath.FromSlash("../../testdata/openapi/cycle_webhook_prefix_self.yaml"):            true,
+		filepath.FromSlash("../../testdata/openapi/cycle_pointer_whitespace_self.yaml"):        true,
 		filepath.FromSlash("../../testdata/openapi/amplification_alias_bomb.yaml"):             true,
 		filepath.FromSlash("../../testdata/dangling/openapi/f04-composition.yaml"):             true,
 		filepath.FromSlash("../../testdata/dangling/openapi/f05-discriminator.yaml"):           true,

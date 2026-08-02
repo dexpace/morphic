@@ -1,0 +1,13 @@
+# The re-entrant prefix reached on the second hop rather than the first: /b's
+# pointer passes through /a, which is on the chain by then.
+#
+# The declaration order is load-bearing. Declaring /b first is what makes the
+# walk reach it as a chain root before /a is ever on a chain, so a safe-memo
+# keyed on the node alone records /b as terminating and the later /a -> /b walk
+# short-circuits past the re-entrant hop. Both orders deadlock in the resolver,
+# so both must be refused; this is the order that hides it.
+openapi: 3.1.0
+info: {title: Path Item Prefix Chain, version: "1"}
+paths:
+  /b: {$ref: '#/paths/~1a/t'}
+  /a: {$ref: '#/paths/~1b'}

@@ -35,6 +35,15 @@ var cycleReproducers = []struct{ name, file string }{
 	{"webhook-mutual", "cycle_webhook_mutual"},
 	{"response-via-path", "cycle_response_via_path"},
 	{"path-item-via-component", "cycle_path_item_via_component"},
+	// A reference whose pointer passes through a reference already being
+	// resolved. Distinct from the cycles above: the hop never completes, so
+	// speakeasy's own guard cannot see it and it deadlocks rather than faulting.
+	{"path-item-prefix-self", "cycle_path_item_prefix_self"},
+	{"path-item-prefix-sibling", "cycle_path_item_prefix_sibling"},
+	{"path-item-prefix-chain", "cycle_path_item_prefix_chain"},
+	{"component-path-item-prefix", "cycle_component_path_item_prefix"},
+	{"webhook-prefix-self", "cycle_webhook_prefix_self"},
+	{"pointer-whitespace-self", "cycle_pointer_whitespace_self"},
 }
 
 func TestCompile_CyclicSpecDoesNotCrash(t *testing.T) {
@@ -248,4 +257,31 @@ func FuzzCycleDetector(f *testing.F) {
 		_, _, _ = New().Compile(t.Context(),
 			[]compilers.Source{{Path: "fuzz.yaml", Data: data}}, compilers.Options{})
 	})
+}
+
+// TestCompile_ReentrantPrefixRefusedInBothDeclarationOrders pins what the
+// safe-memo narrowing exists for. Whether a re-entrant hop is seen depends on
+// which reference the walk reaches as a chain root first, so a single order
+// proves nothing: with a memo keyed on the node alone, declaring the dangling
+// reference first records it as terminating and the later chain short-circuits
+// straight past the hop. Both orders deadlock in the resolver, so both must be
+// refused.
+func TestCompile_ReentrantPrefixRefusedInBothDeclarationOrders(t *testing.T) {
+	t.Parallel()
+	const head = "openapi: 3.1.0\ninfo: {title: t, version: '1'}\npaths:\n"
+	orders := []struct{ name, body string }{
+		{"dangling-declared-first", "  /b: {$ref: '#/paths/~1a/t'}\n  /a: {$ref: '#/paths/~1b'}\n"},
+		{"dangling-declared-last", "  /a: {$ref: '#/paths/~1b'}\n  /b: {$ref: '#/paths/~1a/t'}\n"},
+	}
+	for _, tc := range orders {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			doc, diags, err := New().Compile(t.Context(),
+				[]compilers.Source{{Path: "order.yaml", Data: []byte(head + tc.body)}},
+				compilers.Options{})
+			require.NoError(t, err, "a re-entrant reference is a spec problem, not a Go error")
+			assert.Nil(t, doc, "the compiler refuses a re-entrant reference")
+			assertHasErrorCode(t, diags, diag.CyclicRef)
+		})
+	}
 }
