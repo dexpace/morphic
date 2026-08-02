@@ -7,6 +7,7 @@ import (
 	"github.com/dexpace/morphic/compilers"
 	"github.com/dexpace/morphic/compilers/compile"
 	"github.com/dexpace/morphic/compilers/openapi/internal/annotation"
+	"github.com/dexpace/morphic/compilers/openapi/internal/auth"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/load"
 	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
@@ -80,12 +81,12 @@ func run(c lowering.Ctx, ts *compile.Types) (*ir.Document, []ir.Diagnostic) {
 	var acc compile.Diags
 	acc.AppendAll(schema.LowerComponentSchemas(c, ts, &anchors))
 
-	auth, authDiags := lowerSecuritySchemes(c)
-	out.Auth = auth
+	schemes, authDiags := auth.LowerSecuritySchemes(c)
+	out.Auth = schemes
 	acc.AppendAll(authDiags)
 	// Only the service walk gets the auth-carrying context; run keeps the plain
 	// one, so no lowering above the schemes can read them as empty.
-	svcCtx := c.WithAuth(auth)
+	svcCtx := c.WithAuth(schemes)
 
 	svc, tagDefs, svcDiags := lowerService(svcCtx, ts, &anchors, operationIDs)
 	out.Services = []ir.Service{svc}
