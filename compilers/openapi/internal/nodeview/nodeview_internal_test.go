@@ -1,6 +1,7 @@
 package nodeview
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -59,7 +60,7 @@ func TestChildByToken_NilNode(t *testing.T) {
 	assert.Nil(t, New().ChildByToken(nil, "anything"))
 }
 
-func TestResolvePointer_Cases(t *testing.T) {
+func TestPointerPath_Cases(t *testing.T) {
 	t.Parallel()
 	leaf := yscalar("leaf")
 	target := ymap(yscalar("b"), leaf)
@@ -70,27 +71,54 @@ func TestResolvePointer_Cases(t *testing.T) {
 		yscalar("c~d"), yscalar("tilde"),
 	)
 	tests := []struct {
-		name string
-		ref  string
-		want *yaml.Node
+		name    string
+		pointer string
+		want    *yaml.Node
 	}{
-		{"sequence index in range", "#/arr/1", root.Content[1].Content[1]},
-		{"sequence index out of range", "#/arr/9", nil},
-		{"sequence index non-numeric", "#/arr/x", nil},
-		{"alias dereferenced along path", "#/via/b", leaf},
-		{"escaped slash token", "#/a~1b", root.Content[5]},
-		{"escaped tilde token", "#/c~0d", root.Content[7]},
-		{"missing key", "#/nope", nil},
+		{"sequence index in range", "/arr/1", root.Content[1].Content[1]},
+		{"sequence index out of range", "/arr/9", nil},
+		{"sequence index non-numeric", "/arr/x", nil},
+		{"alias dereferenced along path", "/via/b", leaf},
+		{"escaped slash token", "/a~1b", root.Content[5]},
+		{"escaped tilde token", "/c~0d", root.Content[7]},
+		{"missing key", "/nope", nil},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			got := New().ResolvePointer(root, tc.ref)
+			path, complete := New().PointerPath(root, tc.pointer)
 			if tc.want == nil {
-				assert.Nil(t, got)
+				assert.False(t, complete, "the pointer names nothing")
 				return
 			}
-			assert.Same(t, tc.want, got)
+			require.True(t, complete)
+			assert.Same(t, tc.want, path[len(path)-1], "the last element is the destination")
+		})
+	}
+}
+
+func TestInternalPointer_MatchesTheResolversNormalization(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		name, ref, want string
+		internal        bool
+	}{
+		{name: "plain", ref: "#/components/schemas/A", want: "/components/schemas/A", internal: true},
+		{name: "trailing space", ref: "#/paths/~1a ", want: "/paths/~1a", internal: true},
+		{name: "leading space", ref: " #/paths/~1a", want: "/paths/~1a", internal: true},
+		{name: "percent-decoded", ref: "#/paths/%7E1a", want: "/paths/~1a", internal: true},
+		{name: "second hash ends the pointer", ref: "#/a#b", want: "/a", internal: true},
+		{name: "bare hash names the root", ref: "#", want: "", internal: true},
+		{name: "undecodable escape kept raw", ref: "#/a%zz", want: "/a%zz", internal: true},
+		{name: "no fragment", ref: "other.yaml", internal: false},
+		{name: "another document", ref: "other.yaml#/components/schemas/A", internal: false},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			got, internal := InternalPointer(tc.ref)
+			assert.Equal(t, tc.internal, internal)
+			assert.Equal(t, tc.want, got)
 		})
 	}
 }
@@ -200,7 +228,7 @@ func TestPureRefTarget_Cases(t *testing.T) {
 		want string
 	}{
 		{"sibling key before the ref", ymap(yscalar("type"), yscalar("object"),
-			yscalar("$ref"), yscalar("#/components/schemas/A")), "#/components/schemas/A"},
+			yscalar("$ref"), yscalar("#/components/schemas/A")), "/components/schemas/A"},
 		{"external ref is not internal", ymap(yscalar("$ref"), yscalar("other.yaml#/A")), ""},
 		{"non-scalar ref value", ymap(yscalar("$ref"), ymap(yscalar("a"), yscalar("b"))), ""},
 		{"nil ref value via broken alias", ymap(yscalar("$ref"), yalias(nil)), ""},
@@ -425,4 +453,55 @@ func yamlDoc(t *testing.T, src string) *yaml.Node {
 	var doc yaml.Node
 	require.NoError(t, yaml.Unmarshal([]byte(src), &doc))
 	return DocumentRoot(&doc)
+}
+
+func TestPointerPath_KeepsTheNodesTheWalkPassesThrough(t *testing.T) {
+	t.Parallel()
+	leaf := yscalar("leaf")
+	inner := ymap(yscalar("b"), leaf)
+	root := ymap(yscalar("a"), inner)
+
+	path, complete := New().PointerPath(root, "/a/b")
+	require.True(t, complete, "every token resolves")
+	assert.Equal(t, []*yaml.Node{root, inner, leaf}, path,
+		"element 0 is the root and each later element is one more token")
+}
+
+func TestPointerPath_IncompleteStopsAtTheLastNodeReached(t *testing.T) {
+	t.Parallel()
+	inner := ymap(yscalar("b"), yscalar("leaf"))
+	root := ymap(yscalar("a"), inner)
+
+	path, complete := New().PointerPath(root, "/a/missing/deeper")
+	assert.False(t, complete, "a token that names nothing stops the walk")
+	assert.Equal(t, []*yaml.Node{root, inner}, path,
+		"an unresolvable pointer has no destination, so every node it reached is one it passed through")
+}
+
+func TestPointerPath_RootTokenlessAndNil(t *testing.T) {
+	t.Parallel()
+	root := ymap(yscalar("a"), yscalar("v"))
+
+	path, complete := New().PointerPath(root, "")
+	assert.True(t, complete, "a pointer with no tokens names the root")
+	assert.Equal(t, []*yaml.Node{root}, path)
+
+	path, complete = New().PointerPath(nil, "/a")
+	assert.False(t, complete)
+	assert.Nil(t, path, "a nil root reaches nothing")
+}
+
+func TestPointerPath_SegmentCapStopsTheWalk(t *testing.T) {
+	t.Parallel()
+	// A mapping whose only key is "a" and whose value is itself cannot be built
+	// from parsed YAML, but an alias can stand in: the walk follows "a" as long
+	// as tokens last, so only the cap can end it.
+	root := ymap(yscalar("a"), nil)
+	root.Content[1] = root
+
+	ref := strings.Repeat("/a", maxPointerSegments+1)
+	path, complete := New().PointerPath(root, ref)
+	assert.False(t, complete, "a pointer past the segment cap does not resolve")
+	assert.Len(t, path, maxPointerSegments+1,
+		"the walk stops at the cap: the root plus one node per followed token")
 }

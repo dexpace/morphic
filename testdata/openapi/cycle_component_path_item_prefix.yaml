@@ -1,0 +1,11 @@
+# The components spelling of the re-entrant prefix. speakeasy reports a
+# components-only cycle itself when every hop completes, which is why those are
+# left to it — but a hop that re-enters a reference mid-resolve never completes,
+# so this deadlocks exactly like the /paths spelling and is refused here.
+openapi: 3.1.0
+info: {title: Component Path Item Prefix, version: "1"}
+paths:
+  /a: {$ref: '#/components/pathItems/A'}
+components:
+  pathItems:
+    A: {$ref: '#/components/pathItems/A/t'}

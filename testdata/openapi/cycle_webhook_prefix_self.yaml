@@ -1,0 +1,6 @@
+# The webhooks arm of the re-entrant prefix.
+openapi: 3.1.0
+info: {title: Webhook Prefix Self, version: "1"}
+paths: {}
+webhooks:
+  onA: {$ref: '#/webhooks/onA/t'}

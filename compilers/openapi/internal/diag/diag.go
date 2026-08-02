@@ -26,9 +26,11 @@ const (
 	UnsupportedVersion = "openapi/unsupported-version"
 	// UnresolvedRef reports a $ref that could not be resolved.
 	UnresolvedRef = "openapi/unresolved-ref"
-	// CyclicRef reports a degenerate reference cycle — a recursive YAML anchor or
-	// a chain of $ref-only schemas that never reaches a concrete type — caught
-	// before it can crash the parser with a stack overflow.
+	// CyclicRef reports a degenerate reference cycle — a recursive YAML anchor, a
+	// chain of $ref-only schemas that never reaches a concrete type, or a
+	// reference whose pointer resolves through a reference already being resolved
+	// — caught before it can crash the parser with a stack overflow or deadlock
+	// the resolver on a lock its own goroutine holds.
 	CyclicRef = "openapi/cyclic-ref"
 	// CycleScanFailed reports that the pre-parse cycle scan did not run to
 	// completion — either it aborted (a detector bug) or the document exceeded one

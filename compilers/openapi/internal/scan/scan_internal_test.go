@@ -37,6 +37,18 @@ var cycleReproducers = []struct{ name, file string }{
 	{"webhook-mutual", "cycle_webhook_mutual"},
 	{"response-via-path", "cycle_response_via_path"},
 	{"path-item-via-component", "cycle_path_item_via_component"},
+	// A reference whose pointer passes through a reference already being
+	// resolved. Distinct from the cycles above: the hop never completes, so
+	// speakeasy's own guard cannot see it and it deadlocks rather than faulting.
+	{"path-item-prefix-self", "cycle_path_item_prefix_self"},
+	{"path-item-prefix-sibling", "cycle_path_item_prefix_sibling"},
+	{"path-item-prefix-chain", "cycle_path_item_prefix_chain"},
+	{"component-path-item-prefix", "cycle_component_path_item_prefix"},
+	{"webhook-prefix-self", "cycle_webhook_prefix_self"},
+	// A self-reference only the resolver's pointer normalization reveals, which
+	// overflows the stack rather than deadlocking: the resolution cache ends up
+	// pointing at its own reference and GetObject's delegation recurses.
+	{"pointer-whitespace-self", "cycle_pointer_whitespace_self"},
 }
 
 func TestDetectCycles_Reproducers(t *testing.T) {
@@ -144,6 +156,49 @@ components:
   schemas:
     A: {$ref: *r}
     B: {type: object}
+`},
+	// The cases below are the negative controls for the re-entrant-prefix
+	// refusal, and they are what keeps it from widening into an over-refusal.
+	// Each carries a pointer whose prefix names a reference — the shape the rule
+	// keys on — without being the shape that hangs:
+	//
+	//   - the first two pass through a reference that is not on the chain
+	//     reading it, so no lock is re-entered;
+	//   - the last two re-enter from a schema position, which resolves through
+	//     jsonschema rather than the openapi Reference wrapper and so never takes
+	//     the lock at all.
+	//
+	// Each was measured against speakeasy v1.24.0 before being written down:
+	// refusing any of them would be refusing a document that compiles today.
+	{"legal-prefix-both-hops-dangle", `openapi: 3.1.0
+info: {title: t, version: '1'}
+paths:
+  /a: {$ref: '#/paths/~1b/t'}
+  /b: {$ref: '#/paths/~1a/t'}
+`},
+	{"legal-prefix-through-offchain-ref", `openapi: 3.1.0
+info: {title: t, version: '1'}
+paths:
+  /a: {$ref: '#/paths/~1b/t'}
+  /b: {$ref: '#/components/pathItems/C'}
+components:
+  pathItems:
+    C: {get: {operationId: c, responses: {"200": {description: ok}}}}
+`},
+	{"legal-schema-prefix-self", `openapi: 3.1.0
+info: {title: t, version: '1'}
+paths: {}
+components:
+  schemas:
+    A: {$ref: '#/components/schemas/A/properties', properties: {p: {type: string}}}
+`},
+	{"legal-schema-chain-reentry", `openapi: 3.1.0
+info: {title: t, version: '1'}
+paths:
+  /a: {$ref: '#/components/schemas/S/t'}
+components:
+  schemas:
+    S: {$ref: '#/paths/~1a'}
 `},
 }
 
@@ -270,8 +325,8 @@ func TestFollowRefChain_DepthCapReturnsFalse(t *testing.T) {
 			nodes[i].Content = []*yaml.Node{yscalar("$ref"), yscalar("#/schemas/" + strconv.Itoa(i+1))}
 		}
 	}
-	cyclic, _ := newRefScan().followRefChain(root, nodes[0])
-	assert.False(t, cyclic,
+	verdict, _ := newRefScan().followRefChain(root, nodes[0])
+	assert.Equal(t, chainTerminates, verdict,
 		"a chain longer than the depth cap exits without flagging a cycle")
 }
 
@@ -282,13 +337,13 @@ func TestFollowRefChain_SafeMemoShortCircuits(t *testing.T) {
 	schemas := ymap(yscalar("A"), a, yscalar("B"), b)
 	root := ymap(yscalar("schemas"), schemas)
 
-	cyclic, _ := newRefScan().followRefChain(root, a)
-	assert.True(t, cyclic, "A -> B -> A is cyclic with an empty memo")
+	verdict, _ := newRefScan().followRefChain(root, a)
+	assert.Equal(t, chainCycles, verdict, "A -> B -> A is cyclic with an empty memo")
 
 	s := newRefScan()
 	s.safe[b] = true
 	memoed, _ := s.followRefChain(root, a)
-	assert.False(t, memoed, "a chain reaching a memoized-safe node is not a cycle")
+	assert.Equal(t, chainTerminates, memoed, "a chain reaching a memoized-safe node is not a cycle")
 	assert.True(t, s.safe[a], "the walk records the reaching node as terminating too")
 }
 
@@ -297,8 +352,8 @@ func TestFollowRefChain_DanglingRefIsNotCycle(t *testing.T) {
 	a := ymap(yscalar("$ref"), yscalar("#/schemas/Missing"))
 	root := ymap(yscalar("schemas"), ymap(yscalar("A"), a))
 	s := newRefScan()
-	cyclic, _ := s.followRefChain(root, a)
-	assert.False(t, cyclic, "a dangling $ref is not a cycle")
+	verdict, _ := s.followRefChain(root, a)
+	assert.Equal(t, chainTerminates, verdict, "a dangling $ref is not a cycle")
 	assert.True(t, s.safe[a], "the dangling node is recorded terminating")
 }
 
@@ -658,4 +713,43 @@ func TestRefScanCollect_OutsidePositions(t *testing.T) {
 		"nothing under a data key is entered as a schema")
 	assert.False(t, s.seen[roleOutside][notASchema],
 		"nor walked as an outside position")
+}
+
+func TestDetectCycles_PointerThroughOwnReferenceIsRefused(t *testing.T) {
+	t.Parallel()
+	const src = `openapi: 3.1.0
+info: {title: t, version: '1'}
+paths:
+  /a: {$ref: '#/paths/~1a/t'}
+`
+	diags := Cycles(0, []byte(src))
+	require.NotEmpty(t, diags, "a pointer that resolves through its own reference must be refused")
+	assert.Equal(t, diag.CyclicRef, diags[0].Code)
+	assert.Equal(t, ir.SeverityError, diags[0].Severity)
+}
+
+// TestDetectCycles_PointerIsNormalizedLikeTheResolver pins the scan's pointer
+// reading to speakeasy's. It splits a $ref on '#', trims whitespace from both
+// halves and percent-decodes the pointer (references/reference.go GetURI and
+// GetJSONPointer, v1.24.0), so '#/paths/~1a ' names /a there. A scan that reads
+// the raw value instead calls that pointer dangling and lets a self-reference
+// through — one trailing space was enough to walk past the refusal.
+func TestDetectCycles_PointerIsNormalizedLikeTheResolver(t *testing.T) {
+	t.Parallel()
+	const head = "openapi: 3.1.0\ninfo: {title: t, version: '1'}\npaths:\n  /a:\n    $ref: "
+	const tail = "\n    get: {operationId: a, responses: {\"200\": {description: ok}}}\n"
+
+	refs := map[string]string{
+		"trailing space":  "'#/paths/~1a '",
+		"leading space":   "' #/paths/~1a'",
+		"percent-encoded": "'#/paths/%7E1a'",
+	}
+	for name, ref := range refs {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			diags := Cycles(0, []byte(head+ref+tail))
+			require.NotEmpty(t, diags, "the resolver reads this pointer as naming /a")
+			assert.Equal(t, diag.CyclicRef, diags[0].Code)
+		})
+	}
 }

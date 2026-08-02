@@ -1,0 +1,10 @@
+# The same re-entrant prefix, but with a sibling that makes the pointer resolve
+# cleanly. A scan that only questioned pointers which fail to resolve would let
+# this one through; the resolver still deadlocks on the '#/paths/~1a' prefix
+# before it ever reaches the `get` the pointer names.
+openapi: 3.1.0
+info: {title: Path Item Prefix Sibling, version: "1"}
+paths:
+  /a:
+    $ref: '#/paths/~1a/get'
+    get: {operationId: a, responses: {"200": {description: ok}}}
