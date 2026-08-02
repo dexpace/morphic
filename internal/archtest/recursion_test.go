@@ -115,6 +115,8 @@ func loweringCallGraph(t *testing.T) map[string]map[string]bool {
 	t.Helper()
 	loweringDirs := [][]string{
 		{"..", "..", "compilers", "openapi"},
+		{"..", "..", "compilers", "openapi", "internal", "auth"},
+		{"..", "..", "compilers", "openapi", "internal", "operation"},
 		{"..", "..", "compilers", "openapi", "internal", "schema"},
 	}
 	var files []string

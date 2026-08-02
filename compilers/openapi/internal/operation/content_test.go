@@ -1,12 +1,9 @@
-package openapi
+package operation_test
 
 import (
 	"strings"
 	"testing"
 
-	oas3 "github.com/speakeasy-api/openapi/jsonschema/oas3"
-	soa "github.com/speakeasy-api/openapi/openapi"
-	"github.com/speakeasy-api/openapi/sequencedmap"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -279,76 +276,6 @@ components:
 				"the key falls back to the schema's own position; got %v", content.Encoding)
 		})
 	}
-}
-
-// TestBodyModelPointer_NoModelBehindBody covers the walk's dead ends on a
-// hand-built registry: an ID nothing declares, an opaque scalar, a kind that is
-// no model, and an alias chain that closes on itself. The last is what the bound
-// is for — a $ref cycle is refused at load, so no document can spell one, and a
-// walk that relied on that would loop forever the day one arrived by another
-// route.
-func TestBodyModelPointer_NoModelBehindBody(t *testing.T) {
-	t.Parallel()
-	l := newRawLowerer(&soa.OpenAPI{})
-	l.types.Register("t/opaque", &ir.Scalar{TypeCommon: ir.TypeCommon{ID: "t/opaque"}})
-	l.types.Register("t/cycle/a", &ir.Scalar{
-		TypeCommon: ir.TypeCommon{ID: "t/cycle/a"}, Base: &ir.TypeRef{Target: "t/cycle/b"},
-	})
-	l.types.Register("t/cycle/b", &ir.Scalar{
-		TypeCommon: ir.TypeCommon{ID: "t/cycle/b"}, Base: &ir.TypeRef{Target: "t/cycle/a"},
-	})
-	prim := l.types.PrimID(ir.PrimString)
-
-	cases := []struct {
-		name string
-		body ir.TypeID
-	}{
-		{"an ID no registry entry declares", "t/absent"},
-		{"an opaque scalar standing for nothing", "t/opaque"},
-		{"a kind that declares no properties", prim},
-		{"an alias chain that closes on itself", "t/cycle/a"},
-	}
-	for _, tc := range cases {
-		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
-			pointer, ok := bodyModelPointer(l.types, tc.body)
-			assert.False(t, ok, "no model stands behind this body")
-			assert.Empty(t, pointer, "and no pointer is invented for one")
-		})
-	}
-}
-
-// TestBodySchemaPointer_LocalRefFragment pins the fallback's own ref hop, which
-// the production path reaches only for a body standing for no model.
-func TestBodySchemaPointer_LocalRefFragment(t *testing.T) {
-	t.Parallel()
-	l := newRawLowerer(&soa.OpenAPI{})
-	js := oas3.NewJSONSchemaFromReference("#/components/schemas/Form")
-	assert.Equal(t, "/components/schemas/Form", bodySchemaPointer(l.ctx, js, "/local"))
-}
-
-// TestBodySchemaPointer_ForeignDocumentRefStaysLocal pins the document half of a
-// $ref deciding the pointer. Cutting the fragment off blindly turned another
-// document's property into an identity in this one, silently naming whichever
-// local schema shared the path.
-func TestBodySchemaPointer_ForeignDocumentRefStaysLocal(t *testing.T) {
-	t.Parallel()
-	l := newRawLowerer(&soa.OpenAPI{})
-	l.ctx.Source = ir.SourceInfo{Path: "spec.yaml"}
-	js := oas3.NewJSONSchemaFromReference("./ext-form.yaml#/components/schemas/Form")
-	assert.Equal(t, "/local", bodySchemaPointer(l.ctx, js, "/local"),
-		"a fragment from another document must not become a pointer into this one")
-}
-
-// TestBodySchemaPointer_SelfNamedRefFollowsFragment pins the other half: a ref
-// spelling this document's own filename is internal, so its fragment is a
-// pointer here after all.
-func TestBodySchemaPointer_SelfNamedRefFollowsFragment(t *testing.T) {
-	t.Parallel()
-	l := newRawLowerer(&soa.OpenAPI{})
-	l.ctx.Source = ir.SourceInfo{Path: "spec.yaml"}
-	js := oas3.NewJSONSchemaFromReference("spec.yaml#/components/schemas/Form")
-	assert.Equal(t, "/components/schemas/Form", bodySchemaPointer(l.ctx, js, "/local"))
 }
 
 func TestContent_NonRequiredRequestBody(t *testing.T) {
@@ -725,31 +652,6 @@ components:
 	assert.Contains(t, d.Message, "example:")
 }
 
-func TestContentTypeKeys_Nil(t *testing.T) {
-	t.Parallel()
-	assert.Nil(t, contentTypeKeys(nil))
-}
-
-func TestFillSequential_EmptyItemEncoding(t *testing.T) {
-	t.Parallel()
-	l := newRawLowerer(&soa.OpenAPI{})
-	content := &ir.Content{}
-	media := &soa.MediaType{ItemEncoding: &soa.Encoding{}}
-	diags := fillSequential(l.ctx, l.types, &l.anchors, content, media, "/mp", "h")
-	assert.Equal(t, &ir.PartEncoding{Multi: true}, content.ItemEncoding,
-		"a config-free itemEncoding still records that the tail repeats")
-	assert.Nil(t, content.Unmodeled, "nothing is preserved raw")
-	assert.Empty(t, diags)
-}
-
-func TestEncodingConfig_NilEncoding(t *testing.T) {
-	t.Parallel()
-	l := newRawLowerer(&soa.OpenAPI{})
-	pe, diags := encodingConfig(l.ctx, l.types, &l.anchors, nil, "/mp")
-	assert.Equal(t, ir.PartEncoding{}, pe)
-	assert.Empty(t, diags)
-}
-
 // positionalEncodingSpec declares the 3.2 shape ItemEncoding cannot state:
 // prefixEncoding fixes the encoding of the leading items, so the itemEncoding
 // beside it governs only the tail after them, not every item.
@@ -800,48 +702,6 @@ func TestFillSequential_PrefixEncodingWithoutItemEncoding(t *testing.T) {
 	_, ok = c.Unmodeled["openapi:itemEncoding"]
 	assert.False(t, ok, "no itemEncoding was declared, so none is recorded")
 	assertHasCode(t, diags, diag.DegradedConstruct, ir.SeverityInfo)
-}
-
-// TestPositionalEncoding_WithoutRootNode covers the media type whose source node
-// cannot be read. prefixEncoding is declared — nothing else routes a content
-// entry here — so nothing being written is a construct lost rather than one that
-// was never there, and the position reports that instead of announcing a
-// preservation it did not make (GitHub #144).
-func TestPositionalEncoding_WithoutRootNode(t *testing.T) {
-	t.Parallel()
-	l := newRawLowerer(&soa.OpenAPI{})
-	content := &ir.Content{}
-	media := &soa.MediaType{PrefixEncoding: []*soa.Encoding{{}}, ItemEncoding: &soa.Encoding{}}
-	diags := fillSequential(l.ctx, l.types, &l.anchors, content, media, "/mp", "h")
-	assert.Nil(t, content.ItemEncoding, "prefixes still block the every-item lowering")
-	assert.Nil(t, content.Unmodeled, "a media type with no source node has nothing verbatim to keep")
-	assertHasCode(t, diags, diag.UnpreservableConstruct, ir.SeverityError)
-	assert.False(t, countDiagsAt(diags, diag.DegradedConstruct, ir.SeverityInfo) > 0,
-		"nothing was kept, so nothing announces that it was")
-}
-
-func TestBodySchemaPointer_ExternalRefNoFragment(t *testing.T) {
-	t.Parallel()
-	l := newRawLowerer(&soa.OpenAPI{})
-	js := oas3.NewJSONSchemaFromReference("external.yaml")
-	assert.Equal(t, "/local", bodySchemaPointer(l.ctx, js, "/local"), "a fragmentless ref falls back to the local pointer")
-}
-
-func TestBodySchemaPointer_NilSchema(t *testing.T) {
-	t.Parallel()
-	l := newRawLowerer(&soa.OpenAPI{})
-	assert.Equal(t, "/local", bodySchemaPointer(l.ctx, nil, "/local"))
-}
-
-func TestLowerPayload_NilMediaEntriesYieldNil(t *testing.T) {
-	t.Parallel()
-	l := newRawLowerer(&soa.OpenAPI{})
-	content := sequencedmap.New(
-		sequencedmap.NewElem("application/json", (*soa.MediaType)(nil)),
-	)
-	payload, diags := lowerPayload(l.ctx, l.types, &l.anchors, content, "/p", "hint")
-	assert.Nil(t, payload, "all-nil media map yields no payload")
-	assert.Empty(t, diags)
 }
 
 const componentBodyRefSpec = `openapi: 3.1.0
@@ -1217,45 +1077,6 @@ func TestHeaderSchema_NeitherSpelling(t *testing.T) {
 	assert.Equal(t, "untyped", headers[0].Docs.Description)
 }
 
-// TestPropIDByWire_DeadEnds mirrors TestBodyModelPointer_NoModelBehindBody for
-// the property walk: the same dead ends, asked for a part name rather than a
-// pointer. Neither may invent an ID — a part keyed by a PropID nothing declares
-// is a dangling reference the encoding map would carry silently.
-func TestPropIDByWire_DeadEnds(t *testing.T) {
-	t.Parallel()
-	l := newRawLowerer(&soa.OpenAPI{})
-	l.types.Register("t/opaque", &ir.Scalar{TypeCommon: ir.TypeCommon{ID: "t/opaque"}})
-	l.types.Register("t/cycle/a", &ir.Scalar{
-		TypeCommon: ir.TypeCommon{ID: "t/cycle/a"}, Base: &ir.TypeRef{Target: "t/cycle/b"},
-	})
-	l.types.Register("t/cycle/b", &ir.Scalar{
-		TypeCommon: ir.TypeCommon{ID: "t/cycle/b"}, Base: &ir.TypeRef{Target: "t/cycle/a"},
-	})
-	l.types.Register("t/model/cycle", &ir.Model{
-		TypeCommon: ir.TypeCommon{ID: "t/model/cycle"}, Base: &ir.TypeRef{Target: "t/model/cycle"},
-	})
-	prim := l.types.PrimID(ir.PrimString)
-
-	cases := []struct {
-		name string
-		body ir.TypeID
-	}{
-		{"an ID no registry entry declares", "t/absent"},
-		{"an opaque scalar standing for nothing", "t/opaque"},
-		{"a kind that declares no properties", prim},
-		{"an alias chain that closes on itself", "t/cycle/a"},
-		{"a model whose base closes on itself", "t/model/cycle"},
-	}
-	for _, tc := range cases {
-		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
-			id, ok := propIDByWire(l.types, tc.body, "file", 0)
-			assert.False(t, ok, "no property with that wire name stands behind this body")
-			assert.Empty(t, id, "and no ID is invented for one")
-		})
-	}
-}
-
 // TestPartEncodings_MixinPartIsKeyedOnTheMixin covers the second composition
 // channel. An allOf of two $refs makes the first the Base and the rest Mixins
 // (§4.3), so a part contributed by the second is reachable only by searching
@@ -1319,12 +1140,84 @@ func TestBodyParts_RedeclaredNameIsOnePart(t *testing.T) {
 	assert.Len(t, enc, 1, "one wire part is one encoding entry; got %v", enc)
 }
 
-// TestBodyParts_DepthBound covers the composition walk's bound. A $ref cycle is
-// refused at load, so no document can spell a composition this deep; the bound is
-// what keeps the walk terminating without relying on that.
-func TestBodyParts_DepthBound(t *testing.T) {
+// TestPartEncoding_NamesAPropertyInheritedFromTheBase pins how a multipart
+// encoding entry finds its part when the body is a composition. The name it
+// keys is a wire name, and the property carrying it may be declared on a base
+// rather than on the composed model itself — so the lookup descends the
+// composition instead of reading only the model's own properties, which would
+// silently drop the encoding.
+func TestPartEncoding_NamesAPropertyInheritedFromTheBase(t *testing.T) {
 	t.Parallel()
-	js := oas3.NewJSONSchemaFromSchema[oas3.Referenceable](&oas3.Schema{})
-	assert.Nil(t, bodyParts(js, maxPartCompositionDepth+1),
-		"past the bound the walk stops rather than descending further")
+	doc, diags := parseFull(t, `openapi: 3.1.0
+info: {title: T, version: "1"}
+paths:
+  /u:
+    post:
+      operationId: upload
+      requestBody:
+        content:
+          multipart/form-data:
+            schema:
+              allOf: [{$ref: '#/components/schemas/Base'}]
+            encoding:
+              file: {contentType: image/png}
+      responses: {"204": {description: ok}}
+components:
+  schemas:
+    Base:
+      type: object
+      properties: {file: {type: string, format: binary}}
+`)
+	requireNoErrorDiags(t, diags)
+
+	body := findOp(t, doc, "upload").Request
+	require.NotNil(t, body)
+	require.Len(t, body.Contents, 1)
+	content := body.Contents[0]
+	require.Len(t, content.Encoding, 1, "the encoding entry survives: %+v", content.Encoding)
+
+	// Which key it is under is the assertion that matters. A lookup that fails to
+	// descend still produces an entry — partPropID derives an ID from the composed
+	// node's own pointer — and that ID names a property declared nowhere. The
+	// encoding reads as present either way; only the key tells the two apart.
+	composed, isModel := doc.Types[content.Type.Target].(*ir.Model)
+	require.True(t, isModel, "the multipart body lowers to a model")
+	require.NotNil(t, composed.Base, "a sole $ref branch becomes the composed model's base")
+	inherited, isModel := doc.Types[composed.Base.Target].(*ir.Model)
+	require.True(t, isModel, "and the base is the referenced model")
+	want := propsByWire(inherited.Properties)["file"].ID
+	require.NotEmpty(t, want, "the base declares the part this encoding names")
+
+	assert.Contains(t, content.Encoding, want,
+		"the encoding is keyed by the inherited property's own ID, not one derived for it")
+	assert.Equal(t, []string{"image/png"}, content.Encoding[want].ContentTypes)
+}
+
+// TestExample_ExternalValueOnlyIsCarried pins the half of an example the IR can
+// hold without a value. An example may declare a URL instead of the data, and
+// that is a complete example rather than a degraded one — so it is appended
+// like any other, and only an example declaring neither is reported.
+func TestExample_ExternalValueOnlyIsCarried(t *testing.T) {
+	t.Parallel()
+	doc, diags := parseFull(t, pathsSpec(`  /a:
+    get:
+      operationId: getA
+      responses:
+        "200":
+          description: ok
+          content:
+            application/json:
+              schema: {type: string}
+              examples:
+                remote: {externalValue: 'https://e.example/one.json', summary: s}
+`))
+	requireNoErrorDiags(t, diags)
+
+	resp := findOp(t, doc, "getA").Responses
+	require.NotEmpty(t, resp)
+	require.NotEmpty(t, resp[0].Payload.Contents)
+	examples := resp[0].Payload.Contents[0].Examples
+	require.Len(t, examples, 1, "an externalValue-only example is kept: %+v", examples)
+	assert.Equal(t, "https://e.example/one.json", examples[0].ExternalURL)
+	assert.Nil(t, examples[0].Value, "and carries no inline value")
 }

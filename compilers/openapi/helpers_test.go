@@ -4,18 +4,15 @@ import (
 	"context"
 	"testing"
 
-	oas3 "github.com/speakeasy-api/openapi/jsonschema/oas3"
 	soa "github.com/speakeasy-api/openapi/openapi"
-	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	yaml "gopkg.in/yaml.v3"
 
 	"github.com/dexpace/morphic/compilers"
 	"github.com/dexpace/morphic/compilers/compile"
 	"github.com/dexpace/morphic/compilers/openapi/internal/auth"
-	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/load"
 	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
+	"github.com/dexpace/morphic/compilers/openapi/internal/operation"
 	"github.com/dexpace/morphic/compilers/openapi/internal/schema"
 	"github.com/dexpace/morphic/ir"
 )
@@ -33,20 +30,6 @@ func parseFull(t *testing.T, src string) (*ir.Document, []ir.Diagnostic) {
 	require.NoError(t, err)
 	require.NotNil(t, doc)
 	return doc, diags
-}
-
-// findOp returns the operation whose source name matches.
-func findOp(t *testing.T, doc *ir.Document, source string) ir.Operation {
-	t.Helper()
-	for _, g := range doc.Services[0].Groups {
-		for _, op := range g.Operations {
-			if op.Name.Source == source {
-				return op
-			}
-		}
-	}
-	t.Fatalf("operation %q not found", source)
-	return ir.Operation{}
 }
 
 // loweredFor loads src and returns the lowerer over it with nothing lowered
@@ -91,7 +74,7 @@ func lowerServiceSpec(t *testing.T, src string) (*ir.Document, ir.Service, []ir.
 		auth, authDiags := auth.LowerSecuritySchemes(l.ctx)
 		l.out.Auth = auth
 		l.diags.AppendAll(authDiags)
-		svc, tagDefs, svcDiags := lowerService(l.ctx.WithAuth(l.out.Auth), l.types, &l.anchors, l.operationIDs)
+		svc, tagDefs, svcDiags := operation.LowerService(l.ctx.WithAuth(l.out.Auth), l.types, &l.anchors, l.operationIDs)
 		l.out.TagDefs = tagDefs
 		l.diags.AppendAll(svcDiags)
 		l.out.Services = []ir.Service{svc}
@@ -179,21 +162,6 @@ func newRawLowerer(doc *soa.OpenAPI) *lowerer {
 	return l
 }
 
-// emptyEitherSchema is a JSONSchema whose either-value has neither a Left schema
-// nor a Right bool set: IsSchema() is true (IsLeft defaults true) yet GetSchema()
-// is nil. The parser never produces this, so it drives the nil-schema guards.
-func emptyEitherSchema() *oas3.JSONSchema[oas3.Referenceable] {
-	return oas3.NewJSONSchemaFromSchema[oas3.Referenceable](nil)
-}
-
-// strNode builds a bare string-scalar yaml.Node. The tag is fixed rather than a
-// parameter: every raw-node reader driven from this package reads mapping keys
-// and plain string values, and a test needing another tag reads better naming it
-// inline than threading one through here.
-func strNode(val string) *yaml.Node {
-	return &yaml.Node{Kind: yaml.ScalarNode, Tag: "!!str", Value: val}
-}
-
 // assertHasErrorCode requires diags to carry an error-severity diagnostic with
 // the given code.
 func assertHasErrorCode(t *testing.T, diags []ir.Diagnostic, code string) {
@@ -226,19 +194,6 @@ func hasDiag(diags []ir.Diagnostic, code string) bool {
 	return false
 }
 
-// firstDegradedWarning returns the first diag.DegradedConstruct warning in
-// diags, and whether one was found — the pointer/message inspection
-// counterpart to hasDiagAt/countDiagsAt for the degraded-value warning tests
-// that need more than a yes/no answer.
-func firstDegradedWarning(diags []ir.Diagnostic) (ir.Diagnostic, bool) {
-	for _, d := range diags {
-		if d.Code == diag.DegradedConstruct && d.Severity == ir.SeverityWarning {
-			return d, true
-		}
-	}
-	return ir.Diagnostic{}, false
-}
-
 // countDiagsAt counts the diagnostics in diags matching code and sev exactly.
 // code is an exact match with no wildcard: countDiagsAt(diags, "",
 // ir.SeverityError) matches only diagnostics whose code is literally empty —
@@ -252,22 +207,6 @@ func countDiagsAt(diags []ir.Diagnostic, code string, sev ir.Severity) int {
 		}
 	}
 	return n
-}
-
-// diagMessageAt returns the message of the single diagnostic matching code,
-// severity and provenance pointer. Tests that only compare a diagnostic's code
-// cannot tell two lowerings apart when both report the same code with different
-// reasons, so the reason itself needs an assertable handle.
-func diagMessageAt(t *testing.T, diags []ir.Diagnostic, code string, sev ir.Severity, pointer string) string {
-	t.Helper()
-	var found []string
-	for _, d := range diags {
-		if d.Code == code && d.Severity == sev && d.Provenance.Pointer == pointer {
-			found = append(found, d.Message)
-		}
-	}
-	require.Len(t, found, 1, "want exactly one %v %q at %q, got %+v", sev, code, pointer, diags)
-	return found[0]
 }
 
 // firstOp returns the operation at svc.Groups[0].Operations[0], requiring both
@@ -294,52 +233,4 @@ func indexBy[T any, K comparable](items []T, key func(T) K) map[K]T {
 // propsByWire indexes a model's properties by wire name.
 func propsByWire(props []ir.Property) map[string]ir.Property {
 	return indexBy(props, func(p ir.Property) string { return p.WireName })
-}
-
-// The inline-probe helpers below are duplicated in the schema package's own
-// tests. Both sides need them and neither package can see the other's test
-// scaffolding, which is the cost of the split; each copy is held to its meaning
-// by the tests that use it, so a copy that drifts fails on its own side.
-// inlineProbeBody is the body every inline-position case below writes: one
-// annotation of each kind attachDeclaredAnnotations reads, one validation-only
-// keyword, and one value constraint — all of them position-scoped, so a
-// position that lowers this to the shared string primitive loses every one. All
-// three documentation keywords are here because a home that keeps only the
-// description passes a probe that writes only a description.
-const inlineProbeBody = `{type: string, title: SUM, description: DOC, ` +
-	`externalDocs: {url: 'https://e.example', description: ED}, deprecated: true, ` +
-	`example: abc, x-vendor: V, xml: {name: X}, not: {const: N}, maxLength: 3}`
-
-// assertProbeDocsKept checks all three documentation keywords inlineProbeBody
-// writes reached d, wherever the position's home turned out to be.
-func assertProbeDocsKept(t *testing.T, d ir.Docs) {
-	t.Helper()
-	assert.Equal(t, "SUM", d.Summary, "title")
-	assert.Equal(t, "DOC", d.Description, "description")
-	if assert.Len(t, d.ExternalDocs, 1, "externalDocs") {
-		assert.Equal(t, "https://e.example", d.ExternalDocs[0].URL)
-		assert.Equal(t, "ED", d.ExternalDocs[0].Description)
-	}
-}
-
-// assertProbeExample checks the single example inlineProbeBody writes reached
-// the home under test with its value intact.
-func assertProbeExample(t *testing.T, examples []ir.Example) {
-	t.Helper()
-	if !assert.Len(t, examples, 1, "examples") {
-		return
-	}
-	require.NotNil(t, examples[0].Value)
-	assert.Equal(t, "abc", examples[0].Value.Str)
-}
-
-// assertInfoDiagAt requires one info diagnostic stamped at pointer.
-func assertInfoDiagAt(t *testing.T, diags []ir.Diagnostic, pointer string) {
-	t.Helper()
-	for _, d := range diags {
-		if d.Severity == ir.SeverityInfo && d.Provenance.Pointer == pointer {
-			return
-		}
-	}
-	assert.Fail(t, "nothing announced this", "no info diagnostic at %q; got %+v", pointer, diags)
 }

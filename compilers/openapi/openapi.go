@@ -11,6 +11,7 @@ import (
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/load"
 	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
+	"github.com/dexpace/morphic/compilers/openapi/internal/operation"
 	"github.com/dexpace/morphic/compilers/openapi/internal/schema"
 	"github.com/dexpace/morphic/ir"
 )
@@ -88,7 +89,7 @@ func run(c lowering.Ctx, ts *compile.Types) (*ir.Document, []ir.Diagnostic) {
 	// one, so no lowering above the schemes can read them as empty.
 	svcCtx := c.WithAuth(schemes)
 
-	svc, tagDefs, svcDiags := lowerService(svcCtx, ts, &anchors, operationIDs)
+	svc, tagDefs, svcDiags := operation.LowerService(svcCtx, ts, &anchors, operationIDs)
 	out.Services = []ir.Service{svc}
 	out.TagDefs = tagDefs
 	acc.AppendAll(svcDiags)
