@@ -22,11 +22,20 @@ import (
 // that returns a nil Document.
 var newEngine = engine.New
 
+// outputFile is the temp file that -o writes through. Sync is part of the
+// contract rather than an implementation detail: Close returns once the bytes
+// reach the page cache, so without an explicit Sync the publishing rename can
+// expose a file the filesystem has not taken yet.
+type outputFile interface {
+	io.WriteCloser
+	Sync() error
+}
+
 // createOutput creates the temp file that -o writes through. It is a package var
-// so tests can inject an io.WriteCloser whose Write or Close fails; a real
+// so tests can inject an outputFile whose Write, Sync or Close fails; a real
 // *os.File's Close does not fail after a successful write on the platforms
 // Morphic targets.
-var createOutput = func(path string, perm os.FileMode) (io.WriteCloser, error) {
+var createOutput = func(path string, perm os.FileMode) (outputFile, error) {
 	return os.OpenFile(path, os.O_WRONLY|os.O_CREATE|os.O_EXCL, perm)
 }
 
@@ -196,8 +205,8 @@ func writeCompiled(outPath string, stdout io.Writer, doc *ir.Document) error {
 // instead of truncating it.
 //
 // Publishing by rename replaces the directory entry rather than the bytes behind
-// it, which is what makes the swap atomic and which costs three things a
-// truncating write gave for free. All three are accepted deliberately:
+// it, which is what makes the swap atomic and which costs four things a
+// truncating write gave for free. All four are accepted deliberately:
 //
 //   - Writing needs permission on the destination's directory, not just on the
 //     destination. Rewriting an existing writable file inside a read-only
@@ -206,10 +215,25 @@ func writeCompiled(outPath string, stdout io.Writer, doc *ir.Document) error {
 //     followed and written through, so its target keeps its old content.
 //   - Other hard links to outPath keep pointing at the old inode, and so keep
 //     the old content, instead of observing the new bytes.
+//   - The temp name is 21 characters longer than the destination's own, so a
+//     destination whose basename is within 21 of the filesystem's limit now
+//     fails at creation ("file name too long") where a truncating write
+//     succeeded. Unlike the other three this is a new failure rather than a
+//     lost capability, and it surfaces as an error rather than silently.
 //
-// Losing them is the price of the guarantee: each is a way for the destination's
-// bytes to be reached other than through its own name, and honouring any of them
-// means writing in place, which is exactly the truncation this replaces.
+// Losing the first three is the price of the guarantee: each is a way for the
+// destination's bytes to be reached other than through its own name, and
+// honouring any of them means writing in place, which is exactly the truncation
+// this replaces.
+//
+// Durability stops at the file. fillTemp syncs the bytes before the rename, so
+// the rename never publishes contents the filesystem has not taken, but the
+// directory entry the rename creates is not itself synced. A crash immediately
+// after a successful run can therefore leave the destination holding its
+// previous content. It cannot leave it holding partial content, which is the
+// property this function exists to provide; making the swap itself survive a
+// crash would need an fsync on the parent directory and is deliberately out of
+// scope.
 func replaceFile(outPath string, raw []byte) error {
 	perm, replacing, err := destMode(outPath)
 	if err != nil {
@@ -277,13 +301,25 @@ func writeTemp(outPath string, raw []byte) (string, error) {
 		outPath, maxTempAttempts)
 }
 
-// fillTemp writes raw to f and closes it, removing tmp if either step fails so a
-// failed run leaves no debris beside the destination.
-func fillTemp(f io.WriteCloser, tmp string, raw []byte) error {
+// fillTemp writes raw to f, flushes it to the filesystem, and closes it,
+// removing tmp if any step fails so a failed run leaves no debris beside the
+// destination.
+//
+// The Sync is what lets replaceFile's caller believe the rename publishes
+// durable bytes: without it the rename can expose a file whose contents are
+// still only in the page cache, and a crash before writeback leaves the
+// destination short or empty — the same loss writing through a temp file exists
+// to prevent.
+func fillTemp(f outputFile, tmp string, raw []byte) error {
 	if err := writeRaw(f, raw); err != nil {
 		_ = f.Close()
 		_ = os.Remove(tmp)
 		return err
+	}
+	if err := f.Sync(); err != nil {
+		_ = f.Close()
+		_ = os.Remove(tmp)
+		return fmt.Errorf("sync output %q: %w", tmp, err)
 	}
 	if err := f.Close(); err != nil {
 		_ = os.Remove(tmp)

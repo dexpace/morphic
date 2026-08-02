@@ -8,6 +8,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -33,6 +34,7 @@ type closeFailWriteCloser struct {
 }
 
 func (c *closeFailWriteCloser) Write(p []byte) (int, error) { return c.buf.Write(p) }
+func (c *closeFailWriteCloser) Sync() error                 { return nil }
 func (c *closeFailWriteCloser) Close() error                { return c.closeErr }
 
 // writeFailWriteCloser opens successfully but fails every Write, to drive
@@ -44,9 +46,27 @@ type writeFailWriteCloser struct {
 }
 
 func (w *writeFailWriteCloser) Write([]byte) (int, error) { return 0, w.writeErr }
+func (w *writeFailWriteCloser) Sync() error               { return nil }
 
 func (w *writeFailWriteCloser) Close() error {
 	w.closed = true
+	return nil
+}
+
+// syncFailWriteCloser accepts writes but fails Sync, modelling a filesystem that
+// takes the bytes into cache and then cannot flush them (a full or failing
+// device), to drive fillTemp's sync branch.
+type syncFailWriteCloser struct {
+	buf     bytes.Buffer
+	syncErr error
+	closed  bool
+}
+
+func (s *syncFailWriteCloser) Write(p []byte) (int, error) { return s.buf.Write(p) }
+func (s *syncFailWriteCloser) Sync() error                 { return s.syncErr }
+
+func (s *syncFailWriteCloser) Close() error {
+	s.closed = true
 	return nil
 }
 
@@ -304,7 +324,7 @@ func TestWriteParsed_CreateError(t *testing.T) {
 }
 
 // swapCreateOutput installs fn as the temp-file creator for one test.
-func swapCreateOutput(t *testing.T, fn func(string, os.FileMode) (io.WriteCloser, error)) {
+func swapCreateOutput(t *testing.T, fn func(string, os.FileMode) (outputFile, error)) {
 	t.Helper()
 	orig := createOutput
 	t.Cleanup(func() { createOutput = orig })
@@ -313,7 +333,7 @@ func swapCreateOutput(t *testing.T, fn func(string, os.FileMode) (io.WriteCloser
 
 func TestWriteParsed_WriteErrorClosesFile(t *testing.T) {
 	wc := &writeFailWriteCloser{writeErr: errors.New("disk gone")}
-	swapCreateOutput(t, func(string, os.FileMode) (io.WriteCloser, error) { return wc, nil })
+	swapCreateOutput(t, func(string, os.FileMode) (outputFile, error) { return wc, nil })
 
 	// doc marshals fine; the write to the temp file is what fails, exercising
 	// the close-and-return path.
@@ -338,7 +358,7 @@ func TestWriteParsed_WriteErrorPreservesDestination(t *testing.T) {
 	// assertion below really fires — the test cannot pass by using a fake that
 	// never touches the disk.
 	var opened string
-	swapCreateOutput(t, func(path string, perm os.FileMode) (io.WriteCloser, error) {
+	swapCreateOutput(t, func(path string, perm os.FileMode) (outputFile, error) {
 		opened = path
 		f, err := os.OpenFile(path, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, perm)
 		if err != nil {
@@ -374,7 +394,7 @@ func TestWriteParsed_MarshalErrorLeavesFileUntouched(t *testing.T) {
 
 func TestWriteParsed_CloseError(t *testing.T) {
 	wc := &closeFailWriteCloser{closeErr: errors.New("close failed")}
-	swapCreateOutput(t, func(string, os.FileMode) (io.WriteCloser, error) { return wc, nil })
+	swapCreateOutput(t, func(string, os.FileMode) (outputFile, error) { return wc, nil })
 
 	err := writeCompiled(filepath.Join(t.TempDir(), "out.json"), io.Discard, &ir.Document{Name: "ok"})
 
@@ -490,6 +510,41 @@ func TestWriteParsed_HardLinkIsBroken(t *testing.T) {
 		"the other hard link must keep the old inode's content")
 }
 
+// TestWriteParsed_NearLimitNameFails pins the one limitation that is a new
+// failure rather than a lost capability: the temp name is 21 characters longer
+// than the destination's own, so a basename within 21 of the filesystem's limit
+// cannot be written at all. A truncating write to the same path succeeded, which
+// the first half of this test establishes before the second half shows the
+// destination one character too long failing.
+func TestWriteParsed_NearLimitNameFails(t *testing.T) {
+	t.Parallel()
+	dir := t.TempDir()
+
+	// nameMax is the POSIX floor every filesystem Morphic targets meets or
+	// exceeds; probing the real limit would make the test depend on the
+	// filesystem under /tmp.
+	const nameMax = 255
+	const tempOverhead = 21
+
+	writable := filepath.Join(dir, strings.Repeat("a", nameMax-tempOverhead)+".json")
+	require.NoError(t, os.WriteFile(writable, []byte("x"), 0o644),
+		"precondition: the filesystem must accept a name this long at all")
+	require.NoError(t, os.Remove(writable))
+
+	tooLong := filepath.Join(dir, strings.Repeat("a", nameMax-tempOverhead+1)+".json")
+	require.NoError(t, os.WriteFile(tooLong, []byte("PREVIOUS\n"), 0o644),
+		"precondition: a truncating write to this name succeeds")
+
+	err := writeCompiled(tooLong, io.Discard, &ir.Document{Name: "Fresh"})
+
+	require.Error(t, err, "the temp name must not fit where the destination does")
+	assert.Contains(t, err.Error(), "create output")
+	got, readErr := os.ReadFile(tooLong)
+	require.NoError(t, readErr)
+	assert.Equal(t, "PREVIOUS\n", string(got),
+		"the destination must keep its previous content when the temp name will not fit")
+}
+
 func TestWriteParsed_StatError(t *testing.T) {
 	t.Parallel()
 	// A regular file used as a parent directory makes Stat fail with ENOTDIR,
@@ -505,7 +560,7 @@ func TestWriteParsed_StatError(t *testing.T) {
 
 func TestWriteParsed_TempNameCollisionRetries(t *testing.T) {
 	var names []string
-	swapCreateOutput(t, func(path string, perm os.FileMode) (io.WriteCloser, error) {
+	swapCreateOutput(t, func(path string, perm os.FileMode) (outputFile, error) {
 		names = append(names, path)
 		if len(names) == 1 {
 			return nil, os.ErrExist // first name taken; the loop must draw another
@@ -522,7 +577,7 @@ func TestWriteParsed_TempNameCollisionRetries(t *testing.T) {
 
 func TestWriteParsed_TempNamesExhausted(t *testing.T) {
 	attempts := 0
-	swapCreateOutput(t, func(string, os.FileMode) (io.WriteCloser, error) {
+	swapCreateOutput(t, func(string, os.FileMode) (outputFile, error) {
 		attempts++
 		return nil, os.ErrExist
 	})
@@ -532,6 +587,32 @@ func TestWriteParsed_TempNamesExhausted(t *testing.T) {
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "no unused temp name")
 	assert.Equal(t, maxTempAttempts, attempts, "the name search must be bounded")
+}
+
+// TestWriteParsed_SyncErrorPreservesDestination drives the branch that makes the
+// rename safe to trust: a filesystem that accepts the bytes but cannot flush
+// them must abort before publishing, leaving the old destination whole. A sync
+// failure that fell through to the rename would publish a file whose contents a
+// crash could still lose, which is the loss this whole path exists to prevent.
+func TestWriteParsed_SyncErrorPreservesDestination(t *testing.T) {
+	dir := t.TempDir()
+	out := filepath.Join(dir, "ir.json")
+	require.NoError(t, os.WriteFile(out, []byte("old\n"), 0o644))
+
+	f := &syncFailWriteCloser{syncErr: errors.New("sync refused")}
+	swapCreateOutput(t, func(string, os.FileMode) (outputFile, error) { return f, nil })
+
+	err := writeCompiled(out, io.Discard, &ir.Document{Name: "ok"})
+
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "sync output")
+	assert.True(t, f.closed, "a failed sync must still close the temp file")
+	got, readErr := os.ReadFile(out)
+	require.NoError(t, readErr)
+	assert.Equal(t, "old\n", string(got), "a failed sync must not disturb the destination")
+	entries, readErr := os.ReadDir(dir)
+	require.NoError(t, readErr)
+	assert.Len(t, entries, 1, "a failed sync must leave no temp file beside the destination")
 }
 
 func TestWriteParsed_ChmodError(t *testing.T) {

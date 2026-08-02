@@ -9,9 +9,9 @@
 # answer different questions — the unit tests ask whether the code takes the
 # right branch, this asks whether the destination actually survives.
 #
-# It also pins the three behaviours that publishing-by-rename gives up, so a
-# later change cannot alter them without a test going red. See replaceFile in
-# cmd/morphic/compile.go, where the same three are recorded.
+# It also pins the four limitations that publishing-by-rename brings, so a later
+# change cannot alter them without a test going red. See replaceFile in
+# cmd/morphic/compile.go, where the same four are recorded.
 #
 # Usage:
 #   scripts/verify-atomic-output.sh                     # check the working tree
@@ -46,6 +46,20 @@ fail() {
 
 pass() { printf '  ok: %s\n' "$1"; }
 
+# This script is meant to be run on a developer's machine rather than in CI, so
+# it has to work on both GNU and BSD userlands. stat's formatting flags and the
+# sha256 binary differ between them; wc is portable but pads its output on BSD,
+# which is why callers compare its result arithmetically rather than as a string.
+file_size() { wc -c <"$1" | tr -d ' '; }
+file_mode() { stat -c%a "$1" 2>/dev/null || stat -f%Lp "$1"; }
+file_hash() {
+  if command -v sha256sum >/dev/null 2>&1; then
+    sha256sum <"$1"
+  else
+    shasum -a 256 <"$1"
+  fi
+}
+
 # build_at checks out <ref> into a scratch worktree and builds the CLI from it.
 build_at() {
   local ref="$1" out="$2" src="$work/src-$3"
@@ -70,7 +84,7 @@ reference_output="$work/reference.json"
 
 # A cap at or above the output size would let the write finish, and the case
 # below would pass without ever failing a write. Refuse to report a vacuous run.
-output_size="$(stat -c%s "$reference_output")"
+output_size="$(file_size "$reference_output")"
 if ((output_size <= fsize_bytes)); then
   printf 'the %d-byte cap does not bite: output is only %d bytes\n' \
     "$fsize_bytes" "$output_size" >&2
@@ -87,10 +101,10 @@ atomicity_case() {
   cp "$reference_output" "$dir/ir.json"
 
   local before after
-  before="$(sha256sum <"$dir/ir.json")"
+  before="$(file_hash "$dir/ir.json")"
   ( ulimit -f "$fsize_blocks"; "$bin" compile "$spec" -o "$dir/ir.json" ) \
     >/dev/null 2>&1 || true
-  after="$(sha256sum <"$dir/ir.json")"
+  after="$(file_hash "$dir/ir.json")"
 
   if [[ -n "$(find "$dir" -name '*.tmp*' -print -quit)" ]]; then
     printf 'DEBRIS'
@@ -122,20 +136,20 @@ else
   fail "destination does not hold the new document"
 fi
 
-mode="$(stat -c%a "$ok_dir/ir.json")"
+mode="$(file_mode "$ok_dir/ir.json")"
 if [[ "$mode" == 640 ]]; then
   pass "replacing preserved the destination's 0640 mode"
 else
   fail "replacing changed the mode to 0$mode, expected 0640"
 fi
 
-if [[ "$(find "$ok_dir" -type f | wc -l)" == 1 ]]; then
+if (( $(find "$ok_dir" -type f | wc -l) == 1 )); then
   pass "no temp file survived"
 else
   fail "a temp file survived a successful write"
 fi
 
-# The three checks below pin behaviours that publishing by rename gives up. They
+# The four checks below pin the limitations publishing by rename brings. They
 # assert the documented outcome, so a change to any of them is a change to the
 # contract recorded on replaceFile, not a silent drift.
 printf '\n3. documented limitations of publishing by rename\n'
@@ -178,6 +192,27 @@ if grep -q '"irVersion"' "$hl_dir/a.json" \
   pass "a hard link is broken rather than followed"
 else
   fail "expected the hard link to be broken, keeping its old content"
+fi
+
+# The temp name adds 21 characters to the destination's basename, so a name
+# within 21 of the filesystem's limit cannot be written at all. The check
+# establishes that a plain write to the same name succeeds first, so a failure
+# here is the temp name and not the destination.
+nm_dir="$work/namemax"
+mkdir -p "$nm_dir"
+long_base="$(printf 'a%.0s' $(seq 235)).json"
+if printf 'PREVIOUS\n' >"$nm_dir/$long_base" 2>/dev/null; then
+  set +e
+  "$work/current" compile "$spec" -o "$nm_dir/$long_base" >/dev/null 2>&1
+  nm_status=$?
+  set -e
+  if ((nm_status != 0)) && [[ "$(cat "$nm_dir/$long_base")" == PREVIOUS ]]; then
+    pass "a destination within 21 chars of the name limit fails, leaving it alone"
+  else
+    fail "expected a near-limit destination name to fail with the destination intact"
+  fi
+else
+  printf '  skip: this filesystem rejects a %d-char name outright\n' "${#long_base}"
 fi
 
 if [[ -n "$baseline_ref" ]]; then
