@@ -17,7 +17,12 @@ cover_file="${COVER_FILE:-cover.out}"
 # blocks, and the first screenful is what gets read.
 max_reported=25
 
-go test ./... -covermode=atomic -coverprofile="$cover_file"
+# -timeout is explicit rather than left to go test's 10-minute default. The
+# compiler refuses documents that would otherwise hang the third-party resolver,
+# so a regression in that refusal is a test that never returns, not one that
+# fails. Ninety seconds is several times the suite's normal wall time and turns
+# that failure mode into a prompt stack dump naming the stuck goroutine.
+go test ./... -timeout 90s -covermode=atomic -coverprofile="$cover_file"
 
 # Profile body, one block per line: "<import-path>/<file>.go:<span> <stmts> <count>".
 # Sorted so the same failure reads the same way on every run.

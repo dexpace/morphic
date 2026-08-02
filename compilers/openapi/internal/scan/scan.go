@@ -22,7 +22,8 @@ import (
 
 // maxCycleDepth bounds every recursive descent in the cycle detector. It guards
 // the walk against a runaway structure per the bounded-recursion rule; real
-// specs nest far shallower, so the cap only ever fires on a detector bug.
+// specs nest far shallower, so nothing short of a document built to reach it —
+// or a detector bug — ever does.
 const maxCycleDepth = 10000
 
 // schemaEntryMapKeys name a mapping of schemas encountered outside a schema
