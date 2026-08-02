@@ -196,23 +196,50 @@ policy fills in where the spec is silent, never the reverse.
 
 ```
 morphic/
-├── ir/                  # Layer 0 — IR node types, IDs, traversal, JSON round-trip.
-│   ├── irtest/          #           Golden-snapshot helpers for IR documents.
-│   └── irverify/        #           Structural-invariant oracle (dangling refs, IDs, naming).
-├── compilers/           # Layer 1 — compiler contract + registry.
-│   ├── compile/         #           What every compiler shares: type registry + coordinates,
-│   │                    #           diagnostics, naming and identifier grammars. Imports ir only.
-│   ├── openapi/         #           OpenAPI 3.x → IR (milestone 1).
-│   │   └── internal/    #             Its own packages, below its public face:
-│   │                    #             diag (codes + constructor). More per micro-compiler-design §5.1.
-│   ├── swagger/         #           2.0 lift → openapi compiler (future).
+├── ir/                     # Layer 0 — IR node types, IDs, traversal, JSON round-trip.
+│   ├── irtest/             #           Golden-snapshot helpers for IR documents.
+│   └── irverify/           #           Structural-invariant oracle (dangling refs, IDs, naming).
+├── compilers/              # Layer 1 — compiler contract + registry.
+│   ├── compile/            #           What every compiler shares: type registry + coordinates,
+│   │                       #           diagnostics, and the naming/identifier grammars.
+│   ├── openapi/            #           OpenAPI 3.x → IR (milestone 1). The public face: the
+│   │   │                   #           Compiler, its Options, document metadata, and the run that
+│   │   │                   #           calls the four lowerings below in order.
+│   │   └── internal/       #             Its own packages, each below that face:
+│   │       ├── diag/       #             diagnostic codes and the constructor
+│   │       ├── ids/        #             pointer arithmetic; pointer → TypeID
+│   │       ├── value/      #             scalar and BigVal lowering
+│   │       ├── nodeview/   #             the raw source as the resolver reads it
+│   │       ├── scan/       #             pre-lowering refusals (ref cycles, alias fan-out)
+│   │       ├── annotation/ #             what a schema says about itself, not its shape
+│   │       ├── load/       #             parse, validate, resolve
+│   │       ├── resolve/    #             what a $ref names; reference-or-inline entries
+│   │       ├── merge/      #             allOf property reconciliation
+│   │       ├── lowering/   #             the immutable context every lowering reads
+│   │       ├── schema/     #             the schema walk, composition, preservation
+│   │       ├── auth/       #             security schemes and requirements
+│   │       └── operation/  #             path items, webhooks, callbacks, params, content
 │   ├── typespec/ smithy/ graphql/ asyncapi/ protobuf/ otp/   (future)
-├── pass/                # Layer 1 — IR → IR passes (validate, dedup, filter, slice, overlay).
-├── emitters/            # Layer 2 — emitter contract, plan layer, registry (future).
-├── engine/              # Layer 3 — orchestration: sniff format, run compiler, passes, emitters.
-├── internal/harness/    #           Bug-catching oracle sweep over a spec corpus (tooling).
-├── cmd/morphic/         # Layer 4 — CLI.
-└── cmd/morphic-harness/ #           CLI over internal/harness (tooling, not the pipeline).
+├── pass/                   # Layer 1 — IR → IR passes (validate, dedup, filter, slice, overlay).
+├── emitters/               # Layer 2 — emitter contract, plan layer, registry (future).
+├── engine/                 # Layer 3 — orchestration: sniff format, run compiler, passes, emitters.
+├── internal/archtest/      #           Layering, grammar, recursion and method-cap rules (tooling).
+├── internal/harness/       #           Bug-catching oracle sweep over a spec corpus (tooling).
+├── internal/testspec/      #           Spec fixtures shared by the tooling (tooling).
+├── cmd/morphic/            # Layer 4 — CLI.
+└── cmd/morphic-harness/    #           CLI over internal/harness (tooling, not the pipeline).
+```
+
+Swagger 2.0 gets no directory of its own: the lift normalizes it to the OpenAPI 3.x shape and
+belongs *inside* that compiler (§2.1, milestone 2). A sibling `compilers/swagger/` calling into
+`compilers/openapi` is the one import the rules below forbid outright.
+
+This tree is prose. `internal/archtest`'s `rules` map is the source of truth, and it is what fails
+when the two disagree — every production package must appear there or in `exempt`. To read the
+layout off the tree rather than off this page:
+
+```bash
+git ls-files '*/*.go' | xargs -n1 dirname | sort -u
 ```
 
 Dependency rules, enforced by an architecture test as in oagen:
@@ -223,8 +250,16 @@ Dependency rules, enforced by an architecture test as in oagen:
   never `emitter` or `engine`. A compiler also names the contract package and
   `compilers/compile`; each is allowed in its own right, so no sibling compiler rides in beside
   them.
+- A compiler's own `internal/` packages each carry their own allowlist rather than inheriting the
+  compiler's. That is what keeps the ordering among them real: `diag` reaches nothing but `ir`,
+  and no lowering package may reach the compiler that calls it.
 - `emitters/*` imports `ir` and `emitter` (contract) — never `compiler`.
 - `engine` imports everything below it; `cmd` imports `engine`.
+
+Two caps guard the shape rather than the graph, both in `internal/archtest` and `.golangci.yml`:
+no type under `compilers/` may carry more than 20 methods, and no function may exceed 70 lines or
+a cognitive complexity of 20. The method cap exists because the god object that
+`micro-compiler-design.md` is about grew to 159 methods without ever writing a long function.
 
 ## 4. Diagnostics & provenance
 
@@ -246,7 +281,18 @@ stderr; the CLI renders diagnostics.
   keeps "lossless by default" honest as compilers are added.
 - **Round-trip property**: `parse → serialize → deserialize → deep-equal` for every corpus
   document.
-- **Architecture test**: import-graph assertions for the layering rules above.
+- **Oracle sweep** (`internal/harness`): every corpus spec is driven through the oracles in order
+  — no panic, no error diagnostic, `irverify`'s structural invariants, JSON round-trip,
+  determinism across two compiles, and **order-independence**. The last one compiles the same
+  source twice with every mapping's entry order reversed and diffs the two documents. It is the
+  general form of the two-order check, and it is what catches an interning collision: two
+  declarations minting one node at a single pointer produce the same document read either way
+  only if neither is the one that got there first. Both pointer collisions the compiler has had
+  were invisible to a single-order suite.
+- **Architecture test** (`internal/archtest`): import-graph assertions for the layering rules
+  above, plus the rules the graph cannot express — which packages may write an `ir.TypeRegistry`,
+  which lowerings are mutually recursive (so a set that grows is noticed rather than measured),
+  and the method-per-type cap.
 - **Wire-conformance harness** (from milestone 3): expected request shapes (method, path,
   query, body keys) are derived *from the IR alone* — offline, deterministic, shared across
   every language emitter; generated SDKs run under HTTP interception and the requests are
