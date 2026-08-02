@@ -1,11 +1,14 @@
 // Package resolve answers what a $ref names: which same-document pointer it
-// addresses, and which interned type, if any, already lives there.
+// addresses, which interned type, if any, already lives there, and — for the
+// components that are not schemas — which concrete value and declaration site a
+// reference-or-inline entry stands for.
 //
 // It is deliberately only that. Following a reference far enough to lower what
 // it points at is schema lowering reached through a reference, not resolution,
 // and it recurses back into the schema walk — so it stays with the walk rather
-// than crossing this boundary. What is here needs nothing but two facts about
-// the document, which is why it is a package at all.
+// than crossing this boundary. What is here needs nothing but the document's own
+// path, what it declares, and a registry to look an ID up in, which is why it is
+// a package at all.
 //
 // Reference resolution is not promoted to compilers/compile: two of the three
 // compilers need it and need it by different mechanisms, which is the shape that

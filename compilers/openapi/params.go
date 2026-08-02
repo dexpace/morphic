@@ -29,7 +29,7 @@ func lowerParameters(c lowering.Ctx, ts *compile.Types, anchors *schema.AnchorIn
 	logical := make([]ir.Parameter, 0, len(params))
 	bindings := make([]ir.HTTPParamBinding, 0, len(params))
 	for _, sp := range params {
-		p, pptr := resolveRefAt[soa.Parameter](c, sp.ref, sp.pointer)
+		p, pptr := resolve.ObjectAt[soa.Parameter](c.RefScope(), sp.ref, sp.pointer)
 		if p == nil {
 			continue
 		}

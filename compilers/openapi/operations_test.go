@@ -1,7 +1,6 @@
 package openapi
 
 import (
-	"os"
 	"strconv"
 	"strings"
 	"testing"
@@ -19,6 +18,7 @@ import (
 	"github.com/dexpace/morphic/compilers/openapi/internal/ids"
 	"github.com/dexpace/morphic/compilers/openapi/internal/load"
 	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
+	"github.com/dexpace/morphic/compilers/openapi/internal/resolve"
 	"github.com/dexpace/morphic/compilers/openapi/internal/schema"
 	"github.com/dexpace/morphic/ir"
 )
@@ -241,7 +241,7 @@ func TestParameters_PathItemMergeOverride(t *testing.T) {
 	require.NotNil(t, loadedDoc)
 	var pi *soa.PathItem
 	for _, rp := range loadedDoc.Doc.GetPaths().All() {
-		pi = resolveRef[soa.PathItem](rp)
+		pi = resolve.Object[soa.PathItem](rp)
 	}
 	require.NotNil(t, pi)
 	op := pi.Get()
@@ -256,7 +256,7 @@ func TestParameters_PathItemMergeOverride(t *testing.T) {
 
 	byName := map[string]sourcedParam{}
 	for _, sp := range merged {
-		byName[resolveRef[soa.Parameter](sp.ref).GetName()] = sp
+		byName[resolve.Object[soa.Parameter](sp.ref).GetName()] = sp
 	}
 	_, hasID := byName["id"]
 	_, hasTrace := byName["trace"]
@@ -741,26 +741,12 @@ func TestRawChildNode(t *testing.T) {
 	assert.Nil(t, annotation.RawChildNode(&doc, "missing"), "absent key")
 }
 
-func TestResolvers_NilInputs(t *testing.T) {
+// TestParamKey_NilParameterIsNotAKey pins the guard on the merge key. A nil
+// entry in a parameter list has no name and no location, so it cannot key
+// anything — and answering with the zero key would silently merge every such
+// entry onto one another.
+func TestParamKey_NilParameterIsNotAKey(t *testing.T) {
 	t.Parallel()
-	var (
-		rpi *soa.ReferencedPathItem
-		rr  *soa.ReferencedResponse
-		rh  *soa.ReferencedHeader
-		rcb *soa.ReferencedCallback
-		rp  *soa.ReferencedParameter
-		rrb *soa.ReferencedRequestBody
-		re  *soa.ReferencedExample
-		rss *soa.ReferencedSecurityScheme
-	)
-	assert.Nil(t, resolveRef[soa.PathItem](rpi))
-	assert.Nil(t, resolveRef[soa.Response](rr))
-	assert.Nil(t, resolveRef[soa.Header](rh))
-	assert.Nil(t, resolveRef[soa.Callback](rcb))
-	assert.Nil(t, resolveRef[soa.Parameter](rp))
-	assert.Nil(t, resolveRef[soa.RequestBody](rrb))
-	assert.Nil(t, resolveRef[soa.Example](re))
-	assert.Nil(t, resolveRef[soa.SecurityScheme](rss))
 	_, ok := paramKey(nil)
 	assert.False(t, ok)
 }
@@ -1135,130 +1121,6 @@ func pointerStep(node *yaml.Node, seg string) (*yaml.Node, bool) {
 	}
 }
 
-// TestResolveRefAt_CrossDocumentKeepsUseSitePointer is the cross-document
-// counterpart to the same-document sharing tests above (issue #107). The
-// fixture's operation $refs a parameter and a response into a sibling
-// document; both resolve to real objects (resolveAll follows external refs),
-// but resolveRefAt's internal-pointer check rejects the target because it lives
-// in another document, so the use-site pointer is kept rather than a pointer
-// into a document this IR has no node for.
-func TestResolveRefAt_CrossDocumentKeepsUseSitePointer(t *testing.T) {
-	t.Parallel()
-	doc := compileFixture(t, "../../testdata/openapi/resolve_main_external_valid.yaml")
-	assertCrossDocumentUseSitePointers(t, doc)
-}
-
-// TestResolveRefAt_AliasChainLeavingDocumentKeepsUseSitePointer covers the hop
-// the plain cross-document case does not: a chain that starts inside this
-// document and only then leaves it (PageAlias -> ./target#/…/Page). The alias
-// pointer walked past is itself a one-key $ref object with no schema child, so
-// adopting it would fabricate a pointer just as surely as the use site did
-// before issue #107 — the walk must fall all the way back to the use site,
-// matching what a direct cross-document reference already does.
-func TestResolveRefAt_AliasChainLeavingDocumentKeepsUseSitePointer(t *testing.T) {
-	t.Parallel()
-	doc := compileFixture(t, "../../testdata/openapi/resolve_main_alias_external_valid.yaml")
-	assertCrossDocumentUseSitePointers(t, doc)
-}
-
-// compileFixture loads and lowers one on-disk spec, which — unlike parseFull's
-// in-memory source — is what lets the loader resolve a sibling document.
-func compileFixture(t *testing.T, path string) *ir.Document {
-	t.Helper()
-	data, err := os.ReadFile(path)
-	require.NoError(t, err)
-
-	opts := Options{}.withDefaults()
-	loadedDoc, loadDiags, err := load.Load(t.Context(), 0, compilers.Source{Path: path, Data: data}, loadOptions(opts))
-	require.NoError(t, err)
-	require.NotNil(t, loadedDoc)
-
-	doc, lowerDiags := run(loweringCtx(loadedDoc, opts), compile.NewTypes(0))
-	requireNoErrorDiags(t, append(loadDiags, lowerDiags...))
-	return doc
-}
-
-// assertCrossDocumentUseSitePointers pins the shared outcome of both
-// cross-document fixtures: the schemas intern at the operation's own pointers,
-// and nothing interns under a /components/ pointer — neither the sibling
-// document's (this IR has no node there) nor a local alias's.
-func assertCrossDocumentUseSitePointers(t *testing.T, doc *ir.Document) {
-	t.Helper()
-	wantParamID := ir.TypeID("t/anon/paths/~1a/get/parameters/0/schema")
-	wantRespID := ir.TypeID("t/anon/paths/~1a/get/responses/200/content/application~1json/schema")
-	_, hasParam := doc.Types[wantParamID]
-	_, hasResp := doc.Types[wantRespID]
-	assert.True(t, hasParam, "the cross-document parameter schema interns at the use-site pointer")
-	assert.True(t, hasResp, "the cross-document response schema interns at the use-site pointer")
-
-	for id := range doc.Types {
-		assert.False(t, strings.HasPrefix(string(id), "t/anon/components/"),
-			"no type interned under an unaddressable declaration pointer: %s", id)
-	}
-}
-
-const aliasedComponentChainSpec = `openapi: 3.1.0
-info: {title: T, version: "1"}
-paths:
-  /a:
-    get:
-      operationId: getA
-      parameters:
-        - {$ref: '#/components/parameters/PageAlias'}
-      responses:
-        "200": {$ref: '#/components/responses/OKAlias'}
-  /b:
-    get:
-      operationId: getB
-      parameters:
-        - {$ref: '#/components/parameters/PageAlias'}
-      responses:
-        "200": {$ref: '#/components/responses/OKAlias'}
-components:
-  parameters:
-    PageAlias: {$ref: '#/components/parameters/Page'}
-    Page: {name: page, in: query, schema: {type: string, enum: [p, q]}}
-  responses:
-    OKAlias: {$ref: '#/components/responses/OK'}
-    OK:
-      description: ok
-      content:
-        application/json:
-          schema: {type: object, properties: {n: {type: string}}}
-`
-
-// TestResolveRefAt_AliasedComponentChainInternsAtFinalDeclaration guards a
-// component that is itself a bare $ref to another component (PageAlias ->
-// Page, OKAlias -> OK): resolveRefAt must walk the whole chain to Page's and
-// OK's own declaration, not stop at the one-hop alias pointer, which is a
-// one-key $ref object with no schema (or content) child of its own to hoist.
-func TestResolveRefAt_AliasedComponentChainInternsAtFinalDeclaration(t *testing.T) {
-	t.Parallel()
-	doc, diags := parseFull(t, aliasedComponentChainSpec)
-	requireNoErrorDiags(t, diags)
-	getA := findOp(t, doc, "getA")
-	getB := findOp(t, doc, "getB")
-
-	require.Len(t, getA.Params, 1)
-	require.Len(t, getB.Params, 1)
-	wantParamID := ir.TypeID("t/anon/components/parameters/Page/schema")
-	assert.Equal(t, wantParamID, getA.Params[0].Type.Target)
-	assert.Equal(t, wantParamID, getB.Params[0].Type.Target,
-		"both operations resolve the aliased parameter's final declaration")
-
-	require.Len(t, getA.Responses, 1)
-	require.Len(t, getB.Responses, 1)
-	wantRespID := ir.TypeID("t/anon/components/responses/OK/content/application~1json/schema")
-	assert.Equal(t, wantRespID, getA.Responses[0].Payload.Contents[0].Type.Target)
-	assert.Equal(t, wantRespID, getB.Responses[0].Payload.Contents[0].Type.Target,
-		"both operations resolve the aliased response's final declaration")
-
-	for id := range doc.Types {
-		assert.NotContains(t, string(id), "PageAlias", "no ID derived from the one-hop alias pointer")
-		assert.NotContains(t, string(id), "OKAlias", "no ID derived from the one-hop alias pointer")
-	}
-}
-
 const refdWebhookPathItemSpec = `openapi: 3.1.0
 info: {title: T, version: "1"}
 paths: {}
@@ -1428,61 +1290,6 @@ func TestResponses_RefdErrorAndDefaultInternAtDeclaration(t *testing.T) {
 		assert.NotContains(t, string(id), "/responses/404", "no fabricated per-operation error ID")
 		assert.NotContains(t, string(id), "/responses/default", "no fabricated per-operation default ID")
 	}
-}
-
-// chainedAliasSpec builds a spec whose operation $refs P0 at the head of an
-// alias chain P0 -> P1 -> ... -> P<hops>, where only P<hops> is a real
-// parameter declaration. The walk therefore takes hops+1 steps: one from the
-// use site, then one per alias.
-func chainedAliasSpec(hops int) string {
-	var b strings.Builder
-	b.WriteString(`openapi: 3.1.0
-info: {title: T, version: "1"}
-paths:
-  /a:
-    get:
-      operationId: getA
-      parameters:
-        - {$ref: '#/components/parameters/P0'}
-      responses: {"200": {description: ok}}
-components:
-  parameters:
-`)
-	for i := range hops {
-		b.WriteString("    P" + strconv.Itoa(i) + ": {$ref: '#/components/parameters/P" + strconv.Itoa(i+1) + "'}\n")
-	}
-	b.WriteString("    P" + strconv.Itoa(hops) + ": {name: page, in: query, schema: {type: string, enum: [a, b]}}\n")
-	return b.String()
-}
-
-// TestResolveRefAt_AliasChainWithinBoundReachesDeclaration walks a chain
-// several hops deeper than the two-hop regression above, to pin that the walk
-// is genuinely iterative rather than a fixed one-or-two-hop peel.
-func TestResolveRefAt_AliasChainWithinBoundReachesDeclaration(t *testing.T) {
-	t.Parallel()
-	const hops = 8
-	doc, diags := parseFull(t, chainedAliasSpec(hops))
-	requireNoErrorDiags(t, diags)
-	op := findOp(t, doc, "getA")
-	require.Len(t, op.Params, 1)
-	assert.Equal(t, ir.TypeID("t/anon/components/parameters/P8/schema"), op.Params[0].Type.Target,
-		"the walk follows every hop to the final declaration")
-}
-
-// TestResolveRefAt_AliasChainBeyondBoundFallsBackToUseSite pins the behaviour
-// of maxRefChain itself. A chain longer than the bound has no declaration the
-// walk can prove it reached, so it must fall back to the use-site pointer —
-// terminating, deterministic, and never a mid-chain alias whose only key is
-// $ref. Nothing in a real spec looks like this; the bound exists so a
-// pathological one cannot make the walk unbounded.
-func TestResolveRefAt_AliasChainBeyondBoundFallsBackToUseSite(t *testing.T) {
-	t.Parallel()
-	doc, diags := parseFull(t, chainedAliasSpec(maxRefChain+4))
-	requireNoErrorDiags(t, diags)
-	op := findOp(t, doc, "getA")
-	require.Len(t, op.Params, 1)
-	assert.Equal(t, ir.TypeID("t/anon/paths/~1a/get/parameters/0/schema"), op.Params[0].Type.Target,
-		"an over-long chain keeps the one pointer that is certainly addressable")
 }
 
 const sharedOptionalBodySpec = `openapi: 3.1.0

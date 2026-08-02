@@ -5,13 +5,13 @@ import (
 	"strings"
 
 	soa "github.com/speakeasy-api/openapi/openapi"
-	"github.com/speakeasy-api/openapi/references"
 
 	"github.com/dexpace/morphic/compilers/compile"
 	"github.com/dexpace/morphic/compilers/openapi/internal/annotation"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/ids"
 	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
+	"github.com/dexpace/morphic/compilers/openapi/internal/resolve"
 	"github.com/dexpace/morphic/compilers/openapi/internal/schema"
 	"github.com/dexpace/morphic/ir"
 )
@@ -89,7 +89,7 @@ func lowerPaths(c lowering.Ctx, ts *compile.Types, anchors *schema.AnchorIndex, 
 	}
 	var diags []ir.Diagnostic
 	for path, rp := range paths.All() {
-		pi, declPtr := resolveRefAt[soa.PathItem](c, rp, ids.Ptr("paths", path))
+		pi, declPtr := resolve.ObjectAt[soa.PathItem](c.RefScope(), rp, ids.Ptr("paths", path))
 		if pi == nil {
 			continue
 		}
@@ -142,7 +142,7 @@ func lowerWebhooks(c lowering.Ctx, ts *compile.Types, anchors *schema.AnchorInde
 	var diags []ir.Diagnostic
 	for name, rp := range hooks.All() {
 		hookPtr := ids.Ptr("webhooks", name)
-		pi, declPtr := resolveRefAt[soa.PathItem](c, rp, hookPtr)
+		pi, declPtr := resolve.ObjectAt[soa.PathItem](c.RefScope(), rp, hookPtr)
 		if pi == nil {
 			continue
 		}
@@ -358,7 +358,7 @@ func lowerResponses(c lowering.Ctx, ts *compile.Types, anchors *schema.AnchorInd
 	var errs []ir.ErrorCase
 	var diags []ir.Diagnostic
 	for code, rr := range resps.All() {
-		r, rptr := resolveRefAt[soa.Response](c, rr, opDeclPtr+ids.Ptr("responses", code))
+		r, rptr := resolve.ObjectAt[soa.Response](c.RefScope(), rr, opDeclPtr+ids.Ptr("responses", code))
 		if r == nil {
 			continue
 		}
@@ -373,7 +373,7 @@ func lowerResponses(c lowering.Ctx, ts *compile.Types, anchors *schema.AnchorInd
 			responses = append(responses, resp)
 		}
 	}
-	def, dptr := resolveRefAt[soa.Response](c, resps.GetDefault(), opDeclPtr+ids.Ptr("responses", "default"))
+	def, dptr := resolve.ObjectAt[soa.Response](c.RefScope(), resps.GetDefault(), opDeclPtr+ids.Ptr("responses", "default"))
 	if def != nil {
 		ec, ecDiags := lowerErrorCase(c, ts, anchors, def, ir.StatusRange{}, dptr)
 		diags = append(diags, ecDiags...)
@@ -476,13 +476,13 @@ func lowerCallbacks(c lowering.Ctx, ts *compile.Types, anchors *schema.AnchorInd
 	var ops []ir.Operation
 	var diags []ir.Diagnostic
 	for cbName, rcb := range cbMap.All() {
-		cb, cbDecl := resolveRefAt[soa.Callback](c, rcb, parent.decl+ids.Ptr("callbacks", cbName))
+		cb, cbDecl := resolve.ObjectAt[soa.Callback](c.RefScope(), rcb, parent.decl+ids.Ptr("callbacks", cbName))
 		if cb == nil {
 			continue
 		}
 		for expr, rp := range cb.All() {
 			exprStr := string(expr)
-			pi, piDecl := resolveRefAt[soa.PathItem](c, rp, cbDecl+ids.Ptr(exprStr))
+			pi, piDecl := resolve.ObjectAt[soa.PathItem](c.RefScope(), rp, cbDecl+ids.Ptr(exprStr))
 			if pi == nil {
 				continue
 			}
@@ -580,7 +580,7 @@ func shadowedKeys(opParams []*soa.ReferencedParameter) map[string]bool {
 
 // paramKey builds the (in, name) identity of a parameter for merge dedup.
 func paramKey(rp *soa.ReferencedParameter) (string, bool) {
-	p := resolveRef[soa.Parameter](rp)
+	p := resolve.Object[soa.Parameter](rp)
 	if p == nil {
 		return "", false
 	}
@@ -629,92 +629,6 @@ func firstPathSegment(path string) string {
 		}
 	}
 	return ""
-}
-
-// referencedEntry is the method set every soa "Referenced*" alias exposes: it
-// is the generic form of speakeasy's Reference[T, V, C], which underlies
-// ReferencedPathItem, ReferencedResponse, ReferencedHeader, ReferencedCallback,
-// ReferencedParameter, ReferencedRequestBody, ReferencedExample, and
-// ReferencedSecurityScheme alike. Naming the shape once here lets resolveRef
-// stand in for what would otherwise be one resolveX per aliased type. S is the
-// reference's own type, Reference[T, V, C]; resolveRefAt walks it through
-// GetReferenceResolutionInfo to follow a chain of component aliases.
-type referencedEntry[T, S any] interface {
-	GetObject() *T
-	GetResolvedObject() *T
-	GetReference() references.Reference
-	GetReferenceResolutionInfo() *references.ResolveResult[S]
-}
-
-// resolveRef returns the concrete value of a reference-or-inline entry,
-// preferring the inline object and falling back to the resolved target. The
-// *S term constrains R to a pointer type so `ref == nil` is legal in generic
-// code; interfaces.Validator[T] is unavailable here (it lives in the
-// library's internal/ tree), which is why R is expressed via *S rather than
-// V directly.
-func resolveRef[T, S any, R interface {
-	*S
-	referencedEntry[T, S]
-}](ref R) *T {
-	if ref == nil {
-		return nil
-	}
-	if obj := ref.GetObject(); obj != nil {
-		return obj
-	}
-	// GetResolvedObject is itself nil-safe and delegates to GetObject, but the
-	// fallback stays explicit rather than coupling this compiler to that
-	// undocumented nil-tolerance.
-	return ref.GetResolvedObject()
-}
-
-// maxRefChain bounds how many $ref hops resolveRefAt follows to a declaration
-// (styleguide bounded-everything rule). A $ref cycle among the non-schema
-// components this walks is refused before lowering by speakeasy's resolver, not
-// by cycles.go — that scan covers schema positions only and delegates these (see
-// its header) — and a refused chain resolves to nothing, so resolveRefAt returns
-// before the loop. The bound therefore only ever fires on an absurd alias chain.
-const maxRefChain = 32
-
-// resolveRefAt returns a reference-or-inline entry's concrete value together
-// with the pointer of the declaration it resolves to, walking through any
-// chained component aliases to the last one written in this document (issue
-// #107). usePtr — the entry's own position — stands whenever the chain has no
-// declaration addressable here: an inline entry, a reference that leaves this
-// document, or one that outruns maxRefChain. An alias pointer is never
-// returned on its own, since a one-key $ref object has no children to hoist.
-func resolveRefAt[T, S any, R interface {
-	*S
-	referencedEntry[T, S]
-}](c lowering.Ctx, ref R, usePtr string) (*T, string) {
-	obj := resolveRef[T, S, R](ref)
-	if obj == nil {
-		return nil, usePtr
-	}
-	// cand advances one hop at a time but is adopted only once the chain ends
-	// at a declaration written here, which is what keeps a chain that exits the
-	// document from returning the last alias it passed through.
-	pointer, cand := usePtr, usePtr
-	for range maxRefChain {
-		// GetReferenceResolutionInfo is nil once the chain reaches a
-		// non-reference entry — the terminator, and why an inline entry
-		// exits on the first pass (couples this to that library contract).
-		info := ref.GetReferenceResolutionInfo()
-		if info == nil {
-			pointer = cand
-			break
-		}
-		target, ok := c.RefScope().InternalPointer(ref.GetReference().String())
-		if !ok {
-			break // another document: nothing addressable here, so usePtr stands
-		}
-		cand = target
-		// obj != nil means the whole chain resolved, so info.Object is non-nil
-		// at every hop this loop takes; a nil one would still be safe, since
-		// the getters above are nil-receiver tolerant and end the walk.
-		ref = R(info.Object)
-	}
-	return obj, pointer
 }
 
 // serviceGroups accumulates operation groups keyed by a namespaced key while
