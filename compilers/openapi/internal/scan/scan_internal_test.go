@@ -45,6 +45,9 @@ var cycleReproducers = []struct{ name, file string }{
 	{"path-item-prefix-chain", "cycle_path_item_prefix_chain"},
 	{"component-path-item-prefix", "cycle_component_path_item_prefix"},
 	{"webhook-prefix-self", "cycle_webhook_prefix_self"},
+	// A self-reference only the resolver's pointer normalization reveals, which
+	// overflows the stack rather than deadlocking: the resolution cache ends up
+	// pointing at its own reference and GetObject's delegation recurses.
 	{"pointer-whitespace-self", "cycle_pointer_whitespace_self"},
 }
 
@@ -154,23 +157,33 @@ components:
     A: {$ref: *r}
     B: {type: object}
 `},
-	// The four cases below are the negative controls for the re-entrant-prefix
-	// refusal. Each carries a pointer whose prefix names a reference, which is
-	// the shape that rule keys on — but not one on the chain reading it, so the
-	// resolver handles them and reports an unresolved ref. Each was measured
-	// against speakeasy v1.24.0 before being written down here: refusing any of
-	// them would be refusing a document that compiles.
+	// The cases below are the negative controls for the re-entrant-prefix
+	// refusal, and they are what keeps it from widening into an over-refusal.
+	// Each carries a pointer whose prefix names a reference — the shape the rule
+	// keys on — without being the shape that hangs:
+	//
+	//   - the first two pass through a reference that is not on the chain
+	//     reading it, so no lock is re-entered;
+	//   - the last two re-enter from a schema position, which resolves through
+	//     jsonschema rather than the openapi Reference wrapper and so never takes
+	//     the lock at all.
+	//
+	// Each was measured against speakeasy v1.24.0 before being written down:
+	// refusing any of them would be refusing a document that compiles today.
 	{"legal-prefix-both-hops-dangle", `openapi: 3.1.0
 info: {title: t, version: '1'}
 paths:
   /a: {$ref: '#/paths/~1b/t'}
   /b: {$ref: '#/paths/~1a/t'}
 `},
-	{"legal-prefix-names-offchain-ref", `openapi: 3.1.0
+	{"legal-prefix-through-offchain-ref", `openapi: 3.1.0
 info: {title: t, version: '1'}
 paths:
   /a: {$ref: '#/paths/~1b/t'}
-  /b: {get: {operationId: b, responses: {"200": {description: ok}}}}
+  /b: {$ref: '#/components/pathItems/C'}
+components:
+  pathItems:
+    C: {get: {operationId: c, responses: {"200": {description: ok}}}}
 `},
 	{"legal-schema-prefix-self", `openapi: 3.1.0
 info: {title: t, version: '1'}
@@ -179,7 +192,7 @@ components:
   schemas:
     A: {$ref: '#/components/schemas/A/properties', properties: {p: {type: string}}}
 `},
-	{"legal-schema-prefix-into-path-item", `openapi: 3.1.0
+	{"legal-schema-chain-reentry", `openapi: 3.1.0
 info: {title: t, version: '1'}
 paths:
   /a: {$ref: '#/components/schemas/S/t'}

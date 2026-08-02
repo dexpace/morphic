@@ -43,6 +43,9 @@ var cycleReproducers = []struct{ name, file string }{
 	{"path-item-prefix-chain", "cycle_path_item_prefix_chain"},
 	{"component-path-item-prefix", "cycle_component_path_item_prefix"},
 	{"webhook-prefix-self", "cycle_webhook_prefix_self"},
+	// A self-reference only the resolver's pointer normalization reveals, which
+	// overflows the stack rather than deadlocking: the resolution cache ends up
+	// pointing at its own reference and GetObject's delegation recurses.
 	{"pointer-whitespace-self", "cycle_pointer_whitespace_self"},
 }
 

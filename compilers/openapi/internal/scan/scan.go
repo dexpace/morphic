@@ -1,10 +1,12 @@
 // Package scan refuses a source document before any of it is lowered.
 //
-// Two refusals share a phase and a subject: a reference cycle that never reaches
-// a concrete schema, which would recurse without bound inside the resolver, and a
-// YAML alias fan-out that expands to far more nodes than the document declares,
-// which would exhaust memory inside the parser. Both read the raw text through
-// nodeview, and both run before the document is handed to either.
+// The refusals share a phase and a subject. A reference cycle that never reaches
+// a concrete schema recurses without bound inside the resolver. A reference whose
+// pointer passes through a reference already being resolved deadlocks it, since
+// the resolver holds that reference's own lock across the pointer walk. A YAML
+// alias fan-out that expands to far more nodes than the document declares
+// exhausts memory inside the parser. Each reads the raw text through nodeview,
+// and each runs before the document is handed to either.
 package scan
 
 import (
@@ -56,15 +58,16 @@ var schemaDataKeys = map[string]bool{
 	"const": true, "enum": true,
 }
 
-// Cycles scans raw source bytes for degenerate reference structures that
-// would otherwise crash or exhaust memory in the third-party parser (GitHub
-// #12, GitHub #27), before soa.Unmarshal ever runs. It reports three classes as
-// error diagnostics: a recursive YAML anchor, a pure-$ref cycle (a chain of
-// schema $refs that never reaches a node without one), and alias amplification
-// (a billion-laughs expansion). A source that doesn't decode as YAML yields no
-// cycles — the main parser reports that as a parse problem — and the scan runs
-// under recoverCycleScan so a detector bug degrades to "no cycle found" rather
-// than aborting.
+// Cycles scans raw source bytes for degenerate reference structures that would
+// otherwise crash, hang or exhaust memory in the third-party parser and resolver
+// (GitHub #12, GitHub #27, speakeasy-api/openapi#231), before soa.Unmarshal ever
+// runs. It reports as error diagnostics: a recursive YAML anchor, a pure-$ref
+// cycle (a chain of schema $refs that never reaches a node without one), a
+// reference whose pointer resolves through a reference already being resolved,
+// and alias amplification (a billion-laughs expansion). A source that doesn't
+// decode as YAML yields no cycles — the main parser reports that as a parse
+// problem — and the scan runs under recoverCycleScan so a detector bug degrades
+// to "no cycle found" rather than aborting.
 func Cycles(srcIndex int, data []byte) []ir.Diagnostic {
 	return recoverCycleScan(srcIndex, func() []ir.Diagnostic {
 		return scanCycles(srcIndex, data)
@@ -163,10 +166,14 @@ func anchorName(alias *yaml.Node) string {
 	return alias.Value
 }
 
-// refCycles reports the first pure-$ref cycle: a chain of schema $refs followed
-// until it revisits a node already on the chain, without ever reaching a node
-// that carries no top-level $ref (which terminates the chain, matching where
-// speakeasy stops resolving).
+// refCycles reports the first degenerate chain among the collected references:
+// one followed until it revisits a node already on it, without ever reaching a
+// node that carries no top-level $ref (which terminates the chain, matching
+// where speakeasy stops resolving).
+//
+// Schema positions are refused on that alone. Reference-object positions carry
+// a second rule and one exemption, both of which turn on what the resolver can
+// see rather than on where the pointer points — see outsideCycle.
 //
 // If the mapping view hit nodeview.MergeDepthLimit, it returns a diag.CycleScanFailed
 // warning instead of a clean nil: truncation only ever drops pairs, so a cycle
