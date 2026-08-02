@@ -40,6 +40,49 @@ func TestInternalPointer(t *testing.T) {
 		assert.Equal(t, tc.want, got, tc.ref)
 	}
 }
+
+// TestInternalPointer_MatchesTheResolversNormalization pins that the fragment is
+// read the way the resolver reads it, which is what makes a reference this
+// compiler calls unresolved one the resolver also failed to resolve. A $ref is a
+// URI, so `%2D` in the fragment is a hyphen; comparing the raw text against
+// declared names failed every spec-correct escape (GitHub #40). It carries the
+// same name as nodeview's test of the same two accessors, so the pair is one
+// grep apart — a dependency bump has to satisfy both.
+func TestInternalPointer_MatchesTheResolversNormalization(t *testing.T) {
+	t.Parallel()
+	sc := Scope{SelfPath: "m.yaml", Declares: func(string) bool { return false }}
+	tests := []struct {
+		name, ref, want string
+		internal        bool
+	}{
+		{name: "hyphen", ref: "#/components/schemas/Foo%2DBar", want: "/components/schemas/Foo-Bar", internal: true},
+		{name: "underscore", ref: "#/components/schemas/Foo%5FBar", want: "/components/schemas/Foo_Bar", internal: true},
+		{name: "dot", ref: "#/components/schemas/Foo%2EBar", want: "/components/schemas/Foo.Bar", internal: true},
+		{name: "space", ref: "#/components/schemas/A%20B", want: "/components/schemas/A B", internal: true},
+		{name: "percent", ref: "#/components/schemas/A%25B", want: "/components/schemas/A%B", internal: true},
+		// %2F decodes to a separator, so it deepens the pointer rather than naming
+		// a component with a slash in it — RFC 6901 spells that one `~1`.
+		{name: "encoded separator deepens", ref: "#/components/schemas/A%2FB", want: "/components/schemas/A/B", internal: true},
+		{name: "undecodable escape kept raw", ref: "#/components/schemas/A%zzB", want: "/components/schemas/A%zzB", internal: true},
+		{name: "trailing space", ref: "#/components/schemas/A ", want: "/components/schemas/A", internal: true},
+		{name: "leading space", ref: " #/components/schemas/A", want: "/components/schemas/A", internal: true},
+		{name: "second hash ends the pointer", ref: "#/a#b", want: "/a", internal: true},
+		{name: "self-document part still internal", ref: "m.yaml#/components/schemas/A%2DB", want: "/components/schemas/A-B", internal: true},
+		// The document half is not decoded, because the resolver does not decode it
+		// either: GetURI trims and stops. A self-reference has to be spelled the way
+		// the file is named.
+		{name: "document half is not decoded", ref: "m%2Eyaml#/components/schemas/A", internal: false},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			got, internal := sc.InternalPointer(tc.ref)
+			assert.Equal(t, tc.internal, internal)
+			assert.Equal(t, tc.want, got)
+		})
+	}
+}
+
 func TestResolveComponentRef(t *testing.T) {
 	t.Parallel()
 	sc := Scope{Declares: func(n string) bool { return n == "User" }}

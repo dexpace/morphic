@@ -138,3 +138,59 @@ components:
 	require.NotNil(t, f.Examples[0].Value)
 	assert.Equal(t, ir.Value{Kind: ir.ValueString, Str: "at-reference"}, *f.Examples[0].Value)
 }
+
+// TestLowerComponentSchemas_PercentEncodedRefResolves pins that a $ref whose
+// fragment is percent-encoded reaches the component it names. A $ref is a URI, so
+// `#/components/schemas/Foo%2DBar` addresses "Foo-Bar", and the resolver reads it
+// that way; comparing the raw fragment against declared names instead called a
+// resolved reference unresolved and left the property as `any`, losing the type
+// from a spec-correct document (GitHub #40). Each name here is legal under
+// OpenAPI's own component-name rule (^[a-zA-Z0-9.\-_]+$), so the escape is the
+// only thing under test.
+func TestLowerComponentSchemas_PercentEncodedRefResolves(t *testing.T) {
+	t.Parallel()
+	cases := []struct{ name, decl, encoded string }{
+		{"hyphen", "Foo-Bar", "Foo%2DBar"},
+		{"underscore", "Foo_Bar", "Foo%5FBar"},
+		{"dot", "Foo.Bar", "Foo%2EBar"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			doc, diags := lowerSpec(t, componentSpec(
+				"    "+tc.decl+": {type: string}\n"+
+					"    User: {type: object, properties: {x: {$ref: '#/components/schemas/"+tc.encoded+"'}}}\n"))
+			requireNoErrorDiags(t, diags)
+
+			user, ok := typeByName(doc, "User").(*ir.Model)
+			require.True(t, ok, "User must own a Model node")
+			require.Len(t, user.Properties, 1)
+			assert.Equal(t, componentID(tc.decl), user.Properties[0].Type.Target,
+				"the encoded fragment names the declared component")
+		})
+	}
+}
+
+// TestLowerComponentSchemas_PercentEncodedRefHoistsAtTheDeclaredCoordinate pins
+// the identity half of the same fix, which the resolution half can hide: a
+// pointer *through* an encoded component name addresses a sub-schema the
+// declaration walk hoists too, so both must derive one ID. Reading the fragment
+// raw hoisted it at `.../Foo%2DBar/properties/inner` — a path no source
+// coordinate spells, the derivation GitHub #141 refused for anchors — and the
+// reference still resolved, so nothing failed.
+func TestLowerComponentSchemas_PercentEncodedRefHoistsAtTheDeclaredCoordinate(t *testing.T) {
+	t.Parallel()
+	doc, diags := lowerSpec(t, componentSpec(
+		"    Foo-Bar: {type: object, properties: {inner: {type: integer}}}\n"+
+			"    User: {type: object, properties: {x: {$ref: '#/components/schemas/Foo%2DBar/properties/inner'}}}\n"))
+	requireNoErrorDiags(t, diags)
+
+	user, ok := typeByName(doc, "User").(*ir.Model)
+	require.True(t, ok, "User must own a Model node")
+	require.Len(t, user.Properties, 1)
+
+	const want = ir.TypeID("t/anon/components/schemas/Foo-Bar/properties/inner")
+	assert.Equal(t, want, user.Properties[0].Type.Target,
+		"the hoisted sub-schema is addressed by the pointer the declaration spells")
+	assert.Contains(t, doc.Types, want, "and the ID the reference carries is backed by a node")
+}
