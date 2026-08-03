@@ -18,7 +18,7 @@ import (
 //
 // Agreement is asked only of entities that record a pointer. A primitive is
 // shared across every source position and derives from none, so it carries no
-// pointer and is held to shape alone.
+// pointer; checkPrimIDs holds it to the ID its kind derives instead.
 func checkIDs(doc *ir.Document) []Violation {
 	var vs []Violation
 	for id, td := range doc.Types {
@@ -33,6 +33,67 @@ func checkIDs(doc *ir.Document) []Violation {
 			scheme.Provenance, "auth["+string(id)+"]")
 	}
 	return vs
+}
+
+// checkPrimIDs asserts the one TypeID ir can derive is the one the document
+// carries: every primitive is interned at ir.PrimTypeID of its kind, and nothing
+// that is not a primitive occupies the space those IDs live in.
+//
+// checkIDs cannot reach this. A primitive records no pointer for a path to be
+// checked against, so shape alone accepts a string primitive at
+// t/openapi/components/schemas/Name, and accepts one at t/prim/int32 — an ID
+// contradicting the node it keys. Either way two documents lowered from
+// different formats stop reaching the same node for the same kind, which is the
+// agreement this ID exists to be (GitHub #73).
+//
+// The architecture sweep that stops a compiler spelling the ID itself reaches
+// only this repository's production packages, so a Document decoded from JSON,
+// produced by a compiler outside this tree, or rewritten by a pass is held by
+// this and nothing else — the reasoning that put the naming grammar in ir.
+func checkPrimIDs(doc *ir.Document) []Violation {
+	var vs []Violation
+	for id, td := range doc.Types {
+		if isNilTypeDef(td) {
+			continue // checkRegistryKeys reports the nil entry itself
+		}
+		path := "types[" + string(id) + "]"
+		prim, isPrim := td.(*ir.Primitive)
+		if !isPrim {
+			vs = appendReservedSpace(vs, id, td.Kind(), path)
+			continue
+		}
+		want := ir.PrimTypeID(prim.Prim)
+		if id == want {
+			continue
+		}
+		vs = append(vs, Violation{
+			Code: "ir/prim-id-not-derived",
+			Message: "primitive of kind " + string(prim.Prim) + " is interned at " + string(id) +
+				" rather than the shared " + string(want),
+			Path: path,
+		})
+	}
+	return vs
+}
+
+// appendReservedSpace reports a type that is not a primitive addressing the
+// space primitive IDs live in.
+//
+// The space is reserved rather than merely conventional: a node there either
+// collides with the primitive of that kind outright, or squats a name the next
+// PrimKind takes. Both make the node reached for a kind depend on which
+// declaration lowered first, which is invariant 3's corollary.
+func appendReservedSpace(vs []Violation, id ir.TypeID, kind ir.TypeKind, path string) []Violation {
+	space, ok := ir.IDSpace(ir.IDKindType, string(id))
+	if !ok || space != ir.IDSpacePrim {
+		return vs
+	}
+	return append(vs, Violation{
+		Code: "ir/prim-space-reserved",
+		Message: "id " + string(id) + " addresses the reserved primitive space but names a " +
+			string(kind),
+		Path: path,
+	})
 }
 
 // appendIDViolations reports the ways one ID can fail to be a derived one.

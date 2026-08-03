@@ -77,13 +77,100 @@ func TestVerify_WrongPointerIsAViolation(t *testing.T) {
 
 // TestVerify_PointerlessIDIsClean pins the exclusion: a primitive is shared
 // across every source position and derives from none, so it records no pointer
-// and is held to shape alone. Holding it to an agreement it cannot have would
-// make every document violate.
+// and is held to no agreement with one. It is held to the ID its kind derives
+// instead, which the cases below cover; requiring a pointer agreement it cannot
+// have would make every document violate.
 func TestVerify_PointerlessIDIsClean(t *testing.T) {
 	t.Parallel()
 	p := &ir.Primitive{TypeCommon: ir.TypeCommon{ID: "t/prim/string"}, Prim: ir.PrimString}
 	doc := &ir.Document{Types: ir.TypeRegistry{p.ID: p}}
 	assert.Empty(t, irverify.Verify(doc))
+}
+
+// TestVerify_PrimitiveAwayFromItsSharedIDIsAViolation plants the primitive IDs
+// nothing else in Verify has an opinion about. Each is well-shaped, keyed by its
+// own node ID, and records no pointer to disagree with — so before this check
+// every one of them passed clean (GitHub #73).
+//
+// The rows are the two ways the agreement breaks. A per-position ID gives one
+// format its own node for a shared leaf, so the same type lowered from two
+// formats stops being the same type. The rest contradict themselves: the ID
+// names one kind and the node another, which no consumer switching on either can
+// resolve.
+func TestVerify_PrimitiveAwayFromItsSharedIDIsAViolation(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		name string
+		id   ir.TypeID
+		kind ir.PrimKind
+	}{
+		{name: "a per-position ID", id: "t/openapi/components/schemas/Name", kind: ir.PrimString},
+		{name: "a compiler's private prim space", id: "t/graphql/prim/string", kind: ir.PrimString},
+		{name: "the right space, the wrong kind", id: "t/prim/int32", kind: ir.PrimString},
+		{name: "the space alone", id: "t/prim", kind: ir.PrimString},
+		{name: "a re-cased kind", id: "t/prim/dateTimeOffset", kind: ir.PrimDatetimeOffset},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			p := &ir.Primitive{TypeCommon: ir.TypeCommon{ID: tc.id}, Prim: tc.kind}
+			doc := &ir.Document{Types: ir.TypeRegistry{tc.id: p}}
+
+			got := irverify.Verify(doc)
+			assert.Contains(t, violationCodes(got), "ir/prim-id-not-derived")
+			assert.NotContains(t, violationCodes(got), "ir/id-malformed",
+				"the point of these cases is that shape alone cannot tell: each is well-shaped")
+		})
+	}
+}
+
+// TestVerify_NonPrimitiveInThePrimSpaceIsAViolation covers the other direction.
+// The space is reserved rather than conventional: a node there either collides
+// with the primitive of that kind outright, or squats a name the next PrimKind
+// takes — and either way which node is reached depends on what was interned
+// first, which is invariant 3's corollary.
+func TestVerify_NonPrimitiveInThePrimSpaceIsAViolation(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		name string
+		id   ir.TypeID
+	}{
+		{name: "squatting an existing kind", id: "t/prim/string"},
+		{name: "squatting a name no kind uses yet", id: "t/prim/instant"},
+		{name: "the space alone", id: "t/prim"},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			m := &ir.Model{TypeCommon: ir.TypeCommon{
+				ID: tc.id, Name: ir.Naming{Source: "M", Canonical: "m"},
+			}}
+			doc := &ir.Document{Types: ir.TypeRegistry{tc.id: m}}
+			assert.Contains(t, violationCodes(irverify.Verify(doc)), "ir/prim-space-reserved")
+		})
+	}
+}
+
+// TestVerify_PrimIDChecksAreScopedToTheSpaceAndTheKind is the control for both
+// checks above: a document holding every primitive at the ID its kind derives,
+// beside an ordinary type in a format's own space, reports nothing. Without it a
+// check that fired on everything would pass both tables and read as proof.
+func TestVerify_PrimIDChecksAreScopedToTheSpaceAndTheKind(t *testing.T) {
+	t.Parallel()
+	doc := &ir.Document{Types: ir.TypeRegistry{}}
+	for _, kind := range []ir.PrimKind{ir.PrimString, ir.PrimInt32, ir.PrimDatetimeOffset, ir.PrimAny} {
+		id := ir.PrimTypeID(kind)
+		doc.Types[id] = &ir.Primitive{TypeCommon: ir.TypeCommon{ID: id}, Prim: kind}
+	}
+	const modelID ir.TypeID = "t/openapi/components/schemas/Primitive"
+	doc.Types[modelID] = &ir.Model{TypeCommon: ir.TypeCommon{
+		ID:         modelID,
+		Name:       ir.Naming{Source: "Primitive", Canonical: "primitive"},
+		Provenance: ir.Provenance{Pointer: "/components/schemas/Primitive"},
+	}}
+
+	assert.Empty(t, irverify.Verify(doc),
+		"a name resembling the reserved space is not the reserved space")
 }
 
 // TestVerify_AuthIDIsHeldToTheSameRule pins that the check is about the grammar

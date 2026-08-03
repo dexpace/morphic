@@ -15,14 +15,10 @@ import (
 // order this package cannot check for a caller.
 type Space string
 
-// PrimSpace holds the primitive leaves.
-//
-// It is the one space deliberately shared across formats: every compiler must
-// reach t/prim/string for the same leaf, or two documents lowered from different
-// formats disagree about the identity of the same type. Every other space is one
-// format's, and a space that is shared by accident rather than on purpose is what
-// this distinction exists to make visible.
-const PrimSpace Space = "prim"
+// The primitive leaves take no Space of their own here. Their ID is
+// ir.PrimTypeID, derived in ir beside the PrimKind that is the whole of a
+// primitive's identity — the one path no compiler owns, and so the one an ir
+// consumer can check for itself (GitHub #73).
 
 // The kind prefix that opens an ID. A consumer switching on a prefix — a
 // diagnostic renderer, an IR diff, the structural verifier — reads every
@@ -62,9 +58,6 @@ func AuthID(space Space, path string) ir.AuthID { return ir.AuthID(idFor(authKin
 func ServiceID(space Space, path string) ir.ServiceID {
 	return ir.ServiceID(idFor(serviceKind, space, path))
 }
-
-// PrimTypeID returns the shared ID of the primitive of kind k.
-func PrimTypeID(k ir.PrimKind) ir.TypeID { return TypeID(PrimSpace, string(k)) }
 
 // idFor joins a kind prefix, a space and a path with single separators.
 //

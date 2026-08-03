@@ -221,7 +221,7 @@ func (t *Types) Node(id ir.TypeID) (ir.TypeDef, bool) {
 // to it. Primitives are leaves reached by kind rather than by position, so they
 // never enter the pointer-keyed table.
 func (t *Types) PrimRef(k ir.PrimKind) ir.TypeRef {
-	id := PrimTypeID(k)
+	id := ir.PrimTypeID(k)
 	if _, ok := t.reg[id]; !ok {
 		t.reg[id] = &ir.Primitive{
 			TypeCommon: ir.TypeCommon{ID: id, Provenance: ir.Provenance{Source: t.src}},

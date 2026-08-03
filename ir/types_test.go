@@ -341,39 +341,45 @@ func TestTypeDef_CommonIsAnAliasNotACopy(t *testing.T) {
 	}
 }
 
+// primKindSpellings is the whole primitive vocabulary and its on-disk spelling.
+// It is a package-level fixture rather than a literal inside the test below
+// because the ID tests walk the same vocabulary, and a second list of the kinds
+// would be one more thing to keep in step with ir.PrimKind's constants.
+var primKindSpellings = map[ir.PrimKind]string{
+	ir.PrimBool:           "bool",
+	ir.PrimString:         "string",
+	ir.PrimBytes:          "bytes",
+	ir.PrimInt8:           "int8",
+	ir.PrimInt16:          "int16",
+	ir.PrimInt32:          "int32",
+	ir.PrimInt64:          "int64",
+	ir.PrimUint8:          "uint8",
+	ir.PrimUint16:         "uint16",
+	ir.PrimUint32:         "uint32",
+	ir.PrimUint64:         "uint64",
+	ir.PrimInteger:        "integer",
+	ir.PrimFloat32:        "float32",
+	ir.PrimFloat64:        "float64",
+	ir.PrimFloat:          "float",
+	ir.PrimNumber:         "number",
+	ir.PrimDecimal:        "decimal",
+	ir.PrimDecimal128:     "decimal128",
+	ir.PrimDate:           "date",
+	ir.PrimTime:           "time",
+	ir.PrimDatetime:       "datetime",
+	ir.PrimDatetimeOffset: "datetime_offset",
+	ir.PrimDuration:       "duration",
+	ir.PrimURL:            "url",
+	ir.PrimUUID:           "uuid",
+	ir.PrimAny:            "any",
+}
+
 // TestPrimKind_Constants pins the on-disk spelling of every PrimKind value.
 // These strings are the primitive-scalar vocabulary written into every
 // golden IR snapshot; a typo fix later would be a silent breaking change.
 func TestPrimKind_Constants(t *testing.T) {
 	t.Parallel()
-	assertConstantSpellings(t, map[ir.PrimKind]string{
-		ir.PrimBool:           "bool",
-		ir.PrimString:         "string",
-		ir.PrimBytes:          "bytes",
-		ir.PrimInt8:           "int8",
-		ir.PrimInt16:          "int16",
-		ir.PrimInt32:          "int32",
-		ir.PrimInt64:          "int64",
-		ir.PrimUint8:          "uint8",
-		ir.PrimUint16:         "uint16",
-		ir.PrimUint32:         "uint32",
-		ir.PrimUint64:         "uint64",
-		ir.PrimInteger:        "integer",
-		ir.PrimFloat32:        "float32",
-		ir.PrimFloat64:        "float64",
-		ir.PrimFloat:          "float",
-		ir.PrimNumber:         "number",
-		ir.PrimDecimal:        "decimal",
-		ir.PrimDecimal128:     "decimal128",
-		ir.PrimDate:           "date",
-		ir.PrimTime:           "time",
-		ir.PrimDatetime:       "datetime",
-		ir.PrimDatetimeOffset: "datetime_offset",
-		ir.PrimDuration:       "duration",
-		ir.PrimURL:            "url",
-		ir.PrimUUID:           "uuid",
-		ir.PrimAny:            "any",
-	}, "unspecified")
+	assertConstantSpellings(t, primKindSpellings, "unspecified")
 }
 
 // TestAdditionalMode_Constants pins the on-disk spelling of every

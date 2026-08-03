@@ -31,6 +31,7 @@ func Verify(doc *ir.Document) []Violation {
 
 	vs := checkRegistryKeys(doc)
 	vs = append(vs, checkIDs(doc)...)
+	vs = append(vs, checkPrimIDs(doc)...)
 	vs = append(vs, checkReferentialIntegrity(doc)...)
 	vs = append(vs, checkNaming(doc)...)
 	vs = append(vs, checkDiagnostics(doc)...)

@@ -10,12 +10,6 @@ import (
 	"github.com/dexpace/morphic/ir"
 )
 
-func TestPrimTypeID_IsTheSharedScheme(t *testing.T) {
-	t.Parallel()
-	assert.Equal(t, ir.TypeID("t/prim/string"), compile.PrimTypeID(ir.PrimString),
-		"every compiler must reach the same ID for the same primitive")
-}
-
 // TestTypes_InternIsIdempotentAndRecordsBeforeBuilding pins the property that
 // terminates recursion: the coordinate is recorded before build runs, so a
 // self-reference reached during build resolves instead of re-entering.
@@ -86,7 +80,8 @@ func TestTypes_PrimRefInternsOnceAndStampsSource(t *testing.T) {
 	types := compile.NewTypes(7)
 
 	first := types.PrimRef(ir.PrimString)
-	assert.Equal(t, compile.PrimTypeID(ir.PrimString), first.Target)
+	assert.Equal(t, ir.PrimTypeID(ir.PrimString), first.Target,
+		"the framework interns at the shared ID rather than deriving one of its own")
 	assert.Equal(t, first.Target, types.PrimID(ir.PrimString), "a second reach is the same ID")
 	assert.Equal(t, 1, types.Len(), "and interns nothing further")
 
