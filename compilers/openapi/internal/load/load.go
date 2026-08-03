@@ -36,9 +36,10 @@ import (
 // shape is fixed by ir-design §10 and most of it describes lowering, which
 // nothing here can see.
 type Options struct {
-	// DisableExternalRefs stops reference resolution reaching outside the
-	// document — off the filesystem or over the network.
-	DisableExternalRefs bool
+	// AllowExternalRefs lets reference resolution reach outside the document —
+	// off the filesystem or over the network. Off is the default, so the zero
+	// value performs no I/O.
+	AllowExternalRefs bool
 }
 
 // errParse marks a hard failure to parse a source document — an I/O- or
@@ -99,11 +100,9 @@ func Load(ctx context.Context, srcIndex int, src compilers.Source, opts Options)
 
 	resErrs, err := resolveAll(ctx, doc, soa.ResolveAllOptions{
 		OpenAPILocation:     src.Path,
-		DisableExternalRefs: opts.DisableExternalRefs,
+		DisableExternalRefs: !opts.AllowExternalRefs,
 	})
-	if err != nil {
-		diags = append(diags, resolveDiag(srcIndex, err))
-	}
+	diags = append(diags, resolveDiags(srcIndex, err)...)
 	for _, re := range resErrs {
 		diags = append(diags, resolveDiag(srcIndex, re))
 	}
@@ -352,6 +351,48 @@ func validationDiag(srcIndex int, err error) ir.Diagnostic {
 			validationProvenance(srcIndex, verr), "%s", verr.Error())
 	}
 	return diag.Newf(ir.SeverityError, diag.Validation, ir.Provenance{Source: srcIndex}, "%s", err.Error())
+}
+
+// resolveDiags converts the resolver's failure into one diagnostic per distinct
+// failure. ResolveAllReferences returns errors.Join over every reference it
+// could not resolve, and rendering that join as one Diagnostic.Message put N
+// failures in a field that holds one — a document with four external $refs read
+// as the same sentence stuttered four times.
+//
+// Parts that render identically collapse: a refusal carries one fixed sentence
+// and no location, so N of them say no more than one. They separate again once
+// the refusal names its site (GitHub #235).
+func resolveDiags(srcIndex int, err error) []ir.Diagnostic {
+	parts := joinedParts(err)
+	out := make([]ir.Diagnostic, 0, len(parts))
+	seen := make(map[string]bool, len(parts))
+	for _, part := range parts {
+		msg := part.Error()
+		if seen[msg] {
+			continue
+		}
+		seen[msg] = true
+		out = append(out, resolveDiag(srcIndex, part))
+	}
+	return out
+}
+
+// joinedParts splits an errors.Join result into its parts; any other error is
+// its own only part, and a nil error has none.
+//
+// One level only, and no recursion to bound: ResolveAllReferences joins a flat
+// list built in one loop, so a part is never itself a join.
+func joinedParts(err error) []error {
+	if err == nil {
+		return nil
+	}
+	//nolint:errorlint // Matched at the top level by construction — the join is
+	// what ResolveAllReferences returns. errors.As would walk further into
+	// speakeasy error types whose As method panics; see asValidationError.
+	if multi, ok := err.(interface{ Unwrap() []error }); ok {
+		return multi.Unwrap()
+	}
+	return []error{err}
 }
 
 // resolveDiag converts one reference-resolution error into a diag.UnresolvedRef

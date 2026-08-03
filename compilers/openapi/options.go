@@ -30,8 +30,19 @@ const (
 type Options struct {
 	// Grouping selects the operation-grouping strategy.
 	Grouping GroupingStrategy `json:"grouping,omitempty"`
-	// DisableExternalRefs prevents resolution of $refs into other documents.
-	DisableExternalRefs bool `json:"disableExternalRefs"`
+	// AllowExternalRefs lets reference resolution leave the source document —
+	// reading files off disk and fetching http(s) URLs. Off by default, because
+	// compilers.Source is the whole input ("the caller loads bytes so compilation
+	// stays pure and reentrant") and a spec is untrusted data whose $refs would
+	// otherwise name any readable file or reachable host. A $ref leaving the
+	// document is reported unresolved instead of followed.
+	//
+	// Turning it on departs from that contract knowingly, and buys less than it
+	// looks: resolution reads relative to the process working directory, so the
+	// same bytes compile differently in two directories, and the resolved content
+	// still does not reach lowering — Sources records one entry either way
+	// (GitHub #74 carries the multi-file work).
+	AllowExternalRefs bool `json:"allowExternalRefs"`
 }
 
 // withDefaults returns a copy of o with unset fields filled from the defaults.

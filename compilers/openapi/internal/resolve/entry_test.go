@@ -91,6 +91,9 @@ func TestObject_NilEntryIsNil(t *testing.T) {
 // but ObjectAt's internal-pointer check rejects the target because it lives
 // in another document, so the use-site pointer is kept rather than a pointer
 // into a document this IR has no node for.
+//
+// Reaching the sibling file is what the case is about, so it opts in to the
+// external resolution the compiler does not do on its own.
 func TestObjectAt_CrossDocumentKeepsUseSitePointer(t *testing.T) {
 	t.Parallel()
 	doc := compileFixture(t, "../../../../testdata/openapi/resolve_main_external_valid.yaml")
@@ -227,17 +230,23 @@ components:
           schema: {type: object, properties: {n: {type: string}}}
 `
 
-// compileFixture loads and lowers one on-disk spec, which — unlike a spec
-// written inline — is what lets a $ref reach a sibling document. It drives the
-// public entry point because that is the only one visible from here, and
-// because a cross-document reference is resolved by the loader either way.
+// compileFixture loads and lowers one on-disk spec with external references
+// allowed, which — unlike a spec written inline under the compiler's own
+// defaults — is what lets a $ref reach a sibling document. It drives the public
+// entry point because that is the only one visible from here, and because a
+// cross-document reference is resolved by the loader either way.
+//
+// The opt-in is the point rather than boilerplate: only the two cross-document
+// cases below call this, and without it the loader refuses to leave the
+// document, so both would assert on a $ref that was never followed.
 func compileFixture(t *testing.T, path string) *ir.Document {
 	t.Helper()
 	data, err := os.ReadFile(path)
 	require.NoError(t, err)
 
 	doc, diags, err := openapi.New().Compile(t.Context(),
-		[]compilers.Source{{Path: path, Data: data}}, compilers.Options{})
+		[]compilers.Source{{Path: path, Data: data}},
+		compilers.Options{FormatOptions: openapi.Options{AllowExternalRefs: true}})
 	require.NoError(t, err)
 	require.NotNil(t, doc)
 	requireNoErrorDiags(t, diags)

@@ -65,16 +65,30 @@ func TestLoad_ValidationErrorsBecomeDiagnostics(t *testing.T) {
 // TestLoad_ExternalRefResolutionErrors drives the resErrs branch of load: an
 // external $ref to a malformed response yields per-reference validation errors
 // (not a single hard error), which load forwards as unresolved-ref diagnostics.
+//
+// It has to opt in to external references to get there at all, and the sited
+// assertion is what says it did: a refusal to leave the document comes back on
+// the joined-error branch with no location, so a diagnostic carrying line:col
+// can only have come from the validation errors this test is named for.
 func TestLoad_ExternalRefResolutionErrors(t *testing.T) {
 	t.Parallel()
 	path := "../../../../testdata/openapi/resolve_main_external.yaml"
 	data, err := os.ReadFile(path)
 	require.NoError(t, err)
-	ld, diags, loadErr := Load(t.Context(), 0, compilers.Source{Path: path, Data: data}, Options{})
+	ld, diags, loadErr := Load(t.Context(), 0, compilers.Source{Path: path, Data: data},
+		Options{AllowExternalRefs: true})
 	require.NoError(t, loadErr)
 	require.NotNil(t, ld)
 	assert.GreaterOrEqual(t, countErrorsAt(diags, diag.UnresolvedRef), 1,
 		"external resolution validation errors surface as diagnostics")
+
+	sited := false
+	for _, d := range diags {
+		if d.Code == diag.UnresolvedRef && d.Provenance.Pointer != "" {
+			sited = true
+		}
+	}
+	assert.True(t, sited, "the validation-error branch was reached, not the refusal: %+v", diags)
 }
 
 // TestUnmarshal_RecoversParserPanic pins the no-panics-escape invariant: the
@@ -157,6 +171,52 @@ func TestResolveDiag(t *testing.T) {
 	bare := resolveDiag(2, errors.New("io problem"))
 	assert.Equal(t, diag.UnresolvedRef, bare.Code)
 	assert.Equal(t, 2, bare.Provenance.Source)
+}
+
+// TestResolveDiags covers what one diagnostic is allowed to carry.
+// ResolveAllReferences answers with errors.Join over every reference it could
+// not follow, so the whole failure list arrives as one error; rendering it whole
+// put N failures in a field that holds one, and a document with four external
+// $refs read as the same sentence stuttered four times.
+func TestResolveDiags(t *testing.T) {
+	t.Parallel()
+	tests := map[string]struct {
+		err       error
+		wantMsgs  []string
+		wantEmpty bool
+	}{
+		"nothing failed": {err: nil, wantEmpty: true},
+		"one failure per joined part": {
+			err:      errors.Join(errors.New("first"), errors.New("second")),
+			wantMsgs: []string{"first", "second"},
+		},
+		"parts that render alike collapse": {
+			err: errors.Join(errors.New("external reference not allowed"),
+				errors.New("external reference not allowed")),
+			wantMsgs: []string{"external reference not allowed"},
+		},
+		"an unjoined error is its own only part": {
+			err:      errors.New("resolver panicked"),
+			wantMsgs: []string{"resolver panicked"},
+		},
+	}
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			got := resolveDiags(7, tc.err)
+			if tc.wantEmpty {
+				assert.Empty(t, got)
+				return
+			}
+			msgs := make([]string, 0, len(got))
+			for _, d := range got {
+				assert.Equal(t, diag.UnresolvedRef, d.Code)
+				assert.Equal(t, 7, d.Provenance.Source)
+				msgs = append(msgs, d.Message)
+			}
+			assert.Equal(t, tc.wantMsgs, msgs)
+		})
+	}
 }
 
 // TestIsNumericBoundKeyword_UnderlyingNotTypeMismatch drives the errors.As guard:

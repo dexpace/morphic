@@ -135,7 +135,7 @@ func optionsFrom(opts compilers.Options) (Options, error) {
 // deliberately not this public type, whose shape ir-design §10 fixes and most of
 // which describes lowering the loader cannot see.
 func loadOptions(o Options) load.Options {
-	return load.Options{DisableExternalRefs: o.DisableExternalRefs}
+	return load.Options{AllowExternalRefs: o.AllowExternalRefs}
 }
 
 // loweringCtx projects a loaded document and the caller's options onto the
