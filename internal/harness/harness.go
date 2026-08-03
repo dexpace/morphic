@@ -81,7 +81,7 @@ func Check(ctx context.Context, spec string, data []byte) (res Result) {
 	// Last, and after deterministic: this one permutes the input, so a compiler
 	// that is not even same-input-same-output should be reported as that rather
 	// than as order-dependence.
-	if detail, ok := orderInvariant(ctx, spec, data, doc); !ok {
+	if detail, ok := orderInvariant(ctx, spec, data); !ok {
 		return Result{Spec: spec, Outcome: OutcomeOrderDependent, Detail: detail}
 	}
 	return res

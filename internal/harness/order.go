@@ -5,6 +5,7 @@ import (
 	"context"
 	"fmt"
 	"sort"
+	"strings"
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
@@ -19,8 +20,15 @@ import (
 // depth.
 const maxReverseDepth = 512
 
-// orderInvariant compiles data as written and again with every mapping's entry
-// order reversed, and reports what the permutation changed beyond source order.
+// positionPlaceholder stands in for a provenance pointer that locates a
+// construct by source position. The leading control byte is what makes it a
+// placeholder rather than a value: no producer spells a pointer with one, so it
+// cannot collide with a pointer that means itself.
+const positionPlaceholder = "\x01position"
+
+// orderInvariant compiles a source twice — once with its mappings as declared,
+// once with every mapping's entry order reversed — and reports what the
+// permutation changed beyond source order.
 //
 // It is the general form of the two-order diff CLAUDE.md prescribes.
 // `deterministic`, next to it, looks like this and is a different property: it
@@ -29,25 +37,43 @@ const maxReverseDepth = 512
 // pointer first — the shape of the pointer collisions in #108 and #112, which
 // produce no diagnostic in either order and leave pass/validate clean on both.
 //
-// Two limits belong here so the oracle is not over-trusted:
+// Both arms are compiled from the encoder's output rather than one from the
+// source and one from the rewrite. The encoder does not preserve every spelling
+// — a flow-style implicit null comes back carrying an empty string — and
+// comparing against the source would read that rewriting as a lowering that
+// depends on order. Passing both sides through it leaves declaration order as
+// the only difference between them, which is the question being asked.
 //
-// Reversing a mapping is meaning-preserving only while its keys are distinct. A
-// document with duplicate mapping keys resolves to the last one (#95), so
-// reversing changes which declaration wins and the two compiles legitimately
-// differ; such sources are excluded rather than reported. Sequences are left
-// alone throughout — allOf precedence, oneOf variant order and prefixItems
-// positions are all semantic, and reversing them would change the document's
-// meaning rather than only its spelling.
+// The limits belong here so the oracle is not over-trusted. Reversing a mapping
+// is meaning-preserving only while its keys are distinct: duplicate keys resolve
+// to the last declaration (#95), so reversing changes which one wins and the two
+// compiles legitimately differ. Such a source is excluded rather than reported,
+// as is one whose permutation no longer parses — see reverseMappings — and one
+// whose re-encoding will not compile, which leaves nothing faithful to compare
+// against. Sequences are left alone throughout: allOf precedence, oneOf variant
+// order and prefixItems positions are all semantic, and reversing them would
+// change the document's meaning rather than only its spelling.
 //
 // And it proves order-independence only for the constructs its input contains,
 // which is why it runs over the corpus rather than over one hand-written spec.
-func orderInvariant(ctx context.Context, spec string, data []byte, doc *ir.Document) (string, bool) {
+func orderInvariant(ctx context.Context, spec string, data []byte) (string, bool) {
+	baseline, ok := reencodeMappings(data)
+	if !ok {
+		return "", true // the source does not survive a parse and re-encode
+	}
 	reversed, ok := reverseMappings(data)
 	if !ok {
-		return "", true // not a document whose permutation is meaning-preserving
+		return "", true // its permutation would not be meaning-preserving
 	}
-	if bytes.Equal(reversed, data) {
+	if bytes.Equal(reversed, baseline) {
 		return "", true // nothing to permute; the oracle has no question to ask
+	}
+	doc, _, err := compile(ctx, spec, baseline)
+	if err != nil {
+		return "", true // the re-encoding does not compile, so there is no baseline
+	}
+	if doc == nil {
+		return "", true // nor does a source the compiler declines outright
 	}
 	other, otherDiags, err := compile(ctx, spec, reversed)
 	if err != nil {
@@ -109,14 +135,44 @@ func diffOrderInvariants(first, second *ir.Document, secondDiags []ir.Diagnostic
 // reverse — which is invariant #7's source ordering reaching the message rather
 // than a lowering that depends on order. Severity, code and pointer identify the
 // finding without that.
+//
+// A pointer spelled line:col is excluded for the same reason. Provenance.Pointer
+// admits either a structural pointer or a source position, and a permutation
+// moves a construct to a different line by design. Replacing it rather than
+// dropping the field keeps the finding in the multiset, so a permutation that
+// changes how many were reported still shows.
 func diagnosticSet(diags []ir.Diagnostic) []string {
 	out := make([]string, 0, len(diags))
 	for _, d := range diags {
+		pointer := d.Provenance.Pointer
+		if isSourcePosition(pointer) {
+			pointer = positionPlaceholder
+		}
 		out = append(out, fmt.Sprintf("%s\x00%s\x00%s\x00%d",
-			d.Severity, d.Code, d.Provenance.Pointer, d.Provenance.Source))
+			d.Severity, d.Code, pointer, d.Provenance.Source))
 	}
 	sort.Strings(out)
 	return out
+}
+
+// isSourcePosition reports whether a provenance pointer is a line:col position
+// rather than a structural pointer.
+func isSourcePosition(pointer string) bool {
+	line, col, ok := strings.Cut(pointer, ":")
+	return ok && isDigits(line) && isDigits(col)
+}
+
+// isDigits reports whether s is a non-empty run of ASCII digits.
+func isDigits(s string) bool {
+	if s == "" {
+		return false
+	}
+	for _, r := range s {
+		if r < '0' || r > '9' {
+			return false
+		}
+	}
+	return true
 }
 
 // sourceOrderedCollections orders the collections a mapping's entry order
@@ -137,10 +193,32 @@ func renderExample(e ir.Example) string {
 	return fmt.Sprintf("%s\x00%s\x00%v", e.Name, e.ExternalURL, e.Value)
 }
 
+// reencodeMappings returns src parsed and re-encoded with its entry order
+// intact: the same normalization reverseMappings applies, minus the permutation.
+// It is what the permuted source is compared against, so a spelling the encoder
+// rewrites changes both sides alike.
+func reencodeMappings(src []byte) ([]byte, bool) {
+	var root yaml.Node
+	if err := yaml.Unmarshal(src, &root); err != nil {
+		return nil, false
+	}
+	out, err := encodeYAML(&root)
+	if err != nil {
+		return nil, false
+	}
+	return out, true
+}
+
 // reverseMappings returns src with the entry order of every YAML mapping
 // reversed, and ok=false for a source the rewrite cannot faithfully permute: one
-// that does not parse, one that will not re-encode, or one carrying a duplicate
-// mapping key, whose meaning depends on the order being changed.
+// that does not parse, one that will not re-encode, one carrying a duplicate
+// mapping key, whose meaning depends on the order being changed, or one whose
+// permutation no longer parses.
+//
+// That last case is the rewrite's own doing rather than a fact about the
+// compiler: reversing a mapping can carry an alias above the anchor it names,
+// which YAML forbids. Re-parsing catches it without enumerating it, and covers
+// any later ordering rule of the same kind.
 func reverseMappings(src []byte) ([]byte, bool) {
 	var root yaml.Node
 	if err := yaml.Unmarshal(src, &root); err != nil {
@@ -151,6 +229,10 @@ func reverseMappings(src []byte) ([]byte, bool) {
 	}
 	out, err := encodeYAML(&root)
 	if err != nil {
+		return nil, false
+	}
+	var check yaml.Node
+	if err := yaml.Unmarshal(out, &check); err != nil {
 		return nil, false
 	}
 	return out, true
