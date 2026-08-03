@@ -999,6 +999,31 @@ func assertNumericPrecision(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
 	assert.Equal(t, ir.BigVal("0.5"), sampled.Examples[0].Value.Num)
 
 	assertYAMLIntegerBases(t, doc, m)
+	assertRawPreservedNumbers(t, m)
+}
+
+// assertRawPreservedNumbers pins the second numeric channel: the constructs kept
+// verbatim as raw JSON rather than lowered into a Value. It rounded every one of
+// these through float64 until GitHub #32 — a 30-digit extension came back as
+// 1.2345678901234568e+29 — which no case in this corpus could see, because none
+// of them carried a number a float64 cannot hold.
+func assertRawPreservedNumbers(t *testing.T, m *ir.Model) {
+	t.Helper()
+	preserved, ok := propByWire(m, "preserved")
+	require.True(t, ok)
+	kept := preserved.Unmodeled
+
+	for _, tc := range []struct{ key, want string }{
+		{"openapi:x-precise-limit", "123456789012345678901234567890"},
+		{"openapi:x-precise-step", "1.000000000000000000001"},
+		{"openapi:x-precise-scale", "1.10"},
+		{"openapi:not", `{"const":123456789012345678901234567890}`},
+	} {
+		entry, found := kept[tc.key]
+		require.True(t, found, "%s is preserved; got %v", tc.key, kept)
+		assert.Equal(t, tc.want, string(entry.Value),
+			"%s is preserved as written, not as a float64 can spell it", tc.key)
+	}
 }
 
 // assertYAMLIntegerBases pins the value every numeric site stores for an integer

@@ -34,22 +34,26 @@ import (
 // happened (GitHub #144): an absent node yields (nil, nil) — there was no
 // construct here — while a node that cannot be represented yields an error.
 //
-// Legal YAML reaches that second failure by two routes: a mapping with a
-// non-string key does not decode into Go's JSON model at all, and .nan/.inf
-// decode but do not marshal.
+// A node fails to convert when it names something JSON cannot: a mapping key
+// that is not a string, a key written twice, .nan or .inf, or a tag with no JSON
+// counterpart. The walk's own bounds refuse two shapes more — an alias that
+// cycles, and one that expands past its node budget.
+//
+// The conversion walks the node tree rather than decoding it into `any` and
+// re-marshalling, because that decode rounds every numeric literal through
+// float64: it silently rewrote a 23-digit extension value and flattened
+// 1.000000000000000000001 to 1, in the one channel whose whole promise is
+// verbatim preservation (GitHub #32).
 func RawFromNode(node *yaml.Node) (ir.RawValue, error) {
 	if node == nil {
 		return nil, nil
 	}
-	var v any
-	if err := node.Decode(&v); err != nil {
-		return nil, fmt.Errorf("decode yaml node: %w", err)
-	}
-	data, err := json.Marshal(v)
+	var conv rawConv
+	data, err := conv.node(node, 0)
 	if err != nil {
-		return nil, fmt.Errorf("encode as json: %w", err)
+		return nil, fmt.Errorf("render yaml node as json: %w", err)
 	}
-	return ir.RawValue(data), nil
+	return data, nil
 }
 
 // EffectiveDeprecated reports the deprecated flag, use-site over referent.

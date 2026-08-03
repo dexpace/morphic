@@ -58,3 +58,16 @@ components:
         loose:
           type: number
           default: 09
+        # Everything above rides the Value/BigVal channel. The constructs kept
+        # verbatim as raw JSON are a second channel with the same requirement,
+        # and it is the one that had no corpus case: a vendor extension, and a
+        # validation-only keyword held under the §4.7 carve-out. A trailing zero
+        # is significant here in a way it is not to a float — 1.10 and 1.1 are
+        # the same number and different source text.
+        preserved:
+          type: number
+          x-precise-limit: 123456789012345678901234567890
+          x-precise-step: 1.000000000000000000001
+          x-precise-scale: 1.10
+          not:
+            const: 123456789012345678901234567890
