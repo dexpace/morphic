@@ -92,7 +92,7 @@ promotion requires evidence from all three, not two and an expectation.
 | Interning + type registry | `compile.Types` | own `types.go` | own `types.go` | already framework |
 | Diagnostic accumulation | `compile.Diags` | own `diag.go` | own `diag.go` | already framework |
 | Canonical naming grammar | `schema.go` | `naming.go` | `naming.go` | **promoted to `ir`** — `ir.CanonicalWords`, with `compile.NamingFor` the compiler-facing constructor |
-| ID grammar | `ids.go` | `ids.go` | `ids.go` | **promoted, derivation left behind** — `compile.TypeID` and friends over a `compile.Space` |
+| ID grammar | `ids.go` | `ids.go` | `ids.go` | **promoted, derivation left behind** — `compile.TypeID` and friends over a `compile.Space`, except the primitives: see §3.4 |
 | Bounded-recursion guard | `depth`, cap 256 | `depth`, cap 256 | `depth`, cap 32 | **do not promote** — see §3.2 |
 | Reference resolution | `resolve.go` | `resolve.go` | — | do not promote |
 | Loading, options | yes | yes | yes | do not promote — format-specific |
@@ -187,6 +187,28 @@ Three findings, and the third contradicts what this section previously assumed.
 So there is nothing to promote. A helper wrapping three lines that share no state would add an
 indirection to every recursion site and remove nothing, and the per-site degradation — lowered as
 any, dropped, unrepresentable — differs at every one of them.
+
+### 3.4 The primitive IDs went past the framework, to `ir`
+
+`t/prim/<kind>` is the one exception to "derivation left behind", and for the reason the rest of the
+row states: a compiler's path is its own, so the framework cannot compute one. A primitive has no
+path. It derives from no source position at all — its identity is its `PrimKind`, which is an `ir`
+type — so `ir.PrimTypeID` is the one ID `ir` *can* derive, and it derives it (#73's second
+acceptance bullet).
+
+Placement follows the same argument that took the naming grammar past `compilers/compile` in §3.1,
+and it is worth stating because the two look like different cases and are not. What a compiler must
+agree on can be enforced by an architecture sweep; what *any producer* must agree on cannot, because
+the sweep reaches only this repository's production packages. A `Document` decoded from JSON,
+produced by a compiler outside this tree, or rewritten by a pass is held by `irverify` alone, and
+`irverify` can only check what `ir` can compute.
+
+The gap that leaves is not hypothetical. `checkIDs` asks an ID to agree with the pointer recorded
+beside it, and a primitive records none, so before `ir/prim-id-not-derived` a `string` primitive
+interned at `t/openapi/components/schemas/Name` passed clean — and so did one at `t/prim/int32`, an
+ID contradicting the node it keys. `ir/prim-space-reserved` closes the converse: the space is
+reserved, so a node there that is not a primitive is a collision waiting for the kind whose name it
+took.
 
 ## 4. The micro-compiler contract
 
@@ -559,7 +581,9 @@ Two assertions, neither implying the other:
   change introduces when it passes the wrong `at`.
 - `ID → pointer` injectivity catches a grammar that **collapses** two distinct pointers.
 
-Primitives are excluded: `t/prim/<kind>` is shared and derives from no source position.
+Primitives are excluded from both: `t/prim/<kind>` is shared and derives from no source position.
+What holds them instead is `ir/prim-id-not-derived`, which asks the ID to agree with the `PrimKind`
+it keys rather than with a pointer there is none of — see §3.4.
 
 `irverify` cannot host this as things stand — it is Layer 0 and imports only `ir`, while the grammar
 is headed for `compilers/compile`. `internal/harness` is outside the pipeline and can, which is the
@@ -717,7 +741,7 @@ landing them first would only encode the current one.
 | Issue | Disposition |
 |---|---|
 | #57 archtest cannot enforce compiler isolation | **Closed.** Landed with #161/#143; it was a prerequisite for every package boundary here |
-| #73 naming grammar and primitive IDs are cross-compiler ABI in one compiler | **Partly answered, and its own proposal was right about the naming half.** That grammar now lives in `ir` with `irverify` validating against it, which is its first acceptance bullet met as written. The ID grammar went to `compilers/compile` — a compiler's path is its own and nothing in `ir` can compute one — but the `t/prim/<kind>` constructor #73 also asks for is still there, so its second bullet is open and it stays open with it |
+| #73 naming grammar and primitive IDs are cross-compiler ABI in one compiler | **Closed, and its own proposal was right about both halves.** The naming grammar lives in `ir` with `irverify` validating against it. The ID grammar stayed in `compilers/compile` — a compiler's path is its own and nothing in `ir` can compute one — but `t/prim/<kind>` is the path there is none of, so `ir.PrimTypeID` went to `ir` with it, and `irverify` holds every producer to it: §3.4 |
 | #54 cased `Naming.Hint` passes the neutrality check | **Still open.** 1.3's segmentation work did not reach `Hint`: closing it means changing how hints are derived and regenerating every golden, which is a different change from tightening the checker. The exclusion is now stated in `checkNaming` rather than left to be inferred |
 | #83 enforce size and complexity caps in lint | **Closed by 4.2**, deliberately last |
 | #66 extract a shared JSON-Schema→IR lowering core before the next compilers land | **Superseded.** Its premise expired — the next compilers landed without it (#20, #21). §3 replaces it with evidence-based promotion. To be closed with that reasoning, not silently |

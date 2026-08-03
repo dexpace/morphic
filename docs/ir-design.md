@@ -108,6 +108,16 @@ nothing outside the format can compute one. A node a lowering *mints* rather tha
 namespace of its own, so no pointer a reference can spell ever reaches it — the general form of the
 rule §4.3 states for distributed unions.
 
+Primitives are the one exception, and only because the rule's premise does not hold for them: a
+primitive occupies no source position, so there is no path for a format to own. Its identity is
+its `PrimKind`, and its ID is `t/prim/<kind>` — derived by `ir.PrimTypeID` rather than by any
+compiler, `ir` being the only place that can compute it. Two documents lowered from different
+formats must reach that same node for the same kind, or they disagree about the identity of the
+same type. The `prim` namespace is reserved for exactly those nodes: anything else addressed there
+either collides with the primitive of that kind or squats the name of the next one. `irverify`
+holds both halves — `ir/prim-id-not-derived` and `ir/prim-space-reserved` — for every document,
+whatever produced it.
+
 Every named entity has an ID — including services (Thrift `service B extends A`, WSDL 2.0
 interface extension, and Cap'n Proto interface inheritance all reference services by identity)
 and messages (AsyncAPI reuses one named message across channels, operations, and replies).

@@ -120,6 +120,82 @@ func TestWellFormedID_Shape(t *testing.T) {
 	}
 }
 
+// TestPrimTypeID_IsTheSharedScheme pins the spelling every compiler must reach
+// for a primitive. These IDs are written into every golden IR snapshot and are
+// the one identity two documents lowered from different formats have to agree
+// on, so a change here is a silent breaking change across formats.
+func TestPrimTypeID_IsTheSharedScheme(t *testing.T) {
+	t.Parallel()
+	assert.Equal(t, ir.TypeID("t/prim/string"), ir.PrimTypeID(ir.PrimString))
+	assert.Equal(t, ir.TypeID("t/prim/datetime_offset"), ir.PrimTypeID(ir.PrimDatetimeOffset),
+		"a multi-word kind is spelled as its constant, not re-cased")
+}
+
+// TestPrimTypeID_IsWellFormedAndInjective walks the whole primitive vocabulary
+// rather than a sample of it. Two properties have to hold for every kind, and a
+// sample cannot show either: the ID is one the grammar produces — irverify
+// rejects every document otherwise — and distinct kinds do not collide, since
+// two kinds sharing an ID would make the node reached for one of them depend on
+// which was interned first.
+func TestPrimTypeID_IsWellFormedAndInjective(t *testing.T) {
+	t.Parallel()
+	byID := make(map[ir.TypeID]ir.PrimKind, len(primKindSpellings))
+	for kind := range primKindSpellings {
+		id := ir.PrimTypeID(kind)
+		require.True(t, ir.WellFormedID(ir.IDKindType, string(id)),
+			"%q is not an ID the grammar produces", id)
+
+		space, ok := ir.IDSpace(ir.IDKindType, string(id))
+		require.True(t, ok)
+		assert.Equal(t, ir.IDSpacePrim, space, "%q is addressed outside the shared space", id)
+
+		path, has := ir.IDPath(ir.IDKindType, string(id))
+		require.True(t, has)
+		assert.Equal(t, string(kind), path, "the path is the kind and nothing else")
+
+		if other, clash := byID[id]; clash {
+			t.Errorf("kinds %q and %q share the ID %q", kind, other, id)
+		}
+		byID[id] = kind
+	}
+	assert.Len(t, byID, len(primKindSpellings), "every kind reaches an ID of its own")
+}
+
+// TestIDSpace_Extraction pins what an ID's space is, including the answers that
+// are not one: a malformed ID has no space to report, and neither has an ID
+// carrying another kind's prefix.
+func TestIDSpace_Extraction(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		name   string
+		kind   string
+		id     string
+		want   string
+		wantOK bool
+	}{
+		{
+			name: "the segment before the path", kind: ir.IDKindType,
+			id: "t/openapi/components/schemas/User", want: "openapi", wantOK: true,
+		},
+		{name: "a space-only ID is all space", kind: ir.IDKindType, id: "t/prim", want: "prim", wantOK: true},
+		{name: "a path with its own separators", kind: ir.IDKindProp, id: "p/openapi/a/b/c", want: "openapi", wantOK: true},
+		{name: "an empty space reports none", kind: ir.IDKindType, id: "t//x"},
+		{name: "an empty path reports none", kind: ir.IDKindType, id: "t/openapi/"},
+		{name: "a wrong-kind ID reports none", kind: ir.IDKindType, id: "op/openapi/x"},
+		{name: "an empty ID reports none", kind: ir.IDKindType, id: ""},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			got, ok := ir.IDSpace(tc.kind, tc.id)
+			if got != tc.want || ok != tc.wantOK {
+				t.Errorf("IDSpace(%q, %q) = (%q, %v), want (%q, %v)",
+					tc.kind, tc.id, got, ok, tc.want, tc.wantOK)
+			}
+		})
+	}
+}
+
 // TestIDPath_Extraction pins what an ID's path is, including the two answers
 // that are not a path: a malformed ID has none to report, and a space-only ID
 // carries none by construction.

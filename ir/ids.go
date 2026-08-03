@@ -53,6 +53,29 @@ const (
 // IDSeparator separates an ID's kind, space and path segments.
 const IDSeparator = "/"
 
+// IDSpacePrim is the space the primitive leaves are addressed in.
+//
+// It is the one space that is not some format's own: every compiler must reach
+// the same node for the same PrimKind, or two documents lowered from different
+// formats disagree about the identity of the same type. A space shared by
+// accident rather than on purpose is what naming it here makes visible.
+const IDSpacePrim = "prim"
+
+// PrimTypeID returns the shared TypeID of the primitive of kind k.
+//
+// It is the one ID this package can derive. Every other path is the compiler's
+// own — a JSON Pointer, a GraphQL structural path and a protobuf
+// fully-qualified name are different things and nothing here can compute one —
+// so compilers/compile owns those. A primitive has no source position to derive
+// from: its identity is its kind, which is an ir type, so the derivation belongs
+// beside it (GitHub #73).
+//
+// That placement is what lets irverify hold every Document to this ID rather
+// than only the ones this repository's compilers produce.
+func PrimTypeID(k PrimKind) TypeID {
+	return TypeID(IDKindType + IDSeparator + IDSpacePrim + IDSeparator + string(k))
+}
+
 // WellFormedID reports whether id has the shape kind requires: the kind prefix,
 // a non-empty space, and an optional path, with no empty segment before the
 // path. A space with no path is an ID in its own right — the space names one
@@ -75,13 +98,33 @@ func WellFormedID(kind, id string) bool {
 	return !hasPath || path != ""
 }
 
+// IDSpace returns the space segment of a well-formed id — the segment between
+// the kind and the path — and whether id is well-formed at all. An ID that is
+// not yields no space rather than a guess at one.
+func IDSpace(kind, id string) (string, bool) {
+	rest, ok := idRest(kind, id)
+	if !ok {
+		return "", false
+	}
+	space, _, _ := strings.Cut(rest, IDSeparator)
+	return space, true
+}
+
 // IDPath returns the path segment of a well-formed id — everything after the
 // kind and the space — and whether id carries one at all.
 func IDPath(kind, id string) (string, bool) {
+	rest, ok := idRest(kind, id)
+	if !ok {
+		return "", false
+	}
+	_, path, hasPath := strings.Cut(rest, IDSeparator)
+	return path, hasPath
+}
+
+// idRest returns everything after a well-formed id's kind prefix.
+func idRest(kind, id string) (string, bool) {
 	if !WellFormedID(kind, id) {
 		return "", false
 	}
-	rest := strings.TrimPrefix(id, kind+IDSeparator)
-	_, path, hasPath := strings.Cut(rest, IDSeparator)
-	return path, hasPath
+	return strings.TrimPrefix(id, kind+IDSeparator), true
 }

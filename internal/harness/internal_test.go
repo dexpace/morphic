@@ -37,10 +37,16 @@ func badExtDoc() *ir.Document {
 // the grammar could not have produced is a structural violation, and Check
 // returns at the first one. Only their paths carry the ill-formed bytes that make
 // two distinct keys collide once JSON coerces them to U+FFFD.
+//
+// The nodes are Any rather than Primitive for the same reachability reason. A
+// primitive's ID is derived from its kind, so a primitive anywhere but
+// t/prim/<kind> is a violation of its own, and the fixture would be classified
+// before the oracle it exists to reach. Any carries no such rule; the node kind
+// is incidental to what this document tests.
 func dupKeyDoc() *ir.Document {
 	return &ir.Document{Types: ir.TypeRegistry{
-		ir.TypeID("t/x/\xff"): &ir.Primitive{TypeCommon: ir.TypeCommon{ID: "t/x/\xff"}},
-		ir.TypeID("t/x/\xfe"): &ir.Primitive{TypeCommon: ir.TypeCommon{ID: "t/x/\xfe"}},
+		ir.TypeID("t/x/\xff"): &ir.Any{TypeCommon: ir.TypeCommon{ID: "t/x/\xff"}},
+		ir.TypeID("t/x/\xfe"): &ir.Any{TypeCommon: ir.TypeCommon{ID: "t/x/\xfe"}},
 	}}
 }
 
