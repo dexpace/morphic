@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"flag"
 	"fmt"
 	"io"
@@ -24,18 +25,28 @@ var newEngine = engine.New
 // not fail after a successful write on the platforms Morphic targets.
 var openOutput = func(path string) (io.WriteCloser, error) { return os.Create(path) }
 
-// compileCommand is compile's entry in the command table.
-var compileCommand = command{
-	name:    "compile",
-	summary: "lower an API spec (OpenAPI 3.x) into Morphic IR JSON",
-	usage:   "morphic compile <spec-file> [flags]",
-	description: "Lower an API spec (OpenAPI 3.x) into Morphic IR JSON on stdout, and write\n" +
-		"diagnostics to stderr.",
-	flagSet: func() *flag.FlagSet {
-		fs, _ := newCompileFlags()
-		return fs
-	},
-	run: runCompile,
+// newCompileCommand builds compile's command-table entry. It is a function,
+// not a package-level var, because its run field refers to runCompile, and
+// runCompile reads this same metadata back to render help and usage text. See
+// commands for why every step of that loop has to stay out of the
+// initialization graph.
+func newCompileCommand() command {
+	return command{
+		name:    "compile",
+		summary: "lower an API spec (OpenAPI 3.x) into Morphic IR JSON",
+		usage:   "morphic compile <spec-file> [flags]",
+		description: "Lower an API spec (OpenAPI 3.x) into Morphic IR JSON on stdout, and write\n" +
+			"diagnostics to stderr.\n\n" +
+			"--explain reports what compiling produced at one source coordinate — the\n" +
+			"type node interned there, the coordinates interned beneath it, and the\n" +
+			"diagnostics stamped at it — instead of writing the document.",
+		printFlags: func(w io.Writer) {
+			fs, _ := newCompileFlags()
+			fs.SetOutput(w)
+			fs.PrintDefaults()
+		},
+		run: runCompile,
+	}
 }
 
 // compileOptions holds the values compile's flags parse into.
@@ -73,23 +84,34 @@ func runCompile(args []string, stdout, stderr io.Writer) int {
 	fs, opts := newCompileFlags()
 
 	positional, err := parseArgs(fs, args)
+	if errors.Is(err, flag.ErrHelp) {
+		writeCommandHelp(stdout, newCompileCommand())
+		return 0
+	}
 	if err != nil {
-		emitf(stderr, "morphic: %v\n", err)
-		printUsage(stderr)
-		return 2
+		return compileUsageError(stderr, err.Error())
 	}
 	if opts.failOn != "error" && opts.failOn != "warning" {
-		emitf(stderr, "morphic: invalid --fail-on %q (want error or warning)\n", opts.failOn)
-		printUsage(stderr)
-		return 2
+		return compileUsageError(stderr,
+			fmt.Sprintf("invalid --fail-on %q (want error or warning)", opts.failOn))
 	}
 	if len(positional) != 1 {
-		emitf(stderr, "morphic: compile requires exactly one spec file\n")
-		printUsage(stderr)
-		return 2
+		return compileUsageError(stderr, "compile requires exactly one spec file")
 	}
 
 	return compileSpec(positional[0], *opts, stdout, stderr)
+}
+
+// compileUsageError reports a misuse of compile: one reason line, one short
+// usage pointer, exit 2. It never touches stdout.
+//
+// reason is a finished string, not a format: a printf-style wrapper here is
+// invisible to vet, so a reason carrying a literal % — a flag value echoed back
+// from the user, say — would be mangled into the output with nothing to catch it.
+func compileUsageError(stderr io.Writer, reason string) int {
+	emitf(stderr, "morphic: %s\n", reason)
+	writeCommandUsage(stderr, newCompileCommand())
+	return 2
 }
 
 // compileSpec runs the pipeline over specPath, writes the IR document and its
