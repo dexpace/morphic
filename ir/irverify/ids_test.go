@@ -124,6 +124,26 @@ func TestVerify_PrimitiveAwayFromItsSharedIDIsAViolation(t *testing.T) {
 	}
 }
 
+// TestVerify_KindlessPrimitiveIsReportedOnItsOwnTerms pins the one case with no
+// destination to name. ir.PrimTypeID derives t/prim/ from the zero-value kind,
+// which is not an ID at all, so the message must not offer it as the place the
+// node belongs — a reader sent there fixes the wrong end, and the check would be
+// telling them to write an ID checkIDs reports as malformed.
+func TestVerify_KindlessPrimitiveIsReportedOnItsOwnTerms(t *testing.T) {
+	t.Parallel()
+	const id ir.TypeID = "t/openapi/components/schemas/Name"
+	doc := &ir.Document{Types: ir.TypeRegistry{
+		id: &ir.Primitive{TypeCommon: ir.TypeCommon{ID: id}},
+	}}
+
+	got := irverify.Verify(doc)
+	require.Len(t, got, 1)
+	assert.Equal(t, "ir/prim-id-not-derived", got[0].Code)
+	assert.Contains(t, got[0].Message, "carries no kind")
+	assert.NotContains(t, got[0].Message, string(ir.PrimTypeID("")),
+		"t/prim/ is not an ID; naming it as the destination sends the reader to the wrong end")
+}
+
 // TestVerify_NonPrimitiveInThePrimSpaceIsAViolation covers the other direction.
 // The space is reserved rather than conventional: a node there either collides
 // with the primitive of that kind outright, or squats a name the next PrimKind

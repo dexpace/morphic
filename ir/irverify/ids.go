@@ -66,18 +66,26 @@ func checkPrimIDs(doc *ir.Document) []Violation {
 			vs = appendReservedSpace(vs, id, td.Kind(), path)
 			continue
 		}
-		want := ir.PrimTypeID(prim.Prim)
-		if id == want {
-			continue
+		if want := ir.PrimTypeID(prim.Prim); id != want {
+			vs = append(vs, primIDViolation(id, prim.Prim, want, path))
 		}
-		vs = append(vs, Violation{
-			Code: "ir/prim-id-not-derived",
-			Message: "primitive of kind " + string(prim.Prim) + " is interned at " + string(id) +
-				" rather than the shared " + string(want),
-			Path: path,
-		})
 	}
 	return vs
+}
+
+// primIDViolation names what is wrong with one primitive's ID.
+//
+// A kind that is empty is reported on its own terms rather than against a
+// destination. ir.PrimTypeID derives t/prim/ from it, which is not an ID at all
+// — checkIDs reports it malformed wherever it is used — so offering it as the
+// place the node belongs would send a reader to fix the wrong end.
+func primIDViolation(id ir.TypeID, kind ir.PrimKind, want ir.TypeID, path string) Violation {
+	msg := "primitive of kind " + string(kind) + " is interned at " + string(id) +
+		" rather than the shared " + string(want)
+	if kind == "" {
+		msg = "primitive at " + string(id) + " carries no kind, so no shared ID derives from it"
+	}
+	return Violation{Code: "ir/prim-id-not-derived", Message: msg, Path: path}
 }
 
 // appendReservedSpace reports a type that is not a primitive addressing the
