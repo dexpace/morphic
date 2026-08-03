@@ -92,11 +92,13 @@ func TestVerify_PointerlessIDIsClean(t *testing.T) {
 // own node ID, and records no pointer to disagree with — so before this check
 // every one of them passed clean (GitHub #73).
 //
-// The rows are the two ways the agreement breaks. A per-position ID gives one
-// format its own node for a shared leaf, so the same type lowered from two
-// formats stops being the same type. The rest contradict themselves: the ID
-// names one kind and the node another, which no consumer switching on either can
-// resolve.
+// The rows are the two ways the agreement breaks. The first two put a shared
+// leaf in a format's own space, so the same type lowered from two formats stops
+// being the same type — and the second is the shape that looks right, a private
+// space merely spelled "prim". The rest keep the shared space but carry a path
+// that is not the node's kind: another kind, no path at all, or the kind
+// re-cased. Those contradict themselves, and no consumer switching on either the
+// ID or the kind can resolve which one to believe.
 func TestVerify_PrimitiveAwayFromItsSharedIDIsAViolation(t *testing.T) {
 	t.Parallel()
 	tests := []struct {
@@ -173,8 +175,14 @@ func TestVerify_NonPrimitiveInThePrimSpaceIsAViolation(t *testing.T) {
 
 // TestVerify_PrimIDChecksAreScopedToTheSpaceAndTheKind is the control for both
 // checks above: a document holding every primitive at the ID its kind derives,
-// beside an ordinary type in a format's own space, reports nothing. Without it a
+// beside ordinary types in a format's own space, reports nothing. Without it a
 // check that fired on everything would pass both tables and read as proof.
+//
+// The two models are chosen against the implementation that would be wrong in
+// the easy way. "prim" appears in one as a path segment and in the other inside
+// a name, and neither is in the reserved space — which only reading the space
+// segment can tell. Matching the ID as a substring passes both tables above and
+// fails here.
 func TestVerify_PrimIDChecksAreScopedToTheSpaceAndTheKind(t *testing.T) {
 	t.Parallel()
 	doc := &ir.Document{Types: ir.TypeRegistry{}}
@@ -182,15 +190,23 @@ func TestVerify_PrimIDChecksAreScopedToTheSpaceAndTheKind(t *testing.T) {
 		id := ir.PrimTypeID(kind)
 		doc.Types[id] = &ir.Primitive{TypeCommon: ir.TypeCommon{ID: id}, Prim: kind}
 	}
-	const modelID ir.TypeID = "t/openapi/components/schemas/Primitive"
-	doc.Types[modelID] = &ir.Model{TypeCommon: ir.TypeCommon{
-		ID:         modelID,
-		Name:       ir.Naming{Source: "Primitive", Canonical: "primitive"},
-		Provenance: ir.Provenance{Pointer: "/components/schemas/Primitive"},
-	}}
+	for _, m := range []struct {
+		id      ir.TypeID
+		pointer string
+		source  string
+	}{
+		{id: "t/openapi/prim/string", pointer: "/prim/string", source: "String"},
+		{id: "t/openapi/components/schemas/primitive", pointer: "/components/schemas/primitive", source: "primitive"},
+	} {
+		doc.Types[m.id] = &ir.Model{TypeCommon: ir.TypeCommon{
+			ID:         m.id,
+			Name:       ir.Naming{Source: m.source, Canonical: ir.CanonicalWords(m.source)},
+			Provenance: ir.Provenance{Pointer: m.pointer},
+		}}
+	}
 
 	assert.Empty(t, irverify.Verify(doc),
-		"a name resembling the reserved space is not the reserved space")
+		"an ID carrying \"prim\" outside the space segment is not in the reserved space")
 }
 
 // TestVerify_AuthIDIsHeldToTheSameRule pins that the check is about the grammar
