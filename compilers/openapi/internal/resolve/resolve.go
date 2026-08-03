@@ -20,6 +20,7 @@ import (
 	"strings"
 
 	oas3 "github.com/speakeasy-api/openapi/jsonschema/oas3"
+	"github.com/speakeasy-api/openapi/references"
 
 	"github.com/dexpace/morphic/compilers/compile"
 	"github.com/dexpace/morphic/compilers/openapi/internal/annotation"
@@ -72,6 +73,19 @@ func (s Scope) sameFile(doc string) bool {
 // file (an OpenAPI self-reference) is treated as internal — Milestone 1 interns
 // only same-file targets; genuinely external ones are diagnosed and dropped.
 //
+// The split into document and pointer is the resolver's own (references.Reference,
+// v1.24.0) rather than a hand-rolled one: a $ref is a URI, so its fragment is
+// percent-encoded, and `#/components/schemas/Foo%2DBar` names the component
+// "Foo-Bar". Comparing the raw fragment against declared names instead reported a
+// reference the resolver had resolved as unresolved, degrading the position to
+// `any` and dropping any discriminator mapping that spelled its target that way.
+// The pointer returned here is also an ID source, so the quieter half cost more:
+// an encoded pointer interned a second node for a position an unencoded pointer
+// already named, leaving one coordinate with two types and no diagnostic either
+// side of it (GitHub #40). Asking the resolver is what stops the answer drifting
+// from it again; nodeview.InternalPointer mirrors the same two methods for the
+// cycle scan, and records what a dependency bump should re-check.
+//
 // A fragment that is not a JSON pointer is refused here rather than passed on.
 // `#addr` names a JSON Schema `$anchor`, not a coordinate, and Milestone 1
 // resolves no anchors; letting it through returned "addr" as though it were a
@@ -80,11 +94,15 @@ func (s Scope) sameFile(doc string) bool {
 // that puts the refusal outside this compiler, where a library that started
 // resolving anchors would silently reinstate the malformed derivation.
 func (s Scope) InternalPointer(ref string) (string, bool) {
-	doc, pointer, found := strings.Cut(ref, "#")
-	if !found || !strings.HasPrefix(pointer, "/") {
+	r := references.Reference(ref)
+	if !r.HasJSONPointer() {
 		return "", false
 	}
-	if doc != "" && !s.sameFile(doc) {
+	pointer := string(r.GetJSONPointer())
+	if !strings.HasPrefix(pointer, "/") {
+		return "", false
+	}
+	if doc := r.GetURI(); doc != "" && !s.sameFile(doc) {
 		return "", false
 	}
 	return pointer, true
