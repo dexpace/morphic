@@ -220,6 +220,12 @@ func (t *Types) Node(id ir.TypeID) (ir.TypeDef, bool) {
 // PrimRef interns the primitive of kind k on first use and returns a reference
 // to it. Primitives are leaves reached by kind rather than by position, so they
 // never enter the pointer-keyed table.
+//
+// It writes the registry directly, claiming neither the ID nor the space: both
+// claims are about a coordinate owning an ID, and a primitive has no coordinate.
+// What that leaves unguarded here — another node landing in the prim space — is
+// caught at the document boundary by irverify's ir/prim-space-reserved, which
+// holds every producer rather than only a compile that went through this type.
 func (t *Types) PrimRef(k ir.PrimKind) ir.TypeRef {
 	id := ir.PrimTypeID(k)
 	if _, ok := t.reg[id]; !ok {

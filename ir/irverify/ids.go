@@ -50,6 +50,10 @@ func checkIDs(doc *ir.Document) []Violation {
 // only this repository's production packages, so a Document decoded from JSON,
 // produced by a compiler outside this tree, or rewritten by a pass is held by
 // this and nothing else — the reasoning that put the naming grammar in ir.
+//
+// Deliberately not checked: whether the kind is one ir declares. This asks the
+// ID to agree with the kind, and an invented kind agrees with itself — the node
+// is consistent and wrong. Holding PrimKind to its constants is GitHub #240.
 func checkPrimIDs(doc *ir.Document) []Violation {
 	var vs []Violation
 	for id, td := range doc.Types {
