@@ -11,6 +11,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/dexpace/morphic/internal/testspec"
+	"github.com/dexpace/morphic/ir/irtest"
 )
 
 func TestRun_HelpForms(t *testing.T) {
@@ -129,5 +130,65 @@ func TestRootHelp_ListsEveryCommand(t *testing.T) {
 	for _, c := range table {
 		assert.Contains(t, got, c.name)
 		assert.Contains(t, got, c.summary)
+	}
+}
+
+// compareHelpGolden compares got against the golden file at path, or rewrites
+// it when -update is passed to go test.
+//
+// The -update flag comes from irtest rather than being declared here. A second
+// flag.Bool("update", ...) in this package would not merely shadow the first:
+// both register on the same command-line FlagSet, so the binary panics at init
+// the moment anything pulls irtest into these tests.
+func compareHelpGolden(t *testing.T, path, got string) {
+	t.Helper()
+
+	if irtest.Update() {
+		require.NoError(t, os.MkdirAll(filepath.Dir(path), 0o755))
+		require.NoError(t, os.WriteFile(path, []byte(got), 0o644))
+		return
+	}
+
+	want, err := os.ReadFile(path)
+	require.NoError(t, err, "read golden %s (run with -update to create)", path)
+	assert.Empty(t, cmp.Diff(string(want), got), "golden mismatch for %s", path)
+}
+
+// TestHelp_MatchesGolden pins every text the CLI renders. The two help texts
+// are the ones a user asks for; the two misuse texts are the ones a user gets
+// by accident, and nothing else holds their wording — writeCommandUsage and the
+// root help that misuse prints to stderr could otherwise drift in silence.
+//
+// The wantStderr column doubles as the stream-discipline assertion: help must
+// never reach stderr, misuse must never reach stdout, and whichever stream is
+// not under test must be empty.
+func TestHelp_MatchesGolden(t *testing.T) {
+	// Not parallel: the -update path writes files.
+	tests := []struct {
+		name       string
+		args       []string
+		golden     string
+		wantCode   int
+		wantStderr bool
+	}{
+		{"root", nil, "root-help.txt", 0, false},
+		{"compile", []string{"help", "compile"}, "compile-help.txt", 0, false},
+		{"compile misuse", []string{"compile"}, "compile-usage.txt", 2, true},
+		{"unknown command", []string{"bogus"}, "unknown-command.txt", 2, true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var stdout, stderr bytes.Buffer
+			require.Equal(t, tt.wantCode, run(tt.args, &stdout, &stderr))
+
+			got, quiet := stdout.String(), stderr.String()
+			if tt.wantStderr {
+				got, quiet = quiet, got
+			}
+			require.Empty(t, quiet, "nothing may reach the stream this text does not use")
+
+			compareHelpGolden(t, filepath.Join("testdata", tt.golden), got)
+		})
 	}
 }

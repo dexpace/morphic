@@ -102,18 +102,26 @@ morphic compile openapi.yaml -o api.ir.json  # ...or to a file
 
 ```
 usage:
-  morphic compile <spec-file> [-o out.json] [--fail-on error|warning] [--skip-validate]
+  morphic <command> [flags]
+  morphic compile <spec-file> [flags]
 ```
+
+`morphic`, `morphic help`, and `morphic` with a help flag (`-h`, `--help` or `-help`) print the
+command list. `morphic help compile` and `morphic compile --help` print a command's flags. Help
+always prints to stdout and exits `0`.
+
+The flags below are `compile`'s:
 
 | Flag | Meaning |
 |---|---|
 | `-o <file>` | Write IR JSON to `<file>` instead of stdout. |
 | `--fail-on error\|warning` | Exit non-zero when a diagnostic at or above this severity is emitted (default `error`). |
 | `--skip-validate` | Skip the referential-integrity `validate` pass. |
+| `--explain <json-pointer>` | Report what compiling produced at this source coordinate instead of writing the document. |
 
 Diagnostics print one per line as `<severity> <code> <path>#<pointer>: <message>`. Exit codes:
-`0` clean, `1` a diagnostic reached the `--fail-on` threshold (or the spec could not be lowered),
-`2` a usage or I/O error.
+`0` clean (and for any help request), `1` a diagnostic reached the `--fail-on` threshold (or the
+spec could not be lowered), `2` a usage or I/O error.
 
 ### Library
 

@@ -1,0 +1,19 @@
+usage:
+  morphic compile <spec-file> [flags]
+
+Lower an API spec (OpenAPI 3.x) into Morphic IR JSON on stdout, and write
+diagnostics to stderr.
+
+--explain reports what compiling produced at one source coordinate — the
+type node interned there, the coordinates interned beneath it, and the
+diagnostics stamped at it — instead of writing the document.
+
+flags:
+  -explain string
+    	report what compiling produced at this source pointer instead of writing IR JSON
+  -fail-on string
+    	fail (exit 1) on diagnostics at or above this severity: error|warning (default "error")
+  -o string
+    	write IR JSON to this file instead of stdout
+  -skip-validate
+    	skip the referential-integrity validate pass
