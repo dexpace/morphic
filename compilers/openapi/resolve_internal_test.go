@@ -172,25 +172,94 @@ func TestLowerComponentSchemas_PercentEncodedRefResolves(t *testing.T) {
 }
 
 // TestLowerComponentSchemas_PercentEncodedRefHoistsAtTheDeclaredCoordinate pins
-// the identity half of the same fix, which the resolution half can hide: a
-// pointer *through* an encoded component name addresses a sub-schema the
-// declaration walk hoists too, so both must derive one ID. Reading the fragment
-// raw hoisted it at `.../Foo%2DBar/properties/inner` — a path no source
-// coordinate spells, the derivation GitHub #141 refused for anchors — and the
-// reference still resolved, so nothing failed.
+// the identity half of the same fix, which the resolution half hides: a pointer
+// *through* an encoded component name addresses a sub-schema an unencoded pointer
+// also addresses, so the two must intern one node. Reading the fragment raw
+// hoisted a second one at `.../Foo%2DBar/properties/inner` — a path no source
+// coordinate spells, the derivation GitHub #141 refused for anchors — so one
+// position became two types, silently: both references resolved, no diagnostic
+// was emitted, and the duplicate is a node irverify has no reason to call
+// dangling.
+//
+// Both spellings appear here because that is what makes the duplicate observable
+// at all; the encoded ref alone lands on one node either way, and only its name
+// is wrong.
 func TestLowerComponentSchemas_PercentEncodedRefHoistsAtTheDeclaredCoordinate(t *testing.T) {
 	t.Parallel()
 	doc, diags := lowerSpec(t, componentSpec(
-		"    Foo-Bar: {type: object, properties: {inner: {type: integer}}}\n"+
-			"    User: {type: object, properties: {x: {$ref: '#/components/schemas/Foo%2DBar/properties/inner'}}}\n"))
+		"    Foo-Bar: {type: object, properties: {inner: {type: object, properties: {n: {type: integer}}}}}\n"+
+			"    User:\n      type: object\n      properties:\n"+
+			"        a: {$ref: '#/components/schemas/Foo-Bar/properties/inner'}\n"+
+			"        b: {$ref: '#/components/schemas/Foo%2DBar/properties/inner'}\n"))
 	requireNoErrorDiags(t, diags)
 
 	user, ok := typeByName(doc, "User").(*ir.Model)
 	require.True(t, ok, "User must own a Model node")
-	require.Len(t, user.Properties, 1)
+	props := propsByWire(user.Properties)
+	require.Len(t, props, 2)
 
 	const want = ir.TypeID("t/anon/components/schemas/Foo-Bar/properties/inner")
-	assert.Equal(t, want, user.Properties[0].Type.Target,
-		"the hoisted sub-schema is addressed by the pointer the declaration spells")
-	assert.Contains(t, doc.Types, want, "and the ID the reference carries is backed by a node")
+	assert.Equal(t, want, props["a"].Type.Target)
+	assert.Equal(t, want, props["b"].Type.Target,
+		"the encoded spelling addresses the position the declaration spells, not one of its own")
+	assert.Contains(t, doc.Types, want, "and that ID is backed by a node")
+	for id := range doc.Types {
+		assert.NotContains(t, string(id), "%",
+			"no node is interned at an encoded path: nothing in this document is named with one")
+	}
+}
+
+// TestLowerService_PercentEncodedEntryRefKeepsTheDeclaredCoordinate covers the
+// same identity defect on the components that are not schemas, where it was
+// wholly silent. Their entries resolve through the library, so the value arrived
+// intact and no unresolved-ref was ever emitted; only the pointer the entry
+// carried stayed encoded, and every ID hoisted beneath it inherited the
+// encoding — here the response's own content schema.
+func TestLowerService_PercentEncodedEntryRefKeepsTheDeclaredCoordinate(t *testing.T) {
+	t.Parallel()
+	doc, _, diags := lowerServiceSpec(t, `openapi: 3.1.0
+info: {title: T, version: "1"}
+paths:
+  /a:
+    get:
+      responses:
+        '200': {$ref: '#/components/responses/My%2DResp'}
+components:
+  responses:
+    My-Resp:
+      description: ok
+      content:
+        application/json:
+          schema: {type: object, properties: {q: {type: string}}}
+`)
+	requireNoErrorDiags(t, diags)
+
+	const want = ir.TypeID("t/anon/components/responses/My-Resp/content/application~1json/schema")
+	assert.Contains(t, doc.Types, want,
+		"the response body is hoisted at the coordinate the component declares")
+	for id := range doc.Types {
+		assert.NotContains(t, string(id), "%",
+			"no node is interned at an encoded path")
+	}
+}
+
+// TestLowerComponentSchemas_PercentEncodedDiscriminatorMapping covers the third
+// consumer of the pointer, and the one whose failure is loudest: a mapping entry
+// whose target does not resolve is dropped, so an encoded target silently cost
+// the union a branch of its polymorphic dispatch rather than merely degrading a
+// position's type. InternalPointer's contract has always named discriminator
+// mappings alongside $ref; nothing exercised that half.
+func TestLowerComponentSchemas_PercentEncodedDiscriminatorMapping(t *testing.T) {
+	t.Parallel()
+	doc, diags := lowerSpec(t, componentSpec(
+		"    Cat-A: {type: object, properties: {kind: {type: string}}}\n"+
+			"    Pet:\n      oneOf: [{$ref: '#/components/schemas/Cat-A'}]\n"+
+			"      discriminator: {propertyName: kind, mapping: {cat: '#/components/schemas/Cat%2DA'}}\n"))
+	requireNoErrorDiags(t, diags)
+
+	pet, ok := typeByName(doc, "Pet").(*ir.Union)
+	require.True(t, ok, "Pet must own a Union node")
+	require.NotNil(t, pet.Discriminator, "the discriminator survives lowering")
+	assert.Equal(t, map[string]ir.TypeID{"cat": componentID("Cat-A")}, pet.Discriminator.Mapping,
+		"the encoded mapping target names the declared component, and the entry is kept")
 }

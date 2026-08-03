@@ -77,10 +77,14 @@ func (s Scope) sameFile(doc string) bool {
 // v1.24.0) rather than a hand-rolled one: a $ref is a URI, so its fragment is
 // percent-encoded, and `#/components/schemas/Foo%2DBar` names the component
 // "Foo-Bar". Comparing the raw fragment against declared names instead reported a
-// reference the resolver had resolved as unresolved, and degraded the position to
-// `any` (GitHub #40). Asking the resolver is what stops the answer drifting from
-// it again; nodeview.InternalPointer mirrors the same two methods for the cycle
-// scan, and records what a dependency bump should re-check.
+// reference the resolver had resolved as unresolved, degrading the position to
+// `any` and dropping any discriminator mapping that spelled its target that way.
+// The pointer returned here is also an ID source, so the quieter half cost more:
+// an encoded pointer interned a second node for a position an unencoded pointer
+// already named, leaving one coordinate with two types and no diagnostic either
+// side of it (GitHub #40). Asking the resolver is what stops the answer drifting
+// from it again; nodeview.InternalPointer mirrors the same two methods for the
+// cycle scan, and records what a dependency bump should re-check.
 //
 // A fragment that is not a JSON pointer is refused here rather than passed on.
 // `#addr` names a JSON Schema `$anchor`, not a coordinate, and Milestone 1
