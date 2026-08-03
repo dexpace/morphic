@@ -7,7 +7,9 @@ import (
 	"flag"
 	"fmt"
 	"io"
+	"math/rand/v2"
 	"os"
+	"path/filepath"
 
 	"github.com/dexpace/morphic/engine"
 	"github.com/dexpace/morphic/ir"
@@ -20,10 +22,42 @@ import (
 // that returns a nil Document.
 var newEngine = engine.New
 
-// openOutput creates the destination file for -o. It is a package var so tests
-// can inject an io.WriteCloser whose Close fails; a real *os.File's Close does
-// not fail after a successful write on the platforms Morphic targets.
-var openOutput = func(path string) (io.WriteCloser, error) { return os.Create(path) }
+// outputFile is the temp file that -o writes through. Sync is part of the
+// contract rather than an implementation detail: Close returns once the bytes
+// reach the page cache, so without an explicit Sync the publishing rename can
+// expose a file the filesystem has not taken yet.
+type outputFile interface {
+	io.WriteCloser
+	Sync() error
+}
+
+// createOutput creates the temp file that -o writes through. It is a package var
+// so tests can inject an outputFile whose Write, Sync or Close fails; a real
+// *os.File's Close does not fail after a successful write on the platforms
+// Morphic targets.
+var createOutput = func(path string, perm os.FileMode) (outputFile, error) {
+	return os.OpenFile(path, os.O_WRONLY|os.O_CREATE|os.O_EXCL, perm)
+}
+
+// chmodOutput restores a replaced destination's mode onto the temp file. It is a
+// package var so tests can inject a chmod failure, which is otherwise reachable
+// only by racing the filesystem.
+var chmodOutput = os.Chmod
+
+// renameOutput publishes a fully written temp file over the destination. It is a
+// package var so tests can inject a rename failure, which is otherwise reachable
+// only by racing the filesystem.
+var renameOutput = os.Rename
+
+// maxTempAttempts bounds the search for an unused temp-file name. Each attempt
+// draws a fresh random suffix, so exhausting it means the destination directory
+// is unusable rather than that the names happened to collide.
+const maxTempAttempts = 10
+
+// newFilePerm is the mode a temp file is created with: the same 0666 os.Create
+// requests, so the umask narrows it identically. A destination that already
+// exists overrides this via chmodOutput — see destMode.
+const newFilePerm os.FileMode = 0o666
 
 // newCompileCommand builds compile's command-table entry. It is a function,
 // not a package-level var, because its run field refers to runCompile, and
@@ -218,9 +252,9 @@ func severityRank(s ir.Severity) int {
 }
 
 // writeCompiled emits doc's pretty IR JSON to outPath, or to stdout when outPath
-// is empty. For a file destination, doc is marshalled in full before outPath is
-// opened, so a failed marshal never truncates a file already there — see
-// marshalDocument.
+// is empty. For a file destination, doc is marshalled in full before any file is
+// touched, so a failed marshal never disturbs a file already there — see
+// marshalDocument — and the bytes are then published atomically by replaceFile.
 func writeCompiled(outPath string, stdout io.Writer, doc *ir.Document) error {
 	if outPath == "" {
 		return writeDocument(stdout, doc)
@@ -229,16 +263,135 @@ func writeCompiled(outPath string, stdout io.Writer, doc *ir.Document) error {
 	if err != nil {
 		return err
 	}
-	f, err := openOutput(outPath)
+	return replaceFile(outPath, raw)
+}
+
+// replaceFile writes raw to outPath atomically: the bytes land in a temp file in
+// the destination's own directory — so the publishing rename never crosses a
+// filesystem boundary — and replace outPath only once all of them are on disk.
+// A failed or partial write therefore leaves outPath's previous content intact
+// instead of truncating it.
+//
+// Publishing by rename replaces the directory entry rather than the bytes behind
+// it, which is what makes the swap atomic and which costs four things a
+// truncating write gave for free. All four are accepted deliberately:
+//
+//   - Writing needs permission on the destination's directory, not just on the
+//     destination. Rewriting an existing writable file inside a read-only
+//     directory used to succeed and now fails at temp-file creation.
+//   - A symlink at outPath is replaced by a regular file instead of being
+//     followed and written through, so its target keeps its old content.
+//   - Other hard links to outPath keep pointing at the old inode, and so keep
+//     the old content, instead of observing the new bytes.
+//   - The temp name is 21 characters longer than the destination's own, so a
+//     destination whose basename is within 21 of the filesystem's limit now
+//     fails at creation ("file name too long") where a truncating write
+//     succeeded. Unlike the other three this is a new failure rather than a
+//     lost capability, and it surfaces as an error rather than silently.
+//
+// Losing the first three is the price of the guarantee: each is a way for the
+// destination's bytes to be reached other than through its own name, and
+// honouring any of them means writing in place, which is exactly the truncation
+// this replaces.
+//
+// Durability stops at the file. fillTemp syncs the bytes before the rename, so
+// the rename never publishes contents the filesystem has not taken, but the
+// directory entry the rename creates is not itself synced. A crash immediately
+// after a successful run can therefore leave the destination holding its
+// previous content. It cannot leave it holding partial content, which is the
+// property this function exists to provide; making the swap itself survive a
+// crash would need an fsync on the parent directory and is deliberately out of
+// scope.
+func replaceFile(outPath string, raw []byte) error {
+	perm, replacing, err := destMode(outPath)
 	if err != nil {
-		return fmt.Errorf("create output %q: %w", outPath, err)
-	}
-	if err := writeRaw(f, raw); err != nil {
-		_ = f.Close()
 		return err
 	}
+
+	tmp, err := writeTemp(outPath, raw)
+	if err != nil {
+		return err
+	}
+
+	// A brand-new file keeps the umask-narrowed mode it was created with; one
+	// that replaces an existing destination inherits that destination's mode,
+	// which is what truncating it in place would have preserved.
+	if replacing {
+		if err := chmodOutput(tmp, perm); err != nil {
+			_ = os.Remove(tmp)
+			return fmt.Errorf("chmod output %q: %w", outPath, err)
+		}
+	}
+
+	if err := renameOutput(tmp, outPath); err != nil {
+		_ = os.Remove(tmp)
+		return fmt.Errorf("replace output %q: %w", outPath, err)
+	}
+	return nil
+}
+
+// destMode reports the mode an existing destination carries, and whether there
+// is one at all. A missing destination is the ordinary case, not an error.
+func destMode(outPath string) (os.FileMode, bool, error) {
+	info, err := os.Stat(outPath)
+	if errors.Is(err, os.ErrNotExist) {
+		return 0, false, nil
+	}
+	if err != nil {
+		return 0, false, fmt.Errorf("stat output %q: %w", outPath, err)
+	}
+	return info.Mode().Perm(), true, nil
+}
+
+// writeTemp writes raw to a newly created file beside outPath and returns that
+// file's path. Creation is O_EXCL under a random name, so it neither clobbers an
+// existing file nor follows a symlink planted at the name it drew; that makes the
+// unpredictability of the suffix a convenience, not a security boundary.
+func writeTemp(outPath string, raw []byte) (string, error) {
+	dir := filepath.Dir(outPath)
+	base := filepath.Base(outPath)
+
+	for range maxTempAttempts {
+		tmp := filepath.Join(dir, fmt.Sprintf(".%s.tmp%016x", base, rand.Uint64()))
+		f, err := createOutput(tmp, newFilePerm)
+		if errors.Is(err, os.ErrExist) {
+			continue
+		}
+		if err != nil {
+			return "", fmt.Errorf("create output %q: %w", outPath, err)
+		}
+		if err := fillTemp(f, tmp, raw); err != nil {
+			return "", err
+		}
+		return tmp, nil
+	}
+	return "", fmt.Errorf("create output %q: no unused temp name in %d attempts",
+		outPath, maxTempAttempts)
+}
+
+// fillTemp writes raw to f, flushes it to the filesystem, and closes it,
+// removing tmp if any step fails so a failed run leaves no debris beside the
+// destination.
+//
+// The Sync is what lets replaceFile's caller believe the rename publishes
+// durable bytes: without it the rename can expose a file whose contents are
+// still only in the page cache, and a crash before writeback leaves the
+// destination short or empty — the same loss writing through a temp file exists
+// to prevent.
+func fillTemp(f outputFile, tmp string, raw []byte) error {
+	if err := writeRaw(f, raw); err != nil {
+		_ = f.Close()
+		_ = os.Remove(tmp)
+		return err
+	}
+	if err := f.Sync(); err != nil {
+		_ = f.Close()
+		_ = os.Remove(tmp)
+		return fmt.Errorf("sync output %q: %w", tmp, err)
+	}
 	if err := f.Close(); err != nil {
-		return fmt.Errorf("close output %q: %w", outPath, err)
+		_ = os.Remove(tmp)
+		return fmt.Errorf("close output %q: %w", tmp, err)
 	}
 	return nil
 }
