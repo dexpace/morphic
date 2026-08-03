@@ -1282,10 +1282,17 @@ func TestGhostRefs_AllResolversDegradeGracefully(t *testing.T) {
 	// A reference that resolves to nothing is a diagnostic, not a parse failure,
 	// so the whole spec compiles and every skip is reached in one pass.
 	doc, diags := parseFull(t, ghostRefsSpec)
-	assert.True(t, hasDiag(diags, diag.UnresolvedRef), "unresolved refs reported")
-	assert.Len(t, diags, 1,
-		"and the skips themselves are silent: a skip that lowered an empty stand-in instead "+
-			"would report on a construct the document never wrote: %+v", diags)
+	require.NotEmpty(t, diags, "unresolved refs reported")
+
+	// And the skips themselves are silent: every diagnostic here is the resolve
+	// phase's own report of a component that does not exist, which is why none
+	// carries a pointer — that phase runs before the walk that would know one. A
+	// skip lowering an empty stand-in instead would report on a construct the
+	// document never wrote, and would report it from the walk, sited.
+	for _, d := range diags {
+		assert.Equal(t, diag.UnresolvedRef, d.Code, "%+v", d)
+		assert.Empty(t, d.Provenance.Pointer, "reported by the resolve phase, not the walk: %+v", d)
+	}
 
 	// What each skip has to do is contribute nothing — not an empty stand-in.
 	// Asserting only "no panic" leaves that unheld: lowering an unresolvable path

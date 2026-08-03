@@ -11,15 +11,23 @@ import (
 	"github.com/dexpace/morphic/internal/harness"
 )
 
-// knownInvalid lists the deliberately-malformed fixtures under testdata/ that a
-// correct compiler reports an error diagnostic on, so the "must be OK" sweep
-// excludes them. An error on these is intended behavior, not a compiler bug.
-// Each was read to confirm it is intentionally invalid before being listed here:
+// knownInvalid lists the fixtures under testdata/ that a correct compiler
+// reports an error diagnostic on under this sweep's default options, so the
+// "must be OK" sweep excludes them. An error on these is intended behavior, not
+// a compiler bug. Each was read to confirm it before being listed here:
 //
 //   - resolve_target_invalid.yaml: a response with no description and a header
 //     whose required is the string "notabool" — two schema violations.
 //   - resolve_main_external.yaml: $refs the malformed target above across files;
 //     the compiler does no file I/O, so it's an unresolved-ref error.
+//   - resolve_main_external_valid.yaml and resolve_main_alias_external_valid.yaml:
+//     well-formed, and the only entries here that are not malformed at all. Both
+//     $ref a sibling document, which the compiler refuses to open unless the
+//     caller sets AllowExternalRefs, and this sweep does not (GitHub #31). The
+//     tests that exercise their cross-document lowering opt in and pass; what is
+//     listed here is that the default refuses to. Once external targets are
+//     loaded as sources rather than opened by the resolver (GitHub #74), they
+//     compile clean and come off this list.
 //   - cycle_self_ref.yaml, cycle_two_node_ref.yaml, their _sibling variants, and
 //     cycle_yaml_anchor.yaml: degenerate ref cycles that never reach a concrete
 //     schema node. The pre-parse detector reports cyclic-ref instead of letting
@@ -87,6 +95,8 @@ func knownInvalid() map[string]bool {
 	return map[string]bool{
 		filepath.FromSlash("../../testdata/openapi/resolve_target_invalid.yaml"):               true,
 		filepath.FromSlash("../../testdata/openapi/resolve_main_external.yaml"):                true,
+		filepath.FromSlash("../../testdata/openapi/resolve_main_external_valid.yaml"):          true,
+		filepath.FromSlash("../../testdata/openapi/resolve_main_alias_external_valid.yaml"):    true,
 		filepath.FromSlash("../../testdata/openapi/cycle_self_ref.yaml"):                       true,
 		filepath.FromSlash("../../testdata/openapi/cycle_self_ref_sibling.yaml"):               true,
 		filepath.FromSlash("../../testdata/openapi/cycle_two_node_ref.yaml"):                   true,
