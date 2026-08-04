@@ -58,12 +58,19 @@ type UnmodeledEntry struct {
 	// entries and not vendor noise; a linter wants the degradations.
 	Reason UnmodeledReason `json:"reason"`
 	// Value is the source construct, preserved whole rather than byte-for-byte:
-	// nothing here discards or reshapes it, but two re-encodings sit between the
+	// nothing here discards or reshapes it, but re-encodings sit between the
 	// source bytes and this field. json.Marshal compacts a RawValue and escapes
 	// <, >, & as \uXXXX, and a compiler that rebuilds the value from its parsed
-	// tree (the OpenAPI path does, via a decode/re-marshal) also normalizes
-	// object key order and number spelling and rewrites ill-formed UTF-8 to
-	// U+FFFD. What survives is the construct's meaning, not its spelling.
+	// tree (the OpenAPI path does) also sorts object keys.
+	//
+	// A number's value survives exactly. Its spelling is canonicalized only
+	// where JSON and YAML disagree about how to write one — .5 becomes 0.5,
+	// 0o17 becomes 15 — while every significant digit stays (GitHub #32).
+	//
+	// Two scalars YAML gives a type and JSON does not are still rewritten: a
+	// timestamp normalizes to RFC 3339, and a !!binary carries its decoded bytes
+	// rather than its base64 text, which costs ill-formed UTF-8 its identity to
+	// U+FFFD (GitHub #242).
 	Value RawValue `json:"value"`
 	// Provenance locates the construct itself, which the owning node's own
 	// provenance cannot: a validation emitter reporting on a `not` must point at

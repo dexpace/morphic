@@ -490,6 +490,69 @@
             "source": 0,
             "pointer": "/components/schemas/S/properties/loose"
           }
+        },
+        {
+          "id": "p/openapi/components/schemas/S/properties/preserved",
+          "name": {
+            "source": "preserved",
+            "canonical": "preserved"
+          },
+          "wireName": "preserved",
+          "type": {
+            "target": "t/prim/number",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "unmodeled": {
+            "openapi:not": {
+              "reason": "validation_only",
+              "value": {
+                "const": 123456789012345678901234567890
+              },
+              "provenance": {
+                "source": 0,
+                "pointer": "/components/schemas/S/properties/preserved/not"
+              }
+            },
+            "openapi:x-precise-limit": {
+              "reason": "vendor_extension",
+              "value": 123456789012345678901234567890,
+              "provenance": {
+                "source": 0,
+                "pointer": "/components/schemas/S/properties/preserved/x-precise-limit"
+              }
+            },
+            "openapi:x-precise-scale": {
+              "reason": "vendor_extension",
+              "value": 1.10,
+              "provenance": {
+                "source": 0,
+                "pointer": "/components/schemas/S/properties/preserved/x-precise-scale"
+              }
+            },
+            "openapi:x-precise-step": {
+              "reason": "vendor_extension",
+              "value": 1.000000000000000000001,
+              "provenance": {
+                "source": 0,
+                "pointer": "/components/schemas/S/properties/preserved/x-precise-step"
+              }
+            }
+          },
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/S/properties/preserved"
+          }
         }
       ],
       "abstract": false,
@@ -529,11 +592,22 @@
       "auth": null
     }
   ],
+  "diagnostics": [
+    {
+      "severity": "info",
+      "code": "openapi/validation-only-keyword",
+      "message": "validation-only keyword \"not\" kept verbatim under Unmodeled",
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/S/properties/preserved"
+      }
+    }
+  ],
   "sources": [
     {
       "format": "openapi@3.1",
       "path": "numeric-precision.yaml",
-      "hash": "6788c0244395b3f75e699917d5af52f9937ea3b97e4f006505a7909078bcd074"
+      "hash": "837bcd7be0a2bb0e52999a13dd7f444a8e16b12ad10b69ffd455f295372073ac"
     }
   ]
 }
