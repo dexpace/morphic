@@ -123,6 +123,7 @@ func TestRawFromNode_RendersEveryScalarTag(t *testing.T) {
 		{"date keeps its padding", "2021-01-01", `"2021-01-01"`},
 		{"datetime keeps its space separator", "2021-01-01 10:20:30", `"2021-01-01 10:20:30"`},
 		{"datetime keeps its zone as written", "2021-01-01T10:20:30+05:00", `"2021-01-01T10:20:30+05:00"`},
+		{"datetime keeps its fractional seconds", "2021-01-01T10:20:30.5Z", `"2021-01-01T10:20:30.5Z"`},
 		{"explicitly tagged date keeps its spelling", "!!timestamp 2021-1-1", `"2021-1-1"`},
 		{"binary keeps its base64 text", `!!binary aGVsbG8=`, `"aGVsbG8="`},
 		{"binary keeps a byte no UTF-8 can name", `!!binary /w==`, `"/w=="`},
@@ -320,8 +321,8 @@ func TestRawFromNode_WalksThroughADocumentNode(t *testing.T) {
 
 // rawDivergences is the closed list of inputs on which the walk deliberately
 // disagrees with the decode it replaced, beyond how a number is spelled. Each
-// row is a scalar YAML gives a type and JSON does not, kept as the text the
-// source wrote rather than as the resolved form (GitHub #242).
+// row holds at least one scalar YAML gives a type and JSON does not, kept as
+// the text the source wrote rather than as the resolved form (GitHub #242).
 //
 // Both spellings are pinned. The new one is the preservation the change exists
 // for; the old one is what keeps the row honest — without it a divergence that
@@ -335,6 +336,13 @@ var rawDivergences = map[string]struct{ old, want string }{
 	// can name, which is the loss itself: 0xFF and a source that really wrote
 	// U+FFFD both reached the IR as this, with nothing to tell them apart.
 	`!!binary /w==`: {"\"\\ufffd\"", `"/w=="`},
+	// Nesting is the same rule one level down: one divergent scalar makes the
+	// whole construct diverge, which is how every raw site holding a structure
+	// rather than a bare scalar reaches this.
+	"{when: 2021-1-1, blob: !!binary /w==}": {
+		"{\"blob\":\"\\ufffd\",\"when\":\"2021-01-01T00:00:00Z\"}",
+		`{"blob":"/w==","when":"2021-1-1"}`,
+	},
 	// A block !!binary decodes to the same bytes as the flow one above, so the
 	// old spelling is identical while the source text is not.
 	"!!binary |\n  aGVs\n  bG8=\n": {`"hello"`, `"aGVs\nbG8=\n"`},
@@ -345,12 +353,13 @@ var rawEquivalenceCorpus = []string{
 	"1", "1.5", "-2", "0", "0.0", "1e10", "1.10", "0o17", "0x1f", "1_000",
 	"12345678901234567890123", "1.000000000000000000001", "-9223372036854775809",
 	"null", "true", "false", "hello", `"123"`, `""`, "1e400", `"a<b>&c"`,
-	"2021-1-1", "2021-01-01T10:20:30.5Z", `!!binary aGVsbG8=`, `!!binary /w==`,
-	// Two timestamp spellings the old decode already reproduced exactly, so
-	// they are equivalence rows rather than divergences. They are here to keep
-	// rawDivergences tight: it must list what actually diverges, not every
-	// input that carries a tag JSON has no type for.
-	"2021-01-01T10:20:30+05:00", "2021-01-01 10:20:30",
+	// The scalars YAML types and JSON does not, in both spellings that matter:
+	// ones the old decode rewrote, which rawDivergences records, and ones it
+	// already reproduced exactly. The second kind is what keeps that map tight —
+	// it must list what actually diverges, not every input carrying such a tag.
+	"2021-1-1", "2021-01-01 10:20:30", "2021-01-01T10:20:30.5Z",
+	"2021-01-01T10:20:30+05:00", `!!binary aGVsbG8=`, `!!binary /w==`,
+	"!!binary |\n  aGVs\n  bG8=\n", "{when: 2021-1-1, blob: !!binary /w==}",
 	"{}", "[]", "[1, 2, 3]", "{z: 1, a: 2, m: 3}", "{a: {b: {c: 1}}}",
 	"[[1], [2, [3]]]", "{a: [1, {b: 2}], c: null}",
 	"{<<: {p: 1}, q: 2}", "{<<: {p: 1}, p: 2}", "{<<: [{p: 1}, {p: 2}]}",
@@ -369,10 +378,6 @@ var rawEquivalenceCorpus = []string{
 	// equality claim, and are here so the asymmetry is visible in a -v run
 	// rather than asserted in a comment.
 	"!!int 12345678901234567890123", "!!float 1e400",
-	// YAML's block spelling of a !!binary: base64.StdEncoding skips the line
-	// breaks, so the old decode accepted it and this is a divergence in what
-	// is kept rather than in what is accepted.
-	"!!binary |\n  aGVs\n  bG8=\n",
 }
 
 // TestRawFromNode_DiffersFromTheOldDecodeOnlyWhereRecorded is the equivalence
@@ -440,12 +445,13 @@ func mappingOf(key, val *yaml.Node) *yaml.Node {
 	return &yaml.Node{Kind: yaml.MappingNode, Tag: "!!map", Content: []*yaml.Node{key, val}}
 }
 
-// TestRawConv_RefusesNodesNoCallerShouldPass covers the two preconditions the
-// walk asserts on itself rather than on its input. Neither is reachable through
-// RawFromNode — it rejects a nil node before walking, and every mapping handed
-// to mappingInto has already been proven to be one — so they are exercised here
-// directly. They stay because dropping them turns a caller's mistake into a
-// silently empty object rather than an answer.
+// TestRawConv_RefusesNodesNoCallerShouldPass covers the preconditions the walk
+// asserts on itself rather than on its input. None is reachable through
+// RawFromNode — it rejects a nil node before walking, every mapping handed to
+// mappingInto has already been proven to be one, and scalar routes only two
+// tags into verbatimTagged — so they are exercised here directly. They stay
+// because dropping one turns a caller's mistake into a silently wrong answer
+// rather than an answer at all.
 func TestRawConv_RefusesNodesNoCallerShouldPass(t *testing.T) {
 	t.Parallel()
 
