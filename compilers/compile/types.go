@@ -2,7 +2,6 @@ package compile
 
 import (
 	"fmt"
-	"reflect"
 
 	"github.com/dexpace/morphic/ir"
 )
@@ -26,17 +25,6 @@ type Types struct {
 	// byID is byPointer read backwards, so a derivation that maps two distinct
 	// coordinates onto one ID is caught rather than silently overwriting.
 	byID map[ir.TypeID]string
-}
-
-// isNilTypeDef reports whether td is a nil TypeDef — an untyped nil interface or
-// a typed nil pointer. A typed nil satisfies a type switch case, so a caller
-// cannot screen one by kind.
-func isNilTypeDef(td ir.TypeDef) bool {
-	if td == nil {
-		return true
-	}
-	rv := reflect.ValueOf(td)
-	return rv.Kind() == reflect.Pointer && rv.IsNil()
 }
 
 // refuse records why an entry was rejected. The registry declines to hold it
@@ -144,7 +132,7 @@ func (t *Types) Intern(pointer string, id ir.TypeID, build func() ir.TypeDef) ir
 	t.claimID(id, pointer)
 	t.byPointer[pointer] = id
 	td := build() // may recurse; a self-reference hits byPointer above
-	if isNilTypeDef(td) {
+	if ir.IsNilTypeDef(td) {
 		// Leaving the coordinate mapped would be the one state NodeAt's contract
 		// rules out: a pointer that resolves to an ID holding no node.
 		delete(t.byPointer, pointer)
@@ -178,7 +166,7 @@ func (t *Types) Register(id ir.TypeID, td ir.TypeDef) {
 		t.refuse("register rejected: empty type id")
 		return
 	}
-	if isNilTypeDef(td) {
+	if ir.IsNilTypeDef(td) {
 		t.refuse("register rejected: nil type definition for id=%q", id)
 		return
 	}

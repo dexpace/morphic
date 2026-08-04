@@ -22,7 +22,7 @@ import (
 func checkIDs(doc *ir.Document) []Violation {
 	var vs []Violation
 	for id, td := range doc.Types {
-		if isNilTypeDef(td) {
+		if ir.IsNilTypeDef(td) {
 			continue // checkRegistryKeys reports the nil entry itself
 		}
 		vs = appendIDViolations(vs, ir.IDKindType, string(id),
@@ -57,7 +57,7 @@ func checkIDs(doc *ir.Document) []Violation {
 func checkPrimIDs(doc *ir.Document) []Violation {
 	var vs []Violation
 	for id, td := range doc.Types {
-		if isNilTypeDef(td) {
+		if ir.IsNilTypeDef(td) {
 			continue // checkRegistryKeys reports the nil entry itself
 		}
 		path := "types[" + string(id) + "]"

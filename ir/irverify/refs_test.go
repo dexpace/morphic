@@ -26,10 +26,10 @@ func docWithRef(target ir.TypeID) *ir.Document {
 
 func TestCollectRefs_FindsTypeRefTarget(t *testing.T) {
 	doc := docWithRef("t/x/Missing")
-	sites, _ := collectRefs(doc)
+	sites, _ := collectRefs(doc, ir.DocumentRegistries(doc))
 	var found bool
 	for _, s := range sites {
-		if s.id == "t/x/Missing" && s.kind.registry == "types" {
+		if s.id == "t/x/Missing" && s.idType == reflect.TypeFor[ir.TypeID]() {
 			found = true
 		}
 	}
@@ -38,22 +38,31 @@ func TestCollectRefs_FindsTypeRefTarget(t *testing.T) {
 
 func TestCollectRefs_SkipsEmptyIDs(t *testing.T) {
 	doc := docWithRef("") // empty target must not be collected
-	sites, _ := collectRefs(doc)
+	sites, _ := collectRefs(doc, ir.DocumentRegistries(doc))
 	for _, s := range sites {
 		assert.NotEqual(t, "", s.id)
 	}
 }
 
+// refViolations runs the reference check and drops the truncation flag, which
+// the cases below assert nothing about; TestWalkChecks_EachReportsTruncation
+// holds that half.
+func refViolations(doc *ir.Document) []Violation {
+	vs, _ := checkReferentialIntegrity(doc)
+	return vs
+}
+
 func TestCheckReferentialIntegrity_DanglingTypeRef(t *testing.T) {
-	got := checkReferentialIntegrity(docWithRef("t/x/Missing"))
+	got := refViolations(docWithRef("t/x/Missing"))
 	require.Len(t, got, 1)
 	assert.Equal(t, "ir/dangling-type-ref", got[0].Code)
+	assert.Contains(t, got[0].Message, "does not resolve in types")
 }
 
 func TestCheckReferentialIntegrity_ResolvedRefIsClean(t *testing.T) {
 	doc := docWithRef("t/x/Target")
 	doc.Types["t/x/Target"] = &ir.Any{TypeCommon: ir.TypeCommon{ID: "t/x/Target"}}
-	assert.Empty(t, checkReferentialIntegrity(doc))
+	assert.Empty(t, refViolations(doc))
 }
 
 func TestCheckReferentialIntegrity_DanglingAuthRef(t *testing.T) {
@@ -66,9 +75,10 @@ func TestCheckReferentialIntegrity_DanglingAuthRef(t *testing.T) {
 			}},
 		}},
 	}
-	got := checkReferentialIntegrity(doc)
+	got := refViolations(doc)
 	require.NotEmpty(t, got)
 	assert.Equal(t, "ir/dangling-auth-ref", got[0].Code)
+	assert.Contains(t, got[0].Message, "does not resolve in auth")
 }
 
 func TestCheckReferentialIntegrity_DanglingMessageRef(t *testing.T) {
@@ -79,9 +89,10 @@ func TestCheckReferentialIntegrity_DanglingMessageRef(t *testing.T) {
 	doc := &ir.Document{
 		Channels: map[ir.ChannelID]ir.Channel{ch.ID: ch},
 	}
-	got := checkReferentialIntegrity(doc)
+	got := refViolations(doc)
 	require.NotEmpty(t, got)
 	assert.Equal(t, "ir/dangling-message-ref", got[0].Code)
+	assert.Contains(t, got[0].Message, "does not resolve in messages")
 }
 
 func TestCheckReferentialIntegrity_DanglingChannelRef(t *testing.T) {
@@ -97,9 +108,10 @@ func TestCheckReferentialIntegrity_DanglingChannelRef(t *testing.T) {
 			}},
 		}},
 	}
-	got := checkReferentialIntegrity(doc)
+	got := refViolations(doc)
 	require.NotEmpty(t, got)
 	assert.Equal(t, "ir/dangling-channel-ref", got[0].Code)
+	assert.Contains(t, got[0].Message, "does not resolve in channels")
 }
 
 func TestCheckReferentialIntegrity_DanglingRenameKey(t *testing.T) {
@@ -112,64 +124,10 @@ func TestCheckReferentialIntegrity_DanglingRenameKey(t *testing.T) {
 			Renames: map[ir.TypeID]ir.Naming{"t/x/ghost": {Source: "Ghost"}},
 		}},
 	}
-	got := checkReferentialIntegrity(doc)
+	got := refViolations(doc)
 	require.Len(t, got, 1)
 	assert.Equal(t, "ir/dangling-type-ref", got[0].Code)
 	assert.Equal(t, "t/x/ghost", refIDInMessage(got[0].Message))
-}
-
-func TestCheckReferentialIntegrity_DeepValueTreeReportsTruncation(t *testing.T) {
-	// A Value tree nested past maxWalkDepth must not be silently under-checked: the
-	// bounded walk reports truncation rather than claiming the document is clean.
-	v := ir.Value{Kind: ir.ValueNull}
-	for range 2 * maxWalkDepth {
-		v = ir.Value{Kind: ir.ValueList, List: []ir.Value{v}}
-	}
-	deep := v
-	m := &ir.Model{TypeCommon: ir.TypeCommon{
-		ID:       "t/x/M",
-		Examples: []ir.Example{{Value: &deep}},
-	}}
-	doc := &ir.Document{Types: ir.TypeRegistry{m.ID: m}}
-
-	got := checkReferentialIntegrity(doc)
-	require.NotEmpty(t, got)
-	assert.Equal(t, "ir/walk-truncated", got[0].Code)
-}
-
-func TestRefSite_ResolvesUnknownKindIsUnresolved(t *testing.T) {
-	// A refSite whose kind is the zero value — as an unrecognized reference
-	// class would produce, since it never gets an entry in refKindByType —
-	// falls through the has == nil guard and reports the reference as
-	// unresolved rather than panicking.
-	site := refSite{id: "x"}
-	assert.False(t, site.resolves(&ir.Document{}))
-}
-
-func TestCollectRefs_SharedPointerVisitedOnce(t *testing.T) {
-	// The same *TypeRef reachable through two template arguments must trip the
-	// cycle guard: the walk descends into it once and skips the repeat visit, so
-	// its target is discovered exactly once.
-	shared := &ir.TypeRef{Target: "t/x/Shared"}
-	m := &ir.Model{TypeCommon: ir.TypeCommon{
-		ID: "t/x/M",
-		Instantiation: &ir.TemplateInstantiation{Args: []ir.TemplateArg{
-			{Type: shared},
-			{Type: shared},
-		}},
-	}}
-	doc := &ir.Document{Types: ir.TypeRegistry{m.ID: m}}
-
-	sites, truncated := collectRefs(doc)
-	assert.False(t, truncated)
-
-	var count int
-	for _, s := range sites {
-		if s.id == "t/x/Shared" {
-			count++
-		}
-	}
-	assert.Equal(t, 1, count, "the shared pointer's target is collected once, not per reference")
 }
 
 // refIDInMessage extracts the reference ID from a dangling-ref message of the
@@ -209,65 +167,4 @@ func TestVerify_AliasedPointerIsDeterministic(t *testing.T) {
 	for i := range aliasRuns {
 		require.Equal(t, want, fmt.Sprintf("%+v", Verify(doc)), "run %d disagrees with the first", i)
 	}
-}
-
-// payloadBytes sizes the preserved payload the byte-skip test walks. It is large
-// enough that descending it would dominate any plausible visit count for a
-// two-node document, and small enough to build inline.
-const payloadBytes = 4096
-
-// TestWalkValues_ByteSequencesAreNotDescendedInto drives the byte-sequence skip,
-// which exists for cost rather than for correctness: a uint8 element is none of
-// the things a visitor looks for — no typed ID, no Unmodeled map, no Provenance,
-// no index carrier — so collecting nothing from it is the same result either
-// way, and only the price differs. Descending one payload spends a reflect.Value
-// and a formatted path per byte.
-//
-// The visit count is what makes that assertable: the walk reports every value it
-// reaches, so a document whose payload dwarfs its structure must still be walked
-// in a number of steps bounded by the structure. Without the skip the count
-// grows past the payload's length instead.
-func TestWalkValues_ByteSequencesAreNotDescendedInto(t *testing.T) {
-	t.Parallel()
-	doc := &ir.Document{Unmodeled: ir.Unmodeled{"openapi:x-thing": {
-		Reason: ir.ReasonVendorExtension,
-		Value:  ir.RawValue(`"` + strings.Repeat("t", payloadBytes) + `"`),
-	}}}
-
-	var visits int
-	truncated := walkValues(doc, func(reflect.Value, string) bool {
-		visits++
-		return true
-	})
-	require.False(t, truncated)
-	assert.Less(t, visits, payloadBytes,
-		"walking %d bytes of payload one value at a time is what the skip exists to avoid", payloadBytes)
-}
-
-// TestWalkValues_APointerReachedTwiceIsDescendedIntoOnce holds the cycle guard.
-//
-// Nothing in the corpus reaches it: a compiled Document is a flat registry of
-// values referenced by ID, so no two fields point at one struct and no field
-// points back. That is exactly why it needs planting — the guard is what keeps
-// the walk terminating on a document that does share a pointer, and without a
-// document that does, removing it changes nothing any test observes.
-//
-// Visiting once is also what makes the walk's paths deterministic: a value
-// reached twice would be reported at whichever path the walk happened to take
-// first (invariant 7).
-func TestWalkValues_APointerReachedTwiceIsDescendedIntoOnce(t *testing.T) {
-	t.Parallel()
-	shared := &ir.Naming{Source: "shared"}
-	doc := struct{ A, B *ir.Naming }{A: shared, B: shared}
-
-	var sources int
-	truncated := walkValues(&doc, func(v reflect.Value, _ string) bool {
-		if v.Kind() == reflect.String && v.String() == "shared" {
-			sources++
-		}
-		return true
-	})
-
-	require.False(t, truncated, "two fields are not deep")
-	assert.Equal(t, 1, sources, "the second field finds the pointer already seen and stops there")
 }

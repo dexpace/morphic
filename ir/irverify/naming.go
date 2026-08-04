@@ -12,17 +12,18 @@ var namingType = reflect.TypeFor[ir.Naming]()
 
 // checkNaming asserts every Naming.Canonical is what invariant #4 promises: a
 // neutral lower_snake word sequence, carrying no casing an emitter should own
-// and no character that is not part of a word. It reuses walkValues to reach
-// every ir.Naming value in the document.
+// and no character that is not part of a word. It reuses the shared bounded walk
+// to reach every ir.Naming value in the document, and reports whether that walk
+// was cut short so a name past the cap cannot go unchecked in silence.
 //
 // Only Canonical is checked. Naming.Hint — the generated-name channel for
 // anonymous types — is held to none of these rules, so casing and punctuation
 // still reach the IR through it. That is GitHub #54, left open deliberately:
 // closing it means changing how the compilers derive hints and regenerating
 // every golden, which is a different change from tightening this checker.
-func checkNaming(doc *ir.Document) []Violation {
+func checkNaming(doc *ir.Document) ([]Violation, bool) {
 	var vs []Violation
-	walkValues(doc, func(v reflect.Value, path string) bool {
+	truncated := ir.WalkValues(doc, "doc", func(v reflect.Value, path string) bool {
 		if v.Kind() != reflect.Struct || v.Type() != namingType {
 			return true
 		}
@@ -30,7 +31,7 @@ func checkNaming(doc *ir.Document) []Violation {
 			v.FieldByName("Source").String(), v.FieldByName("Canonical").String(), path)
 		return false // Naming holds no references or nested Naming to descend into
 	})
-	return vs
+	return vs, truncated
 }
 
 // appendNamingViolations reports the ways canon can break neutrality. They are

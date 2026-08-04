@@ -19,11 +19,19 @@ func docWithServers() *ir.Document {
 	return &ir.Document{Servers: []ir.Server{{URLTemplate: "https://api.example.com"}}}
 }
 
+// indexViolations runs the index check and drops the truncation flag, which the
+// cases below assert nothing about; TestWalkChecks_EachReportsTruncation holds
+// that half.
+func indexViolations(doc *ir.Document) []Violation {
+	vs, _ := checkIndices(doc)
+	return vs
+}
+
 func TestCheckIndices_ServiceServerIndexOutOfRange(t *testing.T) {
 	doc := docWithServers()
 	doc.Services = []ir.Service{{ID: "s/x", Servers: []int{-1, 1}}}
 
-	got := checkIndices(doc)
+	got := indexViolations(doc)
 	require.Len(t, got, 2, "both the negative index and the one past the end are reported")
 	assert.Equal(t, "ir/server-index-out-of-range", got[0].Code)
 	assert.Equal(t, "doc.Services[0].Servers[0]", got[0].Path)
@@ -34,7 +42,7 @@ func TestCheckIndices_ChannelServerIndexOutOfRange(t *testing.T) {
 	doc := docWithServers()
 	doc.Channels = map[ir.ChannelID]ir.Channel{"c/x": {ID: "c/x", Servers: []int{2}}}
 
-	got := checkIndices(doc)
+	got := indexViolations(doc)
 	require.Len(t, got, 1)
 	assert.Equal(t, "ir/server-index-out-of-range", got[0].Code)
 	assert.Contains(t, got[0].Message, "none of the 1 declared servers")
@@ -43,7 +51,7 @@ func TestCheckIndices_ChannelServerIndexOutOfRange(t *testing.T) {
 func TestCheckIndices_ServerIndexWithNoDeclaredServers(t *testing.T) {
 	doc := &ir.Document{Services: []ir.Service{{ID: "s/x", Servers: []int{0}}}}
 
-	got := checkIndices(doc)
+	got := indexViolations(doc)
 	require.Len(t, got, 1, "a document declaring no servers can satisfy no index")
 	assert.Contains(t, got[0].Message, "none of the 0 declared servers")
 }
@@ -53,7 +61,7 @@ func TestCheckIndices_ServerIndexInRangeIsClean(t *testing.T) {
 	doc.Services = []ir.Service{{ID: "s/x", Servers: []int{0}}}
 	doc.Channels = map[ir.ChannelID]ir.Channel{"c/x": {ID: "c/x", Servers: []int{0}}}
 
-	assert.Empty(t, checkIndices(doc))
+	assert.Empty(t, indexViolations(doc))
 }
 
 // docWithSuccessStatus wraps one operation declaring a single response and one
@@ -72,18 +80,18 @@ func docWithSuccessStatus(status map[int]int) *ir.Document {
 }
 
 func TestCheckIndices_ResponseIndexOutOfRange(t *testing.T) {
-	got := checkIndices(docWithSuccessStatus(map[int]int{-1: 200}))
+	got := indexViolations(docWithSuccessStatus(map[int]int{-1: 200}))
 	require.Len(t, got, 1)
 	assert.Equal(t, "ir/response-index-out-of-range", got[0].Code)
 	assert.Contains(t, got[0].Message, "none of the 1 declared responses")
 
-	got = checkIndices(docWithSuccessStatus(map[int]int{1: 202}))
+	got = indexViolations(docWithSuccessStatus(map[int]int{1: 202}))
 	require.Len(t, got, 1)
 	assert.Equal(t, "doc.Services[0].Groups[0].Operations[0].Bindings.HTTP[0].SuccessStatus[1]", got[0].Path)
 }
 
 func TestCheckIndices_ResponseIndexInRangeIsClean(t *testing.T) {
-	assert.Empty(t, checkIndices(docWithSuccessStatus(map[int]int{0: 200})))
+	assert.Empty(t, indexViolations(docWithSuccessStatus(map[int]int{0: 200})))
 }
 
 // TestVerify_ReportsOutOfRangeIndices pins that Verify runs the check, not just
@@ -152,9 +160,12 @@ func TestIndexCarrierFields_MatchTheIRShape(t *testing.T) {
 // type-driven walk can recognize and which therefore needs an explicit bounds
 // check — or a magnitude that addresses nothing. The distinction is invisible to
 // both checkers' reflection walks, so it is recorded here and this test fails
-// when the ir package grows an integer field that nobody has classified. That is
-// the drift guard the index checks need, in the same spirit as the one over
-// refKindByType.
+// when the ir package grows an integer field that nobody has classified.
+//
+// This is the last hand-written classification of a reference class either
+// checker keeps, and it stays hand-written because nothing can derive it: an
+// ID-keyed registry is recognizable from Document's own shape
+// (ir.DocumentRegistries), while an index is an int like any other.
 var integerFields = map[string]string{
 	"Service.Servers":           "index into Document.Servers; bounds-checked by checkIndices",
 	"Channel.Servers":           "index into Document.Servers; bounds-checked by checkIndices",
@@ -167,6 +178,11 @@ var integerFields = map[string]string{
 	// at all. Bounding it needs a rule for that case which ir-design does not
 	// state, so it is left out rather than guessed at.
 	"Discriminator.Index": "tuple element position; addresses no one slice, see comment",
+
+	// The ir package's own traversal machinery, which is not IR data at all: the
+	// scan reaches every integer field the package declares, and classifying one
+	// costs less than a filter that could hide a real index behind it.
+	"valueWalk.seen": "pointer identities the walk has already followed, not positions",
 
 	"Value.Bytes":           "byte-string payload, not a sequence of positions",
 	"TypeCommon.Usage":      "bitset of usage sites (UsageFlags), not a position",
@@ -251,15 +267,14 @@ func integerFieldsOf(t *testing.T, decls map[string]ast.Expr, ts *ast.TypeSpec) 
 // mentionsInteger reports whether a field's type expression is built from an
 // integer type, looking through pointers, slices, both halves of a map, and the
 // ir package's own declarations. Following declarations is what makes the guard
-// total, exactly as underlyingIsString does for the string guard
-// (refkinds_test.go): `type Ordinal int` is an integer field as much as a plain
-// int is, and matching only the builtin spelling would let a named index type
-// into the IR unclassified.
+// total: `type Ordinal int` is an integer field as much as a plain int is, and
+// matching only the builtin spelling would let a named index type into the IR
+// unclassified.
 //
 // A declaration whose underlying type comes from another package (a selector
-// such as json.RawMessage) is not followed, for the same reason the string guard
-// does not: resolving it needs go/types rather than a parse. The ir package
-// imports only encoding/json, and declares no integer type through it.
+// such as json.RawMessage) is not followed: resolving that needs go/types rather
+// than a parse. The ir package imports only the standard library, and declares
+// no integer type through any of it.
 //
 // depth bounds the walk through declarations (the bounded-recursion rule). Go
 // forbids a cycle among type declarations except through a pointer, slice or

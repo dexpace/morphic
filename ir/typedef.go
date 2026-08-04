@@ -1,5 +1,7 @@
 package ir
 
+import "reflect"
+
 // TypeKind names one variant of the sealed TypeDef sum (ir-design §4).
 type TypeKind string
 
@@ -36,6 +38,21 @@ type TypeDef interface {
 	typeDef() // sealed: only this package's types implement TypeDef
 	Kind() TypeKind
 	Common() *TypeCommon
+}
+
+// IsNilTypeDef reports whether td is a nil TypeDef — an untyped nil interface or
+// a typed nil pointer.
+//
+// A typed nil satisfies a type switch case and a comma-ok assertion alike, so
+// matching a kind is no evidence the value is safe to dereference;
+// [TypeDef.Kind] and [TypeDef.Common] both panic on one. Every walk over a type
+// registry screens entries through this before reading them.
+func IsNilTypeDef(td TypeDef) bool {
+	if td == nil {
+		return true
+	}
+	rv := reflect.ValueOf(td)
+	return rv.Kind() == reflect.Pointer && rv.IsNil()
 }
 
 // UsageFlags is a bitset recording how a type is used across the API surface. It

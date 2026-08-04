@@ -25,10 +25,12 @@ var (
 // compiler will write protocol bindings.
 //
 // Entries need no ordering first: each violation carries its key in Path, and
-// Verify orders the whole result by (Code, Path) before returning it.
-func checkRawPayloads(doc *ir.Document) []Violation {
+// Verify orders the whole result by (Code, Path) before returning it. The bool
+// reports whether the bounded walk was cut short; Verify folds that into the
+// document's one ir/walk-truncated violation.
+func checkRawPayloads(doc *ir.Document) ([]Violation, bool) {
 	var vs []Violation
-	walkValues(doc, func(v reflect.Value, path string) bool {
+	truncated := ir.WalkValues(doc, "doc", func(v reflect.Value, path string) bool {
 		if v.Kind() != reflect.Map {
 			return true
 		}
@@ -42,7 +44,7 @@ func checkRawPayloads(doc *ir.Document) []Violation {
 		}
 		return false // entries hold no references and no nested payload map
 	})
-	return vs
+	return vs, truncated
 }
 
 // appendEntries appends check's verdict on every entry of the payload map m to

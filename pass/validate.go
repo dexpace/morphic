@@ -43,12 +43,29 @@ func Validate(doc *ir.Document) []ir.Diagnostic {
 // SchemeUse.Scheme into doc.Auth — wherever it sits.
 //
 // The sites and the registries both come from reflection over the document's own
-// shape (refs.go) rather than a list of field names: referential integrity is the
-// guarantee an emitter relies on, and a hand-written enumeration drifts behind
-// the IR without anything failing.
+// shape (ir.WalkValues, ir.DocumentRegistries) rather than a list of field names:
+// referential integrity is the guarantee an emitter relies on, and a hand-written
+// enumeration drifts behind the IR without anything failing.
+//
+// What that leaves out is a category rather than a stray field. A reference
+// carried as an integer index is an int like any other: Service.Servers and
+// Channel.Servers into Document.Servers, and HTTPBinding.SuccessStatus's keys
+// into Operation.Responses, are enumerated by hand below; Provenance.Source into
+// Document.Sources is left to irverify, because a stale source index is a
+// compiler bug rather than a spec problem, and because this pass stamps
+// ir.NoSource on its own diagnostics, which the engine folds into
+// Document.Diagnostics — a document-wide check here would report its own previous
+// output. A new integer-index reference has to be added to those checks by hand
+// too; irverify's integerFields guard is what stops one being added unnoticed.
+// The other class the registries cannot resolve is ir.PropID, which names a
+// position inside a model: checkPropIDRefs resolves those against the properties
+// the same traversal saw.
 func checkDanglingRefs(doc *ir.Document) []ir.Diagnostic {
-	regs := documentRegistries(doc)
-	sites, truncated := collectRefs(doc, "doc", regs.isRef)
+	regs := ir.DocumentRegistries(doc)
+	sites, truncated := collectRefs(doc, "doc", func(t reflect.Type) bool {
+		_, isRegistry := regs[t]
+		return isRegistry
+	})
 	var diags []ir.Diagnostic
 	if truncated {
 		diags = append(diags, diag(ir.SeverityError, "ir/walk-truncated",
@@ -56,10 +73,14 @@ func checkDanglingRefs(doc *ir.Document) []ir.Diagnostic {
 			"doc"))
 	}
 	for _, s := range sites {
-		if regs.resolves(s) {
+		// A site whose class this document declares no registry for cannot
+		// resolve; the zero ir.Registry reports so rather than panicking, which
+		// keeps the pass report-only if a caller ever mixes in sites collected
+		// against another document.
+		if regs[s.idType].Has(s.id) {
 			continue
 		}
-		noun := refNoun(s.idType)
+		noun := ir.RefNoun(s.idType)
 		diags = append(diags, diag(ir.SeverityError, "ir/dangling-"+noun+"-ref",
 			fmt.Sprintf("%s reference %q at %s resolves to no %s in the registry", noun, s.id, s.where, noun),
 			s.where))
@@ -268,7 +289,7 @@ func exposedProps(doc *ir.Document, root ir.TypeID) map[ir.PropID]bool {
 		}
 		seen[id] = true
 		td := doc.Types[id]
-		if isNilTypeDef(td) {
+		if ir.IsNilTypeDef(td) {
 			continue // undeclared, or the typed nil checkNilTypes reports
 		}
 		queue = appendPartSources(queue, props, td)
@@ -312,18 +333,6 @@ func appendCompositionParents(dst []ir.TypeID, m *ir.Model) []ir.TypeID {
 	return dst
 }
 
-// isNilTypeDef reports whether td is a nil TypeDef — an untyped nil interface or
-// a typed nil pointer. A typed nil satisfies a type switch case, so matching a
-// kind says nothing about whether the value is safe to dereference; every walk
-// over doc.Types screens entries through this first.
-func isNilTypeDef(td ir.TypeDef) bool {
-	if td == nil {
-		return true
-	}
-	rv := reflect.ValueOf(td)
-	return rv.Kind() == reflect.Pointer && rv.IsNil()
-}
-
 // liveTypeIDs returns the registry's type IDs in sorted order, omitting entries
 // that hold a nil type definition.
 //
@@ -336,7 +345,7 @@ func liveTypeIDs(doc *ir.Document) []ir.TypeID {
 	ids := sortedKeys(doc.Types)
 	live := make([]ir.TypeID, 0, len(ids))
 	for _, id := range ids {
-		if !isNilTypeDef(doc.Types[id]) {
+		if !ir.IsNilTypeDef(doc.Types[id]) {
 			live = append(live, id)
 		}
 	}
@@ -352,7 +361,7 @@ func liveTypeIDs(doc *ir.Document) []ir.TypeID {
 func checkNilTypes(doc *ir.Document) []ir.Diagnostic {
 	var diags []ir.Diagnostic
 	for _, id := range sortedKeys(doc.Types) {
-		if !isNilTypeDef(doc.Types[id]) {
+		if !ir.IsNilTypeDef(doc.Types[id]) {
 			continue
 		}
 		diags = append(diags, diag(ir.SeverityError, "ir/nil-type",

@@ -51,3 +51,16 @@ func TestTypeDef_ConcreteTypesImplementInterface(t *testing.T) {
 		assert.Contains(t, allKinds, td.Kind())
 	}
 }
+
+// TestIsNilTypeDef_ScreensBothSpellingsOfNil holds the screen every walk over a
+// type registry runs entries through. The typed nil is the one that matters: it
+// satisfies a type switch case and a comma-ok assertion alike, so a check that
+// matched a kind and read the value would panic on it rather than report it.
+func TestIsNilTypeDef_ScreensBothSpellingsOfNil(t *testing.T) {
+	t.Parallel()
+	assert.True(t, ir.IsNilTypeDef(nil), "an untyped nil interface holds no definition")
+	assert.True(t, ir.IsNilTypeDef((*ir.Model)(nil)), "a typed nil pointer holds none either")
+	for _, td := range allConcreteTypeDefs {
+		assert.False(t, ir.IsNilTypeDef(td), "%T is a live definition", td)
+	}
+}
