@@ -27,3 +27,15 @@ components:
           format: date
           default: 2021-01-01
           example: 2021-01-01
+    # Every site above rides the Value channel. A construct kept verbatim as raw
+    # JSON is a second channel with the same requirement, and it is the one that
+    # had no corpus case — which is how it went on rewriting a date to RFC 3339
+    # while the fixture named for dates stayed green. The single-digit spelling
+    # is the point: 2021-1-1 must stay 2021-1-1 rather than acquire the padding,
+    # the time and the zone the source never wrote.
+    R:
+      type: object
+      x-effective: 2021-1-1
+      x-window: {from: 2021-1-1, to: 2022-2-2}
+      not:
+        const: 2021-1-1

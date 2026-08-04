@@ -110,15 +110,10 @@ func (c *rawConv) node(n *yaml.Node, depth int) (json.RawMessage, error) {
 // parser never hands one over — it resolves every scalar it emits, and writes
 // the short form even for a spelled-out `!<tag:yaml.org,2002:int>` — but a
 // caller assembling nodes can, and reading n.Tag would spell such a scalar as a
-// string. A tag yaml.v3 assigns no type to keeps its text rather than being
-// refused, which is also what that Decode did.
+// string.
 //
-// What changed is the numeric arms, which now read the source text (GitHub #32).
-// Every other arm still renders the way that Decode would have, so a timestamp
-// still normalizes to RFC 3339 and a !!binary still carries its decoded bytes
-// rather than its base64 spelling. Those two are lossy against the source and
-// deliberately left that way: they are a different mechanism from the float64
-// rounding, and moving them belongs with its own reasoning (GitHub #242).
+// A tag yaml.v3 assigns no type to keeps its text rather than being refused,
+// which is also what that Decode did.
 func (c *rawConv) scalar(n *yaml.Node) (json.RawMessage, error) {
 	switch n.ShortTag() {
 	case "!!null":
@@ -153,24 +148,27 @@ func (c *rawConv) scalar(n *yaml.Node) (json.RawMessage, error) {
 		return json.RawMessage(num), nil
 	case "!!str":
 		return jsonString(n.Value), nil
-	case "!!timestamp":
-		var t time.Time
-		if err := n.Decode(&t); err != nil {
-			return nil, fmt.Errorf("timestamp literal %q: %w", n.Value, err)
-		}
-		// The spelling time.Time's own MarshalJSON produces. It is reproduced
-		// rather than called because that method reports an error for a year
-		// outside [0,9999], which YAML's timestamp resolution cannot produce —
-		// an unreachable branch is worse than an explicit format.
-		return jsonString(t.Format(time.RFC3339Nano)), nil
-	case "!!binary":
-		// yaml.v3 base64-decodes a !!binary node into a string (it rejects a
-		// []byte target), so decode to string and carry the bytes from there.
-		var raw string
-		if err := n.Decode(&raw); err != nil {
-			return nil, fmt.Errorf("binary literal: %w", err)
-		}
-		return jsonString(raw), nil
+	case "!!timestamp", "!!binary":
+		// The two tags YAML gives a type and JSON does not. Both keep the text
+		// the source wrote, because the resolved form is derivable from the
+		// spelling and the spelling is not derivable from the resolved form
+		// (GitHub #242).
+		//
+		// Rendering the resolved form instead lost data both ways: a timestamp
+		// came back RFC 3339, so `2021-1-1` acquired a padding, a time and a
+		// zone the source never wrote, and a !!binary came back as its decoded
+		// bytes, so `/w==` — the byte 0xFF — reached the IR as the U+FFFD
+		// encoding/json substitutes for it, indistinguishable from a source
+		// that wrote U+FFFD itself.
+		//
+		// The decode stays, and stays the tag check it has always been: a
+		// scalar that does not satisfy the type it declares is refused exactly
+		// as before, so only the kept spelling moved. Whether such a scalar
+		// should instead survive as text — JSON can name it, and refusing costs
+		// the caller the whole construct — is a question about what this walk
+		// accepts rather than what it preserves, and is open as GitHub #245
+		// rather than settled as a side effect here.
+		return c.verbatimTagged(n)
 	default:
 		// A tag yaml.v3 cannot resolve carries no type it could decode to, so
 		// its scalar comes back as the text it was written with — the behaviour
@@ -178,6 +176,34 @@ func (c *rawConv) scalar(n *yaml.Node) (json.RawMessage, error) {
 		// `!acme/thing` extension value the source did write.
 		return jsonString(n.Value), nil
 	}
+}
+
+// verbatimTagged renders a scalar whose tag YAML resolves and JSON cannot name.
+// Each arm only checks the tag, by the decode that used to supply the output,
+// and the one return states the rule they share: what is kept is the source
+// text. The two decode to different Go types and report differently — a
+// timestamp names the offending text, a binary payload deliberately does not.
+func (c *rawConv) verbatimTagged(n *yaml.Node) (json.RawMessage, error) {
+	switch tag := n.ShortTag(); tag {
+	case "!!timestamp":
+		var when time.Time
+		if err := n.Decode(&when); err != nil {
+			return nil, fmt.Errorf("timestamp literal %q: %w", n.Value, err)
+		}
+	case "!!binary":
+		// yaml.v3 base64-decodes a !!binary node into a string (it rejects a
+		// []byte target), so the check decodes to string.
+		var decoded string
+		if err := n.Decode(&decoded); err != nil {
+			return nil, fmt.Errorf("binary literal: %w", err)
+		}
+	default:
+		// Unreachable through scalar, which routes only the two tags above
+		// here. It stays so a third tag added to that arm is answered rather
+		// than silently read as base64.
+		return nil, fmt.Errorf("scalar tag %q is not kept verbatim", tag)
+	}
+	return jsonString(n.Value), nil
 }
 
 // sequence renders a YAML sequence as a JSON array, in source order.

@@ -162,6 +162,55 @@
         "object": null
       }
     },
+    "t/openapi/components/schemas/R": {
+      "kind": "model",
+      "id": "t/openapi/components/schemas/R",
+      "name": {
+        "source": "R",
+        "canonical": "r"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "unmodeled": {
+        "openapi:not": {
+          "reason": "validation_only",
+          "value": {
+            "const": "2021-1-1"
+          },
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/R/not"
+          }
+        },
+        "openapi:x-effective": {
+          "reason": "vendor_extension",
+          "value": "2021-1-1",
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/R/x-effective"
+          }
+        },
+        "openapi:x-window": {
+          "reason": "vendor_extension",
+          "value": {
+            "from": "2021-1-1",
+            "to": "2022-2-2"
+          },
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/R/x-window"
+          }
+        }
+      },
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/R"
+      },
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
     "t/openapi/components/schemas/S": {
       "kind": "model",
       "id": "t/openapi/components/schemas/S",
@@ -248,11 +297,22 @@
       "auth": null
     }
   ],
+  "diagnostics": [
+    {
+      "severity": "info",
+      "code": "openapi/validation-only-keyword",
+      "message": "validation-only keyword \"not\" kept verbatim under Unmodeled",
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/R"
+      }
+    }
+  ],
   "sources": [
     {
       "format": "openapi@3.1",
       "path": "yaml-timestamp-scalars.yaml",
-      "hash": "e649b990382693ae848f9f4187ad9fa5889606d9aeaea03a9e3713144e4d2d17"
+      "hash": "b68b751a3b3278260b857b08d920d07d9e9ba0fe7c832e0db92b50ddb3db9bcf"
     }
   ]
 }

@@ -13,9 +13,9 @@ import (
 
 // decodeAndMarshal is the conversion RawFromNode used before GitHub #32: decode
 // the node into Go's JSON model, then re-marshal it. It is kept here as the
-// differential oracle for TestRawFromNode_DiffersFromTheOldDecodeOnlyInNumbers,
-// which is the only claim about it worth making — that everything except number
-// spelling came through it unchanged.
+// differential oracle for TestRawFromNode_DiffersFromTheOldDecodeOnlyWhereRecorded,
+// which is the only claim about it worth making — that everything came through
+// it unchanged except number spelling and the rows rawDivergences names.
 func decodeAndMarshal(node *yaml.Node) (json.RawMessage, error) {
 	var v any
 	if err := node.Decode(&v); err != nil {
@@ -25,8 +25,9 @@ func decodeAndMarshal(node *yaml.Node) (json.RawMessage, error) {
 }
 
 // throughFloat64 re-encodes raw JSON through Go's JSON model, which rounds every
-// number to float64 — the one transformation the old conversion applied that the
-// new walk does not.
+// number to float64 — the only transformation the old conversion applied that
+// the new walk does not, on a row rawDivergences does not name. A divergence is
+// compared unnormalized instead, since that spelling is what it pins.
 //
 // Both sides of the comparison go through it, not just the new output: the trip
 // also canonicalizes how an escape is spelled (a "\ufffd" escape comes back as
@@ -114,10 +115,21 @@ func TestRawFromNode_RendersEveryScalarTag(t *testing.T) {
 		{"quoted number stays a string", `"123"`, `"123"`},
 		{"empty string", `""`, `""`},
 		{"HTML is escaped, as encoding/json does it", `"a<b>&c"`, `"a\u003cb\u003e\u0026c"`},
-		{"date normalizes to RFC 3339", "2021-1-1", `"2021-01-01T00:00:00Z"`},
-		{"datetime keeps its nanoseconds", "2021-01-01T10:20:30.5Z", `"2021-01-01T10:20:30.5Z"`},
-		{"binary carries decoded bytes", `!!binary aGVsbG8=`, `"hello"`},
 		{"out-of-float64-range plain scalar stays a string", "1e400", `"1e400"`},
+		// A tag YAML has a type for and JSON does not keeps the source text
+		// (GitHub #242). The resolved form is derivable from the spelling; the
+		// spelling is not derivable from the resolved form.
+		{"date keeps its source spelling", "2021-1-1", `"2021-1-1"`},
+		{"date keeps its padding", "2021-01-01", `"2021-01-01"`},
+		{"datetime keeps its space separator", "2021-01-01 10:20:30", `"2021-01-01 10:20:30"`},
+		{"datetime keeps its zone as written", "2021-01-01T10:20:30+05:00", `"2021-01-01T10:20:30+05:00"`},
+		{"explicitly tagged date keeps its spelling", "!!timestamp 2021-1-1", `"2021-1-1"`},
+		{"binary keeps its base64 text", `!!binary aGVsbG8=`, `"aGVsbG8="`},
+		{"binary keeps a byte no UTF-8 can name", `!!binary /w==`, `"/w=="`},
+		// base64.StdEncoding skips newlines, so YAML's own block spelling of a
+		// !!binary decodes; what it kept was the decoded form, and what it
+		// keeps now is the wrapped text the source wrote.
+		{"block-form binary keeps its line breaks", "!!binary |\n  aGVs\n  bG8=\n", `"aGVs\nbG8=\n"`},
 		// yaml.v3 resolves no type for these, so the scalar keeps the text it
 		// was written with rather than being dropped for want of a tag.
 		{"unresolvable double-bang tag", "!!python/object x", `"x"`},
@@ -189,6 +201,9 @@ func TestRawFromNode_RefusesWhatJSONCannotName(t *testing.T) {
 		{"merge from an alias to a scalar", "a: &n 1\nb: {<<: *n}", "map merge requires"},
 		{"non-string key inside a merged mapping", "{<<: [{1: v}]}", "not a string"},
 		{"boolean tag on a non-boolean", "!!bool notabool", "bool literal"},
+		// The tag check outlives the decode that used to supply the output: a
+		// scalar that does not satisfy the type it declares is still refused,
+		// so preserving the source spelling widened nothing (GitHub #242).
 		{"timestamp tag on a non-date", "!!timestamp notadate", "timestamp literal"},
 		{"binary tag on non-base64", `!!binary "###"`, "binary literal"},
 		{"float tag on a binary-exponent literal", "!!float 1p4", "which is not JSON"},
@@ -303,40 +318,75 @@ func TestRawFromNode_WalksThroughADocumentNode(t *testing.T) {
 	assert.JSONEq(t, `{"a":1}`, string(got))
 }
 
-// TestRawFromNode_DiffersFromTheOldDecodeOnlyInNumbers is the equivalence
+// rawDivergences is the closed list of inputs on which the walk deliberately
+// disagrees with the decode it replaced, beyond how a number is spelled. Each
+// row is a scalar YAML gives a type and JSON does not, kept as the text the
+// source wrote rather than as the resolved form (GitHub #242).
+//
+// Both spellings are pinned. The new one is the preservation the change exists
+// for; the old one is what keeps the row honest — without it a divergence that
+// quietly stopped being one would leave this entry asserting nothing, which is
+// the same hole as excluding the row outright.
+var rawDivergences = map[string]struct{ old, want string }{
+	"2021-1-1":            {`"2021-01-01T00:00:00Z"`, `"2021-1-1"`},
+	"2021-01-01 10:20:30": {`"2021-01-01T10:20:30Z"`, `"2021-01-01 10:20:30"`},
+	`!!binary aGVsbG8=`:   {`"hello"`, `"aGVsbG8="`},
+	// The old spelling is the escape encoding/json writes for a byte no UTF-8
+	// can name, which is the loss itself: 0xFF and a source that really wrote
+	// U+FFFD both reached the IR as this, with nothing to tell them apart.
+	`!!binary /w==`: {"\"\\ufffd\"", `"/w=="`},
+	// A block !!binary decodes to the same bytes as the flow one above, so the
+	// old spelling is identical while the source text is not.
+	"!!binary |\n  aGVs\n  bG8=\n": {`"hello"`, `"aGVs\nbG8=\n"`},
+}
+
+// rawEquivalenceCorpus is the input set both differential tests below read.
+var rawEquivalenceCorpus = []string{
+	"1", "1.5", "-2", "0", "0.0", "1e10", "1.10", "0o17", "0x1f", "1_000",
+	"12345678901234567890123", "1.000000000000000000001", "-9223372036854775809",
+	"null", "true", "false", "hello", `"123"`, `""`, "1e400", `"a<b>&c"`,
+	"2021-1-1", "2021-01-01T10:20:30.5Z", `!!binary aGVsbG8=`, `!!binary /w==`,
+	// Two timestamp spellings the old decode already reproduced exactly, so
+	// they are equivalence rows rather than divergences. They are here to keep
+	// rawDivergences tight: it must list what actually diverges, not every
+	// input that carries a tag JSON has no type for.
+	"2021-01-01T10:20:30+05:00", "2021-01-01 10:20:30",
+	"{}", "[]", "[1, 2, 3]", "{z: 1, a: 2, m: 3}", "{a: {b: {c: 1}}}",
+	"[[1], [2, [3]]]", "{a: [1, {b: 2}], c: null}",
+	"{<<: {p: 1}, q: 2}", "{<<: {p: 1}, p: 2}", "{<<: [{p: 1}, {p: 2}]}",
+	"a: &m {p: 1}\nb: {<<: *m, q: 2}", "a: &n 5\nb: *n", "a: &s [1, 2]\nb: *s",
+	"{k: [{n: 12345678901234567890123}, 1.10]}",
+	"{unicode: \"héllo→\"}", "{empty_map: {}, empty_seq: []}",
+	// Shapes where the walk had to reproduce a yaml.v3 rule rather than a
+	// JSON one. Each of these was a live regression until the rule was found.
+	"a: &k mykey\nb: {*k: v}", "!!python/object x", "!foo bar", "!!set x",
+	"!<tag:yaml.org,2002:int> 5", `!!int "5"`, `!!str 123`,
+	"{<<: {}}", "{<<: [{}]}", "a: &m {p: 1}\nb: {<<: [*m, {q: 2}]}",
+	"{a: yes, b: no, c: on, d: off}", "{a: 1:30, b: 12:34:56}",
+	"|\n  line1\n  line2", ">\n  folded text", "a: &s {x: 1}\nb: *s\nc: *s",
+	`{"": 1}`, `{"a\nb": 1}`, "{a: }", "{a: null, b: ~}",
+	// Refused by the old conversion, preserved by the walk. They carry no
+	// equality claim, and are here so the asymmetry is visible in a -v run
+	// rather than asserted in a comment.
+	"!!int 12345678901234567890123", "!!float 1e400",
+	// YAML's block spelling of a !!binary: base64.StdEncoding skips the line
+	// breaks, so the old decode accepted it and this is a divergence in what
+	// is kept rather than in what is accepted.
+	"!!binary |\n  aGVs\n  bG8=\n",
+}
+
+// TestRawFromNode_DiffersFromTheOldDecodeOnlyWhereRecorded is the equivalence
 // oracle for the rewrite. Reading the two implementations cannot show they
 // agree; rounding the new output through float64 and demanding the old output
-// back can, because that is the only transformation the old one applied.
+// back can, because rounding is the only transformation the old one applied to
+// a row rawDivergences does not name.
 //
 // A row the old conversion refused carries no claim — the new walk is allowed
-// to be strictly more capable, and on `!!int 12345678901234567890123` it is.
-func TestRawFromNode_DiffersFromTheOldDecodeOnlyInNumbers(t *testing.T) {
+// to be strictly more capable, and on `!!int 12345678901234567890123` and on a
+// block-form `!!binary` it is.
+func TestRawFromNode_DiffersFromTheOldDecodeOnlyWhereRecorded(t *testing.T) {
 	t.Parallel()
-	corpus := []string{
-		"1", "1.5", "-2", "0", "0.0", "1e10", "1.10", "0o17", "0x1f", "1_000",
-		"12345678901234567890123", "1.000000000000000000001", "-9223372036854775809",
-		"null", "true", "false", "hello", `"123"`, `""`, "1e400", `"a<b>&c"`,
-		"2021-1-1", "2021-01-01T10:20:30.5Z", `!!binary aGVsbG8=`, `!!binary /w==`,
-		"{}", "[]", "[1, 2, 3]", "{z: 1, a: 2, m: 3}", "{a: {b: {c: 1}}}",
-		"[[1], [2, [3]]]", "{a: [1, {b: 2}], c: null}",
-		"{<<: {p: 1}, q: 2}", "{<<: {p: 1}, p: 2}", "{<<: [{p: 1}, {p: 2}]}",
-		"a: &m {p: 1}\nb: {<<: *m, q: 2}", "a: &n 5\nb: *n", "a: &s [1, 2]\nb: *s",
-		"{k: [{n: 12345678901234567890123}, 1.10]}",
-		"{unicode: \"héllo→\"}", "{empty_map: {}, empty_seq: []}",
-		// Shapes where the walk had to reproduce a yaml.v3 rule rather than a
-		// JSON one. Each of these was a live regression until the rule was found.
-		"a: &k mykey\nb: {*k: v}", "!!python/object x", "!foo bar", "!!set x",
-		"!<tag:yaml.org,2002:int> 5", `!!int "5"`, `!!str 123`,
-		"{<<: {}}", "{<<: [{}]}", "a: &m {p: 1}\nb: {<<: [*m, {q: 2}]}",
-		"{a: yes, b: no, c: on, d: off}", "{a: 1:30, b: 12:34:56}",
-		"|\n  line1\n  line2", ">\n  folded text", "a: &s {x: 1}\nb: *s\nc: *s",
-		`{"": 1}`, `{"a\nb": 1}`, "{a: }", "{a: null, b: ~}",
-		// Refused by the old conversion, preserved by the walk. They carry no
-		// equality claim, and are here so the asymmetry is visible in a -v run
-		// rather than asserted in a comment.
-		"!!int 12345678901234567890123", "!!float 1e400",
-	}
-	for _, src := range corpus {
+	for _, src := range rawEquivalenceCorpus {
 		t.Run(src, func(t *testing.T) {
 			t.Parallel()
 			node := yamlNode(t, src)
@@ -344,13 +394,33 @@ func TestRawFromNode_DiffersFromTheOldDecodeOnlyInNumbers(t *testing.T) {
 			want, oldErr := decodeAndMarshal(node)
 			got, newErr := RawFromNode(node)
 
+			if recorded, diverges := rawDivergences[src]; diverges {
+				require.NoError(t, oldErr, "a recorded divergence must be a row the old conversion accepted")
+				require.NoError(t, newErr)
+				assert.Equal(t, recorded.old, string(want),
+					"the old spelling, pinned so the row cannot stop being a divergence unnoticed")
+				assert.Equal(t, recorded.want, string(got), "the source text the walk preserves instead")
+				return
+			}
 			if oldErr != nil {
 				t.Skipf("the old conversion refused this input (%v); the new walk owes it nothing", oldErr)
 			}
 			require.NoError(t, newErr, "the old conversion accepted this input")
 			assert.Equal(t, throughFloat64(t, want), throughFloat64(t, got),
-				"the walk must differ from the decode it replaced only in how a number is spelled")
+				"the walk must differ from the decode it replaced only in how a number is spelled, "+
+					"or in a way rawDivergences records")
 		})
+	}
+}
+
+// TestRawDivergences_NamesOnlyCorpusRows keeps the two halves tied together. A
+// divergence naming an input the corpus does not hold is never evaluated, so it
+// would sit there reading as coverage while asserting nothing at all.
+func TestRawDivergences_NamesOnlyCorpusRows(t *testing.T) {
+	t.Parallel()
+	for src := range rawDivergences {
+		assert.Contains(t, rawEquivalenceCorpus, src,
+			"a recorded divergence the corpus never feeds through is dead weight")
 	}
 }
 
@@ -388,6 +458,14 @@ func TestRawConv_RefusesNodesNoCallerShouldPass(t *testing.T) {
 	err = c.mappingInto(map[string]json.RawMessage{}, yamlNode(t, "[1]"), 0)
 	require.Error(t, err, "filling a mapping from a sequence is a caller bug")
 	assert.Contains(t, err.Error(), "expected a mapping")
+
+	// scalar routes only !!timestamp and !!binary into verbatimTagged, so no
+	// input reaches this arm. It answers rather than falling through to the
+	// base64 check, which is what a third tag added to that case would hit.
+	got, err = c.verbatimTagged(yamlNode(t, "plain"))
+	require.Error(t, err, "a tag scalar does not route here is a caller bug")
+	assert.Nil(t, got)
+	assert.Contains(t, err.Error(), `scalar tag "!!str" is not kept verbatim`)
 }
 
 // TestRawFromNode_BoundsAMergeChainThatNeverRevisitsANode proves the bound on
