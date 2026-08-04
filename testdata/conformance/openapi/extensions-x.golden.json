@@ -91,12 +91,36 @@
       "docs": {},
       "sensitive": false,
       "unmodeled": {
+        "openapi:x-blob": {
+          "reason": "vendor_extension",
+          "value": "aGVsbG8=",
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/S/x-blob"
+          }
+        },
         "openapi:x-rate-limit": {
           "reason": "vendor_extension",
           "value": 100,
           "provenance": {
             "source": 0,
             "pointer": "/components/schemas/S/x-rate-limit"
+          }
+        },
+        "openapi:x-raw": {
+          "reason": "vendor_extension",
+          "value": "/w==",
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/S/x-raw"
+          }
+        },
+        "openapi:x-wrapped": {
+          "reason": "vendor_extension",
+          "value": "aGVs\nbG8=\n",
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/S/x-wrapped"
           }
         }
       },
@@ -172,7 +196,7 @@
     {
       "format": "openapi@3.1",
       "path": "extensions-x.yaml",
-      "hash": "3ee41a0e3e10e8b30944e1582b149ac0ab178a4c9dcf78cacc911f48d43d886f"
+      "hash": "bdd4e78c821cd4ff1e418d0036d0f44c67120aa29ecd201a8d9a2cbc5a825ae9"
     }
   ]
 }

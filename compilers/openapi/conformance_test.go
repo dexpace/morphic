@@ -854,10 +854,22 @@ func assertNonScalarDefaults(t *testing.T, m *ir.Model) {
 // assertYAMLTimestampScalars covers a YAML 1.1 quirk: an unquoted date like
 // 2021-01-01 resolves to tag !!timestamp, not !!str. It must survive as the
 // literal string everywhere OpenAPI's JSON data model can carry one — enum,
-// const, a property default, a schema-level example, and a media-type
-// example — with nothing dropped or degraded to null.
+// const, a property default, a schema-level example, and a media-type example —
+// with nothing dropped or degraded to null.
+//
+// "Everywhere" spans both channels a date can land in. It used to mean only the
+// ir.Value one, and the raw-JSON one went on rewriting a date to RFC 3339 with
+// this fixture green (GitHub #242); assertRawPreservedDates is the other half.
 func assertYAMLTimestampScalars(t *testing.T, doc *ir.Document, diags []ir.Diagnostic) {
-	assert.Empty(t, diags, "every unquoted date converts cleanly; nothing is dropped or degraded")
+	// R's `not` announces the §4.7 carve-out, and that notice is the only thing
+	// any site here is allowed to say: a date that was dropped or degraded
+	// reports itself as a warning, which is what this fixture exists to catch.
+	for _, d := range diags {
+		assert.Equal(t, ir.SeverityInfo, d.Severity,
+			"every unquoted date converts cleanly; nothing is dropped or degraded: %+v", d)
+		assert.Equal(t, "openapi/validation-only-keyword", d.Code,
+			"the §4.7 carve-out is the only notice this fixture expects: %+v", d)
+	}
 
 	d, ok := doc.Types[namedID("D")].(*ir.Enum)
 	require.True(t, ok, "D stays a closed Enum of the real dates, not a union of null literals")
@@ -888,6 +900,31 @@ func assertYAMLTimestampScalars(t *testing.T, doc *ir.Document, diags []ir.Diagn
 	require.Len(t, mediaExamples, 1, "the media-type example is preserved")
 	require.NotNil(t, mediaExamples[0].Value)
 	assert.Equal(t, ir.Value{Kind: ir.ValueString, Str: "2021-01-01"}, *mediaExamples[0].Value)
+
+	assertRawPreservedDates(t, doc)
+}
+
+// assertRawPreservedDates pins the source spelling of a date kept as raw JSON,
+// at both sites that channel has: a vendor extension and the §4.7
+// validation-only carve-out. Each wants the text the source wrote — resolving
+// the tag and re-rendering it hands the construct a padding, a time and a zone
+// nobody asked for, and the resolved form cannot be read back to the spelling.
+func assertRawPreservedDates(t *testing.T, doc *ir.Document) {
+	t.Helper()
+	r, ok := doc.Types[namedID("R")].(*ir.Model)
+	require.True(t, ok)
+	kept := r.Unmodeled
+
+	for _, tc := range []struct{ key, want string }{
+		{"openapi:x-effective", `"2021-1-1"`},
+		{"openapi:x-window", `{"from":"2021-1-1","to":"2022-2-2"}`},
+		{"openapi:not", `{"const":"2021-1-1"}`},
+	} {
+		entry, found := kept[tc.key]
+		require.True(t, found, "%s is preserved; got %v", tc.key, kept)
+		assert.Equal(t, tc.want, string(entry.Value),
+			"%s keeps the date as written, not as RFC 3339 spells it", tc.key)
+	}
 }
 
 func assertConstraints(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
@@ -1672,6 +1709,30 @@ func assertExtensionsX(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
 	require.True(t, ok, "an operation extension lands on the operation; got %v", op.Unmodeled)
 	assert.Equal(t, ir.ReasonVendorExtension, entry.Reason)
 	assert.JSONEq(t, `true`, string(entry.Value))
+
+	assertRawPreservedBinary(t, m)
+}
+
+// assertRawPreservedBinary pins what a !!binary extension keeps: the base64 the
+// source wrote. Decoding it and storing the bytes in a JSON string lost the
+// spelling on every value and lost the data itself on any byte that is not
+// valid UTF-8, since encoding/json rewrites those to U+FFFD (GitHub #242).
+//
+// The block-form row carries the line breaks with it, because they are part of
+// what the source wrote; base64.StdEncoding skips them, so a consumer resolving
+// the tag reads the same bytes the decode used to store.
+func assertRawPreservedBinary(t *testing.T, m *ir.Model) {
+	t.Helper()
+	for _, tc := range []struct{ key, want string }{
+		{"openapi:x-blob", `"aGVsbG8="`},
+		{"openapi:x-raw", `"/w=="`},
+		{"openapi:x-wrapped", `"aGVs\nbG8=\n"`},
+	} {
+		entry, found := m.Unmodeled[tc.key]
+		require.True(t, found, "%s is preserved; got %v", tc.key, m.Unmodeled)
+		assert.Equal(t, tc.want, string(entry.Value),
+			"%s keeps its base64 text, not the bytes it names", tc.key)
+	}
 }
 
 // assertInlineAnnotations covers the positions with no ir.Property or

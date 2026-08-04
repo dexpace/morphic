@@ -67,10 +67,13 @@ type UnmodeledEntry struct {
 	// where JSON and YAML disagree about how to write one — .5 becomes 0.5,
 	// 0o17 becomes 15 — while every significant digit stays (GitHub #32).
 	//
-	// Two scalars YAML gives a type and JSON does not are still rewritten: a
-	// timestamp normalizes to RFC 3339, and a !!binary carries its decoded bytes
-	// rather than its base64 text, which costs ill-formed UTF-8 its identity to
-	// U+FFFD (GitHub #242).
+	// A scalar the source format gives a type to and JSON does not is kept as
+	// the text the source wrote, as a JSON string: a YAML timestamp stays
+	// `2021-1-1` rather than becoming the RFC 3339 instant it resolves to, and
+	// a `!!binary` keeps its base64 spelling rather than the bytes it names
+	// (GitHub #242). Reading one means resolving it the way its source format
+	// would; what this field promises is that the text is still there to
+	// resolve, which the resolved form would not have been.
 	Value RawValue `json:"value"`
 	// Provenance locates the construct itself, which the owning node's own
 	// provenance cannot: a validation emitter reporting on a `not` must point at

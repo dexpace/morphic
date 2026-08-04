@@ -14,5 +14,15 @@ components:
     S:
       type: object
       x-rate-limit: 100
+      # A !!binary keeps the base64 the source wrote, not the bytes it names:
+      # decoded bytes in a JSON string lose the spelling, and lose the data
+      # outright when they are not valid UTF-8 — "/w==" is the byte 0xFF, which
+      # encoding/json rewrites to U+FFFD. The block form is how YAML's own spec
+      # writes a !!binary, and its line breaks are part of the spelling.
+      x-blob: !!binary "aGVsbG8="
+      x-raw: !!binary "/w=="
+      x-wrapped: !!binary |
+        aGVs
+        bG8=
       properties:
         a: {type: string}
