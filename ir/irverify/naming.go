@@ -23,7 +23,7 @@ var namingType = reflect.TypeFor[ir.Naming]()
 // every golden, which is a different change from tightening this checker.
 func checkNaming(doc *ir.Document) ([]Violation, bool) {
 	var vs []Violation
-	truncated := ir.WalkValues(doc, "doc", func(v reflect.Value, path string) bool {
+	truncated := ir.WalkValues(doc, ir.DocumentPath, func(v reflect.Value, path string) bool {
 		if v.Kind() != reflect.Struct || v.Type() != namingType {
 			return true
 		}

@@ -20,10 +20,19 @@ const MaxWalkDepth = 4096
 // them apart.
 const MapKeySuffix = ".key"
 
+// DocumentPath is the path a walk rooted at a whole [Document] starts from, and
+// so the first segment of every location such a walk reports. It is a constant
+// rather than each caller's own string literal for the reason the rest of the
+// path grammar is one walk: two checkers reporting one defect can only be
+// deduped by a caller running both if the defect reads as one location.
+const DocumentPath = "doc"
+
 // WalkValues performs a bounded, cycle-guarded reflection traversal of root,
 // calling visit on every value it reaches together with the path it was reached
 // by; returning false from visit skips that value's children. It reports
-// whether the depth cap cut the walk short.
+// whether the depth cap cut the walk short. visit is required, and path is the
+// segment every reported location is rooted at — [DocumentPath] for a walk over
+// a whole document.
 //
 // Deriving what a document holds from the value graph instead of naming fields
 // is what makes a check built on it complete: a field added to the IR is covered
@@ -35,9 +44,7 @@ const MapKeySuffix = ".key"
 // Paths spell fields joined by ".", slice indices and map keys in brackets, and
 // an embedded field contributes no segment of its own: JSON inlines it and Go
 // promotes its fields, so "….TypeCommon.Examples[0]" names a step neither
-// encoding has — the example is reached as "….Examples[0]" in both. Both
-// checkers report a dangling reference under one code, and a caller running both
-// can only dedupe them if one defect reads as one location.
+// encoding has — the example is reached as "….Examples[0]" in both.
 //
 // A value reached through an unexported field is read-only, and Interface()
 // panics on one where FieldByName does not, so a visitor reads the fields it

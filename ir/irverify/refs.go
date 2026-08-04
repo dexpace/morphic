@@ -21,7 +21,7 @@ type refSite struct {
 // a registry that must resolve.
 func collectRefs(doc *ir.Document, regs ir.Registries) ([]refSite, bool) {
 	var sites []refSite
-	truncated := ir.WalkValues(doc, "doc", func(v reflect.Value, path string) bool {
+	truncated := ir.WalkValues(doc, ir.DocumentPath, func(v reflect.Value, path string) bool {
 		if v.Kind() != reflect.String || v.String() == "" {
 			return true
 		}

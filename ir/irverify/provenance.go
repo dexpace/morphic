@@ -22,7 +22,7 @@ var provenanceType = reflect.TypeFor[ir.Provenance]()
 func checkProvenance(doc *ir.Document) ([]Violation, bool) {
 	var vs []Violation
 	declared := len(doc.Sources)
-	truncated := ir.WalkValues(doc, "doc", func(v reflect.Value, path string) bool {
+	truncated := ir.WalkValues(doc, ir.DocumentPath, func(v reflect.Value, path string) bool {
 		if v.Kind() != reflect.Struct || v.Type() != provenanceType {
 			return true
 		}

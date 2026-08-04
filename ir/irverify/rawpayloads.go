@@ -30,7 +30,7 @@ var (
 // document's one ir/walk-truncated violation.
 func checkRawPayloads(doc *ir.Document) ([]Violation, bool) {
 	var vs []Violation
-	truncated := ir.WalkValues(doc, "doc", func(v reflect.Value, path string) bool {
+	truncated := ir.WalkValues(doc, ir.DocumentPath, func(v reflect.Value, path string) bool {
 		if v.Kind() != reflect.Map {
 			return true
 		}

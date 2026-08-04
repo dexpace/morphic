@@ -207,9 +207,7 @@ func TestWalkValues_NothingUnreachableIsVisited(t *testing.T) {
 	paths, _ = walkPaths(doc)
 	assert.Contains(t, paths, "doc.Contact", "the nil pointer itself is visited")
 	assert.Contains(t, paths, "doc.Types[t/nil]", "the nil interface itself is visited")
-	for _, p := range paths {
-		assert.NotEqual(t, "doc.Contact.Name", p, "nothing behind a nil pointer is reachable")
-	}
+	assert.NotContains(t, paths, "doc.Contact.Name", "nothing behind a nil pointer is reachable")
 }
 
 // TestWalkValues_ArrayElementsAreReached pins that a fixed-size array is walked

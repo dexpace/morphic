@@ -35,9 +35,9 @@ func TestDocumentRegistries_DerivedFromDocumentShape(t *testing.T) {
 	assert.Len(t, regs, len(want), "Document declares exactly these ID-keyed registries")
 }
 
-// TestDocumentRegistries_CoverAWholeRegistry drives resolution both ways: an ID
-// the registry declares resolves, one it does not declare dangles.
-func TestDocumentRegistries_CoverAWholeRegistry(t *testing.T) {
+// TestRegistry_HasResolvesOnlyDeclaredIDs drives resolution both ways: an ID the
+// registry declares resolves, one it does not declare dangles.
+func TestRegistry_HasResolvesOnlyDeclaredIDs(t *testing.T) {
 	t.Parallel()
 	doc := &ir.Document{Types: ir.TypeRegistry{
 		"t/x/M": &ir.Any{TypeCommon: ir.TypeCommon{ID: "t/x/M"}},

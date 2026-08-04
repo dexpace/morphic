@@ -84,7 +84,7 @@ func runWalkChecks(doc *ir.Document) []Violation {
 	return append(vs, Violation{
 		Code:    "ir/walk-truncated",
 		Message: "document nests deeper than the bounded verifier walk; part of it went unchecked",
-		Path:    "doc",
+		Path:    ir.DocumentPath,
 	})
 }
 

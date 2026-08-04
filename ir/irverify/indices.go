@@ -39,7 +39,7 @@ var (
 func checkIndices(doc *ir.Document) ([]Violation, bool) {
 	declared := len(doc.Servers)
 	var vs []Violation
-	truncated := ir.WalkValues(doc, "doc", func(v reflect.Value, path string) bool {
+	truncated := ir.WalkValues(doc, ir.DocumentPath, func(v reflect.Value, path string) bool {
 		if v.Kind() != reflect.Struct {
 			return true
 		}

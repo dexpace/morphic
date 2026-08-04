@@ -62,7 +62,7 @@ func Validate(doc *ir.Document) []ir.Diagnostic {
 // the same traversal saw.
 func checkDanglingRefs(doc *ir.Document) []ir.Diagnostic {
 	regs := ir.DocumentRegistries(doc)
-	sites, truncated := collectRefs(doc, "doc", func(t reflect.Type) bool {
+	sites, truncated := collectRefs(doc, ir.DocumentPath, func(t reflect.Type) bool {
 		_, isRegistry := regs[t]
 		return isRegistry
 	})
@@ -70,7 +70,7 @@ func checkDanglingRefs(doc *ir.Document) []ir.Diagnostic {
 	if truncated {
 		diags = append(diags, diag(ir.SeverityError, "ir/walk-truncated",
 			"document nests deeper than the bounded reference walk; some references went unchecked",
-			"doc"))
+			ir.DocumentPath))
 	}
 	for _, s := range sites {
 		// A site whose class this document declares no registry for cannot
@@ -185,7 +185,7 @@ func appendSuccessStatusDiags(dst []ir.Diagnostic, status map[int]int, declared 
 // for the same reason a PropID was. Reaching it needs a token parser rather than a
 // lookup, and a false positive inside prose is noisier than a missing check.
 func checkPropIDRefs(doc *ir.Document) []ir.Diagnostic {
-	sites, declared := collectPropIDs(doc, "doc")
+	sites, declared := collectPropIDs(doc, ir.DocumentPath)
 	var diags []ir.Diagnostic
 	for _, s := range sites {
 		if declared[ir.PropID(s.id)] {
@@ -637,7 +637,7 @@ func checkGroupWalkTruncated(doc *ir.Document) []ir.Diagnostic {
 	}
 	return []ir.Diagnostic{diag(ir.SeverityError, "ir/walk-truncated",
 		fmt.Sprintf("operation groups nest deeper than %d; some operations went unchecked", maxGroupDepth),
-		"doc")}
+		ir.DocumentPath)}
 }
 
 // checkArgsOutsideGraphQL reports field arguments on models that are not

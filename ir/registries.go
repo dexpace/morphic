@@ -13,7 +13,8 @@ import (
 // rather than indexing an invalid value, so a checker holding a site built
 // against another document reports it as unresolved instead of crashing.
 type Registry struct {
-	// Label names the registry as the document spells it — "types", "channels".
+	// Label is the name of the Document field that declares the registry,
+	// lowercased — "types", "channels" — for a report that has to name it.
 	Label string
 
 	entries reflect.Value
@@ -47,6 +48,10 @@ type Registries map[reflect.Type]Registry
 // added to Document the moment it exists, where a hand-written list would drift.
 // Document.Unmodeled is the counterexample: keyed by plain string, it keys on a
 // source construct's name rather than an identity, and is no registry.
+//
+// A nil doc declares nothing, which is the answer a report-only caller wants:
+// every reference then resolves against no registry and is reported, rather than
+// the call panicking on the way to saying so.
 func DocumentRegistries(doc *Document) Registries {
 	out := Registries{}
 	if doc == nil {
