@@ -1,6 +1,7 @@
 package harness
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"os"
@@ -75,12 +76,29 @@ func TestReverseMappings_Permutes(t *testing.T) {
 
 // TestReverseMappings_AliasIsNotFollowed pins that an anchored mapping is
 // reversed once, at its anchor, rather than once per alias pointing at it.
+//
+// The anchor and its use sit in a sequence, whose order the rewrite leaves
+// alone, so the anchor still precedes the alias afterwards. Declared as two keys
+// of one mapping they would swap, and a source whose permutation puts an alias
+// above its anchor is refused outright — the case below this one.
 func TestReverseMappings_AliasIsNotFollowed(t *testing.T) {
 	t.Parallel()
-	got, ok := reverseMappings([]byte("anchor: &a\n  x: 1\n  y: 2\nuse: *a\n"))
+	got, ok := reverseMappings([]byte("items:\n  - anchor: &a\n      x: 1\n      y: 2\n  - use: *a\n"))
 	require.True(t, ok)
-	assert.Equal(t, "use: *a\nanchor: &a\n    y: 2\n    x: 1\n", string(got),
+	assert.Equal(t, "items:\n    - anchor: &a\n        y: 2\n        x: 1\n    - use: *a\n", string(got),
 		"the anchored mapping reverses once and the alias still points at it")
+}
+
+// TestReverseMappings_AliasAboveItsAnchorIsRefused pins the exclusion that
+// replaced the shape the test above used to assert. Reversing the two keys puts
+// the alias first, and YAML requires an anchor to be defined before it is
+// referenced, so the permuted source does not parse at all. Handing that to the
+// compiler reported the parse failure as order dependence.
+func TestReverseMappings_AliasAboveItsAnchorIsRefused(t *testing.T) {
+	t.Parallel()
+	got, ok := reverseMappings([]byte("anchor: &a\n  x: 1\n  y: 2\nuse: *a\n"))
+	assert.False(t, ok, "a permutation that no longer parses is not a faithful one")
+	assert.Nil(t, got)
 }
 
 // TestReverseNode_DepthBound covers the walk's bound. No document the compiler
@@ -112,37 +130,88 @@ func TestOrderInvariant_UnpermutableSourcePasses(t *testing.T) {
 	for _, tc := range []struct{ name, src string }{
 		{"a duplicate key excludes the source", "a: 1\na: 2\n"},
 		{"a source with nothing to permute", "a: 1\n"},
+		{"an unparseable source excludes the baseline too", "a: [unclosed\n"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			detail, ok := orderInvariant(context.Background(), "spec", []byte(tc.src), &ir.Document{})
+			detail, ok := orderInvariant(context.Background(), "spec", []byte(tc.src))
 			assert.True(t, ok, "declining to ask is not a finding")
 			assert.Empty(t, detail)
 		})
 	}
 }
 
-// TestOrderInvariant_CompileFailureIsReported covers the recompile's error
-// paths, which a correct compiler never produces on a source that already
-// compiled once.
+// TestOrderInvariant_CompileFailureIsReported covers the permuted recompile's
+// error paths, which a correct compiler never produces on a source whose
+// baseline already compiled.
+//
+// The seam answers for the baseline and fails only for the permutation. Failing
+// both would exercise nothing: a baseline that will not compile means the
+// re-encoding is not the source, which the oracle skips rather than reports.
 func TestOrderInvariant_CompileFailureIsReported(t *testing.T) {
 	const src = "a: 1\nb: 2\n"
 	orig := compile
 	t.Cleanup(func() { compile = orig })
 
-	compile = func(context.Context, string, []byte) (*ir.Document, []ir.Diagnostic, error) {
-		return nil, nil, errors.New("boom")
+	baseline, ok := reencodeMappings([]byte(src))
+	require.True(t, ok)
+
+	onlyPermutedFails := func(fail func() (*ir.Document, []ir.Diagnostic, error)) {
+		compile = func(_ context.Context, _ string, data []byte) (*ir.Document, []ir.Diagnostic, error) {
+			if bytes.Equal(data, baseline) {
+				return &ir.Document{}, nil, nil
+			}
+			return fail()
+		}
 	}
-	detail, ok := orderInvariant(context.Background(), "spec", []byte(src), &ir.Document{})
+
+	onlyPermutedFails(func() (*ir.Document, []ir.Diagnostic, error) {
+		return nil, nil, errors.New("boom")
+	})
+	detail, ok := orderInvariant(context.Background(), "spec", []byte(src))
 	assert.False(t, ok)
 	assert.Contains(t, detail, "boom")
 
-	compile = func(context.Context, string, []byte) (*ir.Document, []ir.Diagnostic, error) {
+	onlyPermutedFails(func() (*ir.Document, []ir.Diagnostic, error) {
 		return nil, nil, nil
-	}
-	detail, ok = orderInvariant(context.Background(), "spec", []byte(src), &ir.Document{})
+	})
+	detail, ok = orderInvariant(context.Background(), "spec", []byte(src))
 	assert.False(t, ok)
 	assert.Contains(t, detail, "no document")
+}
+
+// TestOrderInvariant_UncompilableBaselineIsNotAFinding pins the skip the test
+// above depends on: when the re-encoded source yields no document, the oracle has
+// no faithful baseline to ask its question of, so it declines rather than
+// reporting the permutation.
+//
+// Both ways of yielding none are driven, because they are separate branches and
+// a compiler reaches them for different reasons — an I/O or programmer fault
+// against a source it declines to lower at all.
+func TestOrderInvariant_UncompilableBaselineIsNotAFinding(t *testing.T) {
+	tests := []struct {
+		name string
+		fail func() (*ir.Document, []ir.Diagnostic, error)
+	}{
+		{"the baseline errors", func() (*ir.Document, []ir.Diagnostic, error) {
+			return nil, nil, errors.New("boom")
+		}},
+		{"the baseline compiles to no document", func() (*ir.Document, []ir.Diagnostic, error) {
+			return nil, nil, nil
+		}},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			orig := compile
+			t.Cleanup(func() { compile = orig })
+			compile = func(context.Context, string, []byte) (*ir.Document, []ir.Diagnostic, error) {
+				return tc.fail()
+			}
+			detail, ok := orderInvariant(context.Background(), "spec", []byte("a: 1\nb: 2\n"))
+			assert.True(t, ok, "no baseline is not a finding about the compiler")
+			assert.Empty(t, detail)
+		})
+	}
 }
 
 // TestDiffOrderInvariants_ReportsEachChannel drives the three ways a permutation
@@ -214,13 +283,18 @@ func TestDiffOrderInvariants_ReorderedCollectionsAreNotAFinding(t *testing.T) {
 //
 // It asserts the oracle actually asked its question of most of the corpus, not
 // merely that it ran.
+//
+// Both arms are guarded, because either can go quiet on its own. The rewrite
+// declines a source it cannot faithfully permute, and the baseline declines one
+// whose re-encoding will not compile — a skip with no diagnostic behind it, so
+// nothing else would notice it spreading.
 func TestOrderInvariant_ReachesTheCorpus(t *testing.T) {
 	t.Parallel()
 	const dir = "../../testdata/conformance/openapi"
 	entries, err := os.ReadDir(dir)
 	require.NoError(t, err)
 
-	var specs, permuted int
+	var specs, permuted, baselined int
 	for _, e := range entries {
 		if e.IsDir() || !strings.HasSuffix(e.Name(), ".yaml") {
 			continue
@@ -228,14 +302,68 @@ func TestOrderInvariant_ReachesTheCorpus(t *testing.T) {
 		specs++
 		data, readErr := os.ReadFile(filepath.Join(dir, e.Name()))
 		require.NoError(t, readErr)
+
+		baseline, ok := reencodeMappings(data)
+		if !ok {
+			continue
+		}
+		if doc, _, compileErr := compile(t.Context(), e.Name(), baseline); compileErr == nil && doc != nil {
+			baselined++
+		}
 		rewritten, ok := reverseMappings(data)
-		if ok && string(rewritten) != string(data) {
+		if ok && string(rewritten) != string(baseline) {
 			permuted++
 		}
 	}
 	require.Positive(t, specs, "found no conformance specs to permute")
 	assert.Equal(t, specs, permuted,
 		"every conformance spec must be permutable, or the oracle is silently skipping it")
+	assert.Equal(t, specs, baselined,
+		"every conformance spec's re-encoding must still compile, or the oracle has no baseline to compare against")
+}
+
+// TestOrderInvariant_PermutationArtifactsAreNotFindings covers the sources whose
+// permutation is not meaning-preserving for a reason reverseMappings does not
+// exclude. Each compiles cleanly, and each differs between the two orders because
+// of the rewrite rather than because of a lowering, so reporting one is a false
+// finding about the compiler.
+func TestOrderInvariant_PermutationArtifactsAreNotFindings(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		name string
+		src  string
+	}{
+		{
+			// yaml.Marshal re-emits the flow mapping "{A}" — whose value is an
+			// implicit null — as "{A: ''}", so the second compile reads an empty
+			// string where the first read null. Block style keeps the null.
+			name: "flow-style implicit null",
+			src: "openapi: 3.0.0\ninfo: {title: 0, version: 0}\n" +
+				"components:\n schemas:\n  0:\n   allOf:\n    - {A}\n",
+		},
+		{
+			// Reversed, the alias precedes the anchor it names, which YAML forbids:
+			// the permuted source does not parse at all.
+			name: "an alias reordered above its anchor",
+			src:  "openapi: 3.0.0\ninfo: {title: 0, version: 0}\n0: &m\n1: *m\n",
+		},
+		{
+			// Provenance.Pointer holds line:col for a reference-resolution failure,
+			// and a permutation moves the offending node to a different line.
+			name: "a diagnostic located by line and column",
+			src: "openapi: 3.0.0\ninfo: {title: 0, version: 0}\npaths:\n 0:\n  0:\n" +
+				"      responses:\n       0:\n        description: 0\n" +
+				"      callbacks:\n       0:\n        0:\n         description:\n",
+		},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			res := Check(context.Background(), tc.name+".yaml", []byte(tc.src))
+			assert.NotEqual(t, OutcomeOrderDependent, res.Outcome,
+				"the permutation changed the document's meaning, so this is not a finding: %s", res.Detail)
+		})
+	}
 }
 
 // yamlMapping returns a mapping node for the depth-bound test.
@@ -259,6 +387,47 @@ func TestReverseMappings_EncodeFailureIsRefused(t *testing.T) {
 	got, ok := reverseMappings([]byte("a: 1\nb: 2\n"))
 	assert.False(t, ok, "a source that will not re-encode is excluded, not reported")
 	assert.Nil(t, got)
+}
+
+// TestReencodeMappings_EncodeFailureIsRefused drives the defensive re-encode
+// path on the baseline arm, the counterpart of the reverseMappings case above.
+func TestReencodeMappings_EncodeFailureIsRefused(t *testing.T) {
+	orig := encodeYAML
+	t.Cleanup(func() { encodeYAML = orig })
+	encodeYAML = func(any) ([]byte, error) { return nil, errors.New("boom") }
+
+	got, ok := reencodeMappings([]byte("a: 1\nb: 2\n"))
+	assert.False(t, ok, "a source that will not re-encode is excluded, not reported")
+	assert.Nil(t, got)
+}
+
+// TestIsSourcePosition_ClassifiesPointers covers the split diagnosticSet turns
+// on: a source position moves with the source and must not identify a finding,
+// while every other pointer spelling — a JSON pointer, an IR-space ID — is
+// stable and must keep identifying one.
+func TestIsSourcePosition_ClassifiesPointers(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		name    string
+		pointer string
+		want    bool
+	}{
+		{"a line and column", "11:21", true},
+		{"the first position", "0:0", true},
+		{"empty", "", false},
+		{"no line", ":21", false},
+		{"no column", "11:", false},
+		{"a non-numeric half", "a:1", false},
+		{"a third segment", "1:2:3", false},
+		{"a JSON pointer", "/components/schemas/A", false},
+		{"an IR-space id", "t/openapi/components/schemas/A", false},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			assert.Equal(t, tc.want, isSourcePosition(tc.pointer))
+		})
+	}
 }
 
 // TestCheck_OrderDependentOutcome pins that Check classifies an order-dependent
