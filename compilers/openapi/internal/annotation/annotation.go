@@ -35,9 +35,10 @@ import (
 // construct here — while a node that cannot be represented yields an error.
 //
 // A node fails to convert when it names something JSON cannot: a mapping key
-// that is not a string, a key written twice, .nan or .inf, or a tag with no JSON
-// counterpart. The walk's own bounds refuse two shapes more — an alias that
-// cycles, and one that expands past its node budget.
+// that is not a string, a key written twice, .nan or .inf, or a scalar whose tag
+// promises a type its text does not hold. The walk's own bounds refuse two
+// shapes more — an alias that cycles, and one that expands past its node budget.
+// A tag yaml.v3 assigns no type to is not a failure: its scalar keeps its text.
 //
 // The conversion walks the node tree rather than decoding it into `any` and
 // re-marshalling, because that decode rounds every numeric literal through

@@ -118,6 +118,12 @@ func TestRawFromNode_RendersEveryScalarTag(t *testing.T) {
 		{"datetime keeps its nanoseconds", "2021-01-01T10:20:30.5Z", `"2021-01-01T10:20:30.5Z"`},
 		{"binary carries decoded bytes", `!!binary aGVsbG8=`, `"hello"`},
 		{"out-of-float64-range plain scalar stays a string", "1e400", `"1e400"`},
+		// yaml.v3 resolves no type for these, so the scalar keeps the text it
+		// was written with rather than being dropped for want of a tag.
+		{"unresolvable double-bang tag", "!!python/object x", `"x"`},
+		{"local tag", "!foo bar", `"bar"`},
+		{"fully written-out tag still resolves", "!<tag:yaml.org,2002:int> 5", "5"},
+		{"an explicit numeric tag outranks quoting", `!!int "5"`, "5"},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
@@ -144,6 +150,7 @@ func TestRawFromNode_PreservesMergeAndOrderingSemantics(t *testing.T) {
 		{"merge through an alias", "a: &m {p: 1}\nb: {<<: *m, q: 2}", `{"a":{"p":1},"b":{"p":1,"q":2}}`},
 		{"nested merge inside a merged map", "a: &m {<<: {deep: 1}, p: 2}\nb: {<<: *m}", `{"a":{"deep":1,"p":2},"b":{"deep":1,"p":2}}`},
 		{"alias to a scalar", "a: &n 5\nb: *n", `{"a":5,"b":5}`},
+		{"alias as a mapping key", "a: &k mykey\nb: {*k: v}", `{"a":"mykey","b":{"mykey":"v"}}`},
 		{"alias to a sequence", "a: &s [1, 2]\nb: *s", `{"a":[1,2],"b":[1,2]}`},
 		{"empty mapping", "{}", `{}`},
 		{"empty sequence", "[]", `[]`},
@@ -169,12 +176,14 @@ func TestRawFromNode_RefusesWhatJSONCannotName(t *testing.T) {
 		{"bool key", "{true: v}", "not a string"},
 		{"sequence key", "{? [1, 2]\n: v}", "not a string"},
 		{"nested non-string key", "{outer: {1: v}}", "not a string"},
+		{"alias key naming an integer", "a: &k 1\nb: {*k: v}", "not a string"},
+		{"alias key naming a sequence", "a: &k [1]\nb: {*k: v}", "not a string"},
+		{"locally tagged key", "{!foo k: v}", "not a string"},
 		{"duplicate key", "{k: 1, k: 2}", "already defined"},
 		{"duplicate key after a merge", "{<<: {p: 1}, k: 1, k: 2}", "already defined"},
 		{"not a number", ".nan", "numeric literal"},
 		{"positive infinity", ".inf", "numeric literal"},
 		{"negative infinity", "-.inf", "numeric literal"},
-		{"unknown scalar tag", "!!python/object x", `unsupported scalar tag`},
 		{"merge from a scalar", "{<<: 1}", "map merge requires"},
 		{"merge from a sequence of scalars", "{<<: [1]}", "map merge requires"},
 		{"merge from an alias to a scalar", "a: &n 1\nb: {<<: *n}", "map merge requires"},
@@ -256,6 +265,18 @@ func TestRawFromNode_RejectsMalformedNodes(t *testing.T) {
 				&yaml.Node{Kind: yaml.AliasNode, Value: "x"}),
 			"resolves to nothing",
 		},
+		{
+			"unresolved alias as a key",
+			mappingOf(&yaml.Node{Kind: yaml.AliasNode, Value: "x"},
+				&yaml.Node{Kind: yaml.ScalarNode, Tag: "!!str", Value: "v"}),
+			"resolves to nothing",
+		},
+		{
+			"alias chain longer than a source could mean",
+			mappingOf(aliasChain(maxAliasHops+1),
+				&yaml.Node{Kind: yaml.ScalarNode, Tag: "!!str", Value: "v"}),
+			"chains past",
+		},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
@@ -302,6 +323,18 @@ func TestRawFromNode_DiffersFromTheOldDecodeOnlyInNumbers(t *testing.T) {
 		"a: &m {p: 1}\nb: {<<: *m, q: 2}", "a: &n 5\nb: *n", "a: &s [1, 2]\nb: *s",
 		"{k: [{n: 12345678901234567890123}, 1.10]}",
 		"{unicode: \"héllo→\"}", "{empty_map: {}, empty_seq: []}",
+		// Shapes where the walk had to reproduce a yaml.v3 rule rather than a
+		// JSON one. Each of these was a live regression until the rule was found.
+		"a: &k mykey\nb: {*k: v}", "!!python/object x", "!foo bar", "!!set x",
+		"!<tag:yaml.org,2002:int> 5", `!!int "5"`, `!!str 123`,
+		"{<<: {}}", "{<<: [{}]}", "a: &m {p: 1}\nb: {<<: [*m, {q: 2}]}",
+		"{a: yes, b: no, c: on, d: off}", "{a: 1:30, b: 12:34:56}",
+		"|\n  line1\n  line2", ">\n  folded text", "a: &s {x: 1}\nb: *s\nc: *s",
+		`{"": 1}`, `{"a\nb": 1}`, "{a: }", "{a: null, b: ~}",
+		// Refused by the old conversion, preserved by the walk. They carry no
+		// equality claim, and are here so the asymmetry is visible in a -v run
+		// rather than asserted in a comment.
+		"!!int 12345678901234567890123", "!!float 1e400",
 	}
 	for _, src := range corpus {
 		t.Run(src, func(t *testing.T) {
@@ -319,6 +352,16 @@ func TestRawFromNode_DiffersFromTheOldDecodeOnlyInNumbers(t *testing.T) {
 				"the walk must differ from the decode it replaced only in how a number is spelled")
 		})
 	}
+}
+
+// aliasChain builds n alias nodes each naming the next, ending on a string. A
+// parser reaches this shape only by anchoring an alias, and never this deep.
+func aliasChain(n int) *yaml.Node {
+	node := &yaml.Node{Kind: yaml.ScalarNode, Tag: "!!str", Value: "end"}
+	for i := 0; i < n; i++ {
+		node = &yaml.Node{Kind: yaml.AliasNode, Value: "a", Alias: node}
+	}
+	return node
 }
 
 // mappingOf builds a one-pair mapping node, for the malformed shapes no parser
@@ -368,4 +411,26 @@ func TestRawFromNode_BoundsAMergeChainThatNeverRevisitsANode(t *testing.T) {
 	require.Error(t, err, "a merge chain past the depth bound is refused")
 	assert.Nil(t, got)
 	assert.Contains(t, err.Error(), "nesting exceeds")
+}
+
+// TestRawFromNode_ResolvesAnUntaggedScalarByItsValue pins the one input for
+// which reading the tag off the node and resolving it differ. Every parser-built
+// scalar arrives tagged — the parser resolves them, and writes `!!int` even for a
+// spelled-out `!<tag:yaml.org,2002:int>` — so only a hand-assembled node reaches
+// this, and taking n.Tag would render 5 as the string "5".
+func TestRawFromNode_ResolvesAnUntaggedScalarByItsValue(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct{ name, value, want string }{
+		{"integer", "5", "5"},
+		{"decimal", "1.10", "1.10"},
+		{"boolean", "true", "true"},
+		{"word", "hello", `"hello"`},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			got, err := RawFromNode(&yaml.Node{Kind: yaml.ScalarNode, Value: tc.value})
+			require.NoError(t, err)
+			assert.Equal(t, tc.want, string(got))
+		})
+	}
 }

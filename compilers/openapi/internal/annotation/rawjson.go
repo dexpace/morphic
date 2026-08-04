@@ -2,6 +2,7 @@ package annotation
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"slices"
 	"strings"
@@ -33,7 +34,27 @@ const (
 
 // errMergeWantsMap reports a `<<` whose value is neither a mapping nor a
 // sequence of mappings, matching yaml.v3's own refusal to guess.
-var errMergeWantsMap = fmt.Errorf("map merge requires map or sequence of maps as the value")
+var errMergeWantsMap = errors.New("map merge requires map or sequence of maps as the value")
+
+// maxAliasHops bounds an alias chain followed outside the node walk. An anchor
+// may name an alias node, so a key or a merge source can sit a hop or more from
+// the node it means; a chain past this is a cycle, and these two readers resolve
+// without the budget node() would otherwise charge for the hop.
+const maxAliasHops = 100
+
+// resolveAlias follows an alias chain to the node it names.
+func resolveAlias(n *yaml.Node) (*yaml.Node, error) {
+	for hops := 0; n.Kind == yaml.AliasNode; hops++ {
+		if hops >= maxAliasHops {
+			return nil, fmt.Errorf("alias %q chains past %d hops", n.Value, maxAliasHops)
+		}
+		if n.Alias == nil {
+			return nil, fmt.Errorf("alias %q resolves to nothing", n.Value)
+		}
+		n = n.Alias
+	}
+	return n, nil
+}
 
 // rawConv renders one YAML node as canonical JSON. It carries the node budget
 // shared across the whole walk; depth is a parameter because it is a property
@@ -84,14 +105,22 @@ func (c *rawConv) node(n *yaml.Node, depth int) (json.RawMessage, error) {
 
 // scalar renders a scalar node by its resolved tag.
 //
-// Only the numeric tags read the source text; every other tag is rendered the
-// way a whole-tree Decode would have, so a timestamp still normalizes to
-// RFC 3339 and a !!binary still carries its decoded bytes rather than its
-// base64 spelling. Those two are lossy against the source and deliberately
-// left that way here: they are a different mechanism from the float64 rounding
-// this change fixes, and moving them belongs with its own reasoning (#242).
+// The tag is read through ShortTag rather than off the node so that an untagged
+// node resolves by its value, the way the Decode this replaced would have. A
+// parser never hands one over — it resolves every scalar it emits, and writes
+// the short form even for a spelled-out `!<tag:yaml.org,2002:int>` — but a
+// caller assembling nodes can, and reading n.Tag would spell such a scalar as a
+// string. A tag yaml.v3 assigns no type to keeps its text rather than being
+// refused, which is also what that Decode did.
+//
+// What changed is the numeric arms, which now read the source text (GitHub #32).
+// Every other arm still renders the way that Decode would have, so a timestamp
+// still normalizes to RFC 3339 and a !!binary still carries its decoded bytes
+// rather than its base64 spelling. Those two are lossy against the source and
+// deliberately left that way: they are a different mechanism from the float64
+// rounding, and moving them belongs with its own reasoning (GitHub #242).
 func (c *rawConv) scalar(n *yaml.Node) (json.RawMessage, error) {
-	switch n.Tag {
+	switch n.ShortTag() {
 	case "!!null":
 		return json.RawMessage("null"), nil
 	case "!!bool":
@@ -143,7 +172,11 @@ func (c *rawConv) scalar(n *yaml.Node) (json.RawMessage, error) {
 		}
 		return jsonString(raw), nil
 	default:
-		return nil, fmt.Errorf("unsupported scalar tag %q", n.Tag)
+		// A tag yaml.v3 cannot resolve carries no type it could decode to, so
+		// its scalar comes back as the text it was written with — the behaviour
+		// this walk replaced, and the lossless one: refusing would drop an
+		// `!acme/thing` extension value the source did write.
+		return jsonString(n.Value), nil
 	}
 }
 
@@ -263,16 +296,14 @@ func (c *rawConv) merge(dst map[string]json.RawMessage, merge *yaml.Node, depth 
 
 // mergeSource resolves one merge source to the mapping it names.
 func mergeSource(n *yaml.Node) (*yaml.Node, error) {
-	if n.Kind == yaml.AliasNode {
-		if n.Alias == nil {
-			return nil, fmt.Errorf("alias %q resolves to nothing", n.Value)
-		}
-		n = n.Alias
+	named, err := resolveAlias(n)
+	if err != nil {
+		return nil, err
 	}
-	if n.Kind != yaml.MappingNode {
+	if named.Kind != yaml.MappingNode {
 		return nil, errMergeWantsMap
 	}
-	return n, nil
+	return named, nil
 }
 
 // checkUniqueKeys rejects a mapping that names one key twice, which yaml.v3
@@ -294,10 +325,14 @@ func checkUniqueKeys(n *yaml.Node) error {
 // model only when every key is a string, and a non-string key is what makes the
 // whole construct unrepresentable rather than merely awkward (GitHub #144).
 func mapKey(n *yaml.Node) (string, error) {
-	if n.Kind != yaml.ScalarNode || n.ShortTag() != "!!str" {
-		return "", fmt.Errorf("mapping key %q is not a string", n.Value)
+	named, err := resolveAlias(n)
+	if err != nil {
+		return "", err
 	}
-	return n.Value, nil
+	if named.Kind != yaml.ScalarNode || named.ShortTag() != "!!str" {
+		return "", fmt.Errorf("mapping key %q is not a string", named.Value)
+	}
+	return named.Value, nil
 }
 
 // isMergeKey reports whether a key node is YAML's `<<` merge key, by the same
