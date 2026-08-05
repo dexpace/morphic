@@ -57,7 +57,7 @@ func commonFor(c lowering.Ctx, id ir.TypeID, pointer, hint string) ir.TypeCommon
 		common.Name = compile.NamingFor(name)
 	} else {
 		common.Anonymous = true
-		common.Name = ir.Naming{Hint: hint}
+		common.Name = compile.NamingHint(hint)
 	}
 	return common
 }

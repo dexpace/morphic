@@ -8,6 +8,10 @@ import (
 // Naming carries the identity of a named entity as words, never as a cased
 // identifier: emitters apply casing, acronym policy, and reserved-word escaping
 // (ir-design §3.2). Anonymous (hoisted) types have an empty Source and a Hint.
+//
+// At least one of Source, Canonical and Hint is set. A Naming with all three
+// empty names the entity to nobody, and every neutrality rule is vacuously true
+// of it, so irverify reports it as ir/naming-absent.
 type Naming struct {
 	// Source is the name exactly as written in the spec ("user_id", a $ref
 	// name, a GraphQL field).
@@ -17,8 +21,9 @@ type Naming struct {
 	// combining marks belonging to them); every other character in the source
 	// name separates two words rather than surviving into the sequence.
 	Canonical string `json:"canonical,omitempty"`
-	// Hint is a context-derived suggestion for anonymous types only
-	// (e.g. "connection_domain").
+	// Hint is a context-derived suggestion for an entity with no source name to
+	// render: a hoisted anonymous type (e.g. "connection_domain"), or one the
+	// source named with the empty string.
 	Hint string `json:"hint,omitempty"`
 	// Aliases are alternate names for schema-resolution matching (Avro
 	// aliases). Versionless — rename history tied to version labels lives in

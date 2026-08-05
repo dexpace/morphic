@@ -98,7 +98,7 @@ func lowerArray(c lowering.Ctx, ts *compile.Types, anchors *AnchorIndex, depth i
 			diags = append(diags, tupleDiags...)
 			return t
 		}
-		elem, elemDiags := Ref(c, ts, anchors, depth, s.GetItems(), pointer+ids.Ptr("items"), hint+"_item")
+		elem, elemDiags := Ref(c, ts, anchors, depth, s.GetItems(), pointer+ids.Ptr("items"), compile.SubHint(hint, "item"))
 		diags = append(diags, elemDiags...)
 		return &ir.List{
 			TypeCommon:  common,

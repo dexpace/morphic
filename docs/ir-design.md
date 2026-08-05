@@ -132,7 +132,8 @@ intent of TCGC's `crossLanguageDefinitionId`.
 type Naming struct {
     Source    string   // exactly as written in the spec ("user_id", "$ref name", GraphQL field)
     Canonical string   // IR-normalized identifier in neutral form: lower_snake words, no casing opinions
-    Hint      string   // for anonymous types only: context-derived suggestion ("connection_domain")
+    Hint      string   // context-derived suggestion where there is no source name to render: an
+                       // anonymous type ("connection_domain"), or one named with the empty string
     Aliases   []string // alternate names for schema-resolution matching (Avro aliases). Versionless —
                        // rename *history* tied to version labels lives in Availability.RenamedFrom.
 }
@@ -148,6 +149,12 @@ starts a new one, and **every other character separates** — `.`, `/`, `[`, `-`
 `com.example.User` and `com-example-user` canonicalize the same, and an emitter reading `Canonical`
 never has to ask which compiler produced it. A source name with no word character in it
 canonicalizes to the empty string; `Source` keeps the spelling.
+
+At least one of `Source`, `Canonical` and `Hint` is set. A `Naming` with all three empty names the
+entity to nobody, and every rule above is vacuously true of it, so `irverify` reports it
+(`ir/naming-absent`). Where a source *does* name an entity with the empty string — a legal enum
+value, property key, tag or component name — the compiler mints a hint rather than passing the
+emptiness through; nothing is lost, because there was no spelling to keep.
 
 **A camel-case boundary is where lowercasing changes the rune**, not where Unicode reports an
 uppercase category. The two differ: double-struck `ℤ`, GREEK UPSILON WITH HOOK `ϒ` and the Roman

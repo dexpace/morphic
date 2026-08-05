@@ -95,10 +95,13 @@ func TestVerify_EmptyKeyAndReasonReportBoth(t *testing.T) {
 func TestVerify_UnmodeledIsCheckedBelowTheTopLevel(t *testing.T) {
 	doc := validDoc()
 	doc.Services = []ir.Service{{
-		ID: "s/x/S",
+		ID:   "s/x/S",
+		Name: named("s"),
 		Groups: []ir.OperationGroup{{
+			Name: named("g"),
 			Operations: []ir.Operation{{
 				ID:        "o/x/S/op",
+				Name:      named("op"),
 				Unmodeled: ir.Unmodeled{"openapi:x-internal": {Value: ir.RawValue(`true`)}},
 			}},
 		}},
@@ -159,19 +162,26 @@ func rawConfigCarriers(payload ir.RawValue) map[string]struct {
 	server := validDoc()
 	server.Servers = []ir.Server{{URLTemplate: "https://x", Bindings: cfg}}
 	channel := validDoc()
-	channel.Channels = map[ir.ChannelID]ir.Channel{"chan/a": {ID: "chan/a", Bindings: cfg}}
+	channel.Channels = map[ir.ChannelID]ir.Channel{
+		"chan/a": {ID: "chan/a", Name: named("a"), Bindings: cfg},
+	}
 	message := validDoc()
-	message.Messages = map[ir.MessageID]ir.Message{"msg/a": {ID: "msg/a", Bindings: cfg}}
+	message.Messages = map[ir.MessageID]ir.Message{
+		"msg/a": {ID: "msg/a", Name: named("a"), Bindings: cfg},
+	}
 	operation := validDoc()
-	operation.Services = []ir.Service{{ID: "s/x/S", Groups: []ir.OperationGroup{{
+	operation.Services = []ir.Service{{ID: "s/x/S", Name: named("s"), Groups: []ir.OperationGroup{{
+		Name: named("g"),
 		Operations: []ir.Operation{{
 			ID:       "o/x/S/op",
+			Name:     named("op"),
 			Bindings: ir.OpBindings{Message: &ir.MessageBinding{Bindings: cfg}},
 		}},
 	}}}}
 	protocol := validDoc()
 	protocol.Services = []ir.Service{{
 		ID:        "s/x/S",
+		Name:      named("s"),
 		Protocols: []ir.ProtocolDecl{{Name: "grpc", Options: ir.RawConfig{"clientId": payload}}},
 	}}
 

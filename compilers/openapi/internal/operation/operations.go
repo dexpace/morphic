@@ -168,7 +168,7 @@ func lowerWebhooks(c lowering.Ctx, ts *compile.Types, anchors *schema.AnchorInde
 				// compiler synthesizes it to hold webhook operations, exactly as it
 				// synthesizes the "default" group above, and Naming.Source is the
 				// spelling the source used (GitHub #184).
-				return ir.OperationGroup{Name: ir.Naming{Hint: "webhooks"}}
+				return ir.OperationGroup{Name: compile.NamingHint("webhooks")}
 			})
 			grp.Operations = append(grp.Operations, op)
 			grp.Operations = append(grp.Operations, extra...)
@@ -187,7 +187,7 @@ func groupFor(c lowering.Ctx, src *soa.Operation, path string) (key string, name
 	}
 	tags := src.GetTags()
 	if len(tags) == 0 {
-		return "default", ir.Naming{Hint: "default"}, ir.Docs{}, ""
+		return "default", compile.NamingHint("default"), ir.Docs{}, ""
 	}
 	first := tags[0]
 	return "tag:" + first, compile.NamingFor(first), tagDocs(c, first), ""
@@ -315,7 +315,7 @@ func operationName(src *soa.Operation, method, uriTemplate string) ir.Naming {
 	if id := src.GetOperationID(); id != "" {
 		return compile.NamingFor(id)
 	}
-	return ir.Naming{Hint: ir.CanonicalWords(method + " " + uriTemplate)}
+	return compile.NamingHint(ir.CanonicalWords(method + " " + uriTemplate))
 }
 
 // fillOperationDocs maps an operation's summary, description, and externalDocs

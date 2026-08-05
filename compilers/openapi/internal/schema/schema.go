@@ -638,7 +638,7 @@ func lowerUnion(c lowering.Ctx, ts *compile.Types, anchors *AnchorIndex, depth i
 			vid, vDiags := lowerTyped(c, ts, anchors, depth, s, vptr, hint, st)
 			diags = append(diags, vDiags...)
 			variants = append(variants, ir.Variant{
-				Name: ir.Naming{Hint: string(st)},
+				Name: compile.NamingHint(string(st)),
 				Type: ir.TypeRef{Target: vid},
 			})
 		}
@@ -868,7 +868,7 @@ func fillAdditional(c lowering.Ctx, ts *compile.Types, anchors *AnchorIndex, dep
 	case annotation.IsFalseSchema(ap):
 		m.Additional = ir.AdditionalClosed
 	case ap != nil && !ap.IsBool():
-		ref, refDiags := Ref(c, ts, anchors, depth, ap, pointer+ids.Ptr("additionalProperties"), hint+"_value")
+		ref, refDiags := Ref(c, ts, anchors, depth, ap, pointer+ids.Ptr("additionalProperties"), compile.SubHint(hint, "value"))
 		diags = append(diags, refDiags...)
 		m.AdditionalProps = &ir.AdditionalProps{Value: ref}
 	}
@@ -896,7 +896,7 @@ func patternProps(c lowering.Ctx, ts *compile.Types, anchors *AnchorIndex, depth
 	var diags []ir.Diagnostic
 	out := make([]ir.PatternProps, 0, pp.Len())
 	for pattern, js := range pp.All() {
-		ref, refDiags := Ref(c, ts, anchors, depth, js, pointer+ids.Ptr("patternProperties", pattern), hint+"_pattern")
+		ref, refDiags := Ref(c, ts, anchors, depth, js, pointer+ids.Ptr("patternProperties", pattern), compile.SubHint(hint, "pattern"))
 		diags = append(diags, refDiags...)
 		out = append(out, ir.PatternProps{Pattern: pattern, Value: ref})
 	}
@@ -913,7 +913,7 @@ func buildTuple(c lowering.Ctx, ts *compile.Types, anchors *AnchorIndex, depth i
 	var diags []ir.Diagnostic
 	elems := make([]ir.TypeRef, 0, len(prefix))
 	for i, ps := range prefix {
-		ref, refDiags := Ref(c, ts, anchors, depth, ps, pointer+ids.Ptr("prefixItems", strconv.Itoa(i)), hint+"_"+strconv.Itoa(i))
+		ref, refDiags := Ref(c, ts, anchors, depth, ps, pointer+ids.Ptr("prefixItems", strconv.Itoa(i)), compile.SubHint(hint, strconv.Itoa(i)))
 		diags = append(diags, refDiags...)
 		elems = append(elems, ref)
 	}
