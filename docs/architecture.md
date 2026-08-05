@@ -132,6 +132,14 @@ can enable:
   emitter input keyed by IR ID, so one IR document drives different compat baselines per
   language.
 
+  The first of those is `openapi.Options.Overlay`: pre-read bytes, applied to the parsed node
+  tree before the model is built, so untouched nodes keep the line and column the parser read
+  them at rather than a position in a re-serialised file nobody has. The overlay becomes a
+  second `Document.Sources` entry, and every position it introduced or rewrote names that entry
+  as its `Provenance.Source`. Strict application is the default: an action whose JSONPath
+  matches nothing is reported and the compile refuses, because an overlay that silently does
+  nothing ships an SDK missing the fix it was written to make.
+
 Passes operate on the IR only; they know nothing about source formats or target languages.
 
 ### 2.3 Emitters (IR → artifacts)

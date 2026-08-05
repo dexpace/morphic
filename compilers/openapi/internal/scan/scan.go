@@ -75,6 +75,22 @@ func Cycles(srcIndex int, data []byte) []ir.Diagnostic {
 	})
 }
 
+// CyclesInNode is Cycles over an already-decoded tree, for a caller holding one
+// the source bytes no longer describe.
+//
+// An overlay is the reason it exists: its actions can graft a $ref cycle onto a
+// document that had none, and the refusals Cycles makes before the parser ever
+// runs have to cover the tree that reaches the parser rather than only the bytes
+// that reached the overlay. Decoding is the caller's here, so nothing re-reads
+// the source — but a caller that has only bytes must still use Cycles, whose
+// decode is what bounds alias expansion (the yaml.v3 alias budget is per-Decode,
+// so a tree handed in has already spent one this cannot re-run).
+func CyclesInNode(srcIndex int, root *yaml.Node) []ir.Diagnostic {
+	return recoverCycleScan(srcIndex, func() []ir.Diagnostic {
+		return scanNode(srcIndex, nodeview.DocumentRoot(root))
+	})
+}
+
 // recoverCycleScan runs scan and, on any panic from the recursive walks,
 // degrades to a diag.CycleScanFailed warning instead of propagating — a bug in
 // the detector must not crash the compiler on a degenerate spec (GitHub #12).
@@ -92,9 +108,7 @@ func recoverCycleScan(srcIndex int, scan func() []ir.Diagnostic) (diags []ir.Dia
 }
 
 // scanCycles decodes source bytes and reports the first degenerate cycle found,
-// or nil. nodeview.DocumentRoot may return nil for an empty or malformed root;
-// the anchor and ref walks both treat a nil root as "nothing to scan", so no
-// explicit nil guard is needed here.
+// or nil.
 func scanCycles(srcIndex int, data []byte) []ir.Diagnostic {
 	if len(data) == 0 {
 		return nil
@@ -103,7 +117,14 @@ func scanCycles(srcIndex int, data []byte) []ir.Diagnostic {
 	if err := yaml.Unmarshal(data, &root); err != nil {
 		return nil
 	}
-	docRoot := nodeview.DocumentRoot(&root)
+	return scanNode(srcIndex, nodeview.DocumentRoot(&root))
+}
+
+// scanNode reports the first degenerate cycle reachable from an already-decoded
+// document root, or nil. docRoot may be nil for an empty or malformed document;
+// the anchor and ref walks both treat that as "nothing to scan", so no explicit
+// nil guard is needed here.
+func scanNode(srcIndex int, docRoot *yaml.Node) []ir.Diagnostic {
 	if d, ok := anchorCycle(srcIndex, docRoot); ok {
 		return []ir.Diagnostic{d}
 	}

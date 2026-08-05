@@ -91,14 +91,46 @@ func TestLoad_ExternalRefResolutionErrors(t *testing.T) {
 	assert.True(t, sited, "the validation-error branch was reached, not the refusal: %+v", diags)
 }
 
+// parseSpec runs the two steps Load runs back to back when no overlay comes
+// between them, for tests that want the parsed document and not the split.
+func parseSpec(t *testing.T, spec string) (*soa.OpenAPI, []error) {
+	t.Helper()
+	root, err := decode([]byte(spec))
+	require.NoError(t, err)
+	doc, valErrs, err := unmarshal(t.Context(), []byte(spec), root)
+	require.NoError(t, err)
+	require.NotNil(t, doc)
+	return doc, valErrs
+}
+
 // TestUnmarshal_RecoversParserPanic pins the no-panics-escape invariant: the
 // third-party parser faults on a whitespace-only document, and unmarshal must
 // convert that panic into an errParse error instead of letting it escape.
+//
+// The decode ahead of it succeeds — whitespace is well-formed YAML — so this
+// still lands in unmarshal rather than being caught a step earlier.
 func TestUnmarshal_RecoversParserPanic(t *testing.T) {
 	t.Parallel()
-	doc, valErrs, err := unmarshal(t.Context(), []byte(" "))
+	root, err := decode([]byte(" "))
+	require.NoError(t, err, "whitespace decodes; it is the model build that faults")
+
+	doc, valErrs, err := unmarshal(t.Context(), []byte(" "), root)
 	require.Error(t, err)
 	assert.ErrorIs(t, err, errParse)
+	assert.Nil(t, doc)
+	assert.Nil(t, valErrs)
+}
+
+// TestUnmarshal_EmptySourceIsRejected pins the guard soa.Unmarshal made before
+// the decode was lifted out of it: zero bytes are not a document, and reporting
+// that must not depend on the library still being the one holding the check.
+func TestUnmarshal_EmptySourceIsRejected(t *testing.T) {
+	t.Parallel()
+	root, err := decode(nil)
+	require.NoError(t, err, "no bytes is well-formed YAML; it is not a document")
+
+	doc, valErrs, err := unmarshal(t.Context(), nil, root)
+	require.Error(t, err)
 	assert.Nil(t, doc)
 	assert.Nil(t, valErrs)
 }
@@ -115,9 +147,7 @@ const resolverPanicSpec = "openapi: 3.0\ncomponents:\n responses:\n  000: {$ref:
 // faults during resolution took the caller's process with it.
 func TestResolveAll_RecoversResolverPanic(t *testing.T) {
 	t.Parallel()
-	doc, _, err := unmarshal(t.Context(), []byte(resolverPanicSpec))
-	require.NoError(t, err, "the parser accepts this document")
-	require.NotNil(t, doc)
+	doc, _ := parseSpec(t, resolverPanicSpec)
 
 	resErrs, err := resolveAll(t.Context(), doc, soa.ResolveAllOptions{})
 	require.Error(t, err)
@@ -334,8 +364,7 @@ func TestMatchSchemas_StopsOnMatchError(t *testing.T) {
 // false positive.
 func TestMetaSchemaVersionArtifacts_OtherMinorsUntouched(t *testing.T) {
 	t.Parallel()
-	doc, _, err := unmarshal(t.Context(), []byte(minimal31))
-	require.NoError(t, err)
+	doc, _ := parseSpec(t, minimal31)
 	assert.Nil(t, metaSchemaVersionArtifacts(t.Context(), doc, "3.1"))
 	assert.Nil(t, metaSchemaVersionArtifacts(t.Context(), doc, "3.0"))
 }
@@ -357,4 +386,28 @@ func countErrorsAt(diags []ir.Diagnostic, code string) int {
 // scalarNode builds a bare scalar yaml.Node with the given tag and value.
 func scalarNode(tag, val string) *yaml.Node {
 	return &yaml.Node{Kind: yaml.ScalarNode, Tag: tag, Value: val}
+}
+
+// TestUnmarshal_RejectsADocumentNodeHoldingMoreThanOneRoot pins the model
+// build's other failure exit: the library refuses a document node that does not
+// wrap exactly one root, and that refusal is a Go error rather than a validation
+// finding about the spec.
+//
+// The node is built rather than decoded because yaml.v3 wraps exactly one root
+// in every tree it produces. What can hand this function another shape is an
+// overlay, which mutates the tree between the decode and the build — so the
+// branch is the compiler's to handle even though no source text reaches it
+// today, and building the node is the only way to hold it to that.
+func TestUnmarshal_RejectsADocumentNodeHoldingMoreThanOneRoot(t *testing.T) {
+	t.Parallel()
+	root := &yaml.Node{Kind: yaml.DocumentNode, Content: []*yaml.Node{
+		{Kind: yaml.MappingNode}, {Kind: yaml.MappingNode},
+	}}
+
+	doc, valErrs, err := unmarshal(t.Context(), []byte("openapi: 3.1.0\n"), root)
+
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "unmarshal document", "the failing step is named")
+	assert.Nil(t, doc)
+	assert.Nil(t, valErrs)
 }

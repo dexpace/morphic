@@ -9,9 +9,11 @@ import (
 	"github.com/speakeasy-api/openapi/sequencedmap"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	yaml "gopkg.in/yaml.v3"
 
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
+	"github.com/dexpace/morphic/compilers/openapi/internal/overlay"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -92,7 +94,7 @@ func TestNew_DerivesTheDeclaredSchemaNames(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			c := lowering.New(0, tc.doc, ir.SourceInfo{}, "")
+			c := lowering.New(0, tc.doc, ir.SourceInfo{}, "", overlay.Origin{})
 			for _, n := range tc.declares {
 				assert.True(t, c.DeclaresSchema(n), "%q is declared", n)
 			}
@@ -121,7 +123,7 @@ func TestNew_KeepsTheDocumentItWasGiven(t *testing.T) {
 	doc := docDeclaring("User")
 	src := ir.SourceInfo{Format: "openapi@3.1", Path: "spec.yaml", Hash: "abc"}
 
-	c := lowering.New(7, doc, src, lowering.GroupByPathPrefix)
+	c := lowering.New(7, doc, src, lowering.GroupByPathPrefix, overlay.Origin{})
 
 	assert.Same(t, doc, c.Doc, "the document is referenced, never copied")
 	assert.Equal(t, src, c.Source)
@@ -138,7 +140,7 @@ func TestWithAuth_ExtendsACopy(t *testing.T) {
 	t.Parallel()
 	doc := docDeclaring("User")
 	src := ir.SourceInfo{Format: "openapi@3.1", Path: "spec.yaml", Hash: "abc"}
-	before := lowering.New(7, doc, src, lowering.GroupByPathPrefix)
+	before := lowering.New(7, doc, src, lowering.GroupByPathPrefix, overlay.Origin{})
 	schemes := map[ir.AuthID]ir.AuthScheme{"a/apiKey": {ID: "a/apiKey"}}
 
 	after := before.WithAuth(schemes)
@@ -201,7 +203,7 @@ func TestExclusiveBoundIsBoolean_FollowsTheDialect(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.version, func(t *testing.T) {
 			t.Parallel()
-			c := lowering.New(0, &soa.OpenAPI{OpenAPI: tc.version}, ir.SourceInfo{}, "")
+			c := lowering.New(0, &soa.OpenAPI{OpenAPI: tc.version}, ir.SourceInfo{}, "", overlay.Origin{})
 			assert.Equal(t, tc.want, c.ExclusiveBoundIsBoolean())
 		})
 	}
@@ -213,7 +215,7 @@ func TestExclusiveBoundIsBoolean_FollowsTheDialect(t *testing.T) {
 // decides whether an internal pointer names anything.
 func TestRefScope_IsTheContextSeenAsAScope(t *testing.T) {
 	t.Parallel()
-	c := lowering.New(0, docDeclaring("User"), ir.SourceInfo{Path: "spec.yaml"}, "")
+	c := lowering.New(0, docDeclaring("User"), ir.SourceInfo{Path: "spec.yaml"}, "", overlay.Origin{})
 
 	scope := c.RefScope()
 
@@ -251,4 +253,72 @@ func TestDiagAt_StampsAndHandsBack(t *testing.T) {
 	assert.Equal(t, diag.DegradedConstruct, got.Code)
 	assert.Equal(t, ir.Provenance{Source: 3, Pointer: "/paths/~1x"}, got.Provenance)
 	assert.Equal(t, "dropped 1 of 2", got.Message, "the format arguments are applied")
+}
+
+// appliedOverlay returns a real Origin by applying ov to a tree of doc. Origin's
+// fields are unexported, so a context carrying one can only be built the way the
+// loader builds it — which is also what keeps this test honest about the shape
+// the compiler actually hands over.
+func appliedOverlay(t *testing.T, index int, doc, ov string) overlay.Origin {
+	t.Helper()
+	var root yaml.Node
+	require.NoError(t, yaml.Unmarshal([]byte(doc), &root))
+
+	origin, diags := overlay.Apply(index, &root, overlay.Options{Path: "patch.yaml", Data: []byte(ov)})
+	require.False(t, diag.HasError(diags), "%+v", diags)
+	require.True(t, origin.Applied())
+	return origin
+}
+
+// TestSources_ListsTheOverlayAfterTheSourceItPatched pins the list
+// Provenance.Source indexes into. The order is the contract: a position
+// attributed to index 1 must find the overlay there, so a Sources built in the
+// other order would misname every one of them rather than fail.
+func TestSources_ListsTheOverlayAfterTheSourceItPatched(t *testing.T) {
+	t.Parallel()
+	src := ir.SourceInfo{Format: "openapi@3.1", Path: "spec.yaml", Hash: "abc"}
+	origin := appliedOverlay(t, 1, "info: {title: T}\n",
+		"overlay: 1.0.0\ninfo: {title: O, version: \"1\"}\nactions:\n"+
+			"  - target: $.info\n    update: {description: d}\n")
+
+	c := lowering.New(0, docDeclaring(), src, "", origin)
+
+	require.Len(t, c.Sources(), 2)
+	assert.Equal(t, src, c.Sources()[0], "the source being lowered comes first")
+	assert.Equal(t, "overlay@1.0.0", c.Sources()[1].Format, "and the overlay applied to it second")
+	assert.Equal(t, "patch.yaml", c.Sources()[1].Path)
+}
+
+// TestSources_ListsOnlyTheSourceWhenNoOverlayApplied is the control for the case
+// above: without it, an assertion that the overlay entry is present would pass
+// on a context that appended one unconditionally.
+func TestSources_ListsOnlyTheSourceWhenNoOverlayApplied(t *testing.T) {
+	t.Parallel()
+	src := ir.SourceInfo{Format: "openapi@3.1", Path: "spec.yaml"}
+
+	c := lowering.New(0, docDeclaring(), src, "", overlay.Origin{})
+
+	assert.Equal(t, []ir.SourceInfo{src}, c.Sources())
+}
+
+// TestProvenanceAt_NamesTheOverlayForThePositionsItIntroduced pins the one place
+// a source index is spelled into a Provenance. Asking the overlay here is what
+// makes an overlay's contribution traceable without touching a lowering, so a
+// ProvenanceAt that ignored it would attribute the overlay's work to the file on
+// disk at every site at once.
+func TestProvenanceAt_NamesTheOverlayForThePositionsItIntroduced(t *testing.T) {
+	t.Parallel()
+	origin := appliedOverlay(t, 1, "info: {title: T}\n",
+		"overlay: 1.0.0\ninfo: {title: O, version: \"1\"}\nactions:\n"+
+			"  - target: $.info\n    update: {description: d}\n")
+
+	c := lowering.New(0, docDeclaring(), ir.SourceInfo{}, "", origin)
+
+	assert.Equal(t, ir.Provenance{Source: 1, Pointer: "/info/description"},
+		c.ProvenanceAt("/info/description"), "the overlay introduced this position")
+	assert.Equal(t, ir.Provenance{Source: 0, Pointer: "/info/title"},
+		c.ProvenanceAt("/info/title"), "and left this one alone")
+	assert.Equal(t, ir.Provenance{Source: 1, Pointer: "/info/description"},
+		c.DiagAt(ir.SeverityWarning, "x", "/info/description", "m").Provenance,
+		"a diagnostic is stamped through the same question")
 }

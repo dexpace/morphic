@@ -16,6 +16,7 @@ import (
 
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/load"
+	"github.com/dexpace/morphic/compilers/openapi/internal/overlay"
 	"github.com/dexpace/morphic/compilers/openapi/internal/resolve"
 	"github.com/dexpace/morphic/ir"
 )
@@ -74,6 +75,16 @@ type Ctx struct {
 	// resolves it once and extends the context with WithAuth, so the derivation
 	// stays a lowering and only its result becomes context.
 	auth map[ir.AuthID]ir.AuthScheme
+
+	// overlay attributes a position to the overlay document that introduced it,
+	// where one was applied. Its zero value answers for every compile without an
+	// overlay, so nothing below has to ask whether there was one.
+	//
+	// It is unexported for the reason schemas is — it holds a map, which a struct
+	// copy would share — and it is read only through ProvenanceAt, which keeps
+	// "provenance is built in exactly one place" true of the source index as well
+	// as of the pointer.
+	overlay overlay.Origin
 }
 
 // New derives the immutable context for one loaded source.
@@ -93,14 +104,30 @@ type Ctx struct {
 // building it is a lowering action rather than context: done at entry, that
 // warning would reach documents that never write $dynamicRef, changing what the
 // compiler reports about them. It stays where it is, built on first use.
-func New(srcIndex int, doc *soa.OpenAPI, src ir.SourceInfo, grouping GroupingStrategy) Ctx {
+func New(srcIndex int, doc *soa.OpenAPI, src ir.SourceInfo, grouping GroupingStrategy, origin overlay.Origin) Ctx {
 	return Ctx{
 		Doc:      doc,
 		Source:   src,
 		SrcIndex: srcIndex,
 		Grouping: grouping,
 		schemas:  declaredSchemaNames(doc),
+		overlay:  origin,
 	}
+}
+
+// Sources is the document's input files, in the order Provenance.Source indexes
+// them: the source being lowered, then the overlay applied to it if there was
+// one.
+//
+// It is built here rather than by the compiler that assembles the Document
+// because the two facts it joins are already the context's, and a second place
+// that pairs a source index with a SourceInfo is a second place they can
+// disagree — which would misattribute every node rather than fail.
+func (c Ctx) Sources() []ir.SourceInfo {
+	if !c.overlay.Applied() {
+		return []ir.SourceInfo{c.Source}
+	}
+	return []ir.SourceInfo{c.Source, c.overlay.Source()}
 }
 
 // WithAuth returns a copy of c carrying the resolved security schemes.
@@ -196,6 +223,11 @@ func (c Ctx) DiagAt(sev ir.Severity, code, pointer, format string, args ...any) 
 // diagnostic sites because that is where the defect it chased showed up, but the
 // defect is hand-writing the pair at all: a Provenance whose source index is
 // wrong misattributes a node just as surely as it misattributes a report.
+//
+// Being the one place is also what makes an overlay's contribution traceable
+// without touching a single lowering: a position the overlay introduced or
+// rewrote names the overlay as its source, because the question is asked here
+// rather than answered from a field each caller reads.
 func (c Ctx) ProvenanceAt(pointer string) ir.Provenance {
-	return ir.Provenance{Source: c.SrcIndex, Pointer: pointer}
+	return ir.Provenance{Source: c.overlay.IndexAt(pointer, c.SrcIndex), Pointer: pointer}
 }

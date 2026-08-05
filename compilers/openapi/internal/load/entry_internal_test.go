@@ -11,6 +11,7 @@ import (
 
 	"github.com/dexpace/morphic/compilers"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
+	"github.com/dexpace/morphic/compilers/openapi/internal/overlay"
 )
 
 // sourceOf wraps src as the single source a load call takes.
@@ -92,9 +93,7 @@ func TestLoad_32KeywordIsNotAnInvalidSchema(t *testing.T) {
 // own version did not.
 func TestMetaSchemaVersionArtifacts_ReconcilesOnlyWhatTheTwoRunsDisagreeOn(t *testing.T) {
 	t.Parallel()
-	doc, _, err := unmarshal(t.Context(), []byte(defaultMapping32Spec))
-	require.NoError(t, err)
-	require.NotNil(t, doc)
+	doc, _ := parseSpec(t, defaultMapping32Spec)
 
 	dropped := metaSchemaVersionArtifacts(t.Context(), doc, "3.2")
 	assert.NotEmpty(t, dropped, "the 3.2-only keyword is a finding the library raises alone")
@@ -113,9 +112,7 @@ func TestMetaSchemaVersionArtifacts_ReconcilesOnlyWhatTheTwoRunsDisagreeOn(t *te
 func TestMetaSchemaVersionArtifacts_AFindingBothRunsRaiseIsKept(t *testing.T) {
 	t.Parallel()
 	spec := defaultMapping32Spec + "    Broken: {type: 42}\n"
-	doc, _, err := unmarshal(t.Context(), []byte(spec))
-	require.NoError(t, err)
-	require.NotNil(t, doc)
+	doc, _ := parseSpec(t, spec)
 
 	atVersion := schemaFindings(t.Context(), doc,
 		validation.WithContextObject(&oas3.ParentDocumentVersion{OpenAPI: &doc.OpenAPI}))
@@ -187,4 +184,121 @@ func TestSupportedMinor_AcceptsOnlyTheThreeMinors(t *testing.T) {
 			assert.Equal(t, tc.want, got)
 		})
 	}
+}
+
+// overlayHeader is the preamble every overlay document below needs.
+const overlayHeader = "overlay: 1.0.0\ninfo: {title: O, version: \"1\"}\nactions:\n"
+
+// overlayOptions wraps one overlay document as the loader's options, at the
+// index Compile gives an overlay.
+func overlayOptions(body string) Options {
+	return Options{Overlay: &overlay.Options{Path: "patch.yaml", Data: []byte(overlayHeader + body)},
+		OverlaySrcIndex: 1}
+}
+
+// TestLoad_AppliesAnOverlayBeforeBuildingTheModel pins where the patching hook
+// sits: the model the loader hands back is built from the patched tree, so a
+// component the source never declared is present by the time anything can lower
+// it. Applying it after the parse would leave the model describing the file.
+func TestLoad_AppliesAnOverlayBeforeBuildingTheModel(t *testing.T) {
+	t.Parallel()
+	const spec = `openapi: 3.1.0
+info: {title: T, version: "1"}
+paths: {}
+components:
+  schemas:
+    Pet: {type: object}
+`
+	got, diags, err := Load(t.Context(), 0, sourceOf(spec),
+		overlayOptions("  - target: $.components.schemas\n    update:\n      Owner: {type: object}\n"))
+
+	require.NoError(t, err)
+	require.NotNil(t, got, "the overlay applies cleanly: %+v", diags)
+	_, ok := got.Doc.Components.GetSchemas().Get("Owner")
+	assert.True(t, ok, "the overlay's schema reached the parsed model")
+	assert.True(t, got.Overlay.Applied(), "and its attribution came back with it")
+	assert.Equal(t, "patch.yaml", got.Overlay.Source().Path)
+}
+
+// TestLoad_RefusesToLowerAfterAnOverlayFails pins that a failed overlay stops
+// the load the way an unsupported version does. The library applies actions in
+// order and does not undo the ones that landed, so the tree left behind is
+// neither the source nor what the overlay asked for — lowering it would produce
+// an IR describing no document anyone has.
+func TestLoad_RefusesToLowerAfterAnOverlayFails(t *testing.T) {
+	t.Parallel()
+	got, diags, err := Load(t.Context(), 0, sourceOf(minimal31),
+		overlayOptions("  - target: $.paths['/nope']\n    update: {description: x}\n"))
+
+	require.NoError(t, err, "a bad overlay is a document problem, not a Go error")
+	assert.Nil(t, got, "nothing is lowered")
+	require.True(t, diag.HasError(diags), "and the refusal is reported: %+v", diags)
+}
+
+// TestLoad_RefusesACycleAnOverlayIntroduced pins that the pre-parse refusals
+// cover the tree the parser is handed rather than only the bytes on disk. The
+// source alone is acyclic, so the scan that runs before the overlay cannot see
+// this; without the second scan the cycle reaches the third-party resolver,
+// which is the crash those refusals exist to prevent.
+func TestLoad_RefusesACycleAnOverlayIntroduced(t *testing.T) {
+	t.Parallel()
+	const acyclic = `openapi: 3.1.0
+info: {title: T, version: "1"}
+paths: {}
+components:
+  schemas:
+    A: {$ref: '#/components/schemas/B'}
+    B: {type: string}
+`
+	clean, _, err := Load(t.Context(), 0, sourceOf(acyclic), Options{})
+	require.NoError(t, err)
+	require.NotNil(t, clean, "the source alone gives the scan nothing to find")
+
+	got, diags, err := Load(t.Context(), 0, sourceOf(acyclic),
+		overlayOptions("  - target: $.components.schemas.B\n    update: {$ref: '#/components/schemas/A'}\n"))
+
+	require.NoError(t, err)
+	assert.Nil(t, got, "the patched document is refused before the resolver sees it")
+	assert.Equal(t, 1, countErrorsAt(diags, diag.CyclicRef), "the introduced cycle is what refused it")
+}
+
+// TestLoad_ADocumentThatFailsToBuildIsAGoError pins the split between the two
+// parse steps. Whitespace decodes as YAML and then faults building the model, so
+// it must leave as a Go error naming the source — the same treatment bytes that
+// are not YAML at all get, reached one step later.
+func TestLoad_ADocumentThatFailsToBuildIsAGoError(t *testing.T) {
+	t.Parallel()
+	doc, diags, err := Load(t.Context(), 5, sourceOf(" "), Options{})
+
+	require.Error(t, err)
+	assert.ErrorIs(t, err, errParse)
+	assert.Contains(t, err.Error(), "source 5", "the failing source is named")
+	assert.Nil(t, doc)
+	assert.Nil(t, diags)
+}
+
+// TestLoad_RejectsAnOverlaySharingTheSourceIndex pins the one way the
+// attribution can go wrong without anything noticing.
+//
+// The overlay's index and its place in Document.Sources are decided in two
+// packages and have to agree. An index past the end disagrees loudly — irverify
+// reports it as the dangling reference it is — but an index equal to the
+// source's addresses a declared entry, so every position the overlay introduced
+// would quietly name the spec while Sources carried an entry nothing references.
+// That is a caller mistake rather than a document problem, so it leaves as a Go
+// error.
+func TestLoad_RejectsAnOverlaySharingTheSourceIndex(t *testing.T) {
+	t.Parallel()
+	opts := overlayOptions("  - target: $.info\n    update: {description: d}\n")
+	opts.OverlaySrcIndex = 2
+
+	refused, _, err := Load(t.Context(), 2, sourceOf(minimal31), opts)
+	require.Error(t, err, "the overlay may not share source 2's index")
+	assert.Contains(t, err.Error(), "overlay source index 2", "the collision is named")
+	assert.Nil(t, refused)
+
+	opts.OverlaySrcIndex = 3
+	got, diags, err := Load(t.Context(), 2, sourceOf(minimal31), opts)
+	require.NoError(t, err, "an index of its own is fine: %+v", diags)
+	assert.True(t, got.Overlay.Applied())
 }

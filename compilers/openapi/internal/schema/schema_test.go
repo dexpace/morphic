@@ -16,6 +16,7 @@ import (
 	"github.com/dexpace/morphic/compilers/openapi/internal/annotation"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
+	"github.com/dexpace/morphic/compilers/openapi/internal/overlay"
 	"github.com/dexpace/morphic/compilers/openapi/internal/schema"
 	"github.com/dexpace/morphic/ir"
 	"github.com/dexpace/morphic/pass"
@@ -3205,7 +3206,7 @@ func TestDynamicRef_NonScalarValueIsKeptNotExpanded(t *testing.T) {
 // prototype changes, so a site that fills in a name or a description keeps it.
 func TestAppendExample_ConvertsAndAppends(t *testing.T) {
 	t.Parallel()
-	c := lowering.New(0, &soa.OpenAPI{}, ir.SourceInfo{}, "")
+	c := lowering.New(0, &soa.OpenAPI{}, ir.SourceInfo{}, "", overlay.Origin{})
 	proto := ir.Example{Name: "n", Summary: "s", Description: "d"}
 
 	out, diags := schema.AppendExample(c, nil, proto, strNode("hello"), "/p", "examples", "n")
@@ -3223,7 +3224,7 @@ func TestAppendExample_ConvertsAndAppends(t *testing.T) {
 // that joins them, so a wrong join shows up nowhere else.
 func TestAppendExample_UnconvertibleValueIsReported(t *testing.T) {
 	t.Parallel()
-	c := lowering.New(0, &soa.OpenAPI{}, ir.SourceInfo{}, "")
+	c := lowering.New(0, &soa.OpenAPI{}, ir.SourceInfo{}, "", overlay.Origin{})
 	nan := &yaml.Node{Kind: yaml.ScalarNode, Tag: "!!float", Value: ".nan"}
 
 	out, diags := schema.AppendExample(c, nil, ir.Example{}, nan, "/p", "examples", "n")
@@ -3240,7 +3241,7 @@ func TestAppendExample_UnconvertibleValueIsReported(t *testing.T) {
 // it, not at the position that declared it.
 func TestStampConstraintDiags_RelocatesEveryDiagnosticToTheReadingPointer(t *testing.T) {
 	t.Parallel()
-	c := lowering.New(0, &soa.OpenAPI{}, ir.SourceInfo{}, "")
+	c := lowering.New(0, &soa.OpenAPI{}, ir.SourceInfo{}, "", overlay.Origin{})
 	in := []ir.Diagnostic{
 		{Code: diag.DegradedConstruct, Provenance: ir.Provenance{Pointer: "/elsewhere"}},
 		{Code: diag.NumericPrecision, Provenance: ir.Provenance{Source: 9, Pointer: "/other"}},
