@@ -453,18 +453,21 @@ func assertEmptyNamedProperty(t *testing.T, doc *ir.Document) {
 }
 
 // composedHints is every node in the corpus spec whose hint is built out of an
-// enclosing node's, keyed by the type ID it lands at. Each pairs an unnamed
-// position with the role or index that distinguishes the child from its
-// siblings — a list element, a map value, a pattern group, a tuple slot, an enum
-// branch, a composed union variant.
-var composedHints = map[ir.TypeID]string{
-	"t/anon/components/schemas/List/properties//items":                    "empty_item",
-	"t/anon/components/schemas/Maps/properties//additionalProperties":     "empty_value",
-	"t/anon/components/schemas/Patterns/properties//patternProperties/^x": "empty_pattern",
-	"t/anon/components/schemas/Tuple/properties//prefixItems/0":           "empty_0",
-	"t/anon/components/schemas/Mixed/properties//enum/0":                  "empty_0",
-	"t/anon/components/schemas/Mixed/properties//enum/1":                  "empty_1",
-	"t/composed/components/schemas/Host/properties//oneOf/0":              "empty_Alt",
+// enclosing node's. Each pairs an unnamed position with the role or index that
+// distinguishes the child from its siblings — a list element, a map value, a
+// pattern group, a tuple slot, an enum branch, a composed union variant. A slice
+// rather than a map so a failure names them in a fixed order.
+var composedHints = []struct {
+	id   ir.TypeID
+	hint string
+}{
+	{"t/anon/components/schemas/List/properties//items", "empty_item"},
+	{"t/anon/components/schemas/Maps/properties//additionalProperties", "empty_value"},
+	{"t/anon/components/schemas/Patterns/properties//patternProperties/^x", "empty_pattern"},
+	{"t/anon/components/schemas/Tuple/properties//prefixItems/0", "empty_0"},
+	{"t/anon/components/schemas/Mixed/properties//enum/0", "empty_0"},
+	{"t/anon/components/schemas/Mixed/properties//enum/1", "empty_1"},
+	{"t/composed/components/schemas/Host/properties//oneOf/0", "empty_Alt"},
 }
 
 // assertEmptyDerivedHints is the case minting at the node alone does not reach.
@@ -474,10 +477,21 @@ var composedHints = map[ir.TypeID]string{
 // produces and one that disagrees with the node it hangs off. The enclosing hint
 // is minted before the child is composed from it.
 //
-// Two composition sites are not witnessed here and are held by compile.SubHint
-// and its unit test alone: the 3.2 itemSchema of a sequential media type, whose
-// enclosing hint no unnamed position reaches, and a composed variant of an
-// inline branch, which the Host case covers only in its $ref form.
+// The composition sites are the callers of compile.SubHint:
+//
+//	grep -rn 'compile\.SubHint(' compilers/openapi
+//
+// composedHints covers every one an unnamed position can reach. The single
+// exception is the sequential media type's 3.2 itemSchema, and it is not a gap:
+// both callers of lowerPayload pass an enclosing hint that cannot be empty —
+// "response" is a literal, and the request-body side falls back to "request"
+// because ids.ComponentEntry refuses a component keyed "". SubHint there is
+// uniformity rather than a fix.
+//
+// A composed variant of an *inline* branch is likewise absent by construction,
+// not by omission: ir-design §4.8 keeps that union verbatim instead of
+// distributing it, so the $ref form the Host case uses is the only form that
+// reaches composedVariant at all.
 func assertEmptyDerivedHints(t *testing.T, doc *ir.Document) {
 	t.Helper()
 	mixed, ok := doc.Types[namedID("Mixed")].(*ir.Model)
@@ -487,10 +501,10 @@ func assertEmptyDerivedHints(t *testing.T, doc *ir.Document) {
 	require.True(t, ok, "a heterogeneous enum lowers to a union of literals")
 	assert.Equal(t, "empty", union.Name.Hint, "the enclosing node keeps the plain minted hint")
 
-	for id, want := range composedHints {
-		node, found := doc.Types[id]
-		require.True(t, found, "no node at %s; the composition site moved", id)
-		assert.Equal(t, want, node.Common().Name.Hint, "composed hint at %s", id)
+	for _, tc := range composedHints {
+		node, found := doc.Types[tc.id]
+		require.True(t, found, "no node at %s; the composition site moved", tc.id)
+		assert.Equal(t, tc.hint, node.Common().Name.Hint, "composed hint at %s", tc.id)
 	}
 }
 
