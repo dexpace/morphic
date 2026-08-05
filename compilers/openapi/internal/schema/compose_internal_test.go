@@ -13,6 +13,7 @@ import (
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/ids"
 	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
+	"github.com/dexpace/morphic/compilers/openapi/internal/overlay"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -35,7 +36,7 @@ func TestRefLastSegment(t *testing.T) {
 func TestMappingTargetID(t *testing.T) {
 	t.Parallel()
 	l := &lowerer{
-		ctx: lowering.New(0, docDeclaring("Cat", "Dog", "A/B"), ir.SourceInfo{}, ""),
+		ctx: lowering.New(0, docDeclaring("Cat", "Dog", "A/B"), ir.SourceInfo{}, "", overlay.Origin{}),
 		out: &ir.Document{Types: ir.TypeRegistry{}},
 	}
 	// A $ref to a declared component.
@@ -62,7 +63,7 @@ func TestMappingTargetID(t *testing.T) {
 	// (issue #14, f31). It gets a context of its own rather than being added to the
 	// one above: the declared set is derived from the document now, so saying "and
 	// also this one" means saying it to a document.
-	empty := lowering.New(0, docDeclaring(""), ir.SourceInfo{}, "")
+	empty := lowering.New(0, docDeclaring(""), ir.SourceInfo{}, "", overlay.Origin{})
 	id, ok = mappingTargetID(empty, l.types, "")
 	require.True(t, ok)
 	assert.Equal(t, ids.AnonType(ids.Ptr("components", "schemas", "")), id)

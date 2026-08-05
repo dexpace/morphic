@@ -14,6 +14,7 @@ import (
 	"github.com/dexpace/morphic/compilers/openapi/internal/load"
 	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
 	"github.com/dexpace/morphic/compilers/openapi/internal/operation"
+	"github.com/dexpace/morphic/compilers/openapi/internal/overlay"
 	"github.com/dexpace/morphic/compilers/openapi/internal/schema"
 	"github.com/dexpace/morphic/ir"
 )
@@ -199,7 +200,7 @@ func serviceWithGrouping(t *testing.T, src string, grouping lowering.GroupingStr
 	require.NotNil(t, loadedDoc)
 
 	types := compile.NewTypes(0)
-	c := lowering.New(0, loadedDoc.Doc, loadedDoc.Source, grouping)
+	c := lowering.New(0, loadedDoc.Doc, loadedDoc.Source, grouping, overlay.Origin{})
 	var anchors schema.AnchorIndex
 	var acc compile.Diags
 	acc.AppendAll(schema.LowerComponentSchemas(c, types, &anchors))

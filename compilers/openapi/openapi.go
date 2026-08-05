@@ -12,6 +12,7 @@ import (
 	"github.com/dexpace/morphic/compilers/openapi/internal/load"
 	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
 	"github.com/dexpace/morphic/compilers/openapi/internal/operation"
+	"github.com/dexpace/morphic/compilers/openapi/internal/overlay"
 	"github.com/dexpace/morphic/compilers/openapi/internal/schema"
 	"github.com/dexpace/morphic/ir"
 )
@@ -25,6 +26,15 @@ import (
 //
 // A varying index arrives with the link pass, from Compile's caller.
 const rootSrcIndex = 0
+
+// overlaySrcIndex is the index an applied overlay takes in Document.Sources.
+//
+// It follows the root because the root is the document being compiled and the
+// overlay is a patch on it, and it is spelled once here for the reason
+// rootSrcIndex is: the loader stamps it into the overlay's diagnostics and the
+// lowering stamps it into every position the overlay introduced, and the two
+// have to agree.
+const overlaySrcIndex = rootSrcIndex + 1
 
 // Compiler lowers OpenAPI 3.x documents into the IR.
 type Compiler struct{}
@@ -106,7 +116,7 @@ func run(c lowering.Ctx, ts *compile.Types) (*ir.Document, []ir.Diagnostic) {
 	}
 	acc.AppendAll(metaDiags)
 	out.IRVersion = ir.IRVersion
-	out.Sources = []ir.SourceInfo{c.Source}
+	out.Sources = c.Sources()
 	// An entry the registry refused is a compiler bug no source can provoke, and
 	// a refusal nothing reports hides the bug rather than the symptom: the node is
 	// simply absent and every reference to it dangles.
@@ -135,7 +145,12 @@ func optionsFrom(opts compilers.Options) (Options, error) {
 // deliberately not this public type, whose shape ir-design §10 fixes and most of
 // which describes lowering the loader cannot see.
 func loadOptions(o Options) load.Options {
-	return load.Options{AllowExternalRefs: o.AllowExternalRefs}
+	out := load.Options{AllowExternalRefs: o.AllowExternalRefs}
+	if o.Overlay != nil {
+		out.Overlay = &overlay.Options{Path: o.Overlay.Path, Data: o.Overlay.Data, Lax: o.Overlay.Lax}
+		out.OverlaySrcIndex = overlaySrcIndex
+	}
+	return out
 }
 
 // loweringCtx projects a loaded document and the caller's options onto the
@@ -143,5 +158,5 @@ func loadOptions(o Options) load.Options {
 // place the loader's result type meets the lowering, so lowering.New can take
 // the two facts it needs rather than the loader's struct.
 func loweringCtx(doc *load.Document, o Options) lowering.Ctx {
-	return lowering.New(rootSrcIndex, doc.Doc, doc.Source, o.Grouping)
+	return lowering.New(rootSrcIndex, doc.Doc, doc.Source, o.Grouping, doc.Overlay)
 }

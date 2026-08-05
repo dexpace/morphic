@@ -80,17 +80,30 @@ var rules = map[string][]string{
 		module + "/compilers/openapi/internal/value",
 		"github.com/speakeasy-api/openapi/extensions",
 		"github.com/speakeasy-api/openapi/jsonschema/oas3", "gopkg.in/yaml.v3"},
+	// Source-document patching: an OpenAPI Overlay applied to the decoded node
+	// tree, and the attribution of what it changed. It reads bytes and nodes and
+	// reports through diag, reaching ids for the pointer arithmetic that names a
+	// position and nodeview for the document root — and nothing that lowers,
+	// because it runs before there is anything to lower.
+	"compilers/openapi/internal/overlay": {module + "/ir",
+		module + "/compilers/openapi/internal/diag",
+		module + "/compilers/openapi/internal/ids",
+		module + "/compilers/openapi/internal/nodeview",
+		"github.com/speakeasy-api/openapi/overlay", "gopkg.in/yaml.v3"},
 	// The entry side: parse, validate, resolve. It runs the pre-lowering refusals
-	// through scan and reads value only to tell a real numeric-literal problem
-	// from a library artifact, and it reaches nothing that lowers — at this point
-	// there is no document to lower.
+	// through scan, applies the caller's overlay through overlay, and reads value
+	// only to tell a real numeric-literal problem from a library artifact. It
+	// reaches nothing that lowers — at this point there is no document to lower.
 	"compilers/openapi/internal/load": {module + "/ir", module + "/compilers",
 		module + "/compilers/openapi/internal/diag",
+		module + "/compilers/openapi/internal/overlay",
 		module + "/compilers/openapi/internal/scan",
 		module + "/compilers/openapi/internal/value",
 		"github.com/speakeasy-api/openapi/jsonschema/oas3",
+		"github.com/speakeasy-api/openapi/marshaller",
 		"github.com/speakeasy-api/openapi/openapi",
-		"github.com/speakeasy-api/openapi/validation", "gopkg.in/yaml.v3"},
+		"github.com/speakeasy-api/openapi/validation",
+		"github.com/speakeasy-api/openapi/yml", "gopkg.in/yaml.v3"},
 	// What a $ref names: the pointer it addresses and the type already interned
 	// there. It reaches annotation to ask whether a referenced position declares
 	// a body at all, and compile for the registry it looks IDs up in. It reaches
@@ -116,6 +129,7 @@ var rules = map[string][]string{
 	"compilers/openapi/internal/lowering": {module + "/ir",
 		module + "/compilers/openapi/internal/diag",
 		module + "/compilers/openapi/internal/load",
+		module + "/compilers/openapi/internal/overlay",
 		module + "/compilers/openapi/internal/resolve",
 		"github.com/speakeasy-api/openapi/openapi"},
 	// The security schemes a document declares and the requirements that name

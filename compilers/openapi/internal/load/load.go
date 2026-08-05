@@ -9,7 +9,6 @@
 package load
 
 import (
-	"bytes"
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
@@ -20,12 +19,15 @@ import (
 	"strings"
 
 	oas3 "github.com/speakeasy-api/openapi/jsonschema/oas3"
+	"github.com/speakeasy-api/openapi/marshaller"
 	soa "github.com/speakeasy-api/openapi/openapi"
 	"github.com/speakeasy-api/openapi/validation"
+	"github.com/speakeasy-api/openapi/yml"
 	yaml "gopkg.in/yaml.v3"
 
 	"github.com/dexpace/morphic/compilers"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
+	"github.com/dexpace/morphic/compilers/openapi/internal/overlay"
 	"github.com/dexpace/morphic/compilers/openapi/internal/scan"
 	"github.com/dexpace/morphic/compilers/openapi/internal/value"
 	"github.com/dexpace/morphic/ir"
@@ -40,6 +42,13 @@ type Options struct {
 	// off the filesystem or over the network. Off is the default, so the zero
 	// value performs no I/O.
 	AllowExternalRefs bool
+	// Overlay is the OpenAPI Overlay document to apply to the source before the
+	// model is built, or nil for none. Its bytes are the caller's to read, like
+	// the source's.
+	Overlay *overlay.Options
+	// OverlaySrcIndex is the index the overlay document takes in Document.Sources.
+	// It is read only when Overlay is set.
+	OverlaySrcIndex int
 }
 
 // errParse marks a hard failure to parse a source document — an I/O- or
@@ -61,6 +70,9 @@ const maxSchemaScanDepth = 512
 type Document struct {
 	Doc    *soa.OpenAPI  // parsed, reference-resolved document
 	Source ir.SourceInfo // format tag, path, content hash
+	// Overlay attributes the positions an applied overlay is answerable for. Its
+	// zero value — nothing applied — is the answer for a compile with no overlay.
+	Overlay overlay.Origin
 }
 
 // Load parses, validates, and resolves one source document. Spec problems
@@ -76,7 +88,18 @@ func Load(ctx context.Context, srcIndex int, src compilers.Source, opts Options)
 	}
 	// cyc may still hold a non-fatal scan-incomplete warning; carry it forward.
 
-	doc, valErrs, err := unmarshal(ctx, src.Data)
+	root, err := decode(src.Data)
+	if err != nil {
+		return nil, nil, fmt.Errorf("openapi: decode source %d: %w", srcIndex, err)
+	}
+
+	origin, patchDiags := patch(srcIndex, root, opts)
+	cyc = append(cyc, patchDiags...)
+	if diag.HasError(cyc) {
+		return nil, cyc, nil // an overlay that did not apply: refuse to lower a half-patched tree
+	}
+
+	doc, valErrs, err := unmarshal(ctx, src.Data, root)
 	if err != nil {
 		return nil, nil, fmt.Errorf("openapi: unmarshal source %d: %w", srcIndex, err)
 	}
@@ -114,7 +137,26 @@ func Load(ctx context.Context, srcIndex int, src compilers.Source, opts Options)
 			Path:   src.Path,
 			Hash:   sourceHash(src.Data),
 		},
+		Overlay: origin,
 	}, diags, nil
+}
+
+// patch applies the caller's overlay to the decoded tree, or does nothing when
+// there is none.
+//
+// It re-runs the pre-parse refusals over the result, because the tree that
+// reaches the parser is no longer the bytes scan.Cycles saw: an overlay action
+// can graft a $ref cycle onto a document that had none, and the guarantee those
+// refusals exist for is about what the parser is handed.
+func patch(srcIndex int, root *yaml.Node, opts Options) (overlay.Origin, []ir.Diagnostic) {
+	if opts.Overlay == nil {
+		return overlay.Origin{}, nil
+	}
+	origin, diags := overlay.Apply(opts.OverlaySrcIndex, root, *opts.Overlay)
+	if diag.HasError(diags) {
+		return overlay.Origin{}, diags
+	}
+	return origin, append(diags, scan.CyclesInNode(srcIndex, root)...)
 }
 
 // metaSchemaReconciledMinor is the OpenAPI minor whose schema findings are
@@ -307,19 +349,60 @@ func walkNumericScalars(node *yaml.Node, depth int, visit func(*yaml.Node)) {
 	}
 }
 
-// unmarshal parses source bytes into a speakeasy document. It converts a panic
-// from the third-party parser — which faults on degenerate input such as a
-// whitespace-only document — into an errParse error, so the compiler upholds the
-// no-panics-escape invariant instead of crashing the caller's process. The named
-// returns are reset in the recover so a partially-assigned document never leaks.
-func unmarshal(ctx context.Context, data []byte) (doc *soa.OpenAPI, valErrs []error, err error) {
+// decode parses source bytes into a YAML node tree.
+//
+// It is split out from unmarshal so an overlay can be applied to the tree
+// between the two: the alternative — overlaying, re-serialising and re-parsing —
+// renumbers every line in the document, and every diagnostic about the source
+// would then name a position in a file that exists nowhere.
+//
+// It carries no recover of its own, unlike the model build and the resolve below
+// it. yaml.v3 converts its own faults into errors before they leave Unmarshal,
+// and the pre-parse scan has already decoded these same bytes under a barrier by
+// the time this runs — the third-party code that has been seen to fault here is
+// the layer above the decode, which is where the barrier is.
+func decode(data []byte) (*yaml.Node, error) {
+	var root yaml.Node
+	if err := yaml.Unmarshal(data, &root); err != nil {
+		return nil, fmt.Errorf("%w: %w", err, errParse)
+	}
+	return &root, nil
+}
+
+// unmarshal builds a speakeasy document from an already-decoded node tree,
+// reproducing soa.Unmarshal's sequence with the decode lifted out: seed the
+// cache, carry the source's YAML formatting onto the core model, populate from
+// the node, then validate and sort the findings as the library does. Reading the
+// nodes rather than bytes is what preserves each one's line and column through
+// an overlay.
+//
+// It converts a panic from the third-party parser — which faults on degenerate
+// input such as a whitespace-only document — into an errParse error, so the
+// compiler upholds the no-panics-escape invariant instead of crashing the
+// caller's process. The named returns are reset in the recover so a
+// partially-assigned document never leaks.
+func unmarshal(ctx context.Context, data []byte, root *yaml.Node) (doc *soa.OpenAPI, valErrs []error, err error) {
 	defer func() {
 		if r := recover(); r != nil {
 			doc, valErrs = nil, nil
 			err = fmt.Errorf("parser panicked (%v): %w", r, errParse)
 		}
 	}()
-	return soa.Unmarshal(ctx, bytes.NewReader(data))
+	if len(data) == 0 {
+		return nil, nil, errors.New("empty document")
+	}
+
+	var out soa.OpenAPI
+	out.InitCache()
+	out.GetCore().SetConfig(yml.GetConfigFromDoc(data, root))
+
+	valErrs, err = marshaller.UnmarshalNode(ctx, "", root, &out)
+	if err != nil {
+		return nil, nil, fmt.Errorf("unmarshal document: %w", err)
+	}
+	valErrs = append(valErrs, out.Validate(ctx)...)
+	validation.SortValidationErrors(valErrs)
+	return &out, valErrs, nil
 }
 
 // resolveAll resolves every reference in doc, converting a panic from the

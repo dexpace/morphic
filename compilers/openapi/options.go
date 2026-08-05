@@ -43,6 +43,39 @@ type Options struct {
 	// still does not reach lowering — Sources records one entry either way
 	// (GitHub #74 carries the multi-file work).
 	AllowExternalRefs bool `json:"allowExternalRefs"`
+	// Overlay is an OpenAPI Overlay document to apply to the source before
+	// lowering, or nil for none. It is the source-document patching hook
+	// architecture §2.2 names, and is deliberately not the IR overlay pass beside
+	// it: a fix that has to land before naming and hoisting heuristics read the
+	// broken shape cannot be made afterwards.
+	Overlay *Overlay `json:"overlay,omitempty"`
+}
+
+// Overlay is one pre-read OpenAPI Overlay document (the Overlay Specification's
+// own format, applied with JSONPath selectors) and how strictly to apply it.
+//
+// The document arrives as bytes, like the spec itself, because a compiler
+// performs no file I/O — reading it is the engine's or the CLI's job, which is
+// what keeps compilation pure and reentrant.
+//
+// An applied overlay becomes a second entry in Document.Sources, and every
+// position it introduced or rewrote names that entry as its Provenance.Source.
+// The positions it left alone keep the source's own line and column, because the
+// overlay is applied to the parsed node tree rather than to re-serialised bytes.
+type Overlay struct {
+	// Path names the overlay document. It is recorded as the overlay's
+	// SourceInfo path and never opened.
+	Path string `json:"path,omitempty"`
+	// Data is the overlay document's bytes.
+	Data []byte `json:"data,omitempty"`
+	// Lax turns off strict application.
+	//
+	// Strict — the zero value — is the default because an action whose selector
+	// matches nothing is nearly always a typo in a JSONPath, and an overlay that
+	// silently does nothing ships an SDK missing the very fix it was written to
+	// make. Under strict such an action is reported and the compile refuses;
+	// under lax it is not reported at all.
+	Lax bool `json:"lax,omitempty"`
 }
 
 // withDefaults returns a copy of o with unset fields filled from the defaults.

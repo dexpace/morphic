@@ -13,6 +13,7 @@ import (
 	"github.com/dexpace/morphic/compilers/openapi/internal/load"
 	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
 	"github.com/dexpace/morphic/compilers/openapi/internal/operation"
+	"github.com/dexpace/morphic/compilers/openapi/internal/overlay"
 	"github.com/dexpace/morphic/compilers/openapi/internal/schema"
 	"github.com/dexpace/morphic/ir"
 )
@@ -154,7 +155,7 @@ func newLowerer(doc *load.Document, opts Options) *lowerer {
 func newRawLowerer(doc *soa.OpenAPI) *lowerer {
 	rawTypes := compile.NewTypes(0)
 	l := &lowerer{
-		ctx:          lowering.New(0, doc, ir.SourceInfo{}, ""),
+		ctx:          lowering.New(0, doc, ir.SourceInfo{}, "", overlay.Origin{}),
 		out:          &ir.Document{Types: rawTypes.Registry()},
 		types:        rawTypes,
 		operationIDs: make(map[string]string),

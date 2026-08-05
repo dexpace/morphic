@@ -753,3 +753,35 @@ func TestDetectCycles_PointerIsNormalizedLikeTheResolver(t *testing.T) {
 		})
 	}
 }
+
+// TestCyclesInNode_FindsWhatCyclesFindsInTheSameBytes pins the node-taking entry
+// against the byte-taking one. They must agree, because the only reason the
+// second exists is a caller holding a tree the source bytes no longer describe —
+// an overlay's — and a scan that classified a decoded tree differently would let
+// exactly the documents it was added for through.
+func TestCyclesInNode_FindsWhatCyclesFindsInTheSameBytes(t *testing.T) {
+	t.Parallel()
+	for _, tc := range cycleReproducers {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			data := readReproducer(t, tc.file)
+
+			var root yaml.Node
+			require.NoError(t, yaml.Unmarshal(data, &root))
+
+			assert.Equal(t, Cycles(0, data), CyclesInNode(0, &root))
+		})
+	}
+}
+
+// TestCyclesInNode_AcceptsATreeWithNoCycle is the control: without it, an
+// agreement test over refusals alone would pass on an entry point that refused
+// everything handed to it.
+func TestCyclesInNode_AcceptsATreeWithNoCycle(t *testing.T) {
+	t.Parallel()
+	var root yaml.Node
+	require.NoError(t, yaml.Unmarshal([]byte(
+		"openapi: 3.1.0\ncomponents: {schemas: {A: {$ref: '#/components/schemas/B'}, B: {type: string}}}\n"), &root))
+
+	assert.Empty(t, CyclesInNode(0, &root))
+}

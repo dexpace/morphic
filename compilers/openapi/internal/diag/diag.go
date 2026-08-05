@@ -38,6 +38,28 @@ const (
 	// for the source. It is a warning, never a refusal: the compile still
 	// proceeds, and every cycle the scan did classify is still caught.
 	CycleScanFailed = "openapi/cycle-scan-failed"
+	// OverlayInvalid reports an overlay document that could not be parsed, or that
+	// parsed but is not a valid Overlay — a missing version, no actions, an action
+	// naming no target. Nothing is applied, so the compile refuses rather than
+	// lowering a source the caller believes was patched.
+	OverlayInvalid = "openapi/invalid-overlay"
+	// OverlayFailed reports an overlay the library could not apply as written: a
+	// selector matching nothing under strict application, or an action whose
+	// update disagrees with the shape it targets. Actions are applied in order and
+	// the ones that landed are not undone, so the compile refuses — the tree left
+	// behind is neither the source nor what the overlay asked for.
+	OverlayFailed = "openapi/overlay-failed"
+	// OverlayAction reports one strict-mode finding about a single action, naming
+	// the action and its target — most often that it matched nothing and so did
+	// nothing. It is a warning that accompanies the OverlayFailed refusal rather
+	// than replacing it: the refusal says the overlay is wrong, and these say
+	// which actions are why.
+	OverlayAction = "openapi/overlay-action"
+	// OverlayOriginIncomplete reports that the overlay applied but the walk that
+	// attributes positions to it exceeded its node budget. Provenance degrades to
+	// naming the source for every position, which is what a compile with no
+	// overlay reports; nothing else about the lowering changes.
+	OverlayOriginIncomplete = "openapi/overlay-origin-incomplete"
 	// ValidationOnlyKeyword reports a validation-only JSON Schema keyword kept
 	// verbatim under Unmodeled (ir-design §4.7).
 	ValidationOnlyKeyword = "openapi/validation-only-keyword"
