@@ -41,7 +41,9 @@
               ],
               "responses": [
                 {
-                  "name": {},
+                  "name": {
+                    "hint": "200"
+                  },
                   "conditions": {
                     "statusCodes": [
                       {
@@ -109,7 +111,9 @@
   },
   "servers": [
     {
-      "name": {},
+      "name": {
+        "hint": "server"
+      },
       "urlTemplate": "/",
       "description": {},
       "auth": null

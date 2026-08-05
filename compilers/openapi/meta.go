@@ -9,6 +9,16 @@ import (
 	"github.com/dexpace/morphic/ir"
 )
 
+// unnamedServerHint names a server whose URL template holds no word to derive a
+// hint from. That is "/" in practice — the server GetServers injects for a
+// document declaring none — and it is most of the corpus.
+//
+// The word says what the entity is, which is what a hint is for. The shared mint
+// for a name the source left out would read as an omission instead, and here
+// there is none: the document named no server because below 3.2 it cannot, and
+// its URL is simply the root.
+const unnamedServerHint = "server"
+
 // docMeta is the document-level metadata: what ir.Document carries that belongs
 // to neither the type graph nor the service graph.
 //
@@ -89,18 +99,37 @@ func lowerServers(c lowering.Ctx) []ir.Server {
 	return out
 }
 
-// lowerServer lowers one server. The OpenAPI 3.2 server name, when present,
-// becomes the server's naming.
+// lowerServer lowers one server, named by serverName.
 func lowerServer(s *soa.Server) ir.Server {
-	srv := ir.Server{
+	return ir.Server{
+		Name:        serverName(s),
 		URLTemplate: s.GetURL(),
 		Description: ir.Docs{Description: s.GetDescription()},
 		Variables:   serverVariables(s),
 	}
+}
+
+// serverName builds a server's neutral naming: the declared name when the source
+// carries one, which only OpenAPI 3.2 can, and otherwise a hint derived from the
+// URL template that locates it. It is the shape operationName uses one level
+// down — an entity the source did not name is named by what locates it — and it
+// closes the gap where every server below 3.2 reached the IR with all three name
+// channels empty (GitHub #258).
+//
+// The URL rather than the position in servers[]: an index-derived hint says
+// nothing about the server it names and stops naming the same one as soon as the
+// list is reordered. The whole template rather than a chosen part of it — the
+// host, the path — because choosing is a policy about what a server's name is,
+// and transcribing needs none: two servers that differ at all differ somewhere
+// in it, so the hint distinguishes exactly the servers that are distinct.
+func serverName(s *soa.Server) ir.Naming {
 	if name := s.GetName(); name != "" {
-		srv.Name = compile.NamingFor(name)
+		return compile.NamingFor(name)
 	}
-	return srv
+	if words := ir.CanonicalWords(s.GetURL()); words != "" {
+		return compile.NamingHint(words)
+	}
+	return compile.NamingHint(unnamedServerHint)
 }
 
 // serverVariables lowers a server's URL template variables in source order, or

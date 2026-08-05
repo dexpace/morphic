@@ -160,7 +160,7 @@ func rawConfigCarriers(payload ir.RawValue) map[string]struct {
 } {
 	cfg := map[string]ir.RawConfig{"kafka": {"clientId": payload}}
 	server := validDoc()
-	server.Servers = []ir.Server{{URLTemplate: "https://x", Bindings: cfg}}
+	server.Servers = []ir.Server{{Name: named("a"), URLTemplate: "https://x", Bindings: cfg}}
 	channel := validDoc()
 	channel.Channels = map[ir.ChannelID]ir.Channel{
 		"chan/a": {ID: "chan/a", Name: named("a"), Bindings: cfg},

@@ -54,7 +54,9 @@
               ],
               "responses": [
                 {
-                  "name": {},
+                  "name": {
+                    "hint": "200"
+                  },
                   "conditions": {
                     "statusCodes": [
                       {
@@ -150,7 +152,9 @@
               },
               "responses": [
                 {
-                  "name": {},
+                  "name": {
+                    "hint": "200"
+                  },
                   "conditions": {
                     "statusCodes": [
                       {
@@ -245,7 +249,9 @@
               ],
               "responses": [
                 {
-                  "name": {},
+                  "name": {
+                    "hint": "200"
+                  },
                   "conditions": {
                     "statusCodes": [
                       {
@@ -752,7 +758,9 @@
   },
   "servers": [
     {
-      "name": {},
+      "name": {
+        "hint": "https_env_example_com_v_1"
+      },
       "urlTemplate": "https://{env}.example.com/v1",
       "description": {
         "description": "Primary server"
