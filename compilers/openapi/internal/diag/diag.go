@@ -77,6 +77,11 @@ const (
 	// form is wrong for the document's dialect (a boolean under 2020-12, or a
 	// number under 3.0) — see exclusiveFormDiag.
 	ExclusiveBoundForm = "openapi/invalid-exclusive-bound"
+	// InvalidStatusKey reports a responses-map key that names no status: not a
+	// 100–599 code, not one of the 1XX–5XX wildcard ranges, not "default". The
+	// response still lowers, with no status condition rather than the catch-all
+	// range that "default" alone denotes (GitHub #262).
+	InvalidStatusKey = "openapi/invalid-status-key"
 	// DegradedConstruct reports a construct the compiler could not carry into the
 	// IR as written: preserved raw for want of a structural home, lowered to a
 	// weaker shape (a heterogeneous enum as a union, an unconvertible value as

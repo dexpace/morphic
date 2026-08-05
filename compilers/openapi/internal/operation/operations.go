@@ -17,6 +17,16 @@ import (
 	"github.com/dexpace/morphic/ir"
 )
 
+const (
+	// defaultResponseKey is the responses-map key OpenAPI reserves for the
+	// catch-all response, spelled once so the pointer that response is lowered
+	// under and the parse that recognizes the key cannot drift apart.
+	defaultResponseKey = "default"
+	// statusKeyLen is the width of every responses-map key that names a status,
+	// whether digits ("200") or a wildcard range ("2XX").
+	statusKeyLen = 3
+)
+
 // httpMethods is the fixed set of HTTP method accessors on a PathItem, iterated
 // in this order so operation lowering is deterministic across runs. The name is
 // the wire method in lowercase; pointers and IDs derive from it.
@@ -363,18 +373,26 @@ func lowerResponses(c lowering.Ctx, ts *compile.Types, anchors *schema.AnchorInd
 		if r == nil {
 			continue
 		}
-		rng := statusRange(code)
+		rng, named := statusRange(code)
+		if !named {
+			diags = append(diags, invalidStatusKeyDiag(c, code, rptr))
+		}
+		// An unreadable key always takes the else branch, because statusRange pairs
+		// a false with the zero range and that is no error range. It has to: an
+		// ErrorCase would carry a fault classified from a range nothing derived,
+		// and it holds no naming to record the key under either.
+		// TestStatusRange_NamesNoStatus is what pins the pairing.
 		if isErrorRange(rng) {
 			ec, ecDiags := lowerErrorCase(c, ts, anchors, r, rng, rptr)
 			diags = append(diags, ecDiags...)
 			errs = append(errs, ec)
 		} else {
-			resp, respDiags := lowerResponse(c, ts, anchors, r, code, rng, rptr)
+			resp, respDiags := lowerResponse(c, ts, anchors, r, code, statusConditions(rng, named), rptr)
 			diags = append(diags, respDiags...)
 			responses = append(responses, resp)
 		}
 	}
-	def, dptr := resolve.ObjectAt[soa.Response](c.RefScope(), resps.GetDefault(), opDeclPtr+ids.Ptr("responses", "default"))
+	def, dptr := resolve.ObjectAt[soa.Response](c.RefScope(), resps.GetDefault(), opDeclPtr+ids.Ptr("responses", defaultResponseKey))
 	if def != nil {
 		ec, ecDiags := lowerErrorCase(c, ts, anchors, def, ir.StatusRange{}, dptr)
 		diags = append(diags, ecDiags...)
@@ -386,14 +404,15 @@ func lowerResponses(c lowering.Ctx, ts *compile.Types, anchors *schema.AnchorInd
 // lowerResponse lowers one success response: its naming, status condition,
 // payload (all media types), headers, docs, and any raw links preserved for
 // later promotion. code is the responses-map key the response is declared under
-// and rng is that key parsed, so the two always describe the same status.
-func lowerResponse(c lowering.Ctx, ts *compile.Types, anchors *schema.AnchorIndex, r *soa.Response, code string, rng ir.StatusRange, rptr string) (ir.Response, []ir.Diagnostic) {
+// and conds is what that key resolved to, which is nothing at all when it named
+// no status (see statusConditions).
+func lowerResponse(c lowering.Ctx, ts *compile.Types, anchors *schema.AnchorIndex, r *soa.Response, code string, conds ir.ResponseConditions, rptr string) (ir.Response, []ir.Diagnostic) {
 	headers, diags := lowerHeaders(c, ts, anchors, r.GetHeaders(), rptr)
 	payload, payloadDiags := lowerPayload(c, ts, anchors, r.GetContent(), rptr, "response")
 	diags = append(diags, payloadDiags...)
 	resp := ir.Response{
 		Name:       responseName(code),
-		Conditions: ir.ResponseConditions{StatusCodes: []ir.StatusRange{rng}},
+		Conditions: conds,
 		Payload:    payload,
 		Headers:    headers,
 	}
@@ -612,20 +631,86 @@ func paramKey(rp *soa.ReferencedParameter) (string, bool) {
 }
 
 // statusRange maps an OpenAPI response key to an inclusive status range: "200" →
-// {200,200}, "4XX" → {400,499}, "default" → {0,0} (ir-design §7.2).
-func statusRange(code string) ir.StatusRange {
-	if code == "default" {
-		return ir.StatusRange{}
+// {200,200}, "4XX" → {400,499}, "default" → {0,0} (ir-design §7.2). ok reports
+// whether the key named a status at all, and a false always comes paired with
+// the zero range — callers route on that, so it is a postcondition rather than
+// an incidental return.
+//
+// Past "default", both forms are three characters over the same leading digit:
+// OpenAPI defines exactly the wildcards 1XX through 5XX, and HTTP defines codes
+// 100 through 599. Every character is checked, which is what the two loosenings
+// this replaced did not do — the wildcard test read the first two and ignored
+// the third, so "1XY" lowered as 1XX, and it admitted any leading digit up to 9,
+// so "9XX" lowered as a range no OpenAPI document can declare (GitHub #262).
+//
+// "default" is answered although no caller asks it today: soa.Responses carries
+// that entry on its own Default field, so it never appears in the map
+// lowerResponses walks. The vocabulary belongs to the function rather than to
+// its current caller — answering false for a key OpenAPI reserves would warn on
+// a correct document the moment anything did pass it.
+func statusRange(code string) (ir.StatusRange, bool) {
+	if code == defaultResponseKey {
+		return ir.StatusRange{}, true
 	}
-	if len(code) == 3 && (code[1] == 'X' || code[1] == 'x') && code[0] >= '1' && code[0] <= '9' {
-		base := int(code[0]-'0') * 100
-		return ir.StatusRange{From: base, To: base + 99}
+	if len(code) != statusKeyLen || code[0] < '1' || code[0] > '5' {
+		return ir.StatusRange{}, false
 	}
-	n, err := strconv.Atoi(code)
-	if err != nil {
-		return ir.StatusRange{}
+	base := int(code[0]-'0') * 100
+	if isWildcard(code[1]) && isWildcard(code[2]) {
+		return ir.StatusRange{From: base, To: base + 99}, true
 	}
-	return ir.StatusRange{From: n, To: n}
+	rest, ok := twoDigits(code[1], code[2])
+	if !ok {
+		return ir.StatusRange{}, false
+	}
+	return ir.StatusRange{From: base + rest, To: base + rest}, true
+}
+
+// isWildcard reports whether b is the wildcard character of a status range.
+// OpenAPI writes it uppercase; lowercase is read too, because the reading is
+// unambiguous and documents in the wild spell it both ways.
+func isWildcard(b byte) bool { return b == 'X' || b == 'x' }
+
+// twoDigits reads the tens and units of a status-code key, reporting false when
+// either character is not a digit. It is what separates "200" from "20A" and
+// from the half-wildcard "2X0", neither of which names a status.
+func twoDigits(tens, units byte) (int, bool) {
+	if tens < '0' || tens > '9' || units < '0' || units > '9' {
+		return 0, false
+	}
+	return int(tens-'0')*10 + int(units-'0'), true
+}
+
+// statusConditions records the status a response applies to, or no status at all
+// when its key named none.
+//
+// Not the catch-all: {0,0} is the range "default" lowers to, so folding an
+// unreadable key into it makes a typo indistinguishable from a declared default,
+// and a document carrying both produces two responses claiming the catch-all.
+// Recording nothing is the closest true statement available — ResponseConditions
+// holds the statuses a response applies to, and none could be read.
+//
+// Nothing is lost by declining to guess: the key survives as the response's name
+// hint, and the warning beside it carries the pointer the key is spelled in.
+func statusConditions(rng ir.StatusRange, ok bool) ir.ResponseConditions {
+	if !ok {
+		return ir.ResponseConditions{}
+	}
+	return ir.ResponseConditions{StatusCodes: []ir.StatusRange{rng}}
+}
+
+// invalidStatusKeyDiag reports a responses-map key that names no status.
+//
+// A warning rather than an error: the response itself lowers completely — body,
+// headers, docs, name — and only the status it answers to is unknown, so the
+// document still compiles to IR worth having. It also keeps a fixture carrying
+// one reachable, since harness.Check returns at the first error diagnostic and
+// FuzzCompile skips an input that produces one, which would put every oracle
+// past this point out of reach of the case that provokes it.
+func invalidStatusKeyDiag(c lowering.Ctx, code, rptr string) ir.Diagnostic {
+	return c.DiagAt(ir.SeverityWarning, diag.InvalidStatusKey, rptr,
+		"response key %q is no status code, no 1XX-5XX range, and not %s; "+
+			"the response is kept with no status condition", code, defaultResponseKey)
 }
 
 // isErrorRange reports whether a status range denotes an error (>= 400).

@@ -1,6 +1,7 @@
 package operation
 
 import (
+	"strconv"
 	"testing"
 
 	soa "github.com/speakeasy-api/openapi/openapi"
@@ -117,7 +118,7 @@ func TestParameters_PathItemMergeOverride(t *testing.T) {
 		"the unshadowed path-level parameter keeps its own declaration pointer, at its own path-item index")
 }
 
-func TestStatusRange(t *testing.T) {
+func TestStatusRange_NamesAStatus(t *testing.T) {
 	t.Parallel()
 	cases := []struct {
 		code     string
@@ -125,18 +126,74 @@ func TestStatusRange(t *testing.T) {
 	}{
 		{"default", 0, 0},
 		{"200", 200, 200},
+		{"100", 100, 100}, // the low bound of what HTTP defines
+		{"599", 599, 599}, // and the high one
 		{"4XX", 400, 499},
-		{"5xx", 500, 599},
-		{"20A", 0, 0}, // non-numeric, non-range → catch-all
+		{"5xx", 500, 599}, // lowercase is read too
+		{"1XX", 100, 199},
 	}
 	for _, tc := range cases {
 		t.Run(tc.code, func(t *testing.T) {
 			t.Parallel()
-			r := statusRange(tc.code)
+			r, ok := statusRange(tc.code)
+			require.True(t, ok, "%q names a status", tc.code)
 			assert.Equal(t, tc.from, r.From)
 			assert.Equal(t, tc.to, r.To)
 		})
 	}
+}
+
+// TestStatusRange_NamesNoStatus is the half that used to be silent. Every key
+// here reached {0,0} or a range OpenAPI cannot declare, with no diagnostic and
+// no way for a consumer to tell the result from a declared default (GitHub
+// #262).
+//
+// The zero range beside the false is asserted because it is load-bearing, not
+// because it is obvious: lowerResponses routes on isErrorRange without
+// re-testing ok, so a false paired with anything from 400 up would send a key
+// that names no status to lowerErrorCase, which would classify a fault from a
+// range nothing derived and drop the key entirely — ErrorCase holds no naming.
+// This is what holds that pairing.
+func TestStatusRange_NamesNoStatus(t *testing.T) {
+	t.Parallel()
+	for _, code := range []string{
+		"wat",  // not a number at all; used to reach {0,0}
+		"20A",  // two digits and a letter
+		"2X0",  // half a wildcard
+		"1XY",  // the third character the wildcard test never read
+		"9XX",  // a leading digit past the 1XX-5XX OpenAPI defines
+		"6XX",  // the first one past it
+		"0",    // Atoi read this as 0, which is default's own range
+		"00",   // and this
+		"000",  // and this, at the right width
+		"600",  // three digits past what HTTP defines
+		"099",  // and below it
+		"+200", // Atoi accepts a sign; a status key has none
+		"",     // no key at all
+		"Default",
+		"2XXX",
+	} {
+		// Quoted so the empty key names a subtest of its own rather than "#00".
+		t.Run(strconv.Quote(code), func(t *testing.T) {
+			t.Parallel()
+			r, ok := statusRange(code)
+			assert.False(t, ok, "%q names no status", code)
+			assert.Equal(t, ir.StatusRange{}, r,
+				"a false is paired with the zero range; lowerResponses routes on that")
+		})
+	}
+}
+
+// TestStatusConditions_RecordsNothingForAnUnreadableKey pins the disposition
+// half: an unreadable key must not borrow default's {0,0} range, or the two
+// become one shape in the IR.
+func TestStatusConditions_RecordsNothingForAnUnreadableKey(t *testing.T) {
+	t.Parallel()
+	assert.Empty(t, statusConditions(ir.StatusRange{}, false).StatusCodes)
+	assert.Equal(t,
+		[]ir.StatusRange{{From: 0, To: 0}},
+		statusConditions(ir.StatusRange{}, true).StatusCodes,
+		"a declared default still records the catch-all it means")
 }
 
 func TestFaultFor(t *testing.T) {

@@ -168,8 +168,9 @@ func embedSchema(fragment []byte) ([]byte, bool) {
 
 // seedCorpus adds every committed OpenAPI spec — the conformance corpus, the
 // golden petstore, and the testdata/openapi fixtures (cycle-detector
-// reproducers plus pointer-resolution cases) — to the fuzz corpus, so mutation
-// starts from valid, feature-dense documents instead of empty input. The
+// reproducers, pointer-resolution cases, and the unreadable response keys of
+// GitHub #262) — to the fuzz corpus, so mutation starts from valid,
+// feature-dense documents instead of empty input. The
 // degenerate cycle shapes (an alias-valued $ref, a `<<` merge key) are seeded
 // too: mutating them found five variants of one crash in GitHub #26, and
 // FuzzCompile already skips inputs with an error diagnostic, so seeding one
