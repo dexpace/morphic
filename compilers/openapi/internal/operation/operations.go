@@ -19,9 +19,8 @@ import (
 
 const (
 	// defaultResponseKey is the responses-map key OpenAPI reserves for the
-	// catch-all response. It is spelled once because two places have to agree on
-	// it: the parse that maps it to the {0,0} range, and the pointer the default
-	// response is lowered under.
+	// catch-all response, spelled once so the pointer that response is lowered
+	// under and the parse that recognizes the key cannot drift apart.
 	defaultResponseKey = "default"
 	// statusKeyLen is the width of every responses-map key that names a status,
 	// whether digits ("200") or a wildcard range ("2XX").
@@ -643,6 +642,12 @@ func paramKey(rp *soa.ReferencedParameter) (string, bool) {
 // this replaced did not do — the wildcard test read the first two and ignored
 // the third, so "1XY" lowered as 1XX, and it admitted any leading digit up to 9,
 // so "9XX" lowered as a range no OpenAPI document can declare (GitHub #262).
+//
+// "default" is answered although no caller asks it today: soa.Responses carries
+// that entry on its own Default field, so it never appears in the map
+// lowerResponses walks. The vocabulary belongs to the function rather than to
+// its current caller — answering false for a key OpenAPI reserves would warn on
+// a correct document the moment anything did pass it.
 func statusRange(code string) (ir.StatusRange, bool) {
 	if code == defaultResponseKey {
 		return ir.StatusRange{}, true

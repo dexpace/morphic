@@ -1,6 +1,7 @@
 package operation
 
 import (
+	"strconv"
 	"testing"
 
 	soa "github.com/speakeasy-api/openapi/openapi"
@@ -145,8 +146,14 @@ func TestStatusRange_NamesAStatus(t *testing.T) {
 // TestStatusRange_NamesNoStatus is the half that used to be silent. Every key
 // here reached {0,0} or a range OpenAPI cannot declare, with no diagnostic and
 // no way for a consumer to tell the result from a declared default (GitHub
-// #262). The range is not asserted beyond being the zero value: what the caller
-// reads is ok, and a key that names no status has no range to be right about.
+// #262).
+//
+// The zero range beside the false is asserted because it is load-bearing, not
+// because it is obvious: lowerResponses routes on isErrorRange without
+// re-testing ok, so a false paired with anything from 400 up would send a key
+// that names no status to lowerErrorCase, which would classify a fault from a
+// range nothing derived and drop the key entirely — ErrorCase holds no naming.
+// This is what holds that pairing.
 func TestStatusRange_NamesNoStatus(t *testing.T) {
 	t.Parallel()
 	for _, code := range []string{
@@ -166,11 +173,13 @@ func TestStatusRange_NamesNoStatus(t *testing.T) {
 		"Default",
 		"2XXX",
 	} {
-		t.Run(code, func(t *testing.T) {
+		// Quoted so the empty key names a subtest of its own rather than "#00".
+		t.Run(strconv.Quote(code), func(t *testing.T) {
 			t.Parallel()
 			r, ok := statusRange(code)
 			assert.False(t, ok, "%q names no status", code)
-			assert.Equal(t, ir.StatusRange{}, r)
+			assert.Equal(t, ir.StatusRange{}, r,
+				"a false is paired with the zero range; lowerResponses routes on that")
 		})
 	}
 }

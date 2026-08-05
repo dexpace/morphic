@@ -1,11 +1,11 @@
 # A responses map whose keys name no status, beside a declared default that does.
 #
 # Each key here used to lower to a status range with no diagnostic: "wat" and
-# "0" to {0,0}, which is default's own range, and "1XY" and "9XX" to wildcard
-# ranges OpenAPI does not define. They now warn and carry no status condition,
-# so this document exercises a Response with an empty Conditions through the
-# oracles — no-panic, no error diagnostic, irverify, JSON round-trip and
-# determinism (GitHub #262).
+# "0" to {0,0}, which is default's own range; "1XY" to the 1XX range it is not a
+# spelling of; and "9XX" to a range OpenAPI does not define at all. They now warn
+# and carry no status condition, so this document exercises a Response with an
+# empty Conditions through the oracles — no-panic, no error diagnostic, irverify,
+# JSON round-trip and determinism (GitHub #262).
 #
 # The diagnostics are warnings on purpose: an error would have FuzzCompile skip
 # the input, putting every oracle past that point out of reach of the one shape
