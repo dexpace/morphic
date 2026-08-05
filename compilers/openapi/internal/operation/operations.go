@@ -369,7 +369,7 @@ func lowerResponses(c lowering.Ctx, ts *compile.Types, anchors *schema.AnchorInd
 			diags = append(diags, ecDiags...)
 			errs = append(errs, ec)
 		} else {
-			resp, respDiags := lowerResponse(c, ts, anchors, r, rng, rptr)
+			resp, respDiags := lowerResponse(c, ts, anchors, r, code, rng, rptr)
 			diags = append(diags, respDiags...)
 			responses = append(responses, resp)
 		}
@@ -383,13 +383,16 @@ func lowerResponses(c lowering.Ctx, ts *compile.Types, anchors *schema.AnchorInd
 	return responses, errs, diags
 }
 
-// lowerResponse lowers one success response: its status condition, payload (all
-// media types), headers, docs, and any raw links preserved for later promotion.
-func lowerResponse(c lowering.Ctx, ts *compile.Types, anchors *schema.AnchorIndex, r *soa.Response, rng ir.StatusRange, rptr string) (ir.Response, []ir.Diagnostic) {
+// lowerResponse lowers one success response: its naming, status condition,
+// payload (all media types), headers, docs, and any raw links preserved for
+// later promotion. code is the responses-map key the response is declared under
+// and rng is that key parsed, so the two always describe the same status.
+func lowerResponse(c lowering.Ctx, ts *compile.Types, anchors *schema.AnchorIndex, r *soa.Response, code string, rng ir.StatusRange, rptr string) (ir.Response, []ir.Diagnostic) {
 	headers, diags := lowerHeaders(c, ts, anchors, r.GetHeaders(), rptr)
 	payload, payloadDiags := lowerPayload(c, ts, anchors, r.GetContent(), rptr, "response")
 	diags = append(diags, payloadDiags...)
 	resp := ir.Response{
+		Name:       responseName(code),
 		Conditions: ir.ResponseConditions{StatusCodes: []ir.StatusRange{rng}},
 		Payload:    payload,
 		Headers:    headers,
@@ -398,6 +401,26 @@ func lowerResponse(c lowering.Ctx, ts *compile.Types, anchors *schema.AnchorInde
 	_, linkDiags := schema.PreserveNode(c, &resp.Unmodeled, "openapi:links",
 		annotation.RawChildNode(r.GetRootNode(), "links"), ir.ReasonNoIRHome, rptr+ids.Ptr("links"))
 	return resp, append(diags, linkDiags...)
+}
+
+// responseName builds a success response's neutral naming. OpenAPI names no
+// response — it keys them by status code — which is the case ir-design §7.2
+// gives Name a hint for, so the hint is that key: "200", "2_xx", and the shared
+// mint for a key with no word in it (GitHub #259).
+//
+// The key as declared rather than the range it parses to, so a response written
+// "2XX" is not named by a spelling its document never used, and one written
+// under no status code at all is not named by the catch-all range it silently
+// degrades to (GitHub #262).
+//
+// Source stays empty even for a $ref'd response: §7.2 fills it only "for formats
+// with named outputs", and a components/responses key names a reusable
+// definition rather than this mount of it — the same component reached at two
+// status codes is two responses, told apart by condition. ErrorCase carries no
+// Naming at all and so has no counterpart here, and would be held by the
+// presence rule at once if it gained one, since irverify does not exempt it.
+func responseName(code string) ir.Naming {
+	return compile.NamingHint(ir.CanonicalWords(code))
 }
 
 // lowerErrorCase lowers one error response into an ErrorCase, classifying its

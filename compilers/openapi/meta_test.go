@@ -64,7 +64,8 @@ func TestMeta_FullDocumentMetadata(t *testing.T) {
 	assert.NotEmpty(t, doc.Docs.ExternalDocs, "root externalDocs folded into docs")
 	assert.NotEmpty(t, doc.Unmodeled, "top-level x-* extension")
 	require.Len(t, doc.Servers, 1)
-	assert.Equal(t, "primary", doc.Servers[0].Name.Source, "3.2 server name")
+	assert.Equal(t, ir.Naming{Source: "primary", Canonical: "primary"}, doc.Servers[0].Name,
+		"a declared 3.2 name is the server's name; the URL hint is for a server with none")
 	require.Len(t, doc.Servers[0].Variables, 1)
 	assert.Equal(t, []string{"us", "eu"}, doc.Servers[0].Variables[0].Enum)
 }
@@ -78,6 +79,57 @@ func TestMeta_NoInfoNoServers(t *testing.T) {
 	assert.Empty(t, doc.Name)
 	require.Len(t, doc.Servers, 1)
 	assert.Equal(t, "/", doc.Servers[0].URLTemplate)
+	assert.Equal(t, ir.Naming{Hint: "server"}, doc.Servers[0].Name,
+		"the injected server is still a server an emitter has to name (GitHub #258)")
+}
+
+// TestServerName_DerivedFromURLWhenUnnamed pins how a server is named when the
+// source declares no name for it, which before OpenAPI 3.2 it has no way to do.
+// Every such server used to reach the IR with all three name channels empty,
+// leaving an emitter that renders one client per server nothing to name them by
+// (GitHub #258).
+func TestServerName_DerivedFromURLWhenUnnamed(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct {
+		name string
+		url  string
+		want ir.Naming
+	}{
+		{"absolute url with a template variable", "https://{env}.example.com/v1",
+			ir.Naming{Hint: "https_env_example_com_v_1"}},
+		{"relative url", "/v2", ir.Naming{Hint: "v_2"}},
+		{"root url has no word in it", "/", ir.Naming{Hint: "server"}},
+		{"no url at all", "", ir.Naming{Hint: "server"}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			assert.Equal(t, tc.want, lowerServer(&soa.Server{URL: tc.url}).Name)
+		})
+	}
+}
+
+// TestServerName_DistinguishesServersDifferingOnlyInPath is why the hint is the
+// whole URL template and not the host inside it: one host serving two API
+// versions is an ordinary OpenAPI document, and a host-derived hint would name
+// both servers the same.
+func TestServerName_DistinguishesServersDifferingOnlyInPath(t *testing.T) {
+	t.Parallel()
+	v1 := lowerServer(&soa.Server{URL: "https://api.example.com/v1"})
+	v2 := lowerServer(&soa.Server{URL: "https://api.example.com/v2"})
+	assert.NotEqual(t, v1.Name.Hint, v2.Name.Hint, "two distinct servers get two distinct hints")
+}
+
+// TestServerName_CollidesOnPunctuationAlone bounds that claim, which must not be
+// read as "distinct servers get distinct hints": canonicalizing drops every
+// non-word character, so two URLs differing only in punctuation reduce to one
+// word sequence. Uniquifying it is an emitter's job, and pinning it keeps that a
+// known bound rather than a later discovery.
+func TestServerName_CollidesOnPunctuationAlone(t *testing.T) {
+	t.Parallel()
+	dotted := lowerServer(&soa.Server{URL: "https://api.example.com/v1"})
+	dashed := lowerServer(&soa.Server{URL: "https://api.example.com/v-1"})
+	assert.Equal(t, dotted.Name.Hint, dashed.Name.Hint,
+		"neutral words carry no punctuation, so these two collide")
 }
 
 func TestLowerServers_NilEntrySkipped(t *testing.T) {

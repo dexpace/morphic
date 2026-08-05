@@ -190,7 +190,6 @@ ResourceInfo.InstanceOps
 ResourceInfo.Lifecycle
 ResourceInfo.NoReplace
 ResourceInfo.Properties
-Response.Name
 Response.StatusCodeProp
 Server.Auth
 Server.Bindings

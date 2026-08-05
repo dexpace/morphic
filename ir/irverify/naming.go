@@ -23,23 +23,22 @@ const nameField = ".Name"
 
 // nameOptional are the nodes that carry no name of their own, so an empty
 // Naming on one is what the IR says to expect rather than the missing-name
-// defect below. Each is exempt for a different reason:
+// defect below.
 //
-//   - ir.Primitive is identified by its PrimKind. There is no source name to
-//     record and nothing for a hint to disambiguate — an emitter renders "string"
-//     from the kind — so this one is exempt by design, not pending work.
-//   - ir.Server and ir.Response are named entities the OpenAPI compiler does not
-//     yet name: OpenAPI declares a server name only from 3.2 on, and keys
-//     responses by status code, where ir-design §7.2 calls for a Hint. Both gaps
-//     are real and neither is this change: GitHub #258 and #259 track them, and
-//     each entry comes off this list with the compiler fix that closes its issue.
+// ir.Primitive is the only one, and it is exempt by design rather than pending
+// work: it is identified by its PrimKind, so there is no source name to record
+// and nothing for a hint to disambiguate — an emitter renders "string" from the
+// kind. ir.Server and ir.Response were here for the other reason, as gaps the
+// OpenAPI compiler had yet to fill, and each came off with the lowering that
+// named it (GitHub #258, #259). An entry added for that reason is a debt: it
+// makes every genuinely nameless node of that type invisible to this check for
+// as long as it stands, so it belongs on a tracked issue and not in this map
+// alone.
 //
 // Keyed by node type rather than by path so a new node type is held to the rule
 // the moment it exists — the direction that fails loudly.
 var nameOptional = map[reflect.Type]bool{
 	reflect.TypeFor[ir.Primitive](): true,
-	reflect.TypeFor[ir.Server]():    true,
-	reflect.TypeFor[ir.Response]():  true,
 }
 
 // checkNaming asserts every named entity has a name at all, and that every

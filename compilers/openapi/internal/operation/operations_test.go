@@ -79,6 +79,41 @@ func TestResponses_ErrorSplitAndRanges(t *testing.T) {
 	assert.Equal(t, "", op.Errors[2].Fault)
 }
 
+// TestResponses_NamedByStatusKey pins the only naming OpenAPI gives a response.
+// It declares none — it keys responses by status code — so Response.Name carries
+// the hint ir-design §7.2 calls for there, derived from the key the response is
+// filed under. Every response used to reach the IR with all three name channels
+// empty, leaving an emitter naming a per-response result type nothing to build
+// one from (GitHub #259).
+//
+// The error half of the same map has no counterpart to check: ir.ErrorCase
+// carries no Naming at all, so there is no channel on it to leave empty.
+func TestResponses_NamedByStatusKey(t *testing.T) {
+	t.Parallel()
+	spec := pathsSpec(`  /w:
+    get:
+      operationId: w
+      responses:
+        "200": {description: ok}
+        "2XX": {description: any success}
+        "": {description: no status code at all}
+        "404": {description: missing}
+        default: {description: anything else}
+`)
+	_, svc, diags := lowerServiceSpec(t, spec)
+	requireNoErrorDiags(t, diags)
+	op := firstOp(t, svc)
+
+	require.Len(t, op.Responses, 3)
+	hints := make([]string, 0, len(op.Responses))
+	for _, r := range op.Responses {
+		assert.Empty(t, r.Name.Source, "OpenAPI declares no response name, so Source stays empty")
+		hints = append(hints, r.Name.Hint)
+	}
+	assert.Equal(t, []string{"200", "2_xx", "empty"}, hints,
+		"the key as declared, neutralized; a key with no word in it takes the mint")
+}
+
 func TestResponses_ErrorHeadersPreserved(t *testing.T) {
 	t.Parallel()
 	// ErrorCase has no Headers field; a 429's Retry-After header must not be

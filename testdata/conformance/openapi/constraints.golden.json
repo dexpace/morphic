@@ -193,7 +193,9 @@
   },
   "servers": [
     {
-      "name": {},
+      "name": {
+        "hint": "server"
+      },
       "urlTemplate": "/",
       "description": {},
       "auth": null

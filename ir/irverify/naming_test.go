@@ -214,50 +214,76 @@ func TestVerify_AnyOneChannelIsAName(t *testing.T) {
 	}
 }
 
-// TestVerify_OptionalNameOwnersAreClean pins the exemptions in nameOptional: a
-// primitive is identified by its kind, and a server or response the compilers do
-// not yet name (GitHub #258, #259) must not report until they do. Without this,
-// the rule would fail every document in the corpus.
+// primitiveDoc holds the one node nameOptional still exempts, so a fixture about
+// the exemption says nothing about the rest of the document.
+func primitiveDoc() *ir.Document {
+	doc := validDoc()
+	doc.Types[ir.PrimTypeID(ir.PrimString)] = &ir.Primitive{
+		TypeCommon: ir.TypeCommon{ID: ir.PrimTypeID(ir.PrimString)},
+		Prim:       ir.PrimString,
+	}
+	return doc
+}
+
+// TestVerify_OptionalNameOwnersAreClean pins the one exemption left in
+// nameOptional: a primitive is identified by its kind, so an empty Naming on one
+// is the shape the IR expects. Without this, the rule would fail every document
+// in the corpus, all of which intern primitives.
 //
 // It is also what holds the ".Name" path the exemption is recorded under: a node
 // that spelled its Naming as any other field would stop matching and redden here.
 func TestVerify_OptionalNameOwnersAreClean(t *testing.T) {
 	t.Parallel()
-	prim := validDoc()
-	prim.Types[ir.PrimTypeID(ir.PrimString)] = &ir.Primitive{
-		TypeCommon: ir.TypeCommon{ID: ir.PrimTypeID(ir.PrimString)},
-		Prim:       ir.PrimString,
-	}
+	assert.Empty(t, irverify.Verify(primitiveDoc()))
+}
+
+// TestVerify_NamelessServerAndResponseAreViolations is the reach the exemptions
+// cost while they stood. Both nodes are named entities the OpenAPI compiler now
+// names — a server by its URL template, a response by its status-code key — so
+// one arriving nameless is a compiler defect and no longer the expected shape
+// (GitHub #258, #259). Re-exempting either type reddens this.
+func TestVerify_NamelessServerAndResponseAreViolations(t *testing.T) {
+	t.Parallel()
 	server := validDoc()
 	server.Servers = []ir.Server{{URLTemplate: "https://x.example"}}
 
-	for name, doc := range map[string]*ir.Document{
-		"primitive": prim,
-		"server":    server,
-		"response":  respondingDoc(ir.Response{Conditions: ok200()}),
+	for name, tc := range map[string]struct {
+		doc  *ir.Document
+		path string
+	}{
+		"server": {server, "doc.Servers[0].Name"},
+		"response": {respondingDoc(ir.Response{Conditions: ok200()}),
+			"doc.Services[0].Groups[0].Operations[0].Responses[0].Name"},
 	} {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
-			assert.Empty(t, irverify.Verify(doc))
+			got := irverify.Verify(tc.doc)
+			require.Len(t, got, 1)
+			assert.Equal(t, "ir/naming-absent", got[0].Code)
+			assert.Equal(t, tc.path, got[0].Path)
 		})
 	}
 }
 
-// TestVerify_OptionalOwnerExemptsOnlyItsOwnName is the overreach guard. The
-// exemption is recorded as one path, not a pruned subtree, so a nameless node
-// *inside* an exempt one is still reported — a response header is an ir.Property
-// like any other, and nothing about the response above it makes it nameless.
+// TestVerify_OptionalOwnerExemptsOnlyItsOwnName is the overreach guard: the
+// exemption is recorded against one path, so it silences that node's own Naming
+// and no other. A checker that noted "an exempt node was seen" as a document-wide
+// flag instead passes every test that measures one node at a time, and goes
+// silent on the whole corpus.
+//
+// The sibling axis is what this can reach. The descendant axis — a nameless node
+// *inside* an exempt one — had ir.Response and its headers to measure it with,
+// and with ir.Primitive the only exemption left there is no such pair: nothing
+// under a primitive carries a Naming at all. Whoever adds the next exemption owns
+// that half again.
 func TestVerify_OptionalOwnerExemptsOnlyItsOwnName(t *testing.T) {
 	t.Parallel()
-	doc := respondingDoc(ir.Response{
-		Conditions: ok200(),
-		Headers:    []ir.Property{{ID: "p/x/h"}},
-	})
+	doc := primitiveDoc()
+	doc.Types["t/x/M"] = &ir.Model{TypeCommon: ir.TypeCommon{ID: "t/x/M"}}
 	got := irverify.Verify(doc)
-	require.Len(t, got, 1, "the header, and not the response carrying it")
+	require.Len(t, got, 1, "the model, and not the exempt primitive beside it")
 	assert.Equal(t, "ir/naming-absent", got[0].Code)
-	assert.Equal(t,
-		"doc.Services[0].Groups[0].Operations[0].Responses[0].Headers[0].Name", got[0].Path)
+	assert.Equal(t, "doc.Types[t/x/M].Name", got[0].Path)
 }
 
 // TestVerify_PresenceReachesANamingNoNameFieldOwns pins that the rule holds

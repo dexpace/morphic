@@ -9,6 +9,13 @@ import (
 	"github.com/dexpace/morphic/ir"
 )
 
+// unnamedServerHint names a server whose URL template holds no word to derive a
+// hint from — "/" in practice, the server GetServers injects for a document
+// declaring none. The word says what the entity is; the shared mint for a name
+// the source left out would report an omission that never happened, since below
+// 3.2 a document has no way to name a server at all.
+const unnamedServerHint = "server"
+
 // docMeta is the document-level metadata: what ir.Document carries that belongs
 // to neither the type graph nor the service graph.
 //
@@ -89,18 +96,40 @@ func lowerServers(c lowering.Ctx) []ir.Server {
 	return out
 }
 
-// lowerServer lowers one server. The OpenAPI 3.2 server name, when present,
-// becomes the server's naming.
+// lowerServer lowers one server, named by serverName.
 func lowerServer(s *soa.Server) ir.Server {
-	srv := ir.Server{
+	return ir.Server{
+		Name:        serverName(s),
 		URLTemplate: s.GetURL(),
 		Description: ir.Docs{Description: s.GetDescription()},
 		Variables:   serverVariables(s),
 	}
+}
+
+// serverName builds a server's neutral naming: the declared name when the source
+// carries one, which only OpenAPI 3.2 can, else a hint derived from the URL
+// template that locates it — the shape operationName already uses for an
+// operation with no operationId. Every server below 3.2 used to reach the IR with
+// all three name channels empty (GitHub #258).
+//
+// The URL rather than the position in servers[], which stops naming the same
+// server the moment the list is reordered. The whole template rather than a
+// chosen part of it, because choosing is a policy about what a server's name is
+// where transcribing is not, and it keeps what the omitted part distinguished:
+// one host serving /v1 and /v2 is two servers.
+//
+// Distinct servers can still collide, since canonicalizing drops every non-word
+// character and ".../v1" and ".../v-1" reduce to one word sequence. That is the
+// collision "red" and "Red" already produce between two enum members, and
+// uniquifying it is an emitter's job.
+func serverName(s *soa.Server) ir.Naming {
 	if name := s.GetName(); name != "" {
-		srv.Name = compile.NamingFor(name)
+		return compile.NamingFor(name)
 	}
-	return srv
+	if words := ir.CanonicalWords(s.GetURL()); words != "" {
+		return compile.NamingHint(words)
+	}
+	return compile.NamingHint(unnamedServerHint)
 }
 
 // serverVariables lowers a server's URL template variables in source order, or
