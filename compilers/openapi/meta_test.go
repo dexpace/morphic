@@ -79,6 +79,8 @@ func TestMeta_NoInfoNoServers(t *testing.T) {
 	assert.Empty(t, doc.Name)
 	require.Len(t, doc.Servers, 1)
 	assert.Equal(t, "/", doc.Servers[0].URLTemplate)
+	assert.Equal(t, ir.Naming{Hint: "server"}, doc.Servers[0].Name,
+		"the injected server is still a server an emitter has to name (GitHub #258)")
 }
 
 // TestServerName_DerivedFromURLWhenUnnamed pins how a server is named when the
@@ -115,6 +117,19 @@ func TestServerName_DistinguishesServersDifferingOnlyInPath(t *testing.T) {
 	v1 := lowerServer(&soa.Server{URL: "https://api.example.com/v1"})
 	v2 := lowerServer(&soa.Server{URL: "https://api.example.com/v2"})
 	assert.NotEqual(t, v1.Name.Hint, v2.Name.Hint, "two distinct servers get two distinct hints")
+}
+
+// TestServerName_CollidesOnPunctuationAlone bounds that claim, which must not be
+// read as "distinct servers get distinct hints": canonicalizing drops every
+// non-word character, so two URLs differing only in punctuation reduce to one
+// word sequence. Uniquifying it is an emitter's job, and pinning it keeps that a
+// known bound rather than a later discovery.
+func TestServerName_CollidesOnPunctuationAlone(t *testing.T) {
+	t.Parallel()
+	dotted := lowerServer(&soa.Server{URL: "https://api.example.com/v1"})
+	dashed := lowerServer(&soa.Server{URL: "https://api.example.com/v-1"})
+	assert.Equal(t, dotted.Name.Hint, dashed.Name.Hint,
+		"neutral words carry no punctuation, so these two collide")
 }
 
 func TestLowerServers_NilEntrySkipped(t *testing.T) {

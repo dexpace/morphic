@@ -10,13 +10,10 @@ import (
 )
 
 // unnamedServerHint names a server whose URL template holds no word to derive a
-// hint from. That is "/" in practice — the server GetServers injects for a
-// document declaring none — and it is most of the corpus.
-//
-// The word says what the entity is, which is what a hint is for. The shared mint
-// for a name the source left out would read as an omission instead, and here
-// there is none: the document named no server because below 3.2 it cannot, and
-// its URL is simply the root.
+// hint from — "/" in practice, the server GetServers injects for a document
+// declaring none. The word says what the entity is; the shared mint for a name
+// the source left out would report an omission that never happened, since below
+// 3.2 a document has no way to name a server at all.
 const unnamedServerHint = "server"
 
 // docMeta is the document-level metadata: what ir.Document carries that belongs
@@ -110,18 +107,21 @@ func lowerServer(s *soa.Server) ir.Server {
 }
 
 // serverName builds a server's neutral naming: the declared name when the source
-// carries one, which only OpenAPI 3.2 can, and otherwise a hint derived from the
-// URL template that locates it. It is the shape operationName uses one level
-// down — an entity the source did not name is named by what locates it — and it
-// closes the gap where every server below 3.2 reached the IR with all three name
-// channels empty (GitHub #258).
+// carries one, which only OpenAPI 3.2 can, else a hint derived from the URL
+// template that locates it — the shape operationName already uses for an
+// operation with no operationId. Every server below 3.2 used to reach the IR with
+// all three name channels empty (GitHub #258).
 //
-// The URL rather than the position in servers[]: an index-derived hint says
-// nothing about the server it names and stops naming the same one as soon as the
-// list is reordered. The whole template rather than a chosen part of it — the
-// host, the path — because choosing is a policy about what a server's name is,
-// and transcribing needs none: two servers that differ at all differ somewhere
-// in it, so the hint distinguishes exactly the servers that are distinct.
+// The URL rather than the position in servers[], which stops naming the same
+// server the moment the list is reordered. The whole template rather than a
+// chosen part of it, because choosing is a policy about what a server's name is
+// where transcribing is not, and it keeps what the omitted part distinguished:
+// one host serving /v1 and /v2 is two servers.
+//
+// Distinct servers can still collide, since canonicalizing drops every non-word
+// character and ".../v1" and ".../v-1" reduce to one word sequence. That is the
+// collision "red" and "Red" already produce between two enum members, and
+// uniquifying it is an emitter's job.
 func serverName(s *soa.Server) ir.Naming {
 	if name := s.GetName(); name != "" {
 		return compile.NamingFor(name)

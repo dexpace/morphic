@@ -385,8 +385,8 @@ func lowerResponses(c lowering.Ctx, ts *compile.Types, anchors *schema.AnchorInd
 
 // lowerResponse lowers one success response: its naming, status condition,
 // payload (all media types), headers, docs, and any raw links preserved for
-// later promotion. code is the responses-map key the response is declared
-// under, which rng is the parse of.
+// later promotion. code is the responses-map key the response is declared under
+// and rng is that key parsed, so the two always describe the same status.
 func lowerResponse(c lowering.Ctx, ts *compile.Types, anchors *schema.AnchorIndex, r *soa.Response, code string, rng ir.StatusRange, rptr string) (ir.Response, []ir.Diagnostic) {
 	headers, diags := lowerHeaders(c, ts, anchors, r.GetHeaders(), rptr)
 	payload, payloadDiags := lowerPayload(c, ts, anchors, r.GetContent(), rptr, "response")
@@ -404,19 +404,21 @@ func lowerResponse(c lowering.Ctx, ts *compile.Types, anchors *schema.AnchorInde
 }
 
 // responseName builds a success response's neutral naming. OpenAPI names no
-// response — it keys them by status code — so Name carries the hint ir-design
-// §7.2 calls for in that case, derived from the key that selects the response:
-// "200", "2_xx", and the mint for a key spelled with no word in it (GitHub
-// #259).
+// response — it keys them by status code — which is the case ir-design §7.2
+// gives Name a hint for, so the hint is that key: "200", "2_xx", and the shared
+// mint for a key with no word in it (GitHub #259).
 //
-// The key as declared rather than the range it parses to, because the key is
-// the spelling the source chose and the range is one lowering of it: naming from
-// the range would call a response declared "2XX" by a spelling its document
-// never used, and would call one declared under a key that is no status code at
-// all by the catch-all range that key silently degrades to.
+// The key as declared rather than the range it parses to, so a response written
+// "2XX" is not named by a spelling its document never used, and one written
+// under no status code at all is not named by the catch-all range it silently
+// degrades to (GitHub #262).
 //
-// ErrorCase, which the same responses map also lowers to, carries no Naming at
-// all (ir-design §7.2), so it has no counterpart to this and no gap of its own.
+// Source stays empty even for a $ref'd response: §7.2 fills it only "for formats
+// with named outputs", and a components/responses key names a reusable
+// definition rather than this mount of it — the same component reached at two
+// status codes is two responses, told apart by condition. ErrorCase carries no
+// Naming at all and so has no counterpart here, and would be held by the
+// presence rule at once if it gained one, since irverify does not exempt it.
 func responseName(code string) ir.Naming {
 	return compile.NamingHint(ir.CanonicalWords(code))
 }
