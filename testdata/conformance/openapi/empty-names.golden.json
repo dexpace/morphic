@@ -90,6 +90,391 @@
         "nullable": false
       }
     },
+    "t/anon/components/schemas/Host/properties/": {
+      "kind": "union",
+      "id": "t/anon/components/schemas/Host/properties/",
+      "name": {
+        "hint": "empty"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Host/properties/"
+      },
+      "variants": [
+        {
+          "name": {
+            "hint": "Alt"
+          },
+          "type": {
+            "target": "t/composed/components/schemas/Host/properties//oneOf/0",
+            "nullable": false
+          },
+          "docs": {}
+        }
+      ],
+      "exclusive": true,
+      "wireTagged": false
+    },
+    "t/anon/components/schemas/List/properties/": {
+      "kind": "list",
+      "id": "t/anon/components/schemas/List/properties/",
+      "name": {
+        "hint": "empty"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/List/properties/"
+      },
+      "elem": {
+        "target": "t/anon/components/schemas/List/properties//items",
+        "nullable": false
+      }
+    },
+    "t/anon/components/schemas/List/properties//items": {
+      "kind": "model",
+      "id": "t/anon/components/schemas/List/properties//items",
+      "name": {
+        "hint": "empty_item"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/List/properties//items"
+      },
+      "properties": [
+        {
+          "id": "p/openapi/components/schemas/List/properties//items/properties/a",
+          "name": {
+            "source": "a",
+            "canonical": "a"
+          },
+          "wireName": "a",
+          "type": {
+            "target": "t/prim/string",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/List/properties//items/properties/a"
+          }
+        }
+      ],
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
+    "t/anon/components/schemas/Maps/properties/": {
+      "kind": "model",
+      "id": "t/anon/components/schemas/Maps/properties/",
+      "name": {
+        "hint": "empty"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Maps/properties/"
+      },
+      "additionalProps": {
+        "value": {
+          "target": "t/anon/components/schemas/Maps/properties//additionalProperties",
+          "nullable": false
+        }
+      },
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
+    "t/anon/components/schemas/Maps/properties//additionalProperties": {
+      "kind": "model",
+      "id": "t/anon/components/schemas/Maps/properties//additionalProperties",
+      "name": {
+        "hint": "empty_value"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Maps/properties//additionalProperties"
+      },
+      "properties": [
+        {
+          "id": "p/openapi/components/schemas/Maps/properties//additionalProperties/properties/b",
+          "name": {
+            "source": "b",
+            "canonical": "b"
+          },
+          "wireName": "b",
+          "type": {
+            "target": "t/prim/string",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/Maps/properties//additionalProperties/properties/b"
+          }
+        }
+      ],
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
+    "t/anon/components/schemas/Mixed/properties/": {
+      "kind": "union",
+      "id": "t/anon/components/schemas/Mixed/properties/",
+      "name": {
+        "hint": "empty"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Mixed/properties/"
+      },
+      "variants": [
+        {
+          "name": {
+            "hint": "empty_0"
+          },
+          "type": {
+            "target": "t/anon/components/schemas/Mixed/properties//enum/0",
+            "nullable": false
+          },
+          "docs": {}
+        },
+        {
+          "name": {
+            "hint": "empty_1"
+          },
+          "type": {
+            "target": "t/anon/components/schemas/Mixed/properties//enum/1",
+            "nullable": false
+          },
+          "docs": {}
+        }
+      ],
+      "exclusive": true,
+      "wireTagged": false
+    },
+    "t/anon/components/schemas/Mixed/properties//enum/0": {
+      "kind": "literal",
+      "id": "t/anon/components/schemas/Mixed/properties//enum/0",
+      "name": {
+        "hint": "empty_0"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Mixed/properties//enum/0"
+      },
+      "value": {
+        "kind": "number",
+        "num": "1",
+        "bytes": null,
+        "list": null,
+        "object": null
+      }
+    },
+    "t/anon/components/schemas/Mixed/properties//enum/1": {
+      "kind": "literal",
+      "id": "t/anon/components/schemas/Mixed/properties//enum/1",
+      "name": {
+        "hint": "empty_1"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Mixed/properties//enum/1"
+      },
+      "value": {
+        "kind": "string",
+        "str": "a",
+        "bytes": null,
+        "list": null,
+        "object": null
+      }
+    },
+    "t/anon/components/schemas/Patterns/properties/": {
+      "kind": "model",
+      "id": "t/anon/components/schemas/Patterns/properties/",
+      "name": {
+        "hint": "empty"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Patterns/properties/"
+      },
+      "additionalProps": {
+        "value": {
+          "target": "t/prim/any",
+          "nullable": false
+        },
+        "patterns": [
+          {
+            "pattern": "^x",
+            "value": {
+              "target": "t/anon/components/schemas/Patterns/properties//patternProperties/^x",
+              "nullable": false
+            }
+          }
+        ]
+      },
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
+    "t/anon/components/schemas/Patterns/properties//patternProperties/^x": {
+      "kind": "model",
+      "id": "t/anon/components/schemas/Patterns/properties//patternProperties/^x",
+      "name": {
+        "hint": "empty_pattern"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Patterns/properties//patternProperties/^x"
+      },
+      "properties": [
+        {
+          "id": "p/openapi/components/schemas/Patterns/properties//patternProperties/^x/properties/c",
+          "name": {
+            "source": "c",
+            "canonical": "c"
+          },
+          "wireName": "c",
+          "type": {
+            "target": "t/prim/string",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/Patterns/properties//patternProperties/^x/properties/c"
+          }
+        }
+      ],
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
+    "t/anon/components/schemas/Tuple/properties/": {
+      "kind": "tuple",
+      "id": "t/anon/components/schemas/Tuple/properties/",
+      "name": {
+        "hint": "empty"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Tuple/properties/"
+      },
+      "elems": [
+        {
+          "target": "t/anon/components/schemas/Tuple/properties//prefixItems/0",
+          "nullable": false
+        }
+      ]
+    },
+    "t/anon/components/schemas/Tuple/properties//prefixItems/0": {
+      "kind": "model",
+      "id": "t/anon/components/schemas/Tuple/properties//prefixItems/0",
+      "name": {
+        "hint": "empty_0"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Tuple/properties//prefixItems/0"
+      },
+      "properties": [
+        {
+          "id": "p/openapi/components/schemas/Tuple/properties//prefixItems/0/properties/d",
+          "name": {
+            "source": "d",
+            "canonical": "d"
+          },
+          "wireName": "d",
+          "type": {
+            "target": "t/prim/string",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/Tuple/properties//prefixItems/0/properties/d"
+          }
+        }
+      ],
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
     "t/anon/components/schemas/Widget/properties/": {
       "kind": "model",
       "id": "t/anon/components/schemas/Widget/properties/",
@@ -136,6 +521,352 @@
       "positional": false,
       "inputOnly": false
     },
+    "t/composed/components/schemas/Host/properties//oneOf/0": {
+      "kind": "model",
+      "id": "t/composed/components/schemas/Host/properties//oneOf/0",
+      "name": {
+        "hint": "empty_Alt"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Host/properties//oneOf/0"
+      },
+      "base": {
+        "target": "t/openapi/components/schemas/Base",
+        "nullable": false
+      },
+      "mixins": [
+        {
+          "target": "t/openapi/components/schemas/Alt",
+          "nullable": false
+        }
+      ],
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
+    "t/openapi/components/schemas/Alt": {
+      "kind": "model",
+      "id": "t/openapi/components/schemas/Alt",
+      "name": {
+        "source": "Alt",
+        "canonical": "alt"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Alt"
+      },
+      "properties": [
+        {
+          "id": "p/openapi/components/schemas/Alt/properties/alt",
+          "name": {
+            "source": "alt",
+            "canonical": "alt"
+          },
+          "wireName": "alt",
+          "type": {
+            "target": "t/prim/string",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/Alt/properties/alt"
+          }
+        }
+      ],
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
+    "t/openapi/components/schemas/Base": {
+      "kind": "model",
+      "id": "t/openapi/components/schemas/Base",
+      "name": {
+        "source": "Base",
+        "canonical": "base"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Base"
+      },
+      "properties": [
+        {
+          "id": "p/openapi/components/schemas/Base/properties/id",
+          "name": {
+            "source": "id",
+            "canonical": "id"
+          },
+          "wireName": "id",
+          "type": {
+            "target": "t/prim/string",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/Base/properties/id"
+          }
+        }
+      ],
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
+    "t/openapi/components/schemas/Host": {
+      "kind": "model",
+      "id": "t/openapi/components/schemas/Host",
+      "name": {
+        "source": "Host",
+        "canonical": "host"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Host"
+      },
+      "properties": [
+        {
+          "id": "p/openapi/components/schemas/Host/properties/",
+          "name": {
+            "hint": "empty"
+          },
+          "type": {
+            "target": "t/anon/components/schemas/Host/properties/",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/Host/properties/"
+          }
+        }
+      ],
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
+    "t/openapi/components/schemas/List": {
+      "kind": "model",
+      "id": "t/openapi/components/schemas/List",
+      "name": {
+        "source": "List",
+        "canonical": "list"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/List"
+      },
+      "properties": [
+        {
+          "id": "p/openapi/components/schemas/List/properties/",
+          "name": {
+            "hint": "empty"
+          },
+          "type": {
+            "target": "t/anon/components/schemas/List/properties/",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/List/properties/"
+          }
+        }
+      ],
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
+    "t/openapi/components/schemas/Maps": {
+      "kind": "model",
+      "id": "t/openapi/components/schemas/Maps",
+      "name": {
+        "source": "Maps",
+        "canonical": "maps"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Maps"
+      },
+      "properties": [
+        {
+          "id": "p/openapi/components/schemas/Maps/properties/",
+          "name": {
+            "hint": "empty"
+          },
+          "type": {
+            "target": "t/anon/components/schemas/Maps/properties/",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/Maps/properties/"
+          }
+        }
+      ],
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
+    "t/openapi/components/schemas/Mixed": {
+      "kind": "model",
+      "id": "t/openapi/components/schemas/Mixed",
+      "name": {
+        "source": "Mixed",
+        "canonical": "mixed"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Mixed"
+      },
+      "properties": [
+        {
+          "id": "p/openapi/components/schemas/Mixed/properties/",
+          "name": {
+            "hint": "empty"
+          },
+          "type": {
+            "target": "t/anon/components/schemas/Mixed/properties/",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/Mixed/properties/"
+          }
+        }
+      ],
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
+    "t/openapi/components/schemas/Patterns": {
+      "kind": "model",
+      "id": "t/openapi/components/schemas/Patterns",
+      "name": {
+        "source": "Patterns",
+        "canonical": "patterns"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Patterns"
+      },
+      "properties": [
+        {
+          "id": "p/openapi/components/schemas/Patterns/properties/",
+          "name": {
+            "hint": "empty"
+          },
+          "type": {
+            "target": "t/anon/components/schemas/Patterns/properties/",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/Patterns/properties/"
+          }
+        }
+      ],
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
     "t/openapi/components/schemas/Rollout": {
       "kind": "enum",
       "id": "t/openapi/components/schemas/Rollout",
@@ -166,6 +897,20 @@
         },
         {
           "name": {
+            "source": "empty",
+            "canonical": "empty"
+          },
+          "value": {
+            "kind": "string",
+            "str": "empty",
+            "bytes": null,
+            "list": null,
+            "object": null
+          },
+          "docs": {}
+        },
+        {
+          "name": {
             "source": "done",
             "canonical": "done"
           },
@@ -181,6 +926,51 @@
       ],
       "closed": true,
       "flags": false
+    },
+    "t/openapi/components/schemas/Tuple": {
+      "kind": "model",
+      "id": "t/openapi/components/schemas/Tuple",
+      "name": {
+        "source": "Tuple",
+        "canonical": "tuple"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Tuple"
+      },
+      "properties": [
+        {
+          "id": "p/openapi/components/schemas/Tuple/properties/",
+          "name": {
+            "hint": "empty"
+          },
+          "type": {
+            "target": "t/anon/components/schemas/Tuple/properties/",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/Tuple/properties/"
+          }
+        }
+      ],
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
     },
     "t/openapi/components/schemas/Widget": {
       "kind": "model",
@@ -227,6 +1017,18 @@
       "positional": false,
       "inputOnly": false
     },
+    "t/prim/any": {
+      "kind": "primitive",
+      "id": "t/prim/any",
+      "name": {},
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0
+      },
+      "prim": "any"
+    },
     "t/prim/string": {
       "kind": "primitive",
       "id": "t/prim/string",
@@ -262,11 +1064,31 @@
       "auth": null
     }
   ],
+  "diagnostics": [
+    {
+      "severity": "info",
+      "code": "openapi/degraded-construct",
+      "message": "heterogeneous or non-scalar enum lowered as a union of literals",
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Mixed/properties/"
+      }
+    },
+    {
+      "severity": "info",
+      "code": "openapi/composition-lowering",
+      "message": "oneOf/anyOf co-declared with structural keywords; the composition is distributed across the union variants",
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Host/properties/"
+      }
+    }
+  ],
   "sources": [
     {
       "format": "openapi@3.1",
       "path": "empty-names.yaml",
-      "hash": "9e53664a4b93910fca21450b403f78a6c015fab7c02e158b17b2ea9c82993108"
+      "hash": "647e61aa3074e2e4fbc37245ae5c25b7a68ab4b6d6f8b1c028241192b76cef92"
     }
   ]
 }

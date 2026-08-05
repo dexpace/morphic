@@ -102,7 +102,7 @@ func lowerContent(c lowering.Ctx, ts *compile.Types, anchors *schema.AnchorIndex
 func fillSequential(c lowering.Ctx, ts *compile.Types, anchors *schema.AnchorIndex, content *ir.Content, media *soa.MediaType, mediaPtr, hint string) []ir.Diagnostic {
 	var diags []ir.Diagnostic
 	if item := media.GetItemSchema(); item != nil {
-		ref, itemDiags := schema.Ref(c, ts, anchors, schema.TopLevelDepth, item, mediaPtr+ids.Ptr("itemSchema"), hint+"_item")
+		ref, itemDiags := schema.Ref(c, ts, anchors, schema.TopLevelDepth, item, mediaPtr+ids.Ptr("itemSchema"), compile.SubHint(hint, "item"))
 		diags = append(diags, itemDiags...)
 		content.Item = &ref
 	}

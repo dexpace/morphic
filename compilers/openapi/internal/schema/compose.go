@@ -747,7 +747,7 @@ func composedVariant(c lowering.Ctx, ts *compile.Types, anchors *AnchorIndex, de
 	// pointer still finds the branch rather than the variant.
 	branch, diags := Ref(c, ts, anchors, depth, b, vptr, vhint)
 	id := ids.ComposedType(vptr)
-	common := commonFor(c, id, vptr, body.hint+"_"+vhint)
+	common := commonFor(c, id, vptr, compile.SubHint(body.hint, vhint))
 	def, variantDiags := buildComposedVariant(c, ts, anchors, depth, body, branch.Target, common)
 	ts.Register(id, def)
 	return ir.TypeRef{Target: id}, append(diags, variantDiags...)
@@ -1030,7 +1030,7 @@ func enumAsUnion(c lowering.Ctx, ts *compile.Types, s *oas3.Schema, common ir.Ty
 	nodes := s.GetEnum()
 	variants := make([]ir.Variant, 0, len(nodes))
 	for i, node := range nodes {
-		vh := hint + "_" + strconv.Itoa(i)
+		vh := compile.SubHint(hint, strconv.Itoa(i))
 		lptr := pointer + ids.Ptr("enum", strconv.Itoa(i))
 		litID, litDiags := hoistLiteral(c, ts, node, lptr, vh)
 		diags = append(diags, litDiags...)

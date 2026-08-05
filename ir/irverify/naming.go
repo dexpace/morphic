@@ -10,11 +10,15 @@ import (
 
 var namingType = reflect.TypeFor[ir.Naming]()
 
-// nameField is the field name every node spells its ir.Naming as, and so the
-// last segment of the path the walk reaches one by. A node in nameOptional
+// nameField is how a node spells the ir.Naming that names it, and so the last
+// segment of the path the walk reaches that one by. A node in nameOptional
 // renamed out of this spelling stops matching, which reports a violation on a
 // document that has none rather than going silent —
 // TestVerify_OptionalNameOwnersAreClean is what reddens.
+//
+// Only the exemptions are addressed this way. The rule itself holds every
+// ir.Naming the walk reaches, including the ones no Name field owns, such as the
+// values of Service.Renames.
 const nameField = ".Name"
 
 // nameOptional are the nodes that carry no name of their own, so an empty

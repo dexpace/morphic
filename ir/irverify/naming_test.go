@@ -259,3 +259,23 @@ func TestVerify_OptionalOwnerExemptsOnlyItsOwnName(t *testing.T) {
 	assert.Equal(t,
 		"doc.Services[0].Groups[0].Operations[0].Responses[0].Headers[0].Name", got[0].Path)
 }
+
+// TestVerify_PresenceReachesANamingNoNameFieldOwns pins that the rule holds
+// every Naming the walk reaches, not only the ones a node calls its name.
+// Service.Renames is a map[TypeID]Naming — the rename target is the value, and
+// no ".Name" path addresses it — so a rename to nothing would slip through a
+// rule written against name fields. The exemptions are addressed by path; the
+// rule is not.
+func TestVerify_PresenceReachesANamingNoNameFieldOwns(t *testing.T) {
+	t.Parallel()
+	doc := validDoc()
+	doc.Services = []ir.Service{{
+		ID:      "s/x/S",
+		Name:    named("s"),
+		Renames: map[ir.TypeID]ir.Naming{"t/x/Model": {}},
+	}}
+	got := irverify.Verify(doc)
+	require.Len(t, got, 1)
+	assert.Equal(t, "ir/naming-absent", got[0].Code)
+	assert.Equal(t, "doc.Services[0].Renames[t/x/Model]", got[0].Path)
+}

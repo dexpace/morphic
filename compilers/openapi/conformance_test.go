@@ -401,14 +401,36 @@ func assertEmptyNames(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
 	require.True(t, ok, "a component schema keyed \"\" is hoisted at its own pointer")
 	assert.Equal(t, "empty", blank.Common().Name.Hint, "component schema keyed \"\"")
 
+	assertEmptyEnumMember(t, doc)
+	assertEmptyNamedProperty(t, doc)
+	assertEmptyDerivedHints(t, doc)
+}
+
+// assertEmptyEnumMember covers the enum member the issue was reported against,
+// and beside it the collision the minted word can cause: "" and "empty" are two
+// distinct values, and a member named for each lands on the same word.
+//
+// The IR keeps them apart — two members, two values, one in each name channel —
+// because uniquifying identifiers is an emitter's job and always has been:
+// "red" and "Red" already canonicalize to the same words. This pins that the
+// minted name does not merge or drop a member, which is the only part of the
+// collision the IR is answerable for.
+func assertEmptyEnumMember(t *testing.T, doc *ir.Document) {
+	t.Helper()
 	rollout, ok := doc.Types[namedID("Rollout")].(*ir.Enum)
 	require.True(t, ok)
-	require.Len(t, rollout.Members, 2)
-	assert.Equal(t, "empty", rollout.Members[0].Name.Hint, "enum member whose value is \"\"")
-	assert.Empty(t, rollout.Members[0].Value.Str, "the value itself is kept as the empty string")
-	assert.Equal(t, "done", rollout.Members[1].Name.Source, "its sibling is named from its value")
+	require.Len(t, rollout.Members, 3, "no member is merged away by the shared word")
 
-	assertEmptyNamedProperty(t, doc)
+	assert.Equal(t, "empty", rollout.Members[0].Name.Hint, "enum member whose value is \"\"")
+	assert.Empty(t, rollout.Members[0].Name.Source, "nothing is fabricated into the source channel")
+	assert.Empty(t, rollout.Members[0].Value.Str, "the value itself is kept as the empty string")
+
+	declared := rollout.Members[1]
+	assert.Equal(t, "empty", declared.Name.Source, "a member whose value really is \"empty\"")
+	assert.Equal(t, "empty", declared.Name.Canonical, "named through the declared channels, not the hint")
+	assert.Empty(t, declared.Name.Hint)
+
+	assert.Equal(t, "done", rollout.Members[2].Name.Source, "the ordinary sibling is unaffected")
 }
 
 // assertEmptyNamedProperty covers the two entities one property keyed "" makes:
@@ -428,6 +450,48 @@ func assertEmptyNamedProperty(t *testing.T, doc *ir.Document) {
 	assert.Equal(t, ir.TypeID("t/anon/components/schemas/Widget/properties/"), prop.Type.Target)
 	assert.Equal(t, "empty", inline.Common().Name.Hint,
 		"a hint derived from an empty position is minted, not passed through empty")
+}
+
+// composedHints is every node in the corpus spec whose hint is built out of an
+// enclosing node's, keyed by the type ID it lands at. Each pairs an unnamed
+// position with the role or index that distinguishes the child from its
+// siblings — a list element, a map value, a pattern group, a tuple slot, an enum
+// branch, a composed union variant.
+var composedHints = map[ir.TypeID]string{
+	"t/anon/components/schemas/List/properties//items":                    "empty_item",
+	"t/anon/components/schemas/Maps/properties//additionalProperties":     "empty_value",
+	"t/anon/components/schemas/Patterns/properties//patternProperties/^x": "empty_pattern",
+	"t/anon/components/schemas/Tuple/properties//prefixItems/0":           "empty_0",
+	"t/anon/components/schemas/Mixed/properties//enum/0":                  "empty_0",
+	"t/anon/components/schemas/Mixed/properties//enum/1":                  "empty_1",
+	"t/composed/components/schemas/Host/properties//oneOf/0":              "empty_Alt",
+}
+
+// assertEmptyDerivedHints is the case minting at the node alone does not reach.
+// A child named after its position inside another has its hint built out of the
+// enclosing node's, and concatenating onto an empty one used to yield a leading
+// "_": non-empty, so the presence rule passes it, but a shape no grammar
+// produces and one that disagrees with the node it hangs off. The enclosing hint
+// is minted before the child is composed from it.
+//
+// Two composition sites are not witnessed here and are held by compile.SubHint
+// and its unit test alone: the 3.2 itemSchema of a sequential media type, whose
+// enclosing hint no unnamed position reaches, and a composed variant of an
+// inline branch, which the Host case covers only in its $ref form.
+func assertEmptyDerivedHints(t *testing.T, doc *ir.Document) {
+	t.Helper()
+	mixed, ok := doc.Types[namedID("Mixed")].(*ir.Model)
+	require.True(t, ok)
+	require.Len(t, mixed.Properties, 1)
+	union, ok := doc.Types[mixed.Properties[0].Type.Target].(*ir.Union)
+	require.True(t, ok, "a heterogeneous enum lowers to a union of literals")
+	assert.Equal(t, "empty", union.Name.Hint, "the enclosing node keeps the plain minted hint")
+
+	for id, want := range composedHints {
+		node, found := doc.Types[id]
+		require.True(t, found, "no node at %s; the composition site moved", id)
+		assert.Equal(t, want, node.Common().Name.Hint, "composed hint at %s", id)
+	}
 }
 
 func assertInlineTypes(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {

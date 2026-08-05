@@ -3,6 +3,7 @@ info: {title: Empty Names, version: "1.0.0"}
 paths:
   /widgets:
     get:
+      # A tag declared as "" names the group the operation lands in.
       tags: [""]
       responses:
         "200": {description: ok}
@@ -10,10 +11,14 @@ components:
   securitySchemes:
     "": {type: http, scheme: bearer}
   schemas:
+    # A component keyed "" earns no named TypeID, so it hoists as an anonymous
+    # type whose only name channel is the hint.
     "": {type: string}
+    # "" and "empty" are two distinct values whose members land on the same word.
+    # Both must survive: uniquifying identifiers is an emitter's job.
     Rollout:
       type: string
-      enum: ["", done]
+      enum: ["", empty, done]
     Widget:
       type: object
       properties:
@@ -21,3 +26,44 @@ components:
           type: object
           properties:
             leaf: {type: string}
+    # Every schema below hangs a child off an unnamed position, and each child's
+    # hint is composed from the parent's. Composing onto "" would leave a leading
+    # separator no grammar produces, so the parent is minted first.
+    Mixed:
+      type: object
+      properties:
+        "":
+          enum: [1, "a"]
+    List:
+      type: object
+      properties:
+        "":
+          type: array
+          items: {type: object, properties: {a: {type: string}}}
+    Maps:
+      type: object
+      properties:
+        "":
+          type: object
+          additionalProperties: {type: object, properties: {b: {type: string}}}
+    Patterns:
+      type: object
+      properties:
+        "":
+          type: object
+          patternProperties:
+            "^x": {type: object, properties: {c: {type: string}}}
+    Tuple:
+      type: object
+      properties:
+        "":
+          type: array
+          prefixItems: [{type: object, properties: {d: {type: string}}}]
+    Base: {type: object, properties: {id: {type: string}}}
+    Alt: {type: object, properties: {alt: {type: string}}}
+    Host:
+      type: object
+      properties:
+        "":
+          allOf: [{$ref: '#/components/schemas/Base'}]
+          oneOf: [{$ref: '#/components/schemas/Alt'}]

@@ -13,6 +13,11 @@ import "github.com/dexpace/morphic/ir"
 // that collide — "red" and "Red" canonicalize to the same words today. It
 // matches what oapi-codegen mints for the same input, so the two agree on the
 // name a reader of both would expect.
+//
+// Minting it is not an inference under invariant 6. Hint is the channel a
+// compiler already fills with names no source wrote — "variant_0" for a bare
+// oneOf branch, "get_pets" for an operation with no operationId — and this is
+// one more of those, not a guess about what the entity means.
 const emptyNameHint = "empty"
 
 // NamingFor builds the neutral Naming of a name the source declares: the
@@ -45,8 +50,31 @@ func NamingFor(source string) ir.Naming {
 // node with no name in any channel. Minting one here means no caller has to
 // remember the case.
 func NamingHint(hint string) ir.Naming {
+	return ir.Naming{Hint: hintOr(hint)}
+}
+
+// SubHint composes the hint of a node named after its position inside another —
+// a list's element, a map's value, a composed variant, an enum branch — out of
+// the enclosing node's hint and the role or index that distinguishes it.
+//
+// Composing by hand is what NamingHint cannot protect: "" + "_item" is "_item",
+// which is non-empty, so the presence rule passes it, and which is a leading
+// separator no grammar produces, so nothing else reports it either — Naming.Hint
+// is held to none of the content rules (GitHub #54). Minting the enclosing hint
+// first makes the child agree with the node it hangs off, "empty_item" under
+// "empty", rather than leaking the emptiness one level down.
+//
+// suffix is the caller's own role or index and is never empty; a caller with
+// neither has no child to distinguish and no reason to be here.
+func SubHint(parent, suffix string) string {
+	return hintOr(parent) + "_" + suffix
+}
+
+// hintOr returns hint, or the minted name when the position it was derived from
+// carries none.
+func hintOr(hint string) string {
 	if hint == "" {
-		return ir.Naming{Hint: emptyNameHint}
+		return emptyNameHint
 	}
-	return ir.Naming{Hint: hint}
+	return hint
 }

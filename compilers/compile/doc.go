@@ -10,7 +10,8 @@
 //     coordinate addresses.
 //   - Diagnostic accumulation with identity dedup.
 //   - The canonical naming grammar, which invariant 4 makes a property of the IR
-//     rather than of a compiler.
+//     rather than of a compiler, and with it the name minted for an entity the
+//     source left unnamed: no compiler may emit a node nothing can name.
 //   - The identifier grammar: the kind prefix that opens an ID and the namespace
 //     that follows it.
 //

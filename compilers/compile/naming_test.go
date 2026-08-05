@@ -57,3 +57,15 @@ func TestNaming_MintedNameIsNeutral(t *testing.T) {
 	assert.Equal(t, minted, ir.CanonicalWords(minted),
 		"the minted hint is already what the canonical grammar produces")
 }
+
+// TestSubHint_MintsTheEnclosingHint is the case NamingHint alone does not reach:
+// a child named after its position inside another. Concatenating onto an empty
+// enclosing hint yields "_item", which is non-empty — so the presence rule
+// passes it — while being a shape no grammar produces. Minting first is what
+// keeps the child agreeing with the node it hangs off.
+func TestSubHint_MintsTheEnclosingHint(t *testing.T) {
+	t.Parallel()
+	assert.Equal(t, "empty_item", compile.SubHint("", "item"))
+	assert.Equal(t, "widget_item", compile.SubHint("widget", "item"),
+		"an enclosing hint that is really there is untouched")
+}
