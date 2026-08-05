@@ -1,6 +1,7 @@
 package openapi_test
 
 import (
+	"encoding/json"
 	"os"
 	"path/filepath"
 	"testing"
@@ -10,6 +11,7 @@ import (
 
 	"github.com/dexpace/morphic/compilers"
 	"github.com/dexpace/morphic/compilers/openapi"
+	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/ir"
 	"github.com/dexpace/morphic/ir/irverify"
 )
@@ -137,9 +139,40 @@ func TestCompile_OverlayIsRecordedAsASource(t *testing.T) {
 	assert.Empty(t, irverify.Verify(doc), "the second source entry keeps the document valid")
 }
 
-// TestCompile_WithoutAnOverlayRecordsOneSource is the control for the case
-// above. Without it, an assertion that the overlay entry is present would pass
-// on a compiler that appended it unconditionally.
+// TestCompile_AnOverlaidDocumentRoundTripsAndIsDeterministic runs the two
+// document-level oracles over a patched compile.
+//
+// internal/harness drives every corpus spec through them, but it takes bytes and
+// no options, so no overlay has ever reached them — a check that runs is not a
+// check that reaches. The overlay path adds a second Sources entry and decides
+// provenance through a map, so both oracles have something new to say here:
+// round-tripping pins the entry against invariant 7, and repeating the compile
+// is what would surface any output ordered by that map's iteration.
+func TestCompile_AnOverlaidDocumentRoundTripsAndIsDeterministic(t *testing.T) {
+	t.Parallel()
+	marshalled := func() string {
+		doc, _ := compileWith(t, openapi.Options{
+			Overlay: &openapi.Overlay{Path: "patch.yaml", Data: []byte(addTagProperty)},
+		})
+		b, err := json.Marshal(doc)
+		require.NoError(t, err)
+		return string(b)
+	}
+
+	first := marshalled()
+	assert.Equal(t, first, marshalled(), "two compiles of one input must agree byte for byte")
+
+	var back ir.Document
+	require.NoError(t, json.Unmarshal([]byte(first), &back))
+	again, err := json.Marshal(&back)
+	require.NoError(t, err)
+	assert.JSONEq(t, first, string(again), "the document survives a round trip through JSON")
+}
+
+// TestCompile_WithoutAnOverlayRecordsOneSource is the control for
+// TestCompile_OverlayIsRecordedAsASource. Without it, an assertion that the
+// overlay entry is present would pass on a compiler that appended it
+// unconditionally.
 func TestCompile_WithoutAnOverlayRecordsOneSource(t *testing.T) {
 	t.Parallel()
 	doc, _ := compileWith(t, openapi.Options{})
@@ -321,5 +354,10 @@ actions:
 
 	require.NoError(t, err)
 	assert.Nil(t, doc, "the patched document is refused before it reaches the resolver")
-	require.True(t, ir.HasError(diags), "the introduced cycle is reported: %+v", diags)
+
+	// The code, not merely the presence of an error: an overlay has several ways
+	// to fail, and a refusal for any of the others would satisfy a bare
+	// HasError while leaving the cycle this test is named for unexercised.
+	found, _ := ir.FirstError(diags)
+	assert.Equal(t, diag.CyclicRef, found.Code, "the introduced cycle is what refused it: %+v", diags)
 }

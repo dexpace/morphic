@@ -82,6 +82,16 @@ type Document struct {
 //
 //nolint:unparam // srcIndex varies once Compile drives the multi-source loop
 func Load(ctx context.Context, srcIndex int, src compilers.Source, opts Options) (*Document, []ir.Diagnostic, error) {
+	// An overlay sharing the source's index is the one way to get the attribution
+	// silently wrong. Every position the overlay introduced would name the source,
+	// and Document.Sources would carry an entry nothing references — no diagnostic,
+	// and nothing structural to catch it, because both indexes address a declared
+	// entry. An index past the end is caught downstream by irverify as the dangling
+	// reference it is; this collision is not, so it is checked here.
+	if opts.Overlay != nil && opts.OverlaySrcIndex == srcIndex {
+		return nil, nil, fmt.Errorf("openapi: overlay source index %d is source %d's own", opts.OverlaySrcIndex, srcIndex)
+	}
+
 	cyc := scan.Cycles(srcIndex, src.Data)
 	if diag.HasError(cyc) {
 		return nil, cyc, nil // degenerate cycle: refuse to lower, do not crash the parser

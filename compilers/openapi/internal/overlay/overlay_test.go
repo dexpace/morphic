@@ -17,7 +17,9 @@ import (
 // spec is the tree every case below overlays. It carries one of each shape the
 // walk addresses differently — a nested mapping, a sequence, and a key needing
 // RFC 6901 escaping — so a pointer built wrongly for any of them shows up as a
-// misattribution rather than passing unexercised.
+// misattribution rather than passing unexercised. Slot is a second schema for
+// the copy case to land on, since copying a subtree onto itself changes nothing
+// and would attribute nothing either.
 const spec = `openapi: 3.1.0
 info:
   title: Original
@@ -34,6 +36,7 @@ components:
       type: object
       properties:
         name: {type: string}
+    Slot: {type: string}
 `
 
 // overlayIndex is the index the tests hand Apply as the overlay's place in
@@ -179,6 +182,53 @@ func TestApply_StrictReportsAnActionThatMatchesNothing(t *testing.T) {
 		}
 	}
 	assert.True(t, named, "the refusal is accompanied by the action that caused it: %+v", diags)
+}
+
+// TestApply_StrictReportsAnActionThatChangesNothingWithoutRefusing pins the
+// distinction the strict switch turns on, which a test of the refusal alone
+// reads as one rule instead of two.
+//
+// An action whose selector matched and whose update then changed nothing is
+// redundant, not wrong: the fix it describes is already in the source. It is
+// worth reporting and not worth refusing over, so the warning arrives without
+// the error beside it and the document still compiles — unlike the selector that
+// matched nothing, which is a typo and is fatal.
+func TestApply_StrictReportsAnActionThatChangesNothingWithoutRefusing(t *testing.T) {
+	t.Parallel()
+	origin, diags := applyTo(t, header+"  - target: $.info\n    update: {title: Original}\n", false)
+
+	assert.True(t, origin.Applied(), "a redundant action is not a refusal")
+	require.Len(t, diags, 1, "and it is still reported: %+v", diags)
+	assert.Equal(t, diag.OverlayAction, diags[0].Code)
+	assert.Equal(t, ir.SeverityWarning, diags[0].Severity)
+	assert.Contains(t, diags[0].Message, "$.info", "the action is named")
+
+	assert.Equal(t, srcIndex, origin.IndexAt("/info/title", srcIndex),
+		"and nothing is attributed to it, because it wrote nothing")
+}
+
+// TestApply_AttributesACopiedSubtree pins the third action type. A copy grafts
+// nodes cloned from elsewhere in the same document, so the positions it fills
+// are the overlay's doing even though every byte of their content was already in
+// the source — which is the case an attribution keyed on content rather than on
+// what the overlay did would get backwards.
+func TestApply_AttributesACopiedSubtree(t *testing.T) {
+	t.Parallel()
+	origin, _ := applyTo(t, header+
+		"  - target: $.components.schemas.Slot\n    copy: $.components.schemas.Pet\n", false)
+
+	for _, p := range []string{
+		"/components/schemas/Slot/properties",
+		"/components/schemas/Slot/properties/name",
+		"/components/schemas/Slot/properties/name/type",
+		"/components/schemas/Slot/type", // string, overwritten in place by object
+	} {
+		assert.Equal(t, overlayIndex, origin.IndexAt(p, srcIndex), "the copy put %s here", p)
+	}
+	assert.Equal(t, srcIndex, origin.IndexAt("/components/schemas/Slot", srcIndex),
+		"but the position it was copied onto is the source's own")
+	assert.Equal(t, srcIndex, origin.IndexAt("/components/schemas/Pet/properties/name", srcIndex),
+		"and so is everything it was copied from")
 }
 
 // TestApply_LaxReportsNothingForAnActionThatMatchesNothing pins the other side

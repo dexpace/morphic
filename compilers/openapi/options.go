@@ -55,8 +55,12 @@ type Options struct {
 // own format, applied with JSONPath selectors) and how strictly to apply it.
 //
 // The document arrives as bytes, like the spec itself, because a compiler
-// performs no file I/O — reading it is the engine's or the CLI's job, which is
-// what keeps compilation pure and reentrant.
+// performs no file I/O — reading it is the caller's job, which is what keeps
+// compilation pure and reentrant. A programmatic caller sets this through
+// engine.RunOptions.FormatOptions, which the engine forwards verbatim; no
+// morphic subcommand surfaces it yet, and the CLI exposes no other member of
+// this type either, so adding a flag for one is a change about the CLI's option
+// surface rather than about overlays.
 //
 // An applied overlay becomes a second entry in Document.Sources, and every
 // position it introduced or rewrote names that entry as its Provenance.Source.

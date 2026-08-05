@@ -174,10 +174,13 @@ func applyRecovered(doc *soaoverlay.Overlay, root *yaml.Node, at ir.Provenance, 
 // apply runs doc over root under the caller's strictness, returning what it
 // reported and whether the result is usable.
 //
-// Strict mode reports twice over on purpose: each warning names one action the
-// library found nothing for, and the error that follows is what makes the typo
-// fatal rather than advisory. Lax mode reports neither, and still fails on an
-// overlay the library could not apply at all.
+// Strict mode reports on two levels, and they are not the same finding. The
+// per-action warnings say what each action did or failed to do; the error, when
+// there is one, says a selector matched nothing at all. An action that matched
+// and then changed nothing produces a warning and no error, so the compile
+// proceeds — the fix that action describes is already in the source, which is
+// worth saying and not worth refusing over. Lax mode reports neither level, and
+// still fails on an overlay the library could not apply at all.
 func apply(doc *soaoverlay.Overlay, root *yaml.Node, at ir.Provenance, lax bool) ([]ir.Diagnostic, bool) {
 	if lax {
 		if err := doc.ApplyTo(root); err != nil {
@@ -222,9 +225,12 @@ func sourceInfo(doc *soaoverlay.Overlay, opts Options) ir.SourceInfo {
 // node's identity untouched and changes only what it holds, so identity alone
 // would read the new title as the source's own.
 //
-// It starts where the attribution walk starts — at the document root rather than
-// at the document node wrapping it — so the two cover the same nodes. A node one
-// walk knows and the other does not would read as introduced by the overlay.
+// It reaches a superset of what the attribution walk reaches: both start at the
+// document root rather than at the document node wrapping it, and this one
+// descends into mapping keys the other addresses no pointer for. A superset is
+// the safe direction and the required one — a node the attribution walk reaches
+// that this one missed would read as introduced by the overlay — so the two need
+// only share a starting point, not a definition of what is worth visiting.
 func snapshot(root *yaml.Node, budget int) (map[*yaml.Node]string, bool) {
 	before := make(map[*yaml.Node]string)
 	stack := []*yaml.Node{nodeview.DocumentRoot(root)}

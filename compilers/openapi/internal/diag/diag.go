@@ -50,10 +50,14 @@ const (
 	// behind is neither the source nor what the overlay asked for.
 	OverlayFailed = "openapi/overlay-failed"
 	// OverlayAction reports one strict-mode finding about a single action, naming
-	// the action and its target — most often that it matched nothing and so did
-	// nothing. It is a warning that accompanies the OverlayFailed refusal rather
-	// than replacing it: the refusal says the overlay is wrong, and these say
-	// which actions are why.
+	// the action and its target: that it changed nothing, or that it relies on
+	// JSONPath behaviour the overlay did not opt into.
+	//
+	// It stands alone as often as it accompanies a refusal, and the difference is
+	// the point. An action whose selector matched nothing is a typo and refuses
+	// under OverlayFailed, with these naming which actions are why; an action that
+	// matched and then changed nothing is merely redundant — the fix it describes
+	// is already in the source — so it is reported and the compile proceeds.
 	OverlayAction = "openapi/overlay-action"
 	// OverlayOriginIncomplete reports that the overlay applied but the walk that
 	// attributes positions to it exceeded its node budget. Provenance degrades to

@@ -276,3 +276,29 @@ func TestLoad_ADocumentThatFailsToBuildIsAGoError(t *testing.T) {
 	assert.Nil(t, doc)
 	assert.Nil(t, diags)
 }
+
+// TestLoad_RejectsAnOverlaySharingTheSourceIndex pins the one way the
+// attribution can go wrong without anything noticing.
+//
+// The overlay's index and its place in Document.Sources are decided in two
+// packages and have to agree. An index past the end disagrees loudly — irverify
+// reports it as the dangling reference it is — but an index equal to the
+// source's addresses a declared entry, so every position the overlay introduced
+// would quietly name the spec while Sources carried an entry nothing references.
+// That is a caller mistake rather than a document problem, so it leaves as a Go
+// error.
+func TestLoad_RejectsAnOverlaySharingTheSourceIndex(t *testing.T) {
+	t.Parallel()
+	opts := overlayOptions("  - target: $.info\n    update: {description: d}\n")
+	opts.OverlaySrcIndex = 2
+
+	refused, _, err := Load(t.Context(), 2, sourceOf(minimal31), opts)
+	require.Error(t, err, "the overlay may not share source 2's index")
+	assert.Contains(t, err.Error(), "overlay source index 2", "the collision is named")
+	assert.Nil(t, refused)
+
+	opts.OverlaySrcIndex = 3
+	got, diags, err := Load(t.Context(), 2, sourceOf(minimal31), opts)
+	require.NoError(t, err, "an index of its own is fine: %+v", diags)
+	assert.True(t, got.Overlay.Applied())
+}
