@@ -10,28 +10,101 @@ import (
 
 var namingType = reflect.TypeFor[ir.Naming]()
 
-// checkNaming asserts every Naming.Canonical is what invariant #4 promises: a
-// neutral lower_snake word sequence, carrying no casing an emitter should own
-// and no character that is not part of a word. It reuses the shared bounded walk
-// to reach every ir.Naming value in the document, and reports whether that walk
-// was cut short so a name past the cap cannot go unchecked in silence.
+// nameField is the field name every node spells its ir.Naming as, and so the
+// last segment of the path the walk reaches one by. A node in nameOptional
+// renamed out of this spelling stops matching, which reports a violation on a
+// document that has none rather than going silent —
+// TestVerify_OptionalNameOwnersAreClean is what reddens.
+const nameField = ".Name"
+
+// nameOptional are the nodes that carry no name of their own, so an empty
+// Naming on one is what the IR says to expect rather than the missing-name
+// defect below. Each is exempt for a different reason:
 //
-// Only Canonical is checked. Naming.Hint — the generated-name channel for
-// anonymous types — is held to none of these rules, so casing and punctuation
-// still reach the IR through it. That is GitHub #54, left open deliberately:
-// closing it means changing how the compilers derive hints and regenerating
-// every golden, which is a different change from tightening this checker.
+//   - ir.Primitive is identified by its PrimKind. There is no source name to
+//     record and nothing for a hint to disambiguate — an emitter renders "string"
+//     from the kind — so this one is exempt by design, not pending work.
+//   - ir.Server and ir.Response are named entities the OpenAPI compiler does not
+//     yet name: OpenAPI declares a server name only from 3.2 on, and keys
+//     responses by status code, where ir-design §7.2 calls for a Hint. Both gaps
+//     are real and neither is this change: GitHub #258 and #259 track them, and
+//     each entry comes off this list with the compiler fix that closes its issue.
+//
+// Keyed by node type rather than by path so a new node type is held to the rule
+// the moment it exists — the direction that fails loudly.
+var nameOptional = map[reflect.Type]bool{
+	reflect.TypeFor[ir.Primitive](): true,
+	reflect.TypeFor[ir.Server]():    true,
+	reflect.TypeFor[ir.Response]():  true,
+}
+
+// checkNaming asserts every named entity has a name at all, and that every
+// Naming.Canonical is what invariant #4 promises: a neutral lower_snake word
+// sequence, carrying no casing an emitter should own and no character that is
+// not part of a word. It reuses the shared bounded walk to reach every ir.Naming
+// value in the document, and reports whether that walk was cut short so a name
+// past the cap cannot go unchecked in silence.
+//
+// Presence is separate from those content rules because each of them is
+// vacuously true of the empty string: an entirely empty Naming satisfied all
+// three while leaving an emitter nothing to name the entity by (GitHub #251).
+//
+// Only Canonical is checked for content. Naming.Hint — the generated-name
+// channel — is held to none of the content rules, so casing
+// and punctuation still reach the IR through it. That is GitHub #54, left open
+// deliberately: closing it means changing how the compilers derive hints and
+// regenerating every golden, which is a different change from tightening this
+// checker.
 func checkNaming(doc *ir.Document) ([]Violation, bool) {
 	var vs []Violation
+	optional := map[string]bool{}
 	truncated := ir.WalkValues(doc, ir.DocumentPath, func(v reflect.Value, path string) bool {
-		if v.Kind() != reflect.Struct || v.Type() != namingType {
+		if v.Kind() != reflect.Struct {
 			return true
 		}
-		vs = appendNamingViolations(vs,
-			v.FieldByName("Source").String(), v.FieldByName("Canonical").String(), path)
+		if nameOptional[v.Type()] {
+			// The walk visits a struct before its fields, so this is recorded
+			// before the Naming it exempts is reached.
+			optional[path+nameField] = true
+			return true
+		}
+		if v.Type() != namingType {
+			return true
+		}
+		source, canon, hint := namingChannels(v)
+		if !optional[path] {
+			vs = appendAbsentViolation(vs, source, canon, hint, path)
+		}
+		vs = appendNamingViolations(vs, source, canon, path)
 		return false // Naming holds no references or nested Naming to descend into
 	})
 	return vs, truncated
+}
+
+// namingChannels reads the three name channels off one Naming. It reads fields
+// rather than converting the value back to an ir.Naming because a value the walk
+// reached through an unexported field cannot be (see ir.WalkValues).
+func namingChannels(naming reflect.Value) (source, canon, hint string) {
+	return naming.FieldByName("Source").String(),
+		naming.FieldByName("Canonical").String(),
+		naming.FieldByName("Hint").String()
+}
+
+// appendAbsentViolation reports an entity that no channel names.
+//
+// Which channel is filled is not this rule's business — a declared name goes in
+// Source with its words beside it, a generated one in Hint, and the checks below
+// hold whichever is there. This asks only that one of them is, because nothing
+// downstream can render an identifier from three empty strings.
+func appendAbsentViolation(vs []Violation, source, canon, hint, path string) []Violation {
+	if source != "" || canon != "" || hint != "" {
+		return vs
+	}
+	return append(vs, Violation{
+		Code:    "ir/naming-absent",
+		Message: "named entity carries no name at all; set a source name, canonical words or a hint",
+		Path:    path,
+	})
 }
 
 // appendNamingViolations reports the ways canon can break neutrality. They are

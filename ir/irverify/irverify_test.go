@@ -20,6 +20,14 @@ func validDoc() *ir.Document {
 	}
 }
 
+// named is the naming of an entity whose source spelling is already a neutral
+// word sequence, so the grammar check recomputes the same canonical from it. It
+// exists so a fixture built to exercise some other check can satisfy the
+// presence rule without spelling a Naming literal at every node.
+func named(source string) ir.Naming {
+	return ir.Naming{Source: source, Canonical: source}
+}
+
 func TestVerify_CleanDocHasNoViolations(t *testing.T) {
 	got := irverify.Verify(validDoc())
 	assert.Empty(t, got)

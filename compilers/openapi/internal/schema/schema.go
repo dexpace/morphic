@@ -638,7 +638,7 @@ func lowerUnion(c lowering.Ctx, ts *compile.Types, anchors *AnchorIndex, depth i
 			vid, vDiags := lowerTyped(c, ts, anchors, depth, s, vptr, hint, st)
 			diags = append(diags, vDiags...)
 			variants = append(variants, ir.Variant{
-				Name: ir.Naming{Hint: string(st)},
+				Name: compile.NamingHint(string(st)),
 				Type: ir.TypeRef{Target: vid},
 			})
 		}

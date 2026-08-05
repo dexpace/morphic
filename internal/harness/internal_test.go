@@ -43,10 +43,15 @@ func badExtDoc() *ir.Document {
 // t/prim/<kind> is a violation of its own, and the fixture would be classified
 // before the oracle it exists to reach. Any carries no such rule; the node kind
 // is incidental to what this document tests.
+//
+// The names are load-bearing for the same reason the IDs are: a node with no
+// name in any channel is a structural violation, and Check would classify this
+// document as one before the round-trip oracle ever ran.
 func dupKeyDoc() *ir.Document {
+	named := ir.Naming{Source: "node", Canonical: "node"}
 	return &ir.Document{Types: ir.TypeRegistry{
-		ir.TypeID("t/x/\xff"): &ir.Any{TypeCommon: ir.TypeCommon{ID: "t/x/\xff"}},
-		ir.TypeID("t/x/\xfe"): &ir.Any{TypeCommon: ir.TypeCommon{ID: "t/x/\xfe"}},
+		ir.TypeID("t/x/\xff"): &ir.Any{TypeCommon: ir.TypeCommon{ID: "t/x/\xff", Name: named}},
+		ir.TypeID("t/x/\xfe"): &ir.Any{TypeCommon: ir.TypeCommon{ID: "t/x/\xfe", Name: named}},
 	}}
 }
 

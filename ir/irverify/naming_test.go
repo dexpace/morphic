@@ -58,11 +58,18 @@ func TestVerify_UnsegmentedCanonicalIsAViolation(t *testing.T) {
 func TestVerify_WordSequencesAreClean(t *testing.T) {
 	t.Parallel()
 	for _, canon := range []string{
-		"", "user", "user_id", "api_key_2", "count_ℤ", "cafe\u0301_v_2",
+		"user", "user_id", "api_key_2", "count_ℤ", "cafe\u0301_v_2",
 	} {
 		assert.Empty(t, irverify.Verify(canonicalOnly(canon)),
 			"canonical %q is a word sequence", canon)
 	}
+	// The empty canonical belongs in that list by the shape rules — an anonymous
+	// type names itself by its hint, and a source spelled with no word rune in it
+	// has no words to report — but it is clean only beside something that does
+	// name the entity. Alone it is the absent-name defect
+	// (TestVerify_AbsentNameIsAViolation), so it is measured here instead.
+	assert.Empty(t, irverify.Verify(modelNamed(ir.Naming{Hint: "connection_domain"})),
+		"a hinted naming with no canonical is a word sequence")
 }
 
 // TestVerify_LetterDigitRunIsAViolation is the half of segmentation a neutral
@@ -151,4 +158,104 @@ func TestVerify_DerivedNamingIsClean(t *testing.T) {
 	}
 	assert.Empty(t, irverify.Verify(modelNamed(ir.Naming{Hint: "connection_domain"})),
 		"an anonymous type carries a hint and no source, so there is nothing to derive from")
+}
+
+// ok200 is the unremarkable single-status condition set, so a response fixture
+// says nothing about conditions it does not mean to test.
+func ok200() ir.ResponseConditions {
+	return ir.ResponseConditions{StatusCodes: []ir.StatusRange{{From: 200, To: 200}}}
+}
+
+// respondingDoc is a named service/group/operation chain holding one response,
+// so a fixture about the response itself contributes no violations of its own.
+func respondingDoc(r ir.Response) *ir.Document {
+	doc := validDoc()
+	doc.Services = []ir.Service{{
+		ID:   "s/x/S",
+		Name: named("s"),
+		Groups: []ir.OperationGroup{{
+			Name: named("g"),
+			Operations: []ir.Operation{{
+				ID:        "o/x/S/op",
+				Name:      named("op"),
+				Responses: []ir.Response{r},
+			}},
+		}},
+	}}
+	return doc
+}
+
+// TestVerify_AbsentNameIsAViolation is the case every content rule was
+// vacuously true of: an entity whose Naming carries nothing in any channel. The
+// empty string is uncased, is a word sequence, and straddles no letter/digit
+// boundary, so a nameless entity satisfied all three while leaving an emitter
+// nothing to name it by (GitHub #251).
+func TestVerify_AbsentNameIsAViolation(t *testing.T) {
+	t.Parallel()
+	got := irverify.Verify(modelNamed(ir.Naming{}))
+	require.Len(t, got, 1)
+	assert.Equal(t, "ir/naming-absent", got[0].Code)
+	assert.Equal(t, "doc.Types[t/x/M].Name", got[0].Path)
+}
+
+// TestVerify_AnyOneChannelIsAName pins how little the presence rule asks for.
+// It is not a rule about which channel a compiler should fill — the content
+// checks and the compilers decide that — only that one of them is.
+func TestVerify_AnyOneChannelIsAName(t *testing.T) {
+	t.Parallel()
+	for _, n := range []ir.Naming{
+		{Source: "user", Canonical: "user"},
+		{Canonical: "user"},         // a canonical carried without a source
+		{Hint: "connection_domain"}, // an anonymous type's generated name
+		{Source: "***"},             // a spelling with no word rune in it
+	} {
+		assert.NotContains(t, codesOf(irverify.Verify(modelNamed(n))), "ir/naming-absent",
+			"naming %+v names the entity", n)
+	}
+}
+
+// TestVerify_OptionalNameOwnersAreClean pins the exemptions in nameOptional: a
+// primitive is identified by its kind, and a server or response the compilers do
+// not yet name (GitHub #258, #259) must not report until they do. Without this,
+// the rule would fail every document in the corpus.
+//
+// It is also what holds the ".Name" path the exemption is recorded under: a node
+// that spelled its Naming as any other field would stop matching and redden here.
+func TestVerify_OptionalNameOwnersAreClean(t *testing.T) {
+	t.Parallel()
+	prim := validDoc()
+	prim.Types[ir.PrimTypeID(ir.PrimString)] = &ir.Primitive{
+		TypeCommon: ir.TypeCommon{ID: ir.PrimTypeID(ir.PrimString)},
+		Prim:       ir.PrimString,
+	}
+	server := validDoc()
+	server.Servers = []ir.Server{{URLTemplate: "https://x.example"}}
+
+	for name, doc := range map[string]*ir.Document{
+		"primitive": prim,
+		"server":    server,
+		"response":  respondingDoc(ir.Response{Conditions: ok200()}),
+	} {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			assert.Empty(t, irverify.Verify(doc))
+		})
+	}
+}
+
+// TestVerify_OptionalOwnerExemptsOnlyItsOwnName is the overreach guard. The
+// exemption is recorded as one path, not a pruned subtree, so a nameless node
+// *inside* an exempt one is still reported — a response header is an ir.Property
+// like any other, and nothing about the response above it makes it nameless.
+func TestVerify_OptionalOwnerExemptsOnlyItsOwnName(t *testing.T) {
+	t.Parallel()
+	doc := respondingDoc(ir.Response{
+		Conditions: ok200(),
+		Headers:    []ir.Property{{ID: "p/x/h"}},
+	})
+	got := irverify.Verify(doc)
+	require.Len(t, got, 1, "the header, and not the response carrying it")
+	assert.Equal(t, "ir/naming-absent", got[0].Code)
+	assert.Equal(t,
+		"doc.Services[0].Groups[0].Operations[0].Responses[0].Headers[0].Name", got[0].Path)
 }

@@ -1,0 +1,23 @@
+openapi: 3.1.0
+info: {title: Empty Names, version: "1.0.0"}
+paths:
+  /widgets:
+    get:
+      tags: [""]
+      responses:
+        "200": {description: ok}
+components:
+  securitySchemes:
+    "": {type: http, scheme: bearer}
+  schemas:
+    "": {type: string}
+    Rollout:
+      type: string
+      enum: ["", done]
+    Widget:
+      type: object
+      properties:
+        "":
+          type: object
+          properties:
+            leaf: {type: string}

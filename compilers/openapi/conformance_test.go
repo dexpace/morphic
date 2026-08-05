@@ -137,6 +137,7 @@ func conformanceCases() []conformanceCase {
 	return []conformanceCase{
 		{"named-types", assertNamedTypes},
 		{"neutral-naming", assertNeutralNaming},
+		{"empty-names", assertEmptyNames},
 		{"inline-types", assertInlineTypes},
 		{"component-reuse", assertComponentReuse},
 		{"allof-inheritance", assertAllOfInheritance},
@@ -377,6 +378,56 @@ func assertNeutralNamingLeaves(t *testing.T, doc *ir.Document, widget *ir.Model,
 	for _, scheme := range doc.Auth {
 		assert.Equal(t, "oauth_2_client", scheme.Name.Canonical, "security scheme")
 	}
+}
+
+// assertEmptyNames is the complement of assertNeutralNaming: every position
+// where the source names an entity with the empty string, which is a legal
+// OpenAPI document at each of them. The compiler used to pass "" through as a
+// Naming with nothing in any channel, leaving an emitter no identifier to render
+// and satisfying every neutrality check vacuously (GitHub #251). Each of these
+// now carries the minted hint instead, and irverify's presence rule — swept over
+// this corpus by TestVerify_Corpus — is what holds the general case.
+func assertEmptyNames(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
+	require.Len(t, doc.Services, 1)
+	require.Len(t, doc.Services[0].Groups, 1)
+	assert.Equal(t, "empty", doc.Services[0].Groups[0].Name.Hint, "tag declared as \"\"")
+
+	require.Len(t, doc.Auth, 1)
+	for _, scheme := range doc.Auth {
+		assert.Equal(t, "empty", scheme.Name.Hint, "security scheme keyed \"\"")
+	}
+
+	blank, ok := doc.Types[ir.TypeID("t/anon/components/schemas/")]
+	require.True(t, ok, "a component schema keyed \"\" is hoisted at its own pointer")
+	assert.Equal(t, "empty", blank.Common().Name.Hint, "component schema keyed \"\"")
+
+	rollout, ok := doc.Types[namedID("Rollout")].(*ir.Enum)
+	require.True(t, ok)
+	require.Len(t, rollout.Members, 2)
+	assert.Equal(t, "empty", rollout.Members[0].Name.Hint, "enum member whose value is \"\"")
+	assert.Empty(t, rollout.Members[0].Value.Str, "the value itself is kept as the empty string")
+	assert.Equal(t, "done", rollout.Members[1].Name.Source, "its sibling is named from its value")
+
+	assertEmptyNamedProperty(t, doc)
+}
+
+// assertEmptyNamedProperty covers the two entities one property keyed "" makes:
+// the property, and the inline schema hoisted at its position, whose context
+// hint is derived from the same empty name.
+func assertEmptyNamedProperty(t *testing.T, doc *ir.Document) {
+	t.Helper()
+	widget, ok := doc.Types[namedID("Widget")].(*ir.Model)
+	require.True(t, ok)
+	require.Len(t, widget.Properties, 1)
+	prop := widget.Properties[0]
+	assert.Equal(t, "empty", prop.Name.Hint, "property keyed \"\"")
+	assert.Empty(t, prop.WireName, "the wire key itself is still the empty string")
+
+	inline, ok := doc.Types[prop.Type.Target]
+	require.True(t, ok, "the property's inline object is hoisted")
+	assert.Equal(t, ir.TypeID("t/anon/components/schemas/Widget/properties/"), prop.Type.Target)
+	assert.Equal(t, "empty", inline.Common().Name.Hint,
+		"a hint derived from an empty position is minted, not passed through empty")
 }
 
 func assertInlineTypes(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {

@@ -679,7 +679,7 @@ func buildUnion(c lowering.Ctx, ts *compile.Types, s *oas3.Schema, common ir.Typ
 		vh := branchHint(b, i)
 		vptr := pointer + ids.Ptr(key, strconv.Itoa(i))
 		variants = append(variants, ir.Variant{
-			Name: ir.Naming{Hint: vh},
+			Name: compile.NamingHint(vh),
 			Type: variantType(b, vptr, vh),
 		})
 	}
@@ -1035,7 +1035,7 @@ func enumAsUnion(c lowering.Ctx, ts *compile.Types, s *oas3.Schema, common ir.Ty
 		litID, litDiags := hoistLiteral(c, ts, node, lptr, vh)
 		diags = append(diags, litDiags...)
 		variants = append(variants, ir.Variant{
-			Name: ir.Naming{Hint: vh},
+			Name: compile.NamingHint(vh),
 			Type: ir.TypeRef{Target: litID},
 		})
 	}
