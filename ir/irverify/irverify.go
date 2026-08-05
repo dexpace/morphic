@@ -1,7 +1,6 @@
 package irverify
 
 import (
-	"reflect"
 	"sort"
 	"strconv"
 	"unicode/utf8"
@@ -32,12 +31,8 @@ func Verify(doc *ir.Document) []Violation {
 	vs := checkRegistryKeys(doc)
 	vs = append(vs, checkIDs(doc)...)
 	vs = append(vs, checkPrimIDs(doc)...)
-	vs = append(vs, checkReferentialIntegrity(doc)...)
-	vs = append(vs, checkNaming(doc)...)
 	vs = append(vs, checkDiagnostics(doc)...)
-	vs = append(vs, checkRawPayloads(doc)...)
-	vs = append(vs, checkProvenance(doc)...)
-	vs = append(vs, checkIndices(doc)...)
+	vs = append(vs, runWalkChecks(doc)...)
 
 	// Stable: two violations can share a (Code, Path) — an embedded field
 	// contributes no path segment, so two promoted fields of the same name would
@@ -52,14 +47,59 @@ func Verify(doc *ir.Document) []Violation {
 	return vs
 }
 
+// walkChecks are the checks that reach their subject through a bounded walk of
+// the document. Each returns whether its own walk was cut short, so the flag is
+// part of the signature rather than a value a check can quietly drop.
+func walkChecks() []func(*ir.Document) ([]Violation, bool) {
+	return []func(*ir.Document) ([]Violation, bool){
+		checkReferentialIntegrity,
+		checkNaming,
+		checkRawPayloads,
+		checkProvenance,
+		checkIndices,
+	}
+}
+
+// runWalkChecks runs every walking check and folds their truncation flags into
+// one ir/walk-truncated violation.
+//
+// Truncation is a fact about the document, not about the check that noticed it,
+// so it is reported once here rather than once per walk that noticed it — which
+// would give one document a violation per walking check, all sharing a code and
+// a path. Not reporting it at all is what left the pruning walks silently
+// under-checking a too-deep document (GitHub #55): a pruned walk reaches a subset
+// of what the unpruned reference walk does, so today that one trips the cap
+// first, and depending on that coincidence is exactly what the flag replaces.
+func runWalkChecks(doc *ir.Document) []Violation {
+	var vs []Violation
+	truncated := false
+	for _, check := range walkChecks() {
+		found, cut := check(doc)
+		vs = append(vs, found...)
+		truncated = truncated || cut
+	}
+	if !truncated {
+		return vs
+	}
+	return append(vs, Violation{
+		Code:    "ir/walk-truncated",
+		Message: "document nests deeper than the bounded verifier walk; part of it went unchecked",
+		Path:    ir.DocumentPath,
+	})
+}
+
 // checkRegistryKeys asserts every entry of each flat, ID-keyed registry
 // (Types, Channels, Messages, Auth) is keyed by its own node ID and that the key
 // is non-empty (invariant #3). Each registry contributes symmetric empty-*-id and
 // *-id-mismatch violations.
+//
+// A nil type definition is reported rather than dereferenced — Common() panics
+// on one — which is what keeps Verify a report-only oracle that never crashes on
+// a malformed document. The walk-based checks already tolerate nil entries.
 func checkRegistryKeys(doc *ir.Document) []Violation {
 	var vs []Violation
 	for id, td := range doc.Types {
-		if isNilTypeDef(td) {
+		if ir.IsNilTypeDef(td) {
 			vs = append(vs, Violation{
 				Code:    "ir/nil-type",
 				Message: "types registry has a nil type definition",
@@ -100,19 +140,6 @@ func registryKey(vs []Violation, noun, reg, key, nodeID string) []Violation {
 		})
 	}
 	return vs
-}
-
-// isNilTypeDef reports whether td is a nil TypeDef — either an untyped nil
-// interface or a typed nil pointer. Calling Common() on either panics, so
-// checkRegistryKeys reports the entry as an ir/nil-type violation instead of
-// dereferencing it, keeping Verify a report-only oracle that never crashes on a
-// malformed document (the walk-based checks already tolerate nil entries).
-func isNilTypeDef(td ir.TypeDef) bool {
-	if td == nil {
-		return true
-	}
-	rv := reflect.ValueOf(td)
-	return rv.Kind() == reflect.Pointer && rv.IsNil()
 }
 
 // checkDiagnostics asserts every diagnostic message is well-formed UTF-8

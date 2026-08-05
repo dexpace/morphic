@@ -1,99 +1,32 @@
 package irverify
 
 import (
-	"fmt"
 	"reflect"
-	"slices"
-	"strings"
 
 	"github.com/dexpace/morphic/ir"
 )
 
-// maxWalkDepth bounds the reflection traversal (bounded-recursion rule). Value
-// trees (defaults, examples) are the deepest structures reached, and compilers
-// cap their nesting (the OpenAPI compiler caps it at 128), so this limit sits
-// well above what a validly-bounded document can produce — hitting it signals
-// a pathological document, not legitimate nesting. walkValues reports
-// truncation and checkReferentialIntegrity surfaces it as ir/walk-truncated.
-const maxWalkDepth = 4096
-
-// refSite is one discovered ID reference and the reference class (refKind) it
-// must resolve in.
+// refSite is one discovered ID reference: the class that made it a reference,
+// its value, and where in the document it sits.
 type refSite struct {
-	id   string
-	kind refKind
-	path string
+	idType reflect.Type
+	id     string
+	path   string
 }
 
-// resolves reports whether s.id exists in the registry s.kind names. The
-// has == nil guard — rather than calling s.kind.has directly — keeps Verify a
-// report-only oracle that never crashes on a malformed document, even if a
-// refSite is ever built with a kind this package does not recognize.
-func (s refSite) resolves(doc *ir.Document) bool {
-	if s.kind.has == nil {
-		return false
-	}
-	return s.kind.has(doc, s.id)
-}
-
-// refKind is one class of typed-ID reference this checker resolves: a
-// registry label (for violation paths and messages), a diagnostic-code
-// singular, and a resolves-in-registry test. refKindByType is the single
-// source of truth for what counts as a "reference" here, so a class can't be
-// silently dropped by missing it from one of several parallel lists.
-//
-// PropID and ServiceID are intentionally absent: neither lives in a
-// document-level flat registry, so neither can be resolved by a
-// registry-driven walk.
-//
-// PropID stays out here rather than growing a second implementation. Resolving
-// one means collecting the ir.Property values a document declares and looking
-// the ID up among them, which pass.Validate's checkPropIDRefs does; a copy of
-// that in this checker would be a second answer to maintain in step with the
-// first, for a class this walk's own mechanism cannot reach either way.
-type refKind struct {
-	registry string
-	singular string
-	has      func(doc *ir.Document, id string) bool
-}
-
-// refKindByType maps a typed-ID reflect.Type to its refKind. Literals below
-// are keyed, not positional: registry and singular are both plain strings,
-// and a positional row could silently swap them, emitting
-// "ir/dangling-types-ref" instead of "ir/dangling-type-ref".
-var refKindByType = map[reflect.Type]refKind{
-	reflect.TypeFor[ir.TypeID](): {registry: "types", singular: "type", has: func(doc *ir.Document, id string) bool {
-		_, ok := doc.Types[ir.TypeID(id)]
-		return ok
-	}},
-	reflect.TypeFor[ir.AuthID](): {registry: "auth", singular: "auth", has: func(doc *ir.Document, id string) bool {
-		_, ok := doc.Auth[ir.AuthID(id)]
-		return ok
-	}},
-	reflect.TypeFor[ir.ChannelID](): {registry: "channels", singular: "channel", has: func(doc *ir.Document, id string) bool {
-		_, ok := doc.Channels[ir.ChannelID(id)]
-		return ok
-	}},
-	reflect.TypeFor[ir.MessageID](): {registry: "messages", singular: "message", has: func(doc *ir.Document, id string) bool {
-		_, ok := doc.Messages[ir.MessageID(id)]
-		return ok
-	}},
-}
-
-// collectRefs walks doc and returns every non-empty typed-ID reference plus
-// whether the bounded walk was truncated. It inspects struct fields, slice/array
-// elements, and both map keys and values: most map keys are an entry's own ID
-// and resolve trivially, but some — Service.Renames's map[TypeID]Naming keys —
-// are genuine references into a registry that must resolve, so keys are
-// collected too.
-func collectRefs(doc *ir.Document) ([]refSite, bool) {
+// collectRefs walks doc and returns every non-empty typed-ID reference regs
+// recognizes, plus whether the bounded walk was truncated. It inspects both map
+// keys and values: most keys are an entry's own ID and resolve trivially, but
+// some — Service.Renames's map[TypeID]Naming keys — are genuine references into
+// a registry that must resolve.
+func collectRefs(doc *ir.Document, regs ir.Registries) ([]refSite, bool) {
 	var sites []refSite
-	truncated := walkValues(doc, func(v reflect.Value, path string) bool {
-		if v.Kind() != reflect.String {
+	truncated := ir.WalkValues(doc, ir.DocumentPath, func(v reflect.Value, path string) bool {
+		if v.Kind() != reflect.String || v.String() == "" {
 			return true
 		}
-		if k, ok := refKindByType[v.Type()]; ok && v.String() != "" {
-			sites = append(sites, refSite{id: v.String(), kind: k, path: path})
+		if _, isRef := regs[v.Type()]; isRef {
+			sites = append(sites, refSite{idType: v.Type(), id: v.String(), path: path})
 		}
 		return true
 	})
@@ -101,165 +34,35 @@ func collectRefs(doc *ir.Document) ([]refSite, bool) {
 }
 
 // checkReferentialIntegrity asserts every discovered reference resolves in its
-// registry, emitting one dangling-*-ref Violation per unresolved reference.
-func checkReferentialIntegrity(doc *ir.Document) []Violation {
+// registry, emitting one dangling-*-ref Violation per unresolved reference. It
+// reports whether the bounded walk was truncated; Verify folds that into the
+// document's one ir/walk-truncated violation.
+//
+// What counts as a reference comes from Document's own shape rather than a table
+// written here: a registry added to Document is checked the moment it exists,
+// under a code spelled from the ID type it is keyed by — the same derivation
+// pass.Validate reports the identical defect under, so one defect reads as one
+// code whichever checker a caller runs.
+//
+// Two ID classes are outside what a registry-driven walk can resolve, and both
+// stay out rather than growing a second implementation here. ir.ServiceID names
+// a position in Document.Services; ir.PropID names a position inside its model,
+// and resolving one means collecting the ir.Property values a document declares
+// and looking the ID up among them, which pass.Validate's checkPropIDRefs does.
+func checkReferentialIntegrity(doc *ir.Document) ([]Violation, bool) {
+	regs := ir.DocumentRegistries(doc)
+	sites, truncated := collectRefs(doc, regs)
 	var vs []Violation
-	sites, truncated := collectRefs(doc)
-	if truncated {
-		vs = append(vs, Violation{
-			Code:    "ir/walk-truncated",
-			Message: "document nests deeper than the bounded verifier walk; some references and names went unchecked",
-			Path:    "doc",
-		})
-	}
 	for _, s := range sites {
-		if s.resolves(doc) {
+		reg := regs[s.idType]
+		if reg.Has(s.id) {
 			continue
 		}
 		vs = append(vs, Violation{
-			Code:    "ir/dangling-" + s.kind.singular + "-ref",
-			Message: "reference " + s.id + " does not resolve in " + s.kind.registry,
+			Code:    "ir/dangling-" + ir.RefNoun(s.idType) + "-ref",
+			Message: "reference " + s.id + " does not resolve in " + reg.Label,
 			Path:    s.path,
 		})
 	}
-	return vs
-}
-
-// walkValues performs a bounded, cycle-guarded reflection traversal of root,
-// calling visit on every value it reaches; returning false from visit skips
-// that value's children. Map keys are walked too, not just values — see
-// collectRefs for why that matters.
-//
-// A value reached through an unexported field is read-only, and Interface()
-// panics on one where FieldByName does not, so a visitor reads the fields it
-// needs rather than converting the value back to its Go type. That is what keeps
-// Verify an oracle that never crashes on a malformed document.
-//
-// Map entries are visited in rendered-key order rather than Go's randomized map
-// order. A pointer reachable from two entries is descended into at whichever the
-// walk reaches first, so a random order yields a different path for it — and so a
-// different violation set, not merely a different order — on each run, which
-// Verify's final sort cannot repair (invariant 7).
-//
-// Byte sequences are skipped, matching pass.refWalk.walkSequence. Unmodeled and
-// RawConfig payloads are json.RawMessage and are the largest values a document
-// holds, while a uint8 element is none of the things a visitor here looks for —
-// no typed ID, no Unmodeled map, no Provenance, no index carrier. Descending one
-// costs a reflect.Value and a formatted path per byte for nothing: Verify over a
-// document holding one 256 KB payload measured 88ms without this skip against
-// 22µs with it, for the same result. Since the result is the same either way, a
-// test asserting it cannot notice the skip going missing — each walk is guarded
-// by one that counts what it reaches instead
-// (TestWalkValues_ByteSequencesAreNotDescendedInto here, walkSequence's in pass).
-//
-// The bool return is true only when the depth cap truncated the walk, so
-// callers can surface a too-deep document instead of silently
-// under-checking it.
-func walkValues(root any, visit func(v reflect.Value, path string) bool) bool {
-	w := valueWalk{seen: map[uintptr]bool{}, visit: visit}
-	w.walk(reflect.ValueOf(root), "doc", 0)
-	return w.truncated
-}
-
-// valueWalk is one walk's state: the pointers already followed, the visitor, and
-// whether the depth cap cut the walk short.
-//
-// It is a value being walked rather than a walker being configured, so it is
-// built at the entry point and discarded with it. Nothing here is reentrant and
-// nothing outside this file holds one.
-type valueWalk struct {
-	seen      map[uintptr]bool
-	visit     func(v reflect.Value, path string) bool
-	truncated bool
-}
-
-// walk visits v and then descends into whatever it holds, stopping wherever the
-// visitor says it has seen enough.
-func (w *valueWalk) walk(v reflect.Value, path string, depth int) {
-	if !v.IsValid() || !w.visit(v, path) {
-		return
-	}
-	w.children(v, path, depth)
-}
-
-// descend continues into a child unless that would pass the depth cap, which it
-// records rather than reports: the caller decides whether a truncated walk is a
-// finding, and it is the only one that knows what was being checked.
-func (w *valueWalk) descend(child reflect.Value, path string, depth int) {
-	if depth > maxWalkDepth {
-		w.truncated = true
-		return
-	}
-	w.walk(child, path, depth)
-}
-
-// children descends into every child of v. It is where the walk's shape lives —
-// what counts as a child of a pointer, an interface, a struct, a sequence and a
-// map, and which path each child is addressed by.
-func (w *valueWalk) children(v reflect.Value, path string, depth int) {
-	switch v.Kind() {
-	case reflect.Pointer:
-		if v.IsNil() {
-			return
-		}
-		p := v.Pointer()
-		if w.seen[p] {
-			return
-		}
-		w.seen[p] = true
-		w.descend(v.Elem(), path, depth+1)
-	case reflect.Interface:
-		if !v.IsNil() {
-			w.descend(v.Elem(), path, depth+1)
-		}
-	case reflect.Struct:
-		for i := range v.NumField() {
-			w.descend(v.Field(i), fieldPath(path, v.Type().Field(i)), depth+1)
-		}
-	case reflect.Slice, reflect.Array:
-		if v.Type().Elem().Kind() == reflect.Uint8 {
-			return // byte sequences hold nothing any visitor looks for
-		}
-		for i := range v.Len() {
-			w.descend(v.Index(i), fmt.Sprintf("%s[%d]", path, i), depth+1)
-		}
-	case reflect.Map:
-		for _, e := range orderedEntries(v) {
-			w.descend(e.key, fmt.Sprintf("%s[%s].key", path, e.label), depth+1)
-			w.descend(e.value, fmt.Sprintf("%s[%s]", path, e.label), depth+1)
-		}
-	}
-}
-
-// fieldPath extends path with f's name, except for an embedded field, which
-// contributes no segment: JSON inlines it and Go promotes its fields, so
-// "….TypeCommon.Examples[0]" names a step neither encoding has — the example is
-// reached as "….Examples[0]" in both.
-func fieldPath(path string, f reflect.StructField) string {
-	if f.Anonymous {
-		return path
-	}
-	return path + "." + f.Name
-}
-
-// mapEntry is one map entry paired with its rendered key, which both spells the
-// entry's path and orders the walk.
-type mapEntry struct {
-	label string
-	key   reflect.Value
-	value reflect.Value
-}
-
-// orderedEntries returns v's entries ordered by rendered key. Ordering by the
-// same rendering the path uses keeps the two in step, and it is a total order for
-// every key type the IR declares: named string types, plain strings and ints all
-// render distinct keys distinctly.
-func orderedEntries(v reflect.Value) []mapEntry {
-	entries := make([]mapEntry, 0, v.Len())
-	for iter := v.MapRange(); iter.Next(); {
-		k := iter.Key()
-		entries = append(entries, mapEntry{label: fmt.Sprintf("%v", k), key: k, value: iter.Value()})
-	}
-	slices.SortFunc(entries, func(a, b mapEntry) int { return strings.Compare(a.label, b.label) })
-	return entries
+	return vs, truncated
 }

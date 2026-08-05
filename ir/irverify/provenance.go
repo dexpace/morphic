@@ -12,16 +12,17 @@ var provenanceType = reflect.TypeFor[ir.Provenance]()
 // checkProvenance asserts every Provenance.Source addresses a declared entry of
 // Document.Sources. The index is a reference like any typed ID — a stale or
 // off-by-one one makes a report point at a file the document never loaded —
-// but Sources is a slice rather than an ID-keyed registry, so it cannot ride
-// refKindByType and gets its own check.
+// but Sources is a slice rather than an ID-keyed registry, so no derived
+// registry resolves it and it gets its own check.
 //
 // It is document-wide rather than scoped to any one carrier: the defect reads
-// the same on a type, a diagnostic, or an Unmodeled entry, and walkValues
-// reaches all of them for one traversal.
-func checkProvenance(doc *ir.Document) []Violation {
+// the same on a type, a diagnostic, or an Unmodeled entry, and one walk reaches
+// all of them. The bool reports whether that walk was cut short; Verify folds it
+// into the document's one ir/walk-truncated violation.
+func checkProvenance(doc *ir.Document) ([]Violation, bool) {
 	var vs []Violation
 	declared := len(doc.Sources)
-	walkValues(doc, func(v reflect.Value, path string) bool {
+	truncated := ir.WalkValues(doc, ir.DocumentPath, func(v reflect.Value, path string) bool {
 		if v.Kind() != reflect.Struct || v.Type() != provenanceType {
 			return true
 		}
@@ -36,7 +37,7 @@ func checkProvenance(doc *ir.Document) []Violation {
 		}
 		return false // Provenance holds no references and no nested Provenance
 	})
-	return vs
+	return vs, truncated
 }
 
 // sourceOutOfRange reports whether index fails to address one of declared
