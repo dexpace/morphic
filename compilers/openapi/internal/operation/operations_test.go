@@ -114,6 +114,69 @@ func TestResponses_NamedByStatusKey(t *testing.T) {
 		"the key as declared, neutralized; a key with no word in it takes the mint")
 }
 
+// TestResponses_InvalidStatusKeyIsReported is the whole of GitHub #262 at the
+// lowering level: a key naming no status used to be folded into {0,0} — the
+// range "default" denotes — with no diagnostic, so a typo and a declared default
+// arrived as the same shape. Both are declared here, and they must not.
+func TestResponses_InvalidStatusKeyIsReported(t *testing.T) {
+	t.Parallel()
+	spec := pathsSpec(`  /w:
+    get:
+      operationId: w
+      responses:
+        "200": {description: ok}
+        "wat":
+          description: names no status
+          content: {application/json: {schema: {type: object, properties: {a: {type: string}}}}}
+        default: {description: anything else}
+`)
+	_, svc, diags := lowerServiceSpec(t, spec)
+	requireNoErrorDiags(t, diags)
+	op := firstOp(t, svc)
+
+	msg := diagMessageAt(t, diags, diag.InvalidStatusKey, ir.SeverityWarning,
+		"/paths/~1w/get/responses/wat")
+	assert.Contains(t, msg, `"wat"`, "the message names the key that could not be read")
+
+	require.Len(t, op.Responses, 2)
+	byHint := indexBy(op.Responses, func(r ir.Response) string { return r.Name.Hint })
+	ok200, found := byHint["200"]
+	require.True(t, found)
+	assert.Equal(t, []ir.StatusRange{{From: 200, To: 200}}, ok200.Conditions.StatusCodes)
+
+	unreadable, found := byHint["wat"]
+	require.True(t, found, "the response is kept, and its key survives as the name hint")
+	assert.Empty(t, unreadable.Conditions.StatusCodes,
+		"no status could be read, so none is claimed — {0,0} would be default's own range")
+	require.NotNil(t, unreadable.Payload, "the body is real and is not dropped over a bad key")
+	assert.NotEmpty(t, unreadable.Payload.Contents)
+
+	require.Len(t, op.Errors, 1, "the declared default is still the only catch-all")
+	assert.Equal(t, []ir.StatusRange{{From: 0, To: 0}}, op.Errors[0].Conditions.StatusCodes)
+}
+
+// TestResponses_ValidStatusKeysAreNotReported is the overreach guard: a check
+// that rejected anything unusual would satisfy the test above while warning on
+// documents that are entirely correct.
+func TestResponses_ValidStatusKeysAreNotReported(t *testing.T) {
+	t.Parallel()
+	spec := pathsSpec(`  /w:
+    get:
+      operationId: w
+      responses:
+        "100": {description: continue}
+        "200": {description: ok}
+        "2XX": {description: any success}
+        "599": {description: the top of what HTTP defines}
+        "4xx": {description: lowercase wildcard}
+        default: {description: anything else}
+`)
+	_, _, diags := lowerServiceSpec(t, spec)
+	requireNoErrorDiags(t, diags)
+	assert.False(t, hasDiag(diags, diag.InvalidStatusKey),
+		"every key here names a status; got %+v", diags)
+}
+
 func TestResponses_ErrorHeadersPreserved(t *testing.T) {
 	t.Parallel()
 	// ErrorCase has no Headers field; a 429's Retry-After header must not be

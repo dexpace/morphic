@@ -1,0 +1,29 @@
+# A responses map whose keys name no status, beside a declared default that does.
+#
+# Each key here used to lower to a status range with no diagnostic: "wat" and
+# "0" to {0,0}, which is default's own range, and "1XY" and "9XX" to wildcard
+# ranges OpenAPI does not define. They now warn and carry no status condition,
+# so this document exercises a Response with an empty Conditions through the
+# oracles — no-panic, no error diagnostic, irverify, JSON round-trip and
+# determinism (GitHub #262).
+#
+# The diagnostics are warnings on purpose: an error would have FuzzCompile skip
+# the input, putting every oracle past that point out of reach of the one shape
+# this fixture exists to produce.
+openapi: 3.1.0
+info: {title: Unreadable status keys, version: "1"}
+paths:
+  /w:
+    get:
+      operationId: w
+      responses:
+        "200": {description: reads as a status, and must keep doing so}
+        "wat":
+          description: no status in it at all
+          content:
+            application/json:
+              schema: {type: object, properties: {a: {type: string}}}
+        "0": {description: Atoi read this as zero, which is default's range}
+        "1XY": {description: the third character the wildcard test never read}
+        "9XX": {description: a leading digit past the 1XX-5XX OpenAPI defines}
+        default: {description: the only catch-all this document declares}
