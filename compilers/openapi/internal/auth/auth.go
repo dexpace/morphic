@@ -189,6 +189,19 @@ func scopeMap(f *soa.OAuthFlow) map[string]string {
 // ir-design §9 reserves for a deliberate "explicitly public" declaration. A
 // list the source declared empty to begin with is left untouched: that [] is
 // real, not a byproduct of dropping.
+//
+// What that collapse costs, deliberately: a carrier whose every option drops
+// becomes indistinguishable from one that never declared security, so an
+// operation reads as requiring whatever the service default requires — a scheme
+// it never named — or as unauthenticated where there is no default. Both
+// misstate the source, because the IR has no encoding for "auth is required but
+// its scheme is undeclared" and issue #14 forbids minting an AuthID nothing
+// backs. nil is chosen because it is the only spelling that never reduces a
+// demanded requirement to explicitly public, and every collapse carries an
+// error diagnostic. The dropped text is not kept under Unmodeled: a name that
+// resolves to nothing is a defect in the document rather than a construct the
+// IR declines to model, which is the call an unresolvable $ref in a schema
+// position and an unresolvable discriminator mapping already get here.
 func LowerSecurityRequirements(c lowering.Ctx, reqs []*soa.SecurityRequirement, base string) ([]ir.AuthRequirement, []ir.Diagnostic) {
 	if reqs == nil {
 		return nil, nil

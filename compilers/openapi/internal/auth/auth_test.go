@@ -1,6 +1,7 @@
 package auth_test
 
 import (
+	"slices"
 	"testing"
 
 	soa "github.com/speakeasy-api/openapi/openapi"
@@ -340,6 +341,31 @@ func firstDiagAt(diags []ir.Diagnostic, code string) (ir.Diagnostic, bool) {
 	return ir.Diagnostic{}, false
 }
 
+// sortedPointersAt returns every provenance pointer carried by a diagnostic
+// with code, sorted so a caller pins the set rather than the walk's order.
+func sortedPointersAt(diags []ir.Diagnostic, code string) []string {
+	var out []string
+	for _, d := range diags {
+		if d.Code == code {
+			out = append(out, d.Provenance.Pointer)
+		}
+	}
+	slices.Sort(out)
+	return out
+}
+
+// operationsByDeclaration indexes every operation in svc by its provenance
+// pointer, which is where the operation is declared rather than where it mounts.
+func operationsByDeclaration(svc ir.Service) map[string]ir.Operation {
+	out := make(map[string]ir.Operation)
+	for _, g := range svc.Groups {
+		for _, op := range g.Operations {
+			out[op.Provenance.Pointer] = op
+		}
+	}
+	return out
+}
+
 // indexBy builds a lookup keyed by key(item).
 func indexBy[T any, K comparable](items []T, key func(T) K) map[K]T {
 	out := make(map[K]T, len(items))
@@ -411,6 +437,11 @@ paths: {}
 // broken option is dropped in isolation: surviving options keep their source
 // order, and a genuinely declared empty option ("no auth is also fine") is
 // untouched by the drop of an unrelated, broken option.
+//
+// The broken option sits at index 1 on purpose. A diagnostic that named the
+// list rather than the option inside it — or that spelled every option's index
+// as 0 — would send a reader to a requirement that is perfectly valid, so the
+// index is load-bearing and only a non-zero one can show that it is carried.
 func TestSecurityRequirement_PartialListDropOnlyRemovesTheBrokenOption(t *testing.T) {
 	t.Parallel()
 	_, svc, diags := serviceSpec(t, `openapi: 3.1.0
@@ -429,6 +460,10 @@ components:
 	assert.Equal(t, ids.Auth("key"), svc.Auth[0].Schemes[0].Scheme, "the first option survives in place")
 	assert.Empty(t, svc.Auth[1].Schemes, "the trailing empty option still means no-auth-is-fine")
 	assert.Equal(t, 1, countDiagsAt(diags, diag.UnresolvedRef, ir.SeverityError))
+	d, ok := firstDiagAt(diags, diag.UnresolvedRef)
+	require.True(t, ok, "an unresolved-ref diagnostic: %+v", diags)
+	assert.Equal(t, "/security/1", d.Provenance.Pointer,
+		"the pointer names the broken option's own index, not the list or a constant 0")
 }
 
 // TestSecurityRequirement_OperationLevelSoleOptionCollapsesToNil is the
@@ -457,6 +492,78 @@ paths:
 	require.True(t, ok, "an unresolved-ref diagnostic: %+v", diags)
 	assert.Equal(t, "/paths/~1x/get/security/0", d.Provenance.Pointer,
 		"points at the operation's own requirement, not a nonexistent components entry")
+}
+
+// TestSecurityRequirement_EveryOperationCarrierDiagnosesAtItsDeclaration pins
+// the base pointer for the carriers an operation-level security list sits on
+// besides an inline path operation. All of them reach one LowerSecurityRequirements
+// call, so a single wrong argument there misplaces every one of their
+// diagnostics at once — and an inline path operation cannot show that, because
+// it is mounted exactly where it is declared, leaving the two pointers equal. A
+// $ref'd path item separates them: it is mounted under /paths and declared under
+// /components, and only the declaration addresses a node the security list is
+// written at. Its broken option sits at index 1 so the survivor is kept too.
+//
+// The pointers are compared as a sorted set: the claim is that each carrier
+// reports at its own declaration, not that the walk visits them in some order.
+func TestSecurityRequirement_EveryOperationCarrierDiagnosesAtItsDeclaration(t *testing.T) {
+	t.Parallel()
+	_, svc, diags := serviceSpec(t, `openapi: 3.1.0
+info: {title: T, version: "1"}
+paths:
+  /cb:
+    post:
+      operationId: cbOp
+      responses: {"200": {description: ok}}
+      callbacks:
+        onEvent:
+          '{$request.body#/url}':
+            post:
+              operationId: callbackOp
+              security: [{missing: []}]
+              responses: {"200": {description: ok}}
+  /reffed:
+    $ref: '#/components/pathItems/shared'
+webhooks:
+  hook:
+    post:
+      operationId: hookOp
+      security: [{missing: []}]
+      responses: {"200": {description: ok}}
+components:
+  pathItems:
+    shared:
+      get:
+        operationId: sharedOp
+        security: [{key: []}, {missing: []}]
+        responses: {"200": {description: ok}}
+  securitySchemes:
+    key: {type: apiKey, in: header, name: X-Key}
+`)
+	want := []string{
+		"/components/pathItems/shared/get/security/1",
+		"/paths/~1cb/post/callbacks/onEvent/{$request.body#~1url}/post/security/0",
+		"/webhooks/hook/post/security/0",
+	}
+	assert.Equal(t, want, sortedPointersAt(diags, diag.UnresolvedRef),
+		"each carrier reports at its own declaration site")
+
+	// Each lookup is required to hit before it is asserted on: a missing key
+	// yields the zero Operation, whose Auth is nil, so an absent carrier would
+	// satisfy the nil assertions below without ever having been compiled.
+	ops := operationsByDeclaration(svc)
+	require.Len(t, ops, len(want)+1, "one operation per carrier, plus the callback's own parent")
+	hook, ok := ops["/webhooks/hook/post"]
+	require.True(t, ok, "the webhook operation was lowered")
+	assert.Nil(t, hook.Auth, "the webhook's sole option is broken, so it inherits")
+	callback, ok := ops["/paths/~1cb/post/callbacks/onEvent/{$request.body#~1url}/post"]
+	require.True(t, ok, "the callback operation was lowered")
+	assert.Nil(t, callback.Auth, "the callback operation's sole option is broken, so it inherits")
+	shared, ok := ops["/components/pathItems/shared/get"]
+	require.True(t, ok, "the $ref'd path item's operation was lowered")
+	require.Len(t, shared.Auth, 1, "it keeps its one good option")
+	require.Len(t, shared.Auth[0].Schemes, 1)
+	assert.Equal(t, ids.Auth("key"), shared.Auth[0].Schemes[0].Scheme)
 }
 
 // TestSecurityRequirements_AnEmptyListIsNotAnAbsentOne pins the difference
