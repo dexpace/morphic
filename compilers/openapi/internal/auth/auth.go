@@ -183,7 +183,8 @@ func scopeMap(f *soa.OAuthFlow) map[string]string {
 // an empty option rather than as a nil one, so it lowers to that same encoding
 // and the collapse below never sees it. Telling the two apart needs the parse
 // the loader already rejected, so it is issue #284's to fix and deliberately
-// out of scope here — which is also why the nil guard below is not that site.
+// out of scope here — which is also why lowerSecurityRequirement's nil guard is
+// not that site, however much it looks like it.
 //
 // A requirement is a conjunction: every member must resolve for the option to
 // mean anything, so an option naming even one undeclared scheme is dropped in
