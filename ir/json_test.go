@@ -106,15 +106,20 @@ func TestTypeRegistry_UnmarshalErrors(t *testing.T) {
 			wantSub: "type registry:",
 		},
 		{
-			// Only a JSON null is a no-op. A guard loose enough to also match a
-			// same-length scalar reports success and leaves the registry
-			// silently unset, which no other case here would notice.
+			// Both of the next two cases guard the byte-comparison
+			// implementation this one is written not to be: such a guard sits
+			// before the decode, and loosening it there swallows an unrelated
+			// value and reports success, leaving the registry silently unset.
+			// A length test takes this one. Neither can fire against the guard
+			// as written, which sits after the decode, where a non-object has
+			// already produced its own error.
 			name:    "outer_is_a_non_null_scalar",
 			data:    `true`,
 			wantSub: "type registry:",
 		},
 		{
-			// The string "null" is not the literal null.
+			// A pre-decode guard matching "null" as a substring rather than as
+			// the whole document takes this one.
 			name:    "outer_is_the_string_null",
 			data:    `"null"`,
 			wantSub: "type registry:",
@@ -220,12 +225,13 @@ func TestDocument_TypesNullRoundTrips(t *testing.T) {
 // collapse identically.
 //
 // Leaving it follows the standard #47 already recorded for the IR's omitempty
-// collections: the collapse is a defect only where nil and empty denote
-// different things, as they do on the Auth fields where nil inherits a parent
-// default and empty overrides it. An empty type registry and an absent one
-// both mean a document that declares no types, and the round-trip oracles
-// compare re-marshaled JSON precisely so this distinction is ignored. Changing
-// it for every optional map field would be a separate, repo-wide change.
+// collections, set out on TypeRegistry.UnmarshalJSON: the collapse is a defect
+// only where nil and empty denote different things, as on the
+// []AuthRequirement fields (Operation.Auth, Server.Auth, Service.Auth) — not
+// on the Document.Auth scheme registry exercised below, where an empty
+// registry and an absent one both mean a document that declares none.
+// Changing it for every optional map field would be a separate, repo-wide
+// change.
 func TestDocument_EmptyMapFieldsCollapseUniformly(t *testing.T) {
 	t.Parallel()
 
