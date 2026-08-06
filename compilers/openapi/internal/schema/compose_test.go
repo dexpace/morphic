@@ -963,6 +963,185 @@ func TestEnum_StringClosed(t *testing.T) {
 	assert.Equal(t, "b", e.Members[1].Name.Source)
 }
 
+// enumPropertySpec puts a schema at one property of a model S, so a test can
+// read both the node the schema lowers to and the reference the position holds.
+func enumPropertySpec(version, schema string) string {
+	return componentSpecVer(version, `    S:
+      type: object
+      properties:
+        p: `+schema+"\n")
+}
+
+// TestEnum_NullMemberNormalizesToNullable pins ir-design §3.3 for the canonical
+// spelling of a nullable enum: on a schema that admits null in its own right,
+// the `null` member is stripped and carried by the enclosing reference's
+// Nullable bit, leaving a closed Enum of the scalar members. It used to make the
+// whole enum degrade to a union of three literals, losing its enum-ness (GitHub
+// #44).
+//
+// The leading-null rows are not duplicates of the trailing-null ones. Member
+// kinds were reconciled against the member at index 0, so a `null` written first
+// fixed the kind to one no scalar member could then match; the rows differ only
+// in where the null sits, which is the whole question.
+func TestEnum_NullMemberNormalizesToNullable(t *testing.T) {
+	t.Parallel()
+	const enumID = ir.TypeID("t/anon/components/schemas/S/properties/p")
+	strMembers := []ir.Value{
+		{Kind: ir.ValueString, Str: "red"},
+		{Kind: ir.ValueString, Str: "green"},
+	}
+	numMembers := []ir.Value{
+		{Kind: ir.ValueNumber, Num: ir.BigVal("1")},
+		{Kind: ir.ValueNumber, Num: ir.BigVal("2")},
+	}
+	cases := []struct {
+		name, version, schema string
+		wantValueType         ir.PrimKind
+		wantMembers           []ir.Value
+	}{
+		{
+			name:          "3.1 type array, trailing null",
+			version:       "3.1.0",
+			schema:        `{type: [string, "null"], enum: [red, green, null]}`,
+			wantValueType: ir.PrimString,
+			wantMembers:   strMembers,
+		},
+		{
+			name:          "3.1 type array, leading null",
+			version:       "3.1.0",
+			schema:        `{type: [string, "null"], enum: [null, red, green]}`,
+			wantValueType: ir.PrimString,
+			wantMembers:   strMembers,
+		},
+		{
+			name:          "3.0 nullable keyword, trailing null",
+			version:       "3.0.3",
+			schema:        `{type: string, nullable: true, enum: [red, green, null]}`,
+			wantValueType: ir.PrimString,
+			wantMembers:   strMembers,
+		},
+		{
+			// No type keyword to read a value type from, so the Enum's ValueType
+			// comes from the members that were kept — never from the null that a
+			// leading position would otherwise have classified the set by.
+			name:          "3.0 nullable keyword with no type, leading null",
+			version:       "3.0.3",
+			schema:        `{nullable: true, enum: [null, 1, 2]}`,
+			wantValueType: ir.PrimNumber,
+			wantMembers:   numMembers,
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			doc, diags := lowerSpec(t, enumPropertySpec(tc.version, tc.schema))
+			requireNoErrorDiags(t, diags)
+			assert.False(t, hasDiag(diags, diag.DegradedConstruct),
+				"a normalized nullable enum is not a degradation; got %+v", diags)
+
+			m, ok := doc.Types[componentID("S")].(*ir.Model)
+			require.True(t, ok, "S is a model")
+			require.Len(t, m.Properties, 1)
+			assert.True(t, m.Properties[0].Type.Nullable,
+				"the stripped null member is carried by the property's reference")
+			assert.Equal(t, enumID, m.Properties[0].Type.Target)
+
+			e, ok := doc.Types[enumID].(*ir.Enum)
+			require.True(t, ok, "the property lowers to an Enum, not a union of literals")
+			assert.True(t, e.Closed, "a JSON Schema enum stays closed")
+			assert.Equal(t, tc.wantValueType, e.ValueType)
+
+			got := make([]ir.Value, 0, len(e.Members))
+			for _, member := range e.Members {
+				assert.NotEmpty(t, member.Name.Source, "every kept member is named")
+				got = append(got, member.Value)
+			}
+			if diff := cmp.Diff(tc.wantMembers, got); diff != "" {
+				t.Errorf("enum members (-want +got):\n%s", diff)
+			}
+		})
+	}
+}
+
+// TestEnum_NullMemberKeepsUnionFallback pins the other half of #44: a member set
+// the normalization must not touch still lowers to a union of literals, with its
+// info diagnostic and every member preserved.
+//
+// The last three rows are the ones that decide how far the rule reaches. A
+// schema whose type keyword excludes null conjoins the two, so its `null` member
+// admits nothing and normalizing would widen the type; a bare enum declares no
+// nullability that schemaAdmitsNull — which every use site re-derives the bit
+// from — would recognize, so stripping there would drop the null entirely; and
+// an all-null set has no member left to build an Enum from.
+func TestEnum_NullMemberKeepsUnionFallback(t *testing.T) {
+	t.Parallel()
+	null := ir.Value{Kind: ir.ValueNull}
+	cases := []struct {
+		name, version, schema string
+		wantVariants          []ir.Value
+	}{
+		{
+			name:    "heterogeneous members beside a null member",
+			version: "3.1.0",
+			schema:  `{type: [string, "null"], enum: [1, a, null]}`,
+			wantVariants: []ir.Value{
+				{Kind: ir.ValueNumber, Num: ir.BigVal("1")},
+				{Kind: ir.ValueString, Str: "a"},
+				null,
+			},
+		},
+		{
+			name:    "type keyword excludes null",
+			version: "3.1.0",
+			schema:  `{type: string, enum: [red, green, null]}`,
+			wantVariants: []ir.Value{
+				{Kind: ir.ValueString, Str: "red"},
+				{Kind: ir.ValueString, Str: "green"},
+				null,
+			},
+		},
+		{
+			name:    "no type keyword to admit null",
+			version: "3.1.0",
+			schema:  `{enum: [red, green, null]}`,
+			wantVariants: []ir.Value{
+				{Kind: ir.ValueString, Str: "red"},
+				{Kind: ir.ValueString, Str: "green"},
+				null,
+			},
+		},
+		{
+			name:         "every member is null",
+			version:      "3.1.0",
+			schema:       `{type: ["null"], enum: [null]}`,
+			wantVariants: []ir.Value{null},
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			doc, diags := lowerSpec(t, enumPropertySpec(tc.version, tc.schema))
+			requireNoErrorDiags(t, diags)
+			assert.True(t, hasDiagAt(diags, diag.DegradedConstruct, ir.SeverityInfo),
+				"the degraded-enum diagnostic still fires; got %+v", diags)
+
+			u, ok := doc.Types[ir.TypeID("t/anon/components/schemas/S/properties/p")].(*ir.Union)
+			require.True(t, ok, "the property lowers to a union of literals")
+			require.Len(t, u.Variants, len(tc.wantVariants))
+
+			got := make([]ir.Value, 0, len(u.Variants))
+			for _, v := range u.Variants {
+				lit, isLit := doc.Types[v.Type.Target].(*ir.Literal)
+				require.True(t, isLit, "every variant is a hoisted Literal")
+				got = append(got, lit.Value)
+			}
+			if diff := cmp.Diff(tc.wantVariants, got); diff != "" {
+				t.Errorf("every declared member survives as a literal (-want +got):\n%s", diff)
+			}
+		})
+	}
+}
+
 func TestConst_BecomesLiteral(t *testing.T) {
 	t.Parallel()
 	spec := componentSpec(`    K:
