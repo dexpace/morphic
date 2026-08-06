@@ -1,6 +1,8 @@
 package annotation
 
 import (
+	"math/big"
+
 	oas3 "github.com/speakeasy-api/openapi/jsonschema/oas3"
 
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
@@ -15,7 +17,9 @@ import (
 // are List-owned and read elsewhere. A non-finite bound literal yields an
 // error-severity diag.NumericPrecision diagnostic and is skipped; nil is
 // returned when no constraint is present. exclusiveBoolean selects the
-// exclusiveMinimum/exclusiveMaximum dialect (see applyExclusive).
+// exclusiveMinimum/exclusiveMaximum dialect (see applyExclusive), and under the
+// 2020-12 one a side that declares both of its keywords is settled by
+// reconcileBound rather than by whichever ran last.
 //
 // It reads beside the other readers here for the reason they are here at all:
 // what a schema says about the values admitted at a position is read the same
@@ -81,8 +85,9 @@ func boundLiteralDiag(prop, literal string, err error) ir.Diagnostic {
 // applyExclusive handles exclusiveMinimum/exclusiveMaximum in both dialects: the
 // 3.0 boolean arm flags the corresponding Min/Max as exclusive; the 2020-12
 // numeric arm (3.1/3.2) carries the bound value itself, read from the raw node to
-// avoid the float64 trap, and sets the exclusive flag. exclusiveBoolean selects
-// the dialect (true for 3.0). Because load suppresses the library's type-mismatch
+// avoid the float64 trap, and hands it to reconcileBound, which decides how it
+// meets any minimum/maximum declared beside it. exclusiveBoolean selects the
+// dialect (true for 3.0). Because load suppresses the library's type-mismatch
 // on these keywords, a value in the wrong form for the dialect is reported and
 // dropped here rather than silently accepted.
 func applyExclusive(c *ir.Constraints, s *oas3.Schema, isMin, exclusiveBoolean bool) []ir.Diagnostic {
@@ -110,8 +115,95 @@ func applyExclusive(c *ir.Constraints, s *oas3.Schema, isMin, exclusiveBoolean b
 	if err != nil {
 		return []ir.Diagnostic{boundLiteralDiag(prop, node.Value, err)}
 	}
-	setExclusiveBound(c, isMin, &v)
-	return nil
+	return reconcileBound(c, isMin, v)
+}
+
+// reconcileBound settles one side's bound when the 2020-12 dialect declares
+// both keywords for it: the inclusive minimum/maximum numericBounds has already
+// put in c, and the exclusive bound excl read alongside it.
+//
+// The two are independent and conjunctive there — "x >= m and x > e" — so the
+// tighter of them is the effective bound and the other adds nothing. ir.Constraints
+// holds one bound plus one exclusivity flag per side, so the tighter one is kept;
+// taking the exclusive bound unconditionally, as this did before, published a
+// constraint weaker than the source wherever minimum was the tighter (GitHub #33).
+//
+// The discarded keyword is implied by the kept one, so no value the source admits
+// or excludes changes — but it is still a keyword the source wrote and the IR does
+// not carry, so it is named in a diagnostic rather than dropped in silence. It is
+// not also preserved verbatim: Constraints has no Unmodeled channel, and its three
+// callers route annotations to three different carriers, so plumbing one for a
+// keyword the kept bound already implies is out of scope here.
+func reconcileBound(c *ir.Constraints, isMin bool, excl ir.BigVal) []ir.Diagnostic {
+	incl, inclProp, exclProp := c.Max, "maximum", "exclusiveMaximum"
+	if isMin {
+		incl, inclProp, exclProp = c.Min, "minimum", "exclusiveMinimum"
+	}
+	if incl == nil {
+		setExclusiveBound(c, isMin, &excl)
+		return nil
+	}
+
+	tighter, compared := inclusiveIsTighter(*incl, excl, isMin)
+	if tighter {
+		return []ir.Diagnostic{redundantBoundDiag(inclProp, *incl, exclProp, excl, compared)}
+	}
+
+	dropped := *incl
+	setExclusiveBound(c, isMin, &excl)
+	return []ir.Diagnostic{redundantBoundDiag(exclProp, excl, inclProp, dropped, compared)}
+}
+
+// inclusiveIsTighter reports whether the inclusive bound incl admits fewer
+// values than the exclusive bound excl written on the same side, and whether
+// the two could be compared at all.
+//
+// A minimum is tighter when it is the greater of the two, a maximum when it is
+// the lesser; equal magnitudes are never tighter, which is what gives the
+// exclusive bound the tie on both sides ("x >= 5 and x > 5" is "x > 5",
+// "x <= 5 and x < 5" is "x < 5").
+//
+// The comparison goes through math/big, never float64: these are the literals
+// BigVal exists to keep intact, so rounding them to compare would let two values
+// that differ past float64's precision — or one beyond its range — pick the
+// wrong bound, reintroducing the defect this reconciliation exists to fix. A
+// rational is exact for every literal it accepts and rejects only an exponent
+// past math/big's own limit for one, which is the incomparable case: nothing
+// can be said about which bound is tighter, so the caller keeps the exclusive
+// bound and says so.
+func inclusiveIsTighter(incl, excl ir.BigVal, isMin bool) (tighter, compared bool) {
+	inclRat, inclOK := new(big.Rat).SetString(incl.String())
+	exclRat, exclOK := new(big.Rat).SetString(excl.String())
+	if !inclOK || !exclOK {
+		return false, false
+	}
+	order := inclRat.Cmp(exclRat)
+	if order == 0 {
+		return false, true
+	}
+	return (order > 0) == isMin, true
+}
+
+// redundantBoundDiag reports the co-declared 2020-12 bound that did not reach
+// the IR, naming both keywords and both exact literals so a reader can see what
+// was dropped without going back to the source.
+//
+// compared tells the two cases apart. When the magnitudes did compare, the kept
+// bound is provably the tighter and the dropped one is redundant, which costs
+// the consumer nothing — hence info severity. When they did not, the kept bound
+// is the exclusive one by fallback and may be the looser of the two, so the
+// message says so and the severity rises to warning.
+func redundantBoundDiag(keptProp string, kept ir.BigVal, dropProp string, dropped ir.BigVal, compared bool) ir.Diagnostic {
+	if !compared {
+		return diag.Newf(ir.SeverityWarning, diag.DegradedConstruct, ir.Provenance{},
+			"%s %s and %s %s both bound this value but their magnitudes could not be compared; "+
+				"kept %s and dropped %s, which may be the tighter of the two",
+			keptProp, kept, dropProp, dropped, keptProp, dropProp)
+	}
+	return diag.Newf(ir.SeverityInfo, diag.DegradedConstruct, ir.Provenance{},
+		"%s %s and %s %s both bound this value and the IR holds one bound per side; "+
+			"kept %s as the tighter of the two and dropped %s, which it implies",
+		keptProp, kept, dropProp, dropped, keptProp, dropProp)
 }
 
 // exclusiveFormDiag reports an exclusiveMinimum/exclusiveMaximum whose value form
@@ -137,7 +229,10 @@ func setExclusiveFlag(c *ir.Constraints, isMin bool) {
 	c.ExclusiveMax = true
 }
 
-// setExclusiveBound sets an exclusive numeric bound (2020-12 arm) on Min or Max.
+// setExclusiveBound sets an exclusive numeric bound (2020-12 arm) on Min or Max,
+// replacing whatever minimum/maximum put there. Only reconcileBound may call it,
+// which is where the replacement is decided; calling it directly is the shape of
+// GitHub #33.
 func setExclusiveBound(c *ir.Constraints, isMin bool, v *ir.BigVal) {
 	if isMin {
 		c.Min = v
