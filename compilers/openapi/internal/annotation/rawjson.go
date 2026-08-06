@@ -135,17 +135,7 @@ func (c *rawConv) scalar(n *yaml.Node) (json.RawMessage, error) {
 		if err != nil {
 			return nil, fmt.Errorf("numeric literal %q: %w", n.Value, err)
 		}
-		// BigVal's contract is that its text is a JSON-valid number, and this is
-		// the one caller that splices it straight into a document rather than
-		// into an ir.Value field. NewBigVal does not yet hold that contract for
-		// a binary exponent — `!!float 1p4` is stored verbatim (GitHub #45) — so
-		// the splice checks rather than trusts. Refusing here keeps a construct
-		// no JSON can name out of the IR, which is what the decode this replaced
-		// did with the same input, and leaves #45 to be settled on its own terms.
-		if !json.Valid([]byte(num)) {
-			return nil, fmt.Errorf("numeric literal %q renders as %q, which is not JSON", n.Value, num)
-		}
-		return json.RawMessage(num), nil
+		return spliceNumber(n.Value, string(num))
 	case "!!str":
 		return jsonString(n.Value), nil
 	case "!!timestamp", "!!binary":
@@ -176,6 +166,29 @@ func (c *rawConv) scalar(n *yaml.Node) (json.RawMessage, error) {
 		// `!acme/thing` extension value the source did write.
 		return jsonString(n.Value), nil
 	}
+}
+
+// spliceNumber renders num — an already-validated NumericLiteral result — as
+// raw JSON, refusing it if it is not one. This is the one caller that splices
+// a numeric literal straight into a document rather than into an ir.Value
+// field, so it is the one place BigVal's contract ("its text always renders
+// as a JSON-valid number") has to hold rather than merely be assumed.
+//
+// NewBigVal enforces that contract itself now: it used to accept a binary
+// exponent and store it verbatim, so `!!float 1p4` reached this splice
+// unrefused (GitHub #45). No value NumericLiteral returns today can fail the
+// check below, which is why it is exercised directly in
+// TestSpliceNumber_RefusesANonJSONNumber rather than through scalar — the
+// same reason scalar's routing into verbatimTagged is tested directly rather
+// than through a caller. It stays rather than being deleted now that it is
+// unreachable, because dropping it turns a future regression in BigVal's own
+// promise into a document silently carrying a construct JSON cannot name,
+// rather than a refusal.
+func spliceNumber(source, num string) (json.RawMessage, error) {
+	if !json.Valid([]byte(num)) {
+		return nil, fmt.Errorf("numeric literal %q renders as %q, which is not JSON", source, num)
+	}
+	return json.RawMessage(num), nil
 }
 
 // verbatimTagged renders a scalar whose tag YAML resolves and JSON cannot name.

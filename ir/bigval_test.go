@@ -25,7 +25,16 @@ func TestNewBigVal_AcceptsDecimalForms(t *testing.T) {
 
 func TestNewBigVal_RejectsNonNumeric(t *testing.T) {
 	t.Parallel()
-	for _, s := range []string{"", "abc", "1.2.3", "0x10", "NaN", "Infinity", "Inf", "+Inf", "-Inf", ".inf", "1,5", "1_000"} {
+	cases := []string{
+		"", "abc", "1.2.3", "0x10", "NaN", "Infinity", "Inf", "+Inf", "-Inf", ".inf", "1,5", "1_000",
+		"0b101", "0o17", "--5",
+		// A binary (p/P) exponent: math/big's own base-10 parser accepts one
+		// regardless of base, so these three reproduce GitHub #45 — "1p4" is
+		// 1×2⁴ = 16, "2.5p-2" is 0.625, neither the decimal value its digits
+		// suggest — and must be rejected rather than stored verbatim.
+		"1p4", "2.5p-2", "5.p3", "1P4",
+	}
+	for _, s := range cases {
 		t.Run(s, func(t *testing.T) {
 			t.Parallel()
 			_, err := ir.NewBigVal(s)

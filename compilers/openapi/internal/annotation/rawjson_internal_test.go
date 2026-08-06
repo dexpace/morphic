@@ -207,7 +207,11 @@ func TestRawFromNode_RefusesWhatJSONCannotName(t *testing.T) {
 		// so preserving the source spelling widened nothing (GitHub #242).
 		{"timestamp tag on a non-date", "!!timestamp notadate", "timestamp literal"},
 		{"binary tag on non-base64", `!!binary "###"`, "binary literal"},
-		{"float tag on a binary-exponent literal", "!!float 1p4", "which is not JSON"},
+		// NewBigVal itself now refuses a binary exponent (GitHub #45), so this
+		// is refused one step earlier than it used to be: at NumericLiteral,
+		// not at the json.Valid splice check (see spliceNumber and
+		// TestSpliceNumber_RefusesANonJSONNumber for that check's own case).
+		{"float tag on a binary-exponent literal", "!!float 1p4", "not a decimal numeric literal"},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
@@ -472,6 +476,25 @@ func TestRawConv_RefusesNodesNoCallerShouldPass(t *testing.T) {
 	require.Error(t, err, "a tag scalar does not route here is a caller bug")
 	assert.Nil(t, got)
 	assert.Contains(t, err.Error(), `scalar tag "!!str" is not kept verbatim`)
+}
+
+// TestSpliceNumber_RefusesANonJSONNumber covers the refusal scalar's !!int/
+// !!float arm cannot reach today, the same way TestRawConv_RefusesNodesNoCallerShouldPass
+// covers verbatimTagged's default case: no value.NumericLiteral result can
+// fail spliceNumber's json.Valid check, since NewBigVal enforces BigVal's
+// "always JSON-valid" contract itself now (GitHub #45 was a binary exponent
+// slipping through that contract and reaching here unrefused). The check
+// stays as insurance against a future regression in that contract, so it is
+// exercised directly with a source string NumericLiteral itself would now
+// refuse before ever handing it to spliceNumber.
+func TestSpliceNumber_RefusesANonJSONNumber(t *testing.T) {
+	t.Parallel()
+
+	got, err := spliceNumber("1p4", "1p4")
+
+	require.Error(t, err, "1p4 is not a JSON number")
+	assert.Nil(t, got)
+	assert.Contains(t, err.Error(), "which is not JSON")
 }
 
 // TestRawFromNode_BoundsAMergeChainThatNeverRevisitsANode proves the bound on
