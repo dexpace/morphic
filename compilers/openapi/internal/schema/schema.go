@@ -1708,6 +1708,15 @@ func schemaAdmitsNull(s *oas3.Schema) bool {
 // (ir-design §3.3). A set with two or more non-null branches falls through to a
 // Union (with its null branches stripped and lifted onto the enclosing ref).
 //
+// The hint it returns for the surviving branch is the *enclosing* schema's,
+// while an outside $ref to that same branch pointer derives variant_<index>
+// through subSchemaHint — so which of the two lowerings reaches the pointer
+// first decides the name, and the two declaration orders produce different
+// documents. That predates this function's co-declaration rule and is #181's
+// mechanism at a site #181 did not sweep; GitHub #281 holds it. It is narrowed
+// but not settled here: declining the collapse below removes the one order in
+// which a co-declared anyOf could reach it.
+//
 // A schema declaring both combinators collapses neither. The collapse says the
 // position *is* nullable X, and a co-declared anyOf conjoins with it, so it is
 // not; the position falls through to the Union instead, which is the one node
