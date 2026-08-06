@@ -11,13 +11,16 @@ import (
 	"github.com/dexpace/morphic/pass"
 )
 
-// idRefSite is one field carrying a typed-ID reference other than an ir.TypeID —
-// the class Validate resolved nowhere before checkDanglingRefs.
+// idRefSite is one field carrying a typed-ID reference of a class other than
+// ir.TypeID — the classes Validate resolved nowhere before checkDanglingRefs.
 //
 // The set below is derived from the ir package's own declarations: every field
-// whose type mentions ChannelID, MessageID or AuthID. Fields holding a node's own
-// ID (Channel.ID, Message.ID, AuthScheme.ID) and registry keys resolve against
-// their own entry by construction, so only the cross-references are listed.
+// whose type is one of those classes. A field holding a node's own ID
+// (Channel.ID, Operation.ID, Service.ID and their siblings) and a registry key
+// resolve against their own declaration by construction, so only the
+// cross-references are listed. Deriving the set is the point — enumerating the
+// classes here instead would leave a class added to the IR silently untested,
+// which is how the operation and service classes went unchecked (GitHub #50).
 type idRefSite struct {
 	name  string
 	code  string
@@ -204,10 +207,14 @@ func withCode(diags []ir.Diagnostic, code string) []ir.Diagnostic {
 	return out
 }
 
-// TestValidate_DanglingTypedIDRef plants one dangling channel, message or auth
-// reference per field that carries one and requires Validate to report it, at
-// that field's location. Before checkDanglingRefs, only the auth case produced a
-// diagnostic at all — Validate resolved no ChannelID or MessageID anywhere.
+// TestValidate_DanglingTypedIDRef plants one dangling reference per field in
+// idRefSites and requires Validate to report it, at that field's location.
+//
+// Two rounds of silence are pinned here. Before checkDanglingRefs, only the auth
+// case produced a diagnostic at all — Validate resolved no ChannelID or MessageID
+// anywhere. Before ir.Registries.WithDeclarations, the operation and service
+// cases resolved against nothing either, because neither class has a map on
+// Document for a registry to be derived from (GitHub #50).
 func TestValidate_DanglingTypedIDRef(t *testing.T) {
 	t.Parallel()
 	for _, tc := range idRefSites() {
@@ -262,7 +269,7 @@ func TestValidate_DanglingOpRefWithNoOperationDeclared(t *testing.T) {
 }
 
 // sortedIDRefPointers is the location order every run must produce: ascending by
-// pointer, across all three reference classes rather than grouped by class.
+// pointer, across every reference class rather than grouped by class.
 //
 // It is written out rather than captured from a first run for the reason
 // sortedRefPointers is (validate_refs_test.go): a captured order proves only

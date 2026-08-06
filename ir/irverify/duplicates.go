@@ -19,8 +19,9 @@ type identity struct {
 }
 
 // checkDuplicateIDs asserts no two nodes declare the same identity (invariant
-// #3). It reports whether the bounded walk was cut short; Verify folds that into
-// the document's one ir/walk-truncated violation.
+// #3). It reads the declarations rather than walking for them, and passes on
+// whether the walk that produced them was cut short; Verify folds that into the
+// document's one ir/walk-truncated violation.
 //
 // Uniqueness was enforced only by the registry maps, and they cannot express it
 // for a class they do not hold: an operation nests inside the
@@ -52,11 +53,10 @@ type identity struct {
 // The first declaration in walk order stands and every later one is reported, so
 // n nodes on one ID yield n-1 violations rather than n. Walk order is
 // deterministic (invariant 7), so which one stands does not vary between runs.
-func checkDuplicateIDs(doc *ir.Document) ([]Violation, bool) {
-	decls, truncated := ir.DeclaredIDs(doc)
-	first := make(map[identity]string, len(decls))
+func checkDuplicateIDs(_ *ir.Document, decls declarations) ([]Violation, bool) {
+	first := make(map[identity]string, len(decls.ids))
 	var vs []Violation
-	for _, d := range decls {
+	for _, d := range decls.ids {
 		if d.Class == propIDType {
 			continue
 		}
@@ -72,5 +72,5 @@ func checkDuplicateIDs(doc *ir.Document) ([]Violation, bool) {
 			Path:    d.Path,
 		})
 	}
-	return vs, truncated
+	return vs, decls.truncated
 }

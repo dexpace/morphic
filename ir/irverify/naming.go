@@ -58,7 +58,7 @@ var nameOptional = map[reflect.Type]bool{
 // deliberately: closing it means changing how the compilers derive hints and
 // regenerating every golden, which is a different change from tightening this
 // checker.
-func checkNaming(doc *ir.Document) ([]Violation, bool) {
+func checkNaming(doc *ir.Document, _ declarations) ([]Violation, bool) {
 	var vs []Violation
 	optional := map[string]bool{}
 	truncated := ir.WalkValues(doc, ir.DocumentPath, func(v reflect.Value, path string) bool {

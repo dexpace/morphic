@@ -36,7 +36,7 @@ var (
 //
 // The bool reports whether the bounded walk was cut short; Verify folds that
 // into the document's one ir/walk-truncated violation.
-func checkIndices(doc *ir.Document) ([]Violation, bool) {
+func checkIndices(doc *ir.Document, _ declarations) ([]Violation, bool) {
 	declared := len(doc.Servers)
 	var vs []Violation
 	truncated := ir.WalkValues(doc, ir.DocumentPath, func(v reflect.Value, path string) bool {

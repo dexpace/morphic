@@ -28,7 +28,7 @@ var (
 // Verify orders the whole result by (Code, Path) before returning it. The bool
 // reports whether the bounded walk was cut short; Verify folds that into the
 // document's one ir/walk-truncated violation.
-func checkRawPayloads(doc *ir.Document) ([]Violation, bool) {
+func checkRawPayloads(doc *ir.Document, _ declarations) ([]Violation, bool) {
 	var vs []Violation
 	truncated := ir.WalkValues(doc, ir.DocumentPath, func(v reflect.Value, path string) bool {
 		if v.Kind() != reflect.Map {

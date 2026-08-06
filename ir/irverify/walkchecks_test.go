@@ -42,8 +42,9 @@ func deepDoc() *ir.Document {
 func TestWalkChecks_EachReportsTruncation(t *testing.T) {
 	t.Parallel()
 	doc := deepDoc()
+	decls := readDeclarations(doc)
 	for _, check := range walkChecks() {
-		_, truncated := check(doc)
+		_, truncated := check(doc, decls)
 		assert.True(t, truncated,
 			"%s walked a document nested past the cap without reporting it", checkName(check))
 	}
@@ -103,7 +104,7 @@ func TestWalkChecks_NoWalkDropsItsTruncationFlag(t *testing.T) {
 }
 
 // checkName is a walkChecks entry's function name, without its package path.
-func checkName(check func(*ir.Document) ([]Violation, bool)) string {
+func checkName(check func(*ir.Document, declarations) ([]Violation, bool)) string {
 	full := runtime.FuncForPC(reflect.ValueOf(check).Pointer()).Name()
 	return full[strings.LastIndex(full, ".")+1:]
 }
