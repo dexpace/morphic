@@ -43,9 +43,9 @@ var bigValAdversarialSeeds = []string{
 }
 
 // FuzzNewBigVal_AcceptedFormsAreJSONValid pins BigVal's documented contract —
-// "a BigVal is always a JSON-valid numeric literal" — against every input,
-// not just the ones TestNewBigVal_CanonicalizesToJSONForm's table thought to
-// list.
+// "a BigVal is always a JSON-valid numeric literal" — as a claim about any
+// accepted input rather than about the rows
+// TestNewBigVal_CanonicalizesToJSONForm's table thought to list.
 //
 // The distinction is the point, same as naming's fuzz target: a table pins
 // what the answer for one input should be, which is the right shape for that
@@ -58,14 +58,22 @@ var bigValAdversarialSeeds = []string{
 // like "05") would have gone unnoticed too, had it not already been fixed by
 // the time this property was written.
 //
+// What the gate runs is the seed corpus, though: `go test` executes a fuzz
+// target's seeds and does not search. So the standing coverage is exactly the
+// spellings below plus the two tables', and a class absent from all three is
+// unprotected until someone runs `-fuzz` — which is why the seeds are chosen
+// adversarially rather than drawn from real specs, the same reasoning
+// naming_property_test.go records.
+//
 // A rejected input carries no claim: NewBigVal is not required to accept
-// everything, only to never accept something json.Valid would refuse.
+// everything, only to never accept something json.Valid would refuse. What
+// each refusal reason is remains the tables' job, in bigval_test.go.
 func FuzzNewBigVal_AcceptedFormsAreJSONValid(f *testing.F) {
 	for _, seed := range bigValAdversarialSeeds {
 		f.Add(seed)
 	}
-	for _, tc := range []string{"0", "-1", "42", "3.14", "-0.5", "1e10", "2.5E-3", "9007199254740993"} {
-		f.Add(tc)
+	for _, form := range bigValDecimalForms {
+		f.Add(form)
 	}
 
 	f.Fuzz(func(t *testing.T, s string) {

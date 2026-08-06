@@ -34,11 +34,14 @@ func NewBigVal(s string) (BigVal, error) {
 	// grammar the doc comment above promises, so big.ParseFloat's own base-10
 	// grammar — wider than that, and in particular willing to read a p/P
 	// binary exponent regardless of base — is only ever exercised on a string
-	// of that narrower shape. What ParseFloat still decides is magnitude: a
-	// syntactically fine decimal can still overflow to infinity through its
-	// exponent (an "1e2000000000" parses but reports IsInf), which is what the
-	// check below catches; the textual "NaN"/"Inf" spellings never reach here
-	// at all, since isDecimalLiteral requires at least one digit.
+	// of that narrower shape. What is left for ParseFloat to decide is
+	// magnitude, and it reports that two ways, so both checks below are live:
+	// an exponent it cannot scan at all fails ("1e99999999999"), and one it
+	// scans but cannot scale to parses and reports IsInf ("1e2000000000"). The
+	// error arm has to come first because ParseFloat returns a nil *Float
+	// alongside every error it reports, so it is also what keeps IsInf from
+	// dereferencing one. The textual "NaN"/"Inf" spellings never reach here at
+	// all, since isDecimalLiteral requires at least one digit.
 	f, _, err := big.ParseFloat(s, 10, 0, big.ToNearestEven)
 	if err != nil {
 		return "", fmt.Errorf("bigval: parse %q: %w", s, err)
@@ -132,7 +135,7 @@ func isASCIIDigit(b byte) bool { return b >= '0' && b <= '9' }
 // canonicalDecimal rewrites the JSON-invalid affixes of an already-validated
 // numeric literal into JSON form without altering its value: it drops a leading
 // "+", normalizes the integer part's leading zeros (".5" → "0.5", "09" → "9"),
-// and drops a trailing dot (\"5.\" → \"5\", "5.e3" → "5e3"). Significant digits,
+// and drops a trailing dot ("5." → "5", "5.e3" → "5e3"). Significant digits,
 // the exponent, and its case are left exactly as written. The transform is
 // idempotent, so a value already in canonical form is returned unchanged.
 func canonicalDecimal(s string) string {

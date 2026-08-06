@@ -482,10 +482,10 @@ func TestRawConv_RefusesNodesNoCallerShouldPass(t *testing.T) {
 // !!float arm cannot reach today, the same way TestRawConv_RefusesNodesNoCallerShouldPass
 // covers verbatimTagged's default case: no value.NumericLiteral result can
 // fail spliceNumber's json.Valid check, since NewBigVal enforces BigVal's
-// "always JSON-valid" contract itself now (GitHub #45 was a binary exponent
-// slipping through that contract and reaching here unrefused). The check
-// stays as insurance against a future regression in that contract, so it is
-// exercised directly with a source string NumericLiteral itself would now
+// "always JSON-valid" contract itself now. Until GitHub #45 was fixed a binary
+// exponent slipped through that contract, and this check was what caught it
+// here. It stays as insurance against a future regression in that contract, so
+// it is exercised directly with a literal NumericLiteral itself would now
 // refuse before ever handing it to spliceNumber.
 func TestSpliceNumber_RefusesANonJSONNumber(t *testing.T) {
 	t.Parallel()
