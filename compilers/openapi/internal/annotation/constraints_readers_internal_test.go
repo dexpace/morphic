@@ -275,6 +275,13 @@ func TestReconcileBound_KeepsTheTighterOfTwoCoDeclaredBounds(t *testing.T) {
 			wantSays: []string{"minimum 9007199254740993", "exclusiveMinimum 9007199254740992",
 				"kept minimum as the tighter", "dropped exclusiveMinimum"},
 		},
+		{
+			name: "one value spelled two ways is still a tie",
+			body: "minimum: 1e2\nexclusiveMinimum: 100\n",
+			want: ir.Constraints{Min: bigOf("100"), ExclusiveMin: true},
+			wantSays: []string{"exclusiveMinimum 100", "minimum 1e2",
+				"kept exclusiveMinimum as the tighter", "dropped minimum"},
+		},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
@@ -334,14 +341,67 @@ func TestReconcileBound_ThreeZeroDialectPairIsUntouched(t *testing.T) {
 	}
 }
 
-// TestReconcileBound_IncomparableMagnitudesKeepTheExclusiveBound pins the
-// fallback. ir.BigVal admits an exponent no exact rational will parse, so the
-// two bounds cannot always be ordered; the reader keeps the exclusive one and
-// says the discarded bound may have been the tighter, rather than claiming a
-// comparison it did not make.
-func TestReconcileBound_IncomparableMagnitudesKeepTheExclusiveBound(t *testing.T) {
+// TestReconcileBound_AMagnitudeNoRationalHoldsStillCompares pins the exactness
+// of the comparison at the size where the obvious way to make it gives out.
+// math/big will not build 1e2000000 as a rational — the exponent is past its
+// own limit for one — so reconciling through a rational had to fall back, and
+// the fallback keeps the exclusive bound. Here that is the looser one: "> 5"
+// where the source says ">= 1e2000000" is the wrong constraint GitHub #33 is
+// about, in a rarer case and with a warning attached.
+//
+// These magnitudes are legal in a spec and ir.NewBigVal keeps them, so the
+// comparison has to reach them; the exponent alone separates the two bounds,
+// and nothing here needs the million digits it stands for.
+func TestReconcileBound_AMagnitudeNoRationalHoldsStillCompares(t *testing.T) {
 	t.Parallel()
-	s := schemaFromYAMLUnvalidated(t, "type: number\nminimum: 1.0e2000000\nexclusiveMinimum: 5\n")
+	tests := []struct {
+		name     string
+		body     string
+		want     ir.Constraints
+		wantSays []string
+	}{
+		{
+			name: "a minimum too large for a rational is still the tighter",
+			body: "minimum: 1.0e2000000\nexclusiveMinimum: 5\n",
+			want: ir.Constraints{Min: bigOf("1.0e2000000")},
+			wantSays: []string{"minimum 1.0e2000000", "exclusiveMinimum 5",
+				"kept minimum as the tighter", "dropped exclusiveMinimum"},
+		},
+		{
+			name: "a maximum too small for one is the tighter on its side",
+			body: "maximum: 1e-1000001\nexclusiveMaximum: 5\n",
+			want: ir.Constraints{Max: bigOf("1e-1000001")},
+			wantSays: []string{"maximum 1e-1000001", "exclusiveMaximum 5",
+				"kept maximum as the tighter", "dropped exclusiveMaximum"},
+		},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			got, diags := Constraints(schemaFromYAMLUnvalidated(t, "type: number\n"+tc.body), false)
+
+			require.NotNil(t, got)
+			if diff := cmp.Diff(tc.want, *got); diff != "" {
+				t.Errorf("constraints (-want +got):\n%s", diff)
+			}
+			require.Len(t, diags, 1)
+			assert.Equal(t, ir.SeverityInfo, diags[0].Severity, "the pair did compare")
+			for _, says := range tc.wantSays {
+				assert.Contains(t, diags[0].Message, says)
+			}
+		})
+	}
+}
+
+// TestReconcileBound_ALiteralThatIsNotDecimalKeepsTheExclusiveBound pins what
+// is left of the fallback. ir.NewBigVal still stores a binary exponent verbatim
+// (GitHub #45), so "1p4" reaches this reader as a bound meaning 16 that no
+// decimal reading orders. The reader keeps the exclusive bound and says the
+// discarded one may have been the tighter, rather than claiming a comparison it
+// did not make.
+func TestReconcileBound_ALiteralThatIsNotDecimalKeepsTheExclusiveBound(t *testing.T) {
+	t.Parallel()
+	s := schemaFromYAMLUnvalidated(t, "type: number\nminimum: 1p4\nexclusiveMinimum: 5\n")
 
 	got, diags := Constraints(s, false)
 
@@ -354,6 +414,6 @@ func TestReconcileBound_IncomparableMagnitudesKeepTheExclusiveBound(t *testing.T
 	assert.Equal(t, ir.SeverityWarning, diags[0].Severity, "the kept bound may be the looser one")
 	assert.Equal(t, diag.DegradedConstruct, diags[0].Code)
 	assert.Contains(t, diags[0].Message, "could not be compared")
-	assert.Contains(t, diags[0].Message, "minimum 1.0e2000000")
+	assert.Contains(t, diags[0].Message, "minimum 1p4")
 	assert.Contains(t, diags[0].Message, "exclusiveMinimum 5")
 }

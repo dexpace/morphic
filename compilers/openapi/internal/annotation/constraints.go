@@ -1,8 +1,6 @@
 package annotation
 
 import (
-	"math/big"
-
 	oas3 "github.com/speakeasy-api/openapi/jsonschema/oas3"
 
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
@@ -131,9 +129,10 @@ func applyExclusive(c *ir.Constraints, s *oas3.Schema, isMin, exclusiveBoolean b
 // The discarded keyword is implied by the kept one, so no value the source admits
 // or excludes changes — but it is still a keyword the source wrote and the IR does
 // not carry, so it is named in a diagnostic rather than dropped in silence. It is
-// not also preserved verbatim: Constraints has no Unmodeled channel, and its three
-// callers route annotations to three different carriers, so plumbing one for a
-// keyword the kept bound already implies is out of scope here.
+// not also preserved verbatim: Constraints has no Unmodeled channel, and its
+// callers route what it returns to different carriers — a property, a parameter
+// and a hoisted alias node — so opening one is a change of its own, tracked in
+// GitHub #286 rather than made here.
 func reconcileBound(c *ir.Constraints, isMin bool, excl ir.BigVal) []ir.Diagnostic {
 	incl, inclProp, exclProp := c.Max, "maximum", "exclusiveMaximum"
 	if isMin {
@@ -163,21 +162,24 @@ func reconcileBound(c *ir.Constraints, isMin bool, excl ir.BigVal) []ir.Diagnost
 // exclusive bound the tie on both sides ("x >= 5 and x > 5" is "x > 5",
 // "x <= 5 and x < 5" is "x < 5").
 //
-// The comparison goes through math/big, never float64: these are the literals
-// BigVal exists to keep intact, so rounding them to compare would let two values
-// that differ past float64's precision — or one beyond its range — pick the
-// wrong bound, reintroducing the defect this reconciliation exists to fix. A
-// rational is exact for every literal it accepts and rejects only an exponent
-// past math/big's own limit for one, which is the incomparable case: nothing
-// can be said about which bound is tighter, so the caller keeps the exclusive
-// bound and says so.
+// The comparison is exact and never rounds to float64: these are the literals
+// BigVal exists to keep intact, so comparing them as floats would let a pair
+// that differs past float64's precision — or one beyond its range — pick the
+// wrong bound, reintroducing the defect this reconciliation exists to fix. It
+// is also total over every magnitude a spec may legally write, which a rational
+// is not: math/big will not build 1e1000001 as one, and a bound it cannot order
+// is a bound it may silently widen.
+//
+// What it cannot order is a literal that is not decimal — BigVal still stores a
+// binary exponent verbatim (GitHub #45) — and there the caller keeps the
+// exclusive bound and says the other may have been the tighter.
 func inclusiveIsTighter(incl, excl ir.BigVal, isMin bool) (tighter, compared bool) {
-	inclRat, inclOK := new(big.Rat).SetString(incl.String())
-	exclRat, exclOK := new(big.Rat).SetString(excl.String())
+	inclDec, inclOK := parseDecimalBound(incl)
+	exclDec, exclOK := parseDecimalBound(excl)
 	if !inclOK || !exclOK {
 		return false, false
 	}
-	order := inclRat.Cmp(exclRat)
+	order := compareDecimalBounds(inclDec, exclDec)
 	if order == 0 {
 		return false, true
 	}
