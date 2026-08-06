@@ -292,7 +292,44 @@ func lowerOperation(c lowering.Ctx, ts *compile.Types, anchors *schema.AnchorInd
 	if len(ext) > 0 {
 		op.Unmodeled = ext
 	}
+	// After the extensions assignment, which would otherwise overwrite the map.
+	diags = append(diags, applyOperationServers(c, &op, src, decl)...)
 	return op, extra, append(diags, checkOperationIDUnique(c, operationIDs, op, mount)...)
+}
+
+// applyOperationServers preserves an operation's own `servers` verbatim under
+// Unmodeled, for the same reason applyPathServers preserves the path item's:
+// §10 scopes servers by index list at service and channel, and ir.Operation has
+// no such list yet, so the scoping is kept raw with an info diagnostic.
+//
+// It is the overriding half of the pair. OpenAPI says an Operation Object's
+// servers override the Path Item Object's, so a document declaring both had the
+// superseded list kept and the effective one dropped outright — an emitter
+// reading the entry would route to the wrong host, and nothing said so
+// (GitHub #39).
+//
+// The two are kept under separate keys because they are two declarations at two
+// pointers, and one map key cannot hold both: writing them to a single key would
+// make the surviving list depend on which lowering ran last, silently. The path
+// item's keeps the plain `openapi:servers` it already shipped under, so this one
+// names its own object rather than renaming what a golden already records.
+//
+// Unlike applyPathServers, this is called from lowerOperation rather than from
+// each route: the operation is lowered in one place, so no route can be added
+// later that forgets it — which is exactly how the path-item half came to be
+// missing on two of its three routes.
+func applyOperationServers(c lowering.Ctx, op *ir.Operation, src *soa.Operation, declPtr string) []ir.Diagnostic {
+	if len(src.GetServers()) == 0 {
+		return nil
+	}
+	kept, diags := schema.PreserveNode(c, &op.Unmodeled, "openapi:operationServers",
+		annotation.RawChildNode(src.GetRootNode(), "servers"), ir.ReasonNoIRHome, declPtr+ids.Ptr("servers"))
+	if !kept {
+		return diags
+	}
+	return append(diags, diag.Newf(ir.SeverityInfo, diag.DegradedConstruct, op.Provenance,
+		"operation servers kept under Unmodeled; an operation has no server-scope list to bind "+
+			"them to, and these override any path-item servers kept beside them"))
 }
 
 // checkOperationIDUnique reports an operationId claimed by more than one
@@ -349,6 +386,9 @@ func fillOperationDocs(d *ir.Docs, src *soa.Operation) {
 // callback expression are the same object under three parents, and a document
 // that overrides the server for one of the latter two was losing the override
 // outright while the paths route reported it (GitHub #39).
+//
+// This is the path-item half of the pair; applyOperationServers keeps the
+// operation's own list, which overrides this one, under its own key.
 func applyPathServers(c lowering.Ctx, op *ir.Operation, pi *soa.PathItem, declPtr string) []ir.Diagnostic {
 	if len(pi.GetServers()) == 0 {
 		return nil

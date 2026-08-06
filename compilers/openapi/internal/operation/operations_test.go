@@ -1531,3 +1531,104 @@ func TestErrorCase_SingleMediaTypeKeepsContentMap(t *testing.T) {
 	assert.NotContains(t, errs[409].Unmodeled, "openapi:content",
 		"an error response declaring no content keeps no content map")
 }
+
+// operationServersSpec declares `servers` at both levels OpenAPI allows on one
+// operation, with a distinct URL apiece, plus an operation that declares only
+// its own so the fallback shape is covered too.
+const operationServersSpec = `openapi: 3.1.0
+info: {title: T, version: "1"}
+paths:
+  /both:
+    servers: [{url: 'https://pathitem.example'}]
+    get:
+      operationId: getBoth
+      servers: [{url: 'https://operation.example'}]
+      responses: {"200": {description: ok}}
+  /operationOnly:
+    get:
+      operationId: getOperationOnly
+      servers: [{url: 'https://only.example'}]
+      responses: {"200": {description: ok}}
+  /pathItemOnly:
+    servers: [{url: 'https://pathonly.example'}]
+    get:
+      operationId: getPathItemOnly
+      responses: {"200": {description: ok}}
+`
+
+// TestOperations_OwnServersKeptBesideThePathItems pins the overriding half of
+// the servers pair. OpenAPI says an Operation Object's servers override the Path
+// Item Object's, but only the path item's were read: a document declaring both
+// kept the superseded list and dropped the effective one outright, so an emitter
+// reading openapi:servers would route to a host the operation had replaced —
+// and nothing reported it.
+//
+// The two are asserted under separate keys because they are two declarations at
+// two pointers. One key for both would make the surviving list depend on which
+// lowering ran last, which no single-order test could see.
+func TestOperations_OwnServersKeptBesideThePathItems(t *testing.T) {
+	t.Parallel()
+	doc, diags := parseFull(t, operationServersSpec)
+	requireNoErrorDiags(t, diags)
+
+	both := findOp(t, doc, "getBoth")
+	own, ok := both.Unmodeled["openapi:operationServers"]
+	require.True(t, ok, "the operation's own servers are kept")
+	assert.Equal(t, ir.ReasonNoIRHome, own.Reason)
+	assert.JSONEq(t, `[{"url":"https://operation.example"}]`, string(own.Value),
+		"and they are the operation's list, not the path item's")
+	assert.Equal(t, "/paths/~1both/get/servers", own.Provenance.Pointer)
+
+	inherited, ok := both.Unmodeled["openapi:servers"]
+	require.True(t, ok, "the path item's list is kept beside it, not replaced by it")
+	assert.JSONEq(t, `[{"url":"https://pathitem.example"}]`, string(inherited.Value))
+	assert.Equal(t, "/paths/~1both/servers", inherited.Provenance.Pointer,
+		"each entry keeps the coordinate of the object that declared it")
+
+	assert.True(t, hasDiagCodeAt(diags, diag.DegradedConstruct, "/paths/~1both/get"),
+		"the operation's own list is reported as the path item's already was")
+}
+
+// TestOperations_ServersKeysAreIndependent is the control for the test above:
+// each key records only what its own object declared, so an operation declaring
+// one level records that level alone rather than both.
+func TestOperations_ServersKeysAreIndependent(t *testing.T) {
+	t.Parallel()
+	doc, diags := parseFull(t, operationServersSpec)
+	requireNoErrorDiags(t, diags)
+
+	opOnly := findOp(t, doc, "getOperationOnly")
+	assert.Contains(t, opOnly.Unmodeled, "openapi:operationServers")
+	assert.NotContains(t, opOnly.Unmodeled, "openapi:servers",
+		"an operation whose path item declares none records none for it")
+
+	pathOnly := findOp(t, doc, "getPathItemOnly")
+	assert.Contains(t, pathOnly.Unmodeled, "openapi:servers")
+	assert.NotContains(t, pathOnly.Unmodeled, "openapi:operationServers",
+		"and an operation declaring none of its own records none")
+}
+
+// TestOperations_OwnServersSurviveBesideExtensions pins an ordering constraint
+// inside lowerOperation that nothing else reaches. The operation's extensions
+// are assigned to op.Unmodeled wholesale, so preserving the servers before that
+// assignment discards them — a map replacement, not a merge. No other fixture
+// declares both on one operation, so without this the constraint is a comment
+// that a later edit can silently break.
+func TestOperations_OwnServersSurviveBesideExtensions(t *testing.T) {
+	t.Parallel()
+	doc, diags := parseFull(t, pathsSpec(`  /x:
+    get:
+      operationId: getX
+      servers: [{url: 'https://operation.example'}]
+      x-vendor: kept
+      responses: {"200": {description: ok}}
+`))
+	requireNoErrorDiags(t, diags)
+
+	op := findOp(t, doc, "getX")
+	servers, ok := op.Unmodeled["openapi:operationServers"]
+	require.True(t, ok, "the servers survive the extensions assignment")
+	assert.JSONEq(t, `[{"url":"https://operation.example"}]`, string(servers.Value))
+	assert.Contains(t, op.Unmodeled, "openapi:x-vendor",
+		"and the extensions survive beside them, so neither overwrote the other")
+}
