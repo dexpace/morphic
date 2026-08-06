@@ -108,10 +108,14 @@ func scanMantissa(s string, i int) (end int, ok bool) {
 	return i, hasInt || hasFrac
 }
 
-// scanExponent consumes an optional e/E exponent — (e|E) sign? digits* —
+// scanExponent consumes an optional e/E exponent — (e|E) sign? digits+ —
 // starting at s[i]. Absent entirely, it reports i unchanged and ok true, a
 // mantissa with no exponent being perfectly valid; present with no digit
 // after the e/E (and optional sign), it reports ok false.
+//
+// That "+" is the whole difference from the fractional "digits*" scanMantissa
+// takes: consuming no digit there still leaves a mantissa ("5."), while
+// consuming none here leaves a malformed exponent ("1e", "1e+").
 func scanExponent(s string, i int) (end int, ok bool) {
 	n := len(s)
 	if i >= n || (s[i] != 'e' && s[i] != 'E') {
