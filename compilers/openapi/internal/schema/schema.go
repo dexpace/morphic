@@ -445,14 +445,20 @@ var familyOrder = []string{"const", "enum", "allOf"}
 // definition of each family's guard: lower() lowers what dispatchOf elects and
 // recordSkippedFamilies keeps what the same walk passed over, so the winner and
 // the losers can never be read off two tests that disagree.
+// A name it does not know declares nothing, rather than falling through to
+// another family's guard: a familyOrder entry added without a case here would
+// otherwise report whichever guard the default happened to hold, electing that
+// name on schemas that never wrote it.
 func declaresFamily(s *oas3.Schema, family string) bool {
 	switch family {
 	case "const":
 		return s.GetConst() != nil
 	case "enum":
 		return len(s.GetEnum()) > 0
-	default: // allOf
+	case "allOf":
 		return len(s.GetAllOf()) > 0
+	default:
+		return false
 	}
 }
 
@@ -466,9 +472,16 @@ type dispatch struct {
 
 // dispatchOf elects the family lower() lowers and collects the rest. A schema
 // declaring none leaves won empty and skipped nil, so the type-set arms preserve
-// nothing — and a family added to familyOrder but to no arm of lower() would be
-// kept verbatim rather than dropped, which is the safe way for the two to
-// disagree.
+// nothing.
+//
+// familyOrder, declaresFamily and lower()'s switch have to name the same three,
+// and only two of the three pairings fail safely. A name familyOrder lists that
+// declaresFamily does not know is never declared, so it is never elected; a name
+// that loses the election reaches recordSkippedFamilies whether or not lower()
+// can lower it. But a name that *wins* an election lower() has no arm for is
+// neither lowered nor skipped: the switch falls through to the type-set arms and
+// the keyword is dropped in silence — the very failure GitHub #35 is about.
+// Adding a family means adding all three.
 func dispatchOf(s *oas3.Schema) dispatch {
 	var d dispatch
 	for _, family := range familyOrder {
