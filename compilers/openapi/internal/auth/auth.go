@@ -27,6 +27,13 @@ import (
 // LowerSecuritySchemes interns every declared security scheme into the auth
 // registry keyed by ids.Auth(name) (ir-design §9). Run before the service walk
 // so operation- and document-level requirements reference registered IDs.
+//
+// An entry whose $ref resolves to nothing is reported at its own components
+// pointer and interned nowhere. It is reported here rather than left to the
+// requirements that name it, because nothing has to name it: the load phase's
+// report of the same failure carries no pointer at all (issue #235), so an
+// unreferenced entry would otherwise be a scheme the document declares, the IR
+// silently drops, and no diagnostic sites.
 func LowerSecuritySchemes(c lowering.Ctx) (map[ir.AuthID]ir.AuthScheme, []ir.Diagnostic) {
 	comps := c.Doc.Components
 	if comps == nil {
@@ -41,6 +48,9 @@ func LowerSecuritySchemes(c lowering.Ctx) (map[ir.AuthID]ir.AuthScheme, []ir.Dia
 	for name, rs := range schemes.All() {
 		ss := resolve.Object[soa.SecurityScheme](rs)
 		if ss == nil {
+			diags = append(diags, c.DiagAt(ir.SeverityError, diag.UnresolvedRef,
+				ids.Ptr("components", "securitySchemes", name),
+				"security scheme %q resolves to nothing this document declares", name))
 			continue
 		}
 		scheme, schemeDiags := lowerSecurityScheme(c, name, ss)
@@ -231,14 +241,19 @@ func LowerSecurityRequirements(c lowering.Ctx, reqs []*soa.SecurityRequirement, 
 
 // lowerSecurityRequirement lowers one requirement option declared at pointer:
 // each member is a scheme reference plus the scopes required of it within this
-// option. A member naming a scheme that is not declared under
-// components.securitySchemes (or one that failed to resolve into the auth
-// registry) invalidates the whole option, which the caller must drop in full
-// rather than just that member — never a dangling AuthID (issue #14), and
-// never an unintended empty-option encoding (issue #41). ok reports whether the
-// option survives; every unresolved member is still diagnosed individually, at
-// the shared requirement-level pointer, so a multi-member option reports each
-// of its bad names.
+// option. A member naming a scheme the auth registry does not hold invalidates
+// the whole option, which the caller must drop in full rather than just that
+// member — never a dangling AuthID (issue #14), and never an unintended
+// empty-option encoding (issue #41). ok reports whether the option survives;
+// every unresolved member is still diagnosed individually, at the shared
+// requirement-level pointer, so a multi-member option reports each of its bad
+// names.
+//
+// Two documents reach that state: one that never declared the name, and one
+// that declared it as a $ref resolving to nothing. What is said here is only
+// that the name resolves to no scheme, which is true of both — calling it
+// undeclared would contradict the entry-level report LowerSecuritySchemes
+// leaves beside it in the second case.
 func lowerSecurityRequirement(c lowering.Ctx, req *soa.SecurityRequirement, pointer string,
 ) (r ir.AuthRequirement, ok bool, diags []ir.Diagnostic) {
 	if req == nil {
@@ -250,7 +265,7 @@ func lowerSecurityRequirement(c lowering.Ctx, req *soa.SecurityRequirement, poin
 		id := ids.Auth(name)
 		if !c.DeclaresAuth(id) {
 			diags = append(diags, c.DiagAt(ir.SeverityError, diag.UnresolvedRef, pointer,
-				"security requirement references undeclared scheme %q", name))
+				"security requirement references unresolved scheme %q", name))
 			ok = false
 			continue
 		}

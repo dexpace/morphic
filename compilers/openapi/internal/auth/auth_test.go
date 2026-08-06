@@ -268,9 +268,11 @@ components:
 }
 
 // TestLowerSecuritySchemes_NothingLoweredIsNilNotEmpty pins the guard that
-// keeps an empty map out of the document. A components.securitySchemes block
-// whose every entry fails to resolve declares no scheme the IR can carry, and
-// an empty Auth map would be a field the source never wrote.
+// keeps an empty map out of the document, and that the entry it drops is
+// reported. A components.securitySchemes block whose every entry fails to
+// resolve declares no scheme the IR can carry, and an empty Auth map would be a
+// field the source never wrote — but dropping the entry without a word would
+// leave the document's own declaration unaccounted for.
 func TestLowerSecuritySchemes_NothingLoweredIsNilNotEmpty(t *testing.T) {
 	t.Parallel()
 	doc := &soa.OpenAPI{Components: &soa.Components{
@@ -281,7 +283,39 @@ func TestLowerSecuritySchemes_NothingLoweredIsNilNotEmpty(t *testing.T) {
 	got, diags := auth.LowerSecuritySchemes(lowering.Ctx{Doc: doc})
 
 	assert.Nil(t, got, "an unresolvable entry leaves no map behind")
-	assert.Empty(t, diags)
+	require.Len(t, diags, 1, "but it is reported, not dropped in silence: %+v", diags)
+	assert.Equal(t, ir.SeverityError, diags[0].Severity)
+	assert.Equal(t, diag.UnresolvedRef, diags[0].Code)
+	assert.Equal(t, "/components/securitySchemes/ghost", diags[0].Provenance.Pointer,
+		"at the entry the document wrote, which is a position that exists")
+}
+
+// TestLowerSecuritySchemes_AnUnreferencedBrokenEntryIsStillSited pins the case
+// with no other reporter, through the compiler rather than a hand-built node.
+//
+// A scheme whose $ref resolves to nothing is dropped from the registry. When a
+// requirement names it, that requirement's own diagnostic already sites the
+// trouble and this one reads as redundant — but nothing has to name it, and
+// then the entry is a scheme the document declares, the IR drops, and no sited
+// diagnostic accounts for. The load phase does report the underlying resolution
+// failure, at no pointer at all (issue #235), which is why the assertion below
+// is on the pointer rather than on how many reports there are.
+func TestLowerSecuritySchemes_AnUnreferencedBrokenEntryIsStillSited(t *testing.T) {
+	t.Parallel()
+	doc, _, diags := serviceSpec(t, `openapi: 3.1.0
+info: {title: T, version: "1"}
+paths: {}
+components:
+  securitySchemes:
+    ghost: {$ref: '#/components/securitySchemes/Missing'}
+    key: {type: apiKey, in: header, name: X-Key}
+`)
+	require.Len(t, doc.Auth, 1, "the resolvable sibling is still interned")
+	assert.Contains(t, doc.Auth, ids.Auth("key"))
+	assert.NotContains(t, doc.Auth, ids.Auth("ghost"), "the broken one is not")
+	assert.Contains(t, sortedPointersAt(diags, diag.UnresolvedRef),
+		"/components/securitySchemes/ghost",
+		"the drop is sited at the entry that was written: %+v", diags)
 }
 
 // TestLowerSecuritySchemes_NoComponentsAtAll pins the two earlier exits: a
@@ -446,6 +480,43 @@ paths: {}
 	assert.Contains(t, reported[1], `"ghostB"`, "reported in the order the source names them")
 	assert.Equal(t, []string{"/security/0", "/security/0"}, sortedPointersAt(diags, diag.UnresolvedRef),
 		"each names the option that declared it, which both members share")
+}
+
+// TestSecurityRequirement_ADeclaredSchemeIsNeverCalledUndeclared pins that the
+// two reports about one broken scheme agree with each other. The document does
+// declare "ghost" — its $ref is what fails — so the requirement naming it must
+// not be told the scheme is undeclared, which contradicts the entry-level report
+// standing right beside it and sends a reader to add a declaration already
+// there. Both now say the name resolves to nothing, which is true whether the
+// document wrote the entry or not.
+func TestSecurityRequirement_ADeclaredSchemeIsNeverCalledUndeclared(t *testing.T) {
+	t.Parallel()
+	_, svc, diags := serviceSpec(t, `openapi: 3.1.0
+info: {title: T, version: "1"}
+security:
+  - ghost: []
+paths: {}
+components:
+  securitySchemes:
+    ghost: {$ref: '#/components/securitySchemes/Missing'}
+`)
+	assert.Nil(t, svc.Auth, "the sole option names a scheme that resolves to nothing")
+
+	byPointer := make(map[string]string)
+	for _, d := range diags {
+		if d.Code == diag.UnresolvedRef {
+			byPointer[d.Provenance.Pointer] = d.Message
+		}
+	}
+	entry, ok := byPointer["/components/securitySchemes/ghost"]
+	require.True(t, ok, "the entry that failed to resolve is reported: %+v", diags)
+	assert.Contains(t, entry, "resolves to nothing")
+	assert.Contains(t, entry, `"ghost"`, "and names the scheme, so the sentence stands without its pointer")
+
+	req, ok := byPointer["/security/0"]
+	require.True(t, ok, "so is the requirement that names it: %+v", diags)
+	assert.NotContains(t, req, "undeclared",
+		"the document declares this scheme; only its $ref is broken")
 }
 
 // TestSecurityRequirement_SoleOptionCollapsesListToNil reproduces issue #41
