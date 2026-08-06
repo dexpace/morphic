@@ -139,12 +139,19 @@ func TestAllOfVisibilityMerge_OrderIndependent(t *testing.T) {
 // existing shape for "invisible everywhere" — rather than raised as a
 // conflicting-redeclaration: unlike an incompatible-type redeclaration,
 // nothing here is arbitrarily discarded to produce it.
+//
+// Recorded exactly is not the same as recorded silently. The document is still
+// warned, under a code of its own, that the composition left "id" in a shape no
+// request or response can carry — a merge that produced this and said nothing
+// would be indistinguishable, to the author, from one that had understood them.
 func TestAllOfVisibilityMerge_DisjointRestrictionsAreInvisibleNotAConflict(t *testing.T) {
 	t.Parallel()
 	got, diags := thingIDVisibility(t, "allof-visibility-disjoint", allOfVisibilityDisjointSpec)
 
 	assertNoErrorDiags(t, diags)
 	assert.Equal(t, ir.Visibility{None: true}, got)
+	assert.True(t, hasDiagCode(diags, diag.DisjointVisibility),
+		"an allOf that leaves a field visible nowhere is reported, not merged in silence")
 	assert.False(t, hasDiagCode(diags, diag.ConflictingRedecl),
 		"disjoint readOnly/writeOnly branches intersect to an exact empty set, not an unrepresentable conflict")
 }

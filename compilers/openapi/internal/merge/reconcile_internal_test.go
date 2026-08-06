@@ -217,12 +217,14 @@ func TestReconcileProperty_VisibilityAdoptedFromRedeclaration(t *testing.T) {
 	assert.Equal(t, readOnlyVisibility, dst.Visibility)
 }
 
-// TestReconcileProperty_DisjointVisibilityIsARestrictionNotAConflict pins the
-// deliberate choice for an allOf pairing that admits no lifecycle at all
-// (readOnly against writeOnly on the same field): mergeVisibility already
-// represents that exactly as None, so reconcileProperty must record it rather
-// than route it through diagnoseRedeclarationConflict — unlike an
-// incompatible-type redeclaration, nothing here is arbitrarily discarded.
+// TestReconcileProperty_DisjointVisibilityIsARestrictionNotAConflict pins both
+// halves of the choice for an allOf pairing that admits no lifecycle at all
+// (readOnly against writeOnly on the same field). mergeVisibility represents it
+// exactly as None, so it is recorded rather than routed through
+// diagnoseRedeclarationConflict — nothing is arbitrarily discarded, as it would
+// be for an incompatible-type redeclaration. But exact is not unremarkable: a
+// field neither a request nor a response can carry is a composition that cannot
+// take effect, so it is warned about under its own code.
 func TestReconcileProperty_DisjointVisibilityIsARestrictionNotAConflict(t *testing.T) {
 	t.Parallel()
 	g, recorded := stubMerger(nil)
@@ -231,7 +233,40 @@ func TestReconcileProperty_DisjointVisibilityIsARestrictionNotAConflict(t *testi
 	g.reconcileProperty(&dst, ir.Property{WireName: "id", Visibility: writeOnlyVisibility}, "/other")
 
 	assert.Equal(t, ir.Visibility{None: true}, dst.Visibility)
-	assert.Empty(t, *recorded, "a disjoint visibility pairing is a restriction to record, not a conflict to diagnose")
+	require.Len(t, *recorded, 1, "an emptied visibility set is reported, not passed over in silence")
+	assert.Equal(t, diag.DisjointVisibility, (*recorded)[0].Code,
+		"reported under its own code, not as a conflicting redeclaration")
+	assert.Equal(t, ir.SeverityWarning, (*recorded)[0].Severity)
+}
+
+// TestReconcileProperty_AlreadyInvisibleVisibilityIsNotReAnnounced pins the half
+// of the report guard the disjoint case above cannot reach. The warning is about
+// the transition — two restricted branches whose intersection empties — not
+// about the state of being invisible, so a side that was already None merges
+// quietly. Drop that half of the condition and every later redeclaration of an
+// invisible field re-announces a fact the document has already been told, which
+// no assertion in the disjoint case would notice.
+func TestReconcileProperty_AlreadyInvisibleVisibilityIsNotReAnnounced(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		name     string
+		dst, src ir.Visibility
+	}{
+		{name: "first declaration was already invisible", dst: ir.Visibility{None: true}, src: readOnlyVisibility},
+		{name: "redeclaration is already invisible", dst: readOnlyVisibility, src: ir.Visibility{None: true}},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			g, recorded := stubMerger(nil)
+			dst := ir.Property{WireName: "id", Visibility: tc.dst}
+
+			g.reconcileProperty(&dst, ir.Property{WireName: "id", Visibility: tc.src}, "/other")
+
+			assert.Equal(t, ir.Visibility{None: true}, dst.Visibility)
+			assert.Empty(t, *recorded, "None was already the answer; this merge announced nothing new")
+		})
+	}
 }
 
 // TestDiagnoseRedeclarationConflict_ConstraintDisagreementIsReported pins the

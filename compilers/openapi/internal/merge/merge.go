@@ -62,7 +62,8 @@ func (g *Merger) MergeProperty(m *ir.Model, byWire map[string]int, p ir.Property
 // keeps its position/identity/type shape (first declaration wins), visibility
 // narrows to the lifecycles both branches admit (mergeVisibility — this is an
 // intersection, not a plain adopt-if-absent, since either side may already be
-// restricted), and every optional detail dst lacks — docs, default,
+// restricted, and narrowing it to nothing is warned about rather than merely
+// recorded), and every optional detail dst lacks — docs, default,
 // constraints (merged per keyword via mergeConstraints), deprecation, XML,
 // examples — is adopted from src.
 //
@@ -78,7 +79,18 @@ func (g *Merger) reconcileProperty(dst *ir.Property, src ir.Property, pointer st
 
 	dst.Required = dst.Required || src.Required
 	dst.Secret = dst.Secret || src.Secret
-	dst.Visibility = mergeVisibility(dst.Visibility, src.Visibility)
+
+	// Reported off mergeVisibility's inputs and result rather than from inside
+	// it: "the branches emptied a set neither had already emptied" is a fact
+	// about the intersection's arguments, so stating it here cannot drift from
+	// how the intersection is computed, and mergeVisibility stays a pure set
+	// operation with no diagnostic channel of its own.
+	visibility := mergeVisibility(dst.Visibility, src.Visibility)
+	if visibility.None && !dst.Visibility.None && !src.Visibility.None {
+		g.Report(ir.SeverityWarning, diag.DisjointVisibility, pointer,
+			"allOf branches restrict field %q to disjoint lifecycles; the merged field is visible in none", dst.WireName)
+	}
+	dst.Visibility = visibility
 
 	if dst.Docs.Description == "" {
 		dst.Docs.Description = src.Docs.Description
@@ -155,6 +167,11 @@ func mergeConstraints(dst, src *ir.Constraints) *ir.Constraints {
 // diagnoseRedeclarationConflict. Unlike an incompatible-type redeclaration,
 // nothing here is arbitrarily discarded: ∅ is the exact intersection, not a
 // guess between two unrepresentable shapes.
+//
+// Exact is not the same as unremarkable, though, so reconcileProperty pairs
+// that result with a diag.DisjointVisibility warning. The IR keeps the honest
+// answer; the document still gets told that its composition left a field no
+// request or response can carry.
 //
 // The result is the same whichever branch arrives as dst, down to the order of
 // Only — allOf orders its branches but gives that order no meaning, so a merge
