@@ -67,9 +67,20 @@ func Validate(doc *ir.Document) []ir.Diagnostic {
 // ir.Registries.WithDeclarations supplies both from the identities the document's
 // own nodes declare, under the same ir/dangling-<noun>-ref code every other class
 // is reported with.
+//
+// Those two classes are dropped when the declaration walk truncates. A registry
+// derived from a walk that saw a subset of the document answers "not declared"
+// for a node it simply never reached, so a reference to a legitimate operation
+// buried past the cap would be reported as dangling — a false error, where the
+// registries Document declares maps for can only ever under-report. The walk-
+// truncated diagnostic below says why nothing is claimed for them, as
+// checkArgsOutsideGraphQL does with the reachability it cannot trust.
 func checkDanglingRefs(doc *ir.Document) []ir.Diagnostic {
 	decls, declTruncated := ir.DeclaredIDs(doc)
-	regs := ir.DocumentRegistries(doc).WithDeclarations(decls)
+	regs := ir.DocumentRegistries(doc)
+	if !declTruncated {
+		regs = regs.WithDeclarations(decls)
+	}
 	sites, truncated := collectRefs(doc, ir.DocumentPath, func(t reflect.Type) bool {
 		_, isRegistry := regs[t]
 		return isRegistry

@@ -236,6 +236,31 @@ func TestValidate_ResolvedTypedIDRefsAreClean(t *testing.T) {
 	assert.Empty(t, pass.Validate(doc))
 }
 
+// TestValidate_DanglingOpRefWithNoOperationDeclared drives the case the cases
+// above cannot: a document that declares no operation at all. A Smithy resource
+// names its lifecycle operations, so the reference exists whether or not any
+// ir.Operation does.
+//
+// Which classes resolve has to come from the IR's shape rather than from the
+// declarations a document happens to carry. Read off the declarations, a class
+// nothing declares gets no registry, and a site whose class has no registry is
+// not an unresolved reference — it is no reference at all, which is the silence
+// GitHub #50 is about.
+func TestValidate_DanglingOpRefWithNoOperationDeclared(t *testing.T) {
+	t.Parallel()
+	doc := &ir.Document{Services: []ir.Service{{
+		ID: "s/x",
+		Groups: []ir.OperationGroup{{
+			Resource: &ir.ResourceInfo{InstanceOps: []ir.OpID{"op/ghost/instance"}},
+		}},
+	}}}
+
+	found := withCode(pass.Validate(doc), "ir/dangling-op-ref")
+	require.Len(t, found, 1)
+	assert.Equal(t, ir.SeverityError, found[0].Severity)
+	assert.Contains(t, found[0].Message, "op/ghost/instance")
+}
+
 // sortedIDRefPointers is the location order every run must produce: ascending by
 // pointer, across all three reference classes rather than grouped by class.
 //

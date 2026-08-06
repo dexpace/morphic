@@ -177,6 +177,27 @@ func TestWithDeclarations_ResolvesOnlyTheClassesNoMapCovers(t *testing.T) {
 		"a class Document keys a map by keeps that map as its registry")
 }
 
+// TestWithDeclarations_ResolvesAClassNothingDeclares holds where the answered
+// classes come from: the IR's type graph, not the declarations handed in. A
+// document declaring no operation at all still carries OpID references —
+// ResourceInfo names its lifecycle operations — and a class set read off the
+// declarations would leave the class with no registry, which is not "this ID is
+// undeclared" but "this is no reference", the silence GitHub #50 is about.
+func TestWithDeclarations_ResolvesAClassNothingDeclares(t *testing.T) {
+	t.Parallel()
+	doc := &ir.Document{Services: []ir.Service{{
+		ID:     "s/x",
+		Groups: []ir.OperationGroup{{Resource: &ir.ResourceInfo{InstanceOps: []ir.OpID{"op/x/Ghost"}}}},
+	}}}
+	decls, _ := ir.DeclaredIDs(doc)
+	regs := ir.DocumentRegistries(doc).WithDeclarations(decls)
+
+	ops, resolved := regs[reflect.TypeFor[ir.OpID]()]
+	require.True(t, resolved, "the class must be answered for even with nothing declaring one")
+	assert.Equal(t, "op declarations", ops.Label)
+	assert.False(t, ops.Has("op/x/Ghost"), "an empty registry declares nothing")
+}
+
 // TestWithDeclarations_LeavesTheReceiverAlone holds the copy at the boundary: the
 // two checkers each derive their own view, and a call that grew the map it was
 // handed would leak one caller's classes into another's.
@@ -190,6 +211,25 @@ func TestWithDeclarations_LeavesTheReceiverAlone(t *testing.T) {
 	extended := regs.WithDeclarations(decls)
 	assert.Len(t, regs, before)
 	assert.Greater(t, len(extended), before, "the declaration-derived classes must be added somewhere")
+}
+
+// TestWithDeclarations_LeavesAnEarlierResultAlone holds the copy one level
+// deeper than the map. The registries the two checkers hold are separate values,
+// but a derived registry carries a set, and extending a result the call was
+// handed would write into the set that result already gave out.
+func TestWithDeclarations_LeavesAnEarlierResultAlone(t *testing.T) {
+	t.Parallel()
+	doc := declaringDoc()
+	decls, _ := ir.DeclaredIDs(doc)
+	first := ir.DocumentRegistries(doc).WithDeclarations(decls)
+
+	second := first.WithDeclarations([]ir.IDDeclaration{
+		{Class: reflect.TypeFor[ir.OpID](), ID: "op/y", Path: "doc"},
+	})
+	opID := reflect.TypeFor[ir.OpID]()
+	assert.False(t, first[opID].Has("op/y"), "the earlier result must not gain a declaration")
+	assert.True(t, second[opID].Has("op/y"))
+	assert.False(t, second[opID].Has("op/x"), "a later call answers for the declarations it was given")
 }
 
 // TestWithDeclarations_SecondDeclarationJoinsTheSameRegistry drives the branch

@@ -130,7 +130,7 @@ var identityClasses = map[string]string{
 	"AuthID":    "identity: Document.Auth keys it; resolved and held as TypeID is",
 	"OpID":      "identity, no map: ir.Registries.WithDeclarations resolves references against the operations the document declares, checkDuplicateIDs holds them unique",
 	"ServiceID": "identity, no map: resolved and held as OpID is, against the services the document declares",
-	"PropID":    "identity, model-scoped: pass.Validate resolves references (checkPropIDRefs, checkEncodingKeys); not held unique, because a component's property is copied into every position referencing it — see checkDuplicateIDs",
+	"PropID":    "identity, model-scoped: pass.Validate resolves references (checkPropIDRefs, checkEncodingKeys); not yet held unique, because a component's property is copied into every position referencing it — provisional, GitHub #280, see checkDuplicateIDs",
 
 	"BigVal":          "arbitrary-precision decimal, not an identity",
 	"PrimKind":        "primitive leaf kind; ir.PrimTypeID derives an ID from it, but the kind is not one",

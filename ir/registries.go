@@ -65,17 +65,29 @@ func (r Registry) Has(id string) bool {
 // [Service] in a slice. [Registries.WithDeclarations] covers those.
 type Registries map[reflect.Type]Registry
 
-// WithDeclarations returns r extended with a registry per ID class in decls that
-// r has no entry for, so a reference whose class Document holds no map for still
-// resolves — against the nodes that declare it.
+// WithDeclarations returns r extended with a registry for every ID class
+// Document holds no map for, filled from the nodes in decls that declare one, so
+// a reference whose class has no map still resolves — against the nodes that
+// declare it.
 //
 // An OpID and a ServiceID reference resolved against nothing before this, in
 // both of Morphic's checkers, because both are driven by the map fields
 // [DocumentRegistries] reads and neither class has one (GitHub #50).
 //
-// A class r already covers keeps its map. The map is what a consumer looks an ID
-// up in, and irverify holds every entry to being keyed by its own node's ID, so a
-// second answer derived here could only disagree with the first.
+// Which classes are answered for comes from [idClasses] — the IR's type graph —
+// and not from decls, which is the same distinction [DocumentRegistries] draws
+// between a document's shape and its contents. A class *no* node declares is
+// exactly the case a reference to it must still be reported for: a document with
+// no operation at all still carries OpID references, from ResourceInfo.Lifecycle
+// and its siblings, and a class set read off the declarations would leave those
+// resolving against nothing again.
+//
+// A class r covers with a map keeps that map. The map is what a consumer looks an
+// ID up in, and irverify holds every entry to being keyed by its own node's ID, so
+// a second answer derived here could only disagree with the first. A
+// declaration-derived registry r already carries is replaced rather than added to:
+// r is another call's result, and writing into the set it handed out would make
+// this call mutate that one.
 //
 // [PropID] is left out. A property is a position inside its model rather than a
 // document-level identity, and the checks that resolve one — against the
@@ -85,18 +97,84 @@ type Registries map[reflect.Type]Registry
 func (r Registries) WithDeclarations(decls []IDDeclaration) Registries {
 	out := make(Registries, len(r))
 	maps.Copy(out, r)
-	for _, d := range decls {
-		if _, mapped := r[d.Class]; mapped || d.Class == propIDType {
+	for class := range idClasses() {
+		if reg, mapped := out[class]; class == propIDType || (mapped && reg.ids == nil) {
 			continue
 		}
-		reg, derived := out[d.Class]
-		if !derived {
-			reg = Registry{Label: RefNoun(d.Class) + " declarations", ids: map[string]bool{}}
-			out[d.Class] = reg
+		out[class] = Registry{Label: RefNoun(class) + " declarations", ids: map[string]bool{}}
+	}
+	for _, d := range decls {
+		// A class Document keys a map by carries no ids set, and PropID has no
+		// registry here at all; both leave the declaration to its own checker.
+		if ids := out[d.Class].ids; ids != nil {
+			ids[d.ID] = true
 		}
-		reg.ids[d.ID] = true // reg is a copy of the entry, but ids is the same map
 	}
 	return out
+}
+
+// idClasses returns every class of ID a node of a [Document] can declare as its
+// own, derived from the IR's type graph rather than from any one document.
+//
+// Deriving it from the shape is what makes the answer independent of the
+// contents: a class nothing in this document declares still has to resolve
+// references, and reading the class set off the declarations would report those
+// references silently as no reference at all.
+//
+// The walk is over reflect.Type, so the finite set of types the package declares
+// bounds it: each is expanded once. [TypeDef] is an interface and a type walk
+// cannot see what implements it, so the concrete kinds are seeded from
+// newTypeDefByKind, already the single source of truth for kind dispatch.
+func idClasses() map[reflect.Type]bool {
+	classes := map[reflect.Type]bool{}
+	seen := map[reflect.Type]bool{}
+	queue := idClassRoots()
+	for len(queue) > 0 {
+		t := queue[len(queue)-1]
+		queue = queue[:len(queue)-1]
+		if seen[t] {
+			continue
+		}
+		seen[t] = true
+		queue = appendIDClasses(queue, classes, t)
+	}
+	return classes
+}
+
+// idClassRoots are the types the node graph is reachable from: Document, plus one
+// of each concrete TypeDef, which the type registry holds behind an interface.
+func idClassRoots() []reflect.Type {
+	roots := make([]reflect.Type, 0, 1+len(newTypeDefByKind))
+	roots = append(roots, reflect.TypeFor[Document]())
+	for _, newTypeDef := range newTypeDefByKind {
+		roots = append(roots, reflect.TypeOf(newTypeDef()))
+	}
+	return roots
+}
+
+// appendIDClasses records the ID class t declares for itself, if any, and appends
+// the types reachable from t. It reads the same rule declaredID reads off a
+// value: a field named ID, declared by t rather than promoted into it, whose type
+// is a named string. A promoted field belongs to the struct that declares it, and
+// that struct is reached in its own right.
+func appendIDClasses(dst []reflect.Type, classes map[reflect.Type]bool, t reflect.Type) []reflect.Type {
+	switch t.Kind() {
+	case reflect.Pointer, reflect.Slice, reflect.Array:
+		return append(dst, t.Elem())
+	case reflect.Map:
+		return append(dst, t.Key(), t.Elem())
+	case reflect.Struct:
+		for i := range t.NumField() {
+			f := t.Field(i)
+			if f.Name == idFieldName && namedString(f.Type) {
+				classes[f.Type] = true
+			}
+			dst = append(dst, f.Type)
+		}
+		return dst
+	default:
+		return dst // no other kind holds a field or an element.
+	}
 }
 
 // IDDeclaration is one node's declaration of its own identity: the class of ID,

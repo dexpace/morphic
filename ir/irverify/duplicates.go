@@ -33,17 +33,21 @@ type identity struct {
 // sharing one means a compiler minted the same pointer twice — our bug, not
 // something a spec author wrote or can fix.
 //
-// ir.PropID is deliberately outside the claim, because a repeated PropID is not
-// a second declaration. A response declared once in components and referenced by
+// ir.PropID is outside the claim, because a repeated PropID is usually not a
+// second declaration. A response declared once in components and referenced by
 // three operations materializes into all three — responses are embedded by value,
 // not interned — so the header property it declares appears at three paths under
 // the one ID its defining occurrence derives
-// (testdata/conformance/openapi/component-reuse.yaml). The copies are the same
-// property, and a lookup for that ID is unambiguous. What that leaves unheld is
-// two genuinely different properties minted at one PropID: telling those from
-// copies means comparing the nodes, and this package reads fields off a walk
-// rather than converting values back to their Go types, which is what keeps
-// Verify from crashing on a malformed document.
+// (testdata/conformance/openapi/component-reuse.yaml). That the ID stays the
+// declaration's rather than the use site's is what #107 fixed, so the repeat is
+// invariant 3 holding, not breaking: the copies are one property and a lookup for
+// that ID is unambiguous.
+//
+// The skip is wider than that reason, and deliberately provisional rather than
+// settled: two genuinely *different* properties minted at one PropID go
+// unreported with them, which is the same defect this check exists for. Telling
+// the two apart needs a fingerprint of the node rather than its ID alone —
+// GitHub #280 carries it, and this comment is the debt until it lands.
 //
 // The first declaration in walk order stands and every later one is reported, so
 // n nodes on one ID yield n-1 violations rather than n. Walk order is
