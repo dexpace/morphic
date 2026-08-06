@@ -143,6 +143,16 @@ const (
 	// (invariant 2). The diagnostic is what makes the deviation from the SHALL
 	// visible, so an emitter can suppress the parameter rather than generate one
 	// that fights the scheme it collides with (GitHub #39).
+	//
+	// Unconditional, and deliberately not behind an Options switch: invariant 6
+	// governs what is *inferred*, and nothing here is. The three names are fixed
+	// by the specification, the comparison is against a declared name, and the
+	// document lowers byte-for-byte the same whether or not this fires — so there
+	// is no inference to mark Inferred and no semantics to disable. Warning
+	// rather than info because the document really did write something the spec
+	// says has no effect; error is wrong twice over, since the document is
+	// well-formed and harness.Check stops at the first error diagnostic, which
+	// would hide every later finding in the same spec.
 	ReservedHeaderParam = "openapi/reserved-header-parameter"
 	// UnpreservableConstruct reports a construct that reached the IR in no form at
 	// all: the compiler had no field to model it and its source node could not be
