@@ -205,9 +205,15 @@ type IDDeclaration struct {
 // each of them twice: a document with nothing wrong with it would read as one
 // where every type ID is declared twice.
 //
-// An empty ID declares no identity and is skipped. A node carrying one is its own
-// defect, reported where the node's registry key is, and calling several of them
-// duplicates of each other would name the wrong problem.
+// An empty ID declares no identity and is skipped: nothing can reference one, and
+// treating several nodes that carry one as duplicates of each other would name
+// the wrong defect.
+//
+// Whether the empty ID is itself reported is a separate claim, and one this
+// derivation does not make. A class Document keys a map by is covered — an empty
+// or disagreeing key is what irverify.checkRegistryKeys reads — but an Operation
+// and a Service have no key for it to read, so an empty ID on either goes
+// unreported (GitHub #289).
 func DeclaredIDs(doc *Document) ([]IDDeclaration, bool) {
 	var decls []IDDeclaration
 	truncated := WalkValues(doc, DocumentPath, func(v reflect.Value, path string) bool {
