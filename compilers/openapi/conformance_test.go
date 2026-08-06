@@ -1388,6 +1388,8 @@ func assertParamStyles(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
 		"reserved characters passing through unescaped is a wire fact, not a style")
 	assert.False(t, q.AllowReserved, "and the default is to escape them")
 
+	assertAllowEmptyValueKept(t, op)
+
 	// The path item's shared parameter merges into both of its operations and
 	// interns its schema once, at the path item's own pointer (issue #36).
 	clearSearch, ok := opByName(doc, "clearSearch")
@@ -1400,6 +1402,22 @@ func assertParamStyles(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
 		"both operations resolve the shared path-item parameter to the same interned schema")
 	assert.Equal(t, ir.TypeID("t/anon/paths/~1search/parameters/0/schema"), searchReqID.Type.Target,
 		"the shared schema is hoisted at the path item's own pointer, not a per-operation one")
+}
+
+// assertAllowEmptyValueKept covers the one serialization flag ir.HTTPParamBinding
+// has no field for. Style, explode, allowReserved and the content-style media
+// type all land on the binding above; allowEmptyValue used to be read nowhere at
+// all, so a document declaring it produced IR indistinguishable from one that
+// did not (GitHub #39). It is kept on the logical Parameter, which is the
+// carrier at this position with an Unmodeled map.
+func assertAllowEmptyValueKept(t *testing.T, op ir.Operation) {
+	t.Helper()
+	bare, ok := paramByName(op, "bare")
+	require.True(t, ok, "the allowEmptyValue parameter still lowers")
+	entry, ok := bare.Unmodeled["openapi:allowEmptyValue"]
+	require.True(t, ok, "and its declared flag is kept beside it")
+	assert.Equal(t, ir.ReasonNoIRHome, entry.Reason)
+	assert.JSONEq(t, `true`, string(entry.Value))
 }
 
 // assertParamRefInheritance pins ir-design §14 at a parameter whose schema is a
@@ -1458,7 +1476,7 @@ func assertHeaderContentSchema(t *testing.T, doc *ir.Document, diags []ir.Diagno
 	require.True(t, ok)
 	require.Len(t, op.Responses, 1)
 	headers := op.Responses[0].Headers
-	require.Len(t, headers, 3)
+	require.Len(t, headers, 4)
 
 	bySchema, ok := headerByWire(headers, "X-Report-Schema")
 	require.True(t, ok)
@@ -1485,7 +1503,34 @@ func assertHeaderContentSchema(t *testing.T, doc *ir.Document, diags []ir.Diagno
 	assert.Equal(t, namedID("ReportID"), byRef.Type.Target,
 		"a $ref under content resolves to the named component, not to an anonymous copy")
 
+	assertHeaderStyleAndExplodeKept(t, headers)
 	assertNoErrorDiags(t, diags)
+}
+
+// assertHeaderStyleAndExplodeKept covers the header keywords ir.Property has no
+// field for. A header's explode decides whether a collection value is written as
+// one repeated field or one joined value, so dropping it left the IR unable to
+// say how the header goes on the wire — and it was dropped without a word
+// (GitHub #39). Kept verbatim, since the IR can close the gap by adding fields.
+func assertHeaderStyleAndExplodeKept(t *testing.T, headers []ir.Property) {
+	t.Helper()
+	list, ok := headerByWire(headers, "X-Report-List")
+	require.True(t, ok)
+
+	for key, want := range map[string]string{
+		"openapi:style":   `"simple"`,
+		"openapi:explode": `true`,
+	} {
+		entry, found := list.Unmodeled[key]
+		require.True(t, found, "%s is kept", key)
+		assert.Equal(t, ir.ReasonNoIRHome, entry.Reason)
+		assert.JSONEq(t, want, string(entry.Value))
+	}
+
+	plain, ok := headerByWire(headers, "X-Report-Schema")
+	require.True(t, ok)
+	assert.NotContains(t, plain.Unmodeled, "openapi:explode",
+		"a header that declares neither keyword records neither")
 }
 
 // headerByWire returns the response header with the given wire name.
@@ -1691,10 +1736,12 @@ func assertPerStatusErrors(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
 	require.True(t, ok)
 	require.Len(t, op.Responses, 1, "the 2xx success response")
 	faults := map[string]ir.StatusRange{}
+	byRange := map[ir.StatusRange]ir.ErrorCase{}
 	var sawDefault bool
 	for _, ec := range op.Errors {
 		require.Len(t, ec.Conditions.StatusCodes, 1)
 		rng := ec.Conditions.StatusCodes[0]
+		byRange[rng] = ec
 		if rng.From == 0 && rng.To == 0 {
 			sawDefault = true
 			assert.Empty(t, ec.Fault, "the default catch-all is unclassified")
@@ -1705,6 +1752,33 @@ func assertPerStatusErrors(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
 	assert.Equal(t, ir.StatusRange{From: 404, To: 404}, faults["client"])
 	assert.Equal(t, ir.StatusRange{From: 500, To: 599}, faults["server"])
 	assert.True(t, sawDefault, "the default response becomes a catch-all error case")
+
+	assertErrorMediaTypeKept(t, byRange)
+}
+
+// assertErrorMediaTypeKept covers what ir.ErrorCase cannot say. It holds one
+// TypeRef and no media type, so an error declared as application/problem+json
+// reached the IR indistinguishable from one declared as application/json — the
+// single-entry half of a gap whose multi-entry half was already kept, which is
+// why it read as a deliberate asymmetry rather than a loss (GitHub #39). Both
+// halves are now the same rule.
+//
+// The 5XX case is the control: an error response with no content at all keeps
+// nothing, so the entry marks a declaration rather than appearing on every error.
+func assertErrorMediaTypeKept(t *testing.T, byRange map[ir.StatusRange]ir.ErrorCase) {
+	t.Helper()
+	notFound, ok := byRange[ir.StatusRange{From: 404, To: 404}]
+	require.True(t, ok)
+	entry, ok := notFound.Unmodeled["openapi:content"]
+	require.True(t, ok, "a single-media error keeps the map that names its media type")
+	assert.Equal(t, ir.ReasonNoIRHome, entry.Reason)
+	assert.JSONEq(t,
+		`{"application/json":{"schema":{"$ref":"#/components/schemas/Err"}}}`, string(entry.Value))
+
+	serverErr, ok := byRange[ir.StatusRange{From: 500, To: 599}]
+	require.True(t, ok)
+	assert.NotContains(t, serverErr.Unmodeled, "openapi:content",
+		"an error response declaring no content keeps no content map")
 }
 
 func assertWebhooks(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
@@ -1712,7 +1786,39 @@ func assertWebhooks(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
 	require.True(t, ok)
 	require.Len(t, op.Bindings.HTTP, 1)
 	assert.True(t, op.Bindings.HTTP[0].IsWebhook, "webhook operation carries IsWebhook")
+	assertPathItemServersKept(t, op, "https://hooks.example.com")
+	assertOwnServersKeptBesideThem(t, op, "https://hooks-override.example.com")
 	assertWebhookGroupIsAHint(t, doc)
+}
+
+// assertOwnServersKeptBesideThem pins the overriding half of the servers pair in
+// the corpus, so the two-order oracle and the JSON round-trip see it. OpenAPI
+// says an operation's own servers override its path item's, so keeping only the
+// path item's recorded the superseded list and dropped the effective one.
+//
+// The two keys are asserted together because the hazard is that they collapse
+// into one: a single key holding both would leave the surviving list depending
+// on which lowering ran last, which only a two-order diff can see.
+func assertOwnServersKeptBesideThem(t *testing.T, op ir.Operation, url string) {
+	t.Helper()
+	entry, ok := op.Unmodeled["openapi:operationServers"]
+	require.True(t, ok, "the operation's own servers are kept beside its path item's")
+	assert.Equal(t, ir.ReasonNoIRHome, entry.Reason)
+	assert.JSONEq(t, `[{"url":"`+url+`"}]`, string(entry.Value))
+	assert.NotEqual(t, entry.Value, op.Unmodeled["openapi:servers"].Value,
+		"and the two keys hold different declarations, not one overwriting the other")
+}
+
+// assertPathItemServersKept pins that a path item's servers survive whichever
+// parent the path item hangs from. The preserve-plus-diagnostic path used to be
+// reached only from the `paths` walk, so the same override written on a webhook
+// or a callback disappeared with nothing said (GitHub #39).
+func assertPathItemServersKept(t *testing.T, op ir.Operation, url string) {
+	t.Helper()
+	entry, ok := op.Unmodeled["openapi:servers"]
+	require.True(t, ok, "the path item's servers are kept on the operation")
+	assert.Equal(t, ir.ReasonNoIRHome, entry.Reason)
+	assert.JSONEq(t, `[{"url":"`+url+`"}]`, string(entry.Value))
 }
 
 // assertWebhookGroupIsAHint pins which of the two things the group's name is.
@@ -1745,8 +1851,11 @@ func assertCallbacks(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
 	require.Len(t, op.Bindings.HTTP[0].Callbacks, 1)
 	assert.Equal(t, "{$request.body#/callbackUrl}", op.Bindings.HTTP[0].Callbacks[0].Expression)
 	assert.NotEmpty(t, op.Bindings.HTTP[0].Callbacks[0].Operations)
-	_, ok = opByName(doc, "onEvent")
-	assert.True(t, ok, "the callback operation is registered alongside its parent")
+	cb, ok := opByName(doc, "onEvent")
+	require.True(t, ok, "the callback operation is registered alongside its parent")
+	assertPathItemServersKept(t, cb, "https://callbacks.example.com")
+	assert.NotContains(t, op.Unmodeled, "openapi:servers",
+		"the callback's own servers stay on the callback, not on the parent")
 }
 
 func assertDeprecation(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {

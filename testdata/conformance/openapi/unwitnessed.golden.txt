@@ -43,7 +43,6 @@ EnumMember.Unmodeled
 EnumMember.WireName
 ErrorCase.Retryable
 ErrorCase.Throttling
-ErrorCase.Unmodeled
 ErrorExample.Content
 ErrorExample.Type
 EventInfo.ContentType

@@ -10,6 +10,9 @@ paths:
       callbacks:
         onEvent:
           '{$request.body#/callbackUrl}':
+            # A callback path item carries servers like any other path item.
+            servers:
+              - url: https://callbacks.example.com
             post:
               operationId: onEvent
               responses:

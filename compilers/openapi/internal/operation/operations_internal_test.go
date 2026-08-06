@@ -239,6 +239,18 @@ func TestApplyPathServers_WithoutRootNode(t *testing.T) {
 	assert.Empty(t, diags)
 }
 
+// TestApplyOperationServers_WithoutRootNode is the operation half of the test
+// above: a declared list whose source node cannot be read keeps nothing, and
+// announces nothing it did not keep.
+func TestApplyOperationServers_WithoutRootNode(t *testing.T) {
+	t.Parallel()
+	l := newRawLowerer(&soa.OpenAPI{})
+	op := &ir.Operation{}
+	diags := applyOperationServers(l.ctx, op, &soa.Operation{Servers: []*soa.Server{{URL: "https://x"}}}, "/paths/~1a/get")
+	assert.Nil(t, op.Unmodeled, "servers with no raw node are not preserved")
+	assert.Empty(t, diags)
+}
+
 func TestLowerTagDefs_NilEntrySkipped(t *testing.T) {
 	t.Parallel()
 	l := newRawLowerer(&soa.OpenAPI{Tags: []*soa.Tag{nil, {}}})

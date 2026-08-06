@@ -149,6 +149,51 @@
                         "source": 0,
                         "pointer": "/paths/~1reports/get/responses/200/headers/X-Report-Ref"
                       }
+                    },
+                    {
+                      "id": "p/openapi/paths/~1reports/get/responses/200/headers/X-Report-List",
+                      "name": {
+                        "source": "X-Report-List",
+                        "canonical": "x_report_list"
+                      },
+                      "wireName": "X-Report-List",
+                      "type": {
+                        "target": "t/anon/paths/~1reports/get/responses/200/headers/X-Report-List/schema",
+                        "nullable": false
+                      },
+                      "required": false,
+                      "clientOptional": false,
+                      "defaultAdded": false,
+                      "visibility": {
+                        "none": false
+                      },
+                      "flatten": false,
+                      "eventHeader": false,
+                      "eventPayload": false,
+                      "secret": false,
+                      "docs": {},
+                      "unmodeled": {
+                        "openapi:explode": {
+                          "reason": "no_ir_home",
+                          "value": true,
+                          "provenance": {
+                            "source": 0,
+                            "pointer": "/paths/~1reports/get/responses/200/headers/X-Report-List/explode"
+                          }
+                        },
+                        "openapi:style": {
+                          "reason": "no_ir_home",
+                          "value": "simple",
+                          "provenance": {
+                            "source": 0,
+                            "pointer": "/paths/~1reports/get/responses/200/headers/X-Report-List/style"
+                          }
+                        }
+                      },
+                      "provenance": {
+                        "source": 0,
+                        "pointer": "/paths/~1reports/get/responses/200/headers/X-Report-List"
+                      }
                     }
                   ],
                   "docs": {
@@ -185,6 +230,24 @@
     }
   ],
   "types": {
+    "t/anon/paths/~1reports/get/responses/200/headers/X-Report-List/schema": {
+      "kind": "list",
+      "id": "t/anon/paths/~1reports/get/responses/200/headers/X-Report-List/schema",
+      "name": {
+        "hint": "X-Report-List"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/paths/~1reports/get/responses/200/headers/X-Report-List/schema"
+      },
+      "elem": {
+        "target": "t/prim/string",
+        "nullable": false
+      }
+    },
     "t/openapi/components/schemas/ReportID": {
       "kind": "scalar",
       "id": "t/openapi/components/schemas/ReportID",
@@ -233,11 +296,31 @@
       "auth": null
     }
   ],
+  "diagnostics": [
+    {
+      "severity": "info",
+      "code": "openapi/degraded-construct",
+      "message": "header style has no ir.Property home; kept verbatim under Unmodeled",
+      "provenance": {
+        "source": 0,
+        "pointer": "/paths/~1reports/get/responses/200/headers/X-Report-List/style"
+      }
+    },
+    {
+      "severity": "info",
+      "code": "openapi/degraded-construct",
+      "message": "header explode has no ir.Property home; kept verbatim under Unmodeled",
+      "provenance": {
+        "source": 0,
+        "pointer": "/paths/~1reports/get/responses/200/headers/X-Report-List/explode"
+      }
+    }
+  ],
   "sources": [
     {
       "format": "openapi@3.1",
       "path": "header-content-schema.yaml",
-      "hash": "17ace78b333229b8c03cfdc4c1b40ccbefdab45603653c131de122cce2bd7a87"
+      "hash": "3ef8d9fedce7f77b8f6e14d9d58250555df19ef1e95391a4969110a12c4d99c4"
     }
   ]
 }

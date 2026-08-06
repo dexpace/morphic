@@ -355,9 +355,35 @@ func lowerHeaders(c lowering.Ctx, ts *compile.Types, anchors *schema.AnchorIndex
 		}
 		p, headerDiags := lowerHeader(c, ts, anchors, h, name, hptr, hdecl)
 		diags = append(diags, headerDiags...)
+		diags = append(diags, reservedHeaderEntryDiag(c, name, hptr)...)
 		out = append(out, p)
 	}
 	return out, diags
+}
+
+// reservedHeaderEntryDiag reports a headers-map entry OpenAPI says SHALL be
+// ignored. Both maps this lowering serves reserve Content-Type and nothing else:
+// a response's (§4.8.17), whose media type its own `content` map already names,
+// and an encoding's (§4.8.15), which the encoding's own `contentType` describes
+// separately. The comparison is case-insensitive because HTTP field names are.
+//
+// It reports at the entry's own pointer rather than the declaration's, because
+// the reserved thing is the key the header is mapped under, not the header
+// object: two keys $ref'ing one component are two declarations, and only the one
+// spelled Content-Type is reserved. That is the opposite choice from
+// preserveHeaderSerialization, which keeps keywords the header object itself
+// writes and so records them at the declaration.
+//
+// This is the headers-map half of the rule; reservedHeaderParamDiag is the
+// parameter half. The header still lowers: see diag.ReservedHeaderName for why
+// keeping it and reporting it is the choice, rather than dropping it here.
+func reservedHeaderEntryDiag(c lowering.Ctx, name, hptr string) []ir.Diagnostic {
+	if !strings.EqualFold(name, "Content-Type") {
+		return nil
+	}
+	return []ir.Diagnostic{c.DiagAt(ir.SeverityWarning, diag.ReservedHeaderName, hptr,
+		"header %q is reserved: OpenAPI says a Content-Type entry in a headers map SHALL be "+
+			"ignored, so it is lowered as declared and left for the emitter to suppress", name)}
 }
 
 // lowerHeader lowers one header entry into a Property. Its schema goes through
@@ -385,7 +411,36 @@ func lowerHeader(c lowering.Ctx, ts *compile.Types, anchors *schema.AnchorIndex,
 		p.Encoding = &ir.Encoding{MediaType: mediaType}
 	}
 	diags = append(diags, schema.FillPropertyDetail(c, ts, anchors, &p, js, schemaPtr)...)
-	return p, append(diags, applyHeaderAnnotations(c, &p, h, hdecl)...)
+	diags = append(diags, applyHeaderAnnotations(c, &p, h, hdecl)...)
+	return p, append(diags, preserveHeaderSerialization(c, &p, h, hdecl)...)
+}
+
+// preserveHeaderSerialization keeps the two serialization controls a header
+// object declares. OpenAPI §4.8.21 lets a header write `style` and `explode`,
+// and explode governs how an array or object header value is written on the
+// wire — a declared wire fact rather than a hint — but ir.Property has a field
+// for neither. ir.PartEncoding does, and that is a multipart part's own config,
+// not a header's; ir.Encoding, the one thing hanging off a Property here, names
+// a value-encoding scheme rather than a parameter style. So they are kept
+// verbatim instead of dropped, with ReasonNoIRHome since the IR can close the
+// gap by adding the fields, exactly as a parameter's xml hints are kept.
+//
+// A header that declares neither records nothing: RawChildNode returns nil for
+// an absent keyword and PreserveNode keeps nothing for a nil node.
+func preserveHeaderSerialization(c lowering.Ctx, p *ir.Property, h *soa.Header, hdecl string) []ir.Diagnostic {
+	var diags []ir.Diagnostic
+	for _, keyword := range []string{"style", "explode"} {
+		at := hdecl + ids.Ptr(keyword)
+		kept, keptDiags := schema.PreserveNode(c, &p.Unmodeled, "openapi:"+keyword,
+			annotation.RawChildNode(h.GetRootNode(), keyword), ir.ReasonNoIRHome, at)
+		diags = append(diags, keptDiags...)
+		if !kept {
+			continue
+		}
+		diags = append(diags, c.DiagAt(ir.SeverityInfo, diag.DegradedConstruct, at,
+			"header %s has no ir.Property home; kept verbatim under Unmodeled", keyword))
+	}
+	return diags
 }
 
 // headerSchema returns the schema a header declares, the pointer that schema sits

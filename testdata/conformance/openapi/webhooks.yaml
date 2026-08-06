@@ -3,8 +3,18 @@ info: {title: Webhooks, version: "1.0.0"}
 paths: {}
 webhooks:
   newPet:
+    # A webhook path item may override the server the delivery is addressed to,
+    # exactly as a path may. An operation has no server-scope list, so this is
+    # kept verbatim — the point being that it is kept at all.
+    servers:
+      - url: https://hooks.example.com
     post:
       operationId: onNewPet
+      # And the operation may override the path item's in turn — OpenAPI says
+      # this one wins. Both are kept, under separate keys: one key for two
+      # declarations would leave the survivor depending on lowering order.
+      servers:
+        - url: https://hooks-override.example.com
       requestBody:
         content:
           application/json:

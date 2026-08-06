@@ -33,6 +33,16 @@ paths:
               content:
                 application/json:
                   schema: {$ref: '#/components/schemas/ReportID'}
+            # A header may state how its value serializes. explode is a real wire
+            # fact for a collection-valued header — one repeated field versus one
+            # comma-joined value — and ir.Property has no field for either it or
+            # style, so both are kept verbatim rather than dropped.
+            X-Report-List:
+              style: simple
+              explode: true
+              schema:
+                type: array
+                items: {type: string}
 components:
   schemas:
     ReportID:
