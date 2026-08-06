@@ -11,6 +11,7 @@ import (
 	"cmp"
 	"fmt"
 	"math/big"
+	"slices"
 
 	"github.com/dexpace/morphic/compilers/openapi/internal/annotation"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
@@ -154,6 +155,11 @@ func mergeConstraints(dst, src *ir.Constraints) *ir.Constraints {
 // diagnoseRedeclarationConflict. Unlike an incompatible-type redeclaration,
 // nothing here is arbitrarily discarded: ∅ is the exact intersection, not a
 // guess between two unrepresentable shapes.
+//
+// The result is the same whichever branch arrives as dst, down to the order of
+// Only — allOf orders its branches but gives that order no meaning, so a merge
+// answering differently under a swap would make the IR depend on how the
+// composition was spelled. intersectLifecycles is what carries that through.
 func mergeVisibility(dst, src ir.Visibility) ir.Visibility {
 	switch {
 	case dst.None || src.None:
@@ -170,10 +176,23 @@ func mergeVisibility(dst, src ir.Visibility) ir.Visibility {
 	}
 }
 
-// intersectLifecycles returns the lifecycles present in both a and b, in a's
-// order, or nil when they share none. mergeVisibility is the only caller, and
-// it maps a nil result to None rather than an empty-but-unrestricted Only.
+// intersectLifecycles returns the lifecycles present in both a and b, or nil
+// when they share none. mergeVisibility is the only caller, and it maps a nil
+// result to None rather than an empty-but-unrestricted Only.
+//
+// Both operands are source order, so which of them the result inherits its
+// order from is settled by value rather than by which branch was declared
+// first: two branches naming the same lifecycles in different orders would
+// otherwise intersect to two different slices depending on the spelling.
+// annotation.EffectiveVisibility restricts to one of two fixed sets, which are
+// either identical or disjoint, so no OpenAPI document reaches that pairing
+// today — but this helper is the contract a second visibility source would
+// inherit, and an ordering rule that reads off dst is the kind that surfaces
+// only once something already depends on it.
 func intersectLifecycles(a, b []ir.Lifecycle) []ir.Lifecycle {
+	if slices.Compare(a, b) > 0 {
+		a, b = b, a
+	}
 	inB := make(map[ir.Lifecycle]bool, len(b))
 	for _, l := range b {
 		inB[l] = true

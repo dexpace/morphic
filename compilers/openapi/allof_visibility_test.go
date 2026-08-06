@@ -86,8 +86,9 @@ var wantReadOnlyVisibility = ir.Visibility{
 }
 
 // thingIDVisibility compiles spec and returns the merged Thing.id property's
-// Visibility, requiring the compile to succeed with no error diagnostic and
-// Thing to lower to a Model carrying an "id" property first.
+// Visibility, requiring Thing to lower to a Model carrying an "id" property
+// first. The diagnostics come back rather than being checked here: each caller
+// asserts what its own case expects of them.
 func thingIDVisibility(t *testing.T, name, spec string) (ir.Visibility, []ir.Diagnostic) {
 	t.Helper()
 	doc, diags := compileAnnotationSpec(t, name, spec)
