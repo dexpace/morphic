@@ -11,6 +11,7 @@ import (
 	"cmp"
 	"fmt"
 	"math/big"
+	"slices"
 
 	"github.com/dexpace/morphic/compilers/openapi/internal/annotation"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
@@ -58,9 +59,13 @@ func (g *Merger) MergeProperty(m *ir.Model, byWire map[string]int, p ir.Property
 
 // reconcileProperty folds a redeclaration src into the already-present property
 // dst under allOf intersection semantics: required and secret are OR-ed, dst
-// keeps its position/identity/type shape (first declaration wins), and every
-// optional detail dst lacks — docs, default, constraints (merged per keyword via
-// mergeConstraints), deprecation, XML, examples — is adopted from src.
+// keeps its position/identity/type shape (first declaration wins), visibility
+// narrows to the lifecycles both branches admit (mergeVisibility — this is an
+// intersection, not a plain adopt-if-absent, since either side may already be
+// restricted, and narrowing it to nothing is warned about rather than merely
+// recorded), and every optional detail dst lacks — docs, default,
+// constraints (merged per keyword via mergeConstraints), deprecation, XML,
+// examples — is adopted from src.
 //
 // Unmodeled is the one field where a later branch wins: its entries are keyed
 // and namespaced, so the two branches' keys union rather than compete, and a key
@@ -74,6 +79,18 @@ func (g *Merger) reconcileProperty(dst *ir.Property, src ir.Property, pointer st
 
 	dst.Required = dst.Required || src.Required
 	dst.Secret = dst.Secret || src.Secret
+
+	// Reported off mergeVisibility's inputs and result rather than from inside
+	// it: "the branches emptied a set neither had already emptied" is a fact
+	// about the intersection's arguments, so stating it here cannot drift from
+	// how the intersection is computed, and mergeVisibility stays a pure set
+	// operation with no diagnostic channel of its own.
+	visibility := mergeVisibility(dst.Visibility, src.Visibility)
+	if visibility.None && !dst.Visibility.None && !src.Visibility.None {
+		g.Report(ir.SeverityWarning, diag.DisjointVisibility, pointer,
+			"allOf branches restrict field %q to disjoint lifecycles; the merged field is visible in none", dst.WireName)
+	}
+	dst.Visibility = visibility
 
 	if dst.Docs.Description == "" {
 		dst.Docs.Description = src.Docs.Description
@@ -129,6 +146,81 @@ func mergeConstraints(dst, src *ir.Constraints) *ir.Constraints {
 	dst.MinProps = cmp.Or(dst.MinProps, src.MinProps)
 	dst.MaxProps = cmp.Or(dst.MaxProps, src.MaxProps)
 	return dst
+}
+
+// mergeVisibility folds redeclaration src's lifecycle visibility into dst
+// under allOf intersection semantics (ir-design §5.2): an instance must
+// satisfy every branch, so the merged property is visible only in a
+// lifecycle both branches admit.
+//
+// This cannot be a plain append: an empty Only (None false) means "visible in
+// every lifecycle," not "visible in none," so each side must be read as the
+// set it actually admits — ∅ under None, the open universal set under an
+// unrestricted empty Only, or its own Only otherwise — before intersecting.
+// A None on either side already denotes ∅, which intersected with anything
+// stays ∅.
+//
+// Two branches admitting disjoint lifecycles (readOnly paired with writeOnly
+// on the same field) intersect to ∅ too: every lifecycle is excluded. That is
+// recorded as None — the shape the IR already has for "invisible everywhere"
+// (TypeSpec's @invisible) — rather than raised through
+// diagnoseRedeclarationConflict. Unlike an incompatible-type redeclaration,
+// nothing here is arbitrarily discarded: ∅ is the exact intersection, not a
+// guess between two unrepresentable shapes.
+//
+// Exact is not the same as unremarkable, though, so reconcileProperty pairs
+// that result with a diag.DisjointVisibility warning. The IR keeps the honest
+// answer; the document still gets told that its composition left a field no
+// request or response can carry.
+//
+// The result is the same whichever branch arrives as dst, down to the order of
+// Only — allOf orders its branches but gives that order no meaning, so a merge
+// answering differently under a swap would make the IR depend on how the
+// composition was spelled. intersectLifecycles is what carries that through.
+func mergeVisibility(dst, src ir.Visibility) ir.Visibility {
+	switch {
+	case dst.None || src.None:
+		return ir.Visibility{None: true}
+	case len(dst.Only) == 0:
+		return src
+	case len(src.Only) == 0:
+		return dst
+	default:
+		if only := intersectLifecycles(dst.Only, src.Only); len(only) > 0 {
+			return ir.Visibility{Only: only}
+		}
+		return ir.Visibility{None: true}
+	}
+}
+
+// intersectLifecycles returns the lifecycles present in both a and b, or nil
+// when they share none. mergeVisibility is the only caller, and it maps a nil
+// result to None rather than an empty-but-unrestricted Only.
+//
+// Both operands are source order, so which of them the result inherits its
+// order from is settled by value rather than by which branch was declared
+// first: two branches naming the same lifecycles in different orders would
+// otherwise intersect to two different slices depending on the spelling.
+// annotation.EffectiveVisibility restricts to one of two fixed sets, which are
+// either identical or disjoint, so no OpenAPI document reaches that pairing
+// today — but this helper is the contract a second visibility source would
+// inherit, and an ordering rule that reads off dst is the kind that surfaces
+// only once something already depends on it.
+func intersectLifecycles(a, b []ir.Lifecycle) []ir.Lifecycle {
+	if slices.Compare(a, b) > 0 {
+		a, b = b, a
+	}
+	inB := make(map[ir.Lifecycle]bool, len(b))
+	for _, l := range b {
+		inB[l] = true
+	}
+	var out []ir.Lifecycle
+	for _, l := range a {
+		if inB[l] {
+			out = append(out, l)
+		}
+	}
+	return out
 }
 
 // maxTypeResolveDepth bounds Base-chain resolution when classifying a property

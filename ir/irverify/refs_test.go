@@ -48,7 +48,7 @@ func TestCollectRefs_SkipsEmptyIDs(t *testing.T) {
 // the cases below assert nothing about; TestWalkChecks_EachReportsTruncation
 // holds that half.
 func refViolations(doc *ir.Document) []Violation {
-	vs, _ := checkReferentialIntegrity(doc)
+	vs, _ := checkReferentialIntegrity(doc, readDeclarations(doc))
 	return vs
 }
 
@@ -112,6 +112,127 @@ func TestCheckReferentialIntegrity_DanglingChannelRef(t *testing.T) {
 	require.NotEmpty(t, got)
 	assert.Equal(t, "ir/dangling-channel-ref", got[0].Code)
 	assert.Contains(t, got[0].Message, "does not resolve in channels")
+}
+
+// opDocNested returns a document whose first group holds an operation overloading
+// one declared inside depth levels of nested groups, plus the ID they agree on.
+// At a depth past ir.MaxWalkDepth the walk reaches the reference and not the
+// declaration; below it, one walk reaches both.
+func opDocNested(depth int) (*ir.Document, ir.OpID) {
+	target := ir.OpID("op/x/Nested")
+	nested := ir.OperationGroup{Operations: []ir.Operation{{ID: target}}}
+	for range depth {
+		nested = ir.OperationGroup{Groups: []ir.OperationGroup{nested}}
+	}
+	return &ir.Document{Services: []ir.Service{{
+		ID: "s/x",
+		Groups: []ir.OperationGroup{
+			{Operations: []ir.Operation{{ID: "op/x/Overload", OverloadOf: &target}}},
+			nested,
+		},
+	}}}, target
+}
+
+// docWithOverload builds a service whose one operation overloads target.
+func docWithOverload(target ir.OpID) *ir.Document {
+	return &ir.Document{Services: []ir.Service{{
+		ID: "s/x",
+		Groups: []ir.OperationGroup{{Operations: []ir.Operation{
+			{ID: "op/x/Get", OverloadOf: &target},
+		}}},
+	}}}
+}
+
+// TestCheckReferentialIntegrity_DanglingOpRef drives the class no map on Document
+// covers. An operation is declared inside the Service→OperationGroup tree, so
+// every OpID reference in the IR resolved against nothing until the registry was
+// derived from those declarations instead (GitHub #50).
+func TestCheckReferentialIntegrity_DanglingOpRef(t *testing.T) {
+	got := refViolations(docWithOverload("op/x/Missing"))
+	require.Len(t, got, 1)
+	assert.Equal(t, "ir/dangling-op-ref", got[0].Code)
+	assert.Contains(t, got[0].Message, "does not resolve in op declarations")
+}
+
+// TestCheckReferentialIntegrity_ResolvedOpRefIsClean is the other half: an
+// operation's own ID resolves against its own declaration, and so does a
+// reference naming it.
+func TestCheckReferentialIntegrity_ResolvedOpRefIsClean(t *testing.T) {
+	assert.Empty(t, refViolations(docWithOverload("op/x/Get")))
+}
+
+// TestCheckReferentialIntegrity_DanglingServiceRef drives the other class with no
+// map: Document.Services is a slice, so a service extending an undeclared one
+// went unreported the same way.
+func TestCheckReferentialIntegrity_DanglingServiceRef(t *testing.T) {
+	doc := &ir.Document{Services: []ir.Service{{ID: "s/x", Extends: []ir.ServiceID{"s/missing"}}}}
+
+	got := refViolations(doc)
+	require.Len(t, got, 1)
+	assert.Equal(t, "ir/dangling-service-ref", got[0].Code)
+	assert.Contains(t, got[0].Message, "does not resolve in service declarations")
+}
+
+func TestCheckReferentialIntegrity_ResolvedServiceRefIsClean(t *testing.T) {
+	doc := &ir.Document{Services: []ir.Service{
+		{ID: "s/base"},
+		{ID: "s/x", Extends: []ir.ServiceID{"s/base"}},
+	}}
+	assert.Empty(t, refViolations(doc))
+}
+
+// TestCheckReferentialIntegrity_DanglingOpRefWithNoOperationDeclared drives the
+// class no node in the document declares. A Smithy resource names its lifecycle
+// operations, so an OpID reference exists in a document holding no ir.Operation
+// at all — and a registry set read off the declarations rather than off the IR's
+// shape would have no entry for the class, which is not "nothing declares this
+// ID" but "this is no reference", the silence GitHub #50 is about.
+func TestCheckReferentialIntegrity_DanglingOpRefWithNoOperationDeclared(t *testing.T) {
+	doc := &ir.Document{Services: []ir.Service{{
+		ID: "s/x",
+		Groups: []ir.OperationGroup{{
+			Resource: &ir.ResourceInfo{InstanceOps: []ir.OpID{"op/x/Missing"}},
+		}},
+	}}}
+
+	got := refViolations(doc)
+	require.Len(t, got, 1)
+	assert.Equal(t, "ir/dangling-op-ref", got[0].Code)
+	assert.Contains(t, got[0].Message, "does not resolve in op declarations")
+}
+
+// TestCheckReferentialIntegrity_TruncatedWalkClaimsNoDeclarations holds the one
+// direction a declaration-derived registry can be wrong in. The document declares
+// the operation its shallow reference names, but past the walk cap, so a registry
+// built from what the walk reached answers "not declared" for a node that is —
+// and a false dangling report is worse than the silence it replaced. The
+// registries Document keys maps by are unaffected: they are read off the field,
+// not off the walk.
+func TestCheckReferentialIntegrity_TruncatedWalkClaimsNoDeclarations(t *testing.T) {
+	deep, target := opDocNested(ir.MaxWalkDepth)
+	vs, truncated := checkReferentialIntegrity(deep, readDeclarations(deep))
+	assert.True(t, truncated, "the walk must report that it was cut short")
+	assert.Empty(t, vs, "%s is declared past the cap, not undeclared", target)
+
+	// The other half: the same shape within the cap does resolve, so the case
+	// above is not passing on a walk that collects no reference at all.
+	shallow, _ := opDocNested(0)
+	assert.Empty(t, refViolations(shallow))
+}
+
+// TestCheckReferentialIntegrity_PropIDStaysOutOfTheWalk pins the one class left
+// out of the registries. A PropID names a position inside its model, and
+// pass.Validate resolves one against the properties a document declares; adding a
+// document-wide answer here would report one defect twice, under two codes.
+func TestCheckReferentialIntegrity_PropIDStaysOutOfTheWalk(t *testing.T) {
+	doc := &ir.Document{Services: []ir.Service{{
+		ID: "s/x",
+		Groups: []ir.OperationGroup{{Operations: []ir.Operation{{
+			ID:         "op/x/List",
+			Pagination: &ir.Pagination{Items: &ir.PropPath{Segments: []ir.PropID{"p/x/ghost"}}},
+		}}}},
+	}}}
+	assert.Empty(t, refViolations(doc))
 }
 
 func TestCheckReferentialIntegrity_DanglingRenameKey(t *testing.T) {

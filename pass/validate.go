@@ -60,14 +60,33 @@ func Validate(doc *ir.Document) []ir.Diagnostic {
 // The other class the registries cannot resolve is ir.PropID, which names a
 // position inside a model: checkPropIDRefs resolves those against the properties
 // the same traversal saw.
+//
+// Not every ID class has a map on Document to be derived from. An ir.Operation is
+// declared in the Service→OperationGroup tree and an ir.Service in a slice, so an
+// OpID or ServiceID reference resolved against nothing at all (GitHub #50);
+// ir.Registries.WithDeclarations supplies both from the identities the document's
+// own nodes declare, under the same ir/dangling-<noun>-ref code every other class
+// is reported with.
+//
+// Those two classes are dropped when the declaration walk truncates. A registry
+// derived from a walk that saw a subset of the document answers "not declared"
+// for a node it simply never reached, so a reference to a legitimate operation
+// buried past the cap would be reported as dangling — a false error, where the
+// registries Document declares maps for can only ever under-report. The walk-
+// truncated diagnostic below says why nothing is claimed for them, as
+// checkArgsOutsideGraphQL does with the reachability it cannot trust.
 func checkDanglingRefs(doc *ir.Document) []ir.Diagnostic {
+	decls, declTruncated := ir.DeclaredIDs(doc)
 	regs := ir.DocumentRegistries(doc)
+	if !declTruncated {
+		regs = regs.WithDeclarations(decls)
+	}
 	sites, truncated := collectRefs(doc, ir.DocumentPath, func(t reflect.Type) bool {
 		_, isRegistry := regs[t]
 		return isRegistry
 	})
 	var diags []ir.Diagnostic
-	if truncated {
+	if truncated || declTruncated {
 		diags = append(diags, diag(ir.SeverityError, "ir/walk-truncated",
 			"document nests deeper than the bounded reference walk; some references went unchecked",
 			ir.DocumentPath))

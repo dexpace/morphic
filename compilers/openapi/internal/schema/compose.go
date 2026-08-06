@@ -617,8 +617,12 @@ func composesAsModel(s *oas3.Schema) bool {
 
 // unionBranches returns the branches of whichever combinator the schema
 // declares, the keyword's name (for pointers), and whether it is exclusive.
-// oneOf wins when both are present; only the verbatim lowering ever sees that
-// shape, and it keeps both keywords.
+//
+// oneOf wins when both are written, so every caller owns the set it passed over:
+// buildUnion keeps it on the Union (preserveUnusedCombinator), nullUnionCollapse
+// declines to collapse past it, and the verbatim lowering keeps both keywords
+// (preserveUnionSiblings). Reading the preference as one only that last lowering
+// could reach is what dropped the anyOf in silence (GitHub #35).
 func unionBranches(s *oas3.Schema) ([]*oas3.JSONSchema[oas3.Referenceable], string, bool) {
 	if branches := s.GetOneOf(); len(branches) > 0 {
 		return branches, "oneOf", true
@@ -671,6 +675,7 @@ type variantTypeFunc func(b *oas3.JSONSchema[oas3.Referenceable], vptr, vhint st
 // (internNode), so buildUnion needs no hint of its own to build one.
 func buildUnion(c lowering.Ctx, ts *compile.Types, s *oas3.Schema, common ir.TypeCommon, pointer string, variantType variantTypeFunc) (ir.TypeDef, []ir.Diagnostic) {
 	branches, key, exclusive := unionBranches(s)
+	diags := preserveUnusedCombinator(c, &common.Unmodeled, s, key, pointer)
 	variants := make([]ir.Variant, 0, len(branches))
 	for i, b := range branches {
 		if isNullSchema(b) {
@@ -689,9 +694,45 @@ func buildUnion(c lowering.Ctx, ts *compile.Types, s *oas3.Schema, common ir.Typ
 		Exclusive:  exclusive,
 		WireTagged: false,
 	}
-	disc, diags := lowerDiscriminator(c, ts, s, nil, pointer)
+	disc, discDiags := lowerDiscriminator(c, ts, s, nil, pointer)
 	u.Discriminator = disc
-	return u, diags
+	return u, append(diags, discDiags...)
+}
+
+// otherCombinator names each union keyword's counterpart, so the branch set
+// unionBranches passed over is read off the choice it returned rather than
+// restated beside it.
+var otherCombinator = map[string]string{"oneOf": "anyOf", "anyOf": "oneOf"}
+
+// preserveUnusedCombinator keeps the branch set unionBranches passed over
+// verbatim on the Union the position lowers to, and reports it. A schema
+// declaring only one combinator passes over nothing and is left alone.
+//
+// A schema writing both conjoins them — an instance must satisfy the oneOf *and*
+// the anyOf — and one ir.Union carries one branch set, so the loser had no place
+// in the node and was dropped in silence. It is the union half of the same §4.8
+// rule recordSkippedFamilies applies to the keyword families: the position keeps
+// lowering to the branch set unionBranches elects, because that Union is a shape
+// the IR can express and discarding it too would model nothing at all, and the
+// set it did not elect stays recoverable beside it.
+//
+// Where a *structural* sibling is written as well, classifyUnionSiblings reaches
+// unionBothCombinators first and neither set is elected — there the sibling body
+// is the most the IR can express, and distributing either union across it would
+// drop the other (lowerBesideUnmodeledUnion).
+func preserveUnusedCombinator(c lowering.Ctx, p *ir.Unmodeled, s *oas3.Schema, won, pointer string) []ir.Diagnostic {
+	if len(s.GetOneOf()) == 0 || len(s.GetAnyOf()) == 0 {
+		return nil
+	}
+	unused := otherCombinator[won]
+	kept, diags := PreserveSchemaKeyword(c, p, s, unused, ir.ReasonDegradedLowering, pointer+ids.Ptr(unused))
+	if !kept {
+		return diags
+	}
+	return append(diags, c.DiagAt(ir.SeverityInfo, diag.DegradedConstruct, pointer,
+		"oneOf and anyOf are both declared here and conjoin, and one Union carries one "+
+			"branch set; this position lowered as its %s, with %s kept verbatim under Unmodeled",
+		won, unused))
 }
 
 // lowerDistributedUnion emits the Union that is the schema's value, distributing
@@ -972,10 +1013,30 @@ func propIDByName(m *ir.Model, name string) (ir.PropID, bool) {
 // lowerEnum hoists a schema with `enum` as a closed Enum. A heterogeneous or
 // non-scalar member set has no Enum home, so it falls back to a Union of
 // Literals with an info diagnostic — nothing is dropped.
+//
+// A schema that admits null in its own right — `type: [T, "null"]`, 3.0
+// `nullable: true` — spells its nullable enum by listing `null` among the
+// members, so that member is stripped and normalized onto the enclosing
+// reference's Nullable bit (ir-design §3.3) rather than degrading the whole
+// enum. schemaAdmitsNull is what decides that here *and* what a reference
+// re-derives the bit from (refNullable at a $ref site, lowerSchemaBody inline),
+// so the null this drops is exactly the null those put back; a spelling only one
+// of them recognized would lose it. A conjunct position is the standing
+// exception: Model.Base and Mixins name one side of a conjunction and carry no
+// Nullable bit at all (conjoinBranch), so an `allOf: [{$ref: T}]` over a nullable
+// T reaches no null — in every spelling of T's nullability, this one included
+// rather than this one only. GitHub #279 holds that.
+//
+// That is also why the enum's own `null` member does not itself count as
+// admitting null: `{enum: [red, green, null]}` with no type keyword is left to
+// the union-of-literals fallback, since schemaAdmitsNull does not read enum
+// members and stripping on a wider rule here would set the bit nowhere. Widening
+// it is a change to every site that computes nullability, not to this one, and
+// it has its own decisions to make — GitHub #265 holds them.
 func lowerEnum(c lowering.Ctx, ts *compile.Types, s *oas3.Schema, pointer, hint string) (ir.TypeID, []ir.Diagnostic) {
 	var diags []ir.Diagnostic
 	id := internNode(c, ts, pointer, hint, func(common ir.TypeCommon) ir.TypeDef {
-		members, memberPrim, ok := enumMembers(s.GetEnum())
+		members, memberPrim, ok := enumMembers(s.GetEnum(), schemaAdmitsNull(s))
 		if !ok {
 			def, enumDiags := enumAsUnion(c, ts, s, common, pointer, hint)
 			diags = append(diags, enumDiags...)
@@ -991,25 +1052,37 @@ func lowerEnum(c lowering.Ctx, ts *compile.Types, s *oas3.Schema, pointer, hint 
 	return id, diags
 }
 
-// enumMembers converts enum nodes into scalar members, reporting ok=false when
-// any member is non-scalar or the members are heterogeneous (mixed kinds). The
-// returned PrimKind is the one every member's kind maps to; it is meaningful
-// only when ok, and lowerEnum is reached only for a non-empty enum, so it is
-// never the zero PrimKind there.
-func enumMembers(nodes []values.Value) ([]ir.EnumMember, ir.PrimKind, bool) {
+// enumMembers converts enum nodes into scalar members, reporting ok=false on any
+// of three: a member that is non-scalar, members heterogeneous in kind, or a set
+// that keeps no member at all.
+//
+// dropNull skips `null` members instead of refusing them, for a schema whose
+// nullability the enclosing reference already carries (see lowerEnum). Kind
+// agreement is read off the members actually kept, so a leading `null` fixes
+// nothing: `enum: [null, red, green]` is the same string enum as
+// `enum: [red, green, null]`.
+//
+// The third condition is the one an all-null set meets, and it is why such a set
+// degrades rather than becoming a memberless Enum. The returned PrimKind is the
+// one every kept member's kind maps to — meaningful only when ok, and since ok
+// requires a kept member, never the zero PrimKind there.
+func enumMembers(nodes []values.Value, dropNull bool) ([]ir.EnumMember, ir.PrimKind, bool) {
 	members := make([]ir.EnumMember, 0, len(nodes))
 	var kind ir.ValueKind
 	var prim ir.PrimKind
-	for i, node := range nodes {
+	for _, node := range nodes {
 		val, err := value.FromNode(node)
 		if err != nil {
 			return nil, "", false
+		}
+		if dropNull && val.Kind == ir.ValueNull {
+			continue
 		}
 		memberPrim, text, admissible := enumMemberForm(val)
 		if !admissible {
 			return nil, "", false
 		}
-		if i == 0 {
+		if len(members) == 0 {
 			kind, prim = val.Kind, memberPrim
 		} else if val.Kind != kind {
 			return nil, "", false
@@ -1018,6 +1091,9 @@ func enumMembers(nodes []values.Value) ([]ir.EnumMember, ir.PrimKind, bool) {
 			Name:  compile.NamingFor(text),
 			Value: val,
 		})
+	}
+	if len(members) == 0 {
+		return nil, "", false
 	}
 	return members, prim, true
 }

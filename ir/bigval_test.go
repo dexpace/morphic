@@ -10,10 +10,15 @@ import (
 	"github.com/dexpace/morphic/ir"
 )
 
+// bigValDecimalForms lists spellings NewBigVal accepts and stores unchanged,
+// because each is already in canonical JSON form. bigval_property_test.go seeds
+// its fuzz target from this slice rather than restating it, so a form added
+// here cannot go missing there.
+var bigValDecimalForms = []string{"0", "-1", "42", "3.14", "-0.5", "1e10", "2.5E-3", "9007199254740993"}
+
 func TestNewBigVal_AcceptsDecimalForms(t *testing.T) {
 	t.Parallel()
-	cases := []string{"0", "-1", "42", "3.14", "-0.5", "1e10", "2.5E-3", "9007199254740993"}
-	for _, s := range cases {
+	for _, s := range bigValDecimalForms {
 		t.Run(s, func(t *testing.T) {
 			t.Parallel()
 			v, err := ir.NewBigVal(s)
@@ -25,11 +30,63 @@ func TestNewBigVal_AcceptsDecimalForms(t *testing.T) {
 
 func TestNewBigVal_RejectsNonNumeric(t *testing.T) {
 	t.Parallel()
-	for _, s := range []string{"", "abc", "1.2.3", "0x10", "NaN", "Infinity", "Inf", "+Inf", "-Inf", ".inf", "1,5", "1_000"} {
+	cases := []string{
+		"", "abc", "1.2.3", "0x10", "NaN", "Infinity", "Inf", "+Inf", "-Inf", ".inf", "1,5", "1_000",
+		"0b101", "0o17", "--5",
+		// An "e"/"E" with no exponent digits after it, which is the one way the
+		// grammar can consume a whole mantissa and still refuse.
+		"1e", "1e+",
+		// A binary (p/P) exponent: math/big's own base-10 parser accepts one
+		// regardless of base, so these reproduce GitHub #45 — "1p4" is 1×2⁴ =
+		// 16, "2.5p-2" is 0.625, neither the decimal value its digits suggest —
+		// and must be rejected rather than stored verbatim.
+		"1p4", "2.5p-2", "5.p3", "1P4",
+	}
+	for _, s := range cases {
 		t.Run(s, func(t *testing.T) {
 			t.Parallel()
 			_, err := ir.NewBigVal(s)
 			require.Error(t, err)
+		})
+	}
+}
+
+// TestNewBigVal_RejectsAMagnitudeParseFloatWillNotCarry covers the two refusals
+// that outlive the grammar check, and asserts which arm each input takes.
+//
+// Every row of TestNewBigVal_RejectsNonNumeric is now answered by
+// isDecimalLiteral, so none of them reaches big.ParseFloat at all — before the
+// grammar check existed those rows were what covered these two arms ("Inf"
+// parsed to an infinity, "0x10" failed to parse). What still gets past the
+// grammar is a well-formed decimal naming a magnitude math/big will not carry,
+// and it reports that two different ways, so each needs a row of its own: an
+// exponent ParseFloat cannot scan is an error, and one it scans but cannot
+// scale to parses and reports IsInf.
+func TestNewBigVal_RejectsAMagnitudeParseFloatWillNotCarry(t *testing.T) {
+	t.Parallel()
+	cases := []struct {
+		name, in, want string
+	}{
+		{
+			name: "an exponent that overflows to infinity",
+			in:   "1e2000000000",
+			want: `bigval: non-finite numeric literal "1e2000000000"`,
+		},
+		{
+			// ParseFloat returns a nil *Float with this error, so the error arm
+			// is also what keeps the IsInf call after it from dereferencing one.
+			name: "an exponent ParseFloat cannot scan",
+			in:   "1e999999999999999999",
+			want: `bigval: parse "1e999999999999999999"`,
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			v, err := ir.NewBigVal(tc.in)
+			require.Error(t, err)
+			assert.Contains(t, err.Error(), tc.want)
+			assert.Empty(t, v, "a refused literal is never stored")
 		})
 	}
 }

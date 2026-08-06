@@ -19,7 +19,7 @@ var provenanceType = reflect.TypeFor[ir.Provenance]()
 // the same on a type, a diagnostic, or an Unmodeled entry, and one walk reaches
 // all of them. The bool reports whether that walk was cut short; Verify folds it
 // into the document's one ir/walk-truncated violation.
-func checkProvenance(doc *ir.Document) ([]Violation, bool) {
+func checkProvenance(doc *ir.Document, _ declarations) ([]Violation, bool) {
 	var vs []Violation
 	declared := len(doc.Sources)
 	truncated := ir.WalkValues(doc, ir.DocumentPath, func(v reflect.Value, path string) bool {

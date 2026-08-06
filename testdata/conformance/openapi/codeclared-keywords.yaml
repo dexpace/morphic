@@ -1,0 +1,54 @@
+openapi: 3.1.0
+info: {title: CoDeclaredKeywords, version: "1.0.0"}
+paths: {}
+components:
+  schemas:
+    Base:
+      type: object
+      properties:
+        id: {type: string}
+    # JSON Schema conjoins keywords, so a schema may write several that the IR
+    # can only lower one of. Every case here lowers the one the dispatch elects
+    # and keeps the rest verbatim beside it (ir-design 4.8); none of them may
+    # lower in silence.
+    #
+    # allOf beside enum is the narrowing idiom: a Base whose value set this
+    # declaration restricts. The enum is the value and the composition is kept,
+    # so the relationship to Base stays recoverable.
+    NarrowedEnum:
+      allOf:
+        - {$ref: '#/components/schemas/Base'}
+      enum: [a, b]
+    # The same shape with a single value rather than a set. const outranks both
+    # of the others, so this keeps the composition against the Literal.
+    NarrowedConst:
+      allOf:
+        - {$ref: '#/components/schemas/Base'}
+      const: a
+    # const and enum co-declared: a legal, redundant restatement where the const
+    # must be one of the enum members. The Literal is the narrower of the two,
+    # and the enum it came from is kept.
+    ConstWithinEnum:
+      const: a
+      enum: [a, b]
+    # Two union combinators at one level conjoin: the value matches exactly one
+    # of the oneOf branches AND at least one of the anyOf branches. One ir.Union
+    # carries one branch set, so oneOf becomes the union and anyOf is kept.
+    BothCombinators:
+      oneOf:
+        - {type: string}
+        - {type: integer}
+      anyOf:
+        - {type: number}
+        - {type: boolean}
+    # A {X, null} oneOf normally collapses to nullable X, which would resolve
+    # this position straight to the shared string primitive and leave the
+    # co-declared anyOf nowhere of its own to sit. With both combinators written
+    # it stays a Union — of the one non-null branch — and keeps the anyOf on it.
+    NullableWithCombinators:
+      oneOf:
+        - {type: string}
+        - {type: "null"}
+      anyOf:
+        - {type: number}
+        - {type: boolean}

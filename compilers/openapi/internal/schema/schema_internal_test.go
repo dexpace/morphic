@@ -381,7 +381,7 @@ func TestDynamicAnchorIndex_ReportsATruncatedWalk(t *testing.T) {
 func TestPreserveUnhomedKeywords_MissingNode(t *testing.T) {
 	t.Parallel()
 	l := newRawLowerer(&soa.OpenAPI{})
-	got, diags := preserveUnhomedKeywords(l.ctx, l.types, &oas3.Schema{}, "/p", "h", "t/anon/missing")
+	got, diags := preserveUnhomedKeywords(l.ctx, l.types, &oas3.Schema{}, "/p", "h", "t/anon/missing", dispatch{})
 	assert.Equal(t, ir.TypeID("t/anon/missing"), got, "the lowering's own ID still stands")
 	assertInternalInvariant(t, diags)
 }
@@ -395,6 +395,39 @@ func TestRecordUnhomedKeywords_MissingOwner(t *testing.T) {
 	l := newRawLowerer(&soa.OpenAPI{})
 	diags := recordUnhomedKeywords(l.ctx, l.types, "t/anon/missing", &oas3.Schema{}, []string{"items"}, ir.KindPrimitive, "/p")
 	assertInternalInvariant(t, diags)
+}
+
+// TestRecordSkippedFamilies_MissingOwner drives the same invariant on the
+// keyword families the dispatch passed over. It is reached directly for the
+// reason its unhomed-applicator twin is: the caller hands it either the node it
+// just looked up or one internAlias just interned, so no source reaches this.
+func TestRecordSkippedFamilies_MissingOwner(t *testing.T) {
+	t.Parallel()
+	l := newRawLowerer(&soa.OpenAPI{})
+	diags := recordSkippedFamilies(l.ctx, l.types, "t/anon/missing", &oas3.Schema{},
+		dispatch{won: "const", skipped: []string{"enum"}}, "/p")
+	assertInternalInvariant(t, diags)
+}
+
+// TestDeclaresFamily_AnUnknownNameDeclaresNothing reaches the arm familyOrder
+// cannot reach today, the way TestRecordSkippedFamilies_MissingOwner reaches its
+// own: every name dispatchOf passes in is one of the three with a case here.
+//
+// It guards the direction the default falls. Answering an unknown name from
+// another family's guard would let a familyOrder entry added without a case be
+// elected on schemas that never wrote it — and a winner lower() has no arm for
+// is dropped in silence, which is what this file exists to prevent. Declaring
+// nothing keeps such a name out of the election entirely.
+func TestDeclaresFamily_AnUnknownNameDeclaresNothing(t *testing.T) {
+	t.Parallel()
+	withAllOf := &oas3.Schema{AllOf: []*oas3.JSONSchema[oas3.Referenceable]{
+		oas3.NewJSONSchemaFromSchema[oas3.Referenceable](&oas3.Schema{}),
+	}}
+
+	require.True(t, declaresFamily(withAllOf, "allOf"), "allOf is named and declared")
+	assert.False(t, declaresFamily(withAllOf, "oneOf"),
+		"an unknown name must not inherit allOf's guard")
+	assert.False(t, declaresFamily(&oas3.Schema{}, "nosuchfamily"))
 }
 
 // TestRefNullable_AnUnresolvedRefIsNotNullable pins the guard on the second half

@@ -106,10 +106,11 @@ provenance model, and IR are built for all eight from day one.
 Small, composable, order-explicit transformations that both the engine and users (via config)
 can enable:
 
-- **validate** — referential integrity (every `TypeRef` targets a registered type), discriminator
-  mappings point at actual variants, wire-name uniqueness within a model, binding completeness
-  (every operation parameter is bound exactly once per binding). Structural errors here are
-  fatal; style issues are warnings.
+- **validate** — referential integrity (every typed-ID reference resolves to something the document
+  declares: a `TypeRef` target against the type registry, an `OpID` against the operations the
+  service tree declares, and so on for every ID class), discriminator mappings point at actual
+  variants, wire-name uniqueness within a model, binding completeness (every operation parameter
+  is bound exactly once per binding). Structural errors here are fatal; style issues are warnings.
 - **link** — resolve cross-document references when multiple specs are parsed into one document
   (multi-service, spec-stitching).
 - **dedup** — structurally identical anonymous types are merged (by content hash), with ID

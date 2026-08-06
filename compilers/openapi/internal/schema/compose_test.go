@@ -963,6 +963,185 @@ func TestEnum_StringClosed(t *testing.T) {
 	assert.Equal(t, "b", e.Members[1].Name.Source)
 }
 
+// enumPropertySpec puts a schema at one property of a model S, so a test can
+// read both the node the schema lowers to and the reference the position holds.
+func enumPropertySpec(version, schema string) string {
+	return componentSpecVer(version, `    S:
+      type: object
+      properties:
+        p: `+schema+"\n")
+}
+
+// TestEnum_NullMemberNormalizesToNullable pins ir-design §3.3 for the canonical
+// spelling of a nullable enum: on a schema that admits null in its own right,
+// the `null` member is stripped and carried by the enclosing reference's
+// Nullable bit, leaving a closed Enum of the scalar members. It used to make the
+// whole enum degrade to a union of three literals, losing its enum-ness (GitHub
+// #44).
+//
+// The leading-null rows are not duplicates of the trailing-null ones. Member
+// kinds were reconciled against the member at index 0, so a `null` written first
+// fixed the kind to one no scalar member could then match; the rows differ only
+// in where the null sits, which is the whole question.
+func TestEnum_NullMemberNormalizesToNullable(t *testing.T) {
+	t.Parallel()
+	const enumID = ir.TypeID("t/anon/components/schemas/S/properties/p")
+	strMembers := []ir.Value{
+		{Kind: ir.ValueString, Str: "red"},
+		{Kind: ir.ValueString, Str: "green"},
+	}
+	numMembers := []ir.Value{
+		{Kind: ir.ValueNumber, Num: ir.BigVal("1")},
+		{Kind: ir.ValueNumber, Num: ir.BigVal("2")},
+	}
+	cases := []struct {
+		name, version, schema string
+		wantValueType         ir.PrimKind
+		wantMembers           []ir.Value
+	}{
+		{
+			name:          "3.1 type array, trailing null",
+			version:       "3.1.0",
+			schema:        `{type: [string, "null"], enum: [red, green, null]}`,
+			wantValueType: ir.PrimString,
+			wantMembers:   strMembers,
+		},
+		{
+			name:          "3.1 type array, leading null",
+			version:       "3.1.0",
+			schema:        `{type: [string, "null"], enum: [null, red, green]}`,
+			wantValueType: ir.PrimString,
+			wantMembers:   strMembers,
+		},
+		{
+			name:          "3.0 nullable keyword, trailing null",
+			version:       "3.0.3",
+			schema:        `{type: string, nullable: true, enum: [red, green, null]}`,
+			wantValueType: ir.PrimString,
+			wantMembers:   strMembers,
+		},
+		{
+			// No type keyword to read a value type from, so the Enum's ValueType
+			// comes from the members that were kept — never from the null that a
+			// leading position would otherwise have classified the set by.
+			name:          "3.0 nullable keyword with no type, leading null",
+			version:       "3.0.3",
+			schema:        `{nullable: true, enum: [null, 1, 2]}`,
+			wantValueType: ir.PrimNumber,
+			wantMembers:   numMembers,
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			doc, diags := lowerSpec(t, enumPropertySpec(tc.version, tc.schema))
+			requireNoErrorDiags(t, diags)
+			assert.False(t, hasDiag(diags, diag.DegradedConstruct),
+				"a normalized nullable enum is not a degradation; got %+v", diags)
+
+			m, ok := doc.Types[componentID("S")].(*ir.Model)
+			require.True(t, ok, "S is a model")
+			require.Len(t, m.Properties, 1)
+			assert.True(t, m.Properties[0].Type.Nullable,
+				"the stripped null member is carried by the property's reference")
+			assert.Equal(t, enumID, m.Properties[0].Type.Target)
+
+			e, ok := doc.Types[enumID].(*ir.Enum)
+			require.True(t, ok, "the property lowers to an Enum, not a union of literals")
+			assert.True(t, e.Closed, "a JSON Schema enum stays closed")
+			assert.Equal(t, tc.wantValueType, e.ValueType)
+
+			got := make([]ir.Value, 0, len(e.Members))
+			for _, member := range e.Members {
+				assert.NotEmpty(t, member.Name.Source, "every kept member is named")
+				got = append(got, member.Value)
+			}
+			if diff := cmp.Diff(tc.wantMembers, got); diff != "" {
+				t.Errorf("enum members (-want +got):\n%s", diff)
+			}
+		})
+	}
+}
+
+// TestEnum_NullMemberKeepsUnionFallback pins the other half of #44: a member set
+// the normalization must not touch still lowers to a union of literals, with its
+// info diagnostic and every member preserved.
+//
+// The last three rows are the ones that decide how far the rule reaches. A
+// schema whose type keyword excludes null conjoins the two, so its `null` member
+// admits nothing and normalizing would widen the type; a bare enum declares no
+// nullability that schemaAdmitsNull — which a reference re-derives the bit from
+// — would recognize, so stripping there would drop the null entirely; and an
+// all-null set has no member left to build an Enum from.
+func TestEnum_NullMemberKeepsUnionFallback(t *testing.T) {
+	t.Parallel()
+	null := ir.Value{Kind: ir.ValueNull}
+	cases := []struct {
+		name, version, schema string
+		wantVariants          []ir.Value
+	}{
+		{
+			name:    "heterogeneous members beside a null member",
+			version: "3.1.0",
+			schema:  `{type: [string, "null"], enum: [1, a, null]}`,
+			wantVariants: []ir.Value{
+				{Kind: ir.ValueNumber, Num: ir.BigVal("1")},
+				{Kind: ir.ValueString, Str: "a"},
+				null,
+			},
+		},
+		{
+			name:    "type keyword excludes null",
+			version: "3.1.0",
+			schema:  `{type: string, enum: [red, green, null]}`,
+			wantVariants: []ir.Value{
+				{Kind: ir.ValueString, Str: "red"},
+				{Kind: ir.ValueString, Str: "green"},
+				null,
+			},
+		},
+		{
+			name:    "no type keyword to admit null",
+			version: "3.1.0",
+			schema:  `{enum: [red, green, null]}`,
+			wantVariants: []ir.Value{
+				{Kind: ir.ValueString, Str: "red"},
+				{Kind: ir.ValueString, Str: "green"},
+				null,
+			},
+		},
+		{
+			name:         "every member is null",
+			version:      "3.1.0",
+			schema:       `{type: ["null"], enum: [null]}`,
+			wantVariants: []ir.Value{null},
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			doc, diags := lowerSpec(t, enumPropertySpec(tc.version, tc.schema))
+			requireNoErrorDiags(t, diags)
+			assert.True(t, hasDiagAt(diags, diag.DegradedConstruct, ir.SeverityInfo),
+				"the degraded-enum diagnostic still fires; got %+v", diags)
+
+			u, ok := doc.Types[ir.TypeID("t/anon/components/schemas/S/properties/p")].(*ir.Union)
+			require.True(t, ok, "the property lowers to a union of literals")
+			require.Len(t, u.Variants, len(tc.wantVariants))
+
+			got := make([]ir.Value, 0, len(u.Variants))
+			for _, v := range u.Variants {
+				lit, isLit := doc.Types[v.Type.Target].(*ir.Literal)
+				require.True(t, isLit, "every variant is a hoisted Literal")
+				got = append(got, lit.Value)
+			}
+			if diff := cmp.Diff(tc.wantVariants, got); diff != "" {
+				t.Errorf("every declared member survives as a literal (-want +got):\n%s", diff)
+			}
+		})
+	}
+}
+
 func TestConst_BecomesLiteral(t *testing.T) {
 	t.Parallel()
 	spec := componentSpec(`    K:
@@ -1778,4 +1957,110 @@ func TestOneOf_CoDeclaredNotDistributedReasons(t *testing.T) {
 		"a null branch is written inline, so it blocks distribution rather than lifting to Nullable")
 	assert.Equal(t, 5, countDiagsAt(diags, diag.DegradedConstruct, ir.SeverityInfo),
 		"each declined shape is reported once; got %+v", diags)
+}
+
+// TestUnionCombinators_PassedOverBranchSetIsKept covers the preference nothing
+// used to record (GitHub #35). unionBranches takes oneOf whenever it is written
+// and falls back to anyOf only when it is not, so a schema declaring both lost
+// the anyOf outright — no variant, no Unmodeled entry, no diagnostic. The two
+// conjoin, and one ir.Union carries one branch set, so the elected set stays the
+// union and the other is kept beside it.
+func TestUnionCombinators_PassedOverBranchSetIsKept(t *testing.T) {
+	t.Parallel()
+	doc, diags := lowerSpec(t, componentSpec(`    S:
+      oneOf: [{type: string}, {type: integer}]
+      anyOf: [{type: number}, {type: boolean}]
+`))
+	requireNoErrorDiags(t, diags)
+
+	u, ok := typeByName(doc, "S").(*ir.Union)
+	require.True(t, ok, "the elected branch set still becomes the union")
+	assert.Len(t, u.Variants, 2, "one variant per oneOf branch")
+	entry, ok := u.Unmodeled["openapi:anyOf"]
+	require.True(t, ok, "the set unionBranches passed over is kept; got %v", u.Unmodeled)
+	assert.Equal(t, ir.ReasonDegradedLowering, entry.Reason)
+	assert.JSONEq(t, `[{"type":"number"},{"type":"boolean"}]`, string(entry.Value))
+	assert.Contains(t,
+		diagMessageAt(t, diags, diag.DegradedConstruct, ir.SeverityInfo, "/components/schemas/S"),
+		"lowered as its oneOf, with anyOf kept verbatim under Unmodeled")
+}
+
+// TestUnionCombinators_NullBranchDoesNotCollapsePastTheAnyOf covers the second
+// site of the same preference. A {X, null} oneOf normally collapses to nullable
+// X, which resolves the position straight to X's own node — the shared string
+// primitive here — leaving the co-declared anyOf nowhere of its own to sit; it
+// was dropped there too. A schema writing both combinators is not nullable X in
+// the first place, so it stays a Union and keeps the loser on it.
+func TestUnionCombinators_NullBranchDoesNotCollapsePastTheAnyOf(t *testing.T) {
+	t.Parallel()
+	doc, diags := lowerSpec(t, componentSpec(`    S:
+      oneOf: [{type: string}, {type: "null"}]
+      anyOf: [{type: number}, {type: boolean}]
+`))
+	requireNoErrorDiags(t, diags)
+
+	u, ok := typeByName(doc, "S").(*ir.Union)
+	require.True(t, ok, "the collapse is declined; got %v", typeByName(doc, "S"))
+	require.Len(t, u.Variants, 1, "the null branch still lifts off the variant list")
+	assert.Equal(t, ir.TypeID("t/prim/string"), u.Variants[0].Type.Target)
+	assert.Contains(t, u.Unmodeled, "openapi:anyOf",
+		"and the node the position now owns carries the set passed over")
+}
+
+// TestUnionCombinators_UnpreservableIsNotAnnounced pins the pairing GitHub #144
+// exists for, at this site: a position may only announce what it actually kept.
+// The anyOf here fails to convert, so the union lowers, the failure is reported
+// at the keyword, and nothing claims the branch set survived.
+func TestUnionCombinators_UnpreservableIsNotAnnounced(t *testing.T) {
+	t.Parallel()
+	doc, diags := lowerSpec(t, componentSpec(`    S:
+      oneOf: [{type: string}, {type: integer}]
+      anyOf: [{type: number, x-t: `+unpreservableValue+`}]
+`))
+
+	u, ok := typeByName(doc, "S").(*ir.Union)
+	require.True(t, ok)
+	assert.NotContains(t, u.Unmodeled, "openapi:anyOf", "the conversion failed, so nothing was kept")
+	assert.True(t, hasDiag(diags, diag.UnpreservableConstruct), "the failure itself is reported")
+	assert.Empty(t, preservationClaims(diags),
+		"nothing was written under Unmodeled, so nothing may announce that it was")
+}
+
+// TestUnionCombinators_KeepingIsOrderIndependent states the property over the
+// whole document: declining the collapse gives this position a Union of its own
+// and turns its branches into ordinary union branches, so an outside $ref naming
+// one of them must reach the same IR whichever of the two is declared first.
+//
+// The branch writes a description on purpose, and the guard below is what keeps
+// that load-bearing. A bare `{type: string}` branch resolves through the union to
+// the shared primitive, so the outside $ref is the only lowering that ever hoists
+// a node at the branch pointer: the node is still *there*, which is why asserting
+// its presence proves nothing — one lowering put it there and no hint ever had to
+// agree with another. Pinning the union's own variant to that node is what puts
+// both lowerings on the pointer, which is the state where only the first to
+// arrive interns it (branchHint, subSchemaHint, #181).
+func TestUnionCombinators_KeepingIsOrderIndependent(t *testing.T) {
+	t.Parallel()
+	host := `    S:
+      oneOf:
+        - {type: string, description: the branch}
+        - {type: "null"}
+      anyOf: [{type: number}, {type: boolean}]
+`
+	outsider := "    Outsider: {$ref: '#/components/schemas/S/oneOf/0'}\n"
+	first, diags := parseFull(t, componentSpec(outsider+host))
+	requireNoErrorDiags(t, diags)
+	last, diags := parseFull(t, componentSpec(host+outsider))
+	requireNoErrorDiags(t, diags)
+
+	for _, doc := range []*ir.Document{first, last} {
+		u, ok := typeByName(doc, "S").(*ir.Union)
+		require.True(t, ok, "the position is the Union that keeps the passed-over set")
+		require.Len(t, u.Variants, 1, "the null branch still lifts off the variant list")
+		require.Equal(t, ir.TypeID("t/anon/components/schemas/S/oneOf/0"), u.Variants[0].Type.Target,
+			"the union reaches the branch's own node, or the $ref is the only lowering that does")
+	}
+	assert.Empty(t, cmp.Diff(first, last, orderInvariantIR()...),
+		"declaring the reference before or after the union must not change the IR")
+	assert.Empty(t, cmp.Diff(first.Types, last.Types), "nor any name hint in the registry")
 }

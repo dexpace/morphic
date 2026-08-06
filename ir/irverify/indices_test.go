@@ -23,7 +23,7 @@ func docWithServers() *ir.Document {
 // cases below assert nothing about; TestWalkChecks_EachReportsTruncation holds
 // that half.
 func indexViolations(doc *ir.Document) []Violation {
-	vs, _ := checkIndices(doc)
+	vs, _ := checkIndices(doc, readDeclarations(doc))
 	return vs
 }
 

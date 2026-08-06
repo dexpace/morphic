@@ -1,0 +1,257 @@
+{
+  "irVersion": "0.3.0",
+  "name": "NullableEnum31",
+  "version": "1.0.0",
+  "docs": {},
+  "services": [
+    {
+      "id": "s/openapi/0",
+      "name": {
+        "source": "NullableEnum31",
+        "canonical": "nullable_enum_31"
+      },
+      "docs": {},
+      "groups": [
+        {
+          "name": {
+            "hint": "default"
+          },
+          "docs": {},
+          "operations": [
+            {
+              "id": "op/openapi/paths/~1pick/get",
+              "name": {
+                "source": "pick",
+                "canonical": "pick"
+              },
+              "docs": {},
+              "params": [
+                {
+                  "name": {
+                    "source": "color",
+                    "canonical": "color"
+                  },
+                  "type": {
+                    "target": "t/openapi/components/schemas/Color",
+                    "nullable": true
+                  },
+                  "required": false,
+                  "docs": {}
+                }
+              ],
+              "responses": [
+                {
+                  "name": {
+                    "hint": "200"
+                  },
+                  "conditions": {
+                    "statusCodes": [
+                      {
+                        "from": 200,
+                        "to": 200
+                      }
+                    ]
+                  },
+                  "docs": {
+                    "description": "ok"
+                  }
+                }
+              ],
+              "oneWay": false,
+              "idempotency": {},
+              "auth": null,
+              "bindings": {
+                "http": [
+                  {
+                    "method": "GET",
+                    "uriTemplate": "/pick",
+                    "sharedRoute": false,
+                    "paramBindings": [
+                      {
+                        "param": "color",
+                        "location": "query",
+                        "wireName": "color",
+                        "style": "form",
+                        "explode": true,
+                        "allowReserved": false
+                      }
+                    ],
+                    "checksumRequired": false,
+                    "isWebhook": false
+                  }
+                ]
+              },
+              "provenance": {
+                "source": 0,
+                "pointer": "/paths/~1pick/get"
+              }
+            }
+          ]
+        }
+      ],
+      "auth": null,
+      "provenance": {
+        "source": 0
+      }
+    }
+  ],
+  "types": {
+    "t/anon/components/schemas/Holder/properties/many": {
+      "kind": "list",
+      "id": "t/anon/components/schemas/Holder/properties/many",
+      "name": {
+        "hint": "many"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Holder/properties/many"
+      },
+      "elem": {
+        "target": "t/openapi/components/schemas/Color",
+        "nullable": true
+      }
+    },
+    "t/openapi/components/schemas/Color": {
+      "kind": "enum",
+      "id": "t/openapi/components/schemas/Color",
+      "name": {
+        "source": "Color",
+        "canonical": "color"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Color"
+      },
+      "valueType": "string",
+      "members": [
+        {
+          "name": {
+            "source": "red",
+            "canonical": "red"
+          },
+          "value": {
+            "kind": "string",
+            "str": "red",
+            "bytes": null,
+            "list": null,
+            "object": null
+          },
+          "docs": {}
+        },
+        {
+          "name": {
+            "source": "green",
+            "canonical": "green"
+          },
+          "value": {
+            "kind": "string",
+            "str": "green",
+            "bytes": null,
+            "list": null,
+            "object": null
+          },
+          "docs": {}
+        }
+      ],
+      "closed": true,
+      "flags": false
+    },
+    "t/openapi/components/schemas/Holder": {
+      "kind": "model",
+      "id": "t/openapi/components/schemas/Holder",
+      "name": {
+        "source": "Holder",
+        "canonical": "holder"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Holder"
+      },
+      "properties": [
+        {
+          "id": "p/openapi/components/schemas/Holder/properties/one",
+          "name": {
+            "source": "one",
+            "canonical": "one"
+          },
+          "wireName": "one",
+          "type": {
+            "target": "t/openapi/components/schemas/Color",
+            "nullable": true
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/Holder/properties/one"
+          }
+        },
+        {
+          "id": "p/openapi/components/schemas/Holder/properties/many",
+          "name": {
+            "source": "many",
+            "canonical": "many"
+          },
+          "wireName": "many",
+          "type": {
+            "target": "t/anon/components/schemas/Holder/properties/many",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/Holder/properties/many"
+          }
+        }
+      ],
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    }
+  },
+  "servers": [
+    {
+      "name": {
+        "hint": "server"
+      },
+      "urlTemplate": "/",
+      "description": {},
+      "auth": null
+    }
+  ],
+  "sources": [
+    {
+      "format": "openapi@3.1",
+      "path": "nullable-enum-31.yaml",
+      "hash": "b499a6a9913ed3f5173a77a4d492f04961325c66a10974a7fc4da2bfec5a36b1"
+    }
+  ]
+}
