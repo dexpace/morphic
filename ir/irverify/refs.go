@@ -44,14 +44,33 @@ func collectRefs(doc *ir.Document, regs ir.Registries) ([]refSite, bool) {
 // pass.Validate reports the identical defect under, so one defect reads as one
 // code whichever checker a caller runs.
 //
-// Two ID classes are outside what a registry-driven walk can resolve, and both
-// stay out rather than growing a second implementation here. ir.ServiceID names
-// a position in Document.Services; ir.PropID names a position inside its model,
-// and resolving one means collecting the ir.Property values a document declares
-// and looking the ID up among them, which pass.Validate's checkPropIDRefs does.
+// The registries Document declares maps for are not all of them. An ir.Operation
+// is declared in the Service→OperationGroup tree and an ir.Service in a slice, so
+// neither class has a map to resolve against and every OpID and ServiceID
+// reference resolved against nothing (GitHub #50); ir.Registries.WithDeclarations
+// supplies both from the identities the document's own nodes declare.
+//
+// Those two classes are dropped when the declaration walk truncates. A registry
+// derived from a walk that saw a subset of the document answers "not declared"
+// for a node it simply never reached, so a reference to a legitimate operation
+// buried past the cap would be reported as dangling — a false violation, where
+// the registries Document declares maps for can only ever under-report. The
+// ir/walk-truncated violation Verify folds this flag into says why nothing is
+// claimed for them.
+//
+// One ID class stays out. ir.PropID names a position inside its model rather than
+// a document-level identity, and resolving one means collecting the ir.Property
+// values a document declares and looking the ID up among them, which
+// pass.Validate's checkPropIDRefs does — beside checkEncodingKeys, which makes
+// the tighter model-scoped claim for the keys of ir.Content.Encoding.
 func checkReferentialIntegrity(doc *ir.Document) ([]Violation, bool) {
+	decls, declTruncated := ir.DeclaredIDs(doc)
 	regs := ir.DocumentRegistries(doc)
+	if !declTruncated {
+		regs = regs.WithDeclarations(decls)
+	}
 	sites, truncated := collectRefs(doc, regs)
+	truncated = truncated || declTruncated
 	var vs []Violation
 	for _, s := range sites {
 		reg := regs[s.idType]

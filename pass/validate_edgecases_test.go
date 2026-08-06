@@ -64,8 +64,9 @@ func TestValidate_DanglingRefsAcrossContainerKinds(t *testing.T) {
 	assert.Equal(t, 7, countCode(t, diags, "ir/dangling-type-ref"))
 }
 
-// TestValidate_ModelImplementsAndAdditionalPropsWalked covers walkModelRefs'
-// Implements branch and walkAdditionalPropsRefs' Key and Patterns branches.
+// TestValidate_ModelImplementsAndAdditionalPropsWalked covers a model's
+// Implements references and the Value, Key and Patterns references its
+// AdditionalProps carries.
 func TestValidate_ModelImplementsAndAdditionalPropsWalked(t *testing.T) {
 	t.Parallel()
 	doc := validDoc()
@@ -82,8 +83,8 @@ func TestValidate_ModelImplementsAndAdditionalPropsWalked(t *testing.T) {
 	assert.Equal(t, 4, countCode(t, diags, "ir/dangling-type-ref"))
 }
 
-// TestValidate_OperationHeadersAndItemWalked covers the response-headers loop in
-// walkOperationRefs and the Item branch in walkPayloadRefs.
+// TestValidate_OperationHeadersAndItemWalked covers an operation's response
+// headers and the per-media-type Item a content declares.
 func TestValidate_OperationHeadersAndItemWalked(t *testing.T) {
 	t.Parallel()
 	op := ir.Operation{
@@ -306,6 +307,84 @@ func TestValidate_GraphQLReachableTypesAllowArgs(t *testing.T) {
 		Groups: []ir.OperationGroup{{Operations: []ir.Operation{op}}},
 	}}
 	assert.NotContains(t, codes(pass.Validate(doc)), "pass/args-outside-graphql")
+}
+
+// argModel is a model whose one property carries a field argument, so the model
+// is legal only where a GraphQL binding reaches it.
+func argModel(id ir.TypeID) *ir.Model {
+	return &ir.Model{
+		TypeCommon: ir.TypeCommon{ID: id},
+		Properties: []ir.Property{{
+			ID: ir.PropID("p/" + id), Name: ir.Naming{Source: "field"}, WireName: "field",
+			Type: ir.TypeRef{Target: "t/prim/string"},
+			Args: []ir.Parameter{{Name: ir.Naming{Source: "since"}, Type: ir.TypeRef{Target: "t/prim/string"}}},
+		}},
+	}
+}
+
+// TestValidate_GraphQLReachabilityFollowsEveryReference drives the three sites a
+// GraphQL-legal model can hang off that an operation does not name directly:
+// the event type of a subscription's response stream, the type of another
+// property's field argument, and a template instantiation argument.
+//
+// A subscription binds through a GraphQL binding plus streaming fields on the
+// core (ir/bindings.go), so its event model is reachable only through
+// ResponseStream.Events. Reachability that missed any of these rejected valid IR
+// with a severity-error diagnostic, which is fatal (GitHub #51).
+func TestValidate_GraphQLReachabilityFollowsEveryReference(t *testing.T) {
+	t.Parallel()
+	cases := []struct {
+		name string
+		bind func(doc *ir.Document, op *ir.Operation)
+	}{
+		{"subscription response stream", func(doc *ir.Document, op *ir.Operation) {
+			doc.Types["t/ev"] = argModel("t/ev")
+			op.Streaming = ir.StreamingServer
+			op.ResponseStream = &ir.StreamDetail{Events: &ir.TypeRef{Target: "t/ev"}}
+		}},
+		{"nested field-argument type", func(doc *ir.Document, op *ir.Operation) {
+			doc.Types["t/inner"] = argModel("t/inner")
+			doc.Types["t/outer"] = &ir.Model{
+				TypeCommon: ir.TypeCommon{ID: "t/outer"},
+				Properties: []ir.Property{{
+					ID: "p/outer", Name: ir.Naming{Source: "list"}, WireName: "list",
+					Type: ir.TypeRef{Target: "t/prim/string"},
+					Args: []ir.Parameter{{Name: ir.Naming{Source: "filter"}, Type: ir.TypeRef{Target: "t/inner"}}},
+				}},
+			}
+			op.Params = []ir.Parameter{{Name: ir.Naming{Source: "in"}, Type: ir.TypeRef{Target: "t/outer"}}}
+		}},
+		{"template instantiation argument", func(doc *ir.Document, op *ir.Operation) {
+			doc.Types["t/arg"] = argModel("t/arg")
+			doc.Types["t/page"] = &ir.Model{TypeCommon: ir.TypeCommon{
+				ID: "t/page",
+				Instantiation: &ir.TemplateInstantiation{
+					Template: "Page",
+					Args:     []ir.TemplateArg{{Type: &ir.TypeRef{Target: "t/arg"}}},
+				},
+			}}
+			op.Params = []ir.Parameter{{Name: ir.Naming{Source: "in"}, Type: ir.TypeRef{Target: "t/page"}}}
+		}},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			doc := validDoc()
+			op := ir.Operation{ID: "op/gql", Bindings: ir.OpBindings{
+				GraphQL: &ir.GraphQLBinding{Kind: "subscription", FieldPath: []string{"f"}},
+			}}
+			tc.bind(doc, &op)
+			doc.Services = []ir.Service{{ID: "s", Groups: []ir.OperationGroup{{Operations: []ir.Operation{op}}}}}
+
+			assert.NotContains(t, codes(pass.Validate(doc)), "pass/args-outside-graphql")
+
+			// The other half of the proof: the same document with the binding
+			// removed must report, or the case would pass on a reachability walk
+			// that reaches nothing at all.
+			doc.Services[0].Groups[0].Operations[0].Bindings.GraphQL = nil
+			assert.Contains(t, codes(pass.Validate(doc)), "pass/args-outside-graphql")
+		})
+	}
 }
 
 // TestValidate_PerOperationAuthOverride covers a per-operation auth override,

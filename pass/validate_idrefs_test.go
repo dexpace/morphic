@@ -72,10 +72,76 @@ func authRefSites() []idRefSite {
 	}
 }
 
+// opRefSites are the fields referencing an operation the document declares.
+//
+// An operation is declared inside the Service→OperationGroup tree rather than in
+// an ID-keyed map on Document, so ir.DocumentRegistries derives no registry for
+// the class and every one of these resolved against nothing at all until
+// ir.Registries.WithDeclarations supplied one (GitHub #50).
+func opRefSites() []idRefSite {
+	return []idRefSite{
+		{"overload of", "ir/dangling-op-ref", ".OverloadOf",
+			func(d *ir.Document, id string) {
+				op := ir.OpID(id)
+				firstOp(d).OverloadOf = &op
+			}, "op/ghost/overload"},
+		{"polling operation", "ir/dangling-op-ref", ".LongRunning.PollingOperation",
+			func(d *ir.Document, id string) {
+				op := ir.OpID(id)
+				longRunning(d).PollingOperation = &op
+			}, "op/ghost/polling"},
+		{"final operation", "ir/dangling-op-ref", ".LongRunning.FinalOperation",
+			func(d *ir.Document, id string) {
+				op := ir.OpID(id)
+				longRunning(d).FinalOperation = &op
+			}, "op/ghost/final"},
+		{"callback operations", "ir/dangling-op-ref", ".Bindings.HTTP[0].Callbacks[0].Operations[0]",
+			func(d *ir.Document, id string) {
+				firstOp(d).Bindings.HTTP = []ir.HTTPBinding{{Method: "GET", URITemplate: "/x",
+					Callbacks: []ir.Callback{{Expression: "$request.body#/cb", Operations: []ir.OpID{ir.OpID(id)}}}}}
+			}, "op/ghost/callback"},
+		{"resource lifecycle", "ir/dangling-op-ref", ".Groups[0].Resource.Lifecycle[read]",
+			func(d *ir.Document, id string) {
+				resource(d).Lifecycle = map[string]ir.OpID{"read": ir.OpID(id)}
+			}, "op/ghost/lifecycle"},
+		{"resource instance ops", "ir/dangling-op-ref", ".Groups[0].Resource.InstanceOps[0]",
+			func(d *ir.Document, id string) {
+				resource(d).InstanceOps = []ir.OpID{ir.OpID(id)}
+			}, "op/ghost/instance"},
+		{"resource collection ops", "ir/dangling-op-ref", ".Groups[0].Resource.CollectionOps[0]",
+			func(d *ir.Document, id string) {
+				resource(d).CollectionOps = []ir.OpID{ir.OpID(id)}
+			}, "op/ghost/collection"},
+	}
+}
+
+// serviceRefSites are the fields referencing a service the document declares.
+// Document.Services is a slice, so this class has no map registry either.
+func serviceRefSites() []idRefSite {
+	return []idRefSite{
+		{"service extends", "ir/dangling-service-ref", ".Extends[0]",
+			func(d *ir.Document, id string) {
+				service(d).Extends = []ir.ServiceID{ir.ServiceID(id)}
+			}, "s/ghost/base"},
+	}
+}
+
+// resource returns the operation group's resource block, creating it on first use
+// so the three resource cases compose in one document.
+func resource(doc *ir.Document) *ir.ResourceInfo {
+	grp := &service(doc).Groups[0]
+	if grp.Resource == nil {
+		grp.Resource = &ir.ResourceInfo{}
+	}
+	return grp.Resource
+}
+
 // idRefSites is the full mutation set.
 func idRefSites() []idRefSite {
 	sites := append(channelRefSites(), messageRefSites()...)
-	return append(sites, authRefSites()...)
+	sites = append(sites, authRefSites()...)
+	sites = append(sites, opRefSites()...)
+	return append(sites, serviceRefSites()...)
 }
 
 // messageBinding returns the operation's message binding, creating it on first
@@ -108,15 +174,22 @@ func registryDoc() *ir.Document {
 }
 
 // resolving returns the ID in the same registry as dangling that registryDoc
-// declares, so the clean half of the mutation proof plants a real reference.
+// declares, so the clean half of the mutation proof plants a real reference. The
+// operation and service cases resolve against the nodes registryDoc declares
+// rather than against a map: "op" and "s" are the IDs the lazily built service
+// and its single operation carry.
 func resolving(dangling string) string {
 	switch dangling[:4] {
 	case "chan":
 		return "chan/a"
 	case "msg/":
 		return "msg/a"
-	default:
+	case "auth":
 		return "auth/a"
+	case "op/g":
+		return "op"
+	default:
+		return "s"
 	}
 }
 
@@ -163,6 +236,31 @@ func TestValidate_ResolvedTypedIDRefsAreClean(t *testing.T) {
 	assert.Empty(t, pass.Validate(doc))
 }
 
+// TestValidate_DanglingOpRefWithNoOperationDeclared drives the case the cases
+// above cannot: a document that declares no operation at all. A Smithy resource
+// names its lifecycle operations, so the reference exists whether or not any
+// ir.Operation does.
+//
+// Which classes resolve has to come from the IR's shape rather than from the
+// declarations a document happens to carry. Read off the declarations, a class
+// nothing declares gets no registry, and a site whose class has no registry is
+// not an unresolved reference — it is no reference at all, which is the silence
+// GitHub #50 is about.
+func TestValidate_DanglingOpRefWithNoOperationDeclared(t *testing.T) {
+	t.Parallel()
+	doc := &ir.Document{Services: []ir.Service{{
+		ID: "s/x",
+		Groups: []ir.OperationGroup{{
+			Resource: &ir.ResourceInfo{InstanceOps: []ir.OpID{"op/ghost/instance"}},
+		}},
+	}}}
+
+	found := withCode(pass.Validate(doc), "ir/dangling-op-ref")
+	require.Len(t, found, 1)
+	assert.Equal(t, ir.SeverityError, found[0].Severity)
+	assert.Contains(t, found[0].Message, "op/ghost/instance")
+}
+
 // sortedIDRefPointers is the location order every run must produce: ascending by
 // pointer, across all three reference classes rather than grouped by class.
 //
@@ -173,11 +271,19 @@ func TestValidate_ResolvedTypedIDRefsAreClean(t *testing.T) {
 var sortedIDRefPointers = []string{
 	"doc.Channels[chan/a].Messages[0]",
 	"doc.Services[0].Auth[0].Schemes[0].Scheme",
+	"doc.Services[0].Extends[0]",
+	"doc.Services[0].Groups[0].Operations[0].Bindings.HTTP[0].Callbacks[0].Operations[0]",
 	"doc.Services[0].Groups[0].Operations[0].Bindings.Message.Channel",
 	"doc.Services[0].Groups[0].Operations[0].Bindings.Message.Messages[0]",
 	"doc.Services[0].Groups[0].Operations[0].Bindings.Message.Reply.Channel",
 	"doc.Services[0].Groups[0].Operations[0].Bindings.Message.Reply.Messages[0]",
 	"doc.Services[0].Groups[0].Operations[0].Bindings.OTP.Process",
+	"doc.Services[0].Groups[0].Operations[0].LongRunning.FinalOperation",
+	"doc.Services[0].Groups[0].Operations[0].LongRunning.PollingOperation",
+	"doc.Services[0].Groups[0].Operations[0].OverloadOf",
+	"doc.Services[0].Groups[0].Resource.CollectionOps[0]",
+	"doc.Services[0].Groups[0].Resource.InstanceOps[0]",
+	"doc.Services[0].Groups[0].Resource.Lifecycle[read]",
 }
 
 // TestValidate_TypedIDDiagnosticOrderIsDeterministic pins invariant 7 across
