@@ -10,6 +10,7 @@ package auth
 
 import (
 	"maps"
+	"strconv"
 	"strings"
 
 	soa "github.com/speakeasy-api/openapi/openapi"
@@ -170,45 +171,73 @@ func scopeMap(f *soa.OAuthFlow) map[string]string {
 	return out
 }
 
-// LowerSecurityRequirements lowers an OR-of-ANDs security list (ir-design §9): a
+// LowerSecurityRequirements lowers an OR-of-ANDs security list (ir-design §9),
+// under base — the pointer of the node the list is declared on ("" for the
+// document root, an operation's own decl pointer otherwise — see ids.Ptr): a
 // nil list inherits the enclosing default; a non-nil list yields one
-// AuthRequirement per option in source order. An empty option object {} means
-// "no auth is one acceptable choice".
-func LowerSecurityRequirements(c lowering.Ctx, reqs []*soa.SecurityRequirement) ([]ir.AuthRequirement, []ir.Diagnostic) {
+// AuthRequirement per surviving option, each diagnosed if need be at its own
+// base+/security/<index> pointer. An empty option object {} means "no auth is
+// one acceptable choice".
+//
+// A requirement is a conjunction: every member must resolve for the option to
+// mean anything, so an option naming even one undeclared scheme is dropped in
+// full rather than surviving with just that member gone (issue #41) — the
+// latter would silently rewrite "this option requires an undeclared scheme" as
+// "no auth is also fine", the empty-option encoding above. When every option in
+// an originally non-empty list drops this way, the list itself collapses to nil
+// — "inherits the enclosing default" — rather than surfacing as [], which reads
+// as the operator's own deliberate "explicitly public" (ir-design §9). A list
+// the source declared empty to begin with is left untouched: that [] is real,
+// not a byproduct of dropping.
+func LowerSecurityRequirements(c lowering.Ctx, reqs []*soa.SecurityRequirement, base string) ([]ir.AuthRequirement, []ir.Diagnostic) {
 	if reqs == nil {
 		return nil, nil
 	}
 	out := make([]ir.AuthRequirement, 0, len(reqs))
 	var diags []ir.Diagnostic
-	for _, req := range reqs {
-		r, reqDiags := lowerSecurityRequirement(c, req)
-		out = append(out, r)
+	for i, req := range reqs {
+		pointer := base + ids.Ptr("security", strconv.Itoa(i))
+		r, ok, reqDiags := lowerSecurityRequirement(c, req, pointer)
 		diags = append(diags, reqDiags...)
+		if ok {
+			out = append(out, r)
+		}
+	}
+	if len(reqs) > 0 && len(out) == 0 {
+		return nil, diags
 	}
 	return out, diags
 }
 
-// lowerSecurityRequirement lowers one requirement option: each member is a
-// scheme reference plus the scopes required of it within this option. A member
-// naming a scheme that is not declared under components.securitySchemes (or one
-// that failed to resolve into the auth registry) is dropped with one error
-// diagnostic rather than writing a dangling AuthID (issue #14).
-func lowerSecurityRequirement(c lowering.Ctx, req *soa.SecurityRequirement,
-) (ir.AuthRequirement, []ir.Diagnostic) {
+// lowerSecurityRequirement lowers one requirement option declared at pointer:
+// each member is a scheme reference plus the scopes required of it within this
+// option. A member naming a scheme that is not declared under
+// components.securitySchemes (or one that failed to resolve into the auth
+// registry) invalidates the whole option, which the caller must drop rather
+// than write out short a member — never a dangling AuthID (issue #14), and
+// never an unintended empty-option encoding (issue #41). ok reports whether the
+// option survives; every unresolved member is still diagnosed individually, at
+// the shared requirement-level pointer, so a multi-member option reports each
+// of its bad names.
+func lowerSecurityRequirement(c lowering.Ctx, req *soa.SecurityRequirement, pointer string,
+) (r ir.AuthRequirement, ok bool, diags []ir.Diagnostic) {
 	if req == nil {
-		return ir.AuthRequirement{}, nil
+		return ir.AuthRequirement{}, true, nil
 	}
 	var uses []ir.SchemeUse
-	var diags []ir.Diagnostic
+	ok = true
 	for name, scopes := range req.All() {
 		id := ids.Auth(name)
 		if !c.DeclaresAuth(id) {
-			diags = append(diags, c.DiagAt(ir.SeverityError, diag.UnresolvedRef,
-				ids.Ptr("components", "securitySchemes", name),
+			diags = append(diags, c.DiagAt(ir.SeverityError, diag.UnresolvedRef, pointer,
 				"security requirement references undeclared scheme %q", name))
+			ok = false
 			continue
 		}
 		uses = append(uses, ir.SchemeUse{Scheme: id, Scopes: scopes})
 	}
-	return ir.AuthRequirement{Schemes: uses}, diags
+	if !ok {
+		return ir.AuthRequirement{}, false, diags
+	}
+	return ir.AuthRequirement{Schemes: uses}, true, diags
 }

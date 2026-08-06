@@ -329,6 +329,17 @@ func countDiagsAt(diags []ir.Diagnostic, code string, sev ir.Severity) int {
 	return n
 }
 
+// firstDiagAt returns the first diagnostic carrying code, so a test can assert
+// on its provenance pointer.
+func firstDiagAt(diags []ir.Diagnostic, code string) (ir.Diagnostic, bool) {
+	for _, d := range diags {
+		if d.Code == code {
+			return d, true
+		}
+	}
+	return ir.Diagnostic{}, false
+}
+
 // indexBy builds a lookup keyed by key(item).
 func indexBy[T any, K comparable](items []T, key func(T) K) map[K]T {
 	out := make(map[K]T, len(items))
@@ -345,12 +356,15 @@ func pathsSpec(paths string) string {
 		"paths:\n" + paths
 }
 
-// TestSecurityRequirement_UndeclaredSchemeIsDroppedNotDangling pins the refusal
-// issue #14 exists for. A requirement may name any string; only a name the
-// document declares has an AuthID behind it, and writing one for a name it does
-// not declare would put a reference into the IR that resolves to nothing. The
-// requirement survives without that scheme, and the drop is reported.
-func TestSecurityRequirement_UndeclaredSchemeIsDroppedNotDangling(t *testing.T) {
+// TestSecurityRequirement_OneUndeclaredMemberDropsTheWholeOption pins the
+// refusal issue #14 exists for, corrected per issue #41. A requirement may name
+// any string; only a name the document declares has an AuthID behind it, and
+// writing one for a name it does not declare would put a reference into the IR
+// that resolves to nothing. But a requirement is a conjunction — "ghost" and
+// "key" must both be satisfied — so ghost failing to resolve makes the whole
+// option unsatisfiable. Keeping the option with only ghost removed would leave
+// behind a requirement for "key" alone, which is not what the source declared.
+func TestSecurityRequirement_OneUndeclaredMemberDropsTheWholeOption(t *testing.T) {
 	t.Parallel()
 	_, svc, diags := serviceSpec(t, `openapi: 3.1.0
 info: {title: T, version: "1"}
@@ -362,15 +376,87 @@ components:
   securitySchemes:
     key: {type: apiKey, in: header, name: X-Key}
 `)
-	require.Len(t, svc.Auth, 1, "the requirement itself survives")
-	named := make([]ir.AuthID, 0, len(svc.Auth[0].Schemes))
-	for _, use := range svc.Auth[0].Schemes {
-		named = append(named, use.Scheme)
-	}
-	assert.Equal(t, []ir.AuthID{ids.Auth("key")}, named,
-		"only the declared scheme is referenced; the other is dropped rather than dangling")
+	assert.Nil(t, svc.Auth,
+		"the sole option named an AND of ghost+key; ghost failing to resolve drops it whole, key included")
 	assert.Equal(t, 1, countDiagsAt(diags, diag.UnresolvedRef, ir.SeverityError),
-		"and the drop is reported exactly once: %+v", diags)
+		"the drop is reported exactly once: %+v", diags)
+}
+
+// TestSecurityRequirement_SoleOptionCollapsesListToNil reproduces issue #41
+// directly: a document-level security list whose only option names an
+// undeclared scheme must not leave behind AuthRequirement{Schemes: nil}, which
+// ir-design §9 reads as "no auth is one acceptable choice" — the opposite of
+// what a demanded-but-undeclared scheme means. Nor may it surface as [], which
+// ir-design §9 reserves for a deliberate "explicitly public" declaration
+// (Service.Auth's doc comment). The list collapses to nil instead: no usable
+// default was declared, so operations fall back exactly as if security had
+// never been written.
+func TestSecurityRequirement_SoleOptionCollapsesListToNil(t *testing.T) {
+	t.Parallel()
+	doc, svc, diags := serviceSpec(t, `openapi: 3.1.0
+info: {title: T, version: "1"}
+security:
+  - missing: []
+paths: {}
+`)
+	assert.Nil(t, svc.Auth, "the only option is broken; the list is not left as [{}] or as []")
+	assert.Empty(t, doc.Auth, "no scheme is declared at all")
+	d, ok := firstDiagAt(diags, diag.UnresolvedRef)
+	require.True(t, ok, "an unresolved-ref diagnostic: %+v", diags)
+	assert.Equal(t, "/security/0", d.Provenance.Pointer,
+		"points at the requirement that named the missing scheme, not a nonexistent components entry")
+}
+
+// TestSecurityRequirement_PartialListDropOnlyRemovesTheBrokenOption pins that a
+// broken option is dropped in isolation: surviving options keep their source
+// order, and a genuinely declared empty option ("no auth is also fine") is
+// untouched by the drop of an unrelated, broken option.
+func TestSecurityRequirement_PartialListDropOnlyRemovesTheBrokenOption(t *testing.T) {
+	t.Parallel()
+	_, svc, diags := serviceSpec(t, `openapi: 3.1.0
+info: {title: T, version: "1"}
+security:
+  - key: []
+  - missing: []
+  - {}
+paths: {}
+components:
+  securitySchemes:
+    key: {type: apiKey, in: header, name: X-Key}
+`)
+	require.Len(t, svc.Auth, 2, "only the middle, broken option drops")
+	require.Len(t, svc.Auth[0].Schemes, 1)
+	assert.Equal(t, ids.Auth("key"), svc.Auth[0].Schemes[0].Scheme, "the first option survives in place")
+	assert.Empty(t, svc.Auth[1].Schemes, "the trailing empty option still means no-auth-is-fine")
+	assert.Equal(t, 1, countDiagsAt(diags, diag.UnresolvedRef, ir.SeverityError))
+}
+
+// TestSecurityRequirement_OperationLevelSoleOptionCollapsesToNil is the
+// operation-level counterpart of TestSecurityRequirement_SoleOptionCollapsesListToNil:
+// an operation's own security override degrades the same way the service
+// default does — collapsing to nil, so the operation falls back to inheriting
+// the service default rather than reading as explicitly public — and its
+// diagnostic points at the operation's own declaration site rather than the
+// document root or a nonexistent components entry.
+func TestSecurityRequirement_OperationLevelSoleOptionCollapsesToNil(t *testing.T) {
+	t.Parallel()
+	_, svc, diags := serviceSpec(t, `openapi: 3.1.0
+info: {title: T, version: "1"}
+paths:
+  /x:
+    get:
+      operationId: x
+      security: [{missing: []}]
+      responses: {"200": {description: ok}}
+`)
+	require.NotEmpty(t, svc.Groups, "the operation was lowered into a group")
+	require.NotEmpty(t, svc.Groups[0].Operations, "the operation was lowered")
+	op := svc.Groups[0].Operations[0]
+	assert.Nil(t, op.Auth, "the operation's sole option is broken; it now inherits the service default")
+	d, ok := firstDiagAt(diags, diag.UnresolvedRef)
+	require.True(t, ok, "an unresolved-ref diagnostic: %+v", diags)
+	assert.Equal(t, "/paths/~1x/get/security/0", d.Provenance.Pointer,
+		"points at the operation's own requirement, not a nonexistent components entry")
 }
 
 // TestSecurityRequirements_AnEmptyListIsNotAnAbsentOne pins the difference
@@ -386,11 +472,11 @@ func TestSecurityRequirements_AnEmptyListIsNotAnAbsentOne(t *testing.T) {
 	t.Parallel()
 	var c lowering.Ctx
 
-	absent, absentDiags := auth.LowerSecurityRequirements(c, nil)
+	absent, absentDiags := auth.LowerSecurityRequirements(c, nil, "")
 	assert.Nil(t, absent, "no security key at all inherits the enclosing default")
 	assert.Empty(t, absentDiags)
 
-	empty, emptyDiags := auth.LowerSecurityRequirements(c, []*soa.SecurityRequirement{})
+	empty, emptyDiags := auth.LowerSecurityRequirements(c, []*soa.SecurityRequirement{}, "")
 	assert.NotNil(t, empty, "an empty list is a declaration, not an absence")
 	assert.Empty(t, empty, "and it declares no options")
 	assert.Empty(t, emptyDiags)
