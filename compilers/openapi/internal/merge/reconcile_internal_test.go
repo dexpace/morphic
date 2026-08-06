@@ -84,6 +84,116 @@ func TestReconcileProperty_AnIdenticalDescriptionIsNotADisagreement(t *testing.T
 	assert.Empty(t, *recorded)
 }
 
+// readOnlyVisibility and writeOnlyVisibility are the two non-empty shapes
+// EffectiveVisibility ever produces, reused across the visibility-merge
+// cases below rather than re-spelling the lifecycle lists in each one.
+var (
+	readOnlyVisibility  = ir.Visibility{Only: []ir.Lifecycle{ir.LifecycleRead, ir.LifecycleDelete, ir.LifecycleQuery}}
+	writeOnlyVisibility = ir.Visibility{Only: []ir.Lifecycle{ir.LifecycleCreate, ir.LifecycleUpdate}}
+)
+
+// TestMergeVisibility_IntersectsUnderAllOfSemantics pins the shapes an allOf
+// redeclaration's Visibility pairing can take. An empty Only means
+// unrestricted rather than restricted-to-nothing (ir-design §5.2), so the
+// merge has to read each side as the set it admits before intersecting —
+// a plain append would treat "unrestricted" as "restricted to zero
+// lifecycles" and fail every case here except the first.
+func TestMergeVisibility_IntersectsUnderAllOfSemantics(t *testing.T) {
+	t.Parallel()
+	unrestricted := ir.Visibility{}
+	invisible := ir.Visibility{None: true}
+
+	tests := []struct {
+		name     string
+		dst, src ir.Visibility
+		want     ir.Visibility
+	}{
+		{
+			name: "neither branch restricts visibility",
+			dst:  unrestricted, src: unrestricted,
+			want: unrestricted,
+		},
+		{
+			// The issue's own reproduction: a first branch that leaves the
+			// field unrestricted must not shadow a later branch's readOnly.
+			name: "only the redeclaration restricts visibility",
+			dst:  unrestricted, src: readOnlyVisibility,
+			want: readOnlyVisibility,
+		},
+		{
+			name: "only the first declaration restricts visibility",
+			dst:  readOnlyVisibility, src: unrestricted,
+			want: readOnlyVisibility,
+		},
+		{
+			name: "both branches agree on the same restriction",
+			dst:  readOnlyVisibility, src: readOnlyVisibility,
+			want: readOnlyVisibility,
+		},
+		{
+			// readOnly admits {read, delete, query}; writeOnly admits
+			// {create, update} — disjoint sets whose intersection is empty,
+			// meaning the field can satisfy no lifecycle both branches
+			// admit. None is the IR's existing shape for "visible in no
+			// lifecycle" (TypeSpec @invisible), so the empty intersection is
+			// recorded exactly rather than read as unrestricted.
+			name: "disjoint restrictions intersect to invisible",
+			dst:  readOnlyVisibility, src: writeOnlyVisibility,
+			want: invisible,
+		},
+		{
+			name: "None on the first declaration dominates",
+			dst:  invisible, src: readOnlyVisibility,
+			want: invisible,
+		},
+		{
+			name: "None on the redeclaration dominates",
+			dst:  readOnlyVisibility, src: invisible,
+			want: invisible,
+		},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			assert.Equal(t, tc.want, mergeVisibility(tc.dst, tc.src),
+				"mergeVisibility(dst, src) for %q", tc.name)
+			assert.Equal(t, tc.want, mergeVisibility(tc.src, tc.dst),
+				"mergeVisibility(src, dst) must agree — allOf branch order is not semantic, for %q", tc.name)
+		})
+	}
+}
+
+// TestReconcileProperty_VisibilityAdoptedFromRedeclaration pins the issue's
+// own reproduction at the reconcile layer (GitHub #34): a property left
+// unrestricted by its first declaration must adopt a later branch's readOnly
+// rather than silently keep the first, empty Visibility.
+func TestReconcileProperty_VisibilityAdoptedFromRedeclaration(t *testing.T) {
+	t.Parallel()
+	g, _ := stubMerger(nil)
+	dst := ir.Property{WireName: "id"}
+
+	g.reconcileProperty(&dst, ir.Property{WireName: "id", Visibility: readOnlyVisibility}, "/other")
+
+	assert.Equal(t, readOnlyVisibility, dst.Visibility)
+}
+
+// TestReconcileProperty_DisjointVisibilityIsARestrictionNotAConflict pins the
+// deliberate choice for an allOf pairing that admits no lifecycle at all
+// (readOnly against writeOnly on the same field): mergeVisibility already
+// represents that exactly as None, so reconcileProperty must record it rather
+// than route it through diagnoseRedeclarationConflict — unlike an
+// incompatible-type redeclaration, nothing here is arbitrarily discarded.
+func TestReconcileProperty_DisjointVisibilityIsARestrictionNotAConflict(t *testing.T) {
+	t.Parallel()
+	g, recorded := stubMerger(nil)
+	dst := ir.Property{WireName: "id", Visibility: readOnlyVisibility}
+
+	g.reconcileProperty(&dst, ir.Property{WireName: "id", Visibility: writeOnlyVisibility}, "/other")
+
+	assert.Equal(t, ir.Visibility{None: true}, dst.Visibility)
+	assert.Empty(t, *recorded, "a disjoint visibility pairing is a restriction to record, not a conflict to diagnose")
+}
+
 // TestDiagnoseRedeclarationConflict_ConstraintDisagreementIsReported pins the
 // second of the two conflict routes. Two branches that agree on type but pin one
 // keyword to different values produce a merge that keeps dst's bound, so the
