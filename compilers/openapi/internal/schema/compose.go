@@ -617,8 +617,12 @@ func composesAsModel(s *oas3.Schema) bool {
 
 // unionBranches returns the branches of whichever combinator the schema
 // declares, the keyword's name (for pointers), and whether it is exclusive.
-// oneOf wins when both are present; only the verbatim lowering ever sees that
-// shape, and it keeps both keywords.
+//
+// oneOf wins when both are written, so every caller owns the set it passed over:
+// buildUnion keeps it on the Union (preserveUnusedCombinator), nullUnionCollapse
+// declines to collapse past it, and the verbatim lowering keeps both keywords
+// (preserveUnionSiblings). Reading the preference as one only that last lowering
+// could reach is what dropped the anyOf in silence (GitHub #35).
 func unionBranches(s *oas3.Schema) ([]*oas3.JSONSchema[oas3.Referenceable], string, bool) {
 	if branches := s.GetOneOf(); len(branches) > 0 {
 		return branches, "oneOf", true
