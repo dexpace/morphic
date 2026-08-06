@@ -381,7 +381,7 @@ func TestDynamicAnchorIndex_ReportsATruncatedWalk(t *testing.T) {
 func TestPreserveUnhomedKeywords_MissingNode(t *testing.T) {
 	t.Parallel()
 	l := newRawLowerer(&soa.OpenAPI{})
-	got, diags := preserveUnhomedKeywords(l.ctx, l.types, &oas3.Schema{}, "/p", "h", "t/anon/missing")
+	got, diags := preserveUnhomedKeywords(l.ctx, l.types, &oas3.Schema{}, "/p", "h", "t/anon/missing", dispatch{})
 	assert.Equal(t, ir.TypeID("t/anon/missing"), got, "the lowering's own ID still stands")
 	assertInternalInvariant(t, diags)
 }
@@ -394,6 +394,18 @@ func TestRecordUnhomedKeywords_MissingOwner(t *testing.T) {
 	t.Parallel()
 	l := newRawLowerer(&soa.OpenAPI{})
 	diags := recordUnhomedKeywords(l.ctx, l.types, "t/anon/missing", &oas3.Schema{}, []string{"items"}, ir.KindPrimitive, "/p")
+	assertInternalInvariant(t, diags)
+}
+
+// TestRecordSkippedFamilies_MissingOwner drives the same invariant on the
+// keyword families the dispatch passed over. It is reached directly for the
+// reason its unhomed-applicator twin is: the caller hands it either the node it
+// just looked up or one internAlias just interned, so no source reaches this.
+func TestRecordSkippedFamilies_MissingOwner(t *testing.T) {
+	t.Parallel()
+	l := newRawLowerer(&soa.OpenAPI{})
+	diags := recordSkippedFamilies(l.ctx, l.types, "t/anon/missing", &oas3.Schema{},
+		dispatch{won: "const", skipped: []string{"enum"}}, "/p")
 	assertInternalInvariant(t, diags)
 }
 

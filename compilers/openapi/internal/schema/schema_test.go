@@ -3442,3 +3442,105 @@ func TestUnhomedApplicator_FormatWithNoTypeIsKept(t *testing.T) {
 		"a format with no type to pair with reaches no field, so it is kept")
 	assert.True(t, hasDiag(diags, diag.DegradedConstruct), "and the position says so")
 }
+
+// TestCoDeclaredFamily_PassedOverKeywordIsKept covers the families lower()'s
+// first-match dispatch used to drop (GitHub #35).
+//
+// const, enum and allOf compete for one position and only the first declared was
+// read; the rest left no Unmodeled entry and no diagnostic. `allOf: [{$ref:
+// Base}]` beside an enum is the narrowing idiom rather than a malformed
+// document, so what vanished was the entire relationship to Base.
+//
+// Each case names the family the dispatch elects and the one it passes over, so
+// a reordered dispatch fails here rather than quietly changing which half of a
+// schema the IR describes.
+func TestCoDeclaredFamily_PassedOverKeywordIsKept(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct {
+		name, body, skipped, raw string
+		lowered                  ir.TypeKind
+	}{
+		{
+			name:    "allOf beside enum",
+			body:    "      allOf: [{$ref: '#/components/schemas/Base'}]\n      enum: [a, b]\n",
+			skipped: "allOf",
+			raw:     `[{"$ref":"#/components/schemas/Base"}]`,
+			lowered: ir.KindEnum,
+		},
+		{
+			name:    "allOf beside const",
+			body:    "      allOf: [{$ref: '#/components/schemas/Base'}]\n      const: a\n",
+			skipped: "allOf",
+			raw:     `[{"$ref":"#/components/schemas/Base"}]`,
+			lowered: ir.KindLiteral,
+		},
+		{
+			name:    "enum beside const",
+			body:    "      const: a\n      enum: [a, b]\n",
+			skipped: "enum",
+			raw:     `["a","b"]`,
+			lowered: ir.KindLiteral,
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			doc, diags := lowerSpec(t, componentSpec(
+				"    Base: {type: object, properties: {id: {type: string}}}\n    S:\n"+tc.body))
+			requireNoErrorDiags(t, diags)
+
+			td := typeByName(doc, "S")
+			require.NotNil(t, td)
+			assert.Equal(t, tc.lowered, td.Kind(), "the elected family still lowers")
+			entry, ok := td.Common().Unmodeled["openapi:"+tc.skipped]
+			require.True(t, ok, "%s is kept verbatim; got %v", tc.skipped, td.Common().Unmodeled)
+			assert.Equal(t, ir.ReasonDegradedLowering, entry.Reason)
+			assert.JSONEq(t, tc.raw, string(entry.Value))
+			assert.Equal(t, "/components/schemas/S/"+tc.skipped, entry.Provenance.Pointer,
+				"routable to where it was written")
+			assert.Contains(t,
+				diagMessageAt(t, diags, diag.DegradedConstruct, ir.SeverityInfo, "/components/schemas/S"),
+				tc.skipped+" kept verbatim under Unmodeled")
+		})
+	}
+}
+
+// TestCoDeclaredFamily_EveryPassedOverKeywordIsKept pins the plural arm: a
+// schema writing all three keeps both of the two it did not elect, named
+// together in one report rather than one of them standing in for the rest.
+func TestCoDeclaredFamily_EveryPassedOverKeywordIsKept(t *testing.T) {
+	t.Parallel()
+	doc, diags := lowerSpec(t, componentSpec(`    Base: {type: object, properties: {id: {type: string}}}
+    S:
+      const: a
+      enum: [a, b]
+      allOf: [{$ref: '#/components/schemas/Base'}]
+`))
+	requireNoErrorDiags(t, diags)
+
+	p := typeByName(doc, "S").Common().Unmodeled
+	assert.Contains(t, p, "openapi:enum")
+	assert.Contains(t, p, "openapi:allOf")
+	assert.Contains(t,
+		diagMessageAt(t, diags, diag.DegradedConstruct, ir.SeverityInfo, "/components/schemas/S"),
+		"declares enum and allOf beside its const",
+		"both are named in the one report")
+}
+
+// TestCoDeclaredFamily_UnpreservableIsNotAnnounced pins the pairing GitHub #144
+// exists for, at this site: the allOf fails to convert, so the enum lowers, the
+// failure is reported at the keyword, and nothing claims the composition
+// survived.
+func TestCoDeclaredFamily_UnpreservableIsNotAnnounced(t *testing.T) {
+	t.Parallel()
+	doc, diags := lowerSpec(t, componentSpec(`    S:
+      allOf: [{type: object, x-t: `+unpreservableValue+`}]
+      enum: [a, b]
+`))
+
+	td := typeByName(doc, "S")
+	require.NotNil(t, td)
+	assert.NotContains(t, td.Common().Unmodeled, "openapi:allOf", "the conversion failed")
+	assert.True(t, hasDiag(diags, diag.UnpreservableConstruct), "the failure itself is reported")
+	assert.Empty(t, preservationClaims(diags),
+		"nothing was written under Unmodeled, so nothing may announce that it was")
+}

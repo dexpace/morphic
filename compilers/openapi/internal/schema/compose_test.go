@@ -1779,3 +1779,102 @@ func TestOneOf_CoDeclaredNotDistributedReasons(t *testing.T) {
 	assert.Equal(t, 5, countDiagsAt(diags, diag.DegradedConstruct, ir.SeverityInfo),
 		"each declined shape is reported once; got %+v", diags)
 }
+
+// TestUnionCombinators_PassedOverBranchSetIsKept covers the preference nothing
+// used to record (GitHub #35). unionBranches takes oneOf whenever it is written
+// and falls back to anyOf only when it is not, so a schema declaring both lost
+// the anyOf outright — no variant, no Unmodeled entry, no diagnostic. The two
+// conjoin, and one ir.Union carries one branch set, so the elected set stays the
+// union and the other is kept beside it.
+func TestUnionCombinators_PassedOverBranchSetIsKept(t *testing.T) {
+	t.Parallel()
+	doc, diags := lowerSpec(t, componentSpec(`    S:
+      oneOf: [{type: string}, {type: integer}]
+      anyOf: [{type: number}, {type: boolean}]
+`))
+	requireNoErrorDiags(t, diags)
+
+	u, ok := typeByName(doc, "S").(*ir.Union)
+	require.True(t, ok, "the elected branch set still becomes the union")
+	assert.Len(t, u.Variants, 2, "one variant per oneOf branch")
+	entry, ok := u.Unmodeled["openapi:anyOf"]
+	require.True(t, ok, "the set unionBranches passed over is kept; got %v", u.Unmodeled)
+	assert.Equal(t, ir.ReasonDegradedLowering, entry.Reason)
+	assert.JSONEq(t, `[{"type":"number"},{"type":"boolean"}]`, string(entry.Value))
+	assert.Contains(t,
+		diagMessageAt(t, diags, diag.DegradedConstruct, ir.SeverityInfo, "/components/schemas/S"),
+		"lowered as its oneOf, with anyOf kept verbatim under Unmodeled")
+}
+
+// TestUnionCombinators_NullBranchDoesNotCollapsePastTheAnyOf covers the second
+// site of the same preference. A {X, null} oneOf normally collapses to nullable
+// X, which resolves the position straight to X's own node — the shared string
+// primitive here — leaving the co-declared anyOf nowhere of its own to sit; it
+// was dropped there too. A schema writing both combinators is not nullable X in
+// the first place, so it stays a Union and keeps the loser on it.
+func TestUnionCombinators_NullBranchDoesNotCollapsePastTheAnyOf(t *testing.T) {
+	t.Parallel()
+	doc, diags := lowerSpec(t, componentSpec(`    S:
+      oneOf: [{type: string}, {type: "null"}]
+      anyOf: [{type: number}, {type: boolean}]
+`))
+	requireNoErrorDiags(t, diags)
+
+	u, ok := typeByName(doc, "S").(*ir.Union)
+	require.True(t, ok, "the collapse is declined; got %v", typeByName(doc, "S"))
+	require.Len(t, u.Variants, 1, "the null branch still lifts off the variant list")
+	assert.Equal(t, ir.TypeID("t/prim/string"), u.Variants[0].Type.Target)
+	assert.Contains(t, u.Unmodeled, "openapi:anyOf",
+		"and the node the position now owns carries the set passed over")
+}
+
+// TestUnionCombinators_UnpreservableIsNotAnnounced pins the pairing GitHub #144
+// exists for, at this site: a position may only announce what it actually kept.
+// The anyOf here fails to convert, so the union lowers, the failure is reported
+// at the keyword, and nothing claims the branch set survived.
+func TestUnionCombinators_UnpreservableIsNotAnnounced(t *testing.T) {
+	t.Parallel()
+	doc, diags := lowerSpec(t, componentSpec(`    S:
+      oneOf: [{type: string}, {type: integer}]
+      anyOf: [{type: number, x-t: `+unpreservableValue+`}]
+`))
+
+	u, ok := typeByName(doc, "S").(*ir.Union)
+	require.True(t, ok)
+	assert.NotContains(t, u.Unmodeled, "openapi:anyOf", "the conversion failed, so nothing was kept")
+	assert.True(t, hasDiag(diags, diag.UnpreservableConstruct), "the failure itself is reported")
+	assert.Empty(t, preservationClaims(diags),
+		"nothing was written under Unmodeled, so nothing may announce that it was")
+}
+
+// TestUnionCombinators_KeepingIsOrderIndependent states the property over the
+// whole document: declining the collapse gives this position a Union of its own
+// and turns its branches into ordinary union branches, so an outside $ref naming
+// one of them must reach the same IR whichever of the two is declared first.
+//
+// The branch writes a description on purpose. A bare `{type: string}` branch
+// interns nothing through the union — it resolves to the shared primitive — so
+// only the outside $ref would ever hoist a node there and the two could not
+// disagree about one. Declaring something position-scoped makes both lowerings
+// hoist the branch's home, which is the state where only the first to arrive
+// interns it and the hints have to agree (branchHint, subSchemaHint, #181).
+func TestUnionCombinators_KeepingIsOrderIndependent(t *testing.T) {
+	t.Parallel()
+	host := `    S:
+      oneOf:
+        - {type: string, description: the branch}
+        - {type: "null"}
+      anyOf: [{type: number}, {type: boolean}]
+`
+	outsider := "    Outsider: {$ref: '#/components/schemas/S/oneOf/0'}\n"
+	first, diags := parseFull(t, componentSpec(outsider+host))
+	requireNoErrorDiags(t, diags)
+	last, diags := parseFull(t, componentSpec(host+outsider))
+	requireNoErrorDiags(t, diags)
+
+	require.Contains(t, first.Types, ir.TypeID("t/anon/components/schemas/S/oneOf/0"),
+		"the branch owns a node both lowerings reach, or there is nothing to race for")
+	assert.Empty(t, cmp.Diff(first, last, orderInvariantIR()...),
+		"declaring the reference before or after the union must not change the IR")
+	assert.Empty(t, cmp.Diff(first.Types, last.Types), "nor any name hint in the registry")
+}
