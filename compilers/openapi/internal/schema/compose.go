@@ -977,9 +977,14 @@ func propIDByName(m *ir.Model, name string) (ir.PropID, bool) {
 // `nullable: true` — spells its nullable enum by listing `null` among the
 // members, so that member is stripped and normalized onto the enclosing
 // reference's Nullable bit (ir-design §3.3) rather than degrading the whole
-// enum. schemaAdmitsNull is what decides that here *and* what every use site
-// re-derives the bit from (refNullable), so the null this drops is exactly the
-// null they put back; a spelling only one of them recognized would lose it.
+// enum. schemaAdmitsNull is what decides that here *and* what a reference
+// re-derives the bit from (refNullable at a $ref site, lowerSchemaBody inline),
+// so the null this drops is exactly the null those put back; a spelling only one
+// of them recognized would lose it. A conjunct position is the standing
+// exception: Model.Base and Mixins name one side of a conjunction and carry no
+// Nullable bit at all (conjoinBranch), so an `allOf: [{$ref: T}]` over a nullable
+// T reaches no null — in every spelling of T's nullability, this one included
+// rather than this one only. GitHub #279 holds that.
 //
 // That is also why the enum's own `null` member does not itself count as
 // admitting null: `{enum: [red, green, null]}` with no type keyword is left to

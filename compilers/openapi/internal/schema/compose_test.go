@@ -1070,9 +1070,9 @@ func TestEnum_NullMemberNormalizesToNullable(t *testing.T) {
 // The last three rows are the ones that decide how far the rule reaches. A
 // schema whose type keyword excludes null conjoins the two, so its `null` member
 // admits nothing and normalizing would widen the type; a bare enum declares no
-// nullability that schemaAdmitsNull — which every use site re-derives the bit
-// from — would recognize, so stripping there would drop the null entirely; and
-// an all-null set has no member left to build an Enum from.
+// nullability that schemaAdmitsNull — which a reference re-derives the bit from
+// — would recognize, so stripping there would drop the null entirely; and an
+// all-null set has no member left to build an Enum from.
 func TestEnum_NullMemberKeepsUnionFallback(t *testing.T) {
 	t.Parallel()
 	null := ir.Value{Kind: ir.ValueNull}

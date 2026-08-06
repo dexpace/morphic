@@ -935,6 +935,11 @@ func assertNullable31Ref(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
 // onto the Nullable bit of every reference to the enum rather than degrading the
 // declaration to a union of literals, so the capability being claimed is the
 // pair — a closed Enum of the scalar members, and null admitted at each use.
+//
+// The golden beside this case cannot pin the strip on its own: the type array
+// already carries the bit, so deleting the `null` member from the spec leaves
+// the IR body byte-identical and moves only the source hash. The member count
+// below is what pins it.
 func assertNullableEnum31(t *testing.T, doc *ir.Document, diags []ir.Diagnostic) {
 	e, ok := doc.Types[namedID("Color")].(*ir.Enum)
 	require.True(t, ok, "the null member does not cost the declaration its enum-ness")
