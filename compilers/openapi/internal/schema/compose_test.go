@@ -1852,12 +1852,14 @@ func TestUnionCombinators_UnpreservableIsNotAnnounced(t *testing.T) {
 // and turns its branches into ordinary union branches, so an outside $ref naming
 // one of them must reach the same IR whichever of the two is declared first.
 //
-// The branch writes a description on purpose. A bare `{type: string}` branch
-// interns nothing through the union — it resolves to the shared primitive — so
-// only the outside $ref would ever hoist a node there and the two could not
-// disagree about one. Declaring something position-scoped makes both lowerings
-// hoist the branch's home, which is the state where only the first to arrive
-// interns it and the hints have to agree (branchHint, subSchemaHint, #181).
+// The branch writes a description on purpose, and the guard below is what keeps
+// that load-bearing. A bare `{type: string}` branch resolves through the union to
+// the shared primitive, so the outside $ref is the only lowering that ever hoists
+// a node at the branch pointer: the node is still *there*, which is why asserting
+// its presence proves nothing — one lowering put it there and no hint ever had to
+// agree with another. Pinning the union's own variant to that node is what puts
+// both lowerings on the pointer, which is the state where only the first to
+// arrive interns it (branchHint, subSchemaHint, #181).
 func TestUnionCombinators_KeepingIsOrderIndependent(t *testing.T) {
 	t.Parallel()
 	host := `    S:
@@ -1872,8 +1874,13 @@ func TestUnionCombinators_KeepingIsOrderIndependent(t *testing.T) {
 	last, diags := parseFull(t, componentSpec(host+outsider))
 	requireNoErrorDiags(t, diags)
 
-	require.Contains(t, first.Types, ir.TypeID("t/anon/components/schemas/S/oneOf/0"),
-		"the branch owns a node both lowerings reach, or there is nothing to race for")
+	for _, doc := range []*ir.Document{first, last} {
+		u, ok := typeByName(doc, "S").(*ir.Union)
+		require.True(t, ok, "the position is the Union that keeps the passed-over set")
+		require.Len(t, u.Variants, 1, "the null branch still lifts off the variant list")
+		require.Equal(t, ir.TypeID("t/anon/components/schemas/S/oneOf/0"), u.Variants[0].Type.Target,
+			"the union reaches the branch's own node, or the $ref is the only lowering that does")
+	}
 	assert.Empty(t, cmp.Diff(first, last, orderInvariantIR()...),
 		"declaring the reference before or after the union must not change the IR")
 	assert.Empty(t, cmp.Diff(first.Types, last.Types), "nor any name hint in the registry")
