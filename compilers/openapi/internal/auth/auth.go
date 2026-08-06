@@ -171,13 +171,19 @@ func scopeMap(f *soa.OAuthFlow) map[string]string {
 	return out
 }
 
-// LowerSecurityRequirements lowers an OR-of-ANDs security list (ir-design §9),
-// under base — the pointer of the node the list is declared on ("" for the
-// document root, an operation's own decl pointer otherwise — see ids.Ptr): a
-// nil list inherits the enclosing default; a non-nil list yields one
-// AuthRequirement per surviving option, each diagnosed if need be at its own
-// base+/security/<index> pointer. An empty option object {} means "no auth is
-// one acceptable choice".
+// LowerSecurityRequirements lowers an OR-of-ANDs security list (ir-design §9)
+// declared under base — the pointer of the node carrying the list, which is ""
+// at the document root and an operation's own declaration pointer, never its
+// mount, otherwise: a nil list inherits the enclosing default; a non-nil list
+// yields one AuthRequirement per surviving option, each diagnosed if need be at
+// its own base+/security/<index> pointer. An empty option object {} means "no
+// auth is one acceptable choice".
+//
+// An entry the source wrote as something other than an object reaches here as
+// an empty option rather than as a nil one, so it lowers to that same encoding
+// and the collapse below never sees it. Telling the two apart needs the parse
+// the loader already rejected, so it is issue #284's to fix and deliberately
+// out of scope here — which is also why the nil guard below is not that site.
 //
 // A requirement is a conjunction: every member must resolve for the option to
 // mean anything, so an option naming even one undeclared scheme is dropped in

@@ -341,6 +341,19 @@ func firstDiagAt(diags []ir.Diagnostic, code string) (ir.Diagnostic, bool) {
 	return ir.Diagnostic{}, false
 }
 
+// messagesAt returns the message of every diagnostic carrying code, in the order
+// they were reported, so a caller can pin which names were reported and not only
+// how many.
+func messagesAt(diags []ir.Diagnostic, code string) []string {
+	var out []string
+	for _, d := range diags {
+		if d.Code == code {
+			out = append(out, d.Message)
+		}
+	}
+	return out
+}
+
 // sortedPointersAt returns every provenance pointer carried by a diagnostic
 // with code, sorted so a caller pins the set rather than the walk's order.
 func sortedPointersAt(diags []ir.Diagnostic, code string) []string {
@@ -406,6 +419,33 @@ components:
 		"the sole option named an AND of ghost+key; ghost failing to resolve drops it whole, key included")
 	assert.Equal(t, 1, countDiagsAt(diags, diag.UnresolvedRef, ir.SeverityError),
 		"the drop is reported exactly once: %+v", diags)
+}
+
+// TestSecurityRequirement_EveryUndeclaredMemberOfAnOptionIsReported pins the one
+// thing dropping the option whole must not cost. The option is refused once, but
+// each name that failed is still named — so a reader fixing the document sees
+// every scheme it has to declare, not only the first one the walk tripped over.
+//
+// Nothing about the compiled Auth can see this: stopping at the first bad member
+// drops exactly the same option and collapses exactly the same list, so only the
+// diagnostics separate the two. Both names are undeclared here for that reason,
+// and they are read in source order, which is the order the IR promises.
+func TestSecurityRequirement_EveryUndeclaredMemberOfAnOptionIsReported(t *testing.T) {
+	t.Parallel()
+	_, svc, diags := serviceSpec(t, `openapi: 3.1.0
+info: {title: T, version: "1"}
+security:
+  - ghostA: []
+    ghostB: []
+paths: {}
+`)
+	assert.Nil(t, svc.Auth, "neither name resolves, so the sole option drops and the list collapses")
+	reported := messagesAt(diags, diag.UnresolvedRef)
+	require.Len(t, reported, 2, "both undeclared names are reported, not just the first: %+v", diags)
+	assert.Contains(t, reported[0], `"ghostA"`)
+	assert.Contains(t, reported[1], `"ghostB"`, "reported in the order the source names them")
+	assert.Equal(t, []string{"/security/0", "/security/0"}, sortedPointersAt(diags, diag.UnresolvedRef),
+		"each names the option that declared it, which both members share")
 }
 
 // TestSecurityRequirement_SoleOptionCollapsesListToNil reproduces issue #41
