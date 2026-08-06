@@ -65,6 +65,13 @@ func EffectiveDeprecated(ref, tgt *oas3.Schema) bool {
 // EffectiveVisibility maps readOnly/writeOnly to a lifecycle visibility set
 // (ir-design §5.2): readOnly is present in every response lifecycle
 // (read/delete/query) and absent only from requests; writeOnly is create+update.
+//
+// A single schema declaring both flags keeps readOnly's set, since the switch
+// below takes the first matching case. Spread across two allOf branches the
+// same pairing instead intersects to Visibility{None: true}, the two sets
+// being disjoint — so one schema and two branches answer differently for what
+// a reader would call the same input. That divergence is tracked in #276 and
+// deliberately not settled here.
 func EffectiveVisibility(ref, tgt *oas3.Schema) ir.Visibility {
 	switch {
 	case pickFlag(ref, tgt, func(s *oas3.Schema) *bool { return s.ReadOnly }):
