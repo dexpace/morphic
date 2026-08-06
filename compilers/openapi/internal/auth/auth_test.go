@@ -268,11 +268,15 @@ components:
 }
 
 // TestLowerSecuritySchemes_NothingLoweredIsNilNotEmpty pins the guard that
-// keeps an empty map out of the document, and that the entry it drops is
-// reported. A components.securitySchemes block whose every entry fails to
-// resolve declares no scheme the IR can carry, and an empty Auth map would be a
-// field the source never wrote — but dropping the entry without a word would
-// leave the document's own declaration unaccounted for.
+// keeps an empty map out of the document. A components.securitySchemes block
+// whose every entry fails to resolve declares no scheme the IR can carry, and
+// an empty Auth map would be a field the source never wrote.
+//
+// The entry is a hand-built nil, which no parsed document produces — a
+// malformed entry still arrives as an object. That makes this the nil-guard
+// case rather than the reporting one, so nothing is reported: the entry carries
+// no $ref to have failed. TestLowerSecuritySchemes_OnlyABrokenRefIsSitedHere
+// covers the shapes a document can write, through the compiler.
 func TestLowerSecuritySchemes_NothingLoweredIsNilNotEmpty(t *testing.T) {
 	t.Parallel()
 	doc := &soa.OpenAPI{Components: &soa.Components{
@@ -283,39 +287,70 @@ func TestLowerSecuritySchemes_NothingLoweredIsNilNotEmpty(t *testing.T) {
 	got, diags := auth.LowerSecuritySchemes(lowering.Ctx{Doc: doc})
 
 	assert.Nil(t, got, "an unresolvable entry leaves no map behind")
-	require.Len(t, diags, 1, "but it is reported, not dropped in silence: %+v", diags)
-	assert.Equal(t, ir.SeverityError, diags[0].Severity)
-	assert.Equal(t, diag.UnresolvedRef, diags[0].Code)
-	assert.Equal(t, "/components/securitySchemes/ghost", diags[0].Provenance.Pointer,
-		"at the entry the document wrote, which is a position that exists")
+	assert.Empty(t, diags, "a nil entry names no reference that could have failed")
 }
 
-// TestLowerSecuritySchemes_AnUnreferencedBrokenEntryIsStillSited pins the case
-// with no other reporter, through the compiler rather than a hand-built node.
+// TestLowerSecuritySchemes_OnlyABrokenRefIsSitedHere pins which unresolvable
+// entries this package reports and which it leaves alone, through the compiler
+// rather than a hand-built node — the shapes below are what a document can
+// actually write, and a hand-built one is not among them.
 //
-// A scheme whose $ref resolves to nothing is dropped from the registry. When a
-// requirement names it, that requirement's own diagnostic already sites the
-// trouble and this one reads as redundant — but nothing has to name it, and
-// then the entry is a scheme the document declares, the IR drops, and no sited
-// diagnostic accounts for. The load phase does report the underlying resolution
-// failure, at no pointer at all (issue #235), which is why the assertion below
-// is on the pointer rather than on how many reports there are.
-func TestLowerSecuritySchemes_AnUnreferencedBrokenEntryIsStillSited(t *testing.T) {
+// Every case here drops the entry from the registry, and none is named by any
+// security requirement, so nothing downstream would report it either. What
+// separates them is whether anything else already places the fault. A $ref that
+// resolves to nothing is reported by the load phase at no pointer at all
+// (issue #235), leaving the entry unplaced — that is the gap this package
+// fills. An entry written as something other than an object already draws the
+// loader's type-mismatch, which names both the entry and what was wrong with
+// it, so a second report would send the reader to the same place to learn less.
+func TestLowerSecuritySchemes_OnlyABrokenRefIsSitedHere(t *testing.T) {
 	t.Parallel()
-	doc, _, diags := serviceSpec(t, `openapi: 3.1.0
+	cases := []struct {
+		name  string
+		entry string
+		// wantRef is the reference the report must name, or "" when this
+		// package is expected to report nothing at all.
+		wantRef string
+	}{
+		{
+			name:    "a $ref naming no target in this document",
+			entry:   `{$ref: '#/components/securitySchemes/Missing'}`,
+			wantRef: "#/components/securitySchemes/Missing",
+		},
+		{
+			name:    "a $ref out to a document this compile refuses to read",
+			entry:   `{$ref: 'other.yaml#/components/securitySchemes/X'}`,
+			wantRef: "other.yaml#/components/securitySchemes/X",
+		},
+		{name: "an entry written as null", entry: `null`},
+		{name: "an entry written as a scalar", entry: `42`},
+		{name: "an entry written as a sequence", entry: `[a]`},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			doc, _, diags := serviceSpec(t, `openapi: 3.1.0
 info: {title: T, version: "1"}
 paths: {}
 components:
   securitySchemes:
-    ghost: {$ref: '#/components/securitySchemes/Missing'}
+    ghost: `+tc.entry+`
     key: {type: apiKey, in: header, name: X-Key}
 `)
-	require.Len(t, doc.Auth, 1, "the resolvable sibling is still interned")
-	assert.Contains(t, doc.Auth, ids.Auth("key"))
-	assert.NotContains(t, doc.Auth, ids.Auth("ghost"), "the broken one is not")
-	assert.Contains(t, sortedPointersAt(diags, diag.UnresolvedRef),
-		"/components/securitySchemes/ghost",
-		"the drop is sited at the entry that was written: %+v", diags)
+			assert.NotContains(t, doc.Auth, ids.Auth("ghost"), "the entry interns no scheme")
+			assert.Contains(t, doc.Auth, ids.Auth("key"), "its resolvable sibling still does")
+
+			got := messagesAtPointer(diags, "/components/securitySchemes/ghost")
+			if tc.wantRef == "" {
+				assert.Empty(t, got,
+					"the loader already names this entry and its fault: %+v", diags)
+				return
+			}
+			require.Len(t, got, 1, "the entry is placed exactly once: %+v", diags)
+			assert.Contains(t, got[0], `"ghost"`, "the report names the entry")
+			assert.Contains(t, got[0], tc.wantRef, "and the reference that failed")
+		})
+	}
 }
 
 // TestLowerSecuritySchemes_NoComponentsAtAll pins the two earlier exits: a
@@ -382,6 +417,19 @@ func messagesAt(diags []ir.Diagnostic, code string) []string {
 	var out []string
 	for _, d := range diags {
 		if d.Code == code {
+			out = append(out, d.Message)
+		}
+	}
+	return out
+}
+
+// messagesAtPointer returns the message of every diagnostic whose provenance
+// names pointer, in report order. It filters on the pointer alone, so a report
+// arriving at the right place under the wrong code is still returned.
+func messagesAtPointer(diags []ir.Diagnostic, pointer string) []string {
+	var out []string
+	for _, d := range diags {
+		if d.Provenance.Pointer == pointer {
 			out = append(out, d.Message)
 		}
 	}
@@ -502,20 +550,15 @@ components:
 `)
 	assert.Nil(t, svc.Auth, "the sole option names a scheme that resolves to nothing")
 
-	byPointer := make(map[string]string)
-	for _, d := range diags {
-		if d.Code == diag.UnresolvedRef {
-			byPointer[d.Provenance.Pointer] = d.Message
-		}
-	}
-	entry, ok := byPointer["/components/securitySchemes/ghost"]
-	require.True(t, ok, "the entry that failed to resolve is reported: %+v", diags)
-	assert.Contains(t, entry, "resolves to nothing")
-	assert.Contains(t, entry, `"ghost"`, "and names the scheme, so the sentence stands without its pointer")
+	entry := messagesAtPointer(diags, "/components/securitySchemes/ghost")
+	require.Len(t, entry, 1, "the entry whose $ref failed is reported: %+v", diags)
+	assert.Contains(t, entry[0], `"ghost"`, "naming the scheme, so it stands without its pointer")
+	assert.Contains(t, entry[0], "resolves to nothing")
 
-	req, ok := byPointer["/security/0"]
-	require.True(t, ok, "so is the requirement that names it: %+v", diags)
-	assert.NotContains(t, req, "undeclared",
+	req := messagesAtPointer(diags, "/security/0")
+	require.Len(t, req, 1, "so is the requirement that names it: %+v", diags)
+	assert.Contains(t, req[0], "unresolved", "which is true of a broken $ref and a typo alike")
+	assert.NotContains(t, req[0], "undeclared",
 		"the document declares this scheme; only its $ref is broken")
 }
 

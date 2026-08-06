@@ -34,6 +34,8 @@ import (
 // report of the same failure carries no pointer at all (issue #235), so an
 // unreferenced entry would otherwise be a scheme the document declares, the IR
 // silently drops, and no diagnostic sites.
+//
+// That is the only shape reported here — see unresolvableSchemeDiags.
 func LowerSecuritySchemes(c lowering.Ctx) (map[ir.AuthID]ir.AuthScheme, []ir.Diagnostic) {
 	comps := c.Doc.Components
 	if comps == nil {
@@ -48,9 +50,7 @@ func LowerSecuritySchemes(c lowering.Ctx) (map[ir.AuthID]ir.AuthScheme, []ir.Dia
 	for name, rs := range schemes.All() {
 		ss := resolve.Object[soa.SecurityScheme](rs)
 		if ss == nil {
-			diags = append(diags, c.DiagAt(ir.SeverityError, diag.UnresolvedRef,
-				ids.Ptr("components", "securitySchemes", name),
-				"security scheme %q resolves to nothing this document declares", name))
+			diags = append(diags, unresolvableSchemeDiags(c, name, rs)...)
 			continue
 		}
 		scheme, schemeDiags := lowerSecurityScheme(c, name, ss)
@@ -61,6 +61,33 @@ func LowerSecuritySchemes(c lowering.Ctx) (map[ir.AuthID]ir.AuthScheme, []ir.Dia
 		return nil, diags
 	}
 	return out, diags
+}
+
+// unresolvableSchemeDiags reports a securitySchemes entry that lowered to no
+// scheme — but only the one shape that nothing else places.
+//
+// Two kinds of entry reach the caller's nil: one written as something other
+// than an object (null, a scalar, a sequence), and one whose $ref resolves to
+// nothing — a missing internal target, or an external one this compile refuses.
+// Only the second is unplaced. The first already draws the loader's
+// type-mismatch, which names both the entry and what was wrong with it, so a
+// second report here would send the reader to the same position to learn less.
+//
+// rs is the entry as the document wrote it, which is what separates the two:
+// the reference is empty for everything that is not one. Its own nil is not
+// reachable from a parsed document — a malformed entry still arrives as an
+// object — so that guard is for a hand-built node, matching resolve.Object's.
+func unresolvableSchemeDiags(c lowering.Ctx, name string, rs *soa.ReferencedSecurityScheme) []ir.Diagnostic {
+	if rs == nil {
+		return nil
+	}
+	ref := rs.GetReference().String()
+	if ref == "" {
+		return nil
+	}
+	return []ir.Diagnostic{c.DiagAt(ir.SeverityError, diag.UnresolvedRef,
+		ids.Ptr("components", "securitySchemes", name),
+		"security scheme %q has a $ref that resolves to nothing: %q", name, ref)}
 }
 
 // lowerSecurityScheme lowers one named security scheme into its AuthScheme,
