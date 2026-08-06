@@ -134,7 +134,7 @@ const (
 	// shape that reaches this without the document repeating the id in source.
 	DuplicateOperationID = "openapi/duplicate-operation-id"
 	// ReservedHeaderParam reports a header parameter named Accept, Content-Type or
-	// Authorization, which OpenAPI §4.8.11 says SHALL be ignored: each duplicates
+	// Authorization, which OpenAPI §4.8.12 says SHALL be ignored: each duplicates
 	// something the protocol layer already owns — content negotiation, the request
 	// body's media type, the security scheme's credential.
 	//

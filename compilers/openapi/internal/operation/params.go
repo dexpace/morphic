@@ -66,7 +66,7 @@ func lowerParameter(c lowering.Ctx, ts *compile.Types, anchors *schema.AnchorInd
 	return param, binding, append(diags, fillParamDetail(c, &param, p, pptr)...)
 }
 
-// reservedHeaderDiag reports a header parameter OpenAPI §4.8.11 reserves — one
+// reservedHeaderDiag reports a header parameter OpenAPI §4.8.12 reserves — one
 // named Accept, Content-Type or Authorization, whose definition it says SHALL be
 // ignored. The comparison is case-insensitive because HTTP field names are, so a
 // parameter spelled "authorization" collides with the security scheme exactly as
