@@ -2,6 +2,7 @@ package auth_test
 
 import (
 	"slices"
+	"strings"
 	"testing"
 
 	soa "github.com/speakeasy-api/openapi/openapi"
@@ -366,6 +367,185 @@ func TestLowerSecuritySchemes_NoComponentsAtAll(t *testing.T) {
 	assert.Empty(t, diags)
 }
 
+// TestLowerSecuritySchemes_AnEntryNamingNoMechanismIsRefused pins the two
+// shapes that declare a scheme without saying what it is: an entry with no
+// `type`, and an http entry with no `scheme` token. Both used to intern a
+// custom scheme whose mechanism was the empty string, which states that the API
+// is authenticated by nothing in particular (GitHub #294).
+//
+// Each is reported at the entry's own components pointer and interned nowhere,
+// exactly as an entry whose $ref resolves to nothing already is.
+func TestLowerSecuritySchemes_AnEntryNamingNoMechanismIsRefused(t *testing.T) {
+	t.Parallel()
+	cases := []struct {
+		name  string
+		entry string
+	}{
+		{name: "no type at all", entry: `{}`},
+		{name: "no type, but fields an apiKey would use", entry: `{in: header, name: X-Key}`},
+		{name: "an explicitly empty type", entry: `{type: ""}`},
+		{name: "http with no scheme token", entry: `{type: http}`},
+		{name: "http with an empty scheme token", entry: `{type: http, scheme: ""}`},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			doc, _, diags := serviceSpec(t, `openapi: 3.1.0
+info: {title: T, version: "1"}
+paths: {}
+components:
+  securitySchemes:
+    ghost: `+tc.entry+`
+    key: {type: apiKey, in: header, name: X-Key}
+`)
+			assert.NotContains(t, doc.Auth, ids.Auth("ghost"), "the entry interns no scheme")
+			assert.Contains(t, doc.Auth, ids.Auth("key"), "its complete sibling still does")
+
+			d, ok := firstDiagAt(diags, diag.IncompleteSecurityScheme)
+			require.True(t, ok, "the refusal is reported: %+v", diags)
+			assert.Equal(t, ir.SeverityError, d.Severity)
+			assert.Equal(t, "/components/securitySchemes/ghost", d.Provenance.Pointer,
+				"reported at the entry, not at the requirement that names it")
+			assert.Contains(t, d.Message, `"ghost"`, "the report names the entry")
+		})
+	}
+}
+
+// TestLowerSecuritySchemes_ARefusedEntryDropsTheRequirementNamingIt pins the
+// downstream half of the refusal. Nothing is interned, so a requirement naming
+// the entry resolves to no scheme and drops whole under the rule #41
+// established, collapsing a sole-option list to nil rather than leaving the
+// empty-option encoding that reads as "no auth is also fine".
+func TestLowerSecuritySchemes_ARefusedEntryDropsTheRequirementNamingIt(t *testing.T) {
+	t.Parallel()
+	doc, svc, diags := serviceSpec(t, `openapi: 3.1.0
+info: {title: T, version: "1"}
+security:
+  - ghost: []
+paths: {}
+components:
+  securitySchemes:
+    ghost: {in: header, name: X-Key}
+`)
+	assert.Empty(t, doc.Auth, "a document whose only scheme is refused carries no auth registry")
+	assert.Nil(t, svc.Auth, "the sole option drops, collapsing the list rather than emptying it")
+	assert.NotEmpty(t, messagesAt(diags, diag.UnresolvedRef),
+		"the requirement that named it is reported too: %+v", diags)
+}
+
+// TestLowerSecuritySchemes_FieldsTheTypeDoesNotDefineSurvive pins that no field
+// a securityScheme entry declares is dropped. Each mechanism's lowering reads
+// only the fields its own type defines, so everything else the entry wrote —
+// `in` on an oauth2 scheme, `flows` on an apiKey — reached no IR field and no
+// Unmodeled entry either, which "lossless by default" forbids (GitHub #294).
+//
+// Every case declares all seven mechanism fields, so each row states both
+// halves of §12.1's one-home rule at once: what the type defines reaches its IR
+// field and is not also kept raw, and what it does not define is kept raw and
+// does not silently fill a field of another mechanism.
+func TestLowerSecuritySchemes_FieldsTheTypeDoesNotDefineSurvive(t *testing.T) {
+	t.Parallel()
+	// everyField is written on each entry below; a row names the ones its type
+	// defines and the rest must survive under Unmodeled.
+	everyField := []string{"bearerFormat", "flows", "in", "name", "oauth2MetadataUrl", "openIdConnectUrl", "scheme"}
+	cases := []struct {
+		name    string
+		typ     string
+		defines []string
+		check   func(t *testing.T, s ir.AuthScheme)
+	}{
+		{
+			name: "apiKey", typ: "apiKey", defines: []string{"in", "name"},
+			check: func(t *testing.T, s ir.AuthScheme) {
+				assert.Equal(t, ir.AuthKindAPIKey, s.Kind)
+				assert.Equal(t, "header", s.In)
+				assert.Equal(t, "X-Key", s.KeyName)
+			},
+		},
+		{
+			name: "http", typ: "http", defines: []string{"scheme", "bearerFormat"},
+			check: func(t *testing.T, s ir.AuthScheme) {
+				assert.Equal(t, ir.AuthKindCustom, s.Kind)
+				assert.Equal(t, "digest", s.Scheme, "the RFC 7235 token its own type defines")
+				assert.Equal(t, "JWT", s.BearerFormat)
+			},
+		},
+		{
+			name: "oauth2", typ: "oauth2", defines: []string{"flows", "oauth2MetadataUrl"},
+			check: func(t *testing.T, s ir.AuthScheme) {
+				assert.Equal(t, ir.AuthKindOAuth2, s.Kind)
+				require.Len(t, s.Flows, 1)
+				assert.Equal(t, "https://meta", s.OAuth2MetadataURL)
+			},
+		},
+		{
+			name: "openIdConnect", typ: "openIdConnect", defines: []string{"openIdConnectUrl"},
+			check: func(t *testing.T, s ir.AuthScheme) {
+				assert.Equal(t, ir.AuthKindOpenIDConnect, s.Kind)
+				assert.Equal(t, "https://oidc", s.OpenIDConnectURL)
+			},
+		},
+		{
+			// mutualTLS is the whole mechanism; nothing else on the entry is part
+			// of it, so all seven fields are kept raw.
+			name: "mutualTLS", typ: "mutualTLS", defines: nil,
+			check: func(t *testing.T, s ir.AuthScheme) {
+				assert.Equal(t, ir.AuthKindMutualTLS, s.Kind)
+			},
+		},
+		{
+			// An unrecognised type degrades to a custom scheme carrying the token
+			// itself, which takes the one IR field a declared `scheme` would have
+			// reached — so that declaration is kept raw beside the six others.
+			name: "an unrecognised type", typ: "bananas", defines: nil,
+			check: func(t *testing.T, s ir.AuthScheme) {
+				assert.Equal(t, ir.AuthKindCustom, s.Kind)
+				assert.Equal(t, "bananas", s.Scheme, "the unrecognised token, not the declared scheme")
+			},
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			doc, _, _ := serviceSpec(t, `openapi: 3.1.0
+info: {title: T, version: "1"}
+paths: {}
+components:
+  securitySchemes:
+    s:
+      type: `+tc.typ+`
+      in: header
+      name: X-Key
+      scheme: digest
+      bearerFormat: JWT
+      openIdConnectUrl: https://oidc
+      oauth2MetadataUrl: https://meta
+      flows:
+        implicit: {authorizationUrl: 'https://a', scopes: {}}
+`)
+			s, ok := doc.Auth[ids.Auth("s")]
+			require.True(t, ok)
+			tc.check(t, s)
+
+			var wantKept []string
+			for _, f := range everyField {
+				if !slices.Contains(tc.defines, f) {
+					wantKept = append(wantKept, "openapi:"+f)
+				}
+			}
+			assert.Equal(t, wantKept, unmodeledKeys(s.Unmodeled),
+				"every field the type does not define is kept, and no field it does define is kept twice")
+			for _, key := range wantKept {
+				field := strings.TrimPrefix(key, "openapi:")
+				assert.Equal(t, ir.ReasonDegradedLowering, s.Unmodeled[key].Reason,
+					"%s was lowered to a weaker shape, not left unmodelled for want of a field", key)
+				assert.Equal(t, "/components/securitySchemes/s/"+field, s.Unmodeled[key].Provenance.Pointer,
+					"the entry locates the field itself, not the scheme that carried it")
+			}
+		})
+	}
+}
+
 // serviceSpec compiles src and returns the document, its single service, and
 // every diagnostic. It drives the public entry point rather than this package
 // directly: the requirements lowered here are reached through the service walk,
@@ -467,6 +647,87 @@ func indexBy[T any, K comparable](items []T, key func(T) K) map[K]T {
 	for _, item := range items {
 		out[key(item)] = item
 	}
+	return out
+}
+
+// TestLowerSecuritySchemes_KeptFieldsAndExtensionsShareOneMap pins that the two
+// writers of a scheme's Unmodeled map do not overwrite each other. The x-*
+// extensions used to be the only one and were assigned over the whole map, so a
+// preserved field written before them would vanish without trace — the same
+// silent drop this all exists to close, one layer up.
+func TestLowerSecuritySchemes_KeptFieldsAndExtensionsShareOneMap(t *testing.T) {
+	t.Parallel()
+	doc, _, _ := serviceSpec(t, `openapi: 3.1.0
+info: {title: T, version: "1"}
+paths: {}
+components:
+  securitySchemes:
+    s: {type: mutualTLS, bearerFormat: JWT, x-note: n}
+`)
+	s, ok := doc.Auth[ids.Auth("s")]
+	require.True(t, ok)
+	assert.Equal(t, []string{"openapi:bearerFormat", "openapi:x-note"}, unmodeledKeys(s.Unmodeled))
+	assert.Equal(t, ir.ReasonVendorExtension, s.Unmodeled["openapi:x-note"].Reason)
+	assert.Equal(t, ir.ReasonDegradedLowering, s.Unmodeled["openapi:bearerFormat"].Reason)
+}
+
+// TestLowerSecuritySchemes_AKeptFieldIsAnnounced pins that a field kept under
+// Unmodeled is also reported, so a reader learns to look for it rather than
+// discovering the entry by reading the IR. The report names the field and sits
+// at the field's own pointer, not at the scheme that carried it.
+func TestLowerSecuritySchemes_AKeptFieldIsAnnounced(t *testing.T) {
+	t.Parallel()
+	_, _, diags := serviceSpec(t, `openapi: 3.1.0
+info: {title: T, version: "1"}
+paths: {}
+components:
+  securitySchemes:
+    s: {type: mutualTLS, in: header}
+`)
+	got := messagesAtPointer(diags, "/components/securitySchemes/s/in")
+	require.Len(t, got, 1, "the kept field is announced exactly once: %+v", diags)
+	assert.Contains(t, got[0], "in")
+	assert.Contains(t, got[0], "mutualTLS", "and names the type that gave it no meaning")
+	d, ok := firstDiagAt(diags, diag.DegradedConstruct)
+	require.True(t, ok)
+	assert.Equal(t, ir.SeverityInfo, d.Severity, "the field survives, so this records rather than warns")
+}
+
+// TestLowerSecuritySchemes_AnUnkeepableFieldIsReportedNotDropped pins the third
+// outcome of keeping a field: one whose value JSON cannot hold reaches the IR in
+// no form at all, so it is reported as the losslessness failure it is rather
+// than announced as kept (GitHub #144). `.nan` is such a value, and a scheme
+// declaring it is enough to reach this — the loader parses the entry, warns that
+// the field is not used for the type, and hands it here intact.
+func TestLowerSecuritySchemes_AnUnkeepableFieldIsReportedNotDropped(t *testing.T) {
+	t.Parallel()
+	doc, _, diags := serviceSpec(t, `openapi: 3.1.0
+info: {title: T, version: "1"}
+paths: {}
+components:
+  securitySchemes:
+    s: {type: mutualTLS, name: .nan}
+`)
+	s, ok := doc.Auth[ids.Auth("s")]
+	require.True(t, ok, "the scheme still lowers; only the one field could not be kept")
+	assert.Empty(t, s.Unmodeled, "nothing was kept, so nothing claims to have been")
+
+	d, ok := firstDiagAt(diags, diag.UnpreservableConstruct)
+	require.True(t, ok, "the loss is reported: %+v", diags)
+	assert.Equal(t, ir.SeverityError, d.Severity)
+	assert.Equal(t, "/components/securitySchemes/s/name", d.Provenance.Pointer)
+	assert.Empty(t, messagesAtPointer(diags, "/components/securitySchemes/s/name")[1:],
+		"and is not also announced as kept")
+}
+
+// unmodeledKeys returns u's keys sorted, so a caller pins the whole set rather
+// than probing for the ones it happened to think of.
+func unmodeledKeys(u ir.Unmodeled) []string {
+	out := make([]string, 0, len(u))
+	for k := range u {
+		out = append(out, k)
+	}
+	slices.Sort(out)
 	return out
 }
 

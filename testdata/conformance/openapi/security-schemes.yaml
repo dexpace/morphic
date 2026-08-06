@@ -35,3 +35,12 @@ components:
       openIdConnectUrl: https://example.com/.well-known/openid-configuration
     mtlsAuth:
       type: mutualTLS
+    # A field the declared type gives no meaning to survives beside the scheme
+    # rather than in it. bearerFormat describes an HTTP bearer token, so filling
+    # AuthScheme.BearerFormat here would say this apiKey has one; dropping it
+    # would lose text the document wrote.
+    strayFieldAuth:
+      type: apiKey
+      in: header
+      name: X-Stray
+      bearerFormat: JWT
