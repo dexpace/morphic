@@ -1011,8 +1011,9 @@ func lowerEnum(c lowering.Ctx, ts *compile.Types, s *oas3.Schema, pointer, hint 
 	return id, diags
 }
 
-// enumMembers converts enum nodes into scalar members, reporting ok=false when
-// any member is non-scalar or the members are heterogeneous (mixed kinds).
+// enumMembers converts enum nodes into scalar members, reporting ok=false on any
+// of three: a member that is non-scalar, members heterogeneous in kind, or a set
+// that keeps no member at all.
 //
 // dropNull skips `null` members instead of refusing them, for a schema whose
 // nullability the enclosing reference already carries (see lowerEnum). Kind
@@ -1020,10 +1021,10 @@ func lowerEnum(c lowering.Ctx, ts *compile.Types, s *oas3.Schema, pointer, hint 
 // nothing: `enum: [null, red, green]` is the same string enum as
 // `enum: [red, green, null]`.
 //
-// The returned PrimKind is the one every kept member's kind maps to. It is
-// meaningful only when ok, and a set that keeps no member reports ok=false — an
-// all-null enum degrades rather than becoming a memberless Enum — so it is never
-// the zero PrimKind there.
+// The third condition is the one an all-null set meets, and it is why such a set
+// degrades rather than becoming a memberless Enum. The returned PrimKind is the
+// one every kept member's kind maps to — meaningful only when ok, and since ok
+// requires a kept member, never the zero PrimKind there.
 func enumMembers(nodes []values.Value, dropNull bool) ([]ir.EnumMember, ir.PrimKind, bool) {
 	members := make([]ir.EnumMember, 0, len(nodes))
 	var kind ir.ValueKind
