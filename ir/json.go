@@ -103,10 +103,37 @@ func (a *Any) MarshalJSON() ([]byte, error) {
 
 // UnmarshalJSON decodes a kind-tagged TypeDef per entry, dispatching through
 // the same registry the completeness test walks.
+//
+// A JSON null is a no-op, the convention json.Unmarshaler documents and
+// time.Time follows. encoding/json invokes UnmarshalJSON for null too, and
+// allocating an empty registry there would break the fixed point invariant 7
+// requires: Document.Types carries omitempty, so that map is dropped on
+// marshal and the next decode yields nil instead.
+//
+// Null is recognized by the decoded map staying nil rather than by comparing
+// data to the bytes "null", which keeps the test exact under any spelling an
+// Unmarshaler can be handed — an empty object leaves rawByID non-nil, and
+// every other JSON value still reports its own type error instead of being
+// swallowed as a no-op.
+//
+// The empty object ("types":{}) is deliberately not made durable: it decodes
+// to an empty non-nil registry that omitempty drops on marshal, so the next
+// decode yields nil — exactly what the plain-map sibling registries
+// (Document.Channels, .Messages, .Auth) do with no custom decoder at all. #47
+// recorded the standard: an omitempty collapse is a defect only where nil and
+// empty denote different things, as on the []AuthRequirement fields
+// (Operation.Auth, Server.Auth, Service.Auth), which carry no omitempty and
+// where nil inherits a parent default while empty overrides it. Document.Auth
+// named above is a different field and not one of those: an empty type
+// registry, like an empty scheme registry, means only that the document
+// declares none. TestDocument_EmptyMapFieldsCollapseUniformly pins that parity.
 func (r *TypeRegistry) UnmarshalJSON(data []byte) error {
 	var rawByID map[TypeID]json.RawMessage
 	if err := json.Unmarshal(data, &rawByID); err != nil {
 		return fmt.Errorf("ir: type registry: %w", err)
+	}
+	if rawByID == nil {
+		return nil
 	}
 	out := make(TypeRegistry, len(rawByID))
 	for id, raw := range rawByID {
