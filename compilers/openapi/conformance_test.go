@@ -2153,6 +2153,14 @@ func assertSchemeDetail(t *testing.T, doc *ir.Document) {
 	assert.Equal(t, ir.AuthKindCustom, digest.Kind, "only basic and bearer get first-class kinds")
 	assert.Equal(t, "digest", digest.Scheme, "the token itself is kept rather than dropped")
 
+	stray, ok := byName["strayFieldAuth"]
+	require.True(t, ok)
+	assert.Empty(t, stray.BearerFormat, "an apiKey has no bearer-token format to fill")
+	kept, ok := stray.Unmodeled["openapi:bearerFormat"]
+	require.True(t, ok, "a field the type does not define is kept, not dropped; got %v", stray.Unmodeled)
+	assert.Equal(t, ir.ReasonDegradedLowering, kept.Reason)
+	assert.Equal(t, ir.RawValue(`"JWT"`), kept.Value, "kept as the document wrote it")
+
 	oauth, ok := byName["oauth2Auth"]
 	require.True(t, ok)
 	assert.Equal(t, "https://example.com/.well-known/oauth-authorization-server",

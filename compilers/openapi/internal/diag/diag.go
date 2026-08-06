@@ -143,6 +143,18 @@ const (
 	// operation, which OpenAPI forbids. A path item mounted at two paths is the
 	// shape that reaches this without the document repeating the id in source.
 	DuplicateOperationID = "openapi/duplicate-operation-id"
+	// IncompleteSecurityScheme reports a securitySchemes entry that omits the
+	// field naming which authentication mechanism it is — `type`, or the RFC 7235
+	// `scheme` token that is the mechanism when the type is http. The entry
+	// declares a scheme without saying what it does, so nothing is interned for
+	// it and every requirement naming it is dropped (GitHub #294).
+	//
+	// Error rather than a degradation, for the reason UnresolvedRef is one at the
+	// neighbouring shape: the entry reached the IR in no form at all, so a reader
+	// told only that it was degraded would go looking for a scheme that is not
+	// there. The document is invalid either way — OpenAPI requires both fields —
+	// so this hides no later finding the loader's own refusal would not have.
+	IncompleteSecurityScheme = "openapi/incomplete-security-scheme"
 	// ReservedHeaderName reports a header declaration OpenAPI says SHALL be
 	// ignored, because the name restates something the protocol layer already
 	// owns. The specification states the rule at three positions, and this code
