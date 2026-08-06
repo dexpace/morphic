@@ -10,6 +10,7 @@ package auth
 
 import (
 	"maps"
+	"strconv"
 	"strings"
 
 	soa "github.com/speakeasy-api/openapi/openapi"
@@ -26,6 +27,15 @@ import (
 // LowerSecuritySchemes interns every declared security scheme into the auth
 // registry keyed by ids.Auth(name) (ir-design §9). Run before the service walk
 // so operation- and document-level requirements reference registered IDs.
+//
+// An entry whose $ref resolves to nothing is reported at its own components
+// pointer and interned nowhere. It is reported here rather than left to the
+// requirements that name it, because nothing has to name it: the load phase's
+// report of the same failure carries no pointer at all (issue #235), so an
+// unreferenced entry would otherwise be a scheme the document declares, the IR
+// silently drops, and no diagnostic sites.
+//
+// That is the only shape reported here — see unresolvableSchemeDiags.
 func LowerSecuritySchemes(c lowering.Ctx) (map[ir.AuthID]ir.AuthScheme, []ir.Diagnostic) {
 	comps := c.Doc.Components
 	if comps == nil {
@@ -40,6 +50,7 @@ func LowerSecuritySchemes(c lowering.Ctx) (map[ir.AuthID]ir.AuthScheme, []ir.Dia
 	for name, rs := range schemes.All() {
 		ss := resolve.Object[soa.SecurityScheme](rs)
 		if ss == nil {
+			diags = append(diags, unresolvableSchemeDiags(c, name, rs)...)
 			continue
 		}
 		scheme, schemeDiags := lowerSecurityScheme(c, name, ss)
@@ -50,6 +61,33 @@ func LowerSecuritySchemes(c lowering.Ctx) (map[ir.AuthID]ir.AuthScheme, []ir.Dia
 		return nil, diags
 	}
 	return out, diags
+}
+
+// unresolvableSchemeDiags reports a securitySchemes entry that lowered to no
+// scheme — but only the one shape that nothing else places.
+//
+// Two kinds of entry reach the caller's nil: one written as something other
+// than an object (null, a scalar, a sequence), and one whose $ref resolves to
+// nothing — a missing internal target, or an external one this compile refuses.
+// Only the second is unplaced. The first already draws the loader's
+// type-mismatch, which names both the entry and what was wrong with it, so a
+// second report here would send the reader to the same position to learn less.
+//
+// rs is the entry as the document wrote it, which is what separates the two:
+// the reference is empty for everything that is not one. Its own nil is not
+// reachable from a parsed document — a malformed entry still arrives as an
+// object — so that guard is for a hand-built node, matching resolve.Object's.
+func unresolvableSchemeDiags(c lowering.Ctx, name string, rs *soa.ReferencedSecurityScheme) []ir.Diagnostic {
+	if rs == nil {
+		return nil
+	}
+	ref := rs.GetReference().String()
+	if ref == "" {
+		return nil
+	}
+	return []ir.Diagnostic{c.DiagAt(ir.SeverityError, diag.UnresolvedRef,
+		ids.Ptr("components", "securitySchemes", name),
+		"security scheme %q has a $ref that resolves to nothing: %q", name, ref)}
 }
 
 // lowerSecurityScheme lowers one named security scheme into its AuthScheme,
@@ -170,45 +208,98 @@ func scopeMap(f *soa.OAuthFlow) map[string]string {
 	return out
 }
 
-// LowerSecurityRequirements lowers an OR-of-ANDs security list (ir-design §9): a
-// nil list inherits the enclosing default; a non-nil list yields one
-// AuthRequirement per option in source order. An empty option object {} means
-// "no auth is one acceptable choice".
-func LowerSecurityRequirements(c lowering.Ctx, reqs []*soa.SecurityRequirement) ([]ir.AuthRequirement, []ir.Diagnostic) {
+// LowerSecurityRequirements lowers an OR-of-ANDs security list (ir-design §9)
+// declared under base — the pointer of the node carrying the list, which is ""
+// at the document root and an operation's own declaration pointer, never its
+// mount, otherwise: a nil list inherits the enclosing default; a non-nil list
+// yields one AuthRequirement per surviving option, each diagnosed if need be at
+// its own base+/security/<index> pointer. An empty option object {} means "no
+// auth is one acceptable choice".
+//
+// An entry the source wrote as something other than an object reaches here as
+// an empty option rather than as a nil one, so it lowers to that same encoding
+// and the collapse below never sees it. Telling the two apart needs the parse
+// the loader already rejected, so it is issue #284's to fix and deliberately
+// out of scope here — which is also why lowerSecurityRequirement's nil guard is
+// not that site, however much it looks like it.
+//
+// A requirement is a conjunction: every member must resolve for the option to
+// mean anything, so an option naming even one undeclared scheme is dropped in
+// full rather than surviving with just that member gone (issue #41) — the
+// latter would silently rewrite "this option requires an undeclared scheme" as
+// "no auth is also fine", the empty-option encoding above. When every option in
+// an originally non-empty list drops this way, the list itself collapses to nil
+// — "inherits the enclosing default" — rather than surfacing as [], which
+// ir-design §9 reserves for a deliberate "explicitly public" declaration. A
+// list the source declared empty to begin with is left untouched: that [] is
+// real, not a byproduct of dropping.
+//
+// What that collapse costs, deliberately: a carrier whose every option drops
+// becomes indistinguishable from one that never declared security, so an
+// operation reads as requiring whatever the service default requires — a scheme
+// it never named — or as unauthenticated where there is no default. Both
+// misstate the source, because the IR has no encoding for "auth is required but
+// its scheme is undeclared" and issue #14 forbids minting an AuthID nothing
+// backs. nil is chosen because it is the only spelling that never reduces a
+// demanded requirement to explicitly public, and every collapse carries an
+// error diagnostic. The dropped text is not kept under Unmodeled: a name that
+// resolves to nothing is a defect in the document rather than a construct the
+// IR declines to model, which is the call an unresolvable $ref in a schema
+// position and an unresolvable discriminator mapping already get here.
+func LowerSecurityRequirements(c lowering.Ctx, reqs []*soa.SecurityRequirement, base string) ([]ir.AuthRequirement, []ir.Diagnostic) {
 	if reqs == nil {
 		return nil, nil
 	}
 	out := make([]ir.AuthRequirement, 0, len(reqs))
 	var diags []ir.Diagnostic
-	for _, req := range reqs {
-		r, reqDiags := lowerSecurityRequirement(c, req)
-		out = append(out, r)
+	for i, req := range reqs {
+		pointer := base + ids.Ptr("security", strconv.Itoa(i))
+		r, ok, reqDiags := lowerSecurityRequirement(c, req, pointer)
 		diags = append(diags, reqDiags...)
+		if ok {
+			out = append(out, r)
+		}
+	}
+	if len(reqs) > 0 && len(out) == 0 {
+		return nil, diags
 	}
 	return out, diags
 }
 
-// lowerSecurityRequirement lowers one requirement option: each member is a
-// scheme reference plus the scopes required of it within this option. A member
-// naming a scheme that is not declared under components.securitySchemes (or one
-// that failed to resolve into the auth registry) is dropped with one error
-// diagnostic rather than writing a dangling AuthID (issue #14).
-func lowerSecurityRequirement(c lowering.Ctx, req *soa.SecurityRequirement,
-) (ir.AuthRequirement, []ir.Diagnostic) {
+// lowerSecurityRequirement lowers one requirement option declared at pointer:
+// each member is a scheme reference plus the scopes required of it within this
+// option. A member naming a scheme the auth registry does not hold invalidates
+// the whole option, which the caller must drop in full rather than just that
+// member — never a dangling AuthID (issue #14), and never an unintended
+// empty-option encoding (issue #41). ok reports whether the option survives;
+// every unresolved member is still diagnosed individually, at the shared
+// requirement-level pointer, so a multi-member option reports each of its bad
+// names.
+//
+// Two documents reach that state: one that never declared the name, and one
+// that declared it as a $ref resolving to nothing. What is said here is only
+// that the name resolves to no scheme, which is true of both — calling it
+// undeclared would contradict the entry-level report LowerSecuritySchemes
+// leaves beside it in the second case.
+func lowerSecurityRequirement(c lowering.Ctx, req *soa.SecurityRequirement, pointer string,
+) (r ir.AuthRequirement, ok bool, diags []ir.Diagnostic) {
 	if req == nil {
-		return ir.AuthRequirement{}, nil
+		return ir.AuthRequirement{}, true, nil
 	}
 	var uses []ir.SchemeUse
-	var diags []ir.Diagnostic
+	ok = true
 	for name, scopes := range req.All() {
 		id := ids.Auth(name)
 		if !c.DeclaresAuth(id) {
-			diags = append(diags, c.DiagAt(ir.SeverityError, diag.UnresolvedRef,
-				ids.Ptr("components", "securitySchemes", name),
-				"security requirement references undeclared scheme %q", name))
+			diags = append(diags, c.DiagAt(ir.SeverityError, diag.UnresolvedRef, pointer,
+				"security requirement references unresolved scheme %q", name))
+			ok = false
 			continue
 		}
 		uses = append(uses, ir.SchemeUse{Scheme: id, Scopes: scopes})
 	}
-	return ir.AuthRequirement{Schemes: uses}, diags
+	if !ok {
+		return ir.AuthRequirement{}, false, diags
+	}
+	return ir.AuthRequirement{Schemes: uses}, true, diags
 }

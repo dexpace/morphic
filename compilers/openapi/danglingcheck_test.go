@@ -147,15 +147,18 @@ func TestDanglingRefs_f07(t *testing.T) {
 }
 
 // TestDanglingRefs_f30 pins the auth case: a security requirement naming an
-// undeclared scheme is dropped and diagnosed, never written as a dangling AuthID.
+// undeclared scheme is dropped whole and diagnosed, never written as a dangling
+// AuthID and never left behind as AuthRequirement{Schemes: nil} — the "no auth
+// is one acceptable choice" encoding a broken requirement must not collapse
+// into (issue #41). f30's list has exactly this one, sole option, so the list
+// itself collapses to nil rather than surfacing as [] ("explicitly public").
 func TestDanglingRefs_f30(t *testing.T) {
 	t.Parallel()
 	doc, diags := compileFile(t, danglingDir, "f30-protocol-surface.yaml", "f30.yaml")
 	assert.Empty(t, danglingRefs(doc))
 	assert.Empty(t, doc.Auth, "no scheme is declared")
 	require.Len(t, doc.Services, 1)
-	require.Len(t, doc.Services[0].Auth, 1, "the requirement option is kept")
-	assert.Empty(t, doc.Services[0].Auth[0].Schemes, "its undeclared scheme is dropped")
+	assert.Nil(t, doc.Services[0].Auth, "the sole option is dropped whole, collapsing the list to nil")
 	assert.True(t, hasErrorRef(diags), "the drop is diagnosed")
 }
 
