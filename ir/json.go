@@ -104,25 +104,32 @@ func (a *Any) MarshalJSON() ([]byte, error) {
 // UnmarshalJSON decodes a kind-tagged TypeDef per entry, dispatching through
 // the same registry the completeness test walks.
 //
-// encoding/json calls UnmarshalJSON even when data is the literal null, and
-// by convention (see [time.Time.UnmarshalJSON] in the standard library) an
-// Unmarshaler treats that as a no-op rather than allocating a zero value.
-// Without this guard, a document spelling an absent registry as "types":null
-// would decode to a non-nil, empty TypeRegistry: harmless on its own, but
-// Document.Types carries omitempty, so marshaling it back omits the field and
-// a second decode yields nil — two JSON encodings of the same document
-// decoding to different Go values, which breaks the fixed point invariant 7
-// promises (golden diffing and the planned caching layer both rely on it).
-// r's sibling registries (Document.Channels, .Messages, .Auth) are plain maps
-// with no custom UnmarshalJSON, so the stdlib decoder already leaves them nil
-// on a null input; this guard brings TypeRegistry in line with them.
+// A JSON null is a no-op, the convention json.Unmarshaler documents and
+// time.Time follows. encoding/json invokes UnmarshalJSON for null too, and
+// allocating an empty registry there would break the fixed point invariant 7
+// requires: Document.Types carries omitempty, so that map is dropped on
+// marshal and the next decode yields nil instead. Null is recognized by the
+// decoded map staying nil rather than by comparing data to the four bytes
+// "null", which keeps the test exact under any spelling an Unmarshaler can be
+// handed — an empty object leaves rawByID non-nil, and every other JSON value
+// still reports its own type error instead of being swallowed as a no-op.
+//
+// The empty object ("types":{}) is deliberately not made durable: it decodes
+// to an empty non-nil registry that omitempty drops on marshal, so the next
+// decode yields nil — exactly what the plain-map sibling registries
+// (Document.Channels, .Messages, .Auth) do with no custom decoder at all. #47
+// recorded the standard: an omitempty collapse is a defect only where nil and
+// empty denote different things, as on the Auth fields where nil inherits a
+// parent default and empty overrides it. An empty type registry and an absent
+// one both mean a document that declares no types.
+// TestDocument_EmptyMapFieldsCollapseUniformly pins that parity.
 func (r *TypeRegistry) UnmarshalJSON(data []byte) error {
-	if string(data) == "null" {
-		return nil
-	}
 	var rawByID map[TypeID]json.RawMessage
 	if err := json.Unmarshal(data, &rawByID); err != nil {
 		return fmt.Errorf("ir: type registry: %w", err)
+	}
+	if rawByID == nil {
+		return nil
 	}
 	out := make(TypeRegistry, len(rawByID))
 	for id, raw := range rawByID {

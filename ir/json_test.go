@@ -106,6 +106,20 @@ func TestTypeRegistry_UnmarshalErrors(t *testing.T) {
 			wantSub: "type registry:",
 		},
 		{
+			// Only a JSON null is a no-op. A guard loose enough to also match a
+			// same-length scalar reports success and leaves the registry
+			// silently unset, which no other case here would notice.
+			name:    "outer_is_a_non_null_scalar",
+			data:    `true`,
+			wantSub: "type registry:",
+		},
+		{
+			// The string "null" is not the literal null.
+			name:    "outer_is_the_string_null",
+			data:    `"null"`,
+			wantSub: "type registry:",
+		},
+		{
 			name:    "entry_not_an_object",
 			data:    `{"t/x":123}`,
 			wantSub: "reading kind tag:",
@@ -133,12 +147,20 @@ func TestTypeRegistry_UnmarshalErrors(t *testing.T) {
 }
 
 // TestTypeRegistry_UnmarshalNullIsNoOp locks in the json.Unmarshaler
-// convention that encoding/json calls UnmarshalJSON even for a literal null,
-// and the implementation must treat that as a no-op (the same convention
-// time.Time.UnmarshalJSON follows in the standard library): a null decode
-// must leave an already-populated registry untouched, not clear it, and a
-// zero-value registry must decode to nil rather than a non-nil empty map
-// (issue #46).
+// convention issue #46 asks for: encoding/json calls UnmarshalJSON even for a
+// literal null, and the implementation treats that as a no-op instead of
+// allocating an empty map, the same way time.Time.UnmarshalJSON does.
+//
+// The padded case calls the exported method directly with whitespace around
+// the literal — still a valid JSON encoding of null, and the spelling a byte
+// comparison against "null" would miss.
+//
+// Where the no-op convention and plain-map semantics part ways is a null
+// decoded over an already-populated destination: this registry keeps its
+// entries, while the stdlib nils a plain map such as Document.Channels. #46
+// chose the Unmarshaler convention. The difference cannot arise for a decode
+// into a fresh Document — what internal/harness's round-trip oracle does — and
+// there the two agree on nil.
 func TestTypeRegistry_UnmarshalNullIsNoOp(t *testing.T) {
 	t.Parallel()
 
@@ -146,6 +168,13 @@ func TestTypeRegistry_UnmarshalNullIsNoOp(t *testing.T) {
 		t.Parallel()
 		var reg ir.TypeRegistry
 		require.NoError(t, json.Unmarshal([]byte(`null`), &reg))
+		assert.Nil(t, reg)
+	})
+
+	t.Run("padded_null_stays_nil", func(t *testing.T) {
+		t.Parallel()
+		var reg ir.TypeRegistry
+		require.NoError(t, reg.UnmarshalJSON([]byte(" \n null \n ")))
 		assert.Nil(t, reg)
 	})
 
@@ -182,18 +211,21 @@ func TestDocument_TypesNullRoundTrips(t *testing.T) {
 }
 
 // TestDocument_EmptyMapFieldsCollapseUniformly draws the line issue #46 stops
-// at. TypeRegistry's null guard makes "types":null behave like every sibling
-// registry field already did (Channels/Messages/Auth are plain maps with no
-// custom UnmarshalJSON): nil in, nil out. It does not make an explicit empty
-// object durable — "types":{} still decodes to a non-nil, empty TypeRegistry
-// that Document.Types' omitempty tag drops on marshal, so a second decode
-// yields nil. That collapse is not particular to TypeRegistry or to its
-// custom UnmarshalJSON: the stdlib's default map decoder does the same thing
-// to Document.Channels, which has no custom UnmarshalJSON at all. Fixing it
-// only for TypeRegistry would make TypeRegistry diverge from
-// Channels/Messages/Auth instead of matching them, so it is left alone here;
-// a fix for every optional map field's {} handling would be a separate,
-// repo-wide change this issue does not ask for.
+// at. The null fix makes "types":null behave like the sibling registry fields
+// already did: nil in, nil out. It deliberately does not make the empty object
+// durable — "types":{} still decodes to a non-nil, empty registry that
+// omitempty drops on marshal, so a second decode yields nil. The table pins
+// that this is generic map/omitempty behavior rather than a TypeRegistry
+// defect: Channels, Messages and Auth have no custom UnmarshalJSON at all and
+// collapse identically.
+//
+// Leaving it follows the standard #47 already recorded for the IR's omitempty
+// collections: the collapse is a defect only where nil and empty denote
+// different things, as they do on the Auth fields where nil inherits a parent
+// default and empty overrides it. An empty type registry and an absent one
+// both mean a document that declares no types, and the round-trip oracles
+// compare re-marshaled JSON precisely so this distinction is ignored. Changing
+// it for every optional map field would be a separate, repo-wide change.
 func TestDocument_EmptyMapFieldsCollapseUniformly(t *testing.T) {
 	t.Parallel()
 
@@ -203,6 +235,8 @@ func TestDocument_EmptyMapFieldsCollapseUniformly(t *testing.T) {
 	}{
 		{name: "types", data: `{"types":{}}`},
 		{name: "channels", data: `{"channels":{}}`},
+		{name: "messages", data: `{"messages":{}}`},
+		{name: "auth", data: `{"auth":{}}`},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -216,8 +250,8 @@ func TestDocument_EmptyMapFieldsCollapseUniformly(t *testing.T) {
 			var doc2 ir.Document
 			require.NoError(t, json.Unmarshal(raw, &doc2))
 			assert.NotEmpty(t, cmp.Diff(doc, doc2),
-				"empty-object collapse-on-remarshal is shared map/omitempty behavior, not a TypeRegistry-specific defect — "+
-					"if this now passes, TypeRegistry has diverged from its sibling registries again")
+				"%s: empty-object collapse-on-remarshal is shared map/omitempty behavior, not a TypeRegistry-specific "+
+					"defect — a field that stops collapsing has diverged from the registry fields next to it", tt.name)
 		})
 	}
 }
