@@ -94,6 +94,72 @@
           }
         },
         {
+          "id": "p/openapi/components/schemas/S/properties/atLeastTen",
+          "name": {
+            "source": "atLeastTen",
+            "canonical": "at_least_ten"
+          },
+          "wireName": "atLeastTen",
+          "type": {
+            "target": "t/prim/integer",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "constraints": {
+            "min": "10",
+            "exclusiveMin": false,
+            "exclusiveMax": false,
+            "uniqueItems": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/S/properties/atLeastTen"
+          }
+        },
+        {
+          "id": "p/openapi/components/schemas/S/properties/underTen",
+          "name": {
+            "source": "underTen",
+            "canonical": "under_ten"
+          },
+          "wireName": "underTen",
+          "type": {
+            "target": "t/prim/integer",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "constraints": {
+            "max": "10",
+            "exclusiveMin": false,
+            "exclusiveMax": true,
+            "uniqueItems": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/S/properties/underTen"
+          }
+        },
+        {
           "id": "p/openapi/components/schemas/S/properties/label",
           "name": {
             "source": "label",
@@ -166,6 +232,18 @@
       "positional": false,
       "inputOnly": false
     },
+    "t/prim/integer": {
+      "kind": "primitive",
+      "id": "t/prim/integer",
+      "name": {},
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0
+      },
+      "prim": "integer"
+    },
     "t/prim/number": {
       "kind": "primitive",
       "id": "t/prim/number",
@@ -201,11 +279,31 @@
       "auth": null
     }
   ],
+  "diagnostics": [
+    {
+      "severity": "info",
+      "code": "openapi/degraded-construct",
+      "message": "minimum 10 and exclusiveMinimum 0 both bound this value and the IR holds one bound per side; kept minimum as the tighter of the two and dropped exclusiveMinimum, which it implies",
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/S/properties/atLeastTen"
+      }
+    },
+    {
+      "severity": "info",
+      "code": "openapi/degraded-construct",
+      "message": "exclusiveMaximum 10 and maximum 100 both bound this value and the IR holds one bound per side; kept exclusiveMaximum as the tighter of the two and dropped maximum, which it implies",
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/S/properties/underTen"
+      }
+    }
+  ],
   "sources": [
     {
       "format": "openapi@3.1",
       "path": "constraints.yaml",
-      "hash": "f17e97c5ad1b01b8abaf78d584c35de4fb773693441b4068f9f87db515d0f743"
+      "hash": "3153e80d3265e6f1d00a35b4955110a7d9b95b79984f4556f6e81edcc23801e7"
     }
   ]
 }

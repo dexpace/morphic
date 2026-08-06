@@ -13,6 +13,18 @@ components:
           minimum: 0.30000000000000004
           maximum: 9007199254740993
           multipleOf: 0.1
+        # In 2020-12 the two keywords on a side are independent and both apply,
+        # so the effective bound is the tighter of them. Reading whichever came
+        # last published ">= 0" here and "< 100" below (GitHub #33). One bound
+        # slot per side means the other keyword is reported rather than kept.
+        atLeastTen:
+          type: integer
+          minimum: 10
+          exclusiveMinimum: 0
+        underTen:
+          type: integer
+          maximum: 100
+          exclusiveMaximum: 10
         label: {type: string, minLength: 2, maxLength: 8}
         # An array hoists a List, which is where a collection bound belongs.
         tags:
