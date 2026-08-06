@@ -78,6 +78,14 @@ func TestParseDecimalBound_DeclinesWhatIsNotADecimalLiteral(t *testing.T) {
 // when ir widens NewBigVal, a bound it now admits and this reader cannot order
 // is a bound that would be silently replaced by the looser of its pair, and
 // that has to fail here rather than in a compiled document.
+//
+// The spellings NewBigVal refuses today are the load-bearing half of the
+// corpus, and are not dead weight to be tidied away. A corpus of accepted
+// spellings alone can only ever confirm what is already true: every one of them
+// parses, so no widening it does not already contain can redden it. A binary
+// exponent is the widening that actually happened here, and it is a shape no
+// sweep of decimal spellings generates. These are fed in and skipped while they
+// are refused; the day one is accepted, the assertion below meets it.
 func TestBigValGrammarStaysWithinTheDecimalReading(t *testing.T) {
 	t.Parallel()
 	signs := []string{"", "-", "+"}
@@ -87,20 +95,33 @@ func TestBigValGrammarStaysWithinTheDecimalReading(t *testing.T) {
 	}
 	exponents := []string{"", "e0", "e1", "e-1", "e+1", "E5", "e308", "e-308", "e1000001", "e-1000001"}
 
-	var accepted int
+	// Refused today, every one of them a way the grammar could widen: a binary
+	// exponent (the one it has already had), another base, a digit separator,
+	// and the non-numbers big.ParseFloat knows by name.
+	widenings := []string{
+		"1p4", "1P4", "0x10", "0X1p-2", "0b11", "0o17", "1_000", "1e1_0",
+		"Inf", "-Inf", "NaN", "1e", "1.2.3", "--1", ".",
+	}
+
+	literals := make([]string, 0, len(widenings)+len(signs)*len(mantissas)*len(exponents))
+	literals = append(literals, widenings...)
 	for _, sign := range signs {
 		for _, mantissa := range mantissas {
 			for _, exponent := range exponents {
-				literal := sign + mantissa + exponent
-				v, err := ir.NewBigVal(literal)
-				if err != nil {
-					continue // not a bound at all; nothing for this reader to order
-				}
-				accepted++
-				_, ok := parseDecimalBound(v)
-				assert.True(t, ok, "NewBigVal(%q) = %q, which this reader cannot order", literal, v)
+				literals = append(literals, sign+mantissa+exponent)
 			}
 		}
+	}
+
+	var accepted int
+	for _, literal := range literals {
+		v, err := ir.NewBigVal(literal)
+		if err != nil {
+			continue // not a bound at all; nothing for this reader to order
+		}
+		accepted++
+		_, ok := parseDecimalBound(v)
+		assert.True(t, ok, "NewBigVal(%q) = %q, which this reader cannot order", literal, v)
 	}
 	// Without this the loop would pass by accepting nothing at all, which is
 	// exactly what a widened rejection in ir would look like from here.
