@@ -1103,7 +1103,7 @@ func assertRawPreservedDates(t *testing.T, doc *ir.Document) {
 	}
 }
 
-func assertConstraints(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
+func assertConstraints(t *testing.T, doc *ir.Document, diags []ir.Diagnostic) {
 	m, ok := doc.Types[namedID("S")].(*ir.Model)
 	require.True(t, ok)
 	ratio, ok := propByWire(m, "ratio")
@@ -1127,6 +1127,38 @@ func assertConstraints(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
 	assert.Equal(t, int64(4), *m.Constraints.MaxProps)
 
 	assertLengthAndCollectionBounds(t, doc, m)
+	assertCoDeclaredBounds(t, m, diags)
+}
+
+// assertCoDeclaredBounds pins the 2020-12 rule that a side declaring both of
+// its keywords keeps the tighter of the two: the property bounded below keeps
+// its minimum, the one bounded above keeps its exclusiveMaximum, and each side
+// names the keyword that did not reach the IR (GitHub #33).
+//
+// Both directions are here on purpose. A case where only the exclusive keyword
+// survives passes just as well on the reader that always took it, so on its own
+// it would say nothing about the fix.
+func assertCoDeclaredBounds(t *testing.T, m *ir.Model, diags []ir.Diagnostic) {
+	t.Helper()
+	low, ok := propByWire(m, "atLeastTen")
+	require.True(t, ok)
+	require.NotNil(t, low.Constraints)
+	require.NotNil(t, low.Constraints.Min)
+	assert.Equal(t, ir.BigVal("10"), *low.Constraints.Min, "minimum is the tighter bound")
+	assert.False(t, low.Constraints.ExclusiveMin, "and it is inclusive as written")
+
+	high, ok := propByWire(m, "underTen")
+	require.True(t, ok)
+	require.NotNil(t, high.Constraints)
+	require.NotNil(t, high.Constraints.Max)
+	assert.Equal(t, ir.BigVal("10"), *high.Constraints.Max, "exclusiveMaximum is the tighter bound")
+	assert.True(t, high.Constraints.ExclusiveMax)
+
+	for _, want := range []string{"dropped exclusiveMinimum", "dropped maximum"} {
+		assert.True(t, slices.ContainsFunc(diags, func(d ir.Diagnostic) bool {
+			return strings.Contains(d.Message, want)
+		}), "a keyword the IR does not carry is reported, not dropped in silence: %q", want)
+	}
 }
 
 // assertLengthAndCollectionBounds pins the non-numeric bounds: a string length
