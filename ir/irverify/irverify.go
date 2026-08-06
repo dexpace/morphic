@@ -56,6 +56,11 @@ func Verify(doc *ir.Document) []Violation {
 // was the same walk twice, about a sixth of Verify's work on a large document, so
 // it is read once per run and handed down. The checks that do not need it still
 // take it, because one signature is what lets walkChecks be a list at all.
+//
+// The zero value is not a stand-in for "no declarations to speak of": it says the
+// document declares none, which makes every OpID and ServiceID reference in it
+// resolve against an empty registry and report as dangling. Read one with
+// readDeclarations from the document being checked.
 type declarations struct {
 	ids       []ir.IDDeclaration
 	truncated bool

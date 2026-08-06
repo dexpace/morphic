@@ -63,6 +63,13 @@ func collectRefs(doc *ir.Document, regs ir.Registries) ([]refSite, bool) {
 // values a document declares and looking the ID up among them, which
 // pass.Validate's checkPropIDRefs does — beside checkEncodingKeys, which makes
 // the tighter model-scoped claim for the keys of ir.Content.Encoding.
+//
+// The returned flag folds in decls.truncated beside collectRefs' own. Neither of
+// those two walks prunes, so today they reach equally far and truncate together,
+// and dropping either half reports the same thing — planting that mutation leaves
+// the suite green. It is folded anyway: "the other walk trips the cap first" is
+// the coincidence GitHub #55 was, and a visitor here that began pruning, as other
+// checks' visitors already do, would end it without anything saying so.
 func checkReferentialIntegrity(doc *ir.Document, decls declarations) ([]Violation, bool) {
 	regs := ir.DocumentRegistries(doc)
 	if !decls.truncated {
