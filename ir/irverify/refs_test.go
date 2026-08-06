@@ -114,6 +114,69 @@ func TestCheckReferentialIntegrity_DanglingChannelRef(t *testing.T) {
 	assert.Contains(t, got[0].Message, "does not resolve in channels")
 }
 
+// docWithOverload builds a service whose one operation overloads target.
+func docWithOverload(target ir.OpID) *ir.Document {
+	return &ir.Document{Services: []ir.Service{{
+		ID: "s/x",
+		Groups: []ir.OperationGroup{{Operations: []ir.Operation{
+			{ID: "op/x/Get", OverloadOf: &target},
+		}}},
+	}}}
+}
+
+// TestCheckReferentialIntegrity_DanglingOpRef drives the class no map on Document
+// covers. An operation is declared inside the Service→OperationGroup tree, so
+// every OpID reference in the IR resolved against nothing until the registry was
+// derived from those declarations instead (GitHub #50).
+func TestCheckReferentialIntegrity_DanglingOpRef(t *testing.T) {
+	got := refViolations(docWithOverload("op/x/Missing"))
+	require.Len(t, got, 1)
+	assert.Equal(t, "ir/dangling-op-ref", got[0].Code)
+	assert.Contains(t, got[0].Message, "does not resolve in op declarations")
+}
+
+// TestCheckReferentialIntegrity_ResolvedOpRefIsClean is the other half: an
+// operation's own ID resolves against its own declaration, and so does a
+// reference naming it.
+func TestCheckReferentialIntegrity_ResolvedOpRefIsClean(t *testing.T) {
+	assert.Empty(t, refViolations(docWithOverload("op/x/Get")))
+}
+
+// TestCheckReferentialIntegrity_DanglingServiceRef drives the other class with no
+// map: Document.Services is a slice, so a service extending an undeclared one
+// went unreported the same way.
+func TestCheckReferentialIntegrity_DanglingServiceRef(t *testing.T) {
+	doc := &ir.Document{Services: []ir.Service{{ID: "s/x", Extends: []ir.ServiceID{"s/missing"}}}}
+
+	got := refViolations(doc)
+	require.Len(t, got, 1)
+	assert.Equal(t, "ir/dangling-service-ref", got[0].Code)
+	assert.Contains(t, got[0].Message, "does not resolve in service declarations")
+}
+
+func TestCheckReferentialIntegrity_ResolvedServiceRefIsClean(t *testing.T) {
+	doc := &ir.Document{Services: []ir.Service{
+		{ID: "s/base"},
+		{ID: "s/x", Extends: []ir.ServiceID{"s/base"}},
+	}}
+	assert.Empty(t, refViolations(doc))
+}
+
+// TestCheckReferentialIntegrity_PropIDStaysOutOfTheWalk pins the one class left
+// out of the registries. A PropID names a position inside its model, and
+// pass.Validate resolves one against the properties a document declares; adding a
+// document-wide answer here would report one defect twice, under two codes.
+func TestCheckReferentialIntegrity_PropIDStaysOutOfTheWalk(t *testing.T) {
+	doc := &ir.Document{Services: []ir.Service{{
+		ID: "s/x",
+		Groups: []ir.OperationGroup{{Operations: []ir.Operation{{
+			ID:         "op/x/List",
+			Pagination: &ir.Pagination{Items: &ir.PropPath{Segments: []ir.PropID{"p/x/ghost"}}},
+		}}}},
+	}}}
+	assert.Empty(t, refViolations(doc))
+}
+
 func TestCheckReferentialIntegrity_DanglingRenameKey(t *testing.T) {
 	// Service.Renames is map[TypeID]Naming: the KEY is a reference into
 	// Document.Types. "t/x/ghost" resolves in no type, so the reference-typed map

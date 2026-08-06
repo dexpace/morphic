@@ -53,6 +53,7 @@ func Verify(doc *ir.Document) []Violation {
 func walkChecks() []func(*ir.Document) ([]Violation, bool) {
 	return []func(*ir.Document) ([]Violation, bool){
 		checkReferentialIntegrity,
+		checkDuplicateIDs,
 		checkNaming,
 		checkRawPayloads,
 		checkProvenance,

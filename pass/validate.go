@@ -60,14 +60,22 @@ func Validate(doc *ir.Document) []ir.Diagnostic {
 // The other class the registries cannot resolve is ir.PropID, which names a
 // position inside a model: checkPropIDRefs resolves those against the properties
 // the same traversal saw.
+//
+// Not every ID class has a map on Document to be derived from. An ir.Operation is
+// declared in the Service→OperationGroup tree and an ir.Service in a slice, so an
+// OpID or ServiceID reference resolved against nothing at all (GitHub #50);
+// ir.Registries.WithDeclarations supplies both from the identities the document's
+// own nodes declare, under the same ir/dangling-<noun>-ref code every other class
+// is reported with.
 func checkDanglingRefs(doc *ir.Document) []ir.Diagnostic {
-	regs := ir.DocumentRegistries(doc)
+	decls, declTruncated := ir.DeclaredIDs(doc)
+	regs := ir.DocumentRegistries(doc).WithDeclarations(decls)
 	sites, truncated := collectRefs(doc, ir.DocumentPath, func(t reflect.Type) bool {
 		_, isRegistry := regs[t]
 		return isRegistry
 	})
 	var diags []ir.Diagnostic
-	if truncated {
+	if truncated || declTruncated {
 		diags = append(diags, diag(ir.SeverityError, "ir/walk-truncated",
 			"document nests deeper than the bounded reference walk; some references went unchecked",
 			ir.DocumentPath))
