@@ -1,6 +1,8 @@
 package operation
 
 import (
+	"strings"
+
 	oas3 "github.com/speakeasy-api/openapi/jsonschema/oas3"
 	soa "github.com/speakeasy-api/openapi/openapi"
 
@@ -60,7 +62,31 @@ func lowerParameter(c lowering.Ctx, ts *compile.Types, anchors *schema.AnchorInd
 		AllowReserved: p.GetAllowReserved(),
 	}
 	diags := fillParamType(c, ts, anchors, &param, &binding, p, pptr, name)
+	diags = append(diags, reservedHeaderDiag(c, name, in, pptr)...)
 	return param, binding, append(diags, fillParamDetail(c, &param, p, pptr)...)
+}
+
+// reservedHeaderDiag reports a header parameter OpenAPI §4.8.11 reserves — one
+// named Accept, Content-Type or Authorization, whose definition it says SHALL be
+// ignored. The comparison is case-insensitive because HTTP field names are, so a
+// parameter spelled "authorization" collides with the security scheme exactly as
+// one spelled "Authorization" does.
+//
+// The parameter still lowers: see diag.ReservedHeaderParam for why keeping it
+// and reporting it is the choice, rather than dropping it here.
+func reservedHeaderDiag(c lowering.Ctx, name string, in soa.ParameterIn, pptr string) []ir.Diagnostic {
+	if in != soa.ParameterInHeader {
+		return nil
+	}
+	for _, reserved := range []string{"Accept", "Content-Type", "Authorization"} {
+		if !strings.EqualFold(name, reserved) {
+			continue
+		}
+		return []ir.Diagnostic{c.DiagAt(ir.SeverityWarning, diag.ReservedHeaderParam, pptr,
+			"header parameter %q is reserved: OpenAPI says a definition for %s SHALL be ignored, "+
+				"so it is lowered as declared and left for the emitter to suppress", name, reserved)}
+	}
+	return nil
 }
 
 // fillParamType lowers a parameter's type from either its schema or, for a
@@ -247,7 +273,35 @@ func fillParamDetail(c lowering.Ctx, param *ir.Parameter, p *soa.Parameter, pptr
 	pExt, extDiags := schema.ExtensionsOf(c, p.GetExtensions(), pptr)
 	diags = append(diags, extDiags...)
 	param.Unmodeled = annotation.MergeUnmodeled(param.Unmodeled, pExt)
-	return diags
+	return append(diags, preserveAllowEmptyValue(c, param, p, pptr)...)
+}
+
+// preserveAllowEmptyValue keeps a parameter's allowEmptyValue flag. It says a
+// query parameter may be sent with an empty value — a wire fact about how the
+// parameter serializes, alongside style, explode and allowReserved, which
+// ir.HTTPParamBinding does hold. It holds no field for this one, and nothing
+// else on this path read the flag either, so a document declaring it lost it
+// outright (GitHub #39).
+//
+// ReasonNoIRHome rather than a boundary, for the same reason as its neighbours:
+// the IR can close the gap by adding the field. It is kept on ir.Parameter
+// because that is the carrier at this position with an Unmodeled map at all —
+// ir.HTTPParamBinding has none.
+//
+// A parameter that does not declare it records nothing: RawChildNode returns nil
+// for an absent keyword and PreserveNode keeps nothing for a nil node. That is
+// deliberately presence, not truth — allowEmptyValue: false is a declared fact
+// too, and a compiler that kept only the true spelling would decide for the
+// reader which declarations count.
+func preserveAllowEmptyValue(c lowering.Ctx, param *ir.Parameter, p *soa.Parameter, pptr string) []ir.Diagnostic {
+	at := pptr + ids.Ptr("allowEmptyValue")
+	kept, diags := schema.PreserveNode(c, &param.Unmodeled, "openapi:allowEmptyValue",
+		annotation.RawChildNode(p.GetRootNode(), "allowEmptyValue"), ir.ReasonNoIRHome, at)
+	if !kept {
+		return diags
+	}
+	return append(diags, c.DiagAt(ir.SeverityInfo, diag.DegradedConstruct, at,
+		"parameter allowEmptyValue has no ir.HTTPParamBinding home; kept verbatim under Unmodeled"))
 }
 
 // resolveStyleExplode materializes a parameter's resolved serialization style

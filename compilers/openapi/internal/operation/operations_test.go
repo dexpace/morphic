@@ -1237,9 +1237,10 @@ func TestDiag_SharedDeclarationReportsEachDefectOnce(t *testing.T) {
 		assert.Equal(t, 1, n, "one defect, one diagnostic: %s", key)
 	}
 
-	// Both defects still surface — de-duplication must not silence either.
-	assert.Equal(t, 2, countDiagsAt(diags, diag.DegradedConstruct, ir.SeverityInfo),
-		"the optional body and the homeless error headers are two distinct defects")
+	// Every defect still surfaces — de-duplication must not silence any of them.
+	assert.Equal(t, 3, countDiagsAt(diags, diag.DegradedConstruct, ir.SeverityInfo),
+		"the optional body, the homeless error headers and the homeless error media type "+
+			"are three distinct defects")
 }
 
 // TestDiag_DistinctDefectsAtOnePointerBothSurvive is the control for the rule
@@ -1429,4 +1430,104 @@ func TestOperation_DeprecatedIsCarried(t *testing.T) {
 
 	assert.NotNil(t, findOp(t, doc, "getA").Deprecation, "the declared flag is carried")
 	assert.Nil(t, findOp(t, doc, "postA").Deprecation, "and an operation that declares none has none")
+}
+
+// pathItemServersSpec declares the same `servers` override on each of the three
+// path items a document can hold — a path, a webhook, and a callback expression
+// — with a distinct URL apiece so a preserved list can be traced to the path
+// item that wrote it.
+const pathItemServersSpec = `openapi: 3.1.0
+info: {title: T, version: "1"}
+paths:
+  /p:
+    servers: [{url: 'https://path.example'}]
+    post:
+      operationId: postP
+      callbacks:
+        onEvent:
+          '{$request.body#/url}':
+            servers: [{url: 'https://callback.example'}]
+            post:
+              operationId: onEvent
+              responses: {"200": {description: ok}}
+      responses: {"200": {description: ok}}
+webhooks:
+  hooked:
+    servers: [{url: 'https://webhook.example'}]
+    post:
+      operationId: onHook
+      responses: {"200": {description: ok}}
+`
+
+// TestOperations_PathItemServersKeptOnEveryRoute pins that a path item's servers
+// survive whichever of the three routes reaches the path item.
+//
+// A path item is one object with three parents, and only the `paths` walk called
+// the preserve-plus-diagnostic path: a webhook or callback that overrode its
+// delivery host lost the override with nothing said, while the identical
+// declaration under `paths` was both kept and reported. Each route is asserted
+// with its own URL, so a fix that preserved the wrong path item's list — or the
+// enclosing one's — fails rather than passing on the shape alone.
+func TestOperations_PathItemServersKeptOnEveryRoute(t *testing.T) {
+	t.Parallel()
+	doc, diags := parseFull(t, pathItemServersSpec)
+	requireNoErrorDiags(t, diags)
+
+	// kept is where the preserved list is recorded (the servers keyword);
+	// reported is where the diagnostic is stamped (the operation itself).
+	for _, tc := range []struct{ op, url, kept, reported string }{
+		{"postP", "https://path.example", "/paths/~1p/servers", "/paths/~1p/post"},
+		{"onHook", "https://webhook.example", "/webhooks/hooked/servers", "/webhooks/hooked/post"},
+		{"onEvent", "https://callback.example",
+			"/paths/~1p/post/callbacks/onEvent/{$request.body#~1url}/servers",
+			"/paths/~1p/post/callbacks/onEvent/{$request.body#~1url}/post"},
+	} {
+		entry, ok := findOp(t, doc, tc.op).Unmodeled["openapi:servers"]
+		require.True(t, ok, "%s keeps its path item's servers", tc.op)
+		assert.Equal(t, ir.ReasonNoIRHome, entry.Reason)
+		assert.JSONEq(t, `[{"url":"`+tc.url+`"}]`, string(entry.Value),
+			"%s keeps the list its own path item declared", tc.op)
+		assert.Equal(t, tc.kept, entry.Provenance.Pointer)
+		assert.True(t, hasDiagCodeAt(diags, diag.DegradedConstruct, tc.reported),
+			"%s reports the degradation as the paths route already did", tc.op)
+	}
+}
+
+// TestErrorCase_SingleMediaTypeKeepsContentMap pins the arity-independent half of
+// error-content preservation. ir.ErrorCase holds a TypeRef and no media type, so
+// an error declared only as application/problem+json reached the IR
+// indistinguishable from one declared as application/json — while the same
+// response with a second media type beside it was kept in full. One entry losing
+// its key is the same loss as several losing all but the first.
+func TestErrorCase_SingleMediaTypeKeepsContentMap(t *testing.T) {
+	t.Parallel()
+	doc, diags := parseFull(t, pathsSpec(`  /x:
+    get:
+      operationId: getX
+      responses:
+        "200": {description: ok}
+        "404":
+          description: gone
+          content:
+            application/problem+json:
+              schema: {type: object}
+        "409": {description: conflict}
+`))
+	requireNoErrorDiags(t, diags)
+	errs := indexBy(findOp(t, doc, "getX").Errors,
+		func(ec ir.ErrorCase) int { return ec.Conditions.StatusCodes[0].From })
+
+	entry, ok := errs[404].Unmodeled["openapi:content"]
+	require.True(t, ok, "the single-entry content map is kept")
+	assert.Equal(t, ir.ReasonNoIRHome, entry.Reason)
+	assert.JSONEq(t, `{"application/problem+json":{"schema":{"type":"object"}}}`, string(entry.Value),
+		"the media type the map is keyed by is what would otherwise be lost")
+	assert.Equal(t, "/paths/~1x/get/responses/404/content", entry.Provenance.Pointer)
+	assert.Contains(t,
+		diagMessageAt(t, diags, diag.DegradedConstruct, ir.SeverityInfo, "/paths/~1x/get/responses/404"),
+		"media type has no ErrorCase home",
+		"the single-entry case names its own loss, not the multi-entry one")
+
+	assert.NotContains(t, errs[409].Unmodeled, "openapi:content",
+		"an error response declaring no content keeps no content map")
 }

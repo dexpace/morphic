@@ -606,3 +606,88 @@ func TestParams_SchemaVisibilityKeptWhenTheSchemaOwnsANode(t *testing.T) {
 		assertInfoDiagAt(t, diags, entry.Provenance.Pointer)
 	}
 }
+
+// TestParams_AllowEmptyValueKept pins the last unread Parameter field. Style,
+// explode, allowReserved and a content-style media type all reach
+// ir.HTTPParamBinding; allowEmptyValue reached nothing, so a document declaring
+// it compiled to IR identical to one that did not, and said nothing about it.
+//
+// The false spelling is asserted beside the true one because presence, not
+// truth, is what is kept: a compiler recording only `true` would be deciding
+// which declarations count.
+func TestParams_AllowEmptyValueKept(t *testing.T) {
+	t.Parallel()
+	doc, diags := parseFull(t, pathsSpec(`  /x:
+    get:
+      operationId: getX
+      parameters:
+        - {name: on, in: query, allowEmptyValue: true, schema: {type: string}}
+        - {name: off, in: query, allowEmptyValue: false, schema: {type: string}}
+        - {name: silent, in: query, schema: {type: string}}
+      responses: {"200": {description: ok}}
+`))
+	requireNoErrorDiags(t, diags)
+	params := indexBy(findOp(t, doc, "getX").Params, func(p ir.Parameter) string { return p.Name.Source })
+
+	for _, tc := range []struct{ name, want, index string }{
+		{"on", `true`, "0"},
+		{"off", `false`, "1"},
+	} {
+		entry, ok := params[tc.name].Unmodeled["openapi:allowEmptyValue"]
+		require.True(t, ok, "%s keeps its declared flag", tc.name)
+		assert.Equal(t, ir.ReasonNoIRHome, entry.Reason)
+		assert.JSONEq(t, tc.want, string(entry.Value))
+		assert.Equal(t, "/paths/~1x/get/parameters/"+tc.index+"/allowEmptyValue",
+			entry.Provenance.Pointer, "kept at the keyword's own coordinate")
+		assertInfoDiagAt(t, diags, entry.Provenance.Pointer)
+	}
+
+	assert.NotContains(t, params["silent"].Unmodeled, "openapi:allowEmptyValue",
+		"a parameter that declares nothing records nothing")
+}
+
+// TestParams_ReservedHeaderNamesAreReported pins a deviation the compiler takes
+// knowingly. OpenAPI says a header parameter named Accept, Content-Type or
+// Authorization SHALL be ignored; Morphic lowers it anyway, because dropping
+// declared content is a loss and choosing between the two belongs to an emitter.
+// What must not happen is doing that in silence, which is what it used to do: an
+// emitter had no way to tell such a parameter from any other, and would generate
+// one that fights the security scheme or the negotiated media type.
+func TestParams_ReservedHeaderNamesAreReported(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct {
+		name     string
+		param    string
+		in       string
+		reported bool
+	}{
+		{"authorization", "Authorization", "header", true},
+		{"accept", "Accept", "header", true},
+		{"content type", "Content-Type", "header", true},
+		{"lowercase spelling", "authorization", "header", true},
+		{"ordinary header", "X-Trace", "header", false},
+		{"same name in query", "Accept", "query", false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			doc, diags := parseFull(t, pathsSpec(`  /x:
+    get:
+      operationId: getX
+      parameters:
+        - {name: `+tc.param+`, in: `+tc.in+`, schema: {type: string}}
+      responses: {"200": {description: ok}}
+`))
+			requireNoErrorDiags(t, diags)
+			op := findOp(t, doc, "getX")
+			require.Len(t, op.Params, 1, "the parameter lowers either way; nothing is dropped")
+			assert.Equal(t, tc.param, op.Params[0].Name.Source)
+
+			assert.Equal(t, tc.reported,
+				hasDiagCodeAt(diags, diag.ReservedHeaderParam, "/paths/~1x/get/parameters/0"),
+				"reported at the parameter's own pointer")
+			if tc.reported {
+				assertHasCode(t, diags, diag.ReservedHeaderParam, ir.SeverityWarning)
+			}
+		})
+	}
+}

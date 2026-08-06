@@ -385,7 +385,36 @@ func lowerHeader(c lowering.Ctx, ts *compile.Types, anchors *schema.AnchorIndex,
 		p.Encoding = &ir.Encoding{MediaType: mediaType}
 	}
 	diags = append(diags, schema.FillPropertyDetail(c, ts, anchors, &p, js, schemaPtr)...)
-	return p, append(diags, applyHeaderAnnotations(c, &p, h, hdecl)...)
+	diags = append(diags, applyHeaderAnnotations(c, &p, h, hdecl)...)
+	return p, append(diags, preserveHeaderSerialization(c, &p, h, hdecl)...)
+}
+
+// preserveHeaderSerialization keeps the two serialization controls a header
+// object declares. OpenAPI §4.8.21 lets a header write `style` and `explode`,
+// and explode governs how an array or object header value is written on the
+// wire — a declared wire fact rather than a hint — but ir.Property has a field
+// for neither. ir.PartEncoding does, and that is a multipart part's own config,
+// not a header's; ir.Encoding, the one thing hanging off a Property here, names
+// a value-encoding scheme rather than a parameter style. So they are kept
+// verbatim instead of dropped, with ReasonNoIRHome since the IR can close the
+// gap by adding the fields, exactly as a parameter's xml hints are kept.
+//
+// A header that declares neither records nothing: RawChildNode returns nil for
+// an absent keyword and PreserveNode keeps nothing for a nil node.
+func preserveHeaderSerialization(c lowering.Ctx, p *ir.Property, h *soa.Header, hdecl string) []ir.Diagnostic {
+	var diags []ir.Diagnostic
+	for _, keyword := range []string{"style", "explode"} {
+		at := hdecl + ids.Ptr(keyword)
+		kept, keptDiags := schema.PreserveNode(c, &p.Unmodeled, "openapi:"+keyword,
+			annotation.RawChildNode(h.GetRootNode(), keyword), ir.ReasonNoIRHome, at)
+		diags = append(diags, keptDiags...)
+		if !kept {
+			continue
+		}
+		diags = append(diags, c.DiagAt(ir.SeverityInfo, diag.DegradedConstruct, at,
+			"header %s has no ir.Property home; kept verbatim under Unmodeled", keyword))
+	}
+	return diags
 }
 
 // headerSchema returns the schema a header declares, the pointer that schema sits

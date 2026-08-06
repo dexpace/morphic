@@ -97,6 +97,22 @@
                   },
                   "docs": {
                     "description": "Unexpected error"
+                  },
+                  "unmodeled": {
+                    "openapi:content": {
+                      "reason": "no_ir_home",
+                      "value": {
+                        "application/json": {
+                          "schema": {
+                            "$ref": "#/components/schemas/Error"
+                          }
+                        }
+                      },
+                      "provenance": {
+                        "source": 0,
+                        "pointer": "/paths/~1pets/get/responses/default/content"
+                      }
+                    }
                   }
                 }
               ],
@@ -196,6 +212,22 @@
                   "fault": "client",
                   "docs": {
                     "description": "Not found"
+                  },
+                  "unmodeled": {
+                    "openapi:content": {
+                      "reason": "no_ir_home",
+                      "value": {
+                        "application/json": {
+                          "schema": {
+                            "$ref": "#/components/schemas/Error"
+                          }
+                        }
+                      },
+                      "provenance": {
+                        "source": 0,
+                        "pointer": "/paths/~1pets/post/responses/404/content"
+                      }
+                    }
                   }
                 }
               ],
@@ -786,6 +818,26 @@
       "name": "pets",
       "docs": {
         "description": "Pet operations"
+      }
+    }
+  ],
+  "diagnostics": [
+    {
+      "severity": "info",
+      "code": "openapi/degraded-construct",
+      "message": "error response media type has no ErrorCase home; content map kept under Unmodeled",
+      "provenance": {
+        "source": 0,
+        "pointer": "/paths/~1pets/get/responses/default"
+      }
+    },
+    {
+      "severity": "info",
+      "code": "openapi/degraded-construct",
+      "message": "error response media type has no ErrorCase home; content map kept under Unmodeled",
+      "provenance": {
+        "source": 0,
+        "pointer": "/paths/~1pets/post/responses/404"
       }
     }
   ],

@@ -60,6 +60,22 @@
                   "fault": "client",
                   "docs": {
                     "description": "not found"
+                  },
+                  "unmodeled": {
+                    "openapi:content": {
+                      "reason": "no_ir_home",
+                      "value": {
+                        "application/json": {
+                          "schema": {
+                            "$ref": "#/components/schemas/Err"
+                          }
+                        }
+                      },
+                      "provenance": {
+                        "source": 0,
+                        "pointer": "/paths/~1widgets/get/responses/404/content"
+                      }
+                    }
                   }
                 },
                 {
@@ -195,6 +211,17 @@
       "urlTemplate": "/",
       "description": {},
       "auth": null
+    }
+  ],
+  "diagnostics": [
+    {
+      "severity": "info",
+      "code": "openapi/degraded-construct",
+      "message": "error response media type has no ErrorCase home; content map kept under Unmodeled",
+      "provenance": {
+        "source": 0,
+        "pointer": "/paths/~1widgets/get/responses/404"
+      }
     }
   ],
   "sources": [

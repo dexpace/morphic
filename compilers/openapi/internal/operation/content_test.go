@@ -1004,6 +1004,97 @@ func TestHeaders_DeprecationUnionsWithTheSchema(t *testing.T) {
 	}
 }
 
+// TestHeaders_SerializationKeywordsKept covers the two keywords a header object
+// writes that ir.Property has no field for. explode decides whether a
+// collection-valued header goes on the wire as one repeated field or one joined
+// value, so dropping it left the IR unable to say how the header serializes —
+// and it was dropped in silence, at both of lowerHeaders' callers.
+//
+// Both callers are exercised, because the loss belonged to the shared lowering
+// rather than to the response position it was noticed at: a multipart part's
+// per-encoding headers build the same ir.Property from the same function.
+func TestHeaders_SerializationKeywordsKept(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct{ name, spec, at string }{
+		{
+			name: "response header",
+			spec: pathsSpec("  /x:\n    get:\n      operationId: g\n      responses:\n" +
+				"        \"200\":\n          description: ok\n          headers:\n" +
+				"            X-H:\n              style: simple\n              explode: true\n" +
+				"              schema: {type: array, items: {type: string}}\n"),
+			at: "/paths/~1x/get/responses/200/headers/X-H",
+		},
+		{
+			name: "multipart encoding header",
+			spec: pathsSpec("  /x:\n    post:\n      operationId: g\n      requestBody:\n" +
+				"        content:\n          multipart/form-data:\n" +
+				"            schema: {type: object, properties: {file: {type: string}}}\n" +
+				"            encoding:\n              file:\n                headers:\n" +
+				"                  X-H:\n                    style: simple\n" +
+				"                    explode: true\n" +
+				"                    schema: {type: array, items: {type: string}}\n" +
+				"      responses: {\"200\": {description: ok}}\n"),
+			at: "/paths/~1x/post/requestBody/content/multipart~1form-data/encoding/file/headers/X-H",
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			_, svc, diags := lowerServiceSpec(t, tc.spec)
+			requireNoErrorDiags(t, diags)
+			assertHeaderSerializationKept(t, headerAt(t, firstOp(t, svc)), diags, tc.at)
+		})
+	}
+}
+
+// headerAt returns the one header the fixtures above declare, whichever of the
+// two positions carries it.
+func headerAt(t *testing.T, op ir.Operation) ir.Property {
+	t.Helper()
+	if len(op.Responses) > 0 && len(op.Responses[0].Headers) > 0 {
+		return op.Responses[0].Headers[0]
+	}
+	require.NotNil(t, op.Request)
+	require.Len(t, op.Request.Contents, 1)
+	for _, pe := range op.Request.Contents[0].Encoding {
+		require.Len(t, pe.Headers, 1)
+		return pe.Headers[0]
+	}
+	t.Fatal("no header at either position")
+	return ir.Property{}
+}
+
+// assertHeaderSerializationKept requires both keywords to be kept verbatim at
+// their own coordinates under the header at `at`, each announced by a diagnostic.
+func assertHeaderSerializationKept(t *testing.T, h ir.Property, diags []ir.Diagnostic, at string) {
+	t.Helper()
+	for key, want := range map[string]string{"style": `"simple"`, "explode": `true`} {
+		entry, ok := h.Unmodeled["openapi:"+key]
+		require.True(t, ok, "%s is kept", key)
+		assert.Equal(t, ir.ReasonNoIRHome, entry.Reason)
+		assert.JSONEq(t, want, string(entry.Value))
+		assert.Equal(t, at+"/"+key, entry.Provenance.Pointer)
+		assertInfoDiagAt(t, diags, entry.Provenance.Pointer)
+	}
+}
+
+// TestHeaders_SerializationKeywordsAbsentRecordNothing is the control for the
+// test above: preservation keys off what the header declares, so a header that
+// declares neither keyword records neither — rather than recording the OpenAPI
+// defaults the accessors would hand back and calling them source facts.
+func TestHeaders_SerializationKeywordsAbsentRecordNothing(t *testing.T) {
+	t.Parallel()
+	_, svc, diags := lowerServiceSpec(t, pathsSpec(
+		"  /x:\n    get:\n      operationId: g\n      responses:\n"+
+			"        \"200\":\n          description: ok\n          headers:\n"+
+			"            X-H: {schema: {type: string}}\n"))
+	requireNoErrorDiags(t, diags)
+
+	h := firstOp(t, svc).Responses[0].Headers[0]
+	assert.NotContains(t, h.Unmodeled, "openapi:style")
+	assert.NotContains(t, h.Unmodeled, "openapi:explode")
+	assert.Empty(t, diags, "and nothing is announced about keywords the header never wrote")
+}
+
 // TestSingleContentEntry_ReportsExtraMediaTypes covers the invalid document
 // OpenAPI forbids: a content-style header or parameter declaring more than one
 // media type. Only the first can lower — ir.Property and ir.Parameter each hold

@@ -135,7 +135,7 @@ func codes() []string {
 		diag.DegradedConstruct,
 		diag.CompositionLowering, diag.DynamicRefExpanded, diag.ConflictingRedecl,
 		diag.AliasAmplification, diag.UnattachableRequired, diag.InternalInvariant,
-		diag.DuplicateOperationID, diag.UnpreservableConstruct,
+		diag.DuplicateOperationID, diag.ReservedHeaderParam, diag.UnpreservableConstruct,
 	}
 }
 

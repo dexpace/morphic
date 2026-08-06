@@ -81,6 +81,20 @@
                   }
                 ]
               },
+              "unmodeled": {
+                "openapi:servers": {
+                  "reason": "no_ir_home",
+                  "value": [
+                    {
+                      "url": "https://hooks.example.com"
+                    }
+                  ],
+                  "provenance": {
+                    "source": 0,
+                    "pointer": "/webhooks/newPet/servers"
+                  }
+                }
+              },
               "provenance": {
                 "source": 0,
                 "pointer": "/webhooks/newPet/post"
@@ -133,13 +147,22 @@
         "source": 0,
         "pointer": "/webhooks/newPet/post/requestBody"
       }
+    },
+    {
+      "severity": "info",
+      "code": "openapi/degraded-construct",
+      "message": "path-item servers kept under Unmodeled; an operation has no server-scope list to bind them to",
+      "provenance": {
+        "source": 0,
+        "pointer": "/webhooks/newPet/post"
+      }
     }
   ],
   "sources": [
     {
       "format": "openapi@3.1",
       "path": "webhooks.yaml",
-      "hash": "32abadfcd65ac8530ddedcf4780f90471b3ce5d1f670384f3c87a5100edd1a96"
+      "hash": "ab52ecad1118dfca04ba5875b7bdd825291d38181484c9d5b15023e096b79f7f"
     }
   ]
 }

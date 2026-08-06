@@ -173,6 +173,7 @@ func lowerWebhooks(c lowering.Ctx, ts *compile.Types, anchors *schema.AnchorInde
 			}
 			op, extra, opDiags := lowerOperation(c, ts, anchors, operationIDs, src, opCtx)
 			diags = append(diags, opDiags...)
+			diags = append(diags, applyPathServers(c, &op, pi, declPtr)...)
 			grp := groups.group("webhook", func() ir.OperationGroup {
 				// A hint, not a source name: no document declares this group. The
 				// compiler synthesizes it to hold webhook operations, exactly as it
@@ -343,6 +344,11 @@ func fillOperationDocs(d *ir.Docs, src *soa.Operation) {
 // lists (Service.Servers, Channel.Servers); ir.Operation just has no such list
 // yet, so the scoping is kept raw with an info diagnostic — a gap the IR can
 // close by adding one, hence ReasonNoIRHome rather than a boundary.
+//
+// Every route that lowers a path item reaches it: a path, a webhook, and a
+// callback expression are the same object under three parents, and a document
+// that overrides the server for one of the latter two was losing the override
+// outright while the paths route reported it (GitHub #39).
 func applyPathServers(c lowering.Ctx, op *ir.Operation, pi *soa.PathItem, declPtr string) []ir.Diagnostic {
 	if len(pi.GetServers()) == 0 {
 		return nil
@@ -473,10 +479,9 @@ func preserveErrorHeaders(c lowering.Ctx, ec *ir.ErrorCase, r *soa.Response, rpt
 }
 
 // fillErrorType lowers every content entry's schema into the type registry
-// (nothing dropped) and points ErrorCase.Type at the first. When more than one
-// media type exists, the full content map is preserved raw with an info
-// diagnostic, since ErrorCase.Type holds a single model reference (ir-design
-// §7.2 clarification).
+// (nothing dropped) and points ErrorCase.Type at the first, then keeps the
+// content map beside it, since ErrorCase.Type holds a single model reference
+// (ir-design §7.2 clarification).
 func fillErrorType(c lowering.Ctx, ts *compile.Types, anchors *schema.AnchorIndex, ec *ir.ErrorCase, r *soa.Response, rptr string) []ir.Diagnostic {
 	content := r.GetContent()
 	if content == nil || content.Len() == 0 {
@@ -492,16 +497,39 @@ func fillErrorType(c lowering.Ctx, ts *compile.Types, anchors *schema.AnchorInde
 			first = false
 		}
 	}
-	if content.Len() > 1 {
-		kept, keptDiags := schema.PreserveNode(c, &ec.Unmodeled, "openapi:content",
-			annotation.RawChildNode(r.GetRootNode(), "content"), ir.ReasonNoIRHome, rptr+ids.Ptr("content"))
-		diags = append(diags, keptDiags...)
-		if kept {
-			diags = append(diags, c.DiagAt(ir.SeverityInfo, diag.DegradedConstruct, rptr,
-				"error response has multiple media types; full content map kept under Unmodeled"))
-		}
+	return append(diags, preserveErrorContent(c, ec, r, rptr, content.Len())...)
+}
+
+// preserveErrorContent keeps an error response's content map verbatim under
+// Unmodeled, whatever its arity.
+//
+// ir.ErrorCase holds a TypeRef and no media type at all, so one entry loses the
+// media type it was keyed by just as surely as several lose the entries past the
+// first: an error declared only as application/problem+json reached the IR
+// indistinguishable from one declared as application/json. Only the multi-entry
+// case used to be kept, which made the single-entry loss the quieter of two
+// halves of one gap rather than a different kind of thing (GitHub #39).
+//
+// n is the entry count, and picks which of the two the diagnostic names, so a
+// reader is told what was actually lost rather than a message covering both.
+func preserveErrorContent(c lowering.Ctx, ec *ir.ErrorCase, r *soa.Response, rptr string, n int) []ir.Diagnostic {
+	kept, diags := schema.PreserveNode(c, &ec.Unmodeled, "openapi:content",
+		annotation.RawChildNode(r.GetRootNode(), "content"), ir.ReasonNoIRHome, rptr+ids.Ptr("content"))
+	if kept {
+		diags = append(diags, c.DiagAt(ir.SeverityInfo, diag.DegradedConstruct, rptr,
+			"%s", errorContentMessage(n)))
 	}
 	return diags
+}
+
+// errorContentMessage names which loss the kept content map stands for: entries
+// past the first when there are several, and the sole media type's own key when
+// there is one.
+func errorContentMessage(n int) string {
+	if n > 1 {
+		return "error response has multiple media types; full content map kept under Unmodeled"
+	}
+	return "error response media type has no ErrorCase home; content map kept under Unmodeled"
 }
 
 // lowerCallbacks lowers each callback expression's path-item operations as
@@ -564,6 +592,7 @@ func lowerCallbackOps(c lowering.Ctx, ts *compile.Types, anchors *schema.AnchorI
 		}
 		op, _, opDiags := lowerOperation(c, ts, anchors, operationIDs, src, opCtx)
 		diags = append(diags, opDiags...)
+		diags = append(diags, applyPathServers(c, &op, pi, cb.decl)...)
 		opIDs = append(opIDs, op.ID)
 		ops = append(ops, op)
 	}
