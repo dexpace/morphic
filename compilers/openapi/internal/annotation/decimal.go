@@ -29,11 +29,16 @@ type decimalBound struct {
 // optional "-", digits, an optional fraction, an optional e/E exponent — into a
 // decimalBound.
 //
-// It reports false for a literal outside that grammar. Every bound the readers
-// here produce comes through ir.NewBigVal, which still stores a binary exponent
-// verbatim: "1p4" is kept as written and means 16 (GitHub #45). Reading the
-// digits out of one and ordering what is left would put a bound the source never
-// wrote into the IR, so it declines rather than guessing.
+// It reports false for a literal outside that grammar rather than guessing:
+// reading the digits out of one and ordering what is left would put a bound the
+// source never wrote into the IR — "1p4" is 16, and a comparison that took the
+// 1 would keep the wrong bound while reporting an ordering it never made.
+//
+// No bound a schema produces is outside it today, since they all come through
+// ir.NewBigVal and its grammar is the narrower of the two;
+// TestBigValGrammarStaysWithinTheDecimalReading is what holds that true. This
+// stays fallible because the two grammars live in different packages and have
+// already moved apart once.
 func parseDecimalBound(v ir.BigVal) (decimalBound, bool) {
 	unsigned, neg := strings.CutPrefix(v.String(), "-")
 

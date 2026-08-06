@@ -170,9 +170,12 @@ func reconcileBound(c *ir.Constraints, isMin bool, excl ir.BigVal) []ir.Diagnost
 // is not: math/big will not build 1e1000001 as one, and a bound it cannot order
 // is a bound it may silently widen.
 //
-// What it cannot order is a literal that is not decimal — BigVal still stores a
-// binary exponent verbatim (GitHub #45) — and there the caller keeps the
-// exclusive bound and says the other may have been the tighter.
+// What it cannot order is a literal outside the decimal grammar, and there the
+// caller keeps the exclusive bound and says the other may have been the tighter.
+// No schema reaches that today — every bound comes through ir.NewBigVal, whose
+// grammar is the narrower of the two — so it stands for the day that changes:
+// a bound this cannot order is one that could be silently replaced by the looser
+// of its pair, which is the defect this reconciliation exists to prevent.
 func inclusiveIsTighter(incl, excl ir.BigVal, isMin bool) (tighter, compared bool) {
 	inclDec, inclOK := parseDecimalBound(incl)
 	exclDec, exclOK := parseDecimalBound(excl)

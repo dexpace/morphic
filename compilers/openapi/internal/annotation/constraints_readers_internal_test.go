@@ -394,21 +394,25 @@ func TestReconcileBound_AMagnitudeNoRationalHoldsStillCompares(t *testing.T) {
 	}
 }
 
-// TestReconcileBound_ALiteralThatIsNotDecimalKeepsTheExclusiveBound pins what
-// is left of the fallback. ir.NewBigVal still stores a binary exponent verbatim
-// (GitHub #45), so "1p4" reaches this reader as a bound meaning 16 that no
-// decimal reading orders. The reader keeps the exclusive bound and says the
-// discarded one may have been the tighter, rather than claiming a comparison it
-// did not make.
-func TestReconcileBound_ALiteralThatIsNotDecimalKeepsTheExclusiveBound(t *testing.T) {
+// TestReconcileBound_ABoundNoDecimalReadingOrdersKeepsTheExclusiveOne pins the
+// guard standing at this reader's boundary with ir.NewBigVal.
+//
+// It is driven through reconcileBound rather than through a schema because no
+// schema reaches it: every bound arrives via ir.NewBigVal, whose grammar
+// TestBigValGrammarStaysWithinTheDecimalReading holds inside the one
+// parseDecimalBound orders. The guard is what keeps a later widening of that
+// grammar from widening a bound instead — a bound that cannot be ordered is one
+// that could be silently replaced by the looser of the pair — so it keeps the
+// exclusive bound and says the discarded one may have been the tighter, rather
+// than claiming a comparison it never made.
+func TestReconcileBound_ABoundNoDecimalReadingOrdersKeepsTheExclusiveOne(t *testing.T) {
 	t.Parallel()
-	s := schemaFromYAMLUnvalidated(t, "type: number\nminimum: 1p4\nexclusiveMinimum: 5\n")
+	c := &ir.Constraints{Min: bigOf("1p4")}
 
-	got, diags := Constraints(s, false)
+	diags := reconcileBound(c, true, ir.BigVal("5"))
 
-	require.NotNil(t, got)
 	want := ir.Constraints{Min: bigOf("5"), ExclusiveMin: true}
-	if diff := cmp.Diff(want, *got); diff != "" {
+	if diff := cmp.Diff(want, *c); diff != "" {
 		t.Errorf("constraints (-want +got):\n%s", diff)
 	}
 	require.Len(t, diags, 1)

@@ -67,3 +67,42 @@ func TestParseDecimalBound_DeclinesWhatIsNotADecimalLiteral(t *testing.T) {
 		})
 	}
 }
+
+// TestBigValGrammarStaysWithinTheDecimalReading pins the coupling that decides
+// whether reconcileBound's incomparable guard is reachable: every literal
+// ir.NewBigVal accepts must be one parseDecimalBound can order.
+//
+// While it holds, no schema reaches that guard — which is why the test for it
+// calls reconcileBound directly. The two grammars live in different packages
+// and have already moved apart once, so nothing but this holds them together:
+// when ir widens NewBigVal, a bound it now admits and this reader cannot order
+// is a bound that would be silently replaced by the looser of its pair, and
+// that has to fail here rather than in a compiled document.
+func TestBigValGrammarStaysWithinTheDecimalReading(t *testing.T) {
+	t.Parallel()
+	signs := []string{"", "-", "+"}
+	mantissas := []string{
+		"0", "00", "0.0", ".5", "5.", "1", "10", "100", "1.0", "01", "007", "0.5",
+		"0.05", "123456789012345678901234567890", "9007199254740993", "1.7976931348623157",
+	}
+	exponents := []string{"", "e0", "e1", "e-1", "e+1", "E5", "e308", "e-308", "e1000001", "e-1000001"}
+
+	var accepted int
+	for _, sign := range signs {
+		for _, mantissa := range mantissas {
+			for _, exponent := range exponents {
+				literal := sign + mantissa + exponent
+				v, err := ir.NewBigVal(literal)
+				if err != nil {
+					continue // not a bound at all; nothing for this reader to order
+				}
+				accepted++
+				_, ok := parseDecimalBound(v)
+				assert.True(t, ok, "NewBigVal(%q) = %q, which this reader cannot order", literal, v)
+			}
+		}
+	}
+	// Without this the loop would pass by accepting nothing at all, which is
+	// exactly what a widened rejection in ir would look like from here.
+	require.NotZero(t, accepted, "the corpus reached NewBigVal")
+}
