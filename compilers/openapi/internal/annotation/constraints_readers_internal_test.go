@@ -341,6 +341,26 @@ func TestReconcileBound_ThreeZeroDialectPairIsUntouched(t *testing.T) {
 	}
 }
 
+// TestApplyExclusive_ThreeZeroFlagsTheSideItWasReadFrom pins which side the 3.0
+// boolean arm marks exclusive.
+//
+// The case above declares the keyword on both sides, and every other 3.0 case
+// here does too — where flagging the wrong side is symmetric, so a reader that
+// crossed them over produces exactly the expected constraints. Only a schema
+// exclusive on one side can tell the two apart.
+func TestApplyExclusive_ThreeZeroFlagsTheSideItWasReadFrom(t *testing.T) {
+	t.Parallel()
+	got, diags := Constraints(schemaFromYAML(t,
+		"type: number\nminimum: 10\nexclusiveMinimum: true\nmaximum: 20\n"), true)
+
+	require.NotNil(t, got)
+	assert.Empty(t, diags)
+	want := ir.Constraints{Min: bigOf("10"), Max: bigOf("20"), ExclusiveMin: true}
+	if diff := cmp.Diff(want, *got); diff != "" {
+		t.Errorf("constraints (-want +got):\n%s", diff)
+	}
+}
+
 // TestReconcileBound_AMagnitudeNoRationalHoldsStillCompares pins the exactness
 // of the comparison at the size where the obvious way to make it gives out.
 // math/big will not build 1e2000000 as a rational — the exponent is past its
