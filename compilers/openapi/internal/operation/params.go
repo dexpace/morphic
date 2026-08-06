@@ -62,19 +62,20 @@ func lowerParameter(c lowering.Ctx, ts *compile.Types, anchors *schema.AnchorInd
 		AllowReserved: p.GetAllowReserved(),
 	}
 	diags := fillParamType(c, ts, anchors, &param, &binding, p, pptr, name)
-	diags = append(diags, reservedHeaderDiag(c, name, in, pptr)...)
+	diags = append(diags, reservedHeaderParamDiag(c, name, in, pptr)...)
 	return param, binding, append(diags, fillParamDetail(c, &param, p, pptr)...)
 }
 
-// reservedHeaderDiag reports a header parameter OpenAPI §4.8.12 reserves — one
-// named Accept, Content-Type or Authorization, whose definition it says SHALL be
-// ignored. The comparison is case-insensitive because HTTP field names are, so a
-// parameter spelled "authorization" collides with the security scheme exactly as
-// one spelled "Authorization" does.
+// reservedHeaderParamDiag reports a header parameter OpenAPI §4.8.12 reserves —
+// one named Accept, Content-Type or Authorization, whose definition it says
+// SHALL be ignored. The comparison is case-insensitive because HTTP field names
+// are, so a parameter spelled "authorization" collides with the security scheme
+// exactly as one spelled "Authorization" does.
 //
-// The parameter still lowers: see diag.ReservedHeaderParam for why keeping it
-// and reporting it is the choice, rather than dropping it here.
-func reservedHeaderDiag(c lowering.Ctx, name string, in soa.ParameterIn, pptr string) []ir.Diagnostic {
+// This is the parameter half of the rule, and reservedHeaderEntryDiag is the
+// headers-map half. The parameter still lowers: see diag.ReservedHeaderName for
+// why keeping it and reporting it is the choice, rather than dropping it here.
+func reservedHeaderParamDiag(c lowering.Ctx, name string, in soa.ParameterIn, pptr string) []ir.Diagnostic {
 	if in != soa.ParameterInHeader {
 		return nil
 	}
@@ -82,7 +83,7 @@ func reservedHeaderDiag(c lowering.Ctx, name string, in soa.ParameterIn, pptr st
 		if !strings.EqualFold(name, reserved) {
 			continue
 		}
-		return []ir.Diagnostic{c.DiagAt(ir.SeverityWarning, diag.ReservedHeaderParam, pptr,
+		return []ir.Diagnostic{c.DiagAt(ir.SeverityWarning, diag.ReservedHeaderName, pptr,
 			"header parameter %q is reserved: OpenAPI says a definition for %s SHALL be ignored, "+
 				"so it is lowered as declared and left for the emitter to suppress", name, reserved)}
 	}

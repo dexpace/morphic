@@ -143,27 +143,35 @@ const (
 	// operation, which OpenAPI forbids. A path item mounted at two paths is the
 	// shape that reaches this without the document repeating the id in source.
 	DuplicateOperationID = "openapi/duplicate-operation-id"
-	// ReservedHeaderParam reports a header parameter named Accept, Content-Type or
-	// Authorization, which OpenAPI §4.8.12 says SHALL be ignored: each duplicates
-	// something the protocol layer already owns — content negotiation, the request
-	// body's media type, the security scheme's credential.
+	// ReservedHeaderName reports a header declaration OpenAPI says SHALL be
+	// ignored, because the name restates something the protocol layer already
+	// owns. The specification states the rule at three positions, and this code
+	// covers all three rather than the one it was first noticed at:
 	//
-	// The compiler keeps the parameter, because dropping declared content is a
-	// loss and choosing between the two is an emitter's call, not a compiler's
-	// (invariant 2). The diagnostic is what makes the deviation from the SHALL
-	// visible, so an emitter can suppress the parameter rather than generate one
-	// that fights the scheme it collides with (GitHub #39).
+	//   - §4.8.12, a parameter with `in: header` named Accept, Content-Type or
+	//     Authorization — content negotiation, the request body's media type, the
+	//     security scheme's credential;
+	//   - §4.8.17, a Content-Type entry in a response's `headers` map, whose
+	//     media type the response's own `content` map already names;
+	//   - §4.8.15, a Content-Type entry in an encoding's `headers` map, which the
+	//     encoding's own `contentType` describes separately.
+	//
+	// The compiler keeps the declaration in every case, because dropping declared
+	// content is a loss and choosing between the two is an emitter's call, not a
+	// compiler's (invariant 2). The diagnostic is what makes the deviation from
+	// the SHALL visible, so an emitter can suppress the declaration rather than
+	// generate one that fights what it collides with (GitHub #39).
 	//
 	// Unconditional, and deliberately not behind an Options switch: invariant 6
-	// governs what is *inferred*, and nothing here is. The three names are fixed
-	// by the specification, the comparison is against a declared name, and the
-	// document lowers byte-for-byte the same whether or not this fires — so there
-	// is no inference to mark Inferred and no semantics to disable. Warning
-	// rather than info because the document really did write something the spec
-	// says has no effect; error is wrong twice over, since the document is
-	// well-formed and harness.Check stops at the first error diagnostic, which
-	// would hide every later finding in the same spec.
-	ReservedHeaderParam = "openapi/reserved-header-parameter"
+	// governs what is *inferred*, and nothing here is. The names are fixed by the
+	// specification, the comparison is against a declared name, and the document
+	// lowers byte-for-byte the same whether or not this fires — so there is no
+	// inference to mark Inferred and no semantics to disable. Warning rather than
+	// info because the document really did write something the spec says has no
+	// effect; error is wrong twice over, since the document is well-formed and
+	// harness.Check stops at the first error diagnostic, which would hide every
+	// later finding in the same spec.
+	ReservedHeaderName = "openapi/reserved-header-name"
 	// UnpreservableConstruct reports a construct that reached the IR in no form at
 	// all: the compiler had no field to model it and its source node could not be
 	// converted to JSON either, so Unmodeled could not hold it. It is an error

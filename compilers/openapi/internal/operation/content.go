@@ -355,9 +355,35 @@ func lowerHeaders(c lowering.Ctx, ts *compile.Types, anchors *schema.AnchorIndex
 		}
 		p, headerDiags := lowerHeader(c, ts, anchors, h, name, hptr, hdecl)
 		diags = append(diags, headerDiags...)
+		diags = append(diags, reservedHeaderEntryDiag(c, name, hptr)...)
 		out = append(out, p)
 	}
 	return out, diags
+}
+
+// reservedHeaderEntryDiag reports a headers-map entry OpenAPI says SHALL be
+// ignored. Both maps this lowering serves reserve Content-Type and nothing else:
+// a response's (§4.8.17), whose media type its own `content` map already names,
+// and an encoding's (§4.8.15), which the encoding's own `contentType` describes
+// separately. The comparison is case-insensitive because HTTP field names are.
+//
+// It reports at the entry's own pointer rather than the declaration's, because
+// the reserved thing is the key the header is mapped under, not the header
+// object: two keys $ref'ing one component are two declarations, and only the one
+// spelled Content-Type is reserved. That is the opposite choice from
+// preserveHeaderSerialization, which keeps keywords the header object itself
+// writes and so records them at the declaration.
+//
+// This is the headers-map half of the rule; reservedHeaderParamDiag is the
+// parameter half. The header still lowers: see diag.ReservedHeaderName for why
+// keeping it and reporting it is the choice, rather than dropping it here.
+func reservedHeaderEntryDiag(c lowering.Ctx, name, hptr string) []ir.Diagnostic {
+	if !strings.EqualFold(name, "Content-Type") {
+		return nil
+	}
+	return []ir.Diagnostic{c.DiagAt(ir.SeverityWarning, diag.ReservedHeaderName, hptr,
+		"header %q is reserved: OpenAPI says a Content-Type entry in a headers map SHALL be "+
+			"ignored, so it is lowered as declared and left for the emitter to suppress", name)}
 }
 
 // lowerHeader lowers one header entry into a Property. Its schema goes through

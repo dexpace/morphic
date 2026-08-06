@@ -1095,6 +1095,107 @@ func TestHeaders_SerializationKeywordsAbsentRecordNothing(t *testing.T) {
 	assert.Empty(t, diags, "and nothing is announced about keywords the header never wrote")
 }
 
+// TestHeaders_ReservedContentTypeEntryIsReported covers the headers-map half of
+// the rule diag.ReservedHeaderName records. OpenAPI states "SHALL be ignored"
+// for a reserved header name at three positions, not one: a header parameter
+// (§4.8.12), a Content-Type entry in a response's headers map (§4.8.17), and a
+// Content-Type entry in an encoding's (§4.8.15). Morphic lowers all three
+// anyway, because dropping declared content is a loss and the choice belongs to
+// an emitter — but doing that in silence is what leaves an emitter unable to
+// tell such a header from any other, and generating one that restates the media
+// type the position already owns.
+//
+// Both headers-map positions are exercised, because the rule belongs to the
+// shared lowering rather than the response position: an encoding's per-part
+// headers reach lowerHeaders from the other caller.
+func TestHeaders_ReservedContentTypeEntryIsReported(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct {
+		name, header, at string
+		reported         bool
+	}{
+		{"response Content-Type", "Content-Type",
+			"/paths/~1x/get/responses/200/headers/Content-Type", true},
+		{"response lowercase spelling", "content-type",
+			"/paths/~1x/get/responses/200/headers/content-type", true},
+		{"response ordinary header", "X-Trace",
+			"/paths/~1x/get/responses/200/headers/X-Trace", false},
+		{"response Accept is not reserved here", "Accept",
+			"/paths/~1x/get/responses/200/headers/Accept", false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			_, svc, diags := lowerServiceSpec(t, pathsSpec(
+				"  /x:\n    get:\n      operationId: g\n      responses:\n"+
+					"        \"200\":\n          description: ok\n          headers:\n"+
+					"            "+tc.header+": {schema: {type: string}}\n"))
+			requireNoErrorDiags(t, diags)
+
+			headers := firstOp(t, svc).Responses[0].Headers
+			require.Len(t, headers, 1, "the header lowers either way; nothing is dropped")
+			assert.Equal(t, tc.header, headers[0].WireName)
+			assert.Equal(t, tc.reported, hasDiagCodeAt(diags, diag.ReservedHeaderName, tc.at),
+				"reported at the map entry's own pointer")
+		})
+	}
+}
+
+// TestHeaders_ReservedContentTypeInEncodingIsReported is the same rule at the
+// other caller of lowerHeaders: an encoding's headers map, which §4.8.15 says
+// describes Content-Type separately and SHALL ignore an entry for it.
+func TestHeaders_ReservedContentTypeInEncodingIsReported(t *testing.T) {
+	t.Parallel()
+	_, _, diags := lowerServiceSpec(t, pathsSpec(
+		"  /x:\n    post:\n      operationId: g\n      requestBody:\n"+
+			"        content:\n          multipart/form-data:\n"+
+			"            schema: {type: object, properties: {file: {type: string}}}\n"+
+			"            encoding:\n              file:\n                headers:\n"+
+			"                  Content-Type: {schema: {type: string}}\n"+
+			"                  X-Other: {schema: {type: string}}\n"+
+			"      responses: {\"200\": {description: ok}}\n"))
+	requireNoErrorDiags(t, diags)
+
+	base := "/paths/~1x/post/requestBody/content/multipart~1form-data/encoding/file/headers/"
+	assert.True(t, hasDiagCodeAt(diags, diag.ReservedHeaderName, base+"Content-Type"))
+	assert.False(t, hasDiagCodeAt(diags, diag.ReservedHeaderName, base+"X-Other"),
+		"the entry beside it is ordinary and says nothing")
+	assertHasCode(t, diags, diag.ReservedHeaderName, ir.SeverityWarning)
+}
+
+// TestHeaders_ReservedNameIsTheKeyNotTheDeclaration pins which of two pointers
+// the report lands on. The reserved thing is the key the header is mapped under,
+// not the header object: one component $ref'd from a reserved key and an
+// ordinary one is two declarations, and only the reserved key is reported —
+// reporting at the shared declaration instead would collapse them into one.
+func TestHeaders_ReservedNameIsTheKeyNotTheDeclaration(t *testing.T) {
+	t.Parallel()
+	_, _, diags := lowerServiceSpec(t, `openapi: 3.1.0
+info: {title: T, version: "1"}
+components:
+  headers:
+    Shared: {schema: {type: string}}
+paths:
+  /x:
+    get:
+      operationId: g
+      responses:
+        "200":
+          description: ok
+          headers:
+            Content-Type: {$ref: '#/components/headers/Shared'}
+            X-Other: {$ref: '#/components/headers/Shared'}
+`)
+	requireNoErrorDiags(t, diags)
+
+	base := "/paths/~1x/get/responses/200/headers/"
+	assert.True(t, hasDiagCodeAt(diags, diag.ReservedHeaderName, base+"Content-Type"),
+		"the reserved key is reported at its own use site")
+	assert.False(t, hasDiagCodeAt(diags, diag.ReservedHeaderName, base+"X-Other"),
+		"the other key sharing that declaration is not")
+	assert.False(t, hasDiagCodeAt(diags, diag.ReservedHeaderName, "/components/headers/Shared"),
+		"and nothing is reported at the declaration they share")
+}
+
 // TestSingleContentEntry_ReportsExtraMediaTypes covers the invalid document
 // OpenAPI forbids: a content-style header or parameter declaring more than one
 // media type. Only the first can lower — ir.Property and ir.Parameter each hold

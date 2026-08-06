@@ -683,10 +683,10 @@ func TestParams_ReservedHeaderNamesAreReported(t *testing.T) {
 			assert.Equal(t, tc.param, op.Params[0].Name.Source)
 
 			assert.Equal(t, tc.reported,
-				hasDiagCodeAt(diags, diag.ReservedHeaderParam, "/paths/~1x/get/parameters/0"),
+				hasDiagCodeAt(diags, diag.ReservedHeaderName, "/paths/~1x/get/parameters/0"),
 				"reported at the parameter's own pointer")
 			if tc.reported {
-				assertHasCode(t, diags, diag.ReservedHeaderParam, ir.SeverityWarning)
+				assertHasCode(t, diags, diag.ReservedHeaderName, ir.SeverityWarning)
 			}
 		})
 	}
