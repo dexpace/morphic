@@ -82,6 +82,18 @@
                 ]
               },
               "unmodeled": {
+                "openapi:operationServers": {
+                  "reason": "no_ir_home",
+                  "value": [
+                    {
+                      "url": "https://hooks-override.example.com"
+                    }
+                  ],
+                  "provenance": {
+                    "source": 0,
+                    "pointer": "/webhooks/newPet/post/servers"
+                  }
+                },
                 "openapi:servers": {
                   "reason": "no_ir_home",
                   "value": [
@@ -151,6 +163,15 @@
     {
       "severity": "info",
       "code": "openapi/degraded-construct",
+      "message": "operation servers kept under Unmodeled; an operation has no server-scope list to bind them to, and these override any path-item servers kept beside them",
+      "provenance": {
+        "source": 0,
+        "pointer": "/webhooks/newPet/post"
+      }
+    },
+    {
+      "severity": "info",
+      "code": "openapi/degraded-construct",
       "message": "path-item servers kept under Unmodeled; an operation has no server-scope list to bind them to",
       "provenance": {
         "source": 0,
@@ -162,7 +183,7 @@
     {
       "format": "openapi@3.1",
       "path": "webhooks.yaml",
-      "hash": "ab52ecad1118dfca04ba5875b7bdd825291d38181484c9d5b15023e096b79f7f"
+      "hash": "a1a8c6abd2eddc50abf4aaa27edf7c634a26b068f2c13fdfb0a6dbe8a8d2ef83"
     }
   ]
 }

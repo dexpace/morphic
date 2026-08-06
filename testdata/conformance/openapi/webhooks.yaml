@@ -10,6 +10,11 @@ webhooks:
       - url: https://hooks.example.com
     post:
       operationId: onNewPet
+      # And the operation may override the path item's in turn — OpenAPI says
+      # this one wins. Both are kept, under separate keys: one key for two
+      # declarations would leave the survivor depending on lowering order.
+      servers:
+        - url: https://hooks-override.example.com
       requestBody:
         content:
           application/json:

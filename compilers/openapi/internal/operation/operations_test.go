@@ -1532,17 +1532,26 @@ func TestErrorCase_SingleMediaTypeKeepsContentMap(t *testing.T) {
 		"an error response declaring no content keeps no content map")
 }
 
-// operationServersSpec declares `servers` at both levels OpenAPI allows on one
-// operation, with a distinct URL apiece, plus an operation that declares only
-// its own so the fallback shape is covered too.
+// operationServersSpec declares `servers` at both levels OpenAPI allows, on an
+// operation of each of the three routes that lower one, with a distinct URL
+// everywhere so a preserved list can be traced to the object that wrote it. The
+// last two path items cover the single-level shapes.
 const operationServersSpec = `openapi: 3.1.0
 info: {title: T, version: "1"}
 paths:
   /both:
     servers: [{url: 'https://pathitem.example'}]
-    get:
-      operationId: getBoth
+    post:
+      operationId: postBoth
       servers: [{url: 'https://operation.example'}]
+      callbacks:
+        onEvent:
+          '{$request.body#/url}':
+            servers: [{url: 'https://cb-pathitem.example'}]
+            post:
+              operationId: onEvent
+              servers: [{url: 'https://cb-operation.example'}]
+              responses: {"200": {description: ok}}
       responses: {"200": {description: ok}}
   /operationOnly:
     get:
@@ -1554,39 +1563,69 @@ paths:
     get:
       operationId: getPathItemOnly
       responses: {"200": {description: ok}}
+webhooks:
+  hooked:
+    servers: [{url: 'https://wh-pathitem.example'}]
+    post:
+      operationId: onHook
+      servers: [{url: 'https://wh-operation.example'}]
+      responses: {"200": {description: ok}}
 `
 
 // TestOperations_OwnServersKeptBesideThePathItems pins the overriding half of
-// the servers pair. OpenAPI says an Operation Object's servers override the Path
-// Item Object's, but only the path item's were read: a document declaring both
-// kept the superseded list and dropped the effective one outright, so an emitter
-// reading openapi:servers would route to a host the operation had replaced —
-// and nothing reported it.
+// the servers pair, on every route that lowers an operation. OpenAPI says an
+// Operation Object's servers override the Path Item Object's, but only the path
+// item's were read: a document declaring both kept the superseded list and
+// dropped the effective one outright, so an emitter reading openapi:servers
+// would route to a host the operation had replaced — and nothing reported it.
 //
-// The two are asserted under separate keys because they are two declarations at
-// two pointers. One key for both would make the surviving list depend on which
-// lowering ran last, which no single-order test could see.
+// All three routes are asserted because the path-item half of this same pair was
+// missing on two of its three, and preserving from lowerOperation is what is
+// claimed to make that unrepeatable. A single-route case cannot see a fix that
+// skips the other two, which is the whole shape of GitHub #39 item 2.
+//
+// The two levels are asserted under separate keys because they are two
+// declarations at two pointers. One key for both would make the surviving list
+// depend on which lowering ran last, which no single-order test could see.
 func TestOperations_OwnServersKeptBesideThePathItems(t *testing.T) {
 	t.Parallel()
 	doc, diags := parseFull(t, operationServersSpec)
 	requireNoErrorDiags(t, diags)
 
-	both := findOp(t, doc, "getBoth")
-	own, ok := both.Unmodeled["openapi:operationServers"]
-	require.True(t, ok, "the operation's own servers are kept")
-	assert.Equal(t, ir.ReasonNoIRHome, own.Reason)
-	assert.JSONEq(t, `[{"url":"https://operation.example"}]`, string(own.Value),
-		"and they are the operation's list, not the path item's")
-	assert.Equal(t, "/paths/~1both/get/servers", own.Provenance.Pointer)
+	// own/inherited are the operation's own list and its path item's; reported is
+	// where the operation's degradation is stamped (the operation itself).
+	for _, tc := range []struct{ op, own, ownAt, inherited, inheritedAt, reported string }{
+		{"postBoth",
+			"https://operation.example", "/paths/~1both/post/servers",
+			"https://pathitem.example", "/paths/~1both/servers", "/paths/~1both/post"},
+		{"onHook",
+			"https://wh-operation.example", "/webhooks/hooked/post/servers",
+			"https://wh-pathitem.example", "/webhooks/hooked/servers", "/webhooks/hooked/post"},
+		{"onEvent",
+			"https://cb-operation.example",
+			"/paths/~1both/post/callbacks/onEvent/{$request.body#~1url}/post/servers",
+			"https://cb-pathitem.example",
+			"/paths/~1both/post/callbacks/onEvent/{$request.body#~1url}/servers",
+			"/paths/~1both/post/callbacks/onEvent/{$request.body#~1url}/post"},
+	} {
+		op := findOp(t, doc, tc.op)
 
-	inherited, ok := both.Unmodeled["openapi:servers"]
-	require.True(t, ok, "the path item's list is kept beside it, not replaced by it")
-	assert.JSONEq(t, `[{"url":"https://pathitem.example"}]`, string(inherited.Value))
-	assert.Equal(t, "/paths/~1both/servers", inherited.Provenance.Pointer,
-		"each entry keeps the coordinate of the object that declared it")
+		own, ok := op.Unmodeled["openapi:operationServers"]
+		require.True(t, ok, "%s keeps its operation's own servers", tc.op)
+		assert.Equal(t, ir.ReasonNoIRHome, own.Reason)
+		assert.JSONEq(t, `[{"url":"`+tc.own+`"}]`, string(own.Value),
+			"%s keeps its own list, not its path item's", tc.op)
+		assert.Equal(t, tc.ownAt, own.Provenance.Pointer)
 
-	assert.True(t, hasDiagCodeAt(diags, diag.DegradedConstruct, "/paths/~1both/get"),
-		"the operation's own list is reported as the path item's already was")
+		inherited, ok := op.Unmodeled["openapi:servers"]
+		require.True(t, ok, "%s keeps its path item's list beside it, not replaced by it", tc.op)
+		assert.JSONEq(t, `[{"url":"`+tc.inherited+`"}]`, string(inherited.Value))
+		assert.Equal(t, tc.inheritedAt, inherited.Provenance.Pointer,
+			"each entry keeps the coordinate of the object that declared it")
+
+		assert.True(t, hasDiagCodeAt(diags, diag.DegradedConstruct, tc.reported),
+			"%s reports the operation's own list as the path item's already was", tc.op)
+	}
 }
 
 // TestOperations_ServersKeysAreIndependent is the control for the test above:

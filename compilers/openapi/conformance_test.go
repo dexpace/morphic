@@ -1787,7 +1787,26 @@ func assertWebhooks(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
 	require.Len(t, op.Bindings.HTTP, 1)
 	assert.True(t, op.Bindings.HTTP[0].IsWebhook, "webhook operation carries IsWebhook")
 	assertPathItemServersKept(t, op, "https://hooks.example.com")
+	assertOwnServersKeptBesideThem(t, op, "https://hooks-override.example.com")
 	assertWebhookGroupIsAHint(t, doc)
+}
+
+// assertOwnServersKeptBesideThem pins the overriding half of the servers pair in
+// the corpus, so the two-order oracle and the JSON round-trip see it. OpenAPI
+// says an operation's own servers override its path item's, so keeping only the
+// path item's recorded the superseded list and dropped the effective one.
+//
+// The two keys are asserted together because the hazard is that they collapse
+// into one: a single key holding both would leave the surviving list depending
+// on which lowering ran last, which only a two-order diff can see.
+func assertOwnServersKeptBesideThem(t *testing.T, op ir.Operation, url string) {
+	t.Helper()
+	entry, ok := op.Unmodeled["openapi:operationServers"]
+	require.True(t, ok, "the operation's own servers are kept beside its path item's")
+	assert.Equal(t, ir.ReasonNoIRHome, entry.Reason)
+	assert.JSONEq(t, `[{"url":"`+url+`"}]`, string(entry.Value))
+	assert.NotEqual(t, entry.Value, op.Unmodeled["openapi:servers"].Value,
+		"and the two keys hold different declarations, not one overwriting the other")
 }
 
 // assertPathItemServersKept pins that a path item's servers survive whichever
