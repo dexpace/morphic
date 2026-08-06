@@ -435,26 +435,100 @@ func falseSchema(c lowering.Ctx, ts *compile.Types, pointer, hint string) (ir.Ty
 	return id, diags
 }
 
+// familyOrder is the order lower() tries the keyword families that outrank the
+// structural type, and dispatchOf is the sole reader of it. First match wins, so
+// a schema declaring more than one of them lowers as the first and passes over
+// the rest — which is why the two are derived together rather than separately.
+var familyOrder = []string{"const", "enum", "allOf"}
+
+// declaresFamily reports whether s declares the named family. It is the single
+// definition of each family's guard: lower() lowers what dispatchOf elects and
+// recordSkippedFamilies keeps what the same walk passed over, so the winner and
+// the losers can never be read off two tests that disagree.
+// A name it does not know declares nothing, rather than falling through to
+// another family's guard: a familyOrder entry added without a case here would
+// otherwise report whichever guard the default happened to hold, electing that
+// name on schemas that never wrote it.
+func declaresFamily(s *oas3.Schema, family string) bool {
+	switch family {
+	case "const":
+		return s.GetConst() != nil
+	case "enum":
+		return len(s.GetEnum()) > 0
+	case "allOf":
+		return len(s.GetAllOf()) > 0
+	default:
+		return false
+	}
+}
+
+// dispatch records how lower() resolved a schema's competing keyword families:
+// the one it lowered, and the ones it passed over. won is "" when the schema
+// declares none of them and the type set decides the lowering instead.
+type dispatch struct {
+	won     string
+	skipped []string
+}
+
+// dispatchOf elects the family lower() lowers and collects the rest. A schema
+// declaring none leaves won empty and skipped nil, so the type-set arms preserve
+// nothing.
+//
+// familyOrder, declaresFamily and lower()'s switch have to name the same three,
+// and only two of the three pairings fail safely. A name familyOrder lists that
+// declaresFamily does not know is never declared, so it is never elected; a name
+// that loses the election reaches recordSkippedFamilies whether or not lower()
+// can lower it. But a name that *wins* an election lower() has no arm for is
+// neither lowered nor skipped: the switch falls through to the type-set arms and
+// the keyword is dropped in silence — the very failure GitHub #35 is about.
+// Adding a family means adding all three.
+func dispatchOf(s *oas3.Schema) dispatch {
+	var d dispatch
+	for _, family := range familyOrder {
+		if !declaresFamily(s, family) {
+			continue
+		}
+		if d.won == "" {
+			d.won = family
+			continue
+		}
+		d.skipped = append(d.skipped, family)
+	}
+	return d
+}
+
 // lower interns the inline schema at pointer and returns its TypeID. Value
 // constraints (const, enum) and allOf composition take precedence over the
 // structural type; otherwise it dispatches on the effective (null-stripped)
 // type set. const hoists through hoistLiteral — the same primitive that
 // hoists each individual member of a heterogeneous enum (enumAsUnion) — since
 // a bare `const` schema is exactly a Literal at its own pointer.
+//
+// The families are conjoined where a schema writes more than one, so electing a
+// winner is a §4.8 degradation rather than a reading of the source: the ones
+// passed over are kept verbatim beside it (recordSkippedFamilies), never
+// dropped.
+//
+// What that does not cover is a keyword the *elected* lowering never reads —
+// `type: string` beside an allOf, `format` beside a const. Deciding those needs a
+// per-winner rule rather than a keyword list, since `allOf` beside `type: object`
+// is the common case and loses nothing, so it is left open at GitHub #268 rather
+// than settled here.
 func lower(c lowering.Ctx, ts *compile.Types, anchors *AnchorIndex, depth int, s *oas3.Schema, pointer, hint string) (ir.TypeID, []ir.Diagnostic) {
+	d := dispatchOf(s)
 	unhomed := func(id ir.TypeID, diags []ir.Diagnostic) (ir.TypeID, []ir.Diagnostic) {
-		owner, ownDiags := preserveUnhomedKeywords(c, ts, s, pointer, hint, id)
+		owner, ownDiags := preserveUnhomedKeywords(c, ts, s, pointer, hint, id, d)
 		return owner, append(diags, ownDiags...)
 	}
-	if constVal := s.GetConst(); constVal != nil {
-		return unhomed(hoistLiteral(c, ts, constVal, pointer, hint))
-	}
-	if len(s.GetEnum()) > 0 {
+	switch d.won {
+	case "const":
+		return unhomed(hoistLiteral(c, ts, s.GetConst(), pointer, hint))
+	case "enum":
 		return unhomed(lowerEnum(c, ts, s, pointer, hint))
-	}
-	if len(s.GetAllOf()) > 0 {
+	case "allOf":
 		return unhomed(lowerAllOf(c, ts, anchors, depth, s, pointer, hint))
 	}
+	// won is "" — the schema declares no family, so the type set decides.
 	types := effectiveTypes(s)
 	switch {
 	case len(types) > 1:
@@ -559,13 +633,17 @@ func unhomedKeywords(s *oas3.Schema, td ir.TypeDef) []string {
 // shared primitive must never carry one declaration's keywords. The alias takes
 // the position's constraints too, because owning the pointer is what stops
 // hoistDeclarationHome attaching them afterwards.
-func preserveUnhomedKeywords(c lowering.Ctx, ts *compile.Types, s *oas3.Schema, pointer, hint string, id ir.TypeID) (ir.TypeID, []ir.Diagnostic) {
+//
+// The families lower()'s election passed over ride the same path: they too were
+// declared here, they too have no home on the node the election produced, and
+// they too must not land on a shared one.
+func preserveUnhomedKeywords(c lowering.Ctx, ts *compile.Types, s *oas3.Schema, pointer, hint string, id ir.TypeID, d dispatch) (ir.TypeID, []ir.Diagnostic) {
 	td, ok, diags := registeredNode(c, ts, id, pointer)
 	if !ok {
 		return id, diags
 	}
 	unhomed := unhomedKeywords(s, td)
-	if len(unhomed) == 0 {
+	if len(unhomed) == 0 && len(d.skipped) == 0 {
 		return id, diags
 	}
 	owner := id
@@ -574,7 +652,51 @@ func preserveUnhomedKeywords(c lowering.Ctx, ts *compile.Types, s *oas3.Schema, 
 		diags = append(diags, consDiags...)
 		owner = internAlias(c, ts, pointer, hint, ir.TypeRef{Target: id}, cons)
 	}
-	return owner, append(diags, recordUnhomedKeywords(c, ts, owner, s, unhomed, td.Kind(), pointer)...)
+	diags = append(diags, recordUnhomedKeywords(c, ts, owner, s, unhomed, td.Kind(), pointer)...)
+	return owner, append(diags, recordSkippedFamilies(c, ts, owner, s, d, pointer)...)
+}
+
+// recordSkippedFamilies keeps verbatim the keyword families lower()'s election
+// passed over, and reports them once.
+//
+// JSON Schema conjoins keywords, so `{allOf: [{$ref: Base}], enum: [a, b]}` is a
+// narrowing of Base rather than a malformed document, and `{const: a, enum: [a,
+// b]}` is a redundant but legal restatement. The IR has no intersection
+// combinator (ir-design §15), so only one of them can be the value — but the
+// loser was dropped outright, taking the whole relationship to Base with it and
+// reporting nothing at all. Keeping it beside the elected form is §4.8's rule for
+// every other unrepresentable conjunction here (preserveUnionSiblings,
+// buildTuple's open tuple).
+//
+// It reports the keywords it actually stored, never the ones it was handed, so
+// the message cannot claim one that failed to convert and was reported
+// unpreservable instead.
+func recordSkippedFamilies(c lowering.Ctx, ts *compile.Types, owner ir.TypeID, s *oas3.Schema, d dispatch, pointer string) []ir.Diagnostic {
+	if len(d.skipped) == 0 {
+		return nil
+	}
+	td, ok, diags := registeredNode(c, ts, owner, pointer)
+	if !ok {
+		return diags
+	}
+	common := td.Common()
+	kept := make([]string, 0, len(d.skipped))
+	for _, keyword := range d.skipped {
+		stored, storedDiags := PreserveSchemaKeyword(c, &common.Unmodeled, s, keyword,
+			ir.ReasonDegradedLowering, pointer+ids.Ptr(keyword))
+		diags = append(diags, storedDiags...)
+		if stored {
+			kept = append(kept, keyword)
+		}
+	}
+	if len(kept) == 0 {
+		return diags
+	}
+	skipped := strings.Join(kept, " and ")
+	return append(diags, c.DiagAt(ir.SeverityInfo, diag.DegradedConstruct, pointer,
+		"this position declares %s beside its %s, and JSON Schema conjoins them where only "+
+			"one can be the value; it lowered as the %s, with %s kept verbatim under Unmodeled",
+		skipped, d.won, d.won, skipped))
 }
 
 // recordUnhomedKeywords stores each unhomed applicator on the owning node and
@@ -1585,11 +1707,28 @@ func schemaAdmitsNull(s *oas3.Schema) bool {
 // pointer, and hint so it lowers as nullable X rather than a union node
 // (ir-design §3.3). A set with two or more non-null branches falls through to a
 // Union (with its null branches stripped and lifted onto the enclosing ref).
+//
+// The hint it returns for the surviving branch is the *enclosing* schema's,
+// while an outside $ref to that same branch pointer derives variant_<index>
+// through subSchemaHint — so which of the two lowerings reaches the pointer
+// first decides the name, and the two declaration orders produce different
+// documents. That predates this function's co-declaration rule and is #181's
+// mechanism at a site #181 did not sweep; GitHub #281 holds it. It is narrowed
+// but not settled here: declining the collapse below removes the one order in
+// which a co-declared anyOf could reach it.
+//
+// A schema declaring both combinators collapses neither. The collapse says the
+// position *is* nullable X, and a co-declared anyOf conjoins with it, so it is
+// not; the position falls through to the Union instead, which is the one node
+// that keeps the branch set unionBranches passed over
+// (preserveUnusedCombinator). Collapsing here would resolve the position
+// straight to X's own node — a shared primitive for `{type: string}` — leaving
+// the loser nowhere to sit that is not shared with every other declaration of X.
 func nullUnionCollapse(s *oas3.Schema, pointer, hint string) (*oas3.JSONSchema[oas3.Referenceable], string, string, bool) {
-	variants, key := s.GetOneOf(), "oneOf"
-	if len(variants) == 0 {
-		variants, key = s.GetAnyOf(), "anyOf"
+	if len(s.GetOneOf()) > 0 && len(s.GetAnyOf()) > 0 {
+		return nil, "", "", false
 	}
+	variants, key, _ := unionBranches(s)
 	var nonNull *oas3.JSONSchema[oas3.Referenceable]
 	nonNullIdx, nonNullCount, nullCount := -1, 0, 0
 	for i, v := range variants {

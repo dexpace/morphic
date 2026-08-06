@@ -617,8 +617,12 @@ func composesAsModel(s *oas3.Schema) bool {
 
 // unionBranches returns the branches of whichever combinator the schema
 // declares, the keyword's name (for pointers), and whether it is exclusive.
-// oneOf wins when both are present; only the verbatim lowering ever sees that
-// shape, and it keeps both keywords.
+//
+// oneOf wins when both are written, so every caller owns the set it passed over:
+// buildUnion keeps it on the Union (preserveUnusedCombinator), nullUnionCollapse
+// declines to collapse past it, and the verbatim lowering keeps both keywords
+// (preserveUnionSiblings). Reading the preference as one only that last lowering
+// could reach is what dropped the anyOf in silence (GitHub #35).
 func unionBranches(s *oas3.Schema) ([]*oas3.JSONSchema[oas3.Referenceable], string, bool) {
 	if branches := s.GetOneOf(); len(branches) > 0 {
 		return branches, "oneOf", true
@@ -671,6 +675,7 @@ type variantTypeFunc func(b *oas3.JSONSchema[oas3.Referenceable], vptr, vhint st
 // (internNode), so buildUnion needs no hint of its own to build one.
 func buildUnion(c lowering.Ctx, ts *compile.Types, s *oas3.Schema, common ir.TypeCommon, pointer string, variantType variantTypeFunc) (ir.TypeDef, []ir.Diagnostic) {
 	branches, key, exclusive := unionBranches(s)
+	diags := preserveUnusedCombinator(c, &common.Unmodeled, s, key, pointer)
 	variants := make([]ir.Variant, 0, len(branches))
 	for i, b := range branches {
 		if isNullSchema(b) {
@@ -689,9 +694,45 @@ func buildUnion(c lowering.Ctx, ts *compile.Types, s *oas3.Schema, common ir.Typ
 		Exclusive:  exclusive,
 		WireTagged: false,
 	}
-	disc, diags := lowerDiscriminator(c, ts, s, nil, pointer)
+	disc, discDiags := lowerDiscriminator(c, ts, s, nil, pointer)
 	u.Discriminator = disc
-	return u, diags
+	return u, append(diags, discDiags...)
+}
+
+// otherCombinator names each union keyword's counterpart, so the branch set
+// unionBranches passed over is read off the choice it returned rather than
+// restated beside it.
+var otherCombinator = map[string]string{"oneOf": "anyOf", "anyOf": "oneOf"}
+
+// preserveUnusedCombinator keeps the branch set unionBranches passed over
+// verbatim on the Union the position lowers to, and reports it. A schema
+// declaring only one combinator passes over nothing and is left alone.
+//
+// A schema writing both conjoins them — an instance must satisfy the oneOf *and*
+// the anyOf — and one ir.Union carries one branch set, so the loser had no place
+// in the node and was dropped in silence. It is the union half of the same §4.8
+// rule recordSkippedFamilies applies to the keyword families: the position keeps
+// lowering to the branch set unionBranches elects, because that Union is a shape
+// the IR can express and discarding it too would model nothing at all, and the
+// set it did not elect stays recoverable beside it.
+//
+// Where a *structural* sibling is written as well, classifyUnionSiblings reaches
+// unionBothCombinators first and neither set is elected — there the sibling body
+// is the most the IR can express, and distributing either union across it would
+// drop the other (lowerBesideUnmodeledUnion).
+func preserveUnusedCombinator(c lowering.Ctx, p *ir.Unmodeled, s *oas3.Schema, won, pointer string) []ir.Diagnostic {
+	if len(s.GetOneOf()) == 0 || len(s.GetAnyOf()) == 0 {
+		return nil
+	}
+	unused := otherCombinator[won]
+	kept, diags := PreserveSchemaKeyword(c, p, s, unused, ir.ReasonDegradedLowering, pointer+ids.Ptr(unused))
+	if !kept {
+		return diags
+	}
+	return append(diags, c.DiagAt(ir.SeverityInfo, diag.DegradedConstruct, pointer,
+		"oneOf and anyOf are both declared here and conjoin, and one Union carries one "+
+			"branch set; this position lowered as its %s, with %s kept verbatim under Unmodeled",
+		won, unused))
 }
 
 // lowerDistributedUnion emits the Union that is the schema's value, distributing

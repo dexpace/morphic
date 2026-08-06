@@ -402,3 +402,58 @@ func assertResponseLinks(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
 	_, ok = opByName(doc, "getOrder")
 	assert.True(t, ok, "the operation a link names is an ordinary operation")
 }
+
+// assertCoDeclaredKeywords pins the keywords a schema writes that compete for
+// one position (GitHub #35).
+//
+// The dispatch elects one of them and the rest were dropped outright — a whole
+// relationship to a Base, or half a union, gone with no Unmodeled entry and no
+// diagnostic at all. Every case here asserts the same three things: the elected
+// keyword still lowers, the ones passed over are kept verbatim under
+// ReasonDegradedLowering, and the position says so.
+func assertCoDeclaredKeywords(t *testing.T, doc *ir.Document, diags []ir.Diagnostic) {
+	base := `[{"$ref":"#/components/schemas/Base"}]`
+	e, ok := doc.Types[namedID("NarrowedEnum")].(*ir.Enum)
+	require.True(t, ok, "the enum is the value")
+	assertKeptRaw(t, e.Unmodeled, "openapi:allOf", base)
+
+	lit, ok := doc.Types[namedID("NarrowedConst")].(*ir.Literal)
+	require.True(t, ok, "const outranks the composition beside it")
+	assertKeptRaw(t, lit.Unmodeled, "openapi:allOf", base)
+
+	within, ok := doc.Types[namedID("ConstWithinEnum")].(*ir.Literal)
+	require.True(t, ok, "const is the narrower of the two")
+	assertKeptRaw(t, within.Unmodeled, "openapi:enum", `["a","b"]`)
+
+	anyOf := `[{"type":"number"},{"type":"boolean"}]`
+	both, ok := doc.Types[namedID("BothCombinators")].(*ir.Union)
+	require.True(t, ok, "oneOf becomes the union")
+	assert.Len(t, both.Variants, 2, "with a variant per oneOf branch")
+	assertKeptRaw(t, both.Unmodeled, "openapi:anyOf", anyOf)
+
+	// Suppressing the {X, null} collapse is what gives this one a node of its
+	// own: collapsing would resolve the position to the shared string primitive,
+	// which must never carry one declaration's keywords.
+	nullable, ok := doc.Types[namedID("NullableWithCombinators")].(*ir.Union)
+	require.True(t, ok, "a co-declared anyOf stops the {X, null} collapse")
+	assert.Len(t, nullable.Variants, 1, "the null branch still lifts off the variant list")
+	assertKeptRaw(t, nullable.Unmodeled, "openapi:anyOf", anyOf)
+
+	for _, name := range []string{
+		"NarrowedEnum", "NarrowedConst", "ConstWithinEnum",
+		"BothCombinators", "NullableWithCombinators",
+	} {
+		assert.Equal(t, []ir.Severity{ir.SeverityInfo},
+			diagsAt(diags, "openapi/degraded-construct", "/components/schemas/"+name),
+			"%s announces the keyword it passed over", name)
+	}
+}
+
+// assertKeptRaw requires p to hold key under ReasonDegradedLowering with the
+// given JSON payload.
+func assertKeptRaw(t *testing.T, p ir.Unmodeled, key, want string) {
+	t.Helper()
+	entry := unmodeledEntry(t, p, key)
+	assert.Equal(t, ir.ReasonDegradedLowering, entry.Reason)
+	assert.JSONEq(t, want, string(entry.Value))
+}

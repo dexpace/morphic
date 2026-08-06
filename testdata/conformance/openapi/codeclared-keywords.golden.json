@@ -1,0 +1,392 @@
+{
+  "irVersion": "0.3.0",
+  "name": "CoDeclaredKeywords",
+  "version": "1.0.0",
+  "docs": {},
+  "services": [
+    {
+      "id": "s/openapi/0",
+      "name": {
+        "source": "CoDeclaredKeywords",
+        "canonical": "co_declared_keywords"
+      },
+      "docs": {},
+      "auth": null,
+      "provenance": {
+        "source": 0
+      }
+    }
+  ],
+  "types": {
+    "t/openapi/components/schemas/Base": {
+      "kind": "model",
+      "id": "t/openapi/components/schemas/Base",
+      "name": {
+        "source": "Base",
+        "canonical": "base"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Base"
+      },
+      "properties": [
+        {
+          "id": "p/openapi/components/schemas/Base/properties/id",
+          "name": {
+            "source": "id",
+            "canonical": "id"
+          },
+          "wireName": "id",
+          "type": {
+            "target": "t/prim/string",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/Base/properties/id"
+          }
+        }
+      ],
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
+    "t/openapi/components/schemas/BothCombinators": {
+      "kind": "union",
+      "id": "t/openapi/components/schemas/BothCombinators",
+      "name": {
+        "source": "BothCombinators",
+        "canonical": "both_combinators"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "unmodeled": {
+        "openapi:anyOf": {
+          "reason": "degraded_lowering",
+          "value": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "boolean"
+            }
+          ],
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/BothCombinators/anyOf"
+          }
+        }
+      },
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/BothCombinators"
+      },
+      "variants": [
+        {
+          "name": {
+            "hint": "variant_0"
+          },
+          "type": {
+            "target": "t/prim/string",
+            "nullable": false
+          },
+          "docs": {}
+        },
+        {
+          "name": {
+            "hint": "variant_1"
+          },
+          "type": {
+            "target": "t/prim/integer",
+            "nullable": false
+          },
+          "docs": {}
+        }
+      ],
+      "exclusive": true,
+      "wireTagged": false
+    },
+    "t/openapi/components/schemas/ConstWithinEnum": {
+      "kind": "literal",
+      "id": "t/openapi/components/schemas/ConstWithinEnum",
+      "name": {
+        "source": "ConstWithinEnum",
+        "canonical": "const_within_enum"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "unmodeled": {
+        "openapi:enum": {
+          "reason": "degraded_lowering",
+          "value": [
+            "a",
+            "b"
+          ],
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/ConstWithinEnum/enum"
+          }
+        }
+      },
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/ConstWithinEnum"
+      },
+      "value": {
+        "kind": "string",
+        "str": "a",
+        "bytes": null,
+        "list": null,
+        "object": null
+      }
+    },
+    "t/openapi/components/schemas/NarrowedConst": {
+      "kind": "literal",
+      "id": "t/openapi/components/schemas/NarrowedConst",
+      "name": {
+        "source": "NarrowedConst",
+        "canonical": "narrowed_const"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "unmodeled": {
+        "openapi:allOf": {
+          "reason": "degraded_lowering",
+          "value": [
+            {
+              "$ref": "#/components/schemas/Base"
+            }
+          ],
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/NarrowedConst/allOf"
+          }
+        }
+      },
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/NarrowedConst"
+      },
+      "value": {
+        "kind": "string",
+        "str": "a",
+        "bytes": null,
+        "list": null,
+        "object": null
+      }
+    },
+    "t/openapi/components/schemas/NarrowedEnum": {
+      "kind": "enum",
+      "id": "t/openapi/components/schemas/NarrowedEnum",
+      "name": {
+        "source": "NarrowedEnum",
+        "canonical": "narrowed_enum"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "unmodeled": {
+        "openapi:allOf": {
+          "reason": "degraded_lowering",
+          "value": [
+            {
+              "$ref": "#/components/schemas/Base"
+            }
+          ],
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/NarrowedEnum/allOf"
+          }
+        }
+      },
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/NarrowedEnum"
+      },
+      "valueType": "string",
+      "members": [
+        {
+          "name": {
+            "source": "a",
+            "canonical": "a"
+          },
+          "value": {
+            "kind": "string",
+            "str": "a",
+            "bytes": null,
+            "list": null,
+            "object": null
+          },
+          "docs": {}
+        },
+        {
+          "name": {
+            "source": "b",
+            "canonical": "b"
+          },
+          "value": {
+            "kind": "string",
+            "str": "b",
+            "bytes": null,
+            "list": null,
+            "object": null
+          },
+          "docs": {}
+        }
+      ],
+      "closed": true,
+      "flags": false
+    },
+    "t/openapi/components/schemas/NullableWithCombinators": {
+      "kind": "union",
+      "id": "t/openapi/components/schemas/NullableWithCombinators",
+      "name": {
+        "source": "NullableWithCombinators",
+        "canonical": "nullable_with_combinators"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "unmodeled": {
+        "openapi:anyOf": {
+          "reason": "degraded_lowering",
+          "value": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "boolean"
+            }
+          ],
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/NullableWithCombinators/anyOf"
+          }
+        }
+      },
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/NullableWithCombinators"
+      },
+      "variants": [
+        {
+          "name": {
+            "hint": "variant_0"
+          },
+          "type": {
+            "target": "t/prim/string",
+            "nullable": false
+          },
+          "docs": {}
+        }
+      ],
+      "exclusive": true,
+      "wireTagged": false
+    },
+    "t/prim/integer": {
+      "kind": "primitive",
+      "id": "t/prim/integer",
+      "name": {},
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0
+      },
+      "prim": "integer"
+    },
+    "t/prim/string": {
+      "kind": "primitive",
+      "id": "t/prim/string",
+      "name": {},
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0
+      },
+      "prim": "string"
+    }
+  },
+  "servers": [
+    {
+      "name": {
+        "hint": "server"
+      },
+      "urlTemplate": "/",
+      "description": {},
+      "auth": null
+    }
+  ],
+  "diagnostics": [
+    {
+      "severity": "info",
+      "code": "openapi/degraded-construct",
+      "message": "this position declares allOf beside its enum, and JSON Schema conjoins them where only one can be the value; it lowered as the enum, with allOf kept verbatim under Unmodeled",
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/NarrowedEnum"
+      }
+    },
+    {
+      "severity": "info",
+      "code": "openapi/degraded-construct",
+      "message": "this position declares allOf beside its const, and JSON Schema conjoins them where only one can be the value; it lowered as the const, with allOf kept verbatim under Unmodeled",
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/NarrowedConst"
+      }
+    },
+    {
+      "severity": "info",
+      "code": "openapi/degraded-construct",
+      "message": "this position declares enum beside its const, and JSON Schema conjoins them where only one can be the value; it lowered as the const, with enum kept verbatim under Unmodeled",
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/ConstWithinEnum"
+      }
+    },
+    {
+      "severity": "info",
+      "code": "openapi/degraded-construct",
+      "message": "oneOf and anyOf are both declared here and conjoin, and one Union carries one branch set; this position lowered as its oneOf, with anyOf kept verbatim under Unmodeled",
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/BothCombinators"
+      }
+    },
+    {
+      "severity": "info",
+      "code": "openapi/degraded-construct",
+      "message": "oneOf and anyOf are both declared here and conjoin, and one Union carries one branch set; this position lowered as its oneOf, with anyOf kept verbatim under Unmodeled",
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/NullableWithCombinators"
+      }
+    }
+  ],
+  "sources": [
+    {
+      "format": "openapi@3.1",
+      "path": "codeclared-keywords.yaml",
+      "hash": "699e4df4c601cd1039456e8a0ed12de42986dc49393b208ed0eb79d20e6e3355"
+    }
+  ]
+}
