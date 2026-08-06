@@ -17,11 +17,12 @@ import (
 // schemaFromYAMLUnvalidated parses body like schemaFromYAML but keeps the
 // library's own validation findings instead of requiring none.
 //
-// A bound beyond float64 range is the case it exists for: the library types
-// these keywords as float64 and reports the literal as a string it could not
-// convert, while the compiler's loader suppresses exactly that finding because
-// such a bound is valid and must survive. Requiring a clean parse here would
-// put every out-of-float64-range bound out of this package's reach.
+// A literal the library cannot read as a float64 is the case it exists for —
+// a magnitude beyond that range, or a spelling that is no number to it at all.
+// The library types these keywords as float64 and reports the literal as a
+// string it could not convert, while the compiler's loader suppresses exactly
+// that finding because such a bound may still be valid and must survive.
+// Requiring a clean parse here would put every one of them out of reach.
 func schemaFromYAMLUnvalidated(t *testing.T, body string) *oas3.Schema {
 	t.Helper()
 	var js oas3.JSONSchema[oas3.Referenceable]
