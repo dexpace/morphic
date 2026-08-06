@@ -1111,6 +1111,25 @@ func TestSchema_RefNullableAcrossSpellings(t *testing.T) {
 			wantTarget:   targetID,
 			msg:          "an enum with no null member must not read as nullable through a $ref",
 		},
+		{
+			name:    "3.1 ref to a nullable enum component",
+			version: "3.1.0",
+			schemas: `    Owner:
+      type: object
+      properties:
+        p: {$ref: '#/components/schemas/Target'}
+    Target:
+      type: [string, "null"]
+      enum: [red, green, null]
+`,
+			wantNullable: true,
+			wantTarget:   targetID,
+			// The bit comes from the type array, so this row covers the spelling
+			// rather than the enum lowering; that the same declaration is also an
+			// Enum of its non-null members is TestEnum_NullMemberNormalizesToNullable
+			// and the nullable-enum-31 conformance case.
+			msg: "a nullable enum target reads as nullable at a $ref like every other null spelling",
+		},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {

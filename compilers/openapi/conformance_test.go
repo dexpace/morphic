@@ -166,6 +166,7 @@ func conformanceCases() []conformanceCase {
 		{"nullability-four-states", assertNullabilityFourStates},
 		{"nullable-30", assertNullable30},
 		{"nullable-31-ref", assertNullable31Ref},
+		{"nullable-enum-31", assertNullableEnum31},
 		{"defaults", assertDefaults},
 		{"yaml-timestamp-scalars", assertYAMLTimestampScalars},
 		{"constraints", assertConstraints},
@@ -927,6 +928,51 @@ func assertNullable31Ref(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
 	u, ok := doc.Types[namedID("UnionTarget")].(*ir.Union)
 	require.True(t, ok)
 	assert.Len(t, u.Variants, 2, "the null branch lifts to the ref rather than becoming a variant")
+}
+
+// assertNullableEnum31 covers 3.1's spelling of a nullable enum: `null` listed
+// among the members of a null-admitting type array. The member is normalized
+// onto the Nullable bit of every reference to the enum rather than degrading the
+// declaration to a union of literals, so the capability being claimed is the
+// pair — a closed Enum of the scalar members, and null admitted at each use.
+//
+// The golden beside this case cannot pin the strip on its own: the type array
+// already carries the bit, so deleting the `null` member from the spec leaves
+// the IR body byte-identical and moves only the source hash. The member count
+// below is what pins it.
+func assertNullableEnum31(t *testing.T, doc *ir.Document, diags []ir.Diagnostic) {
+	e, ok := doc.Types[namedID("Color")].(*ir.Enum)
+	require.True(t, ok, "the null member does not cost the declaration its enum-ness")
+	assert.True(t, e.Closed)
+	assert.Equal(t, ir.PrimString, e.ValueType, "null contributes no value type of its own")
+	require.Len(t, e.Members, 2, "the null member is normalized away, the scalar members are not")
+	assert.Equal(t, "red", e.Members[0].Value.Str)
+	assert.Equal(t, "green", e.Members[1].Value.Str)
+	for _, d := range diags {
+		assert.NotEqual(t, "openapi/degraded-construct", d.Code, "normalizing is not degrading: %+v", d)
+	}
+
+	m, ok := doc.Types[namedID("Holder")].(*ir.Model)
+	require.True(t, ok)
+	one, ok := propByWire(m, "one")
+	require.True(t, ok)
+	assert.Equal(t, ir.TypeRef{Target: namedID("Color"), Nullable: true}, one.Type,
+		"a property $ref admits the null the members no longer carry")
+
+	many, ok := propByWire(m, "many")
+	require.True(t, ok)
+	list, ok := doc.Types[many.Type.Target].(*ir.List)
+	require.True(t, ok, "the array property hoists a List")
+	assert.Equal(t, ir.TypeRef{Target: namedID("Color"), Nullable: true}, list.Elem,
+		"and so does a list element, which holds its own reference")
+	assert.False(t, many.Type.Nullable, "the list itself was never declared nullable")
+
+	op, ok := opByName(doc, "pick")
+	require.True(t, ok)
+	p, ok := paramByName(op, "color")
+	require.True(t, ok)
+	assert.Equal(t, ir.TypeRef{Target: namedID("Color"), Nullable: true}, p.Type,
+		"a parameter reaches the same declaration through the operation walk")
 }
 
 func assertDefaults(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {

@@ -972,10 +972,30 @@ func propIDByName(m *ir.Model, name string) (ir.PropID, bool) {
 // lowerEnum hoists a schema with `enum` as a closed Enum. A heterogeneous or
 // non-scalar member set has no Enum home, so it falls back to a Union of
 // Literals with an info diagnostic — nothing is dropped.
+//
+// A schema that admits null in its own right — `type: [T, "null"]`, 3.0
+// `nullable: true` — spells its nullable enum by listing `null` among the
+// members, so that member is stripped and normalized onto the enclosing
+// reference's Nullable bit (ir-design §3.3) rather than degrading the whole
+// enum. schemaAdmitsNull is what decides that here *and* what a reference
+// re-derives the bit from (refNullable at a $ref site, lowerSchemaBody inline),
+// so the null this drops is exactly the null those put back; a spelling only one
+// of them recognized would lose it. A conjunct position is the standing
+// exception: Model.Base and Mixins name one side of a conjunction and carry no
+// Nullable bit at all (conjoinBranch), so an `allOf: [{$ref: T}]` over a nullable
+// T reaches no null — in every spelling of T's nullability, this one included
+// rather than this one only. GitHub #279 holds that.
+//
+// That is also why the enum's own `null` member does not itself count as
+// admitting null: `{enum: [red, green, null]}` with no type keyword is left to
+// the union-of-literals fallback, since schemaAdmitsNull does not read enum
+// members and stripping on a wider rule here would set the bit nowhere. Widening
+// it is a change to every site that computes nullability, not to this one, and
+// it has its own decisions to make — GitHub #265 holds them.
 func lowerEnum(c lowering.Ctx, ts *compile.Types, s *oas3.Schema, pointer, hint string) (ir.TypeID, []ir.Diagnostic) {
 	var diags []ir.Diagnostic
 	id := internNode(c, ts, pointer, hint, func(common ir.TypeCommon) ir.TypeDef {
-		members, memberPrim, ok := enumMembers(s.GetEnum())
+		members, memberPrim, ok := enumMembers(s.GetEnum(), schemaAdmitsNull(s))
 		if !ok {
 			def, enumDiags := enumAsUnion(c, ts, s, common, pointer, hint)
 			diags = append(diags, enumDiags...)
@@ -991,25 +1011,37 @@ func lowerEnum(c lowering.Ctx, ts *compile.Types, s *oas3.Schema, pointer, hint 
 	return id, diags
 }
 
-// enumMembers converts enum nodes into scalar members, reporting ok=false when
-// any member is non-scalar or the members are heterogeneous (mixed kinds). The
-// returned PrimKind is the one every member's kind maps to; it is meaningful
-// only when ok, and lowerEnum is reached only for a non-empty enum, so it is
-// never the zero PrimKind there.
-func enumMembers(nodes []values.Value) ([]ir.EnumMember, ir.PrimKind, bool) {
+// enumMembers converts enum nodes into scalar members, reporting ok=false on any
+// of three: a member that is non-scalar, members heterogeneous in kind, or a set
+// that keeps no member at all.
+//
+// dropNull skips `null` members instead of refusing them, for a schema whose
+// nullability the enclosing reference already carries (see lowerEnum). Kind
+// agreement is read off the members actually kept, so a leading `null` fixes
+// nothing: `enum: [null, red, green]` is the same string enum as
+// `enum: [red, green, null]`.
+//
+// The third condition is the one an all-null set meets, and it is why such a set
+// degrades rather than becoming a memberless Enum. The returned PrimKind is the
+// one every kept member's kind maps to — meaningful only when ok, and since ok
+// requires a kept member, never the zero PrimKind there.
+func enumMembers(nodes []values.Value, dropNull bool) ([]ir.EnumMember, ir.PrimKind, bool) {
 	members := make([]ir.EnumMember, 0, len(nodes))
 	var kind ir.ValueKind
 	var prim ir.PrimKind
-	for i, node := range nodes {
+	for _, node := range nodes {
 		val, err := value.FromNode(node)
 		if err != nil {
 			return nil, "", false
+		}
+		if dropNull && val.Kind == ir.ValueNull {
+			continue
 		}
 		memberPrim, text, admissible := enumMemberForm(val)
 		if !admissible {
 			return nil, "", false
 		}
-		if i == 0 {
+		if len(members) == 0 {
 			kind, prim = val.Kind, memberPrim
 		} else if val.Kind != kind {
 			return nil, "", false
@@ -1018,6 +1050,9 @@ func enumMembers(nodes []values.Value) ([]ir.EnumMember, ir.PrimKind, bool) {
 			Name:  compile.NamingFor(text),
 			Value: val,
 		})
+	}
+	if len(members) == 0 {
+		return nil, "", false
 	}
 	return members, prim, true
 }
