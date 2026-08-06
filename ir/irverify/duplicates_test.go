@@ -14,7 +14,7 @@ import (
 // which the cases below assert nothing about; TestWalkChecks_EachReportsTruncation
 // holds that half.
 func duplicateViolations(doc *ir.Document) []Violation {
-	vs, _ := checkDuplicateIDs(doc)
+	vs, _ := checkDuplicateIDs(doc, readDeclarations(doc))
 	return vs
 }
 
@@ -124,7 +124,7 @@ func TestVerify_ReportsDuplicateIDs(t *testing.T) {
 // written down, and the test below fails when ir grows a named string type it
 // does not account for.
 var identityClasses = map[string]string{
-	"TypeID":    "identity: Document.Types keys it; checkReferentialIntegrity resolves references, checkRegistryKeys holds each key to its node's own ID",
+	"TypeID":    "identity: Document.Types keys it; checkReferentialIntegrity resolves references, checkRegistryKeys holds each key to its node's own ID and checkDuplicateIDs holds no two nodes to one ID",
 	"ChannelID": "identity: Document.Channels keys it; resolved and held as TypeID is",
 	"MessageID": "identity: Document.Messages keys it; resolved and held as TypeID is",
 	"AuthID":    "identity: Document.Auth keys it; resolved and held as TypeID is",

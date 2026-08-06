@@ -48,7 +48,7 @@ func TestCollectRefs_SkipsEmptyIDs(t *testing.T) {
 // the cases below assert nothing about; TestWalkChecks_EachReportsTruncation
 // holds that half.
 func refViolations(doc *ir.Document) []Violation {
-	vs, _ := checkReferentialIntegrity(doc)
+	vs, _ := checkReferentialIntegrity(doc, readDeclarations(doc))
 	return vs
 }
 
@@ -210,7 +210,7 @@ func TestCheckReferentialIntegrity_DanglingOpRefWithNoOperationDeclared(t *testi
 // not off the walk.
 func TestCheckReferentialIntegrity_TruncatedWalkClaimsNoDeclarations(t *testing.T) {
 	deep, target := opDocNested(ir.MaxWalkDepth)
-	vs, truncated := checkReferentialIntegrity(deep)
+	vs, truncated := checkReferentialIntegrity(deep, readDeclarations(deep))
 	assert.True(t, truncated, "the walk must report that it was cut short")
 	assert.Empty(t, vs, "%s is declared past the cap, not undeclared", target)
 

@@ -63,14 +63,13 @@ func collectRefs(doc *ir.Document, regs ir.Registries) ([]refSite, bool) {
 // values a document declares and looking the ID up among them, which
 // pass.Validate's checkPropIDRefs does — beside checkEncodingKeys, which makes
 // the tighter model-scoped claim for the keys of ir.Content.Encoding.
-func checkReferentialIntegrity(doc *ir.Document) ([]Violation, bool) {
-	decls, declTruncated := ir.DeclaredIDs(doc)
+func checkReferentialIntegrity(doc *ir.Document, decls declarations) ([]Violation, bool) {
 	regs := ir.DocumentRegistries(doc)
-	if !declTruncated {
-		regs = regs.WithDeclarations(decls)
+	if !decls.truncated {
+		regs = regs.WithDeclarations(decls.ids)
 	}
 	sites, truncated := collectRefs(doc, regs)
-	truncated = truncated || declTruncated
+	truncated = truncated || decls.truncated
 	var vs []Violation
 	for _, s := range sites {
 		reg := regs[s.idType]
