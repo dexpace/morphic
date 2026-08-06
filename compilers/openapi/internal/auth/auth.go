@@ -185,10 +185,10 @@ func scopeMap(f *soa.OAuthFlow) map[string]string {
 // latter would silently rewrite "this option requires an undeclared scheme" as
 // "no auth is also fine", the empty-option encoding above. When every option in
 // an originally non-empty list drops this way, the list itself collapses to nil
-// — "inherits the enclosing default" — rather than surfacing as [], which reads
-// as the operator's own deliberate "explicitly public" (ir-design §9). A list
-// the source declared empty to begin with is left untouched: that [] is real,
-// not a byproduct of dropping.
+// — "inherits the enclosing default" — rather than surfacing as [], which
+// ir-design §9 reserves for a deliberate "explicitly public" declaration. A
+// list the source declared empty to begin with is left untouched: that [] is
+// real, not a byproduct of dropping.
 func LowerSecurityRequirements(c lowering.Ctx, reqs []*soa.SecurityRequirement, base string) ([]ir.AuthRequirement, []ir.Diagnostic) {
 	if reqs == nil {
 		return nil, nil
@@ -213,8 +213,8 @@ func LowerSecurityRequirements(c lowering.Ctx, reqs []*soa.SecurityRequirement, 
 // each member is a scheme reference plus the scopes required of it within this
 // option. A member naming a scheme that is not declared under
 // components.securitySchemes (or one that failed to resolve into the auth
-// registry) invalidates the whole option, which the caller must drop rather
-// than write out short a member — never a dangling AuthID (issue #14), and
+// registry) invalidates the whole option, which the caller must drop in full
+// rather than just that member — never a dangling AuthID (issue #14), and
 // never an unintended empty-option encoding (issue #41). ok reports whether the
 // option survives; every unresolved member is still diagnosed individually, at
 // the shared requirement-level pointer, so a multi-member option reports each
