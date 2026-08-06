@@ -53,9 +53,9 @@ func Verify(doc *ir.Document) []Violation {
 // Reading them costs a full walk of the document, and two checks need them —
 // checkReferentialIntegrity to resolve the classes Document keys no map by, and
 // checkDuplicateIDs to hold each one to being declared once. Deriving it in each
-// was the same walk twice, about a sixth of Verify's work on a large document, so
-// it is read once per run and handed down. The checks that do not need it still
-// take it, because one signature is what lets walkChecks be a list at all.
+// was the same walk twice over, so it is read once per run and handed down. The
+// checks that do not need it still take it, because one signature is what lets
+// walkChecks be a list at all.
 //
 // The zero value is not a stand-in for "no declarations to speak of": it says the
 // document declares none, which makes every OpID and ServiceID reference in it
@@ -66,7 +66,8 @@ type declarations struct {
 	truncated bool
 }
 
-// readDeclarations reads the identities doc's nodes declare, once for the run.
+// readDeclarations reads the identities doc's nodes declare. It memoizes
+// nothing; runWalkChecks is what calls it once and shares the result.
 func readDeclarations(doc *ir.Document) declarations {
 	ids, truncated := ir.DeclaredIDs(doc)
 	return declarations{ids: ids, truncated: truncated}
