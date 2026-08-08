@@ -52,12 +52,13 @@ func LowerSecuritySchemes(c lowering.Ctx) (map[ir.AuthID]ir.AuthScheme, []ir.Dia
 	out := make(map[ir.AuthID]ir.AuthScheme, schemes.Len())
 	var diags []ir.Diagnostic
 	for name, rs := range schemes.All() {
-		ss := resolve.Object[soa.SecurityScheme](rs)
+		entry := ids.Ptr("components", "securitySchemes", name)
+		ss, decl := resolve.ObjectAt[soa.SecurityScheme](c.RefScope(), rs, entry)
 		if ss == nil {
-			diags = append(diags, unresolvableSchemeDiags(c, name, rs)...)
+			diags = append(diags, unresolvableSchemeDiags(c, name, rs, entry)...)
 			continue
 		}
-		scheme, ok, schemeDiags := lowerSecurityScheme(c, name, ss)
+		scheme, ok, schemeDiags := lowerSecurityScheme(c, name, ss, entry, decl)
 		diags = append(diags, schemeDiags...)
 		if !ok {
 			continue
@@ -84,7 +85,9 @@ func LowerSecuritySchemes(c lowering.Ctx) (map[ir.AuthID]ir.AuthScheme, []ir.Dia
 // the reference is empty for everything that is not one. Its own nil is not
 // reachable from a parsed document — a malformed entry still arrives as an
 // object — so that guard is for a hand-built node, matching resolve.Object's.
-func unresolvableSchemeDiags(c lowering.Ctx, name string, rs *soa.ReferencedSecurityScheme) []ir.Diagnostic {
+func unresolvableSchemeDiags(c lowering.Ctx, name string, rs *soa.ReferencedSecurityScheme,
+	entry string,
+) []ir.Diagnostic {
 	if rs == nil {
 		return nil
 	}
@@ -92,32 +95,44 @@ func unresolvableSchemeDiags(c lowering.Ctx, name string, rs *soa.ReferencedSecu
 	if ref == "" {
 		return nil
 	}
-	return []ir.Diagnostic{c.DiagAt(ir.SeverityError, diag.UnresolvedRef,
-		ids.Ptr("components", "securitySchemes", name),
+	return []ir.Diagnostic{c.DiagAt(ir.SeverityError, diag.UnresolvedRef, entry,
 		"security scheme %q has a $ref that resolves to nothing: %q", name, ref)}
 }
 
 // lowerSecurityScheme lowers one named security scheme into its AuthScheme,
 // dispatching the mechanism-specific fields by type. ok reports whether the
 // entry named a mechanism at all; when it did not, the caller interns nothing.
+//
+// The two pointers are the same for an entry written inline and differ for one
+// written as a $ref (issue #107). entry is where this document names the scheme,
+// so it identifies the scheme and places anything said about the entry as a
+// whole. decl is where the fields live, so it places everything addressed
+// beneath one: a `$ref` entry is a one-key object, and `<entry>/in` names a
+// position no document holds.
+//
+// The scheme's own ID and provenance stay on entry even when the two differ,
+// deliberately. Two entries aliasing one declaration are two named schemes a
+// requirement can name separately, and irverify holds an AuthID to agreeing
+// with its provenance path — so following decl here would collapse two schemes
+// onto one identity and break that agreement at once.
 func lowerSecurityScheme(c lowering.Ctx, name string, ss *soa.SecurityScheme,
+	entry, decl string,
 ) (scheme ir.AuthScheme, ok bool, diags []ir.Diagnostic) {
-	pointer := ids.Ptr("components", "securitySchemes", name)
 	scheme = ir.AuthScheme{
 		ID:         ids.Auth(name),
 		Name:       compile.NamingFor(name),
 		Docs:       ir.Docs{Description: ss.GetDescription()},
-		Provenance: c.ProvenanceAt(pointer),
+		Provenance: c.ProvenanceAt(entry),
 	}
 	if ss.GetDeprecated() {
 		scheme.Deprecation = &ir.Deprecation{}
 	}
 	missing, named := fillSchemeKind(&scheme, ss)
 	if !named {
-		return ir.AuthScheme{}, false, []ir.Diagnostic{mechanismRefusalDiag(c, name, missing, pointer)}
+		return ir.AuthScheme{}, false, []ir.Diagnostic{mechanismRefusalDiag(c, name, missing, entry)}
 	}
-	diags = preserveUnreadFields(c, &scheme, ss, pointer)
-	ext, extDiags := annotation.ExtensionsFrom(ss.GetExtensions(), c.SrcIndex, pointer)
+	diags = preserveUnreadFields(c, &scheme, ss, decl)
+	ext, extDiags := annotation.ExtensionsFrom(ss.GetExtensions(), c.SrcIndex, decl)
 	scheme.Unmodeled = annotation.MergeUnmodeled(scheme.Unmodeled, ext)
 	return scheme, true, append(diags, extDiags...)
 }
@@ -145,9 +160,13 @@ func lowerSecurityScheme(c lowering.Ctx, name string, ss *soa.SecurityScheme,
 // the IR declines to model, which is the call an unresolvable $ref already gets
 // here — and there is no scheme left to hang an Unmodeled map on. The entry
 // that *does* intern keeps everything it wrote; see preserveUnreadFields.
-func mechanismRefusalDiag(c lowering.Ctx, name, missing, pointer string) ir.Diagnostic {
-	return c.DiagAt(ir.SeverityError, diag.IncompleteSecurityScheme, pointer,
-		"security scheme %q declares no %s, so it names no authentication mechanism: "+
+// "has no" rather than "declares no": an entry written as a $ref declares only
+// the reference, and it is the declaration it resolves to that is missing the
+// field. Both are reported, each at its own entry, so the wording has to be
+// true of the alias as well as of the target.
+func mechanismRefusalDiag(c lowering.Ctx, name, missing, entry string) ir.Diagnostic {
+	return c.DiagAt(ir.SeverityError, diag.IncompleteSecurityScheme, entry,
+		"security scheme %q has no %s, so it names no authentication mechanism: "+
 			"no scheme is interned for it, and every requirement naming it is dropped", name, missing)
 }
 
@@ -266,8 +285,12 @@ func fieldsDefinedBy(t soa.SecuritySchemaType) []string {
 // Presence, not truth: a field the entry did not write records nothing, and one
 // it wrote records whatever it wrote. RawChildNode reads the entry as the
 // document spelled it, so an explicit `in: ""` is a declaration like any other.
+//
+// decl is where the fields are written, which is the referenced declaration for
+// an entry written as a $ref rather than the entry itself — the value is read
+// from that node, so the entry that records it must name it (issue #107).
 func preserveUnreadFields(c lowering.Ctx, scheme *ir.AuthScheme, ss *soa.SecurityScheme,
-	pointer string,
+	decl string,
 ) []ir.Diagnostic {
 	defined := fieldsDefinedBy(ss.GetType())
 	var diags []ir.Diagnostic
@@ -275,7 +298,7 @@ func preserveUnreadFields(c lowering.Ctx, scheme *ir.AuthScheme, ss *soa.Securit
 		if slices.Contains(defined, field) {
 			continue
 		}
-		at := pointer + ids.Ptr(field)
+		at := decl + ids.Ptr(field)
 		kept, keptDiags := annotation.PreserveNodeInto(&scheme.Unmodeled, "openapi:"+field,
 			annotation.RawChildNode(ss.GetRootNode(), field), ir.ReasonDegradedLowering, at, c.SrcIndex)
 		diags = append(diags, keptDiags...)

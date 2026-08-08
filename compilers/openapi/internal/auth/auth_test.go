@@ -693,6 +693,49 @@ components:
 	assert.Equal(t, ir.SeverityInfo, d.Severity, "the field survives, so this records rather than warns")
 }
 
+// TestLowerSecuritySchemes_ARefdEntryRecordsFieldsWhereTheyAreWritten pins
+// which of an aliased scheme's two positions each part of it is placed at.
+//
+// A `$ref` entry is a one-key object, so `<entry>/bearerFormat` names a position
+// no document holds — the fabricated-pointer failure issue #107 settled for
+// every other referenced component. The fields are read from the declaration,
+// so the entries recording them name the declaration.
+//
+// The scheme's own identity does not follow: an alias and its target are two
+// named schemes a requirement can name separately, and irverify holds an AuthID
+// to agreeing with its provenance path, so both stay on the entry.
+//
+// One report, not two: with both aliases naming the same position the compiler's
+// identity dedup collapses them, which is what it is for — before this the two
+// copies differed only in a pointer neither document position had.
+func TestLowerSecuritySchemes_ARefdEntryRecordsFieldsWhereTheyAreWritten(t *testing.T) {
+	t.Parallel()
+	doc, _, diags := serviceSpec(t, `openapi: 3.1.0
+info: {title: T, version: "1"}
+paths: {}
+components:
+  securitySchemes:
+    alias: {$ref: '#/components/securitySchemes/target'}
+    target: {type: mutualTLS, bearerFormat: JWT, x-note: n}
+`)
+	const declared = "/components/securitySchemes/target"
+	for _, name := range []string{"alias", "target"} {
+		s, ok := doc.Auth[ids.Auth(name)]
+		require.True(t, ok, "%s interns", name)
+		assert.Equal(t, "/components/securitySchemes/"+name, s.Provenance.Pointer,
+			"the scheme is named where this document names it")
+		assert.Equal(t, declared+"/bearerFormat",
+			s.Unmodeled["openapi:bearerFormat"].Provenance.Pointer,
+			"the kept field is located where it is written")
+		assert.Equal(t, declared+"/x-note", s.Unmodeled["openapi:x-note"].Provenance.Pointer,
+			"and so is the extension beside it")
+	}
+	assert.Empty(t, messagesAtPointer(diags, "/components/securitySchemes/alias"),
+		"nothing is reported against a position the alias does not hold: %+v", diags)
+	assert.Len(t, messagesAtPointer(diags, declared+"/bearerFormat"), 1,
+		"two aliases of one declaration report it once: %+v", diags)
+}
+
 // TestLowerSecuritySchemes_AnUnkeepableFieldIsReportedNotDropped pins the third
 // outcome of keeping a field: one whose value JSON cannot hold reaches the IR in
 // no form at all, so it is reported as the losslessness failure it is rather
