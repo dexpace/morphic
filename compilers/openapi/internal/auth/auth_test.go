@@ -758,9 +758,9 @@ components:
 	d, ok := firstDiagAt(diags, diag.UnpreservableConstruct)
 	require.True(t, ok, "the loss is reported: %+v", diags)
 	assert.Equal(t, ir.SeverityError, d.Severity)
+	require.Len(t, messagesAtPointer(diags, "/components/securitySchemes/s/name"), 1,
+		"reported at the field exactly once, and not also announced as kept: %+v", diags)
 	assert.Equal(t, "/components/securitySchemes/s/name", d.Provenance.Pointer)
-	assert.Empty(t, messagesAtPointer(diags, "/components/securitySchemes/s/name")[1:],
-		"and is not also announced as kept")
 }
 
 // unmodeledKeys returns u's keys sorted, so a caller pins the whole set rather
