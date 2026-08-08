@@ -10,6 +10,7 @@ package auth
 
 import (
 	"maps"
+	"slices"
 	"strconv"
 	"strings"
 
@@ -35,7 +36,10 @@ import (
 // unreferenced entry would otherwise be a scheme the document declares, the IR
 // silently drops, and no diagnostic sites.
 //
-// That is the only shape reported here — see unresolvableSchemeDiags.
+// An entry that resolves to an object but names no mechanism is refused for the
+// same reason and reported the same way — see mechanismRefusalDiag. Those two
+// are the only entries reported as interning nothing; every other diagnostic
+// from here is about a scheme that did intern (see preserveUnreadFields).
 func LowerSecuritySchemes(c lowering.Ctx) (map[ir.AuthID]ir.AuthScheme, []ir.Diagnostic) {
 	comps := c.Doc.Components
 	if comps == nil {
@@ -48,14 +52,18 @@ func LowerSecuritySchemes(c lowering.Ctx) (map[ir.AuthID]ir.AuthScheme, []ir.Dia
 	out := make(map[ir.AuthID]ir.AuthScheme, schemes.Len())
 	var diags []ir.Diagnostic
 	for name, rs := range schemes.All() {
-		ss := resolve.Object[soa.SecurityScheme](rs)
+		entry := ids.Ptr("components", "securitySchemes", name)
+		ss, decl := resolve.ObjectAt[soa.SecurityScheme](c.RefScope(), rs, entry)
 		if ss == nil {
-			diags = append(diags, unresolvableSchemeDiags(c, name, rs)...)
+			diags = append(diags, unresolvableSchemeDiags(c, name, rs, entry)...)
 			continue
 		}
-		scheme, schemeDiags := lowerSecurityScheme(c, name, ss)
-		out[ids.Auth(name)] = scheme
+		scheme, ok, schemeDiags := lowerSecurityScheme(c, name, ss, entry, decl)
 		diags = append(diags, schemeDiags...)
+		if !ok {
+			continue
+		}
+		out[ids.Auth(name)] = scheme
 	}
 	if len(out) == 0 {
 		return nil, diags
@@ -77,7 +85,9 @@ func LowerSecuritySchemes(c lowering.Ctx) (map[ir.AuthID]ir.AuthScheme, []ir.Dia
 // the reference is empty for everything that is not one. Its own nil is not
 // reachable from a parsed document — a malformed entry still arrives as an
 // object — so that guard is for a hand-built node, matching resolve.Object's.
-func unresolvableSchemeDiags(c lowering.Ctx, name string, rs *soa.ReferencedSecurityScheme) []ir.Diagnostic {
+func unresolvableSchemeDiags(c lowering.Ctx, name string, rs *soa.ReferencedSecurityScheme,
+	entry string,
+) []ir.Diagnostic {
 	if rs == nil {
 		return nil
 	}
@@ -85,41 +95,99 @@ func unresolvableSchemeDiags(c lowering.Ctx, name string, rs *soa.ReferencedSecu
 	if ref == "" {
 		return nil
 	}
-	return []ir.Diagnostic{c.DiagAt(ir.SeverityError, diag.UnresolvedRef,
-		ids.Ptr("components", "securitySchemes", name),
+	return []ir.Diagnostic{c.DiagAt(ir.SeverityError, diag.UnresolvedRef, entry,
 		"security scheme %q has a $ref that resolves to nothing: %q", name, ref)}
 }
 
 // lowerSecurityScheme lowers one named security scheme into its AuthScheme,
-// dispatching the mechanism-specific fields by type.
-func lowerSecurityScheme(c lowering.Ctx, name string, ss *soa.SecurityScheme) (ir.AuthScheme, []ir.Diagnostic) {
-	scheme := ir.AuthScheme{
+// dispatching the mechanism-specific fields by type. ok reports whether the
+// entry named a mechanism at all; when it did not, the caller interns nothing.
+//
+// The two pointers are the same for an entry written inline and differ for one
+// written as a $ref (issue #107). entry is where this document names the scheme,
+// so it identifies the scheme and places anything said about the entry as a
+// whole. decl is where the fields live, so it places everything addressed
+// beneath one: a `$ref` entry is a one-key object, and `<entry>/in` names a
+// position no document holds.
+//
+// The scheme's own ID and provenance stay on entry even when the two differ,
+// deliberately. Two entries aliasing one declaration are two named schemes a
+// requirement can name separately, and irverify holds an AuthID to agreeing
+// with its provenance path — so following decl here would collapse two schemes
+// onto one identity and break that agreement at once.
+func lowerSecurityScheme(c lowering.Ctx, name string, ss *soa.SecurityScheme,
+	entry, decl string,
+) (scheme ir.AuthScheme, ok bool, diags []ir.Diagnostic) {
+	scheme = ir.AuthScheme{
 		ID:         ids.Auth(name),
 		Name:       compile.NamingFor(name),
 		Docs:       ir.Docs{Description: ss.GetDescription()},
-		Provenance: c.ProvenanceAt(ids.Ptr("components", "securitySchemes", name)),
+		Provenance: c.ProvenanceAt(entry),
 	}
 	if ss.GetDeprecated() {
 		scheme.Deprecation = &ir.Deprecation{}
 	}
-	fillSchemeKind(&scheme, ss)
-	ext, diags := annotation.ExtensionsFrom(ss.GetExtensions(), c.SrcIndex, scheme.Provenance.Pointer)
-	if len(ext) > 0 {
-		scheme.Unmodeled = ext
+	missing, named := fillSchemeKind(&scheme, ss)
+	if !named {
+		return ir.AuthScheme{}, false, []ir.Diagnostic{mechanismRefusalDiag(c, name, missing, entry)}
 	}
-	return scheme, diags
+	diags = preserveUnreadFields(c, &scheme, ss, decl)
+	ext, extDiags := annotation.ExtensionsFrom(ss.GetExtensions(), c.SrcIndex, decl)
+	scheme.Unmodeled = annotation.MergeUnmodeled(scheme.Unmodeled, ext)
+	return scheme, true, append(diags, extDiags...)
+}
+
+// mechanismRefusalDiag reports a securitySchemes entry that declares a scheme
+// without saying what it is, having omitted the field named by missing.
+//
+// It is refused rather than interned because ir.AuthKind has no value for "the
+// document did not say": every kind names a mechanism, and AuthKindCustom names
+// one the IR does not model rather than one the entry never gave. Interning it
+// would put a scheme no emitter can implement in Document.Auth, recognisable
+// only by an empty Scheme — an in-band error for every consumer to rediscover —
+// and assert that the API is authenticated by nothing in particular (#294).
+//
+// Refusing reuses the remedy #41 gave a requirement naming an undeclared
+// scheme, and does so deliberately rather than by inheritance: the two faults
+// differ — that entry was never declared, this one was declared and left
+// unsaid — but the IR has no more room for the second than for the first, and
+// the cost is one already documented and diagnosed at every step. A requirement
+// naming this entry drops whole, and a list whose every option drops collapses
+// to nil (see LowerSecurityRequirements).
+//
+// What is not kept, deliberately: the fields the entry did declare. An entry
+// that names no mechanism is a defect in the document rather than a construct
+// the IR declines to model, which is the call an unresolvable $ref already gets
+// here — and there is no scheme left to hang an Unmodeled map on. The entry
+// that *does* intern keeps everything it wrote; see preserveUnreadFields.
+// "has no" rather than "declares no": an entry written as a $ref declares only
+// the reference, and it is the declaration it resolves to that is missing the
+// field. Both are reported, each at its own entry, so the wording has to be
+// true of the alias as well as of the target.
+func mechanismRefusalDiag(c lowering.Ctx, name, missing, entry string) ir.Diagnostic {
+	return c.DiagAt(ir.SeverityError, diag.IncompleteSecurityScheme, entry,
+		"security scheme %q has no %s, so it names no authentication mechanism: "+
+			"no scheme is interned for it, and every requirement naming it is dropped", name, missing)
 }
 
 // fillSchemeKind sets the mechanism kind and its per-kind fields (ir-design §9).
-// Unknown or unmodeled types degrade to a custom scheme carrying the raw type.
-func fillSchemeKind(scheme *ir.AuthScheme, ss *soa.SecurityScheme) {
+// An unrecognized type degrades to a custom scheme carrying the raw type, which
+// a later OpenAPI version's own type reaches as readily as a typo does.
+//
+// ok reports whether the entry named a mechanism; missing is the field it had
+// to declare to name one and did not. An absent type names nothing at all, and
+// no degradation is available for it: the custom kind carries the token a type
+// was spelled with, and there is no token.
+func fillSchemeKind(scheme *ir.AuthScheme, ss *soa.SecurityScheme) (missing string, ok bool) {
 	switch ss.GetType() {
+	case "":
+		return "type", false
 	case soa.SecuritySchemeTypeAPIKey:
 		scheme.Kind = ir.AuthKindAPIKey
 		scheme.In = string(ss.GetIn())
 		scheme.KeyName = ss.GetName()
 	case soa.SecuritySchemeTypeHTTP:
-		fillHTTPScheme(scheme, ss)
+		return fillHTTPScheme(scheme, ss)
 	case soa.SecuritySchemeTypeOAuth2:
 		scheme.Kind = ir.AuthKindOAuth2
 		scheme.Flows = oauthFlows(ss.GetFlows())
@@ -133,22 +201,115 @@ func fillSchemeKind(scheme *ir.AuthScheme, ss *soa.SecurityScheme) {
 		scheme.Kind = ir.AuthKindCustom
 		scheme.Scheme = string(ss.GetType())
 	}
+	return "", true
 }
 
 // fillHTTPScheme classifies an HTTP scheme by its RFC 7235 scheme token: basic
 // and bearer get first-class kinds; any other scheme is custom with the token
 // preserved. BearerFormat rides along regardless (ir-design §9).
-func fillHTTPScheme(scheme *ir.AuthScheme, ss *soa.SecurityScheme) {
+//
+// `type: http` alone is the second shape that names no mechanism: the token is
+// what an HTTP scheme *is*, and a custom kind carrying an empty one says no
+// more than the typeless entry does. A token the RFC would reject is still a
+// token and still interns — comparing it against the grammar is validation this
+// compiler does not do, and trimming it would be a guess at what was meant.
+func fillHTTPScheme(scheme *ir.AuthScheme, ss *soa.SecurityScheme) (missing string, ok bool) {
+	token := ss.GetScheme()
+	if token == "" {
+		return "scheme", false
+	}
 	scheme.BearerFormat = ss.GetBearerFormat()
-	switch strings.ToLower(ss.GetScheme()) {
+	switch strings.ToLower(token) {
 	case "basic":
 		scheme.Kind = ir.AuthKindHTTPBasic
 	case "bearer":
 		scheme.Kind = ir.AuthKindHTTPBearer
 	default:
 		scheme.Kind = ir.AuthKindCustom
-		scheme.Scheme = ss.GetScheme()
+		scheme.Scheme = token
 	}
+	return "", true
+}
+
+// mechanismFieldNames are the securityScheme fields only some types define,
+// sorted — which is both the order preserveUnreadFields walks them in and what
+// makes the list comparable to the source model it must keep pace with.
+//
+// type, description, deprecated and the x-* extensions are absent because every
+// type defines them, so no type can leave one unread. Nothing here derives that
+// split; TestMechanismFieldNames_AccountForEverySourceField holds it to the
+// upstream struct, so a field that model gains fails a test rather than
+// vanishing from the IR.
+func mechanismFieldNames() []string {
+	return []string{
+		"bearerFormat", "flows", "in", "name",
+		"oauth2MetadataUrl", "openIdConnectUrl", "scheme",
+	}
+}
+
+// fieldsDefinedBy returns the mechanism fields OpenAPI gives t a meaning for,
+// which are exactly the ones fillSchemeKind reads for it.
+//
+// mutualTLS is the whole mechanism and defines none of them. Nor does an
+// unrecognized type: the custom kind it degrades to already spends its one
+// Scheme field on the type token, so a `scheme` written beside it has no home
+// left even though the same field would have held it under `type: http`.
+func fieldsDefinedBy(t soa.SecuritySchemaType) []string {
+	switch t {
+	case soa.SecuritySchemeTypeAPIKey:
+		return []string{"in", "name"}
+	case soa.SecuritySchemeTypeHTTP:
+		return []string{"scheme", "bearerFormat"}
+	case soa.SecuritySchemeTypeOAuth2:
+		return []string{"flows", "oauth2MetadataUrl"}
+	case soa.SecuritySchemeTypeOpenIDConnect:
+		return []string{"openIdConnectUrl"}
+	default:
+		return nil
+	}
+}
+
+// preserveUnreadFields keeps every mechanism field the entry declared that
+// its own type gives no meaning to — `in` on an oauth2 scheme, `flows` on an
+// apiKey — verbatim under Unmodeled rather than dropping it (#294).
+//
+// Each mechanism's lowering reads only its own fields, so before this the rest
+// reached no IR field and no Unmodeled entry either: declared source text gone
+// with no diagnostic, which invariant 2 forbids. ir.AuthScheme is flat and does
+// hold a field of each name, but filling one would say the mechanism has a
+// property it does not define — an apiKey location on a scheme that is not an
+// apiKey — so the declaration is kept beside the scheme instead of inside it.
+// ReasonDegradedLowering for that reason: the entry is lowered to the weaker
+// shape its type can hold, with what did not fit recoverable beside it.
+//
+// Presence, not truth: a field the entry did not write records nothing, and one
+// it wrote records whatever it wrote. RawChildNode reads the entry as the
+// document spelled it, so an explicit `in: ""` is a declaration like any other.
+//
+// decl is where the fields are written, which is the referenced declaration for
+// an entry written as a $ref rather than the entry itself — the value is read
+// from that node, so the entry that records it must name it (issue #107).
+func preserveUnreadFields(c lowering.Ctx, scheme *ir.AuthScheme, ss *soa.SecurityScheme,
+	decl string,
+) []ir.Diagnostic {
+	defined := fieldsDefinedBy(ss.GetType())
+	var diags []ir.Diagnostic
+	for _, field := range mechanismFieldNames() {
+		if slices.Contains(defined, field) {
+			continue
+		}
+		at := decl + ids.Ptr(field)
+		kept, keptDiags := annotation.PreserveNodeInto(&scheme.Unmodeled, "openapi:"+field,
+			annotation.RawChildNode(ss.GetRootNode(), field), ir.ReasonDegradedLowering, at, c.SrcIndex)
+		diags = append(diags, keptDiags...)
+		if !kept {
+			continue
+		}
+		diags = append(diags, c.DiagAt(ir.SeverityInfo, diag.DegradedConstruct, at,
+			"security scheme %s is not defined by type %q; kept verbatim under Unmodeled",
+			field, ss.GetType()))
+	}
+	return diags
 }
 
 // oauthFlows lowers each present OAuth2 flow in a fixed, deterministic order.
@@ -276,11 +437,12 @@ func LowerSecurityRequirements(c lowering.Ctx, reqs []*soa.SecurityRequirement, 
 // requirement-level pointer, so a multi-member option reports each of its bad
 // names.
 //
-// Two documents reach that state: one that never declared the name, and one
-// that declared it as a $ref resolving to nothing. What is said here is only
-// that the name resolves to no scheme, which is true of both — calling it
-// undeclared would contradict the entry-level report LowerSecuritySchemes
-// leaves beside it in the second case.
+// Three documents reach that state: one that never declared the name, one that
+// declared it as a $ref resolving to nothing, and one whose entry named no
+// mechanism (#294). What is said here is only that the name resolves to no
+// scheme, which is true of all three — calling it undeclared would contradict
+// the entry-level report LowerSecuritySchemes leaves beside it in the latter
+// two cases.
 func lowerSecurityRequirement(c lowering.Ctx, req *soa.SecurityRequirement, pointer string,
 ) (r ir.AuthRequirement, ok bool, diags []ir.Diagnostic) {
 	if req == nil {

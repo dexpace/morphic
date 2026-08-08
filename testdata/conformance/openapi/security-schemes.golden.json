@@ -137,6 +137,31 @@
         "source": 0,
         "pointer": "/components/securitySchemes/oidcAuth"
       }
+    },
+    "auth/openapi/components/securitySchemes/strayFieldAuth": {
+      "id": "auth/openapi/components/securitySchemes/strayFieldAuth",
+      "name": {
+        "source": "strayFieldAuth",
+        "canonical": "stray_field_auth"
+      },
+      "kind": "apiKey",
+      "docs": {},
+      "in": "header",
+      "keyName": "X-Stray",
+      "unmodeled": {
+        "openapi:bearerFormat": {
+          "reason": "degraded_lowering",
+          "value": "JWT",
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/securitySchemes/strayFieldAuth/bearerFormat"
+          }
+        }
+      },
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/securitySchemes/strayFieldAuth"
+      }
     }
   },
   "servers": [
@@ -149,11 +174,31 @@
       "auth": null
     }
   ],
+  "diagnostics": [
+    {
+      "severity": "warning",
+      "code": "openapi/validation/validation-allowed-values",
+      "message": "[46:21] warning validation-allowed-values securityScheme.bearerFormat is not used for type=apiKey (only valid for type=http)",
+      "provenance": {
+        "source": 0,
+        "pointer": "46:21"
+      }
+    },
+    {
+      "severity": "info",
+      "code": "openapi/degraded-construct",
+      "message": "security scheme bearerFormat is not defined by type \"apiKey\"; kept verbatim under Unmodeled",
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/securitySchemes/strayFieldAuth/bearerFormat"
+      }
+    }
+  ],
   "sources": [
     {
       "format": "openapi@3.2",
       "path": "security-schemes.yaml",
-      "hash": "427d72a88e3f9473be8b7be4b2a36bfc6fa8de4fc989057261f62ebaa8d43969"
+      "hash": "77a9a876541b6fa112aa3def29f818cb2d299eeaf3a74928a8eb39cae663ec64"
     }
   ]
 }
