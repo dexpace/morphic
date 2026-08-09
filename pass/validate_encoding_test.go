@@ -18,27 +18,30 @@ func multipartContent(enc map[ir.PropID]ir.PartEncoding) ir.Content {
 }
 
 // encodingCarrier is one field that carries a Payload — and so an Encoding map —
-// paired with the location a diagnostic about its first content must point at.
+// named as the ir field it is, and paired with the location a diagnostic about
+// its first content must point at.
 type encodingCarrier struct {
-	name  string
+	field string
 	at    string
 	plant func(doc *ir.Document, enc map[ir.PropID]ir.PartEncoding)
 }
 
-// encodingCarriers enumerates the Payload-bearing fields checkEncodingKeys walks,
-// so one added to the IR has to appear here as well as there.
+// encodingCarriers enumerates the Payload-bearing fields checkEncodingKeys walks.
+// TestEncodingCarriers_AreEveryPayloadFieldInTheIR holds this list against the
+// IR and the cases below hold checkEncodingKeys against this list, so a carrier
+// added to the IR has to reach both.
 func encodingCarriers() []encodingCarrier {
 	return []encodingCarrier{
-		{"request", "op/request/contents/0", func(d *ir.Document, enc map[ir.PropID]ir.PartEncoding) {
+		{"Operation.Request", "op/request/contents/0", func(d *ir.Document, enc map[ir.PropID]ir.PartEncoding) {
 			requestContent(d).Encoding = enc
 		}},
-		{"response payload", "op/responses/0/contents/0", func(d *ir.Document, enc map[ir.PropID]ir.PartEncoding) {
+		{"Response.Payload", "op/responses/0/contents/0", func(d *ir.Document, enc map[ir.PropID]ir.PartEncoding) {
 			firstOp(d).Responses = []ir.Response{{
 				Name:    ir.Naming{Source: "ok"},
 				Payload: &ir.Payload{Contents: []ir.Content{multipartContent(enc)}},
 			}}
 		}},
-		{"message payload", "msg/a/contents/0", func(d *ir.Document, enc map[ir.PropID]ir.PartEncoding) {
+		{"Message.Payload", "msg/a/contents/0", func(d *ir.Document, enc map[ir.PropID]ir.PartEncoding) {
 			putMessage(d, func(m *ir.Message) {
 				m.Payload = ir.Payload{Contents: []ir.Content{multipartContent(enc)}}
 			})
@@ -55,7 +58,7 @@ func encodingCarriers() []encodingCarrier {
 func TestValidate_EncodingKeyAddressesNoProperty(t *testing.T) {
 	t.Parallel()
 	for _, tc := range encodingCarriers() {
-		t.Run(tc.name, func(t *testing.T) {
+		t.Run(tc.field, func(t *testing.T) {
 			t.Parallel()
 			doc := validDoc()
 			tc.plant(doc, map[ir.PropID]ir.PartEncoding{"p/m/ghost": {Multi: true}})
