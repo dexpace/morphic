@@ -123,6 +123,13 @@ Diagnostics print one per line as `<severity> <code> <path>#<pointer>: <message>
 `0` clean (and for any help request), `1` a diagnostic reached the `--fail-on` threshold (or the
 spec could not be lowered), `2` a usage or I/O error.
 
+`1` and `2` can both be earned by one run — a spec that reached the threshold whose `-o`
+destination then refused the write. The verdict on the spec wins, so `1` means what it says
+whatever `-o` pointed at, and `2` means the run failed for a reason outside the spec. The write
+error is printed on stderr either way. Note that `-o` publishes by rename, so a destination whose
+directory will not take a temp file — `/dev/null`, a read-only directory — cannot be written to at
+all.
+
 ### Library
 
 The same pipeline is available as a package. `engine.New` builds the default registry (OpenAPI
