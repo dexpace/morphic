@@ -142,8 +142,8 @@ func optionsFrom(opts compilers.Options) (Options, error) {
 
 // loadOptions projects Options onto the subset the load phase reads. It exists
 // so the mapping lives in one place: load.Options is that package's own input,
-// deliberately not this public type, whose shape ir-design §10 fixes and most of
-// which describes lowering the loader cannot see.
+// deliberately not this public type, whose shape is a published contract (see
+// Options) and most of which describes lowering the loader cannot see.
 func loadOptions(o Options) load.Options {
 	out := load.Options{AllowExternalRefs: o.AllowExternalRefs}
 	if o.Overlay != nil {
