@@ -3001,6 +3001,58 @@ func TestDynamicRef_ExpandsAgainstTheOneMatchingAnchor(t *testing.T) {
 		"each expanded reference is announced once")
 }
 
+// TestDynamicRef_FragmentIsPercentDecoded pins that a $dynamicRef's fragment is
+// read as the URI text it is. RFC 3986 §2.3 makes an unreserved character and
+// its percent-encoded octet the same character, so `#my%2Danchor` names the
+// anchor `my-anchor`; §2.1 makes the escape's hex digits case-insignificant. All
+// three spellings below therefore address one declaration (GitHub #233).
+func TestDynamicRef_FragmentIsPercentDecoded(t *testing.T) {
+	t.Parallel()
+	const anchor = "    B: {$dynamicAnchor: my-anchor, type: string}\n"
+	cases := map[string]string{
+		"an escaped hyphen is the hyphen":           "#my%2Danchor",
+		"the escape's hex case is not significant":  "#my%2danchor",
+		"the unescaped spelling names the same one": "#my-anchor",
+	}
+	for name, ref := range cases {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			doc, diags := parseFull(t, componentSpec(anchor+"    A: {$dynamicRef: '"+ref+"'}\n"))
+			requireNoErrorDiags(t, diags)
+
+			sc, ok := doc.Types[componentID("A")].(*ir.Scalar)
+			require.True(t, ok, "the reference position owns a node")
+			require.NotNil(t, sc.Base)
+			assert.Equal(t, componentID("B"), sc.Base.Target, "every spelling names the one anchor")
+			assert.NotContains(t, sc.Unmodeled, "openapi:$dynamicRef",
+				"an expanded reference is the position's type, so it is not also kept")
+		})
+	}
+}
+
+// TestDynamicRef_ReachesAnAnchorSpelledWithAPercent pins that the decode runs on
+// the reference alone: an anchor carrying a literal `%` is addressed by escaping
+// it as `%25`, and the anchor's own text is matched exactly as declared. The two
+// sides mean different things — 2020-12 §8.2.2 makes `$dynamicAnchor` a plain
+// name, §8.2.3.2 makes `$dynamicRef` a URI-reference — so only one is decoded.
+//
+// §8.2.2's production admits no `%` in an anchor name, so the document validator
+// reports the declaration and this case arrives with an error diagnostic beside
+// it, the same shape TestDynamicRef_NonScalarValueIsKeptNotExpanded documents.
+// The lowering still has to agree with itself about what each side spells.
+func TestDynamicRef_ReachesAnAnchorSpelledWithAPercent(t *testing.T) {
+	t.Parallel()
+	doc, _ := parseFull(t, componentSpec(
+		"    B: {$dynamicAnchor: 'pct%name', type: string}\n"+
+			"    A: {$dynamicRef: '#pct%25name'}\n"))
+
+	sc, ok := doc.Types[componentID("A")].(*ir.Scalar)
+	require.True(t, ok, "the reference position owns a node")
+	require.NotNil(t, sc.Base)
+	assert.Equal(t, componentID("B"), sc.Base.Target,
+		"an escaped percent addresses the percent itself, so the reference reaches the anchor as declared")
+}
+
 // TestDynamicRef_IrreducibleIsKeptAndSaysWhy pins the other half of that promise.
 // Each case is a reference no static lowering can resolve, and each must survive
 // verbatim with the reason naming which case it was.
@@ -3021,6 +3073,15 @@ func TestDynamicRef_IrreducibleIsKeptAndSaysWhy(t *testing.T) {
 			wantWhy: "is not a plain same-document fragment"},
 		{name: "a pointer, not an anchor", schemas: "    A: {$dynamicRef: '#/components/schemas/M1'}\n",
 			wantWhy: "not a plain same-document fragment"},
+		{name: "an invalid percent escape", schemas: "    A: {$dynamicRef: '#my%zzanchor'}\n",
+			wantWhy: `"#my%zzanchor" is not valid percent-encoded text: invalid URL escape "%zz"`},
+		{name: "an escaped percent decodes to the character", schemas: "    A: {$dynamicRef: '#pct%25name'}\n",
+			wantWhy: `no $dynamicAnchor "pct%name" is declared`},
+		// The anchor here is what a second decode would land on: it would read
+		// this fragment as "#my-anchor" and expand. Being kept is the proof.
+		{name: "the decode is not applied twice",
+			schemas: "    H: {$dynamicAnchor: my-anchor, type: string}\n    A: {$dynamicRef: '#my%252Danchor'}\n",
+			wantWhy: `no $dynamicAnchor "my%2Danchor" is declared`},
 		{name: "declared twice", schemas: anchors + "    A: {$dynamicRef: '#dup'}\n",
 			wantWhy: "declared 2 times"},
 		{name: "not a component", schemas: anchors + "    A: {$dynamicRef: '#deep'}\n",
