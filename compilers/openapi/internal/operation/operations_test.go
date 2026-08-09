@@ -1733,3 +1733,65 @@ func TestOperations_OwnServersSurviveBesideExtensions(t *testing.T) {
 	assert.Contains(t, op.Unmodeled, "openapi:x-vendor",
 		"and the extensions survive beside them, so neither overwrote the other")
 }
+
+// TestPathItem_WithNoOperationKeepsWhatItWroteOnTheService covers the one path
+// item shape that reached applyPathItem through nothing.
+//
+// applyPathItem runs once per operation an item produces, so an item producing
+// none lost its servers, its extensions and its undeclared keys whole, with no
+// diagnostic naming the loss. The service is where they go now — the same node
+// the Paths Object's own extensions go to, and for the same reason: a path item
+// lowers to no node of its own.
+func TestPathItem_WithNoOperationKeepsWhatItWroteOnTheService(t *testing.T) {
+	t.Parallel()
+	svc, diags := serviceWithGrouping(t, `openapi: 3.1.0
+info: {title: T, version: "1"}
+paths:
+  /mounted:
+    get: {operationId: getX, responses: {"200": {description: ok}}}
+  /unmounted:
+    servers: [{url: 'https://a.example'}]
+    x-kept: {a: 1}
+webhooks:
+  hook:
+    x-hook-kept: {b: 2}
+`, lowering.GroupByTags)
+
+	require.Contains(t, svc.Unmodeled, "openapi:pathItem/paths/~1unmounted/x-kept")
+	require.Contains(t, svc.Unmodeled, "openapi:pathItem/paths/~1unmounted/servers")
+	require.Contains(t, svc.Unmodeled, "openapi:pathItem/webhooks/hook/x-hook-kept")
+	assert.Equal(t, ir.ReasonNoIRHome, svc.Unmodeled["openapi:pathItem/paths/~1unmounted/servers"].Reason)
+
+	// The key carries the item's own pointer because one service holds every such
+	// item: two of them under a bare prefix would collide, and the survivor would
+	// be whichever the walk reached last.
+	assert.NotContains(t, svc.Unmodeled, "openapi:servers",
+		"the unqualified servers key is the one an operation uses")
+
+	var announced int
+	for _, d := range diags {
+		if strings.Contains(d.Message, "declares no operation this compiler lowers") {
+			announced++
+		}
+	}
+	assert.Equal(t, 2, announced, "one per unmounted item: the path and the webhook")
+}
+
+// TestPathItem_WithNoOperationAndNothingToKeepIsSilent holds the other half: an
+// item that produces no operation and wrote nothing beside it has lost nothing,
+// so there is nothing to keep and nothing to announce.
+func TestPathItem_WithNoOperationAndNothingToKeepIsSilent(t *testing.T) {
+	t.Parallel()
+	svc, diags := serviceWithGrouping(t, `openapi: 3.1.0
+info: {title: T, version: "1"}
+paths:
+  /empty: {}
+  /described: {summary: s, description: d}
+`, lowering.GroupByTags)
+
+	assert.Empty(t, svc.Unmodeled)
+	for _, d := range diags {
+		assert.NotContains(t, d.Message, "declares no operation this compiler lowers",
+			"an item with nothing beside its operations announces nothing")
+	}
+}

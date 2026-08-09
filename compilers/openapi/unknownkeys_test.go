@@ -7,6 +7,7 @@ package openapi_test // external test package — exercises only the public API
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -319,4 +320,67 @@ func requireNoErrorDiagnostics(t *testing.T, diags []ir.Diagnostic) {
 	t.Helper()
 	d, ok := ir.FirstError(diags)
 	require.False(t, ok, "unexpected error diagnostic: %+v", d)
+}
+
+// TestUnknownKeys_PathItemWithNoOperationKeepsWhatItWrote covers the one place
+// the census had no carrier at all.
+//
+// applyPathItem runs once per operation an item produces, so an item producing
+// none — because it declares no method this compiler lowers, or because the only
+// keys it holds are ones the Path Item Object does not define — reached the
+// census through nothing, and its servers, extensions and undeclared keys were
+// dropped whole with no diagnostic naming the loss.
+//
+// The service is where they go, which is where the Paths Object's own extensions
+// already go for the same reason: a path item lowers to no node, so the nearest
+// node holding an Unmodeled map is what holds them. The key carries the item's
+// own pointer, because one service holds every such item and a bare prefix would
+// let two of them collide.
+func TestUnknownKeys_PathItemWithNoOperationKeepsWhatItWrote(t *testing.T) {
+	t.Parallel()
+	doc, diags := compileAnnotationSpec(t, "path-item-unmounted", `openapi: 3.1.0
+info: {title: T, version: "1"}
+paths:
+  /mounted:
+    x-on-mounted: {a: 1}
+    get: {operationId: getX, responses: {"200": {description: ok}}}
+  /unmounted:
+    servers: [{url: 'https://a.example'}]
+    x-on-unmounted: {b: 2}
+    undeclaredKey: {c: 3}
+webhooks:
+  hook:
+    x-on-hook: {d: 4}
+`)
+	// Not requireNoErrorDiagnostics: an object-valued undeclared key folds into
+	// the operations map as an operation with no responses, so the library reports
+	// a required-field error naming it. That is the fold this census exists to see
+	// past, not a problem with the fixture.
+
+	keys := map[string]bool{}
+	for _, site := range unmodeledSites(doc) {
+		keys[site.key] = true
+	}
+	assert.True(t, keys["openapi:pathItem/x-on-mounted"],
+		"an item with an operation still keeps its own on that operation")
+	for _, want := range []string{
+		"openapi:pathItem/paths/~1unmounted/x-on-unmounted",
+		"openapi:pathItem/paths/~1unmounted/undeclaredKey",
+		"openapi:pathItem/paths/~1unmounted/servers",
+		"openapi:pathItem/webhooks/hook/x-on-hook",
+	} {
+		assert.True(t, keys[want], "kept on the service: %s (have %v)", want, keys)
+	}
+
+	// And the loss is announced rather than merely repaired: a reader finding
+	// these on the service needs to know why they are not on an operation.
+	var announced int
+	for _, d := range diags {
+		if d.Code == "openapi/degraded-construct" &&
+			strings.Contains(d.Message, "declares no operation this compiler lowers") {
+			announced++
+			assert.Equal(t, ir.SeverityWarning, d.Severity)
+		}
+	}
+	assert.Equal(t, 2, announced, "one per unmounted item: the path and the webhook")
 }

@@ -67,8 +67,8 @@ func LowerService(c lowering.Ctx, ts *compile.Types, anchors *schema.AnchorIndex
 	svc.Unmodeled = annotation.MergeUnmodeled(svc.Unmodeled, pathsExt)
 	diags = append(diags, pathsDiags...)
 	groups := newServiceGroups()
-	diags = append(diags, lowerPaths(c, ts, anchors, operationIDs, groups)...)
-	diags = append(diags, lowerWebhooks(c, ts, anchors, operationIDs, groups)...)
+	diags = append(diags, lowerPaths(c, ts, anchors, operationIDs, groups, &svc)...)
+	diags = append(diags, lowerWebhooks(c, ts, anchors, operationIDs, groups, &svc)...)
 	svc.Groups = groups.finalize()
 	return svc, lowerTagDefs(c), diags
 }
@@ -100,7 +100,7 @@ func tagDocsFrom(t *soa.Tag) ir.Docs {
 }
 
 // lowerPaths lowers every path operation in source order into groups.
-func lowerPaths(c lowering.Ctx, ts *compile.Types, anchors *schema.AnchorIndex, operationIDs map[string]string, groups *serviceGroups) []ir.Diagnostic {
+func lowerPaths(c lowering.Ctx, ts *compile.Types, anchors *schema.AnchorIndex, operationIDs map[string]string, groups *serviceGroups, svc *ir.Service) []ir.Diagnostic {
 	paths := c.Doc.GetPaths()
 	if paths == nil {
 		return nil
@@ -111,7 +111,7 @@ func lowerPaths(c lowering.Ctx, ts *compile.Types, anchors *schema.AnchorIndex, 
 		if pi == nil {
 			continue
 		}
-		diags = append(diags, lowerPathItem(c, ts, anchors, operationIDs, groups, path, pi, declPtr)...)
+		diags = append(diags, lowerPathItem(c, ts, anchors, operationIDs, groups, svc, path, pi, declPtr)...)
 	}
 	return diags
 }
@@ -122,9 +122,10 @@ func lowerPaths(c lowering.Ctx, ts *compile.Types, anchors *schema.AnchorIndex, 
 // path item, or a referenced path item's component pointer (issue #107) —
 // shared parameters and bodies lower from there, while each operation keeps
 // its mount pointer (under path) as its identity.
-func lowerPathItem(c lowering.Ctx, ts *compile.Types, anchors *schema.AnchorIndex, operationIDs map[string]string, groups *serviceGroups, path string, pi *soa.PathItem, declPtr string) []ir.Diagnostic {
+func lowerPathItem(c lowering.Ctx, ts *compile.Types, anchors *schema.AnchorIndex, operationIDs map[string]string, groups *serviceGroups, svc *ir.Service, path string, pi *soa.PathItem, declPtr string) []ir.Diagnostic {
 	var diags []ir.Diagnostic
 	pathPtr := ids.Ptr("paths", path)
+	var mounted int
 	for _, m := range httpMethods {
 		src := m.get(pi)
 		if src == nil {
@@ -142,17 +143,21 @@ func lowerPathItem(c lowering.Ctx, ts *compile.Types, anchors *schema.AnchorInde
 		}
 		op, extra, opDiags := lowerOperation(c, ts, anchors, operationIDs, src, opCtx)
 		diags = append(diags, opDiags...)
-		diags = append(diags, applyPathItem(c, &op, pi, declPtr)...)
+		diags = append(diags, applyPathItem(c, onOperation(&op), pi, declPtr)...)
 		grp := groups.group(key, func() ir.OperationGroup { return ir.OperationGroup{Name: name, Docs: docs} })
 		grp.Operations = append(grp.Operations, op)
 		grp.Operations = append(grp.Operations, extra...)
+		mounted++
+	}
+	if mounted == 0 {
+		return append(diags, preserveUnmountedPathItem(c, svc, pi, pathPtr, declPtr)...)
 	}
 	return diags
 }
 
 // lowerWebhooks lowers webhook path items into the dedicated "webhooks" group;
 // each webhook operation carries IsWebhook on its HTTP binding.
-func lowerWebhooks(c lowering.Ctx, ts *compile.Types, anchors *schema.AnchorIndex, operationIDs map[string]string, groups *serviceGroups) []ir.Diagnostic {
+func lowerWebhooks(c lowering.Ctx, ts *compile.Types, anchors *schema.AnchorIndex, operationIDs map[string]string, groups *serviceGroups, svc *ir.Service) []ir.Diagnostic {
 	hooks := c.Doc.GetWebhooks()
 	if hooks == nil || hooks.Len() == 0 {
 		return nil
@@ -164,6 +169,7 @@ func lowerWebhooks(c lowering.Ctx, ts *compile.Types, anchors *schema.AnchorInde
 		if pi == nil {
 			continue
 		}
+		var mounted int
 		for _, m := range httpMethods {
 			src := m.get(pi)
 			if src == nil {
@@ -180,7 +186,7 @@ func lowerWebhooks(c lowering.Ctx, ts *compile.Types, anchors *schema.AnchorInde
 			}
 			op, extra, opDiags := lowerOperation(c, ts, anchors, operationIDs, src, opCtx)
 			diags = append(diags, opDiags...)
-			diags = append(diags, applyPathItem(c, &op, pi, declPtr)...)
+			diags = append(diags, applyPathItem(c, onOperation(&op), pi, declPtr)...)
 			grp := groups.group("webhook", func() ir.OperationGroup {
 				// A hint, not a source name: no document declares this group. The
 				// compiler synthesizes it to hold webhook operations, exactly as it
@@ -190,6 +196,10 @@ func lowerWebhooks(c lowering.Ctx, ts *compile.Types, anchors *schema.AnchorInde
 			})
 			grp.Operations = append(grp.Operations, op)
 			grp.Operations = append(grp.Operations, extra...)
+			mounted++
+		}
+		if mounted == 0 {
+			diags = append(diags, preserveUnmountedPathItem(c, svc, pi, hookPtr, declPtr)...)
 		}
 	}
 	return diags
@@ -427,13 +437,91 @@ func fillOperationDocs(d *ir.Docs, src *soa.Operation) {
 // empty however much the document wrote (speakeasy-api/openapi v1.24.0). What is
 // left of that map once the HTTP methods are taken out is the same set the
 // census would have reported, which is what undeclaredPathItemKeys reads.
-func applyPathItem(c lowering.Ctx, op *ir.Operation, pi *soa.PathItem, declPtr string) []ir.Diagnostic {
-	diags := applyPathServers(c, op, pi, declPtr)
-	ext, extDiags := schema.ExtensionsIn(c, pi.GetExtensions(), declPtr, "pathItem")
-	op.Unmodeled = annotation.MergeUnmodeled(op.Unmodeled, ext)
+func applyPathItem(c lowering.Ctx, into carrier, pi *soa.PathItem, declPtr string) []ir.Diagnostic {
+	diags := applyPathServers(c, into, pi, declPtr)
+	ext, extDiags := schema.ExtensionsIn(c, pi.GetExtensions(), declPtr, into.scope)
+	*into.unmodeled = annotation.MergeUnmodeled(*into.unmodeled, ext)
 	diags = append(diags, extDiags...)
-	return append(diags, annotation.UnknownKeysNamed(&op.Unmodeled, undeclaredPathItemKeys(pi),
-		pi.GetRootNode(), c.SrcIndex, declPtr, "pathItem")...)
+	return append(diags, annotation.UnknownKeysNamed(into.unmodeled, undeclaredPathItemKeys(pi),
+		pi.GetRootNode(), c.SrcIndex, declPtr, into.scope)...)
+}
+
+// carrier is where a path item's own declarations are kept, and under what key
+// scope. A path item lowers to no node of its own — its entries become
+// operations — so what it writes beside them has to be held by something else.
+//
+// Normally that is each operation the item produced. An item that produces none
+// has no such node, and used to lose everything it wrote: its servers, its
+// extensions and its undeclared keys reached the IR in no form and nothing
+// reported it. The service is the nearest node holding an Unmodeled map, which
+// is where the Paths Object's own extensions already go for the same reason, so
+// an item with no operation is kept there instead.
+//
+// scope carries the item's own pointer in that case, because one service holds
+// every such item and a bare "pathItem" prefix would make two of them collide on
+// one key — the survivor decided by iteration order.
+type carrier struct {
+	unmodeled  *ir.Unmodeled
+	provenance ir.Provenance
+	// scope prefixes the keys built from a keyword name, as the extension and
+	// undeclared-key writers do.
+	scope string
+	// serversKey is spelled in full rather than derived from scope, because the
+	// servers entry has always been keyed by the bare keyword on an operation and
+	// this must not move it.
+	serversKey string
+}
+
+// onOperation carries a path item's declarations on an operation it produced.
+func onOperation(op *ir.Operation) carrier {
+	return carrier{
+		unmodeled:  &op.Unmodeled,
+		provenance: op.Provenance,
+		scope:      "pathItem",
+		serversKey: "openapi:servers",
+	}
+}
+
+// onService carries them on the service, for an item that produced no operation
+// to hold them. mountPtr is the item's own pointer, which keys it apart from
+// every other item kept there.
+func onService(svc *ir.Service, mountPtr string) carrier {
+	return carrier{
+		unmodeled:  &svc.Unmodeled,
+		provenance: svc.Provenance,
+		scope:      "pathItem" + mountPtr,
+		serversKey: "openapi:pathItem" + mountPtr + "/servers",
+	}
+}
+
+// preserveUnmountedPathItem keeps what an item that produced no operation wrote,
+// and says so: the item is not lowered, so a reader seeing its declarations on
+// the service needs to know why they are there rather than on an operation.
+//
+// An item produces no operation when it declares none, when every method it
+// declares is one this compiler does not lower yet (GitHub #293), or when the
+// only keys it holds are ones the Path Item Object does not define.
+//
+// What is kept is what applyPathItem keeps anywhere: servers, extensions and
+// undeclared keys. A path item's summary and description are dropped here as
+// they are dropped on a mounted item — that is a separate gap, and the message
+// below does not claim otherwise.
+func preserveUnmountedPathItem(c lowering.Ctx, svc *ir.Service, pi *soa.PathItem, mountPtr, declPtr string) []ir.Diagnostic {
+	diags := applyPathItem(c, onService(svc, mountPtr), pi, declPtr)
+	if len(diags) == 0 && !pathItemDeclaresAnything(pi) {
+		return nil // nothing was written beside the operations it does not have
+	}
+	return append(diags, c.DiagAt(ir.SeverityWarning, diag.DegradedConstruct, declPtr,
+		"path item declares no operation this compiler lowers; its servers, extensions and "+
+			"undeclared keys are kept on the service, having no operation to hold them"))
+}
+
+// pathItemDeclaresAnything reports whether pi wrote anything applyPathItem would
+// have had to find a home for.
+func pathItemDeclaresAnything(pi *soa.PathItem) bool {
+	return len(pi.GetServers()) > 0 ||
+		pi.GetExtensions().Len() > 0 ||
+		len(undeclaredPathItemKeys(pi)) > 0
 }
 
 // undeclaredPathItemKeys returns the keys of a path item's operations map that
@@ -482,16 +570,16 @@ func undeclaredPathItemKeys(pi *soa.PathItem) []string {
 //
 // This is the path-item half of the pair; applyOperationServers keeps the
 // operation's own list, which overrides this one, under its own key.
-func applyPathServers(c lowering.Ctx, op *ir.Operation, pi *soa.PathItem, declPtr string) []ir.Diagnostic {
+func applyPathServers(c lowering.Ctx, into carrier, pi *soa.PathItem, declPtr string) []ir.Diagnostic {
 	if len(pi.GetServers()) == 0 {
 		return nil
 	}
-	kept, diags := schema.PreserveNode(c, &op.Unmodeled, "openapi:servers",
+	kept, diags := schema.PreserveNode(c, into.unmodeled, into.serversKey,
 		annotation.RawChildNode(pi.GetRootNode(), "servers"), ir.ReasonNoIRHome, declPtr+ids.Ptr("servers"))
 	if !kept {
 		return diags
 	}
-	return append(diags, diag.Newf(ir.SeverityInfo, diag.DegradedConstruct, op.Provenance,
+	return append(diags, diag.Newf(ir.SeverityInfo, diag.DegradedConstruct, into.provenance,
 		"path-item servers kept under Unmodeled; an operation has no server-scope list to bind them to"))
 }
 
@@ -762,7 +850,7 @@ func lowerCallbackOps(c lowering.Ctx, ts *compile.Types, anchors *schema.AnchorI
 		}
 		op, _, opDiags := lowerOperation(c, ts, anchors, operationIDs, src, opCtx)
 		diags = append(diags, opDiags...)
-		diags = append(diags, applyPathItem(c, &op, pi, cb.decl)...)
+		diags = append(diags, applyPathItem(c, onOperation(&op), pi, cb.decl)...)
 		opIDs = append(opIDs, op.ID)
 		ops = append(ops, op)
 	}
