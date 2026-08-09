@@ -504,8 +504,9 @@ func onService(svc *ir.Service, mountPtr string) carrier {
 //
 // What is kept is what applyPathItem keeps anywhere: servers, extensions and
 // undeclared keys. A path item's summary and description are dropped here as
-// they are dropped on a mounted item — that is a separate gap, and the message
-// below does not claim otherwise.
+// they are dropped on a mounted item — that is a separate gap (GitHub #383,
+// where the question is how path-item docs relate to an operation's own rather
+// than where to put a payload), and the message below names only what it keeps.
 func preserveUnmountedPathItem(c lowering.Ctx, svc *ir.Service, pi *soa.PathItem, mountPtr, declPtr string) []ir.Diagnostic {
 	diags := applyPathItem(c, onService(svc, mountPtr), pi, declPtr)
 	if len(diags) == 0 && !pathItemDeclaresAnything(pi) {
