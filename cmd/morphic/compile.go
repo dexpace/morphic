@@ -239,19 +239,32 @@ func parseArgs(fs *flag.FlagSet, args []string) ([]string, error) {
 }
 
 // renderDiagnostics writes each diagnostic to w, one per line, as
-// "<severity> <code> <path>#<pointer>: <message>". This is the sole place in
-// the pipeline where diagnostics are rendered for a human.
+// "<severity> <code> <location>: <message>". This is the sole place in the
+// pipeline where diagnostics are rendered for a human.
 func renderDiagnostics(w io.Writer, res *engine.Result) {
 	for _, d := range res.Diagnostics {
-		if path := sourcePath(res.Document, d.Provenance.Source); path != "" {
-			emitf(w, "%s %s %s#%s: %s\n",
-				d.Severity, d.Code, path, d.Provenance.Pointer, d.Message)
-			continue
-		}
-		// No source file (e.g. a pass diagnostic whose pointer is an IR id): show
-		// the bare pointer rather than fabricating a location in the spec file.
-		emitf(w, "%s %s %s: %s\n", d.Severity, d.Code, d.Provenance.Pointer, d.Message)
+		emitf(w, "%s %s%s: %s\n",
+			d.Severity, d.Code, location(res.Document, d.Provenance), d.Message)
 	}
+}
+
+// location renders the "where" of a diagnostic line, leading space included:
+// " <path>#<pointer>" when the provenance resolves to a source file,
+// " <pointer>" when it names only an IR-space position (a pass diagnostic whose
+// pointer is an IR id), and nothing at all when it names neither.
+//
+// The empty case is what a diagnostic raised before any document existed
+// carries — an unrecognized spec format has no position inside a spec that was
+// never lowered — and printing nothing is the point: any location shown there
+// would be one the finding is not about.
+func location(doc *ir.Document, prov ir.Provenance) string {
+	if path := sourcePath(doc, prov.Source); path != "" {
+		return " " + path + "#" + prov.Pointer
+	}
+	if prov.Pointer != "" {
+		return " " + prov.Pointer
+	}
+	return ""
 }
 
 // sourcePath resolves a diagnostic's source index to its file path, returning

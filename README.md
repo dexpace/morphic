@@ -120,9 +120,15 @@ Help always prints to stdout and exits `0`.
 | `-o <file>` | `compile` | Write IR JSON to `<file>` instead of stdout. |
 | `--explain <json-pointer>` | `compile` | Report what compiling produced at this source coordinate instead of writing the document. |
 
-Diagnostics print one per line as `<severity> <code> <path>#<pointer>: <message>`. Both commands
-use the same exit codes: `0` clean (and for any help request), `1` a diagnostic reached the
-`--fail-on` threshold (or the spec could not be lowered), `2` a usage or I/O error.
+Diagnostics print one per line as `<severity> <code> <location>: <message>`, where `<location>` is
+`<path>#<pointer>` for a finding in a spec file, a bare pointer for one an IR pass made about the
+document, and absent for one raised before any document existed.
+
+Both commands use the same exit codes: `0` clean (and for any help request); `1` the spec has
+problems — a diagnostic reached the `--fail-on` threshold, or it could not be lowered at all, which
+covers an undecodable file, an unrecognized or unsupported format, and a version no compiler claims;
+`2` the invocation or the filesystem was wrong — a bad flag or argument, a spec that could not be
+read, an output that could not be written. Nothing about the spec's own contents reaches `2`.
 
 ### Library
 

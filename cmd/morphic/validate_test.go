@@ -181,13 +181,17 @@ func TestRun_ValidateUsageErrors(t *testing.T) {
 func TestRun_ValidateEngineFailures(t *testing.T) {
 	t.Parallel()
 
+	// The two rows are different classes and exit differently. A format nothing
+	// recognizes is a problem with the spec, so it is a diagnostic and exits 1; a
+	// file that cannot be read is a problem with the invocation, so it stays a Go
+	// error and exits 2. Nothing about a spec's own contents reaches 2.
 	tests := []struct {
 		name     string
 		spec     string
 		wantCode int
 		wantErr  string
 	}{
-		{"unrecognized spec format", "hello: world\n", 2, "unrecognized spec format"},
+		{"unrecognized spec format", "hello: world\n", 1, "engine/unrecognized-format"},
 		{"unreadable spec file", "", 2, "morphic:"},
 	}
 
