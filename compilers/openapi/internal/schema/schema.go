@@ -1443,18 +1443,33 @@ func componentSchemaAt(c lowering.Ctx, pointer string) *oas3.Schema {
 func declaresResourceIDAbove(c lowering.Ctx, pointer string) bool {
 	view := nodeview.New()
 	cur := nodeview.DocumentRoot(nodeview.Deref(c.Doc.GetRootNode()))
-	for seg := range strings.SplitSeq(pointer, "/") {
+	for _, token := range pointerTokens(pointer) {
 		if cur == nil {
 			return false
 		}
 		if view.ChildByToken(cur, "$id") != nil {
 			return true
 		}
-		if seg != "" { // every pointer starts with the empty segment
-			cur = nodeview.Deref(view.ChildByToken(cur, ids.UnescapeSegment(seg)))
-		}
+		cur = nodeview.Deref(view.ChildByToken(cur, ids.UnescapeSegment(token)))
 	}
 	return cur != nil && view.ChildByToken(cur, "$id") != nil
+}
+
+// pointerTokens returns the RFC 6901 reference tokens of pointer, still escaped.
+// Splitting on '/' yields one leading empty segment that is the split's artifact
+// rather than a token, and only that one is: a later empty segment names the key
+// "", which is how a component schema named "" is addressed
+// (/components/schemas/). Dropping every empty segment stopped the walk above
+// such a position and read the $id of its parent instead of its own.
+//
+// A string with no leading '/' has no tokens at all: the empty pointer names the
+// whole document, and a relative pointer names no position in it.
+func pointerTokens(pointer string) []string {
+	rest, found := strings.CutPrefix(pointer, "/")
+	if !found {
+		return nil
+	}
+	return strings.Split(rest, "/")
 }
 
 // dynamicFragment returns the plain fragment name a $dynamicRef addresses. Only

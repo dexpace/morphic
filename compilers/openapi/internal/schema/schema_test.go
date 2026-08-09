@@ -3022,6 +3022,17 @@ func TestDynamicRef_IrreducibleIsKeptAndSaysWhy(t *testing.T) {
 			wantWhy: `an $id at or above "/components/schemas/A"`,
 		},
 		{
+			// The pointer of a schema named "" ends in an empty reference token,
+			// which the path walk once dropped as if it were the artifact of
+			// splitting a pointer on '/' — reading the components/schemas map for
+			// the $id instead of the schema itself, and expanding across a
+			// boundary it should have stopped at.
+			name:    `a schema named "" is still in a resource of its own`,
+			schemas: anchor + "    \"\": {$id: 'https://example.com/empty', $dynamicRef: '#m'}\n",
+			wantWhy: `an $id at or above "/components/schemas/"`,
+			at:      "t/anon/components/schemas/",
+		},
+		{
 			name: "an enclosing schema starts the resource",
 			schemas: anchor +
 				"    A: {$id: 'https://example.com/a', type: array, items: {$dynamicRef: '#m'}}\n",

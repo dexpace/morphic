@@ -212,6 +212,42 @@ func TestDeclaresResourceIDAbove_WithoutARawTree(t *testing.T) {
 		"a document with no raw tree declares no resource anywhere")
 }
 
+// TestDeclaresResourceIDAbove_EmptySegmentIsATokenNotAnArtifact pins which empty
+// segments the path walk may drop. Splitting a pointer on '/' produces one
+// leading empty segment that no reference token stands behind; every later one
+// is the token naming the key "", which is how a schema literally named "" is
+// addressed. Dropping those stopped the walk above the position and read the
+// $id of the components/schemas map instead of the schema's own.
+func TestDeclaresResourceIDAbove_EmptySegmentIsATokenNotAnArtifact(t *testing.T) {
+	t.Parallel()
+	l, diags := loweredFor(t, `openapi: 3.1.0
+info: {title: T, version: "1"}
+paths: {}
+components:
+  schemas:
+    "":
+      $id: https://example.com/empty
+      properties: {x: {type: string}}
+    Sibling: {type: string}
+`)
+	requireNoErrorDiags(t, diags)
+
+	for name, tc := range map[string]struct {
+		pointer string
+		want    bool
+	}{
+		"the position is named by a trailing empty token": {"/components/schemas/", true},
+		"an interior empty token still descends":          {"/components/schemas//properties/x", true},
+		"a sibling sits above no $id at all":              {"/components/schemas/Sibling", false},
+		"the empty pointer names the document root":       {"", false},
+	} {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			assert.Equal(t, tc.want, declaresResourceIDAbove(l.ctx, tc.pointer))
+		})
+	}
+}
+
 // TestDynamicAnchors_WalksEveryNodeShape drives the raw-tree walk over the
 // shapes a YAML document can present, rather than only the mappings a schema
 // happens to be written as. The walk reads the raw tree because oas3.Schema has
