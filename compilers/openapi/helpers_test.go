@@ -1,7 +1,6 @@
 package openapi
 
 import (
-	"context"
 	"testing"
 
 	soa "github.com/speakeasy-api/openapi/openapi"
@@ -12,22 +11,23 @@ import (
 	"github.com/dexpace/morphic/compilers/openapi/internal/auth"
 	"github.com/dexpace/morphic/compilers/openapi/internal/load"
 	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
+	"github.com/dexpace/morphic/compilers/openapi/internal/openapitest"
 	"github.com/dexpace/morphic/compilers/openapi/internal/operation"
 	"github.com/dexpace/morphic/compilers/openapi/internal/overlay"
 	"github.com/dexpace/morphic/compilers/openapi/internal/schema"
 	"github.com/dexpace/morphic/ir"
 )
 
-// sourceOf wraps a spec string as a compilers.Source.
-func sourceOf(src string) compilers.Source {
-	return compilers.Source{Path: "spec.yaml", Data: []byte(src)}
-}
-
 // parseFull runs the whole public compiler pipeline over src.
+//
+// It is one of the four copies openapitest cannot hold: a helper that drives the
+// compiler has to import it, and this package's own internal tests could then
+// not import openapitest at all. The four are written identically so a reader
+// comparing them finds no difference to account for.
 func parseFull(t *testing.T, src string) (*ir.Document, []ir.Diagnostic) {
 	t.Helper()
-	doc, diags, err := New().Compile(context.Background(),
-		[]compilers.Source{{Path: "spec.yaml", Data: []byte(src)}}, compilers.Options{})
+	doc, diags, err := New().Compile(t.Context(),
+		[]compilers.Source{openapitest.SourceOf(src)}, compilers.Options{})
 	require.NoError(t, err)
 	require.NotNil(t, doc)
 	return doc, diags
@@ -55,14 +55,6 @@ func lowerSpec(t *testing.T, src string) (*ir.Document, []ir.Diagnostic) {
 	return l.out, append(diags, l.diags.List()...)
 }
 
-// requireNoErrorDiags fails the test if any diagnostic has error severity,
-// reporting the first offending diagnostic.
-func requireNoErrorDiags(t *testing.T, diags []ir.Diagnostic) {
-	t.Helper()
-	d, ok := ir.FirstError(diags)
-	require.False(t, ok, "unexpected error diagnostic: %+v", d)
-}
-
 // lowerServiceSpec lowers components and the service layer of src.
 func lowerServiceSpec(t *testing.T, src string) (*ir.Document, ir.Service, []ir.Diagnostic) {
 	t.Helper()
@@ -85,44 +77,6 @@ func lowerServiceSpec(t *testing.T, src string) (*ir.Document, ir.Service, []ir.
 	return doc, doc.Services[0], diags
 }
 
-// componentSpec wraps a components/schemas block in a minimal 3.1 document.
-func componentSpec(schemas string) string {
-	return componentSpecVer("3.1.0", schemas)
-}
-
-// componentSpecVer wraps a components/schemas block in a minimal document of the
-// given OpenAPI version.
-func componentSpecVer(version, schemas string) string {
-	return "openapi: " + version + "\n" +
-		"info: {title: T, version: \"1\"}\n" +
-		"paths: {}\n" +
-		"components:\n  schemas:\n" + schemas
-}
-
-// pathsSpec wraps a paths block in a minimal 3.1 document with no components.
-func pathsSpec(paths string) string {
-	return pathsSpecVer("3.1.0", paths)
-}
-
-// pathsSpecVer wraps a paths block in a minimal document of the given OpenAPI
-// version, with no components.
-func pathsSpecVer(version, paths string) string {
-	return "openapi: " + version + "\n" +
-		"info: {title: T, version: \"1\"}\n" +
-		"paths:\n" + paths
-}
-
-// componentID is the stable TypeID of a components-named schema, or of a
-// sub-schema beneath one ("Holder/properties/inner").
-func componentID(name string) ir.TypeID {
-	return ir.TypeID("t/openapi/components/schemas/" + name)
-}
-
-// typeByName returns the named component schema's lowered TypeDef.
-func typeByName(doc *ir.Document, name string) ir.TypeDef {
-	return doc.Types[componentID(name)]
-}
-
 // lowerer is test scaffolding, not a compiler type. The compiler has no such
 // struct: every lowering is a function of the context, the registry and the
 // memos, and run owns the document being built (#177). Tests that drive one
@@ -137,101 +91,54 @@ type lowerer struct {
 	operationIDs map[string]string
 }
 
-// newLowerer builds the fixture over one loaded document, as run would. There
-// is no srcIndex parameter: every test drives a single source, and the one the
-// compiler varies lives in run's caller now.
-func newLowerer(doc *load.Document, opts Options) *lowerer {
+// lowererOver is the only place the fixture's fields are initialised. Both
+// entry points below build on it, so a field added to lowerer cannot reach one
+// of them and miss the other — which is what newRawLowerer, hand-constructing
+// the struct beside newLowerer, used to allow.
+func lowererOver(ctx lowering.Ctx) *lowerer {
 	types := compile.NewTypes(0)
 	return &lowerer{
-		ctx:          loweringCtx(doc, opts),
+		ctx:          ctx,
 		out:          &ir.Document{Types: types.Registry()},
 		types:        types,
 		operationIDs: make(map[string]string),
 	}
 }
 
+// newLowerer builds the fixture over one loaded document, as run would. There
+// is no srcIndex parameter: every test drives a single source, and the one the
+// compiler varies lives in run's caller now.
+func newLowerer(doc *load.Document, opts Options) *lowerer {
+	return lowererOver(loweringCtx(doc, opts))
+}
+
 // newRawLowerer builds a lowerer over a hand-constructed document, bypassing the
 // parser so nil slice/map entries (which the parser panics on) can be exercised.
 func newRawLowerer(doc *soa.OpenAPI) *lowerer {
-	rawTypes := compile.NewTypes(0)
-	l := &lowerer{
-		ctx:          lowering.New(0, doc, ir.SourceInfo{}, "", overlay.Origin{}),
-		out:          &ir.Document{Types: rawTypes.Registry()},
-		types:        rawTypes,
-		operationIDs: make(map[string]string),
-	}
-	return l
+	return lowererOver(lowering.New(0, doc, ir.SourceInfo{}, "", overlay.Origin{}))
+}
+
+// componentID is the stable TypeID of a components-named schema, or of a
+// sub-schema beneath one ("Holder/properties/inner").
+//
+// This one stays a per-package copy where the rest of the vocabulary moved to
+// openapitest: internal/archtest's ID-grammar sweep permits a spelled-out ID in
+// a test file and refuses one in a production file, and openapitest's files are
+// production files. Restating the grammar independently of the compiler is what
+// makes these lookups an oracle rather than a tautology, so deriving it through
+// compile to satisfy the sweep would be the wrong way out.
+func componentID(name string) ir.TypeID {
+	return ir.TypeID("t/openapi/components/schemas/" + name)
+}
+
+// typeByName returns the named component schema's lowered TypeDef.
+func typeByName(doc *ir.Document, name string) ir.TypeDef {
+	return doc.Types[componentID(name)]
 }
 
 // assertHasErrorCode requires diags to carry an error-severity diagnostic with
 // the given code.
 func assertHasErrorCode(t *testing.T, diags []ir.Diagnostic, code string) {
 	t.Helper()
-	assertHasCode(t, diags, code, ir.SeverityError)
-}
-
-// assertHasCode requires diags to carry a diagnostic with the given code at the
-// given severity.
-func assertHasCode(t *testing.T, diags []ir.Diagnostic, code string, sev ir.Severity) {
-	t.Helper()
-	for _, d := range diags {
-		if d.Code == code && d.Severity == sev {
-			return
-		}
-	}
-	t.Fatalf("expected a %v diagnostic with code %q, got %+v", sev, code, diags)
-}
-
-// hasDiag reports whether diags contains a diagnostic with the exact code, at
-// any severity. It is the existential half of the vocabulary: use it where a
-// test only needs to know a diagnostic fired, not how many or at what
-// severity.
-func hasDiag(diags []ir.Diagnostic, code string) bool {
-	for _, d := range diags {
-		if d.Code == code {
-			return true
-		}
-	}
-	return false
-}
-
-// countDiagsAt counts the diagnostics in diags matching code and sev exactly.
-// code is an exact match with no wildcard: countDiagsAt(diags, "",
-// ir.SeverityError) matches only diagnostics whose code is literally empty —
-// it is not a way to spell "every error," and reads dangerously like one, so
-// callers who want that must filter on severity alone instead.
-func countDiagsAt(diags []ir.Diagnostic, code string, sev ir.Severity) int {
-	var n int
-	for _, d := range diags {
-		if d.Code == code && d.Severity == sev {
-			n++
-		}
-	}
-	return n
-}
-
-// firstOp returns the operation at svc.Groups[0].Operations[0], requiring both
-// to be non-empty first rather than letting a malformed fixture fail with a
-// bare index-out-of-range panic.
-func firstOp(t *testing.T, svc ir.Service) ir.Operation {
-	t.Helper()
-	require.NotEmpty(t, svc.Groups, "service has no operation groups")
-	require.NotEmpty(t, svc.Groups[0].Operations, "first group has no operations")
-	return svc.Groups[0].Operations[0]
-}
-
-// indexBy builds a lookup keyed by key(item), the shape behind every
-// hand-rolled "m := map[K]T{}; for _, x := range xs { m[key(x)] = x }" loop
-// this suite used to repeat per test.
-func indexBy[T any, K comparable](items []T, key func(T) K) map[K]T {
-	out := make(map[K]T, len(items))
-	for _, item := range items {
-		out[key(item)] = item
-	}
-	return out
-}
-
-// propsByWire indexes a model's properties by wire name.
-func propsByWire(props []ir.Property) map[string]ir.Property {
-	return indexBy(props, func(p ir.Property) string { return p.WireName })
+	openapitest.AssertHasCode(t, diags, code, ir.SeverityError)
 }

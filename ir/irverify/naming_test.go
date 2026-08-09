@@ -18,9 +18,13 @@ func canonicalOnly(canon string) *ir.Document {
 	return modelNamed(ir.Naming{Canonical: canon})
 }
 
+// modelNamed builds a document holding one model under the given Naming. It
+// carries the schema stamp for the same reason the model carries an ID keyed to
+// itself: a document missing either has a violation of its own, and a fixture
+// about naming must contribute none.
 func modelNamed(n ir.Naming) *ir.Document {
 	m := &ir.Model{TypeCommon: ir.TypeCommon{ID: "t/x/M", Name: n}}
-	return &ir.Document{Types: ir.TypeRegistry{m.ID: m}}
+	return &ir.Document{IRVersion: ir.IRVersion, Types: ir.TypeRegistry{m.ID: m}}
 }
 
 func TestVerify_NeutralCanonicalIsClean(t *testing.T) {

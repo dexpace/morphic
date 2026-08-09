@@ -1,0 +1,20 @@
+usage:
+  morphic validate <spec-file> [flags]
+
+Check an API spec (OpenAPI 3.x) and write its diagnostics to stderr, writing
+no IR anywhere. validate is compile's pipeline with the document dropped
+instead of marshalled, for a gate that wants the diagnostics and the exit
+code and would throw the document away.
+
+The diagnostics and the exit code are compile's: 0 when nothing reaches
+--fail-on, 1 when something does or the spec lowered to no document at all,
+2 for a misuse or an I/O error.
+
+--skip-validate names the referential-integrity pass, not this command: it
+drops that pass's diagnostics and keeps the compiler's.
+
+flags:
+  -fail-on string
+    	fail (exit 1) on diagnostics at or above this severity: error|warning (default "error")
+  -skip-validate
+    	skip the referential-integrity validate pass

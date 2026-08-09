@@ -1,0 +1,43 @@
+openapi: 3.1.0
+info: {title: PathItemDocs, version: "1.0.0"}
+paths:
+  /pets:
+    # A path item's summary and description document the path, not the
+    # operations mounted under it, and ir.Docs on an operation already holds the
+    # operation's own pair. Both survive: the operation's in Docs, the path
+    # item's kept verbatim beside it on every operation the path item holds.
+    summary: Pet collection
+    description: Everything addressable at /pets.
+    get:
+      operationId: listPets
+      summary: List pets
+      description: Returns every pet.
+      responses:
+        "200":
+          description: ok
+    post:
+      operationId: createPet
+      callbacks:
+        onCreated:
+          '{$request.body#/callbackUrl}':
+            # A callback path item documents its path exactly as a path does.
+            summary: Creation callback
+            description: Delivered once the pet exists.
+            post:
+              operationId: onPetCreated
+              responses:
+                "200":
+                  description: ok
+      responses:
+        "201":
+          description: created
+webhooks:
+  petDeleted:
+    # And so does a webhook path item.
+    summary: Pet deleted
+    description: Delivered when a pet is removed.
+    post:
+      operationId: onPetDeleted
+      responses:
+        "200":
+          description: ok

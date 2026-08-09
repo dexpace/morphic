@@ -13,26 +13,28 @@ import (
 func TestLookup_KnownAndUnknown(t *testing.T) {
 	t.Parallel()
 
-	c, ok := lookup("compile")
-	require.True(t, ok, "compile must be in the command table")
-	assert.Equal(t, "compile", c.name)
-	assert.NotEmpty(t, c.summary, "every command needs a summary for the root help list")
-	assert.NotEmpty(t, c.usage)
-	assert.NotEmpty(t, c.description)
-	require.NotNil(t, c.printFlags)
-	require.NotNil(t, c.run)
+	for _, name := range []string{"compile", "validate"} {
+		c, ok := lookup(name)
+		require.True(t, ok, "%s must be in the command table", name)
+		assert.Equal(t, name, c.name)
+		assert.NotEmpty(t, c.summary, "every command needs a summary for the root help list")
+		assert.NotEmpty(t, c.usage)
+		assert.NotEmpty(t, c.description)
+	}
 
-	_, ok = lookup("bogus")
+	_, ok := lookup("bogus")
 	assert.False(t, ok)
 
 	_, ok = lookup("")
 	assert.False(t, ok, "the empty name must never resolve")
 }
 
-// TestCommands_TableIsWellFormed holds the invariants lookup relies on rather
-// than re-checking them at every call: a blank name would make lookup("")
-// resolve, and a duplicate name would be resolved to the first entry without a
-// word. Both are mistakes in the table, so this is where they can fail.
+// TestCommands_TableIsWellFormed holds the invariants lookup and dispatch rely
+// on rather than re-checking them at every call: a blank name would make
+// lookup("") resolve, a duplicate name would be resolved to the first entry
+// without a word, and a missing bind or printFlags is a nil call the moment
+// anyone types the name. All are mistakes in the table, so this is where they
+// can fail.
 func TestCommands_TableIsWellFormed(t *testing.T) {
 	t.Parallel()
 
@@ -43,6 +45,8 @@ func TestCommands_TableIsWellFormed(t *testing.T) {
 		require.NotEmpty(t, c.name, "every command needs a name")
 		require.False(t, seen[c.name], "duplicate command %q", c.name)
 		seen[c.name] = true
+		require.NotNil(t, c.bind, "%s has no bind, so dispatch cannot run it", c.name)
+		require.NotNil(t, c.printFlags, "%s has no printFlags, so help cannot render it", c.name)
 	}
 }
 
@@ -63,25 +67,76 @@ func TestNewCompileFlags_DefinesEveryFlag(t *testing.T) {
 	assert.Empty(t, opts.explain)
 }
 
-// compileFlagNames is every flag compile accepts, asserted from both the
-// constructor and the command-table entry so the two cannot drift.
-var compileFlagNames = []string{"o", "fail-on", "skip-validate", "explain", "pretty"}
+func TestNewValidateFlags_DefinesEveryFlag(t *testing.T) {
+	t.Parallel()
+
+	fs, opts := newValidateFlags()
+	require.NotNil(t, opts)
+
+	var got []string
+	fs.VisitAll(func(f *flag.Flag) { got = append(got, f.Name) })
+	assert.ElementsMatch(t, validateFlagNames, got,
+		"validateFlagNames must be exactly the flags the constructor defines")
+
+	assert.Equal(t, "error", opts.failOn, "default --fail-on")
+	assert.False(t, opts.skipValidate)
+}
+
+// TestSpecFlags_SharedFlagsAgree pins that the flags both spec-taking commands
+// take are one definition and not two that currently read alike: a default or a
+// help string that drifted would make the same flag mean different things
+// depending on which command it was typed after.
+func TestSpecFlags_SharedFlagsAgree(t *testing.T) {
+	t.Parallel()
+
+	compileFS, _ := newCompileFlags()
+	validateFS, _ := newValidateFlags()
+
+	for _, name := range validateFlagNames {
+		mine, theirs := validateFS.Lookup(name), compileFS.Lookup(name)
+		require.NotNil(t, mine, "validate must define %s", name)
+		require.NotNil(t, theirs, "compile must define %s", name)
+		assert.Equal(t, theirs.Usage, mine.Usage, "help text for --%s", name)
+		assert.Equal(t, theirs.DefValue, mine.DefValue, "default for --%s", name)
+	}
+}
+
+// compileFlagNames and validateFlagNames are every flag each command accepts,
+// asserted from both the constructor and the command-table entry so the two
+// cannot drift.
+var (
+	compileFlagNames  = []string{"o", "fail-on", "skip-validate", "explain", "pretty"}
+	validateFlagNames = []string{"fail-on", "skip-validate"}
+)
 
 func TestCommand_PrintFlagsDocumentsTheCommandsOwnFlags(t *testing.T) {
 	t.Parallel()
 
-	c, ok := lookup("compile")
-	require.True(t, ok)
-	require.NotNil(t, c.printFlags)
+	tests := []struct {
+		name  string
+		flags []string
+	}{
+		{"compile", compileFlagNames},
+		{"validate", validateFlagNames},
+	}
 
-	var buf bytes.Buffer
-	c.printFlags(&buf)
-	require.NotEmpty(t, buf.String(), "printFlags must render something")
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			c, ok := lookup(tt.name)
+			require.True(t, ok)
+			require.NotNil(t, c.printFlags)
 
-	// Read back out of the render rather than off a FlagSet: the render is what
-	// a user sees, and it is all the table hands out.
-	assert.ElementsMatch(t, compileFlagNames, flagNamesIn(buf.String()),
-		"the rendered flag table must document exactly the flags compile accepts")
+			var buf bytes.Buffer
+			c.printFlags(&buf)
+			require.NotEmpty(t, buf.String(), "printFlags must render something")
+
+			// Read back out of the render rather than off a FlagSet: the render is
+			// what a user sees, and it is all the table hands out.
+			assert.ElementsMatch(t, tt.flags, flagNamesIn(buf.String()),
+				"the rendered flag table must document exactly the flags %s accepts", tt.name)
+		})
+	}
 }
 
 // flagNamesIn returns the flag names documented by a rendered flag table.

@@ -40,13 +40,43 @@ func TestRun_ParseWritesIRToFile(t *testing.T) {
 	assert.True(t, bytes.HasSuffix(raw, []byte("\n")))
 }
 
-func TestRun_ParseUnknownSpecFails(t *testing.T) {
+// TestRun_SpecProblemsExitOne covers the classes of bad spec the pipeline
+// rejects before a compiler ever runs. Every one of them is a problem with the
+// file the user named, so every one is exit 1 with a coded diagnostic — the same
+// answer a bad `$ref` inside a spec the compiler does accept already gets.
+//
+// Exit 2 is reserved for a misuse of the CLI and for I/O that failed, so a CI
+// wrapper can tell "your spec is broken" from "you invoked morphic wrong". A
+// spec the tool read and understood well enough to name the problem in is
+// neither of those, and reporting it as one made the compiler's own
+// openapi/unsupported-version diagnostic unreachable from the shipped binary.
+func TestRun_SpecProblemsExitOne(t *testing.T) {
 	t.Parallel()
-	spec := writeFile(t, "junk.yaml", "hello: world\n")
-	var stdout, stderr bytes.Buffer
-	code := run([]string{"compile", spec}, &stdout, &stderr)
-	assert.Equal(t, 2, code)
-	assert.Contains(t, stderr.String(), "unrecognized spec format")
+	tests := []struct {
+		name, contents, code string
+	}{
+		{"unrecognized format", "hello: world\n", "engine/unrecognized-format"},
+		{"swagger 2.0", "swagger: \"2.0\"\n", "engine/unsupported-format"},
+		{"undecodable source", "openapi: [unterminated\n", "engine/undecodable-source"},
+		{"no compiler for version", "openapi: 4.0.0\ninfo: {title: T, version: \"1\"}\npaths: {}\n",
+			"engine/no-compiler-for-format"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			spec := writeFile(t, "spec.yaml", tt.contents)
+			var stdout, stderr bytes.Buffer
+
+			code := run([]string{"compile", spec}, &stdout, &stderr)
+
+			assert.Equal(t, 1, code, "stderr: %s", stderr.String())
+			assert.Contains(t, stderr.String(), tt.code)
+			assert.Empty(t, stdout.String(), "no IR JSON for a spec that produced no document")
+			assert.NotContains(t, stderr.String(), "usage:",
+				"a bad spec is not a misuse of the CLI, so no usage block")
+		})
+	}
 }
 
 func TestRun_DiagnosticsGateExitCode(t *testing.T) {
