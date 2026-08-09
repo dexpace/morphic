@@ -10,6 +10,7 @@ linters:
     - gocritic
     - misspell
     - nilerr
+    - nolintlint # a suppression outliving what it suppressed is invisible without this
     - prealloc
     - revive
     - unconvert
@@ -22,6 +23,19 @@ linters:
       lines: 70
       statements: -1
       ignore-comments: true
+    nolintlint:
+      # A directive that suppresses nothing reads as a live constraint on the code
+      # under it, and nothing else in the gate can tell the two apart: the tree
+      # stays green whether the finding is real or long gone. Each of these makes
+      # one way of writing an inert directive fail instead.
+      #
+      # allow-unused only reaches directives naming an ENABLED linter. One naming a
+      # disabled or nonexistent linter is ignored by the nolint processor and
+      # reported by nothing — which is how //nolint:forcetypeassert stood here
+      # without ever suppressing anything. That gap is GitHub #306.
+      allow-unused: false # it no longer suppresses anything — delete it
+      require-specific: true # bare //nolint hides findings nobody chose to accept
+      require-explanation: true # the rationale is what a later reader re-checks against
     gocognit:
       # Calibrated against the finished tree, whose worst function scores 21.
       # Raising this is how a function that should have been split stays whole,
