@@ -1142,6 +1142,134 @@ func TestEnum_NullMemberKeepsUnionFallback(t *testing.T) {
 	}
 }
 
+// TestEnum_EmptyMemberListMatchesNoValue pins what `enum: []` lowers to. It is
+// legal JSON Schema and it matches no instance, so the position it is written at
+// accepts nothing — the narrowest statement a schema can make.
+//
+// It used to make the widest one instead. The family election read the keyword
+// off `len(enum) > 0`, which cannot tell an empty member list from an absent
+// one, so the enum was neither lowered nor recorded and the position widened to
+// whatever its siblings admitted: the top type where nothing else was written,
+// the declared type where something was. Both channels were silent — no
+// diagnostic, nothing under Unmodeled (GitHub #278).
+//
+// The rows are the positions the keyword can sit at, because the widening
+// followed the siblings rather than the enum: a type keyword, a property set, a
+// composition, a nullable type array. The last row is the control — a populated
+// enum must keep lowering exactly as it did, so a fix reaching every enum rather
+// than the empty one fails here.
+func TestEnum_EmptyMemberListMatchesNoValue(t *testing.T) {
+	t.Parallel()
+	cases := []struct {
+		name, schema  string
+		wantValueType ir.PrimKind
+		wantMembers   int
+		wantEmpty     bool
+		wantKept      string
+	}{
+		{
+			name:          "bare",
+			schema:        `    S: {enum: []}`,
+			wantValueType: ir.PrimAny,
+			wantEmpty:     true,
+		},
+		{
+			name:          "beside a type keyword",
+			schema:        `    S: {type: string, enum: []}`,
+			wantValueType: ir.PrimString,
+			wantEmpty:     true,
+		},
+		{
+			name: "beside a property set",
+			schema: `    S:
+      type: object
+      properties: {x: {type: string}}
+      enum: []`,
+			wantValueType: ir.PrimAny,
+			wantEmpty:     true,
+			wantKept:      "openapi:properties",
+		},
+		{
+			name: "beside an allOf",
+			schema: `    Base: {type: object, properties: {x: {type: string}}}
+    S:
+      allOf: [{$ref: '#/components/schemas/Base'}]
+      enum: []`,
+			wantValueType: ir.PrimAny,
+			wantEmpty:     true,
+			wantKept:      "openapi:allOf",
+		},
+		{
+			name:          "beside a nullable type array",
+			schema:        `    S: {type: [string, "null"], enum: []}`,
+			wantValueType: ir.PrimString,
+			wantEmpty:     true,
+		},
+		{
+			name:          "a populated enum is untouched",
+			schema:        `    S: {type: string, enum: [red, green]}`,
+			wantValueType: ir.PrimString,
+			wantMembers:   2,
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			doc, diags := lowerSpec(t, componentSpec(tc.schema+"\n"))
+			requireNoErrorDiags(t, diags)
+
+			e, ok := typeByName(doc, "S").(*ir.Enum)
+			require.True(t, ok, "the enum keyword lowers to an Enum, got %T", typeByName(doc, "S"))
+			assert.True(t, e.Closed, "an enum admits its members and nothing else")
+			assert.Len(t, e.Members, tc.wantMembers, "the member list is the declared one")
+			assert.Equal(t, tc.wantValueType, e.ValueType)
+
+			want := 0
+			if tc.wantEmpty {
+				want = 1
+			}
+			assert.Equal(t, want, countDiagsAt(diags, diag.EmptyEnum, ir.SeverityWarning),
+				"a value space with no member is reported once; got %+v", diags)
+
+			if tc.wantKept == "" {
+				return
+			}
+			assert.Contains(t, e.Unmodeled, tc.wantKept,
+				"the keyword the election passed over stays beside the enum")
+		})
+	}
+}
+
+// TestEnum_EmptyMemberListIsAUnionSibling pins the same keyword at the one
+// position that reads it through a different predicate. A oneOf/anyOf can be the
+// whole type only when nothing structural is written beside it, and an empty
+// enum is a value set like any other — so the union conjoins with a set holding
+// no member, and lowering the union alone would state the opposite of what the
+// source says.
+//
+// declaresShape and composesAsModel each spelled the same `len(enum) > 0` test
+// as the family election did, which is why this is a second case rather than a
+// second row: the first reaches lower()'s dispatch and this one does not reach
+// it at all.
+func TestEnum_EmptyMemberListIsAUnionSibling(t *testing.T) {
+	t.Parallel()
+	spec := componentSpec(`    S:
+      enum: []
+      oneOf: [{type: string}, {type: integer}]
+`)
+	doc, diags := lowerSpec(t, spec)
+	requireNoErrorDiags(t, diags)
+
+	e, ok := typeByName(doc, "S").(*ir.Enum)
+	require.True(t, ok, "the empty value set is the shape the position lowers to, got %T",
+		typeByName(doc, "S"))
+	assert.Empty(t, e.Members)
+	assert.Equal(t, 1, countDiagsAt(diags, diag.EmptyEnum, ir.SeverityWarning),
+		"reported once here too; got %+v", diags)
+	assert.Contains(t, e.Unmodeled, "openapi:oneOf",
+		"the union the enum cannot carry stays beside it rather than replacing it")
+}
+
 func TestConst_BecomesLiteral(t *testing.T) {
 	t.Parallel()
 	spec := componentSpec(`    K:

@@ -492,6 +492,11 @@ bit must survive to that point (Kiota's string-only closed enums are the counter
 Duplicate member values are legal (protobuf `allow_alias`); slice order preserves which name is
 canonical for serialization, and the validate pass must not reject them.
 
+A **closed** Enum with **no members** is the empty value space — it admits its members and has
+none — so it is how a compiler states a position that accepts no instance at all (JSON Schema's
+`enum: []`) without a bottom `TypeKind`. Emitters render it as their uninhabited type where they
+have one (TypeScript `never`); none may widen it to the top type.
+
 ### 4.6 Containers and the rest
 
 ```go

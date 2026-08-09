@@ -357,7 +357,7 @@ func declaresShape(s *oas3.Schema) bool {
 	if props := s.GetProperties(); props != nil && props.Len() > 0 {
 		return true
 	}
-	if s.GetConst() != nil || len(s.GetEnum()) > 0 || len(s.GetAllOf()) > 0 {
+	if s.GetConst() != nil || enumWritten(s) || len(s.GetAllOf()) > 0 {
 		return true
 	}
 	if s.GetAdditionalProperties() != nil {
@@ -454,12 +454,29 @@ func declaresFamily(s *oas3.Schema, family string) bool {
 	case "const":
 		return s.GetConst() != nil
 	case "enum":
-		return len(s.GetEnum()) > 0
+		return enumWritten(s)
 	case "allOf":
 		return len(s.GetAllOf()) > 0
 	default:
 		return false
 	}
+}
+
+// enumWritten reports whether s writes `enum` at all, an empty member list
+// included. The three predicates that read the keyword — this family guard,
+// declaresShape and composesAsModel — each spelled it `len(...) > 0`, which
+// cannot tell `enum: []` from no enum keyword at all, so the degenerate spelling
+// was elected by none of them and preserved by none of them either. The position
+// then widened to whatever its siblings admitted, in silence (GitHub #278).
+//
+// `enum: []` is legal JSON Schema and it fixes the value space to the empty set,
+// so it declares one exactly as a populated list does. Nilness is the
+// distinction the parser keeps: an absent keyword leaves the field nil, an empty
+// list leaves it non-nil and empty. A member list the model layer could not
+// parse at all reads as absent here, which is a document the loader already
+// refuses.
+func enumWritten(s *oas3.Schema) bool {
+	return s.GetEnum() != nil
 }
 
 // dispatch records how lower() resolved a schema's competing keyword families:
