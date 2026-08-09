@@ -88,6 +88,12 @@ type Ctx struct {
 	// holds the struct to.
 	schemas map[string]bool
 
+	// namesByReference marks a lowering running under a $ref that named a
+	// coordinate, whose names are placeholders. Unexported and read through
+	// NamesByReference so it can only be set by NamingByReference, which is what
+	// keeps it scoped to the subtree that copy is threaded through.
+	namesByReference bool
+
 	// auth is the document's declared security schemes, keyed by the IDs a
 	// requirement names. It is unexported, and read through a predicate rather
 	// than handed back, for the reason schemas is.
@@ -180,6 +186,31 @@ func (c Ctx) WithAuth(auth map[ir.AuthID]ir.AuthScheme) Ctx {
 	c.auth = auth
 	return c
 }
+
+// NamingByReference returns a copy of c marking everything lowered under it as
+// reached through a reference naming a coordinate rather than through the
+// declaration that owns it.
+//
+// A $ref can spell a pointer inside another declaration's body, and the node
+// interned there is then named by whichever of the two lowerings arrives first.
+// A name belongs to a declaration rather than to a reference to it, so a lowering
+// running under this context names provisionally and the declaration replaces the
+// name when it arrives (GitHub #372).
+//
+// It marks the whole subtree, not just the referenced coordinate: a reference to
+// an object body interns its children too, and their names are derived from the
+// enclosing one, so they are placeholders for the same reason.
+//
+// A copy, not a fresh context: everything below still needs the document, its
+// identity and index, and the declared-name index.
+func (c Ctx) NamingByReference() Ctx {
+	c.namesByReference = true
+	return c
+}
+
+// NamesByReference reports whether names minted under c are placeholders a
+// declaration replaces. See NamingByReference.
+func (c Ctx) NamesByReference() bool { return c.namesByReference }
 
 // declaredSchemaNames collects the names under components/schemas, or nil when
 // the document declares none.

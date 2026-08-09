@@ -2228,17 +2228,16 @@ func TestInlinePosition_HintIsTheSameInBothOrders(t *testing.T) {
 	}
 }
 
-// TestInlinePosition_UnderPathsTakesTheWeakerName pins what GitHub #353 did not
-// close, so the remainder is a recorded state rather than a silent one.
+// TestInlinePosition_UnderPathsIsNamedByItsDeclaration is what GitHub #353 could
+// not reach and #372 closed.
 //
 // The enclosing hint under /paths comes from a response, an operationId or a
-// media-type key, none of which the pointer records, so the pointer walk cannot
-// replay it and the position keeps the last-segment fallback. What is left is
-// not an order dependence — components lower before paths, so the reference
-// interns first in either spelling of the document — but a name that depends on
-// whether an unrelated schema points at the position: "response_item" without
-// the reference, "items" with it. GitHub #372 holds it.
-func TestInlinePosition_UnderPathsTakesTheWeakerName(t *testing.T) {
+// media-type key, none of which the pointer records, so no pointer-derived
+// spelling reproduces it and the reference could only offer the last segment.
+// The name is now taken from the declaration rather than from whichever lowering
+// interned the node first, so the position is "response_item" whether or not an
+// unrelated schema points at it, and in either declaration order.
+func TestInlinePosition_UnderPathsIsNamedByItsDeclaration(t *testing.T) {
 	t.Parallel()
 	const id = ir.TypeID("t/anon/paths/~1x/get/responses/200/content/application~1json/schema/items")
 	const op = `paths:
@@ -2259,18 +2258,19 @@ func TestInlinePosition_UnderPathsTakesTheWeakerName(t *testing.T) {
 	refFirst, diags := parseFull(t, "openapi: 3.1.0\ninfo: {title: O, version: \"1.0.0\"}\n"+outsider+op)
 	openapitest.RequireNoErrorDiags(t, diags)
 
-	assert.Equal(t, "items", ownerFirst.Types[id].Common().Name.Hint,
-		"the reference names it, whichever order the two blocks are written in")
-	assert.Equal(t, "items", refFirst.Types[id].Common().Name.Hint,
-		"so the document is deterministic; it is the name that is weak")
+	// The reference lowers first in both spellings — components lower before
+	// paths — so both of these used to read "items".
+	assert.Equal(t, "response_item", ownerFirst.Types[id].Common().Name.Hint,
+		"the declaration names it, whichever order the two blocks are written in")
+	assert.Equal(t, "response_item", refFirst.Types[id].Common().Name.Hint,
+		"including when the reference is the lowering that interned the node")
 
-	// Without the reference the structural lowering names it, which is what the
-	// two above are being compared against: an unrelated $ref elsewhere in the
-	// document is what costs the position its enclosing context.
+	// And the same name with nothing pointing at the position at all, which is
+	// the claim: an unrelated $ref elsewhere in the document costs it nothing.
 	unreferenced, diags := parseFull(t, "openapi: 3.1.0\ninfo: {title: O, version: \"1.0.0\"}\n"+op)
 	openapitest.RequireNoErrorDiags(t, diags)
 	assert.Equal(t, "response_item", unreferenced.Types[id].Common().Name.Hint,
-		"the structural lowering composes the enclosing response's hint")
+		"which is what the two above are being held to")
 }
 
 // TestInlinePosition_OutsideRefDoesNotMoveTheHome is the regression for the

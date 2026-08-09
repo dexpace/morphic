@@ -46,6 +46,13 @@ func schemaRefHomed(c lowering.Ctx, ts *compile.Types, anchors *AnchorIndex, dep
 		return ts.PrimRef(ir.PrimAny), []ir.Diagnostic{c.DiagAt(ir.SeverityError, diag.DegradedConstruct, pointer,
 			"schema nesting exceeds %d; lowered as any", maxSchemaDepth)}
 	}
+	if !c.NamesByReference() {
+		// This is the declaration reaching its own coordinate, so its hint is the
+		// node's name even when a $ref interned the node there first (GitHub #372).
+		// It sits here rather than only at intern because a position whose node
+		// already exists resolves to it and returns before interning anything.
+		ts.NameFromDeclaration(pointer, hint)
+	}
 	if js == nil {
 		return ts.PrimRef(ir.PrimAny), nil
 	}
@@ -184,6 +191,13 @@ func hoistSubSchema(c lowering.Ctx, ts *compile.Types, anchors *AnchorIndex, dep
 	if s.Node == nil {
 		return "", false, nil
 	}
+	// Everything lowered from here is reached through a $ref that named this
+	// coordinate, not through the declaration that owns it, so the names minted
+	// below are placeholders the declaration replaces (GitHub #372). It covers the
+	// subtree rather than this coordinate alone: a reference to an object body
+	// interns its children too, and their names hang off this one.
+	c = c.NamingByReference()
+
 	hint := subSchemaHint(decl, pointer)
 	ref, diags := Ref(c, ts, anchors, depth, decl, pointer, hint)
 	if owned, ok := ts.Lookup(pointer); ok {

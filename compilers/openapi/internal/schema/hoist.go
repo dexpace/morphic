@@ -42,7 +42,18 @@ func internNode(c lowering.Ctx, ts *compile.Types, pointer, hint string,
 	build func(common ir.TypeCommon) ir.TypeDef,
 ) ir.TypeID {
 	id := ids.ForPointer(pointer)
-	return ts.Intern(pointer, id, func() ir.TypeDef { return build(commonFor(c, id, pointer, hint)) })
+	mint := func() ir.TypeDef { return build(commonFor(c, id, pointer, hint)) }
+	if c.NamesByReference() {
+		// A $ref named this coordinate, so the name is a placeholder until the
+		// declaration that owns it arrives (GitHub #372).
+		return ts.InternProvisional(pointer, id, mint)
+	}
+	interned := ts.Intern(pointer, id, mint)
+	// The declaration reaching its own coordinate. On a first visit this is the
+	// name the node was just built with; on a later one it is what replaces a
+	// placeholder a reference left here.
+	ts.NameFromDeclaration(pointer, hint)
+	return interned
 }
 
 // commonFor builds the TypeCommon shared by every hoisted node at pointer. A
