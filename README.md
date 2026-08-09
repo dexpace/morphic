@@ -13,7 +13,6 @@
   <a href="https://github.com/dexpace/morphic/actions/workflows/gate.yml"><img alt="gate" src="https://github.com/dexpace/morphic/actions/workflows/gate.yml/badge.svg"></a>
   <a href="LICENSE"><img alt="License" src="https://img.shields.io/badge/license-MIT-blue.svg"></a>
   <img alt="Go" src="https://img.shields.io/badge/go-1.26-00ADD8.svg?logo=go&logoColor=white">
-  <img alt="Coverage" src="https://img.shields.io/badge/coverage-100%25-success.svg">
 </p>
 
 Morphic is a spec-to-SDK compiler. It reads an API specification in any supported source format,
