@@ -477,6 +477,16 @@ var pathItemDocFields = []struct{ keyword, key string }{
 // pair is duplicated onto every operation under the path, exactly as the path
 // item's servers already are — a path item is distributed across the operations
 // it holds, and there is no ir.PathItem to attach it to.
+//
+// Two cases this does not reach, both shared with applyPathServers beside it:
+//
+//   - A path item that mounts no operation keeps nothing, because there is no
+//     operation to keep it on. GitHub #383 records that gap for the whole class,
+//     documentation included, and the unmounted-path-item work is where it lands.
+//   - A pair supplied through a YAML merge key or an alias is read by the model
+//     but not by RawChildNode, whose lookup is a plain mapping scan. GetSummary
+//     is non-empty, the raw node is nil, and nothing is kept or reported —
+//     GitHub #384.
 func applyPathItemDocs(c lowering.Ctx, op *ir.Operation, pi *soa.PathItem, declPtr string) []ir.Diagnostic {
 	if pi.GetSummary() == "" && pi.GetDescription() == "" {
 		return nil
