@@ -598,6 +598,34 @@ func TestModel_ReadOnlyWriteOnlyVisibility(t *testing.T) {
 	assert.Equal(t, ir.Visibility{Only: []ir.Lifecycle{ir.LifecycleCreate, ir.LifecycleUpdate}}, byName["w"].Visibility)
 }
 
+// TestModel_ReadOnlyAndWriteOnlyTogetherAreVisibleNowhere pins the answer for a
+// property whose schema writes both flags: they admit disjoint lifecycle sets,
+// so the property is admitted by none. Declaring both used to lower exactly as
+// declaring readOnly alone did, in silence, while the same pairing spread over
+// two allOf branches already intersected to None and warned (GitHub #276).
+func TestModel_ReadOnlyAndWriteOnlyTogetherAreVisibleNowhere(t *testing.T) {
+	t.Parallel()
+	spec := openapitest.ComponentSpec(`    S:
+      type: object
+      properties:
+        both: {type: string, readOnly: true, writeOnly: true}
+        r: {type: string, readOnly: true}
+`)
+	doc, diags := lowerSpec(t, spec)
+	openapitest.RequireNoErrorDiags(t, diags)
+	m := doc.Types[componentID("S")].(*ir.Model)
+	byName := openapitest.PropsByWire(m.Properties)
+
+	assert.Equal(t, ir.Visibility{None: true}, byName["both"].Visibility)
+	assert.NotEqual(t, byName["r"].Visibility, byName["both"].Visibility,
+		"declaring both flags must not lower exactly as declaring readOnly alone does")
+	msg := openapitest.DiagMessageAt(t, diags, diag.DisjointVisibility, ir.SeverityWarning,
+		"/components/schemas/S/properties/both")
+	assert.Contains(t, msg, "writeOnly", "the report names the keyword that was being dropped")
+	assert.Equal(t, 1, openapitest.CountDiagsAt(diags, diag.DisjointVisibility, ir.SeverityWarning),
+		"the property declaring one flag is not reported")
+}
+
 func TestModel_PasswordFormatSecret(t *testing.T) {
 	t.Parallel()
 	spec := openapitest.ComponentSpec(`    S:
@@ -1409,13 +1437,14 @@ func allOfConflictSpec(schemaA, schemaB string) string {
 
 func TestAllOf_ConstraintAndFormatConflictsDiagnosed(t *testing.T) {
 	t.Parallel()
-	// Each keyword class that can contradict across branches: an inclusive vs
+	// Each way a redeclaration can contradict across branches: an inclusive vs
 	// exclusive bound of equal magnitude, a differing pattern, a differing
-	// multipleOf, and two format-derived primitives (string vs uuid). Each keeps
-	// the first declaration but surfaces exactly one conflict naming the field,
-	// both branch sites, and — for the constraint cases — the offending keyword
-	// with both of its conflicting values, so the author never has to diff both
-	// branches by hand.
+	// multipleOf, a bound and a multipleOf that differ past the magnitude a
+	// rational will build, and two format-derived primitives (string vs uuid).
+	// Each keeps the first declaration but surfaces exactly one conflict naming
+	// the field, both branch sites, and — for the constraint cases — the
+	// offending keyword with both of its conflicting values, so the author
+	// never has to diff both branches by hand.
 	cases := []struct {
 		name, a, b, wantDetail string
 	}{
@@ -1436,6 +1465,23 @@ func TestAllOf_ConstraintAndFormatConflictsDiagnosed(t *testing.T) {
 			a:          "{type: integer, multipleOf: 2}",
 			b:          "{type: integer, multipleOf: 3}",
 			wantDetail: "conflicting multipleOf (2 and 3)",
+		},
+		{
+			// The other half of the past-a-rational rows in
+			// TestAllOf_CompatibleConstraintRedeclarationsStaySilent: a
+			// magnitude no rational holds still has to be ordered, not waved
+			// through, or the fix for the equal pair would just silence every
+			// pair that large.
+			name:       "minimum too large for a rational",
+			a:          "{type: number, minimum: 1e1000001}",
+			b:          "{type: number, minimum: 2e1000001}",
+			wantDetail: "conflicting minimum (1e1000001 and 2e1000001)",
+		},
+		{
+			name:       "multipleOf too large for a rational",
+			a:          "{type: number, multipleOf: 1e1000001}",
+			b:          "{type: number, multipleOf: 1e1000002}",
+			wantDetail: "conflicting multipleOf (1e1000001 and 1e1000002)",
 		},
 		{
 			name: "string vs uuid",
@@ -1468,9 +1514,10 @@ func TestAllOf_CompatibleConstraintRedeclarationsStaySilent(t *testing.T) {
 	// only one branch (both branches still carry constraints) is intersected,
 	// not a conflict — and the merge must genuinely carry both keywords
 	// forward on the reconciled property, not just stay quiet about the one it
-	// used to drop; equal multipleOf spelled two ways is one value; and an
-	// unknown-format scalar resolves through its Base to the same primitive as
-	// the plain type, so it is not a type conflict.
+	// used to drop; one magnitude spelled two ways is one value, whether or not
+	// it is one a rational will build; and an unknown-format scalar resolves
+	// through its Base to the same primitive as the plain type, so it is not a
+	// type conflict.
 	cases := []struct {
 		name         string
 		a, b         string
@@ -1515,6 +1562,20 @@ func TestAllOf_CompatibleConstraintRedeclarationsStaySilent(t *testing.T) {
 			},
 		},
 		{name: "equivalent multipleOf", a: "{type: number, multipleOf: 2}", b: "{type: number, multipleOf: 2.0}"},
+		// Both BigVal keywords at a magnitude math/big will not build as a
+		// rational. The value is the same on either branch, so there is nothing
+		// to report; a comparison that gave up on the magnitude instead would
+		// call one value two and fail a --fail-on warning build.
+		{
+			name: "equal minimum too large for a rational",
+			a:    "{type: number, minimum: 1e1000001}",
+			b:    "{type: number, minimum: 10e1000000}",
+		},
+		{
+			name: "equal multipleOf too large for a rational",
+			a:    "{type: number, multipleOf: 1e1000001}",
+			b:    "{type: number, multipleOf: 10e1000000}",
+		},
 		{name: "custom format over base", a: "{type: string, format: weird}", b: "{type: string}"},
 	}
 	for _, tc := range cases {
@@ -2936,6 +2997,58 @@ func TestDynamicRef_ExpandsAgainstTheOneMatchingAnchor(t *testing.T) {
 		"each expanded reference is announced once")
 }
 
+// TestDynamicRef_FragmentIsPercentDecoded pins that a $dynamicRef's fragment is
+// read as the URI text it is. RFC 3986 §2.3 makes an unreserved character and
+// its percent-encoded octet the same character, so `#my%2Danchor` names the
+// anchor `my-anchor`; §2.1 makes the escape's hex digits case-insignificant. All
+// three spellings below therefore address one declaration (GitHub #233).
+func TestDynamicRef_FragmentIsPercentDecoded(t *testing.T) {
+	t.Parallel()
+	const anchor = "    B: {$dynamicAnchor: my-anchor, type: string}\n"
+	cases := map[string]string{
+		"an escaped hyphen is the hyphen":           "#my%2Danchor",
+		"the escape's hex case is not significant":  "#my%2danchor",
+		"the unescaped spelling names the same one": "#my-anchor",
+	}
+	for name, ref := range cases {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			doc, diags := parseFull(t, openapitest.ComponentSpec(anchor+"    A: {$dynamicRef: '"+ref+"'}\n"))
+			openapitest.RequireNoErrorDiags(t, diags)
+
+			sc, ok := doc.Types[componentID("A")].(*ir.Scalar)
+			require.True(t, ok, "the reference position owns a node")
+			require.NotNil(t, sc.Base)
+			assert.Equal(t, componentID("B"), sc.Base.Target, "every spelling names the one anchor")
+			assert.NotContains(t, sc.Unmodeled, "openapi:$dynamicRef",
+				"an expanded reference is the position's type, so it is not also kept")
+		})
+	}
+}
+
+// TestDynamicRef_ReachesAnAnchorSpelledWithAPercent pins that the decode runs on
+// the reference alone: an anchor carrying a literal `%` is addressed by escaping
+// it as `%25`, and the anchor's own text is matched exactly as declared. The two
+// sides mean different things — 2020-12 §8.2.2 makes `$dynamicAnchor` a plain
+// name, §8.2.3.2 makes `$dynamicRef` a URI-reference — so only one is decoded.
+//
+// §8.2.2's production admits no `%` in an anchor name, so the document validator
+// reports the declaration and this case arrives with an error diagnostic beside
+// it, the same shape TestDynamicRef_NonScalarValueIsKeptNotExpanded documents.
+// The lowering still has to agree with itself about what each side spells.
+func TestDynamicRef_ReachesAnAnchorSpelledWithAPercent(t *testing.T) {
+	t.Parallel()
+	doc, _ := parseFull(t, openapitest.ComponentSpec(
+		"    B: {$dynamicAnchor: 'pct%name', type: string}\n"+
+			"    A: {$dynamicRef: '#pct%25name'}\n"))
+
+	sc, ok := doc.Types[componentID("A")].(*ir.Scalar)
+	require.True(t, ok, "the reference position owns a node")
+	require.NotNil(t, sc.Base)
+	assert.Equal(t, componentID("B"), sc.Base.Target,
+		"an escaped percent addresses the percent itself, so the reference reaches the anchor as declared")
+}
+
 // TestDynamicRef_IrreducibleIsKeptAndSaysWhy pins the other half of that promise.
 // Each case is a reference no static lowering can resolve, and each must survive
 // verbatim with the reason naming which case it was.
@@ -2956,6 +3069,15 @@ func TestDynamicRef_IrreducibleIsKeptAndSaysWhy(t *testing.T) {
 			wantWhy: "is not a plain same-document fragment"},
 		{name: "a pointer, not an anchor", schemas: "    A: {$dynamicRef: '#/components/schemas/M1'}\n",
 			wantWhy: "not a plain same-document fragment"},
+		{name: "an invalid percent escape", schemas: "    A: {$dynamicRef: '#my%zzanchor'}\n",
+			wantWhy: `"#my%zzanchor" is not valid percent-encoded text: invalid URL escape "%zz"`},
+		{name: "an escaped percent decodes to the character", schemas: "    A: {$dynamicRef: '#pct%25name'}\n",
+			wantWhy: `no $dynamicAnchor "pct%name" is declared`},
+		// The anchor here is what a second decode would land on: it would read
+		// this fragment as "#my-anchor" and expand. Being kept is the proof.
+		{name: "the decode is not applied twice",
+			schemas: "    H: {$dynamicAnchor: my-anchor, type: string}\n    A: {$dynamicRef: '#my%252Danchor'}\n",
+			wantWhy: `no $dynamicAnchor "my%2Danchor" is declared`},
 		{name: "declared twice", schemas: anchors + "    A: {$dynamicRef: '#dup'}\n",
 			wantWhy: "declared 2 times"},
 		{name: "not a component", schemas: anchors + "    A: {$dynamicRef: '#deep'}\n",

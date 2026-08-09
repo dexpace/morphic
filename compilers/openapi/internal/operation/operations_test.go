@@ -1672,3 +1672,227 @@ func TestOperations_OwnServersSurviveBesideExtensions(t *testing.T) {
 	assert.Contains(t, op.Unmodeled, "openapi:x-vendor",
 		"and the extensions survive beside them, so neither overwrote the other")
 }
+
+// pathItemDocsSpec declares summary and description on each of the three path
+// items a document can hold — a path, a webhook, and a callback expression —
+// with distinct text apiece so a preserved pair can be traced to the path item
+// that wrote it. One operation declares its own summary beside them, which is
+// what shows that the path item's pair does not displace it.
+const pathItemDocsSpec = `openapi: 3.1.0
+info: {title: T, version: "1"}
+paths:
+  /p:
+    summary: path summary
+    description: path description
+    post:
+      operationId: postP
+      summary: operation summary
+      callbacks:
+        onEvent:
+          '{$request.body#/url}':
+            summary: callback summary
+            description: callback description
+            post:
+              operationId: onEvent
+              responses: {"200": {description: ok}}
+      responses: {"200": {description: ok}}
+webhooks:
+  hooked:
+    summary: webhook summary
+    description: webhook description
+    post:
+      operationId: onHook
+      responses: {"200": {description: ok}}
+`
+
+// TestPathItem_DocsKeptOnEveryRoute pins that a path item's summary and
+// description reach the IR at all, on whichever of the three routes reaches the
+// path item.
+//
+// Both were read nowhere: fillOperationDocs reads the Operation Object's own
+// pair, so a path item's documentation reached neither Docs, nor Unmodeled, nor
+// a diagnostic. Each route is asserted with its own text, so a fix that kept the
+// enclosing path item's pair — or the same one three times — fails rather than
+// passing on the shape alone.
+func TestPathItem_DocsKeptOnEveryRoute(t *testing.T) {
+	t.Parallel()
+	doc, diags := parseFull(t, pathItemDocsSpec)
+	openapitest.RequireNoErrorDiags(t, diags)
+
+	// kept is the path item's own pointer, where the pair is declared;
+	// reported is the operation, which is what carries the entry.
+	for _, tc := range []struct{ op, text, kept, reported string }{
+		{"postP", "path", "/paths/~1p", "/paths/~1p/post"},
+		{"onHook", "webhook", "/webhooks/hooked", "/webhooks/hooked/post"},
+		{"onEvent", "callback",
+			"/paths/~1p/post/callbacks/onEvent/{$request.body#~1url}",
+			"/paths/~1p/post/callbacks/onEvent/{$request.body#~1url}/post"},
+	} {
+		op := openapitest.FindOp(t, doc, tc.op)
+		for _, field := range []struct{ key, keyword string }{
+			{"openapi:pathItemSummary", "summary"},
+			{"openapi:pathItemDescription", "description"},
+		} {
+			entry, ok := op.Unmodeled[field.key]
+			require.True(t, ok, "%s keeps its path item's %s", tc.op, field.keyword)
+			assert.Equal(t, ir.ReasonNoIRHome, entry.Reason)
+			assert.JSONEq(t, `"`+tc.text+` `+field.keyword+`"`, string(entry.Value),
+				"%s keeps the text its own path item declared", tc.op)
+			assert.Equal(t, tc.kept+"/"+field.keyword, entry.Provenance.Pointer)
+		}
+		assert.True(t, openapitest.HasDiagCodeAt(diags, diag.DegradedConstruct, tc.reported),
+			"%s reports the path item's documentation as kept rather than lowered", tc.op)
+	}
+
+	assert.Equal(t, "operation summary", openapitest.FindOp(t, doc, "postP").Docs.Summary,
+		"an operation's own summary is what Docs holds; the path item's never displaces it")
+	assert.Empty(t, openapitest.FindOp(t, doc, "onHook").Docs.Summary,
+		"and an operation that declares none gets none invented for it")
+}
+
+// TestPathItem_DocsAbsentKeepNothing pins the other half: a path item that
+// documents nothing writes no entry and announces nothing, so the preservation
+// is not a per-operation constant.
+func TestPathItem_DocsAbsentKeepNothing(t *testing.T) {
+	t.Parallel()
+	doc, diags := parseFull(t, openapitest.PathsSpec(`  /p:
+    get: {operationId: getP, responses: {"200": {description: ok}}}
+`))
+	openapitest.RequireNoErrorDiags(t, diags)
+
+	op := openapitest.FindOp(t, doc, "getP")
+	assert.NotContains(t, op.Unmodeled, "openapi:pathItemSummary")
+	assert.NotContains(t, op.Unmodeled, "openapi:pathItemDescription")
+	assert.False(t, openapitest.HasDiagCodeAt(diags, diag.DegradedConstruct, "/paths/~1p/get"))
+}
+
+// pathItemOperationsSpec declares a 3.2 operation with no fixed field of its own
+// at each of the three path-item routes, plus the 3.2 `query` fixed field, with
+// a distinct operationId apiece.
+const pathItemOperationsSpec = `openapi: 3.2.0
+info: {title: T, version: "1"}
+paths:
+  /p:
+    query:
+      operationId: queryP
+      responses: {"200": {description: ok}}
+    post:
+      operationId: postP
+      callbacks:
+        onEvent:
+          '{$request.body#/url}':
+            additionalOperations:
+              PURGE:
+                operationId: purgeCallback
+                responses: {"204": {description: purged}}
+      responses: {"200": {description: ok}}
+    additionalOperations:
+      PURGE:
+        operationId: purgeP
+        requestBody:
+          content:
+            application/json: {schema: {type: object, properties: {n: {type: string}}}}
+        responses: {"204": {description: purged}}
+      lowercase-purge:
+        operationId: purgeVerbatim
+        responses: {"204": {description: purged}}
+webhooks:
+  hooked:
+    additionalOperations:
+      FLUSH:
+        operationId: flushHook
+        responses: {"204": {description: flushed}}
+`
+
+// TestPathItem_AdditionalOperationsLowerOnEveryRoute pins that an operation
+// declared under 3.2 additionalOperations becomes an ir.Operation like any
+// other, on whichever of the three routes reaches the path item.
+//
+// The loop over the fixed method fields was the whole of the walk, so every such
+// operation was dropped entire — operationId, parameters, request body,
+// responses — with no diagnostic. Each route is asserted separately because a
+// fix scoped to the paths walk leaves the other two exactly as they were.
+func TestPathItem_AdditionalOperationsLowerOnEveryRoute(t *testing.T) {
+	t.Parallel()
+	doc, diags := parseFull(t, pathItemOperationsSpec)
+	openapitest.RequireNoErrorDiags(t, diags)
+
+	for _, tc := range []struct{ op, method, id string }{
+		{"queryP", "QUERY", "op/openapi/paths/~1p/query"},
+		{"purgeP", "PURGE", "op/openapi/paths/~1p/additionalOperations/PURGE"},
+		{"purgeVerbatim", "lowercase-purge", "op/openapi/paths/~1p/additionalOperations/lowercase-purge"},
+		{"flushHook", "FLUSH", "op/openapi/webhooks/hooked/additionalOperations/FLUSH"},
+		{"purgeCallback", "PURGE",
+			"op/openapi/paths/~1p/post/callbacks/onEvent/{$request.body#~1url}/additionalOperations/PURGE"},
+	} {
+		op := openapitest.FindOp(t, doc, tc.op)
+		assert.Equal(t, ir.OpID(tc.id), op.ID, "%s is identified by where it is written", tc.op)
+		require.Len(t, op.Bindings.HTTP, 1)
+		assert.Equal(t, tc.method, op.Bindings.HTTP[0].Method,
+			"%s binds the method key as the source spelled it", tc.op)
+	}
+
+	assert.True(t, openapitest.FindOp(t, doc, "flushHook").Bindings.HTTP[0].IsWebhook,
+		"a webhook mount marks the binding whichever field declared the operation")
+
+	// Nothing reachable only through a dropped operation reached the registry
+	// either: the request body's schema was not interned at all.
+	purge := openapitest.FindOp(t, doc, "purgeP")
+	require.NotNil(t, purge.Request)
+	require.Len(t, purge.Request.Contents, 1)
+	assert.NotNil(t, doc.Types[purge.Request.Contents[0].Type.Target],
+		"the request body schema is interned, not merely referenced")
+}
+
+// TestPathItem_AdditionalOperationsBindCallbacks pins that the parent operation
+// records a callback lowered from additionalOperations alone, so an expression
+// whose path item declares no fixed method is still bound rather than left
+// holding an empty operation list.
+func TestPathItem_AdditionalOperationsBindCallbacks(t *testing.T) {
+	t.Parallel()
+	doc, diags := parseFull(t, pathItemOperationsSpec)
+	openapitest.RequireNoErrorDiags(t, diags)
+
+	parent := openapitest.FindOp(t, doc, "postP")
+	require.Len(t, parent.Bindings.HTTP, 1)
+	require.Len(t, parent.Bindings.HTTP[0].Callbacks, 1)
+	assert.Equal(t, []ir.OpID{openapitest.FindOp(t, doc, "purgeCallback").ID},
+		parent.Bindings.HTTP[0].Callbacks[0].Operations)
+}
+
+// TestPathItem_EmptyAdditionalOperationsKeyReported pins the one key that names
+// no method. Taking the key verbatim is what makes it reachable: an empty one
+// binds an empty HTTP method, which no request can be sent with.
+//
+// The entry still lowers, so nothing it declares is lost — dropping it would
+// trade a reported defect for a silent one, which is the trade this whole change
+// exists to undo. speakeasy rejects a key naming a standard method and accepts
+// this one, so the compiler is the only thing that can report it.
+func TestPathItem_EmptyAdditionalOperationsKeyReported(t *testing.T) {
+	t.Parallel()
+	doc, diags := parseFull(t, `openapi: 3.2.0
+info: {title: T, version: "1"}
+paths:
+  /p:
+    additionalOperations:
+      "":
+        operationId: nameless
+        responses: {"204": {description: done}}
+`)
+	openapitest.RequireNoErrorDiags(t, diags)
+
+	op := openapitest.FindOp(t, doc, "nameless")
+	require.Len(t, op.Bindings.HTTP, 1)
+	assert.Empty(t, op.Bindings.HTTP[0].Method, "the key binds as written, empty or not")
+	assert.Equal(t, ir.OpID("op/openapi/paths/~1p/additionalOperations/"), op.ID,
+		"and the operation is still mounted where the source writes it")
+
+	assert.True(t, openapitest.HasDiagCodeAt(diags, diag.InvalidMethodKey, "/paths/~1p/additionalOperations/"),
+		"the unusable method is reported at the entry that declares it")
+	for _, d := range diags {
+		if d.Code == diag.InvalidMethodKey {
+			assert.Equal(t, ir.SeverityWarning, d.Severity,
+				"a warning: the operation lowers in full, only its method is unusable")
+		}
+	}
+}

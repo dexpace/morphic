@@ -8,6 +8,17 @@ import (
 	"github.com/dexpace/morphic/ir"
 )
 
+// boundSide names which of a numeric constraint's two sides a read applies to.
+// It is a named type rather than a bool because applyExclusive takes a dialect
+// flag beside it, and two bare bools in a row say nothing at the call site about
+// which is which.
+type boundSide int
+
+const (
+	minBound boundSide = iota // minimum / exclusiveMinimum
+	maxBound                  // maximum / exclusiveMaximum
+)
+
 // Constraints reads a schema's scalar (string/number/object-count) value
 // constraints into an ir.Constraints. Numeric bounds are read from the raw YAML
 // nodes, never the *float64 model fields, to preserve full decimal precision
@@ -30,8 +41,8 @@ func Constraints(s *oas3.Schema, exclusiveBoolean bool) (*ir.Constraints, []ir.D
 	}
 	c := &ir.Constraints{}
 	diags := numericBounds(c, s)
-	diags = append(diags, applyExclusive(c, s, true, exclusiveBoolean)...)
-	diags = append(diags, applyExclusive(c, s, false, exclusiveBoolean)...)
+	diags = append(diags, applyExclusive(c, s, minBound, exclusiveBoolean)...)
+	diags = append(diags, applyExclusive(c, s, maxBound, exclusiveBoolean)...)
 	c.MinLength = s.MinLength
 	c.MaxLength = s.MaxLength
 	c.Pattern = s.GetPattern()
@@ -84,13 +95,14 @@ func boundLiteralDiag(prop, literal string, err error) ir.Diagnostic {
 // 3.0 boolean arm flags the corresponding Min/Max as exclusive; the 2020-12
 // numeric arm (3.1/3.2) carries the bound value itself, read from the raw node to
 // avoid the float64 trap, and hands it to reconcileBound, which decides how it
-// meets any minimum/maximum declared beside it. exclusiveBoolean selects the
-// dialect (true for 3.0). Because load suppresses the library's type-mismatch
-// on these keywords, a value in the wrong form for the dialect is reported and
-// dropped here rather than silently accepted.
-func applyExclusive(c *ir.Constraints, s *oas3.Schema, isMin, exclusiveBoolean bool) []ir.Diagnostic {
+// meets any minimum/maximum declared beside it. side picks which of the two
+// keywords is read; exclusiveBoolean selects the dialect (true for 3.0).
+// Because load suppresses the library's type-mismatch on these keywords, a
+// value in the wrong form for the dialect is reported and dropped here rather
+// than silently accepted.
+func applyExclusive(c *ir.Constraints, s *oas3.Schema, side boundSide, exclusiveBoolean bool) []ir.Diagnostic {
 	ev, prop := s.GetExclusiveMaximum(), "exclusiveMaximum"
-	if isMin {
+	if side == minBound {
 		ev, prop = s.GetExclusiveMinimum(), "exclusiveMinimum"
 	}
 	if ev == nil {
@@ -101,7 +113,7 @@ func applyExclusive(c *ir.Constraints, s *oas3.Schema, isMin, exclusiveBoolean b
 	}
 	if ev.IsLeft() {
 		if b := ev.GetLeft(); b != nil && *b {
-			setExclusiveFlag(c, isMin)
+			setExclusiveFlag(c, side)
 		}
 		return nil
 	}
@@ -113,7 +125,7 @@ func applyExclusive(c *ir.Constraints, s *oas3.Schema, isMin, exclusiveBoolean b
 	if err != nil {
 		return []ir.Diagnostic{boundLiteralDiag(prop, node.Value, err)}
 	}
-	return reconcileBound(c, isMin, v)
+	return reconcileBound(c, side, v)
 }
 
 // reconcileBound settles one side's bound when the 2020-12 dialect declares
@@ -133,23 +145,23 @@ func applyExclusive(c *ir.Constraints, s *oas3.Schema, isMin, exclusiveBoolean b
 // callers route what it returns to different carriers — a property, a parameter
 // and a hoisted alias node — so opening one is a change of its own, tracked in
 // GitHub #286 rather than made here.
-func reconcileBound(c *ir.Constraints, isMin bool, excl ir.BigVal) []ir.Diagnostic {
+func reconcileBound(c *ir.Constraints, side boundSide, excl ir.BigVal) []ir.Diagnostic {
 	incl, inclProp, exclProp := c.Max, "maximum", "exclusiveMaximum"
-	if isMin {
+	if side == minBound {
 		incl, inclProp, exclProp = c.Min, "minimum", "exclusiveMinimum"
 	}
 	if incl == nil {
-		setExclusiveBound(c, isMin, &excl)
+		setExclusiveBound(c, side, &excl)
 		return nil
 	}
 
-	tighter, compared := inclusiveIsTighter(*incl, excl, isMin)
+	tighter, compared := inclusiveIsTighter(*incl, excl, side)
 	if tighter {
 		return []ir.Diagnostic{redundantBoundDiag(inclProp, *incl, exclProp, excl, compared)}
 	}
 
 	dropped := *incl
-	setExclusiveBound(c, isMin, &excl)
+	setExclusiveBound(c, side, &excl)
 	return []ir.Diagnostic{redundantBoundDiag(exclProp, excl, inclProp, dropped, compared)}
 }
 
@@ -176,7 +188,7 @@ func reconcileBound(c *ir.Constraints, isMin bool, excl ir.BigVal) []ir.Diagnost
 // grammar is the narrower of the two — so it stands for the day that changes:
 // a bound this cannot order is one that could be silently replaced by the looser
 // of its pair, which is the defect this reconciliation exists to prevent.
-func inclusiveIsTighter(incl, excl ir.BigVal, isMin bool) (tighter, compared bool) {
+func inclusiveIsTighter(incl, excl ir.BigVal, side boundSide) (tighter, compared bool) {
 	inclDec, inclOK := parseDecimalBound(incl)
 	exclDec, exclOK := parseDecimalBound(excl)
 	if !inclOK || !exclOK {
@@ -186,7 +198,7 @@ func inclusiveIsTighter(incl, excl ir.BigVal, isMin bool) (tighter, compared boo
 	if order == 0 {
 		return false, true
 	}
-	return (order > 0) == isMin, true
+	return (order > 0) == (side == minBound), true
 }
 
 // redundantBoundDiag reports the co-declared 2020-12 bound that did not reach
@@ -226,8 +238,8 @@ func exclusiveFormDiag(prop string, exclusiveBoolean bool) ir.Diagnostic {
 }
 
 // setExclusiveFlag marks the low or high bound exclusive.
-func setExclusiveFlag(c *ir.Constraints, isMin bool) {
-	if isMin {
+func setExclusiveFlag(c *ir.Constraints, side boundSide) {
+	if side == minBound {
 		c.ExclusiveMin = true
 		return
 	}
@@ -238,8 +250,8 @@ func setExclusiveFlag(c *ir.Constraints, isMin bool) {
 // replacing whatever minimum/maximum put there. Only reconcileBound may call it,
 // which is where the replacement is decided; calling it directly is the shape of
 // GitHub #33.
-func setExclusiveBound(c *ir.Constraints, isMin bool, v *ir.BigVal) {
-	if isMin {
+func setExclusiveBound(c *ir.Constraints, side boundSide, v *ir.BigVal) {
+	if side == minBound {
 		c.Min = v
 		c.ExclusiveMin = true
 		return

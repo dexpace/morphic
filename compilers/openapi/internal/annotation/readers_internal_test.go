@@ -126,25 +126,38 @@ func TestSchemaOf_ReturnsOnlyAWrittenBody(t *testing.T) {
 }
 
 // TestEffectiveVisibility_MapsTheFlagsToLifecycles pins the readOnly/writeOnly
-// mapping of ir-design §5.2 and the precedence between them. A schema that says
-// readOnly at the site while its referent says writeOnly must read as readOnly:
-// the position is what binds.
+// mapping of ir-design §5.2, the precedence a site holds over its referent, and
+// the answer for the pairing that admits nothing.
+//
+// Precedence is per flag: a site that writes readOnly settles readOnly for the
+// position and says nothing about writeOnly, which therefore still resolves
+// from the referent — the uniform §14 merge every other annotation here already
+// follows. So a site's readOnly does not cancel a referent's writeOnly; the two
+// are both in force, they admit disjoint lifecycle sets, and the position is
+// left visible in none. That case read as plain readOnly until GitHub #276,
+// when the flag arriving second was dropped without a word.
 func TestEffectiveVisibility_MapsTheFlagsToLifecycles(t *testing.T) {
 	t.Parallel()
 	read := ir.Visibility{Only: []ir.Lifecycle{ir.LifecycleRead, ir.LifecycleDelete, ir.LifecycleQuery}}
 	write := ir.Visibility{Only: []ir.Lifecycle{ir.LifecycleCreate, ir.LifecycleUpdate}}
+	none := ir.Visibility{None: true}
 
 	tests := []struct {
-		name     string
-		ref, tgt string
-		want     ir.Visibility
+		name         string
+		ref, tgt     string
+		want         ir.Visibility
+		wantDisjoint bool
 	}{
 		{name: "readOnly at the site", ref: "readOnly: true\n", want: read},
 		{name: "writeOnly at the site", ref: "writeOnly: true\n", want: write},
 		{name: "readOnly inherited from the referent", ref: "type: string\n", tgt: "readOnly: true\n", want: read},
 		{name: "writeOnly inherited from the referent", ref: "type: string\n", tgt: "writeOnly: true\n", want: write},
-		{name: "the site wins over the referent", ref: "readOnly: true\n", tgt: "writeOnly: true\n", want: read},
+		{name: "the site wins over the referent for the flag it writes", ref: "readOnly: true\n", tgt: "readOnly: false\n", want: read},
 		{name: "a false flag is still the site's answer", ref: "readOnly: false\n", tgt: "readOnly: true\n"},
+		{name: "both flags on one schema", ref: "readOnly: true\nwriteOnly: true\n", want: none, wantDisjoint: true},
+		{name: "both flags on the referent", ref: "type: string\n", tgt: "readOnly: true\nwriteOnly: true\n", want: none, wantDisjoint: true},
+		{name: "the site's readOnly leaves the referent's writeOnly in force", ref: "readOnly: true\n", tgt: "writeOnly: true\n", want: none, wantDisjoint: true},
+		{name: "and the same the other way round", ref: "writeOnly: true\n", tgt: "readOnly: true\n", want: none, wantDisjoint: true},
 		{name: "neither declares one", ref: "type: string\n", tgt: "type: string\n"},
 		{name: "nothing at all", want: ir.Visibility{}},
 	}
@@ -158,7 +171,9 @@ func TestEffectiveVisibility_MapsTheFlagsToLifecycles(t *testing.T) {
 			if tc.tgt != "" {
 				tgt = schemaFromYAML(t, tc.tgt)
 			}
-			assert.Equal(t, tc.want, EffectiveVisibility(ref, tgt))
+			got, disjoint := EffectiveVisibility(ref, tgt)
+			assert.Equal(t, tc.want, got)
+			assert.Equal(t, tc.wantDisjoint, disjoint, "whether the flags left no lifecycle at all")
 		})
 	}
 }

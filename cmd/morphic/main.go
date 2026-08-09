@@ -38,7 +38,7 @@ func run(args []string, stdout, stderr io.Writer) int {
 	if !ok {
 		return rootUsageError(stderr, fmt.Sprintf("unknown command %q", args[0]))
 	}
-	return c.run(args[1:], stdout, stderr)
+	return dispatch(c, args[1:], stdout, stderr)
 }
 
 // emitf writes a formatted line to w. Write errors on a human-facing stream are
