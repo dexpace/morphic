@@ -68,7 +68,7 @@ func TestCompareGolden_UpdateWritesAndReturns(t *testing.T) {
 	// Not parallel: toggles the shared -update flag.
 	dir := t.TempDir()
 	path := filepath.Join(dir, "nested", "doc.golden.json")
-	doc := &ir.Document{IRVersion: "0.1.0", Name: "u"}
+	doc := &ir.Document{IRVersion: ir.IRVersion, Name: "u"}
 
 	withUpdate(t, true, func() {
 		rec := runCompare(path, doc)

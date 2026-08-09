@@ -16,7 +16,7 @@ func TestCompareGolden_WritesThenMatches(t *testing.T) {
 	// Not parallel: exercises the -update path via WriteGolden.
 	dir := t.TempDir()
 	path := filepath.Join(dir, "doc.golden.json")
-	doc := &ir.Document{IRVersion: "0.1.0", Name: "g", Version: "1"}
+	doc := &ir.Document{IRVersion: ir.IRVersion, Name: "g", Version: "1"}
 
 	// First write the golden explicitly, then compare against it.
 	require.NoError(t, irtest.WriteGolden(path, doc))
