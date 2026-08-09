@@ -94,13 +94,38 @@ func wordBoundary(prev, r rune, runes []rune, i int) bool {
 	switch {
 	case carriesCase(r) && (unicode.IsLower(prev) || unicode.IsDigit(prev)):
 		return true // lower/digit -> Upper: "userID" -> user|ID
-	case isCapital(prev) && isCapital(r) && i+1 < len(runes) && unicode.IsLower(runes[i+1]):
+	case acronymTail(prev, r, runes, i):
 		return true // acronym tail: "HTTPServer" -> HTTP|Server
 	case unicode.IsLetter(prev) && unicode.IsDigit(r), unicode.IsDigit(prev) && unicode.IsLetter(r):
 		return true // letter<->digit: "APIKey2" -> ...Key|2
 	default:
 		return false
 	}
+}
+
+// acronymTail reports whether runes[i] is the last capital of a run and opens
+// the next word — the S of "HTTPServer" — which is two capitals followed by a
+// lowercase letter.
+//
+// At least one of the two capitals must be one lowercasing changes. That is what
+// keeps the rule from splitting its own output: a boundary between two runes
+// lowercasing leaves alone survives into the result still looking like a
+// boundary, so a second pass splits there again (GitHub #336). The lowercase
+// letter the rule looks for need not have been lowercase in the source — "ℤℤA"
+// has none, and lowercasing the A supplies one — so asking only about the source
+// runes either side is not enough to know the pattern will not reappear.
+//
+// Requiring case of both would be too strong in either direction: it would lose
+// ℤ_server, where only the S carries case, and http_ℤerver, where only the P
+// does. Both are pinned in canonicalCases.
+func acronymTail(prev, r rune, runes []rune, i int) bool {
+	if !isCapital(prev) || !isCapital(r) {
+		return false
+	}
+	if !carriesCase(prev) && !carriesCase(r) {
+		return false // neither is lowercased, so the split would reappear
+	}
+	return i+1 < len(runes) && unicode.IsLower(runes[i+1])
 }
 
 // The two boundary rules above ask different questions about a rune, and the
@@ -118,12 +143,15 @@ func wordBoundary(prev, r rune, runes []rune, i int) bool {
 // isCapital asks whether r *belongs to a run of capitals*, which is a question
 // about the letter's form rather than about a transition — the acronym-tail rule
 // splits at the last capital of a run, and ℤ is one of those whether or not
-// lowercasing would change it. Using carriesCase there instead would lose
-// ℤ_server, and using IsUpper alone would lose the titlecase forms.
+// lowercasing would change it. Using carriesCase alone there would lose
+// ℤ_server, and using IsUpper alone would lose the titlecase forms. Which is why
+// the tail rule asks both: isCapital of each rune, and carriesCase of the pair.
 //
-// Both stay idempotent: after one pass the only capitals left are the ones
-// lowercasing does not change, and the tail rule needs a lowercase letter
-// following, which such a run does not produce on its own.
+// The grammar is a fixed point because no rule can fire on its own output. One
+// pass lowercases every rune that carries case, so the two case rules — which
+// each require one at the boundary — have nothing left to fire on, and the
+// letter/digit rule is case-independent and has already been applied everywhere
+// it applies.
 func carriesCase(r rune) bool { return unicode.ToLower(r) != r }
 
 // isCapital reports whether r is a capital letter form — uppercase or titlecase.
