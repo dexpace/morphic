@@ -1,6 +1,7 @@
 package irverify
 
 import (
+	"reflect"
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
@@ -174,4 +175,49 @@ func TestVerify_ReportsEmptyDeclaredIDs(t *testing.T) {
 		codes = append(codes, v.Code)
 	}
 	assert.Contains(t, codes, "ir/empty-service-id")
+}
+
+// The four shapes declaredID has to tell apart. They are declared here rather
+// than found in the IR because the IR holds only the first: every promoted ID is
+// a TypeID, which checkDeclaredIDs skips as registry-keyed, and no node declares
+// a plain-string ID. A fixture-driven comparison therefore cannot separate the
+// predicate's clauses — see TestDeclaredID_ClassifiesEachShape.
+type (
+	idDeclarer struct{ ID ir.OpID }
+	idPromoter struct{ idDeclarer }
+	plainID    struct{ ID string }
+	noID       struct{ Name string }
+)
+
+// TestDeclaredID_ClassifiesEachShape pins each clause of the predicate this
+// package copies from ir. Dropping either narrowing clause leaves every
+// Document-driven test in this package green, because no Document separates
+// them, so the claim that the copy stays in step with ir's own is made here
+// rather than by the walk comparison beside it.
+func TestDeclaredID_ClassifiesEachShape(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct {
+		name     string
+		value    any
+		declares bool
+		why      string
+	}{
+		{"a named string ID the type declares", idDeclarer{ID: "op/a"}, true,
+			"the shape every identified node takes"},
+		{"an ID reached only by promotion", idPromoter{}, false,
+			"the embedded field is its declaration, not this one"},
+		{"a plain string named ID", plainID{ID: "x"}, false,
+			"a plain string names something rather than identifying it"},
+		{"no ID field at all", noID{Name: "x"}, false, "nothing to declare"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			_, id, declares := declaredID(reflect.ValueOf(tc.value))
+
+			assert.Equal(t, tc.declares, declares, tc.why)
+			if tc.declares {
+				assert.Equal(t, "op/a", id, "the value read is the field's own")
+			}
+		})
+	}
 }

@@ -70,10 +70,21 @@ func checkDeclaredIDs(doc *ir.Document, _ declarations) ([]Violation, bool) {
 //
 // It repeats the predicate ir.declaredID applies — a field named ID that v's own
 // type declares, of a named string type — because that function answers only for
-// the non-empty ones. A promoted field is not its own declaration: every type
-// node embeds TypeCommon and so promotes its ID, and counting those would report
-// each type twice. TestCheckDeclaredIDs_ReachesEveryIDDeclaringNode holds this
-// copy in step with ir's own.
+// the non-empty ones. Repeating it exactly is the point: the two have to agree on
+// what declares an identity, or this rule and ir.DeclaredIDs disagree about which
+// nodes exist.
+//
+// A promoted field is not its own declaration. Every type node embeds TypeCommon
+// and so promotes its TypeID, which ir.DeclaredIDs would record a second time —
+// here such a node is skipped as registry-keyed before that matters, so the
+// clause is carried for fidelity with ir rather than for an effect of its own.
+//
+// Both narrowing clauses are pinned by TestDeclaredID_ClassifiesEachShape rather
+// than by the walk comparison beside it: no Document separates them, since every
+// promoted ID is registry-keyed and the IR declares no plain-string ID, so
+// dropping either leaves every fixture-driven test here green.
+// TestCheckDeclaredIDs_ReachesEveryIDDeclaringNode holds the walk in step with
+// ir.DeclaredIDs; this holds the predicate.
 func declaredID(v reflect.Value) (class reflect.Type, id string, declares bool) {
 	f, isDeclared := v.Type().FieldByName(idFieldName)
 	if !isDeclared || len(f.Index) != 1 || !namedString(f.Type) {
