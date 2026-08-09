@@ -1,0 +1,64 @@
+openapi: 3.2.0
+info: {title: ParamStyleMatrix, version: "1.0.0"}
+# The whole legal (in, style, explode) product of the OpenAPI Parameter object.
+# `style` is location-dependent — path takes simple|label|matrix, query takes
+# form|spaceDelimited|pipeDelimited|deepObject, header takes simple, cookie takes
+# form, and querystring takes none — so the nine pairs, each with explode written
+# both ways, are eighteen bindings. Beside them sit the five locations with style
+# omitted, which is the only way the per-location default table is read at all.
+#
+# param-styles.yaml is the neighbouring spec and a different question: it covers
+# the flags that are not part of that table (allowReserved, allowEmptyValue, a
+# content-typed parameter, a path-item-level parameter shared by two operations).
+paths:
+  /matrix/{pathMatrixExplode}/{pathMatrixNoExplode}/{pathMatrixDefaultExplode}/{pathLabelExplode}/{pathLabelNoExplode}/{pathSimpleExplode}/{pathSimpleNoExplode}/{pathDefaulted}:
+    get:
+      operationId: styleMatrix
+      parameters:
+        # in: path — simple | label | matrix.
+        - {name: pathMatrixExplode, in: path, required: true, style: matrix, explode: true, schema: {type: array, items: {type: string}}}
+        - {name: pathMatrixNoExplode, in: path, required: true, style: matrix, explode: false, schema: {type: array, items: {type: string}}}
+        # An explicit non-form style with explode omitted: the flag defaults off
+        # from the style, not from the location.
+        - {name: pathMatrixDefaultExplode, in: path, required: true, style: matrix, schema: {type: array, items: {type: string}}}
+        - {name: pathLabelExplode, in: path, required: true, style: label, explode: true, schema: {type: array, items: {type: string}}}
+        - {name: pathLabelNoExplode, in: path, required: true, style: label, explode: false, schema: {type: array, items: {type: string}}}
+        - {name: pathSimpleExplode, in: path, required: true, style: simple, explode: true, schema: {type: string}}
+        - {name: pathSimpleNoExplode, in: path, required: true, style: simple, explode: false, schema: {type: string}}
+        # Style omitted: the path default is simple, and simple does not explode.
+        - {name: pathDefaulted, in: path, required: true, schema: {type: string}}
+
+        # in: query — form | spaceDelimited | pipeDelimited | deepObject.
+        - {name: queryFormExplode, in: query, style: form, explode: true, schema: {type: array, items: {type: string}}}
+        - {name: queryFormNoExplode, in: query, style: form, explode: false, schema: {type: array, items: {type: string}}}
+        - {name: querySpaceDelimitedExplode, in: query, style: spaceDelimited, explode: true, schema: {type: array, items: {type: string}}}
+        - {name: querySpaceDelimitedNoExplode, in: query, style: spaceDelimited, explode: false, schema: {type: array, items: {type: string}}}
+        - {name: queryPipeDelimitedExplode, in: query, style: pipeDelimited, explode: true, schema: {type: array, items: {type: string}}}
+        - {name: queryPipeDelimitedNoExplode, in: query, style: pipeDelimited, explode: false, schema: {type: array, items: {type: string}}}
+        - {name: queryDeepObjectExplode, in: query, style: deepObject, explode: true, schema: {type: object}}
+        - {name: queryDeepObjectNoExplode, in: query, style: deepObject, explode: false, schema: {type: object}}
+        - {name: queryDeepObjectDefaultExplode, in: query, style: deepObject, schema: {type: object}}
+        # Style omitted: the query default is form, and form explodes.
+        - {name: queryDefaulted, in: query, schema: {type: string}}
+
+        # in: header — simple only.
+        - {name: headerSimpleExplode, in: header, style: simple, explode: true, schema: {type: object}}
+        - {name: headerSimpleNoExplode, in: header, style: simple, explode: false, schema: {type: string}}
+        - {name: headerDefaulted, in: header, schema: {type: string}}
+
+        # in: cookie — form only. This is the location whose default arm no
+        # committed golden used to read, so a table that lost it stayed green.
+        - {name: cookieFormExplode, in: cookie, style: form, explode: true, schema: {type: array, items: {type: string}}}
+        - {name: cookieFormNoExplode, in: cookie, style: form, explode: false, schema: {type: string}}
+        - {name: cookieDefaulted, in: cookie, schema: {type: string}}
+
+        # in: querystring — the 3.2 location that binds the whole query string.
+        # It may declare neither style nor schema, so it is the one location whose
+        # serialization is stated entirely by its media type.
+        - name: querystringWhole
+          in: querystring
+          content:
+            application/x-www-form-urlencoded:
+              schema: {type: object}
+      responses:
+        "200": {description: ok}

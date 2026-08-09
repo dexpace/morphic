@@ -1,0 +1,911 @@
+{
+  "irVersion": "0.3.0",
+  "name": "ParamStyleMatrix",
+  "version": "1.0.0",
+  "docs": {},
+  "services": [
+    {
+      "id": "s/openapi/0",
+      "name": {
+        "source": "ParamStyleMatrix",
+        "canonical": "param_style_matrix"
+      },
+      "docs": {},
+      "groups": [
+        {
+          "name": {
+            "hint": "default"
+          },
+          "docs": {},
+          "operations": [
+            {
+              "id": "op/openapi/paths/~1matrix~1{pathMatrixExplode}~1{pathMatrixNoExplode}~1{pathMatrixDefaultExplode}~1{pathLabelExplode}~1{pathLabelNoExplode}~1{pathSimpleExplode}~1{pathSimpleNoExplode}~1{pathDefaulted}/get",
+              "name": {
+                "source": "styleMatrix",
+                "canonical": "style_matrix"
+              },
+              "docs": {},
+              "params": [
+                {
+                  "name": {
+                    "source": "pathMatrixExplode",
+                    "canonical": "path_matrix_explode"
+                  },
+                  "type": {
+                    "target": "t/anon/paths/~1matrix~1{pathMatrixExplode}~1{pathMatrixNoExplode}~1{pathMatrixDefaultExplode}~1{pathLabelExplode}~1{pathLabelNoExplode}~1{pathSimpleExplode}~1{pathSimpleNoExplode}~1{pathDefaulted}/get/parameters/0/schema",
+                    "nullable": false
+                  },
+                  "required": true,
+                  "docs": {}
+                },
+                {
+                  "name": {
+                    "source": "pathMatrixNoExplode",
+                    "canonical": "path_matrix_no_explode"
+                  },
+                  "type": {
+                    "target": "t/anon/paths/~1matrix~1{pathMatrixExplode}~1{pathMatrixNoExplode}~1{pathMatrixDefaultExplode}~1{pathLabelExplode}~1{pathLabelNoExplode}~1{pathSimpleExplode}~1{pathSimpleNoExplode}~1{pathDefaulted}/get/parameters/1/schema",
+                    "nullable": false
+                  },
+                  "required": true,
+                  "docs": {}
+                },
+                {
+                  "name": {
+                    "source": "pathMatrixDefaultExplode",
+                    "canonical": "path_matrix_default_explode"
+                  },
+                  "type": {
+                    "target": "t/anon/paths/~1matrix~1{pathMatrixExplode}~1{pathMatrixNoExplode}~1{pathMatrixDefaultExplode}~1{pathLabelExplode}~1{pathLabelNoExplode}~1{pathSimpleExplode}~1{pathSimpleNoExplode}~1{pathDefaulted}/get/parameters/2/schema",
+                    "nullable": false
+                  },
+                  "required": true,
+                  "docs": {}
+                },
+                {
+                  "name": {
+                    "source": "pathLabelExplode",
+                    "canonical": "path_label_explode"
+                  },
+                  "type": {
+                    "target": "t/anon/paths/~1matrix~1{pathMatrixExplode}~1{pathMatrixNoExplode}~1{pathMatrixDefaultExplode}~1{pathLabelExplode}~1{pathLabelNoExplode}~1{pathSimpleExplode}~1{pathSimpleNoExplode}~1{pathDefaulted}/get/parameters/3/schema",
+                    "nullable": false
+                  },
+                  "required": true,
+                  "docs": {}
+                },
+                {
+                  "name": {
+                    "source": "pathLabelNoExplode",
+                    "canonical": "path_label_no_explode"
+                  },
+                  "type": {
+                    "target": "t/anon/paths/~1matrix~1{pathMatrixExplode}~1{pathMatrixNoExplode}~1{pathMatrixDefaultExplode}~1{pathLabelExplode}~1{pathLabelNoExplode}~1{pathSimpleExplode}~1{pathSimpleNoExplode}~1{pathDefaulted}/get/parameters/4/schema",
+                    "nullable": false
+                  },
+                  "required": true,
+                  "docs": {}
+                },
+                {
+                  "name": {
+                    "source": "pathSimpleExplode",
+                    "canonical": "path_simple_explode"
+                  },
+                  "type": {
+                    "target": "t/prim/string",
+                    "nullable": false
+                  },
+                  "required": true,
+                  "docs": {}
+                },
+                {
+                  "name": {
+                    "source": "pathSimpleNoExplode",
+                    "canonical": "path_simple_no_explode"
+                  },
+                  "type": {
+                    "target": "t/prim/string",
+                    "nullable": false
+                  },
+                  "required": true,
+                  "docs": {}
+                },
+                {
+                  "name": {
+                    "source": "pathDefaulted",
+                    "canonical": "path_defaulted"
+                  },
+                  "type": {
+                    "target": "t/prim/string",
+                    "nullable": false
+                  },
+                  "required": true,
+                  "docs": {}
+                },
+                {
+                  "name": {
+                    "source": "queryFormExplode",
+                    "canonical": "query_form_explode"
+                  },
+                  "type": {
+                    "target": "t/anon/paths/~1matrix~1{pathMatrixExplode}~1{pathMatrixNoExplode}~1{pathMatrixDefaultExplode}~1{pathLabelExplode}~1{pathLabelNoExplode}~1{pathSimpleExplode}~1{pathSimpleNoExplode}~1{pathDefaulted}/get/parameters/8/schema",
+                    "nullable": false
+                  },
+                  "required": false,
+                  "docs": {}
+                },
+                {
+                  "name": {
+                    "source": "queryFormNoExplode",
+                    "canonical": "query_form_no_explode"
+                  },
+                  "type": {
+                    "target": "t/anon/paths/~1matrix~1{pathMatrixExplode}~1{pathMatrixNoExplode}~1{pathMatrixDefaultExplode}~1{pathLabelExplode}~1{pathLabelNoExplode}~1{pathSimpleExplode}~1{pathSimpleNoExplode}~1{pathDefaulted}/get/parameters/9/schema",
+                    "nullable": false
+                  },
+                  "required": false,
+                  "docs": {}
+                },
+                {
+                  "name": {
+                    "source": "querySpaceDelimitedExplode",
+                    "canonical": "query_space_delimited_explode"
+                  },
+                  "type": {
+                    "target": "t/anon/paths/~1matrix~1{pathMatrixExplode}~1{pathMatrixNoExplode}~1{pathMatrixDefaultExplode}~1{pathLabelExplode}~1{pathLabelNoExplode}~1{pathSimpleExplode}~1{pathSimpleNoExplode}~1{pathDefaulted}/get/parameters/10/schema",
+                    "nullable": false
+                  },
+                  "required": false,
+                  "docs": {}
+                },
+                {
+                  "name": {
+                    "source": "querySpaceDelimitedNoExplode",
+                    "canonical": "query_space_delimited_no_explode"
+                  },
+                  "type": {
+                    "target": "t/anon/paths/~1matrix~1{pathMatrixExplode}~1{pathMatrixNoExplode}~1{pathMatrixDefaultExplode}~1{pathLabelExplode}~1{pathLabelNoExplode}~1{pathSimpleExplode}~1{pathSimpleNoExplode}~1{pathDefaulted}/get/parameters/11/schema",
+                    "nullable": false
+                  },
+                  "required": false,
+                  "docs": {}
+                },
+                {
+                  "name": {
+                    "source": "queryPipeDelimitedExplode",
+                    "canonical": "query_pipe_delimited_explode"
+                  },
+                  "type": {
+                    "target": "t/anon/paths/~1matrix~1{pathMatrixExplode}~1{pathMatrixNoExplode}~1{pathMatrixDefaultExplode}~1{pathLabelExplode}~1{pathLabelNoExplode}~1{pathSimpleExplode}~1{pathSimpleNoExplode}~1{pathDefaulted}/get/parameters/12/schema",
+                    "nullable": false
+                  },
+                  "required": false,
+                  "docs": {}
+                },
+                {
+                  "name": {
+                    "source": "queryPipeDelimitedNoExplode",
+                    "canonical": "query_pipe_delimited_no_explode"
+                  },
+                  "type": {
+                    "target": "t/anon/paths/~1matrix~1{pathMatrixExplode}~1{pathMatrixNoExplode}~1{pathMatrixDefaultExplode}~1{pathLabelExplode}~1{pathLabelNoExplode}~1{pathSimpleExplode}~1{pathSimpleNoExplode}~1{pathDefaulted}/get/parameters/13/schema",
+                    "nullable": false
+                  },
+                  "required": false,
+                  "docs": {}
+                },
+                {
+                  "name": {
+                    "source": "queryDeepObjectExplode",
+                    "canonical": "query_deep_object_explode"
+                  },
+                  "type": {
+                    "target": "t/anon/paths/~1matrix~1{pathMatrixExplode}~1{pathMatrixNoExplode}~1{pathMatrixDefaultExplode}~1{pathLabelExplode}~1{pathLabelNoExplode}~1{pathSimpleExplode}~1{pathSimpleNoExplode}~1{pathDefaulted}/get/parameters/14/schema",
+                    "nullable": false
+                  },
+                  "required": false,
+                  "docs": {}
+                },
+                {
+                  "name": {
+                    "source": "queryDeepObjectNoExplode",
+                    "canonical": "query_deep_object_no_explode"
+                  },
+                  "type": {
+                    "target": "t/anon/paths/~1matrix~1{pathMatrixExplode}~1{pathMatrixNoExplode}~1{pathMatrixDefaultExplode}~1{pathLabelExplode}~1{pathLabelNoExplode}~1{pathSimpleExplode}~1{pathSimpleNoExplode}~1{pathDefaulted}/get/parameters/15/schema",
+                    "nullable": false
+                  },
+                  "required": false,
+                  "docs": {}
+                },
+                {
+                  "name": {
+                    "source": "queryDeepObjectDefaultExplode",
+                    "canonical": "query_deep_object_default_explode"
+                  },
+                  "type": {
+                    "target": "t/anon/paths/~1matrix~1{pathMatrixExplode}~1{pathMatrixNoExplode}~1{pathMatrixDefaultExplode}~1{pathLabelExplode}~1{pathLabelNoExplode}~1{pathSimpleExplode}~1{pathSimpleNoExplode}~1{pathDefaulted}/get/parameters/16/schema",
+                    "nullable": false
+                  },
+                  "required": false,
+                  "docs": {}
+                },
+                {
+                  "name": {
+                    "source": "queryDefaulted",
+                    "canonical": "query_defaulted"
+                  },
+                  "type": {
+                    "target": "t/prim/string",
+                    "nullable": false
+                  },
+                  "required": false,
+                  "docs": {}
+                },
+                {
+                  "name": {
+                    "source": "headerSimpleExplode",
+                    "canonical": "header_simple_explode"
+                  },
+                  "type": {
+                    "target": "t/anon/paths/~1matrix~1{pathMatrixExplode}~1{pathMatrixNoExplode}~1{pathMatrixDefaultExplode}~1{pathLabelExplode}~1{pathLabelNoExplode}~1{pathSimpleExplode}~1{pathSimpleNoExplode}~1{pathDefaulted}/get/parameters/18/schema",
+                    "nullable": false
+                  },
+                  "required": false,
+                  "docs": {}
+                },
+                {
+                  "name": {
+                    "source": "headerSimpleNoExplode",
+                    "canonical": "header_simple_no_explode"
+                  },
+                  "type": {
+                    "target": "t/prim/string",
+                    "nullable": false
+                  },
+                  "required": false,
+                  "docs": {}
+                },
+                {
+                  "name": {
+                    "source": "headerDefaulted",
+                    "canonical": "header_defaulted"
+                  },
+                  "type": {
+                    "target": "t/prim/string",
+                    "nullable": false
+                  },
+                  "required": false,
+                  "docs": {}
+                },
+                {
+                  "name": {
+                    "source": "cookieFormExplode",
+                    "canonical": "cookie_form_explode"
+                  },
+                  "type": {
+                    "target": "t/anon/paths/~1matrix~1{pathMatrixExplode}~1{pathMatrixNoExplode}~1{pathMatrixDefaultExplode}~1{pathLabelExplode}~1{pathLabelNoExplode}~1{pathSimpleExplode}~1{pathSimpleNoExplode}~1{pathDefaulted}/get/parameters/21/schema",
+                    "nullable": false
+                  },
+                  "required": false,
+                  "docs": {}
+                },
+                {
+                  "name": {
+                    "source": "cookieFormNoExplode",
+                    "canonical": "cookie_form_no_explode"
+                  },
+                  "type": {
+                    "target": "t/prim/string",
+                    "nullable": false
+                  },
+                  "required": false,
+                  "docs": {}
+                },
+                {
+                  "name": {
+                    "source": "cookieDefaulted",
+                    "canonical": "cookie_defaulted"
+                  },
+                  "type": {
+                    "target": "t/prim/string",
+                    "nullable": false
+                  },
+                  "required": false,
+                  "docs": {}
+                },
+                {
+                  "name": {
+                    "source": "querystringWhole",
+                    "canonical": "querystring_whole"
+                  },
+                  "type": {
+                    "target": "t/anon/paths/~1matrix~1{pathMatrixExplode}~1{pathMatrixNoExplode}~1{pathMatrixDefaultExplode}~1{pathLabelExplode}~1{pathLabelNoExplode}~1{pathSimpleExplode}~1{pathSimpleNoExplode}~1{pathDefaulted}/get/parameters/24/content/application~1x-www-form-urlencoded/schema",
+                    "nullable": false
+                  },
+                  "required": false,
+                  "docs": {}
+                }
+              ],
+              "responses": [
+                {
+                  "name": {
+                    "hint": "200"
+                  },
+                  "conditions": {
+                    "statusCodes": [
+                      {
+                        "from": 200,
+                        "to": 200
+                      }
+                    ]
+                  },
+                  "docs": {
+                    "description": "ok"
+                  }
+                }
+              ],
+              "oneWay": false,
+              "idempotency": {},
+              "auth": null,
+              "bindings": {
+                "http": [
+                  {
+                    "method": "GET",
+                    "uriTemplate": "/matrix/{pathMatrixExplode}/{pathMatrixNoExplode}/{pathMatrixDefaultExplode}/{pathLabelExplode}/{pathLabelNoExplode}/{pathSimpleExplode}/{pathSimpleNoExplode}/{pathDefaulted}",
+                    "sharedRoute": false,
+                    "paramBindings": [
+                      {
+                        "param": "pathMatrixExplode",
+                        "location": "path",
+                        "wireName": "pathMatrixExplode",
+                        "style": "matrix",
+                        "explode": true,
+                        "allowReserved": false
+                      },
+                      {
+                        "param": "pathMatrixNoExplode",
+                        "location": "path",
+                        "wireName": "pathMatrixNoExplode",
+                        "style": "matrix",
+                        "explode": false,
+                        "allowReserved": false
+                      },
+                      {
+                        "param": "pathMatrixDefaultExplode",
+                        "location": "path",
+                        "wireName": "pathMatrixDefaultExplode",
+                        "style": "matrix",
+                        "explode": false,
+                        "allowReserved": false
+                      },
+                      {
+                        "param": "pathLabelExplode",
+                        "location": "path",
+                        "wireName": "pathLabelExplode",
+                        "style": "label",
+                        "explode": true,
+                        "allowReserved": false
+                      },
+                      {
+                        "param": "pathLabelNoExplode",
+                        "location": "path",
+                        "wireName": "pathLabelNoExplode",
+                        "style": "label",
+                        "explode": false,
+                        "allowReserved": false
+                      },
+                      {
+                        "param": "pathSimpleExplode",
+                        "location": "path",
+                        "wireName": "pathSimpleExplode",
+                        "style": "simple",
+                        "explode": true,
+                        "allowReserved": false
+                      },
+                      {
+                        "param": "pathSimpleNoExplode",
+                        "location": "path",
+                        "wireName": "pathSimpleNoExplode",
+                        "style": "simple",
+                        "explode": false,
+                        "allowReserved": false
+                      },
+                      {
+                        "param": "pathDefaulted",
+                        "location": "path",
+                        "wireName": "pathDefaulted",
+                        "style": "simple",
+                        "explode": false,
+                        "allowReserved": false
+                      },
+                      {
+                        "param": "queryFormExplode",
+                        "location": "query",
+                        "wireName": "queryFormExplode",
+                        "style": "form",
+                        "explode": true,
+                        "allowReserved": false
+                      },
+                      {
+                        "param": "queryFormNoExplode",
+                        "location": "query",
+                        "wireName": "queryFormNoExplode",
+                        "style": "form",
+                        "explode": false,
+                        "allowReserved": false
+                      },
+                      {
+                        "param": "querySpaceDelimitedExplode",
+                        "location": "query",
+                        "wireName": "querySpaceDelimitedExplode",
+                        "style": "spaceDelimited",
+                        "explode": true,
+                        "allowReserved": false
+                      },
+                      {
+                        "param": "querySpaceDelimitedNoExplode",
+                        "location": "query",
+                        "wireName": "querySpaceDelimitedNoExplode",
+                        "style": "spaceDelimited",
+                        "explode": false,
+                        "allowReserved": false
+                      },
+                      {
+                        "param": "queryPipeDelimitedExplode",
+                        "location": "query",
+                        "wireName": "queryPipeDelimitedExplode",
+                        "style": "pipeDelimited",
+                        "explode": true,
+                        "allowReserved": false
+                      },
+                      {
+                        "param": "queryPipeDelimitedNoExplode",
+                        "location": "query",
+                        "wireName": "queryPipeDelimitedNoExplode",
+                        "style": "pipeDelimited",
+                        "explode": false,
+                        "allowReserved": false
+                      },
+                      {
+                        "param": "queryDeepObjectExplode",
+                        "location": "query",
+                        "wireName": "queryDeepObjectExplode",
+                        "style": "deepObject",
+                        "explode": true,
+                        "allowReserved": false
+                      },
+                      {
+                        "param": "queryDeepObjectNoExplode",
+                        "location": "query",
+                        "wireName": "queryDeepObjectNoExplode",
+                        "style": "deepObject",
+                        "explode": false,
+                        "allowReserved": false
+                      },
+                      {
+                        "param": "queryDeepObjectDefaultExplode",
+                        "location": "query",
+                        "wireName": "queryDeepObjectDefaultExplode",
+                        "style": "deepObject",
+                        "explode": false,
+                        "allowReserved": false
+                      },
+                      {
+                        "param": "queryDefaulted",
+                        "location": "query",
+                        "wireName": "queryDefaulted",
+                        "style": "form",
+                        "explode": true,
+                        "allowReserved": false
+                      },
+                      {
+                        "param": "headerSimpleExplode",
+                        "location": "header",
+                        "wireName": "headerSimpleExplode",
+                        "style": "simple",
+                        "explode": true,
+                        "allowReserved": false
+                      },
+                      {
+                        "param": "headerSimpleNoExplode",
+                        "location": "header",
+                        "wireName": "headerSimpleNoExplode",
+                        "style": "simple",
+                        "explode": false,
+                        "allowReserved": false
+                      },
+                      {
+                        "param": "headerDefaulted",
+                        "location": "header",
+                        "wireName": "headerDefaulted",
+                        "style": "simple",
+                        "explode": false,
+                        "allowReserved": false
+                      },
+                      {
+                        "param": "cookieFormExplode",
+                        "location": "cookie",
+                        "wireName": "cookieFormExplode",
+                        "style": "form",
+                        "explode": true,
+                        "allowReserved": false
+                      },
+                      {
+                        "param": "cookieFormNoExplode",
+                        "location": "cookie",
+                        "wireName": "cookieFormNoExplode",
+                        "style": "form",
+                        "explode": false,
+                        "allowReserved": false
+                      },
+                      {
+                        "param": "cookieDefaulted",
+                        "location": "cookie",
+                        "wireName": "cookieDefaulted",
+                        "style": "form",
+                        "explode": true,
+                        "allowReserved": false
+                      },
+                      {
+                        "param": "querystringWhole",
+                        "location": "querystring",
+                        "wireName": "querystringWhole",
+                        "style": "form",
+                        "explode": true,
+                        "allowReserved": false,
+                        "contentType": "application/x-www-form-urlencoded"
+                      }
+                    ],
+                    "checksumRequired": false,
+                    "isWebhook": false
+                  }
+                ]
+              },
+              "provenance": {
+                "source": 0,
+                "pointer": "/paths/~1matrix~1{pathMatrixExplode}~1{pathMatrixNoExplode}~1{pathMatrixDefaultExplode}~1{pathLabelExplode}~1{pathLabelNoExplode}~1{pathSimpleExplode}~1{pathSimpleNoExplode}~1{pathDefaulted}/get"
+              }
+            }
+          ]
+        }
+      ],
+      "auth": null,
+      "provenance": {
+        "source": 0
+      }
+    }
+  ],
+  "types": {
+    "t/anon/paths/~1matrix~1{pathMatrixExplode}~1{pathMatrixNoExplode}~1{pathMatrixDefaultExplode}~1{pathLabelExplode}~1{pathLabelNoExplode}~1{pathSimpleExplode}~1{pathSimpleNoExplode}~1{pathDefaulted}/get/parameters/0/schema": {
+      "kind": "list",
+      "id": "t/anon/paths/~1matrix~1{pathMatrixExplode}~1{pathMatrixNoExplode}~1{pathMatrixDefaultExplode}~1{pathLabelExplode}~1{pathLabelNoExplode}~1{pathSimpleExplode}~1{pathSimpleNoExplode}~1{pathDefaulted}/get/parameters/0/schema",
+      "name": {
+        "hint": "pathMatrixExplode"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/paths/~1matrix~1{pathMatrixExplode}~1{pathMatrixNoExplode}~1{pathMatrixDefaultExplode}~1{pathLabelExplode}~1{pathLabelNoExplode}~1{pathSimpleExplode}~1{pathSimpleNoExplode}~1{pathDefaulted}/get/parameters/0/schema"
+      },
+      "elem": {
+        "target": "t/prim/string",
+        "nullable": false
+      }
+    },
+    "t/anon/paths/~1matrix~1{pathMatrixExplode}~1{pathMatrixNoExplode}~1{pathMatrixDefaultExplode}~1{pathLabelExplode}~1{pathLabelNoExplode}~1{pathSimpleExplode}~1{pathSimpleNoExplode}~1{pathDefaulted}/get/parameters/1/schema": {
+      "kind": "list",
+      "id": "t/anon/paths/~1matrix~1{pathMatrixExplode}~1{pathMatrixNoExplode}~1{pathMatrixDefaultExplode}~1{pathLabelExplode}~1{pathLabelNoExplode}~1{pathSimpleExplode}~1{pathSimpleNoExplode}~1{pathDefaulted}/get/parameters/1/schema",
+      "name": {
+        "hint": "pathMatrixNoExplode"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/paths/~1matrix~1{pathMatrixExplode}~1{pathMatrixNoExplode}~1{pathMatrixDefaultExplode}~1{pathLabelExplode}~1{pathLabelNoExplode}~1{pathSimpleExplode}~1{pathSimpleNoExplode}~1{pathDefaulted}/get/parameters/1/schema"
+      },
+      "elem": {
+        "target": "t/prim/string",
+        "nullable": false
+      }
+    },
+    "t/anon/paths/~1matrix~1{pathMatrixExplode}~1{pathMatrixNoExplode}~1{pathMatrixDefaultExplode}~1{pathLabelExplode}~1{pathLabelNoExplode}~1{pathSimpleExplode}~1{pathSimpleNoExplode}~1{pathDefaulted}/get/parameters/10/schema": {
+      "kind": "list",
+      "id": "t/anon/paths/~1matrix~1{pathMatrixExplode}~1{pathMatrixNoExplode}~1{pathMatrixDefaultExplode}~1{pathLabelExplode}~1{pathLabelNoExplode}~1{pathSimpleExplode}~1{pathSimpleNoExplode}~1{pathDefaulted}/get/parameters/10/schema",
+      "name": {
+        "hint": "querySpaceDelimitedExplode"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/paths/~1matrix~1{pathMatrixExplode}~1{pathMatrixNoExplode}~1{pathMatrixDefaultExplode}~1{pathLabelExplode}~1{pathLabelNoExplode}~1{pathSimpleExplode}~1{pathSimpleNoExplode}~1{pathDefaulted}/get/parameters/10/schema"
+      },
+      "elem": {
+        "target": "t/prim/string",
+        "nullable": false
+      }
+    },
+    "t/anon/paths/~1matrix~1{pathMatrixExplode}~1{pathMatrixNoExplode}~1{pathMatrixDefaultExplode}~1{pathLabelExplode}~1{pathLabelNoExplode}~1{pathSimpleExplode}~1{pathSimpleNoExplode}~1{pathDefaulted}/get/parameters/11/schema": {
+      "kind": "list",
+      "id": "t/anon/paths/~1matrix~1{pathMatrixExplode}~1{pathMatrixNoExplode}~1{pathMatrixDefaultExplode}~1{pathLabelExplode}~1{pathLabelNoExplode}~1{pathSimpleExplode}~1{pathSimpleNoExplode}~1{pathDefaulted}/get/parameters/11/schema",
+      "name": {
+        "hint": "querySpaceDelimitedNoExplode"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/paths/~1matrix~1{pathMatrixExplode}~1{pathMatrixNoExplode}~1{pathMatrixDefaultExplode}~1{pathLabelExplode}~1{pathLabelNoExplode}~1{pathSimpleExplode}~1{pathSimpleNoExplode}~1{pathDefaulted}/get/parameters/11/schema"
+      },
+      "elem": {
+        "target": "t/prim/string",
+        "nullable": false
+      }
+    },
+    "t/anon/paths/~1matrix~1{pathMatrixExplode}~1{pathMatrixNoExplode}~1{pathMatrixDefaultExplode}~1{pathLabelExplode}~1{pathLabelNoExplode}~1{pathSimpleExplode}~1{pathSimpleNoExplode}~1{pathDefaulted}/get/parameters/12/schema": {
+      "kind": "list",
+      "id": "t/anon/paths/~1matrix~1{pathMatrixExplode}~1{pathMatrixNoExplode}~1{pathMatrixDefaultExplode}~1{pathLabelExplode}~1{pathLabelNoExplode}~1{pathSimpleExplode}~1{pathSimpleNoExplode}~1{pathDefaulted}/get/parameters/12/schema",
+      "name": {
+        "hint": "queryPipeDelimitedExplode"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/paths/~1matrix~1{pathMatrixExplode}~1{pathMatrixNoExplode}~1{pathMatrixDefaultExplode}~1{pathLabelExplode}~1{pathLabelNoExplode}~1{pathSimpleExplode}~1{pathSimpleNoExplode}~1{pathDefaulted}/get/parameters/12/schema"
+      },
+      "elem": {
+        "target": "t/prim/string",
+        "nullable": false
+      }
+    },
+    "t/anon/paths/~1matrix~1{pathMatrixExplode}~1{pathMatrixNoExplode}~1{pathMatrixDefaultExplode}~1{pathLabelExplode}~1{pathLabelNoExplode}~1{pathSimpleExplode}~1{pathSimpleNoExplode}~1{pathDefaulted}/get/parameters/13/schema": {
+      "kind": "list",
+      "id": "t/anon/paths/~1matrix~1{pathMatrixExplode}~1{pathMatrixNoExplode}~1{pathMatrixDefaultExplode}~1{pathLabelExplode}~1{pathLabelNoExplode}~1{pathSimpleExplode}~1{pathSimpleNoExplode}~1{pathDefaulted}/get/parameters/13/schema",
+      "name": {
+        "hint": "queryPipeDelimitedNoExplode"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/paths/~1matrix~1{pathMatrixExplode}~1{pathMatrixNoExplode}~1{pathMatrixDefaultExplode}~1{pathLabelExplode}~1{pathLabelNoExplode}~1{pathSimpleExplode}~1{pathSimpleNoExplode}~1{pathDefaulted}/get/parameters/13/schema"
+      },
+      "elem": {
+        "target": "t/prim/string",
+        "nullable": false
+      }
+    },
+    "t/anon/paths/~1matrix~1{pathMatrixExplode}~1{pathMatrixNoExplode}~1{pathMatrixDefaultExplode}~1{pathLabelExplode}~1{pathLabelNoExplode}~1{pathSimpleExplode}~1{pathSimpleNoExplode}~1{pathDefaulted}/get/parameters/14/schema": {
+      "kind": "model",
+      "id": "t/anon/paths/~1matrix~1{pathMatrixExplode}~1{pathMatrixNoExplode}~1{pathMatrixDefaultExplode}~1{pathLabelExplode}~1{pathLabelNoExplode}~1{pathSimpleExplode}~1{pathSimpleNoExplode}~1{pathDefaulted}/get/parameters/14/schema",
+      "name": {
+        "hint": "queryDeepObjectExplode"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/paths/~1matrix~1{pathMatrixExplode}~1{pathMatrixNoExplode}~1{pathMatrixDefaultExplode}~1{pathLabelExplode}~1{pathLabelNoExplode}~1{pathSimpleExplode}~1{pathSimpleNoExplode}~1{pathDefaulted}/get/parameters/14/schema"
+      },
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
+    "t/anon/paths/~1matrix~1{pathMatrixExplode}~1{pathMatrixNoExplode}~1{pathMatrixDefaultExplode}~1{pathLabelExplode}~1{pathLabelNoExplode}~1{pathSimpleExplode}~1{pathSimpleNoExplode}~1{pathDefaulted}/get/parameters/15/schema": {
+      "kind": "model",
+      "id": "t/anon/paths/~1matrix~1{pathMatrixExplode}~1{pathMatrixNoExplode}~1{pathMatrixDefaultExplode}~1{pathLabelExplode}~1{pathLabelNoExplode}~1{pathSimpleExplode}~1{pathSimpleNoExplode}~1{pathDefaulted}/get/parameters/15/schema",
+      "name": {
+        "hint": "queryDeepObjectNoExplode"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/paths/~1matrix~1{pathMatrixExplode}~1{pathMatrixNoExplode}~1{pathMatrixDefaultExplode}~1{pathLabelExplode}~1{pathLabelNoExplode}~1{pathSimpleExplode}~1{pathSimpleNoExplode}~1{pathDefaulted}/get/parameters/15/schema"
+      },
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
+    "t/anon/paths/~1matrix~1{pathMatrixExplode}~1{pathMatrixNoExplode}~1{pathMatrixDefaultExplode}~1{pathLabelExplode}~1{pathLabelNoExplode}~1{pathSimpleExplode}~1{pathSimpleNoExplode}~1{pathDefaulted}/get/parameters/16/schema": {
+      "kind": "model",
+      "id": "t/anon/paths/~1matrix~1{pathMatrixExplode}~1{pathMatrixNoExplode}~1{pathMatrixDefaultExplode}~1{pathLabelExplode}~1{pathLabelNoExplode}~1{pathSimpleExplode}~1{pathSimpleNoExplode}~1{pathDefaulted}/get/parameters/16/schema",
+      "name": {
+        "hint": "queryDeepObjectDefaultExplode"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/paths/~1matrix~1{pathMatrixExplode}~1{pathMatrixNoExplode}~1{pathMatrixDefaultExplode}~1{pathLabelExplode}~1{pathLabelNoExplode}~1{pathSimpleExplode}~1{pathSimpleNoExplode}~1{pathDefaulted}/get/parameters/16/schema"
+      },
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
+    "t/anon/paths/~1matrix~1{pathMatrixExplode}~1{pathMatrixNoExplode}~1{pathMatrixDefaultExplode}~1{pathLabelExplode}~1{pathLabelNoExplode}~1{pathSimpleExplode}~1{pathSimpleNoExplode}~1{pathDefaulted}/get/parameters/18/schema": {
+      "kind": "model",
+      "id": "t/anon/paths/~1matrix~1{pathMatrixExplode}~1{pathMatrixNoExplode}~1{pathMatrixDefaultExplode}~1{pathLabelExplode}~1{pathLabelNoExplode}~1{pathSimpleExplode}~1{pathSimpleNoExplode}~1{pathDefaulted}/get/parameters/18/schema",
+      "name": {
+        "hint": "headerSimpleExplode"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/paths/~1matrix~1{pathMatrixExplode}~1{pathMatrixNoExplode}~1{pathMatrixDefaultExplode}~1{pathLabelExplode}~1{pathLabelNoExplode}~1{pathSimpleExplode}~1{pathSimpleNoExplode}~1{pathDefaulted}/get/parameters/18/schema"
+      },
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
+    "t/anon/paths/~1matrix~1{pathMatrixExplode}~1{pathMatrixNoExplode}~1{pathMatrixDefaultExplode}~1{pathLabelExplode}~1{pathLabelNoExplode}~1{pathSimpleExplode}~1{pathSimpleNoExplode}~1{pathDefaulted}/get/parameters/2/schema": {
+      "kind": "list",
+      "id": "t/anon/paths/~1matrix~1{pathMatrixExplode}~1{pathMatrixNoExplode}~1{pathMatrixDefaultExplode}~1{pathLabelExplode}~1{pathLabelNoExplode}~1{pathSimpleExplode}~1{pathSimpleNoExplode}~1{pathDefaulted}/get/parameters/2/schema",
+      "name": {
+        "hint": "pathMatrixDefaultExplode"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/paths/~1matrix~1{pathMatrixExplode}~1{pathMatrixNoExplode}~1{pathMatrixDefaultExplode}~1{pathLabelExplode}~1{pathLabelNoExplode}~1{pathSimpleExplode}~1{pathSimpleNoExplode}~1{pathDefaulted}/get/parameters/2/schema"
+      },
+      "elem": {
+        "target": "t/prim/string",
+        "nullable": false
+      }
+    },
+    "t/anon/paths/~1matrix~1{pathMatrixExplode}~1{pathMatrixNoExplode}~1{pathMatrixDefaultExplode}~1{pathLabelExplode}~1{pathLabelNoExplode}~1{pathSimpleExplode}~1{pathSimpleNoExplode}~1{pathDefaulted}/get/parameters/21/schema": {
+      "kind": "list",
+      "id": "t/anon/paths/~1matrix~1{pathMatrixExplode}~1{pathMatrixNoExplode}~1{pathMatrixDefaultExplode}~1{pathLabelExplode}~1{pathLabelNoExplode}~1{pathSimpleExplode}~1{pathSimpleNoExplode}~1{pathDefaulted}/get/parameters/21/schema",
+      "name": {
+        "hint": "cookieFormExplode"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/paths/~1matrix~1{pathMatrixExplode}~1{pathMatrixNoExplode}~1{pathMatrixDefaultExplode}~1{pathLabelExplode}~1{pathLabelNoExplode}~1{pathSimpleExplode}~1{pathSimpleNoExplode}~1{pathDefaulted}/get/parameters/21/schema"
+      },
+      "elem": {
+        "target": "t/prim/string",
+        "nullable": false
+      }
+    },
+    "t/anon/paths/~1matrix~1{pathMatrixExplode}~1{pathMatrixNoExplode}~1{pathMatrixDefaultExplode}~1{pathLabelExplode}~1{pathLabelNoExplode}~1{pathSimpleExplode}~1{pathSimpleNoExplode}~1{pathDefaulted}/get/parameters/24/content/application~1x-www-form-urlencoded/schema": {
+      "kind": "model",
+      "id": "t/anon/paths/~1matrix~1{pathMatrixExplode}~1{pathMatrixNoExplode}~1{pathMatrixDefaultExplode}~1{pathLabelExplode}~1{pathLabelNoExplode}~1{pathSimpleExplode}~1{pathSimpleNoExplode}~1{pathDefaulted}/get/parameters/24/content/application~1x-www-form-urlencoded/schema",
+      "name": {
+        "hint": "querystringWhole"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/paths/~1matrix~1{pathMatrixExplode}~1{pathMatrixNoExplode}~1{pathMatrixDefaultExplode}~1{pathLabelExplode}~1{pathLabelNoExplode}~1{pathSimpleExplode}~1{pathSimpleNoExplode}~1{pathDefaulted}/get/parameters/24/content/application~1x-www-form-urlencoded/schema"
+      },
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
+    "t/anon/paths/~1matrix~1{pathMatrixExplode}~1{pathMatrixNoExplode}~1{pathMatrixDefaultExplode}~1{pathLabelExplode}~1{pathLabelNoExplode}~1{pathSimpleExplode}~1{pathSimpleNoExplode}~1{pathDefaulted}/get/parameters/3/schema": {
+      "kind": "list",
+      "id": "t/anon/paths/~1matrix~1{pathMatrixExplode}~1{pathMatrixNoExplode}~1{pathMatrixDefaultExplode}~1{pathLabelExplode}~1{pathLabelNoExplode}~1{pathSimpleExplode}~1{pathSimpleNoExplode}~1{pathDefaulted}/get/parameters/3/schema",
+      "name": {
+        "hint": "pathLabelExplode"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/paths/~1matrix~1{pathMatrixExplode}~1{pathMatrixNoExplode}~1{pathMatrixDefaultExplode}~1{pathLabelExplode}~1{pathLabelNoExplode}~1{pathSimpleExplode}~1{pathSimpleNoExplode}~1{pathDefaulted}/get/parameters/3/schema"
+      },
+      "elem": {
+        "target": "t/prim/string",
+        "nullable": false
+      }
+    },
+    "t/anon/paths/~1matrix~1{pathMatrixExplode}~1{pathMatrixNoExplode}~1{pathMatrixDefaultExplode}~1{pathLabelExplode}~1{pathLabelNoExplode}~1{pathSimpleExplode}~1{pathSimpleNoExplode}~1{pathDefaulted}/get/parameters/4/schema": {
+      "kind": "list",
+      "id": "t/anon/paths/~1matrix~1{pathMatrixExplode}~1{pathMatrixNoExplode}~1{pathMatrixDefaultExplode}~1{pathLabelExplode}~1{pathLabelNoExplode}~1{pathSimpleExplode}~1{pathSimpleNoExplode}~1{pathDefaulted}/get/parameters/4/schema",
+      "name": {
+        "hint": "pathLabelNoExplode"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/paths/~1matrix~1{pathMatrixExplode}~1{pathMatrixNoExplode}~1{pathMatrixDefaultExplode}~1{pathLabelExplode}~1{pathLabelNoExplode}~1{pathSimpleExplode}~1{pathSimpleNoExplode}~1{pathDefaulted}/get/parameters/4/schema"
+      },
+      "elem": {
+        "target": "t/prim/string",
+        "nullable": false
+      }
+    },
+    "t/anon/paths/~1matrix~1{pathMatrixExplode}~1{pathMatrixNoExplode}~1{pathMatrixDefaultExplode}~1{pathLabelExplode}~1{pathLabelNoExplode}~1{pathSimpleExplode}~1{pathSimpleNoExplode}~1{pathDefaulted}/get/parameters/8/schema": {
+      "kind": "list",
+      "id": "t/anon/paths/~1matrix~1{pathMatrixExplode}~1{pathMatrixNoExplode}~1{pathMatrixDefaultExplode}~1{pathLabelExplode}~1{pathLabelNoExplode}~1{pathSimpleExplode}~1{pathSimpleNoExplode}~1{pathDefaulted}/get/parameters/8/schema",
+      "name": {
+        "hint": "queryFormExplode"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/paths/~1matrix~1{pathMatrixExplode}~1{pathMatrixNoExplode}~1{pathMatrixDefaultExplode}~1{pathLabelExplode}~1{pathLabelNoExplode}~1{pathSimpleExplode}~1{pathSimpleNoExplode}~1{pathDefaulted}/get/parameters/8/schema"
+      },
+      "elem": {
+        "target": "t/prim/string",
+        "nullable": false
+      }
+    },
+    "t/anon/paths/~1matrix~1{pathMatrixExplode}~1{pathMatrixNoExplode}~1{pathMatrixDefaultExplode}~1{pathLabelExplode}~1{pathLabelNoExplode}~1{pathSimpleExplode}~1{pathSimpleNoExplode}~1{pathDefaulted}/get/parameters/9/schema": {
+      "kind": "list",
+      "id": "t/anon/paths/~1matrix~1{pathMatrixExplode}~1{pathMatrixNoExplode}~1{pathMatrixDefaultExplode}~1{pathLabelExplode}~1{pathLabelNoExplode}~1{pathSimpleExplode}~1{pathSimpleNoExplode}~1{pathDefaulted}/get/parameters/9/schema",
+      "name": {
+        "hint": "queryFormNoExplode"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/paths/~1matrix~1{pathMatrixExplode}~1{pathMatrixNoExplode}~1{pathMatrixDefaultExplode}~1{pathLabelExplode}~1{pathLabelNoExplode}~1{pathSimpleExplode}~1{pathSimpleNoExplode}~1{pathDefaulted}/get/parameters/9/schema"
+      },
+      "elem": {
+        "target": "t/prim/string",
+        "nullable": false
+      }
+    },
+    "t/prim/string": {
+      "kind": "primitive",
+      "id": "t/prim/string",
+      "name": {},
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0
+      },
+      "prim": "string"
+    }
+  },
+  "servers": [
+    {
+      "name": {
+        "hint": "server"
+      },
+      "urlTemplate": "/",
+      "description": {},
+      "auth": null
+    }
+  ],
+  "sources": [
+    {
+      "format": "openapi@3.2",
+      "path": "param-style-matrix.yaml",
+      "hash": "fafa8c2a49971685f6daab565009e1f71c06795144c0cc296cce1499ea48e7a0"
+    }
+  ]
+}

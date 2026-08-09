@@ -9,62 +9,68 @@ protocols.
 
 Legend: ✅ native concept · ⚠ expressible indirectly · — absent
 
-| Capability | OpenAPI 3.x | Swagger 2.0 | TypeSpec | Smithy 2.0 | GraphQL | AsyncAPI | Protobuf | Erlang/OTP |
-|---|---|---|---|---|---|---|---|---|
-| Named object types | ✅ components.schemas | ✅ definitions | ✅ model | ✅ structure | ✅ type/input | ✅ schemas | ✅ message | ✅ -record/-type |
-| Inline/anonymous types | ✅ | ✅ | ✅ | — (all named) | ⚠ | ✅ | ⚠ nested | ✅ type exprs |
-| Inheritance / base types | ⚠ allOf | ⚠ allOf | ✅ extends | ⚠ mixins | ⚠ interfaces (conformance, not inheritance) | ⚠ allOf | — | — |
-| Mixins / spread | — | — | ✅ spread | ✅ mixins | — | ⚠ traits | — | — |
-| Tagged unions | ⚠ oneOf+discriminator | — | ✅ discriminated union | ✅ union | ⚠ union+__typename · ✅ @oneOf inputs (draft) | ⚠ oneOf | ✅ oneof | ✅ tagged tuples |
-| Untagged unions | ✅ oneOf/anyOf | — | ✅ union | — | — | ✅ oneOf | — | ✅ \| |
-| Intersection | ✅ allOf | ✅ allOf | ⚠ & (model is) | — | — | ✅ allOf | — | — |
-| Negation | ✅ not | — | — | — | — | ✅ not | — | — |
-| Enums (string) | ✅ | ✅ | ✅ named members | ✅ enum | ✅ | ✅ | ⚠ | ⚠ atom unions |
-| Enums (numeric, valued) | ✅ | ✅ | ✅ | ✅ intEnum | — | ✅ | ✅ | ⚠ int unions |
-| Open enums (unknown values allowed) | ⚠ anyOf trick | — | ⚠ union w/ string | ✅ (enums are open by default) | — | ⚠ | ✅ open (proto3/editions) / closed (proto2, per-enum feature) | ⚠ atom() fallback |
-| Custom scalars | ⚠ type+format | ⚠ | ✅ scalar extends | ⚠ traits | ✅ scalar | ⚠ | — | ✅ -type/-opaque |
-| Wire encoding hints (@encode / format) | ✅ format | ✅ format | ✅ @encode | ✅ timestampFormat | — | ✅ | ✅ fixed/zigzag/packed/delimited | — (ETF fixed) |
-| Field wire IDs (numeric tags) | — | — | — | — | — | — | ✅ field numbers | ⚠ tuple positions |
-| Wire name ≠ model name | ✅ (property key) | ✅ | ✅ @encodedName | ✅ jsonName (incl. union members) | — | ✅ | ✅ json_name | — |
-| Optionality vs nullability distinct | ✅ (3.1) | ⚠ | ✅ | ⚠ presence only (null via @sparse collections) | ✅ | ✅ | ⚠ presence (3-state: implicit/explicit/required) | ⚠ :=/=> + 'undefined' |
-| Defaults | ✅ | ✅ | ✅ | ✅ | ✅ args + input fields | ✅ | ✅ proto2 | ⚠ record fields |
-| Constraints (min/max/pattern…) | ✅ | ✅ | ✅ decorators | ✅ traits | ⚠ directives (convention only) | ✅ | ⚠ protovalidate | ⚠ ranges, bit sizes |
-| readOnly/writeOnly / visibility | ✅ | ✅ readOnly | ✅ @visibility classes | — | ✅ input vs output types | ⚠ (JSON Schema readOnly) | — | — |
-| Recursive types | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
-| Maps / additionalProperties | ✅ | ✅ | ✅ Record | ✅ map | — | ✅ | ✅ map | ✅ :=/=> |
-| Tuples | ✅ prefixItems (3.1) | — | ✅ | — | — | ✅ | — | ✅ native |
-| Literal types | ✅ const | ⚠ single enum | ✅ | — | — | ✅ | — | ✅ atoms/ints |
-| Operations grouped by service/interface | ✅ tags (3.2 parent/kind) | ⚠ tags | ✅ interface/namespace | ✅ service/resource | ✅ Query/Mutation/Subscription | ⚠ | ✅ service | ✅ module |
-| Resource hierarchy (CRUDL) | — | — | ⚠ @autoRoute | ✅ resource (incl. put, instance vs collection ops) | — | — | — | — |
-| HTTP binding (method/path/status) | ✅ | ✅ | ✅ @route/@get… | ✅ http traits | — | ⚠ ws binding | ⚠ transcoding | — |
-| Param styles (explode, matrix…) | ✅ style/explode | ⚠ collectionFormat | ✅ | ✅ | — | — | — | — |
-| Multiple content types per body | ✅ | ⚠ consumes | ✅ @header contentType | ⚠ | — | ✅ | — | — |
-| Multipart/form encoding | ✅ encoding | ✅ formData | ✅ multipart | — | — | — | — | — |
-| Per-status error types | ✅ responses | ✅ | ✅ @error models | ✅ errors list (client/server fault) | — | — | ⚠ status codes | ⚠ {error, R} variants |
-| Streaming: server (SSE/chunk) | ✅ itemSchema/sequential media types (3.2) | — | ✅ streams | ✅ eventstream | ✅ subscription | ✅ | ✅ stream | ⚠ info streams |
-| Streaming: client / bidi | — | — | ✅ client · ⚠ bidi | ✅ | — | ✅ | ✅ | ⚠ cast/info flows |
-| Events / pub-sub channels | ✅ webhooks (3.1) | — | ✅ events/sse | — | ✅ subscriptions | ✅ channels | — | ✅ gen_event/info |
-| Callbacks / request-reply | ✅ callbacks | — | — | — | — | ✅ reply (static + dynamic address) | — | ⚠ From-reply |
-| Pagination (first-class) | ⚠ x-* / links | — | ✅ @list/@pageItems + prev/first/last links | ✅ paginated trait | ⚠ connections | — | ⚠ AIP-158 | — |
-| Long-running operations | ⚠ x-* | — | ⚠ Azure.Core @pollingOperation | ⚠ smithy.waiters | — | — | ⚠ google.longrunning | ⚠ send_request |
-| Idempotency | ⚠ verb semantics | ⚠ | — | ✅ idempotent/@idempotencyToken | — | — | ✅ idempotency_level | — |
-| Auth schemes | ✅ securitySchemes | ✅ | ✅ @useAuth | ✅ auth traits | — | ✅ (wide: SASL/X509/userPassword; attaches to servers) | ⚠ | — |
-| Per-op auth override (AND/OR) | ✅ security | ✅ | ✅ | ⚠ OR only, priority-ordered | — | ✅ | — | — |
-| Servers / endpoints | ✅ servers+vars (3.2 named) | ✅ host | ✅ @server | ⚠ @endpoint hostPrefix only | — | ✅ named servers+protocols+security | — | ⚠ nodes/registry |
-| Protocol bindings (kafka/amqp/…) | — | — | — | — | — | ✅ bindings | — | ✅ behaviours |
-| Versioning (added/removed) | — | — | ✅ @added/@removed | ⚠ @since | — | — | — | — |
-| Deprecation w/ message | ✅ deprecated | ✅ | ✅ #deprecated | ✅ @deprecated | ✅ @deprecated(reason) | ✅ | ✅ | ✅ -deprecated |
-| Examples | ✅ | ✅ | ✅ @example/@opExample | ✅ trait (input/output/error scenarios) | — | ✅ (header+payload pairs) | — | — |
-| Docs: summary + description | ✅ | ✅ | ✅ @doc/@summary | ✅ @documentation | ✅ description | ✅ | ✅ comments | ✅ -doc/EDoc |
-| Vendor extensions / traits / directives | ✅ x-* | ✅ x-* | ✅ decorators | ✅ traits | ✅ directives (ordered, repeatable) | ✅ x-* | ✅ options | ⚠ module attributes |
-| One-way (fire-and-forget) operations | — | — | — | — | — | ✅ send w/o reply | — | ✅ cast |
-| Positional wire encoding (records as tuples) | ⚠ prefixItems | — | ⚠ tuples | — | — | ⚠ items array | — | ✅ records/tuples |
-| Symbol/atom literal values | — | — | — | — | — | — | — | ✅ atoms |
-| Unsolicited server-initiated messages | ⚠ webhooks | — | — | — | ⚠ subscriptions | ✅ channels | — | ✅ info |
-| Multi-format payload schemas | — | — | — | — | — | ✅ schemaFormat (Avro/Protobuf/RAML) | — | — |
-| Third-party field extensions / extension ranges | — | — | — | — | — | — | ✅ extend/extensions | — |
-| Field arguments (parameterized fields) | — | — | — | — | ✅ | — | — | — |
-| Client-selectable response shape | — | — | — | — | ✅ selection sets | — | — | — |
+The **Key** column is the row's stable identifier, and it is read by machine as well as by eye:
+each conformance corpus spec names the keys it witnesses, and a test requires every row a format
+can express to be witnessed by a spec or listed as not-yet-covered with a reason. Keys are
+therefore append-only in spirit — renaming one, or deleting a row a spec still names, fails that
+test. Adding a row that a format can express fails it too, until the row is witnessed or excluded.
+
+| Key | Capability | OpenAPI 3.x | Swagger 2.0 | TypeSpec | Smithy 2.0 | GraphQL | AsyncAPI | Protobuf | Erlang/OTP |
+|---|---|---|---|---|---|---|---|---|---|
+| `named-objects` | Named object types | ✅ components.schemas | ✅ definitions | ✅ model | ✅ structure | ✅ type/input | ✅ schemas | ✅ message | ✅ -record/-type |
+| `inline-anonymous` | Inline/anonymous types | ✅ | ✅ | ✅ | — (all named) | ⚠ | ✅ | ⚠ nested | ✅ type exprs |
+| `inheritance` | Inheritance / base types | ⚠ allOf | ⚠ allOf | ✅ extends | ⚠ mixins | ⚠ interfaces (conformance, not inheritance) | ⚠ allOf | — | — |
+| `mixins` | Mixins / spread | — | — | ✅ spread | ✅ mixins | — | ⚠ traits | — | — |
+| `tagged-unions` | Tagged unions | ⚠ oneOf+discriminator | — | ✅ discriminated union | ✅ union | ⚠ union+__typename · ✅ @oneOf inputs (draft) | ⚠ oneOf | ✅ oneof | ✅ tagged tuples |
+| `untagged-unions` | Untagged unions | ✅ oneOf/anyOf | — | ✅ union | — | — | ✅ oneOf | — | ✅ \| |
+| `intersection` | Intersection | ✅ allOf | ✅ allOf | ⚠ & (model is) | — | — | ✅ allOf | — | — |
+| `negation` | Negation | ✅ not | — | — | — | — | ✅ not | — | — |
+| `enums-string` | Enums (string) | ✅ | ✅ | ✅ named members | ✅ enum | ✅ | ✅ | ⚠ | ⚠ atom unions |
+| `enums-numeric` | Enums (numeric, valued) | ✅ | ✅ | ✅ | ✅ intEnum | — | ✅ | ✅ | ⚠ int unions |
+| `open-enums` | Open enums (unknown values allowed) | ⚠ anyOf trick | — | ⚠ union w/ string | ✅ (enums are open by default) | — | ⚠ | ✅ open (proto3/editions) / closed (proto2, per-enum feature) | ⚠ atom() fallback |
+| `custom-scalars` | Custom scalars | ⚠ type+format | ⚠ | ✅ scalar extends | ⚠ traits | ✅ scalar | ⚠ | — | ✅ -type/-opaque |
+| `encoding-hints` | Wire encoding hints (@encode / format) | ✅ format | ✅ format | ✅ @encode | ✅ timestampFormat | — | ✅ | ✅ fixed/zigzag/packed/delimited | — (ETF fixed) |
+| `field-wire-ids` | Field wire IDs (numeric tags) | — | — | — | — | — | — | ✅ field numbers | ⚠ tuple positions |
+| `wire-name-distinct` | Wire name ≠ model name | ✅ (property key) | ✅ | ✅ @encodedName | ✅ jsonName (incl. union members) | — | ✅ | ✅ json_name | — |
+| `optionality-vs-nullability` | Optionality vs nullability distinct | ✅ (3.1) | ⚠ | ✅ | ⚠ presence only (null via @sparse collections) | ✅ | ✅ | ⚠ presence (3-state: implicit/explicit/required) | ⚠ :=/=> + 'undefined' |
+| `defaults` | Defaults | ✅ | ✅ | ✅ | ✅ | ✅ args + input fields | ✅ | ✅ proto2 | ⚠ record fields |
+| `constraints` | Constraints (min/max/pattern…) | ✅ | ✅ | ✅ decorators | ✅ traits | ⚠ directives (convention only) | ✅ | ⚠ protovalidate | ⚠ ranges, bit sizes |
+| `visibility` | readOnly/writeOnly / visibility | ✅ | ✅ readOnly | ✅ @visibility classes | — | ✅ input vs output types | ⚠ (JSON Schema readOnly) | — | — |
+| `recursive-types` | Recursive types | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| `maps` | Maps / additionalProperties | ✅ | ✅ | ✅ Record | ✅ map | — | ✅ | ✅ map | ✅ :=/=> |
+| `tuples` | Tuples | ✅ prefixItems (3.1) | — | ✅ | — | — | ✅ | — | ✅ native |
+| `literal-types` | Literal types | ✅ const | ⚠ single enum | ✅ | — | — | ✅ | — | ✅ atoms/ints |
+| `operation-grouping` | Operations grouped by service/interface | ✅ tags (3.2 parent/kind) | ⚠ tags | ✅ interface/namespace | ✅ service/resource | ✅ Query/Mutation/Subscription | ⚠ | ✅ service | ✅ module |
+| `resource-hierarchy` | Resource hierarchy (CRUDL) | — | — | ⚠ @autoRoute | ✅ resource (incl. put, instance vs collection ops) | — | — | — | — |
+| `http-binding` | HTTP binding (method/path/status) | ✅ | ✅ | ✅ @route/@get… | ✅ http traits | — | ⚠ ws binding | ⚠ transcoding | — |
+| `param-styles` | Param styles (explode, matrix…) | ✅ style/explode | ⚠ collectionFormat | ✅ | ✅ | — | — | — | — |
+| `multi-content` | Multiple content types per body | ✅ | ⚠ consumes | ✅ @header contentType | ⚠ | — | ✅ | — | — |
+| `multipart-encoding` | Multipart/form encoding | ✅ encoding | ✅ formData | ✅ multipart | — | — | — | — | — |
+| `per-status-errors` | Per-status error types | ✅ responses | ✅ | ✅ @error models | ✅ errors list (client/server fault) | — | — | ⚠ status codes | ⚠ {error, R} variants |
+| `streaming-server` | Streaming: server (SSE/chunk) | ✅ itemSchema/sequential media types (3.2) | — | ✅ streams | ✅ eventstream | ✅ subscription | ✅ | ✅ stream | ⚠ info streams |
+| `streaming-client` | Streaming: client / bidi | — | — | ✅ client · ⚠ bidi | ✅ | — | ✅ | ✅ | ⚠ cast/info flows |
+| `events-channels` | Events / pub-sub channels | ✅ webhooks (3.1) | — | ✅ events/sse | — | ✅ subscriptions | ✅ channels | — | ✅ gen_event/info |
+| `callbacks` | Callbacks / request-reply | ✅ callbacks | — | — | — | — | ✅ reply (static + dynamic address) | — | ⚠ From-reply |
+| `pagination` | Pagination (first-class) | ⚠ x-* / links | — | ✅ @list/@pageItems + prev/first/last links | ✅ paginated trait | ⚠ connections | — | ⚠ AIP-158 | — |
+| `long-running-operations` | Long-running operations | ⚠ x-* | — | ⚠ Azure.Core @pollingOperation | ⚠ smithy.waiters | — | — | ⚠ google.longrunning | ⚠ send_request |
+| `idempotency` | Idempotency | ⚠ verb semantics | ⚠ | — | ✅ idempotent/@idempotencyToken | — | — | ✅ idempotency_level | — |
+| `auth-schemes` | Auth schemes | ✅ securitySchemes | ✅ | ✅ @useAuth | ✅ auth traits | — | ✅ (wide: SASL/X509/userPassword; attaches to servers) | ⚠ | — |
+| `per-op-auth` | Per-op auth override (AND/OR) | ✅ security | ✅ | ✅ | ⚠ OR only, priority-ordered | — | ✅ | — | — |
+| `servers` | Servers / endpoints | ✅ servers+vars (3.2 named) | ✅ host | ✅ @server | ⚠ @endpoint hostPrefix only | — | ✅ named servers+protocols+security | — | ⚠ nodes/registry |
+| `protocol-bindings` | Protocol bindings (kafka/amqp/…) | — | — | — | — | — | ✅ bindings | — | ✅ behaviours |
+| `versioning` | Versioning (added/removed) | — | — | ✅ @added/@removed | ⚠ @since | — | — | — | — |
+| `deprecation` | Deprecation w/ message | ✅ deprecated | ✅ | ✅ #deprecated | ✅ @deprecated | ✅ @deprecated(reason) | ✅ | ✅ | ✅ -deprecated |
+| `examples` | Examples | ✅ | ✅ | ✅ @example/@opExample | ✅ trait (input/output/error scenarios) | — | ✅ (header+payload pairs) | — | — |
+| `docs-summary-description` | Docs: summary + description | ✅ | ✅ | ✅ @doc/@summary | ✅ @documentation | ✅ description | ✅ | ✅ comments | ✅ -doc/EDoc |
+| `vendor-extensions` | Vendor extensions / traits / directives | ✅ x-* | ✅ x-* | ✅ decorators | ✅ traits | ✅ directives (ordered, repeatable) | ✅ x-* | ✅ options | ⚠ module attributes |
+| `one-way-operations` | One-way (fire-and-forget) operations | — | — | — | — | — | ✅ send w/o reply | — | ✅ cast |
+| `positional-encoding` | Positional wire encoding (records as tuples) | ⚠ prefixItems | — | ⚠ tuples | — | — | ⚠ items array | — | ✅ records/tuples |
+| `symbol-literals` | Symbol/atom literal values | — | — | — | — | — | — | — | ✅ atoms |
+| `server-initiated-messages` | Unsolicited server-initiated messages | ⚠ webhooks | — | — | — | ⚠ subscriptions | ✅ channels | — | ✅ info |
+| `multi-format-payloads` | Multi-format payload schemas | — | — | — | — | — | ✅ schemaFormat (Avro/Protobuf/RAML) | — | — |
+| `field-extension-ranges` | Third-party field extensions / extension ranges | — | — | — | — | — | — | ✅ extend/extensions | — |
+| `field-arguments` | Field arguments (parameterized fields) | — | — | — | — | ✅ | — | — | — |
+| `selection-sets` | Client-selectable response shape | — | — | — | — | ✅ selection sets | — | — | — |
 
 ## Consequences for the IR
 

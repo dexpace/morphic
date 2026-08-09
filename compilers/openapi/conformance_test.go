@@ -125,81 +125,93 @@ func corpusSpecNames(t *testing.T) []string {
 }
 
 // conformanceCase pairs one corpus spec with the assertion that says what
-// capturing its capability losslessly means.
+// capturing its capability losslessly means, and with the capability rows of
+// ir-spec-matrix.md it witnesses.
+//
+// rows may be empty. The corpus also holds specs pinning a construct the matrix
+// has no row for — a JSON Schema dialect keyword, an XML hint, a residue that
+// must survive with no IR home — and a row invented to receive one of those
+// would make the matrix describe the corpus instead of the source formats. The
+// direction the contract runs in is row → spec, checked in
+// conformance_matrix_test.go; the reverse direction is already covered, by
+// TestConformance_TableNamesEveryCorpusSpec.
 type conformanceCase struct {
 	file   string
 	assert func(*testing.T, *ir.Document, []ir.Diagnostic)
+	rows   []string
 }
 
-// conformanceCases is the corpus table: one row per spec, each naming the file
-// and the assertion that reads it.
+// conformanceCases is the corpus table: one row per spec, each naming the file,
+// the assertion that reads it, and the matrix rows it witnesses.
 func conformanceCases() []conformanceCase {
 	return []conformanceCase{
-		{"named-types", assertNamedTypes},
-		{"neutral-naming", assertNeutralNaming},
-		{"empty-names", assertEmptyNames},
-		{"inline-types", assertInlineTypes},
-		{"component-reuse", assertComponentReuse},
-		{"allof-inheritance", assertAllOfInheritance},
-		{"allof-mixins", assertAllOfMixins},
-		{"allof-inline-merge", assertAllOfInlineMerge},
-		{"allof-required-only", assertAllOfRequiredOnly},
-		{"allof-oneof-cooccurrence", assertAllOfOneOfCooccurrence},
-		{"allof-inline-residue", assertAllOfInlineResidue},
-		{"allof-ref-branch-siblings", assertAllOfRefBranchSiblings},
-		{"allof-boolean-branch", assertAllOfBooleanBranch},
-		{"oneof-discriminated", assertOneOfDiscriminated},
-		{"discriminator-inheritance", assertDiscriminatorInheritance},
-		{"discriminator-default-mapping", assertDiscriminatorDefaultMapping},
-		{"unhomed-keywords", assertUnhomedKeywords},
-		{"codeclared-keywords", assertCoDeclaredKeywords},
-		{"anyof-untagged", assertAnyOfUntagged},
-		{"negation-not", assertNegationNot},
-		{"dependent-required", assertDependentRequired},
-		{"dialect-keywords", assertDialectKeywords},
-		{"dynamic-ref", assertDynamicRef},
-		{"enum-string", assertEnumString},
-		{"enum-numeric", assertEnumNumeric},
-		{"scalar-format", assertScalarFormat},
-		{"encoding-byte", assertEncodingByte},
-		{"content-vocabulary", assertContentVocabulary},
-		{"xml-hints", assertXMLHints},
-		{"nullability-four-states", assertNullabilityFourStates},
-		{"nullable-30", assertNullable30},
-		{"nullable-31-ref", assertNullable31Ref},
-		{"nullable-enum-31", assertNullableEnum31},
-		{"defaults", assertDefaults},
-		{"yaml-timestamp-scalars", assertYAMLTimestampScalars},
-		{"constraints", assertConstraints},
-		{"numeric-precision", assertNumericPrecision},
-		{"readonly-writeonly", assertReadOnlyWriteOnly},
-		{"recursive", assertRecursive},
-		{"maps", assertMaps},
-		{"tuples-prefixitems", assertTuples},
-		{"literal-const", assertLiteralConst},
-		{"tags-grouping", assertTagsGrouping},
-		{"http-binding", assertHTTPBinding},
-		{"param-styles", assertParamStyles},
-		{"param-xml-residue", assertParamXMLResidue},
-		{"param-ref-inheritance", assertParamRefInheritance},
-		{"header-content-schema", assertHeaderContentSchema},
-		{"multi-content", assertMultiContent},
-		{"multipart-encoding", assertMultipartEncoding},
-		{"file-body", assertFileBody},
-		{"sequential-media", assertSequentialMedia},
-		{"per-status-errors", assertPerStatusErrors},
-		{"response-links", assertResponseLinks},
-		{"webhooks", assertWebhooks},
-		{"callbacks", assertCallbacks},
-		{"deprecation", assertDeprecation},
-		{"examples", assertExamples},
-		{"docs-summary-desc", assertDocsSummaryDesc},
-		{"extensions-x", assertExtensionsX},
-		{"inline-annotations", assertInlineAnnotations},
-		{"inline-residue", assertInlineResidue},
-		{"servers-variables", assertServersVariables},
-		{"security-schemes", assertSecuritySchemes},
-		{"security-or-and", assertSecurityOrAnd},
+		{"named-types", assertNamedTypes, []string{"named-objects"}},
+		{"neutral-naming", assertNeutralNaming, []string{"wire-name-distinct"}},
+		{"empty-names", assertEmptyNames, []string{"wire-name-distinct"}},
+		{"inline-types", assertInlineTypes, []string{"inline-anonymous"}},
+		{"component-reuse", assertComponentReuse, []string{"named-objects", "inline-anonymous"}},
+		{"allof-inheritance", assertAllOfInheritance, []string{"inheritance"}},
+		{"allof-mixins", assertAllOfMixins, []string{"intersection"}},
+		{"allof-inline-merge", assertAllOfInlineMerge, []string{"intersection"}},
+		{"allof-required-only", assertAllOfRequiredOnly, []string{"intersection"}},
+		{"allof-oneof-cooccurrence", assertAllOfOneOfCooccurrence, []string{"intersection", "untagged-unions"}},
+		{"allof-inline-residue", assertAllOfInlineResidue, []string{"intersection"}},
+		{"allof-ref-branch-siblings", assertAllOfRefBranchSiblings, []string{"intersection", "untagged-unions"}},
+		{"allof-boolean-branch", assertAllOfBooleanBranch, []string{"intersection"}},
+		{"oneof-discriminated", assertOneOfDiscriminated, []string{"tagged-unions"}},
+		{"discriminator-inheritance", assertDiscriminatorInheritance, []string{"tagged-unions", "inheritance"}},
+		{"discriminator-default-mapping", assertDiscriminatorDefaultMapping, []string{"tagged-unions"}},
+		{"unhomed-keywords", assertUnhomedKeywords, []string{"constraints"}},
+		{"codeclared-keywords", assertCoDeclaredKeywords, []string{"intersection", "literal-types", "enums-string"}},
+		{"anyof-untagged", assertAnyOfUntagged, []string{"untagged-unions"}},
+		{"negation-not", assertNegationNot, []string{"negation"}},
+		{"dependent-required", assertDependentRequired, []string{"constraints"}},
+		{"dialect-keywords", assertDialectKeywords, nil},
+		{"dynamic-ref", assertDynamicRef, []string{"recursive-types"}},
+		{"enum-string", assertEnumString, []string{"enums-string"}},
+		{"enum-numeric", assertEnumNumeric, []string{"enums-numeric"}},
+		{"scalar-format", assertScalarFormat, []string{"custom-scalars"}},
+		{"encoding-byte", assertEncodingByte, []string{"encoding-hints"}},
+		{"content-vocabulary", assertContentVocabulary, []string{"encoding-hints"}},
+		{"xml-hints", assertXMLHints, nil},
+		{"nullability-four-states", assertNullabilityFourStates, []string{"optionality-vs-nullability"}},
+		{"nullable-30", assertNullable30, []string{"optionality-vs-nullability"}},
+		{"nullable-31-ref", assertNullable31Ref, []string{"optionality-vs-nullability"}},
+		{"nullable-enum-31", assertNullableEnum31, []string{"optionality-vs-nullability", "enums-string"}},
+		{"defaults", assertDefaults, []string{"defaults"}},
+		{"yaml-timestamp-scalars", assertYAMLTimestampScalars, []string{"defaults", "literal-types"}},
+		{"constraints", assertConstraints, []string{"constraints"}},
+		{"numeric-precision", assertNumericPrecision, []string{"constraints", "defaults", "literal-types"}},
+		{"readonly-writeonly", assertReadOnlyWriteOnly, []string{"visibility"}},
+		{"recursive", assertRecursive, []string{"recursive-types"}},
+		{"maps", assertMaps, []string{"maps"}},
+		{"tuples-prefixitems", assertTuples, []string{"tuples", "positional-encoding"}},
+		{"literal-const", assertLiteralConst, []string{"literal-types"}},
+		{"tags-grouping", assertTagsGrouping, []string{"operation-grouping"}},
+		{"http-binding", assertHTTPBinding, []string{"http-binding"}},
+		{"param-styles", assertParamStyles, []string{"param-styles"}},
+		{"param-style-matrix", assertParamStyleMatrix, []string{"param-styles"}},
+		{"param-xml-residue", assertParamXMLResidue, nil},
+		{"param-ref-inheritance", assertParamRefInheritance, []string{"defaults", "deprecation", "docs-summary-description"}},
+		{"header-content-schema", assertHeaderContentSchema, []string{"multi-content"}},
+		{"multi-content", assertMultiContent, []string{"multi-content"}},
+		{"multipart-encoding", assertMultipartEncoding, []string{"multipart-encoding"}},
+		{"file-body", assertFileBody, []string{"encoding-hints"}},
+		{"sequential-media", assertSequentialMedia, []string{"streaming-server"}},
+		{"per-status-errors", assertPerStatusErrors, []string{"per-status-errors"}},
+		{"response-links", assertResponseLinks, []string{"pagination"}},
+		{"webhooks", assertWebhooks, []string{"events-channels", "server-initiated-messages"}},
+		{"callbacks", assertCallbacks, []string{"callbacks"}},
+		{"inline-hoist-positions", assertInlineHoistPositions, []string{"inline-anonymous"}},
+		{"deprecation", assertDeprecation, []string{"deprecation"}},
+		{"examples", assertExamples, []string{"examples"}},
+		{"docs-summary-desc", assertDocsSummaryDesc, []string{"docs-summary-description"}},
+		{"extensions-x", assertExtensionsX, []string{"vendor-extensions"}},
+		{"inline-annotations", assertInlineAnnotations, []string{"vendor-extensions", "inline-anonymous"}},
+		{"inline-residue", assertInlineResidue, []string{"inline-anonymous"}},
+		{"servers-variables", assertServersVariables, []string{"servers"}},
+		{"security-schemes", assertSecuritySchemes, []string{"auth-schemes"}},
+		{"security-or-and", assertSecurityOrAnd, []string{"per-op-auth"}},
 	}
 }
 
@@ -522,6 +534,104 @@ func assertInlineTypes(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
 	require.True(t, ok, "the inline object was hoisted as its own type")
 	assert.True(t, inline.Anonymous)
 	assert.Equal(t, "shipping", inline.Name.Hint)
+}
+
+// assertInlineHoistPositions pins the six operation-side positions an inline
+// composite can be declared at, against the ID each one's source pointer
+// derives.
+//
+// inline-types.yaml pins one position, a schema property; the inlinePositions
+// table in compilers/openapi/internal/schema pins the nine that package reaches
+// on its own. Neither reaches a parameter, a response header, a webhook or a
+// callback, which are lowered a layer up — and the callback operation body had
+// no anonymous node anywhere in the corpus, so a hoist that mis-derived its ID
+// changed no golden at all.
+//
+// Both directions are asserted. The referring site must point at the derived ID,
+// which is what a moved position changes; and the six targets must be six
+// distinct nodes, which is what a hoist collapsing identical bodies onto one
+// node changes. The fixture writes the same body at all six so that second
+// failure is reachable at all.
+func assertInlineHoistPositions(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
+	got := inlineHoistPositionRefs(t, doc)
+	if diff := cmp.Diff(inlineHoistPositionIDs(), got); diff != "" {
+		t.Errorf("hoisted node per source position (-want +got):\n%s", diff)
+	}
+
+	owner := map[ir.TypeID]string{}
+	for position, id := range got {
+		assert.NotContains(t, owner, id,
+			"the %s and %s positions share one node, %s", owner[id], position, id)
+		owner[id] = position
+
+		node, found := doc.Types[id]
+		require.True(t, found, "%s: nothing is interned at %s", position, id)
+		model, ok := node.(*ir.Model)
+		require.True(t, ok, "%s: the inline object hoisted as a model", position)
+		assert.True(t, model.Anonymous, "%s: a minted node is anonymous", position)
+		assert.Len(t, model.Properties, 1, "%s: it kept the body it was declared with", position)
+	}
+}
+
+// inlineHoistPositionIDs is the ID each position's source pointer derives,
+// spelled out so a node that moves to another pointer is a diff rather than a
+// silently different document.
+func inlineHoistPositionIDs() map[string]ir.TypeID {
+	const order = "t/anon/paths/~1orders/post"
+	return map[string]ir.TypeID{
+		"parameter schema":       order + "/parameters/0/schema",
+		"response-header schema": order + "/responses/200/headers/X-Order-Trace/schema",
+		"request-body property":  order + "/requestBody/content/application~1json/schema/properties/shipping",
+		"response-body property": order + "/responses/200/content/application~1json/schema/properties/receipt",
+		"webhook body":           "t/anon/webhooks/onShipped/post/requestBody/content/application~1json/schema",
+		"callback body": order + "/callbacks/onProgress/{$request.body#~1callbackUrl}" +
+			"/post/requestBody/content/application~1json/schema",
+	}
+}
+
+// inlineHoistPositionRefs reads back what each declaring site actually refers
+// to. It walks from the operation rather than from doc.Types so a node interned
+// at the right ID but wired to nothing still fails.
+func inlineHoistPositionRefs(t *testing.T, doc *ir.Document) map[string]ir.TypeID {
+	t.Helper()
+	order, ok := opByName(doc, "placeOrder")
+	require.True(t, ok)
+	audit, ok := paramByName(order, "audit")
+	require.True(t, ok, "the operation declares its inline-schema parameter")
+	require.Len(t, order.Responses, 1)
+	require.Len(t, order.Responses[0].Headers, 1, "the response declares its inline-schema header")
+	webhook, ok := opByName(doc, "onShipped")
+	require.True(t, ok, "the webhook operation is registered")
+	callback, ok := opByName(doc, "onProgress")
+	require.True(t, ok, "the callback operation is registered")
+
+	return map[string]ir.TypeID{
+		"parameter schema":       audit.Type.Target,
+		"response-header schema": order.Responses[0].Headers[0].Type.Target,
+		"request-body property":  inlinePropTarget(t, doc, bodyTarget(t, order.Request), "shipping"),
+		"response-body property": inlinePropTarget(t, doc, bodyTarget(t, order.Responses[0].Payload), "receipt"),
+		"webhook body":           bodyTarget(t, webhook.Request),
+		"callback body":          bodyTarget(t, callback.Request),
+	}
+}
+
+// bodyTarget returns the type a single-media-type payload refers to.
+func bodyTarget(t *testing.T, payload *ir.Payload) ir.TypeID {
+	t.Helper()
+	require.NotNil(t, payload, "the operation declares a body")
+	require.Len(t, payload.Contents, 1, "the body declares one media type")
+	return payload.Contents[0].Type.Target
+}
+
+// inlinePropTarget returns the type the named property of the model at id refers
+// to — the body-property positions, one level inside a body root.
+func inlinePropTarget(t *testing.T, doc *ir.Document, id ir.TypeID, wire string) ir.TypeID {
+	t.Helper()
+	model, ok := doc.Types[id].(*ir.Model)
+	require.True(t, ok, "the body at %s hoisted as a model", id)
+	prop, ok := propByWire(model, wire)
+	require.True(t, ok, "the body declares the property %q", wire)
+	return prop.Type.Target
 }
 
 // assertComponentReuse covers the non-schema half of `$ref`: OpenAPI lets a
@@ -1450,6 +1560,139 @@ func assertAllowEmptyValueKept(t *testing.T, op ir.Operation) {
 	require.True(t, ok, "and its declared flag is kept beside it")
 	assert.Equal(t, ir.ReasonNoIRHome, entry.Reason)
 	assert.JSONEq(t, `true`, string(entry.Value))
+}
+
+// paramWire is what a parameter's location-dependent serialization resolves to:
+// where it binds, the style it serializes with, and whether it explodes. The
+// three travel together because OpenAPI settles them together — the location
+// picks the style when none is written, and the style picks explode.
+type paramWire struct {
+	Location ir.HTTPLocation
+	Style    string
+	Explode  bool
+}
+
+// assertParamStyleMatrix pins the whole of OpenAPI's location-dependent
+// serialization table at once, against a literal map rather than a spot check
+// per location.
+//
+// The table used to be readable for a whole location without any golden
+// noticing: deleting cookie from the arm that defaults it to form left the
+// entire suite green, because no committed spec declared a cookie parameter.
+// Comparing the resolved (location, style, explode) of every parameter closes
+// that by construction — a location that loses its arm changes rows here.
+func assertParamStyleMatrix(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
+	op, ok := opByName(doc, "styleMatrix")
+	require.True(t, ok)
+	require.Len(t, op.Bindings.HTTP, 1)
+
+	got := make(map[string]paramWire, len(op.Bindings.HTTP[0].ParamBindings))
+	for _, pb := range op.Bindings.HTTP[0].ParamBindings {
+		require.NotNil(t, pb.Explode, "%s: explode resolves to a value, never to nothing", pb.Param)
+		got[pb.Param] = paramWire{Location: pb.Location, Style: pb.Style, Explode: *pb.Explode}
+	}
+	if diff := cmp.Diff(paramStyleMatrixWant(), got); diff != "" {
+		t.Errorf("resolved parameter serialization (-want +got):\n%s", diff)
+	}
+
+	assertParamStyleMatrixIsComplete(t, got)
+	assertQuerystringParam(t, op)
+}
+
+// paramStyleMatrixWant is what param-style-matrix.yaml must resolve to: the nine
+// legal (in, style) pairs with explode written both ways, plus the five
+// locations with style omitted so the per-location default is what answers.
+func paramStyleMatrixWant() map[string]paramWire {
+	const (
+		path        = ir.HTTPLocationPath
+		query       = ir.HTTPLocationQuery
+		header      = ir.HTTPLocationHeader
+		cookie      = ir.HTTPLocationCookie
+		querystring = ir.HTTPLocationQuerystring
+	)
+	return map[string]paramWire{
+		"pathMatrixExplode":             {path, "matrix", true},
+		"pathMatrixNoExplode":           {path, "matrix", false},
+		"pathMatrixDefaultExplode":      {path, "matrix", false},
+		"pathLabelExplode":              {path, "label", true},
+		"pathLabelNoExplode":            {path, "label", false},
+		"pathSimpleExplode":             {path, "simple", true},
+		"pathSimpleNoExplode":           {path, "simple", false},
+		"pathDefaulted":                 {path, "simple", false},
+		"queryFormExplode":              {query, "form", true},
+		"queryFormNoExplode":            {query, "form", false},
+		"querySpaceDelimitedExplode":    {query, "spaceDelimited", true},
+		"querySpaceDelimitedNoExplode":  {query, "spaceDelimited", false},
+		"queryPipeDelimitedExplode":     {query, "pipeDelimited", true},
+		"queryPipeDelimitedNoExplode":   {query, "pipeDelimited", false},
+		"queryDeepObjectExplode":        {query, "deepObject", true},
+		"queryDeepObjectNoExplode":      {query, "deepObject", false},
+		"queryDeepObjectDefaultExplode": {query, "deepObject", false},
+		"queryDefaulted":                {query, "form", true},
+		"headerSimpleExplode":           {header, "simple", true},
+		"headerSimpleNoExplode":         {header, "simple", false},
+		"headerDefaulted":               {header, "simple", false},
+		"cookieFormExplode":             {cookie, "form", true},
+		"cookieFormNoExplode":           {cookie, "form", false},
+		"cookieDefaulted":               {cookie, "form", true},
+		// The compiler's own answer at a location that declares none — see
+		// assertQuerystringParam.
+		"querystringWhole": {querystring, "form", true},
+	}
+}
+
+// assertParamStyleMatrixIsComplete derives what the fixture reached and checks
+// it against OpenAPI's own count rather than against itself: path takes
+// simple|label|matrix, query form|spaceDelimited|pipeDelimited|deepObject,
+// header simple and cookie form — nine pairs, eighteen with explode both ways.
+// querystring is the fifth location and takes no style at all, so it is left out
+// rather than counted as a tenth pair.
+//
+// The literal table above would still pass if a row were deleted from both it
+// and the spec; this is what notices that, because the shrunk fixture no longer
+// reaches nine.
+func assertParamStyleMatrixIsComplete(t *testing.T, got map[string]paramWire) {
+	t.Helper()
+	type pair struct {
+		location ir.HTTPLocation
+		style    string
+	}
+	pairs := map[pair]bool{}
+	triples := map[paramWire]bool{}
+	for _, w := range got {
+		if w.Location == ir.HTTPLocationQuerystring {
+			continue
+		}
+		pairs[pair{w.Location, w.Style}] = true
+		triples[w] = true
+	}
+	assert.Len(t, pairs, 9, "every legal (in, style) pair is exercised")
+	assert.Len(t, triples, 18, "and each of them with explode both ways")
+}
+
+// assertQuerystringParam covers the 3.2 location that binds the whole query
+// string. It may declare neither style nor schema, so the media type its
+// one-entry content map names is the whole of its stated serialization.
+//
+// The style and explode asserted here are the compiler's, not the source's: it
+// runs querystring through the same default arm as query and stamps form/true on
+// a location the specification gives no style to (GitHub #334). They are pinned
+// rather than left unasserted so that fixing #334 reddens this case and its
+// golden instead of changing the IR in silence.
+func assertQuerystringParam(t *testing.T, op ir.Operation) {
+	t.Helper()
+	var binding ir.HTTPParamBinding
+	for _, pb := range op.Bindings.HTTP[0].ParamBindings {
+		if pb.Location == ir.HTTPLocationQuerystring {
+			binding = pb
+		}
+	}
+	require.Equal(t, "querystringWhole", binding.Param, "the querystring parameter binds")
+	assert.Equal(t, "application/x-www-form-urlencoded", binding.ContentType,
+		"its media type is where its serialization is actually stated")
+	assert.Equal(t, "form", binding.Style, "today's synthesized style — GitHub #334")
+	require.NotNil(t, binding.Explode)
+	assert.True(t, *binding.Explode, "today's synthesized explode — GitHub #334")
 }
 
 // assertParamRefInheritance pins ir-design §14 at a parameter whose schema is a
