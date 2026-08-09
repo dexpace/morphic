@@ -234,6 +234,32 @@ func TestBuild_TracksAncestorsOnlyToItsDepthBound(t *testing.T) {
 		"an alias deeper than the tracked depth is out of the walk's reach, as it was before")
 }
 
+// TestBuild_TracksAncestorsAtItsDepthBound is the control for the test above,
+// and the half that pins where the bound falls. Without it the comparison could
+// be off by one — tracking to maxTrackedDepth-1 — and every assertion above
+// would still hold, because an alias past the bound is out of reach either way.
+// An alias at exactly the bound is the case that separates them, and it is the
+// case the recursive descent this walk replaced still caught.
+func TestBuild_TracksAncestorsAtItsDepthBound(t *testing.T) {
+	t.Parallel()
+	root := ymap()
+	deepest := root
+	const links = maxTrackedDepth - 1
+	for range links {
+		next := ymap()
+		deepest.Content = append(deepest.Content, yscalar("k"), next)
+		deepest = next
+	}
+	// One level shallower than the test above, so these land at the bound itself.
+	deepest.Content = append(deepest.Content, yscalar("loop"), yalias(root))
+
+	idx := Build(root, MaxIndexedNodes)
+	assert.False(t, idx.Truncated())
+	cycle, found := idx.AnchorCycle()
+	require.True(t, found, "an alias at exactly the tracked depth is still a candidate")
+	assert.Same(t, root, cycle.Alias, "the cycle reported is the one back to the root")
+}
+
 // TestBuild_IsAFunctionOfTheTreeAlone is the determinism the compiler's output
 // rests on: the same tree indexed twice answers identically, so nothing
 // downstream can vary with when or how often the index was built.
