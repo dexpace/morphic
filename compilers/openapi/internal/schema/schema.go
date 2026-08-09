@@ -428,8 +428,23 @@ func falseSchema(c lowering.Ctx, ts *compile.Types, pointer, hint string) (ir.Ty
 	// it is the honest place for it, not a load-bearing one.
 	var diags []ir.Diagnostic
 	id := internNode(c, ts, pointer, hint, func(common ir.TypeCommon) ir.TypeDef {
+		// Kept verbatim beside the approximation, which is what §4.8 asks of
+		// every degraded lowering that loses something, and what the composition
+		// half of this same rule already did. Without it a `false` schema and a
+		// schema that merely wrote `additionalProperties: false` are the same
+		// node, so nothing downstream can tell "no instance" from "the empty
+		// object" — the diagnostic says which one it was, but a diagnostic is not
+		// part of the document.
+		//
+		// The key names the position rather than a keyword, because a boolean
+		// schema writes none. Nothing can collide with it: a schema that is a
+		// boolean has no other keywords to preserve.
+		Preserve(c, &common.Unmodeled, "openapi:schema",
+			ir.RawValue("false"), ir.ReasonDegradedLowering, pointer)
+
 		diags = append(diags, c.DiagAt(ir.SeverityInfo, diag.FalseSchema, pointer,
-			"boolean false schema matches nothing; lowered as a closed empty model"))
+			"boolean false schema matches nothing; lowered as a closed empty model "+
+				"with the schema kept verbatim under Unmodeled"))
 		return &ir.Model{TypeCommon: common, Additional: ir.AdditionalClosed}
 	})
 	return id, diags

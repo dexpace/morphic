@@ -608,7 +608,26 @@ IR declines to model as written. It is not a list of every lowering that can wea
 whole-schema fallbacks sit outside it, because they answer to a compiler's own limits rather than
 to anything about the construct: a schema nested past the compiler's lowering depth cap becomes
 `any` with an `error` diagnostic, and a boolean `false` schema becomes a closed empty `Model` with
-an `info` one.
+an `info` one and the schema itself kept verbatim under `ReasonDegradedLowering` at
+`Unmodeled["openapi:schema"]` — the key names the position because a boolean schema writes no
+keyword to name it by, and nothing can collide with it, since such a schema has nothing else to
+preserve.
+
+That preservation is load-bearing, not decorative: a closed empty `Model` admits `{}`, and the
+source admits nothing, so the lowered type is one value wider than what was written. Without the
+verbatim entry, `false` and `{type: object, additionalProperties: false}` are the same node, and
+nothing downstream can tell "no instance" from "the empty object". The `info` diagnostic says which
+one it was, but a diagnostic is not part of the document.
+
+The approximation is preferred to an exactly empty shape, and the reason is worth stating because
+the IR does have one. A closed `Enum` with no members is an exactly empty value space (§4.5), but
+`Enum.ValueType` is a `PrimKind` and a `false` schema declares no type, so lowering to one means
+inventing a value type the source never wrote — an exact-looking node resting on a fabricated
+field, which is not more faithful than an approximate one with the source beside it. It would also
+split the rule: the composition case below must stay a `Model`, because it keeps what the other
+branches contributed, so one source construct would lower to two different kinds depending on where
+it appeared. The overstatement is bounded, recorded, and recoverable from the `Unmodeled` entry;
+an emitter that wants the exact reading has everything it needs to produce it.
 
 The `false` rule holds wherever the schema appears, composition included. A `false` conjunct
 (`allOf: [false, …]`) admits nothing, so the composition admits nothing: the composed `Model` is
