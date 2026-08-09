@@ -208,6 +208,34 @@ func TestCompile_RefShapedDataNotRefused(t *testing.T) {
 	}
 }
 
+// TestCompile_SchemaEmptyPointerSegmentIsUnresolved pins where reading the
+// empty token changes a verdict rather than a hang. A schema chain is refused
+// on chainCycles alone — chainReenters is consulted only for the reference
+// objects outside a schema, because only those resolve through the Reference
+// lock that deadlocks. Reading '/A/' as stopping at A made this shape a cycle;
+// reading it as descending through A makes it what it is, a pointer naming a
+// key that is not declared. speakeasy resolves a schema $ref as an
+// oas3.JSONSchema rather than through that lock, so the shape it now reaches
+// the resolver with reports rather than hangs.
+func TestCompile_SchemaEmptyPointerSegmentIsUnresolved(t *testing.T) {
+	t.Parallel()
+	const src = `openapi: 3.1.0
+info: {title: t, version: '1'}
+paths: {}
+components:
+  schemas:
+    A: {$ref: '#/components/schemas/A/'}
+`
+	_, diags, err := New().Compile(t.Context(),
+		[]compilers.Source{{Path: "schema_empty_segment.yaml", Data: []byte(src)}}, compilers.Options{})
+	require.NoError(t, err)
+	assertHasErrorCode(t, diags, diag.UnresolvedRef)
+	for _, d := range diags {
+		assert.NotEqualf(t, diag.CyclicRef, d.Code,
+			"a pointer that names an undeclared key is unresolved, not cyclic: %+v", d)
+	}
+}
+
 func readReproducer(t *testing.T, file string) []byte {
 	t.Helper()
 	data, err := os.ReadFile("../../testdata/openapi/" + file + ".yaml")
