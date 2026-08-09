@@ -109,7 +109,8 @@ func tagExtensions(c lowering.Ctx) []annotation.ExtensionSite {
 // documentUnknownKeys collects the keys the OpenAPI model names no field for
 // from every object around the document metadata that lowers to no node of its
 // own: the document root, the info block and the contact and license inside it,
-// the root externalDocs, and each declared tag.
+// the root externalDocs, the components object, and each declared tag with its
+// own externalDocs.
 //
 // ir.Document is the nearest node with an Unmodeled map for all of them, so each
 // object's keys are scoped by the source path they were written at. One unscoped
@@ -137,6 +138,11 @@ type unknownSite struct {
 // root's keys take no scope, since ir.Document stands for the OpenAPI Object
 // itself; the rest are keyed by the path from it down to the object that wrote
 // them.
+//
+// The components object is one of them rather than a map with nothing to say:
+// its own key set is the fixed list of component kinds, which the library models
+// as named fields and takes a census over, and only the map *under* each of
+// those keys is the document's to name.
 func rootUnknownSites(c lowering.Ctx) []unknownSite {
 	info := c.Doc.GetInfo()
 	infoPtr := ids.Ptr("info")
@@ -146,11 +152,13 @@ func rootUnknownSites(c lowering.Ctx) []unknownSite {
 		{"info/contact", infoPtr + ids.Ptr("contact"), info.GetContact()},
 		{"info/license", infoPtr + ids.Ptr("license"), info.GetLicense()},
 		{"externalDocs", ids.Ptr("externalDocs"), c.Doc.GetExternalDocs()},
+		{"components", ids.Ptr("components"), c.Doc.GetComponents()},
 	}
 }
 
-// tagUnknownSites returns one census site per declared tag, since ir.TagDef
-// holds no Unmodeled map for a tag's own keys to land on.
+// tagUnknownSites returns the census sites each declared tag contributes: its
+// own, and its externalDocs object's. Neither ir.TagDef nor ir.Link holds an
+// Unmodeled map, so both ride on the document.
 //
 // Scoped by index rather than name, which is the pointer a tag is written at. A
 // name would read better, but OpenAPI's requirement that tag names be unique is
@@ -158,10 +166,13 @@ func rootUnknownSites(c lowering.Ctx) []unknownSite {
 // alike would silently leave one entry.
 func tagUnknownSites(c lowering.Ctx) []unknownSite {
 	tags := c.Doc.GetTags()
-	out := make([]unknownSite, 0, len(tags))
+	out := make([]unknownSite, 0, 2*len(tags))
 	for i, t := range tags {
 		index := strconv.Itoa(i)
-		out = append(out, unknownSite{"tags/" + index, ids.Ptr("tags", index), t})
+		ptr := ids.Ptr("tags", index)
+		out = append(out,
+			unknownSite{"tags/" + index, ptr, t},
+			unknownSite{"tags/" + index + "/externalDocs", ptr + ids.Ptr("externalDocs"), t.GetExternalDocs()})
 	}
 	return out
 }

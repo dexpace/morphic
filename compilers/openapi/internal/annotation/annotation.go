@@ -544,7 +544,7 @@ func Read(st Site, pointer string, srcIndex int) (Set, []ir.Diagnostic) {
 	out.Examples = examples
 
 	ext, extDiags := ExtensionsFrom(st.Node.GetExtensions(), srcIndex, pointer)
-	sub, subDiags := subObjectExtensions(st.Node, pointer, srcIndex)
+	sub, subDiags := subObjectKeys(st.Node, pointer, srcIndex)
 	kept, keptDiags := unmodeledAt(st.Node, pointer, srcIndex)
 
 	diags := make([]ir.Diagnostic, 0, len(exDiags)+len(extDiags)+len(subDiags)+len(keptDiags))
@@ -557,27 +557,37 @@ func Read(st Site, pointer string, srcIndex int) (Set, []ir.Diagnostic) {
 	return out, diags
 }
 
-// subObjectExtensions collects the x-* the sub-objects of a schema declare —
-// its xml, its discriminator and its externalDocs. Each is an OpenAPI object
-// that admits extensions, and none of ir.XMLHints, ir.Discriminator or ir.Link
-// holds an Unmodeled map, so the entries ride on the node the schema itself
-// lowers to; the keyword each was written under is what keeps three objects'
-// extensions apart on that one map.
-func subObjectExtensions(s *oas3.Schema, pointer string, srcIndex int) (ir.Unmodeled, []ir.Diagnostic) {
+// subObjectKeys collects what the sub-objects of a schema declare that reaches
+// no IR field — the x-* they carry and the keys the specification defines for
+// none of them — over its xml, its discriminator and its externalDocs.
+//
+// Each is an OpenAPI object with its own closed key set, and none of
+// ir.XMLHints, ir.Discriminator or ir.Link holds an Unmodeled map, so the
+// entries ride on the node the schema itself lowers to; the keyword each was
+// written under is what keeps three objects' entries apart on that one map.
+//
+// The census is graded as an OpenAPI object's rather than as a schema keyword's,
+// even though these hang off a schema: the JSON Schema rule that an unrecognized
+// keyword is legal governs the schema itself, and these three are OpenAPI
+// objects that the schema vocabulary says nothing about.
+func subObjectKeys(s *oas3.Schema, pointer string, srcIndex int) (ir.Unmodeled, []ir.Diagnostic) {
 	subs := []struct {
 		keyword string
+		obj     any
 		ext     *extensions.Extensions
 	}{
-		{"xml", s.GetXML().GetExtensions()},
-		{"discriminator", s.GetDiscriminator().GetExtensions()},
-		{"externalDocs", s.GetExternalDocs().GetExtensions()},
+		{"xml", s.GetXML(), s.GetXML().GetExtensions()},
+		{"discriminator", s.GetDiscriminator(), s.GetDiscriminator().GetExtensions()},
+		{"externalDocs", s.GetExternalDocs(), s.GetExternalDocs().GetExtensions()},
 	}
 	var out ir.Unmodeled
 	var diags []ir.Diagnostic
 	for _, sub := range subs {
-		ext, extDiags := ExtensionsUnder(sub.ext, srcIndex, pointer+ids.Ptr(sub.keyword), sub.keyword)
+		owner := pointer + ids.Ptr(sub.keyword)
+		ext, extDiags := ExtensionsUnder(sub.ext, srcIndex, owner, sub.keyword)
 		out = MergeUnmodeled(out, ext)
 		diags = append(diags, extDiags...)
+		diags = append(diags, UnknownKeysUnder(&out, sub.obj, srcIndex, owner, sub.keyword)...)
 	}
 	return out, diags
 }

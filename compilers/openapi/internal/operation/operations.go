@@ -296,31 +296,38 @@ func lowerOperation(c lowering.Ctx, ts *compile.Types, anchors *schema.AnchorInd
 		diags = append(diags, cbDiags...)
 	}
 	op.Bindings = ir.OpBindings{HTTP: []ir.HTTPBinding{hb}}
-	diags = append(diags, applyOperationExtensions(c, &op, src, decl)...)
-	diags = append(diags, annotation.UnknownKeysIn(&op.Unmodeled, src, c.SrcIndex, decl)...)
+	diags = append(diags, applyOperationAnnotations(c, &op, src, decl)...)
 	diags = append(diags, applyOperationServers(c, &op, src, decl)...)
 	return op, extra, append(diags, checkOperationIDUnique(c, operationIDs, op, mount)...)
 }
 
-// applyOperationExtensions keeps the operation's own x-* and those of the two
-// objects beneath it that lower to no node of their own: its externalDocs,
-// since ir.Link holds no Unmodeled map, and its Responses Object, whose
-// extensions are the map's own rather than any one response's.
+// applyOperationAnnotations keeps the operation's own x-* and undeclared keys,
+// and those of the two objects beneath it that lower to no node of their own:
+// its externalDocs, since ir.Link holds no Unmodeled map, and its Responses
+// Object, whose extensions are the map's own rather than any one response's.
+//
+// The Responses Object contributes extensions but no census. Its key set is the
+// status codes the document chooses, which the library models as a map, so an
+// undeclared key there is read as one more response rather than reported as
+// unknown — there is nothing for a census to say about it.
 //
 // It merges rather than assigns. The operation's map already carries whatever
 // its parameters or callbacks wrote by the time this runs, and an assignment
 // here would drop them — which is why the servers preservation used to have to
 // run after it.
-func applyOperationExtensions(c lowering.Ctx, op *ir.Operation, src *soa.Operation, decl string) []ir.Diagnostic {
+func applyOperationAnnotations(c lowering.Ctx, op *ir.Operation, src *soa.Operation, decl string) []ir.Diagnostic {
+	docsPtr := decl + ids.Ptr("externalDocs")
 	ext, diags := annotation.ExtensionsAt(c.SrcIndex,
 		annotation.ExtensionSite{Owner: decl, Ext: src.GetExtensions()},
-		annotation.ExtensionSite{Scope: "externalDocs", Owner: decl + ids.Ptr("externalDocs"),
+		annotation.ExtensionSite{Scope: "externalDocs", Owner: docsPtr,
 			Ext: src.GetExternalDocs().GetExtensions()},
 		annotation.ExtensionSite{Scope: "responses", Owner: decl + ids.Ptr("responses"),
 			Ext: src.GetResponses().GetExtensions()},
 	)
 	op.Unmodeled = annotation.MergeUnmodeled(op.Unmodeled, ext)
-	return diags
+	diags = append(diags, annotation.UnknownKeysIn(&op.Unmodeled, src, c.SrcIndex, decl)...)
+	return append(diags, annotation.UnknownKeysUnder(&op.Unmodeled,
+		src.GetExternalDocs(), c.SrcIndex, docsPtr, "externalDocs")...)
 }
 
 // applyOperationServers preserves an operation's own `servers` verbatim under
@@ -412,6 +419,25 @@ func fillOperationDocs(d *ir.Docs, src *soa.Operation) {
 // must reach both, and a second call beside the first is a second chance to
 // forget one on a route added later. That is exactly how the servers half came
 // to be missing on two of its three routes (GitHub #39).
+//
+// A path item takes no census, unlike every other object the compiler reads
+// extensions from, and deliberately so. The library folds a key it does not
+// recognize into the item's embedded operations map rather than recording it as
+// undeclared, so GetUnknownProperties reports nothing and there is no census to
+// read (speakeasy-api/openapi v1.24.0). Two consequences decide it:
+//
+//   - The key is not lost in silence. Folding it produces a
+//     validation-type-mismatch at error severity naming the key at its own
+//     pointer, which is the losslessness property the census exists for; what is
+//     lost is the key's value, not the fact that it was written.
+//   - Recovering the value means reading the raw node against a path item's key
+//     vocabulary, and the only vocabulary this compiler owns is httpMethods,
+//     which is narrower than the library's — it has no `query`, the method
+//     OpenAPI 3.2 adds. A census over what httpMethods does not name would
+//     therefore report a valid 3.2 `query` operation as an undeclared key.
+//
+// That vocabulary is what GitHub #293 is about, so widening it here would settle
+// that issue as a side effect of this one. Tracked separately in GitHub #377.
 func applyPathItem(c lowering.Ctx, op *ir.Operation, pi *soa.PathItem, declPtr string) []ir.Diagnostic {
 	diags := applyPathServers(c, op, pi, declPtr)
 	ext, extDiags := schema.ExtensionsIn(c, pi.GetExtensions(), declPtr, "pathItem")
@@ -522,6 +548,14 @@ func lowerResponse(c lowering.Ctx, ts *compile.Types, anchors *schema.AnchorInde
 // The links entry carries ReasonNoIRHome and no diagnostic, as it always has:
 // nothing is degraded, the map is in the document, and the gap is one the IR can
 // close by growing a links field.
+//
+// A Link Object inside that map gets no entry and no census of its own, which is
+// the decision already recorded for its extensions. This compiler lowers no Link
+// Object anywhere: a response's links survive only as the verbatim node above,
+// and a components/links entry nothing references is dropped whole, so a keyed
+// entry at one of the two positions would be the only trace of a construct the
+// IR does not model — while duplicating, for the response position alone, a
+// value the node above already carries.
 func preserveResponseExtras(c lowering.Ctx, p *ir.Unmodeled, r *soa.Response, rptr string) []ir.Diagnostic {
 	_, diags := schema.PreserveNode(c, p, "openapi:links",
 		annotation.RawChildNode(r.GetRootNode(), "links"), ir.ReasonNoIRHome, rptr+ids.Ptr("links"))

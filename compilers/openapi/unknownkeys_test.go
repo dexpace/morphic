@@ -56,15 +56,31 @@ func TestUnknownKeys_KeptAtEveryObject(t *testing.T) {
 		{"server", "openapi:host", `"SERVER"`, "doc.Servers[0].Unmodeled"},
 		{"server variable", "openapi:example", `"SERVERVARIABLE"`, "doc.Servers[0].Variables[0].Unmodeled"},
 		{"tag", "openapi:tags/0/color", `"TAG"`, "doc.Unmodeled"},
+		{"components", "openapi:components/definitions", `"COMPONENTS"`, "doc.Unmodeled"},
+		{"tag externalDocs", "openapi:tags/0/externalDocs/title", `"TAGEXTERNALDOCS"`, "doc.Unmodeled"},
 		{"operation", "openapi:operationid", `"OPERATION"`, ".Unmodeled"},
+		// The carrier is named down to the operation rather than left at
+		// ".Unmodeled": the document writes this exact key too, and the row is only
+		// evidence of the operation's if it cannot match the document's.
+		{"operation externalDocs", "openapi:externalDocs/title", `"OPERATIONEXTERNALDOCS"`,
+			"Operations[0].Unmodeled"},
 		{"parameter", "openapi:collectionFormat", `"PARAMETER"`, ".Params[0].Unmodeled"},
+		{"example", "openapi:name", `"EXAMPLE"`, ".Params[0].Examples[0].Unmodeled"},
 		{"request body", "openapi:schema", `"REQUESTBODY"`, ".Request.Unmodeled"},
 		{"media type", "openapi:format", `"MEDIATYPE"`, ".Contents[0].Unmodeled"},
+		// On the content rather than on the part: ir.PartEncoding holds no
+		// Unmodeled map, and one content can carry an entry per part, so the part
+		// name is what tells two encodings' keys apart on that one map.
+		{"encoding", "openapi:encoding/part/contentEncoding", `"ENCODING"`, ".Contents[1].Unmodeled"},
 		{"response", "openapi:status", `"RESPONSE"`, ".Responses[0].Unmodeled"},
 		{"error response", "openapi:status", `"ERRORRESPONSE"`, ".Errors[0].Unmodeled"},
 		{"header", "openapi:in", `"HEADER"`, ".Headers[0].Unmodeled"},
 		{"security scheme", "openapi:tokenUrl", `"SECURITYSCHEME"`,
 			"doc.Auth[auth/openapi/components/securitySchemes/k].Unmodeled"},
+		{"oauth flows", "openapi:flows/application", `"OAUTHFLOWS"`,
+			"doc.Auth[auth/openapi/components/securitySchemes/o].Unmodeled"},
+		{"oauth flow", "openapi:scope", `"OAUTHFLOW"`,
+			"doc.Auth[auth/openapi/components/securitySchemes/o].Flows[0].Unmodeled"},
 		{"schema", "openapi:additionalItems", `"SCHEMA"`,
 			"doc.Types[t/openapi/components/schemas/S].Unmodeled"},
 		// The property's schema reduced to a shared primitive, so it owns no node
@@ -144,6 +160,61 @@ components:
 	assert.Empty(t, unmodeledSites(doc), "nothing undeclared, so nothing kept")
 	for _, d := range diags {
 		assert.NotContains(t, d.Code, "unknown-", "a well-formed document reports no unknown key: %+v", d)
+	}
+}
+
+// TestUnknownKeys_SchemaSubObjects covers the three objects that hang off a
+// schema — its xml, its discriminator and its externalDocs — which the fixture
+// above deliberately leaves out.
+//
+// It leaves them out because the OpenAPI dialect meta-schema closes all three to
+// anything but an x- key, so the library reports a validation error on each and
+// harness.Check returns at the first one, before the oracles that fixture exists
+// to reach. The keys are kept and announced all the same, which is what this
+// asserts: an invalid document is still not a document whose keys may vanish.
+//
+// Graded as an OpenAPI object's keys rather than as schema keywords, at warning
+// rather than info: JSON Schema's rule that an unrecognized keyword is legal
+// governs the schema, and these three are OpenAPI objects the schema vocabulary
+// says nothing about. All three ride on the schema's own map, since none of
+// ir.XMLHints, ir.Discriminator or ir.Link holds one, and the keyword each was
+// written under is what keeps them apart there.
+func TestUnknownKeys_SchemaSubObjects(t *testing.T) {
+	t.Parallel()
+	doc, diags := compileAnnotationSpec(t, "schema-sub-objects", `openapi: 3.1.0
+info: {title: T, version: "1"}
+paths: {}
+components:
+  schemas:
+    S:
+      type: object
+      xml: {name: s, attribute2: XML}
+      discriminator: {propertyName: k, mapping2: DISCRIMINATOR}
+      externalDocs: {url: 'https://d.example', title: SCHEMAEXTERNALDOCS}
+      properties: {k: {type: string}}
+`)
+	schema, ok := doc.Types[ir.TypeID("t/openapi/components/schemas/S")]
+	require.True(t, ok)
+
+	// assert rather than require on the lookup, so a keyword missing from the map
+	// reports itself and leaves the other two still checked. The three share one
+	// reader, and a row that never runs is no evidence about the keyword it names.
+	for _, tc := range []struct{ keyword, key, want string }{
+		{"xml", "openapi:xml/attribute2", `"XML"`},
+		{"discriminator", "openapi:discriminator/mapping2", `"DISCRIMINATOR"`},
+		{"externalDocs", "openapi:externalDocs/title", `"SCHEMAEXTERNALDOCS"`},
+	} {
+		entry, found := schema.Common().Unmodeled[tc.key]
+		if !assert.True(t, found, "schema %s drops %s: it is nowhere on the schema", tc.keyword, tc.key) {
+			continue
+		}
+		assert.Equal(t, tc.want, string(entry.Value), "%s key keeps what the source wrote", tc.keyword)
+		assert.Equal(t, ir.ReasonOutOfScope, entry.Reason, "%s key reason", tc.keyword)
+		at := "/components/schemas/S/" + tc.keyword + "/" + tc.key[len("openapi:"+tc.keyword+"/"):]
+		assert.Equal(t, at, entry.Provenance.Pointer, "%s key provenance", tc.keyword)
+		assert.Equal(t, []ir.Severity{ir.SeverityWarning},
+			diagsAt(diags, "openapi/unknown-object-key", at),
+			"%s key is announced as an object's, not as a schema keyword's", tc.keyword)
 	}
 }
 

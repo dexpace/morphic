@@ -3,11 +3,24 @@
 # at the wrong carrier cannot pass for the right one.
 #
 # Every key here is one real documents carry rather than invented nonsense: a
-# Swagger 2.0 field with no OpenAPI 3 equivalent (basePath, host, a body
-# parameter's schema), a keyword from an older JSON Schema draft (additionalItems,
-# divisibleBy), a field belonging to a neighbouring object (a flow's tokenUrl on
-# the scheme, a parameter's `in` on a header), or operationId with the case wrong.
-# None of them reached an IR field, an Unmodeled entry or a diagnostic.
+# Swagger 2.0 field with no OpenAPI 3 equivalent (basePath, host, definitions, a
+# body parameter's schema, a flow named `application`), a keyword from an older
+# JSON Schema draft (additionalItems, divisibleBy), a field belonging to a
+# neighbouring object (a flow's tokenUrl on the scheme, a parameter's `in` on a
+# header, a documentation page's `title` on an externalDocs), or a field with the
+# case or the number wrong (operationid, scope). None of them reached an IR field,
+# an Unmodeled entry or a diagnostic.
+#
+# `title` is written on all three externalDocs objects and `scope` on the one
+# flow, so the entries a document can write more than once are here in more than
+# one copy: an unscoped key would leave a single entry and the survivor would
+# depend on which lowering ran last.
+#
+# A schema's own xml, discriminator and externalDocs are censused too but are not
+# here. The OpenAPI dialect meta-schema closes those three to undeclared keys, so
+# one draws a library validation error, and an error diagnostic stops
+# harness.Check before the oracles this fixture exists to reach — see
+# TestUnknownKeys_SchemaSubObjects for where they are asserted instead.
 openapi: 3.1.0
 basePath: ROOT
 info:
@@ -23,15 +36,23 @@ servers:
     variables:
       region: {default: us, example: SERVERVARIABLE}
 tags:
-  - {name: t1, color: TAG}
+  - name: t1
+    color: TAG
+    externalDocs: {url: 'https://t.example', title: TAGEXTERNALDOCS}
 paths:
   /widgets:
     get:
       operationId: listWidgets
       tags: [t1]
       operationid: OPERATION
+      externalDocs: {url: 'https://o.example', title: OPERATIONEXTERNALDOCS}
       parameters:
-        - {name: shape, in: query, schema: {type: string}, collectionFormat: PARAMETER}
+        - name: shape
+          in: query
+          schema: {type: string}
+          collectionFormat: PARAMETER
+          examples:
+            round: {value: circle, name: EXAMPLE}
       requestBody:
         required: true
         schema: REQUESTBODY
@@ -39,6 +60,10 @@ paths:
           application/json:
             schema: {$ref: '#/components/schemas/S'}
             format: MEDIATYPE
+          multipart/form-data:
+            schema: {type: object, properties: {part: {type: string}}}
+            encoding:
+              part: {contentType: text/plain, contentEncoding: ENCODING}
       responses:
         "200":
           description: ok
@@ -49,8 +74,17 @@ paths:
           description: gone
           status: ERRORRESPONSE
 components:
+  definitions: COMPONENTS
   securitySchemes:
     k: {type: apiKey, in: header, name: X-Key, tokenUrl: SECURITYSCHEME}
+    o:
+      type: oauth2
+      flows:
+        application: OAUTHFLOWS
+        implicit:
+          authorizationUrl: 'https://auth.example'
+          scopes: {}
+          scope: OAUTHFLOW
   schemas:
     S:
       type: object
