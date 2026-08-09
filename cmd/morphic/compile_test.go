@@ -8,6 +8,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/google/go-cmp/cmp"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -137,4 +138,96 @@ func TestRun_UsageErrors(t *testing.T) {
 				"exactly one usage block per misuse, got:\n%s", stderr.String())
 		})
 	}
+}
+
+// unsortedSpec declares its schemas out of alphabetical order and its paths in
+// an order of their own, so a document compiled from it exercises both halves
+// of the determinism invariant: maps emitted in sorted-key order and slices in
+// source order.
+const unsortedSpec = `openapi: 3.1.0
+info: {title: Ordered, version: "1"}
+paths:
+  /zebra:
+    get: {operationId: getZebra, responses: {"200": {description: ok}}}
+  /apple:
+    get: {operationId: getApple, responses: {"200": {description: ok}}}
+components:
+  schemas:
+    Zeta: {type: object, properties: {b: {type: string}, a: {type: integer}}}
+    Alpha: {type: string}
+    Mid: {type: array, items: {type: string}}
+`
+
+// compileToFile runs compile over spec with the given extra flags and returns
+// the bytes -o wrote.
+func compileToFile(t *testing.T, spec string, flags ...string) []byte {
+	t.Helper()
+	out := filepath.Join(t.TempDir(), "ir.json")
+	args := append([]string{"compile", spec, "-o", out}, flags...)
+	var stdout, stderr bytes.Buffer
+
+	require.Equal(t, 0, run(args, &stdout, &stderr), "stderr: %s", stderr.String())
+
+	raw, err := os.ReadFile(out)
+	require.NoError(t, err)
+	return raw
+}
+
+// TestRun_FileOutputIsCompact pins the artifact format: -o writes compact JSON,
+// which is one line and a trailing newline, since a raw newline cannot appear
+// inside a JSON string.
+func TestRun_FileOutputIsCompact(t *testing.T) {
+	t.Parallel()
+	spec := writeFile(t, "spec.yaml", testspec.Tiny)
+
+	raw := compileToFile(t, spec)
+
+	assert.Equal(t, 1, bytes.Count(raw, []byte("\n")),
+		"compact JSON is one line plus its trailing newline, got:\n%s", raw)
+	var doc ir.Document
+	require.NoError(t, json.Unmarshal(raw, &doc))
+	assert.Equal(t, "Tiny", doc.Name)
+}
+
+// TestRun_PrettyRestoresIndentedFile pins the escape hatch, and pins it against
+// the bytes that were there before rather than against "looks indented": -o
+// -pretty must write exactly what stdout writes, which is the format -o itself
+// used to write.
+func TestRun_PrettyRestoresIndentedFile(t *testing.T) {
+	t.Parallel()
+	spec := writeFile(t, "spec.yaml", testspec.Tiny)
+
+	raw := compileToFile(t, spec, "-pretty")
+
+	var stdout, stderr bytes.Buffer
+	require.Equal(t, 0, run([]string{"compile", spec}, &stdout, &stderr), "stderr: %s", stderr.String())
+	assert.Empty(t, cmp.Diff(stdout.String(), string(raw)),
+		"-pretty must write the bytes stdout gets")
+}
+
+// TestRun_CompactOutputKeepsDocumentOrder is the determinism check the format
+// change has to survive: compacting the indented artifact must reproduce the
+// compact one byte for byte. Whitespace removal cannot reorder anything, so the
+// two agreeing means the encoder emitted the same map keys in the same sorted
+// order and the same slices in the same source order as the marshaller it
+// replaced. Compiling twice pins that a second run agrees with the first.
+func TestRun_CompactOutputKeepsDocumentOrder(t *testing.T) {
+	t.Parallel()
+	spec := writeFile(t, "spec.yaml", unsortedSpec)
+
+	compact := compileToFile(t, spec)
+	pretty := compileToFile(t, spec, "-pretty")
+
+	var flattened bytes.Buffer
+	require.NoError(t, json.Compact(&flattened, pretty))
+	assert.Empty(t, cmp.Diff(flattened.String()+"\n", string(compact)),
+		"compacting the indented artifact must reproduce the compact one exactly")
+
+	assert.Empty(t, cmp.Diff(string(compact), string(compileToFile(t, spec))),
+		"two runs over one spec must write the same bytes")
+
+	// The assertion above is only worth something if the spec really does force
+	// a reordering, so confirm the emitted key order is not the declared one.
+	assert.Less(t, bytes.Index(compact, []byte("Alpha")), bytes.Index(compact, []byte("Zeta")),
+		"schemas must be emitted in sorted-key order, not declaration order")
 }

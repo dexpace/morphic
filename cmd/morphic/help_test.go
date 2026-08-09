@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"encoding/json"
 	"os"
 	"path/filepath"
 	"strings"
@@ -12,6 +13,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/dexpace/morphic/internal/testspec"
+	"github.com/dexpace/morphic/ir"
 	"github.com/dexpace/morphic/ir/irtest"
 )
 
@@ -104,7 +106,12 @@ func TestRun_HelpFlagAsFlagValue(t *testing.T) {
 		"--help must be consumed as -o's value, not treated as a help request")
 	raw, err := os.ReadFile(filepath.Join(dir, "--help"))
 	require.NoError(t, err)
-	assert.Contains(t, string(raw), `"name": "Tiny"`)
+	// Read the name back out of the document rather than matching the artifact's
+	// text: what this test is about is which file was written, not how it is
+	// formatted, and -o's formatting is a flag away from changing.
+	var doc ir.Document
+	require.NoError(t, json.Unmarshal(raw, &doc))
+	assert.Equal(t, "Tiny", doc.Name)
 }
 
 func TestRun_HelpFormsAgree(t *testing.T) {

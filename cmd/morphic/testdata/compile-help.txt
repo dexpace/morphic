@@ -2,7 +2,8 @@ usage:
   morphic compile <spec-file> [flags]
 
 Lower an API spec (OpenAPI 3.x) into Morphic IR JSON on stdout, and write
-diagnostics to stderr.
+diagnostics to stderr. Output to stdout is indented for reading; a file
+written with -o is compact unless --pretty asks for the indented form.
 
 --explain reports what compiling produced at one source coordinate — the
 type node interned there, the coordinates interned beneath it, and the
@@ -19,5 +20,7 @@ flags:
     	fail (exit 1) on diagnostics at or above this severity: error|warning (default "error")
   -o string
     	write IR JSON to this file instead of stdout
+  -pretty
+    	indent the IR JSON -o writes; stdout is indented either way
   -skip-validate
     	skip the referential-integrity validate pass

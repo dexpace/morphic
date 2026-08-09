@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"encoding/json"
 	"os"
 	"path/filepath"
 	"testing"
@@ -137,7 +138,14 @@ func TestRun_TerminatorAsFlagValue(t *testing.T) {
 	require.Equal(t, 0, code, "stderr: %s", stderr.String())
 	raw, err := os.ReadFile(filepath.Join(dir, "--"))
 	require.NoError(t, err)
-	assert.Contains(t, string(raw), `"name": "Tiny"`,
+	// Decoded rather than matched as text: this is about which argument "--"
+	// became, and -o's JSON is compact while stdout's is indented, so a literal
+	// would pin the formatting of a test that has no stake in it.
+	var doc struct {
+		Name string `json:"name"`
+	}
+	require.NoError(t, json.Unmarshal(raw, &doc))
+	assert.Equal(t, "Tiny", doc.Name,
 		`"--" must be consumed as -o's value, leaving the flags after the spec to parse`)
 }
 

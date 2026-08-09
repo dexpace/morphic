@@ -105,7 +105,7 @@ func TestSpecFlags_SharedFlagsAgree(t *testing.T) {
 // asserted from both the constructor and the command-table entry so the two
 // cannot drift.
 var (
-	compileFlagNames  = []string{"o", "fail-on", "skip-validate", "explain"}
+	compileFlagNames  = []string{"o", "fail-on", "skip-validate", "explain", "pretty"}
 	validateFlagNames = []string{"fail-on", "skip-validate"}
 )
 
