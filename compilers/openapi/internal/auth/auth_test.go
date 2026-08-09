@@ -1046,3 +1046,173 @@ func TestSecurityRequirements_AnEmptyListIsNotAnAbsentOne(t *testing.T) {
 	assert.Empty(t, empty, "and it declares no options")
 	assert.Empty(t, emptyDiags)
 }
+
+// TestSecurityRequirement_ANonObjectEntryIsNotTheEmptyOption pins that an entry
+// a security list holds without writing it as an object is dropped whole rather
+// than lowered to AuthRequirement{}, the encoding ir-design §9 reserves for "no
+// auth is one acceptable choice" (GitHub #284). Landing there turns a malformed
+// entry into a permission the document never granted: beside a real requirement
+// the API reads as optionally authenticated.
+//
+// The `{}` an author writes on purpose is a row here rather than a separate
+// test, because the claim is that the two are different documents. Both
+// spellings arrive as a requirement holding no members, so a lowering that
+// refused every memberless option would satisfy the malformed rows alone while
+// deleting the encoding this all exists to protect.
+//
+// Each malformed row also pins that the loader's own report survives. These are
+// dropped without a second report from the compiler, on the grounds that the
+// loader already names both the entry and what was wrong with it — the call
+// LowerSecuritySchemes makes for the same shape — so if that report ever stops
+// arriving, the drop becomes silent and these rows are what says so.
+//
+// The aliased rows are what stops the drop from being written as a test of the
+// entry's node kind. An alias is its own kind whatever it points at, so reading
+// the kind directly would drop the `{}` reached through one — the very encoding
+// this exists to protect. The scalar reached through an alias is dropped either
+// way; it is here because nothing else says an alias cannot smuggle one in.
+func TestSecurityRequirement_ANonObjectEntryIsNotTheEmptyOption(t *testing.T) {
+	t.Parallel()
+	cases := []struct {
+		name  string
+		entry string
+		// wantOptions is how many of the two declared options survive.
+		wantOptions int
+	}{
+		{name: "null", entry: `null`, wantOptions: 1},
+		{name: "YAML's other spelling of null", entry: `~`, wantOptions: 1},
+		{name: "a string", entry: `"key"`, wantOptions: 1},
+		{name: "a number", entry: `42`, wantOptions: 1},
+		{name: "a sequence", entry: `[key]`, wantOptions: 1},
+		{name: "an alias to a scalar", entry: `*scalar`, wantOptions: 1},
+		{name: "an option the document really wrote as {}", entry: `{}`, wantOptions: 2},
+		{name: "an option reached through an alias to {}", entry: `*empty`, wantOptions: 2},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			_, svc, diags := serviceSpec(t, `openapi: 3.1.0
+info: {title: T, version: "1"}
+x-defs:
+  empty: &empty {}
+  scalar: &scalar just a string
+security:
+  - key: []
+  - `+tc.entry+`
+paths: {}
+components:
+  securitySchemes:
+    key: {type: apiKey, in: header, name: X-Key}
+`)
+			require.Len(t, svc.Auth, tc.wantOptions, "surviving options: %+v", svc.Auth)
+			require.Len(t, svc.Auth[0].Schemes, 1, "the real requirement is untouched")
+			assert.Equal(t, ids.Auth("key"), svc.Auth[0].Schemes[0].Scheme)
+
+			if tc.wantOptions == 2 {
+				assert.Empty(t, svc.Auth[1].Schemes, "the empty option the document wrote is kept")
+				assert.Empty(t, loaderErrors(diags), "a document with nothing wrong with it: %+v", diags)
+				return
+			}
+			assert.Contains(t, strings.Join(loaderErrors(diags), "\n"), "openapi.security.1",
+				"the entry is dropped here without a report, so the loader's must place it: %+v", diags)
+		})
+	}
+}
+
+// TestSecurityRequirement_OperationLevelNonObjectEntryIsNotTheEmptyOption is the
+// operation-level counterpart of TestSecurityRequirement_ANonObjectEntryIsNotTheEmptyOption.
+// Both levels reach one lowering, but only a test at each proves it: a
+// document-level fixture alone passes just as well on a fix wired into the
+// service walk and never reached by an operation's own override.
+func TestSecurityRequirement_OperationLevelNonObjectEntryIsNotTheEmptyOption(t *testing.T) {
+	t.Parallel()
+	cases := []struct {
+		name        string
+		entry       string
+		wantOptions int
+	}{
+		{name: "null", entry: `null`, wantOptions: 1},
+		{name: "an option the operation really wrote as {}", entry: `{}`, wantOptions: 2},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			_, svc, diags := serviceSpec(t, `openapi: 3.1.0
+info: {title: T, version: "1"}
+paths:
+  /x:
+    get:
+      operationId: x
+      security:
+        - key: []
+        - `+tc.entry+`
+      responses: {"200": {description: ok}}
+components:
+  securitySchemes:
+    key: {type: apiKey, in: header, name: X-Key}
+`)
+			op := onlyOperation(t, svc)
+			require.Len(t, op.Auth, tc.wantOptions, "surviving options: %+v", op.Auth)
+			require.Len(t, op.Auth[0].Schemes, 1, "the real requirement is untouched")
+			assert.Equal(t, ids.Auth("key"), op.Auth[0].Schemes[0].Scheme)
+
+			if tc.wantOptions == 2 {
+				assert.Empty(t, op.Auth[1].Schemes, "the empty option the operation wrote is kept")
+				return
+			}
+			assert.Contains(t, strings.Join(loaderErrors(diags), "\n"), "operation.security.1",
+				"the entry is dropped here without a report, so the loader's must place it: %+v", diags)
+		})
+	}
+}
+
+// TestSecurityRequirement_ASoleNonObjectEntryCollapsesTheListToNil pins the
+// solo spelling at both levels. It is the worse half of #284: `security: [null]`
+// lowered to [{}], which ir-design §9 reads as an explicit "no auth is one
+// acceptable choice" — a document that says nothing usable about security
+// instead declaring the API public. Dropping the entry leaves an originally
+// non-empty list empty, which the enclosing collapse turns into nil, so the
+// carrier inherits exactly as if security had never been written.
+func TestSecurityRequirement_ASoleNonObjectEntryCollapsesTheListToNil(t *testing.T) {
+	t.Parallel()
+	_, svc, _ := serviceSpec(t, `openapi: 3.1.0
+info: {title: T, version: "1"}
+security: [null]
+paths:
+  /x:
+    get:
+      operationId: x
+      security: [null]
+      responses: {"200": {description: ok}}
+`)
+	assert.Nil(t, svc.Auth, "the document's sole option is not an option; the list is not [{}] or []")
+	assert.Nil(t, onlyOperation(t, svc).Auth, "nor is the operation's own override")
+}
+
+// onlyOperation returns svc's single operation, failing if it has any other
+// number — an assertion the callers need before reading Auth, because a missing
+// operation yields the zero value, whose Auth is nil and would satisfy a nil
+// assertion without anything having been compiled.
+func onlyOperation(t *testing.T, svc ir.Service) ir.Operation {
+	t.Helper()
+	var ops []ir.Operation
+	for _, g := range svc.Groups {
+		ops = append(ops, g.Operations...)
+	}
+	require.Len(t, ops, 1, "the fixture declares exactly one operation")
+	return ops[0]
+}
+
+// loaderErrors returns the message of every error the load phase's validation
+// produced, in report order. It matches on the code prefix every such finding
+// carries rather than on one rule, so a test asserts that the entry was placed
+// without pinning which library rule placed it.
+func loaderErrors(diags []ir.Diagnostic) []string {
+	var out []string
+	for _, d := range diags {
+		if d.Severity == ir.SeverityError && strings.HasPrefix(d.Code, diag.Validation+"/") {
+			out = append(out, d.Message)
+		}
+	}
+	return out
+}
