@@ -22,6 +22,11 @@ func main() {
 // run dispatches subcommands and returns the process exit code. It exists so
 // tests can drive the CLI without a subprocess; only main calls os.Exit.
 func run(args []string, stdout, stderr io.Writer) int {
+	// A leading "--" ends flag parsing for morphic itself, so what follows names
+	// a command however it is spelled: "morphic -- -h" reports an unknown
+	// command rather than printing help. It does not stop that name being
+	// "help", which is a command word and never was a flag.
+	args, terminated := cutTerminator(args)
 	if len(args) == 0 {
 		writeRootHelp(stdout)
 		return 0
@@ -30,7 +35,7 @@ func run(args []string, stdout, stderr io.Writer) int {
 	// the same path rather than a shortcut to root help. That is what makes
 	// "morphic -h compile" print compile's help instead of silently dropping
 	// the name, and "morphic -h bogus" report it instead of masking it.
-	if args[0] == "help" || isHelpFlag(args[0]) {
+	if args[0] == "help" || (!terminated && isHelpFlag(args[0])) {
 		return runHelp(args[1:], stdout, stderr)
 	}
 
@@ -38,7 +43,7 @@ func run(args []string, stdout, stderr io.Writer) int {
 	if !ok {
 		return rootUsageError(stderr, fmt.Sprintf("unknown command %q", args[0]))
 	}
-	return c.run(args[1:], stdout, stderr)
+	return dispatch(c, args[1:], stdout, stderr)
 }
 
 // emitf writes a formatted line to w. Write errors on a human-facing stream are

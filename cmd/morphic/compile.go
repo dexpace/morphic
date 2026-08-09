@@ -59,11 +59,8 @@ const maxTempAttempts = 10
 // exists overrides this via chmodOutput — see destMode.
 const newFilePerm os.FileMode = 0o666
 
-// newCompileCommand builds compile's command-table entry. It is a function,
-// not a package-level var, because its run field refers to runCompile, and
-// runCompile reads this same metadata back to render help and usage text. See
-// commands for why every step of that loop has to stay out of the
-// initialization graph.
+// newCompileCommand builds compile's command-table entry. It is a function, not
+// a package-level var — see commands.
 func newCompileCommand() command {
 	return command{
 		name:    "compile",
@@ -73,22 +70,41 @@ func newCompileCommand() command {
 			"diagnostics to stderr.\n\n" +
 			"--explain reports what compiling produced at one source coordinate — the\n" +
 			"type node interned there, the coordinates interned beneath it, and the\n" +
-			"diagnostics stamped at it — instead of writing the document.",
+			"diagnostics stamped at it — instead of writing the document.\n\n" +
+			"A -- argument ends flag parsing: every argument after it is an operand,\n" +
+			"even one that begins with a dash, which is how a spec file named like a\n" +
+			"flag is passed.",
 		printFlags: func(w io.Writer) {
 			fs, _ := newCompileFlags()
 			fs.SetOutput(w)
 			fs.PrintDefaults()
 		},
-		run: runCompile,
+		bind: bindCompile,
 	}
+}
+
+// specOptions holds the values the flags shared by every spec-taking command
+// parse into.
+type specOptions struct {
+	failOn       string
+	skipValidate bool
 }
 
 // compileOptions holds the values compile's flags parse into.
 type compileOptions struct {
-	outPath      string
-	failOn       string
-	skipValidate bool
-	explain      string
+	specOptions
+	outPath string
+	explain string
+}
+
+// bindSpecFlags registers the flags every spec-taking command shares onto fs.
+// Sharing the registration is what keeps their spellings, defaults and help
+// text identical across commands rather than identical-looking.
+func bindSpecFlags(fs *flag.FlagSet, opts *specOptions) {
+	fs.StringVar(&opts.failOn, "fail-on", "error",
+		"fail (exit 1) on diagnostics at or above this severity: error|warning")
+	fs.BoolVar(&opts.skipValidate, "skip-validate", false,
+		"skip the referential-integrity validate pass")
 }
 
 // newCompileFlags returns compile's FlagSet and the options its flags write
@@ -101,89 +117,112 @@ func newCompileFlags() (*flag.FlagSet, *compileOptions) {
 	fs.SetOutput(io.Discard)
 
 	var opts compileOptions
+	bindSpecFlags(fs, &opts.specOptions)
 	fs.StringVar(&opts.outPath, "o", "", "write IR JSON to this file instead of stdout")
-	fs.StringVar(&opts.failOn, "fail-on", "error",
-		"fail (exit 1) on diagnostics at or above this severity: error|warning")
-	fs.BoolVar(&opts.skipValidate, "skip-validate", false,
-		"skip the referential-integrity validate pass")
 	fs.StringVar(&opts.explain, "explain", "",
 		"report what compiling produced at this source pointer instead of writing IR JSON")
 
 	return fs, &opts
 }
 
-// runCompile implements the `compile` subcommand: lower one spec file to IR
-// JSON, render its diagnostics to stderr, and return the process exit code.
-func runCompile(args []string, stdout, stderr io.Writer) int {
+// bindCompile parses compile's arguments and returns the compile they ask for.
+func bindCompile(args []string) (work, error) {
 	fs, opts := newCompileFlags()
 
-	positional, err := parseArgs(fs, args)
-	if errors.Is(err, flag.ErrHelp) {
-		writeCommandHelp(stdout, newCompileCommand())
-		return 0
-	}
+	specPath, err := bindSpec(fs, "compile", args, &opts.specOptions)
 	if err != nil {
-		return compileUsageError(stderr, err.Error())
+		return nil, err
 	}
-	if opts.failOn != "error" && opts.failOn != "warning" {
-		return compileUsageError(stderr,
-			fmt.Sprintf("invalid --fail-on %q (want error or warning)", opts.failOn))
+
+	return func(stdout, stderr io.Writer) int {
+		return compileSpec(specPath, *opts, stdout, stderr)
+	}, nil
+}
+
+// bindSpec parses what every spec-taking command takes — its flags in any
+// position, then the one spec file it works on — and returns that file's path.
+// name is the command's own, so a misuse names the command that was typed.
+//
+// Every error it returns is rendered by the caller's dispatch, flag.ErrHelp
+// included: the flag package reports a help request as an error from Parse, and
+// passing it up unwrapped is what lets one place answer -h for every command.
+func bindSpec(fs *flag.FlagSet, name string, args []string, opts *specOptions) (string, error) {
+	positional, err := parseArgs(fs, args)
+	if err != nil {
+		return "", err
+	}
+	if opts.failOn != string(ir.SeverityError) && opts.failOn != string(ir.SeverityWarning) {
+		return "", fmt.Errorf("invalid --fail-on %q (want %s or %s)",
+			opts.failOn, ir.SeverityError, ir.SeverityWarning)
 	}
 	if len(positional) != 1 {
-		return compileUsageError(stderr, "compile requires exactly one spec file")
+		return "", fmt.Errorf("%s requires exactly one spec file", name)
 	}
-
-	return compileSpec(positional[0], *opts, stdout, stderr)
+	return positional[0], nil
 }
 
-// compileUsageError reports a misuse of compile: one reason line, one short
-// usage pointer, exit 2. It never touches stdout.
+// runPipeline runs the engine over specPath and renders every diagnostic the
+// run produced to stderr.
 //
-// reason is a finished string, not a format: a printf-style wrapper here is
-// invisible to vet, so a reason carrying a literal % — a flag value echoed back
-// from the user, say — would be mangled into the output with nothing to catch it.
-func compileUsageError(stderr io.Writer, reason string) int {
-	emitf(stderr, "morphic: %s\n", reason)
-	writeCommandUsage(stderr, newCompileCommand())
-	return 2
-}
-
-// compileSpec runs the pipeline over specPath, writes the IR document and its
-// diagnostics, and returns the process exit code.
-func compileSpec(specPath string, opts compileOptions, stdout, stderr io.Writer) int {
+// ok is false when there is no document to work with — the engine could not be
+// built, the run failed, or it lowered nothing — and code is then the exit code
+// to return. Otherwise res holds the document and code is the exit code the
+// diagnostics call for, which the caller returns once it has emitted whatever
+// it emits.
+func runPipeline(specPath string, opts specOptions, stderr io.Writer) (*engine.Result, int, bool) {
 	eng, err := newEngine()
 	if err != nil {
 		emitf(stderr, "morphic: %v\n", err)
-		return 2
+		return nil, 2, false
 	}
 
 	res, err := eng.Run(context.Background(), specPath, engine.RunOptions{SkipValidate: opts.skipValidate})
 	if err != nil {
 		emitf(stderr, "morphic: %v\n", err)
-		return 2
+		return nil, 2, false
 	}
 
 	renderDiagnostics(stderr, res)
 	if res.Document == nil {
-		return 1
+		return nil, 1, false
 	}
+	return res, exitCodeFor(res.Diagnostics, opts.failOn), true
+}
+
+// compileSpec runs the pipeline over specPath, writes the IR document and its
+// diagnostics, and returns the process exit code.
+func compileSpec(specPath string, opts compileOptions, stdout, stderr io.Writer) int {
+	res, code, ok := runPipeline(specPath, opts.specOptions, stderr)
+	if !ok {
+		return code
+	}
+
 	if opts.explain != "" {
 		explainDocument(stdout, res.Document, res.Diagnostics, opts.explain)
-		return exitCodeFor(res.Diagnostics, opts.failOn)
+		return code
 	}
 	if err := writeCompiled(opts.outPath, stdout, res.Document); err != nil {
 		emitf(stderr, "morphic: %v\n", err)
 		return 2
 	}
-	return exitCodeFor(res.Diagnostics, opts.failOn)
+	return code
 }
 
 // parseArgs binds fs and collects positional arguments, tolerating flags that
 // appear either before or after the spec path (stdlib flag stops at the first
 // non-flag argument, so it is invoked once per positional).
+//
+// A "--" ends flag parsing for the whole invocation rather than for one round
+// of it, so it is split off before that loop starts. Leaving it to Parse would
+// shield exactly one argument: Parse consumes the marker and reports nothing
+// about having seen one, so the next round cannot tell a terminated list from a
+// list that merely stopped at a positional, and re-enables flag parsing for
+// everything the user had marked as operands.
 func parseArgs(fs *flag.FlagSet, args []string) ([]string, error) {
+	before, operands := splitAtTerminator(fs, args)
+
 	var positional []string
-	rest := args
+	rest := before
 	for {
 		if err := fs.Parse(rest); err != nil {
 			// Returned verbatim, not wrapped: this error is rendered straight to
@@ -192,7 +231,7 @@ func parseArgs(fs *flag.FlagSet, args []string) ([]string, error) {
 		}
 		rest = fs.Args()
 		if len(rest) == 0 {
-			return positional, nil
+			return append(positional, operands...), nil
 		}
 		positional = append(positional, rest[0])
 		rest = rest[1:]
