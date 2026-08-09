@@ -803,6 +803,134 @@ func TestAllOf_ExtraRefsBecomeMixins(t *testing.T) {
 	assert.Equal(t, "c", c.Properties[0].Name.Source)
 }
 
+// TestAllOf_NullabilityFollowsTheConjuncts pins that a composition over a
+// null-admitting conjunct reads as nullable at every usage naming it, and that
+// the bit is derived from the conjuncts rather than asserted.
+//
+// A composition declares no nullability of its own, so asking the composing
+// schema alone answered "no" — and Model.Base carries no Nullable bit either,
+// which left `allOf: [{$ref: T}]` over a nullable T with no record of the null
+// anywhere and no diagnostic saying so. Against a model target there is not even
+// a second hop to recover it from (GitHub #279).
+//
+// WrapPlain and WrapBoth are the halves that keep the rule from being "a
+// conjunction is nullable": a conjunct declaring `type: object` forbids null,
+// and one forbidding conjunct decides the conjunction however many of its
+// siblings admit it.
+func TestAllOf_NullabilityFollowsTheConjuncts(t *testing.T) {
+	t.Parallel()
+	spec := openapitest.ComponentSpec(`    NullableName: {type: [string, "null"]}
+    NullableModel:
+      type: [object, "null"]
+      properties: {a: {type: string}}
+    PlainModel:
+      type: object
+      properties: {b: {type: string}}
+    WrapScalar: {allOf: [{$ref: '#/components/schemas/NullableName'}]}
+    WrapModel: {allOf: [{$ref: '#/components/schemas/NullableModel'}]}
+    WrapPlain: {allOf: [{$ref: '#/components/schemas/PlainModel'}]}
+    WrapBoth:
+      allOf:
+        - {$ref: '#/components/schemas/NullableModel'}
+        - {$ref: '#/components/schemas/PlainModel'}
+    Holder:
+      type: object
+      properties:
+        direct: {$ref: '#/components/schemas/NullableName'}
+        viaAllOf: {$ref: '#/components/schemas/WrapScalar'}
+        directModel: {$ref: '#/components/schemas/NullableModel'}
+        viaAllOfModel: {$ref: '#/components/schemas/WrapModel'}
+        viaAllOfPlain: {$ref: '#/components/schemas/WrapPlain'}
+        viaAllOfBoth: {$ref: '#/components/schemas/WrapBoth'}
+`)
+	doc, diags := lowerSpec(t, spec)
+	openapitest.RequireNoErrorDiags(t, diags)
+	holder, ok := typeByName(doc, "Holder").(*ir.Model)
+	require.True(t, ok, "Holder is a model")
+	props := openapitest.PropsByWire(holder.Properties)
+	require.Len(t, props, 6)
+
+	assert.True(t, props["viaAllOf"].Type.Nullable, "a conjunction over a nullable scalar admits null")
+	assert.Equal(t, props["direct"].Type.Nullable, props["viaAllOf"].Type.Nullable,
+		"wrapping a nullable scalar in an allOf does not change what the position admits")
+	assert.True(t, props["viaAllOfModel"].Type.Nullable, "a conjunction over a nullable model admits null")
+	assert.Equal(t, props["directModel"].Type.Nullable, props["viaAllOfModel"].Type.Nullable,
+		"a model target has no second hop to recover the null from, so the conjunction must carry it")
+	assert.False(t, props["viaAllOfPlain"].Type.Nullable, "a conjunction over an object admits no null")
+	assert.False(t, props["viaAllOfBoth"].Type.Nullable,
+		"one conjunct forbidding null decides the conjunction")
+
+	// The bit lives on the usage, not on the conjunct: Base and Mixins name one
+	// side of a conjunction, which is the rule conjoinBranch and fillAllOf share.
+	for _, name := range []string{"WrapScalar", "WrapModel", "WrapPlain"} {
+		m, isModel := typeByName(doc, name).(*ir.Model)
+		require.True(t, isModel, "%s is a model", name)
+		require.NotNil(t, m.Base, "%s composes a sole $ref as its Base", name)
+		assert.False(t, m.Base.Nullable, "%s.Base names a conjunct and carries no Nullable bit", name)
+	}
+}
+
+// TestDistributedUnion_VariantCarriesTheBranchNullability pins that a union
+// distributed across its branches answers what the plain union over the same
+// branches does. The distributed variant is a synthesized model, and the TypeRef
+// naming it was built with no Nullable bit at all — so the branch's null was
+// dropped whatever the branch said, with one info diagnostic that says nothing
+// about it.
+//
+// The two distributed rows differ only in the enclosing `type: object`, which is
+// the whole point: the variant is the body conjoined with the branch, so the
+// body's own type keyword decides as much as the branch does. A fix that copied
+// the branch's bit unconditionally passes the untyped row and fails the typed
+// one.
+func TestDistributedUnion_VariantCarriesTheBranchNullability(t *testing.T) {
+	t.Parallel()
+	spec := openapitest.ComponentSpec(`    NullableModel:
+      type: [object, "null"]
+      properties: {a: {type: string}}
+    PlainModel:
+      type: object
+      properties: {b: {type: string}}
+    PlainUnion:
+      oneOf:
+        - {$ref: '#/components/schemas/NullableModel'}
+        - {$ref: '#/components/schemas/PlainModel'}
+    DistributedUntyped:
+      properties: {z: {type: string}}
+      oneOf:
+        - {$ref: '#/components/schemas/NullableModel'}
+        - {$ref: '#/components/schemas/PlainModel'}
+    DistributedTyped:
+      type: object
+      properties: {z: {type: string}}
+      oneOf:
+        - {$ref: '#/components/schemas/NullableModel'}
+        - {$ref: '#/components/schemas/PlainModel'}
+`)
+	doc, diags := lowerSpec(t, spec)
+	openapitest.RequireNoErrorDiags(t, diags)
+
+	nullableOf := func(name string) []bool {
+		t.Helper()
+		u, isUnion := typeByName(doc, name).(*ir.Union)
+		require.True(t, isUnion, "%s is a union", name)
+		require.Len(t, u.Variants, 2, "%s keeps one variant per branch", name)
+		return []bool{u.Variants[0].Type.Nullable, u.Variants[1].Type.Nullable}
+	}
+
+	assert.Equal(t, []bool{true, false}, nullableOf("PlainUnion"),
+		"a plain union's variant carries its branch's nullability")
+	assert.Equal(t, nullableOf("PlainUnion"), nullableOf("DistributedUntyped"),
+		"distributing a body that declares no type does not change what a branch admits")
+	assert.Equal(t, []bool{false, false}, nullableOf("DistributedTyped"),
+		"a body declaring type: object conjoins with every branch and forbids null")
+
+	// The synthesized variant model still names its branch as a plain conjunct.
+	base, isModel := doc.Types[ir.TypeID("t/composed/components/schemas/DistributedUntyped/oneOf/0")].(*ir.Model)
+	require.True(t, isModel, "the untyped distribution synthesizes a variant model")
+	require.NotNil(t, base.Base)
+	assert.False(t, base.Base.Nullable, "the variant model's Base names a conjunct and carries no bit")
+}
+
 func TestAllOf_DiscriminatorSubtypeValue(t *testing.T) {
 	t.Parallel()
 	spec := openapitest.ComponentSpec(`    Pet:
@@ -1031,6 +1159,24 @@ func TestEnum_NullMemberNormalizesToNullable(t *testing.T) {
 			wantValueType: ir.PrimNumber,
 			wantMembers:   numMembers,
 		},
+		{
+			// A bare enum: nothing beside the members says whether null is in the
+			// value space, so the members say it themselves and the set normalizes
+			// exactly as its type-array spelling does. It used to keep the whole
+			// enum on the union-of-literals fallback (GitHub #265).
+			name:          "bare enum, trailing null",
+			version:       "3.1.0",
+			schema:        `{enum: [red, green, null]}`,
+			wantValueType: ir.PrimString,
+			wantMembers:   strMembers,
+		},
+		{
+			name:          "bare enum, leading null",
+			version:       "3.1.0",
+			schema:        `{enum: [null, 1, 2]}`,
+			wantValueType: ir.PrimNumber,
+			wantMembers:   numMembers,
+		},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -1068,18 +1214,24 @@ func TestEnum_NullMemberNormalizesToNullable(t *testing.T) {
 // the normalization must not touch still lowers to a union of literals, with its
 // info diagnostic and every member preserved.
 //
-// The last three rows are the ones that decide how far the rule reaches. A
-// schema whose type keyword excludes null conjoins the two, so its `null` member
-// admits nothing and normalizing would widen the type; a bare enum declares no
-// nullability that schemaAdmitsNull — which a reference re-derives the bit from
-// — would recognize, so stripping there would drop the null entirely; and an
-// all-null set has no member left to build an Enum from.
+// The last two rows decide how far the rule reaches. A schema whose type keyword
+// excludes null conjoins the two, so its `null` member admits nothing and
+// normalizing would widen the declared type — that row must stay non-nullable
+// however the predicate is widened elsewhere; and an all-null set has no member
+// left to build an Enum from.
+//
+// wantNullable is asserted beside the variants because the two answers have to
+// agree: a set that keeps its null as a Literal variant *and* reads as nullable
+// states one fact twice, which is tolerable, but a set whose null the fallback
+// keeps while the reference denies it would be a position an emitter cannot
+// generate.
 func TestEnum_NullMemberKeepsUnionFallback(t *testing.T) {
 	t.Parallel()
 	null := ir.Value{Kind: ir.ValueNull}
 	cases := []struct {
 		name, version, schema string
 		wantVariants          []ir.Value
+		wantNullable          bool
 	}{
 		{
 			name:    "heterogeneous members beside a null member",
@@ -1090,6 +1242,20 @@ func TestEnum_NullMemberKeepsUnionFallback(t *testing.T) {
 				{Kind: ir.ValueString, Str: "a"},
 				null,
 			},
+			wantNullable: true,
+		},
+		{
+			// The bare spelling of the row above: no type keyword, so the members
+			// decide, and they say the same thing the type array did.
+			name:    "heterogeneous members, no type keyword",
+			version: "3.1.0",
+			schema:  `{enum: [1, a, null]}`,
+			wantVariants: []ir.Value{
+				{Kind: ir.ValueNumber, Num: ir.BigVal("1")},
+				{Kind: ir.ValueString, Str: "a"},
+				null,
+			},
+			wantNullable: true,
 		},
 		{
 			name:    "type keyword excludes null",
@@ -1100,22 +1266,14 @@ func TestEnum_NullMemberKeepsUnionFallback(t *testing.T) {
 				{Kind: ir.ValueString, Str: "green"},
 				null,
 			},
-		},
-		{
-			name:    "no type keyword to admit null",
-			version: "3.1.0",
-			schema:  `{enum: [red, green, null]}`,
-			wantVariants: []ir.Value{
-				{Kind: ir.ValueString, Str: "red"},
-				{Kind: ir.ValueString, Str: "green"},
-				null,
-			},
+			wantNullable: false,
 		},
 		{
 			name:         "every member is null",
 			version:      "3.1.0",
 			schema:       `{type: ["null"], enum: [null]}`,
 			wantVariants: []ir.Value{null},
+			wantNullable: true,
 		},
 	}
 	for _, tc := range cases {
@@ -1125,6 +1283,12 @@ func TestEnum_NullMemberKeepsUnionFallback(t *testing.T) {
 			openapitest.RequireNoErrorDiags(t, diags)
 			assert.True(t, openapitest.HasDiagAt(diags, diag.DegradedConstruct, ir.SeverityInfo),
 				"the degraded-enum diagnostic still fires; got %+v", diags)
+
+			owner, ok := doc.Types[componentID("S")].(*ir.Model)
+			require.True(t, ok, "S is a model")
+			require.Len(t, owner.Properties, 1)
+			assert.Equal(t, tc.wantNullable, owner.Properties[0].Type.Nullable,
+				"the reference agrees with the members the fallback kept")
 
 			u, ok := doc.Types[ir.TypeID("t/anon/components/schemas/S/properties/p")].(*ir.Union)
 			require.True(t, ok, "the property lowers to a union of literals")
@@ -1153,6 +1317,37 @@ func TestConst_BecomesLiteral(t *testing.T) {
 	k, ok := doc.Types[componentID("K")].(*ir.Literal)
 	require.True(t, ok, "K should be a literal")
 	assert.Equal(t, ir.Value{Kind: ir.ValueString, Str: "fixed"}, k.Value)
+}
+
+// TestConst_FixesWhetherTheValueSpaceHoldsNull pins that `const` decides null
+// admission the way a non-empty `enum` does — it is the one-member spelling of
+// the same keyword.
+//
+// `{type: [string, "null"], const: "a"}` is the const form of the enum case that
+// used to overstate: the type array puts null in the type space and the const
+// takes it back out of the value space, so the position does not admit it.
+func TestConst_FixesWhetherTheValueSpaceHoldsNull(t *testing.T) {
+	t.Parallel()
+	spec := openapitest.ComponentSpec(`    S:
+      type: object
+      properties:
+        justNull: {const: null}
+        narrowed: {type: [string, "null"], const: "a"}
+`)
+	doc, diags := lowerSpec(t, spec)
+	openapitest.RequireNoErrorDiags(t, diags)
+	m, ok := typeByName(doc, "S").(*ir.Model)
+	require.True(t, ok, "S is a model")
+	props := openapitest.PropsByWire(m.Properties)
+	require.Len(t, props, 2)
+
+	assert.True(t, props["justNull"].Type.Nullable, "a const of null admits null")
+	lit, isLit := doc.Types[props["justNull"].Type.Target].(*ir.Literal)
+	require.True(t, isLit, "the const still lowers to its Literal")
+	assert.Equal(t, ir.Value{Kind: ir.ValueNull}, lit.Value)
+
+	assert.False(t, props["narrowed"].Type.Nullable,
+		"a non-null const conjoins with the type array and takes the null back out")
 }
 
 func TestHoistLiteral_UnconvertibleConstBecomesAny(t *testing.T) {

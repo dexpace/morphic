@@ -37,6 +37,15 @@ var loweringRecursions = [][]string{
 	// records this as the reason schema, compose and resolve cannot be separated
 	// into packages.
 	schemaRecursion,
+	// The nullability predicate. JSON Schema conjoins keywords, so whether a
+	// schema admits null is decided by its allOf conjuncts as much as by its own
+	// type set, and a conjunct is reached through a $ref whose target is a schema
+	// asked the same question. These four are not lowerings — they build no node
+	// and report no diagnostic — but they live in the same package and the call
+	// graph reads it whole, so the cycle is pinned here with the rest. It is
+	// bounded by an explicit budget (maxNullConjuncts), which is what stops a
+	// self-referential allOf rather than anything in this shape.
+	{"allOfNullVerdict", "conjunctNullVerdict", "refNullVerdict", "schemaNullVerdict"},
 	// Callbacks. An operation may declare callbacks, each of which is a path item
 	// holding operations of its own (ir-design §8.1), so the operation lowering
 	// reaches itself through them.

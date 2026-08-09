@@ -244,6 +244,12 @@ Compilers normalize every source spelling to this one bit: OAS 3.0 `nullable: tr
 A oneOf/anyOf/union whose only distinction is a null variant becomes a plain nullable `TypeRef`,
 never a union node.
 
+The bit describes the whole schema, not the keyword that spells it. Where a source format conjoins
+keywords (JSON Schema), a compiler reads them together: a value set that omits `null` beside a type
+that names it — `{type: [string, "null"], enum: [red, green]}` — does not admit null, one that lists
+`null` with no type beside it does, and a composition admits what its conjuncts jointly admit. So
+every spelling of one constraint reaches the same bit, which is the only thing an emitter reads.
+
 Protobuf field *presence* is **not** nullability — protobuf has no null. Presence disciplines
 lower to `Property.Presence` (§5.1), keeping `Nullable` strictly about wire-null.
 

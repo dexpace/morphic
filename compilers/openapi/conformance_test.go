@@ -171,6 +171,7 @@ func conformanceCases() []conformanceCase {
 		{"nullable-30", assertNullable30},
 		{"nullable-31-ref", assertNullable31Ref},
 		{"nullable-enum-31", assertNullableEnum31},
+		{"nullability-conjunction", assertNullabilityConjunction},
 		{"defaults", assertDefaults},
 		{"yaml-timestamp-scalars", assertYAMLTimestampScalars},
 		{"constraints", assertConstraints},
@@ -1002,6 +1003,79 @@ func assertNullableEnum31(t *testing.T, doc *ir.Document, diags []ir.Diagnostic)
 	require.True(t, ok)
 	assert.Equal(t, ir.TypeRef{Target: namedID("Color"), Nullable: true}, p.Type,
 		"a parameter reaches the same declaration through the operation walk")
+
+	// The two spellings beside Color. A non-empty enum fixes the value space, so
+	// the members decide null admission whether or not a type keyword is written
+	// beside them — and when one is, the two conjoin rather than the type winning.
+	bare, ok := doc.Types[namedID("BareColor")].(*ir.Enum)
+	require.True(t, ok, "a bare enum listing null is still an enum of its scalar members")
+	require.Len(t, bare.Members, 2, "the null member is normalized away here too")
+	assert.Equal(t, ir.PrimString, bare.ValueType, "the kept members supply the value type")
+
+	narrowed, ok := doc.Types[namedID("NarrowedColor")].(*ir.Enum)
+	require.True(t, ok)
+	require.Len(t, narrowed.Members, 2, "nothing to strip: the members never listed null")
+
+	bareRef, ok := propByWire(m, "bare")
+	require.True(t, ok)
+	assert.Equal(t, ir.TypeRef{Target: namedID("BareColor"), Nullable: true}, bareRef.Type,
+		"the bare spelling admits null at its uses, like the type-array spelling of the same set")
+
+	narrowedRef, ok := propByWire(m, "narrowed")
+	require.True(t, ok)
+	assert.Equal(t, ir.TypeRef{Target: namedID("NarrowedColor"), Nullable: false}, narrowedRef.Type,
+		"an enum excluding null must not admit it, whatever the type keyword names")
+}
+
+// assertNullabilityConjunction covers the rule that decides null admission for a
+// schema whose keywords disagree: JSON Schema conjoins them, so a position
+// admits null when something declares it and nothing takes it away. The
+// capability claimed is agreement — the same constraint written two ways reaches
+// one Nullable bit — which is what a target language can act on, since an
+// emitter reads the bit and never the spelling.
+//
+// Base and Mixins are asserted to stay bare on purpose. They name one side of a
+// conjunction, so the bit belongs to the usage that names the whole of it; a
+// composition carrying its own would put the same fact in two places that can
+// then disagree.
+func assertNullabilityConjunction(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
+	m, ok := doc.Types[namedID("Holder")].(*ir.Model)
+	require.True(t, ok)
+	props := openapitest.PropsByWire(m.Properties)
+	require.Len(t, props, 5)
+
+	assert.Equal(t, props["direct"].Type.Nullable, props["viaAllOf"].Type.Nullable,
+		"a sole conjunct's null survives the composition that names it")
+	assert.True(t, props["viaAllOf"].Type.Nullable)
+	assert.Equal(t, props["directModel"].Type.Nullable, props["viaAllOfModel"].Type.Nullable,
+		"a model target has no second hop to recover the null from")
+	assert.True(t, props["viaAllOfModel"].Type.Nullable)
+	assert.False(t, props["viaAllOfBoth"].Type.Nullable,
+		"one conjunct forbidding null decides the conjunction")
+
+	for _, name := range []string{"WrapNullableScalar", "WrapNullableModel", "WrapBoth"} {
+		wrap, isModel := doc.Types[namedID(name)].(*ir.Model)
+		require.True(t, isModel, "%s composes as a model", name)
+		if wrap.Base != nil {
+			assert.False(t, wrap.Base.Nullable, "%s.Base names a conjunct, not a usage", name)
+		}
+		for i, mix := range wrap.Mixins {
+			assert.False(t, mix.Nullable, "%s.Mixins[%d] names a conjunct, not a usage", name, i)
+		}
+	}
+
+	plain, ok := doc.Types[namedID("PlainUnion")].(*ir.Union)
+	require.True(t, ok)
+	distributed, ok := doc.Types[namedID("DistributedUnion")].(*ir.Union)
+	require.True(t, ok)
+	require.Len(t, plain.Variants, 2)
+	require.Len(t, distributed.Variants, 2)
+	for i := range plain.Variants {
+		assert.Equal(t, plain.Variants[i].Type.Nullable, distributed.Variants[i].Type.Nullable,
+			"variant %d: distributing a body that declares no type does not change what its branch admits", i)
+	}
+	assert.True(t, plain.Variants[0].Type.Nullable, "the nullable branch is the one that admits null")
+	assert.False(t, plain.Variants[1].Type.Nullable, "and the plain one is not")
 }
 
 func assertDefaults(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {

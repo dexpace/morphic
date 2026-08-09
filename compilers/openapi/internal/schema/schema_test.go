@@ -1175,6 +1175,57 @@ func TestSchema_RefNullableAcrossSpellings(t *testing.T) {
 	}
 }
 
+// TestSchema_NullabilityAgreesAcrossEnumSpellings pins that a value set and a
+// type keyword conjoin, and that both ways of writing the same conjunction get
+// the same answer.
+//
+// `{type: [string, "null"], enum: [red, green]}` and
+// `{enum: [red, green], oneOf: [{type: string}, {type: "null"}]}` say one thing:
+// null is in the type space and out of the value space, so the position does not
+// admit it. The type-array spelling used to read the type keyword alone and call
+// the position nullable while the oneOf spelling read the enum and called it
+// not — two answers for one constraint in a single document (GitHub #288).
+//
+// Both members of a pair are written into one document on purpose: "the same
+// schema, two spellings" is then a property of one compile rather than of two
+// runs that could differ for unrelated reasons. The admitting pair is here for
+// the same reason the excluding one is — a predicate hardcoded either way fails
+// exactly one of them.
+func TestSchema_NullabilityAgreesAcrossEnumSpellings(t *testing.T) {
+	t.Parallel()
+	spec := openapitest.ComponentSpec(`    S:
+      type: object
+      properties:
+        excludedByType: {type: [string, "null"], enum: [red, green]}
+        excludedByUnion: {enum: [red, green], oneOf: [{type: string}, {type: "null"}]}
+        admittedByType: {type: [string, "null"], enum: [red, green, null]}
+        admittedByUnion: {enum: [red, green, null], oneOf: [{type: string}, {type: "null"}]}
+`)
+	doc, diags := lowerSpec(t, spec)
+	openapitest.RequireNoErrorDiags(t, diags)
+	m, ok := typeByName(doc, "S").(*ir.Model)
+	require.True(t, ok, "S is a model")
+	props := openapitest.PropsByWire(m.Properties)
+	require.Len(t, props, 4)
+
+	pairs := []struct {
+		name, typeSpelling, unionSpelling string
+		want                              bool
+	}{
+		{"an enum listing no null member", "excludedByType", "excludedByUnion", false},
+		{"an enum listing one", "admittedByType", "admittedByUnion", true},
+	}
+	for _, p := range pairs {
+		t.Run(p.name, func(t *testing.T) {
+			t.Parallel()
+			got := props[p.typeSpelling].Type.Nullable
+			assert.Equal(t, p.want, got, "the enum decides whether the position admits null")
+			assert.Equal(t, got, props[p.unionSpelling].Type.Nullable,
+				"the type-array and oneOf spellings of one constraint must agree")
+		})
+	}
+}
+
 // TestSchema_RefNullableMatchesInlineForUnionSiblings pins that one schema body
 // lowers to the same Nullable bit whether it is written inline or reached
 // through a $ref. The $ref site recomputes nullability, so it is the one place
