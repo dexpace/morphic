@@ -8,11 +8,13 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	yaml "gopkg.in/yaml.v3"
 
 	"github.com/dexpace/morphic/compilers"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/openapitest"
 	"github.com/dexpace/morphic/compilers/openapi/internal/scan"
+	"github.com/dexpace/morphic/compilers/openapi/internal/sourceindex"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -96,7 +98,7 @@ func TestDetectCycles_ComponentOnlyCyclesLeftToResolver(t *testing.T) {
 	for _, tc := range componentOnlyCycles {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			assert.Empty(t, scan.Cycles(0, []byte(tc.data)),
+			assert.Empty(t, scan.Cycles(0, scanIndex(t, tc.data)),
 				"a components-only cycle is the resolver's to report")
 
 			_, diags, err := New().Compile(t.Context(),
@@ -207,6 +209,15 @@ func TestCompile_RefShapedDataNotRefused(t *testing.T) {
 			}
 		})
 	}
+}
+
+// scanIndex decodes a spec and indexes it, which is what load hands the scan
+// once the compile's one decode has run.
+func scanIndex(t *testing.T, src string) sourceindex.Index {
+	t.Helper()
+	var root yaml.Node
+	require.NoError(t, yaml.Unmarshal([]byte(src), &root))
+	return sourceindex.Build(&root, sourceindex.MaxIndexedNodes)
 }
 
 // TestCompile_SchemaEmptyPointerSegmentIsUnresolved pins where reading the

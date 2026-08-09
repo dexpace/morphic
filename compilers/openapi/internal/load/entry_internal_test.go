@@ -8,11 +8,14 @@ import (
 	"github.com/speakeasy-api/openapi/validation"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	yaml "gopkg.in/yaml.v3"
 
 	"github.com/dexpace/morphic/compilers"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/openapitest"
 	"github.com/dexpace/morphic/compilers/openapi/internal/overlay"
+	"github.com/dexpace/morphic/compilers/openapi/internal/sourceindex"
+	"github.com/dexpace/morphic/ir"
 )
 
 // TestLoad_DegenerateCycleIsRefusedBeforeParsing pins the first gate in the
@@ -297,4 +300,85 @@ func TestLoad_RejectsAnOverlaySharingTheSourceIndex(t *testing.T) {
 	got, diags, err := Load(t.Context(), 2, openapitest.SourceOf(minimal31), opts)
 	require.NoError(t, err, "an index of its own is fine: %+v", diags)
 	assert.True(t, got.Overlay.Applied())
+}
+
+// TestLoad_ADocumentTooLargeToIndexIsRefused drives the refusal a document draws
+// before the cycle scan reads a single reference: one with more YAML nodes than
+// the source index walks.
+//
+// The bound is reached by shrinking it rather than by building a document of
+// sourceindex.MaxIndexedNodes nodes — that would be several gigabytes of
+// fixture, and the part worth testing is what the loader does with a truncated
+// index, not that the walk stops at a number.
+func TestLoad_ADocumentTooLargeToIndexIsRefused(t *testing.T) {
+	t.Parallel()
+	opts := Options{buildIndex: func(root *yaml.Node) sourceindex.Index {
+		return sourceindex.Build(root, 1)
+	}}
+
+	doc, diags, err := Load(t.Context(), 4, openapitest.SourceOf(minimal31), opts)
+
+	require.NoError(t, err, "an oversized document is a spec problem, not a Go error")
+	assert.Nil(t, doc, "nothing is lowered from a document the pre-parse scan cannot cover")
+	require.Len(t, diags, 1)
+	assert.Equal(t, diag.SourceTooLarge, diags[0].Code)
+	assert.Equal(t, ir.SeverityError, diags[0].Severity)
+	assert.Equal(t, 4, diags[0].Provenance.Source, "the refusal names the source it read")
+}
+
+// TestLoad_TheSameDocumentLoadsOnceItFitsTheIndex is the control for the test
+// above: with the real bound in force the identical source loads, so the refusal
+// is the bound's doing and not the document's.
+func TestLoad_TheSameDocumentLoadsOnceItFitsTheIndex(t *testing.T) {
+	t.Parallel()
+	got, diags, err := Load(t.Context(), 4, openapitest.SourceOf(minimal31), Options{})
+
+	require.NoError(t, err)
+	require.NotNil(t, got)
+	assert.False(t, diag.HasError(diags), "unexpected refusal: %+v", diags)
+}
+
+// countingIndexBuilder returns base with an index builder that counts its calls,
+// and the counter it writes. The count is one load's own, so tests using it stay
+// independent of each other and of anything running beside them.
+func countingIndexBuilder(base Options) (Options, *int) {
+	built := 0
+	base.buildIndex = func(root *yaml.Node) sourceindex.Index {
+		built++
+		return defaultIndex(root)
+	}
+	return base, &built
+}
+
+// TestLoad_IndexesTheSourceOnce guards the shape of this path rather than its
+// output: one decode, one index, and every pre-parse refusal reading that index
+// instead of walking the tree again. A change that re-added a walk of its own
+// would break no assertion about what the compiler reports — the refusals would
+// still be right — so the count is the only thing that can hold it.
+func TestLoad_IndexesTheSourceOnce(t *testing.T) {
+	t.Parallel()
+	opts, built := countingIndexBuilder(Options{})
+
+	got, diags, err := Load(t.Context(), 0, openapitest.SourceOf(minimal31), opts)
+
+	require.NoError(t, err)
+	require.NotNil(t, got)
+	assert.False(t, diag.HasError(diags), "unexpected refusal: %+v", diags)
+	assert.Equal(t, 1, *built, "a compile with no overlay indexes its source exactly once")
+}
+
+// TestLoad_IndexesAPatchedTreeAgain is the one second index that is correct: an
+// overlay leaves behind a tree the first one no longer describes, and what the
+// refusals answer for is the tree the parser is handed.
+func TestLoad_IndexesAPatchedTreeAgain(t *testing.T) {
+	t.Parallel()
+	opts, built := countingIndexBuilder(
+		overlayOptions("  - target: $.info\n    update: {description: d}\n"))
+
+	got, diags, err := Load(t.Context(), 0, openapitest.SourceOf(minimal31), opts)
+
+	require.NoError(t, err)
+	require.NotNil(t, got)
+	assert.False(t, diag.HasError(diags), "unexpected refusal: %+v", diags)
+	assert.Equal(t, 2, *built, "the source, then the tree the overlay left behind")
 }
