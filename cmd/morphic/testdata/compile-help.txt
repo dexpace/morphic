@@ -8,6 +8,10 @@ diagnostics to stderr.
 type node interned there, the coordinates interned beneath it, and the
 diagnostics stamped at it — instead of writing the document.
 
+--opt passes a setting to the compiler the spec selects, which names and
+validates its own options; morphic itself knows none of them. The OpenAPI
+compiler's are listed in the README.
+
 flags:
   -explain string
     	report what compiling produced at this source pointer instead of writing IR JSON
@@ -15,5 +19,7 @@ flags:
     	fail (exit 1) on diagnostics at or above this severity: error|warning (default "error")
   -o string
     	write IR JSON to this file instead of stdout
+  -opt key=value
+    	set one key=value option on the compiler the spec selects (repeatable)
   -skip-validate
     	skip the referential-integrity validate pass

@@ -118,15 +118,35 @@ The flags below are `compile`'s:
 | `--fail-on error\|warning` | Exit non-zero when a diagnostic at or above this severity is emitted (default `error`). |
 | `--skip-validate` | Skip the referential-integrity `validate` pass. |
 | `--explain <json-pointer>` | Report what compiling produced at this source coordinate instead of writing the document. |
+| `--opt <key>=<value>` | Set one option on the compiler the spec selects. Repeatable; a repeated key is refused. |
 
 Diagnostics print one per line as `<severity> <code> <path>#<pointer>: <message>`. Exit codes:
 `0` clean (and for any help request), `1` a diagnostic reached the `--fail-on` threshold (or the
 spec could not be lowered), `2` a usage or I/O error.
 
+#### Compiler options
+
+`--opt` names an option in the vocabulary of whichever compiler recognizes the spec — morphic
+itself knows none of them, and an unknown name is refused by the compiler rather than ignored.
+The OpenAPI compiler accepts:
+
+| Option | Values | Meaning |
+|---|---|---|
+| `grouping` | `tags` (default), `path-prefix` | How operations are grouped into operation groups. |
+| `allow-external-refs` | `true`, `false` (default) | Let `$ref` resolution leave the source document, reading files and fetching URLs. |
+| `overlay` | a file path | Apply an [OpenAPI Overlay](https://spec.openapis.org/overlay/latest.html) document to the source before lowering. |
+| `overlay-lax` | `true`, `false` (default) | Do not refuse when an overlay action's selector matches nothing. |
+
+```bash
+morphic compile openapi.yaml --opt grouping=path-prefix --opt overlay=patch.yaml
+```
+
 ### Library
 
 The same pipeline is available as a package. `engine.New` builds the default registry (OpenAPI
-compiler + `validate` pass); `Run` sniffs the format, compiles, and runs passes.
+compiler + `validate` pass); `Run` asks the registered compilers which of them recognizes the
+source, compiles, and runs passes. A Go caller can set compiler options as a typed value through
+`RunOptions.FormatOptions` instead of as text through `RunOptions.CompilerOptions`.
 
 ```go
 eng, err := engine.New()

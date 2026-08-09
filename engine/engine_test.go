@@ -2,8 +2,10 @@ package engine_test
 
 import (
 	"context"
+	"errors"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -17,9 +19,46 @@ import (
 
 func writeSpec(t *testing.T, contents string) string {
 	t.Helper()
-	path := filepath.Join(t.TempDir(), "spec.yaml")
+	return writeNamed(t, "spec.yaml", contents)
+}
+
+func writeNamed(t *testing.T, name, contents string) string {
+	t.Helper()
+	path := filepath.Join(t.TempDir(), name)
 	require.NoError(t, os.WriteFile(path, []byte(contents), 0o644))
 	return path
+}
+
+// TestEngine_RunUnrecognizedFormat drives the input three of the five planned
+// compilers take. None of it is YAML, and none of it is any concern of the YAML
+// parser: what a user needs back is that no registered compiler claims these
+// bytes, named in the vocabulary of spec formats.
+//
+// Running the parser first made the answer an accident of whether the bytes
+// happened to parse — a one-line GraphQL document parses and a two-line one does
+// not — and when they did not, the message quoted a decoder's complaint about an
+// engine-internal type.
+func TestEngine_RunUnrecognizedFormat(t *testing.T) {
+	t.Parallel()
+	cases := []struct{ name, file, src string }{
+		{"protobuf", "svc.proto", "syntax = \"proto3\";\npackage demo;\nservice S { rpc Get (Q) returns (A); }\n"},
+		{"typespec", "main.tsp", "import \"@typespec/http\";\nnamespace Demo;\nmodel Pet { name: string; }\n"},
+		{"graphql", "schema.graphql", "type Query {\n  pet(id: ID!): Pet\n}\n"},
+		{"graphql one line", "one.graphql", "type Query { a: String }\n"},
+		{"yaml that is no spec", "junk.yaml", "hello: world\n"},
+	}
+	eng, err := engine.New()
+	require.NoError(t, err)
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			_, err := eng.Run(t.Context(), writeNamed(t, tc.file, tc.src), engine.RunOptions{})
+			require.Error(t, err)
+			assert.Contains(t, err.Error(), "no compiler recognizes")
+			assert.NotContains(t, err.Error(), "yaml:", "a parser's complaint is not an answer")
+		})
+	}
 }
 
 func TestEngine_RunEndToEnd(t *testing.T) {
@@ -97,36 +136,63 @@ func TestEngine_RunMissingFile(t *testing.T) {
 	require.Error(t, err)
 }
 
-func TestEngine_RunSniffError(t *testing.T) {
+// TestEngine_RunRecognizedButUnsupported pins the other half of the detection
+// answer: a Swagger 2.0 document is a spec, and the OpenAPI compiler says so
+// while serving no such format. Naming it beats reporting the file as
+// unrecognized, which is what a user would be told if recognition and support
+// were the same question.
+func TestEngine_RunRecognizedButUnsupported(t *testing.T) {
 	t.Parallel()
 	eng, err := engine.New()
 	require.NoError(t, err)
-	// Swagger 2.0 sniffs to a recognized-but-unsupported error, which Run wraps.
-	_, err = eng.Run(t.Context(), writeSpec(t, "swagger: \"2.0\"\n"), engine.RunOptions{})
+	_, err = eng.Run(t.Context(), writeSpec(t, "swagger: \"2.0\"\ninfo: {}\n"), engine.RunOptions{})
 	require.Error(t, err)
-	assert.Contains(t, err.Error(), "engine: sniff")
+	assert.Contains(t, err.Error(), "no compiler registered for format swagger@2.0")
 }
 
-func TestEngine_RunLookupMiss(t *testing.T) {
+func TestEngine_RunNothingRegistered(t *testing.T) {
 	t.Parallel()
 	// NewWith() with zero compilers is load-bearing here: it is the only way to
-	// reach an engine with no compiler registered for the openapi 3.1 the spec
-	// sniffs to. Don't add a len(fronts) == 0 precondition to NewWith — doing so
-	// would make this branch unreachable.
+	// reach an engine that has nothing to ask about a source every registered
+	// compiler would otherwise claim. Don't add a len(fronts) == 0 precondition
+	// to NewWith — doing so would make this branch unreachable.
 	eng, err := engine.NewWith()
 	require.NoError(t, err)
 	_, err = eng.Run(t.Context(), writeSpec(t, testspec.Tiny), engine.RunOptions{})
 	require.Error(t, err)
-	assert.Contains(t, err.Error(), "no compiler registered for format")
+	assert.Contains(t, err.Error(), "no compiler recognizes")
 }
+
+// TestEngine_RunEmptySource pins that an empty file is nobody's spec, without a
+// compiler having to be asked about zero bytes.
+func TestEngine_RunEmptySource(t *testing.T) {
+	t.Parallel()
+	eng, err := engine.New()
+	require.NoError(t, err)
+	_, err = eng.Run(t.Context(), writeSpec(t, ""), engine.RunOptions{})
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "no compiler recognizes")
+}
+
+// stubFront answers the two contract questions every stub in this file answers
+// the same way: it claims openapi 3.1, recognizes anything as openapi 3.1, and
+// takes no options. Embedding it leaves each stub holding only the Compile
+// behaviour it exists to model.
+type stubFront struct{}
+
+func (stubFront) Formats() []compilers.SourceFormat {
+	return []compilers.SourceFormat{{Name: "openapi", Version: "3.1"}}
+}
+
+func (stubFront) Detect(compilers.Source) (compilers.SourceFormat, bool) {
+	return compilers.SourceFormat{Name: "openapi", Version: "3.1"}, true
+}
+
+func (stubFront) DecodeOptions(compilers.OptionSet) (any, error) { return nil, nil }
 
 // collidingCompiler claims a single fixed format. Two of them registered
 // together make the second Register call fail, driving NewWith's error path.
-type collidingCompiler struct{}
-
-func (collidingCompiler) Formats() []compilers.SourceFormat {
-	return []compilers.SourceFormat{{Name: "openapi", Version: "3.1"}}
-}
+type collidingCompiler struct{ stubFront }
 
 func (collidingCompiler) Compile(context.Context, []compilers.Source, compilers.Options) (*ir.Document, []ir.Diagnostic, error) {
 	return nil, nil, nil
@@ -142,11 +208,7 @@ func TestNewWith_RegisterError(t *testing.T) {
 
 // errCompiler claims openapi 3.1 and always fails Compile, driving Run's
 // parse-error branch.
-type errCompiler struct{}
-
-func (errCompiler) Formats() []compilers.SourceFormat {
-	return []compilers.SourceFormat{{Name: "openapi", Version: "3.1"}}
-}
+type errCompiler struct{ stubFront }
 
 func (errCompiler) Compile(context.Context, []compilers.Source, compilers.Options) (*ir.Document, []ir.Diagnostic, error) {
 	return nil, nil, assert.AnError
@@ -163,11 +225,7 @@ func TestEngine_RunParseError(t *testing.T) {
 
 // nilDocCompiler claims openapi 3.1 and returns a nil Document with no error —
 // a legal outcome that must skip the validate pass and surface a nil Document.
-type nilDocCompiler struct{}
-
-func (nilDocCompiler) Formats() []compilers.SourceFormat {
-	return []compilers.SourceFormat{{Name: "openapi", Version: "3.1"}}
-}
+type nilDocCompiler struct{ stubFront }
 
 func (nilDocCompiler) Compile(context.Context, []compilers.Source, compilers.Options) (*ir.Document, []ir.Diagnostic, error) {
 	return nil, []ir.Diagnostic{{Code: "x/none"}}, nil
@@ -188,11 +246,7 @@ func TestEngine_RunNilDocument(t *testing.T) {
 // dangling type reference, so the validate pass — if it runs — reports
 // ir/dangling-type-ref. It claims the openapi 3.1 format so a tiny 3.1 spec
 // sniffs to it.
-type danglingCompiler struct{}
-
-func (danglingCompiler) Formats() []compilers.SourceFormat {
-	return []compilers.SourceFormat{{Name: "openapi", Version: "3.1"}}
-}
+type danglingCompiler struct{ stubFront }
 
 func (danglingCompiler) Compile(_ context.Context, _ []compilers.Source, _ compilers.Options) (*ir.Document, []ir.Diagnostic, error) {
 	doc := &ir.Document{
@@ -238,4 +292,125 @@ func TestEngine_ValidateRuns(t *testing.T) {
 	require.NoError(t, err)
 	assert.False(t, hasDiagCode(withoutPass.Diagnostics, "ir/dangling-type-ref"),
 		"skipping validation suppresses the diagnostic")
+}
+
+// smithyCompiler is a compiler for a format the engine has never heard of. It
+// recognizes its own input and names its own options, which is the whole of what
+// registering a format takes.
+type smithyCompiler struct{ options compilers.OptionSet }
+
+func (*smithyCompiler) Formats() []compilers.SourceFormat {
+	return []compilers.SourceFormat{{Name: "smithy", Version: "2.0"}}
+}
+
+func (*smithyCompiler) Detect(src compilers.Source) (compilers.SourceFormat, bool) {
+	if !strings.HasPrefix(string(src.Data), "$version:") {
+		return compilers.SourceFormat{}, false
+	}
+	return compilers.SourceFormat{Name: "smithy", Version: "2.0"}, true
+}
+
+func (s *smithyCompiler) DecodeOptions(set compilers.OptionSet) (any, error) {
+	if _, ok := set.Settings["boom"]; ok {
+		return nil, errors.New("boom is not an option")
+	}
+	s.options = set
+	return set.Settings["shape"], nil
+}
+
+func (*smithyCompiler) Compile(_ context.Context, _ []compilers.Source, opts compilers.Options) (*ir.Document, []ir.Diagnostic, error) {
+	name, _ := opts.FormatOptions.(string)
+	return &ir.Document{Name: name, Types: ir.TypeRegistry{}}, nil, nil
+}
+
+// TestEngine_RunNewFormatNeedsNoEngineEdit is the acceptance criterion for a
+// compiler-owned seam: a format the engine names nowhere is reached by
+// registering its compiler and nothing else. Detection, the option vocabulary
+// and the version grammar all belong to the compiler, so this file — and every
+// other file under engine/ — mentions neither smithy nor its options.
+func TestEngine_RunNewFormatNeedsNoEngineEdit(t *testing.T) {
+	t.Parallel()
+	eng, err := engine.NewWith(&smithyCompiler{})
+	require.NoError(t, err)
+
+	res, err := eng.Run(t.Context(), writeNamed(t, "model.smithy", "$version: \"2\"\nnamespace demo\n"),
+		engine.RunOptions{CompilerOptions: map[string]string{"shape": "Widget"}})
+	require.NoError(t, err)
+	require.NotNil(t, res.Document)
+	assert.Equal(t, compilers.SourceFormat{Name: "smithy", Version: "2.0"}, res.Format)
+	assert.Equal(t, "Widget", res.Document.Name, "the setting reached the compiler that decoded it")
+}
+
+// TestEngine_RunCompilerOptionsAreLoadedByTheEngine pins the file half of the
+// textual channel: a compiler does no file I/O, so a setting that names one is
+// read through the reader the engine supplies.
+func TestEngine_RunCompilerOptionsAreLoadedByTheEngine(t *testing.T) {
+	t.Parallel()
+	front := &smithyCompiler{}
+	eng, err := engine.NewWith(front)
+	require.NoError(t, err)
+	spec := writeNamed(t, "model.smithy", "$version: \"2\"\n")
+
+	_, err = eng.Run(t.Context(), spec, engine.RunOptions{
+		CompilerOptions: map[string]string{"shape": "Widget"},
+	})
+	require.NoError(t, err)
+	require.NotNil(t, front.options.ReadFile, "a compiler must be handed a reader it can use")
+
+	got, err := front.options.ReadFile(spec)
+	require.NoError(t, err)
+	assert.Contains(t, string(got), "$version")
+}
+
+func TestEngine_RunOptionRefusals(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		name    string
+		opts    engine.RunOptions
+		wantErr string
+	}{
+		{"both channels", engine.RunOptions{
+			FormatOptions:   "programmatic",
+			CompilerOptions: map[string]string{"shape": "Widget"},
+		}, "set FormatOptions or CompilerOptions, not both"},
+		{"undecodable setting", engine.RunOptions{
+			CompilerOptions: map[string]string{"boom": "yes"},
+		}, "boom is not an option"},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			eng, err := engine.NewWith(&smithyCompiler{})
+			require.NoError(t, err)
+			_, err = eng.Run(t.Context(), writeNamed(t, "model.smithy", "$version: \"2\"\n"), tc.opts)
+			require.Error(t, err)
+			assert.Contains(t, err.Error(), "engine: options for")
+			assert.Contains(t, err.Error(), tc.wantErr)
+		})
+	}
+}
+
+// TestEngine_RunCompilerOptionsReachTheOpenAPICompiler asserts through the real
+// compiler what the stubs assert through the seam: the same document compiles
+// differently under a setting no engine code understands.
+func TestEngine_RunCompilerOptionsReachTheOpenAPICompiler(t *testing.T) {
+	t.Parallel()
+	eng, err := engine.New()
+	require.NoError(t, err)
+	spec := writeSpec(t, `openapi: 3.1.0
+info: {title: T, version: "1"}
+paths:
+  /a/b:
+    get: {operationId: ab, tags: [zoo], responses: {"200": {description: ok}}}
+`)
+
+	byTag, err := eng.Run(t.Context(), spec, engine.RunOptions{})
+	require.NoError(t, err)
+	byPath, err := eng.Run(t.Context(), spec, engine.RunOptions{
+		CompilerOptions: map[string]string{"grouping": "path-prefix"},
+	})
+	require.NoError(t, err)
+
+	assert.Equal(t, "zoo", byTag.Document.Services[0].Groups[0].Name.Source)
+	assert.Equal(t, "a", byPath.Document.Services[0].Groups[0].Name.Source)
 }

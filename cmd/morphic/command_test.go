@@ -61,11 +61,14 @@ func TestNewCompileFlags_DefinesEveryFlag(t *testing.T) {
 	assert.Empty(t, opts.outPath)
 	assert.False(t, opts.skipValidate)
 	assert.Empty(t, opts.explain)
+	assert.NotNil(t, opts.settings,
+		"the settings map must exist before Parse writes into it")
+	assert.Empty(t, opts.settings)
 }
 
 // compileFlagNames is every flag compile accepts, asserted from both the
 // constructor and the command-table entry so the two cannot drift.
-var compileFlagNames = []string{"o", "fail-on", "skip-validate", "explain"}
+var compileFlagNames = []string{"o", "fail-on", "skip-validate", "explain", "opt"}
 
 func TestCommand_PrintFlagsDocumentsTheCommandsOwnFlags(t *testing.T) {
 	t.Parallel()

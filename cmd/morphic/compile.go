@@ -73,7 +73,10 @@ func newCompileCommand() command {
 			"diagnostics to stderr.\n\n" +
 			"--explain reports what compiling produced at one source coordinate — the\n" +
 			"type node interned there, the coordinates interned beneath it, and the\n" +
-			"diagnostics stamped at it — instead of writing the document.",
+			"diagnostics stamped at it — instead of writing the document.\n\n" +
+			"--opt passes a setting to the compiler the spec selects, which names and\n" +
+			"validates its own options; morphic itself knows none of them. The OpenAPI\n" +
+			"compiler's are listed in the README.",
 		printFlags: func(w io.Writer) {
 			fs, _ := newCompileFlags()
 			fs.SetOutput(w)
@@ -89,6 +92,7 @@ type compileOptions struct {
 	failOn       string
 	skipValidate bool
 	explain      string
+	settings     settingFlag
 }
 
 // newCompileFlags returns compile's FlagSet and the options its flags write
@@ -100,7 +104,7 @@ func newCompileFlags() (*flag.FlagSet, *compileOptions) {
 	fs := flag.NewFlagSet("compile", flag.ContinueOnError)
 	fs.SetOutput(io.Discard)
 
-	var opts compileOptions
+	opts := compileOptions{settings: settingFlag{}}
 	fs.StringVar(&opts.outPath, "o", "", "write IR JSON to this file instead of stdout")
 	fs.StringVar(&opts.failOn, "fail-on", "error",
 		"fail (exit 1) on diagnostics at or above this severity: error|warning")
@@ -108,6 +112,8 @@ func newCompileFlags() (*flag.FlagSet, *compileOptions) {
 		"skip the referential-integrity validate pass")
 	fs.StringVar(&opts.explain, "explain", "",
 		"report what compiling produced at this source pointer instead of writing IR JSON")
+	fs.Var(opts.settings, "opt",
+		"set one `key=value` option on the compiler the spec selects (repeatable)")
 
 	return fs, &opts
 }
@@ -157,7 +163,10 @@ func compileSpec(specPath string, opts compileOptions, stdout, stderr io.Writer)
 		return 2
 	}
 
-	res, err := eng.Run(context.Background(), specPath, engine.RunOptions{SkipValidate: opts.skipValidate})
+	res, err := eng.Run(context.Background(), specPath, engine.RunOptions{
+		CompilerOptions: opts.settings,
+		SkipValidate:    opts.skipValidate,
+	})
 	if err != nil {
 		emitf(stderr, "morphic: %v\n", err)
 		return 2

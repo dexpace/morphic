@@ -89,6 +89,12 @@ func (nilDocCompiler) Formats() []compilers.SourceFormat {
 	return []compilers.SourceFormat{{Name: "openapi", Version: "3.1"}}
 }
 
+func (nilDocCompiler) Detect(compilers.Source) (compilers.SourceFormat, bool) {
+	return compilers.SourceFormat{Name: "openapi", Version: "3.1"}, true
+}
+
+func (nilDocCompiler) DecodeOptions(compilers.OptionSet) (any, error) { return nil, nil }
+
 func (nilDocCompiler) Compile(context.Context, []compilers.Source, compilers.Options) (*ir.Document, []ir.Diagnostic, error) {
 	return nil, []ir.Diagnostic{{
 		Severity: ir.SeverityError,
