@@ -93,35 +93,36 @@ go build -o morphic ./cmd/morphic
 ### CLI
 
 `morphic compile` lowers one OpenAPI 3.x spec into Morphic IR JSON on stdout, and writes
-diagnostics to stderr.
+diagnostics to stderr. `morphic validate` runs the same pipeline over the same spec for the
+diagnostics and the exit code alone, writing no IR anywhere.
 
 ```bash
 morphic compile openapi.yaml                 # IR JSON to stdout
 morphic compile openapi.yaml -o api.ir.json  # ...or to a file
+morphic validate openapi.yaml                # diagnostics and exit code only
 ```
 
 ```
 usage:
   morphic <command> [flags]
   morphic compile <spec-file> [flags]
+  morphic validate <spec-file> [flags]
 ```
 
 `morphic`, `morphic help`, and `morphic` with a help flag (`-h`, `--help` or `-help`) print the
-command list. `morphic help compile` and `morphic compile --help` print a command's flags. Help
-always prints to stdout and exits `0`.
+command list. `morphic help <command>` and `morphic <command> --help` print a command's flags.
+Help always prints to stdout and exits `0`.
 
-The flags below are `compile`'s:
+| Flag | Commands | Meaning |
+|---|---|---|
+| `--fail-on error\|warning` | both | Exit non-zero when a diagnostic at or above this severity is emitted (default `error`). |
+| `--skip-validate` | both | Skip the referential-integrity `validate` pass. |
+| `-o <file>` | `compile` | Write IR JSON to `<file>` instead of stdout. |
+| `--explain <json-pointer>` | `compile` | Report what compiling produced at this source coordinate instead of writing the document. |
 
-| Flag | Meaning |
-|---|---|
-| `-o <file>` | Write IR JSON to `<file>` instead of stdout. |
-| `--fail-on error\|warning` | Exit non-zero when a diagnostic at or above this severity is emitted (default `error`). |
-| `--skip-validate` | Skip the referential-integrity `validate` pass. |
-| `--explain <json-pointer>` | Report what compiling produced at this source coordinate instead of writing the document. |
-
-Diagnostics print one per line as `<severity> <code> <path>#<pointer>: <message>`. Exit codes:
-`0` clean (and for any help request), `1` a diagnostic reached the `--fail-on` threshold (or the
-spec could not be lowered), `2` a usage or I/O error.
+Diagnostics print one per line as `<severity> <code> <path>#<pointer>: <message>`. Both commands
+use the same exit codes: `0` clean (and for any help request), `1` a diagnostic reached the
+`--fail-on` threshold (or the spec could not be lowered), `2` a usage or I/O error.
 
 ### Library
 
