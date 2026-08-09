@@ -701,38 +701,52 @@ func checkMessageBindings(doc *ir.Document) []ir.Diagnostic {
 	return diags
 }
 
-// checkBoundMessages holds one operation's message binding to the message set of
-// the channel it names. A channel that resolves nowhere is left alone: there is
-// no set to compare against, and ir/dangling-channel-ref already reports it, so a
-// second diagnostic here would restate a defect rather than add a claim.
+// checkBoundMessages holds every message set a binding names to the message set
+// of the channel that set travels on. A binding names two: its own Messages, on
+// Channel, and a reply's, on the reply channel. Both are the same containment
+// claim — a reply payload the reply channel does not carry is as unroutable as a
+// request the operation's channel does not — so neither is checked alone.
+//
+// A reply with no channel of its own is left alone: its address is dynamic, so
+// there is no declared message set to hold it to (ir-design §8.3).
 func checkBoundMessages(doc *ir.Document, op ir.Operation) []ir.Diagnostic {
 	b := op.Bindings.Message
 	if b == nil {
 		return nil
 	}
-	ch, declared := doc.Channels[b.Channel]
+	at := string(op.ID) + "/bindings/message"
+	diags := appendUncarriedMessageDiags(nil, doc, b.Channel, b.Messages, at+"/messages")
+	if b.Reply == nil || b.Reply.Channel == nil {
+		return diags
+	}
+	return appendUncarriedMessageDiags(diags, doc, *b.Reply.Channel, b.Reply.Messages,
+		at+"/reply/messages")
+}
+
+// appendUncarriedMessageDiags appends to dst a diagnostic per message in used
+// that channel does not carry, in declaration order; at is the pointer prefix the
+// index is appended to.
+//
+// A channel that resolves nowhere is left alone: there is no set to compare
+// against, and ir/dangling-channel-ref already reports it, so a second diagnostic
+// here would restate a defect rather than add a claim.
+func appendUncarriedMessageDiags(dst []ir.Diagnostic, doc *ir.Document,
+	channel ir.ChannelID, used []ir.MessageID, at string) []ir.Diagnostic {
+	ch, declared := doc.Channels[channel]
 	if !declared {
-		return nil
+		return dst
 	}
 	carried := make(map[ir.MessageID]bool, len(ch.Messages))
 	for _, id := range ch.Messages {
 		carried[id] = true
 	}
-	return appendUncarriedMessageDiags(nil, b, carried, string(op.ID))
-}
-
-// appendUncarriedMessageDiags appends to dst a diagnostic per message the binding
-// uses that carried does not hold, in binding order; where locates the owning
-// operation.
-func appendUncarriedMessageDiags(dst []ir.Diagnostic, b *ir.MessageBinding,
-	carried map[ir.MessageID]bool, where string) []ir.Diagnostic {
-	for i, id := range b.Messages {
+	for i, id := range used {
 		if carried[id] {
 			continue
 		}
-		at := fmt.Sprintf("%s/bindings/message/messages/%d", where, i)
+		site := fmt.Sprintf("%s/%d", at, i)
 		dst = append(dst, diag(ir.SeverityError, "pass/message-not-in-channel",
-			fmt.Sprintf("message %q at %s is not carried by channel %q", id, at, b.Channel), at))
+			fmt.Sprintf("message %q at %s is not carried by channel %q", id, site, channel), site))
 	}
 	return dst
 }

@@ -1323,7 +1323,7 @@ type Reply struct {
     Address  *PropPath     // dynamic reply address: where in the *request* message the reply
                            // destination lives, e.g. In:"header", Segments:[replyTo]
                            // (AsyncAPI Operation Reply Address runtime expressions)
-    Messages []MessageID   // reply payload message set
+    Messages []MessageID   // reply payload message set (a subset of Channel's when set — validated)
     Docs     Docs
 }
 

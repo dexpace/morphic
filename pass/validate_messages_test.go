@@ -71,3 +71,45 @@ func TestValidate_OperationWithoutAMessageBindingIsClean(t *testing.T) {
 	assert.NotContains(t, codes(pass.Validate(docWithOperation(ir.Operation{ID: "op"}))),
 		"pass/message-not-in-channel")
 }
+
+// replyBindingDoc returns a document whose channel chan/a carries carried and
+// whose single operation binds it legally, with a reply on replyChannel using
+// replyUsed. A nil replyChannel is the dynamic-address spelling.
+func replyBindingDoc(replyChannel *ir.ChannelID, carried, replyUsed []ir.MessageID) *ir.Document {
+	doc := messageBindingDoc("chan/a", carried, nil)
+	firstOp(doc).Bindings.Message.Reply = &ir.Reply{Channel: replyChannel, Messages: replyUsed}
+	return doc
+}
+
+// TestValidate_ReplyMessageNotCarriedByChannel holds the reply half of a binding
+// to the containment claim its request half already carries. A reply names a
+// channel and the payloads travelling back on it, so a reply message the reply
+// channel does not carry is as unroutable as a request message the operation's
+// channel does not — and every id resolves, so nothing else can catch it.
+func TestValidate_ReplyMessageNotCarriedByChannel(t *testing.T) {
+	t.Parallel()
+	replyCh := ir.ChannelID("chan/a")
+	diags := pass.Validate(replyBindingDoc(&replyCh,
+		[]ir.MessageID{"msg/a"}, []ir.MessageID{"msg/b"}))
+
+	assert.Equal(t, 0, countCode(t, diags, "ir/dangling-message-ref"),
+		"msg/b is registered, so the reference walk has nothing to say")
+	msg := messageForCode(t, diags, "pass/message-not-in-channel")
+	assert.Contains(t, msg, "msg/b")
+	assert.Contains(t, msg, "/bindings/message/reply/messages/0",
+		"the reply's own position, not the request set's")
+}
+
+// TestValidate_ReplyMessagesCarriedAreClean is the silent half, including the
+// reply whose address is dynamic: ir-design §8.3 leaves such a reply's channel
+// nil, so there is no declared message set to hold it to and a check that
+// reported there would refuse legal IR.
+func TestValidate_ReplyMessagesCarriedAreClean(t *testing.T) {
+	t.Parallel()
+	carried := []ir.MessageID{"msg/a", "msg/b"}
+	replyCh := ir.ChannelID("chan/a")
+
+	assert.Empty(t, pass.Validate(replyBindingDoc(&replyCh, carried, []ir.MessageID{"msg/b"})))
+	assert.Empty(t, pass.Validate(replyBindingDoc(nil, carried, []ir.MessageID{"msg/b"})),
+		"a reply with a dynamic address declares no channel to be a subset of")
+}
