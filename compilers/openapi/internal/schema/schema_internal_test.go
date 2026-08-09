@@ -446,6 +446,43 @@ func TestRefNullable_AnUnresolvedRefIsNotNullable(t *testing.T) {
 	assert.False(t, refNullable(js))
 }
 
+// TestSchemaNullVerdict_TheConjunctWalkIsBounded pins the budget the conjunct
+// walk runs on. Whether a schema admits null is decided partly by its allOf
+// conjuncts, each reached through a $ref whose target is asked the same
+// question, so a schema conjoining itself would otherwise not terminate.
+//
+// A budget spent per schema visited caps depth as well as breadth, and an
+// exhausted walk answers "silent" — the verdict that claims the least, so a
+// spec too deep to read is never reported as admitting a null it does not.
+func TestSchemaNullVerdict_TheConjunctWalkIsBounded(t *testing.T) {
+	t.Parallel()
+	nullable := &oas3.Schema{
+		Type: oas3.NewTypeFromArray([]oas3.SchemaType{oas3.SchemaTypeString, oas3.SchemaTypeNull}),
+	}
+
+	budget := 1
+	require.Equal(t, nullAdmitted, schemaNullVerdict(nullable, &budget),
+		"the fixture admits null while there is budget to read it")
+
+	spent := 0
+	assert.Equal(t, nullSilent, schemaNullVerdict(nullable, &spent),
+		"an exhausted budget stops the walk without claiming anything")
+	assert.Positive(t, maxNullConjuncts, "the cap is a real bound, not zero")
+}
+
+// TestConjunctNullVerdict_ABranchWithNoSchemaSaysNothing pins the guard on an
+// absent allOf entry. The parser never produces a nil branch, so nothing in the
+// corpus reaches it; a conjunct that is not there constrains nothing, which is
+// silence rather than a refusal — reading it as forbidding would let one
+// missing entry strip a sibling's null.
+func TestConjunctNullVerdict_ABranchWithNoSchemaSaysNothing(t *testing.T) {
+	t.Parallel()
+	budget := maxNullConjuncts
+	assert.Equal(t, nullSilent, conjunctNullVerdict(nil, &budget))
+	assert.Equal(t, nullSilent, conjunctNullVerdict(emptyEitherSchema(), &budget),
+		"a branch whose either-value holds neither schema nor bool says nothing either")
+}
+
 // TestComponentSchemaAt_OnlyATopLevelComponentPointerHasABody pins the split
 // the function exists for: a component pointer has a body, and a pointer into
 // that same component does not.

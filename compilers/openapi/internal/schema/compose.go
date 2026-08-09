@@ -791,7 +791,26 @@ func composedVariant(c lowering.Ctx, ts *compile.Types, anchors *AnchorIndex, de
 	common := commonFor(c, id, vptr, compile.SubHint(body.hint, vhint))
 	def, variantDiags := buildComposedVariant(c, ts, anchors, depth, body, branch.Target, common)
 	ts.Register(id, def)
-	return ir.TypeRef{Target: id}, append(diags, variantDiags...)
+	return ir.TypeRef{Target: id, Nullable: composedVariantNullable(body.schema, branch)},
+		append(diags, variantDiags...)
+}
+
+// composedVariantNullable reports whether the union variant naming a
+// synthesized variant admits null: the variant is the enclosing body conjoined
+// with the branch, so it admits null exactly when the branch does and the body
+// does not forbid it. That is schemaNullVerdict's allOf rule applied to the one
+// conjunction the source does not spell as an allOf, which is what keeps a
+// distributed union answering what the plain union over the same branch does.
+//
+// The bit belongs on this TypeRef rather than on the variant model's Base or
+// Mixins for the reason conjoinBranch records: those name a conjunct, and
+// nullability is a property of the usage that names the conjunction.
+func composedVariantNullable(body *oas3.Schema, branch ir.TypeRef) bool {
+	if !branch.Nullable {
+		return false
+	}
+	budget := maxNullConjuncts
+	return schemaNullVerdict(body, &budget) != nullForbidden
 }
 
 // buildComposedVariant assembles the variant Model itself. Every fill reads the
@@ -818,7 +837,8 @@ func buildComposedVariant(c lowering.Ctx, ts *compile.Types, anchors *AnchorInde
 // nothing, a Mixin otherwise. Only the target is carried, never the branch
 // ref's Nullable bit — fillAllOf drops it for an allOf entry on the same
 // reasoning: Base and Mixins name a conjunct, and nullability is a property of
-// the usage that names the conjunction, not of one side of it.
+// the usage that names the conjunction, not of one side of it. The usage here is
+// the union variant, and composedVariantNullable is what puts the bit on it.
 func conjoinBranch(m *ir.Model, branch ir.TypeID) {
 	target := ir.TypeRef{Target: branch}
 	if m.Base == nil && len(m.Mixins) == 0 {
@@ -1014,25 +1034,25 @@ func propIDByName(m *ir.Model, name string) (ir.PropID, bool) {
 // non-scalar member set has no Enum home, so it falls back to a Union of
 // Literals with an info diagnostic — nothing is dropped.
 //
-// A schema that admits null in its own right — `type: [T, "null"]`, 3.0
-// `nullable: true` — spells its nullable enum by listing `null` among the
+// A schema that admits null spells its nullable enum by listing `null` among the
 // members, so that member is stripped and normalized onto the enclosing
 // reference's Nullable bit (ir-design §3.3) rather than degrading the whole
 // enum. schemaAdmitsNull is what decides that here *and* what a reference
 // re-derives the bit from (refNullable at a $ref site, lowerSchemaBody inline),
 // so the null this drops is exactly the null those put back; a spelling only one
-// of them recognized would lose it. A conjunct position is the standing
-// exception: Model.Base and Mixins name one side of a conjunction and carry no
-// Nullable bit at all (conjoinBranch), so an `allOf: [{$ref: T}]` over a nullable
-// T reaches no null — in every spelling of T's nullability, this one included
-// rather than this one only. GitHub #279 holds that.
+// of them recognized would lose it.
 //
-// That is also why the enum's own `null` member does not itself count as
-// admitting null: `{enum: [red, green, null]}` with no type keyword is left to
-// the union-of-literals fallback, since schemaAdmitsNull does not read enum
-// members and stripping on a wider rule here would set the bit nowhere. Widening
-// it is a change to every site that computes nullability, not to this one, and
-// it has its own decisions to make — GitHub #265 holds them.
+// A non-empty enum decides null admission by itself, so a bare
+// `{enum: [red, green, null]}` normalizes like the type-array spelling of the
+// same set. `{type: string, enum: [red, green, null]}` still does not: the type
+// keyword conjoins with the members and forbids the null they list, so
+// stripping there would widen the declared type rather than normalize it.
+//
+// A member set with no Enum home is unaffected by the stripping either way. It
+// falls back to a Union over the members as written, null included, beside a
+// reference that also says the position admits null — one fact stated twice,
+// which is what the type-array spelling of such a set already produced and what
+// the bare spelling now matches.
 func lowerEnum(c lowering.Ctx, ts *compile.Types, s *oas3.Schema, pointer, hint string) (ir.TypeID, []ir.Diagnostic) {
 	var diags []ir.Diagnostic
 	id := internNode(c, ts, pointer, hint, func(common ir.TypeCommon) ir.TypeDef {
