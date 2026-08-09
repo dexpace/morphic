@@ -1,0 +1,59 @@
+# One key the OpenAPI model names no field for at every object the compiler takes
+# a census from, each valued with the object it was written on so an entry found
+# at the wrong carrier cannot pass for the right one.
+#
+# Every key here is one real documents carry rather than invented nonsense: a
+# Swagger 2.0 field with no OpenAPI 3 equivalent (basePath, host, a body
+# parameter's schema), a keyword from an older JSON Schema draft (additionalItems,
+# divisibleBy), a field belonging to a neighbouring object (a flow's tokenUrl on
+# the scheme, a parameter's `in` on a header), or operationId with the case wrong.
+# None of them reached an IR field, an Unmodeled entry or a diagnostic.
+openapi: 3.1.0
+basePath: ROOT
+info:
+  title: T
+  version: "1"
+  contactEmail: INFO
+  contact: {name: n, slack: CONTACT}
+  license: {name: MIT, spdx: LICENSE}
+externalDocs: {url: 'https://d.example', title: EXTERNALDOCS}
+servers:
+  - url: 'https://a.example/{region}'
+    host: SERVER
+    variables:
+      region: {default: us, example: SERVERVARIABLE}
+tags:
+  - {name: t1, color: TAG}
+paths:
+  /widgets:
+    get:
+      operationId: listWidgets
+      tags: [t1]
+      operationid: OPERATION
+      parameters:
+        - {name: shape, in: query, schema: {type: string}, collectionFormat: PARAMETER}
+      requestBody:
+        required: true
+        schema: REQUESTBODY
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/S'}
+            format: MEDIATYPE
+      responses:
+        "200":
+          description: ok
+          status: RESPONSE
+          headers:
+            X-Trace: {schema: {type: string}, in: HEADER}
+        "404":
+          description: gone
+          status: ERRORRESPONSE
+components:
+  securitySchemes:
+    k: {type: apiKey, in: header, name: X-Key, tokenUrl: SECURITYSCHEME}
+  schemas:
+    S:
+      type: object
+      additionalItems: SCHEMA
+      properties:
+        a: {type: string, divisibleBy: PROPERTYSCHEMA}

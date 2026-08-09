@@ -89,7 +89,8 @@ func lowerContent(c lowering.Ctx, ts *compile.Types, anchors *schema.AnchorIndex
 	if len(ext) > 0 {
 		content.Unmodeled = annotation.MergeUnmodeled(content.Unmodeled, ext)
 	}
-	return content, diags
+	return content, append(diags,
+		annotation.UnknownKeysIn(&content.Unmodeled, media, c.SrcIndex, mediaPtr)...)
 }
 
 // fillSequential lowers 3.2 sequential-media fields: itemSchema becomes the
@@ -555,7 +556,7 @@ func applyHeaderAnnotations(c lowering.Ctx, p *ir.Property, h *soa.Header, hdecl
 	hExt, extDiags := schema.ExtensionsOf(c, h.GetExtensions(), hdecl)
 	diags = append(diags, extDiags...)
 	p.Unmodeled = annotation.MergeUnmodeled(p.Unmodeled, hExt)
-	return diags
+	return append(diags, annotation.UnknownKeysIn(&p.Unmodeled, h, c.SrcIndex, hdecl)...)
 }
 
 // exampleList lowers a single example node and a plural example map into value
@@ -664,7 +665,7 @@ func lowerRequestBody(c lowering.Ctx, ts *compile.Types, anchors *schema.AnchorI
 			"request body is not required; optionality kept under Unmodeled"))
 	}
 	// soa.RequestBody exposes no GetExtensions at this library version, so the
-	// field is read directly — as XMLHints already reads its own. The read sits
+	// field is read directly — as XMLHints already reads its own. Both reads sit
 	// after the payload guard because ir.Payload is the body's only carrier: a
 	// request body declaring no content lowers to nothing to hang them on, and
 	// OpenAPI makes content REQUIRED there, so such a body is a defect in the
@@ -672,6 +673,7 @@ func lowerRequestBody(c lowering.Ctx, ts *compile.Types, anchors *schema.AnchorI
 	bodyExt, bodyExtDiags := schema.ExtensionsOf(c, rb.Extensions, bodyPtr)
 	payload.Unmodeled = annotation.MergeUnmodeled(payload.Unmodeled, bodyExt)
 	diags = append(diags, bodyExtDiags...)
+	diags = append(diags, annotation.UnknownKeysIn(&payload.Unmodeled, rb, c.SrcIndex, bodyPtr)...)
 	op.Request = payload
 	hb.RequestContentTypes = contentTypeKeys(rb.GetContent())
 	return diags

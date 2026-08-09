@@ -297,6 +297,7 @@ func lowerOperation(c lowering.Ctx, ts *compile.Types, anchors *schema.AnchorInd
 	}
 	op.Bindings = ir.OpBindings{HTTP: []ir.HTTPBinding{hb}}
 	diags = append(diags, applyOperationExtensions(c, &op, src, decl)...)
+	diags = append(diags, annotation.UnknownKeysIn(&op.Unmodeled, src, c.SrcIndex, decl)...)
 	diags = append(diags, applyOperationServers(c, &op, src, decl)...)
 	return op, extra, append(diags, checkOperationIDUnique(c, operationIDs, op, mount)...)
 }
@@ -509,7 +510,8 @@ func lowerResponse(c lowering.Ctx, ts *compile.Types, anchors *schema.AnchorInde
 }
 
 // preserveResponseExtras keeps what a Response Object declares that has no home
-// on the node it lowered to: its links map, and its own x-* extensions.
+// on the node it lowered to: its links map, its own x-* extensions, and the keys
+// the specification does not define at all.
 //
 // One helper for both branches on purpose. ir.Response and ir.ErrorCase are two
 // lowerings of the same source object, and each construct kept on only one of
@@ -525,7 +527,8 @@ func preserveResponseExtras(c lowering.Ctx, p *ir.Unmodeled, r *soa.Response, rp
 		annotation.RawChildNode(r.GetRootNode(), "links"), ir.ReasonNoIRHome, rptr+ids.Ptr("links"))
 	ext, extDiags := schema.ExtensionsOf(c, r.GetExtensions(), rptr)
 	*p = annotation.MergeUnmodeled(*p, ext)
-	return append(diags, extDiags...)
+	diags = append(diags, extDiags...)
+	return append(diags, annotation.UnknownKeysIn(p, r, c.SrcIndex, rptr)...)
 }
 
 // responseName builds a success response's neutral naming. OpenAPI names no

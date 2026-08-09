@@ -132,7 +132,13 @@ func lowerSecurityScheme(c lowering.Ctx, name string, ss *soa.SecurityScheme,
 		return ir.AuthScheme{}, false, []ir.Diagnostic{mechanismRefusalDiag(c, name, missing, entry)}
 	}
 	diags = preserveUnreadFields(c, &scheme, ss, decl)
-	return scheme, true, append(diags, applySchemeExtensions(c, &scheme, ss, decl)...)
+	diags = append(diags, applySchemeExtensions(c, &scheme, ss, decl)...)
+	// Distinct from preserveUnreadFields above it: that keeps the fields OpenAPI
+	// defines for a securityScheme which this entry's own mechanism gives no
+	// meaning to, while this keeps the keys OpenAPI defines for no securityScheme
+	// at all.
+	return scheme, true, append(diags,
+		annotation.UnknownKeysIn(&scheme.Unmodeled, ss, c.SrcIndex, decl)...)
 }
 
 // applySchemeExtensions keeps the x-* of the securitySchemes entry and, for an

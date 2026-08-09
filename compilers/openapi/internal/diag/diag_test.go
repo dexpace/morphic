@@ -138,6 +138,7 @@ func codes() []string {
 		diag.AliasAmplification, diag.UnattachableRequired, diag.InternalInvariant,
 		diag.DuplicateOperationID, diag.IncompleteSecurityScheme,
 		diag.ReservedHeaderName, diag.UnpreservableConstruct,
+		diag.UnknownSchemaKeyword, diag.UnknownObjectKey, diag.UnknownKeyBudget,
 	}
 }
 
