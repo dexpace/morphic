@@ -31,8 +31,9 @@ Pipeline: **compilers** (spec → IR) → **IR passes** (IR → IR) → **emitte
 - `docs/prior-art.md` — the evidence base (oagen, Kiota, TypeSpec/TCGC) and the specific mistakes
   each Morphic decision is designed to avoid. Read this before proposing IR changes; most
   "simplifications" that come to mind are failure modes already rejected here.
-- `docs/reference-learnings.md` — the same evidence base widened to seven shipped generators, each
-  finding carrying a verdict on a Morphic decision and citing the repo it came from.
+- `docs/reference-learnings.md` — the same evidence base widened to every shipped generator it
+  surveys (its header names them), each finding carrying a verdict on a Morphic decision and
+  citing the repo it came from.
 - `docs/micro-compiler-design.md` and `docs/micro-compiler-plan.md` — the restructuring that
   produced today's `compilers/openapi`. Both record work that has landed; read them for why the
   package boundaries fall where they do, not as a proposal or a backlog.
@@ -153,10 +154,10 @@ These all exist already — extend them rather than building a parallel mechanis
 - **Oracles**: `internal/harness` drives a spec through no-panic → no error diagnostic →
   `irverify` invariants → JSON round-trip → determinism → order-invariance, stopping at the first
   one that fires. `harness.Check` is the list — read it there rather than trusting this sentence;
-  `go run ./cmd/morphic-harness <file|dir>` runs them all. `irverify` is the structural-invariant
-  checker (stable IDs, no dangling refs, neutral naming, routable `Unmodeled`, in-range
-  provenance); its findings are `Violation` values — *our* bugs — deliberately a channel separate
-  from `ir.Diagnostic`, which reports problems in the source spec.
+  `go run ./cmd/morphic-harness <file|dir>` runs them over one spec or a whole tree. `irverify` is
+  the structural-invariant checker (stable IDs, no dangling refs, neutral naming, routable
+  `Unmodeled`, in-range provenance); its findings are `Violation` values — *our* bugs —
+  deliberately a channel separate from `ir.Diagnostic`, which reports problems in the source spec.
 - **Architecture test**: `internal/archtest`, per the layering section above.
 
 Beyond those, "verify by executing" below has consequences specific enough to write down as
