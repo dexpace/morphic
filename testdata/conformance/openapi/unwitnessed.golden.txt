@@ -131,10 +131,7 @@ Operation.OneWay
 Operation.OverloadOf
 Operation.Pagination
 Operation.ParameterVisibility
-Operation.RequestStream
-Operation.ResponseStream
 Operation.ReturnTypeVisibility
-Operation.Streaming
 OperationGroup.Availability
 OperationGroup.Groups
 OperationGroup.Resource
@@ -170,7 +167,6 @@ Property.WireID
 Property.WireNameByFormat
 ProtocolDecl.Name
 ProtocolDecl.Options
-Provenance.Inferred
 Provenance.Source
 RPCBinding.FullMethod
 RPCBinding.IdempotencyLevel
@@ -206,7 +202,6 @@ Service.Renames
 Service.Servers
 Service.Unmodeled
 Service.Version
-StreamDetail.Events
 StreamDetail.Initial
 StreamDetail.RequiresLength
 TemplateArg.Type

@@ -36,7 +36,7 @@ func TestRefLastSegment(t *testing.T) {
 func TestMappingTargetID(t *testing.T) {
 	t.Parallel()
 	l := &lowerer{
-		ctx: lowering.New(0, docDeclaring("Cat", "Dog", "A/B"), ir.SourceInfo{}, "", overlay.Origin{}),
+		ctx: lowering.New(0, docDeclaring("Cat", "Dog", "A/B"), ir.SourceInfo{}, "", lowering.StreamingMedia{}, overlay.Origin{}),
 		out: &ir.Document{Types: ir.TypeRegistry{}},
 	}
 	// A $ref to a declared component.
@@ -63,7 +63,7 @@ func TestMappingTargetID(t *testing.T) {
 	// (issue #14, f31). It gets a context of its own rather than being added to the
 	// one above: the declared set is derived from the document now, so saying "and
 	// also this one" means saying it to a document.
-	empty := lowering.New(0, docDeclaring(""), ir.SourceInfo{}, "", overlay.Origin{})
+	empty := lowering.New(0, docDeclaring(""), ir.SourceInfo{}, "", lowering.StreamingMedia{}, overlay.Origin{})
 	id, ok = mappingTargetID(empty, l.types, "")
 	require.True(t, ok)
 	assert.Equal(t, ids.AnonType(ids.Ptr("components", "schemas", "")), id)

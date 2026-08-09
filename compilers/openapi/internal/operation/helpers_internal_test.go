@@ -44,7 +44,7 @@ func loweredFor(t *testing.T, src string) (*lowerer, []ir.Diagnostic) {
 	require.NotNil(t, loadedDoc, "load returned no document: %+v", diags)
 	types := compile.NewTypes(0)
 	return &lowerer{
-		ctx:          lowering.New(0, loadedDoc.Doc, loadedDoc.Source, lowering.GroupByTags, overlay.Origin{}),
+		ctx:          lowering.New(0, loadedDoc.Doc, loadedDoc.Source, lowering.GroupByTags, lowering.StreamingMedia{}, overlay.Origin{}),
 		out:          &ir.Document{Types: types.Registry()},
 		types:        types,
 		operationIDs: make(map[string]string),
@@ -56,7 +56,7 @@ func loweredFor(t *testing.T, src string) (*lowerer, []ir.Diagnostic) {
 func newRawLowerer(doc *soa.OpenAPI) *lowerer {
 	types := compile.NewTypes(0)
 	return &lowerer{
-		ctx:          lowering.New(0, doc, ir.SourceInfo{}, "", overlay.Origin{}),
+		ctx:          lowering.New(0, doc, ir.SourceInfo{}, "", lowering.StreamingMedia{}, overlay.Origin{}),
 		out:          &ir.Document{Types: types.Registry()},
 		types:        types,
 		operationIDs: make(map[string]string),
