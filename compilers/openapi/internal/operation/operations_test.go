@@ -1493,6 +1493,68 @@ func TestOperations_PathItemServersKeptOnEveryRoute(t *testing.T) {
 	}
 }
 
+// pathItemUnknownKeySpec writes one key the Path Item Object does not define on
+// each of the three path items a document can declare, valued with the route it
+// sits on so an entry recovered from the wrong item cannot pass for the right
+// one.
+//
+// The value is a whole operation because that is what the position accepts:
+// the library folds a key it does not recognize into the item's operations map
+// and unmarshals it as an Operation, so a scalar there is a validation error
+// rather than a key with a value to keep. It is also the case that used to be
+// lost in silence — a well-formed operation under an undefined key raised no
+// finding at all.
+const pathItemUnknownKeySpec = `openapi: 3.1.0
+info: {title: T, version: "1"}
+paths:
+  /p:
+    onPath: {responses: {"200": {description: PATH}}}
+    post:
+      operationId: postP
+      callbacks:
+        onEvent:
+          '{$request.body#/url}':
+            onCallback: {responses: {"200": {description: CALLBACK}}}
+            post:
+              operationId: onEvent
+              responses: {"200": {description: ok}}
+      responses: {"200": {description: ok}}
+webhooks:
+  hooked:
+    onWebhook: {responses: {"200": {description: WEBHOOK}}}
+    post:
+      operationId: onHook
+      responses: {"200": {description: ok}}
+`
+
+// TestOperations_PathItemUnknownKeyKeptOnEveryRoute holds the path item's census
+// to all three routes that lower one, for the reason recorded above the servers
+// case beside it: the same object has three parents, and that half of
+// applyPathItem was live on the paths walk and missing on the other two
+// (GitHub #39). Both halves now run from the one entry point, and this is what
+// says so rather than assuming it.
+func TestOperations_PathItemUnknownKeyKeptOnEveryRoute(t *testing.T) {
+	t.Parallel()
+	doc, diags := parseFull(t, pathItemUnknownKeySpec)
+	requireNoErrorDiags(t, diags)
+
+	for _, tc := range []struct{ op, key, marker, at string }{
+		{"postP", "openapi:pathItem/onPath", "PATH", "/paths/~1p/onPath"},
+		{"onHook", "openapi:pathItem/onWebhook", "WEBHOOK", "/webhooks/hooked/onWebhook"},
+		{"onEvent", "openapi:pathItem/onCallback", "CALLBACK",
+			"/paths/~1p/post/callbacks/onEvent/{$request.body#~1url}/onCallback"},
+	} {
+		entry, ok := findOp(t, doc, tc.op).Unmodeled[tc.key]
+		require.True(t, ok, "%s keeps the key its own path item wrote", tc.op)
+		assert.Equal(t, ir.ReasonOutOfScope, entry.Reason)
+		assert.JSONEq(t, `{"responses":{"200":{"description":"`+tc.marker+`"}}}`, string(entry.Value),
+			"%s keeps the value its own path item declared", tc.op)
+		assert.Equal(t, tc.at, entry.Provenance.Pointer)
+		assert.True(t, hasDiagCodeAt(diags, diag.UnknownObjectKey, tc.at),
+			"%s announces the key at the key's own pointer", tc.op)
+	}
+}
+
 // TestErrorCase_SingleMediaTypeKeepsContentMap pins the arity-independent half of
 // error-content preservation. ir.ErrorCase holds a TypeRef and no media type, so
 // an error declared only as application/problem+json reached the IR

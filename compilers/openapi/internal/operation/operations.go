@@ -410,39 +410,63 @@ func fillOperationDocs(d *ir.Docs, src *soa.Operation) {
 }
 
 // applyPathItem keeps what a path item declares that its operations have no
-// home for: its servers and its own x-* extensions. Both belong to the path
-// item rather than to any one operation on it, so both are written onto every
-// operation the item declares.
+// home for: its servers, its own x-* extensions, and the keys the specification
+// does not define for it. All three belong to the path item rather than to any
+// one operation on it, so all three are written onto every operation the item
+// declares.
 //
-// The two are applied together, through this one entry point, because every
-// route that lowers a path item — a path, a webhook, a callback expression —
-// must reach both, and a second call beside the first is a second chance to
-// forget one on a route added later. That is exactly how the servers half came
-// to be missing on two of its three routes (GitHub #39).
+// They are applied together, through this one entry point, because every route
+// that lowers a path item — a path, a webhook, a callback expression — must
+// reach each, and a second call beside the first is a second chance to forget
+// one on a route added later. That is exactly how the servers half came to be
+// missing on two of its three routes (GitHub #39).
 //
-// A path item takes no census, unlike every other object the compiler reads
-// extensions from, and deliberately so. The library folds a key it does not
-// recognize into the item's embedded operations map rather than recording it as
-// undeclared, so GetUnknownProperties reports nothing and there is no census to
-// read (speakeasy-api/openapi v1.24.0). Two consequences decide it:
-//
-//   - The key is not lost in silence. Folding it produces a
-//     validation-type-mismatch at error severity naming the key at its own
-//     pointer, which is the losslessness property the census exists for; what is
-//     lost is the key's value, not the fact that it was written.
-//   - Recovering the value means reading the raw node against a path item's key
-//     vocabulary, and the only vocabulary this compiler owns is httpMethods,
-//     which is narrower than the library's — it has no `query`, the method
-//     OpenAPI 3.2 adds. A census over what httpMethods does not name would
-//     therefore report a valid 3.2 `query` operation as an undeclared key.
-//
-// That vocabulary is what GitHub #293 is about, so widening it here would settle
-// that issue as a side effect of this one. Tracked separately in GitHub #377.
+// The census reaches this object through its own keys rather than through the
+// library's, which reports none for it: the unmarshaller folds a key it does not
+// recognize into the item's embedded operations map, so GetUnknownProperties is
+// empty however much the document wrote (speakeasy-api/openapi v1.24.0). What is
+// left of that map once the HTTP methods are taken out is the same set the
+// census would have reported, which is what undeclaredPathItemKeys reads.
 func applyPathItem(c lowering.Ctx, op *ir.Operation, pi *soa.PathItem, declPtr string) []ir.Diagnostic {
 	diags := applyPathServers(c, op, pi, declPtr)
 	ext, extDiags := schema.ExtensionsIn(c, pi.GetExtensions(), declPtr, "pathItem")
 	op.Unmodeled = annotation.MergeUnmodeled(op.Unmodeled, ext)
-	return append(diags, extDiags...)
+	diags = append(diags, extDiags...)
+	return append(diags, annotation.UnknownKeysNamed(&op.Unmodeled, undeclaredPathItemKeys(pi),
+		pi.GetRootNode(), c.SrcIndex, declPtr, "pathItem")...)
+}
+
+// undeclaredPathItemKeys returns the keys of a path item's operations map that
+// name no HTTP method, which are the keys the Path Item Object does not define.
+// Everything else the object may write is taken out before that map is filled:
+// summary, description, servers, parameters, additionalOperations and every x-*
+// are fields of the library's model, and a $ref is consumed by the reference
+// wrapper around it — pi is the referent it named by the time this runs.
+//
+// The predicate is the library's IsStandardMethod, deliberately, and not
+// httpMethods. The two are different vocabularies for different questions:
+// httpMethods says what this compiler lowers, while this asks only whether a key
+// names a method at all. Reading the map against httpMethods would report a
+// valid OpenAPI 3.2 `query` operation as an undeclared key, since the compiler
+// does not lower it yet — and whether it should is GitHub #293, which this
+// leaves exactly where it stands.
+//
+// A method spelled in any case but lowercase is undeclared and reported here.
+// OpenAPI fixes the field names, so `GET` is no more a path item's key than
+// `bogusPathItem` is, and neither is lowered.
+//
+// pi is never nil: every caller of applyPathItem has already lowered an
+// operation off it. An uninitialized map is still tolerated, since the iterator
+// is nil-safe.
+func undeclaredPathItemKeys(pi *soa.PathItem) []string {
+	var keys []string
+	for method := range pi.All() {
+		if soa.IsStandardMethod(string(method)) {
+			continue
+		}
+		keys = append(keys, string(method))
+	}
+	return keys
 }
 
 // applyPathServers preserves path-item-level servers verbatim under Unmodeled

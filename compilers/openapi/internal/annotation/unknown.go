@@ -55,7 +55,8 @@ var DecidedKeywords = []string{"$comment", "$dynamicAnchor", "$dynamicRef"}
 // so the census finds those already recorded and leaves them alone. A keyword no
 // reader leaves a trace of needs naming in DecidedKeywords instead.
 func UnknownKeywordsIn(p *ir.Unmodeled, s *oas3.Schema, pointer string, srcIndex int) []ir.Diagnostic {
-	return census(p, s, srcIndex, pointer, "", keyClass{
+	keys, root := undeclaredKeys(s)
+	return census(p, keys, root, srcIndex, pointer, "", keyClass{
 		code:     diag.UnknownSchemaKeyword,
 		severity: ir.SeverityInfo,
 		skip:     DecidedKeywords,
@@ -88,7 +89,28 @@ func UnknownKeysIn(p *ir.Unmodeled, model any, srcIndex int, owner string) []ir.
 // them would be a single key and the entry that survived would depend on which
 // lowering ran last.
 func UnknownKeysUnder(p *ir.Unmodeled, model any, srcIndex int, owner, scope string) []ir.Diagnostic {
-	return census(p, model, srcIndex, owner, scope, keyClass{
+	keys, root := undeclaredKeys(model)
+	return UnknownKeysNamed(p, keys, root, srcIndex, owner, scope)
+}
+
+// UnknownKeysNamed is UnknownKeysUnder for an object whose model keeps no census
+// of its own, so the caller names the keys and hands over the mapping node they
+// were written on.
+//
+// One object needs it: a Path Item Object, whose core model embeds the map of
+// its operations. The unmarshaller folds a key it does not recognize into that
+// embedded map rather than recording it as undeclared, so the object's own
+// census is empty however much the document wrote (speakeasy-api/openapi
+// v1.24.0). Its leftovers are still an undeclared key of the path item, graded
+// as one — same code, same severity, same reason — because which reader found
+// them is not a property of the source.
+//
+// It delegates rather than duplicating the grading, so the two can only be
+// announced alike.
+func UnknownKeysNamed(p *ir.Unmodeled, keys []string, root *yaml.Node,
+	srcIndex int, owner, scope string,
+) []ir.Diagnostic {
+	return census(p, keys, root, srcIndex, owner, scope, keyClass{
 		code:     diag.UnknownObjectKey,
 		severity: ir.SeverityWarning,
 		message: "key %q is not defined by the OpenAPI object it is written on and is not an " +
@@ -112,18 +134,28 @@ type keyClass struct {
 	message  string   // one %q, filled with the key
 }
 
-// census records on p every key model's source object wrote that its own model
-// names no field for, each under its own key beneath scope.
+// census records on p every key in keys, read off the mapping node root they
+// were written on, each under its own key beneath scope.
+//
+// It sorts, and on a copy. Neither source of keys hands over the order the
+// document wrote them in: a core model's census is filled by a parallel walk of
+// the mapping under a mutex, and a path item's leftovers are what a filter left
+// of a map. Both slices belong to the model they came from, so sorting one in
+// place would reorder it under its owner; an unsorted read would order this
+// compiler's diagnostics by something the source does not decide, which
+// invariant 7 forbids.
 //
 // A key p already holds is left alone and not announced: the census is the
 // complement of everything the compiler read, not only of what the model names,
 // and a reader with a reason of its own for a keyword has already said it
 // better.
-func census(p *ir.Unmodeled, model any, srcIndex int, owner, scope string, cl keyClass) []ir.Diagnostic {
-	keys, root := undeclaredKeys(model)
+func census(p *ir.Unmodeled, keys []string, root *yaml.Node,
+	srcIndex int, owner, scope string, cl keyClass,
+) []ir.Diagnostic {
 	if len(keys) == 0 {
 		return nil
 	}
+	keys = slices.Sorted(slices.Values(keys))
 	var diags []ir.Diagnostic
 	if len(keys) > MaxUnknownKeys {
 		diags = append(diags, budgetDiag(len(keys), owner, srcIndex))
@@ -178,14 +210,9 @@ type parsedObject interface {
 // unknownReporter is a core model's own record of the keys it did not name.
 type unknownReporter interface{ GetUnknownProperties() []string }
 
-// undeclaredKeys returns, sorted, the keys model's source object wrote that its
-// model names no field for, and the mapping node they were written on.
-//
-// Sorted, and on a copy: the library fills that list from a parallel walk of the
-// mapping under a mutex, so its order is neither source order nor stable, and
-// the slice it hands back is the model's own. An unsorted read would order this
-// compiler's diagnostics by something the source does not decide, which
-// invariant 7 forbids.
+// undeclaredKeys returns the keys model's source object wrote that its model
+// names no field for, and the mapping node they were written on. The order is
+// the library's; census is what puts it in one the source decides.
 //
 // A model reporting no census yields nothing rather than panicking. The receiver
 // may be a typed nil — an absent object is what the getters return for one the
@@ -203,5 +230,5 @@ func undeclaredKeys(model any) ([]string, *yaml.Node) {
 	if !ok {
 		return nil, nil
 	}
-	return slices.Sorted(slices.Values(core.GetUnknownProperties())), obj.GetRootNode()
+	return core.GetUnknownProperties(), obj.GetRootNode()
 }

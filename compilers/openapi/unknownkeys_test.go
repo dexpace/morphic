@@ -59,6 +59,11 @@ func TestUnknownKeys_KeptAtEveryObject(t *testing.T) {
 		{"components", "openapi:components/definitions", `"COMPONENTS"`, "doc.Unmodeled"},
 		{"tag externalDocs", "openapi:tags/0/externalDocs/title", `"TAGEXTERNALDOCS"`, "doc.Unmodeled"},
 		{"operation", "openapi:operationid", `"OPERATION"`, ".Unmodeled"},
+		// On each operation of the item, like its servers and its x-*: the path
+		// item lowers to no node of its own, so the scope is what tells its keys
+		// from the operation's own on the one map they share.
+		{"path item", "openapi:pathItem/GET", `{"responses":{"200":{"description":"PATHITEM"}}}`,
+			"Operations[0].Unmodeled"},
 		// The carrier is named down to the operation rather than left at
 		// ".Unmodeled": the document writes this exact key too, and the row is only
 		// evidence of the operation's if it cannot match the document's.
@@ -215,6 +220,96 @@ components:
 		assert.Equal(t, []ir.Severity{ir.SeverityWarning},
 			diagsAt(diags, "openapi/unknown-object-key", at),
 			"%s key is announced as an object's, not as a schema keyword's", tc.keyword)
+	}
+}
+
+// TestUnknownKeys_PathItemKeyKeepsItsValue compiles the reproducer from GitHub
+// #377 and holds the half of it that used to go missing.
+//
+// The other half never did: folding the key into the item's operations map makes
+// the library reject the scalar sitting where an Operation should be, so the
+// error below is the diagnostic that named the key all along. What no channel
+// carried is the 1 it was written with, which is what the entry keeps — and the
+// warning beside it is the census's own, graded like every other undeclared key.
+func TestUnknownKeys_PathItemKeyKeepsItsValue(t *testing.T) {
+	t.Parallel()
+	doc, diags := compileAnnotationSpec(t, "path-item-key", `openapi: 3.1.0
+info: {title: T, version: "1"}
+paths:
+  /x:
+    bogusPathItem: 1
+    get: {operationId: getX, responses: {"200": {description: ok}}}
+`)
+	op, ok := opByName(doc, "getX")
+	require.True(t, ok)
+
+	entry := unmodeledEntry(t, op.Unmodeled, "openapi:pathItem/bogusPathItem")
+	assert.JSONEq(t, `1`, string(entry.Value), "the key keeps the value the source wrote")
+	assert.Equal(t, ir.ReasonOutOfScope, entry.Reason,
+		"OpenAPI defines no such key on a path item, so no IR node is coming for it")
+	assert.Equal(t, "/paths/~1x/bogusPathItem", entry.Provenance.Pointer)
+	assert.Equal(t, []ir.Severity{ir.SeverityWarning},
+		diagsAt(diags, "openapi/unknown-object-key", "/paths/~1x/bogusPathItem"))
+	_, isError := ir.FirstError(diags)
+	assert.True(t, isError, "the library still rejects the scalar the key was written with")
+}
+
+// TestUnknownKeys_PathItemDeclaredFieldsAreNotUndeclared is the control the path
+// item's census needs, and the one that decides whether reading its operations
+// map is sound at all.
+//
+// `query` is the case that decides it. OpenAPI 3.2 adds the method, and the
+// library puts it in the same map as every other operation, so a census taken
+// against the eight methods this compiler lowers would report a valid operation
+// as a key the specification does not define. Taking it against the library's own
+// method vocabulary is what keeps the two questions apart: whether a key names a
+// method, and whether this compiler lowers it — the second being GitHub #293.
+//
+// The rest of a path item's fields are here because a census is only evidence
+// about the keys it leaves alone. Each is a field of the library's model and so
+// never reaches the operations map, which is the property being pinned:
+// additionalOperations included, since #293 has it dropped rather than
+// undeclared.
+func TestUnknownKeys_PathItemDeclaredFieldsAreNotUndeclared(t *testing.T) {
+	t.Parallel()
+	doc, diags := compileAnnotationSpec(t, "path-item-fields", `openapi: 3.2.0
+info: {title: T, version: "1"}
+paths:
+  /x:
+    $ref: '#/components/pathItems/P'
+  /y:
+    summary: s
+    description: d
+    servers: [{url: 'https://a.example'}]
+    parameters: [{name: p, in: query, schema: {type: string}}]
+    additionalOperations:
+      PURGE: {operationId: purgeY, responses: {"200": {description: ok}}}
+    get:   {operationId: getY, responses: {"200": {description: ok}}}
+    query: {operationId: queryY, responses: {"200": {description: ok}}}
+components:
+  pathItems:
+    P:
+      summary: ps
+      description: pd
+      get: {operationId: getP, responses: {"200": {description: ok}}}
+`)
+	requireNoErrorDiagnostics(t, diags)
+
+	for _, d := range diags {
+		assert.NotEqual(t, "openapi/unknown-object-key", d.Code,
+			"every key here is one a path item declares: %+v", d)
+	}
+	for _, site := range unmodeledSites(doc) {
+		assert.NotContains(t, site.key, "openapi:pathItem/",
+			"nothing a path item declares is kept as a key it does not: %s at %s", site.key, site.path)
+	}
+	// An absence is only evidence where the reader ran, and the census runs once
+	// per operation lowered off a path item. Both items here have to reach it,
+	// the $ref'd one included, or the rows above hold over a walk that never
+	// looked.
+	for _, name := range []string{"getP", "getY"} {
+		_, ok := opByName(doc, name)
+		assert.True(t, ok, "%s lowers, so the census ran on the path item declaring it", name)
 	}
 }
 
