@@ -151,6 +151,7 @@ func conformanceCases() []conformanceCase {
 		{"oneof-discriminated", assertOneOfDiscriminated},
 		{"discriminator-inheritance", assertDiscriminatorInheritance},
 		{"discriminator-default-mapping", assertDiscriminatorDefaultMapping},
+		{"discriminator-transitive", assertDiscriminatorTransitive},
 		{"unhomed-keywords", assertUnhomedKeywords},
 		{"codeclared-keywords", assertCoDeclaredKeywords},
 		{"anyof-untagged", assertAnyOfUntagged},
@@ -769,6 +770,38 @@ func assertDiscriminatorDefaultMapping(t *testing.T, doc *ir.Document, diags []i
 		"defaultMapping names the variant an unrecognized tag falls back to")
 	assert.Equal(t, namedID("Cat"), pet.Discriminator.Mapping["cat"],
 		"and it is read separately from the mapping")
+}
+
+// assertDiscriminatorTransitive covers a discriminator tagging a descendant more
+// than one hop away: Puppy composes Dog, which composes the discriminated Pet.
+//
+// The chain itself is what matters here — every other discriminator spec in the
+// corpus is one level deep, so nothing witnessed a base routing a grandchild, and
+// a consumer reading composition one hop deep called this valid document invalid.
+func assertDiscriminatorTransitive(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
+	pet, ok := doc.Types[namedID("Pet")].(*ir.Model)
+	require.True(t, ok)
+	require.NotNil(t, pet.Discriminator)
+	assert.Equal(t, namedID("Puppy"), pet.Discriminator.Mapping["puppy"],
+		"the base maps a wire value straight onto its grandchild")
+
+	dog, ok := doc.Types[namedID("Dog")].(*ir.Model)
+	require.True(t, ok)
+	require.NotNil(t, dog.Base)
+	assert.Equal(t, namedID("Pet"), dog.Base.Target)
+
+	puppy, ok := doc.Types[namedID("Puppy")].(*ir.Model)
+	require.True(t, ok)
+	require.NotNil(t, puppy.Base, "the chain stays as declared rather than flattening onto the root")
+	assert.Equal(t, namedID("Dog"), puppy.Base.Target)
+	assert.Nil(t, puppy.Discriminator, "a subtype does not restate its base's discriminator")
+
+	// Known gap, pinned so the corpus reddens when it is closed: the tag value is
+	// read off the subtype's own base branch, which here names Dog rather than the
+	// schema declaring the discriminator, so Pet's "puppy" key is dropped
+	// (GitHub #305). Dog, one hop from the declaration, does carry its key.
+	assert.Equal(t, "dog", doc.Types[namedID("Dog")].(*ir.Model).DiscriminatorValue)
+	assert.Empty(t, puppy.DiscriminatorValue)
 }
 
 func assertAnyOfUntagged(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
