@@ -191,6 +191,8 @@ func conformanceCases() []conformanceCase {
 		{"response-links", assertResponseLinks},
 		{"webhooks", assertWebhooks},
 		{"callbacks", assertCallbacks},
+		{"path-item-docs", assertPathItemDocs},
+		{"path-item-operations", assertPathItemOperations},
 		{"deprecation", assertDeprecation},
 		{"examples", assertExamples},
 		{"docs-summary-desc", assertDocsSummaryDesc},
@@ -1888,6 +1890,105 @@ func assertCallbacks(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
 	assertPathItemServersKept(t, cb, "https://callbacks.example.com")
 	assert.NotContains(t, op.Unmodeled, "openapi:servers",
 		"the callback's own servers stay on the callback, not on the parent")
+}
+
+// assertPathItemDocs pins that a path item's own documentation survives at every
+// route that reaches a path item, and that keeping it costs the operation
+// nothing it declared for itself.
+//
+// It is kept rather than merged: ir.Docs holds the operation's summary and
+// description, a path item's pair documents the path, and merging the two would
+// need a precedence rule and would attach to an operation text its author never
+// wrote. So the assertion is that both subjects survive side by side.
+func assertPathItemDocs(t *testing.T, doc *ir.Document, diags []ir.Diagnostic) {
+	for _, tc := range []struct{ op, summary, description string }{
+		{"listPets", "Pet collection", "Everything addressable at /pets."},
+		{"createPet", "Pet collection", "Everything addressable at /pets."},
+		{"onPetCreated", "Creation callback", "Delivered once the pet exists."},
+		{"onPetDeleted", "Pet deleted", "Delivered when a pet is removed."},
+	} {
+		op, ok := opByName(doc, tc.op)
+		require.True(t, ok, "operation %s", tc.op)
+		assertPathItemDocsKept(t, op, tc.summary, tc.description)
+	}
+
+	listPets, ok := opByName(doc, "listPets")
+	require.True(t, ok)
+	assert.Equal(t, "List pets", listPets.Docs.Summary,
+		"the operation's own summary is what Docs holds")
+	assert.Equal(t, "Returns every pet.", listPets.Docs.Description)
+
+	createPet, ok := opByName(doc, "createPet")
+	require.True(t, ok)
+	assert.Empty(t, createPet.Docs.Summary,
+		"and an operation that documents nothing has nothing invented for it")
+
+	// And the decision is announced at the operation that carries the entry,
+	// once, rather than being taken silently.
+	assert.Equal(t, []ir.Severity{ir.SeverityInfo},
+		diagsAt(diags, "openapi/degraded-construct", "/paths/~1pets/get"))
+	assert.Equal(t, []ir.Severity{ir.SeverityInfo},
+		diagsAt(diags, "openapi/degraded-construct", "/webhooks/petDeleted/post"))
+}
+
+// assertPathItemDocsKept checks one operation kept the pair its own path item
+// declared, under the keys that name which object the text came from.
+func assertPathItemDocsKept(t *testing.T, op ir.Operation, summary, description string) {
+	t.Helper()
+	kept, ok := op.Unmodeled["openapi:pathItemSummary"]
+	require.True(t, ok, "the path item's summary is kept on %s", op.ID)
+	assert.Equal(t, ir.ReasonNoIRHome, kept.Reason)
+	assert.JSONEq(t, `"`+summary+`"`, string(kept.Value))
+
+	kept, ok = op.Unmodeled["openapi:pathItemDescription"]
+	require.True(t, ok, "the path item's description is kept on %s", op.ID)
+	assert.Equal(t, ir.ReasonNoIRHome, kept.Reason)
+	assert.JSONEq(t, `"`+description+`"`, string(kept.Value))
+}
+
+// assertPathItemOperations pins that every operation a 3.2 path item declares
+// becomes an ir.Operation, whichever field declared it and whichever of the
+// three routes reaches the path item.
+//
+// The walk read the fixed method fields and nothing else, so an
+// additionalOperations entry was dropped entire — and with it every type
+// reachable only through it, which is why the request body's schema is asserted
+// to be in the registry rather than merely referenced from an operation.
+func assertPathItemOperations(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
+	for _, tc := range []struct{ op, method string }{
+		{"queryIndex", "QUERY"},
+		{"purgeIndex", "PURGE"},
+		{"mixedCaseIndex", "mIxEdCase"},
+		{"purgeCallback", "PURGE"},
+		{"onFlush", "FLUSH"},
+	} {
+		op, ok := opByName(doc, tc.op)
+		require.True(t, ok, "operation %s", tc.op)
+		require.Len(t, op.Bindings.HTTP, 1)
+		assert.Equal(t, tc.method, op.Bindings.HTTP[0].Method,
+			"%s binds the method as the source spelled it", tc.op)
+	}
+
+	onFlush, ok := opByName(doc, "onFlush")
+	require.True(t, ok)
+	assert.True(t, onFlush.Bindings.HTTP[0].IsWebhook,
+		"a webhook mount marks the binding whichever field declared the operation")
+
+	subscribe, ok := opByName(doc, "subscribeIndex")
+	require.True(t, ok)
+	require.Len(t, subscribe.Bindings.HTTP, 1)
+	require.Len(t, subscribe.Bindings.HTTP[0].Callbacks, 1)
+	purgeCallback, ok := opByName(doc, "purgeCallback")
+	require.True(t, ok)
+	assert.Equal(t, []ir.OpID{purgeCallback.ID}, subscribe.Bindings.HTTP[0].Callbacks[0].Operations,
+		"an expression declaring only additionalOperations still binds to its parent")
+
+	queryIndex, ok := opByName(doc, "queryIndex")
+	require.True(t, ok)
+	require.NotNil(t, queryIndex.Request)
+	require.Len(t, queryIndex.Request.Contents, 1)
+	assert.NotNil(t, doc.Types[queryIndex.Request.Contents[0].Type.Target],
+		"the request body schema is interned, not merely referenced")
 }
 
 func assertDeprecation(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {

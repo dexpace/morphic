@@ -82,6 +82,12 @@ const (
 	// response still lowers, with no status condition rather than the catch-all
 	// range that "default" alone denotes (GitHub #262).
 	InvalidStatusKey = "openapi/invalid-status-key"
+	// InvalidMethodKey reports an additionalOperations key that names no method:
+	// the empty string. The operation still lowers, binding the key as written, so
+	// nothing the entry declares is lost — what is reported is that the binding's
+	// method is unusable. speakeasy rejects a key naming a *standard* method, which
+	// belongs in its own field, but accepts this one.
+	InvalidMethodKey = "openapi/invalid-method-key"
 	// DegradedConstruct reports a construct the compiler could not carry into the
 	// IR as written: preserved raw for want of a structural home, lowered to a
 	// weaker shape (a heterogeneous enum as a union, an unconvertible value as
