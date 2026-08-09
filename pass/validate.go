@@ -10,7 +10,8 @@ import (
 )
 
 // maxGroupDepth bounds recursion over nested operation groups; deeper nesting is
-// pathological and is silently truncated rather than allowed to blow the stack.
+// pathological and is truncated rather than allowed to blow the stack, which
+// checkGroupWalkTruncated reports as ir/walk-truncated.
 const maxGroupDepth = 128
 
 // Validate checks a Document for referential-integrity violations and returns
@@ -32,6 +33,7 @@ func Validate(doc *ir.Document) []ir.Diagnostic {
 	diags = append(diags, checkDiscriminators(doc)...)
 	diags = append(diags, checkDuplicateWireNames(doc)...)
 	diags = append(diags, checkParamBindings(doc)...)
+	diags = append(diags, checkMessageBindings(doc)...)
 	diags = append(diags, checkOneWay(doc)...)
 	diags = append(diags, checkArgsOutsideGraphQL(doc)...)
 	return diags
@@ -455,8 +457,15 @@ func checkDiscriminatorProperty(doc *ir.Document, m *ir.Model) []ir.Diagnostic {
 		where)}
 }
 
-// checkMapping validates a discriminator's wire-value mapping: every target must
-// resolve in the registry and satisfy member.
+// checkMapping validates every routing target a discriminator names — each
+// wire-value mapping entry and the Default an unrecognized tag falls back to.
+// All of them must resolve in the registry and satisfy member.
+//
+// Default is held to the same claim rather than a weaker one because it makes the
+// same decision: it names the type an instance deserializes into, so a Default
+// outside the discriminated set has an emitter's fallback branch constructing a
+// type the discriminator does not admit. Both callers share this function, so the
+// union and model arms are covered by checking it here rather than in either.
 //
 // A target that resolves nowhere is reported here and again by checkDanglingRefs,
 // and that double report is deliberate: the two codes make different claims.
@@ -467,15 +476,20 @@ func checkDiscriminatorProperty(doc *ir.Document, m *ir.Model) []ir.Diagnostic {
 // the other's code to get its own answer.
 func checkMapping(doc *ir.Document, d *ir.Discriminator, where string, member func(ir.TypeID) bool) []ir.Diagnostic {
 	var diags []ir.Diagnostic
-	for _, key := range sortedKeys(d.Mapping) {
-		target := d.Mapping[key]
+	report := func(target ir.TypeID, position string) {
 		legal, why := mappingTarget(doc, target, member)
 		if legal {
-			continue
+			return
 		}
 		diags = append(diags, diag(ir.SeverityError, "pass/discriminator-missing-variant",
-			fmt.Sprintf("discriminator mapping %q on %s references %q, which %s", key, where, target, why),
+			fmt.Sprintf("discriminator %s on %s references %q, which %s", position, where, target, why),
 			where))
+	}
+	for _, key := range sortedKeys(d.Mapping) {
+		report(d.Mapping[key], fmt.Sprintf("mapping %q", key))
+	}
+	if d.Default != "" {
+		report(d.Default, "default")
 	}
 	return diags
 }
@@ -495,28 +509,62 @@ func mappingTarget(doc *ir.Document, target ir.TypeID, member func(ir.TypeID) bo
 	return true, ""
 }
 
-// isSubtype reports whether target is a declared subtype of base via single
-// inheritance or interface conformance.
+// isSubtype reports whether target is a declared subtype of base at any distance
+// along the composition chain, via single inheritance or interface conformance.
+//
+// The relation is the transitive closure because that is what the discriminator
+// on the base routes: a three-level hierarchy is ordinary in every source format
+// the IR compiles, and a base tagging a grandchild is legal in each of them.
+// Reading one hop refused such a mapping with a severity error — a false report
+// on valid IR, which is fatal at the CLI.
 //
 // A composition parent naming an alias scalar is read through it: a `$ref`
 // carrying siblings composes the branch's own node rather than the referenced
 // schema directly (ir-design §4.3), so a subtype declared that way names its
 // parent one hop further away than the discriminator mapping spells it.
 // exposedProps reads composition the same way.
+//
+// The walk is iterative with a visited set, so a cyclic composition or alias
+// chain terminates and the finite registry bounds it.
 func isSubtype(doc *ir.Document, target, base ir.TypeID) bool {
-	sub, ok := doc.Types[target].(*ir.Model)
-	if !ok {
-		return false
-	}
-	if sub.Base != nil && aliasedType(doc, sub.Base.Target) == base {
-		return true
-	}
-	for _, r := range sub.Implements {
-		if aliasedType(doc, r.Target) == base {
+	seen := map[ir.TypeID]bool{}
+	queue := []ir.TypeID{target}
+	for len(queue) > 0 {
+		id := queue[len(queue)-1]
+		queue = queue[:len(queue)-1]
+		if seen[id] {
+			continue
+		}
+		seen[id] = true
+		sub, ok := doc.Types[id].(*ir.Model)
+		if !ok {
+			continue // no other kind declares a supertype.
+		}
+		supers := appendSupertypes(nil, doc, sub)
+		if slices.Contains(supers, base) {
 			return true
 		}
+		queue = append(queue, supers...)
 	}
 	return false
+}
+
+// appendSupertypes appends m's immediate supertypes to dst: its single-inheritance
+// Base and every interface it conforms to, each read through the alias scalars
+// standing in for it.
+//
+// Mixins are absent on purpose, which is what separates this from
+// appendCompositionParents: a mixin contributes members to a model without making
+// it a member of anything, so it belongs to the flat property set and not to
+// subtype identity.
+func appendSupertypes(dst []ir.TypeID, doc *ir.Document, m *ir.Model) []ir.TypeID {
+	if m.Base != nil {
+		dst = append(dst, aliasedType(doc, m.Base.Target))
+	}
+	for _, r := range m.Implements {
+		dst = append(dst, aliasedType(doc, r.Target))
+	}
+	return dst
 }
 
 // aliasedType follows a chain of alias scalars — a Scalar whose Base names
@@ -628,6 +676,65 @@ func unboundParamWarnings(op ir.Operation, bound map[string]int, where string) [
 		}
 	}
 	return diags
+}
+
+// checkMessageBindings reports operations whose message binding uses a message
+// the channel it binds does not carry.
+//
+// Channel.Messages is the channel's contract — which messages may travel on it
+// (ir-design §8.3) — and an operation names the subset it uses. A binding naming
+// one outside that set is a well-formed reference: every id resolves, so the
+// reference walk has nothing to say, while an emitter generates a publisher for a
+// message the channel forbids. The code keeps the pass/ namespace for the reason
+// pass/discriminator-missing-variant does: this is a containment judgement the
+// pass owns outright, not a broken reference.
+//
+// Channels are reached only by the reflective reference walk today, so this is
+// the first hand-written check to read doc.Channels; it enters through
+// forEachOperation like the other operation-scoped checks, and so inherits the
+// group-depth bound checkGroupWalkTruncated reports.
+func checkMessageBindings(doc *ir.Document) []ir.Diagnostic {
+	var diags []ir.Diagnostic
+	forEachOperation(doc, func(op ir.Operation) {
+		diags = append(diags, checkBoundMessages(doc, op)...)
+	})
+	return diags
+}
+
+// checkBoundMessages holds one operation's message binding to the message set of
+// the channel it names. A channel that resolves nowhere is left alone: there is
+// no set to compare against, and ir/dangling-channel-ref already reports it, so a
+// second diagnostic here would restate a defect rather than add a claim.
+func checkBoundMessages(doc *ir.Document, op ir.Operation) []ir.Diagnostic {
+	b := op.Bindings.Message
+	if b == nil {
+		return nil
+	}
+	ch, declared := doc.Channels[b.Channel]
+	if !declared {
+		return nil
+	}
+	carried := make(map[ir.MessageID]bool, len(ch.Messages))
+	for _, id := range ch.Messages {
+		carried[id] = true
+	}
+	return appendUncarriedMessageDiags(nil, b, carried, string(op.ID))
+}
+
+// appendUncarriedMessageDiags appends to dst a diagnostic per message the binding
+// uses that carried does not hold, in binding order; where locates the owning
+// operation.
+func appendUncarriedMessageDiags(dst []ir.Diagnostic, b *ir.MessageBinding,
+	carried map[ir.MessageID]bool, where string) []ir.Diagnostic {
+	for i, id := range b.Messages {
+		if carried[id] {
+			continue
+		}
+		at := fmt.Sprintf("%s/bindings/message/messages/%d", where, i)
+		dst = append(dst, diag(ir.SeverityError, "pass/message-not-in-channel",
+			fmt.Sprintf("message %q at %s is not carried by channel %q", id, at, b.Channel), at))
+	}
+	return dst
 }
 
 // checkOneWay reports one-way operations that nonetheless declare responses.
