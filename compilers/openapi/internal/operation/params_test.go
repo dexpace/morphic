@@ -245,6 +245,41 @@ func TestParams_QueryStringDeclaredStyleIsKeptAndReported(t *testing.T) {
 	assert.False(t, *qs.Explode, "and so does the explode qualifying it")
 }
 
+// TestParams_QueryStringDeclaredExplodeAloneIsKept covers the half of that rule
+// the case above cannot see, because it declares both keywords: an explode
+// written without a style beside it.
+//
+// Suppressing the invented style must not take a declared explode with it. 3.2
+// forbids explode at this location as it forbids style, and the bundled parser
+// refuses neither — so this reaches the compiler, and erasing it would be the
+// same silent drop the invented style was, in the other direction.
+func TestParams_QueryStringDeclaredExplodeAloneIsKept(t *testing.T) {
+	t.Parallel()
+	spec := pathsSpecVer("3.2.0", `  /q:
+    get:
+      operationId: q
+      parameters:
+        - name: qs
+          in: querystring
+          explode: false
+          content:
+            application/x-www-form-urlencoded:
+              schema: {type: object}
+      responses:
+        "200": {description: ok}
+`)
+	doc, diags := parseFull(t, spec)
+	requireNoErrorDiags(t, diags)
+	op := findOp(t, doc, "q")
+	require.Len(t, op.Bindings.HTTP, 1)
+	require.Len(t, op.Bindings.HTTP[0].ParamBindings, 1)
+
+	qs := op.Bindings.HTTP[0].ParamBindings[0]
+	assert.Empty(t, qs.Style, "no style is invented at this location")
+	require.NotNil(t, qs.Explode, "but the declared explode is not dropped with it")
+	assert.False(t, *qs.Explode)
+}
+
 const componentParamRefSpec = `openapi: 3.1.0
 info: {title: T, version: "1"}
 paths:

@@ -314,17 +314,21 @@ func resolveStyleExplode(p *soa.Parameter, in soa.ParameterIn) (string, *bool) {
 	if p.Style != nil {
 		style = string(*p.Style)
 	}
-	// Explode qualifies a style, so a parameter resolving to none takes neither
-	// the default nor a declared explode — 3.2 forbids that keyword at
-	// in: querystring too, whose ContentType is the whole of its declared
-	// serialization (GitHub #334).
+	// A declared explode lowers as declared wherever it is written, for the same
+	// reason a declared style does: 3.2 forbids both at in: querystring, but
+	// dropping content the document states is an emitter's call, not a
+	// compiler's, and this position has an IR field to hold it.
+	if p.Explode != nil {
+		explode := *p.Explode
+		return style, &explode
+	}
+	// Absent one, explode qualifies a style, so a position resolving to no style
+	// gets no default either — a querystring binding's ContentType is the whole
+	// of its declared serialization (GitHub #334).
 	if style == "" {
 		return "", nil
 	}
 	explode := style == string(soa.SerializationStyleForm)
-	if p.Explode != nil {
-		explode = *p.Explode
-	}
 	return style, &explode
 }
 
