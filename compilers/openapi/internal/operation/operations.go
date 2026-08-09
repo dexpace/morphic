@@ -77,6 +77,10 @@ type pathOperation struct {
 // the wire and OpenAPI reads a method name case-sensitively, so the key is
 // neither upper-cased nor neutralized. A fixed field's name is a field name
 // rather than a method, so that one is upper-cased into its wire spelling.
+//
+// Taking the key verbatim means an empty one reaches the binding as an empty
+// method. It still lowers — dropping the entry would lose everything it declares
+// — and lowerOperation reports it, which is where every route funnels through.
 func pathOperations(pi *soa.PathItem) []pathOperation {
 	ops := make([]pathOperation, 0, len(httpMethods))
 	for _, m := range httpMethods {
@@ -325,6 +329,11 @@ func lowerOperation(c lowering.Ctx, ts *compile.Types, anchors *schema.AnchorInd
 	responses, errs, responseDiags := lowerResponses(c, ts, anchors, src, decl)
 	diags = append(diags, responseDiags...)
 	op.Responses, op.Errors = responses, errs
+	if opCtx.method == "" {
+		diags = append(diags, c.DiagAt(ir.SeverityWarning, diag.InvalidMethodKey, decl,
+			"additionalOperations key names no method; the operation lowers with an empty "+
+				"HTTP method, which no request can be sent with"))
+	}
 	hb := ir.HTTPBinding{
 		Method:        opCtx.method,
 		URITemplate:   opCtx.uriTemplate,

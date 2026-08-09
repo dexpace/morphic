@@ -1858,3 +1858,40 @@ func TestPathItem_AdditionalOperationsBindCallbacks(t *testing.T) {
 	assert.Equal(t, []ir.OpID{findOp(t, doc, "purgeCallback").ID},
 		parent.Bindings.HTTP[0].Callbacks[0].Operations)
 }
+
+// TestPathItem_EmptyAdditionalOperationsKeyReported pins the one key that names
+// no method. Taking the key verbatim is what makes it reachable: an empty one
+// binds an empty HTTP method, which no request can be sent with.
+//
+// The entry still lowers, so nothing it declares is lost — dropping it would
+// trade a reported defect for a silent one, which is the trade this whole change
+// exists to undo. speakeasy rejects a key naming a standard method and accepts
+// this one, so the compiler is the only thing that can report it.
+func TestPathItem_EmptyAdditionalOperationsKeyReported(t *testing.T) {
+	t.Parallel()
+	doc, diags := parseFull(t, `openapi: 3.2.0
+info: {title: T, version: "1"}
+paths:
+  /p:
+    additionalOperations:
+      "":
+        operationId: nameless
+        responses: {"204": {description: done}}
+`)
+	requireNoErrorDiags(t, diags)
+
+	op := findOp(t, doc, "nameless")
+	require.Len(t, op.Bindings.HTTP, 1)
+	assert.Empty(t, op.Bindings.HTTP[0].Method, "the key binds as written, empty or not")
+	assert.Equal(t, ir.OpID("op/openapi/paths/~1p/additionalOperations/"), op.ID,
+		"and the operation is still mounted where the source writes it")
+
+	assert.True(t, hasDiagCodeAt(diags, diag.InvalidMethodKey, "/paths/~1p/additionalOperations/"),
+		"the unusable method is reported at the entry that declares it")
+	for _, d := range diags {
+		if d.Code == diag.InvalidMethodKey {
+			assert.Equal(t, ir.SeverityWarning, d.Severity,
+				"a warning: the operation lowers in full, only its method is unusable")
+		}
+	}
+}
