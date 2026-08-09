@@ -22,8 +22,9 @@ import (
 	"github.com/dexpace/morphic/ir/irverify"
 )
 
-// danglingDir holds the twelve issue-#14 reproducers, copied out of triage so the
-// tests are self-contained.
+// danglingDir holds the issue-#14 reproducers, copied out of triage so the tests
+// are self-contained. TestDanglingRefs_Reproducers' table is the enumeration, and
+// TestDanglingRefs_EveryReproducerIsExercised holds it to the directory.
 const danglingDir = "../../testdata/dangling/openapi"
 
 // danglingRefs returns a sorted, human-readable list of every dangling reference
@@ -83,16 +84,19 @@ const (
 	internsNoisy
 )
 
-// TestDanglingRefs_Reproducers compiles each issue-#14 reproducer and asserts the
-// produced IR has zero dangling references — every offending entry either interns
-// correctly or is dropped with an error-severity diagnostic.
-func TestDanglingRefs_Reproducers(t *testing.T) {
-	t.Parallel()
-	cases := []struct {
-		file    string
-		srcPath string
-		want    outcome
-	}{
+// danglingCase is one reproducer: the fixture under danglingDir, the source path
+// it is compiled as, and what the compiler is expected to do with it.
+type danglingCase struct {
+	file    string
+	srcPath string
+	want    outcome
+}
+
+// danglingReproducers enumerates the fixtures under danglingDir.
+// TestDanglingRefs_EveryReproducerIsExercised fails when the directory holds one
+// this list does not, so a fixture added to the corpus cannot sit unexercised.
+func danglingReproducers() []danglingCase {
+	return []danglingCase{
 		{"f04-composition.yaml", "f04.yaml", drops},
 		{"f05-discriminator.yaml", "f05.yaml", drops},
 		{"f06-discriminator.yaml", "f06.yaml", drops},
@@ -108,7 +112,36 @@ func TestDanglingRefs_Reproducers(t *testing.T) {
 		{"f31-discriminator-empty-name.yaml", "f31.yaml", interns},
 		{"f32-ref-noncanonical-escape.yaml", "f32.yaml", internsNoisy},
 	}
-	for _, tc := range cases {
+}
+
+// TestDanglingRefs_EveryReproducerIsExercised holds danglingReproducers to the
+// directory it enumerates. A fixture copied into danglingDir and not added to the
+// table would otherwise be compiled by nothing, and the suite would stay green
+// while the corpus grew past it — the drift a hand-maintained list invites.
+func TestDanglingRefs_EveryReproducerIsExercised(t *testing.T) {
+	t.Parallel()
+	onDisk, err := filepath.Glob(filepath.Join(danglingDir, "*.yaml"))
+	require.NoError(t, err, "globbing the reproducer directory")
+	require.NotEmpty(t, onDisk, "the reproducer directory is not empty")
+
+	listed := make(map[string]bool, len(danglingReproducers()))
+	for _, tc := range danglingReproducers() {
+		listed[tc.file] = true
+	}
+	for _, path := range onDisk {
+		assert.True(t, listed[filepath.Base(path)],
+			"%s is in %s but not in danglingReproducers", filepath.Base(path), danglingDir)
+	}
+	assert.Len(t, danglingReproducers(), len(onDisk),
+		"the table names a fixture the directory does not hold")
+}
+
+// TestDanglingRefs_Reproducers compiles each issue-#14 reproducer and asserts the
+// produced IR has zero dangling references — every offending entry either interns
+// correctly or is dropped with an error-severity diagnostic.
+func TestDanglingRefs_Reproducers(t *testing.T) {
+	t.Parallel()
+	for _, tc := range danglingReproducers() {
 		t.Run(tc.file, func(t *testing.T) {
 			t.Parallel()
 			doc, diags := compileFile(t, danglingDir, tc.file, tc.srcPath)
