@@ -1,0 +1,30 @@
+openapi: 3.2.0
+info: {title: ParamQuerystring, version: "1.0.0"}
+paths:
+  # 3.2 binds the whole query string from the parameter's content, so style and
+  # explode are not legal keywords here and the binding carries neither.
+  /reports:
+    get:
+      operationId: runReport
+      parameters:
+        - name: criteria
+          in: querystring
+          content:
+            application/x-www-form-urlencoded:
+              schema:
+                type: object
+                properties:
+                  since: {type: string, format: date}
+                  status: {type: string}
+      responses:
+        "200": {description: ok}
+  # The contrast, in its own operation because a querystring parameter may not
+  # share one with an in: query parameter: a location that does admit the
+  # defaults, so the golden shows the difference is the location.
+  /reports/summary:
+    get:
+      operationId: summarize
+      parameters:
+        - {name: status, in: query, schema: {type: string}}
+      responses:
+        "200": {description: ok}

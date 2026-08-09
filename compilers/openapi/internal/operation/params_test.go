@@ -3,6 +3,7 @@ package operation_test
 import (
 	"testing"
 
+	"github.com/speakeasy-api/openapi/validation"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -180,19 +181,68 @@ func TestParams_AllLocationsAndStyles(t *testing.T) {
 	assert.True(t, hasDiag(diags, diag.NumericPrecision), "malformed param constraint warns")
 }
 
+// TestParams_QueryStringLocation pins the whole of a querystring binding's
+// declared serialization: the 3.2 location, and the media type from content
+// carrying it alone. Style and explode are not legal keywords there, so the
+// binding takes neither rather than the query defaults (GitHub #334).
 func TestParams_QueryStringLocation(t *testing.T) {
 	t.Parallel()
 	spec := pathsSpecVer("3.2.0", `  /q:
     get:
       operationId: q
       parameters:
-        - {name: qs, in: querystring, schema: {type: string}}
+        - name: qs
+          in: querystring
+          content:
+            application/x-www-form-urlencoded:
+              schema: {type: object, properties: {page: {type: string}}}
       responses:
         "200": {description: ok}
 `)
-	doc, _ := parseFull(t, spec)
+	doc, diags := parseFull(t, spec)
+	requireNoErrorDiags(t, diags)
 	op := findOp(t, doc, "q")
-	assert.Equal(t, ir.HTTPLocationQuerystring, op.Bindings.HTTP[0].ParamBindings[0].Location)
+	require.Len(t, op.Bindings.HTTP, 1)
+	require.Len(t, op.Bindings.HTTP[0].ParamBindings, 1)
+
+	qs := op.Bindings.HTTP[0].ParamBindings[0]
+	assert.Equal(t, ir.HTTPLocationQuerystring, qs.Location)
+	assert.Equal(t, "application/x-www-form-urlencoded", qs.ContentType)
+	assert.Empty(t, qs.Style, "3.2 binds the query string from content and forbids style there")
+	assert.Nil(t, qs.Explode, "and explode with it: it qualifies a style, and there is none")
+}
+
+// TestParams_QueryStringDeclaredStyleIsKeptAndReported pins the other half of
+// the same rule: the compiler stopped inventing a style at that location, it did
+// not start erasing one. A document declaring style there is invalid and the
+// parser says so; what it declared still lowers, because dropping declared
+// content is an emitter's call rather than a compiler's.
+func TestParams_QueryStringDeclaredStyleIsKeptAndReported(t *testing.T) {
+	t.Parallel()
+	spec := pathsSpecVer("3.2.0", `  /q:
+    get:
+      operationId: q
+      parameters:
+        - name: qs
+          in: querystring
+          style: form
+          explode: false
+          content:
+            application/x-www-form-urlencoded:
+              schema: {type: object}
+      responses:
+        "200": {description: ok}
+`)
+	doc, diags := parseFull(t, spec)
+	assertHasCode(t, diags, diag.Validation+"/"+string(validation.RuleValidationAllowedValues), ir.SeverityError)
+	op := findOp(t, doc, "q")
+	require.Len(t, op.Bindings.HTTP, 1)
+	require.Len(t, op.Bindings.HTTP[0].ParamBindings, 1)
+
+	qs := op.Bindings.HTTP[0].ParamBindings[0]
+	assert.Equal(t, "form", qs.Style, "the declared style lowers as declared")
+	require.NotNil(t, qs.Explode)
+	assert.False(t, *qs.Explode, "and so does the explode qualifying it")
 }
 
 const componentParamRefSpec = `openapi: 3.1.0

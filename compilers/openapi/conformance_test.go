@@ -180,6 +180,7 @@ func conformanceCases() []conformanceCase {
 		{"tags-grouping", assertTagsGrouping},
 		{"http-binding", assertHTTPBinding},
 		{"param-styles", assertParamStyles},
+		{"param-querystring", assertParamQuerystring},
 		{"param-xml-residue", assertParamXMLResidue},
 		{"param-ref-inheritance", assertParamRefInheritance},
 		{"header-content-schema", assertHeaderContentSchema},
@@ -1450,6 +1451,35 @@ func assertAllowEmptyValueKept(t *testing.T, op ir.Operation) {
 	require.True(t, ok, "and its declared flag is kept beside it")
 	assert.Equal(t, ir.ReasonNoIRHome, entry.Reason)
 	assert.JSONEq(t, `true`, string(entry.Value))
+}
+
+// assertParamQuerystring pins the 3.2 querystring location, where the whole
+// query string binds from the parameter's content: the binding carries that
+// media type and neither style nor explode, the two keywords the location
+// forbids (GitHub #334). The ordinary query parameter beside it keeps the
+// defaults its own location does admit, so what separates them is the location
+// rather than the presence of content.
+func assertParamQuerystring(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
+	report, ok := opByName(doc, "runReport")
+	require.True(t, ok)
+	require.Len(t, report.Bindings.HTTP, 1)
+	require.Len(t, report.Bindings.HTTP[0].ParamBindings, 1)
+	qs := report.Bindings.HTTP[0].ParamBindings[0]
+	assert.Equal(t, ir.HTTPLocationQuerystring, qs.Location)
+	assert.Equal(t, "application/x-www-form-urlencoded", qs.ContentType,
+		"the media type is the whole of a querystring binding's declared serialization")
+	assert.Empty(t, qs.Style, "style is not a legal keyword at in: querystring")
+	assert.Nil(t, qs.Explode, "and explode qualifies a style there is none of")
+
+	summary, ok := opByName(doc, "summarize")
+	require.True(t, ok)
+	require.Len(t, summary.Bindings.HTTP, 1)
+	require.Len(t, summary.Bindings.HTTP[0].ParamBindings, 1)
+	q := summary.Bindings.HTTP[0].ParamBindings[0]
+	assert.Equal(t, ir.HTTPLocationQuery, q.Location)
+	assert.Equal(t, "form", q.Style, "a query parameter still takes its own location's default")
+	require.NotNil(t, q.Explode)
+	assert.True(t, *q.Explode)
 }
 
 // assertParamRefInheritance pins ir-design §14 at a parameter whose schema is a

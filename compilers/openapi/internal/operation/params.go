@@ -307,12 +307,19 @@ func preserveAllowEmptyValue(c lowering.Ctx, param *ir.Parameter, p *soa.Paramet
 
 // resolveStyleExplode materializes a parameter's resolved serialization style
 // and explode flag: an explicit value wins, else the OpenAPI per-location
-// default (query/cookie → form/true, path/header → simple/false). The result is
-// declared facts, not policy.
+// default (query/cookie → form/true, path/header → simple/false, querystring →
+// neither). The result is declared facts, not policy.
 func resolveStyleExplode(p *soa.Parameter, in soa.ParameterIn) (string, *bool) {
 	style := defaultParamStyle(in)
 	if p.Style != nil {
 		style = string(*p.Style)
+	}
+	// Explode qualifies a style, so a parameter resolving to none takes neither
+	// the default nor a declared explode — 3.2 forbids that keyword at
+	// in: querystring too, whose ContentType is the whole of its declared
+	// serialization (GitHub #334).
+	if style == "" {
+		return "", nil
 	}
 	explode := style == string(soa.SerializationStyleForm)
 	if p.Explode != nil {
@@ -322,10 +329,14 @@ func resolveStyleExplode(p *soa.Parameter, in soa.ParameterIn) (string, *bool) {
 }
 
 // defaultParamStyle returns the OpenAPI default serialization style for a
-// parameter location.
+// parameter location, and "" for one that has none: 3.2 binds in: querystring
+// from the parameter's content and forbids style there, so that location has no
+// default to fall back on.
 func defaultParamStyle(in soa.ParameterIn) string {
 	switch in {
-	case soa.ParameterInQuery, soa.ParameterInCookie, soa.ParameterInQueryString:
+	case soa.ParameterInQueryString:
+		return ""
+	case soa.ParameterInQuery, soa.ParameterInCookie:
 		return string(soa.SerializationStyleForm)
 	default:
 		return string(soa.SerializationStyleSimple)

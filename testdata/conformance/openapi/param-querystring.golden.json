@@ -1,0 +1,281 @@
+{
+  "irVersion": "0.3.0",
+  "name": "ParamQuerystring",
+  "version": "1.0.0",
+  "docs": {},
+  "services": [
+    {
+      "id": "s/openapi/0",
+      "name": {
+        "source": "ParamQuerystring",
+        "canonical": "param_querystring"
+      },
+      "docs": {},
+      "groups": [
+        {
+          "name": {
+            "hint": "default"
+          },
+          "docs": {},
+          "operations": [
+            {
+              "id": "op/openapi/paths/~1reports/get",
+              "name": {
+                "source": "runReport",
+                "canonical": "run_report"
+              },
+              "docs": {},
+              "params": [
+                {
+                  "name": {
+                    "source": "criteria",
+                    "canonical": "criteria"
+                  },
+                  "type": {
+                    "target": "t/anon/paths/~1reports/get/parameters/0/content/application~1x-www-form-urlencoded/schema",
+                    "nullable": false
+                  },
+                  "required": false,
+                  "docs": {}
+                }
+              ],
+              "responses": [
+                {
+                  "name": {
+                    "hint": "200"
+                  },
+                  "conditions": {
+                    "statusCodes": [
+                      {
+                        "from": 200,
+                        "to": 200
+                      }
+                    ]
+                  },
+                  "docs": {
+                    "description": "ok"
+                  }
+                }
+              ],
+              "oneWay": false,
+              "idempotency": {},
+              "auth": null,
+              "bindings": {
+                "http": [
+                  {
+                    "method": "GET",
+                    "uriTemplate": "/reports",
+                    "sharedRoute": false,
+                    "paramBindings": [
+                      {
+                        "param": "criteria",
+                        "location": "querystring",
+                        "wireName": "criteria",
+                        "allowReserved": false,
+                        "contentType": "application/x-www-form-urlencoded"
+                      }
+                    ],
+                    "checksumRequired": false,
+                    "isWebhook": false
+                  }
+                ]
+              },
+              "provenance": {
+                "source": 0,
+                "pointer": "/paths/~1reports/get"
+              }
+            },
+            {
+              "id": "op/openapi/paths/~1reports~1summary/get",
+              "name": {
+                "source": "summarize",
+                "canonical": "summarize"
+              },
+              "docs": {},
+              "params": [
+                {
+                  "name": {
+                    "source": "status",
+                    "canonical": "status"
+                  },
+                  "type": {
+                    "target": "t/prim/string",
+                    "nullable": false
+                  },
+                  "required": false,
+                  "docs": {}
+                }
+              ],
+              "responses": [
+                {
+                  "name": {
+                    "hint": "200"
+                  },
+                  "conditions": {
+                    "statusCodes": [
+                      {
+                        "from": 200,
+                        "to": 200
+                      }
+                    ]
+                  },
+                  "docs": {
+                    "description": "ok"
+                  }
+                }
+              ],
+              "oneWay": false,
+              "idempotency": {},
+              "auth": null,
+              "bindings": {
+                "http": [
+                  {
+                    "method": "GET",
+                    "uriTemplate": "/reports/summary",
+                    "sharedRoute": false,
+                    "paramBindings": [
+                      {
+                        "param": "status",
+                        "location": "query",
+                        "wireName": "status",
+                        "style": "form",
+                        "explode": true,
+                        "allowReserved": false
+                      }
+                    ],
+                    "checksumRequired": false,
+                    "isWebhook": false
+                  }
+                ]
+              },
+              "provenance": {
+                "source": 0,
+                "pointer": "/paths/~1reports~1summary/get"
+              }
+            }
+          ]
+        }
+      ],
+      "auth": null,
+      "provenance": {
+        "source": 0
+      }
+    }
+  ],
+  "types": {
+    "t/anon/paths/~1reports/get/parameters/0/content/application~1x-www-form-urlencoded/schema": {
+      "kind": "model",
+      "id": "t/anon/paths/~1reports/get/parameters/0/content/application~1x-www-form-urlencoded/schema",
+      "name": {
+        "hint": "criteria"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/paths/~1reports/get/parameters/0/content/application~1x-www-form-urlencoded/schema"
+      },
+      "properties": [
+        {
+          "id": "p/openapi/paths/~1reports/get/parameters/0/content/application~1x-www-form-urlencoded/schema/properties/since",
+          "name": {
+            "source": "since",
+            "canonical": "since"
+          },
+          "wireName": "since",
+          "type": {
+            "target": "t/prim/date",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/paths/~1reports/get/parameters/0/content/application~1x-www-form-urlencoded/schema/properties/since"
+          }
+        },
+        {
+          "id": "p/openapi/paths/~1reports/get/parameters/0/content/application~1x-www-form-urlencoded/schema/properties/status",
+          "name": {
+            "source": "status",
+            "canonical": "status"
+          },
+          "wireName": "status",
+          "type": {
+            "target": "t/prim/string",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/paths/~1reports/get/parameters/0/content/application~1x-www-form-urlencoded/schema/properties/status"
+          }
+        }
+      ],
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
+    "t/prim/date": {
+      "kind": "primitive",
+      "id": "t/prim/date",
+      "name": {},
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0
+      },
+      "prim": "date"
+    },
+    "t/prim/string": {
+      "kind": "primitive",
+      "id": "t/prim/string",
+      "name": {},
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0
+      },
+      "prim": "string"
+    }
+  },
+  "servers": [
+    {
+      "name": {
+        "hint": "server"
+      },
+      "urlTemplate": "/",
+      "description": {},
+      "auth": null
+    }
+  ],
+  "sources": [
+    {
+      "format": "openapi@3.2",
+      "path": "param-querystring.yaml",
+      "hash": "f0cf6d786e63396444a439407e38ad19f5dbcb65928593e9d8818c5baf01b463"
+    }
+  ]
+}
