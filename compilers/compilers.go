@@ -2,7 +2,9 @@ package compilers
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"reflect"
 
 	"github.com/dexpace/morphic/ir"
 )
@@ -61,15 +63,28 @@ type OptionSet struct {
 // called, so registering one is the whole of adding a format. Both are required
 // rather than optional interfaces on purpose — a compiler that answered neither
 // would be registered and unreachable, which is a hole no caller can see.
+//
+// A compiler reports through the returned slice. It may also store the same
+// findings on the Document it returns — that copy is what the persisted IR JSON
+// carries — but nothing obliges it to, and one that fills both must fill them
+// alike. Neither list is guaranteed to hold the other, so a caller holding both
+// unions them, as the engine does, rather than take one for the whole set.
 type Compiler interface {
 	Formats() []SourceFormat
 	// Detect reports the format src declares, and whether this compiler
 	// recognizes it at all. Recognition is not support: a compiler may name a
 	// format it does not serve — a version it has yet to implement — so that the
-	// caller can say so rather than report the source as unrecognized. It must
-	// not report a parse failure as anything but "not mine"; the bytes of another
-	// format are ordinary input here, not an error.
-	Detect(src Source) (SourceFormat, bool)
+	// caller can say so rather than report the source as unrecognized.
+	//
+	// diags is what this compiler can say about a source it declines, and is read
+	// only when ok is false. Bytes of another format are ordinary input here, so
+	// declining them is silent: a compiler that reported every source it did not
+	// take would bury the one report that matters under one per registered
+	// format. It is for the narrower case where the source is recognizably this
+	// compiler's own and cannot be read — a malformed document in its own
+	// serialization — which no other compiler is in a position to say, and which
+	// the caller would otherwise have to report as unrecognized.
+	Detect(src Source) (format SourceFormat, diags []ir.Diagnostic, ok bool)
 	// DecodeOptions turns textual settings into the value this compiler expects
 	// in Options.FormatOptions. An empty set yields defaults. An unknown key, an
 	// unusable value, or a file that cannot be read is an error — a setting that
@@ -80,7 +95,7 @@ type Compiler interface {
 
 // Registry maps source formats to compilers. It is a plain instance — there is
 // no package-level default and no init()-time self-registration; the engine
-// composes its registry explicitly.
+// composes its registry explicitly. The zero value is a usable empty registry.
 type Registry struct {
 	byFormat map[SourceFormat]Compiler
 	ordered  []Compiler
@@ -91,17 +106,28 @@ func NewRegistry() *Registry {
 	return &Registry{byFormat: make(map[SourceFormat]Compiler)}
 }
 
-// Register adds c under every format it reports. It fails if any format is
-// already claimed; on failure nothing is registered.
+// Register adds c under every format it reports. It rejects a nil compiler and
+// a compiler reporting no formats, and it fails if any format is already
+// claimed; on failure nothing is registered.
+//
+// Rejecting nil is what keeps a caller's programmer error a Go error instead of
+// a segmentation fault raised inside this package, which is why the check comes
+// before the only call this method makes on c.
 func (r *Registry) Register(c Compiler) error {
+	if isNilCompiler(c) {
+		return errors.New("compilers: register: nil compiler")
+	}
 	formats := c.Formats()
 	if len(formats) == 0 {
-		return fmt.Errorf("compilers: register: compiler reports no formats")
+		return errors.New("compilers: register: compiler reports no formats")
 	}
 	for _, format := range formats {
 		if _, taken := r.byFormat[format]; taken {
 			return fmt.Errorf("compilers: register: format %s already registered", format)
 		}
+	}
+	if r.byFormat == nil {
+		r.byFormat = make(map[SourceFormat]Compiler, len(formats))
 	}
 	for _, format := range formats {
 		r.byFormat[format] = c
@@ -116,23 +142,46 @@ func (r *Registry) Register(c Compiler) error {
 // reported as the zero format, which is what tells "no compiler takes these
 // bytes" from "this format is recognized but unsupported".
 //
+// diags collects what the declining compilers had to say, in the order they
+// were asked, and is meaningful only when no compiler took src. A compiler that
+// recognizes src ends the search, so nothing after it is asked and nothing it
+// might have said is collected — the answer to "who takes this" makes any
+// account of why others did not moot.
+//
 // The order is registration order, because it is the only order a caller
 // controls — the variadic that composes the registry fixes it — and a map's
 // would make two compilers that both claim a source resolve differently from
 // run to run.
-func (r *Registry) Detect(src Source) (Compiler, SourceFormat, bool) {
+func (r *Registry) Detect(src Source) (Compiler, SourceFormat, []ir.Diagnostic, bool) {
 	if len(src.Data) == 0 {
-		return nil, SourceFormat{}, false
+		return nil, SourceFormat{}, nil, false
 	}
+
+	var declined []ir.Diagnostic
 	for _, c := range r.ordered {
-		format, ok := c.Detect(src)
+		format, diags, ok := c.Detect(src)
 		if !ok {
+			declined = append(declined, diags...)
 			continue
 		}
 		owner, registered := r.byFormat[format]
-		return owner, format, registered
+		return owner, format, nil, registered
 	}
-	return nil, SourceFormat{}, false
+	return nil, SourceFormat{}, declined, false
+}
+
+// isNilCompiler reports whether c is unsafe to call: an untyped nil interface or
+// a typed nil pointer stored in one.
+//
+// The two spellings are one bug — a typed nil passes c == nil and panics on the
+// first method call that touches the receiver — so screening only the first
+// leaves half the hole open. ir.IsNilTypeDef screens ir.TypeDef the same way.
+func isNilCompiler(c Compiler) bool {
+	if c == nil {
+		return true
+	}
+	rv := reflect.ValueOf(c)
+	return rv.Kind() == reflect.Pointer && rv.IsNil()
 }
 
 // Lookup returns the compiler registered for format.

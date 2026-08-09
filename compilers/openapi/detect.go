@@ -7,6 +7,8 @@ import (
 	yaml "gopkg.in/yaml.v3"
 
 	"github.com/dexpace/morphic/compilers"
+	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
+	"github.com/dexpace/morphic/ir"
 )
 
 // maxSniffBytes bounds the bytes Detect parses. Detection reads two top-level
@@ -36,46 +38,104 @@ type sniffProbe struct {
 // say the format is unsupported rather than that the file is unreadable. The
 // path is not consulted — an OpenAPI document is what it declares itself to be,
 // under any extension.
-func (*Compiler) Detect(src compilers.Source) (compilers.SourceFormat, bool) {
-	probe := sniff(src.Data)
+//
+// Bytes that do not parse are declined silently unless they declare one of the
+// discriminating keys, in which case the parse error is reported: a source that
+// says `openapi:` and will not parse is this compiler's own and broken, which
+// nothing else is in a position to say. Bytes that declare neither key are
+// another format's business, and a YAML parser's complaint about them describes
+// only the parser that was wrong to be asked.
+func (*Compiler) Detect(src compilers.Source) (compilers.SourceFormat, []ir.Diagnostic, bool) {
+	probe, err := sniff(src.Data)
 	switch {
 	case probe.OpenAPI != "":
-		return compilers.SourceFormat{Name: "openapi", Version: majorMinor(probe.OpenAPI)}, true
+		return compilers.SourceFormat{Name: "openapi", Version: majorMinor(probe.OpenAPI)}, nil, true
 	case probe.Swagger != "":
-		return compilers.SourceFormat{Name: "swagger", Version: majorMinor(probe.Swagger)}, true
+		return compilers.SourceFormat{Name: "swagger", Version: majorMinor(probe.Swagger)}, nil, true
+	case err != nil && declaresProbeKey(src.Data):
+		// NoSource, not source 0: detection runs before any document exists, so
+		// there is no source table for a provenance to index into.
+		return compilers.SourceFormat{}, []ir.Diagnostic{diag.Newf(
+			ir.SeverityError, diag.UndecodableSource, ir.Provenance{Source: ir.NoSource},
+			"source declares an OpenAPI or Swagger key and does not parse: %v", err)}, false
 	default:
-		return compilers.SourceFormat{}, false
+		return compilers.SourceFormat{}, nil, false
+	}
+}
+
+// declaresProbeKey reports whether data names one of the discriminating keys as
+// a top-level key. It is what separates a source of this compiler's own that
+// will not parse from one of another format that was never its business: a
+// parse failure alone says only "not YAML", which a Protobuf or Smithy source
+// is not either.
+//
+// Only the bounded prefix is read, for the reason sniff bounds its own reads.
+func declaresProbeKey(data []byte) bool {
+	if len(data) > maxSniffBytes {
+		data = data[:maxSniffBytes]
+	}
+	return declaresKey(data, "openapi") || declaresKey(data, "swagger")
+}
+
+// declaresKey reports whether data names key at the top level, in either style:
+// unquoted at the start of a line for block style, or quoted for flow style,
+// which is how JSON writes every key.
+//
+// Both spellings require the colon that makes it a key. Without it, a document
+// of another format that merely mentions the word — in a comment, or as a value
+// — would be claimed as this compiler's and reported under its parse error.
+func declaresKey(data []byte, key string) bool {
+	block := []byte(key + ":")
+	if bytes.HasPrefix(data, block) || bytes.Contains(data, []byte("\n"+key+":")) {
+		return true
+	}
+	return followedByColon(data, []byte(`"`+key+`"`))
+}
+
+// followedByColon reports whether name occurs in data followed by a colon,
+// ignoring the whitespace a flow mapping may put between them.
+func followedByColon(data, name []byte) bool {
+	for i := 0; ; {
+		j := bytes.Index(data[i:], name)
+		if j < 0 {
+			return false
+		}
+		rest := bytes.TrimLeft(data[i+j+len(name):], " \t\r\n")
+		if len(rest) > 0 && rest[0] == ':' {
+			return true
+		}
+		i += j + len(name)
 	}
 }
 
 // sniff reads the discriminating keys out of at most maxSniffBytes bytes, and
-// reports the zero probe for anything it cannot read — bytes of another format
-// are ordinary input here, and a parser's complaint about them answers no
-// question a caller asked.
+// returns the zero probe and the parser's error for anything it cannot read.
+// Whether that error is worth reporting is Detect's question, not this one's:
+// here it is only the record of what happened.
 //
 // A document within the cap is decoded whole and exactly. A larger one is
 // decoded from a prefix, which cannot simply be cut: flow style — JSON is the
 // common case — is one token stream with no line structure, so its entries are
 // streamed instead, and block style is cut at its last complete line.
-func sniff(data []byte) sniffProbe {
+func sniff(data []byte) (sniffProbe, error) {
 	if len(data) <= maxSniffBytes {
 		return decodeYAML(data)
 	}
 	prefix := data[:maxSniffBytes]
 	if probe, ok := decodeFlowPrefix(prefix); ok {
-		return probe
+		return probe, nil
 	}
 	return decodeYAML(wholeLines(prefix))
 }
 
 // decodeYAML reads the probe keys from a complete YAML (or JSON, its subset)
 // document.
-func decodeYAML(data []byte) sniffProbe {
+func decodeYAML(data []byte) (sniffProbe, error) {
 	var probe sniffProbe
 	if err := yaml.Unmarshal(data, &probe); err != nil {
-		return sniffProbe{}
+		return sniffProbe{}, err
 	}
-	return probe
+	return probe, nil
 }
 
 // decodeFlowPrefix reads the top-level entries of a prefix that opens a flow

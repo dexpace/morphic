@@ -8,6 +8,8 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/dexpace/morphic/compilers"
+	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
+	"github.com/dexpace/morphic/ir"
 )
 
 func TestDetect_Formats(t *testing.T) {
@@ -16,49 +18,69 @@ func TestDetect_Formats(t *testing.T) {
 		name, path, src string
 		want            compilers.SourceFormat
 		wantOK          bool
+		// wantCode is the codes of the diagnostics a decline carries. Empty for
+		// every source this compiler recognizes, and for every source that is
+		// another format's business.
+		wantCode []string
 	}{
 		{"openapi 3.1 yaml", "api.yaml", "openapi: 3.1.0\ninfo: {}\n",
-			compilers.SourceFormat{Name: "openapi", Version: "3.1"}, true},
+			compilers.SourceFormat{Name: "openapi", Version: "3.1"}, true, nil},
 		{"openapi 3.0 json", "api.json", `{"openapi": "3.0.3"}`,
-			compilers.SourceFormat{Name: "openapi", Version: "3.0"}, true},
+			compilers.SourceFormat{Name: "openapi", Version: "3.0"}, true, nil},
 		{"openapi 3.2 yaml", "api.yaml", "openapi: 3.2.0\ninfo: {}\n",
-			compilers.SourceFormat{Name: "openapi", Version: "3.2"}, true},
+			compilers.SourceFormat{Name: "openapi", Version: "3.2"}, true, nil},
 		// A version already in major.minor form (single dot) exercises
 		// majorMinor's unchanged-passthrough return.
 		{"openapi major.minor only", "api.yaml", "openapi: \"3.1\"\n",
-			compilers.SourceFormat{Name: "openapi", Version: "3.1"}, true},
+			compilers.SourceFormat{Name: "openapi", Version: "3.1"}, true, nil},
 		// A bare-major version (no dot) also reaches the passthrough return.
 		{"openapi bare major", "api.yaml", "openapi: \"4\"\n",
-			compilers.SourceFormat{Name: "openapi", Version: "4"}, true},
+			compilers.SourceFormat{Name: "openapi", Version: "4"}, true, nil},
 		// Recognized, and deliberately not a format Formats reports: naming it
 		// lets the caller say "unsupported" rather than "unreadable".
 		{"swagger", "api.yaml", "swagger: \"2.0\"\n",
-			compilers.SourceFormat{Name: "swagger", Version: "2.0"}, true},
+			compilers.SourceFormat{Name: "swagger", Version: "2.0"}, true, nil},
 
 		// Everything below is another format's input, and none of it is an error
 		// here: three of the five planned compilers take bytes that are not YAML.
 		{"protobuf", "svc.proto", "syntax = \"proto3\";\nservice S { rpc Get (Q) returns (A); }\n",
-			compilers.SourceFormat{}, false},
+			compilers.SourceFormat{}, false, nil},
 		{"typespec", "main.tsp", "import \"@typespec/http\";\nmodel Pet { name: string; }\n",
-			compilers.SourceFormat{}, false},
+			compilers.SourceFormat{}, false, nil},
 		{"graphql", "s.graphql", "type Query {\n  pet(id: ID!): Pet\n}\n",
-			compilers.SourceFormat{}, false},
+			compilers.SourceFormat{}, false, nil},
 		// Valid YAML that declares neither key: whether a source parses is not
 		// the question detection answers.
 		{"graphql that parses as yaml", "s.graphql", "type Query { a: String }\n",
-			compilers.SourceFormat{}, false},
+			compilers.SourceFormat{}, false, nil},
 		{"yaml that is no spec", "junk.yaml", "hello: world\n",
-			compilers.SourceFormat{}, false},
+			compilers.SourceFormat{}, false, nil},
+		// Declares an openapi key and will not parse: this compiler's own source,
+		// broken, which nothing else is in a position to say.
 		{"unparseable yaml", "api.yaml", "openapi: [unterminated\n",
-			compilers.SourceFormat{}, false},
-		{"empty", "empty.yaml", "", compilers.SourceFormat{}, false},
+			compilers.SourceFormat{}, false, []string{diag.UndecodableSource}},
+		{"unparseable json", "api.json", `{"openapi": "3.1.0", "info": {`,
+			compilers.SourceFormat{}, false, []string{diag.UndecodableSource}},
+		// Broken, and never this compiler's: the key it names is a value, not a
+		// key, so the parse error describes a parser that was wrong to be asked.
+		{"unparseable, key only mentioned", "svc.proto", "syntax = \"openapi\";\n{[",
+			compilers.SourceFormat{}, false, nil},
+		// Past the sniff cap and still this compiler's: the key search reads the
+		// same bounded prefix the decode did, so a document too large to parse in
+		// full is still recognized as broken rather than as somebody else's.
+		{"unparseable past the cap", "api.yaml",
+			padTo("openapi: [unterminated\n", "filler: x\n"),
+			compilers.SourceFormat{}, false, []string{diag.UndecodableSource}},
+		{"empty", "empty.yaml", "", compilers.SourceFormat{}, false, nil},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			got, ok := New().Detect(compilers.Source{Path: tc.path, Data: []byte(tc.src)})
+			got, diags, ok := New().Detect(compilers.Source{Path: tc.path, Data: []byte(tc.src)})
 			assert.Equal(t, tc.wantOK, ok)
 			assert.Equal(t, tc.want, got)
+			assert.Equal(t, tc.wantCode, codesOf(diags),
+				"a decline says something only when the source is recognizably this compiler's")
 		})
 	}
 }
@@ -107,7 +129,9 @@ func TestSniff_BeyondTheCap(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			require.Greater(t, len(tc.src), maxSniffBytes, "the case must exceed the cap to test it")
-			assert.Equal(t, tc.want, sniff([]byte(tc.src)))
+			probe, _ := sniff([]byte(tc.src))
+			assert.Equal(t, tc.want, probe,
+				"the error is not asserted: a prefix of another format is unreadable here by design")
 		})
 	}
 }
@@ -178,4 +202,18 @@ func TestMajorMinor(t *testing.T) {
 	assert.Equal(t, "3.1", majorMinor("3.1.0"))
 	assert.Equal(t, "3.1", majorMinor("3.1"))
 	assert.Equal(t, "4", majorMinor("4"))
+}
+
+// codesOf reduces diagnostics to their codes, which is the whole of what the
+// detection tests assert about them: the message carries a parser's wording and
+// pinning it would test yaml.v3 rather than this package.
+func codesOf(diags []ir.Diagnostic) []string {
+	if len(diags) == 0 {
+		return nil
+	}
+	codes := make([]string, 0, len(diags))
+	for _, d := range diags {
+		codes = append(codes, d.Code)
+	}
+	return codes
 }

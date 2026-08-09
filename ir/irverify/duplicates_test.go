@@ -97,6 +97,74 @@ func TestCheckDuplicateIDs_RepeatedPropIDIsClean(t *testing.T) {
 	assert.Empty(t, duplicateViolations(doc))
 }
 
+// modelWithProp wraps one property in a model of its own, so two of them collide
+// on the PropID and on nothing else.
+func modelWithProp(id ir.TypeID, prop ir.Property) *ir.Model {
+	return &ir.Model{TypeCommon: ir.TypeCommon{ID: id}, Properties: []ir.Property{prop}}
+}
+
+// TestCheckDuplicateIDs_TwoDifferentPropertiesOnOnePropID is what the class-wide
+// skip hid alongside the copies above: two properties that are not copies of one
+// declaration, minted at one ID. Every PropID lookup downstream then resolves to
+// whichever the reader reaches first, with nothing in the document saying which
+// that is.
+//
+// One subtest per fingerprint component, because a component the fingerprint
+// stopped reading would leave that pair silently indistinguishable — and this
+// check would go on passing its other cases.
+func TestCheckDuplicateIDs_TwoDifferentPropertiesOnOnePropID(t *testing.T) {
+	const dup ir.PropID = "p/x/dup"
+	base := ir.Property{ID: dup, Name: ir.Naming{Source: "alpha"}, WireName: "alpha",
+		Type: ir.TypeRef{Target: "t/x/A"}}
+
+	differs := map[string]func(p ir.Property) ir.Property{
+		"source name": func(p ir.Property) ir.Property { p.Name = ir.Naming{Source: "beta"}; return p },
+		"wire name":   func(p ir.Property) ir.Property { p.WireName = "beta"; return p },
+		"type":        func(p ir.Property) ir.Property { p.Type = ir.TypeRef{Target: "t/x/B"}; return p },
+	}
+	for field, differ := range differs {
+		t.Run(field, func(t *testing.T) {
+			doc := &ir.Document{Types: ir.TypeRegistry{
+				"t/x/A": modelWithProp("t/x/A", base),
+				"t/x/B": modelWithProp("t/x/B", differ(base)),
+			}}
+
+			got := duplicateViolations(doc)
+			require.Len(t, got, 1, "the first declaration stands and only the second is reported")
+			assert.Equal(t, "ir/duplicate-prop-id", got[0].Code)
+			assert.Equal(t, "doc.Types[t/x/B].Properties[0]", got[0].Path)
+			assert.Contains(t, got[0].Message, string(dup))
+			assert.Contains(t, got[0].Message, "doc.Types[t/x/A].Properties[0]")
+		})
+	}
+}
+
+// TestCheckDuplicateIDs_CopiesDifferingOutsideTheFingerprintAreClean holds the
+// fingerprint to being no wider than it has to be, which is a claim the corpus
+// cannot make: today the three copies in component-reuse.yaml are equal in every
+// field, so a fingerprint over the whole property would pass it. Nothing
+// guarantees they stay that way — a position-carried field such as provenance or
+// a required flag is exactly what a later lowering would differ on — and the
+// day one does, a wider fingerprint reports every document that reuses a
+// component, which is the failure the class-wide skip was avoiding. Only what a
+// duplicate ID actually costs is read: which property a lookup for that ID
+// reaches.
+func TestCheckDuplicateIDs_CopiesDifferingOutsideTheFingerprintAreClean(t *testing.T) {
+	base := ir.Property{ID: "p/x/dup", Name: ir.Naming{Source: "alpha"}, WireName: "alpha",
+		Type: ir.TypeRef{Target: "t/x/A"}}
+	elsewhere := base
+	elsewhere.Provenance = ir.Provenance{Source: ir.NoSource, Pointer: "/paths/~1b/get"}
+	elsewhere.Required = true
+	elsewhere.Docs = ir.Docs{Summary: "copied into a second position"}
+
+	doc := &ir.Document{Types: ir.TypeRegistry{
+		"t/x/A": modelWithProp("t/x/A", base),
+		"t/x/B": modelWithProp("t/x/B", elsewhere),
+	}}
+
+	assert.Empty(t, duplicateViolations(doc))
+}
+
 // TestVerify_ReportsDuplicateIDs pins that Verify runs the check, not just the
 // test: an ambiguous identity has to reach a caller that only ever calls Verify.
 func TestVerify_ReportsDuplicateIDs(t *testing.T) {
@@ -130,7 +198,7 @@ var identityClasses = map[string]string{
 	"AuthID":    "identity: Document.Auth keys it; resolved and held as TypeID is",
 	"OpID":      "identity, no map: ir.Registries.WithDeclarations resolves references against the operations the document declares, checkDuplicateIDs holds them unique",
 	"ServiceID": "identity, no map: resolved and held as OpID is, against the services the document declares",
-	"PropID":    "identity, model-scoped: pass.Validate resolves references (checkPropIDRefs, checkEncodingKeys); not yet held unique, because a component's property is copied into every position referencing it — provisional, GitHub #280, see checkDuplicateIDs",
+	"PropID":    "identity, model-scoped: pass.Validate resolves references (checkPropIDRefs, checkEncodingKeys); checkDuplicateIDs holds no two *different* properties to one ID, the copies a component makes of one property being exempt by fingerprint",
 
 	"BigVal":          "arbitrary-precision decimal, not an identity",
 	"PrimKind":        "primitive leaf kind; ir.PrimTypeID derives an ID from it, but the kind is not one",

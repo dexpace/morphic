@@ -2,7 +2,8 @@ usage:
   morphic compile <spec-file> [flags]
 
 Lower an API spec (OpenAPI 3.x) into Morphic IR JSON on stdout, and write
-diagnostics to stderr.
+diagnostics to stderr. Output to stdout is indented for reading; a file
+written with -o is compact unless --pretty asks for the indented form.
 
 --explain reports what compiling produced at one source coordinate — the
 type node interned there, the coordinates interned beneath it, and the
@@ -11,6 +12,10 @@ diagnostics stamped at it — instead of writing the document.
 --opt passes a setting to the compiler the spec selects, which names and
 validates its own options; morphic itself knows none of them. The OpenAPI
 compiler's are listed in the README.
+
+A -- argument ends flag parsing: every argument after it is an operand,
+even one that begins with a dash, which is how a spec file named like a
+flag is passed.
 
 flags:
   -explain string
@@ -21,5 +26,7 @@ flags:
     	write IR JSON to this file instead of stdout
   -opt key=value
     	set one key=value option on the compiler the spec selects (repeatable)
+  -pretty
+    	indent the IR JSON -o writes; stdout is indented either way
   -skip-validate
     	skip the referential-integrity validate pass
