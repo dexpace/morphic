@@ -35,6 +35,11 @@ type Options struct {
 // no package-level mutable state, no writes to stderr; spec problems are
 // returned as ir.Diagnostic values and the error return is reserved for
 // I/O-level and programmer errors.
+//
+// Purity is also the concurrency contract. One Compiler value must accept
+// overlapping Compile calls, which is what lets a caller share a single engine
+// across goroutines; a Compiler that memoizes into package state would break
+// that caller's guarantee without changing this signature.
 type Compiler interface {
 	Formats() []SourceFormat
 	Compile(ctx context.Context, sources []Source, opts Options) (*ir.Document, []ir.Diagnostic, error)
@@ -43,6 +48,11 @@ type Compiler interface {
 // Registry maps source formats to compilers. It is a plain instance — there is
 // no package-level default and no init()-time self-registration; the engine
 // composes its registry explicitly.
+//
+// Concurrent Lookup is safe once registration is complete. Register is not: it
+// writes an unsynchronized map, so every Register must happen before the first
+// concurrent Lookup. Compose a Registry fully before publishing it, the way
+// engine.NewWith registers into a fresh one and only then wraps it.
 type Registry struct {
 	byFormat map[SourceFormat]Compiler
 }

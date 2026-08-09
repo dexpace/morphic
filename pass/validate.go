@@ -17,6 +17,10 @@ const maxGroupDepth = 128
 // the diagnostics it finds, most-structural first. It is pure: it never mutates
 // doc and holds no package-level state. An empty result means the document is
 // internally consistent for every rule this pass enforces.
+//
+// Purity makes concurrent calls safe, including several over one document — but
+// Validate takes no lock, so nothing may be mutating that document meanwhile.
+// engine.Run satisfies this by validating a document no other run can reach.
 func Validate(doc *ir.Document) []ir.Diagnostic {
 	if doc == nil {
 		return nil
