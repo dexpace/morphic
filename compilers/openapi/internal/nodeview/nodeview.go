@@ -47,6 +47,10 @@ const MergeDepthLimit = 64
 // expansion depth, this one caps a document with many merged mappings. Past the
 // budget the view still answers correctly — it just stops memoizing, trading a
 // cache hit for a recomputation.
+//
+// Both of the view's memos are charged to it: a mapping's expanded pairs, and
+// the key index keyIndex projects from them. One bound covering both is what
+// keeps a second memo from doubling the memory the first one was capped at.
 const maxCachedPairs = 1 << 21
 
 // DocumentRoot returns the effective root node to scan: the content of a
@@ -87,8 +91,13 @@ type Pair struct {
 // that first reached it. MergeDepthLimit and maxCachedPairs bound the chain
 // depth and cache size respectively, so unlimited memoization can't trade the
 // crash for exhausted memory instead.
+//
+// It memoizes one thing more, for the walk rather than the expansion: keyIndex
+// projects a memoized mapping into a key map, so descending a JSON pointer costs
+// a map read per token instead of a scan of every pair at each one.
 type View struct {
 	pairs       map[*yaml.Node][]Pair
+	keys        map[*yaml.Node]map[string]*yaml.Node
 	cachedPairs int
 	inFlight    map[*yaml.Node]bool
 	exhausted   bool
@@ -105,6 +114,7 @@ func (v *View) Exhausted() bool { return v.exhausted }
 func New() *View {
 	return &View{
 		pairs:    map[*yaml.Node][]Pair{},
+		keys:     map[*yaml.Node]map[string]*yaml.Node{},
 		inFlight: map[*yaml.Node]bool{},
 	}
 }
@@ -398,11 +408,7 @@ func (v *View) ChildByToken(n *yaml.Node, token string) *yaml.Node {
 	}
 	switch n.Kind {
 	case yaml.MappingNode:
-		for _, p := range v.MappingPairs(n) {
-			if p.Key == token {
-				return p.Val
-			}
-		}
+		return v.mappingChild(n, token)
 	case yaml.SequenceNode:
 		idx, err := strconv.Atoi(token)
 		if err != nil || idx < 0 || idx >= len(n.Content) {
@@ -411,6 +417,56 @@ func (v *View) ChildByToken(n *yaml.Node, token string) *yaml.Node {
 		return n.Content[idx]
 	}
 	return nil
+}
+
+// mappingChild answers one key of a mapping through the key index, falling back
+// to a scan of its pairs for a mapping the index declines to cover.
+//
+// n is known to be a mapping node here, so it is its own Deref and keys the
+// index under the same node MappingPairs memoizes the pairs under.
+func (v *View) mappingChild(n *yaml.Node, token string) *yaml.Node {
+	pairs := v.MappingPairs(n)
+	if index := v.keyIndex(n, pairs); index != nil {
+		return index[token]
+	}
+	for _, p := range pairs {
+		if p.Key == token {
+			return p.Val
+		}
+	}
+	return nil
+}
+
+// keyIndex returns n's expansion as a key map, building it on first use, or nil
+// when the view holds no memo to project.
+//
+// It is what stops a pointer walk rescanning the mappings it descends through.
+// Resolving R references into a components mapping of M entries scans R×M pairs
+// without it — quadratic in a document's own size, since both grow together —
+// where an index makes each hop a map read. A key map cannot answer differently
+// from the scan it replaces: expandContent yields each key once, so the pairs it
+// is built from hold no duplicate for a first-match scan to prefer.
+//
+// The index is charged to the pair budget and gated on it by the same test
+// memoize applies, which is what makes one bound cover both memos — and, since
+// cachedPairs only ever grows, what makes the index cover exactly the mappings
+// whose pairs the view retained: a mapping memoize declined fails this test too,
+// so there is no expansion the index keeps and the pairs do not.
+func (v *View) keyIndex(n *yaml.Node, pairs []Pair) map[string]*yaml.Node {
+	if index, built := v.keys[n]; built {
+		return index
+	}
+	if v.cachedPairs+len(pairs) > maxCachedPairs {
+		return nil
+	}
+
+	index := make(map[string]*yaml.Node, len(pairs))
+	for _, p := range pairs {
+		index[p.Key] = p.Val
+	}
+	v.keys[n] = index
+	v.cachedPairs += len(pairs)
+	return index
 }
 
 // Deref follows AliasNode links to the anchored node, bounded against an alias

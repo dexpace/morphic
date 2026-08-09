@@ -10,6 +10,7 @@ import (
 	"github.com/stretchr/testify/require"
 	yaml "gopkg.in/yaml.v3"
 
+	"github.com/dexpace/morphic/compilers/openapi/internal/nodeview"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -445,6 +446,63 @@ func TestRawChildNode_ReadsOnlyAMappingChild(t *testing.T) {
 	assert.Nil(t, RawChildNode(yamlNode(t, "[1, 2]"), "a"), "a sequence has no keyed children")
 	assert.Nil(t, RawChildNode(yamlNode(t, "plain"), "a"), "nor does a scalar")
 	assert.Nil(t, RawChildNode(&yaml.Node{Kind: yaml.DocumentNode}, "a"), "nor an empty document")
+}
+
+// TestRawChildNode_IsNotTheMergeAwareView pins the difference between this
+// reader and nodeview's, which is the reason the two exist side by side: what a
+// keyword is preserved *as* is what the source spelled at it, while what a
+// pointer or a $ref *resolves to* is what the parser will see.
+//
+// The three cases are the three ways the trees diverge, and each is a keyword
+// this package would preserve verbatim. Answering a raw read through the view
+// would silently rewrite all of them — a merged keyword would appear at a
+// schema that never wrote it, an alias would be replaced by its target, and a
+// key written twice would change which of the two survives.
+//
+// It reaches across packages because that is where the mistake would be made:
+// nothing inside either reader can see that the other answers differently.
+func TestRawChildNode_IsNotTheMergeAwareView(t *testing.T) {
+	t.Parallel()
+
+	// use is the mapping under test in each case; the raw read of a top-level
+	// key is unambiguous, so it is safe to navigate with.
+	useOf := func(t *testing.T, src string) *yaml.Node {
+		t.Helper()
+		use := RawChildNode(yamlNode(t, src), "use")
+		require.NotNil(t, use, "the fixture must declare a `use` mapping")
+		return use
+	}
+
+	t.Run("a merge key contributes nothing to the raw read", func(t *testing.T) {
+		t.Parallel()
+		use := useOf(t, "base: &b {title: merged}\nuse:\n  <<: *b\n")
+
+		assert.Nil(t, RawChildNode(use, "title"),
+			"the source wrote `<<`, not `title`, so nothing is preserved at title")
+		merged := nodeview.New().ChildByToken(use, "title")
+		require.NotNil(t, merged, "the parser, however, does see it")
+		assert.Equal(t, "merged", merged.Value)
+	})
+
+	t.Run("an aliased value is not dereferenced by the raw read", func(t *testing.T) {
+		t.Parallel()
+		use := useOf(t, "base: &b anchored\nuse: {title: *b}\n")
+
+		raw := RawChildNode(use, "title")
+		require.NotNil(t, raw)
+		assert.Equal(t, yaml.AliasNode, raw.Kind, "the raw tree keeps the alias the source wrote")
+		assert.Equal(t, "anchored", nodeview.New().ChildByToken(use, "title").Value,
+			"where the view stands the anchor in its place")
+	})
+
+	t.Run("a repeated key resolves to opposite ends", func(t *testing.T) {
+		t.Parallel()
+		use := useOf(t, "use: {title: first, title: last}\n")
+
+		assert.Equal(t, "first", RawChildNode(use, "title").Value, "first matching key wins")
+		assert.Equal(t, "last", nodeview.New().ChildByToken(use, "title").Value,
+			"where the view follows the parser and takes the last")
+	})
 }
 
 // TestRawPropertyNode_NilSchemaReadsNothing pins the nil guard on the schema

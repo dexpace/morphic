@@ -505,3 +505,97 @@ func TestPointerPath_SegmentCapStopsTheWalk(t *testing.T) {
 	assert.Len(t, path, maxPointerSegments+1,
 		"the walk stops at the cap: the root plus one node per followed token")
 }
+
+// TestChildByToken_IndexAgreesWithTheScanItReplaces holds the key index to the
+// scan it stands in for, over the mappings whose effective pairs are not their
+// literal ones: a merge source, an alias standing in for a whole mapping, and a
+// key written twice.
+//
+// A map answers by key where a scan answers by position, so the two agree only
+// because expandContent yields each key once. That is the property under test —
+// asserting the index against MappingPairs itself, key by key, is what would
+// redden if a duplicate ever survived into an expansion.
+//
+// Each mapping is read twice through one view, because the two reads take
+// different paths: the first builds the index, the second reads it back.
+func TestChildByToken_IndexAgreesWithTheScanItReplaces(t *testing.T) {
+	t.Parallel()
+	base := ymap(yscalar("a"), yscalar("1"), yscalar("b"), yscalar("2"))
+	tests := []struct {
+		name string
+		n    *yaml.Node
+	}{
+		{name: "explicit keys", n: ymap(yscalar("a"), yscalar("1"))},
+		{name: "merged keys", n: ymap(ymerge(), yalias(base), yscalar("c"), yscalar("3"))},
+		{name: "explicit beats merged", n: ymap(ymerge(), yalias(base), yscalar("a"), yscalar("9"))},
+		{name: "alias for the whole value", n: ymap(yscalar("a"), yalias(yscalar("1")))},
+		{name: "a key written twice", n: ymap(yscalar("a"), yscalar("1"), yscalar("a"), yscalar("2"))},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			v := New()
+			pairs := v.MappingPairs(tc.n)
+			require.NotEmpty(t, pairs, "the fixture must expand to something to compare")
+
+			for _, read := range []string{"builds the index", "reads it back"} {
+				for _, p := range pairs {
+					assert.Same(t, p.Val, v.ChildByToken(tc.n, p.Key), "%s: key %q", read, p.Key)
+				}
+				assert.Nil(t, v.ChildByToken(tc.n, "absent"), "%s: an unwritten key names nothing", read)
+			}
+		})
+	}
+}
+
+// TestKeyIndex_IsChargedToThePairBudget pins the index to the bound that already
+// covers the pairs it projects. A memo added outside that budget would double
+// the memory maxCachedPairs was set to cap.
+func TestKeyIndex_IsChargedToThePairBudget(t *testing.T) {
+	t.Parallel()
+	n := ymap(yscalar("a"), yscalar("1"), yscalar("b"), yscalar("2"))
+	v := New()
+
+	require.Len(t, v.MappingPairs(n), 2)
+	require.Equal(t, 2, v.cachedPairs, "the expansion is charged")
+	require.Same(t, n.Content[1], v.ChildByToken(n, "a"))
+	assert.Equal(t, 4, v.cachedPairs, "the index charges its own entries too")
+
+	require.Same(t, n.Content[3], v.ChildByToken(n, "b"))
+	assert.Equal(t, 4, v.cachedPairs, "a second read builds nothing and charges nothing")
+}
+
+// TestKeyIndex_PastTheBudgetTheScanStillAnswers covers the gate that makes the
+// index optional, from both states a read can reach it in: a mapping whose pairs
+// the budget also declined, and one memoized while the budget still allowed it.
+//
+// The second is the case the gate exists for. The first is the case that makes
+// the gate sufficient on its own: cachedPairs never falls, so a mapping memoize
+// turned away fails the identical test here, and the index cannot end up holding
+// an expansion the pairs do not.
+func TestKeyIndex_PastTheBudgetTheScanStillAnswers(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		name       string
+		expandCold bool
+	}{
+		{name: "the pairs were declined too", expandCold: false},
+		{name: "the pairs were memoized first", expandCold: true},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			n := ymap(yscalar("a"), yscalar("1"))
+			v := New()
+			if tc.expandCold {
+				require.Len(t, v.MappingPairs(n), 1)
+			}
+			v.cachedPairs = maxCachedPairs
+			require.Equal(t, tc.expandCold, len(v.pairs) == 1, "the fixture must set up the state it names")
+
+			assert.Same(t, n.Content[1], v.ChildByToken(n, "a"), "the scan still answers")
+			assert.Nil(t, v.ChildByToken(n, "absent"))
+			assert.Empty(t, v.keys, "and nothing was indexed")
+		})
+	}
+}
