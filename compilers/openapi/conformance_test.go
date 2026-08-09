@@ -192,6 +192,7 @@ func conformanceCases() []conformanceCase {
 		{"webhooks", assertWebhooks},
 		{"callbacks", assertCallbacks},
 		{"deprecation", assertDeprecation},
+		{"extension-promotion", assertExtensionPromotion},
 		{"examples", assertExamples},
 		{"docs-summary-desc", assertDocsSummaryDesc},
 		{"extensions-x", assertExtensionsX},

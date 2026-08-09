@@ -158,5 +158,5 @@ func loadOptions(o Options) load.Options {
 // place the loader's result type meets the lowering, so lowering.New can take
 // the two facts it needs rather than the loader's struct.
 func loweringCtx(doc *load.Document, o Options) lowering.Ctx {
-	return lowering.New(rootSrcIndex, doc.Doc, doc.Source, o.Grouping, doc.Overlay)
+	return lowering.New(rootSrcIndex, doc.Doc, doc.Source, o.Grouping, o.Promotions, doc.Overlay)
 }

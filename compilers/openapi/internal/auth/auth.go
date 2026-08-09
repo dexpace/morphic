@@ -134,7 +134,9 @@ func lowerSecurityScheme(c lowering.Ctx, name string, ss *soa.SecurityScheme,
 	diags = preserveUnreadFields(c, &scheme, ss, decl)
 	ext, extDiags := annotation.ExtensionsFrom(ss.GetExtensions(), c.SrcIndex, decl)
 	scheme.Unmodeled = annotation.MergeUnmodeled(scheme.Unmodeled, ext)
-	return scheme, true, append(diags, extDiags...)
+	diags = append(diags, extDiags...)
+	promoteDiags := c.PromoteDeprecation(scheme.Unmodeled, scheme.Deprecation, &scheme.Provenance)
+	return scheme, true, append(diags, promoteDiags...)
 }
 
 // mechanismRefusalDiag reports a securitySchemes entry that declares a scheme

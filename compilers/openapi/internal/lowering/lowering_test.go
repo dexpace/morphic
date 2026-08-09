@@ -94,7 +94,7 @@ func TestNew_DerivesTheDeclaredSchemaNames(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			c := lowering.New(0, tc.doc, ir.SourceInfo{}, "", overlay.Origin{})
+			c := lowering.New(0, tc.doc, ir.SourceInfo{}, "", lowering.ExtensionPromotions{}, overlay.Origin{})
 			for _, n := range tc.declares {
 				assert.True(t, c.DeclaresSchema(n), "%q is declared", n)
 			}
@@ -123,7 +123,7 @@ func TestNew_KeepsTheDocumentItWasGiven(t *testing.T) {
 	doc := docDeclaring("User")
 	src := ir.SourceInfo{Format: "openapi@3.1", Path: "spec.yaml", Hash: "abc"}
 
-	c := lowering.New(7, doc, src, lowering.GroupByPathPrefix, overlay.Origin{})
+	c := lowering.New(7, doc, src, lowering.GroupByPathPrefix, lowering.ExtensionPromotions{}, overlay.Origin{})
 
 	assert.Same(t, doc, c.Doc, "the document is referenced, never copied")
 	assert.Equal(t, src, c.Source)
@@ -140,7 +140,7 @@ func TestWithAuth_ExtendsACopy(t *testing.T) {
 	t.Parallel()
 	doc := docDeclaring("User")
 	src := ir.SourceInfo{Format: "openapi@3.1", Path: "spec.yaml", Hash: "abc"}
-	before := lowering.New(7, doc, src, lowering.GroupByPathPrefix, overlay.Origin{})
+	before := lowering.New(7, doc, src, lowering.GroupByPathPrefix, lowering.ExtensionPromotions{}, overlay.Origin{})
 	schemes := map[ir.AuthID]ir.AuthScheme{"a/apiKey": {ID: "a/apiKey"}}
 
 	after := before.WithAuth(schemes)
@@ -203,7 +203,7 @@ func TestExclusiveBoundIsBoolean_FollowsTheDialect(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.version, func(t *testing.T) {
 			t.Parallel()
-			c := lowering.New(0, &soa.OpenAPI{OpenAPI: tc.version}, ir.SourceInfo{}, "", overlay.Origin{})
+			c := lowering.New(0, &soa.OpenAPI{OpenAPI: tc.version}, ir.SourceInfo{}, "", lowering.ExtensionPromotions{}, overlay.Origin{})
 			assert.Equal(t, tc.want, c.ExclusiveBoundIsBoolean())
 		})
 	}
@@ -215,7 +215,7 @@ func TestExclusiveBoundIsBoolean_FollowsTheDialect(t *testing.T) {
 // decides whether an internal pointer names anything.
 func TestRefScope_IsTheContextSeenAsAScope(t *testing.T) {
 	t.Parallel()
-	c := lowering.New(0, docDeclaring("User"), ir.SourceInfo{Path: "spec.yaml"}, "", overlay.Origin{})
+	c := lowering.New(0, docDeclaring("User"), ir.SourceInfo{Path: "spec.yaml"}, "", lowering.ExtensionPromotions{}, overlay.Origin{})
 
 	scope := c.RefScope()
 
@@ -281,7 +281,7 @@ func TestSources_ListsTheOverlayAfterTheSourceItPatched(t *testing.T) {
 		"overlay: 1.0.0\ninfo: {title: O, version: \"1\"}\nactions:\n"+
 			"  - target: $.info\n    update: {description: d}\n")
 
-	c := lowering.New(0, docDeclaring(), src, "", origin)
+	c := lowering.New(0, docDeclaring(), src, "", lowering.ExtensionPromotions{}, origin)
 
 	require.Len(t, c.Sources(), 2)
 	assert.Equal(t, src, c.Sources()[0], "the source being lowered comes first")
@@ -296,7 +296,7 @@ func TestSources_ListsOnlyTheSourceWhenNoOverlayApplied(t *testing.T) {
 	t.Parallel()
 	src := ir.SourceInfo{Format: "openapi@3.1", Path: "spec.yaml"}
 
-	c := lowering.New(0, docDeclaring(), src, "", overlay.Origin{})
+	c := lowering.New(0, docDeclaring(), src, "", lowering.ExtensionPromotions{}, overlay.Origin{})
 
 	assert.Equal(t, []ir.SourceInfo{src}, c.Sources())
 }
@@ -312,7 +312,7 @@ func TestProvenanceAt_NamesTheOverlayForThePositionsItIntroduced(t *testing.T) {
 		"overlay: 1.0.0\ninfo: {title: O, version: \"1\"}\nactions:\n"+
 			"  - target: $.info\n    update: {description: d}\n")
 
-	c := lowering.New(0, docDeclaring(), ir.SourceInfo{}, "", origin)
+	c := lowering.New(0, docDeclaring(), ir.SourceInfo{}, "", lowering.ExtensionPromotions{}, origin)
 
 	assert.Equal(t, ir.Provenance{Source: 1, Pointer: "/info/description"},
 		c.ProvenanceAt("/info/description"), "the overlay introduced this position")

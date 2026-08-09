@@ -44,9 +44,9 @@ type Ctx struct {
 	// SrcIndex is this source's index within the compile, stamped into every
 	// Provenance.
 	SrcIndex int
-	// Grouping selects how operations are grouped into OperationGroups. It is the
-	// only policy the context carries: everything else here is a fact about the
-	// document, and this is a fact about the caller.
+	// Grouping selects how operations are grouped into OperationGroups. It is one
+	// of the two caller policies the context carries; everything else here is a
+	// fact about the document.
 	//
 	// It arrives as the caller wrote it, normalized or not — the compiler's
 	// Options fills an unset one in before building a context, but nothing here
@@ -54,6 +54,14 @@ type Ctx struct {
 	// by tags, which is what makes the unnormalized zero value harmless rather
 	// than a second spelling of the default to keep in step.
 	Grouping GroupingStrategy
+
+	// promotions is the vendor-extension promotion policy, normalized into the
+	// map PromoteDeprecation reads, and nil when the caller disabled it.
+	//
+	// It is the second caller policy, and it is unexported where Grouping is not
+	// because it holds a map: a struct copy would share it, which is the one
+	// thing keeping the other maps here unexported is for.
+	promotions map[string]ExtensionTarget
 
 	// schemas is the set of component-schema names the document declares.
 	//
@@ -99,19 +107,24 @@ type Ctx struct {
 // document as a valid target. It stays nil for a document that declares no
 // components, which reads the same as an empty set.
 //
+// The promotion policy is normalized into its map here for a related reason:
+// the caller's map is copied once at entry rather than shared, so no lowering
+// can write through the context into what the caller passed.
+//
 // The $dynamicAnchor index is deliberately not derived here, though GitHub #172
 // asked for it. Building it emits a diagnostic when the walk hits its bounds, so
 // building it is a lowering action rather than context: done at entry, that
 // warning would reach documents that never write $dynamicRef, changing what the
 // compiler reports about them. It stays where it is, built on first use.
-func New(srcIndex int, doc *soa.OpenAPI, src ir.SourceInfo, grouping GroupingStrategy, origin overlay.Origin) Ctx {
+func New(srcIndex int, doc *soa.OpenAPI, src ir.SourceInfo, grouping GroupingStrategy, promotions ExtensionPromotions, origin overlay.Origin) Ctx {
 	return Ctx{
-		Doc:      doc,
-		Source:   src,
-		SrcIndex: srcIndex,
-		Grouping: grouping,
-		schemas:  declaredSchemaNames(doc),
-		overlay:  origin,
+		Doc:        doc,
+		Source:     src,
+		SrcIndex:   srcIndex,
+		Grouping:   grouping,
+		promotions: promotionSet(promotions),
+		schemas:    declaredSchemaNames(doc),
+		overlay:    origin,
 	}
 }
 

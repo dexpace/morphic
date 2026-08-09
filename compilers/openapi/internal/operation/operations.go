@@ -292,6 +292,7 @@ func lowerOperation(c lowering.Ctx, ts *compile.Types, anchors *schema.AnchorInd
 	if len(ext) > 0 {
 		op.Unmodeled = ext
 	}
+	diags = append(diags, c.PromoteDeprecation(op.Unmodeled, op.Deprecation, &op.Provenance)...)
 	// After the extensions assignment, which would otherwise overwrite the map.
 	diags = append(diags, applyOperationServers(c, &op, src, decl)...)
 	return op, extra, append(diags, checkOperationIDUnique(c, operationIDs, op, mount)...)

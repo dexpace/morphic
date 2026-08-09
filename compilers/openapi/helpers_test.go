@@ -155,7 +155,7 @@ func newLowerer(doc *load.Document, opts Options) *lowerer {
 func newRawLowerer(doc *soa.OpenAPI) *lowerer {
 	rawTypes := compile.NewTypes(0)
 	l := &lowerer{
-		ctx:          lowering.New(0, doc, ir.SourceInfo{}, "", overlay.Origin{}),
+		ctx:          lowering.New(0, doc, ir.SourceInfo{}, "", lowering.ExtensionPromotions{}, overlay.Origin{}),
 		out:          &ir.Document{Types: rawTypes.Registry()},
 		types:        rawTypes,
 		operationIDs: make(map[string]string),

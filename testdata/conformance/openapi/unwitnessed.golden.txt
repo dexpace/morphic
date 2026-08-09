@@ -23,9 +23,6 @@ Content.SchemaFormat
 CtorValue.Args
 CtorValue.Name
 CtorValue.Scalar
-Deprecation.Message
-Deprecation.RemovalVersion
-Deprecation.Since
 Discriminator.Envelope
 Discriminator.EnvelopeValueName
 Discriminator.Index
@@ -170,7 +167,6 @@ Property.WireID
 Property.WireNameByFormat
 ProtocolDecl.Name
 ProtocolDecl.Options
-Provenance.Inferred
 Provenance.Source
 RPCBinding.FullMethod
 RPCBinding.IdempotencyLevel
