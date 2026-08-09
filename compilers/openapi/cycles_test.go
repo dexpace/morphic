@@ -5,6 +5,7 @@ import (
 	"os"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -43,6 +44,7 @@ var cycleReproducers = []struct{ name, file string }{
 	{"path-item-prefix-chain", "cycle_path_item_prefix_chain"},
 	{"component-path-item-prefix", "cycle_component_path_item_prefix"},
 	{"webhook-prefix-self", "cycle_webhook_prefix_self"},
+	{"path-item-empty-segment", "cycle_path_item_empty_segment"},
 	// A self-reference only the resolver's pointer normalization reveals, which
 	// overflows the stack rather than deadlocking: the resolution cache ends up
 	// pointing at its own reference and GetObject's delegation recurses.
@@ -204,6 +206,49 @@ func TestCompile_RefShapedDataNotRefused(t *testing.T) {
 				assert.NotEqualf(t, diag.CyclicRef, d.Code, "must not refuse as a cyclic ref: %+v", d)
 			}
 		})
+	}
+}
+
+// compileBound is how long TestCompile_EmptyPointerSegmentTerminates waits for
+// a verdict. The compile it guards refuses the source in milliseconds; the bound
+// is there because the failure it guards against is a permanent deadlock inside
+// the resolver, which no assertion can observe. Without it a regression stops
+// the suite dead until `go test`'s own timeout kills it and prints a stack dump;
+// with it the test fails in seconds and names the cause.
+const compileBound = 10 * time.Second
+
+// TestCompile_EmptyPointerSegmentTerminates is the fast-failing guard for the
+// whole re-entrant-prefix family: a legal document whose $ref names its own
+// location with a trailing separator must be refused, not resolved. Reaching
+// the resolver with it hangs the process — a compiler that accepts untrusted
+// specs cannot afford an input that never returns.
+func TestCompile_EmptyPointerSegmentTerminates(t *testing.T) {
+	t.Parallel()
+	const file = "cycle_path_item_empty_segment"
+	data := readReproducer(t, file)
+	ctx := t.Context()
+
+	type outcome struct {
+		doc   *ir.Document
+		diags []ir.Diagnostic
+		err   error
+	}
+	// Buffered so the send still completes if this test has already given up.
+	done := make(chan outcome, 1)
+	go func() {
+		doc, diags, err := New().Compile(ctx,
+			[]compilers.Source{{Path: file + ".yaml", Data: data}}, compilers.Options{})
+		done <- outcome{doc, diags, err}
+	}()
+
+	select {
+	case got := <-done:
+		require.NoError(t, got.err, "a re-entrant reference is a spec problem, not a Go error")
+		assert.Nil(t, got.doc, "the compiler refuses a re-entrant reference")
+		assertHasErrorCode(t, got.diags, diag.CyclicRef)
+	case <-time.After(compileBound):
+		t.Fatalf("Compile did not return within %s: the empty pointer segment reached the resolver",
+			compileBound)
 	}
 }
 
