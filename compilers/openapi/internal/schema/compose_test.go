@@ -1959,6 +1959,72 @@ func TestOneOf_CoDeclaredNotDistributedReasons(t *testing.T) {
 		"each declined shape is reported once; got %+v", diags)
 }
 
+// TestOneOf_CoDeclaredKeepsTheBoundsWrittenBesideIt pins that keeping a union
+// verbatim does not cost the position the value constraints written beside it.
+// The alias exists so the union attaches to a node this pointer owns rather than
+// to the shared primitive the body reduced to, and owning a node is what stops
+// hoistDeclarationHome hoisting the alias that would otherwise carry the bounds
+// — so this alias has to carry them itself, as every other hoist here does
+// (GitHub #343).
+//
+// Both routes to the verbatim lowering hoist the same alias, so both are covered:
+// the bounds went the same way whichever reason kept the union. The third case
+// covers what reading them also produces — bounds nothing reads are bounds
+// nothing can report on, so the co-declared-bound reconciliation reached no such
+// position until now.
+func TestOneOf_CoDeclaredKeepsTheBoundsWrittenBesideIt(t *testing.T) {
+	t.Parallel()
+	three := int64(3)
+	ten, five := ir.BigVal("10"), ir.BigVal("5")
+	cases := []struct {
+		name, schemas string
+		reason        ir.UnmodeledReason
+		want          ir.Constraints
+		wantDiag      string
+	}{
+		{
+			name:    "a validation-only union",
+			schemas: "    A: {type: string, minLength: 3, oneOf: [{minLength: 1}, {minLength: 2}]}\n",
+			reason:  ir.ReasonValidationOnly,
+			want:    ir.Constraints{MinLength: &three},
+		},
+		{
+			name:    "a union kept as a degraded lowering",
+			schemas: "    A: {type: number, minimum: 10, multipleOf: 5, oneOf: [{type: string}, {type: integer}]}\n",
+			reason:  ir.ReasonDegradedLowering,
+			want:    ir.Constraints{Min: &ten, MultipleOf: &five},
+		},
+		{
+			name:     "co-declared bounds beside a union",
+			schemas:  "    A: {type: number, minimum: 10, exclusiveMinimum: 0, oneOf: [{minLength: 1}, {minLength: 2}]}\n",
+			reason:   ir.ReasonValidationOnly,
+			want:     ir.Constraints{Min: &ten},
+			wantDiag: "kept minimum as the tighter of the two",
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			doc, diags := lowerSpec(t, componentSpec(tc.schemas))
+			requireNoErrorDiags(t, diags)
+
+			sc, ok := typeByName(doc, "A").(*ir.Scalar)
+			require.True(t, ok, "the preserved union hoists an alias over the shared primitive")
+			entry, ok := sc.Unmodeled["openapi:oneOf"]
+			require.True(t, ok, "and keeps the union on it")
+			assert.Equal(t, tc.reason, entry.Reason)
+			require.NotNil(t, sc.Constraints, "while keeping the bounds written beside it")
+			assert.Empty(t, cmp.Diff(tc.want, *sc.Constraints))
+			if tc.wantDiag == "" {
+				return
+			}
+			assert.Contains(t,
+				diagMessageAt(t, diags, diag.DegradedConstruct, ir.SeverityInfo, "/components/schemas/A"),
+				tc.wantDiag, "reading the bounds is what reports on them")
+		})
+	}
+}
+
 // TestUnionCombinators_PassedOverBranchSetIsKept covers the preference nothing
 // used to record (GitHub #35). unionBranches takes oneOf whenever it is written
 // and falls back to anyOf only when it is not, so a schema declaring both lost

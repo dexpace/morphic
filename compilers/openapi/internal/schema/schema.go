@@ -380,8 +380,12 @@ func lowerBesideUnmodeledUnion(c lowering.Ctx, ts *compile.Types, anchors *Ancho
 	if got, _ := ts.Lookup(pointer); got != inner {
 		// The structural body reduced to a shared/aliased target; hoist an alias
 		// so the preserved union attaches to a node this pointer owns, never to a
-		// shared primitive.
-		owner = internAlias(c, ts, pointer, hint, ir.TypeRef{Target: inner}, nil)
+		// shared primitive. The alias carries the position's value constraints for
+		// the reason hoistByteScalar records: owning the node is what stops
+		// hoistDeclarationHome hoisting the alias that would otherwise carry them.
+		cons, consDiags := schemaConstraints(c, s, pointer)
+		diags = append(diags, consDiags...)
+		owner = internAlias(c, ts, pointer, hint, ir.TypeRef{Target: inner}, cons)
 	}
 	return owner, append(diags, preserveUnionSiblings(c, ts, owner, s, pointer, reason, why)...)
 }
