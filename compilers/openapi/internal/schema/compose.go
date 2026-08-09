@@ -1014,6 +1014,14 @@ func propIDByName(m *ir.Model, name string) (ir.PropID, bool) {
 // non-scalar member set has no Enum home, so it falls back to a Union of
 // Literals with an info diagnostic — nothing is dropped.
 //
+// A member set past the caller's budget is the one case where something is: the
+// enum lowers as the top type with an error diagnostic naming the budget. The
+// count is checked before either branch below, because both are linear in it —
+// the Enum mints an EnumMember with a canonical word sequence per member, and
+// the fallback a hoisted Literal type and a union variant per member — and it is
+// that per-member cost, not the source's size, that GitHub #75 measured
+// amplifying 10.9 MB of one enum into 2.6 GB of peak RSS.
+//
 // A schema that admits null in its own right — `type: [T, "null"]`, 3.0
 // `nullable: true` — spells its nullable enum by listing `null` among the
 // members, so that member is stripped and normalized onto the enclosing
@@ -1036,6 +1044,12 @@ func propIDByName(m *ir.Model, name string) (ir.PropID, bool) {
 func lowerEnum(c lowering.Ctx, ts *compile.Types, s *oas3.Schema, pointer, hint string) (ir.TypeID, []ir.Diagnostic) {
 	var diags []ir.Diagnostic
 	id := internNode(c, ts, pointer, hint, func(common ir.TypeCommon) ir.TypeDef {
+		if n := len(s.GetEnum()); c.Limits.EnumMembersExceeded(n) {
+			diags = append(diags, c.DiagAt(ir.SeverityError, diag.BudgetExceeded, pointer,
+				"enum declares %d members, past the %d-member budget; lowered as any",
+				n, c.Limits.MaxEnumMembers))
+			return &ir.Any{TypeCommon: common}
+		}
 		members, memberPrim, ok := enumMembers(s.GetEnum(), schemaAdmitsNull(s))
 		if !ok {
 			def, enumDiags := enumAsUnion(c, ts, s, common, pointer, hint)

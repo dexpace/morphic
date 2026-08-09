@@ -127,6 +127,25 @@ const (
 	// measured finding, so the document is refused outright rather than handed to
 	// the parser.
 	AliasAmplification = "openapi/alias-amplification"
+	// BudgetExceeded reports an input that crossed one of the compiler's
+	// cardinality budgets: a source document past the byte or node budget, or a
+	// single enum past the member budget (GitHub #75).
+	//
+	// It is the size axis of the same family AliasAmplification belongs to, and
+	// deliberately a separate code, because what it refuses is different in kind.
+	// AliasAmplification names a document that is small until it is expanded — a
+	// bomb, and never a shape an author writes on purpose. These name a document
+	// that is honestly, legally that large, so the finding is "past the budget
+	// this compile was given", not "malicious": every one of them is raised
+	// through openapi.Limits by a caller who has the memory for it.
+	//
+	// Error rather than a degradation at every site. The two load-phase budgets
+	// refuse the document outright — nothing is lowered, so there is no weaker
+	// shape to report. The enum budget does leave a node behind, the top type,
+	// but every member the source declared is gone from it, which is a
+	// losslessness failure rather than a lossy lowering (the distinction
+	// UnpreservableConstruct draws).
+	BudgetExceeded = "openapi/budget-exceeded"
 	// UnattachableRequired reports a composition-scope `required` name (an allOf
 	// branch's own required list, or the composed schema's own) that matches none
 	// of the model's own properties, so it has no IR home to attach to

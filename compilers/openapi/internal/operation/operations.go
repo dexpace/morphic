@@ -1,6 +1,7 @@
 package operation
 
 import (
+	"context"
 	"strconv"
 	"strings"
 
@@ -47,7 +48,13 @@ var httpMethods = []struct {
 // LowerService lowers one document into a single Service: its identity and docs,
 // the declared tag registry, and every path, webhook, and callback operation
 // placed into groups per the configured grouping strategy (ir-design §7.1).
-func LowerService(c lowering.Ctx, ts *compile.Types, anchors *schema.AnchorIndex, operationIDs map[string]string) (ir.Service, []ir.TagDef, []ir.Diagnostic) {
+//
+// ctx bounds the walk in time, for the reason LowerComponentSchemas takes one:
+// a document mounts as many paths and webhooks as it likes. Cancellation stops
+// the two loops between path items and returns the groups filled so far; the
+// compiler's run sees ctx.Err() at the phase boundary after this and refuses,
+// rather than assembling a Document out of them.
+func LowerService(ctx context.Context, c lowering.Ctx, ts *compile.Types, anchors *schema.AnchorIndex, operationIDs map[string]string) (ir.Service, []ir.TagDef, []ir.Diagnostic) {
 	svc := ir.Service{
 		ID:         ids.Service(c.SrcIndex),
 		Provenance: c.ProvenanceAt(""),
@@ -60,8 +67,8 @@ func LowerService(c lowering.Ctx, ts *compile.Types, anchors *schema.AnchorIndex
 	svcAuth, diags := auth.LowerSecurityRequirements(c, c.Doc.GetSecurity(), "")
 	svc.Auth = svcAuth
 	groups := newServiceGroups()
-	diags = append(diags, lowerPaths(c, ts, anchors, operationIDs, groups)...)
-	diags = append(diags, lowerWebhooks(c, ts, anchors, operationIDs, groups)...)
+	diags = append(diags, lowerPaths(ctx, c, ts, anchors, operationIDs, groups)...)
+	diags = append(diags, lowerWebhooks(ctx, c, ts, anchors, operationIDs, groups)...)
 	svc.Groups = groups.finalize()
 	return svc, lowerTagDefs(c), diags
 }
@@ -92,14 +99,18 @@ func tagDocsFrom(t *soa.Tag) ir.Docs {
 	return d
 }
 
-// lowerPaths lowers every path operation in source order into groups.
-func lowerPaths(c lowering.Ctx, ts *compile.Types, anchors *schema.AnchorIndex, operationIDs map[string]string, groups *serviceGroups) []ir.Diagnostic {
+// lowerPaths lowers every path operation in source order into groups, stopping
+// between path items when ctx is done.
+func lowerPaths(ctx context.Context, c lowering.Ctx, ts *compile.Types, anchors *schema.AnchorIndex, operationIDs map[string]string, groups *serviceGroups) []ir.Diagnostic {
 	paths := c.Doc.GetPaths()
 	if paths == nil {
 		return nil
 	}
 	var diags []ir.Diagnostic
 	for path, rp := range paths.All() {
+		if ctx.Err() != nil {
+			return diags
+		}
 		pi, declPtr := resolve.ObjectAt[soa.PathItem](c.RefScope(), rp, ids.Ptr("paths", path))
 		if pi == nil {
 			continue
@@ -144,14 +155,18 @@ func lowerPathItem(c lowering.Ctx, ts *compile.Types, anchors *schema.AnchorInde
 }
 
 // lowerWebhooks lowers webhook path items into the dedicated "webhooks" group;
-// each webhook operation carries IsWebhook on its HTTP binding.
-func lowerWebhooks(c lowering.Ctx, ts *compile.Types, anchors *schema.AnchorIndex, operationIDs map[string]string, groups *serviceGroups) []ir.Diagnostic {
+// each webhook operation carries IsWebhook on its HTTP binding. It stops
+// between webhooks when ctx is done, as lowerPaths does.
+func lowerWebhooks(ctx context.Context, c lowering.Ctx, ts *compile.Types, anchors *schema.AnchorIndex, operationIDs map[string]string, groups *serviceGroups) []ir.Diagnostic {
 	hooks := c.Doc.GetWebhooks()
 	if hooks == nil || hooks.Len() == 0 {
 		return nil
 	}
 	var diags []ir.Diagnostic
 	for name, rp := range hooks.All() {
+		if ctx.Err() != nil {
+			return diags
+		}
 		hookPtr := ids.Ptr("webhooks", name)
 		pi, declPtr := resolve.ObjectAt[soa.PathItem](c.RefScope(), rp, hookPtr)
 		if pi == nil {

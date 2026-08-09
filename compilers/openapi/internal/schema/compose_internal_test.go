@@ -36,7 +36,7 @@ func TestRefLastSegment(t *testing.T) {
 func TestMappingTargetID(t *testing.T) {
 	t.Parallel()
 	l := &lowerer{
-		ctx: lowering.New(0, docDeclaring("Cat", "Dog", "A/B"), ir.SourceInfo{}, "", overlay.Origin{}),
+		ctx: lowering.New(0, docDeclaring("Cat", "Dog", "A/B"), ir.SourceInfo{}, "", lowering.Limits{}, overlay.Origin{}),
 		out: &ir.Document{Types: ir.TypeRegistry{}},
 	}
 	// A $ref to a declared component.
@@ -63,7 +63,7 @@ func TestMappingTargetID(t *testing.T) {
 	// (issue #14, f31). It gets a context of its own rather than being added to the
 	// one above: the declared set is derived from the document now, so saying "and
 	// also this one" means saying it to a document.
-	empty := lowering.New(0, docDeclaring(""), ir.SourceInfo{}, "", overlay.Origin{})
+	empty := lowering.New(0, docDeclaring(""), ir.SourceInfo{}, "", lowering.Limits{}, overlay.Origin{})
 	id, ok = mappingTargetID(empty, l.types, "")
 	require.True(t, ok)
 	assert.Equal(t, ids.AnonType(ids.Ptr("components", "schemas", "")), id)
@@ -266,7 +266,7 @@ func TestMappingTargetID_FallsBackToAnInternedPointer(t *testing.T) {
 	// would reduce to the shared primitive and leave the pointer backing nothing.
 	l, _ := loweredFor(t, componentSpec("    Pet:\n      type: object\n"+
 		"      properties: {kind: {type: object, properties: {a: {type: string}}}}\n"))
-	l.diags.AppendAll(LowerComponentSchemas(l.ctx, l.types, &l.anchors))
+	l.diags.AppendAll(LowerComponentSchemas(t.Context(), l.ctx, l.types, &l.anchors))
 
 	got, ok := mappingTargetID(l.ctx, l.types, sub)
 	require.True(t, ok, "the interned sub-schema resolves")

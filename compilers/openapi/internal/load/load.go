@@ -49,6 +49,30 @@ type Options struct {
 	// OverlaySrcIndex is the index the overlay document takes in Document.Sources.
 	// It is read only when Overlay is set.
 	OverlaySrcIndex int
+	// MaxSourceBytes bounds the source document's size in bytes. Zero is
+	// unbounded: the compiler's public Limits resolves its defaults and translates
+	// its own spelling of "unbounded" before projecting onto this, so a budget
+	// still zero here is one no caller set.
+	MaxSourceBytes int
+	// MaxSourceNodes bounds the YAML nodes the source parses to, counted after any
+	// overlay is applied. Zero is unbounded, as in MaxSourceBytes.
+	MaxSourceNodes int
+}
+
+// exceeds reports whether an observed count crosses limit, treating a zero or
+// negative limit as unbounded. Both budgets are read through it so that "no
+// budget set" cannot be spelled two ways.
+func exceeds(observed, limit int) bool {
+	return limit > 0 && observed > limit
+}
+
+// budgetRefusal builds the diagnostic that refuses a source for crossing one of
+// this phase's size budgets. Provenance names the source and no position within
+// it: what crossed the budget is the document, and no line in it is more
+// answerable than any other.
+func budgetRefusal(srcIndex int, format string, observed, limit int) ir.Diagnostic {
+	return diag.Newf(ir.SeverityError, diag.BudgetExceeded,
+		ir.Provenance{Source: srcIndex}, format, observed, limit)
 }
 
 // errParse marks a hard failure to parse a source document — an I/O- or
@@ -92,6 +116,15 @@ func Load(ctx context.Context, srcIndex int, src compilers.Source, opts Options)
 		return nil, nil, fmt.Errorf("openapi: overlay source index %d is source %d's own", opts.OverlaySrcIndex, srcIndex)
 	}
 
+	// The byte budget is checked before anything reads the bytes, because it is
+	// the one bound that can be: every finer measure of the document costs a parse
+	// to take (GitHub #75).
+	if exceeds(len(src.Data), opts.MaxSourceBytes) {
+		return nil, []ir.Diagnostic{budgetRefusal(srcIndex,
+			"source document is %d bytes, past the %d-byte budget",
+			len(src.Data), opts.MaxSourceBytes)}, nil
+	}
+
 	cyc := scan.Cycles(srcIndex, src.Data)
 	if diag.HasError(cyc) {
 		return nil, cyc, nil // degenerate cycle: refuse to lower, do not crash the parser
@@ -107,6 +140,17 @@ func Load(ctx context.Context, srcIndex int, src compilers.Source, opts Options)
 	cyc = append(cyc, patchDiags...)
 	if diag.HasError(cyc) {
 		return nil, cyc, nil // an overlay that did not apply: refuse to lower a half-patched tree
+	}
+
+	// The node budget is checked after the overlay for the reason patch re-runs
+	// the pre-parse refusals: the tree the model is built from is no longer the
+	// bytes that were measured above, and an overlay action can graft nodes onto
+	// it. Building that model and resolving its references is what the budget
+	// exists to bound, and both are still ahead.
+	if nodes := nodeCount(root); exceeds(nodes, opts.MaxSourceNodes) {
+		return nil, append(cyc, budgetRefusal(srcIndex,
+			"source document parses to %d nodes, past the %d-node budget",
+			nodes, opts.MaxSourceNodes)), nil
 	}
 
 	doc, valErrs, err := unmarshal(ctx, src.Data, root)
@@ -357,6 +401,31 @@ func walkNumericScalars(node *yaml.Node, depth int, visit func(*yaml.Node)) {
 	for _, child := range node.Content {
 		walkNumericScalars(child, depth+1, visit)
 	}
+}
+
+// nodeCount returns the number of nodes in the parsed tree rooted at root.
+//
+// The parse tree is a tree rather than a graph — aliasing only adds edges this
+// walk never follows, and yaml.v3 gives an alias node empty Content — so the
+// iterative stack visits each node once and is bounded by the tree's own size.
+//
+// The alias-amplification budget in scan takes the same measure of the same
+// tree, and the two are deliberately not shared: a ten-line walk over a
+// third-party node type is not a dependency worth adding between two packages
+// with different jobs, and this repo has no utility package to put it in.
+func nodeCount(root *yaml.Node) int {
+	if root == nil {
+		return 0
+	}
+	count := 0
+	stack := []*yaml.Node{root}
+	for len(stack) > 0 {
+		n := stack[len(stack)-1]
+		stack = stack[:len(stack)-1]
+		count++
+		stack = append(stack, n.Content...)
+	}
+	return count
 }
 
 // decode parses source bytes into a YAML node tree.

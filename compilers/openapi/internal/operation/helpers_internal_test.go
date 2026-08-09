@@ -44,7 +44,7 @@ func loweredFor(t *testing.T, src string) (*lowerer, []ir.Diagnostic) {
 	require.NotNil(t, loadedDoc, "load returned no document: %+v", diags)
 	types := compile.NewTypes(0)
 	return &lowerer{
-		ctx:          lowering.New(0, loadedDoc.Doc, loadedDoc.Source, lowering.GroupByTags, overlay.Origin{}),
+		ctx:          lowering.New(0, loadedDoc.Doc, loadedDoc.Source, lowering.GroupByTags, lowering.Limits{}, overlay.Origin{}),
 		out:          &ir.Document{Types: types.Registry()},
 		types:        types,
 		operationIDs: make(map[string]string),
@@ -56,7 +56,7 @@ func loweredFor(t *testing.T, src string) (*lowerer, []ir.Diagnostic) {
 func newRawLowerer(doc *soa.OpenAPI) *lowerer {
 	types := compile.NewTypes(0)
 	return &lowerer{
-		ctx:          lowering.New(0, doc, ir.SourceInfo{}, "", overlay.Origin{}),
+		ctx:          lowering.New(0, doc, ir.SourceInfo{}, "", lowering.Limits{}, overlay.Origin{}),
 		out:          &ir.Document{Types: types.Registry()},
 		types:        types,
 		operationIDs: make(map[string]string),
@@ -95,12 +95,12 @@ func requireNoErrorDiags(t *testing.T, diags []ir.Diagnostic) {
 func lowerServiceSpec(t *testing.T, src string) (ir.Service, []ir.Diagnostic) {
 	t.Helper()
 	l, loadDiags := loweredFor(t, src)
-	l.diags.AppendAll(schema.LowerComponentSchemas(l.ctx, l.types, &l.anchors))
+	l.diags.AppendAll(schema.LowerComponentSchemas(t.Context(), l.ctx, l.types, &l.anchors))
 	schemes, authDiags := auth.LowerSecuritySchemes(l.ctx)
 	l.out.Auth = schemes
 	l.diags.AppendAll(authDiags)
 
-	svc, _, svcDiags := LowerService(l.ctx.WithAuth(schemes), l.types, &l.anchors, l.operationIDs)
+	svc, _, svcDiags := LowerService(t.Context(), l.ctx.WithAuth(schemes), l.types, &l.anchors, l.operationIDs)
 	l.diags.AppendAll(svcDiags)
 	return svc, append(loadDiags, l.diags.List()...)
 }

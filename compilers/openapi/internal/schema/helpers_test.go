@@ -67,7 +67,7 @@ func loweredFor(t *testing.T, src string) (*lowerer, []ir.Diagnostic) {
 	require.NotNil(t, loadedDoc, "load returned no document: %+v", diags)
 	types := compile.NewTypes(0)
 	return &lowerer{
-		ctx:   lowering.New(0, loadedDoc.Doc, loadedDoc.Source, lowering.GroupByTags, overlay.Origin{}),
+		ctx:   lowering.New(0, loadedDoc.Doc, loadedDoc.Source, lowering.GroupByTags, lowering.Limits{}, overlay.Origin{}),
 		out:   &ir.Document{Types: types.Registry()},
 		types: types,
 	}, diags
@@ -78,7 +78,7 @@ func loweredFor(t *testing.T, src string) (*lowerer, []ir.Diagnostic) {
 func lowerSpec(t *testing.T, src string) (*ir.Document, []ir.Diagnostic) {
 	t.Helper()
 	l, diags := loweredFor(t, src)
-	l.diags.AppendAll(schema.LowerComponentSchemas(l.ctx, l.types, &l.anchors))
+	l.diags.AppendAll(schema.LowerComponentSchemas(t.Context(), l.ctx, l.types, &l.anchors))
 	return l.out, append(diags, l.diags.List()...)
 }
 
@@ -87,7 +87,7 @@ func lowerSpec(t *testing.T, src string) (*ir.Document, []ir.Diagnostic) {
 func newRawLowerer(doc *soa.OpenAPI) *lowerer {
 	types := compile.NewTypes(0)
 	return &lowerer{
-		ctx:   lowering.New(0, doc, ir.SourceInfo{}, "", overlay.Origin{}),
+		ctx:   lowering.New(0, doc, ir.SourceInfo{}, "", lowering.Limits{}, overlay.Origin{}),
 		out:   &ir.Document{Types: types.Registry()},
 		types: types,
 	}

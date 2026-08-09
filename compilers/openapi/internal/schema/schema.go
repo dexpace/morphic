@@ -1,6 +1,7 @@
 package schema
 
 import (
+	"context"
 	"fmt"
 	"slices"
 	"strconv"
@@ -24,7 +25,14 @@ import (
 // LowerComponentSchemas interns every named component schema in source order.
 // It is the entry Compile's run() calls before any operation lowering so that
 // $refs resolve to already-registered IDs.
-func LowerComponentSchemas(c lowering.Ctx, ts *compile.Types, anchors *AnchorIndex) []ir.Diagnostic {
+//
+// ctx bounds the walk in time: a document declares as many components as it
+// likes, so this loop is one of the two places a compile does work proportional
+// to nothing the compiler chose. Cancellation stops it between components and
+// returns what was lowered so far; the caller — run — sees ctx.Err() at the
+// phase boundary immediately after and refuses the document there, so a partial
+// registry never becomes a Document.
+func LowerComponentSchemas(ctx context.Context, c lowering.Ctx, ts *compile.Types, anchors *AnchorIndex) []ir.Diagnostic {
 	comps := c.Doc.Components
 	if comps == nil {
 		return nil
@@ -38,6 +46,9 @@ func LowerComponentSchemas(c lowering.Ctx, ts *compile.Types, anchors *AnchorInd
 	// is derived at entry (lowering.New), so a component declared later in the
 	// document is already a valid target here regardless of source order.
 	for name, js := range schemas.All() {
+		if ctx.Err() != nil {
+			return diags
+		}
 		diags = append(diags, lowerComponentSchema(c, ts, anchors, js, ids.Ptr("components", "schemas", name), name)...)
 	}
 	return diags

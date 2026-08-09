@@ -43,7 +43,8 @@ func TestRun_RegistryRefusalsAreSurfaced(t *testing.T) {
 	types.Register("", nil)
 	require.Len(t, types.Violations(), 1, "the refusal is recorded before run reports it")
 
-	_, diags := run(lowering.Ctx{Doc: &soa.OpenAPI{}}, types)
+	_, diags, err := run(t.Context(), lowering.Ctx{Doc: &soa.OpenAPI{}}, types)
+	require.NoError(t, err)
 
 	assertHasErrorCode(t, diags, diag.InternalInvariant)
 }

@@ -3225,7 +3225,7 @@ func TestDynamicRef_NonScalarValueIsKeptNotExpanded(t *testing.T) {
 // prototype changes, so a site that fills in a name or a description keeps it.
 func TestAppendExample_ConvertsAndAppends(t *testing.T) {
 	t.Parallel()
-	c := lowering.New(0, &soa.OpenAPI{}, ir.SourceInfo{}, "", overlay.Origin{})
+	c := lowering.New(0, &soa.OpenAPI{}, ir.SourceInfo{}, "", lowering.Limits{}, overlay.Origin{})
 	proto := ir.Example{Name: "n", Summary: "s", Description: "d"}
 
 	out, diags := schema.AppendExample(c, nil, proto, strNode("hello"), "/p", "examples", "n")
@@ -3243,7 +3243,7 @@ func TestAppendExample_ConvertsAndAppends(t *testing.T) {
 // that joins them, so a wrong join shows up nowhere else.
 func TestAppendExample_UnconvertibleValueIsReported(t *testing.T) {
 	t.Parallel()
-	c := lowering.New(0, &soa.OpenAPI{}, ir.SourceInfo{}, "", overlay.Origin{})
+	c := lowering.New(0, &soa.OpenAPI{}, ir.SourceInfo{}, "", lowering.Limits{}, overlay.Origin{})
 	nan := &yaml.Node{Kind: yaml.ScalarNode, Tag: "!!float", Value: ".nan"}
 
 	out, diags := schema.AppendExample(c, nil, ir.Example{}, nan, "/p", "examples", "n")
@@ -3260,7 +3260,7 @@ func TestAppendExample_UnconvertibleValueIsReported(t *testing.T) {
 // it, not at the position that declared it.
 func TestStampConstraintDiags_RelocatesEveryDiagnosticToTheReadingPointer(t *testing.T) {
 	t.Parallel()
-	c := lowering.New(0, &soa.OpenAPI{}, ir.SourceInfo{}, "", overlay.Origin{})
+	c := lowering.New(0, &soa.OpenAPI{}, ir.SourceInfo{}, "", lowering.Limits{}, overlay.Origin{})
 	in := []ir.Diagnostic{
 		{Code: diag.DegradedConstruct, Provenance: ir.Provenance{Pointer: "/elsewhere"}},
 		{Code: diag.NumericPrecision, Provenance: ir.Provenance{Source: 9, Pointer: "/other"}},

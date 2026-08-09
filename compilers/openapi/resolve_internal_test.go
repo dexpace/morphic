@@ -84,7 +84,7 @@ components:
       $ref: '#/components/schemas/Target'
       minimum: 5
 `)
-	l.diags.AppendAll(schema.LowerComponentSchemas(l.ctx, l.types, &l.anchors))
+	l.diags.AppendAll(schema.LowerComponentSchemas(t.Context(), l.ctx, l.types, &l.anchors))
 
 	sc, ok := typeByName(l.out, "S").(*ir.Scalar)
 	require.True(t, ok, "S aliases Target and must own a Scalar node")
@@ -123,7 +123,7 @@ components:
           $ref: '#/components/schemas/Target'
           example: at-reference
 `)
-	l.diags.AppendAll(schema.LowerComponentSchemas(l.ctx, l.types, &l.anchors))
+	l.diags.AppendAll(schema.LowerComponentSchemas(t.Context(), l.ctx, l.types, &l.anchors))
 
 	target := typeByName(l.out, "Target")
 	require.NotNil(t, target)
