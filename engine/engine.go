@@ -40,17 +40,18 @@ func New() (*Engine, error) {
 }
 
 // NewWith registers the given compilers into a fresh registry and wraps it in
-// an Engine, for tests and embedders that need a custom compiler set. A
-// register failure (a compiler reporting no formats, or two compilers claiming
-// the same format) surfaces as a Go error rather than a panic. Calling
-// NewWith with no compilers is legal: the resulting engine's Run always fails
-// at the lookup step, which is the seam TestEngine_RunLookupMiss relies on to
-// reach that branch.
+// an Engine, for tests and embedders that need a custom compiler set. A nil
+// compiler and a register failure (a compiler reporting no formats, or two
+// compilers claiming the same format) alike surface as a Go error rather than a
+// panic, and the error names the argument position so a caller passing several
+// compilers can tell which one was rejected. Calling NewWith with no compilers
+// is legal: the resulting engine's Run always fails at the lookup step, which is
+// the seam TestEngine_RunLookupMiss relies on to reach that branch.
 func NewWith(fronts ...compilers.Compiler) (*Engine, error) {
 	reg := compilers.NewRegistry()
-	for _, front := range fronts {
+	for i, front := range fronts {
 		if err := reg.Register(front); err != nil {
-			return nil, fmt.Errorf("engine: register compiler: %w", err)
+			return nil, fmt.Errorf("engine: register compiler %d: %w", i, err)
 		}
 	}
 	return &Engine{registry: reg}, nil
