@@ -150,6 +150,7 @@ func conformanceCases() []conformanceCase {
 		{"allof-boolean-branch", assertAllOfBooleanBranch},
 		{"oneof-discriminated", assertOneOfDiscriminated},
 		{"discriminator-inheritance", assertDiscriminatorInheritance},
+		{"discriminator-transitive", assertDiscriminatorTransitive},
 		{"discriminator-default-mapping", assertDiscriminatorDefaultMapping},
 		{"unhomed-keywords", assertUnhomedKeywords},
 		{"codeclared-keywords", assertCoDeclaredKeywords},
@@ -747,6 +748,50 @@ func assertDiscriminatorInheritance(t *testing.T, doc *ir.Document, _ []ir.Diagn
 		assert.Equal(t, namedID("Pet"), sub.Base.Target)
 		assert.Equal(t, value, sub.DiscriminatorValue)
 		assert.Nil(t, sub.Discriminator, "a subtype does not restate its base's discriminator")
+	}
+}
+
+// assertDiscriminatorTransitive covers a hierarchy deeper than the two levels
+// discriminator-inheritance reaches: the subtype's own allOf branch names an
+// intermediate schema that declares no discriminator, so the tag value can only
+// come from an ancestor further up (GitHub #305).
+//
+// Depth is the whole point, so what each subtype composes is pinned beside its
+// tag: Puppy and Whelp answer to the hierarchy while naming a base that anchors
+// none. The undiscriminated chain beside them is the boundary — depth on its own
+// must not manufacture a value.
+//
+// The spec's comment says why the mapping-key spelling at depth is pinned in the
+// compiler's own tests rather than here.
+func assertDiscriminatorTransitive(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
+	pet, ok := doc.Types[namedID("Pet")].(*ir.Model)
+	require.True(t, ok, "the root of the hierarchy is a Model")
+	require.NotNil(t, pet.Discriminator)
+	assert.Equal(t, namedID("Dog"), pet.Discriminator.Mapping["dog"])
+
+	// base is the schema each subtype's own allOf branch names, which is the only
+	// thing a one-hop reading of the chain could see.
+	for _, tc := range []struct{ name, base, value string }{
+		{"Dog", "Pet", "dog"},
+		{"Puppy", "Dog", "Puppy"},
+		{"Whelp", "Puppy", "Whelp"},
+	} {
+		sub, ok := doc.Types[namedID(tc.name)].(*ir.Model)
+		require.True(t, ok, "%s composes as a Model", tc.name)
+		require.NotNil(t, sub.Base, "%s composes a base", tc.name)
+		assert.Equal(t, namedID(tc.base), sub.Base.Target,
+			"%s composes %s, not the schema anchoring the hierarchy", tc.name, tc.base)
+		assert.Equal(t, tc.value, sub.DiscriminatorValue,
+			"%s answers to the tag its ancestor spells for it", tc.name)
+		assert.Nil(t, sub.Discriminator, "a subtype does not restate the hierarchy's discriminator")
+	}
+
+	for _, name := range []string{"Shrub", "Sapling"} {
+		sub, ok := doc.Types[namedID(name)].(*ir.Model)
+		require.True(t, ok, "%s composes as a Model", name)
+		require.NotNil(t, sub.Base, "%s composes a base", name)
+		assert.Empty(t, sub.DiscriminatorValue,
+			"%s has no discriminated ancestor, so walking the chain finds no tag", name)
 	}
 }
 

@@ -1,0 +1,61 @@
+openapi: 3.1.0
+info: {title: DiscriminatorTransitive, version: "1.0.0"}
+paths: {}
+components:
+  schemas:
+    # The root anchors the hierarchy; discriminator-inheritance covers it one
+    # level deep, and what this spec adds is depth.
+    #
+    # The mapping names only the direct child. Naming a grandchild is legal
+    # OpenAPI and the compiler reads it — TestAllOf_DiscriminatorValueFromDistant
+    # Mapping in compilers/openapi/internal/schema pins that — but pass.Validate
+    # still refuses a transitive mapping target as a missing variant (GitHub #52),
+    # and every corpus spec has to clear that sweep. So the mapping-key spelling
+    # is witnessed in the compiler's own tests and the implicit-name spelling
+    # here; both need the ancestor walk, and neither survives reading one hop.
+    Pet:
+      type: object
+      required: [petType]
+      properties:
+        petType: {type: string}
+      discriminator:
+        propertyName: petType
+        mapping:
+          dog: '#/components/schemas/Dog'
+    # One level down and named by the mapping: the tag is on the branch's own
+    # target, so this much a one-hop reading already found.
+    Dog:
+      allOf:
+        - {$ref: '#/components/schemas/Pet'}
+      properties:
+        bark: {type: boolean}
+    # Two levels down. Its branch is Dog, which declares no discriminator of its
+    # own, so the hierarchy is only visible past the immediate parent — and with
+    # it the implicit schema name this subtype answers to.
+    Puppy:
+      allOf:
+        - {$ref: '#/components/schemas/Dog'}
+      properties:
+        weeks: {type: integer}
+    # Three levels down: one intermediate is not a special case of two.
+    Whelp:
+      allOf:
+        - {$ref: '#/components/schemas/Puppy'}
+      properties:
+        days: {type: integer}
+    # An equally deep chain with no discriminator above it anywhere: depth alone
+    # must not manufacture a tag value.
+    Plant:
+      type: object
+      properties:
+        stem: {type: string}
+    Shrub:
+      allOf:
+        - {$ref: '#/components/schemas/Plant'}
+      properties:
+        twigs: {type: integer}
+    Sapling:
+      allOf:
+        - {$ref: '#/components/schemas/Shrub'}
+      properties:
+        rings: {type: integer}
