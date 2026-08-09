@@ -13,6 +13,7 @@ import (
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/ids"
 	"github.com/dexpace/morphic/compilers/openapi/internal/load"
+	"github.com/dexpace/morphic/compilers/openapi/internal/openapitest"
 	"github.com/dexpace/morphic/compilers/openapi/internal/resolve"
 	"github.com/dexpace/morphic/ir"
 )
@@ -29,7 +30,7 @@ webhooks:
       responses: {"200": {description: ok}}
 `
 	svc, diags := lowerServiceSpec(t, spec)
-	requireNoErrorDiags(t, diags)
+	openapitest.RequireNoErrorDiags(t, diags)
 	var group ir.OperationGroup
 	found := false
 	for _, g := range svc.Groups {
@@ -47,7 +48,7 @@ webhooks:
 
 func TestCallbacks_RegisteredAndBound(t *testing.T) {
 	t.Parallel()
-	spec := pathsSpec(`  /subscribe:
+	spec := openapitest.PathsSpec(`  /subscribe:
     post:
       operationId: sub
       callbacks:
@@ -59,11 +60,11 @@ func TestCallbacks_RegisteredAndBound(t *testing.T) {
       responses: {"200": {description: ok}}
 `)
 	svc, diags := lowerServiceSpec(t, spec)
-	requireNoErrorDiags(t, diags)
+	openapitest.RequireNoErrorDiags(t, diags)
 	require.Len(t, svc.Groups, 1)
 	group := svc.Groups[0]
 	require.Len(t, group.Operations, 2, "parent op and callback op both registered")
-	byName := indexBy(group.Operations, func(op ir.Operation) string { return op.Name.Source })
+	byName := openapitest.IndexBy(group.Operations, func(op ir.Operation) string { return op.Name.Source })
 	sub, ok := byName["sub"]
 	require.True(t, ok)
 	cb, ok := byName["cbPost"]
@@ -78,7 +79,7 @@ func TestCallbacks_RegisteredAndBound(t *testing.T) {
 
 func TestParameters_PathItemMergeOverride(t *testing.T) {
 	t.Parallel()
-	spec := pathsSpec(`  /users/{id}:
+	spec := openapitest.PathsSpec(`  /users/{id}:
     parameters:
       - {name: id, in: path, required: true, schema: {type: string}, description: path-level}
       - {name: trace, in: header, schema: {type: string}}

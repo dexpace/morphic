@@ -11,6 +11,7 @@ import (
 
 	"github.com/dexpace/morphic/compilers"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
+	"github.com/dexpace/morphic/compilers/openapi/internal/openapitest"
 	"github.com/dexpace/morphic/compilers/openapi/internal/scan"
 	"github.com/dexpace/morphic/ir"
 )
@@ -265,7 +266,7 @@ func TestCompile_MergeChainPastBoundStillCompiles(t *testing.T) {
 		compilers.Options{})
 	require.NoError(t, err)
 	require.NotNil(t, doc, "a legal document is still compiled")
-	assertHasCode(t, diags, diag.CycleScanFailed, ir.SeverityWarning)
+	openapitest.AssertHasCode(t, diags, diag.CycleScanFailed, ir.SeverityWarning)
 	for _, d := range diags {
 		assert.NotEqual(t, ir.SeverityError, d.Severity, "no diagnostic refuses the source")
 	}

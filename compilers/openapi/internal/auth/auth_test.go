@@ -16,6 +16,7 @@ import (
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/ids"
 	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
+	"github.com/dexpace/morphic/compilers/openapi/internal/openapitest"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -107,7 +108,7 @@ func TestAuth_SchemeKinds(t *testing.T) {
 				"  securitySchemes:\n" +
 				"    s: " + tc.scheme + "\n"
 			doc, _, diags := serviceSpec(t, spec)
-			requireNoErrorDiags(t, diags)
+			openapitest.RequireNoErrorDiags(t, diags)
 			s, ok := doc.Auth[ids.Auth("s")]
 			require.True(t, ok)
 			tc.check(t, s)
@@ -136,7 +137,7 @@ components:
           scopes: {read: r, write: w}
 `
 	doc, svc, diags := serviceSpec(t, spec)
-	requireNoErrorDiags(t, diags)
+	openapitest.RequireNoErrorDiags(t, diags)
 
 	keyID := ids.Auth("key")
 	scheme, ok := doc.Auth[keyID]
@@ -174,7 +175,7 @@ components:
     s: {type: apiKey, in: header, name: X-Key, x-bad: {1: intkey}}
 `
 	doc, _, diags := serviceSpec(t, spec)
-	assert.True(t, countDiagsAt(diags, diag.DegradedConstruct, ir.SeverityWarning) > 0,
+	assert.True(t, openapitest.CountDiagsAt(diags, diag.DegradedConstruct, ir.SeverityWarning) > 0,
 		"an entirely unserializable extension still warns even though the scheme's own Unmodeled ends up empty")
 	scheme, ok := doc.Auth[ids.Auth("s")]
 	require.True(t, ok)
@@ -226,7 +227,7 @@ func TestAuth_AllSchemeKinds(t *testing.T) {
 
 	oauth := byKind[ir.AuthKindOAuth2]
 	assert.NotEmpty(t, oauth.Unmodeled, "oauth x-* extension")
-	kinds := indexBy(oauth.Flows, func(f ir.OAuthFlow) string { return f.Kind })
+	kinds := openapitest.IndexBy(oauth.Flows, func(f ir.OAuthFlow) string { return f.Kind })
 	assert.Len(t, oauth.Flows, 5)
 	assert.Equal(t, "https://r", kinds["authorization_code"].RefreshURL)
 	assert.NotEmpty(t, kinds["authorization_code"].Scopes)
@@ -245,7 +246,7 @@ func TestAuth_AllSchemeKinds(t *testing.T) {
 
 func TestAuth_OAuthNoFlowsUnknownTypeAndGhostRef(t *testing.T) {
 	t.Parallel()
-	spec := pathsSpec(`  /x:
+	spec := openapitest.PathsSpec(`  /x:
     get: {operationId: x, responses: {"200": {description: ok}}}
 components:
   securitySchemes:
@@ -561,24 +562,6 @@ func serviceSpec(t *testing.T, src string) (*ir.Document, ir.Service, []ir.Diagn
 	return doc, doc.Services[0], diags
 }
 
-// requireNoErrorDiags fails the test if any diagnostic has error severity.
-func requireNoErrorDiags(t *testing.T, diags []ir.Diagnostic) {
-	t.Helper()
-	d, ok := ir.FirstError(diags)
-	require.False(t, ok, "unexpected error diagnostic: %+v", d)
-}
-
-// countDiagsAt counts the diagnostics matching code and sev exactly.
-func countDiagsAt(diags []ir.Diagnostic, code string, sev ir.Severity) int {
-	var n int
-	for _, d := range diags {
-		if d.Code == code && d.Severity == sev {
-			n++
-		}
-	}
-	return n
-}
-
 // firstDiagAt returns the first diagnostic carrying code, so a test can assert
 // on its provenance pointer.
 func firstDiagAt(diags []ir.Diagnostic, code string) (ir.Diagnostic, bool) {
@@ -637,15 +620,6 @@ func operationsByDeclaration(svc ir.Service) map[string]ir.Operation {
 		for _, op := range g.Operations {
 			out[op.Provenance.Pointer] = op
 		}
-	}
-	return out
-}
-
-// indexBy builds a lookup keyed by key(item).
-func indexBy[T any, K comparable](items []T, key func(T) K) map[K]T {
-	out := make(map[K]T, len(items))
-	for _, item := range items {
-		out[key(item)] = item
 	}
 	return out
 }
@@ -774,13 +748,6 @@ func unmodeledKeys(u ir.Unmodeled) []string {
 	return out
 }
 
-// pathsSpec wraps a paths block in a minimal 3.1 document with no components.
-func pathsSpec(paths string) string {
-	return "openapi: 3.1.0\n" +
-		"info: {title: T, version: \"1\"}\n" +
-		"paths:\n" + paths
-}
-
 // TestSecurityRequirement_OneUndeclaredMemberDropsTheWholeOption pins the
 // refusal issue #14 exists for, corrected per issue #41. A requirement may name
 // any string; only a name the document declares has an AuthID behind it, and
@@ -803,7 +770,7 @@ components:
 `)
 	assert.Nil(t, svc.Auth,
 		"the sole option named an AND of ghost+key; ghost failing to resolve drops it whole, key included")
-	assert.Equal(t, 1, countDiagsAt(diags, diag.UnresolvedRef, ir.SeverityError),
+	assert.Equal(t, 1, openapitest.CountDiagsAt(diags, diag.UnresolvedRef, ir.SeverityError),
 		"the drop is reported exactly once: %+v", diags)
 }
 
@@ -917,7 +884,7 @@ components:
 	require.Len(t, svc.Auth[0].Schemes, 1)
 	assert.Equal(t, ids.Auth("key"), svc.Auth[0].Schemes[0].Scheme, "the first option survives in place")
 	assert.Empty(t, svc.Auth[1].Schemes, "the trailing empty option still means no-auth-is-fine")
-	assert.Equal(t, 1, countDiagsAt(diags, diag.UnresolvedRef, ir.SeverityError))
+	assert.Equal(t, 1, openapitest.CountDiagsAt(diags, diag.UnresolvedRef, ir.SeverityError))
 	d, ok := firstDiagAt(diags, diag.UnresolvedRef)
 	require.True(t, ok, "an unresolved-ref diagnostic: %+v", diags)
 	assert.Equal(t, "/security/1", d.Provenance.Pointer,

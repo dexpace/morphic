@@ -12,6 +12,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
+	"github.com/dexpace/morphic/compilers/openapi/internal/openapitest"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -109,7 +110,7 @@ func TestAllOfVisibilityMerge_ReadOnlyOnRedeclarationSurvives(t *testing.T) {
 
 	assertNoErrorDiags(t, diags)
 	assert.Equal(t, wantReadOnlyVisibility, got)
-	assert.False(t, hasDiagCode(diags, diag.ConflictingRedecl),
+	assert.False(t, openapitest.HasDiag(diags, diag.ConflictingRedecl),
 		"a redeclaration adding readOnly to an unrestricted property is not a disagreement")
 }
 
@@ -150,8 +151,8 @@ func TestAllOfVisibilityMerge_DisjointRestrictionsAreInvisibleNotAConflict(t *te
 
 	assertNoErrorDiags(t, diags)
 	assert.Equal(t, ir.Visibility{None: true}, got)
-	assert.True(t, hasDiagCode(diags, diag.DisjointVisibility),
+	assert.True(t, openapitest.HasDiag(diags, diag.DisjointVisibility),
 		"an allOf that leaves a field visible nowhere is reported, not merged in silence")
-	assert.False(t, hasDiagCode(diags, diag.ConflictingRedecl),
+	assert.False(t, openapitest.HasDiag(diags, diag.ConflictingRedecl),
 		"disjoint readOnly/writeOnly branches intersect to an exact empty set, not an unrepresentable conflict")
 }

@@ -10,6 +10,7 @@ import (
 	"github.com/stretchr/testify/require"
 	yaml "gopkg.in/yaml.v3"
 
+	"github.com/dexpace/morphic/compilers/openapi/internal/openapitest"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -428,15 +429,15 @@ func TestRawFromNode_DistinguishesAbsentFromUnconvertible(t *testing.T) {
 	require.NoError(t, err)
 	assert.Nil(t, got, "an absent node is not a failure")
 
-	got, err = RawFromNode(yamlNode(t, "{a: 1}"))
+	got, err = RawFromNode(openapitest.YAMLNode(t, "{a: 1}"))
 	require.NoError(t, err)
 	assert.JSONEq(t, `{"a":1}`, string(got))
 
-	got, err = RawFromNode(yamlNode(t, ".nan"))
+	got, err = RawFromNode(openapitest.YAMLNode(t, ".nan"))
 	require.Error(t, err, "a value that decodes but does not marshal is a failure")
 	assert.Nil(t, got)
 
-	got, err = RawFromNode(yamlNode(t, "{? [1, 2]\n: v}"))
+	got, err = RawFromNode(openapitest.YAMLNode(t, "{? [1, 2]\n: v}"))
 	require.Error(t, err, "a mapping with a non-string key does not decode into the JSON model")
 	assert.Nil(t, got)
 }
@@ -457,8 +458,8 @@ func TestRawChildNode_ReadsOnlyAMappingChild(t *testing.T) {
 
 	assert.Nil(t, RawChildNode(nil, "a"))
 	assert.Nil(t, RawChildNode(&doc, "absent"))
-	assert.Nil(t, RawChildNode(yamlNode(t, "[1, 2]"), "a"), "a sequence has no keyed children")
-	assert.Nil(t, RawChildNode(yamlNode(t, "plain"), "a"), "nor does a scalar")
+	assert.Nil(t, RawChildNode(openapitest.YAMLNode(t, "[1, 2]"), "a"), "a sequence has no keyed children")
+	assert.Nil(t, RawChildNode(openapitest.YAMLNode(t, "plain"), "a"), "nor does a scalar")
 	assert.Nil(t, RawChildNode(&yaml.Node{Kind: yaml.DocumentNode}, "a"), "nor an empty document")
 }
 
@@ -517,13 +518,13 @@ func TestPreserveNodeInto_ReportsWhichOfThreeOutcomesHappened(t *testing.T) {
 	assert.Empty(t, diags)
 	assert.Nil(t, p)
 
-	kept, diags = PreserveNodeInto(&p, "openapi:x", yamlNode(t, ".nan"), ir.ReasonNoIRHome, "/x", 0)
+	kept, diags = PreserveNodeInto(&p, "openapi:x", openapitest.YAMLNode(t, ".nan"), ir.ReasonNoIRHome, "/x", 0)
 	assert.False(t, kept)
 	require.Len(t, diags, 1)
 	assert.Equal(t, ir.SeverityError, diags[0].Severity)
 	assert.Nil(t, p, "an unconvertible node writes no entry")
 
-	kept, diags = PreserveNodeInto(&p, "openapi:x", yamlNode(t, "{a: 1}"), ir.ReasonNoIRHome, "/x", 0)
+	kept, diags = PreserveNodeInto(&p, "openapi:x", openapitest.YAMLNode(t, "{a: 1}"), ir.ReasonNoIRHome, "/x", 0)
 	assert.True(t, kept)
 	assert.Empty(t, diags)
 	assert.JSONEq(t, `{"a":1}`, string(p["openapi:x"].Value))
@@ -534,7 +535,7 @@ func TestPreserveNodeInto_ReportsWhichOfThreeOutcomesHappened(t *testing.T) {
 // leaves no trace at all, which is a losslessness failure.
 func TestUnpreservableDiag_IsAnErrorNotADegradation(t *testing.T) {
 	t.Parallel()
-	_, err := RawFromNode(yamlNode(t, ".nan"))
+	_, err := RawFromNode(openapitest.YAMLNode(t, ".nan"))
 	require.Error(t, err)
 
 	got := UnpreservableDiag("openapi:not", "/components/schemas/S/not", 2, err)
