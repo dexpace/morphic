@@ -28,6 +28,16 @@ type Naming struct {
 	// Aliases are alternate names for schema-resolution matching (Avro
 	// aliases). Versionless — rename history tied to version labels lives in
 	// Availability.RenamedFrom.
+	//
+	// An alias is a verbatim channel like Source, not a neutral one like
+	// Canonical: it is matched against a name another schema wrote, so the
+	// casing and punctuation are the value. An Avro alias is a full name
+	// ("com.example.User"), and neutralizing it to words would lose the
+	// separators and the case the match depends on. So no neutrality rule
+	// applies to an entry, and irverify holds only what is decidable without
+	// one: every entry is non-empty and no entry repeats, since an empty alias
+	// matches nothing and a repeated one matches twice. Both mean a producer
+	// wrote a list it did not mean to write.
 	Aliases []string `json:"aliases,omitempty"`
 }
 

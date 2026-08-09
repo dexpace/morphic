@@ -2,6 +2,7 @@ package irverify
 
 import (
 	"reflect"
+	"strconv"
 	"strings"
 	"unicode"
 
@@ -52,12 +53,16 @@ var nameOptional = map[reflect.Type]bool{
 // vacuously true of the empty string: an entirely empty Naming satisfied all
 // three while leaving an emitter nothing to name the entity by (GitHub #251).
 //
-// Only Canonical is checked for content. Naming.Hint — the generated-name
+// Only Canonical is checked for neutrality. Naming.Hint — the generated-name
 // channel — is held to none of the content rules, so casing
 // and punctuation still reach the IR through it. That is GitHub #54, left open
 // deliberately: closing it means changing how the compilers derive hints and
 // regenerating every golden, which is a different change from tightening this
 // checker.
+//
+// Naming.Aliases is held instead to the two rules that need no neutrality —
+// non-empty and non-repeating — because an alias is a verbatim channel like
+// Source rather than a neutral one like Canonical. See appendAliasViolations.
 func checkNaming(doc *ir.Document, _ declarations) ([]Violation, bool) {
 	var vs []Violation
 	optional := map[string]bool{}
@@ -74,23 +79,74 @@ func checkNaming(doc *ir.Document, _ declarations) ([]Violation, bool) {
 		if v.Type() != namingType {
 			return true
 		}
-		source, canon, hint := namingChannels(v)
+		source, canon, hint, aliases := namingChannels(v)
 		if !optional[path] {
 			vs = appendAbsentViolation(vs, source, canon, hint, path)
 		}
 		vs = appendNamingViolations(vs, source, canon, path)
+		vs = appendAliasViolations(vs, aliases, path)
 		return false // Naming holds no references or nested Naming to descend into
 	})
 	return vs, truncated
 }
 
-// namingChannels reads the three name channels off one Naming. It reads fields
+// namingChannels reads the four name channels off one Naming. It reads fields
 // rather than converting the value back to an ir.Naming because a value the walk
-// reached through an unexported field cannot be (see ir.WalkValues).
-func namingChannels(naming reflect.Value) (source, canon, hint string) {
+// reached through an unexported field cannot be (see ir.WalkValues) — which is
+// also why the aliases are copied out element by element rather than through
+// Interface().
+func namingChannels(naming reflect.Value) (source, canon, hint string, aliases []string) {
+	list := naming.FieldByName("Aliases")
+	aliases = make([]string, list.Len())
+	for i := range list.Len() {
+		aliases[i] = list.Index(i).String()
+	}
 	return naming.FieldByName("Source").String(),
 		naming.FieldByName("Canonical").String(),
-		naming.FieldByName("Hint").String()
+		naming.FieldByName("Hint").String(),
+		aliases
+}
+
+// appendAliasViolations reports the ways an alias list can be one no producer
+// meant to write.
+//
+// An alias is matched against a name some other schema wrote — an Avro alias is
+// a full name such as "com.example.User" — so it is a verbatim channel like
+// Source, not a neutral one like Canonical, and none of the neutrality rules
+// above apply to it. Holding it to Canonical's grammar would be the lossy
+// direction: neutralizing "com.example.User" to words discards the separators
+// and the casing the match is made of, and invariant #2 forbids a lowering that
+// throws that away. The IR is not deciding this spelling, it is recording one.
+//
+// What is left is decidable without a grammar. An empty alias matches nothing
+// and a repeated one matches twice, so neither can be what a producer intended:
+// both say a list was built wrong rather than that a name was spelled wrong.
+//
+// Paths name the offending entry the way the walk would have reached it, so a
+// violation on a list of several says which one.
+func appendAliasViolations(vs []Violation, aliases []string, path string) []Violation {
+	seen := make(map[string]bool, len(aliases))
+	for i, alias := range aliases {
+		at := path + ".Aliases[" + strconv.Itoa(i) + "]"
+		if alias == "" {
+			vs = append(vs, Violation{
+				Code:    "ir/naming-alias-empty",
+				Message: "alias is empty, so it matches no name",
+				Path:    at,
+			})
+			continue
+		}
+		if seen[alias] {
+			vs = append(vs, Violation{
+				Code:    "ir/naming-alias-duplicate",
+				Message: "alias " + alias + " is listed more than once",
+				Path:    at,
+			})
+			continue
+		}
+		seen[alias] = true
+	}
+	return vs
 }
 
 // appendAbsentViolation reports an entity that no channel names.
