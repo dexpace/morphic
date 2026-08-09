@@ -83,6 +83,56 @@ type TagDef  struct { Name string; Docs Docs }
 
 A `Document` is self-contained: no node references anything outside it.
 
+### 2.1 `IRVersion` — the schema stamp and the compatibility policy
+
+`IRVersion` names the generation of the IR *schema* — the shape of the document itself, not the
+API it describes (that is `Version`) and not the commit that produced it. It is the one claim in a
+document that a reader cannot recompute from the contents: everything else about a document can be
+checked against the document, but which spelling of the schema its keys are in has to be declared.
+
+**What moves it.** Any change to the JSON shape of a `Document`: a key renamed or removed, an
+encoding changed, or the meaning of an existing key changed. A line of work that changes the shape
+several times bumps it once, where it lands on `main` — a version that moves within an unmerged
+branch tells a consumer nothing and rewrites every golden each time it moves. `ir.IRVersion` is the
+constant; its GoDoc carries the log of what each past bump changed.
+
+**What a bump implies.** Pre-1.0 (`0.MINOR.PATCH`), MINOR is the breaking position and every bump
+so far has been breaking. There is no non-breaking bump in the history and nothing distinguishes
+one, so PATCH carries no promise a consumer may read compatibility into. Moving off `0.` is a
+decision about the project's stability rather than about any one shape change, and no policy for
+MAJOR is written here until that decision is taken.
+
+- *Compilers* stamp `ir.IRVersion` on every document they produce. That is the whole obligation:
+  a compiler never emits an older generation, and there is no option to ask it to.
+- *Emitters* and any other consumer are built against exactly one generation. A bump is a change
+  they must be updated for; there is no "read it anyway" mode, because the failure a stale
+  consumer produces is silent — it finds no key it recognizes where a renamed one used to be and
+  drops the construct rather than reporting it.
+
+**What a consumer does on mismatch: refuse.** `ir.CompatibleVersion(v)` is the predicate, and it is
+exact equality with the `ir.IRVersion` the consumer was compiled against. A differing patch, a
+prerelease suffix, and a value that is not a version at all are all equally unreadable; accepting a
+neighbouring version would mean claiming to know what changed between them, which is the knowledge
+a version exists because nobody has. Morphic ships **no migration path** between generations — a
+document written by another generation is re-compiled from its source spec, not converted.
+
+**Where it is enforced.** In `irverify`, which is the gate every consumer of a document runs before
+trusting it, whether the document was just compiled in memory or decoded from JSON. Two codes,
+because the two failures name different writers: `ir/ir-version-absent` for a document carrying no
+stamp — a producer that forgot, and the failure `omitempty` hides best, since a document without
+the key is byte-identical to one that never had it — and `ir/ir-version-incompatible` for a stamp
+this build does not read. Nothing in the repository decodes a persisted `Document` today, so there
+is no separate loader to attach the check to; when one is written, `ir.CompatibleVersion` is what
+it calls, and it should refuse before interpreting any other field.
+
+**Consequence for goldens.** Every committed IR golden embeds `irVersion`, so a bump rewrites the
+whole snapshot corpus in the same change that makes it. Confirm rather than trust:
+
+```bash
+ls testdata/*/openapi/*.golden.json | wc -l
+grep -l '"irVersion"' testdata/*/openapi/*.golden.json | wc -l
+```
+
 ---
 
 ## 3. Identity, names, references

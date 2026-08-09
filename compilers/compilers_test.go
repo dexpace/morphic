@@ -17,7 +17,7 @@ type stubCompiler struct{ formats []compilers.SourceFormat }
 func (s *stubCompiler) Formats() []compilers.SourceFormat { return s.formats }
 
 func (s *stubCompiler) Compile(_ context.Context, _ []compilers.Source, _ compilers.Options) (*ir.Document, []ir.Diagnostic, error) {
-	return &ir.Document{IRVersion: "0.1.0"}, nil, nil
+	return &ir.Document{IRVersion: ir.IRVersion}, nil, nil
 }
 
 func TestRegistry_RegisterAndLookup(t *testing.T) {

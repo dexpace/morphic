@@ -15,7 +15,7 @@ import (
 // nothing to say about it and only the new claim can fire.
 func primDoc(kind ir.PrimKind) *ir.Document {
 	id := ir.PrimTypeID(kind)
-	return &ir.Document{Types: ir.TypeRegistry{id: &ir.Primitive{
+	return &ir.Document{IRVersion: ir.IRVersion, Types: ir.TypeRegistry{id: &ir.Primitive{
 		TypeCommon: ir.TypeCommon{ID: id, Provenance: ir.Provenance{Source: ir.NoSource}},
 		Prim:       kind,
 	}}}
@@ -66,7 +66,7 @@ func TestVerify_DeclaredPrimKindIsClean(t *testing.T) {
 // question.
 func authDoc(kind ir.AuthKind) *ir.Document {
 	const id ir.AuthID = "auth/openapi/components/securitySchemes/token"
-	return &ir.Document{Auth: map[ir.AuthID]ir.AuthScheme{id: {
+	return &ir.Document{IRVersion: ir.IRVersion, Auth: map[ir.AuthID]ir.AuthScheme{id: {
 		ID: id, Name: named("token"), Kind: kind,
 		Provenance: ir.Provenance{Source: ir.NoSource},
 	}}}

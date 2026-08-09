@@ -33,7 +33,7 @@ func TestVerify_MalformedTypeIDIsAViolation(t *testing.T) {
 			m := &ir.Model{TypeCommon: ir.TypeCommon{
 				ID: tc.id, Name: ir.Naming{Source: "M", Canonical: "m"},
 			}}
-			doc := &ir.Document{Types: ir.TypeRegistry{tc.id: m}}
+			doc := &ir.Document{IRVersion: ir.IRVersion, Types: ir.TypeRegistry{tc.id: m}}
 			assert.Contains(t, violationCodes(irverify.Verify(doc)), "ir/id-malformed",
 				"%q is not an ID the grammar produces", tc.id)
 		})
@@ -52,7 +52,7 @@ func TestVerify_IDDisagreeingWithItsPointerIsAViolation(t *testing.T) {
 		Name:       ir.Naming{Source: "Addr", Canonical: "addr"},
 		Provenance: ir.Provenance{Pointer: "addr"},
 	}}
-	doc := &ir.Document{Types: ir.TypeRegistry{m.ID: m}}
+	doc := &ir.Document{IRVersion: ir.IRVersion, Types: ir.TypeRegistry{m.ID: m}}
 
 	got := irverify.Verify(doc)
 	assert.Contains(t, violationCodes(got), "ir/id-provenance-disagreement")
@@ -71,7 +71,7 @@ func TestVerify_WrongPointerIsAViolation(t *testing.T) {
 		Name:       ir.Naming{Source: "Child", Canonical: "child"},
 		Provenance: ir.Provenance{Pointer: "/components/schemas/Parent"},
 	}}
-	doc := &ir.Document{Types: ir.TypeRegistry{m.ID: m}}
+	doc := &ir.Document{IRVersion: ir.IRVersion, Types: ir.TypeRegistry{m.ID: m}}
 	assert.Contains(t, violationCodes(irverify.Verify(doc)), "ir/id-provenance-disagreement")
 }
 
@@ -83,7 +83,7 @@ func TestVerify_WrongPointerIsAViolation(t *testing.T) {
 func TestVerify_PointerlessIDIsClean(t *testing.T) {
 	t.Parallel()
 	p := &ir.Primitive{TypeCommon: ir.TypeCommon{ID: "t/prim/string"}, Prim: ir.PrimString}
-	doc := &ir.Document{Types: ir.TypeRegistry{p.ID: p}}
+	doc := &ir.Document{IRVersion: ir.IRVersion, Types: ir.TypeRegistry{p.ID: p}}
 	assert.Empty(t, irverify.Verify(doc))
 }
 
@@ -116,7 +116,7 @@ func TestVerify_PrimitiveAwayFromItsSharedIDIsAViolation(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			p := &ir.Primitive{TypeCommon: ir.TypeCommon{ID: tc.id}, Prim: tc.kind}
-			doc := &ir.Document{Types: ir.TypeRegistry{tc.id: p}}
+			doc := &ir.Document{IRVersion: ir.IRVersion, Types: ir.TypeRegistry{tc.id: p}}
 
 			got := irverify.Verify(doc)
 			assert.Contains(t, violationCodes(got), "ir/prim-id-not-derived")
@@ -138,7 +138,7 @@ func TestVerify_PrimitiveAwayFromItsSharedIDIsAViolation(t *testing.T) {
 func TestVerify_KindlessPrimitiveIsReportedOnItsOwnTerms(t *testing.T) {
 	t.Parallel()
 	const id ir.TypeID = "t/openapi/components/schemas/Name"
-	doc := &ir.Document{Types: ir.TypeRegistry{
+	doc := &ir.Document{IRVersion: ir.IRVersion, Types: ir.TypeRegistry{
 		id: &ir.Primitive{TypeCommon: ir.TypeCommon{ID: id}},
 	}}
 
@@ -172,7 +172,7 @@ func TestVerify_NonPrimitiveInThePrimSpaceIsAViolation(t *testing.T) {
 			m := &ir.Model{TypeCommon: ir.TypeCommon{
 				ID: tc.id, Name: ir.Naming{Source: "M", Canonical: "m"},
 			}}
-			doc := &ir.Document{Types: ir.TypeRegistry{tc.id: m}}
+			doc := &ir.Document{IRVersion: ir.IRVersion, Types: ir.TypeRegistry{tc.id: m}}
 			assert.Contains(t, violationCodes(irverify.Verify(doc)), "ir/prim-space-reserved")
 		})
 	}
@@ -190,7 +190,7 @@ func TestVerify_NonPrimitiveInThePrimSpaceIsAViolation(t *testing.T) {
 // fails here.
 func TestVerify_PrimIDChecksAreScopedToTheSpaceAndTheKind(t *testing.T) {
 	t.Parallel()
-	doc := &ir.Document{Types: ir.TypeRegistry{}}
+	doc := &ir.Document{IRVersion: ir.IRVersion, Types: ir.TypeRegistry{}}
 	for _, kind := range []ir.PrimKind{ir.PrimString, ir.PrimInt32, ir.PrimDatetimeOffset, ir.PrimAny} {
 		id := ir.PrimTypeID(kind)
 		doc.Types[id] = &ir.Primitive{TypeCommon: ir.TypeCommon{ID: id}, Prim: kind}
@@ -224,7 +224,7 @@ func TestVerify_AuthIDIsHeldToTheSameRule(t *testing.T) {
 		Name:       ir.Naming{Source: "apiKey", Canonical: "api_key"},
 		Provenance: ir.Provenance{Pointer: "/components/securitySchemes/apiKey"},
 	}
-	doc := &ir.Document{Auth: map[ir.AuthID]ir.AuthScheme{scheme.ID: scheme}}
+	doc := &ir.Document{IRVersion: ir.IRVersion, Auth: map[ir.AuthID]ir.AuthScheme{scheme.ID: scheme}}
 	assert.Contains(t, violationCodes(irverify.Verify(doc)), "ir/id-provenance-disagreement")
 }
 
@@ -233,7 +233,7 @@ func TestVerify_AuthIDIsHeldToTheSameRule(t *testing.T) {
 // pointer-derived spaces a compiler addresses and a minted one.
 func TestVerify_DerivedIDsAreClean(t *testing.T) {
 	t.Parallel()
-	doc := &ir.Document{Types: ir.TypeRegistry{}}
+	doc := &ir.Document{IRVersion: ir.IRVersion, Types: ir.TypeRegistry{}}
 	for _, id := range []ir.TypeID{
 		"t/openapi/components/schemas/User",
 		"t/anon/paths/~1pets/get/responses/200/content/application~1json/schema",

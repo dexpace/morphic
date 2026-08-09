@@ -34,6 +34,7 @@ func Verify(doc *ir.Document) []Violation {
 	vs = append(vs, checkPrimKinds(doc)...)
 	vs = append(vs, checkAuthKinds(doc)...)
 	vs = append(vs, checkDiagnostics(doc)...)
+	vs = append(vs, checkVersion(doc)...)
 	vs = append(vs, runWalkChecks(doc)...)
 
 	// Stable: two violations can share a (Code, Path) — an embedded field
