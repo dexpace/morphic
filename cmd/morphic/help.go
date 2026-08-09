@@ -82,9 +82,16 @@ func writeCommandUsage(w io.Writer, c command) {
 // here specifically because help has no flags; dispatch must keep detecting a
 // subcommand's help request via errors.Is(err, flag.ErrHelp) from that
 // subcommand's own Parse instead of pre-scanning argv.
+//
+// A "--" stops the filtering, since past it a help-flag token is a command name
+// like any other: "morphic help -- --help" reports an unknown command called
+// "--help" rather than dropping the token and being left with the marker.
 func filterHelpTokens(args []string) []string {
 	names := make([]string, 0, len(args))
-	for _, arg := range args {
+	for i, arg := range args {
+		if arg == flagTerminator {
+			return append(names, args[i+1:]...)
+		}
 		if isHelpFlag(arg) {
 			continue
 		}
