@@ -4,8 +4,10 @@ import (
 	"context"
 	"strings"
 	"testing"
+	"unicode/utf8"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/dexpace/morphic/internal/harness"
 	"github.com/dexpace/morphic/internal/testspec"
@@ -51,4 +53,78 @@ func TestReport_IsStableAndSorted(t *testing.T) {
 	assert.Contains(t, got, "b")
 	assert.Less(t, strings.Index(got, "a"), strings.Index(got, "b"),
 		"results sorted by spec name")
+}
+
+// reportLines splits a Report into its lines, dropping the trailing newline the
+// last line ends with so an empty final element is never mistaken for a row.
+func reportLines(t *testing.T, report string) []string {
+	t.Helper()
+	require.NotEmpty(t, report, "a non-empty result set renders at least one line")
+	return strings.Split(strings.TrimSuffix(report, "\n"), "\n")
+}
+
+func TestReport_ColumnsAreSizedToTheResults(t *testing.T) {
+	t.Parallel()
+	// Longer than the 40-column spec field the report used to pad to, which is
+	// true of nearly every path in testdata.
+	const longSpec = "testdata/conformance/openapi/allof-boolean-branch.yaml"
+	lines := reportLines(t, harness.Report([]harness.Result{
+		{Spec: longSpec, Outcome: harness.OutcomeRoundtrip, Detail: "IR JSON differs"},
+		{Spec: "a.yaml", Outcome: harness.OutcomeError, Detail: "boom"},
+	}))
+	require.Len(t, lines, 2, "one line per result")
+
+	short, long := lines[0], lines[1] // sorted by spec: a.yaml, then testdata/...
+	shortOutcome := columnStart(t, short, string(harness.OutcomeError))
+	longOutcome := columnStart(t, long, string(harness.OutcomeRoundtrip))
+	assert.Equal(t, shortOutcome, longOutcome,
+		"the outcome column starts at the same offset on both lines")
+	assert.Equal(t, columnStart(t, short, "boom"), columnStart(t, long, "IR JSON differs"),
+		"the detail column starts at the same offset on both lines")
+	assert.Equal(t, len(longSpec)+1, longOutcome,
+		"the spec column is exactly as wide as the longest spec, plus one separator")
+}
+
+// columnStart returns the offset at which column begins in line, failing when
+// the line does not carry it — an absent column would otherwise compare equal to
+// another absent one and assert nothing.
+func columnStart(t *testing.T, line, column string) int {
+	t.Helper()
+	i := strings.Index(line, column)
+	require.GreaterOrEqual(t, i, 0, "line %q carries column %q", line, column)
+	return i
+}
+
+func TestReport_LinesAreNotPaddedPastTheirLastColumn(t *testing.T) {
+	t.Parallel()
+	lines := reportLines(t, harness.Report([]harness.Result{
+		{Spec: "a.yaml", Outcome: harness.OutcomeOK},
+		{Spec: "b.yaml", Outcome: harness.OutcomeError, Detail: "boom"},
+	}))
+	require.Len(t, lines, 2, "one line per result")
+	for _, line := range lines {
+		assert.Equal(t, strings.TrimRight(line, " "), line,
+			"no line carries padding after its last column")
+	}
+}
+
+func TestReport_WidthsAreCountedInRunes(t *testing.T) {
+	t.Parallel()
+	// Eight runes, eleven bytes: a byte-counted width would pad the spec column
+	// three spaces past where the spec ends, since fmt's %-*s pads in runes.
+	const spec = "ééé.yaml"
+	lines := reportLines(t, harness.Report([]harness.Result{
+		{Spec: spec, Outcome: harness.OutcomeError, Detail: "boom"},
+	}))
+	require.Len(t, lines, 1, "one line per result")
+
+	upToOutcome, _, found := strings.Cut(lines[0], string(harness.OutcomeError))
+	require.True(t, found, "the line names its outcome")
+	assert.Equal(t, utf8.RuneCountInString(spec)+1, utf8.RuneCountInString(upToOutcome),
+		"the spec column is padded to the spec's rune count, not its byte count")
+}
+
+func TestReport_NoResultsRenderNothing(t *testing.T) {
+	t.Parallel()
+	assert.Empty(t, harness.Report(nil), "an empty sweep has no lines to render")
 }
