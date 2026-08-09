@@ -113,3 +113,36 @@ func TestValidate_ReplyMessagesCarriedAreClean(t *testing.T) {
 	assert.Empty(t, pass.Validate(replyBindingDoc(nil, carried, []ir.MessageID{"msg/b"})),
 		"a reply with a dynamic address declares no channel to be a subset of")
 }
+
+// replyOnItsOwnChannelDoc returns the shape a request-reply pair normally takes:
+// the operation binds chan/a carrying msg/a, and answers on chan/reply carrying
+// msg/reply. The two message sets are disjoint, so which channel the reply is
+// judged against is observable.
+func replyOnItsOwnChannelDoc(replyUsed []ir.MessageID) *ir.Document {
+	doc := messageBindingDoc("chan/a", []ir.MessageID{"msg/a"}, []ir.MessageID{"msg/a"})
+	doc.Messages["msg/reply"] = ir.Message{ID: "msg/reply", Name: ir.Naming{Source: "reply"}}
+	doc.Channels["chan/reply"] = ir.Channel{ID: "chan/reply", Messages: []ir.MessageID{"msg/reply"}}
+	replyCh := ir.ChannelID("chan/reply")
+	firstOp(doc).Bindings.Message.Reply = &ir.Reply{Channel: &replyCh, Messages: replyUsed}
+	return doc
+}
+
+// TestValidate_ReplyIsHeldToItsOwnChannel pins which channel the reply half
+// reads, which a reply sharing the operation's channel cannot: with one channel
+// both spellings agree, so a check that reused the operation's channel passes
+// such a case and still reports the wrong set on every real request-reply pair.
+//
+// The illegal half is the one that separates them. msg/a is carried by the
+// operation's channel and not by the reply's, so reading the wrong channel
+// reports nothing at all here.
+func TestValidate_ReplyIsHeldToItsOwnChannel(t *testing.T) {
+	t.Parallel()
+	assert.Empty(t, pass.Validate(replyOnItsOwnChannelDoc([]ir.MessageID{"msg/reply"})),
+		"the reply channel carries msg/reply, so the reply names nothing it forbids")
+
+	msg := messageForCode(t, pass.Validate(replyOnItsOwnChannelDoc([]ir.MessageID{"msg/a"})),
+		"pass/message-not-in-channel")
+	assert.Contains(t, msg, "msg/a")
+	assert.Contains(t, msg, "chan/reply",
+		"judged against the channel the reply travels on, not the one the operation binds")
+}
