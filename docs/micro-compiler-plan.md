@@ -25,8 +25,8 @@ Every task inherits these. They are not restated per issue.
   stop-and-explain, never an `-update`.
 - **Coverage stays at exactly 100%.** `./scripts/check-coverage.sh` counts statements from the
   profile; one uncovered statement fails the build.
-- **The gate, in order:** `gofmt -l`, `go vet ./...`, `golangci-lint run`, `go build ./...`,
-  `./scripts/check-coverage.sh`.
+- **The gate is `make gate`**, which is what `.github/workflows/gate.yml` runs step by step. Read
+  the `Makefile` for the steps; a list here would only be a copy that goes stale.
 - **Every new package needs an `internal/archtest` rules entry**, or
   `TestImportGraph_EveryPackageIsRuledOrExempt` fails.
 - **Every extracted package ships table-driven unit tests** built without calling `Compile` and
