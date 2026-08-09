@@ -267,6 +267,60 @@ func compareHelpGolden(t *testing.T, path, got string) {
 	assert.Empty(t, cmp.Diff(string(want), got), "golden mismatch for %s", path)
 }
 
+// helpGoldenCase is one rendering with a committed golden: the args that produce
+// it, the file it is compared against, and which stream it must arrive on.
+type helpGoldenCase struct {
+	name       string
+	args       []string
+	golden     string
+	wantCode   int
+	wantStderr bool
+}
+
+// helpGoldenCases lists every rendering with a committed golden: the two the
+// root itself produces, then each command's own help and misuse text.
+//
+// It is a function rather than a literal inside the test so
+// TestHelp_GoldenTableCoversEveryCommand can hold it to commands(). Adding a
+// command otherwise forces only a root-help.txt regeneration, which says nothing
+// about that command's own two pages — and a golden nobody wrote is a golden
+// nobody notices missing.
+func helpGoldenCases() []helpGoldenCase {
+	return []helpGoldenCase{
+		{"root", nil, "root-help.txt", 0, false},
+		{"unknown command", []string{"bogus"}, "unknown-command.txt", 2, true},
+		{"compile", []string{"help", "compile"}, "compile-help.txt", 0, false},
+		{"compile misuse", []string{"compile"}, "compile-usage.txt", 2, true},
+		{"validate", []string{"help", "validate"}, "validate-help.txt", 0, false},
+		{"validate misuse", []string{"validate"}, "validate-usage.txt", 2, true},
+	}
+}
+
+// TestHelp_GoldenTableCoversEveryCommand holds the hand-written golden table to
+// the command table, the way ir's hand-written kind lists are held to the kinds
+// its sources declare: the list stays explicit, so a command needing a different
+// misuse invocation can have one, and forgetting a command reddens here naming
+// it rather than passing quietly.
+//
+// Without this, a third command ships with its help and usage text rendered by
+// no test at all. The only failure adding one causes is the root-help and
+// unknown-command goldens gaining a row, and regenerating those — which the new
+// row obliges anyway — leaves the suite green.
+func TestHelp_GoldenTableCoversEveryCommand(t *testing.T) {
+	t.Parallel()
+	covered := make(map[string]bool, len(helpGoldenCases()))
+	for _, tc := range helpGoldenCases() {
+		covered[tc.golden] = true
+	}
+
+	for _, c := range commands() {
+		assert.Truef(t, covered[c.name+"-help.txt"],
+			"%s has no help golden; add it to helpGoldenCases", c.name)
+		assert.Truef(t, covered[c.name+"-usage.txt"],
+			"%s has no misuse golden; add it to helpGoldenCases", c.name)
+	}
+}
+
 // TestHelp_MatchesGolden pins every text the CLI renders. The two help texts
 // are the ones a user asks for; the two misuse texts are the ones a user gets
 // by accident, and nothing else holds their wording — writeCommandUsage and the
@@ -277,22 +331,7 @@ func compareHelpGolden(t *testing.T, path, got string) {
 // not under test must be empty.
 func TestHelp_MatchesGolden(t *testing.T) {
 	// Not parallel: the -update path writes files.
-	tests := []struct {
-		name       string
-		args       []string
-		golden     string
-		wantCode   int
-		wantStderr bool
-	}{
-		{"root", nil, "root-help.txt", 0, false},
-		{"compile", []string{"help", "compile"}, "compile-help.txt", 0, false},
-		{"validate", []string{"help", "validate"}, "validate-help.txt", 0, false},
-		{"compile misuse", []string{"compile"}, "compile-usage.txt", 2, true},
-		{"validate misuse", []string{"validate"}, "validate-usage.txt", 2, true},
-		{"unknown command", []string{"bogus"}, "unknown-command.txt", 2, true},
-	}
-
-	for _, tt := range tests {
+	for _, tt := range helpGoldenCases() {
 		t.Run(tt.name, func(t *testing.T) {
 			var stdout, stderr bytes.Buffer
 			require.Equal(t, tt.wantCode, run(tt.args, &stdout, &stderr))
