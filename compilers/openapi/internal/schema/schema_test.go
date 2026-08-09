@@ -1410,7 +1410,8 @@ func TestAllOf_ConstraintAndFormatConflictsDiagnosed(t *testing.T) {
 	t.Parallel()
 	// Each keyword class that can contradict across branches: an inclusive vs
 	// exclusive bound of equal magnitude, a differing pattern, a differing
-	// multipleOf, and two format-derived primitives (string vs uuid). Each keeps
+	// multipleOf, a bound and a multipleOf that differ past the magnitude a
+	// rational will build, and two format-derived primitives. Each keeps
 	// the first declaration but surfaces exactly one conflict naming the field,
 	// both branch sites, and — for the constraint cases — the offending keyword
 	// with both of its conflicting values, so the author never has to diff both
@@ -1435,6 +1436,23 @@ func TestAllOf_ConstraintAndFormatConflictsDiagnosed(t *testing.T) {
 			a:          "{type: integer, multipleOf: 2}",
 			b:          "{type: integer, multipleOf: 3}",
 			wantDetail: "conflicting multipleOf (2 and 3)",
+		},
+		{
+			// The other half of the past-a-rational rows in
+			// TestAllOf_CompatibleConstraintRedeclarationsStaySilent: a
+			// magnitude no rational holds still has to be ordered, not waved
+			// through, or the fix for the equal pair would just silence every
+			// pair that large.
+			name:       "minimum too large for a rational",
+			a:          "{type: number, minimum: 1e1000001}",
+			b:          "{type: number, minimum: 2e1000001}",
+			wantDetail: "conflicting minimum (1e1000001 and 2e1000001)",
+		},
+		{
+			name:       "multipleOf too large for a rational",
+			a:          "{type: number, multipleOf: 1e1000001}",
+			b:          "{type: number, multipleOf: 1e1000002}",
+			wantDetail: "conflicting multipleOf (1e1000001 and 1e1000002)",
 		},
 		{
 			name: "string vs uuid",
@@ -1467,9 +1485,10 @@ func TestAllOf_CompatibleConstraintRedeclarationsStaySilent(t *testing.T) {
 	// only one branch (both branches still carry constraints) is intersected,
 	// not a conflict — and the merge must genuinely carry both keywords
 	// forward on the reconciled property, not just stay quiet about the one it
-	// used to drop; equal multipleOf spelled two ways is one value; and an
-	// unknown-format scalar resolves through its Base to the same primitive as
-	// the plain type, so it is not a type conflict.
+	// used to drop; one magnitude spelled two ways is one value, whether or not
+	// it is one a rational will build; and an unknown-format scalar resolves
+	// through its Base to the same primitive as the plain type, so it is not a
+	// type conflict.
 	cases := []struct {
 		name         string
 		a, b         string
@@ -1514,6 +1533,20 @@ func TestAllOf_CompatibleConstraintRedeclarationsStaySilent(t *testing.T) {
 			},
 		},
 		{name: "equivalent multipleOf", a: "{type: number, multipleOf: 2}", b: "{type: number, multipleOf: 2.0}"},
+		// Both BigVal keywords at a magnitude math/big will not build as a
+		// rational. The value is the same on either branch, so there is nothing
+		// to report; a comparison that gave up on the magnitude instead would
+		// call one value two and fail a --fail-on warning build.
+		{
+			name: "equal minimum too large for a rational",
+			a:    "{type: number, minimum: 1e1000001}",
+			b:    "{type: number, minimum: 10e1000000}",
+		},
+		{
+			name: "equal multipleOf too large for a rational",
+			a:    "{type: number, multipleOf: 1e1000001}",
+			b:    "{type: number, multipleOf: 10e1000000}",
+		},
 		{name: "custom format over base", a: "{type: string, format: weird}", b: "{type: string}"},
 	}
 	for _, tc := range cases {
