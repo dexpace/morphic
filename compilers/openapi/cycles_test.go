@@ -209,14 +209,15 @@ func TestCompile_RefShapedDataNotRefused(t *testing.T) {
 }
 
 // TestCompile_SchemaEmptyPointerSegmentIsUnresolved pins where reading the
-// empty token changes a verdict rather than a hang. A schema chain is refused
-// on chainCycles alone — chainReenters is consulted only for the reference
-// objects outside a schema, because only those resolve through the Reference
-// lock that deadlocks. Reading '/A/' as stopping at A made this shape a cycle;
-// reading it as descending through A makes it what it is, a pointer naming a
-// key that is not declared. speakeasy resolves a schema $ref as an
-// oas3.JSONSchema rather than through that lock, so the shape it now reaches
-// the resolver with reports rather than hangs.
+// empty token changes a verdict rather than a hang. Reading '/A/' as stopping
+// at A made this shape a cycle; reading it as descending through A makes it
+// what it is, a pointer naming a key that is not declared. That moves a schema
+// chain from chainCycles to chainReenters, and refCycles refuses a schema chain
+// on the first alone, so the document now reaches the resolver.
+//
+// It reports rather than blocks there: speakeasy resolves a schema $ref as an
+// oas3.JSONSchema, and only openapi/reference.go's cacheMutex is held across a
+// pointer walk (v1.24.0) — jsonschema/oas3 carries no per-reference lock at all.
 func TestCompile_SchemaEmptyPointerSegmentIsUnresolved(t *testing.T) {
 	t.Parallel()
 	const src = `openapi: 3.1.0
