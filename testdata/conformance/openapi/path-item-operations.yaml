@@ -1,0 +1,57 @@
+openapi: 3.2.0
+info: {title: PathItemOperations, version: "1.0.0"}
+paths:
+  /index:
+    # OpenAPI 3.2 gives QUERY a fixed field of its own and puts every other
+    # method under additionalOperations, keyed by the method name. Both declare
+    # ordinary Operation Objects, so both lower to ordinary operations — with
+    # everything reachable through them, such as this request body's schema.
+    query:
+      operationId: queryIndex
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                q: {type: string}
+      responses:
+        "200":
+          description: ok
+    post:
+      operationId: subscribeIndex
+      callbacks:
+        onEvent:
+          '{$request.body#/callbackUrl}':
+            # A callback path item carries additionalOperations like any other,
+            # and this expression declares no fixed method at all.
+            additionalOperations:
+              PURGE:
+                operationId: purgeCallback
+                responses:
+                  "204":
+                    description: purged
+      responses:
+        "200":
+          description: ok
+    additionalOperations:
+      PURGE:
+        operationId: purgeIndex
+        responses:
+          "204":
+            description: purged
+      # A method name is case-sensitive, so the key reaches the binding exactly
+      # as it was written rather than upper-cased into a conventional spelling.
+      mIxEdCase:
+        operationId: mixedCaseIndex
+        responses:
+          "204":
+            description: purged
+webhooks:
+  cacheFlushed:
+    additionalOperations:
+      FLUSH:
+        operationId: onFlush
+        responses:
+          "200":
+            description: ok

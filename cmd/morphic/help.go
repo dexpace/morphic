@@ -17,10 +17,26 @@ func isHelpFlag(arg string) bool {
 // is, the command list built from the command table, and how to go deeper.
 func writeRootHelp(w io.Writer) {
 	emitf(w, "usage:\n  morphic <command> [flags]\n\n%s\n\ncommands:\n", rootDescription)
-	for _, c := range commands() {
-		emitf(w, "  %-9s %s\n", c.name, c.summary)
-	}
+	writeCommandList(w, commands())
 	emitf(w, "\nrun \"morphic help <command>\" for command details.\n")
+}
+
+// writeCommandList writes one indented "<name> <summary>" line per command in
+// table, with the summaries in a column.
+//
+// It takes the table rather than reading commands() so the column can be tested
+// against names the shipped table does not happen to hold — a width that fits
+// today's names is indistinguishable from a width that fits any names, and the
+// only signal the difference gives off is a golden diff whose added line is the
+// misaligned one, presented as the new expected output.
+func writeCommandList(w io.Writer, table []command) {
+	width := 0
+	for _, c := range table {
+		width = max(width, len(c.name))
+	}
+	for _, c := range table {
+		emitf(w, "  %-*s %s\n", width, c.name, c.summary)
+	}
 }
 
 // writeCommandHelp writes c's full help text to w: synopsis, description, and
@@ -33,10 +49,22 @@ func writeCommandHelp(w io.Writer, c command) {
 // rootUsageError reports a misuse of morphic itself: one reason line, the root
 // help, exit 2. It never touches stdout.
 //
-// reason is a finished string, not a format — see compileUsageError for why.
+// reason is a finished string, not a format — see commandUsageError for why.
 func rootUsageError(stderr io.Writer, reason string) int {
 	emitf(stderr, "morphic: %s\n", reason)
 	writeRootHelp(stderr)
+	return 2
+}
+
+// commandUsageError reports a misuse of c: one reason line, one short usage
+// pointer, exit 2. It never touches stdout.
+//
+// reason is a finished string, not a format: a printf-style wrapper here is
+// invisible to vet, so a reason carrying a literal % — a flag value echoed back
+// from the user, say — would be mangled into the output with nothing to catch it.
+func commandUsageError(stderr io.Writer, c command, reason string) int {
+	emitf(stderr, "morphic: %s\n", reason)
+	writeCommandUsage(stderr, c)
 	return 2
 }
 
@@ -51,8 +79,9 @@ func writeCommandUsage(w io.Writer, c command) {
 // so a help-flag token can never be a legitimate value for it — stripping
 // these tokens first lets the argument-count and lookup logic in runHelp run
 // on whatever command name, if any, remains. This filtering approach is safe
-// here specifically because help has no flags; runCompile must keep detecting
-// help via errors.Is(err, flag.ErrHelp) instead of pre-scanning argv.
+// here specifically because help has no flags; dispatch must keep detecting a
+// subcommand's help request via errors.Is(err, flag.ErrHelp) from that
+// subcommand's own Parse instead of pre-scanning argv.
 //
 // A "--" stops the filtering, since past it a help-flag token is a command name
 // like any other: "morphic help -- --help" reports an unknown command called

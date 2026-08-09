@@ -377,12 +377,11 @@ func scopeMap(f *soa.OAuthFlow) map[string]string {
 // its own base+/security/<index> pointer. An empty option object {} means "no
 // auth is one acceptable choice".
 //
-// An entry the source wrote as something other than an object reaches here as
-// an empty option rather than as a nil one, so it lowers to that same encoding
-// and the collapse below never sees it. Telling the two apart needs the parse
-// the loader already rejected, so it is issue #284's to fix and deliberately
-// out of scope here — which is also why lowerSecurityRequirement's nil guard is
-// not that site, however much it looks like it.
+// An entry the source wrote as something other than an object is not an option
+// at all, and is dropped whole on the same terms — see writtenAsObject, which is
+// what tells it from the {} above. It draws no report from here, on the grounds
+// LowerSecuritySchemes states for the same shape: the loader's type-mismatch
+// already names both the entry and what was wrong with it.
 //
 // A requirement is a conjunction: every member must resolve for the option to
 // mean anything, so an option naming even one undeclared scheme is dropped in
@@ -432,10 +431,11 @@ func LowerSecurityRequirements(c lowering.Ctx, reqs []*soa.SecurityRequirement, 
 // option. A member naming a scheme the auth registry does not hold invalidates
 // the whole option, which the caller must drop in full rather than just that
 // member — never a dangling AuthID (issue #14), and never an unintended
-// empty-option encoding (issue #41). ok reports whether the option survives;
-// every unresolved member is still diagnosed individually, at the shared
-// requirement-level pointer, so a multi-member option reports each of its bad
-// names.
+// empty-option encoding (issue #41). An entry that is no object drops for the
+// second of those reasons alone (issue #284). ok reports whether the option
+// survives; every unresolved member is still diagnosed individually, at the
+// shared requirement-level pointer, so a multi-member option reports each of its
+// bad names.
 //
 // Three documents reach that state: one that never declared the name, one that
 // declared it as a $ref resolving to nothing, and one whose entry named no
@@ -445,8 +445,8 @@ func LowerSecurityRequirements(c lowering.Ctx, reqs []*soa.SecurityRequirement, 
 // two cases.
 func lowerSecurityRequirement(c lowering.Ctx, req *soa.SecurityRequirement, pointer string,
 ) (r ir.AuthRequirement, ok bool, diags []ir.Diagnostic) {
-	if req == nil {
-		return ir.AuthRequirement{}, true, nil
+	if !writtenAsObject(req) {
+		return ir.AuthRequirement{}, false, nil
 	}
 	var uses []ir.SchemeUse
 	ok = true
@@ -464,4 +464,25 @@ func lowerSecurityRequirement(c lowering.Ctx, req *soa.SecurityRequirement, poin
 		return ir.AuthRequirement{}, false, diags
 	}
 	return ir.AuthRequirement{Schemes: uses}, true, diags
+}
+
+// writtenAsObject reports whether the document wrote req as an object, which is
+// the only shape a requirement has.
+//
+// Every other spelling a security list can hold — null, a scalar, a sequence —
+// unmarshals to a requirement holding no members, the same shape as the {} an
+// author writes to mean "no auth is one acceptable choice", so what the entry
+// says is not recoverable from the requirement itself (issue #284). The node it
+// was read from is what separates them: the marshaller records a root node for a
+// value it could read as a mapping and none for anything else, so {} carries one
+// whether written inline or reached through an alias, and no other spelling
+// does. That is a fact about the library rather than about the document, which
+// is why the tests holding it compile documents instead of building
+// requirements.
+//
+// req's own nil is not reachable from a parsed document — a malformed entry
+// still arrives as a requirement — so that half of the guard is for a hand-built
+// slice, matching unresolvableSchemeDiags'.
+func writtenAsObject(req *soa.SecurityRequirement) bool {
+	return req != nil && req.GetRootNode() != nil
 }
