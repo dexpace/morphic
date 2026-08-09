@@ -1,7 +1,7 @@
 # Micro-Compiler Architecture — Design
 
 Status: **implemented**. This is a record of a restructuring that happened, not a proposal —
-`compilers/openapi` is now its public face over thirteen internal packages, the god object §1 is
+`compilers/openapi` is now its public face over its internal packages, the god object §1 is
 about is gone, and the caps that stop it regrowing are in force. §12 remains the row-by-row record.
 Scope: `compilers/compile`, `compilers/openapi`, `internal/archtest`, `internal/harness`,
 `ir/irverify`.
