@@ -162,6 +162,35 @@ func TestWriteGolden_WriteError(t *testing.T) {
 	assert.Contains(t, err.Error(), "write golden")
 }
 
+// TestCompareGolden_RejectsBadInput drives the two preconditions. They sit ahead
+// of the -update branch, so neither case needs the flag toggled to reach them.
+//
+// The nil-document case is a regression test with a written-out failure mode: the
+// golden on disk is the "null" an unguarded WriteGolden produces, and an
+// unguarded compareGolden encodes nil to the same four bytes and reports a clean
+// match. The abort is the only thing separating that from a real comparison.
+func TestCompareGolden_RejectsBadInput(t *testing.T) {
+	nullGolden := filepath.Join(t.TempDir(), "null.golden.json")
+	require.NoError(t, os.WriteFile(nullGolden, []byte("null\n"), 0o644))
+
+	cases := map[string]struct {
+		path      string
+		doc       *ir.Document
+		wantFatal string
+	}{
+		"empty path":   {path: "", doc: &ir.Document{Name: "x"}, wantFatal: "empty golden path"},
+		"nil document": {path: nullGolden, doc: nil, wantFatal: "nil document"},
+	}
+	for name, tc := range cases {
+		t.Run(name, func(t *testing.T) {
+			rec := runCompare(tc.path, tc.doc)
+			require.True(t, rec.aborted, "a precondition failure must abort via Fatalf")
+			assert.Contains(t, rec.fatalf, tc.wantFatal)
+			assert.Empty(t, rec.errorf, "the abort happens before any comparison")
+		})
+	}
+}
+
 func TestCompareGolden_HelperIsCalled(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "doc.golden.json")
