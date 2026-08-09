@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"reflect"
 	"slices"
 	"strings"
 	"testing"
@@ -1677,6 +1678,12 @@ func assertFormPartStyle(t *testing.T, doc *ir.Document) {
 		assert.True(t, *pe.Explode)
 		assert.True(t, pe.Multi, "the structural flag still comes from the part's own schema")
 	}
+	// allowReserved has no PartEncoding field, and PartEncoding has no Unmodeled
+	// map, so it is kept on the content keyed by the part it governs. Two
+	// documents differing only in it used to compile to one IR (GitHub #291).
+	entry := unmodeledEntry(t, op.Request.Contents[0].Unmodeled, "openapi:encoding/ids/allowReserved")
+	assert.Equal(t, ir.ReasonNoIRHome, entry.Reason)
+	assert.JSONEq(t, "true", string(entry.Value))
 }
 
 // assertFileBody pins a binary body: the payload's type degrades to bytes and the
@@ -2013,21 +2020,111 @@ func assertExtensionsX(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
 	assert.JSONEq(t, "100", string(raw.Value))
 	assert.Equal(t, ir.ReasonVendorExtension, raw.Reason)
 
-	// The same rule applies at every object that admits an extension, so the
-	// document root and an operation each keep their own.
-	root, ok := doc.Unmodeled["openapi:x-audience"]
-	require.True(t, ok, "a root extension lands on the document; got %v", doc.Unmodeled)
-	assert.Equal(t, ir.ReasonVendorExtension, root.Reason)
-	assert.JSONEq(t, `"public"`, string(root.Value))
-
-	op, ok := opByName(doc, "listWidgets")
-	require.True(t, ok)
-	entry, ok := op.Unmodeled["openapi:x-internal"]
-	require.True(t, ok, "an operation extension lands on the operation; got %v", op.Unmodeled)
-	assert.Equal(t, ir.ReasonVendorExtension, entry.Reason)
-	assert.JSONEq(t, `true`, string(entry.Value))
-
+	assertEveryObjectKeepsItsExtensions(t, doc)
 	assertRawPreservedBinary(t, m)
+}
+
+// assertEveryObjectKeepsItsExtensions holds the whole rule rather than the
+// positions that happened to be noticed: every OpenAPI object that admits an
+// x-* keeps it. The fixture writes `x-mark` on each, with a value naming the
+// object, so a row that stops arriving names exactly which lowering stopped
+// reading — and a lowering that never read one fails here before it ships.
+//
+// Carriers are derived from the value graph, not named: the row says which
+// Unmodeled map the entry must land on by the path the walk reaches it at, so a
+// carrier that moves still matches and an entry written to the wrong one does
+// not.
+func assertEveryObjectKeepsItsExtensions(t *testing.T, doc *ir.Document) {
+	t.Helper()
+	sites := unmodeledSites(doc)
+	for _, tc := range []struct{ object, key, want, carrier string }{
+		{"openapi root", "openapi:x-audience", `"public"`, "doc.Unmodeled"},
+		{"info", "openapi:info/x-mark", `"XINFO"`, "doc.Unmodeled"},
+		{"contact", "openapi:info/contact/x-mark", `"XCONTACT"`, "doc.Unmodeled"},
+		{"license", "openapi:info/license/x-mark", `"XLICENSE"`, "doc.Unmodeled"},
+		{"externalDocs", "openapi:externalDocs/x-mark", `"XEXTERNALDOCS"`, "doc.Unmodeled"},
+		{"components", "openapi:components/x-mark", `"XCOMPONENTS"`, "doc.Unmodeled"},
+		{"tag", "openapi:tags/0/x-mark", `"XTAG"`, "doc.Unmodeled"},
+		{"tag externalDocs", "openapi:tags/0/externalDocs/x-mark", `"XTAGEXTERNALDOCS"`, "doc.Unmodeled"},
+		{"server", "openapi:x-mark", `"XSERVER"`, "doc.Servers[0].Unmodeled"},
+		{"server variable", "openapi:x-mark", `"XSERVERVARIABLE"`, "doc.Servers[0].Variables[0].Unmodeled"},
+		{"paths", "openapi:paths/x-mark", `"XPATHS"`, "doc.Services[0].Unmodeled"},
+		{"path item", "openapi:pathItem/x-mark", `"XPATHITEM"`, ".Unmodeled"},
+		{"operation", "openapi:x-internal", `true`, ".Unmodeled"},
+		{"operation externalDocs", "openapi:externalDocs/x-mark", `"XOPERATIONEXTERNALDOCS"`, ".Unmodeled"},
+		{"responses", "openapi:responses/x-mark", `"XRESPONSES"`, ".Unmodeled"},
+		{"parameter", "openapi:x-mark", `"XPARAMETER"`, ".Params[0].Unmodeled"},
+		{"request body", "openapi:x-mark", `"XREQUESTBODY"`, ".Request.Unmodeled"},
+		{"media type", "openapi:x-mark", `"XMEDIATYPE"`, ".Contents[0].Unmodeled"},
+		{"encoding", "openapi:encoding/f/x-mark", `"XENCODING"`, ".Contents[0].Unmodeled"},
+		{"example", "openapi:x-mark", `"XEXAMPLE"`, ".Examples[0].Unmodeled"},
+		{"response", "openapi:x-mark", `"XRESPONSE"`, ".Responses[0].Unmodeled"},
+		{"error response", "openapi:x-mark", `"XERRORRESPONSE"`, ".Errors[0].Unmodeled"},
+		{"header", "openapi:x-mark", `"XHEADER"`, ".Headers[0].Unmodeled"},
+		{"callback", "openapi:callbacks/onEvent/x-mark", `"XCALLBACK"`, ".Bindings.HTTP[0].Unmodeled"},
+		{"schema xml", "openapi:xml/x-mark", `"XXML"`, "doc.Types[t/openapi/components/schemas/S].Unmodeled"},
+		{"schema externalDocs", "openapi:externalDocs/x-mark", `"XSCHEMAEXTERNALDOCS"`,
+			"doc.Types[t/openapi/components/schemas/S].Unmodeled"},
+		{"discriminator", "openapi:discriminator/x-mark", `"XDISCRIMINATOR"`,
+			"doc.Types[t/openapi/components/schemas/D].Unmodeled"},
+		{"security scheme", "openapi:x-mark", `"XSECURITYSCHEME"`,
+			"doc.Auth[auth/openapi/components/securitySchemes/k].Unmodeled"},
+		{"oauth flows", "openapi:flows/x-mark", `"XOAUTHFLOWS"`,
+			"doc.Auth[auth/openapi/components/securitySchemes/o].Unmodeled"},
+		{"oauth flow", "openapi:x-mark", `"XOAUTHFLOW"`,
+			"doc.Auth[auth/openapi/components/securitySchemes/o].Flows[0].Unmodeled"},
+	} {
+		site, found := findUnmodeled(sites, tc.key, tc.want)
+		if !assert.True(t, found, "%s extension is dropped: no %s = %s anywhere in the document",
+			tc.object, tc.key, tc.want) {
+			continue
+		}
+		assert.Equal(t, ir.ReasonVendorExtension, site.entry.Reason, "%s extension reason", tc.object)
+		assert.Contains(t, site.path, tc.carrier, "%s extension lands on the wrong carrier", tc.object)
+	}
+}
+
+// unmodeledSite is one Unmodeled entry paired with the walk path of the map
+// holding it.
+type unmodeledSite struct {
+	key   string
+	path  string
+	entry ir.UnmodeledEntry
+}
+
+// unmodeledSites returns every Unmodeled entry the document holds. It walks the
+// value graph rather than naming carriers so that a test asserting "this is kept
+// somewhere sensible" cannot pass by looking only where it expected to.
+func unmodeledSites(doc *ir.Document) []unmodeledSite {
+	unmodeledType := reflect.TypeOf(ir.Unmodeled(nil))
+	var out []unmodeledSite
+	ir.WalkValues(doc, ir.DocumentPath, func(v reflect.Value, path string) bool {
+		if v.Type() != unmodeledType || !v.CanInterface() {
+			return true
+		}
+		u, ok := v.Interface().(ir.Unmodeled)
+		if !ok {
+			return true
+		}
+		for key, entry := range u {
+			out = append(out, unmodeledSite{key: key, path: path, entry: entry})
+		}
+		return true
+	})
+	return out
+}
+
+// findUnmodeled returns the site holding key with the given JSON value. The
+// value is part of the match because one key spelling occurs at many carriers —
+// "openapi:x-mark" is written on a dozen objects in this fixture — so matching
+// on the key alone would find a different object's entry and call it a pass.
+func findUnmodeled(sites []unmodeledSite, key, wantJSON string) (unmodeledSite, bool) {
+	for _, site := range sites {
+		if site.key == key && string(site.entry.Value) == wantJSON {
+			return site, true
+		}
+	}
+	return unmodeledSite{}, false
 }
 
 // assertRawPreservedBinary pins what a !!binary extension keeps: the base64 the

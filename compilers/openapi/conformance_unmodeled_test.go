@@ -387,9 +387,15 @@ func assertResidue(t *testing.T, p ir.Unmodeled, want map[string]string) {
 	}
 }
 
-// assertResponseLinks pins a response's links: ir.Response has no field for the
-// link objects OpenAPI declares there, so they are kept verbatim on the response
-// rather than dropped while the operation they name lowers normally.
+// assertResponseLinks pins a response's links: neither ir.Response nor
+// ir.ErrorCase has a field for the link objects OpenAPI declares there, so they
+// are kept verbatim rather than dropped while the operation they name lowers
+// normally.
+//
+// Both status ranges, because only the success one used to keep them: the same
+// declaration survived on a 2xx and vanished on a 4xx, with no diagnostic either
+// way, purely because the error branch had no links rule of its own
+// (GitHub #275).
 func assertResponseLinks(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
 	op, ok := opByName(doc, "createOrder")
 	require.True(t, ok)
@@ -399,6 +405,15 @@ func assertResponseLinks(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
 	assert.JSONEq(t,
 		`{"GetOrder":{"operationId":"getOrder","parameters":{"orderId":"$response.body#/id"}}}`,
 		string(entry.Value))
+
+	require.Len(t, op.Errors, 1)
+	errEntry := unmodeledEntry(t, op.Errors[0].Unmodeled, "openapi:links")
+	assert.Equal(t, ir.ReasonNoIRHome, errEntry.Reason)
+	assert.JSONEq(t,
+		`{"GetConflicting":{"operationId":"getOrder","parameters":{"orderId":"$response.body#/existingId"}}}`,
+		string(errEntry.Value),
+		"an error response keeps its links by the same rule the success one does")
+
 	_, ok = opByName(doc, "getOrder")
 	assert.True(t, ok, "the operation a link names is an ordinary operation")
 }

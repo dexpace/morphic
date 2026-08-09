@@ -132,9 +132,42 @@ func lowerSecurityScheme(c lowering.Ctx, name string, ss *soa.SecurityScheme,
 		return ir.AuthScheme{}, false, []ir.Diagnostic{mechanismRefusalDiag(c, name, missing, entry)}
 	}
 	diags = preserveUnreadFields(c, &scheme, ss, decl)
-	ext, extDiags := annotation.ExtensionsFrom(ss.GetExtensions(), c.SrcIndex, decl)
+	return scheme, true, append(diags, applySchemeExtensions(c, &scheme, ss, decl)...)
+}
+
+// applySchemeExtensions keeps the x-* of the securitySchemes entry and, for an
+// oauth2 scheme, of the flows object and of each flow inside it. ir.OAuthFlow
+// carries an Unmodeled map of its own; the flows object does not lower to a node
+// at all, so its own extensions are kept on the scheme under the keyword.
+//
+// Only oauth2 reads inside `flows`: on any other type the whole node is kept
+// verbatim by preserveUnreadFields, extensions and all, and no ir.OAuthFlow was
+// lowered for a flow's own to land on.
+func applySchemeExtensions(c lowering.Ctx, scheme *ir.AuthScheme, ss *soa.SecurityScheme, decl string) []ir.Diagnostic {
+	ext, diags := annotation.ExtensionsFrom(ss.GetExtensions(), c.SrcIndex, decl)
 	scheme.Unmodeled = annotation.MergeUnmodeled(scheme.Unmodeled, ext)
-	return scheme, true, append(diags, extDiags...)
+	if scheme.Kind != ir.AuthKindOAuth2 {
+		return diags
+	}
+	flowsPtr := decl + ids.Ptr("flows")
+	flowsExt, flowsDiags := annotation.ExtensionsUnder(ss.GetFlows().GetExtensions(), c.SrcIndex, flowsPtr, "flows")
+	scheme.Unmodeled = annotation.MergeUnmodeled(scheme.Unmodeled, flowsExt)
+	diags = append(diags, flowsDiags...)
+	return append(diags, applyFlowExtensions(c, scheme.Flows, ss.GetFlows(), flowsPtr)...)
+}
+
+// applyFlowExtensions writes each declared flow's own x-* onto the ir.OAuthFlow
+// it lowered to. Both lists are one ordered reading of the same object —
+// scheme.Flows came from oauthFlows, which walks presentFlows — so the i-th
+// lowered flow is the i-th declared one and the two cannot differ in length.
+func applyFlowExtensions(c lowering.Ctx, lowered []ir.OAuthFlow, flows *soa.OAuthFlows, flowsPtr string) []ir.Diagnostic {
+	var diags []ir.Diagnostic
+	for i, f := range presentFlows(flows) {
+		ext, extDiags := annotation.ExtensionsFrom(f.src.GetExtensions(), c.SrcIndex, flowsPtr+ids.Ptr(f.keyword))
+		lowered[i].Unmodeled = annotation.MergeUnmodeled(lowered[i].Unmodeled, ext)
+		diags = append(diags, extDiags...)
+	}
+	return diags
 }
 
 // mechanismRefusalDiag reports a securitySchemes entry that declares a scheme
@@ -312,28 +345,47 @@ func preserveUnreadFields(c lowering.Ctx, scheme *ir.AuthScheme, ss *soa.Securit
 	return diags
 }
 
+// sourceFlow is one declared OAuth2 flow: the IR kind it lowers to, the keyword
+// it is written under, and the object itself.
+type sourceFlow struct {
+	kind    string
+	keyword string
+	src     *soa.OAuthFlow
+}
+
+// presentFlows returns the flows an OAuthFlows object declares, in a fixed,
+// deterministic order. It is the single ordered reading of that object: the
+// lowering and the extension reader both walk it, which is what lets the i-th
+// ir.OAuthFlow be matched back to the i-th declaration without a second, and
+// possibly divergent, enumeration.
+func presentFlows(flows *soa.OAuthFlows) []sourceFlow {
+	candidates := []sourceFlow{
+		{"authorization_code", "authorizationCode", flows.GetAuthorizationCode()},
+		{"client_credentials", "clientCredentials", flows.GetClientCredentials()},
+		{"implicit", "implicit", flows.GetImplicit()},
+		{"password", "password", flows.GetPassword()},
+		{"device", "deviceAuthorization", flows.GetDeviceAuthorization()},
+	}
+	var out []sourceFlow
+	for _, cand := range candidates {
+		if cand.src != nil {
+			out = append(out, cand)
+		}
+	}
+	return out
+}
+
 // oauthFlows lowers each present OAuth2 flow in a fixed, deterministic order.
 // The device flow's deviceAuthorizationUrl rides OAuthFlow.AuthorizationURL
 // (ir-design §9).
 func oauthFlows(flows *soa.OAuthFlows) []ir.OAuthFlow {
-	if flows == nil {
-		return nil
-	}
 	var out []ir.OAuthFlow
-	if f := flows.GetAuthorizationCode(); f != nil {
-		out = append(out, oauthFlow("authorization_code", f))
-	}
-	if f := flows.GetClientCredentials(); f != nil {
-		out = append(out, oauthFlow("client_credentials", f))
-	}
-	if f := flows.GetImplicit(); f != nil {
-		out = append(out, oauthFlow("implicit", f))
-	}
-	if f := flows.GetPassword(); f != nil {
-		out = append(out, oauthFlow("password", f))
-	}
-	if f := flows.GetDeviceAuthorization(); f != nil {
-		out = append(out, deviceFlow(f))
+	for _, f := range presentFlows(flows) {
+		if f.kind == "device" {
+			out = append(out, deviceFlow(f.src))
+			continue
+		}
+		out = append(out, oauthFlow(f.kind, f.src))
 	}
 	return out
 }

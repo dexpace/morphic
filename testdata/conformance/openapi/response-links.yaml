@@ -5,6 +5,16 @@ paths:
     post:
       operationId: createOrder
       responses:
+        # The error case first, so the fixture is declared in the order that used
+        # to be wrong: links were kept on a success response and dropped on an
+        # error one, and a fixture whose 4xx trails a 2xx that already works
+        # cannot show the difference.
+        "409":
+          description: conflict
+          links:
+            GetConflicting:
+              operationId: getOrder
+              parameters: {orderId: '$response.body#/existingId'}
         "201":
           description: created
           links:

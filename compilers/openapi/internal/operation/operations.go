@@ -59,6 +59,13 @@ func LowerService(c lowering.Ctx, ts *compile.Types, anchors *schema.AnchorIndex
 	}
 	svcAuth, diags := auth.LowerSecurityRequirements(c, c.Doc.GetSecurity(), "")
 	svc.Auth = svcAuth
+	// The Paths Object admits x-* of its own, distinct from any path item's, and
+	// lowers to no node — its entries become operations. The service is the
+	// nearest node holding an Unmodeled map, so they are kept there under the
+	// keyword they were written at.
+	pathsExt, pathsDiags := schema.ExtensionsIn(c, c.Doc.GetPaths().GetExtensions(), ids.Ptr("paths"), "paths")
+	svc.Unmodeled = annotation.MergeUnmodeled(svc.Unmodeled, pathsExt)
+	diags = append(diags, pathsDiags...)
 	groups := newServiceGroups()
 	diags = append(diags, lowerPaths(c, ts, anchors, operationIDs, groups)...)
 	diags = append(diags, lowerWebhooks(c, ts, anchors, operationIDs, groups)...)
@@ -135,7 +142,7 @@ func lowerPathItem(c lowering.Ctx, ts *compile.Types, anchors *schema.AnchorInde
 		}
 		op, extra, opDiags := lowerOperation(c, ts, anchors, operationIDs, src, opCtx)
 		diags = append(diags, opDiags...)
-		diags = append(diags, applyPathServers(c, &op, pi, declPtr)...)
+		diags = append(diags, applyPathItem(c, &op, pi, declPtr)...)
 		grp := groups.group(key, func() ir.OperationGroup { return ir.OperationGroup{Name: name, Docs: docs} })
 		grp.Operations = append(grp.Operations, op)
 		grp.Operations = append(grp.Operations, extra...)
@@ -173,7 +180,7 @@ func lowerWebhooks(c lowering.Ctx, ts *compile.Types, anchors *schema.AnchorInde
 			}
 			op, extra, opDiags := lowerOperation(c, ts, anchors, operationIDs, src, opCtx)
 			diags = append(diags, opDiags...)
-			diags = append(diags, applyPathServers(c, &op, pi, declPtr)...)
+			diags = append(diags, applyPathItem(c, &op, pi, declPtr)...)
 			grp := groups.group("webhook", func() ir.OperationGroup {
 				// A hint, not a source name: no document declares this group. The
 				// compiler synthesizes it to hold webhook operations, exactly as it
@@ -282,19 +289,37 @@ func lowerOperation(c lowering.Ctx, ts *compile.Types, anchors *schema.AnchorInd
 	diags = append(diags, lowerRequestBody(c, ts, anchors, &op, &hb, src, decl)...)
 	var extra []ir.Operation
 	if opCtx.withCallbacks {
+		var cbExt ir.Unmodeled
 		var cbDiags []ir.Diagnostic
-		hb.Callbacks, extra, cbDiags = lowerCallbacks(c, ts, anchors, operationIDs, src, opCtx.ptrs, opCtx.inferred)
+		hb.Callbacks, extra, cbExt, cbDiags = lowerCallbacks(c, ts, anchors, operationIDs, src, opCtx.ptrs, opCtx.inferred)
+		hb.Unmodeled = annotation.MergeUnmodeled(hb.Unmodeled, cbExt)
 		diags = append(diags, cbDiags...)
 	}
 	op.Bindings = ir.OpBindings{HTTP: []ir.HTTPBinding{hb}}
-	ext, extDiags := schema.ExtensionsOf(c, src.GetExtensions(), decl)
-	diags = append(diags, extDiags...)
-	if len(ext) > 0 {
-		op.Unmodeled = ext
-	}
-	// After the extensions assignment, which would otherwise overwrite the map.
+	diags = append(diags, applyOperationExtensions(c, &op, src, decl)...)
 	diags = append(diags, applyOperationServers(c, &op, src, decl)...)
 	return op, extra, append(diags, checkOperationIDUnique(c, operationIDs, op, mount)...)
+}
+
+// applyOperationExtensions keeps the operation's own x-* and those of the two
+// objects beneath it that lower to no node of their own: its externalDocs,
+// since ir.Link holds no Unmodeled map, and its Responses Object, whose
+// extensions are the map's own rather than any one response's.
+//
+// It merges rather than assigns. The operation's map already carries whatever
+// its parameters or callbacks wrote by the time this runs, and an assignment
+// here would drop them — which is why the servers preservation used to have to
+// run after it.
+func applyOperationExtensions(c lowering.Ctx, op *ir.Operation, src *soa.Operation, decl string) []ir.Diagnostic {
+	ext, diags := annotation.ExtensionsAt(c.SrcIndex,
+		annotation.ExtensionSite{Owner: decl, Ext: src.GetExtensions()},
+		annotation.ExtensionSite{Scope: "externalDocs", Owner: decl + ids.Ptr("externalDocs"),
+			Ext: src.GetExternalDocs().GetExtensions()},
+		annotation.ExtensionSite{Scope: "responses", Owner: decl + ids.Ptr("responses"),
+			Ext: src.GetResponses().GetExtensions()},
+	)
+	op.Unmodeled = annotation.MergeUnmodeled(op.Unmodeled, ext)
+	return diags
 }
 
 // applyOperationServers preserves an operation's own `servers` verbatim under
@@ -374,6 +399,23 @@ func fillOperationDocs(d *ir.Docs, src *soa.Operation) {
 	if ed := src.GetExternalDocs(); ed != nil {
 		d.ExternalDocs = append(d.ExternalDocs, ir.Link{URL: ed.GetURL(), Description: ed.GetDescription()})
 	}
+}
+
+// applyPathItem keeps what a path item declares that its operations have no
+// home for: its servers and its own x-* extensions. Both belong to the path
+// item rather than to any one operation on it, so both are written onto every
+// operation the item declares.
+//
+// The two are applied together, through this one entry point, because every
+// route that lowers a path item — a path, a webhook, a callback expression —
+// must reach both, and a second call beside the first is a second chance to
+// forget one on a route added later. That is exactly how the servers half came
+// to be missing on two of its three routes (GitHub #39).
+func applyPathItem(c lowering.Ctx, op *ir.Operation, pi *soa.PathItem, declPtr string) []ir.Diagnostic {
+	diags := applyPathServers(c, op, pi, declPtr)
+	ext, extDiags := schema.ExtensionsIn(c, pi.GetExtensions(), declPtr, "pathItem")
+	op.Unmodeled = annotation.MergeUnmodeled(op.Unmodeled, ext)
+	return append(diags, extDiags...)
 }
 
 // applyPathServers preserves path-item-level servers verbatim under Unmodeled
@@ -463,9 +505,27 @@ func lowerResponse(c lowering.Ctx, ts *compile.Types, anchors *schema.AnchorInde
 		Headers:    headers,
 	}
 	resp.Docs.Description = r.GetDescription()
-	_, linkDiags := schema.PreserveNode(c, &resp.Unmodeled, "openapi:links",
+	return resp, append(diags, preserveResponseExtras(c, &resp.Unmodeled, r, rptr)...)
+}
+
+// preserveResponseExtras keeps what a Response Object declares that has no home
+// on the node it lowered to: its links map, and its own x-* extensions.
+//
+// One helper for both branches on purpose. ir.Response and ir.ErrorCase are two
+// lowerings of the same source object, and each construct kept on only one of
+// them makes a declaration survive or vanish on nothing but its status code:
+// links were kept on a 2xx and dropped on a 4xx, and extensions were read at
+// neither (GitHub #275). Adding a construct here reaches both by construction.
+//
+// The links entry carries ReasonNoIRHome and no diagnostic, as it always has:
+// nothing is degraded, the map is in the document, and the gap is one the IR can
+// close by growing a links field.
+func preserveResponseExtras(c lowering.Ctx, p *ir.Unmodeled, r *soa.Response, rptr string) []ir.Diagnostic {
+	_, diags := schema.PreserveNode(c, p, "openapi:links",
 		annotation.RawChildNode(r.GetRootNode(), "links"), ir.ReasonNoIRHome, rptr+ids.Ptr("links"))
-	return resp, append(diags, linkDiags...)
+	ext, extDiags := schema.ExtensionsOf(c, r.GetExtensions(), rptr)
+	*p = annotation.MergeUnmodeled(*p, ext)
+	return append(diags, extDiags...)
 }
 
 // responseName builds a success response's neutral naming. OpenAPI names no
@@ -497,7 +557,8 @@ func lowerErrorCase(c lowering.Ctx, ts *compile.Types, anchors *schema.AnchorInd
 	}
 	ec.Docs.Description = r.GetDescription()
 	diags := fillErrorType(c, ts, anchors, &ec, r, rptr)
-	return ec, append(diags, preserveErrorHeaders(c, &ec, r, rptr)...)
+	diags = append(diags, preserveErrorHeaders(c, &ec, r, rptr)...)
+	return ec, append(diags, preserveResponseExtras(c, &ec.Unmodeled, r, rptr)...)
 }
 
 // preserveErrorHeaders keeps an error response's headers from being dropped:
@@ -578,19 +639,27 @@ func errorContentMessage(n int) string {
 // parent.mount roots callback operation identity, so two parents sharing one
 // $ref'd callback keep distinct callback operations; parent.decl is the base a
 // $ref'd callback or path item resolves against (issue #107).
-func lowerCallbacks(c lowering.Ctx, ts *compile.Types, anchors *schema.AnchorIndex, operationIDs map[string]string, src *soa.Operation, parent opPointers, inferred string) ([]ir.Callback, []ir.Operation, []ir.Diagnostic) {
+func lowerCallbacks(c lowering.Ctx, ts *compile.Types, anchors *schema.AnchorIndex, operationIDs map[string]string, src *soa.Operation, parent opPointers, inferred string) ([]ir.Callback, []ir.Operation, ir.Unmodeled, []ir.Diagnostic) {
 	cbMap := src.GetCallbacks()
 	if cbMap == nil || cbMap.Len() == 0 {
-		return nil, nil, nil
+		return nil, nil, nil, nil
 	}
 	var callbacks []ir.Callback
 	var ops []ir.Operation
+	var ext ir.Unmodeled
 	var diags []ir.Diagnostic
 	for cbName, rcb := range cbMap.All() {
 		cb, cbDecl := resolve.ObjectAt[soa.Callback](c.RefScope(), rcb, parent.decl+ids.Ptr("callbacks", cbName))
 		if cb == nil {
 			continue
 		}
+		// A Callback Object's own x-* describe the callback rather than any
+		// expression's path item, and ir.Callback holds no Unmodeled map. The HTTP
+		// binding does, and is where the callbacks themselves live, so they are kept
+		// there under the name the callback is mapped by.
+		cbExt, cbExtDiags := schema.ExtensionsIn(c, cb.GetExtensions(), cbDecl, "callbacks/"+cbName)
+		ext = annotation.MergeUnmodeled(ext, cbExt)
+		diags = append(diags, cbExtDiags...)
 		for expr, rp := range cb.All() {
 			exprStr := string(expr)
 			pi, piDecl := resolve.ObjectAt[soa.PathItem](c.RefScope(), rp, cbDecl+ids.Ptr(exprStr))
@@ -604,7 +673,7 @@ func lowerCallbacks(c lowering.Ctx, ts *compile.Types, anchors *schema.AnchorInd
 			ops = append(ops, cbOps...)
 		}
 	}
-	return callbacks, ops, diags
+	return callbacks, ops, ext, diags
 }
 
 // lowerCallbackOps lowers a callback expression's path-item operations. Callback
@@ -632,7 +701,7 @@ func lowerCallbackOps(c lowering.Ctx, ts *compile.Types, anchors *schema.AnchorI
 		}
 		op, _, opDiags := lowerOperation(c, ts, anchors, operationIDs, src, opCtx)
 		diags = append(diags, opDiags...)
-		diags = append(diags, applyPathServers(c, &op, pi, cb.decl)...)
+		diags = append(diags, applyPathItem(c, &op, pi, cb.decl)...)
 		opIDs = append(opIDs, op.ID)
 		ops = append(ops, op)
 	}

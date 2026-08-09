@@ -303,6 +303,58 @@ func TestExtensionsFrom_UnserializableIsWarnedNotKept(t *testing.T) {
 	assert.Contains(t, diags[0].Message, `"x-bad"`)
 }
 
+// TestExtensionsUnder_KeysBeneathTheScope pins the scoped spelling: an object
+// with no Unmodeled map of its own keys its entries under the path that says
+// which object wrote them, while the entry's provenance still points at the
+// extension itself.
+func TestExtensionsUnder_KeysBeneathTheScope(t *testing.T) {
+	t.Parallel()
+	s := schemaFromYAML(t, "type: string\nx-a: 1\n")
+
+	got, diags := ExtensionsUnder(s.GetExtensions(), 2, "/info/contact", "info/contact")
+
+	assert.Empty(t, diags)
+	require.Len(t, got, 1)
+	require.Contains(t, got, "openapi:info/contact/x-a")
+	assert.Equal(t, ir.Provenance{Source: 2, Pointer: "/info/contact/x-a"},
+		got["openapi:info/contact/x-a"].Provenance)
+}
+
+// TestExtensionsAt_FoldsEverySiteWithoutCollision is the reason the scope
+// exists: two objects writing the same x-* key onto one carrier must both
+// survive, which one unscoped key cannot do.
+func TestExtensionsAt_FoldsEverySiteWithoutCollision(t *testing.T) {
+	t.Parallel()
+	info := schemaFromYAML(t, "type: string\nx-a: 1\n")
+	license := schemaFromYAML(t, "type: string\nx-a: 2\n")
+
+	got, diags := ExtensionsAt(0,
+		ExtensionSite{Scope: "info", Owner: "/info", Ext: info.GetExtensions()},
+		ExtensionSite{Scope: "info/license", Owner: "/info/license", Ext: license.GetExtensions()},
+		ExtensionSite{Scope: "components", Owner: "/components", Ext: nil},
+	)
+
+	assert.Empty(t, diags)
+	require.Len(t, got, 2, "one key spelling, two objects, two entries")
+	assert.Equal(t, ir.RawValue("1"), got["openapi:info/x-a"].Value)
+	assert.Equal(t, ir.RawValue("2"), got["openapi:info/license/x-a"].Value)
+}
+
+// TestExtensionsAt_ReportsEverySiteThatFailed holds the diagnostics to the same
+// completeness as the entries: a site whose extension cannot be serialized keeps
+// nothing, and the fold must still carry its warning out (GitHub #144's rule,
+// applied to the multi-site form).
+func TestExtensionsAt_ReportsEverySiteThatFailed(t *testing.T) {
+	t.Parallel()
+	bad := schemaFromYAML(t, "type: string\nx-bad: .nan\n")
+
+	got, diags := ExtensionsAt(0, ExtensionSite{Scope: "info", Owner: "/info", Ext: bad.GetExtensions()})
+
+	assert.Nil(t, got, "nothing was kept, so there is no map to emit")
+	require.Len(t, diags, 1)
+	assert.Equal(t, ir.SeverityWarning, diags[0].Severity)
+}
+
 // TestMergeUnmodeled_AllocatesOnlyOnFirstWrite pins the overlay: merging nothing
 // leaves the destination exactly as it was — including nil, which must not
 // become an empty map.

@@ -386,7 +386,7 @@ paths:
         "200":
           description: ok
           content:
-            application/jsonl:
+            multipart/mixed:
               itemSchema: {type: object, properties: {a: {type: string}}}
               itemEncoding: {contentType: application/json}
               x-note: streamy
@@ -472,6 +472,105 @@ func TestContent_SequentialAndEmptyBody(t *testing.T) {
 	// Empty request-body content yields no Request payload.
 	empty := findOp(t, doc, "emptyBody")
 	assert.Nil(t, empty.Request)
+}
+
+// encodingSpec declares one form part per position an Encoding Object reaches:
+// a multipart part, and a 3.2 sequential itemEncoding. Each writes the two
+// things ir.PartEncoding has no field for, so both positions are exercised by
+// the one fixture.
+const encodingSpec = `  /form:
+    post:
+      operationId: postForm
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema: {type: object, properties: {q: {type: string}}}
+            encoding:
+              q: {style: form, allowReserved: true, x-vendor: vvv}
+      responses: {"200": {description: ok}}
+`
+
+// TestEncoding_AllowReservedAndExtensionsKeptOnTheContent pins both halves of
+// GitHub #291. Neither allowReserved nor an encoding's x-* reached an IR field,
+// an Unmodeled entry or a diagnostic, so two documents differing only in them
+// compiled to the same IR. PartEncoding carries no Unmodeled map, so both land
+// on the owning Content keyed by the part they govern.
+func TestEncoding_AllowReservedAndExtensionsKeptOnTheContent(t *testing.T) {
+	t.Parallel()
+	_, svc, diags := lowerServiceSpec(t, pathsSpecVer("3.1.0", encodingSpec))
+	requireNoErrorDiags(t, diags)
+	op := firstOp(t, svc)
+	require.NotNil(t, op.Request)
+	require.Len(t, op.Request.Contents, 1)
+	kept := op.Request.Contents[0].Unmodeled
+
+	at := "/paths/~1form/post/requestBody/content/application~1x-www-form-urlencoded/encoding/q"
+	entry, ok := kept["openapi:encoding/q/allowReserved"]
+	require.True(t, ok, "allowReserved is kept; got %v", kept)
+	assert.Equal(t, ir.ReasonNoIRHome, entry.Reason)
+	assert.JSONEq(t, "true", string(entry.Value))
+	assert.Equal(t, at+"/allowReserved", entry.Provenance.Pointer)
+	assertInfoDiagAt(t, diags, at+"/allowReserved")
+
+	ext, ok := kept["openapi:encoding/q/x-vendor"]
+	require.True(t, ok, "the encoding's own x-* is kept; got %v", kept)
+	assert.Equal(t, ir.ReasonVendorExtension, ext.Reason)
+	assert.Equal(t, at+"/x-vendor", ext.Provenance.Pointer)
+}
+
+// TestEncoding_AbsentAllowReservedRecordsNothing is the control: preservation
+// keys off what the encoding declares, so an entry that omits allowReserved
+// records neither an entry nor a diagnostic — rather than recording the OpenAPI
+// default the accessor would hand back and calling it a source fact.
+func TestEncoding_AbsentAllowReservedRecordsNothing(t *testing.T) {
+	t.Parallel()
+	_, svc, diags := lowerServiceSpec(t, pathsSpecVer("3.1.0", `  /form:
+    post:
+      operationId: postForm
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema: {type: object, properties: {q: {type: string}}}
+            encoding:
+              q: {style: form}
+      responses: {"200": {description: ok}}
+`))
+	requireNoErrorDiags(t, diags)
+	op := firstOp(t, svc)
+	require.NotNil(t, op.Request)
+	require.Len(t, op.Request.Contents, 1)
+	assert.Empty(t, op.Request.Contents[0].Unmodeled, "nothing was declared, so nothing is kept")
+	assert.Empty(t, diags)
+}
+
+// TestEncoding_ItemEncodingKeepsItsOwnUnderItsOwnKey is the other position the
+// same reader serves. A content can hold both a per-part encoding map and a
+// sequential itemEncoding, and both reach one Unmodeled map, so the key has to
+// tell them apart.
+func TestEncoding_ItemEncodingKeepsItsOwnUnderItsOwnKey(t *testing.T) {
+	t.Parallel()
+	_, svc, diags := lowerServiceSpec(t, pathsSpecVer("3.2.0", `  /stream:
+    get:
+      operationId: streamEvents
+      responses:
+        "200":
+          description: ok
+          content:
+            multipart/mixed:
+              itemSchema: {type: object, properties: {n: {type: string}}}
+              itemEncoding: {contentType: application/json, allowReserved: true, x-vendor: vvv}
+`))
+	requireNoErrorDiags(t, diags)
+	op := firstOp(t, svc)
+	require.NotEmpty(t, op.Responses)
+	require.NotNil(t, op.Responses[0].Payload)
+	require.Len(t, op.Responses[0].Payload.Contents, 1)
+	kept := op.Responses[0].Payload.Contents[0].Unmodeled
+
+	assert.Contains(t, kept, "openapi:itemEncoding/allowReserved")
+	assert.Contains(t, kept, "openapi:itemEncoding/x-vendor")
 }
 
 // multipartEncoding returns the part-encoding map of an operation's request.
