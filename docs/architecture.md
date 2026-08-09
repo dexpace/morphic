@@ -16,8 +16,9 @@ between stages. The IR itself is specified in [`ir-design.md`](./ir-design.md).
  Protobuf                          ▼
  Erlang/OTP
                         ┌── IR passes (IR → IR) ──┐
-                        │  validate · link · dedup │
-                        │  filter · version-slice  │
+                        │  validate  (implemented) │
+                        │  link · dedup · filter   │
+                        │  version-slice · overlay │
                         └──────────┬───────────────┘
                                    ▼
                  ┌────────────── emitters ───────────────┐
@@ -57,12 +58,12 @@ between stages. The IR itself is specified in [`ir-design.md`](./ir-design.md).
 One compiler per source format. Each owns its format completely: file loading, reference
 resolution, format-version normalization, and lowering into IR nodes.
 
-Contract (conceptually — signatures are illustrative, not implementation):
+Contract (parameter and result types abbreviated; `compilers/compilers.go` declares it):
 
 ```go
 type Compiler interface {
     Formats() []SourceFormat                    // e.g. openapi@3.0, openapi@3.1
-    Parse(ctx, sources, Options) (*ir.Document, []ir.Diagnostic, error)
+    Compile(ctx, sources, Options) (*ir.Document, []ir.Diagnostic, error)
 }
 ```
 
@@ -104,34 +105,35 @@ provenance model, and IR are built for all eight from day one.
 ### 2.2 IR passes (IR → IR)
 
 Small, composable, order-explicit transformations that both the engine and users (via config)
-can enable:
+can enable. **`validate` is the only one implemented** — `pass/` exports nothing else — and the
+rest are design, kept here because the IR has to hold what they will need:
 
-- **validate** — referential integrity (every typed-ID reference resolves to something the document
-  declares: a `TypeRef` target against the type registry, an `OpID` against the operations the
-  service tree declares, and so on for every ID class), discriminator mappings point at actual
-  variants, wire-name uniqueness within a model, binding completeness (every operation parameter
-  is bound exactly once per binding). Structural errors here are fatal; style issues are warnings.
-- **link** — resolve cross-document references when multiple specs are parsed into one document
-  (multi-service, spec-stitching).
-- **dedup** — structurally identical anonymous types are merged (by content hash), with ID
-  aliases retained so provenance survives.
-- **filter** — include/exclude operations and types by pattern (Kiota-style path filtering),
-  followed by reachability trimming of orphaned types. Filtering serves *surface reduction*
-  (a smaller SDK). Regenerating only one service of an existing SDK is a different problem and
-  never uses a filtered document: global decisions (dedup, shared files, naming) must stay
-  byte-identical across scoped runs, so the emitter consumes the full document plus a scope
+- **validate** *(implemented)* — referential integrity (every typed-ID reference resolves to
+  something the document declares: a `TypeRef` target against the type registry, an `OpID` against
+  the operations the service tree declares, and so on for every ID class), discriminator mappings
+  point at actual variants, wire-name uniqueness within a model, binding completeness (every
+  operation parameter is bound exactly once per binding). Structural errors here are fatal; style
+  issues are warnings.
+- **link** *(planned)* — resolve cross-document references when multiple specs are parsed into
+  one document (multi-service, spec-stitching).
+- **dedup** *(planned)* — structurally identical anonymous types are merged (by content hash),
+  with ID aliases retained so provenance survives.
+- **filter** *(planned)* — include/exclude operations and types by pattern (Kiota-style path
+  filtering), followed by reachability trimming of orphaned types. Filtering serves *surface
+  reduction* (a smaller SDK). Regenerating only one service of an existing SDK is a different
+  problem and never uses a filtered document: global decisions (dedup, shared files, naming) must
+  stay byte-identical across scoped runs, so the emitter consumes the full document plus a scope
   option and gates emission itself (a lesson oagen recorded after trying the filtered route).
-- **version-slice** — project a document carrying availability metadata into a concrete
-  per-version snapshot (the TypeSpec versioning model: timeline stored, snapshot consumed).
-- **overlay** — user-supplied IR patches (rename hints, pagination declarations for specs that
-  can't express them, doc overrides) applied as data, not code. IR overlays are language-neutral
-  and each entry carries provenance (user-authored vs tool-inferred, mirroring the `Inferred`
-  marker) so automated overlay-generation loops stay auditable. Two related hooks live
-  deliberately elsewhere: *source-document* patching (e.g. the OpenAPI Overlay spec) is a
-  compiler option applied before lowering — some fixes must land before naming/hoisting
-  heuristics consume the broken shape — and *per-target-language* naming/compat overlays are a
-  emitter input keyed by IR ID, so one IR document drives different compat baselines per
-  language.
+- **version-slice** *(planned)* — project a document carrying availability metadata into a
+  concrete per-version snapshot (the TypeSpec versioning model: timeline stored, snapshot consumed).
+- **overlay** *(planned)* — user-supplied IR patches (rename hints, pagination declarations for
+  specs that can't express them, doc overrides) applied as data, not code. IR overlays are
+  language-neutral and each entry carries provenance (user-authored vs tool-inferred, mirroring the
+  `Inferred` marker) so automated overlay-generation loops stay auditable. Two related hooks live
+  deliberately elsewhere: *source-document* patching (e.g. the OpenAPI Overlay spec) is a compiler
+  option applied before lowering — some fixes must land before naming/hoisting heuristics consume
+  the broken shape — and *per-target-language* naming/compat overlays are a emitter input keyed by
+  IR ID, so one IR document drives different compat baselines per language.
 
   The first of those is `openapi.Options.Overlay`: pre-read bytes, applied to the parsed node
   tree before the model is built, so untouched nodes keep the line and column the parser read
@@ -214,13 +216,14 @@ morphic/
 │   ├── openapi/            #           OpenAPI 3.x → IR (milestone 1). The public face: the
 │   │   │                   #           Compiler, its Options, document metadata, and the run that
 │   │   │                   #           calls the four lowerings below in order.
-│   │   └── internal/       #             Its own packages, each below that face:
+│   │   └── internal/       #             Its own packages, in dependency order:
 │   │       ├── diag/       #             diagnostic codes and the constructor
 │   │       ├── ids/        #             pointer arithmetic; pointer → TypeID
 │   │       ├── value/      #             scalar and BigVal lowering
 │   │       ├── nodeview/   #             the raw source as the resolver reads it
 │   │       ├── scan/       #             pre-lowering refusals (ref cycles, alias fan-out)
 │   │       ├── annotation/ #             what a schema says about itself, not its shape
+│   │       ├── overlay/    #             source-document patching, before anything is lowered
 │   │       ├── load/       #             parse, validate, resolve
 │   │       ├── resolve/    #             what a $ref names; reference-or-inline entries
 │   │       ├── merge/      #             allOf property reconciliation
@@ -229,7 +232,7 @@ morphic/
 │   │       ├── auth/       #             security schemes and requirements
 │   │       └── operation/  #             path items, webhooks, callbacks, params, content
 │   ├── typespec/ smithy/ graphql/ asyncapi/ protobuf/ otp/   (future)
-├── pass/                   # Layer 1 — IR → IR passes (validate, dedup, filter, slice, overlay).
+├── pass/                   # Layer 1 — IR → IR passes. Only validate exists (§2.2).
 ├── emitters/               # Layer 2 — emitter contract, plan layer, registry (future).
 ├── engine/                 # Layer 3 — orchestration: sniff format, run compiler, passes, emitters.
 ├── internal/archtest/      #           Layering, grammar, recursion and method-cap rules (tooling).
@@ -283,6 +286,9 @@ stderr; the CLI renders diagnostics.
 
 ## 5. Testing strategy
 
+What each mechanism is for is below; the commands that run them are in
+[`README.md`](../README.md#testing-and-verification).
+
 - **Golden IR snapshots**: each compiler has a corpus of specs; `spec → IR → JSON` is
   snapshot-compared. IR changes show up as reviewable diffs.
 - **Capability conformance corpus**: one minimal spec per row of `ir-spec-matrix.md` per format
@@ -290,9 +296,11 @@ stderr; the CLI renders diagnostics.
   keeps "lossless by default" honest as compilers are added.
 - **Round-trip property**: `parse → serialize → deserialize → deep-equal` for every corpus
   document.
-- **Oracle sweep** (`internal/harness`): every corpus spec is driven through the oracles in order
-  — no panic, no error diagnostic, `irverify`'s structural invariants, JSON round-trip,
-  determinism across two compiles, and **order-independence**. The last one compiles the same
+- **Oracle sweep** (`internal/harness`, and `cmd/morphic-harness` over arbitrary specs): every
+  corpus spec is driven through the six oracles in order — no panic, no error diagnostic,
+  `irverify`'s structural invariants, JSON round-trip, determinism across two compiles, and
+  **order-independence**. Each stops at the first failure, so a spec that trips the
+  error-diagnostic oracle never reaches the ones after it. The last one compiles the same
   source twice with every mapping's entry order reversed and diffs the two documents. It is the
   general form of the two-order check, and it is what catches an interning collision: two
   declarations minting one node at a single pointer produce the same document read either way
@@ -308,15 +316,17 @@ stderr; the CLI renders diagnostics.
   diffed. Request-side mismatches block; response-side mismatches inform. The decisive test of
   a generated SDK is the bytes it puts on the wire, not whether it compiles.
 
-## 6. Milestones
+## 6. What the milestone order proves
 
-1. **IR + OpenAPI 3.x compiler** — `ir` package, validate pass, golden corpus, JSON round-trip.
-2. **Swagger 2.0 lift** — normalization into the OpenAPI compiler; proves the
-   format-version-normalization seam.
-3. **First emitter** — one language end-to-end; proves the plan/refine/emit boundary and that the
-   IR retains everything a refiner needs.
-4. **Second family compiler (TypeSpec or Smithy)** — proves the spec-agnostic claim: richer-than-
-   OpenAPI concepts (interfaces, custom scalars, lifecycle visibility, declared pagination) flow
-   through untouched IR code.
-5. **Event-shaped compiler (AsyncAPI)** — proves channels/messages/bindings; then GraphQL,
-   Protobuf, and Erlang/OTP (the actor-protocol compiler: behaviours → operations + channels).
+The milestone table — scope and state — lives in [`README.md`](../README.md#status), and only
+there. What belongs here is why they run in that order: each one is chosen to falsify a claim the
+IR makes, and running them in any other order would let a claim go untested for longer.
+
+The Swagger 2.0 lift tests the format-version-normalization seam, which has to hold before a
+second dialect of anything lands. The first emitter tests the plan/refine/emit boundary and, with
+it, whether the IR really retains everything a refiner needs — the acceptance test §2.3 describes.
+A second *family* compiler (TypeSpec or Smithy) tests the spec-agnostic claim where it is weakest:
+richer-than-OpenAPI concepts — interfaces, custom scalars, lifecycle visibility, declared
+pagination — must flow through IR code written before that format existed. An event-shaped
+compiler (AsyncAPI) tests channels, messages and bindings, and the Erlang/OTP compiler tests the
+same surface from the other direction, lowering behaviours into operations plus channels.

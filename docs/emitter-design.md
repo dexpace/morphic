@@ -29,12 +29,13 @@ compiler (spec → IR)  →  passes (IR → IR)  →  emitter (IR → artifacts)
                     └────────────────────────────────────────────────────────────┘
 ```
 
-The engine (Layer 3) runs the compiler, then the passes (`validate · link · dedup · filter ·
-version-slice · overlay`), then — **once per document** — the shared plan, and finally each
-requested emitter. A emitter never sees a source spec, a compiler, another emitter, or the engine
-(INV1). Its only structural input is an `ir.Document`; everything else it needs is either derived
-from the IR in the plan/refine stages or supplied as a separate, non-IR input (runtime policy,
-naming policy, shaping hints).
+The engine (Layer 3) runs the compiler, then the passes (`validate` today; `link`, `dedup`,
+`filter`, `version-slice` and `overlay` are designed in `architecture.md` §2.2 and not built),
+then — **once per document** — the shared plan, and finally each requested emitter. A emitter
+never sees a source spec, a compiler, another emitter, or the engine (INV1). Its only structural
+input is an `ir.Document`; everything else it needs is either derived from the IR in the
+plan/refine stages or supplied as a separate, non-IR input (runtime policy, naming policy,
+shaping hints).
 
 ### 1.2 The architecture, and why this synthesis
 
@@ -179,18 +180,27 @@ the contract pure and total.
 
 ### 2.1 The registry
 
-Keyed by `TargetKey`, populated by each target's `init()` — mirroring the compiler registry
-(architecture.md §2.1):
+Keyed by `TargetKey`, and — mirroring `compilers.Registry` — a **plain instance the engine
+composes explicitly**. No package-level default, no `init()`-time self-registration:
 
 ```go
-var registry = map[TargetKey]func() Emitter{}
+type Registry struct { byTarget map[TargetKey]func() Emitter }
 
-func Register(t TargetKey, ctor func() Emitter) { registry[t] = ctor }
-func New(t TargetKey) (Emitter, bool)           { c, ok := registry[t]; if !ok { return nil, false }; return c(), true }
-func Targets() []TargetKey                        // sorted — determinism (INV7)
+func NewRegistry() *Registry
+func (r *Registry) Register(t TargetKey, ctor func() Emitter) error // fails if t is already claimed
+func (r *Registry) Lookup(t TargetKey) (func() Emitter, bool)
+func (r *Registry) Targets() []TargetKey                            // sorted — determinism (INV7)
 ```
 
-The engine is the only caller of `New`, the only thing that runs `Generate`, and the only thing
+A package-level `var registry = map[...]` populated by `init()` is the obvious shape and the wrong
+one. It is mutable global state, which INV5 forbids outright; it makes the set of available targets
+depend on the import graph rather than on what the caller asked for, so two binaries linking
+different subsets get different behaviour from the same call; and it puts registration outside any
+test's reach, since `init()` has already run by the time a test could substitute anything.
+`compilers/compilers.go` says the same thing in its own words, and its `Register` returns an error
+instead of silently overwriting a claimed key — an `init()` registry has nowhere to return one to.
+
+The engine is the only caller of `Lookup`, the only thing that runs `Generate`, and the only thing
 that touches the filesystem, prunes, and renders diagnostics. Emitters are I/O-free.
 
 ### 2.2 Who computes the plan
@@ -936,7 +946,7 @@ emitters/
 ├── manifest/          # generation manifest (ID-keyed), header provenance, additive-merge driver (§11)
 ├── verify/            # neutral Surface projection, differ, injectable per-language severity (§12)
 ├── golang/            # ◀ FIRST TARGET (TargetKey "go")
-│   ├── emitter.go     #   init() Register("go", …); wires plan→refine→emit
+│   ├── emitter.go     #   New() Emitter for the engine to register; wires plan→refine→emit
 │   ├── goast/         #   typed target AST (sealed sum) + printer
 │   ├── refine/        #   IR+Plan → goast — the ordered lowering pipeline (§4)
 │   ├── emit/          #   goast → []byte via printer + go/format; templates/ (boilerplate only)
