@@ -355,7 +355,7 @@
       "kind": "model",
       "id": "t/anon/paths/~1submit/post/requestBody/content/application~1x-www-form-urlencoded/schema",
       "name": {
-        "hint": "submitForm_request"
+        "hint": "submit_form_request"
       },
       "anonymous": true,
       "docs": {},
@@ -419,7 +419,7 @@
       "kind": "model",
       "id": "t/anon/paths/~1upload-composed/post/requestBody/content/multipart~1form-data/schema",
       "name": {
-        "hint": "uploadComposed_request"
+        "hint": "upload_composed_request"
       },
       "anonymous": true,
       "docs": {},

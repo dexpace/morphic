@@ -325,9 +325,11 @@ func assertNamedTypes(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
 // things in plain identifiers, so the compiler and the goldens shared one blind
 // spot and the segmentation could not be wrong in a way any of them saw.
 //
-// Naming.Hint is deliberately not covered: it is built from context strings
-// rather than through the grammar, and the golden shows one ("rollout.state")
-// still carrying the source punctuation. That is GitHub #54, left open.
+// Naming.Hint is covered by the same spec and for the same reason: a hint is
+// built from a context string the source spelled, so this is the fixture whose
+// context strings carry the punctuation. The enum property's hoisted node used
+// to be hinted "rollout.state" verbatim, which is a name no emitter can render
+// (GitHub #54).
 func assertNeutralNaming(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
 	require.Len(t, doc.Services, 1)
 	svc := doc.Services[0]
@@ -371,6 +373,8 @@ func assertNeutralNamingLeaves(t *testing.T, doc *ir.Document, widget *ir.Model,
 	require.True(t, ok, "the enum property hoists an Enum node")
 	require.NotEmpty(t, rollout.Members)
 	assert.Equal(t, "in_progress", rollout.Members[0].Name.Canonical, "enum member")
+	assert.Equal(t, "rollout_state", rollout.Name.Hint,
+		"the hoisted node's hint is words too, not the property key verbatim")
 
 	require.Len(t, op.Responses, 1)
 	require.Len(t, op.Responses[0].Headers, 1)
@@ -469,7 +473,7 @@ var composedHints = []struct {
 	{"t/anon/components/schemas/Tuple/properties//prefixItems/0", "empty_0"},
 	{"t/anon/components/schemas/Mixed/properties//enum/0", "empty_0"},
 	{"t/anon/components/schemas/Mixed/properties//enum/1", "empty_1"},
-	{"t/composed/components/schemas/Host/properties//oneOf/0", "empty_Alt"},
+	{"t/composed/components/schemas/Host/properties//oneOf/0", "empty_alt"},
 }
 
 // assertEmptyDerivedHints is the case minting at the node alone does not reach.
@@ -562,7 +566,7 @@ func assertComponentReuse(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
 	bodyID := ir.TypeID("t/anon/components/requestBodies/OrderBody/content/application~1json/schema")
 	require.NotNil(t, order.Request)
 	assert.Equal(t, bodyID, order.Request.Contents[0].Type.Target)
-	assert.Equal(t, "OrderBody", doc.Types[bodyID].Common().Name.Hint,
+	assert.Equal(t, "order_body", doc.Types[bodyID].Common().Name.Hint,
 		"a shared body is named after its component, not the operation that reached it first")
 
 	require.Len(t, widgets.Responses[0].Headers, 1)
@@ -929,6 +933,41 @@ func assertNullable31Ref(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
 	u, ok := doc.Types[namedID("UnionTarget")].(*ir.Union)
 	require.True(t, ok)
 	assert.Len(t, u.Variants, 2, "the null branch lifts to the ref rather than becoming a variant")
+
+	assertCollapsedBranchHint(t, doc)
+}
+
+// assertCollapsedBranchHint covers the {X, null} collapse's naming of the branch
+// it keeps. The branch pointer is nameable from outside — BranchRef names it —
+// and only the first lowering to reach it interns the node, so the collapse and
+// an outside $ref must derive the same hint or the document depends on which
+// component is declared first. The collapse used to hand the branch the
+// *enclosing* schema's hint, which is neither what its composition would give it
+// nor what the pointer walk derives (GitHub #281).
+//
+// The spec declares Collapsed before BranchRef on purpose: that is the order in
+// which the collapse reaches the pointer first, and so the order that carried
+// the enclosing name. The permutation half is the corpus-wide two-order oracle's
+// (internal/harness), which compares hints with nothing excluded.
+func assertCollapsedBranchHint(t *testing.T, doc *ir.Document) {
+	t.Helper()
+	const branchID = ir.TypeID("t/anon/components/schemas/Collapsed/oneOf/0")
+
+	collapsed, ok := doc.Types[namedID("Collapsed")].(*ir.Scalar)
+	require.True(t, ok, "a {X, null} set resolves to its one branch rather than to a union node")
+	require.NotNil(t, collapsed.Base)
+	assert.True(t, collapsed.Base.Nullable, "the null branch lifts onto the reference")
+	assert.Equal(t, branchID, collapsed.Base.Target)
+
+	branch, ok := doc.Types[branchID]
+	require.True(t, ok, "the branch declares a description, so it owns a node of its own")
+	assert.Equal(t, "variant_0", branch.Common().Name.Hint,
+		"the branch is named by its position in the composition, which is what a $ref to it derives too")
+
+	ref, ok := doc.Types[namedID("BranchRef")].(*ir.Scalar)
+	require.True(t, ok)
+	require.NotNil(t, ref.Base)
+	assert.Equal(t, branchID, ref.Base.Target, "the outside reference reaches that same node")
 }
 
 // assertNullableEnum31 covers 3.1's spelling of a nullable enum: `null` listed

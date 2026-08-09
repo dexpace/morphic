@@ -143,6 +143,15 @@ type Naming struct {
 policy, and reserved-word escaping. Anonymous (hoisted) types have empty `Source` and a `Hint`;
 whether a emitter inlines them or names them is its choice.
 
+**`Hint` is the same word sequence in the same grammar.** It is not a presentation affordance
+sitting outside the neutrality rule: a hoisted type has no other name, so `Hint` is exactly what an
+emitter renders that type's identifier from, which is the job `Canonical` does for a declared one.
+That matters because a hint is nearly always derived from something a source *did* spell — a
+component key, an `operationId`, a header name, a `$ref` target — so a compiler that passes the
+context through puts precisely the casing and punctuation this section rules out into the one
+channel that carries a name and no spelling (GitHub #54). What `Hint` is not held to is the
+recomputation below: it has no `Source` beside it to be derived from, which is why it exists.
+
 The segmentation is part of the contract, not each compiler's dialect: a word is a run of letters
 and digits (with the combining marks that belong to them), a camel-case or letter/digit boundary
 starts a new one, and **every other character separates** — `.`, `/`, `[`, `-`, a space alike. So
@@ -171,8 +180,9 @@ to a run of capitals whether or not lowercasing would change it, and `ǅBc` is `
 titlecase letter belongs to one too. A transition test there would lose the first; the uppercase
 category alone would lose the second.
 
-`irverify` holds every `Naming` to this: it recomputes the canonical from the `Source` beside it, so
-a boundary in the wrong place is a compiler bug rather than a variant reading. What no check can say
+`irverify` holds every `Naming` to this: the shape rules run over `Canonical` and `Hint` alike, and
+it recomputes the canonical from the `Source` beside it, so a boundary in the wrong place is a
+compiler bug rather than a variant reading. What no check can say
 is that the grammar itself is right — a check that recomputes moves with what it recomputes through
 — so the answers are pinned by a conformance table and the properties every answer must satisfy by
 a fuzz target beside it (GitHub #186).

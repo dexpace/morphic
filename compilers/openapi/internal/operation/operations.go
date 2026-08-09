@@ -363,7 +363,7 @@ func operationName(src *soa.Operation, method, uriTemplate string) ir.Naming {
 	if id := src.GetOperationID(); id != "" {
 		return compile.NamingFor(id)
 	}
-	return compile.NamingHint(ir.CanonicalWords(method + " " + uriTemplate))
+	return compile.NamingHint(method + " " + uriTemplate)
 }
 
 // fillOperationDocs maps an operation's summary, description, and externalDocs
@@ -485,7 +485,7 @@ func lowerResponse(c lowering.Ctx, ts *compile.Types, anchors *schema.AnchorInde
 // Naming at all and so has no counterpart here, and would be held by the
 // presence rule at once if it gained one, since irverify does not exempt it.
 func responseName(code string) ir.Naming {
-	return compile.NamingHint(ir.CanonicalWords(code))
+	return compile.NamingHint(code)
 }
 
 // lowerErrorCase lowers one error response into an ErrorCase, classifying its

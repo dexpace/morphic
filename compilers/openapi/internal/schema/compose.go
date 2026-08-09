@@ -443,7 +443,7 @@ func baseBranchDiscriminator(branches []*oas3.JSONSchema[oas3.Referenceable]) *o
 // with one Variant per branch (oneOf exclusive, anyOf not), never collapsing a
 // union into optional fields.
 func lowerOneOfAnyOf(c lowering.Ctx, ts *compile.Types, anchors *AnchorIndex, depth int, s *oas3.Schema, pointer, hint string) (ir.TypeRef, []ir.Diagnostic) {
-	if inner, ip, ih, ok := nullUnionCollapse(s, pointer, hint); ok {
+	if inner, ip, ih, ok := nullUnionCollapse(s, pointer); ok {
 		ref, diags := Ref(c, ts, anchors, depth, inner, ip, ih)
 		ref.Nullable = true
 		return ref, diags

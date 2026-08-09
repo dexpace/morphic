@@ -1357,7 +1357,7 @@ func TestUnion_VariantHints(t *testing.T) {
 	u := typeByName(doc, "U").(*ir.Union)
 	require.Len(t, u.Variants, 2)
 	hints := []string{u.Variants[0].Name.Hint, u.Variants[1].Name.Hint}
-	assert.Contains(t, hints, "Named", "ref-with-siblings hint from target name")
+	assert.Contains(t, hints, "named", "ref-with-siblings hint from target name")
 	assert.Contains(t, hints, "variant_1", "inline branch positional hint")
 }
 
@@ -1565,7 +1565,8 @@ func TestOneOf_CoDeclaredCompositionDistributes(t *testing.T) {
 		assert.Equal(t, componentID("Base"), v.Base.Target)
 		require.Len(t, v.Mixins, 1, "the branch joins as a mixin, the composition already having a base")
 		assert.Equal(t, componentID(branch), v.Mixins[0].Target)
-		assert.Equal(t, branch, u.Variants[i].Name.Hint)
+		assert.Equal(t, ir.CanonicalWords(branch), u.Variants[i].Name.Hint,
+			"the variant is named after its branch, in the neutral words every name channel carries")
 	}
 	assert.Equal(t, 1, countDiagsAt(diags, diag.CompositionLowering, ir.SeverityInfo),
 		"the reshaping is reported once; got %+v", diags)
@@ -1780,6 +1781,50 @@ func TestComposition_BranchAliasIsOrderIndependent(t *testing.T) {
 	}
 }
 
+// nullCollapseSpec writes the ordinary single-combinator `{X, null}` collapse
+// with an outside component naming its surviving branch's pointer. The branch
+// declares a description on purpose: a bare `{type: string}` branch resolves to
+// the shared primitive and owns no node, so nothing would compete for the
+// pointer and no hint would ever have to agree with another. hostFirst permutes
+// which of the two components is declared first, and components lower in source
+// order, so the two spellings are the two orders the pointer can be reached in.
+func nullCollapseSpec(hostFirst bool) string {
+	host := "    S:\n      oneOf:\n        - {type: string, description: the branch}\n" +
+		"        - {type: \"null\"}\n"
+	outside := "    Outsider: {$ref: '#/components/schemas/S/oneOf/0'}\n"
+	if hostFirst {
+		return componentSpec(host + outside)
+	}
+	return componentSpec(outside + host)
+}
+
+// TestNullCollapse_BranchHintIsOrderIndependent is TestComposition_Branch-
+// AliasIsOrderIndependent's rule at the site the collapse takes instead. The
+// collapse lowers the surviving branch at the branch pointer but used to hand it
+// the *enclosing* schema's hint, while an outside $ref naming that same pointer
+// derives variant_<index> through subSchemaHint — so whichever lowering arrived
+// first decided the name and the two declaration orders produced two different
+// documents, with no diagnostic on either side (GitHub #281).
+//
+// The single-order assertion is written against the order that was wrong: with S
+// declared first the collapse reaches the pointer first, which is where the
+// enclosing schema's hint used to land.
+func TestNullCollapse_BranchHintIsOrderIndependent(t *testing.T) {
+	t.Parallel()
+	first, diags := parseFull(t, nullCollapseSpec(true))
+	requireNoErrorDiags(t, diags)
+	last, diags := parseFull(t, nullCollapseSpec(false))
+	requireNoErrorDiags(t, diags)
+
+	branch := ir.TypeID("t/anon/components/schemas/S/oneOf/0")
+	require.Contains(t, first.Types, branch, "the surviving branch owns a node of its own")
+	assert.Equal(t, "variant_0", first.Types[branch].Common().Name.Hint,
+		"the branch takes the hint its composition gives it, not the enclosing schema's")
+	assert.Empty(t, cmp.Diff(first.Types, last.Types),
+		"declaring the collapse before or after the outside $ref must not change the registry")
+	assert.Empty(t, cmp.Diff(first, last, orderInvariantIR()...), "nor the rest of the document")
+}
+
 // TestOneOf_CoDeclaredVariantCarriesDiscriminatorValue pins the tag the variants
 // inherit. The enclosing schema is an allOf subtype of a discriminated base, so
 // every variant is written on the wire with that subtype's tag — and the tag
@@ -1822,7 +1867,7 @@ func TestOneOf_CoDeclaredAdditionalPropsHintNamesTheBody(t *testing.T) {
 	v, ok := doc.Types[u.Variants[0].Type.Target].(*ir.Model)
 	require.True(t, ok)
 	require.NotNil(t, v.AdditionalProps)
-	assert.Equal(t, "Combo_value", doc.Types[v.AdditionalProps.Value.Target].Common().Name.Hint)
+	assert.Equal(t, "combo_value", doc.Types[v.AdditionalProps.Value.Target].Common().Name.Hint)
 }
 
 // TestOneOf_CoDeclaredNonModelBranchIsCarriedAsWritten pins what §4.3 says
