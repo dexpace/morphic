@@ -851,9 +851,29 @@ func FillPropertyDetail(c lowering.Ctx, ts *compile.Types, anchors *AnchorIndex,
 	if ref.GetFormat() == "password" {
 		p.Secret = true
 	}
-	p.Visibility = annotation.EffectiveVisibility(ref, tgt)
+	diags = append(diags, fillPropertyVisibility(c, p, ref, tgt, pointer)...)
 	diags = append(diags, fillPropertyConstraints(c, p, ref, pointer)...)
 	return append(diags, fillPropertyAnnotations(c, ts, anchors, p, ref, tgt, pointer)...)
+}
+
+// fillPropertyVisibility lowers readOnly/writeOnly onto the property and reports
+// the pairing that leaves it visible nowhere.
+//
+// The report is made here rather than inside the reader for the reason
+// merge.reconcileProperty reports its own disjoint intersection from outside
+// mergeVisibility: provenance is built in one place (lowering.Ctx), and this is
+// the caller that knows the position being filled. It is the same finding under
+// the same code as the allOf spelling, so a consumer filtering on
+// diag.DisjointVisibility sees both.
+func fillPropertyVisibility(c lowering.Ctx, p *ir.Property, ref, tgt *oas3.Schema, pointer string) []ir.Diagnostic {
+	visibility, disjoint := annotation.EffectiveVisibility(ref, tgt)
+	p.Visibility = visibility
+	if !disjoint {
+		return nil
+	}
+	return []ir.Diagnostic{c.DiagAt(ir.SeverityWarning, diag.DisjointVisibility, pointer,
+		"readOnly and writeOnly are both in force for field %q; they admit disjoint lifecycles, "+
+			"so the field is visible in none", p.WireName)}
 }
 
 // fillPropertyAnnotations records the annotations the property's schema
