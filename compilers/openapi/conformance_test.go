@@ -153,6 +153,7 @@ func conformanceCases() []conformanceCase {
 		{"discriminator-default-mapping", assertDiscriminatorDefaultMapping},
 		{"unhomed-keywords", assertUnhomedKeywords},
 		{"codeclared-keywords", assertCoDeclaredKeywords},
+		{"codeclared-schema-content", assertCoDeclaredSchemaContent},
 		{"anyof-untagged", assertAnyOfUntagged},
 		{"negation-not", assertNegationNot},
 		{"dependent-required", assertDependentRequired},

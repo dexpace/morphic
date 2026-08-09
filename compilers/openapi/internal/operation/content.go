@@ -392,8 +392,8 @@ func reservedHeaderEntryDiag(c lowering.Ctx, name, hptr string) []ir.Diagnostic 
 // and ir.Property has a field for each, so the header path had no reason to drop
 // them (GitHub #116).
 func lowerHeader(c lowering.Ctx, ts *compile.Types, anchors *schema.AnchorIndex, h *soa.Header, name, hptr, hdecl string) (ir.Property, []ir.Diagnostic) {
-	js, schemaPtr, mediaType, diags := headerSchema(c, h, hdecl)
-	headerType, headerDiags := schema.CarriedRef(c, ts, anchors, schema.TopLevelDepth, js, schemaPtr, ids.DeclarationHint(hdecl, name))
+	elected, diags := electTypeSpelling(c, h.GetSchema(), h.GetContent(), h.GetRootNode(), hdecl)
+	headerType, headerDiags := schema.CarriedRef(c, ts, anchors, schema.TopLevelDepth, elected.js, elected.pointer, ids.DeclarationHint(hdecl, name))
 	diags = append(diags, headerDiags...)
 	p := ir.Property{
 		ID:         ids.Prop(hptr),
@@ -402,15 +402,16 @@ func lowerHeader(c lowering.Ctx, ts *compile.Types, anchors *schema.AnchorIndex,
 		Type:       headerType,
 		Required:   h.GetRequired(),
 		Provenance: c.ProvenanceAt(hptr),
+		Unmodeled:  elected.unmodeled,
 	}
-	if mediaType != "" {
+	if elected.mediaType != "" {
 		// The media type a content-style header serializes its value in, which is
 		// what ir.Encoding.MediaType holds. Nothing else on this path writes
 		// Property.Encoding, so the content spelling loses nothing the schema
 		// spelling keeps.
-		p.Encoding = &ir.Encoding{MediaType: mediaType}
+		p.Encoding = &ir.Encoding{MediaType: elected.mediaType}
 	}
-	diags = append(diags, schema.FillPropertyDetail(c, ts, anchors, &p, js, schemaPtr)...)
+	diags = append(diags, schema.FillPropertyDetail(c, ts, anchors, &p, elected.js, elected.pointer)...)
 	diags = append(diags, applyHeaderAnnotations(c, &p, h, hdecl)...)
 	return p, append(diags, preserveHeaderSerialization(c, &p, h, hdecl)...)
 }
@@ -443,24 +444,91 @@ func preserveHeaderSerialization(c lowering.Ctx, p *ir.Property, h *soa.Header, 
 	return diags
 }
 
-// headerSchema returns the schema a header declares, the pointer that schema sits
-// at, and the media type serializing it — empty for the schema spelling.
+// typeSpelling is how a parameter or header stated its type: the schema node,
+// the pointer that node sits at, the media type serializing it — empty for the
+// `schema` spelling — and whatever the election passed over, for the carrier at
+// this position to merge onto its own Unmodeled.
+type typeSpelling struct {
+	js        *oas3.JSONSchema[oas3.Referenceable]
+	pointer   string
+	mediaType string
+	unmodeled ir.Unmodeled
+}
+
+// electTypeSpelling picks the spelling a parameter or header states its type
+// with, and keeps the other verbatim where the document writes both. root is the
+// declaring object's node and at is the pointer it sits at.
 //
-// OpenAPI lets a header state its type as either `schema` or a `content` map
-// holding exactly one entry, and only the first spelling was read: a
-// content-style header lowered as if it had no schema at all, discarding its
-// type, its constraints and its xml hints together and without a diagnostic
-// (GitHub #139). The parameter path already read both (fillParamType), which is
-// why request headers never showed the defect.
-func headerSchema(c lowering.Ctx, h *soa.Header, hdecl string) (*oas3.JSONSchema[oas3.Referenceable], string, string, []ir.Diagnostic) {
-	if js := h.GetSchema(); js != nil {
-		return js, hdecl + ids.Ptr("schema"), "", nil
+// OpenAPI says a parameter — and a header, which follows the parameter rules —
+// MUST contain either a `schema` property or a `content` property, but not both.
+// Neither position can lower both, since ir.Parameter and ir.Property each hold
+// one type, so a document writing both needs the election §4.8 already applies
+// to competing keywords elsewhere (schema.dispatchOf): one form lowers and every
+// passed-over one is kept verbatim beside it rather than dropped.
+//
+// `content` wins because it is the more expressive of the two. A media-type
+// entry carries a schema *and* the media type serializing it, and both have IR
+// homes at these positions — HTTPParamBinding.ContentType and
+// Property.Encoding.MediaType — so electing it leaves nothing modelled behind,
+// where electing `schema` would push a declared wire fact the IR does model into
+// an opaque Unmodeled payload. The specification is no help in choosing: 3.1
+// names `schema` first in the very sentence forbidding both and 3.2 names
+// `content` first, and a prohibition states no precedence in either order.
+//
+// The two positions used to disagree, and only one of the orders was a decision:
+// fillParamType read `content` first from the start, while the header path read
+// `schema` first because it read nothing else until a content arm was appended
+// below it (GitHub #139). One order now governs both (GitHub #320).
+func electTypeSpelling(c lowering.Ctx, js *oas3.JSONSchema[oas3.Referenceable],
+	content *sequencedmap.Map[string, *soa.MediaType], root *yaml.Node, at string,
+) (typeSpelling, []ir.Diagnostic) {
+	// A content parameter or header declares exactly one media type;
+	// singleContentEntry takes it and reports a document that declares more,
+	// rather than dropping the extras in silence (GitHub #139).
+	mt, media, ok, diags := singleContentEntry(c, content, at)
+	if ok {
+		elected := typeSpelling{
+			js:        media.GetSchema(),
+			pointer:   at + ids.Ptr("content", mt, "schema"),
+			mediaType: mt,
+		}
+		diags = append(diags, passedOverSpelling(c, &elected.unmodeled, root, "schema", "content", at)...)
+		return elected, diags
 	}
-	mt, media, ok, diags := singleContentEntry(c, h.GetContent(), hdecl)
-	if !ok {
-		return nil, hdecl + ids.Ptr("schema"), "", diags
+	elected := typeSpelling{js: js, pointer: at + ids.Ptr("schema")}
+	if js == nil {
+		// Neither spelling states a type — a header carrying only a description,
+		// or a `content` map naming no usable entry — so there is no winner, and
+		// nothing was passed over for one.
+		return elected, diags
 	}
-	return media.GetSchema(), hdecl + ids.Ptr("content", mt, "schema"), mt, diags
+	diags = append(diags, passedOverSpelling(c, &elected.unmodeled, root, "content", "schema", at)...)
+	return elected, diags
+}
+
+// passedOverSpelling keeps verbatim the spelling the election passed over and
+// reports it once, naming both. A document that wrote only the elected one
+// records nothing and says nothing: RawChildNode returns nil for an absent
+// keyword and PreserveNode keeps nothing for a nil node.
+//
+// ReasonDegradedLowering, as recordSkippedFamilies uses for the keyword families
+// its own election passes over — the position lowered to one of two co-declared
+// forms with the other kept beside it. Warning rather than the info announcing a
+// conjunction JSON Schema allows, because this is one OpenAPI forbids: the same
+// severity singleContentEntry reports a content map of more than one entry at,
+// for the same reason. Not an error, since the document lowers as well as an
+// election can make it and harness.Check stops at the first error diagnostic,
+// which would hide every later finding in the same spec.
+func passedOverSpelling(c lowering.Ctx, u *ir.Unmodeled, root *yaml.Node, passed, elected, at string) []ir.Diagnostic {
+	pointer := at + ids.Ptr(passed)
+	kept, diags := schema.PreserveNode(c, u, "openapi:"+passed,
+		annotation.RawChildNode(root, passed), ir.ReasonDegradedLowering, pointer)
+	if !kept {
+		return diags
+	}
+	return append(diags, c.DiagAt(ir.SeverityWarning, diag.DegradedConstruct, pointer,
+		"a parameter or header declares either schema or content, not both; this one declares "+
+			"both, so it lowered as its %s, with %s kept verbatim under Unmodeled", elected, passed))
 }
 
 // singleContentEntry returns the one entry a content-style header or parameter
