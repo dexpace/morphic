@@ -56,11 +56,12 @@ func TestCompareDecimalBounds_OrdersEveryDecimalSpellingExactly(t *testing.T) {
 // merge asks of this comparison: one value written two ways stays one value at
 // any magnitude, and two values stay two.
 //
-// The rows past a rational's range are the ones that carry the test. math/big
-// will not build 1e1000001 as a rational at all, so a comparison resting on one
-// has to answer that pair from their text, which reports a disagreement between
-// a bound and itself. Both directions are asserted, so an answer that happens to
-// be right one way round is not mistaken for a comparison.
+// The rows that spell one magnitude two ways past a rational's range are what
+// carry the test. math/big will not build 1e1000001 as a rational at all, so a
+// comparison resting on one has to answer that pair from their text, which
+// reports a disagreement between a bound and itself. Both directions are
+// asserted, so an answer that happens to be right one way round is not mistaken
+// for a comparison.
 func TestBigValEqual_SeparatesOneValueFromTwo(t *testing.T) {
 	t.Parallel()
 	tests := []struct {
@@ -68,7 +69,7 @@ func TestBigValEqual_SeparatesOneValueFromTwo(t *testing.T) {
 		a, b string
 		want bool
 	}{
-		{name: "one literal, past a rational", a: "1e1000001", b: "1e1000001", want: true},
+		{name: "one literal against itself", a: "1e1000001", b: "1e1000001", want: true},
 		{name: "an exponent against the digits it stands for", a: "1e2", b: "100", want: true},
 		{name: "a digit the exponent moved, past a rational", a: "1e1000001", b: "10e1000000", want: true},
 		{name: "a magnitude too small for a rational", a: "1e-1000001", b: "10e-1000002", want: true},

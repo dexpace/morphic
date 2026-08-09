@@ -1408,14 +1408,14 @@ func allOfConflictSpec(schemaA, schemaB string) string {
 
 func TestAllOf_ConstraintAndFormatConflictsDiagnosed(t *testing.T) {
 	t.Parallel()
-	// Each keyword class that can contradict across branches: an inclusive vs
+	// Each way a redeclaration can contradict across branches: an inclusive vs
 	// exclusive bound of equal magnitude, a differing pattern, a differing
 	// multipleOf, a bound and a multipleOf that differ past the magnitude a
-	// rational will build, and two format-derived primitives. Each keeps
-	// the first declaration but surfaces exactly one conflict naming the field,
-	// both branch sites, and — for the constraint cases — the offending keyword
-	// with both of its conflicting values, so the author never has to diff both
-	// branches by hand.
+	// rational will build, and two format-derived primitives (string vs uuid).
+	// Each keeps the first declaration but surfaces exactly one conflict naming
+	// the field, both branch sites, and — for the constraint cases — the
+	// offending keyword with both of its conflicting values, so the author
+	// never has to diff both branches by hand.
 	cases := []struct {
 		name, a, b, wantDetail string
 	}{
