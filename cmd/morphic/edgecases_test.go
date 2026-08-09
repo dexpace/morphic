@@ -269,24 +269,45 @@ func TestRenderDiagnostics_WithAndWithoutSourcePath(t *testing.T) {
 	assert.Contains(t, out, "warning ir/dangling type:abc: no source file")
 }
 
-func TestWriteDocument_MarshalError(t *testing.T) {
+// TestEncodeDocument_ErrorPaths pins that both output forms tell the same two
+// failures apart. The compact form is the one that needs saying: json.Encoder
+// reports a refusing destination and an unmarshallable document as one error
+// from Encode, so without the writer that records what the destination said,
+// every disk failure would be reported as a marshal failure.
+func TestEncodeDocument_ErrorPaths(t *testing.T) {
 	t.Parallel()
-	err := writeDocument(io.Discard, badDoc())
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "marshal ir document")
-}
 
-func TestWriteDocument_WriteError(t *testing.T) {
-	t.Parallel()
-	err := writeDocument(failWriter{err: errors.New("disk gone")}, &ir.Document{Name: "ok"})
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "write ir document")
+	tests := []struct {
+		name   string
+		w      io.Writer
+		doc    *ir.Document
+		indent bool
+		want   string
+	}{
+		{"indented, bad document", io.Discard, badDoc(), true, "marshal ir document"},
+		{"compact, bad document", io.Discard, badDoc(), false, "marshal ir document"},
+		{"indented, refusing destination",
+			failWriter{err: errors.New("disk gone")}, &ir.Document{Name: "ok"}, true, "write ir document"},
+		{"compact, refusing destination",
+			failWriter{err: errors.New("disk gone")}, &ir.Document{Name: "ok"}, false, "write ir document"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			err := encodeDocument(tt.w, tt.doc, tt.indent)
+
+			require.Error(t, err)
+			assert.Contains(t, err.Error(), tt.want)
+		})
+	}
 }
 
 func TestWriteParsed_CreateError(t *testing.T) {
 	t.Parallel()
 	badOut := filepath.Join(t.TempDir(), "no-such-dir", "ir.json")
-	err := writeCompiled(badOut, io.Discard, &ir.Document{Name: "ok"})
+	err := writeCompiled(compileOptions{outPath: badOut}, io.Discard, &ir.Document{Name: "ok"})
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "create output")
 }
@@ -305,7 +326,8 @@ func TestWriteParsed_WriteErrorClosesFile(t *testing.T) {
 
 	// doc marshals fine; the write to the temp file is what fails, exercising
 	// the close-and-return path.
-	err := writeCompiled(filepath.Join(t.TempDir(), "out.json"), io.Discard, &ir.Document{Name: "ok"})
+	err := writeCompiled(compileOptions{outPath: filepath.Join(t.TempDir(), "out.json")},
+		io.Discard, &ir.Document{Name: "ok"})
 
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "write ir document")
@@ -335,7 +357,7 @@ func TestWriteParsed_WriteErrorPreservesDestination(t *testing.T) {
 		return &writeFailFile{File: f, writeErr: errors.New("disk full")}, nil
 	})
 
-	err := writeCompiled(out, io.Discard, &ir.Document{Name: "ok"})
+	err := writeCompiled(compileOptions{outPath: out}, io.Discard, &ir.Document{Name: "ok"})
 
 	require.Error(t, err)
 	assert.NotEqual(t, out, opened, "the write must go through a temp file, never the destination")
@@ -344,27 +366,44 @@ func TestWriteParsed_WriteErrorPreservesDestination(t *testing.T) {
 	assert.Equal(t, existing, string(got), "a failed write must not disturb the previous output")
 }
 
+// TestWriteParsed_MarshalErrorLeavesFileUntouched pins both halves of encoding
+// into the temp file instead of marshalling ahead of it: the temp file is
+// created before the document is known to marshal, and a document that does not
+// marshal must still leave nothing behind and leave the destination alone —
+// outPath is only ever reached by the rename.
 func TestWriteParsed_MarshalErrorLeavesFileUntouched(t *testing.T) {
-	t.Parallel()
-	out := filepath.Join(t.TempDir(), "ir.json")
+	dir := t.TempDir()
+	out := filepath.Join(dir, "ir.json")
 	const existing = `{"name":"Existing"}` + "\n"
 	require.NoError(t, os.WriteFile(out, []byte(existing), 0o644))
 
-	err := writeCompiled(out, io.Discard, badDoc())
+	created := 0
+	swapCreateOutput(t, func(path string, perm os.FileMode) (outputFile, error) {
+		created++
+		return os.OpenFile(path, os.O_WRONLY|os.O_CREATE|os.O_EXCL, perm)
+	})
+
+	err := writeCompiled(compileOptions{outPath: out}, io.Discard, badDoc())
 
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "marshal ir document")
+	assert.Equal(t, 1, created,
+		"the document must be encoded into the temp file, not marshalled ahead of it")
 	got, readErr := os.ReadFile(out)
 	require.NoError(t, readErr)
 	assert.Equal(t, existing, string(got),
 		"a failed marshal must not truncate a file that already exists at outPath")
+	entries, readErr := os.ReadDir(dir)
+	require.NoError(t, readErr)
+	assert.Len(t, entries, 1, "a failed encode must leave no temp file beside the destination")
 }
 
 func TestWriteParsed_CloseError(t *testing.T) {
 	wc := &closeFailWriteCloser{closeErr: errors.New("close failed")}
 	swapCreateOutput(t, func(string, os.FileMode) (outputFile, error) { return wc, nil })
 
-	err := writeCompiled(filepath.Join(t.TempDir(), "out.json"), io.Discard, &ir.Document{Name: "ok"})
+	err := writeCompiled(compileOptions{outPath: filepath.Join(t.TempDir(), "out.json")},
+		io.Discard, &ir.Document{Name: "ok"})
 
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "close output")
@@ -380,7 +419,7 @@ func TestWriteParsed_ReplacesAtomically(t *testing.T) {
 	out := filepath.Join(dir, "ir.json")
 	require.NoError(t, os.WriteFile(out, []byte("stale\n"), 0o640))
 
-	require.NoError(t, writeCompiled(out, io.Discard, &ir.Document{Name: "Fresh"}))
+	require.NoError(t, writeCompiled(compileOptions{outPath: out}, io.Discard, &ir.Document{Name: "Fresh"}))
 
 	got, err := os.ReadFile(out)
 	require.NoError(t, err)
@@ -418,7 +457,7 @@ func TestWriteParsed_ReadOnlyDirFails(t *testing.T) {
 	// Restore write permission so t.TempDir's own cleanup can remove the tree.
 	t.Cleanup(func() { _ = os.Chmod(dir, 0o755) })
 
-	err := writeCompiled(out, io.Discard, &ir.Document{Name: "Fresh"})
+	err := writeCompiled(compileOptions{outPath: out}, io.Discard, &ir.Document{Name: "Fresh"})
 
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "create output")
@@ -439,7 +478,7 @@ func TestWriteParsed_SymlinkIsReplaced(t *testing.T) {
 	require.NoError(t, os.WriteFile(target, []byte("PREVIOUS\n"), 0o644))
 	require.NoError(t, os.Symlink(target, link))
 
-	require.NoError(t, writeCompiled(link, io.Discard, &ir.Document{Name: "Fresh"}))
+	require.NoError(t, writeCompiled(compileOptions{outPath: link}, io.Discard, &ir.Document{Name: "Fresh"}))
 
 	info, err := os.Lstat(link)
 	require.NoError(t, err)
@@ -466,7 +505,7 @@ func TestWriteParsed_HardLinkIsBroken(t *testing.T) {
 	require.NoError(t, os.WriteFile(out, []byte("PREVIOUS\n"), 0o644))
 	require.NoError(t, os.Link(out, other))
 
-	require.NoError(t, writeCompiled(out, io.Discard, &ir.Document{Name: "Fresh"}))
+	require.NoError(t, writeCompiled(compileOptions{outPath: out}, io.Discard, &ir.Document{Name: "Fresh"}))
 
 	got, err := os.ReadFile(out)
 	require.NoError(t, err)
@@ -503,7 +542,7 @@ func TestWriteParsed_NearLimitNameFails(t *testing.T) {
 	require.NoError(t, os.WriteFile(tooLong, []byte("PREVIOUS\n"), 0o644),
 		"precondition: a truncating write to this name succeeds")
 
-	err := writeCompiled(tooLong, io.Discard, &ir.Document{Name: "Fresh"})
+	err := writeCompiled(compileOptions{outPath: tooLong}, io.Discard, &ir.Document{Name: "Fresh"})
 
 	require.Error(t, err, "the temp name must not fit where the destination does")
 	assert.Contains(t, err.Error(), "create output")
@@ -520,7 +559,8 @@ func TestWriteParsed_StatError(t *testing.T) {
 	notDir := filepath.Join(t.TempDir(), "file")
 	require.NoError(t, os.WriteFile(notDir, []byte("x"), 0o644))
 
-	err := writeCompiled(filepath.Join(notDir, "ir.json"), io.Discard, &ir.Document{Name: "ok"})
+	err := writeCompiled(compileOptions{outPath: filepath.Join(notDir, "ir.json")},
+		io.Discard, &ir.Document{Name: "ok"})
 
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "stat output")
@@ -537,7 +577,7 @@ func TestWriteParsed_TempNameCollisionRetries(t *testing.T) {
 	})
 
 	out := filepath.Join(t.TempDir(), "ir.json")
-	require.NoError(t, writeCompiled(out, io.Discard, &ir.Document{Name: "ok"}))
+	require.NoError(t, writeCompiled(compileOptions{outPath: out}, io.Discard, &ir.Document{Name: "ok"}))
 
 	require.Len(t, names, 2, "a taken temp name must be retried, not reused")
 	assert.NotEqual(t, names[0], names[1], "each attempt must draw a fresh name")
@@ -550,7 +590,8 @@ func TestWriteParsed_TempNamesExhausted(t *testing.T) {
 		return nil, os.ErrExist
 	})
 
-	err := writeCompiled(filepath.Join(t.TempDir(), "ir.json"), io.Discard, &ir.Document{Name: "ok"})
+	err := writeCompiled(compileOptions{outPath: filepath.Join(t.TempDir(), "ir.json")},
+		io.Discard, &ir.Document{Name: "ok"})
 
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "no unused temp name")
@@ -570,7 +611,7 @@ func TestWriteParsed_SyncErrorPreservesDestination(t *testing.T) {
 	f := &syncFailWriteCloser{syncErr: errors.New("sync refused")}
 	swapCreateOutput(t, func(string, os.FileMode) (outputFile, error) { return f, nil })
 
-	err := writeCompiled(out, io.Discard, &ir.Document{Name: "ok"})
+	err := writeCompiled(compileOptions{outPath: out}, io.Discard, &ir.Document{Name: "ok"})
 
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "sync output")
@@ -591,7 +632,7 @@ func TestWriteParsed_ChmodError(t *testing.T) {
 	t.Cleanup(func() { chmodOutput = origChmod })
 	chmodOutput = func(string, os.FileMode) error { return errors.New("chmod refused") }
 
-	err := writeCompiled(out, io.Discard, &ir.Document{Name: "ok"})
+	err := writeCompiled(compileOptions{outPath: out}, io.Discard, &ir.Document{Name: "ok"})
 
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "chmod output")
@@ -608,7 +649,7 @@ func TestWriteParsed_RenameError(t *testing.T) {
 	t.Cleanup(func() { renameOutput = origRename })
 	renameOutput = func(string, string) error { return errors.New("rename refused") }
 
-	err := writeCompiled(out, io.Discard, &ir.Document{Name: "ok"})
+	err := writeCompiled(compileOptions{outPath: out}, io.Discard, &ir.Document{Name: "ok"})
 
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "replace output")
@@ -620,6 +661,6 @@ func TestWriteParsed_RenameError(t *testing.T) {
 func TestWriteParsed_ToStdoutSuccess(t *testing.T) {
 	t.Parallel()
 	var buf bytes.Buffer
-	require.NoError(t, writeCompiled("", &buf, &ir.Document{Name: "ok"}))
+	require.NoError(t, writeCompiled(compileOptions{}, &buf, &ir.Document{Name: "ok"}))
 	assert.True(t, bytes.HasSuffix(buf.Bytes(), []byte("\n")))
 }

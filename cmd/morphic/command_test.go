@@ -65,7 +65,7 @@ func TestNewCompileFlags_DefinesEveryFlag(t *testing.T) {
 
 // compileFlagNames is every flag compile accepts, asserted from both the
 // constructor and the command-table entry so the two cannot drift.
-var compileFlagNames = []string{"o", "fail-on", "skip-validate", "explain"}
+var compileFlagNames = []string{"o", "fail-on", "skip-validate", "explain", "pretty"}
 
 func TestCommand_PrintFlagsDocumentsTheCommandsOwnFlags(t *testing.T) {
 	t.Parallel()

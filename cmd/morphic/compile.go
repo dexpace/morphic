@@ -70,7 +70,8 @@ func newCompileCommand() command {
 		summary: "lower an API spec (OpenAPI 3.x) into Morphic IR JSON",
 		usage:   "morphic compile <spec-file> [flags]",
 		description: "Lower an API spec (OpenAPI 3.x) into Morphic IR JSON on stdout, and write\n" +
-			"diagnostics to stderr.\n\n" +
+			"diagnostics to stderr. Output to stdout is indented for reading; a file\n" +
+			"written with -o is compact unless --pretty asks for the indented form.\n\n" +
 			"--explain reports what compiling produced at one source coordinate — the\n" +
 			"type node interned there, the coordinates interned beneath it, and the\n" +
 			"diagnostics stamped at it — instead of writing the document.",
@@ -89,6 +90,7 @@ type compileOptions struct {
 	failOn       string
 	skipValidate bool
 	explain      string
+	pretty       bool
 }
 
 // newCompileFlags returns compile's FlagSet and the options its flags write
@@ -108,6 +110,8 @@ func newCompileFlags() (*flag.FlagSet, *compileOptions) {
 		"skip the referential-integrity validate pass")
 	fs.StringVar(&opts.explain, "explain", "",
 		"report what compiling produced at this source pointer instead of writing IR JSON")
+	fs.BoolVar(&opts.pretty, "pretty", false,
+		"indent the IR JSON -o writes; stdout is indented either way")
 
 	return fs, &opts
 }
@@ -171,7 +175,7 @@ func compileSpec(specPath string, opts compileOptions, stdout, stderr io.Writer)
 		explainDocument(stdout, res.Document, res.Diagnostics, opts.explain)
 		return exitCodeFor(res.Diagnostics, opts.failOn)
 	}
-	if err := writeCompiled(opts.outPath, stdout, res.Document); err != nil {
+	if err := writeCompiled(opts, stdout, res.Document); err != nil {
 		emitf(stderr, "morphic: %v\n", err)
 		return 2
 	}
@@ -251,26 +255,30 @@ func severityRank(s ir.Severity) int {
 	}
 }
 
-// writeCompiled emits doc's pretty IR JSON to outPath, or to stdout when outPath
-// is empty. For a file destination, doc is marshalled in full before any file is
-// touched, so a failed marshal never disturbs a file already there — see
-// marshalDocument — and the bytes are then published atomically by replaceFile.
-func writeCompiled(outPath string, stdout io.Writer, doc *ir.Document) error {
-	if outPath == "" {
-		return writeDocument(stdout, doc)
+// writeCompiled emits doc's IR JSON to opts.outPath, or to stdout when it is
+// empty. Stdout is indented because a person is reading it; a file is compact,
+// which is about half the bytes, unless --pretty asks for the indented form.
+//
+// A file destination is encoded straight into replaceFile's temp file rather
+// than into a slice handed over afterwards. That drops a whole copy of the
+// output and keeps the property the marshal-first order used to provide: a
+// document that will not marshal removes the temp file and leaves whatever is
+// at outPath untouched, because outPath is only ever reached by the rename.
+func writeCompiled(opts compileOptions, stdout io.Writer, doc *ir.Document) error {
+	if opts.outPath == "" {
+		return encodeDocument(stdout, doc, true)
 	}
-	raw, err := marshalDocument(doc)
-	if err != nil {
-		return err
-	}
-	return replaceFile(outPath, raw)
+	return replaceFile(opts.outPath, func(w io.Writer) error {
+		return encodeDocument(w, doc, opts.pretty)
+	})
 }
 
-// replaceFile writes raw to outPath atomically: the bytes land in a temp file in
-// the destination's own directory — so the publishing rename never crosses a
-// filesystem boundary — and replace outPath only once all of them are on disk.
-// A failed or partial write therefore leaves outPath's previous content intact
-// instead of truncating it.
+// replaceFile writes what fill produces to outPath atomically: fill's bytes land
+// in a temp file in the destination's own directory — so the publishing rename
+// never crosses a filesystem boundary — and replace outPath only once all of
+// them are on disk. A failed or partial write therefore leaves outPath's
+// previous content intact instead of truncating it, and so does a fill that
+// fails halfway through.
 //
 // Publishing by rename replaces the directory entry rather than the bytes behind
 // it, which is what makes the swap atomic and which costs four things a
@@ -302,13 +310,13 @@ func writeCompiled(outPath string, stdout io.Writer, doc *ir.Document) error {
 // property this function exists to provide; making the swap itself survive a
 // crash would need an fsync on the parent directory and is deliberately out of
 // scope.
-func replaceFile(outPath string, raw []byte) error {
+func replaceFile(outPath string, fill func(io.Writer) error) error {
 	perm, replacing, err := destMode(outPath)
 	if err != nil {
 		return err
 	}
 
-	tmp, err := writeTemp(outPath, raw)
+	tmp, err := writeTemp(outPath, fill)
 	if err != nil {
 		return err
 	}
@@ -343,11 +351,11 @@ func destMode(outPath string) (os.FileMode, bool, error) {
 	return info.Mode().Perm(), true, nil
 }
 
-// writeTemp writes raw to a newly created file beside outPath and returns that
+// writeTemp runs fill into a newly created file beside outPath and returns that
 // file's path. Creation is O_EXCL under a random name, so it neither clobbers an
 // existing file nor follows a symlink planted at the name it drew; that makes the
 // unpredictability of the suffix a convenience, not a security boundary.
-func writeTemp(outPath string, raw []byte) (string, error) {
+func writeTemp(outPath string, fill func(io.Writer) error) (string, error) {
 	dir := filepath.Dir(outPath)
 	base := filepath.Base(outPath)
 
@@ -360,7 +368,7 @@ func writeTemp(outPath string, raw []byte) (string, error) {
 		if err != nil {
 			return "", fmt.Errorf("create output %q: %w", outPath, err)
 		}
-		if err := fillTemp(f, tmp, raw); err != nil {
+		if err := fillTemp(f, tmp, fill); err != nil {
 			return "", err
 		}
 		return tmp, nil
@@ -369,17 +377,17 @@ func writeTemp(outPath string, raw []byte) (string, error) {
 		outPath, maxTempAttempts)
 }
 
-// fillTemp writes raw to f, flushes it to the filesystem, and closes it,
+// fillTemp runs fill into f, flushes it to the filesystem, and closes it,
 // removing tmp if any step fails so a failed run leaves no debris beside the
-// destination.
+// destination — including a fill that fails after writing part of its output.
 //
 // The Sync is what lets replaceFile's caller believe the rename publishes
 // durable bytes: without it the rename can expose a file whose contents are
 // still only in the page cache, and a crash before writeback leaves the
 // destination short or empty — the same loss writing through a temp file exists
 // to prevent.
-func fillTemp(f outputFile, tmp string, raw []byte) error {
-	if err := writeRaw(f, raw); err != nil {
+func fillTemp(f outputFile, tmp string, fill func(io.Writer) error) error {
+	if err := fill(f); err != nil {
 		_ = f.Close()
 		_ = os.Remove(tmp)
 		return err
@@ -396,26 +404,50 @@ func fillTemp(f outputFile, tmp string, raw []byte) error {
 	return nil
 }
 
-// marshalDocument renders doc to indented JSON with a trailing newline (the
-// same bytes as irtest.WriteGolden). It is factored out of writeDocument so
-// writeCompiled can marshal a file destination fully in memory before it ever
-// opens — and so truncates — outPath.
-func marshalDocument(doc *ir.Document) ([]byte, error) {
-	raw, err := json.MarshalIndent(doc, "", "  ")
-	if err != nil {
-		return nil, fmt.Errorf("marshal ir document: %w", err)
-	}
-	return append(raw, '\n'), nil
+// destWriter passes writes through to w and records the error w returned. It is
+// what keeps a destination that refused the bytes distinguishable from a
+// document that would not marshal: json.Encoder reports both as one error from
+// Encode, and they are different things to tell a user about.
+type destWriter struct {
+	w   io.Writer
+	err error
 }
 
-// writeDocument marshals doc to indented JSON with a trailing newline (the same
-// bytes as irtest.WriteGolden) and writes it to w.
-func writeDocument(w io.Writer, doc *ir.Document) error {
-	raw, err := marshalDocument(doc)
+func (d *destWriter) Write(p []byte) (int, error) {
+	n, err := d.w.Write(p)
 	if err != nil {
-		return err
+		d.err = err
 	}
-	return writeRaw(w, raw)
+	return n, err
+}
+
+// encodeDocument writes doc's IR JSON to w, ending in a newline either way.
+//
+// The two forms take different routes on purpose, and neither is the obvious
+// choice for the other. Indented output goes through json.MarshalIndent — the
+// same bytes irtest.WriteGolden writes — because a json.Encoder with SetIndent
+// indents into a second buffer it keeps for itself, which costs roughly twice
+// the allocation for an identical result. Compact output goes through the
+// encoder precisely because there is no second pass: it hands the marshalled
+// bytes to w directly, where json.Marshal would first copy them into a slice
+// for the caller to write.
+func encodeDocument(w io.Writer, doc *ir.Document, indent bool) error {
+	if indent {
+		raw, err := json.MarshalIndent(doc, "", "  ")
+		if err != nil {
+			return fmt.Errorf("marshal ir document: %w", err)
+		}
+		return writeRaw(w, append(raw, '\n'))
+	}
+
+	dest := &destWriter{w: w}
+	if err := json.NewEncoder(dest).Encode(doc); err != nil {
+		if dest.err != nil {
+			return fmt.Errorf("write ir document: %w", dest.err)
+		}
+		return fmt.Errorf("marshal ir document: %w", err)
+	}
+	return nil
 }
 
 // writeRaw writes raw to w, wrapping any error with context.

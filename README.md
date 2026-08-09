@@ -93,7 +93,8 @@ go build -o morphic ./cmd/morphic
 ### CLI
 
 `morphic compile` lowers one OpenAPI 3.x spec into Morphic IR JSON on stdout, and writes
-diagnostics to stderr.
+diagnostics to stderr. Stdout is indented for reading; a file written with `-o` is compact,
+which is about half the bytes, unless `--pretty` asks for the indented form.
 
 ```bash
 morphic compile openapi.yaml                 # IR JSON to stdout
@@ -114,7 +115,8 @@ The flags below are `compile`'s:
 
 | Flag | Meaning |
 |---|---|
-| `-o <file>` | Write IR JSON to `<file>` instead of stdout. |
+| `-o <file>` | Write IR JSON to `<file>` instead of stdout, compact rather than indented. |
+| `--pretty` | Indent the JSON `-o` writes; stdout is indented either way. |
 | `--fail-on error\|warning` | Exit non-zero when a diagnostic at or above this severity is emitted (default `error`). |
 | `--skip-validate` | Skip the referential-integrity `validate` pass. |
 | `--explain <json-pointer>` | Report what compiling produced at this source coordinate instead of writing the document. |
