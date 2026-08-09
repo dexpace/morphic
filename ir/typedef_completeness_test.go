@@ -3,12 +3,8 @@ package ir_test
 import (
 	"encoding/json"
 	"go/ast"
-	"go/parser"
-	"go/token"
 	"reflect"
 	"slices"
-	"strconv"
-	"strings"
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
@@ -200,60 +196,13 @@ func concreteName(t *testing.T, td ir.TypeDef) string {
 // disagreeing silently: that is what every test in this file exists to catch.
 func declaredTypeKinds(t *testing.T) []typeKindConst {
 	t.Helper()
-	var out []typeKindConst
-	for _, f := range parseIRSources(t) {
-		for _, decl := range f.Decls {
-			gd, isGen := decl.(*ast.GenDecl)
-			if !isGen || gd.Tok != token.CONST {
-				continue
-			}
-			out = append(out, typeKindConstsIn(t, gd)...)
-		}
-	}
-	require.NotEmpty(t, out, "the ir sources must declare TypeKind constants")
-	slices.SortFunc(out, func(a, b typeKindConst) int { return strings.Compare(a.name, b.name) })
-	return out
-}
-
-// typeKindConstsIn returns the TypeKind constants of one const group. A spec
-// declaring neither type nor value repeats the previous spec, so the group's last
-// explicit type carries forward; a spec with its own value declares its own type.
-func typeKindConstsIn(t *testing.T, gd *ast.GenDecl) []typeKindConst {
-	t.Helper()
-	var out []typeKindConst
-	isKind := false
-	for _, spec := range gd.Specs {
-		vs, isValue := spec.(*ast.ValueSpec)
-		require.True(t, isValue, "const spec is not a ValueSpec: %#v", spec)
-		switch {
-		case vs.Type != nil:
-			id, isIdent := vs.Type.(*ast.Ident)
-			isKind = isIdent && id.Name == "TypeKind"
-		case len(vs.Values) > 0:
-			isKind = false
-		}
-		if !isKind {
-			continue
-		}
-		for i, name := range vs.Names {
-			require.Less(t, i, len(vs.Values),
-				"TypeKind constant %s must declare its own value", name.Name)
-			value := stringLit(t, name.Name, vs.Values[i])
-			out = append(out, typeKindConst{name: name.Name, kind: ir.TypeKind(value)})
-		}
+	declared := declaredConstsOfType(t, "TypeKind")
+	require.NotEmpty(t, declared, "the ir sources must declare TypeKind constants")
+	out := make([]typeKindConst, 0, len(declared))
+	for _, c := range declared {
+		out = append(out, typeKindConst{name: c.name, kind: ir.TypeKind(c.value)})
 	}
 	return out
-}
-
-// stringLit returns the string a constant's value expression spells out.
-func stringLit(t *testing.T, constName string, expr ast.Expr) string {
-	t.Helper()
-	lit, isLit := expr.(*ast.BasicLit)
-	require.True(t, isLit, "constant %s must be declared as a string literal", constName)
-	require.Equal(t, token.STRING, lit.Kind, "constant %s must be declared as a string literal", constName)
-	unquoted, err := strconv.Unquote(lit.Value)
-	require.NoError(t, err, "unquoting the value of %s", constName)
-	return unquoted
 }
 
 // sealedTypeDefImpls returns, sorted, the name of every ir type carrying the
@@ -286,19 +235,4 @@ func receiverTypeName(t *testing.T, fd *ast.FuncDecl) string {
 	id, isIdent := expr.(*ast.Ident)
 	require.True(t, isIdent, "receiver of %s must be a named type, got %#v", fd.Name.Name, expr)
 	return id.Name
-}
-
-// parseIRSources parses every file irSourceFiles lists, under one FileSet.
-func parseIRSources(t *testing.T) []*ast.File {
-	t.Helper()
-	paths := irSourceFiles(t)
-	fset := token.NewFileSet()
-	out := make([]*ast.File, 0, len(paths))
-	for _, path := range paths {
-		f, err := parser.ParseFile(fset, path, nil, parser.SkipObjectResolution)
-		require.NoError(t, err, "parsing %s", path)
-		out = append(out, f)
-	}
-	require.NotEmpty(t, out, "the ir package must have production sources")
-	return out
 }

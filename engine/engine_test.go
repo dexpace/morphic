@@ -137,7 +137,20 @@ func TestNewWith_RegisterError(t *testing.T) {
 	eng, err := engine.NewWith(collidingCompiler{}, collidingCompiler{})
 	require.Error(t, err)
 	assert.Nil(t, eng)
-	assert.Contains(t, err.Error(), "engine: register compiler")
+	assert.Contains(t, err.Error(), "engine: register compiler 1")
+}
+
+// TestNewWith_NilCompiler passes the nil second so the reported position proves
+// the index is the argument's own and not a constant. Reaching the assertions at
+// all is the point: a nil compiler used to segfault inside the registry, which
+// is a panic escaping two packages rather than an error the caller can handle.
+func TestNewWith_NilCompiler(t *testing.T) {
+	t.Parallel()
+	eng, err := engine.NewWith(collidingCompiler{}, nil)
+	require.Error(t, err)
+	assert.Nil(t, eng)
+	assert.Contains(t, err.Error(), "engine: register compiler 1")
+	assert.Contains(t, err.Error(), "nil compiler")
 }
 
 // errCompiler claims openapi 3.1 and always fails Compile, driving Run's

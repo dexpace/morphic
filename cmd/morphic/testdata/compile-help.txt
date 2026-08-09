@@ -8,6 +8,10 @@ diagnostics to stderr.
 type node interned there, the coordinates interned beneath it, and the
 diagnostics stamped at it — instead of writing the document.
 
+A -- argument ends flag parsing: every argument after it is an operand,
+even one that begins with a dash, which is how a spec file named like a
+flag is passed.
+
 flags:
   -explain string
     	report what compiling produced at this source pointer instead of writing IR JSON

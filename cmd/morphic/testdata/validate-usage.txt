@@ -1,0 +1,4 @@
+morphic: validate requires exactly one spec file
+usage:
+  morphic validate <spec-file> [flags]
+run "morphic help validate" for details.

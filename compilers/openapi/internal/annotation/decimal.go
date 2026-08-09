@@ -8,6 +8,33 @@ import (
 	"github.com/dexpace/morphic/ir"
 )
 
+// BigValEqual reports whether two numeric literals denote the same value, so
+// that one magnitude spelled two ways — 10, 10.0, 1e1 — is one value rather
+// than two.
+//
+// It reads each literal rather than materializing it, and that is what makes it
+// total. A rational will not build 1e1000001 at all, so a comparison resting on
+// one has to answer that pair some other way, and the only answer left is their
+// text — which calls 1e1000001 and 10e1000000 two values and reports a
+// disagreement between a bound and itself.
+//
+// Identical text is the one pair that needs no reading: a literal denotes one
+// value whatever grammar it belongs to. That is also the whole answer for a pair
+// outside the decimal grammar, where two differing spellings are reported
+// unequal rather than guessed at. No BigVal is outside that grammar today, and
+// TestBigValGrammarStaysWithinTheDecimalReading is what holds that true.
+func BigValEqual(a, b ir.BigVal) bool {
+	if a == b {
+		return true
+	}
+	aDec, aOK := parseDecimalBound(a)
+	bDec, bOK := parseDecimalBound(b)
+	if !aOK || !bOK {
+		return false
+	}
+	return compareDecimalBounds(aDec, bDec) == 0
+}
+
 // decimalBound is a numeric literal split into the three pieces an exact
 // comparison needs: its sign, its significant digits with the point removed and
 // the leading zeros stripped, and the power of ten the first of those digits

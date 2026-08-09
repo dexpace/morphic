@@ -20,13 +20,23 @@ Pipeline: **compilers** (spec → IR) → **IR passes** (IR → IR) → **emitte
 
 ## The documents are the spec — read them first
 
+`ls docs/*.md` is the set; what follows is why each one matters, not how many there are.
+
 - **`docs/ir-design.md` is normative.** Field names and struct shapes in it are the contract;
   receiver methods and helpers are not. When implementing the IR, match its shapes exactly.
+- **`docs/emitter-design.md` is normative for the emitter half**, the way `ir-design.md` is for the
+  IR. Nothing under `emitters/` exists yet, so read it before writing the first one.
 - `docs/architecture.md` — pipeline stages, package layout, layering rules, milestones.
 - `docs/ir-spec-matrix.md` — the union of source-format capabilities the IR is designed against.
 - `docs/prior-art.md` — the evidence base (oagen, Kiota, TypeSpec/TCGC) and the specific mistakes
   each Morphic decision is designed to avoid. Read this before proposing IR changes; most
   "simplifications" that come to mind are failure modes already rejected here.
+- `docs/reference-learnings.md` — the same evidence base widened to every shipped generator it
+  surveys (its header names them), each finding carrying a verdict on a Morphic decision and
+  citing the repo it came from.
+- `docs/micro-compiler-design.md` and `docs/micro-compiler-plan.md` — the restructuring that
+  produced today's `compilers/openapi`. Both record work that has landed; read them for why the
+  package boundaries fall where they do, not as a proposal or a backlog.
 
 ## Invariants that must not be violated
 
@@ -35,7 +45,7 @@ claim (lossless, spec-agnostic, many-target). Before changing any of them, re-re
 in the docs.
 
 1. **The IR is the ABI.** Compilers and emitters never see each other. A compiler's only output is
-   an IR document + diagnostics; a emitter's only input is an IR document + its own options.
+   an IR document + diagnostics; an emitter's only input is an IR document + its own options.
 2. **Lossless by default, lowered late.** Compilers never flatten (no `allOf` merging, no
    union-to-optional-fields collapse, no primary-response selection). Composition, unions,
    visibility, discriminators, encodings, streaming stay in source-semantic form. Lowering to what
@@ -73,8 +83,13 @@ in the docs.
 ## Go representation conventions the design mandates
 
 - **Closed sums = sealed interfaces**: unexported marker method (`typeDef()`), one concrete struct
-  per kind, a `Kind()` accessor for switch-dispatch, and a generated switch-completeness test over
-  the kind enum (the `assertNever` lesson). JSON encodes sums with an adjacent `kind` tag.
+  per kind, a `Kind()` accessor for switch-dispatch, and a switch-completeness test over the kind
+  enum (the `assertNever` lesson). None of it is code-generated — the module has no `go:generate`
+  at all (`grep -rn go:generate --include='*.go' .` is empty). `TestTypeDef_KindDispatchIsComplete`
+  iterates a hand-written `allKinds`, and `TestTypeDef_HandWrittenKindListsAreComplete` holds that
+  list and every other hand-written kind list to the kinds the `ir` sources declare, so adding a
+  kind without updating a list reddens there instead of quietly narrowing what a test covers. JSON
+  encodes sums with an adjacent `kind` tag.
 - **No `float64` anywhere in the IR.** Numeric values, defaults, and constraints use arbitrary-
   precision decimal strings (`BigVal`). This is a hard rule (the TypeSpec `Numeric` lesson).
 - **Values are a separate channel from types** (`Value`/`ValueKind`), per the TypeSpec Type-vs-Value
@@ -96,17 +111,20 @@ compilers/   Layer 1 — the Compiler contract and the format-keyed registry. Im
              compilers, compilers/compile, its own internal/* (+ own format libs); never each
              other, never emitters/engine.
     internal/  Layer 1 — that compiler's own packages, each with its own allowlist rather than
-             the compiler's. openapi has thirteen; the ordering among them is real and enforced,
-             from diag (reaches only ir) up to operation. None may reach the compiler above it.
+             the compiler's. The ordering among them is real and enforced, from diag (reaches
+             only ir) up to operation. None may reach the compiler above it.
 pass/        Layer 1 — IR → IR passes. Imports ir only.
 emitters/*   Layer 2 — imports ir + emitter contract; never compiler. (Not built yet.)
 engine/      Layer 3 — orchestration; imports everything below.
-cmd/morphic/ Layer 4 — CLI; imports engine.
+cmd/morphic/ Layer 4 — CLI; imports ir + engine.
+cmd/morphic-harness/
+             Layer 4 — sweeps a spec or directory through the oracles; imports internal/harness.
 internal/    Test/tooling infrastructure, outside the pipeline (harness, archtest, testspec).
 ```
 
 The layering is enforced by `internal/archtest`, and **its `rules` map is the source of truth** —
-this diagram is prose, and deliberately does not name the thirteen. Read them off the tree:
+this diagram is prose, and deliberately neither names nor counts a compiler's internal packages.
+Read them off the tree:
 
 ```bash
 git ls-files '*/*.go' | xargs -n1 dirname | sort -u
@@ -134,10 +152,12 @@ These all exist already — extend them rather than building a parallel mechanis
   `ir-spec-matrix.md` row per format that can express it, asserting lossless capture. This is what
   keeps "lossless by default" honest.
 - **Oracles**: `internal/harness` drives a spec through no-panic → no error diagnostic →
-  `irverify` invariants → JSON round-trip → determinism. `irverify` is the structural-invariant
-  checker (stable IDs, no dangling refs, neutral naming, routable `Unmodeled`, in-range
-  provenance); its findings are `Violation` values — *our* bugs — deliberately a channel separate
-  from `ir.Diagnostic`, which reports problems in the source spec.
+  `irverify` invariants → JSON round-trip → determinism → order-invariance, stopping at the first
+  one that fires. `harness.Check` is the list — read it there rather than trusting this sentence;
+  `go run ./cmd/morphic-harness <file|dir>` runs them over one spec or a whole tree. `irverify` is
+  the structural-invariant checker (stable IDs, no dangling refs, neutral naming, routable
+  `Unmodeled`, in-range provenance); its findings are `Violation` values — *our* bugs —
+  deliberately a channel separate from `ir.Diagnostic`, which reports problems in the source spec.
 - **Architecture test**: `internal/archtest`, per the layering section above.
 
 Beyond those, "verify by executing" below has consequences specific enough to write down as
@@ -145,7 +165,11 @@ assertion shapes:
 
 - **Order-dependence needs a two-order diff.** Compile the same source twice with the declaration
   order swapped and `cmp.Diff` the two documents. A single-order test passes on *both* orders of a
-  colliding lowering, which is why the pointer collisions survived the suite.
+  colliding lowering, which is why the pointer collisions survived the suite. The order-invariance
+  oracle above is the general form of this and already runs it across the corpus under `testdata/`,
+  so the usual way to cover a new construct is to add a spec the sweep reaches, not to hand-roll
+  the diff. A targeted case still earns its place when it pins one lowering, because the oracle
+  proves order-independence only for the constructs its inputs happen to contain.
   - A fixture's own declaration order is part of the test. A golden that happens to declare things
     in the order the *correct* lowering already produced cannot see the fix at all: reverting it
     leaves the golden green, and only the two-order oracle reddens. If a single-order case is meant
@@ -200,9 +224,12 @@ below are the ones most likely to bite in this codebase — the full guide gover
 - **Docs:** GoDoc on every exported symbol starting with its name, complete sentences; package
   comment on every package; comments explain *why*, not what.
 - **Serialization:** explicit JSON struct tags on every field; `omitempty` only on optional
-  fields; custom `MarshalJSON`/`UnmarshalJSON` for special forms (the IR's sum types and
-  `BigVal` do this); never `float64` for money — and in this repo, never in the IR at all, per the
-  representation conventions above.
+  fields; custom codecs for special forms, but not symmetrically — each member of the IR's
+  `TypeDef` sum has a `MarshalJSON` that writes its adjacent `kind` tag, and *decoding* is
+  centralized in `(*TypeRegistry).UnmarshalJSON`, which reads that tag; no member unmarshals
+  itself, and `BigVal` has no codec at all because it *is* a string type and already marshals as
+  a JSON string. `grep -rnE 'func .*(Unm|M)arshalJSON' ir/` is the current list; never `float64`
+  for money — and in this repo, never in the IR at all, per the representation conventions above.
 - **Logging:** `log/slog` only, injected — but note the stronger repo invariant: pipeline
   stages don't log at all; they return diagnostics.
 

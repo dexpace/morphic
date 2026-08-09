@@ -1,0 +1,13 @@
+# The re-entrant prefix spelled with a trailing separator. '/A/' ends in an
+# empty reference token, which RFC 6901 and the resolver's own pointer parser
+# both read as naming the key "" under A — so the walk descends through A, the
+# reference already being resolved, and deadlocks there before the missing key
+# can be reported. A scan that dropped the empty token read the same pointer as
+# stopping at A and left it to the resolver as a components-only cycle.
+openapi: 3.1.0
+info: {title: Path Item Empty Segment, version: "1"}
+paths:
+  /a: {$ref: '#/components/pathItems/A'}
+components:
+  pathItems:
+    A: {$ref: '#/components/pathItems/A/'}

@@ -2,6 +2,7 @@ package schema
 
 import (
 	"fmt"
+	"net/url"
 	"slices"
 	"strconv"
 	"strings"
@@ -851,9 +852,29 @@ func FillPropertyDetail(c lowering.Ctx, ts *compile.Types, anchors *AnchorIndex,
 	if ref.GetFormat() == "password" {
 		p.Secret = true
 	}
-	p.Visibility = annotation.EffectiveVisibility(ref, tgt)
+	diags = append(diags, fillPropertyVisibility(c, p, ref, tgt, pointer)...)
 	diags = append(diags, fillPropertyConstraints(c, p, ref, pointer)...)
 	return append(diags, fillPropertyAnnotations(c, ts, anchors, p, ref, tgt, pointer)...)
+}
+
+// fillPropertyVisibility lowers readOnly/writeOnly onto the property and reports
+// the pairing that leaves it visible nowhere.
+//
+// The report is made here rather than inside the reader for the reason
+// merge.reconcileProperty reports its own disjoint intersection from outside
+// mergeVisibility: provenance is built in one place (lowering.Ctx), and this is
+// the caller that knows the position being filled. It is the same finding under
+// the same code as the allOf spelling, so a consumer filtering on
+// diag.DisjointVisibility sees both.
+func fillPropertyVisibility(c lowering.Ctx, p *ir.Property, ref, tgt *oas3.Schema, pointer string) []ir.Diagnostic {
+	visibility, disjoint := annotation.EffectiveVisibility(ref, tgt)
+	p.Visibility = visibility
+	if !disjoint {
+		return nil
+	}
+	return []ir.Diagnostic{c.DiagAt(ir.SeverityWarning, diag.DisjointVisibility, pointer,
+		"readOnly and writeOnly are both in force for field %q; they admit disjoint lifecycles, "+
+			"so the field is visible in none", p.WireName)}
 }
 
 // fillPropertyAnnotations records the annotations the property's schema
@@ -1304,11 +1325,7 @@ func dynamicRefName(s *oas3.Schema) (name, why string, ok bool) {
 	if node.Kind != yaml.ScalarNode {
 		return "", "its value is not a reference string", false
 	}
-	fragment, found := dynamicFragment(node.Value)
-	if !found {
-		return "", fmt.Sprintf("%q is not a plain same-document fragment", node.Value), false
-	}
-	return fragment, "", true
+	return dynamicFragment(node.Value)
 }
 
 // dynamicRefSiblings reports whether s writes anything beside its $dynamicRef
@@ -1457,16 +1474,40 @@ func declaresResourceIDAbove(c lowering.Ctx, pointer string) bool {
 	return cur != nil && view.ChildByToken(cur, "$id") != nil
 }
 
-// dynamicFragment returns the plain fragment name a $dynamicRef addresses. Only
-// the same-document `#name` spelling resolves here: a URI part names another
-// resource (Milestone 1 interns only same-file targets) and a `#/…` pointer
-// addresses a position rather than an anchor.
-func dynamicFragment(ref string) (string, bool) {
-	name, found := strings.CutPrefix(ref, "#")
-	if !found || name == "" || strings.Contains(name, "/") {
-		return "", false
+// dynamicFragment returns the anchor name a $dynamicRef addresses, or the reason
+// it addresses none. Only the same-document `#name` spelling resolves here: a
+// URI part names another resource (Milestone 1 interns only same-file targets)
+// and a `#/…` pointer addresses a position rather than an anchor.
+//
+// The name is the fragment percent-decoded exactly once, because a fragment is
+// URI text (RFC 3986 §3.5) in which an unreserved character and its escape are
+// the same character (§2.3, §6.2.2.2): `#my%2Danchor` and `#my-anchor` name one
+// anchor, and §2.1 leaves the escape's hex case insignificant. A second decode
+// would make `#my%252Danchor` name it too, though that spells the distinct name
+// `my%2Danchor` (GitHub #233). PathUnescape rather than the QueryUnescape
+// nodeview uses to mirror the resolver: `+` is a literal plus in a fragment.
+//
+// The $dynamicAnchor this is matched against is deliberately *not* decoded.
+// 2020-12 §8.2.3.2 makes $dynamicRef a URI-reference, while §8.2.2 makes an
+// anchor a plain name whose production admits no `%` at all — so decoding that
+// side could only rewrite a name the dialect already rejects, while collapsing
+// the distinct names `a-b` and `a%2Db` into one. How many declarations share a
+// name is what decides whether a reference expands, so keeping them apart is
+// load-bearing.
+//
+// A fragment that is not valid percent-encoded text is refused rather than
+// matched raw, since it is not URI text and so names no anchor; the caller keeps
+// the reference verbatim with this reason beside it.
+func dynamicFragment(ref string) (name, why string, ok bool) {
+	fragment, found := strings.CutPrefix(ref, "#")
+	if !found || fragment == "" || strings.Contains(fragment, "/") {
+		return "", fmt.Sprintf("%q is not a plain same-document fragment", ref), false
 	}
-	return name, true
+	name, err := url.PathUnescape(fragment)
+	if err != nil {
+		return "", fmt.Sprintf("%q is not valid percent-encoded text: %s", ref, err.Error()), false
+	}
+	return name, "", true
 }
 
 // recordUnexpandedDynamicRef keeps a $dynamicRef verbatim on p when it was not

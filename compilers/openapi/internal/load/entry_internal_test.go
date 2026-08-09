@@ -11,13 +11,9 @@ import (
 
 	"github.com/dexpace/morphic/compilers"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
+	"github.com/dexpace/morphic/compilers/openapi/internal/openapitest"
 	"github.com/dexpace/morphic/compilers/openapi/internal/overlay"
 )
-
-// sourceOf wraps src as the single source a load call takes.
-func sourceOf(src string) compilers.Source {
-	return compilers.Source{Path: "spec.yaml", Data: []byte(src)}
-}
 
 // TestLoad_DegenerateCycleIsRefusedBeforeParsing pins the first gate in the
 // load path. A document whose references close a cycle is refused with a
@@ -42,7 +38,7 @@ func TestLoad_DegenerateCycleIsRefusedBeforeParsing(t *testing.T) {
 // TestUnmarshal_RecoversParserPanic covers.)
 func TestLoad_UnparseableSourceIsAGoError(t *testing.T) {
 	t.Parallel()
-	doc, diags, err := Load(t.Context(), 3, sourceOf("\tnot: yaml\n"), Options{})
+	doc, diags, err := Load(t.Context(), 3, openapitest.SourceOf("\tnot: yaml\n"), Options{})
 
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "source 3", "the failing source is named")
@@ -78,7 +74,7 @@ components:
 // document-version run, which is what makes it an artifact rather than a defect.
 func TestLoad_32KeywordIsNotAnInvalidSchema(t *testing.T) {
 	t.Parallel()
-	doc, diags, err := Load(t.Context(), 0, sourceOf(defaultMapping32Spec), Options{})
+	doc, diags, err := Load(t.Context(), 0, openapitest.SourceOf(defaultMapping32Spec), Options{})
 
 	require.NoError(t, err)
 	require.NotNil(t, doc)
@@ -129,7 +125,7 @@ func TestMetaSchemaVersionArtifacts_AFindingBothRunsRaiseIsKept(t *testing.T) {
 // an unresolved reference, so the fault never escapes as a Go error or a crash.
 func TestLoad_ResolverFaultBecomesADiagnostic(t *testing.T) {
 	t.Parallel()
-	doc, diags, err := Load(t.Context(), 0, sourceOf(resolverPanicSpec), Options{})
+	doc, diags, err := Load(t.Context(), 0, openapitest.SourceOf(resolverPanicSpec), Options{})
 
 	require.NoError(t, err, "a resolver fault is a spec problem, not a Go error")
 	assert.NotNil(t, doc, "resolution failure does not stop the document being lowered")
@@ -149,7 +145,7 @@ info: {title: T, version: "1"}
 paths: {}
 components: {schemas: {S: {type: number, minimum: .5}}}
 `
-	_, diags, err := Load(t.Context(), 0, sourceOf(spec), Options{})
+	_, diags, err := Load(t.Context(), 0, openapitest.SourceOf(spec), Options{})
 
 	require.NoError(t, err)
 	assert.Zero(t, countErrorsAt(diags,
@@ -209,7 +205,7 @@ components:
   schemas:
     Pet: {type: object}
 `
-	got, diags, err := Load(t.Context(), 0, sourceOf(spec),
+	got, diags, err := Load(t.Context(), 0, openapitest.SourceOf(spec),
 		overlayOptions("  - target: $.components.schemas\n    update:\n      Owner: {type: object}\n"))
 
 	require.NoError(t, err)
@@ -227,7 +223,7 @@ components:
 // an IR describing no document anyone has.
 func TestLoad_RefusesToLowerAfterAnOverlayFails(t *testing.T) {
 	t.Parallel()
-	got, diags, err := Load(t.Context(), 0, sourceOf(minimal31),
+	got, diags, err := Load(t.Context(), 0, openapitest.SourceOf(minimal31),
 		overlayOptions("  - target: $.paths['/nope']\n    update: {description: x}\n"))
 
 	require.NoError(t, err, "a bad overlay is a document problem, not a Go error")
@@ -250,11 +246,11 @@ components:
     A: {$ref: '#/components/schemas/B'}
     B: {type: string}
 `
-	clean, _, err := Load(t.Context(), 0, sourceOf(acyclic), Options{})
+	clean, _, err := Load(t.Context(), 0, openapitest.SourceOf(acyclic), Options{})
 	require.NoError(t, err)
 	require.NotNil(t, clean, "the source alone gives the scan nothing to find")
 
-	got, diags, err := Load(t.Context(), 0, sourceOf(acyclic),
+	got, diags, err := Load(t.Context(), 0, openapitest.SourceOf(acyclic),
 		overlayOptions("  - target: $.components.schemas.B\n    update: {$ref: '#/components/schemas/A'}\n"))
 
 	require.NoError(t, err)
@@ -268,7 +264,7 @@ components:
 // are not YAML at all get, reached one step later.
 func TestLoad_ADocumentThatFailsToBuildIsAGoError(t *testing.T) {
 	t.Parallel()
-	doc, diags, err := Load(t.Context(), 5, sourceOf(" "), Options{})
+	doc, diags, err := Load(t.Context(), 5, openapitest.SourceOf(" "), Options{})
 
 	require.Error(t, err)
 	assert.ErrorIs(t, err, errParse)
@@ -292,13 +288,13 @@ func TestLoad_RejectsAnOverlaySharingTheSourceIndex(t *testing.T) {
 	opts := overlayOptions("  - target: $.info\n    update: {description: d}\n")
 	opts.OverlaySrcIndex = 2
 
-	refused, _, err := Load(t.Context(), 2, sourceOf(minimal31), opts)
+	refused, _, err := Load(t.Context(), 2, openapitest.SourceOf(minimal31), opts)
 	require.Error(t, err, "the overlay may not share source 2's index")
 	assert.Contains(t, err.Error(), "overlay source index 2", "the collision is named")
 	assert.Nil(t, refused)
 
 	opts.OverlaySrcIndex = 3
-	got, diags, err := Load(t.Context(), 2, sourceOf(minimal31), opts)
+	got, diags, err := Load(t.Context(), 2, openapitest.SourceOf(minimal31), opts)
 	require.NoError(t, err, "an index of its own is fine: %+v", diags)
 	assert.True(t, got.Overlay.Applied())
 }

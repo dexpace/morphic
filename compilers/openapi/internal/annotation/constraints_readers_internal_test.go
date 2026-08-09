@@ -428,7 +428,7 @@ func TestReconcileBound_ABoundNoDecimalReadingOrdersKeepsTheExclusiveOne(t *test
 	t.Parallel()
 	c := &ir.Constraints{Min: bigOf("1p4")}
 
-	diags := reconcileBound(c, true, ir.BigVal("5"))
+	diags := reconcileBound(c, minBound, ir.BigVal("5"))
 
 	want := ir.Constraints{Min: bigOf("5"), ExclusiveMin: true}
 	if diff := cmp.Diff(want, *c); diff != "" {
