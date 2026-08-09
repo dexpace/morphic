@@ -56,9 +56,10 @@ func lowerComponentSchema(c lowering.Ctx, ts *compile.Types, anchors *AnchorInde
 	if _, owned := ts.Lookup(pointer); owned {
 		return diags
 	}
-	cons, consDiags := schemaConstraints(c, s.Node, pointer)
+	var kept ir.Unmodeled
+	cons, consDiags := schemaConstraints(c, &kept, s.Node, pointer)
 	diags = append(diags, consDiags...)
-	internAlias(c, ts, pointer, name, ref, cons)
+	internAlias(c, ts, pointer, name, ref, cons, kept)
 	// This alias is the first node the pointer owns, so the annotations
 	// schemaBody had nowhere to put now have a home.
 	if s.Node != nil {
@@ -153,11 +154,17 @@ func recordResidue(c lowering.Ctx, common *ir.TypeCommon, s *oas3.Schema, pointe
 // internal sub-schema (hoistSubSchema) — so a scalar that aliases a shared
 // primitive never drops the constraints it carried, including a bound written
 // beside a $ref, which constrains the position it is written at.
-func schemaConstraints(c lowering.Ctx, s *oas3.Schema, pointer string) (*ir.Constraints, []ir.Diagnostic) {
+//
+// p is the Unmodeled map of the same carrier the constraints are about to land
+// on. A co-declared numeric bound leaves one keyword with no field of
+// ir.Constraints to reach, and it is kept there — beside the constraints it did
+// not reach, wherever those go (GitHub #286).
+func schemaConstraints(c lowering.Ctx, p *ir.Unmodeled, s *oas3.Schema, pointer string) (*ir.Constraints, []ir.Diagnostic) {
 	if s == nil {
 		return nil, nil
 	}
-	cons, diags := annotation.Constraints(s, c.ExclusiveBoundIsBoolean())
+	cons, kept, diags := annotation.Constraints(s, c.ExclusiveBoundIsBoolean(), pointer, c.SrcIndex)
+	*p = annotation.MergeUnmodeled(*p, kept)
 	return cons, StampConstraintDiags(c, diags, pointer)
 }
 
@@ -176,15 +183,16 @@ func StampConstraintDiags(c lowering.Ctx, diags []ir.Diagnostic, pointer string)
 // component (or a sibling-carrying schema) whose body lowered to a shared or
 // referenced target still owns a resolvable node at its own TypeID. Any value
 // constraints the schema carried are attached so a scalar component never drops
-// them.
+// them, and kept holds what those constraints had no field for — the co-declared
+// bound keyword schemaConstraints read alongside them.
 func internAlias(c lowering.Ctx, ts *compile.Types, pointer, hint string,
-	target ir.TypeRef, constraints *ir.Constraints,
+	target ir.TypeRef, constraints *ir.Constraints, kept ir.Unmodeled,
 ) ir.TypeID {
 	return internNode(c, ts, pointer, hint, func(common ir.TypeCommon) ir.TypeDef {
 		base := target
+		common.Unmodeled = annotation.MergeUnmodeled(common.Unmodeled, kept)
 		return &ir.Scalar{TypeCommon: common, Base: &base, Constraints: constraints}
 	})
-
 }
 
 // schemaBody lowers a concrete (non-reference) schema body to a TypeRef and
@@ -227,8 +235,9 @@ func hoistDeclarationHome(c lowering.Ctx, ts *compile.Types, s *oas3.Schema, ref
 	if id, owned := ts.Lookup(pointer); owned {
 		return ir.TypeRef{Target: id, Nullable: ref.Nullable}, nil
 	}
-	cons, diags := schemaConstraints(c, s, pointer)
-	id := internAlias(c, ts, pointer, hint, ref, cons)
+	var kept ir.Unmodeled
+	cons, diags := schemaConstraints(c, &kept, s, pointer)
+	id := internAlias(c, ts, pointer, hint, ref, cons, kept)
 	return ir.TypeRef{Target: id, Nullable: ref.Nullable}, diags
 }
 
@@ -381,7 +390,12 @@ func lowerBesideUnmodeledUnion(c lowering.Ctx, ts *compile.Types, anchors *Ancho
 		// The structural body reduced to a shared/aliased target; hoist an alias
 		// so the preserved union attaches to a node this pointer owns, never to a
 		// shared primitive.
-		owner = internAlias(c, ts, pointer, hint, ir.TypeRef{Target: inner}, nil)
+		//
+		// Alone among the alias hoists this one reads no constraints, so the
+		// position's bounds — and with them the co-declared keyword kept beside
+		// them — reach no field here. That is GitHub #343, deliberately left as
+		// it was rather than settled as a side effect of the keyword's own fix.
+		owner = internAlias(c, ts, pointer, hint, ir.TypeRef{Target: inner}, nil, nil)
 	}
 	return owner, append(diags, preserveUnionSiblings(c, ts, owner, s, pointer, reason, why)...)
 }
@@ -648,9 +662,10 @@ func preserveUnhomedKeywords(c lowering.Ctx, ts *compile.Types, s *oas3.Schema, 
 	}
 	owner := id
 	if got, _ := ts.Lookup(pointer); got != id {
-		cons, consDiags := schemaConstraints(c, s, pointer)
+		var kept ir.Unmodeled
+		cons, consDiags := schemaConstraints(c, &kept, s, pointer)
 		diags = append(diags, consDiags...)
-		owner = internAlias(c, ts, pointer, hint, ir.TypeRef{Target: id}, cons)
+		owner = internAlias(c, ts, pointer, hint, ir.TypeRef{Target: id}, cons, kept)
 	}
 	diags = append(diags, recordUnhomedKeywords(c, ts, owner, s, unhomed, td.Kind(), pointer)...)
 	return owner, append(diags, recordSkippedFamilies(c, ts, owner, s, d, pointer)...)
@@ -784,7 +799,7 @@ func lowerUnion(c lowering.Ctx, ts *compile.Types, anchors *AnchorIndex, depth i
 func lowerModel(c lowering.Ctx, ts *compile.Types, anchors *AnchorIndex, depth int, s *oas3.Schema, pointer, hint string) (ir.TypeID, []ir.Diagnostic) {
 	var diags []ir.Diagnostic
 	id := internNode(c, ts, pointer, hint, func(common ir.TypeCommon) ir.TypeDef {
-		cons, consDiags := schemaConstraints(c, s, pointer)
+		cons, consDiags := schemaConstraints(c, &common.Unmodeled, s, pointer)
 		diags = append(diags, consDiags...)
 		m := &ir.Model{TypeCommon: common, Constraints: cons}
 		diags = append(diags, fillModelProperties(c, ts, anchors, depth, m, s, pointer)...)
@@ -930,14 +945,16 @@ func fillPropertyDefault(c lowering.Ctx, p *ir.Property, ref, tgt *oas3.Schema, 
 	return nil
 }
 
-// fillPropertyConstraints attaches the property's scalar constraints and stamps
-// each constraint diagnostic with the property's provenance.
+// fillPropertyConstraints attaches the property's scalar constraints, and the
+// co-declared bound keyword that reached none of them, to the property itself.
+// ir.Property is the carrier at this position: a property's schema is read
+// through CarriedRef, so it hoists no node of its own to hold either.
 func fillPropertyConstraints(c lowering.Ctx, p *ir.Property, ref *oas3.Schema, pointer string) []ir.Diagnostic {
-	cons, diags := annotation.Constraints(ref, c.ExclusiveBoundIsBoolean())
+	cons, diags := schemaConstraints(c, &p.Unmodeled, ref, pointer)
 	if cons != nil {
 		p.Constraints = cons
 	}
-	return StampConstraintDiags(c, diags, pointer)
+	return diags
 }
 
 // attachDeclaredAnnotations records every annotation s declares on the type
@@ -1091,7 +1108,7 @@ func hoistByteScalar(c lowering.Ctx, ts *compile.Types, s *oas3.Schema, pointer,
 		enc, encDiags := scalarEncoding(c, s, "base64", &common, pointer)
 		diags = append(diags, encDiags...)
 		enc.WireType = &wire
-		cons, consDiags := schemaConstraints(c, s, pointer)
+		cons, consDiags := schemaConstraints(c, &common.Unmodeled, s, pointer)
 		diags = append(diags, consDiags...)
 		return &ir.Scalar{
 			TypeCommon:  common,
@@ -1111,7 +1128,7 @@ func hoistFormatScalar(c lowering.Ctx, ts *compile.Types, s *oas3.Schema, base i
 		baseRef := ts.PrimRef(base)
 		enc, encDiags := scalarEncoding(c, s, format, &common, pointer)
 		diags = append(diags, encDiags...)
-		cons, consDiags := schemaConstraints(c, s, pointer)
+		cons, consDiags := schemaConstraints(c, &common.Unmodeled, s, pointer)
 		diags = append(diags, consDiags...)
 		return &ir.Scalar{
 			TypeCommon:  common,
@@ -1133,7 +1150,7 @@ func hoistContentScalar(c lowering.Ctx, ts *compile.Types, s *oas3.Schema, prim 
 		base := ts.PrimRef(prim)
 		enc, encDiags := scalarEncoding(c, s, "", &common, pointer)
 		diags = append(diags, encDiags...)
-		cons, consDiags := schemaConstraints(c, s, pointer)
+		cons, consDiags := schemaConstraints(c, &common.Unmodeled, s, pointer)
 		diags = append(diags, consDiags...)
 		return &ir.Scalar{
 			TypeCommon:  common,

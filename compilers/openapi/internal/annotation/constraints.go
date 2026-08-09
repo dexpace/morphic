@@ -4,6 +4,7 @@ import (
 	oas3 "github.com/speakeasy-api/openapi/jsonschema/oas3"
 
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
+	"github.com/dexpace/morphic/compilers/openapi/internal/ids"
 	"github.com/dexpace/morphic/compilers/openapi/internal/value"
 	"github.com/dexpace/morphic/ir"
 )
@@ -19,28 +20,63 @@ import (
 // 2020-12 one a side that declares both of its keywords is settled by
 // reconcileBound rather than by whichever ran last.
 //
+// The keyword that reconciliation leaves out of ir.Constraints comes back as the
+// second return, an ir.Unmodeled the caller merges into whichever carrier its
+// reading position owns. pointer and srcIndex locate it, exactly as they locate
+// what Read keeps. Everything else a schema says about its values reaches a
+// field, so on all but a co-declared numeric bound that map is nil.
+//
 // It reads beside the other readers here for the reason they are here at all:
 // what a schema says about the values admitted at a position is read the same
 // way whoever asks, and none of it needs the lowering walk. Which dialect
 // applies is the caller's to decide — that is a fact about the document, not
 // about the schema, and it is the one thing this reader will not go and find.
-func Constraints(s *oas3.Schema, exclusiveBoolean bool) (*ir.Constraints, []ir.Diagnostic) {
+func Constraints(s *oas3.Schema, exclusiveBoolean bool, pointer string, srcIndex int) (*ir.Constraints, ir.Unmodeled, []ir.Diagnostic) {
 	if s == nil {
-		return nil, nil
+		return nil, nil, nil
 	}
 	c := &ir.Constraints{}
+	site := boundSite{pointer: pointer, srcIndex: srcIndex}
 	diags := numericBounds(c, s)
-	diags = append(diags, applyExclusive(c, s, true, exclusiveBoolean)...)
-	diags = append(diags, applyExclusive(c, s, false, exclusiveBoolean)...)
+	diags = append(diags, applyExclusive(c, s, &site, true, exclusiveBoolean)...)
+	diags = append(diags, applyExclusive(c, s, &site, false, exclusiveBoolean)...)
 	c.MinLength = s.MinLength
 	c.MaxLength = s.MaxLength
 	c.Pattern = s.GetPattern()
 	c.MinProps = s.MinProperties
 	c.MaxProps = s.MaxProperties
 	if emptyConstraints(c) {
-		return nil, diags
+		return nil, site.kept, diags
 	}
-	return c, diags
+	return c, site.kept, diags
+}
+
+// boundSite is where a schema's bounds were written, and what became of the
+// co-declared keyword that reached no field of ir.Constraints.
+//
+// The keyword is recorded here rather than handed back for a caller to record,
+// so that the diagnostic naming it is written at the same statement that keeps
+// it. Announcing a preservation from anywhere else is how a message comes to
+// claim one that never happened (GitHub #144).
+type boundSite struct {
+	pointer  string
+	srcIndex int
+	kept     ir.Unmodeled
+}
+
+// keepRedundant keeps the co-declared keyword that ir.Constraints has no room
+// for, and returns the diagnostic reporting the pair.
+//
+// It writes back the literal already read rather than re-reading the keyword's
+// raw node. The two produce the same bytes — RawFromNode renders a numeric
+// scalar through the same value.NumericLiteral this bound came from — but only
+// this one cannot fail, since BigVal's contract is that its text renders as a
+// JSON number. That is what lets the message state the keyword is kept without
+// a branch for the case where it was not.
+func (b *boundSite) keepRedundant(keptProp string, kept ir.BigVal, dropProp string, dropped ir.BigVal, compared bool) ir.Diagnostic {
+	PreserveInto(&b.kept, "openapi:"+dropProp, ir.RawValue(dropped),
+		ir.ReasonDegradedLowering, b.pointer+ids.Ptr(dropProp), b.srcIndex)
+	return redundantBoundDiag(keptProp, kept, dropProp, dropped, compared)
 }
 
 // numericBounds fills Min, Max, and MultipleOf from the raw minimum/maximum/
@@ -88,7 +124,7 @@ func boundLiteralDiag(prop, literal string, err error) ir.Diagnostic {
 // dialect (true for 3.0). Because load suppresses the library's type-mismatch
 // on these keywords, a value in the wrong form for the dialect is reported and
 // dropped here rather than silently accepted.
-func applyExclusive(c *ir.Constraints, s *oas3.Schema, isMin, exclusiveBoolean bool) []ir.Diagnostic {
+func applyExclusive(c *ir.Constraints, s *oas3.Schema, site *boundSite, isMin, exclusiveBoolean bool) []ir.Diagnostic {
 	ev, prop := s.GetExclusiveMaximum(), "exclusiveMaximum"
 	if isMin {
 		ev, prop = s.GetExclusiveMinimum(), "exclusiveMinimum"
@@ -113,7 +149,7 @@ func applyExclusive(c *ir.Constraints, s *oas3.Schema, isMin, exclusiveBoolean b
 	if err != nil {
 		return []ir.Diagnostic{boundLiteralDiag(prop, node.Value, err)}
 	}
-	return reconcileBound(c, isMin, v)
+	return reconcileBound(c, site, isMin, v)
 }
 
 // reconcileBound settles one side's bound when the 2020-12 dialect declares
@@ -126,14 +162,13 @@ func applyExclusive(c *ir.Constraints, s *oas3.Schema, isMin, exclusiveBoolean b
 // taking the exclusive bound unconditionally, as this did before, published a
 // constraint weaker than the source wherever minimum was the tighter (GitHub #33).
 //
-// The discarded keyword is implied by the kept one, so no value the source admits
-// or excludes changes — but it is still a keyword the source wrote and the IR does
-// not carry, so it is named in a diagnostic rather than dropped in silence. It is
-// not also preserved verbatim: Constraints has no Unmodeled channel, and its
-// callers route what it returns to different carriers — a property, a parameter
-// and a hoisted alias node — so opening one is a change of its own, tracked in
-// GitHub #286 rather than made here.
-func reconcileBound(c *ir.Constraints, isMin bool, excl ir.BigVal) []ir.Diagnostic {
+// The discarded keyword is implied by the kept one, so no value the source
+// admits or excludes changes. What would change is the record that the source
+// spelled the bound twice, so it is kept verbatim on site rather than left to a
+// diagnostic message: a consumer reconstructing or diffing the source reads the
+// document, not the diagnostics, and cannot otherwise tell
+// {minimum: 10, exclusiveMinimum: 0} from {minimum: 10} (GitHub #286).
+func reconcileBound(c *ir.Constraints, site *boundSite, isMin bool, excl ir.BigVal) []ir.Diagnostic {
 	incl, inclProp, exclProp := c.Max, "maximum", "exclusiveMaximum"
 	if isMin {
 		incl, inclProp, exclProp = c.Min, "minimum", "exclusiveMinimum"
@@ -145,12 +180,12 @@ func reconcileBound(c *ir.Constraints, isMin bool, excl ir.BigVal) []ir.Diagnost
 
 	tighter, compared := inclusiveIsTighter(*incl, excl, isMin)
 	if tighter {
-		return []ir.Diagnostic{redundantBoundDiag(inclProp, *incl, exclProp, excl, compared)}
+		return []ir.Diagnostic{site.keepRedundant(inclProp, *incl, exclProp, excl, compared)}
 	}
 
 	dropped := *incl
 	setExclusiveBound(c, isMin, &excl)
-	return []ir.Diagnostic{redundantBoundDiag(exclProp, excl, inclProp, dropped, compared)}
+	return []ir.Diagnostic{site.keepRedundant(exclProp, excl, inclProp, dropped, compared)}
 }
 
 // inclusiveIsTighter reports whether the inclusive bound incl admits fewer
@@ -189,25 +224,28 @@ func inclusiveIsTighter(incl, excl ir.BigVal, isMin bool) (tighter, compared boo
 	return (order > 0) == isMin, true
 }
 
-// redundantBoundDiag reports the co-declared 2020-12 bound that did not reach
-// the IR, naming both keywords and both exact literals so a reader can see what
-// was dropped without going back to the source.
+// redundantBoundDiag reports the co-declared 2020-12 bound that reached no
+// field of ir.Constraints, naming both keywords and both exact literals so a
+// reader can see which bound the IR carries without going back to the source.
+//
+// It states that the other keyword is kept verbatim because keepRedundant has
+// already kept it, by a route with no failure to report.
 //
 // compared tells the two cases apart. When the magnitudes did compare, the kept
-// bound is provably the tighter and the dropped one is redundant, which costs
-// the consumer nothing — hence info severity. When they did not, the kept bound
-// is the exclusive one by fallback and may be the looser of the two, so the
-// message says so and the severity rises to warning.
+// bound is provably the tighter and the other is redundant, which costs the
+// consumer nothing — hence info severity. When they did not, the kept bound is
+// the exclusive one by fallback and may be the looser of the two, so the message
+// says so and the severity rises to warning.
 func redundantBoundDiag(keptProp string, kept ir.BigVal, dropProp string, dropped ir.BigVal, compared bool) ir.Diagnostic {
 	if !compared {
 		return diag.Newf(ir.SeverityWarning, diag.DegradedConstruct, ir.Provenance{},
 			"%s %s and %s %s both bound this value but their magnitudes could not be compared; "+
-				"kept %s and dropped %s, which may be the tighter of the two",
+				"kept %s as the bound, and %s, which may be the tighter of the two, verbatim under Unmodeled",
 			keptProp, kept, dropProp, dropped, keptProp, dropProp)
 	}
 	return diag.Newf(ir.SeverityInfo, diag.DegradedConstruct, ir.Provenance{},
 		"%s %s and %s %s both bound this value and the IR holds one bound per side; "+
-			"kept %s as the tighter of the two and dropped %s, which it implies",
+			"kept %s as the tighter of the two, and %s, which it implies, verbatim under Unmodeled",
 		keptProp, kept, dropProp, dropped, keptProp, dropProp)
 }
 

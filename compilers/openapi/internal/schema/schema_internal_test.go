@@ -91,9 +91,11 @@ func TestSchemaConstraints_NonSchemaInputs(t *testing.T) {
 		annotation.SchemaOf(oas3.NewJSONSchemaFromBool(true)),
 		annotation.SchemaOf(oas3.NewJSONSchemaFromReference("#/components/schemas/Other")),
 	} {
-		cons, diags := schemaConstraints(l.ctx, js, "/p")
+		var kept ir.Unmodeled
+		cons, diags := schemaConstraints(l.ctx, &kept, js, "/p")
 		assert.Nil(t, cons)
 		assert.Empty(t, diags)
+		assert.Empty(t, kept)
 	}
 }
 
@@ -107,9 +109,11 @@ func TestSchemaConstraints_EmptyRefSchema(t *testing.T) {
 	l := newRawLowerer(&soa.OpenAPI{})
 	emptyRef := references.Reference("")
 	js := oas3.NewJSONSchemaFromSchema[oas3.Referenceable](&oas3.Schema{Ref: &emptyRef})
-	cons, diags := schemaConstraints(l.ctx, annotation.SchemaOf(js), "/p")
+	var kept ir.Unmodeled
+	cons, diags := schemaConstraints(l.ctx, &kept, annotation.SchemaOf(js), "/p")
 	assert.Nil(t, cons)
 	assert.Empty(t, diags)
+	assert.Empty(t, kept)
 }
 
 func TestResolveSchemaRef_ReusesInternedSubSchema(t *testing.T) {

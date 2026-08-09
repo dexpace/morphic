@@ -136,8 +136,12 @@ func fillParamSchema(c lowering.Ctx, ts *compile.Types, param *ir.Parameter, js 
 	tgt := resolve.TargetSchema(js, s)
 	diags := fillParamDefault(c, param, s, tgt, pointer)
 
-	cons, consDiags := annotation.Constraints(s, c.ExclusiveBoundIsBoolean())
+	// The co-declared bound keyword ir.Constraints has no field for is kept on
+	// the parameter, the carrier at this position, exactly as a property keeps
+	// its own (GitHub #286).
+	cons, kept, consDiags := annotation.Constraints(s, c.ExclusiveBoundIsBoolean(), pointer, c.SrcIndex)
 	diags = append(diags, schema.StampConstraintDiags(c, consDiags, pointer)...)
+	param.Unmodeled = annotation.MergeUnmodeled(param.Unmodeled, kept)
 	if cons != nil {
 		param.Constraints = cons
 	}
