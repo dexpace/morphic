@@ -53,9 +53,16 @@ func writeCommandUsage(w io.Writer, c command) {
 // on whatever command name, if any, remains. This filtering approach is safe
 // here specifically because help has no flags; runCompile must keep detecting
 // help via errors.Is(err, flag.ErrHelp) instead of pre-scanning argv.
+//
+// A "--" stops the filtering, since past it a help-flag token is a command name
+// like any other: "morphic help -- --help" reports an unknown command called
+// "--help" rather than dropping the token and being left with the marker.
 func filterHelpTokens(args []string) []string {
 	names := make([]string, 0, len(args))
-	for _, arg := range args {
+	for i, arg := range args {
+		if arg == flagTerminator {
+			return append(names, args[i+1:]...)
+		}
 		if isHelpFlag(arg) {
 			continue
 		}

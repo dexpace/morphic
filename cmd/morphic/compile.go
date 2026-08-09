@@ -73,7 +73,10 @@ func newCompileCommand() command {
 			"diagnostics to stderr.\n\n" +
 			"--explain reports what compiling produced at one source coordinate — the\n" +
 			"type node interned there, the coordinates interned beneath it, and the\n" +
-			"diagnostics stamped at it — instead of writing the document.",
+			"diagnostics stamped at it — instead of writing the document.\n\n" +
+			"A -- argument ends flag parsing: every argument after it is an operand,\n" +
+			"even one that begins with a dash, which is how a spec file named like a\n" +
+			"flag is passed.",
 		printFlags: func(w io.Writer) {
 			fs, _ := newCompileFlags()
 			fs.SetOutput(w)
@@ -181,9 +184,18 @@ func compileSpec(specPath string, opts compileOptions, stdout, stderr io.Writer)
 // parseArgs binds fs and collects positional arguments, tolerating flags that
 // appear either before or after the spec path (stdlib flag stops at the first
 // non-flag argument, so it is invoked once per positional).
+//
+// A "--" ends flag parsing for the whole invocation rather than for one round
+// of it, so it is split off before that loop starts. Leaving it to Parse would
+// shield exactly one argument: Parse consumes the marker and reports nothing
+// about having seen one, so the next round cannot tell a terminated list from a
+// list that merely stopped at a positional, and re-enables flag parsing for
+// everything the user had marked as operands.
 func parseArgs(fs *flag.FlagSet, args []string) ([]string, error) {
+	before, operands := splitAtTerminator(fs, args)
+
 	var positional []string
-	rest := args
+	rest := before
 	for {
 		if err := fs.Parse(rest); err != nil {
 			// Returned verbatim, not wrapped: this error is rendered straight to
@@ -192,7 +204,7 @@ func parseArgs(fs *flag.FlagSet, args []string) ([]string, error) {
 		}
 		rest = fs.Args()
 		if len(rest) == 0 {
-			return positional, nil
+			return append(positional, operands...), nil
 		}
 		positional = append(positional, rest[0])
 		rest = rest[1:]
