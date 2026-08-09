@@ -73,6 +73,20 @@ func PreserveSchemaKeyword(c lowering.Ctx, p *ir.Unmodeled, s *oas3.Schema, keyw
 	return PreserveNode(c, p, "openapi:"+keyword, annotation.RawPropertyNode(s, keyword), reason, pointer)
 }
 
+// PreserveUnknownKeywords records every keyword s writes that no field of the
+// schema model names and no reader above it already kept (GitHub #297).
+//
+// It is the last thing an attachment does, which is the contract
+// annotation.UnknownKeywordsIn states and the reason it is called here rather
+// than from inside annotation.Read with the other readers: $dynamicRef has no
+// field in the schema model either and is decided by recordUnexpandedDynamicRef,
+// which runs after Read and deliberately keeps nothing once the reference has
+// expanded. A census running before it could not tell that from an unread
+// keyword.
+func PreserveUnknownKeywords(c lowering.Ctx, p *ir.Unmodeled, s *oas3.Schema, pointer string) []ir.Diagnostic {
+	return annotation.UnknownKeywordsIn(p, s, pointer, c.SrcIndex)
+}
+
 // preserveKeyword records a validation-only keyword's raw payload under key in
 // p and returns the one info diagnostic naming it at declPtr, the schema that
 // wrote it. An absent or unconvertible payload records nothing and returns

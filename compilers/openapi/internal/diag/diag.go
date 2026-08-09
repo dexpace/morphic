@@ -191,6 +191,40 @@ const (
 	// DegradedConstruct's constructs survive in a weaker shape, and these survive
 	// in none (GitHub #144).
 	UnpreservableConstruct = "openapi/unpreservable-construct"
+	// UnknownSchemaKeyword reports a JSON Schema keyword no field of the schema
+	// model names, kept verbatim under Unmodeled.
+	//
+	// Info, because the document did nothing wrong: JSON Schema requires an
+	// implementation to ignore a keyword it does not recognize, and says such a
+	// keyword may carry meaning for other tooling, so an unrecognized keyword is
+	// legal input rather than a defect. What is recorded is this compiler's own
+	// decision — that it read no meaning from the keyword and kept the text — which
+	// is the same thing ValidationOnlyKeyword records beside it.
+	UnknownSchemaKeyword = "openapi/unknown-schema-keyword"
+	// UnknownObjectKey reports a key on an OpenAPI object that the specification
+	// neither defines nor admits as an extension, kept verbatim under Unmodeled.
+	//
+	// Warning rather than info, because unlike its schema neighbour this one is a
+	// defect: OpenAPI gives its objects a closed key set and requires every
+	// extension to be prefixed x-, so a key that is neither is a document error —
+	// in practice a misspelling of the field beside it, which is precisely the
+	// class of mistake that survives when the compiler swallows the key in silence.
+	//
+	// Warning rather than error for the reason ReservedHeaderName is one: the
+	// document still lowers, everything the key was written beside is unaffected,
+	// and harness.Check stops at the first error diagnostic, which would hide every
+	// later finding in the same spec and make any fixture carrying a stray key
+	// unable to reach the invariant checks.
+	UnknownObjectKey = "openapi/unknown-object-key"
+	// UnknownKeyBudget reports an object declaring more keys the model does not
+	// name than the compiler keeps, so the ones past the bound reached the IR in no
+	// form at all.
+	//
+	// Every collection here is bounded, and this one is over a key set the document
+	// chooses the size of. The bound is far above what any document writes by
+	// accident, so tripping it is either a generated file or a hostile one; the
+	// diagnostic is what keeps the discarded remainder from being a silent loss.
+	UnknownKeyBudget = "openapi/unknown-key-budget"
 )
 
 // Newf builds an ir.Diagnostic with a formatted message. It is the single

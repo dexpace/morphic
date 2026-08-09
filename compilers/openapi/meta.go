@@ -1,10 +1,13 @@
 package openapi
 
 import (
+	"strconv"
+
 	soa "github.com/speakeasy-api/openapi/openapi"
 
 	"github.com/dexpace/morphic/compilers/compile"
 	"github.com/dexpace/morphic/compilers/openapi/internal/annotation"
+	"github.com/dexpace/morphic/compilers/openapi/internal/ids"
 	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
 	"github.com/dexpace/morphic/ir"
 )
@@ -38,11 +41,74 @@ type docMeta struct {
 // service graph: info, servers, and top-level extensions (ir-design §10, §12).
 func lowerMeta(c lowering.Ctx) (docMeta, []ir.Diagnostic) {
 	m := lowerInfo(c)
-	m.Servers = lowerServers(c)
+
+	servers, serverDiags := lowerServers(c)
+	m.Servers = servers
 
 	ext, diags := annotation.ExtensionsFrom(c.Doc.GetExtensions(), c.SrcIndex, "")
 	m.Unmodeled = ext
-	return m, diags
+	diags = append(diags, serverDiags...)
+	return m, append(diags, documentUnknownKeys(c, &m.Unmodeled)...)
+}
+
+// documentUnknownKeys collects the keys the OpenAPI model names no field for
+// from every object around the document metadata that lowers to no node of its
+// own: the document root, the info block and the contact and license inside it,
+// the root externalDocs, and each declared tag.
+//
+// ir.Document is the nearest node with an Unmodeled map for all of them, so each
+// object's keys are scoped by the source path they were written at. One unscoped
+// "openapi:status" would be a single key for six objects, and the entry that
+// survived would be whichever site ran last.
+func documentUnknownKeys(c lowering.Ctx, p *ir.Unmodeled) []ir.Diagnostic {
+	sites := append(rootUnknownSites(c), tagUnknownSites(c)...)
+	diags := make([]ir.Diagnostic, 0, len(sites))
+	for _, site := range sites {
+		diags = append(diags,
+			annotation.UnknownKeysUnder(p, site.model, c.SrcIndex, site.owner, site.scope)...)
+	}
+	return diags
+}
+
+// unknownSite is one object's census: what it keys under on the carrier holding
+// it, the object's own source pointer, and the parsed object itself.
+type unknownSite struct {
+	scope string
+	owner string
+	model any
+}
+
+// rootUnknownSites returns the census sites a document has exactly one of. The
+// root's keys take no scope, since ir.Document stands for the OpenAPI Object
+// itself; the rest are keyed by the path from it down to the object that wrote
+// them.
+func rootUnknownSites(c lowering.Ctx) []unknownSite {
+	info := c.Doc.GetInfo()
+	infoPtr := ids.Ptr("info")
+	return []unknownSite{
+		{"", "", c.Doc},
+		{"info", infoPtr, info},
+		{"info/contact", infoPtr + ids.Ptr("contact"), info.GetContact()},
+		{"info/license", infoPtr + ids.Ptr("license"), info.GetLicense()},
+		{"externalDocs", ids.Ptr("externalDocs"), c.Doc.GetExternalDocs()},
+	}
+}
+
+// tagUnknownSites returns one census site per declared tag, since ir.TagDef
+// holds no Unmodeled map for a tag's own keys to land on.
+//
+// Scoped by index rather than name, which is the pointer a tag is written at. A
+// name would read better, but OpenAPI's requirement that tag names be unique is
+// the document's to keep and not this compiler's to rely on: two tags spelled
+// alike would silently leave one entry.
+func tagUnknownSites(c lowering.Ctx) []unknownSite {
+	tags := c.Doc.GetTags()
+	out := make([]unknownSite, 0, len(tags))
+	for i, t := range tags {
+		index := strconv.Itoa(i)
+		out = append(out, unknownSite{"tags/" + index, ids.Ptr("tags", index), t})
+	}
+	return out
 }
 
 // lowerInfo maps info onto the document identity, docs, contact, and license.
@@ -79,31 +145,37 @@ func infoDocs(c lowering.Ctx, info *soa.Info) ir.Docs {
 // template, description, and templated variables (ir-design §10). It returns nil
 // rather than an empty slice when every entry was skipped, so a document
 // declaring no usable server leaves the field unset.
-func lowerServers(c lowering.Ctx) []ir.Server {
+func lowerServers(c lowering.Ctx) ([]ir.Server, []ir.Diagnostic) {
 	// GetServers never returns an empty slice — it injects a default "/" server
 	// when none are declared — so the loop always runs at least once.
 	servers := c.Doc.GetServers()
 	out := make([]ir.Server, 0, len(servers))
-	for _, s := range servers {
+	var diags []ir.Diagnostic
+	for i, s := range servers {
 		if s == nil {
 			continue
 		}
-		out = append(out, lowerServer(s))
+		one, serverDiags := lowerServer(c, s, ids.Ptr("servers", strconv.Itoa(i)))
+		diags = append(diags, serverDiags...)
+		out = append(out, one)
 	}
 	if len(out) == 0 {
-		return nil
+		return nil, diags
 	}
-	return out
+	return out, diags
 }
 
-// lowerServer lowers one server, named by serverName.
-func lowerServer(s *soa.Server) ir.Server {
-	return ir.Server{
+// lowerServer lowers one server, named by serverName; sptr is the server's own
+// pointer in the servers list.
+func lowerServer(c lowering.Ctx, s *soa.Server, sptr string) (ir.Server, []ir.Diagnostic) {
+	vars, diags := serverVariables(c, s, sptr)
+	out := ir.Server{
 		Name:        serverName(s),
 		URLTemplate: s.GetURL(),
 		Description: ir.Docs{Description: s.GetDescription()},
-		Variables:   serverVariables(s),
+		Variables:   vars,
 	}
+	return out, append(diags, annotation.UnknownKeysIn(&out.Unmodeled, s, c.SrcIndex, sptr)...)
 }
 
 // serverName builds a server's neutral naming: the declared name when the source
@@ -134,22 +206,26 @@ func serverName(s *soa.Server) ir.Naming {
 
 // serverVariables lowers a server's URL template variables in source order, or
 // nil when it declares none.
-func serverVariables(s *soa.Server) []ir.ServerVariable {
+func serverVariables(c lowering.Ctx, s *soa.Server, sptr string) ([]ir.ServerVariable, []ir.Diagnostic) {
 	vars := s.GetVariables()
 	if vars == nil || vars.Len() == 0 {
-		return nil
+		return nil, nil
 	}
 	out := make([]ir.ServerVariable, 0, vars.Len())
+	var diags []ir.Diagnostic
 	for name, v := range vars.All() {
 		if v == nil {
 			continue
 		}
-		out = append(out, ir.ServerVariable{
+		one := ir.ServerVariable{
 			Name:    name,
 			Default: v.GetDefault(),
 			Enum:    v.GetEnum(),
 			Docs:    ir.Docs{Description: v.GetDescription()},
-		})
+		}
+		diags = append(diags, annotation.UnknownKeysIn(&one.Unmodeled, v, c.SrcIndex,
+			sptr+ids.Ptr("variables", name))...)
+		out = append(out, one)
 	}
-	return out
+	return out, diags
 }

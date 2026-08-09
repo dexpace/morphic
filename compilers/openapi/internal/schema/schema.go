@@ -894,7 +894,8 @@ func fillPropertyAnnotations(c lowering.Ctx, ts *compile.Types, anchors *AnchorI
 	// nil node: this arm runs only when the schema lowered to no node of its own,
 	// so nothing here can be carrying an Encoding.
 	diags = append(diags, recordUnplacedContent(c, &p.Unmodeled, ref, nil, pointer)...)
-	return append(diags, recordUnexpandedDynamicRef(c, anchors, &p.Unmodeled, ref, pointer)...)
+	diags = append(diags, recordUnexpandedDynamicRef(c, anchors, &p.Unmodeled, ref, pointer)...)
+	return append(diags, PreserveUnknownKeywords(c, &p.Unmodeled, ref, pointer)...)
 }
 
 // LoweredToOwnNode reports whether the declaration at pointer lowered to a type
@@ -978,7 +979,8 @@ func attachDeclaredAnnotations(c lowering.Ctx, ts *compile.Types, anchors *Ancho
 		common.Examples = a.Examples
 	}
 	diags = append(diags, recordUnplacedContent(c, &common.Unmodeled, s, td, pointer)...)
-	return append(diags, recordUnexpandedDynamicRef(c, anchors, &common.Unmodeled, s, pointer)...)
+	diags = append(diags, recordUnexpandedDynamicRef(c, anchors, &common.Unmodeled, s, pointer)...)
+	return append(diags, PreserveUnknownKeywords(c, &common.Unmodeled, s, pointer)...)
 }
 
 // fillAdditional lowers additionalProperties, patternProperties, and

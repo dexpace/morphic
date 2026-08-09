@@ -293,6 +293,7 @@ func lowerOperation(c lowering.Ctx, ts *compile.Types, anchors *schema.AnchorInd
 		op.Unmodeled = ext
 	}
 	// After the extensions assignment, which would otherwise overwrite the map.
+	diags = append(diags, annotation.UnknownKeysIn(&op.Unmodeled, src, c.SrcIndex, decl)...)
 	diags = append(diags, applyOperationServers(c, &op, src, decl)...)
 	return op, extra, append(diags, checkOperationIDUnique(c, operationIDs, op, mount)...)
 }
@@ -465,7 +466,20 @@ func lowerResponse(c lowering.Ctx, ts *compile.Types, anchors *schema.AnchorInde
 	resp.Docs.Description = r.GetDescription()
 	_, linkDiags := schema.PreserveNode(c, &resp.Unmodeled, "openapi:links",
 		annotation.RawChildNode(r.GetRootNode(), "links"), ir.ReasonNoIRHome, rptr+ids.Ptr("links"))
-	return resp, append(diags, linkDiags...)
+	diags = append(diags, linkDiags...)
+	return resp, append(diags, preserveResponseUnknownKeys(c, &resp.Unmodeled, r, rptr)...)
+}
+
+// preserveResponseUnknownKeys keeps the keys a Response Object writes that the
+// specification does not define.
+//
+// One helper for both branches on purpose. ir.Response and ir.ErrorCase are two
+// lowerings of the same source object, and a construct kept on only one of them
+// makes a declaration survive or vanish on nothing but its status code — which
+// is how a response's links came to be kept on a 2xx and dropped on a 4xx
+// (GitHub #275).
+func preserveResponseUnknownKeys(c lowering.Ctx, p *ir.Unmodeled, r *soa.Response, rptr string) []ir.Diagnostic {
+	return annotation.UnknownKeysIn(p, r, c.SrcIndex, rptr)
 }
 
 // responseName builds a success response's neutral naming. OpenAPI names no
@@ -497,7 +511,8 @@ func lowerErrorCase(c lowering.Ctx, ts *compile.Types, anchors *schema.AnchorInd
 	}
 	ec.Docs.Description = r.GetDescription()
 	diags := fillErrorType(c, ts, anchors, &ec, r, rptr)
-	return ec, append(diags, preserveErrorHeaders(c, &ec, r, rptr)...)
+	diags = append(diags, preserveErrorHeaders(c, &ec, r, rptr)...)
+	return ec, append(diags, preserveResponseUnknownKeys(c, &ec.Unmodeled, r, rptr)...)
 }
 
 // preserveErrorHeaders keeps an error response's headers from being dropped:

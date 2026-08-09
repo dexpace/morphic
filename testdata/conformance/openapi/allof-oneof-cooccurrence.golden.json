@@ -44,7 +44,7 @@
       },
       "anonymous": true,
       "docs": {
-        "description": "named by position"
+        "description": "named by position, not by target"
       },
       "sensitive": false,
       "provenance": {
@@ -366,7 +366,7 @@
           "eventPayload": false,
           "secret": false,
           "docs": {
-            "description": "named by position"
+            "description": "named by position, not by target"
           },
           "provenance": {
             "source": 0,
@@ -548,7 +548,7 @@
     {
       "format": "openapi@3.1",
       "path": "allof-oneof-cooccurrence.yaml",
-      "hash": "cb7fb6bc613222b0211fc363b9028e7739b44a1d14b04f74cf709b8d603655f2"
+      "hash": "580c2ffd45b8b24e175b4c5b7f1af6c237a920de7d1942d84b10a00ad2dc1e33"
     }
   ]
 }

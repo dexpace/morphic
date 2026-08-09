@@ -195,8 +195,6 @@ Server.Bindings
 Server.Protocol
 Server.ProtocolVersion
 Server.Tags
-Server.Unmodeled
-ServerVariable.Unmodeled
 Service.CommonErrors
 Service.Extends
 Service.Namespace

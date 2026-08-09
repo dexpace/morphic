@@ -134,7 +134,13 @@ func lowerSecurityScheme(c lowering.Ctx, name string, ss *soa.SecurityScheme,
 	diags = preserveUnreadFields(c, &scheme, ss, decl)
 	ext, extDiags := annotation.ExtensionsFrom(ss.GetExtensions(), c.SrcIndex, decl)
 	scheme.Unmodeled = annotation.MergeUnmodeled(scheme.Unmodeled, ext)
-	return scheme, true, append(diags, extDiags...)
+	diags = append(diags, extDiags...)
+	// Distinct from preserveUnreadFields above it: that keeps the fields OpenAPI
+	// defines for a securityScheme which this entry's own mechanism gives no
+	// meaning to, while this keeps the keys OpenAPI defines for no securityScheme
+	// at all.
+	return scheme, true, append(diags,
+		annotation.UnknownKeysIn(&scheme.Unmodeled, ss, c.SrcIndex, decl)...)
 }
 
 // mechanismRefusalDiag reports a securitySchemes entry that declares a scheme
