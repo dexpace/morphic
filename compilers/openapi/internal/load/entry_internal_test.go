@@ -309,14 +309,14 @@ func TestLoad_RejectsAnOverlaySharingTheSourceIndex(t *testing.T) {
 // The bound is reached by shrinking it rather than by building a document of
 // sourceindex.MaxIndexedNodes nodes — that would be several gigabytes of
 // fixture, and the part worth testing is what the loader does with a truncated
-// index, not that the walk stops at a number. It is not parallel, because it
-// rebinds a package-level value the parallel tests around it also read.
+// index, not that the walk stops at a number.
 func TestLoad_ADocumentTooLargeToIndexIsRefused(t *testing.T) {
-	orig := buildIndex
-	t.Cleanup(func() { buildIndex = orig })
-	buildIndex = func(root *yaml.Node) sourceindex.Index { return sourceindex.Build(root, 1) }
+	t.Parallel()
+	opts := Options{buildIndex: func(root *yaml.Node) sourceindex.Index {
+		return sourceindex.Build(root, 1)
+	}}
 
-	doc, diags, err := Load(t.Context(), 4, openapitest.SourceOf(minimal31), Options{})
+	doc, diags, err := Load(t.Context(), 4, openapitest.SourceOf(minimal31), opts)
 
 	require.NoError(t, err, "an oversized document is a spec problem, not a Go error")
 	assert.Nil(t, doc, "nothing is lowered from a document the pre-parse scan cannot cover")
@@ -338,19 +338,16 @@ func TestLoad_TheSameDocumentLoadsOnceItFitsTheIndex(t *testing.T) {
 	assert.False(t, diag.HasError(diags), "unexpected refusal: %+v", diags)
 }
 
-// countingIndexBuilder makes the loader count its index builds for one test,
-// and returns the counter. It is not parallel-safe, for the reason
-// TestLoad_ADocumentTooLargeToIndexIsRefused is not.
-func countingIndexBuilder(t *testing.T) *int {
-	t.Helper()
-	orig := buildIndex
-	t.Cleanup(func() { buildIndex = orig })
+// countingIndexBuilder returns base with an index builder that counts its calls,
+// and the counter it writes. The count is one load's own, so tests using it stay
+// independent of each other and of anything running beside them.
+func countingIndexBuilder(base Options) (Options, *int) {
 	built := 0
-	buildIndex = func(root *yaml.Node) sourceindex.Index {
+	base.buildIndex = func(root *yaml.Node) sourceindex.Index {
 		built++
-		return orig(root)
+		return defaultIndex(root)
 	}
-	return &built
+	return base, &built
 }
 
 // TestLoad_IndexesTheSourceOnce guards the shape of this path rather than its
@@ -359,9 +356,10 @@ func countingIndexBuilder(t *testing.T) *int {
 // would break no assertion about what the compiler reports — the refusals would
 // still be right — so the count is the only thing that can hold it.
 func TestLoad_IndexesTheSourceOnce(t *testing.T) {
-	built := countingIndexBuilder(t)
+	t.Parallel()
+	opts, built := countingIndexBuilder(Options{})
 
-	got, diags, err := Load(t.Context(), 0, openapitest.SourceOf(minimal31), Options{})
+	got, diags, err := Load(t.Context(), 0, openapitest.SourceOf(minimal31), opts)
 
 	require.NoError(t, err)
 	require.NotNil(t, got)
@@ -373,10 +371,11 @@ func TestLoad_IndexesTheSourceOnce(t *testing.T) {
 // overlay leaves behind a tree the first one no longer describes, and what the
 // refusals answer for is the tree the parser is handed.
 func TestLoad_IndexesAPatchedTreeAgain(t *testing.T) {
-	built := countingIndexBuilder(t)
-
-	got, diags, err := Load(t.Context(), 0, openapitest.SourceOf(minimal31),
+	t.Parallel()
+	opts, built := countingIndexBuilder(
 		overlayOptions("  - target: $.info\n    update: {description: d}\n"))
+
+	got, diags, err := Load(t.Context(), 0, openapitest.SourceOf(minimal31), opts)
 
 	require.NoError(t, err)
 	require.NotNil(t, got)

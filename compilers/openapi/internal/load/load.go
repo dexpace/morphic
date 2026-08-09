@@ -50,6 +50,14 @@ type Options struct {
 	// OverlaySrcIndex is the index the overlay document takes in Document.Sources.
 	// It is read only when Overlay is set.
 	OverlaySrcIndex int
+	// buildIndex builds the pre-parse index over a decoded tree, or nil for the
+	// compiler's own node bound. It is unexported because it is this package's
+	// test seam: it drives the truncated-index refusal without materializing a
+	// document of sourceindex.MaxIndexedNodes nodes, and counts the indexes one
+	// load builds. Carrying it here rather than in a package-level variable keeps
+	// the bound an input to the stage, so nothing a test does to it is visible to
+	// a concurrent load.
+	buildIndex func(root *yaml.Node) sourceindex.Index
 }
 
 // errParse marks a hard failure to parse a source document — an I/O- or
@@ -96,7 +104,7 @@ func Load(ctx context.Context, srcIndex int, src compilers.Source, opts Options)
 		return nil, nil, fmt.Errorf("openapi: decode source %d: %w", srcIndex, err)
 	}
 
-	cyc := refusals(srcIndex, root)
+	cyc := refusals(srcIndex, root, opts)
 	if diag.HasError(cyc) {
 		return nil, cyc, nil // degenerate cycle: refuse to lower, do not crash the parser
 	}
@@ -150,11 +158,10 @@ func Load(ctx context.Context, srcIndex int, src compilers.Source, opts Options)
 	}, diags, nil
 }
 
-// buildIndex indexes a decoded tree under the compiler's node bound. It is a
-// package-level function value only so a test can drive the truncated-index
-// refusal without materializing a document of sourceindex.MaxIndexedNodes nodes;
-// nothing in the pipeline rebinds it, so the stages stay pure and reentrant.
-var buildIndex = func(root *yaml.Node) sourceindex.Index {
+// defaultIndex indexes a decoded tree under the compiler's node bound. It is
+// what Options.buildIndex stands in for when a caller leaves it nil, which
+// everything outside this package's tests does.
+func defaultIndex(root *yaml.Node) sourceindex.Index {
 	return sourceindex.Build(root, sourceindex.MaxIndexedNodes)
 }
 
@@ -167,8 +174,13 @@ var buildIndex = func(root *yaml.Node) sourceindex.Index {
 // from a partial node count would refuse documents on a bound they never
 // crossed. A document that large is beyond what the pre-parse guarantees cover,
 // so it is refused rather than lowered on incomplete information.
-func refusals(srcIndex int, root *yaml.Node) []ir.Diagnostic {
-	idx := buildIndex(root)
+func refusals(srcIndex int, root *yaml.Node, opts Options) []ir.Diagnostic {
+	build := opts.buildIndex
+	if build == nil {
+		build = defaultIndex
+	}
+
+	idx := build(root)
 	if idx.Truncated() {
 		return []ir.Diagnostic{diag.Newf(ir.SeverityError, diag.SourceTooLarge,
 			ir.Provenance{Source: srcIndex},
@@ -193,7 +205,7 @@ func patch(srcIndex int, root *yaml.Node, opts Options) (overlay.Origin, []ir.Di
 	if diag.HasError(diags) {
 		return overlay.Origin{}, diags
 	}
-	return origin, append(diags, refusals(srcIndex, root)...)
+	return origin, append(diags, refusals(srcIndex, root, opts)...)
 }
 
 // metaSchemaReconciledMinor is the OpenAPI minor whose schema findings are
