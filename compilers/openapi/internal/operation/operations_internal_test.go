@@ -313,3 +313,39 @@ func TestFaultFor_ClassifiesAtTheClassBoundaries(t *testing.T) {
 		})
 	}
 }
+
+// TestApplyPathItemDocs_WithoutRootNode is the documentation counterpart of the
+// two tests above: a declared pair whose source node cannot be read keeps
+// nothing, and announces nothing it did not keep.
+func TestApplyPathItemDocs_WithoutRootNode(t *testing.T) {
+	t.Parallel()
+	l := newRawLowerer(&soa.OpenAPI{})
+	summary, description := "documented", "at length"
+	op := &ir.Operation{}
+
+	diags := applyPathItemDocs(l.ctx, op,
+		&soa.PathItem{Summary: &summary, Description: &description}, "/paths/~1a")
+
+	assert.Nil(t, op.Unmodeled, "documentation with no raw node is not preserved")
+	assert.Empty(t, diags)
+}
+
+// TestPathOperations_NilAdditionalOperationSkipped pins the guard on the
+// additionalOperations walk. The parser never yields a nil entry, but the map is
+// a plain pointer map and lowerOperation reads the operation's fields directly,
+// so a nil would panic rather than lower.
+func TestPathOperations_NilAdditionalOperationSkipped(t *testing.T) {
+	t.Parallel()
+	pi := &soa.PathItem{
+		AdditionalOperations: sequencedmap.New(
+			sequencedmap.NewElem("EMPTY", (*soa.Operation)(nil)),
+			sequencedmap.NewElem("PURGE", &soa.Operation{}),
+		),
+	}
+
+	ops := pathOperations(pi)
+
+	require.Len(t, ops, 1, "the nil entry is skipped and the real one is not")
+	assert.Equal(t, "PURGE", ops[0].method)
+	assert.Equal(t, "/additionalOperations/PURGE", ops[0].seg)
+}

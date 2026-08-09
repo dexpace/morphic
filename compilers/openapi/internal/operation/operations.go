@@ -25,11 +25,21 @@ const (
 	// statusKeyLen is the width of every responses-map key that names a status,
 	// whether digits ("200") or a wildcard range ("2XX").
 	statusKeyLen = 3
+	// additionalOperationsField is the Path Item Object key OpenAPI 3.2 gives to
+	// operations whose method has no fixed field of its own, spelled once so the
+	// pointer such an operation is mounted under and the field it is read from
+	// cannot drift apart.
+	additionalOperationsField = "additionalOperations"
 )
 
-// httpMethods is the fixed set of HTTP method accessors on a PathItem, iterated
-// in this order so operation lowering is deterministic across runs. The name is
-// the wire method in lowercase; pointers and IDs derive from it.
+// httpMethods is the set of HTTP method accessors that are fixed fields on a
+// PathItem, iterated in this order so operation lowering is deterministic across
+// runs. The name is the field name, which is the wire method in lowercase;
+// pointers and IDs derive from it.
+//
+// It is closed, and the fields outside it are not: OpenAPI 3.2 added `query`
+// here and put every other method under `additionalOperations`, which
+// pathOperations reads beside this table.
 var httpMethods = []struct {
 	name string
 	get  func(*soa.PathItem) *soa.Operation
@@ -42,6 +52,53 @@ var httpMethods = []struct {
 	{"head", (*soa.PathItem).Head},
 	{"patch", (*soa.PathItem).Patch},
 	{"trace", (*soa.PathItem).Trace},
+	{"query", (*soa.PathItem).Query},
+}
+
+// pathOperation is one operation a path item declares: the method as sent on the
+// wire, the pointer segment the operation is written under, and its source node.
+type pathOperation struct {
+	method string
+	seg    string
+	src    *soa.Operation
+}
+
+// pathOperations returns every operation a path item declares — the fixed method
+// fields first, in httpMethods order, then any 3.2 additionalOperations in
+// source order.
+//
+// Reading the fixed fields alone dropped an additionalOperations entry whole:
+// its operationId, parameters, request body, responses, and every type reachable
+// only through them, with no diagnostic (GitHub #293). Yielding one list is what
+// keeps that from recurring per route — the three walks that reach a path item
+// all read this, so an operation is lowered on all of them or on none.
+//
+// A key is the method verbatim. ir.HTTPBinding.Method is the method as sent on
+// the wire and OpenAPI reads a method name case-sensitively, so the key is
+// neither upper-cased nor neutralized. A fixed field's name is a field name
+// rather than a method, so that one is upper-cased into its wire spelling.
+func pathOperations(pi *soa.PathItem) []pathOperation {
+	ops := make([]pathOperation, 0, len(httpMethods))
+	for _, m := range httpMethods {
+		if src := m.get(pi); src != nil {
+			ops = append(ops, pathOperation{method: strings.ToUpper(m.name), seg: ids.Ptr(m.name), src: src})
+		}
+	}
+	extra := pi.GetAdditionalOperations()
+	if extra == nil {
+		return ops
+	}
+	for method, src := range extra.All() {
+		if src == nil {
+			continue
+		}
+		ops = append(ops, pathOperation{
+			method: method,
+			seg:    ids.Ptr(additionalOperationsField, method),
+			src:    src,
+		})
+	}
+	return ops
 }
 
 // LowerService lowers one document into a single Service: its identity and docs,
@@ -118,24 +175,20 @@ func lowerPaths(c lowering.Ctx, ts *compile.Types, anchors *schema.AnchorIndex, 
 func lowerPathItem(c lowering.Ctx, ts *compile.Types, anchors *schema.AnchorIndex, operationIDs map[string]string, groups *serviceGroups, path string, pi *soa.PathItem, declPtr string) []ir.Diagnostic {
 	var diags []ir.Diagnostic
 	pathPtr := ids.Ptr("paths", path)
-	for _, m := range httpMethods {
-		src := m.get(pi)
-		if src == nil {
-			continue
-		}
-		key, name, docs, inferred := groupFor(c, src, path)
-		ptrs := opPointers{mount: pathPtr + ids.Ptr(m.name), decl: declPtr + ids.Ptr(m.name)}
+	for _, po := range pathOperations(pi) {
+		key, name, docs, inferred := groupFor(c, po.src, path)
+		ptrs := opPointers{mount: pathPtr + po.seg, decl: declPtr + po.seg}
 		opCtx := opContext{
-			method:        m.name,
+			method:        po.method,
 			uriTemplate:   path,
 			withCallbacks: true,
 			inferred:      inferred,
 			ptrs:          ptrs,
-			params:        mergeParameters(pi.GetParameters(), src.GetParameters(), declPtr, ptrs.decl),
+			params:        mergeParameters(pi.GetParameters(), po.src.GetParameters(), declPtr, ptrs.decl),
 		}
-		op, extra, opDiags := lowerOperation(c, ts, anchors, operationIDs, src, opCtx)
+		op, extra, opDiags := lowerOperation(c, ts, anchors, operationIDs, po.src, opCtx)
 		diags = append(diags, opDiags...)
-		diags = append(diags, applyPathServers(c, &op, pi, declPtr)...)
+		diags = append(diags, applyPathItemResidue(c, &op, pi, declPtr)...)
 		grp := groups.group(key, func() ir.OperationGroup { return ir.OperationGroup{Name: name, Docs: docs} })
 		grp.Operations = append(grp.Operations, op)
 		grp.Operations = append(grp.Operations, extra...)
@@ -157,23 +210,19 @@ func lowerWebhooks(c lowering.Ctx, ts *compile.Types, anchors *schema.AnchorInde
 		if pi == nil {
 			continue
 		}
-		for _, m := range httpMethods {
-			src := m.get(pi)
-			if src == nil {
-				continue
-			}
-			ptrs := opPointers{mount: hookPtr + ids.Ptr(m.name), decl: declPtr + ids.Ptr(m.name)}
+		for _, po := range pathOperations(pi) {
+			ptrs := opPointers{mount: hookPtr + po.seg, decl: declPtr + po.seg}
 			opCtx := opContext{
-				method:        m.name,
+				method:        po.method,
 				uriTemplate:   name,
 				isWebhook:     true,
 				withCallbacks: true,
 				ptrs:          ptrs,
-				params:        mergeParameters(pi.GetParameters(), src.GetParameters(), declPtr, ptrs.decl),
+				params:        mergeParameters(pi.GetParameters(), po.src.GetParameters(), declPtr, ptrs.decl),
 			}
-			op, extra, opDiags := lowerOperation(c, ts, anchors, operationIDs, src, opCtx)
+			op, extra, opDiags := lowerOperation(c, ts, anchors, operationIDs, po.src, opCtx)
 			diags = append(diags, opDiags...)
-			diags = append(diags, applyPathServers(c, &op, pi, declPtr)...)
+			diags = append(diags, applyPathItemResidue(c, &op, pi, declPtr)...)
 			grp := groups.group("webhook", func() ir.OperationGroup {
 				// A hint, not a source name: no document declares this group. The
 				// compiler synthesizes it to hold webhook operations, exactly as it
@@ -232,6 +281,9 @@ type opPointers struct {
 // still carrying the pointer of its own declaration site rather than a position
 // in the merged list.
 type opContext struct {
+	// method is the method as sent on the wire — a fixed field's name upper-cased,
+	// or an additionalOperations key exactly as the source spelled it — so nothing
+	// downstream has to know which of the two declared the operation.
 	method        string
 	uriTemplate   string
 	isWebhook     bool
@@ -274,7 +326,7 @@ func lowerOperation(c lowering.Ctx, ts *compile.Types, anchors *schema.AnchorInd
 	diags = append(diags, responseDiags...)
 	op.Responses, op.Errors = responses, errs
 	hb := ir.HTTPBinding{
-		Method:        strings.ToUpper(opCtx.method),
+		Method:        opCtx.method,
 		URITemplate:   opCtx.uriTemplate,
 		IsWebhook:     opCtx.isWebhook,
 		ParamBindings: bindings,
@@ -376,16 +428,78 @@ func fillOperationDocs(d *ir.Docs, src *soa.Operation) {
 	}
 }
 
+// applyPathItemResidue keeps everything a path item declares that an
+// ir.Operation has no field for: its servers, and its own documentation.
+//
+// One call per route rather than one per construct. The servers half reached
+// only the `paths` walk for exactly as long as each route spelled it out for
+// itself (GitHub #39), so the two are gathered here and every route calls this —
+// a third such construct is then either kept on all three routes or on none.
+func applyPathItemResidue(c lowering.Ctx, op *ir.Operation, pi *soa.PathItem, declPtr string) []ir.Diagnostic {
+	diags := applyPathServers(c, op, pi, declPtr)
+	return append(diags, applyPathItemDocs(c, op, pi, declPtr)...)
+}
+
+// pathItemDocFields pairs each Path Item Object documentation keyword with the
+// Unmodeled key it is kept under. Both keys name the object the text came from:
+// an operation's own summary and description are what ir.Docs holds, so a plain
+// `openapi:summary` beside them would read as the operation's own.
+var pathItemDocFields = []struct{ keyword, key string }{
+	{"summary", "openapi:pathItemSummary"},
+	{"description", "openapi:pathItemDescription"},
+}
+
+// applyPathItemDocs keeps a path item's summary and description verbatim under
+// Unmodeled on each operation it holds. Nothing read either one, so both reached
+// the IR in no form at all — no field, no Unmodeled entry, no diagnostic
+// (GitHub #292).
+//
+// Kept rather than merged into Docs, deliberately. ir.Docs holds one summary and
+// one description and they are the operation's own; a path item's pair documents
+// the path. Merging would need a precedence rule against the operation's own,
+// would attach to an operation documentation its author did not write — an
+// inference, which invariant 6 places in injectable policy rather than in a
+// lowering — and would leave an emitter unable to tell the two subjects apart
+// afterwards. Preserving takes no position on precedence and loses nothing,
+// which is what invariant 2 asks of a construct with no typed home.
+//
+// ReasonNoIRHome rather than a boundary: the IR could grow a home for this, and
+// GitHub #285 is where that class of decision is tracked. The cost is that the
+// pair is duplicated onto every operation under the path, exactly as the path
+// item's servers already are — a path item is distributed across the operations
+// it holds, and there is no ir.PathItem to attach it to.
+func applyPathItemDocs(c lowering.Ctx, op *ir.Operation, pi *soa.PathItem, declPtr string) []ir.Diagnostic {
+	if pi.GetSummary() == "" && pi.GetDescription() == "" {
+		return nil
+	}
+	var diags []ir.Diagnostic
+	var kept bool
+	for _, f := range pathItemDocFields {
+		wrote, fieldDiags := schema.PreserveNode(c, &op.Unmodeled, f.key,
+			annotation.RawChildNode(pi.GetRootNode(), f.keyword), ir.ReasonNoIRHome,
+			declPtr+ids.Ptr(f.keyword))
+		diags = append(diags, fieldDiags...)
+		kept = kept || wrote
+	}
+	if !kept {
+		return diags
+	}
+	return append(diags, diag.Newf(ir.SeverityInfo, diag.DegradedConstruct, op.Provenance,
+		"path-item documentation kept under Unmodeled; it documents the path rather than this "+
+			"operation, and ir.Docs holds the operation's own summary and description"))
+}
+
 // applyPathServers preserves path-item-level servers verbatim under Unmodeled
 // on the operation. §10 models servers as Document.Servers with per-scope index
 // lists (Service.Servers, Channel.Servers); ir.Operation just has no such list
 // yet, so the scoping is kept raw with an info diagnostic — a gap the IR can
 // close by adding one, hence ReasonNoIRHome rather than a boundary.
 //
-// Every route that lowers a path item reaches it: a path, a webhook, and a
-// callback expression are the same object under three parents, and a document
-// that overrides the server for one of the latter two was losing the override
-// outright while the paths route reported it (GitHub #39).
+// Every route that lowers a path item reaches it through applyPathItemResidue:
+// a path, a webhook, and a callback expression are the same object under three
+// parents, and a document that overrides the server for one of the latter two
+// was losing the override outright while the paths route reported it
+// (GitHub #39).
 //
 // This is the path-item half of the pair; applyOperationServers keeps the
 // operation's own list, which overrides this one, under its own key.
@@ -614,25 +728,22 @@ func lowerCallbacks(c lowering.Ctx, ts *compile.Types, anchors *schema.AnchorInd
 // declaration base (shared when the callback or its path item is $ref'd;
 // issue #107).
 func lowerCallbackOps(c lowering.Ctx, ts *compile.Types, anchors *schema.AnchorIndex, operationIDs map[string]string, pi *soa.PathItem, cb opPointers, expr, inferred string) ([]ir.OpID, []ir.Operation, []ir.Diagnostic) {
-	var opIDs []ir.OpID
-	var ops []ir.Operation
+	declared := pathOperations(pi)
+	opIDs := make([]ir.OpID, 0, len(declared))
+	ops := make([]ir.Operation, 0, len(declared))
 	var diags []ir.Diagnostic
-	for _, m := range httpMethods {
-		src := m.get(pi)
-		if src == nil {
-			continue
-		}
-		ptrs := opPointers{mount: cb.mount + ids.Ptr(m.name), decl: cb.decl + ids.Ptr(m.name)}
+	for _, po := range declared {
+		ptrs := opPointers{mount: cb.mount + po.seg, decl: cb.decl + po.seg}
 		opCtx := opContext{
-			method:      m.name,
+			method:      po.method,
 			uriTemplate: expr,
 			inferred:    inferred,
 			ptrs:        ptrs,
-			params:      mergeParameters(pi.GetParameters(), src.GetParameters(), cb.decl, ptrs.decl),
+			params:      mergeParameters(pi.GetParameters(), po.src.GetParameters(), cb.decl, ptrs.decl),
 		}
-		op, _, opDiags := lowerOperation(c, ts, anchors, operationIDs, src, opCtx)
+		op, _, opDiags := lowerOperation(c, ts, anchors, operationIDs, po.src, opCtx)
 		diags = append(diags, opDiags...)
-		diags = append(diags, applyPathServers(c, &op, pi, cb.decl)...)
+		diags = append(diags, applyPathItemResidue(c, &op, pi, cb.decl)...)
 		opIDs = append(opIDs, op.ID)
 		ops = append(ops, op)
 	}
