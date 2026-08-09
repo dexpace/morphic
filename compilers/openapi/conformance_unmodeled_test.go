@@ -90,6 +90,76 @@ func assertUnhomedKeywords(t *testing.T, doc *ir.Document, diags []ir.Diagnostic
 		string(unmodeledEntry(t, u.Unmodeled, "openapi:items").Value))
 	assert.JSONEq(t, `[{"type":"string"},{"type":"integer"}]`,
 		string(unmodeledEntry(t, u.Unmodeled, "openapi:oneOf").Value))
+
+	assertRefSiteKeywords(t, doc, diags)
+	assertElectedLoweringKeywords(t, doc, diags)
+}
+
+// assertRefSiteKeywords pins the same census at a $ref site, where it did not
+// run at all (GitHub #283). $ref is an ordinary 2020-12 keyword, so its siblings
+// are conjoined with it; the position lowers to an alias over the target, which
+// has none of their fields, and the five below reached no field, no Unmodeled
+// entry and no diagnostic.
+func assertRefSiteKeywords(t *testing.T, doc *ir.Document, diags []ir.Diagnostic) {
+	for name, want := range map[string]struct{ keyword, target, raw string }{
+		"RefFormat":               {"format", "RefTargetStr", `"email"`},
+		"RefEnum":                 {"enum", "RefTargetStr", `["a","b"]`},
+		"RefConst":                {"const", "RefTargetStr", `"a"`},
+		"RefRequired":             {"required", "RefTargetObj", `["a"]`},
+		"RefAdditionalProperties": {"additionalProperties", "RefTargetObj", `false`},
+	} {
+		sc, ok := doc.Types[namedID(name)].(*ir.Scalar)
+		require.True(t, ok, "%s hoists an alias to hold what it wrote beside its $ref", name)
+		require.NotNil(t, sc.Base)
+		assert.Equal(t, namedID(want.target), sc.Base.Target, "%s still aliases its target", name)
+		entry := unmodeledEntry(t, sc.Unmodeled, "openapi:"+want.keyword)
+		assert.Equal(t, ir.ReasonDegradedLowering, entry.Reason)
+		assert.JSONEq(t, want.raw, string(entry.Value))
+		assert.Equal(t, []ir.Severity{ir.SeverityInfo},
+			diagsAt(diags, "openapi/degraded-construct", "/components/schemas/"+name))
+	}
+
+	ctl, ok := doc.Types[namedID("RefConstrained")].(*ir.Scalar)
+	require.True(t, ok)
+	require.NotNil(t, ctl.Constraints)
+	assert.Equal(t, int64(3), *ctl.Constraints.MinLength, "a bound beside a $ref always had a home")
+	assert.Equal(t, "kept", ctl.Docs.Description)
+	assert.Empty(t, ctl.Unmodeled, "so it keeps nothing verbatim")
+
+	carrier, ok := doc.Types[namedID("RefCarrier")].(*ir.Model)
+	require.True(t, ok)
+	p, ok := propByWire(carrier, "p")
+	require.True(t, ok)
+	assert.Equal(t, namedID("RefTargetStr"), p.Type.Target,
+		"a carrier hoists no node, so it still resolves straight to the target")
+	assert.JSONEq(t, `"email"`, string(unmodeledEntry(t, p.Unmodeled, "openapi:format").Value),
+		"and keeps the keyword on itself instead")
+}
+
+// assertElectedLoweringKeywords pins the keywords the *winning* family's
+// lowering never reads (GitHub #268). The census asks the node that was built,
+// which is why the two allOf cases differ: a composed Model asserts `object`
+// already and loses nothing, and asserts nothing about `string` at all.
+func assertElectedLoweringKeywords(t *testing.T, doc *ir.Document, diags []ir.Diagnostic) {
+	scalarType, ok := doc.Types[namedID("AllOfWithScalarType")].(*ir.Model)
+	require.True(t, ok)
+	assert.JSONEq(t, `"string"`,
+		string(unmodeledEntry(t, scalarType.Unmodeled, "openapi:type").Value))
+
+	objectType, ok := doc.Types[namedID("AllOfWithObjectType")].(*ir.Model)
+	require.True(t, ok)
+	assert.Empty(t, objectType.Unmodeled, "the composed Model already asserts `object`")
+	assert.Empty(t, diagsAt(diags, "openapi/degraded-construct", "/components/schemas/AllOfWithObjectType"))
+
+	format, ok := doc.Types[namedID("ConstWithFormat")].(*ir.Literal)
+	require.True(t, ok)
+	assert.JSONEq(t, `"int32"`, string(unmodeledEntry(t, format.Unmodeled, "openapi:format").Value),
+		"a Literal has no Encoding field")
+
+	bound, ok := doc.Types[namedID("ConstWithBound")].(*ir.Literal)
+	require.True(t, ok)
+	assert.JSONEq(t, `1`, string(unmodeledEntry(t, bound.Unmodeled, "openapi:maxLength").Value),
+		"nor a Constraints field, and it owns its pointer so no alias carries one either")
 }
 
 // assertAllOfBooleanBranch pins the lowering of a boolean allOf branch, which

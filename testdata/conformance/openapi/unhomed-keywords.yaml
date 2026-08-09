@@ -44,3 +44,36 @@ components:
     UnionWithItems:
       oneOf: [{type: string}, {type: integer}]
       items: {type: string}
+    # In JSON Schema 2020-12 — and so in OpenAPI 3.1 — $ref is an ordinary
+    # keyword and what stands beside it is conjoined with it. The position
+    # lowers to an alias over the target, which has no member set, no value, no
+    # property set and no encoding of its own, so each of these reached no IR
+    # field: the $ref path ran no census at all until it ran the body path's.
+    # Declared above their targets on purpose: an alias hoisted at a pointer
+    # another declaration can also reach must not depend on which arrives first.
+    RefFormat: {$ref: '#/components/schemas/RefTargetStr', format: email}
+    RefEnum: {$ref: '#/components/schemas/RefTargetStr', enum: [a, b]}
+    RefConst: {$ref: '#/components/schemas/RefTargetStr', const: a}
+    RefRequired: {$ref: '#/components/schemas/RefTargetObj', required: [a]}
+    RefAdditionalProperties: {$ref: '#/components/schemas/RefTargetObj', additionalProperties: false}
+    # The control: a bound and a description at the identical position always
+    # reached the alias's own fields, so neither may acquire an entry now.
+    RefConstrained: {$ref: '#/components/schemas/RefTargetStr', minLength: 3, description: kept}
+    # The same census at a carrier, which keeps them on itself rather than
+    # hoisting a node: a property's $ref resolves straight to the target.
+    RefCarrier:
+      type: object
+      properties:
+        p: {$ref: '#/components/schemas/RefTargetStr', format: email}
+    RefTargetStr: {type: string}
+    RefTargetObj: {type: object, properties: {a: {type: string}}}
+    # Keywords the *elected* family's lowering never reads. A Model composed
+    # from allOf carries no type token, so a non-object type states something the
+    # IR no longer holds; a Literal carries only its value, so neither an
+    # encoding nor a bound reaches a field.
+    AllOfWithScalarType: {allOf: [{$ref: '#/components/schemas/RefTargetObj'}], type: string}
+    # Its control, and the reason this cannot be decided from a keyword list:
+    # `object` is exactly what the composed Model already asserts.
+    AllOfWithObjectType: {allOf: [{$ref: '#/components/schemas/RefTargetObj'}], type: object}
+    ConstWithFormat: {const: 5, type: integer, format: int32}
+    ConstWithBound: {const: ab, type: string, maxLength: 1}

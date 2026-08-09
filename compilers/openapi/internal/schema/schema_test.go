@@ -2,6 +2,7 @@ package schema_test
 
 import (
 	"encoding/json"
+	"sort"
 	"strings"
 	"testing"
 
@@ -3562,4 +3563,252 @@ func TestCoDeclaredFamily_UnpreservableIsNotAnnounced(t *testing.T) {
 	assert.True(t, hasDiag(diags, diag.UnpreservableConstruct), "the failure itself is reported")
 	assert.Empty(t, preservationClaims(diags),
 		"nothing was written under Unmodeled, so nothing may announce that it was")
+}
+
+// keywordCensusSpec wraps the two $ref targets every ref-site row aliases in a
+// component block, so a row states only what it declares beside its $ref.
+func keywordCensusSpec(schemas string) string {
+	return componentSpec("    BaseStr: {type: string}\n" +
+		"    BaseObj: {type: object, properties: {a: {type: string}}}\n" + schemas)
+}
+
+// assertKeptVerbatim asserts p holds key as a degraded-lowering entry whose raw
+// payload is raw.
+func assertKeptVerbatim(t *testing.T, p ir.Unmodeled, key, raw string) {
+	t.Helper()
+	entry, ok := p[key]
+	require.True(t, ok, "%q is kept verbatim; kept instead: %v", key, unmodeledKeys(p))
+	assert.Equal(t, ir.ReasonDegradedLowering, entry.Reason)
+	assert.JSONEq(t, raw, string(entry.Value))
+}
+
+// unmodeledKeys returns p's keys in sorted order, which is what makes an
+// expected key set assertable as a whole: a census that keeps too much fails the
+// same test as one that keeps too little.
+func unmodeledKeys(p ir.Unmodeled) []string {
+	if len(p) == 0 {
+		return nil
+	}
+	out := make([]string, 0, len(p))
+	for key := range p {
+		out = append(out, key)
+	}
+	sort.Strings(out)
+	return out
+}
+
+// TestRefSiteKeywords_KeptAtEveryPosition covers the census the $ref path never
+// ran (GitHub #283).
+//
+// In JSON Schema 2020-12 — and so in OpenAPI 3.1 — `$ref` is an ordinary keyword
+// and what stands beside it is conjoined with it. The position lowers to an alias
+// over the target, which has no property set, no member set, no value and no
+// encoding of its own, so each of these keywords reached no IR field at all: no
+// field, no Unmodeled entry and no diagnostic either.
+//
+// Every row is checked at both positions, because they take different paths: a
+// component is an annotation.HomeOwnNode position and keeps the keyword on the
+// alias it hoists, a property is an annotation.HomeCarrier one and keeps it on
+// itself, and only the first of the two ran any census at all.
+func TestRefSiteKeywords_KeptAtEveryPosition(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct{ keyword, sibling, target, raw string }{
+		{"format", "format: email", "BaseStr", `"email"`},
+		{"enum", "enum: [a, b]", "BaseStr", `["a","b"]`},
+		{"const", "const: a", "BaseStr", `"a"`},
+		{"required", "required: [a]", "BaseObj", `["a"]`},
+		{"additionalProperties", "additionalProperties: false", "BaseObj", `false`},
+	} {
+		t.Run(tc.keyword, func(t *testing.T) {
+			t.Parallel()
+			site := "{$ref: '#/components/schemas/" + tc.target + "', " + tc.sibling + "}"
+			doc, diags := lowerSpec(t, keywordCensusSpec(
+				"    Alias: "+site+"\n"+
+					"    Holder: {type: object, properties: {p: "+site+"}}\n"))
+			requireNoErrorDiags(t, diags)
+			key := "openapi:" + tc.keyword
+
+			alias, ok := typeByName(doc, "Alias").(*ir.Scalar)
+			require.True(t, ok, "the component position hoists an alias to hold what it wrote")
+			require.NotNil(t, alias.Base)
+			assert.Equal(t, componentID(tc.target), alias.Base.Target, "and still aliases the target")
+			assertKeptVerbatim(t, alias.Unmodeled, key, tc.raw)
+			assert.Contains(t,
+				diagMessageAt(t, diags, diag.DegradedConstruct, ir.SeverityInfo, "/components/schemas/Alias"),
+				"no home for "+tc.keyword)
+
+			holder, ok := typeByName(doc, "Holder").(*ir.Model)
+			require.True(t, ok)
+			p, ok := propsByWire(holder.Properties)["p"]
+			require.True(t, ok)
+			assert.Equal(t, componentID(tc.target), p.Type.Target,
+				"the carrier still resolves straight to the target; only the loss is now recorded")
+			assertKeptVerbatim(t, p.Unmodeled, key, tc.raw)
+			assert.Contains(t,
+				diagMessageAt(t, diags, diag.DegradedConstruct, ir.SeverityInfo,
+					"/components/schemas/Holder/properties/p"),
+				"no home for "+tc.keyword)
+		})
+	}
+}
+
+// TestRefSiteKeywords_SiblingsWithATypedHomeAreUntouched is the control the
+// census has to leave alone. A bound and a description written at the identical
+// position always did reach a field — the alias's Constraints and the property's
+// own — so neither may acquire an Unmodeled entry or a diagnostic now.
+func TestRefSiteKeywords_SiblingsWithATypedHomeAreUntouched(t *testing.T) {
+	t.Parallel()
+	site := "{$ref: '#/components/schemas/BaseStr', minLength: 3, description: kept}"
+	doc, diags := lowerSpec(t, keywordCensusSpec(
+		"    Alias: "+site+"\n"+
+			"    Holder: {type: object, properties: {p: "+site+"}}\n"))
+	requireNoErrorDiags(t, diags)
+	assert.Zero(t, countDiagsAt(diags, diag.DegradedConstruct, ir.SeverityInfo),
+		"nothing was degraded: %+v", diags)
+
+	alias, ok := typeByName(doc, "Alias").(*ir.Scalar)
+	require.True(t, ok)
+	require.NotNil(t, alias.Constraints)
+	assert.Equal(t, int64(3), *alias.Constraints.MinLength)
+	assert.Equal(t, "kept", alias.Docs.Description)
+	assert.Empty(t, unmodeledKeys(alias.Unmodeled))
+
+	holder, ok := typeByName(doc, "Holder").(*ir.Model)
+	require.True(t, ok)
+	p, ok := propsByWire(holder.Properties)["p"]
+	require.True(t, ok)
+	require.NotNil(t, p.Constraints)
+	assert.Equal(t, int64(3), *p.Constraints.MinLength)
+	assert.Equal(t, "kept", p.Docs.Description)
+	assert.Empty(t, unmodeledKeys(p.Unmodeled))
+}
+
+// TestUnhomedKeywords_ElectedLoweringKeepsWhatItCannotRead covers the keywords
+// the winning lowering never reads (GitHub #268).
+//
+// lower() elects one keyword family per position; what the elected form has no
+// field for was dropped, because the census that ran was a fixed list of shape
+// applicators. A Model has no type token, a Literal has no encoding and no
+// Constraints, and none of that is visible from a keyword list — only from the
+// node that was built, which is what the census asks now.
+//
+// The kept set is asserted whole, so a census that keeps too much fails here as
+// loudly as one that keeps too little; the `type: object` row is the case that
+// makes that matter, since a Model does restate it and nothing may be recorded.
+func TestUnhomedKeywords_ElectedLoweringKeepsWhatItCannotRead(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct {
+		name, body string
+		kind       ir.TypeKind
+		kept       []string
+	}{
+		{"non-object type beside allOf", "{allOf: [{$ref: '#/components/schemas/BaseObj'}], type: string}",
+			ir.KindModel, []string{"openapi:type"}},
+		{"object type beside allOf", "{allOf: [{$ref: '#/components/schemas/BaseObj'}], type: object}",
+			ir.KindModel, nil},
+		{"format beside const", "{const: 5, type: integer, format: int32}",
+			ir.KindLiteral, []string{"openapi:format", "openapi:type"}},
+		{"contradictory type beside const", "{const: 5, type: string}",
+			ir.KindLiteral, []string{"openapi:type"}},
+		{"value constraint beside const", "{const: ab, type: string, maxLength: 1}",
+			ir.KindLiteral, []string{"openapi:maxLength", "openapi:type"}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			doc, diags := lowerSpec(t, keywordCensusSpec("    S: "+tc.body+"\n"))
+			requireNoErrorDiags(t, diags)
+
+			td := typeByName(doc, "S")
+			require.NotNil(t, td, "the position still lowers")
+			assert.Equal(t, tc.kind, td.Kind(), "and lowers to the form the election picked")
+			assert.Equal(t, tc.kept, unmodeledKeys(td.Common().Unmodeled))
+
+			want := 1
+			if len(tc.kept) == 0 {
+				want = 0
+			}
+			assert.Equal(t, want, len(diagsAtPointer(diags, diag.DegradedConstruct, "/components/schemas/S")),
+				"a position keeps nothing quietly and reports everything it keeps: %+v", diags)
+		})
+	}
+}
+
+// diagsAtPointer returns the diagnostics in diags with the exact code whose
+// provenance is pointer.
+func diagsAtPointer(diags []ir.Diagnostic, code, pointer string) []ir.Diagnostic {
+	var out []ir.Diagnostic
+	for _, d := range diags {
+		if d.Code == code && d.Provenance.Pointer == pointer {
+			out = append(out, d)
+		}
+	}
+	return out
+}
+
+// TestUnhomedKeywords_BoundsThatLandedAreNotAlsoKept is the other half of the
+// value-constraint census: a bound is kept only where the node has no field it
+// reached, never where it did. The two rows are the two node kinds that read
+// annotation.Constraints, so a census asking the kind rather than the field
+// would double-record both.
+func TestUnhomedKeywords_BoundsThatLandedAreNotAlsoKept(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct{ name, body, unhomed string }{
+		{"scalar", "{type: string, format: email, minLength: 3, required: [a]}", "openapi:required"},
+		{"model", "{type: object, properties: {a: {type: string}}, minProperties: 1, items: {type: string}}", "openapi:items"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			doc, diags := lowerSpec(t, keywordCensusSpec("    S: "+tc.body+"\n"))
+			requireNoErrorDiags(t, diags)
+
+			td := typeByName(doc, "S")
+			require.NotNil(t, td)
+			assert.Equal(t, []string{tc.unhomed}, unmodeledKeys(td.Common().Unmodeled),
+				"the bound reached the node's Constraints, so only the homeless keyword is kept")
+		})
+	}
+}
+
+// TestUnhomedKeywords_ArrayBoundsKeepWhatListConstraintsDoesNotRead pins the
+// reason the census asks what filled a Constraints field rather than which kinds
+// have one. An ir.List has the field, but lowerArray fills it from
+// listConstraints — collection bounds only — so a string bound written on an
+// array reaches nothing however full the field looks.
+func TestUnhomedKeywords_ArrayBoundsKeepWhatListConstraintsDoesNotRead(t *testing.T) {
+	t.Parallel()
+	doc, diags := lowerSpec(t, keywordCensusSpec(
+		"    S: {type: array, items: {type: string}, minItems: 1, minLength: 3}\n"))
+	requireNoErrorDiags(t, diags)
+
+	l, ok := typeByName(doc, "S").(*ir.List)
+	require.True(t, ok)
+	require.NotNil(t, l.Constraints)
+	assert.Equal(t, int64(1), *l.Constraints.MinItems, "the collection bound lowers as it always did")
+	assert.Equal(t, []string{"openapi:minLength"}, unmodeledKeys(l.Unmodeled),
+		"and only the bound listConstraints does not read is kept")
+}
+
+// TestRefSiteKeywords_AllOfBranchKeepsWhatTheAliasCannotHold runs the same
+// census at the third $ref site: an allOf branch spelled as a reference, which
+// homes its siblings on an alias exactly as a component does.
+//
+// `required` is the branch keyword this composition does read —
+// applyCompositionRequired ORs every branch's list onto the composed model — so
+// it must not be kept, or one keyword would be reported twice.
+func TestRefSiteKeywords_AllOfBranchKeepsWhatTheAliasCannotHold(t *testing.T) {
+	t.Parallel()
+	doc, diags := lowerSpec(t, keywordCensusSpec(
+		"    S: {allOf: [{$ref: '#/components/schemas/BaseObj', format: email, required: [a]}]}\n"))
+	requireNoErrorDiags(t, diags)
+
+	m, ok := typeByName(doc, "S").(*ir.Model)
+	require.True(t, ok)
+	require.NotNil(t, m.Base, "the branch still composes")
+	branch, ok := doc.Types[m.Base.Target].(*ir.Scalar)
+	require.True(t, ok, "through an alias hoisted at the branch position")
+	assert.Equal(t, []string{"openapi:format"}, unmodeledKeys(branch.Unmodeled),
+		"required is read by the composition, so only the format is kept")
+	assert.Contains(t,
+		diagMessageAt(t, diags, diag.DegradedConstruct, ir.SeverityInfo, "/components/schemas/S/allOf/0"),
+		"no home for format")
 }

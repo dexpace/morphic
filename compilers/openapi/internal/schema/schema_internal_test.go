@@ -393,7 +393,7 @@ func TestPreserveUnhomedKeywords_MissingNode(t *testing.T) {
 func TestRecordUnhomedKeywords_MissingOwner(t *testing.T) {
 	t.Parallel()
 	l := newRawLowerer(&soa.OpenAPI{})
-	diags := recordUnhomedKeywords(l.ctx, l.types, "t/anon/missing", &oas3.Schema{}, []string{"items"}, ir.KindPrimitive, "/p")
+	diags := recordUnhomedKeywords(l.ctx, l.types, "t/anon/missing", &oas3.Schema{}, []string{"items"}, nodeShape(ir.KindPrimitive), "/p")
 	assertInternalInvariant(t, diags)
 }
 
@@ -556,5 +556,47 @@ func TestDynamicHop_HopsOnlyWhenExactlyOneAnchorSiteIsNamed(t *testing.T) {
 			assert.Equal(t, tc.wantNext, next)
 			assert.Empty(t, hopDiags)
 		})
+	}
+}
+
+// TestKeywordHome_AnUnknownKeywordIsHomedNowhere reaches the arm censusKeywords
+// cannot reach today, the way TestDeclaresFamily_AnUnknownNameDeclaresNothing
+// reaches its own: every keyword unhomedKeywords asks about is one with a case
+// here.
+//
+// "No home" is the safe half of that default. A keyword added to censusKeywords
+// without an arm is kept verbatim beside every node it is written on — noisy,
+// never lossy — where the opposite default would drop it in exactly the silence
+// GitHub #268 was.
+func TestKeywordHome_AnUnknownKeywordIsHomedNowhere(t *testing.T) {
+	t.Parallel()
+	assert.False(t, keywordHome(&ir.Model{}, &oas3.Schema{}, "unevaluatedItems"),
+		"a keyword with no arm has no home on any node")
+}
+
+// TestKeywordHome_EveryCensusKeywordHasANodeThatCarriesIt pins the agreement
+// censusKeywords and keywordHome's switch have to keep, in the direction the
+// default cannot fake.
+//
+// A listed keyword with no arm answers "homeless" everywhere, and that is the
+// answer a $ref site expects from every one of them, so no ref-site test can see
+// the omission. Asking instead for the node kind that *does* carry the keyword
+// is what makes it visible.
+func TestKeywordHome_EveryCensusKeywordHasANodeThatCarriesIt(t *testing.T) {
+	t.Parallel()
+	// A declared scalar type, which is what homes `format` on a primitive and
+	// `type` on anything at all.
+	s := &oas3.Schema{Type: oas3.NewTypeFromString(oas3.SchemaTypeString)}
+	nodes := []ir.TypeDef{
+		&ir.Model{}, &ir.List{}, &ir.Tuple{}, &ir.Literal{}, &ir.Enum{}, &ir.Union{},
+		&ir.Scalar{Encoding: &ir.Encoding{}}, &ir.Primitive{},
+	}
+	require.NotEmpty(t, censusKeywords, "an empty census would make this pass vacuously")
+	for _, keyword := range censusKeywords {
+		homed := false
+		for _, td := range nodes {
+			homed = homed || keywordHome(td, s, keyword)
+		}
+		assert.True(t, homed, "%q is in the census with no node kind that carries it", keyword)
 	}
 }

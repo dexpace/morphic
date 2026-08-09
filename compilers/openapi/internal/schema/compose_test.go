@@ -1206,10 +1206,11 @@ func TestEnum_UnquotedDatesStayClosedEnum(t *testing.T) {
 	// Before the fix, scalarValue had no case for it, so both enum members
 	// failed to convert, enumMembers bailed to enumAsUnion, and valueOrNull
 	// turned every member into a null literal — the actual dates never
-	// survived. The component-level default in the repro is reported and kept
-	// as residue (it binds a use of the type, so the type node has no field for
-	// it), which is the one diagnostic here; see
-	// TestProperty_UnquotedDateDefaultPreserved for the default path.
+	// survived. Two diagnostics stand beside that, neither about a date: the
+	// component-level default is kept as residue (it binds a use of the type, so
+	// the type node has no field for it; see
+	// TestProperty_UnquotedDateDefaultPreserved for the default path), and the
+	// `format` is kept verbatim because an ir.Enum has no Encoding field.
 	spec := componentSpec(`    D:
       type: string
       format: date
@@ -1217,8 +1218,9 @@ func TestEnum_UnquotedDatesStayClosedEnum(t *testing.T) {
       enum: [2021-01-01, 2022-02-02]
 `)
 	doc, diags := lowerSpec(t, spec)
-	require.Len(t, diags, 1, "the dates convert cleanly: the only diagnostic is the default's")
-	assert.Equal(t, "/components/schemas/D/default", diags[0].Provenance.Pointer)
+	require.Len(t, diags, 2, "the dates convert cleanly: neither diagnostic is about a member")
+	assert.Equal(t, []string{"/components/schemas/D", "/components/schemas/D/default"},
+		[]string{diags[0].Provenance.Pointer, diags[1].Provenance.Pointer})
 	e, ok := doc.Types[componentID("D")].(*ir.Enum)
 	require.True(t, ok, "D stays a closed Enum, never degrades to a Union of literals")
 	assert.True(t, e.Closed)
