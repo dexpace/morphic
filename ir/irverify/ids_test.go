@@ -131,6 +131,10 @@ func TestVerify_PrimitiveAwayFromItsSharedIDIsAViolation(t *testing.T) {
 // which is not an ID at all, so the message must not offer it as the place the
 // node belongs — a reader sent there fixes the wrong end, and the check would be
 // telling them to write an ID checkIDs reports as malformed.
+//
+// The kindless primitive breaks two claims at once and each is stated: the ID is
+// not the one its kind derives, and the kind is not one ir declares. They name
+// different repairs, so neither subsumes the other.
 func TestVerify_KindlessPrimitiveIsReportedOnItsOwnTerms(t *testing.T) {
 	t.Parallel()
 	const id ir.TypeID = "t/openapi/components/schemas/Name"
@@ -139,11 +143,12 @@ func TestVerify_KindlessPrimitiveIsReportedOnItsOwnTerms(t *testing.T) {
 	}}
 
 	got := irverify.Verify(doc)
-	require.Len(t, got, 1)
+	require.Len(t, got, 2)
 	assert.Equal(t, "ir/prim-id-not-derived", got[0].Code)
 	assert.Contains(t, got[0].Message, "carries no kind")
 	assert.NotContains(t, got[0].Message, string(ir.PrimTypeID("")),
 		"t/prim/ is not an ID; naming it as the destination sends the reader to the wrong end")
+	assert.Equal(t, "ir/unknown-prim-kind", got[1].Code)
 }
 
 // TestVerify_NonPrimitiveInThePrimSpaceIsAViolation covers the other direction.

@@ -31,6 +31,8 @@ func Verify(doc *ir.Document) []Violation {
 	vs := checkRegistryKeys(doc)
 	vs = append(vs, checkIDs(doc)...)
 	vs = append(vs, checkPrimIDs(doc)...)
+	vs = append(vs, checkPrimKinds(doc)...)
+	vs = append(vs, checkAuthKinds(doc)...)
 	vs = append(vs, checkDiagnostics(doc)...)
 	vs = append(vs, checkVersion(doc)...)
 	vs = append(vs, runWalkChecks(doc)...)
@@ -83,10 +85,12 @@ func walkChecks() []func(*ir.Document, declarations) ([]Violation, bool) {
 	return []func(*ir.Document, declarations) ([]Violation, bool){
 		checkReferentialIntegrity,
 		checkDuplicateIDs,
+		checkDeclaredIDs,
 		checkNaming,
 		checkRawPayloads,
 		checkProvenance,
 		checkIndices,
+		checkBigVals,
 	}
 }
 
