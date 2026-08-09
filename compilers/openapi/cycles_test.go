@@ -1,9 +1,7 @@
 package openapi
 
 import (
-	"fmt"
 	"os"
-	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -12,6 +10,7 @@ import (
 	"github.com/dexpace/morphic/compilers"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/scan"
+	"github.com/dexpace/morphic/compilers/openapi/internal/ynode"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -214,24 +213,10 @@ func readReproducer(t *testing.T, file string) []byte {
 	return data
 }
 
-func mergeChainSpec(levels int) string {
-	var b strings.Builder
-	b.WriteString("openapi: 3.1.0\ninfo: {title: t, version: '1'}\npaths: {}\nx-anchors:\n")
-	b.WriteString("  m0: &m0 {type: object}\n")
-	for i := 1; i <= levels; i++ {
-		fmt.Fprintf(&b, "  m%d: &m%d {<<: *m%d, p%d: %d}\n", i, i, i-1, i, i)
-	}
-	b.WriteString("components:\n  schemas:\n")
-	for i := levels; i >= 0; i-- {
-		fmt.Fprintf(&b, "    S%d: {properties: {x: *m%d}}\n", i, i)
-	}
-	return b.String()
-}
-
 func TestCompile_MergeChainPastBoundStillCompiles(t *testing.T) {
 	t.Parallel()
 	doc, diags, err := New().Compile(t.Context(),
-		[]compilers.Source{{Path: "deep-merge.yaml", Data: []byte(mergeChainSpec(200))}},
+		[]compilers.Source{{Path: "deep-merge.yaml", Data: []byte(ynode.MergeChainSpec(200))}},
 		compilers.Options{})
 	require.NoError(t, err)
 	require.NotNil(t, doc, "a legal document is still compiled")

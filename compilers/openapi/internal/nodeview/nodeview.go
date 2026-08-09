@@ -16,6 +16,7 @@ import (
 	yaml "gopkg.in/yaml.v3"
 
 	"github.com/dexpace/morphic/compilers/openapi/internal/ids"
+	"github.com/dexpace/morphic/compilers/openapi/internal/ynode"
 )
 
 // maxAliasChain bounds how many alias hops Deref follows. yaml.v3 resolves an
@@ -270,10 +271,6 @@ func (v *View) mergeSource(val *yaml.Node, depth int) ([]Pair, bool) {
 	return dedupeFirstWins(out), complete
 }
 
-// MergeTag is the tag yaml.v3 resolves every `<<` merge key to, and the exact
-// tag speakeasy's yml.IsMergeKey requires before treating one as a merge.
-const MergeTag = "!!merge"
-
 // IsMergeKey reports whether a raw mapping key node is a `<<` merge key,
 // applying the same test speakeasy does: yml.IsMergeKey (yml/yml.go), run over
 // every mapping via yml.ResolveMergeKeys. The key is checked undereferenced (an
@@ -288,7 +285,7 @@ const MergeTag = "!!merge"
 // reachable from a parsed document today, but re-check this against
 // yml.IsMergeKey on any dependency bump.
 func IsMergeKey(n *yaml.Node) bool {
-	return n != nil && n.Kind == yaml.ScalarNode && n.Value == "<<" && n.Tag == MergeTag
+	return n != nil && n.Kind == yaml.ScalarNode && n.Value == "<<" && n.Tag == ynode.MergeTag
 }
 
 // dedupeFirstWins keeps only the first pair for each key, preserving order — the
