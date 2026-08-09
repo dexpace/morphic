@@ -46,6 +46,7 @@ var cycleReproducers = []struct{ name, file string }{
 	{"path-item-prefix-chain", "cycle_path_item_prefix_chain"},
 	{"component-path-item-prefix", "cycle_component_path_item_prefix"},
 	{"webhook-prefix-self", "cycle_webhook_prefix_self"},
+	{"path-item-empty-segment", "cycle_path_item_empty_segment"},
 	// A self-reference only the resolver's pointer normalization reveals, which
 	// overflows the stack rather than deadlocking: the resolution cache ends up
 	// pointing at its own reference and GetObject's delegation recurses.
@@ -746,6 +747,29 @@ func TestDetectCycles_PointerThroughOwnReferenceIsRefused(t *testing.T) {
 info: {title: t, version: '1'}
 paths:
   /a: {$ref: '#/paths/~1a/t'}
+`
+	diags := scanBytes(t, []byte(src))
+	require.NotEmpty(t, diags, "a pointer that resolves through its own reference must be refused")
+	assert.Equal(t, diag.CyclicRef, diags[0].Code)
+	assert.Equal(t, ir.SeverityError, diags[0].Severity)
+}
+
+// TestDetectCycles_EmptyPointerSegmentIsRefused covers the spelling that walked
+// past the refusal above: a trailing separator. '#/components/pathItems/A/' ends
+// in an empty reference token, which RFC 6901 and the resolver's parser both
+// read as naming the key "" under A. The resolver therefore descends *through*
+// A — the reference it is already resolving — and deadlocks, while a scan that
+// dropped the empty token read the pointer as stopping at A and reported a
+// components-only cycle it left to the resolver.
+func TestDetectCycles_EmptyPointerSegmentIsRefused(t *testing.T) {
+	t.Parallel()
+	const src = `openapi: 3.1.0
+info: {title: t, version: '1'}
+paths:
+  /a: {$ref: '#/components/pathItems/A'}
+components:
+  pathItems:
+    A: {$ref: '#/components/pathItems/A/'}
 `
 	diags := scanBytes(t, []byte(src))
 	require.NotEmpty(t, diags, "a pointer that resolves through its own reference must be refused")

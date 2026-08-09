@@ -14,6 +14,7 @@ import (
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/ids"
 	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
+	"github.com/dexpace/morphic/compilers/openapi/internal/openapitest"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -35,9 +36,9 @@ paths:
       responses: {"200": {description: ok}}
 `
 	doc, svc, diags := lowerServiceSpec(t, spec)
-	requireNoErrorDiags(t, diags)
+	openapitest.RequireNoErrorDiags(t, diags)
 	require.Len(t, svc.Groups, 2)
-	byName := indexBy(svc.Groups, func(g ir.OperationGroup) string { return g.Name.Source })
+	byName := openapitest.IndexBy(svc.Groups, func(g ir.OperationGroup) string { return g.Name.Source })
 	users, ok := byName["users"]
 	require.True(t, ok)
 	assert.Equal(t, "User ops", users.Docs.Description)
@@ -53,7 +54,7 @@ paths:
 
 func TestResponses_ErrorSplitAndRanges(t *testing.T) {
 	t.Parallel()
-	spec := pathsSpec(`  /w:
+	spec := openapitest.PathsSpec(`  /w:
     get:
       operationId: w
       responses:
@@ -65,8 +66,8 @@ func TestResponses_ErrorSplitAndRanges(t *testing.T) {
         default: {description: anything else}
 `)
 	_, svc, diags := lowerServiceSpec(t, spec)
-	requireNoErrorDiags(t, diags)
-	op := firstOp(t, svc)
+	openapitest.RequireNoErrorDiags(t, diags)
+	op := openapitest.FirstOp(t, svc)
 	require.Len(t, op.Responses, 1)
 	assert.Equal(t, []ir.StatusRange{{From: 200, To: 200}}, op.Responses[0].Conditions.StatusCodes)
 	require.Len(t, op.Errors, 3)
@@ -90,7 +91,7 @@ func TestResponses_ErrorSplitAndRanges(t *testing.T) {
 // carries no Naming at all, so there is no channel on it to leave empty.
 func TestResponses_NamedByStatusKey(t *testing.T) {
 	t.Parallel()
-	spec := pathsSpec(`  /w:
+	spec := openapitest.PathsSpec(`  /w:
     get:
       operationId: w
       responses:
@@ -101,8 +102,8 @@ func TestResponses_NamedByStatusKey(t *testing.T) {
         default: {description: anything else}
 `)
 	_, svc, diags := lowerServiceSpec(t, spec)
-	requireNoErrorDiags(t, diags)
-	op := firstOp(t, svc)
+	openapitest.RequireNoErrorDiags(t, diags)
+	op := openapitest.FirstOp(t, svc)
 
 	require.Len(t, op.Responses, 3)
 	hints := make([]string, 0, len(op.Responses))
@@ -120,7 +121,7 @@ func TestResponses_NamedByStatusKey(t *testing.T) {
 // arrived as the same shape. Both are declared here, and they must not.
 func TestResponses_InvalidStatusKeyIsReported(t *testing.T) {
 	t.Parallel()
-	spec := pathsSpec(`  /w:
+	spec := openapitest.PathsSpec(`  /w:
     get:
       operationId: w
       responses:
@@ -131,15 +132,15 @@ func TestResponses_InvalidStatusKeyIsReported(t *testing.T) {
         default: {description: anything else}
 `)
 	_, svc, diags := lowerServiceSpec(t, spec)
-	requireNoErrorDiags(t, diags)
-	op := firstOp(t, svc)
+	openapitest.RequireNoErrorDiags(t, diags)
+	op := openapitest.FirstOp(t, svc)
 
-	msg := diagMessageAt(t, diags, diag.InvalidStatusKey, ir.SeverityWarning,
+	msg := openapitest.DiagMessageAt(t, diags, diag.InvalidStatusKey, ir.SeverityWarning,
 		"/paths/~1w/get/responses/wat")
 	assert.Contains(t, msg, `"wat"`, "the message names the key that could not be read")
 
 	require.Len(t, op.Responses, 2)
-	byHint := indexBy(op.Responses, func(r ir.Response) string { return r.Name.Hint })
+	byHint := openapitest.IndexBy(op.Responses, func(r ir.Response) string { return r.Name.Hint })
 	ok200, found := byHint["200"]
 	require.True(t, found)
 	assert.Equal(t, []ir.StatusRange{{From: 200, To: 200}}, ok200.Conditions.StatusCodes)
@@ -160,7 +161,7 @@ func TestResponses_InvalidStatusKeyIsReported(t *testing.T) {
 // documents that are entirely correct.
 func TestResponses_ValidStatusKeysAreNotReported(t *testing.T) {
 	t.Parallel()
-	spec := pathsSpec(`  /w:
+	spec := openapitest.PathsSpec(`  /w:
     get:
       operationId: w
       responses:
@@ -172,8 +173,8 @@ func TestResponses_ValidStatusKeysAreNotReported(t *testing.T) {
         default: {description: anything else}
 `)
 	_, _, diags := lowerServiceSpec(t, spec)
-	requireNoErrorDiags(t, diags)
-	assert.False(t, hasDiag(diags, diag.InvalidStatusKey),
+	openapitest.RequireNoErrorDiags(t, diags)
+	assert.False(t, openapitest.HasDiag(diags, diag.InvalidStatusKey),
 		"every key here names a status; got %+v", diags)
 }
 
@@ -181,7 +182,7 @@ func TestResponses_ErrorHeadersPreserved(t *testing.T) {
 	t.Parallel()
 	// ErrorCase has no Headers field; a 429's Retry-After header must not be
 	// dropped silently — it is kept verbatim under Unmodeled with a diag.
-	spec := pathsSpec(`  /w:
+	spec := openapitest.PathsSpec(`  /w:
     get:
       operationId: w
       responses:
@@ -192,8 +193,8 @@ func TestResponses_ErrorHeadersPreserved(t *testing.T) {
             Retry-After: {schema: {type: integer}}
 `)
 	_, svc, diags := lowerServiceSpec(t, spec)
-	requireNoErrorDiags(t, diags)
-	op := firstOp(t, svc)
+	openapitest.RequireNoErrorDiags(t, diags)
+	op := openapitest.FirstOp(t, svc)
 	require.Len(t, op.Errors, 1)
 	raw, ok := op.Errors[0].Unmodeled["openapi:headers"]
 	require.True(t, ok, "error response headers kept under Unmodeled")
@@ -211,7 +212,7 @@ func TestResponses_ErrorHeadersPreserved(t *testing.T) {
 
 func TestOperation_ExplicitlyPublicSecurity(t *testing.T) {
 	t.Parallel()
-	spec := pathsSpec(`  /open:
+	spec := openapitest.PathsSpec(`  /open:
     get:
       operationId: open
       security: []
@@ -222,7 +223,7 @@ func TestOperation_ExplicitlyPublicSecurity(t *testing.T) {
       responses: {"200": {description: ok}}
 `)
 	_, svc, diags := lowerServiceSpec(t, spec)
-	requireNoErrorDiags(t, diags)
+	openapitest.RequireNoErrorDiags(t, diags)
 	ops := map[string]ir.Operation{}
 	for _, g := range svc.Groups {
 		for _, op := range g.Operations {
@@ -236,7 +237,7 @@ func TestOperation_ExplicitlyPublicSecurity(t *testing.T) {
 
 func TestResponses_HeadersLowered(t *testing.T) {
 	t.Parallel()
-	spec := pathsSpec(`  /h:
+	spec := openapitest.PathsSpec(`  /h:
     get:
       operationId: h
       responses:
@@ -246,8 +247,8 @@ func TestResponses_HeadersLowered(t *testing.T) {
             X-Rate-Limit: {required: true, schema: {type: integer}}
 `)
 	_, svc, diags := lowerServiceSpec(t, spec)
-	requireNoErrorDiags(t, diags)
-	op := firstOp(t, svc)
+	openapitest.RequireNoErrorDiags(t, diags)
+	op := openapitest.FirstOp(t, svc)
 	require.Len(t, op.Responses, 1)
 	require.Len(t, op.Responses[0].Headers, 1)
 	h := op.Responses[0].Headers[0]
@@ -264,7 +265,7 @@ func TestResponses_HeadersLowered(t *testing.T) {
 // unrelated parameter count.
 func TestParameters_PathItemSharedAcrossOperationsInternsOnce(t *testing.T) {
 	t.Parallel()
-	spec := pathsSpec(`  /pets/{petId}:
+	spec := openapitest.PathsSpec(`  /pets/{petId}:
     parameters:
       - name: petId
         in: path
@@ -280,16 +281,16 @@ func TestParameters_PathItemSharedAcrossOperationsInternsOnce(t *testing.T) {
       responses: {"200": {description: ok}}
 `)
 	doc, _, diags := lowerServiceSpec(t, spec)
-	requireNoErrorDiags(t, diags)
-	getPet := findOp(t, doc, "getPet")
-	deletePet := findOp(t, doc, "deletePet")
+	openapitest.RequireNoErrorDiags(t, diags)
+	getPet := openapitest.FindOp(t, doc, "getPet")
+	deletePet := openapitest.FindOp(t, doc, "deletePet")
 	require.Len(t, getPet.Params, 1, "get inherits only the shared path-item parameter")
 	require.Len(t, deletePet.Params, 2, "delete gets its own force plus the shared path-item parameter")
 
 	wantID := ir.TypeID("t/anon/paths/~1pets~1{petId}/parameters/0/schema")
 	assert.Equal(t, wantID, getPet.Params[0].Type.Target, "get resolves the shared path-item schema")
 
-	byName := indexBy(deletePet.Params, func(p ir.Parameter) string { return p.Name.Source })
+	byName := openapitest.IndexBy(deletePet.Params, func(p ir.Parameter) string { return p.Name.Source })
 	assert.Equal(t, wantID, byName["petId"].Type.Target, "delete resolves the same shared schema, not a copy")
 
 	typeDef, ok := doc.Types[wantID]
@@ -308,7 +309,7 @@ func TestParameters_PathItemSharedAcrossOperationsInternsOnce(t *testing.T) {
 // path-item-level parameter's schema.
 func TestParameters_PathItemSchemaIDStableAcrossOperationParamChanges(t *testing.T) {
 	t.Parallel()
-	before := pathsSpec(`  /pets/{petId}:
+	before := openapitest.PathsSpec(`  /pets/{petId}:
     parameters:
       - name: petId
         in: path
@@ -318,7 +319,7 @@ func TestParameters_PathItemSchemaIDStableAcrossOperationParamChanges(t *testing
       operationId: getPet
       responses: {"200": {description: ok}}
 `)
-	after := pathsSpec(`  /pets/{petId}:
+	after := openapitest.PathsSpec(`  /pets/{petId}:
     parameters:
       - name: petId
         in: path
@@ -331,16 +332,16 @@ func TestParameters_PathItemSchemaIDStableAcrossOperationParamChanges(t *testing
       responses: {"200": {description: ok}}
 `)
 	_, svcBefore, diagsBefore := lowerServiceSpec(t, before)
-	requireNoErrorDiags(t, diagsBefore)
+	openapitest.RequireNoErrorDiags(t, diagsBefore)
 	_, svcAfter, diagsAfter := lowerServiceSpec(t, after)
-	requireNoErrorDiags(t, diagsAfter)
+	openapitest.RequireNoErrorDiags(t, diagsAfter)
 
-	opBefore := firstOp(t, svcBefore)
-	opAfter := firstOp(t, svcAfter)
+	opBefore := openapitest.FirstOp(t, svcBefore)
+	opAfter := openapitest.FirstOp(t, svcAfter)
 	require.Len(t, opBefore.Params, 1)
 	require.Len(t, opAfter.Params, 2, "the unrelated verbose parameter adds a second entry")
 
-	byName := indexBy(opAfter.Params, func(p ir.Parameter) string { return p.Name.Source })
+	byName := openapitest.IndexBy(opAfter.Params, func(p ir.Parameter) string { return p.Name.Source })
 	assert.Equal(t, opBefore.Params[0].Type.Target, byName["petId"].Type.Target,
 		"an unrelated operation-level parameter must not shift the shared path-item schema's ID")
 }
@@ -364,8 +365,8 @@ webhooks:
       responses: {"200": {description: ok}}
 `
 	doc, _, diags := lowerServiceSpec(t, spec)
-	requireNoErrorDiags(t, diags)
-	op := findOp(t, doc, "onPetEvent")
+	openapitest.RequireNoErrorDiags(t, diags)
+	op := openapitest.FindOp(t, doc, "onPetEvent")
 	require.Len(t, op.Params, 1)
 
 	wantID := ir.TypeID("t/anon/webhooks/petEvent/parameters/0/schema")
@@ -381,7 +382,7 @@ webhooks:
 // callback expression.
 func TestParameters_CallbackPathItemParameterPointer(t *testing.T) {
 	t.Parallel()
-	spec := pathsSpec(`  /subscribe:
+	spec := openapitest.PathsSpec(`  /subscribe:
     post:
       operationId: subscribe
       callbacks:
@@ -397,8 +398,8 @@ func TestParameters_CallbackPathItemParameterPointer(t *testing.T) {
       responses: {"200": {description: ok}}
 `)
 	doc, _, diags := lowerServiceSpec(t, spec)
-	requireNoErrorDiags(t, diags)
-	cbOp := findOp(t, doc, "onEvent")
+	openapitest.RequireNoErrorDiags(t, diags)
+	cbOp := openapitest.FindOp(t, doc, "onEvent")
 	require.Len(t, cbOp.Params, 1)
 
 	wantPointer := "/paths/~1subscribe/post/callbacks/onEvent/{$request.body#~1callbackUrl}/parameters/0/schema"
@@ -415,7 +416,7 @@ func TestParameters_CallbackPathItemParameterPointer(t *testing.T) {
 // pointer — the shadowed path-item schema is never lowered at all.
 func TestParameters_ShadowedPathItemParamUsesOperationPointer(t *testing.T) {
 	t.Parallel()
-	spec := pathsSpec(`  /pets/{petId}:
+	spec := openapitest.PathsSpec(`  /pets/{petId}:
     parameters:
       - name: petId
         in: path
@@ -431,8 +432,8 @@ func TestParameters_ShadowedPathItemParamUsesOperationPointer(t *testing.T) {
       responses: {"200": {description: ok}}
 `)
 	doc, svc, diags := lowerServiceSpec(t, spec)
-	requireNoErrorDiags(t, diags)
-	op := firstOp(t, svc)
+	openapitest.RequireNoErrorDiags(t, diags)
+	op := openapitest.FirstOp(t, svc)
 	require.Len(t, op.Params, 1, "the operation parameter shadows the path-item one; no duplicate")
 
 	wantID := ir.TypeID("t/anon/paths/~1pets~1{petId}/get/parameters/0/schema")
@@ -449,7 +450,7 @@ func TestParameters_ShadowedPathItemParamUsesOperationPointer(t *testing.T) {
 
 func TestResponses_LinksPreserved(t *testing.T) {
 	t.Parallel()
-	spec := pathsSpec(`  /l:
+	spec := openapitest.PathsSpec(`  /l:
     get:
       operationId: l
       responses:
@@ -459,8 +460,8 @@ func TestResponses_LinksPreserved(t *testing.T) {
             GetUserByUserId: {operationId: getUser}
 `)
 	_, svc, diags := lowerServiceSpec(t, spec)
-	requireNoErrorDiags(t, diags)
-	op := firstOp(t, svc)
+	openapitest.RequireNoErrorDiags(t, diags)
+	op := openapitest.FirstOp(t, svc)
 	require.Len(t, op.Responses, 1)
 	raw, ok := op.Responses[0].Unmodeled["openapi:links"]
 	require.True(t, ok, "response links preserved raw for later promotion")
@@ -470,14 +471,14 @@ func TestResponses_LinksPreserved(t *testing.T) {
 
 func TestGrouping_ByPathPrefixInferred(t *testing.T) {
 	t.Parallel()
-	spec := pathsSpec(`  /users/{id}:
+	spec := openapitest.PathsSpec(`  /users/{id}:
     get: {operationId: getUser, responses: {"200": {description: ok}}}
   /orders:
     get: {operationId: listOrders, responses: {"200": {description: ok}}}
 `)
 	svc, diags := serviceWithGrouping(t, spec, lowering.GroupByPathPrefix)
-	requireNoErrorDiags(t, diags)
-	byName := indexBy(svc.Groups, func(g ir.OperationGroup) string { return g.Name.Source })
+	openapitest.RequireNoErrorDiags(t, diags)
+	byName := openapitest.IndexBy(svc.Groups, func(g ir.OperationGroup) string { return g.Name.Source })
 	_, hasUsers := byName["users"]
 	_, hasOrders := byName["orders"]
 	assert.True(t, hasUsers, "first path segment forms a group")
@@ -491,13 +492,13 @@ func TestGrouping_ByPathPrefixInferred(t *testing.T) {
 
 func TestOperation_NoOperationIdHint(t *testing.T) {
 	t.Parallel()
-	spec := pathsSpec(`  /ping:
+	spec := openapitest.PathsSpec(`  /ping:
     get:
       responses: {"200": {description: ok}}
 `)
 	_, svc, diags := lowerServiceSpec(t, spec)
-	requireNoErrorDiags(t, diags)
-	op := firstOp(t, svc)
+	openapitest.RequireNoErrorDiags(t, diags)
+	op := openapitest.FirstOp(t, svc)
 	assert.Empty(t, op.Name.Source, "no operationId leaves an empty source name")
 	assert.Equal(t, "get_ping", op.Name.Hint, "the hint is canonicalized, not the raw method and template")
 }
@@ -570,7 +571,7 @@ func TestOperations_MethodsTagsServersRefs(t *testing.T) {
 		assert.True(t, methods[m], "method %s lowered", m)
 	}
 
-	getA := findOp(t, doc, "getA")
+	getA := openapitest.FindOp(t, doc, "getA")
 	assert.NotEmpty(t, getA.Unmodeled, "op x-* extension")
 	assert.NotEmpty(t, getA.Docs.ExternalDocs, "op externalDocs")
 	_, hasServers := getA.Unmodeled["openapi:servers"]
@@ -592,14 +593,14 @@ func TestOperations_MethodsTagsServersRefs(t *testing.T) {
 	assert.NotEmpty(t, doc.TagDefs[0].Docs.ExternalDocs, "declared tag externalDocs")
 
 	// Callback operation registered alongside its parent.
-	assert.NotEmpty(t, findOp(t, doc, "cbPost").ID)
+	assert.NotEmpty(t, openapitest.FindOp(t, doc, "cbPost").ID)
 	_ = diags
 }
 
 func TestOperations_NoResponses(t *testing.T) {
 	t.Parallel()
 	doc, _ := parseFull(t, opsSpec)
-	trace := findOp(t, doc, "traceA")
+	trace := openapitest.FindOp(t, doc, "traceA")
 	assert.Empty(t, trace.Responses)
 	assert.Empty(t, trace.Errors)
 }
@@ -617,14 +618,14 @@ components:
 func TestWebhooks_PathItemRefResolved(t *testing.T) {
 	t.Parallel()
 	doc, _ := parseFull(t, webhookRefSpec)
-	op := findOp(t, doc, "onPing")
+	op := openapitest.FindOp(t, doc, "onPing")
 	require.NotEmpty(t, op.Bindings.HTTP)
 	assert.True(t, op.Bindings.HTTP[0].IsWebhook)
 }
 
 func TestGrouping_PathPrefixRootPath(t *testing.T) {
 	t.Parallel()
-	spec := pathsSpec(`  /:
+	spec := openapitest.PathsSpec(`  /:
     get: {operationId: root, responses: {"200": {description: ok}}}
 `)
 	svc, _ := serviceWithGrouping(t, spec, lowering.GroupByPathPrefix)
@@ -635,7 +636,7 @@ func TestGrouping_PathPrefixRootPath(t *testing.T) {
 func TestRawChildNode(t *testing.T) {
 	t.Parallel()
 	assert.Nil(t, annotation.RawChildNode(nil, "x"), "nil root")
-	assert.Nil(t, annotation.RawChildNode(strNode("x"), "k"), "non-mapping root")
+	assert.Nil(t, annotation.RawChildNode(openapitest.StrNode("x"), "k"), "non-mapping root")
 
 	var doc yaml.Node
 	require.NoError(t, yaml.Unmarshal([]byte("a: 1\nb: 2"), &doc))
@@ -675,9 +676,9 @@ components:
 func TestResponses_ComponentRefSharedAcrossOperationsInternsOnce(t *testing.T) {
 	t.Parallel()
 	doc, diags := parseFull(t, componentResponseRefSpec)
-	requireNoErrorDiags(t, diags)
-	getA := findOp(t, doc, "getA")
-	getB := findOp(t, doc, "getB")
+	openapitest.RequireNoErrorDiags(t, diags)
+	getA := openapitest.FindOp(t, doc, "getA")
+	getB := openapitest.FindOp(t, doc, "getB")
 	require.Len(t, getA.Responses, 1)
 	require.Len(t, getB.Responses, 1)
 
@@ -725,7 +726,7 @@ components:
 func TestPathItem_RefSharedAcrossMountsKeepsDistinctOpIDs(t *testing.T) {
 	t.Parallel()
 	doc, diags := parseFull(t, sharedPathItemSpec)
-	requireNoErrorDiags(t, diags)
+	openapitest.RequireNoErrorDiags(t, diags)
 	opA := opByPath(t, doc, "GET", "/a")
 	opB := opByPath(t, doc, "GET", "/b")
 
@@ -789,9 +790,9 @@ components:
 func TestCallbacks_RefSharedAcrossParentsKeepsDistinctOpIDs(t *testing.T) {
 	t.Parallel()
 	doc, diags := parseFull(t, sharedCallbackSpec)
-	requireNoErrorDiags(t, diags)
-	parentC := findOp(t, doc, "parentC")
-	parentD := findOp(t, doc, "parentD")
+	openapitest.RequireNoErrorDiags(t, diags)
+	parentC := openapitest.FindOp(t, doc, "parentC")
+	parentD := openapitest.FindOp(t, doc, "parentD")
 	require.Len(t, parentC.Bindings.HTTP[0].Callbacks, 1)
 	require.Len(t, parentD.Bindings.HTTP[0].Callbacks, 1)
 	require.Len(t, parentC.Bindings.HTTP[0].Callbacks[0].Operations, 1)
@@ -814,7 +815,7 @@ func TestCallbacks_RefSharedAcrossParentsKeepsDistinctOpIDs(t *testing.T) {
 }
 
 // opsByID collects the operations matching any of ids into a lookup. It
-// exists because findOp disambiguates by Name.Source, which two mounts of one
+// exists because openapitest.FindOp disambiguates by Name.Source, which two mounts of one
 // $ref'd path item or callback share (they are the same declared operationId
 // mounted twice); OpID is the only thing that still tells them apart.
 func opsByID(t *testing.T, doc *ir.Document, opIDs ...ir.OpID) map[ir.OpID]ir.Operation {
@@ -918,7 +919,7 @@ components:
 func TestProvenance_EveryPointerResolvesInSource(t *testing.T) {
 	t.Parallel()
 	doc, diags := parseFull(t, provenanceSpec)
-	requireNoErrorDiags(t, diags)
+	openapitest.RequireNoErrorDiags(t, diags)
 
 	var root yaml.Node
 	require.NoError(t, yaml.Unmarshal([]byte(provenanceSpec), &root))
@@ -1044,7 +1045,7 @@ components:
 func TestWebhooks_RefdPathItemSharedAcrossHooksKeepsDistinctOpIDs(t *testing.T) {
 	t.Parallel()
 	doc, diags := parseFull(t, refdWebhookPathItemSpec)
-	requireNoErrorDiags(t, diags)
+	openapitest.RequireNoErrorDiags(t, diags)
 
 	idA := ir.OpID("op/openapi/webhooks/onA/post")
 	idB := ir.OpID("op/openapi/webhooks/onB/post")
@@ -1105,9 +1106,9 @@ components:
 func TestCallbacks_RefdPathItemInternsAtDeclaration(t *testing.T) {
 	t.Parallel()
 	doc, diags := parseFull(t, refdCallbackPathItemSpec)
-	requireNoErrorDiags(t, diags)
-	parentC := findOp(t, doc, "parentC")
-	parentD := findOp(t, doc, "parentD")
+	openapitest.RequireNoErrorDiags(t, diags)
+	parentC := openapitest.FindOp(t, doc, "parentC")
+	parentD := openapitest.FindOp(t, doc, "parentD")
 	require.Len(t, parentC.Bindings.HTTP[0].Callbacks[0].Operations, 1)
 	require.Len(t, parentD.Bindings.HTTP[0].Callbacks[0].Operations, 1)
 
@@ -1161,14 +1162,14 @@ components:
 func TestResponses_RefdErrorAndDefaultInternAtDeclaration(t *testing.T) {
 	t.Parallel()
 	doc, diags := parseFull(t, refdErrorResponseSpec)
-	requireNoErrorDiags(t, diags)
-	getA := findOp(t, doc, "getA")
-	getB := findOp(t, doc, "getB")
+	openapitest.RequireNoErrorDiags(t, diags)
+	getA := openapitest.FindOp(t, doc, "getA")
+	getB := openapitest.FindOp(t, doc, "getB")
 	require.Len(t, getA.Errors, 2)
 	require.Len(t, getB.Errors, 2)
 
 	byFault := func(op ir.Operation) map[string]ir.ErrorCase {
-		return indexBy(op.Errors, func(ec ir.ErrorCase) string { return ec.Fault })
+		return openapitest.IndexBy(op.Errors, func(ec ir.ErrorCase) string { return ec.Fault })
 	}
 	aErrs, bErrs := byFault(getA), byFault(getB)
 
@@ -1238,7 +1239,7 @@ func TestDiag_SharedDeclarationReportsEachDefectOnce(t *testing.T) {
 	}
 
 	// Every defect still surfaces — de-duplication must not silence any of them.
-	assert.Equal(t, 3, countDiagsAt(diags, diag.DegradedConstruct, ir.SeverityInfo),
+	assert.Equal(t, 3, openapitest.CountDiagsAt(diags, diag.DegradedConstruct, ir.SeverityInfo),
 		"the optional body, the homeless error headers and the homeless error media type "+
 			"are three distinct defects")
 }
@@ -1283,7 +1284,7 @@ func TestOperations_DuplicateOperationIDReported(t *testing.T) {
 	opB := opByPath(t, doc, "GET", "/b")
 	assert.Equal(t, opA.Name.Source, opB.Name.Source, "the IR still records what the document said")
 
-	require.Equal(t, 1, countDiagsAt(diags, diag.DuplicateOperationID, ir.SeverityWarning),
+	require.Equal(t, 1, openapitest.CountDiagsAt(diags, diag.DuplicateOperationID, ir.SeverityWarning),
 		"the second claim is reported once, not both claims")
 	for _, d := range diags {
 		if d.Code == diag.DuplicateOperationID {
@@ -1297,7 +1298,7 @@ func TestOperations_DuplicateOperationIDReported(t *testing.T) {
 // with their own ids, and an operation with none at all, raise nothing.
 func TestOperations_DistinctOperationIDsClean(t *testing.T) {
 	t.Parallel()
-	_, diags := parseFull(t, pathsSpec(`  /a:
+	_, diags := parseFull(t, openapitest.PathsSpec(`  /a:
     get:
       operationId: getA
       responses: {"200": {description: ok}}
@@ -1305,7 +1306,7 @@ func TestOperations_DistinctOperationIDsClean(t *testing.T) {
     get:
       responses: {"200": {description: ok}}
 `))
-	assert.False(t, hasDiag(diags, diag.DuplicateOperationID))
+	assert.False(t, openapitest.HasDiag(diags, diag.DuplicateOperationID))
 }
 
 // TestOperation_UnserializableExtensionStillWarns pins the operation's half of
@@ -1318,7 +1319,7 @@ func TestOperations_DistinctOperationIDsClean(t *testing.T) {
 // an operation that quietly loses an extension it could not represent.
 func TestOperation_UnserializableExtensionStillWarns(t *testing.T) {
 	t.Parallel()
-	spec := pathsSpec(`  /x:
+	spec := openapitest.PathsSpec(`  /x:
     get:
       x-bad: {1: intkey}
       responses: {"200": {description: ok}}
@@ -1422,14 +1423,14 @@ func TestGhostRefs_AllResolversDegradeGracefully(t *testing.T) {
 // has nothing else to read.
 func TestOperation_DeprecatedIsCarried(t *testing.T) {
 	t.Parallel()
-	doc, diags := parseFull(t, pathsSpec(`  /a:
+	doc, diags := parseFull(t, openapitest.PathsSpec(`  /a:
     get: {operationId: getA, deprecated: true, responses: {"200": {description: ok}}}
     post: {operationId: postA, responses: {"200": {description: ok}}}
 `))
-	requireNoErrorDiags(t, diags)
+	openapitest.RequireNoErrorDiags(t, diags)
 
-	assert.NotNil(t, findOp(t, doc, "getA").Deprecation, "the declared flag is carried")
-	assert.Nil(t, findOp(t, doc, "postA").Deprecation, "and an operation that declares none has none")
+	assert.NotNil(t, openapitest.FindOp(t, doc, "getA").Deprecation, "the declared flag is carried")
+	assert.Nil(t, openapitest.FindOp(t, doc, "postA").Deprecation, "and an operation that declares none has none")
 }
 
 // pathItemServersSpec declares the same `servers` override on each of the three
@@ -1471,7 +1472,7 @@ webhooks:
 func TestOperations_PathItemServersKeptOnEveryRoute(t *testing.T) {
 	t.Parallel()
 	doc, diags := parseFull(t, pathItemServersSpec)
-	requireNoErrorDiags(t, diags)
+	openapitest.RequireNoErrorDiags(t, diags)
 
 	// kept is where the preserved list is recorded (the servers keyword);
 	// reported is where the diagnostic is stamped (the operation itself).
@@ -1482,13 +1483,13 @@ func TestOperations_PathItemServersKeptOnEveryRoute(t *testing.T) {
 			"/paths/~1p/post/callbacks/onEvent/{$request.body#~1url}/servers",
 			"/paths/~1p/post/callbacks/onEvent/{$request.body#~1url}/post"},
 	} {
-		entry, ok := findOp(t, doc, tc.op).Unmodeled["openapi:servers"]
+		entry, ok := openapitest.FindOp(t, doc, tc.op).Unmodeled["openapi:servers"]
 		require.True(t, ok, "%s keeps its path item's servers", tc.op)
 		assert.Equal(t, ir.ReasonNoIRHome, entry.Reason)
 		assert.JSONEq(t, `[{"url":"`+tc.url+`"}]`, string(entry.Value),
 			"%s keeps the list its own path item declared", tc.op)
 		assert.Equal(t, tc.kept, entry.Provenance.Pointer)
-		assert.True(t, hasDiagCodeAt(diags, diag.DegradedConstruct, tc.reported),
+		assert.True(t, openapitest.HasDiagCodeAt(diags, diag.DegradedConstruct, tc.reported),
 			"%s reports the degradation as the paths route already did", tc.op)
 	}
 }
@@ -1501,7 +1502,7 @@ func TestOperations_PathItemServersKeptOnEveryRoute(t *testing.T) {
 // its key is the same loss as several losing all but the first.
 func TestErrorCase_SingleMediaTypeKeepsContentMap(t *testing.T) {
 	t.Parallel()
-	doc, diags := parseFull(t, pathsSpec(`  /x:
+	doc, diags := parseFull(t, openapitest.PathsSpec(`  /x:
     get:
       operationId: getX
       responses:
@@ -1513,8 +1514,8 @@ func TestErrorCase_SingleMediaTypeKeepsContentMap(t *testing.T) {
               schema: {type: object}
         "409": {description: conflict}
 `))
-	requireNoErrorDiags(t, diags)
-	errs := indexBy(findOp(t, doc, "getX").Errors,
+	openapitest.RequireNoErrorDiags(t, diags)
+	errs := openapitest.IndexBy(openapitest.FindOp(t, doc, "getX").Errors,
 		func(ec ir.ErrorCase) int { return ec.Conditions.StatusCodes[0].From })
 
 	entry, ok := errs[404].Unmodeled["openapi:content"]
@@ -1524,7 +1525,7 @@ func TestErrorCase_SingleMediaTypeKeepsContentMap(t *testing.T) {
 		"the media type the map is keyed by is what would otherwise be lost")
 	assert.Equal(t, "/paths/~1x/get/responses/404/content", entry.Provenance.Pointer)
 	assert.Contains(t,
-		diagMessageAt(t, diags, diag.DegradedConstruct, ir.SeverityInfo, "/paths/~1x/get/responses/404"),
+		openapitest.DiagMessageAt(t, diags, diag.DegradedConstruct, ir.SeverityInfo, "/paths/~1x/get/responses/404"),
 		"media type has no ErrorCase home",
 		"the single-entry case names its own loss, not the multi-entry one")
 
@@ -1590,7 +1591,7 @@ webhooks:
 func TestOperations_OwnServersKeptBesideThePathItems(t *testing.T) {
 	t.Parallel()
 	doc, diags := parseFull(t, operationServersSpec)
-	requireNoErrorDiags(t, diags)
+	openapitest.RequireNoErrorDiags(t, diags)
 
 	// own/inherited are the operation's own list and its path item's; reported is
 	// where the operation's degradation is stamped (the operation itself).
@@ -1608,7 +1609,7 @@ func TestOperations_OwnServersKeptBesideThePathItems(t *testing.T) {
 			"/paths/~1both/post/callbacks/onEvent/{$request.body#~1url}/servers",
 			"/paths/~1both/post/callbacks/onEvent/{$request.body#~1url}/post"},
 	} {
-		op := findOp(t, doc, tc.op)
+		op := openapitest.FindOp(t, doc, tc.op)
 
 		own, ok := op.Unmodeled["openapi:operationServers"]
 		require.True(t, ok, "%s keeps its operation's own servers", tc.op)
@@ -1623,7 +1624,7 @@ func TestOperations_OwnServersKeptBesideThePathItems(t *testing.T) {
 		assert.Equal(t, tc.inheritedAt, inherited.Provenance.Pointer,
 			"each entry keeps the coordinate of the object that declared it")
 
-		assert.True(t, hasDiagCodeAt(diags, diag.DegradedConstruct, tc.reported),
+		assert.True(t, openapitest.HasDiagCodeAt(diags, diag.DegradedConstruct, tc.reported),
 			"%s reports the operation's own list as the path item's already was", tc.op)
 	}
 }
@@ -1634,14 +1635,14 @@ func TestOperations_OwnServersKeptBesideThePathItems(t *testing.T) {
 func TestOperations_ServersKeysAreIndependent(t *testing.T) {
 	t.Parallel()
 	doc, diags := parseFull(t, operationServersSpec)
-	requireNoErrorDiags(t, diags)
+	openapitest.RequireNoErrorDiags(t, diags)
 
-	opOnly := findOp(t, doc, "getOperationOnly")
+	opOnly := openapitest.FindOp(t, doc, "getOperationOnly")
 	assert.Contains(t, opOnly.Unmodeled, "openapi:operationServers")
 	assert.NotContains(t, opOnly.Unmodeled, "openapi:servers",
 		"an operation whose path item declares none records none for it")
 
-	pathOnly := findOp(t, doc, "getPathItemOnly")
+	pathOnly := openapitest.FindOp(t, doc, "getPathItemOnly")
 	assert.Contains(t, pathOnly.Unmodeled, "openapi:servers")
 	assert.NotContains(t, pathOnly.Unmodeled, "openapi:operationServers",
 		"and an operation declaring none of its own records none")
@@ -1655,19 +1656,243 @@ func TestOperations_ServersKeysAreIndependent(t *testing.T) {
 // that a later edit can silently break.
 func TestOperations_OwnServersSurviveBesideExtensions(t *testing.T) {
 	t.Parallel()
-	doc, diags := parseFull(t, pathsSpec(`  /x:
+	doc, diags := parseFull(t, openapitest.PathsSpec(`  /x:
     get:
       operationId: getX
       servers: [{url: 'https://operation.example'}]
       x-vendor: kept
       responses: {"200": {description: ok}}
 `))
-	requireNoErrorDiags(t, diags)
+	openapitest.RequireNoErrorDiags(t, diags)
 
-	op := findOp(t, doc, "getX")
+	op := openapitest.FindOp(t, doc, "getX")
 	servers, ok := op.Unmodeled["openapi:operationServers"]
 	require.True(t, ok, "the servers survive the extensions assignment")
 	assert.JSONEq(t, `[{"url":"https://operation.example"}]`, string(servers.Value))
 	assert.Contains(t, op.Unmodeled, "openapi:x-vendor",
 		"and the extensions survive beside them, so neither overwrote the other")
+}
+
+// pathItemDocsSpec declares summary and description on each of the three path
+// items a document can hold — a path, a webhook, and a callback expression —
+// with distinct text apiece so a preserved pair can be traced to the path item
+// that wrote it. One operation declares its own summary beside them, which is
+// what shows that the path item's pair does not displace it.
+const pathItemDocsSpec = `openapi: 3.1.0
+info: {title: T, version: "1"}
+paths:
+  /p:
+    summary: path summary
+    description: path description
+    post:
+      operationId: postP
+      summary: operation summary
+      callbacks:
+        onEvent:
+          '{$request.body#/url}':
+            summary: callback summary
+            description: callback description
+            post:
+              operationId: onEvent
+              responses: {"200": {description: ok}}
+      responses: {"200": {description: ok}}
+webhooks:
+  hooked:
+    summary: webhook summary
+    description: webhook description
+    post:
+      operationId: onHook
+      responses: {"200": {description: ok}}
+`
+
+// TestPathItem_DocsKeptOnEveryRoute pins that a path item's summary and
+// description reach the IR at all, on whichever of the three routes reaches the
+// path item.
+//
+// Both were read nowhere: fillOperationDocs reads the Operation Object's own
+// pair, so a path item's documentation reached neither Docs, nor Unmodeled, nor
+// a diagnostic. Each route is asserted with its own text, so a fix that kept the
+// enclosing path item's pair — or the same one three times — fails rather than
+// passing on the shape alone.
+func TestPathItem_DocsKeptOnEveryRoute(t *testing.T) {
+	t.Parallel()
+	doc, diags := parseFull(t, pathItemDocsSpec)
+	openapitest.RequireNoErrorDiags(t, diags)
+
+	// kept is the path item's own pointer, where the pair is declared;
+	// reported is the operation, which is what carries the entry.
+	for _, tc := range []struct{ op, text, kept, reported string }{
+		{"postP", "path", "/paths/~1p", "/paths/~1p/post"},
+		{"onHook", "webhook", "/webhooks/hooked", "/webhooks/hooked/post"},
+		{"onEvent", "callback",
+			"/paths/~1p/post/callbacks/onEvent/{$request.body#~1url}",
+			"/paths/~1p/post/callbacks/onEvent/{$request.body#~1url}/post"},
+	} {
+		op := openapitest.FindOp(t, doc, tc.op)
+		for _, field := range []struct{ key, keyword string }{
+			{"openapi:pathItemSummary", "summary"},
+			{"openapi:pathItemDescription", "description"},
+		} {
+			entry, ok := op.Unmodeled[field.key]
+			require.True(t, ok, "%s keeps its path item's %s", tc.op, field.keyword)
+			assert.Equal(t, ir.ReasonNoIRHome, entry.Reason)
+			assert.JSONEq(t, `"`+tc.text+` `+field.keyword+`"`, string(entry.Value),
+				"%s keeps the text its own path item declared", tc.op)
+			assert.Equal(t, tc.kept+"/"+field.keyword, entry.Provenance.Pointer)
+		}
+		assert.True(t, openapitest.HasDiagCodeAt(diags, diag.DegradedConstruct, tc.reported),
+			"%s reports the path item's documentation as kept rather than lowered", tc.op)
+	}
+
+	assert.Equal(t, "operation summary", openapitest.FindOp(t, doc, "postP").Docs.Summary,
+		"an operation's own summary is what Docs holds; the path item's never displaces it")
+	assert.Empty(t, openapitest.FindOp(t, doc, "onHook").Docs.Summary,
+		"and an operation that declares none gets none invented for it")
+}
+
+// TestPathItem_DocsAbsentKeepNothing pins the other half: a path item that
+// documents nothing writes no entry and announces nothing, so the preservation
+// is not a per-operation constant.
+func TestPathItem_DocsAbsentKeepNothing(t *testing.T) {
+	t.Parallel()
+	doc, diags := parseFull(t, openapitest.PathsSpec(`  /p:
+    get: {operationId: getP, responses: {"200": {description: ok}}}
+`))
+	openapitest.RequireNoErrorDiags(t, diags)
+
+	op := openapitest.FindOp(t, doc, "getP")
+	assert.NotContains(t, op.Unmodeled, "openapi:pathItemSummary")
+	assert.NotContains(t, op.Unmodeled, "openapi:pathItemDescription")
+	assert.False(t, openapitest.HasDiagCodeAt(diags, diag.DegradedConstruct, "/paths/~1p/get"))
+}
+
+// pathItemOperationsSpec declares a 3.2 operation with no fixed field of its own
+// at each of the three path-item routes, plus the 3.2 `query` fixed field, with
+// a distinct operationId apiece.
+const pathItemOperationsSpec = `openapi: 3.2.0
+info: {title: T, version: "1"}
+paths:
+  /p:
+    query:
+      operationId: queryP
+      responses: {"200": {description: ok}}
+    post:
+      operationId: postP
+      callbacks:
+        onEvent:
+          '{$request.body#/url}':
+            additionalOperations:
+              PURGE:
+                operationId: purgeCallback
+                responses: {"204": {description: purged}}
+      responses: {"200": {description: ok}}
+    additionalOperations:
+      PURGE:
+        operationId: purgeP
+        requestBody:
+          content:
+            application/json: {schema: {type: object, properties: {n: {type: string}}}}
+        responses: {"204": {description: purged}}
+      lowercase-purge:
+        operationId: purgeVerbatim
+        responses: {"204": {description: purged}}
+webhooks:
+  hooked:
+    additionalOperations:
+      FLUSH:
+        operationId: flushHook
+        responses: {"204": {description: flushed}}
+`
+
+// TestPathItem_AdditionalOperationsLowerOnEveryRoute pins that an operation
+// declared under 3.2 additionalOperations becomes an ir.Operation like any
+// other, on whichever of the three routes reaches the path item.
+//
+// The loop over the fixed method fields was the whole of the walk, so every such
+// operation was dropped entire — operationId, parameters, request body,
+// responses — with no diagnostic. Each route is asserted separately because a
+// fix scoped to the paths walk leaves the other two exactly as they were.
+func TestPathItem_AdditionalOperationsLowerOnEveryRoute(t *testing.T) {
+	t.Parallel()
+	doc, diags := parseFull(t, pathItemOperationsSpec)
+	openapitest.RequireNoErrorDiags(t, diags)
+
+	for _, tc := range []struct{ op, method, id string }{
+		{"queryP", "QUERY", "op/openapi/paths/~1p/query"},
+		{"purgeP", "PURGE", "op/openapi/paths/~1p/additionalOperations/PURGE"},
+		{"purgeVerbatim", "lowercase-purge", "op/openapi/paths/~1p/additionalOperations/lowercase-purge"},
+		{"flushHook", "FLUSH", "op/openapi/webhooks/hooked/additionalOperations/FLUSH"},
+		{"purgeCallback", "PURGE",
+			"op/openapi/paths/~1p/post/callbacks/onEvent/{$request.body#~1url}/additionalOperations/PURGE"},
+	} {
+		op := openapitest.FindOp(t, doc, tc.op)
+		assert.Equal(t, ir.OpID(tc.id), op.ID, "%s is identified by where it is written", tc.op)
+		require.Len(t, op.Bindings.HTTP, 1)
+		assert.Equal(t, tc.method, op.Bindings.HTTP[0].Method,
+			"%s binds the method key as the source spelled it", tc.op)
+	}
+
+	assert.True(t, openapitest.FindOp(t, doc, "flushHook").Bindings.HTTP[0].IsWebhook,
+		"a webhook mount marks the binding whichever field declared the operation")
+
+	// Nothing reachable only through a dropped operation reached the registry
+	// either: the request body's schema was not interned at all.
+	purge := openapitest.FindOp(t, doc, "purgeP")
+	require.NotNil(t, purge.Request)
+	require.Len(t, purge.Request.Contents, 1)
+	assert.NotNil(t, doc.Types[purge.Request.Contents[0].Type.Target],
+		"the request body schema is interned, not merely referenced")
+}
+
+// TestPathItem_AdditionalOperationsBindCallbacks pins that the parent operation
+// records a callback lowered from additionalOperations alone, so an expression
+// whose path item declares no fixed method is still bound rather than left
+// holding an empty operation list.
+func TestPathItem_AdditionalOperationsBindCallbacks(t *testing.T) {
+	t.Parallel()
+	doc, diags := parseFull(t, pathItemOperationsSpec)
+	openapitest.RequireNoErrorDiags(t, diags)
+
+	parent := openapitest.FindOp(t, doc, "postP")
+	require.Len(t, parent.Bindings.HTTP, 1)
+	require.Len(t, parent.Bindings.HTTP[0].Callbacks, 1)
+	assert.Equal(t, []ir.OpID{openapitest.FindOp(t, doc, "purgeCallback").ID},
+		parent.Bindings.HTTP[0].Callbacks[0].Operations)
+}
+
+// TestPathItem_EmptyAdditionalOperationsKeyReported pins the one key that names
+// no method. Taking the key verbatim is what makes it reachable: an empty one
+// binds an empty HTTP method, which no request can be sent with.
+//
+// The entry still lowers, so nothing it declares is lost — dropping it would
+// trade a reported defect for a silent one, which is the trade this whole change
+// exists to undo. speakeasy rejects a key naming a standard method and accepts
+// this one, so the compiler is the only thing that can report it.
+func TestPathItem_EmptyAdditionalOperationsKeyReported(t *testing.T) {
+	t.Parallel()
+	doc, diags := parseFull(t, `openapi: 3.2.0
+info: {title: T, version: "1"}
+paths:
+  /p:
+    additionalOperations:
+      "":
+        operationId: nameless
+        responses: {"204": {description: done}}
+`)
+	openapitest.RequireNoErrorDiags(t, diags)
+
+	op := openapitest.FindOp(t, doc, "nameless")
+	require.Len(t, op.Bindings.HTTP, 1)
+	assert.Empty(t, op.Bindings.HTTP[0].Method, "the key binds as written, empty or not")
+	assert.Equal(t, ir.OpID("op/openapi/paths/~1p/additionalOperations/"), op.ID,
+		"and the operation is still mounted where the source writes it")
+
+	assert.True(t, openapitest.HasDiagCodeAt(diags, diag.InvalidMethodKey, "/paths/~1p/additionalOperations/"),
+		"the unusable method is reported at the entry that declares it")
+	for _, d := range diags {
+		if d.Code == diag.InvalidMethodKey {
+			assert.Equal(t, ir.SeverityWarning, d.Severity,
+				"a warning: the operation lowers in full, only its method is unusable")
+		}
+	}
 }

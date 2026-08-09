@@ -80,8 +80,6 @@ type Document struct {
 // become ir.Diagnostic values; the Go error return is reserved for I/O and
 // programmer errors (a hard unmarshal failure). A nil document with diagnostics
 // signals a refusal to lower (unsupported version) without aborting the batch.
-//
-//nolint:unparam // srcIndex varies once Compile drives the multi-source loop
 func Load(ctx context.Context, srcIndex int, src compilers.Source, opts Options) (*Document, []ir.Diagnostic, error) {
 	// An overlay sharing the source's index is the one way to get the attribution
 	// silently wrong. Every position the overlay introduced would name the source,
@@ -512,9 +510,9 @@ func joinedParts(err error) []error {
 	if err == nil {
 		return nil
 	}
-	//nolint:errorlint // Matched at the top level by construction — the join is
-	// what ResolveAllReferences returns. errors.As would walk further into
-	// speakeasy error types whose As method panics; see asValidationError.
+	// Matched at the top level by construction — the join is what
+	// ResolveAllReferences returns. errors.As would walk further into speakeasy
+	// error types whose As method panics; see asValidationError.
 	if multi, ok := err.(interface{ Unwrap() []error }); ok {
 		return multi.Unwrap()
 	}

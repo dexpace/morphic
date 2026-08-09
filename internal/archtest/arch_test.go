@@ -184,6 +184,20 @@ var rules = map[string][]string{
 		module + "/compilers/openapi/internal/schema",
 		module + "/compilers/openapi/internal/value",
 		"github.com/speakeasy-api/openapi" + subtreeSuffix, "gopkg.in/yaml.v3"},
+	// The scaffolding the compiler's test packages share. It is a production
+	// package only in the sense that it holds non-test files; what governs it is
+	// that every test package under compilers/openapi must be able to import it,
+	// internal ones included. That is why its allowlist stops at ir, the contract
+	// package and diag: an internal test file may not import a package that
+	// imports its own, so anything further would shut out the tests of whatever
+	// it reached. Widening this entry is how that becomes true silently.
+	"compilers/openapi/internal/openapitest": {module + "/ir", module + "/compilers",
+		module + "/compilers/openapi/internal/diag",
+		"github.com/speakeasy-api/openapi/jsonschema/oas3",
+		"github.com/speakeasy-api/openapi/openapi",
+		"github.com/speakeasy-api/openapi/sequencedmap",
+		"github.com/stretchr/testify/assert",
+		"github.com/stretchr/testify/require", "gopkg.in/yaml.v3"},
 	"pass": {module + "/ir"},
 	"engine": {module + "/ir", module + "/compilers", module + "/compilers/openapi",
 		module + "/pass", "gopkg.in/yaml.v3"},

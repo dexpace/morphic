@@ -12,6 +12,7 @@ import (
 
 	"github.com/dexpace/morphic/compilers"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
+	"github.com/dexpace/morphic/compilers/openapi/internal/openapitest"
 	"github.com/dexpace/morphic/compilers/openapi/internal/scan"
 	"github.com/dexpace/morphic/compilers/openapi/internal/sourceindex"
 	"github.com/dexpace/morphic/ir"
@@ -45,6 +46,7 @@ var cycleReproducers = []struct{ name, file string }{
 	{"path-item-prefix-chain", "cycle_path_item_prefix_chain"},
 	{"component-path-item-prefix", "cycle_component_path_item_prefix"},
 	{"webhook-prefix-self", "cycle_webhook_prefix_self"},
+	{"path-item-empty-segment", "cycle_path_item_empty_segment"},
 	// A self-reference only the resolver's pointer normalization reveals, which
 	// overflows the stack rather than deadlocking: the resolution cache ends up
 	// pointing at its own reference and GetObject's delegation recurses.
@@ -218,6 +220,35 @@ func scanIndex(t *testing.T, src string) sourceindex.Index {
 	return sourceindex.Build(&root, sourceindex.MaxIndexedNodes)
 }
 
+// TestCompile_SchemaEmptyPointerSegmentIsUnresolved pins where reading the
+// empty token changes a verdict rather than a hang. Reading '/A/' as stopping
+// at A made this shape a cycle; reading it as descending through A makes it
+// what it is, a pointer naming a key that is not declared. That moves a schema
+// chain from chainCycles to chainReenters, and refCycles refuses a schema chain
+// on the first alone, so the document now reaches the resolver.
+//
+// It reports rather than blocks there: speakeasy resolves a schema $ref as an
+// oas3.JSONSchema, and only openapi/reference.go's cacheMutex is held across a
+// pointer walk (v1.24.0) — jsonschema/oas3 carries no per-reference lock at all.
+func TestCompile_SchemaEmptyPointerSegmentIsUnresolved(t *testing.T) {
+	t.Parallel()
+	const src = `openapi: 3.1.0
+info: {title: t, version: '1'}
+paths: {}
+components:
+  schemas:
+    A: {$ref: '#/components/schemas/A/'}
+`
+	_, diags, err := New().Compile(t.Context(),
+		[]compilers.Source{{Path: "schema_empty_segment.yaml", Data: []byte(src)}}, compilers.Options{})
+	require.NoError(t, err)
+	assertHasErrorCode(t, diags, diag.UnresolvedRef)
+	for _, d := range diags {
+		assert.NotEqualf(t, diag.CyclicRef, d.Code,
+			"a pointer that names an undeclared key is unresolved, not cyclic: %+v", d)
+	}
+}
+
 func readReproducer(t *testing.T, file string) []byte {
 	t.Helper()
 	data, err := os.ReadFile("../../testdata/openapi/" + file + ".yaml")
@@ -246,7 +277,7 @@ func TestCompile_MergeChainPastBoundStillCompiles(t *testing.T) {
 		compilers.Options{})
 	require.NoError(t, err)
 	require.NotNil(t, doc, "a legal document is still compiled")
-	assertHasCode(t, diags, diag.CycleScanFailed, ir.SeverityWarning)
+	openapitest.AssertHasCode(t, diags, diag.CycleScanFailed, ir.SeverityWarning)
 	for _, d := range diags {
 		assert.NotEqual(t, ir.SeverityError, d.Severity, "no diagnostic refuses the source")
 	}

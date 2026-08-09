@@ -2,7 +2,9 @@ package compilers
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"reflect"
 
 	"github.com/dexpace/morphic/ir"
 )
@@ -35,6 +37,12 @@ type Options struct {
 // no package-level mutable state, no writes to stderr; spec problems are
 // returned as ir.Diagnostic values and the error return is reserved for
 // I/O-level and programmer errors.
+//
+// A compiler reports through the returned slice. It may also store the same
+// findings on the Document it returns — that copy is what the persisted IR JSON
+// carries — but nothing obliges it to, and one that fills both must fill them
+// alike. Neither list is guaranteed to hold the other, so a caller holding both
+// unions them, as the engine does, rather than take one for the whole set.
 type Compiler interface {
 	Formats() []SourceFormat
 	Compile(ctx context.Context, sources []Source, opts Options) (*ir.Document, []ir.Diagnostic, error)
@@ -42,7 +50,7 @@ type Compiler interface {
 
 // Registry maps source formats to compilers. It is a plain instance — there is
 // no package-level default and no init()-time self-registration; the engine
-// composes its registry explicitly.
+// composes its registry explicitly. The zero value is a usable empty registry.
 type Registry struct {
 	byFormat map[SourceFormat]Compiler
 }
@@ -52,22 +60,47 @@ func NewRegistry() *Registry {
 	return &Registry{byFormat: make(map[SourceFormat]Compiler)}
 }
 
-// Register adds c under every format it reports. It fails if any format is
-// already claimed; on failure nothing is registered.
+// Register adds c under every format it reports. It rejects a nil compiler and
+// a compiler reporting no formats, and it fails if any format is already
+// claimed; on failure nothing is registered.
+//
+// Rejecting nil is what keeps a caller's programmer error a Go error instead of
+// a segmentation fault raised inside this package, which is why the check comes
+// before the only call this method makes on c.
 func (r *Registry) Register(c Compiler) error {
+	if isNilCompiler(c) {
+		return errors.New("compilers: register: nil compiler")
+	}
 	formats := c.Formats()
 	if len(formats) == 0 {
-		return fmt.Errorf("compilers: register: compiler reports no formats")
+		return errors.New("compilers: register: compiler reports no formats")
 	}
 	for _, format := range formats {
 		if _, taken := r.byFormat[format]; taken {
 			return fmt.Errorf("compilers: register: format %s already registered", format)
 		}
 	}
+	if r.byFormat == nil {
+		r.byFormat = make(map[SourceFormat]Compiler, len(formats))
+	}
 	for _, format := range formats {
 		r.byFormat[format] = c
 	}
 	return nil
+}
+
+// isNilCompiler reports whether c is unsafe to call: an untyped nil interface or
+// a typed nil pointer stored in one.
+//
+// The two spellings are one bug — a typed nil passes c == nil and panics on the
+// first method call that touches the receiver — so screening only the first
+// leaves half the hole open. ir.IsNilTypeDef screens ir.TypeDef the same way.
+func isNilCompiler(c Compiler) bool {
+	if c == nil {
+		return true
+	}
+	rv := reflect.ValueOf(c)
+	return rv.Kind() == reflect.Pointer && rv.IsNil()
 }
 
 // Lookup returns the compiler registered for format.
