@@ -116,15 +116,15 @@ const (
 	// source-order winner — possibly the looser bound — and surfaces the
 	// disagreement instead of silently discarding it.
 	ConflictingRedecl = "openapi/conflicting-redeclaration"
-	// DisjointVisibility reports inline allOf branches restricting one field to
-	// lifecycle sets sharing nothing — readOnly on one branch, writeOnly on
-	// another — so the intersection allOf calls for admits no lifecycle at all.
-	// It is neither of its neighbours: ConflictingRedecl keeps an arbitrary
+	// DisjointVisibility reports one field restricted to lifecycle sets that
+	// share nothing — readOnly against writeOnly — so no lifecycle admits it at
+	// all. Both spellings raise it under this one code: one schema writing both
+	// flags, and inline allOf branches whose intersection is empty. It is
+	// neither of its neighbours: ConflictingRedecl keeps an arbitrary
 	// source-order winner, and DegradedConstruct lowers to a weaker shape,
-	// whereas Visibility{None: true} is the exact intersection and a shape the
+	// whereas Visibility{None: true} is the exact answer and a shape the
 	// IR already has. It is reported nonetheless, because a field no request or
-	// response can carry is a composition that cannot take effect, which is
-	// seldom what the document set out to say.
+	// response can carry is seldom what the document set out to say.
 	DisjointVisibility = "openapi/disjoint-visibility"
 	// AliasAmplification reports a document whose YAML aliases expand to far more
 	// nodes than it declares — a billion-laughs shape that would exhaust memory

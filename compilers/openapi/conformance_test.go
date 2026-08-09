@@ -18,6 +18,7 @@ import (
 
 	"github.com/dexpace/morphic/compilers"
 	"github.com/dexpace/morphic/compilers/openapi"
+	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/ir"
 	"github.com/dexpace/morphic/ir/irtest"
 )
@@ -1347,7 +1348,7 @@ func assertYAMLIntegerBases(t *testing.T, doc *ir.Document, m *ir.Model) {
 	assert.Equal(t, ir.BigVal("9"), loose.Default.Num)
 }
 
-func assertReadOnlyWriteOnly(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
+func assertReadOnlyWriteOnly(t *testing.T, doc *ir.Document, diags []ir.Diagnostic) {
 	m, ok := doc.Types[namedID("S")].(*ir.Model)
 	require.True(t, ok)
 	r, ok := propByWire(m, "r")
@@ -1369,6 +1370,26 @@ func assertReadOnlyWriteOnly(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) 
 	require.True(t, ok, "the declaration's own readOnly is kept as residue")
 	assert.Equal(t, ir.ReasonNoIRHome, entry.Reason)
 	assert.JSONEq(t, `true`, string(entry.Value))
+
+	assertBothFlagsAreVisibleNowhere(t, m, diags)
+}
+
+// assertBothFlagsAreVisibleNowhere pins the contradictory pairing in both its
+// spellings: written on one schema, and written across a $ref that already
+// carries the other flag. Each admits no lifecycle at all and each is reported,
+// where declaring both used to lower exactly as readOnly alone did and say
+// nothing (GitHub #276).
+func assertBothFlagsAreVisibleNowhere(t *testing.T, m *ir.Model, diags []ir.Diagnostic) {
+	t.Helper()
+	for _, wire := range []string{"both", "bothViaRef"} {
+		p, ok := propByWire(m, wire)
+		require.True(t, ok)
+		assert.Equal(t, ir.Visibility{None: true}, p.Visibility,
+			"readOnly and writeOnly both in force admit no lifecycle: %s", wire)
+		assert.Equal(t, []ir.Severity{ir.SeverityWarning},
+			diagsAt(diags, diag.DisjointVisibility, "/components/schemas/S/properties/"+wire),
+			"the contradiction is reported once, at the position that wrote it: %s", wire)
+	}
 }
 
 func assertRecursive(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {

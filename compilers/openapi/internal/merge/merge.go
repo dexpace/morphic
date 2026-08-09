@@ -200,11 +200,12 @@ func mergeVisibility(dst, src ir.Visibility) ir.Visibility {
 // order from is settled by value rather than by which branch was declared
 // first: two branches naming the same lifecycles in different orders would
 // otherwise intersect to two different slices depending on the spelling.
-// annotation.EffectiveVisibility restricts to one of two fixed sets, which are
-// either identical or disjoint, so no OpenAPI document reaches that pairing
-// today — but this helper is the contract a second visibility source would
-// inherit, and an ordering rule that reads off dst is the kind that surfaces
-// only once something already depends on it.
+// annotation.EffectiveVisibility yields one of two fixed sets, either identical
+// or disjoint — and None outright where a position is in both, which
+// mergeVisibility settles before reaching here — so no OpenAPI document reaches
+// a partial overlap today. But this helper is the contract a second visibility
+// source would inherit, and an ordering rule that reads off dst is the kind that
+// surfaces only once something already depends on it.
 func intersectLifecycles(a, b []ir.Lifecycle) []ir.Lifecycle {
 	if slices.Compare(a, b) > 0 {
 		a, b = b, a

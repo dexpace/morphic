@@ -597,6 +597,34 @@ func TestModel_ReadOnlyWriteOnlyVisibility(t *testing.T) {
 	assert.Equal(t, ir.Visibility{Only: []ir.Lifecycle{ir.LifecycleCreate, ir.LifecycleUpdate}}, byName["w"].Visibility)
 }
 
+// TestModel_ReadOnlyAndWriteOnlyTogetherAreVisibleNowhere pins the answer for a
+// property whose schema writes both flags: they admit disjoint lifecycle sets,
+// so the property is admitted by none. Declaring both used to lower exactly as
+// declaring readOnly alone did, in silence, while the same pairing spread over
+// two allOf branches already intersected to None and warned (GitHub #276).
+func TestModel_ReadOnlyAndWriteOnlyTogetherAreVisibleNowhere(t *testing.T) {
+	t.Parallel()
+	spec := componentSpec(`    S:
+      type: object
+      properties:
+        both: {type: string, readOnly: true, writeOnly: true}
+        r: {type: string, readOnly: true}
+`)
+	doc, diags := lowerSpec(t, spec)
+	requireNoErrorDiags(t, diags)
+	m := doc.Types[componentID("S")].(*ir.Model)
+	byName := propsByWire(m.Properties)
+
+	assert.Equal(t, ir.Visibility{None: true}, byName["both"].Visibility)
+	assert.NotEqual(t, byName["r"].Visibility, byName["both"].Visibility,
+		"declaring both flags must not lower exactly as declaring readOnly alone does")
+	msg := diagMessageAt(t, diags, diag.DisjointVisibility, ir.SeverityWarning,
+		"/components/schemas/S/properties/both")
+	assert.Contains(t, msg, "writeOnly", "the report names the keyword that was being dropped")
+	assert.Equal(t, 1, countDiagsAt(diags, diag.DisjointVisibility, ir.SeverityWarning),
+		"the property declaring one flag is not reported")
+}
+
 func TestModel_PasswordFormatSecret(t *testing.T) {
 	t.Parallel()
 	spec := componentSpec(`    S:
