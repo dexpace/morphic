@@ -2,10 +2,13 @@ package engine_test
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"path/filepath"
+	"slices"
 	"testing"
 
+	"github.com/google/go-cmp/cmp"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -97,14 +100,39 @@ func TestEngine_RunMissingFile(t *testing.T) {
 	require.Error(t, err)
 }
 
-func TestEngine_RunSniffError(t *testing.T) {
+// TestEngine_RunSniffProblemsAreDiagnostics covers every way a source can defeat
+// the sniff step. None of them is an I/O failure or a programmer error, so none
+// may leave Run as a Go error: a caller that maps Go errors to "you invoked me
+// wrong" — which the CLI does — would report a spec it read and understood well
+// enough to name the problem in as a misuse of itself.
+func TestEngine_RunSniffProblemsAreDiagnostics(t *testing.T) {
 	t.Parallel()
-	eng, err := engine.New()
-	require.NoError(t, err)
-	// Swagger 2.0 sniffs to a recognized-but-unsupported error, which Run wraps.
-	_, err = eng.Run(t.Context(), writeSpec(t, "swagger: \"2.0\"\n"), engine.RunOptions{})
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "engine: sniff")
+	tests := []struct {
+		name, spec, code string
+	}{
+		{"swagger 2.0", "swagger: \"2.0\"\n", "engine/unsupported-format"},
+		{"unrecognized", "hello: world\n", "engine/unrecognized-format"},
+		{"undecodable", "openapi: [unterminated\n", "engine/undecodable-source"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			eng, err := engine.New()
+			require.NoError(t, err)
+
+			res, err := eng.Run(t.Context(), writeSpec(t, tt.spec), engine.RunOptions{})
+
+			require.NoError(t, err, "a spec problem is not a Go error")
+			require.NotNil(t, res)
+			assert.Nil(t, res.Document, "nothing was lowered")
+			require.Len(t, res.Diagnostics, 1)
+			assert.Equal(t, tt.code, res.Diagnostics[0].Code)
+			assert.Equal(t, ir.SeverityError, res.Diagnostics[0].Severity)
+			assert.Equal(t, ir.NoSource, res.Diagnostics[0].Provenance.Source,
+				"the engine read a file it never lowered, so it can index no source table")
+			assert.Equal(t, compilers.SourceFormat{}, res.Format, "no format was determined")
+		})
+	}
 }
 
 func TestEngine_RunLookupMiss(t *testing.T) {
@@ -115,9 +143,17 @@ func TestEngine_RunLookupMiss(t *testing.T) {
 	// would make this branch unreachable.
 	eng, err := engine.NewWith()
 	require.NoError(t, err)
-	_, err = eng.Run(t.Context(), writeSpec(t, testspec.Tiny), engine.RunOptions{})
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "no compiler registered for format")
+
+	res, err := eng.Run(t.Context(), writeSpec(t, testspec.Tiny), engine.RunOptions{})
+
+	require.NoError(t, err, "a spec no compiler claims is not a Go error")
+	require.NotNil(t, res)
+	assert.Nil(t, res.Document)
+	require.Len(t, res.Diagnostics, 1)
+	assert.Equal(t, "engine/no-compiler-for-format", res.Diagnostics[0].Code)
+	assert.Contains(t, res.Diagnostics[0].Message, "openapi@3.1")
+	assert.Equal(t, compilers.SourceFormat{Name: "openapi", Version: "3.1"}, res.Format,
+		"the format that found no compiler is still the one the source declared")
 }
 
 // collidingCompiler claims a single fixed format. Two of them registered
@@ -163,6 +199,11 @@ func TestEngine_RunParseError(t *testing.T) {
 
 // nilDocCompiler claims openapi 3.1 and returns a nil Document with no error —
 // a legal outcome that must skip the validate pass and surface a nil Document.
+//
+// It is not a stand-in for a compiler whose two diagnostic channels disagree:
+// a nil Document short-circuits the validate step entirely, so this stub never
+// reaches the code that folds the two together. splitDiagCompiler is what
+// covers that.
 type nilDocCompiler struct{}
 
 func (nilDocCompiler) Formats() []compilers.SourceFormat {
@@ -182,6 +223,78 @@ func TestEngine_RunNilDocument(t *testing.T) {
 	require.NoError(t, err)
 	assert.Nil(t, res.Document)
 	assert.True(t, hasDiagCode(res.Diagnostics, "x/none"))
+}
+
+// splitDiagCompiler claims openapi 3.1 and lowers to a non-nil Document whose
+// stored and returned diagnostics are set independently, so one finding can be
+// put on either channel alone.
+//
+// All three splits the test below builds are conforming compilers: the
+// compilers.Compiler contract names the returned slice as what a compiler
+// reports through and leaves storing the same values on the document optional.
+// The one compiler in the tree happens to do both, which is why nothing else
+// here notices when the engine keeps only one of the two lists.
+type splitDiagCompiler struct{ stored, returned []ir.Diagnostic }
+
+func (splitDiagCompiler) Formats() []compilers.SourceFormat {
+	return []compilers.SourceFormat{{Name: "openapi", Version: "3.1"}}
+}
+
+func (c splitDiagCompiler) Compile(context.Context, []compilers.Source, compilers.Options) (*ir.Document, []ir.Diagnostic, error) {
+	// A fresh document and fresh slices per call: Run writes the merged list onto
+	// the document, so shared ones would carry one run's result into the next.
+	return &ir.Document{
+		IRVersion:   "1.0.0",
+		Types:       ir.TypeRegistry{},
+		Diagnostics: slices.Clone(c.stored),
+	}, slices.Clone(c.returned), nil
+}
+
+// TestEngine_RunKeepsDiagnosticsFromEitherChannel pins that neither diagnostic
+// channel is dropped in favour of the other. Three of these six rows lost a
+// finding before this was fixed — an error-severity one, in silence, on a
+// different combination of channel and validate mode each time.
+//
+// The returned-only row with the validate pass enabled — the default — is the
+// worst of them, and the reason the modes are a loop rather than a single case.
+// Assigning Document.Diagnostics over the returned list emptied the Result the
+// CLI gates its exit code on, so turning validation on *removed* findings and
+// the tool exited 0 on a spec its compiler had refused outright.
+func TestEngine_RunKeepsDiagnosticsFromEitherChannel(t *testing.T) {
+	t.Parallel()
+	want := ir.Diagnostic{
+		Severity: ir.SeverityError,
+		Code:     "stub/spec-problem",
+		Message:  "the compiler reported this",
+	}
+	fronts := []struct {
+		name  string
+		front splitDiagCompiler
+	}{
+		{"mirrored", splitDiagCompiler{stored: []ir.Diagnostic{want}, returned: []ir.Diagnostic{want}}},
+		{"returned only", splitDiagCompiler{returned: []ir.Diagnostic{want}}},
+		{"stored only", splitDiagCompiler{stored: []ir.Diagnostic{want}}},
+	}
+	for _, tt := range fronts {
+		for _, skipValidate := range []bool{false, true} {
+			t.Run(fmt.Sprintf("%s/skip-validate=%v", tt.name, skipValidate), func(t *testing.T) {
+				t.Parallel()
+				eng, err := engine.NewWith(tt.front)
+				require.NoError(t, err)
+
+				res, err := eng.Run(t.Context(), writeSpec(t, testspec.Tiny),
+					engine.RunOptions{SkipValidate: skipValidate})
+
+				require.NoError(t, err)
+				require.NotNil(t, res.Document,
+					"a non-nil document is the whole point: a nil one skips the fold under test")
+				assert.Empty(t, cmp.Diff([]ir.Diagnostic{want}, res.Diagnostics),
+					"Result.Diagnostics is what the CLI renders and gates its exit code on")
+				assert.Empty(t, cmp.Diff([]ir.Diagnostic{want}, res.Document.Diagnostics),
+					"Document.Diagnostics is what the persisted IR JSON carries")
+			})
+		}
+	}
 }
 
 // danglingCompiler is a stub that always lowers to a Document containing a

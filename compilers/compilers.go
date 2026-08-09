@@ -35,6 +35,12 @@ type Options struct {
 // no package-level mutable state, no writes to stderr; spec problems are
 // returned as ir.Diagnostic values and the error return is reserved for
 // I/O-level and programmer errors.
+//
+// A compiler reports through the returned slice. It may also store the same
+// findings on the Document it returns — that copy is what the persisted IR JSON
+// carries — but nothing obliges it to, and one that fills both must fill them
+// alike. Neither list is guaranteed to hold the other, so a caller holding both
+// unions them, as the engine does, rather than take one for the whole set.
 type Compiler interface {
 	Formats() []SourceFormat
 	Compile(ctx context.Context, sources []Source, opts Options) (*ir.Document, []ir.Diagnostic, error)

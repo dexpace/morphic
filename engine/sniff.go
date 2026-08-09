@@ -1,11 +1,10 @@
 package engine
 
 import (
-	"fmt"
-
 	yaml "gopkg.in/yaml.v3"
 
 	"github.com/dexpace/morphic/compilers"
+	"github.com/dexpace/morphic/ir"
 )
 
 // sniffProbe holds the two discriminating keys read from the source bytes. YAML
@@ -17,21 +16,29 @@ type sniffProbe struct {
 
 // Sniff probe-decodes the source bytes and reports the spec format they declare.
 // An `openapi: 3.X.Y` key yields the openapi compiler keyed by the major.minor
-// prefix; `swagger: "2.0"` is recognized but unsupported; anything else is an
-// error. Undecodable bytes yield a wrapped decode error.
-func Sniff(data []byte) (compilers.SourceFormat, error) {
+// prefix; `swagger: "2.0"` is recognized but not lowerable yet; anything else,
+// undecodable bytes included, yields no format.
+//
+// ok reports whether a format was read, and diag says why not when it was not.
+// There is no Go error return because there is nothing here for one to carry:
+// every way a source can defeat Sniff is a problem with that source, and this
+// pipeline reports those as diagnostics.
+func Sniff(data []byte) (format compilers.SourceFormat, diag ir.Diagnostic, ok bool) {
 	var probe sniffProbe
 	if err := yaml.Unmarshal(data, &probe); err != nil {
-		return compilers.SourceFormat{}, fmt.Errorf("sniff: decode source: %w", err)
+		return compilers.SourceFormat{},
+			specProblem(codeUndecodableSource, "decode source: %v", err), false
 	}
 	switch {
 	case probe.OpenAPI != "":
-		return compilers.SourceFormat{Name: "openapi", Version: majorMinor(probe.OpenAPI)}, nil
+		return compilers.SourceFormat{Name: "openapi", Version: majorMinor(probe.OpenAPI)},
+			ir.Diagnostic{}, true
 	case probe.Swagger != "":
-		return compilers.SourceFormat{}, fmt.Errorf(
-			"swagger 2.0 is not supported yet (planned: lift into the openapi compiler)")
+		return compilers.SourceFormat{}, specProblem(codeUnsupportedFormat,
+			"swagger 2.0 is not supported yet (planned: lift into the openapi compiler)"), false
 	default:
-		return compilers.SourceFormat{}, fmt.Errorf("unrecognized spec format")
+		return compilers.SourceFormat{},
+			specProblem(codeUnrecognizedFormat, "unrecognized spec format"), false
 	}
 }
 

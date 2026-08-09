@@ -258,15 +258,24 @@ func TestRenderDiagnostics_WithAndWithoutSourcePath(t *testing.T) {
 				Message:    "no source file",
 				Provenance: ir.Provenance{Source: 99, Pointer: "type:abc"},
 			},
+			{
+				Severity:   ir.SeverityError,
+				Code:       "engine/unrecognized-format",
+				Message:    "no position at all",
+				Provenance: ir.Provenance{Source: ir.NoSource},
+			},
 		},
 	}
 	var buf bytes.Buffer
 
 	renderDiagnostics(&buf, res)
 
-	out := buf.String()
-	assert.Contains(t, out, "error openapi/bad spec.yaml#/paths/~1x: resolved location")
-	assert.Contains(t, out, "warning ir/dangling type:abc: no source file")
+	// Whole lines, not fragments: the location is what varies between these three
+	// forms, and a containment check on the message alone passes for a line that
+	// renders the location wrongly or fabricates one.
+	assert.Equal(t, "error openapi/bad spec.yaml#/paths/~1x: resolved location\n"+
+		"warning ir/dangling type:abc: no source file\n"+
+		"error engine/unrecognized-format: no position at all\n", buf.String())
 }
 
 func TestWriteDocument_MarshalError(t *testing.T) {
