@@ -7,6 +7,11 @@
 // alias fan-out that expands to far more nodes than the document declares
 // exhausts memory inside the parser. Each reads the raw text through nodeview,
 // and each runs before the document is handed to either.
+//
+// What the tree says about itself — its size, and whether an alias points back
+// at one of its own ancestors — is not rederived here. The caller supplies a
+// sourceindex.Index built over the same tree, so the questions that need only a
+// walk are answered once for every refusal that asks them.
 package scan
 
 import (
@@ -17,13 +22,14 @@ import (
 
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/nodeview"
+	"github.com/dexpace/morphic/compilers/openapi/internal/sourceindex"
 	"github.com/dexpace/morphic/ir"
 )
 
-// maxCycleDepth bounds every recursive descent in the cycle detector. It guards
+// maxCycleDepth bounds how many hops one pure-$ref chain is followed. It guards
 // the walk against a runaway structure per the bounded-recursion rule; real
-// specs nest far shallower, so nothing short of a document built to reach it —
-// or a detector bug — ever does.
+// specs chain far shorter, so nothing short of a document built to reach it — or
+// a detector bug — ever does.
 const maxCycleDepth = 10000
 
 // schemaEntryMapKeys name a mapping of schemas encountered outside a schema
@@ -59,35 +65,29 @@ var schemaDataKeys = map[string]bool{
 	"const": true, "enum": true,
 }
 
-// Cycles scans raw source bytes for degenerate reference structures that would
-// otherwise crash, hang or exhaust memory in the third-party parser and resolver
-// (GitHub #12, GitHub #27, speakeasy-api/openapi#231), before soa.Unmarshal ever
-// runs. It reports as error diagnostics: a recursive YAML anchor, a pure-$ref
-// cycle (a chain of schema $refs that never reaches a node without one), a
-// reference whose pointer resolves through a reference already being resolved,
-// and alias amplification (a billion-laughs expansion). A source that doesn't
-// decode as YAML yields no cycles — the main parser reports that as a parse
-// problem — and the scan runs under recoverCycleScan so a detector bug degrades
-// to "no cycle found" rather than aborting.
-func Cycles(srcIndex int, data []byte) []ir.Diagnostic {
-	return recoverCycleScan(srcIndex, func() []ir.Diagnostic {
-		return scanCycles(srcIndex, data)
-	})
-}
-
-// CyclesInNode is Cycles over an already-decoded tree, for a caller holding one
-// the source bytes no longer describe.
+// Cycles scans an indexed source tree for degenerate reference structures that
+// would otherwise crash, hang or exhaust memory in the third-party parser and
+// resolver (GitHub #12, GitHub #27, speakeasy-api/openapi#231), before
+// soa.Unmarshal ever runs. It reports as error diagnostics: a recursive YAML
+// anchor, a pure-$ref cycle (a chain of schema $refs that never reaches a node
+// without one), a reference whose pointer resolves through a reference already
+// being resolved, and alias amplification (a billion-laughs expansion). The scan
+// runs under recoverCycleScan so a detector bug degrades to "no cycle found"
+// rather than aborting.
 //
-// An overlay is the reason it exists: its actions can graft a $ref cycle onto a
-// document that had none, and the refusals Cycles makes before the parser ever
-// runs have to cover the tree that reaches the parser rather than only the bytes
-// that reached the overlay. Decoding is the caller's here, so nothing re-reads
-// the source — but a caller that has only bytes must still use Cycles, whose
-// decode is what bounds alias expansion (the yaml.v3 alias budget is per-Decode,
-// so a tree handed in has already spent one this cannot re-run).
-func CyclesInNode(srcIndex int, root *yaml.Node) []ir.Diagnostic {
+// The index is the caller's, built over the tree that will reach the parser: an
+// overlay can graft a $ref cycle onto a document that had none, so a patched
+// tree is re-indexed and re-scanned rather than trusted to the bytes that
+// reached the overlay. The caller must not hand over a truncated index — every
+// answer in one is partial, and the alias-expansion allowance derived from a
+// partial node count would refuse documents on a bound they never crossed.
+//
+// Only the decode that produced the tree bounds alias expansion inside the
+// parser: the yaml.v3 alias budget is spent per Decode, so a tree that reached
+// here without one has already escaped it and nothing here can re-run it.
+func Cycles(srcIndex int, idx sourceindex.Index) []ir.Diagnostic {
 	return recoverCycleScan(srcIndex, func() []ir.Diagnostic {
-		return scanNode(srcIndex, nodeview.DocumentRoot(root))
+		return scanIndex(srcIndex, idx)
 	})
 }
 
@@ -107,32 +107,21 @@ func recoverCycleScan(srcIndex int, scan func() []ir.Diagnostic) (diags []ir.Dia
 	return scan()
 }
 
-// scanCycles decodes source bytes and reports the first degenerate cycle found,
-// or nil.
-func scanCycles(srcIndex int, data []byte) []ir.Diagnostic {
-	if len(data) == 0 {
-		return nil
-	}
-	var root yaml.Node
-	if err := yaml.Unmarshal(data, &root); err != nil {
-		return nil
-	}
-	return scanNode(srcIndex, nodeview.DocumentRoot(&root))
-}
-
-// scanNode reports the first degenerate cycle reachable from an already-decoded
-// document root, or nil. docRoot may be nil for an empty or malformed document;
-// the anchor and ref walks both treat that as "nothing to scan", so no explicit
-// nil guard is needed here.
-func scanNode(srcIndex int, docRoot *yaml.Node) []ir.Diagnostic {
-	if d, ok := anchorCycle(srcIndex, docRoot); ok {
-		return []ir.Diagnostic{d}
+// scanIndex reports the first degenerate cycle the index's tree carries, or nil.
+// The index's root is nil for a source with no document in it; the ref walk and
+// the weigher both treat that as "nothing to scan", so no explicit nil guard is
+// needed here.
+func scanIndex(srcIndex int, idx sourceindex.Index) []ir.Diagnostic {
+	if alias, ok := idx.AnchorCycle(); ok {
+		return []ir.Diagnostic{cyclicDiag(srcIndex, alias,
+			"recursive YAML anchor %q references an ancestor node", anchorName(alias))}
 	}
 
-	// anchorCycle must run first: a recursive anchor makes expandedWeight
-	// infinite, and having already refused those is what makes the alias
-	// graph a DAG and the weigh walk below provably terminating.
-	diags := refCycles(srcIndex, docRoot)
+	// The anchor-cycle answer is read first: a recursive anchor makes
+	// expandedWeight infinite, and having already refused those is what makes
+	// the alias graph a DAG and the weigh walk below provably terminating.
+	root := idx.Root()
+	diags := refCycles(srcIndex, root)
 	if diag.HasError(diags) {
 		return diags
 	}
@@ -143,41 +132,10 @@ func scanNode(srcIndex int, docRoot *yaml.Node) []ir.Diagnostic {
 	// Appending (rather than replacing) preserves any diag.CycleScanFailed
 	// warning refCycles already produced, so a document that both truncates a
 	// merge chain and amplifies reports both findings.
-	if d, ok := aliasAmplification(srcIndex, docRoot); ok {
+	if d, ok := aliasAmplification(srcIndex, root, idx.Nodes()); ok {
 		return append(diags, d)
 	}
 	return diags
-}
-
-// anchorCycle reports the first alias whose resolved target is one of its own
-// ancestors — a recursive YAML anchor that expands without bound. Legal anchor
-// reuse (an alias to a node that is not an ancestor) is left untouched.
-func anchorCycle(srcIndex int, root *yaml.Node) (ir.Diagnostic, bool) {
-	return walkAnchors(srcIndex, root, map[*yaml.Node]bool{}, 0)
-}
-
-// walkAnchors descends the node tree tracking the ancestor path; an alias
-// pointing back into that path is a recursive anchor. It deliberately never
-// resolves alias edges — doing so would destroy the very signal it detects,
-// and keeps the walk bounded by the tree alone.
-func walkAnchors(srcIndex int, n *yaml.Node, path map[*yaml.Node]bool, depth int) (ir.Diagnostic, bool) {
-	if n == nil || depth > maxCycleDepth {
-		return ir.Diagnostic{}, false
-	}
-	if n.Kind == yaml.AliasNode {
-		if n.Alias != nil && path[n.Alias] {
-			return cyclicDiag(srcIndex, n, "recursive YAML anchor %q references an ancestor node", anchorName(n)), true
-		}
-		return ir.Diagnostic{}, false
-	}
-	path[n] = true
-	for _, child := range n.Content {
-		if d, ok := walkAnchors(srcIndex, child, path, depth+1); ok {
-			return d, true
-		}
-	}
-	delete(path, n)
-	return ir.Diagnostic{}, false
 }
 
 // anchorName is the anchor label an alias points at, for the diagnostic message.
@@ -640,12 +598,15 @@ const maxAliasSurplus = 1 << 18
 // the one the post-order walk finishes first, and a useful place to point the
 // author.
 //
-// Callers must run this only after anchorCycle has refused a recursive YAML
-// anchor: that is what makes the alias graph a DAG and this walk's termination
-// provable without a cap of its own. See scanCycles for the ordering, and
+// raw is the document's own node count, which the source index already
+// established; this walk weighs the expansion against it rather than re-deriving
+// it.
+//
+// Callers must run this only after a recursive YAML anchor has been refused:
+// that is what makes the alias graph a DAG and this walk's termination provable
+// without a cap of its own. See scanIndex for the ordering, and
 // aliasWeigher.pushChildren for the defensive guard kept anyway.
-func aliasAmplification(srcIndex int, root *yaml.Node) (ir.Diagnostic, bool) {
-	raw := rawNodeCount(root)
+func aliasAmplification(srcIndex int, root *yaml.Node, raw int64) (ir.Diagnostic, bool) {
 	allowance := computeAllowance(raw)
 
 	culprit, exceeded := newAliasWeigher(allowance).weigh(root)
@@ -671,29 +632,6 @@ func computeAllowance(raw int64) int64 {
 		return surplusAllowance
 	}
 	return ratioAllowance
-}
-
-// rawNodeCount returns the number of nodes in the parsed tree rooted at n,
-// before any alias is substituted. An alias node counts as one and is never
-// descended into: yaml.v3 gives alias nodes empty Content, so no special
-// casing is needed to keep one from being read as a copy of its target.
-//
-// The raw parse tree is a tree, not a graph — aliasing only adds edges this
-// walk never follows — so the iterative stack visits each node exactly once
-// and is bounded by the tree's own size.
-func rawNodeCount(root *yaml.Node) int64 {
-	if root == nil {
-		return 0
-	}
-	var count int64
-	stack := []*yaml.Node{root}
-	for len(stack) > 0 {
-		n := stack[len(stack)-1]
-		stack = stack[:len(stack)-1]
-		count++
-		stack = append(stack, n.Content...)
-	}
-	return count
 }
 
 // aliasAmplificationDiag builds a diag.AliasAmplification error diagnostic

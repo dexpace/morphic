@@ -29,6 +29,7 @@ import (
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/overlay"
 	"github.com/dexpace/morphic/compilers/openapi/internal/scan"
+	"github.com/dexpace/morphic/compilers/openapi/internal/sourceindex"
 	"github.com/dexpace/morphic/compilers/openapi/internal/value"
 	"github.com/dexpace/morphic/ir"
 )
@@ -92,16 +93,16 @@ func Load(ctx context.Context, srcIndex int, src compilers.Source, opts Options)
 		return nil, nil, fmt.Errorf("openapi: overlay source index %d is source %d's own", opts.OverlaySrcIndex, srcIndex)
 	}
 
-	cyc := scan.Cycles(srcIndex, src.Data)
-	if diag.HasError(cyc) {
-		return nil, cyc, nil // degenerate cycle: refuse to lower, do not crash the parser
-	}
-	// cyc may still hold a non-fatal scan-incomplete warning; carry it forward.
-
 	root, err := decode(src.Data)
 	if err != nil {
 		return nil, nil, fmt.Errorf("openapi: decode source %d: %w", srcIndex, err)
 	}
+
+	cyc := refusals(srcIndex, root)
+	if diag.HasError(cyc) {
+		return nil, cyc, nil // degenerate cycle: refuse to lower, do not crash the parser
+	}
+	// cyc may still hold a non-fatal scan-incomplete warning; carry it forward.
 
 	origin, patchDiags := patch(srcIndex, root, opts)
 	cyc = append(cyc, patchDiags...)
@@ -151,12 +152,40 @@ func Load(ctx context.Context, srcIndex int, src compilers.Source, opts Options)
 	}, diags, nil
 }
 
+// buildIndex indexes a decoded tree under the compiler's node bound. It is a
+// package-level function value only so a test can drive the truncated-index
+// refusal without materializing a document of sourceindex.MaxIndexedNodes nodes;
+// nothing in the pipeline rebinds it, so the stages stay pure and reentrant.
+var buildIndex = func(root *yaml.Node) sourceindex.Index {
+	return sourceindex.Build(root, sourceindex.MaxIndexedNodes)
+}
+
+// refusals indexes a decoded tree once and reports the pre-parse refusals over
+// it: the degenerate reference and alias structures scan finds, or — when the
+// document is too large to index in full — a refusal of its own.
+//
+// The size refusal is here rather than in scan because every answer in a
+// truncated index is a partial one, and the alias-expansion allowance derived
+// from a partial node count would refuse documents on a bound they never
+// crossed. A document that large is beyond what the pre-parse guarantees cover,
+// so it is refused rather than lowered on incomplete information.
+func refusals(srcIndex int, root *yaml.Node) []ir.Diagnostic {
+	idx := buildIndex(root)
+	if idx.Truncated() {
+		return []ir.Diagnostic{diag.Newf(ir.SeverityError, diag.SourceTooLarge,
+			ir.Provenance{Source: srcIndex},
+			"source document exceeds the %d-node bound the pre-parse scan indexes",
+			sourceindex.MaxIndexedNodes)}
+	}
+	return scan.Cycles(srcIndex, idx)
+}
+
 // patch applies the caller's overlay to the decoded tree, or does nothing when
 // there is none.
 //
 // It re-runs the pre-parse refusals over the result, because the tree that
-// reaches the parser is no longer the bytes scan.Cycles saw: an overlay action
-// can graft a $ref cycle onto a document that had none, and the guarantee those
+// reaches the parser is no longer the one they first saw: an overlay action can
+// graft a $ref cycle onto a document that had none, and the guarantee those
 // refusals exist for is about what the parser is handed.
 func patch(srcIndex int, root *yaml.Node, opts Options) (overlay.Origin, []ir.Diagnostic) {
 	if opts.Overlay == nil {
@@ -166,7 +195,7 @@ func patch(srcIndex int, root *yaml.Node, opts Options) (overlay.Origin, []ir.Di
 	if diag.HasError(diags) {
 		return overlay.Origin{}, diags
 	}
-	return origin, append(diags, scan.CyclesInNode(srcIndex, root)...)
+	return origin, append(diags, refusals(srcIndex, root)...)
 }
 
 // metaSchemaReconciledMinor is the OpenAPI minor whose schema findings are
@@ -366,11 +395,15 @@ func walkNumericScalars(node *yaml.Node, depth int, visit func(*yaml.Node)) {
 // renumbers every line in the document, and every diagnostic about the source
 // would then name a position in a file that exists nowhere.
 //
+// It is the compile's only parse of the source: the pre-parse refusals used to
+// decode the same bytes a second time to scan them, and now read the tree this
+// produces. That also makes it the one place the yaml.v3 alias budget is spent,
+// which is what bounds a billion-laughs expansion before anything walks it.
+//
 // It carries no recover of its own, unlike the model build and the resolve below
-// it. yaml.v3 converts its own faults into errors before they leave Unmarshal,
-// and the pre-parse scan has already decoded these same bytes under a barrier by
-// the time this runs — the third-party code that has been seen to fault here is
-// the layer above the decode, which is where the barrier is.
+// it. yaml.v3 converts its own faults into errors before they leave Unmarshal;
+// the third-party code that has been seen to fault is the layer above the
+// decode, which is where the barriers are.
 func decode(data []byte) (*yaml.Node, error) {
 	var root yaml.Node
 	if err := yaml.Unmarshal(data, &root); err != nil {

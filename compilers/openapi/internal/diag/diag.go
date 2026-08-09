@@ -38,6 +38,12 @@ const (
 	// for the source. It is a warning, never a refusal: the compile still
 	// proceeds, and every cycle the scan did classify is still caught.
 	CycleScanFailed = "openapi/cycle-scan-failed"
+	// SourceTooLarge reports a document with more YAML nodes than the pre-parse
+	// scan indexes (sourceindex.MaxIndexedNodes). Every answer the index gives
+	// about such a document is a partial one, including the node count the
+	// alias-expansion allowance is derived from, so the document is refused rather
+	// than scanned against a bound computed from a count that stopped early.
+	SourceTooLarge = "openapi/source-too-large"
 	// OverlayInvalid reports an overlay document that could not be parsed, or that
 	// parsed but is not a valid Overlay — a missing version, no actions, an action
 	// naming no target. Nothing is applied, so the compile refuses rather than

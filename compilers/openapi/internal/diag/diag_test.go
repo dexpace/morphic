@@ -128,7 +128,8 @@ func TestHasError_Cases(t *testing.T) {
 func codes() []string {
 	return []string{
 		diag.Validation, diag.UnsupportedVersion, diag.UnresolvedRef, diag.CyclicRef,
-		diag.CycleScanFailed, diag.OverlayInvalid, diag.OverlayFailed,
+		diag.CycleScanFailed, diag.SourceTooLarge,
+		diag.OverlayInvalid, diag.OverlayFailed,
 		diag.OverlayAction, diag.OverlayOriginIncomplete,
 		diag.ValidationOnlyKeyword, diag.FalseSchema,
 		diag.NumericPrecision, diag.ExclusiveBoundForm, diag.InvalidStatusKey,

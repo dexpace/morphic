@@ -63,12 +63,19 @@ var rules = map[string][]string{
 	// unescaping one lookup needs, and is below both the scans that first wanted
 	// it and the schema lowering that wants the same view.
 	"compilers/openapi/internal/nodeview": {module + "/compilers/openapi/internal/ids", "gopkg.in/yaml.v3"},
-	// The pre-lowering refusals. They read the source through nodeview and report
-	// through diag, and reach no part of the lowering — nothing here has a
-	// document to lower yet.
+	// One walk over the decoded source tree, answering what the pre-lowering
+	// refusals would otherwise each walk it to ask. It reaches nodeview for the
+	// document root and nothing else: an index of what the source says is not
+	// allowed to depend on what any consumer of it wants to say about that.
+	"compilers/openapi/internal/sourceindex": {
+		module + "/compilers/openapi/internal/nodeview", "gopkg.in/yaml.v3"},
+	// The pre-lowering refusals. They read the source through nodeview and the
+	// index built over it, report through diag, and reach no part of the
+	// lowering — nothing here has a document to lower yet.
 	"compilers/openapi/internal/scan": {module + "/ir",
 		module + "/compilers/openapi/internal/diag",
-		module + "/compilers/openapi/internal/nodeview", "gopkg.in/yaml.v3"},
+		module + "/compilers/openapi/internal/nodeview",
+		module + "/compilers/openapi/internal/sourceindex", "gopkg.in/yaml.v3"},
 	// What a schema or a carrier says about itself rather than about its shape,
 	// plus the validation-only keywords the IR keeps verbatim. It reads the
 	// parsed model and the raw nodes behind it, and holds no opinion about
@@ -90,7 +97,8 @@ var rules = map[string][]string{
 		module + "/compilers/openapi/internal/ids",
 		module + "/compilers/openapi/internal/nodeview",
 		"github.com/speakeasy-api/openapi/overlay", "gopkg.in/yaml.v3"},
-	// The entry side: parse, validate, resolve. It runs the pre-lowering refusals
+	// The entry side: parse, validate, resolve. It indexes the tree its one decode
+	// produced through sourceindex, runs the pre-lowering refusals over that index
 	// through scan, applies the caller's overlay through overlay, and reads value
 	// only to tell a real numeric-literal problem from a library artifact. It
 	// reaches nothing that lowers — at this point there is no document to lower.
@@ -98,6 +106,7 @@ var rules = map[string][]string{
 		module + "/compilers/openapi/internal/diag",
 		module + "/compilers/openapi/internal/overlay",
 		module + "/compilers/openapi/internal/scan",
+		module + "/compilers/openapi/internal/sourceindex",
 		module + "/compilers/openapi/internal/value",
 		"github.com/speakeasy-api/openapi/jsonschema/oas3",
 		"github.com/speakeasy-api/openapi/marshaller",
