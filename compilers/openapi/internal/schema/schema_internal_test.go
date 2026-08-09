@@ -17,6 +17,7 @@ import (
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/ids"
 	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
+	"github.com/dexpace/morphic/compilers/openapi/internal/openapitest"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -31,7 +32,7 @@ func TestLower_DepthCapExceeded(t *testing.T) {
 		indent += "  "
 	}
 	b.WriteString(indent + "type: string\n")
-	doc, diags := lowerSpec(t, componentSpec(b.String()))
+	doc, diags := lowerSpec(t, openapitest.ComponentSpec(b.String()))
 	require.NotNil(t, doc)
 	var sawCap bool
 	for _, d := range diags {
@@ -44,7 +45,7 @@ func TestLower_DepthCapExceeded(t *testing.T) {
 
 func TestIsNullSchema_EmptyEitherFalse(t *testing.T) {
 	t.Parallel()
-	assert.False(t, isNullSchema(emptyEitherSchema()), "empty either is not a null schema")
+	assert.False(t, isNullSchema(openapitest.EmptyEitherSchema()), "empty either is not a null schema")
 }
 
 func TestPreserveUnionSiblings_MissingNode(t *testing.T) {
@@ -117,7 +118,7 @@ func TestResolveSchemaRef_ReusesInternedSubSchema(t *testing.T) {
 	l := newRawLowerer(&soa.OpenAPI{})
 	l.types.Intern(deepPointer, "t/anon/prev", func() ir.TypeDef { return &ir.Any{} })
 
-	id, ok, diags := resolveSchemaRef(l.ctx, l.types, &l.anchors, TopLevelDepth, emptyEitherSchema(), "#"+deepPointer)
+	id, ok, diags := resolveSchemaRef(l.ctx, l.types, &l.anchors, TopLevelDepth, openapitest.EmptyEitherSchema(), "#"+deepPointer)
 	require.True(t, ok, "a $ref to an already-hoisted sub-schema reuses its ID")
 	assert.Equal(t, ir.TypeID("t/anon/prev"), id)
 	assert.Empty(t, diags, "reusing an interned node reports nothing")
@@ -228,32 +229,32 @@ func TestDynamicAnchors_WalksEveryNodeShape(t *testing.T) {
 		{"a nil node yields nothing", nil, map[string][]string{}},
 		{
 			"a bare scalar declares no anchor",
-			yamlNode(t, `just-a-string`),
+			openapitest.YAMLNode(t, `just-a-string`),
 			map[string][]string{},
 		},
 		{
 			"a sequence indexes its elements by ordinal",
-			yamlNode(t, "- {$dynamicAnchor: first}\n- {other: 1}\n- {$dynamicAnchor: third}\n"),
+			openapitest.YAMLNode(t, "- {$dynamicAnchor: first}\n- {other: 1}\n- {$dynamicAnchor: third}\n"),
 			map[string][]string{"first": {"/0"}, "third": {"/2"}},
 		},
 		{
 			"a sequence element standing in for a mapping is followed",
-			yamlNode(t, "- &a {$dynamicAnchor: first}\n- *a\n"),
+			openapitest.YAMLNode(t, "- &a {$dynamicAnchor: first}\n- *a\n"),
 			map[string][]string{"first": {"/0", "/1"}},
 		},
 		{
 			"a non-string key cannot name a keyword and is skipped",
-			yamlNode(t, "? [a, b]\n: {$dynamicAnchor: buried}\n$dynamicAnchor: reached\n"),
+			openapitest.YAMLNode(t, "? [a, b]\n: {$dynamicAnchor: buried}\n$dynamicAnchor: reached\n"),
 			map[string][]string{"reached": {""}},
 		},
 		{
 			"an empty anchor name is not indexed",
-			yamlNode(t, `{$dynamicAnchor: ""}`),
+			openapitest.YAMLNode(t, `{$dynamicAnchor: ""}`),
 			map[string][]string{},
 		},
 		{
 			"a non-scalar anchor value is not indexed",
-			yamlNode(t, `{$dynamicAnchor: [a]}`),
+			openapitest.YAMLNode(t, `{$dynamicAnchor: [a]}`),
 			map[string][]string{},
 		},
 	}
@@ -298,7 +299,7 @@ func TestDynamicAnchors_CountsWhatAnAliasBringsIn(t *testing.T) {
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			got, complete := dynamicAnchors(yamlNode(t, tc.source))
+			got, complete := dynamicAnchors(openapitest.YAMLNode(t, tc.source))
 			assert.True(t, complete)
 			assert.Equal(t, tc.want, got["tail"])
 		})
@@ -343,7 +344,7 @@ func TestDynamicAnchors_StopsAtTheDepthCap(t *testing.T) {
 // many more paths than the tree has nodes; the budget is what caps the total.
 func TestAnchorWalk_StopsAtTheNodeBudget(t *testing.T) {
 	t.Parallel()
-	source := yamlNode(t, "a: {$dynamicAnchor: first}\nb: {$dynamicAnchor: second}\n")
+	source := openapitest.YAMLNode(t, "a: {$dynamicAnchor: first}\nb: {$dynamicAnchor: second}\n")
 
 	w := newAnchorWalk(2) // the root mapping and its first value, and no more
 	w.walk(source, "", 0)
@@ -361,8 +362,8 @@ func TestDynamicAnchorIndex_ReportsATruncatedWalk(t *testing.T) {
 	// The walk descends into every key, so an extension at the document root
 	// nests the tree past the cap without the schema lowering ever seeing it.
 	deep := strings.Repeat("{a: ", maxDynamicAnchorDepth) + "1" + strings.Repeat("}", maxDynamicAnchorDepth)
-	l, diags := loweredFor(t, componentSpec("    A: {type: string}\n")+"x-deep: "+deep+"\n")
-	requireNoErrorDiags(t, diags)
+	l, diags := loweredFor(t, openapitest.ComponentSpec("    A: {type: string}\n")+"x-deep: "+deep+"\n")
+	openapitest.RequireNoErrorDiags(t, diags)
 
 	_, got := l.anchors.sites(l.ctx, "absent")
 	require.NotNil(t, l.anchors.byName, "the index is built even when partial")
@@ -479,7 +480,7 @@ func TestConjunctNullVerdict_ABranchWithNoSchemaSaysNothing(t *testing.T) {
 	t.Parallel()
 	budget := maxNullConjuncts
 	assert.Equal(t, nullSilent, conjunctNullVerdict(nil, &budget))
-	assert.Equal(t, nullSilent, conjunctNullVerdict(emptyEitherSchema(), &budget),
+	assert.Equal(t, nullSilent, conjunctNullVerdict(openapitest.EmptyEitherSchema(), &budget),
 		"a branch whose either-value holds neither schema nor bool says nothing either")
 }
 
@@ -496,11 +497,11 @@ func TestConjunctNullVerdict_ABranchWithNoSchemaSaysNothing(t *testing.T) {
 // the wrong answer visible: it is a name like any other here.
 func TestComponentSchemaAt_OnlyATopLevelComponentPointerHasABody(t *testing.T) {
 	t.Parallel()
-	l, diags := loweredFor(t, componentSpec(
+	l, diags := loweredFor(t, openapitest.ComponentSpec(
 		"    Outer:\n      type: object\n      title: outer\n"+
 			"      properties: {inner: {type: string, title: inner}}\n"+
 			"    \"\": {type: string, title: empty}\n"))
-	requireNoErrorDiags(t, diags)
+	openapitest.RequireNoErrorDiags(t, diags)
 
 	tests := []struct {
 		name, pointer, wantTitle string
@@ -579,8 +580,8 @@ func TestDynamicHop_HopsOnlyWhenExactlyOneAnchorSiteIsNamed(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			l, diags := loweredFor(t, componentSpec(tc.schemas))
-			requireNoErrorDiags(t, diags)
+			l, diags := loweredFor(t, openapitest.ComponentSpec(tc.schemas))
+			openapitest.RequireNoErrorDiags(t, diags)
 			if tc.anchor != "" {
 				sites, siteDiags := l.anchors.sites(l.ctx, tc.anchor)
 				require.Len(t, sites, tc.wantSites, "the fixture must set up the case it is named for")

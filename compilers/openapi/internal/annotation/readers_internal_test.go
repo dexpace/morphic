@@ -10,6 +10,7 @@ import (
 	"github.com/stretchr/testify/require"
 	yaml "gopkg.in/yaml.v3"
 
+	"github.com/dexpace/morphic/compilers/openapi/internal/openapitest"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -125,25 +126,38 @@ func TestSchemaOf_ReturnsOnlyAWrittenBody(t *testing.T) {
 }
 
 // TestEffectiveVisibility_MapsTheFlagsToLifecycles pins the readOnly/writeOnly
-// mapping of ir-design §5.2 and the precedence between them. A schema that says
-// readOnly at the site while its referent says writeOnly must read as readOnly:
-// the position is what binds.
+// mapping of ir-design §5.2, the precedence a site holds over its referent, and
+// the answer for the pairing that admits nothing.
+//
+// Precedence is per flag: a site that writes readOnly settles readOnly for the
+// position and says nothing about writeOnly, which therefore still resolves
+// from the referent — the uniform §14 merge every other annotation here already
+// follows. So a site's readOnly does not cancel a referent's writeOnly; the two
+// are both in force, they admit disjoint lifecycle sets, and the position is
+// left visible in none. That case read as plain readOnly until GitHub #276,
+// when the flag arriving second was dropped without a word.
 func TestEffectiveVisibility_MapsTheFlagsToLifecycles(t *testing.T) {
 	t.Parallel()
 	read := ir.Visibility{Only: []ir.Lifecycle{ir.LifecycleRead, ir.LifecycleDelete, ir.LifecycleQuery}}
 	write := ir.Visibility{Only: []ir.Lifecycle{ir.LifecycleCreate, ir.LifecycleUpdate}}
+	none := ir.Visibility{None: true}
 
 	tests := []struct {
-		name     string
-		ref, tgt string
-		want     ir.Visibility
+		name         string
+		ref, tgt     string
+		want         ir.Visibility
+		wantDisjoint bool
 	}{
 		{name: "readOnly at the site", ref: "readOnly: true\n", want: read},
 		{name: "writeOnly at the site", ref: "writeOnly: true\n", want: write},
 		{name: "readOnly inherited from the referent", ref: "type: string\n", tgt: "readOnly: true\n", want: read},
 		{name: "writeOnly inherited from the referent", ref: "type: string\n", tgt: "writeOnly: true\n", want: write},
-		{name: "the site wins over the referent", ref: "readOnly: true\n", tgt: "writeOnly: true\n", want: read},
+		{name: "the site wins over the referent for the flag it writes", ref: "readOnly: true\n", tgt: "readOnly: false\n", want: read},
 		{name: "a false flag is still the site's answer", ref: "readOnly: false\n", tgt: "readOnly: true\n"},
+		{name: "both flags on one schema", ref: "readOnly: true\nwriteOnly: true\n", want: none, wantDisjoint: true},
+		{name: "both flags on the referent", ref: "type: string\n", tgt: "readOnly: true\nwriteOnly: true\n", want: none, wantDisjoint: true},
+		{name: "the site's readOnly leaves the referent's writeOnly in force", ref: "readOnly: true\n", tgt: "writeOnly: true\n", want: none, wantDisjoint: true},
+		{name: "and the same the other way round", ref: "writeOnly: true\n", tgt: "readOnly: true\n", want: none, wantDisjoint: true},
 		{name: "neither declares one", ref: "type: string\n", tgt: "type: string\n"},
 		{name: "nothing at all", want: ir.Visibility{}},
 	}
@@ -157,7 +171,9 @@ func TestEffectiveVisibility_MapsTheFlagsToLifecycles(t *testing.T) {
 			if tc.tgt != "" {
 				tgt = schemaFromYAML(t, tc.tgt)
 			}
-			assert.Equal(t, tc.want, EffectiveVisibility(ref, tgt))
+			got, disjoint := EffectiveVisibility(ref, tgt)
+			assert.Equal(t, tc.want, got)
+			assert.Equal(t, tc.wantDisjoint, disjoint, "whether the flags left no lifecycle at all")
 		})
 	}
 }
@@ -413,15 +429,15 @@ func TestRawFromNode_DistinguishesAbsentFromUnconvertible(t *testing.T) {
 	require.NoError(t, err)
 	assert.Nil(t, got, "an absent node is not a failure")
 
-	got, err = RawFromNode(yamlNode(t, "{a: 1}"))
+	got, err = RawFromNode(openapitest.YAMLNode(t, "{a: 1}"))
 	require.NoError(t, err)
 	assert.JSONEq(t, `{"a":1}`, string(got))
 
-	got, err = RawFromNode(yamlNode(t, ".nan"))
+	got, err = RawFromNode(openapitest.YAMLNode(t, ".nan"))
 	require.Error(t, err, "a value that decodes but does not marshal is a failure")
 	assert.Nil(t, got)
 
-	got, err = RawFromNode(yamlNode(t, "{? [1, 2]\n: v}"))
+	got, err = RawFromNode(openapitest.YAMLNode(t, "{? [1, 2]\n: v}"))
 	require.Error(t, err, "a mapping with a non-string key does not decode into the JSON model")
 	assert.Nil(t, got)
 }
@@ -442,8 +458,8 @@ func TestRawChildNode_ReadsOnlyAMappingChild(t *testing.T) {
 
 	assert.Nil(t, RawChildNode(nil, "a"))
 	assert.Nil(t, RawChildNode(&doc, "absent"))
-	assert.Nil(t, RawChildNode(yamlNode(t, "[1, 2]"), "a"), "a sequence has no keyed children")
-	assert.Nil(t, RawChildNode(yamlNode(t, "plain"), "a"), "nor does a scalar")
+	assert.Nil(t, RawChildNode(openapitest.YAMLNode(t, "[1, 2]"), "a"), "a sequence has no keyed children")
+	assert.Nil(t, RawChildNode(openapitest.YAMLNode(t, "plain"), "a"), "nor does a scalar")
 	assert.Nil(t, RawChildNode(&yaml.Node{Kind: yaml.DocumentNode}, "a"), "nor an empty document")
 }
 
@@ -502,13 +518,13 @@ func TestPreserveNodeInto_ReportsWhichOfThreeOutcomesHappened(t *testing.T) {
 	assert.Empty(t, diags)
 	assert.Nil(t, p)
 
-	kept, diags = PreserveNodeInto(&p, "openapi:x", yamlNode(t, ".nan"), ir.ReasonNoIRHome, "/x", 0)
+	kept, diags = PreserveNodeInto(&p, "openapi:x", openapitest.YAMLNode(t, ".nan"), ir.ReasonNoIRHome, "/x", 0)
 	assert.False(t, kept)
 	require.Len(t, diags, 1)
 	assert.Equal(t, ir.SeverityError, diags[0].Severity)
 	assert.Nil(t, p, "an unconvertible node writes no entry")
 
-	kept, diags = PreserveNodeInto(&p, "openapi:x", yamlNode(t, "{a: 1}"), ir.ReasonNoIRHome, "/x", 0)
+	kept, diags = PreserveNodeInto(&p, "openapi:x", openapitest.YAMLNode(t, "{a: 1}"), ir.ReasonNoIRHome, "/x", 0)
 	assert.True(t, kept)
 	assert.Empty(t, diags)
 	assert.JSONEq(t, `{"a":1}`, string(p["openapi:x"].Value))
@@ -519,7 +535,7 @@ func TestPreserveNodeInto_ReportsWhichOfThreeOutcomesHappened(t *testing.T) {
 // leaves no trace at all, which is a losslessness failure.
 func TestUnpreservableDiag_IsAnErrorNotADegradation(t *testing.T) {
 	t.Parallel()
-	_, err := RawFromNode(yamlNode(t, ".nan"))
+	_, err := RawFromNode(openapitest.YAMLNode(t, ".nan"))
 	require.Error(t, err)
 
 	got := UnpreservableDiag("openapi:not", "/components/schemas/S/not", 2, err)

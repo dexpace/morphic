@@ -82,6 +82,12 @@ const (
 	// response still lowers, with no status condition rather than the catch-all
 	// range that "default" alone denotes (GitHub #262).
 	InvalidStatusKey = "openapi/invalid-status-key"
+	// InvalidMethodKey reports an additionalOperations key that names no method:
+	// the empty string. The operation still lowers, binding the key as written, so
+	// nothing the entry declares is lost — what is reported is that the binding's
+	// method is unusable. speakeasy rejects a key naming a *standard* method, which
+	// belongs in its own field, but accepts this one.
+	InvalidMethodKey = "openapi/invalid-method-key"
 	// DegradedConstruct reports a construct the compiler could not carry into the
 	// IR as written: preserved raw for want of a structural home, lowered to a
 	// weaker shape (a heterogeneous enum as a union, an unconvertible value as
@@ -110,15 +116,15 @@ const (
 	// source-order winner — possibly the looser bound — and surfaces the
 	// disagreement instead of silently discarding it.
 	ConflictingRedecl = "openapi/conflicting-redeclaration"
-	// DisjointVisibility reports inline allOf branches restricting one field to
-	// lifecycle sets sharing nothing — readOnly on one branch, writeOnly on
-	// another — so the intersection allOf calls for admits no lifecycle at all.
-	// It is neither of its neighbours: ConflictingRedecl keeps an arbitrary
+	// DisjointVisibility reports one field restricted to lifecycle sets that
+	// share nothing — readOnly against writeOnly — so no lifecycle admits it at
+	// all. Both spellings raise it under this one code: one schema writing both
+	// flags, and inline allOf branches whose intersection is empty. It is
+	// neither of its neighbours: ConflictingRedecl keeps an arbitrary
 	// source-order winner, and DegradedConstruct lowers to a weaker shape,
-	// whereas Visibility{None: true} is the exact intersection and a shape the
+	// whereas Visibility{None: true} is the exact answer and a shape the
 	// IR already has. It is reported nonetheless, because a field no request or
-	// response can carry is a composition that cannot take effect, which is
-	// seldom what the document set out to say.
+	// response can carry is seldom what the document set out to say.
 	DisjointVisibility = "openapi/disjoint-visibility"
 	// AliasAmplification reports a document whose YAML aliases expand to far more
 	// nodes than it declares — a billion-laughs shape that would exhaust memory

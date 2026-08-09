@@ -18,6 +18,8 @@ import (
 
 	"github.com/dexpace/morphic/compilers"
 	"github.com/dexpace/morphic/compilers/openapi"
+	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
+	"github.com/dexpace/morphic/compilers/openapi/internal/openapitest"
 	"github.com/dexpace/morphic/ir"
 	"github.com/dexpace/morphic/ir/irtest"
 )
@@ -151,6 +153,7 @@ func conformanceCases() []conformanceCase {
 		{"oneof-discriminated", assertOneOfDiscriminated},
 		{"discriminator-inheritance", assertDiscriminatorInheritance},
 		{"discriminator-default-mapping", assertDiscriminatorDefaultMapping},
+		{"discriminator-transitive", assertDiscriminatorTransitive},
 		{"unhomed-keywords", assertUnhomedKeywords},
 		{"codeclared-keywords", assertCoDeclaredKeywords},
 		{"anyof-untagged", assertAnyOfUntagged},
@@ -192,6 +195,8 @@ func conformanceCases() []conformanceCase {
 		{"response-links", assertResponseLinks},
 		{"webhooks", assertWebhooks},
 		{"callbacks", assertCallbacks},
+		{"path-item-docs", assertPathItemDocs},
+		{"path-item-operations", assertPathItemOperations},
 		{"deprecation", assertDeprecation},
 		{"examples", assertExamples},
 		{"docs-summary-desc", assertDocsSummaryDesc},
@@ -247,15 +252,6 @@ func assertNoErrorDiags(t *testing.T, diags []ir.Diagnostic) {
 // namedID is the stable TypeID of a components-named schema.
 func namedID(name string) ir.TypeID {
 	return ir.TypeID("t/openapi/components/schemas/" + name)
-}
-
-// propsByWire indexes a model's properties by wire name.
-func propsByWire(props []ir.Property) map[string]ir.Property {
-	out := make(map[string]ir.Property, len(props))
-	for _, p := range props {
-		out[p.WireName] = p
-	}
-	return out
 }
 
 // allOperations flattens every operation across a document's service groups.
@@ -770,6 +766,38 @@ func assertDiscriminatorDefaultMapping(t *testing.T, doc *ir.Document, diags []i
 		"and it is read separately from the mapping")
 }
 
+// assertDiscriminatorTransitive covers a discriminator tagging a descendant more
+// than one hop away: Puppy composes Dog, which composes the discriminated Pet.
+//
+// The chain itself is what matters here — every other discriminator spec in the
+// corpus is one level deep, so nothing witnessed a base routing a grandchild, and
+// a consumer reading composition one hop deep called this valid document invalid.
+func assertDiscriminatorTransitive(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
+	pet, ok := doc.Types[namedID("Pet")].(*ir.Model)
+	require.True(t, ok)
+	require.NotNil(t, pet.Discriminator)
+	assert.Equal(t, namedID("Puppy"), pet.Discriminator.Mapping["puppy"],
+		"the base maps a wire value straight onto its grandchild")
+
+	dog, ok := doc.Types[namedID("Dog")].(*ir.Model)
+	require.True(t, ok)
+	require.NotNil(t, dog.Base)
+	assert.Equal(t, namedID("Pet"), dog.Base.Target)
+
+	puppy, ok := doc.Types[namedID("Puppy")].(*ir.Model)
+	require.True(t, ok)
+	require.NotNil(t, puppy.Base, "the chain stays as declared rather than flattening onto the root")
+	assert.Equal(t, namedID("Dog"), puppy.Base.Target)
+	assert.Nil(t, puppy.Discriminator, "a subtype does not restate its base's discriminator")
+
+	// Known gap, pinned so the corpus reddens when it is closed: the tag value is
+	// read off the subtype's own base branch, which here names Dog rather than the
+	// schema declaring the discriminator, so Pet's "puppy" key is dropped
+	// (GitHub #305). Dog, one hop from the declaration, does carry its key.
+	assert.Equal(t, "dog", doc.Types[namedID("Dog")].(*ir.Model).DiscriminatorValue)
+	assert.Empty(t, puppy.DiscriminatorValue)
+}
+
 func assertAnyOfUntagged(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
 	u, ok := doc.Types[namedID("StringOrNumber")].(*ir.Union)
 	require.True(t, ok)
@@ -895,7 +923,7 @@ func assertNullabilityFourStates(t *testing.T, doc *ir.Document, _ []ir.Diagnost
 	m, ok := doc.Types[namedID("S")].(*ir.Model)
 	require.True(t, ok)
 	require.Len(t, m.Properties, 4)
-	states := propsByWire(m.Properties)
+	states := openapitest.PropsByWire(m.Properties)
 	assert.True(t, states["reqPlain"].Required)
 	assert.False(t, states["reqPlain"].Type.Nullable)
 	assert.True(t, states["reqNull"].Required)
@@ -917,7 +945,7 @@ func assertNullable31Ref(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
 	m, ok := doc.Types[namedID("Owner")].(*ir.Model)
 	require.True(t, ok)
 	require.Len(t, m.Properties, 2)
-	byName := propsByWire(m.Properties)
+	byName := openapitest.PropsByWire(m.Properties)
 
 	assert.True(t, byName["p"].Type.Nullable,
 		"3.1's type-array null spelling normalizes to the same IR bit at a $ref site")
@@ -1013,7 +1041,7 @@ func assertNullableEnum31(t *testing.T, doc *ir.Document, diags []ir.Diagnostic)
 func assertNullabilityConjunction(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
 	m, ok := doc.Types[namedID("Holder")].(*ir.Model)
 	require.True(t, ok)
-	props := propsByWire(m.Properties)
+	props := openapitest.PropsByWire(m.Properties)
 	require.Len(t, props, 5)
 
 	assert.Equal(t, props["direct"].Type.Nullable, props["viaAllOf"].Type.Nullable,
@@ -1386,7 +1414,7 @@ func assertYAMLIntegerBases(t *testing.T, doc *ir.Document, m *ir.Model) {
 	assert.Equal(t, ir.BigVal("9"), loose.Default.Num)
 }
 
-func assertReadOnlyWriteOnly(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
+func assertReadOnlyWriteOnly(t *testing.T, doc *ir.Document, diags []ir.Diagnostic) {
 	m, ok := doc.Types[namedID("S")].(*ir.Model)
 	require.True(t, ok)
 	r, ok := propByWire(m, "r")
@@ -1408,6 +1436,26 @@ func assertReadOnlyWriteOnly(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) 
 	require.True(t, ok, "the declaration's own readOnly is kept as residue")
 	assert.Equal(t, ir.ReasonNoIRHome, entry.Reason)
 	assert.JSONEq(t, `true`, string(entry.Value))
+
+	assertBothFlagsAreVisibleNowhere(t, m, diags)
+}
+
+// assertBothFlagsAreVisibleNowhere pins the contradictory pairing in both its
+// spellings: written on one schema, and written across a $ref that already
+// carries the other flag. Each admits no lifecycle at all and each is reported,
+// where declaring both used to lower exactly as readOnly alone did and say
+// nothing (GitHub #276).
+func assertBothFlagsAreVisibleNowhere(t *testing.T, m *ir.Model, diags []ir.Diagnostic) {
+	t.Helper()
+	for _, wire := range []string{"both", "bothViaRef"} {
+		p, ok := propByWire(m, wire)
+		require.True(t, ok)
+		assert.Equal(t, ir.Visibility{None: true}, p.Visibility,
+			"readOnly and writeOnly both in force admit no lifecycle: %s", wire)
+		assert.Equal(t, []ir.Severity{ir.SeverityWarning},
+			diagsAt(diags, diag.DisjointVisibility, "/components/schemas/S/properties/"+wire),
+			"the contradiction is reported once, at the position that wrote it: %s", wire)
+	}
 }
 
 func assertRecursive(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
@@ -1962,6 +2010,105 @@ func assertCallbacks(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
 	assertPathItemServersKept(t, cb, "https://callbacks.example.com")
 	assert.NotContains(t, op.Unmodeled, "openapi:servers",
 		"the callback's own servers stay on the callback, not on the parent")
+}
+
+// assertPathItemDocs pins that a path item's own documentation survives at every
+// route that reaches a path item, and that keeping it costs the operation
+// nothing it declared for itself.
+//
+// It is kept rather than merged: ir.Docs holds the operation's summary and
+// description, a path item's pair documents the path, and merging the two would
+// need a precedence rule and would attach to an operation text its author never
+// wrote. So the assertion is that both subjects survive side by side.
+func assertPathItemDocs(t *testing.T, doc *ir.Document, diags []ir.Diagnostic) {
+	for _, tc := range []struct{ op, summary, description string }{
+		{"listPets", "Pet collection", "Everything addressable at /pets."},
+		{"createPet", "Pet collection", "Everything addressable at /pets."},
+		{"onPetCreated", "Creation callback", "Delivered once the pet exists."},
+		{"onPetDeleted", "Pet deleted", "Delivered when a pet is removed."},
+	} {
+		op, ok := opByName(doc, tc.op)
+		require.True(t, ok, "operation %s", tc.op)
+		assertPathItemDocsKept(t, op, tc.summary, tc.description)
+	}
+
+	listPets, ok := opByName(doc, "listPets")
+	require.True(t, ok)
+	assert.Equal(t, "List pets", listPets.Docs.Summary,
+		"the operation's own summary is what Docs holds")
+	assert.Equal(t, "Returns every pet.", listPets.Docs.Description)
+
+	createPet, ok := opByName(doc, "createPet")
+	require.True(t, ok)
+	assert.Empty(t, createPet.Docs.Summary,
+		"and an operation that documents nothing has nothing invented for it")
+
+	// And the decision is announced at the operation that carries the entry,
+	// once, rather than being taken silently.
+	assert.Equal(t, []ir.Severity{ir.SeverityInfo},
+		diagsAt(diags, "openapi/degraded-construct", "/paths/~1pets/get"))
+	assert.Equal(t, []ir.Severity{ir.SeverityInfo},
+		diagsAt(diags, "openapi/degraded-construct", "/webhooks/petDeleted/post"))
+}
+
+// assertPathItemDocsKept checks one operation kept the pair its own path item
+// declared, under the keys that name which object the text came from.
+func assertPathItemDocsKept(t *testing.T, op ir.Operation, summary, description string) {
+	t.Helper()
+	kept, ok := op.Unmodeled["openapi:pathItemSummary"]
+	require.True(t, ok, "the path item's summary is kept on %s", op.ID)
+	assert.Equal(t, ir.ReasonNoIRHome, kept.Reason)
+	assert.JSONEq(t, `"`+summary+`"`, string(kept.Value))
+
+	kept, ok = op.Unmodeled["openapi:pathItemDescription"]
+	require.True(t, ok, "the path item's description is kept on %s", op.ID)
+	assert.Equal(t, ir.ReasonNoIRHome, kept.Reason)
+	assert.JSONEq(t, `"`+description+`"`, string(kept.Value))
+}
+
+// assertPathItemOperations pins that every operation a 3.2 path item declares
+// becomes an ir.Operation, whichever field declared it and whichever of the
+// three routes reaches the path item.
+//
+// The walk read the fixed method fields and nothing else, so an
+// additionalOperations entry was dropped entire — and with it every type
+// reachable only through it, which is why the request body's schema is asserted
+// to be in the registry rather than merely referenced from an operation.
+func assertPathItemOperations(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
+	for _, tc := range []struct{ op, method string }{
+		{"queryIndex", "QUERY"},
+		{"purgeIndex", "PURGE"},
+		{"mixedCaseIndex", "mIxEdCase"},
+		{"purgeCallback", "PURGE"},
+		{"onFlush", "FLUSH"},
+	} {
+		op, ok := opByName(doc, tc.op)
+		require.True(t, ok, "operation %s", tc.op)
+		require.Len(t, op.Bindings.HTTP, 1)
+		assert.Equal(t, tc.method, op.Bindings.HTTP[0].Method,
+			"%s binds the method as the source spelled it", tc.op)
+	}
+
+	onFlush, ok := opByName(doc, "onFlush")
+	require.True(t, ok)
+	assert.True(t, onFlush.Bindings.HTTP[0].IsWebhook,
+		"a webhook mount marks the binding whichever field declared the operation")
+
+	subscribe, ok := opByName(doc, "subscribeIndex")
+	require.True(t, ok)
+	require.Len(t, subscribe.Bindings.HTTP, 1)
+	require.Len(t, subscribe.Bindings.HTTP[0].Callbacks, 1)
+	purgeCallback, ok := opByName(doc, "purgeCallback")
+	require.True(t, ok)
+	assert.Equal(t, []ir.OpID{purgeCallback.ID}, subscribe.Bindings.HTTP[0].Callbacks[0].Operations,
+		"an expression declaring only additionalOperations still binds to its parent")
+
+	queryIndex, ok := opByName(doc, "queryIndex")
+	require.True(t, ok)
+	require.NotNil(t, queryIndex.Request)
+	require.Len(t, queryIndex.Request.Contents, 1)
+	assert.NotNil(t, doc.Types[queryIndex.Request.Contents[0].Type.Target],
+		"the request body schema is interned, not merely referenced")
 }
 
 func assertDeprecation(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {

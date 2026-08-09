@@ -82,7 +82,7 @@ func (w *writeFailFile) Write([]byte) (int, error) { return 0, w.writeErr }
 
 // nilDocCompiler claims openapi 3.1 and lowers to a nil Document with no error,
 // modelling a compiler that refuses to lower (e.g. an unsupported construct)
-// so runCompile's Document==nil branch is exercised.
+// so runPipeline's Document==nil branch is exercised.
 type nilDocCompiler struct{}
 
 func (nilDocCompiler) Formats() []compilers.SourceFormat {

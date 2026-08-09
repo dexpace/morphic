@@ -14,19 +14,23 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// loweringRecursions are every set of lowerings in compilers/openapi that call
-// each other, and why each set is allowed to.
+// loweringRecursions are every recursion among the lowerings in
+// compilers/openapi, and why each one is allowed to be recursive.
 //
-// A lowering inside one of these cannot be tested or moved on its own: its
-// callees include something that calls back to it, so the whole set changes
-// together or not at all. That is what makes the membership worth pinning rather
-// than measuring — it decides the shape of the remaining work.
+// A set of more than one is mutual recursion, and none of its lowerings can be
+// tested or moved on its own: its callees include something that calls back to
+// it, so the whole set changes together or not at all. A set of one is a
+// lowering that calls itself — moveable, but pinned all the same, because
+// recursion is permitted here only against an explicit depth counter and this is
+// the check that says which functions need one.
 //
-// The sets are no longer all methods. The schema walk converted to free
-// functions and is just as recursive for it, which is the point: what binds
-// these together is the call graph, not the receiver.
+// The sets are neither all methods nor all free functions. The schema walk
+// converted to free functions and is just as recursive for it, and the anchor
+// walk is a pair of methods; what binds a set together is the call graph, not
+// the receiver.
 //
-// The sets are listed longest first, which is also the order they matter in.
+// The sets are listed longest first, ties broken by first member — the order the
+// pin produces, and also the order they matter in.
 var loweringRecursions = [][]string{
 	// The schema walk. Lowering a schema resolves the references inside it, and
 	// resolving a reference lowers what it names. micro-compiler-design §5
@@ -46,10 +50,19 @@ var loweringRecursions = [][]string{
 	// holding operations of its own (ir-design §8.1), so the operation lowering
 	// reaches itself through them.
 	{"lowerCallbackOps", "lowerCallbacks", "lowerOperation"},
+	// The $dynamicAnchor index. walk hands a mapping to walkMapping, which walks
+	// each of that mapping's values back through walk. Bounded by charge, which
+	// refuses past maxDynamicAnchorDepth or a spent node budget and records the
+	// refusal, so a caller learns the index is partial.
+	{"anchorWalk.walk", "anchorWalk.walkMapping"},
 	// Property lookup through a composition. Finding a property by wire name
 	// descends into a model's base and mixins, each of which is a model whose
 	// properties are looked up the same way.
 	{"propIDByWire", "propIDInComposition"},
+	// Multipart body parts. A body may compose with allOf instead of declaring
+	// properties, and each branch is a schema whose parts are read the same way.
+	// Bounded by maxPartCompositionDepth.
+	{"bodyParts"},
 }
 
 // schemaRecursion is the largest of them, named because the design refers to it
@@ -80,8 +93,8 @@ var loweringPackages = []string{
 	"compilers/openapi/internal/schema",
 }
 
-// TestLoweringRecursion_IsOnlyTheKnownCycles pins which lowerings are mutually
-// recursive, and holds the answer to the sets above.
+// TestLoweringRecursion_IsOnlyTheKnownCycles pins which lowerings are recursive,
+// and holds the answer to the sets above.
 //
 // It exists because measuring this with a regex got it wrong by more than
 // double. A pattern ending a function at the first `}` in column zero runs past
@@ -93,7 +106,7 @@ var loweringPackages = []string{
 //
 // Every cycle is asserted, not only the largest. Checking one would let a new
 // recursion appear anywhere else unnoticed, which is the same blindness as not
-// checking at all — and the two smaller ones are as unconvertible as the big one.
+// checking at all — and the smaller ones are as unconvertible as the big one.
 func TestLoweringRecursion_IsOnlyTheKnownCycles(t *testing.T) {
 	t.Parallel()
 	calls := loweringCallGraph(t)
@@ -101,24 +114,93 @@ func TestLoweringRecursion_IsOnlyTheKnownCycles(t *testing.T) {
 
 	var cycles [][]string
 	for _, c := range stronglyConnected(calls) {
-		if len(c) > 1 {
-			sort.Strings(c)
-			cycles = append(cycles, c)
+		if len(c) == 1 && !calls[c[0]][c[0]] {
+			continue
 		}
+		sort.Strings(c)
+		cycles = append(cycles, c)
 	}
-	sort.Slice(cycles, func(i, j int) bool { return len(cycles[i]) > len(cycles[j]) })
+	// Ties are broken by first member because there is more than one pair now,
+	// and sort.Slice is not stable: length alone would leave the two pairs in
+	// whichever order the sort happened to land them.
+	sort.Slice(cycles, func(i, j int) bool {
+		if len(cycles[i]) != len(cycles[j]) {
+			return len(cycles[i]) > len(cycles[j])
+		}
+		return cycles[i][0] < cycles[j][0]
+	})
 	require.NotEmpty(t, cycles, "the schema walk is mutually recursive; finding none means the graph is wrong")
 
 	assert.Equal(t, loweringRecursions, cycles,
-		"the lowering call graph's mutual recursion changed; anything joining one of these sets can no longer be moved alone")
+		"the lowering call graph's recursion changed; anything joining one of these sets can no longer be moved alone")
+}
+
+// decl is one declaration the call graph holds: the name it is known by, and the
+// receiver a method reaches its siblings through.
+type decl struct {
+	name     string // "lower", or "anchorWalk.walk" for a method
+	recv     string // the receiver's identifier; empty unless this is a method that names one
+	recvType string // the receiver's type; empty for a free function
+	body     *ast.BlockStmt
+}
+
+// declOf reads fn into the one node the graph holds for it.
+//
+// A method is keyed "<receiver type>.<method>" rather than by its bare name.
+// The graph refuses a name collision instead of resolving it, and walk exists
+// both as a method on anchorWalk and as a name a free function is free to take,
+// so the two have to stay distinguishable.
+//
+// A receiver with no identifier, or one spelled _, leaves recv empty: such a
+// method cannot write a sibling's name, so it has no receiver edges to resolve.
+func declOf(t *testing.T, fn *ast.FuncDecl) decl {
+	t.Helper()
+	require.NotNil(t, fn.Body, "a declaration with no body names no callees")
+
+	d := decl{name: fn.Name.Name, body: fn.Body}
+	if fn.Recv == nil {
+		return d
+	}
+	require.Len(t, fn.Recv.List, 1, "a method declares exactly one receiver")
+
+	field := fn.Recv.List[0]
+	d.recvType = receiverTypeName(field.Type)
+	require.NotEmpty(t, d.recvType,
+		"unreadable receiver on %s; keying it as a free function would hide its edges", fn.Name.Name)
+	d.name = d.recvType + "." + fn.Name.Name
+	if len(field.Names) == 1 && field.Names[0].Name != "_" {
+		d.recv = field.Names[0].Name
+	}
+	return d
+}
+
+// receiverTypeName returns the type a receiver names. Go's receiver grammar is
+// [*]TypeName[TypeParams], so the pointer and then the type arguments come off
+// and what is left has to be the name; anything else returns "" for declOf to
+// refuse.
+func receiverTypeName(expr ast.Expr) string {
+	if star, isStar := expr.(*ast.StarExpr); isStar {
+		expr = star.X
+	}
+	if idx, isIndex := expr.(*ast.IndexExpr); isIndex { // Receiver[T]
+		expr = idx.X
+	}
+	if idx, isIndex := expr.(*ast.IndexListExpr); isIndex { // Receiver[K, V]
+		expr = idx.X
+	}
+	id, isIdent := expr.(*ast.Ident)
+	if !isIdent {
+		return ""
+	}
+	return id.Name
 }
 
 // loweringCallGraph maps every lowering to the ones it depends on.
 //
-// Lowerings are free functions here, and only free functions are read: no method
-// takes part in a lowering recursion today, and one that did would have to be
-// added deliberately rather than picked up by a receiver name that no longer
-// exists. GitHub #224 records the receivers this therefore does not see.
+// Methods are read alongside free functions. Reading free functions alone left
+// the anchor walk's recursion out of the graph entirely and would have let any
+// new one join it unremarked (GitHub #224), which is the same silence the value
+// edges below were about.
 //
 // The lowering spans packages now, and all of them are read into one namespace.
 // That is sound rather than convenient: a call from openapi into the schema
@@ -140,10 +222,6 @@ func loweringCallGraph(t *testing.T) map[string]map[string]bool {
 		files = append(files, found...)
 	}
 
-	type decl struct {
-		name string
-		body *ast.BlockStmt
-	}
 	var decls []decl
 	for _, path := range files {
 		if strings.HasSuffix(path, "_test.go") {
@@ -154,10 +232,10 @@ func loweringCallGraph(t *testing.T) map[string]map[string]bool {
 
 		for _, d := range f.Decls {
 			fn, isFunc := d.(*ast.FuncDecl)
-			if !isFunc || fn.Body == nil || fn.Recv != nil {
+			if !isFunc || fn.Body == nil {
 				continue
 			}
-			decls = append(decls, decl{name: fn.Name.Name, body: fn.Body})
+			decls = append(decls, declOf(t, fn))
 		}
 	}
 
@@ -173,17 +251,17 @@ func loweringCallGraph(t *testing.T) map[string]map[string]bool {
 
 	graph := map[string]map[string]bool{}
 	for _, d := range decls {
-		graph[d.name] = calleesOf(d.body, d.name, known)
+		graph[d.name] = calleesOf(d, known)
 	}
 	return graph
 }
 
-// calleesOf returns the lowerings body names, whether it calls them or hands
-// them on as a value.
+// calleesOf returns the lowerings d's body names, whether it calls them, hands
+// them on as a value, or reaches them through its own receiver.
 //
-// Both are edges, and for the same reason: the name is written here, so this
-// function decides which lowering runs and cannot be moved without it. What is
-// not an edge is a function this one receives as a parameter — that name is
+// All three are edges, and for the same reason: the name is written here, so
+// this function decides which lowering runs and cannot be moved without it. What
+// is not an edge is a function this one receives as a parameter — that name is
 // written by its caller, and the caller's own body is where it is recorded.
 // Reading call position alone missed three live handoffs to slices.ContainsFunc
 // (GitHub #210).
@@ -194,14 +272,29 @@ func loweringCallGraph(t *testing.T) map[string]map[string]bool {
 // spelling that matters most, since it would otherwise tie the whole package to
 // the schema entry point.
 //
+// The exception is a selector on d's own receiver. `w.walkMapping` is how one
+// method names another, and the receiver's type is the one thing the parser can
+// resolve without a type checker, so that selector is read as an edge to
+// "<receiver type>.<name>". Every other selector stays unread, and the limit is
+// worth stating rather than hiding: a free function calling a method, a method
+// calling one on another value, and any call through an interface are edges this
+// graph cannot see — resolving them needs types, and guessing them from a bare
+// method name is the resolution the one-namespace rule refuses (GitHub #323).
+//
+// A name may be d's own. Direct recursion is recursion, so the self edge is
+// recorded and TestLoweringRecursion_IsOnlyTheKnownCycles reads a self-loop as a
+// set of one. Dropping it would have kept anchorWalk.walk's descent into itself
+// out of the graph next to the sibling call, and left every self-recursive
+// lowering unpinned.
+//
 // Position is judged, scope is not: a local that shadowed a lowering's name
 // would read as an edge to it. Nothing here does that, and the error runs in the
 // safe direction for a pin whose job is to notice dependencies — a spurious
 // member shows up in a pinned set and gets read, where a missing one is the
 // silence #210 was about.
-func calleesOf(body *ast.BlockStmt, self string, known map[string]bool) map[string]bool {
+func calleesOf(d decl, known map[string]bool) map[string]bool {
 	skip := map[*ast.Ident]bool{}
-	ast.Inspect(body, func(n ast.Node) bool {
+	ast.Inspect(d.body, func(n ast.Node) bool {
 		switch v := n.(type) {
 		case *ast.SelectorExpr:
 			skip[v.Sel] = true
@@ -218,16 +311,27 @@ func calleesOf(body *ast.BlockStmt, self string, known map[string]bool) map[stri
 	})
 
 	out := map[string]bool{}
-	ast.Inspect(body, func(n ast.Node) bool {
+	record := func(name string) {
+		if known[name] {
+			out[name] = true
+		}
+	}
+	ast.Inspect(d.body, func(n ast.Node) bool {
+		if sel, isSel := n.(*ast.SelectorExpr); isSel {
+			if base, isIdent := sel.X.(*ast.Ident); isIdent && d.recv != "" && base.Name == d.recv {
+				record(d.recvType + "." + sel.Sel.Name)
+			}
+			return true
+		}
 		if call, isCall := n.(*ast.CallExpr); isCall {
-			if fun, isIdent := call.Fun.(*ast.Ident); isIdent && fun.Name != self && known[fun.Name] {
-				out[fun.Name] = true
+			if fun, isIdent := call.Fun.(*ast.Ident); isIdent {
+				record(fun.Name)
 			}
 			return true
 		}
 		id, isIdent := n.(*ast.Ident)
-		if isIdent && !skip[id] && id.Name != self && known[id.Name] {
-			out[id.Name] = true
+		if isIdent && !skip[id] {
+			record(id.Name)
 		}
 		return true
 	})
@@ -235,9 +339,9 @@ func calleesOf(body *ast.BlockStmt, self string, known map[string]bool) map[stri
 }
 
 // stronglyConnected returns the graph's strongly connected components (Tarjan).
-// Edges to names the graph does not hold — anything reached on some other
-// receiver or in another package — are ignored, so only recursion within
-// compilers/openapi's own lowerings is described.
+// Edges to names the graph does not hold — anything in another package, or
+// reached by a route calleesOf does not read — are ignored, so only recursion
+// within compilers/openapi's own lowerings is described.
 func stronglyConnected(graph map[string]map[string]bool) [][]string {
 	var (
 		index  = map[string]int{}
@@ -357,36 +461,217 @@ func TestCalleesOf_SeparatesAValueFromWhatIsNotOne(t *testing.T) {
 		// would drop the value along with the key.
 		{name: "a key and a value spelled the same", body: "_ = T{lower: lower}", want: []string{"lower"}},
 		{name: "a closure's parameter list", body: "_ = func(lower int) int { return 1 }", want: nil},
-		{name: "the function itself", body: "self(x)", want: nil},
+		// A free function that calls itself. The graph records the self edge so
+		// the pin can report a self-loop, which is how bodyParts is held to its
+		// depth counter.
+		{name: "the function itself", body: "self(x)", want: []string{"self"}},
 		{name: "both forms of one name", body: "lower(x); apply(y, lower)", want: []string{"lower"}},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			src := "package p\nfunc self(x, y int) { " + tc.body + " }\n"
-			f, err := parser.ParseFile(token.NewFileSet(), "planted.go", src, 0)
-			require.NoError(t, err)
-			fn, ok := f.Decls[0].(*ast.FuncDecl)
-			require.True(t, ok)
-
-			got := calleesOf(fn.Body, "self", known)
-			names := make([]string, 0, len(got))
-			for n := range got {
-				names = append(names, n)
-			}
-			sort.Strings(names)
-			assert.Equal(t, tc.want, orNil(names))
+			assert.Equal(t, tc.want, plantedCallees(t, src, known))
 		})
 	}
 }
 
-// orNil normalizes an empty slice to nil so a case expecting no edges reads as
-// want: nil rather than want: []string{}.
-func orNil(s []string) []string {
-	if len(s) == 0 {
+// TestCalleesOf_ResolvesAMethodThroughItsReceiver pins the receiver half of the
+// judgement, which is what GitHub #224 was about: a method names a sibling by
+// selector, and reading no selector at all left every such edge out.
+//
+// Both shapes are planted because they are different edges. `w.walkMapping`
+// closes a cycle with another declaration; `w.walk` inside walk closes one with
+// nothing but itself, and a graph that recorded only the first would still call
+// a directly recursive method dependency-free.
+//
+// The negative cases are the boundary. Without a type checker the graph cannot
+// say what a selector on anything else resolves to, so it declines to guess
+// rather than matching on the bare method name.
+func TestCalleesOf_ResolvesAMethodThroughItsReceiver(t *testing.T) {
+	t.Parallel()
+	known := map[string]bool{"T.self": true, "T.other": true, "U.other": true, "lower": true}
+	tests := []struct {
+		name, decl string
+		want       []string
+	}{
+		{
+			name: "a sibling method called",
+			decl: "func (w *T) self(x int) { w.other(x) }",
+			want: []string{"T.other"},
+		},
+		{
+			name: "the method itself",
+			decl: "func (w *T) self(x int) { w.self(x - 1) }",
+			want: []string{"T.self"},
+		},
+		{
+			name: "a sibling method handed on as a value",
+			decl: "func (w *T) self(x int) { apply(x, w.other) }",
+			want: []string{"T.other"},
+		},
+		{
+			name: "a value receiver",
+			decl: "func (w T) self(x int) { w.other(x) }",
+			want: []string{"T.other"},
+		},
+		{
+			name: "a generic receiver",
+			decl: "func (w *T[K]) self(x int) { w.other(x) }",
+			want: []string{"T.other"},
+		},
+		{
+			name: "a free function reached from a method",
+			decl: "func (w *T) self(x int) { lower(x) }",
+			want: []string{"lower"},
+		},
+		// The boundary. Each of these names a method the graph holds, and none of
+		// them is an edge: u is some other value, and a receiver the declaration
+		// leaves unnamed cannot be written in the body at all.
+		{
+			name: "a selector on something other than the receiver",
+			decl: "func (w *T) self(u U) { u.other(1) }",
+			want: nil,
+		},
+		{
+			name: "a receiver the method does not name",
+			decl: "func (*T) self(x int) { x.other() }",
+			want: nil,
+		},
+		{
+			name: "a blank receiver",
+			decl: "func (_ *T) self(x int) { x.other() }",
+			want: nil,
+		},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			src := "package p\n" + tc.decl + "\n"
+			assert.Equal(t, tc.want, plantedCallees(t, src, known))
+		})
+	}
+}
+
+// plantedCallees parses one declaration out of src and returns its callees,
+// sorted, with an empty result normalized to nil so a case expecting no edges
+// reads as want: nil rather than want: []string{}.
+func plantedCallees(t *testing.T, src string, known map[string]bool) []string {
+	t.Helper()
+	f, err := parser.ParseFile(token.NewFileSet(), "planted.go", src, 0)
+	require.NoError(t, err)
+	require.Len(t, f.Decls, 1, "plant exactly one declaration")
+	fn, isFunc := f.Decls[0].(*ast.FuncDecl)
+	require.True(t, isFunc)
+
+	got := calleesOf(declOf(t, fn), known)
+	names := make([]string, 0, len(got))
+	for n := range got {
+		names = append(names, n)
+	}
+	sort.Strings(names)
+	if len(names) == 0 {
 		return nil
 	}
-	return s
+	return names
+}
+
+// TestDeclOf_NamesAMethodByItsReceiverType pins the key a method gets, over
+// every receiver form Go allows. A method keyed by its bare name would collide
+// with a free function of that name, and the graph refuses collisions rather
+// than resolving them, so getting this wrong fails the whole pin rather than one
+// edge.
+func TestDeclOf_NamesAMethodByItsReceiverType(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		name, decl   string
+		wantName     string
+		wantRecv     string
+		wantRecvType string
+	}{
+		{name: "a free function", decl: "func f() {}", wantName: "f"},
+		{
+			name: "a value receiver", decl: "func (w T) f() {}",
+			wantName: "T.f", wantRecv: "w", wantRecvType: "T",
+		},
+		{
+			name: "a pointer receiver", decl: "func (w *T) f() {}",
+			wantName: "T.f", wantRecv: "w", wantRecvType: "T",
+		},
+		{
+			name: "one type parameter", decl: "func (w *T[K]) f() {}",
+			wantName: "T.f", wantRecv: "w", wantRecvType: "T",
+		},
+		{
+			name: "two type parameters", decl: "func (w T[K, V]) f() {}",
+			wantName: "T.f", wantRecv: "w", wantRecvType: "T",
+		},
+		{
+			name: "an unnamed receiver", decl: "func (*T) f() {}",
+			wantName: "T.f", wantRecvType: "T",
+		},
+		{
+			name: "a blank receiver", decl: "func (_ *T) f() {}",
+			wantName: "T.f", wantRecvType: "T",
+		},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			f, err := parser.ParseFile(token.NewFileSet(), "planted.go", "package p\n"+tc.decl+"\n", 0)
+			require.NoError(t, err)
+			fn, isFunc := f.Decls[0].(*ast.FuncDecl)
+			require.True(t, isFunc)
+
+			got := declOf(t, fn)
+			assert.Equal(t, tc.wantName, got.name)
+			assert.Equal(t, tc.wantRecv, got.recv)
+			assert.Equal(t, tc.wantRecvType, got.recvType)
+		})
+	}
+}
+
+// TestReceiverTypeName_RefusesWhatIsNotATypeName covers the guard declOf leans
+// on. go/parser accepts a receiver go/types would reject, so a source file can
+// reach this — and keying such a method as though it had no receiver would put
+// it in the free functions' namespace, where a real free function of that name
+// would then collide with it.
+func TestReceiverTypeName_RefusesWhatIsNotATypeName(t *testing.T) {
+	t.Parallel()
+	f, err := parser.ParseFile(token.NewFileSet(), "planted.go", "package p\nfunc (w map[string]int) f() {}\n", 0)
+	require.NoError(t, err)
+	fn, isFunc := f.Decls[0].(*ast.FuncDecl)
+	require.True(t, isFunc)
+
+	assert.Empty(t, receiverTypeName(fn.Recv.List[0].Type),
+		"a receiver that names no type must be refused, not read as some other name")
+}
+
+// TestLoweringCallGraph_RecordsAMethodEdge holds the graph to the fix for GitHub
+// #224 on the tree rather than on a planted source. anchorWalk's two methods
+// call each other and the walk descends into itself, and a graph built from free
+// functions alone described every one of those edges as absent.
+//
+// It names charge as well, which closes no cycle: an edge the graph cannot see
+// is unheld whether or not it currently changes an answer.
+func TestLoweringCallGraph_RecordsAMethodEdge(t *testing.T) {
+	t.Parallel()
+	graph := loweringCallGraph(t)
+
+	edges := [][2]string{
+		{"anchorWalk.walk", "anchorWalk.walkMapping"},
+		{"anchorWalk.walkMapping", "anchorWalk.walk"},
+		{"anchorWalk.walk", "anchorWalk.walk"},
+		{"anchorWalk.walk", "anchorWalk.charge"},
+	}
+	for _, e := range edges {
+		// Membership is read with a comma-ok rather than require.Contains, which
+		// would print every node in the graph and its edges before the message.
+		_, held := graph[e[0]]
+		require.True(t, held, "the graph no longer holds %q", e[0])
+		assert.True(t, graph[e[0]][e[1]],
+			"%q reaches %q through its receiver; the graph records only free functions again", e[0], e[1])
+	}
 }
 
 // TestLoweringCallGraph_ReadsEveryPackageThatLowers derives the set of packages
