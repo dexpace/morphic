@@ -65,21 +65,40 @@ func EffectiveDeprecated(ref, tgt *oas3.Schema) bool {
 // EffectiveVisibility maps readOnly/writeOnly to a lifecycle visibility set
 // (ir-design §5.2): readOnly is present in every response lifecycle
 // (read/delete/query) and absent only from requests; writeOnly is create+update.
+// It reports separately whether both flags were in force, which no lifecycle
+// satisfies.
 //
-// A single schema declaring both flags keeps readOnly's set, since the switch
-// below takes the first matching case. Spread across two allOf branches the
-// same pairing instead intersects to Visibility{None: true}, the two sets
-// being disjoint — so one schema and two branches answer differently for what
-// a reader would call the same input. That divergence is tracked in #276 and
-// deliberately not settled here.
-func EffectiveVisibility(ref, tgt *oas3.Schema) ir.Visibility {
+// Each flag is resolved on its own, use-site over referent, so a position that
+// writes one of them settles that flag and leaves the other to resolve from the
+// referent — the uniform §14 merge, not a composite annotation one node wins
+// outright.
+//
+// Both in force is contradictory but legal: JSON Schema 2020-12 says readOnly
+// means the value is not writable and writeOnly that it is not readable, and
+// forbids neither beside the other. Read as sets, they leave nothing — the
+// property is admitted by no lifecycle, which Visibility{None: true} states
+// exactly. That is what merge.mergeVisibility already answers when the same
+// pairing is spread over two allOf branches, so the two spellings of one
+// contradiction no longer disagree (GitHub #276). Guarding readOnly first and
+// returning is what made them disagree, and it discarded the second flag with
+// no diagnostic in either channel.
+//
+// The bool rather than a diagnostic: this reader has no provenance of its own,
+// and the caller that has one is the caller that knows which carrier it is
+// filling.
+func EffectiveVisibility(ref, tgt *oas3.Schema) (ir.Visibility, bool) {
+	readOnly := pickFlag(ref, tgt, func(s *oas3.Schema) *bool { return s.ReadOnly })
+	writeOnly := pickFlag(ref, tgt, func(s *oas3.Schema) *bool { return s.WriteOnly })
+
 	switch {
-	case pickFlag(ref, tgt, func(s *oas3.Schema) *bool { return s.ReadOnly }):
-		return ir.Visibility{Only: []ir.Lifecycle{ir.LifecycleRead, ir.LifecycleDelete, ir.LifecycleQuery}}
-	case pickFlag(ref, tgt, func(s *oas3.Schema) *bool { return s.WriteOnly }):
-		return ir.Visibility{Only: []ir.Lifecycle{ir.LifecycleCreate, ir.LifecycleUpdate}}
+	case readOnly && writeOnly:
+		return ir.Visibility{None: true}, true
+	case readOnly:
+		return ir.Visibility{Only: []ir.Lifecycle{ir.LifecycleRead, ir.LifecycleDelete, ir.LifecycleQuery}}, false
+	case writeOnly:
+		return ir.Visibility{Only: []ir.Lifecycle{ir.LifecycleCreate, ir.LifecycleUpdate}}, false
 	default:
-		return ir.Visibility{}
+		return ir.Visibility{}, false
 	}
 }
 

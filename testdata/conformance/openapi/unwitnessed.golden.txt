@@ -236,6 +236,5 @@ VersionedName.Name
 VersionedName.Version
 VersionedType.Type
 VersionedType.Version
-Visibility.None
 WireIDRange.From
 WireIDRange.To

@@ -5,6 +5,7 @@ usage:
 morphic lowers an API spec into Morphic IR.
 
 commands:
-  compile   lower an API spec (OpenAPI 3.x) into Morphic IR JSON
+  compile  lower an API spec (OpenAPI 3.x) into Morphic IR JSON
+  validate check an API spec and report its diagnostics, writing no IR
 
 run "morphic help <command>" for command details.

@@ -12,6 +12,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/dexpace/morphic/compilers/openapi/internal/openapitest"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -308,6 +309,10 @@ func assertDialectKeywords(t *testing.T, doc *ir.Document, diags []ir.Diagnostic
 // declared exactly once on a component schema has one possible target whatever
 // path evaluation took, so it expands; anything else is irreducible and the
 // reference is kept verbatim beside whatever did lower.
+//
+// The escaped spelling is here because the fragment is URI text: RFC 3986 §2.3
+// makes '%2D' and '-' one character, so it must reach the same anchor the plain
+// spelling would (GitHub #233).
 func assertDynamicRef(t *testing.T, doc *ir.Document, diags []ir.Diagnostic) {
 	tree, ok := doc.Types[namedID("Tree")].(*ir.Model)
 	require.True(t, ok)
@@ -319,6 +324,14 @@ func assertDynamicRef(t *testing.T, doc *ir.Document, diags []ir.Diagnostic) {
 	assert.Empty(t, child.Unmodeled, "an expanded reference must not also be preserved")
 	assert.Equal(t, []ir.Severity{ir.SeverityInfo}, diagsAt(diags, "openapi/dynamic-ref-expanded",
 		"/components/schemas/Tree/properties/child/$dynamicRef"))
+
+	escaped, ok := propByWire(tree, "escaped")
+	require.True(t, ok)
+	assert.Equal(t, namedID("Leaf"), escaped.Type.Target,
+		"a percent-encoded fragment names the anchor its decoded spelling names")
+	assert.Empty(t, escaped.Unmodeled, "an expanded reference must not also be preserved")
+	assert.Equal(t, []ir.Severity{ir.SeverityInfo}, diagsAt(diags, "openapi/dynamic-ref-expanded",
+		"/components/schemas/Tree/properties/escaped/$dynamicRef"))
 
 	ghost, ok := propByWire(tree, "ghost")
 	require.True(t, ok)
@@ -340,7 +353,7 @@ func assertDynamicRef(t *testing.T, doc *ir.Document, diags []ir.Diagnostic) {
 func assertInlineResidue(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
 	op, ok := opByName(doc, "getThing")
 	require.True(t, ok)
-	bodyID := op.Responses[0].Payload.Contents[0].Type.Target
+	bodyID := openapitest.BodyTarget(t, op.Responses[0].Payload)
 	body, ok := doc.Types[bodyID]
 	require.True(t, ok, "the response body owns a node")
 	assertResidue(t, body.Common().Unmodeled, map[string]string{
