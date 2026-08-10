@@ -8,6 +8,7 @@ import (
 	"github.com/stretchr/testify/require"
 	yaml "gopkg.in/yaml.v3"
 
+	"github.com/dexpace/morphic/compilers/openapi/internal/openapitest"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -26,7 +27,7 @@ func TestValueFromNode_Scalars(t *testing.T) {
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			got, err := FromNode(yamlNode(t, tc.src))
+			got, err := FromNode(openapitest.YAMLNode(t, tc.src))
 			require.NoError(t, err)
 			if diff := cmp.Diff(tc.want, got); diff != "" {
 				t.Errorf("mismatch (-want +got):\n%s", diff)
@@ -64,7 +65,7 @@ func TestNumericLiteral_YAMLBases(t *testing.T) {
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			got, err := NumericLiteral(yamlNode(t, tc.src))
+			got, err := NumericLiteral(openapitest.YAMLNode(t, tc.src))
 			require.NoError(t, err)
 			assert.Equal(t, tc.want, got)
 		})
@@ -89,7 +90,7 @@ func TestNumericLiteral_ExplicitIntBeyondUint64(t *testing.T) {
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			got, err := NumericLiteral(yamlNode(t, tc.src))
+			got, err := NumericLiteral(openapitest.YAMLNode(t, tc.src))
 			require.NoError(t, err)
 			assert.Equal(t, tc.want, got)
 		})
@@ -111,7 +112,7 @@ func TestNumericLiteral_UndecodableInt(t *testing.T) {
 	for _, src := range []string{"12abc", "077777777777777777777777", "0x1FFFFFFFFFFFFFFFFFFFF", ""} {
 		t.Run(src, func(t *testing.T) {
 			t.Parallel()
-			_, err := NumericLiteral(scalarNode("!!int", src))
+			_, err := NumericLiteral(openapitest.ScalarNode("!!int", src))
 			require.Error(t, err)
 		})
 	}
@@ -119,7 +120,7 @@ func TestNumericLiteral_UndecodableInt(t *testing.T) {
 
 func TestValueFromNode_ObjectPreservesOrder(t *testing.T) {
 	t.Parallel()
-	got, err := FromNode(yamlNode(t, "b: 1\na: 2\n"))
+	got, err := FromNode(openapitest.YAMLNode(t, "b: 1\na: 2\n"))
 	require.NoError(t, err)
 	require.Equal(t, ir.ValueObject, got.Kind)
 	require.Len(t, got.Object, 2)
@@ -136,7 +137,7 @@ func TestValueFromNode_NilYieldsNull(t *testing.T) {
 
 func TestValueFromNode_AliasFollowed(t *testing.T) {
 	t.Parallel()
-	target := scalarNode("!!str", "hi")
+	target := openapitest.ScalarNode("!!str", "hi")
 	alias := &yaml.Node{Kind: yaml.AliasNode, Alias: target}
 	got, err := FromNode(alias)
 	require.NoError(t, err)
@@ -147,7 +148,7 @@ func TestValueFromNode_AliasFollowed(t *testing.T) {
 func TestValueFromNode_Sequence(t *testing.T) {
 	t.Parallel()
 	seq := &yaml.Node{Kind: yaml.SequenceNode, Content: []*yaml.Node{
-		scalarNode("!!int", "1"), scalarNode("!!str", "x"),
+		openapitest.ScalarNode("!!int", "1"), openapitest.ScalarNode("!!str", "x"),
 	}}
 	got, err := FromNode(seq)
 	require.NoError(t, err)
@@ -159,7 +160,7 @@ func TestValueFromNode_Sequence(t *testing.T) {
 
 func TestValueFromNode_Binary(t *testing.T) {
 	t.Parallel()
-	got, err := FromNode(yamlNode(t, "!!binary aGVsbG8="))
+	got, err := FromNode(openapitest.YAMLNode(t, "!!binary aGVsbG8="))
 	require.NoError(t, err)
 	require.Equal(t, ir.ValueBytes, got.Kind)
 	assert.Equal(t, []byte("hello"), got.Bytes)
@@ -174,7 +175,7 @@ func TestValueFromNode_Timestamp(t *testing.T) {
 	for _, src := range cases {
 		t.Run(src, func(t *testing.T) {
 			t.Parallel()
-			node := yamlNode(t, src)
+			node := openapitest.YAMLNode(t, src)
 			require.Equal(t, "!!timestamp", node.Tag, "precondition: this spelling must resolve to !!timestamp")
 			got, err := FromNode(node)
 			require.NoError(t, err)
@@ -190,11 +191,11 @@ func TestValueFromNode_ScalarErrors(t *testing.T) {
 		name string
 		node *yaml.Node
 	}{
-		{"bad bool", scalarNode("!!bool", "notabool")},
-		{"bad int", scalarNode("!!int", "12abc")},
-		{"bad float", scalarNode("!!float", "1.2.3")},
-		{"bad binary", scalarNode("!!binary", "@@@not-base64")},
-		{"unsupported tag", scalarNode("!custom", "2020-01-01")},
+		{"bad bool", openapitest.ScalarNode("!!bool", "notabool")},
+		{"bad int", openapitest.ScalarNode("!!int", "12abc")},
+		{"bad float", openapitest.ScalarNode("!!float", "1.2.3")},
+		{"bad binary", openapitest.ScalarNode("!!binary", "@@@not-base64")},
+		{"unsupported tag", openapitest.ScalarNode("!custom", "2020-01-01")},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -209,7 +210,7 @@ func TestValueFromNode_OverflowNumberIsNumber(t *testing.T) {
 	t.Parallel()
 	// A float64-overflow literal resolves to a plain !!str node; it must be
 	// captured as the number it is, canonicalized, not as a string.
-	got, err := FromNode(scalarNode("!!str", "1.8e308"))
+	got, err := FromNode(openapitest.ScalarNode("!!str", "1.8e308"))
 	require.NoError(t, err)
 	assert.Equal(t, ir.ValueNumber, got.Kind)
 	assert.Equal(t, ir.BigVal("1.8e308"), got.Num)
@@ -218,7 +219,7 @@ func TestValueFromNode_OverflowNumberIsNumber(t *testing.T) {
 func TestValueFromNode_QuotedNumericStaysString(t *testing.T) {
 	t.Parallel()
 	// A quoted numeric string is not plain, so it stays a string.
-	node := scalarNode("!!str", "123")
+	node := openapitest.ScalarNode("!!str", "123")
 	node.Style = yaml.DoubleQuotedStyle
 	got, err := FromNode(node)
 	require.NoError(t, err)
@@ -235,7 +236,7 @@ func TestValueFromNode_UnsupportedNodeKind(t *testing.T) {
 func TestValueFromNode_SequenceChildError(t *testing.T) {
 	t.Parallel()
 	seq := &yaml.Node{Kind: yaml.SequenceNode, Content: []*yaml.Node{
-		scalarNode("!custom", "x"),
+		openapitest.ScalarNode("!custom", "x"),
 	}}
 	_, err := FromNode(seq)
 	require.Error(t, err)
@@ -244,7 +245,7 @@ func TestValueFromNode_SequenceChildError(t *testing.T) {
 func TestValueFromNode_MappingValueError(t *testing.T) {
 	t.Parallel()
 	m := &yaml.Node{Kind: yaml.MappingNode, Content: []*yaml.Node{
-		scalarNode("!!str", "k"), scalarNode("!custom", "x"),
+		openapitest.ScalarNode("!!str", "k"), openapitest.ScalarNode("!custom", "x"),
 	}}
 	_, err := FromNode(m)
 	require.Error(t, err)
@@ -252,29 +253,12 @@ func TestValueFromNode_MappingValueError(t *testing.T) {
 
 func TestValueFromNode_DepthCapExceeded(t *testing.T) {
 	t.Parallel()
-	n := scalarNode("!!int", "1")
+	n := openapitest.ScalarNode("!!int", "1")
 	for range maxValueDepth + 2 {
 		n = &yaml.Node{Kind: yaml.SequenceNode, Content: []*yaml.Node{n}}
 	}
 	_, err := FromNode(n)
 	require.Error(t, err)
-}
-
-// yamlNode parses src and returns its single document's root node. It is a copy
-// of the compiler package's helper rather than a shared one: a test helper that
-// crossed a package boundary would be the first thing to make this package
-// depend on its parent, which is the direction the extraction exists to remove.
-func yamlNode(t *testing.T, src string) *yaml.Node {
-	t.Helper()
-	var doc yaml.Node
-	require.NoError(t, yaml.Unmarshal([]byte(src), &doc))
-	require.Len(t, doc.Content, 1, "expected a single document node")
-	return doc.Content[0]
-}
-
-// scalarNode builds a bare scalar yaml.Node with the given tag and value.
-func scalarNode(tag, val string) *yaml.Node {
-	return &yaml.Node{Kind: yaml.ScalarNode, Tag: tag, Value: val}
 }
 
 // TestNumericLiteral_NonNumericTagReadsAsDecimal covers the tag this package
@@ -301,7 +285,7 @@ func TestNumericLiteral_NonNumericTagReadsAsDecimal(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			got, err := NumericLiteral(scalarNode(tc.tag, tc.val))
+			got, err := NumericLiteral(openapitest.ScalarNode(tc.tag, tc.val))
 			require.NoError(t, err)
 			assert.Equal(t, tc.want, got)
 		})

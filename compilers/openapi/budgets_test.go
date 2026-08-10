@@ -14,6 +14,7 @@ import (
 	"github.com/dexpace/morphic/compilers/compile"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
+	"github.com/dexpace/morphic/compilers/openapi/internal/openapitest"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -75,7 +76,7 @@ func TestCompile_EnumBudgetBindsOnlyPastTheLimit(t *testing.T) {
 			require.NotNil(t, node)
 
 			if !tc.refused {
-				requireNoErrorDiags(t, diags)
+				openapitest.RequireNoErrorDiags(t, diags)
 				enum, ok := node.(*ir.Enum)
 				require.True(t, ok, "an enum inside the budget lowers as an Enum")
 				assert.Len(t, enum.Members, tc.members)
@@ -108,7 +109,7 @@ func TestCompile_SourceByteBudgetBindsOnlyPastTheLimit(t *testing.T) {
 			doc, diags := compileBounded(t, src, Limits{MaxSourceBytes: tc.limit})
 			if !tc.refused {
 				require.NotNil(t, doc)
-				requireNoErrorDiags(t, diags)
+				openapitest.RequireNoErrorDiags(t, diags)
 				return
 			}
 			assert.Nil(t, doc, "an over-budget source is refused before it is parsed")
@@ -142,8 +143,8 @@ func TestCompile_LargeDocumentInsideTheDefaultBudgetsIsLoweredWhole(t *testing.T
 	doc, diags := compileBounded(t, src, Limits{})
 
 	require.NotNil(t, doc)
-	requireNoErrorDiags(t, diags)
-	assert.False(t, hasDiag(diags, diag.BudgetExceeded), "a large but legal document is not refused for its size")
+	openapitest.RequireNoErrorDiags(t, diags)
+	assert.False(t, openapitest.HasDiag(diags, diag.BudgetExceeded), "a large but legal document is not refused for its size")
 	enum, ok := typeByName(doc, "E").(*ir.Enum)
 	require.True(t, ok)
 	assert.Len(t, enum.Members, members, "every declared member reaches the IR")
@@ -156,7 +157,7 @@ func TestCompile_NegativeBudgetIsUnbounded(t *testing.T) {
 		Limits{MaxSourceBytes: -1, MaxSourceNodes: -1, MaxEnumMembers: -1})
 
 	require.NotNil(t, doc)
-	requireNoErrorDiags(t, diags)
+	openapitest.RequireNoErrorDiags(t, diags)
 	enum, ok := typeByName(doc, "E").(*ir.Enum)
 	require.True(t, ok, "a caller who turned the budgets off gets the pre-budget lowering")
 	assert.Len(t, enum.Members, members)

@@ -9,6 +9,7 @@ import (
 
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
+	"github.com/dexpace/morphic/compilers/openapi/internal/openapitest"
 	"github.com/dexpace/morphic/compilers/openapi/internal/schema"
 	"github.com/dexpace/morphic/ir"
 )
@@ -45,7 +46,7 @@ components:
 			node := typeByName(l.out, "E")
 			require.NotNil(t, node)
 			if !tc.refused {
-				requireNoErrorDiags(t, diags)
+				openapitest.RequireNoErrorDiags(t, diags)
 				enum, ok := node.(*ir.Enum)
 				require.True(t, ok)
 				assert.Len(t, enum.Members, 3)
@@ -58,6 +59,14 @@ components:
 			assert.Equal(t, ir.SeverityError, diags[0].Severity)
 			assert.Equal(t, "/components/schemas/E", diags[0].Provenance.Pointer,
 				"the refusal points at the enum, not at the document")
+			// The budget bounds what the IR holds, so the members must not come
+			// back as bytes. The unhomed-keyword census preserves verbatim
+			// whatever the node it built has no field for, and ir.Any has a field
+			// for nothing — so without keywordHome counting Any a home for `enum`,
+			// refusing the members here put every one of them straight back under
+			// Unmodeled, leaving only the per-member amplification bounded.
+			assert.Empty(t, node.Common().Unmodeled,
+				"a refused enum is not preserved verbatim: that is the cost the budget exists to refuse")
 		})
 	}
 }

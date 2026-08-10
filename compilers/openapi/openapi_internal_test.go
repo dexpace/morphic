@@ -12,21 +12,22 @@ import (
 	"github.com/dexpace/morphic/compilers/compile"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
+	"github.com/dexpace/morphic/compilers/openapi/internal/openapitest"
 )
 
 func TestParse_UnsupportedVersion(t *testing.T) {
 	t.Parallel()
 	spec := "openapi: 2.0.0\ninfo: {title: T, version: \"1\"}\npaths: {}\n"
-	doc, diags, err := New().Compile(context.Background(), []compilers.Source{sourceOf(spec)}, compilers.Options{})
+	doc, diags, err := New().Compile(context.Background(), []compilers.Source{openapitest.SourceOf(spec)}, compilers.Options{})
 	require.NoError(t, err)
 	assert.Nil(t, doc, "unsupported version refuses to lower")
-	assert.True(t, hasDiag(diags, diag.UnsupportedVersion))
+	assert.True(t, openapitest.HasDiag(diags, diag.UnsupportedVersion))
 }
 
 func TestParse_UnmarshalError(t *testing.T) {
 	t.Parallel()
 	_, _, err := New().Compile(context.Background(),
-		[]compilers.Source{sourceOf("\t\t: : : not valid : yaml\n\x00")}, compilers.Options{})
+		[]compilers.Source{openapitest.SourceOf("\t\t: : : not valid : yaml\n\x00")}, compilers.Options{})
 	require.Error(t, err)
 }
 

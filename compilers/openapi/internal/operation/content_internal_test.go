@@ -9,6 +9,7 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
+	"github.com/dexpace/morphic/compilers/openapi/internal/openapitest"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -102,8 +103,9 @@ func TestFillSequential_EmptyItemEncoding(t *testing.T) {
 func TestEncodingConfig_NilEncoding(t *testing.T) {
 	t.Parallel()
 	l := newRawLowerer(&soa.OpenAPI{})
-	pe, diags := encodingConfig(l.ctx, l.types, &l.anchors, nil, "/mp")
+	pe, unmodeled, diags := encodingConfig(l.ctx, l.types, &l.anchors, nil, "/mp", "itemEncoding")
 	assert.Equal(t, ir.PartEncoding{}, pe)
+	assert.Nil(t, unmodeled)
 	assert.Empty(t, diags)
 }
 
@@ -120,8 +122,8 @@ func TestPositionalEncoding_WithoutRootNode(t *testing.T) {
 	diags := fillSequential(l.ctx, l.types, &l.anchors, content, media, "/mp", "h")
 	assert.Nil(t, content.ItemEncoding, "prefixes still block the every-item lowering")
 	assert.Nil(t, content.Unmodeled, "a media type with no source node has nothing verbatim to keep")
-	assertHasCode(t, diags, diag.UnpreservableConstruct, ir.SeverityError)
-	assert.False(t, countDiagsAt(diags, diag.DegradedConstruct, ir.SeverityInfo) > 0,
+	openapitest.AssertHasCode(t, diags, diag.UnpreservableConstruct, ir.SeverityError)
+	assert.False(t, openapitest.CountDiagsAt(diags, diag.DegradedConstruct, ir.SeverityInfo) > 0,
 		"nothing was kept, so nothing announces that it was")
 }
 

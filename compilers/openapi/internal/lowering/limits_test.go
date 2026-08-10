@@ -6,6 +6,7 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
+	"github.com/dexpace/morphic/compilers/openapi/internal/openapitest"
 	"github.com/dexpace/morphic/compilers/openapi/internal/overlay"
 	"github.com/dexpace/morphic/ir"
 )
@@ -37,7 +38,7 @@ func TestNew_CarriesTheLimits(t *testing.T) {
 	t.Parallel()
 	limits := lowering.Limits{MaxEnumMembers: 12}
 
-	c := lowering.New(0, docDeclaring(), ir.SourceInfo{}, lowering.GroupByTags, limits, overlay.Origin{})
+	c := lowering.New(0, openapitest.DocDeclaring(), ir.SourceInfo{}, lowering.GroupByTags, limits, overlay.Origin{})
 
 	assert.Equal(t, limits, c.Limits)
 }

@@ -10,6 +10,7 @@ import (
 	"github.com/dexpace/morphic/compilers/compile"
 	"github.com/dexpace/morphic/compilers/openapi/internal/load"
 	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
+	"github.com/dexpace/morphic/compilers/openapi/internal/openapitest"
 	"github.com/dexpace/morphic/compilers/openapi/internal/operation"
 	"github.com/dexpace/morphic/compilers/openapi/internal/overlay"
 	"github.com/dexpace/morphic/compilers/openapi/internal/schema"
@@ -30,7 +31,7 @@ webhooks:
   petCreated:
     post: {operationId: petCreated, responses: {"200": {description: ok}}}
 `
-	loadedDoc, _, err := load.Load(t.Context(), 0, sourceOf(spec), load.Options{})
+	loadedDoc, _, err := load.Load(t.Context(), 0, openapitest.SourceOf(spec), load.Options{})
 	require.NoError(t, err)
 	require.NotNil(t, loadedDoc)
 	c := lowering.New(0, loadedDoc.Doc, loadedDoc.Source, lowering.GroupByTags,

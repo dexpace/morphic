@@ -21,6 +21,25 @@ package ir
 // recognizes and drops every unmodeled construct in silence.
 const IRVersion = "0.3.0"
 
+// CompatibleVersion reports whether a document stamped version can be read by
+// this build. It is the predicate behind the compatibility policy in
+// ir-design §2.1, and what a consumer holding a decoded document asks before
+// interpreting any other field in it.
+//
+// The comparison is exact. Every bump this constant has taken changed the JSON
+// shape, so there is no looser relation to admit: a differing patch, a
+// prerelease suffix, and a value that is not a version at all are equally
+// unreadable. Accepting a neighbouring version would mean claiming to know what
+// changed between the two, which is the knowledge a version exists because
+// nobody has.
+//
+// An empty version is incompatible too, but a caller that can act on the
+// difference should test for it separately: absence is a producer that never
+// stamped the document, while an unrecognized stamp is a fault in the pairing.
+func CompatibleVersion(version string) bool {
+	return version == IRVersion
+}
+
 // TypeRegistry is the flat, ID-keyed owner of every TypeDef in a Document
 // (ir-design §2, §4); every other node references types by TypeID. JSON
 // (un)marshaling of the sealed sum is defined with the rest of the sum-type
