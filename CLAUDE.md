@@ -150,7 +150,11 @@ These all exist already — extend them rather than building a parallel mechanis
   Corpus under `testdata/golden/`.
 - **Capability conformance corpus** (`testdata/conformance/`): one minimal spec per
   `ir-spec-matrix.md` row per format that can express it, asserting lossless capture. This is what
-  keeps "lossless by default" honest.
+  keeps "lossless by default" honest. The row↔spec mapping is machine-read, not prose: matrix rows
+  carry stable keys, each case names the keys it witnesses, and
+  `compilers/openapi/conformance_matrix_test.go` requires every expressible row to be witnessed or
+  listed with a reason. What it cannot check is whether a spec that *names* a row exercises that
+  capability — that claim is read by a reviewer, so weigh it like any other.
 - **Oracles**: `internal/harness` drives a spec through no-panic → no error diagnostic →
   `irverify` invariants → JSON round-trip → determinism → order-invariance, stopping at the first
   one that fires. `harness.Check` is the list — read it there rather than trusting this sentence;

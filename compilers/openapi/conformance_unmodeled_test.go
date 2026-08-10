@@ -12,6 +12,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/dexpace/morphic/compilers/openapi/internal/openapitest"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -352,7 +353,7 @@ func assertDynamicRef(t *testing.T, doc *ir.Document, diags []ir.Diagnostic) {
 func assertInlineResidue(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
 	op, ok := opByName(doc, "getThing")
 	require.True(t, ok)
-	bodyID := op.Responses[0].Payload.Contents[0].Type.Target
+	bodyID := openapitest.BodyTarget(t, op.Responses[0].Payload)
 	body, ok := doc.Types[bodyID]
 	require.True(t, ok, "the response body owns a node")
 	assertResidue(t, body.Common().Unmodeled, map[string]string{
