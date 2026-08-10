@@ -204,7 +204,9 @@ func internAlias(c lowering.Ctx, ts *compile.Types, pointer, hint string,
 // leading $ref.
 func schemaBody(c lowering.Ctx, ts *compile.Types, anchors *AnchorIndex, depth int, schema *oas3.Schema, pointer, hint string, home annotation.Home) (ir.TypeRef, []ir.Diagnostic) {
 	target, diags := lowerSchemaBody(c, ts, anchors, depth, schema, pointer, hint)
-	ref, homeDiags := homeDeclaration(c, ts, anchors, schema, target, pointer, hint, home)
+	// No census verdict: a body's census ran inside lower(), against the node the
+	// walk actually built, which is the only thing that can answer it.
+	ref, homeDiags := homeDeclaration(c, ts, anchors, schema, target, pointer, hint, home, false)
 	return ref, append(diags, homeDiags...)
 }
 
@@ -230,8 +232,16 @@ func schemaBody(c lowering.Ctx, ts *compile.Types, anchors *AnchorIndex, depth i
 // declaration-order dependence ir-design §4.3 rules out. The lookup stays
 // behind the gate above so a position that declares nothing keeps resolving
 // straight to its target however many references hoisted an alias over it.
-func hoistDeclarationHome(c lowering.Ctx, ts *compile.Types, s *oas3.Schema, ref ir.TypeRef, pointer, hint string, home annotation.Home) (ir.TypeRef, []ir.Diagnostic) {
-	if home != annotation.HomeOwnNode || s == nil || !declaresPositionScoped(s) {
+// unhomed is the caller's census verdict: a $ref site's keywords bind the
+// position exactly as an annotation does, but declaresPositionScoped cannot say
+// so, because the same keywords written on a *body* are the shape it lowers to
+// rather than something the position needs a node for. Only the caller knows
+// which of the two it is holding.
+func hoistDeclarationHome(c lowering.Ctx, ts *compile.Types, s *oas3.Schema, ref ir.TypeRef, pointer, hint string, home annotation.Home, unhomed bool) (ir.TypeRef, []ir.Diagnostic) {
+	if home != annotation.HomeOwnNode || s == nil {
+		return ref, nil
+	}
+	if !unhomed && !declaresPositionScoped(s) {
 		return ref, nil
 	}
 	if id, owned := ts.Lookup(pointer); owned {
@@ -273,25 +283,41 @@ func declaresAnnotations(s *oas3.Schema) bool {
 	return s.GetExample() != nil || len(s.GetExamples()) > 0
 }
 
+// valueConstraintKeywords are the keywords annotation.Constraints reads into an
+// ir.Constraints, sorted — which is both the order declaredConstraints walks
+// them in and what makes the list comparable to the reader it must keep pace
+// with.
+//
+// One list, read by the predicate that hoists a node for them
+// (declaresValueConstraints) and by the recorder that keeps the ones no node can
+// hold (declaredConstraints), so the two can never disagree about what a schema
+// wrote. Collection bounds are absent because they are List-owned and read by
+// listConstraints, not here.
+var valueConstraintKeywords = []string{
+	"exclusiveMaximum", "exclusiveMinimum", "maxLength", "maxProperties",
+	"maximum", "minLength", "minProperties", "minimum", "multipleOf", "pattern",
+}
+
 // declaresValueConstraints reports whether s sets any keyword
 // annotation.Constraints reads. It does not call it: that reports a malformed
-// bound, and a predicate must not emit diagnostics. The three numeric bounds
-// are detected on their raw nodes for the same reason numericBounds reads them
-// there — a magnitude beyond float64 leaves the model field nil while the
-// keyword is plainly written.
+// bound, and a predicate must not emit diagnostics. The keywords are detected on
+// their raw nodes for the same reason numericBounds reads them there — a
+// magnitude beyond float64 leaves the model field nil while the keyword is
+// plainly written.
 func declaresValueConstraints(s *oas3.Schema) bool {
-	for _, keyword := range []string{"minimum", "maximum", "multipleOf"} {
+	return annotation.DeclaresAny(s, valueConstraintKeywords)
+}
+
+// declaredConstraints returns the value-constraint keywords s writes, in
+// valueConstraintKeywords order.
+func declaredConstraints(s *oas3.Schema) []string {
+	out := make([]string, 0, len(valueConstraintKeywords))
+	for _, keyword := range valueConstraintKeywords {
 		if annotation.RawPropertyNode(s, keyword) != nil {
-			return true
+			out = append(out, keyword)
 		}
 	}
-	if s.GetExclusiveMinimum() != nil || s.GetExclusiveMaximum() != nil {
-		return true
-	}
-	if s.MinLength != nil || s.MaxLength != nil || s.GetPattern() != "" {
-		return true
-	}
-	return s.MinProperties != nil || s.MaxProperties != nil
+	return out
 }
 
 // declaresValidationOnly reports whether s writes a §4.7 validation-only
@@ -525,11 +551,11 @@ func dispatchOf(s *oas3.Schema) dispatch {
 // passed over are kept verbatim beside it (recordSkippedFamilies), never
 // dropped.
 //
-// What that does not cover is a keyword the *elected* lowering never reads —
-// `type: string` beside an allOf, `format` beside a const. Deciding those needs a
-// per-winner rule rather than a keyword list, since `allOf` beside `type: object`
-// is the common case and loses nothing, so it is left open at GitHub #268 rather
-// than settled here.
+// A keyword the *elected* lowering never reads — `type: string` beside an allOf,
+// `format` beside a const — rides the same path through preserveUnhomedKeywords,
+// which asks the node that was built whether it has a field for it rather than
+// consulting a list of keywords worth keeping. `allOf` beside `type: object` is
+// the common case and loses nothing, and a Model answers that for itself.
 func lower(c lowering.Ctx, ts *compile.Types, anchors *AnchorIndex, depth int, s *oas3.Schema, pointer, hint string) (ir.TypeID, []ir.Diagnostic) {
 	d := dispatchOf(s)
 	unhomed := func(id ir.TypeID, diags []ir.Diagnostic) (ir.TypeID, []ir.Diagnostic) {
@@ -561,68 +587,187 @@ func lower(c lowering.Ctx, ts *compile.Types, anchors *AnchorIndex, depth int, s
 	}
 }
 
-// shapeApplicators are the JSON Schema applicator keywords that constrain
-// instance shape. Each has exactly one IR home: a Model's property set, openness
-// and pattern bindings, or a List's element and a Tuple's positions.
+// censusKeywords are the JSON Schema keywords whose IR home depends on what the
+// position lowered to rather than being fixed: a Model carries a property set, a
+// List an element type and the collection bounds, a Literal a value, an Enum a
+// member set, and each of them carries none of the others. Which of these a
+// position kept is therefore a question only the node that was built can answer,
+// and keywordHome answers it.
 //
-// Everything else a schema can write is captured elsewhere — annotations by
-// attachDeclaredAnnotations, bounds by schemaConstraints, the §4.7
-// validation-only family by preserveKeyword, the content vocabulary by
-// recordUnplacedContent, use-site keywords by recordResidue. The keywords listed
-// here had no such recorder, so a position writing one that its lowering could
-// not consume dropped it in silence.
-var shapeApplicators = []string{
-	"properties", "patternProperties", "additionalProperties", "required",
-	"items", "prefixItems",
+// The rest of what a schema can write is captured where it is written —
+// annotations by attachDeclaredAnnotations, the §4.7 validation-only family by
+// preserveKeyword, the content vocabulary by recordUnplacedContent, use-site
+// keywords by recordResidue, and value constraints wherever the node has a
+// Constraints field, kept by declaredConstraints where it has none.
+//
+// That division is a claim about this compiler rather than a proof of itself,
+// and the collection bounds are what got past it: minItems beside an object, or
+// beside the prefixItems that hoists a Tuple with no Constraints field, reached
+// the IR in no form at all until they joined the list below.
+//
+// The list and keywordHome's switch name the same set. A keyword listed here
+// with no arm there is reported homeless at every position and preserved beside
+// every node it is written on, which is noisy but never lossy; a keyword in
+// neither is dropped in silence, which is what GitHub #268 and #283 were.
+var censusKeywords = []string{
+	"additionalProperties", "const", "enum", "format", "items", "maxItems",
+	"minItems", "patternProperties", "prefixItems", "properties", "required",
+	"type", "uniqueItems",
 }
 
-// applicatorHome reports whether the node a position lowered to has a field that
-// carries the named applicator. It asks the node rather than re-deriving lower()'s
-// dispatch, so the two cannot drift apart (the rule recordUnplacedContent states).
-func applicatorHome(td ir.TypeDef, keyword string) bool {
-	switch td.(type) {
-	case *ir.Model:
-		switch keyword {
-		case "properties", "patternProperties", "additionalProperties", "required":
-			return true
-		default:
-			return false
-		}
-	case *ir.List, *ir.Tuple:
-		return keyword == "items" || keyword == "prefixItems"
+// keywordHome reports whether td — the node this position's own declaration
+// lowered to — has the field the named keyword lowers into. It asks the node
+// rather than re-deriving lower()'s dispatch, so the two cannot drift apart (the
+// rule recordUnplacedContent states).
+//
+// A nil td is a position that lowered to no node of its own: a $ref site, whose
+// declaration becomes an alias over the target. That alias carries the position's
+// constraints and annotations and nothing else, and the *target's* fields belong
+// to the referent's declaration rather than to this one — a `format` beside a
+// $ref must not read the referent's Encoding as its own home — so every keyword
+// here is homeless at a $ref site.
+func keywordHome(td ir.TypeDef, s *oas3.Schema, keyword string) bool {
+	switch keyword {
+	case "properties", "patternProperties", "additionalProperties", "required":
+		return isKind(td, ir.KindModel)
+	case "items", "prefixItems":
+		return isKind(td, ir.KindList) || isKind(td, ir.KindTuple)
+	case "maxItems", "minItems", "uniqueItems":
+		// Only a List. listConstraints is their sole reader and lowerArray its
+		// sole caller, while ir.Tuple has no Constraints field at all — so a
+		// collection bound beside prefixItems reaches as little as one written on
+		// an object does. Being List-owned is also why valueConstraintKeywords
+		// leaves them out, which is what puts them in this census rather than in
+		// declaredConstraints.
+		return isKind(td, ir.KindList)
+	case "const":
+		// Any counts as well as Literal. hoistLiteral degrades a value ir.Value
+		// cannot represent to the top type and reports it, so the const was read
+		// — badly, and already announced — rather than left unread. Claiming it
+		// here would report one keyword twice, the second time as an error, since
+		// a value no converter can read is one no preserver can read either.
+		return isKind(td, ir.KindLiteral) || isKind(td, ir.KindAny)
+	case "enum":
+		return isKind(td, ir.KindEnum) || isKind(td, ir.KindUnion)
+	case "format":
+		return formatHome(td, s)
+	case "type":
+		return typeHome(td, s)
 	default:
-		// An Enum, Literal, Scalar, Primitive or Union carries no property set
-		// and no element type, so every applicator written beside one is homeless.
 		return false
 	}
 }
 
-// unhomedKeywords returns the keywords s declares that nothing reading this
-// position can carry, in the order shapeApplicators lists them, with `format`
-// last. It reads the raw nodes for the reason declaresValueConstraints does: a
-// keyword the model layer failed to parse is still plainly written.
+// isKind reports whether td is a live node of kind k. A nil td — the $ref site's
+// alias, which is no node of the walk's making — is of no kind at all.
+func isKind(td ir.TypeDef, k ir.TypeKind) bool {
+	return !ir.IsNilTypeDef(td) && td.Kind() == k
+}
+
+// formatHome reports whether the position's `format` reached a field. A Scalar
+// hoisted for it carries it in Encoding; a (type, format) pairing formatTable
+// knows selects a primitive, which carries the pairing in the primitive kind
+// itself. With no type declared there was no pairing to make and nothing read it,
+// and a node of any other kind has no Encoding field at all.
+func formatHome(td ir.TypeDef, s *oas3.Schema) bool {
+	switch n := td.(type) {
+	case *ir.Scalar:
+		return n.Encoding != nil
+	case *ir.Primitive:
+		return len(effectiveTypes(s)) > 0
+	default:
+		return false
+	}
+}
+
+// typeHome reports whether every shape s's declared type set names is a shape td
+// can be. One that td cannot be was read by nothing: the walk built a different
+// shape, so `type: string` beside an allOf that composed a Model states something
+// the IR no longer holds.
 //
-// `format` is homed by a declared type, not by a node kind: scalarTypeID pairs
-// the two to select a primitive or hoist a Scalar carrying the encoding. Written
-// with no type beside it, nothing reads it at all — which is the one case that
-// can be decided here without asking how the pairing turned out.
-func unhomedKeywords(s *oas3.Schema, td ir.TypeDef) []string {
-	var out []string
-	for _, keyword := range shapeApplicators {
-		if annotation.RawPropertyNode(s, keyword) == nil || applicatorHome(td, keyword) {
+// A type set that reduces to nothing — `type: "null"` on its own — is carried by
+// TypeRef.Nullable rather than by a node, so it is homed wherever it is written.
+func typeHome(td ir.TypeDef, s *oas3.Schema) bool {
+	for _, st := range effectiveTypes(s) {
+		if !typeShapedBy(td, st) {
+			return false
+		}
+	}
+	return true
+}
+
+// typeShapedBy reports whether td is a node kind that carries the shape st names.
+//
+// An Enum carries a scalar type in ValueType, which enumValueType fills from
+// exactly that type set. A Literal carries only its value, so a `type` written
+// beside a const reached no field at all — including the case where the two
+// agree, since the IR then holds the value and nothing about what was declared
+// about it. Any, External and the $ref site's nil carry no shape.
+func typeShapedBy(td ir.TypeDef, st oas3.SchemaType) bool {
+	switch td.(type) {
+	case *ir.Model:
+		return st == oas3.SchemaTypeObject
+	case *ir.List, *ir.Tuple:
+		return st == oas3.SchemaTypeArray
+	case *ir.Primitive, *ir.Scalar, *ir.Enum:
+		return st != oas3.SchemaTypeObject && st != oas3.SchemaTypeArray
+	default:
+		return false
+	}
+}
+
+// constraintsHome reports whether the value constraints a position declared
+// reached td's Constraints field. A position that owns its node hoists no alias
+// over it (hoistDeclarationHome returns the node already at the pointer), so
+// anything that missed the field here reaches no field anywhere.
+//
+// Having the field is not reading it, so the two node kinds that have one ask
+// whether it was filled: a Model lowerAllOf composed carries no constraints at
+// all, where one lowerModel built carries whatever schemaConstraints read. A
+// List is absent for the stronger reason — lowerArray fills its Constraints from
+// listConstraints, whose collection bounds valueConstraintKeywords deliberately
+// excludes, so no value constraint ever reaches it however full the field looks.
+func constraintsHome(td ir.TypeDef) bool {
+	switch n := td.(type) {
+	case *ir.Scalar:
+		return n.Constraints != nil
+	case *ir.Model:
+		return n.Constraints != nil
+	default:
+		// An Enum, Literal, Union, Tuple or Primitive has no Constraints field at
+		// all, so a bound written beside one was read by nothing.
+		return false
+	}
+}
+
+// unhomedKeywords returns the census keywords s declares that td has nowhere to
+// carry, in censusKeywords order. It reads the raw nodes for the reason
+// declaresValueConstraints does: a keyword the model layer failed to parse is
+// still plainly written.
+//
+// handled names the keywords another reader at this position already accounts
+// for, which are homeless by this test but are not this census's to keep: the
+// families lower()'s election passed over go to recordSkippedFamilies, which says
+// why they lost an election — a fact this census does not know — and an allOf
+// branch's `required` is consumed by applyCompositionRequired. Recording them
+// here too would report one keyword twice under two messages.
+func unhomedKeywords(s *oas3.Schema, td ir.TypeDef, handled []string) []string {
+	out := make([]string, 0, len(censusKeywords))
+	for _, keyword := range censusKeywords {
+		if annotation.RawPropertyNode(s, keyword) == nil || keywordHome(td, s, keyword) {
+			continue
+		}
+		if slices.Contains(handled, keyword) {
 			continue
 		}
 		out = append(out, keyword)
 	}
-	if len(effectiveTypes(s)) == 0 && annotation.RawPropertyNode(s, "format") != nil {
-		out = append(out, "format")
-	}
 	return out
 }
 
-// preserveUnhomedKeywords keeps verbatim the shape applicators a position
-// declared that the node it lowered to has nowhere to carry, and returns the ID
-// the position resolves to afterwards.
+// preserveUnhomedKeywords keeps verbatim the census keywords and value
+// constraints a position declared that the node it lowered to has nowhere to
+// carry, and returns the ID the position resolves to afterwards.
 //
 // Two losses share this shape. A contradictory schema — `{type: string, enum:
 // [a, b], properties: {f: ...}}` — cannot be both a two-member string enum and an
@@ -648,7 +793,10 @@ func unhomedKeywords(s *oas3.Schema, td ir.TypeDef) []string {
 // A lowering that reduced to a shared node gets an alias of its own first: a
 // shared primitive must never carry one declaration's keywords. The alias takes
 // the position's constraints too, because owning the pointer is what stops
-// hoistDeclarationHome attaching them afterwards.
+// hoistDeclarationHome attaching them afterwards — and by the same token, a
+// position whose lowering already owns the pointer gets no alias at all, so a
+// bound written beside a node with no Constraints field (an Enum, a Literal) is
+// kept verbatim here rather than reaching a field that does not exist.
 //
 // The families lower()'s election passed over ride the same path: they too were
 // declared here, they too have no home on the node the election produced, and
@@ -658,18 +806,24 @@ func preserveUnhomedKeywords(c lowering.Ctx, ts *compile.Types, s *oas3.Schema, 
 	if !ok {
 		return id, diags
 	}
-	unhomed := unhomedKeywords(s, td)
+	owns, _ := ts.Lookup(pointer)
+	unhomed := unhomedKeywords(s, td, d.skipped)
+	if owns == id && !constraintsHome(td) {
+		// No alias will be hoisted over a node the position already owns, so the
+		// bounds it wrote reach no Constraints field anywhere.
+		unhomed = append(unhomed, declaredConstraints(s)...)
+	}
 	if len(unhomed) == 0 && len(d.skipped) == 0 {
 		return id, diags
 	}
 	owner := id
-	if got, _ := ts.Lookup(pointer); got != id {
+	if owns != id {
 		var kept ir.Unmodeled
 		cons, consDiags := schemaConstraints(c, &kept, s, pointer)
 		diags = append(diags, consDiags...)
 		owner = internAlias(c, ts, pointer, hint, ir.TypeRef{Target: id}, cons, kept)
 	}
-	diags = append(diags, recordUnhomedKeywords(c, ts, owner, s, unhomed, td.Kind(), pointer)...)
+	diags = append(diags, recordUnhomedKeywords(c, ts, owner, s, unhomed, nodeShape(td.Kind()), pointer)...)
 	return owner, append(diags, recordSkippedFamilies(c, ts, owner, s, d, pointer)...)
 }
 
@@ -716,20 +870,37 @@ func recordSkippedFamilies(c lowering.Ctx, ts *compile.Types, owner ir.TypeID, s
 		skipped, d.won, d.won, skipped))
 }
 
-// recordUnhomedKeywords stores each unhomed applicator on the owning node and
-// reports them once, naming the form the lowering took so a reader is told which
-// half of a contradictory schema the IR describes.
-func recordUnhomedKeywords(c lowering.Ctx, ts *compile.Types, owner ir.TypeID, s *oas3.Schema, unhomed []string, kind ir.TypeKind, pointer string) []ir.Diagnostic {
+// refSiteShape describes what a $ref position's own declaration lowers to, for
+// the diagnostic recordUnhomedAt reports.
+const refSiteShape = "an alias over its $ref target"
+
+// nodeShape describes a node of kind k, for that same diagnostic.
+func nodeShape(kind ir.TypeKind) string { return fmt.Sprintf("a node of kind %q", kind) }
+
+// recordUnhomedKeywords stores each unhomed keyword on the node owner names.
+// shape describes what the position lowered to, so a reader is told which half
+// of a contradictory schema the IR describes.
+func recordUnhomedKeywords(c lowering.Ctx, ts *compile.Types, owner ir.TypeID, s *oas3.Schema, unhomed []string, shape, pointer string) []ir.Diagnostic {
+	if len(unhomed) == 0 {
+		return nil
+	}
 	td, ok, diags := registeredNode(c, ts, owner, pointer)
 	if !ok {
 		return diags
 	}
-	common := td.Common()
-	// Only the keywords actually written are named, so the message cannot claim
-	// one that failed to convert and was reported unpreservable instead.
+	return append(diags, recordUnhomedAt(c, &td.Common().Unmodeled, s, unhomed, shape, pointer)...)
+}
+
+// recordUnhomedAt keeps each unhomed keyword verbatim in p and reports them once.
+//
+// It names the keywords it actually stored, never the ones it was handed, so the
+// message cannot claim one that failed to convert and was reported unpreservable
+// instead (GitHub #144).
+func recordUnhomedAt(c lowering.Ctx, p *ir.Unmodeled, s *oas3.Schema, unhomed []string, shape, pointer string) []ir.Diagnostic {
+	var diags []ir.Diagnostic
 	kept := make([]string, 0, len(unhomed))
 	for _, keyword := range unhomed {
-		ok, keptDiags := PreserveSchemaKeyword(c, &common.Unmodeled, s, keyword,
+		ok, keptDiags := PreserveSchemaKeyword(c, p, s, keyword,
 			ir.ReasonDegradedLowering, pointer+ids.Ptr(keyword))
 		diags = append(diags, keptDiags...)
 		if ok {
@@ -740,8 +911,8 @@ func recordUnhomedKeywords(c lowering.Ctx, ts *compile.Types, owner ir.TypeID, s
 		return diags
 	}
 	return append(diags, c.DiagAt(ir.SeverityInfo, diag.DegradedConstruct, pointer,
-		"this position lowered to a node of kind %q, which has no home for %s declared beside it; kept verbatim under Unmodeled",
-		kind, strings.Join(kept, ", ")))
+		"this position lowered to %s, which has no home for %s declared beside it; kept verbatim under Unmodeled",
+		shape, strings.Join(kept, ", ")))
 }
 
 // lowerTyped dispatches a single-typed schema to its structural or scalar form.
@@ -870,7 +1041,8 @@ func FillPropertyDetail(c lowering.Ctx, ts *compile.Types, anchors *AnchorIndex,
 	}
 	diags = append(diags, fillPropertyVisibility(c, p, ref, tgt, pointer)...)
 	diags = append(diags, fillPropertyConstraints(c, p, ref, pointer)...)
-	return append(diags, fillPropertyAnnotations(c, ts, anchors, p, ref, tgt, pointer)...)
+	diags = append(diags, fillPropertyAnnotations(c, ts, anchors, p, ref, tgt, pointer)...)
+	return append(diags, PreserveRefSiteKeywords(c, ts, &p.Unmodeled, js, p.Type, pointer)...)
 }
 
 // fillPropertyVisibility lowers readOnly/writeOnly onto the property and reports

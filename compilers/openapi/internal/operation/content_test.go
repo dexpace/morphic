@@ -1592,3 +1592,25 @@ func TestExample_ExternalValueOnlyIsCarried(t *testing.T) {
 	assert.Equal(t, "https://e.example/one.json", examples[0].ExternalURL)
 	assert.Nil(t, examples[0].Value, "and carries no inline value")
 }
+
+// TestHeaders_RefSiteKeywordsAreKeptOnTheHeader covers the header position of
+// the $ref-sibling census (GitHub #283). A header carries its schema's
+// declaration the way a model property does, so the keywords an alias over the
+// $ref target cannot hold are kept on the header itself.
+func TestHeaders_RefSiteKeywordsAreKeptOnTheHeader(t *testing.T) {
+	t.Parallel()
+	spec := "openapi: 3.1.0\ninfo: {title: T, version: \"1\"}\n" +
+		"paths:\n  /x:\n    get:\n      operationId: g\n      responses:\n" +
+		"        \"200\":\n          description: ok\n          headers:\n" +
+		"            X-H: {schema: {$ref: '#/components/schemas/Base', enum: [a, b]}}\n" +
+		"components:\n  schemas:\n    Base: {type: string}\n"
+	_, svc, diags := lowerServiceSpec(t, spec)
+	openapitest.RequireNoErrorDiags(t, diags)
+
+	h := headerAt(t, openapitest.FirstOp(t, svc))
+	entry, ok := h.Unmodeled["openapi:enum"]
+	require.True(t, ok, "an alias over the target has no member set, so the enum is kept")
+	assert.Equal(t, ir.ReasonDegradedLowering, entry.Reason)
+	assert.JSONEq(t, `["a","b"]`, string(entry.Value))
+	openapitest.AssertInfoDiagAt(t, diags, "/paths/~1x/get/responses/200/headers/X-H/schema")
+}

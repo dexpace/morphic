@@ -145,7 +145,11 @@ func fillParamSchema(c lowering.Ctx, ts *compile.Types, param *ir.Parameter, js 
 	if cons != nil {
 		param.Constraints = cons
 	}
-	return append(diags, fillParamSchemaAnnotations(c, ts, param, s, tgt, pointer)...)
+	diags = append(diags, fillParamSchemaAnnotations(c, ts, param, s, tgt, pointer)...)
+	// A parameter is the third annotation.HomeCarrier, so the keywords beside a
+	// $ref that the alias it resolves to cannot hold are kept here, exactly as a
+	// property and a header keep them (schema.FillPropertyDetail).
+	return append(diags, schema.PreserveRefSiteKeywords(c, ts, &param.Unmodeled, js, param.Type, pointer)...)
 }
 
 // fillParamDefault sets the parameter default, preferring the use-site node

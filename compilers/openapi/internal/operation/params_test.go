@@ -694,6 +694,41 @@ func TestParams_ReservedHeaderNamesAreReported(t *testing.T) {
 	}
 }
 
+// TestParams_RefSiteKeywordsAreKeptOnTheParameter covers the third
+// annotation.HomeCarrier position of the $ref-sibling census (GitHub #283).
+//
+// A parameter whose schema is a $ref resolves straight to the target, so the
+// keywords written beside that $ref have no node of their own and no field on
+// ir.Parameter either — exactly the shape a property and a header are in, and
+// they are kept the same way: verbatim on the carrier, announced at the schema
+// position that wrote them.
+func TestParams_RefSiteKeywordsAreKeptOnTheParameter(t *testing.T) {
+	t.Parallel()
+	spec := "openapi: 3.1.0\ninfo: {title: T, version: \"1\"}\n" +
+		"paths:\n  /x:\n    get:\n      operationId: g\n      parameters:\n" +
+		"        - {name: q, in: query, schema: {$ref: '#/components/schemas/Base', format: email}}\n" +
+		"        - {name: r, in: query, schema: {$ref: '#/components/schemas/Base', minLength: 3}}\n" +
+		"      responses: {\"200\": {description: ok}}\n" +
+		"components:\n  schemas:\n    Base: {type: string}\n"
+	_, svc, diags := lowerServiceSpec(t, spec)
+	openapitest.RequireNoErrorDiags(t, diags)
+
+	params := openapitest.IndexBy(openapitest.FirstOp(t, svc).Params, func(p ir.Parameter) string { return p.Name.Source })
+	q, ok := params["q"]
+	require.True(t, ok)
+	entry, ok := q.Unmodeled["openapi:format"]
+	require.True(t, ok, "an alias over the target has no Encoding field, so the format is kept")
+	assert.Equal(t, ir.ReasonDegradedLowering, entry.Reason)
+	assert.JSONEq(t, `"email"`, string(entry.Value))
+	openapitest.AssertInfoDiagAt(t, diags, "/paths/~1x/get/parameters/0/schema")
+
+	r, ok := params["r"]
+	require.True(t, ok)
+	assert.Empty(t, r.Unmodeled, "a bound at the same position always reached ir.Parameter.Constraints")
+	require.NotNil(t, r.Constraints)
+	assert.Equal(t, int64(3), *r.Constraints.MinLength)
+}
+
 // TestParams_CoDeclaredBoundKeptOnTheParameter covers the parameter carrier for
 // a 2020-12 side that declares both of its bound keywords (GitHub #286).
 // ir.Constraints holds one bound per side, so one keyword reaches no field of

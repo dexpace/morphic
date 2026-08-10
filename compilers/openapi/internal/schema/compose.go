@@ -47,6 +47,11 @@ func lowerAllOf(c lowering.Ctx, ts *compile.Types, anchors *AnchorIndex, depth i
 	return id, diags
 }
 
+// branchCensusHandled names the census keywords an allOf $ref branch's own
+// composition reads, so the branch census leaves them alone: applyCompositionRequired
+// ORs every branch's required list onto the composed model.
+var branchCensusHandled = []string{"required"}
+
 // requiredEntry is one `required` name declared somewhere in an allOf
 // composition, paired with the pointer of the schema that declared it (an
 // allOf branch, or the composed schema itself) so a diagnostic can point the
@@ -128,6 +133,11 @@ func diagUnattachableRequired(c lowering.Ctx, m *ir.Model, e requiredEntry) ir.D
 // writing nothing beside its $ref hoists nothing and composes straight to the
 // target, so this costs a node only where there is something to keep.
 //
+// The keywords an alias cannot model are kept on it instead, by the same census
+// every other $ref site runs (refSiteRef). `required` is left out of that census
+// because this composition reads it: applyCompositionRequired ORs every branch's
+// required list onto the composed model, so it is consumed here rather than lost.
+//
 // The merge itself is left as it is: merging a branch's own docs, constraints or
 // openness upward onto m would need a precedence rule for branches that disagree,
 // and some of it has no home to merge into at all — Model.Constraints bounds the
@@ -151,8 +161,11 @@ func fillAllOf(c lowering.Ctx, ts *compile.Types, anchors *AnchorIndex, depth in
 				"unresolved allOf $ref %q", b.GetRef().String()))
 			continue
 		}
-		ref, homeDiags := homeDeclaration(c, ts, anchors, b.GetSchema(), ir.TypeRef{Target: id}, bptr, branchHint(b, i), annotation.HomeOwnNode)
+		bs := b.GetSchema()
+		unhomed := unhomedKeywords(bs, nil, branchCensusHandled)
+		ref, homeDiags := homeDeclaration(c, ts, anchors, bs, ir.TypeRef{Target: id}, bptr, branchHint(b, i), annotation.HomeOwnNode, len(unhomed) > 0)
 		diags = append(diags, homeDiags...)
+		diags = append(diags, recordUnhomedKeywords(c, ts, ref.Target, bs, unhomed, refSiteShape, bptr)...)
 		if i == baseIdx {
 			m.Base = &ref
 		} else {
