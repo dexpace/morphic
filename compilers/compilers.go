@@ -164,6 +164,16 @@ func (r *Registry) Detect(src Source) (Compiler, SourceFormat, []ir.Diagnostic, 
 			declined = append(declined, diags...)
 			continue
 		}
+		// A compiler that recognizes a source names the format it recognized. One
+		// that claims a source and names nothing has answered no question, and
+		// letting it end the search would hide every compiler registered after it
+		// — a source another compiler would have taken becomes unrecognized, with
+		// nothing to say which compiler swallowed it. Its diags are not collected:
+		// the contract reads them only when a compiler declines, and this one did
+		// not say it declined.
+		if format == (SourceFormat{}) {
+			continue
+		}
 		owner, registered := r.byFormat[format]
 		return owner, format, nil, registered
 	}

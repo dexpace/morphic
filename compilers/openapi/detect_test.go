@@ -71,6 +71,13 @@ func TestDetect_Formats(t *testing.T) {
 		{"unparseable past the cap", "api.yaml",
 			padTo("openapi: [unterminated\n", "filler: x\n"),
 			compilers.SourceFormat{}, false, []string{diag.UndecodableSource}},
+		// Declares the key only past the cap, on a prefix that does not parse. The
+		// key search reads the same bounded prefix the decode did and so does not
+		// see it either; claiming the source would assert something about bytes
+		// detection never read.
+		{"key past the cap on an unparseable prefix", "api.yaml",
+			padTo("bad: [unterminated\n", "filler: x\n") + "openapi: 3.1.0\n",
+			compilers.SourceFormat{}, false, nil},
 		{"empty", "empty.yaml", "", compilers.SourceFormat{}, false, nil},
 	}
 	for _, tc := range cases {

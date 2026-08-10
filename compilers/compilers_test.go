@@ -250,3 +250,36 @@ func TestRegistry_DetectDropsDeclinesOnceClaimed(t *testing.T) {
 	assert.Equal(t, compilers.SourceFormat{Name: "beta", Version: "2"}, format)
 	assert.Empty(t, diags, "the source found a compiler, so nothing declined is worth saying")
 }
+
+// claimsNothing recognizes every source and names no format, which the contract
+// does not allow. It exists to pin what the registry does with a compiler that
+// breaks it.
+type claimsNothing struct{ stubCompiler }
+
+func (claimsNothing) Detect(compilers.Source) (compilers.SourceFormat, []ir.Diagnostic, bool) {
+	return compilers.SourceFormat{}, nil, true
+}
+
+// TestRegistry_DetectSkipsACompilerThatClaimsWithoutNaming pins that a compiler
+// answering "mine" while naming no format does not end the search. Ending it
+// there would make a source the next compiler would have taken come back
+// unrecognized, with nothing in the output naming the compiler that swallowed it.
+func TestRegistry_DetectSkipsACompilerThatClaimsWithoutNaming(t *testing.T) {
+	t.Parallel()
+	broken := &claimsNothing{stubCompiler{
+		formats: []compilers.SourceFormat{{Name: "alpha", Version: "1"}},
+	}}
+	claims := &stubCompiler{
+		formats: []compilers.SourceFormat{{Name: "beta", Version: "2"}},
+		marker:  "beta",
+	}
+	reg := compilers.NewRegistry()
+	require.NoError(t, reg.Register(broken))
+	require.NoError(t, reg.Register(claims))
+
+	got, format, _, ok := reg.Detect(compilers.Source{Path: "s.txt", Data: []byte("beta")})
+
+	require.True(t, ok, "the compiler after the broken one must still be asked")
+	assert.Same(t, compilers.Compiler(claims), got)
+	assert.Equal(t, compilers.SourceFormat{Name: "beta", Version: "2"}, format)
+}
