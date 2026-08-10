@@ -9,6 +9,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/dexpace/morphic/compilers/openapi/internal/annotation"
+	"github.com/dexpace/morphic/compilers/openapi/internal/openapitest"
 	"github.com/dexpace/morphic/compilers/openapi/internal/schema"
 	"github.com/dexpace/morphic/ir"
 )
@@ -132,7 +133,7 @@ components:
 
 	holder, ok := typeByName(l.out, "Holder").(*ir.Model)
 	require.True(t, ok, "Holder must own a Model node")
-	f, ok := propsByWire(holder.Properties)["f"]
+	f, ok := openapitest.PropsByWire(holder.Properties)["f"]
 	require.True(t, ok, "property f must be present")
 	require.Len(t, f.Examples, 1, "the example beside the $ref must bind the property")
 	require.NotNil(t, f.Examples[0].Value)
@@ -157,10 +158,10 @@ func TestLowerComponentSchemas_PercentEncodedRefResolves(t *testing.T) {
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			doc, diags := lowerSpec(t, componentSpec(
+			doc, diags := lowerSpec(t, openapitest.ComponentSpec(
 				"    "+tc.decl+": {type: string}\n"+
 					"    User: {type: object, properties: {x: {$ref: '#/components/schemas/"+tc.encoded+"'}}}\n"))
-			requireNoErrorDiags(t, diags)
+			openapitest.RequireNoErrorDiags(t, diags)
 
 			user, ok := typeByName(doc, "User").(*ir.Model)
 			require.True(t, ok, "User must own a Model node")
@@ -186,16 +187,16 @@ func TestLowerComponentSchemas_PercentEncodedRefResolves(t *testing.T) {
 // is wrong.
 func TestLowerComponentSchemas_PercentEncodedRefHoistsAtTheDeclaredCoordinate(t *testing.T) {
 	t.Parallel()
-	doc, diags := lowerSpec(t, componentSpec(
+	doc, diags := lowerSpec(t, openapitest.ComponentSpec(
 		"    Foo-Bar: {type: object, properties: {inner: {type: object, properties: {n: {type: integer}}}}}\n"+
 			"    User:\n      type: object\n      properties:\n"+
 			"        a: {$ref: '#/components/schemas/Foo-Bar/properties/inner'}\n"+
 			"        b: {$ref: '#/components/schemas/Foo%2DBar/properties/inner'}\n"))
-	requireNoErrorDiags(t, diags)
+	openapitest.RequireNoErrorDiags(t, diags)
 
 	user, ok := typeByName(doc, "User").(*ir.Model)
 	require.True(t, ok, "User must own a Model node")
-	props := propsByWire(user.Properties)
+	props := openapitest.PropsByWire(user.Properties)
 	require.Len(t, props, 2)
 
 	const want = ir.TypeID("t/anon/components/schemas/Foo-Bar/properties/inner")
@@ -232,7 +233,7 @@ components:
         application/json:
           schema: {type: object, properties: {q: {type: string}}}
 `)
-	requireNoErrorDiags(t, diags)
+	openapitest.RequireNoErrorDiags(t, diags)
 
 	const want = ir.TypeID("t/anon/components/responses/My-Resp/content/application~1json/schema")
 	assert.Contains(t, doc.Types, want,
@@ -251,11 +252,11 @@ components:
 // mappings alongside $ref; nothing exercised that half.
 func TestLowerComponentSchemas_PercentEncodedDiscriminatorMapping(t *testing.T) {
 	t.Parallel()
-	doc, diags := lowerSpec(t, componentSpec(
+	doc, diags := lowerSpec(t, openapitest.ComponentSpec(
 		"    Cat-A: {type: object, properties: {kind: {type: string}}}\n"+
 			"    Pet:\n      oneOf: [{$ref: '#/components/schemas/Cat-A'}]\n"+
 			"      discriminator: {propertyName: kind, mapping: {cat: '#/components/schemas/Cat%2DA'}}\n"))
-	requireNoErrorDiags(t, diags)
+	openapitest.RequireNoErrorDiags(t, diags)
 
 	pet, ok := typeByName(doc, "Pet").(*ir.Union)
 	require.True(t, ok, "Pet must own a Union node")

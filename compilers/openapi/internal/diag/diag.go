@@ -12,6 +12,7 @@ package diag
 
 import (
 	"fmt"
+	"strings"
 
 	"github.com/dexpace/morphic/ir"
 )
@@ -38,6 +39,19 @@ const (
 	// for the source. It is a warning, never a refusal: the compile still
 	// proceeds, and every cycle the scan did classify is still caught.
 	CycleScanFailed = "openapi/cycle-scan-failed"
+	// SourceTooLarge reports a document with more YAML nodes than the pre-parse
+	// scan indexes (sourceindex.MaxIndexedNodes). Every answer the index gives
+	// about such a document is a partial one, including the node count the
+	// alias-expansion allowance is derived from, so the document is refused rather
+	// than scanned against a bound computed from a count that stopped early.
+	SourceTooLarge = "openapi/source-too-large"
+	// UndecodableSource reports a source that declares one of this compiler's
+	// discriminating keys and does not parse as YAML or JSON. It is reported from
+	// detection rather than from the compile, because a document that cannot be
+	// parsed never reaches one: without it the engine could only say no compiler
+	// recognized the source, which is wrong twice over — this compiler did
+	// recognize it, and the reason it declined is the parse error it holds.
+	UndecodableSource = "openapi/undecodable-source"
 	// OverlayInvalid reports an overlay document that could not be parsed, or that
 	// parsed but is not a valid Overlay — a missing version, no actions, an action
 	// naming no target. Nothing is applied, so the compile refuses rather than
@@ -82,6 +96,12 @@ const (
 	// response still lowers, with no status condition rather than the catch-all
 	// range that "default" alone denotes (GitHub #262).
 	InvalidStatusKey = "openapi/invalid-status-key"
+	// InvalidMethodKey reports an additionalOperations key that names no method:
+	// the empty string. The operation still lowers, binding the key as written, so
+	// nothing the entry declares is lost — what is reported is that the binding's
+	// method is unusable. speakeasy rejects a key naming a *standard* method, which
+	// belongs in its own field, but accepts this one.
+	InvalidMethodKey = "openapi/invalid-method-key"
 	// DegradedConstruct reports a construct the compiler could not carry into the
 	// IR as written: preserved raw for want of a structural home, lowered to a
 	// weaker shape (a heterogeneous enum as a union, an unconvertible value as
@@ -110,15 +130,15 @@ const (
 	// source-order winner — possibly the looser bound — and surfaces the
 	// disagreement instead of silently discarding it.
 	ConflictingRedecl = "openapi/conflicting-redeclaration"
-	// DisjointVisibility reports inline allOf branches restricting one field to
-	// lifecycle sets sharing nothing — readOnly on one branch, writeOnly on
-	// another — so the intersection allOf calls for admits no lifecycle at all.
-	// It is neither of its neighbours: ConflictingRedecl keeps an arbitrary
+	// DisjointVisibility reports one field restricted to lifecycle sets that
+	// share nothing — readOnly against writeOnly — so no lifecycle admits it at
+	// all. Both spellings raise it under this one code: one schema writing both
+	// flags, and inline allOf branches whose intersection is empty. It is
+	// neither of its neighbours: ConflictingRedecl keeps an arbitrary
 	// source-order winner, and DegradedConstruct lowers to a weaker shape,
-	// whereas Visibility{None: true} is the exact intersection and a shape the
+	// whereas Visibility{None: true} is the exact answer and a shape the
 	// IR already has. It is reported nonetheless, because a field no request or
-	// response can carry is a composition that cannot take effect, which is
-	// seldom what the document set out to say.
+	// response can carry is seldom what the document set out to say.
 	DisjointVisibility = "openapi/disjoint-visibility"
 	// AliasAmplification reports a document whose YAML aliases expand to far more
 	// nodes than it declares — a billion-laughs shape that would exhaust memory
@@ -205,4 +225,36 @@ func Newf(sev ir.Severity, code string, prov ir.Provenance, format string, args 
 // advisory warnings it must carry forward rather than abort on.
 func HasError(diags []ir.Diagnostic) bool {
 	return ir.HasError(diags)
+}
+
+// OneLine collapses err's text onto a single line, for a diagnostic that carries
+// an error raised by something else.
+//
+// A diagnostic is rendered one per line, so an embedded newline splits one
+// report into several — and every line after the first carries no severity, code
+// or location, which reads as a malformed diagnostic to anything parsing stderr.
+// Both libraries this compiler reports through write multi-line errors: yaml.v3
+// as a header plus one indented line per finding, the overlay validator as a
+// flat list of sentences.
+//
+// Parts are joined with "; " so a flat list reads as a list, except after a part
+// that already ends in a colon, where the next line is that header's content and
+// a semicolon would read as a break in it.
+func OneLine(err error) string {
+	var out strings.Builder
+	for _, line := range strings.Split(err.Error(), "\n") {
+		part := strings.Join(strings.Fields(line), " ")
+		if part == "" {
+			continue
+		}
+		if out.Len() > 0 {
+			if strings.HasSuffix(out.String(), ":") {
+				out.WriteString(" ")
+			} else {
+				out.WriteString("; ")
+			}
+		}
+		out.WriteString(part)
+	}
+	return out.String()
 }

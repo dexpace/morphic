@@ -9,6 +9,17 @@ import (
 	"github.com/dexpace/morphic/ir"
 )
 
+// boundSide names which of a numeric constraint's two sides a read applies to.
+// It is a named type rather than a bool because applyExclusive takes a dialect
+// flag beside it, and two bare bools in a row say nothing at the call site about
+// which is which.
+type boundSide int
+
+const (
+	minBound boundSide = iota // minimum / exclusiveMinimum
+	maxBound                  // maximum / exclusiveMaximum
+)
+
 // Constraints reads a schema's scalar (string/number/object-count) value
 // constraints into an ir.Constraints. Numeric bounds are read from the raw YAML
 // nodes, never the *float64 model fields, to preserve full decimal precision
@@ -36,29 +47,36 @@ func Constraints(s *oas3.Schema, exclusiveBoolean bool, pointer string, srcIndex
 		return nil, nil, nil
 	}
 	c := &ir.Constraints{}
-	site := boundSite{pointer: pointer, srcIndex: srcIndex}
+	residue := boundResidue{pointer: pointer, srcIndex: srcIndex}
 	diags := numericBounds(c, s)
-	diags = append(diags, applyExclusive(c, s, &site, true, exclusiveBoolean)...)
-	diags = append(diags, applyExclusive(c, s, &site, false, exclusiveBoolean)...)
+	diags = append(diags, applyExclusive(c, s, minBound, &residue, exclusiveBoolean)...)
+	diags = append(diags, applyExclusive(c, s, maxBound, &residue, exclusiveBoolean)...)
 	c.MinLength = s.MinLength
 	c.MaxLength = s.MaxLength
 	c.Pattern = s.GetPattern()
 	c.MinProps = s.MinProperties
 	c.MaxProps = s.MaxProperties
 	if emptyConstraints(c) {
-		return nil, site.kept, diags
+		return nil, residue.kept, diags
 	}
-	return c, site.kept, diags
+	return c, residue.kept, diags
 }
 
-// boundSite is where a schema's bounds were written, and what became of the
-// co-declared keyword that reached no field of ir.Constraints.
+// boundResidue is where a schema's bounds were written, and what became of the
+// co-declared keywords that reached no field of ir.Constraints.
+//
+// One value serves both sides, so a schema co-declaring each of them leaves two
+// entries here and each keyword survives — writing the map rather than adding to
+// it would keep whichever side ran second.
 //
 // The keyword is recorded here rather than handed back for a caller to record,
 // so that the diagnostic naming it is written at the same statement that keeps
 // it. Announcing a preservation from anywhere else is how a message comes to
 // claim one that never happened (GitHub #144).
-type boundSite struct {
+//
+// Named for the residue rather than the site so it cannot be misread as the
+// boundSide beside it in the same signatures.
+type boundResidue struct {
 	pointer  string
 	srcIndex int
 	kept     ir.Unmodeled
@@ -73,7 +91,7 @@ type boundSite struct {
 // this one cannot fail, since BigVal's contract is that its text renders as a
 // JSON number. That is what lets the message state the keyword is kept without
 // a branch for the case where it was not.
-func (b *boundSite) keepRedundant(keptProp string, kept ir.BigVal, dropProp string, dropped ir.BigVal, compared bool) ir.Diagnostic {
+func (b *boundResidue) keepRedundant(keptProp string, kept ir.BigVal, dropProp string, dropped ir.BigVal, compared bool) ir.Diagnostic {
 	PreserveInto(&b.kept, "openapi:"+dropProp, ir.RawValue(dropped),
 		ir.ReasonDegradedLowering, b.pointer+ids.Ptr(dropProp), b.srcIndex)
 	return redundantBoundDiag(keptProp, kept, dropProp, dropped, compared)
@@ -120,13 +138,15 @@ func boundLiteralDiag(prop, literal string, err error) ir.Diagnostic {
 // 3.0 boolean arm flags the corresponding Min/Max as exclusive; the 2020-12
 // numeric arm (3.1/3.2) carries the bound value itself, read from the raw node to
 // avoid the float64 trap, and hands it to reconcileBound, which decides how it
-// meets any minimum/maximum declared beside it. exclusiveBoolean selects the
-// dialect (true for 3.0). Because load suppresses the library's type-mismatch
-// on these keywords, a value in the wrong form for the dialect is reported and
-// dropped here rather than silently accepted.
-func applyExclusive(c *ir.Constraints, s *oas3.Schema, site *boundSite, isMin, exclusiveBoolean bool) []ir.Diagnostic {
+// meets any minimum/maximum declared beside it. side picks which of the two
+// keywords is read, residue is where the reconciliation records the one that
+// reaches no field, and exclusiveBoolean selects the dialect (true for 3.0).
+// Because load suppresses the library's type-mismatch on these keywords, a
+// value in the wrong form for the dialect is reported and dropped here rather
+// than silently accepted.
+func applyExclusive(c *ir.Constraints, s *oas3.Schema, side boundSide, residue *boundResidue, exclusiveBoolean bool) []ir.Diagnostic {
 	ev, prop := s.GetExclusiveMaximum(), "exclusiveMaximum"
-	if isMin {
+	if side == minBound {
 		ev, prop = s.GetExclusiveMinimum(), "exclusiveMinimum"
 	}
 	if ev == nil {
@@ -137,7 +157,7 @@ func applyExclusive(c *ir.Constraints, s *oas3.Schema, site *boundSite, isMin, e
 	}
 	if ev.IsLeft() {
 		if b := ev.GetLeft(); b != nil && *b {
-			setExclusiveFlag(c, isMin)
+			setExclusiveFlag(c, side)
 		}
 		return nil
 	}
@@ -149,7 +169,7 @@ func applyExclusive(c *ir.Constraints, s *oas3.Schema, site *boundSite, isMin, e
 	if err != nil {
 		return []ir.Diagnostic{boundLiteralDiag(prop, node.Value, err)}
 	}
-	return reconcileBound(c, site, isMin, v)
+	return reconcileBound(c, side, residue, v)
 }
 
 // reconcileBound settles one side's bound when the 2020-12 dialect declares
@@ -164,28 +184,28 @@ func applyExclusive(c *ir.Constraints, s *oas3.Schema, site *boundSite, isMin, e
 //
 // The discarded keyword is implied by the kept one, so no value the source
 // admits or excludes changes. What would change is the record that the source
-// spelled the bound twice, so it is kept verbatim on site rather than left to a
+// spelled the bound twice, so it is kept verbatim on residue rather than left to a
 // diagnostic message: a consumer reconstructing or diffing the source reads the
 // document, not the diagnostics, and cannot otherwise tell
 // {minimum: 10, exclusiveMinimum: 0} from {minimum: 10} (GitHub #286).
-func reconcileBound(c *ir.Constraints, site *boundSite, isMin bool, excl ir.BigVal) []ir.Diagnostic {
+func reconcileBound(c *ir.Constraints, side boundSide, residue *boundResidue, excl ir.BigVal) []ir.Diagnostic {
 	incl, inclProp, exclProp := c.Max, "maximum", "exclusiveMaximum"
-	if isMin {
+	if side == minBound {
 		incl, inclProp, exclProp = c.Min, "minimum", "exclusiveMinimum"
 	}
 	if incl == nil {
-		setExclusiveBound(c, isMin, &excl)
+		setExclusiveBound(c, side, &excl)
 		return nil
 	}
 
-	tighter, compared := inclusiveIsTighter(*incl, excl, isMin)
+	tighter, compared := inclusiveIsTighter(*incl, excl, side)
 	if tighter {
-		return []ir.Diagnostic{site.keepRedundant(inclProp, *incl, exclProp, excl, compared)}
+		return []ir.Diagnostic{residue.keepRedundant(inclProp, *incl, exclProp, excl, compared)}
 	}
 
 	dropped := *incl
-	setExclusiveBound(c, isMin, &excl)
-	return []ir.Diagnostic{site.keepRedundant(exclProp, excl, inclProp, dropped, compared)}
+	setExclusiveBound(c, side, &excl)
+	return []ir.Diagnostic{residue.keepRedundant(exclProp, excl, inclProp, dropped, compared)}
 }
 
 // inclusiveIsTighter reports whether the inclusive bound incl admits fewer
@@ -211,7 +231,7 @@ func reconcileBound(c *ir.Constraints, site *boundSite, isMin bool, excl ir.BigV
 // grammar is the narrower of the two — so it stands for the day that changes:
 // a bound this cannot order is one that could be silently replaced by the looser
 // of its pair, which is the defect this reconciliation exists to prevent.
-func inclusiveIsTighter(incl, excl ir.BigVal, isMin bool) (tighter, compared bool) {
+func inclusiveIsTighter(incl, excl ir.BigVal, side boundSide) (tighter, compared bool) {
 	inclDec, inclOK := parseDecimalBound(incl)
 	exclDec, exclOK := parseDecimalBound(excl)
 	if !inclOK || !exclOK {
@@ -221,7 +241,7 @@ func inclusiveIsTighter(incl, excl ir.BigVal, isMin bool) (tighter, compared boo
 	if order == 0 {
 		return false, true
 	}
-	return (order > 0) == isMin, true
+	return (order > 0) == (side == minBound), true
 }
 
 // redundantBoundDiag reports the co-declared 2020-12 bound that reached no
@@ -264,8 +284,8 @@ func exclusiveFormDiag(prop string, exclusiveBoolean bool) ir.Diagnostic {
 }
 
 // setExclusiveFlag marks the low or high bound exclusive.
-func setExclusiveFlag(c *ir.Constraints, isMin bool) {
-	if isMin {
+func setExclusiveFlag(c *ir.Constraints, side boundSide) {
+	if side == minBound {
 		c.ExclusiveMin = true
 		return
 	}
@@ -276,8 +296,8 @@ func setExclusiveFlag(c *ir.Constraints, isMin bool) {
 // replacing whatever minimum/maximum put there. Only reconcileBound may call it,
 // which is where the replacement is decided; calling it directly is the shape of
 // GitHub #33.
-func setExclusiveBound(c *ir.Constraints, isMin bool, v *ir.BigVal) {
-	if isMin {
+func setExclusiveBound(c *ir.Constraints, side boundSide, v *ir.BigVal) {
+	if side == minBound {
 		c.Min = v
 		c.ExclusiveMin = true
 		return

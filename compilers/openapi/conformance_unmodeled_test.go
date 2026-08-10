@@ -12,6 +12,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/dexpace/morphic/compilers/openapi/internal/openapitest"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -308,6 +309,10 @@ func assertDialectKeywords(t *testing.T, doc *ir.Document, diags []ir.Diagnostic
 // declared exactly once on a component schema has one possible target whatever
 // path evaluation took, so it expands; anything else is irreducible and the
 // reference is kept verbatim beside whatever did lower.
+//
+// The escaped spelling is here because the fragment is URI text: RFC 3986 §2.3
+// makes '%2D' and '-' one character, so it must reach the same anchor the plain
+// spelling would (GitHub #233).
 func assertDynamicRef(t *testing.T, doc *ir.Document, diags []ir.Diagnostic) {
 	tree, ok := doc.Types[namedID("Tree")].(*ir.Model)
 	require.True(t, ok)
@@ -319,6 +324,14 @@ func assertDynamicRef(t *testing.T, doc *ir.Document, diags []ir.Diagnostic) {
 	assert.Empty(t, child.Unmodeled, "an expanded reference must not also be preserved")
 	assert.Equal(t, []ir.Severity{ir.SeverityInfo}, diagsAt(diags, "openapi/dynamic-ref-expanded",
 		"/components/schemas/Tree/properties/child/$dynamicRef"))
+
+	escaped, ok := propByWire(tree, "escaped")
+	require.True(t, ok)
+	assert.Equal(t, namedID("Leaf"), escaped.Type.Target,
+		"a percent-encoded fragment names the anchor its decoded spelling names")
+	assert.Empty(t, escaped.Unmodeled, "an expanded reference must not also be preserved")
+	assert.Equal(t, []ir.Severity{ir.SeverityInfo}, diagsAt(diags, "openapi/dynamic-ref-expanded",
+		"/components/schemas/Tree/properties/escaped/$dynamicRef"))
 
 	ghost, ok := propByWire(tree, "ghost")
 	require.True(t, ok)
@@ -340,7 +353,7 @@ func assertDynamicRef(t *testing.T, doc *ir.Document, diags []ir.Diagnostic) {
 func assertInlineResidue(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
 	op, ok := opByName(doc, "getThing")
 	require.True(t, ok)
-	bodyID := op.Responses[0].Payload.Contents[0].Type.Target
+	bodyID := openapitest.BodyTarget(t, op.Responses[0].Payload)
 	body, ok := doc.Types[bodyID]
 	require.True(t, ok, "the response body owns a node")
 	assertResidue(t, body.Common().Unmodeled, map[string]string{
@@ -387,9 +400,15 @@ func assertResidue(t *testing.T, p ir.Unmodeled, want map[string]string) {
 	}
 }
 
-// assertResponseLinks pins a response's links: ir.Response has no field for the
-// link objects OpenAPI declares there, so they are kept verbatim on the response
-// rather than dropped while the operation they name lowers normally.
+// assertResponseLinks pins a response's links: neither ir.Response nor
+// ir.ErrorCase has a field for the link objects OpenAPI declares there, so they
+// are kept verbatim rather than dropped while the operation they name lowers
+// normally.
+//
+// Both status ranges, because only the success one used to keep them: the same
+// declaration survived on a 2xx and vanished on a 4xx, with no diagnostic either
+// way, purely because the error branch had no links rule of its own
+// (GitHub #275).
 func assertResponseLinks(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
 	op, ok := opByName(doc, "createOrder")
 	require.True(t, ok)
@@ -399,6 +418,15 @@ func assertResponseLinks(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
 	assert.JSONEq(t,
 		`{"GetOrder":{"operationId":"getOrder","parameters":{"orderId":"$response.body#/id"}}}`,
 		string(entry.Value))
+
+	require.Len(t, op.Errors, 1)
+	errEntry := unmodeledEntry(t, op.Errors[0].Unmodeled, "openapi:links")
+	assert.Equal(t, ir.ReasonNoIRHome, errEntry.Reason)
+	assert.JSONEq(t,
+		`{"GetConflicting":{"operationId":"getOrder","parameters":{"orderId":"$response.body#/existingId"}}}`,
+		string(errEntry.Value),
+		"an error response keeps its links by the same rule the success one does")
+
 	_, ok = opByName(doc, "getOrder")
 	assert.True(t, ok, "the operation a link names is an ordinary operation")
 }

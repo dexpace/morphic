@@ -311,8 +311,12 @@ func preserveAllowEmptyValue(c lowering.Ctx, param *ir.Parameter, p *soa.Paramet
 
 // resolveStyleExplode materializes a parameter's resolved serialization style
 // and explode flag: an explicit value wins, else the OpenAPI per-location
-// default (query/cookie → form/true, path/header → simple/false). The result is
-// declared facts, not policy.
+// default (query/cookie → form/true, path/header → simple/false).
+//
+// For those four locations the result is declared facts, not policy. The fifth,
+// querystring, is neither: the specification gives it no style at all, and it
+// falls through the query arm here and comes out carrying form/true — a style
+// that location may not have (GitHub #334).
 func resolveStyleExplode(p *soa.Parameter, in soa.ParameterIn) (string, *bool) {
 	style := defaultParamStyle(in)
 	if p.Style != nil {

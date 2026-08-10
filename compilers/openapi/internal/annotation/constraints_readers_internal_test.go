@@ -224,6 +224,37 @@ func TestApplyExclusive_AMalformedNumericBoundIsReported(t *testing.T) {
 // source wrote, so it comes back as an entry a carrier holds. Without it
 // {minimum: 10, exclusiveMinimum: 0} and {minimum: 10} produce the same
 // document, which is what lossless-by-default forbids.
+// TestConstraints_BothSidesCoDeclaredKeepEachKeyword covers the two sides
+// together, which the rows below cover only one at a time.
+//
+// One boundResidue serves both calls to applyExclusive, so the second side adds
+// to what the first kept. Were it to write the map instead, the surviving entry
+// would be whichever side ran second and the other keyword would go — silently,
+// since a schema declaring all four is as valid as one declaring two. Every
+// other case here declares one side, so none of them can tell the two apart.
+func TestConstraints_BothSidesCoDeclaredKeepEachKeyword(t *testing.T) {
+	t.Parallel()
+	_, kept, diags := Constraints(schemaFromYAML(t, `type: integer
+minimum: 10
+exclusiveMinimum: 0
+maximum: 100
+exclusiveMaximum: 999
+`), false, "/p", 0)
+
+	require.Len(t, kept, 2, "each side leaves the keyword it had no room for; got %v", kept)
+	for _, want := range []struct{ key, value, pointer string }{
+		{"openapi:exclusiveMinimum", "0", "/p/exclusiveMinimum"},
+		{"openapi:exclusiveMaximum", "999", "/p/exclusiveMaximum"},
+	} {
+		entry, ok := kept[want.key]
+		require.True(t, ok, "%s survives the other side", want.key)
+		assert.Equal(t, want.value, string(entry.Value))
+		assert.Equal(t, ir.ReasonDegradedLowering, entry.Reason)
+		assert.Equal(t, ir.Provenance{Pointer: want.pointer}, entry.Provenance)
+	}
+	assert.Len(t, diags, 2, "and each side reports its own pair")
+}
+
 func TestReconcileBound_KeepsTheTighterOfTwoCoDeclaredBounds(t *testing.T) {
 	t.Parallel()
 	tests := []struct {
@@ -460,9 +491,9 @@ func TestReconcileBound_AMagnitudeNoRationalHoldsStillCompares(t *testing.T) {
 func TestReconcileBound_ABoundNoDecimalReadingOrdersKeepsTheExclusiveOne(t *testing.T) {
 	t.Parallel()
 	c := &ir.Constraints{Min: bigOf("1p4")}
-	site := boundSite{pointer: "/p", srcIndex: 1}
+	residue := boundResidue{pointer: "/p", srcIndex: 1}
 
-	diags := reconcileBound(c, &site, true, ir.BigVal("5"))
+	diags := reconcileBound(c, minBound, &residue, ir.BigVal("5"))
 
 	want := ir.Constraints{Min: bigOf("5"), ExclusiveMin: true}
 	if diff := cmp.Diff(want, *c); diff != "" {
@@ -481,8 +512,8 @@ func TestReconcileBound_ABoundNoDecimalReadingOrdersKeepsTheExclusiveOne(t *test
 	// the literal itself: not JSON here only because the fixture is a BigVal that
 	// breaks BigVal's own promise, which is the state irverify's raw-payload
 	// check exists to name.
-	entry, ok := site.kept["openapi:minimum"]
-	require.True(t, ok, "the unordered bound is kept verbatim; got %v", site.kept)
+	entry, ok := residue.kept["openapi:minimum"]
+	require.True(t, ok, "the unordered bound is kept verbatim; got %v", residue.kept)
 	assert.Equal(t, "1p4", string(entry.Value))
 	assert.Equal(t, ir.Provenance{Source: 1, Pointer: "/p/minimum"}, entry.Provenance)
 }
