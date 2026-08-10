@@ -216,6 +216,10 @@ func TestRun_BadCompilerOptionIsRefused(t *testing.T) {
 		{"malformed pair", "grouping", "want key=value"},
 		{"unknown name", "gruoping=tags", `unknown option "gruoping"`},
 		{"unusable value", "grouping=alphabetical", `want "tags" or "path-prefix"`},
+		// A fourth class: the pair is well-formed and the name is known, and the
+		// value is still unusable. Read as "no overlay" it would exit 0 having
+		// applied none, which is the one outcome --opt exists to rule out.
+		{"empty value", "overlay=", `"overlay": want a file path`},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
