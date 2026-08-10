@@ -209,8 +209,12 @@ func ExtensionsFrom(ext *extensions.Extensions, srcIndex int, owner string) (ir.
 // the carrier down to it, or the object's own keyword where it is not beneath
 // the carrier at all.
 //
-// A scoped key cannot collide with an unscoped one on the same map, since only
-// an x-* key reaches here and no scope begins with "x-".
+// No two keys can collide: every scope segment is a literal that never begins
+// with "x-" and every extension name always does, so the first "x-" segment is
+// where the scope ends and the name begins, and one key cannot be spelled by two
+// (scope, owner) pairs. That same gap holds against the non-extension keys a
+// carrier already holds under these scopes, such as the
+// "openapi:encoding/<part>/allowReserved" written beside an encoding's x-*.
 func ExtensionsUnder(ext *extensions.Extensions, srcIndex int, owner, scope string) (ir.Unmodeled, []ir.Diagnostic) {
 	if ext == nil || ext.Len() == 0 {
 		return nil, nil

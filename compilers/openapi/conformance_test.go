@@ -2588,6 +2588,10 @@ func assertExtensionsX(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
 // Unmodeled map the entry must land on by the path the walk reaches it at, so a
 // carrier that moves still matches and an entry written to the wrong one does
 // not.
+//
+// A carrier has to name a segment no other map's path carries, since the match
+// is a substring one. A bare ".Unmodeled" ends every path the walk produces, so
+// a row spelled that way admits every map in the document and checks nothing.
 func assertEveryObjectKeepsItsExtensions(t *testing.T, doc *ir.Document) {
 	t.Helper()
 	sites := unmodeledSites(doc)
@@ -2603,10 +2607,11 @@ func assertEveryObjectKeepsItsExtensions(t *testing.T, doc *ir.Document) {
 		{"server", "openapi:x-mark", `"XSERVER"`, "doc.Servers[0].Unmodeled"},
 		{"server variable", "openapi:x-mark", `"XSERVERVARIABLE"`, "doc.Servers[0].Variables[0].Unmodeled"},
 		{"paths", "openapi:paths/x-mark", `"XPATHS"`, "doc.Services[0].Unmodeled"},
-		{"path item", "openapi:pathItem/x-mark", `"XPATHITEM"`, ".Unmodeled"},
-		{"operation", "openapi:x-internal", `true`, ".Unmodeled"},
-		{"operation externalDocs", "openapi:externalDocs/x-mark", `"XOPERATIONEXTERNALDOCS"`, ".Unmodeled"},
-		{"responses", "openapi:responses/x-mark", `"XRESPONSES"`, ".Unmodeled"},
+		{"path item", "openapi:pathItem/x-mark", `"XPATHITEM"`, ".Operations[0].Unmodeled"},
+		{"operation", "openapi:x-internal", `true`, ".Operations[0].Unmodeled"},
+		{"operation externalDocs", "openapi:externalDocs/x-mark", `"XOPERATIONEXTERNALDOCS"`,
+			".Operations[0].Unmodeled"},
+		{"responses", "openapi:responses/x-mark", `"XRESPONSES"`, ".Operations[0].Unmodeled"},
 		{"parameter", "openapi:x-mark", `"XPARAMETER"`, ".Params[0].Unmodeled"},
 		{"request body", "openapi:x-mark", `"XREQUESTBODY"`, ".Request.Unmodeled"},
 		{"media type", "openapi:x-mark", `"XMEDIATYPE"`, ".Contents[0].Unmodeled"},

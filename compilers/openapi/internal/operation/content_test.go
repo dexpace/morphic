@@ -546,6 +546,44 @@ func TestEncoding_AbsentAllowReservedRecordsNothing(t *testing.T) {
 	assert.Empty(t, diags)
 }
 
+// TestEncoding_OnlyUnhomedFieldsOutliveTheEmptyPartEncoding pins the ordering
+// inside partEncodings. An entry declaring nothing ir.PartEncoding has a field
+// for lowers to an empty one, which is dropped from Content.Encoding — so the
+// entry has to be read before that check rather than after it, or what it did
+// declare goes with it.
+//
+// Its own case because every other encoding fixture declares a style or a
+// contentType, which leaves the PartEncoding non-empty and routes around the
+// check entirely: moving the read below it left the whole suite green.
+func TestEncoding_OnlyUnhomedFieldsOutliveTheEmptyPartEncoding(t *testing.T) {
+	t.Parallel()
+	_, svc, diags := lowerServiceSpec(t, openapitest.PathsSpecVer("3.1.0", `  /form:
+    post:
+      operationId: postForm
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema: {type: object, properties: {q: {type: string}}}
+            encoding:
+              q: {allowReserved: true, x-vendor: vvv}
+      responses: {"200": {description: ok}}
+`))
+	openapitest.RequireNoErrorDiags(t, diags)
+	op := openapitest.FirstOp(t, svc)
+	require.NotNil(t, op.Request)
+	require.Len(t, op.Request.Contents, 1)
+	content := op.Request.Contents[0]
+	require.Empty(t, content.Encoding,
+		"a string part declaring neither style nor contentType lowers to an empty PartEncoding")
+
+	entry, ok := content.Unmodeled["openapi:encoding/q/allowReserved"]
+	require.True(t, ok, "allowReserved outlives the entry it was declared in; got %v", content.Unmodeled)
+	assert.Equal(t, ir.ReasonNoIRHome, entry.Reason)
+	assert.JSONEq(t, "true", string(entry.Value))
+	assert.Contains(t, content.Unmodeled, "openapi:encoding/q/x-vendor", "and so does its own x-*")
+}
+
 // TestEncoding_ItemEncodingKeepsItsOwnUnderItsOwnKey is the other position the
 // same reader serves. A content can hold both a per-part encoding map and a
 // sequential itemEncoding, and both reach one Unmodeled map, so the key has to
