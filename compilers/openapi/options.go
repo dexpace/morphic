@@ -1,6 +1,15 @@
 package openapi
 
-import "github.com/dexpace/morphic/compilers/openapi/internal/lowering"
+import (
+	"fmt"
+	"maps"
+	"slices"
+	"strconv"
+	"strings"
+
+	"github.com/dexpace/morphic/compilers"
+	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
+)
 
 // GroupingStrategy selects how operations are grouped into OperationGroups. It
 // is the injectable-policy seam (architecture principle 6): grouping is inferred
@@ -57,10 +66,9 @@ type Options struct {
 // The document arrives as bytes, like the spec itself, because a compiler
 // performs no file I/O — reading it is the caller's job, which is what keeps
 // compilation pure and reentrant. A programmatic caller sets this through
-// engine.RunOptions.FormatOptions, which the engine forwards verbatim; no
-// morphic subcommand surfaces it yet, and the CLI exposes no other member of
-// this type either, so adding a flag for one is a change about the CLI's option
-// surface rather than about overlays.
+// engine.RunOptions.FormatOptions, which the engine forwards verbatim; a caller
+// who has only text names the file with the "overlay" setting and the reader in
+// compilers.OptionSet loads it, so the read is still the caller's.
 //
 // An applied overlay becomes a second entry in Document.Sources, and every
 // position it introduced or rewrote names that entry as its Provenance.Source.
@@ -88,4 +96,121 @@ func (o Options) withDefaults() Options {
 		o.Grouping = GroupByTags
 	}
 	return o
+}
+
+// The option names Options answers to as text. They are this compiler's own
+// vocabulary: a caller writes them without knowing which compiler reads them,
+// and nothing above this package holds the list.
+const (
+	optGrouping          = "grouping"
+	optAllowExternalRefs = "allow-external-refs"
+	optOverlay           = "overlay"
+	optOverlayLax        = "overlay-lax"
+)
+
+// optionNames lists the vocabulary, sorted, for the error that reports a name
+// outside it. Deriving the list from one place is what keeps the error honest
+// as the vocabulary grows.
+func optionNames() []string {
+	names := []string{optGrouping, optAllowExternalRefs, optOverlay, optOverlayLax}
+	slices.Sort(names)
+	return names
+}
+
+// DecodeOptions implements compilers.Compiler: it turns textual settings into
+// an Options value. Settings are read in sorted order so that a set with two
+// bad values always reports the same one.
+func (*Compiler) DecodeOptions(set compilers.OptionSet) (any, error) {
+	var decode optionDecode
+	for _, key := range slices.Sorted(maps.Keys(set.Settings)) {
+		if err := decode.set(key, set.Settings[key]); err != nil {
+			return nil, err
+		}
+	}
+	opts, err := decode.finish(set.ReadFile)
+	if err != nil {
+		return nil, err
+	}
+	return opts, nil
+}
+
+// optionDecode is an Options under construction. The overlay is described by two
+// settings — the document and how strictly to apply it — so it is assembled once
+// every setting has been read, and neither order of the two changes the result.
+type optionDecode struct {
+	opts        Options
+	overlayPath string
+	lax         bool
+	laxSet      bool
+}
+
+// set reads one setting.
+func (d *optionDecode) set(key, value string) error {
+	switch key {
+	case optGrouping:
+		return decodeGrouping(&d.opts.Grouping, value)
+	case optAllowExternalRefs:
+		return decodeBool(&d.opts.AllowExternalRefs, key, value)
+	case optOverlay:
+		// An empty path is refused rather than read as "no overlay". Taking it
+		// would apply none while the caller believes one was applied, and would
+		// then blame optOverlayLax for applying without an overlay the caller
+		// did in fact name.
+		if value == "" {
+			return fmt.Errorf("openapi: option %q: want a file path, got an empty value", optOverlay)
+		}
+		d.overlayPath = value
+		return nil
+	case optOverlayLax:
+		d.laxSet = true
+		return decodeBool(&d.lax, key, value)
+	default:
+		return fmt.Errorf("openapi: unknown option %q (known: %s)",
+			key, strings.Join(optionNames(), ", "))
+	}
+}
+
+// finish assembles the decoded Options, loading the overlay document a setting
+// named through the caller's reader.
+func (d *optionDecode) finish(readFile func(name string) ([]byte, error)) (Options, error) {
+	if d.overlayPath == "" {
+		if d.laxSet {
+			return Options{}, fmt.Errorf("openapi: option %q applies only with %q",
+				optOverlayLax, optOverlay)
+		}
+		return d.opts, nil
+	}
+	if readFile == nil {
+		return Options{}, fmt.Errorf("openapi: option %q names a file and the caller supplied no reader",
+			optOverlay)
+	}
+	data, err := readFile(d.overlayPath)
+	if err != nil {
+		return Options{}, fmt.Errorf("openapi: option %q: %w", optOverlay, err)
+	}
+	d.opts.Overlay = &Overlay{Path: d.overlayPath, Data: data, Lax: d.lax}
+	return d.opts, nil
+}
+
+// decodeGrouping reads a grouping strategy by its own name, which is the same
+// string the JSON form uses.
+func decodeGrouping(out *GroupingStrategy, value string) error {
+	switch strategy := GroupingStrategy(value); strategy {
+	case GroupByTags, GroupByPathPrefix:
+		*out = strategy
+		return nil
+	default:
+		return fmt.Errorf("openapi: option %q: want %q or %q, got %q",
+			optGrouping, GroupByTags, GroupByPathPrefix, value)
+	}
+}
+
+// decodeBool reads a boolean setting, spelled as strconv.ParseBool accepts it.
+func decodeBool(out *bool, key, value string) error {
+	parsed, err := strconv.ParseBool(value)
+	if err != nil {
+		return fmt.Errorf("openapi: option %q: want a boolean, got %q", key, value)
+	}
+	*out = parsed
+	return nil
 }

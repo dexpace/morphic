@@ -13,7 +13,7 @@ func TestDocument_ConstructRepresentative(t *testing.T) {
 	t.Parallel()
 	userID := ir.TypeID("t/openapi/components/schemas/User")
 	doc := ir.Document{
-		IRVersion: "0.1.0",
+		IRVersion: ir.IRVersion,
 		Name:      "Petstore",
 		Version:   "1.0.0",
 		Types: ir.TypeRegistry{
@@ -65,6 +65,35 @@ func TestDocument_ConstructRepresentative(t *testing.T) {
 	assert.Equal(t, ir.KindModel, model.Kind())
 	assert.True(t, model.Properties[0].Required)
 	assert.False(t, model.Properties[0].Type.Nullable)
+}
+
+// TestCompatibleVersion pins the pre-1.0 compatibility policy (ir-design §2.1):
+// a document is readable only when its stamp is character-for-character the
+// version this build was compiled against. Every recorded bump so far changed
+// the JSON shape, so nothing licenses accepting a neighbouring one — not a
+// differing patch, not the same version spelled differently.
+func TestCompatibleVersion(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		name    string
+		version string
+		want    bool
+	}{
+		{"this build's version", ir.IRVersion, true},
+		{"absent", "", false},
+		{"an earlier generation", "0.1.0", false},
+		{"a later generation", "0.4.0", false},
+		{"a differing patch", "0.3.1", false},
+		{"a prerelease of this version", ir.IRVersion + "-rc.1", false},
+		{"padded with whitespace", " " + ir.IRVersion + " ", false},
+		{"not a version at all", "99.99.99-bogus", false},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			assert.Equal(t, tc.want, ir.CompatibleVersion(tc.version))
+		})
+	}
 }
 
 // TestDocument_ChannelsDeterministic pins Class C for Document's map-keyed

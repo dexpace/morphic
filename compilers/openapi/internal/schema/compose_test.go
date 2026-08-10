@@ -9,12 +9,13 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
+	"github.com/dexpace/morphic/compilers/openapi/internal/openapitest"
 	"github.com/dexpace/morphic/ir"
 )
 
 func TestAllOf_SoleRefBecomesBase(t *testing.T) {
 	t.Parallel()
-	spec := componentSpec(`    Animal:
+	spec := openapitest.ComponentSpec(`    Animal:
       type: object
       properties:
         name: {type: string}
@@ -26,7 +27,7 @@ func TestAllOf_SoleRefBecomesBase(t *testing.T) {
             bark: {type: string}
 `)
 	doc, diags := lowerSpec(t, spec)
-	requireNoErrorDiags(t, diags)
+	openapitest.RequireNoErrorDiags(t, diags)
 	dog, ok := doc.Types[componentID("Dog")].(*ir.Model)
 	require.True(t, ok, "Dog should be a model")
 	require.NotNil(t, dog.Base, "sole $ref becomes Base")
@@ -44,7 +45,7 @@ func TestAllOf_OverlappingInlineBranchesReconcile(t *testing.T) {
 	// webhook `forkee` uses (a documented object plus a doc-stripped duplicate
 	// that marks some fields required). allOf is an intersection, so each wire
 	// name must reconcile to a single property, not append a duplicate.
-	spec := componentSpec(`    Forkish:
+	spec := openapitest.ComponentSpec(`    Forkish:
       allOf:
         - type: object
           properties:
@@ -57,7 +58,7 @@ func TestAllOf_OverlappingInlineBranchesReconcile(t *testing.T) {
             url: {type: string}
 `)
 	doc, diags := lowerSpec(t, spec)
-	requireNoErrorDiags(t, diags)
+	openapitest.RequireNoErrorDiags(t, diags)
 	m, ok := doc.Types[componentID("Forkish")].(*ir.Model)
 	require.True(t, ok, "Forkish should be a model")
 
@@ -86,7 +87,7 @@ func TestAllOf_ReconcileAccumulatesRicherDetailWhateverTheOrder(t *testing.T) {
 	// The bare declaration comes first and the richer one second: reconciliation
 	// must still surface every optional detail, so branch order never loses
 	// information (the reverse of the forkee documented-first shape).
-	spec := componentSpec(`    Tokenish:
+	spec := openapitest.ComponentSpec(`    Tokenish:
       allOf:
         - type: object
           properties:
@@ -105,7 +106,7 @@ func TestAllOf_ReconcileAccumulatesRicherDetailWhateverTheOrder(t *testing.T) {
               xml: {name: tok}
 `)
 	doc, diags := lowerSpec(t, spec)
-	requireNoErrorDiags(t, diags)
+	openapitest.RequireNoErrorDiags(t, diags)
 	m, ok := doc.Types[componentID("Tokenish")].(*ir.Model)
 	require.True(t, ok, "Tokenish should be a model")
 	require.Len(t, m.Properties, 1, "token reconciles to a single property")
@@ -127,7 +128,7 @@ func TestAllOf_ConflictingRedeclaredDescriptionDiagnosed(t *testing.T) {
 	// Two branches describe the same field differently. The first declaration in
 	// source order wins the shape, but the dropped description is surfaced as an
 	// info diagnostic rather than vanishing silently.
-	spec := componentSpec(`    Clashish:
+	spec := openapitest.ComponentSpec(`    Clashish:
       allOf:
         - type: object
           properties:
@@ -137,13 +138,13 @@ func TestAllOf_ConflictingRedeclaredDescriptionDiagnosed(t *testing.T) {
             id: {type: integer, description: a different meaning}
 `)
 	doc, diags := lowerSpec(t, spec)
-	requireNoErrorDiags(t, diags) // a description clash is info-level, never an error
+	openapitest.RequireNoErrorDiags(t, diags) // a description clash is info-level, never an error
 	m, ok := doc.Types[componentID("Clashish")].(*ir.Model)
 	require.True(t, ok, "Clashish should be a model")
 	require.Len(t, m.Properties, 1, "id still reconciles to one property")
 	assert.Equal(t, "the first meaning", m.Properties[0].Docs.Description,
 		"the first declaration in source order wins the description")
-	assert.True(t, hasDiagAt(diags, diag.DegradedConstruct, ir.SeverityInfo),
+	assert.True(t, openapitest.HasDiagAt(diags, diag.DegradedConstruct, ir.SeverityInfo),
 		"a differing redeclared description is surfaced, not dropped silently")
 }
 
@@ -154,7 +155,7 @@ func TestAllOf_ConflictingRedeclaredTypeDiagnosed(t *testing.T) {
 	// first declaration's shape (as before) but must no longer swallow the
 	// conflict — it names the field and both branch sites so the author can find
 	// and fix them.
-	spec := componentSpec(`    Conflictish:
+	spec := openapitest.ComponentSpec(`    Conflictish:
       allOf:
         - type: object
           properties:
@@ -164,7 +165,7 @@ func TestAllOf_ConflictingRedeclaredTypeDiagnosed(t *testing.T) {
             id: {type: integer}
 `)
 	doc, diags := lowerSpec(t, spec)
-	requireNoErrorDiags(t, diags) // a redeclaration conflict is a warning, not a refusal
+	openapitest.RequireNoErrorDiags(t, diags) // a redeclaration conflict is a warning, not a refusal
 	m, ok := doc.Types[componentID("Conflictish")].(*ir.Model)
 	require.True(t, ok, "Conflictish should be a model")
 	require.Len(t, m.Properties, 1, "id still reconciles to one property")
@@ -185,7 +186,7 @@ func TestAllOf_ConflictingRedeclaredConstraintDiagnosed(t *testing.T) {
 	// Same target type, but the two branches pin the same keyword to different
 	// values (maxLength 10 vs 20). The chosen winner is arbitrary source order, so
 	// the dropped bound is surfaced rather than silently discarded.
-	spec := componentSpec(`    Boundish:
+	spec := openapitest.ComponentSpec(`    Boundish:
       allOf:
         - type: object
           properties:
@@ -195,7 +196,7 @@ func TestAllOf_ConflictingRedeclaredConstraintDiagnosed(t *testing.T) {
             code: {type: string, maxLength: 20}
 `)
 	doc, diags := lowerSpec(t, spec)
-	requireNoErrorDiags(t, diags)
+	openapitest.RequireNoErrorDiags(t, diags)
 	m, ok := doc.Types[componentID("Boundish")].(*ir.Model)
 	require.True(t, ok, "Boundish should be a model")
 	require.Len(t, m.Properties, 1, "code reconciles to one property")
@@ -218,7 +219,7 @@ func TestAllOf_CompatibleRedeclarationStaysSilent(t *testing.T) {
 	// The reconcilable case: identical target type, the second branch only adds
 	// `required`. This must stay silent — a redeclaration is not by itself a
 	// conflict, only an incompatible one is.
-	spec := componentSpec(`    Compatish:
+	spec := openapitest.ComponentSpec(`    Compatish:
       allOf:
         - type: object
           properties:
@@ -229,7 +230,7 @@ func TestAllOf_CompatibleRedeclarationStaysSilent(t *testing.T) {
             id: {type: integer}
 `)
 	doc, diags := lowerSpec(t, spec)
-	requireNoErrorDiags(t, diags)
+	openapitest.RequireNoErrorDiags(t, diags)
 	m, ok := doc.Types[componentID("Compatish")].(*ir.Model)
 	require.True(t, ok, "Compatish should be a model")
 	require.Len(t, m.Properties, 1, "id reconciles to one property")
@@ -244,7 +245,7 @@ func TestAllOf_PropertyAlongsideAllOfReconciles(t *testing.T) {
 	// A property declared directly on the allOf schema redeclares a field an inline
 	// branch already contributed; the sibling and the branch declaration reconcile
 	// into one property instead of colliding on the wire.
-	spec := componentSpec(`    Mixish:
+	spec := openapitest.ComponentSpec(`    Mixish:
       required: [id]
       properties:
         id: {type: integer}
@@ -255,7 +256,7 @@ func TestAllOf_PropertyAlongsideAllOfReconciles(t *testing.T) {
             name: {type: string}
 `)
 	doc, diags := lowerSpec(t, spec)
-	requireNoErrorDiags(t, diags)
+	openapitest.RequireNoErrorDiags(t, diags)
 	m, ok := doc.Types[componentID("Mixish")].(*ir.Model)
 	require.True(t, ok, "Mixish should be a model")
 	require.Len(t, m.Properties, 2, "id (branch + sibling) reconciles to one; name stays its own")
@@ -287,7 +288,7 @@ func TestAllOf_CompositionRequiredAttaches(t *testing.T) {
 	}{
 		{
 			name: "required-only branch after the branch declaring the property (issue #29 repro)",
-			spec: componentSpec(`    Thing:
+			spec: openapitest.ComponentSpec(`    Thing:
       allOf:
         - type: object
           properties:
@@ -299,7 +300,7 @@ func TestAllOf_CompositionRequiredAttaches(t *testing.T) {
 		},
 		{
 			name: "required-only branch before the branch declaring the property",
-			spec: componentSpec(`    ThingB:
+			spec: openapitest.ComponentSpec(`    ThingB:
       allOf:
         - required: [id]
         - type: object
@@ -311,7 +312,7 @@ func TestAllOf_CompositionRequiredAttaches(t *testing.T) {
 		},
 		{
 			name: "required-only branch, property declared alongside allOf (mirrors allof_required.yaml's Bar)",
-			spec: componentSpec(`    Foo:
+			spec: openapitest.ComponentSpec(`    Foo:
       type: object
       properties:
         a: {type: string}
@@ -329,7 +330,7 @@ func TestAllOf_CompositionRequiredAttaches(t *testing.T) {
 		},
 		{
 			name: "branch declares properties: {} (empty, non-nil) plus required",
-			spec: componentSpec(`    ThingF:
+			spec: openapitest.ComponentSpec(`    ThingF:
       allOf:
         - type: object
           properties:
@@ -343,7 +344,7 @@ func TestAllOf_CompositionRequiredAttaches(t *testing.T) {
 		},
 		{
 			name: "the schema's own required (sibling of allOf, no sibling properties) names a property declared inside a branch",
-			spec: componentSpec(`    ThingG:
+			spec: openapitest.ComponentSpec(`    ThingG:
       required: [id]
       allOf:
         - type: object
@@ -358,13 +359,13 @@ func TestAllOf_CompositionRequiredAttaches(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			doc, diags := lowerSpec(t, tc.spec)
-			requireNoErrorDiags(t, diags)
+			openapitest.RequireNoErrorDiags(t, diags)
 			m, ok := doc.Types[componentID(tc.model)].(*ir.Model)
 			require.True(t, ok, "%s should be a model", tc.model)
-			p, ok := propsByWire(m.Properties)[tc.wire]
+			p, ok := openapitest.PropsByWire(m.Properties)[tc.wire]
 			require.True(t, ok, "%s should have a %q property", tc.model, tc.wire)
 			assert.True(t, p.Required, "%s.%s should be required via composition-scope required", tc.model, tc.wire)
-			assert.False(t, hasDiag(diags, diag.UnattachableRequired),
+			assert.False(t, openapitest.HasDiag(diags, diag.UnattachableRequired),
 				"every required name matches an own property; no unattachable-required diagnostic expected")
 		})
 	}
@@ -379,7 +380,7 @@ func TestAllOf_CompositionRequiredAttaches(t *testing.T) {
 // to an unrelated property.
 func TestAllOf_RequiredOnlyBranchNamingBaseOwnedPropertyDiagnosed(t *testing.T) {
 	t.Parallel()
-	spec := componentSpec(`    Human:
+	spec := openapitest.ComponentSpec(`    Human:
       type: object
       properties:
         name: {type: string}
@@ -397,9 +398,9 @@ func TestAllOf_RequiredOnlyBranchNamingBaseOwnedPropertyDiagnosed(t *testing.T) 
 	require.NotNil(t, m.Base, "the sole $ref still becomes Base")
 	assert.Equal(t, componentID("Human"), m.Base.Target)
 
-	_, hasLevel := propsByWire(m.Properties)["level"]
+	_, hasLevel := openapitest.PropsByWire(m.Properties)["level"]
 	assert.False(t, hasLevel, "level belongs to the base, not to SuperBaby's own properties")
-	_, hasGender := propsByWire(m.Properties)["gender"]
+	_, hasGender := openapitest.PropsByWire(m.Properties)["gender"]
 	assert.True(t, hasGender, "gender is SuperBaby's own property")
 
 	var unattachable []ir.Diagnostic
@@ -425,7 +426,7 @@ func TestAllOf_RequiredOnlyBranchNamingBaseOwnedPropertyDiagnosed(t *testing.T) 
 // the diagnostic is info, not warning.
 func TestAllOf_RequiredOnlyBranchNoBaseOrMixinDiagnosedInfo(t *testing.T) {
 	t.Parallel()
-	spec := componentSpec(`    Thing:
+	spec := openapitest.ComponentSpec(`    Thing:
       allOf:
         - type: object
           properties:
@@ -433,19 +434,19 @@ func TestAllOf_RequiredOnlyBranchNoBaseOrMixinDiagnosedInfo(t *testing.T) {
         - required: [ghost]
 `)
 	doc, diags := lowerSpec(t, spec)
-	requireNoErrorDiags(t, diags)
+	openapitest.RequireNoErrorDiags(t, diags)
 	m, ok := doc.Types[componentID("Thing")].(*ir.Model)
 	require.True(t, ok, "Thing should be a model")
 	assert.Nil(t, m.Base, "no $ref branch at all: no Base")
 	assert.Empty(t, m.Mixins, "no $ref branch at all: no Mixins")
 
-	id, hasID := propsByWire(m.Properties)["id"]
+	id, hasID := openapitest.PropsByWire(m.Properties)["id"]
 	require.True(t, hasID, "the branch's own id property still lowers")
 	assert.False(t, id.Required, "ghost's requiredness never misattaches to id")
-	_, hasGhost := propsByWire(m.Properties)["ghost"]
+	_, hasGhost := openapitest.PropsByWire(m.Properties)["ghost"]
 	assert.False(t, hasGhost, "ghost is never invented as a property")
 
-	require.Equal(t, 1, countDiagsAt(diags, diag.UnattachableRequired, ir.SeverityInfo),
+	require.Equal(t, 1, openapitest.CountDiagsAt(diags, diag.UnattachableRequired, ir.SeverityInfo),
 		"exactly one info-severity unattachable-required diagnostic")
 	var unattachable ir.Diagnostic
 	for _, d := range diags {
@@ -467,7 +468,7 @@ func TestAllOf_RequiredOnlyBranchNoBaseOrMixinDiagnosedInfo(t *testing.T) {
 // node actually exposes for a $ref-with-siblings branch in this library.
 func TestAllOf_RefBranchWithSiblingRequired31(t *testing.T) {
 	t.Parallel()
-	spec := componentSpec(`    Human:
+	spec := openapitest.ComponentSpec(`    Human:
       type: object
       properties:
         name: {type: string}
@@ -480,12 +481,12 @@ func TestAllOf_RefBranchWithSiblingRequired31(t *testing.T) {
             level: {type: integer}
 `)
 	doc, diags := lowerSpec(t, spec)
-	requireNoErrorDiags(t, diags)
+	openapitest.RequireNoErrorDiags(t, diags)
 	m, ok := doc.Types[componentID("SuperBoyLike")].(*ir.Model)
 	require.True(t, ok, "SuperBoyLike should be a model")
 	require.NotNil(t, m.Base, "the sole $ref still becomes Base despite the sibling required")
 
-	level, ok := propsByWire(m.Properties)["level"]
+	level, ok := openapitest.PropsByWire(m.Properties)["level"]
 	require.True(t, ok, "level is declared by the inline branch")
 	assert.True(t, level.Required,
 		"a required sibling on a $ref branch is read off the branch's own local schema and attaches to level")
@@ -497,7 +498,7 @@ func TestAllOf_RefBranchWithSiblingRequired31(t *testing.T) {
 // diagnostic. The branch now survives verbatim beside the composed model.
 func TestAllOf_InlineBranchResidueKeptVerbatim(t *testing.T) {
 	t.Parallel()
-	spec := componentSpec(`    S:
+	spec := openapitest.ComponentSpec(`    S:
       allOf:
         - type: object
           properties: {a: {type: string}}
@@ -509,11 +510,11 @@ func TestAllOf_InlineBranchResidueKeptVerbatim(t *testing.T) {
           x-vendor: keepme
 `)
 	doc, diags := lowerSpec(t, spec)
-	requireNoErrorDiags(t, diags)
+	openapitest.RequireNoErrorDiags(t, diags)
 	m, ok := typeByName(doc, "S").(*ir.Model)
 	require.True(t, ok, "S should be a model")
 
-	a, ok := propsByWire(m.Properties)["a"]
+	a, ok := openapitest.PropsByWire(m.Properties)["a"]
 	require.True(t, ok, "the merge still contributes the branch's properties")
 	assert.True(t, a.Required, "and still ORs the branch's required list onto them")
 
@@ -529,7 +530,7 @@ func TestAllOf_InlineBranchResidueKeptVerbatim(t *testing.T) {
 		assert.Contains(t, string(entry.Value), kept, "the whole branch is preserved")
 	}
 	assert.Contains(t,
-		diagMessageAt(t, diags, diag.DegradedConstruct, ir.SeverityInfo, "/components/schemas/S/allOf/0"),
+		openapitest.DiagMessageAt(t, diags, diag.DegradedConstruct, ir.SeverityInfo, "/components/schemas/S/allOf/0"),
 		"additionalProperties, not, minProperties, description, x-vendor",
 		"the diagnostic names every keyword the merge left behind, in source order")
 }
@@ -541,12 +542,12 @@ func TestAllOf_InlineBranchResidueKeptVerbatim(t *testing.T) {
 // something wrong rather than merely incomplete.
 func TestAllOf_InlineBranchNonObjectTypeWarns(t *testing.T) {
 	t.Parallel()
-	spec := componentSpec(`    T:
+	spec := openapitest.ComponentSpec(`    T:
       allOf:
         - {type: string, maxLength: 3}
 `)
 	doc, diags := lowerSpec(t, spec)
-	requireNoErrorDiags(t, diags)
+	openapitest.RequireNoErrorDiags(t, diags)
 	m, ok := typeByName(doc, "T").(*ir.Model)
 	require.True(t, ok, "the composed node is still a model")
 	assert.Empty(t, m.Properties, "a scalar branch declares no properties to merge")
@@ -556,9 +557,9 @@ func TestAllOf_InlineBranchNonObjectTypeWarns(t *testing.T) {
 	assert.Equal(t, ir.ReasonDegradedLowering, entry.Reason)
 	assert.JSONEq(t, `{"type":"string","maxLength":3}`, string(entry.Value))
 	assert.Contains(t,
-		diagMessageAt(t, diags, diag.DegradedConstruct, ir.SeverityWarning, "/components/schemas/T/allOf/0"),
+		openapitest.DiagMessageAt(t, diags, diag.DegradedConstruct, ir.SeverityWarning, "/components/schemas/T/allOf/0"),
 		"declares a type that is not an object")
-	assert.False(t, hasDiagAt(diags, diag.DegradedConstruct, ir.SeverityInfo),
+	assert.False(t, openapitest.HasDiagAt(diags, diag.DegradedConstruct, ir.SeverityInfo),
 		"a contradicted model is a warning, not the info a merely narrowed one gets")
 }
 
@@ -571,13 +572,13 @@ func TestAllOf_InlineBranchNonObjectTypeWarns(t *testing.T) {
 // or a residue named `<<`, which names nothing a reader can act on.
 func TestAllOf_BranchWrittenByReferenceStillDerivesResidue(t *testing.T) {
 	t.Parallel()
-	spec := componentSpec(`    Shared: &br {type: string, maxLength: 3, description: Aliased}
+	spec := openapitest.ComponentSpec(`    Shared: &br {type: string, maxLength: 3, description: Aliased}
     Aliased: {allOf: [*br]}
     Merged: {allOf: [{<<: *br}]}
     Overridden: {allOf: [{<<: *br, type: object, properties: {a: {type: string}}}]}
 `)
 	doc, diags := lowerSpec(t, spec)
-	requireNoErrorDiags(t, diags)
+	openapitest.RequireNoErrorDiags(t, diags)
 
 	cases := []struct {
 		name, wantKeys string
@@ -599,7 +600,7 @@ func TestAllOf_BranchWrittenByReferenceStillDerivesResidue(t *testing.T) {
 			assert.Contains(t, string(entry.Value), `"maxLength":3`,
 				"the payload resolves the reference too, so the branch is recoverable")
 			assert.Contains(t,
-				diagMessageAt(t, diags, diag.DegradedConstruct, tc.sev,
+				openapitest.DiagMessageAt(t, diags, diag.DegradedConstruct, tc.sev,
 					"/components/schemas/"+tc.name+"/allOf/0"),
 				"the branch ("+tc.wantKeys+")",
 				"the keywords the branch effectively declares are named, not `<<`")
@@ -617,7 +618,7 @@ func TestAllOf_BranchWrittenByReferenceStillDerivesResidue(t *testing.T) {
 // from the corpus, which writes no such branch.
 func TestAllOf_MergedBranchKeywordsAreNotResidue(t *testing.T) {
 	t.Parallel()
-	spec := componentSpec(`    Base: {type: object, properties: {id: {type: string}}}
+	spec := openapitest.ComponentSpec(`    Base: {type: object, properties: {id: {type: string}}}
     TypedBranch:
       allOf:
         - {$ref: '#/components/schemas/Base'}
@@ -635,14 +636,14 @@ func TestAllOf_MergedBranchKeywordsAreNotResidue(t *testing.T) {
         - required: [name]
 `)
 	doc, diags := lowerSpec(t, spec)
-	requireNoErrorDiags(t, diags)
+	openapitest.RequireNoErrorDiags(t, diags)
 	for _, name := range []string{"TypedBranch", "UntypedBranch", "RequiredOnlyBranch"} {
 		m, ok := typeByName(doc, name).(*ir.Model)
 		require.True(t, ok, "%s should be a model", name)
 		assert.Empty(t, m.Unmodeled,
 			"%s: properties, required and a bare `type: object` are merged, not residue", name)
 	}
-	assert.Zero(t, countDiagsAt(diags, diag.DegradedConstruct, ir.SeverityInfo),
+	assert.Zero(t, openapitest.CountDiagsAt(diags, diag.DegradedConstruct, ir.SeverityInfo),
 		"a branch the merge fully consumes announces nothing; got %+v", diags)
 }
 
@@ -654,7 +655,7 @@ func TestAllOf_MergedBranchKeywordsAreNotResidue(t *testing.T) {
 // exactly `object`, so the null a set also declares stays recoverable.
 func TestAllOf_BranchResidueDerivedFromDeclaredKeys(t *testing.T) {
 	t.Parallel()
-	spec := componentSpec(`    Unknown:
+	spec := openapitest.ComponentSpec(`    Unknown:
       allOf:
         - type: object
           properties: {a: {type: string}}
@@ -665,7 +666,7 @@ func TestAllOf_BranchResidueDerivedFromDeclaredKeys(t *testing.T) {
           properties: {a: {type: string}}
 `)
 	doc, diags := lowerSpec(t, spec)
-	requireNoErrorDiags(t, diags)
+	openapitest.RequireNoErrorDiags(t, diags)
 
 	for name, want := range map[string]string{
 		"Unknown":        `"futureKeyword":{"some":"thing"}`,
@@ -678,7 +679,7 @@ func TestAllOf_BranchResidueDerivedFromDeclaredKeys(t *testing.T) {
 		require.True(t, ok, "%s keeps the branch verbatim; got %+v", name, m.Unmodeled)
 		assert.Contains(t, string(entry.Value), want, "%s", name)
 		assert.Contains(t,
-			diagMessageAt(t, diags, diag.DegradedConstruct, ir.SeverityInfo,
+			openapitest.DiagMessageAt(t, diags, diag.DegradedConstruct, ir.SeverityInfo,
 				"/components/schemas/"+name+"/allOf/0"),
 			"kept verbatim under Unmodeled", name)
 	}
@@ -688,7 +689,7 @@ func TestAllOf_BranchResidueDerivedFromDeclaredKeys(t *testing.T) {
 // must not overwrite each other's entry, and each is reported at its own branch.
 func TestAllOf_EachInlineBranchKeyedSeparately(t *testing.T) {
 	t.Parallel()
-	spec := componentSpec(`    Multi:
+	spec := openapitest.ComponentSpec(`    Multi:
       allOf:
         - type: object
           properties: {a: {type: string}}
@@ -698,7 +699,7 @@ func TestAllOf_EachInlineBranchKeyedSeparately(t *testing.T) {
           minProperties: 1
 `)
 	doc, diags := lowerSpec(t, spec)
-	requireNoErrorDiags(t, diags)
+	openapitest.RequireNoErrorDiags(t, diags)
 	m, ok := typeByName(doc, "Multi").(*ir.Model)
 	require.True(t, ok, "Multi should be a model")
 	require.Len(t, m.Properties, 2, "both branches still merge their properties")
@@ -708,7 +709,7 @@ func TestAllOf_EachInlineBranchKeyedSeparately(t *testing.T) {
 
 	for i, want := range []string{"description", "minProperties"} {
 		at := fmt.Sprintf("/components/schemas/Multi/allOf/%d", i)
-		assert.Contains(t, diagMessageAt(t, diags, diag.DegradedConstruct, ir.SeverityInfo, at), want,
+		assert.Contains(t, openapitest.DiagMessageAt(t, diags, diag.DegradedConstruct, ir.SeverityInfo, at), want,
 			"branch %d is reported at its own pointer, naming its own residue", i)
 	}
 }
@@ -720,7 +721,7 @@ func TestAllOf_EachInlineBranchKeyedSeparately(t *testing.T) {
 // however many variants carry it.
 func TestAllOf_BranchResidueRidesEveryDistributedVariant(t *testing.T) {
 	t.Parallel()
-	spec := componentSpec(`    Base: {type: object, properties: {id: {type: string}}}
+	spec := openapitest.ComponentSpec(`    Base: {type: object, properties: {id: {type: string}}}
     A: {type: object, properties: {a: {type: string}}}
     B: {type: object, properties: {b: {type: string}}}
     Distributed:
@@ -734,7 +735,7 @@ func TestAllOf_BranchResidueRidesEveryDistributedVariant(t *testing.T) {
         - {$ref: '#/components/schemas/B'}
 `)
 	doc, diags := lowerSpec(t, spec)
-	requireNoErrorDiags(t, diags)
+	openapitest.RequireNoErrorDiags(t, diags)
 	u, ok := typeByName(doc, "Distributed").(*ir.Union)
 	require.True(t, ok, "Distributed distributes into a union")
 	require.Len(t, u.Variants, 2)
@@ -746,7 +747,7 @@ func TestAllOf_BranchResidueRidesEveryDistributedVariant(t *testing.T) {
 		require.True(t, ok, "variant %d carries the branch residue; got %+v", i, variant.Unmodeled)
 		assert.Contains(t, string(entry.Value), `"description":"BranchDoc"`, "variant %d", i)
 	}
-	assert.Equal(t, 1, countDiagsAt(diags, diag.DegradedConstruct, ir.SeverityInfo),
+	assert.Equal(t, 1, openapitest.CountDiagsAt(diags, diag.DegradedConstruct, ir.SeverityInfo),
 		"one branch, one diagnostic, however many variants carry it; got %+v", diags)
 }
 
@@ -757,24 +758,24 @@ func TestAllOf_BranchResidueRidesEveryDistributedVariant(t *testing.T) {
 // exactly as before — this path never reaches applyCompositionRequired.
 func TestModel_PlainRequiredUndeclaredPropertyUnaffected(t *testing.T) {
 	t.Parallel()
-	spec := componentSpec(`    Plain:
+	spec := openapitest.ComponentSpec(`    Plain:
       type: object
       required: [ghost]
       properties:
         id: {type: integer}
 `)
 	doc, diags := lowerSpec(t, spec)
-	requireNoErrorDiags(t, diags)
+	openapitest.RequireNoErrorDiags(t, diags)
 	m, ok := doc.Types[componentID("Plain")].(*ir.Model)
 	require.True(t, ok, "Plain should be a model")
 	require.Len(t, m.Properties, 1)
-	assert.False(t, hasDiag(diags, diag.UnattachableRequired),
+	assert.False(t, openapitest.HasDiag(diags, diag.UnattachableRequired),
 		"the plain (non-allOf) path is untouched by this fix; no new diagnostic")
 }
 
 func TestAllOf_ExtraRefsBecomeMixins(t *testing.T) {
 	t.Parallel()
-	spec := componentSpec(`    A:
+	spec := openapitest.ComponentSpec(`    A:
       type: object
       properties:
         a: {type: string}
@@ -791,7 +792,7 @@ func TestAllOf_ExtraRefsBecomeMixins(t *testing.T) {
             c: {type: string}
 `)
 	doc, diags := lowerSpec(t, spec)
-	requireNoErrorDiags(t, diags)
+	openapitest.RequireNoErrorDiags(t, diags)
 	c, ok := doc.Types[componentID("C")].(*ir.Model)
 	require.True(t, ok, "C should be a model")
 	assert.Nil(t, c.Base, "two non-hierarchy refs, neither sole: no Base")
@@ -802,9 +803,137 @@ func TestAllOf_ExtraRefsBecomeMixins(t *testing.T) {
 	assert.Equal(t, "c", c.Properties[0].Name.Source)
 }
 
+// TestAllOf_NullabilityFollowsTheConjuncts pins that a composition over a
+// null-admitting conjunct reads as nullable at every usage naming it, and that
+// the bit is derived from the conjuncts rather than asserted.
+//
+// A composition declares no nullability of its own, so asking the composing
+// schema alone answered "no" — and Model.Base carries no Nullable bit either,
+// which left `allOf: [{$ref: T}]` over a nullable T with no record of the null
+// anywhere and no diagnostic saying so. Against a model target there is not even
+// a second hop to recover it from (GitHub #279).
+//
+// WrapPlain and WrapBoth are the halves that keep the rule from being "a
+// conjunction is nullable": a conjunct declaring `type: object` forbids null,
+// and one forbidding conjunct decides the conjunction however many of its
+// siblings admit it.
+func TestAllOf_NullabilityFollowsTheConjuncts(t *testing.T) {
+	t.Parallel()
+	spec := openapitest.ComponentSpec(`    NullableName: {type: [string, "null"]}
+    NullableModel:
+      type: [object, "null"]
+      properties: {a: {type: string}}
+    PlainModel:
+      type: object
+      properties: {b: {type: string}}
+    WrapScalar: {allOf: [{$ref: '#/components/schemas/NullableName'}]}
+    WrapModel: {allOf: [{$ref: '#/components/schemas/NullableModel'}]}
+    WrapPlain: {allOf: [{$ref: '#/components/schemas/PlainModel'}]}
+    WrapBoth:
+      allOf:
+        - {$ref: '#/components/schemas/NullableModel'}
+        - {$ref: '#/components/schemas/PlainModel'}
+    Holder:
+      type: object
+      properties:
+        direct: {$ref: '#/components/schemas/NullableName'}
+        viaAllOf: {$ref: '#/components/schemas/WrapScalar'}
+        directModel: {$ref: '#/components/schemas/NullableModel'}
+        viaAllOfModel: {$ref: '#/components/schemas/WrapModel'}
+        viaAllOfPlain: {$ref: '#/components/schemas/WrapPlain'}
+        viaAllOfBoth: {$ref: '#/components/schemas/WrapBoth'}
+`)
+	doc, diags := lowerSpec(t, spec)
+	openapitest.RequireNoErrorDiags(t, diags)
+	holder, ok := typeByName(doc, "Holder").(*ir.Model)
+	require.True(t, ok, "Holder is a model")
+	props := openapitest.PropsByWire(holder.Properties)
+	require.Len(t, props, 6)
+
+	assert.True(t, props["viaAllOf"].Type.Nullable, "a conjunction over a nullable scalar admits null")
+	assert.Equal(t, props["direct"].Type.Nullable, props["viaAllOf"].Type.Nullable,
+		"wrapping a nullable scalar in an allOf does not change what the position admits")
+	assert.True(t, props["viaAllOfModel"].Type.Nullable, "a conjunction over a nullable model admits null")
+	assert.Equal(t, props["directModel"].Type.Nullable, props["viaAllOfModel"].Type.Nullable,
+		"a model target has no second hop to recover the null from, so the conjunction must carry it")
+	assert.False(t, props["viaAllOfPlain"].Type.Nullable, "a conjunction over an object admits no null")
+	assert.False(t, props["viaAllOfBoth"].Type.Nullable,
+		"one conjunct forbidding null decides the conjunction")
+
+	// The bit lives on the usage, not on the conjunct: Base and Mixins name one
+	// side of a conjunction, which is the rule conjoinBranch and fillAllOf share.
+	for _, name := range []string{"WrapScalar", "WrapModel", "WrapPlain"} {
+		m, isModel := typeByName(doc, name).(*ir.Model)
+		require.True(t, isModel, "%s is a model", name)
+		require.NotNil(t, m.Base, "%s composes a sole $ref as its Base", name)
+		assert.False(t, m.Base.Nullable, "%s.Base names a conjunct and carries no Nullable bit", name)
+	}
+}
+
+// TestDistributedUnion_VariantCarriesTheBranchNullability pins that a union
+// distributed across its branches answers what the plain union over the same
+// branches does. The distributed variant is a synthesized model, and the TypeRef
+// naming it was built with no Nullable bit at all — so the branch's null was
+// dropped whatever the branch said, with one info diagnostic that says nothing
+// about it.
+//
+// The two distributed rows differ only in the enclosing `type: object`, which is
+// the whole point: the variant is the body conjoined with the branch, so the
+// body's own type keyword decides as much as the branch does. A fix that copied
+// the branch's bit unconditionally passes the untyped row and fails the typed
+// one.
+func TestDistributedUnion_VariantCarriesTheBranchNullability(t *testing.T) {
+	t.Parallel()
+	spec := openapitest.ComponentSpec(`    NullableModel:
+      type: [object, "null"]
+      properties: {a: {type: string}}
+    PlainModel:
+      type: object
+      properties: {b: {type: string}}
+    PlainUnion:
+      oneOf:
+        - {$ref: '#/components/schemas/NullableModel'}
+        - {$ref: '#/components/schemas/PlainModel'}
+    DistributedUntyped:
+      properties: {z: {type: string}}
+      oneOf:
+        - {$ref: '#/components/schemas/NullableModel'}
+        - {$ref: '#/components/schemas/PlainModel'}
+    DistributedTyped:
+      type: object
+      properties: {z: {type: string}}
+      oneOf:
+        - {$ref: '#/components/schemas/NullableModel'}
+        - {$ref: '#/components/schemas/PlainModel'}
+`)
+	doc, diags := lowerSpec(t, spec)
+	openapitest.RequireNoErrorDiags(t, diags)
+
+	nullableOf := func(name string) []bool {
+		t.Helper()
+		u, isUnion := typeByName(doc, name).(*ir.Union)
+		require.True(t, isUnion, "%s is a union", name)
+		require.Len(t, u.Variants, 2, "%s keeps one variant per branch", name)
+		return []bool{u.Variants[0].Type.Nullable, u.Variants[1].Type.Nullable}
+	}
+
+	assert.Equal(t, []bool{true, false}, nullableOf("PlainUnion"),
+		"a plain union's variant carries its branch's nullability")
+	assert.Equal(t, nullableOf("PlainUnion"), nullableOf("DistributedUntyped"),
+		"distributing a body that declares no type does not change what a branch admits")
+	assert.Equal(t, []bool{false, false}, nullableOf("DistributedTyped"),
+		"a body declaring type: object conjoins with every branch and forbids null")
+
+	// The synthesized variant model still names its branch as a plain conjunct.
+	base, isModel := doc.Types[ir.TypeID("t/composed/components/schemas/DistributedUntyped/oneOf/0")].(*ir.Model)
+	require.True(t, isModel, "the untyped distribution synthesizes a variant model")
+	require.NotNil(t, base.Base)
+	assert.False(t, base.Base.Nullable, "the variant model's Base names a conjunct and carries no bit")
+}
+
 func TestAllOf_DiscriminatorSubtypeValue(t *testing.T) {
 	t.Parallel()
-	spec := componentSpec(`    Pet:
+	spec := openapitest.ComponentSpec(`    Pet:
       type: object
       discriminator:
         propertyName: petType
@@ -826,7 +955,7 @@ func TestAllOf_DiscriminatorSubtypeValue(t *testing.T) {
             bark: {type: string}
 `)
 	doc, diags := lowerSpec(t, spec)
-	requireNoErrorDiags(t, diags)
+	openapitest.RequireNoErrorDiags(t, diags)
 
 	pet, ok := doc.Types[componentID("Pet")].(*ir.Model)
 	require.True(t, ok, "Pet should be a model")
@@ -848,7 +977,7 @@ func TestAllOf_DiscriminatorSubtypeValue(t *testing.T) {
 
 func TestOneOf_WithDiscriminator(t *testing.T) {
 	t.Parallel()
-	spec := componentSpec(`    Cat:
+	spec := openapitest.ComponentSpec(`    Cat:
       type: object
       properties:
         petType: {type: string}
@@ -866,7 +995,7 @@ func TestOneOf_WithDiscriminator(t *testing.T) {
           cat: "#/components/schemas/Cat"
 `)
 	doc, diags := lowerSpec(t, spec)
-	requireNoErrorDiags(t, diags)
+	openapitest.RequireNoErrorDiags(t, diags)
 	pet, ok := doc.Types[componentID("Pet")].(*ir.Union)
 	require.True(t, ok, "Pet should be a union")
 	assert.True(t, pet.Exclusive, "oneOf is exclusive")
@@ -880,13 +1009,13 @@ func TestOneOf_WithDiscriminator(t *testing.T) {
 
 func TestAnyOf_IsNonExclusiveUnion(t *testing.T) {
 	t.Parallel()
-	spec := componentSpec(`    U:
+	spec := openapitest.ComponentSpec(`    U:
       anyOf:
         - {type: string}
         - {type: integer}
 `)
 	doc, diags := lowerSpec(t, spec)
-	requireNoErrorDiags(t, diags)
+	openapitest.RequireNoErrorDiags(t, diags)
 	u, ok := doc.Types[componentID("U")].(*ir.Union)
 	require.True(t, ok, "U should be a union")
 	assert.False(t, u.Exclusive, "anyOf is non-exclusive")
@@ -895,7 +1024,7 @@ func TestAnyOf_IsNonExclusiveUnion(t *testing.T) {
 
 func TestOneOf_NullVariantCollapses(t *testing.T) {
 	t.Parallel()
-	spec := componentSpec(`    S:
+	spec := openapitest.ComponentSpec(`    S:
       type: object
       properties:
         p:
@@ -904,7 +1033,7 @@ func TestOneOf_NullVariantCollapses(t *testing.T) {
             - {type: "null"}
 `)
 	doc, diags := lowerSpec(t, spec)
-	requireNoErrorDiags(t, diags)
+	openapitest.RequireNoErrorDiags(t, diags)
 	s, ok := doc.Types[componentID("S")].(*ir.Model)
 	require.True(t, ok)
 	require.Len(t, s.Properties, 1)
@@ -920,7 +1049,7 @@ func TestOneOf_ThreeVariantsWithNullStripsNullLiftsNullable(t *testing.T) {
 	// A oneOf with two non-null branches plus a null branch stays a Union of the
 	// two non-null variants (the null branch is NOT emitted as an `any` variant),
 	// and the enclosing ref becomes Nullable.
-	spec := componentSpec(`    S:
+	spec := openapitest.ComponentSpec(`    S:
       type: object
       properties:
         p:
@@ -930,7 +1059,7 @@ func TestOneOf_ThreeVariantsWithNullStripsNullLiftsNullable(t *testing.T) {
             - {type: "null"}
 `)
 	doc, diags := lowerSpec(t, spec)
-	requireNoErrorDiags(t, diags)
+	openapitest.RequireNoErrorDiags(t, diags)
 	s := doc.Types[componentID("S")].(*ir.Model)
 	require.Len(t, s.Properties, 1)
 	ref := s.Properties[0].Type
@@ -947,12 +1076,12 @@ func TestOneOf_ThreeVariantsWithNullStripsNullLiftsNullable(t *testing.T) {
 
 func TestEnum_StringClosed(t *testing.T) {
 	t.Parallel()
-	spec := componentSpec(`    E:
+	spec := openapitest.ComponentSpec(`    E:
       type: string
       enum: [a, b]
 `)
 	doc, diags := lowerSpec(t, spec)
-	requireNoErrorDiags(t, diags)
+	openapitest.RequireNoErrorDiags(t, diags)
 	e, ok := doc.Types[componentID("E")].(*ir.Enum)
 	require.True(t, ok, "E should be an enum")
 	assert.True(t, e.Closed, "JSON Schema enum is closed")
@@ -966,7 +1095,7 @@ func TestEnum_StringClosed(t *testing.T) {
 // enumPropertySpec puts a schema at one property of a model S, so a test can
 // read both the node the schema lowers to and the reference the position holds.
 func enumPropertySpec(version, schema string) string {
-	return componentSpecVer(version, `    S:
+	return openapitest.ComponentSpecVer(version, `    S:
       type: object
       properties:
         p: `+schema+"\n")
@@ -1030,13 +1159,31 @@ func TestEnum_NullMemberNormalizesToNullable(t *testing.T) {
 			wantValueType: ir.PrimNumber,
 			wantMembers:   numMembers,
 		},
+		{
+			// A bare enum: nothing beside the members says whether null is in the
+			// value space, so the members say it themselves and the set normalizes
+			// exactly as its type-array spelling does. It used to keep the whole
+			// enum on the union-of-literals fallback (GitHub #265).
+			name:          "bare enum, trailing null",
+			version:       "3.1.0",
+			schema:        `{enum: [red, green, null]}`,
+			wantValueType: ir.PrimString,
+			wantMembers:   strMembers,
+		},
+		{
+			name:          "bare enum, leading null",
+			version:       "3.1.0",
+			schema:        `{enum: [null, 1, 2]}`,
+			wantValueType: ir.PrimNumber,
+			wantMembers:   numMembers,
+		},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			doc, diags := lowerSpec(t, enumPropertySpec(tc.version, tc.schema))
-			requireNoErrorDiags(t, diags)
-			assert.False(t, hasDiag(diags, diag.DegradedConstruct),
+			openapitest.RequireNoErrorDiags(t, diags)
+			assert.False(t, openapitest.HasDiag(diags, diag.DegradedConstruct),
 				"a normalized nullable enum is not a degradation; got %+v", diags)
 
 			m, ok := doc.Types[componentID("S")].(*ir.Model)
@@ -1067,18 +1214,24 @@ func TestEnum_NullMemberNormalizesToNullable(t *testing.T) {
 // the normalization must not touch still lowers to a union of literals, with its
 // info diagnostic and every member preserved.
 //
-// The last three rows are the ones that decide how far the rule reaches. A
-// schema whose type keyword excludes null conjoins the two, so its `null` member
-// admits nothing and normalizing would widen the type; a bare enum declares no
-// nullability that schemaAdmitsNull — which a reference re-derives the bit from
-// — would recognize, so stripping there would drop the null entirely; and an
-// all-null set has no member left to build an Enum from.
+// The last two rows decide how far the rule reaches. A schema whose type keyword
+// excludes null conjoins the two, so its `null` member admits nothing and
+// normalizing would widen the declared type — that row must stay non-nullable
+// however the predicate is widened elsewhere; and an all-null set has no member
+// left to build an Enum from.
+//
+// wantNullable is asserted beside the variants because the two answers have to
+// agree: a set that keeps its null as a Literal variant *and* reads as nullable
+// states one fact twice, which is tolerable, but a set whose null the fallback
+// keeps while the reference denies it would be a position an emitter cannot
+// generate.
 func TestEnum_NullMemberKeepsUnionFallback(t *testing.T) {
 	t.Parallel()
 	null := ir.Value{Kind: ir.ValueNull}
 	cases := []struct {
 		name, version, schema string
 		wantVariants          []ir.Value
+		wantNullable          bool
 	}{
 		{
 			name:    "heterogeneous members beside a null member",
@@ -1089,6 +1242,20 @@ func TestEnum_NullMemberKeepsUnionFallback(t *testing.T) {
 				{Kind: ir.ValueString, Str: "a"},
 				null,
 			},
+			wantNullable: true,
+		},
+		{
+			// The bare spelling of the row above: no type keyword, so the members
+			// decide, and they say the same thing the type array did.
+			name:    "heterogeneous members, no type keyword",
+			version: "3.1.0",
+			schema:  `{enum: [1, a, null]}`,
+			wantVariants: []ir.Value{
+				{Kind: ir.ValueNumber, Num: ir.BigVal("1")},
+				{Kind: ir.ValueString, Str: "a"},
+				null,
+			},
+			wantNullable: true,
 		},
 		{
 			name:    "type keyword excludes null",
@@ -1099,31 +1266,29 @@ func TestEnum_NullMemberKeepsUnionFallback(t *testing.T) {
 				{Kind: ir.ValueString, Str: "green"},
 				null,
 			},
-		},
-		{
-			name:    "no type keyword to admit null",
-			version: "3.1.0",
-			schema:  `{enum: [red, green, null]}`,
-			wantVariants: []ir.Value{
-				{Kind: ir.ValueString, Str: "red"},
-				{Kind: ir.ValueString, Str: "green"},
-				null,
-			},
+			wantNullable: false,
 		},
 		{
 			name:         "every member is null",
 			version:      "3.1.0",
 			schema:       `{type: ["null"], enum: [null]}`,
 			wantVariants: []ir.Value{null},
+			wantNullable: true,
 		},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			doc, diags := lowerSpec(t, enumPropertySpec(tc.version, tc.schema))
-			requireNoErrorDiags(t, diags)
-			assert.True(t, hasDiagAt(diags, diag.DegradedConstruct, ir.SeverityInfo),
+			openapitest.RequireNoErrorDiags(t, diags)
+			assert.True(t, openapitest.HasDiagAt(diags, diag.DegradedConstruct, ir.SeverityInfo),
 				"the degraded-enum diagnostic still fires; got %+v", diags)
+
+			owner, ok := doc.Types[componentID("S")].(*ir.Model)
+			require.True(t, ok, "S is a model")
+			require.Len(t, owner.Properties, 1)
+			assert.Equal(t, tc.wantNullable, owner.Properties[0].Type.Nullable,
+				"the reference agrees with the members the fallback kept")
 
 			u, ok := doc.Types[ir.TypeID("t/anon/components/schemas/S/properties/p")].(*ir.Union)
 			require.True(t, ok, "the property lowers to a union of literals")
@@ -1144,14 +1309,45 @@ func TestEnum_NullMemberKeepsUnionFallback(t *testing.T) {
 
 func TestConst_BecomesLiteral(t *testing.T) {
 	t.Parallel()
-	spec := componentSpec(`    K:
+	spec := openapitest.ComponentSpec(`    K:
       const: "fixed"
 `)
 	doc, diags := lowerSpec(t, spec)
-	requireNoErrorDiags(t, diags)
+	openapitest.RequireNoErrorDiags(t, diags)
 	k, ok := doc.Types[componentID("K")].(*ir.Literal)
 	require.True(t, ok, "K should be a literal")
 	assert.Equal(t, ir.Value{Kind: ir.ValueString, Str: "fixed"}, k.Value)
+}
+
+// TestConst_FixesWhetherTheValueSpaceHoldsNull pins that `const` decides null
+// admission the way a non-empty `enum` does — it is the one-member spelling of
+// the same keyword.
+//
+// `{type: [string, "null"], const: "a"}` is the const form of the enum case that
+// used to overstate: the type array puts null in the type space and the const
+// takes it back out of the value space, so the position does not admit it.
+func TestConst_FixesWhetherTheValueSpaceHoldsNull(t *testing.T) {
+	t.Parallel()
+	spec := openapitest.ComponentSpec(`    S:
+      type: object
+      properties:
+        justNull: {const: null}
+        narrowed: {type: [string, "null"], const: "a"}
+`)
+	doc, diags := lowerSpec(t, spec)
+	openapitest.RequireNoErrorDiags(t, diags)
+	m, ok := typeByName(doc, "S").(*ir.Model)
+	require.True(t, ok, "S is a model")
+	props := openapitest.PropsByWire(m.Properties)
+	require.Len(t, props, 2)
+
+	assert.True(t, props["justNull"].Type.Nullable, "a const of null admits null")
+	lit, isLit := doc.Types[props["justNull"].Type.Target].(*ir.Literal)
+	require.True(t, isLit, "the const still lowers to its Literal")
+	assert.Equal(t, ir.Value{Kind: ir.ValueNull}, lit.Value)
+
+	assert.False(t, props["narrowed"].Type.Nullable,
+		"a non-null const conjoins with the type array and takes the null back out")
 }
 
 func TestHoistLiteral_UnconvertibleConstBecomesAny(t *testing.T) {
@@ -1159,7 +1355,7 @@ func TestHoistLiteral_UnconvertibleConstBecomesAny(t *testing.T) {
 	// A custom tag is structurally unconvertible (no scalarValue case resolves
 	// it), forcing hoistLiteral's fallback. Before the fix this silently
 	// produced a Literal asserting the value is null, which the spec never said.
-	spec := componentSpec("    K:\n      const: !foo bar\n")
+	spec := openapitest.ComponentSpec("    K:\n      const: !foo bar\n")
 	doc, diags := lowerSpec(t, spec)
 	k, ok := doc.Types[componentID("K")].(*ir.Any)
 	require.True(t, ok, "an unconvertible const hoists the schemaless top type at its own pointer")
@@ -1168,9 +1364,9 @@ func TestHoistLiteral_UnconvertibleConstBecomesAny(t *testing.T) {
 		_, isLiteral := td.(*ir.Literal)
 		assert.False(t, isLiteral, "no Literal is produced anywhere; nothing lies about the value being null")
 	}
-	require.Equal(t, 1, countDiagsAt(diags, diag.DegradedConstruct, ir.SeverityWarning),
+	require.Equal(t, 1, openapitest.CountDiagsAt(diags, diag.DegradedConstruct, ir.SeverityWarning),
 		"exactly one warning fires for the unconvertible value")
-	d, ok := firstDegradedWarning(diags)
+	d, ok := openapitest.FirstDegradedWarning(diags)
 	require.True(t, ok)
 	assert.Equal(t, "/components/schemas/K", d.Provenance.Pointer)
 }
@@ -1179,7 +1375,7 @@ func TestEnumAsUnion_UnconvertibleMemberBecomesAny(t *testing.T) {
 	t.Parallel()
 	// The convertible member ("ok") must still hoist a real Literal; only the
 	// genuinely unconvertible member ("!foo bar") falls back to the top type.
-	spec := componentSpec("    M:\n      enum: [ok, !foo bar]\n")
+	spec := openapitest.ComponentSpec("    M:\n      enum: [ok, !foo bar]\n")
 	doc, diags := lowerSpec(t, spec)
 	u, ok := doc.Types[componentID("M")].(*ir.Union)
 	require.True(t, ok, "heterogeneous enum still lowers to a union of literals")
@@ -1193,9 +1389,9 @@ func TestEnumAsUnion_UnconvertibleMemberBecomesAny(t *testing.T) {
 	require.True(t, ok, "the unconvertible member hoists the schemaless top type, not a lying null Literal")
 	assert.Equal(t, ir.KindAny, member1.Kind())
 
-	require.Equal(t, 1, countDiagsAt(diags, diag.DegradedConstruct, ir.SeverityWarning),
+	require.Equal(t, 1, openapitest.CountDiagsAt(diags, diag.DegradedConstruct, ir.SeverityWarning),
 		"exactly one warning for the unconvertible member, distinct from the heterogeneous-enum info diagnostic")
-	d, ok := firstDegradedWarning(diags)
+	d, ok := openapitest.FirstDegradedWarning(diags)
 	require.True(t, ok)
 	assert.Equal(t, "/components/schemas/M/enum/1", d.Provenance.Pointer)
 }
@@ -1211,7 +1407,7 @@ func TestEnum_UnquotedDatesStayClosedEnum(t *testing.T) {
 	// the type node has no field for it; see
 	// TestProperty_UnquotedDateDefaultPreserved for the default path), and the
 	// `format` is kept verbatim because an ir.Enum has no Encoding field.
-	spec := componentSpec(`    D:
+	spec := openapitest.ComponentSpec(`    D:
       type: string
       format: date
       default: 2021-01-01
@@ -1235,7 +1431,7 @@ func TestProperty_UnquotedDateDefaultPreserved(t *testing.T) {
 	// The repro's default sits at the component level, which nothing lowers by
 	// itself; this covers the path that actually surfaces the bug in practice —
 	// a date default declared on an object property.
-	spec := componentSpec(`    S:
+	spec := openapitest.ComponentSpec(`    S:
       type: object
       properties:
         d:
@@ -1254,7 +1450,7 @@ func TestProperty_UnquotedDateDefaultPreserved(t *testing.T) {
 
 func TestAllOf_DiscriminatorHierarchy(t *testing.T) {
 	t.Parallel()
-	spec := componentSpecVer("3.2.0", `    Pet:
+	spec := openapitest.ComponentSpecVer("3.2.0", `    Pet:
       type: object
       discriminator:
         propertyName: petType
@@ -1295,7 +1491,7 @@ func TestAllOf_DiscriminatorHierarchy(t *testing.T) {
 
 func TestModelDiscriminator_UndeclaredPropertyAndBadMapping(t *testing.T) {
 	t.Parallel()
-	spec := componentSpec(`    Vehicle:
+	spec := openapitest.ComponentSpec(`    Vehicle:
       type: object
       discriminator:
         propertyName: kind
@@ -1308,12 +1504,12 @@ func TestModelDiscriminator_UndeclaredPropertyAndBadMapping(t *testing.T) {
 	require.NotNil(t, v.Discriminator)
 	assert.Empty(t, v.Discriminator.Property, "undeclared property")
 	assert.Equal(t, "kind", v.Discriminator.PropertyName)
-	assert.True(t, hasDiag(diags, diag.UnresolvedRef), "bad mapping target diagnostic")
+	assert.True(t, openapitest.HasDiag(diags, diag.UnresolvedRef), "bad mapping target diagnostic")
 }
 
 func TestOneOf_DiscriminatorWithDefault(t *testing.T) {
 	t.Parallel()
-	spec := componentSpecVer("3.2.0", `    Shape:
+	spec := openapitest.ComponentSpecVer("3.2.0", `    Shape:
       oneOf:
         - {$ref: '#/components/schemas/Circle'}
         - {$ref: '#/components/schemas/Square'}
@@ -1333,14 +1529,14 @@ func TestOneOf_DiscriminatorWithDefault(t *testing.T) {
 
 func TestAnyOf_ThreeVariantsWithNull(t *testing.T) {
 	t.Parallel()
-	spec := componentSpec(`    N:
+	spec := openapitest.ComponentSpec(`    N:
       anyOf:
         - {type: string}
         - {type: integer}
         - {type: 'null'}
 `)
 	doc, diags := lowerSpec(t, spec)
-	requireNoErrorDiags(t, diags)
+	openapitest.RequireNoErrorDiags(t, diags)
 	u := typeByName(doc, "N").(*ir.Union)
 	assert.Len(t, u.Variants, 2, "null branch stripped from variants")
 	assert.False(t, u.Exclusive, "anyOf is not exclusive")
@@ -1348,14 +1544,14 @@ func TestAnyOf_ThreeVariantsWithNull(t *testing.T) {
 
 func TestUnion_VariantHints(t *testing.T) {
 	t.Parallel()
-	spec := componentSpec(`    U:
+	spec := openapitest.ComponentSpec(`    U:
       oneOf:
         - {$ref: '#/components/schemas/Named', description: sibling}
         - {type: string}
     Named: {type: object, properties: {a: {type: string}}}
 `)
 	doc, diags := lowerSpec(t, spec)
-	requireNoErrorDiags(t, diags)
+	openapitest.RequireNoErrorDiags(t, diags)
 	u := typeByName(doc, "U").(*ir.Union)
 	require.Len(t, u.Variants, 2)
 	hints := []string{u.Variants[0].Name.Hint, u.Variants[1].Name.Hint}
@@ -1365,19 +1561,19 @@ func TestUnion_VariantHints(t *testing.T) {
 
 func TestAllOf_UnresolvedRefBranch(t *testing.T) {
 	t.Parallel()
-	spec := componentSpec(`    Bad:
+	spec := openapitest.ComponentSpec(`    Bad:
       allOf:
         - {$ref: '#'}
         - {type: object, properties: {a: {type: string}}}
 `)
 	doc, diags := lowerSpec(t, spec)
 	require.NotNil(t, doc)
-	assert.True(t, hasDiag(diags, diag.UnresolvedRef))
+	assert.True(t, openapitest.HasDiag(diags, diag.UnresolvedRef))
 }
 
 func TestAllOf_MultiRefWithUnresolvedDoesNotAnchor(t *testing.T) {
 	t.Parallel()
-	spec := componentSpec(`    Base:
+	spec := openapitest.ComponentSpec(`    Base:
       type: object
       discriminator: {propertyName: t}
       properties: {t: {type: string}}
@@ -1397,7 +1593,7 @@ func TestAllOf_MultiRefWithUnresolvedDoesNotAnchor(t *testing.T) {
 
 func TestEnum_ValueTypeVariants(t *testing.T) {
 	t.Parallel()
-	spec := componentSpec(`    EInt: {type: integer, enum: [1, 2]}
+	spec := openapitest.ComponentSpec(`    EInt: {type: integer, enum: [1, 2]}
     ENum: {type: number, enum: [1.5, 2.5]}
     EBool: {type: boolean, enum: [true, false]}
     ENoTypeBool: {enum: [true, false]}
@@ -1406,7 +1602,7 @@ func TestEnum_ValueTypeVariants(t *testing.T) {
     EBytes: {enum: [!!binary aGk=, !!binary Ynll]}
 `)
 	doc, diags := lowerSpec(t, spec)
-	requireNoErrorDiags(t, diags)
+	openapitest.RequireNoErrorDiags(t, diags)
 	want := map[string]ir.PrimKind{
 		"EInt": ir.PrimInteger, "ENum": ir.PrimNumber, "EBool": ir.PrimBool,
 		"ENoTypeBool": ir.PrimBool, "ENoTypeNum": ir.PrimNumber,
@@ -1426,9 +1622,9 @@ func TestEnum_ValueTypeVariants(t *testing.T) {
 // name, no diagnostic.
 func TestEnum_ByteMembersAreNamedAndTyped(t *testing.T) {
 	t.Parallel()
-	spec := componentSpec("    EBytes: {enum: [!!binary aGk=, !!binary Ynll]}\n")
+	spec := openapitest.ComponentSpec("    EBytes: {enum: [!!binary aGk=, !!binary Ynll]}\n")
 	doc, diags := lowerSpec(t, spec)
-	requireNoErrorDiags(t, diags)
+	openapitest.RequireNoErrorDiags(t, diags)
 
 	e, ok := typeByName(doc, "EBytes").(*ir.Enum)
 	require.True(t, ok, "a homogeneous byte enum stays an enum")
@@ -1443,20 +1639,20 @@ func TestEnum_ByteMembersAreNamedAndTyped(t *testing.T) {
 
 func TestEnum_HeterogeneousBecomesUnionWithBadValue(t *testing.T) {
 	t.Parallel()
-	spec := componentSpec("    Mixed:\n      enum: [active, .inf]\n")
+	spec := openapitest.ComponentSpec("    Mixed:\n      enum: [active, .inf]\n")
 	doc, diags := lowerSpec(t, spec)
 	u, ok := typeByName(doc, "Mixed").(*ir.Union)
 	require.True(t, ok, "heterogeneous enum lowers to a union of literals")
 	assert.Len(t, u.Variants, 2)
-	assert.True(t, hasDiagAt(diags, diag.DegradedConstruct, ir.SeverityInfo),
+	assert.True(t, openapitest.HasDiagAt(diags, diag.DegradedConstruct, ir.SeverityInfo),
 		"heterogeneous-enum info diagnostic")
-	assert.True(t, hasDiagAt(diags, diag.DegradedConstruct, ir.SeverityWarning),
+	assert.True(t, openapitest.HasDiagAt(diags, diag.DegradedConstruct, ir.SeverityWarning),
 		"unconvertible literal value warning")
 }
 
 func TestAllOf_ModelWithOwnDiscriminator(t *testing.T) {
 	t.Parallel()
-	spec := componentSpec(`    Base:
+	spec := openapitest.ComponentSpec(`    Base:
       allOf:
         - {$ref: '#/components/schemas/Common'}
       discriminator: {propertyName: kind}
@@ -1464,7 +1660,7 @@ func TestAllOf_ModelWithOwnDiscriminator(t *testing.T) {
     Common: {type: object, properties: {id: {type: string}}}
 `)
 	doc, diags := lowerSpec(t, spec)
-	requireNoErrorDiags(t, diags)
+	openapitest.RequireNoErrorDiags(t, diags)
 	base := typeByName(doc, "Base").(*ir.Model)
 	require.NotNil(t, base.Discriminator, "allOf model may declare its own discriminator")
 	assert.NotEmpty(t, base.Discriminator.Property)
@@ -1472,7 +1668,7 @@ func TestAllOf_ModelWithOwnDiscriminator(t *testing.T) {
 
 func TestAllOf_BoolRefBranchHasNoDiscriminator(t *testing.T) {
 	t.Parallel()
-	spec := componentSpec(`    BoolComp: false
+	spec := openapitest.ComponentSpec(`    BoolComp: false
     Sub:
       allOf:
         - {$ref: '#/components/schemas/BoolComp'}
@@ -1496,7 +1692,7 @@ func TestAllOf_BoolRefBranchHasNoDiscriminator(t *testing.T) {
 // own property and its own required both still lower normally.
 func TestAllOf_BoolBranchSkippedInCompositionRequired(t *testing.T) {
 	t.Parallel()
-	spec := componentSpec(`    Thing:
+	spec := openapitest.ComponentSpec(`    Thing:
       allOf:
         - type: object
           required: [id]
@@ -1505,22 +1701,22 @@ func TestAllOf_BoolBranchSkippedInCompositionRequired(t *testing.T) {
         - true
 `)
 	doc, diags := lowerSpec(t, spec)
-	requireNoErrorDiags(t, diags)
+	openapitest.RequireNoErrorDiags(t, diags)
 	m, ok := doc.Types[componentID("Thing")].(*ir.Model)
 	require.True(t, ok, "Thing should be a model")
 	assert.Nil(t, m.Base, "a bare boolean branch is never a $ref, so no Base")
 	assert.Empty(t, m.Mixins)
 
-	id, hasID := propsByWire(m.Properties)["id"]
+	id, hasID := openapitest.PropsByWire(m.Properties)["id"]
 	require.True(t, hasID, "the object branch's own property still lowers despite the sibling bool branch")
 	assert.True(t, id.Required, "the object branch's own required still attaches to its own property")
-	assert.False(t, hasDiag(diags, diag.UnattachableRequired),
+	assert.False(t, openapitest.HasDiag(diags, diag.UnattachableRequired),
 		"the boolean branch contributes no required names, so nothing goes unattached")
 }
 
 func TestEnum_NonScalarAndMidListMismatch(t *testing.T) {
 	t.Parallel()
-	spec := componentSpec(`    ObjEnum:
+	spec := openapitest.ComponentSpec(`    ObjEnum:
       enum:
         - {a: 1}
         - {b: 2}
@@ -1543,7 +1739,7 @@ func TestEnum_NonScalarAndMidListMismatch(t *testing.T) {
 // — `Base ∧ (A | B)` written as `(Base ∧ A) | (Base ∧ B)`.
 func TestOneOf_CoDeclaredCompositionDistributes(t *testing.T) {
 	t.Parallel()
-	spec := componentSpec(`    Base: {type: object, properties: {id: {type: string}}}
+	spec := openapitest.ComponentSpec(`    Base: {type: object, properties: {id: {type: string}}}
     A: {type: object, properties: {a: {type: string}}}
     B: {type: object, properties: {b: {type: string}}}
     Combo:
@@ -1553,7 +1749,7 @@ func TestOneOf_CoDeclaredCompositionDistributes(t *testing.T) {
         - {$ref: '#/components/schemas/B'}
 `)
 	doc, diags := lowerSpec(t, spec)
-	requireNoErrorDiags(t, diags)
+	openapitest.RequireNoErrorDiags(t, diags)
 
 	u, ok := typeByName(doc, "Combo").(*ir.Union)
 	require.True(t, ok, "the union is the schema's value, not a preserved sibling")
@@ -1569,7 +1765,7 @@ func TestOneOf_CoDeclaredCompositionDistributes(t *testing.T) {
 		assert.Equal(t, componentID(branch), v.Mixins[0].Target)
 		assert.Equal(t, branch, u.Variants[i].Name.Hint)
 	}
-	assert.Equal(t, 1, countDiagsAt(diags, diag.CompositionLowering, ir.SeverityInfo),
+	assert.Equal(t, 1, openapitest.CountDiagsAt(diags, diag.CompositionLowering, ir.SeverityInfo),
 		"the reshaping is reported once; got %+v", diags)
 }
 
@@ -1578,7 +1774,7 @@ func TestOneOf_CoDeclaredCompositionDistributes(t *testing.T) {
 // anyOf stays non-exclusive through distribution.
 func TestAnyOf_CoDeclaredPropertiesDistributeAsBase(t *testing.T) {
 	t.Parallel()
-	spec := componentSpec(`    A: {type: object, properties: {a: {type: string}}}
+	spec := openapitest.ComponentSpec(`    A: {type: object, properties: {a: {type: string}}}
     B: {type: object, properties: {b: {type: string}}}
     Combo:
       type: object
@@ -1590,7 +1786,7 @@ func TestAnyOf_CoDeclaredPropertiesDistributeAsBase(t *testing.T) {
         - {$ref: '#/components/schemas/B'}
 `)
 	doc, diags := lowerSpec(t, spec)
-	requireNoErrorDiags(t, diags)
+	openapitest.RequireNoErrorDiags(t, diags)
 
 	u, ok := typeByName(doc, "Combo").(*ir.Union)
 	require.True(t, ok)
@@ -1622,9 +1818,9 @@ func comboRefStealSpec(branch int, outsiderFirst bool) string {
       oneOf: [{$ref: '#/components/schemas/A'}, {$ref: '#/components/schemas/B'}]
 `
 	if outsiderFirst {
-		return componentSpec(outsider + combo)
+		return openapitest.ComponentSpec(outsider + combo)
 	}
-	return componentSpec(combo + outsider)
+	return openapitest.ComponentSpec(combo + outsider)
 }
 
 // TestOneOf_CoDeclaredVariantNotStolenByRefToBranch is the regression for the
@@ -1647,7 +1843,7 @@ func TestOneOf_CoDeclaredVariantNotStolenByRefToBranch(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			doc, diags := lowerSpec(t, comboRefStealSpec(tc.branch, tc.outsiderFirst))
-			requireNoErrorDiags(t, diags)
+			openapitest.RequireNoErrorDiags(t, diags)
 
 			u, ok := typeByName(doc, "Combo").(*ir.Union)
 			require.True(t, ok)
@@ -1693,9 +1889,9 @@ func comboDiscriminatedSpec(baseFirst bool) string {
       oneOf: [{$ref: '#/components/schemas/A'}, {$ref: '#/components/schemas/B'}]
 `
 	if baseFirst {
-		return componentSpec(base + rest)
+		return openapitest.ComponentSpec(base + rest)
 	}
-	return componentSpec(rest + base)
+	return openapitest.ComponentSpec(rest + base)
 }
 
 // TestOneOf_CoDeclaredDistributionIsOrderIndependent states the property the
@@ -1726,9 +1922,9 @@ func TestOneOf_CoDeclaredDistributionIsOrderIndependent(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			first, diags := parseFull(t, tc.spec(true))
-			requireNoErrorDiags(t, diags)
+			openapitest.RequireNoErrorDiags(t, diags)
 			last, diags := parseFull(t, tc.spec(false))
-			requireNoErrorDiags(t, diags)
+			openapitest.RequireNoErrorDiags(t, diags)
 
 			assert.Empty(t, cmp.Diff(first, last, orderInvariantIR()...),
 				"declaring the permuted component before or after the union must not change the IR")
@@ -1751,9 +1947,9 @@ func branchAliasSpec(kind string, hostFirst bool) string {
 	rest := "    Base: {type: object, properties: {a: {type: string}}}\n" +
 		"    Outside: {$ref: '#/components/schemas/Host/" + kind + "/0'}\n"
 	if hostFirst {
-		return componentSpec(host + rest)
+		return openapitest.ComponentSpec(host + rest)
 	}
-	return componentSpec(rest + host)
+	return openapitest.ComponentSpec(rest + host)
 }
 
 // TestComposition_BranchAliasIsOrderIndependent pins the hint on the node a
@@ -1770,9 +1966,9 @@ func TestComposition_BranchAliasIsOrderIndependent(t *testing.T) {
 		t.Run(kind, func(t *testing.T) {
 			t.Parallel()
 			first, diags := parseFull(t, branchAliasSpec(kind, true))
-			requireNoErrorDiags(t, diags)
+			openapitest.RequireNoErrorDiags(t, diags)
 			last, diags := parseFull(t, branchAliasSpec(kind, false))
-			requireNoErrorDiags(t, diags)
+			openapitest.RequireNoErrorDiags(t, diags)
 
 			branch := ir.TypeID("t/anon/components/schemas/Host/" + kind + "/0")
 			require.Contains(t, first.Types, branch, "the branch position owns a node")
@@ -1790,7 +1986,7 @@ func TestComposition_BranchAliasIsOrderIndependent(t *testing.T) {
 func TestOneOf_CoDeclaredVariantCarriesDiscriminatorValue(t *testing.T) {
 	t.Parallel()
 	doc, diags := lowerSpec(t, comboDiscriminatedSpec(true))
-	requireNoErrorDiags(t, diags)
+	openapitest.RequireNoErrorDiags(t, diags)
 
 	u, ok := typeByName(doc, "Combo").(*ir.Union)
 	require.True(t, ok)
@@ -1809,7 +2005,7 @@ func TestOneOf_CoDeclaredVariantCarriesDiscriminatorValue(t *testing.T) {
 // must not stamp its own branch name on the shared node.
 func TestOneOf_CoDeclaredAdditionalPropsHintNamesTheBody(t *testing.T) {
 	t.Parallel()
-	spec := componentSpec(`    A: {type: object, properties: {a: {type: string}}}
+	spec := openapitest.ComponentSpec(`    A: {type: object, properties: {a: {type: string}}}
     B: {type: object, properties: {b: {type: string}}}
     Combo:
       type: object
@@ -1818,7 +2014,7 @@ func TestOneOf_CoDeclaredAdditionalPropsHintNamesTheBody(t *testing.T) {
       oneOf: [{$ref: '#/components/schemas/A'}, {$ref: '#/components/schemas/B'}]
 `)
 	doc, diags := lowerSpec(t, spec)
-	requireNoErrorDiags(t, diags)
+	openapitest.RequireNoErrorDiags(t, diags)
 
 	u := typeByName(doc, "Combo").(*ir.Union)
 	v, ok := doc.Types[u.Variants[0].Type.Target].(*ir.Model)
@@ -1834,7 +2030,7 @@ func TestOneOf_CoDeclaredAdditionalPropsHintNamesTheBody(t *testing.T) {
 // source declared. fillAllOf classifies an allOf entry the same way.
 func TestOneOf_CoDeclaredNonModelBranchIsCarriedAsWritten(t *testing.T) {
 	t.Parallel()
-	spec := componentSpec(`    Scalar: {type: string, minLength: 2}
+	spec := openapitest.ComponentSpec(`    Scalar: {type: string, minLength: 2}
     Choice: {enum: [a, b]}
     Combo:
       type: object
@@ -1842,7 +2038,7 @@ func TestOneOf_CoDeclaredNonModelBranchIsCarriedAsWritten(t *testing.T) {
       oneOf: [{$ref: '#/components/schemas/Scalar'}, {$ref: '#/components/schemas/Choice'}]
 `)
 	doc, diags := lowerSpec(t, spec)
-	requireNoErrorDiags(t, diags)
+	openapitest.RequireNoErrorDiags(t, diags)
 
 	u, ok := typeByName(doc, "Combo").(*ir.Union)
 	require.True(t, ok)
@@ -1864,7 +2060,7 @@ func TestOneOf_CoDeclaredNonModelBranchIsCarriedAsWritten(t *testing.T) {
 // nothing, and each still reports the broken reference.
 func TestOneOf_CoDeclaredUnresolvableBranchIsNotDistributed(t *testing.T) {
 	t.Parallel()
-	spec := componentSpec(`    A: {type: object, properties: {a: {type: string}}}
+	spec := openapitest.ComponentSpec(`    A: {type: object, properties: {a: {type: string}}}
     Undeclared:
       type: object
       properties: {kind: {type: string}}
@@ -1891,11 +2087,11 @@ func TestOneOf_CoDeclaredUnresolvableBranchIsNotDistributed(t *testing.T) {
 		require.True(t, ok, "%s keeps every branch verbatim", name)
 		assert.Equal(t, ir.ReasonDegradedLowering, entry.Reason, "%s", name)
 		assert.Contains(t,
-			diagMessageAt(t, diags, diag.DegradedConstruct, ir.SeverityInfo, "/components/schemas/"+name),
+			openapitest.DiagMessageAt(t, diags, diag.DegradedConstruct, ir.SeverityInfo, "/components/schemas/"+name),
 			"names no referent this compilation resolves", name)
 		// One error per offending branch, at the branch itself.
 		assert.Contains(t,
-			diagMessageAt(t, diags, diag.UnresolvedRef, ir.SeverityError, "/components/schemas/"+name+"/oneOf/0"),
+			openapitest.DiagMessageAt(t, diags, diag.UnresolvedRef, ir.SeverityError, "/components/schemas/"+name+"/oneOf/0"),
 			"resolves to nothing this document declares", name)
 	}
 	for _, d := range diags {
@@ -1912,7 +2108,7 @@ func TestOneOf_CoDeclaredUnresolvableBranchIsNotDistributed(t *testing.T) {
 // telling four otherwise identical diagnostics apart.
 func TestOneOf_CoDeclaredNotDistributedReasons(t *testing.T) {
 	t.Parallel()
-	spec := componentSpec(`    A: {type: object, properties: {a: {type: string}}}
+	spec := openapitest.ComponentSpec(`    A: {type: object, properties: {a: {type: string}}}
     NotAModel:
       const: fixed
       oneOf: [{$ref: '#/components/schemas/A'}]
@@ -1935,7 +2131,7 @@ func TestOneOf_CoDeclaredNotDistributedReasons(t *testing.T) {
       oneOf: [{$ref: '#/components/schemas/A'}]
 `)
 	doc, diags := lowerSpec(t, spec)
-	requireNoErrorDiags(t, diags)
+	openapitest.RequireNoErrorDiags(t, diags)
 
 	for name, reason := range map[string]string{
 		"NotAModel":       "the body is not a model, so it carries no composition to distribute into",
@@ -1948,7 +2144,7 @@ func TestOneOf_CoDeclaredNotDistributedReasons(t *testing.T) {
 		require.True(t, ok, "%s keeps its union verbatim", name)
 		assert.Equal(t, ir.ReasonDegradedLowering, entry.Reason, "%s", name)
 		assert.Contains(t,
-			diagMessageAt(t, diags, diag.DegradedConstruct, ir.SeverityInfo, "/components/schemas/"+name),
+			openapitest.DiagMessageAt(t, diags, diag.DegradedConstruct, ir.SeverityInfo, "/components/schemas/"+name),
 			reason, name)
 	}
 	both := typeByName(doc, "BothCombinators").(*ir.Model)
@@ -1957,7 +2153,7 @@ func TestOneOf_CoDeclaredNotDistributedReasons(t *testing.T) {
 	nullBranch := typeByName(doc, "NullBranch").(*ir.Model)
 	assert.Contains(t, string(nullBranch.Unmodeled["openapi:oneOf"].Value), `"null"`,
 		"a null branch is written inline, so it blocks distribution rather than lifting to Nullable")
-	assert.Equal(t, 5, countDiagsAt(diags, diag.DegradedConstruct, ir.SeverityInfo),
+	assert.Equal(t, 5, openapitest.CountDiagsAt(diags, diag.DegradedConstruct, ir.SeverityInfo),
 		"each declined shape is reported once; got %+v", diags)
 }
 
@@ -1969,11 +2165,11 @@ func TestOneOf_CoDeclaredNotDistributedReasons(t *testing.T) {
 // union and the other is kept beside it.
 func TestUnionCombinators_PassedOverBranchSetIsKept(t *testing.T) {
 	t.Parallel()
-	doc, diags := lowerSpec(t, componentSpec(`    S:
+	doc, diags := lowerSpec(t, openapitest.ComponentSpec(`    S:
       oneOf: [{type: string}, {type: integer}]
       anyOf: [{type: number}, {type: boolean}]
 `))
-	requireNoErrorDiags(t, diags)
+	openapitest.RequireNoErrorDiags(t, diags)
 
 	u, ok := typeByName(doc, "S").(*ir.Union)
 	require.True(t, ok, "the elected branch set still becomes the union")
@@ -1983,7 +2179,7 @@ func TestUnionCombinators_PassedOverBranchSetIsKept(t *testing.T) {
 	assert.Equal(t, ir.ReasonDegradedLowering, entry.Reason)
 	assert.JSONEq(t, `[{"type":"number"},{"type":"boolean"}]`, string(entry.Value))
 	assert.Contains(t,
-		diagMessageAt(t, diags, diag.DegradedConstruct, ir.SeverityInfo, "/components/schemas/S"),
+		openapitest.DiagMessageAt(t, diags, diag.DegradedConstruct, ir.SeverityInfo, "/components/schemas/S"),
 		"lowered as its oneOf, with anyOf kept verbatim under Unmodeled")
 }
 
@@ -1995,11 +2191,11 @@ func TestUnionCombinators_PassedOverBranchSetIsKept(t *testing.T) {
 // the first place, so it stays a Union and keeps the loser on it.
 func TestUnionCombinators_NullBranchDoesNotCollapsePastTheAnyOf(t *testing.T) {
 	t.Parallel()
-	doc, diags := lowerSpec(t, componentSpec(`    S:
+	doc, diags := lowerSpec(t, openapitest.ComponentSpec(`    S:
       oneOf: [{type: string}, {type: "null"}]
       anyOf: [{type: number}, {type: boolean}]
 `))
-	requireNoErrorDiags(t, diags)
+	openapitest.RequireNoErrorDiags(t, diags)
 
 	u, ok := typeByName(doc, "S").(*ir.Union)
 	require.True(t, ok, "the collapse is declined; got %v", typeByName(doc, "S"))
@@ -2015,7 +2211,7 @@ func TestUnionCombinators_NullBranchDoesNotCollapsePastTheAnyOf(t *testing.T) {
 // at the keyword, and nothing claims the branch set survived.
 func TestUnionCombinators_UnpreservableIsNotAnnounced(t *testing.T) {
 	t.Parallel()
-	doc, diags := lowerSpec(t, componentSpec(`    S:
+	doc, diags := lowerSpec(t, openapitest.ComponentSpec(`    S:
       oneOf: [{type: string}, {type: integer}]
       anyOf: [{type: number, x-t: `+unpreservableValue+`}]
 `))
@@ -2023,7 +2219,7 @@ func TestUnionCombinators_UnpreservableIsNotAnnounced(t *testing.T) {
 	u, ok := typeByName(doc, "S").(*ir.Union)
 	require.True(t, ok)
 	assert.NotContains(t, u.Unmodeled, "openapi:anyOf", "the conversion failed, so nothing was kept")
-	assert.True(t, hasDiag(diags, diag.UnpreservableConstruct), "the failure itself is reported")
+	assert.True(t, openapitest.HasDiag(diags, diag.UnpreservableConstruct), "the failure itself is reported")
 	assert.Empty(t, preservationClaims(diags),
 		"nothing was written under Unmodeled, so nothing may announce that it was")
 }
@@ -2050,10 +2246,10 @@ func TestUnionCombinators_KeepingIsOrderIndependent(t *testing.T) {
       anyOf: [{type: number}, {type: boolean}]
 `
 	outsider := "    Outsider: {$ref: '#/components/schemas/S/oneOf/0'}\n"
-	first, diags := parseFull(t, componentSpec(outsider+host))
-	requireNoErrorDiags(t, diags)
-	last, diags := parseFull(t, componentSpec(host+outsider))
-	requireNoErrorDiags(t, diags)
+	first, diags := parseFull(t, openapitest.ComponentSpec(outsider+host))
+	openapitest.RequireNoErrorDiags(t, diags)
+	last, diags := parseFull(t, openapitest.ComponentSpec(host+outsider))
+	openapitest.RequireNoErrorDiags(t, diags)
 
 	for _, doc := range []*ir.Document{first, last} {
 		u, ok := typeByName(doc, "S").(*ir.Union)

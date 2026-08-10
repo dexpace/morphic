@@ -186,9 +186,10 @@ func hoistSubSchema(c lowering.Ctx, ts *compile.Types, anchors *AnchorIndex, dep
 	if owned, ok := ts.Lookup(pointer); ok {
 		return owned, true, diags
 	}
-	cons, consDiags := schemaConstraints(c, s.Node, pointer)
+	var kept ir.Unmodeled
+	cons, consDiags := schemaConstraints(c, &kept, s.Node, pointer)
 	diags = append(diags, consDiags...)
-	id := internAlias(c, ts, pointer, hint, ref, cons)
+	id := internAlias(c, ts, pointer, hint, ref, cons, kept)
 	// As in lowerComponentSchema: this alias is the first node the pointer owns,
 	// so the annotations Ref had nowhere to put now have a home.
 	return id, true, append(diags, attachDeclaredAnnotations(c, ts, anchors, s.Node, pointer)...)
@@ -222,17 +223,10 @@ func subSchemaHint(decl *oas3.JSONSchema[oas3.Referenceable], pointer string) st
 }
 
 // refNullable reports whether a $ref usage admits null: the reference site or
-// its resolved target admits null in any spelling. The ref site must recompute
-// this because a target interned at its own ID (a model, a union) discards the
-// TypeRef its definition produced, so the bit survives nowhere else.
+// its resolved target admits null in any spelling. It is schemaAdmitsNull read
+// across the reference (refNullVerdict), so the two cannot answer one schema
+// differently.
 func refNullable(js *oas3.JSONSchema[oas3.Referenceable]) bool {
-	if s := js.GetSchema(); s != nil && schemaAdmitsNull(s) {
-		return true
-	}
-	resolved := js.GetResolvedSchema()
-	if resolved == nil {
-		return false
-	}
-	target := resolved.GetSchema()
-	return target != nil && schemaAdmitsNull(target)
+	budget := maxNullConjuncts
+	return refNullVerdict(js, &budget) == nullAdmitted
 }

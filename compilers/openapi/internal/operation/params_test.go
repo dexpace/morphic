@@ -1,18 +1,20 @@
 package operation_test
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
+	"github.com/dexpace/morphic/compilers/openapi/internal/openapitest"
 	"github.com/dexpace/morphic/ir"
 )
 
 func TestParams_LocationsAndSerializationDefaults(t *testing.T) {
 	t.Parallel()
-	spec := pathsSpec(`  /items/{id}:
+	spec := openapitest.PathsSpec(`  /items/{id}:
     get:
       operationId: getItem
       parameters:
@@ -24,11 +26,11 @@ func TestParams_LocationsAndSerializationDefaults(t *testing.T) {
       responses: {"200": {description: ok}}
 `)
 	_, svc, diags := lowerServiceSpec(t, spec)
-	requireNoErrorDiags(t, diags)
-	op := firstOp(t, svc)
+	openapitest.RequireNoErrorDiags(t, diags)
+	op := openapitest.FirstOp(t, svc)
 	require.Len(t, op.Params, 5)
 	require.Len(t, op.Bindings.HTTP, 1)
-	bindings := indexBy(op.Bindings.HTTP[0].ParamBindings, func(b ir.HTTPParamBinding) string { return b.Param })
+	bindings := openapitest.IndexBy(op.Bindings.HTTP[0].ParamBindings, func(b ir.HTTPParamBinding) string { return b.Param })
 	require.Len(t, bindings, 5, "every logical param bound exactly once")
 
 	id := bindings["id"]
@@ -47,7 +49,7 @@ func TestParams_LocationsAndSerializationDefaults(t *testing.T) {
 	assert.Equal(t, ir.HTTPLocationHeader, bindings["X-Trace"].Location)
 	assert.Equal(t, ir.HTTPLocationCookie, bindings["session"].Location)
 
-	params := indexBy(op.Params, func(p ir.Parameter) string { return p.Name.Source })
+	params := openapitest.IndexBy(op.Params, func(p ir.Parameter) string { return p.Name.Source })
 	assert.True(t, params["id"].Required, "path params are always required")
 	require.NotNil(t, params["limit"].Default)
 	assert.Equal(t, ir.BigVal("20"), params["limit"].Default.Num)
@@ -55,7 +57,7 @@ func TestParams_LocationsAndSerializationDefaults(t *testing.T) {
 
 func TestParams_ContentStyleParameter(t *testing.T) {
 	t.Parallel()
-	spec := pathsSpec(`  /search:
+	spec := openapitest.PathsSpec(`  /search:
     get:
       operationId: search
       parameters:
@@ -67,8 +69,8 @@ func TestParams_ContentStyleParameter(t *testing.T) {
       responses: {"200": {description: ok}}
 `)
 	_, svc, diags := lowerServiceSpec(t, spec)
-	requireNoErrorDiags(t, diags)
-	op := firstOp(t, svc)
+	openapitest.RequireNoErrorDiags(t, diags)
+	op := openapitest.FirstOp(t, svc)
 	require.Len(t, op.Bindings.HTTP, 1)
 	require.Len(t, op.Bindings.HTTP[0].ParamBindings, 1)
 	binding := op.Bindings.HTTP[0].ParamBindings[0]
@@ -81,7 +83,7 @@ func TestParams_ContentStyleParameter(t *testing.T) {
 
 func TestParams_UnconvertibleExampleDiagnosed(t *testing.T) {
 	t.Parallel()
-	spec := pathsSpec(`  /items:
+	spec := openapitest.PathsSpec(`  /items:
     get:
       operationId: getItem
       parameters:
@@ -92,11 +94,11 @@ func TestParams_UnconvertibleExampleDiagnosed(t *testing.T) {
       responses: {"200": {description: ok}}
 `)
 	_, svc, diags := lowerServiceSpec(t, spec)
-	op := firstOp(t, svc)
+	op := openapitest.FirstOp(t, svc)
 	require.Len(t, op.Params, 1)
 	assert.Empty(t, op.Params[0].Examples, "the unconvertible example is skipped, not appended")
-	require.Equal(t, 1, countDiagsAt(diags, diag.DegradedConstruct, ir.SeverityWarning))
-	d, ok := firstDegradedWarning(diags)
+	require.Equal(t, 1, openapitest.CountDiagsAt(diags, diag.DegradedConstruct, ir.SeverityWarning))
+	d, ok := openapitest.FirstDegradedWarning(diags)
 	require.True(t, ok)
 	assert.Equal(t, "/paths/~1items/get/parameters/0/example", d.Provenance.Pointer)
 	assert.Contains(t, d.Message, "example:")
@@ -104,7 +106,7 @@ func TestParams_UnconvertibleExampleDiagnosed(t *testing.T) {
 
 func TestParams_SchemaConstraints(t *testing.T) {
 	t.Parallel()
-	spec := pathsSpec(`  /people:
+	spec := openapitest.PathsSpec(`  /people:
     get:
       operationId: listPeople
       parameters:
@@ -112,8 +114,8 @@ func TestParams_SchemaConstraints(t *testing.T) {
       responses: {"200": {description: ok}}
 `)
 	_, svc, diags := lowerServiceSpec(t, spec)
-	requireNoErrorDiags(t, diags)
-	op := firstOp(t, svc)
+	openapitest.RequireNoErrorDiags(t, diags)
+	op := openapitest.FirstOp(t, svc)
 	require.Len(t, op.Params, 1)
 	c := op.Params[0].Constraints
 	require.NotNil(t, c, "param scalar constraints land via annotation.Constraints")
@@ -160,8 +162,8 @@ paths:
 func TestParams_AllLocationsAndStyles(t *testing.T) {
 	t.Parallel()
 	doc, diags := parseFull(t, paramSpec)
-	op := findOp(t, doc, "search")
-	byName := indexBy(op.Bindings.HTTP[0].ParamBindings, func(b ir.HTTPParamBinding) string { return b.Param })
+	op := openapitest.FindOp(t, doc, "search")
+	byName := openapitest.IndexBy(op.Bindings.HTTP[0].ParamBindings, func(b ir.HTTPParamBinding) string { return b.Param })
 	assert.Equal(t, ir.HTTPLocationPath, byName["id"].Location)
 	assert.Equal(t, ir.HTTPLocationQuery, byName["q"].Location)
 	assert.Equal(t, ir.HTTPLocationHeader, byName["X-Tok"].Location)
@@ -169,20 +171,20 @@ func TestParams_AllLocationsAndStyles(t *testing.T) {
 	assert.Equal(t, "deepObject", byName["filter"].Style)
 	assert.Equal(t, "application/json", byName["complex"].ContentType)
 
-	logical := indexBy(op.Params, func(p ir.Parameter) string { return p.Name.Source })
+	logical := openapitest.IndexBy(op.Params, func(p ir.Parameter) string { return p.Name.Source })
 	assert.True(t, logical["id"].Required, "path param always required")
 	require.NotNil(t, logical["q"].Deprecation)
 	assert.NotEmpty(t, logical["q"].Examples)
 	assert.NotEmpty(t, logical["filter"].Unmodeled)
 	require.NotNil(t, logical["q"].Constraints)
 
-	assert.True(t, countDiagsAt(diags, diag.DegradedConstruct, ir.SeverityWarning) > 0, "malformed param default warns")
-	assert.True(t, hasDiag(diags, diag.NumericPrecision), "malformed param constraint warns")
+	assert.True(t, openapitest.CountDiagsAt(diags, diag.DegradedConstruct, ir.SeverityWarning) > 0, "malformed param default warns")
+	assert.True(t, openapitest.HasDiag(diags, diag.NumericPrecision), "malformed param constraint warns")
 }
 
 func TestParams_QueryStringLocation(t *testing.T) {
 	t.Parallel()
-	spec := pathsSpecVer("3.2.0", `  /q:
+	spec := openapitest.PathsSpecVer("3.2.0", `  /q:
     get:
       operationId: q
       parameters:
@@ -191,7 +193,7 @@ func TestParams_QueryStringLocation(t *testing.T) {
         "200": {description: ok}
 `)
 	doc, _ := parseFull(t, spec)
-	op := findOp(t, doc, "q")
+	op := openapitest.FindOp(t, doc, "q")
 	assert.Equal(t, ir.HTTPLocationQuerystring, op.Bindings.HTTP[0].ParamBindings[0].Location)
 }
 
@@ -223,9 +225,9 @@ components:
 func TestParams_ComponentRefSharedAcrossOperationsInternsOnce(t *testing.T) {
 	t.Parallel()
 	doc, diags := parseFull(t, componentParamRefSpec)
-	requireNoErrorDiags(t, diags)
-	getA := findOp(t, doc, "getA")
-	getB := findOp(t, doc, "getB")
+	openapitest.RequireNoErrorDiags(t, diags)
+	getA := openapitest.FindOp(t, doc, "getA")
+	getB := openapitest.FindOp(t, doc, "getB")
 	require.Len(t, getA.Params, 1)
 	require.Len(t, getB.Params, 1)
 
@@ -273,9 +275,9 @@ components:
 func TestParams_ContentStyleComponentRefInternsOnce(t *testing.T) {
 	t.Parallel()
 	doc, diags := parseFull(t, componentContentParamRefSpec)
-	requireNoErrorDiags(t, diags)
-	getA := findOp(t, doc, "getA")
-	getB := findOp(t, doc, "getB")
+	openapitest.RequireNoErrorDiags(t, diags)
+	getA := openapitest.FindOp(t, doc, "getA")
+	getB := openapitest.FindOp(t, doc, "getB")
 	require.Len(t, getA.Params, 1)
 	require.Len(t, getB.Params, 1)
 
@@ -293,16 +295,16 @@ func TestParams_ContentStyleComponentRefInternsOnce(t *testing.T) {
 // though Parameter has Docs, Examples and Unmodeled (GitHub #116).
 func TestParams_SchemaAnnotationsReachTheParameter(t *testing.T) {
 	t.Parallel()
-	_, svc, diags := lowerServiceSpec(t, pathsSpec(
+	_, svc, diags := lowerServiceSpec(t, openapitest.PathsSpec(
 		"  /x:\n    get:\n      operationId: g\n      parameters:\n"+
-			"        - name: q\n          in: query\n          schema: "+inlineProbeBody+"\n"+
+			"        - name: q\n          in: query\n          schema: "+openapitest.InlineProbeBody+"\n"+
 			"      responses: {\"204\": {description: ok}}\n"))
-	requireNoErrorDiags(t, diags)
+	openapitest.RequireNoErrorDiags(t, diags)
 
-	p := firstOp(t, svc).Params[0]
-	assertProbeDocsKept(t, p.Docs)
+	p := openapitest.FirstOp(t, svc).Params[0]
+	openapitest.AssertProbeDocsKept(t, p.Docs)
 	assert.NotNil(t, p.Deprecation)
-	assertProbeExample(t, p.Examples)
+	openapitest.AssertProbeExample(t, p.Examples)
 	assert.Contains(t, p.Unmodeled, "openapi:x-vendor")
 	assert.Contains(t, p.Unmodeled, "openapi:not")
 	require.NotNil(t, p.Constraints)
@@ -321,23 +323,23 @@ func TestParams_SchemaAnnotationsSurviveARefNamingTheSchema(t *testing.T) {
 	doc, svc, diags := lowerServiceSpec(t,
 		"openapi: 3.1.0\ninfo: {title: T, version: \"1\"}\npaths:\n"+
 			"  /x:\n    get:\n      operationId: g\n      parameters:\n"+
-			"        - name: q\n          in: query\n          schema: "+inlineProbeBody+"\n"+
+			"        - name: q\n          in: query\n          schema: "+openapitest.InlineProbeBody+"\n"+
 			"      responses: {\"204\": {description: ok}}\n"+
 			"components:\n  schemas:\n"+
 			"    Outsider: {$ref: '#/paths/~1x/get/parameters/0/schema'}\n")
-	requireNoErrorDiags(t, diags)
+	openapitest.RequireNoErrorDiags(t, diags)
 
-	p := firstOp(t, svc).Params[0]
+	p := openapitest.FirstOp(t, svc).Params[0]
 	assert.Equal(t, ir.TypeID("t/prim/string"), p.Type.Target,
 		"the parameter's own type is unchanged by the outside reference")
-	assertProbeDocsKept(t, p.Docs)
+	openapitest.AssertProbeDocsKept(t, p.Docs)
 	assert.NotNil(t, p.Deprecation)
 	assert.Contains(t, p.Unmodeled, "openapi:x-vendor")
 	assert.Contains(t, p.Unmodeled, "openapi:not")
 
 	sc, ok := doc.Types["t/anon/paths/~1x/get/parameters/0/schema"].(*ir.Scalar)
 	require.True(t, ok, "and the referenced pointer still names the schema written there")
-	assertProbeDocsKept(t, sc.Docs)
+	openapitest.AssertProbeDocsKept(t, sc.Docs)
 }
 
 // paramRefInheritSpec gives every parameter the same referent and varies only
@@ -369,7 +371,7 @@ components:
 // paramsOf indexes an operation's parameters by source name.
 func paramsOf(t *testing.T, svc ir.Service) map[string]ir.Parameter {
 	t.Helper()
-	return indexBy(firstOp(t, svc).Params, func(p ir.Parameter) string { return p.Name.Source })
+	return openapitest.IndexBy(openapitest.FirstOp(t, svc).Params, func(p ir.Parameter) string { return p.Name.Source })
 }
 
 // TestParams_RefSchemaInheritsFromItsReferent covers the referent-fallback half
@@ -379,7 +381,7 @@ func paramsOf(t *testing.T, svc ir.Service) map[string]ir.Parameter {
 func TestParams_RefSchemaInheritsFromItsReferent(t *testing.T) {
 	t.Parallel()
 	_, svc, diags := lowerServiceSpec(t, paramRefInheritSpec)
-	requireNoErrorDiags(t, diags)
+	openapitest.RequireNoErrorDiags(t, diags)
 
 	p := paramsOf(t, svc)["bare"]
 	assert.Equal(t, "REFERENT", p.Docs.Description, "the referent's description reaches the parameter")
@@ -396,7 +398,7 @@ func TestParams_RefSchemaInheritsFromItsReferent(t *testing.T) {
 func TestParams_RefSchemaUseSiteWinsOverItsReferent(t *testing.T) {
 	t.Parallel()
 	_, svc, diags := lowerServiceSpec(t, paramRefInheritSpec)
-	requireNoErrorDiags(t, diags)
+	openapitest.RequireNoErrorDiags(t, diags)
 
 	p := paramsOf(t, svc)["override"]
 	assert.Equal(t, "USE_SITE", p.Docs.Description, "the use-site description wins")
@@ -412,7 +414,7 @@ func TestParams_RefSchemaUseSiteWinsOverItsReferent(t *testing.T) {
 func TestParams_RefSchemaInheritsThroughARefChain(t *testing.T) {
 	t.Parallel()
 	_, svc, diags := lowerServiceSpec(t, paramRefInheritSpec)
-	requireNoErrorDiags(t, diags)
+	openapitest.RequireNoErrorDiags(t, diags)
 
 	p := paramsOf(t, svc)["chained"]
 	assert.Equal(t, "REFERENT", p.Docs.Description, "one hop reaches Hop, which declares nothing")
@@ -445,7 +447,7 @@ paths:
 func TestParams_SchemaXMLHintsKeptUnderUnmodeled(t *testing.T) {
 	t.Parallel()
 	_, svc, diags := lowerServiceSpec(t, paramXMLSpec)
-	requireNoErrorDiags(t, diags)
+	openapitest.RequireNoErrorDiags(t, diags)
 	params := paramsOf(t, svc)
 
 	cases := []struct {
@@ -464,7 +466,7 @@ func TestParams_SchemaXMLHintsKeptUnderUnmodeled(t *testing.T) {
 			assert.Equal(t, tc.schemaPtr+"/xml", entry.Provenance.Pointer,
 				"located at the xml keyword itself")
 			assert.Contains(t,
-				diagMessageAt(t, diags, diag.DegradedConstruct, ir.SeverityInfo, tc.schemaPtr+"/xml"),
+				openapitest.DiagMessageAt(t, diags, diag.DegradedConstruct, ir.SeverityInfo, tc.schemaPtr+"/xml"),
 				"xml hints", "and announced once, at the same keyword the entry locates")
 		})
 	}
@@ -476,11 +478,11 @@ func TestParams_SchemaXMLHintsKeptUnderUnmodeled(t *testing.T) {
 // one declaration two homes that can drift.
 func TestParams_SchemaXMLHintsStayOnAnOwnedNode(t *testing.T) {
 	t.Parallel()
-	doc, svc, diags := lowerServiceSpec(t, pathsSpec(
+	doc, svc, diags := lowerServiceSpec(t, openapitest.PathsSpec(
 		"  /x:\n    get:\n      operationId: g\n      parameters:\n"+
 			"        - {name: obj, in: query, schema: {type: object, xml: {name: XOBJ}}}\n"+
 			"      responses: {\"204\": {description: ok}}\n"))
-	requireNoErrorDiags(t, diags)
+	openapitest.RequireNoErrorDiags(t, diags)
 
 	p := paramsOf(t, svc)["obj"]
 	node, ok := doc.Types[p.Type.Target]
@@ -488,7 +490,7 @@ func TestParams_SchemaXMLHintsStayOnAnOwnedNode(t *testing.T) {
 	require.NotNil(t, node.Common().XML)
 	assert.Equal(t, "XOBJ", node.Common().XML.Name)
 	assert.NotContains(t, p.Unmodeled, "openapi:xml", "so the parameter keeps no second copy")
-	assert.Equal(t, 0, countDiagsAt(diags, diag.DegradedConstruct, ir.SeverityInfo),
+	assert.Equal(t, 0, openapitest.CountDiagsAt(diags, diag.DegradedConstruct, ir.SeverityInfo),
 		"and nothing is announced as homeless")
 }
 
@@ -517,7 +519,7 @@ paths:
 func TestParams_SchemaVisibilityKeptUnderUnmodeled(t *testing.T) {
 	t.Parallel()
 	_, svc, diags := lowerServiceSpec(t, paramVisibilitySpec)
-	requireNoErrorDiags(t, diags)
+	openapitest.RequireNoErrorDiags(t, diags)
 	params := paramsOf(t, svc)
 
 	cases := []struct{ param, keyword, schemaPtr string }{
@@ -535,7 +537,7 @@ func TestParams_SchemaVisibilityKeptUnderUnmodeled(t *testing.T) {
 			assert.JSONEq(t, `true`, string(entry.Value), "kept verbatim")
 			assert.Equal(t, at, entry.Provenance.Pointer, "located at the keyword itself")
 			assert.Contains(t,
-				diagMessageAt(t, diags, diag.DegradedConstruct, ir.SeverityInfo, at),
+				openapitest.DiagMessageAt(t, diags, diag.DegradedConstruct, ir.SeverityInfo, at),
 				tc.keyword+" has no ir.Parameter home", "and announced once")
 		})
 	}
@@ -547,7 +549,7 @@ func TestParams_SchemaVisibilityKeptUnderUnmodeled(t *testing.T) {
 func TestParams_SchemaDefaultIsNotAlsoKeptVerbatim(t *testing.T) {
 	t.Parallel()
 	_, svc, diags := lowerServiceSpec(t, paramVisibilitySpec)
-	requireNoErrorDiags(t, diags)
+	openapitest.RequireNoErrorDiags(t, diags)
 
 	p := paramsOf(t, svc)["ro"]
 	require.NotNil(t, p.Default, "the default lands in its own field")
@@ -564,14 +566,14 @@ func TestParams_SchemaDefaultIsNotAlsoKeptVerbatim(t *testing.T) {
 // describes the type, and the more specific of the two wins.
 func TestParams_OwnAnnotationsWinOverTheSchema(t *testing.T) {
 	t.Parallel()
-	_, svc, diags := lowerServiceSpec(t, pathsSpec(
+	_, svc, diags := lowerServiceSpec(t, openapitest.PathsSpec(
 		"  /x:\n    get:\n      operationId: g\n      parameters:\n"+
 			"        - name: q\n          in: query\n          description: PARAM\n"+
 			"          x-scope: param\n          schema: {type: string, description: SCHEMA, x-scope: schema}\n"+
 			"      responses: {\"204\": {description: ok}}\n"))
-	requireNoErrorDiags(t, diags)
+	openapitest.RequireNoErrorDiags(t, diags)
 
-	p := firstOp(t, svc).Params[0]
+	p := openapitest.FirstOp(t, svc).Params[0]
 	assert.Equal(t, "PARAM", p.Docs.Description, "the parameter's own description wins")
 	raw, ok := p.Unmodeled["openapi:x-scope"]
 	require.True(t, ok)
@@ -587,7 +589,7 @@ func TestParams_OwnAnnotationsWinOverTheSchema(t *testing.T) {
 // node.
 func TestParams_SchemaVisibilityKeptWhenTheSchemaOwnsANode(t *testing.T) {
 	t.Parallel()
-	doc, diags := parseFull(t, pathsSpec(`  /x:
+	doc, diags := parseFull(t, openapitest.PathsSpec(`  /x:
     get:
       parameters:
         - {name: obj, in: query, schema: {type: object, properties: {a: {type: string}}, readOnly: true}}
@@ -595,7 +597,7 @@ func TestParams_SchemaVisibilityKeptWhenTheSchemaOwnsANode(t *testing.T) {
         - {name: enm, in: query, schema: {type: string, enum: [a, b], readOnly: true}}
       responses: {"200": {description: ok}}
 `))
-	op := findOp(t, doc, "")
+	op := openapitest.FindOp(t, doc, "")
 	require.Len(t, op.Params, 3)
 
 	for i, want := range []string{"openapi:readOnly", "openapi:writeOnly", "openapi:readOnly"} {
@@ -603,7 +605,7 @@ func TestParams_SchemaVisibilityKeptWhenTheSchemaOwnsANode(t *testing.T) {
 		entry, ok := param.Unmodeled[want]
 		require.True(t, ok, "%s: %s kept on the carrier that has no field for it", param.Name.Source, want)
 		assert.Equal(t, ir.ReasonNoIRHome, entry.Reason)
-		assertInfoDiagAt(t, diags, entry.Provenance.Pointer)
+		openapitest.AssertInfoDiagAt(t, diags, entry.Provenance.Pointer)
 	}
 }
 
@@ -617,7 +619,7 @@ func TestParams_SchemaVisibilityKeptWhenTheSchemaOwnsANode(t *testing.T) {
 // which declarations count.
 func TestParams_AllowEmptyValueKept(t *testing.T) {
 	t.Parallel()
-	doc, diags := parseFull(t, pathsSpec(`  /x:
+	doc, diags := parseFull(t, openapitest.PathsSpec(`  /x:
     get:
       operationId: getX
       parameters:
@@ -626,8 +628,8 @@ func TestParams_AllowEmptyValueKept(t *testing.T) {
         - {name: silent, in: query, schema: {type: string}}
       responses: {"200": {description: ok}}
 `))
-	requireNoErrorDiags(t, diags)
-	params := indexBy(findOp(t, doc, "getX").Params, func(p ir.Parameter) string { return p.Name.Source })
+	openapitest.RequireNoErrorDiags(t, diags)
+	params := openapitest.IndexBy(openapitest.FindOp(t, doc, "getX").Params, func(p ir.Parameter) string { return p.Name.Source })
 
 	for _, tc := range []struct{ name, want, index string }{
 		{"on", `true`, "0"},
@@ -639,7 +641,7 @@ func TestParams_AllowEmptyValueKept(t *testing.T) {
 		assert.JSONEq(t, tc.want, string(entry.Value))
 		assert.Equal(t, "/paths/~1x/get/parameters/"+tc.index+"/allowEmptyValue",
 			entry.Provenance.Pointer, "kept at the keyword's own coordinate")
-		assertInfoDiagAt(t, diags, entry.Provenance.Pointer)
+		openapitest.AssertInfoDiagAt(t, diags, entry.Provenance.Pointer)
 	}
 
 	assert.NotContains(t, params["silent"].Unmodeled, "openapi:allowEmptyValue",
@@ -670,23 +672,23 @@ func TestParams_ReservedHeaderNamesAreReported(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			doc, diags := parseFull(t, pathsSpec(`  /x:
+			doc, diags := parseFull(t, openapitest.PathsSpec(`  /x:
     get:
       operationId: getX
       parameters:
         - {name: `+tc.param+`, in: `+tc.in+`, schema: {type: string}}
       responses: {"200": {description: ok}}
 `))
-			requireNoErrorDiags(t, diags)
-			op := findOp(t, doc, "getX")
+			openapitest.RequireNoErrorDiags(t, diags)
+			op := openapitest.FindOp(t, doc, "getX")
 			require.Len(t, op.Params, 1, "the parameter lowers either way; nothing is dropped")
 			assert.Equal(t, tc.param, op.Params[0].Name.Source)
 
 			assert.Equal(t, tc.reported,
-				hasDiagCodeAt(diags, diag.ReservedHeaderName, "/paths/~1x/get/parameters/0"),
+				openapitest.HasDiagCodeAt(diags, diag.ReservedHeaderName, "/paths/~1x/get/parameters/0"),
 				"reported at the parameter's own pointer")
 			if tc.reported {
-				assertHasCode(t, diags, diag.ReservedHeaderName, ir.SeverityWarning)
+				openapitest.AssertHasCode(t, diags, diag.ReservedHeaderName, ir.SeverityWarning)
 			}
 		})
 	}
@@ -709,20 +711,66 @@ func TestParams_RefSiteKeywordsAreKeptOnTheParameter(t *testing.T) {
 		"      responses: {\"200\": {description: ok}}\n" +
 		"components:\n  schemas:\n    Base: {type: string}\n"
 	_, svc, diags := lowerServiceSpec(t, spec)
-	requireNoErrorDiags(t, diags)
+	openapitest.RequireNoErrorDiags(t, diags)
 
-	params := indexBy(firstOp(t, svc).Params, func(p ir.Parameter) string { return p.Name.Source })
+	params := openapitest.IndexBy(openapitest.FirstOp(t, svc).Params, func(p ir.Parameter) string { return p.Name.Source })
 	q, ok := params["q"]
 	require.True(t, ok)
 	entry, ok := q.Unmodeled["openapi:format"]
 	require.True(t, ok, "an alias over the target has no Encoding field, so the format is kept")
 	assert.Equal(t, ir.ReasonDegradedLowering, entry.Reason)
 	assert.JSONEq(t, `"email"`, string(entry.Value))
-	assertInfoDiagAt(t, diags, "/paths/~1x/get/parameters/0/schema")
+	openapitest.AssertInfoDiagAt(t, diags, "/paths/~1x/get/parameters/0/schema")
 
 	r, ok := params["r"]
 	require.True(t, ok)
 	assert.Empty(t, r.Unmodeled, "a bound at the same position always reached ir.Parameter.Constraints")
 	require.NotNil(t, r.Constraints)
 	assert.Equal(t, int64(3), *r.Constraints.MinLength)
+}
+
+// TestParams_CoDeclaredBoundKeptOnTheParameter covers the parameter carrier for
+// a 2020-12 side that declares both of its bound keywords (GitHub #286).
+// ir.Constraints holds one bound per side, so one keyword reaches no field of
+// the constraints the parameter carries and is kept verbatim beside them —
+// otherwise {minimum: 10, exclusiveMinimum: 0} lowers to what {minimum: 10}
+// does, at the one carrier ir.Parameter owns rather than a node.
+//
+// Both directions are here for the reason the property cases are: a row where
+// the exclusive keyword is the one kept passes on a reader that always kept that
+// one.
+func TestParams_CoDeclaredBoundKeptOnTheParameter(t *testing.T) {
+	t.Parallel()
+	_, svc, diags := lowerServiceSpec(t, openapitest.PathsSpec(
+		"  /x:\n    get:\n      operationId: g\n      parameters:\n"+
+			"        - {name: low, in: query, schema: {type: integer, minimum: 10, exclusiveMinimum: 0}}\n"+
+			"        - {name: high, in: query, schema: {type: integer, maximum: 100, exclusiveMaximum: 5}}\n"+
+			"        - {name: plain, in: query, schema: {type: integer, minimum: 10}}\n"+
+			"      responses: {\"204\": {description: ok}}\n"))
+	openapitest.RequireNoErrorDiags(t, diags)
+	params := paramsOf(t, svc)
+
+	cases := []struct {
+		param, index, wantKept, wantRaw string
+	}{
+		{param: "low", index: "0", wantKept: "openapi:exclusiveMinimum", wantRaw: "0"},
+		{param: "high", index: "1", wantKept: "openapi:maximum", wantRaw: "100"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.param, func(t *testing.T) {
+			t.Parallel()
+			at := "/paths/~1x/get/parameters/" + tc.index + "/schema/" +
+				strings.TrimPrefix(tc.wantKept, "openapi:")
+			require.NotNil(t, params[tc.param].Constraints, "the tighter bound still reaches a field")
+			entry, ok := params[tc.param].Unmodeled[tc.wantKept]
+			require.True(t, ok, "%s is kept beside the constraints it did not reach; got %v",
+				tc.wantKept, params[tc.param].Unmodeled)
+			assert.Equal(t, ir.ReasonDegradedLowering, entry.Reason)
+			assert.JSONEq(t, tc.wantRaw, string(entry.Value))
+			assert.Equal(t, at, entry.Provenance.Pointer, "located at the keyword itself")
+		})
+	}
+
+	assert.Empty(t, params["plain"].Unmodeled,
+		"a side writing one keyword has it in a field, so nothing is restated beside it")
 }

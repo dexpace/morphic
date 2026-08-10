@@ -136,8 +136,12 @@ func fillParamSchema(c lowering.Ctx, ts *compile.Types, param *ir.Parameter, js 
 	tgt := resolve.TargetSchema(js, s)
 	diags := fillParamDefault(c, param, s, tgt, pointer)
 
-	cons, consDiags := annotation.Constraints(s, c.ExclusiveBoundIsBoolean())
+	// The co-declared bound keyword ir.Constraints has no field for is kept on
+	// the parameter, the carrier at this position, exactly as a property keeps
+	// its own (GitHub #286).
+	cons, kept, consDiags := annotation.Constraints(s, c.ExclusiveBoundIsBoolean(), pointer, c.SrcIndex)
 	diags = append(diags, schema.StampConstraintDiags(c, consDiags, pointer)...)
+	param.Unmodeled = annotation.MergeUnmodeled(param.Unmodeled, kept)
 	if cons != nil {
 		param.Constraints = cons
 	}
@@ -311,8 +315,12 @@ func preserveAllowEmptyValue(c lowering.Ctx, param *ir.Parameter, p *soa.Paramet
 
 // resolveStyleExplode materializes a parameter's resolved serialization style
 // and explode flag: an explicit value wins, else the OpenAPI per-location
-// default (query/cookie → form/true, path/header → simple/false). The result is
-// declared facts, not policy.
+// default (query/cookie → form/true, path/header → simple/false).
+//
+// For those four locations the result is declared facts, not policy. The fifth,
+// querystring, is neither: the specification gives it no style at all, and it
+// falls through the query arm here and comes out carrying form/true — a style
+// that location may not have (GitHub #334).
 func resolveStyleExplode(p *soa.Parameter, in soa.ParameterIn) (string, *bool) {
 	style := defaultParamStyle(in)
 	if p.Style != nil {

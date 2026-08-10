@@ -1,0 +1,54 @@
+named-objects	Named object types
+inline-anonymous	Inline/anonymous types
+inheritance	Inheritance / base types
+mixins	Mixins / spread
+tagged-unions	Tagged unions
+untagged-unions	Untagged unions
+intersection	Intersection
+negation	Negation
+enums-string	Enums (string)
+enums-numeric	Enums (numeric, valued)
+open-enums	Open enums (unknown values allowed)
+custom-scalars	Custom scalars
+encoding-hints	Wire encoding hints (@encode / format)
+field-wire-ids	Field wire IDs (numeric tags)
+wire-name-distinct	Wire name ≠ model name
+optionality-vs-nullability	Optionality vs nullability distinct
+defaults	Defaults
+constraints	Constraints (min/max/pattern…)
+visibility	readOnly/writeOnly / visibility
+recursive-types	Recursive types
+maps	Maps / additionalProperties
+tuples	Tuples
+literal-types	Literal types
+operation-grouping	Operations grouped by service/interface
+resource-hierarchy	Resource hierarchy (CRUDL)
+http-binding	HTTP binding (method/path/status)
+param-styles	Param styles (explode, matrix…)
+multi-content	Multiple content types per body
+multipart-encoding	Multipart/form encoding
+per-status-errors	Per-status error types
+streaming-server	Streaming: server (SSE/chunk)
+streaming-client	Streaming: client / bidi
+events-channels	Events / pub-sub channels
+callbacks	Callbacks / request-reply
+pagination	Pagination (first-class)
+long-running-operations	Long-running operations
+idempotency	Idempotency
+auth-schemes	Auth schemes
+per-op-auth	Per-op auth override (AND/OR)
+servers	Servers / endpoints
+protocol-bindings	Protocol bindings (kafka/amqp/…)
+versioning	Versioning (added/removed)
+deprecation	Deprecation w/ message
+examples	Examples
+docs-summary-description	Docs: summary + description
+vendor-extensions	Vendor extensions / traits / directives
+one-way-operations	One-way (fire-and-forget) operations
+positional-encoding	Positional wire encoding (records as tuples)
+symbol-literals	Symbol/atom literal values
+server-initiated-messages	Unsolicited server-initiated messages
+multi-format-payloads	Multi-format payload schemas
+field-extension-ranges	Third-party field extensions / extension ranges
+field-arguments	Field arguments (parameterized fields)
+selection-sets	Client-selectable response shape
