@@ -37,9 +37,9 @@ paths:
 
 // TestMeta_UnserializableExtensionStillWarns pins the document-level twin of
 // TestAuth_UnserializableExtensionStillWarns: when every top-level x-* extension
-// fails to serialize, lowerMeta's "if len(ext) > 0" guard is false, so the
-// warning must already have been recorded by the extension reader rather than appended
-// inside the guard — the shape that used to drop it silently.
+// fails to serialize, lowerMeta ends up with an empty Unmodeled map, so the
+// warning must come from the extension reader rather than from a branch guarded
+// on what was kept — the shape that used to drop it silently.
 func TestMeta_UnserializableExtensionStillWarns(t *testing.T) {
 	t.Parallel()
 	spec := `openapi: 3.1.0
@@ -69,6 +69,20 @@ func TestMeta_FullDocumentMetadata(t *testing.T) {
 		"a declared 3.2 name is the server's name; the URL hint is for a server with none")
 	require.Len(t, doc.Servers[0].Variables, 1)
 	assert.Equal(t, []string{"us", "eu"}, doc.Servers[0].Variables[0].Enum)
+}
+
+// TestTagExtensions_NilEntrySkipped pins the same guard lowerTagDefs keeps on
+// the other side of the tag list: a nil entry contributes no extension site, so
+// nothing dereferences it and no site is keyed at an index holding no tag.
+func TestTagExtensions_NilEntrySkipped(t *testing.T) {
+	t.Parallel()
+	doc := &soa.OpenAPI{Tags: []*soa.Tag{nil, {Name: "kept"}}}
+
+	got := tagExtensions(lowering.Ctx{Doc: doc})
+
+	require.Len(t, got, 2, "one surviving tag contributes its own site and its externalDocs one")
+	assert.Equal(t, "tags/1", got[0].Scope, "the site is keyed at the tag's own index, not its position")
+	assert.Equal(t, "/tags/1", got[0].Owner)
 }
 
 func TestMeta_NoInfoNoServers(t *testing.T) {
@@ -104,7 +118,7 @@ func TestServerName_DerivedFromURLWhenUnnamed(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			assert.Equal(t, tc.want, lowerServer(&soa.Server{URL: tc.url}).Name)
+			assert.Equal(t, tc.want, serverName(&soa.Server{URL: tc.url}))
 		})
 	}
 }
@@ -115,9 +129,9 @@ func TestServerName_DerivedFromURLWhenUnnamed(t *testing.T) {
 // both servers the same.
 func TestServerName_DistinguishesServersDifferingOnlyInPath(t *testing.T) {
 	t.Parallel()
-	v1 := lowerServer(&soa.Server{URL: "https://api.example.com/v1"})
-	v2 := lowerServer(&soa.Server{URL: "https://api.example.com/v2"})
-	assert.NotEqual(t, v1.Name.Hint, v2.Name.Hint, "two distinct servers get two distinct hints")
+	v1 := serverName(&soa.Server{URL: "https://api.example.com/v1"})
+	v2 := serverName(&soa.Server{URL: "https://api.example.com/v2"})
+	assert.NotEqual(t, v1.Hint, v2.Hint, "two distinct servers get two distinct hints")
 }
 
 // TestServerName_CollidesOnPunctuationAlone bounds that claim, which must not be
@@ -127,17 +141,18 @@ func TestServerName_DistinguishesServersDifferingOnlyInPath(t *testing.T) {
 // known bound rather than a later discovery.
 func TestServerName_CollidesOnPunctuationAlone(t *testing.T) {
 	t.Parallel()
-	dotted := lowerServer(&soa.Server{URL: "https://api.example.com/v1"})
-	dashed := lowerServer(&soa.Server{URL: "https://api.example.com/v-1"})
-	assert.Equal(t, dotted.Name.Hint, dashed.Name.Hint,
+	dotted := serverName(&soa.Server{URL: "https://api.example.com/v1"})
+	dashed := serverName(&soa.Server{URL: "https://api.example.com/v-1"})
+	assert.Equal(t, dotted.Hint, dashed.Hint,
 		"neutral words carry no punctuation, so these two collide")
 }
 
 func TestLowerServers_NilEntrySkipped(t *testing.T) {
 	t.Parallel()
 	doc := &soa.OpenAPI{Servers: []*soa.Server{nil, {URL: "https://x.example.com"}}}
-	got := lowerServers(lowering.Ctx{Doc: doc})
+	got, diags := lowerServers(lowering.Ctx{Doc: doc})
 
+	assert.Empty(t, diags)
 	require.Len(t, got, 1, "nil server entry skipped, valid one lowered")
 	assert.Equal(t, "https://x.example.com", got[0].URLTemplate)
 }
@@ -148,7 +163,8 @@ func TestServerVariables_NilEntrySkipped(t *testing.T) {
 		sequencedmap.NewElem("skip", (*soa.ServerVariable)(nil)),
 		sequencedmap.NewElem("keep", &soa.ServerVariable{}),
 	)
-	srv := lowerServer(&soa.Server{URL: "https://x", Variables: vars})
+	srv, diags := lowerServer(lowering.Ctx{}, &soa.Server{URL: "https://x", Variables: vars}, "/servers/0")
+	assert.Empty(t, diags)
 	require.Len(t, srv.Variables, 1, "nil variable entry skipped")
 	assert.Equal(t, "keep", srv.Variables[0].Name)
 }
@@ -160,5 +176,7 @@ func TestLowerServers_EveryEntrySkippedIsNil(t *testing.T) {
 	t.Parallel()
 	doc := &soa.OpenAPI{Servers: []*soa.Server{nil, nil}}
 
-	assert.Nil(t, lowerServers(lowering.Ctx{Doc: doc}))
+	got, diags := lowerServers(lowering.Ctx{Doc: doc})
+	assert.Nil(t, got)
+	assert.Empty(t, diags)
 }

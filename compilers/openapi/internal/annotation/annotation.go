@@ -194,8 +194,34 @@ func XMLHints(x *oas3.XML) *ir.XMLHints {
 // key beneath it and marked ReasonVendorExtension, since the format assigns an
 // x-* key no semantics at all.
 func ExtensionsFrom(ext *extensions.Extensions, srcIndex int, owner string) (ir.Unmodeled, []ir.Diagnostic) {
+	return ExtensionsUnder(ext, srcIndex, owner, "")
+}
+
+// ExtensionsUnder is ExtensionsFrom with every entry keyed beneath scope, for
+// the objects whose extensions have no Unmodeled map of their own to land on.
+//
+// Most OpenAPI objects lower to an IR node that carries one, and those pass an
+// empty scope. The rest ride on the nearest node that does — an info object's on
+// the document, an encoding's on the content, a path item's on each of its
+// operations — and several of them can reach the same map, where "openapi:x-id"
+// from two objects is one key and the surviving entry would depend on which
+// lowering ran last. scope names which object wrote them: the source path from
+// the carrier down to it, or the object's own keyword where it is not beneath
+// the carrier at all.
+//
+// No two keys can collide: every scope segment is a literal that never begins
+// with "x-" and every extension name always does, so the first "x-" segment is
+// where the scope ends and the name begins, and one key cannot be spelled by two
+// (scope, owner) pairs. That same gap holds against the non-extension keys a
+// carrier already holds under these scopes, such as the
+// "openapi:encoding/<part>/allowReserved" written beside an encoding's x-*.
+func ExtensionsUnder(ext *extensions.Extensions, srcIndex int, owner, scope string) (ir.Unmodeled, []ir.Diagnostic) {
 	if ext == nil || ext.Len() == 0 {
 		return nil, nil
+	}
+	prefix := "openapi:"
+	if scope != "" {
+		prefix += scope + "/"
 	}
 	out := ir.Unmodeled{}
 	var diags []ir.Diagnostic
@@ -207,7 +233,7 @@ func ExtensionsFrom(ext *extensions.Extensions, srcIndex int, owner string) (ir.
 				"extension %q could not be serialized", name))
 			continue
 		}
-		out["openapi:"+name] = ir.UnmodeledEntry{
+		out[prefix+name] = ir.UnmodeledEntry{
 			Reason:     ir.ReasonVendorExtension,
 			Value:      raw,
 			Provenance: ir.Provenance{Source: srcIndex, Pointer: owner + ids.Ptr(name)},
@@ -215,6 +241,30 @@ func ExtensionsFrom(ext *extensions.Extensions, srcIndex int, owner string) (ir.
 	}
 	if len(out) == 0 {
 		return nil, diags
+	}
+	return out, diags
+}
+
+// ExtensionSite is one object's x-* map paired with where it was written: Owner
+// is the object's own source pointer, and Scope is what its entries key under on
+// the carrier that ends up holding them (see ExtensionsUnder).
+type ExtensionSite struct {
+	Scope string
+	Owner string
+	Ext   *extensions.Extensions
+}
+
+// ExtensionsAt folds every site into one Unmodeled map, for the carriers that
+// hold more than one object's extensions. Sites are applied in the order given,
+// which is source order at every caller; distinct scopes cannot collide, so the
+// order decides nothing but is fixed anyway.
+func ExtensionsAt(srcIndex int, sites ...ExtensionSite) (ir.Unmodeled, []ir.Diagnostic) {
+	var out ir.Unmodeled
+	var diags []ir.Diagnostic
+	for _, site := range sites {
+		ext, extDiags := ExtensionsUnder(site.Ext, srcIndex, site.Owner, site.Scope)
+		out = MergeUnmodeled(out, ext)
+		diags = append(diags, extDiags...)
 	}
 	return out, diags
 }
@@ -517,14 +567,41 @@ func Read(st Site, pointer string, srcIndex int) (Set, []ir.Diagnostic) {
 	out.Examples = examples
 
 	ext, extDiags := ExtensionsFrom(st.Node.GetExtensions(), srcIndex, pointer)
+	sub, subDiags := subObjectExtensions(st.Node, pointer, srcIndex)
 	kept, keptDiags := unmodeledAt(st.Node, pointer, srcIndex)
 
-	diags := make([]ir.Diagnostic, 0, len(exDiags)+len(extDiags)+len(keptDiags))
+	diags := make([]ir.Diagnostic, 0, len(exDiags)+len(extDiags)+len(subDiags)+len(keptDiags))
 	diags = append(diags, exDiags...)
 	diags = append(diags, extDiags...)
+	diags = append(diags, subDiags...)
 	diags = append(diags, keptDiags...)
 
-	out.Unmodeled = MergeUnmodeled(ext, kept)
+	out.Unmodeled = MergeUnmodeled(MergeUnmodeled(ext, sub), kept)
+	return out, diags
+}
+
+// subObjectExtensions collects the x-* the sub-objects of a schema declare —
+// its xml, its discriminator and its externalDocs. Each is an OpenAPI object
+// that admits extensions, and none of ir.XMLHints, ir.Discriminator or ir.Link
+// holds an Unmodeled map, so the entries ride on the node the schema itself
+// lowers to; the keyword each was written under is what keeps three objects'
+// extensions apart on that one map.
+func subObjectExtensions(s *oas3.Schema, pointer string, srcIndex int) (ir.Unmodeled, []ir.Diagnostic) {
+	subs := []struct {
+		keyword string
+		ext     *extensions.Extensions
+	}{
+		{"xml", s.GetXML().GetExtensions()},
+		{"discriminator", s.GetDiscriminator().GetExtensions()},
+		{"externalDocs", s.GetExternalDocs().GetExtensions()},
+	}
+	var out ir.Unmodeled
+	var diags []ir.Diagnostic
+	for _, sub := range subs {
+		ext, extDiags := ExtensionsUnder(sub.ext, srcIndex, pointer+ids.Ptr(sub.keyword), sub.keyword)
+		out = MergeUnmodeled(out, ext)
+		diags = append(diags, extDiags...)
+	}
 	return out, diags
 }
 
