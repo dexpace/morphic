@@ -677,7 +677,7 @@
     {
       "format": "openapi@3.1",
       "path": "inline-hoist-positions.yaml",
-      "hash": "4a5d339bb37e2395112857818e2899507f5b06e02bee858105a5379b1ef7183d"
+      "hash": "efeccfc4fd7fb2787dd7a3c1339c40db47aa9f1eb12a70097e60b26cb7f42a71"
     }
   ]
 }

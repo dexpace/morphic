@@ -48,6 +48,19 @@ func PropsByWire(props []ir.Property) map[string]ir.Property {
 	return IndexBy(props, func(p ir.Property) string { return p.WireName })
 }
 
+// BodyTarget returns the type a single-media-type payload refers to.
+//
+// The two requires are the reason this is a function rather than the indexing
+// expression it wraps: written inline, a payload that is nil or that grew a
+// second media type panics on a line that says nothing about which of the two
+// happened.
+func BodyTarget(t TB, payload *ir.Payload) ir.TypeID {
+	t.Helper()
+	require.NotNil(t, payload, "the operation declares a body")
+	require.Len(t, payload.Contents, 1, "the body declares one media type")
+	return payload.Contents[0].Type.Target
+}
+
 // RequireNoErrorDiags fails the test if any diagnostic has error severity,
 // reporting the first offending diagnostic.
 func RequireNoErrorDiags(t TB, diags []ir.Diagnostic) {

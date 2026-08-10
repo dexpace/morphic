@@ -1,12 +1,21 @@
 // This file is a package-level suite, not a per-source-file test: it reads
 // docs/ir-spec-matrix.md and measures the whole committed corpus against it, so
 // it pairs with no single source file.
+//
+// The table reader below is format-agnostic and lives in one compiler's test
+// package, which is the wrong altitude for it the moment a second compiler needs
+// a second column. It is here rather than in internal/testspec because
+// compilers/openapi is not allowed to reach outside the pipeline — archtest's
+// allowlist for it is ir, compilers, compilers/compile and its own internal/*
+// — and archtest skips _test.go files, so importing testspec from here would
+// pass by way of a blind spot rather than by the rule. Whoever adds the Swagger
+// column moves it to a home both compilers can reach, and will have two callers
+// to shape the API with.
 package openapi_test // external test package — exercises only the public API
 
 import (
 	"os"
 	"regexp"
-	"slices"
 	"strings"
 	"testing"
 
@@ -17,8 +26,15 @@ import (
 // matrixPath is the capability matrix, addressed relative to this test file.
 const matrixPath = "../../docs/ir-spec-matrix.md"
 
-// matrixHeaderPrefix opens the one keyed capability table in the matrix.
-const matrixHeaderPrefix = "| Key |"
+// matrixRowsGolden snapshots each row key beside the capability it labels.
+const matrixRowsGolden = "testdata/matrix-rows.golden.txt"
+
+// matrixKeyColumn and matrixCapabilityColumn are the two fixed columns every
+// keyed capability table opens with; the rest are one format each.
+const (
+	matrixKeyColumn        = "Key"
+	matrixCapabilityColumn = "Capability"
+)
 
 // matrixOpenAPIColumn is the header of the column this compiler answers to.
 const matrixOpenAPIColumn = "OpenAPI 3.x"
@@ -28,23 +44,44 @@ const matrixOpenAPIColumn = "OpenAPI 3.x"
 // makes two spellings of one row possible.
 var matrixKeyPattern = regexp.MustCompile(`^[a-z0-9]+(-[a-z0-9]+)*$`)
 
+// matrixCell is one format's answer for a capability row.
+type matrixCell struct {
+	column string
+	cell   string
+}
+
 // matrixRow is one capability row: its stable key, the capability it names, and
-// the cell saying how OpenAPI expresses it.
+// every format's cell in document order.
 type matrixRow struct {
 	key        string
 	capability string
-	openAPI    string
+	formats    []matrixCell
+}
+
+// openAPI returns the cell of the column this compiler answers to.
+func (r matrixRow) openAPI() string {
+	for _, f := range r.formats {
+		if f.column == matrixOpenAPIColumn {
+			return f.cell
+		}
+	}
+	return ""
 }
 
 // TestMatrix_RowsCarryUniqueSlugKeys pins the half of the contract that lives in
-// the document: every row has a key, the keys are unique, and every OpenAPI cell
+// the document: every row has a key, the keys are unique, and every format cell
 // opens with one of the legend's three markers.
 //
-// The marker check is what makes the coverage test below trustworthy. It reads
-// an unmarked cell as neither expressible nor absent, so a row whose marker was
+// The marker check is what makes the coverage test below trustworthy. An
+// unmarked cell is neither expressible nor absent, so a row whose marker was
 // lost in an edit would drop out of the corpus contract without failing
 // anything — the silent direction of the failure, which is why it is rejected
 // here rather than defaulted.
+//
+// It sweeps every format column, not only the one this compiler answers to. The
+// legend is the document's, the next compiler reads the next column, and a
+// contract enforced for one column of nine says nothing about the eight a
+// reviewer would assume it covered.
 func TestMatrix_RowsCarryUniqueSlugKeys(t *testing.T) {
 	t.Parallel()
 	rows := readMatrixRows(t)
@@ -54,9 +91,35 @@ func TestMatrix_RowsCarryUniqueSlugKeys(t *testing.T) {
 		assert.NotContains(t, seen, row.key,
 			"rows %q and %q share the key %q", seen[row.key], row.capability, row.key)
 		seen[row.key] = row.capability
-		openAPIExpressible(t, row)
+		for _, f := range row.formats {
+			if _, known := legendMarker(f.cell); !known {
+				t.Errorf("matrix row %q: %s cell %q opens with none of the legend markers ✅ ⚠ —",
+					row.key, f.column, f.cell)
+			}
+		}
 	}
-	assert.Len(t, seen, len(rows), "every row contributes a distinct key")
+}
+
+// TestMatrix_KeysStayPinnedToTheirCapabilities snapshots every row as
+// "key<tab>capability". Regenerate with
+// `go test ./compilers/openapi -run TestMatrix -update`.
+//
+// Nothing else binds a key to the row it labels. Every other test here asks only
+// whether a key is *declared*, so an insert or delete that shifts the Key column
+// against the Capability column by one leaves them all green while each corpus
+// spec silently witnesses its neighbour's capability.
+//
+// It is also what makes the document's own promise — keys are append-only, and
+// renaming one fails a test — true for rows no Go file names. Those are exactly
+// the rows the next compiler will be first to bind to, and without a snapshot
+// every one of them is freely renameable today.
+func TestMatrix_KeysStayPinnedToTheirCapabilities(t *testing.T) {
+	t.Parallel()
+	var b strings.Builder
+	for _, row := range readMatrixRows(t) {
+		b.WriteString(row.key + "\t" + row.capability + "\n")
+	}
+	compareTextGolden(t, matrixRowsGolden, b.String())
 }
 
 // TestConformance_EveryExpressibleMatrixRowIsWitnessed is the corpus contract
@@ -69,19 +132,30 @@ func TestMatrix_RowsCarryUniqueSlugKeys(t *testing.T) {
 // added without a table row and a row cannot be added to the matrix without
 // either a witnessing spec or a written reason there is none yet.
 //
-// A row OpenAPI cannot express must have no witness either. That direction
-// catches the matrix and the corpus disagreeing the other way round: a spec
-// naming such a row means one of the two is wrong about the source format, and
-// leaving it unchecked would let the corpus quietly redefine the matrix.
+// What it cannot check is that a spec naming a row exercises that capability;
+// that claim is read by a reviewer, and docs/architecture.md says so rather than
+// promising otherwise.
+//
+// A row OpenAPI cannot express must have neither a witness nor an excuse. Both
+// directions catch the matrix and the corpus disagreeing: a witness means one of
+// the two is wrong about the source format, and an excuse describes a gap that
+// cannot exist, which nothing else would ever retire.
 func TestConformance_EveryExpressibleMatrixRowIsWitnessed(t *testing.T) {
 	t.Parallel()
 	witnesses := matrixRowWitnesses(t)
 	uncovered := matrixRowsUncovered()
 	for _, row := range readMatrixRows(t) {
-		if !openAPIExpressible(t, row) {
+		expressible, known := legendMarker(row.openAPI())
+		if !known {
+			continue // TestMatrix_RowsCarryUniqueSlugKeys reports the unmarked cell.
+		}
+		if !expressible {
 			assert.NotContains(t, witnesses, row.key,
 				"matrix row %q is marked absent for OpenAPI, yet %v witness it",
 				row.key, witnesses[row.key])
+			assert.NotContains(t, uncovered, row.key,
+				"matrix row %q is marked absent for OpenAPI, so matrixRowsUncovered's line for it "+
+					"describes a gap no spec could ever close; delete it", row.key)
 			continue
 		}
 		if reason, excused := uncovered[row.key]; excused {
@@ -124,17 +198,28 @@ func TestConformance_MatrixRowNamesResolve(t *testing.T) {
 // not witness, each with the reason it has none. Closing a gap means deleting
 // its line here and naming the row from a case: a row that is both listed and
 // witnessed fails, so the list cannot outlive the gap it describes.
+//
+// Each reason names the blocker as it stands today. Two of them used to point at
+// an IR that could not hold the capability yet, which had stopped being true —
+// ir.LongRunning and ir.Idempotency both model theirs — and nothing here can
+// tell a stale reason from a live one, so a reader chasing one is sent to wait
+// on a change that already landed.
 func matrixRowsUncovered() map[string]string {
 	return map[string]string{
 		"open-enums": "OpenAPI has no open-enum keyword; the matrix's ⚠ is the " +
 			"anyOf: [{enum: [...]}, {type: string}] idiom, which lowers as an ordinary union " +
 			"and needs a spec pinning that the enum branch survives beside the open one",
-		"long-running-operations": "OpenAPI states it only through vendor extensions, so a spec " +
-			"for this row would assert what extensions-x already asserts — that x-* survives — " +
-			"until the IR models polling as something a spec can read back",
-		"idempotency": "OpenAPI conveys it through HTTP verb semantics alone, and the method " +
-			"string http-binding pins is the whole of what a spec could read; there is no " +
-			"idempotency declaration to capture until the IR infers one as policy",
+		"pagination": "OpenAPI states it only through links and x-*, and this compiler keeps both " +
+			"verbatim rather than reading either into ir.Pagination — response-links pins that they " +
+			"survive, so a spec for this row would assert nothing further until a policy pass infers " +
+			"pagination, which invariant 6 puts outside the compiler",
+		"long-running-operations": "OpenAPI states it only through vendor extensions, so a spec for " +
+			"this row would assert what extensions-x already asserts — that x-* survives. ir.LongRunning " +
+			"models the capability; what is missing is a policy pass reading those extensions into it, " +
+			"which invariant 6 puts outside the compiler",
+		"idempotency": "OpenAPI conveys it through HTTP verb semantics alone, and the method string " +
+			"http-binding pins is the whole of what a spec could read; ir.Idempotency models the " +
+			"capability, but nothing in the document declares it for a compiler to capture",
 	}
 }
 
@@ -153,19 +238,22 @@ func matrixRowWitnesses(t *testing.T) map[string][]string {
 	return witnesses
 }
 
-// openAPIExpressible reports whether the OpenAPI cell claims the capability is
-// expressible, failing the test on a cell that opens with no legend marker.
-func openAPIExpressible(t *testing.T, row matrixRow) bool {
-	t.Helper()
+// legendMarker classifies one matrix cell by the legend marker it opens with:
+// expressible says whether the format can state the capability, known whether a
+// marker was found at all.
+//
+// The two are separate answers because an unmarked cell is not an absent one.
+// Folding them into one bool made a lost marker report "marked absent for
+// OpenAPI, yet these specs witness it" — a confident, false claim about the
+// document, printed over the real cause.
+func legendMarker(cell string) (expressible, known bool) {
 	switch {
-	case strings.HasPrefix(row.openAPI, "✅"), strings.HasPrefix(row.openAPI, "⚠"):
-		return true
-	case strings.HasPrefix(row.openAPI, "—"):
-		return false
+	case strings.HasPrefix(cell, "✅"), strings.HasPrefix(cell, "⚠"):
+		return true, true
+	case strings.HasPrefix(cell, "—"):
+		return false, true
 	default:
-		t.Errorf("matrix row %q: OpenAPI cell %q opens with none of the legend markers ✅ ⚠ —",
-			row.key, row.openAPI)
-		return false
+		return false, false
 	}
 }
 
@@ -174,18 +262,22 @@ func readMatrixRows(t *testing.T) []matrixRow {
 	t.Helper()
 	lines := matrixTableLines(t)
 	header := splitMatrixCells(lines[0])
-	require.Equal(t, "Key", header[0], "the capability table's first column is the row key")
-	openAPIAt := slices.Index(header, matrixOpenAPIColumn)
-	require.Positive(t, openAPIAt, "the capability table needs a %q column", matrixOpenAPIColumn)
+	require.Equal(t, matrixKeyColumn, header[0], "the capability table's first column is the row key")
+	require.Equal(t, matrixCapabilityColumn, header[1], "and its second names the capability")
+	require.Contains(t, header, matrixOpenAPIColumn, "the capability table needs a %q column", matrixOpenAPIColumn)
 
 	rows := make([]matrixRow, 0, len(lines))
 	for _, line := range lines[2:] {
 		cells := splitMatrixCells(line)
 		require.Len(t, cells, len(header), "row %q has a different cell count than the header", line)
+		formats := make([]matrixCell, 0, len(header)-2)
+		for i, column := range header[2:] {
+			formats = append(formats, matrixCell{column: column, cell: cells[i+2]})
+		}
 		rows = append(rows, matrixRow{
 			key:        strings.Trim(cells[0], "`"),
 			capability: cells[1],
-			openAPI:    cells[openAPIAt],
+			formats:    formats,
 		})
 	}
 	require.NotEmpty(t, rows, "the capability table must hold data rows")
@@ -195,53 +287,82 @@ func readMatrixRows(t *testing.T) []matrixRow {
 // matrixTableLines returns the keyed capability table: its header, its separator
 // and every contiguous row under it.
 //
-// It requires the document to hold exactly one such table. The alternative — take
-// the first — would let a second keyed table be added and read by nothing, which
-// is the same class of silence this whole file exists to remove.
+// It requires the document to hold exactly one such table, and to hold no
+// table-shaped line outside it. That second requirement is what makes the first
+// mean anything: the walk ends the table at the first line that is not a row, so
+// a blank line, an HTML comment or a GFM-legal indent between two rows would
+// otherwise drop that row and every row below it out of every check in this
+// file — silently, since the rows at the end of the table are the ones no spec
+// names.
 func matrixTableLines(t *testing.T) []string {
 	t.Helper()
 	data, err := os.ReadFile(matrixPath)
 	require.NoError(t, err)
 
 	var table []string
+	tableShaped := 0
 	inTable := false
-	for _, line := range strings.Split(string(data), "\n") {
+	for _, raw := range strings.Split(string(data), "\n") {
+		line := strings.TrimSpace(raw)
+		isRow := strings.HasPrefix(line, "|")
+		if isRow {
+			tableShaped++
+		}
 		switch {
-		case strings.HasPrefix(line, matrixHeaderPrefix):
+		case isRow && isMatrixHeader(line):
 			require.Empty(t, table, "ir-spec-matrix.md holds more than one keyed capability table")
 			inTable = true
-		case !strings.HasPrefix(line, "|"):
+		case !isRow:
 			inTable = false
 		}
 		if inTable {
 			table = append(table, line)
 		}
 	}
+
 	require.Greater(t, len(table), 2, "the keyed table needs a header, a separator and rows")
-	require.True(t, strings.HasPrefix(table[1], "|---"), "the header is followed by its separator")
+	require.True(t, strings.HasPrefix(strings.ReplaceAll(table[1], " ", ""), "|---"),
+		"the header is followed by its separator")
+	require.Len(t, table, tableShaped,
+		"ir-spec-matrix.md holds %d table-shaped lines and the keyed capability table reaches %d of "+
+			"them: a blank line, a comment or an indented row between two rows ends the table early, "+
+			"dropping every row below it from this file's checks", tableShaped, len(table))
 	return table
+}
+
+// isMatrixHeader reports whether a table line opens the keyed capability table,
+// deciding on parsed cells rather than raw text.
+//
+// A header padded for column alignment and one written without padding are the
+// same header to every markdown reader. Matching raw text recognizes only one of
+// the two: it lets a second keyed table evade the "exactly one" guard by leaving
+// the padding out, and it loses the real table the moment a formatter adds it.
+func isMatrixHeader(line string) bool {
+	cells := splitMatrixCells(line)
+	return len(cells) > 2 && cells[0] == matrixKeyColumn && cells[1] == matrixCapabilityColumn
 }
 
 // splitMatrixCells splits one markdown table row into trimmed cells, honouring
 // the \| escape a cell uses for a literal pipe — the Erlang union spelling has
 // one, and splitting naively would give that row an extra cell.
+//
+// Only \| is an escape. Consuming every backslash would silently rewrite any
+// cell holding one for its own sake, which is a thing prose does.
 func splitMatrixCells(line string) []string {
 	body := strings.TrimSuffix(strings.TrimPrefix(strings.TrimSpace(line), "|"), "|")
+	runes := []rune(body)
 	var cells []string
 	var cell strings.Builder
-	escaped := false
-	for _, r := range body {
+	for i := 0; i < len(runes); i++ {
 		switch {
-		case escaped:
-			cell.WriteRune(r)
-			escaped = false
-		case r == '\\':
-			escaped = true
-		case r == '|':
+		case runes[i] == '\\' && i+1 < len(runes) && runes[i+1] == '|':
+			cell.WriteRune('|')
+			i++
+		case runes[i] == '|':
 			cells = append(cells, strings.TrimSpace(cell.String()))
 			cell.Reset()
 		default:
-			cell.WriteRune(r)
+			cell.WriteRune(runes[i])
 		}
 	}
 	return append(cells, strings.TrimSpace(cell.String()))

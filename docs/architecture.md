@@ -290,10 +290,12 @@ stderr; the CLI renders diagnostics.
   snapshot-compared. IR changes show up as reviewable diffs.
 - **Capability conformance corpus**: one minimal spec per row of `ir-spec-matrix.md` per format
   that can express it, asserting the IR captures it losslessly. This is the regression net that
-  keeps "lossless by default" honest as compilers are added. The mapping is checked rather than
-  described: every matrix row carries a stable key, each corpus spec names the keys it witnesses,
-  and a row a format can express must be witnessed by a spec or listed as not-yet-covered with a
-  reason (`compilers/openapi/conformance_matrix_test.go`).
+  keeps "lossless by default" honest as compilers are added. Row and spec are tied to each other
+  rather than left to prose: every matrix row carries a stable key, each corpus spec names the keys
+  it witnesses, and a row the OpenAPI column marks expressible must be witnessed by a spec or
+  listed as not-yet-covered with a reason (`compilers/openapi/conformance_matrix_test.go`). What
+  stays a reviewer's job is the claim inside that link — a spec naming a row has to *exercise* that
+  capability, and no test can read a golden and tell you whether it does.
 - **Round-trip property**: `parse → serialize → deserialize → deep-equal` for every corpus
   document.
 - **Oracle sweep** (`internal/harness`): every corpus spec is driven through the oracles in order

@@ -137,6 +137,15 @@ func corpusSpecNames(t *testing.T) []string {
 // direction the contract runs in is row → spec, checked in
 // conformance_matrix_test.go; the reverse direction is already covered, by
 // TestConformance_TableNamesEveryCorpusSpec.
+//
+// Naming a row claims the spec's *golden* shows that capability captured, and
+// no test can check that much — it is read by a reviewer. Reaching for a
+// construct on the way to a different subject is not witnessing it: this table
+// claimed constraints from a spec whose whole subject is keywords with no IR
+// home, and encoding hints from one whose format keyword lowers to a primitive
+// type rather than to ir.Encoding. Both rows were witnessed elsewhere, so
+// nothing went red; had they not been, the corpus would have reported coverage
+// it did not have.
 type conformanceCase struct {
 	file   string
 	assert func(*testing.T, *ir.Document, []ir.Diagnostic)
@@ -164,13 +173,13 @@ func conformanceCases() []conformanceCase {
 		{"discriminator-inheritance", assertDiscriminatorInheritance, []string{"tagged-unions", "inheritance"}},
 		{"discriminator-default-mapping", assertDiscriminatorDefaultMapping, []string{"tagged-unions"}},
 		{"discriminator-transitive", assertDiscriminatorTransitive, []string{"tagged-unions", "inheritance"}},
-		{"unhomed-keywords", assertUnhomedKeywords, []string{"constraints"}},
+		{"unhomed-keywords", assertUnhomedKeywords, nil},
 		{"codeclared-keywords", assertCoDeclaredKeywords, []string{"intersection", "literal-types", "enums-string"}},
 		{"anyof-untagged", assertAnyOfUntagged, []string{"untagged-unions"}},
 		{"negation-not", assertNegationNot, []string{"negation"}},
-		{"dependent-required", assertDependentRequired, []string{"constraints"}},
+		{"dependent-required", assertDependentRequired, nil},
 		{"dialect-keywords", assertDialectKeywords, nil},
-		{"dynamic-ref", assertDynamicRef, []string{"recursive-types"}},
+		{"dynamic-ref", assertDynamicRef, nil},
 		{"enum-string", assertEnumString, []string{"enums-string"}},
 		{"enum-numeric", assertEnumNumeric, []string{"enums-numeric"}},
 		{"scalar-format", assertScalarFormat, []string{"custom-scalars"}},
@@ -197,13 +206,13 @@ func conformanceCases() []conformanceCase {
 		{"param-style-matrix", assertParamStyleMatrix, []string{"param-styles"}},
 		{"param-xml-residue", assertParamXMLResidue, nil},
 		{"param-ref-inheritance", assertParamRefInheritance, []string{"defaults", "deprecation", "docs-summary-description"}},
-		{"header-content-schema", assertHeaderContentSchema, []string{"multi-content"}},
+		{"header-content-schema", assertHeaderContentSchema, nil},
 		{"multi-content", assertMultiContent, []string{"multi-content"}},
 		{"multipart-encoding", assertMultipartEncoding, []string{"multipart-encoding"}},
-		{"file-body", assertFileBody, []string{"encoding-hints"}},
+		{"file-body", assertFileBody, nil},
 		{"sequential-media", assertSequentialMedia, []string{"streaming-server"}},
 		{"per-status-errors", assertPerStatusErrors, []string{"per-status-errors"}},
-		{"response-links", assertResponseLinks, []string{"pagination"}},
+		{"response-links", assertResponseLinks, nil},
 		{"webhooks", assertWebhooks, []string{"events-channels", "server-initiated-messages"}},
 		{"callbacks", assertCallbacks, []string{"callbacks"}},
 		{"inline-hoist-positions", assertInlineHoistPositions, []string{"inline-anonymous"}},
@@ -538,17 +547,18 @@ func assertInlineTypes(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
 // derives.
 //
 // inline-types.yaml pins one position, a schema property; the inlinePositions
-// table in compilers/openapi/internal/schema pins the nine that package reaches
+// table in compilers/openapi/internal/schema pins the ones that package reaches
 // on its own. Neither reaches a parameter, a response header, a webhook or a
 // callback, which are lowered a layer up — and the callback operation body had
 // no anonymous node anywhere in the corpus, so a hoist that mis-derived its ID
 // changed no golden at all.
 //
-// Both directions are asserted. The referring site must point at the derived ID,
-// which is what a moved position changes; and the six targets must be six
-// distinct nodes, which is what a hoist collapsing identical bodies onto one
-// node changes. The fixture writes the same body at all six so that second
-// failure is reachable at all.
+// Two things are asserted, and the second is not spare. The referring site must
+// point at the derived ID, which a moved position changes. Then the six targets
+// must be six distinct nodes — the check that survives a *synchronized* edit,
+// where a hoist collapsing identical bodies onto one node and an expectation
+// updated to match would agree with each other and leave the diff green. The
+// fixture writes the same body at all six so a collapse is reachable at all.
 func assertInlineHoistPositions(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
 	got := inlineHoistPositionRefs(t, doc)
 	if diff := cmp.Diff(inlineHoistPositionIDs(), got); diff != "" {
@@ -605,19 +615,11 @@ func inlineHoistPositionRefs(t *testing.T, doc *ir.Document) map[string]ir.TypeI
 	return map[string]ir.TypeID{
 		"parameter schema":       audit.Type.Target,
 		"response-header schema": order.Responses[0].Headers[0].Type.Target,
-		"request-body property":  inlinePropTarget(t, doc, bodyTarget(t, order.Request), "shipping"),
-		"response-body property": inlinePropTarget(t, doc, bodyTarget(t, order.Responses[0].Payload), "receipt"),
-		"webhook body":           bodyTarget(t, webhook.Request),
-		"callback body":          bodyTarget(t, callback.Request),
+		"request-body property":  inlinePropTarget(t, doc, openapitest.BodyTarget(t, order.Request), "shipping"),
+		"response-body property": inlinePropTarget(t, doc, openapitest.BodyTarget(t, order.Responses[0].Payload), "receipt"),
+		"webhook body":           openapitest.BodyTarget(t, webhook.Request),
+		"callback body":          openapitest.BodyTarget(t, callback.Request),
 	}
-}
-
-// bodyTarget returns the type a single-media-type payload refers to.
-func bodyTarget(t *testing.T, payload *ir.Payload) ir.TypeID {
-	t.Helper()
-	require.NotNil(t, payload, "the operation declares a body")
-	require.Len(t, payload.Contents, 1, "the body declares one media type")
-	return payload.Contents[0].Type.Target
 }
 
 // inlinePropTarget returns the type the named property of the model at id refers
@@ -662,13 +664,13 @@ func assertComponentReuse(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
 	assert.Equal(t, sortID, gadgets.Params[0].Type.Target, "the shared parameter interns once")
 
 	listedID := ir.TypeID("t/anon/components/responses/Listed/content/application~1json/schema")
-	assert.Equal(t, listedID, widgets.Responses[0].Payload.Contents[0].Type.Target)
-	assert.Equal(t, listedID, order.Responses[0].Payload.Contents[0].Type.Target,
+	assert.Equal(t, listedID, openapitest.BodyTarget(t, widgets.Responses[0].Payload))
+	assert.Equal(t, listedID, openapitest.BodyTarget(t, order.Responses[0].Payload),
 		"a response reused across unrelated operations interns once")
 
 	bodyID := ir.TypeID("t/anon/components/requestBodies/OrderBody/content/application~1json/schema")
 	require.NotNil(t, order.Request)
-	assert.Equal(t, bodyID, order.Request.Contents[0].Type.Target)
+	assert.Equal(t, bodyID, openapitest.BodyTarget(t, order.Request))
 	assert.Equal(t, "OrderBody", doc.Types[bodyID].Common().Name.Hint,
 		"a shared body is named after its component, not the operation that reached it first")
 
@@ -1684,131 +1686,161 @@ func assertAllowEmptyValueKept(t *testing.T, op ir.Operation) {
 	assert.JSONEq(t, `true`, string(entry.Value))
 }
 
-// paramWire is what a parameter's location-dependent serialization resolves to:
-// where it binds, the style it serializes with, and whether it explodes. The
-// three travel together because OpenAPI settles them together — the location
-// picks the style when none is written, and the style picks explode.
-type paramWire struct {
+// paramID is a parameter's identity. OpenAPI keys the Parameter object on
+// (name, in), so two parameters may legally share a name at different
+// locations; a map keyed on the name alone silently keeps one of such a pair and
+// compares the other against nothing. The compiler itself is keyed on both.
+type paramID struct {
+	Param    string
 	Location ir.HTTPLocation
-	Style    string
-	Explode  bool
+}
+
+// paramWire is what a parameter's location-dependent serialization resolves to:
+// the style it serializes with, and whether it explodes. The two travel together
+// because OpenAPI settles them together — the location picks the style when none
+// is written, and the style picks explode.
+type paramWire struct {
+	Style   string
+	Explode bool
+}
+
+// paramStylePair is one legal (in, style) combination of the Parameter object.
+type paramStylePair struct {
+	location ir.HTTPLocation
+	style    string
+}
+
+// param names the fixture parameter declaring this pair with one explode
+// spelling: "<location><Style>" and the suffix.
+func (p paramStylePair) param(suffix string) string {
+	return string(p.location) + strings.ToUpper(p.style[:1]) + p.style[1:] + suffix
+}
+
+// paramStyleLegalPairs is OpenAPI's (in, style) table, read off the
+// specification rather than off the fixture: path takes simple|label|matrix,
+// query form|spaceDelimited|pipeDelimited|deepObject, header simple, cookie
+// form. querystring is a fifth location that takes no style at all, so it has no
+// pair here and assertQuerystringParam covers it instead.
+//
+// 3.2 adds a tenth pair — a `cookie` style at in: cookie — which this compiler
+// rejects with a hard error, so no fixture can declare it; GitHub #389 tracks
+// that and the explode default 3.2 gives it.
+func paramStyleLegalPairs() []paramStylePair {
+	return []paramStylePair{
+		{ir.HTTPLocationPath, "simple"},
+		{ir.HTTPLocationPath, "label"},
+		{ir.HTTPLocationPath, "matrix"},
+		{ir.HTTPLocationQuery, "form"},
+		{ir.HTTPLocationQuery, "spaceDelimited"},
+		{ir.HTTPLocationQuery, "pipeDelimited"},
+		{ir.HTTPLocationQuery, "deepObject"},
+		{ir.HTTPLocationHeader, "simple"},
+		{ir.HTTPLocationCookie, "form"},
+	}
+}
+
+// paramStyleDefaultStyles is the other half of the same table: the style each
+// location falls back to when a parameter omits `style` entirely.
+func paramStyleDefaultStyles() []paramStylePair {
+	return []paramStylePair{
+		{ir.HTTPLocationPath, "simple"},
+		{ir.HTTPLocationQuery, "form"},
+		{ir.HTTPLocationHeader, "simple"},
+		{ir.HTTPLocationCookie, "form"},
+	}
+}
+
+// paramStyleExplodeDefault is what `explode` means when omitted: true under
+// form, false under every other style a location pairs with. (3.2 gives its
+// `cookie` style the form default too — see paramStyleLegalPairs.)
+func paramStyleExplodeDefault(style string) bool {
+	return style == "form"
+}
+
+// paramStyleMatrixWant generates what param-style-matrix.yaml must resolve to
+// from the two tables above, instead of restating it beside them.
+//
+// Generating it is what closes the hole a literal expectation leaves. A literal
+// and the fixture are two copies of one claim, so deleting a row from both
+// leaves nothing to disagree — and the counts that were supposed to notice
+// counted a deduplicated set, which a shrunk fixture still reaches whenever some
+// other parameter happens to resolve the same way. Every row of every location
+// defaulting its style was shadowed that way, including the cookie row this
+// fixture exists for. Here the only way to stop demanding a parameter is to
+// delete its pair from the table that says OpenAPI allows it.
+func paramStyleMatrixWant() map[paramID]paramWire {
+	want := map[paramID]paramWire{}
+	for _, p := range paramStyleLegalPairs() {
+		for _, e := range []struct {
+			suffix  string
+			explode bool
+		}{
+			{"Explode", true},
+			{"NoExplode", false},
+			{"DefaultExplode", paramStyleExplodeDefault(p.style)},
+		} {
+			want[paramID{p.param(e.suffix), p.location}] = paramWire{p.style, e.explode}
+		}
+	}
+	for _, d := range paramStyleDefaultStyles() {
+		want[paramID{string(d.location) + "Defaulted", d.location}] =
+			paramWire{d.style, paramStyleExplodeDefault(d.style)}
+	}
+	return want
 }
 
 // assertParamStyleMatrix pins the whole of OpenAPI's location-dependent
-// serialization table at once, against a literal map rather than a spot check
-// per location.
+// serialization table at once, against a generated expectation rather than a
+// spot check per location.
 //
 // The table used to be readable for a whole location without any golden
 // noticing: deleting cookie from the arm that defaults it to form left the
 // entire suite green, because no committed spec declared a cookie parameter.
-// Comparing the resolved (location, style, explode) of every parameter closes
-// that by construction — a location that loses its arm changes rows here.
+// Comparing the resolved (style, explode) of every parameter closes that by
+// construction — a location that loses its arm changes rows here.
 func assertParamStyleMatrix(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
 	op, ok := opByName(doc, "styleMatrix")
 	require.True(t, ok)
 	require.Len(t, op.Bindings.HTTP, 1)
 
-	got := make(map[string]paramWire, len(op.Bindings.HTTP[0].ParamBindings))
+	got := make(map[paramID]paramWire, len(op.Bindings.HTTP[0].ParamBindings))
 	for _, pb := range op.Bindings.HTTP[0].ParamBindings {
 		require.NotNil(t, pb.Explode, "%s: explode resolves to a value, never to nothing", pb.Param)
-		got[pb.Param] = paramWire{Location: pb.Location, Style: pb.Style, Explode: *pb.Explode}
+		id := paramID{Param: pb.Param, Location: pb.Location}
+		require.NotContains(t, got, id, "two parameter bindings share the identity %+v", id)
+		got[id] = paramWire{Style: pb.Style, Explode: *pb.Explode}
 	}
 	if diff := cmp.Diff(paramStyleMatrixWant(), got); diff != "" {
 		t.Errorf("resolved parameter serialization (-want +got):\n%s", diff)
 	}
 
-	assertParamStyleMatrixIsComplete(t, got)
-	assertQuerystringParam(t, op)
-}
-
-// paramStyleMatrixWant is what param-style-matrix.yaml must resolve to: the nine
-// legal (in, style) pairs with explode written both ways, plus the five
-// locations with style omitted so the per-location default is what answers.
-func paramStyleMatrixWant() map[string]paramWire {
-	const (
-		path        = ir.HTTPLocationPath
-		query       = ir.HTTPLocationQuery
-		header      = ir.HTTPLocationHeader
-		cookie      = ir.HTTPLocationCookie
-		querystring = ir.HTTPLocationQuerystring
-	)
-	return map[string]paramWire{
-		"pathMatrixExplode":             {path, "matrix", true},
-		"pathMatrixNoExplode":           {path, "matrix", false},
-		"pathMatrixDefaultExplode":      {path, "matrix", false},
-		"pathLabelExplode":              {path, "label", true},
-		"pathLabelNoExplode":            {path, "label", false},
-		"pathSimpleExplode":             {path, "simple", true},
-		"pathSimpleNoExplode":           {path, "simple", false},
-		"pathDefaulted":                 {path, "simple", false},
-		"queryFormExplode":              {query, "form", true},
-		"queryFormNoExplode":            {query, "form", false},
-		"querySpaceDelimitedExplode":    {query, "spaceDelimited", true},
-		"querySpaceDelimitedNoExplode":  {query, "spaceDelimited", false},
-		"queryPipeDelimitedExplode":     {query, "pipeDelimited", true},
-		"queryPipeDelimitedNoExplode":   {query, "pipeDelimited", false},
-		"queryDeepObjectExplode":        {query, "deepObject", true},
-		"queryDeepObjectNoExplode":      {query, "deepObject", false},
-		"queryDeepObjectDefaultExplode": {query, "deepObject", false},
-		"queryDefaulted":                {query, "form", true},
-		"headerSimpleExplode":           {header, "simple", true},
-		"headerSimpleNoExplode":         {header, "simple", false},
-		"headerDefaulted":               {header, "simple", false},
-		"cookieFormExplode":             {cookie, "form", true},
-		"cookieFormNoExplode":           {cookie, "form", false},
-		"cookieDefaulted":               {cookie, "form", true},
-		// The compiler's own answer at a location that declares none — see
-		// assertQuerystringParam.
-		"querystringWhole": {querystring, "form", true},
-	}
-}
-
-// assertParamStyleMatrixIsComplete derives what the fixture reached and checks
-// it against OpenAPI's own count rather than against itself: path takes
-// simple|label|matrix, query form|spaceDelimited|pipeDelimited|deepObject,
-// header simple and cookie form — nine pairs, eighteen with explode both ways.
-// querystring is the fifth location and takes no style at all, so it is left out
-// rather than counted as a tenth pair.
-//
-// The literal table above would still pass if a row were deleted from both it
-// and the spec; this is what notices that, because the shrunk fixture no longer
-// reaches nine.
-func assertParamStyleMatrixIsComplete(t *testing.T, got map[string]paramWire) {
-	t.Helper()
-	type pair struct {
-		location ir.HTTPLocation
-		style    string
-	}
-	pairs := map[pair]bool{}
-	triples := map[paramWire]bool{}
-	for _, w := range got {
-		if w.Location == ir.HTTPLocationQuerystring {
-			continue
-		}
-		pairs[pair{w.Location, w.Style}] = true
-		triples[w] = true
-	}
-	assert.Len(t, pairs, 9, "every legal (in, style) pair is exercised")
-	assert.Len(t, triples, 18, "and each of them with explode both ways")
+	assertQuerystringParam(t, doc)
 }
 
 // assertQuerystringParam covers the 3.2 location that binds the whole query
 // string. It may declare neither style nor schema, so the media type its
 // one-entry content map names is the whole of its stated serialization.
 //
+// It has an operation to itself because 3.2 forbids a querystring parameter from
+// sharing one — or its path item — with any `in: query` parameter, in both
+// directions. Asserting the operation binds exactly one parameter is how that
+// stays true: the location cannot be reached by picking it out of a crowd.
+//
 // The style and explode asserted here are the compiler's, not the source's: it
 // runs querystring through the same default arm as query and stamps form/true on
 // a location the specification gives no style to (GitHub #334). They are pinned
 // rather than left unasserted so that fixing #334 reddens this case and its
 // golden instead of changing the IR in silence.
-func assertQuerystringParam(t *testing.T, op ir.Operation) {
+func assertQuerystringParam(t *testing.T, doc *ir.Document) {
 	t.Helper()
-	var binding ir.HTTPParamBinding
-	for _, pb := range op.Bindings.HTTP[0].ParamBindings {
-		if pb.Location == ir.HTTPLocationQuerystring {
-			binding = pb
-		}
-	}
+	op, ok := opByName(doc, "querystringOnly")
+	require.True(t, ok, "the querystring parameter's own operation is registered")
+	require.Len(t, op.Bindings.HTTP, 1)
+	require.Len(t, op.Bindings.HTTP[0].ParamBindings, 1,
+		"the querystring location shares its operation with no other parameter")
+
+	binding := op.Bindings.HTTP[0].ParamBindings[0]
+	require.Equal(t, ir.HTTPLocationQuerystring, binding.Location)
 	require.Equal(t, "querystringWhole", binding.Param, "the querystring parameter binds")
 	assert.Equal(t, "application/x-www-form-urlencoded", binding.ContentType,
 		"its media type is where its serialization is actually stated")
@@ -2350,7 +2382,7 @@ func assertPathItemOperations(t *testing.T, doc *ir.Document, _ []ir.Diagnostic)
 	require.True(t, ok)
 	require.NotNil(t, queryIndex.Request)
 	require.Len(t, queryIndex.Request.Contents, 1)
-	assert.NotNil(t, doc.Types[queryIndex.Request.Contents[0].Type.Target],
+	assert.NotNil(t, doc.Types[openapitest.BodyTarget(t, queryIndex.Request)],
 		"the request body schema is interned, not merely referenced")
 }
 

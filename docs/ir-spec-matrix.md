@@ -10,10 +10,13 @@ protocols.
 Legend: ✅ native concept · ⚠ expressible indirectly · — absent
 
 The **Key** column is the row's stable identifier, and it is read by machine as well as by eye:
-each conformance corpus spec names the keys it witnesses, and a test requires every row a format
-can express to be witnessed by a spec or listed as not-yet-covered with a reason. Keys are
-therefore append-only in spirit — renaming one, or deleting a row a spec still names, fails that
-test. Adding a row that a format can express fails it too, until the row is witnessed or excluded.
+each conformance corpus spec names the keys it witnesses, and a test requires every row the
+OpenAPI column marks expressible to be witnessed by a spec or listed as not-yet-covered with a
+reason. Adding such a row fails that test until it is witnessed or excluded. Keys are therefore
+append-only in practice, and a golden snapshotting every key beside the capability it labels
+extends that to the rest of the table: renaming a key, deleting a row, or letting the two columns
+drift out of step is a diff a reviewer reads — including for the rows no spec names yet, which are
+the ones the next compiler will be first to bind to.
 
 | Key | Capability | OpenAPI 3.x | Swagger 2.0 | TypeSpec | Smithy 2.0 | GraphQL | AsyncAPI | Protobuf | Erlang/OTP |
 |---|---|---|---|---|---|---|---|---|---|

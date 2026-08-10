@@ -94,6 +94,24 @@ func TestIndexBy_KeysEveryItem(t *testing.T) {
 	assert.Len(t, byWire, 2)
 }
 
+// TestBodyTarget_RequiresExactlyOneMediaType pins that a second media type is a
+// failure rather than a silent pick of the first, which is what the indexing
+// expression this helper replaced did at every site.
+//
+// The nil-payload guard is exercised by the passing case alone. Driving it
+// through the recorder would not work and would not be worth it either: the
+// recorder's FailNow returns where a real one aborts, so the helper would run on
+// past a guard that had already fired.
+func TestBodyTarget_RequiresExactlyOneMediaType(t *testing.T) {
+	t.Parallel()
+	one := &ir.Payload{Contents: []ir.Content{{Type: ir.TypeRef{Target: "t/prim/string"}}}}
+	assert.Equal(t, ir.TypeID("t/prim/string"), openapitest.BodyTarget(t, one))
+
+	r := &recorder{}
+	openapitest.BodyTarget(r, &ir.Payload{Contents: []ir.Content{{}, {}}})
+	assert.True(t, r.failed(), "a second media type must fail the test")
+}
+
 // TestRequireNoErrorDiags_FailsOnlyOnAnErrorSeverity pins that warnings pass
 // and an error does not, which is the whole contract the suites lean on.
 func TestRequireNoErrorDiags_FailsOnlyOnAnErrorSeverity(t *testing.T) {
