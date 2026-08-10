@@ -614,7 +614,7 @@ func diagUnresolvedBranches(c lowering.Ctx, s *oas3.Schema, pointer string) []ir
 // across. It mirrors lower's dispatch: const and enum win over everything, then
 // allOf, then a declared object type or a bare property set.
 func composesAsModel(s *oas3.Schema) bool {
-	if s.GetConst() != nil || len(s.GetEnum()) > 0 {
+	if s.GetConst() != nil || enumWritten(s) {
 		return false
 	}
 	if len(s.GetAllOf()) > 0 {
@@ -1045,7 +1045,8 @@ func propIDByName(m *ir.Model, name string) (ir.PropID, bool) {
 
 // lowerEnum hoists a schema with `enum` as a closed Enum. A heterogeneous or
 // non-scalar member set has no Enum home, so it falls back to a Union of
-// Literals with an info diagnostic — nothing is dropped.
+// Literals with an info diagnostic — nothing is dropped. An empty member list
+// takes neither path (emptyEnum).
 //
 // A member set past the caller's budget is the one case where something is: the
 // enum lowers as the top type with an error diagnostic naming the budget. The
@@ -1077,6 +1078,15 @@ func propIDByName(m *ir.Model, name string) (ir.PropID, bool) {
 func lowerEnum(c lowering.Ctx, ts *compile.Types, s *oas3.Schema, pointer, hint string) (ir.TypeID, []ir.Diagnostic) {
 	var diags []ir.Diagnostic
 	id := internNode(c, ts, pointer, hint, func(common ir.TypeCommon) ir.TypeDef {
+		// The degenerate list first, then the budget. They cannot both hold — a
+		// member count of zero exceeds no positive budget — so the order decides
+		// nothing, but reading the empty case beside the members it lacks is
+		// clearer than reading it after a bound on how many there may be.
+		if len(s.GetEnum()) == 0 {
+			def, emptyDiags := emptyEnum(c, s, common, pointer)
+			diags = append(diags, emptyDiags...)
+			return def
+		}
 		if n := len(s.GetEnum()); c.Limits.EnumMembersExceeded(n) {
 			diags = append(diags, c.DiagAt(ir.SeverityError, diag.BudgetExceeded, pointer,
 				"enum declares %d members, past the %d-member budget; lowered as any",
@@ -1097,6 +1107,43 @@ func lowerEnum(c lowering.Ctx, ts *compile.Types, s *oas3.Schema, pointer, hint 
 		}
 	})
 	return id, diags
+}
+
+// emptyEnum lowers `enum: []` — a value space fixed to the empty set, so the
+// position accepts no instance — as the closed Enum over no member, with the one
+// warning that says so.
+//
+// This is the IR's exact spelling of an empty value space, not an approximation
+// of one. There is no bottom TypeKind to reach for, but a closed Enum admits its
+// members and nothing else, so a closed Enum with none admits nothing. The
+// neighbouring construct settles for less: a boolean `false` schema also matches
+// nothing and lowers to a closed empty Model (falseSchema), which still admits
+// the empty object.
+//
+// It deliberately does not reach enumAsUnion. That fallback mints one variant
+// per member, so an empty member list would produce a Union with no variants —
+// a node nothing in the IR rejects and no reader can act on, which is a quieter
+// version of the same defect rather than a fix for it (GitHub #318).
+//
+// ValueType is the declared scalar type where one is written and the top type
+// otherwise: with no member to classify, nothing narrower is known, and nothing
+// narrower is needed either — the member list is what holds the values, and it
+// is empty whatever this says.
+//
+// What the position lowers to is settled here; whether a *reference* to it
+// admits null is not. That bit is computed by schemaAdmitsNull at each use site,
+// which reads the type keyword and not the value set, so
+// `{type: [T, "null"], enum: []}` still reads as nullable at its uses — a
+// nullable type array beside an enum listing no null member, which is GitHub
+// #288's shape exactly and is settled there rather than here.
+func emptyEnum(c lowering.Ctx, s *oas3.Schema, common ir.TypeCommon, pointer string) (ir.TypeDef, []ir.Diagnostic) {
+	diags := []ir.Diagnostic{c.DiagAt(ir.SeverityWarning, diag.EmptyEnum, pointer,
+		"enum declares no member, so this position accepts no value; lowered as a closed enum with no members")}
+	return &ir.Enum{
+		TypeCommon: common,
+		ValueType:  enumValueType(s, ir.PrimAny),
+		Closed:     true,
+	}, diags
 }
 
 // enumMembers converts enum nodes into scalar members, reporting ok=false on any

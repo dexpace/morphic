@@ -183,6 +183,7 @@ func conformanceCases() []conformanceCase {
 		{"dynamic-ref", assertDynamicRef, nil},
 		{"enum-string", assertEnumString, []string{"enums-string"}},
 		{"enum-numeric", assertEnumNumeric, []string{"enums-numeric"}},
+		{"empty-enum", assertEmptyEnum, nil},
 		{"scalar-format", assertScalarFormat, []string{"custom-scalars"}},
 		{"encoding-byte", assertEncodingByte, []string{"encoding-hints"}},
 		{"content-vocabulary", assertContentVocabulary, []string{"encoding-hints"}},
@@ -954,6 +955,60 @@ func assertEnumNumeric(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
 	assert.Equal(t, ir.ValueNumber, e.Members[1].Value.Kind)
 	// BigVal member value preserves the full 64-bit integer.
 	assert.Equal(t, ir.BigVal("9007199254740993"), e.Members[1].Value.Num)
+}
+
+// assertEmptyEnum covers `enum: []`: legal JSON Schema whose value space holds
+// no member, so the position it is written at accepts no instance. The
+// capability claimed is that the IR says that exactly rather than approximating
+// it — a closed Enum admits its members and nothing else, so a closed Enum with
+// none admits nothing.
+//
+// It used to say the opposite. The keyword was read off `len(enum) > 0`, which
+// cannot tell an empty member list from an absent one, so the position widened
+// to whatever its siblings admitted — the top type where nothing else was
+// written — reporting nothing and keeping nothing (GitHub #278).
+//
+// Holder's `colour` is in the corpus for the same reason the empty spellings
+// are: a populated enum must go on lowering as it did, so this reddens for a
+// change reaching every enum rather than the degenerate one.
+func assertEmptyEnum(t *testing.T, doc *ir.Document, diags []ir.Diagnostic) {
+	empty := map[string]ir.PrimKind{
+		"Nothing":          ir.PrimString,
+		"Bare":             ir.PrimAny,
+		"BesideProperties": ir.PrimAny,
+		"BesideAllOf":      ir.PrimAny,
+	}
+	for name, valueType := range empty {
+		e, ok := doc.Types[namedID(name)].(*ir.Enum)
+		require.True(t, ok, "%s lowers to an Enum, got %T", name, doc.Types[namedID(name)])
+		assert.True(t, e.Closed, "%s admits its members and nothing else", name)
+		assert.Empty(t, e.Members, "%s declares no member", name)
+		assert.Equal(t, valueType, e.ValueType,
+			"%s takes the declared scalar type where one is written", name)
+		assert.Equal(t, []ir.Severity{ir.SeverityWarning},
+			diagsAt(diags, "openapi/empty-enum", "/components/schemas/"+name),
+			"%s is reported once, since nobody writes an empty member list on purpose", name)
+	}
+
+	// An Enum has no home for a property set or a composition, so what the empty
+	// enum is written beside stays verbatim rather than being traded for it.
+	props := unmodeledEntry(t, doc.Types[namedID("BesideProperties")].Common().Unmodeled, "openapi:properties")
+	assert.Equal(t, ir.ReasonDegradedLowering, props.Reason)
+	assert.JSONEq(t, `{"x":{"type":"string"}}`, string(props.Value))
+	composed := unmodeledEntry(t, doc.Types[namedID("BesideAllOf")].Common().Unmodeled, "openapi:allOf")
+	assert.Equal(t, ir.ReasonDegradedLowering, composed.Reason)
+	assert.JSONEq(t, `[{"$ref":"#/components/schemas/Base"}]`, string(composed.Value))
+
+	holder, ok := doc.Types[namedID("Holder")].(*ir.Model)
+	require.True(t, ok)
+	colour, ok := propByWire(holder, "colour")
+	require.True(t, ok)
+	populated, ok := doc.Types[colour.Type.Target].(*ir.Enum)
+	require.True(t, ok, "a populated enum beside the degenerate ones is unaffected")
+	require.Len(t, populated.Members, 2)
+	assert.Equal(t, ir.PrimString, populated.ValueType)
+	assert.Empty(t, diagsAt(diags, "openapi/empty-enum", "/components/schemas/Holder/properties/colour"),
+		"and reports nothing")
 }
 
 func assertScalarFormat(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {

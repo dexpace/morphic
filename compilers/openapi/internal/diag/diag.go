@@ -83,6 +83,21 @@ const (
 	ValidationOnlyKeyword = "openapi/validation-only-keyword"
 	// FalseSchema reports a boolean `false` schema (matches nothing).
 	FalseSchema = "openapi/false-schema"
+	// EmptyEnum reports an `enum` whose member list is empty. JSON Schema allows
+	// it and gives it a meaning — the value space holds no member, so the
+	// position accepts no instance at all — which the IR states exactly, as a
+	// closed Enum with no members.
+	//
+	// Warning rather than info, and the split from FalseSchema beside it is the
+	// reason. A boolean `false` schema is the idiom for "forbid this here", so
+	// announcing the lowering is all a reader needs; an empty member list is the
+	// same statement written the way nobody writes it on purpose, and it is what
+	// a generator emitting a list it never filled produces. Every position
+	// reaching it is uncallable, so the document is told rather than merely
+	// recorded. Not an error: the document is well-formed, and harness.Check
+	// stops at the first error diagnostic, which would hide every later finding
+	// in the same spec.
+	EmptyEnum = "openapi/empty-enum"
 	// NumericPrecision reports a numeric bound literal that is not a finite
 	// number (error severity: Morphic owns these keywords, so this is the sole
 	// diagnostic for the defect — see boundLiteralDiag).
