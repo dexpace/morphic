@@ -230,19 +230,28 @@ func TestCompile_CanceledContextStopsTheCompile(t *testing.T) {
 }
 
 // liveForCalls answers Err with nil for its first left calls and
-// context.Canceled from then on.
+// context.Canceled from then on, counting every call it answers.
 //
-// run consults ctx.Err() once per phase boundary and nothing else does, so a
-// context cancelled outright always lands on the first boundary; the later ones
-// could otherwise be reached only by racing the walk against a timer. Counting
-// the calls puts the cancellation at a chosen boundary, which is what makes this
-// deterministic rather than usually right.
+// The document under test declares nothing, so the walks themselves consult
+// ctx.Err() not at all and run's phase boundaries are the only callers. A
+// context cancelled outright would therefore always land on the first boundary;
+// the later ones could otherwise be reached only by racing the walk against a
+// timer. Counting puts the cancellation at a chosen boundary, which is what
+// makes this deterministic rather than usually right.
+//
+// seen is what says the boundary under test is the one that stopped the compile.
+// The outcome cannot: every boundary returns the same nil document and the same
+// context.Canceled, so a boundary that never fires is covered for by the next
+// one and the test passes with it deleted. The call count is the only thing that
+// separates them.
 type liveForCalls struct {
 	context.Context
 	left *int
+	seen *int
 }
 
 func (c liveForCalls) Err() error {
+	*c.seen++
 	if *c.left > 0 {
 		*c.left--
 		return nil
@@ -262,15 +271,17 @@ func TestRun_RefusesAtEveryPhaseBoundaryOnCancellation(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			left := tc.live
+			left, seen := tc.live, 0
 
-			doc, diags, err := run(liveForCalls{Context: t.Context(), left: &left},
+			doc, diags, err := run(liveForCalls{Context: t.Context(), left: &left, seen: &seen},
 				lowering.Ctx{Doc: &soa.OpenAPI{}}, compile.NewTypes(0))
 
 			require.ErrorIs(t, err, context.Canceled)
 			assert.Nil(t, doc, "a partial registry is never assembled into a Document")
 			assert.Empty(t, diags)
 			assert.Zero(t, left, "the boundary under test is the one that saw the cancellation")
+			assert.Equal(t, tc.live+1, seen,
+				"and it stopped there: a boundary reached after it would have asked again")
 		})
 	}
 }
