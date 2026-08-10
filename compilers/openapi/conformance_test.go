@@ -1712,8 +1712,22 @@ type paramStylePair struct {
 
 // param names the fixture parameter declaring this pair with one explode
 // spelling: "<location><Style>" and the suffix.
+//
+// It is total rather than slicing p.style directly: the table's own comment
+// points out that querystring takes no style, which is an invitation to add a
+// styleless pair, and a panic inside a name builder says nothing about which
+// pair caused it. TestParamStyleTable_MatchesTheSpecification is what rejects
+// one, with the pair named.
 func (p paramStylePair) param(suffix string) string {
-	return string(p.location) + strings.ToUpper(p.style[:1]) + p.style[1:] + suffix
+	return string(p.location) + upperFirst(p.style) + suffix
+}
+
+// upperFirst capitalizes the first letter of an ASCII style name.
+func upperFirst(s string) string {
+	if s == "" {
+		return s
+	}
+	return strings.ToUpper(s[:1]) + s[1:]
 }
 
 // paramStyleLegalPairs is OpenAPI's (in, style) table, read off the
@@ -1817,6 +1831,8 @@ func TestParamStyleTable_MatchesTheSpecification(t *testing.T) {
 
 	legal := make(map[paramStylePair]bool, len(pairs))
 	for _, p := range pairs {
+		assert.NotEmpty(t, p.style,
+			"%s: a pair names a style, and a location that takes none belongs in neither table", p.location)
 		assert.NotContains(t, legal, p, "the (%s, %s) pair is listed twice", p.location, p.style)
 		legal[p] = true
 	}
@@ -2424,8 +2440,6 @@ func assertPathItemOperations(t *testing.T, doc *ir.Document, _ []ir.Diagnostic)
 
 	queryIndex, ok := opByName(doc, "queryIndex")
 	require.True(t, ok)
-	require.NotNil(t, queryIndex.Request)
-	require.Len(t, queryIndex.Request.Contents, 1)
 	assert.NotNil(t, doc.Types[openapitest.BodyTarget(t, queryIndex.Request)],
 		"the request body schema is interned, not merely referenced")
 }

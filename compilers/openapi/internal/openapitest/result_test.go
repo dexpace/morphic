@@ -98,10 +98,12 @@ func TestIndexBy_KeysEveryItem(t *testing.T) {
 // failure rather than a silent pick of the first, which is what the indexing
 // expression this helper replaced did at every site.
 //
-// The nil-payload guard is exercised by the passing case alone. Driving it
-// through the recorder would not work and would not be worth it either: the
-// recorder's FailNow returns where a real one aborts, so the helper would run on
-// past a guard that had already fired.
+// The recorder can drive this case and not the two that would leave the helper
+// with nothing to index — a nil payload, or a payload with no media type at all
+// — because its FailNow returns where a real one aborts, so the helper runs on
+// past a guard that has already fired and panics. Two media types is the one
+// failure that survives the round trip, so it is the one asserted here; the
+// other two are covered by the passing case executing both guards.
 func TestBodyTarget_RequiresExactlyOneMediaType(t *testing.T) {
 	t.Parallel()
 	one := &ir.Payload{Contents: []ir.Content{{Type: ir.TypeRef{Target: "t/prim/string"}}}}

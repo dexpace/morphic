@@ -197,11 +197,14 @@ func TestConformance_MatrixRowNamesResolve(t *testing.T) {
 // its line here and naming the row from a case: a row that is both listed and
 // witnessed fails, so the list cannot outlive the gap it describes.
 //
-// Each reason names the blocker as it stands today. Two of them used to point at
-// an IR that could not hold the capability yet, which had stopped being true —
-// ir.LongRunning and ir.Idempotency both model theirs — and nothing here can
-// tell a stale reason from a live one, so a reader chasing one is sent to wait
-// on a change that already landed.
+// Each reason names the blocker as it stands today *and* what retires it, which
+// is the part that keeps this list from silently becoming permanent. Nothing
+// here can tell a stale reason from a live one: two of these used to point at an
+// IR that could not hold the capability yet, long after ir.LongRunning and
+// ir.Idempotency began modelling theirs, and a reader chasing one was sent to
+// wait on a change that had already landed. A reason with no retirement
+// condition is the same failure written the other way round — it describes a gap
+// that reads as closable and is not.
 func matrixRowsUncovered() map[string]string {
 	return map[string]string{
 		"open-enums": "OpenAPI has no open-enum keyword; the matrix's ⚠ is the " +
@@ -209,15 +212,16 @@ func matrixRowsUncovered() map[string]string {
 			"and needs a spec pinning that the enum branch survives beside the open one",
 		"pagination": "OpenAPI states it only through links and x-*, and this compiler keeps both " +
 			"verbatim rather than reading either into ir.Pagination — response-links pins that they " +
-			"survive, so a spec for this row would assert nothing further until a policy pass infers " +
-			"pagination, which invariant 6 puts outside the compiler",
+			"survive. Invariant 6 puts the inference in a pass rather than in the compiler, so this " +
+			"retires when such a pass lands and a spec can read ir.Pagination back",
 		"long-running-operations": "OpenAPI states it only through vendor extensions, so a spec for " +
-			"this row would assert what extensions-x already asserts — that x-* survives. ir.LongRunning " +
-			"models the capability; what is missing is a policy pass reading those extensions into it, " +
-			"which invariant 6 puts outside the compiler",
+			"this row would assert what extensions-x already asserts — that x-* survives. " +
+			"ir.LongRunning models the capability; the missing half is a pass reading those " +
+			"extensions into it, and this retires when one lands",
 		"idempotency": "OpenAPI conveys it through HTTP verb semantics alone, and the method string " +
-			"http-binding pins is the whole of what a spec could read; ir.Idempotency models the " +
-			"capability, but nothing in the document declares it for a compiler to capture",
+			"http-binding pins is the whole of what a spec could read. ir.Idempotency models the " +
+			"capability, and a pass inferring safe/idempotent from that method is what would let a " +
+			"spec witness the row; this retires when one lands",
 	}
 }
 
@@ -284,71 +288,102 @@ func readMatrixRows(t *testing.T) []matrixRow {
 	return rows
 }
 
-// matrixTableLines returns the keyed capability table: its header, its separator
-// and every contiguous row under it.
+// matrixTableLines returns the keyed capability table: its header, its
+// delimiter row and every row under it, each trimmed.
 //
-// It requires the document to hold exactly one such table, and to hold no
-// table-shaped line outside it. That second requirement is what makes the first
-// mean anything: the walk ends the table at the first line that is not a row, so
-// a blank line, an HTML comment or a GFM-legal indent between two rows would
-// otherwise drop that row and every row below it out of every check in this
-// file — silently, since the rows at the end of the table are the ones no spec
-// names.
+// It finds the table by that delimiter row rather than by a leading pipe,
+// because GFM does not require one — `Key | Capability | ...` with no outer
+// pipes is the same table to every renderer, and a reader keyed on "|" at the
+// start of a line cannot see it. That blindness cost twice over: a second keyed
+// table written without outer pipes escaped the "exactly one" guard and every
+// check in this file, and dropping the outer pipes from the table's *last* row
+// removed it from the contract while the row count still balanced, because the
+// line stopped being counted on both sides at once.
+//
+// Every markdown table has a delimiter row and prose does not, so counting them
+// is what makes "exactly one table" true however a second one is spelled.
+// Fenced blocks are skipped so the document may hold a table as an example.
 func matrixTableLines(t *testing.T) []string {
 	t.Helper()
 	data, err := os.ReadFile(matrixPath)
 	require.NoError(t, err)
+	lines := matrixUnfencedLines(string(data))
 
-	var table []string
-	tableShaped := 0
-	inTable := false
-	for _, raw := range strings.Split(string(data), "\n") {
-		line := strings.TrimSpace(raw)
-		isRow := strings.HasPrefix(line, "|")
-		if isRow {
-			tableShaped++
+	var delimiters []int
+	for i, line := range lines {
+		if isMatrixDelimiter(line) {
+			delimiters = append(delimiters, i)
 		}
-		switch {
-		case isRow && isMatrixHeader(line):
-			require.Empty(t, table, "ir-spec-matrix.md holds more than one keyed capability table")
-			inTable = true
-		case !isRow:
-			inTable = false
-		}
-		if inTable {
-			table = append(table, line)
+	}
+	require.Len(t, delimiters, 1,
+		"ir-spec-matrix.md must hold exactly one markdown table outside its fenced blocks, and "+
+			"holds %d", len(delimiters))
+	separator := delimiters[0]
+	require.Positive(t, separator, "the delimiter row needs a header line above it")
+
+	end := separator + 1
+	for end < len(lines) && isMatrixRow(lines[end]) {
+		end++
+	}
+	for i, line := range lines {
+		if isMatrixRow(line) && (i < separator-1 || i >= end) {
+			t.Errorf("ir-spec-matrix.md line %d is table-shaped but falls outside the capability "+
+				"table, which this file reads from line %d to line %d: %q",
+				i+1, separator, end, line)
 		}
 	}
 
-	require.Greater(t, len(table), 2, "the keyed table needs a header, a separator and rows")
-	require.True(t, strings.HasPrefix(strings.ReplaceAll(table[1], " ", ""), "|---"),
-		"the header is followed by its separator")
-	require.Len(t, table, tableShaped,
-		"ir-spec-matrix.md holds %d table-shaped lines and the keyed capability table reaches %d of "+
-			"them: either something that is not a row — a blank line, a comment — sits between two "+
-			"rows and ends the table early, dropping every row below it from this file's checks, or "+
-			"a second table was added that nothing here reads", tableShaped, len(table))
+	table := lines[separator-1 : end]
+	require.Greater(t, len(table), 2, "the keyed table needs a header, a delimiter row and rows")
 	return table
 }
 
-// isMatrixHeader reports whether a table line opens the keyed capability table,
-// deciding on parsed cells rather than raw text.
-//
-// A header padded for column alignment and one written without padding are the
-// same header to every markdown reader. Matching raw text recognizes only one of
-// the two: it lets a second keyed table evade the "exactly one" guard by leaving
-// the padding out, and it loses the real table the moment a formatter adds it.
-func isMatrixHeader(line string) bool {
-	cells := splitMatrixCells(line)
-	return len(cells) > 2 && cells[0] == matrixKeyColumn && cells[1] == matrixCapabilityColumn
+// matrixUnfencedLines returns the document's lines, trimmed, with the contents
+// of fenced code blocks blanked out so a markdown table written as an example is
+// not read as one. Blanking rather than dropping keeps the index of each line
+// equal to its position in the file, which the messages above report.
+func matrixUnfencedLines(data string) []string {
+	raw := strings.Split(data, "\n")
+	out := make([]string, len(raw))
+	fenced := false
+	for i, line := range raw {
+		trimmed := strings.TrimSpace(line)
+		if strings.HasPrefix(trimmed, "```") {
+			fenced = !fenced
+			continue
+		}
+		if !fenced {
+			out[i] = trimmed
+		}
+	}
+	return out
+}
+
+// isMatrixRow reports whether a line could be a row of a markdown table. GFM
+// wants a pipe somewhere and does not want one at either end.
+func isMatrixRow(line string) bool {
+	return strings.Contains(line, "|")
+}
+
+// isMatrixDelimiter reports whether a line is a table's delimiter row — the
+// ---|--- under a header. It is the one line every markdown table must have and
+// that prose does not write by accident, which is what makes it the thing to
+// count when asking how many tables a document holds.
+func isMatrixDelimiter(line string) bool {
+	if !strings.Contains(line, "|") || !strings.Contains(line, "-") {
+		return false
+	}
+	return strings.TrimLeft(line, "|-: ") == ""
 }
 
 // splitMatrixCells splits one markdown table row into trimmed cells, honouring
 // the \| escape a cell uses for a literal pipe — the Erlang union spelling has
 // one, and splitting naively would give that row an extra cell.
 //
-// Only \| is an escape. Consuming every backslash would silently rewrite any
-// cell holding one for its own sake, which is a thing prose does.
+// Only \| and \\ are escapes, which is GFM's rule. Consuming every backslash
+// would silently rewrite a cell holding one for its own sake; consuming only
+// \| would read the pipe in \\| as escaped when the backslash before it is
+// what was escaped, merging two cells into one.
 func splitMatrixCells(line string) []string {
 	body := strings.TrimSuffix(strings.TrimPrefix(strings.TrimSpace(line), "|"), "|")
 	runes := []rune(body)
@@ -356,8 +391,8 @@ func splitMatrixCells(line string) []string {
 	var cell strings.Builder
 	for i := 0; i < len(runes); i++ {
 		switch {
-		case runes[i] == '\\' && i+1 < len(runes) && runes[i+1] == '|':
-			cell.WriteRune('|')
+		case runes[i] == '\\' && i+1 < len(runes) && (runes[i+1] == '|' || runes[i+1] == '\\'):
+			cell.WriteRune(runes[i+1])
 			i++
 		case runes[i] == '|':
 			cells = append(cells, strings.TrimSpace(cell.String()))
