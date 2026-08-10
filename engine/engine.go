@@ -161,7 +161,8 @@ func (e *Engine) undetected(format compilers.SourceFormat, declined []ir.Diagnos
 // have worked leaves the next step to guesswork, and the engine can answer it
 // from its own registry without knowing what any of the names mean.
 //
-// NewWith refuses an empty compiler set, so there is always at least one.
+// NewWith builds every Engine and refuses an empty compiler set, so there is
+// always at least one format to name and the sentence never trails off.
 func (e *Engine) served() string {
 	formats := e.registry.Formats()
 	names := make([]string, 0, len(formats))

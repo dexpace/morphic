@@ -204,9 +204,14 @@ func isNilCompiler(c Compiler) bool {
 //
 // It is sorted rather than in registration order, because this answers "what
 // does this build accept" for a reader, and a set rendered in a different order
-// from run to run reads as a different set. Sorting is by name then version
-// string, so versions order lexically — enough while a version is major.minor,
-// and a display order either way.
+// from run to run reads as a different set.
+//
+// Sorting is by name, then by version as a string. That matches numeric order
+// only while minor versions stay single-digit: a 3.10 would sort ahead of 3.2,
+// not behind it. The deviation is left rather than fixed because this order is
+// read, never compared against — nothing selects a compiler by position here —
+// and a version comparator that guessed at every format's scheme would be a
+// larger thing to get wrong than a list one line out of order.
 func (r *Registry) Formats() []SourceFormat {
 	formats := make([]SourceFormat, 0, len(r.byFormat))
 	for format := range r.byFormat {
