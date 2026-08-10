@@ -303,6 +303,12 @@ func readMatrixRows(t *testing.T) []matrixRow {
 // Every markdown table has a delimiter row and prose does not, so counting them
 // is what makes "exactly one table" true however a second one is spelled.
 // Fenced blocks are skipped so the document may hold a table as an example.
+//
+// A line outside the table is reported only when it splits into exactly as many
+// cells as the header. That is what a row that fell out of the table looks like,
+// and it is what prose does not: a sentence naming the `|` character is not a
+// stray row, and reporting it would make an ordinary edit fail four tests in a
+// compiler package with nothing to say about why.
 func matrixTableLines(t *testing.T) []string {
 	t.Helper()
 	data, err := os.ReadFile(matrixPath)
@@ -325,8 +331,9 @@ func matrixTableLines(t *testing.T) []string {
 	for end < len(lines) && isMatrixRow(lines[end]) {
 		end++
 	}
+	width := len(splitMatrixCells(lines[separator-1]))
 	for i, line := range lines {
-		if isMatrixRow(line) && (i < separator-1 || i >= end) {
+		if isMatrixRow(line) && (i < separator-1 || i >= end) && len(splitMatrixCells(line)) == width {
 			t.Errorf("ir-spec-matrix.md line %d is table-shaped but falls outside the capability "+
 				"table, which this file reads from line %d to line %d: %q",
 				i+1, separator, end, line)
@@ -340,15 +347,19 @@ func matrixTableLines(t *testing.T) []string {
 
 // matrixUnfencedLines returns the document's lines, trimmed, with the contents
 // of fenced code blocks blanked out so a markdown table written as an example is
-// not read as one. Blanking rather than dropping keeps the index of each line
-// equal to its position in the file, which the messages above report.
+// not read as one. Both fence spellings count: CommonMark gives ~~~ and ``` the
+// same meaning, and honouring one of them would tolerate an example written one
+// way and fail on the same example written the other.
+//
+// Blanking rather than dropping keeps the index of each line equal to its
+// position in the file, which the messages above report.
 func matrixUnfencedLines(data string) []string {
 	raw := strings.Split(data, "\n")
 	out := make([]string, len(raw))
 	fenced := false
 	for i, line := range raw {
 		trimmed := strings.TrimSpace(line)
-		if strings.HasPrefix(trimmed, "```") {
+		if strings.HasPrefix(trimmed, "```") || strings.HasPrefix(trimmed, "~~~") {
 			fenced = !fenced
 			continue
 		}
@@ -360,7 +371,7 @@ func matrixUnfencedLines(data string) []string {
 }
 
 // isMatrixRow reports whether a line could be a row of a markdown table. GFM
-// wants a pipe somewhere and does not want one at either end.
+// requires a pipe somewhere and requires one at neither end.
 func isMatrixRow(line string) bool {
 	return strings.Contains(line, "|")
 }
