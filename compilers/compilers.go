@@ -5,6 +5,8 @@ import (
 	"errors"
 	"fmt"
 	"reflect"
+	"slices"
+	"strings"
 
 	"github.com/dexpace/morphic/ir"
 )
@@ -196,6 +198,27 @@ func isNilCompiler(c Compiler) bool {
 	}
 	rv := reflect.ValueOf(c)
 	return rv.Kind() == reflect.Pointer && rv.IsNil()
+}
+
+// Formats returns every format some registered compiler serves.
+//
+// It is sorted rather than in registration order, because this answers "what
+// does this build accept" for a reader, and a set rendered in a different order
+// from run to run reads as a different set. Sorting is by name then version
+// string, so versions order lexically — enough while a version is major.minor,
+// and a display order either way.
+func (r *Registry) Formats() []SourceFormat {
+	formats := make([]SourceFormat, 0, len(r.byFormat))
+	for format := range r.byFormat {
+		formats = append(formats, format)
+	}
+	slices.SortFunc(formats, func(a, b SourceFormat) int {
+		if byName := strings.Compare(a.Name, b.Name); byName != 0 {
+			return byName
+		}
+		return strings.Compare(a.Version, b.Version)
+	})
+	return formats
 }
 
 // Lookup returns the compiler registered for format.

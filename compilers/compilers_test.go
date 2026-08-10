@@ -283,3 +283,34 @@ func TestRegistry_DetectSkipsACompilerThatClaimsWithoutNaming(t *testing.T) {
 	assert.Same(t, compilers.Compiler(claims), got)
 	assert.Equal(t, compilers.SourceFormat{Name: "beta", Version: "2"}, format)
 }
+
+// TestRegistry_FormatsAreSortedNotRegistrationOrder pins both halves of what
+// Formats answers: every format some compiler serves, and in an order that does
+// not depend on how the registry was built. Registration order is deliberately
+// not it — this answers "what does this build accept" for a reader, and the same
+// set rendered two ways reads as two sets.
+func TestRegistry_FormatsAreSortedNotRegistrationOrder(t *testing.T) {
+	t.Parallel()
+	reg := compilers.NewRegistry()
+	require.NoError(t, reg.Register(&stubCompiler{formats: []compilers.SourceFormat{
+		{Name: "smithy", Version: "2.0"},
+		{Name: "openapi", Version: "3.1"},
+	}}))
+	require.NoError(t, reg.Register(&stubCompiler{formats: []compilers.SourceFormat{
+		{Name: "openapi", Version: "3.0"},
+	}}))
+
+	assert.Equal(t, []compilers.SourceFormat{
+		{Name: "openapi", Version: "3.0"},
+		{Name: "openapi", Version: "3.1"},
+		{Name: "smithy", Version: "2.0"},
+	}, reg.Formats())
+}
+
+// TestRegistry_FormatsOfAnEmptyRegistryIsEmpty pins that the zero registry
+// answers rather than panicking on its nil map.
+func TestRegistry_FormatsOfAnEmptyRegistryIsEmpty(t *testing.T) {
+	t.Parallel()
+	assert.Empty(t, compilers.NewRegistry().Formats())
+	assert.Empty(t, new(compilers.Registry).Formats())
+}

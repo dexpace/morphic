@@ -187,27 +187,23 @@ func TestEngine_RunDetectionProblemsAreDiagnostics(t *testing.T) {
 	}
 }
 
-func TestEngine_RunNothingRegistered(t *testing.T) {
+// TestNewWith_RefusesAnEmptyCompilerSet pins that an engine which can compile
+// nothing cannot be built. There is no way to add a compiler to a built engine,
+// so the alternative is one that reports every source it is handed as
+// unrecognized — blaming the document for a misconfiguration of the caller.
+//
+// An earlier note here asked that this precondition not be added, on the grounds
+// that an empty engine was the only way to reach Run's nothing-recognized
+// branch. Detection belongs to the compilers now, so an ordinary source none of
+// them claims reaches that branch with a full registry; the tests above do it.
+func TestNewWith_RefusesAnEmptyCompilerSet(t *testing.T) {
 	t.Parallel()
-	// NewWith() with zero compilers is load-bearing here: it is the only way to
-	// reach an engine that has nothing to ask about a source every registered
-	// compiler would otherwise claim. Don't add a len(fronts) == 0 precondition
-	// to NewWith — doing so would make this branch unreachable.
+
 	eng, err := engine.NewWith()
-	require.NoError(t, err)
 
-	res, err := eng.Run(t.Context(), writeSpec(t, testspec.Tiny), engine.RunOptions{})
-
-	require.NoError(t, err, "a spec no compiler claims is not a Go error")
-	require.NotNil(t, res)
-	assert.Nil(t, res.Document)
-	require.Len(t, res.Diagnostics, 1)
-	// Unrecognized, not no-compiler-for-format: with nothing registered there is
-	// nobody to read the source, so the engine cannot name the format the way it
-	// could when it sniffed the bytes itself. It parses nothing now, and says so.
-	assert.Equal(t, "engine/unrecognized-format", res.Diagnostics[0].Code)
-	assert.Equal(t, compilers.SourceFormat{}, res.Format,
-		"no compiler was there to name a format")
+	require.Error(t, err)
+	assert.Nil(t, eng, "nothing usable comes back from a refused construction")
+	assert.Contains(t, err.Error(), "no compilers")
 }
 
 // TestEngine_RunEmptySource pins that an empty file is nobody's spec, without a
@@ -553,4 +549,32 @@ paths:
 
 	assert.Equal(t, "zoo", byTag.Document.Services[0].Groups[0].Name.Source)
 	assert.Equal(t, "a", byPath.Document.Services[0].Groups[0].Name.Source)
+}
+
+// TestEngine_RunNamesWhatItCanCompile pins that a source the engine will not
+// take is told what it would have taken. Naming the failure without naming the
+// alternative leaves the next step to guesswork, and this is the whole of what
+// separates "morphic cannot read your file" from "morphic reads OpenAPI 3.x".
+func TestEngine_RunNamesWhatItCanCompile(t *testing.T) {
+	t.Parallel()
+	tests := []struct{ name, spec string }{
+		{"unrecognized", "hello: world\n"},
+		{"recognized but unserved", "swagger: \"2.0\"\ninfo: {}\n"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			eng, err := engine.New()
+			require.NoError(t, err)
+
+			res, err := eng.Run(t.Context(), writeSpec(t, tt.spec), engine.RunOptions{})
+
+			require.NoError(t, err)
+			require.Len(t, res.Diagnostics, 1)
+			for _, format := range []string{"openapi@3.0", "openapi@3.1", "openapi@3.2"} {
+				assert.Contains(t, res.Diagnostics[0].Message, format,
+					"the refusal must name the formats this build serves")
+			}
+		})
+	}
 }

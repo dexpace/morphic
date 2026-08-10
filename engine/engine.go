@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"strings"
 
 	"github.com/dexpace/morphic/compilers"
 	"github.com/dexpace/morphic/compilers/openapi"
@@ -61,11 +62,24 @@ func New() (*Engine, error) {
 // compiler and a register failure (a compiler reporting no formats, or two
 // compilers claiming the same format) alike surface as a Go error rather than a
 // panic, and the error names the argument position so a caller passing several
-// compilers can tell which one was rejected. Calling NewWith with no compilers
-// is legal: the resulting engine's Run always fails at detection, with nobody
-// to ask and so nothing to report but that the format went unrecognized, which
-// is the seam TestEngine_RunNothingRegistered relies on to reach that branch.
+// compilers can tell which one was rejected.
+//
+// An empty set is refused. There is no way to add a compiler to a built engine,
+// so an engine with none can never compile anything, and every source handed to
+// it would come back reported as unrecognized — blaming the document for a
+// misconfiguration of the caller. Refusing here puts the error at the mistake.
+//
+// This reverses a note that once stood here, that an empty set had to stay legal
+// because it was the only way to reach Run's nothing-recognized branch. That was
+// true while the engine sniffed formats itself and named one for every parseable
+// spec. Detection belongs to the compilers now, so a source none of them claims
+// reaches that branch with a full registry, and the coverage the note protected
+// no longer depends on being able to build an engine that cannot work.
 func NewWith(fronts ...compilers.Compiler) (*Engine, error) {
+	if len(fronts) == 0 {
+		return nil, errors.New("engine: no compilers; an engine with none can compile nothing")
+	}
+
 	reg := compilers.NewRegistry()
 	for i, front := range fronts {
 		if err := reg.Register(front); err != nil {
@@ -94,7 +108,7 @@ func (e *Engine) Run(ctx context.Context, specPath string, opts RunOptions) (*Re
 
 	front, format, declined, ok := e.registry.Detect(source)
 	if !ok {
-		return &Result{Format: format, Diagnostics: undetected(format, declined)}, nil
+		return &Result{Format: format, Diagnostics: e.undetected(format, declined)}, nil
 	}
 	formatOpts, err := formatOptions(front, opts)
 	if err != nil {
@@ -130,15 +144,31 @@ func (e *Engine) Run(ctx context.Context, specPath string, opts RunOptions) (*Re
 // account of why is whatever the compilers that declined chose to give —
 // preferred over the engine's own, because the engine parses nothing and can
 // say no more than that nobody claimed it.
-func undetected(format compilers.SourceFormat, declined []ir.Diagnostic) []ir.Diagnostic {
+func (e *Engine) undetected(format compilers.SourceFormat, declined []ir.Diagnostic) []ir.Diagnostic {
 	if format.Name != "" {
 		return []ir.Diagnostic{specProblem(codeNoCompilerForFormat,
-			"no compiler registered for format %s", format)}
+			"no compiler registered for format %s; %s", format, e.served())}
 	}
 	if len(declined) > 0 {
 		return declined
 	}
-	return []ir.Diagnostic{specProblem(codeUnrecognizedFormat, "unrecognized spec format")}
+	return []ir.Diagnostic{specProblem(codeUnrecognizedFormat,
+		"unrecognized spec format; %s", e.served())}
+}
+
+// served names the formats this build compiles, for a reader who has just been
+// told theirs is not one of them. Naming what failed without naming what would
+// have worked leaves the next step to guesswork, and the engine can answer it
+// from its own registry without knowing what any of the names mean.
+//
+// NewWith refuses an empty compiler set, so there is always at least one.
+func (e *Engine) served() string {
+	formats := e.registry.Formats()
+	names := make([]string, 0, len(formats))
+	for _, format := range formats {
+		names = append(names, format.String())
+	}
+	return "this build compiles " + strings.Join(names, ", ")
 }
 
 // formatOptions resolves the compiler options for one run, decoding the textual
