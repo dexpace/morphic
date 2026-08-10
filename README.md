@@ -122,7 +122,7 @@ Help always prints to stdout and exits `0`.
 | `-o <file>` | `compile` | Write IR JSON to `<file>` instead of stdout, compact rather than indented. |
 | `--pretty` | `compile` | Indent the JSON `-o` writes; stdout is indented either way. |
 | `--explain <json-pointer>` | `compile` | Report what compiling produced at this source coordinate instead of writing the document. |
-| `--opt <key>=<value>` | `compile` | Set one option on the compiler the spec selects. Repeatable; a repeated key is refused. |
+| `--opt <key>=<value>` | both | Set one option on the compiler the spec selects. Repeatable; a repeated key is refused. |
 
 Diagnostics print one per line as `<severity> <code> <location>: <message>`, where `<location>` is
 `<path>#<pointer>` for a finding in a spec file, a bare pointer for one an IR pass made about the

@@ -87,9 +87,10 @@ func newCompileCommand() command {
 	}
 }
 
-// specOptions holds what the shared pipeline runner reads. Most of it is parsed
-// by flags every spec-taking command defines; settings is the exception, bound
-// only by compile, and nil for a command that offers no way to set it.
+// specOptions holds what the shared pipeline runner reads, parsed by the flags
+// every spec-taking command defines. validate is compile's pipeline with the
+// document dropped, so the two configure that pipeline the same way: a spec that
+// needs an option to compile needs it to be validated as it will be compiled.
 type specOptions struct {
 	failOn       string
 	skipValidate bool
@@ -108,10 +109,14 @@ type compileOptions struct {
 // Sharing the registration is what keeps their spellings, defaults and help
 // text identical across commands rather than identical-looking.
 func bindSpecFlags(fs *flag.FlagSet, opts *specOptions) {
+	opts.settings = settingFlag{}
+
 	fs.StringVar(&opts.failOn, "fail-on", "error",
 		"fail (exit 1) on diagnostics at or above this severity: error|warning")
 	fs.BoolVar(&opts.skipValidate, "skip-validate", false,
 		"skip the referential-integrity validate pass")
+	fs.Var(opts.settings, "opt",
+		"set one `key=value` option on the compiler the spec selects (repeatable)")
 }
 
 // newCompileFlags returns compile's FlagSet and the options its flags write
@@ -123,13 +128,11 @@ func newCompileFlags() (*flag.FlagSet, *compileOptions) {
 	fs := flag.NewFlagSet("compile", flag.ContinueOnError)
 	fs.SetOutput(io.Discard)
 
-	opts := compileOptions{specOptions: specOptions{settings: settingFlag{}}}
+	var opts compileOptions
 	bindSpecFlags(fs, &opts.specOptions)
 	fs.StringVar(&opts.outPath, "o", "", "write IR JSON to this file instead of stdout")
 	fs.StringVar(&opts.explain, "explain", "",
 		"report what compiling produced at this source pointer instead of writing IR JSON")
-	fs.Var(opts.settings, "opt",
-		"set one `key=value` option on the compiler the spec selects (repeatable)")
 	fs.BoolVar(&opts.pretty, "pretty", false,
 		"indent the IR JSON -o writes; stdout is indented either way")
 

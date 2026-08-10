@@ -109,7 +109,7 @@ func TestSpecFlags_SharedFlagsAgree(t *testing.T) {
 // cannot drift.
 var (
 	compileFlagNames  = []string{"o", "fail-on", "skip-validate", "explain", "pretty", "opt"}
-	validateFlagNames = []string{"fail-on", "skip-validate"}
+	validateFlagNames = []string{"fail-on", "skip-validate", "opt"}
 )
 
 func TestCommand_PrintFlagsDocumentsTheCommandsOwnFlags(t *testing.T) {

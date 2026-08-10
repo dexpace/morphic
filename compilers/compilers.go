@@ -178,7 +178,7 @@ func (r *Registry) Detect(src Source) (Compiler, SourceFormat, []ir.Diagnostic, 
 		if format == (SourceFormat{}) {
 			continue
 		}
-		owner, registered := r.byFormat[format]
+		owner, registered := r.Lookup(format)
 		return owner, format, nil, registered
 	}
 	return nil, SourceFormat{}, declined, false
