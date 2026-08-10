@@ -600,11 +600,10 @@ func lower(c lowering.Ctx, ts *compile.Types, anchors *AnchorIndex, depth int, s
 // keywords by recordResidue, and value constraints wherever the node has a
 // Constraints field, kept by declaredConstraints where it has none.
 //
-// That division is a claim about this compiler, not a proof: a keyword in no
-// list and no reader is dropped in silence, which is what GitHub #268 and #283
-// were, and what the collection bounds still were after them — minItems beside
-// an object, or beside the prefixItems that hoists a Tuple with no Constraints
-// field, reached the IR in no form at all. They are in the census now.
+// That division is a claim about this compiler rather than a proof of itself,
+// and the collection bounds are what got past it: minItems beside an object, or
+// beside the prefixItems that hoists a Tuple with no Constraints field, reached
+// the IR in no form at all until they joined the list below.
 //
 // The list and keywordHome's switch name the same set. A keyword listed here
 // with no arm there is reported homeless at every position and preserved beside
@@ -634,11 +633,11 @@ func keywordHome(td ir.TypeDef, s *oas3.Schema, keyword string) bool {
 	case "items", "prefixItems":
 		return isKind(td, ir.KindList) || isKind(td, ir.KindTuple)
 	case "maxItems", "minItems", "uniqueItems":
-		// Only a List. listConstraints is the sole reader of the three and only
-		// lowerArray calls it, while ir.Tuple has no Constraints field at all — so
-		// a collection bound beside prefixItems reaches as little as one written
-		// on an object does. valueConstraintKeywords excludes them for that
-		// reason, which is what leaves them to this census rather than to
+		// Only a List. listConstraints is their sole reader and lowerArray its
+		// sole caller, while ir.Tuple has no Constraints field at all — so a
+		// collection bound beside prefixItems reaches as little as one written on
+		// an object does. Being List-owned is also why valueConstraintKeywords
+		// leaves them out, which is what puts them in this census rather than in
 		// declaredConstraints.
 		return isKind(td, ir.KindList)
 	case "const":
