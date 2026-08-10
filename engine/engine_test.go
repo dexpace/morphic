@@ -606,3 +606,55 @@ func TestEngine_RunOnAnUnbuiltEngine(t *testing.T) {
 		})
 	}
 }
+
+// TestEngine_RunDiagnosticsAreOneLineEach pins the rendering contract the README
+// states — one diagnostic per line — across the ways a source can fail, rather
+// than at the one site where a multi-line message was first noticed.
+//
+// A message carrying a newline splits one report into several, and every line
+// after the first has no severity, code or location: a reader takes it for
+// another finding, and a wrapper parsing stderr takes it for a malformed one.
+// Both libraries reported through here write multi-line errors, so the sites
+// that embed one are where this keeps breaking; the inputs below reach the
+// detection, parse, overlay and validation paths in turn.
+func TestEngine_RunDiagnosticsAreOneLineEach(t *testing.T) {
+	t.Parallel()
+	const okSpec = "openapi: 3.1.0\ninfo: {title: T, version: \"1\"}\npaths: {}\n"
+	tests := []struct {
+		name, spec string
+		settings   map[string]string
+	}{
+		{"version key of the wrong shape", "openapi: []\ninfo: {}\npaths: {}\n", nil},
+		{"unparseable", "openapi: [unterminated\n", nil},
+		{"unrecognized", "hello: world\n", nil},
+		{"unsupported version", "openapi: 4.0.0\ninfo: {title: T, version: \"1\"}\npaths: {}\n", nil},
+		{"invalid overlay", okSpec, map[string]string{"overlay": "overlay.yaml"}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			dir := t.TempDir()
+			spec := filepath.Join(dir, "spec.yaml")
+			require.NoError(t, os.WriteFile(spec, []byte(tt.spec), 0o600))
+			settings := tt.settings
+			if settings != nil {
+				overlay := filepath.Join(dir, "overlay.yaml")
+				require.NoError(t, os.WriteFile(overlay,
+					[]byte("overlay: 1.0.0\ninfo: {title: O}\nactions: []\n"), 0o600))
+				settings = map[string]string{"overlay": overlay}
+			}
+			eng, err := engine.New()
+			require.NoError(t, err)
+
+			res, err := eng.Run(t.Context(), spec, engine.RunOptions{CompilerOptions: settings})
+
+			require.NoError(t, err)
+			require.NotNil(t, res)
+			require.NotEmpty(t, res.Diagnostics, "the case must produce a diagnostic to be worth checking")
+			for _, d := range res.Diagnostics {
+				assert.NotContains(t, d.Message, "\n",
+					"one diagnostic is one line: %s / %s", d.Code, d.Message)
+			}
+		})
+	}
+}

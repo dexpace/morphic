@@ -39,11 +39,13 @@ type sniffProbe struct {
 // path is not consulted — an OpenAPI document is what it declares itself to be,
 // under any extension.
 //
-// Bytes that do not parse are declined silently unless they declare one of the
-// discriminating keys, in which case the parse error is reported: a source that
-// says `openapi:` and will not parse is this compiler's own and broken, which
-// nothing else is in a position to say. Bytes that declare neither key are
-// another format's business, and a YAML parser's complaint about them describes
+// Bytes the probe cannot read are declined silently unless they declare one of
+// the discriminating keys, in which case the reader's complaint is reported: a
+// source that says `openapi:` and will not read is this compiler's own and
+// broken, which nothing else is in a position to say. That covers a document
+// that does not parse and one that parses with a version key of the wrong shape
+// alike — both are unreadable here, and neither is another format's. Bytes that
+// declare neither key are, and a YAML parser's complaint about them describes
 // only the parser that was wrong to be asked.
 func (*Compiler) Detect(src compilers.Source) (compilers.SourceFormat, []ir.Diagnostic, bool) {
 	probe, err := sniff(src.Data)
@@ -57,7 +59,7 @@ func (*Compiler) Detect(src compilers.Source) (compilers.SourceFormat, []ir.Diag
 		// there is no source table for a provenance to index into.
 		return compilers.SourceFormat{}, []ir.Diagnostic{diag.Newf(
 			ir.SeverityError, diag.UndecodableSource, ir.Provenance{Source: ir.NoSource},
-			"source declares an OpenAPI or Swagger key and does not parse: %v", err)}, false
+			"source declares an OpenAPI or Swagger key and cannot be read: %s", diag.OneLine(err))}, false
 	default:
 		return compilers.SourceFormat{}, nil, false
 	}
