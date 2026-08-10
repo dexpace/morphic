@@ -2589,9 +2589,11 @@ func assertExtensionsX(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
 // carrier that moves still matches and an entry written to the wrong one does
 // not.
 //
-// A carrier has to name a segment no other map's path carries, since the match
-// is a substring one. A bare ".Unmodeled" ends every path the walk produces, so
-// a row spelled that way admits every map in the document and checks nothing.
+// A carrier has to narrow the document, since the match is a substring one: a
+// bare ".Unmodeled" ends every path the walk produces, so a row spelled that way
+// admits every map there is and checks nothing. carrierNarrows holds each row to
+// that rather than leaving it to whoever writes the next one — four rows were
+// spelled the vacuous way and passed.
 func assertEveryObjectKeepsItsExtensions(t *testing.T, doc *ir.Document) {
 	t.Helper()
 	sites := unmodeledSites(doc)
@@ -2639,6 +2641,9 @@ func assertEveryObjectKeepsItsExtensions(t *testing.T, doc *ir.Document) {
 			continue
 		}
 		assert.Equal(t, ir.ReasonVendorExtension, site.entry.Reason, "%s extension reason", tc.object)
+		assert.True(t, carrierNarrows(sites, tc.carrier),
+			"%s carrier %q matches every Unmodeled map in the document, so it asserts nothing "+
+				"about where the entry landed", tc.object, tc.carrier)
 		assert.Contains(t, site.path, tc.carrier, "%s extension lands on the wrong carrier", tc.object)
 	}
 }
@@ -2671,6 +2676,21 @@ func unmodeledSites(doc *ir.Document) []unmodeledSite {
 		return true
 	})
 	return out
+}
+
+// carrierNarrows reports whether carrier picks out fewer than all of the
+// document's Unmodeled maps. A carrier that matches every one of them makes the
+// assertion beside it unconditionally true, which is how a row can name the
+// wrong map and still pass.
+func carrierNarrows(sites []unmodeledSite, carrier string) bool {
+	all, matched := map[string]bool{}, map[string]bool{}
+	for _, site := range sites {
+		all[site.path] = true
+		if strings.Contains(site.path, carrier) {
+			matched[site.path] = true
+		}
+	}
+	return len(matched) > 0 && len(matched) < len(all)
 }
 
 // findUnmodeled returns the site holding key with the given JSON value. The
