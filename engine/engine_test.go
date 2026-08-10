@@ -622,13 +622,15 @@ func TestEngine_RunDiagnosticsAreOneLineEach(t *testing.T) {
 	const okSpec = "openapi: 3.1.0\ninfo: {title: T, version: \"1\"}\npaths: {}\n"
 	tests := []struct {
 		name, spec string
-		settings   map[string]string
+		// withOverlay applies an overlay that fails validation on two counts,
+		// which is the input that made the overlay reporter write two lines.
+		withOverlay bool
 	}{
-		{"version key of the wrong shape", "openapi: []\ninfo: {}\npaths: {}\n", nil},
-		{"unparseable", "openapi: [unterminated\n", nil},
-		{"unrecognized", "hello: world\n", nil},
-		{"unsupported version", "openapi: 4.0.0\ninfo: {title: T, version: \"1\"}\npaths: {}\n", nil},
-		{"invalid overlay", okSpec, map[string]string{"overlay": "overlay.yaml"}},
+		{"version key of the wrong shape", "openapi: []\ninfo: {}\npaths: {}\n", false},
+		{"unparseable", "openapi: [unterminated\n", false},
+		{"unrecognized", "hello: world\n", false},
+		{"unsupported version", "openapi: 4.0.0\ninfo: {title: T, version: \"1\"}\npaths: {}\n", false},
+		{"invalid overlay", okSpec, true},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -636,8 +638,8 @@ func TestEngine_RunDiagnosticsAreOneLineEach(t *testing.T) {
 			dir := t.TempDir()
 			spec := filepath.Join(dir, "spec.yaml")
 			require.NoError(t, os.WriteFile(spec, []byte(tt.spec), 0o600))
-			settings := tt.settings
-			if settings != nil {
+			var settings map[string]string
+			if tt.withOverlay {
 				overlay := filepath.Join(dir, "overlay.yaml")
 				require.NoError(t, os.WriteFile(overlay,
 					[]byte("overlay: 1.0.0\ninfo: {title: O}\nactions: []\n"), 0o600))
