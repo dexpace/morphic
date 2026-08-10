@@ -4,30 +4,17 @@ import (
 	"reflect"
 	"testing"
 
-	oas3 "github.com/speakeasy-api/openapi/jsonschema/oas3"
 	soa "github.com/speakeasy-api/openapi/openapi"
-	"github.com/speakeasy-api/openapi/sequencedmap"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	yaml "gopkg.in/yaml.v3"
 
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
+	"github.com/dexpace/morphic/compilers/openapi/internal/openapitest"
 	"github.com/dexpace/morphic/compilers/openapi/internal/overlay"
 	"github.com/dexpace/morphic/ir"
 )
-
-// docDeclaring builds a document declaring the named component schemas, with no
-// parser and no fixture — which is the point of deriving the index from the
-// document rather than from a lowering pass.
-func docDeclaring(names ...string) *soa.OpenAPI {
-	elems := make([]*sequencedmap.Element[string, *oas3.JSONSchema[oas3.Referenceable]], 0, len(names))
-	for _, n := range names {
-		elems = append(elems, sequencedmap.NewElem(n,
-			oas3.NewJSONSchemaFromSchema[oas3.Referenceable](&oas3.Schema{})))
-	}
-	return &soa.OpenAPI{Components: &soa.Components{Schemas: sequencedmap.New(elems...)}}
-}
 
 // TestCtx_HasNoExportedMap is the guard that makes "immutable by value" true
 // rather than conventional. A struct copy shares a map rather than copying it,
@@ -72,7 +59,7 @@ func TestNew_DerivesTheDeclaredSchemaNames(t *testing.T) {
 		denies   []string
 	}{
 		{
-			name: "every declared component", doc: docDeclaring("User", "Order", "A~B"),
+			name: "every declared component", doc: openapitest.DocDeclaring("User", "Order", "A~B"),
 			declares: []string{"User", "Order", "A~B"}, denies: []string{"Missing", ""},
 		},
 		{
@@ -84,7 +71,7 @@ func TestNew_DerivesTheDeclaredSchemaNames(t *testing.T) {
 			denies: []string{"User"},
 		},
 		{
-			name: "the empty name is a name like any other", doc: docDeclaring(""),
+			name: "the empty name is a name like any other", doc: openapitest.DocDeclaring(""),
 			declares: []string{""}, denies: []string{"User"},
 		},
 		{
@@ -94,7 +81,7 @@ func TestNew_DerivesTheDeclaredSchemaNames(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			c := lowering.New(0, tc.doc, ir.SourceInfo{}, "", overlay.Origin{})
+			c := lowering.New(0, tc.doc, ir.SourceInfo{}, "", lowering.Limits{}, overlay.Origin{})
 			for _, n := range tc.declares {
 				assert.True(t, c.DeclaresSchema(n), "%q is declared", n)
 			}
@@ -120,10 +107,10 @@ func TestDeclaresSchema_TheZeroContextDeclaresNothing(t *testing.T) {
 // Provenance the compile stamps is built from the last two.
 func TestNew_KeepsTheDocumentItWasGiven(t *testing.T) {
 	t.Parallel()
-	doc := docDeclaring("User")
+	doc := openapitest.DocDeclaring("User")
 	src := ir.SourceInfo{Format: "openapi@3.1", Path: "spec.yaml", Hash: "abc"}
 
-	c := lowering.New(7, doc, src, lowering.GroupByPathPrefix, overlay.Origin{})
+	c := lowering.New(7, doc, src, lowering.GroupByPathPrefix, lowering.Limits{}, overlay.Origin{})
 
 	assert.Same(t, doc, c.Doc, "the document is referenced, never copied")
 	assert.Equal(t, src, c.Source)
@@ -138,9 +125,9 @@ func TestNew_KeepsTheDocumentItWasGiven(t *testing.T) {
 // above the security-scheme phase able to see them.
 func TestWithAuth_ExtendsACopy(t *testing.T) {
 	t.Parallel()
-	doc := docDeclaring("User")
+	doc := openapitest.DocDeclaring("User")
 	src := ir.SourceInfo{Format: "openapi@3.1", Path: "spec.yaml", Hash: "abc"}
-	before := lowering.New(7, doc, src, lowering.GroupByPathPrefix, overlay.Origin{})
+	before := lowering.New(7, doc, src, lowering.GroupByPathPrefix, lowering.Limits{}, overlay.Origin{})
 	schemes := map[ir.AuthID]ir.AuthScheme{"a/apiKey": {ID: "a/apiKey"}}
 
 	after := before.WithAuth(schemes)
@@ -203,7 +190,7 @@ func TestExclusiveBoundIsBoolean_FollowsTheDialect(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.version, func(t *testing.T) {
 			t.Parallel()
-			c := lowering.New(0, &soa.OpenAPI{OpenAPI: tc.version}, ir.SourceInfo{}, "", overlay.Origin{})
+			c := lowering.New(0, &soa.OpenAPI{OpenAPI: tc.version}, ir.SourceInfo{}, "", lowering.Limits{}, overlay.Origin{})
 			assert.Equal(t, tc.want, c.ExclusiveBoundIsBoolean())
 		})
 	}
@@ -215,7 +202,7 @@ func TestExclusiveBoundIsBoolean_FollowsTheDialect(t *testing.T) {
 // decides whether an internal pointer names anything.
 func TestRefScope_IsTheContextSeenAsAScope(t *testing.T) {
 	t.Parallel()
-	c := lowering.New(0, docDeclaring("User"), ir.SourceInfo{Path: "spec.yaml"}, "", overlay.Origin{})
+	c := lowering.New(0, openapitest.DocDeclaring("User"), ir.SourceInfo{Path: "spec.yaml"}, "", lowering.Limits{}, overlay.Origin{})
 
 	scope := c.RefScope()
 
@@ -281,7 +268,7 @@ func TestSources_ListsTheOverlayAfterTheSourceItPatched(t *testing.T) {
 		"overlay: 1.0.0\ninfo: {title: O, version: \"1\"}\nactions:\n"+
 			"  - target: $.info\n    update: {description: d}\n")
 
-	c := lowering.New(0, docDeclaring(), src, "", origin)
+	c := lowering.New(0, openapitest.DocDeclaring(), src, "", lowering.Limits{}, origin)
 
 	require.Len(t, c.Sources(), 2)
 	assert.Equal(t, src, c.Sources()[0], "the source being lowered comes first")
@@ -296,7 +283,7 @@ func TestSources_ListsOnlyTheSourceWhenNoOverlayApplied(t *testing.T) {
 	t.Parallel()
 	src := ir.SourceInfo{Format: "openapi@3.1", Path: "spec.yaml"}
 
-	c := lowering.New(0, docDeclaring(), src, "", overlay.Origin{})
+	c := lowering.New(0, openapitest.DocDeclaring(), src, "", lowering.Limits{}, overlay.Origin{})
 
 	assert.Equal(t, []ir.SourceInfo{src}, c.Sources())
 }
@@ -312,7 +299,7 @@ func TestProvenanceAt_NamesTheOverlayForThePositionsItIntroduced(t *testing.T) {
 		"overlay: 1.0.0\ninfo: {title: O, version: \"1\"}\nactions:\n"+
 			"  - target: $.info\n    update: {description: d}\n")
 
-	c := lowering.New(0, docDeclaring(), ir.SourceInfo{}, "", origin)
+	c := lowering.New(0, openapitest.DocDeclaring(), ir.SourceInfo{}, "", lowering.Limits{}, origin)
 
 	assert.Equal(t, ir.Provenance{Source: 1, Pointer: "/info/description"},
 		c.ProvenanceAt("/info/description"), "the overlay introduced this position")

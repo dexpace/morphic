@@ -184,6 +184,14 @@
             "source": 0,
             "pointer": "/components/schemas/BesideProperties/properties"
           }
+        },
+        "openapi:type": {
+          "reason": "degraded_lowering",
+          "value": "object",
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/BesideProperties/type"
+          }
         }
       },
       "provenance": {
@@ -367,7 +375,7 @@
     {
       "severity": "info",
       "code": "openapi/degraded-construct",
-      "message": "this position lowered to a node of kind \"enum\", which has no home for properties declared beside it; kept verbatim under Unmodeled",
+      "message": "this position lowered to a node of kind \"enum\", which has no home for properties, type declared beside it; kept verbatim under Unmodeled",
       "provenance": {
         "source": 0,
         "pointer": "/components/schemas/BesideProperties"

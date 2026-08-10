@@ -31,6 +31,23 @@ func Ptr(segments ...string) string {
 	return b.String()
 }
 
+// Scope joins segments into an Unmodeled key scope: the same escaping Ptr
+// applies, without the leading separator, since a scope is a relative path
+// rather than a pointer (ir-design §12).
+//
+// It exists for the scopes holding a segment the document chooses — a form
+// part's name, a callback's — where an unescaped "/" makes one segment read as
+// two. Two parts named "q" and "q/x-a" then wrote one key between them and the
+// surviving entry followed declaration order, silently, which is what §4.3
+// forbids a minted node and §12 promises a scoped key.
+func Scope(segments ...string) string {
+	escaped := make([]string, 0, len(segments))
+	for _, seg := range segments {
+		escaped = append(escaped, escapeSegment(seg))
+	}
+	return strings.Join(escaped, "/")
+}
+
 // escapeSegment applies RFC 6901 escaping: ~ first, then /.
 func escapeSegment(s string) string {
 	s = strings.ReplaceAll(s, "~", "~0")

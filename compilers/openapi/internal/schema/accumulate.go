@@ -123,3 +123,10 @@ func lowerArray(c lowering.Ctx, ts *compile.Types, anchors *AnchorIndex, depth i
 func ExtensionsOf(c lowering.Ctx, ext *extensions.Extensions, owner string) (ir.Unmodeled, []ir.Diagnostic) {
 	return annotation.ExtensionsFrom(ext, c.SrcIndex, owner)
 }
+
+// ExtensionsIn is ExtensionsOf for an object with no Unmodeled map of its own,
+// whose entries ride on an enclosing node's under scope — see
+// annotation.ExtensionsUnder for what scope names and why it is needed.
+func ExtensionsIn(c lowering.Ctx, ext *extensions.Extensions, owner, scope string) (ir.Unmodeled, []ir.Diagnostic) {
+	return annotation.ExtensionsUnder(ext, c.SrcIndex, owner, scope)
+}

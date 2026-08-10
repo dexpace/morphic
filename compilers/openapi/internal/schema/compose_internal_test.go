@@ -13,6 +13,7 @@ import (
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/ids"
 	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
+	"github.com/dexpace/morphic/compilers/openapi/internal/openapitest"
 	"github.com/dexpace/morphic/compilers/openapi/internal/overlay"
 	"github.com/dexpace/morphic/ir"
 )
@@ -36,7 +37,7 @@ func TestRefLastSegment(t *testing.T) {
 func TestMappingTargetID(t *testing.T) {
 	t.Parallel()
 	l := &lowerer{
-		ctx: lowering.New(0, docDeclaring("Cat", "Dog", "A/B"), ir.SourceInfo{}, "", overlay.Origin{}),
+		ctx: lowering.New(0, openapitest.DocDeclaring("Cat", "Dog", "A/B"), ir.SourceInfo{}, "", lowering.Limits{}, overlay.Origin{}),
 		out: &ir.Document{Types: ir.TypeRegistry{}},
 	}
 	// A $ref to a declared component.
@@ -63,7 +64,7 @@ func TestMappingTargetID(t *testing.T) {
 	// (issue #14, f31). It gets a context of its own rather than being added to the
 	// one above: the declared set is derived from the document now, so saying "and
 	// also this one" means saying it to a document.
-	empty := lowering.New(0, docDeclaring(""), ir.SourceInfo{}, "", overlay.Origin{})
+	empty := lowering.New(0, openapitest.DocDeclaring(""), ir.SourceInfo{}, "", lowering.Limits{}, overlay.Origin{})
 	id, ok = mappingTargetID(empty, l.types, "")
 	require.True(t, ok)
 	assert.Equal(t, ids.AnonType(ids.Ptr("components", "schemas", "")), id)
@@ -72,7 +73,7 @@ func TestMappingTargetID(t *testing.T) {
 
 func TestDiscriminatorDefault_ResolvesDeclaredComponent(t *testing.T) {
 	t.Parallel()
-	l := newRawLowerer(docDeclaring("Cat"))
+	l := newRawLowerer(openapitest.DocDeclaring("Cat"))
 	d := &oas3.Discriminator{PropertyName: "kind", DefaultMapping: new("Cat")}
 
 	id, diags := discriminatorDefault(l.ctx, l.types, d, "/components/schemas/Pet")
@@ -121,9 +122,9 @@ func TestRawMappingKeys_OnlyEnumeratesAMapping(t *testing.T) {
 		want []string
 	}{
 		{"a nil node has no keys", nil, nil},
-		{"a sequence is not a mapping", yamlNode(t, "- a\n- b\n"), nil},
-		{"a bare scalar is not a mapping", yamlNode(t, "plain"), nil},
-		{"a mapping yields its keys in source order", yamlNode(t, "b: 1\na: 2\n"), []string{"b", "a"}},
+		{"a sequence is not a mapping", openapitest.YAMLNode(t, "- a\n- b\n"), nil},
+		{"a bare scalar is not a mapping", openapitest.YAMLNode(t, "plain"), nil},
+		{"a mapping yields its keys in source order", openapitest.YAMLNode(t, "b: 1\na: 2\n"), []string{"b", "a"}},
 		{"a document unwraps to the mapping inside it", &doc, []string{"a", "b"}},
 		{"an alias yields the anchored mapping's keys",
 			useValue(t, "anchor: &a {b: 1, c: 2}\nuse: *a\n"), []string{"b", "c"}},
@@ -258,15 +259,15 @@ func TestMappingTargetID_FallsBackToAnInternedPointer(t *testing.T) {
 	t.Parallel()
 	const sub = "#/components/schemas/Pet/properties/kind"
 
-	empty := newRawLowerer(docDeclaring("Pet"))
+	empty := newRawLowerer(openapitest.DocDeclaring("Pet"))
 	_, ok := mappingTargetID(empty.ctx, empty.types, sub)
 	assert.False(t, ok, "nothing is interned at that pointer, so the target does not resolve")
 
 	// A nested object owns a node at its own pointer, where a scalar property
 	// would reduce to the shared primitive and leave the pointer backing nothing.
-	l, _ := loweredFor(t, componentSpec("    Pet:\n      type: object\n"+
+	l, _ := loweredFor(t, openapitest.ComponentSpec("    Pet:\n      type: object\n"+
 		"      properties: {kind: {type: object, properties: {a: {type: string}}}}\n"))
-	l.diags.AppendAll(LowerComponentSchemas(l.ctx, l.types, &l.anchors))
+	l.diags.AppendAll(LowerComponentSchemas(t.Context(), l.ctx, l.types, &l.anchors))
 
 	got, ok := mappingTargetID(l.ctx, l.types, sub)
 	require.True(t, ok, "the interned sub-schema resolves")
