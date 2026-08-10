@@ -76,6 +76,10 @@ type Compiler interface {
 	// format it does not serve — a version it has yet to implement — so that the
 	// caller can say so rather than report the source as unrecognized.
 	//
+	// An ok answer must name a format. Recognizing a source is knowing what it
+	// is, so the zero format with ok true is no answer, and Registry.Detect
+	// passes over a compiler that gives one rather than let it end the search.
+	//
 	// diags is what this compiler can say about a source it declines, and is read
 	// only when ok is false. Bytes of another format are ordinary input here, so
 	// declining them is silent: a compiler that reported every source it did not
