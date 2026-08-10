@@ -308,6 +308,10 @@ func assertDialectKeywords(t *testing.T, doc *ir.Document, diags []ir.Diagnostic
 // declared exactly once on a component schema has one possible target whatever
 // path evaluation took, so it expands; anything else is irreducible and the
 // reference is kept verbatim beside whatever did lower.
+//
+// The escaped spelling is here because the fragment is URI text: RFC 3986 §2.3
+// makes '%2D' and '-' one character, so it must reach the same anchor the plain
+// spelling would (GitHub #233).
 func assertDynamicRef(t *testing.T, doc *ir.Document, diags []ir.Diagnostic) {
 	tree, ok := doc.Types[namedID("Tree")].(*ir.Model)
 	require.True(t, ok)
@@ -319,6 +323,14 @@ func assertDynamicRef(t *testing.T, doc *ir.Document, diags []ir.Diagnostic) {
 	assert.Empty(t, child.Unmodeled, "an expanded reference must not also be preserved")
 	assert.Equal(t, []ir.Severity{ir.SeverityInfo}, diagsAt(diags, "openapi/dynamic-ref-expanded",
 		"/components/schemas/Tree/properties/child/$dynamicRef"))
+
+	escaped, ok := propByWire(tree, "escaped")
+	require.True(t, ok)
+	assert.Equal(t, namedID("Leaf"), escaped.Type.Target,
+		"a percent-encoded fragment names the anchor its decoded spelling names")
+	assert.Empty(t, escaped.Unmodeled, "an expanded reference must not also be preserved")
+	assert.Equal(t, []ir.Severity{ir.SeverityInfo}, diagsAt(diags, "openapi/dynamic-ref-expanded",
+		"/components/schemas/Tree/properties/escaped/$dynamicRef"))
 
 	ghost, ok := propByWire(tree, "ghost")
 	require.True(t, ok)

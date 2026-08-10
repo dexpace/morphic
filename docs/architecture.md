@@ -97,9 +97,12 @@ framework that writes the type registry, derives a canonical name, or builds an 
 Promoting something into the framework later is additive, while demoting it breaks every compiler,
 so borderline machinery starts outside and moves in on evidence from more than one format.
 
-Compilers are registered in a registry keyed by detected format; the engine sniffs the source
-format and dispatches. Milestone 1 ships the OpenAPI 3.x compiler only; the compiler registry,
-provenance model, and IR are built for all eight from day one.
+Compilers are registered in a registry keyed by the formats they report, and detection belongs to
+them too: the registry asks each compiler in registration order whether it recognizes a source, and
+the engine dispatches to the one that does. A compiler also decodes its own textual options, so
+registering one is the whole of adding a format — no layer above names any of them. Milestone 1
+ships the OpenAPI 3.x compiler only; the compiler registry, provenance model, and IR are built for
+all eight from day one.
 
 ### 2.2 IR passes (IR → IR)
 
@@ -231,7 +234,7 @@ morphic/
 │   ├── typespec/ smithy/ graphql/ asyncapi/ protobuf/ otp/   (future)
 ├── pass/                   # Layer 1 — IR → IR passes (validate, dedup, filter, slice, overlay).
 ├── emitters/               # Layer 2 — emitter contract, plan layer, registry (future).
-├── engine/                 # Layer 3 — orchestration: sniff format, run compiler, passes, emitters.
+├── engine/                 # Layer 3 — orchestration: detect format, run compiler, passes, emitters.
 ├── internal/archtest/      #           Layering, grammar, recursion and method-cap rules (tooling).
 ├── internal/harness/       #           Bug-catching oracle sweep over a spec corpus (tooling).
 ├── internal/testspec/      #           Spec fixtures shared by the tooling (tooling).

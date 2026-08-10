@@ -382,6 +382,50 @@ func TestPrimKind_Constants(t *testing.T) {
 	assertConstantSpellings(t, primKindSpellings, "unspecified")
 }
 
+// TestPrimKind_TiesToConstBlock closes the gap a bare string enum leaves:
+// nothing rejects an invented kind on deserialization, and ir.PrimTypeID derives
+// a consistent ID from whatever string it is handed, so irverify has Valid and
+// nothing else to test against. Valid therefore has to stay tied to the const
+// block, and it is tied here by parsing the ir sources rather than by a list —
+// the shape typedef_completeness_test.go uses for the TypeKind sum.
+//
+// Two directions are enforced: primKindSpellings and the declared constants name
+// the same set, and every declared kind is Valid. Adding a constant without
+// teaching Valid about it fails here rather than surfacing later as a spurious
+// ir/unknown-prim-kind on a perfectly good document.
+//
+// The converse of the second direction cannot be enforced from here: a case
+// added to Valid for a kind no constant declares leaves this green, because a
+// switch body is not enumerable at run time.
+func TestPrimKind_TiesToConstBlock(t *testing.T) {
+	t.Parallel()
+	declared := declaredConstsOfType(t, "PrimKind")
+	require.NotEmpty(t, declared, "the ir sources must declare PrimKind constants")
+
+	values := make([]string, 0, len(declared))
+	for _, c := range declared {
+		values = append(values, c.value)
+		assert.True(t, ir.PrimKind(c.value).Valid(), "declared kind %q must be Valid", c.value)
+	}
+
+	spelled := make([]string, 0, len(primKindSpellings))
+	for _, s := range primKindSpellings {
+		spelled = append(spelled, s)
+	}
+	require.ElementsMatch(t, spelled, values)
+}
+
+// TestPrimKind_UnknownIsInvalid pins the other direction: Valid must reject a
+// kind no const declares, including the zero value a compiler leaves behind when
+// it forgets the field, and a re-cased spelling of a real one.
+func TestPrimKind_UnknownIsInvalid(t *testing.T) {
+	t.Parallel()
+	assert.False(t, ir.PrimKind("").Valid())
+	assert.False(t, ir.PrimKind("flt").Valid())
+	assert.False(t, ir.PrimKind("Float64").Valid())
+	assert.False(t, ir.PrimKind("datetimeOffset").Valid())
+}
+
 // TestAdditionalMode_Constants pins the on-disk spelling of every
 // AdditionalMode value, including the empty-string "unspecified" state.
 func TestAdditionalMode_Constants(t *testing.T) {
