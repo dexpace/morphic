@@ -578,3 +578,31 @@ func TestEngine_RunNamesWhatItCanCompile(t *testing.T) {
 		})
 	}
 }
+
+// TestEngine_RunOnAnUnbuiltEngine pins that an Engine which never went through a
+// constructor reports the caller's mistake instead of crashing on the nil
+// registry it carries. Run reserves its Go error for programmer errors and this
+// is one; a panic out of a library is not a report, and the caller cannot tell
+// it from a bug in the compiler it was calling.
+func TestEngine_RunOnAnUnbuiltEngine(t *testing.T) {
+	t.Parallel()
+	spec := writeSpec(t, testspec.Tiny)
+	tests := []struct {
+		name string
+		eng  *engine.Engine
+	}{
+		{"zero value", &engine.Engine{}},
+		{"nil receiver", nil},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			res, err := tt.eng.Run(t.Context(), spec, engine.RunOptions{})
+
+			require.Error(t, err, "an unbuilt engine must not panic")
+			assert.Nil(t, res)
+			assert.Contains(t, err.Error(), "uninitialized")
+		})
+	}
+}

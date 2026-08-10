@@ -100,6 +100,15 @@ func NewWith(fronts ...compilers.Compiler) (*Engine, error) {
 // error as "the pipeline was invoked wrongly" therefore stays correct, which is
 // what lets the CLI keep its usage exit code for actual misuse.
 func (e *Engine) Run(ctx context.Context, specPath string, opts RunOptions) (*Result, error) {
+	// Ahead of the read, because an engine that never went through a constructor
+	// is the caller's mistake whatever the path turns out to say, and reporting
+	// the path first would send them to look at the file. Without this the nil
+	// registry is dereferenced during detection and the package panics, which is
+	// no way to report a misuse of it.
+	if e == nil || e.registry == nil {
+		return nil, errors.New("engine: uninitialized; build one with New or NewWith")
+	}
+
 	data, err := os.ReadFile(specPath)
 	if err != nil {
 		return nil, fmt.Errorf("engine: read spec %q: %w", specPath, err)
