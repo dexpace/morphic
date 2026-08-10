@@ -51,7 +51,7 @@ func loweredFor(t *testing.T, src string) (*lowerer, []ir.Diagnostic) {
 func lowerSpec(t *testing.T, src string) (*ir.Document, []ir.Diagnostic) {
 	t.Helper()
 	l, diags := loweredFor(t, src)
-	l.diags.AppendAll(schema.LowerComponentSchemas(l.ctx, l.types, &l.anchors)) // named components; the entry Compile's run() calls first
+	l.diags.AppendAll(schema.LowerComponentSchemas(t.Context(), l.ctx, l.types, &l.anchors)) // named components; the entry Compile's run() calls first
 	return l.out, append(diags, l.diags.List()...)
 }
 
@@ -63,11 +63,11 @@ func lowerServiceSpec(t *testing.T, src string) (*ir.Document, ir.Service, []ir.
 		require.NoError(t, err)
 		require.NotNil(t, loadedDoc)
 		l := newLowerer(loadedDoc, Options{}.withDefaults())
-		l.diags.AppendAll(schema.LowerComponentSchemas(l.ctx, l.types, &l.anchors))
+		l.diags.AppendAll(schema.LowerComponentSchemas(t.Context(), l.ctx, l.types, &l.anchors))
 		auth, authDiags := auth.LowerSecuritySchemes(l.ctx)
 		l.out.Auth = auth
 		l.diags.AppendAll(authDiags)
-		svc, tagDefs, svcDiags := operation.LowerService(l.ctx.WithAuth(l.out.Auth), l.types, &l.anchors, l.operationIDs)
+		svc, tagDefs, svcDiags := operation.LowerService(t.Context(), l.ctx.WithAuth(l.out.Auth), l.types, &l.anchors, l.operationIDs)
 		l.out.TagDefs = tagDefs
 		l.diags.AppendAll(svcDiags)
 		l.out.Services = []ir.Service{svc}
@@ -115,7 +115,7 @@ func newLowerer(doc *load.Document, opts Options) *lowerer {
 // newRawLowerer builds a lowerer over a hand-constructed document, bypassing the
 // parser so nil slice/map entries (which the parser panics on) can be exercised.
 func newRawLowerer(doc *soa.OpenAPI) *lowerer {
-	return lowererOver(lowering.New(0, doc, ir.SourceInfo{}, "", overlay.Origin{}))
+	return lowererOver(lowering.New(0, doc, ir.SourceInfo{}, "", lowering.Limits{}, overlay.Origin{}))
 }
 
 // componentID is the stable TypeID of a components-named schema, or of a

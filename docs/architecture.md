@@ -97,6 +97,17 @@ framework that writes the type registry, derives a canonical name, or builds an 
 Promoting something into the framework later is additive, while demoting it breaks every compiler,
 so borderline machinery starts outside and moves in on evidence from more than one format.
 
+A compiler is also bounded in what one compile may cost. Most bounds are constants beside the
+walk they bound (schema nesting depth, alias expansion, reference-chain length), because nothing
+about them is a caller's to choose. The bounds on the *input* are, so they are options:
+`openapi.Options.Limits` carries a byte budget and a parsed-node budget for one source document
+and a member budget for one enum, each with a documented default and each settable — zero takes
+the default, negative turns the budget off. Crossing one is a spec problem like any other, so it
+is an `openapi/budget-exceeded` diagnostic rather than a Go error. Time is bounded by the caller
+instead of by a constant: the two walks that do work proportional to the document honour the
+`context.Context` a compile is given, so a deadline or a cancellation stops one between items and
+the error reaches the caller unwrapped.
+
 Compilers are registered in a registry keyed by the formats they report, and detection belongs to
 them too: the registry asks each compiler in registration order whether it recognizes a source, and
 the engine dispatches to the one that does. A compiler also decodes its own textual options, so

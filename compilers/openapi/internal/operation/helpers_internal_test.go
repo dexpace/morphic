@@ -54,13 +54,13 @@ func loweredFor(t *testing.T, src string) (*lowerer, []ir.Diagnostic) {
 	require.NoError(t, err)
 	require.NotNil(t, loadedDoc, "load returned no document: %+v", diags)
 	return lowererOver(lowering.New(0, loadedDoc.Doc, loadedDoc.Source,
-		lowering.GroupByTags, overlay.Origin{})), diags
+		lowering.GroupByTags, lowering.Limits{}, overlay.Origin{})), diags
 }
 
 // newRawLowerer builds a fixture over a hand-constructed document, bypassing
 // the parser so nil slice/map entries can be exercised.
 func newRawLowerer(doc *soa.OpenAPI) *lowerer {
-	return lowererOver(lowering.New(0, doc, ir.SourceInfo{}, "", overlay.Origin{}))
+	return lowererOver(lowering.New(0, doc, ir.SourceInfo{}, "", lowering.Limits{}, overlay.Origin{}))
 }
 
 // lowerServiceSpec loads src and runs the phases the service walk needs beneath
@@ -73,12 +73,12 @@ func newRawLowerer(doc *soa.OpenAPI) *lowerer {
 func lowerServiceSpec(t *testing.T, src string) (ir.Service, []ir.Diagnostic) {
 	t.Helper()
 	l, loadDiags := loweredFor(t, src)
-	l.diags.AppendAll(schema.LowerComponentSchemas(l.ctx, l.types, &l.anchors))
+	l.diags.AppendAll(schema.LowerComponentSchemas(t.Context(), l.ctx, l.types, &l.anchors))
 	schemes, authDiags := auth.LowerSecuritySchemes(l.ctx)
 	l.out.Auth = schemes
 	l.diags.AppendAll(authDiags)
 
-	svc, _, svcDiags := LowerService(l.ctx.WithAuth(schemes), l.types, &l.anchors, l.operationIDs)
+	svc, _, svcDiags := LowerService(t.Context(), l.ctx.WithAuth(schemes), l.types, &l.anchors, l.operationIDs)
 	l.diags.AppendAll(svcDiags)
 	return svc, append(loadDiags, l.diags.List()...)
 }

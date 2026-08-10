@@ -58,6 +58,100 @@ type Options struct {
 	// it: a fix that has to land before naming and hoisting heuristics read the
 	// broken shape cannot be made afterwards.
 	Overlay *Overlay `json:"overlay,omitempty"`
+	// Limits bounds how large an input this compile will lower. The zero value
+	// takes every default, so it carries no omitempty: a struct is never empty to
+	// encoding/json, and a tag implying otherwise would be read as a promise.
+	Limits Limits `json:"limits"`
+}
+
+// Compiled-in defaults for Limits, each calibrated against measured documents
+// rather than chosen round. The measurements are of three flagship public
+// descriptions, taken 2026-08-09: GitHub's REST API (12,920,264 bytes, 471,735
+// parsed YAML nodes, largest enum 53 members), Stripe's (7,967,776 bytes,
+// 265,846 nodes, largest enum 599 members) and Kubernetes' aggregated Swagger
+// (4,475,339 bytes, 138,990 nodes, no enum at all).
+const (
+	// DefaultMaxSourceBytes is the byte budget: 64 MiB, a 5.2x margin over the
+	// largest measured description. It is the only budget enforceable before the
+	// source is parsed, which is why it is the loosest — it exists to bound the
+	// parse itself, and everything finer is measured after it.
+	DefaultMaxSourceBytes = 1 << 26
+	// DefaultMaxSourceNodes is the parsed-node budget: 2,097,152, a 4.4x margin
+	// over the largest measured description. Node count, not byte count, is what
+	// the phases after the parse cost — building the typed model and resolving
+	// its references peaked at 1.5 GB of RSS for GitHub's 471,735 nodes — so this
+	// is the budget that bounds a compile, and the byte budget above is only what
+	// gets a document far enough to be counted.
+	DefaultMaxSourceNodes = 1 << 21
+	// DefaultMaxEnumMembers is the per-enum member budget: 65,536, a 109x margin
+	// over the largest measured enum and roughly 7x the largest registry an API
+	// might reasonably inline (IATA airport codes, BCP-47 language subtags, both
+	// under 10,000 entries).
+	//
+	// An enum is the one construct whose IR cost per source node is
+	// disproportionate: every member becomes an ir.EnumMember with a canonical
+	// word sequence of its own, and a heterogeneous one becomes a hoisted Literal
+	// type plus a union variant per member. That is the amplification GitHub #75
+	// reports: one 1,000,000-member enum turning 10 MB of source into 2.6 GB of
+	// peak RSS, on a document well inside the node budget above — which is why
+	// that budget does not cover this one. An enum at this budget compiles in
+	// under 200 MB.
+	DefaultMaxEnumMembers = 1 << 16
+)
+
+// Limits bounds the size and cardinality of one compile, so that an input which
+// is legal but pathologically large is refused with a diagnostic rather than
+// left to exhaust the host (GitHub #75).
+//
+// It is policy rather than semantics (architecture principle 6): what counts as
+// pathological depends on the machine doing the compiling, so every budget here
+// is the caller's to set. In each field zero takes the documented default and a
+// negative value means unbounded — the compile then behaves as it did before
+// these budgets existed, which is the escape hatch for a caller who has measured
+// their own input and their own machine.
+//
+// These are budgets on the size of the input. They are not the only bounds the
+// compiler enforces: schema nesting depth, YAML alias expansion, reference-chain
+// length and several walk node counts are each bounded by a constant beside the
+// code that walks them, because none of those describes something a caller could
+// legitimately want more of.
+type Limits struct {
+	// MaxSourceBytes bounds one source document's size in bytes, checked before
+	// it is parsed.
+	MaxSourceBytes int `json:"maxSourceBytes,omitempty"`
+	// MaxSourceNodes bounds the YAML nodes one source document parses to,
+	// checked before the typed model is built from it.
+	MaxSourceNodes int `json:"maxSourceNodes,omitempty"`
+	// MaxEnumMembers bounds the members of a single enum. An enum past it lowers
+	// as the top type with an error diagnostic naming the budget; the rest of the
+	// document still lowers.
+	MaxEnumMembers int `json:"maxEnumMembers,omitempty"`
+}
+
+// withDefaults returns a copy of l with each unset budget filled from its
+// default. A negative budget is left alone — it is the caller asking for none.
+func (l Limits) withDefaults() Limits {
+	if l.MaxSourceBytes == 0 {
+		l.MaxSourceBytes = DefaultMaxSourceBytes
+	}
+	if l.MaxSourceNodes == 0 {
+		l.MaxSourceNodes = DefaultMaxSourceNodes
+	}
+	if l.MaxEnumMembers == 0 {
+		l.MaxEnumMembers = DefaultMaxEnumMembers
+	}
+	return l
+}
+
+// bounded projects one resolved budget onto the internal form the phases below
+// read, where zero alone means unbounded. It is the single place the public
+// spelling of "no budget" — a negative value — is translated, so no phase has to
+// know two spellings of it.
+func bounded(limit int) int {
+	if limit < 0 {
+		return 0
+	}
+	return limit
 }
 
 // Overlay is one pre-read OpenAPI Overlay document (the Overlay Specification's
@@ -95,6 +189,7 @@ func (o Options) withDefaults() Options {
 	if o.Grouping == "" {
 		o.Grouping = GroupByTags
 	}
+	o.Limits = o.Limits.withDefaults()
 	return o
 }
 

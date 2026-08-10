@@ -1,6 +1,7 @@
 package schema
 
 import (
+	"context"
 	"fmt"
 	"net/url"
 	"slices"
@@ -26,7 +27,14 @@ import (
 // LowerComponentSchemas interns every named component schema in source order.
 // It is the entry Compile's run() calls before any operation lowering so that
 // $refs resolve to already-registered IDs.
-func LowerComponentSchemas(c lowering.Ctx, ts *compile.Types, anchors *AnchorIndex) []ir.Diagnostic {
+//
+// ctx bounds the walk in time: a document declares as many components as it
+// likes, so this loop is one of the two places a compile does work proportional
+// to nothing the compiler chose. Cancellation stops it between components and
+// returns what was lowered so far; the caller — run — sees ctx.Err() at the
+// phase boundary immediately after and refuses the document there, so a partial
+// registry never becomes a Document.
+func LowerComponentSchemas(ctx context.Context, c lowering.Ctx, ts *compile.Types, anchors *AnchorIndex) []ir.Diagnostic {
 	comps := c.Doc.Components
 	if comps == nil {
 		return nil
@@ -40,6 +48,9 @@ func LowerComponentSchemas(c lowering.Ctx, ts *compile.Types, anchors *AnchorInd
 	// is derived at entry (lowering.New), so a component declared later in the
 	// document is already a valid target here regardless of source order.
 	for name, js := range schemas.All() {
+		if ctx.Err() != nil {
+			return diags
+		}
 		diags = append(diags, lowerComponentSchema(c, ts, anchors, js, ids.Ptr("components", "schemas", name), name)...)
 	}
 	return diags
@@ -648,7 +659,13 @@ func keywordHome(td ir.TypeDef, s *oas3.Schema, keyword string) bool {
 		// a value no converter can read is one no preserver can read either.
 		return isKind(td, ir.KindLiteral) || isKind(td, ir.KindAny)
 	case "enum":
-		return isKind(td, ir.KindEnum) || isKind(td, ir.KindUnion)
+		// Any counts here for the reason it counts for const: lowerEnum degrades a
+		// member set past the caller's budget to the top type and reports it, so
+		// the enum was read and announced rather than left unread. Claiming it
+		// again would also undo the budget — the census preserves a homeless
+		// keyword verbatim, which would put every member back into the IR as raw
+		// bytes and leave only the per-member amplification bounded (GitHub #75).
+		return isKind(td, ir.KindEnum) || isKind(td, ir.KindUnion) || isKind(td, ir.KindAny)
 	case "format":
 		return formatHome(td, s)
 	case "type":
@@ -711,6 +728,13 @@ func typeShapedBy(td ir.TypeDef, st oas3.SchemaType) bool {
 		return st == oas3.SchemaTypeArray
 	case *ir.Primitive, *ir.Scalar, *ir.Enum:
 		return st != oas3.SchemaTypeObject && st != oas3.SchemaTypeArray
+	case *ir.Any:
+		// The top type admits every shape, so a declared type says nothing it
+		// contradicts. A position only reaches Any with a type declared by being
+		// degraded there — an unrepresentable const, an enum past its budget — and
+		// that degradation is already reported, so restating the type beside it
+		// would announce the same collapse twice.
+		return true
 	default:
 		return false
 	}
