@@ -232,18 +232,23 @@ func TestApplyExclusive_AMalformedNumericBoundIsReported(t *testing.T) {
 // would be whichever side ran second and the other keyword would go — silently,
 // since a schema declaring all four is as valid as one declaring two. Every
 // other case here declares one side, so none of them can tell the two apart.
+//
+// The two sides are deliberately settled opposite ways — the minimum loses to
+// its exclusive keyword, the maximum wins over its own — so the entries come
+// from both of reconcileBound's arms rather than twice from one. Both dropping
+// the same keyword would leave the other arm's write untested in combination.
 func TestConstraints_BothSidesCoDeclaredKeepEachKeyword(t *testing.T) {
 	t.Parallel()
 	_, kept, diags := Constraints(schemaFromYAML(t, `type: integer
 minimum: 10
-exclusiveMinimum: 0
+exclusiveMinimum: 20
 maximum: 100
 exclusiveMaximum: 999
 `), false, "/p", 0)
 
 	require.Len(t, kept, 2, "each side leaves the keyword it had no room for; got %v", kept)
 	for _, want := range []struct{ key, value, pointer string }{
-		{"openapi:exclusiveMinimum", "0", "/p/exclusiveMinimum"},
+		{"openapi:minimum", "10", "/p/minimum"},
 		{"openapi:exclusiveMaximum", "999", "/p/exclusiveMaximum"},
 	} {
 		entry, ok := kept[want.key]
