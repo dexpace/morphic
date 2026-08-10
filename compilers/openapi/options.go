@@ -152,6 +152,13 @@ func (d *optionDecode) set(key, value string) error {
 	case optAllowExternalRefs:
 		return decodeBool(&d.opts.AllowExternalRefs, key, value)
 	case optOverlay:
+		// An empty path is refused rather than read as "no overlay". Taking it
+		// would apply none while the caller believes one was applied, and would
+		// then blame optOverlayLax for applying without an overlay the caller
+		// did in fact name.
+		if value == "" {
+			return fmt.Errorf("openapi: option %q: want a file path, got an empty value", optOverlay)
+		}
 		d.overlayPath = value
 		return nil
 	case optOverlayLax:

@@ -92,6 +92,14 @@ func TestDecodeOptions_Refusals(t *testing.T) {
 			readsNothing, `want a boolean, got "sort of"`},
 		{"laxness with no overlay", map[string]string{"overlay-lax": "true"}, nil,
 			`"overlay-lax" applies only with "overlay"`},
+		// An empty path is a value that cannot be honoured, not a way to ask for
+		// no overlay. Read as the latter it applies none while the caller believes
+		// one was applied — and, with laxness set, blames overlay-lax for an
+		// overlay the caller did name.
+		{"empty overlay path", map[string]string{"overlay": ""}, readsNothing,
+			`"overlay": want a file path, got an empty value`},
+		{"empty overlay path with laxness", map[string]string{"overlay": "", "overlay-lax": "true"},
+			readsNothing, `"overlay": want a file path, got an empty value`},
 		{"no reader for a file", map[string]string{"overlay": "p.yaml"}, nil,
 			"names a file and the caller supplied no reader"},
 		{"unreadable file", map[string]string{"overlay": "p.yaml"}, readsNothing,
