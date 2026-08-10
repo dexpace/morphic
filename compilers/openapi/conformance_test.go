@@ -2682,6 +2682,10 @@ func unmodeledSites(doc *ir.Document) []unmodeledSite {
 // document's Unmodeled maps. A carrier that matches every one of them makes the
 // assertion beside it unconditionally true, which is how a row can name the
 // wrong map and still pass.
+//
+// Matching none of them is narrow, not broad, so it passes here and fails on the
+// assertion beside this one: that is a carrier naming a map the document has
+// not got, and reporting it as the vacuous case would name the opposite defect.
 func carrierNarrows(sites []unmodeledSite, carrier string) bool {
 	all, matched := map[string]bool{}, map[string]bool{}
 	for _, site := range sites {
@@ -2690,7 +2694,7 @@ func carrierNarrows(sites []unmodeledSite, carrier string) bool {
 			matched[site.path] = true
 		}
 	}
-	return len(matched) > 0 && len(matched) < len(all)
+	return len(matched) < len(all)
 }
 
 // findUnmodeled returns the site holding key with the given JSON value. The

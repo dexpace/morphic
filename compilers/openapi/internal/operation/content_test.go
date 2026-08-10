@@ -584,6 +584,47 @@ func TestEncoding_OnlyUnhomedFieldsOutliveTheEmptyPartEncoding(t *testing.T) {
 	assert.Contains(t, content.Unmodeled, "openapi:encoding/q/x-vendor", "and so does its own x-*")
 }
 
+// TestEncoding_PartNameWithSlashKeepsItsOwnKey pins that a part's name is one
+// scope segment however it is spelled. The scope is "encoding/<part>" and the
+// part is a schema property name, so a "/" in it used to read as a separator:
+// parts "q" and "q/x-a" spelled one key between them, the entry that survived
+// followed the order the properties were declared in, and neither order said
+// anything about it.
+//
+// Both halves are needed to state it. The two entries must be distinct, and each
+// must hold the value its own part declared — asserting only that two keys exist
+// would pass on a lowering that swapped them.
+func TestEncoding_PartNameWithSlashKeepsItsOwnKey(t *testing.T) {
+	t.Parallel()
+	_, svc, diags := lowerServiceSpec(t, openapitest.PathsSpecVer("3.1.0", `  /form:
+    post:
+      operationId: postForm
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              type: object
+              properties:
+                q: {type: string}
+                "q/x-a": {type: string}
+            encoding:
+              q: {style: form, x-a/x-b: FROM_Q}
+              "q/x-a": {style: form, x-b: FROM_Q_SLASH_XA}
+      responses: {"200": {description: ok}}
+`))
+	openapitest.RequireNoErrorDiags(t, diags)
+	kept := openapitest.FirstOp(t, svc).Request.Contents[0].Unmodeled
+
+	plain, ok := kept["openapi:encoding/q/x-a/x-b"]
+	require.True(t, ok, `the part named "q" keeps its own x-a/x-b; got %v`, kept)
+	assert.JSONEq(t, `"FROM_Q"`, string(plain.Value))
+
+	slashed, ok := kept["openapi:encoding/q~1x-a/x-b"]
+	require.True(t, ok, `the part named "q/x-a" keeps its own x-b under an escaped scope; got %v`, kept)
+	assert.JSONEq(t, `"FROM_Q_SLASH_XA"`, string(slashed.Value))
+}
+
 // TestEncoding_ItemEncodingKeepsItsOwnUnderItsOwnKey is the other position the
 // same reader serves. A content can hold both a per-part encoding map and a
 // sequential itemEncoding, and both reach one Unmodeled map, so the key has to

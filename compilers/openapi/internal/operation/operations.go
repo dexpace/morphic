@@ -778,7 +778,7 @@ func lowerCallbacks(c lowering.Ctx, ts *compile.Types, anchors *schema.AnchorInd
 		// expression's path item, and ir.Callback holds no Unmodeled map. The HTTP
 		// binding does, and is where the callbacks themselves live, so they are kept
 		// there under the name the callback is mapped by.
-		cbExt, cbExtDiags := schema.ExtensionsIn(c, cb.GetExtensions(), cbDecl, "callbacks/"+cbName)
+		cbExt, cbExtDiags := schema.ExtensionsIn(c, cb.GetExtensions(), cbDecl, ids.Scope("callbacks", cbName))
 		ext = annotation.MergeUnmodeled(ext, cbExt)
 		diags = append(diags, cbExtDiags...)
 		for expr, rp := range cb.All() {

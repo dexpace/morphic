@@ -787,6 +787,40 @@ components:
 // $ref'ing one #/components/callbacks/Shared must keep distinct callback
 // operation identities per parent while the callback's own request schema
 // interns once, at the shared component's own pointer.
+// TestCallbacks_NameWithSlashKeepsItsOwnKey is the encoding case's twin: the
+// callback scope is "callbacks/<name>" and the name is a map key the document
+// chooses, so a "/" in it read as a separator and two callbacks spelled one key
+// between them on the HTTP binding. Both sites take their scope from ids.Scope
+// for that reason, and each needs its own case — the fix was applied at one and
+// would have been just as easy to leave standing at the other.
+func TestCallbacks_NameWithSlashKeepsItsOwnKey(t *testing.T) {
+	t.Parallel()
+	doc, diags := parseFull(t, openapitest.PathsSpec(`  /p:
+    post:
+      operationId: postP
+      responses: {"200": {description: ok}}
+      callbacks:
+        a:
+          x-b/x-c: FROM_A
+          '{$request.body#/u}':
+            post: {operationId: cbA, responses: {"200": {description: ok}}}
+        "a/x-b":
+          x-c: FROM_A_SLASH_XB
+          '{$request.body#/v}':
+            post: {operationId: cbB, responses: {"200": {description: ok}}}
+`))
+	openapitest.RequireNoErrorDiags(t, diags)
+	kept := openapitest.FindOp(t, doc, "postP").Bindings.HTTP[0].Unmodeled
+
+	plain, ok := kept["openapi:callbacks/a/x-b/x-c"]
+	require.True(t, ok, `the callback named "a" keeps its own x-b/x-c; got %v`, kept)
+	assert.JSONEq(t, `"FROM_A"`, string(plain.Value))
+
+	slashed, ok := kept["openapi:callbacks/a~1x-b/x-c"]
+	require.True(t, ok, `the callback named "a/x-b" keeps its own x-c escaped; got %v`, kept)
+	assert.JSONEq(t, `"FROM_A_SLASH_XB"`, string(slashed.Value))
+}
+
 func TestCallbacks_RefSharedAcrossParentsKeepsDistinctOpIDs(t *testing.T) {
 	t.Parallel()
 	doc, diags := parseFull(t, sharedCallbackSpec)

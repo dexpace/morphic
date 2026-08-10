@@ -318,7 +318,7 @@ func buildPartEncoding(c lowering.Ctx, ts *compile.Types, anchors *schema.Anchor
 	if encMap != nil {
 		if enc, ok := encMap.Get(name); ok {
 			pe, unmodeled, diags = encodingConfig(c, ts, anchors, enc,
-				mediaPtr+ids.Ptr("encoding", name), "encoding/"+name)
+				mediaPtr+ids.Ptr("encoding", name), ids.Scope("encoding", name))
 		}
 	}
 	if part := schemaOf(pjs); part != nil {
