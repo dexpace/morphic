@@ -589,24 +589,31 @@ func lower(c lowering.Ctx, ts *compile.Types, anchors *AnchorIndex, depth int, s
 
 // censusKeywords are the JSON Schema keywords whose IR home depends on what the
 // position lowered to rather than being fixed: a Model carries a property set, a
-// List an element type, a Literal a value, an Enum a member set, and each of them
-// carries none of the others. Which of these a position kept is therefore a
-// question only the node that was built can answer, and keywordHome answers it.
+// List an element type and the collection bounds, a Literal a value, an Enum a
+// member set, and each of them carries none of the others. Which of these a
+// position kept is therefore a question only the node that was built can answer,
+// and keywordHome answers it.
 //
-// Everything else a schema can write is captured wherever it is written —
+// The rest of what a schema can write is captured where it is written —
 // annotations by attachDeclaredAnnotations, the §4.7 validation-only family by
 // preserveKeyword, the content vocabulary by recordUnplacedContent, use-site
-// keywords by recordResidue — except value constraints, which are captured
-// wherever the node has a Constraints field and kept by declaredConstraints
-// where it has none.
+// keywords by recordResidue, and value constraints wherever the node has a
+// Constraints field, kept by declaredConstraints where it has none.
+//
+// That division is a claim about this compiler, not a proof: a keyword in no
+// list and no reader is dropped in silence, which is what GitHub #268 and #283
+// were, and what the collection bounds still were after them — minItems beside
+// an object, or beside the prefixItems that hoists a Tuple with no Constraints
+// field, reached the IR in no form at all. They are in the census now.
 //
 // The list and keywordHome's switch name the same set. A keyword listed here
 // with no arm there is reported homeless at every position and preserved beside
 // every node it is written on, which is noisy but never lossy; a keyword in
 // neither is dropped in silence, which is what GitHub #268 and #283 were.
 var censusKeywords = []string{
-	"additionalProperties", "const", "enum", "format", "items",
-	"patternProperties", "prefixItems", "properties", "required", "type",
+	"additionalProperties", "const", "enum", "format", "items", "maxItems",
+	"minItems", "patternProperties", "prefixItems", "properties", "required",
+	"type", "uniqueItems",
 }
 
 // keywordHome reports whether td — the node this position's own declaration
@@ -626,6 +633,14 @@ func keywordHome(td ir.TypeDef, s *oas3.Schema, keyword string) bool {
 		return isKind(td, ir.KindModel)
 	case "items", "prefixItems":
 		return isKind(td, ir.KindList) || isKind(td, ir.KindTuple)
+	case "maxItems", "minItems", "uniqueItems":
+		// Only a List. listConstraints is the sole reader of the three and only
+		// lowerArray calls it, while ir.Tuple has no Constraints field at all — so
+		// a collection bound beside prefixItems reaches as little as one written
+		// on an object does. valueConstraintKeywords excludes them for that
+		// reason, which is what leaves them to this census rather than to
+		// declaredConstraints.
+		return isKind(td, ir.KindList)
 	case "const":
 		// Any counts as well as Literal. hoistLiteral degrades a value ir.Value
 		// cannot represent to the top type and reports it, so the const was read

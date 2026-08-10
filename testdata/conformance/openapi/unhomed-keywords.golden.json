@@ -214,6 +214,120 @@
       "closed": true,
       "flags": false
     },
+    "t/openapi/components/schemas/ItemsBoundOnArray": {
+      "kind": "list",
+      "id": "t/openapi/components/schemas/ItemsBoundOnArray",
+      "name": {
+        "source": "ItemsBoundOnArray",
+        "canonical": "items_bound_on_array"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/ItemsBoundOnArray"
+      },
+      "elem": {
+        "target": "t/prim/string",
+        "nullable": false
+      },
+      "constraints": {
+        "exclusiveMin": false,
+        "exclusiveMax": false,
+        "minItems": 3,
+        "maxItems": 9,
+        "uniqueItems": true
+      }
+    },
+    "t/openapi/components/schemas/ItemsBoundOnObject": {
+      "kind": "model",
+      "id": "t/openapi/components/schemas/ItemsBoundOnObject",
+      "name": {
+        "source": "ItemsBoundOnObject",
+        "canonical": "items_bound_on_object"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "unmodeled": {
+        "openapi:minItems": {
+          "reason": "degraded_lowering",
+          "value": 3,
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/ItemsBoundOnObject/minItems"
+          }
+        }
+      },
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/ItemsBoundOnObject"
+      },
+      "properties": [
+        {
+          "id": "p/openapi/components/schemas/ItemsBoundOnObject/properties/f",
+          "name": {
+            "source": "f",
+            "canonical": "f"
+          },
+          "wireName": "f",
+          "type": {
+            "target": "t/prim/string",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/ItemsBoundOnObject/properties/f"
+          }
+        }
+      ],
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
+    "t/openapi/components/schemas/ItemsBoundOnTuple": {
+      "kind": "tuple",
+      "id": "t/openapi/components/schemas/ItemsBoundOnTuple",
+      "name": {
+        "source": "ItemsBoundOnTuple",
+        "canonical": "items_bound_on_tuple"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "unmodeled": {
+        "openapi:maxItems": {
+          "reason": "degraded_lowering",
+          "value": 2,
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/ItemsBoundOnTuple/maxItems"
+          }
+        }
+      },
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/ItemsBoundOnTuple"
+      },
+      "elems": [
+        {
+          "target": "t/prim/string",
+          "nullable": false
+        }
+      ]
+    },
     "t/openapi/components/schemas/ObjectWithItems": {
       "kind": "model",
       "id": "t/openapi/components/schemas/ObjectWithItems",
@@ -973,13 +1087,31 @@
         "source": 0,
         "pointer": "/components/schemas/ConstWithBound"
       }
+    },
+    {
+      "severity": "info",
+      "code": "openapi/degraded-construct",
+      "message": "this position lowered to a node of kind \"model\", which has no home for minItems declared beside it; kept verbatim under Unmodeled",
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/ItemsBoundOnObject"
+      }
+    },
+    {
+      "severity": "info",
+      "code": "openapi/degraded-construct",
+      "message": "this position lowered to a node of kind \"tuple\", which has no home for maxItems declared beside it; kept verbatim under Unmodeled",
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/ItemsBoundOnTuple"
+      }
     }
   ],
   "sources": [
     {
       "format": "openapi@3.1",
       "path": "unhomed-keywords.yaml",
-      "hash": "f680689db5c97511571336f0e3903ed92ae6db9c10294fe2d9e90932392e2410"
+      "hash": "dcbdf05a564f1d173b5c0105508e731cc458e932a8307fd75912b092e72d949d"
     }
   ]
 }

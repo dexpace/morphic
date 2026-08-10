@@ -3842,6 +3842,22 @@ func TestUnhomedKeywords_ElectedLoweringKeepsWhatItCannotRead(t *testing.T) {
 			ir.KindLiteral, []string{"openapi:type"}},
 		{"value constraint beside const", "{const: ab, type: string, maxLength: 1}",
 			ir.KindLiteral, []string{"openapi:maxLength", "openapi:type"}},
+		// A collection bound is homed by ir.List.Constraints and by nothing else.
+		// listConstraints is its only reader and only lowerArray calls it, so an
+		// object keeps it here; so does a Tuple, which has no Constraints field at
+		// all. Both reached the IR in no form before they joined the census.
+		{"collection bound on an object", "{type: object, properties: {f: {type: string}}, minItems: 3}",
+			ir.KindModel, []string{"openapi:minItems"}},
+		{"collection bound beside prefixItems", "{type: array, prefixItems: [{type: string}], maxItems: 2}",
+			ir.KindTuple, []string{"openapi:maxItems"}},
+		// A Scalar rather than the shared Primitive the type alone would reach:
+		// the entry needs a node this pointer owns, so the census hoists the alias
+		// that carries it.
+		{"unique items on a string", "{type: string, uniqueItems: true}",
+			ir.KindScalar, []string{"openapi:uniqueItems"}},
+		// The control: the one node that does carry them keeps nothing.
+		{"collection bounds on an array", "{type: array, items: {type: string}, minItems: 3, maxItems: 9, uniqueItems: true}",
+			ir.KindList, nil},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
