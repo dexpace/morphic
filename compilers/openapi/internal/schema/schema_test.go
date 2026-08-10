@@ -3693,3 +3693,88 @@ func TestCoDeclaredFamily_UnpreservableIsNotAnnounced(t *testing.T) {
 	assert.Empty(t, preservationClaims(diags),
 		"nothing was written under Unmodeled, so nothing may announce that it was")
 }
+
+// TestCoDeclaredBound_KeptOnTheCarrierThatReadIt pins the two carriers this
+// package owns for a 2020-12 side that declares both of its bound keywords
+// (GitHub #286). ir.Constraints holds one bound per side, so one keyword reaches
+// no field of it, and without an entry beside those constraints
+// {minimum: 10, exclusiveMinimum: 0} lowers to exactly what {minimum: 10} does.
+//
+// Both directions run at both carriers. A case where the exclusive keyword is
+// the one kept verbatim passes just as well on a reader that always kept that
+// one, so on its own it would say nothing about which keyword the carrier holds.
+func TestCoDeclaredBound_KeptOnTheCarrierThatReadIt(t *testing.T) {
+	t.Parallel()
+	doc, diags := parseFull(t, openapitest.ComponentSpec(
+		"    Alias: {type: integer, minimum: 10, exclusiveMinimum: 0}\n"+
+			"    Tight: {type: integer, maximum: 100, exclusiveMaximum: 5}\n"+
+			"    Holder:\n      type: object\n      properties:\n"+
+			"        low: {type: integer, minimum: 10, exclusiveMinimum: 0}\n"+
+			"        high: {type: integer, maximum: 100, exclusiveMaximum: 5}\n"))
+	openapitest.RequireNoErrorDiags(t, diags)
+
+	tests := []struct {
+		name     string
+		unmod    ir.Unmodeled
+		bound    *ir.Constraints
+		wantKept string
+		wantRaw  string
+		at       string
+	}{
+		{
+			name:     "alias node keeps the exclusive bound the minimum implies",
+			unmod:    typeByName(doc, "Alias").Common().Unmodeled,
+			bound:    typeByName(doc, "Alias").(*ir.Scalar).Constraints,
+			wantKept: "openapi:exclusiveMinimum", wantRaw: "0",
+			at: "/components/schemas/Alias/exclusiveMinimum",
+		},
+		{
+			name:     "alias node keeps the inclusive bound the exclusive one implies",
+			unmod:    typeByName(doc, "Tight").Common().Unmodeled,
+			bound:    typeByName(doc, "Tight").(*ir.Scalar).Constraints,
+			wantKept: "openapi:maximum", wantRaw: "100",
+			at: "/components/schemas/Tight/maximum",
+		},
+		{
+			name:     "property keeps the exclusive bound the minimum implies",
+			unmod:    propertyOf(t, doc, "Holder", "low").Unmodeled,
+			bound:    propertyOf(t, doc, "Holder", "low").Constraints,
+			wantKept: "openapi:exclusiveMinimum", wantRaw: "0",
+			at: "/components/schemas/Holder/properties/low/exclusiveMinimum",
+		},
+		{
+			name:     "property keeps the inclusive bound the exclusive one implies",
+			unmod:    propertyOf(t, doc, "Holder", "high").Unmodeled,
+			bound:    propertyOf(t, doc, "Holder", "high").Constraints,
+			wantKept: "openapi:maximum", wantRaw: "100",
+			at: "/components/schemas/Holder/properties/high/maximum",
+		},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			require.NotNil(t, tc.bound, "the tighter bound still reaches ir.Constraints")
+			entry, ok := tc.unmod[tc.wantKept]
+			require.True(t, ok, "%s is kept beside the constraints it did not reach; got %v",
+				tc.wantKept, tc.unmod)
+			assert.Equal(t, ir.ReasonDegradedLowering, entry.Reason)
+			assert.JSONEq(t, tc.wantRaw, string(entry.Value))
+			assert.Equal(t, tc.at, entry.Provenance.Pointer)
+		})
+	}
+}
+
+// TestCoDeclaredBound_ASingleKeywordKeepsNothing is the other half of the case
+// above: a side writing one keyword has it in a field, so an entry restating it
+// would give one bound two homes and make the two source shapes indistinguishable
+// in the opposite direction.
+func TestCoDeclaredBound_ASingleKeywordKeepsNothing(t *testing.T) {
+	t.Parallel()
+	doc, diags := parseFull(t, openapitest.ComponentSpec(
+		"    Alias: {type: integer, minimum: 10}\n"+
+			"    Holder: {type: object, properties: {low: {type: integer, exclusiveMinimum: 0}}}\n"))
+	openapitest.RequireNoErrorDiags(t, diags)
+
+	assert.Empty(t, typeByName(doc, "Alias").Common().Unmodeled)
+	assert.Empty(t, propertyOf(t, doc, "Holder", "low").Unmodeled)
+}

@@ -1,6 +1,7 @@
 package operation_test
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -691,4 +692,50 @@ func TestParams_ReservedHeaderNamesAreReported(t *testing.T) {
 			}
 		})
 	}
+}
+
+// TestParams_CoDeclaredBoundKeptOnTheParameter covers the parameter carrier for
+// a 2020-12 side that declares both of its bound keywords (GitHub #286).
+// ir.Constraints holds one bound per side, so one keyword reaches no field of
+// the constraints the parameter carries and is kept verbatim beside them —
+// otherwise {minimum: 10, exclusiveMinimum: 0} lowers to what {minimum: 10}
+// does, at the one carrier ir.Parameter owns rather than a node.
+//
+// Both directions are here for the reason the property cases are: a row where
+// the exclusive keyword is the one kept passes on a reader that always kept that
+// one.
+func TestParams_CoDeclaredBoundKeptOnTheParameter(t *testing.T) {
+	t.Parallel()
+	_, svc, diags := lowerServiceSpec(t, openapitest.PathsSpec(
+		"  /x:\n    get:\n      operationId: g\n      parameters:\n"+
+			"        - {name: low, in: query, schema: {type: integer, minimum: 10, exclusiveMinimum: 0}}\n"+
+			"        - {name: high, in: query, schema: {type: integer, maximum: 100, exclusiveMaximum: 5}}\n"+
+			"        - {name: plain, in: query, schema: {type: integer, minimum: 10}}\n"+
+			"      responses: {\"204\": {description: ok}}\n"))
+	openapitest.RequireNoErrorDiags(t, diags)
+	params := paramsOf(t, svc)
+
+	cases := []struct {
+		param, index, wantKept, wantRaw string
+	}{
+		{param: "low", index: "0", wantKept: "openapi:exclusiveMinimum", wantRaw: "0"},
+		{param: "high", index: "1", wantKept: "openapi:maximum", wantRaw: "100"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.param, func(t *testing.T) {
+			t.Parallel()
+			at := "/paths/~1x/get/parameters/" + tc.index + "/schema/" +
+				strings.TrimPrefix(tc.wantKept, "openapi:")
+			require.NotNil(t, params[tc.param].Constraints, "the tighter bound still reaches a field")
+			entry, ok := params[tc.param].Unmodeled[tc.wantKept]
+			require.True(t, ok, "%s is kept beside the constraints it did not reach; got %v",
+				tc.wantKept, params[tc.param].Unmodeled)
+			assert.Equal(t, ir.ReasonDegradedLowering, entry.Reason)
+			assert.JSONEq(t, tc.wantRaw, string(entry.Value))
+			assert.Equal(t, at, entry.Provenance.Pointer, "located at the keyword itself")
+		})
+	}
+
+	assert.Empty(t, params["plain"].Unmodeled,
+		"a side writing one keyword has it in a field, so nothing is restated beside it")
 }

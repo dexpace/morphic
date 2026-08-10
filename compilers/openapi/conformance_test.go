@@ -1343,12 +1343,13 @@ func assertConstraints(t *testing.T, doc *ir.Document, diags []ir.Diagnostic) {
 
 	assertLengthAndCollectionBounds(t, doc, m)
 	assertCoDeclaredBounds(t, m, diags)
+	assertCoDeclaredBoundKept(t, doc, m)
 }
 
 // assertCoDeclaredBounds pins the 2020-12 rule that a side declaring both of
 // its keywords keeps the tighter of the two: the property bounded below keeps
 // its minimum, the one bounded above keeps its exclusiveMaximum, and each side
-// names the keyword that did not reach the IR (GitHub #33).
+// names the keyword that did not reach ir.Constraints (GitHub #33).
 //
 // Both directions are here on purpose. A case where only the exclusive keyword
 // survives passes just as well on the reader that always took it, so on its own
@@ -1369,11 +1370,39 @@ func assertCoDeclaredBounds(t *testing.T, m *ir.Model, diags []ir.Diagnostic) {
 	assert.Equal(t, ir.BigVal("10"), *high.Constraints.Max, "exclusiveMaximum is the tighter bound")
 	assert.True(t, high.Constraints.ExclusiveMax)
 
-	for _, want := range []string{"dropped exclusiveMinimum", "dropped maximum"} {
+	for _, want := range []string{"exclusiveMinimum, which it implies", "maximum, which it implies"} {
 		assert.True(t, slices.ContainsFunc(diags, func(d ir.Diagnostic) bool {
 			return strings.Contains(d.Message, want)
-		}), "a keyword the IR does not carry is reported, not dropped in silence: %q", want)
+		}), "the keyword ir.Constraints has no room for is named, not dropped in silence: %q", want)
 	}
+}
+
+// assertCoDeclaredBoundKept is the losslessness half of the same rule
+// (GitHub #286): a keyword named only in a diagnostic reaches no field of the
+// document a downstream stage reads, so {minimum: 10, exclusiveMinimum: 0} and
+// {minimum: 10} lowered identically. It is kept verbatim on whichever carrier
+// read it — the property here, the alias node a component's body reduces to
+// below — beside the constraints it did not reach.
+func assertCoDeclaredBoundKept(t *testing.T, doc *ir.Document, m *ir.Model) {
+	t.Helper()
+	low, ok := propByWire(m, "atLeastTen")
+	require.True(t, ok)
+	entry := unmodeledEntry(t, low.Unmodeled, "openapi:exclusiveMinimum")
+	assert.Equal(t, ir.ReasonDegradedLowering, entry.Reason)
+	assert.JSONEq(t, "0", string(entry.Value))
+	assert.Equal(t, "/components/schemas/S/properties/atLeastTen/exclusiveMinimum",
+		entry.Provenance.Pointer)
+
+	high, ok := propByWire(m, "underTen")
+	require.True(t, ok)
+	assert.JSONEq(t, "100", string(unmodeledEntry(t, high.Unmodeled, "openapi:maximum").Value),
+		"the inclusive keyword is the one kept where the exclusive bound is tighter")
+
+	alias, ok := doc.Types[namedID("Bounded")].(*ir.Scalar)
+	require.True(t, ok, "a component reducing to a shared primitive owns an alias node")
+	require.NotNil(t, alias.Constraints)
+	assert.JSONEq(t, "0", string(unmodeledEntry(t, alias.Unmodeled, "openapi:exclusiveMinimum").Value),
+		"a node carries what its constraints had no room for, exactly as a property does")
 }
 
 // assertLengthAndCollectionBounds pins the non-numeric bounds: a string length
