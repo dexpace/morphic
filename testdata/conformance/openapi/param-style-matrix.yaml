@@ -24,9 +24,11 @@ info: {title: ParamStyleMatrix, version: "1.0.0"}
 # outright; it is left out rather than declared, and GitHub #389 tracks both that
 # and the explode default 3.2 gives it.
 #
-# param-styles.yaml is the neighbouring spec and covers the flags that are not
-# part of this table: allowReserved, allowEmptyValue, a content-typed parameter,
-# and a path-item-level parameter shared by two operations.
+# param-styles.yaml is the neighbouring spec, and its subject is what sits beside
+# the table rather than in it: allowReserved, allowEmptyValue, a content-typed
+# parameter, and a path-item-level parameter shared by two operations. It does
+# declare a styled parameter or two on the way there, so the two files overlap;
+# what is settled here is the table.
 paths:
   /matrix/{pathMatrixExplode}/{pathMatrixNoExplode}/{pathMatrixDefaultExplode}/{pathLabelExplode}/{pathLabelNoExplode}/{pathLabelDefaultExplode}/{pathSimpleExplode}/{pathSimpleNoExplode}/{pathSimpleDefaultExplode}/{pathDefaulted}:
     get:

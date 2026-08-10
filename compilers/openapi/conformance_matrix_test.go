@@ -16,6 +16,7 @@ package openapi_test // external test package — exercises only the public API
 import (
 	"os"
 	"regexp"
+	"slices"
 	"strings"
 	"testing"
 
@@ -50,22 +51,19 @@ type matrixCell struct {
 	cell   string
 }
 
-// matrixRow is one capability row: its stable key, the capability it names, and
-// every format's cell in document order.
+// matrixRow is one capability row: its stable key, the capability it names, the
+// cell of the column this compiler answers to, and every format's cell in
+// document order.
+//
+// openAPI is read off the header index rather than searched for on demand, so
+// there is no answer to give when the column is absent — readMatrixRows requires
+// it, and a lookup that could miss would need a not-found value that means the
+// same as an unmarked cell.
 type matrixRow struct {
 	key        string
 	capability string
+	openAPI    string
 	formats    []matrixCell
-}
-
-// openAPI returns the cell of the column this compiler answers to.
-func (r matrixRow) openAPI() string {
-	for _, f := range r.formats {
-		if f.column == matrixOpenAPIColumn {
-			return f.cell
-		}
-	}
-	return ""
 }
 
 // TestMatrix_RowsCarryUniqueSlugKeys pins the half of the contract that lives in
@@ -145,7 +143,7 @@ func TestConformance_EveryExpressibleMatrixRowIsWitnessed(t *testing.T) {
 	witnesses := matrixRowWitnesses(t)
 	uncovered := matrixRowsUncovered()
 	for _, row := range readMatrixRows(t) {
-		expressible, known := legendMarker(row.openAPI())
+		expressible, known := legendMarker(row.openAPI)
 		if !known {
 			continue // TestMatrix_RowsCarryUniqueSlugKeys reports the unmarked cell.
 		}
@@ -264,7 +262,8 @@ func readMatrixRows(t *testing.T) []matrixRow {
 	header := splitMatrixCells(lines[0])
 	require.Equal(t, matrixKeyColumn, header[0], "the capability table's first column is the row key")
 	require.Equal(t, matrixCapabilityColumn, header[1], "and its second names the capability")
-	require.Contains(t, header, matrixOpenAPIColumn, "the capability table needs a %q column", matrixOpenAPIColumn)
+	openAPIAt := slices.Index(header, matrixOpenAPIColumn)
+	require.GreaterOrEqual(t, openAPIAt, 2, "the capability table needs a %q format column", matrixOpenAPIColumn)
 
 	rows := make([]matrixRow, 0, len(lines))
 	for _, line := range lines[2:] {
@@ -277,6 +276,7 @@ func readMatrixRows(t *testing.T) []matrixRow {
 		rows = append(rows, matrixRow{
 			key:        strings.Trim(cells[0], "`"),
 			capability: cells[1],
+			openAPI:    cells[openAPIAt],
 			formats:    formats,
 		})
 	}
@@ -325,8 +325,9 @@ func matrixTableLines(t *testing.T) []string {
 		"the header is followed by its separator")
 	require.Len(t, table, tableShaped,
 		"ir-spec-matrix.md holds %d table-shaped lines and the keyed capability table reaches %d of "+
-			"them: a blank line, a comment or an indented row between two rows ends the table early, "+
-			"dropping every row below it from this file's checks", tableShaped, len(table))
+			"them: either something that is not a row — a blank line, a comment — sits between two "+
+			"rows and ends the table early, dropping every row below it from this file's checks, or "+
+			"a second table was added that nothing here reads", tableShaped, len(table))
 	return table
 }
 

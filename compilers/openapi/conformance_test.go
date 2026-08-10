@@ -1766,8 +1766,12 @@ func paramStyleExplodeDefault(style string) bool {
 // counted a deduplicated set, which a shrunk fixture still reaches whenever some
 // other parameter happens to resolve the same way. Every row of every location
 // defaulting its style was shadowed that way, including the cookie row this
-// fixture exists for. Here the only way to stop demanding a parameter is to
-// delete its pair from the table that says OpenAPI allows it.
+// fixture exists for.
+//
+// Generating it moves the question up rather than answering it: the table and
+// the fixture can still shrink together. TestParamStyleTable_MatchesTheSpecification
+// is what stops there being a third place to shrink, by holding the table to a
+// count that is OpenAPI's rather than this package's.
 func paramStyleMatrixWant() map[paramID]paramWire {
 	want := map[paramID]paramWire{}
 	for _, p := range paramStyleLegalPairs() {
@@ -1787,6 +1791,46 @@ func paramStyleMatrixWant() map[paramID]paramWire {
 			paramWire{d.style, paramStyleExplodeDefault(d.style)}
 	}
 	return want
+}
+
+// TestParamStyleTable_MatchesTheSpecification anchors the (in, style) table to
+// OpenAPI's own — the one thing a generated expectation cannot do for itself.
+//
+// Generating the expectation stops the fixture shrinking alone. It does not stop
+// the table and the fixture shrinking together: delete a pair, delete the
+// parameters it generated, regenerate the golden, and every check agrees with
+// the smaller world. That is the same failure one level up, and the only thing
+// outside the loop is the specification. 3.2 tabulates the legal combinations
+// and says "Combinations not represented in this table are not permitted", so
+// this count is OpenAPI's; changing it is a claim about the format that a
+// reviewer reads rather than a quiet edit.
+//
+// It also holds the two halves of the table to each other. A location's default
+// style has to be a style that location legally takes, and nothing else would
+// notice a default naming a pair the table does not have.
+func TestParamStyleTable_MatchesTheSpecification(t *testing.T) {
+	t.Parallel()
+	pairs := paramStyleLegalPairs()
+	require.Len(t, pairs, 9,
+		"3.2 permits ten (in, style) pairs and this compiler rejects one of them, the cookie "+
+			"style (GitHub #389); a different number here is a claim about OpenAPI, not about the fixture")
+
+	legal := make(map[paramStylePair]bool, len(pairs))
+	for _, p := range pairs {
+		assert.NotContains(t, legal, p, "the (%s, %s) pair is listed twice", p.location, p.style)
+		legal[p] = true
+	}
+
+	defaults := paramStyleDefaultStyles()
+	require.Len(t, defaults, 4, "each location that takes a style at all defaults exactly one")
+	locations := make(map[ir.HTTPLocation]bool, len(defaults))
+	for _, d := range defaults {
+		assert.NotContains(t, locations, d.location, "%s is given two default styles", d.location)
+		locations[d.location] = true
+		assert.Contains(t, legal, d,
+			"%s defaults to style %q, which is not a pair the table says that location takes",
+			d.location, d.style)
+	}
 }
 
 // assertParamStyleMatrix pins the whole of OpenAPI's location-dependent
