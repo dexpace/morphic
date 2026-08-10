@@ -13,8 +13,13 @@ The diagnostics and the exit code are compile's: 0 when nothing reaches
 --skip-validate names the referential-integrity pass, not this command: it
 drops that pass's diagnostics and keeps the compiler's.
 
+--opt is compile's, and takes the same settings: a spec that needs one to
+compile needs it here too, or what is checked is not what would be built.
+
 flags:
   -fail-on string
     	fail (exit 1) on diagnostics at or above this severity: error|warning (default "error")
+  -opt key=value
+    	set one key=value option on the compiler the spec selects (repeatable)
   -skip-validate
     	skip the referential-integrity validate pass

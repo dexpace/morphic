@@ -226,3 +226,32 @@ func TestRun_ValidateNilDocumentReturnsOne(t *testing.T) {
 	assert.Empty(t, stdout.String(), "validate must write nothing to stdout")
 	assert.Contains(t, stderr.String(), "openapi/unsupported-version")
 }
+
+// TestValidate_CompilerOptionReachesThePipeline pins that validate configures
+// the compiler the way compile does. validate is compile's pipeline with the
+// document dropped, so a spec needing an option to compile has to be checkable
+// under that same option — otherwise what validate checks is not what compile
+// would build, and the gate passes a spec the build then rejects.
+//
+// The overlay targets nothing, so the failure can only be the overlay's doing:
+// the same spec validates clean without it, which the first assertion holds.
+func TestValidate_CompilerOptionReachesThePipeline(t *testing.T) {
+	t.Parallel()
+	spec := writeFile(t, "spec.yaml", testspec.Tiny)
+	overlay := writeFile(t, "overlay.yaml", "overlay: 1.0.0\n"+
+		"info: {title: O, version: \"1\"}\n"+
+		"actions:\n  - target: $.nonexistent\n    update: {x: y}\n")
+
+	var cleanOut, cleanErr bytes.Buffer
+	require.Equal(t, 0, run([]string{"validate", spec}, &cleanOut, &cleanErr),
+		"the spec must validate clean on its own, or the assertion below proves nothing: %s",
+		cleanErr.String())
+
+	var stdout, stderr bytes.Buffer
+	code := run([]string{"validate", spec, "--opt", "overlay=" + overlay}, &stdout, &stderr)
+
+	assert.Equal(t, 1, code, "stderr: %s", stderr.String())
+	assert.Contains(t, stderr.String(), "openapi/overlay-failed",
+		"the overlay must have been applied, which only --opt can have done")
+	assert.Empty(t, stdout.String(), "validate writes no document")
+}

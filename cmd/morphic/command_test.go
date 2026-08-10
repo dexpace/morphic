@@ -65,6 +65,9 @@ func TestNewCompileFlags_DefinesEveryFlag(t *testing.T) {
 	assert.Empty(t, opts.outPath)
 	assert.False(t, opts.skipValidate)
 	assert.Empty(t, opts.explain)
+	assert.NotNil(t, opts.settings,
+		"the settings map must exist before Parse writes into it")
+	assert.Empty(t, opts.settings)
 }
 
 func TestNewValidateFlags_DefinesEveryFlag(t *testing.T) {
@@ -105,8 +108,8 @@ func TestSpecFlags_SharedFlagsAgree(t *testing.T) {
 // asserted from both the constructor and the command-table entry so the two
 // cannot drift.
 var (
-	compileFlagNames  = []string{"o", "fail-on", "skip-validate", "explain", "pretty"}
-	validateFlagNames = []string{"fail-on", "skip-validate"}
+	compileFlagNames  = []string{"o", "fail-on", "skip-validate", "explain", "pretty", "opt"}
+	validateFlagNames = []string{"fail-on", "skip-validate", "opt"}
 )
 
 func TestCommand_PrintFlagsDocumentsTheCommandsOwnFlags(t *testing.T) {

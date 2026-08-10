@@ -199,8 +199,12 @@ var rules = map[string][]string{
 		"github.com/stretchr/testify/assert",
 		"github.com/stretchr/testify/require", "gopkg.in/yaml.v3"},
 	"pass": {module + "/ir"},
+	// The orchestration. It reaches the compiler package to compose the default
+	// registry and nothing of any source format: what a spec looks like and what
+	// its options are called are answered through the contract, so no parser is
+	// named here.
 	"engine": {module + "/ir", module + "/compilers", module + "/compilers/openapi",
-		module + "/pass", "gopkg.in/yaml.v3"},
+		module + "/pass"},
 	"cmd/morphic":         {module + "/ir", module + "/engine"},
 	"cmd/morphic-harness": {module + "/internal/harness"},
 	"internal/testspec":   {},

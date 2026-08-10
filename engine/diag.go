@@ -15,18 +15,18 @@ import (
 // and a rejection is a finding about the spec whichever stage makes it. A Go
 // error out of Run means something other than the spec went wrong: the file
 // could not be read, or a compiler broke its own contract.
+// Detection itself reports under no engine code. The engine parses nothing, so
+// the account of why a source could not be read belongs to the compiler that
+// recognized it — openapi/undecodable-source, for one that declares an OpenAPI
+// key and will not parse. An engine code here would have to describe every
+// format at once, and would be wrong for the first one that is not YAML.
 const (
-	// codeUndecodableSource: the bytes parse as neither YAML nor JSON, so nothing
-	// can be read out of them, a format key included.
-	codeUndecodableSource = "engine/undecodable-source"
-	// codeUnrecognizedFormat: the source decoded but declares no key any compiler
-	// in this tree announces itself by.
+	// codeUnrecognizedFormat: no compiler claimed the source, and none of them
+	// had anything to say about why.
 	codeUnrecognizedFormat = "engine/unrecognized-format"
-	// codeUnsupportedFormat: the source declares a format Morphic recognizes and
-	// cannot lower yet — Swagger 2.0 today.
-	codeUnsupportedFormat = "engine/unsupported-format"
-	// codeNoCompilerForFormat: the format was read, but no registered compiler
-	// claims it. An OpenAPI version outside the supported range lands here.
+	// codeNoCompilerForFormat: a compiler read the source and named a format, but
+	// none is registered for it. An OpenAPI version outside the supported range
+	// lands here, as does Swagger 2.0, which is recognized and not yet lowered.
 	codeNoCompilerForFormat = "engine/no-compiler-for-format"
 )
 

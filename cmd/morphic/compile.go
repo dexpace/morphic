@@ -72,6 +72,9 @@ func newCompileCommand() command {
 			"--explain reports what compiling produced at one source coordinate — the\n" +
 			"type node interned there, the coordinates interned beneath it, and the\n" +
 			"diagnostics stamped at it — instead of writing the document.\n\n" +
+			"--opt passes a setting to the compiler the spec selects, which names and\n" +
+			"validates its own options; morphic itself knows none of them. The OpenAPI\n" +
+			"compiler's are listed in the README.\n\n" +
 			"A -- argument ends flag parsing: every argument after it is an operand,\n" +
 			"even one that begins with a dash, which is how a spec file named like a\n" +
 			"flag is passed.",
@@ -84,11 +87,14 @@ func newCompileCommand() command {
 	}
 }
 
-// specOptions holds the values the flags shared by every spec-taking command
-// parse into.
+// specOptions holds what the shared pipeline runner reads, parsed by the flags
+// every spec-taking command defines. validate is compile's pipeline with the
+// document dropped, so the two configure that pipeline the same way: a spec that
+// needs an option to compile needs it to be validated as it will be compiled.
 type specOptions struct {
 	failOn       string
 	skipValidate bool
+	settings     settingFlag
 }
 
 // compileOptions holds the values compile's flags parse into.
@@ -103,10 +109,14 @@ type compileOptions struct {
 // Sharing the registration is what keeps their spellings, defaults and help
 // text identical across commands rather than identical-looking.
 func bindSpecFlags(fs *flag.FlagSet, opts *specOptions) {
+	opts.settings = settingFlag{}
+
 	fs.StringVar(&opts.failOn, "fail-on", "error",
 		"fail (exit 1) on diagnostics at or above this severity: error|warning")
 	fs.BoolVar(&opts.skipValidate, "skip-validate", false,
 		"skip the referential-integrity validate pass")
+	fs.Var(opts.settings, "opt",
+		"set one `key=value` option on the compiler the spec selects (repeatable)")
 }
 
 // newCompileFlags returns compile's FlagSet and the options its flags write
@@ -180,7 +190,10 @@ func runPipeline(specPath string, opts specOptions, stderr io.Writer) (*engine.R
 		return nil, 2, false
 	}
 
-	res, err := eng.Run(context.Background(), specPath, engine.RunOptions{SkipValidate: opts.skipValidate})
+	res, err := eng.Run(context.Background(), specPath, engine.RunOptions{
+		CompilerOptions: opts.settings,
+		SkipValidate:    opts.skipValidate,
+	})
 	if err != nil {
 		emitf(stderr, "morphic: %v\n", err)
 		return nil, 2, false

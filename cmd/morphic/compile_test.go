@@ -56,8 +56,8 @@ func TestRun_SpecProblemsExitOne(t *testing.T) {
 		name, contents, code string
 	}{
 		{"unrecognized format", "hello: world\n", "engine/unrecognized-format"},
-		{"swagger 2.0", "swagger: \"2.0\"\n", "engine/unsupported-format"},
-		{"undecodable source", "openapi: [unterminated\n", "engine/undecodable-source"},
+		{"swagger 2.0", "swagger: \"2.0\"\n", "engine/no-compiler-for-format"},
+		{"undecodable source", "openapi: [unterminated\n", "openapi/undecodable-source"},
 		{"no compiler for version", "openapi: 4.0.0\ninfo: {title: T, version: \"1\"}\npaths: {}\n",
 			"engine/no-compiler-for-format"},
 	}
@@ -136,6 +136,99 @@ func TestRun_UsageErrors(t *testing.T) {
 			assert.Contains(t, stderr.String(), tt.reason)
 			assert.Equal(t, 1, strings.Count(stderr.String(), "usage:"),
 				"exactly one usage block per misuse, got:\n%s", stderr.String())
+		})
+	}
+}
+
+// groupingSpec tags its one operation "zoo" while its path starts with "a", so
+// the two grouping strategies name the group differently and the assertion below
+// cannot pass by accident.
+const groupingSpec = `openapi: 3.1.0
+info: {title: T, version: "1"}
+paths:
+  /a/b:
+    get:
+      operationId: ab
+      tags: [zoo]
+      responses: {"200": {description: ok}}
+`
+
+// TestRun_CompilerOptionReachesTheCompiler asserts from the CLI what the Go API
+// could already do: a compiler option the user set changes the document. The
+// control run pins that the difference is the flag and not the spec.
+func TestRun_CompilerOptionReachesTheCompiler(t *testing.T) {
+	t.Parallel()
+	spec := writeFile(t, "spec.yaml", groupingSpec)
+
+	assert.Equal(t, "zoo", groupNameOf(t, spec), "the default groups by tag")
+	assert.Equal(t, "a", groupNameOf(t, spec, "-opt", "grouping=path-prefix"),
+		"the compiler option must reach the compiler")
+}
+
+// groupNameOf compiles spec with args and returns its first operation group's
+// source name.
+func groupNameOf(t *testing.T, spec string, args ...string) string {
+	t.Helper()
+	var stdout, stderr bytes.Buffer
+	code := run(append([]string{"compile", spec}, args...), &stdout, &stderr)
+	require.Equal(t, 0, code, "stderr: %s", stderr.String())
+
+	var doc ir.Document
+	require.NoError(t, json.Unmarshal(stdout.Bytes(), &doc))
+	require.Len(t, doc.Services, 1)
+	require.NotEmpty(t, doc.Services[0].Groups)
+	return doc.Services[0].Groups[0].Name.Source
+}
+
+// TestRun_OverlayOptionReachesTheCompiler covers the option whose value is a
+// file. A compiler reads no files of its own, so the whole chain has to work for
+// this to compile anything: the CLI collects the path, the engine loads it, and
+// the compiler decodes the bytes into its own overlay type.
+func TestRun_OverlayOptionReachesTheCompiler(t *testing.T) {
+	t.Parallel()
+	dir := t.TempDir()
+	spec := filepath.Join(dir, "spec.yaml")
+	require.NoError(t, os.WriteFile(spec, []byte(testspec.Tiny), 0o644))
+	overlay := filepath.Join(dir, "patch.yaml")
+	require.NoError(t, os.WriteFile(overlay, []byte(`overlay: 1.0.0
+info: {title: Patch, version: "1"}
+actions:
+  - target: $.info
+    update: {title: Patched}
+`), 0o644))
+
+	var stdout, stderr bytes.Buffer
+	code := run([]string{"compile", spec, "--opt", "overlay=" + overlay}, &stdout, &stderr)
+	require.Equal(t, 0, code, "stderr: %s", stderr.String())
+
+	var doc ir.Document
+	require.NoError(t, json.Unmarshal(stdout.Bytes(), &doc))
+	assert.Equal(t, "Patched", doc.Name, "the overlay must have been applied")
+	assert.Len(t, doc.Sources, 2, "an applied overlay is a second source")
+}
+
+func TestRun_BadCompilerOptionIsRefused(t *testing.T) {
+	t.Parallel()
+	spec := writeFile(t, "spec.yaml", testspec.Tiny)
+	tests := []struct {
+		name, arg, wantErr string
+	}{
+		{"malformed pair", "grouping", "want key=value"},
+		{"unknown name", "gruoping=tags", `unknown option "gruoping"`},
+		{"unusable value", "grouping=alphabetical", `want "tags" or "path-prefix"`},
+		// A fourth class: the pair is well-formed and the name is known, and the
+		// value is still unusable. Read as "no overlay" it would exit 0 having
+		// applied none, which is the one outcome --opt exists to rule out.
+		{"empty value", "overlay=", `"overlay": want a file path`},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			var stdout, stderr bytes.Buffer
+			code := run([]string{"compile", spec, "--opt", tc.arg}, &stdout, &stderr)
+			assert.Equal(t, 2, code)
+			assert.Contains(t, stderr.String(), tc.wantErr)
+			assert.Empty(t, stdout.String(), "a refused option must write no document")
 		})
 	}
 }

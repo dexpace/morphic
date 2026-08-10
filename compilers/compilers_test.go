@@ -1,6 +1,7 @@
 package compilers_test
 
 import (
+	"bytes"
 	"context"
 	"testing"
 
@@ -11,10 +12,31 @@ import (
 	"github.com/dexpace/morphic/ir"
 )
 
-// stubCompiler registers under fixed formats and returns an empty document.
-type stubCompiler struct{ formats []compilers.SourceFormat }
+// stubCompiler registers under fixed formats and returns an empty document. It
+// recognizes a source whose bytes contain its marker, so a registry holding two
+// of them can be asked which one claims a given source.
+type stubCompiler struct {
+	formats []compilers.SourceFormat
+	marker  string
+	detects compilers.SourceFormat
+	// declines is what this compiler says when it does not take a source, which
+	// the registry is meant to carry out for the caller to report.
+	declines []ir.Diagnostic
+}
 
 func (s *stubCompiler) Formats() []compilers.SourceFormat { return s.formats }
+
+func (s *stubCompiler) Detect(src compilers.Source) (compilers.SourceFormat, []ir.Diagnostic, bool) {
+	if s.marker == "" || !bytes.Contains(src.Data, []byte(s.marker)) {
+		return compilers.SourceFormat{}, s.declines, false
+	}
+	if s.detects != (compilers.SourceFormat{}) {
+		return s.detects, nil, true
+	}
+	return s.formats[0], nil, true
+}
+
+func (s *stubCompiler) DecodeOptions(compilers.OptionSet) (any, error) { return nil, nil }
 
 func (s *stubCompiler) Compile(_ context.Context, _ []compilers.Source, _ compilers.Options) (*ir.Document, []ir.Diagnostic, error) {
 	return &ir.Document{IRVersion: ir.IRVersion}, nil, nil
@@ -26,7 +48,7 @@ func TestRegistry_RegisterAndLookup(t *testing.T) {
 	oa := &stubCompiler{formats: []compilers.SourceFormat{
 		{Name: "openapi", Version: "3.0"},
 		{Name: "openapi", Version: "3.1"},
-	}}
+	}, marker: "openapi"}
 	require.NoError(t, reg.Register(oa))
 
 	got, ok := reg.Lookup(compilers.SourceFormat{Name: "openapi", Version: "3.1"})
@@ -98,4 +120,197 @@ func TestRegistry_ZeroValueRegisters(t *testing.T) {
 func TestSourceFormat_String(t *testing.T) {
 	t.Parallel()
 	assert.Equal(t, "openapi@3.1", compilers.SourceFormat{Name: "openapi", Version: "3.1"}.String())
+}
+
+// TestRegistry_DetectAsksEachCompilerInRegistrationOrder is the seam that keeps
+// format knowledge out of the layers above: the registry asks, the compilers
+// answer, and adding a format is a registration rather than an edit somewhere
+// else. Registration order is the tie-break, so the same source resolves the
+// same way on every run.
+func TestRegistry_DetectAsksEachCompilerInRegistrationOrder(t *testing.T) {
+	t.Parallel()
+	first := &stubCompiler{
+		formats: []compilers.SourceFormat{{Name: "alpha", Version: "1"}},
+		marker:  "shared",
+	}
+	second := &stubCompiler{
+		formats: []compilers.SourceFormat{{Name: "beta", Version: "2"}},
+		marker:  "shared",
+	}
+	reg := compilers.NewRegistry()
+	require.NoError(t, reg.Register(first))
+	require.NoError(t, reg.Register(second))
+
+	got, format, _, ok := reg.Detect(compilers.Source{Path: "s.txt", Data: []byte("shared bytes")})
+	require.True(t, ok)
+	assert.Same(t, compilers.Compiler(first), got, "the earlier registration wins")
+	assert.Equal(t, compilers.SourceFormat{Name: "alpha", Version: "1"}, format)
+
+	_, format, _, ok = reg.Detect(compilers.Source{Path: "s.txt", Data: []byte("nobody claims this")})
+	assert.False(t, ok)
+	assert.Equal(t, compilers.SourceFormat{}, format, "the zero format means unrecognized")
+}
+
+// TestRegistry_DetectReportsRecognizedButUnregistered separates the two ways a
+// source can go uncompiled: nothing recognized it, or something did and named a
+// format the registry does not carry. A caller that could not tell them apart
+// would report a known spec dialect as an unreadable file.
+func TestRegistry_DetectReportsRecognizedButUnregistered(t *testing.T) {
+	t.Parallel()
+	front := &stubCompiler{
+		formats: []compilers.SourceFormat{{Name: "alpha", Version: "1"}},
+		marker:  "alpha",
+		detects: compilers.SourceFormat{Name: "alpha", Version: "9"},
+	}
+	reg := compilers.NewRegistry()
+	require.NoError(t, reg.Register(front))
+
+	got, format, _, ok := reg.Detect(compilers.Source{Path: "s.txt", Data: []byte("alpha")})
+	assert.False(t, ok, "no compiler is registered for alpha@9")
+	assert.Nil(t, got)
+	assert.Equal(t, compilers.SourceFormat{Name: "alpha", Version: "9"}, format)
+}
+
+func TestRegistry_DetectEmptySource(t *testing.T) {
+	t.Parallel()
+	reg := compilers.NewRegistry()
+	require.NoError(t, reg.Register(&stubCompiler{
+		formats: []compilers.SourceFormat{{Name: "alpha", Version: "1"}},
+		marker:  "alpha",
+	}))
+
+	_, _, _, ok := reg.Detect(compilers.Source{Path: "empty.txt"})
+	assert.False(t, ok, "no bytes declare no format")
+}
+
+// TestRegistry_DetectSkipsCompilersThatDecline pins that a compiler declining a
+// source does not end the search.
+func TestRegistry_DetectSkipsCompilersThatDecline(t *testing.T) {
+	t.Parallel()
+	declines := &stubCompiler{
+		formats: []compilers.SourceFormat{{Name: "alpha", Version: "1"}},
+		marker:  "alpha",
+	}
+	claims := &stubCompiler{
+		formats: []compilers.SourceFormat{{Name: "beta", Version: "2"}},
+		marker:  "beta",
+	}
+	reg := compilers.NewRegistry()
+	require.NoError(t, reg.Register(declines))
+	require.NoError(t, reg.Register(claims))
+
+	got, format, _, ok := reg.Detect(compilers.Source{Path: "s.txt", Data: []byte("beta")})
+	require.True(t, ok)
+	assert.Same(t, compilers.Compiler(claims), got)
+	assert.Equal(t, compilers.SourceFormat{Name: "beta", Version: "2"}, format)
+}
+
+// TestRegistry_DetectCarriesWhatDecliningCompilersSaid pins the channel the
+// contract opened: a compiler that declines a source it recognizes as its own
+// and broken has something to report, and the registry is what carries it out to
+// a caller that would otherwise have only "nobody claimed these bytes".
+func TestRegistry_DetectCarriesWhatDecliningCompilersSaid(t *testing.T) {
+	t.Parallel()
+	said := ir.NewDiagnostic(ir.SeverityError, "alpha/broken", "malformed alpha",
+		ir.Provenance{Source: ir.NoSource})
+	reg := compilers.NewRegistry()
+	require.NoError(t, reg.Register(&stubCompiler{
+		formats:  []compilers.SourceFormat{{Name: "alpha", Version: "1"}},
+		marker:   "alpha",
+		declines: []ir.Diagnostic{said},
+	}))
+
+	_, _, diags, ok := reg.Detect(compilers.Source{Path: "s.txt", Data: []byte("not for you")})
+
+	require.False(t, ok)
+	assert.Equal(t, []ir.Diagnostic{said}, diags)
+}
+
+// TestRegistry_DetectDropsDeclinesOnceClaimed pins the other half: a compiler
+// that takes the source ends the search, so an earlier decliner's account of why
+// it passed is moot. Carrying it anyway would attach a complaint to a compile
+// that went on to succeed.
+func TestRegistry_DetectDropsDeclinesOnceClaimed(t *testing.T) {
+	t.Parallel()
+	reg := compilers.NewRegistry()
+	require.NoError(t, reg.Register(&stubCompiler{
+		formats: []compilers.SourceFormat{{Name: "alpha", Version: "1"}},
+		marker:  "alpha",
+		declines: []ir.Diagnostic{ir.NewDiagnostic(ir.SeverityError, "alpha/broken", "malformed alpha",
+			ir.Provenance{Source: ir.NoSource})},
+	}))
+	require.NoError(t, reg.Register(&stubCompiler{
+		formats: []compilers.SourceFormat{{Name: "beta", Version: "2"}},
+		marker:  "beta",
+	}))
+
+	_, format, diags, ok := reg.Detect(compilers.Source{Path: "s.txt", Data: []byte("beta")})
+
+	require.True(t, ok)
+	assert.Equal(t, compilers.SourceFormat{Name: "beta", Version: "2"}, format)
+	assert.Empty(t, diags, "the source found a compiler, so nothing declined is worth saying")
+}
+
+// claimsNothing recognizes every source and names no format, which the contract
+// does not allow. It exists to pin what the registry does with a compiler that
+// breaks it.
+type claimsNothing struct{ stubCompiler }
+
+func (claimsNothing) Detect(compilers.Source) (compilers.SourceFormat, []ir.Diagnostic, bool) {
+	return compilers.SourceFormat{}, nil, true
+}
+
+// TestRegistry_DetectSkipsACompilerThatClaimsWithoutNaming pins that a compiler
+// answering "mine" while naming no format does not end the search. Ending it
+// there would make a source the next compiler would have taken come back
+// unrecognized, with nothing in the output naming the compiler that swallowed it.
+func TestRegistry_DetectSkipsACompilerThatClaimsWithoutNaming(t *testing.T) {
+	t.Parallel()
+	broken := &claimsNothing{stubCompiler{
+		formats: []compilers.SourceFormat{{Name: "alpha", Version: "1"}},
+	}}
+	claims := &stubCompiler{
+		formats: []compilers.SourceFormat{{Name: "beta", Version: "2"}},
+		marker:  "beta",
+	}
+	reg := compilers.NewRegistry()
+	require.NoError(t, reg.Register(broken))
+	require.NoError(t, reg.Register(claims))
+
+	got, format, _, ok := reg.Detect(compilers.Source{Path: "s.txt", Data: []byte("beta")})
+
+	require.True(t, ok, "the compiler after the broken one must still be asked")
+	assert.Same(t, compilers.Compiler(claims), got)
+	assert.Equal(t, compilers.SourceFormat{Name: "beta", Version: "2"}, format)
+}
+
+// TestRegistry_FormatsAreSortedNotRegistrationOrder pins both halves of what
+// Formats answers: every format some compiler serves, and in an order that does
+// not depend on how the registry was built. Registration order is deliberately
+// not it — this answers "what does this build accept" for a reader, and the same
+// set rendered two ways reads as two sets.
+func TestRegistry_FormatsAreSortedNotRegistrationOrder(t *testing.T) {
+	t.Parallel()
+	reg := compilers.NewRegistry()
+	require.NoError(t, reg.Register(&stubCompiler{formats: []compilers.SourceFormat{
+		{Name: "smithy", Version: "2.0"},
+		{Name: "openapi", Version: "3.1"},
+	}}))
+	require.NoError(t, reg.Register(&stubCompiler{formats: []compilers.SourceFormat{
+		{Name: "openapi", Version: "3.0"},
+	}}))
+
+	assert.Equal(t, []compilers.SourceFormat{
+		{Name: "openapi", Version: "3.0"},
+		{Name: "openapi", Version: "3.1"},
+		{Name: "smithy", Version: "2.0"},
+	}, reg.Formats())
+}
+
+// TestRegistry_FormatsOfAnEmptyRegistryIsEmpty pins that the zero registry
+// answers rather than panicking on its nil map.
+func TestRegistry_FormatsOfAnEmptyRegistryIsEmpty(t *testing.T) {
+	t.Parallel()
+	assert.Empty(t, compilers.NewRegistry().Formats())
+	assert.Empty(t, new(compilers.Registry).Formats())
 }

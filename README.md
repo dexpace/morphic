@@ -122,6 +122,7 @@ Help always prints to stdout and exits `0`.
 | `-o <file>` | `compile` | Write IR JSON to `<file>` instead of stdout, compact rather than indented. |
 | `--pretty` | `compile` | Indent the JSON `-o` writes; stdout is indented either way. |
 | `--explain <json-pointer>` | `compile` | Report what compiling produced at this source coordinate instead of writing the document. |
+| `--opt <key>=<value>` | both | Set one option on the compiler the spec selects. Repeatable; a repeated key is refused. |
 
 Diagnostics print one per line as `<severity> <code> <location>: <message>`, where `<location>` is
 `<path>#<pointer>` for a finding in a spec file, a bare pointer for one an IR pass made about the
@@ -133,10 +134,29 @@ covers an undecodable file, an unrecognized or unsupported format, and a version
 `2` the invocation or the filesystem was wrong — a bad flag or argument, a spec that could not be
 read, an output that could not be written. Nothing about the spec's own contents reaches `2`.
 
+#### Compiler options
+
+`--opt` names an option in the vocabulary of whichever compiler recognizes the spec — morphic
+itself knows none of them, and an unknown name is refused by the compiler rather than ignored.
+The OpenAPI compiler accepts:
+
+| Option | Values | Meaning |
+|---|---|---|
+| `grouping` | `tags` (default), `path-prefix` | How operations are grouped into operation groups. |
+| `allow-external-refs` | `true`, `false` (default) | Let `$ref` resolution leave the source document, reading files and fetching URLs. |
+| `overlay` | a file path | Apply an [OpenAPI Overlay](https://spec.openapis.org/overlay/latest.html) document to the source before lowering. |
+| `overlay-lax` | `true`, `false` (default) | Do not refuse when an overlay action's selector matches nothing. |
+
+```bash
+morphic compile openapi.yaml --opt grouping=path-prefix --opt overlay=patch.yaml
+```
+
 ### Library
 
 The same pipeline is available as a package. `engine.New` builds the default registry (OpenAPI
-compiler + `validate` pass); `Run` sniffs the format, compiles, and runs passes.
+compiler + `validate` pass); `Run` asks the registered compilers which of them recognizes the
+source, compiles, and runs passes. A Go caller can set compiler options as a typed value through
+`RunOptions.FormatOptions` instead of as text through `RunOptions.CompilerOptions`.
 
 ```go
 eng, err := engine.New()

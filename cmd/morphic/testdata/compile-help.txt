@@ -9,6 +9,10 @@ written with -o is compact unless --pretty asks for the indented form.
 type node interned there, the coordinates interned beneath it, and the
 diagnostics stamped at it — instead of writing the document.
 
+--opt passes a setting to the compiler the spec selects, which names and
+validates its own options; morphic itself knows none of them. The OpenAPI
+compiler's are listed in the README.
+
 A -- argument ends flag parsing: every argument after it is an operand,
 even one that begins with a dash, which is how a spec file named like a
 flag is passed.
@@ -20,6 +24,8 @@ flags:
     	fail (exit 1) on diagnostics at or above this severity: error|warning (default "error")
   -o string
     	write IR JSON to this file instead of stdout
+  -opt key=value
+    	set one key=value option on the compiler the spec selects (repeatable)
   -pretty
     	indent the IR JSON -o writes; stdout is indented either way
   -skip-validate

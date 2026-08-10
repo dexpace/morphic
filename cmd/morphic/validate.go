@@ -20,7 +20,9 @@ func newValidateCommand() command {
 			"--fail-on, 1 when something does or the spec lowered to no document at all,\n" +
 			"2 for a misuse or an I/O error.\n\n" +
 			"--skip-validate names the referential-integrity pass, not this command: it\n" +
-			"drops that pass's diagnostics and keeps the compiler's.",
+			"drops that pass's diagnostics and keeps the compiler's.\n\n" +
+			"--opt is compile's, and takes the same settings: a spec that needs one to\n" +
+			"compile needs it here too, or what is checked is not what would be built.",
 		printFlags: func(w io.Writer) {
 			fs, _ := newValidateFlags()
 			fs.SetOutput(w)

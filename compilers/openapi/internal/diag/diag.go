@@ -12,6 +12,7 @@ package diag
 
 import (
 	"fmt"
+	"strings"
 
 	"github.com/dexpace/morphic/ir"
 )
@@ -44,6 +45,13 @@ const (
 	// alias-expansion allowance is derived from, so the document is refused rather
 	// than scanned against a bound computed from a count that stopped early.
 	SourceTooLarge = "openapi/source-too-large"
+	// UndecodableSource reports a source that declares one of this compiler's
+	// discriminating keys and does not parse as YAML or JSON. It is reported from
+	// detection rather than from the compile, because a document that cannot be
+	// parsed never reaches one: without it the engine could only say no compiler
+	// recognized the source, which is wrong twice over — this compiler did
+	// recognize it, and the reason it declined is the parse error it holds.
+	UndecodableSource = "openapi/undecodable-source"
 	// OverlayInvalid reports an overlay document that could not be parsed, or that
 	// parsed but is not a valid Overlay — a missing version, no actions, an action
 	// naming no target. Nothing is applied, so the compile refuses rather than
@@ -217,4 +225,36 @@ func Newf(sev ir.Severity, code string, prov ir.Provenance, format string, args 
 // advisory warnings it must carry forward rather than abort on.
 func HasError(diags []ir.Diagnostic) bool {
 	return ir.HasError(diags)
+}
+
+// OneLine collapses err's text onto a single line, for a diagnostic that carries
+// an error raised by something else.
+//
+// A diagnostic is rendered one per line, so an embedded newline splits one
+// report into several — and every line after the first carries no severity, code
+// or location, which reads as a malformed diagnostic to anything parsing stderr.
+// Both libraries this compiler reports through write multi-line errors: yaml.v3
+// as a header plus one indented line per finding, the overlay validator as a
+// flat list of sentences.
+//
+// Parts are joined with "; " so a flat list reads as a list, except after a part
+// that already ends in a colon, where the next line is that header's content and
+// a semicolon would read as a break in it.
+func OneLine(err error) string {
+	var out strings.Builder
+	for _, line := range strings.Split(err.Error(), "\n") {
+		part := strings.Join(strings.Fields(line), " ")
+		if part == "" {
+			continue
+		}
+		if out.Len() > 0 {
+			if strings.HasSuffix(out.String(), ":") {
+				out.WriteString(" ")
+			} else {
+				out.WriteString("; ")
+			}
+		}
+		out.WriteString(part)
+	}
+	return out.String()
 }
