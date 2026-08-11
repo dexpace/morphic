@@ -152,6 +152,31 @@ func TestComponentSchemaName_NarrowsToSchemas(t *testing.T) {
 	}
 }
 
+// TestComponentSchemaNamedEmpty_SeparatesAnEmptyNameFromNoEntry pins the one
+// distinction ComponentEntry deliberately throws away. Both answer "no named
+// type", but they are different facts: a component schema keyed "" exists at
+// /components/schemas/ and earns none, while the other pointers name no
+// component-schema entry at all. Only a caller that can tell them apart can
+// report the first without denying the schema the document plainly declares.
+func TestComponentSchemaNamedEmpty_SeparatesAnEmptyNameFromNoEntry(t *testing.T) {
+	t.Parallel()
+	assert.True(t, ids.ComponentSchemaNamedEmpty("/components/schemas/"),
+		`/components/schemas/ addresses the component schema keyed ""`)
+
+	for _, pointer := range []string{
+		"/components/schemas/User",           // a named entry
+		"/components/headers/",               // an empty name of another kind
+		"/components/schemas",                // the kind alone, no trailing token
+		"/components/schemas//properties/id", // a position inside the empty-named schema
+		"/components//",                      // no kind
+		"/paths/~1x/get",                     // not under components
+		"",                                   // the empty pointer
+	} {
+		assert.False(t, ids.ComponentSchemaNamedEmpty(pointer),
+			`%q does not address the component schema keyed ""`, pointer)
+	}
+}
+
 // TestForPointer_ChoosesTheNamespace pins the split ForPointer exists for: a
 // component schema keeps its named ID, everything else is anonymous. The two
 // namespaces are what stop a hoisted inline type colliding with a declared one.

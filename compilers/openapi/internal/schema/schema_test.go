@@ -2,6 +2,7 @@ package schema_test
 
 import (
 	"encoding/json"
+	"fmt"
 	"sort"
 	"strings"
 	"testing"
@@ -3174,6 +3175,28 @@ func TestDynamicRef_IrreducibleIsKeptAndSaysWhy(t *testing.T) {
 			wantWhy: `an $id at or above "/components/schemas/A"`,
 		},
 		{
+			// The pointer of a schema named "" ends in an empty reference token,
+			// which the path walk once dropped as if it were the artifact of
+			// splitting a pointer on '/' — reading the components/schemas map for
+			// the $id instead of the schema itself, and expanding across a
+			// boundary it should have stopped at.
+			name:    `a schema named "" is still in a resource of its own`,
+			schemas: anchor + "    \"\": {$id: 'https://example.com/empty', $dynamicRef: '#m'}\n",
+			wantWhy: `an $id at or above "/components/schemas/"`,
+			at:      "t/anon/components/schemas/",
+		},
+		{
+			// The mirror of the case above, on the anchor's side. /components/
+			// schemas/ addresses a component schema, so the refusal may not say it
+			// does not — the reason is that an empty name earns no named TypeID,
+			// which is the policy testdata/conformance/openapi/empty-names.yaml
+			// records rather than a shape the compiler failed to recognise.
+			name:    `an anchor on a schema named "" says why, not that it is no component`,
+			schemas: "    \"\": {$dynamicAnchor: m, type: string}\n    A: {$dynamicRef: '#m'}\n",
+			wantWhy: `is declared on the component schema keyed "" at "/components/schemas/", ` +
+				`and an empty name earns no named type to expand to`,
+		},
+		{
 			name: "an enclosing schema starts the resource",
 			schemas: anchor +
 				"    A: {$id: 'https://example.com/a', type: array, items: {$dynamicRef: '#m'}}\n",
@@ -3210,6 +3233,67 @@ func TestDynamicRef_IrreducibleIsKeptAndSaysWhy(t *testing.T) {
 			assertDiagContains(t, diags, entry.Provenance.Pointer, tc.wantWhy)
 		})
 	}
+}
+
+// mergeBoundOrderSpec writes one document whose resource boundary is reachable
+// only through a YAML merge chain, with the two schemas that walk it declared in
+// the given order. P's chain is 51 links and expands whole; Q's rides on P's tail
+// for 71, past nodeview's MergeDepthLimit of 64.
+func mergeBoundOrderSpec(pFirst bool) string {
+	var b strings.Builder
+	b.WriteString("openapi: 3.1.0\ninfo: {title: MergeBound, version: \"1\"}\npaths: {}\n")
+	b.WriteString("x-c0: &c0 {$id: 'https://example.com/boundary'}\n")
+	for i := 1; i <= 50; i++ {
+		fmt.Fprintf(&b, "x-c%d: &c%d {<<: *c%d}\n", i, i, i-1)
+	}
+	b.WriteString("x-d0: &d0 {<<: *c50}\n")
+	for i := 1; i <= 20; i++ {
+		fmt.Fprintf(&b, "x-d%d: &d%d {<<: *d%d}\n", i, i, i-1)
+	}
+	b.WriteString("components:\n  schemas:\n    Node: {$dynamicAnchor: T, type: string}\n")
+	const p = "    P:\n      <<: *c50\n      $dynamicRef: '#T'\n"
+	const q = "    Q:\n      <<: *d20\n      $dynamicRef: '#T'\n"
+	if pFirst {
+		b.WriteString(p + q)
+		return b.String()
+	}
+	b.WriteString(q + p)
+	return b.String()
+}
+
+// TestDynamicRef_ResourceBoundaryVerdictIsOrderInvariant pins that which schema
+// lowered first cannot decide whether the other sees the $id above it.
+//
+// declaresResourceIDAbove builds its nodeview.View per call for this reason. A
+// view outliving one walk memoizes a mapping's merge expansion, and a node first
+// expanded shallowly is then served from that memo to a walk reaching it deeper
+// than MergeDepthLimit permits. Sharing one made P-then-Q keep Q's reference
+// verbatim where Q-then-P expanded it, in the same document.
+//
+// The order-invariance oracle cannot ask this. The construct needs YAML anchors,
+// and reverseMappings declines to permute a document whose aliases the reversal
+// would lift above their anchors, so the sweep returns ok whichever way the
+// walk answers — which is what earns this a two-order diff of its own.
+//
+// It asserts the two orders agree rather than which verdict they agree on: a
+// chain past the bound expands to nothing, so the $id is invisible and both
+// currently miss the boundary (GitHub #401). Fixing that changes the shared
+// answer, not this test.
+func TestDynamicRef_ResourceBoundaryVerdictIsOrderInvariant(t *testing.T) {
+	t.Parallel()
+	first, diags := parseFull(t, mergeBoundOrderSpec(true))
+	openapitest.RequireNoErrorDiags(t, diags)
+	last, diags := parseFull(t, mergeBoundOrderSpec(false))
+	openapitest.RequireNoErrorDiags(t, diags)
+
+	// The registry rather than the whole document: the cycle pre-scan shares one
+	// view across its own walk, so whether it reports stopping at the same
+	// 64-level bound depends on which schema it reached first, and that warning
+	// appears in one order only (GitHub #402). It is the same mechanism in a
+	// different walk, and it is not what this test governs — the boundary verdict
+	// lands in the registry.
+	assert.Empty(t, cmp.Diff(first.Types, last.Types, orderInvariantIR()...),
+		"the declaration order must not decide a resource-boundary verdict")
 }
 
 // TestDynamicRef_CycleIsRefusedAtEveryEdge pins that a cycle of $dynamicRef

@@ -217,6 +217,67 @@ func TestDeclaresResourceIDAbove_WithoutARawTree(t *testing.T) {
 		"a document with no raw tree declares no resource anywhere")
 }
 
+// TestDeclaresResourceIDAbove_EmptySegmentIsATokenNotAnArtifact pins which empty
+// segments the path walk may drop. Splitting a pointer on '/' produces one
+// leading empty segment that no reference token stands behind; every later one
+// is the token naming the key "", which is how a schema literally named "" is
+// addressed. Dropping those stopped the walk above the position and read the
+// $id of the components/schemas map instead of the schema's own.
+//
+// The document root carries a member named "" of its own, carrying an $id. It is
+// what makes the two rootward cases discriminating rather than decorative: the
+// empty pointer names the root and must not reach it, while "/" is precisely how
+// ids.Ptr spells that member and must. Without the $id there, "stopped at the
+// root" and "descended and fell off the tree" are the same false.
+func TestDeclaresResourceIDAbove_EmptySegmentIsATokenNotAnArtifact(t *testing.T) {
+	t.Parallel()
+	l, diags := loweredFor(t, `openapi: 3.1.0
+info: {title: T, version: "1"}
+paths: {}
+"": {$id: https://example.com/root-member}
+components:
+  schemas:
+    "":
+      $id: https://example.com/empty
+      properties: {x: {type: string}}
+    Sibling: {type: string}
+`)
+	openapitest.RequireNoErrorDiags(t, diags)
+
+	for name, tc := range map[string]struct {
+		pointer string
+		want    bool
+		why     string
+	}{
+		"the position is named by a trailing empty token": {
+			"/components/schemas/", true,
+			"the trailing token names the schema itself, whose own $id is the boundary",
+		},
+		"an interior empty token still descends": {
+			"/components/schemas//properties/x", true,
+			"the $id above a property is still a boundary over it",
+		},
+		"a sibling sits above no $id at all": {
+			"/components/schemas/Sibling", false,
+			"a neighbour of the named schema inherits no boundary from it",
+		},
+		"the empty pointer names the document root": {
+			"", false,
+			`the empty pointer stops at the root, so the $id under the root's "" member is out of reach`,
+		},
+		"a lone slash names the root member keyed \"\"": {
+			"/", true,
+			`ids.Ptr("") spells that member "/", so its own $id is the boundary — reading "/" as the root, ` +
+				"the way a reference resolves, would walk straight past it",
+		},
+	} {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			assert.Equal(t, tc.want, declaresResourceIDAbove(l.ctx, tc.pointer), tc.why)
+		})
+	}
+}
+
 // TestDynamicAnchors_WalksEveryNodeShape drives the raw-tree walk over the
 // shapes a YAML document can present, rather than only the mappings a schema
 // happens to be written as. The walk reads the raw tree because oas3.Schema has

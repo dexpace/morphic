@@ -1536,7 +1536,7 @@ func dynamicExpansion(c lowering.Ctx, anchors *AnchorIndex, s *oas3.Schema, poin
 	}
 	id, resolved, handled := c.RefScope().ComponentRef(at)
 	if !handled || !resolved {
-		return "", fmt.Sprintf("$dynamicAnchor %q is declared at %q rather than on a component schema", name, at), false, diags
+		return "", unnamedAnchorSiteWhy(name, at), false, diags
 	}
 	chainWhy, chainOK, chainDiags := dynamicChainVerdict(c, anchors, at, pointer)
 	diags = append(diags, chainDiags...)
@@ -1544,6 +1544,25 @@ func dynamicExpansion(c lowering.Ctx, anchors *AnchorIndex, s *oas3.Schema, poin
 		return "", chainWhy, false, diags
 	}
 	return id, "", true, diags
+}
+
+// unnamedAnchorSiteWhy words why the position declaring an anchor is not a
+// target the IR can name, for the two document shapes that reach it.
+//
+// A pointer deeper than a top-level component schema names a position with no
+// TypeID stable enough to expand to, which is the ordinary case. A component
+// schema keyed "" is the other, and it is a component schema — /components/
+// schemas/ addresses it — that earns no named TypeID all the same, because an
+// empty name is not one. Wording that as "rather than on a component schema"
+// states something the document contradicts: a reader who follows the pointer
+// lands on the very thing the message says is not there. The verdict is the same
+// either way; only the reason differs.
+func unnamedAnchorSiteWhy(name, at string) string {
+	if ids.ComponentSchemaNamedEmpty(at) {
+		return fmt.Sprintf(`$dynamicAnchor %q is declared on the component schema keyed "" at %q, `+
+			"and an empty name earns no named type to expand to", name, at)
+	}
+	return fmt.Sprintf("$dynamicAnchor %q is declared at %q rather than on a component schema", name, at)
 }
 
 // dynamicRefName returns the $dynamicAnchor name the $dynamicRef s writes
@@ -1692,21 +1711,42 @@ func componentSchemaAt(c lowering.Ctx, pointer string) *oas3.Schema {
 // there. That is the same direction the anchor index errs in: a false boundary
 // costs an expansion that would have been safe, where a missed one mints a
 // reference the IR cannot express.
+//
+// The path comes from nodeview.DocumentPath, which drops only the leading empty
+// segment: a later empty token still takes a step of its own and names the key
+// "", which is how a component schema named "" is addressed
+// (/components/schemas/). Walking the tokens here instead had dropped every
+// empty segment, stopping above such a position and reading the $id of the
+// components/schemas map rather than the schema's own. DocumentPath rather than
+// PointerPath because every pointer arriving here is a position this compiler
+// built with ids.Ptr: the two differ only on "/", which ids.Ptr("") uses to
+// spell the root member named "", and which PointerPath lands on the root
+// instead because that is where a *reference* resolves.
+//
+// An incomplete walk needs no separate arm: the path holds the nodes it did
+// reach, and a boundary above a pointer that falls off the tree still binds.
+//
+// The view is built per call and deliberately not shared. nodeview memoizes a
+// mapping's merge expansion, and a node first expanded shallowly is served from
+// that memo to a later walk that reaches it deeper than MergeDepthLimit would
+// allow — so a view outliving one walk makes this answer depend on which schema
+// lowered first, which invariant #7 forbids. A per-call view costs one expansion
+// per path node and is order-invariant.
+//
+// Known gap: a path node whose own merge chain exceeds MergeDepthLimit expands
+// to nothing, so an $id written there is invisible and this reports no boundary
+// — the direction it must not err in. That predates this walk and needs a
+// reporting channel of its own; GitHub #401 carries it.
 func declaresResourceIDAbove(c lowering.Ctx, pointer string) bool {
 	view := nodeview.New()
-	cur := nodeview.DocumentRoot(nodeview.Deref(c.Doc.GetRootNode()))
-	for seg := range strings.SplitSeq(pointer, "/") {
-		if cur == nil {
-			return false
-		}
-		if view.ChildByToken(cur, "$id") != nil {
+	root := nodeview.DocumentRoot(nodeview.Deref(c.Doc.GetRootNode()))
+	path, _ := view.DocumentPath(root, pointer)
+	for _, n := range path {
+		if view.ChildByToken(n, "$id") != nil {
 			return true
 		}
-		if seg != "" { // every pointer starts with the empty segment
-			cur = nodeview.Deref(view.ChildByToken(cur, ids.UnescapeSegment(seg)))
-		}
 	}
-	return cur != nil && view.ChildByToken(cur, "$id") != nil
+	return false
 }
 
 // dynamicFragment returns the anchor name a $dynamicRef addresses, or the reason

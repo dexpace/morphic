@@ -410,6 +410,36 @@ func assertDynamicRef(t *testing.T, doc *ir.Document, diags []ir.Diagnostic) {
 	assert.JSONEq(t, `"#Missing"`, string(entry.Value))
 	assert.Equal(t, []ir.Severity{ir.SeverityInfo}, diagsAt(diags, "openapi/degraded-construct",
 		"/components/schemas/Tree/properties/ghost/$dynamicRef"))
+
+	assertDynamicRefAcrossAnEmptyName(t, doc, diags)
+}
+
+// assertDynamicRefAcrossAnEmptyName pins the reference declared beside an $id on
+// the component schema keyed "". Its pointer, /components/schemas/, ends in an
+// empty reference token, and a walk that drops that token reads the
+// components/schemas map instead of the schema — a map declaring no $id, so the
+// resource boundary disappears and the reference expands across it (GitHub
+// #302).
+//
+// It lives in the corpus rather than only in a unit test because the oracles run
+// here: order-invariance, determinism, JSON round-trip and irverify each drive
+// this construct only if some committed spec writes it, and until this one did,
+// no spec combined an empty component name with $id and $dynamicRef at all.
+func assertDynamicRefAcrossAnEmptyName(t *testing.T, doc *ir.Document, diags []ir.Diagnostic) {
+	t.Helper()
+	// An empty name earns no named TypeID, so the schema hoists anonymously.
+	empty, ok := doc.Types[ir.TypeID("t/anon/components/schemas/")].(*ir.Scalar)
+	require.True(t, ok, `the component schema keyed "" owns a node`)
+
+	entry := unmodeledEntry(t, empty.Unmodeled, "openapi:$dynamicRef")
+	assert.Equal(t, ir.ReasonDegradedLowering, entry.Reason)
+	assert.JSONEq(t, `"#T"`, string(entry.Value),
+		"the reference is kept verbatim rather than expanded across the $id")
+	require.NotNil(t, empty.Base)
+	assert.Equal(t, ir.TypeID("t/prim/any"), empty.Base.Target,
+		"an expansion would have made the anchor's own node this one's base instead")
+	assert.Equal(t, []ir.Severity{ir.SeverityInfo}, diagsAt(diags, "openapi/degraded-construct",
+		"/components/schemas//$dynamicRef"))
 }
 
 // assertInlineResidue pins the other half of ir-design §14's OpenAPI row: a

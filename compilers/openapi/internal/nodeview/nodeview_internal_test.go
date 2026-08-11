@@ -491,6 +491,34 @@ func TestPointerPath_RootTokenlessAndNil(t *testing.T) {
 	assert.Nil(t, path, "a nil root reaches nothing")
 }
 
+// TestDocumentPath_SeparatesTheLoneSlashFromTheRoot pins the one question the
+// two readings answer differently.
+//
+// PointerPath lands '/' on the root because that is where the resolver lands a
+// reference spelled that way. A pointer naming a position in this document
+// carries no such departure: ids.Ptr("") spells the root member keyed "" exactly
+// '/', so reading it as the root walks past the member the pointer names — and a
+// caller reading $id down the path would miss one written there.
+func TestDocumentPath_SeparatesTheLoneSlashFromTheRoot(t *testing.T) {
+	t.Parallel()
+	member := ymap(yscalar("$id"), yscalar("https://example.com/root-member"))
+	root := ymap(yscalar(""), member)
+
+	path, complete := New().DocumentPath(root, "/")
+	assert.True(t, complete, `"/" resolves the one token it carries`)
+	assert.Equal(t, []*yaml.Node{root, member}, path,
+		`ids.Ptr("") spells the root member keyed "" as "/", so the walk descends into it`)
+
+	path, complete = New().PointerPath(root, "/")
+	assert.True(t, complete)
+	assert.Equal(t, []*yaml.Node{root}, path,
+		"the reference reading stops at the root, which is what tokenless records")
+
+	path, complete = New().DocumentPath(root, "")
+	assert.True(t, complete, "only the empty pointer names the root here")
+	assert.Equal(t, []*yaml.Node{root}, path)
+}
+
 // TestPointerPath_EmptyTokenIsARealToken pins the one token a walk must not
 // normalize away. RFC 6901 makes "" a reference token naming the key "", and the
 // resolver's own parser agrees (jsonpointer/navigation.go getNavigationStack,
