@@ -3,6 +3,7 @@ package scan
 import (
 	"fmt"
 	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"testing"
@@ -51,6 +52,33 @@ var cycleReproducers = []struct{ name, file string }{
 	// overflows the stack rather than deadlocking: the resolution cache ends up
 	// pointing at its own reference and GetObject's delegation recurses.
 	{"pointer-whitespace-self", "cycle_pointer_whitespace_self"},
+}
+
+// TestCycleReproducers_EveryFixtureIsExercised holds cycleReproducers to the
+// fixtures on disk. A cycle_*.yaml added to the corpus and left out of the table
+// is scanned by nothing here, and the suite stays green while the corpus grows
+// past it.
+//
+// The compiler package keeps a table of the same fixtures for its own assertion
+// and carries the twin of this test. Holding both to one directory is what stops
+// the two from drifting apart as well as from the corpus, which neither package
+// can check directly — a test package cannot import another's.
+func TestCycleReproducers_EveryFixtureIsExercised(t *testing.T) {
+	t.Parallel()
+	onDisk, err := filepath.Glob(filepath.Join(reproducerDir, "cycle_*.yaml"))
+	require.NoError(t, err, "globbing the reproducer corpus")
+	require.NotEmpty(t, onDisk, "the corpus holds cycle reproducers")
+
+	listed := make(map[string]bool, len(cycleReproducers))
+	for _, tc := range cycleReproducers {
+		listed[tc.file+".yaml"] = true
+	}
+	for _, path := range onDisk {
+		assert.True(t, listed[filepath.Base(path)],
+			"%s is in %s but not in cycleReproducers", filepath.Base(path), reproducerDir)
+	}
+	assert.Len(t, cycleReproducers, len(onDisk),
+		"cycleReproducers and %s hold different numbers of fixtures", reproducerDir)
 }
 
 func TestDetectCycles_Reproducers(t *testing.T) {
@@ -248,9 +276,13 @@ func rawNodes(n *yaml.Node) int64 {
 	return sourceindex.Build(n, sourceindex.MaxIndexedNodes).Nodes()
 }
 
+// reproducerDir is where the cycle fixtures live, spelled once so the reader
+// below and the table guard cannot disagree about it.
+const reproducerDir = "../../../../testdata/openapi"
+
 func readReproducer(t *testing.T, file string) []byte {
 	t.Helper()
-	data, err := os.ReadFile("../../../../testdata/openapi/" + file + ".yaml")
+	data, err := os.ReadFile(filepath.Join(reproducerDir, file+".yaml"))
 	require.NoError(t, err)
 	return data
 }

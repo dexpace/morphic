@@ -124,16 +124,20 @@ func TestDanglingRefs_EveryReproducerIsExercised(t *testing.T) {
 	require.NoError(t, err, "globbing the reproducer directory")
 	require.NotEmpty(t, onDisk, "the reproducer directory is not empty")
 
-	listed := make(map[string]bool, len(danglingReproducers()))
-	for _, tc := range danglingReproducers() {
+	table := danglingReproducers()
+	listed := make(map[string]bool, len(table))
+	for _, tc := range table {
 		listed[tc.file] = true
 	}
 	for _, path := range onDisk {
 		assert.True(t, listed[filepath.Base(path)],
 			"%s is in %s but not in danglingReproducers", filepath.Base(path), danglingDir)
 	}
-	assert.Len(t, danglingReproducers(), len(onDisk),
-		"the table names a fixture the directory does not hold")
+	// Neutral about which side is short, because it catches both: a row naming no
+	// fixture is what it is here for, and it fires again beside the check above
+	// when the directory is the side holding the extra.
+	assert.Len(t, table, len(onDisk),
+		"danglingReproducers and %s hold different numbers of fixtures", danglingDir)
 }
 
 // TestDanglingRefs_Reproducers compiles each issue-#14 reproducer and asserts the
