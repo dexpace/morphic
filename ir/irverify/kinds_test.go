@@ -47,6 +47,36 @@ func TestVerify_UndeclaredPrimKindIsAViolation(t *testing.T) {
 	}
 }
 
+// TestVerify_NilTypeBesideAPrimitiveDoesNotPanic holds checkPrimKinds to the
+// report-only guarantee, at the nil shape that can actually break it.
+//
+// An untyped nil fails the *ir.Primitive assertion, so a check with no guard at
+// all skips it and looks safe; a typed nil satisfies the assertion, and the kind
+// read behind it is a real dereference. Planting only the untyped one leaves
+// ir.IsNilTypeDef removable here with the whole suite green — which is what it
+// was, until this case was written.
+func TestVerify_NilTypeBesideAPrimitiveDoesNotPanic(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct {
+		name  string
+		entry ir.TypeDef
+	}{
+		{"an untyped nil entry", nil},
+		{"a typed nil primitive", (*ir.Primitive)(nil)},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			doc := primDoc("flt")
+			doc.Types["t/x/Nil"] = tc.entry
+
+			var got []irverify.Violation
+			require.NotPanics(t, func() { got = irverify.Verify(doc) })
+			assert.Contains(t, codes(got), "ir/unknown-prim-kind", "the bad kind is still reported")
+			assert.Contains(t, codes(got), "ir/nil-type", "the nil entry is reported by its own check")
+		})
+	}
+}
+
 // TestVerify_DeclaredPrimKindIsClean is the other half of the proof: a check
 // that cannot stay silent is no better than one that cannot fire. The documents
 // differ from the ones above only in the kind, so nothing but the kind can be
