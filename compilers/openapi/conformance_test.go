@@ -214,7 +214,7 @@ func conformanceCases() []conformanceCase {
 		{"file-body", assertFileBody, nil},
 		{"sequential-media", assertSequentialMedia, []string{"streaming-server"}},
 		{"streaming-media-30", assertStreamingMedia30, []string{"streaming-server"}},
-		{"streaming-media-31", assertStreamingMedia31, []string{"streaming-server"}},
+		{"streaming-media-31", assertStreamingMedia31, []string{"streaming-server", "streaming-client"}},
 		{"per-status-errors", assertPerStatusErrors, []string{"per-status-errors"}},
 		{"response-links", assertResponseLinks, nil},
 		{"webhooks", assertWebhooks, []string{"events-channels", "server-initiated-messages"}},

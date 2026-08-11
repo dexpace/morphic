@@ -51,7 +51,7 @@ the ones the next compiler will be first to bind to.
 | `multipart-encoding` | Multipart/form encoding | ✅ encoding | ✅ formData | ✅ multipart | — | — | — | — | — |
 | `per-status-errors` | Per-status error types | ✅ responses | ✅ | ✅ @error models | ✅ errors list (client/server fault) | — | — | ⚠ status codes | ⚠ {error, R} variants |
 | `streaming-server` | Streaming: server (SSE/chunk) | ✅ itemSchema/sequential media types (3.2) | — | ✅ streams | ✅ eventstream | ✅ subscription | ✅ | ✅ stream | ⚠ info streams |
-| `streaming-client` | Streaming: client / bidi | — | — | ✅ client · ⚠ bidi | ✅ | — | ✅ | ✅ | ⚠ cast/info flows |
+| `streaming-client` | Streaming: client / bidi | ⚠ request media type, inferred | — | ✅ client · ⚠ bidi | ✅ | — | ✅ | ✅ | ⚠ cast/info flows |
 | `events-channels` | Events / pub-sub channels | ✅ webhooks (3.1) | — | ✅ events/sse | — | ✅ subscriptions | ✅ channels | — | ✅ gen_event/info |
 | `callbacks` | Callbacks / request-reply | ✅ callbacks | — | — | — | — | ✅ reply (static + dynamic address) | — | ⚠ From-reply |
 | `pagination` | Pagination (first-class) | ⚠ x-* / links | — | ✅ @list/@pageItems + prev/first/last links | ✅ paginated trait | ⚠ connections | — | ⚠ AIP-158 | — |
