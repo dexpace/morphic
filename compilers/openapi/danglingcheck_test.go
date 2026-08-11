@@ -23,7 +23,7 @@ import (
 )
 
 // danglingDir holds the issue-#14 reproducers, copied out of triage so the tests
-// are self-contained. TestDanglingRefs_Reproducers' table is the enumeration, and
+// are self-contained. danglingReproducers is the enumeration, and
 // TestDanglingRefs_EveryReproducerIsExercised holds it to the directory.
 const danglingDir = "../../testdata/dangling/openapi"
 
