@@ -533,6 +533,33 @@ func TestRawChildNode_FindsAKeyWrittenAsAnAlias(t *testing.T) {
 	assert.Nil(t, RawChildNode(&doc, "k"), "and not by the anchor it is written as")
 }
 
+// TestRawChildNode_RepeatedKeyReadsTheLastPair holds this reader to the pair the
+// parser reads: marshaller skips every occurrence of a repeated key but the
+// last, so returning the first would describe the mapping by a value nothing
+// else in the compiler uses.
+//
+// Spelled with an alias, because that is how the case is reachable — yaml.v3
+// refuses a key written twice the same way, while an explicit pair and an
+// aliased one are two nodes here and one key to the parser.
+func TestRawChildNode_RepeatedKeyReadsTheLastPair(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct{ name, body, want string }{
+		{"aliased pair last", "anchor: &k dup\ndup: first\n*k : last\n", "last"},
+		{"aliased pair first", "anchor: &k dup\n*k : first\ndup: last\n", "last"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			var doc yaml.Node
+			require.NoError(t, yaml.Unmarshal([]byte(tc.body), &doc))
+
+			found := RawChildNode(&doc, "dup")
+
+			require.NotNil(t, found)
+			assert.Equal(t, tc.want, found.Value, "the last pair spelling the key is the effective one")
+		})
+	}
+}
+
 // TestRawPropertyNode_NilSchemaReadsNothing pins the nil guard on the schema
 // side of the same reader, which every caller relies on to ask about a position
 // that may have no body written at it.

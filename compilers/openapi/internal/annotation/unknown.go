@@ -34,6 +34,24 @@ func unreachableKeyDiag(entry, at string, srcIndex int) ir.Diagnostic {
 			"merged in through a `<<`; it is represented in the IR in no form at all", entry)
 }
 
+// occupiedEntryDiag reports a key whose Unmodeled entry is already held by a
+// construct written somewhere else, so this one reached the IR in no form.
+//
+// The carriers that hold more than one object's entries are where this happens:
+// an ir.Parameter's map carries the parameter's own keys and everything its
+// schema had no home for, both unscoped, so a parameter writing a key its schema
+// also writes as a keyword spells one entry between them. Which of the two
+// survives is decided by lowering order rather than by the document — see
+// GitHub #396, which is the namespace this census cannot settle on its own,
+// since the entries it would collide with are three other mechanisms' and moving
+// either side moves keys they already publish.
+func occupiedEntryDiag(entry, at, held string, srcIndex int) ir.Diagnostic {
+	return diag.Newf(ir.SeverityWarning, diag.UnknownKeyEntryTaken,
+		ir.Provenance{Source: srcIndex, Pointer: at},
+		"%s is already held by the construct at %q, so this key is represented in the IR in "+
+			"no form at all", entry, held)
+}
+
 // MaxUnknownKeys bounds how many keys one object contributes to the IR.
 //
 // The key set is the document's to choose the size of, and every collection in
@@ -42,10 +60,15 @@ func unreachableKeyDiag(entry, at string, srcIndex int) ir.Diagnostic {
 // rather than merely sloppy, and what it discards is announced under
 // diag.UnknownKeyBudget rather than dropped in silence.
 //
-// It bounds what this census contributes, not what the object wrote: a key
+// It bounds the keys this census answers for, not the keys the object wrote: one
 // another reader already kept is filtered out before the bound applies, since
-// spending a slot on an entry that is in the document either way would drop a
-// key that is not.
+// spending a slot on an entry that is in the document either way would drop a key
+// that is not. A key that is counted but proves unreachable still spends its slot
+// — reachability costs the same lookup as keeping it, so a bound that excluded
+// those would have to do the work twice to decide what it bounds.
+//
+// It bounds the diagnostics too, at one per key plus the budget's own, which is
+// what keeps an object whose every key is unreachable from reporting without end.
 const MaxUnknownKeys = 64
 
 // DecidedKeywords are the JSON Schema keywords the library's schema model names
@@ -142,13 +165,15 @@ type keyClass struct {
 // census records on p every key model's source object wrote that its own model
 // names no field for, each under its own key beneath scope.
 //
-// A key p already holds is left alone and not announced: the census is the
-// complement of everything the compiler read, not only of what the model names,
-// and a reader with a reason of its own for a keyword has already said it
-// better. Those are filtered before the bound applies — see MaxUnknownKeys.
+// A key p already holds for this very construct is left alone and not announced:
+// the census is the complement of everything the compiler read, not only of what
+// the model names, and a reader with a reason of its own for a keyword has
+// already said it better. Those are filtered before the bound applies — see
+// MaxUnknownKeys. An entry held for a construct written elsewhere is a collision
+// rather than a keyword already handled, and keep reports it.
 func census(p *ir.Unmodeled, model any, srcIndex int, owner, scope string, cl keyClass) []ir.Diagnostic {
 	keys, root := undeclaredKeys(model)
-	fresh := unrecorded(p, keys, scope, cl.skip)
+	fresh := unrecorded(p, keys, owner, scope, cl.skip)
 	if len(fresh) == 0 {
 		return nil
 	}
@@ -158,29 +183,48 @@ func census(p *ir.Unmodeled, model any, srcIndex int, owner, scope string, cl ke
 		fresh = fresh[:MaxUnknownKeys]
 	}
 	for _, key := range fresh {
-		entry, at := "openapi:"+scoped(scope, key), owner+ids.Ptr(key)
-		node := RawChildNode(root, key)
-		if node == nil {
-			diags = append(diags, unreachableKeyDiag(entry, at, srcIndex))
-			continue
-		}
-		kept, keptDiags := PreserveNodeInto(p, entry, node, ir.ReasonOutOfScope, at, srcIndex)
-		diags = append(diags, keptDiags...)
-		if !kept {
-			continue
-		}
-		diags = append(diags, diag.Newf(cl.severity, cl.code,
-			ir.Provenance{Source: srcIndex, Pointer: at}, cl.message, key))
+		diags = append(diags, keep(p, root, key, srcIndex, owner, scope, cl)...)
 	}
 	return diags
 }
 
-// unrecorded returns the keys this census has to contribute: the ones no reader
-// already kept on p, less the ones cl has decided about.
-func unrecorded(p *ir.Unmodeled, keys []string, scope string, skip []string) []string {
+// keep writes one key's value under its entry and announces it, or says why it
+// could not.
+func keep(p *ir.Unmodeled, root *yaml.Node, key string, srcIndex int, owner, scope string, cl keyClass) []ir.Diagnostic {
+	entry, at := "openapi:"+scoped(scope, key), owner+ids.Ptr(key)
+	if taken, occupied := (*p)[entry]; occupied {
+		return []ir.Diagnostic{occupiedEntryDiag(entry, at, taken.Provenance.Pointer, srcIndex)}
+	}
+	node := RawChildNode(root, key)
+	if node == nil {
+		return []ir.Diagnostic{unreachableKeyDiag(entry, at, srcIndex)}
+	}
+	kept, diags := PreserveNodeInto(p, entry, node, ir.ReasonOutOfScope, at, srcIndex)
+	if !kept {
+		return diags
+	}
+	return append(diags, diag.Newf(cl.severity, cl.code,
+		ir.Provenance{Source: srcIndex, Pointer: at}, cl.message, key))
+}
+
+// unrecorded returns the keys this census has to answer for: the ones cl has not
+// decided about, less the ones a reader already recorded for the very construct
+// this census would record.
+//
+// Sameness is the entry's provenance, not the entry's presence. A reader with
+// more to say about a keyword writes it at the pointer the census would use —
+// `$vocabulary` and `dependentRequired` on a schema's own map — and there the
+// census has nothing to add. An entry pointing somewhere else is a different
+// construct that happens to spell the same key, which is a collision rather than
+// a keyword already handled, and keep reports it.
+func unrecorded(p *ir.Unmodeled, keys []string, owner, scope string, skip []string) []string {
 	out := make([]string, 0, len(keys))
 	for _, key := range keys {
-		if _, recorded := (*p)["openapi:"+scoped(scope, key)]; recorded || slices.Contains(skip, key) {
+		if slices.Contains(skip, key) {
+			continue
+		}
+		if e, recorded := (*p)["openapi:"+scoped(scope, key)]; recorded &&
+			e.Provenance.Pointer == owner+ids.Ptr(key) {
 			continue
 		}
 		out = append(out, key)

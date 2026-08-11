@@ -7,6 +7,7 @@ package openapi_test // external test package — exercises only the public API
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -169,6 +170,36 @@ func TestUnknownKeys_SpellingDecidesNeitherEntryNorCarrier(t *testing.T) {
 	}
 	assert.Len(t, diagsAt(diags, "openapi/unknown-object-key", "/info/license/spdx"), 1,
 		"an aliased key is announced at the name it resolves to")
+}
+
+// TestUnknownKeys_ClashingCarrierEntryIsReportedNotDropped covers the one
+// carrier the census cannot key its way out of. A parameter and its schema are
+// two objects at two pointers whose entries share one unscoped map, so a key both
+// of them write is one entry, and the schema's reaches it first.
+//
+// The key that loses is announced with the pointer of the construct holding the
+// entry, rather than skipped by the branch meant for a keyword another reader
+// already said better. It is still in the IR in no form at all: separating the
+// namespaces moves keys #345, #348 and the validation-only reader already
+// publish, which is GitHub #396 and not this census's to settle.
+func TestUnknownKeys_ClashingCarrierEntryIsReportedNotDropped(t *testing.T) {
+	t.Parallel()
+	doc, diags := compileAnnotationSpec(t, "clash", specFile(t, "unknown_key_carrier_clash.yaml"))
+	requireNoErrorDiagnostics(t, diags)
+	sites := unmodeledSites(doc)
+
+	for _, tc := range []struct{ carrier, held, lost string }{
+		{"parameter", "/paths/~1widgets/get/parameters/0/schema/divisibleBy",
+			"/paths/~1widgets/get/parameters/0/divisibleBy"},
+		{"header", "/paths/~1widgets/get/responses/200/headers/X-Trace/schema/divisibleBy",
+			"/paths/~1widgets/get/responses/200/headers/X-Trace/divisibleBy"},
+	} {
+		assert.Equal(t, []ir.Severity{ir.SeverityWarning},
+			diagsAt(diags, "openapi/unknown-key-entry-taken", tc.lost),
+			"the %s key that lost the entry is announced at its own pointer", tc.carrier)
+		_, found := findUnmodeled(sites, "openapi:divisibleBy", `"FROM_`+strings.ToUpper(tc.carrier)+`_OBJECT"`)
+		assert.False(t, found, "the %s's own key is in the IR in no form at all, as reported", tc.carrier)
+	}
 }
 
 // TestUnknownKeys_WellFormedDocumentRecordsNothing is the control the census

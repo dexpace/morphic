@@ -290,6 +290,15 @@ const (
 	// rather than that one's error because such a document is legal and still
 	// lowers.
 	UnknownKeyUnreachable = "openapi/unknown-key-unreachable"
+	// UnknownKeyEntryTaken reports a key whose Unmodeled entry is already held by
+	// a construct declared somewhere else, so the key reached the IR in no form.
+	//
+	// The carriers holding more than one object's entries are where two constructs
+	// can spell one entry: a parameter's own keys and the keywords its schema had
+	// no home for share one unscoped namespace on ir.Parameter. Warning rather
+	// than error because the document is otherwise lowered whole, and the entry
+	// that did survive is in it.
+	UnknownKeyEntryTaken = "openapi/unknown-key-entry-taken"
 )
 
 // Newf builds an ir.Diagnostic with a formatted message. It is the single

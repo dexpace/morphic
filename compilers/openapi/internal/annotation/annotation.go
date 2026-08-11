@@ -503,6 +503,12 @@ func DeclaredSchema(js *oas3.JSONSchema[oas3.Referenceable]) *oas3.JSONSchema[oa
 // RawChildNode returns the raw YAML value node of a mapping child keyed by the
 // on-wire name, unwrapping a document node first; nil when absent. It reads exact
 // literals the high-level model does not preserve (links, servers, content maps).
+//
+// The last pair spelling the key wins, which is the pair the parser reads:
+// marshaller skips every occurrence of a repeated key but the last. Returning
+// the first instead described a mapping by a value nothing else in the compiler
+// uses — reachable once a key can be spelled two ways, since an explicit pair
+// and an aliased one are one key to the parser and two nodes here.
 func RawChildNode(root *yaml.Node, key string) *yaml.Node {
 	if root == nil {
 		return nil
@@ -513,12 +519,13 @@ func RawChildNode(root *yaml.Node, key string) *yaml.Node {
 	if root.Kind != yaml.MappingNode {
 		return nil
 	}
+	var found *yaml.Node
 	for i := 0; i+1 < len(root.Content); i += 2 {
 		if keyName(root.Content[i]) == key {
-			return root.Content[i+1]
+			found = root.Content[i+1]
 		}
 	}
-	return nil
+	return found
 }
 
 // keyName is the on-wire name a mapping key node spells, following an alias to
