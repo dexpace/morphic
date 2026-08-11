@@ -66,6 +66,14 @@
                 }
               ],
               "oneWay": false,
+              "streaming": "server",
+              "responseStream": {
+                "events": {
+                  "target": "t/anon/paths/~1events/get/responses/200/content/multipart~1mixed/itemSchema",
+                  "nullable": false
+                },
+                "requiresLength": false
+              },
               "idempotency": {},
               "auth": null,
               "bindings": {
@@ -149,6 +157,14 @@
                 }
               ],
               "oneWay": false,
+              "streaming": "server",
+              "responseStream": {
+                "events": {
+                  "target": "t/anon/paths/~1parts/get/responses/200/content/multipart~1mixed/itemSchema",
+                  "nullable": false
+                },
+                "requiresLength": false
+              },
               "idempotency": {},
               "auth": null,
               "bindings": {

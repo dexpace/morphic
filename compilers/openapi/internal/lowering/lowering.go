@@ -45,8 +45,9 @@ type Ctx struct {
 	// Provenance.
 	SrcIndex int
 	// Grouping selects how operations are grouped into OperationGroups. It is one
-	// of the two facts about the caller the context carries; everything else here
-	// is a fact about the document.
+	// of the caller policies the context carries — the budgets and the streaming
+	// media list are the others; everything else here is a fact about the
+	// document.
 	//
 	// It arrives as the caller wrote it, normalized or not — the compiler's
 	// Options fills an unset one in before building a context, but nothing here
@@ -60,6 +61,14 @@ type Ctx struct {
 	// spelling of "unbounded" before building a context, so the zero value here
 	// simply bounds nothing.
 	Limits Limits
+
+	// streaming is the media-type streaming policy, normalized into the set
+	// MediaTypeStreams answers from, and nil when the caller disabled it.
+	//
+	// It is the second caller policy, and it is unexported where Grouping is not
+	// because it holds a map: a struct copy would share it, which is the one
+	// thing keeping the other maps here unexported is for.
+	streaming map[string]bool
 
 	// schemas is the set of component-schema names the document declares.
 	//
@@ -105,20 +114,27 @@ type Ctx struct {
 // document as a valid target. It stays nil for a document that declares no
 // components, which reads the same as an empty set.
 //
+// The streaming policy is normalized into its lookup set here for a related
+// reason: normalizing at each reader would be as many places for the comparison
+// to differ as there are readers, and a media type that matched at one of them
+// and not another would classify one direction of an operation and not the
+// other.
+//
 // The $dynamicAnchor index is deliberately not derived here, though GitHub #172
 // asked for it. Building it emits a diagnostic when the walk hits its bounds, so
 // building it is a lowering action rather than context: done at entry, that
 // warning would reach documents that never write $dynamicRef, changing what the
 // compiler reports about them. It stays where it is, built on first use.
-func New(srcIndex int, doc *soa.OpenAPI, src ir.SourceInfo, grouping GroupingStrategy, limits Limits, origin overlay.Origin) Ctx {
+func New(srcIndex int, doc *soa.OpenAPI, src ir.SourceInfo, grouping GroupingStrategy, limits Limits, streaming StreamingMedia, origin overlay.Origin) Ctx {
 	return Ctx{
-		Doc:      doc,
-		Source:   src,
-		SrcIndex: srcIndex,
-		Grouping: grouping,
-		Limits:   limits,
-		schemas:  declaredSchemaNames(doc),
-		overlay:  origin,
+		Doc:       doc,
+		Source:    src,
+		SrcIndex:  srcIndex,
+		Grouping:  grouping,
+		Limits:    limits,
+		schemas:   declaredSchemaNames(doc),
+		streaming: streamingSet(streaming),
+		overlay:   origin,
 	}
 }
 

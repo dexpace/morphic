@@ -324,10 +324,11 @@ type opContext struct {
 // registered alongside it in the same group (ir-design §7.2, §8.1).
 func lowerOperation(c lowering.Ctx, ts *compile.Types, anchors *schema.AnchorIndex, operationIDs map[string]string, src *soa.Operation, opCtx opContext) (ir.Operation, []ir.Operation, []ir.Diagnostic) {
 	mount, decl := opCtx.ptrs.mount, opCtx.ptrs.decl
-	// Built through the context so the source index is spelled in one place, then
-	// marked inferred — the one provenance in this compiler that is.
+	// Built through the context so the source index is spelled in one place. Its
+	// heuristic marker is filled in below, once every lowering that can add one
+	// has run: the grouping choice is known here, but the streaming reading is
+	// not known until the payloads are lowered.
 	opProv := c.ProvenanceAt(decl)
-	opProv.Inferred = opCtx.inferred
 	opAuth, diags := auth.LowerSecurityRequirements(c, src.Security, decl)
 	op := ir.Operation{
 		ID:   ids.Op(mount),
@@ -363,6 +364,10 @@ func lowerOperation(c lowering.Ctx, ts *compile.Types, anchors *schema.AnchorInd
 		ParamBindings: bindings,
 	}
 	diags = append(diags, lowerRequestBody(c, ts, anchors, &op, &hb, src, decl)...)
+	// After both payload lowerings, which are what it reads.
+	streaming, streamDiags := applyStreaming(c, &op, decl)
+	diags = append(diags, streamDiags...)
+	op.Provenance.Inferred = joinInferred(opCtx.inferred, streaming)
 	var extra []ir.Operation
 	if opCtx.withCallbacks {
 		var cbExt ir.Unmodeled

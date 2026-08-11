@@ -115,7 +115,7 @@ func newLowerer(doc *load.Document, opts Options) *lowerer {
 // newRawLowerer builds a lowerer over a hand-constructed document, bypassing the
 // parser so nil slice/map entries (which the parser panics on) can be exercised.
 func newRawLowerer(doc *soa.OpenAPI) *lowerer {
-	return lowererOver(lowering.New(0, doc, ir.SourceInfo{}, "", lowering.Limits{}, overlay.Origin{}))
+	return lowererOver(lowering.New(0, doc, ir.SourceInfo{}, "", lowering.Limits{}, lowering.StreamingMedia{}, overlay.Origin{}))
 }
 
 // componentID is the stable TypeID of a components-named schema, or of a

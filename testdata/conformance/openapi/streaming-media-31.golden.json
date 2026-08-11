@@ -1,0 +1,557 @@
+{
+  "irVersion": "0.3.0",
+  "name": "StreamingMedia31",
+  "version": "1.0.0",
+  "docs": {},
+  "services": [
+    {
+      "id": "s/openapi/0",
+      "name": {
+        "source": "StreamingMedia31",
+        "canonical": "streaming_media_31"
+      },
+      "docs": {},
+      "groups": [
+        {
+          "name": {
+            "hint": "default"
+          },
+          "docs": {},
+          "operations": [
+            {
+              "id": "op/openapi/paths/~1ingest/post",
+              "name": {
+                "source": "ingestRows",
+                "canonical": "ingest_rows"
+              },
+              "docs": {},
+              "request": {
+                "contents": [
+                  {
+                    "mediaType": "application/x-ndjson",
+                    "type": {
+                      "target": "t/anon/paths/~1ingest/post/requestBody/content/application~1x-ndjson/schema",
+                      "nullable": false
+                    }
+                  }
+                ],
+                "unmodeled": {
+                  "openapi:required": {
+                    "reason": "no_ir_home",
+                    "value": false,
+                    "provenance": {
+                      "source": 0,
+                      "pointer": "/paths/~1ingest/post/requestBody/required"
+                    }
+                  }
+                }
+              },
+              "responses": [
+                {
+                  "name": {
+                    "hint": "200"
+                  },
+                  "conditions": {
+                    "statusCodes": [
+                      {
+                        "from": 200,
+                        "to": 200
+                      }
+                    ]
+                  },
+                  "payload": {
+                    "contents": [
+                      {
+                        "mediaType": "text/event-stream; charset=utf-8",
+                        "type": {
+                          "target": "t/anon/paths/~1ingest/post/responses/200/content/text~1event-stream; charset=utf-8/schema",
+                          "nullable": false
+                        }
+                      }
+                    ]
+                  },
+                  "docs": {
+                    "description": "ok"
+                  }
+                }
+              ],
+              "oneWay": false,
+              "streaming": "bidi",
+              "requestStream": {
+                "events": {
+                  "target": "t/anon/paths/~1ingest/post/requestBody/content/application~1x-ndjson/schema",
+                  "nullable": false
+                },
+                "requiresLength": false
+              },
+              "responseStream": {
+                "events": {
+                  "target": "t/anon/paths/~1ingest/post/responses/200/content/text~1event-stream; charset=utf-8/schema",
+                  "nullable": false
+                },
+                "requiresLength": false
+              },
+              "idempotency": {},
+              "auth": null,
+              "bindings": {
+                "http": [
+                  {
+                    "method": "POST",
+                    "uriTemplate": "/ingest",
+                    "sharedRoute": false,
+                    "requestContentTypes": [
+                      "application/x-ndjson"
+                    ],
+                    "checksumRequired": false,
+                    "isWebhook": false
+                  }
+                ]
+              },
+              "provenance": {
+                "source": 0,
+                "pointer": "/paths/~1ingest/post",
+                "inferred": "streaming-media-type"
+              }
+            },
+            {
+              "id": "op/openapi/paths/~1mixed/get",
+              "name": {
+                "source": "streamEither",
+                "canonical": "stream_either"
+              },
+              "docs": {},
+              "responses": [
+                {
+                  "name": {
+                    "hint": "200"
+                  },
+                  "conditions": {
+                    "statusCodes": [
+                      {
+                        "from": 200,
+                        "to": 200
+                      }
+                    ]
+                  },
+                  "payload": {
+                    "contents": [
+                      {
+                        "mediaType": "application/x-ndjson",
+                        "type": {
+                          "target": "t/anon/paths/~1mixed/get/responses/200/content/application~1x-ndjson/schema",
+                          "nullable": false
+                        }
+                      },
+                      {
+                        "mediaType": "application/jsonl",
+                        "type": {
+                          "target": "t/anon/paths/~1mixed/get/responses/200/content/application~1jsonl/schema",
+                          "nullable": false
+                        }
+                      }
+                    ]
+                  },
+                  "docs": {
+                    "description": "ok"
+                  }
+                }
+              ],
+              "oneWay": false,
+              "streaming": "server",
+              "responseStream": {
+                "requiresLength": false
+              },
+              "idempotency": {},
+              "auth": null,
+              "bindings": {
+                "http": [
+                  {
+                    "method": "GET",
+                    "uriTemplate": "/mixed",
+                    "sharedRoute": false,
+                    "checksumRequired": false,
+                    "isWebhook": false
+                  }
+                ]
+              },
+              "provenance": {
+                "source": 0,
+                "pointer": "/paths/~1mixed/get",
+                "inferred": "streaming-media-type"
+              }
+            },
+            {
+              "id": "op/openapi/paths/~1negotiated/get",
+              "name": {
+                "source": "streamNegotiated",
+                "canonical": "stream_negotiated"
+              },
+              "docs": {},
+              "responses": [
+                {
+                  "name": {
+                    "hint": "200"
+                  },
+                  "conditions": {
+                    "statusCodes": [
+                      {
+                        "from": 200,
+                        "to": 200
+                      }
+                    ]
+                  },
+                  "payload": {
+                    "contents": [
+                      {
+                        "mediaType": "text/event-stream",
+                        "type": {
+                          "target": "t/openapi/components/schemas/Frame",
+                          "nullable": false
+                        }
+                      },
+                      {
+                        "mediaType": "application/x-ndjson",
+                        "type": {
+                          "target": "t/openapi/components/schemas/Frame",
+                          "nullable": false
+                        }
+                      }
+                    ]
+                  },
+                  "docs": {
+                    "description": "ok"
+                  }
+                }
+              ],
+              "oneWay": false,
+              "streaming": "server",
+              "responseStream": {
+                "events": {
+                  "target": "t/openapi/components/schemas/Frame",
+                  "nullable": false
+                },
+                "requiresLength": false
+              },
+              "idempotency": {},
+              "auth": null,
+              "bindings": {
+                "http": [
+                  {
+                    "method": "GET",
+                    "uriTemplate": "/negotiated",
+                    "sharedRoute": false,
+                    "checksumRequired": false,
+                    "isWebhook": false
+                  }
+                ]
+              },
+              "provenance": {
+                "source": 0,
+                "pointer": "/paths/~1negotiated/get",
+                "inferred": "streaming-media-type"
+              }
+            }
+          ]
+        }
+      ],
+      "auth": null,
+      "provenance": {
+        "source": 0
+      }
+    }
+  ],
+  "types": {
+    "t/anon/paths/~1ingest/post/requestBody/content/application~1x-ndjson/schema": {
+      "kind": "model",
+      "id": "t/anon/paths/~1ingest/post/requestBody/content/application~1x-ndjson/schema",
+      "name": {
+        "hint": "ingestRows_request"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/paths/~1ingest/post/requestBody/content/application~1x-ndjson/schema"
+      },
+      "properties": [
+        {
+          "id": "p/openapi/paths/~1ingest/post/requestBody/content/application~1x-ndjson/schema/properties/row",
+          "name": {
+            "source": "row",
+            "canonical": "row"
+          },
+          "wireName": "row",
+          "type": {
+            "target": "t/prim/string",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/paths/~1ingest/post/requestBody/content/application~1x-ndjson/schema/properties/row"
+          }
+        }
+      ],
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
+    "t/anon/paths/~1ingest/post/responses/200/content/text~1event-stream; charset=utf-8/schema": {
+      "kind": "model",
+      "id": "t/anon/paths/~1ingest/post/responses/200/content/text~1event-stream; charset=utf-8/schema",
+      "name": {
+        "hint": "response"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/paths/~1ingest/post/responses/200/content/text~1event-stream; charset=utf-8/schema"
+      },
+      "properties": [
+        {
+          "id": "p/openapi/paths/~1ingest/post/responses/200/content/text~1event-stream; charset=utf-8/schema/properties/ack",
+          "name": {
+            "source": "ack",
+            "canonical": "ack"
+          },
+          "wireName": "ack",
+          "type": {
+            "target": "t/prim/string",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/paths/~1ingest/post/responses/200/content/text~1event-stream; charset=utf-8/schema/properties/ack"
+          }
+        }
+      ],
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
+    "t/anon/paths/~1mixed/get/responses/200/content/application~1jsonl/schema": {
+      "kind": "model",
+      "id": "t/anon/paths/~1mixed/get/responses/200/content/application~1jsonl/schema",
+      "name": {
+        "hint": "response"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/paths/~1mixed/get/responses/200/content/application~1jsonl/schema"
+      },
+      "properties": [
+        {
+          "id": "p/openapi/paths/~1mixed/get/responses/200/content/application~1jsonl/schema/properties/line",
+          "name": {
+            "source": "line",
+            "canonical": "line"
+          },
+          "wireName": "line",
+          "type": {
+            "target": "t/prim/string",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/paths/~1mixed/get/responses/200/content/application~1jsonl/schema/properties/line"
+          }
+        }
+      ],
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
+    "t/anon/paths/~1mixed/get/responses/200/content/application~1x-ndjson/schema": {
+      "kind": "model",
+      "id": "t/anon/paths/~1mixed/get/responses/200/content/application~1x-ndjson/schema",
+      "name": {
+        "hint": "response"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/paths/~1mixed/get/responses/200/content/application~1x-ndjson/schema"
+      },
+      "properties": [
+        {
+          "id": "p/openapi/paths/~1mixed/get/responses/200/content/application~1x-ndjson/schema/properties/row",
+          "name": {
+            "source": "row",
+            "canonical": "row"
+          },
+          "wireName": "row",
+          "type": {
+            "target": "t/prim/string",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/paths/~1mixed/get/responses/200/content/application~1x-ndjson/schema/properties/row"
+          }
+        }
+      ],
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
+    "t/openapi/components/schemas/Frame": {
+      "kind": "model",
+      "id": "t/openapi/components/schemas/Frame",
+      "name": {
+        "source": "Frame",
+        "canonical": "frame"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Frame"
+      },
+      "properties": [
+        {
+          "id": "p/openapi/components/schemas/Frame/properties/seq",
+          "name": {
+            "source": "seq",
+            "canonical": "seq"
+          },
+          "wireName": "seq",
+          "type": {
+            "target": "t/prim/integer",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/Frame/properties/seq"
+          }
+        }
+      ],
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
+    "t/prim/integer": {
+      "kind": "primitive",
+      "id": "t/prim/integer",
+      "name": {},
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0
+      },
+      "prim": "integer"
+    },
+    "t/prim/string": {
+      "kind": "primitive",
+      "id": "t/prim/string",
+      "name": {},
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0
+      },
+      "prim": "string"
+    }
+  },
+  "servers": [
+    {
+      "name": {
+        "hint": "server"
+      },
+      "urlTemplate": "/",
+      "description": {},
+      "auth": null
+    }
+  ],
+  "diagnostics": [
+    {
+      "severity": "info",
+      "code": "openapi/degraded-construct",
+      "message": "request body is not required; optionality kept under Unmodeled",
+      "provenance": {
+        "source": 0,
+        "pointer": "/paths/~1ingest/post/requestBody"
+      }
+    },
+    {
+      "severity": "info",
+      "code": "openapi/degraded-construct",
+      "message": "the response streams more than one element type, so it is left unnamed rather than electing one",
+      "provenance": {
+        "source": 0,
+        "pointer": "/paths/~1mixed/get/responses"
+      }
+    }
+  ],
+  "sources": [
+    {
+      "format": "openapi@3.1",
+      "path": "streaming-media-31.yaml",
+      "hash": "c7c7a5c5051e94131d339363c28854b82e5a6fda41e8381ee46fbd2bbca4fb1a"
+    }
+  ]
+}

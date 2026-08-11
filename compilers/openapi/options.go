@@ -28,6 +28,17 @@ const (
 	GroupByPathPrefix = lowering.GroupByPathPrefix
 )
 
+// StreamingMedia is the media-type streaming policy: which media types imply
+// that a body is a sequence of frames when the document declares nothing that
+// says so. It is the second injectable-policy seam (architecture principle 6),
+// and it is named here rather than restated for the reason GroupingStrategy is.
+type StreamingMedia = lowering.StreamingMedia
+
+// DefaultStreamingMediaTypes returns the media types StreamingMedia classifies
+// as streams when the caller names none. It is exported so a caller extending
+// the list can start from it rather than transcribe it.
+func DefaultStreamingMediaTypes() []string { return lowering.DefaultStreamingMediaTypes() }
+
 // Options configures the OpenAPI compiler. It is the concrete type this
 // compiler expects in compilers.Options.FormatOptions; the zero value is valid
 // and normalized by withDefaults.
@@ -39,6 +50,10 @@ const (
 type Options struct {
 	// Grouping selects the operation-grouping strategy.
 	Grouping GroupingStrategy `json:"grouping,omitempty"`
+	// StreamingMedia selects which media types imply a stream. The zero value is
+	// the default list, on; a caller who wants only what a document declares
+	// disables it.
+	StreamingMedia StreamingMedia `json:"streamingMedia"`
 	// AllowExternalRefs lets reference resolution leave the source document —
 	// reading files off disk and fetching http(s) URLs. Off by default, because
 	// compilers.Source is the whole input ("the caller loads bytes so compilation

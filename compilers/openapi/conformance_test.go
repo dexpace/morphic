@@ -213,6 +213,8 @@ func conformanceCases() []conformanceCase {
 		{"multipart-encoding", assertMultipartEncoding, []string{"multipart-encoding"}},
 		{"file-body", assertFileBody, nil},
 		{"sequential-media", assertSequentialMedia, []string{"streaming-server"}},
+		{"streaming-media-30", assertStreamingMedia30, []string{"streaming-server"}},
+		{"streaming-media-31", assertStreamingMedia31, []string{"streaming-server", "streaming-client"}},
 		{"per-status-errors", assertPerStatusErrors, []string{"per-status-errors"}},
 		{"response-links", assertResponseLinks, nil},
 		{"webhooks", assertWebhooks, []string{"events-channels", "server-initiated-messages"}},
@@ -2287,6 +2289,11 @@ func assertPartHeaders(t *testing.T, doc *ir.Document, headers []ir.Property) {
 // Content.ItemEncoding, while a positional prefixEncoding — which a single
 // every-item encoding has no ordinals for — takes itself and the tail encoding
 // beside it into Unmodeled instead.
+//
+// It also pins what itemSchema says about the operation, which for a long while
+// was nothing: the keyword states that the body is a sequence of items, so the
+// operation streams, and it says so itself rather than being guessed at from
+// the media type — multipart/mixed is in no streaming media-type list.
 func assertSequentialMedia(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
 	events, ok := opByName(doc, "streamEvents")
 	require.True(t, ok)
@@ -2296,6 +2303,13 @@ func assertSequentialMedia(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
 	assert.Equal(t, []string{"application/json"}, c.ItemEncoding.ContentTypes)
 	assert.True(t, c.ItemEncoding.Multi, "the construct describes a repeated tail")
 	assert.Empty(t, c.Unmodeled, "nothing is left over once it lowers")
+
+	assert.Equal(t, ir.StreamingServer, events.Streaming)
+	require.NotNil(t, events.ResponseStream)
+	require.NotNil(t, events.ResponseStream.Events)
+	assert.Empty(t, cmp.Diff(*c.Item, *events.ResponseStream.Events),
+		"the declared item schema is the stream element type")
+	assert.Empty(t, events.Provenance.Inferred, "a declared sequence is not a heuristic")
 
 	parts, ok := opByName(doc, "streamParts")
 	require.True(t, ok)
