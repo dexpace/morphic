@@ -2,6 +2,7 @@ package harness_test
 
 import (
 	"context"
+	"fmt"
 	"strings"
 	"testing"
 	"unicode/utf8"
@@ -147,4 +148,41 @@ func TestReport_WidthsAreCountedInRunes(t *testing.T) {
 func TestReport_NoResultsRenderNothing(t *testing.T) {
 	t.Parallel()
 	assert.Empty(t, harness.Report(nil), "an empty sweep has no lines to render")
+}
+
+// TestReport_ResultsNamedAlikeKeepTheirGivenOrder pins the stable sort. Nothing
+// orders two results carrying one spec name — Check names a spec whatever its
+// caller passes it — so under an unstable sort the same sweep can print its
+// findings in a different order from one run to the next.
+//
+// The shape is what makes the assertion able to fail: an unstable sort leaves a
+// short slice to an insertion pass and short-circuits one whose keys are all
+// equal, so a two-result case passes either way. These duplicates are scattered
+// through enough distinct keys that the sort has to partition around them.
+func TestReport_ResultsNamedAlikeKeepTheirGivenOrder(t *testing.T) {
+	t.Parallel()
+	const dup = "dup.yaml"
+	var results []harness.Result
+	var want []string
+	for i := range 30 {
+		if i%3 != 0 {
+			results = append(results, harness.Result{
+				Spec: fmt.Sprintf("k%03d.yaml", 30-i), Outcome: harness.OutcomeOK})
+			continue
+		}
+		detail := fmt.Sprintf("detail %02d", i)
+		results = append(results, harness.Result{
+			Spec: dup, Outcome: harness.OutcomeError, Detail: detail})
+		want = append(want, detail)
+	}
+
+	// Only the duplicates carry a Detail, so the outcome they share is what picks
+	// their lines out of the report.
+	var got []string
+	for _, line := range reportLines(t, harness.Report(results)) {
+		if _, detail, found := strings.Cut(line, string(harness.OutcomeError)+" "); found {
+			got = append(got, detail)
+		}
+	}
+	assert.Equal(t, want, got, "results sharing a spec render in the order they were given")
 }

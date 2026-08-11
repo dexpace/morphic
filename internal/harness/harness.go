@@ -151,14 +151,20 @@ func deterministic(ctx context.Context, spec string, data []byte, doc *ir.Docume
 	return "", true
 }
 
-// Report renders results sorted by spec name into a stable multi-line summary,
-// one aligned line per spec. Column widths are measured from the results being
-// rendered, so a spec path never runs into its outcome. It copies its input, so
-// the caller's slice order is preserved.
+// Report renders results sorted by spec name into a stable multi-line summary:
+// one line per spec, plus one more for every newline a Detail carries, as the
+// round-trip oracle's does. Column widths are measured from the results being
+// rendered, so a spec path never runs into its outcome, and they line up on the
+// line each result begins.
+//
+// It copies its input, so the caller's slice order is preserved. The sort is
+// stable for the same reason irverify's is: nothing orders two results named
+// alike, and an unstable sort would render one sweep's findings differently from
+// one run to the next.
 func Report(results []Result) string {
 	sorted := make([]Result, len(results))
 	copy(sorted, results)
-	sort.Slice(sorted, func(i, j int) bool { return sorted[i].Spec < sorted[j].Spec })
+	sort.SliceStable(sorted, func(i, j int) bool { return sorted[i].Spec < sorted[j].Spec })
 
 	specWidth, outcomeWidth := columnWidths(sorted)
 
