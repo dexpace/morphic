@@ -234,7 +234,7 @@
       "kind": "list",
       "id": "t/anon/paths/~1reports/get/responses/200/headers/X-Report-List/schema",
       "name": {
-        "hint": "X-Report-List"
+        "hint": "x_report_list"
       },
       "anonymous": true,
       "docs": {},

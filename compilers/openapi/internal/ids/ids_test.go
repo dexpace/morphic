@@ -34,6 +34,50 @@ func TestPtr_EscapesPerRFC6901(t *testing.T) {
 	}
 }
 
+// TestScope_EscapesLikePtrWithoutTheLeadingSeparator pins the Unmodeled key
+// scope: Ptr's escaping, joined without a leading separator because a scope is a
+// relative path.
+//
+// The slash case is the one that matters. A scope addressing an object the
+// document names — a form part, a callback — takes that name as one segment, and
+// leaving a "/" in it unescaped let two such objects spell one key between them
+// with the survivor following declaration order.
+func TestScope_EscapesLikePtrWithoutTheLeadingSeparator(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		name     string
+		segments []string
+		want     string
+	}{
+		{name: "plain", segments: []string{"encoding", "avatar"}, want: "encoding/avatar"},
+		{name: "slash in a document-chosen name stays one segment",
+			segments: []string{"encoding", "q/x-a"}, want: "encoding/q~1x-a"},
+		{name: "tilde too", segments: []string{"callbacks", "a~b"}, want: "callbacks/a~0b"},
+		{name: "tilde before slash, so a ~1 in the source survives",
+			segments: []string{"callbacks", "~/"}, want: "callbacks/~0~1"},
+		{name: "one segment takes no separator", segments: []string{"itemEncoding"}, want: "itemEncoding"},
+		{name: "no segments is the unscoped key", segments: nil, want: ""},
+		{name: "an empty segment is still a segment", segments: []string{"encoding", ""}, want: "encoding/"},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			assert.Equal(t, tc.want, ids.Scope(tc.segments...))
+		})
+	}
+}
+
+// TestScope_DistinguishesNamesThatDifferOnlyBySeparator is the property the
+// escaping exists for, stated directly: two names one of which spells the
+// other's scope plus a segment must not produce one key.
+func TestScope_DistinguishesNamesThatDifferOnlyBySeparator(t *testing.T) {
+	t.Parallel()
+	plain := ids.Scope("encoding", "q") + "/x-a/x-b"
+	slashed := ids.Scope("encoding", "q/x-a") + "/x-b"
+	assert.NotEqual(t, plain, slashed,
+		"a part named q/x-a must not land on the key a part named q writes")
+}
+
 // TestUnescapeSegment_ReversesPtr pins the other direction, which recovers a
 // component's on-wire name from a pointer segment. The two must round-trip or a
 // name containing a slash or a tilde comes back as a different name.

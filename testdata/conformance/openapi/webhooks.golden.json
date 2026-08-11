@@ -126,7 +126,7 @@
       "kind": "model",
       "id": "t/anon/webhooks/newPet/post/requestBody/content/application~1json/schema",
       "name": {
-        "hint": "onNewPet_request"
+        "hint": "on_new_pet_request"
       },
       "anonymous": true,
       "docs": {},

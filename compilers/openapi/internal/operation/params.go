@@ -136,12 +136,20 @@ func fillParamSchema(c lowering.Ctx, ts *compile.Types, param *ir.Parameter, js 
 	tgt := resolve.TargetSchema(js, s)
 	diags := fillParamDefault(c, param, s, tgt, pointer)
 
-	cons, consDiags := annotation.Constraints(s, c.ExclusiveBoundIsBoolean())
+	// The co-declared bound keyword ir.Constraints has no field for is kept on
+	// the parameter, the carrier at this position, exactly as a property keeps
+	// its own (GitHub #286).
+	cons, kept, consDiags := annotation.Constraints(s, c.ExclusiveBoundIsBoolean(), pointer, c.SrcIndex)
 	diags = append(diags, schema.StampConstraintDiags(c, consDiags, pointer)...)
+	param.Unmodeled = annotation.MergeUnmodeled(param.Unmodeled, kept)
 	if cons != nil {
 		param.Constraints = cons
 	}
-	return append(diags, fillParamSchemaAnnotations(c, ts, param, s, tgt, pointer)...)
+	diags = append(diags, fillParamSchemaAnnotations(c, ts, param, s, tgt, pointer)...)
+	// A parameter is the third annotation.HomeCarrier, so the keywords beside a
+	// $ref that the alias it resolves to cannot hold are kept here, exactly as a
+	// property and a header keep them (schema.FillPropertyDetail).
+	return append(diags, schema.PreserveRefSiteKeywords(c, ts, &param.Unmodeled, js, param.Type, pointer)...)
 }
 
 // fillParamDefault sets the parameter default, preferring the use-site node
@@ -201,7 +209,10 @@ func fillParamSchemaAnnotations(c lowering.Ctx, ts *compile.Types, param *ir.Par
 		diags = append(diags, preserveParamXML(c, param, s, pointer)...)
 	}
 	param.Unmodeled = annotation.MergeUnmodeled(param.Unmodeled, a.Unmodeled)
-	return diags
+	// Last, per schema.PreserveUnknownKeywords: it keeps only the keywords no
+	// reader above it kept, and everything annotation.Read recorded is already on
+	// the parameter by this line.
+	return append(diags, schema.PreserveUnknownKeywords(c, &param.Unmodeled, s, pointer)...)
 }
 
 // preserveParamXML keeps a parameter schema's xml hints instead of dropping
@@ -260,6 +271,12 @@ func paramHoldsResidue(keyword string) bool {
 // field is written only when the parameter declares it, so it overlays the
 // schema-derived annotations fillParamSchema already recorded rather than
 // erasing them with an unset value.
+//
+// It is the one carrier of an ir.Deprecation that does not promote a vendor
+// extension into it: ir.Parameter has no Provenance, so there is nowhere to
+// record that the field was read by a heuristic, and ir-design §12's promotion
+// rules require that before the reading. Giving Parameter a provenance is a
+// change to that document, not to this file (GitHub #252).
 func fillParamDetail(c lowering.Ctx, param *ir.Parameter, p *soa.Parameter, pptr string) []ir.Diagnostic {
 	if d := p.GetDescription(); d != "" {
 		param.Docs.Description = d
@@ -274,6 +291,7 @@ func fillParamDetail(c lowering.Ctx, param *ir.Parameter, p *soa.Parameter, pptr
 	pExt, extDiags := schema.ExtensionsOf(c, p.GetExtensions(), pptr)
 	diags = append(diags, extDiags...)
 	param.Unmodeled = annotation.MergeUnmodeled(param.Unmodeled, pExt)
+	diags = append(diags, annotation.UnknownKeysIn(&param.Unmodeled, p, c.SrcIndex, pptr)...)
 	return append(diags, preserveAllowEmptyValue(c, param, p, pptr)...)
 }
 
@@ -307,8 +325,12 @@ func preserveAllowEmptyValue(c lowering.Ctx, param *ir.Parameter, p *soa.Paramet
 
 // resolveStyleExplode materializes a parameter's resolved serialization style
 // and explode flag: an explicit value wins, else the OpenAPI per-location
-// default (query/cookie → form/true, path/header → simple/false). The result is
-// declared facts, not policy.
+// default (query/cookie → form/true, path/header → simple/false).
+//
+// For those four locations the result is declared facts, not policy. The fifth,
+// querystring, is neither: the specification gives it no style at all, and it
+// falls through the query arm here and comes out carrying form/true — a style
+// that location may not have (GitHub #334).
 func resolveStyleExplode(p *soa.Parameter, in soa.ParameterIn) (string, *bool) {
 	style := defaultParamStyle(in)
 	if p.Style != nil {

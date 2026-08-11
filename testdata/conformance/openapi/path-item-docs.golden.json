@@ -1,0 +1,352 @@
+{
+  "irVersion": "0.3.0",
+  "name": "PathItemDocs",
+  "version": "1.0.0",
+  "docs": {},
+  "services": [
+    {
+      "id": "s/openapi/0",
+      "name": {
+        "source": "PathItemDocs",
+        "canonical": "path_item_docs"
+      },
+      "docs": {},
+      "groups": [
+        {
+          "name": {
+            "hint": "default"
+          },
+          "docs": {},
+          "operations": [
+            {
+              "id": "op/openapi/paths/~1pets/get",
+              "name": {
+                "source": "listPets",
+                "canonical": "list_pets"
+              },
+              "docs": {
+                "summary": "List pets",
+                "description": "Returns every pet."
+              },
+              "responses": [
+                {
+                  "name": {
+                    "hint": "200"
+                  },
+                  "conditions": {
+                    "statusCodes": [
+                      {
+                        "from": 200,
+                        "to": 200
+                      }
+                    ]
+                  },
+                  "docs": {
+                    "description": "ok"
+                  }
+                }
+              ],
+              "oneWay": false,
+              "idempotency": {},
+              "auth": null,
+              "bindings": {
+                "http": [
+                  {
+                    "method": "GET",
+                    "uriTemplate": "/pets",
+                    "sharedRoute": false,
+                    "checksumRequired": false,
+                    "isWebhook": false
+                  }
+                ]
+              },
+              "unmodeled": {
+                "openapi:pathItemDescription": {
+                  "reason": "no_ir_home",
+                  "value": "Everything addressable at /pets.",
+                  "provenance": {
+                    "source": 0,
+                    "pointer": "/paths/~1pets/description"
+                  }
+                },
+                "openapi:pathItemSummary": {
+                  "reason": "no_ir_home",
+                  "value": "Pet collection",
+                  "provenance": {
+                    "source": 0,
+                    "pointer": "/paths/~1pets/summary"
+                  }
+                }
+              },
+              "provenance": {
+                "source": 0,
+                "pointer": "/paths/~1pets/get"
+              }
+            },
+            {
+              "id": "op/openapi/paths/~1pets/post",
+              "name": {
+                "source": "createPet",
+                "canonical": "create_pet"
+              },
+              "docs": {},
+              "responses": [
+                {
+                  "name": {
+                    "hint": "201"
+                  },
+                  "conditions": {
+                    "statusCodes": [
+                      {
+                        "from": 201,
+                        "to": 201
+                      }
+                    ]
+                  },
+                  "docs": {
+                    "description": "created"
+                  }
+                }
+              ],
+              "oneWay": false,
+              "idempotency": {},
+              "auth": null,
+              "bindings": {
+                "http": [
+                  {
+                    "method": "POST",
+                    "uriTemplate": "/pets",
+                    "sharedRoute": false,
+                    "checksumRequired": false,
+                    "isWebhook": false,
+                    "callbacks": [
+                      {
+                        "expression": "{$request.body#/callbackUrl}",
+                        "operations": [
+                          "op/openapi/paths/~1pets/post/callbacks/onCreated/{$request.body#~1callbackUrl}/post"
+                        ]
+                      }
+                    ]
+                  }
+                ]
+              },
+              "unmodeled": {
+                "openapi:pathItemDescription": {
+                  "reason": "no_ir_home",
+                  "value": "Everything addressable at /pets.",
+                  "provenance": {
+                    "source": 0,
+                    "pointer": "/paths/~1pets/description"
+                  }
+                },
+                "openapi:pathItemSummary": {
+                  "reason": "no_ir_home",
+                  "value": "Pet collection",
+                  "provenance": {
+                    "source": 0,
+                    "pointer": "/paths/~1pets/summary"
+                  }
+                }
+              },
+              "provenance": {
+                "source": 0,
+                "pointer": "/paths/~1pets/post"
+              }
+            },
+            {
+              "id": "op/openapi/paths/~1pets/post/callbacks/onCreated/{$request.body#~1callbackUrl}/post",
+              "name": {
+                "source": "onPetCreated",
+                "canonical": "on_pet_created"
+              },
+              "docs": {},
+              "responses": [
+                {
+                  "name": {
+                    "hint": "200"
+                  },
+                  "conditions": {
+                    "statusCodes": [
+                      {
+                        "from": 200,
+                        "to": 200
+                      }
+                    ]
+                  },
+                  "docs": {
+                    "description": "ok"
+                  }
+                }
+              ],
+              "oneWay": false,
+              "idempotency": {},
+              "auth": null,
+              "bindings": {
+                "http": [
+                  {
+                    "method": "POST",
+                    "uriTemplate": "{$request.body#/callbackUrl}",
+                    "sharedRoute": false,
+                    "checksumRequired": false,
+                    "isWebhook": false
+                  }
+                ]
+              },
+              "unmodeled": {
+                "openapi:pathItemDescription": {
+                  "reason": "no_ir_home",
+                  "value": "Delivered once the pet exists.",
+                  "provenance": {
+                    "source": 0,
+                    "pointer": "/paths/~1pets/post/callbacks/onCreated/{$request.body#~1callbackUrl}/description"
+                  }
+                },
+                "openapi:pathItemSummary": {
+                  "reason": "no_ir_home",
+                  "value": "Creation callback",
+                  "provenance": {
+                    "source": 0,
+                    "pointer": "/paths/~1pets/post/callbacks/onCreated/{$request.body#~1callbackUrl}/summary"
+                  }
+                }
+              },
+              "provenance": {
+                "source": 0,
+                "pointer": "/paths/~1pets/post/callbacks/onCreated/{$request.body#~1callbackUrl}/post"
+              }
+            }
+          ]
+        },
+        {
+          "name": {
+            "hint": "webhooks"
+          },
+          "docs": {},
+          "operations": [
+            {
+              "id": "op/openapi/webhooks/petDeleted/post",
+              "name": {
+                "source": "onPetDeleted",
+                "canonical": "on_pet_deleted"
+              },
+              "docs": {},
+              "responses": [
+                {
+                  "name": {
+                    "hint": "200"
+                  },
+                  "conditions": {
+                    "statusCodes": [
+                      {
+                        "from": 200,
+                        "to": 200
+                      }
+                    ]
+                  },
+                  "docs": {
+                    "description": "ok"
+                  }
+                }
+              ],
+              "oneWay": false,
+              "idempotency": {},
+              "auth": null,
+              "bindings": {
+                "http": [
+                  {
+                    "method": "POST",
+                    "uriTemplate": "petDeleted",
+                    "sharedRoute": false,
+                    "checksumRequired": false,
+                    "isWebhook": true
+                  }
+                ]
+              },
+              "unmodeled": {
+                "openapi:pathItemDescription": {
+                  "reason": "no_ir_home",
+                  "value": "Delivered when a pet is removed.",
+                  "provenance": {
+                    "source": 0,
+                    "pointer": "/webhooks/petDeleted/description"
+                  }
+                },
+                "openapi:pathItemSummary": {
+                  "reason": "no_ir_home",
+                  "value": "Pet deleted",
+                  "provenance": {
+                    "source": 0,
+                    "pointer": "/webhooks/petDeleted/summary"
+                  }
+                }
+              },
+              "provenance": {
+                "source": 0,
+                "pointer": "/webhooks/petDeleted/post"
+              }
+            }
+          ]
+        }
+      ],
+      "auth": null,
+      "provenance": {
+        "source": 0
+      }
+    }
+  ],
+  "servers": [
+    {
+      "name": {
+        "hint": "server"
+      },
+      "urlTemplate": "/",
+      "description": {},
+      "auth": null
+    }
+  ],
+  "diagnostics": [
+    {
+      "severity": "info",
+      "code": "openapi/degraded-construct",
+      "message": "path-item documentation kept under Unmodeled; it documents the path rather than this operation, and ir.Docs holds the operation's own summary and description",
+      "provenance": {
+        "source": 0,
+        "pointer": "/paths/~1pets/get"
+      }
+    },
+    {
+      "severity": "info",
+      "code": "openapi/degraded-construct",
+      "message": "path-item documentation kept under Unmodeled; it documents the path rather than this operation, and ir.Docs holds the operation's own summary and description",
+      "provenance": {
+        "source": 0,
+        "pointer": "/paths/~1pets/post/callbacks/onCreated/{$request.body#~1callbackUrl}/post"
+      }
+    },
+    {
+      "severity": "info",
+      "code": "openapi/degraded-construct",
+      "message": "path-item documentation kept under Unmodeled; it documents the path rather than this operation, and ir.Docs holds the operation's own summary and description",
+      "provenance": {
+        "source": 0,
+        "pointer": "/paths/~1pets/post"
+      }
+    },
+    {
+      "severity": "info",
+      "code": "openapi/degraded-construct",
+      "message": "path-item documentation kept under Unmodeled; it documents the path rather than this operation, and ir.Docs holds the operation's own summary and description",
+      "provenance": {
+        "source": 0,
+        "pointer": "/webhooks/petDeleted/post"
+      }
+    }
+  ],
+  "sources": [
+    {
+      "format": "openapi@3.1",
+      "path": "path-item-docs.yaml",
+      "hash": "b6a7b4af97bda527e50e35d3d60aa65fc2bd82647d945da557d50360db015550"
+    }
+  ]
+}

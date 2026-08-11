@@ -1,0 +1,683 @@
+{
+  "irVersion": "0.3.0",
+  "name": "InlineHoistPositions",
+  "version": "1.0.0",
+  "docs": {},
+  "services": [
+    {
+      "id": "s/openapi/0",
+      "name": {
+        "source": "InlineHoistPositions",
+        "canonical": "inline_hoist_positions"
+      },
+      "docs": {},
+      "groups": [
+        {
+          "name": {
+            "hint": "default"
+          },
+          "docs": {},
+          "operations": [
+            {
+              "id": "op/openapi/paths/~1orders/post",
+              "name": {
+                "source": "placeOrder",
+                "canonical": "place_order"
+              },
+              "docs": {},
+              "params": [
+                {
+                  "name": {
+                    "source": "audit",
+                    "canonical": "audit"
+                  },
+                  "type": {
+                    "target": "t/anon/paths/~1orders/post/parameters/0/schema",
+                    "nullable": false
+                  },
+                  "required": false,
+                  "docs": {}
+                }
+              ],
+              "request": {
+                "contents": [
+                  {
+                    "mediaType": "application/json",
+                    "type": {
+                      "target": "t/anon/paths/~1orders/post/requestBody/content/application~1json/schema",
+                      "nullable": false
+                    }
+                  }
+                ]
+              },
+              "responses": [
+                {
+                  "name": {
+                    "hint": "200"
+                  },
+                  "conditions": {
+                    "statusCodes": [
+                      {
+                        "from": 200,
+                        "to": 200
+                      }
+                    ]
+                  },
+                  "payload": {
+                    "contents": [
+                      {
+                        "mediaType": "application/json",
+                        "type": {
+                          "target": "t/anon/paths/~1orders/post/responses/200/content/application~1json/schema",
+                          "nullable": false
+                        }
+                      }
+                    ]
+                  },
+                  "headers": [
+                    {
+                      "id": "p/openapi/paths/~1orders/post/responses/200/headers/X-Order-Trace",
+                      "name": {
+                        "source": "X-Order-Trace",
+                        "canonical": "x_order_trace"
+                      },
+                      "wireName": "X-Order-Trace",
+                      "type": {
+                        "target": "t/anon/paths/~1orders/post/responses/200/headers/X-Order-Trace/schema",
+                        "nullable": false
+                      },
+                      "required": false,
+                      "clientOptional": false,
+                      "defaultAdded": false,
+                      "visibility": {
+                        "none": false
+                      },
+                      "flatten": false,
+                      "eventHeader": false,
+                      "eventPayload": false,
+                      "secret": false,
+                      "docs": {},
+                      "provenance": {
+                        "source": 0,
+                        "pointer": "/paths/~1orders/post/responses/200/headers/X-Order-Trace"
+                      }
+                    }
+                  ],
+                  "docs": {
+                    "description": "ok"
+                  }
+                }
+              ],
+              "oneWay": false,
+              "idempotency": {},
+              "auth": null,
+              "bindings": {
+                "http": [
+                  {
+                    "method": "POST",
+                    "uriTemplate": "/orders",
+                    "sharedRoute": false,
+                    "paramBindings": [
+                      {
+                        "param": "audit",
+                        "location": "query",
+                        "wireName": "audit",
+                        "style": "form",
+                        "explode": true,
+                        "allowReserved": false
+                      }
+                    ],
+                    "requestContentTypes": [
+                      "application/json"
+                    ],
+                    "checksumRequired": false,
+                    "isWebhook": false,
+                    "callbacks": [
+                      {
+                        "expression": "{$request.body#/callbackUrl}",
+                        "operations": [
+                          "op/openapi/paths/~1orders/post/callbacks/onProgress/{$request.body#~1callbackUrl}/post"
+                        ]
+                      }
+                    ]
+                  }
+                ]
+              },
+              "provenance": {
+                "source": 0,
+                "pointer": "/paths/~1orders/post"
+              }
+            },
+            {
+              "id": "op/openapi/paths/~1orders/post/callbacks/onProgress/{$request.body#~1callbackUrl}/post",
+              "name": {
+                "source": "onProgress",
+                "canonical": "on_progress"
+              },
+              "docs": {},
+              "request": {
+                "contents": [
+                  {
+                    "mediaType": "application/json",
+                    "type": {
+                      "target": "t/anon/paths/~1orders/post/callbacks/onProgress/{$request.body#~1callbackUrl}/post/requestBody/content/application~1json/schema",
+                      "nullable": false
+                    }
+                  }
+                ]
+              },
+              "responses": [
+                {
+                  "name": {
+                    "hint": "204"
+                  },
+                  "conditions": {
+                    "statusCodes": [
+                      {
+                        "from": 204,
+                        "to": 204
+                      }
+                    ]
+                  },
+                  "docs": {
+                    "description": "no content"
+                  }
+                }
+              ],
+              "oneWay": false,
+              "idempotency": {},
+              "auth": null,
+              "bindings": {
+                "http": [
+                  {
+                    "method": "POST",
+                    "uriTemplate": "{$request.body#/callbackUrl}",
+                    "sharedRoute": false,
+                    "requestContentTypes": [
+                      "application/json"
+                    ],
+                    "checksumRequired": false,
+                    "isWebhook": false
+                  }
+                ]
+              },
+              "provenance": {
+                "source": 0,
+                "pointer": "/paths/~1orders/post/callbacks/onProgress/{$request.body#~1callbackUrl}/post"
+              }
+            }
+          ]
+        },
+        {
+          "name": {
+            "hint": "webhooks"
+          },
+          "docs": {},
+          "operations": [
+            {
+              "id": "op/openapi/webhooks/onShipped/post",
+              "name": {
+                "source": "onShipped",
+                "canonical": "on_shipped"
+              },
+              "docs": {},
+              "request": {
+                "contents": [
+                  {
+                    "mediaType": "application/json",
+                    "type": {
+                      "target": "t/anon/webhooks/onShipped/post/requestBody/content/application~1json/schema",
+                      "nullable": false
+                    }
+                  }
+                ]
+              },
+              "responses": [
+                {
+                  "name": {
+                    "hint": "204"
+                  },
+                  "conditions": {
+                    "statusCodes": [
+                      {
+                        "from": 204,
+                        "to": 204
+                      }
+                    ]
+                  },
+                  "docs": {
+                    "description": "no content"
+                  }
+                }
+              ],
+              "oneWay": false,
+              "idempotency": {},
+              "auth": null,
+              "bindings": {
+                "http": [
+                  {
+                    "method": "POST",
+                    "uriTemplate": "onShipped",
+                    "sharedRoute": false,
+                    "requestContentTypes": [
+                      "application/json"
+                    ],
+                    "checksumRequired": false,
+                    "isWebhook": true
+                  }
+                ]
+              },
+              "provenance": {
+                "source": 0,
+                "pointer": "/webhooks/onShipped/post"
+              }
+            }
+          ]
+        }
+      ],
+      "auth": null,
+      "provenance": {
+        "source": 0
+      }
+    }
+  ],
+  "types": {
+    "t/anon/paths/~1orders/post/callbacks/onProgress/{$request.body#~1callbackUrl}/post/requestBody/content/application~1json/schema": {
+      "kind": "model",
+      "id": "t/anon/paths/~1orders/post/callbacks/onProgress/{$request.body#~1callbackUrl}/post/requestBody/content/application~1json/schema",
+      "name": {
+        "hint": "on_progress_request"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/paths/~1orders/post/callbacks/onProgress/{$request.body#~1callbackUrl}/post/requestBody/content/application~1json/schema"
+      },
+      "properties": [
+        {
+          "id": "p/openapi/paths/~1orders/post/callbacks/onProgress/{$request.body#~1callbackUrl}/post/requestBody/content/application~1json/schema/properties/v",
+          "name": {
+            "source": "v",
+            "canonical": "v"
+          },
+          "wireName": "v",
+          "type": {
+            "target": "t/prim/string",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/paths/~1orders/post/callbacks/onProgress/{$request.body#~1callbackUrl}/post/requestBody/content/application~1json/schema/properties/v"
+          }
+        }
+      ],
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
+    "t/anon/paths/~1orders/post/parameters/0/schema": {
+      "kind": "model",
+      "id": "t/anon/paths/~1orders/post/parameters/0/schema",
+      "name": {
+        "hint": "audit"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/paths/~1orders/post/parameters/0/schema"
+      },
+      "properties": [
+        {
+          "id": "p/openapi/paths/~1orders/post/parameters/0/schema/properties/v",
+          "name": {
+            "source": "v",
+            "canonical": "v"
+          },
+          "wireName": "v",
+          "type": {
+            "target": "t/prim/string",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/paths/~1orders/post/parameters/0/schema/properties/v"
+          }
+        }
+      ],
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
+    "t/anon/paths/~1orders/post/requestBody/content/application~1json/schema": {
+      "kind": "model",
+      "id": "t/anon/paths/~1orders/post/requestBody/content/application~1json/schema",
+      "name": {
+        "hint": "place_order_request"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/paths/~1orders/post/requestBody/content/application~1json/schema"
+      },
+      "properties": [
+        {
+          "id": "p/openapi/paths/~1orders/post/requestBody/content/application~1json/schema/properties/shipping",
+          "name": {
+            "source": "shipping",
+            "canonical": "shipping"
+          },
+          "wireName": "shipping",
+          "type": {
+            "target": "t/anon/paths/~1orders/post/requestBody/content/application~1json/schema/properties/shipping",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/paths/~1orders/post/requestBody/content/application~1json/schema/properties/shipping"
+          }
+        }
+      ],
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
+    "t/anon/paths/~1orders/post/requestBody/content/application~1json/schema/properties/shipping": {
+      "kind": "model",
+      "id": "t/anon/paths/~1orders/post/requestBody/content/application~1json/schema/properties/shipping",
+      "name": {
+        "hint": "shipping"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/paths/~1orders/post/requestBody/content/application~1json/schema/properties/shipping"
+      },
+      "properties": [
+        {
+          "id": "p/openapi/paths/~1orders/post/requestBody/content/application~1json/schema/properties/shipping/properties/v",
+          "name": {
+            "source": "v",
+            "canonical": "v"
+          },
+          "wireName": "v",
+          "type": {
+            "target": "t/prim/string",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/paths/~1orders/post/requestBody/content/application~1json/schema/properties/shipping/properties/v"
+          }
+        }
+      ],
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
+    "t/anon/paths/~1orders/post/responses/200/content/application~1json/schema": {
+      "kind": "model",
+      "id": "t/anon/paths/~1orders/post/responses/200/content/application~1json/schema",
+      "name": {
+        "hint": "response"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/paths/~1orders/post/responses/200/content/application~1json/schema"
+      },
+      "properties": [
+        {
+          "id": "p/openapi/paths/~1orders/post/responses/200/content/application~1json/schema/properties/receipt",
+          "name": {
+            "source": "receipt",
+            "canonical": "receipt"
+          },
+          "wireName": "receipt",
+          "type": {
+            "target": "t/anon/paths/~1orders/post/responses/200/content/application~1json/schema/properties/receipt",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/paths/~1orders/post/responses/200/content/application~1json/schema/properties/receipt"
+          }
+        }
+      ],
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
+    "t/anon/paths/~1orders/post/responses/200/content/application~1json/schema/properties/receipt": {
+      "kind": "model",
+      "id": "t/anon/paths/~1orders/post/responses/200/content/application~1json/schema/properties/receipt",
+      "name": {
+        "hint": "receipt"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/paths/~1orders/post/responses/200/content/application~1json/schema/properties/receipt"
+      },
+      "properties": [
+        {
+          "id": "p/openapi/paths/~1orders/post/responses/200/content/application~1json/schema/properties/receipt/properties/v",
+          "name": {
+            "source": "v",
+            "canonical": "v"
+          },
+          "wireName": "v",
+          "type": {
+            "target": "t/prim/string",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/paths/~1orders/post/responses/200/content/application~1json/schema/properties/receipt/properties/v"
+          }
+        }
+      ],
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
+    "t/anon/paths/~1orders/post/responses/200/headers/X-Order-Trace/schema": {
+      "kind": "model",
+      "id": "t/anon/paths/~1orders/post/responses/200/headers/X-Order-Trace/schema",
+      "name": {
+        "hint": "x_order_trace"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/paths/~1orders/post/responses/200/headers/X-Order-Trace/schema"
+      },
+      "properties": [
+        {
+          "id": "p/openapi/paths/~1orders/post/responses/200/headers/X-Order-Trace/schema/properties/v",
+          "name": {
+            "source": "v",
+            "canonical": "v"
+          },
+          "wireName": "v",
+          "type": {
+            "target": "t/prim/string",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/paths/~1orders/post/responses/200/headers/X-Order-Trace/schema/properties/v"
+          }
+        }
+      ],
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
+    "t/anon/webhooks/onShipped/post/requestBody/content/application~1json/schema": {
+      "kind": "model",
+      "id": "t/anon/webhooks/onShipped/post/requestBody/content/application~1json/schema",
+      "name": {
+        "hint": "on_shipped_request"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/webhooks/onShipped/post/requestBody/content/application~1json/schema"
+      },
+      "properties": [
+        {
+          "id": "p/openapi/webhooks/onShipped/post/requestBody/content/application~1json/schema/properties/v",
+          "name": {
+            "source": "v",
+            "canonical": "v"
+          },
+          "wireName": "v",
+          "type": {
+            "target": "t/prim/string",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/webhooks/onShipped/post/requestBody/content/application~1json/schema/properties/v"
+          }
+        }
+      ],
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
+    "t/prim/string": {
+      "kind": "primitive",
+      "id": "t/prim/string",
+      "name": {},
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0
+      },
+      "prim": "string"
+    }
+  },
+  "servers": [
+    {
+      "name": {
+        "hint": "server"
+      },
+      "urlTemplate": "/",
+      "description": {},
+      "auth": null
+    }
+  ],
+  "sources": [
+    {
+      "format": "openapi@3.1",
+      "path": "inline-hoist-positions.yaml",
+      "hash": "efeccfc4fd7fb2787dd7a3c1339c40db47aa9f1eb12a70097e60b26cb7f42a71"
+    }
+  ]
+}

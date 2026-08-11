@@ -39,6 +39,26 @@ func TestNamingHint_KeepsADerivedHint(t *testing.T) {
 	assert.Equal(t, ir.Naming{Hint: "connection_domain"}, compile.NamingHint("connection_domain"))
 }
 
+// TestNamingHint_NeutralizesTheContextItWasDerivedFrom is what makes the hint
+// channel a name rather than a transcription. A hint is derived from a position
+// the source named — a component key, an operationId, a header name, a $ref
+// target — so it arrives carrying whatever casing and punctuation that source
+// used, and it is the only name an anonymous type has for an emitter to render
+// (GitHub #54).
+func TestNamingHint_NeutralizesTheContextItWasDerivedFrom(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct{ hint, want string }{
+		{"connectionDomain", "connection_domain"},
+		{"OrderBody", "order_body"},
+		{"X-Report-List", "x_report_list"},
+		{"rollout.state", "rollout_state"},
+		{"get /pets/{petId}", "get_pets_pet_id"},
+		{"***", "empty"}, // no words to render, so the same minting an empty hint gets
+	} {
+		assert.Equal(t, ir.Naming{Hint: tc.want}, compile.NamingHint(tc.hint), "hint %q", tc.hint)
+	}
+}
+
 // TestNamingHint_EmptyHintIsMintedAName is the same defect reached through the
 // other channel: a hint derived from a position the source left unnamed comes
 // out empty, and passing it through leaves the node nameless just as an empty
@@ -68,4 +88,33 @@ func TestSubHint_MintsTheEnclosingHint(t *testing.T) {
 	assert.Equal(t, "empty_item", compile.SubHint("", "item"))
 	assert.Equal(t, "widget_item", compile.SubHint("widget", "item"),
 		"an enclosing hint that is really there is untouched")
+}
+
+// TestSubHint_NeutralizesBothHalves pins that a composed hint is neutral however
+// its two halves were spelled. Either can arrive from a source name — the
+// enclosing position's, and the $ref target a union branch takes its role from —
+// so neutralizing only the whole would still be a word sequence whichever half
+// carried the casing, and neutralizing only the parent would not.
+func TestSubHint_NeutralizesBothHalves(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct{ parent, suffix, want string }{
+		{"Combo", "Alt", "combo_alt"},
+		{"X-Report", "item", "x_report_item"},
+		{"widget", "0", "widget_0"},
+		{"widget", "***", "widget_empty"},
+	} {
+		assert.Equal(t, tc.want, compile.SubHint(tc.parent, tc.suffix), "%q + %q", tc.parent, tc.suffix)
+	}
+}
+
+// TestSubHint_IsItselfANeutralHint is the composition property the callers rely
+// on: a composed hint is fed back in as the parent of the next one, so joining
+// two neutral halves has to produce something the grammar leaves alone. A join
+// that introduced a boundary — a doubled or trailing separator, a letter run
+// against a digit — would compound one level down.
+func TestSubHint_IsItselfANeutralHint(t *testing.T) {
+	t.Parallel()
+	nested := compile.SubHint(compile.SubHint("Combo_A", "2"), "item")
+	assert.Equal(t, "combo_a_2_item", nested)
+	assert.Equal(t, nested, ir.CanonicalWords(nested), "the grammar leaves a composed hint alone")
 }
