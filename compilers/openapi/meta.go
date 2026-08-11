@@ -38,16 +38,18 @@ type docMeta struct {
 }
 
 // lowerMeta lowers the document-level metadata that is not part of the type or
-// service graph: info, servers, and top-level extensions (ir-design §10, §12).
+// service graph: info, servers, and the extensions of every object around them
+// that lowers to no node of its own (ir-design §10, §12).
 func lowerMeta(c lowering.Ctx) (docMeta, []ir.Diagnostic) {
 	m := lowerInfo(c)
 
+	ext, diags := documentExtensions(c)
+	m.Unmodeled = ext
+
 	servers, serverDiags := lowerServers(c)
 	m.Servers = servers
-
-	ext, diags := annotation.ExtensionsFrom(c.Doc.GetExtensions(), c.SrcIndex, "")
-	m.Unmodeled = ext
 	diags = append(diags, serverDiags...)
+
 	return m, append(diags, documentUnknownKeys(c, &m.Unmodeled)...)
 }
 
@@ -111,6 +113,60 @@ func tagUnknownSites(c lowering.Ctx) []unknownSite {
 	return out
 }
 
+// documentExtensions collects the x-* of every object that lowers to no IR node
+// of its own: the document root, the info block and the contact and license
+// inside it, the root externalDocs, the components object, and each declared
+// tag with its own externalDocs. ir.Document is the nearest node with an
+// Unmodeled map for all of them, so each object's entries are keyed under the
+// source path it was written at — see annotation.ExtensionsUnder for why one
+// unscoped key for all of them would not do.
+func documentExtensions(c lowering.Ctx) (ir.Unmodeled, []ir.Diagnostic) {
+	return annotation.ExtensionsAt(c.SrcIndex, append(rootExtensions(c), tagExtensions(c)...)...)
+}
+
+// rootExtensions returns the extension sites a document has exactly one of. The
+// root's own take no scope, since ir.Document stands for the OpenAPI Object
+// itself; the rest are keyed by the path from it down to the object that wrote
+// them.
+func rootExtensions(c lowering.Ctx) []annotation.ExtensionSite {
+	info := c.Doc.GetInfo()
+	infoPtr := ids.Ptr("info")
+	return []annotation.ExtensionSite{
+		{Scope: "", Owner: "", Ext: c.Doc.GetExtensions()},
+		{Scope: "info", Owner: infoPtr, Ext: info.GetExtensions()},
+		{Scope: "info/contact", Owner: infoPtr + ids.Ptr("contact"), Ext: info.GetContact().GetExtensions()},
+		{Scope: "info/license", Owner: infoPtr + ids.Ptr("license"), Ext: info.GetLicense().GetExtensions()},
+		{Scope: "externalDocs", Owner: ids.Ptr("externalDocs"), Ext: c.Doc.GetExternalDocs().GetExtensions()},
+		{Scope: "components", Owner: ids.Ptr("components"), Ext: c.Doc.GetComponents().GetExtensions()},
+	}
+}
+
+// tagExtensions returns the extension sites each declared tag contributes: its
+// own, and its externalDocs object's. ir.TagDef holds no Unmodeled map and
+// neither does ir.Link, so both ride on the document.
+//
+// Keyed by the tag's index rather than its name, which is the pointer the tag
+// is written at. A name would read better and is what TagDefs are found by, but
+// OpenAPI's requirement that tag names be unique is the document's to keep, not
+// this compiler's to rely on: two tags spelled alike would silently leave one
+// entry.
+func tagExtensions(c lowering.Ctx) []annotation.ExtensionSite {
+	tags := c.Doc.GetTags()
+	out := make([]annotation.ExtensionSite, 0, 2*len(tags))
+	for i, t := range tags {
+		if t == nil {
+			continue
+		}
+		scope := "tags/" + strconv.Itoa(i)
+		ptr := ids.Ptr("tags", strconv.Itoa(i))
+		out = append(out,
+			annotation.ExtensionSite{Scope: scope, Owner: ptr, Ext: t.GetExtensions()},
+			annotation.ExtensionSite{Scope: scope + "/externalDocs", Owner: ptr + ids.Ptr("externalDocs"),
+				Ext: t.GetExternalDocs().GetExtensions()})
+	}
+	return out
+}
+
 // lowerInfo maps info onto the document identity, docs, contact, and license.
 // GetInfo always returns a non-nil Info (it addresses an embedded struct value),
 // so no nil guard is needed.
@@ -165,15 +221,18 @@ func lowerServers(c lowering.Ctx) ([]ir.Server, []ir.Diagnostic) {
 	return out, diags
 }
 
-// lowerServer lowers one server, named by serverName; sptr is the server's own
-// pointer in the servers list.
+// lowerServer lowers one server, named by serverName, keeping its x-* on the
+// ir.Server itself; sptr is the server's own pointer in the servers list.
 func lowerServer(c lowering.Ctx, s *soa.Server, sptr string) (ir.Server, []ir.Diagnostic) {
 	vars, diags := serverVariables(c, s, sptr)
+	ext, extDiags := annotation.ExtensionsFrom(s.GetExtensions(), c.SrcIndex, sptr)
+	diags = append(diags, extDiags...)
 	out := ir.Server{
 		Name:        serverName(s),
 		URLTemplate: s.GetURL(),
 		Description: ir.Docs{Description: s.GetDescription()},
 		Variables:   vars,
+		Unmodeled:   ext,
 	}
 	return out, append(diags, annotation.UnknownKeysIn(&out.Unmodeled, s, c.SrcIndex, sptr)...)
 }
@@ -217,14 +276,19 @@ func serverVariables(c lowering.Ctx, s *soa.Server, sptr string) ([]ir.ServerVar
 		if v == nil {
 			continue
 		}
+		vptr := sptr + ids.Ptr("variables", name)
+		// ServerVariable exposes no GetExtensions at this library version, so the
+		// field is read directly — as XMLHints already reads its own.
+		ext, extDiags := annotation.ExtensionsFrom(v.Extensions, c.SrcIndex, vptr)
+		diags = append(diags, extDiags...)
 		one := ir.ServerVariable{
-			Name:    name,
-			Default: v.GetDefault(),
-			Enum:    v.GetEnum(),
-			Docs:    ir.Docs{Description: v.GetDescription()},
+			Name:      name,
+			Default:   v.GetDefault(),
+			Enum:      v.GetEnum(),
+			Docs:      ir.Docs{Description: v.GetDescription()},
+			Unmodeled: ext,
 		}
-		diags = append(diags, annotation.UnknownKeysIn(&one.Unmodeled, v, c.SrcIndex,
-			sptr+ids.Ptr("variables", name))...)
+		diags = append(diags, annotation.UnknownKeysIn(&one.Unmodeled, v, c.SrcIndex, vptr)...)
 		out = append(out, one)
 	}
 	return out, diags

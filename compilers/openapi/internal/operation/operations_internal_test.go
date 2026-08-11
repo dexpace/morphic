@@ -13,6 +13,7 @@ import (
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/ids"
 	"github.com/dexpace/morphic/compilers/openapi/internal/load"
+	"github.com/dexpace/morphic/compilers/openapi/internal/openapitest"
 	"github.com/dexpace/morphic/compilers/openapi/internal/resolve"
 	"github.com/dexpace/morphic/ir"
 )
@@ -29,7 +30,7 @@ webhooks:
       responses: {"200": {description: ok}}
 `
 	svc, diags := lowerServiceSpec(t, spec)
-	requireNoErrorDiags(t, diags)
+	openapitest.RequireNoErrorDiags(t, diags)
 	var group ir.OperationGroup
 	found := false
 	for _, g := range svc.Groups {
@@ -47,7 +48,7 @@ webhooks:
 
 func TestCallbacks_RegisteredAndBound(t *testing.T) {
 	t.Parallel()
-	spec := pathsSpec(`  /subscribe:
+	spec := openapitest.PathsSpec(`  /subscribe:
     post:
       operationId: sub
       callbacks:
@@ -59,11 +60,11 @@ func TestCallbacks_RegisteredAndBound(t *testing.T) {
       responses: {"200": {description: ok}}
 `)
 	svc, diags := lowerServiceSpec(t, spec)
-	requireNoErrorDiags(t, diags)
+	openapitest.RequireNoErrorDiags(t, diags)
 	require.Len(t, svc.Groups, 1)
 	group := svc.Groups[0]
 	require.Len(t, group.Operations, 2, "parent op and callback op both registered")
-	byName := indexBy(group.Operations, func(op ir.Operation) string { return op.Name.Source })
+	byName := openapitest.IndexBy(group.Operations, func(op ir.Operation) string { return op.Name.Source })
 	sub, ok := byName["sub"]
 	require.True(t, ok)
 	cb, ok := byName["cbPost"]
@@ -78,7 +79,7 @@ func TestCallbacks_RegisteredAndBound(t *testing.T) {
 
 func TestParameters_PathItemMergeOverride(t *testing.T) {
 	t.Parallel()
-	spec := pathsSpec(`  /users/{id}:
+	spec := openapitest.PathsSpec(`  /users/{id}:
     parameters:
       - {name: id, in: path, required: true, schema: {type: string}, description: path-level}
       - {name: trace, in: header, schema: {type: string}}
@@ -312,4 +313,46 @@ func TestFaultFor_ClassifiesAtTheClassBoundaries(t *testing.T) {
 			assert.Equal(t, tc.want, faultFor(ir.StatusRange{From: tc.from, To: tc.from}))
 		})
 	}
+}
+
+// TestApplyPathItemDocs_WithoutRootNode is the documentation counterpart of the
+// two tests above: a declared pair whose source node cannot be read keeps
+// nothing, and announces nothing it did not keep.
+//
+// The input is synthetic, but the branch is not hypothetical — RawChildNode does
+// not expand a merge key, so a real document supplying the pair through one
+// reaches here with GetSummary non-empty and loses it silently (GitHub #384).
+// This pins the current behaviour rather than endorsing it; when #384 makes the
+// lookup view-aware, what changes is the node this receives, not this contract.
+func TestApplyPathItemDocs_WithoutRootNode(t *testing.T) {
+	t.Parallel()
+	l := newRawLowerer(&soa.OpenAPI{})
+	summary, description := "documented", "at length"
+	op := &ir.Operation{}
+
+	diags := applyPathItemDocs(l.ctx, op,
+		&soa.PathItem{Summary: &summary, Description: &description}, "/paths/~1a")
+
+	assert.Nil(t, op.Unmodeled, "documentation with no raw node is not preserved")
+	assert.Empty(t, diags)
+}
+
+// TestPathOperations_NilAdditionalOperationSkipped pins the guard on the
+// additionalOperations walk. The parser never yields a nil entry, but the map is
+// a plain pointer map and lowerOperation reads the operation's fields directly,
+// so a nil would panic rather than lower.
+func TestPathOperations_NilAdditionalOperationSkipped(t *testing.T) {
+	t.Parallel()
+	pi := &soa.PathItem{
+		AdditionalOperations: sequencedmap.New(
+			sequencedmap.NewElem("EMPTY", (*soa.Operation)(nil)),
+			sequencedmap.NewElem("PURGE", &soa.Operation{}),
+		),
+	}
+
+	ops := pathOperations(pi)
+
+	require.Len(t, ops, 1, "the nil entry is skipped and the real one is not")
+	assert.Equal(t, "PURGE", ops[0].method)
+	assert.Equal(t, "/additionalOperations/PURGE", ops[0].seg)
 }

@@ -7,7 +7,6 @@ package openapi_test // external test package — exercises only the public API
 import (
 	"os"
 	"path/filepath"
-	"reflect"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -41,7 +40,7 @@ func TestUnknownKeys_KeptAtEveryObject(t *testing.T) {
 	t.Parallel()
 	doc, diags := compileAnnotationSpec(t, "unknown-keys", unknownKeysSpec(t))
 	requireNoErrorDiagnostics(t, diags)
-	sites := unmodeledSitesOf(doc)
+	sites := unmodeledSites(doc)
 
 	for _, tc := range []struct {
 		object  string
@@ -74,7 +73,7 @@ func TestUnknownKeys_KeptAtEveryObject(t *testing.T) {
 		{"property schema", "openapi:divisibleBy", `"PROPERTYSCHEMA"`,
 			"doc.Types[t/openapi/components/schemas/S].Properties[0].Unmodeled"},
 	} {
-		site, found := findUnmodeledSite(sites, tc.key, tc.want)
+		site, found := findUnmodeled(sites, tc.key, tc.want)
 		if !assert.True(t, found, "%s drops %s = %s: it is nowhere in the document",
 			tc.object, tc.key, tc.want) {
 			continue
@@ -142,53 +141,10 @@ components:
 `)
 	requireNoErrorDiagnostics(t, diags)
 
-	assert.Empty(t, unmodeledSitesOf(doc), "nothing undeclared, so nothing kept")
+	assert.Empty(t, unmodeledSites(doc), "nothing undeclared, so nothing kept")
 	for _, d := range diags {
 		assert.NotContains(t, d.Code, "unknown-", "a well-formed document reports no unknown key: %+v", d)
 	}
-}
-
-// unmodeledSite is one Unmodeled entry paired with the walk path of the map
-// holding it.
-type unmodeledSite struct {
-	key   string
-	path  string
-	entry ir.UnmodeledEntry
-}
-
-// unmodeledSitesOf returns every Unmodeled entry the document holds, found by
-// walking the value graph rather than by naming the carriers a test expects.
-func unmodeledSitesOf(doc *ir.Document) []unmodeledSite {
-	unmodeledType := reflect.TypeOf(ir.Unmodeled(nil))
-	var out []unmodeledSite
-	ir.WalkValues(doc, ir.DocumentPath, func(v reflect.Value, path string) bool {
-		if v.Type() != unmodeledType || !v.CanInterface() {
-			return true
-		}
-		u, ok := v.Interface().(ir.Unmodeled)
-		if !ok {
-			return true
-		}
-		for key, entry := range u {
-			out = append(out, unmodeledSite{key: key, path: path, entry: entry})
-		}
-		return true
-	})
-	return out
-}
-
-// findUnmodeledSite returns the site holding key with the given JSON value. The
-// value is part of the match because one key spelling occurs at several
-// carriers — "openapi:status" is written on two responses in this fixture — so
-// matching on the key alone would find another object's entry and call it a
-// pass.
-func findUnmodeledSite(sites []unmodeledSite, key, wantJSON string) (unmodeledSite, bool) {
-	for _, site := range sites {
-		if site.key == key && string(site.entry.Value) == wantJSON {
-			return site, true
-		}
-	}
-	return unmodeledSite{}, false
 }
 
 // requireNoErrorDiagnostics fails the test on the first error-severity

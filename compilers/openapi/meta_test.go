@@ -10,6 +10,7 @@ import (
 
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
+	"github.com/dexpace/morphic/compilers/openapi/internal/openapitest"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -36,9 +37,9 @@ paths:
 
 // TestMeta_UnserializableExtensionStillWarns pins the document-level twin of
 // TestAuth_UnserializableExtensionStillWarns: when every top-level x-* extension
-// fails to serialize, lowerMeta's "if len(ext) > 0" guard is false, so the
-// warning must already have been recorded by the extension reader rather than appended
-// inside the guard — the shape that used to drop it silently.
+// fails to serialize, lowerMeta ends up with an empty Unmodeled map, so the
+// warning must come from the extension reader rather than from a branch guarded
+// on what was kept — the shape that used to drop it silently.
 func TestMeta_UnserializableExtensionStillWarns(t *testing.T) {
 	t.Parallel()
 	spec := `openapi: 3.1.0
@@ -47,7 +48,7 @@ paths: {}
 x-bad: {1: intkey}
 `
 	doc, diags := parseFull(t, spec)
-	assert.True(t, countDiagsAt(diags, diag.DegradedConstruct, ir.SeverityWarning) > 0,
+	assert.True(t, openapitest.CountDiagsAt(diags, diag.DegradedConstruct, ir.SeverityWarning) > 0,
 		"an entirely unserializable top-level extension still warns even though Unmodeled ends up empty")
 	assert.Empty(t, doc.Unmodeled, "the unserializable extension is dropped, not stored")
 }
@@ -68,6 +69,20 @@ func TestMeta_FullDocumentMetadata(t *testing.T) {
 		"a declared 3.2 name is the server's name; the URL hint is for a server with none")
 	require.Len(t, doc.Servers[0].Variables, 1)
 	assert.Equal(t, []string{"us", "eu"}, doc.Servers[0].Variables[0].Enum)
+}
+
+// TestTagExtensions_NilEntrySkipped pins the same guard lowerTagDefs keeps on
+// the other side of the tag list: a nil entry contributes no extension site, so
+// nothing dereferences it and no site is keyed at an index holding no tag.
+func TestTagExtensions_NilEntrySkipped(t *testing.T) {
+	t.Parallel()
+	doc := &soa.OpenAPI{Tags: []*soa.Tag{nil, {Name: "kept"}}}
+
+	got := tagExtensions(lowering.Ctx{Doc: doc})
+
+	require.Len(t, got, 2, "one surviving tag contributes its own site and its externalDocs one")
+	assert.Equal(t, "tags/1", got[0].Scope, "the site is keyed at the tag's own index, not its position")
+	assert.Equal(t, "/tags/1", got[0].Owner)
 }
 
 func TestMeta_NoInfoNoServers(t *testing.T) {

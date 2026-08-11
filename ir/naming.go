@@ -23,7 +23,10 @@ type Naming struct {
 	Canonical string `json:"canonical,omitempty"`
 	// Hint is a context-derived suggestion for an entity with no source name to
 	// render: a hoisted anonymous type (e.g. "connection_domain"), or one the
-	// source named with the empty string.
+	// source named with the empty string. It is in the same neutral form as
+	// Canonical and for the same reason — it is the only name such an entity
+	// has, so it is what an emitter renders its identifier from — however the
+	// position it was derived from was spelled.
 	Hint string `json:"hint,omitempty"`
 	// Aliases are alternate names for schema-resolution matching (Avro
 	// aliases). Versionless — rename history tied to version labels lives in

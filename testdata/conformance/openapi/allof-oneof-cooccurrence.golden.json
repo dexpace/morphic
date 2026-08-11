@@ -22,7 +22,7 @@
       "kind": "scalar",
       "id": "t/anon/components/schemas/Combo/oneOf/0",
       "name": {
-        "hint": "A"
+        "hint": "a"
       },
       "anonymous": true,
       "docs": {},
@@ -60,7 +60,7 @@
       "kind": "model",
       "id": "t/composed/components/schemas/Combo/oneOf/0",
       "name": {
-        "hint": "Combo_A"
+        "hint": "combo_a"
       },
       "anonymous": true,
       "docs": {},
@@ -87,7 +87,7 @@
       "kind": "model",
       "id": "t/composed/components/schemas/Combo/oneOf/1",
       "name": {
-        "hint": "Combo_B"
+        "hint": "combo_b"
       },
       "anonymous": true,
       "docs": {},
@@ -268,7 +268,7 @@
       "variants": [
         {
           "name": {
-            "hint": "A"
+            "hint": "a"
           },
           "type": {
             "target": "t/composed/components/schemas/Combo/oneOf/0",
@@ -278,7 +278,7 @@
         },
         {
           "name": {
-            "hint": "B"
+            "hint": "b"
           },
           "type": {
             "target": "t/composed/components/schemas/Combo/oneOf/1",
