@@ -221,23 +221,47 @@ func declaredTargets(t *testing.T) []lowering.ExtensionTarget {
 			if !ok {
 				return true
 			}
-			if ident, ok := spec.Type.(*ast.Ident); !ok || ident.Name != "ExtensionTarget" {
-				return true
-			}
+			// Two spellings declare a target: the declared type carries it
+			// ("X ExtensionTarget = ..."), or a conversion does ("X = Extension-
+			// Target(...)"). Reading only the first missed the second silently,
+			// which is the defect this whole check is about.
+			typed := isTargetIdent(spec.Type)
 			for _, value := range spec.Values {
-				lit, ok := value.(*ast.BasicLit)
-				if !ok || lit.Kind != token.STRING {
-					continue
+				if lit, ok := stringLiteral(value, typed); ok {
+					unquoted, err := strconv.Unquote(lit)
+					require.NoError(t, err)
+					out = append(out, lowering.ExtensionTarget(unquoted))
 				}
-				unquoted, err := strconv.Unquote(lit.Value)
-				require.NoError(t, err)
-				out = append(out, lowering.ExtensionTarget(unquoted))
 			}
 			return true
 		})
 	}
 	require.NotEmpty(t, out, "no targets found; the check below would pass vacuously")
 	return out
+}
+
+// isTargetIdent reports whether a declared type names ExtensionTarget.
+func isTargetIdent(expr ast.Expr) bool {
+	ident, ok := expr.(*ast.Ident)
+	return ok && ident.Name == "ExtensionTarget"
+}
+
+// stringLiteral returns the quoted string a target declaration carries, from
+// either spelling: the bare literal when the spec declared the type, or the
+// argument of an ExtensionTarget conversion when it did not.
+func stringLiteral(value ast.Expr, typed bool) (string, bool) {
+	if lit, ok := value.(*ast.BasicLit); ok && typed && lit.Kind == token.STRING {
+		return lit.Value, true
+	}
+	call, ok := value.(*ast.CallExpr)
+	if !ok || !isTargetIdent(call.Fun) || len(call.Args) != 1 {
+		return "", false
+	}
+	lit, ok := call.Args[0].(*ast.BasicLit)
+	if !ok || lit.Kind != token.STRING {
+		return "", false
+	}
+	return lit.Value, true
 }
 
 // TestExtensionTarget_EveryDeclaredTargetHasAnApplier holds the vocabulary to
