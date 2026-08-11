@@ -785,8 +785,9 @@ func assertAllOfOneOfCooccurrence(t *testing.T, doc *ir.Document, _ []ir.Diagnos
 
 	bounded, ok := doc.Types[namedID("BoundedKinds")].(*ir.Scalar)
 	require.True(t, ok, "a body that is not a model reduces to a shared primitive and hoists an alias")
-	_, ok = bounded.Unmodeled["openapi:oneOf"]
+	entry, ok = bounded.Unmodeled["openapi:oneOf"]
 	require.True(t, ok, "which is the node the kept union sits on")
+	assert.Equal(t, ir.ReasonDegradedLowering, entry.Reason)
 	require.NotNil(t, bounded.Constraints, "and the bounds written beside the union sit on it too")
 	require.NotNil(t, bounded.Constraints.MinLength)
 	assert.Equal(t, int64(3), *bounded.Constraints.MinLength)
