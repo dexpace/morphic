@@ -232,19 +232,25 @@ category alone would lose the second.
 
 `irverify` holds every `Naming` to this: the shape rules run over `Canonical` and `Hint` alike, and
 it recomputes the canonical from the `Source` beside it, so a boundary in the wrong place is a
-compiler bug rather than a variant reading. What no check can say
-is that the grammar itself is right — a check that recomputes moves with what it recomputes through
-— so the answers are pinned by a conformance table and the properties every answer must satisfy by
-a fuzz target beside it (GitHub #186).
+compiler bug rather than a variant reading. What no check can say is that the grammar itself is
+right — a check that recomputes moves with what it recomputes through — so the answers are pinned
+by a conformance table and the properties every answer must satisfy by a fuzz target beside it
+(GitHub #186).
 
-**`Aliases` is held to none of that, and to two rules of its own.** An alias is matched against a
-name *another* schema wrote — an Avro alias is a full name, `com.example.User`, and resolution
-compares it verbatim against the writer schema's full name — so the separators and the casing are
-what the match is made of rather than a spelling the IR gets to decide. Neutralizing one would
-throw away precisely that, which is the lossy direction lossless-by-default rules out. `Source` is
-the internal precedent: it carries `UserID` today and no content rule touches it, because it
-records what the spec said rather than deciding a spelling. What is left is decidable without any
-grammar, and `irverify` holds an alias to exactly that much:
+One rule sits under all of those and under `Aliases` too, because it is about the encoding rather
+than the spelling: **every channel's bytes must decode** (`ir/naming-invalid-utf8`). Ill-formed
+UTF-8 survives a marshal as the replacement rune, so a document carrying it decodes to one that
+re-marshals to different bytes and the "Serializable" invariant above stops holding — broken by a
+name nothing else here objects to.
+
+**`Aliases` is held to none of the shape rules, and to rules of its own instead.** An alias is
+matched against a name *another* schema wrote — an Avro alias is a full name, `com.example.User`,
+and resolution compares it verbatim against the writer schema's full name — so the separators and
+the casing are what the match is made of rather than a spelling the IR gets to decide.
+Neutralizing one would throw away precisely that, which is the lossy direction
+lossless-by-default rules out. `Source` is the internal precedent: it carries `UserID` today and
+no content rule touches it, because it records what the spec said rather than deciding a spelling.
+What is left is decidable without any grammar, and `irverify` holds an alias to exactly that much:
 
 - **Every entry names something** (`ir/naming-alias-blank`). An entry whose every rune is one
   Unicode classifies as invisible — a space, a control, a format character, or a default-ignorable
@@ -252,10 +258,8 @@ grammar, and `irverify` holds an alias to exactly that much:
   An invisible rune sitting *beside* a visible one is a different question and is not asked:
   whether `com.example.<ZWSP>User` is a legal name is decidable only under the grammar of the
   format it will be matched against, which the IR does not know.
-- **Every entry decodes** (`ir/naming-invalid-utf8`, the one rule every channel of a `Naming`
-  shares). Ill-formed UTF-8 survives a marshal as the replacement rune, so the document decodes to
-  one that re-marshals to different bytes and the "Serializable" invariant above stops holding —
-  broken by a name nothing else here objects to.
+- **Every entry decodes** — the shared byte rule above, which reaches an alias the same way it
+  reaches the other three channels.
 - **No entry repeats another, or the entity's own `Source`** (`ir/naming-alias-duplicate`,
   `ir/naming-alias-redundant`), reported at the later entry and naming the earlier, so the message
   says which to delete and which to keep. Either admits no name that was not already admitted, so a

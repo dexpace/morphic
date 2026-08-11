@@ -157,7 +157,7 @@ func appendAliasViolations(vs []Violation, source string, aliases []string, path
 				Path:    aliasPath(path, i),
 			})
 		case !utf8.ValidString(alias):
-			vs = appendUTF8Violation(vs, "alias", alias, aliasPath(path, i))
+			vs = append(vs, utf8Violation("alias", aliasPath(path, i)))
 		case repeated:
 			vs = append(vs, Violation{
 				Code:    "ir/naming-alias-duplicate",
@@ -215,30 +215,40 @@ func appendNamingViolations(vs []Violation, source, canon, hint, path string) []
 	return appendContentViolations(vs, "name hint", hint, path)
 }
 
-// appendUTF8Violation reports a name channel carrying bytes no decoder reads
-// back as what was written. It is the one rule every channel shares, aliases
-// included, because it is about the encoding rather than the spelling: an
-// ill-formed sequence survives a marshal as the replacement rune, so the
+// utf8Violation is the report for a name channel carrying bytes no decoder
+// reads back as what was written. It is the one rule every channel shares,
+// aliases included, because it is about the encoding rather than the spelling:
+// an ill-formed sequence survives a marshal as the replacement rune, so the
 // document decodes to something that re-marshals to different bytes and
 // invariant #7 is broken by a name nothing else here objects to.
 //
 // checkDiagnostics makes the same claim over the only other free-form spec text
 // the IR carries (ir/diagnostic-invalid-utf8), and like it this message quotes
-// nothing: repeating the bytes would put them in the report too.
+// nothing: repeating the bytes would put them in the report too. That is also
+// why the value is not a parameter — there is nothing here to say about it
+// beyond which channel it arrived in.
 //
-// Canonical and Hint are only incidentally covered without this — the
+// Canonical and Hint are only incidentally covered without this rule — the
 // replacement rune is not a word character, so isWordSequence rejects it — and
 // incidentally is not covered: the violation would name the wrong repair, since
 // splitting on non-word characters is not what fixes undecodable bytes.
+func utf8Violation(channel, path string) Violation {
+	return Violation{
+		Code:    "ir/naming-invalid-utf8",
+		Message: channel + " is not valid UTF-8",
+		Path:    path,
+	}
+}
+
+// appendUTF8Violation reports channel's name when its bytes are ill-formed. The
+// alias rule decides the same thing in its own switch and appends
+// utf8Violation directly, since a switch branch needs the test separate from
+// the report.
 func appendUTF8Violation(vs []Violation, channel, name, path string) []Violation {
 	if utf8.ValidString(name) {
 		return vs
 	}
-	return append(vs, Violation{
-		Code:    "ir/naming-invalid-utf8",
-		Message: channel + " is not valid UTF-8",
-		Path:    path,
-	})
+	return append(vs, utf8Violation(channel, path))
 }
 
 // appendContentViolations reports the ways the name in one channel can break
