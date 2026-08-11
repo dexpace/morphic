@@ -9,6 +9,7 @@ import (
 
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/ids"
+	"github.com/dexpace/morphic/compilers/openapi/internal/openapitest"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -48,20 +49,20 @@ func TestUnpreservable_AnnouncementNeverOutrunsTheEntry(t *testing.T) {
 	}{
 		{
 			name: "items after prefixItems",
-			spec: componentSpec("    T:\n      type: array\n" +
+			spec: openapitest.ComponentSpec("    T:\n      type: array\n" +
 				"      prefixItems: [{type: string}]\n" +
 				"      items: {type: string, x-t: " + unpreservableValue + "}\n"),
 			at: "/components/schemas/T/items",
 		},
 		{
 			name: "unmerged allOf branch",
-			spec: componentSpec("    M:\n      allOf:\n" +
+			spec: openapitest.ComponentSpec("    M:\n      allOf:\n" +
 				"        - {type: string, maxLength: 3, x-t: " + unpreservableValue + "}\n"),
 			at: "/components/schemas/M/allOf/0",
 		},
 		{
 			name: "error response with multiple media types",
-			spec: pathsSpec("  /x:\n    get:\n      responses:\n" +
+			spec: openapitest.PathsSpec("  /x:\n    get:\n      responses:\n" +
 				"        \"500\":\n          description: bad\n          content:\n" +
 				"            application/json: {schema: {type: string}, example: " + unpreservableValue + "}\n" +
 				"            application/xml: {schema: {type: string}}\n"),
@@ -69,13 +70,13 @@ func TestUnpreservable_AnnouncementNeverOutrunsTheEntry(t *testing.T) {
 		},
 		{
 			name: "path-item servers",
-			spec: pathsSpec("  /x:\n    servers: [{url: 'https://a', x-t: " + unpreservableValue + "}]\n" +
+			spec: openapitest.PathsSpec("  /x:\n    servers: [{url: 'https://a', x-t: " + unpreservableValue + "}]\n" +
 				"    get:\n      responses: {\"200\": {description: ok}}\n"),
 			at: "/paths/~1x/servers",
 		},
 		{
 			name: "residue keyword on a declaration",
-			spec: componentSpec("    R:\n      type: object\n" +
+			spec: openapitest.ComponentSpec("    R:\n      type: object\n" +
 				"      default: " + unpreservableValue + "\n" +
 				"      properties: {a: {type: string}}\n"),
 			at: "/components/schemas/R/default",
@@ -86,7 +87,7 @@ func TestUnpreservable_AnnouncementNeverOutrunsTheEntry(t *testing.T) {
 			t.Parallel()
 			_, diags := parseFull(t, tc.spec)
 
-			assert.True(t, hasDiagCodeAt(diags, diag.UnpreservableConstruct, tc.at),
+			assert.True(t, openapitest.HasDiagCodeAt(diags, diag.UnpreservableConstruct, tc.at),
 				"the case must reach the site it is named for: %+v", diags)
 			assert.Empty(t, preservationClaims(diags),
 				"nothing was written under Unmodeled, so nothing may announce that it was")
@@ -137,8 +138,8 @@ func TestUnpreservable_SchemaKeywordSites(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			_, diags := parseFull(t, componentSpec("    S:\n"+tc.body))
-			assert.True(t, hasDiagCodeAt(diags, diag.UnpreservableConstruct, tc.at),
+			_, diags := parseFull(t, openapitest.ComponentSpec("    S:\n"+tc.body))
+			assert.True(t, openapitest.HasDiagCodeAt(diags, diag.UnpreservableConstruct, tc.at),
 				"the case must reach the site it is named for: %+v", diags)
 			assert.Empty(t, preservationClaims(diags),
 				"nothing was written under Unmodeled, so nothing may announce that it was")
@@ -152,7 +153,7 @@ func TestUnpreservable_SchemaKeywordSites(t *testing.T) {
 // announcing and also stopped reporting would satisfy that one.
 func TestUnpreservable_ReportsTheFailureItself(t *testing.T) {
 	t.Parallel()
-	spec := componentSpec("    T:\n      type: array\n" +
+	spec := openapitest.ComponentSpec("    T:\n      type: array\n" +
 		"      prefixItems: [{type: string}]\n" +
 		"      items: {type: string, x-t: " + unpreservableValue + "}\n")
 	_, diags := parseFull(t, spec)
@@ -171,7 +172,7 @@ func TestUnpreservable_ReportsTheFailureItself(t *testing.T) {
 // preserve, or the new error would fire on every well-formed document.
 func TestUnpreservable_AbsentConstructIsSilent(t *testing.T) {
 	t.Parallel()
-	_, diags := parseFull(t, componentSpec("    T:\n      type: array\n      items: {type: string}\n"))
+	_, diags := parseFull(t, openapitest.ComponentSpec("    T:\n      type: array\n      items: {type: string}\n"))
 	_, ok := firstDiagWithCode(diags, diag.UnpreservableConstruct)
 	assert.False(t, ok, "an absent construct is not an unpreservable one: %+v", diags)
 }
@@ -182,7 +183,7 @@ func TestUnpreservable_AbsentConstructIsSilent(t *testing.T) {
 // silently omitting itself from an object still labelled verbatim.
 func TestUnpreservable_CompositeFailsWhole(t *testing.T) {
 	t.Parallel()
-	spec := componentSpec("    C:\n      type: object\n" +
+	spec := openapitest.ComponentSpec("    C:\n      type: object\n" +
 		"      if: {required: [a]}\n" +
 		"      then: {x-t: " + unpreservableValue + "}\n" +
 		"      else: {required: [b]}\n")
@@ -209,16 +210,6 @@ func preservationClaims(diags []ir.Diagnostic) []string {
 		}
 	}
 	return out
-}
-
-// hasDiagCodeAt reports whether diags carries code at exactly pointer.
-func hasDiagCodeAt(diags []ir.Diagnostic, code, pointer string) bool {
-	for _, d := range diags {
-		if d.Code == code && d.Provenance.Pointer == pointer {
-			return true
-		}
-	}
-	return false
 }
 
 // typeUnmodeled returns the Unmodeled map of one interned type.
@@ -277,7 +268,7 @@ paths:
       responses: {"204": {description: ok}}
 `
 	doc, svc, diags := lowerServiceSpec(t, spec)
-	requireNoErrorDiags(t, diags)
+	openapitest.RequireNoErrorDiags(t, diags)
 
 	// S witnesses vendor_extension, validation_only (its constraint-only union
 	// joins `not` there) and out_of_scope (its $schema); T's open tuple is the
@@ -291,7 +282,7 @@ paths:
 	}
 	// The one no_ir_home site reachable from a minimal document: a requestBody
 	// that omits `required`, which the IR has no field for (§14).
-	body := firstOp(t, svc).Request
+	body := openapitest.FirstOp(t, svc).Request
 	require.NotNil(t, body, "the operation must own a request payload")
 	for _, entry := range body.Unmodeled {
 		seen[entry.Reason] = true

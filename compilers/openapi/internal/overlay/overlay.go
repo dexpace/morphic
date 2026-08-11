@@ -124,11 +124,11 @@ func applyWithin(index int, root *yaml.Node, opts Options, budget int) (Origin, 
 	doc, err := soaoverlay.ParseReader(bytes.NewReader(opts.Data))
 	if err != nil {
 		return Origin{}, []ir.Diagnostic{diag.Newf(ir.SeverityError, diag.OverlayInvalid, at,
-			"cannot parse overlay: %s", err)}
+			"cannot parse overlay: %s", diag.OneLine(err))}
 	}
 	if err := doc.Validate(); err != nil {
 		return Origin{}, []ir.Diagnostic{diag.Newf(ir.SeverityError, diag.OverlayInvalid, at,
-			"invalid overlay: %s", err)}
+			"invalid overlay: %s", diag.OneLine(err))}
 	}
 
 	before, complete := snapshot(root, budget)

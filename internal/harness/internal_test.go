@@ -23,7 +23,7 @@ import (
 // is the behaviour under test; dupKeyDoc is the fixture for Check's round-trip
 // outcome.
 func badExtDoc() *ir.Document {
-	return &ir.Document{Unmodeled: ir.Unmodeled{
+	return &ir.Document{IRVersion: ir.IRVersion, Unmodeled: ir.Unmodeled{
 		"openapi:x": {Reason: ir.ReasonVendorExtension, Value: ir.RawValue("{invalid")},
 	}}
 }
@@ -46,24 +46,26 @@ func badExtDoc() *ir.Document {
 //
 // The names are load-bearing for the same reason the IDs are: a node with no
 // name in any channel is a structural violation, and Check would classify this
-// document as one before the round-trip oracle ever ran.
+// document as one before the round-trip oracle ever ran. The schema stamp is
+// load-bearing on the same terms.
 func dupKeyDoc() *ir.Document {
 	named := ir.Naming{Source: "node", Canonical: "node"}
-	return &ir.Document{Types: ir.TypeRegistry{
+	return &ir.Document{IRVersion: ir.IRVersion, Types: ir.TypeRegistry{
 		ir.TypeID("t/x/\xff"): &ir.Any{TypeCommon: ir.TypeCommon{ID: "t/x/\xff", Name: named}},
 		ir.TypeID("t/x/\xfe"): &ir.Any{TypeCommon: ir.TypeCommon{ID: "t/x/\xfe", Name: named}},
 	}}
 }
 
 // soundDoc returns a minimal, structurally-sound document: one model keyed by its
-// own ID with a neutral canonical name. It has no violations and round-trips
-// through JSON cleanly, so the oracles reach the step under test.
+// own ID with a neutral canonical name, stamped with the IR schema version this
+// build writes. It has no violations and round-trips through JSON cleanly, so the
+// oracles reach the step under test.
 func soundDoc() *ir.Document {
 	m := &ir.Model{TypeCommon: ir.TypeCommon{
 		ID:   "t/x/Model",
 		Name: ir.Naming{Source: "Model", Canonical: "model"},
 	}}
-	return &ir.Document{Types: ir.TypeRegistry{m.ID: m}}
+	return &ir.Document{IRVersion: ir.IRVersion, Types: ir.TypeRegistry{m.ID: m}}
 }
 
 func TestRoundTrips_MarshalError(t *testing.T) {
