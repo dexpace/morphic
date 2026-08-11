@@ -14,6 +14,7 @@ import (
 
 	"github.com/dexpace/morphic/compilers"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
+	"github.com/dexpace/morphic/compilers/openapi/internal/openapitest"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -312,19 +313,19 @@ func TestInvalidSyntaxOnValidNumbers_Candidacy(t *testing.T) {
 		scalars []*yaml.Node
 		want    bool
 	}{
-		{"leading dot", []*yaml.Node{scalarNode("!!float", ".5")}, true},
-		{"octal", []*yaml.Node{scalarNode("!!int", "0644")}, true},
-		{"separators", []*yaml.Node{scalarNode("!!int", "1_000")}, true},
+		{"leading dot", []*yaml.Node{openapitest.ScalarNode("!!float", ".5")}, true},
+		{"octal", []*yaml.Node{openapitest.ScalarNode("!!int", "0644")}, true},
+		{"separators", []*yaml.Node{openapitest.ScalarNode("!!int", "1_000")}, true},
 		{"recoverable beside a json-valid literal",
-			[]*yaml.Node{scalarNode("!!float", ".5"), scalarNode("!!int", "42")}, true},
+			[]*yaml.Node{openapitest.ScalarNode("!!float", ".5"), openapitest.ScalarNode("!!int", "42")}, true},
 
-		{"nothing to recover", []*yaml.Node{scalarNode("!!int", "42")}, false},
-		{"infinity", []*yaml.Node{scalarNode("!!float", ".inf")}, false},
+		{"nothing to recover", []*yaml.Node{openapitest.ScalarNode("!!int", "42")}, false},
+		{"infinity", []*yaml.Node{openapitest.ScalarNode("!!float", ".inf")}, false},
 		{"recoverable beside an unrecoverable literal",
-			[]*yaml.Node{scalarNode("!!float", ".5"), scalarNode("!!float", ".inf")}, false},
+			[]*yaml.Node{openapitest.ScalarNode("!!float", ".5"), openapitest.ScalarNode("!!float", ".inf")}, false},
 		// JSON accepts "-0", so normalizing it to "0" is not evidence that it
 		// provoked anything.
-		{"negative zero", []*yaml.Node{scalarNode("!!int", "-0")}, false},
+		{"negative zero", []*yaml.Node{openapitest.ScalarNode("!!int", "-0")}, false},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -381,11 +382,6 @@ func countErrorsAt(diags []ir.Diagnostic, code string) int {
 		}
 	}
 	return n
-}
-
-// scalarNode builds a bare scalar yaml.Node with the given tag and value.
-func scalarNode(tag, val string) *yaml.Node {
-	return &yaml.Node{Kind: yaml.ScalarNode, Tag: tag, Value: val}
 }
 
 // TestUnmarshal_RejectsADocumentNodeHoldingMoreThanOneRoot pins the model

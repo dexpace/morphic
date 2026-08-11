@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/dexpace/morphic/ir"
 )
@@ -68,6 +69,36 @@ func TestAuthKind_Constants(t *testing.T) {
 		ir.AuthKindSASLGSSAPI:           "sasl_gssapi",
 		ir.AuthKindCustom:               "custom",
 	}, "unspecified")
+}
+
+// TestAuthKind_TiesToConstBlock closes the gap a bare string enum leaves:
+// nothing rejects an empty or misspelled mechanism on deserialization, and no
+// structural check can tell one from oauth2 by reading a scheme's key and its
+// ID, so irverify has Valid and nothing else to test against. Valid therefore
+// has to stay tied to the const block, and it is tied here by parsing the ir
+// sources rather than by a list.
+//
+// Adding a mechanism without teaching Valid about it fails here rather than
+// surfacing later as a spurious ir/unknown-auth-kind on a document that names
+// the mechanism correctly.
+func TestAuthKind_TiesToConstBlock(t *testing.T) {
+	t.Parallel()
+	declared := declaredConstsOfType(t, "AuthKind")
+	require.NotEmpty(t, declared, "the ir sources must declare AuthKind constants")
+	for _, c := range declared {
+		assert.True(t, ir.AuthKind(c.value).Valid(), "declared mechanism %q must be Valid", c.value)
+	}
+}
+
+// TestAuthKind_UnknownIsInvalid pins the other direction: Valid must reject a
+// mechanism no const declares. The empty string is the case that motivated the
+// check — a scheme interned naming no mechanism at all — and the other two are
+// the near misses a compiler writes by hand instead of using the constant.
+func TestAuthKind_UnknownIsInvalid(t *testing.T) {
+	t.Parallel()
+	assert.False(t, ir.AuthKind("").Valid())
+	assert.False(t, ir.AuthKind("api_key").Valid())
+	assert.False(t, ir.AuthKind("OAuth2").Valid())
 }
 
 // TestOAuthFlow_ZeroValueShape pins OAuthFlow's omitempty contract: every

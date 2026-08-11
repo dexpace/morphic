@@ -22,7 +22,7 @@
       "kind": "scalar",
       "id": "t/anon/components/schemas/Annotated/allOf/0",
       "name": {
-        "hint": "Base"
+        "hint": "base"
       },
       "anonymous": true,
       "docs": {
@@ -58,7 +58,7 @@
       "kind": "scalar",
       "id": "t/anon/components/schemas/Mixed/allOf/0",
       "name": {
-        "hint": "Base"
+        "hint": "base"
       },
       "anonymous": true,
       "docs": {

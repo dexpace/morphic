@@ -491,6 +491,47 @@ func TestPointerPath_RootTokenlessAndNil(t *testing.T) {
 	assert.Nil(t, path, "a nil root reaches nothing")
 }
 
+// TestPointerPath_EmptyTokenIsARealToken pins the one token a walk must not
+// normalize away. RFC 6901 makes "" a reference token naming the key "", and the
+// resolver's own parser agrees (jsonpointer/navigation.go getNavigationStack,
+// v1.24.0). A walk that skips it reports '/a/' as arriving at a, turning a node
+// the pointer only passes through into its destination — which is exactly the
+// node the re-entrancy check excludes, so the check never sees it.
+func TestPointerPath_EmptyTokenIsARealToken(t *testing.T) {
+	t.Parallel()
+	inner := ymap(yscalar("b"), yscalar("leaf"))
+	root := ymap(yscalar("a"), inner)
+
+	path, complete := New().PointerPath(root, "/a/")
+	assert.False(t, complete, `no key "" is declared under a, so the last token resolves to nothing`)
+	assert.Equal(t, []*yaml.Node{root, inner}, path,
+		"the walk passed through a rather than stopping at it")
+}
+
+func TestPointerPath_EmptyTokenNamesTheEmptyKey(t *testing.T) {
+	t.Parallel()
+	empty := yscalar("under the empty key")
+	inner := ymap(yscalar(""), empty)
+	root := ymap(yscalar("a"), inner)
+
+	path, complete := New().PointerPath(root, "/a/")
+	require.True(t, complete, `the empty token names the key ""`)
+	assert.Same(t, empty, path[len(path)-1], "the last element is the destination")
+}
+
+// TestPointerPath_LoneSeparatorNamesTheRoot records where the resolver departs
+// from RFC 6901, which reads '/' as one empty token: getNavigationStack special-
+// cases it to an empty stack, so speakeasy lands on the document root. This
+// package models what the resolver walks, so it follows the resolver.
+func TestPointerPath_LoneSeparatorNamesTheRoot(t *testing.T) {
+	t.Parallel()
+	root := ymap(yscalar("a"), yscalar("v"))
+
+	path, complete := New().PointerPath(root, "/")
+	assert.True(t, complete, "the resolver reads a lone separator as naming the root")
+	assert.Equal(t, []*yaml.Node{root}, path)
+}
+
 func TestPointerPath_SegmentCapStopsTheWalk(t *testing.T) {
 	t.Parallel()
 	// A mapping whose only key is "a" and whose value is itself cannot be built
