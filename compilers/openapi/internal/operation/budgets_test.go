@@ -35,7 +35,7 @@ webhooks:
 	require.NoError(t, err)
 	require.NotNil(t, loadedDoc)
 	c := lowering.New(0, loadedDoc.Doc, loadedDoc.Source, lowering.GroupByTags,
-		lowering.Limits{}, lowering.StreamingMedia{}, overlay.Origin{})
+		lowering.Limits{}, lowering.StreamingMedia{}, lowering.ExtensionPromotions{}, overlay.Origin{})
 	var anchors schema.AnchorIndex
 
 	ctx, cancel := context.WithCancel(t.Context())

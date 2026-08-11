@@ -132,7 +132,10 @@ func lowerSecurityScheme(c lowering.Ctx, name string, ss *soa.SecurityScheme,
 		return ir.AuthScheme{}, false, []ir.Diagnostic{mechanismRefusalDiag(c, name, missing, entry)}
 	}
 	diags = preserveUnreadFields(c, &scheme, ss, decl)
-	return scheme, true, append(diags, applySchemeExtensions(c, &scheme, ss, decl)...)
+	diags = append(diags, applySchemeExtensions(c, &scheme, ss, decl)...)
+	// After the extensions, whose entries are what a promotion reads.
+	return scheme, true, append(diags,
+		c.PromoteDeprecation(scheme.Unmodeled, scheme.Deprecation, &scheme.Provenance)...)
 }
 
 // applySchemeExtensions keeps the x-* of the securitySchemes entry and, for an

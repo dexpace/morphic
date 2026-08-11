@@ -555,7 +555,7 @@ func applyHeaderAnnotations(c lowering.Ctx, p *ir.Property, h *soa.Header, hdecl
 	hExt, extDiags := schema.ExtensionsOf(c, h.GetExtensions(), hdecl)
 	diags = append(diags, extDiags...)
 	p.Unmodeled = annotation.MergeUnmodeled(p.Unmodeled, hExt)
-	return diags
+	return append(diags, c.PromoteDeprecation(p.Unmodeled, p.Deprecation, &p.Provenance)...)
 }
 
 // exampleList lowers a single example node and a plural example map into value

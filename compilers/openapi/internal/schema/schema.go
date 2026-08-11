@@ -1141,6 +1141,7 @@ func fillPropertyAnnotations(c lowering.Ctx, ts *compile.Types, anchors *AnchorI
 		p.Examples = a.Examples
 	}
 	p.Unmodeled = annotation.MergeUnmodeled(p.Unmodeled, a.Unmodeled)
+	diags = append(diags, c.PromoteDeprecation(p.Unmodeled, p.Deprecation, &p.Provenance)...)
 	// nil node: this arm runs only when the schema lowered to no node of its own,
 	// so nothing here can be carrying an Encoding.
 	diags = append(diags, recordUnplacedContent(c, &p.Unmodeled, ref, nil, pointer)...)
@@ -1226,6 +1227,7 @@ func attachDeclaredAnnotations(c lowering.Ctx, ts *compile.Types, anchors *Ancho
 		common.XML = a.XML
 	}
 	common.Unmodeled = annotation.MergeUnmodeled(common.Unmodeled, a.Unmodeled)
+	diags = append(diags, c.PromoteDeprecation(common.Unmodeled, common.Deprecation, &common.Provenance)...)
 	if len(a.Examples) > 0 {
 		common.Examples = a.Examples
 	}

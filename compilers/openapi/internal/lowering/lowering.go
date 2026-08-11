@@ -45,9 +45,9 @@ type Ctx struct {
 	// Provenance.
 	SrcIndex int
 	// Grouping selects how operations are grouped into OperationGroups. It is one
-	// of the caller policies the context carries — the budgets and the streaming
-	// media list are the others; everything else here is a fact about the
-	// document.
+	// of the caller policies the context carries — the budgets, the streaming
+	// media list and the promotion mapping are the others; everything else here
+	// is a fact about the document.
 	//
 	// It arrives as the caller wrote it, normalized or not — the compiler's
 	// Options fills an unset one in before building a context, but nothing here
@@ -69,6 +69,14 @@ type Ctx struct {
 	// because it holds a map: a struct copy would share it, which is the one
 	// thing keeping the other maps here unexported is for.
 	streaming map[string]bool
+
+	// promotions is the vendor-extension promotion policy, normalized into the
+	// map PromoteDeprecation reads, and nil when the caller disabled it.
+	//
+	// It is the second caller policy, and it is unexported where Grouping is not
+	// because it holds a map: a struct copy would share it, which is the one
+	// thing keeping the other maps here unexported is for.
+	promotions map[string]ExtensionTarget
 
 	// schemas is the set of component-schema names the document declares.
 	//
@@ -120,21 +128,25 @@ type Ctx struct {
 // and not another would classify one direction of an operation and not the
 // other.
 //
+// The promotion policy is normalized here too, and copied rather than shared,
+// so no lowering can write through the context into the map the caller passed.
+//
 // The $dynamicAnchor index is deliberately not derived here, though GitHub #172
 // asked for it. Building it emits a diagnostic when the walk hits its bounds, so
 // building it is a lowering action rather than context: done at entry, that
 // warning would reach documents that never write $dynamicRef, changing what the
 // compiler reports about them. It stays where it is, built on first use.
-func New(srcIndex int, doc *soa.OpenAPI, src ir.SourceInfo, grouping GroupingStrategy, limits Limits, streaming StreamingMedia, origin overlay.Origin) Ctx {
+func New(srcIndex int, doc *soa.OpenAPI, src ir.SourceInfo, grouping GroupingStrategy, limits Limits, streaming StreamingMedia, promotions ExtensionPromotions, origin overlay.Origin) Ctx {
 	return Ctx{
-		Doc:       doc,
-		Source:    src,
-		SrcIndex:  srcIndex,
-		Grouping:  grouping,
-		Limits:    limits,
-		schemas:   declaredSchemaNames(doc),
-		streaming: streamingSet(streaming),
-		overlay:   origin,
+		Doc:        doc,
+		Source:     src,
+		SrcIndex:   srcIndex,
+		Grouping:   grouping,
+		Limits:     limits,
+		schemas:    declaredSchemaNames(doc),
+		streaming:  streamingSet(streaming),
+		promotions: promotionSet(promotions),
+		overlay:    origin,
 	}
 }
 

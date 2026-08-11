@@ -1723,6 +1723,34 @@ bindings at server, channel, operation and message level; `ProtocolDecl.Options`
 bare `RawValue`, not `UnmodeledEntry` — those entries are there because the source declared them
 where the IR expects them, so there is no reason to record and no unmodelled construct to locate.
 
+#### Promoting a vendor extension into the field it is the only spelling for
+
+Several typed fields model information no source format gives a keyword for, so the only way a
+document can state it is a vendor extension: `Deprecation.Message`/`Since`/`RemovalVersion`,
+`Pagination.*`, `LongRunning`, `Idempotency`, `ErrorCase.Retryable`/`Throttling`, `Enum.Flags`,
+`EnumMember.Name`, `Sensitive` and `Secret`. Reading such an extension into its field is
+**promotion**, and because the format assigns an `x-*` key no semantics at all, promotion is a
+heuristic — invariant 6 applies to it in full. Four rules, so that no emitter has to re-derive
+this from `Unmodeled` and no two derive it differently:
+
+1. **The mapping is injectable policy, default-on and disableable**, per compiler. Its default
+   contents are conventions, not standards: nothing in any specification says `x-deprecated-reason`
+   means what its name suggests, so a caller may replace the mapping outright.
+2. **The extension stays where it was.** A promotion is a second reading of a preserved
+   `Unmodeled` entry, never a move, and the entry keeps its `vendor_extension` reason. That is what
+   makes it reversible: a consumer that disagrees with the guess reads the entry instead. It also
+   makes losslessness independent of the policy — a disabled promotion loses nothing.
+3. **The node records that it was inferred**, in its own `Provenance.Inferred`, naming the
+   heuristic. `Inferred` holds one string and a node can be reached by more than one heuristic, so
+   the names are listed rather than overwritten, and a name already listed is not repeated.
+4. **A node with no `Provenance` is not promoted into.** `Parameter` is today's instance: it
+   carries a `Deprecation` and no provenance, so a promotion there could not satisfy rule 3, and a
+   heuristic that cannot be audited is worse than an empty field. Giving such a node a provenance
+   is a change to this document, and the promotion follows it rather than preceding it.
+
+A value the mapped field cannot hold — anything but text, for the three `Deprecation` members — is
+reported and not coerced, since the document means something else by the key.
+
 ### 12.1 One structural home per declaration
 
 Documentation, deprecation, XML hints, examples, vendor extensions, validation-only keywords and

@@ -268,6 +268,12 @@ func paramHoldsResidue(keyword string) bool {
 // field is written only when the parameter declares it, so it overlays the
 // schema-derived annotations fillParamSchema already recorded rather than
 // erasing them with an unset value.
+//
+// It is the one carrier of an ir.Deprecation that does not promote a vendor
+// extension into it: ir.Parameter has no Provenance, so there is nowhere to
+// record that the field was read by a heuristic, and ir-design §12's promotion
+// rules require that before the reading. Giving Parameter a provenance is a
+// change to that document, not to this file (GitHub #252).
 func fillParamDetail(c lowering.Ctx, param *ir.Parameter, p *soa.Parameter, pptr string) []ir.Diagnostic {
 	if d := p.GetDescription(); d != "" {
 		param.Docs.Description = d

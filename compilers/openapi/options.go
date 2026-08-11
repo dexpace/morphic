@@ -30,14 +30,40 @@ const (
 
 // StreamingMedia is the media-type streaming policy: which media types imply
 // that a body is a sequence of frames when the document declares nothing that
-// says so. It is the second injectable-policy seam (architecture principle 6),
-// and it is named here rather than restated for the reason GroupingStrategy is.
+// says so. It is another injectable-policy seam (architecture principle 6), and it is
+// named here rather than restated for the reason GroupingStrategy is.
 type StreamingMedia = lowering.StreamingMedia
 
 // DefaultStreamingMediaTypes returns the media types StreamingMedia classifies
 // as streams when the caller names none. It is exported so a caller extending
 // the list can start from it rather than transcribe it.
 func DefaultStreamingMediaTypes() []string { return lowering.DefaultStreamingMediaTypes() }
+
+// ExtensionPromotions is the vendor-extension promotion policy: which x-* keys
+// are read into which typed IR field. It is another injectable-policy seam
+// (architecture principle 6), and is named here rather than restated for the
+// reason GroupingStrategy is.
+type ExtensionPromotions = lowering.ExtensionPromotions
+
+// ExtensionTarget names one typed IR field a promoted extension fills.
+type ExtensionTarget = lowering.ExtensionTarget
+
+// The typed fields promotion can fill today.
+const (
+	// TargetDeprecationMessage fills ir.Deprecation.Message.
+	TargetDeprecationMessage = lowering.TargetDeprecationMessage
+	// TargetDeprecationSince fills ir.Deprecation.Since.
+	TargetDeprecationSince = lowering.TargetDeprecationSince
+	// TargetDeprecationRemovalVersion fills ir.Deprecation.RemovalVersion.
+	TargetDeprecationRemovalVersion = lowering.TargetDeprecationRemovalVersion
+)
+
+// DefaultExtensionPromotions returns the extension-to-field mapping applied
+// when the caller names none. It is exported so a caller changing the mapping
+// can start from it rather than transcribe it.
+func DefaultExtensionPromotions() map[string]ExtensionTarget {
+	return lowering.DefaultExtensionPromotions()
+}
 
 // Options configures the OpenAPI compiler. It is the concrete type this
 // compiler expects in compilers.Options.FormatOptions; the zero value is valid
@@ -54,6 +80,11 @@ type Options struct {
 	// the default list, on; a caller who wants only what a document declares
 	// disables it.
 	StreamingMedia StreamingMedia `json:"streamingMedia"`
+
+	// Promotions selects which vendor extensions are read into typed IR fields.
+	// The zero value is the default mapping, on; a caller who wants extensions
+	// kept verbatim and nothing more disables it.
+	Promotions ExtensionPromotions `json:"promotions"`
 	// AllowExternalRefs lets reference resolution leave the source document —
 	// reading files off disk and fetching http(s) URLs. Off by default, because
 	// compilers.Source is the whole input ("the caller loads bytes so compilation

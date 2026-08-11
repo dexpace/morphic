@@ -187,5 +187,6 @@ func loadOptions(o Options) load.Options {
 // loadOptions translates the other two — below here, zero means no budget.
 func loweringCtx(doc *load.Document, o Options) lowering.Ctx {
 	limits := lowering.Limits{MaxEnumMembers: bounded(o.Limits.MaxEnumMembers)}
-	return lowering.New(rootSrcIndex, doc.Doc, doc.Source, o.Grouping, limits, o.StreamingMedia, doc.Overlay)
+	return lowering.New(rootSrcIndex, doc.Doc, doc.Source, o.Grouping, limits,
+		o.StreamingMedia, o.Promotions, doc.Overlay)
 }
