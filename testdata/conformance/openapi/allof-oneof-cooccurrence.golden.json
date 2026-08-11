@@ -22,7 +22,7 @@
       "kind": "scalar",
       "id": "t/anon/components/schemas/Combo/oneOf/0",
       "name": {
-        "hint": "A"
+        "hint": "a"
       },
       "anonymous": true,
       "docs": {},
@@ -44,7 +44,7 @@
       },
       "anonymous": true,
       "docs": {
-        "description": "named by position"
+        "description": "named by position, not by target"
       },
       "sensitive": false,
       "provenance": {
@@ -60,7 +60,7 @@
       "kind": "model",
       "id": "t/composed/components/schemas/Combo/oneOf/0",
       "name": {
-        "hint": "Combo_A"
+        "hint": "combo_a"
       },
       "anonymous": true,
       "docs": {},
@@ -87,7 +87,7 @@
       "kind": "model",
       "id": "t/composed/components/schemas/Combo/oneOf/1",
       "name": {
-        "hint": "Combo_B"
+        "hint": "combo_b"
       },
       "anonymous": true,
       "docs": {},
@@ -310,7 +310,7 @@
       "variants": [
         {
           "name": {
-            "hint": "A"
+            "hint": "a"
           },
           "type": {
             "target": "t/composed/components/schemas/Combo/oneOf/0",
@@ -320,7 +320,7 @@
         },
         {
           "name": {
-            "hint": "B"
+            "hint": "b"
           },
           "type": {
             "target": "t/composed/components/schemas/Combo/oneOf/1",
@@ -408,7 +408,7 @@
           "eventPayload": false,
           "secret": false,
           "docs": {
-            "description": "named by position"
+            "description": "named by position, not by target"
           },
           "provenance": {
             "source": 0,
@@ -599,7 +599,7 @@
     {
       "format": "openapi@3.1",
       "path": "allof-oneof-cooccurrence.yaml",
-      "hash": "4befdad1ab433d53b430993675f127b586c7ec0bfb765dca31c66d5c819b4c10"
+      "hash": "9deaf845e7a310c701113bd61e60a7e0d170cbf96860921816623667813e458f"
     }
   ]
 }

@@ -10,7 +10,6 @@ package merge
 import (
 	"cmp"
 	"fmt"
-	"math/big"
 	"slices"
 
 	"github.com/dexpace/morphic/compilers/openapi/internal/annotation"
@@ -201,11 +200,12 @@ func mergeVisibility(dst, src ir.Visibility) ir.Visibility {
 // order from is settled by value rather than by which branch was declared
 // first: two branches naming the same lifecycles in different orders would
 // otherwise intersect to two different slices depending on the spelling.
-// annotation.EffectiveVisibility restricts to one of two fixed sets, which are
-// either identical or disjoint, so no OpenAPI document reaches that pairing
-// today — but this helper is the contract a second visibility source would
-// inherit, and an ordering rule that reads off dst is the kind that surfaces
-// only once something already depends on it.
+// annotation.EffectiveVisibility yields one of two fixed sets, either identical
+// or disjoint — and None outright where a position is in both, which
+// mergeVisibility settles before reaching here — so no OpenAPI document reaches
+// a partial overlap today. But this helper is the contract a second visibility
+// source would inherit, and an ordering rule that reads off dst is the kind that
+// surfaces only once something already depends on it.
 func intersectLifecycles(a, b []ir.Lifecycle) []ir.Lifecycle {
 	if slices.Compare(a, b) > 0 {
 		a, b = b, a
@@ -427,7 +427,7 @@ func constraintsConflict(a, b *ir.Constraints) (string, bool) {
 // intersection, and the discarded bound is always the stricter one — staying
 // silent would silently loosen the validation the spec intended.
 func boundConflictDetail(keyword string, a, b *ir.BigVal, exclA, exclB bool) (string, bool) {
-	if a == nil || b == nil || (exclA == exclB && bigValEqual(*a, *b)) {
+	if a == nil || b == nil || (exclA == exclB && annotation.BigValEqual(*a, *b)) {
 		return "", false
 	}
 	return fmt.Sprintf("conflicting %s (%s and %s)", keyword, boundText(*a, exclA), boundText(*b, exclB)), true
@@ -449,23 +449,10 @@ func boundText(v ir.BigVal, exclusive bool) string {
 // compares by magnitude alone — the keyword is named here rather than passed
 // because there is nothing else with that shape to compare.
 func multipleOfConflictDetail(a, b *ir.BigVal) (string, bool) {
-	if a == nil || b == nil || bigValEqual(*a, *b) {
+	if a == nil || b == nil || annotation.BigValEqual(*a, *b) {
 		return "", false
 	}
 	return fmt.Sprintf("conflicting multipleOf (%s and %s)", a.String(), b.String()), true
-}
-
-// bigValEqual reports whether two numeric literals denote the same value,
-// comparing by magnitude so equal values spelled differently (10, 10.0, 1e1) are
-// equal. Both are already-validated BigVals, so parsing succeeds; an unparseable
-// pair falls back to exact string equality.
-func bigValEqual(a, b ir.BigVal) bool {
-	ar, aok := new(big.Rat).SetString(a.String())
-	br, bok := new(big.Rat).SetString(b.String())
-	if !aok || !bok {
-		return a == b
-	}
-	return ar.Cmp(br) == 0
 }
 
 // intConflictDetail reports whether two optional integer bounds are both

@@ -436,7 +436,7 @@
       "kind": "enum",
       "id": "t/anon/components/headers/RateUnit/schema",
       "name": {
-        "hint": "RateUnit"
+        "hint": "rate_unit"
       },
       "anonymous": true,
       "docs": {},
@@ -530,7 +530,7 @@
       "kind": "model",
       "id": "t/anon/components/requestBodies/OrderBody/content/application~1json/schema",
       "name": {
-        "hint": "OrderBody"
+        "hint": "order_body"
       },
       "anonymous": true,
       "docs": {},
