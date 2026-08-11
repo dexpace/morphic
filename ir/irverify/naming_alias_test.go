@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"reflect"
 	"testing"
+	"unicode/utf8"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -60,7 +61,9 @@ func TestVerify_BlankAliasIsAViolation(t *testing.T) {
 		"soft hyphen":   "\u00ad",
 		"word joiner":   "\u2060",
 		"nul":           "\x00",
-		"invisible mix": "\u200b\t\ufeff",
+		"hangul filler": "\u3164",
+		"jamo filler":   "\u115f",
+		"invisible mix": "\u200b\t\ufeff\u3164",
 	}
 	for name, alias := range blanks {
 		t.Run(name, func(t *testing.T) {
@@ -75,21 +78,90 @@ func TestVerify_BlankAliasIsAViolation(t *testing.T) {
 }
 
 // TestVerify_InvisibleRuneBesideAVisibleOneIsNotBlank holds the other side of
-// that line. Only an entry with nothing visible in it is blank; judging an
-// invisible rune sitting beside a visible one needs the grammar of the format
-// the alias is matched under, which the IR does not have.
+// the line isBlankName draws — see its comment for why the IR declines to judge
+// this one. U+2800 renders as blank but is a graphic character, so it belongs
+// here rather than in the table above.
 func TestVerify_InvisibleRuneBesideAVisibleOneIsNotBlank(t *testing.T) {
 	t.Parallel()
-	assert.Empty(t, aliasViolations(t, "com.example.\u200bUser", " padded "))
+	assert.Empty(t, aliasViolations(t, "com.example.\u200bUser", " padded ", "\u2800"))
 }
 
+// TestVerify_IllFormedAliasIsAViolation covers the rule every channel shares.
+// The bytes here are a lone continuation byte: json.Marshal writes it as the
+// replacement rune, so a document carrying one decodes to a different document
+// and stops round-tripping — which no other rule in this file would notice,
+// since ill-formed bytes are neither blank nor a repeat.
+func TestVerify_IllFormedAliasIsAViolation(t *testing.T) {
+	t.Parallel()
+	ill := string([]byte{'c', 'a', 'f', 0xe9})
+	require.False(t, utf8.ValidString(ill), "the fixture has to be ill-formed to test anything")
+
+	got := aliasViolations(t, "ok", ill)
+	require.Len(t, got, 1)
+	assert.Equal(t, "ir/naming-invalid-utf8", got[0].Code)
+	assert.Equal(t, "doc.Types[t/x/M].Name.Aliases[1]", got[0].Path)
+	assert.NotContains(t, got[0].Message, ill, "the report does not repeat the bad bytes")
+}
+
+// TestVerify_AliasRepeatingItsOwnSourceIsAViolation covers the other way an
+// entry can admit no name that was not already admitted. The entity's own
+// Source is matched before any alias is, so listing it again adds nothing —
+// the same argument the duplicate rule rests on, one channel over.
+func TestVerify_AliasRepeatingItsOwnSourceIsAViolation(t *testing.T) {
+	t.Parallel()
+	doc := modelNamed(ir.Naming{Source: "User", Canonical: "user", Aliases: []string{"User"}})
+	got := irverify.Verify(doc)
+	require.Len(t, got, 1)
+	assert.Equal(t, "ir/naming-alias-redundant", got[0].Code)
+	assert.Equal(t, "doc.Types[t/x/M].Name.Aliases[0]", got[0].Path)
+	assert.Contains(t, got[0].Message, "User")
+}
+
+// TestVerify_AliasMatchingDerivedChannelsIsClean holds the boundary that rule
+// stops at. Canonical and Hint are names the IR derived for an emitter to
+// render, not names a writer schema could have spelled, so an alias equal to
+// one of them is not redundant with anything a reader would match.
+func TestVerify_AliasMatchingDerivedChannelsIsClean(t *testing.T) {
+	t.Parallel()
+	assert.Empty(t, irverify.Verify(modelNamed(
+		ir.Naming{Source: "User", Canonical: "user", Aliases: []string{"user"}})))
+	assert.Empty(t, irverify.Verify(modelNamed(
+		ir.Naming{Hint: "user", Aliases: []string{"user"}})))
+}
+
+// TestVerify_AliasSharedByTwoNamings pins the scope boundary appendAliasViolations
+// declares: a repeat across two Namings goes unreported today, and closing
+// GitHub #398 is what should change it.
+//
+// Without this, nothing holds seen to being per-Naming. Hoisting it into
+// checkNaming's closure — the one-line change anyone implementing #398 reaches
+// for first — makes this document report ir/naming-alias-duplicate, and every
+// other test in this file stays green because each drives a document with one
+// Naming in it.
+func TestVerify_AliasSharedByTwoNamings(t *testing.T) {
+	t.Parallel()
+	const shared = "com.example.User"
+	a := &ir.Model{TypeCommon: ir.TypeCommon{ID: "t/x/A",
+		Name: ir.Naming{Source: "a", Canonical: "a", Aliases: []string{shared}}}}
+	b := &ir.Model{TypeCommon: ir.TypeCommon{ID: "t/x/B",
+		Name: ir.Naming{Source: "b", Canonical: "b", Aliases: []string{shared}}}}
+
+	got := irverify.Verify(&ir.Document{IRVersion: ir.IRVersion,
+		Types: ir.TypeRegistry{a.ID: a, b.ID: b}})
+	assert.Empty(t, got, "out of scope until GitHub #398; this is the fixture that says so")
+}
+
+// TestVerify_DuplicateAliasIsAViolation asserts both ends of the pair. The path
+// carries the entry to delete; the message carries the one it repeats, so a
+// reader of a long list is not left scanning for the twin — which is how
+// checkDuplicateIDs words the same defect ("declared here and at …").
 func TestVerify_DuplicateAliasIsAViolation(t *testing.T) {
 	t.Parallel()
 	got := aliasViolations(t, "dup", "other", "dup")
 	require.Len(t, got, 1, "the repeat is reported, not the first occurrence")
 	assert.Equal(t, "ir/naming-alias-duplicate", got[0].Code)
 	assert.Equal(t, "doc.Types[t/x/M].Name.Aliases[2]", got[0].Path)
-	assert.Contains(t, got[0].Message, "dup")
+	assert.Equal(t, "alias dup is listed here and at index 0", got[0].Message)
 }
 
 // TestVerify_RepeatedBlankAliasReportsEachAsBlank holds the interaction between
