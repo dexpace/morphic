@@ -23,7 +23,10 @@ type Naming struct {
 	Canonical string `json:"canonical,omitempty"`
 	// Hint is a context-derived suggestion for an entity with no source name to
 	// render: a hoisted anonymous type (e.g. "connection_domain"), or one the
-	// source named with the empty string.
+	// source named with the empty string. It is in the same neutral form as
+	// Canonical and for the same reason — it is the only name such an entity
+	// has, so it is what an emitter renders its identifier from — however the
+	// position it was derived from was spelled.
 	Hint string `json:"hint,omitempty"`
 	// Aliases are alternate names for schema-resolution matching (Avro
 	// aliases). Versionless — rename history tied to version labels lives in
@@ -35,9 +38,13 @@ type Naming struct {
 	// ("com.example.User"), and neutralizing it to words would lose the
 	// separators and the case the match depends on. So no neutrality rule
 	// applies to an entry, and irverify holds only what is decidable without
-	// one: every entry is non-empty and no entry repeats, since an empty alias
-	// matches nothing and a repeated one matches twice. Both mean a producer
-	// wrote a list it did not mean to write.
+	// one: every entry names something and no entry repeats, since a blank
+	// alias matches nothing and a repeated one matches twice.
+	//
+	// A source that repeats an alias is recorded once, with a Diagnostic naming
+	// the repeat — not carried through as a repeat. That is not the lossy
+	// flattening invariant #2 forbids: the second entry admits no name the first
+	// does not, so the same set of names resolves to this entity either way.
 	Aliases []string `json:"aliases,omitempty"`
 }
 

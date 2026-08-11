@@ -56,5 +56,5 @@ components:
         branch: {$ref: '#/components/schemas/InlineHost/oneOf/0'}
     InlineHost:
       oneOf:
-        - {type: integer, description: named by position, not by target}
+        - {type: integer, description: 'named by position, not by target'}
         - {type: string}

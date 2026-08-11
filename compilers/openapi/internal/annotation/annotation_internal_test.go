@@ -11,6 +11,7 @@ import (
 	yaml "gopkg.in/yaml.v3"
 
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
+	"github.com/dexpace/morphic/compilers/openapi/internal/openapitest"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -50,7 +51,7 @@ func TestAnnotations_ReadsEverySiteLocalAspect(t *testing.T) {
 	node := &oas3.Schema{
 		Description: new("D"),
 		XML:         &oas3.XML{Name: new("Q")},
-		Example:     yamlNode(t, "hello"),
+		Example:     openapitest.YAMLNode(t, "hello"),
 	}
 	got, diags := Read(Site{Kind: Declaration, Node: node}, "/components/schemas/S", 0)
 
@@ -197,15 +198,6 @@ func TestNoIRHomeAt_ModelSetWithoutRawSourceRecordsNothing(t *testing.T) {
 
 	assert.Nil(t, got, "no entry is recorded when there are no bytes to record")
 	assert.Empty(t, diags, "and nothing is announced, so the two channels agree")
-}
-
-// yamlNode parses src as a single YAML document and returns its root node.
-func yamlNode(t *testing.T, src string) *yaml.Node {
-	t.Helper()
-	var doc yaml.Node
-	require.NoError(t, yaml.Unmarshal([]byte(src), &doc))
-	require.Len(t, doc.Content, 1, "expected a single document node")
-	return doc.Content[0]
 }
 
 // TestKind_String covers both named values and the default case, so an

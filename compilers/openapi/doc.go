@@ -2,8 +2,10 @@
 // implements compilers.Compiler.
 //
 // What is here is the compiler's public face and the assembly behind it: the
-// Compiler, its Options, the document metadata, and the run that calls the
-// lowerings in order and builds a Document out of what they return.
+// Compiler, its Options and the vocabulary they answer to as text, the
+// recognition of an OpenAPI document from its own bytes, the document metadata,
+// and the run that calls the lowerings in order and builds a Document out of
+// what they return.
 //
 // Parsing is delegated to github.com/speakeasy-api/openapi. Everything the
 // compiler itself decides — identity (pointer-derived IDs), hoisting,
