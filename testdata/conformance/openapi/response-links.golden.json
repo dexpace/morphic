@@ -60,6 +60,43 @@
                   }
                 }
               ],
+              "errors": [
+                {
+                  "type": {
+                    "target": "",
+                    "nullable": false
+                  },
+                  "conditions": {
+                    "statusCodes": [
+                      {
+                        "from": 409,
+                        "to": 409
+                      }
+                    ]
+                  },
+                  "fault": "client",
+                  "docs": {
+                    "description": "conflict"
+                  },
+                  "unmodeled": {
+                    "openapi:links": {
+                      "reason": "no_ir_home",
+                      "value": {
+                        "GetConflicting": {
+                          "operationId": "getOrder",
+                          "parameters": {
+                            "orderId": "$response.body#/existingId"
+                          }
+                        }
+                      },
+                      "provenance": {
+                        "source": 0,
+                        "pointer": "/paths/~1orders/post/responses/409/links"
+                      }
+                    }
+                  }
+                }
+              ],
               "oneWay": false,
               "idempotency": {},
               "auth": null,
@@ -184,7 +221,7 @@
     {
       "format": "openapi@3.1",
       "path": "response-links.yaml",
-      "hash": "76f06e7ecfec2ebe4bbd3c5ca6e02f781042b76afc35be07e1d4be8a53b0f85c"
+      "hash": "15ba7e8058c2731f060d6d93c0a9ec22aa2731add81e5a1a19372d16f72b169f"
     }
   ]
 }

@@ -1,0 +1,41 @@
+openapi: 3.1.0
+info: {title: ExtensionPromotion, version: "1.0.0"}
+paths:
+  /x:
+    get:
+      operationId: getX
+      deprecated: true
+      x-deprecated-reason: use getY instead
+      x-deprecated-since: "1.2.0"
+      x-sunset: "2.0.0"
+      responses:
+        "200":
+          description: ok
+          headers:
+            X-Legacy:
+              deprecated: true
+              x-deprecated-reason: header goes away
+              schema: {type: string}
+  /y:
+    get:
+      operationId: getY
+      x-deprecated-reason: annotates nothing
+      responses:
+        "200":
+          description: ok
+components:
+  schemas:
+    Old:
+      type: object
+      deprecated: true
+      x-deprecated-reason: replaced by New
+      properties:
+        p: {type: string, deprecated: true, x-deprecated-reason: field goes away}
+        n: {type: string, deprecated: true, x-deprecated-reason: 7}
+  securitySchemes:
+    k:
+      type: apiKey
+      name: X-Key
+      in: header
+      deprecated: true
+      x-deprecated-reason: rotate to oauth
