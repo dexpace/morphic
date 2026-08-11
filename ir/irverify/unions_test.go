@@ -75,15 +75,32 @@ func TestVerify_RepeatedVariantTargetIsClean(t *testing.T) {
 // this check: a nil registry entry is checkRegistryKeys' to report, and reaching
 // past it here would crash Verify on the malformed document it exists to
 // describe.
+//
+// Both nil shapes, because only one of them is dangerous and it is not the
+// obvious one. An untyped nil fails the *ir.Union assertion, so a check with no
+// guard at all skips it and looks safe; a typed nil satisfies the assertion, and
+// the variant count read behind it is a real dereference. Planting only the
+// untyped one leaves ir.IsNilTypeDef removable with the whole suite green.
 func TestVerify_NilTypeBesideAUnionDoesNotPanic(t *testing.T) {
 	t.Parallel()
-	doc := unionOf()
-	doc.Types["t/x/Nil"] = nil
+	for _, tc := range []struct {
+		name  string
+		entry ir.TypeDef
+	}{
+		{"an untyped nil entry", nil},
+		{"a typed nil union", (*ir.Union)(nil)},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			doc := unionOf()
+			doc.Types["t/x/Nil"] = tc.entry
 
-	var got []irverify.Violation
-	require.NotPanics(t, func() { got = irverify.Verify(doc) })
-	assert.Len(t, unionViolations(t, doc), 1, "the empty union is still reported")
-	assert.Contains(t, codes(got), "ir/nil-type", "the nil entry is reported by its own check")
+			var got []irverify.Violation
+			require.NotPanics(t, func() { got = irverify.Verify(doc) })
+			assert.Len(t, unionViolations(t, doc), 1, "the empty union is still reported")
+			assert.Contains(t, codes(got), "ir/nil-type", "the nil entry is reported by its own check")
+		})
+	}
 }
 
 // codes returns the violation codes in vs, for assertions about which checks
