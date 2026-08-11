@@ -363,18 +363,28 @@ func InternalPointer(ref string) (string, bool) {
 // walk passes through, so a pointer that traverses a reference already being
 // resolved deadlocks before it ever arrives (v1.24.0, openapi/reference.go
 // resolve/GetObject). A target alone cannot express that.
+//
+// The leading '/' introduces the first token rather than being one, and every
+// later '/' separates two — so '/a/' carries the tokens "a" and "", the second
+// naming a member whose key is the empty string (RFC 6901 §3, and
+// jsonpointer/navigation.go getNavigationStack, v1.24.0, which reads it the
+// same way).
+// Dropping the empty token instead is what a pointer's danger being upstream of
+// its destination makes unsafe: it turns a node the walk descends *through* into
+// the node it stops at, and the caller's re-entrancy check exempts exactly that
+// node (GitHub #238).
 func (v *View) PointerPath(root *yaml.Node, pointer string) (path []*yaml.Node, complete bool) {
 	cur := Deref(root)
 	if cur == nil {
 		return nil, false
 	}
 	path = append(path, cur)
+	if tokenless(pointer) {
+		return path, true
+	}
 
 	segments := 0
-	for raw := range strings.SplitSeq(pointer, "/") {
-		if raw == "" {
-			continue
-		}
+	for raw := range strings.SplitSeq(strings.TrimPrefix(pointer, "/"), "/") {
 		segments++
 		if segments > maxPointerSegments {
 			return path, false
@@ -386,6 +396,18 @@ func (v *View) PointerPath(root *yaml.Node, pointer string) (path []*yaml.Node, 
 		path = append(path, cur)
 	}
 	return path, true
+}
+
+// tokenless reports whether a pointer carries no reference tokens at all, so it
+// names the root. Two spellings do, and the resolver lands on the root for both
+// (v1.24.0): the empty pointer, which is how a bare '#' reaches here and which
+// references/resolution.go resolveAgainstDocument short-circuits to the root
+// document, and a lone '/'. The second is a deliberate departure from RFC 6901,
+// which reads '/' as one empty token — getNavigationStack special-cases it to an
+// empty navigation stack, and this walk models what the resolver walks rather
+// than what the grammar admits.
+func tokenless(pointer string) bool {
+	return pointer == "" || pointer == "/"
 }
 
 // ChildByToken returns the child of a mapping (by key) or sequence (by index)

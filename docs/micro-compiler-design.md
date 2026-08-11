@@ -684,12 +684,16 @@ sorts, which `maps.Keys` + `slices.Sorted` and the existing generic `sortedKeys`
   creates lives under `internal/`, so none of it is reachable from outside the compiler. The IR is
   the ABI (invariant 1); a restructuring that altered the compiler's own surface would be a second,
   unrelated change.
-- **The source index.** Indexing the raw tree once (pointer → node + shape) would make resolution a
-  lookup, share one walk across cycle and amplification detection, and give `--explain` a substrate.
-  It is held back because `$ref` handling still carries an open defect — #40, percent-encoded
-  fragments failing to resolve — and an index built over it would bake it in. #143 (siblings
-  adjacent to a `$ref` on an allOf branch dropped) and #141 (an `$anchor` fragment derived from as
-  though it were a pointer) are closed. Filed as a follow-up blocked on the rest closing.
+- **A pointer-keyed source index.** The `$ref` defects this was held back on — #40 (percent-encoded
+  fragments failing to resolve), #141 (an `$anchor` fragment derived from as though it were a
+  pointer) and #143 (siblings adjacent to a `$ref` on an allOf branch dropped) — are all closed, and
+  the walk-sharing half has since landed: `internal/sourceindex` walks the decoded tree once and
+  answers what the cycle and amplification refusals each used to walk it to ask, over the single
+  decode the loader now performs. What is still out of scope is the other half — a pointer → node
+  map that would make reference resolution a lookup, a per-node key index that would make
+  `annotation.RawChildNode` one, and the `--explain` substrate both would give. Each of those is
+  read during lowering rather than before it, so handing them down means widening the lowering
+  context and the signatures beneath it: its own change.
 - **Rebasing the GraphQL and Protobuf drafts.** They are evidence here, not work items.
 - **A new-compiler skeleton demo.**
 
@@ -746,6 +750,6 @@ landing them first would only encode the current one.
 | #83 enforce size and complexity caps in lint | **Closed by 4.2**, deliberately last |
 | #66 extract a shared JSON-Schema→IR lowering core before the next compilers land | **Superseded.** Its premise expired — the next compilers landed without it (#20, #21). §3 replaces it with evidence-based promotion. To be closed with that reasoning, not silently |
 | #142 the annotation matrix cannot reach a carrier position | **Closed**, independently of this work as §8.4 said it could be: the grid gained a kind per carrier, and the two are separate kinds because their carriers hold different sets |
-| #40, #141 `$ref` handling defects | **#141 closed**: a fragment that is not a JSON pointer is refused rather than derived from, and `irverify` now rejects an ID the grammar could not have produced. #40 still **blocks the source index** (§10). #143, listed here before, is closed |
+| #40, #141 `$ref` handling defects | **Both closed**: a fragment that is not a JSON pointer is refused rather than derived from, `irverify` now rejects an ID the grammar could not have produced, and percent-encoded fragments resolve. With #143 they were what held the source index back; the walk-sharing half of it has since landed, and §10 records what remains out of scope |
 | #20, #21 GraphQL and Protobuf drafts | **Evidence, not work items** (§2). Rebasing is later work |
 | Naming grammar divergence across compilers | **Closed by #161**, filed and fixed separately: a live invariant-4 violation, independent of whether this architecture work proceeds |

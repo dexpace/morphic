@@ -269,6 +269,16 @@
                         "style": "form",
                         "explode": true
                       }
+                    },
+                    "unmodeled": {
+                      "openapi:encoding/ids/allowReserved": {
+                        "reason": "no_ir_home",
+                        "value": true,
+                        "provenance": {
+                          "source": 0,
+                          "pointer": "/paths/~1submit/post/requestBody/content/application~1x-www-form-urlencoded/encoding/ids/allowReserved"
+                        }
+                      }
                     }
                   }
                 ],
@@ -724,6 +734,15 @@
     {
       "severity": "info",
       "code": "openapi/degraded-construct",
+      "message": "encoding allowReserved has no ir.PartEncoding home; kept verbatim under Unmodeled",
+      "provenance": {
+        "source": 0,
+        "pointer": "/paths/~1submit/post/requestBody/content/application~1x-www-form-urlencoded/encoding/ids/allowReserved"
+      }
+    },
+    {
+      "severity": "info",
+      "code": "openapi/degraded-construct",
       "message": "request body is not required; optionality kept under Unmodeled",
       "provenance": {
         "source": 0,
@@ -735,7 +754,7 @@
     {
       "format": "openapi@3.1",
       "path": "multipart-encoding.yaml",
-      "hash": "3fc8c047afb3b7a847d3875de98e50a9b09052a495631f6f884ae197e2a17423"
+      "hash": "b15abb2581ba82770d20ef9459dd63c4871f3ab3e2f7a84f83dc146f26314e1e"
     }
   ]
 }

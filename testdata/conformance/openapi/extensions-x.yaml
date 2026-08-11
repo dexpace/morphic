@@ -1,15 +1,65 @@
 openapi: 3.1.0
-info: {title: ExtensionsX, version: "1.0.0"}
 x-audience: public
+info:
+  title: ExtensionsX
+  version: "1.0.0"
+  x-mark: XINFO
+  contact: {name: n, x-mark: XCONTACT}
+  license: {name: MIT, x-mark: XLICENSE}
+externalDocs: {url: https://d.example, x-mark: XEXTERNALDOCS}
+servers:
+  - url: https://e.example/{v}
+    x-mark: XSERVER
+    variables: {v: {default: "1", x-mark: XSERVERVARIABLE}}
+tags:
+  - name: t1
+    x-mark: XTAG
+    externalDocs: {url: https://t.example, x-mark: XTAGEXTERNALDOCS}
 paths:
+  x-mark: XPATHS
   /widgets:
+    x-mark: XPATHITEM
+    parameters: [{name: shape, in: query, schema: {type: string}, x-mark: XPARAMETER}]
     get:
       operationId: listWidgets
+      tags: [t1]
       x-internal: true
+      externalDocs: {url: https://o.example, x-mark: XOPERATIONEXTERNALDOCS}
       responses:
+        x-mark: XRESPONSES
         "200":
           description: ok
+          x-mark: XRESPONSE
+          headers: {X-Rate: {schema: {type: string}, x-mark: XHEADER}}
+          links: {self: {operationId: listWidgets}}
+        "404":
+          description: gone
+          x-mark: XERRORRESPONSE
+          links: {retry: {operationId: listWidgets}}
+      callbacks:
+        onEvent:
+          x-mark: XCALLBACK
+          "{$request.body#/u}":
+            post:
+              operationId: onEventPost
+              responses: {"200": {description: ok}}
+    post:
+      operationId: createWidget
+      requestBody:
+        x-mark: XREQUESTBODY
+        required: true
+        content:
+          multipart/form-data:
+            x-mark: XMEDIATYPE
+            schema: {type: object, properties: {f: {type: string}}}
+            encoding:
+              f: {contentType: text/plain, allowReserved: true, x-mark: XENCODING}
+            examples:
+              e1: {value: v, x-mark: XEXAMPLE}
+      responses:
+        "201": {description: created}
 components:
+  x-mark: XCOMPONENTS
   schemas:
     S:
       type: object
@@ -24,5 +74,23 @@ components:
       x-wrapped: !!binary |
         aGVs
         bG8=
+      xml: {name: s, x-mark: XXML}
+      externalDocs: {url: https://s.example, x-mark: XSCHEMAEXTERNALDOCS}
       properties:
         a: {type: string}
+    D:
+      oneOf: [{$ref: '#/components/schemas/A'}]
+      discriminator: {propertyName: k, x-mark: XDISCRIMINATOR}
+    A:
+      type: object
+      properties: {k: {type: string}}
+  securitySchemes:
+    k: {type: apiKey, name: K, in: header, x-mark: XSECURITYSCHEME}
+    o:
+      type: oauth2
+      flows:
+        x-mark: XOAUTHFLOWS
+        implicit:
+          authorizationUrl: https://a.example
+          scopes: {read: r}
+          x-mark: XOAUTHFLOW

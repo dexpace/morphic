@@ -11,7 +11,6 @@ import (
 	"gopkg.in/yaml.v3"
 
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
-	"github.com/dexpace/morphic/compilers/openapi/internal/nodeview"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -22,7 +21,7 @@ func TestAliasAmplification_BombFixtureIsRefused(t *testing.T) {
 	data, err := os.ReadFile(amplificationBombFixture)
 	require.NoError(t, err)
 
-	diags := Cycles(0, data)
+	diags := scanBytes(t, data)
 	require.NotEmpty(t, diags, "an amplifying document must be diagnosed")
 	assert.Equal(t, diag.AliasAmplification, diags[0].Code)
 	assert.Equal(t, ir.SeverityError, diags[0].Severity)
@@ -44,13 +43,11 @@ func TestDetectCycles_LargeAliasFreeDocumentIsClean(t *testing.T) {
 	t.Parallel()
 	src := bigAliasFreeSpec(bigDocSchemaCount)
 
-	var root yaml.Node
-	require.NoError(t, yaml.Unmarshal([]byte(src), &root))
-	raw := rawNodeCount(nodeview.DocumentRoot(&root))
+	raw := indexOf(t, []byte(src)).Nodes()
 	require.Greater(t, raw, int64(minExpandedNodes),
 		"the fixture must actually exceed the floor for this test to prove anything")
 
-	assert.Empty(t, Cycles(0, []byte(src)),
+	assert.Empty(t, scanBytes(t, []byte(src)),
 		"a large alias-free document must never be refused: what it costs is what its own bytes already bought")
 }
 
@@ -65,7 +62,7 @@ func TestDetectCycles_AnchorReuseWithinBudgetIsClean(t *testing.T) {
 		fmt.Fprintf(&b, "    S%d: {properties: {p: *base}}\n", i)
 	}
 
-	assert.Empty(t, Cycles(0, []byte(b.String())),
+	assert.Empty(t, scanBytes(t, []byte(b.String())),
 		"ordinary anchor reuse well under the budget is not amplification")
 }
 
@@ -99,10 +96,8 @@ func TestDetectCycles_RealWorldAnchorReuseIsClean(t *testing.T) {
 	const siblings = 900
 	src := wideBaseReuseSpec(props, siblings)
 
-	var root yaml.Node
-	require.NoError(t, yaml.Unmarshal([]byte(src), &root))
-	docRoot := nodeview.DocumentRoot(&root)
-	raw := rawNodeCount(docRoot)
+	docRoot := indexOf(t, []byte(src)).Root()
+	raw := rawNodes(docRoot)
 	probe := newAliasWeigher(raw * 1000)
 	_, exceeded := probe.weigh(docRoot)
 	require.False(t, exceeded, "sanity: the probe's own allowance must not itself be crossed")
@@ -116,7 +111,7 @@ func TestDetectCycles_RealWorldAnchorReuseIsClean(t *testing.T) {
 	require.GreaterOrEqual(t, surplus, int64(realWorldWorstSurplus),
 		"sanity: this fixture's surplus must meet or exceed the worst real spec measured")
 
-	assert.Empty(t, Cycles(0, []byte(src)),
+	assert.Empty(t, scanBytes(t, []byte(src)),
 		"ordinary DRY reuse of one shared base across many sibling schemas, at least as demanding as the worst real spec measured, is not amplification")
 }
 
@@ -126,7 +121,7 @@ func TestDetectCycles_SyntheticWideBaseReuseIsNowRefused(t *testing.T) {
 	const siblings = 500
 	src := wideBaseReuseSpec(props, siblings)
 
-	diags := Cycles(0, []byte(src))
+	diags := scanBytes(t, []byte(src))
 	require.NotEmpty(t, diags, "44x beyond any real spec's surplus must be refused")
 	assert.Equal(t, diag.AliasAmplification, diags[0].Code)
 	assert.Equal(t, ir.SeverityError, diags[0].Severity)
@@ -166,16 +161,14 @@ func TestDetectCycles_FlatFanOutOfModestAnchorIsEventuallyRefused(t *testing.T) 
 	const props = 4
 
 	const under = 9_000
-	assert.Empty(t, Cycles(0, []byte(flatFanOutSpec(props, under))),
+	assert.Empty(t, scanBytes(t, []byte(flatFanOutSpec(props, under))),
 		"a modest anchor reused this many times has not yet crossed the surplus budget")
 
 	const over = 11_000
 	src := flatFanOutSpec(props, over)
 
-	var root yaml.Node
-	require.NoError(t, yaml.Unmarshal([]byte(src), &root))
-	docRoot := nodeview.DocumentRoot(&root)
-	raw := rawNodeCount(docRoot)
+	docRoot := indexOf(t, []byte(src)).Root()
+	raw := rawNodes(docRoot)
 	probe := newAliasWeigher(raw * 1000)
 	_, exceeded := probe.weigh(docRoot)
 	require.False(t, exceeded, "sanity: the probe's own allowance must not itself be crossed")
@@ -183,7 +176,7 @@ func TestDetectCycles_FlatFanOutOfModestAnchorIsEventuallyRefused(t *testing.T) 
 	require.Less(t, expanded, int64(maxAliasAmplification)*raw,
 		"sanity: this document's ratio must stay under maxAliasAmplification, so the refusal below is provably the surplus bound's doing, not the ratio's")
 
-	diags := Cycles(0, []byte(src))
+	diags := scanBytes(t, []byte(src))
 	require.NotEmpty(t, diags, "unbounded reuse of even a modest anchor must eventually be refused")
 	assert.Equal(t, diag.AliasAmplification, diags[0].Code)
 	assert.Equal(t, ir.SeverityError, diags[0].Severity)
@@ -219,13 +212,13 @@ func TestAliasAmplification_BoundaryPair(t *testing.T) {
 	t.Parallel()
 
 	under := aliasFanOutNode(12)
-	require.Equal(t, int64(5), rawNodeCount(under), "sanity: the raw count aliasFanOutNode promises")
-	_, refused := aliasAmplification(0, under)
+	require.Equal(t, int64(5), rawNodes(under), "sanity: the raw count aliasFanOutNode promises")
+	_, refused := aliasAmplification(0, under, rawNodes(under))
 	assert.False(t, refused, "expandedWeight 24,573 stays under the 32,768 floor")
 
 	over := aliasFanOutNode(13)
-	require.Equal(t, int64(5), rawNodeCount(over), "sanity: the raw count aliasFanOutNode promises")
-	d, refused := aliasAmplification(0, over)
+	require.Equal(t, int64(5), rawNodes(over), "sanity: the raw count aliasFanOutNode promises")
+	d, refused := aliasAmplification(0, over, rawNodes(over))
 	require.True(t, refused, "expandedWeight 49,149 crosses the 32,768 floor")
 	assert.Equal(t, diag.AliasAmplification, d.Code)
 	assert.Equal(t, ir.SeverityError, d.Severity)
@@ -245,7 +238,7 @@ func TestExpandedWeight_NoAliasesEqualsRawCount(t *testing.T) {
 		yscalar("b"), yseq(yscalar("x"), yscalar("y"), ymap(yscalar("c"), yscalar("2"))),
 		yscalar("d"), ymap(yscalar("e"), yscalar("3"), yscalar("f"), yscalar("4")),
 	)
-	raw := rawNodeCount(root)
+	raw := rawNodes(root)
 
 	w := newAliasWeigher(raw + 1000) // an allowance nothing here can cross
 	_, exceeded := w.weigh(root)
@@ -302,11 +295,6 @@ func TestAliasWeigher_SaturatesWithoutOverflow(t *testing.T) {
 	require.NotNil(t, culprit)
 	assert.Equal(t, w.ceiling, w.weight[culprit], "an exceeding weight always lands exactly on the ceiling")
 	assert.Greater(t, w.weight[culprit], int64(0), "the saturated value must not have wrapped negative")
-}
-
-func TestRawNodeCount_NilRoot(t *testing.T) {
-	t.Parallel()
-	assert.Equal(t, int64(0), rawNodeCount(nil))
 }
 
 func TestChildrenOf_AliasWithoutTarget(t *testing.T) {

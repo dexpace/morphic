@@ -2,7 +2,19 @@
   "irVersion": "0.3.0",
   "name": "ExtensionsX",
   "version": "1.0.0",
-  "docs": {},
+  "docs": {
+    "externalDocs": [
+      {
+        "url": "https://d.example"
+      }
+    ]
+  },
+  "contact": {
+    "name": "n"
+  },
+  "license": {
+    "name": "MIT"
+  },
   "services": [
     {
       "id": "s/openapi/0",
@@ -14,15 +26,264 @@
       "groups": [
         {
           "name": {
-            "hint": "default"
+            "source": "t1",
+            "canonical": "t_1"
           },
-          "docs": {},
+          "docs": {
+            "externalDocs": [
+              {
+                "url": "https://t.example"
+              }
+            ]
+          },
           "operations": [
             {
               "id": "op/openapi/paths/~1widgets/get",
               "name": {
                 "source": "listWidgets",
                 "canonical": "list_widgets"
+              },
+              "docs": {
+                "externalDocs": [
+                  {
+                    "url": "https://o.example"
+                  }
+                ]
+              },
+              "params": [
+                {
+                  "name": {
+                    "source": "shape",
+                    "canonical": "shape"
+                  },
+                  "type": {
+                    "target": "t/prim/string",
+                    "nullable": false
+                  },
+                  "required": false,
+                  "docs": {},
+                  "unmodeled": {
+                    "openapi:x-mark": {
+                      "reason": "vendor_extension",
+                      "value": "XPARAMETER",
+                      "provenance": {
+                        "source": 0,
+                        "pointer": "/paths/~1widgets/parameters/0/x-mark"
+                      }
+                    }
+                  }
+                }
+              ],
+              "responses": [
+                {
+                  "name": {
+                    "hint": "200"
+                  },
+                  "conditions": {
+                    "statusCodes": [
+                      {
+                        "from": 200,
+                        "to": 200
+                      }
+                    ]
+                  },
+                  "headers": [
+                    {
+                      "id": "p/openapi/paths/~1widgets/get/responses/200/headers/X-Rate",
+                      "name": {
+                        "source": "X-Rate",
+                        "canonical": "x_rate"
+                      },
+                      "wireName": "X-Rate",
+                      "type": {
+                        "target": "t/prim/string",
+                        "nullable": false
+                      },
+                      "required": false,
+                      "clientOptional": false,
+                      "defaultAdded": false,
+                      "visibility": {
+                        "none": false
+                      },
+                      "flatten": false,
+                      "eventHeader": false,
+                      "eventPayload": false,
+                      "secret": false,
+                      "docs": {},
+                      "unmodeled": {
+                        "openapi:x-mark": {
+                          "reason": "vendor_extension",
+                          "value": "XHEADER",
+                          "provenance": {
+                            "source": 0,
+                            "pointer": "/paths/~1widgets/get/responses/200/headers/X-Rate/x-mark"
+                          }
+                        }
+                      },
+                      "provenance": {
+                        "source": 0,
+                        "pointer": "/paths/~1widgets/get/responses/200/headers/X-Rate"
+                      }
+                    }
+                  ],
+                  "docs": {
+                    "description": "ok"
+                  },
+                  "unmodeled": {
+                    "openapi:links": {
+                      "reason": "no_ir_home",
+                      "value": {
+                        "self": {
+                          "operationId": "listWidgets"
+                        }
+                      },
+                      "provenance": {
+                        "source": 0,
+                        "pointer": "/paths/~1widgets/get/responses/200/links"
+                      }
+                    },
+                    "openapi:x-mark": {
+                      "reason": "vendor_extension",
+                      "value": "XRESPONSE",
+                      "provenance": {
+                        "source": 0,
+                        "pointer": "/paths/~1widgets/get/responses/200/x-mark"
+                      }
+                    }
+                  }
+                }
+              ],
+              "errors": [
+                {
+                  "type": {
+                    "target": "",
+                    "nullable": false
+                  },
+                  "conditions": {
+                    "statusCodes": [
+                      {
+                        "from": 404,
+                        "to": 404
+                      }
+                    ]
+                  },
+                  "fault": "client",
+                  "docs": {
+                    "description": "gone"
+                  },
+                  "unmodeled": {
+                    "openapi:links": {
+                      "reason": "no_ir_home",
+                      "value": {
+                        "retry": {
+                          "operationId": "listWidgets"
+                        }
+                      },
+                      "provenance": {
+                        "source": 0,
+                        "pointer": "/paths/~1widgets/get/responses/404/links"
+                      }
+                    },
+                    "openapi:x-mark": {
+                      "reason": "vendor_extension",
+                      "value": "XERRORRESPONSE",
+                      "provenance": {
+                        "source": 0,
+                        "pointer": "/paths/~1widgets/get/responses/404/x-mark"
+                      }
+                    }
+                  }
+                }
+              ],
+              "oneWay": false,
+              "idempotency": {},
+              "auth": null,
+              "tags": [
+                "t1"
+              ],
+              "bindings": {
+                "http": [
+                  {
+                    "method": "GET",
+                    "uriTemplate": "/widgets",
+                    "sharedRoute": false,
+                    "paramBindings": [
+                      {
+                        "param": "shape",
+                        "location": "query",
+                        "wireName": "shape",
+                        "style": "form",
+                        "explode": true,
+                        "allowReserved": false
+                      }
+                    ],
+                    "checksumRequired": false,
+                    "isWebhook": false,
+                    "callbacks": [
+                      {
+                        "expression": "{$request.body#/u}",
+                        "operations": [
+                          "op/openapi/paths/~1widgets/get/callbacks/onEvent/{$request.body#~1u}/post"
+                        ]
+                      }
+                    ],
+                    "unmodeled": {
+                      "openapi:callbacks/onEvent/x-mark": {
+                        "reason": "vendor_extension",
+                        "value": "XCALLBACK",
+                        "provenance": {
+                          "source": 0,
+                          "pointer": "/paths/~1widgets/get/callbacks/onEvent/x-mark"
+                        }
+                      }
+                    }
+                  }
+                ]
+              },
+              "unmodeled": {
+                "openapi:externalDocs/x-mark": {
+                  "reason": "vendor_extension",
+                  "value": "XOPERATIONEXTERNALDOCS",
+                  "provenance": {
+                    "source": 0,
+                    "pointer": "/paths/~1widgets/get/externalDocs/x-mark"
+                  }
+                },
+                "openapi:pathItem/x-mark": {
+                  "reason": "vendor_extension",
+                  "value": "XPATHITEM",
+                  "provenance": {
+                    "source": 0,
+                    "pointer": "/paths/~1widgets/x-mark"
+                  }
+                },
+                "openapi:responses/x-mark": {
+                  "reason": "vendor_extension",
+                  "value": "XRESPONSES",
+                  "provenance": {
+                    "source": 0,
+                    "pointer": "/paths/~1widgets/get/responses/x-mark"
+                  }
+                },
+                "openapi:x-internal": {
+                  "reason": "vendor_extension",
+                  "value": true,
+                  "provenance": {
+                    "source": 0,
+                    "pointer": "/paths/~1widgets/get/x-internal"
+                  }
+                }
+              },
+              "provenance": {
+                "source": 0,
+                "pointer": "/paths/~1widgets/get"
+              }
+            },
+            {
+              "id": "op/openapi/paths/~1widgets/get/callbacks/onEvent/{$request.body#~1u}/post",
+              "name": {
+                "source": "onEventPost",
+                "canonical": "on_event_post"
               },
               "docs": {},
               "responses": [
@@ -49,39 +310,352 @@
               "bindings": {
                 "http": [
                   {
-                    "method": "GET",
-                    "uriTemplate": "/widgets",
+                    "method": "POST",
+                    "uriTemplate": "{$request.body#/u}",
                     "sharedRoute": false,
                     "checksumRequired": false,
                     "isWebhook": false
                   }
                 ]
               },
+              "provenance": {
+                "source": 0,
+                "pointer": "/paths/~1widgets/get/callbacks/onEvent/{$request.body#~1u}/post"
+              }
+            }
+          ]
+        },
+        {
+          "name": {
+            "hint": "default"
+          },
+          "docs": {},
+          "operations": [
+            {
+              "id": "op/openapi/paths/~1widgets/post",
+              "name": {
+                "source": "createWidget",
+                "canonical": "create_widget"
+              },
+              "docs": {},
+              "params": [
+                {
+                  "name": {
+                    "source": "shape",
+                    "canonical": "shape"
+                  },
+                  "type": {
+                    "target": "t/prim/string",
+                    "nullable": false
+                  },
+                  "required": false,
+                  "docs": {},
+                  "unmodeled": {
+                    "openapi:x-mark": {
+                      "reason": "vendor_extension",
+                      "value": "XPARAMETER",
+                      "provenance": {
+                        "source": 0,
+                        "pointer": "/paths/~1widgets/parameters/0/x-mark"
+                      }
+                    }
+                  }
+                }
+              ],
+              "request": {
+                "contents": [
+                  {
+                    "mediaType": "multipart/form-data",
+                    "type": {
+                      "target": "t/anon/paths/~1widgets/post/requestBody/content/multipart~1form-data/schema",
+                      "nullable": false
+                    },
+                    "encoding": {
+                      "p/openapi/paths/~1widgets/post/requestBody/content/multipart~1form-data/schema/properties/f": {
+                        "contentTypes": [
+                          "text/plain"
+                        ],
+                        "multi": false,
+                        "filename": false
+                      }
+                    },
+                    "examples": [
+                      {
+                        "name": "e1",
+                        "value": {
+                          "kind": "string",
+                          "str": "v",
+                          "bytes": null,
+                          "list": null,
+                          "object": null
+                        },
+                        "unmodeled": {
+                          "openapi:x-mark": {
+                            "reason": "vendor_extension",
+                            "value": "XEXAMPLE",
+                            "provenance": {
+                              "source": 0,
+                              "pointer": "/paths/~1widgets/post/requestBody/content/multipart~1form-data/examples/e1/x-mark"
+                            }
+                          }
+                        }
+                      }
+                    ],
+                    "unmodeled": {
+                      "openapi:encoding/f/allowReserved": {
+                        "reason": "no_ir_home",
+                        "value": true,
+                        "provenance": {
+                          "source": 0,
+                          "pointer": "/paths/~1widgets/post/requestBody/content/multipart~1form-data/encoding/f/allowReserved"
+                        }
+                      },
+                      "openapi:encoding/f/x-mark": {
+                        "reason": "vendor_extension",
+                        "value": "XENCODING",
+                        "provenance": {
+                          "source": 0,
+                          "pointer": "/paths/~1widgets/post/requestBody/content/multipart~1form-data/encoding/f/x-mark"
+                        }
+                      },
+                      "openapi:x-mark": {
+                        "reason": "vendor_extension",
+                        "value": "XMEDIATYPE",
+                        "provenance": {
+                          "source": 0,
+                          "pointer": "/paths/~1widgets/post/requestBody/content/multipart~1form-data/x-mark"
+                        }
+                      }
+                    }
+                  }
+                ],
+                "unmodeled": {
+                  "openapi:x-mark": {
+                    "reason": "vendor_extension",
+                    "value": "XREQUESTBODY",
+                    "provenance": {
+                      "source": 0,
+                      "pointer": "/paths/~1widgets/post/requestBody/x-mark"
+                    }
+                  }
+                }
+              },
+              "responses": [
+                {
+                  "name": {
+                    "hint": "201"
+                  },
+                  "conditions": {
+                    "statusCodes": [
+                      {
+                        "from": 201,
+                        "to": 201
+                      }
+                    ]
+                  },
+                  "docs": {
+                    "description": "created"
+                  }
+                }
+              ],
+              "oneWay": false,
+              "idempotency": {},
+              "auth": null,
+              "bindings": {
+                "http": [
+                  {
+                    "method": "POST",
+                    "uriTemplate": "/widgets",
+                    "sharedRoute": false,
+                    "paramBindings": [
+                      {
+                        "param": "shape",
+                        "location": "query",
+                        "wireName": "shape",
+                        "style": "form",
+                        "explode": true,
+                        "allowReserved": false
+                      }
+                    ],
+                    "requestContentTypes": [
+                      "multipart/form-data"
+                    ],
+                    "checksumRequired": false,
+                    "isWebhook": false
+                  }
+                ]
+              },
               "unmodeled": {
-                "openapi:x-internal": {
+                "openapi:pathItem/x-mark": {
                   "reason": "vendor_extension",
-                  "value": true,
+                  "value": "XPATHITEM",
                   "provenance": {
                     "source": 0,
-                    "pointer": "/paths/~1widgets/get/x-internal"
+                    "pointer": "/paths/~1widgets/x-mark"
                   }
                 }
               },
               "provenance": {
                 "source": 0,
-                "pointer": "/paths/~1widgets/get"
+                "pointer": "/paths/~1widgets/post"
               }
             }
           ]
         }
       ],
       "auth": null,
+      "unmodeled": {
+        "openapi:paths/x-mark": {
+          "reason": "vendor_extension",
+          "value": "XPATHS",
+          "provenance": {
+            "source": 0,
+            "pointer": "/paths/x-mark"
+          }
+        }
+      },
       "provenance": {
         "source": 0
       }
     }
   ],
   "types": {
+    "t/anon/paths/~1widgets/post/requestBody/content/multipart~1form-data/schema": {
+      "kind": "model",
+      "id": "t/anon/paths/~1widgets/post/requestBody/content/multipart~1form-data/schema",
+      "name": {
+        "hint": "create_widget_request"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/paths/~1widgets/post/requestBody/content/multipart~1form-data/schema"
+      },
+      "properties": [
+        {
+          "id": "p/openapi/paths/~1widgets/post/requestBody/content/multipart~1form-data/schema/properties/f",
+          "name": {
+            "source": "f",
+            "canonical": "f"
+          },
+          "wireName": "f",
+          "type": {
+            "target": "t/prim/string",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/paths/~1widgets/post/requestBody/content/multipart~1form-data/schema/properties/f"
+          }
+        }
+      ],
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
+    "t/openapi/components/schemas/A": {
+      "kind": "model",
+      "id": "t/openapi/components/schemas/A",
+      "name": {
+        "source": "A",
+        "canonical": "a"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/A"
+      },
+      "properties": [
+        {
+          "id": "p/openapi/components/schemas/A/properties/k",
+          "name": {
+            "source": "k",
+            "canonical": "k"
+          },
+          "wireName": "k",
+          "type": {
+            "target": "t/prim/string",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/A/properties/k"
+          }
+        }
+      ],
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
+    "t/openapi/components/schemas/D": {
+      "kind": "union",
+      "id": "t/openapi/components/schemas/D",
+      "name": {
+        "source": "D",
+        "canonical": "d"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "unmodeled": {
+        "openapi:discriminator/x-mark": {
+          "reason": "vendor_extension",
+          "value": "XDISCRIMINATOR",
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/D/discriminator/x-mark"
+          }
+        }
+      },
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/D"
+      },
+      "variants": [
+        {
+          "name": {
+            "hint": "a"
+          },
+          "type": {
+            "target": "t/openapi/components/schemas/A",
+            "nullable": false
+          },
+          "docs": {}
+        }
+      ],
+      "exclusive": true,
+      "wireTagged": false,
+      "discriminator": {
+        "propertyName": "k",
+        "inferred": false
+      }
+    },
     "t/openapi/components/schemas/S": {
       "kind": "model",
       "id": "t/openapi/components/schemas/S",
@@ -90,9 +664,27 @@
         "canonical": "s"
       },
       "anonymous": false,
-      "docs": {},
+      "docs": {
+        "externalDocs": [
+          {
+            "url": "https://s.example"
+          }
+        ]
+      },
       "sensitive": false,
+      "xml": {
+        "name": "s",
+        "wrapped": false
+      },
       "unmodeled": {
+        "openapi:externalDocs/x-mark": {
+          "reason": "vendor_extension",
+          "value": "XSCHEMAEXTERNALDOCS",
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/S/externalDocs/x-mark"
+          }
+        },
         "openapi:x-blob": {
           "reason": "vendor_extension",
           "value": "aGVsbG8=",
@@ -123,6 +715,14 @@
           "provenance": {
             "source": 0,
             "pointer": "/components/schemas/S/x-wrapped"
+          }
+        },
+        "openapi:xml/x-mark": {
+          "reason": "vendor_extension",
+          "value": "XXML",
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/S/xml/x-mark"
           }
         }
       },
@@ -176,17 +776,181 @@
       "prim": "string"
     }
   },
+  "auth": {
+    "auth/openapi/components/securitySchemes/k": {
+      "id": "auth/openapi/components/securitySchemes/k",
+      "name": {
+        "source": "k",
+        "canonical": "k"
+      },
+      "kind": "apiKey",
+      "docs": {},
+      "in": "header",
+      "keyName": "K",
+      "unmodeled": {
+        "openapi:x-mark": {
+          "reason": "vendor_extension",
+          "value": "XSECURITYSCHEME",
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/securitySchemes/k/x-mark"
+          }
+        }
+      },
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/securitySchemes/k"
+      }
+    },
+    "auth/openapi/components/securitySchemes/o": {
+      "id": "auth/openapi/components/securitySchemes/o",
+      "name": {
+        "source": "o",
+        "canonical": "o"
+      },
+      "kind": "oauth2",
+      "docs": {},
+      "flows": [
+        {
+          "kind": "implicit",
+          "authorizationURL": "https://a.example",
+          "scopes": {
+            "read": "r"
+          },
+          "unmodeled": {
+            "openapi:x-mark": {
+              "reason": "vendor_extension",
+              "value": "XOAUTHFLOW",
+              "provenance": {
+                "source": 0,
+                "pointer": "/components/securitySchemes/o/flows/implicit/x-mark"
+              }
+            }
+          }
+        }
+      ],
+      "unmodeled": {
+        "openapi:flows/x-mark": {
+          "reason": "vendor_extension",
+          "value": "XOAUTHFLOWS",
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/securitySchemes/o/flows/x-mark"
+          }
+        }
+      },
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/securitySchemes/o"
+      }
+    }
+  },
   "servers": [
     {
       "name": {
-        "hint": "server"
+        "hint": "https_e_example_v"
       },
-      "urlTemplate": "/",
+      "urlTemplate": "https://e.example/{v}",
       "description": {},
-      "auth": null
+      "variables": [
+        {
+          "name": "v",
+          "default": "1",
+          "docs": {},
+          "unmodeled": {
+            "openapi:x-mark": {
+              "reason": "vendor_extension",
+              "value": "XSERVERVARIABLE",
+              "provenance": {
+                "source": 0,
+                "pointer": "/servers/0/variables/v/x-mark"
+              }
+            }
+          }
+        }
+      ],
+      "auth": null,
+      "unmodeled": {
+        "openapi:x-mark": {
+          "reason": "vendor_extension",
+          "value": "XSERVER",
+          "provenance": {
+            "source": 0,
+            "pointer": "/servers/0/x-mark"
+          }
+        }
+      }
+    }
+  ],
+  "tagDefs": [
+    {
+      "name": "t1",
+      "docs": {
+        "externalDocs": [
+          {
+            "url": "https://t.example"
+          }
+        ]
+      }
     }
   ],
   "unmodeled": {
+    "openapi:components/x-mark": {
+      "reason": "vendor_extension",
+      "value": "XCOMPONENTS",
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/x-mark"
+      }
+    },
+    "openapi:externalDocs/x-mark": {
+      "reason": "vendor_extension",
+      "value": "XEXTERNALDOCS",
+      "provenance": {
+        "source": 0,
+        "pointer": "/externalDocs/x-mark"
+      }
+    },
+    "openapi:info/contact/x-mark": {
+      "reason": "vendor_extension",
+      "value": "XCONTACT",
+      "provenance": {
+        "source": 0,
+        "pointer": "/info/contact/x-mark"
+      }
+    },
+    "openapi:info/license/x-mark": {
+      "reason": "vendor_extension",
+      "value": "XLICENSE",
+      "provenance": {
+        "source": 0,
+        "pointer": "/info/license/x-mark"
+      }
+    },
+    "openapi:info/x-mark": {
+      "reason": "vendor_extension",
+      "value": "XINFO",
+      "provenance": {
+        "source": 0,
+        "pointer": "/info/x-mark"
+      }
+    },
+    "openapi:tags/0/externalDocs/x-mark": {
+      "reason": "vendor_extension",
+      "value": "XTAGEXTERNALDOCS",
+      "provenance": {
+        "source": 0,
+        "pointer": "/tags/0/externalDocs/x-mark"
+      }
+    },
+    "openapi:tags/0/x-mark": {
+      "reason": "vendor_extension",
+      "value": "XTAG",
+      "provenance": {
+        "source": 0,
+        "pointer": "/tags/0/x-mark"
+      }
+    },
     "openapi:x-audience": {
       "reason": "vendor_extension",
       "value": "public",
@@ -196,11 +960,22 @@
       }
     }
   },
+  "diagnostics": [
+    {
+      "severity": "info",
+      "code": "openapi/degraded-construct",
+      "message": "encoding allowReserved has no ir.PartEncoding home; kept verbatim under Unmodeled",
+      "provenance": {
+        "source": 0,
+        "pointer": "/paths/~1widgets/post/requestBody/content/multipart~1form-data/encoding/f/allowReserved"
+      }
+    }
+  ],
   "sources": [
     {
       "format": "openapi@3.1",
       "path": "extensions-x.yaml",
-      "hash": "bdd4e78c821cd4ff1e418d0036d0f44c67120aa29ecd201a8d9a2cbc5a825ae9"
+      "hash": "50a3f85f94845ca391a312360b2c49c55938271c370d5ccc682ded1ab6f35f17"
     }
   ]
 }

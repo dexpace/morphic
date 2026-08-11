@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"reflect"
 	"slices"
 	"strings"
 	"testing"
@@ -18,6 +19,8 @@ import (
 
 	"github.com/dexpace/morphic/compilers"
 	"github.com/dexpace/morphic/compilers/openapi"
+	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
+	"github.com/dexpace/morphic/compilers/openapi/internal/openapitest"
 	"github.com/dexpace/morphic/ir"
 	"github.com/dexpace/morphic/ir/irtest"
 )
@@ -125,81 +128,109 @@ func corpusSpecNames(t *testing.T) []string {
 }
 
 // conformanceCase pairs one corpus spec with the assertion that says what
-// capturing its capability losslessly means.
+// capturing its capability losslessly means, and with the capability rows of
+// ir-spec-matrix.md it witnesses.
+//
+// rows may be empty. The corpus also holds specs pinning a construct the matrix
+// has no row for — a JSON Schema dialect keyword, an XML hint, a residue that
+// must survive with no IR home — and a row invented to receive one of those
+// would make the matrix describe the corpus instead of the source formats. The
+// direction the contract runs in is row → spec, checked in
+// conformance_matrix_test.go; the reverse direction is already covered, by
+// TestConformance_TableNamesEveryCorpusSpec.
+//
+// Naming a row claims the spec's *golden* shows that capability captured, and
+// no test can check that much — it is read by a reviewer. Reaching for a
+// construct on the way to a different subject is not witnessing it: this table
+// claimed constraints from a spec whose whole subject is keywords with no IR
+// home, and encoding hints from one whose format keyword lowers to a primitive
+// type rather than to ir.Encoding. Both rows were witnessed elsewhere, so
+// nothing went red; had they not been, the corpus would have reported coverage
+// it did not have.
 type conformanceCase struct {
 	file   string
 	assert func(*testing.T, *ir.Document, []ir.Diagnostic)
+	rows   []string
 }
 
-// conformanceCases is the corpus table: one row per spec, each naming the file
-// and the assertion that reads it.
+// conformanceCases is the corpus table: one row per spec, each naming the file,
+// the assertion that reads it, and the matrix rows it witnesses.
 func conformanceCases() []conformanceCase {
 	return []conformanceCase{
-		{"named-types", assertNamedTypes},
-		{"neutral-naming", assertNeutralNaming},
-		{"empty-names", assertEmptyNames},
-		{"inline-types", assertInlineTypes},
-		{"component-reuse", assertComponentReuse},
-		{"allof-inheritance", assertAllOfInheritance},
-		{"allof-mixins", assertAllOfMixins},
-		{"allof-inline-merge", assertAllOfInlineMerge},
-		{"allof-required-only", assertAllOfRequiredOnly},
-		{"allof-oneof-cooccurrence", assertAllOfOneOfCooccurrence},
-		{"allof-inline-residue", assertAllOfInlineResidue},
-		{"allof-ref-branch-siblings", assertAllOfRefBranchSiblings},
-		{"allof-boolean-branch", assertAllOfBooleanBranch},
-		{"oneof-discriminated", assertOneOfDiscriminated},
-		{"discriminator-inheritance", assertDiscriminatorInheritance},
-		{"discriminator-default-mapping", assertDiscriminatorDefaultMapping},
-		{"unhomed-keywords", assertUnhomedKeywords},
-		{"codeclared-keywords", assertCoDeclaredKeywords},
-		{"anyof-untagged", assertAnyOfUntagged},
-		{"negation-not", assertNegationNot},
-		{"dependent-required", assertDependentRequired},
-		{"dialect-keywords", assertDialectKeywords},
-		{"dynamic-ref", assertDynamicRef},
-		{"enum-string", assertEnumString},
-		{"enum-numeric", assertEnumNumeric},
-		{"scalar-format", assertScalarFormat},
-		{"encoding-byte", assertEncodingByte},
-		{"content-vocabulary", assertContentVocabulary},
-		{"xml-hints", assertXMLHints},
-		{"nullability-four-states", assertNullabilityFourStates},
-		{"nullable-30", assertNullable30},
-		{"nullable-31-ref", assertNullable31Ref},
-		{"nullable-enum-31", assertNullableEnum31},
-		{"defaults", assertDefaults},
-		{"yaml-timestamp-scalars", assertYAMLTimestampScalars},
-		{"constraints", assertConstraints},
-		{"numeric-precision", assertNumericPrecision},
-		{"readonly-writeonly", assertReadOnlyWriteOnly},
-		{"recursive", assertRecursive},
-		{"maps", assertMaps},
-		{"tuples-prefixitems", assertTuples},
-		{"literal-const", assertLiteralConst},
-		{"tags-grouping", assertTagsGrouping},
-		{"http-binding", assertHTTPBinding},
-		{"param-styles", assertParamStyles},
-		{"param-xml-residue", assertParamXMLResidue},
-		{"param-ref-inheritance", assertParamRefInheritance},
-		{"header-content-schema", assertHeaderContentSchema},
-		{"multi-content", assertMultiContent},
-		{"multipart-encoding", assertMultipartEncoding},
-		{"file-body", assertFileBody},
-		{"sequential-media", assertSequentialMedia},
-		{"per-status-errors", assertPerStatusErrors},
-		{"response-links", assertResponseLinks},
-		{"webhooks", assertWebhooks},
-		{"callbacks", assertCallbacks},
-		{"deprecation", assertDeprecation},
-		{"examples", assertExamples},
-		{"docs-summary-desc", assertDocsSummaryDesc},
-		{"extensions-x", assertExtensionsX},
-		{"inline-annotations", assertInlineAnnotations},
-		{"inline-residue", assertInlineResidue},
-		{"servers-variables", assertServersVariables},
-		{"security-schemes", assertSecuritySchemes},
-		{"security-or-and", assertSecurityOrAnd},
+		{"named-types", assertNamedTypes, []string{"named-objects"}},
+		{"neutral-naming", assertNeutralNaming, []string{"wire-name-distinct"}},
+		{"empty-names", assertEmptyNames, []string{"wire-name-distinct"}},
+		{"inline-types", assertInlineTypes, []string{"inline-anonymous"}},
+		{"component-reuse", assertComponentReuse, []string{"named-objects", "inline-anonymous"}},
+		{"allof-inheritance", assertAllOfInheritance, []string{"inheritance"}},
+		{"allof-mixins", assertAllOfMixins, []string{"intersection"}},
+		{"allof-inline-merge", assertAllOfInlineMerge, []string{"intersection"}},
+		{"allof-required-only", assertAllOfRequiredOnly, []string{"intersection"}},
+		{"allof-oneof-cooccurrence", assertAllOfOneOfCooccurrence, []string{"intersection", "untagged-unions"}},
+		{"allof-inline-residue", assertAllOfInlineResidue, []string{"intersection"}},
+		{"allof-ref-branch-siblings", assertAllOfRefBranchSiblings, []string{"intersection", "untagged-unions"}},
+		{"allof-boolean-branch", assertAllOfBooleanBranch, []string{"intersection"}},
+		{"oneof-discriminated", assertOneOfDiscriminated, []string{"tagged-unions"}},
+		{"discriminator-inheritance", assertDiscriminatorInheritance, []string{"tagged-unions", "inheritance"}},
+		{"discriminator-default-mapping", assertDiscriminatorDefaultMapping, []string{"tagged-unions"}},
+		{"discriminator-transitive", assertDiscriminatorTransitive, []string{"tagged-unions", "inheritance"}},
+		{"unhomed-keywords", assertUnhomedKeywords, nil},
+		{"codeclared-keywords", assertCoDeclaredKeywords, []string{"intersection", "literal-types", "enums-string"}},
+		{"anyof-untagged", assertAnyOfUntagged, []string{"untagged-unions"}},
+		{"negation-not", assertNegationNot, []string{"negation"}},
+		{"dependent-required", assertDependentRequired, nil},
+		{"dialect-keywords", assertDialectKeywords, nil},
+		{"dynamic-ref", assertDynamicRef, nil},
+		{"enum-string", assertEnumString, []string{"enums-string"}},
+		{"enum-numeric", assertEnumNumeric, []string{"enums-numeric"}},
+		{"empty-enum", assertEmptyEnum, nil},
+		{"scalar-format", assertScalarFormat, []string{"custom-scalars"}},
+		{"encoding-byte", assertEncodingByte, []string{"encoding-hints"}},
+		{"content-vocabulary", assertContentVocabulary, []string{"encoding-hints"}},
+		{"xml-hints", assertXMLHints, nil},
+		{"nullability-four-states", assertNullabilityFourStates, []string{"optionality-vs-nullability"}},
+		{"nullable-30", assertNullable30, []string{"optionality-vs-nullability"}},
+		{"nullable-31-ref", assertNullable31Ref, []string{"optionality-vs-nullability"}},
+		{"nullable-enum-31", assertNullableEnum31, []string{"optionality-vs-nullability", "enums-string"}},
+		{"nullability-conjunction", assertNullabilityConjunction, []string{"optionality-vs-nullability"}},
+		{"defaults", assertDefaults, []string{"defaults"}},
+		{"yaml-timestamp-scalars", assertYAMLTimestampScalars, []string{"defaults", "literal-types"}},
+		{"constraints", assertConstraints, []string{"constraints"}},
+		{"numeric-precision", assertNumericPrecision, []string{"constraints", "defaults", "literal-types"}},
+		{"readonly-writeonly", assertReadOnlyWriteOnly, []string{"visibility"}},
+		{"recursive", assertRecursive, []string{"recursive-types"}},
+		{"maps", assertMaps, []string{"maps"}},
+		{"tuples-prefixitems", assertTuples, []string{"tuples", "positional-encoding"}},
+		{"literal-const", assertLiteralConst, []string{"literal-types"}},
+		{"tags-grouping", assertTagsGrouping, []string{"operation-grouping"}},
+		{"http-binding", assertHTTPBinding, []string{"http-binding"}},
+		{"param-styles", assertParamStyles, []string{"param-styles"}},
+		{"param-style-matrix", assertParamStyleMatrix, []string{"param-styles"}},
+		{"param-xml-residue", assertParamXMLResidue, nil},
+		{"param-ref-inheritance", assertParamRefInheritance, []string{"defaults", "deprecation", "docs-summary-description"}},
+		{"header-content-schema", assertHeaderContentSchema, nil},
+		{"multi-content", assertMultiContent, []string{"multi-content"}},
+		{"multipart-encoding", assertMultipartEncoding, []string{"multipart-encoding"}},
+		{"file-body", assertFileBody, nil},
+		{"sequential-media", assertSequentialMedia, []string{"streaming-server"}},
+		{"streaming-media-30", assertStreamingMedia30, []string{"streaming-server"}},
+		{"streaming-media-31", assertStreamingMedia31, []string{"streaming-server", "streaming-client"}},
+		{"per-status-errors", assertPerStatusErrors, []string{"per-status-errors"}},
+		{"response-links", assertResponseLinks, nil},
+		{"webhooks", assertWebhooks, []string{"events-channels", "server-initiated-messages"}},
+		{"callbacks", assertCallbacks, []string{"callbacks"}},
+		{"inline-hoist-positions", assertInlineHoistPositions, []string{"inline-anonymous"}},
+		{"path-item-docs", assertPathItemDocs, []string{"docs-summary-description"}},
+		{"path-item-operations", assertPathItemOperations, []string{"http-binding"}},
+		{"deprecation", assertDeprecation, []string{"deprecation"}},
+		{"examples", assertExamples, []string{"examples"}},
+		{"docs-summary-desc", assertDocsSummaryDesc, []string{"docs-summary-description"}},
+		{"extensions-x", assertExtensionsX, []string{"vendor-extensions"}},
+		{"inline-annotations", assertInlineAnnotations, []string{"vendor-extensions", "inline-anonymous"}},
+		{"inline-residue", assertInlineResidue, []string{"inline-anonymous"}},
+		{"servers-variables", assertServersVariables, []string{"servers"}},
+		{"security-schemes", assertSecuritySchemes, []string{"auth-schemes"}},
+		{"security-or-and", assertSecurityOrAnd, []string{"per-op-auth"}},
 	}
 }
 
@@ -246,15 +277,6 @@ func assertNoErrorDiags(t *testing.T, diags []ir.Diagnostic) {
 // namedID is the stable TypeID of a components-named schema.
 func namedID(name string) ir.TypeID {
 	return ir.TypeID("t/openapi/components/schemas/" + name)
-}
-
-// propsByWire indexes a model's properties by wire name.
-func propsByWire(props []ir.Property) map[string]ir.Property {
-	out := make(map[string]ir.Property, len(props))
-	for _, p := range props {
-		out[p.WireName] = p
-	}
-	return out
 }
 
 // allOperations flattens every operation across a document's service groups.
@@ -528,6 +550,97 @@ func assertInlineTypes(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
 	assert.Equal(t, "shipping", inline.Name.Hint)
 }
 
+// assertInlineHoistPositions pins the six operation-side positions an inline
+// composite can be declared at, against the ID each one's source pointer
+// derives.
+//
+// inline-types.yaml pins one position, a schema property; the inlinePositions
+// table in compilers/openapi/internal/schema pins the ones that package reaches
+// on its own. Neither reaches a parameter, a response header, a webhook or a
+// callback, which are lowered a layer up — and the callback operation body had
+// no anonymous node anywhere in the corpus, so a hoist that mis-derived its ID
+// changed no golden at all.
+//
+// Two things are asserted, and the second is not spare. The referring site must
+// point at the derived ID, which a moved position changes. Then the six targets
+// must be six distinct nodes — the check that survives a *synchronized* edit,
+// where a hoist collapsing identical bodies onto one node and an expectation
+// updated to match would agree with each other and leave the diff green. The
+// fixture writes the same body at all six so a collapse is reachable at all.
+func assertInlineHoistPositions(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
+	got := inlineHoistPositionRefs(t, doc)
+	if diff := cmp.Diff(inlineHoistPositionIDs(), got); diff != "" {
+		t.Errorf("hoisted node per source position (-want +got):\n%s", diff)
+	}
+
+	owner := map[ir.TypeID]string{}
+	for position, id := range got {
+		assert.NotContains(t, owner, id,
+			"the %s and %s positions share one node, %s", owner[id], position, id)
+		owner[id] = position
+
+		node, found := doc.Types[id]
+		require.True(t, found, "%s: nothing is interned at %s", position, id)
+		model, ok := node.(*ir.Model)
+		require.True(t, ok, "%s: the inline object hoisted as a model", position)
+		assert.True(t, model.Anonymous, "%s: a minted node is anonymous", position)
+		assert.Len(t, model.Properties, 1, "%s: it kept the body it was declared with", position)
+	}
+}
+
+// inlineHoistPositionIDs is the ID each position's source pointer derives,
+// spelled out so a node that moves to another pointer is a diff rather than a
+// silently different document.
+func inlineHoistPositionIDs() map[string]ir.TypeID {
+	const order = "t/anon/paths/~1orders/post"
+	return map[string]ir.TypeID{
+		"parameter schema":       order + "/parameters/0/schema",
+		"response-header schema": order + "/responses/200/headers/X-Order-Trace/schema",
+		"request-body property":  order + "/requestBody/content/application~1json/schema/properties/shipping",
+		"response-body property": order + "/responses/200/content/application~1json/schema/properties/receipt",
+		"webhook body":           "t/anon/webhooks/onShipped/post/requestBody/content/application~1json/schema",
+		"callback body": order + "/callbacks/onProgress/{$request.body#~1callbackUrl}" +
+			"/post/requestBody/content/application~1json/schema",
+	}
+}
+
+// inlineHoistPositionRefs reads back what each declaring site actually refers
+// to. It walks from the operation rather than from doc.Types so a node interned
+// at the right ID but wired to nothing still fails.
+func inlineHoistPositionRefs(t *testing.T, doc *ir.Document) map[string]ir.TypeID {
+	t.Helper()
+	order, ok := opByName(doc, "placeOrder")
+	require.True(t, ok)
+	audit, ok := paramByName(order, "audit")
+	require.True(t, ok, "the operation declares its inline-schema parameter")
+	require.Len(t, order.Responses, 1)
+	require.Len(t, order.Responses[0].Headers, 1, "the response declares its inline-schema header")
+	webhook, ok := opByName(doc, "onShipped")
+	require.True(t, ok, "the webhook operation is registered")
+	callback, ok := opByName(doc, "onProgress")
+	require.True(t, ok, "the callback operation is registered")
+
+	return map[string]ir.TypeID{
+		"parameter schema":       audit.Type.Target,
+		"response-header schema": order.Responses[0].Headers[0].Type.Target,
+		"request-body property":  inlinePropTarget(t, doc, openapitest.BodyTarget(t, order.Request), "shipping"),
+		"response-body property": inlinePropTarget(t, doc, openapitest.BodyTarget(t, order.Responses[0].Payload), "receipt"),
+		"webhook body":           openapitest.BodyTarget(t, webhook.Request),
+		"callback body":          openapitest.BodyTarget(t, callback.Request),
+	}
+}
+
+// inlinePropTarget returns the type the named property of the model at id refers
+// to — the body-property positions, one level inside a body root.
+func inlinePropTarget(t *testing.T, doc *ir.Document, id ir.TypeID, wire string) ir.TypeID {
+	t.Helper()
+	model, ok := doc.Types[id].(*ir.Model)
+	require.True(t, ok, "the body at %s hoisted as a model", id)
+	prop, ok := propByWire(model, wire)
+	require.True(t, ok, "the body declares the property %q", wire)
+	return prop.Type.Target
+}
+
 // assertComponentReuse covers the non-schema half of `$ref`: OpenAPI lets a
 // parameter, requestBody, response, header, callback, or whole path item be
 // declared once under components and referenced from many operations. Each
@@ -559,13 +672,13 @@ func assertComponentReuse(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
 	assert.Equal(t, sortID, gadgets.Params[0].Type.Target, "the shared parameter interns once")
 
 	listedID := ir.TypeID("t/anon/components/responses/Listed/content/application~1json/schema")
-	assert.Equal(t, listedID, widgets.Responses[0].Payload.Contents[0].Type.Target)
-	assert.Equal(t, listedID, order.Responses[0].Payload.Contents[0].Type.Target,
+	assert.Equal(t, listedID, openapitest.BodyTarget(t, widgets.Responses[0].Payload))
+	assert.Equal(t, listedID, openapitest.BodyTarget(t, order.Responses[0].Payload),
 		"a response reused across unrelated operations interns once")
 
 	bodyID := ir.TypeID("t/anon/components/requestBodies/OrderBody/content/application~1json/schema")
 	require.NotNil(t, order.Request)
-	assert.Equal(t, bodyID, order.Request.Contents[0].Type.Target)
+	assert.Equal(t, bodyID, openapitest.BodyTarget(t, order.Request))
 	assert.Equal(t, "order_body", doc.Types[bodyID].Common().Name.Hint,
 		"a shared body is named after its component, not the operation that reached it first")
 
@@ -773,6 +886,38 @@ func assertDiscriminatorDefaultMapping(t *testing.T, doc *ir.Document, diags []i
 		"and it is read separately from the mapping")
 }
 
+// assertDiscriminatorTransitive covers a discriminator tagging a descendant more
+// than one hop away: Puppy composes Dog, which composes the discriminated Pet.
+//
+// The chain itself is what matters here — every other discriminator spec in the
+// corpus is one level deep, so nothing witnessed a base routing a grandchild, and
+// a consumer reading composition one hop deep called this valid document invalid.
+func assertDiscriminatorTransitive(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
+	pet, ok := doc.Types[namedID("Pet")].(*ir.Model)
+	require.True(t, ok)
+	require.NotNil(t, pet.Discriminator)
+	assert.Equal(t, namedID("Puppy"), pet.Discriminator.Mapping["puppy"],
+		"the base maps a wire value straight onto its grandchild")
+
+	dog, ok := doc.Types[namedID("Dog")].(*ir.Model)
+	require.True(t, ok)
+	require.NotNil(t, dog.Base)
+	assert.Equal(t, namedID("Pet"), dog.Base.Target)
+
+	puppy, ok := doc.Types[namedID("Puppy")].(*ir.Model)
+	require.True(t, ok)
+	require.NotNil(t, puppy.Base, "the chain stays as declared rather than flattening onto the root")
+	assert.Equal(t, namedID("Dog"), puppy.Base.Target)
+	assert.Nil(t, puppy.Discriminator, "a subtype does not restate its base's discriminator")
+
+	// Known gap, pinned so the corpus reddens when it is closed: the tag value is
+	// read off the subtype's own base branch, which here names Dog rather than the
+	// schema declaring the discriminator, so Pet's "puppy" key is dropped
+	// (GitHub #305). Dog, one hop from the declaration, does carry its key.
+	assert.Equal(t, "dog", doc.Types[namedID("Dog")].(*ir.Model).DiscriminatorValue)
+	assert.Empty(t, puppy.DiscriminatorValue)
+}
+
 func assertAnyOfUntagged(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
 	u, ok := doc.Types[namedID("StringOrNumber")].(*ir.Union)
 	require.True(t, ok)
@@ -816,6 +961,60 @@ func assertEnumNumeric(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
 	assert.Equal(t, ir.ValueNumber, e.Members[1].Value.Kind)
 	// BigVal member value preserves the full 64-bit integer.
 	assert.Equal(t, ir.BigVal("9007199254740993"), e.Members[1].Value.Num)
+}
+
+// assertEmptyEnum covers `enum: []`: legal JSON Schema whose value space holds
+// no member, so the position it is written at accepts no instance. The
+// capability claimed is that the IR says that exactly rather than approximating
+// it — a closed Enum admits its members and nothing else, so a closed Enum with
+// none admits nothing.
+//
+// It used to say the opposite. The keyword was read off `len(enum) > 0`, which
+// cannot tell an empty member list from an absent one, so the position widened
+// to whatever its siblings admitted — the top type where nothing else was
+// written — reporting nothing and keeping nothing (GitHub #278).
+//
+// Holder's `colour` is in the corpus for the same reason the empty spellings
+// are: a populated enum must go on lowering as it did, so this reddens for a
+// change reaching every enum rather than the degenerate one.
+func assertEmptyEnum(t *testing.T, doc *ir.Document, diags []ir.Diagnostic) {
+	empty := map[string]ir.PrimKind{
+		"Nothing":          ir.PrimString,
+		"Bare":             ir.PrimAny,
+		"BesideProperties": ir.PrimAny,
+		"BesideAllOf":      ir.PrimAny,
+	}
+	for name, valueType := range empty {
+		e, ok := doc.Types[namedID(name)].(*ir.Enum)
+		require.True(t, ok, "%s lowers to an Enum, got %T", name, doc.Types[namedID(name)])
+		assert.True(t, e.Closed, "%s admits its members and nothing else", name)
+		assert.Empty(t, e.Members, "%s declares no member", name)
+		assert.Equal(t, valueType, e.ValueType,
+			"%s takes the declared scalar type where one is written", name)
+		assert.Equal(t, []ir.Severity{ir.SeverityWarning},
+			diagsAt(diags, "openapi/empty-enum", "/components/schemas/"+name),
+			"%s is reported once, since nobody writes an empty member list on purpose", name)
+	}
+
+	// An Enum has no home for a property set or a composition, so what the empty
+	// enum is written beside stays verbatim rather than being traded for it.
+	props := unmodeledEntry(t, doc.Types[namedID("BesideProperties")].Common().Unmodeled, "openapi:properties")
+	assert.Equal(t, ir.ReasonDegradedLowering, props.Reason)
+	assert.JSONEq(t, `{"x":{"type":"string"}}`, string(props.Value))
+	composed := unmodeledEntry(t, doc.Types[namedID("BesideAllOf")].Common().Unmodeled, "openapi:allOf")
+	assert.Equal(t, ir.ReasonDegradedLowering, composed.Reason)
+	assert.JSONEq(t, `[{"$ref":"#/components/schemas/Base"}]`, string(composed.Value))
+
+	holder, ok := doc.Types[namedID("Holder")].(*ir.Model)
+	require.True(t, ok)
+	colour, ok := propByWire(holder, "colour")
+	require.True(t, ok)
+	populated, ok := doc.Types[colour.Type.Target].(*ir.Enum)
+	require.True(t, ok, "a populated enum beside the degenerate ones is unaffected")
+	require.Len(t, populated.Members, 2)
+	assert.Equal(t, ir.PrimString, populated.ValueType)
+	assert.Empty(t, diagsAt(diags, "openapi/empty-enum", "/components/schemas/Holder/properties/colour"),
+		"and reports nothing")
 }
 
 func assertScalarFormat(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
@@ -898,7 +1097,7 @@ func assertNullabilityFourStates(t *testing.T, doc *ir.Document, _ []ir.Diagnost
 	m, ok := doc.Types[namedID("S")].(*ir.Model)
 	require.True(t, ok)
 	require.Len(t, m.Properties, 4)
-	states := propsByWire(m.Properties)
+	states := openapitest.PropsByWire(m.Properties)
 	assert.True(t, states["reqPlain"].Required)
 	assert.False(t, states["reqPlain"].Type.Nullable)
 	assert.True(t, states["reqNull"].Required)
@@ -920,7 +1119,7 @@ func assertNullable31Ref(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
 	m, ok := doc.Types[namedID("Owner")].(*ir.Model)
 	require.True(t, ok)
 	require.Len(t, m.Properties, 2)
-	byName := propsByWire(m.Properties)
+	byName := openapitest.PropsByWire(m.Properties)
 
 	assert.True(t, byName["p"].Type.Nullable,
 		"3.1's type-array null spelling normalizes to the same IR bit at a $ref site")
@@ -1013,6 +1212,79 @@ func assertNullableEnum31(t *testing.T, doc *ir.Document, diags []ir.Diagnostic)
 	require.True(t, ok)
 	assert.Equal(t, ir.TypeRef{Target: namedID("Color"), Nullable: true}, p.Type,
 		"a parameter reaches the same declaration through the operation walk")
+
+	// The two spellings beside Color. A non-empty enum fixes the value space, so
+	// the members decide null admission whether or not a type keyword is written
+	// beside them — and when one is, the two conjoin rather than the type winning.
+	bare, ok := doc.Types[namedID("BareColor")].(*ir.Enum)
+	require.True(t, ok, "a bare enum listing null is still an enum of its scalar members")
+	require.Len(t, bare.Members, 2, "the null member is normalized away here too")
+	assert.Equal(t, ir.PrimString, bare.ValueType, "the kept members supply the value type")
+
+	narrowed, ok := doc.Types[namedID("NarrowedColor")].(*ir.Enum)
+	require.True(t, ok)
+	require.Len(t, narrowed.Members, 2, "nothing to strip: the members never listed null")
+
+	bareRef, ok := propByWire(m, "bare")
+	require.True(t, ok)
+	assert.Equal(t, ir.TypeRef{Target: namedID("BareColor"), Nullable: true}, bareRef.Type,
+		"the bare spelling admits null at its uses, like the type-array spelling of the same set")
+
+	narrowedRef, ok := propByWire(m, "narrowed")
+	require.True(t, ok)
+	assert.Equal(t, ir.TypeRef{Target: namedID("NarrowedColor"), Nullable: false}, narrowedRef.Type,
+		"an enum excluding null must not admit it, whatever the type keyword names")
+}
+
+// assertNullabilityConjunction covers the rule that decides null admission for a
+// schema whose keywords disagree: JSON Schema conjoins them, so a position
+// admits null when something declares it and nothing takes it away. The
+// capability claimed is agreement — the same constraint written two ways reaches
+// one Nullable bit — which is what a target language can act on, since an
+// emitter reads the bit and never the spelling.
+//
+// Base and Mixins are asserted to stay bare on purpose. They name one side of a
+// conjunction, so the bit belongs to the usage that names the whole of it; a
+// composition carrying its own would put the same fact in two places that can
+// then disagree.
+func assertNullabilityConjunction(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
+	m, ok := doc.Types[namedID("Holder")].(*ir.Model)
+	require.True(t, ok)
+	props := openapitest.PropsByWire(m.Properties)
+	require.Len(t, props, 5)
+
+	assert.Equal(t, props["direct"].Type.Nullable, props["viaAllOf"].Type.Nullable,
+		"a sole conjunct's null survives the composition that names it")
+	assert.True(t, props["viaAllOf"].Type.Nullable)
+	assert.Equal(t, props["directModel"].Type.Nullable, props["viaAllOfModel"].Type.Nullable,
+		"a model target has no second hop to recover the null from")
+	assert.True(t, props["viaAllOfModel"].Type.Nullable)
+	assert.False(t, props["viaAllOfBoth"].Type.Nullable,
+		"one conjunct forbidding null decides the conjunction")
+
+	for _, name := range []string{"WrapNullableScalar", "WrapNullableModel", "WrapBoth"} {
+		wrap, isModel := doc.Types[namedID(name)].(*ir.Model)
+		require.True(t, isModel, "%s composes as a model", name)
+		if wrap.Base != nil {
+			assert.False(t, wrap.Base.Nullable, "%s.Base names a conjunct, not a usage", name)
+		}
+		for i, mix := range wrap.Mixins {
+			assert.False(t, mix.Nullable, "%s.Mixins[%d] names a conjunct, not a usage", name, i)
+		}
+	}
+
+	plain, ok := doc.Types[namedID("PlainUnion")].(*ir.Union)
+	require.True(t, ok)
+	distributed, ok := doc.Types[namedID("DistributedUnion")].(*ir.Union)
+	require.True(t, ok)
+	require.Len(t, plain.Variants, 2)
+	require.Len(t, distributed.Variants, 2)
+	for i := range plain.Variants {
+		assert.Equal(t, plain.Variants[i].Type.Nullable, distributed.Variants[i].Type.Nullable,
+			"variant %d: distributing a body that declares no type does not change what its branch admits", i)
+	}
+	assert.True(t, plain.Variants[0].Type.Nullable, "the nullable branch is the one that admits null")
+	assert.False(t, plain.Variants[1].Type.Nullable, "and the plain one is not")
 }
 
 func assertDefaults(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
@@ -1076,14 +1348,20 @@ func assertNonScalarDefaults(t *testing.T, m *ir.Model) {
 // ir.Value one, and the raw-JSON one went on rewriting a date to RFC 3339 with
 // this fixture green (GitHub #242); assertRawPreservedDates is the other half.
 func assertYAMLTimestampScalars(t *testing.T, doc *ir.Document, diags []ir.Diagnostic) {
-	// R's `not` announces the §4.7 carve-out, and that notice is the only thing
-	// any site here is allowed to say: a date that was dropped or degraded
-	// reports itself as a warning, which is what this fixture exists to catch.
+	// R's `not` announces the §4.7 carve-out, and D's `format: date` announces
+	// that an ir.Enum has no Encoding field to put it in, so it is kept verbatim
+	// beside the enum rather than dropped. Those two are the only notices any
+	// site here is allowed to say, and neither is about a date: one that was
+	// dropped or degraded reports itself as a warning, which is what this fixture
+	// exists to catch.
 	for _, d := range diags {
 		assert.Equal(t, ir.SeverityInfo, d.Severity,
 			"every unquoted date converts cleanly; nothing is dropped or degraded: %+v", d)
+		if d.Code == "openapi/degraded-construct" && d.Provenance.Pointer == "/components/schemas/D" {
+			continue
+		}
 		assert.Equal(t, "openapi/validation-only-keyword", d.Code,
-			"the §4.7 carve-out is the only notice this fixture expects: %+v", d)
+			"the §4.7 carve-out is the only other notice this fixture expects: %+v", d)
 	}
 
 	d, ok := doc.Types[namedID("D")].(*ir.Enum)
@@ -1167,12 +1445,13 @@ func assertConstraints(t *testing.T, doc *ir.Document, diags []ir.Diagnostic) {
 
 	assertLengthAndCollectionBounds(t, doc, m)
 	assertCoDeclaredBounds(t, m, diags)
+	assertCoDeclaredBoundKept(t, doc, m)
 }
 
 // assertCoDeclaredBounds pins the 2020-12 rule that a side declaring both of
 // its keywords keeps the tighter of the two: the property bounded below keeps
 // its minimum, the one bounded above keeps its exclusiveMaximum, and each side
-// names the keyword that did not reach the IR (GitHub #33).
+// names the keyword that did not reach ir.Constraints (GitHub #33).
 //
 // Both directions are here on purpose. A case where only the exclusive keyword
 // survives passes just as well on the reader that always took it, so on its own
@@ -1193,11 +1472,39 @@ func assertCoDeclaredBounds(t *testing.T, m *ir.Model, diags []ir.Diagnostic) {
 	assert.Equal(t, ir.BigVal("10"), *high.Constraints.Max, "exclusiveMaximum is the tighter bound")
 	assert.True(t, high.Constraints.ExclusiveMax)
 
-	for _, want := range []string{"dropped exclusiveMinimum", "dropped maximum"} {
+	for _, want := range []string{"exclusiveMinimum, which it implies", "maximum, which it implies"} {
 		assert.True(t, slices.ContainsFunc(diags, func(d ir.Diagnostic) bool {
 			return strings.Contains(d.Message, want)
-		}), "a keyword the IR does not carry is reported, not dropped in silence: %q", want)
+		}), "the keyword ir.Constraints has no room for is named, not dropped in silence: %q", want)
 	}
+}
+
+// assertCoDeclaredBoundKept is the losslessness half of the same rule
+// (GitHub #286): a keyword named only in a diagnostic reaches no field of the
+// document a downstream stage reads, so {minimum: 10, exclusiveMinimum: 0} and
+// {minimum: 10} lowered identically. It is kept verbatim on whichever carrier
+// read it — the property here, the alias node a component's body reduces to
+// below — beside the constraints it did not reach.
+func assertCoDeclaredBoundKept(t *testing.T, doc *ir.Document, m *ir.Model) {
+	t.Helper()
+	low, ok := propByWire(m, "atLeastTen")
+	require.True(t, ok)
+	entry := unmodeledEntry(t, low.Unmodeled, "openapi:exclusiveMinimum")
+	assert.Equal(t, ir.ReasonDegradedLowering, entry.Reason)
+	assert.JSONEq(t, "0", string(entry.Value))
+	assert.Equal(t, "/components/schemas/S/properties/atLeastTen/exclusiveMinimum",
+		entry.Provenance.Pointer)
+
+	high, ok := propByWire(m, "underTen")
+	require.True(t, ok)
+	assert.JSONEq(t, "100", string(unmodeledEntry(t, high.Unmodeled, "openapi:maximum").Value),
+		"the inclusive keyword is the one kept where the exclusive bound is tighter")
+
+	alias, ok := doc.Types[namedID("Bounded")].(*ir.Scalar)
+	require.True(t, ok, "a component reducing to a shared primitive owns an alias node")
+	require.NotNil(t, alias.Constraints)
+	assert.JSONEq(t, "0", string(unmodeledEntry(t, alias.Unmodeled, "openapi:exclusiveMinimum").Value),
+		"a node carries what its constraints had no room for, exactly as a property does")
 }
 
 // assertLengthAndCollectionBounds pins the non-numeric bounds: a string length
@@ -1351,7 +1658,7 @@ func assertYAMLIntegerBases(t *testing.T, doc *ir.Document, m *ir.Model) {
 	assert.Equal(t, ir.BigVal("9"), loose.Default.Num)
 }
 
-func assertReadOnlyWriteOnly(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
+func assertReadOnlyWriteOnly(t *testing.T, doc *ir.Document, diags []ir.Diagnostic) {
 	m, ok := doc.Types[namedID("S")].(*ir.Model)
 	require.True(t, ok)
 	r, ok := propByWire(m, "r")
@@ -1373,6 +1680,26 @@ func assertReadOnlyWriteOnly(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) 
 	require.True(t, ok, "the declaration's own readOnly is kept as residue")
 	assert.Equal(t, ir.ReasonNoIRHome, entry.Reason)
 	assert.JSONEq(t, `true`, string(entry.Value))
+
+	assertBothFlagsAreVisibleNowhere(t, m, diags)
+}
+
+// assertBothFlagsAreVisibleNowhere pins the contradictory pairing in both its
+// spellings: written on one schema, and written across a $ref that already
+// carries the other flag. Each admits no lifecycle at all and each is reported,
+// where declaring both used to lower exactly as readOnly alone did and say
+// nothing (GitHub #276).
+func assertBothFlagsAreVisibleNowhere(t *testing.T, m *ir.Model, diags []ir.Diagnostic) {
+	t.Helper()
+	for _, wire := range []string{"both", "bothViaRef"} {
+		p, ok := propByWire(m, wire)
+		require.True(t, ok)
+		assert.Equal(t, ir.Visibility{None: true}, p.Visibility,
+			"readOnly and writeOnly both in force admit no lifecycle: %s", wire)
+		assert.Equal(t, []ir.Severity{ir.SeverityWarning},
+			diagsAt(diags, diag.DisjointVisibility, "/components/schemas/S/properties/"+wire),
+			"the contradiction is reported once, at the position that wrote it: %s", wire)
+	}
 }
 
 func assertRecursive(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
@@ -1489,6 +1816,229 @@ func assertAllowEmptyValueKept(t *testing.T, op ir.Operation) {
 	require.True(t, ok, "and its declared flag is kept beside it")
 	assert.Equal(t, ir.ReasonNoIRHome, entry.Reason)
 	assert.JSONEq(t, `true`, string(entry.Value))
+}
+
+// paramID is a parameter's identity. OpenAPI keys the Parameter object on
+// (name, in), so two parameters may legally share a name at different
+// locations; a map keyed on the name alone silently keeps one of such a pair and
+// compares the other against nothing. The compiler itself is keyed on both.
+type paramID struct {
+	Param    string
+	Location ir.HTTPLocation
+}
+
+// paramWire is what a parameter's location-dependent serialization resolves to:
+// the style it serializes with, and whether it explodes. The two travel together
+// because OpenAPI settles them together — the location picks the style when none
+// is written, and the style picks explode.
+type paramWire struct {
+	Style   string
+	Explode bool
+}
+
+// paramStylePair is one legal (in, style) combination of the Parameter object.
+type paramStylePair struct {
+	location ir.HTTPLocation
+	style    string
+}
+
+// param names the fixture parameter declaring this pair with one explode
+// spelling: "<location><Style>" and the suffix.
+//
+// It is total rather than slicing p.style directly: the table's own comment
+// points out that querystring takes no style, which is an invitation to add a
+// styleless pair, and a panic inside a name builder says nothing about which
+// pair caused it. TestParamStyleTable_MatchesTheSpecification is what rejects
+// one, with the pair named.
+func (p paramStylePair) param(suffix string) string {
+	return string(p.location) + upperFirst(p.style) + suffix
+}
+
+// upperFirst capitalizes the first letter of an ASCII style name.
+func upperFirst(s string) string {
+	if s == "" {
+		return s
+	}
+	return strings.ToUpper(s[:1]) + s[1:]
+}
+
+// paramStyleLegalPairs is OpenAPI's (in, style) table, read off the
+// specification rather than off the fixture: path takes simple|label|matrix,
+// query form|spaceDelimited|pipeDelimited|deepObject, header simple, cookie
+// form. querystring is a fifth location that takes no style at all, so it has no
+// pair here and assertQuerystringParam covers it instead.
+//
+// 3.2 adds a tenth pair — a `cookie` style at in: cookie — which this compiler
+// rejects with a hard error, so no fixture can declare it; GitHub #389 tracks
+// that and the explode default 3.2 gives it.
+func paramStyleLegalPairs() []paramStylePair {
+	return []paramStylePair{
+		{ir.HTTPLocationPath, "simple"},
+		{ir.HTTPLocationPath, "label"},
+		{ir.HTTPLocationPath, "matrix"},
+		{ir.HTTPLocationQuery, "form"},
+		{ir.HTTPLocationQuery, "spaceDelimited"},
+		{ir.HTTPLocationQuery, "pipeDelimited"},
+		{ir.HTTPLocationQuery, "deepObject"},
+		{ir.HTTPLocationHeader, "simple"},
+		{ir.HTTPLocationCookie, "form"},
+	}
+}
+
+// paramStyleDefaultStyles is the other half of the same table: the style each
+// location falls back to when a parameter omits `style` entirely.
+func paramStyleDefaultStyles() []paramStylePair {
+	return []paramStylePair{
+		{ir.HTTPLocationPath, "simple"},
+		{ir.HTTPLocationQuery, "form"},
+		{ir.HTTPLocationHeader, "simple"},
+		{ir.HTTPLocationCookie, "form"},
+	}
+}
+
+// paramStyleExplodeDefault is what `explode` means when omitted: true under
+// form, false under every other style a location pairs with. (3.2 gives its
+// `cookie` style the form default too — see paramStyleLegalPairs.)
+func paramStyleExplodeDefault(style string) bool {
+	return style == "form"
+}
+
+// paramStyleMatrixWant generates what param-style-matrix.yaml must resolve to
+// from the two tables above, instead of restating it beside them.
+//
+// Generating it is what closes the hole a literal expectation leaves. A literal
+// and the fixture are two copies of one claim, so deleting a row from both
+// leaves nothing to disagree — and the counts that were supposed to notice
+// counted a deduplicated set, which a shrunk fixture still reaches whenever some
+// other parameter happens to resolve the same way. Every row of every location
+// defaulting its style was shadowed that way, including the cookie row this
+// fixture exists for.
+//
+// Generating it moves the question up rather than answering it: the table and
+// the fixture can still shrink together. TestParamStyleTable_MatchesTheSpecification
+// is what stops there being a third place to shrink, by holding the table to a
+// count that is OpenAPI's rather than this package's.
+func paramStyleMatrixWant() map[paramID]paramWire {
+	want := map[paramID]paramWire{}
+	for _, p := range paramStyleLegalPairs() {
+		for _, e := range []struct {
+			suffix  string
+			explode bool
+		}{
+			{"Explode", true},
+			{"NoExplode", false},
+			{"DefaultExplode", paramStyleExplodeDefault(p.style)},
+		} {
+			want[paramID{p.param(e.suffix), p.location}] = paramWire{p.style, e.explode}
+		}
+	}
+	for _, d := range paramStyleDefaultStyles() {
+		want[paramID{string(d.location) + "Defaulted", d.location}] =
+			paramWire{d.style, paramStyleExplodeDefault(d.style)}
+	}
+	return want
+}
+
+// TestParamStyleTable_MatchesTheSpecification anchors the (in, style) table to
+// OpenAPI's own — the one thing a generated expectation cannot do for itself.
+//
+// Generating the expectation stops the fixture shrinking alone. It does not stop
+// the table and the fixture shrinking together: delete a pair, delete the
+// parameters it generated, regenerate the golden, and every check agrees with
+// the smaller world. That is the same failure one level up, and the only thing
+// outside the loop is the specification. 3.2 tabulates the legal combinations
+// and says "Combinations not represented in this table are not permitted", so
+// this count is OpenAPI's; changing it is a claim about the format that a
+// reviewer reads rather than a quiet edit.
+//
+// It also holds the two halves of the table to each other. A location's default
+// style has to be a style that location legally takes, and nothing else would
+// notice a default naming a pair the table does not have.
+func TestParamStyleTable_MatchesTheSpecification(t *testing.T) {
+	t.Parallel()
+	pairs := paramStyleLegalPairs()
+	require.Len(t, pairs, 9,
+		"3.2 permits ten (in, style) pairs and this compiler rejects one of them, the cookie "+
+			"style (GitHub #389); a different number here is a claim about OpenAPI, not about the fixture")
+
+	legal := make(map[paramStylePair]bool, len(pairs))
+	for _, p := range pairs {
+		assert.NotEmpty(t, p.style,
+			"%s: a pair names a style, and a location that takes none belongs in neither table", p.location)
+		assert.NotContains(t, legal, p, "the (%s, %s) pair is listed twice", p.location, p.style)
+		legal[p] = true
+	}
+
+	defaults := paramStyleDefaultStyles()
+	require.Len(t, defaults, 4, "each location that takes a style at all defaults exactly one")
+	locations := make(map[ir.HTTPLocation]bool, len(defaults))
+	for _, d := range defaults {
+		assert.NotContains(t, locations, d.location, "%s is given two default styles", d.location)
+		locations[d.location] = true
+		assert.Contains(t, legal, d,
+			"%s defaults to style %q, which is not a pair the table says that location takes",
+			d.location, d.style)
+	}
+}
+
+// assertParamStyleMatrix pins the whole of OpenAPI's location-dependent
+// serialization table at once, against a generated expectation rather than a
+// spot check per location.
+//
+// The table used to be readable for a whole location without any golden
+// noticing: deleting cookie from the arm that defaults it to form left the
+// entire suite green, because no committed spec declared a cookie parameter.
+// Comparing the resolved (style, explode) of every parameter closes that by
+// construction — a location that loses its arm changes rows here.
+func assertParamStyleMatrix(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
+	op, ok := opByName(doc, "styleMatrix")
+	require.True(t, ok)
+	require.Len(t, op.Bindings.HTTP, 1)
+
+	got := make(map[paramID]paramWire, len(op.Bindings.HTTP[0].ParamBindings))
+	for _, pb := range op.Bindings.HTTP[0].ParamBindings {
+		require.NotNil(t, pb.Explode, "%s: explode resolves to a value, never to nothing", pb.Param)
+		id := paramID{Param: pb.Param, Location: pb.Location}
+		require.NotContains(t, got, id, "two parameter bindings share the identity %+v", id)
+		got[id] = paramWire{Style: pb.Style, Explode: *pb.Explode}
+	}
+	if diff := cmp.Diff(paramStyleMatrixWant(), got); diff != "" {
+		t.Errorf("resolved parameter serialization (-want +got):\n%s", diff)
+	}
+
+	assertQuerystringParam(t, doc)
+}
+
+// assertQuerystringParam covers the 3.2 location that binds the whole query
+// string. It may declare neither style nor schema, so the media type its
+// one-entry content map names is the whole of its stated serialization.
+//
+// It has an operation to itself because 3.2 forbids a querystring parameter from
+// sharing one — or its path item — with any `in: query` parameter, in both
+// directions. Asserting the operation binds exactly one parameter is how that
+// stays true: the location cannot be reached by picking it out of a crowd.
+//
+// The style and explode asserted here are the compiler's, not the source's: it
+// runs querystring through the same default arm as query and stamps form/true on
+// a location the specification gives no style to (GitHub #334). They are pinned
+// rather than left unasserted so that fixing #334 reddens this case and its
+// golden instead of changing the IR in silence.
+func assertQuerystringParam(t *testing.T, doc *ir.Document) {
+	t.Helper()
+	op, ok := opByName(doc, "querystringOnly")
+	require.True(t, ok, "the querystring parameter's own operation is registered")
+	require.Len(t, op.Bindings.HTTP, 1)
+	require.Len(t, op.Bindings.HTTP[0].ParamBindings, 1,
+		"the querystring location shares its operation with no other parameter")
+
+	binding := op.Bindings.HTTP[0].ParamBindings[0]
+	require.Equal(t, ir.HTTPLocationQuerystring, binding.Location)
+	require.Equal(t, "querystringWhole", binding.Param, "the querystring parameter binds")
+	assert.Equal(t, "application/x-www-form-urlencoded", binding.ContentType,
+		"its media type is where its serialization is actually stated")
+	assert.Equal(t, "form", binding.Style, "today's synthesized style — GitHub #334")
+	require.NotNil(t, binding.Explode)
+	assert.True(t, *binding.Explode, "today's synthesized explode — GitHub #334")
 }
 
 // assertParamRefInheritance pins ir-design §14 at a parameter whose schema is a
@@ -1716,6 +2266,12 @@ func assertFormPartStyle(t *testing.T, doc *ir.Document) {
 		assert.True(t, *pe.Explode)
 		assert.True(t, pe.Multi, "the structural flag still comes from the part's own schema")
 	}
+	// allowReserved has no PartEncoding field, and PartEncoding has no Unmodeled
+	// map, so it is kept on the content keyed by the part it governs. Two
+	// documents differing only in it used to compile to one IR (GitHub #291).
+	entry := unmodeledEntry(t, op.Request.Contents[0].Unmodeled, "openapi:encoding/ids/allowReserved")
+	assert.Equal(t, ir.ReasonNoIRHome, entry.Reason)
+	assert.JSONEq(t, "true", string(entry.Value))
 }
 
 // assertFileBody pins a binary body: the payload's type degrades to bytes and the
@@ -1772,6 +2328,11 @@ func assertPartHeaders(t *testing.T, doc *ir.Document, headers []ir.Property) {
 // Content.ItemEncoding, while a positional prefixEncoding — which a single
 // every-item encoding has no ordinals for — takes itself and the tail encoding
 // beside it into Unmodeled instead.
+//
+// It also pins what itemSchema says about the operation, which for a long while
+// was nothing: the keyword states that the body is a sequence of items, so the
+// operation streams, and it says so itself rather than being guessed at from
+// the media type — multipart/mixed is in no streaming media-type list.
 func assertSequentialMedia(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
 	events, ok := opByName(doc, "streamEvents")
 	require.True(t, ok)
@@ -1781,6 +2342,13 @@ func assertSequentialMedia(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
 	assert.Equal(t, []string{"application/json"}, c.ItemEncoding.ContentTypes)
 	assert.True(t, c.ItemEncoding.Multi, "the construct describes a repeated tail")
 	assert.Empty(t, c.Unmodeled, "nothing is left over once it lowers")
+
+	assert.Equal(t, ir.StreamingServer, events.Streaming)
+	require.NotNil(t, events.ResponseStream)
+	require.NotNil(t, events.ResponseStream.Events)
+	assert.Empty(t, cmp.Diff(*c.Item, *events.ResponseStream.Events),
+		"the declared item schema is the stream element type")
+	assert.Empty(t, events.Provenance.Inferred, "a declared sequence is not a heuristic")
 
 	parts, ok := opByName(doc, "streamParts")
 	require.True(t, ok)
@@ -1929,6 +2497,103 @@ func assertCallbacks(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
 		"the callback's own servers stay on the callback, not on the parent")
 }
 
+// assertPathItemDocs pins that a path item's own documentation survives at every
+// route that reaches a path item, and that keeping it costs the operation
+// nothing it declared for itself.
+//
+// It is kept rather than merged: ir.Docs holds the operation's summary and
+// description, a path item's pair documents the path, and merging the two would
+// need a precedence rule and would attach to an operation text its author never
+// wrote. So the assertion is that both subjects survive side by side.
+func assertPathItemDocs(t *testing.T, doc *ir.Document, diags []ir.Diagnostic) {
+	for _, tc := range []struct{ op, summary, description string }{
+		{"listPets", "Pet collection", "Everything addressable at /pets."},
+		{"createPet", "Pet collection", "Everything addressable at /pets."},
+		{"onPetCreated", "Creation callback", "Delivered once the pet exists."},
+		{"onPetDeleted", "Pet deleted", "Delivered when a pet is removed."},
+	} {
+		op, ok := opByName(doc, tc.op)
+		require.True(t, ok, "operation %s", tc.op)
+		assertPathItemDocsKept(t, op, tc.summary, tc.description)
+	}
+
+	listPets, ok := opByName(doc, "listPets")
+	require.True(t, ok)
+	assert.Equal(t, "List pets", listPets.Docs.Summary,
+		"the operation's own summary is what Docs holds")
+	assert.Equal(t, "Returns every pet.", listPets.Docs.Description)
+
+	createPet, ok := opByName(doc, "createPet")
+	require.True(t, ok)
+	assert.Empty(t, createPet.Docs.Summary,
+		"and an operation that documents nothing has nothing invented for it")
+
+	// And the decision is announced at the operation that carries the entry,
+	// once, rather than being taken silently.
+	assert.Equal(t, []ir.Severity{ir.SeverityInfo},
+		diagsAt(diags, "openapi/degraded-construct", "/paths/~1pets/get"))
+	assert.Equal(t, []ir.Severity{ir.SeverityInfo},
+		diagsAt(diags, "openapi/degraded-construct", "/webhooks/petDeleted/post"))
+}
+
+// assertPathItemDocsKept checks one operation kept the pair its own path item
+// declared, under the keys that name which object the text came from.
+func assertPathItemDocsKept(t *testing.T, op ir.Operation, summary, description string) {
+	t.Helper()
+	kept, ok := op.Unmodeled["openapi:pathItemSummary"]
+	require.True(t, ok, "the path item's summary is kept on %s", op.ID)
+	assert.Equal(t, ir.ReasonNoIRHome, kept.Reason)
+	assert.JSONEq(t, `"`+summary+`"`, string(kept.Value))
+
+	kept, ok = op.Unmodeled["openapi:pathItemDescription"]
+	require.True(t, ok, "the path item's description is kept on %s", op.ID)
+	assert.Equal(t, ir.ReasonNoIRHome, kept.Reason)
+	assert.JSONEq(t, `"`+description+`"`, string(kept.Value))
+}
+
+// assertPathItemOperations pins that every operation a 3.2 path item declares
+// becomes an ir.Operation, whichever field declared it and whichever of the
+// three routes reaches the path item.
+//
+// The walk read the fixed method fields and nothing else, so an
+// additionalOperations entry was dropped entire — and with it every type
+// reachable only through it, which is why the request body's schema is asserted
+// to be in the registry rather than merely referenced from an operation.
+func assertPathItemOperations(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
+	for _, tc := range []struct{ op, method string }{
+		{"queryIndex", "QUERY"},
+		{"purgeIndex", "PURGE"},
+		{"mixedCaseIndex", "mIxEdCase"},
+		{"purgeCallback", "PURGE"},
+		{"onFlush", "FLUSH"},
+	} {
+		op, ok := opByName(doc, tc.op)
+		require.True(t, ok, "operation %s", tc.op)
+		require.Len(t, op.Bindings.HTTP, 1)
+		assert.Equal(t, tc.method, op.Bindings.HTTP[0].Method,
+			"%s binds the method as the source spelled it", tc.op)
+	}
+
+	onFlush, ok := opByName(doc, "onFlush")
+	require.True(t, ok)
+	assert.True(t, onFlush.Bindings.HTTP[0].IsWebhook,
+		"a webhook mount marks the binding whichever field declared the operation")
+
+	subscribe, ok := opByName(doc, "subscribeIndex")
+	require.True(t, ok)
+	require.Len(t, subscribe.Bindings.HTTP, 1)
+	require.Len(t, subscribe.Bindings.HTTP[0].Callbacks, 1)
+	purgeCallback, ok := opByName(doc, "purgeCallback")
+	require.True(t, ok)
+	assert.Equal(t, []ir.OpID{purgeCallback.ID}, subscribe.Bindings.HTTP[0].Callbacks[0].Operations,
+		"an expression declaring only additionalOperations still binds to its parent")
+
+	queryIndex, ok := opByName(doc, "queryIndex")
+	require.True(t, ok)
+	assert.NotNil(t, doc.Types[openapitest.BodyTarget(t, queryIndex.Request)],
+		"the request body schema is interned, not merely referenced")
+}
+
 func assertDeprecation(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
 	op, ok := opByName(doc, "oldOp")
 	require.True(t, ok)
@@ -2052,21 +2717,140 @@ func assertExtensionsX(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
 	assert.JSONEq(t, "100", string(raw.Value))
 	assert.Equal(t, ir.ReasonVendorExtension, raw.Reason)
 
-	// The same rule applies at every object that admits an extension, so the
-	// document root and an operation each keep their own.
-	root, ok := doc.Unmodeled["openapi:x-audience"]
-	require.True(t, ok, "a root extension lands on the document; got %v", doc.Unmodeled)
-	assert.Equal(t, ir.ReasonVendorExtension, root.Reason)
-	assert.JSONEq(t, `"public"`, string(root.Value))
-
-	op, ok := opByName(doc, "listWidgets")
-	require.True(t, ok)
-	entry, ok := op.Unmodeled["openapi:x-internal"]
-	require.True(t, ok, "an operation extension lands on the operation; got %v", op.Unmodeled)
-	assert.Equal(t, ir.ReasonVendorExtension, entry.Reason)
-	assert.JSONEq(t, `true`, string(entry.Value))
-
+	assertEveryObjectKeepsItsExtensions(t, doc)
 	assertRawPreservedBinary(t, m)
+}
+
+// assertEveryObjectKeepsItsExtensions holds the whole rule rather than the
+// positions that happened to be noticed: every OpenAPI object that admits an
+// x-* keeps it. The fixture writes `x-mark` on each, with a value naming the
+// object, so a row that stops arriving names exactly which lowering stopped
+// reading — and a lowering that never read one fails here before it ships.
+//
+// Carriers are derived from the value graph, not named: the row says which
+// Unmodeled map the entry must land on by the path the walk reaches it at, so a
+// carrier that moves still matches and an entry written to the wrong one does
+// not.
+//
+// A carrier has to narrow the document, since the match is a substring one: a
+// bare ".Unmodeled" ends every path the walk produces, so a row spelled that way
+// admits every map there is and checks nothing. carrierNarrows holds each row to
+// that rather than leaving it to whoever writes the next one — four rows were
+// spelled the vacuous way and passed.
+func assertEveryObjectKeepsItsExtensions(t *testing.T, doc *ir.Document) {
+	t.Helper()
+	sites := unmodeledSites(doc)
+	for _, tc := range []struct{ object, key, want, carrier string }{
+		{"openapi root", "openapi:x-audience", `"public"`, "doc.Unmodeled"},
+		{"info", "openapi:info/x-mark", `"XINFO"`, "doc.Unmodeled"},
+		{"contact", "openapi:info/contact/x-mark", `"XCONTACT"`, "doc.Unmodeled"},
+		{"license", "openapi:info/license/x-mark", `"XLICENSE"`, "doc.Unmodeled"},
+		{"externalDocs", "openapi:externalDocs/x-mark", `"XEXTERNALDOCS"`, "doc.Unmodeled"},
+		{"components", "openapi:components/x-mark", `"XCOMPONENTS"`, "doc.Unmodeled"},
+		{"tag", "openapi:tags/0/x-mark", `"XTAG"`, "doc.Unmodeled"},
+		{"tag externalDocs", "openapi:tags/0/externalDocs/x-mark", `"XTAGEXTERNALDOCS"`, "doc.Unmodeled"},
+		{"server", "openapi:x-mark", `"XSERVER"`, "doc.Servers[0].Unmodeled"},
+		{"server variable", "openapi:x-mark", `"XSERVERVARIABLE"`, "doc.Servers[0].Variables[0].Unmodeled"},
+		{"paths", "openapi:paths/x-mark", `"XPATHS"`, "doc.Services[0].Unmodeled"},
+		{"path item", "openapi:pathItem/x-mark", `"XPATHITEM"`, ".Operations[0].Unmodeled"},
+		{"operation", "openapi:x-internal", `true`, ".Operations[0].Unmodeled"},
+		{"operation externalDocs", "openapi:externalDocs/x-mark", `"XOPERATIONEXTERNALDOCS"`,
+			".Operations[0].Unmodeled"},
+		{"responses", "openapi:responses/x-mark", `"XRESPONSES"`, ".Operations[0].Unmodeled"},
+		{"parameter", "openapi:x-mark", `"XPARAMETER"`, ".Params[0].Unmodeled"},
+		{"request body", "openapi:x-mark", `"XREQUESTBODY"`, ".Request.Unmodeled"},
+		{"media type", "openapi:x-mark", `"XMEDIATYPE"`, ".Contents[0].Unmodeled"},
+		{"encoding", "openapi:encoding/f/x-mark", `"XENCODING"`, ".Contents[0].Unmodeled"},
+		{"example", "openapi:x-mark", `"XEXAMPLE"`, ".Examples[0].Unmodeled"},
+		{"response", "openapi:x-mark", `"XRESPONSE"`, ".Responses[0].Unmodeled"},
+		{"error response", "openapi:x-mark", `"XERRORRESPONSE"`, ".Errors[0].Unmodeled"},
+		{"header", "openapi:x-mark", `"XHEADER"`, ".Headers[0].Unmodeled"},
+		{"callback", "openapi:callbacks/onEvent/x-mark", `"XCALLBACK"`, ".Bindings.HTTP[0].Unmodeled"},
+		{"schema xml", "openapi:xml/x-mark", `"XXML"`, "doc.Types[t/openapi/components/schemas/S].Unmodeled"},
+		{"schema externalDocs", "openapi:externalDocs/x-mark", `"XSCHEMAEXTERNALDOCS"`,
+			"doc.Types[t/openapi/components/schemas/S].Unmodeled"},
+		{"discriminator", "openapi:discriminator/x-mark", `"XDISCRIMINATOR"`,
+			"doc.Types[t/openapi/components/schemas/D].Unmodeled"},
+		{"security scheme", "openapi:x-mark", `"XSECURITYSCHEME"`,
+			"doc.Auth[auth/openapi/components/securitySchemes/k].Unmodeled"},
+		{"oauth flows", "openapi:flows/x-mark", `"XOAUTHFLOWS"`,
+			"doc.Auth[auth/openapi/components/securitySchemes/o].Unmodeled"},
+		{"oauth flow", "openapi:x-mark", `"XOAUTHFLOW"`,
+			"doc.Auth[auth/openapi/components/securitySchemes/o].Flows[0].Unmodeled"},
+	} {
+		site, found := findUnmodeled(sites, tc.key, tc.want)
+		if !assert.True(t, found, "%s extension is dropped: no %s = %s anywhere in the document",
+			tc.object, tc.key, tc.want) {
+			continue
+		}
+		assert.Equal(t, ir.ReasonVendorExtension, site.entry.Reason, "%s extension reason", tc.object)
+		assert.True(t, carrierNarrows(sites, tc.carrier),
+			"%s carrier %q matches every Unmodeled map in the document, so it asserts nothing "+
+				"about where the entry landed", tc.object, tc.carrier)
+		assert.Contains(t, site.path, tc.carrier, "%s extension lands on the wrong carrier", tc.object)
+	}
+}
+
+// unmodeledSite is one Unmodeled entry paired with the walk path of the map
+// holding it.
+type unmodeledSite struct {
+	key   string
+	path  string
+	entry ir.UnmodeledEntry
+}
+
+// unmodeledSites returns every Unmodeled entry the document holds. It walks the
+// value graph rather than naming carriers so that a test asserting "this is kept
+// somewhere sensible" cannot pass by looking only where it expected to.
+func unmodeledSites(doc *ir.Document) []unmodeledSite {
+	unmodeledType := reflect.TypeOf(ir.Unmodeled(nil))
+	var out []unmodeledSite
+	ir.WalkValues(doc, ir.DocumentPath, func(v reflect.Value, path string) bool {
+		if v.Type() != unmodeledType || !v.CanInterface() {
+			return true
+		}
+		u, ok := v.Interface().(ir.Unmodeled)
+		if !ok {
+			return true
+		}
+		for key, entry := range u {
+			out = append(out, unmodeledSite{key: key, path: path, entry: entry})
+		}
+		return true
+	})
+	return out
+}
+
+// carrierNarrows reports whether carrier picks out fewer than all of the
+// document's Unmodeled maps. A carrier that matches every one of them makes the
+// assertion beside it unconditionally true, which is how a row can name the
+// wrong map and still pass.
+//
+// Matching none of them is narrow, not broad, so it passes here and fails on the
+// assertion beside this one: that is a carrier naming a map the document has
+// not got, and reporting it as the vacuous case would name the opposite defect.
+func carrierNarrows(sites []unmodeledSite, carrier string) bool {
+	all, matched := map[string]bool{}, map[string]bool{}
+	for _, site := range sites {
+		all[site.path] = true
+		if strings.Contains(site.path, carrier) {
+			matched[site.path] = true
+		}
+	}
+	return len(matched) < len(all)
+}
+
+// findUnmodeled returns the site holding key with the given JSON value. The
+// value is part of the match because one key spelling occurs at many carriers —
+// "openapi:x-mark" is written on a dozen objects in this fixture — so matching
+// on the key alone would find a different object's entry and call it a pass.
+func findUnmodeled(sites []unmodeledSite, key, wantJSON string) (unmodeledSite, bool) {
+	for _, site := range sites {
+		if site.key == key && string(site.entry.Value) == wantJSON {
+			return site, true
+		}
+	}
+	return unmodeledSite{}, false
 }
 
 // assertRawPreservedBinary pins what a !!binary extension keeps: the base64 the
