@@ -116,10 +116,10 @@ func namingChannels(naming reflect.Value) (source, canon, hint string, aliases [
 // neutrality rules above are — an alias is a spelling the IR records rather than
 // one it decides.
 //
-// Blank rather than empty is the line, because it is the widest one decidable
-// without a grammar: "" and " " name nothing under any format's rules, while
-// deciding whether a space inside "com.example. User" is legal needs the grammar
-// of the format the alias will be matched under, which the IR does not know.
+// Blank rather than empty is the line, and isBlankName is how wide it goes.
+// Deciding whether a space *inside* "com.example. User" is legal would need the
+// grammar of the format the alias is matched under, which the IR does not know;
+// deciding that an entry has nothing visible in it at all needs no grammar.
 //
 // A repeat is reported at its later entry, so the path names the one to delete
 // rather than the one to keep. A blank repeat is reported blank: the repair is
@@ -136,7 +136,7 @@ func appendAliasViolations(vs []Violation, aliases []string, path string) []Viol
 	for i, alias := range aliases {
 		at := path + ".Aliases[" + strconv.Itoa(i) + "]"
 		switch {
-		case strings.TrimSpace(alias) == "":
+		case isBlankName(alias):
 			vs = append(vs, Violation{
 				Code:    "ir/naming-alias-blank",
 				Message: "alias is blank, so it matches no name",
@@ -301,6 +301,25 @@ func isWordSequence(s string) bool {
 			if !unicode.IsLetter(r) && !unicode.IsDigit(r) && !unicode.IsMark(r) {
 				return false
 			}
+		}
+	}
+	return true
+}
+
+// isBlankName reports whether s holds no rune a name could be made of — the
+// widest emptiness test there is that needs no format's grammar. A space, a
+// control character and a zero-width format character are invisible under every
+// grammar, so a string of nothing but those names nothing anywhere.
+//
+// strings.TrimSpace is not that test. unicode.IsSpace reports false for the
+// zero-width joiners, the soft hyphen and the BOM — all category Cf — so an
+// alias of nothing but U+200B or U+FEFF passes a check built on it while naming
+// exactly as little as " " does, and so does one of nothing but U+0000, which is
+// neither a space nor Cf.
+func isBlankName(s string) bool {
+	for _, r := range s {
+		if !unicode.IsSpace(r) && !unicode.IsControl(r) && !unicode.Is(unicode.Cf, r) {
+			return false
 		}
 	}
 	return true

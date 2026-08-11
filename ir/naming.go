@@ -38,13 +38,15 @@ type Naming struct {
 	// ("com.example.User"), and neutralizing it to words would lose the
 	// separators and the case the match depends on. So no neutrality rule
 	// applies to an entry, and irverify holds only what is decidable without
-	// one: every entry names something and no entry repeats, since a blank
-	// alias matches nothing and a repeated one matches twice.
+	// one: every entry names something, since an entry with nothing visible in
+	// it matches nothing; and no entry repeats, since a repeat admits no name
+	// the entry before it already did, so a producer that wrote one built the
+	// list wrong.
 	//
-	// A source that repeats an alias is recorded once, with a Diagnostic naming
-	// the repeat — not carried through as a repeat. That is not the lossy
-	// flattening invariant #2 forbids: the second entry admits no name the first
-	// does not, so the same set of names resolves to this entity either way.
+	// That a repeat is inert is also why a source that declares one is recorded
+	// once, with a Diagnostic naming it, rather than carried through: dropping
+	// it is not the lossy flattening invariant #2 forbids, because the same set
+	// of names resolves to this entity either way.
 	Aliases []string `json:"aliases,omitempty"`
 }
 

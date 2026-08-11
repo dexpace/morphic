@@ -244,12 +244,21 @@ what the match is made of rather than a spelling the IR gets to decide. Neutrali
 throw away precisely that, which is the lossy direction lossless-by-default rules out. `Source` is
 the internal precedent: it carries `UserID` today and no content rule touches it, because it
 records what the spec said rather than deciding a spelling. What is left is decidable without any
-grammar, and `irverify` holds an alias to it: every entry names something — `""` and `" "` alike
-match nothing (`ir/naming-alias-blank`) — and no entry repeats (`ir/naming-alias-duplicate`),
-reported at the later entry so the path names the one to delete. Where a *source* repeats an alias
-the compiler records it once with a diagnostic rather than carrying the repeat through: the second
-entry admits no name the first does not, so the same set of names resolves to the entity either
-way.
+grammar, and `irverify` holds an alias to it: every entry names something, and no entry repeats.
+
+**Names something** is the widest emptiness test that needs no grammar: an entry whose every rune
+is a space, a control character or a zero-width format character is invisible under all of them, so
+it matches nothing anywhere (`ir/naming-alias-blank`). `""`, `" "`, `"\u200b"` and `"\ufeff"` are
+alike here — trimming only what `unicode.IsSpace` reports would keep the last two, which name as
+little as the first two do. An invisible rune sitting *beside* a visible one is a different
+question and is not asked: whether `com.example.<ZWSP>User` is a legal name is decidable only under
+the grammar of the format it will be matched against, which the IR does not know.
+
+**No entry repeats** because a repeat admits no name the entry before it already did
+(`ir/naming-alias-duplicate`, reported at the later entry so the path names the one to delete). A
+producer that wrote one built the list wrong. That the repeat is inert is also why a *source* that
+declares one is recorded once with a diagnostic rather than carried through: dropping it is not the
+lossy direction, since the same set of names resolves to the entity either way.
 
 ### 3.3 Type references
 
