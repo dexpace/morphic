@@ -1722,6 +1722,14 @@ func componentSchemaAt(c lowering.Ctx, pointer string) *oas3.Schema {
 // the schema's own. An incomplete walk needs no separate arm: PointerPath yields
 // the nodes it did reach, and a boundary above a pointer that falls off the tree
 // still binds.
+//
+// Its other way of stopping short would matter, since a walk cut off before the
+// boundary reports no boundary — the direction this function must not err in.
+// PointerPath gives up past maxPointerSegments (1024), which schema lowering
+// cannot reach: maxSchemaDepth caps nesting at 256 and each level spends at most
+// two reference tokens, so the longest pointer arriving here runs about 515.
+// Measured rather than reasoned — a 700-level spec degrades at depth 256 and the
+// deepest pointer this saw was well inside the bound.
 func declaresResourceIDAbove(c lowering.Ctx, view *nodeview.View, pointer string) bool {
 	root := nodeview.DocumentRoot(nodeview.Deref(c.Doc.GetRootNode()))
 	path, _ := view.PointerPath(root, pointer)
