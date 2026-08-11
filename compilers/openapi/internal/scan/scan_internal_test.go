@@ -276,8 +276,9 @@ func rawNodes(n *yaml.Node) int64 {
 	return sourceindex.Build(n, sourceindex.MaxIndexedNodes).Nodes()
 }
 
-// reproducerDir is where the cycle fixtures live, spelled once so the reader
-// below and the table guard cannot disagree about it.
+// reproducerDir is where the cycle fixtures live. The reader below and the table
+// guard both derive their paths from it, so neither can end up looking somewhere
+// the other is not.
 const reproducerDir = "../../../../testdata/openapi"
 
 func readReproducer(t *testing.T, file string) []byte {

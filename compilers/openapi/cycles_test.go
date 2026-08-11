@@ -278,8 +278,11 @@ components:
 	}
 }
 
-// reproducerDir is where the cycle and amplification fixtures live, spelled once
-// so the reader below and the table guard above cannot disagree about it.
+// reproducerDir is where the cycle fixtures live. The reader below, the table
+// guard above and the fuzz seeds all derive their paths from it, so none of them
+// can end up looking somewhere the others are not — which matters most for the
+// seed loader, since it ignores a read error and a wrong path there would cost
+// the fuzzer its seeds in silence.
 const reproducerDir = "../../testdata/openapi"
 
 func readReproducer(t *testing.T, file string) []byte {
@@ -318,14 +321,14 @@ func TestCompile_MergeChainPastBoundStillCompiles(t *testing.T) {
 
 func FuzzCycleDetector(f *testing.F) {
 	for _, tc := range cycleReproducers {
-		if data, err := os.ReadFile("../../testdata/openapi/" + tc.file + ".yaml"); err == nil {
+		if data, err := os.ReadFile(filepath.Join(reproducerDir, tc.file+".yaml")); err == nil {
 			f.Add(data)
 		}
 	}
 	for _, tc := range refShapedDataSpecs {
 		f.Add([]byte(tc.data))
 	}
-	if data, err := os.ReadFile("../../testdata/openapi/amplification_alias_bomb.yaml"); err == nil {
+	if data, err := os.ReadFile(amplificationBombFixture); err == nil {
 		f.Add(data) // the GitHub #27 reproducer: refused for amplification, not a cycle
 	}
 	f.Add([]byte(" "))         // whitespace-only: recoverable parser panic
