@@ -37,3 +37,24 @@ paths:
                 type: object
                 properties:
                   line: {type: string}
+  # Content negotiation: one element offered under two streaming media types.
+  # Every candidate names the same type, so there is nothing to elect between
+  # and the element is named — the refusal above is for contents that disagree,
+  # not for a direction that happens to have more than one.
+  /negotiated:
+    get:
+      operationId: streamNegotiated
+      responses:
+        "200":
+          description: ok
+          content:
+            text/event-stream:
+              schema: {$ref: '#/components/schemas/Frame'}
+            application/x-ndjson:
+              schema: {$ref: '#/components/schemas/Frame'}
+components:
+  schemas:
+    Frame:
+      type: object
+      properties:
+        seq: {type: integer}

@@ -26,8 +26,8 @@ type streamDirection struct {
 	// media type rather than by a declaration, which is what the operation's
 	// Provenance.Inferred marker records.
 	inferred bool
-	// ambiguous reports that the direction had more than one streaming content,
-	// so no element type was elected.
+	// ambiguous reports that the direction's streaming contents named different
+	// element types, so none was elected.
 	ambiguous bool
 }
 
@@ -62,12 +62,19 @@ func applyStreaming(c lowering.Ctx, op *ir.Operation, declPtr string) (string, [
 
 // classifyStream folds one direction's candidates into the detail to write.
 //
-// The one thing it refuses to do is elect an element type from several.
-// StreamDetail holds one Events per direction while Payload keeps every media
-// type, so naming one of two streaming contents would be exactly the
-// primary-content selection a compiler must not make (invariant 2). The
+// The one thing it refuses to do is elect an element type from candidates that
+// disagree. StreamDetail holds one Events per direction while Payload keeps
+// every media type, so naming one of two differing contents would be exactly
+// the primary-content selection a compiler must not make (invariant 2). The
 // direction still streams — that much all the candidates agree on — and the
 // element is left unnamed for a lowering that has the whole set to choose from.
+//
+// Candidates naming the same element are not that case, so they are compared
+// rather than counted. A response offering one frame as both text/event-stream
+// and application/x-ndjson is content negotiation over a single element type,
+// and there is nothing to elect between: refusing on the count alone left the
+// commonest streaming shape there is with its element unnamed, which says less
+// than the source did rather than declining to choose.
 func classifyStream(candidates []streamCandidate) streamDirection {
 	if len(candidates) == 0 {
 		return streamDirection{}
@@ -78,11 +85,16 @@ func classifyStream(candidates []streamCandidate) streamDirection {
 			out.inferred = true
 		}
 	}
-	if len(candidates) > 1 {
-		out.ambiguous = true
-		return out
-	}
+	// ir.TypeRef is a TypeID and a nullability bit, so == is the whole of what
+	// "the same element" means: two contents differing in either name different
+	// elements.
 	events := candidates[0].events
+	for _, candidate := range candidates[1:] {
+		if candidate.events != events {
+			out.ambiguous = true
+			return out
+		}
+	}
 	out.detail.Events = &events
 	return out
 }
@@ -135,12 +147,16 @@ func streamingMode(request, response bool) ir.StreamingMode {
 }
 
 // unelectedElementDiag reports a direction whose element type was left unnamed
-// because several of its contents stream. Nothing is lost — every content is
-// still on the payload — but the IR now says less than the source did, which is
-// what makes it a degradation rather than a silent choice.
+// because its streaming contents name different ones. Nothing is lost — every
+// content is still on the payload — but the IR now says less than the source
+// did, which is what makes it a degradation rather than a silent choice.
+//
+// It names the disagreement rather than counting media types: contents that
+// agree keep their element, and one media type appearing on two responses is
+// not several media types.
 func unelectedElementDiag(c lowering.Ctx, pointer, direction string) ir.Diagnostic {
 	return c.DiagAt(ir.SeverityInfo, diag.DegradedConstruct, pointer,
-		"several %s media types stream, so the stream element type is left unnamed rather than electing one", direction)
+		"the %s streams more than one element type, so it is left unnamed rather than electing one", direction)
 }
 
 // joinInferred names every heuristic that shaped one node, in the order the

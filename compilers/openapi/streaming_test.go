@@ -141,10 +141,15 @@ func assertStreamingMedia30(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
 	assert.Equal(t, "streaming-media-type", op.Provenance.Inferred)
 }
 
-// assertStreamingMedia31 is the corpus row for the two shapes 3.0 cannot show
-// on one operation: a request body that streams as well as its response, and a
-// response offering two streaming media types, where the element type is left
-// unnamed rather than elected.
+// assertStreamingMedia31 is the corpus row for the three shapes 3.0 cannot show
+// on one operation: a request body that streams as well as its response, a
+// response whose two streaming contents name different element types, where
+// none is elected, and one whose two name the same, where it is.
+//
+// The last two are the pair that says what the refusal is for. Refusing on the
+// count alone would pass the middle one and fail the last, and content
+// negotiation over a single frame — the same schema as text/event-stream and as
+// application/x-ndjson — is the commoner shape of the two.
 func assertStreamingMedia31(t *testing.T, doc *ir.Document, diags []ir.Diagnostic) {
 	both, ok := opByName(doc, "ingestRows")
 	require.True(t, ok)
@@ -166,4 +171,16 @@ func assertStreamingMedia31(t *testing.T, doc *ir.Document, diags []ir.Diagnosti
 	assert.Len(t, either.Responses[0].Payload.Contents, 2, "both contents are still kept")
 	assert.True(t, openapitest.HasDiag(diags, "openapi/degraded-construct"),
 		"the unelected element type is reported; got %+v", diags)
+
+	negotiated, ok := opByName(doc, "streamNegotiated")
+	require.True(t, ok)
+	assert.Equal(t, ir.StreamingServer, negotiated.Streaming)
+	require.NotNil(t, negotiated.ResponseStream)
+	require.NotNil(t, negotiated.ResponseStream.Events,
+		"two contents naming one element type elect it: there is nothing to choose between")
+	assert.Equal(t, ir.TypeID("t/openapi/components/schemas/Frame"),
+		negotiated.ResponseStream.Events.Target)
+	require.NotNil(t, negotiated.Responses[0].Payload)
+	assert.Len(t, negotiated.Responses[0].Payload.Contents, 2,
+		"and both media types are still kept, as they are for the unelected case")
 }

@@ -179,6 +179,77 @@
                 "pointer": "/paths/~1mixed/get",
                 "inferred": "streaming-media-type"
               }
+            },
+            {
+              "id": "op/openapi/paths/~1negotiated/get",
+              "name": {
+                "source": "streamNegotiated",
+                "canonical": "stream_negotiated"
+              },
+              "docs": {},
+              "responses": [
+                {
+                  "name": {
+                    "hint": "200"
+                  },
+                  "conditions": {
+                    "statusCodes": [
+                      {
+                        "from": 200,
+                        "to": 200
+                      }
+                    ]
+                  },
+                  "payload": {
+                    "contents": [
+                      {
+                        "mediaType": "text/event-stream",
+                        "type": {
+                          "target": "t/openapi/components/schemas/Frame",
+                          "nullable": false
+                        }
+                      },
+                      {
+                        "mediaType": "application/x-ndjson",
+                        "type": {
+                          "target": "t/openapi/components/schemas/Frame",
+                          "nullable": false
+                        }
+                      }
+                    ]
+                  },
+                  "docs": {
+                    "description": "ok"
+                  }
+                }
+              ],
+              "oneWay": false,
+              "streaming": "server",
+              "responseStream": {
+                "events": {
+                  "target": "t/openapi/components/schemas/Frame",
+                  "nullable": false
+                },
+                "requiresLength": false
+              },
+              "idempotency": {},
+              "auth": null,
+              "bindings": {
+                "http": [
+                  {
+                    "method": "GET",
+                    "uriTemplate": "/negotiated",
+                    "sharedRoute": false,
+                    "checksumRequired": false,
+                    "isWebhook": false
+                  }
+                ]
+              },
+              "provenance": {
+                "source": 0,
+                "pointer": "/paths/~1negotiated/get",
+                "inferred": "streaming-media-type"
+              }
             }
           ]
         }
@@ -374,6 +445,65 @@
       "positional": false,
       "inputOnly": false
     },
+    "t/openapi/components/schemas/Frame": {
+      "kind": "model",
+      "id": "t/openapi/components/schemas/Frame",
+      "name": {
+        "source": "Frame",
+        "canonical": "frame"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Frame"
+      },
+      "properties": [
+        {
+          "id": "p/openapi/components/schemas/Frame/properties/seq",
+          "name": {
+            "source": "seq",
+            "canonical": "seq"
+          },
+          "wireName": "seq",
+          "type": {
+            "target": "t/prim/integer",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/Frame/properties/seq"
+          }
+        }
+      ],
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
+    "t/prim/integer": {
+      "kind": "primitive",
+      "id": "t/prim/integer",
+      "name": {},
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0
+      },
+      "prim": "integer"
+    },
     "t/prim/string": {
       "kind": "primitive",
       "id": "t/prim/string",
@@ -410,7 +540,7 @@
     {
       "severity": "info",
       "code": "openapi/degraded-construct",
-      "message": "several response media types stream, so the stream element type is left unnamed rather than electing one",
+      "message": "the response streams more than one element type, so it is left unnamed rather than electing one",
       "provenance": {
         "source": 0,
         "pointer": "/paths/~1mixed/get/responses"
@@ -421,7 +551,7 @@
     {
       "format": "openapi@3.1",
       "path": "streaming-media-31.yaml",
-      "hash": "fd1d9fc1f0a504aa5157c194ee8e7c275966a8bc08ace0348710b5cf89797a39"
+      "hash": "c7c7a5c5051e94131d339363c28854b82e5a6fda41e8381ee46fbd2bbca4fb1a"
     }
   ]
 }
