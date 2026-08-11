@@ -112,7 +112,7 @@ func propertyFingerprints(doc *ir.Document) (map[string]string, bool) {
 // checkDuplicateIDs). It reads fields off the walked value rather than
 // converting it back to an ir.Property, because a value the walk reached through
 // an unexported field cannot be converted (see ir.WalkValues); checkNaming's
-// namingChannels reads its three channels the same way.
+// namingChannels reads its channels the same way.
 //
 // The parts are joined on NUL, which no source name, wire name or ID contains,
 // so no two properties can agree on the rendering while disagreeing on the

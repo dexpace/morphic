@@ -2,8 +2,10 @@ package irverify
 
 import (
 	"reflect"
+	"strconv"
 	"strings"
 	"unicode"
+	"unicode/utf8"
 
 	"github.com/dexpace/morphic/ir"
 )
@@ -41,12 +43,14 @@ var nameOptional = map[reflect.Type]bool{
 	reflect.TypeFor[ir.Primitive](): true,
 }
 
-// checkNaming asserts every named entity has a name at all, and that the names
-// it carries are what invariant #4 promises: neutral lower_snake word
-// sequences, carrying no casing an emitter should own and no character that is
-// not part of a word. It reuses the shared bounded walk to reach every ir.Naming
-// value in the document, and reports whether that walk was cut short so a name
-// past the cap cannot go unchecked in silence.
+// checkNaming asserts every named entity has a name at all; that the names it
+// carries are what invariant #4 promises — neutral lower_snake word sequences,
+// carrying no casing an emitter should own and no character that is not part of
+// a word; and that every channel's bytes decode, which is a claim about the
+// encoding rather than the spelling and so is the one rule they all share. It
+// reuses the shared bounded walk to reach every ir.Naming value in the document,
+// and reports whether that walk was cut short so a name past the cap cannot go
+// unchecked in silence.
 //
 // Presence is separate from those content rules because each of them is
 // vacuously true of the empty string: an entirely empty Naming satisfied all
@@ -62,7 +66,10 @@ var nameOptional = map[reflect.Type]bool{
 // Only the grammar rule stays canonical-only, because a hint has no source
 // spelling beside it to be recomputed from.
 //
-// Naming.Aliases is still read by no rule here (GitHub #317).
+// Naming.Aliases is held to none of those and to rules of its own instead,
+// because it is a verbatim channel rather than a name the IR decides — see
+// appendAliasViolations, and ir.Naming.Aliases for why. The one rule every
+// channel shares, aliases included, is appendUTF8Violation's.
 func checkNaming(doc *ir.Document, _ declarations) ([]Violation, bool) {
 	var vs []Violation
 	optional := map[string]bool{}
@@ -79,23 +86,103 @@ func checkNaming(doc *ir.Document, _ declarations) ([]Violation, bool) {
 		if v.Type() != namingType {
 			return true
 		}
-		source, canon, hint := namingChannels(v)
+		source, canon, hint, aliases := namingChannels(v)
 		if !optional[path] {
 			vs = appendAbsentViolation(vs, source, canon, hint, path)
 		}
 		vs = appendNamingViolations(vs, source, canon, hint, path)
+		vs = appendAliasViolations(vs, source, aliases, path)
 		return false // Naming holds no references or nested Naming to descend into
 	})
 	return vs, truncated
 }
 
-// namingChannels reads the three name channels off one Naming. It reads fields
+// namingChannels reads every name channel off one Naming. It reads fields
 // rather than converting the value back to an ir.Naming because a value the walk
-// reached through an unexported field cannot be (see ir.WalkValues).
-func namingChannels(naming reflect.Value) (source, canon, hint string) {
+// reached through an unexported field cannot be (see ir.WalkValues) — which is
+// also why the aliases are copied out element by element rather than through
+// Interface().
+//
+// Nothing guards the field lookups. A rename of any of these fields is a
+// compile-clean change that reddens the naming tests on the next run either way:
+// the three String() reads degrade to "<invalid Value>", and Len() on the
+// invalid Value panics. Neither is reachable from a document — checkNaming only
+// calls this for a value whose type is ir.Naming, so every field is present —
+// and a guard for the unreachable one would be a statement no test can cover.
+func namingChannels(naming reflect.Value) (source, canon, hint string, aliases []string) {
+	list := naming.FieldByName("Aliases")
+	aliases = make([]string, list.Len())
+	for i := range list.Len() {
+		aliases[i] = list.Index(i).String()
+	}
 	return naming.FieldByName("Source").String(),
 		naming.FieldByName("Canonical").String(),
-		naming.FieldByName("Hint").String()
+		naming.FieldByName("Hint").String(),
+		aliases
+}
+
+// appendAliasViolations holds one alias list to the rules ir.Naming.Aliases
+// states. That comment is where the argument for them lives, and for why none of
+// the neutrality rules above apply.
+//
+// Each is decidable from the list and the Naming carrying it, with no grammar
+// and no second node: whether an entry has anything visible in it
+// (isBlankName), whether its bytes decode at all, and whether it admits a name
+// some earlier entry — or the entity's own Source — already did. A repeat is
+// reported at its later occurrence, naming the earlier one, so the message says
+// which to delete and which to keep. A blank repeat is reported blank: the
+// repair is to fill it in or drop it, not to distinguish it from the other
+// blank.
+//
+// Only Source is compared against. Canonical and Hint are names the IR derived
+// for an emitter to render, never names a writer schema could have spelled, so
+// an alias equal to one of those is not the redundancy this rule is about.
+//
+// Two neighbouring defects are deliberately left out of scope here. Repeats
+// across two Namings — the ambiguity that actually changes what a reader
+// resolves — need the whole document rather than one list, and land in
+// checkDuplicateIDs' shape (GitHub #398); TestVerify_AliasSharedByTwoNamings
+// pins that they go unreported today, so implementing that rule cannot move the
+// boundary in silence. And every other []string in the IR (Namespace, Tags,
+// Scopes, ContentTypes …) admits the same blank and repeated entries this rule
+// rejects, held by nothing (GitHub #399).
+func appendAliasViolations(vs []Violation, source string, aliases []string, path string) []Violation {
+	seen := make(map[string]int, len(aliases))
+	for i, alias := range aliases {
+		switch first, repeated := seen[alias]; {
+		case isBlankName(alias):
+			vs = append(vs, Violation{
+				Code:    "ir/naming-alias-blank",
+				Message: "alias is blank, so it matches no name",
+				Path:    aliasPath(path, i),
+			})
+		case !utf8.ValidString(alias):
+			vs = append(vs, utf8Violation("alias", aliasPath(path, i)))
+		case repeated:
+			vs = append(vs, Violation{
+				Code:    "ir/naming-alias-duplicate",
+				Message: "alias " + alias + " is listed here and at index " + strconv.Itoa(first),
+				Path:    aliasPath(path, i),
+			})
+		case alias == source:
+			vs = append(vs, Violation{
+				Code:    "ir/naming-alias-redundant",
+				Message: "alias " + alias + " is the entity's own source name, so it matches nothing more",
+				Path:    aliasPath(path, i),
+			})
+		default:
+			seen[alias] = i
+		}
+	}
+	return vs
+}
+
+// aliasPath spells one alias entry the way ir.WalkValues would have reached it.
+// checkNaming prunes at ir.Naming, so the walk never renders these itself —
+// TestVerify_AliasPathIsSpelledAsTheWalkWould is what holds the two spellings
+// together.
+func aliasPath(path string, i int) string {
+	return path + ".Aliases[" + strconv.Itoa(i) + "]"
 }
 
 // appendAbsentViolation reports an entity that no channel names.
@@ -117,11 +204,51 @@ func appendAbsentViolation(vs []Violation, source, canon, hint, path string) []V
 
 // appendNamingViolations reports the ways one Naming can break neutrality: the
 // grammar rule over the canonical, and the content rules over each channel that
-// carries a name for an emitter to render.
+// carries a name for an emitter to render — plus the byte rule below, which
+// every channel is held to because none of them can be read back otherwise.
 func appendNamingViolations(vs []Violation, source, canon, hint, path string) []Violation {
+	vs = appendUTF8Violation(vs, "source name", source, path)
+	vs = appendUTF8Violation(vs, "canonical name", canon, path)
+	vs = appendUTF8Violation(vs, "name hint", hint, path)
 	vs = appendGrammarViolation(vs, source, canon, path)
 	vs = appendContentViolations(vs, "canonical name", canon, path)
 	return appendContentViolations(vs, "name hint", hint, path)
+}
+
+// utf8Violation is the report for a name channel carrying bytes no decoder
+// reads back as what was written. It is the one rule every channel shares,
+// aliases included, because it is about the encoding rather than the spelling:
+// an ill-formed sequence survives a marshal as the replacement rune, so the
+// document decodes to something that re-marshals to different bytes and
+// invariant #7 is broken by a name nothing else here objects to.
+//
+// checkDiagnostics makes the same claim over the only other free-form spec text
+// the IR carries (ir/diagnostic-invalid-utf8), and like it this message quotes
+// nothing: repeating the bytes would put them in the report too. That is also
+// why the value is not a parameter — there is nothing here to say about it
+// beyond which channel it arrived in.
+//
+// Canonical and Hint are only incidentally covered without this rule — the
+// replacement rune is not a word character, so isWordSequence rejects it — and
+// incidentally is not covered: the violation would name the wrong repair, since
+// splitting on non-word characters is not what fixes undecodable bytes.
+func utf8Violation(channel, path string) Violation {
+	return Violation{
+		Code:    "ir/naming-invalid-utf8",
+		Message: channel + " is not valid UTF-8",
+		Path:    path,
+	}
+}
+
+// appendUTF8Violation reports channel's name when its bytes are ill-formed. The
+// alias rule decides the same thing in its own switch and appends
+// utf8Violation directly, since a switch branch needs the test separate from
+// the report.
+func appendUTF8Violation(vs []Violation, channel, name, path string) []Violation {
+	if utf8.ValidString(name) {
+		return vs
+	}
+	return append(vs, utf8Violation(channel, path))
 }
 
 // appendContentViolations reports the ways the name in one channel can break
@@ -247,6 +374,38 @@ func isWordSequence(s string) bool {
 		}
 	}
 	return true
+}
+
+// isBlankName reports whether s holds no rune a name could be made of. Every
+// rune it accepts as invisible is one Unicode itself classifies that way — a
+// space, a control, a format character, or a default-ignorable one — so the
+// judgement needs no format's grammar and this function decides nothing on its
+// own account.
+//
+// strings.TrimSpace is not that test, and neither is IsSpace-plus-Cf. IsSpace
+// reports false for the zero-width joiners, the soft hyphen and the BOM (all
+// Cf), and all three predicates report false for U+3164 HANGUL FILLER and its
+// two jamo siblings, which are default-ignorable and are the characters
+// conventionally used to pass off a name as empty. An alias of nothing but any
+// of these names exactly as little as " " does.
+//
+// It does not reach every rune that renders as whitespace: U+2800 BRAILLE
+// PATTERN BLANK is a graphic character Unicode does not call invisible, so it is
+// left alone rather than judged here — that is the boundary this test declines
+// to cross without knowing the grammar the name is read under.
+func isBlankName(s string) bool {
+	for _, r := range s {
+		if !isInvisible(r) {
+			return false
+		}
+	}
+	return true
+}
+
+// isInvisible reports whether Unicode classifies r as carrying no visible mark.
+func isInvisible(r rune) bool {
+	return unicode.IsSpace(r) || unicode.IsControl(r) || unicode.Is(unicode.Cf, r) ||
+		unicode.Is(unicode.Other_Default_Ignorable_Code_Point, r)
 }
 
 // isCased reports whether s still carries casing an emitter should own. The test

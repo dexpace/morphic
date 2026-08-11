@@ -2,6 +2,7 @@ package irverify_test
 
 import (
 	"testing"
+	"unicode/utf8"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -367,4 +368,45 @@ func TestVerify_PresenceReachesANamingNoNameFieldOwns(t *testing.T) {
 	require.Len(t, got, 1)
 	assert.Equal(t, "ir/naming-absent", got[0].Code)
 	assert.Equal(t, "doc.Services[0].Renames[t/x/Model]", got[0].Path)
+}
+
+// TestVerify_IllFormedNameIsAViolation covers the one rule every channel of a
+// Naming shares. It is about the encoding rather than the spelling: ill-formed
+// bytes survive a marshal as the replacement rune, so a document carrying them
+// decodes to one that re-marshals differently and stops round-tripping.
+//
+// Canonical and Hint would each draw a violation without this rule — the
+// replacement rune is not a word character, so isWordSequence rejects it — but
+// one naming the wrong repair, since splitting on non-word characters is not
+// what fixes undecodable bytes. Source draws nothing at all without it. So the
+// assertion is that ir/naming-invalid-utf8 is among what is reported, not that
+// it is all of it.
+//
+// Only this rule's own message is held to quoting nothing. The content rules
+// beside it deliberately carry the spelling they object to, which puts the
+// ill-formed bytes in their message (GitHub #400) — a separate question from
+// whether the encoding rule fires.
+func TestVerify_IllFormedNameIsAViolation(t *testing.T) {
+	t.Parallel()
+	ill := string([]byte{'c', 'a', 'f', 0xe9})
+	require.False(t, utf8.ValidString(ill), "the fixture has to be ill-formed to test anything")
+
+	for channel, n := range map[string]ir.Naming{
+		"source":    {Source: ill, Canonical: ir.CanonicalWords(ill)},
+		"canonical": {Canonical: ill},
+		"hint":      {Hint: ill},
+	} {
+		t.Run(channel, func(t *testing.T) {
+			t.Parallel()
+			var reported *irverify.Violation
+			for _, v := range irverify.Verify(modelNamed(n)) {
+				if v.Code == "ir/naming-invalid-utf8" {
+					reported = &v
+				}
+			}
+			require.NotNil(t, reported, "the encoding rule fires on %s", channel)
+			assert.Equal(t, "doc.Types[t/x/M].Name", reported.Path)
+			assert.NotContains(t, reported.Message, ill, "the report does not repeat the bad bytes")
+		})
+	}
 }
