@@ -152,8 +152,11 @@ func TestReport_NoResultsRenderNothing(t *testing.T) {
 
 // TestReport_ResultsNamedAlikeKeepTheirGivenOrder pins the stable sort. Nothing
 // orders two results carrying one spec name — Check names a spec whatever its
-// caller passes it — so under an unstable sort the same sweep can print its
-// findings in a different order from one run to the next.
+// caller passes it — so an unstable sort renders them in an order the API does
+// not specify rather than the one they were given. The order below is what
+// sort.Slice produces today and would keep producing, since it is deterministic
+// for a given input; what it is not is the caller's, or anything a caller can
+// rely on across a Go release.
 //
 // The shape is what makes the assertion able to fail: an unstable sort leaves a
 // short slice to an insertion pass and short-circuits one whose keys are all

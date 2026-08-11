@@ -159,8 +159,10 @@ func deterministic(ctx context.Context, spec string, data []byte, doc *ir.Docume
 //
 // It copies its input, so the caller's slice order is preserved. The sort is
 // stable for the same reason irverify's is: nothing orders two results named
-// alike, and an unstable sort would render one sweep's findings differently from
-// one run to the next.
+// alike, so an unstable sort leaves them in an order the API does not specify
+// rather than the one the caller gave. Not a flaky one — sort.Slice is
+// deterministic for a given input — but one no caller can rely on, which is the
+// same thing a report promising a stable summary must not do.
 func Report(results []Result) string {
 	sorted := make([]Result, len(results))
 	copy(sorted, results)
