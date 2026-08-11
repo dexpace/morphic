@@ -53,6 +53,8 @@ func TestReport_IsStableAndSorted(t *testing.T) {
 	assert.Contains(t, got, "b")
 	assert.Less(t, strings.Index(got, "a"), strings.Index(got, "b"),
 		"results sorted by spec name")
+	assert.Equal(t, "b", results[0].Spec,
+		"Report sorts a copy: the caller's slice keeps the order it was passed in")
 }
 
 // reportLines splits a Report into its lines, dropping the trailing newline the
@@ -93,6 +95,24 @@ func columnStart(t *testing.T, line, column string) int {
 	i := strings.Index(line, column)
 	require.GreaterOrEqual(t, i, 0, "line %q carries column %q", line, column)
 	return i
+}
+
+// TestReport_OutcomeColumnIsSizedOnlyByLinesThatUseIt pins what the second
+// column is measured against. A result with no Detail has nothing to the right
+// of its outcome, so sizing the column to it pads every line that does carry a
+// Detail out to a column standing empty on the line that set its width — the
+// padding this report exists to stop emitting. The longest outcome the harness
+// has goes on the line showing no detail, so widening the column is the only way
+// the assertion below can fail.
+func TestReport_OutcomeColumnIsSizedOnlyByLinesThatUseIt(t *testing.T) {
+	t.Parallel()
+	lines := reportLines(t, harness.Report([]harness.Result{
+		{Spec: "a.yaml", Outcome: harness.OutcomeNondeterministic},
+		{Spec: "b.yaml", Outcome: harness.OutcomeError, Detail: "boom"},
+	}))
+	require.Len(t, lines, 2, "one line per result")
+	assert.Equal(t, "b.yaml "+string(harness.OutcomeError)+" boom", lines[1],
+		"a detail follows its own outcome, not a column sized by a line that has none")
 }
 
 func TestReport_LinesAreNotPaddedPastTheirLastColumn(t *testing.T) {
