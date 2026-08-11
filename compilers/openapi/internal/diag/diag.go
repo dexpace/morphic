@@ -245,6 +245,60 @@ const (
 	// DegradedConstruct's constructs survive in a weaker shape, and these survive
 	// in none (GitHub #144).
 	UnpreservableConstruct = "openapi/unpreservable-construct"
+	// UnknownSchemaKeyword reports a JSON Schema keyword no field of the schema
+	// model names, kept verbatim under Unmodeled.
+	//
+	// Info, because the document did nothing wrong: JSON Schema requires an
+	// implementation to ignore a keyword it does not recognize, and says such a
+	// keyword may carry meaning for other tooling, so an unrecognized keyword is
+	// legal input rather than a defect. What is recorded is this compiler's own
+	// decision — that it read no meaning from the keyword and kept the text — which
+	// is the same thing ValidationOnlyKeyword records beside it.
+	UnknownSchemaKeyword = "openapi/unknown-schema-keyword"
+	// UnknownObjectKey reports a key on an OpenAPI object that the specification
+	// neither defines nor admits as an extension, kept verbatim under Unmodeled.
+	//
+	// Warning rather than info, because unlike its schema neighbour this one is a
+	// defect: OpenAPI gives its objects a closed key set and requires every
+	// extension to be prefixed x-, so a key that is neither is a document error —
+	// in practice a misspelling of the field beside it, which is precisely the
+	// class of mistake that survives when the compiler swallows the key in silence.
+	//
+	// Warning rather than error for the reason ReservedHeaderName is one: the
+	// document still lowers, everything the key was written beside is unaffected,
+	// and harness.Check stops at the first error diagnostic, which would hide every
+	// later finding in the same spec and make any fixture carrying a stray key
+	// unable to reach the invariant checks.
+	UnknownObjectKey = "openapi/unknown-object-key"
+	// UnknownKeyBudget reports an object declaring more keys the model does not
+	// name than the compiler keeps, so the ones past the bound reached the IR in no
+	// form at all.
+	//
+	// Every collection here is bounded, and this one is over a key set the document
+	// chooses the size of. The bound is far above what any document writes by
+	// accident, so tripping it is either a generated file or a hostile one; the
+	// diagnostic is what keeps the discarded remainder from being a silent loss.
+	UnknownKeyBudget = "openapi/unknown-key-budget"
+	// UnknownKeyUnreachable reports a key the parsed model reported as undeclared
+	// whose value the raw mapping does not present, so nothing of it reached the
+	// IR.
+	//
+	// Distinct from UnpreservableConstruct beside it, which is a value that was
+	// found and could not be rendered. This one was never reached: the parser
+	// reads a mapping through its `<<` merge keys and the raw readers here do not,
+	// so a merged-in key is named by the census and has no pair to read. Warning
+	// rather than that one's error because such a document is legal and still
+	// lowers.
+	UnknownKeyUnreachable = "openapi/unknown-key-unreachable"
+	// UnknownKeyEntryTaken reports a key whose Unmodeled entry is already held by
+	// a construct declared somewhere else, so the key reached the IR in no form.
+	//
+	// The carriers holding more than one object's entries are where two constructs
+	// can spell one entry: a parameter's own keys and the keywords its schema had
+	// no home for share one unscoped namespace on ir.Parameter. Warning rather
+	// than error because the document is otherwise lowered whole, and the entry
+	// that did survive is in it.
+	UnknownKeyEntryTaken = "openapi/unknown-key-entry-taken"
 )
 
 // Newf builds an ir.Diagnostic with a formatted message. It is the single

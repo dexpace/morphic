@@ -503,6 +503,12 @@ func DeclaredSchema(js *oas3.JSONSchema[oas3.Referenceable]) *oas3.JSONSchema[oa
 // RawChildNode returns the raw YAML value node of a mapping child keyed by the
 // on-wire name, unwrapping a document node first; nil when absent. It reads exact
 // literals the high-level model does not preserve (links, servers, content maps).
+//
+// The last pair spelling the key wins, which is the pair the parser reads:
+// marshaller skips every occurrence of a repeated key but the last. Returning
+// the first instead described a mapping by a value nothing else in the compiler
+// uses — reachable once a key can be spelled two ways, since an explicit pair
+// and an aliased one are one key to the parser and two nodes here.
 func RawChildNode(root *yaml.Node, key string) *yaml.Node {
 	if root == nil {
 		return nil
@@ -513,12 +519,28 @@ func RawChildNode(root *yaml.Node, key string) *yaml.Node {
 	if root.Kind != yaml.MappingNode {
 		return nil
 	}
+	var found *yaml.Node
 	for i := 0; i+1 < len(root.Content); i += 2 {
-		if root.Content[i].Value == key {
-			return root.Content[i+1]
+		if keyName(root.Content[i]) == key {
+			found = root.Content[i+1]
 		}
 	}
-	return nil
+	return found
+}
+
+// keyName is the on-wire name a mapping key node spells, following an alias to
+// the scalar it stands for.
+//
+// yaml.v3 leaves an alias node's own Value as the anchor name, so a key written
+// as an alias matches nothing when read raw — while the parser reads that key
+// under the name it resolves to, which is the name every caller here looks up.
+// Comparing the two spellings is what let a key the model reported as
+// undeclared reach no Unmodeled entry at all (GitHub #297).
+func keyName(n *yaml.Node) string {
+	if n.Kind == yaml.AliasNode && n.Alias != nil {
+		return n.Alias.Value
+	}
+	return n.Value
 }
 
 // The readers below consume a Site the caller supplies rather than resolving

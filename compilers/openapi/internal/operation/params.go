@@ -209,7 +209,10 @@ func fillParamSchemaAnnotations(c lowering.Ctx, ts *compile.Types, param *ir.Par
 		diags = append(diags, preserveParamXML(c, param, s, pointer)...)
 	}
 	param.Unmodeled = annotation.MergeUnmodeled(param.Unmodeled, a.Unmodeled)
-	return diags
+	// Last, per schema.PreserveUnknownKeywords: it keeps only the keywords no
+	// reader above it kept, and everything annotation.Read recorded is already on
+	// the parameter by this line.
+	return append(diags, schema.PreserveUnknownKeywords(c, &param.Unmodeled, s, pointer)...)
 }
 
 // preserveParamXML keeps a parameter schema's xml hints instead of dropping
@@ -288,6 +291,7 @@ func fillParamDetail(c lowering.Ctx, param *ir.Parameter, p *soa.Parameter, pptr
 	pExt, extDiags := schema.ExtensionsOf(c, p.GetExtensions(), pptr)
 	diags = append(diags, extDiags...)
 	param.Unmodeled = annotation.MergeUnmodeled(param.Unmodeled, pExt)
+	diags = append(diags, annotation.UnknownKeysIn(&param.Unmodeled, p, c.SrcIndex, pptr)...)
 	return append(diags, preserveAllowEmptyValue(c, param, p, pptr)...)
 }
 

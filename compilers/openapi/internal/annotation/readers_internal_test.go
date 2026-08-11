@@ -515,6 +515,51 @@ func TestRawChildNode_ReadsOnlyAMappingChild(t *testing.T) {
 	assert.Nil(t, RawChildNode(&yaml.Node{Kind: yaml.DocumentNode}, "a"), "nor an empty document")
 }
 
+// TestRawChildNode_FindsAKeyWrittenAsAnAlias pins the one spelling where the raw
+// tree and the parsed model disagree about a key's name. yaml.v3 leaves an alias
+// node's own Value as the anchor, so matching it raw looks for "k" while the
+// parser has already read the pair under "aliasedKey" — and every caller here
+// asks by the name the parser used. A key the census reported as undeclared then
+// reached no Unmodeled entry and, before this, no diagnostic either.
+func TestRawChildNode_FindsAKeyWrittenAsAnAlias(t *testing.T) {
+	t.Parallel()
+	var doc yaml.Node
+	require.NoError(t, yaml.Unmarshal([]byte("anchor: &k aliasedKey\n*k : found\n"), &doc))
+
+	found := RawChildNode(&doc, "aliasedKey")
+
+	require.NotNil(t, found, "the key is looked up by the name it resolves to")
+	assert.Equal(t, "found", found.Value)
+	assert.Nil(t, RawChildNode(&doc, "k"), "and not by the anchor it is written as")
+}
+
+// TestRawChildNode_RepeatedKeyReadsTheLastPair holds this reader to the pair the
+// parser reads: marshaller skips every occurrence of a repeated key but the
+// last, so returning the first would describe the mapping by a value nothing
+// else in the compiler uses.
+//
+// Spelled with an alias, because that is how the case is reachable — yaml.v3
+// refuses a key written twice the same way, while an explicit pair and an
+// aliased one are two nodes here and one key to the parser.
+func TestRawChildNode_RepeatedKeyReadsTheLastPair(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct{ name, body, want string }{
+		{"aliased pair last", "anchor: &k dup\ndup: first\n*k : last\n", "last"},
+		{"aliased pair first", "anchor: &k dup\n*k : first\ndup: last\n", "last"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			var doc yaml.Node
+			require.NoError(t, yaml.Unmarshal([]byte(tc.body), &doc))
+
+			found := RawChildNode(&doc, "dup")
+
+			require.NotNil(t, found)
+			assert.Equal(t, tc.want, found.Value, "the last pair spelling the key is the effective one")
+		})
+	}
+}
+
 // TestRawPropertyNode_NilSchemaReadsNothing pins the nil guard on the schema
 // side of the same reader, which every caller relies on to ask about a position
 // that may have no body written at it.

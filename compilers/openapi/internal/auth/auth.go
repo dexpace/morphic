@@ -133,6 +133,11 @@ func lowerSecurityScheme(c lowering.Ctx, name string, ss *soa.SecurityScheme,
 	}
 	diags = preserveUnreadFields(c, &scheme, ss, decl)
 	diags = append(diags, applySchemeExtensions(c, &scheme, ss, decl)...)
+	// Distinct from preserveUnreadFields above it: that keeps the fields OpenAPI
+	// defines for a securityScheme which this entry's own mechanism gives no
+	// meaning to, while this keeps the keys OpenAPI defines for no securityScheme
+	// at all.
+	diags = append(diags, annotation.UnknownKeysIn(&scheme.Unmodeled, ss, c.SrcIndex, decl)...)
 	// After the extensions, whose entries are what a promotion reads.
 	return scheme, true, append(diags,
 		c.PromoteDeprecation(scheme.Unmodeled, scheme.Deprecation, &scheme.Provenance)...)

@@ -85,6 +85,21 @@ func TestTagExtensions_NilEntrySkipped(t *testing.T) {
 	assert.Equal(t, "/tags/1", got[0].Owner)
 }
 
+// TestTagUnknownSites_NilEntrySkipped is TestTagExtensions_NilEntrySkipped's
+// twin on the census side: the two walks of the tag list keep the same guard, so
+// neither can be the one that dereferences a nil entry or keys a site at an
+// index holding no tag.
+func TestTagUnknownSites_NilEntrySkipped(t *testing.T) {
+	t.Parallel()
+	doc := &soa.OpenAPI{Tags: []*soa.Tag{nil, {Name: "kept"}}}
+
+	got := tagUnknownSites(lowering.Ctx{Doc: doc})
+
+	require.Len(t, got, 1, "only the surviving tag contributes a census site")
+	assert.Equal(t, "tags/1", got[0].scope, "the site is keyed at the tag's own index, not its position")
+	assert.Equal(t, "/tags/1", got[0].owner)
+}
+
 func TestMeta_NoInfoNoServers(t *testing.T) {
 	t.Parallel()
 	// With no info block the title is empty; with no servers the library injects
