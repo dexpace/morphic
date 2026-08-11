@@ -1,0 +1,31 @@
+openapi: 3.1.0
+info: {title: DiscriminatorTransitive, version: "1.0.0"}
+paths: {}
+components:
+  schemas:
+    # A discriminated base tags every descendant, not only its immediate
+    # children: "puppy" routes to a schema two hops away. Every other
+    # discriminator spec here is one level deep, which is why nothing held the
+    # subtype relation to being transitive.
+    Pet:
+      type: object
+      required: [petType]
+      properties:
+        petType: {type: string}
+      discriminator:
+        propertyName: petType
+        mapping:
+          dog: '#/components/schemas/Dog'
+          puppy: '#/components/schemas/Puppy'
+    Dog:
+      allOf:
+        - {$ref: '#/components/schemas/Pet'}
+      properties:
+        bark: {type: boolean}
+    # Composes Dog, which composes Pet: the chain stays as declared rather than
+    # flattening onto the root, so a consumer walks it to reach the base.
+    Puppy:
+      allOf:
+        - {$ref: '#/components/schemas/Dog'}
+      properties:
+        weeks: {type: integer}

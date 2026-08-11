@@ -12,6 +12,7 @@ import (
 
 	"github.com/dexpace/morphic/compilers"
 	"github.com/dexpace/morphic/compilers/openapi"
+	"github.com/dexpace/morphic/compilers/openapi/internal/openapitest"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -103,7 +104,7 @@ func assertPromotionDeclined(t *testing.T, doc *ir.Document, diags []ir.Diagnost
 	assert.Empty(t, numeric.Deprecation.Message, "a non-string value fills no field")
 	assert.Contains(t, numeric.Unmodeled, "openapi:x-deprecated-reason")
 	assert.Empty(t, numeric.Provenance.Inferred)
-	assert.True(t, hasDiagCode(diags, "openapi/degraded-construct"),
+	assert.True(t, openapitest.HasDiag(diags, "openapi/degraded-construct"),
 		"declining a value the policy cannot read is reported; got %+v", diags)
 }
 

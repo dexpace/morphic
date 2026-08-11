@@ -1,0 +1,15 @@
+openapi: 3.0.3
+info: {title: StreamingMedia30, version: "1.0.0"}
+paths:
+  /events:
+    get:
+      operationId: streamEvents
+      responses:
+        "200":
+          description: ok
+          content:
+            text/event-stream:
+              schema:
+                type: object
+                properties:
+                  message: {type: string}
