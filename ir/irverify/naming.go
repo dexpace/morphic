@@ -43,12 +43,14 @@ var nameOptional = map[reflect.Type]bool{
 	reflect.TypeFor[ir.Primitive](): true,
 }
 
-// checkNaming asserts every named entity has a name at all, and that the names
-// it carries are what invariant #4 promises: neutral lower_snake word
-// sequences, carrying no casing an emitter should own and no character that is
-// not part of a word. It reuses the shared bounded walk to reach every ir.Naming
-// value in the document, and reports whether that walk was cut short so a name
-// past the cap cannot go unchecked in silence.
+// checkNaming asserts every named entity has a name at all; that the names it
+// carries are what invariant #4 promises — neutral lower_snake word sequences,
+// carrying no casing an emitter should own and no character that is not part of
+// a word; and that every channel's bytes decode, which is a claim about the
+// encoding rather than the spelling and so is the one rule they all share. It
+// reuses the shared bounded walk to reach every ir.Naming value in the document,
+// and reports whether that walk was cut short so a name past the cap cannot go
+// unchecked in silence.
 //
 // Presence is separate from those content rules because each of them is
 // vacuously true of the empty string: an entirely empty Naming satisfied all
