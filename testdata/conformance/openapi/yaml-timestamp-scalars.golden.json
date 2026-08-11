@@ -104,6 +104,16 @@
       "anonymous": false,
       "docs": {},
       "sensitive": false,
+      "unmodeled": {
+        "openapi:format": {
+          "reason": "degraded_lowering",
+          "value": "date",
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/D/format"
+          }
+        }
+      },
       "provenance": {
         "source": 0,
         "pointer": "/components/schemas/D"
@@ -302,6 +312,15 @@
     }
   ],
   "diagnostics": [
+    {
+      "severity": "info",
+      "code": "openapi/degraded-construct",
+      "message": "this position lowered to a node of kind \"enum\", which has no home for format declared beside it; kept verbatim under Unmodeled",
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/D"
+      }
+    },
     {
       "severity": "info",
       "code": "openapi/validation-only-keyword",

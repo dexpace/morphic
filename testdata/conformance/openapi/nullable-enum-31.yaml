@@ -14,8 +14,21 @@ components:
     Color:
       type: [string, "null"]
       enum: [red, green, null]
+    # The same set with nothing beside it. A non-empty enum fixes the value
+    # space, so the members alone say null is in it and the declaration
+    # normalizes exactly as Color does.
+    BareColor:
+      enum: [red, green, null]
+    # The other direction: the type array puts null in the type space and the
+    # members take it back out, so this position does not admit null even though
+    # its type keyword names it.
+    NarrowedColor:
+      type: [string, "null"]
+      enum: [red, green]
     Holder:
       type: object
       properties:
         one: {$ref: '#/components/schemas/Color'}
         many: {type: array, items: {$ref: '#/components/schemas/Color'}}
+        bare: {$ref: '#/components/schemas/BareColor'}
+        narrowed: {$ref: '#/components/schemas/NarrowedColor'}

@@ -66,9 +66,13 @@ func (c *Compiler) Compile(ctx context.Context, sources []compilers.Source, opts
 		return nil, diags, err
 	}
 	// components schemas → auth → service/operations → meta; assembles Document
-	out, lowerDiags := run(loweringCtx(loadedDoc, formatOpts), compile.NewTypes(rootSrcIndex))
+	out, lowerDiags, err := run(ctx, loweringCtx(loadedDoc, formatOpts), compile.NewTypes(rootSrcIndex))
 	//nolint:gocritic // deliberate concat: load diagnostics precede lowering diagnostics
-	out.Diagnostics = append(diags, lowerDiags...)
+	all := append(diags, lowerDiags...)
+	if err != nil {
+		return nil, all, err
+	}
+	out.Diagnostics = all
 	return out, out.Diagnostics, nil
 }
 
@@ -77,7 +81,14 @@ func (c *Compiler) Compile(ctx context.Context, sources []compilers.Source, opts
 // find interned IDs; then security schemes, so requirements reference registered
 // IDs; then the service walk; then document metadata. It assembles and returns
 // the Document.
-func run(c lowering.Ctx, ts *compile.Types) (*ir.Document, []ir.Diagnostic) {
+//
+// It reports cancellation as a Go error rather than a diagnostic, and it is the
+// one thing here that is not a spec problem: nothing about the document is wrong,
+// the caller stopped asking. The document is dropped with it — the two walks
+// that honour ctx stop mid-registry, so what is left references types that were
+// never interned — and the diagnostics gathered before the stop are returned, so
+// a caller who cancels on a deadline still sees what the compile had found.
+func run(ctx context.Context, c lowering.Ctx, ts *compile.Types) (*ir.Document, []ir.Diagnostic, error) {
 	// out, the anchor memo and the claimed-operationId set are this function's,
 	// not a struct's: a document being built, a memo, and a loop-local set
 	// (micro-compiler-design §4.1). Nothing below allocates them.
@@ -90,7 +101,15 @@ func run(c lowering.Ctx, ts *compile.Types) (*ir.Document, []ir.Diagnostic) {
 	// copies; compile.Diags.Append is what collapses them, and it has to see the
 	// whole stream to do it.
 	var acc compile.Diags
-	acc.AppendAll(schema.LowerComponentSchemas(c, ts, &anchors))
+	acc.AppendAll(schema.LowerComponentSchemas(ctx, c, ts, &anchors))
+	// The two checks in this function sit after the two phases that honour ctx.
+	// Each stops between items and returns what it had, so a non-nil ctx.Err()
+	// here is the only way to tell a phase that finished from one that was cut
+	// short — and the cut-short one leaves a registry nothing may be assembled
+	// from.
+	if err := ctx.Err(); err != nil {
+		return nil, acc.List(), err
+	}
 
 	schemes, authDiags := auth.LowerSecuritySchemes(c)
 	out.Auth = schemes
@@ -99,10 +118,13 @@ func run(c lowering.Ctx, ts *compile.Types) (*ir.Document, []ir.Diagnostic) {
 	// one, so no lowering above the schemes can read them as empty.
 	svcCtx := c.WithAuth(schemes)
 
-	svc, tagDefs, svcDiags := operation.LowerService(svcCtx, ts, &anchors, operationIDs)
+	svc, tagDefs, svcDiags := operation.LowerService(ctx, svcCtx, ts, &anchors, operationIDs)
 	out.Services = []ir.Service{svc}
 	out.TagDefs = tagDefs
 	acc.AppendAll(svcDiags)
+	if err := ctx.Err(); err != nil {
+		return nil, acc.List(), err
+	}
 
 	m, metaDiags := lowerMeta(c)
 	out.Name, out.Version = m.Name, m.Version
@@ -123,7 +145,7 @@ func run(c lowering.Ctx, ts *compile.Types) (*ir.Document, []ir.Diagnostic) {
 	for _, v := range ts.Violations() {
 		acc.Append(c.DiagAt(ir.SeverityError, diag.InternalInvariant, "", "internal: %s", v))
 	}
-	return out, acc.List()
+	return out, acc.List(), nil
 }
 
 // optionsFrom resolves the compiler-specific options: a nil FormatOptions gets
@@ -145,7 +167,11 @@ func optionsFrom(opts compilers.Options) (Options, error) {
 // deliberately not this public type, whose shape ir-design §10 fixes and most of
 // which describes lowering the loader cannot see.
 func loadOptions(o Options) load.Options {
-	out := load.Options{AllowExternalRefs: o.AllowExternalRefs}
+	out := load.Options{
+		AllowExternalRefs: o.AllowExternalRefs,
+		MaxSourceBytes:    bounded(o.Limits.MaxSourceBytes),
+		MaxSourceNodes:    bounded(o.Limits.MaxSourceNodes),
+	}
 	if o.Overlay != nil {
 		out.Overlay = &overlay.Options{Path: o.Overlay.Path, Data: o.Overlay.Data, Lax: o.Overlay.Lax}
 		out.OverlaySrcIndex = overlaySrcIndex
@@ -156,7 +182,10 @@ func loadOptions(o Options) load.Options {
 // loweringCtx projects a loaded document and the caller's options onto the
 // lowering context, and is the loadOptions of the phase below: it is the one
 // place the loader's result type meets the lowering, so lowering.New can take
-// the two facts it needs rather than the loader's struct.
+// the facts it needs rather than the loader's struct. It is also where the
+// public spelling of an unbounded budget is translated, for the reason
+// loadOptions translates the other two — below here, zero means no budget.
 func loweringCtx(doc *load.Document, o Options) lowering.Ctx {
-	return lowering.New(rootSrcIndex, doc.Doc, doc.Source, o.Grouping, o.StreamingMedia, doc.Overlay)
+	limits := lowering.Limits{MaxEnumMembers: bounded(o.Limits.MaxEnumMembers)}
+	return lowering.New(rootSrcIndex, doc.Doc, doc.Source, o.Grouping, limits, o.StreamingMedia, doc.Overlay)
 }

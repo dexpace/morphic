@@ -9,6 +9,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/dexpace/morphic/compilers/openapi/internal/annotation"
+	"github.com/dexpace/morphic/compilers/openapi/internal/openapitest"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -16,7 +17,7 @@ func TestFillParamSchema_EmptyEitherNoOp(t *testing.T) {
 	t.Parallel()
 	l := newRawLowerer(&soa.OpenAPI{})
 	param := &ir.Parameter{}
-	diags := fillParamSchema(l.ctx, l.types, param, emptyEitherSchema(), "/p")
+	diags := fillParamSchema(l.ctx, l.types, param, openapitest.EmptyEitherSchema(), "/p")
 	assert.Nil(t, param.Constraints)
 	assert.Nil(t, param.Default)
 	assert.Empty(t, diags)
@@ -28,7 +29,7 @@ func TestFillParamSchema_EmptyEitherNoOp(t *testing.T) {
 // record nothing rather than announce a preservation it did not make.
 func TestPreserveParamXML_ModelSetWithoutRawSourceRecordsNothing(t *testing.T) {
 	t.Parallel()
-	l, _ := loweredFor(t, componentSpec("    A: {type: string}\n"))
+	l, _ := loweredFor(t, openapitest.ComponentSpec("    A: {type: string}\n"))
 	s := &oas3.Schema{XML: &oas3.XML{}}
 	require.NotNil(t, s.GetXML(), "the model reports the hint as set")
 	require.Nil(t, annotation.RawPropertyNode(s, "xml"), "and no raw node backs it")

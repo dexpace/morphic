@@ -13,6 +13,7 @@ import (
 
 	"github.com/dexpace/morphic/compilers"
 	"github.com/dexpace/morphic/compilers/openapi"
+	"github.com/dexpace/morphic/compilers/openapi/internal/openapitest"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -163,6 +164,6 @@ func assertStreamingMedia31(t *testing.T, doc *ir.Document, diags []ir.Diagnosti
 	assert.Nil(t, either.ResponseStream.Events, "two streaming contents elect no element type")
 	require.NotNil(t, either.Responses[0].Payload)
 	assert.Len(t, either.Responses[0].Payload.Contents, 2, "both contents are still kept")
-	assert.True(t, hasDiagCode(diags, "openapi/degraded-construct"),
+	assert.True(t, openapitest.HasDiag(diags, "openapi/degraded-construct"),
 		"the unelected element type is reported; got %+v", diags)
 }

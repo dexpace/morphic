@@ -16,6 +16,7 @@ import (
 
 	"github.com/dexpace/morphic/compilers"
 	"github.com/dexpace/morphic/compilers/openapi"
+	"github.com/dexpace/morphic/compilers/openapi/internal/openapitest"
 	"github.com/dexpace/morphic/internal/harness"
 	"github.com/dexpace/morphic/ir"
 )
@@ -863,7 +864,7 @@ components:
 			assert.Equal(t, ir.ReasonValidationOnly, raw.Reason)
 		},
 		assertDiags: func(t *testing.T, diags []ir.Diagnostic) {
-			assert.True(t, hasDiagCode(diags, "openapi/validation-only-keyword"),
+			assert.True(t, openapitest.HasDiag(diags, "openapi/validation-only-keyword"),
 				"expected a validation-only-keyword info diagnostic")
 		},
 	}
@@ -894,7 +895,7 @@ components:
 			assert.False(t, leaked, "if/then on the declaration must not leak onto the shared primitive")
 		},
 		assertDiags: func(t *testing.T, diags []ir.Diagnostic) {
-			assert.True(t, hasDiagCode(diags, "openapi/validation-only-keyword"),
+			assert.True(t, openapitest.HasDiag(diags, "openapi/validation-only-keyword"),
 				"expected a validation-only-keyword info diagnostic")
 		},
 	}
@@ -933,7 +934,7 @@ components:
 				"a reference-site keyword must not attach to the referent")
 		},
 		assertDiags: func(t *testing.T, diags []ir.Diagnostic) {
-			assert.True(t, hasDiagCode(diags, "openapi/validation-only-keyword"),
+			assert.True(t, openapitest.HasDiag(diags, "openapi/validation-only-keyword"),
 				"expected a validation-only-keyword info diagnostic")
 		},
 	}
@@ -1078,17 +1079,6 @@ func primitiveNode(t *testing.T, doc *ir.Document, id ir.TypeID) ir.TypeDef {
 	td, ok := doc.Types[id]
 	require.True(t, ok, "shared primitive %s must still be registered", id)
 	return td
-}
-
-// hasDiagCode reports whether diags contains a diagnostic with the given
-// stable code.
-func hasDiagCode(diags []ir.Diagnostic, code string) bool {
-	for _, d := range diags {
-		if d.Code == code {
-			return true
-		}
-	}
-	return false
 }
 
 // declShape is one declaration shape the SiteKind axis does not name

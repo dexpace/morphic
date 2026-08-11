@@ -45,8 +45,9 @@ type Ctx struct {
 	// Provenance.
 	SrcIndex int
 	// Grouping selects how operations are grouped into OperationGroups. It is one
-	// of the two caller policies the context carries; everything else here is a
-	// fact about the document.
+	// of the caller policies the context carries — the budgets and the streaming
+	// media list are the others; everything else here is a fact about the
+	// document.
 	//
 	// It arrives as the caller wrote it, normalized or not — the compiler's
 	// Options fills an unset one in before building a context, but nothing here
@@ -54,6 +55,12 @@ type Ctx struct {
 	// by tags, which is what makes the unnormalized zero value harmless rather
 	// than a second spelling of the default to keep in step.
 	Grouping GroupingStrategy
+	// Limits is the caller's budget for the constructs the walk builds. It is the
+	// other fact about the caller, and like Grouping it arrives already resolved:
+	// the compiler's Options fills the unset budgets in and translates its own
+	// spelling of "unbounded" before building a context, so the zero value here
+	// simply bounds nothing.
+	Limits Limits
 
 	// streaming is the media-type streaming policy, normalized into the set
 	// MediaTypeStreams answers from, and nil when the caller disabled it.
@@ -118,12 +125,13 @@ type Ctx struct {
 // building it is a lowering action rather than context: done at entry, that
 // warning would reach documents that never write $dynamicRef, changing what the
 // compiler reports about them. It stays where it is, built on first use.
-func New(srcIndex int, doc *soa.OpenAPI, src ir.SourceInfo, grouping GroupingStrategy, streaming StreamingMedia, origin overlay.Origin) Ctx {
+func New(srcIndex int, doc *soa.OpenAPI, src ir.SourceInfo, grouping GroupingStrategy, limits Limits, streaming StreamingMedia, origin overlay.Origin) Ctx {
 	return Ctx{
 		Doc:       doc,
 		Source:    src,
 		SrcIndex:  srcIndex,
 		Grouping:  grouping,
+		Limits:    limits,
 		schemas:   declaredSchemaNames(doc),
 		streaming: streamingSet(streaming),
 		overlay:   origin,

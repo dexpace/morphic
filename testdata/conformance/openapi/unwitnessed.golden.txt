@@ -51,7 +51,6 @@ Example.Error
 Example.Headers
 Example.Input
 Example.Output
-Example.Unmodeled
 External.Identity
 External.MinVersion
 External.Package
@@ -71,7 +70,6 @@ HTTPBinding.PatchImplicitOptionality
 HTTPBinding.ResponseBodyPath
 HTTPBinding.SharedRoute
 HTTPBinding.SuccessStatus
-HTTPBinding.Unmodeled
 HTTPParamBinding.BodyPath
 HTTPParamBinding.ParamPath
 HTTPParamBinding.PathPattern
@@ -113,7 +111,6 @@ Model.Implements
 Model.InputOnly
 Model.Positional
 Naming.Aliases
-OAuthFlow.Unmodeled
 OTPBinding.Behaviour
 OTPBinding.Kind
 OTPBinding.Process
@@ -191,8 +188,6 @@ Server.Bindings
 Server.Protocol
 Server.ProtocolVersion
 Server.Tags
-Server.Unmodeled
-ServerVariable.Unmodeled
 Service.CommonErrors
 Service.Extends
 Service.Namespace
@@ -200,7 +195,6 @@ Service.Protocols
 Service.Provenance
 Service.Renames
 Service.Servers
-Service.Unmodeled
 Service.Version
 StreamDetail.Initial
 StreamDetail.RequiresLength
@@ -237,6 +231,5 @@ VersionedName.Name
 VersionedName.Version
 VersionedType.Type
 VersionedType.Version
-Visibility.None
 WireIDRange.From
 WireIDRange.To
