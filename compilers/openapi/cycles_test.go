@@ -3,6 +3,7 @@ package openapi
 import (
 	"fmt"
 	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -51,6 +52,34 @@ var cycleReproducers = []struct{ name, file string }{
 	// overflows the stack rather than deadlocking: the resolution cache ends up
 	// pointing at its own reference and GetObject's delegation recurses.
 	{"pointer-whitespace-self", "cycle_pointer_whitespace_self"},
+}
+
+// TestCycleReproducers_EveryFixtureIsExercised holds cycleReproducers to the
+// fixtures on disk, the way TestDanglingRefs_EveryReproducerIsExercised holds
+// its own table: a cycle_*.yaml added to the corpus and left out of the table is
+// compiled by nothing here, and the suite stays green while the corpus grows
+// past it.
+//
+// The scan package keeps a table of the same fixtures for its own assertion and
+// carries the twin of this test. Holding both to one directory is what stops the
+// two from drifting apart as well as from the corpus, which neither package can
+// check directly — a test package cannot import another's.
+func TestCycleReproducers_EveryFixtureIsExercised(t *testing.T) {
+	t.Parallel()
+	onDisk, err := filepath.Glob(filepath.Join(reproducerDir, "cycle_*.yaml"))
+	require.NoError(t, err, "globbing the reproducer corpus")
+	require.NotEmpty(t, onDisk, "the corpus holds cycle reproducers")
+
+	listed := make(map[string]bool, len(cycleReproducers))
+	for _, tc := range cycleReproducers {
+		listed[tc.file+".yaml"] = true
+	}
+	for _, path := range onDisk {
+		assert.True(t, listed[filepath.Base(path)],
+			"%s is in %s but not in cycleReproducers", filepath.Base(path), reproducerDir)
+	}
+	assert.Len(t, cycleReproducers, len(onDisk),
+		"cycleReproducers and %s hold different numbers of fixtures", reproducerDir)
 }
 
 func TestCompile_CyclicSpecDoesNotCrash(t *testing.T) {
@@ -249,9 +278,16 @@ components:
 	}
 }
 
+// reproducerDir is where the cycle fixtures live. The reader below, the table
+// guard above and the fuzz seeds all derive their paths from it, so none of them
+// can end up looking somewhere the others are not — which matters most for the
+// seed loader, since it ignores a read error and a wrong path there would cost
+// the fuzzer its seeds in silence.
+const reproducerDir = "../../testdata/openapi"
+
 func readReproducer(t *testing.T, file string) []byte {
 	t.Helper()
-	data, err := os.ReadFile("../../testdata/openapi/" + file + ".yaml")
+	data, err := os.ReadFile(filepath.Join(reproducerDir, file+".yaml"))
 	require.NoError(t, err)
 	return data
 }
@@ -285,14 +321,14 @@ func TestCompile_MergeChainPastBoundStillCompiles(t *testing.T) {
 
 func FuzzCycleDetector(f *testing.F) {
 	for _, tc := range cycleReproducers {
-		if data, err := os.ReadFile("../../testdata/openapi/" + tc.file + ".yaml"); err == nil {
+		if data, err := os.ReadFile(filepath.Join(reproducerDir, tc.file+".yaml")); err == nil {
 			f.Add(data)
 		}
 	}
 	for _, tc := range refShapedDataSpecs {
 		f.Add([]byte(tc.data))
 	}
-	if data, err := os.ReadFile("../../testdata/openapi/amplification_alias_bomb.yaml"); err == nil {
+	if data, err := os.ReadFile(amplificationBombFixture); err == nil {
 		f.Add(data) // the GitHub #27 reproducer: refused for amplification, not a cycle
 	}
 	f.Add([]byte(" "))         // whitespace-only: recoverable parser panic
