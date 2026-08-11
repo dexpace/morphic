@@ -1008,7 +1008,8 @@ func TestContent_HeaderMapEntriesSharingComponentGetDistinctIDs(t *testing.T) {
 // a body, the map key for a header — would name the one shared node after
 // whichever reference happened to lower first. Naming.Hint is what emitters
 // render from, so "postA_request" on a body two operations share is a wrong
-// name, not a cosmetic one.
+// name, not a cosmetic one. The hint is the component name in neutral words,
+// which is what every name channel in the IR carries (invariant 4).
 func TestContent_SharedComponentSchemaTakesItsDeclarationHint(t *testing.T) {
 	t.Parallel()
 	doc, diags := parseFull(t, componentBodyRefSpec)
@@ -1017,14 +1018,14 @@ func TestContent_SharedComponentSchemaTakesItsDeclarationHint(t *testing.T) {
 	body, ok := doc.Types[bodyID]
 	require.True(t, ok)
 	assert.True(t, body.Common().Anonymous, "a requestBody component is not a named type")
-	assert.Equal(t, "Body", body.Common().Name.Hint,
+	assert.Equal(t, "body", body.Common().Name.Hint,
 		"the shared body schema is hinted from its component, not from postA or postB")
 
 	hdrDoc, hdrDiags := parseFull(t, headerIdentitySpec)
 	openapitest.RequireNoErrorDiags(t, hdrDiags)
 	hdr, ok := hdrDoc.Types[ir.TypeID("t/anon/components/headers/Rate/schema")]
 	require.True(t, ok)
-	assert.Equal(t, "Rate", hdr.Common().Name.Hint,
+	assert.Equal(t, "rate", hdr.Common().Name.Hint,
 		"the shared header schema is hinted from its component, not from X-Rate or X-Limit")
 }
 
@@ -1047,7 +1048,7 @@ func TestContent_InlineSchemaKeepsItsUseSiteHint(t *testing.T) {
 	openapitest.RequireNoErrorDiags(t, diags)
 	td, ok := doc.Types[ir.TypeID("t/anon/paths/~1a/post/requestBody/content/application~1json/schema")]
 	require.True(t, ok)
-	assert.Equal(t, "postA_request", td.Common().Name.Hint)
+	assert.Equal(t, "post_a_request", td.Common().Name.Hint)
 }
 
 const refdEncodingHeaderSpec = `openapi: 3.1.0

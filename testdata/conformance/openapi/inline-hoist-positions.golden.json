@@ -286,7 +286,7 @@
       "kind": "model",
       "id": "t/anon/paths/~1orders/post/callbacks/onProgress/{$request.body#~1callbackUrl}/post/requestBody/content/application~1json/schema",
       "name": {
-        "hint": "onProgress_request"
+        "hint": "on_progress_request"
       },
       "anonymous": true,
       "docs": {},
@@ -378,7 +378,7 @@
       "kind": "model",
       "id": "t/anon/paths/~1orders/post/requestBody/content/application~1json/schema",
       "name": {
-        "hint": "placeOrder_request"
+        "hint": "place_order_request"
       },
       "anonymous": true,
       "docs": {},
@@ -562,7 +562,7 @@
       "kind": "model",
       "id": "t/anon/paths/~1orders/post/responses/200/headers/X-Order-Trace/schema",
       "name": {
-        "hint": "X-Order-Trace"
+        "hint": "x_order_trace"
       },
       "anonymous": true,
       "docs": {},
@@ -608,7 +608,7 @@
       "kind": "model",
       "id": "t/anon/webhooks/onShipped/post/requestBody/content/application~1json/schema",
       "name": {
-        "hint": "onShipped_request"
+        "hint": "on_shipped_request"
       },
       "anonymous": true,
       "docs": {},

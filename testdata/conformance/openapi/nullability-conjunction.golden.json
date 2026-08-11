@@ -22,7 +22,7 @@
       "kind": "model",
       "id": "t/composed/components/schemas/DistributedUnion/oneOf/0",
       "name": {
-        "hint": "DistributedUnion_NullableModel"
+        "hint": "distributed_union_nullable_model"
       },
       "anonymous": true,
       "docs": {},
@@ -72,7 +72,7 @@
       "kind": "model",
       "id": "t/composed/components/schemas/DistributedUnion/oneOf/1",
       "name": {
-        "hint": "DistributedUnion_PlainModel"
+        "hint": "distributed_union_plain_model"
       },
       "anonymous": true,
       "docs": {},
@@ -135,7 +135,7 @@
       "variants": [
         {
           "name": {
-            "hint": "NullableModel"
+            "hint": "nullable_model"
           },
           "type": {
             "target": "t/composed/components/schemas/DistributedUnion/oneOf/0",
@@ -145,7 +145,7 @@
         },
         {
           "name": {
-            "hint": "PlainModel"
+            "hint": "plain_model"
           },
           "type": {
             "target": "t/composed/components/schemas/DistributedUnion/oneOf/1",
@@ -442,7 +442,7 @@
       "variants": [
         {
           "name": {
-            "hint": "NullableModel"
+            "hint": "nullable_model"
           },
           "type": {
             "target": "t/openapi/components/schemas/NullableModel",
@@ -452,7 +452,7 @@
         },
         {
           "name": {
-            "hint": "PlainModel"
+            "hint": "plain_model"
           },
           "type": {
             "target": "t/openapi/components/schemas/PlainModel",

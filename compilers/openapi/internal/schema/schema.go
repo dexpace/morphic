@@ -2149,14 +2149,14 @@ func refNullVerdict(js *oas3.JSONSchema[oas3.Referenceable], budget *int) nullVe
 // (ir-design §3.3). A set with two or more non-null branches falls through to a
 // Union (with its null branches stripped and lifted onto the enclosing ref).
 //
-// The hint it returns for the surviving branch is the *enclosing* schema's,
-// while an outside $ref to that same branch pointer derives variant_<index>
-// through subSchemaHint — so which of the two lowerings reaches the pointer
-// first decides the name, and the two declaration orders produce different
-// documents. That predates this function's co-declaration rule and is #181's
-// mechanism at a site #181 did not sweep; GitHub #281 holds it. It is narrowed
-// but not settled here: declining the collapse below removes the one order in
-// which a co-declared anyOf could reach it.
+// The hint is the branch's own (branchHint), not the enclosing schema's. The
+// pointer returned is the branch's, so an outside $ref can name it too and
+// derives its hint through subSchemaHint; only the first lowering to arrive
+// interns the node, so a hint derived differently here made the document depend
+// on declaration order — silently, since either spelling is a valid hint. That
+// was #181's mechanism at a site #181 did not sweep (GitHub #281), and the
+// repair is #181's: both paths ask branchHint's question, so they agree whichever
+// arrives first.
 //
 // A schema declaring both combinators collapses neither. The collapse says the
 // position *is* nullable X, and a co-declared anyOf conjoins with it, so it is
@@ -2165,7 +2165,7 @@ func refNullVerdict(js *oas3.JSONSchema[oas3.Referenceable], budget *int) nullVe
 // (preserveUnusedCombinator). Collapsing here would resolve the position
 // straight to X's own node — a shared primitive for `{type: string}` — leaving
 // the loser nowhere to sit that is not shared with every other declaration of X.
-func nullUnionCollapse(s *oas3.Schema, pointer, hint string) (*oas3.JSONSchema[oas3.Referenceable], string, string, bool) {
+func nullUnionCollapse(s *oas3.Schema, pointer string) (*oas3.JSONSchema[oas3.Referenceable], string, string, bool) {
 	if len(s.GetOneOf()) > 0 && len(s.GetAnyOf()) > 0 {
 		return nil, "", "", false
 	}
@@ -2183,7 +2183,7 @@ func nullUnionCollapse(s *oas3.Schema, pointer, hint string) (*oas3.JSONSchema[o
 	if nullCount == 0 || nonNullCount != 1 {
 		return nil, "", "", false
 	}
-	return nonNull, pointer + ids.Ptr(key, strconv.Itoa(nonNullIdx)), hint, true
+	return nonNull, pointer + ids.Ptr(key, strconv.Itoa(nonNullIdx)), branchHint(nonNull, nonNullIdx), true
 }
 
 // isNullSchema reports whether a variant schema is the bare null-typed schema.

@@ -769,7 +769,7 @@
       "kind": "list",
       "id": "t/anon/paths/~1matrix~1{pathMatrixExplode}~1{pathMatrixNoExplode}~1{pathMatrixDefaultExplode}~1{pathLabelExplode}~1{pathLabelNoExplode}~1{pathLabelDefaultExplode}~1{pathSimpleExplode}~1{pathSimpleNoExplode}~1{pathSimpleDefaultExplode}~1{pathDefaulted}/get/parameters/0/schema",
       "name": {
-        "hint": "pathMatrixExplode"
+        "hint": "path_matrix_explode"
       },
       "anonymous": true,
       "docs": {},
@@ -787,7 +787,7 @@
       "kind": "list",
       "id": "t/anon/paths/~1matrix~1{pathMatrixExplode}~1{pathMatrixNoExplode}~1{pathMatrixDefaultExplode}~1{pathLabelExplode}~1{pathLabelNoExplode}~1{pathLabelDefaultExplode}~1{pathSimpleExplode}~1{pathSimpleNoExplode}~1{pathSimpleDefaultExplode}~1{pathDefaulted}/get/parameters/1/schema",
       "name": {
-        "hint": "pathMatrixNoExplode"
+        "hint": "path_matrix_no_explode"
       },
       "anonymous": true,
       "docs": {},
@@ -805,7 +805,7 @@
       "kind": "list",
       "id": "t/anon/paths/~1matrix~1{pathMatrixExplode}~1{pathMatrixNoExplode}~1{pathMatrixDefaultExplode}~1{pathLabelExplode}~1{pathLabelNoExplode}~1{pathLabelDefaultExplode}~1{pathSimpleExplode}~1{pathSimpleNoExplode}~1{pathSimpleDefaultExplode}~1{pathDefaulted}/get/parameters/10/schema",
       "name": {
-        "hint": "queryFormExplode"
+        "hint": "query_form_explode"
       },
       "anonymous": true,
       "docs": {},
@@ -823,7 +823,7 @@
       "kind": "list",
       "id": "t/anon/paths/~1matrix~1{pathMatrixExplode}~1{pathMatrixNoExplode}~1{pathMatrixDefaultExplode}~1{pathLabelExplode}~1{pathLabelNoExplode}~1{pathLabelDefaultExplode}~1{pathSimpleExplode}~1{pathSimpleNoExplode}~1{pathSimpleDefaultExplode}~1{pathDefaulted}/get/parameters/11/schema",
       "name": {
-        "hint": "queryFormNoExplode"
+        "hint": "query_form_no_explode"
       },
       "anonymous": true,
       "docs": {},
@@ -841,7 +841,7 @@
       "kind": "list",
       "id": "t/anon/paths/~1matrix~1{pathMatrixExplode}~1{pathMatrixNoExplode}~1{pathMatrixDefaultExplode}~1{pathLabelExplode}~1{pathLabelNoExplode}~1{pathLabelDefaultExplode}~1{pathSimpleExplode}~1{pathSimpleNoExplode}~1{pathSimpleDefaultExplode}~1{pathDefaulted}/get/parameters/12/schema",
       "name": {
-        "hint": "queryFormDefaultExplode"
+        "hint": "query_form_default_explode"
       },
       "anonymous": true,
       "docs": {},
@@ -859,7 +859,7 @@
       "kind": "list",
       "id": "t/anon/paths/~1matrix~1{pathMatrixExplode}~1{pathMatrixNoExplode}~1{pathMatrixDefaultExplode}~1{pathLabelExplode}~1{pathLabelNoExplode}~1{pathLabelDefaultExplode}~1{pathSimpleExplode}~1{pathSimpleNoExplode}~1{pathSimpleDefaultExplode}~1{pathDefaulted}/get/parameters/13/schema",
       "name": {
-        "hint": "querySpaceDelimitedExplode"
+        "hint": "query_space_delimited_explode"
       },
       "anonymous": true,
       "docs": {},
@@ -877,7 +877,7 @@
       "kind": "list",
       "id": "t/anon/paths/~1matrix~1{pathMatrixExplode}~1{pathMatrixNoExplode}~1{pathMatrixDefaultExplode}~1{pathLabelExplode}~1{pathLabelNoExplode}~1{pathLabelDefaultExplode}~1{pathSimpleExplode}~1{pathSimpleNoExplode}~1{pathSimpleDefaultExplode}~1{pathDefaulted}/get/parameters/14/schema",
       "name": {
-        "hint": "querySpaceDelimitedNoExplode"
+        "hint": "query_space_delimited_no_explode"
       },
       "anonymous": true,
       "docs": {},
@@ -895,7 +895,7 @@
       "kind": "list",
       "id": "t/anon/paths/~1matrix~1{pathMatrixExplode}~1{pathMatrixNoExplode}~1{pathMatrixDefaultExplode}~1{pathLabelExplode}~1{pathLabelNoExplode}~1{pathLabelDefaultExplode}~1{pathSimpleExplode}~1{pathSimpleNoExplode}~1{pathSimpleDefaultExplode}~1{pathDefaulted}/get/parameters/15/schema",
       "name": {
-        "hint": "querySpaceDelimitedDefaultExplode"
+        "hint": "query_space_delimited_default_explode"
       },
       "anonymous": true,
       "docs": {},
@@ -913,7 +913,7 @@
       "kind": "list",
       "id": "t/anon/paths/~1matrix~1{pathMatrixExplode}~1{pathMatrixNoExplode}~1{pathMatrixDefaultExplode}~1{pathLabelExplode}~1{pathLabelNoExplode}~1{pathLabelDefaultExplode}~1{pathSimpleExplode}~1{pathSimpleNoExplode}~1{pathSimpleDefaultExplode}~1{pathDefaulted}/get/parameters/16/schema",
       "name": {
-        "hint": "queryPipeDelimitedExplode"
+        "hint": "query_pipe_delimited_explode"
       },
       "anonymous": true,
       "docs": {},
@@ -931,7 +931,7 @@
       "kind": "list",
       "id": "t/anon/paths/~1matrix~1{pathMatrixExplode}~1{pathMatrixNoExplode}~1{pathMatrixDefaultExplode}~1{pathLabelExplode}~1{pathLabelNoExplode}~1{pathLabelDefaultExplode}~1{pathSimpleExplode}~1{pathSimpleNoExplode}~1{pathSimpleDefaultExplode}~1{pathDefaulted}/get/parameters/17/schema",
       "name": {
-        "hint": "queryPipeDelimitedNoExplode"
+        "hint": "query_pipe_delimited_no_explode"
       },
       "anonymous": true,
       "docs": {},
@@ -949,7 +949,7 @@
       "kind": "list",
       "id": "t/anon/paths/~1matrix~1{pathMatrixExplode}~1{pathMatrixNoExplode}~1{pathMatrixDefaultExplode}~1{pathLabelExplode}~1{pathLabelNoExplode}~1{pathLabelDefaultExplode}~1{pathSimpleExplode}~1{pathSimpleNoExplode}~1{pathSimpleDefaultExplode}~1{pathDefaulted}/get/parameters/18/schema",
       "name": {
-        "hint": "queryPipeDelimitedDefaultExplode"
+        "hint": "query_pipe_delimited_default_explode"
       },
       "anonymous": true,
       "docs": {},
@@ -967,7 +967,7 @@
       "kind": "model",
       "id": "t/anon/paths/~1matrix~1{pathMatrixExplode}~1{pathMatrixNoExplode}~1{pathMatrixDefaultExplode}~1{pathLabelExplode}~1{pathLabelNoExplode}~1{pathLabelDefaultExplode}~1{pathSimpleExplode}~1{pathSimpleNoExplode}~1{pathSimpleDefaultExplode}~1{pathDefaulted}/get/parameters/19/schema",
       "name": {
-        "hint": "queryDeepObjectExplode"
+        "hint": "query_deep_object_explode"
       },
       "anonymous": true,
       "docs": {},
@@ -984,7 +984,7 @@
       "kind": "list",
       "id": "t/anon/paths/~1matrix~1{pathMatrixExplode}~1{pathMatrixNoExplode}~1{pathMatrixDefaultExplode}~1{pathLabelExplode}~1{pathLabelNoExplode}~1{pathLabelDefaultExplode}~1{pathSimpleExplode}~1{pathSimpleNoExplode}~1{pathSimpleDefaultExplode}~1{pathDefaulted}/get/parameters/2/schema",
       "name": {
-        "hint": "pathMatrixDefaultExplode"
+        "hint": "path_matrix_default_explode"
       },
       "anonymous": true,
       "docs": {},
@@ -1002,7 +1002,7 @@
       "kind": "model",
       "id": "t/anon/paths/~1matrix~1{pathMatrixExplode}~1{pathMatrixNoExplode}~1{pathMatrixDefaultExplode}~1{pathLabelExplode}~1{pathLabelNoExplode}~1{pathLabelDefaultExplode}~1{pathSimpleExplode}~1{pathSimpleNoExplode}~1{pathSimpleDefaultExplode}~1{pathDefaulted}/get/parameters/20/schema",
       "name": {
-        "hint": "queryDeepObjectNoExplode"
+        "hint": "query_deep_object_no_explode"
       },
       "anonymous": true,
       "docs": {},
@@ -1019,7 +1019,7 @@
       "kind": "model",
       "id": "t/anon/paths/~1matrix~1{pathMatrixExplode}~1{pathMatrixNoExplode}~1{pathMatrixDefaultExplode}~1{pathLabelExplode}~1{pathLabelNoExplode}~1{pathLabelDefaultExplode}~1{pathSimpleExplode}~1{pathSimpleNoExplode}~1{pathSimpleDefaultExplode}~1{pathDefaulted}/get/parameters/21/schema",
       "name": {
-        "hint": "queryDeepObjectDefaultExplode"
+        "hint": "query_deep_object_default_explode"
       },
       "anonymous": true,
       "docs": {},
@@ -1036,7 +1036,7 @@
       "kind": "model",
       "id": "t/anon/paths/~1matrix~1{pathMatrixExplode}~1{pathMatrixNoExplode}~1{pathMatrixDefaultExplode}~1{pathLabelExplode}~1{pathLabelNoExplode}~1{pathLabelDefaultExplode}~1{pathSimpleExplode}~1{pathSimpleNoExplode}~1{pathSimpleDefaultExplode}~1{pathDefaulted}/get/parameters/23/schema",
       "name": {
-        "hint": "headerSimpleExplode"
+        "hint": "header_simple_explode"
       },
       "anonymous": true,
       "docs": {},
@@ -1053,7 +1053,7 @@
       "kind": "list",
       "id": "t/anon/paths/~1matrix~1{pathMatrixExplode}~1{pathMatrixNoExplode}~1{pathMatrixDefaultExplode}~1{pathLabelExplode}~1{pathLabelNoExplode}~1{pathLabelDefaultExplode}~1{pathSimpleExplode}~1{pathSimpleNoExplode}~1{pathSimpleDefaultExplode}~1{pathDefaulted}/get/parameters/27/schema",
       "name": {
-        "hint": "cookieFormExplode"
+        "hint": "cookie_form_explode"
       },
       "anonymous": true,
       "docs": {},
@@ -1071,7 +1071,7 @@
       "kind": "list",
       "id": "t/anon/paths/~1matrix~1{pathMatrixExplode}~1{pathMatrixNoExplode}~1{pathMatrixDefaultExplode}~1{pathLabelExplode}~1{pathLabelNoExplode}~1{pathLabelDefaultExplode}~1{pathSimpleExplode}~1{pathSimpleNoExplode}~1{pathSimpleDefaultExplode}~1{pathDefaulted}/get/parameters/29/schema",
       "name": {
-        "hint": "cookieFormDefaultExplode"
+        "hint": "cookie_form_default_explode"
       },
       "anonymous": true,
       "docs": {},
@@ -1089,7 +1089,7 @@
       "kind": "list",
       "id": "t/anon/paths/~1matrix~1{pathMatrixExplode}~1{pathMatrixNoExplode}~1{pathMatrixDefaultExplode}~1{pathLabelExplode}~1{pathLabelNoExplode}~1{pathLabelDefaultExplode}~1{pathSimpleExplode}~1{pathSimpleNoExplode}~1{pathSimpleDefaultExplode}~1{pathDefaulted}/get/parameters/3/schema",
       "name": {
-        "hint": "pathLabelExplode"
+        "hint": "path_label_explode"
       },
       "anonymous": true,
       "docs": {},
@@ -1107,7 +1107,7 @@
       "kind": "list",
       "id": "t/anon/paths/~1matrix~1{pathMatrixExplode}~1{pathMatrixNoExplode}~1{pathMatrixDefaultExplode}~1{pathLabelExplode}~1{pathLabelNoExplode}~1{pathLabelDefaultExplode}~1{pathSimpleExplode}~1{pathSimpleNoExplode}~1{pathSimpleDefaultExplode}~1{pathDefaulted}/get/parameters/4/schema",
       "name": {
-        "hint": "pathLabelNoExplode"
+        "hint": "path_label_no_explode"
       },
       "anonymous": true,
       "docs": {},
@@ -1125,7 +1125,7 @@
       "kind": "list",
       "id": "t/anon/paths/~1matrix~1{pathMatrixExplode}~1{pathMatrixNoExplode}~1{pathMatrixDefaultExplode}~1{pathLabelExplode}~1{pathLabelNoExplode}~1{pathLabelDefaultExplode}~1{pathSimpleExplode}~1{pathSimpleNoExplode}~1{pathSimpleDefaultExplode}~1{pathDefaulted}/get/parameters/5/schema",
       "name": {
-        "hint": "pathLabelDefaultExplode"
+        "hint": "path_label_default_explode"
       },
       "anonymous": true,
       "docs": {},
@@ -1143,7 +1143,7 @@
       "kind": "list",
       "id": "t/anon/paths/~1matrix~1{pathMatrixExplode}~1{pathMatrixNoExplode}~1{pathMatrixDefaultExplode}~1{pathLabelExplode}~1{pathLabelNoExplode}~1{pathLabelDefaultExplode}~1{pathSimpleExplode}~1{pathSimpleNoExplode}~1{pathSimpleDefaultExplode}~1{pathDefaulted}/get/parameters/6/schema",
       "name": {
-        "hint": "pathSimpleExplode"
+        "hint": "path_simple_explode"
       },
       "anonymous": true,
       "docs": {},
@@ -1161,7 +1161,7 @@
       "kind": "list",
       "id": "t/anon/paths/~1matrix~1{pathMatrixExplode}~1{pathMatrixNoExplode}~1{pathMatrixDefaultExplode}~1{pathLabelExplode}~1{pathLabelNoExplode}~1{pathLabelDefaultExplode}~1{pathSimpleExplode}~1{pathSimpleNoExplode}~1{pathSimpleDefaultExplode}~1{pathDefaulted}/get/parameters/7/schema",
       "name": {
-        "hint": "pathSimpleNoExplode"
+        "hint": "path_simple_no_explode"
       },
       "anonymous": true,
       "docs": {},
@@ -1179,7 +1179,7 @@
       "kind": "list",
       "id": "t/anon/paths/~1matrix~1{pathMatrixExplode}~1{pathMatrixNoExplode}~1{pathMatrixDefaultExplode}~1{pathLabelExplode}~1{pathLabelNoExplode}~1{pathLabelDefaultExplode}~1{pathSimpleExplode}~1{pathSimpleNoExplode}~1{pathSimpleDefaultExplode}~1{pathDefaulted}/get/parameters/8/schema",
       "name": {
-        "hint": "pathSimpleDefaultExplode"
+        "hint": "path_simple_default_explode"
       },
       "anonymous": true,
       "docs": {},
@@ -1197,7 +1197,7 @@
       "kind": "model",
       "id": "t/anon/paths/~1whole-query/get/parameters/0/content/application~1x-www-form-urlencoded/schema",
       "name": {
-        "hint": "querystringWhole"
+        "hint": "querystring_whole"
       },
       "anonymous": true,
       "docs": {},

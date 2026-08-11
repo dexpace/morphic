@@ -336,7 +336,7 @@
       "kind": "model",
       "id": "t/anon/paths/~1index/query/requestBody/content/application~1json/schema",
       "name": {
-        "hint": "queryIndex_request"
+        "hint": "query_index_request"
       },
       "anonymous": true,
       "docs": {},

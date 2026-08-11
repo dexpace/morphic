@@ -176,7 +176,7 @@
       "kind": "scalar",
       "id": "t/anon/components/schemas/CodeIndex/additionalProperties",
       "name": {
-        "hint": "CodeIndex_value"
+        "hint": "code_index_value"
       },
       "anonymous": true,
       "docs": {
@@ -202,7 +202,7 @@
       "kind": "scalar",
       "id": "t/anon/components/schemas/Codes/items",
       "name": {
-        "hint": "Codes_item"
+        "hint": "codes_item"
       },
       "anonymous": true,
       "docs": {

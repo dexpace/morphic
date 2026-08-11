@@ -2216,13 +2216,23 @@ func TestInlinePosition_OutsideRefDoesNotMoveTheHome(t *testing.T) {
 // differ by construction when the same components are declared in two orders.
 //
 // SourceInfo.Hash digests the source bytes, which are the thing being permuted.
-// Naming.Hint is a live gap: the hint a node hoisted at a pointer carries is
-// minted by whichever of the two namers reaches the pointer first — the
-// declaration's context ("A_item") or the reference's last pointer segment
-// ("items") — because intern keeps the first name it is given. That divergence
-// is naming only, and predates the annotation work: a $ref to an object-bodied
-// `items` shows it with no annotations involved at all. Everything else is
-// compared.
+//
+// Naming.Hint is a live gap, and a narrower one than it was: the hint a node
+// hoisted at a pointer carries is minted by whichever of the two namers reaches
+// the pointer first, because intern keeps the first name it is given. The
+// composition-branch family no longer diverges — both namers ask branchHint's
+// question there (GitHub #181, #281) — so what is left is the four inline
+// structural positions, where the declaration's context ("a_item") and the
+// reference's last pointer segment ("items") genuinely hold different
+// information: GitHub #353, which permutes exactly the positions
+// TestInlinePosition_OutsideRefDoesNotMoveTheHome does. That divergence is
+// naming only, and predates the annotation work: a $ref to an object-bodied
+// `items` shows it with no annotations involved at all.
+//
+// Everything else is compared, and a caller whose shapes settle their hints
+// identically both ways should compare the registry a second time with nothing
+// excluded rather than rely on this — see TestNullCollapse_BranchHintIsOrder-
+// Independent.
 func orderInvariantIR() []cmp.Option {
 	return []cmp.Option{
 		cmpopts.IgnoreFields(ir.Naming{}, "Hint"),
