@@ -1,8 +1,12 @@
 package lowering_test
 
 import (
+	"go/ast"
+	"go/parser"
+	"go/token"
 	"os"
-	"regexp"
+	"strconv"
+	"strings"
 	"testing"
 
 	soa "github.com/speakeasy-api/openapi/openapi"
@@ -195,19 +199,44 @@ func TestPromoteDeprecation_PolicyMapIsCopiedIntoTheContext(t *testing.T) {
 	assert.Equal(t, "why", dep.Message, "the policy the context read is the one it was given")
 }
 
-// declaredTargets reads the ExtensionTarget constants off the source rather
-// than restating them, so a target added to the vocabulary reaches the check
-// below without anyone remembering to list it here too.
+// declaredTargets returns every ExtensionTarget constant the package declares,
+// parsed rather than matched: a regex over one file misses a target declared in
+// another file of the package, or spelled with different spacing, and misses it
+// silently — which is the failure this check exists to prevent, reproduced in
+// the check itself.
 func declaredTargets(t *testing.T) []lowering.ExtensionTarget {
 	t.Helper()
-	src, err := os.ReadFile("promotion.go")
+	entries, err := os.ReadDir(".")
 	require.NoError(t, err)
-	matches := regexp.MustCompile(`ExtensionTarget = "([^"]+)"`).FindAllStringSubmatch(string(src), -1)
-	require.NotEmpty(t, matches, "no targets found; the check below would pass vacuously")
-	out := make([]lowering.ExtensionTarget, 0, len(matches))
-	for _, m := range matches {
-		out = append(out, lowering.ExtensionTarget(m[1]))
+	var out []lowering.ExtensionTarget
+	for _, entry := range entries {
+		name := entry.Name()
+		if entry.IsDir() || !strings.HasSuffix(name, ".go") || strings.HasSuffix(name, "_test.go") {
+			continue
+		}
+		file, err := parser.ParseFile(token.NewFileSet(), name, nil, 0)
+		require.NoError(t, err)
+		ast.Inspect(file, func(n ast.Node) bool {
+			spec, ok := n.(*ast.ValueSpec)
+			if !ok {
+				return true
+			}
+			if ident, ok := spec.Type.(*ast.Ident); !ok || ident.Name != "ExtensionTarget" {
+				return true
+			}
+			for _, value := range spec.Values {
+				lit, ok := value.(*ast.BasicLit)
+				if !ok || lit.Kind != token.STRING {
+					continue
+				}
+				unquoted, err := strconv.Unquote(lit.Value)
+				require.NoError(t, err)
+				out = append(out, lowering.ExtensionTarget(unquoted))
+			}
+			return true
+		})
 	}
+	require.NotEmpty(t, out, "no targets found; the check below would pass vacuously")
 	return out
 }
 
