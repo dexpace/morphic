@@ -1,6 +1,8 @@
 package lowering_test
 
 import (
+	"os"
+	"regexp"
 	"testing"
 
 	soa "github.com/speakeasy-api/openapi/openapi"
@@ -191,4 +193,49 @@ func TestPromoteDeprecation_PolicyMapIsCopiedIntoTheContext(t *testing.T) {
 	var prov ir.Provenance
 	c.PromoteDeprecation(ir.Unmodeled{"openapi:x-k": vendorExtension(`"why"`)}, &dep, &prov)
 	assert.Equal(t, "why", dep.Message, "the policy the context read is the one it was given")
+}
+
+// declaredTargets reads the ExtensionTarget constants off the source rather
+// than restating them, so a target added to the vocabulary reaches the check
+// below without anyone remembering to list it here too.
+func declaredTargets(t *testing.T) []lowering.ExtensionTarget {
+	t.Helper()
+	src, err := os.ReadFile("promotion.go")
+	require.NoError(t, err)
+	matches := regexp.MustCompile(`ExtensionTarget = "([^"]+)"`).FindAllStringSubmatch(string(src), -1)
+	require.NotEmpty(t, matches, "no targets found; the check below would pass vacuously")
+	out := make([]lowering.ExtensionTarget, 0, len(matches))
+	for _, m := range matches {
+		out = append(out, lowering.ExtensionTarget(m[1]))
+	}
+	return out
+}
+
+// TestExtensionTarget_EveryDeclaredTargetHasAnApplier holds the vocabulary to
+// the appliers, which is the half of "a target is a constant and an applier"
+// that nothing else checks: the constant alone compiles, maps cleanly, and
+// promotes nothing — no field written, no diagnostic, no marker.
+//
+// That is the shape every follow-up target arrives in — Pagination, Idempotency,
+// Sensitive and the rest are constants waiting for an applier apiece — so a
+// vocabulary entry that fills nothing is the likeliest way this seam breaks.
+//
+// A target belonging to a family this package cannot yet apply fails here on
+// purpose: adding one means adding its applier, and teaching this test which
+// applier answers for it, exactly as a new census keyword means adding its arm.
+func TestExtensionTarget_EveryDeclaredTargetHasAnApplier(t *testing.T) {
+	t.Parallel()
+	for _, target := range declaredTargets(t) {
+		c := promotionCtx(lowering.ExtensionPromotions{
+			Targets: map[string]lowering.ExtensionTarget{"x-k": target},
+		})
+		var dep ir.Deprecation
+		var prov ir.Provenance
+		diags := c.PromoteDeprecation(ir.Unmodeled{"openapi:x-k": vendorExtension(`"v"`)}, &dep, &prov)
+
+		assert.Empty(t, diags, "%s: a declared target reports nothing when it is applied", target)
+		assert.NotEqual(t, ir.Deprecation{}, dep,
+			"%s is declared in the vocabulary but no applier fills it, so a policy naming it "+
+				"promotes nothing and says nothing", target)
+	}
 }
