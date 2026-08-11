@@ -17,7 +17,6 @@ import (
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/ids"
 	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
-	"github.com/dexpace/morphic/compilers/openapi/internal/nodeview"
 	"github.com/dexpace/morphic/compilers/openapi/internal/openapitest"
 	"github.com/dexpace/morphic/ir"
 )
@@ -214,7 +213,7 @@ func TestDeclaresResourceIDAbove_WithoutARawTree(t *testing.T) {
 	t.Parallel()
 	l := newRawLowerer(&soa.OpenAPI{})
 
-	assert.False(t, declaresResourceIDAbove(l.ctx, nodeview.New(), "/components/schemas/A"),
+	assert.False(t, declaresResourceIDAbove(l.ctx, "/components/schemas/A"),
 		"a document with no raw tree declares no resource anywhere")
 }
 
@@ -225,11 +224,11 @@ func TestDeclaresResourceIDAbove_WithoutARawTree(t *testing.T) {
 // addressed. Dropping those stopped the walk above the position and read the
 // $id of the components/schemas map instead of the schema's own.
 //
-// The document root carries a member named "" of its own, and it is what makes
-// the two rootward cases discriminating rather than decorative: both must read
-// as "the root and nothing below it", so a walk that took "" for a token would
-// descend into that member and find the $id parked there. Without it, "stopped
-// at the root" and "descended and fell off the tree" are the same false.
+// The document root carries a member named "" of its own, carrying an $id. It is
+// what makes the two rootward cases discriminating rather than decorative: the
+// empty pointer names the root and must not reach it, while "/" is precisely how
+// ids.Ptr spells that member and must. Without the $id there, "stopped at the
+// root" and "descended and fell off the tree" are the same false.
 func TestDeclaresResourceIDAbove_EmptySegmentIsATokenNotAnArtifact(t *testing.T) {
 	t.Parallel()
 	l, diags := loweredFor(t, `openapi: 3.1.0
@@ -266,14 +265,15 @@ components:
 			"", false,
 			`the empty pointer stops at the root, so the $id under the root's "" member is out of reach`,
 		},
-		"a lone slash names the document root too": {
-			"/", false,
-			`the resolver lands a lone slash on the root, so the $id under the root's "" member stays out of reach`,
+		"a lone slash names the root member keyed \"\"": {
+			"/", true,
+			`ids.Ptr("") spells that member "/", so its own $id is the boundary — reading "/" as the root, ` +
+				"the way a reference resolves, would walk straight past it",
 		},
 	} {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
-			assert.Equal(t, tc.want, declaresResourceIDAbove(l.ctx, nodeview.New(), tc.pointer), tc.why)
+			assert.Equal(t, tc.want, declaresResourceIDAbove(l.ctx, tc.pointer), tc.why)
 		})
 	}
 }

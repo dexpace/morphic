@@ -189,6 +189,11 @@ func ForPointer(pointer string) ir.TypeID {
 // schema (/components/schemas/<name> with no deeper path) and returns its name.
 // Only this kind of component declares a named type in OpenAPI, which is why it
 // alone gates NamedType.
+//
+// It answers false for two unlike documents: one that declares no such entry,
+// and one that declares it keyed "". Reporting the refusal as "not a component
+// schema" is false for the second, since the pointer addresses exactly that —
+// ComponentSchemaNamedEmpty separates them for a caller that has to say why.
 func ComponentSchemaName(pointer string) (string, bool) {
 	kind, name, ok := ComponentEntry(pointer)
 	return name, ok && kind == "schemas"

@@ -1634,8 +1634,7 @@ func soleAnchorSite(c lowering.Ctx, anchors *AnchorIndex, name string) (at, why 
 // The loop is bounded by seen: cur only ever takes values from the anchor
 // index, and each turn either returns or adds one of them.
 func dynamicChainVerdict(c lowering.Ctx, anchors *AnchorIndex, at, from string) (why string, ok bool, diags []ir.Diagnostic) {
-	view := anchors.nodes()
-	if declaresResourceIDAbove(c, view, from) {
+	if declaresResourceIDAbove(c, from) {
 		return resourceBoundaryWhy(from), false, nil
 	}
 	seen := map[string]bool{}
@@ -1644,7 +1643,7 @@ func dynamicChainVerdict(c lowering.Ctx, anchors *AnchorIndex, at, from string) 
 			return fmt.Sprintf("expanding it closes a cycle of $dynamicRef expansions back onto %q, "+
 				"leaving a type whose own base chain never terminates", from), false, diags
 		}
-		if declaresResourceIDAbove(c, view, cur) {
+		if declaresResourceIDAbove(c, cur) {
 			return resourceBoundaryWhy(cur), false, diags
 		}
 		seen[cur] = true
@@ -1713,26 +1712,35 @@ func componentSchemaAt(c lowering.Ctx, pointer string) *oas3.Schema {
 // costs an expansion that would have been safe, where a missed one mints a
 // reference the IR cannot express.
 //
-// The path comes from nodeview.PointerPath, which already reads a pointer the
-// way this walk needs: it drops only the leading empty segment, so a later empty
-// token still takes a step of its own and names the key "" — which is how a
-// component schema named "" is addressed (/components/schemas/). Walking the
-// tokens here instead had dropped every empty segment, stopping the walk above
-// such a position and reading the $id of the components/schemas map rather than
-// the schema's own. An incomplete walk needs no separate arm: PointerPath yields
-// the nodes it did reach, and a boundary above a pointer that falls off the tree
-// still binds.
+// The path comes from nodeview.DocumentPath, which drops only the leading empty
+// segment: a later empty token still takes a step of its own and names the key
+// "", which is how a component schema named "" is addressed
+// (/components/schemas/). Walking the tokens here instead had dropped every
+// empty segment, stopping above such a position and reading the $id of the
+// components/schemas map rather than the schema's own. DocumentPath rather than
+// PointerPath because every pointer arriving here is a position this compiler
+// built with ids.Ptr: the two differ only on "/", which ids.Ptr("") uses to
+// spell the root member named "", and which PointerPath lands on the root
+// instead because that is where a *reference* resolves.
 //
-// Its other way of stopping short would matter, since a walk cut off before the
-// boundary reports no boundary — the direction this function must not err in.
-// PointerPath gives up past maxPointerSegments (1024), which schema lowering
-// cannot reach: maxSchemaDepth caps nesting at 256 and each level spends at most
-// two reference tokens, so the longest pointer arriving here runs about 515.
-// Measured rather than reasoned — a 700-level spec degrades at depth 256 and the
-// deepest pointer this saw was well inside the bound.
-func declaresResourceIDAbove(c lowering.Ctx, view *nodeview.View, pointer string) bool {
+// An incomplete walk needs no separate arm: the path holds the nodes it did
+// reach, and a boundary above a pointer that falls off the tree still binds.
+//
+// The view is built per call and deliberately not shared. nodeview memoizes a
+// mapping's merge expansion, and a node first expanded shallowly is served from
+// that memo to a later walk that reaches it deeper than MergeDepthLimit would
+// allow — so a view outliving one walk makes this answer depend on which schema
+// lowered first, which invariant #7 forbids. A per-call view costs one expansion
+// per path node and is order-invariant.
+//
+// Known gap: a path node whose own merge chain exceeds MergeDepthLimit expands
+// to nothing, so an $id written there is invisible and this reports no boundary
+// — the direction it must not err in. That predates this walk and needs a
+// reporting channel of its own; GitHub #401 carries it.
+func declaresResourceIDAbove(c lowering.Ctx, pointer string) bool {
+	view := nodeview.New()
 	root := nodeview.DocumentRoot(nodeview.Deref(c.Doc.GetRootNode()))
-	path, _ := view.PointerPath(root, pointer)
+	path, _ := view.DocumentPath(root, pointer)
 	for _, n := range path {
 		if view.ChildByToken(n, "$id") != nil {
 			return true
@@ -1818,25 +1826,6 @@ func declaresDynamicRef(s *oas3.Schema) bool {
 // trade for a keyword almost no document uses.
 type AnchorIndex struct {
 	byName map[string][]string
-	view   *nodeview.View
-}
-
-// nodes returns the raw-tree view the resource-boundary walks share, building it
-// on first use like the index beside it.
-//
-// A verdict walks the path once for the position and once per chain link, so a
-// document reaches this several times per $dynamicRef it writes; a view built
-// per walk throws away the expansion memo before anything can hit it. Sharing
-// one is about keeping that memo rather than about a measured win — compiling
-// merge-heavy specs (a 60-link chain on the walked path, 40 deep reference
-// positions) timed the same either way, and the IR is byte-identical. What it
-// buys is that the memo is now reachable at all, which is the reason the view
-// carries one.
-func (a *AnchorIndex) nodes() *nodeview.View {
-	if a.view == nil {
-		a.view = nodeview.New()
-	}
-	return a.view
 }
 
 // sites returns the pointers declaring the named $dynamicAnchor, building the

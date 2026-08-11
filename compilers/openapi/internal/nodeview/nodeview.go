@@ -374,12 +374,35 @@ func InternalPointer(ref string) (string, bool) {
 // the node it stops at, and the caller's re-entrancy check exempts exactly that
 // node (GitHub #238).
 func (v *View) PointerPath(root *yaml.Node, pointer string) (path []*yaml.Node, complete bool) {
+	return v.walkPointer(root, pointer, tokenless(pointer))
+}
+
+// DocumentPath walks a pointer that names a position in this document rather
+// than a reference some source wrote, and is otherwise PointerPath.
+//
+// The two part company on '/'. PointerPath lands it on the root because that is
+// where the resolver lands it, a departure from RFC 6901 that tokenless records.
+// A position built by ids.Ptr carries no such departure: ids.Ptr("") spells the
+// root member whose key is the empty string exactly '/', so reading that as the
+// root walks past the member the pointer names. Only the empty pointer names the
+// root here.
+//
+// The distinction is load-bearing for a caller reading $id down a path: taking
+// '/' for the root hides an $id written on that member, which is the same
+// dropped-empty-token loss the rest of this walk exists to avoid.
+func (v *View) DocumentPath(root *yaml.Node, pointer string) (path []*yaml.Node, complete bool) {
+	return v.walkPointer(root, pointer, pointer == "")
+}
+
+// walkPointer is the shared walk; atRoot says whether pointer carries no tokens
+// at all, which is the one question the two readings answer differently.
+func (v *View) walkPointer(root *yaml.Node, pointer string, atRoot bool) (path []*yaml.Node, complete bool) {
 	cur := Deref(root)
 	if cur == nil {
 		return nil, false
 	}
 	path = append(path, cur)
-	if tokenless(pointer) {
+	if atRoot {
 		return path, true
 	}
 
