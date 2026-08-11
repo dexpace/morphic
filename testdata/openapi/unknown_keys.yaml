@@ -4,10 +4,14 @@
 #
 # Every key here is one real documents carry rather than invented nonsense: a
 # Swagger 2.0 field with no OpenAPI 3 equivalent (basePath, host, a body
-# parameter's schema), a keyword from an older JSON Schema draft (additionalItems,
-# divisibleBy), a field belonging to a neighbouring object (a flow's tokenUrl on
-# the scheme, a parameter's `in` on a header), or operationId with the case wrong.
-# None of them reached an IR field, an Unmodeled entry or a diagnostic.
+# parameter's schema, definitions where components.schemas goes), a keyword from
+# an older JSON Schema draft (additionalItems, divisibleBy), a field belonging to
+# a neighbouring object (a flow's tokenUrl on the scheme, a parameter's `in` on a
+# header), or operationId with the case wrong. None of them reached an IR field,
+# an Unmodeled entry or a diagnostic.
+#
+# How a key is *spelled* is a separate property with a fixture of its own; see
+# unknown_key_spellings.yaml.
 openapi: 3.1.0
 basePath: ROOT
 info:
@@ -49,6 +53,7 @@ paths:
           description: gone
           status: ERRORRESPONSE
 components:
+  definitions: COMPONENTS
   securitySchemes:
     k: {type: apiKey, in: header, name: X-Key, tokenUrl: SECURITYSCHEME}
   schemas:

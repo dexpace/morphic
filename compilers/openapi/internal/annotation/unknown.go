@@ -12,6 +12,28 @@ import (
 	"github.com/dexpace/morphic/ir"
 )
 
+// unreachableKeyDiag reports a key the census named whose value the raw mapping
+// does not present, so nothing of it reached the IR.
+//
+// It is a key the document does write. The parser reads a mapping through its
+// `<<` merge keys, so a key merged in from an anchored mapping is reported here
+// while the mapping this reads holds no pair for it; resolving that needs the
+// merge-expanded view (internal/nodeview), which every raw-node reader in this
+// package lacks and which is a mechanism of its own to thread through — see
+// GitHub #395. Announced rather than passed over in the meantime, since a key
+// that reaches the IR in no form at all is the loss this census exists to end.
+//
+// Warning rather than the error UnpreservableDiag gives a value that cannot be
+// rendered: a document merging keys is legal input and still lowers, and an
+// error would both refuse it under the default --fail-on and stop harness.Check
+// before the invariant checks run.
+func unreachableKeyDiag(entry, at string, srcIndex int) ir.Diagnostic {
+	return diag.Newf(ir.SeverityWarning, diag.UnknownKeyUnreachable,
+		ir.Provenance{Source: srcIndex, Pointer: at},
+		"%s is written at a key the source mapping does not present directly, most likely "+
+			"merged in through a `<<`; it is represented in the IR in no form at all", entry)
+}
+
 // MaxUnknownKeys bounds how many keys one object contributes to the IR.
 //
 // The key set is the document's to choose the size of, and every collection in
@@ -19,6 +41,11 @@ import (
 // document writes by accident, so an object reaching it is generated or hostile
 // rather than merely sloppy, and what it discards is announced under
 // diag.UnknownKeyBudget rather than dropped in silence.
+//
+// It bounds what this census contributes, not what the object wrote: a key
+// another reader already kept is filtered out before the bound applies, since
+// spending a slot on an entry that is in the document either way would drop a
+// key that is not.
 const MaxUnknownKeys = 64
 
 // DecidedKeywords are the JSON Schema keywords the library's schema model names
@@ -118,25 +145,26 @@ type keyClass struct {
 // A key p already holds is left alone and not announced: the census is the
 // complement of everything the compiler read, not only of what the model names,
 // and a reader with a reason of its own for a keyword has already said it
-// better.
+// better. Those are filtered before the bound applies — see MaxUnknownKeys.
 func census(p *ir.Unmodeled, model any, srcIndex int, owner, scope string, cl keyClass) []ir.Diagnostic {
 	keys, root := undeclaredKeys(model)
-	if len(keys) == 0 {
+	fresh := unrecorded(p, keys, scope, cl.skip)
+	if len(fresh) == 0 {
 		return nil
 	}
 	var diags []ir.Diagnostic
-	if len(keys) > MaxUnknownKeys {
-		diags = append(diags, budgetDiag(len(keys), owner, srcIndex))
-		keys = keys[:MaxUnknownKeys]
+	if len(fresh) > MaxUnknownKeys {
+		diags = append(diags, budgetDiag(len(fresh), owner, srcIndex))
+		fresh = fresh[:MaxUnknownKeys]
 	}
-	for _, key := range keys {
-		entry := "openapi:" + scoped(scope, key)
-		if _, recorded := (*p)[entry]; recorded || slices.Contains(cl.skip, key) {
+	for _, key := range fresh {
+		entry, at := "openapi:"+scoped(scope, key), owner+ids.Ptr(key)
+		node := RawChildNode(root, key)
+		if node == nil {
+			diags = append(diags, unreachableKeyDiag(entry, at, srcIndex))
 			continue
 		}
-		at := owner + ids.Ptr(key)
-		kept, keptDiags := PreserveNodeInto(p, entry, RawChildNode(root, key),
-			ir.ReasonOutOfScope, at, srcIndex)
+		kept, keptDiags := PreserveNodeInto(p, entry, node, ir.ReasonOutOfScope, at, srcIndex)
 		diags = append(diags, keptDiags...)
 		if !kept {
 			continue
@@ -147,20 +175,42 @@ func census(p *ir.Unmodeled, model any, srcIndex int, owner, scope string, cl ke
 	return diags
 }
 
+// unrecorded returns the keys this census has to contribute: the ones no reader
+// already kept on p, less the ones cl has decided about.
+func unrecorded(p *ir.Unmodeled, keys []string, scope string, skip []string) []string {
+	out := make([]string, 0, len(keys))
+	for _, key := range keys {
+		if _, recorded := (*p)["openapi:"+scoped(scope, key)]; recorded || slices.Contains(skip, key) {
+			continue
+		}
+		out = append(out, key)
+	}
+	return out
+}
+
 // scoped spells one entry's key on the carrier holding it.
+//
+// The key is escaped as one segment while scope is a path of literals already
+// spelled that way, which is what stops a key holding a "/" from reading as a
+// scope of its own: a root key spelled "info/contact/slack" would otherwise be
+// the very entry the contact object's own "slack" keys under, and the second
+// site to reach the carrier would find the first already there and drop its key
+// without a word. ids.Scope records that rule for the scopes a document chooses
+// the segments of; a key the document chose every character of needs it too.
 func scoped(scope, key string) string {
 	if scope == "" {
-		return key
+		return ids.Scope(key)
 	}
-	return scope + "/" + key
+	return scope + "/" + ids.Scope(key)
 }
 
 // budgetDiag reports the keys past MaxUnknownKeys, which reach the IR in no form.
 func budgetDiag(total int, owner string, srcIndex int) ir.Diagnostic {
 	return diag.Newf(ir.SeverityWarning, diag.UnknownKeyBudget,
 		ir.Provenance{Source: srcIndex, Pointer: owner},
-		"object writes %d keys its model names no field for, past the %d this compiler keeps; "+
-			"the rest are represented in the IR in no form at all", total, MaxUnknownKeys)
+		"object writes %d keys its model names no field for and no other reader kept, past the "+
+			"%d this compiler keeps; the rest are represented in the IR in no form at all",
+		total, MaxUnknownKeys)
 }
 
 // parsedObject is the part of a parsed model the census reads: its core, which

@@ -56,7 +56,7 @@ func lowerMeta(c lowering.Ctx) (docMeta, []ir.Diagnostic) {
 // documentUnknownKeys collects the keys the OpenAPI model names no field for
 // from every object around the document metadata that lowers to no node of its
 // own: the document root, the info block and the contact and license inside it,
-// the root externalDocs, and each declared tag.
+// the root externalDocs, the components object, and each declared tag.
 //
 // ir.Document is the nearest node with an Unmodeled map for all of them, so each
 // object's keys are scoped by the source path they were written at. One unscoped
@@ -84,6 +84,12 @@ type unknownSite struct {
 // root's keys take no scope, since ir.Document stands for the OpenAPI Object
 // itself; the rest are keyed by the path from it down to the object that wrote
 // them.
+//
+// The components object is one of them, unlike the maps beneath it. `paths`,
+// `responses` and a callback each embed a sequenced map, so every key they hold
+// is a valid entry and an unrecognized one is not a thing they have; the
+// Components Object is a fixed-field struct beside them, and a key it does not
+// define is as undeclared as one on any other object here.
 func rootUnknownSites(c lowering.Ctx) []unknownSite {
 	info := c.Doc.GetInfo()
 	infoPtr := ids.Ptr("info")
@@ -93,6 +99,7 @@ func rootUnknownSites(c lowering.Ctx) []unknownSite {
 		{"info/contact", infoPtr + ids.Ptr("contact"), info.GetContact()},
 		{"info/license", infoPtr + ids.Ptr("license"), info.GetLicense()},
 		{"externalDocs", ids.Ptr("externalDocs"), c.Doc.GetExternalDocs()},
+		{"components", ids.Ptr("components"), c.Doc.GetComponents()},
 	}
 }
 
@@ -107,6 +114,9 @@ func tagUnknownSites(c lowering.Ctx) []unknownSite {
 	tags := c.Doc.GetTags()
 	out := make([]unknownSite, 0, len(tags))
 	for i, t := range tags {
+		if t == nil {
+			continue
+		}
 		index := strconv.Itoa(i)
 		out = append(out, unknownSite{"tags/" + index, ids.Ptr("tags", index), t})
 	}

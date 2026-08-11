@@ -279,6 +279,17 @@ const (
 	// accident, so tripping it is either a generated file or a hostile one; the
 	// diagnostic is what keeps the discarded remainder from being a silent loss.
 	UnknownKeyBudget = "openapi/unknown-key-budget"
+	// UnknownKeyUnreachable reports a key the parsed model reported as undeclared
+	// whose value the raw mapping does not present, so nothing of it reached the
+	// IR.
+	//
+	// Distinct from UnpreservableConstruct beside it, which is a value that was
+	// found and could not be rendered. This one was never reached: the parser
+	// reads a mapping through its `<<` merge keys and the raw readers here do not,
+	// so a merged-in key is named by the census and has no pair to read. Warning
+	// rather than that one's error because such a document is legal and still
+	// lowers.
+	UnknownKeyUnreachable = "openapi/unknown-key-unreachable"
 )
 
 // Newf builds an ir.Diagnostic with a formatted message. It is the single

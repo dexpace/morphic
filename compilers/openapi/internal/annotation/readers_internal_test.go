@@ -515,6 +515,24 @@ func TestRawChildNode_ReadsOnlyAMappingChild(t *testing.T) {
 	assert.Nil(t, RawChildNode(&yaml.Node{Kind: yaml.DocumentNode}, "a"), "nor an empty document")
 }
 
+// TestRawChildNode_FindsAKeyWrittenAsAnAlias pins the one spelling where the raw
+// tree and the parsed model disagree about a key's name. yaml.v3 leaves an alias
+// node's own Value as the anchor, so matching it raw looks for "k" while the
+// parser has already read the pair under "aliasedKey" — and every caller here
+// asks by the name the parser used. A key the census reported as undeclared then
+// reached no Unmodeled entry and, before this, no diagnostic either.
+func TestRawChildNode_FindsAKeyWrittenAsAnAlias(t *testing.T) {
+	t.Parallel()
+	var doc yaml.Node
+	require.NoError(t, yaml.Unmarshal([]byte("anchor: &k aliasedKey\n*k : found\n"), &doc))
+
+	found := RawChildNode(&doc, "aliasedKey")
+
+	require.NotNil(t, found, "the key is looked up by the name it resolves to")
+	assert.Equal(t, "found", found.Value)
+	assert.Nil(t, RawChildNode(&doc, "k"), "and not by the anchor it is written as")
+}
+
 // TestRawPropertyNode_NilSchemaReadsNothing pins the nil guard on the schema
 // side of the same reader, which every caller relies on to ask about a position
 // that may have no body written at it.
