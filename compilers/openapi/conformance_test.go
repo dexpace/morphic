@@ -206,6 +206,7 @@ func conformanceCases() []conformanceCase {
 		{"http-binding", assertHTTPBinding, []string{"http-binding"}},
 		{"param-styles", assertParamStyles, []string{"param-styles"}},
 		{"param-style-matrix", assertParamStyleMatrix, []string{"param-styles"}},
+		{"param-querystring", assertParamQuerystring, nil},
 		{"param-xml-residue", assertParamXMLResidue, nil},
 		{"param-ref-inheritance", assertParamRefInheritance, []string{"defaults", "deprecation", "docs-summary-description"}},
 		{"header-content-schema", assertHeaderContentSchema, nil},
@@ -2031,11 +2032,10 @@ func assertParamStyleMatrix(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
 // directions. Asserting the operation binds exactly one parameter is how that
 // stays true: the location cannot be reached by picking it out of a crowd.
 //
-// The style and explode asserted here are the compiler's, not the source's: it
-// runs querystring through the same default arm as query and stamps form/true on
-// a location the specification gives no style to (GitHub #334). They are pinned
-// rather than left unasserted so that fixing #334 reddens this case and its
-// golden instead of changing the IR in silence.
+// It carries neither style nor explode: 3.2 gives the location no style, and
+// explode qualifies a style there is none of (GitHub #334). Both are pinned
+// rather than left unasserted so the arm that once stamped form/true here cannot
+// come back without reddening this case and its golden.
 func assertQuerystringParam(t *testing.T, doc *ir.Document) {
 	t.Helper()
 	op, ok := opByName(doc, "querystringOnly")
@@ -2049,9 +2049,53 @@ func assertQuerystringParam(t *testing.T, doc *ir.Document) {
 	require.Equal(t, "querystringWhole", binding.Param, "the querystring parameter binds")
 	assert.Equal(t, "application/x-www-form-urlencoded", binding.ContentType,
 		"its media type is where its serialization is actually stated")
-	assert.Equal(t, "form", binding.Style, "today's synthesized style — GitHub #334")
-	require.NotNil(t, binding.Explode)
-	assert.True(t, *binding.Explode, "today's synthesized explode — GitHub #334")
+	assert.Empty(t, binding.Style, "style is not a legal keyword at in: querystring")
+	assert.Nil(t, binding.Explode, "and explode qualifies a style there is none of")
+}
+
+// assertParamQuerystring pins the 3.2 querystring location, where the whole
+// query string binds from the parameter's content: the binding carries that
+// media type and neither style nor explode, the two keywords the location
+// forbids (GitHub #334). The ordinary query parameter beside it keeps the
+// defaults its own location does admit, so what separates them is the location
+// rather than the presence of content.
+//
+// The third operation is what this spec holds that param-style-matrix does not:
+// only the *default* is suppressed here, so an explode the document declares
+// survives at a location that takes no style. That case declares neither keyword
+// there, so reverting the early return that used to drop a declared explode
+// reddens this golden and leaves that one green.
+func assertParamQuerystring(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
+	report, ok := opByName(doc, "runReport")
+	require.True(t, ok)
+	require.Len(t, report.Bindings.HTTP, 1)
+	require.Len(t, report.Bindings.HTTP[0].ParamBindings, 1)
+	qs := report.Bindings.HTTP[0].ParamBindings[0]
+	assert.Equal(t, ir.HTTPLocationQuerystring, qs.Location)
+	assert.Equal(t, "application/x-www-form-urlencoded", qs.ContentType,
+		"the media type is the whole of a querystring binding's declared serialization")
+	assert.Empty(t, qs.Style, "style is not a legal keyword at in: querystring")
+	assert.Nil(t, qs.Explode, "and explode qualifies a style there is none of")
+
+	summary, ok := opByName(doc, "summarize")
+	require.True(t, ok)
+	require.Len(t, summary.Bindings.HTTP, 1)
+	require.Len(t, summary.Bindings.HTTP[0].ParamBindings, 1)
+	q := summary.Bindings.HTTP[0].ParamBindings[0]
+	assert.Equal(t, ir.HTTPLocationQuery, q.Location)
+	assert.Equal(t, "form", q.Style, "a query parameter still takes its own location's default")
+	require.NotNil(t, q.Explode)
+	assert.True(t, *q.Explode)
+
+	raw, ok := opByName(doc, "rawReport")
+	require.True(t, ok)
+	require.Len(t, raw.Bindings.HTTP, 1)
+	require.Len(t, raw.Bindings.HTTP[0].ParamBindings, 1)
+	declared := raw.Bindings.HTTP[0].ParamBindings[0]
+	assert.Equal(t, ir.HTTPLocationQuerystring, declared.Location)
+	assert.Empty(t, declared.Style, "no style is invented beside a declared explode either")
+	require.NotNil(t, declared.Explode, "but the explode the document declares is not dropped")
+	assert.False(t, *declared.Explode)
 }
 
 // assertParamRefInheritance pins ir-design §14 at a parameter whose schema is a

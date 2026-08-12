@@ -325,29 +325,40 @@ func preserveAllowEmptyValue(c lowering.Ctx, param *ir.Parameter, p *soa.Paramet
 
 // resolveStyleExplode materializes a parameter's resolved serialization style
 // and explode flag: an explicit value wins, else the OpenAPI per-location
-// default (query/cookie → form/true, path/header → simple/false).
-//
-// For those four locations the result is declared facts, not policy. The fifth,
-// querystring, is neither: the specification gives it no style at all, and it
-// falls through the query arm here and comes out carrying form/true — a style
-// that location may not have (GitHub #334).
+// default (query/cookie → form/true, path/header → simple/false, querystring →
+// neither). The result is declared facts, not policy.
 func resolveStyleExplode(p *soa.Parameter, in soa.ParameterIn) (string, *bool) {
 	style := defaultParamStyle(in)
 	if p.Style != nil {
 		style = string(*p.Style)
 	}
-	explode := style == string(soa.SerializationStyleForm)
+	// A declared explode lowers as declared wherever it is written, for the same
+	// reason a declared style does: 3.2 forbids both at in: querystring, but
+	// dropping content the document states is an emitter's call, not a
+	// compiler's, and this position has an IR field to hold it.
 	if p.Explode != nil {
-		explode = *p.Explode
+		explode := *p.Explode
+		return style, &explode
 	}
+	// Absent one, explode qualifies a style, so a position resolving to no style
+	// gets no default either — a querystring binding's ContentType is the whole
+	// of its declared serialization (GitHub #334).
+	if style == "" {
+		return "", nil
+	}
+	explode := style == string(soa.SerializationStyleForm)
 	return style, &explode
 }
 
 // defaultParamStyle returns the OpenAPI default serialization style for a
-// parameter location.
+// parameter location, and "" for one that has none: 3.2 binds in: querystring
+// from the parameter's content and forbids style there, so that location has no
+// default to fall back on.
 func defaultParamStyle(in soa.ParameterIn) string {
 	switch in {
-	case soa.ParameterInQuery, soa.ParameterInCookie, soa.ParameterInQueryString:
+	case soa.ParameterInQueryString:
+		return ""
+	case soa.ParameterInQuery, soa.ParameterInCookie:
 		return string(soa.SerializationStyleForm)
 	default:
 		return string(soa.SerializationStyleSimple)

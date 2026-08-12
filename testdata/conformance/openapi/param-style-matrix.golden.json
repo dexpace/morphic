@@ -739,8 +739,6 @@
                         "param": "querystringWhole",
                         "location": "querystring",
                         "wireName": "querystringWhole",
-                        "style": "form",
-                        "explode": true,
                         "allowReserved": false,
                         "contentType": "application/x-www-form-urlencoded"
                       }
