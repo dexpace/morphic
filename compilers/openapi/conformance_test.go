@@ -176,6 +176,7 @@ func conformanceCases() []conformanceCase {
 		{"discriminator-transitive", assertDiscriminatorTransitive, []string{"tagged-unions", "inheritance"}},
 		{"unhomed-keywords", assertUnhomedKeywords, nil},
 		{"codeclared-keywords", assertCoDeclaredKeywords, []string{"intersection", "literal-types", "enums-string"}},
+		{"codeclared-schema-content", assertCoDeclaredSchemaContent, nil},
 		{"anyof-untagged", assertAnyOfUntagged, []string{"untagged-unions"}},
 		{"negation-not", assertNegationNot, []string{"negation"}},
 		{"dependent-required", assertDependentRequired, nil},

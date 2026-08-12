@@ -7,6 +7,7 @@
 package openapi_test // external test package — exercises only the public API
 
 import (
+	"fmt"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -606,4 +607,52 @@ func assertKeptRaw(t *testing.T, p ir.Unmodeled, key, want string) {
 	entry := unmodeledEntry(t, p, key)
 	assert.Equal(t, ir.ReasonDegradedLowering, entry.Reason)
 	assert.JSONEq(t, want, string(entry.Value))
+}
+
+// assertCoDeclaredSchemaContent covers the election at the other pair of
+// positions: a parameter and a header may state their type as `schema` or as
+// `content`, and OpenAPI forbids both. `content` is elected at both — it names a
+// media type the IR models, which the schema spelling has none of — and the
+// passed-over schema is kept verbatim rather than dropped, which is what the two
+// positions each did in silence, in opposite directions (GitHub #320).
+func assertCoDeclaredSchemaContent(t *testing.T, doc *ir.Document, diags []ir.Diagnostic) {
+	op, ok := opByName(doc, "getX")
+	require.True(t, ok)
+	require.Len(t, op.Bindings.HTTP, 1)
+	binding := indexByParam(op.Bindings.HTTP[0].ParamBindings)
+
+	base := "/paths/~1x/get/parameters/"
+	for i, name := range []string{"p", "q"} {
+		param, found := paramByName(op, name)
+		require.True(t, found, "parameter %s", name)
+		assert.Equal(t, ir.TypeID("t/prim/string"), param.Type.Target,
+			"parameter %s takes its type from the elected content entry, not from the schema", name)
+		assert.Equal(t, "application/json", binding[name].ContentType,
+			"and the media type that entry names reaches the binding")
+		assertKeptRaw(t, param.Unmodeled, "openapi:schema", `{"type":"integer"}`)
+		assert.Equal(t, []ir.Severity{ir.SeverityWarning},
+			diagsAt(diags, "openapi/degraded-construct", fmt.Sprintf("%s%d/schema", base, i)),
+			"parameter %s announces the spelling it passed over, at that spelling's own node", name)
+	}
+
+	require.Len(t, op.Responses, 1)
+	header, ok := headerByWire(op.Responses[0].Headers, "X-H")
+	require.True(t, ok)
+	assert.Equal(t, ir.TypeID("t/prim/string"), header.Type.Target,
+		"the header elects content too: one order, not one per position")
+	require.NotNil(t, header.Encoding)
+	assert.Equal(t, "application/json", header.Encoding.MediaType)
+	assertKeptRaw(t, header.Unmodeled, "openapi:schema", `{"type":"integer"}`)
+	assert.Equal(t, []ir.Severity{ir.SeverityWarning},
+		diagsAt(diags, "openapi/degraded-construct", "/paths/~1x/get/responses/200/headers/X-H/schema"))
+}
+
+// indexByParam indexes HTTP parameter bindings by the logical parameter they
+// bind.
+func indexByParam(bindings []ir.HTTPParamBinding) map[string]ir.HTTPParamBinding {
+	out := make(map[string]ir.HTTPParamBinding, len(bindings))
+	for _, b := range bindings {
+		out[b.Param] = b
+	}
+	return out
 }

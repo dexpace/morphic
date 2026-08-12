@@ -90,28 +90,19 @@ func reservedHeaderParamDiag(c lowering.Ctx, name string, in soa.ParameterIn, pp
 	return nil
 }
 
-// fillParamType lowers a parameter's type from either its schema or, for a
-// content-style parameter, its single media-type entry (recording the media
-// type on the binding). Constraints come from that same schema position;
-// the default comes from it too, falling back to its $ref target (§14).
+// fillParamType lowers a parameter's type from the spelling electTypeSpelling
+// elects — its schema, or the single media-type entry of a content-style
+// parameter, whose media type goes on the binding. Constraints come from that
+// same schema position; the default comes from it too, falling back to its $ref
+// target (§14).
 func fillParamType(c lowering.Ctx, ts *compile.Types, anchors *schema.AnchorIndex, param *ir.Parameter, binding *ir.HTTPParamBinding, p *soa.Parameter, pptr, name string) []ir.Diagnostic {
-	// A content parameter declares exactly one media type; singleContentEntry
-	// takes it and reports a document that declares more, rather than dropping the
-	// extras in the silence the header spelling was fixed out of (GitHub #139).
-	mt, media, ok, diags := singleContentEntry(c, p.GetContent(), pptr)
-	if ok {
-		schemaPtr := pptr + ids.Ptr("content", mt, "schema")
-		contentType, contentDiags := schema.CarriedRef(c, ts, anchors, schema.TopLevelDepth, media.GetSchema(), schemaPtr, name)
-		diags = append(diags, contentDiags...)
-		param.Type = contentType
-		binding.ContentType = mt
-		return append(diags, fillParamSchema(c, ts, param, media.GetSchema(), schemaPtr)...)
-	}
-	schemaPtr := pptr + ids.Ptr("schema")
-	paramType, paramDiags := schema.CarriedRef(c, ts, anchors, schema.TopLevelDepth, p.GetSchema(), schemaPtr, name)
-	diags = append(diags, paramDiags...)
+	elected, diags := electTypeSpelling(c, p.GetSchema(), p.GetContent(), p.GetRootNode(), pptr)
+	paramType, typeDiags := schema.CarriedRef(c, ts, anchors, schema.TopLevelDepth, elected.js, elected.pointer, name)
+	diags = append(diags, typeDiags...)
 	param.Type = paramType
-	return append(diags, fillParamSchema(c, ts, param, p.GetSchema(), schemaPtr)...)
+	param.Unmodeled = annotation.MergeUnmodeled(param.Unmodeled, elected.unmodeled)
+	binding.ContentType = elected.mediaType
+	return append(diags, fillParamSchema(c, ts, param, elected.js, elected.pointer)...)
 }
 
 // fillParamSchema reads a parameter schema's default value and scalar
