@@ -63,12 +63,19 @@ var rules = map[string][]string{
 	// unescaping one lookup needs, and is below both the scans that first wanted
 	// it and the schema lowering that wants the same view.
 	"compilers/openapi/internal/nodeview": {module + "/compilers/openapi/internal/ids", "gopkg.in/yaml.v3"},
-	// The pre-lowering refusals. They read the source through nodeview and report
-	// through diag, and reach no part of the lowering — nothing here has a
-	// document to lower yet.
+	// One walk over the decoded source tree, answering what the pre-lowering
+	// refusals would otherwise each walk it to ask. It reaches nodeview for the
+	// document root and nothing else: an index of what the source says is not
+	// allowed to depend on what any consumer of it wants to say about that.
+	"compilers/openapi/internal/sourceindex": {
+		module + "/compilers/openapi/internal/nodeview", "gopkg.in/yaml.v3"},
+	// The pre-lowering refusals. They read the source through nodeview and the
+	// index built over it, report through diag, and reach no part of the
+	// lowering — nothing here has a document to lower yet.
 	"compilers/openapi/internal/scan": {module + "/ir",
 		module + "/compilers/openapi/internal/diag",
-		module + "/compilers/openapi/internal/nodeview", "gopkg.in/yaml.v3"},
+		module + "/compilers/openapi/internal/nodeview",
+		module + "/compilers/openapi/internal/sourceindex", "gopkg.in/yaml.v3"},
 	// What a schema or a carrier says about itself rather than about its shape,
 	// plus the validation-only keywords the IR keeps verbatim. It reads the
 	// parsed model and the raw nodes behind it, and holds no opinion about
@@ -90,7 +97,8 @@ var rules = map[string][]string{
 		module + "/compilers/openapi/internal/ids",
 		module + "/compilers/openapi/internal/nodeview",
 		"github.com/speakeasy-api/openapi/overlay", "gopkg.in/yaml.v3"},
-	// The entry side: parse, validate, resolve. It runs the pre-lowering refusals
+	// The entry side: parse, validate, resolve. It indexes the tree its one decode
+	// produced through sourceindex, runs the pre-lowering refusals over that index
 	// through scan, applies the caller's overlay through overlay, and reads value
 	// only to tell a real numeric-literal problem from a library artifact. It
 	// reaches nothing that lowers — at this point there is no document to lower.
@@ -98,6 +106,7 @@ var rules = map[string][]string{
 		module + "/compilers/openapi/internal/diag",
 		module + "/compilers/openapi/internal/overlay",
 		module + "/compilers/openapi/internal/scan",
+		module + "/compilers/openapi/internal/sourceindex",
 		module + "/compilers/openapi/internal/value",
 		"github.com/speakeasy-api/openapi/jsonschema/oas3",
 		"github.com/speakeasy-api/openapi/marshaller",
@@ -175,9 +184,27 @@ var rules = map[string][]string{
 		module + "/compilers/openapi/internal/schema",
 		module + "/compilers/openapi/internal/value",
 		"github.com/speakeasy-api/openapi" + subtreeSuffix, "gopkg.in/yaml.v3"},
+	// The scaffolding the compiler's test packages share. It is a production
+	// package only in the sense that it holds non-test files; what governs it is
+	// that every test package under compilers/openapi must be able to import it,
+	// internal ones included. That is why its allowlist stops at ir, the contract
+	// package and diag: an internal test file may not import a package that
+	// imports its own, so anything further would shut out the tests of whatever
+	// it reached. Widening this entry is how that becomes true silently.
+	"compilers/openapi/internal/openapitest": {module + "/ir", module + "/compilers",
+		module + "/compilers/openapi/internal/diag",
+		"github.com/speakeasy-api/openapi/jsonschema/oas3",
+		"github.com/speakeasy-api/openapi/openapi",
+		"github.com/speakeasy-api/openapi/sequencedmap",
+		"github.com/stretchr/testify/assert",
+		"github.com/stretchr/testify/require", "gopkg.in/yaml.v3"},
 	"pass": {module + "/ir"},
+	// The orchestration. It reaches the compiler package to compose the default
+	// registry and nothing of any source format: what a spec looks like and what
+	// its options are called are answered through the contract, so no parser is
+	// named here.
 	"engine": {module + "/ir", module + "/compilers", module + "/compilers/openapi",
-		module + "/pass", "gopkg.in/yaml.v3"},
+		module + "/pass"},
 	"cmd/morphic":         {module + "/ir", module + "/engine"},
 	"cmd/morphic-harness": {module + "/internal/harness"},
 	"internal/testspec":   {},

@@ -62,7 +62,7 @@ landed with it, in that order, in one pull request.
 |---|---|---|
 | ~~#162~~ | **Landed.** Identifier grammar into `compilers/compile`: `compile.TypeID` and friends over a `compile.Space`, with the minted-namespace rule refused by `compile.Types` | — |
 | ~~#163~~ | **Landed.** Canonical naming grammar into `compilers/compile`, with `compile.NamingFor` beside it and a conformance suite pinning the boundaries `irverify` cannot see | — |
-| ~~#164~~ | **Landed** in three parts: #161 brought `ir/naming-not-words`; `ir/naming-unsegmented` followed for the letter/digit boundary, which a neutral name still carries evidence of; and `ir/naming-not-derived` closed the rest by moving the grammar to `ir` so the verifier can recompute a canonical from its source, which is the only way to see a camel-case boundary. `Hint` (#54) stays out | — |
+| ~~#164~~ | **Landed** in three parts: #161 brought `ir/naming-not-words`; `ir/naming-unsegmented` followed for the letter/digit boundary, which a neutral name still carries evidence of; and `ir/naming-not-derived` closed the rest by moving the grammar to `ir` so the verifier can recompute a canonical from its source, which is the only way to see a camel-case boundary. `Hint` followed later, with #54 | — |
 | ~~#73~~ | **Landed.** Its text proposed `ir` for both halves and was right about both. The naming grammar went there, and `irverify` validates against it. The ID *grammar* stayed in `compilers/compile`, but `t/prim/<kind>` followed the naming half to `ir` as `ir.PrimTypeID` — a primitive has no path for a compiler to own — with `ir/prim-id-not-derived` and `ir/prim-space-reserved` holding every producer to it | — |
 
 #163 changed no output here: #161 had already fixed the segmentation in `compilers/openapi` and
@@ -142,7 +142,7 @@ Work already filed that lands inside this restructuring rather than alongside it
 | #179 | Source index — blocked on `$ref` handling being correct first (#40; #141 and #143 are closed) |
 | ~~#161~~ | **Landed**, deliberately unblocked from #163: promotion would have fixed it, but it was a contract violation shipping today and did not wait on an architecture programme |
 | ~~#142~~ | **Landed**, independently as its entry said it could be: the matrix gained a kind per carrier, and property and parameter are separate kinds because their carriers hold different sets |
-| #54 | Cased `Naming.Hint` passes the neutrality check. #164 landed without reaching `Hint`, so this stays open — `neutral-naming.golden.json` shows one |
+| ~~#54~~ | **Landed** after #164, which had not reached `Hint`: the shape rules now run over both name channels, and the compilers derive hints through the grammar so the corpus can satisfy them |
 | #66 | Closed as superseded — its premise expired when the next compilers landed without it |
 | #20, #21 | GraphQL and Protobuf drafts are read-only evidence here, not work items |
 

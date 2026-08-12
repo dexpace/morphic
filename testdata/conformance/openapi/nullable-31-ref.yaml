@@ -7,6 +7,11 @@ components:
       type: [object, "null"]
     UnionTarget:
       oneOf: [{type: string}, {type: integer}, {type: "null"}]
+    Collapsed:
+      oneOf:
+        - {type: string, description: the surviving branch}
+        - {type: "null"}
+    BranchRef: {$ref: '#/components/schemas/Collapsed/oneOf/0'}
     Owner:
       type: object
       properties:

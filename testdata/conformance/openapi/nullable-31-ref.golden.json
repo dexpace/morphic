@@ -18,6 +18,64 @@
     }
   ],
   "types": {
+    "t/anon/components/schemas/Collapsed/oneOf/0": {
+      "kind": "scalar",
+      "id": "t/anon/components/schemas/Collapsed/oneOf/0",
+      "name": {
+        "hint": "variant_0"
+      },
+      "anonymous": true,
+      "docs": {
+        "description": "the surviving branch"
+      },
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Collapsed/oneOf/0"
+      },
+      "base": {
+        "target": "t/prim/string",
+        "nullable": false
+      }
+    },
+    "t/openapi/components/schemas/BranchRef": {
+      "kind": "scalar",
+      "id": "t/openapi/components/schemas/BranchRef",
+      "name": {
+        "source": "BranchRef",
+        "canonical": "branch_ref"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/BranchRef"
+      },
+      "base": {
+        "target": "t/anon/components/schemas/Collapsed/oneOf/0",
+        "nullable": false
+      }
+    },
+    "t/openapi/components/schemas/Collapsed": {
+      "kind": "scalar",
+      "id": "t/openapi/components/schemas/Collapsed",
+      "name": {
+        "source": "Collapsed",
+        "canonical": "collapsed"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Collapsed"
+      },
+      "base": {
+        "target": "t/anon/components/schemas/Collapsed/oneOf/0",
+        "nullable": true
+      }
+    },
     "t/openapi/components/schemas/Owner": {
       "kind": "model",
       "id": "t/openapi/components/schemas/Owner",
@@ -188,7 +246,7 @@
     {
       "format": "openapi@3.1",
       "path": "nullable-31-ref.yaml",
-      "hash": "209757a2b4823e315fc5b016d88527efc1cbe592152d55f68020f301992885d5"
+      "hash": "f281021007a8f1e0030f45abf44f6909a4742e57925c3c2e859bd72bd6c42fe4"
     }
   ]
 }
