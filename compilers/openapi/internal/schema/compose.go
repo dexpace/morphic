@@ -400,55 +400,131 @@ func isInlineBranch(b *oas3.JSONSchema[oas3.Referenceable]) bool {
 // refTargetHasDiscriminator reports whether a $ref branch resolves to a schema
 // that carries a discriminator (it anchors a polymorphic hierarchy).
 func refTargetHasDiscriminator(b *oas3.JSONSchema[oas3.Referenceable]) bool {
+	target := refBranchTarget(b)
+	return target != nil && target.GetDiscriminator() != nil
+}
+
+// refBranchTarget returns the schema a composition branch resolves to, or nil
+// when the branch is inline, names nothing this compilation resolved, or names a
+// bare boolean schema (which has no *oas3.Schema of its own).
+func refBranchTarget(b *oas3.JSONSchema[oas3.Referenceable]) *oas3.Schema {
+	if !isRefBranch(b) {
+		return nil
+	}
 	resolved := b.GetResolvedSchema()
 	if resolved == nil {
-		return false
+		return nil
 	}
-	s := resolved.GetSchema()
-	return s != nil && s.GetDiscriminator() != nil
+	return resolved.GetSchema()
 }
 
 // subtypeDiscriminatorValue returns the wire tag value this allOf subtype
-// carries within its base's discriminator hierarchy, or "" when no allOf base
-// anchors one. Per ir-design §4.3 the value is the base mapping key that points
-// at this subtype, falling back to the subtype's own schema name (OpenAPI's
+// carries within its discriminator hierarchy, or "" when no ancestor of it
+// anchors one. Per ir-design §4.3 the value is the mapping key that points at
+// this subtype, falling back to the subtype's own schema name (OpenAPI's
 // implicit mapping) when the mapping omits it.
+//
+// Every discriminated ancestor is asked, not only the immediate base: a
+// hierarchy deeper than two levels composes an intermediate schema that declares
+// no discriminator of its own, and reading one hop found nothing there and
+// dropped the key the ancestor spells for this subtype without a word
+// (GitHub #305).
 func subtypeDiscriminatorValue(c lowering.Ctx, ts *compile.Types, s *oas3.Schema, id ir.TypeID, pointer string) string {
-	d := baseBranchDiscriminator(s.GetAllOf())
-	if d == nil {
+	ds := ancestorDiscriminators(s)
+	if len(ds) == 0 {
 		return ""
 	}
-	if m := d.GetMapping(); m != nil {
-		for tag, target := range m.All() {
-			if tid, ok := mappingTargetID(c, ts, target); ok && tid == id {
-				return tag
-			}
+	for _, d := range ds {
+		if tag, ok := mappingTagFor(c, ts, d, id); ok {
+			return tag
 		}
 	}
 	return refLastSegment(pointer)
 }
 
-// baseBranchDiscriminator returns the discriminator declared on the resolved
-// target of the allOf base branch (the $ref anchoring the hierarchy), or nil
-// when no ref branch carries one.
-func baseBranchDiscriminator(branches []*oas3.JSONSchema[oas3.Referenceable]) *oas3.Discriminator {
-	for _, b := range branches {
-		if !isRefBranch(b) {
-			continue
-		}
-		resolved := b.GetResolvedSchema()
-		if resolved == nil {
-			continue
-		}
-		rs := resolved.GetSchema()
-		if rs == nil {
-			continue
-		}
-		if d := rs.GetDiscriminator(); d != nil {
-			return d
+// mappingTagFor returns the key d's mapping spells for the type id, and whether
+// the mapping names it at all. The two answers are distinct: a mapping that
+// names no target for id leaves the caller to fall back to the implicit name,
+// which an empty key would be indistinguishable from.
+func mappingTagFor(c lowering.Ctx, ts *compile.Types, d *oas3.Discriminator, id ir.TypeID) (string, bool) {
+	m := d.GetMapping()
+	if m == nil {
+		return "", false
+	}
+	for tag, target := range m.All() {
+		if tid, ok := mappingTargetID(c, ts, target); ok && tid == id {
+			return tag, true
 		}
 	}
-	return nil
+	return "", false
+}
+
+// maxDiscriminatorAncestorDepth bounds how many composition levels
+// ancestorDiscriminators climbs (styleguide bounded-everything rule). The visited
+// set below is what makes the walk terminate; this is the explicit limit, set far
+// beyond any hierarchy a source document plausibly declares.
+const maxDiscriminatorAncestorDepth = 256
+
+// ancestorDiscriminators returns the discriminators declared on s's composition
+// ancestors, nearest first: the resolved targets of s's own $ref branches in
+// source order, then those targets' $ref branches, and so on.
+//
+// Level by level rather than chain by chain, so "nearest" means fewest hops —
+// which is what decides between two ancestors whose mappings both name the same
+// subtype.
+//
+// The visited set is what bounds the work, and the depth cap does not stand in
+// for it wherever the walk branches. A schema more than one branch reaches is
+// walked once with the set and once per path without it, so the frontier
+// multiplies by the fan-out at every level: 2^level for a chain of diamonds,
+// 5^level for the six-schema cycle where each composes all the others. The cap
+// then bounds the number of levels, not the work, and the walk stops finishing.
+//
+// A cycle with no fan-out is the one shape the cap alone does handle — `A: allOf
+// [$ref B]`, `B: allOf [$ref A]` keeps a frontier of one and simply runs the cap
+// out. That is why the case is not the cycle but the branching, and why both
+// TestAllOf_DiscriminatorValueCyclicComposition (cyclic, fan-out 5) and
+// TestCompile_SharedCompositionAncestorsDoNotAmplify (acyclic, fan-out 2) are
+// needed to hold it: the first stops finishing, the second says so and names why.
+func ancestorDiscriminators(s *oas3.Schema) []*oas3.Discriminator {
+	var out []*oas3.Discriminator
+	visited := make(map[*oas3.Schema]bool)
+	// s is visited before the walk starts, so a composition cycle cannot bring it
+	// back as one of its own ancestors. Without this a schema in a cycle that
+	// declares a discriminator answers to its own mapping, which is a hierarchy of
+	// one thing standing above itself.
+	visited[s] = true
+	level := []*oas3.Schema{s}
+	for depth := 0; depth < maxDiscriminatorAncestorDepth && len(level) > 0; depth++ {
+		next := make([]*oas3.Schema, 0, len(level))
+		for _, cur := range level {
+			next = append(next, unvisitedRefTargets(cur, visited)...)
+		}
+		for _, target := range next {
+			if d := target.GetDiscriminator(); d != nil {
+				out = append(out, d)
+			}
+		}
+		level = next
+	}
+	return out
+}
+
+// unvisitedRefTargets returns the schemas s's $ref composition branches resolve
+// to, in source order, skipping those already seen and marking those it returns.
+// Marking as it enqueues rather than when the walk reaches them is what keeps a
+// schema two branches both name from being queued, and walked, twice.
+func unvisitedRefTargets(s *oas3.Schema, visited map[*oas3.Schema]bool) []*oas3.Schema {
+	var out []*oas3.Schema
+	for _, b := range s.GetAllOf() {
+		target := refBranchTarget(b)
+		if target == nil || visited[target] {
+			continue
+		}
+		visited[target] = true
+		out = append(out, target)
+	}
+	return out
 }
 
 // lowerOneOfAnyOf lowers a oneOf/anyOf schema. A two-variant {X, null} set

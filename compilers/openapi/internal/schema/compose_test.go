@@ -2,6 +2,7 @@ package schema_test
 
 import (
 	"fmt"
+	"strings"
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
@@ -1615,6 +1616,220 @@ func TestAllOf_DiscriminatorHierarchy(t *testing.T) {
 	require.NotNil(t, dog.Base, "the discriminator-anchoring ref is the base")
 	require.Len(t, dog.Mixins, 1, "the second ref becomes a mixin")
 	assert.Equal(t, "Dog", dog.DiscriminatorValue, "falls back to schema name")
+}
+
+// TestAllOf_DiscriminatorValueFromDistantMapping pins the mapping-key spelling of
+// a tag at depth: the root names a grandchild explicitly, and the grandchild's own
+// branch is an intermediate that declares no discriminator, so the key is only
+// reachable by walking past the immediate parent (GitHub #305).
+//
+// This lives here rather than in the conformance corpus because pass.Validate
+// still rejects a transitive mapping target as a missing variant (GitHub #52),
+// and every corpus spec has to clear that sweep. The corpus witnesses the same
+// walk through the implicit-name spelling, which needs no mapping entry.
+func TestAllOf_DiscriminatorValueFromDistantMapping(t *testing.T) {
+	t.Parallel()
+	spec := openapitest.ComponentSpec(`    Pet:
+      type: object
+      required: [petType]
+      properties: {petType: {type: string}}
+      discriminator:
+        propertyName: petType
+        mapping:
+          dog: '#/components/schemas/Dog'
+          puppy: '#/components/schemas/Puppy'
+    Dog:
+      allOf:
+        - {$ref: '#/components/schemas/Pet'}
+      properties: {bark: {type: boolean}}
+    Puppy:
+      allOf:
+        - {$ref: '#/components/schemas/Dog'}
+      properties: {weeks: {type: integer}}
+`)
+	doc, diags := lowerSpec(t, spec)
+	openapitest.RequireNoErrorDiags(t, diags)
+
+	dog := typeByName(doc, "Dog").(*ir.Model)
+	assert.Equal(t, "dog", dog.DiscriminatorValue, "the direct child takes its own mapping key")
+
+	puppy := typeByName(doc, "Puppy").(*ir.Model)
+	require.NotNil(t, puppy.Base)
+	assert.Equal(t, componentID("Dog"), puppy.Base.Target,
+		"Puppy composes Dog, which declares no discriminator of its own")
+	assert.Equal(t, "puppy", puppy.DiscriminatorValue,
+		"the key Pet's mapping spells for Puppy survives the intermediate")
+}
+
+// TestAllOf_DiscriminatorValueFromNearestAncestor pins which of two discriminated
+// ancestors supplies the tag when both mappings name the same subtype. The walk
+// is level by level so the answer is the nearer one, rather than whichever chain
+// happened to be walked first — a subtype's own hierarchy outranks one it reaches
+// only through a longer composition.
+func TestAllOf_DiscriminatorValueFromNearestAncestor(t *testing.T) {
+	t.Parallel()
+	spec := openapitest.ComponentSpec(`    Far:
+      type: object
+      properties: {k: {type: string}}
+      discriminator:
+        propertyName: k
+        mapping: {far: '#/components/schemas/Leaf'}
+    Mid:
+      allOf:
+        - {$ref: '#/components/schemas/Far'}
+      properties: {m: {type: string}}
+    Near:
+      type: object
+      properties: {n: {type: string}}
+      discriminator:
+        propertyName: n
+        mapping: {near: '#/components/schemas/Leaf'}
+    Leaf:
+      allOf:
+        - {$ref: '#/components/schemas/Mid'}
+        - {$ref: '#/components/schemas/Near'}
+      properties: {l: {type: string}}
+`)
+	doc, diags := lowerSpec(t, spec)
+	openapitest.RequireNoErrorDiags(t, diags)
+
+	leaf := typeByName(doc, "Leaf").(*ir.Model)
+	assert.Equal(t, "near", leaf.DiscriminatorValue,
+		"Near is one hop up and Far two, so Near's mapping key wins")
+}
+
+// TestAllOf_DiscriminatorValueUndiscriminatedChain is the boundary of the
+// ancestor walk: composing at any depth is not on its own a reason to carry a
+// tag. Without this, a walk that fell back to the implicit schema name whenever
+// it found a base would stamp every composed model in the document.
+func TestAllOf_DiscriminatorValueUndiscriminatedChain(t *testing.T) {
+	t.Parallel()
+	spec := openapitest.ComponentSpec(`    Plant:
+      type: object
+      properties: {stem: {type: string}}
+    Shrub:
+      allOf:
+        - {$ref: '#/components/schemas/Plant'}
+      properties: {twigs: {type: integer}}
+    Sapling:
+      allOf:
+        - {$ref: '#/components/schemas/Shrub'}
+      properties: {rings: {type: integer}}
+`)
+	doc, diags := lowerSpec(t, spec)
+	openapitest.RequireNoErrorDiags(t, diags)
+
+	for _, name := range []string{"Shrub", "Sapling"} {
+		m := typeByName(doc, name).(*ir.Model)
+		require.NotNil(t, m.Base, "%s composes a base", name)
+		assert.Empty(t, m.DiscriminatorValue,
+			"%s has no discriminated ancestor at any depth", name)
+	}
+}
+
+// TestAllOf_DiscriminatorValueCyclicComposition drives the ancestor walk over a
+// composition cycle. Nothing upstream refuses one — this spec compiles without an
+// error diagnostic — so the walk meets it, and the visited set rather than the
+// depth cap is what has to stop it.
+//
+// The fan-out is what makes that a real claim: every schema composes every other,
+// so a walk that re-entered a schema it had already left would branch five ways
+// per level for the length of the cap instead of terminating.
+func TestAllOf_DiscriminatorValueCyclicComposition(t *testing.T) {
+	t.Parallel()
+	const n = 6
+	var b strings.Builder
+	for i := range n {
+		refs := make([]string, 0, n-1)
+		for j := range n {
+			if j != i {
+				refs = append(refs, fmt.Sprintf("{$ref: '#/components/schemas/X%d'}", j))
+			}
+		}
+		fmt.Fprintf(&b, "    X%d:\n      allOf: [%s]\n      properties: {p%d: {type: string}}\n",
+			i, strings.Join(refs, ", "), i)
+	}
+	doc, diags := lowerSpec(t, openapitest.ComponentSpec(b.String()))
+	openapitest.RequireNoErrorDiags(t, diags)
+
+	for i := range n {
+		name := fmt.Sprintf("X%d", i)
+		m, ok := typeByName(doc, name).(*ir.Model)
+		require.True(t, ok, "%s lowers to a Model", name)
+		assert.Empty(t, m.DiscriminatorValue, "%s has no discriminated ancestor", name)
+	}
+}
+
+// TestAllOf_DiscriminatorValueSelfAncestorInCycle pins that a composition cycle
+// does not make a schema one of its own ancestors. A declares the discriminator
+// and composes B, which composes A back, so walking A's ancestors comes round to
+// A — whose mapping names A. A hierarchy of one schema standing above itself is
+// not a hierarchy, so the walk skips the schema it started from.
+func TestAllOf_DiscriminatorValueSelfAncestorInCycle(t *testing.T) {
+	t.Parallel()
+	spec := openapitest.ComponentSpec(`    A:
+      allOf: [{$ref: '#/components/schemas/B'}]
+      required: [k]
+      properties: {k: {type: string}}
+      discriminator:
+        propertyName: k
+        mapping:
+          selfkey: '#/components/schemas/A'
+    B:
+      allOf: [{$ref: '#/components/schemas/A'}]
+      properties: {b: {type: string}}
+`)
+	doc, diags := lowerSpec(t, spec)
+	openapitest.RequireNoErrorDiags(t, diags)
+
+	a, ok := typeByName(doc, "A").(*ir.Model)
+	require.True(t, ok, "A lowers to a Model")
+	require.NotNil(t, a.Discriminator, "A anchors the hierarchy it declares")
+	assert.Empty(t, a.DiscriminatorValue,
+		"and takes no tag from its own mapping by way of the cycle")
+}
+
+// TestAllOf_DiscriminatorValueChainDeeperThanCap pins the ancestor walk's cap as
+// behaviour rather than as a comment. A chain longer than the cap stops being
+// searched, so the tag the root would have supplied is not stamped — stated here
+// so the limit is a decision on record and a chain that grows past it is a
+// failing test rather than a silent reversion to the bug this walk fixed.
+//
+// The shallower half is the control: the same construction one level inside the
+// cap does carry the tag, which is what says the deep case failed on the cap and
+// not on the construction.
+func TestAllOf_DiscriminatorValueChainDeeperThanCap(t *testing.T) {
+	t.Parallel()
+	// maxDiscriminatorAncestorDepth is unexported; 256 is its committed value, and
+	// the two cases below straddle it.
+	const ancestorCap = 256
+	for _, tc := range []struct {
+		name  string
+		links int
+		want  string
+	}{
+		{"within the cap", ancestorCap - 1, fmt.Sprintf("S%d", ancestorCap-2)},
+		{"beyond the cap", ancestorCap + 4, ""},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			var b strings.Builder
+			b.WriteString("    Root:\n      type: object\n      properties: {k: {type: string}}\n" +
+				"      discriminator: {propertyName: k}\n")
+			prev := "Root"
+			for i := range tc.links {
+				fmt.Fprintf(&b, "    S%d:\n      allOf: [{$ref: '#/components/schemas/%s'}]\n"+
+					"      properties: {p%d: {type: string}}\n", i, prev, i)
+				prev = fmt.Sprintf("S%d", i)
+			}
+			doc, diags := lowerSpec(t, openapitest.ComponentSpec(b.String()))
+			openapitest.RequireNoErrorDiags(t, diags)
+
+			leaf := typeByName(doc, prev).(*ir.Model)
+			assert.Equal(t, tc.want, leaf.DiscriminatorValue,
+				"%s is %d links below the discriminated root", prev, tc.links)
+		})
+	}
 }
 
 func TestModelDiscriminator_UndeclaredPropertyAndBadMapping(t *testing.T) {

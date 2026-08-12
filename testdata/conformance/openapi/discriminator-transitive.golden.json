@@ -125,6 +125,53 @@
       },
       "inputOnly": false
     },
+    "t/openapi/components/schemas/Plant": {
+      "kind": "model",
+      "id": "t/openapi/components/schemas/Plant",
+      "name": {
+        "source": "Plant",
+        "canonical": "plant"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Plant"
+      },
+      "properties": [
+        {
+          "id": "p/openapi/components/schemas/Plant/properties/stem",
+          "name": {
+            "source": "stem",
+            "canonical": "stem"
+          },
+          "wireName": "stem",
+          "type": {
+            "target": "t/prim/string",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/Plant/properties/stem"
+          }
+        }
+      ],
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
     "t/openapi/components/schemas/Puppy": {
       "kind": "model",
       "id": "t/openapi/components/schemas/Puppy",
@@ -174,6 +221,161 @@
       },
       "abstract": false,
       "positional": false,
+      "discriminatorValue": "puppy",
+      "inputOnly": false
+    },
+    "t/openapi/components/schemas/Sapling": {
+      "kind": "model",
+      "id": "t/openapi/components/schemas/Sapling",
+      "name": {
+        "source": "Sapling",
+        "canonical": "sapling"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Sapling"
+      },
+      "properties": [
+        {
+          "id": "p/openapi/components/schemas/Sapling/properties/rings",
+          "name": {
+            "source": "rings",
+            "canonical": "rings"
+          },
+          "wireName": "rings",
+          "type": {
+            "target": "t/prim/integer",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/Sapling/properties/rings"
+          }
+        }
+      ],
+      "base": {
+        "target": "t/openapi/components/schemas/Shrub",
+        "nullable": false
+      },
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
+    "t/openapi/components/schemas/Shrub": {
+      "kind": "model",
+      "id": "t/openapi/components/schemas/Shrub",
+      "name": {
+        "source": "Shrub",
+        "canonical": "shrub"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Shrub"
+      },
+      "properties": [
+        {
+          "id": "p/openapi/components/schemas/Shrub/properties/twigs",
+          "name": {
+            "source": "twigs",
+            "canonical": "twigs"
+          },
+          "wireName": "twigs",
+          "type": {
+            "target": "t/prim/integer",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/Shrub/properties/twigs"
+          }
+        }
+      ],
+      "base": {
+        "target": "t/openapi/components/schemas/Plant",
+        "nullable": false
+      },
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
+    "t/openapi/components/schemas/Whelp": {
+      "kind": "model",
+      "id": "t/openapi/components/schemas/Whelp",
+      "name": {
+        "source": "Whelp",
+        "canonical": "whelp"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Whelp"
+      },
+      "properties": [
+        {
+          "id": "p/openapi/components/schemas/Whelp/properties/days",
+          "name": {
+            "source": "days",
+            "canonical": "days"
+          },
+          "wireName": "days",
+          "type": {
+            "target": "t/prim/integer",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/Whelp/properties/days"
+          }
+        }
+      ],
+      "base": {
+        "target": "t/openapi/components/schemas/Puppy",
+        "nullable": false
+      },
+      "abstract": false,
+      "positional": false,
+      "discriminatorValue": "Whelp",
       "inputOnly": false
     },
     "t/prim/bool": {
@@ -227,7 +429,7 @@
     {
       "format": "openapi@3.1",
       "path": "discriminator-transitive.yaml",
-      "hash": "457e8c406d97441234125a987fa1f83d729b884e3fadc6a82511a546760842b9"
+      "hash": "c6f39362f85915b85e76a39105962beb75911aefd6dd499d4886c8971c633e38"
     }
   ]
 }
