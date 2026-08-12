@@ -31,6 +31,23 @@ func Ptr(segments ...string) string {
 	return b.String()
 }
 
+// Scope joins segments into an Unmodeled key scope: the same escaping Ptr
+// applies, without the leading separator, since a scope is a relative path
+// rather than a pointer (ir-design §12).
+//
+// It exists for the scopes holding a segment the document chooses — a form
+// part's name, a callback's — where an unescaped "/" makes one segment read as
+// two. Two parts named "q" and "q/x-a" then wrote one key between them and the
+// surviving entry followed declaration order, silently, which is what §4.3
+// forbids a minted node and §12 promises a scoped key.
+func Scope(segments ...string) string {
+	escaped := make([]string, 0, len(segments))
+	for _, seg := range segments {
+		escaped = append(escaped, escapeSegment(seg))
+	}
+	return strings.Join(escaped, "/")
+}
+
 // escapeSegment applies RFC 6901 escaping: ~ first, then /.
 func escapeSegment(s string) string {
 	s = strings.ReplaceAll(s, "~", "~0")
@@ -113,15 +130,42 @@ func DeclarationHint(pointer, fallback string) string {
 // and ComponentSchemaName narrows it to the schemas kind, which is the only one
 // that earns a named TypeID.
 func ComponentEntry(pointer string) (kind, name string, ok bool) {
+	kind, name, ok = componentEntrySplit(pointer)
+	if !ok || name == "" {
+		return "", "", false
+	}
+	return kind, UnescapeSegment(name), true
+}
+
+// componentEntrySplit splits the /components/<kind>/<name> shape without judging
+// the name, so a caller that must tell "not that shape at all" from "that shape
+// with an empty name" can. ComponentEntry folds the two together on purpose — an
+// entry keyed "" earns no named TypeID either way — but the two are different
+// facts about a document, and a diagnostic naming the wrong one is simply false.
+func componentEntrySplit(pointer string) (kind, name string, ok bool) {
 	const prefix = "/components/"
 	if !strings.HasPrefix(pointer, prefix) {
 		return "", "", false
 	}
 	kind, name, found := strings.Cut(pointer[len(prefix):], "/")
-	if !found || kind == "" || name == "" || strings.Contains(name, "/") {
+	if !found || kind == "" || strings.Contains(name, "/") {
 		return "", "", false
 	}
-	return kind, UnescapeSegment(name), true
+	return kind, name, true
+}
+
+// ComponentSchemaNamedEmpty reports whether pointer addresses the top-level
+// component schema keyed "" — the position /components/schemas/ addresses.
+//
+// It exists because that schema is a component schema that ComponentSchemaName
+// still refuses: an empty name earns no named TypeID, so the schema hoists
+// anonymously (testdata/conformance/openapi/empty-names.yaml records that
+// policy). A caller that reports the refusal needs the distinction to word it
+// truthfully, since a reader who follows the pointer finds a component schema
+// sitting exactly where a "not a component schema" message denies one is.
+func ComponentSchemaNamedEmpty(pointer string) bool {
+	kind, name, ok := componentEntrySplit(pointer)
+	return ok && kind == "schemas" && name == ""
 }
 
 // componentEntryName returns the unescaped name of a top-level component entry
@@ -145,6 +189,11 @@ func ForPointer(pointer string) ir.TypeID {
 // schema (/components/schemas/<name> with no deeper path) and returns its name.
 // Only this kind of component declares a named type in OpenAPI, which is why it
 // alone gates NamedType.
+//
+// It answers false for two unlike documents: one that declares no such entry,
+// and one that declares it keyed "". Reporting the refusal as "not a component
+// schema" is false for the second, since the pointer addresses exactly that —
+// ComponentSchemaNamedEmpty separates them for a caller that has to say why.
 func ComponentSchemaName(pointer string) (string, bool) {
 	kind, name, ok := ComponentEntry(pointer)
 	return name, ok && kind == "schemas"

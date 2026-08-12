@@ -3,15 +3,19 @@ package openapi
 import (
 	"fmt"
 	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	yaml "gopkg.in/yaml.v3"
 
 	"github.com/dexpace/morphic/compilers"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
+	"github.com/dexpace/morphic/compilers/openapi/internal/openapitest"
 	"github.com/dexpace/morphic/compilers/openapi/internal/scan"
+	"github.com/dexpace/morphic/compilers/openapi/internal/sourceindex"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -43,10 +47,39 @@ var cycleReproducers = []struct{ name, file string }{
 	{"path-item-prefix-chain", "cycle_path_item_prefix_chain"},
 	{"component-path-item-prefix", "cycle_component_path_item_prefix"},
 	{"webhook-prefix-self", "cycle_webhook_prefix_self"},
+	{"path-item-empty-segment", "cycle_path_item_empty_segment"},
 	// A self-reference only the resolver's pointer normalization reveals, which
 	// overflows the stack rather than deadlocking: the resolution cache ends up
 	// pointing at its own reference and GetObject's delegation recurses.
 	{"pointer-whitespace-self", "cycle_pointer_whitespace_self"},
+}
+
+// TestCycleReproducers_EveryFixtureIsExercised holds cycleReproducers to the
+// fixtures on disk, the way TestDanglingRefs_EveryReproducerIsExercised holds
+// its own table: a cycle_*.yaml added to the corpus and left out of the table is
+// compiled by nothing here, and the suite stays green while the corpus grows
+// past it.
+//
+// The scan package keeps a table of the same fixtures for its own assertion and
+// carries the twin of this test. Holding both to one directory is what stops the
+// two from drifting apart as well as from the corpus, which neither package can
+// check directly — a test package cannot import another's.
+func TestCycleReproducers_EveryFixtureIsExercised(t *testing.T) {
+	t.Parallel()
+	onDisk, err := filepath.Glob(filepath.Join(reproducerDir, "cycle_*.yaml"))
+	require.NoError(t, err, "globbing the reproducer corpus")
+	require.NotEmpty(t, onDisk, "the corpus holds cycle reproducers")
+
+	listed := make(map[string]bool, len(cycleReproducers))
+	for _, tc := range cycleReproducers {
+		listed[tc.file+".yaml"] = true
+	}
+	for _, path := range onDisk {
+		assert.True(t, listed[filepath.Base(path)],
+			"%s is in %s but not in cycleReproducers", filepath.Base(path), reproducerDir)
+	}
+	assert.Len(t, cycleReproducers, len(onDisk),
+		"cycleReproducers and %s hold different numbers of fixtures", reproducerDir)
 }
 
 func TestCompile_CyclicSpecDoesNotCrash(t *testing.T) {
@@ -94,7 +127,7 @@ func TestDetectCycles_ComponentOnlyCyclesLeftToResolver(t *testing.T) {
 	for _, tc := range componentOnlyCycles {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			assert.Empty(t, scan.Cycles(0, []byte(tc.data)),
+			assert.Empty(t, scan.Cycles(0, scanIndex(t, tc.data)),
 				"a components-only cycle is the resolver's to report")
 
 			_, diags, err := New().Compile(t.Context(),
@@ -207,9 +240,54 @@ func TestCompile_RefShapedDataNotRefused(t *testing.T) {
 	}
 }
 
+// scanIndex decodes a spec and indexes it, which is what load hands the scan
+// once the compile's one decode has run.
+func scanIndex(t *testing.T, src string) sourceindex.Index {
+	t.Helper()
+	var root yaml.Node
+	require.NoError(t, yaml.Unmarshal([]byte(src), &root))
+	return sourceindex.Build(&root, sourceindex.MaxIndexedNodes)
+}
+
+// TestCompile_SchemaEmptyPointerSegmentIsUnresolved pins where reading the
+// empty token changes a verdict rather than a hang. Reading '/A/' as stopping
+// at A made this shape a cycle; reading it as descending through A makes it
+// what it is, a pointer naming a key that is not declared. That moves a schema
+// chain from chainCycles to chainReenters, and refCycles refuses a schema chain
+// on the first alone, so the document now reaches the resolver.
+//
+// It reports rather than blocks there: speakeasy resolves a schema $ref as an
+// oas3.JSONSchema, and only openapi/reference.go's cacheMutex is held across a
+// pointer walk (v1.24.0) — jsonschema/oas3 carries no per-reference lock at all.
+func TestCompile_SchemaEmptyPointerSegmentIsUnresolved(t *testing.T) {
+	t.Parallel()
+	const src = `openapi: 3.1.0
+info: {title: t, version: '1'}
+paths: {}
+components:
+  schemas:
+    A: {$ref: '#/components/schemas/A/'}
+`
+	_, diags, err := New().Compile(t.Context(),
+		[]compilers.Source{{Path: "schema_empty_segment.yaml", Data: []byte(src)}}, compilers.Options{})
+	require.NoError(t, err)
+	assertHasErrorCode(t, diags, diag.UnresolvedRef)
+	for _, d := range diags {
+		assert.NotEqualf(t, diag.CyclicRef, d.Code,
+			"a pointer that names an undeclared key is unresolved, not cyclic: %+v", d)
+	}
+}
+
+// reproducerDir is where the cycle fixtures live. The reader below, the table
+// guard above and the fuzz seeds all derive their paths from it, so none of them
+// can end up looking somewhere the others are not — which matters most for the
+// seed loader, since it ignores a read error and a wrong path there would cost
+// the fuzzer its seeds in silence.
+const reproducerDir = "../../testdata/openapi"
+
 func readReproducer(t *testing.T, file string) []byte {
 	t.Helper()
-	data, err := os.ReadFile("../../testdata/openapi/" + file + ".yaml")
+	data, err := os.ReadFile(filepath.Join(reproducerDir, file+".yaml"))
 	require.NoError(t, err)
 	return data
 }
@@ -235,7 +313,7 @@ func TestCompile_MergeChainPastBoundStillCompiles(t *testing.T) {
 		compilers.Options{})
 	require.NoError(t, err)
 	require.NotNil(t, doc, "a legal document is still compiled")
-	assertHasCode(t, diags, diag.CycleScanFailed, ir.SeverityWarning)
+	openapitest.AssertHasCode(t, diags, diag.CycleScanFailed, ir.SeverityWarning)
 	for _, d := range diags {
 		assert.NotEqual(t, ir.SeverityError, d.Severity, "no diagnostic refuses the source")
 	}
@@ -243,14 +321,14 @@ func TestCompile_MergeChainPastBoundStillCompiles(t *testing.T) {
 
 func FuzzCycleDetector(f *testing.F) {
 	for _, tc := range cycleReproducers {
-		if data, err := os.ReadFile("../../testdata/openapi/" + tc.file + ".yaml"); err == nil {
+		if data, err := os.ReadFile(filepath.Join(reproducerDir, tc.file+".yaml")); err == nil {
 			f.Add(data)
 		}
 	}
 	for _, tc := range refShapedDataSpecs {
 		f.Add([]byte(tc.data))
 	}
-	if data, err := os.ReadFile("../../testdata/openapi/amplification_alias_bomb.yaml"); err == nil {
+	if data, err := os.ReadFile(amplificationBombFixture); err == nil {
 		f.Add(data) // the GitHub #27 reproducer: refused for amplification, not a cycle
 	}
 	f.Add([]byte(" "))         // whitespace-only: recoverable parser panic

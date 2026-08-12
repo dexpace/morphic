@@ -1,0 +1,30 @@
+# A parameter and a header each share their Unmodeled map with their schema: the
+# object's own keys and the keywords the schema had no home for both land on it
+# unscoped, so one key spelled by both objects is one entry between them.
+#
+# The schema's reaches it first, and the object's own is reported under
+# openapi/unknown-key-entry-taken rather than dropped without a word. Settling
+# which namespace each side owns moves keys three merged mechanisms already
+# publish, so it is GitHub #396 rather than part of the census.
+#
+# `divisibleBy` is a draft-04 keyword: undeclared on a Parameter, undeclared on a
+# Header, and no field of the schema model either, which is what lets one key be
+# written on both objects at once.
+openapi: 3.1.0
+info: {title: T, version: "1"}
+paths:
+  /widgets:
+    get:
+      operationId: listWidgets
+      parameters:
+        - name: shape
+          in: query
+          divisibleBy: FROM_PARAMETER_OBJECT
+          schema: {type: string, divisibleBy: FROM_PARAMETER_SCHEMA}
+      responses:
+        "200":
+          description: ok
+          headers:
+            X-Trace:
+              divisibleBy: FROM_HEADER_OBJECT
+              schema: {type: string, divisibleBy: FROM_HEADER_SCHEMA}

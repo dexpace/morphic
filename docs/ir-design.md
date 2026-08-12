@@ -83,6 +83,56 @@ type TagDef  struct { Name string; Docs Docs }
 
 A `Document` is self-contained: no node references anything outside it.
 
+### 2.1 `IRVersion` — the schema stamp and the compatibility policy
+
+`IRVersion` names the generation of the IR *schema* — the shape of the document itself, not the
+API it describes (that is `Version`) and not the commit that produced it. It is the one claim in a
+document that a reader cannot recompute from the contents: everything else about a document can be
+checked against the document, but which spelling of the schema its keys are in has to be declared.
+
+**What moves it.** Any change to the JSON shape of a `Document`: a key renamed or removed, an
+encoding changed, or the meaning of an existing key changed. A line of work that changes the shape
+several times bumps it once, where it lands on `main` — a version that moves within an unmerged
+branch tells a consumer nothing and rewrites every golden each time it moves. `ir.IRVersion` is the
+constant; its GoDoc carries the log of what each past bump changed.
+
+**What a bump implies.** Pre-1.0 (`0.MINOR.PATCH`), MINOR is the breaking position and every bump
+so far has been breaking. There is no non-breaking bump in the history and nothing distinguishes
+one, so PATCH carries no promise a consumer may read compatibility into. Moving off `0.` is a
+decision about the project's stability rather than about any one shape change, and no policy for
+MAJOR is written here until that decision is taken.
+
+- *Compilers* stamp `ir.IRVersion` on every document they produce. That is the whole obligation:
+  a compiler never emits an older generation, and there is no option to ask it to.
+- *Emitters* and any other consumer are built against exactly one generation. A bump is a change
+  they must be updated for; there is no "read it anyway" mode, because the failure a stale
+  consumer produces is silent — it finds no key it recognizes where a renamed one used to be and
+  drops the construct rather than reporting it.
+
+**What a consumer does on mismatch: refuse.** `ir.CompatibleVersion(v)` is the predicate, and it is
+exact equality with the `ir.IRVersion` the consumer was compiled against. A differing patch, a
+prerelease suffix, and a value that is not a version at all are all equally unreadable; accepting a
+neighbouring version would mean claiming to know what changed between them, which is the knowledge
+a version exists because nobody has. Morphic ships **no migration path** between generations — a
+document written by another generation is re-compiled from its source spec, not converted.
+
+**Where it is enforced.** In `irverify`, which is the gate every consumer of a document runs before
+trusting it, whether the document was just compiled in memory or decoded from JSON. Two codes,
+because the two failures name different writers: `ir/ir-version-absent` for a document carrying no
+stamp — a producer that forgot, and the failure `omitempty` hides best, since a document without
+the key is byte-identical to one that never had it — and `ir/ir-version-incompatible` for a stamp
+this build does not read. Nothing in the repository decodes a persisted `Document` today, so there
+is no separate loader to attach the check to; when one is written, `ir.CompatibleVersion` is what
+it calls, and it should refuse before interpreting any other field.
+
+**Consequence for goldens.** Every committed IR golden embeds `irVersion`, so a bump rewrites the
+whole snapshot corpus in the same change that makes it. Confirm rather than trust:
+
+```bash
+ls testdata/*/openapi/*.golden.json | wc -l
+grep -l '"irVersion"' testdata/*/openapi/*.golden.json | wc -l
+```
+
 ---
 
 ## 3. Identity, names, references
@@ -143,6 +193,15 @@ type Naming struct {
 policy, and reserved-word escaping. Anonymous (hoisted) types have empty `Source` and a `Hint`;
 whether a emitter inlines them or names them is its choice.
 
+**`Hint` is the same word sequence in the same grammar.** It is not a presentation affordance
+sitting outside the neutrality rule: a hoisted type has no other name, so `Hint` is exactly what an
+emitter renders that type's identifier from, which is the job `Canonical` does for a declared one.
+That matters because a hint is nearly always derived from something a source *did* spell — a
+component key, an `operationId`, a header name, a `$ref` target — so a compiler that passes the
+context through puts precisely the casing and punctuation this section rules out into the one
+channel that carries a name and no spelling (GitHub #54). What `Hint` is not held to is the
+recomputation below: it has no `Source` beside it to be derived from, which is why it exists.
+
 The segmentation is part of the contract, not each compiler's dialect: a word is a run of letters
 and digits (with the combining marks that belong to them), a camel-case or letter/digit boundary
 starts a new one, and **every other character separates** — `.`, `/`, `[`, `-`, a space alike. So
@@ -171,11 +230,46 @@ to a run of capitals whether or not lowercasing would change it, and `ǅBc` is `
 titlecase letter belongs to one too. A transition test there would lose the first; the uppercase
 category alone would lose the second.
 
-`irverify` holds every `Naming` to this: it recomputes the canonical from the `Source` beside it, so
-a boundary in the wrong place is a compiler bug rather than a variant reading. What no check can say
-is that the grammar itself is right — a check that recomputes moves with what it recomputes through
-— so the answers are pinned by a conformance table and the properties every answer must satisfy by
-a fuzz target beside it (GitHub #186).
+`irverify` holds every `Naming` to this: the shape rules run over `Canonical` and `Hint` alike, and
+it recomputes the canonical from the `Source` beside it, so a boundary in the wrong place is a
+compiler bug rather than a variant reading. What no check can say is that the grammar itself is
+right — a check that recomputes moves with what it recomputes through — so the answers are pinned
+by a conformance table and the properties every answer must satisfy by a fuzz target beside it
+(GitHub #186).
+
+One rule sits under all of those and under `Aliases` too, because it is about the encoding rather
+than the spelling: **every channel's bytes must decode** (`ir/naming-invalid-utf8`). Ill-formed
+UTF-8 survives a marshal as the replacement rune, so a document carrying it decodes to one that
+re-marshals to different bytes and the "Serializable" invariant above stops holding — broken by a
+name nothing else here objects to.
+
+**`Aliases` is held to none of the shape rules, and to rules of its own instead.** An alias is
+matched against a name *another* schema wrote — an Avro alias is a full name, `com.example.User`,
+and resolution compares it verbatim against the writer schema's full name — so the separators and
+the casing are what the match is made of rather than a spelling the IR gets to decide.
+Neutralizing one would throw away precisely that, which is the lossy direction
+lossless-by-default rules out. `Source` is the internal precedent: it carries `UserID` today and
+no content rule touches it, because it records what the spec said rather than deciding a spelling.
+What is left is decidable without any grammar, and `irverify` holds an alias to exactly that much:
+
+- **Every entry names something** (`ir/naming-alias-blank`). An entry whose every rune is one
+  Unicode classifies as invisible — a space, a control, a format character, or a default-ignorable
+  one — matches nothing under any grammar. `""`, `" "`, `"\u200b"` and `"\u3164"` are alike here.
+  An invisible rune sitting *beside* a visible one is a different question and is not asked:
+  whether `com.example.<ZWSP>User` is a legal name is decidable only under the grammar of the
+  format it will be matched against, which the IR does not know.
+- **Every entry decodes** — the shared byte rule above, which reaches an alias the same way it
+  reaches the other three channels.
+- **No entry repeats another, or the entity's own `Source`** (`ir/naming-alias-duplicate`,
+  `ir/naming-alias-redundant`), reported at the later entry and naming the earlier, so the message
+  says which to delete and which to keep. Either admits no name that was not already admitted, so a
+  producer that wrote one built the list wrong. Only `Source` is compared against: `Canonical` and
+  `Hint` are names the IR derived for an emitter to render, never names a writer schema could have
+  spelled.
+
+That such an entry is inert is also why a *source* declaring one is recorded once with a diagnostic
+rather than carried through: dropping it is not the lossy direction, since the same set of names
+resolves to the entity either way.
 
 ### 3.3 Type references
 
@@ -193,6 +287,12 @@ Compilers normalize every source spelling to this one bit: OAS 3.0 `nullable: tr
 `type: [T, "null"]`, TypeSpec `T | null`, GraphQL's absence-of-`!`.
 A oneOf/anyOf/union whose only distinction is a null variant becomes a plain nullable `TypeRef`,
 never a union node.
+
+The bit describes the whole schema, not the keyword that spells it. Where a source format conjoins
+keywords (JSON Schema), a compiler reads them together: a value set that omits `null` beside a type
+that names it — `{type: [string, "null"], enum: [red, green]}` — does not admit null, one that lists
+`null` with no type beside it does, and a composition admits what its conjuncts jointly admit. So
+every spelling of one constraint reaches the same bit, which is the only thing an emitter reads.
 
 Protobuf field *presence* is **not** nullability — protobuf has no null. Presence disciplines
 lower to `Property.Presence` (§5.1), keeping `Nullable` strictly about wire-null.
@@ -491,6 +591,11 @@ can't express open enums (plain Go consts, TS string literals) lower via their r
 bit must survive to that point (Kiota's string-only closed enums are the counterexample).
 Duplicate member values are legal (protobuf `allow_alias`); slice order preserves which name is
 canonical for serialization, and the validate pass must not reject them.
+
+A **closed** Enum with **no members** is the empty value space — it admits its members and has
+none — so it is how a compiler states a position that accepts no instance at all (JSON Schema's
+`enum: []`) without a bottom `TypeKind`. Emitters render it as their uninhabited type where they
+have one (TypeScript `never`); none may widen it to the top type.
 
 ### 4.6 Containers and the rest
 
@@ -1323,7 +1428,7 @@ type Reply struct {
     Address  *PropPath     // dynamic reply address: where in the *request* message the reply
                            // destination lives, e.g. In:"header", Segments:[replyTo]
                            // (AsyncAPI Operation Reply Address runtime expressions)
-    Messages []MessageID   // reply payload message set
+    Messages []MessageID   // reply payload message set (a subset of Channel's when set — validated)
     Docs     Docs
 }
 
@@ -1596,6 +1701,29 @@ own source position instead of the enclosing schema's — falling back to the de
 only where the entry combines several keywords into one synthesized object and no single node
 addresses it (`openapi:if-then-else`, `openapi:contains`, `openapi:unevaluated`).
 
+A key names the origin format, then the construct — and, where one carrier holds constructs from
+more than one source object, the path between them. `openapi:x-rate-limit` is the extension on the
+node's own object; `openapi:info/contact/x-id` is the contact block's, kept on the document;
+`openapi:encoding/<part>/x-vendor` is one form part's, kept on the content. The scope is
+load-bearing, not decoration. Most objects lower to a node carrying an `Unmodeled` map of their own
+and take no scope, but the rest ride on the nearest node that does — an info block's on the
+document, a path item's on each of its operations, an encoding's on the owning content — and
+several of those reach one map, where two objects each writing `x-id` would be one key whose
+surviving entry depended on which lowering ran last. That is the order-dependence §4.3 forbids for
+minted node IDs, and it takes the same remedy: a namespace of its own rather than a shared one.
+
+A scope is a fixed path the compiler chooses, and where it addresses an object the *document* names
+— one form part among several, one callback among several — that name is one segment, escaped
+RFC 6901 style exactly as a pointer segment is. The escaping is what makes the scope injective and
+is not cosmetic: parts named `q` and `q/x-a` otherwise write `openapi:encoding/q/x-a/x-b` between
+them, and which entry survives follows the order the two were declared in, silently, in both
+orders. That is the failure §4.3 describes for a minted node reusing a pointer, reached by a
+different route.
+
+Scoped and unscoped keys stay apart on top of that, because no scope segment begins with `x-` and
+every vendor-extension name does — the same gap that separates both from the non-extension entries
+a shared carrier holds under those scopes, such as `openapi:encoding/<part>/allowReserved`.
+
 | Reason | Meaning |
 |---|---|
 | `vendor_extension` | The source format assigns the key no semantics at all (`x-*` and every format's equivalent). The key set is unbounded and nothing can be inferred from the value. |
@@ -1628,6 +1756,34 @@ configuration the IR models a field for and deliberately leaves untyped inside (
 bindings at server, channel, operation and message level; `ProtocolDecl.Options`). Its values are
 bare `RawValue`, not `UnmodeledEntry` — those entries are there because the source declared them
 where the IR expects them, so there is no reason to record and no unmodelled construct to locate.
+
+#### Promoting a vendor extension into the field it is the only spelling for
+
+Several typed fields model information no source format gives a keyword for, so the only way a
+document can state it is a vendor extension: `Deprecation.Message`/`Since`/`RemovalVersion`,
+`Pagination.*`, `LongRunning`, `Idempotency`, `ErrorCase.Retryable`/`Throttling`, `Enum.Flags`,
+`EnumMember.Name`, `Sensitive` and `Secret`. Reading such an extension into its field is
+**promotion**, and because the format assigns an `x-*` key no semantics at all, promotion is a
+heuristic — invariant 6 applies to it in full. Four rules, so that no emitter has to re-derive
+this from `Unmodeled` and no two derive it differently:
+
+1. **The mapping is injectable policy, default-on and disableable**, per compiler. Its default
+   contents are conventions, not standards: nothing in any specification says `x-deprecated-reason`
+   means what its name suggests, so a caller may replace the mapping outright.
+2. **The extension stays where it was.** A promotion is a second reading of a preserved
+   `Unmodeled` entry, never a move, and the entry keeps its `vendor_extension` reason. That is what
+   makes it reversible: a consumer that disagrees with the guess reads the entry instead. It also
+   makes losslessness independent of the policy — a disabled promotion loses nothing.
+3. **The node records that it was inferred**, in its own `Provenance.Inferred`, naming the
+   heuristic. `Inferred` holds one string and a node can be reached by more than one heuristic, so
+   the names are listed rather than overwritten, and a name already listed is not repeated.
+4. **A node with no `Provenance` is not promoted into.** `Parameter` is today's instance: it
+   carries a `Deprecation` and no provenance, so a promotion there could not satisfy rule 3, and a
+   heuristic that cannot be audited is worse than an empty field. Giving such a node a provenance
+   is a change to this document, and the promotion follows it rather than preceding it.
+
+A value the mapped field cannot hold — anything but text, for the three `Deprecation` members — is
+reported and not coerced, since the document means something else by the key.
 
 ### 12.1 One structural home per declaration
 
@@ -1698,7 +1854,7 @@ How each format's distinctive concepts land in the IR (full details live with ea
 
 | Format | Lowering highlights |
 |---|---|
-| **OpenAPI 3.x** | components/schemas → registry (IDs from pointers); inline schemas hoisted with hints; `allOf` → Base/Mixins per §4.3; `oneOf`/`anyOf` → Union (Exclusive bit), null-variant → Nullable ref, co-declared with structural keywords → the composition distributed across the variants per §4.3, or — for the five shapes that cannot be distributed — structural body + verbatim union per §4.8 (branches that declare no shape at all are `validation_only` per §4.7); competing keywords at one position — `const`/`enum`/`allOf`, elected in that order, and `oneOf` beside `anyOf`, where oneOf wins — lower as the elected keyword with every passed-over one verbatim Unmodeled (`degraded_lowering`) at its own pointer per §4.8, and a `{X, null}` oneOf beside an anyOf stays a Union rather than collapsing to a nullable ref; `discriminator` → Discriminator (3.2 `defaultMapping` → Discriminator.Default); `nullable`/type-arrays → Nullable; readOnly/writeOnly → Visibility and schema-level `default` → the referencing Property/Parameter's Default: both bind a *use* of the type rather than the type, so a declaration-site one is pushed down to referencing properties with use-site precedence and the declaration keeps its own copy verbatim (`no_ir_home` Unmodeled + diagnostic) — which is what a component nothing references would otherwise lose silently; `additionalProperties: false` → Additional=closed, `unevaluatedProperties: false` → closed_after_composition, `minProperties`/`maxProperties` → Model.Constraints (the property set's cardinality, as against Additional's openness); parameters → Params + HTTPBinding locations w/ style/explode, `allowEmptyValue` → Parameter.Unmodeled (`no_ir_home`: HTTPParamBinding holds its neighbours but not this one), a header parameter named Accept/Content-Type/Authorization lowered as declared + `reserved-header-name` warning (OpenAPI says such a definition SHALL be ignored; dropping declared content is an emitter's call, not a compiler's), 3.2 `in: querystring` → querystring location; requestBody/responses all content types → Payload.Contents, a non-required requestBody → Payload.Unmodeled (`no_ir_home`, presence is the IR's only body optionality); 3.2 `itemSchema` → Content.Item and `itemEncoding` → Content.ItemEncoding — except beside a positional `prefixEncoding`, where both go to Content.Unmodeled (`no_ir_home`) because a single every-item encoding cannot state ordinals; per-status responses/default → Conditions + ranges, error-response `headers` and its `content` map whatever its arity → ErrorCase.Unmodeled (`no_ir_home`, ErrorCase has neither field: it holds one TypeRef and no media type, so one entry loses the key it was written under just as several lose all but the first); response/encoding header `style` and `explode` → Property.Unmodeled (`no_ir_home`, ir.Property has neither field), and a `Content-Type` entry in either headers map lowered as declared + the same `reserved-header-name` warning the parameter position gets; webhooks → HTTPBinding.IsWebhook; callbacks → Callbacks; links → Response.Unmodeled (`no_ir_home`, promotable later); path-item `servers`, under `paths`, `webhooks` and a callback expression alike → Operation.Unmodeled (`no_ir_home`: §10 scopes servers by index list at service and channel, and an operation has no such list yet), with an operation's own `servers` — which OpenAPI says override the path item's — kept beside them under `openapi:operationServers`, the one key here not named for the keyword it holds, since two declarations at two pointers cannot share one map key without the survivor depending on lowering order; securitySchemes/security → Auth OR-of-ANDs, 3.2 device flow + `oauth2MetadataUrl` → Flows/OAuth2MetadataURL; servers+variables (3.2 named) → Servers; tags (3.2 parent/kind) → groups + TagDefs; info contact/license → Document; schema `example(s)` → Examples; `xml` object (incl. 3.2 nodeType) → XMLHints at type and property level; `not`/`if-then-else`/`dependentSchemas`/`dependentRequired`/`contains`/`propertyNames`/`unevaluated*` → verbatim Unmodeled per §4.7; `contentEncoding`/`contentMediaType` → `Encoding` on the scalar the position lowers to and `contentSchema` → Unmodeled (`no_ir_home`) per §4.7; `$id`/`$schema`/`$vocabulary` → Unmodeled (`out_of_scope`, `$id` not honoured for resolution); `$dynamicRef` → the anchored type by compiler expansion, else verbatim Unmodeled with the reason it was irreducible; an inline `allOf` branch declaring more than the merge consumes → verbatim Unmodeled (`degraded_lowering`) per §4.8; a boolean `false` `allOf` branch → the composed Model closed, branch verbatim Unmodeled (`degraded_lowering`) per §4.8, a `true` branch a silent no-op; a shape applicator (`properties`/`patternProperties`/`additionalProperties`/`required`/`items`/`prefixItems`, and `format` where no type is declared) the lowered node has no field for → verbatim Unmodeled (`degraded_lowering`) per §4.8; a parameter schema's `xml` and its `readOnly`/`writeOnly` → Parameter.Unmodeled (`no_ir_home`: Parameter has no field for either); `patternProperties` → AdditionalProps.Patterns; `prefixItems` → Tuple, with any trailing `items` → Tuple.Unmodeled (`degraded_lowering` per §4.8: an open tuple has no IR combinator, so the fixed head is lowered and the tail kept beside it); `x-*` → namespaced Unmodeled (legal on every object — hence Unmodeled on every node); `$ref`-adjacent sibling keywords (3.1) and ref-target annotations merge onto the referencing Property/Parameter with **use-site precedence**, applied uniformly (oagen's ad-hoc per-site patching is the counterexample), and at a position carrying no Property/Parameter — an `allOf`/`oneOf`/`anyOf` branch, `items`, a component — bind an alias hoisted at that position instead, per §4.3; a oneOf/anyOf whose variants are all string consts normalizes to a closed `Enum` in a `pass/` normalization — not in the compiler — so per-variant `Docs` survive until the collapse is chosen; mutually-exclusive parameter groups (`x-mutually-exclusive-parameter-groups`) stay as namespaced Unmodeled entries, and their documented *promotion* (no dedicated node needed) is a pass that synthesizes one logical `Parameter` typed by a `Union` of variant models, bound via `HTTPParamBinding.ParamPath` per field; pagination only via injectable policy, marked Inferred |
+| **OpenAPI 3.x** | components/schemas → registry (IDs from pointers); inline schemas hoisted with hints; `allOf` → Base/Mixins per §4.3; `oneOf`/`anyOf` → Union (Exclusive bit), null-variant → Nullable ref, co-declared with structural keywords → the composition distributed across the variants per §4.3, or — for the five shapes that cannot be distributed — structural body + verbatim union per §4.8 (branches that declare no shape at all are `validation_only` per §4.7); competing keywords at one position — `const`/`enum`/`allOf`, elected in that order, and `oneOf` beside `anyOf`, where oneOf wins — lower as the elected keyword with every passed-over one verbatim Unmodeled (`degraded_lowering`) at its own pointer per §4.8, and a `{X, null}` oneOf beside an anyOf stays a Union rather than collapsing to a nullable ref; `discriminator` → Discriminator (3.2 `defaultMapping` → Discriminator.Default); `nullable`/type-arrays → Nullable; readOnly/writeOnly → Visibility and schema-level `default` → the referencing Property/Parameter's Default: both bind a *use* of the type rather than the type, so a declaration-site one is pushed down to referencing properties with use-site precedence and the declaration keeps its own copy verbatim (`no_ir_home` Unmodeled + diagnostic) — which is what a component nothing references would otherwise lose silently; `additionalProperties: false` → Additional=closed, `unevaluatedProperties: false` → closed_after_composition, `minProperties`/`maxProperties` → Model.Constraints (the property set's cardinality, as against Additional's openness); parameters → Params + HTTPBinding locations w/ style/explode, `allowEmptyValue` → Parameter.Unmodeled (`no_ir_home`: HTTPParamBinding holds its neighbours but not this one), a header parameter named Accept/Content-Type/Authorization lowered as declared + `reserved-header-name` warning (OpenAPI says such a definition SHALL be ignored; dropping declared content is an emitter's call, not a compiler's), 3.2 `in: querystring` → querystring location; requestBody/responses all content types → Payload.Contents, a non-required requestBody → Payload.Unmodeled (`no_ir_home`, presence is the IR's only body optionality); 3.2 `itemSchema` → Content.Item and `itemEncoding` → Content.ItemEncoding — except beside a positional `prefixEncoding`, where both go to Content.Unmodeled (`no_ir_home`) because a single every-item encoding cannot state ordinals; an Encoding Object's `allowReserved` → Content.Unmodeled (`no_ir_home`) under `openapi:encoding/<part>/allowReserved` or `openapi:itemEncoding/allowReserved`, ir.PartEncoding holding `style` and `explode` beside it but no field for this one, and read before the entry's emptiness is judged so an entry declaring nothing else is not dropped with the empty PartEncoding it lowers to; per-status responses/default → Conditions + ranges, error-response `headers` and its `content` map whatever its arity → ErrorCase.Unmodeled (`no_ir_home`, ErrorCase has neither field: it holds one TypeRef and no media type, so one entry loses the key it was written under just as several lose all but the first); response/encoding header `style` and `explode` → Property.Unmodeled (`no_ir_home`, ir.Property has neither field), and a `Content-Type` entry in either headers map lowered as declared + the same `reserved-header-name` warning the parameter position gets; webhooks → HTTPBinding.IsWebhook; callbacks → Callbacks; links → Response.Unmodeled and ErrorCase.Unmodeled alike (`no_ir_home`, promotable later): the two are lowerings of one Response Object, so a construct kept on only the success one makes a declaration survive or vanish on nothing but its status code; path-item `servers`, under `paths`, `webhooks` and a callback expression alike → Operation.Unmodeled (`no_ir_home`: §10 scopes servers by index list at service and channel, and an operation has no such list yet), with an operation's own `servers` — which OpenAPI says override the path item's — kept beside them under `openapi:operationServers`, the one key here not named for the keyword it holds, since two declarations at two pointers cannot share one map key without the survivor depending on lowering order; a path item's own `summary`/`description`, at the same three mounts → Operation.Unmodeled under `openapi:pathItemSummary`/`openapi:pathItemDescription` (`no_ir_home`) rather than merged into Docs: ir.Docs holds the operation's own pair and a path item's documents the path, so merging would need a precedence rule and would attach documentation the operation's author never wrote — an inference, which §6 places in policy rather than in a lowering; every operation a path item declares — the fixed method fields, 3.2 `query`, and 3.2 `additionalOperations` keyed by method — → an Operation apiece, mounted at its own pointer, with the `additionalOperations` key used verbatim as HTTPBinding.Method since OpenAPI reads a method name case-sensitively, and a key naming no method at all lowered as declared + `invalid-method-key` warning (the binding is unusable, but dropping the entry would lose every operation it declares); securitySchemes/security → Auth OR-of-ANDs, 3.2 device flow + `oauth2MetadataUrl` → Flows/OAuth2MetadataURL; servers+variables (3.2 named) → Servers; tags (3.2 parent/kind) → groups + TagDefs; info contact/license → Document; schema `example(s)` → Examples; `xml` object (incl. 3.2 nodeType) → XMLHints at type and property level; `not`/`if-then-else`/`dependentSchemas`/`dependentRequired`/`contains`/`propertyNames`/`unevaluated*` → verbatim Unmodeled per §4.7; `contentEncoding`/`contentMediaType` → `Encoding` on the scalar the position lowers to and `contentSchema` → Unmodeled (`no_ir_home`) per §4.7; `$id`/`$schema`/`$vocabulary` → Unmodeled (`out_of_scope`, `$id` not honoured for resolution); `$dynamicRef` → the anchored type by compiler expansion, else verbatim Unmodeled with the reason it was irreducible; an inline `allOf` branch declaring more than the merge consumes → verbatim Unmodeled (`degraded_lowering`) per §4.8; a boolean `false` `allOf` branch → the composed Model closed, branch verbatim Unmodeled (`degraded_lowering`) per §4.8, a `true` branch a silent no-op; a shape applicator (`properties`/`patternProperties`/`additionalProperties`/`required`/`items`/`prefixItems`, and `format` where no type is declared) the lowered node has no field for → verbatim Unmodeled (`degraded_lowering`) per §4.8; a parameter schema's `xml` and its `readOnly`/`writeOnly` → Parameter.Unmodeled (`no_ir_home`: Parameter has no field for either); `patternProperties` → AdditionalProps.Patterns; `prefixItems` → Tuple, with any trailing `items` → Tuple.Unmodeled (`degraded_lowering` per §4.8: an open tuple has no IR combinator, so the fixed head is lowered and the tail kept beside it); `x-*` → namespaced Unmodeled (legal on every object — hence Unmodeled on every node), read at every object that admits one: an object lowering to a node with a map of its own keeps them unscoped there, and one lowering to no node of its own is keyed by the path from its carrier down to it — on the document, `openapi:info/x-*`, `openapi:info/contact/x-*`, `openapi:info/license/x-*`, `openapi:externalDocs/x-*`, `openapi:components/x-*`, `openapi:tags/<i>/x-*`, `openapi:tags/<i>/externalDocs/x-*`; on the service, `openapi:paths/x-*`; on each operation the path item's `openapi:pathItem/x-*` plus `openapi:responses/x-*` and `openapi:externalDocs/x-*`; on the HTTP binding, `openapi:callbacks/<name>/x-*`; on the content, `openapi:encoding/<part>/x-*` and `openapi:itemEncoding/x-*`, `<part>` and `<name>` alike escaped RFC 6901 style so a document-chosen name stays one segment (§12); on the schema's type, `openapi:xml/x-*`, `openapi:discriminator/x-*`, `openapi:externalDocs/x-*`; on the scheme, `openapi:flows/x-*` — since several such objects reach one map and an unscoped key would leave the survivor to lowering order (§12); a Link Object's own ride inside the verbatim `links` entry rather than taking a key beside it; `$ref`-adjacent sibling keywords (3.1) and ref-target annotations merge onto the referencing Property/Parameter with **use-site precedence**, applied uniformly (oagen's ad-hoc per-site patching is the counterexample), and at a position carrying no Property/Parameter — an `allOf`/`oneOf`/`anyOf` branch, `items`, a component — bind an alias hoisted at that position instead, per §4.3; a oneOf/anyOf whose variants are all string consts normalizes to a closed `Enum` in a `pass/` normalization — not in the compiler — so per-variant `Docs` survive until the collapse is chosen; mutually-exclusive parameter groups (`x-mutually-exclusive-parameter-groups`) stay as namespaced Unmodeled entries, and their documented *promotion* (no dedicated node needed) is a pass that synthesizes one logical `Parameter` typed by a `Union` of variant models, bound via `HTTPParamBinding.ParamPath` per field; pagination only via injectable policy, marked Inferred |
 | **Swagger 2.0** | lifted to OpenAPI 3.x shape first (body/formData → Payload; host/basePath/schemes → Servers; consumes/produces → content types), then the OpenAPI lowering runs |
 | **TypeSpec** | consumed post-check (monomorphized, `isFinished`); template instances → TypeCommon.Instantiation incl. value args → TemplateArg; models → Model w/ Base + spread provenance → Mixins; scalars → Scalar chains, constructors in values → Value.Ctor; `@encode`/`@format` → Encoding triple; `@encodedName` → WireNameByFormat at property AND type level; unions w/ named variants → Union, `@discriminated` → Discriminator.PropertyName/Envelope/EnvelopeValueName; `| null` → Nullable; visibility classes (incl. custom, `@invisible` → Visibility.None) → Visibility, op overrides → ParameterVisibility/ReturnTypeVisibility; `@patch` implicitOptionality → HTTPBinding.PatchImplicitOptionality; interfaces → OperationGroups (versionable); `@overload` → OverloadOf; `@sharedRoute` → SharedRoute; `@service` → Service; versioning decorators incl. `@typeChangedFrom`/`@madeOptional`/`@madeRequired` and add/remove cycles → Availability timeline (on members/variants/params too); pagination decorators incl. prev/first/last links and header continuation tokens → Pagination PropPaths (In:"header"); Azure.Core `@pollingOperation`/`@finalOperation` → LongRunning; multipart w/ parts → Content.Encoding/PartEncoding, `Http.File` → FileInfo (content-type set, contents chain, filename location); streams/SSE → StreamDetail + Variant.Event (contentType, terminal); `@error` → UsageFlags.Error; `@example`/`@opExample` → Examples (Input/Output pairs); `@pattern` message → Constraints.PatternMessage; `@mediaTypeHint` → TypeCommon.MediaTypeHint; `never` members deleted + diagnostic per §4.8; TCGC client-shaping decorators (`@clientName`, `@access`, `@usage`, `@scope`, `@override`, …) → namespaced Unmodeled (`out_of_scope`) consumed by emitter policy, never IR semantics; values/consts incl. enum-member refs → Values channel |
 | **Smithy 2.0** | structures → Model, mixins → Mixins (non-structure mixins flattened — spec-sanctioned); `document` → Any; unions → WireTagged Union, member `@jsonName` → Variant.WireName; enum/intEnum → Enum (open by default); `@sparse` → element Nullable; traits: constraints → Constraints, `@paginated` → Pagination (declared), `@retryable` → ErrorCase.Retryable + Throttling, `@error` fault → ErrorCase.Fault, `@readonly` → Idempotency safe, `@idempotent`/`@idempotencyToken` → Idempotency, `@sensitive` → Sensitive/Secret, `@tags` → Tags, `@clientOptional`/`@input` → Property.ClientOptional (+InputOnly), `@addedDefault` → DefaultAdded, root-shape `@default` pushed down to properties w/ provenance; `@streaming` blob → StreamDetail (+`@requiresLength` → RequiresLength); event streams → StreamDetail.Events union + Property.EventHeader/EventPayload + Initial messages; service-level errors → Service.CommonErrors; protocol traits → Service.Protocols; service `rename`/`version` → Service.Renames/Version; resources → OperationGroup + ResourceInfo (identifiers, properties, lifecycle incl. put/@noReplace, instance vs collection ops); http traits → HTTPBinding incl. `@endpoint`/`@hostLabel` → HostPrefix/host location (additive binding), `@httpPrefixHeaders`/`@httpQueryParams` → Prefix bindings, `@httpResponseCode` → Response.StatusCodeProp, `@requestCompression` → Compression, `@httpChecksumRequired` → ChecksumRequired; `@auth` order → priority-ordered Auth, `@optionalAuth` → empty option; `@jsonName` → WireName; `@mediaType` → Encoding.MediaType; xml traits → XMLHints at type and property level; `@examples` → Examples (Input/Output/Error); waiters + rules-engine traits → verbatim Unmodeled (`out_of_scope`, §15); `smithy.api#Unit` → nil payload / shared empty Model for tag-only variants; other traits → namespaced Unmodeled |
