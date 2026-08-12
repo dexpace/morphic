@@ -2,6 +2,7 @@ package diag_test
 
 import (
 	"encoding/json"
+	"errors"
 	"go/ast"
 	"go/parser"
 	"go/token"
@@ -128,16 +129,20 @@ func TestHasError_Cases(t *testing.T) {
 func codes() []string {
 	return []string{
 		diag.Validation, diag.UnsupportedVersion, diag.UnresolvedRef, diag.CyclicRef,
-		diag.CycleScanFailed, diag.OverlayInvalid, diag.OverlayFailed,
+		diag.CycleScanFailed, diag.SourceTooLarge, diag.UndecodableSource,
+		diag.OverlayInvalid, diag.OverlayFailed,
 		diag.OverlayAction, diag.OverlayOriginIncomplete,
-		diag.ValidationOnlyKeyword, diag.FalseSchema,
+		diag.ValidationOnlyKeyword, diag.FalseSchema, diag.EmptyEnum,
 		diag.NumericPrecision, diag.ExclusiveBoundForm, diag.InvalidStatusKey,
-		diag.DegradedConstruct,
+		diag.InvalidMethodKey, diag.DegradedConstruct,
 		diag.CompositionLowering, diag.DynamicRefExpanded, diag.ConflictingRedecl,
 		diag.DisjointVisibility,
-		diag.AliasAmplification, diag.UnattachableRequired, diag.InternalInvariant,
+		diag.AliasAmplification, diag.BudgetExceeded,
+		diag.UnattachableRequired, diag.InternalInvariant,
 		diag.DuplicateOperationID, diag.IncompleteSecurityScheme,
 		diag.ReservedHeaderName, diag.UnpreservableConstruct,
+		diag.UnknownSchemaKeyword, diag.UnknownObjectKey, diag.UnknownKeyBudget,
+		diag.UnknownKeyUnreachable, diag.UnknownKeyEntryTaken,
 	}
 }
 
@@ -218,4 +223,31 @@ func constNamesIn(decl ast.Decl) int {
 		}
 	}
 	return n
+}
+
+// TestOneLine_CollapsesWhatALibraryWrote pins both join rules and the reason for
+// each: a flat list of findings reads as a list, while a header that ends in a
+// colon owns the line after it and must not be cut from it by a semicolon.
+func TestOneLine_CollapsesWhatALibraryWrote(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		name, in, want string
+	}{
+		{"already one line", "plain failure", "plain failure"},
+		{"flat list", "first problem\nsecond problem", "first problem; second problem"},
+		{"header and items", "yaml: unmarshal errors:\n  line 1: bad\n  line 2: worse",
+			"yaml: unmarshal errors: line 1: bad; line 2: worse"},
+		{"blank lines dropped", "one\n\n\ntwo", "one; two"},
+		{"indentation normalized", "one\n\t  two   three", "one; two three"},
+		{"trailing newline", "only\n", "only"},
+		{"empty", "", ""},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			got := diag.OneLine(errors.New(tc.in))
+			assert.Equal(t, tc.want, got)
+			assert.NotContains(t, got, "\n", "the whole point is that nothing survives as a newline")
+		})
+	}
 }
