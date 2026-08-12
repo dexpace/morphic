@@ -139,7 +139,7 @@ golden update, argued there. The OpenAPI goldens did not move, since #161 had al
 the grammar that ships.
 
 Deleting two copies is a state rather than a rule, so the architecture test now asserts that only
-the framework and `ir` may fill `Naming.Canonical`. What it still cannot see is a `Hint` (#54).
+the framework and `ir` may fill a name channel — `Naming.Canonical`, and `Naming.Hint` since #54.
 
 The divergence was filed separately so it would not be lost if this work were deferred; that is
 what it is now closed by.
@@ -684,12 +684,16 @@ sorts, which `maps.Keys` + `slices.Sorted` and the existing generic `sortedKeys`
   creates lives under `internal/`, so none of it is reachable from outside the compiler. The IR is
   the ABI (invariant 1); a restructuring that altered the compiler's own surface would be a second,
   unrelated change.
-- **The source index.** Indexing the raw tree once (pointer → node + shape) would make resolution a
-  lookup, share one walk across cycle and amplification detection, and give `--explain` a substrate.
-  It is held back because `$ref` handling still carries an open defect — #40, percent-encoded
-  fragments failing to resolve — and an index built over it would bake it in. #143 (siblings
-  adjacent to a `$ref` on an allOf branch dropped) and #141 (an `$anchor` fragment derived from as
-  though it were a pointer) are closed. Filed as a follow-up blocked on the rest closing.
+- **A pointer-keyed source index.** The `$ref` defects this was held back on — #40 (percent-encoded
+  fragments failing to resolve), #141 (an `$anchor` fragment derived from as though it were a
+  pointer) and #143 (siblings adjacent to a `$ref` on an allOf branch dropped) — are all closed, and
+  the walk-sharing half has since landed: `internal/sourceindex` walks the decoded tree once and
+  answers what the cycle and amplification refusals each used to walk it to ask, over the single
+  decode the loader now performs. What is still out of scope is the other half — a pointer → node
+  map that would make reference resolution a lookup, a per-node key index that would make
+  `annotation.RawChildNode` one, and the `--explain` substrate both would give. Each of those is
+  read during lowering rather than before it, so handing them down means widening the lowering
+  context and the signatures beneath it: its own change.
 - **Rebasing the GraphQL and Protobuf drafts.** They are evidence here, not work items.
 - **A new-compiler skeleton demo.**
 
@@ -721,7 +725,7 @@ Each row is one PR unless noted. "Done when" is the acceptance test, not a summa
 | ~~0.3~~ | ~~ID-collision oracle~~ | **Landed**, split by where each half is decidable (§8.2): `irverify.checkIDs` holds every ID to its shape and to `path == Provenance.Pointer`, and `compile.Types` refuses a derivation that collapses two coordinates. Both proven by planting one | — |
 | ~~1.1~~ | ~~Promote the ID grammar into `compilers/compile`~~ | **Landed.** `compilers/openapi` derives no ID except through the framework, goldens byte-identical, and the minted-namespace rule is refused by `compile.Types` rather than asserted in a comment | — |
 | ~~1.2~~ | ~~Promote the canonical naming grammar (the segmentation is decided — §3.1)~~ | **Landed.** `compilers/compile` holds the one implementation, an architecture test keeps a second from being written, and each rebasing draft carries its own golden update | — |
-| ~~1.3~~ | ~~Extend `irverify` to check segmentation, not only casing (#73, #54)~~ | **Landed with #161**, ahead of 1.2: `ir/naming-not-words` rejects a lowercase but unsegmented canonical, proven by planting the old grammar and watching the corpus sweep redden. #54 (`Hint`) stays open | — |
+| ~~1.3~~ | ~~Extend `irverify` to check segmentation, not only casing (#73, #54)~~ | **Landed with #161**, ahead of 1.2: `ir/naming-not-words` rejects a lowercase but unsegmented canonical, proven by planting the old grammar and watching the corpus sweep redden. #54 extended the same rules to `Hint` | — |
 | ~~2.1~~ | ~~Tier-0 extraction: `diag`~~ | **Landed.** Goldens byte-identical, its own rules entry admits `ir` alone, and the package carries table-driven tests needing no document | 0.1 |
 | ~~2.2–2.7~~ | ~~The remaining Tier-0 extractions: `load`, `scan`, `ids`, `value`, `annotation` (+ site), `merge`~~ | **Landed.** Goldens byte-identical, each package carries its own rules entry proven by planting a forbidden import, and each carries unit tests needing no document. Two departures from the plan above: the scan took `nodeview` with it as a package of its own, because `schema` and `compose` read the source through it too, and `annotation` took the readers `schema.go` declared as well as the four in `resolve.go` — the two files were mutually dependent | 0.1 |
 | 3.1 | Introduce `Ctx` with accessors; derive indexes at entry | No exported `Ctx` field is a map; goldens byte-identical | 2.x |
@@ -742,10 +746,10 @@ landing them first would only encode the current one.
 |---|---|
 | #57 archtest cannot enforce compiler isolation | **Closed.** Landed with #161/#143; it was a prerequisite for every package boundary here |
 | #73 naming grammar and primitive IDs are cross-compiler ABI in one compiler | **Closed, and its own proposal was right about both halves.** The naming grammar lives in `ir` with `irverify` validating against it. The ID grammar stayed in `compilers/compile` — a compiler's path is its own and nothing in `ir` can compute one — but `t/prim/<kind>` is the path there is none of, so `ir.PrimTypeID` went to `ir` with it, and `irverify` holds every producer to it: §3.4 |
-| #54 cased `Naming.Hint` passes the neutrality check | **Still open.** 1.3's segmentation work did not reach `Hint`: closing it means changing how hints are derived and regenerating every golden, which is a different change from tightening the checker. The exclusion is now stated in `checkNaming` rather than left to be inferred |
+| #54 cased `Naming.Hint` passes the neutrality check | **Closed**, as its own entry said it would have to be: by changing how the compilers derive hints — `compile.NamingHint` and `compile.SubHint` run the grammar — and regenerating every golden, not by tightening the checker alone |
 | #83 enforce size and complexity caps in lint | **Closed by 4.2**, deliberately last |
 | #66 extract a shared JSON-Schema→IR lowering core before the next compilers land | **Superseded.** Its premise expired — the next compilers landed without it (#20, #21). §3 replaces it with evidence-based promotion. To be closed with that reasoning, not silently |
 | #142 the annotation matrix cannot reach a carrier position | **Closed**, independently of this work as §8.4 said it could be: the grid gained a kind per carrier, and the two are separate kinds because their carriers hold different sets |
-| #40, #141 `$ref` handling defects | **#141 closed**: a fragment that is not a JSON pointer is refused rather than derived from, and `irverify` now rejects an ID the grammar could not have produced. #40 still **blocks the source index** (§10). #143, listed here before, is closed |
+| #40, #141 `$ref` handling defects | **Both closed**: a fragment that is not a JSON pointer is refused rather than derived from, `irverify` now rejects an ID the grammar could not have produced, and percent-encoded fragments resolve. With #143 they were what held the source index back; the walk-sharing half of it has since landed, and §10 records what remains out of scope |
 | #20, #21 GraphQL and Protobuf drafts | **Evidence, not work items** (§2). Rebasing is later work |
 | Naming grammar divergence across compilers | **Closed by #161**, filed and fixed separately: a live invariant-4 violation, independent of whether this architecture work proceeds |

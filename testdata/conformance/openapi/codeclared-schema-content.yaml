@@ -1,0 +1,37 @@
+openapi: 3.1.0
+info: {title: CoDeclaredSchemaContent, version: "1.0.0"}
+paths:
+  /x:
+    get:
+      operationId: getX
+      parameters:
+        # OpenAPI says a parameter — and a header, which follows the parameter
+        # rules — declares either `schema` or `content`, never both. A document
+        # writing both is invalid, and neither position can lower both: each
+        # holds one type. So one spelling is elected and the other is kept
+        # verbatim beside it, exactly as codeclared-keywords does for the
+        # competing keywords at a schema position.
+        #
+        # `content` wins, because it carries a schema *and* the media type
+        # serializing it, and the IR models both here.
+        - name: p
+          in: query
+          schema: {type: integer}
+          content:
+            application/json: {schema: {type: string}}
+        # The same co-declaration written the other way round. Which keyword the
+        # source happens to write first must not decide the election, so this
+        # parameter must lower exactly as the one above it does.
+        - name: q
+          in: query
+          content:
+            application/json: {schema: {type: string}}
+          schema: {type: integer}
+      responses:
+        "200":
+          description: ok
+          headers:
+            X-H:
+              schema: {type: integer}
+              content:
+                application/json: {schema: {type: string}}
