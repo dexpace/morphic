@@ -179,9 +179,8 @@ type MessageBinding struct {
 	Channel ChannelID `json:"channel,omitempty"`
 	// Direction is send | receive (application perspective).
 	Direction MsgDirection `json:"direction,omitempty"`
-	// Messages are which of the channel's messages this operation uses (should be
-	// a subset of the channel's own Messages; only resolution against the
-	// document-wide registry is currently checked).
+	// Messages are which of the channel's messages this operation uses; it must be
+	// a subset of the channel's own Messages, which pass.Validate checks.
 	Messages []MessageID `json:"messages,omitempty"`
 	// Reply carries request-reply semantics; nil = none. A send-op with no Reply
 	// and no Responses is one-way (set Operation.OneWay).
@@ -202,7 +201,8 @@ type Reply struct {
 	// reply destination lives, e.g. In:"header", Segments:[replyTo] (AsyncAPI
 	// Operation Reply Address runtime expressions).
 	Address *PropPath `json:"address,omitempty"`
-	// Messages is the reply payload message set.
+	// Messages is the reply payload message set; when Channel is set it must be a
+	// subset of that channel's own Messages, which pass.Validate checks.
 	Messages []MessageID `json:"messages,omitempty"`
 	// Docs is the reply's documentation.
 	Docs Docs `json:"docs"`

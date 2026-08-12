@@ -23,11 +23,35 @@ type Naming struct {
 	Canonical string `json:"canonical,omitempty"`
 	// Hint is a context-derived suggestion for an entity with no source name to
 	// render: a hoisted anonymous type (e.g. "connection_domain"), or one the
-	// source named with the empty string.
+	// source named with the empty string. It is in the same neutral form as
+	// Canonical and for the same reason — it is the only name such an entity
+	// has, so it is what an emitter renders its identifier from — however the
+	// position it was derived from was spelled.
 	Hint string `json:"hint,omitempty"`
 	// Aliases are alternate names for schema-resolution matching (Avro
 	// aliases). Versionless — rename history tied to version labels lives in
 	// Availability.RenamedFrom.
+	//
+	// An alias is a verbatim channel like Source, not a neutral one like
+	// Canonical: it is matched against a name another schema wrote, so the
+	// casing and punctuation are the value. An Avro alias is a full name
+	// ("com.example.User"), and neutralizing it to words would lose the
+	// separators and the case the match depends on. So no neutrality rule
+	// applies to an entry, and irverify holds only what is decidable without
+	// one:
+	//
+	//   - every entry names something, since one with nothing visible in it
+	//     matches nothing;
+	//   - every entry decodes, since one holding ill-formed UTF-8 does not
+	//     survive the round-trip invariant #7 promises;
+	//   - no entry repeats another, or the entity's own Source, since either
+	//     admits no name that was not already admitted — so a producer that
+	//     wrote one built the list wrong.
+	//
+	// That such an entry is inert is also why a source declaring one is
+	// recorded once, with a Diagnostic naming it, rather than carried through:
+	// dropping it is not the lossy flattening invariant #2 forbids, because the
+	// same set of names resolves to this entity either way.
 	Aliases []string `json:"aliases,omitempty"`
 }
 

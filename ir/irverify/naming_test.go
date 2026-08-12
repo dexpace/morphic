@@ -2,6 +2,7 @@ package irverify_test
 
 import (
 	"testing"
+	"unicode/utf8"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -18,9 +19,20 @@ func canonicalOnly(canon string) *ir.Document {
 	return modelNamed(ir.Naming{Canonical: canon})
 }
 
+// hintOnly names a model the way an anonymous type is named: a hint and nothing
+// else. It is the shape every content rule below is measured against for the
+// hint channel, since a Source beside it would bring the grammar check in.
+func hintOnly(hint string) *ir.Document {
+	return modelNamed(ir.Naming{Hint: hint})
+}
+
+// modelNamed builds a document holding one model under the given Naming. It
+// carries the schema stamp for the same reason the model carries an ID keyed to
+// itself: a document missing either has a violation of its own, and a fixture
+// about naming must contribute none.
 func modelNamed(n ir.Naming) *ir.Document {
 	m := &ir.Model{TypeCommon: ir.TypeCommon{ID: "t/x/M", Name: n}}
-	return &ir.Document{Types: ir.TypeRegistry{m.ID: m}}
+	return &ir.Document{IRVersion: ir.IRVersion, Types: ir.TypeRegistry{m.ID: m}}
 }
 
 func TestVerify_NeutralCanonicalIsClean(t *testing.T) {
@@ -145,6 +157,58 @@ func TestVerify_UnsplitCamelCasePassesEveryOtherCheck(t *testing.T) {
 	t.Parallel()
 	assert.Empty(t, irverify.Verify(canonicalOnly("userid")),
 		"carried without a source, the same value is indistinguishable from one genuine word")
+}
+
+// TestVerify_CasedOrPunctuatedHintIsAViolation holds the hint channel to the
+// same content rules as the canonical one. Hint is the *only* name an anonymous
+// type carries, so it is what an emitter renders that type's identifier from —
+// the same job Canonical does for a declared name, and so the same rules. While
+// it was held to none of them, casing and source punctuation reached the IR
+// through it: every value below but the first is a hint the compilers really
+// emitted into the committed goldens (GitHub #54).
+func TestVerify_CasedOrPunctuatedHintIsAViolation(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct {
+		name  string
+		hint  string
+		codes []string
+	}{
+		{"camel case", "connectionDomain", []string{"ir/naming-cased"}},
+		{"pascal case", "OrderBody", []string{"ir/naming-cased"}},
+		{"a dotted property name", "rollout.state", []string{"ir/naming-not-words"}},
+		{"a path template", "get_/pets/{pet_id}", []string{"ir/naming-not-words"}},
+		{"a header name", "X-Report-List", []string{"ir/naming-cased", "ir/naming-not-words"}},
+		{"a letter-digit run", "foo2bar", []string{"ir/naming-unsegmented"}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			assert.Equal(t, tc.codes, codesOf(irverify.Verify(hintOnly(tc.hint))), "hint %q", tc.hint)
+		})
+	}
+}
+
+// TestVerify_NeutralHintIsClean is the other direction: the shapes a compiler
+// that derives hints through the grammar emits are not reported, so the rules
+// above cannot pass by rejecting every hint.
+func TestVerify_NeutralHintIsClean(t *testing.T) {
+	t.Parallel()
+	for _, hint := range []string{
+		"connection_domain", "empty", "variant_0", "order_body",
+		"get_pets_pet_id", "empty_item", "count_ℤ",
+	} {
+		assert.Empty(t, irverify.Verify(hintOnly(hint)), "hint %q is a neutral word sequence", hint)
+	}
+}
+
+// TestVerify_HintIsNotDerivedFromTheSource pins what the hint channel is *not*
+// held to. The grammar check recomputes a canonical from the spelling beside it;
+// a hint has no such spelling to recompute from — it is derived from the
+// position, which is the whole reason it exists — so asking it to agree with a
+// Source would be inventing a relation the IR does not claim.
+func TestVerify_HintIsNotDerivedFromTheSource(t *testing.T) {
+	t.Parallel()
+	assert.Empty(t, irverify.Verify(modelNamed(
+		ir.Naming{Source: "Widget", Canonical: "widget", Hint: "order_body"})))
 }
 
 // TestVerify_DerivedNamingIsClean is the control: a Naming the grammar produced
@@ -304,4 +368,45 @@ func TestVerify_PresenceReachesANamingNoNameFieldOwns(t *testing.T) {
 	require.Len(t, got, 1)
 	assert.Equal(t, "ir/naming-absent", got[0].Code)
 	assert.Equal(t, "doc.Services[0].Renames[t/x/Model]", got[0].Path)
+}
+
+// TestVerify_IllFormedNameIsAViolation covers the one rule every channel of a
+// Naming shares. It is about the encoding rather than the spelling: ill-formed
+// bytes survive a marshal as the replacement rune, so a document carrying them
+// decodes to one that re-marshals differently and stops round-tripping.
+//
+// Canonical and Hint would each draw a violation without this rule — the
+// replacement rune is not a word character, so isWordSequence rejects it — but
+// one naming the wrong repair, since splitting on non-word characters is not
+// what fixes undecodable bytes. Source draws nothing at all without it. So the
+// assertion is that ir/naming-invalid-utf8 is among what is reported, not that
+// it is all of it.
+//
+// Only this rule's own message is held to quoting nothing. The content rules
+// beside it deliberately carry the spelling they object to, which puts the
+// ill-formed bytes in their message (GitHub #400) — a separate question from
+// whether the encoding rule fires.
+func TestVerify_IllFormedNameIsAViolation(t *testing.T) {
+	t.Parallel()
+	ill := string([]byte{'c', 'a', 'f', 0xe9})
+	require.False(t, utf8.ValidString(ill), "the fixture has to be ill-formed to test anything")
+
+	for channel, n := range map[string]ir.Naming{
+		"source":    {Source: ill, Canonical: ir.CanonicalWords(ill)},
+		"canonical": {Canonical: ill},
+		"hint":      {Hint: ill},
+	} {
+		t.Run(channel, func(t *testing.T) {
+			t.Parallel()
+			var reported *irverify.Violation
+			for _, v := range irverify.Verify(modelNamed(n)) {
+				if v.Code == "ir/naming-invalid-utf8" {
+					reported = &v
+				}
+			}
+			require.NotNil(t, reported, "the encoding rule fires on %s", channel)
+			assert.Equal(t, "doc.Types[t/x/M].Name", reported.Path)
+			assert.NotContains(t, reported.Message, ill, "the report does not repeat the bad bytes")
+		})
+	}
 }

@@ -129,7 +129,7 @@
       "variants": [
         {
           "name": {
-            "hint": "Cat"
+            "hint": "cat"
           },
           "type": {
             "target": "t/openapi/components/schemas/Cat",
@@ -139,7 +139,7 @@
         },
         {
           "name": {
-            "hint": "Dog"
+            "hint": "dog"
           },
           "type": {
             "target": "t/openapi/components/schemas/Dog",
