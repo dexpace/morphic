@@ -193,6 +193,94 @@ func TestRunParse_OutputCreateError(t *testing.T) {
 	assert.Contains(t, stderr.String(), "create output")
 }
 
+// unresolvedRefSpec is an OpenAPI 3.1 document whose only $ref names a schema
+// that is not there. It matters that it still lowers to a document: a spec that
+// lowers to nil returns 1 before the -o write is ever attempted, so it could not
+// exercise the combination writeFailureExit decides.
+const unresolvedRefSpec = `openapi: 3.1.0
+info: {title: Bad, version: "1"}
+paths:
+  /x:
+    get:
+      responses:
+        "200":
+          description: ok
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Missing"}
+`
+
+// missingParentDest returns a destination inside a directory that is not there,
+// so creating the temp file beside it fails.
+func missingParentDest(t *testing.T) string {
+	t.Helper()
+	return filepath.Join(t.TempDir(), "missing-dir", "ir.json")
+}
+
+// readOnlyDirDest returns a writable file inside a read-only directory — the
+// shape TestWriteParsed_ReadOnlyDirFails pins, where the destination itself
+// could be rewritten but its directory will not take the temp file.
+func readOnlyDirDest(t *testing.T) string {
+	t.Helper()
+	if os.Geteuid() == 0 {
+		t.Skip("root bypasses directory permission checks, so the write would succeed")
+	}
+	dir := t.TempDir()
+	out := filepath.Join(dir, "ir.json")
+	require.NoError(t, os.WriteFile(out, []byte("PREVIOUS\n"), 0o644))
+	require.NoError(t, os.Chmod(dir, 0o555))
+	// Restore write permission so t.TempDir's own cleanup can remove the tree.
+	t.Cleanup(func() { _ = os.Chmod(dir, 0o755) })
+	return out
+}
+
+// TestRunParse_WriteFailureDoesNotMaskDiagnostics pins that a destination which
+// refuses the write does not decide the exit code. A spec that reached the
+// --fail-on threshold exits 1 wherever -o pointed; only a run with nothing to
+// report at the threshold exits 2 for the write. Both destinations here are
+// refused for the same reason — replaceFile publishes by rename and their
+// directories will not take a temp file — which is also why -o /dev/null fails,
+// untestable here because a root /dev would take the temp file and the rename
+// would then replace /dev/null itself.
+func TestRunParse_WriteFailureDoesNotMaskDiagnostics(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		name     string
+		spec     string
+		dest     func(t *testing.T) string
+		wantCode int
+		// wantDiag is a diagnostic code stderr must carry, or "" when the spec is
+		// clean and stderr must carry no diagnostic at all.
+		wantDiag string
+	}{
+		{"threshold reached, missing parent dir", unresolvedRefSpec, missingParentDest, 1, "openapi/unresolved-ref"},
+		{"threshold reached, read-only dir", unresolvedRefSpec, readOnlyDirDest, 1, "openapi/unresolved-ref"},
+		{"nothing reported, missing parent dir", testspec.Tiny, missingParentDest, 2, ""},
+		{"nothing reported, read-only dir", testspec.Tiny, readOnlyDirDest, 2, ""},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			spec := writeFile(t, "spec.yaml", tt.spec)
+			var stdout, stderr bytes.Buffer
+
+			code := run([]string{"compile", spec, "-o", tt.dest(t)}, &stdout, &stderr)
+
+			assert.Equal(t, tt.wantCode, code, "stderr: %s", stderr.String())
+			assert.Contains(t, stderr.String(), "create output",
+				"the destination must really refuse the write, or this case proves nothing")
+			if tt.wantDiag == "" {
+				assert.NotContains(t, stderr.String(), "openapi/",
+					"the clean spec must reach the write with no diagnostic behind it")
+				return
+			}
+			assert.Contains(t, stderr.String(), tt.wantDiag,
+				"a failed write must not swallow the diagnostics it was reported alongside")
+		})
+	}
+}
+
 func TestExitCodeFor_SeverityMatrix(t *testing.T) {
 	t.Parallel()
 	tests := []struct {

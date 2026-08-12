@@ -220,9 +220,27 @@ func compileSpec(specPath string, opts compileOptions, stdout, stderr io.Writer)
 	}
 	if err := writeCompiled(opts, stdout, res.Document); err != nil {
 		emitf(stderr, "morphic: %v\n", err)
-		return 2
+		return writeFailureExit(code)
 	}
 	return code
+}
+
+// writeFailureExit returns the exit code for a run whose diagnostics earned code
+// and whose output then could not be written.
+//
+// A failed write does not overwrite a non-zero code. Whether a destination can be
+// written at all is a property of the destination — /dev/null and a read-only
+// directory both refuse the temp file replaceFile publishes through — not of the
+// spec, so letting it decide the exit code made "the spec reached the --fail-on
+// threshold" report 1 or 2 depending on where -o pointed. The verdict on the spec
+// is the same either way and the write failure is on stderr either way, so the
+// exit code keeps the verdict, and 2 is left to mean a run that failed for a
+// reason outside the spec.
+func writeFailureExit(code int) int {
+	if code != 0 {
+		return code
+	}
+	return 2
 }
 
 // parseArgs binds fs and collects positional arguments, tolerating flags that
@@ -349,9 +367,16 @@ func writeCompiled(opts compileOptions, stdout io.Writer, doc *ir.Document) erro
 // it, which is what makes the swap atomic and which costs four things a
 // truncating write gave for free. All four are accepted deliberately:
 //
-//   - Writing needs permission on the destination's directory, not just on the
-//     destination. Rewriting an existing writable file inside a read-only
-//     directory used to succeed and now fails at temp-file creation.
+//   - Writing needs a directory that will accept a new entry, not just a
+//     writable destination. Rewriting an existing writable file inside a
+//     read-only directory used to succeed and now fails at temp-file creation,
+//     and so does any destination whose directory refuses one — -o /dev/null
+//     most visibly, since /dev takes no temp file. Writing through to such a
+//     destination instead is deliberately not done here: honouring what a name
+//     points at rather than replacing the name is the same trade the symlink and
+//     hard-link entries below decline, and opening a reader-less FIFO for
+//     writing blocks indefinitely. What the failure must not do is decide the
+//     exit code — see writeFailureExit.
 //   - A symlink at outPath is replaced by a regular file instead of being
 //     followed and written through, so its target keeps its old content.
 //   - Other hard links to outPath keep pointing at the old inode, and so keep
