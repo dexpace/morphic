@@ -2330,6 +2330,90 @@ func TestOneOf_CoDeclaredNotDistributedReasons(t *testing.T) {
 		"each declined shape is reported once; got %+v", diags)
 }
 
+// TestUnionCombinators_CoDeclaredKeepsTheBoundsWrittenBesideIt pins that keeping
+// a union verbatim does not cost the position the value constraints written
+// beside it. The alias exists so the union attaches to a node this pointer owns
+// rather than to the shared primitive the body reduced to, and owning a node is
+// what stops hoistDeclarationHome hoisting the alias that would otherwise carry
+// the bounds — so this alias has to carry them itself, as every other hoist here
+// does (GitHub #343).
+//
+// Both reasons that keep a union hoist the same alias, and anyOf rides the same
+// path as oneOf, so each is covered. The last case pins what reading the bounds
+// also produces: the co-declared-bound reconciliation reports at a position
+// nothing used to read, and the keyword it cannot home is kept on the node the
+// bounds landed on. The key set is asserted whole — carrying the constraints
+// without that keyword leaves the diagnostic naming an entry the node lacks.
+func TestUnionCombinators_CoDeclaredKeepsTheBoundsWrittenBesideIt(t *testing.T) {
+	t.Parallel()
+	three := int64(3)
+	ten, five := ir.BigVal("10"), ir.BigVal("5")
+	cases := []struct {
+		name, schemas, unionKey string
+		reason                  ir.UnmodeledReason
+		want                    ir.Constraints
+		wantKept                []string
+		wantDiag                string
+	}{
+		{
+			name:     "a validation-only union",
+			schemas:  "    A: {type: string, minLength: 3, oneOf: [{minLength: 1}, {minLength: 2}]}\n",
+			unionKey: "openapi:oneOf",
+			reason:   ir.ReasonValidationOnly,
+			want:     ir.Constraints{MinLength: &three},
+			wantKept: []string{"openapi:oneOf"},
+		},
+		{
+			name:     "a union kept as a degraded lowering",
+			schemas:  "    A: {type: number, minimum: 10, multipleOf: 5, oneOf: [{type: string}, {type: integer}]}\n",
+			unionKey: "openapi:oneOf",
+			reason:   ir.ReasonDegradedLowering,
+			want:     ir.Constraints{Min: &ten, MultipleOf: &five},
+			wantKept: []string{"openapi:oneOf"},
+		},
+		{
+			name:     "an anyOf kept in place of a oneOf",
+			schemas:  "    A: {type: string, minLength: 3, anyOf: [{minLength: 1}, {minLength: 2}]}\n",
+			unionKey: "openapi:anyOf",
+			reason:   ir.ReasonValidationOnly,
+			want:     ir.Constraints{MinLength: &three},
+			wantKept: []string{"openapi:anyOf"},
+		},
+		{
+			name:     "co-declared bounds beside a union",
+			schemas:  "    A: {type: number, minimum: 10, exclusiveMinimum: 0, oneOf: [{minLength: 1}, {minLength: 2}]}\n",
+			unionKey: "openapi:oneOf",
+			reason:   ir.ReasonValidationOnly,
+			want:     ir.Constraints{Min: &ten},
+			wantKept: []string{"openapi:exclusiveMinimum", "openapi:oneOf"},
+			wantDiag: "kept minimum as the tighter of the two",
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			doc, diags := lowerSpec(t, openapitest.ComponentSpec(tc.schemas))
+			openapitest.RequireNoErrorDiags(t, diags)
+
+			sc, ok := typeByName(doc, "A").(*ir.Scalar)
+			require.True(t, ok, "the preserved union hoists an alias over the shared primitive")
+			entry, ok := sc.Unmodeled[tc.unionKey]
+			require.True(t, ok, "and keeps the union on it")
+			assert.Equal(t, tc.reason, entry.Reason)
+			require.NotNil(t, sc.Constraints, "while keeping the bounds written beside it")
+			assert.Empty(t, cmp.Diff(tc.want, *sc.Constraints))
+			assert.Equal(t, tc.wantKept, unmodeledKeys(sc.Unmodeled),
+				"the bound keyword that reaches no Constraints field is kept on the same node")
+			if tc.wantDiag == "" {
+				return
+			}
+			assert.Contains(t,
+				openapitest.DiagMessageAt(t, diags, diag.DegradedConstruct, ir.SeverityInfo, "/components/schemas/A"),
+				tc.wantDiag, "reading the bounds is what reports on them")
+		})
+	}
+}
+
 // TestUnionCombinators_PassedOverBranchSetIsKept covers the preference nothing
 // used to record (GitHub #35). unionBranches takes oneOf whenever it is written
 // and falls back to anyOf only when it is not, so a schema declaring both lost

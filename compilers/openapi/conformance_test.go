@@ -759,6 +759,9 @@ func assertAllOfRequiredOnly(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) 
 // assertAllOfOneOfCooccurrence pins both halves of the co-declared composition
 // rule: §4.3 distributes a union whose branches all name referents, and §4.8
 // keeps one with an inline branch verbatim rather than distributing it halfway.
+// The verbatim half is covered over a model body, which owns a node already, and
+// over a scalar one, which does not — there the alias hoisted for the union
+// carries what the position wrote beside it too.
 // The outside reference to a branch pointer pins the third thing: a composed
 // variant is Morphic's own node, so it cannot be taken by, or take from, a $ref.
 func assertAllOfOneOfCooccurrence(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
@@ -779,6 +782,15 @@ func assertAllOfOneOfCooccurrence(t *testing.T, doc *ir.Document, _ []ir.Diagnos
 	entry, ok := mixed.Unmodeled["openapi:oneOf"]
 	require.True(t, ok, "and the union it could not absorb survives beside it")
 	assert.Equal(t, ir.ReasonDegradedLowering, entry.Reason)
+
+	bounded, ok := doc.Types[namedID("BoundedKinds")].(*ir.Scalar)
+	require.True(t, ok, "a body that is not a model reduces to a shared primitive and hoists an alias")
+	entry, ok = bounded.Unmodeled["openapi:oneOf"]
+	require.True(t, ok, "which is the node the kept union sits on")
+	assert.Equal(t, ir.ReasonDegradedLowering, entry.Reason)
+	require.NotNil(t, bounded.Constraints, "and the bounds written beside the union sit on it too")
+	require.NotNil(t, bounded.Constraints.MinLength)
+	assert.Equal(t, int64(3), *bounded.Constraints.MinLength)
 
 	outsider, ok := doc.Types[namedID("Outsider")].(*ir.Model)
 	require.True(t, ok)

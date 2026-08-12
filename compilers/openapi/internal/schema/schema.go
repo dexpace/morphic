@@ -428,13 +428,15 @@ func lowerBesideUnmodeledUnion(c lowering.Ctx, ts *compile.Types, anchors *Ancho
 	if got, _ := ts.Lookup(pointer); got != inner {
 		// The structural body reduced to a shared/aliased target; hoist an alias
 		// so the preserved union attaches to a node this pointer owns, never to a
-		// shared primitive.
-		//
-		// Alone among the alias hoists this one reads no constraints, so the
-		// position's bounds — and with them the co-declared keyword kept beside
-		// them — reach no field here. That is GitHub #343, deliberately left as
-		// it was rather than settled as a side effect of the keyword's own fix.
-		owner = internAlias(c, ts, pointer, hint, ir.TypeRef{Target: inner}, nil, nil)
+		// shared primitive. The alias carries the position's value constraints for
+		// the reason hoistByteScalar records: owning the node is what stops
+		// hoistDeclarationHome hoisting the alias that would otherwise carry them.
+		// kept travels with them, so the co-declared bound keyword that reaches no
+		// Constraints field lands on the same node as the bounds it lost to.
+		var kept ir.Unmodeled
+		cons, consDiags := schemaConstraints(c, &kept, s, pointer)
+		diags = append(diags, consDiags...)
+		owner = internAlias(c, ts, pointer, hint, ir.TypeRef{Target: inner}, cons, kept)
 	}
 	return owner, append(diags, preserveUnionSiblings(c, ts, owner, s, pointer, reason, why)...)
 }
