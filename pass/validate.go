@@ -236,7 +236,7 @@ func checkPropIDRefs(doc *ir.Document) []ir.Diagnostic {
 // The fields that carry a Payload are named here — Operation.Request,
 // Response.Payload and Message.Payload — because nothing in a Payload's Go type
 // says who owns one, so a new one has to be added by hand. That coupling is
-// guarded: TestEncodingCarriers_AreEveryPayloadFieldInTheIR
+// guarded: TestEncodingCarriers_NameEveryPayloadFieldInTheIR
 // (validate_carriers_test.go) walks the IR for Payload-bearing fields and fails
 // the moment one of them is not walked here.
 func checkEncodingKeys(doc *ir.Document) []ir.Diagnostic {

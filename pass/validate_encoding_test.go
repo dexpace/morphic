@@ -27,7 +27,7 @@ type encodingCarrier struct {
 }
 
 // encodingCarriers enumerates the Payload-bearing fields checkEncodingKeys walks.
-// TestEncodingCarriers_AreEveryPayloadFieldInTheIR holds this list against the
+// TestEncodingCarriers_NameEveryPayloadFieldInTheIR holds this list against the
 // IR and the cases below hold checkEncodingKeys against this list, so a carrier
 // added to the IR has to reach both.
 func encodingCarriers() []encodingCarrier {

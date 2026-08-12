@@ -122,8 +122,9 @@ func payloadFields(t *testing.T) []string {
 // slice, array or map of one.
 //
 // It does not descend into structs. A field whose type merely reaches a Payload
-// further down is the spine leading to a carrier — Document.Services reaches
-// every one of today's — and naming the spine would name most of the IR.
+// further down is the spine leading to a carrier — Document.Services and
+// Document.Messages between them reach every one of today's — and naming the
+// spine would name most of the IR.
 func carriesPayload(t *testing.T, rt reflect.Type, depth int) bool {
 	t.Helper()
 	require.Less(t, depth, maxFieldTypeDepth, "resolving a field type exceeded %d steps", maxFieldTypeDepth)
@@ -162,8 +163,36 @@ func irTypeKinds(t *testing.T) []ir.TypeKind {
 			kinds = append(kinds, typeKindsIn(t, gd)...)
 		}
 	}
-	require.NotEmpty(t, kinds, "the ir sources must declare TypeKind constants")
+	require.Len(t, kinds, irTypeDefImpls(t),
+		"the sum holds one concrete type per kind, so a count that disagrees means this parse "+
+			"stopped seeing every constant rather than that the IR changed")
 	return kinds
+}
+
+// irTypeDefImpls counts the concrete types the ir sources seal into the TypeDef
+// sum, by the typeDef() marker methods that seal them.
+//
+// It reads the same sources by a different route, and exists to hold the other
+// reading to completeness. irTypeKinds finding constants proves its parse ran,
+// not that it saw them all, and a walk seeded from a subset skips whole concrete
+// kinds in silence — the failure this file exists to catch, one level up in the
+// machinery catching it. Removing a kind drops its constant and its marker
+// together, so the two agree without anyone maintaining a number.
+func irTypeDefImpls(t *testing.T) int {
+	t.Helper()
+	impls := 0
+	for _, path := range irSourcePaths(t) {
+		f, err := parser.ParseFile(token.NewFileSet(), path, nil, parser.SkipObjectResolution)
+		require.NoError(t, err, "parsing %s", path)
+		for _, decl := range f.Decls {
+			fd, isFunc := decl.(*ast.FuncDecl)
+			if isFunc && fd.Recv != nil && fd.Name.Name == "typeDef" {
+				impls++
+			}
+		}
+	}
+	require.NotZero(t, impls, "the ir sources must seal concrete types into the TypeDef sum")
+	return impls
 }
 
 // typeKindsIn returns the TypeKind constants one const group declares. A spec
