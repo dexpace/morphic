@@ -471,9 +471,21 @@ const maxDiscriminatorAncestorDepth = 256
 //
 // Level by level rather than chain by chain, so "nearest" means fewest hops —
 // which is what decides between two ancestors whose mappings both name the same
-// subtype. The visited set is load-bearing, not defensive: a cyclic composition
-// (`A: allOf [$ref B]`, `B: allOf [$ref A]`) compiles without a diagnostic and
-// reaches here, and a walk over one must terminate rather than spin.
+// subtype.
+//
+// The visited set is what bounds the work, and the depth cap does not stand in
+// for it wherever the walk branches. A schema more than one branch reaches is
+// walked once with the set and once per path without it, so the frontier
+// multiplies by the fan-out at every level: 2^level for a chain of diamonds,
+// 5^level for the six-schema cycle where each composes all the others. The cap
+// then bounds the number of levels, not the work, and the walk stops finishing.
+//
+// A cycle with no fan-out is the one shape the cap alone does handle — `A: allOf
+// [$ref B]`, `B: allOf [$ref A]` keeps a frontier of one and simply runs the cap
+// out. That is why the case is not the cycle but the branching, and why both
+// TestAllOf_DiscriminatorValueCyclicComposition (cyclic, fan-out 5) and
+// TestCompile_SharedCompositionAncestorsDoNotAmplify (acyclic, fan-out 2) are
+// needed to hold it: the first stops finishing, the second says so and names why.
 func ancestorDiscriminators(s *oas3.Schema) []*oas3.Discriminator {
 	var out []*oas3.Discriminator
 	visited := make(map[*oas3.Schema]bool)
