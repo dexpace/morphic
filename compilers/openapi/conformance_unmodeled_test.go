@@ -196,6 +196,28 @@ func assertAllOfBooleanBranch(t *testing.T, doc *ir.Document, diags []ir.Diagnos
 	require.True(t, ok)
 	assert.Equal(t, ir.AdditionalClosed, bare.Additional, "the rule the composed case is held to")
 	assert.Empty(t, bare.Properties)
+
+	// The whole-schema half keeps itself verbatim for the same reason the branch
+	// half does (GitHub #350). A closed empty Model admits {} and the source
+	// admits nothing, so the lowered type is one value wider than what was
+	// written; the entry is what makes that recoverable.
+	bareEntry := unmodeledEntry(t, bare.Unmodeled, "openapi:schema")
+	assert.Equal(t, ir.ReasonDegradedLowering, bareEntry.Reason)
+	assert.JSONEq(t, `false`, string(bareEntry.Value))
+	assert.Equal(t, []ir.Severity{ir.SeverityInfo},
+		diagsAt(diags, "openapi/false-schema", "/components/schemas/BareFalse"))
+
+	// And the claim that motivates it: the two shapes are now distinguishable.
+	// Both are closed empty models, so nothing but the preserved schema separates
+	// them, and asserting the pair is what stops the entry being dropped again.
+	closed, ok := doc.Types[namedID("ClosedEmpty")].(*ir.Model)
+	require.True(t, ok)
+	assert.Equal(t, bare.Additional, closed.Additional, "the two agree on everything else")
+	assert.Empty(t, closed.Properties)
+	assert.Empty(t, closed.Unmodeled,
+		"additionalProperties: false is exactly what the IR says, so it keeps nothing")
+	assert.NotEqual(t, bare.Unmodeled, closed.Unmodeled,
+		"a false schema and a closed empty model are no longer the same node")
 }
 
 // assertAllOfInlineResidue pins the residue of an inline allOf branch: the merge
