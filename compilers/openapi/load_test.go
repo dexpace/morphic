@@ -9,6 +9,7 @@ import (
 
 	"github.com/dexpace/morphic/compilers"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
+	"github.com/dexpace/morphic/compilers/openapi/internal/openapitest"
 )
 
 // resolverPanicSpec is a document the parser accepts and the resolver faults on:
@@ -37,7 +38,7 @@ func TestCompile_ResolverPanicIsADiagnostic(t *testing.T) {
 // fine on its own, so the finding is still an artifact and must not surface.
 func TestLoad_RecoverableLiteralSuppressesFindingAmongOtherScalars(t *testing.T) {
 	t.Parallel()
-	_, diags := parseFull(t, componentSpec(`    S: {type: string, default: !custom foo, example: .5}`))
-	assert.False(t, hasDiag(diags, diag.Validation+"/"+string(validation.RuleValidationInvalidSyntax)),
+	_, diags := parseFull(t, openapitest.ComponentSpec(`    S: {type: string, default: !custom foo, example: .5}`))
+	assert.False(t, openapitest.HasDiag(diags, diag.Validation+"/"+string(validation.RuleValidationInvalidSyntax)),
 		"a finding a recoverable literal explains stays suppressed: %+v", diags)
 }

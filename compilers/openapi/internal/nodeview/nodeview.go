@@ -363,18 +363,51 @@ func InternalPointer(ref string) (string, bool) {
 // walk passes through, so a pointer that traverses a reference already being
 // resolved deadlocks before it ever arrives (v1.24.0, openapi/reference.go
 // resolve/GetObject). A target alone cannot express that.
+//
+// The leading '/' introduces the first token rather than being one, and every
+// later '/' separates two — so '/a/' carries the tokens "a" and "", the second
+// naming a member whose key is the empty string (RFC 6901 §3, and
+// jsonpointer/navigation.go getNavigationStack, v1.24.0, which reads it the
+// same way).
+// Dropping the empty token instead is what a pointer's danger being upstream of
+// its destination makes unsafe: it turns a node the walk descends *through* into
+// the node it stops at, and the caller's re-entrancy check exempts exactly that
+// node (GitHub #238).
 func (v *View) PointerPath(root *yaml.Node, pointer string) (path []*yaml.Node, complete bool) {
+	return v.walkPointer(root, pointer, tokenless(pointer))
+}
+
+// DocumentPath walks a pointer that names a position in this document rather
+// than a reference some source wrote, and is otherwise PointerPath.
+//
+// The two part company on '/'. PointerPath lands it on the root because that is
+// where the resolver lands it, a departure from RFC 6901 that tokenless records.
+// A position built by ids.Ptr carries no such departure: ids.Ptr("") spells the
+// root member whose key is the empty string exactly '/', so reading that as the
+// root walks past the member the pointer names. Only the empty pointer names the
+// root here.
+//
+// The distinction is load-bearing for a caller reading $id down a path: taking
+// '/' for the root hides an $id written on that member, which is the same
+// dropped-empty-token loss the rest of this walk exists to avoid.
+func (v *View) DocumentPath(root *yaml.Node, pointer string) (path []*yaml.Node, complete bool) {
+	return v.walkPointer(root, pointer, pointer == "")
+}
+
+// walkPointer is the shared walk; atRoot says whether pointer carries no tokens
+// at all, which is the one question the two readings answer differently.
+func (v *View) walkPointer(root *yaml.Node, pointer string, atRoot bool) (path []*yaml.Node, complete bool) {
 	cur := Deref(root)
 	if cur == nil {
 		return nil, false
 	}
 	path = append(path, cur)
+	if atRoot {
+		return path, true
+	}
 
 	segments := 0
-	for raw := range strings.SplitSeq(pointer, "/") {
-		if raw == "" {
-			continue
-		}
+	for raw := range strings.SplitSeq(strings.TrimPrefix(pointer, "/"), "/") {
 		segments++
 		if segments > maxPointerSegments {
 			return path, false
@@ -386,6 +419,18 @@ func (v *View) PointerPath(root *yaml.Node, pointer string) (path []*yaml.Node, 
 		path = append(path, cur)
 	}
 	return path, true
+}
+
+// tokenless reports whether a pointer carries no reference tokens at all, so it
+// names the root. Two spellings do, and the resolver lands on the root for both
+// (v1.24.0): the empty pointer, which is how a bare '#' reaches here and which
+// references/resolution.go resolveAgainstDocument short-circuits to the root
+// document, and a lone '/'. The second is a deliberate departure from RFC 6901,
+// which reads '/' as one empty token — getNavigationStack special-cases it to an
+// empty navigation stack, and this walk models what the resolver walks rather
+// than what the grammar admits.
+func tokenless(pointer string) bool {
+	return pointer == "" || pointer == "/"
 }
 
 // ChildByToken returns the child of a mapping (by key) or sequence (by index)

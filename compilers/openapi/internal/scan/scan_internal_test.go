@@ -3,6 +3,7 @@ package scan
 import (
 	"fmt"
 	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"testing"
@@ -14,6 +15,7 @@ import (
 
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/nodeview"
+	"github.com/dexpace/morphic/compilers/openapi/internal/sourceindex"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -45,10 +47,38 @@ var cycleReproducers = []struct{ name, file string }{
 	{"path-item-prefix-chain", "cycle_path_item_prefix_chain"},
 	{"component-path-item-prefix", "cycle_component_path_item_prefix"},
 	{"webhook-prefix-self", "cycle_webhook_prefix_self"},
+	{"path-item-empty-segment", "cycle_path_item_empty_segment"},
 	// A self-reference only the resolver's pointer normalization reveals, which
 	// overflows the stack rather than deadlocking: the resolution cache ends up
 	// pointing at its own reference and GetObject's delegation recurses.
 	{"pointer-whitespace-self", "cycle_pointer_whitespace_self"},
+}
+
+// TestCycleReproducers_EveryFixtureIsExercised holds cycleReproducers to the
+// fixtures on disk. A cycle_*.yaml added to the corpus and left out of the table
+// is scanned by nothing here, and the suite stays green while the corpus grows
+// past it.
+//
+// The compiler package keeps a table of the same fixtures for its own assertion
+// and carries the twin of this test. Holding both to one directory is what stops
+// the two from drifting apart as well as from the corpus, which neither package
+// can check directly — a test package cannot import another's.
+func TestCycleReproducers_EveryFixtureIsExercised(t *testing.T) {
+	t.Parallel()
+	onDisk, err := filepath.Glob(filepath.Join(reproducerDir, "cycle_*.yaml"))
+	require.NoError(t, err, "globbing the reproducer corpus")
+	require.NotEmpty(t, onDisk, "the corpus holds cycle reproducers")
+
+	listed := make(map[string]bool, len(cycleReproducers))
+	for _, tc := range cycleReproducers {
+		listed[tc.file+".yaml"] = true
+	}
+	for _, path := range onDisk {
+		assert.True(t, listed[filepath.Base(path)],
+			"%s is in %s but not in cycleReproducers", filepath.Base(path), reproducerDir)
+	}
+	assert.Len(t, cycleReproducers, len(onDisk),
+		"cycleReproducers and %s hold different numbers of fixtures", reproducerDir)
 }
 
 func TestDetectCycles_Reproducers(t *testing.T) {
@@ -57,7 +87,7 @@ func TestDetectCycles_Reproducers(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			data := readReproducer(t, tc.file)
-			diags := Cycles(0, data)
+			diags := scanBytes(t, data)
 			require.NotEmpty(t, diags, "degenerate cycle must be diagnosed")
 			assert.Equal(t, diag.CyclicRef, diags[0].Code)
 			assert.Equal(t, ir.SeverityError, diags[0].Severity)
@@ -70,7 +100,7 @@ func TestDetectCycles_LegalRecursionClean(t *testing.T) {
 	t.Parallel()
 	data, err := os.ReadFile("../../../../testdata/conformance/openapi/recursive.yaml")
 	require.NoError(t, err)
-	assert.Empty(t, Cycles(0, data), "legal recursion is not a degenerate cycle")
+	assert.Empty(t, scanBytes(t, data), "legal recursion is not a degenerate cycle")
 }
 
 var refShapedDataSpecs = []struct {
@@ -207,21 +237,53 @@ func TestDetectCycles_RefShapedDataIsClean(t *testing.T) {
 	for _, tc := range refShapedDataSpecs {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			assert.Empty(t, Cycles(0, []byte(tc.data)),
+			assert.Empty(t, scanBytes(t, []byte(tc.data)),
 				"a ref-shaped structure outside a schema position is not a degenerate cycle")
 		})
 	}
 }
 
-func TestDetectCycles_NonYAMLIsNoCycle(t *testing.T) {
+// TestDetectCycles_EmptyDocumentIsNoCycle covers the index a source with nothing
+// in it produces. A source that does not decode at all no longer reaches here —
+// load refuses it as a parse error before it indexes anything — so the empty
+// document is the only sourceless index the scan can be handed.
+func TestDetectCycles_EmptyDocumentIsNoCycle(t *testing.T) {
 	t.Parallel()
-	assert.Empty(t, Cycles(0, nil))
-	assert.Empty(t, Cycles(0, []byte("\t\x00: [")))
+	assert.Empty(t, Cycles(0, sourceindex.Build(nil, sourceindex.MaxIndexedNodes)))
+	assert.Empty(t, scanBytes(t, nil))
 }
+
+// scanBytes decodes source bytes and runs the refusals over the index built from
+// them — what load does around Cycles, with the compile's one decode.
+func scanBytes(t *testing.T, data []byte) []ir.Diagnostic {
+	t.Helper()
+	return Cycles(0, indexOf(t, data))
+}
+
+// indexOf decodes source bytes and indexes the tree. A fixture that does not
+// decode never reaches the scan in a real compile — load returns a parse error
+// first — so a decode failure here is a broken fixture, not a case to scan.
+func indexOf(t *testing.T, data []byte) sourceindex.Index {
+	t.Helper()
+	var root yaml.Node
+	require.NoError(t, yaml.Unmarshal(data, &root), "the fixture must decode")
+	return sourceindex.Build(&root, sourceindex.MaxIndexedNodes)
+}
+
+// rawNodes is a tree's own node count, before any alias is substituted, as the
+// source index derives it.
+func rawNodes(n *yaml.Node) int64 {
+	return sourceindex.Build(n, sourceindex.MaxIndexedNodes).Nodes()
+}
+
+// reproducerDir is where the cycle fixtures live. The reader below and the table
+// guard both derive their paths from it, so neither can end up looking somewhere
+// the other is not.
+const reproducerDir = "../../../../testdata/openapi"
 
 func readReproducer(t *testing.T, file string) []byte {
 	t.Helper()
-	data, err := os.ReadFile("../../../../testdata/openapi/" + file + ".yaml")
+	data, err := os.ReadFile(filepath.Join(reproducerDir, file+".yaml"))
 	require.NoError(t, err)
 	return data
 }
@@ -268,20 +330,14 @@ func TestRecoverCycleScan_PassesThroughResult(t *testing.T) {
 
 func TestDetectCycles_WhitespaceOnlyIsNoCycle(t *testing.T) {
 	t.Parallel()
-	assert.Empty(t, Cycles(0, []byte("\n\n\n")))
-	assert.Empty(t, Cycles(0, []byte("# only a comment\n")))
-}
-
-func TestWalkAnchors_NilNode(t *testing.T) {
-	t.Parallel()
-	_, ok := walkAnchors(0, nil, map[*yaml.Node]bool{}, 0)
-	assert.False(t, ok)
+	assert.Empty(t, scanBytes(t, []byte("\n\n\n")))
+	assert.Empty(t, scanBytes(t, []byte("# only a comment\n")))
 }
 
 func TestDetectCycles_LegalAliasReuseClean(t *testing.T) {
 	t.Parallel()
 	src := "a: &x {p: 1}\nb: *x\n"
-	assert.Empty(t, Cycles(0, []byte(src)),
+	assert.Empty(t, scanBytes(t, []byte(src)),
 		"an alias to a non-ancestor anchor is legal reuse")
 }
 
@@ -306,8 +362,8 @@ func TestDetectCycles_MalformedSchemaShapes(t *testing.T) {
 		"components:\n  schemas: [1, 2]\n"
 	allOfNotSeq := "openapi: 3.1.0\ninfo: {title: t, version: '1'}\npaths: {}\n" +
 		"components:\n  schemas:\n    A:\n      allOf: {x: 1}\n"
-	assert.Empty(t, Cycles(0, []byte(schemasNotMap)), "schemas as a sequence is not a schema map")
-	assert.Empty(t, Cycles(0, []byte(allOfNotSeq)), "allOf as a mapping is not a schema list")
+	assert.Empty(t, scanBytes(t, []byte(schemasNotMap)), "schemas as a sequence is not a schema map")
+	assert.Empty(t, scanBytes(t, []byte(allOfNotSeq)), "allOf as a mapping is not a schema list")
 }
 
 func TestFollowRefChain_DepthCapReturnsFalse(t *testing.T) {
@@ -539,9 +595,9 @@ paths: {}
 x-anchors: {k: &k '<<', base: &base {$ref: '#/components/schemas/A'}}
 components: {schemas: {A: {*k : *base}}}
 `
-	assert.Empty(t, Cycles(0, []byte(quoted)),
+	assert.Empty(t, scanBytes(t, []byte(quoted)),
 		"a quoted '<<' is a plain key to speakeasy, not a merge")
-	assert.Empty(t, Cycles(0, []byte(aliasedKey)),
+	assert.Empty(t, scanBytes(t, []byte(aliasedKey)),
 		"an alias standing in for the key is a plain key to speakeasy, not a merge")
 }
 
@@ -582,7 +638,7 @@ func TestDetectCycles_TruncationDoesNotDisableTheRestOfTheScan(t *testing.T) {
 	b.WriteString("    A: {$ref: '#/components/schemas/B'}\n")
 	b.WriteString("    B: {$ref: '#/components/schemas/A'}\n")
 
-	diags := Cycles(0, []byte(b.String()))
+	diags := scanBytes(t, []byte(b.String()))
 	require.NotEmpty(t, diags)
 	assert.Equal(t, diag.CyclicRef, diags[0].Code,
 		"a cycle outside the truncated chain is still found, and outranks the warning")
@@ -665,9 +721,12 @@ func TestDetectCycles_MergeChainPastBoundStaysFastAndWarns(t *testing.T) {
 func scanWithin(t *testing.T, src, blowup string) []ir.Diagnostic {
 	t.Helper()
 	const bound = 10 * time.Second
+	// Indexed on this goroutine: the walk is linear in the tree, and require
+	// must not be called from the one below.
+	idx := indexOf(t, []byte(src))
 	done := make(chan []ir.Diagnostic, 1)
 	go func() {
-		done <- Cycles(0, []byte(src))
+		done <- Cycles(0, idx)
 	}()
 	select {
 	case diags := <-done:
@@ -722,7 +781,30 @@ info: {title: t, version: '1'}
 paths:
   /a: {$ref: '#/paths/~1a/t'}
 `
-	diags := Cycles(0, []byte(src))
+	diags := scanBytes(t, []byte(src))
+	require.NotEmpty(t, diags, "a pointer that resolves through its own reference must be refused")
+	assert.Equal(t, diag.CyclicRef, diags[0].Code)
+	assert.Equal(t, ir.SeverityError, diags[0].Severity)
+}
+
+// TestDetectCycles_EmptyPointerSegmentIsRefused covers the spelling that walked
+// past the refusal above: a trailing separator. '#/components/pathItems/A/' ends
+// in an empty reference token, which RFC 6901 and the resolver's parser both
+// read as naming the key "" under A. The resolver therefore descends *through*
+// A — the reference it is already resolving — and deadlocks, while a scan that
+// dropped the empty token read the pointer as stopping at A and reported a
+// components-only cycle it left to the resolver.
+func TestDetectCycles_EmptyPointerSegmentIsRefused(t *testing.T) {
+	t.Parallel()
+	const src = `openapi: 3.1.0
+info: {title: t, version: '1'}
+paths:
+  /a: {$ref: '#/components/pathItems/A'}
+components:
+  pathItems:
+    A: {$ref: '#/components/pathItems/A/'}
+`
+	diags := scanBytes(t, []byte(src))
 	require.NotEmpty(t, diags, "a pointer that resolves through its own reference must be refused")
 	assert.Equal(t, diag.CyclicRef, diags[0].Code)
 	assert.Equal(t, ir.SeverityError, diags[0].Severity)
@@ -747,41 +829,18 @@ func TestDetectCycles_PointerIsNormalizedLikeTheResolver(t *testing.T) {
 	for name, ref := range refs {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
-			diags := Cycles(0, []byte(head+ref+tail))
+			diags := scanBytes(t, []byte(head+ref+tail))
 			require.NotEmpty(t, diags, "the resolver reads this pointer as naming /a")
 			assert.Equal(t, diag.CyclicRef, diags[0].Code)
 		})
 	}
 }
 
-// TestCyclesInNode_FindsWhatCyclesFindsInTheSameBytes pins the node-taking entry
-// against the byte-taking one. They must agree, because the only reason the
-// second exists is a caller holding a tree the source bytes no longer describe —
-// an overlay's — and a scan that classified a decoded tree differently would let
-// exactly the documents it was added for through.
-func TestCyclesInNode_FindsWhatCyclesFindsInTheSameBytes(t *testing.T) {
+// TestDetectCycles_AcceptsATreeWithNoCycle is the control the refusal cases
+// need: without it, a suite made only of refusals would pass on a scan that
+// refused everything handed to it.
+func TestDetectCycles_AcceptsATreeWithNoCycle(t *testing.T) {
 	t.Parallel()
-	for _, tc := range cycleReproducers {
-		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
-			data := readReproducer(t, tc.file)
-
-			var root yaml.Node
-			require.NoError(t, yaml.Unmarshal(data, &root))
-
-			assert.Equal(t, Cycles(0, data), CyclesInNode(0, &root))
-		})
-	}
-}
-
-// TestCyclesInNode_AcceptsATreeWithNoCycle is the control: without it, an
-// agreement test over refusals alone would pass on an entry point that refused
-// everything handed to it.
-func TestCyclesInNode_AcceptsATreeWithNoCycle(t *testing.T) {
-	t.Parallel()
-	var root yaml.Node
-	require.NoError(t, yaml.Unmarshal([]byte(
-		"openapi: 3.1.0\ncomponents: {schemas: {A: {$ref: '#/components/schemas/B'}, B: {type: string}}}\n"), &root))
-
-	assert.Empty(t, CyclesInNode(0, &root))
+	assert.Empty(t, scanBytes(t, []byte(
+		"openapi: 3.1.0\ncomponents: {schemas: {A: {$ref: '#/components/schemas/B'}, B: {type: string}}}\n")))
 }
