@@ -1741,6 +1741,48 @@ func assertNoPassedOverSpelling(t *testing.T, u ir.Unmodeled, at string) {
 	assert.NotContains(t, u, "openapi:content", "%s kept a content map it never passed over", at)
 }
 
+// TestElectTypeSpelling_ElectedContentWithoutASchemaStillWins pins the edge the
+// election's rationale is stated against: `content` is elected because it is the
+// more expressive spelling, and the rule holds even at the one shape where it is
+// not — an entry naming a media type but no schema.
+//
+// The type is `any` and the declared integer sits beside it, rather than the
+// other way round. Electing per entry would recover this case and lose what the
+// election is for: two documents alike but for whether an entry names a schema
+// would then elect different spellings, which is the disagreement being fixed.
+func TestElectTypeSpelling_ElectedContentWithoutASchemaStillWins(t *testing.T) {
+	t.Parallel()
+	doc, diags := parseFull(t, openapitest.PathsSpec(`  /x:
+    get:
+      operationId: getX
+      parameters:
+        - name: p
+          in: query
+          schema: {type: integer}
+          content:
+            application/json: {}
+      responses: {"200": {description: ok}}
+`))
+	op := openapitest.FindOp(t, doc, "getX")
+	require.Len(t, op.Params, 1)
+	assert.Equal(t, ir.TypeID("t/prim/any"), op.Params[0].Type.Target,
+		"the elected content states no schema, so the position states no type")
+	require.Len(t, op.Bindings.HTTP, 1)
+	require.Len(t, op.Bindings.HTTP[0].ParamBindings, 1)
+	assert.Equal(t, "application/json", op.Bindings.HTTP[0].ParamBindings[0].ContentType,
+		"the media type it does state is still modelled")
+
+	at := "/paths/~1x/get/parameters/0/schema"
+	entry, ok := op.Params[0].Unmodeled["openapi:schema"]
+	require.True(t, ok, "and the passed-over schema is kept; got %v", op.Params[0].Unmodeled)
+	assert.Equal(t, ir.ReasonDegradedLowering, entry.Reason)
+	assert.JSONEq(t, `{"type":"integer"}`, string(entry.Value))
+	assert.Equal(t, at, entry.Provenance.Pointer)
+
+	msg := openapitest.DiagMessageAt(t, diags, diag.DegradedConstruct, ir.SeverityWarning, at)
+	assert.Contains(t, msg, "lowered as its content", "the message names the elected spelling")
+}
+
 // TestElectTypeSpelling_UnusableContentElectsSchemaAndKeepsIt covers the other
 // direction. A `content` map yielding no entry states no type, so the schema is
 // elected instead — but the document declared both spellings either way, and the

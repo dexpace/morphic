@@ -513,11 +513,20 @@ type typeSpelling struct {
 // `content` wins because it is the more expressive of the two. A media-type
 // entry carries a schema *and* the media type serializing it, and both have IR
 // homes at these positions — HTTPParamBinding.ContentType and
-// Property.Encoding.MediaType — so electing it leaves nothing modelled behind,
-// where electing `schema` would push a declared wire fact the IR does model into
-// an opaque Unmodeled payload. The specification is no help in choosing: 3.1
-// names `schema` first in the very sentence forbidding both and 3.2 names
-// `content` first, and a prohibition states no precedence in either order.
+// Property.Encoding.MediaType — so electing it keeps in modelled form what
+// electing `schema` would push into an opaque Unmodeled payload: a declared wire
+// fact the IR does hold. The specification is no help in choosing: 3.1 names
+// `schema` first in the very sentence forbidding both and 3.2 names `content`
+// first, and a prohibition states no precedence in either order.
+//
+// The rule is unconditional, so it holds even where the elected entry states no
+// schema of its own: `{schema: {type: integer}, content: {application/json: {}}}`
+// lowers to `any` with the integer kept beside it, rather than to the integer.
+// Electing per entry instead would recover that one case and cost the property
+// the election exists for — two documents alike but for whether an entry names a
+// schema would elect different spellings, which is the shape of the bug being
+// fixed. Both keywords together is a document OpenAPI forbids; what matters is
+// that neither is dropped and the choice does not turn on how it was written.
 //
 // The two positions used to disagree, and only one of the orders was a decision:
 // fillParamType read `content` first from the start, while the header path read
