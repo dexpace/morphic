@@ -6,13 +6,11 @@ components:
     # The root anchors the hierarchy; discriminator-inheritance covers it one
     # level deep, and what this spec adds is depth.
     #
-    # The mapping names only the direct child. Naming a grandchild is legal
-    # OpenAPI and the compiler reads it — TestAllOf_DiscriminatorValueFromDistant
-    # Mapping in compilers/openapi/internal/schema pins that — but pass.Validate
-    # still refuses a transitive mapping target as a missing variant (GitHub #52),
-    # and every corpus spec has to clear that sweep. So the mapping-key spelling
-    # is witnessed in the compiler's own tests and the implicit-name spelling
-    # here; both need the ancestor walk, and neither survives reading one hop.
+    # Both spellings of a tag at depth are here. The mapping names Puppy, two
+    # hops down, which is a base routing a wire value straight onto a grandchild;
+    # Whelp is named by nothing and answers to its own schema name three hops
+    # down. Neither survives reading the chain one hop, and a transitive mapping
+    # target only became witnessable in the corpus when #52 closed.
     Pet:
       type: object
       required: [petType]
@@ -22,6 +20,7 @@ components:
         propertyName: petType
         mapping:
           dog: '#/components/schemas/Dog'
+          puppy: '#/components/schemas/Puppy'
     # One level down and named by the mapping: the tag is on the branch's own
     # target, so this much a one-hop reading already found.
     Dog:
@@ -29,15 +28,16 @@ components:
         - {$ref: '#/components/schemas/Pet'}
       properties:
         bark: {type: boolean}
-    # Two levels down. Its branch is Dog, which declares no discriminator of its
-    # own, so the hierarchy is only visible past the immediate parent — and with
-    # it the implicit schema name this subtype answers to.
+    # Two levels down, and named by the mapping: its branch is Dog, which
+    # declares no discriminator of its own, so the key the root spells for it is
+    # only visible past the immediate parent.
     Puppy:
       allOf:
         - {$ref: '#/components/schemas/Dog'}
       properties:
         weeks: {type: integer}
-    # Three levels down: one intermediate is not a special case of two.
+    # Three levels down and named by nothing: one intermediate is not a special
+    # case of two, and the tag it answers to is its own schema name.
     Whelp:
       allOf:
         - {$ref: '#/components/schemas/Puppy'}

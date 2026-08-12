@@ -118,7 +118,8 @@
       "discriminator": {
         "property": "p/openapi/components/schemas/Pet/properties/petType",
         "mapping": {
-          "dog": "t/openapi/components/schemas/Dog"
+          "dog": "t/openapi/components/schemas/Dog",
+          "puppy": "t/openapi/components/schemas/Puppy"
         },
         "inferred": false
       },
@@ -220,7 +221,7 @@
       },
       "abstract": false,
       "positional": false,
-      "discriminatorValue": "Puppy",
+      "discriminatorValue": "puppy",
       "inputOnly": false
     },
     "t/openapi/components/schemas/Sapling": {
@@ -428,7 +429,7 @@
     {
       "format": "openapi@3.1",
       "path": "discriminator-transitive.yaml",
-      "hash": "73dfc5377dfac9f15536492db87cfe99e964a50fa80dc4292eee80c487cf955c"
+      "hash": "c6f39362f85915b85e76a39105962beb75911aefd6dd499d4886c8971c633e38"
     }
   ]
 }

@@ -18,6 +18,61 @@
     }
   ],
   "types": {
+    "t/anon/components/schemas/": {
+      "kind": "scalar",
+      "id": "t/anon/components/schemas/",
+      "name": {
+        "hint": "empty"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "unmodeled": {
+        "openapi:$dynamicRef": {
+          "reason": "degraded_lowering",
+          "value": "#T",
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas//$dynamicRef"
+          }
+        },
+        "openapi:$id": {
+          "reason": "out_of_scope",
+          "value": "https://example.com/empty",
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas//$id"
+          }
+        }
+      },
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/"
+      },
+      "base": {
+        "target": "t/prim/any",
+        "nullable": false
+      }
+    },
+    "t/openapi/components/schemas/Leaf": {
+      "kind": "scalar",
+      "id": "t/openapi/components/schemas/Leaf",
+      "name": {
+        "source": "Leaf",
+        "canonical": "leaf"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Leaf"
+      },
+      "base": {
+        "target": "t/prim/string",
+        "nullable": false
+      }
+    },
     "t/openapi/components/schemas/Node": {
       "kind": "model",
       "id": "t/openapi/components/schemas/Node",
@@ -105,6 +160,33 @@
           "provenance": {
             "source": 0,
             "pointer": "/components/schemas/Tree/properties/child"
+          }
+        },
+        {
+          "id": "p/openapi/components/schemas/Tree/properties/escaped",
+          "name": {
+            "source": "escaped",
+            "canonical": "escaped"
+          },
+          "wireName": "escaped",
+          "type": {
+            "target": "t/openapi/components/schemas/Leaf",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/Tree/properties/escaped"
           }
         },
         {
@@ -196,11 +278,38 @@
     },
     {
       "severity": "info",
+      "code": "openapi/dynamic-ref-expanded",
+      "message": "$dynamicRef expanded to \"t/openapi/components/schemas/Leaf\", the one matching $dynamicAnchor in this document",
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Tree/properties/escaped/$dynamicRef"
+      }
+    },
+    {
+      "severity": "info",
       "code": "openapi/degraded-construct",
       "message": "$dynamicRef was not expanded because no $dynamicAnchor \"Missing\" is declared in this document; it is kept verbatim under Unmodeled",
       "provenance": {
         "source": 0,
         "pointer": "/components/schemas/Tree/properties/ghost/$dynamicRef"
+      }
+    },
+    {
+      "severity": "info",
+      "code": "openapi/degraded-construct",
+      "message": "$id identifies or configures a JSON Schema resource rather than describing data; the IR models no such axis, so it is kept verbatim under Unmodeled and is not honoured for reference resolution",
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas//$id"
+      }
+    },
+    {
+      "severity": "info",
+      "code": "openapi/degraded-construct",
+      "message": "$dynamicRef was not expanded because an $id at or above \"/components/schemas/\" starts a schema resource of its own, and the IR resolves no resource base URIs; it is kept verbatim under Unmodeled",
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas//$dynamicRef"
       }
     }
   ],
@@ -208,7 +317,7 @@
     {
       "format": "openapi@3.1",
       "path": "dynamic-ref.yaml",
-      "hash": "5232d8fc85addaa79bbe944d295786dbd6f206d0c74bdb02f1b1ee2a4f829baa"
+      "hash": "4ae3f35d31355eedd294ecae9d7a312ec39cb830a1ed5826b90404d29eaf529b"
     }
   ]
 }

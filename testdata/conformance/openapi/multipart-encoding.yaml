@@ -62,7 +62,10 @@ paths:
                   type: array
                   items: {type: string}
             encoding:
-              ids: {style: form, explode: true}
+              # allowReserved sits beside style and explode in the source and has
+              # no ir.PartEncoding field, where those two do; it is kept verbatim
+              # on the content instead of vanishing (GitHub #291).
+              ids: {style: form, explode: true, allowReserved: true}
       responses:
         "200":
           description: ok

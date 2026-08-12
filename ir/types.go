@@ -61,6 +61,27 @@ const (
 	PrimAny PrimKind = "any"
 )
 
+// Valid reports whether k is one of the kinds declared above. PrimKind is a bare
+// string enum, so nothing rejects an invented or stale value on the wire, and
+// PrimTypeID derives a consistent ID from any string it is handed — an invented
+// kind agrees with its own ID and reads as sound. irverify calls this so a kind
+// no emitter can switch on is reported as the compiler bug it is, rather than
+// reaching a target that has no type to lower it to.
+func (k PrimKind) Valid() bool {
+	switch k {
+	case PrimBool, PrimString, PrimBytes,
+		PrimInt8, PrimInt16, PrimInt32, PrimInt64,
+		PrimUint8, PrimUint16, PrimUint32, PrimUint64,
+		PrimInteger, PrimFloat32, PrimFloat64, PrimFloat, PrimNumber,
+		PrimDecimal, PrimDecimal128,
+		PrimDate, PrimTime, PrimDatetime, PrimDatetimeOffset, PrimDuration,
+		PrimURL, PrimUUID, PrimAny:
+		return true
+	default:
+		return false
+	}
+}
+
 // AdditionalMode describes the openness of a model's property set beyond its
 // declared properties and AdditionalProps (ir-design §4.3).
 type AdditionalMode string
