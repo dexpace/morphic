@@ -28,3 +28,21 @@ paths:
         - {name: status, in: query, schema: {type: string}}
       responses:
         "200": {description: ok}
+  # The other half of the rule: only the *default* is suppressed here. 3.2
+  # forbids explode at this location as it forbids style, but the bundled parser
+  # refuses neither (GitHub #408), so a declared one reaches the compiler and
+  # lowers as declared — dropping what a document states is an emitter's call.
+  # param-style-matrix declares neither keyword at this location, so its golden
+  # cannot see this half move.
+  /reports/raw:
+    get:
+      operationId: rawReport
+      parameters:
+        - name: criteria
+          in: querystring
+          explode: false
+          content:
+            application/x-www-form-urlencoded:
+              schema: {type: object}
+      responses:
+        "200": {description: ok}

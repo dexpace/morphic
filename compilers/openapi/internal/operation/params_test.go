@@ -242,6 +242,8 @@ func TestParams_QueryStringDeclaredStyleIsKeptAndReported(t *testing.T) {
 	require.Len(t, op.Bindings.HTTP[0].ParamBindings, 1)
 
 	qs := op.Bindings.HTTP[0].ParamBindings[0]
+	require.Equal(t, ir.HTTPLocationQuerystring, qs.Location,
+		"the keywords below are only news at the location that forbids them")
 	assert.Equal(t, "form", qs.Style, "the declared style lowers as declared")
 	require.NotNil(t, qs.Explode)
 	assert.False(t, *qs.Explode, "and so does the explode qualifying it")
@@ -277,6 +279,8 @@ func TestParams_QueryStringDeclaredExplodeAloneIsKept(t *testing.T) {
 	require.Len(t, op.Bindings.HTTP[0].ParamBindings, 1)
 
 	qs := op.Bindings.HTTP[0].ParamBindings[0]
+	require.Equal(t, ir.HTTPLocationQuerystring, qs.Location,
+		"the keywords below are only news at the location that forbids them")
 	assert.Empty(t, qs.Style, "no style is invented at this location")
 	require.NotNil(t, qs.Explode, "but the declared explode is not dropped with it")
 	assert.False(t, *qs.Explode)

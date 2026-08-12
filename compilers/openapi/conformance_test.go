@@ -2059,6 +2059,12 @@ func assertQuerystringParam(t *testing.T, doc *ir.Document) {
 // forbids (GitHub #334). The ordinary query parameter beside it keeps the
 // defaults its own location does admit, so what separates them is the location
 // rather than the presence of content.
+//
+// The third operation is what this spec holds that param-style-matrix does not:
+// only the *default* is suppressed here, so an explode the document declares
+// survives at a location that takes no style. That case declares neither keyword
+// there, so reverting the early return that used to drop a declared explode
+// reddens this golden and leaves that one green.
 func assertParamQuerystring(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
 	report, ok := opByName(doc, "runReport")
 	require.True(t, ok)
@@ -2080,6 +2086,16 @@ func assertParamQuerystring(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
 	assert.Equal(t, "form", q.Style, "a query parameter still takes its own location's default")
 	require.NotNil(t, q.Explode)
 	assert.True(t, *q.Explode)
+
+	raw, ok := opByName(doc, "rawReport")
+	require.True(t, ok)
+	require.Len(t, raw.Bindings.HTTP, 1)
+	require.Len(t, raw.Bindings.HTTP[0].ParamBindings, 1)
+	declared := raw.Bindings.HTTP[0].ParamBindings[0]
+	assert.Equal(t, ir.HTTPLocationQuerystring, declared.Location)
+	assert.Empty(t, declared.Style, "no style is invented beside a declared explode either")
+	require.NotNil(t, declared.Explode, "but the explode the document declares is not dropped")
+	assert.False(t, *declared.Explode)
 }
 
 // assertParamRefInheritance pins ir-design §14 at a parameter whose schema is a
