@@ -9,6 +9,14 @@ components:
         r: {type: string, readOnly: true}
         w: {type: string, writeOnly: true}
         viaRef: {$ref: '#/components/schemas/DeclaredReadOnly'}
+        # Both flags at once: the value is neither readable nor writable, so the
+        # two admit disjoint lifecycles and the field is visible in none.
+        both: {type: string, readOnly: true, writeOnly: true}
+        # The same contradiction across a $ref. Each flag resolves on its own,
+        # use-site over referent, so the site's readOnly leaves the referent's
+        # writeOnly in force rather than replacing it.
+        bothViaRef: {$ref: '#/components/schemas/DeclaredWriteOnly', readOnly: true}
     # A declaration-site readOnly binds a use of the type, so it reaches the
     # referencing property and stays on the declaration only as residue.
     DeclaredReadOnly: {type: string, readOnly: true}
+    DeclaredWriteOnly: {type: string, writeOnly: true}

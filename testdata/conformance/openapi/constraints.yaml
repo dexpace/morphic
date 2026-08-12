@@ -16,7 +16,10 @@ components:
         # In 2020-12 the two keywords on a side are independent and both apply,
         # so the effective bound is the tighter of them. Reading whichever came
         # last published ">= 0" here and "< 100" below (GitHub #33). One bound
-        # slot per side means the other keyword is reported rather than kept.
+        # slot per side means the other keyword reaches no field, so it is kept
+        # verbatim beside the constraints instead (GitHub #286) — without that,
+        # these two lower to exactly what `minimum: 10` and `exclusiveMaximum:
+        # 10` alone would.
         atLeastTen:
           type: integer
           minimum: 10
@@ -33,3 +36,10 @@ components:
           maxItems: 5
           uniqueItems: true
           items: {type: string}
+    # A component whose body reduces to a shared primitive owns an alias node,
+    # the other carrier a co-declared bound can land on: the constraints go on
+    # the node, so the keyword they had no room for goes there too.
+    Bounded:
+      type: integer
+      minimum: 10
+      exclusiveMinimum: 0

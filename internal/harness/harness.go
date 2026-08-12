@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"sort"
 	"strings"
+	"unicode/utf8"
 
 	"github.com/dexpace/morphic/compilers"
 	"github.com/dexpace/morphic/compilers/openapi"
@@ -150,19 +151,52 @@ func deterministic(ctx context.Context, spec string, data []byte, doc *ir.Docume
 	return "", true
 }
 
-// Report renders results sorted by spec name into a stable multi-line summary,
-// one aligned line per spec. It copies its input, so the caller's slice order is
-// preserved.
+// Report renders results sorted by spec name into a stable multi-line summary:
+// one line per spec, plus one more for every newline a Detail carries, as the
+// round-trip oracle's does. Column widths are measured from the results being
+// rendered, so a spec path never runs into its outcome, and they line up on the
+// line each result begins.
+//
+// It copies its input, so the caller's slice order is preserved. The sort is
+// stable for the same reason irverify's is: nothing orders two results named
+// alike, so an unstable sort leaves them in an order the API does not specify
+// rather than the one the caller gave. Not a flaky one — sort.Slice is
+// deterministic for a given input — but one no caller can rely on, which is the
+// same thing a report promising a stable summary must not do.
 func Report(results []Result) string {
 	sorted := make([]Result, len(results))
 	copy(sorted, results)
-	sort.Slice(sorted, func(i, j int) bool { return sorted[i].Spec < sorted[j].Spec })
+	sort.SliceStable(sorted, func(i, j int) bool { return sorted[i].Spec < sorted[j].Spec })
+
+	specWidth, outcomeWidth := columnWidths(sorted)
 
 	var b strings.Builder
 	for _, r := range sorted {
 		// strings.Builder.Write never returns an error; the discard is explicit
 		// so no write in this codebase is dropped silently.
-		_, _ = fmt.Fprintf(&b, "%-40s %-20s %s\n", r.Spec, r.Outcome, r.Detail)
+		if r.Detail == "" {
+			_, _ = fmt.Fprintf(&b, "%-*s %s\n", specWidth, r.Spec, r.Outcome)
+			continue
+		}
+		_, _ = fmt.Fprintf(&b, "%-*s %-*s %s\n", specWidth, r.Spec, outcomeWidth, r.Outcome, r.Detail)
 	}
 	return b.String()
+}
+
+// columnWidths returns the widths Report pads its first two columns to: the
+// longest spec, and the longest outcome among the results that carry a Detail.
+// A result with no Detail has nothing to the right of its outcome to line up, so
+// it is not what the outcome column is sized against and its own line stops at
+// the outcome rather than padding out to one.
+//
+// Widths are counted in runes because that is the unit fmt's %-*s pads in.
+func columnWidths(results []Result) (spec, outcome int) {
+	for _, r := range results {
+		spec = max(spec, utf8.RuneCountInString(r.Spec))
+		if r.Detail == "" {
+			continue
+		}
+		outcome = max(outcome, utf8.RuneCountInString(string(r.Outcome)))
+	}
+	return spec, outcome
 }

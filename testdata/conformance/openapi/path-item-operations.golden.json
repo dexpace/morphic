@@ -1,0 +1,422 @@
+{
+  "irVersion": "0.3.0",
+  "name": "PathItemOperations",
+  "version": "1.0.0",
+  "docs": {},
+  "services": [
+    {
+      "id": "s/openapi/0",
+      "name": {
+        "source": "PathItemOperations",
+        "canonical": "path_item_operations"
+      },
+      "docs": {},
+      "groups": [
+        {
+          "name": {
+            "hint": "default"
+          },
+          "docs": {},
+          "operations": [
+            {
+              "id": "op/openapi/paths/~1index/post",
+              "name": {
+                "source": "subscribeIndex",
+                "canonical": "subscribe_index"
+              },
+              "docs": {},
+              "responses": [
+                {
+                  "name": {
+                    "hint": "200"
+                  },
+                  "conditions": {
+                    "statusCodes": [
+                      {
+                        "from": 200,
+                        "to": 200
+                      }
+                    ]
+                  },
+                  "docs": {
+                    "description": "ok"
+                  }
+                }
+              ],
+              "oneWay": false,
+              "idempotency": {},
+              "auth": null,
+              "bindings": {
+                "http": [
+                  {
+                    "method": "POST",
+                    "uriTemplate": "/index",
+                    "sharedRoute": false,
+                    "checksumRequired": false,
+                    "isWebhook": false,
+                    "callbacks": [
+                      {
+                        "expression": "{$request.body#/callbackUrl}",
+                        "operations": [
+                          "op/openapi/paths/~1index/post/callbacks/onEvent/{$request.body#~1callbackUrl}/additionalOperations/PURGE"
+                        ]
+                      }
+                    ]
+                  }
+                ]
+              },
+              "provenance": {
+                "source": 0,
+                "pointer": "/paths/~1index/post"
+              }
+            },
+            {
+              "id": "op/openapi/paths/~1index/post/callbacks/onEvent/{$request.body#~1callbackUrl}/additionalOperations/PURGE",
+              "name": {
+                "source": "purgeCallback",
+                "canonical": "purge_callback"
+              },
+              "docs": {},
+              "responses": [
+                {
+                  "name": {
+                    "hint": "204"
+                  },
+                  "conditions": {
+                    "statusCodes": [
+                      {
+                        "from": 204,
+                        "to": 204
+                      }
+                    ]
+                  },
+                  "docs": {
+                    "description": "purged"
+                  }
+                }
+              ],
+              "oneWay": false,
+              "idempotency": {},
+              "auth": null,
+              "bindings": {
+                "http": [
+                  {
+                    "method": "PURGE",
+                    "uriTemplate": "{$request.body#/callbackUrl}",
+                    "sharedRoute": false,
+                    "checksumRequired": false,
+                    "isWebhook": false
+                  }
+                ]
+              },
+              "provenance": {
+                "source": 0,
+                "pointer": "/paths/~1index/post/callbacks/onEvent/{$request.body#~1callbackUrl}/additionalOperations/PURGE"
+              }
+            },
+            {
+              "id": "op/openapi/paths/~1index/query",
+              "name": {
+                "source": "queryIndex",
+                "canonical": "query_index"
+              },
+              "docs": {},
+              "request": {
+                "contents": [
+                  {
+                    "mediaType": "application/json",
+                    "type": {
+                      "target": "t/anon/paths/~1index/query/requestBody/content/application~1json/schema",
+                      "nullable": false
+                    }
+                  }
+                ],
+                "unmodeled": {
+                  "openapi:required": {
+                    "reason": "no_ir_home",
+                    "value": false,
+                    "provenance": {
+                      "source": 0,
+                      "pointer": "/paths/~1index/query/requestBody/required"
+                    }
+                  }
+                }
+              },
+              "responses": [
+                {
+                  "name": {
+                    "hint": "200"
+                  },
+                  "conditions": {
+                    "statusCodes": [
+                      {
+                        "from": 200,
+                        "to": 200
+                      }
+                    ]
+                  },
+                  "docs": {
+                    "description": "ok"
+                  }
+                }
+              ],
+              "oneWay": false,
+              "idempotency": {},
+              "auth": null,
+              "bindings": {
+                "http": [
+                  {
+                    "method": "QUERY",
+                    "uriTemplate": "/index",
+                    "sharedRoute": false,
+                    "requestContentTypes": [
+                      "application/json"
+                    ],
+                    "checksumRequired": false,
+                    "isWebhook": false
+                  }
+                ]
+              },
+              "provenance": {
+                "source": 0,
+                "pointer": "/paths/~1index/query"
+              }
+            },
+            {
+              "id": "op/openapi/paths/~1index/additionalOperations/PURGE",
+              "name": {
+                "source": "purgeIndex",
+                "canonical": "purge_index"
+              },
+              "docs": {},
+              "responses": [
+                {
+                  "name": {
+                    "hint": "204"
+                  },
+                  "conditions": {
+                    "statusCodes": [
+                      {
+                        "from": 204,
+                        "to": 204
+                      }
+                    ]
+                  },
+                  "docs": {
+                    "description": "purged"
+                  }
+                }
+              ],
+              "oneWay": false,
+              "idempotency": {},
+              "auth": null,
+              "bindings": {
+                "http": [
+                  {
+                    "method": "PURGE",
+                    "uriTemplate": "/index",
+                    "sharedRoute": false,
+                    "checksumRequired": false,
+                    "isWebhook": false
+                  }
+                ]
+              },
+              "provenance": {
+                "source": 0,
+                "pointer": "/paths/~1index/additionalOperations/PURGE"
+              }
+            },
+            {
+              "id": "op/openapi/paths/~1index/additionalOperations/mIxEdCase",
+              "name": {
+                "source": "mixedCaseIndex",
+                "canonical": "mixed_case_index"
+              },
+              "docs": {},
+              "responses": [
+                {
+                  "name": {
+                    "hint": "204"
+                  },
+                  "conditions": {
+                    "statusCodes": [
+                      {
+                        "from": 204,
+                        "to": 204
+                      }
+                    ]
+                  },
+                  "docs": {
+                    "description": "purged"
+                  }
+                }
+              ],
+              "oneWay": false,
+              "idempotency": {},
+              "auth": null,
+              "bindings": {
+                "http": [
+                  {
+                    "method": "mIxEdCase",
+                    "uriTemplate": "/index",
+                    "sharedRoute": false,
+                    "checksumRequired": false,
+                    "isWebhook": false
+                  }
+                ]
+              },
+              "provenance": {
+                "source": 0,
+                "pointer": "/paths/~1index/additionalOperations/mIxEdCase"
+              }
+            }
+          ]
+        },
+        {
+          "name": {
+            "hint": "webhooks"
+          },
+          "docs": {},
+          "operations": [
+            {
+              "id": "op/openapi/webhooks/cacheFlushed/additionalOperations/FLUSH",
+              "name": {
+                "source": "onFlush",
+                "canonical": "on_flush"
+              },
+              "docs": {},
+              "responses": [
+                {
+                  "name": {
+                    "hint": "200"
+                  },
+                  "conditions": {
+                    "statusCodes": [
+                      {
+                        "from": 200,
+                        "to": 200
+                      }
+                    ]
+                  },
+                  "docs": {
+                    "description": "ok"
+                  }
+                }
+              ],
+              "oneWay": false,
+              "idempotency": {},
+              "auth": null,
+              "bindings": {
+                "http": [
+                  {
+                    "method": "FLUSH",
+                    "uriTemplate": "cacheFlushed",
+                    "sharedRoute": false,
+                    "checksumRequired": false,
+                    "isWebhook": true
+                  }
+                ]
+              },
+              "provenance": {
+                "source": 0,
+                "pointer": "/webhooks/cacheFlushed/additionalOperations/FLUSH"
+              }
+            }
+          ]
+        }
+      ],
+      "auth": null,
+      "provenance": {
+        "source": 0
+      }
+    }
+  ],
+  "types": {
+    "t/anon/paths/~1index/query/requestBody/content/application~1json/schema": {
+      "kind": "model",
+      "id": "t/anon/paths/~1index/query/requestBody/content/application~1json/schema",
+      "name": {
+        "hint": "query_index_request"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/paths/~1index/query/requestBody/content/application~1json/schema"
+      },
+      "properties": [
+        {
+          "id": "p/openapi/paths/~1index/query/requestBody/content/application~1json/schema/properties/q",
+          "name": {
+            "source": "q",
+            "canonical": "q"
+          },
+          "wireName": "q",
+          "type": {
+            "target": "t/prim/string",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/paths/~1index/query/requestBody/content/application~1json/schema/properties/q"
+          }
+        }
+      ],
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
+    "t/prim/string": {
+      "kind": "primitive",
+      "id": "t/prim/string",
+      "name": {},
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0
+      },
+      "prim": "string"
+    }
+  },
+  "servers": [
+    {
+      "name": {
+        "hint": "server"
+      },
+      "urlTemplate": "/",
+      "description": {},
+      "auth": null
+    }
+  ],
+  "diagnostics": [
+    {
+      "severity": "info",
+      "code": "openapi/degraded-construct",
+      "message": "request body is not required; optionality kept under Unmodeled",
+      "provenance": {
+        "source": 0,
+        "pointer": "/paths/~1index/query/requestBody"
+      }
+    }
+  ],
+  "sources": [
+    {
+      "format": "openapi@3.2",
+      "path": "path-item-operations.yaml",
+      "hash": "047cabe1682a7c78101093e9f4a502a0289ea7cc648f77d231b2a09b2a15bff2"
+    }
+  ]
+}

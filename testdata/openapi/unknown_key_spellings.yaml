@@ -1,0 +1,35 @@
+# Undeclared keys whose *spelling* is the subject, rather than the object they
+# were written on (that is unknown_keys.yaml). Both spellings below reached the
+# census but no Unmodeled entry, so a document writing one compiled to the same
+# IR as a document writing neither.
+#
+#   - An aliased key. YAML resolves `*anchor` to the name it stands for and the
+#     parser reports the key under that name, while the mapping node still holds
+#     an alias whose own value is the anchor. Searching the mapping for the
+#     resolved name found nothing, and a key with no node kept nothing.
+#   - A key holding a "/". Entries for the objects with no Unmodeled map of their
+#     own are keyed by the path from the carrier down, so a root key spelling one
+#     of those paths landed on the very entry that path's own object writes, and
+#     whichever site ran second was dropped without a word. Here the root writes
+#     `info/contact/slack` while the contact object writes `slack`: two keys, two
+#     entries, or the fixture is not testing what it says.
+openapi: 3.1.0
+"info/contact/slack": ROOT_SLASHED
+info:
+  # Anchored to a name with no "x-" prefix on purpose: an aliased x-* key
+  # resolves to one the extension reader claims, which would witness that reader
+  # rather than this census.
+  title: &aliased spdx
+  version: "1"
+  contact:
+    name: n
+    slack: CONTACT_PLAIN
+  license:
+    name: MIT
+    *aliased : LICENSE_ALIASED
+paths:
+  /widgets:
+    get:
+      operationId: listWidgets
+      responses:
+        "200": {description: ok}
