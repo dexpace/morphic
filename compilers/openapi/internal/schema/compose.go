@@ -489,6 +489,11 @@ const maxDiscriminatorAncestorDepth = 256
 func ancestorDiscriminators(s *oas3.Schema) []*oas3.Discriminator {
 	var out []*oas3.Discriminator
 	visited := make(map[*oas3.Schema]bool)
+	// s is visited before the walk starts, so a composition cycle cannot bring it
+	// back as one of its own ancestors. Without this a schema in a cycle that
+	// declares a discriminator answers to its own mapping, which is a hierarchy of
+	// one thing standing above itself.
+	visited[s] = true
 	level := []*oas3.Schema{s}
 	for depth := 0; depth < maxDiscriminatorAncestorDepth && len(level) > 0; depth++ {
 		next := make([]*oas3.Schema, 0, len(level))

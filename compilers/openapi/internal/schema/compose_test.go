@@ -1760,6 +1760,35 @@ func TestAllOf_DiscriminatorValueCyclicComposition(t *testing.T) {
 	}
 }
 
+// TestAllOf_DiscriminatorValueSelfAncestorInCycle pins that a composition cycle
+// does not make a schema one of its own ancestors. A declares the discriminator
+// and composes B, which composes A back, so walking A's ancestors comes round to
+// A — whose mapping names A. A hierarchy of one schema standing above itself is
+// not a hierarchy, so the walk skips the schema it started from.
+func TestAllOf_DiscriminatorValueSelfAncestorInCycle(t *testing.T) {
+	t.Parallel()
+	spec := openapitest.ComponentSpec(`    A:
+      allOf: [{$ref: '#/components/schemas/B'}]
+      required: [k]
+      properties: {k: {type: string}}
+      discriminator:
+        propertyName: k
+        mapping:
+          selfkey: '#/components/schemas/A'
+    B:
+      allOf: [{$ref: '#/components/schemas/A'}]
+      properties: {b: {type: string}}
+`)
+	doc, diags := lowerSpec(t, spec)
+	openapitest.RequireNoErrorDiags(t, diags)
+
+	a, ok := typeByName(doc, "A").(*ir.Model)
+	require.True(t, ok, "A lowers to a Model")
+	require.NotNil(t, a.Discriminator, "A anchors the hierarchy it declares")
+	assert.Empty(t, a.DiscriminatorValue,
+		"and takes no tag from its own mapping by way of the cycle")
+}
+
 // TestAllOf_DiscriminatorValueChainDeeperThanCap pins the ancestor walk's cap as
 // behaviour rather than as a comment. A chain longer than the cap stops being
 // searched, so the tag the root would have supplied is not stamped — stated here
