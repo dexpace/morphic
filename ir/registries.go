@@ -210,10 +210,10 @@ type IDDeclaration struct {
 // the wrong defect.
 //
 // Whether the empty ID is itself reported is a separate claim, and one this
-// derivation does not make. A class Document keys a map by is covered — an empty
-// or disagreeing key is what irverify.checkRegistryKeys reads — but an Operation
-// and a Service have no key for it to read, so an empty ID on either goes
-// unreported (GitHub #289).
+// derivation does not make. A class Document keys a map by is covered by the key
+// — an empty or disagreeing one is what irverify.checkRegistryKeys reads — and a
+// class with no key, an Operation, a Service or a Property, is covered by
+// irverify.checkDeclaredIDs walking for what this drops.
 func DeclaredIDs(doc *Document) ([]IDDeclaration, bool) {
 	var decls []IDDeclaration
 	truncated := WalkValues(doc, DocumentPath, func(v reflect.Value, path string) bool {

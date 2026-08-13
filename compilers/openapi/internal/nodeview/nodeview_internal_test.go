@@ -7,31 +7,13 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	yaml "gopkg.in/yaml.v3"
+
+	"github.com/dexpace/morphic/compilers/openapi/internal/ynode"
 )
-
-func yscalar(v string) *yaml.Node {
-	return &yaml.Node{Kind: yaml.ScalarNode, Value: v}
-}
-
-func ymap(pairs ...*yaml.Node) *yaml.Node {
-	return &yaml.Node{Kind: yaml.MappingNode, Content: pairs}
-}
-
-func yseq(items ...*yaml.Node) *yaml.Node {
-	return &yaml.Node{Kind: yaml.SequenceNode, Content: items}
-}
-
-func yalias(target *yaml.Node) *yaml.Node {
-	return &yaml.Node{Kind: yaml.AliasNode, Alias: target}
-}
-
-func ymerge() *yaml.Node {
-	return &yaml.Node{Kind: yaml.ScalarNode, Value: "<<", Tag: MergeTag}
-}
 
 func TestDocumentRoot_Cases(t *testing.T) {
 	t.Parallel()
-	content := yscalar("x")
+	content := ynode.Scalar("x")
 	tests := []struct {
 		name string
 		in   *yaml.Node
@@ -62,13 +44,13 @@ func TestChildByToken_NilNode(t *testing.T) {
 
 func TestPointerPath_Cases(t *testing.T) {
 	t.Parallel()
-	leaf := yscalar("leaf")
-	target := ymap(yscalar("b"), leaf)
-	root := ymap(
-		yscalar("arr"), yseq(yscalar("zero"), yscalar("one")),
-		yscalar("via"), yalias(target),
-		yscalar("a/b"), yscalar("slash"),
-		yscalar("c~d"), yscalar("tilde"),
+	leaf := ynode.Scalar("leaf")
+	target := ynode.Map(ynode.Scalar("b"), leaf)
+	root := ynode.Map(
+		ynode.Scalar("arr"), ynode.Seq(ynode.Scalar("zero"), ynode.Scalar("one")),
+		ynode.Scalar("via"), ynode.Alias(target),
+		ynode.Scalar("a/b"), ynode.Scalar("slash"),
+		ynode.Scalar("c~d"), ynode.Scalar("tilde"),
 	)
 	tests := []struct {
 		name    string
@@ -125,21 +107,9 @@ func TestInternalPointer_MatchesTheResolversNormalization(t *testing.T) {
 
 func TestDeref_FollowsAliasChain(t *testing.T) {
 	t.Parallel()
-	target := ymap(yscalar("k"), yscalar("v"))
-	require.Same(t, target, Deref(yalias(target)))
+	target := ynode.Map(ynode.Scalar("k"), ynode.Scalar("v"))
+	require.Same(t, target, Deref(ynode.Alias(target)))
 	require.Same(t, target, Deref(target))
-}
-
-func mergeChain(levels int) *yaml.Node {
-	nodes := make([]*yaml.Node, levels+1)
-	for i := range nodes {
-		nodes[i] = &yaml.Node{Kind: yaml.MappingNode}
-	}
-	for i := range levels {
-		nodes[i].Content = []*yaml.Node{ymerge(), yalias(nodes[i+1])}
-	}
-	nodes[levels].Content = []*yaml.Node{yscalar("leaf"), yscalar("v")}
-	return nodes[0]
 }
 
 func pairMap(pairs []Pair) map[string]string {
@@ -160,14 +130,14 @@ func TestIsMergeKey_MatchesResolver(t *testing.T) {
 		in   *yaml.Node
 		want bool
 	}{
-		{"resolved merge tag", tagged(MergeTag), true},
+		{"resolved merge tag", tagged(ynode.MergeTag), true},
 		{"quoted string tag", tagged("!!str"), false},
-		{"untagged scalar", yscalar("<<"), false},
+		{"untagged scalar", ynode.Scalar("<<"), false},
 		{"non-specific tag", tagged("!"), false},
 		{"long-form merge tag", tagged("tag:yaml.org,2002:merge"), false},
-		{"other value", yscalar("$ref"), false},
-		{"alias key", yalias(ymerge()), false},
-		{"mapping key", ymap(), false},
+		{"other value", ynode.Scalar("$ref"), false},
+		{"alias key", ynode.Alias(ynode.Merge()), false},
+		{"mapping key", ynode.Map(), false},
 		{"nil", nil, false},
 	}
 	for _, tc := range tests {
@@ -218,7 +188,7 @@ func TestPureRefTarget_Cases(t *testing.T) {
 
 	t.Run("non-mapping node has no target", func(t *testing.T) {
 		t.Parallel()
-		_, ok := New().PureRefTarget(yscalar("x"))
+		_, ok := New().PureRefTarget(ynode.Scalar("x"))
 		assert.False(t, ok)
 	})
 
@@ -227,12 +197,12 @@ func TestPureRefTarget_Cases(t *testing.T) {
 		n    *yaml.Node
 		want string
 	}{
-		{"sibling key before the ref", ymap(yscalar("type"), yscalar("object"),
-			yscalar("$ref"), yscalar("#/components/schemas/A")), "/components/schemas/A"},
-		{"external ref is not internal", ymap(yscalar("$ref"), yscalar("other.yaml#/A")), ""},
-		{"non-scalar ref value", ymap(yscalar("$ref"), ymap(yscalar("a"), yscalar("b"))), ""},
-		{"nil ref value via broken alias", ymap(yscalar("$ref"), yalias(nil)), ""},
-		{"no ref key at all", ymap(yscalar("type"), yscalar("object")), ""},
+		{"sibling key before the ref", ynode.Map(ynode.Scalar("type"), ynode.Scalar("object"),
+			ynode.Scalar("$ref"), ynode.Scalar("#/components/schemas/A")), "/components/schemas/A"},
+		{"external ref is not internal", ynode.Map(ynode.Scalar("$ref"), ynode.Scalar("other.yaml#/A")), ""},
+		{"non-scalar ref value", ynode.Map(ynode.Scalar("$ref"), ynode.Map(ynode.Scalar("a"), ynode.Scalar("b"))), ""},
+		{"nil ref value via broken alias", ynode.Map(ynode.Scalar("$ref"), ynode.Alias(nil)), ""},
+		{"no ref key at all", ynode.Map(ynode.Scalar("type"), ynode.Scalar("object")), ""},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
@@ -246,15 +216,15 @@ func TestPureRefTarget_Cases(t *testing.T) {
 
 func TestChildByToken_MappingResolvesThroughAliasKey(t *testing.T) {
 	t.Parallel()
-	keyTarget := yscalar("k")
-	val := yscalar("v")
-	n := ymap(yalias(keyTarget), val)
+	keyTarget := ynode.Scalar("k")
+	val := ynode.Scalar("v")
+	n := ynode.Map(ynode.Alias(keyTarget), val)
 	assert.Same(t, val, New().ChildByToken(n, "k"))
 }
 
 func TestChildByToken_ScalarNodeHasNoChild(t *testing.T) {
 	t.Parallel()
-	assert.Nil(t, New().ChildByToken(yscalar("x"), "0"))
+	assert.Nil(t, New().ChildByToken(ynode.Scalar("x"), "0"))
 }
 
 func TestNodeView_CachesOnlyReproducibleExpansions(t *testing.T) {
@@ -262,8 +232,8 @@ func TestNodeView_CachesOnlyReproducibleExpansions(t *testing.T) {
 
 	t.Run("complete expansion is cached", func(t *testing.T) {
 		t.Parallel()
-		base := ymap(yscalar("a"), yscalar("1"))
-		n := ymap(ymerge(), yalias(base), yscalar("b"), yscalar("2"))
+		base := ynode.Map(ynode.Scalar("a"), ynode.Scalar("1"))
+		n := ynode.Map(ynode.Merge(), ynode.Alias(base), ynode.Scalar("b"), ynode.Scalar("2"))
 		v := New()
 		first := v.MappingPairs(n)
 		require.Contains(t, v.pairs, n, "a complete expansion is memoized")
@@ -279,9 +249,9 @@ func TestNodeView_CachesOnlyReproducibleExpansions(t *testing.T) {
 		outer = &yaml.Node{Kind: yaml.MappingNode}
 		shared = &yaml.Node{Kind: yaml.MappingNode}
 		deep = &yaml.Node{Kind: yaml.MappingNode}
-		outer.Content = []*yaml.Node{yscalar("outerkey"), yscalar("o"), ymerge(), yalias(shared)}
-		shared.Content = []*yaml.Node{yscalar("keep"), yscalar("v"), ymerge(), yalias(deep)}
-		deep.Content = []*yaml.Node{yscalar("deepkey"), yscalar("d"), ymerge(), yalias(outer)}
+		outer.Content = []*yaml.Node{ynode.Scalar("outerkey"), ynode.Scalar("o"), ynode.Merge(), ynode.Alias(shared)}
+		shared.Content = []*yaml.Node{ynode.Scalar("keep"), ynode.Scalar("v"), ynode.Merge(), ynode.Alias(deep)}
+		deep.Content = []*yaml.Node{ynode.Scalar("deepkey"), ynode.Scalar("d"), ynode.Merge(), ynode.Alias(outer)}
 		return outer, shared, deep
 	}
 
@@ -313,7 +283,7 @@ func TestNodeView_CachesOnlyReproducibleExpansions(t *testing.T) {
 		t.Parallel()
 		outer, _, _ := mergeCycle()
 		v := New()
-		other := ymap(yscalar("k"), yscalar("v"))
+		other := ynode.Map(ynode.Scalar("k"), ynode.Scalar("v"))
 		v.inFlight[other] = true // as if this read came from inside other's
 
 		assert.NotEmpty(t, v.MappingPairs(outer), "the read still answers")
@@ -325,25 +295,25 @@ func TestNodeView_CachesOnlyReproducibleExpansions(t *testing.T) {
 func TestNodeView_TruncationIsPerNode(t *testing.T) {
 	t.Parallel()
 	v := New()
-	require.Empty(t, v.MappingPairs(mergeChain(MergeDepthLimit+2)))
+	require.Empty(t, v.MappingPairs(ynode.MergeChain(MergeDepthLimit+2)))
 	require.True(t, v.exhausted)
 
-	other := ymap(yscalar("$ref"), yscalar("#/components/schemas/A"))
+	other := ynode.Map(ynode.Scalar("$ref"), ynode.Scalar("#/components/schemas/A"))
 	assert.Equal(t, map[string]string{"$ref": "#/components/schemas/A"},
 		pairMap(v.MappingPairs(other)), "an unrelated mapping still expands in full")
 	assert.Equal(t, map[string]string{"leaf": "v"},
-		pairMap(v.MappingPairs(mergeChain(MergeDepthLimit))),
+		pairMap(v.MappingPairs(ynode.MergeChain(MergeDepthLimit))),
 		"so does a chain that fits inside the bound")
 }
 
 func TestNodeView_MemoizeRespectsPairBudget(t *testing.T) {
 	t.Parallel()
-	pairs := []Pair{{Key: "a", Val: yscalar("1")}, {Key: "b", Val: yscalar("2")}}
+	pairs := []Pair{{Key: "a", Val: ynode.Scalar("1")}, {Key: "b", Val: ynode.Scalar("2")}}
 
 	t.Run("within budget: retained and counted", func(t *testing.T) {
 		t.Parallel()
 		v := New()
-		n := ymap()
+		n := ynode.Map()
 		v.memoize(n, pairs)
 		assert.Contains(t, v.pairs, n)
 		assert.Equal(t, len(pairs), v.cachedPairs)
@@ -353,7 +323,7 @@ func TestNodeView_MemoizeRespectsPairBudget(t *testing.T) {
 		t.Parallel()
 		v := New()
 		v.cachedPairs = maxCachedPairs - 1
-		n := ymap()
+		n := ynode.Map()
 		v.memoize(n, pairs)
 		assert.NotContains(t, v.pairs, n, "an entry that would overrun the budget is not kept")
 		assert.Equal(t, maxCachedPairs-1, v.cachedPairs, "and does not count against it")
@@ -361,8 +331,8 @@ func TestNodeView_MemoizeRespectsPairBudget(t *testing.T) {
 
 	t.Run("a dropped entry still reads correctly", func(t *testing.T) {
 		t.Parallel()
-		base := ymap(yscalar("a"), yscalar("1"))
-		n := ymap(ymerge(), yalias(base), yscalar("b"), yscalar("2"))
+		base := ynode.Map(ynode.Scalar("a"), ynode.Scalar("1"))
+		n := ynode.Map(ynode.Merge(), ynode.Alias(base), ynode.Scalar("b"), ynode.Scalar("2"))
 		v := New()
 		v.cachedPairs = maxCachedPairs
 		want := map[string]string{"a": "1", "b": "2"}
@@ -438,12 +408,12 @@ func TestExhausted_ReportsAnIncompleteExpansion(t *testing.T) {
 	v := New()
 	assert.False(t, v.Exhausted(), "a view that has expanded nothing has exhausted nothing")
 
-	deep := mergeChain(MergeDepthLimit + 2)
+	deep := ynode.MergeChain(MergeDepthLimit + 2)
 	_ = v.MappingPairs(deep)
 	assert.True(t, v.Exhausted(), "past the bound the view says its expansion is incomplete")
 
 	shallow := New()
-	_ = shallow.MappingPairs(mergeChain(2))
+	_ = shallow.MappingPairs(ynode.MergeChain(2))
 	assert.False(t, shallow.Exhausted(), "within the bound it does not")
 }
 
@@ -457,9 +427,9 @@ func yamlDoc(t *testing.T, src string) *yaml.Node {
 
 func TestPointerPath_KeepsTheNodesTheWalkPassesThrough(t *testing.T) {
 	t.Parallel()
-	leaf := yscalar("leaf")
-	inner := ymap(yscalar("b"), leaf)
-	root := ymap(yscalar("a"), inner)
+	leaf := ynode.Scalar("leaf")
+	inner := ynode.Map(ynode.Scalar("b"), leaf)
+	root := ynode.Map(ynode.Scalar("a"), inner)
 
 	path, complete := New().PointerPath(root, "/a/b")
 	require.True(t, complete, "every token resolves")
@@ -469,8 +439,8 @@ func TestPointerPath_KeepsTheNodesTheWalkPassesThrough(t *testing.T) {
 
 func TestPointerPath_IncompleteStopsAtTheLastNodeReached(t *testing.T) {
 	t.Parallel()
-	inner := ymap(yscalar("b"), yscalar("leaf"))
-	root := ymap(yscalar("a"), inner)
+	inner := ynode.Map(ynode.Scalar("b"), ynode.Scalar("leaf"))
+	root := ynode.Map(ynode.Scalar("a"), inner)
 
 	path, complete := New().PointerPath(root, "/a/missing/deeper")
 	assert.False(t, complete, "a token that names nothing stops the walk")
@@ -480,7 +450,7 @@ func TestPointerPath_IncompleteStopsAtTheLastNodeReached(t *testing.T) {
 
 func TestPointerPath_RootTokenlessAndNil(t *testing.T) {
 	t.Parallel()
-	root := ymap(yscalar("a"), yscalar("v"))
+	root := ynode.Map(ynode.Scalar("a"), ynode.Scalar("v"))
 
 	path, complete := New().PointerPath(root, "")
 	assert.True(t, complete, "a pointer with no tokens names the root")
@@ -491,12 +461,81 @@ func TestPointerPath_RootTokenlessAndNil(t *testing.T) {
 	assert.Nil(t, path, "a nil root reaches nothing")
 }
 
+// TestDocumentPath_SeparatesTheLoneSlashFromTheRoot pins the one question the
+// two readings answer differently.
+//
+// PointerPath lands '/' on the root because that is where the resolver lands a
+// reference spelled that way. A pointer naming a position in this document
+// carries no such departure: ids.Ptr("") spells the root member keyed "" exactly
+// '/', so reading it as the root walks past the member the pointer names — and a
+// caller reading $id down the path would miss one written there.
+func TestDocumentPath_SeparatesTheLoneSlashFromTheRoot(t *testing.T) {
+	t.Parallel()
+	member := ynode.Map(ynode.Scalar("$id"), ynode.Scalar("https://example.com/root-member"))
+	root := ynode.Map(ynode.Scalar(""), member)
+
+	path, complete := New().DocumentPath(root, "/")
+	assert.True(t, complete, `"/" resolves the one token it carries`)
+	assert.Equal(t, []*yaml.Node{root, member}, path,
+		`ids.Ptr("") spells the root member keyed "" as "/", so the walk descends into it`)
+
+	path, complete = New().PointerPath(root, "/")
+	assert.True(t, complete)
+	assert.Equal(t, []*yaml.Node{root}, path,
+		"the reference reading stops at the root, which is what tokenless records")
+
+	path, complete = New().DocumentPath(root, "")
+	assert.True(t, complete, "only the empty pointer names the root here")
+	assert.Equal(t, []*yaml.Node{root}, path)
+}
+
+// TestPointerPath_EmptyTokenIsARealToken pins the one token a walk must not
+// normalize away. RFC 6901 makes "" a reference token naming the key "", and the
+// resolver's own parser agrees (jsonpointer/navigation.go getNavigationStack,
+// v1.24.0). A walk that skips it reports '/a/' as arriving at a, turning a node
+// the pointer only passes through into its destination — which is exactly the
+// node the re-entrancy check excludes, so the check never sees it.
+func TestPointerPath_EmptyTokenIsARealToken(t *testing.T) {
+	t.Parallel()
+	inner := ynode.Map(ynode.Scalar("b"), ynode.Scalar("leaf"))
+	root := ynode.Map(ynode.Scalar("a"), inner)
+
+	path, complete := New().PointerPath(root, "/a/")
+	assert.False(t, complete, `no key "" is declared under a, so the last token resolves to nothing`)
+	assert.Equal(t, []*yaml.Node{root, inner}, path,
+		"the walk passed through a rather than stopping at it")
+}
+
+func TestPointerPath_EmptyTokenNamesTheEmptyKey(t *testing.T) {
+	t.Parallel()
+	empty := ynode.Scalar("under the empty key")
+	inner := ynode.Map(ynode.Scalar(""), empty)
+	root := ynode.Map(ynode.Scalar("a"), inner)
+
+	path, complete := New().PointerPath(root, "/a/")
+	require.True(t, complete, `the empty token names the key ""`)
+	assert.Same(t, empty, path[len(path)-1], "the last element is the destination")
+}
+
+// TestPointerPath_LoneSeparatorNamesTheRoot records where the resolver departs
+// from RFC 6901, which reads '/' as one empty token: getNavigationStack special-
+// cases it to an empty stack, so speakeasy lands on the document root. This
+// package models what the resolver walks, so it follows the resolver.
+func TestPointerPath_LoneSeparatorNamesTheRoot(t *testing.T) {
+	t.Parallel()
+	root := ynode.Map(ynode.Scalar("a"), ynode.Scalar("v"))
+
+	path, complete := New().PointerPath(root, "/")
+	assert.True(t, complete, "the resolver reads a lone separator as naming the root")
+	assert.Equal(t, []*yaml.Node{root}, path)
+}
+
 func TestPointerPath_SegmentCapStopsTheWalk(t *testing.T) {
 	t.Parallel()
 	// A mapping whose only key is "a" and whose value is itself cannot be built
 	// from parsed YAML, but an alias can stand in: the walk follows "a" as long
 	// as tokens last, so only the cap can end it.
-	root := ymap(yscalar("a"), nil)
+	root := ynode.Map(ynode.Scalar("a"), nil)
 	root.Content[1] = root
 
 	ref := strings.Repeat("/a", maxPointerSegments+1)

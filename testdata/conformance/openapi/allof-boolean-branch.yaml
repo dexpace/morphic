@@ -25,3 +25,10 @@ components:
     # The same rule reached the other way: a bare `false` schema in its own
     # right, which is the lowering the composed case is being held to.
     BareFalse: false
+    # The shape a closed empty model is otherwise written as. A closed empty
+    # Model admits `{}` and `false` admits nothing, so the two are one value
+    # apart -- and until the bare `false` kept itself verbatim, they lowered to
+    # byte-identical nodes and nothing downstream could tell them apart.
+    ClosedEmpty:
+      type: object
+      additionalProperties: false

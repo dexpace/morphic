@@ -76,11 +76,12 @@ func lowerContent(c lowering.Ctx, ts *compile.Types, anchors *schema.AnchorIndex
 		content.File = &ir.FileInfo{IsText: false, ContentTypes: []string{mt}}
 		content.Type = ts.PrimRef(ir.PrimBytes)
 	case isFormContent(mt):
-		enc, encDiags := partEncodings(c, ts, anchors, media, mediaPtr, content.Type.Target)
+		enc, encUnmodeled, encDiags := partEncodings(c, ts, anchors, media, mediaPtr, content.Type.Target)
 		diags = append(diags, encDiags...)
 		if len(enc) > 0 {
 			content.Encoding = enc
 		}
+		content.Unmodeled = annotation.MergeUnmodeled(content.Unmodeled, encUnmodeled)
 	}
 	diags = append(diags, fillSequential(c, ts, anchors, &content, media, mediaPtr, hint)...)
 	ext, extDiags := schema.ExtensionsOf(c, media.GetExtensions(), mediaPtr)
@@ -88,7 +89,8 @@ func lowerContent(c lowering.Ctx, ts *compile.Types, anchors *schema.AnchorIndex
 	if len(ext) > 0 {
 		content.Unmodeled = annotation.MergeUnmodeled(content.Unmodeled, ext)
 	}
-	return content, diags
+	return content, append(diags,
+		annotation.UnknownKeysIn(&content.Unmodeled, media, c.SrcIndex, mediaPtr)...)
 }
 
 // fillSequential lowers 3.2 sequential-media fields: itemSchema becomes the
@@ -113,9 +115,10 @@ func fillSequential(c lowering.Ctx, ts *compile.Types, anchors *schema.AnchorInd
 	if enc == nil {
 		return diags
 	}
-	pe, encDiags := encodingConfig(c, ts, anchors, enc, mediaPtr+ids.Ptr("itemEncoding"))
+	pe, unmodeled, encDiags := encodingConfig(c, ts, anchors, enc, mediaPtr+ids.Ptr("itemEncoding"), "itemEncoding")
 	pe.Multi = true
 	content.ItemEncoding = &pe
+	content.Unmodeled = annotation.MergeUnmodeled(content.Unmodeled, unmodeled)
 	return append(diags, encDiags...)
 }
 
@@ -154,10 +157,10 @@ func positionalEncoding(c lowering.Ctx, content *ir.Content, media *soa.MediaTyp
 // body-model property's PropID. A part is included when it carries an explicit
 // encoding entry or is itself a repeated (array) or file (binary) part. body is
 // the TypeID the content's own schema position lowered to.
-func partEncodings(c lowering.Ctx, ts *compile.Types, anchors *schema.AnchorIndex, media *soa.MediaType, mediaPtr string, body ir.TypeID) (map[ir.PropID]ir.PartEncoding, []ir.Diagnostic) {
+func partEncodings(c lowering.Ctx, ts *compile.Types, anchors *schema.AnchorIndex, media *soa.MediaType, mediaPtr string, body ir.TypeID) (map[ir.PropID]ir.PartEncoding, ir.Unmodeled, []ir.Diagnostic) {
 	parts := bodyParts(media.GetSchema(), 0)
 	if len(parts) == 0 {
-		return nil, nil
+		return nil, nil, nil
 	}
 	// Key by the pointer the body model was interned at, not by mediaPtr, so the
 	// keys align with that model's property IDs (invariant 2/3). Asking the IR is
@@ -168,20 +171,25 @@ func partEncodings(c lowering.Ctx, ts *compile.Types, anchors *schema.AnchorInde
 		schemaPtr = bodySchemaPointer(c, media.GetSchema(), mediaPtr+ids.Ptr("schema"))
 	}
 	var diags []ir.Diagnostic
+	var unmodeled ir.Unmodeled
 	encMap := media.GetEncoding()
 	out := map[ir.PropID]ir.PartEncoding{}
 	for _, part := range parts {
-		pe, partDiags := buildPartEncoding(c, ts, anchors, part.name, part.schema, encMap, mediaPtr)
+		pe, partUnmodeled, partDiags := buildPartEncoding(c, ts, anchors, part.name, part.schema, encMap, mediaPtr)
 		diags = append(diags, partDiags...)
+		// Before the emptiness check, not after it: an entry declaring only
+		// allowReserved or only x-* lowers to an empty PartEncoding that is left out
+		// of the map, and what it did declare would go with it.
+		unmodeled = annotation.MergeUnmodeled(unmodeled, partUnmodeled)
 		if partEncodingEmpty(pe) {
 			continue
 		}
 		out[partPropID(ts, body, part.name, schemaPtr)] = pe
 	}
 	if len(out) == 0 {
-		return nil, diags
+		return nil, unmodeled, diags
 	}
-	return out, diags
+	return out, unmodeled, diags
 }
 
 // bodyPart is one multipart part: the name keying its encoding entry, and the
@@ -304,28 +312,35 @@ func propIDInComposition(ts *compile.Types, m *ir.Model, wire string, depth int)
 // buildPartEncoding assembles one part's PartEncoding: explicit encoding config
 // (content types, headers, style, explode) merged with the structural flags Multi
 // (array part) and Filename (binary/file part).
-func buildPartEncoding(c lowering.Ctx, ts *compile.Types, anchors *schema.AnchorIndex, name string, pjs *oas3.JSONSchema[oas3.Referenceable], encMap *sequencedmap.Map[string, *soa.Encoding], mediaPtr string) (ir.PartEncoding, []ir.Diagnostic) {
+func buildPartEncoding(c lowering.Ctx, ts *compile.Types, anchors *schema.AnchorIndex, name string, pjs *oas3.JSONSchema[oas3.Referenceable], encMap *sequencedmap.Map[string, *soa.Encoding], mediaPtr string) (ir.PartEncoding, ir.Unmodeled, []ir.Diagnostic) {
 	pe := ir.PartEncoding{}
+	var unmodeled ir.Unmodeled
 	var diags []ir.Diagnostic
 	if encMap != nil {
 		if enc, ok := encMap.Get(name); ok {
-			pe, diags = encodingConfig(c, ts, anchors, enc, mediaPtr+ids.Ptr("encoding", name))
+			pe, unmodeled, diags = encodingConfig(c, ts, anchors, enc,
+				mediaPtr+ids.Ptr("encoding", name), ids.Scope("encoding", name))
 		}
 	}
 	if part := schemaOf(pjs); part != nil {
 		pe.Multi = schemaIsArray(part)
 		pe.Filename = schemaIsFilePart(part)
 	}
-	return pe, diags
+	return pe, unmodeled, diags
 }
 
 // encodingConfig lowers one Encoding object's declared wire config: content
 // types, per-part headers, and form-style serialization. The structural flags
 // (Multi, Filename) come from the part's own schema, not from here.
-func encodingConfig(c lowering.Ctx, ts *compile.Types, anchors *schema.AnchorIndex, enc *soa.Encoding, encPtr string) (ir.PartEncoding, []ir.Diagnostic) {
+//
+// It returns what the object declared that PartEncoding has no field for as a
+// second value rather than writing it, because PartEncoding carries no
+// Unmodeled map of its own; scope is where that belongs on the owning Content
+// (see encodingUnmodeled).
+func encodingConfig(c lowering.Ctx, ts *compile.Types, anchors *schema.AnchorIndex, enc *soa.Encoding, encPtr, scope string) (ir.PartEncoding, ir.Unmodeled, []ir.Diagnostic) {
 	pe := ir.PartEncoding{}
 	if enc == nil {
-		return pe, nil
+		return pe, nil, nil
 	}
 	pe.ContentTypes = splitContentTypes(enc.GetContentTypeValue())
 	headers, diags := lowerHeaders(c, ts, anchors, enc.GetHeaders(), encPtr)
@@ -334,7 +349,36 @@ func encodingConfig(c lowering.Ctx, ts *compile.Types, anchors *schema.AnchorInd
 		pe.Style = string(*enc.Style)
 	}
 	pe.Explode = enc.Explode
-	return pe, diags
+	unmodeled, encDiags := encodingUnmodeled(c, enc, encPtr, scope)
+	return pe, unmodeled, append(diags, encDiags...)
+}
+
+// encodingUnmodeled keeps what an Encoding Object declares that nothing in the
+// IR holds: `allowReserved`, which ir.PartEncoding has no field for even though
+// its neighbours style and explode do, and the object's own x-*. Neither had
+// reached an IR field, an Unmodeled entry or a diagnostic, so two documents
+// differing only in them compiled to one IR (GitHub #291).
+//
+// Both ride on the owning ir.Content, since PartEncoding carries no Unmodeled
+// map, keyed under scope — "encoding/<part>" or "itemEncoding". One content can
+// hold an entry per multipart part plus a sequential item's, and they reach the
+// same map, so the part is what tells them apart.
+//
+// allowReserved carries ReasonNoIRHome and announces itself only when something
+// was written, the shape preserveHeaderSerialization already uses for the pair
+// beside it.
+func encodingUnmodeled(c lowering.Ctx, enc *soa.Encoding, encPtr, scope string) (ir.Unmodeled, []ir.Diagnostic) {
+	var out ir.Unmodeled
+	at := encPtr + ids.Ptr("allowReserved")
+	kept, diags := schema.PreserveNode(c, &out, "openapi:"+scope+"/allowReserved",
+		annotation.RawChildNode(enc.GetRootNode(), "allowReserved"), ir.ReasonNoIRHome, at)
+	if kept {
+		diags = append(diags, c.DiagAt(ir.SeverityInfo, diag.DegradedConstruct, at,
+			"encoding allowReserved has no ir.PartEncoding home; kept verbatim under Unmodeled"))
+	}
+	ext, extDiags := schema.ExtensionsIn(c, enc.GetExtensions(), encPtr, scope)
+	out = annotation.MergeUnmodeled(out, ext)
+	return out, append(diags, extDiags...)
 }
 
 // lowerHeaders lowers a header map into Properties in source order. Each
@@ -392,8 +436,8 @@ func reservedHeaderEntryDiag(c lowering.Ctx, name, hptr string) []ir.Diagnostic 
 // and ir.Property has a field for each, so the header path had no reason to drop
 // them (GitHub #116).
 func lowerHeader(c lowering.Ctx, ts *compile.Types, anchors *schema.AnchorIndex, h *soa.Header, name, hptr, hdecl string) (ir.Property, []ir.Diagnostic) {
-	js, schemaPtr, mediaType, diags := headerSchema(c, h, hdecl)
-	headerType, headerDiags := schema.CarriedRef(c, ts, anchors, schema.TopLevelDepth, js, schemaPtr, ids.DeclarationHint(hdecl, name))
+	elected, diags := electTypeSpelling(c, h.GetSchema(), h.GetContent(), h.GetRootNode(), hdecl)
+	headerType, headerDiags := schema.CarriedRef(c, ts, anchors, schema.TopLevelDepth, elected.js, elected.pointer, ids.DeclarationHint(hdecl, name))
 	diags = append(diags, headerDiags...)
 	p := ir.Property{
 		ID:         ids.Prop(hptr),
@@ -402,15 +446,16 @@ func lowerHeader(c lowering.Ctx, ts *compile.Types, anchors *schema.AnchorIndex,
 		Type:       headerType,
 		Required:   h.GetRequired(),
 		Provenance: c.ProvenanceAt(hptr),
+		Unmodeled:  elected.unmodeled,
 	}
-	if mediaType != "" {
+	if elected.mediaType != "" {
 		// The media type a content-style header serializes its value in, which is
 		// what ir.Encoding.MediaType holds. Nothing else on this path writes
 		// Property.Encoding, so the content spelling loses nothing the schema
 		// spelling keeps.
-		p.Encoding = &ir.Encoding{MediaType: mediaType}
+		p.Encoding = &ir.Encoding{MediaType: elected.mediaType}
 	}
-	diags = append(diags, schema.FillPropertyDetail(c, ts, anchors, &p, js, schemaPtr)...)
+	diags = append(diags, schema.FillPropertyDetail(c, ts, anchors, &p, elected.js, elected.pointer)...)
 	diags = append(diags, applyHeaderAnnotations(c, &p, h, hdecl)...)
 	return p, append(diags, preserveHeaderSerialization(c, &p, h, hdecl)...)
 }
@@ -443,24 +488,100 @@ func preserveHeaderSerialization(c lowering.Ctx, p *ir.Property, h *soa.Header, 
 	return diags
 }
 
-// headerSchema returns the schema a header declares, the pointer that schema sits
-// at, and the media type serializing it — empty for the schema spelling.
+// typeSpelling is how a parameter or header stated its type: the schema node,
+// the pointer that node sits at, the media type serializing it — empty for the
+// `schema` spelling — and whatever the election passed over, for the carrier at
+// this position to merge onto its own Unmodeled.
+type typeSpelling struct {
+	js        *oas3.JSONSchema[oas3.Referenceable]
+	pointer   string
+	mediaType string
+	unmodeled ir.Unmodeled
+}
+
+// electTypeSpelling picks the spelling a parameter or header states its type
+// with, and keeps the other verbatim where the document writes both. root is the
+// declaring object's node and at is the pointer it sits at.
 //
-// OpenAPI lets a header state its type as either `schema` or a `content` map
-// holding exactly one entry, and only the first spelling was read: a
-// content-style header lowered as if it had no schema at all, discarding its
-// type, its constraints and its xml hints together and without a diagnostic
-// (GitHub #139). The parameter path already read both (fillParamType), which is
-// why request headers never showed the defect.
-func headerSchema(c lowering.Ctx, h *soa.Header, hdecl string) (*oas3.JSONSchema[oas3.Referenceable], string, string, []ir.Diagnostic) {
-	if js := h.GetSchema(); js != nil {
-		return js, hdecl + ids.Ptr("schema"), "", nil
+// OpenAPI says a parameter — and a header, which follows the parameter rules —
+// MUST contain either a `schema` property or a `content` property, but not both.
+// Neither position can lower both, since ir.Parameter and ir.Property each hold
+// one type, so a document writing both needs the election §4.8 already applies
+// to competing keywords elsewhere (schema.dispatchOf): one form lowers and every
+// passed-over one is kept verbatim beside it rather than dropped.
+//
+// `content` wins because it is the more expressive of the two. A media-type
+// entry carries a schema *and* the media type serializing it, and both have IR
+// homes at these positions — HTTPParamBinding.ContentType and
+// Property.Encoding.MediaType — so electing it keeps in modelled form what
+// electing `schema` would push into an opaque Unmodeled payload: a declared wire
+// fact the IR does hold. The specification is no help in choosing: 3.1 names
+// `schema` first in the very sentence forbidding both and 3.2 names `content`
+// first, and a prohibition states no precedence in either order.
+//
+// The rule is unconditional, so it holds even where the elected entry states no
+// schema of its own: `{schema: {type: integer}, content: {application/json: {}}}`
+// lowers to `any` with the integer kept beside it, rather than to the integer.
+// Electing per entry instead would recover that one case and cost the property
+// the election exists for — two documents alike but for whether an entry names a
+// schema would elect different spellings, which is the shape of the bug being
+// fixed. Both keywords together is a document OpenAPI forbids; what matters is
+// that neither is dropped and the choice does not turn on how it was written.
+//
+// The two positions used to disagree, and only one of the orders was a decision:
+// fillParamType read `content` first from the start, while the header path read
+// `schema` first because it read nothing else until a content arm was appended
+// below it (GitHub #139). One order now governs both (GitHub #320).
+func electTypeSpelling(c lowering.Ctx, js *oas3.JSONSchema[oas3.Referenceable],
+	content *sequencedmap.Map[string, *soa.MediaType], root *yaml.Node, at string,
+) (typeSpelling, []ir.Diagnostic) {
+	// A content parameter or header declares exactly one media type;
+	// singleContentEntry takes it and reports a document that declares more,
+	// rather than dropping the extras in silence (GitHub #139).
+	mt, media, ok, diags := singleContentEntry(c, content, at)
+	if ok {
+		elected := typeSpelling{
+			js:        media.GetSchema(),
+			pointer:   at + ids.Ptr("content", mt, "schema"),
+			mediaType: mt,
+		}
+		diags = append(diags, passedOverSpelling(c, &elected.unmodeled, root, "schema", "content", at)...)
+		return elected, diags
 	}
-	mt, media, ok, diags := singleContentEntry(c, h.GetContent(), hdecl)
-	if !ok {
-		return nil, hdecl + ids.Ptr("schema"), "", diags
+	elected := typeSpelling{js: js, pointer: at + ids.Ptr("schema")}
+	if js == nil {
+		// Neither spelling states a type — a header carrying only a description,
+		// or a `content` map naming no usable entry — so there is no winner, and
+		// nothing was passed over for one.
+		return elected, diags
 	}
-	return media.GetSchema(), hdecl + ids.Ptr("content", mt, "schema"), mt, diags
+	diags = append(diags, passedOverSpelling(c, &elected.unmodeled, root, "content", "schema", at)...)
+	return elected, diags
+}
+
+// passedOverSpelling keeps verbatim the spelling the election passed over and
+// reports it once, naming both. A document that wrote only the elected one
+// records nothing and says nothing: RawChildNode returns nil for an absent
+// keyword and PreserveNode keeps nothing for a nil node.
+//
+// ReasonDegradedLowering, as recordSkippedFamilies uses for the keyword families
+// its own election passes over — the position lowered to one of two co-declared
+// forms with the other kept beside it. Warning rather than the info announcing a
+// conjunction JSON Schema allows, because this is one OpenAPI forbids: the same
+// severity singleContentEntry reports a content map of more than one entry at,
+// for the same reason. Not an error, since the document lowers as well as an
+// election can make it and harness.Check stops at the first error diagnostic,
+// which would hide every later finding in the same spec.
+func passedOverSpelling(c lowering.Ctx, u *ir.Unmodeled, root *yaml.Node, passed, elected, at string) []ir.Diagnostic {
+	pointer := at + ids.Ptr(passed)
+	kept, diags := schema.PreserveNode(c, u, "openapi:"+passed,
+		annotation.RawChildNode(root, passed), ir.ReasonDegradedLowering, pointer)
+	if !kept {
+		return diags
+	}
+	return append(diags, c.DiagAt(ir.SeverityWarning, diag.DegradedConstruct, pointer,
+		"a parameter or header declares either schema or content, not both; this one declares "+
+			"both, so it lowered as its %s, with %s kept verbatim under Unmodeled", elected, passed))
 }
 
 // singleContentEntry returns the one entry a content-style header or parameter
@@ -512,7 +633,8 @@ func applyHeaderAnnotations(c lowering.Ctx, p *ir.Property, h *soa.Header, hdecl
 	hExt, extDiags := schema.ExtensionsOf(c, h.GetExtensions(), hdecl)
 	diags = append(diags, extDiags...)
 	p.Unmodeled = annotation.MergeUnmodeled(p.Unmodeled, hExt)
-	return diags
+	diags = append(diags, annotation.UnknownKeysIn(&p.Unmodeled, h, c.SrcIndex, hdecl)...)
+	return append(diags, c.PromoteDeprecation(p.Unmodeled, p.Deprecation, &p.Provenance)...)
 }
 
 // exampleList lowers a single example node and a plural example map into value
@@ -547,16 +669,32 @@ func exampleList(c lowering.Ctx, single *yaml.Node, plural *sequencedmap.Map[str
 // is de-referenced: an enclosing $ref'd response or parameter is already
 // flattened into pointer.
 func appendPluralExample(c lowering.Ctx, out []ir.Example, re *soa.ReferencedExample, pointer, name string) ([]ir.Example, []ir.Diagnostic) {
-	ex := resolve.Object[soa.Example](re)
+	// The declaration pointer, not the entry's, is where an Example Object's own
+	// keywords are written: a $ref entry holds none of them. ir.Example carries an
+	// Unmodeled map, so the object's x-* need no scope.
+	ex, decl := resolve.ObjectAt[soa.Example](c.RefScope(), re, pointer+ids.Ptr("examples", name))
 	if ex == nil {
 		return out, nil
 	}
+	ext, diags := schema.ExtensionsOf(c, ex.GetExtensions(), decl)
 	proto := ir.Example{
 		Name:        name,
 		Summary:     ex.GetSummary(),
 		Description: ex.GetDescription(),
 		ExternalURL: ex.GetExternalValue(),
+		Unmodeled:   ext,
 	}
+	out, exDiags := appendExampleValue(c, out, proto, ex, re, pointer, name)
+	return out, append(diags, exDiags...)
+}
+
+// appendExampleValue appends the entry's value under the annotations proto
+// already carries, stamping the failure pointer where the value is written: at
+// the reference site for a $ref entry, which holds no `value` node of its own,
+// and at its own `value` for an inline one.
+func appendExampleValue(c lowering.Ctx, out []ir.Example, proto ir.Example, ex *soa.Example,
+	re *soa.ReferencedExample, pointer, name string,
+) ([]ir.Example, []ir.Diagnostic) {
 	node := ex.GetValue()
 	if node == nil {
 		return appendValuelessExample(c, out, proto, pointer, name)
@@ -604,6 +742,16 @@ func lowerRequestBody(c lowering.Ctx, ts *compile.Types, anchors *schema.AnchorI
 		diags = append(diags, c.DiagAt(ir.SeverityInfo, diag.DegradedConstruct, bodyPtr,
 			"request body is not required; optionality kept under Unmodeled"))
 	}
+	// soa.RequestBody exposes no GetExtensions at this library version, so the
+	// field is read directly — as XMLHints already reads its own. Both reads sit
+	// after the payload guard because ir.Payload is the body's only carrier: a
+	// request body declaring no content lowers to nothing to hang them on, and
+	// OpenAPI makes content REQUIRED there, so such a body is a defect in the
+	// document rather than a shape this compiler has to place.
+	bodyExt, bodyExtDiags := schema.ExtensionsOf(c, rb.Extensions, bodyPtr)
+	payload.Unmodeled = annotation.MergeUnmodeled(payload.Unmodeled, bodyExt)
+	diags = append(diags, bodyExtDiags...)
+	diags = append(diags, annotation.UnknownKeysIn(&payload.Unmodeled, rb, c.SrcIndex, bodyPtr)...)
 	op.Request = payload
 	hb.RequestContentTypes = contentTypeKeys(rb.GetContent())
 	return diags

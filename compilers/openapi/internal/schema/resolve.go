@@ -69,10 +69,45 @@ func schemaRefHomed(c lowering.Ctx, ts *compile.Types, anchors *AnchorIndex, dep
 // $ref. Those siblings bind the position, not the referent, so they cannot go
 // on the target's node; when the position has no carrier to hold them either,
 // an alias over the target becomes their home.
+//
+// In JSON Schema 2020-12, and so in OpenAPI 3.1, `$ref` is an ordinary keyword
+// and its siblings are conjoined with it. The alias carries the position's
+// constraints and annotations; every census keyword written beside the $ref is
+// kept verbatim on it instead, because an alias has no property set, no member
+// set, no value and no encoding of its own (GitHub #283).
+//
+// At an annotation.HomeCarrier position no alias is hoisted — a description or a
+// bound beside a property's $ref belongs on the property (GitHub #114) — so the
+// carrier keeps them there too, through PreserveRefSiteKeywords.
 func refSiteRef(c lowering.Ctx, ts *compile.Types, anchors *AnchorIndex, depth int, js *oas3.JSONSchema[oas3.Referenceable], s *oas3.Schema, pointer, hint string, home annotation.Home) (ir.TypeRef, []ir.Diagnostic) {
 	target, diags := refTypeRef(c, ts, anchors, depth, js, pointer)
-	ref, homeDiags := homeDeclaration(c, ts, anchors, s, target, pointer, hint, home)
-	return ref, append(diags, homeDiags...)
+	unhomed := unhomedKeywords(s, nil, nil)
+	ref, homeDiags := homeDeclaration(c, ts, anchors, s, target, pointer, hint, home, len(unhomed) > 0)
+	diags = append(diags, homeDiags...)
+	if home != annotation.HomeOwnNode {
+		return ref, diags
+	}
+	return ref, append(diags, recordUnhomedKeywords(c, ts, ref.Target, s, unhomed, refSiteShape, pointer)...)
+}
+
+// PreserveRefSiteKeywords keeps, on a carrier's own Unmodeled, the keywords a
+// $ref position declared that the alias it resolves to cannot hold. It is
+// refSiteRef's other half: the same census, recorded where an
+// annotation.HomeCarrier position keeps everything else its schema declared.
+//
+// A schema that lowered to a node of its own already had the census recorded
+// there, so the carrier adds nothing — one home per declaration, exactly as
+// fillPropertyAnnotations draws the line.
+func PreserveRefSiteKeywords(c lowering.Ctx, ts *compile.Types, p *ir.Unmodeled,
+	js *oas3.JSONSchema[oas3.Referenceable], t ir.TypeRef, pointer string,
+) []ir.Diagnostic {
+	// GetSchema is nil-safe and yields nil for a boolean schema too, so the one
+	// check covers an absent position, a boolean one, and a caller passing nil.
+	s := js.GetSchema()
+	if s == nil || !resolve.IsRefSite(js, s) || LoweredToOwnNode(ts, pointer, t) {
+		return nil
+	}
+	return recordUnhomedAt(c, p, s, unhomedKeywords(s, nil, nil), refSiteShape, pointer)
 }
 
 // homeDeclaration gives what s writes at this position a home and returns the
@@ -84,8 +119,8 @@ func refSiteRef(c lowering.Ctx, ts *compile.Types, anchors *AnchorIndex, depth i
 // $ref, which reached none of it until it was routed here. A position that
 // skips it drops what was written at it without a word — which is what both
 // GitHub #116 and #143 were.
-func homeDeclaration(c lowering.Ctx, ts *compile.Types, anchors *AnchorIndex, s *oas3.Schema, target ir.TypeRef, pointer, hint string, home annotation.Home) (ir.TypeRef, []ir.Diagnostic) {
-	ref, diags := hoistDeclarationHome(c, ts, s, target, pointer, hint, home)
+func homeDeclaration(c lowering.Ctx, ts *compile.Types, anchors *AnchorIndex, s *oas3.Schema, target ir.TypeRef, pointer, hint string, home annotation.Home, unhomed bool) (ir.TypeRef, []ir.Diagnostic) {
+	ref, diags := hoistDeclarationHome(c, ts, s, target, pointer, hint, home, unhomed)
 	if s != nil {
 		diags = append(diags, attachDeclaredAnnotations(c, ts, anchors, s, pointer)...)
 	}
@@ -154,9 +189,10 @@ func hoistSubSchema(c lowering.Ctx, ts *compile.Types, anchors *AnchorIndex, dep
 	if owned, ok := ts.Lookup(pointer); ok {
 		return owned, true, diags
 	}
-	cons, consDiags := schemaConstraints(c, s.Node, pointer)
+	var kept ir.Unmodeled
+	cons, consDiags := schemaConstraints(c, &kept, s.Node, pointer)
 	diags = append(diags, consDiags...)
-	id := internAlias(c, ts, pointer, hint, ref, cons)
+	id := internAlias(c, ts, pointer, hint, ref, cons, kept)
 	// As in lowerComponentSchema: this alias is the first node the pointer owns,
 	// so the annotations Ref had nowhere to put now have a home.
 	return id, true, append(diags, attachDeclaredAnnotations(c, ts, anchors, s.Node, pointer)...)
@@ -287,17 +323,10 @@ func structuralRole(segments []string) (role string, consumed int, ok bool) {
 }
 
 // refNullable reports whether a $ref usage admits null: the reference site or
-// its resolved target admits null in any spelling. The ref site must recompute
-// this because a target interned at its own ID (a model, a union) discards the
-// TypeRef its definition produced, so the bit survives nowhere else.
+// its resolved target admits null in any spelling. It is schemaAdmitsNull read
+// across the reference (refNullVerdict), so the two cannot answer one schema
+// differently.
 func refNullable(js *oas3.JSONSchema[oas3.Referenceable]) bool {
-	if s := js.GetSchema(); s != nil && schemaAdmitsNull(s) {
-		return true
-	}
-	resolved := js.GetResolvedSchema()
-	if resolved == nil {
-		return false
-	}
-	target := resolved.GetSchema()
-	return target != nil && schemaAdmitsNull(target)
+	budget := maxNullConjuncts
+	return refNullVerdict(js, &budget) == nullAdmitted
 }

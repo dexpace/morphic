@@ -1,0 +1,389 @@
+{
+  "irVersion": "0.3.0",
+  "name": "ExtensionPromotion",
+  "version": "1.0.0",
+  "docs": {},
+  "services": [
+    {
+      "id": "s/openapi/0",
+      "name": {
+        "source": "ExtensionPromotion",
+        "canonical": "extension_promotion"
+      },
+      "docs": {},
+      "groups": [
+        {
+          "name": {
+            "hint": "default"
+          },
+          "docs": {},
+          "operations": [
+            {
+              "id": "op/openapi/paths/~1x/get",
+              "name": {
+                "source": "getX",
+                "canonical": "get_x"
+              },
+              "docs": {},
+              "deprecation": {
+                "message": "use getY instead",
+                "since": "1.2.0",
+                "removalVersion": "2.0.0"
+              },
+              "responses": [
+                {
+                  "name": {
+                    "hint": "200"
+                  },
+                  "conditions": {
+                    "statusCodes": [
+                      {
+                        "from": 200,
+                        "to": 200
+                      }
+                    ]
+                  },
+                  "headers": [
+                    {
+                      "id": "p/openapi/paths/~1x/get/responses/200/headers/X-Legacy",
+                      "name": {
+                        "source": "X-Legacy",
+                        "canonical": "x_legacy"
+                      },
+                      "wireName": "X-Legacy",
+                      "type": {
+                        "target": "t/prim/string",
+                        "nullable": false
+                      },
+                      "required": false,
+                      "clientOptional": false,
+                      "defaultAdded": false,
+                      "visibility": {
+                        "none": false
+                      },
+                      "flatten": false,
+                      "eventHeader": false,
+                      "eventPayload": false,
+                      "secret": false,
+                      "docs": {},
+                      "deprecation": {
+                        "message": "header goes away"
+                      },
+                      "unmodeled": {
+                        "openapi:x-deprecated-reason": {
+                          "reason": "vendor_extension",
+                          "value": "header goes away",
+                          "provenance": {
+                            "source": 0,
+                            "pointer": "/paths/~1x/get/responses/200/headers/X-Legacy/x-deprecated-reason"
+                          }
+                        }
+                      },
+                      "provenance": {
+                        "source": 0,
+                        "pointer": "/paths/~1x/get/responses/200/headers/X-Legacy",
+                        "inferred": "extension-promotion"
+                      }
+                    }
+                  ],
+                  "docs": {
+                    "description": "ok"
+                  }
+                }
+              ],
+              "oneWay": false,
+              "idempotency": {},
+              "auth": null,
+              "bindings": {
+                "http": [
+                  {
+                    "method": "GET",
+                    "uriTemplate": "/x",
+                    "sharedRoute": false,
+                    "checksumRequired": false,
+                    "isWebhook": false
+                  }
+                ]
+              },
+              "unmodeled": {
+                "openapi:x-deprecated-reason": {
+                  "reason": "vendor_extension",
+                  "value": "use getY instead",
+                  "provenance": {
+                    "source": 0,
+                    "pointer": "/paths/~1x/get/x-deprecated-reason"
+                  }
+                },
+                "openapi:x-deprecated-since": {
+                  "reason": "vendor_extension",
+                  "value": "1.2.0",
+                  "provenance": {
+                    "source": 0,
+                    "pointer": "/paths/~1x/get/x-deprecated-since"
+                  }
+                },
+                "openapi:x-sunset": {
+                  "reason": "vendor_extension",
+                  "value": "2.0.0",
+                  "provenance": {
+                    "source": 0,
+                    "pointer": "/paths/~1x/get/x-sunset"
+                  }
+                }
+              },
+              "provenance": {
+                "source": 0,
+                "pointer": "/paths/~1x/get",
+                "inferred": "extension-promotion"
+              }
+            },
+            {
+              "id": "op/openapi/paths/~1y/get",
+              "name": {
+                "source": "getY",
+                "canonical": "get_y"
+              },
+              "docs": {},
+              "responses": [
+                {
+                  "name": {
+                    "hint": "200"
+                  },
+                  "conditions": {
+                    "statusCodes": [
+                      {
+                        "from": 200,
+                        "to": 200
+                      }
+                    ]
+                  },
+                  "docs": {
+                    "description": "ok"
+                  }
+                }
+              ],
+              "oneWay": false,
+              "idempotency": {},
+              "auth": null,
+              "bindings": {
+                "http": [
+                  {
+                    "method": "GET",
+                    "uriTemplate": "/y",
+                    "sharedRoute": false,
+                    "checksumRequired": false,
+                    "isWebhook": false
+                  }
+                ]
+              },
+              "unmodeled": {
+                "openapi:x-deprecated-reason": {
+                  "reason": "vendor_extension",
+                  "value": "annotates nothing",
+                  "provenance": {
+                    "source": 0,
+                    "pointer": "/paths/~1y/get/x-deprecated-reason"
+                  }
+                }
+              },
+              "provenance": {
+                "source": 0,
+                "pointer": "/paths/~1y/get"
+              }
+            }
+          ]
+        }
+      ],
+      "auth": null,
+      "provenance": {
+        "source": 0
+      }
+    }
+  ],
+  "types": {
+    "t/openapi/components/schemas/Old": {
+      "kind": "model",
+      "id": "t/openapi/components/schemas/Old",
+      "name": {
+        "source": "Old",
+        "canonical": "old"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "deprecation": {
+        "message": "replaced by New"
+      },
+      "unmodeled": {
+        "openapi:x-deprecated-reason": {
+          "reason": "vendor_extension",
+          "value": "replaced by New",
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/Old/x-deprecated-reason"
+          }
+        }
+      },
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Old",
+        "inferred": "extension-promotion"
+      },
+      "properties": [
+        {
+          "id": "p/openapi/components/schemas/Old/properties/p",
+          "name": {
+            "source": "p",
+            "canonical": "p"
+          },
+          "wireName": "p",
+          "type": {
+            "target": "t/prim/string",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "deprecation": {
+            "message": "field goes away"
+          },
+          "unmodeled": {
+            "openapi:x-deprecated-reason": {
+              "reason": "vendor_extension",
+              "value": "field goes away",
+              "provenance": {
+                "source": 0,
+                "pointer": "/components/schemas/Old/properties/p/x-deprecated-reason"
+              }
+            }
+          },
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/Old/properties/p",
+            "inferred": "extension-promotion"
+          }
+        },
+        {
+          "id": "p/openapi/components/schemas/Old/properties/n",
+          "name": {
+            "source": "n",
+            "canonical": "n"
+          },
+          "wireName": "n",
+          "type": {
+            "target": "t/prim/string",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "deprecation": {},
+          "unmodeled": {
+            "openapi:x-deprecated-reason": {
+              "reason": "vendor_extension",
+              "value": 7,
+              "provenance": {
+                "source": 0,
+                "pointer": "/components/schemas/Old/properties/n/x-deprecated-reason"
+              }
+            }
+          },
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/Old/properties/n"
+          }
+        }
+      ],
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
+    "t/prim/string": {
+      "kind": "primitive",
+      "id": "t/prim/string",
+      "name": {},
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0
+      },
+      "prim": "string"
+    }
+  },
+  "auth": {
+    "auth/openapi/components/securitySchemes/k": {
+      "id": "auth/openapi/components/securitySchemes/k",
+      "name": {
+        "source": "k",
+        "canonical": "k"
+      },
+      "kind": "apiKey",
+      "docs": {},
+      "deprecation": {
+        "message": "rotate to oauth"
+      },
+      "in": "header",
+      "keyName": "X-Key",
+      "unmodeled": {
+        "openapi:x-deprecated-reason": {
+          "reason": "vendor_extension",
+          "value": "rotate to oauth",
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/securitySchemes/k/x-deprecated-reason"
+          }
+        }
+      },
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/securitySchemes/k",
+        "inferred": "extension-promotion"
+      }
+    }
+  },
+  "servers": [
+    {
+      "name": {
+        "hint": "server"
+      },
+      "urlTemplate": "/",
+      "description": {},
+      "auth": null
+    }
+  ],
+  "diagnostics": [
+    {
+      "severity": "info",
+      "code": "openapi/degraded-construct",
+      "message": "extension \"x-deprecated-reason\" is not a string, so it does not fill deprecation.message",
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Old/properties/n/x-deprecated-reason"
+      }
+    }
+  ],
+  "sources": [
+    {
+      "format": "openapi@3.1",
+      "path": "extension-promotion.yaml",
+      "hash": "1bade65b585c75be141198f5312404923b56b7fbcf36105d20f13e26da63c52f"
+    }
+  ]
+}
