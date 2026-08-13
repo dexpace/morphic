@@ -25,6 +25,12 @@ FUZZTIME ?= 10s
 
 .DEFAULT_GOAL := gate
 
+# The gate runs one check at a time even under `make -j`. Prerequisites of a
+# single target are otherwise eligible to run concurrently, which would both lose
+# the CI order this file exists to mirror and let `fuzz` write a reproducer into
+# testdata/ while `coverage` is running `go test ./...` over the same tree.
+.NOTPARALLEL:
+
 .PHONY: gate fmt vet lint nolint-grammar nolint build coverage-count coverage \
 	fuzz bench bench-smoke print-lint-version
 
