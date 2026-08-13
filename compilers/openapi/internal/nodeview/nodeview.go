@@ -44,16 +44,17 @@ const maxPointerSegments = 1024
 const MergeDepthLimit = 64
 
 // maxCachedPairs bounds total expanded pairs one View retains, on the order of
-// 50 MB at 2²¹ for the pairs themselves — more with the key indexes below, whose
-// entries cost more apiece than a Pair does. It complements MergeDepthLimit: that bound caps one mapping's
-// expansion depth, this one caps a document with many merged mappings. Past the
-// budget the view still answers correctly — it just stops memoizing, trading a
-// cache hit for a recomputation.
+// 50 MB at 2²¹ for the pairs themselves. It complements MergeDepthLimit: that
+// bound caps one mapping's expansion depth, this one caps a document with many
+// merged mappings. Past the budget the view still answers correctly — it just
+// stops memoizing, trading a cache hit for a recomputation.
 //
-// It bounds the key index beside the pairs, without being charged for it twice:
-// an index exists only for a mapping whose pairs this retained and holds one
-// entry per pair, so what every index holds together is bounded by what this
-// already caps. See keyIndex.
+// It bounds the key indexes beside the pairs rather than being charged twice for
+// them: an index exists only for a mapping whose pairs this retained and holds
+// one entry per pair, so what every index holds together is bounded by what this
+// already caps. The bound is a count, and a map entry costs more than a Pair, so
+// the memory ceiling with indexes in play is some multiple of the figure above
+// rather than that figure. See keyIndex.
 const maxCachedPairs = 1 << 21
 
 // DocumentRoot returns the effective root node to scan: the content of a
@@ -584,6 +585,12 @@ const minIndexedPairs = 16
 //
 // A nil entry cannot be mistaken for an empty index: an empty mapping has no
 // pairs, and no mapping below minIndexedPairs is ever stored.
+//
+// The markers are bounded by the same budget the indexes are, and more tightly:
+// one is written only for a mapping whose pairs the memo kept, and every such
+// mapping charged at least minIndexedPairs to it, so v.keys holds at most
+// maxCachedPairs/minIndexedPairs entries however many mappings a document has.
+// Measured at saturation, that bound is exact.
 //
 // A built index is never returned from here — every caller reads v.keys itself
 // before reaching this — so the marker is the only entry this has to interpret.
