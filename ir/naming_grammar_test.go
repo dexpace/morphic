@@ -66,6 +66,14 @@ var canonicalCases = []struct {
 	{"a run of capitals ends at one with no lowercase form", "\u2124Server", "\u2124_server"},
 	{"and such a letter can be the tail itself", "HTTP\u2124erver", "http_\u2124erver"},
 	{"a titlecase letter opens a run", "\u01C5Bc", "\u01C6_bc"},
+	// GitHub #336. A tail needs case on one side of the split, because a split
+	// between two runes lowercasing leaves alone is one the next pass makes
+	// again. The lowercase letter the rule looks for is not always in the
+	// source: "\u2124\u2124A" has none, and lowercasing the A supplies one, so the pair
+	// below used to segment differently from the spelling one case apart.
+	{"a run of caseless capitals is no tail", "\u2124\u2124A", "\u2124\u2124a"},
+	{"so the lowercase spelling segments the same way", "\u2124\u2124a", "\u2124\u2124a"},
+	{"a caseless run still ends at a cased capital", "\u2124\u2124Ab", "\u2124\u2124_ab"},
 	{"a name with no word rune has no words", "***", ""},
 	{"the empty name is empty", "", ""},
 }

@@ -1,7 +1,6 @@
 package resolve_test
 
 import (
-	"context"
 	"os"
 	"strconv"
 	"strings"
@@ -15,6 +14,7 @@ import (
 
 	"github.com/dexpace/morphic/compilers"
 	"github.com/dexpace/morphic/compilers/openapi"
+	"github.com/dexpace/morphic/compilers/openapi/internal/openapitest"
 	"github.com/dexpace/morphic/compilers/openapi/internal/resolve"
 	"github.com/dexpace/morphic/ir"
 )
@@ -26,35 +26,16 @@ import (
 // what makes the fixture real. It costs an import of the package that imports
 // this one, which only an external test package may have.
 
-// parseFull runs the whole public compiler pipeline over src.
+// parseFull runs the whole public compiler pipeline over src. That reach back
+// through openapi is also why openapitest cannot hold it — see that package's
+// doc comment.
 func parseFull(t *testing.T, src string) (*ir.Document, []ir.Diagnostic) {
 	t.Helper()
-	doc, diags, err := openapi.New().Compile(context.Background(),
-		[]compilers.Source{{Path: "spec.yaml", Data: []byte(src)}}, compilers.Options{})
+	doc, diags, err := openapi.New().Compile(t.Context(),
+		[]compilers.Source{openapitest.SourceOf(src)}, compilers.Options{})
 	require.NoError(t, err)
 	require.NotNil(t, doc)
 	return doc, diags
-}
-
-// requireNoErrorDiags fails the test if any diagnostic has error severity.
-func requireNoErrorDiags(t *testing.T, diags []ir.Diagnostic) {
-	t.Helper()
-	d, ok := ir.FirstError(diags)
-	require.False(t, ok, "unexpected error diagnostic: %+v", d)
-}
-
-// findOp returns the operation whose source name matches.
-func findOp(t *testing.T, doc *ir.Document, source string) ir.Operation {
-	t.Helper()
-	for _, g := range doc.Services[0].Groups {
-		for _, op := range g.Operations {
-			if op.Name.Source == source {
-				return op
-			}
-		}
-	}
-	t.Fatalf("operation %q not found", source)
-	return ir.Operation{}
 }
 
 // TestObject_NilEntryIsNil pins the guard every caller relies on: a component
@@ -121,9 +102,9 @@ func TestObjectAt_AliasChainLeavingDocumentKeepsUseSitePointer(t *testing.T) {
 func TestObjectAt_AliasedComponentChainInternsAtFinalDeclaration(t *testing.T) {
 	t.Parallel()
 	doc, diags := parseFull(t, aliasedComponentChainSpec)
-	requireNoErrorDiags(t, diags)
-	getA := findOp(t, doc, "getA")
-	getB := findOp(t, doc, "getB")
+	openapitest.RequireNoErrorDiags(t, diags)
+	getA := openapitest.FindOp(t, doc, "getA")
+	getB := openapitest.FindOp(t, doc, "getB")
 
 	require.Len(t, getA.Params, 1)
 	require.Len(t, getB.Params, 1)
@@ -152,8 +133,8 @@ func TestObjectAt_AliasChainWithinBoundReachesDeclaration(t *testing.T) {
 	t.Parallel()
 	const hops = 8
 	doc, diags := parseFull(t, chainedAliasSpec(hops))
-	requireNoErrorDiags(t, diags)
-	op := findOp(t, doc, "getA")
+	openapitest.RequireNoErrorDiags(t, diags)
+	op := openapitest.FindOp(t, doc, "getA")
 	require.Len(t, op.Params, 1)
 	assert.Equal(t, ir.TypeID("t/anon/components/parameters/P8/schema"), op.Params[0].Type.Target,
 		"the walk follows every hop to the final declaration")
@@ -168,8 +149,8 @@ func TestObjectAt_AliasChainWithinBoundReachesDeclaration(t *testing.T) {
 func TestObjectAt_AliasChainBeyondBoundFallsBackToUseSite(t *testing.T) {
 	t.Parallel()
 	doc, diags := parseFull(t, chainedAliasSpec(resolve.MaxRefChain+4))
-	requireNoErrorDiags(t, diags)
-	op := findOp(t, doc, "getA")
+	openapitest.RequireNoErrorDiags(t, diags)
+	op := openapitest.FindOp(t, doc, "getA")
 	require.Len(t, op.Params, 1)
 	assert.Equal(t, ir.TypeID("t/anon/paths/~1a/get/parameters/0/schema"), op.Params[0].Type.Target,
 		"an over-long chain keeps the one pointer that is certainly addressable")
@@ -249,7 +230,7 @@ func compileFixture(t *testing.T, path string) *ir.Document {
 		compilers.Options{FormatOptions: openapi.Options{AllowExternalRefs: true}})
 	require.NoError(t, err)
 	require.NotNil(t, doc)
-	requireNoErrorDiags(t, diags)
+	openapitest.RequireNoErrorDiags(t, diags)
 	return doc
 }
 

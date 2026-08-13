@@ -3,6 +3,7 @@ package scan
 import (
 	"fmt"
 	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"testing"
@@ -14,6 +15,8 @@ import (
 
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/nodeview"
+	"github.com/dexpace/morphic/compilers/openapi/internal/sourceindex"
+	"github.com/dexpace/morphic/compilers/openapi/internal/ynode"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -45,10 +48,38 @@ var cycleReproducers = []struct{ name, file string }{
 	{"path-item-prefix-chain", "cycle_path_item_prefix_chain"},
 	{"component-path-item-prefix", "cycle_component_path_item_prefix"},
 	{"webhook-prefix-self", "cycle_webhook_prefix_self"},
+	{"path-item-empty-segment", "cycle_path_item_empty_segment"},
 	// A self-reference only the resolver's pointer normalization reveals, which
 	// overflows the stack rather than deadlocking: the resolution cache ends up
 	// pointing at its own reference and GetObject's delegation recurses.
 	{"pointer-whitespace-self", "cycle_pointer_whitespace_self"},
+}
+
+// TestCycleReproducers_EveryFixtureIsExercised holds cycleReproducers to the
+// fixtures on disk. A cycle_*.yaml added to the corpus and left out of the table
+// is scanned by nothing here, and the suite stays green while the corpus grows
+// past it.
+//
+// The compiler package keeps a table of the same fixtures for its own assertion
+// and carries the twin of this test. Holding both to one directory is what stops
+// the two from drifting apart as well as from the corpus, which neither package
+// can check directly — a test package cannot import another's.
+func TestCycleReproducers_EveryFixtureIsExercised(t *testing.T) {
+	t.Parallel()
+	onDisk, err := filepath.Glob(filepath.Join(reproducerDir, "cycle_*.yaml"))
+	require.NoError(t, err, "globbing the reproducer corpus")
+	require.NotEmpty(t, onDisk, "the corpus holds cycle reproducers")
+
+	listed := make(map[string]bool, len(cycleReproducers))
+	for _, tc := range cycleReproducers {
+		listed[tc.file+".yaml"] = true
+	}
+	for _, path := range onDisk {
+		assert.True(t, listed[filepath.Base(path)],
+			"%s is in %s but not in cycleReproducers", filepath.Base(path), reproducerDir)
+	}
+	assert.Len(t, cycleReproducers, len(onDisk),
+		"cycleReproducers and %s hold different numbers of fixtures", reproducerDir)
 }
 
 func TestDetectCycles_Reproducers(t *testing.T) {
@@ -57,7 +88,7 @@ func TestDetectCycles_Reproducers(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			data := readReproducer(t, tc.file)
-			diags := Cycles(0, data)
+			diags := scanBytes(t, data)
 			require.NotEmpty(t, diags, "degenerate cycle must be diagnosed")
 			assert.Equal(t, diag.CyclicRef, diags[0].Code)
 			assert.Equal(t, ir.SeverityError, diags[0].Severity)
@@ -70,7 +101,7 @@ func TestDetectCycles_LegalRecursionClean(t *testing.T) {
 	t.Parallel()
 	data, err := os.ReadFile("../../../../testdata/conformance/openapi/recursive.yaml")
 	require.NoError(t, err)
-	assert.Empty(t, Cycles(0, data), "legal recursion is not a degenerate cycle")
+	assert.Empty(t, scanBytes(t, data), "legal recursion is not a degenerate cycle")
 }
 
 var refShapedDataSpecs = []struct {
@@ -207,43 +238,55 @@ func TestDetectCycles_RefShapedDataIsClean(t *testing.T) {
 	for _, tc := range refShapedDataSpecs {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			assert.Empty(t, Cycles(0, []byte(tc.data)),
+			assert.Empty(t, scanBytes(t, []byte(tc.data)),
 				"a ref-shaped structure outside a schema position is not a degenerate cycle")
 		})
 	}
 }
 
-func TestDetectCycles_NonYAMLIsNoCycle(t *testing.T) {
+// TestDetectCycles_EmptyDocumentIsNoCycle covers the index a source with nothing
+// in it produces. A source that does not decode at all no longer reaches here —
+// load refuses it as a parse error before it indexes anything — so the empty
+// document is the only sourceless index the scan can be handed.
+func TestDetectCycles_EmptyDocumentIsNoCycle(t *testing.T) {
 	t.Parallel()
-	assert.Empty(t, Cycles(0, nil))
-	assert.Empty(t, Cycles(0, []byte("\t\x00: [")))
+	assert.Empty(t, Cycles(0, sourceindex.Build(nil, sourceindex.MaxIndexedNodes)))
+	assert.Empty(t, scanBytes(t, nil))
 }
+
+// scanBytes decodes source bytes and runs the refusals over the index built from
+// them — what load does around Cycles, with the compile's one decode.
+func scanBytes(t *testing.T, data []byte) []ir.Diagnostic {
+	t.Helper()
+	return Cycles(0, indexOf(t, data))
+}
+
+// indexOf decodes source bytes and indexes the tree. A fixture that does not
+// decode never reaches the scan in a real compile — load returns a parse error
+// first — so a decode failure here is a broken fixture, not a case to scan.
+func indexOf(t *testing.T, data []byte) sourceindex.Index {
+	t.Helper()
+	var root yaml.Node
+	require.NoError(t, yaml.Unmarshal(data, &root), "the fixture must decode")
+	return sourceindex.Build(&root, sourceindex.MaxIndexedNodes)
+}
+
+// rawNodes is a tree's own node count, before any alias is substituted, as the
+// source index derives it.
+func rawNodes(n *yaml.Node) int64 {
+	return sourceindex.Build(n, sourceindex.MaxIndexedNodes).Nodes()
+}
+
+// reproducerDir is where the cycle fixtures live. The reader below and the table
+// guard both derive their paths from it, so neither can end up looking somewhere
+// the other is not.
+const reproducerDir = "../../../../testdata/openapi"
 
 func readReproducer(t *testing.T, file string) []byte {
 	t.Helper()
-	data, err := os.ReadFile("../../../../testdata/openapi/" + file + ".yaml")
+	data, err := os.ReadFile(filepath.Join(reproducerDir, file+".yaml"))
 	require.NoError(t, err)
 	return data
-}
-
-func yscalar(v string) *yaml.Node {
-	return &yaml.Node{Kind: yaml.ScalarNode, Value: v}
-}
-
-func ymap(pairs ...*yaml.Node) *yaml.Node {
-	return &yaml.Node{Kind: yaml.MappingNode, Content: pairs}
-}
-
-func yseq(items ...*yaml.Node) *yaml.Node {
-	return &yaml.Node{Kind: yaml.SequenceNode, Content: items}
-}
-
-func yalias(target *yaml.Node) *yaml.Node {
-	return &yaml.Node{Kind: yaml.AliasNode, Alias: target}
-}
-
-func ymerge() *yaml.Node {
-	return &yaml.Node{Kind: yaml.ScalarNode, Value: "<<", Tag: nodeview.MergeTag}
 }
 
 func TestRecoverCycleScan_PanicYieldsWarning(t *testing.T) {
@@ -268,27 +311,21 @@ func TestRecoverCycleScan_PassesThroughResult(t *testing.T) {
 
 func TestDetectCycles_WhitespaceOnlyIsNoCycle(t *testing.T) {
 	t.Parallel()
-	assert.Empty(t, Cycles(0, []byte("\n\n\n")))
-	assert.Empty(t, Cycles(0, []byte("# only a comment\n")))
-}
-
-func TestWalkAnchors_NilNode(t *testing.T) {
-	t.Parallel()
-	_, ok := walkAnchors(0, nil, map[*yaml.Node]bool{}, 0)
-	assert.False(t, ok)
+	assert.Empty(t, scanBytes(t, []byte("\n\n\n")))
+	assert.Empty(t, scanBytes(t, []byte("# only a comment\n")))
 }
 
 func TestDetectCycles_LegalAliasReuseClean(t *testing.T) {
 	t.Parallel()
 	src := "a: &x {p: 1}\nb: *x\n"
-	assert.Empty(t, Cycles(0, []byte(src)),
+	assert.Empty(t, scanBytes(t, []byte(src)),
 		"an alias to a non-ancestor anchor is legal reuse")
 }
 
 func TestAnchorName_Cases(t *testing.T) {
 	t.Parallel()
 	anchored := &yaml.Node{Kind: yaml.MappingNode, Anchor: "root"}
-	assert.Equal(t, "root", anchorName(yalias(anchored)))
+	assert.Equal(t, "root", anchorName(ynode.Alias(anchored)))
 	assert.Equal(t, "bare", anchorName(&yaml.Node{Kind: yaml.AliasNode, Value: "bare"}))
 }
 
@@ -306,23 +343,23 @@ func TestDetectCycles_MalformedSchemaShapes(t *testing.T) {
 		"components:\n  schemas: [1, 2]\n"
 	allOfNotSeq := "openapi: 3.1.0\ninfo: {title: t, version: '1'}\npaths: {}\n" +
 		"components:\n  schemas:\n    A:\n      allOf: {x: 1}\n"
-	assert.Empty(t, Cycles(0, []byte(schemasNotMap)), "schemas as a sequence is not a schema map")
-	assert.Empty(t, Cycles(0, []byte(allOfNotSeq)), "allOf as a mapping is not a schema list")
+	assert.Empty(t, scanBytes(t, []byte(schemasNotMap)), "schemas as a sequence is not a schema map")
+	assert.Empty(t, scanBytes(t, []byte(allOfNotSeq)), "allOf as a mapping is not a schema list")
 }
 
 func TestFollowRefChain_DepthCapReturnsFalse(t *testing.T) {
 	t.Parallel()
 	const n = maxCycleDepth + 2
 	schemas := &yaml.Node{Kind: yaml.MappingNode}
-	root := ymap(yscalar("schemas"), schemas)
+	root := ynode.Map(ynode.Scalar("schemas"), schemas)
 	nodes := make([]*yaml.Node, n)
 	for i := range nodes {
 		nodes[i] = &yaml.Node{Kind: yaml.MappingNode}
 	}
 	for i := range nodes {
-		schemas.Content = append(schemas.Content, yscalar(strconv.Itoa(i)), nodes[i])
+		schemas.Content = append(schemas.Content, ynode.Scalar(strconv.Itoa(i)), nodes[i])
 		if i < n-1 {
-			nodes[i].Content = []*yaml.Node{yscalar("$ref"), yscalar("#/schemas/" + strconv.Itoa(i+1))}
+			nodes[i].Content = []*yaml.Node{ynode.Scalar("$ref"), ynode.Scalar("#/schemas/" + strconv.Itoa(i+1))}
 		}
 	}
 	verdict, _ := newRefScan().followRefChain(root, nodes[0])
@@ -332,10 +369,10 @@ func TestFollowRefChain_DepthCapReturnsFalse(t *testing.T) {
 
 func TestFollowRefChain_SafeMemoShortCircuits(t *testing.T) {
 	t.Parallel()
-	a := ymap(yscalar("$ref"), yscalar("#/schemas/B"))
-	b := ymap(yscalar("$ref"), yscalar("#/schemas/A"))
-	schemas := ymap(yscalar("A"), a, yscalar("B"), b)
-	root := ymap(yscalar("schemas"), schemas)
+	a := ynode.Map(ynode.Scalar("$ref"), ynode.Scalar("#/schemas/B"))
+	b := ynode.Map(ynode.Scalar("$ref"), ynode.Scalar("#/schemas/A"))
+	schemas := ynode.Map(ynode.Scalar("A"), a, ynode.Scalar("B"), b)
+	root := ynode.Map(ynode.Scalar("schemas"), schemas)
 
 	verdict, _ := newRefScan().followRefChain(root, a)
 	assert.Equal(t, chainCycles, verdict, "A -> B -> A is cyclic with an empty memo")
@@ -349,8 +386,8 @@ func TestFollowRefChain_SafeMemoShortCircuits(t *testing.T) {
 
 func TestFollowRefChain_DanglingRefIsNotCycle(t *testing.T) {
 	t.Parallel()
-	a := ymap(yscalar("$ref"), yscalar("#/schemas/Missing"))
-	root := ymap(yscalar("schemas"), ymap(yscalar("A"), a))
+	a := ynode.Map(ynode.Scalar("$ref"), ynode.Scalar("#/schemas/Missing"))
+	root := ynode.Map(ynode.Scalar("schemas"), ynode.Map(ynode.Scalar("A"), a))
 	s := newRefScan()
 	verdict, _ := s.followRefChain(root, a)
 	assert.Equal(t, chainTerminates, verdict, "a dangling $ref is not a cycle")
@@ -366,28 +403,28 @@ func TestMappingPairs_Cases(t *testing.T) {
 		want map[string]string
 	}{
 		{"nil node yields no pairs", nil, nil},
-		{"non-mapping node yields no pairs", yscalar("x"), nil},
+		{"non-mapping node yields no pairs", ynode.Scalar("x"), nil},
 		{
 			"alias-valued mapping is dereferenced at entry",
-			yalias(ymap(yscalar("k"), yscalar("v"))),
+			ynode.Alias(ynode.Map(ynode.Scalar("k"), ynode.Scalar("v"))),
 			map[string]string{"k": "v"},
 		},
 		{
 			"alias key and alias value are dereferenced",
-			ymap(yalias(yscalar("k")), yalias(yscalar("v"))),
+			ynode.Map(ynode.Alias(ynode.Scalar("k")), ynode.Alias(ynode.Scalar("v"))),
 			map[string]string{"k": "v"},
 		},
 		{
 			"non-scalar key after nodeview.Deref is skipped",
-			ymap(
-				ymap(yscalar("x"), yscalar("1")), yscalar("ignored"),
-				yscalar("real"), yscalar("kept"),
+			ynode.Map(
+				ynode.Map(ynode.Scalar("x"), ynode.Scalar("1")), ynode.Scalar("ignored"),
+				ynode.Scalar("real"), ynode.Scalar("kept"),
 			),
 			map[string]string{"real": "kept"},
 		},
 		{
 			"key aliasing a nil target is skipped",
-			ymap(yalias(nil), yscalar("ignored"), yscalar("real"), yscalar("kept")),
+			ynode.Map(ynode.Alias(nil), ynode.Scalar("ignored"), ynode.Scalar("real"), ynode.Scalar("kept")),
 			map[string]string{"real": "kept"},
 		},
 		{
@@ -397,35 +434,35 @@ func TestMappingPairs_Cases(t *testing.T) {
 		},
 		{
 			"duplicate explicit Key: last wins",
-			ymap(yscalar("k"), yscalar("first"), yscalar("k"), yscalar("second")),
+			ynode.Map(ynode.Scalar("k"), ynode.Scalar("first"), ynode.Scalar("k"), ynode.Scalar("second")),
 			map[string]string{"k": "second"},
 		},
 		{
 			"a merged key still yields to a repeated explicit key",
-			ymap(yscalar("k"), yscalar("first"), ymerge(), ymap(yscalar("k"), yscalar("from-merge")),
-				yscalar("k"), yscalar("second")),
+			ynode.Map(ynode.Scalar("k"), ynode.Scalar("first"), ynode.Merge(), ynode.Map(ynode.Scalar("k"), ynode.Scalar("from-merge")),
+				ynode.Scalar("k"), ynode.Scalar("second")),
 			map[string]string{"k": "second"},
 		},
 		{
 			"merge key contributes a mapping's pairs",
-			ymap(ymerge(), yalias(ymap(yscalar("a"), yscalar("1"))), yscalar("b"), yscalar("2")),
+			ynode.Map(ynode.Merge(), ynode.Alias(ynode.Map(ynode.Scalar("a"), ynode.Scalar("1"))), ynode.Scalar("b"), ynode.Scalar("2")),
 			map[string]string{"a": "1", "b": "2"},
 		},
 		{
 			"merge value that is not a mapping contributes nothing",
-			ymap(ymerge(), yscalar("not-a-mapping"), yscalar("b"), yscalar("2")),
+			ynode.Map(ynode.Merge(), ynode.Scalar("not-a-mapping"), ynode.Scalar("b"), ynode.Scalar("2")),
 			map[string]string{"b": "2"},
 		},
 		{
 			"explicit key wins over merged key",
-			ymap(yscalar("a"), yscalar("explicit"), ymerge(), ymap(yscalar("a"), yscalar("from-merge"))),
+			ynode.Map(ynode.Scalar("a"), ynode.Scalar("explicit"), ynode.Merge(), ynode.Map(ynode.Scalar("a"), ynode.Scalar("from-merge"))),
 			map[string]string{"a": "explicit"},
 		},
 		{
 			"merge sequence: earlier source wins on a shared key",
-			ymap(ymerge(), yseq(
-				ymap(yscalar("a"), yscalar("from-first")),
-				ymap(yscalar("a"), yscalar("from-second"), yscalar("b"), yscalar("only-in-second")),
+			ynode.Map(ynode.Merge(), ynode.Seq(
+				ynode.Map(ynode.Scalar("a"), ynode.Scalar("from-first")),
+				ynode.Map(ynode.Scalar("a"), ynode.Scalar("from-second"), ynode.Scalar("b"), ynode.Scalar("only-in-second")),
 			)),
 			map[string]string{"a": "from-first", "b": "only-in-second"},
 		},
@@ -458,10 +495,10 @@ func TestMappingPairs_Cases(t *testing.T) {
 
 	t.Run("duplicate explicit key keeps the last occurrence's position", func(t *testing.T) {
 		t.Parallel()
-		n := ymap(
-			yscalar("k"), yscalar("first"),
-			yscalar("other"), yscalar("o"),
-			yscalar("k"), yscalar("second"),
+		n := ynode.Map(
+			ynode.Scalar("k"), ynode.Scalar("first"),
+			ynode.Scalar("other"), ynode.Scalar("o"),
+			ynode.Scalar("k"), ynode.Scalar("second"),
 		)
 		got := nodeview.New().MappingPairs(n)
 		require.Len(t, got, 2)
@@ -473,7 +510,7 @@ func TestMappingPairs_Cases(t *testing.T) {
 	t.Run("merge chain at the depth bound still reaches the leaf", func(t *testing.T) {
 		t.Parallel()
 		v := nodeview.New()
-		got := v.MappingPairs(mergeChain(nodeview.MergeDepthLimit))
+		got := v.MappingPairs(ynode.MergeChain(nodeview.MergeDepthLimit))
 		assert.Equal(t, map[string]string{"leaf": "v"}, pairMap(got),
 			"a chain exactly at the bound expands in full")
 		assert.False(t, v.Exhausted(), "expanding to the bound is not exceeding it")
@@ -482,39 +519,27 @@ func TestMappingPairs_Cases(t *testing.T) {
 	t.Run("merge chain past the depth bound stops at the bound", func(t *testing.T) {
 		t.Parallel()
 		v := nodeview.New()
-		assert.Empty(t, v.MappingPairs(mergeChain(nodeview.MergeDepthLimit+2)),
+		assert.Empty(t, v.MappingPairs(ynode.MergeChain(nodeview.MergeDepthLimit+2)),
 			"a merge chain longer than the bound never reaches the leaf pair")
 		assert.True(t, v.Exhausted(), "exceeding the bound is recorded for refCycles")
 	})
 }
 
 func trailingKeyNode() *yaml.Node {
-	n := ymap(yscalar("a"), yscalar("1"))
-	n.Content = append(n.Content, yscalar("dangling"))
+	n := ynode.Map(ynode.Scalar("a"), ynode.Scalar("1"))
+	n.Content = append(n.Content, ynode.Scalar("dangling"))
 	return n
 }
 
 func mergeSeqReuseNode() *yaml.Node {
-	base := ymap(yscalar("a"), yscalar("1"))
-	return ymap(ymerge(), yseq(yalias(base), yalias(base)))
+	base := ynode.Map(ynode.Scalar("a"), ynode.Scalar("1"))
+	return ynode.Map(ynode.Merge(), ynode.Seq(ynode.Alias(base), ynode.Alias(base)))
 }
 
 func selfReferentialMergeNode() *yaml.Node {
 	n := &yaml.Node{Kind: yaml.MappingNode}
-	n.Content = []*yaml.Node{ymerge(), yalias(n)}
+	n.Content = []*yaml.Node{ynode.Merge(), ynode.Alias(n)}
 	return n
-}
-
-func mergeChain(levels int) *yaml.Node {
-	nodes := make([]*yaml.Node, levels+1)
-	for i := range nodes {
-		nodes[i] = &yaml.Node{Kind: yaml.MappingNode}
-	}
-	for i := range levels {
-		nodes[i].Content = []*yaml.Node{ymerge(), yalias(nodes[i+1])}
-	}
-	nodes[levels].Content = []*yaml.Node{yscalar("leaf"), yscalar("v")}
-	return nodes[0]
 }
 
 func pairMap(pairs []nodeview.Pair) map[string]string {
@@ -539,22 +564,22 @@ paths: {}
 x-anchors: {k: &k '<<', base: &base {$ref: '#/components/schemas/A'}}
 components: {schemas: {A: {*k : *base}}}
 `
-	assert.Empty(t, Cycles(0, []byte(quoted)),
+	assert.Empty(t, scanBytes(t, []byte(quoted)),
 		"a quoted '<<' is a plain key to speakeasy, not a merge")
-	assert.Empty(t, Cycles(0, []byte(aliasedKey)),
+	assert.Empty(t, scanBytes(t, []byte(aliasedKey)),
 		"an alias standing in for the key is a plain key to speakeasy, not a merge")
 }
 
 func TestRefScanCollect_VisitsEachNodeOncePerRole(t *testing.T) {
 	t.Parallel()
-	ref := ymap(yscalar("$ref"), yscalar("#/components/schemas/B"))
-	root := ymap(yscalar("schemas"), ymap(
-		yscalar("A"), ymap(yscalar("allOf"), yseq(yalias(ref), yalias(ref))),
-		yscalar("B"), ymap(yscalar("properties"), yalias(ref)),
-		yscalar("C"), yalias(ref),
+	ref := ynode.Map(ynode.Scalar("$ref"), ynode.Scalar("#/components/schemas/B"))
+	root := ynode.Map(ynode.Scalar("schemas"), ynode.Map(
+		ynode.Scalar("A"), ynode.Map(ynode.Scalar("allOf"), ynode.Seq(ynode.Alias(ref), ynode.Alias(ref))),
+		ynode.Scalar("B"), ynode.Map(ynode.Scalar("properties"), ynode.Alias(ref)),
+		ynode.Scalar("C"), ynode.Alias(ref),
 		// allOf whose value is the mapping itself, not a sequence: the only way
 		// this node is entered in the schema-list role.
-		yscalar("D"), ymap(yscalar("allOf"), yalias(ref)),
+		ynode.Scalar("D"), ynode.Map(ynode.Scalar("allOf"), ynode.Alias(ref)),
 	))
 
 	s := newRefScan()
@@ -582,7 +607,7 @@ func TestDetectCycles_TruncationDoesNotDisableTheRestOfTheScan(t *testing.T) {
 	b.WriteString("    A: {$ref: '#/components/schemas/B'}\n")
 	b.WriteString("    B: {$ref: '#/components/schemas/A'}\n")
 
-	diags := Cycles(0, []byte(b.String()))
+	diags := scanBytes(t, []byte(b.String()))
 	require.NotEmpty(t, diags)
 	assert.Equal(t, diag.CyclicRef, diags[0].Code,
 		"a cycle outside the truncated chain is still found, and outranks the warning")
@@ -593,19 +618,19 @@ func TestRefScanCollect_UnhandledRolePanics(t *testing.T) {
 	t.Parallel()
 	assert.Panics(t, func() {
 		s := newRefScan()
-		s.stack = append(s.stack, refTask{n: ymap(), role: roleCount})
+		s.stack = append(s.stack, refTask{n: ynode.Map(), role: roleCount})
 		s.collect(nil)
 	}, "a task carrying an unhandled role is a programmer error")
 }
 
 func TestRefScanCollect_DeepNestingIsNotTruncated(t *testing.T) {
 	t.Parallel()
-	ref := ymap(yscalar("$ref"), yscalar("#/components/schemas/A"))
+	ref := ynode.Map(ynode.Scalar("$ref"), ynode.Scalar("#/components/schemas/A"))
 	deep := ref
 	for range maxCycleDepth + 10 {
-		deep = ymap(yscalar("items"), deep)
+		deep = ynode.Map(ynode.Scalar("items"), deep)
 	}
-	root := ymap(yscalar("schemas"), ymap(yscalar("A"), deep))
+	root := ynode.Map(ynode.Scalar("schemas"), ynode.Map(ynode.Scalar("A"), deep))
 
 	s := newRefScan()
 	s.collect(root)
@@ -630,29 +655,15 @@ func TestDetectCycles_ChainedAliasFanOutIsRefusedFast(t *testing.T) {
 	assert.Equal(t, ir.SeverityError, diags[0].Severity)
 }
 
-func mergeChainSpec(levels int) string {
-	var b strings.Builder
-	b.WriteString("openapi: 3.1.0\ninfo: {title: t, version: '1'}\npaths: {}\nx-anchors:\n")
-	b.WriteString("  m0: &m0 {type: object}\n")
-	for i := 1; i <= levels; i++ {
-		fmt.Fprintf(&b, "  m%d: &m%d {<<: *m%d, p%d: %d}\n", i, i, i-1, i, i)
-	}
-	b.WriteString("components:\n  schemas:\n")
-	for i := levels; i >= 0; i-- {
-		fmt.Fprintf(&b, "    S%d: {properties: {x: *m%d}}\n", i, i)
-	}
-	return b.String()
-}
-
 func TestDetectCycles_MergeChainWithinBoundIsClean(t *testing.T) {
 	t.Parallel()
-	diags := scanWithin(t, mergeChainSpec(nodeview.MergeDepthLimit), "blowup on an in-bound merge chain")
+	diags := scanWithin(t, ynode.MergeChainSpec(nodeview.MergeDepthLimit), "blowup on an in-bound merge chain")
 	assert.Empty(t, diags, "a merge chain the scan can expand in full is clean")
 }
 
 func TestDetectCycles_MergeChainPastBoundStaysFastAndWarns(t *testing.T) {
 	t.Parallel()
-	diags := scanWithin(t, mergeChainSpec(1600), "super-linear blowup on a long merge chain")
+	diags := scanWithin(t, ynode.MergeChainSpec(1600), "super-linear blowup on a long merge chain")
 	require.Len(t, diags, 2, "both the truncation warning and the amplification refusal are reported")
 	assert.Equal(t, diag.CycleScanFailed, diags[0].Code)
 	assert.Equal(t, ir.SeverityWarning, diags[0].Severity,
@@ -665,9 +676,12 @@ func TestDetectCycles_MergeChainPastBoundStaysFastAndWarns(t *testing.T) {
 func scanWithin(t *testing.T, src, blowup string) []ir.Diagnostic {
 	t.Helper()
 	const bound = 10 * time.Second
+	// Indexed on this goroutine: the walk is linear in the tree, and require
+	// must not be called from the one below.
+	idx := indexOf(t, []byte(src))
 	done := make(chan []ir.Diagnostic, 1)
 	go func() {
-		done <- Cycles(0, []byte(src))
+		done <- Cycles(0, idx)
 	}()
 	select {
 	case diags := <-done:
@@ -689,17 +703,17 @@ func scanWithin(t *testing.T, src, blowup string) []ir.Diagnostic {
 // $ref is collected under no role at all.
 func TestRefScanCollect_OutsidePositions(t *testing.T) {
 	t.Parallel()
-	inSeq := ymap(yscalar("$ref"), yscalar("#/components/schemas/A"))
-	underSchema := ymap(yscalar("$ref"), yscalar("#/components/schemas/B"))
-	notASchema := ymap(yscalar("$ref"), yscalar("#/components/schemas/C"))
+	inSeq := ynode.Map(ynode.Scalar("$ref"), ynode.Scalar("#/components/schemas/A"))
+	underSchema := ynode.Map(ynode.Scalar("$ref"), ynode.Scalar("#/components/schemas/B"))
+	notASchema := ynode.Map(ynode.Scalar("$ref"), ynode.Scalar("#/components/schemas/C"))
 
-	root := ymap(
+	root := ynode.Map(
 		// a sequence at an outside position: each element stays outside
-		yscalar("parameters"), yseq(ymap(yscalar("schema"), underSchema)),
+		ynode.Scalar("parameters"), ynode.Seq(ynode.Map(ynode.Scalar("schema"), underSchema)),
 		// a data key: everything beneath it is data, whatever it looks like
-		yscalar("example"), notASchema,
+		ynode.Scalar("example"), notASchema,
 		// a mapping at an outside position that is a reference object itself
-		yscalar("requestBody"), inSeq,
+		ynode.Scalar("requestBody"), inSeq,
 	)
 
 	s := newRefScan()
@@ -722,7 +736,30 @@ info: {title: t, version: '1'}
 paths:
   /a: {$ref: '#/paths/~1a/t'}
 `
-	diags := Cycles(0, []byte(src))
+	diags := scanBytes(t, []byte(src))
+	require.NotEmpty(t, diags, "a pointer that resolves through its own reference must be refused")
+	assert.Equal(t, diag.CyclicRef, diags[0].Code)
+	assert.Equal(t, ir.SeverityError, diags[0].Severity)
+}
+
+// TestDetectCycles_EmptyPointerSegmentIsRefused covers the spelling that walked
+// past the refusal above: a trailing separator. '#/components/pathItems/A/' ends
+// in an empty reference token, which RFC 6901 and the resolver's parser both
+// read as naming the key "" under A. The resolver therefore descends *through*
+// A — the reference it is already resolving — and deadlocks, while a scan that
+// dropped the empty token read the pointer as stopping at A and reported a
+// components-only cycle it left to the resolver.
+func TestDetectCycles_EmptyPointerSegmentIsRefused(t *testing.T) {
+	t.Parallel()
+	const src = `openapi: 3.1.0
+info: {title: t, version: '1'}
+paths:
+  /a: {$ref: '#/components/pathItems/A'}
+components:
+  pathItems:
+    A: {$ref: '#/components/pathItems/A/'}
+`
+	diags := scanBytes(t, []byte(src))
 	require.NotEmpty(t, diags, "a pointer that resolves through its own reference must be refused")
 	assert.Equal(t, diag.CyclicRef, diags[0].Code)
 	assert.Equal(t, ir.SeverityError, diags[0].Severity)
@@ -747,41 +784,18 @@ func TestDetectCycles_PointerIsNormalizedLikeTheResolver(t *testing.T) {
 	for name, ref := range refs {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
-			diags := Cycles(0, []byte(head+ref+tail))
+			diags := scanBytes(t, []byte(head+ref+tail))
 			require.NotEmpty(t, diags, "the resolver reads this pointer as naming /a")
 			assert.Equal(t, diag.CyclicRef, diags[0].Code)
 		})
 	}
 }
 
-// TestCyclesInNode_FindsWhatCyclesFindsInTheSameBytes pins the node-taking entry
-// against the byte-taking one. They must agree, because the only reason the
-// second exists is a caller holding a tree the source bytes no longer describe —
-// an overlay's — and a scan that classified a decoded tree differently would let
-// exactly the documents it was added for through.
-func TestCyclesInNode_FindsWhatCyclesFindsInTheSameBytes(t *testing.T) {
+// TestDetectCycles_AcceptsATreeWithNoCycle is the control the refusal cases
+// need: without it, a suite made only of refusals would pass on a scan that
+// refused everything handed to it.
+func TestDetectCycles_AcceptsATreeWithNoCycle(t *testing.T) {
 	t.Parallel()
-	for _, tc := range cycleReproducers {
-		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
-			data := readReproducer(t, tc.file)
-
-			var root yaml.Node
-			require.NoError(t, yaml.Unmarshal(data, &root))
-
-			assert.Equal(t, Cycles(0, data), CyclesInNode(0, &root))
-		})
-	}
-}
-
-// TestCyclesInNode_AcceptsATreeWithNoCycle is the control: without it, an
-// agreement test over refusals alone would pass on an entry point that refused
-// everything handed to it.
-func TestCyclesInNode_AcceptsATreeWithNoCycle(t *testing.T) {
-	t.Parallel()
-	var root yaml.Node
-	require.NoError(t, yaml.Unmarshal([]byte(
-		"openapi: 3.1.0\ncomponents: {schemas: {A: {$ref: '#/components/schemas/B'}, B: {type: string}}}\n"), &root))
-
-	assert.Empty(t, CyclesInNode(0, &root))
+	assert.Empty(t, scanBytes(t, []byte(
+		"openapi: 3.1.0\ncomponents: {schemas: {A: {$ref: '#/components/schemas/B'}, B: {type: string}}}\n")))
 }
