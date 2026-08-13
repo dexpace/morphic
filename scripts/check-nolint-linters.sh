@@ -63,9 +63,10 @@ if [ ! -s "$work/enabled.txt" ]; then
 	exit 1
 fi
 jq -r '(.Enabled // [])[].name' "$work/formatters.json" >>"$work/enabled.txt"
-# LC_ALL=C so -u decides "same name" by bytes. Collation elsewhere can fold names
-# that differ only in case or punctuation into one, and the loser would then read
-# as a linter golangci-lint is not running.
+# -u drops what the locale's collation calls equal, which is a byte comparison
+# only under C. No name golangci-lint ships is affected — glibc separates
+# "gocritic", "go-critic" and "GoCritic" under en_US.UTF-8 — so this is insurance
+# against a name that would collide rather than a fix for one that does.
 LC_ALL=C sort -u -o "$work/enabled.txt" "$work/enabled.txt"
 
 # git grep -n emits "path:line:text", which the awk below splits on the first two
@@ -114,6 +115,15 @@ BEGIN {
 function trim(s) {
 	sub("^[ \t\r\n]+", "", s)
 	sub("[ \t\r\n]+$", "", s)
+	return s
+}
+
+# stripcr drops the trailing CR that go/scanner drops before the nolint filter
+# reads the comment. Without it a CRLF file leaves this grammar looking at
+# "nolint\r", which matches neither anchor below, while golangci-lint honours the
+# bare //nolint it came from.
+function stripcr(s) {
+	sub("\r$", "", s)
 	return s
 }
 
@@ -198,12 +208,12 @@ function scan(file, lineno, text,   pos, cand, lead) {
 	}
 }
 
-$0 == "" { next }
-
 # git grep -n emits "path:line:text", and the shell above has already refused a
 # tree in which a path could hold a colon, so the first two split it; a line
 # without them is a broken invariant, not a finding.
 {
+	$0 = stripcr($0)
+
 	p = index($0, ":")
 	rest = substr($0, p + 1)
 	q = index(rest, ":")

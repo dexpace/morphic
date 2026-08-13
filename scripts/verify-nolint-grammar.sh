@@ -89,6 +89,19 @@ plant() {
 	} >"$dir/pk/a.go"
 }
 
+# plant_crlf is plant with CRLF line endings. go/scanner drops the trailing CR
+# before the nolint filter reads the comment, so a directive there is live to
+# golangci-lint. The gate's gofmt step would reject such a file, but this check
+# must not depend on a step above it having run.
+plant_crlf() {
+	local dir="$work/$1"
+	shift
+	{
+		printf 'package pk\r\n\r\n'
+		printf '%s\r\n' "$@"
+	} >"$dir/pk/a.go"
+}
+
 make_repo main "$standard_config"
 make_repo noformatters 'version: "2"
 linters:
@@ -151,6 +164,10 @@ cases=(
 	# and over-reporting is the direction this check has to fail in. Asserted on
 	# the count, because the name carries the closing quote with it.
 	'instring|main|var _ = "//nolint:notarealinter"|1|nolint gate failed: 1 problem(s) across 1 directive(s).'
+	# A bare //nolint at the end of a CRLF line. go/scanner drops the CR, so
+	# golangci-lint honours it — measured: the finding under it disappears — and a
+	# grammar reading "nolint\r" would match neither anchor and miss it entirely.
+	'crlf-bare|main|@crlf|1|//nolint suppresses every enabled linter'
 	'capped|main|@capped|1|  ... and 5 more'
 	'no-formatters-config|noformatters|var _ = 1 //nolint:errorlint // r|0|nolint gate passed: 1 directive(s), 1 linter name(s), all enabled.'
 	'no-linters-config|nolinters|var _ = 1 //nolint:errorlint // r|1|NOLINT FAIL: golangci-lint reports no enabled linters, so nothing can be checked'
@@ -173,11 +190,11 @@ check_case() {
 		return 1
 	fi
 
-	if [ "$planted" = "@capped" ]; then
-		plant "$repo" "${capped_lines[@]}"
-	else
-		plant "$repo" "$planted"
-	fi
+	case "$planted" in
+	@capped) plant "$repo" "${capped_lines[@]}" ;;
+	@crlf) plant_crlf "$repo" 'var _ = 1 //nolint' ;;
+	*) plant "$repo" "$planted" ;;
+	esac
 
 	cp "$candidate" "$dir/scripts/check-nolint-linters.sh"
 	chmod +x "$dir/scripts/check-nolint-linters.sh"
@@ -249,6 +266,7 @@ mutations=(
 	'no-reason-cut|reasoncut|if (cut > 0)|if (0)'
 	'no-scan-advance|extraslashes|pos + length(lead) - length(cand)|pos + 2'
 	'no-directive-anchor|notdirective|cand ~ "^nolint[ :]"|cand ~ "nolint"'
+	'no-cr-strip|crlf-bare|$0 = stripcr($0)|$0 = $0'
 	'no-enabled-lookup|disabled|!(name in enabled)|0'
 	'no-formatters-list|formatter|>>"$work/enabled.txt"|>/dev/null'
 	'no-cap|capped|max_reported=25|max_reported=100'
@@ -379,6 +397,40 @@ else
 		;;
 	esac
 fi
+
+# Two guards no planted directive can reach. The first runs before the script has
+# read anything; the second only fires when awk cannot read the file the shell
+# just found non-empty, so no config produces it.
+printf '\nguards no planted directive reaches\n'
+
+# A PATH holding everything the script reaches before the tool loop, and jq only
+# missing: bash for the shebang's `env bash`, dirname and git to find the repo.
+mkdir -p "$work/bin"
+for tool in bash dirname git golangci-lint; do
+	ln -sf "$(command -v "$tool")" "$work/bin/$tool"
+done
+out="$(PATH="$work/bin" "$work/main/scripts/check-nolint-linters.sh" 2>/dev/null)" || true
+case "$out" in
+*"NOLINT FAIL: jq is not on PATH"*) pass "a missing tool is named rather than crashed on" ;;
+*) fail "a PATH without jq did not name it: $out" ;;
+esac
+
+# The shell guard proves the file is non-empty, so the awk-side check can only
+# fire on a file awk cannot read. Pointed at one that does not exist.
+unreadable="$work/mutant-unreadable.sh"
+mutate '-v enabled_file="$work/enabled.txt"' '-v enabled_file="$work/absent.txt"' >"$unreadable"
+chmod +x "$unreadable"
+cp "$unreadable" "$work/main/scripts/check-nolint-linters.sh"
+plant main 'var _ = 1'
+out="$(cd "$work/main" && ./scripts/check-nolint-linters.sh 2>/dev/null)" || true
+case "$out" in
+*"NOLINT FAIL: the enabled set came through empty"*)
+	pass "an unreadable enabled set is refused, not read as nothing enabled"
+	;;
+*)
+	fail "an unreadable enabled set did not fire the awk guard: $out"
+	;;
+esac
 
 printf '\n'
 if ((failures > 0)); then
