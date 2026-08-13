@@ -58,12 +58,12 @@ var bigValAdversarialSeeds = []string{
 // like "05") would have gone unnoticed too, had it not already been fixed by
 // the time this property was written.
 //
-// What the gate runs is the seed corpus, though: `go test` executes a fuzz
-// target's seeds and does not search. So the standing coverage is exactly the
-// spellings below plus the two tables', and a class absent from all three is
-// unprotected until someone runs `-fuzz` — which is why the seeds are chosen
-// adversarially rather than drawn from real specs, the same reasoning
-// naming_property_test.go records.
+// The seeds still carry most of the weight, though: an ordinary `go test`
+// executes them and does not search, and the gate's per-target search is
+// bounded to seconds (see scripts/fuzz.sh). So the standing coverage is the
+// spellings below plus the two tables', plus what a short mutation run reaches
+// from them — which is why the seeds are chosen adversarially rather than drawn
+// from real specs, the same reasoning naming_property_test.go records.
 //
 // A rejected input carries no claim: NewBigVal is not required to accept
 // everything, only to never accept something json.Valid would refuse. What

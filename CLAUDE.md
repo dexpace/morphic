@@ -237,19 +237,17 @@ below are the ones most likely to bite in this codebase — the full guide gover
 - **Logging:** `log/slog` only, injected — but note the stronger repo invariant: pipeline
   stages don't log at all; they return diagnostics.
 
-Before claiming any Go work done, run and pass the same checks CI's `gate` job runs
-(`.github/workflows/gate.yml`), in that order:
+Before claiming any Go work done, run and pass the gate:
 
 ```bash
-gofmt -l $(git ls-files '*.go')     # must print nothing
-go vet ./...
-golangci-lint run                   # must pass clean
-./scripts/verify-nolint-grammar.sh  # how the check below reads a directive
-./scripts/check-nolint-linters.sh   # every //nolint names a linter that is enabled
-go build ./...
-./scripts/verify-coverage-count.sh  # how the gate below counts a profile
-./scripts/check-coverage.sh         # go test ./... + exactly 100% statement coverage
+make gate
 ```
+
+That is not a summary of CI — it is what CI runs. Every check in `.github/workflows/gate.yml` runs a
+`Makefile` target bar `lint`, which the golangci-lint action runs at the version the `Makefile`
+pins, so the local command and the job are the same commands in the same order. Read the `Makefile`
+for the step list rather than restating it here; `make coverage`, `make fuzz`, `make bench` and the
+rest are individually runnable while iterating.
 
 **Coverage is a gate at exactly 100%, not a target.** `scripts/check-coverage.sh` counts
 statements from the profile rather than reading `go test`'s rounded percentage, so one uncovered

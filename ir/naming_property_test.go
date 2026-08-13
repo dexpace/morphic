@@ -57,12 +57,13 @@ var adversarialRunes = []string{
 // output is something the rest of the IR will accept, which is a different
 // question and the one nothing was asking.
 //
-// What the gate runs is the seed corpus: `go test` executes a fuzz target's seeds
-// and does not search. So the standing coverage is exactly the spellings listed
-// above plus the table's, and a class absent from both is unprotected until
-// someone runs `-fuzz`. That is why the seeds are chosen adversarially rather
-// than drawn from real specs — a grammar mishandling one script is invisible to a
-// corpus that only contains Latin.
+// The seeds still carry most of the weight: an ordinary `go test` executes them
+// and does not search, and the gate's per-target search is bounded to seconds
+// (see scripts/fuzz.sh). So the standing coverage is the spellings listed above
+// plus the table's, plus what a short mutation run reaches from them. That is
+// why the seeds are chosen adversarially rather than drawn from real specs — a
+// grammar mishandling one script is invisible to a corpus that only contains
+// Latin.
 func FuzzCanonicalWords_Properties(f *testing.F) {
 	for _, seed := range adversarialRunes {
 		f.Add(seed)

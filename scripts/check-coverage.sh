@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 #
-# check-coverage.sh enforces exact 100% statement coverage.
+# check-coverage.sh runs the whole suite under the race detector and enforces
+# exact 100% statement coverage.
 #
 # Coverage is counted from the profile, statement by statement, rather than read
 # from go test's "coverage: N%" summary lines. Those are rounded to one decimal
@@ -18,11 +19,10 @@
 # can be driven over profiles a real run will not produce, which is what
 # scripts/verify-coverage-count.sh does. CI uses the first form.
 #
-# $COVER_FILE names where the first form writes its profile (default cover.out). An
-# argument supersedes it, since nothing is written in that case.
+# $COVER_FILE names where the first form writes its profile; the default is a
+# temporary file this script removes on exit. An argument supersedes it, since
+# nothing is written in that case.
 set -euo pipefail
-
-cover_file="${COVER_FILE:-cover.out}"
 
 # Bound the failure output: a broken build can leave hundreds of uncovered
 # blocks, and the first screenful is what gets read.
@@ -33,6 +33,10 @@ if [ "$#" -gt 1 ]; then
 	exit 2
 fi
 
+# Where the profile comes from is settled once, here, because only one of these
+# three paths owns the file. An argument names the caller's, which this script
+# must leave exactly as it found it — a cleanup trap installed before this point
+# would expand $cover_file at exit and delete it.
 if [ "$#" -eq 1 ]; then
 	cover_file="$1"
 	if [ ! -r "$cover_file" ]; then
@@ -40,12 +44,46 @@ if [ "$#" -eq 1 ]; then
 		exit 1
 	fi
 else
+	# The minted path is unique per invocation. `go test -coverprofile` truncates
+	# the file when it starts and appends each package's blocks as that package
+	# finishes, so two runs sharing one path overwrite each other mid-write and
+	# each ends up reading a profile that is partly the other's.
+	#
+	# The merge below counts a block once however many times it appears, so this
+	# no longer inflates the total the way it did before that merge landed. What
+	# is left is a run judging a set of blocks that is not the set it produced,
+	# which reads as a pass whenever the blocks it lost were the uncovered ones.
+	#
+	# COVER_FILE names a profile to keep for inspection; a path this script mints
+	# is its own and is removed on exit.
+	if [ -n "${COVER_FILE:-}" ]; then
+		cover_file="$COVER_FILE"
+	else
+		cover_file="$(mktemp "${TMPDIR:-/tmp}/morphic-cover.XXXXXX")"
+		trap 'rm -f "$cover_file"' EXIT
+	fi
+
+	# Run from the repo root, derived from this script's own location rather than
+	# from the caller's cwd: invoked from a subdirectory, `go test ./...` would
+	# otherwise measure only that subtree and still report a pass. Same derivation
+	# as verify-atomic-output.sh. It happens here and not at the top of the file
+	# because the argument form above takes a path from the caller, and a relative
+	# one would then be resolved against the wrong directory.
+	cd "$(git -C "$(dirname "${BASH_SOURCE[0]}")" rev-parse --show-toplevel)"
+
+	# -race rides along with the coverage run rather than getting a `go test ./...`
+	# of its own. The two want the same execution of the same tests, and running the
+	# suite twice to collect two properties from it costs a second full run for
+	# nothing: the profile is identical with the detector on and off.
+	#
 	# -timeout is explicit rather than left to go test's 10-minute default. The
 	# compiler refuses documents that would otherwise hang the third-party resolver,
 	# so a regression in that refusal is a test that never returns, not one that
-	# fails. Ninety seconds is several times the suite's normal wall time and turns
-	# that failure mode into a prompt stack dump naming the stuck goroutine.
-	go test ./... -timeout 90s -covermode=atomic -coverprofile="$cover_file"
+	# fails. The bound clears the slowest package under -race by more than an order
+	# of magnitude, which leaves room for a CI runner several times slower than a
+	# developer machine while still turning a hang into a prompt stack dump naming
+	# the stuck goroutine.
+	go test ./... -race -timeout 300s -covermode=atomic -coverprofile="$cover_file"
 fi
 
 # Profile body, one block per line: "<import-path>/<file>.go:<span> <stmts> <count>".

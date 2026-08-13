@@ -2,6 +2,7 @@ package harness_test
 
 import (
 	"context"
+	"net"
 	"os"
 	"path/filepath"
 	"testing"
@@ -75,19 +76,36 @@ func TestCheckPath_EmptyPathIsError(t *testing.T) {
 	assert.Contains(t, err.Error(), "empty path")
 }
 
+// TestCheckPath_UnreadableFileIsError drives CheckPath's single-file branch at a
+// path that stats cleanly as a non-directory and still cannot be read.
+//
+// The unreadable thing is a unix socket rather than a chmod 0o000 regular file,
+// and the difference is the point. Permission bits are advisory to root, so the
+// permission form had to skip under euid 0 — which left CheckPath's `return nil,
+// err` uncovered there, and a checkout that fails the 100% gate for anyone
+// building as root, as a container commonly does. Refusing to open a socket for
+// reading is not a permission check, so no euid bypasses it.
 func TestCheckPath_UnreadableFileIsError(t *testing.T) {
 	t.Parallel()
-	if os.Geteuid() == 0 {
-		t.Skip("root bypasses permission bits, so a chmod 0o000 file stays readable")
-	}
-	// A regular file with no read permission stats cleanly (so it is not a
-	// directory) but fails to read, so CheckPath returns the read error.
-	dir := t.TempDir()
-	path := writeSpec(t, dir, "spec.yaml", testspec.Minimal)
-	require.NoError(t, os.Chmod(path, 0o000))
-	t.Cleanup(func() { _ = os.Chmod(path, 0o600) })
+	// A short prefix rather than t.TempDir: a unix socket path is capped near
+	// 104 bytes, and t.TempDir spells this test's whole name into it.
+	dir, err := os.MkdirTemp("", "harness")
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = os.RemoveAll(dir) })
 
-	_, err := harness.CheckPath(context.Background(), path)
+	path := filepath.Join(dir, "spec.yaml")
+	ln, err := net.Listen("unix", path)
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = ln.Close() })
+
+	// Establish that the fixture reaches the branch it is written for: a path
+	// that failed to stat, or that stat called a directory, would leave
+	// CheckPath before ever calling checkFile.
+	info, err := os.Stat(path)
+	require.NoError(t, err)
+	require.False(t, info.IsDir())
+
+	_, err = harness.CheckPath(context.Background(), path)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "harness: read")
 }
