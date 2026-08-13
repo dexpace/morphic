@@ -108,6 +108,14 @@ check_case() {
 		want="${want#!}"
 	fi
 
+	# A case naming a profile nothing built would run against a missing file, and the
+	# counter's "cannot read profile" answer carries both a COVERAGE FAIL and exit 1 —
+	# so a typo here would pass, quietly retiring the check it was meant to be.
+	if [ ! -f "$work/$name.out" ]; then
+		printf 'no profile named %s.out was built' "$name"
+		return 1
+	fi
+
 	# stdout only: what the counter reports there is the contract being checked, and
 	# a mutant broken outright would otherwise bury the run in awk parse errors.
 	local out status=0
