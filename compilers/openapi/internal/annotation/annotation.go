@@ -65,21 +65,40 @@ func EffectiveDeprecated(ref, tgt *oas3.Schema) bool {
 // EffectiveVisibility maps readOnly/writeOnly to a lifecycle visibility set
 // (ir-design §5.2): readOnly is present in every response lifecycle
 // (read/delete/query) and absent only from requests; writeOnly is create+update.
+// It reports separately whether both flags were in force, which no lifecycle
+// satisfies.
 //
-// A single schema declaring both flags keeps readOnly's set, since the switch
-// below takes the first matching case. Spread across two allOf branches the
-// same pairing instead intersects to Visibility{None: true}, the two sets
-// being disjoint — so one schema and two branches answer differently for what
-// a reader would call the same input. That divergence is tracked in #276 and
-// deliberately not settled here.
-func EffectiveVisibility(ref, tgt *oas3.Schema) ir.Visibility {
+// Each flag is resolved on its own, use-site over referent, so a position that
+// writes one of them settles that flag and leaves the other to resolve from the
+// referent — the uniform §14 merge, not a composite annotation one node wins
+// outright.
+//
+// Both in force is contradictory but legal: JSON Schema 2020-12 says readOnly
+// means the value is not writable and writeOnly that it is not readable, and
+// forbids neither beside the other. Read as sets, they leave nothing — the
+// property is admitted by no lifecycle, which Visibility{None: true} states
+// exactly. That is what merge.mergeVisibility already answers when the same
+// pairing is spread over two allOf branches, so the two spellings of one
+// contradiction no longer disagree (GitHub #276). Guarding readOnly first and
+// returning is what made them disagree, and it discarded the second flag with
+// no diagnostic in either channel.
+//
+// The bool rather than a diagnostic: this reader has no provenance of its own,
+// and the caller that has one is the caller that knows which carrier it is
+// filling.
+func EffectiveVisibility(ref, tgt *oas3.Schema) (ir.Visibility, bool) {
+	readOnly := pickFlag(ref, tgt, func(s *oas3.Schema) *bool { return s.ReadOnly })
+	writeOnly := pickFlag(ref, tgt, func(s *oas3.Schema) *bool { return s.WriteOnly })
+
 	switch {
-	case pickFlag(ref, tgt, func(s *oas3.Schema) *bool { return s.ReadOnly }):
-		return ir.Visibility{Only: []ir.Lifecycle{ir.LifecycleRead, ir.LifecycleDelete, ir.LifecycleQuery}}
-	case pickFlag(ref, tgt, func(s *oas3.Schema) *bool { return s.WriteOnly }):
-		return ir.Visibility{Only: []ir.Lifecycle{ir.LifecycleCreate, ir.LifecycleUpdate}}
+	case readOnly && writeOnly:
+		return ir.Visibility{None: true}, true
+	case readOnly:
+		return ir.Visibility{Only: []ir.Lifecycle{ir.LifecycleRead, ir.LifecycleDelete, ir.LifecycleQuery}}, false
+	case writeOnly:
+		return ir.Visibility{Only: []ir.Lifecycle{ir.LifecycleCreate, ir.LifecycleUpdate}}, false
 	default:
-		return ir.Visibility{}
+		return ir.Visibility{}, false
 	}
 }
 
@@ -175,8 +194,34 @@ func XMLHints(x *oas3.XML) *ir.XMLHints {
 // key beneath it and marked ReasonVendorExtension, since the format assigns an
 // x-* key no semantics at all.
 func ExtensionsFrom(ext *extensions.Extensions, srcIndex int, owner string) (ir.Unmodeled, []ir.Diagnostic) {
+	return ExtensionsUnder(ext, srcIndex, owner, "")
+}
+
+// ExtensionsUnder is ExtensionsFrom with every entry keyed beneath scope, for
+// the objects whose extensions have no Unmodeled map of their own to land on.
+//
+// Most OpenAPI objects lower to an IR node that carries one, and those pass an
+// empty scope. The rest ride on the nearest node that does — an info object's on
+// the document, an encoding's on the content, a path item's on each of its
+// operations — and several of them can reach the same map, where "openapi:x-id"
+// from two objects is one key and the surviving entry would depend on which
+// lowering ran last. scope names which object wrote them: the source path from
+// the carrier down to it, or the object's own keyword where it is not beneath
+// the carrier at all.
+//
+// No two keys can collide: every scope segment is a literal that never begins
+// with "x-" and every extension name always does, so the first "x-" segment is
+// where the scope ends and the name begins, and one key cannot be spelled by two
+// (scope, owner) pairs. That same gap holds against the non-extension keys a
+// carrier already holds under these scopes, such as the
+// "openapi:encoding/<part>/allowReserved" written beside an encoding's x-*.
+func ExtensionsUnder(ext *extensions.Extensions, srcIndex int, owner, scope string) (ir.Unmodeled, []ir.Diagnostic) {
 	if ext == nil || ext.Len() == 0 {
 		return nil, nil
+	}
+	prefix := "openapi:"
+	if scope != "" {
+		prefix += scope + "/"
 	}
 	out := ir.Unmodeled{}
 	var diags []ir.Diagnostic
@@ -188,7 +233,7 @@ func ExtensionsFrom(ext *extensions.Extensions, srcIndex int, owner string) (ir.
 				"extension %q could not be serialized", name))
 			continue
 		}
-		out["openapi:"+name] = ir.UnmodeledEntry{
+		out[prefix+name] = ir.UnmodeledEntry{
 			Reason:     ir.ReasonVendorExtension,
 			Value:      raw,
 			Provenance: ir.Provenance{Source: srcIndex, Pointer: owner + ids.Ptr(name)},
@@ -196,6 +241,30 @@ func ExtensionsFrom(ext *extensions.Extensions, srcIndex int, owner string) (ir.
 	}
 	if len(out) == 0 {
 		return nil, diags
+	}
+	return out, diags
+}
+
+// ExtensionSite is one object's x-* map paired with where it was written: Owner
+// is the object's own source pointer, and Scope is what its entries key under on
+// the carrier that ends up holding them (see ExtensionsUnder).
+type ExtensionSite struct {
+	Scope string
+	Owner string
+	Ext   *extensions.Extensions
+}
+
+// ExtensionsAt folds every site into one Unmodeled map, for the carriers that
+// hold more than one object's extensions. Sites are applied in the order given,
+// which is source order at every caller; distinct scopes cannot collide, so the
+// order decides nothing but is fixed anyway.
+func ExtensionsAt(srcIndex int, sites ...ExtensionSite) (ir.Unmodeled, []ir.Diagnostic) {
+	var out ir.Unmodeled
+	var diags []ir.Diagnostic
+	for _, site := range sites {
+		ext, extDiags := ExtensionsUnder(site.Ext, srcIndex, site.Owner, site.Scope)
+		out = MergeUnmodeled(out, ext)
+		diags = append(diags, extDiags...)
 	}
 	return out, diags
 }
@@ -434,6 +503,12 @@ func DeclaredSchema(js *oas3.JSONSchema[oas3.Referenceable]) *oas3.JSONSchema[oa
 // RawChildNode returns the raw YAML value node of a mapping child keyed by the
 // on-wire name, unwrapping a document node first; nil when absent. It reads exact
 // literals the high-level model does not preserve (links, servers, content maps).
+//
+// The last pair spelling the key wins, which is the pair the parser reads:
+// marshaller skips every occurrence of a repeated key but the last. Returning
+// the first instead described a mapping by a value nothing else in the compiler
+// uses — reachable once a key can be spelled two ways, since an explicit pair
+// and an aliased one are one key to the parser and two nodes here.
 func RawChildNode(root *yaml.Node, key string) *yaml.Node {
 	if root == nil {
 		return nil
@@ -444,12 +519,28 @@ func RawChildNode(root *yaml.Node, key string) *yaml.Node {
 	if root.Kind != yaml.MappingNode {
 		return nil
 	}
+	var found *yaml.Node
 	for i := 0; i+1 < len(root.Content); i += 2 {
-		if root.Content[i].Value == key {
-			return root.Content[i+1]
+		if keyName(root.Content[i]) == key {
+			found = root.Content[i+1]
 		}
 	}
-	return nil
+	return found
+}
+
+// keyName is the on-wire name a mapping key node spells, following an alias to
+// the scalar it stands for.
+//
+// yaml.v3 leaves an alias node's own Value as the anchor name, so a key written
+// as an alias matches nothing when read raw — while the parser reads that key
+// under the name it resolves to, which is the name every caller here looks up.
+// Comparing the two spellings is what let a key the model reported as
+// undeclared reach no Unmodeled entry at all (GitHub #297).
+func keyName(n *yaml.Node) string {
+	if n.Kind == yaml.AliasNode && n.Alias != nil {
+		return n.Alias.Value
+	}
+	return n.Value
 }
 
 // The readers below consume a Site the caller supplies rather than resolving
@@ -498,14 +589,51 @@ func Read(st Site, pointer string, srcIndex int) (Set, []ir.Diagnostic) {
 	out.Examples = examples
 
 	ext, extDiags := ExtensionsFrom(st.Node.GetExtensions(), srcIndex, pointer)
+	sub, subDiags := subObjectKeys(st.Node, pointer, srcIndex)
 	kept, keptDiags := unmodeledAt(st.Node, pointer, srcIndex)
 
-	diags := make([]ir.Diagnostic, 0, len(exDiags)+len(extDiags)+len(keptDiags))
+	diags := make([]ir.Diagnostic, 0, len(exDiags)+len(extDiags)+len(subDiags)+len(keptDiags))
 	diags = append(diags, exDiags...)
 	diags = append(diags, extDiags...)
+	diags = append(diags, subDiags...)
 	diags = append(diags, keptDiags...)
 
-	out.Unmodeled = MergeUnmodeled(ext, kept)
+	out.Unmodeled = MergeUnmodeled(MergeUnmodeled(ext, sub), kept)
+	return out, diags
+}
+
+// subObjectKeys collects what the sub-objects of a schema declare that reaches
+// no IR field — the x-* they carry and the keys the specification defines for
+// none of them — over its xml, its discriminator and its externalDocs.
+//
+// Each is an OpenAPI object with its own closed key set, and none of
+// ir.XMLHints, ir.Discriminator or ir.Link holds an Unmodeled map, so the
+// entries ride on the node the schema itself lowers to; the keyword each was
+// written under is what keeps three objects' entries apart on that one map.
+//
+// The census is graded as an OpenAPI object's rather than as a schema keyword's,
+// even though these hang off a schema: the JSON Schema rule that an unrecognized
+// keyword is legal governs the schema itself, and these three are OpenAPI
+// objects that the schema vocabulary says nothing about.
+func subObjectKeys(s *oas3.Schema, pointer string, srcIndex int) (ir.Unmodeled, []ir.Diagnostic) {
+	subs := []struct {
+		keyword string
+		obj     any
+		ext     *extensions.Extensions
+	}{
+		{"xml", s.GetXML(), s.GetXML().GetExtensions()},
+		{"discriminator", s.GetDiscriminator(), s.GetDiscriminator().GetExtensions()},
+		{"externalDocs", s.GetExternalDocs(), s.GetExternalDocs().GetExtensions()},
+	}
+	var out ir.Unmodeled
+	var diags []ir.Diagnostic
+	for _, sub := range subs {
+		owner := pointer + ids.Ptr(sub.keyword)
+		ext, extDiags := ExtensionsUnder(sub.ext, srcIndex, owner, sub.keyword)
+		out = MergeUnmodeled(out, ext)
+		diags = append(diags, extDiags...)
+		diags = append(diags, UnknownKeysUnder(&out, sub.obj, srcIndex, owner, sub.keyword)...)
+	}
 	return out, diags
 }
 

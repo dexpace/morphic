@@ -450,7 +450,7 @@ func TestCheck_OrderDependentOutcome(t *testing.T) {
 			Name:       ir.Naming{Source: "M", Canonical: "m"},
 			Provenance: ir.Provenance{Pointer: "/" + path},
 		}}
-		return &ir.Document{Types: ir.TypeRegistry{m.ID: m}}, nil, nil
+		return &ir.Document{IRVersion: ir.IRVersion, Types: ir.TypeRegistry{m.ID: m}}, nil, nil
 	}
 
 	r := Check(context.Background(), "spec", []byte(src))

@@ -34,5 +34,7 @@ jobs:
           PATH="${RUNNER_TEMP}/bin:${PATH}" ./scripts/check-nolint-linters.sh
       - name: build
         run: go build ./...
+      - name: coverage counting
+        run: ./scripts/verify-coverage-count.sh
       - name: coverage
         run: ./scripts/check-coverage.sh

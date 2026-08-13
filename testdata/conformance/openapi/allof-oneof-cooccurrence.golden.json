@@ -22,7 +22,7 @@
       "kind": "scalar",
       "id": "t/anon/components/schemas/Combo/oneOf/0",
       "name": {
-        "hint": "A"
+        "hint": "a"
       },
       "anonymous": true,
       "docs": {},
@@ -44,7 +44,7 @@
       },
       "anonymous": true,
       "docs": {
-        "description": "named by position"
+        "description": "named by position, not by target"
       },
       "sensitive": false,
       "provenance": {
@@ -60,7 +60,7 @@
       "kind": "model",
       "id": "t/composed/components/schemas/Combo/oneOf/0",
       "name": {
-        "hint": "Combo_A"
+        "hint": "combo_a"
       },
       "anonymous": true,
       "docs": {},
@@ -87,7 +87,7 @@
       "kind": "model",
       "id": "t/composed/components/schemas/Combo/oneOf/1",
       "name": {
-        "hint": "Combo_B"
+        "hint": "combo_b"
       },
       "anonymous": true,
       "docs": {},
@@ -251,6 +251,48 @@
       "positional": false,
       "inputOnly": false
     },
+    "t/openapi/components/schemas/BoundedKinds": {
+      "kind": "scalar",
+      "id": "t/openapi/components/schemas/BoundedKinds",
+      "name": {
+        "source": "BoundedKinds",
+        "canonical": "bounded_kinds"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "unmodeled": {
+        "openapi:oneOf": {
+          "reason": "degraded_lowering",
+          "value": [
+            {
+              "$ref": "#/components/schemas/A"
+            },
+            {
+              "type": "string"
+            }
+          ],
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/BoundedKinds/oneOf"
+          }
+        }
+      },
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/BoundedKinds"
+      },
+      "base": {
+        "target": "t/prim/string",
+        "nullable": false
+      },
+      "constraints": {
+        "exclusiveMin": false,
+        "exclusiveMax": false,
+        "minLength": 3,
+        "uniqueItems": false
+      }
+    },
     "t/openapi/components/schemas/Combo": {
       "kind": "union",
       "id": "t/openapi/components/schemas/Combo",
@@ -268,7 +310,7 @@
       "variants": [
         {
           "name": {
-            "hint": "A"
+            "hint": "a"
           },
           "type": {
             "target": "t/composed/components/schemas/Combo/oneOf/0",
@@ -278,7 +320,7 @@
         },
         {
           "name": {
-            "hint": "B"
+            "hint": "b"
           },
           "type": {
             "target": "t/composed/components/schemas/Combo/oneOf/1",
@@ -366,7 +408,7 @@
           "eventPayload": false,
           "secret": false,
           "docs": {
-            "description": "named by position"
+            "description": "named by position, not by target"
           },
           "provenance": {
             "source": 0,
@@ -542,13 +584,22 @@
         "source": 0,
         "pointer": "/components/schemas/MixedKinds"
       }
+    },
+    {
+      "severity": "info",
+      "code": "openapi/degraded-construct",
+      "message": "oneOf/anyOf co-declared with structural keywords intersects with them, and the body is not a model, so it carries no composition to distribute into; union branches kept verbatim under Unmodeled",
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/BoundedKinds"
+      }
     }
   ],
   "sources": [
     {
       "format": "openapi@3.1",
       "path": "allof-oneof-cooccurrence.yaml",
-      "hash": "cb7fb6bc613222b0211fc363b9028e7739b44a1d14b04f74cf709b8d603655f2"
+      "hash": "9deaf845e7a310c701113bd61e60a7e0d170cbf96860921816623667813e458f"
     }
   ]
 }

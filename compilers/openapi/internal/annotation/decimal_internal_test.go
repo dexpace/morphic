@@ -52,6 +52,69 @@ func TestCompareDecimalBounds_OrdersEveryDecimalSpellingExactly(t *testing.T) {
 	}
 }
 
+// TestBigValEqual_SeparatesOneValueFromTwo pins what the allOf redeclaration
+// merge asks of this comparison: one value written two ways stays one value at
+// any magnitude, and two values stay two.
+//
+// The rows that spell one magnitude two ways past a rational's range are what
+// carry the test. math/big will not build 1e1000001 as a rational at all, so a
+// comparison resting on one has to answer that pair from their text, which
+// reports a disagreement between a bound and itself. Both directions are
+// asserted, so an answer that happens to be right one way round is not mistaken
+// for a comparison.
+func TestBigValEqual_SeparatesOneValueFromTwo(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		name string
+		a, b string
+		want bool
+	}{
+		{name: "one literal against itself", a: "1e1000001", b: "1e1000001", want: true},
+		{name: "an exponent against the digits it stands for", a: "1e2", b: "100", want: true},
+		{name: "a digit the exponent moved, past a rational", a: "1e1000001", b: "10e1000000", want: true},
+		{name: "a magnitude too small for a rational", a: "1e-1000001", b: "10e-1000002", want: true},
+		{name: "zero however it is written", a: "0", b: "-0.0", want: true},
+		{name: "one exponent apart, past a rational", a: "1e1000001", b: "1e1000002"},
+		{name: "one leading digit apart, past a rational", a: "1e1000001", b: "2e1000001"},
+		{name: "a sign apart, past a rational", a: "1e1000001", b: "-1e1000001"},
+		{name: "a digit past float64's exact range", a: "9007199254740993", b: "9007199254740992"},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			a, err := ir.NewBigVal(tc.a)
+			require.NoError(t, err, "%q is a literal a schema may write", tc.a)
+			b, err := ir.NewBigVal(tc.b)
+			require.NoError(t, err, "%q is a literal a schema may write", tc.b)
+
+			assert.Equal(t, tc.want, BigValEqual(a, b), "%s against %s", a, b)
+			assert.Equal(t, tc.want, BigValEqual(b, a), "%s against %s", b, a)
+		})
+	}
+}
+
+// TestBigValEqual_ReadsAPairOutsideTheGrammarByItsTextAlone covers the answer
+// for a literal this reader cannot order. No bound reaches it today — every one
+// comes through ir.NewBigVal, whose grammar
+// TestBigValGrammarStaysWithinTheDecimalReading holds inside this one — so the
+// literals here are fed in directly, and they are the ones NewBigVal refuses.
+//
+// Identical text is one literal and so one value, whatever grammar it belongs
+// to. Differing text is the honest "not the same value I can see": claiming
+// equality there would fold two bounds into one on a reading never made.
+func TestBigValEqual_ReadsAPairOutsideTheGrammarByItsTextAlone(t *testing.T) {
+	t.Parallel()
+	_, err := ir.NewBigVal("1p4")
+	require.Error(t, err, "the guard's inputs are literals no schema turns into a BigVal")
+
+	assert.True(t, BigValEqual(ir.BigVal("1p4"), ir.BigVal("1p4")),
+		"one literal is one value whether or not it can be read")
+	assert.False(t, BigValEqual(ir.BigVal("1p4"), ir.BigVal("16")),
+		"an unreadable literal is never folded into one that reads")
+	assert.False(t, BigValEqual(ir.BigVal("16"), ir.BigVal("1p4")),
+		"nor the other way round")
+}
+
 // TestParseDecimalBound_DeclinesWhatIsNotADecimalLiteral pins the one honest
 // answer for a literal outside the grammar: none. Reading digits out of one and
 // ordering what is left would put a bound the source never wrote into the IR —
