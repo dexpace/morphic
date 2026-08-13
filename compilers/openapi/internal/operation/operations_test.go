@@ -1528,6 +1528,68 @@ func TestOperations_PathItemServersKeptOnEveryRoute(t *testing.T) {
 	}
 }
 
+// pathItemUnknownKeySpec writes one key the Path Item Object does not define on
+// each of the three path items a document can declare, valued with the route it
+// sits on so an entry recovered from the wrong item cannot pass for the right
+// one.
+//
+// The value is a whole operation because that is what the position accepts:
+// the library folds a key it does not recognize into the item's operations map
+// and unmarshals it as an Operation, so a scalar there is a validation error
+// rather than a key with a value to keep. It is also the case that used to be
+// lost in silence — a well-formed operation under an undefined key raised no
+// finding at all.
+const pathItemUnknownKeySpec = `openapi: 3.1.0
+info: {title: T, version: "1"}
+paths:
+  /p:
+    onPath: {responses: {"200": {description: PATH}}}
+    post:
+      operationId: postP
+      callbacks:
+        onEvent:
+          '{$request.body#/url}':
+            onCallback: {responses: {"200": {description: CALLBACK}}}
+            post:
+              operationId: onEvent
+              responses: {"200": {description: ok}}
+      responses: {"200": {description: ok}}
+webhooks:
+  hooked:
+    onWebhook: {responses: {"200": {description: WEBHOOK}}}
+    post:
+      operationId: onHook
+      responses: {"200": {description: ok}}
+`
+
+// TestOperations_PathItemUnknownKeyKeptOnEveryRoute holds the path item's census
+// to all three routes that lower one, for the reason recorded above the servers
+// case beside it: the same object has three parents, and that half of
+// applyPathItem was live on the paths walk and missing on the other two
+// (GitHub #39). Both halves now run from the one entry point, and this is what
+// says so rather than assuming it.
+func TestOperations_PathItemUnknownKeyKeptOnEveryRoute(t *testing.T) {
+	t.Parallel()
+	doc, diags := parseFull(t, pathItemUnknownKeySpec)
+	openapitest.RequireNoErrorDiags(t, diags)
+
+	for _, tc := range []struct{ op, key, marker, at string }{
+		{"postP", "openapi:pathItem/onPath", "PATH", "/paths/~1p/onPath"},
+		{"onHook", "openapi:pathItem/onWebhook", "WEBHOOK", "/webhooks/hooked/onWebhook"},
+		{"onEvent", "openapi:pathItem/onCallback", "CALLBACK",
+			"/paths/~1p/post/callbacks/onEvent/{$request.body#~1url}/onCallback"},
+	} {
+		entry, ok := openapitest.FindOp(t, doc, tc.op).Unmodeled[tc.key]
+		require.True(t, ok, "%s keeps the key its own path item wrote", tc.op)
+		assert.Equal(t, ir.ReasonOutOfScope, entry.Reason)
+		assert.JSONEq(t, `{"responses":{"200":{"description":"`+tc.marker+`"}}}`, string(entry.Value),
+			"%s keeps the value its own path item declared", tc.op)
+		assert.Equal(t, tc.at, entry.Provenance.Pointer)
+		assert.True(t, openapitest.HasDiagCodeAt(diags, diag.UnknownObjectKey, tc.at),
+			"%s announces the key at the key's own pointer", tc.op)
+	}
+}
+
 // TestErrorCase_SingleMediaTypeKeepsContentMap pins the arity-independent half of
 // error-content preservation. ir.ErrorCase holds a TypeRef and no media type, so
 // an error declared only as application/problem+json reached the IR
@@ -1928,5 +1990,169 @@ paths:
 			assert.Equal(t, ir.SeverityWarning, d.Severity,
 				"a warning: the operation lowers in full, only its method is unusable")
 		}
+	}
+}
+
+// TestPathItem_WithNoOperationKeepsWhatItWroteOnTheService covers the one path
+// item shape that reached applyPathItem through nothing.
+//
+// applyPathItem runs once per operation an item produces, so an item producing
+// none lost its servers, its extensions and its undeclared keys whole, with no
+// diagnostic naming the loss. The service is where they go now — the same node
+// the Paths Object's own extensions go to, and for the same reason: a path item
+// lowers to no node of its own.
+func TestPathItem_WithNoOperationKeepsWhatItWroteOnTheService(t *testing.T) {
+	t.Parallel()
+	svc, diags := serviceWithGrouping(t, `openapi: 3.1.0
+info: {title: T, version: "1"}
+paths:
+  /mounted:
+    get: {operationId: getX, responses: {"200": {description: ok}}}
+  /unmounted:
+    servers: [{url: 'https://a.example'}]
+    x-kept: {a: 1}
+webhooks:
+  hook:
+    x-hook-kept: {b: 2}
+`, lowering.GroupByTags)
+
+	require.Contains(t, svc.Unmodeled, "openapi:pathItem/paths/~1unmounted/x-kept")
+	require.Contains(t, svc.Unmodeled, "openapi:pathItem/paths/~1unmounted/servers")
+	require.Contains(t, svc.Unmodeled, "openapi:pathItem/webhooks/hook/x-hook-kept")
+	assert.Equal(t, ir.ReasonNoIRHome, svc.Unmodeled["openapi:pathItem/paths/~1unmounted/servers"].Reason)
+
+	// The key carries the item's own pointer because one service holds every such
+	// item: two of them under a bare prefix would collide, and the survivor would
+	// be whichever the walk reached last.
+	assert.NotContains(t, svc.Unmodeled, "openapi:servers",
+		"the unqualified servers key is the one an operation uses")
+
+	var announced int
+	for _, d := range diags {
+		if strings.Contains(d.Message, "declares no operation this compiler lowers") {
+			announced++
+		}
+	}
+	assert.Equal(t, 2, announced, "one per unmounted item: the path and the webhook")
+}
+
+// TestPathItem_UnmountedItemsAreAnnouncedApart holds the announcement to one per
+// item rather than one per document.
+//
+// Both notices are written by the same call at the same severity with the same
+// text, so the item's own pointer is the only thing telling them apart — and
+// diagnostic identity is the whole value, so a carrier stamping the node's
+// pointer instead of the item's collapsed every unmounted item in a document
+// into a single finding that named none of them. Two items are the smallest
+// input that can see it; one passes either way.
+func TestPathItem_UnmountedItemsAreAnnouncedApart(t *testing.T) {
+	t.Parallel()
+	_, diags := serviceWithGrouping(t, `openapi: 3.1.0
+info: {title: T, version: "1"}
+paths:
+  /a: {servers: [{url: 'https://a.example'}]}
+  /b: {servers: [{url: 'https://b.example'}]}
+`, lowering.GroupByTags)
+
+	var at []string
+	for _, d := range diags {
+		if strings.Contains(d.Message, "path-item servers kept under Unmodeled") {
+			at = append(at, d.Provenance.Pointer)
+		}
+	}
+	assert.Equal(t, []string{"/paths/~1a", "/paths/~1b"}, at,
+		"each kept list is announced at the item that wrote it")
+}
+
+// TestPathItem_UnmountedAnnouncementFollowsWhatWasKept pins the announcement to
+// what landed rather than to what the source model reports.
+//
+// A construct supplied through a YAML merge key is read by the model and not by
+// RawChildNode, whose lookup is a plain mapping scan (GitHub #384). A predicate
+// over the model therefore says `servers` were "kept beside it" while nothing was
+// kept at all — a diagnostic asserting a preservation that did not happen, which
+// is worse than the silence it replaced because it tells a reader the value is
+// safe.
+func TestPathItem_UnmountedAnnouncementFollowsWhatWasKept(t *testing.T) {
+	t.Parallel()
+	svc, diags := serviceWithGrouping(t, `openapi: 3.1.0
+info: {title: T, version: "1"}
+x-base: &base
+  servers: [{url: 'https://m.example'}]
+paths:
+  /unmounted:
+    <<: *base
+`, lowering.GroupByTags)
+
+	require.Empty(t, svc.Unmodeled, "the merge key is invisible to the raw-node lookup")
+	for _, d := range diags {
+		assert.NotContains(t, d.Message, "declares no operation this compiler lowers",
+			"nothing landed, so nothing claims it did")
+	}
+}
+
+// TestPathItem_CallbackWithNoOperationKeepsWhatItWrote is the third route's half
+// of the orphan branch, and the one it was missing.
+//
+// A callback expression maps to a Path Item Object like any other, so an
+// expression whose item mounts no operation reached applyPathItem through
+// nothing and lost everything it wrote — the same mechanism as the paths and
+// webhooks walks, on the route that had no branch for it. That is the shape
+// GitHub #39 already cost this compiler twice, which is why the entry point is
+// shared and why this asserts the third route rather than assuming it.
+//
+// The parent's HTTP binding is the carrier: a callback lowers to no node holding
+// an Unmodeled map, and the binding is where the Callback Object's own
+// extensions already go.
+func TestPathItem_CallbackWithNoOperationKeepsWhatItWrote(t *testing.T) {
+	t.Parallel()
+	svc, diags := serviceWithGrouping(t, `openapi: 3.1.0
+info: {title: T, version: "1"}
+paths:
+  /p:
+    post:
+      operationId: postP
+      responses: {"200": {description: ok}}
+      callbacks:
+        onEvent:
+          '{$request.body#/url}':
+            servers: [{url: 'https://cb.example'}]
+            x-cb-kept: {a: 1}
+`, lowering.GroupByTags)
+
+	op := openapitest.FirstOp(t, svc)
+	require.Len(t, op.Bindings.HTTP, 1)
+	kept := op.Bindings.HTTP[0].Unmodeled
+	base := "openapi:pathItem/paths/~1p/post/callbacks/onEvent/{$request.body#~1url}"
+	require.Contains(t, kept, base+"/servers")
+	require.Contains(t, kept, base+"/x-cb-kept")
+
+	var announced int
+	for _, d := range diags {
+		if strings.Contains(d.Message, "declares no operation this compiler lowers") {
+			announced++
+			assert.Equal(t, "/paths/~1p/post/callbacks/onEvent/{$request.body#~1url}",
+				d.Provenance.Pointer, "announced at the expression whose item mounts nothing")
+		}
+	}
+	assert.Equal(t, 1, announced)
+}
+
+// TestPathItem_WithNoOperationAndNothingToKeepIsSilent holds the other half: an
+// item that produces no operation and wrote nothing beside it has lost nothing,
+// so there is nothing to keep and nothing to announce.
+func TestPathItem_WithNoOperationAndNothingToKeepIsSilent(t *testing.T) {
+	t.Parallel()
+	svc, diags := serviceWithGrouping(t, `openapi: 3.1.0
+info: {title: T, version: "1"}
+paths:
+  /empty: {}
+  /described: {summary: s, description: d}
+`, lowering.GroupByTags)
+
+	assert.Empty(t, svc.Unmodeled)
+	for _, d := range diags {
+		assert.NotContains(t, d.Message, "declares no operation this compiler lowers",
+			"an item with nothing beside its operations announces nothing")
 	}
 }
