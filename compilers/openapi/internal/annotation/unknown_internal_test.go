@@ -154,6 +154,86 @@ func TestUnknownKeysIn_BudgetBoundsWhatOneObjectContributes(t *testing.T) {
 	assert.Equal(t, ir.Provenance{Pointer: "/x"}, diags[0].Provenance)
 }
 
+// TestUnknownKeysIn_KeyWithNoSourceNodeIsReported covers the one outcome
+// PreserveNodeInto's contract does not: a key whose value node is not in the
+// mapping.
+//
+// Everywhere else an absent node means the construct was never written, which is
+// why it records nothing and says nothing. Here the parser has already reported
+// the key as present, so an absent node means this reader could not reach one
+// the document does write — a merged-in key, in practice — and passing over it
+// would be the silent loss this census exists to end (GitHub #395).
+func TestUnknownKeysIn_KeyWithNoSourceNodeIsReported(t *testing.T) {
+	t.Parallel()
+	obj := fakeObject{core: &fakeCore{keys: []string{"absent"}}, root: parsedMapping(t, "present: 1\n")}
+
+	var got ir.Unmodeled
+	diags := UnknownKeysIn(&got, obj, 2, "/x")
+
+	assert.Empty(t, got, "there was no node to read")
+	require.Len(t, diags, 1)
+	assert.Equal(t, ir.SeverityWarning, diags[0].Severity)
+	assert.Equal(t, "openapi/unknown-key-unreachable", diags[0].Code)
+	assert.Equal(t, ir.Provenance{Source: 2, Pointer: "/x/absent"}, diags[0].Provenance)
+}
+
+// TestUnknownKeysUnder_KeyHoldingASeparatorIsItsOwnEntry pins the escaping that
+// keeps a key from spelling another object's scope. Both keys below reach the
+// same carrier, and unescaped both key under "openapi:info/contact/slack": the
+// second site found the first already recorded, took the branch meant for a
+// keyword another reader kept, and dropped a key with no diagnostic at all.
+func TestUnknownKeysUnder_KeyHoldingASeparatorIsItsOwnEntry(t *testing.T) {
+	t.Parallel()
+	root := fakeObject{
+		core: &fakeCore{keys: []string{"info/contact/slack"}},
+		root: parsedMapping(t, "info/contact/slack: fromRoot\n"),
+	}
+	contact := fakeObject{
+		core: &fakeCore{keys: []string{"slack"}},
+		root: parsedMapping(t, "slack: fromContact\n"),
+	}
+
+	var got ir.Unmodeled
+	diags := UnknownKeysUnder(&got, root, 0, "", "")
+	diags = append(diags, UnknownKeysUnder(&got, contact, 0, "/info/contact", "info/contact")...)
+
+	assert.Equal(t, ir.RawValue(`"fromRoot"`), got["openapi:info~1contact~1slack"].Value,
+		"the root's key is one segment, escaped")
+	assert.Equal(t, ir.RawValue(`"fromContact"`), got["openapi:info/contact/slack"].Value,
+		"the scoped entry is the contact object's, and the root cannot spell it")
+	assert.Len(t, diags, 2, "two keys survive, so two are announced")
+}
+
+// TestUnknownKeysIn_EntryHeldByAnotherConstructIsReported separates the two
+// reasons an entry can already exist, which the census used to treat alike.
+//
+// A reader with more to say about a keyword writes it at the pointer the census
+// would use, and there the census has nothing to add and says nothing —
+// $vocabulary and dependentRequired on a schema's own map. An entry pointing
+// somewhere else belongs to a different construct that happens to spell the same
+// key, so the key this census holds is lost; it is announced instead of skipped
+// (GitHub #396).
+func TestUnknownKeysIn_EntryHeldByAnotherConstructIsReported(t *testing.T) {
+	t.Parallel()
+	obj := fakeObject{core: &fakeCore{keys: []string{"same", "other"}}, root: parsedMapping(t, "same: 1\nother: 2\n")}
+	got := ir.Unmodeled{
+		"openapi:same": {Reason: ir.ReasonValidationOnly, Value: ir.RawValue("9"),
+			Provenance: ir.Provenance{Pointer: "/x/same"}},
+		"openapi:other": {Reason: ir.ReasonNoIRHome, Value: ir.RawValue("9"),
+			Provenance: ir.Provenance{Pointer: "/x/schema/other"}},
+	}
+
+	diags := UnknownKeysIn(&got, obj, 0, "/x")
+
+	assert.Equal(t, ir.RawValue("9"), got["openapi:same"].Value, "neither entry is overwritten")
+	assert.Equal(t, ir.RawValue("9"), got["openapi:other"].Value)
+	require.Len(t, diags, 1, "the key recorded for this very construct is not announced again")
+	assert.Equal(t, "openapi/unknown-key-entry-taken", diags[0].Code)
+	assert.Equal(t, ir.SeverityWarning, diags[0].Severity)
+	assert.Equal(t, "/x/other", diags[0].Provenance.Pointer)
+	assert.Contains(t, diags[0].Message, "/x/schema/other", "the holder is named, so the clash is findable")
+}
+
 // TestUnknownKeysIn_ModelWithNoCensusRecordsNothing covers the shapes the reader
 // must survive rather than panic on. The absent object is the one that occurs:
 // the getters hand back a typed nil for an object the document omitted, and a

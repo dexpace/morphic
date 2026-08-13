@@ -43,14 +43,21 @@ func NamingFor(source string) ir.Naming {
 // NamingHint builds the Naming of an entity nothing declared a name for, from
 // the context-derived hint an emitter should synthesize one from.
 //
-// It is the second half of the same invariant NamingFor holds: a compiler that
-// derives a hint from a position — the property a schema was inlined at, the
-// method and path of an operation with no operationId — derives an empty one
-// wherever that position is itself unnamed, and passing it through leaves the
-// node with no name in any channel. Minting one here means no caller has to
-// remember the case.
+// It is the second half of the same invariant NamingFor holds, and holds it the
+// same way. A hint is the only name an anonymous entity carries, so it is what
+// an emitter renders that entity's identifier from — the job Canonical does for
+// a declared name — and it is therefore neutral words here too (invariant 4).
+// That matters because a hint is nearly always derived from something a source
+// *did* spell: a component key, an operationId, a header name, a $ref target.
+// Passing those through carried their casing and their punctuation into the one
+// channel no rule was holding (GitHub #54).
+//
+// A position that carries no name of its own derives an empty hint, and a
+// spelling with no word rune in it ("***") derives no words; both leave the node
+// with no name in any channel, so both are minted one here rather than at every
+// caller.
 func NamingHint(hint string) ir.Naming {
-	return ir.Naming{Hint: hintOr(hint)}
+	return ir.Naming{Hint: neutralHint(hint)}
 }
 
 // SubHint composes the hint of a node named after its position inside another —
@@ -59,22 +66,24 @@ func NamingHint(hint string) ir.Naming {
 //
 // Composing by hand is what NamingHint cannot protect: "" + "_item" is "_item",
 // which is non-empty, so the presence rule passes it, and which is a leading
-// separator no grammar produces, so nothing else reports it either — Naming.Hint
-// is held to none of the content rules (GitHub #54). Minting the enclosing hint
-// first makes the child agree with the node it hangs off, "empty_item" under
-// "empty", rather than leaking the emptiness one level down.
+// separator no grammar produces. Neutralizing each half first makes the child
+// agree with the node it hangs off, "empty_item" under "empty", rather than
+// leaking the emptiness one level down.
 //
-// suffix is the caller's own role or index and is never empty; a caller with
-// neither has no child to distinguish and no reason to be here.
+// Both halves go through the same minting because either can arrive from a
+// source spelling: the enclosing position's name, and the $ref target a
+// composition branch takes its role from. Two neutral words joined by a single
+// "_" are a neutral word sequence again, which is what lets a composed hint be
+// fed back in as the parent of the next one.
 func SubHint(parent, suffix string) string {
-	return hintOr(parent) + "_" + suffix
+	return neutralHint(parent) + "_" + neutralHint(suffix)
 }
 
-// hintOr returns hint, or the minted name when the position it was derived from
-// carries none.
-func hintOr(hint string) string {
-	if hint == "" {
-		return emptyNameHint
+// neutralHint returns the neutral word sequence of hint, or the minted name when
+// the position it was derived from names nothing a word can be read out of.
+func neutralHint(hint string) string {
+	if words := ir.CanonicalWords(hint); words != "" {
+		return words
 	}
-	return hint
+	return emptyNameHint
 }

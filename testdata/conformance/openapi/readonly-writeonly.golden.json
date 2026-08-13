@@ -47,6 +47,35 @@
         "nullable": false
       }
     },
+    "t/openapi/components/schemas/DeclaredWriteOnly": {
+      "kind": "scalar",
+      "id": "t/openapi/components/schemas/DeclaredWriteOnly",
+      "name": {
+        "source": "DeclaredWriteOnly",
+        "canonical": "declared_write_only"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "unmodeled": {
+        "openapi:writeOnly": {
+          "reason": "no_ir_home",
+          "value": true,
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/DeclaredWriteOnly/writeOnly"
+          }
+        }
+      },
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/DeclaredWriteOnly"
+      },
+      "base": {
+        "target": "t/prim/string",
+        "nullable": false
+      }
+    },
     "t/openapi/components/schemas/S": {
       "kind": "model",
       "id": "t/openapi/components/schemas/S",
@@ -156,6 +185,60 @@
             "source": 0,
             "pointer": "/components/schemas/S/properties/viaRef"
           }
+        },
+        {
+          "id": "p/openapi/components/schemas/S/properties/both",
+          "name": {
+            "source": "both",
+            "canonical": "both"
+          },
+          "wireName": "both",
+          "type": {
+            "target": "t/prim/string",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": true
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/S/properties/both"
+          }
+        },
+        {
+          "id": "p/openapi/components/schemas/S/properties/bothViaRef",
+          "name": {
+            "source": "bothViaRef",
+            "canonical": "both_via_ref"
+          },
+          "wireName": "bothViaRef",
+          "type": {
+            "target": "t/openapi/components/schemas/DeclaredWriteOnly",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": true
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/S/properties/bothViaRef"
+          }
         }
       ],
       "abstract": false,
@@ -187,6 +270,24 @@
   ],
   "diagnostics": [
     {
+      "severity": "warning",
+      "code": "openapi/disjoint-visibility",
+      "message": "readOnly and writeOnly are both in force for field \"both\"; they admit disjoint lifecycles, so the field is visible in none",
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/S/properties/both"
+      }
+    },
+    {
+      "severity": "warning",
+      "code": "openapi/disjoint-visibility",
+      "message": "readOnly and writeOnly are both in force for field \"bothViaRef\"; they admit disjoint lifecycles, so the field is visible in none",
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/S/properties/bothViaRef"
+      }
+    },
+    {
       "severity": "info",
       "code": "openapi/degraded-construct",
       "message": "readOnly on a type declaration binds a use of the type, not the type; it is kept verbatim under Unmodeled and applied to a referencing property, header or parameter wherever that carrier has a field for it",
@@ -194,13 +295,22 @@
         "source": 0,
         "pointer": "/components/schemas/DeclaredReadOnly/readOnly"
       }
+    },
+    {
+      "severity": "info",
+      "code": "openapi/degraded-construct",
+      "message": "writeOnly on a type declaration binds a use of the type, not the type; it is kept verbatim under Unmodeled and applied to a referencing property, header or parameter wherever that carrier has a field for it",
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/DeclaredWriteOnly/writeOnly"
+      }
     }
   ],
   "sources": [
     {
       "format": "openapi@3.1",
       "path": "readonly-writeonly.yaml",
-      "hash": "51457bcde078f37a624ee3562e6e6b7cc9ed832f51815f81d502e3bc6fb3c965"
+      "hash": "2dd5d801fe506b664b360f204b1941ec94285d757081866168691b1737ad655a"
     }
   ]
 }

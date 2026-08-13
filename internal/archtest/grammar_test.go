@@ -8,6 +8,7 @@ import (
 	"go/token"
 	"io/fs"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 
@@ -21,54 +22,69 @@ import (
 // derived from it.
 var grammarOwners = []string{"compilers/compile", "ir"}
 
-// TestNamingGrammar_CanonicalIsFilledByTheFrameworkOnly asserts that no
-// production package outside grammarOwners fills ir.Naming.Canonical itself.
+// nameChannels are the ir.Naming fields that carry a name for an emitter to
+// render, and so the fields the grammar has to have produced. Both are held for
+// the same reason and by the same rule: Canonical is the words of a declared
+// name, Hint the words of a generated one, and an emitter reading either cannot
+// tell which compiler wrote it (GitHub #163, #54).
 //
-// Canonical is ABI: an emitter reading it cannot tell which compiler produced the
-// name, so a compiler holding its own segmentation opinion makes the field mean
-// two things at once. That is not hypothetical — three copies of the grammar
-// disagreed about "." and about every other non-word character (GitHub #163) —
-// and deleting two copies does not stop a fourth being written. Only a rule
-// outside the compilers does.
+// Source and Aliases are not here. They are source spellings kept as written,
+// which is the opposite requirement.
+var nameChannels = []string{"Canonical", "Hint"}
+
+// TestNamingGrammar_NameChannelsAreFilledByTheFrameworkOnly asserts that no
+// production package outside grammarOwners fills a nameChannels field itself.
 //
-// Deliberately not checked: a Canonical filled from a local variable reads as a
+// Those fields are ABI: an emitter reading one cannot tell which compiler
+// produced the name, so a compiler holding its own segmentation opinion makes
+// the field mean two things at once. That is not hypothetical — three copies of
+// the grammar disagreed about "." and about every other non-word character
+// (GitHub #163) — and deleting two copies does not stop a fourth being written.
+// Only a rule outside the compilers does.
+//
+// Deliberately not checked: a name filled from a local variable reads as a
 // violation even when the variable came from the framework, so the call belongs
-// at the site; Naming.Hint is out of scope and is cased today (GitHub #54); and a
-// literal inside package ir is spelled Naming rather than ir.Naming, which is one
-// reason ir is an owner rather than a swept package.
-func TestNamingGrammar_CanonicalIsFilledByTheFrameworkOnly(t *testing.T) {
+// at the site; and a literal inside package ir is spelled Naming rather than
+// ir.Naming, which is one reason ir is an owner rather than a swept package.
+func TestNamingGrammar_NameChannelsAreFilledByTheFrameworkOnly(t *testing.T) {
 	t.Parallel()
-	offenders := sweepProduction(t, repoRoot(t), "", grammarOwners, canonicalViolations)
+	offenders := sweepProduction(t, repoRoot(t), "", grammarOwners, nameChannelViolations)
 	assert.Empty(t, offenders,
-		"only %v may derive a canonical name; everything else goes through compile.NamingFor or ir.CanonicalWords",
+		"only %v may derive a name; everything else goes through compile.NamingFor, compile.NamingHint or ir.CanonicalWords",
 		grammarOwners)
 }
 
-// TestCanonicalViolations_LocalGrammarIsCaught plants what the sweep exists to
-// find — a compiler deriving its own canonical, in both the shapes it can be
-// written — and pins that the framework call beside it stays clean. Without the
-// planted half, a matcher recognizing nothing at all would pass the sweep above
-// and read as proof.
-func TestCanonicalViolations_LocalGrammarIsCaught(t *testing.T) {
+// TestNameChannelViolations_LocalGrammarIsCaught plants what the sweep exists to
+// find — a compiler deriving its own name, in every shape it can be written, in
+// both channels — and pins that the framework calls beside it stay clean.
+// Without the planted half, a matcher recognizing nothing at all would pass the
+// sweep above and read as proof.
+func TestNameChannelViolations_LocalGrammarIsCaught(t *testing.T) {
 	t.Parallel()
 	const src = `package graphql
 
 func lower(name string) []ir.Naming {
 	declared := ir.Naming{Source: name, Canonical: canonicalWords(name)}
 	framework := ir.Naming{Source: name, Canonical: ir.CanonicalWords(name)}
-	hint := ir.Naming{Hint: localWords(name)}
+	hinted := ir.Naming{Hint: localWords(name)}
+	fromFramework := ir.Naming{Hint: compile.SubHint(name, "item")}
+	kept := ir.Naming{Source: name, Aliases: []string{name}}
 	var late ir.Naming
 	late.Canonical = strings.ToLower(name)
-	return []ir.Naming{declared, framework, hint, late, {Canonical: lower(name)}}
+	late.Hint = strings.ToLower(name)
+	return []ir.Naming{declared, framework, hinted, fromFramework, kept, late, {Canonical: lower(name)}}
 }
 `
-	offenders, err := canonicalViolations("planted.go", "compilers/graphql/naming.go", src)
+	offenders, err := nameChannelViolations("planted.go", "compilers/graphql/naming.go", src)
 	require.NoError(t, err)
-	require.Len(t, offenders, 3,
-		"the literal, the assignment and the elided literal — not the framework call or the hint: %v", offenders)
-	assert.Contains(t, offenders[0], "canonicalWords(name)")
-	assert.Contains(t, offenders[1], "strings.ToLower(name)")
-	assert.Contains(t, offenders[2], "lower(name)", "an element of a []ir.Naming elides the type")
+	require.Len(t, offenders, 5,
+		"the two literals, the two assignments and the elided literal — not the framework calls, and not Aliases: %v",
+		offenders)
+	assert.Contains(t, offenders[0], "Canonical is filled by canonicalWords(name)")
+	assert.Contains(t, offenders[1], "Hint is filled by localWords(name)")
+	assert.Contains(t, offenders[2], "Canonical is filled by strings.ToLower(name)")
+	assert.Contains(t, offenders[3], "Hint is filled by strings.ToLower(name)")
+	assert.Contains(t, offenders[4], "lower(name)", "an element of a []ir.Naming elides the type")
 }
 
 // idOwners is the package permitted to construct an ir ID type from a string.
@@ -188,13 +204,14 @@ func holdsStringLiteral(exprs []ast.Expr) bool {
 	return false
 }
 
-// canonicalViolations reports every place in one file that fills
-// ir.Naming.Canonical from something other than a call into the framework
-// package, whether as a composite-literal field or an assignment afterwards.
+// nameChannelViolations reports every place in one file that fills a
+// nameChannels field of ir.Naming from something other than a call into the
+// framework package, whether as a composite-literal field or an assignment
+// afterwards.
 //
 // src is nil to read the file at path, or the source itself for a planted test;
 // rel names the file in the messages.
-func canonicalViolations(path, rel string, src any) ([]string, error) {
+func nameChannelViolations(path, rel string, src any) ([]string, error) {
 	fset := token.NewFileSet()
 	file, err := parser.ParseFile(fset, path, src, 0)
 	if err != nil {
@@ -202,16 +219,16 @@ func canonicalViolations(path, rel string, src any) ([]string, error) {
 	}
 
 	var found []string
-	report := func(expr ast.Expr) {
-		found = append(found, fmt.Sprintf("%s:%d: Canonical is filled by %s rather than by the framework",
-			rel, fset.Position(expr.Pos()).Line, exprText(fset, expr)))
+	report := func(field string, expr ast.Expr) {
+		found = append(found, fmt.Sprintf("%s:%d: %s is filled by %s rather than by the framework",
+			rel, fset.Position(expr.Pos()).Line, field, exprText(fset, expr)))
 	}
 	ast.Inspect(file, func(n ast.Node) bool {
 		switch node := n.(type) {
 		case *ast.CompositeLit:
-			reportCanonicalField(node, report)
+			reportNameChannelField(node, report)
 		case *ast.AssignStmt:
-			reportCanonicalAssign(node, report)
+			reportNameChannelAssign(node, report)
 		default:
 		}
 		return true
@@ -219,49 +236,52 @@ func canonicalViolations(path, rel string, src any) ([]string, error) {
 	return found, nil
 }
 
-// reportCanonicalField reports a Canonical field of a composite literal when it
-// is not filled by a framework call.
+// reportNameChannelField reports a name-channel field of a composite literal
+// when it is not filled by a framework call.
 //
 // The literal's type is not required to be ir.Naming, and not only because an
 // element of a []ir.Naming elides it: ir.Naming is the one type in the repository
-// with a Canonical field, so the field name identifies it. A second type carrying
-// that name would need this narrowed — and would be worth a look on its own.
-func reportCanonicalField(lit *ast.CompositeLit, report func(ast.Expr)) {
+// with a Canonical field, and the one with a Hint field — the neighbouring hint
+// carriers are spelled MediaTypeHint and XMLHints — so the field name identifies
+// it. A second type carrying either name would need this narrowed, and would be
+// worth a look on its own.
+func reportNameChannelField(lit *ast.CompositeLit, report func(string, ast.Expr)) {
 	for _, elt := range lit.Elts {
 		kv, ok := elt.(*ast.KeyValueExpr)
 		if !ok {
 			continue
 		}
 		key, ok := kv.Key.(*ast.Ident)
-		if ok && key.Name == "Canonical" && !isFrameworkCall(kv.Value) {
-			report(kv.Value)
+		if ok && slices.Contains(nameChannels, key.Name) && !isFrameworkCall(kv.Value) {
+			report(key.Name, kv.Value)
 		}
 	}
 }
 
-// reportCanonicalAssign reports an assignment to a .Canonical field whose value
-// is not a framework call. It closes the way round the literal check: build an
-// empty Naming, then fill the field.
-func reportCanonicalAssign(stmt *ast.AssignStmt, report func(ast.Expr)) {
+// reportNameChannelAssign reports an assignment to a name-channel field whose
+// value is not a framework call. It closes the way round the literal check: build
+// an empty Naming, then fill the field.
+func reportNameChannelAssign(stmt *ast.AssignStmt, report func(string, ast.Expr)) {
 	for i, lhs := range stmt.Lhs {
 		sel, ok := lhs.(*ast.SelectorExpr)
-		if !ok || sel.Sel.Name != "Canonical" {
+		if !ok || !slices.Contains(nameChannels, sel.Sel.Name) {
 			continue
 		}
 		// A multi-value right-hand side has no single expression to attribute to
-		// the field, and no legitimate shape assigns Canonical that way.
+		// the field, and no legitimate shape assigns a name channel that way.
 		if len(stmt.Rhs) != len(stmt.Lhs) {
-			report(lhs)
+			report(sel.Sel.Name, lhs)
 			continue
 		}
 		if !isFrameworkCall(stmt.Rhs[i]) {
-			report(stmt.Rhs[i])
+			report(sel.Sel.Name, stmt.Rhs[i])
 		}
 	}
 }
 
 // isFrameworkCall reports whether expr is a call on a package that owns the
-// grammar — compile.NamingFor(name) or ir.CanonicalWords(name). Any of their
+// grammar — compile.NamingFor(name), compile.SubHint(...) or
+// ir.CanonicalWords(name). Any of their
 // functions counts: the rule is where the grammar lives, not which entry point
 // reaches it, and the two entry points sit in different packages because the
 // grammar is beside the field it fills while the constructor that pairs it with

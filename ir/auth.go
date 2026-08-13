@@ -39,6 +39,24 @@ const (
 	AuthKindCustom AuthKind = "custom"
 )
 
+// Valid reports whether k is one of the mechanisms declared above. AuthKind is a
+// bare string enum, so nothing rejects an empty, misspelled or stale value on
+// the wire, and a scheme naming no mechanism is indistinguishable from one
+// naming oauth2 to every structural check that reads only its key and its ID.
+// irverify calls this so such a scheme is reported as the compiler bug it is.
+func (k AuthKind) Valid() bool {
+	switch k {
+	case AuthKindAPIKey, AuthKindHTTPBasic, AuthKindHTTPBearer, AuthKindOAuth2,
+		AuthKindOpenIDConnect, AuthKindMutualTLS, AuthKindUserPassword, AuthKindX509,
+		AuthKindSymmetricEncryption, AuthKindAsymmetricEncryption,
+		AuthKindSASLPlain, AuthKindSASLSCRAMSHA256, AuthKindSASLSCRAMSHA512,
+		AuthKindSASLGSSAPI, AuthKindCustom:
+		return true
+	default:
+		return false
+	}
+}
+
 // AuthScheme is a named authentication scheme in Document.Auth (ir-design §9).
 type AuthScheme struct {
 	// ID is the scheme's stable synthetic identity.

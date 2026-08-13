@@ -25,6 +25,10 @@ type Types struct {
 	// byID is byPointer read backwards, so a derivation that maps two distinct
 	// coordinates onto one ID is caught rather than silently overwriting.
 	byID map[ir.TypeID]string
+	// provisional holds the coordinates whose node was named by a lowering that
+	// reached them through a reference rather than through the declaration that
+	// owns them. See InternProvisional.
+	provisional map[string]bool
 }
 
 // refuse records why an entry was rejected. The registry declines to hold it
@@ -54,6 +58,8 @@ func NewTypes(src int) *Types {
 		src:       src,
 		spaces:    make(map[Space]bool),
 		byID:      make(map[ir.TypeID]string),
+
+		provisional: make(map[string]bool),
 	}
 }
 
@@ -142,6 +148,60 @@ func (t *Types) Intern(pointer string, id ir.TypeID, build func() ir.TypeDef) ir
 	}
 	t.reg[id] = td
 	return id
+}
+
+// InternProvisional is Intern for a lowering that reached pointer through a
+// reference naming it rather than through the declaration that owns it, and
+// records that the name the node is being given is a placeholder.
+//
+// A reference can name a coordinate inside another declaration's body, and both
+// lowerings reach it: the declaration through its own structure, the reference
+// through the pointer it spells. Intern calls build for whichever arrives first,
+// so the node's name used to be decided by declaration order — silently, since
+// either spelling is a valid name and nothing compared them.
+//
+// Only the *name* is a question the declaration answers better; the node itself
+// is the same one either way. So the reference still builds it, and
+// NameFromDeclaration replaces the name when the declaration arrives — in
+// whichever order the two happen.
+//
+// A coordinate already interned is not marked: the declaration may have been
+// there first, and a name it settled is not a placeholder.
+func (t *Types) InternProvisional(pointer string, id ir.TypeID, build func() ir.TypeDef) ir.TypeID {
+	_, before := t.byPointer[pointer]
+	interned := t.Intern(pointer, id, build)
+	if _, after := t.byPointer[pointer]; after && !before {
+		t.provisional[pointer] = true
+	}
+	return interned
+}
+
+// NameFromDeclaration gives the node at pointer the hint its declaration
+// derives, replacing a placeholder a reference left there first.
+//
+// It is a no-op for a coordinate that is not carrying a placeholder, which is
+// every coordinate the declaration reached first — there the name is already the
+// one this would write. That is also what makes a second declaration at one
+// coordinate silent here rather than last-write-wins: two declarations claiming
+// one coordinate is what claimID refuses, and re-reporting it as a naming
+// problem would name the symptom instead of the cause.
+func (t *Types) NameFromDeclaration(pointer, hint string) {
+	if !t.provisional[pointer] {
+		return
+	}
+	delete(t.provisional, pointer)
+	// The coordinate resolves and its node is present: a coordinate is marked
+	// provisional only once Intern has recorded both, and Intern is what removes
+	// the pair again when a build yields nothing — so there is no state here in
+	// which one exists without the other, and a branch for one would be
+	// untestable (the reasoning NodeAt states).
+	//
+	// Neutralized on the way in, because this writes the field NamingHint would
+	// have written and has to write it the same way. A raw hint here would leave
+	// the node holding the caller's spelling — "A" where interning the same hint
+	// gives "a" — so the name would depend on whether a reference got there
+	// first, which is the dependence this whole path exists to remove.
+	t.reg[t.byPointer[pointer]].Common().Name.Hint = neutralHint(hint)
 }
 
 // Register records td under id without associating it with any source
