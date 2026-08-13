@@ -32,7 +32,8 @@ linters:
       # allow-unused only reaches directives naming an ENABLED linter. One naming a
       # disabled or nonexistent linter is ignored by the nolint processor and
       # reported by nothing — which is how //nolint:forcetypeassert stood here
-      # without ever suppressing anything. That gap is GitHub #306.
+      # without ever suppressing anything. scripts/check-nolint-linters.sh closes
+      # that, cross-checking every name against the set this file leaves enabled.
       allow-unused: false # it no longer suppresses anything — delete it
       require-specific: true # bare //nolint hides findings nobody chose to accept
       require-explanation: true # the rationale is what a later reader re-checks against

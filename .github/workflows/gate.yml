@@ -17,6 +17,18 @@ jobs:
         run: go vet ./...
       - name: lint
         uses: golangci/golangci-lint-action@v8.0.0
+        with:
+          # Pinned so a golangci-lint release cannot redden main without a commit,
+          # and so the two steps below describe the run that produced the findings
+          # above: they ask golangci-lint which linters it is running, which only
+          # answers for this step if it is the same build.
+          version: v2.12.2
+      # The action leaves the golangci-lint it installed on PATH for later steps
+      # (core.addPath in its entrypoint), so these reach that same binary.
+      - name: nolint grammar
+        run: ./scripts/verify-nolint-grammar.sh
+      - name: nolint directives
+        run: ./scripts/check-nolint-linters.sh
       - name: build
         run: go build ./...
       - name: coverage counting
