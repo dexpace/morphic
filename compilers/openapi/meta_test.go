@@ -95,9 +95,12 @@ func TestTagUnknownSites_NilEntrySkipped(t *testing.T) {
 
 	got := tagUnknownSites(lowering.Ctx{Doc: doc})
 
-	require.Len(t, got, 1, "only the surviving tag contributes a census site")
+	require.Len(t, got, 2,
+		"the nil tag contributes nothing, and the surviving one contributes its own site and its externalDocs")
 	assert.Equal(t, "tags/1", got[0].scope, "the site is keyed at the tag's own index, not its position")
 	assert.Equal(t, "/tags/1", got[0].owner)
+	assert.Equal(t, "tags/1/externalDocs", got[1].scope, "and its externalDocs is scoped under that same index")
+	assert.Equal(t, "/tags/1/externalDocs", got[1].owner)
 }
 
 func TestMeta_NoInfoNoServers(t *testing.T) {

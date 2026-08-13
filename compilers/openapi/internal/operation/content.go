@@ -355,9 +355,10 @@ func encodingConfig(c lowering.Ctx, ts *compile.Types, anchors *schema.AnchorInd
 
 // encodingUnmodeled keeps what an Encoding Object declares that nothing in the
 // IR holds: `allowReserved`, which ir.PartEncoding has no field for even though
-// its neighbours style and explode do, and the object's own x-*. Neither had
-// reached an IR field, an Unmodeled entry or a diagnostic, so two documents
-// differing only in them compiled to one IR (GitHub #291).
+// its neighbours style and explode do, the object's own x-*, and the keys the
+// specification defines for no encoding at all. Neither allowReserved nor the
+// extensions had reached an IR field, an Unmodeled entry or a diagnostic, so two
+// documents differing only in them compiled to one IR (GitHub #291).
 //
 // Both ride on the owning ir.Content, since PartEncoding carries no Unmodeled
 // map, keyed under scope — "encoding/<part>" or "itemEncoding". One content can
@@ -378,7 +379,8 @@ func encodingUnmodeled(c lowering.Ctx, enc *soa.Encoding, encPtr, scope string) 
 	}
 	ext, extDiags := schema.ExtensionsIn(c, enc.GetExtensions(), encPtr, scope)
 	out = annotation.MergeUnmodeled(out, ext)
-	return out, append(diags, extDiags...)
+	diags = append(diags, extDiags...)
+	return out, append(diags, annotation.UnknownKeysUnder(&out, enc, c.SrcIndex, encPtr, scope)...)
 }
 
 // lowerHeaders lowers a header map into Properties in source order. Each
@@ -671,12 +673,14 @@ func exampleList(c lowering.Ctx, single *yaml.Node, plural *sequencedmap.Map[str
 func appendPluralExample(c lowering.Ctx, out []ir.Example, re *soa.ReferencedExample, pointer, name string) ([]ir.Example, []ir.Diagnostic) {
 	// The declaration pointer, not the entry's, is where an Example Object's own
 	// keywords are written: a $ref entry holds none of them. ir.Example carries an
-	// Unmodeled map, so the object's x-* need no scope.
+	// Unmodeled map, so neither the object's x-* nor its undeclared keys need a
+	// scope.
 	ex, decl := resolve.ObjectAt[soa.Example](c.RefScope(), re, pointer+ids.Ptr("examples", name))
 	if ex == nil {
 		return out, nil
 	}
 	ext, diags := schema.ExtensionsOf(c, ex.GetExtensions(), decl)
+	diags = append(diags, annotation.UnknownKeysIn(&ext, ex, c.SrcIndex, decl)...)
 	proto := ir.Example{
 		Name:        name,
 		Summary:     ex.GetSummary(),

@@ -132,7 +132,7 @@ func lowerSecurityScheme(c lowering.Ctx, name string, ss *soa.SecurityScheme,
 		return ir.AuthScheme{}, false, []ir.Diagnostic{mechanismRefusalDiag(c, name, missing, entry)}
 	}
 	diags = preserveUnreadFields(c, &scheme, ss, decl)
-	diags = append(diags, applySchemeExtensions(c, &scheme, ss, decl)...)
+	diags = append(diags, applySchemeAnnotations(c, &scheme, ss, decl)...)
 	// Distinct from preserveUnreadFields above it: that keeps the fields OpenAPI
 	// defines for a securityScheme which this entry's own mechanism gives no
 	// meaning to, while this keeps the keys OpenAPI defines for no securityScheme
@@ -143,37 +143,43 @@ func lowerSecurityScheme(c lowering.Ctx, name string, ss *soa.SecurityScheme,
 		c.PromoteDeprecation(scheme.Unmodeled, scheme.Deprecation, &scheme.Provenance)...)
 }
 
-// applySchemeExtensions keeps the x-* of the securitySchemes entry and, for an
-// oauth2 scheme, of the flows object and of each flow inside it. ir.OAuthFlow
+// applySchemeAnnotations keeps what the securitySchemes entry and, for an oauth2
+// scheme, the flows object and each flow inside it declare that reaches no IR
+// field: their x-*, and the keys OpenAPI defines for none of them. ir.OAuthFlow
 // carries an Unmodeled map of its own; the flows object does not lower to a node
-// at all, so its own extensions are kept on the scheme under the keyword.
+// at all, so its entries are kept on the scheme under the keyword.
 //
 // Only oauth2 reads inside `flows`: on any other type the whole node is kept
 // verbatim by preserveUnreadFields, extensions and all, and no ir.OAuthFlow was
 // lowered for a flow's own to land on.
-func applySchemeExtensions(c lowering.Ctx, scheme *ir.AuthScheme, ss *soa.SecurityScheme, decl string) []ir.Diagnostic {
+func applySchemeAnnotations(c lowering.Ctx, scheme *ir.AuthScheme, ss *soa.SecurityScheme, decl string) []ir.Diagnostic {
 	ext, diags := annotation.ExtensionsFrom(ss.GetExtensions(), c.SrcIndex, decl)
 	scheme.Unmodeled = annotation.MergeUnmodeled(scheme.Unmodeled, ext)
 	if scheme.Kind != ir.AuthKindOAuth2 {
 		return diags
 	}
+	flows := ss.GetFlows()
 	flowsPtr := decl + ids.Ptr("flows")
-	flowsExt, flowsDiags := annotation.ExtensionsUnder(ss.GetFlows().GetExtensions(), c.SrcIndex, flowsPtr, "flows")
+	flowsExt, flowsDiags := annotation.ExtensionsUnder(flows.GetExtensions(), c.SrcIndex, flowsPtr, "flows")
 	scheme.Unmodeled = annotation.MergeUnmodeled(scheme.Unmodeled, flowsExt)
 	diags = append(diags, flowsDiags...)
-	return append(diags, applyFlowExtensions(c, scheme.Flows, ss.GetFlows(), flowsPtr)...)
+	diags = append(diags, annotation.UnknownKeysUnder(&scheme.Unmodeled, flows, c.SrcIndex, flowsPtr, "flows")...)
+	return append(diags, applyFlowAnnotations(c, scheme.Flows, flows, flowsPtr)...)
 }
 
-// applyFlowExtensions writes each declared flow's own x-* onto the ir.OAuthFlow
-// it lowered to. Both lists are one ordered reading of the same object —
-// scheme.Flows came from oauthFlows, which walks presentFlows — so the i-th
-// lowered flow is the i-th declared one and the two cannot differ in length.
-func applyFlowExtensions(c lowering.Ctx, lowered []ir.OAuthFlow, flows *soa.OAuthFlows, flowsPtr string) []ir.Diagnostic {
+// applyFlowAnnotations writes each declared flow's own x-* and undeclared keys
+// onto the ir.OAuthFlow it lowered to. Both lists are one ordered reading of the
+// same object — scheme.Flows came from oauthFlows, which walks presentFlows — so
+// the i-th lowered flow is the i-th declared one and the two cannot differ in
+// length.
+func applyFlowAnnotations(c lowering.Ctx, lowered []ir.OAuthFlow, flows *soa.OAuthFlows, flowsPtr string) []ir.Diagnostic {
 	var diags []ir.Diagnostic
 	for i, f := range presentFlows(flows) {
-		ext, extDiags := annotation.ExtensionsFrom(f.src.GetExtensions(), c.SrcIndex, flowsPtr+ids.Ptr(f.keyword))
+		fptr := flowsPtr + ids.Ptr(f.keyword)
+		ext, extDiags := annotation.ExtensionsFrom(f.src.GetExtensions(), c.SrcIndex, fptr)
 		lowered[i].Unmodeled = annotation.MergeUnmodeled(lowered[i].Unmodeled, ext)
 		diags = append(diags, extDiags...)
+		diags = append(diags, annotation.UnknownKeysIn(&lowered[i].Unmodeled, f.src, c.SrcIndex, fptr)...)
 	}
 	return diags
 }
