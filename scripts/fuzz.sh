@@ -20,13 +20,20 @@ fuzztime="${1:-${FUZZTIME:-10s}}"
 # filed: it spends its whole budget re-finding one input and reddens every
 # unrelated change until the fix lands.
 #
-#   FuzzCanonicalWords_Properties — dexpace/morphic#336, CanonicalWords is not
-#   idempotent for "ℤℤA". Reached within seconds of mutation from the committed
-#   seeds, so the target has nothing else to report until #336 is fixed.
+#   FuzzLowerSchema — dexpace/morphic#416, an anyOf whose only branch is
+#   {"type":"null"} lowers to a union with no variants, which irverify rejects.
+#   Minimizes to {"anyOf":[{"type":"null"}]} and is reached in about a second
+#   from a cleared corpus, so the target has nothing else to report until #416
+#   is fixed.
+#
+# Closing the issue is what retires the entry: nothing here can check that the
+# reason still holds, and a quarantine that outlives its bug reads as if it were
+# still protecting something while it quietly stops a target from ever running.
+# When an issue named above closes, delete its line and let the search prove it.
 #
 # Ordinary `go test` still runs every one of these targets' seeds, quarantined
 # or not; what is held back is the mutation.
-quarantined="FuzzCanonicalWords_Properties"
+quarantined="FuzzLowerSchema"
 
 # The gate's fuzz budget is targets x fuzztime, so the target count is what
 # bounds its wall time. A cap makes that bound explicit: crossing it is a
