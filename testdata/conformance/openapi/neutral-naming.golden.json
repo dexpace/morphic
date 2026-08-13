@@ -172,7 +172,7 @@
       "kind": "enum",
       "id": "t/anon/components/schemas/com.example.Widget/properties/rollout.state",
       "name": {
-        "hint": "rollout.state"
+        "hint": "rollout_state"
       },
       "anonymous": true,
       "docs": {},

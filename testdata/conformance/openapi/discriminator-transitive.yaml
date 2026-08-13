@@ -1,0 +1,61 @@
+openapi: 3.1.0
+info: {title: DiscriminatorTransitive, version: "1.0.0"}
+paths: {}
+components:
+  schemas:
+    # The root anchors the hierarchy; discriminator-inheritance covers it one
+    # level deep, and what this spec adds is depth.
+    #
+    # Both spellings of a tag at depth are here. The mapping names Puppy, two
+    # hops down, which is a base routing a wire value straight onto a grandchild;
+    # Whelp is named by nothing and answers to its own schema name three hops
+    # down. Neither survives reading the chain one hop, and a transitive mapping
+    # target only became witnessable in the corpus when #52 closed.
+    Pet:
+      type: object
+      required: [petType]
+      properties:
+        petType: {type: string}
+      discriminator:
+        propertyName: petType
+        mapping:
+          dog: '#/components/schemas/Dog'
+          puppy: '#/components/schemas/Puppy'
+    # One level down and named by the mapping: the tag is on the branch's own
+    # target, so this much a one-hop reading already found.
+    Dog:
+      allOf:
+        - {$ref: '#/components/schemas/Pet'}
+      properties:
+        bark: {type: boolean}
+    # Two levels down, and named by the mapping: its branch is Dog, which
+    # declares no discriminator of its own, so the key the root spells for it is
+    # only visible past the immediate parent.
+    Puppy:
+      allOf:
+        - {$ref: '#/components/schemas/Dog'}
+      properties:
+        weeks: {type: integer}
+    # Three levels down and named by nothing: one intermediate is not a special
+    # case of two, and the tag it answers to is its own schema name.
+    Whelp:
+      allOf:
+        - {$ref: '#/components/schemas/Puppy'}
+      properties:
+        days: {type: integer}
+    # An equally deep chain with no discriminator above it anywhere: depth alone
+    # must not manufacture a tag value.
+    Plant:
+      type: object
+      properties:
+        stem: {type: string}
+    Shrub:
+      allOf:
+        - {$ref: '#/components/schemas/Plant'}
+      properties:
+        twigs: {type: integer}
+    Sapling:
+      allOf:
+        - {$ref: '#/components/schemas/Shrub'}
+      properties:
+        rings: {type: integer}

@@ -1,0 +1,26 @@
+openapi: 3.1.0
+info: {title: EmptyEnum, version: "1.0.0"}
+paths: {}
+components:
+  schemas:
+    Nothing:
+      type: string
+      enum: []
+    Bare:
+      enum: []
+    BesideProperties:
+      type: object
+      properties: {x: {type: string}}
+      enum: []
+    Base:
+      type: object
+      properties: {y: {type: string}}
+    BesideAllOf:
+      allOf: [{$ref: '#/components/schemas/Base'}]
+      enum: []
+    Holder:
+      type: object
+      properties:
+        nothing: {$ref: '#/components/schemas/Nothing'}
+        bare: {$ref: '#/components/schemas/Bare'}
+        colour: {type: string, enum: [red, green]}

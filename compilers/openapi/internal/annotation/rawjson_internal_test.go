@@ -9,6 +9,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	yaml "gopkg.in/yaml.v3"
+
+	"github.com/dexpace/morphic/compilers/openapi/internal/openapitest"
 )
 
 // decodeAndMarshal is the conversion RawFromNode used before GitHub #32: decode
@@ -68,7 +70,7 @@ func TestRawFromNode_KeepsNumericLiteralsExact(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			got, err := RawFromNode(yamlNode(t, tc.yaml))
+			got, err := RawFromNode(openapitest.YAMLNode(t, tc.yaml))
 			require.NoError(t, err)
 			assert.Equal(t, tc.want, string(got))
 		})
@@ -94,7 +96,7 @@ func TestRawFromNode_ResolvesYAMLIntegerBases(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			got, err := RawFromNode(yamlNode(t, tc.yaml))
+			got, err := RawFromNode(openapitest.YAMLNode(t, tc.yaml))
 			require.NoError(t, err)
 			assert.Equal(t, tc.want, string(got))
 			assert.True(t, json.Valid(got), "every rendered number is JSON-valid")
@@ -141,7 +143,7 @@ func TestRawFromNode_RendersEveryScalarTag(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			got, err := RawFromNode(yamlNode(t, tc.yaml))
+			got, err := RawFromNode(openapitest.YAMLNode(t, tc.yaml))
 			require.NoError(t, err)
 			assert.Equal(t, tc.want, string(got))
 		})
@@ -171,7 +173,7 @@ func TestRawFromNode_PreservesMergeAndOrderingSemantics(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			got, err := RawFromNode(yamlNode(t, tc.yaml))
+			got, err := RawFromNode(openapitest.YAMLNode(t, tc.yaml))
 			require.NoError(t, err)
 			assert.Equal(t, tc.want, string(got))
 		})
@@ -216,7 +218,7 @@ func TestRawFromNode_RefusesWhatJSONCannotName(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			got, err := RawFromNode(yamlNode(t, tc.yaml))
+			got, err := RawFromNode(openapitest.YAMLNode(t, tc.yaml))
 			require.Error(t, err)
 			assert.Nil(t, got, "a refusal writes nothing")
 			assert.Contains(t, err.Error(), tc.wantErr)
@@ -398,7 +400,7 @@ func TestRawFromNode_DiffersFromTheOldDecodeOnlyWhereRecorded(t *testing.T) {
 	for _, src := range rawEquivalenceCorpus {
 		t.Run(src, func(t *testing.T) {
 			t.Parallel()
-			node := yamlNode(t, src)
+			node := openapitest.YAMLNode(t, src)
 
 			want, oldErr := decodeAndMarshal(node)
 			got, newErr := RawFromNode(node)
@@ -465,14 +467,14 @@ func TestRawConv_RefusesNodesNoCallerShouldPass(t *testing.T) {
 	assert.Nil(t, got)
 	assert.Contains(t, err.Error(), "nil yaml node")
 
-	err = c.mappingInto(map[string]json.RawMessage{}, yamlNode(t, "[1]"), 0)
+	err = c.mappingInto(map[string]json.RawMessage{}, openapitest.YAMLNode(t, "[1]"), 0)
 	require.Error(t, err, "filling a mapping from a sequence is a caller bug")
 	assert.Contains(t, err.Error(), "expected a mapping")
 
 	// scalar routes only !!timestamp and !!binary into verbatimTagged, so no
 	// input reaches this arm. It answers rather than falling through to the
 	// base64 check, which is what a third tag added to that case would hit.
-	got, err = c.verbatimTagged(yamlNode(t, "plain"))
+	got, err = c.verbatimTagged(openapitest.YAMLNode(t, "plain"))
 	require.Error(t, err, "a tag scalar does not route here is a caller bug")
 	assert.Nil(t, got)
 	assert.Contains(t, err.Error(), `scalar tag "!!str" is not kept verbatim`)
