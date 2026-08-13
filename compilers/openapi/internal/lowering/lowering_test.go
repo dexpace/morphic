@@ -309,3 +309,20 @@ func TestProvenanceAt_NamesTheOverlayForThePositionsItIntroduced(t *testing.T) {
 		c.DiagAt(ir.SeverityWarning, "x", "/info/description", "m").Provenance,
 		"a diagnostic is stamped through the same question")
 }
+
+// TestCtx_NamingByReferenceIsScopedToTheCopy holds what makes the flag safe to
+// thread: it is set on a copy, so a lowering that descends under a $ref cannot
+// leak the marking back to the caller that is still lowering a declaration.
+func TestCtx_NamingByReferenceIsScopedToTheCopy(t *testing.T) {
+	t.Parallel()
+	declaring := lowering.Ctx{}
+	assert.False(t, declaring.NamesByReference(), "a context names by declaration by default")
+
+	referencing := declaring.NamingByReference()
+	assert.True(t, referencing.NamesByReference())
+	assert.False(t, declaring.NamesByReference(),
+		"the caller's context is unchanged, so the marking cannot escape the subtree")
+
+	assert.True(t, referencing.NamingByReference().NamesByReference(),
+		"and marking an already-marked context is a no-op rather than a toggle")
+}
