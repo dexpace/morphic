@@ -55,7 +55,8 @@ type Result struct {
 // compilers.Compiler's purity requirement — a compiler holding package-level
 // mutable state would break it, which is why that requirement is part of the
 // contract and not advice. TestEngine_ConcurrentRunSharesOneEngine pins both
-// properties, the first only under -race.
+// properties: the second on every run, the first only under -race, which the
+// gate's coverage step passes.
 type Engine struct {
 	registry *compilers.Registry
 }

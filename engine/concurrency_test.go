@@ -81,8 +81,18 @@ func TestEngine_ConcurrentRunSharesOneEngine(t *testing.T) {
 
 	for w, run := range got {
 		require.NoError(t, run.err, "worker %d", w)
-		require.Len(t, run.docs, len(specs), "worker %d did not finish the corpus", w)
+		// Bounds for the indexing below. It cannot fail while runCorpus returns
+		// either an error or a full-length slice, and it is here so that a later
+		// change to that shape is a failed assertion rather than a panic.
+		require.Len(t, run.docs, len(specs), "worker %d returned %d docs", w, len(run.docs))
 		for i, spec := range specs {
+			// A worker that stopped early leaves zero values behind, which the
+			// diff below would report as a document compiled differently. Say
+			// what actually happened instead.
+			if run.docs[i] == "" {
+				t.Errorf("worker %d never compiled %s", w, filepath.Base(spec))
+				continue
+			}
 			if diff := cmp.Diff(want[i], run.docs[i]); diff != "" {
 				t.Errorf("worker %d compiled %s differently (-unshared +shared):\n%s",
 					w, filepath.Base(spec), diff)
