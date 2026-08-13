@@ -46,10 +46,13 @@ if [ "$#" -eq 1 ]; then
 else
 	# The minted path is unique per invocation. `go test -coverprofile` truncates
 	# the file when it starts and appends each package's blocks as that package
-	# finishes, so two runs sharing one path interleave into a profile that is
-	# neither run's, with every block counted once per run that reached it. That
-	# can never fail a fully covered tree — hit and total inflate together — but
-	# the total a human reads to judge the gate is then several times the real one.
+	# finishes, so two runs sharing one path overwrite each other mid-write and
+	# each ends up reading a profile that is partly the other's.
+	#
+	# The merge below counts a block once however many times it appears, so this
+	# no longer inflates the total the way it did before that merge landed. What
+	# is left is a run judging a set of blocks that is not the set it produced,
+	# which reads as a pass whenever the blocks it lost were the uncovered ones.
 	#
 	# COVER_FILE names a profile to keep for inspection; a path this script mints
 	# is its own and is removed on exit.
