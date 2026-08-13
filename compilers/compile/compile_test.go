@@ -286,3 +286,125 @@ func TestTypes_RefusesANamespaceUsedBothWays(t *testing.T) {
 		})
 	}
 }
+
+// named returns a model at id carrying hint as its only name, for the
+// provisional-naming tests below.
+func named(hint string) ir.TypeDef {
+	return &ir.Model{TypeCommon: ir.TypeCommon{ID: provisionalID, Name: ir.Naming{Hint: hint}}}
+}
+
+// provisionalPointer is the coordinate the provisional-naming tests below use:
+// an inline position inside another declaration's body, which is the shape a
+// reference can name and a declaration also owns.
+const (
+	provisionalPointer = "/a/items"
+	// provisionalID is the ID that coordinate derives, spelled once so the helper
+	// below can mint a node without every caller repeating it.
+	provisionalID ir.TypeID = "t/anon/a/items"
+)
+
+// hintAt reads the hint of the node interned at provisionalPointer.
+func hintAt(t *testing.T, types *compile.Types) string {
+	t.Helper()
+	td, ok := types.NodeAt(provisionalPointer)
+	require.True(t, ok, "a node is interned at %s", provisionalPointer)
+	return td.Common().Name.Hint
+}
+
+// TestTypes_DeclarationReplacesAProvisionalName is the property that makes a
+// node's name independent of lowering order: a reference naming a coordinate
+// inside another declaration's body builds the node, and the declaration names
+// it whenever it arrives.
+func TestTypes_DeclarationReplacesAProvisionalName(t *testing.T) {
+	t.Parallel()
+	types := compile.NewTypes(0)
+
+	types.InternProvisional("/a/items", "t/anon/a/items", func() ir.TypeDef {
+		return named("items")
+	})
+	assert.Equal(t, "items", hintAt(t, types), "the reference names it first")
+
+	types.NameFromDeclaration("/a/items", "a_item")
+	assert.Equal(t, "a_item", hintAt(t, types), "the declaration replaces that name")
+
+	// And only once: a placeholder that has been replaced is no longer one, so a
+	// second declaration at the same coordinate — which claimID is what refuses —
+	// cannot rename it from here.
+	types.NameFromDeclaration("/a/items", "something_else")
+	assert.Equal(t, "a_item", hintAt(t, types))
+}
+
+// TestTypes_NameFromDeclarationNeutralizesTheHint pins that a replacement writes
+// the field the way interning writes it. NamingHint neutralizes on the way in, so
+// a raw hint here would leave the node holding the caller's spelling — and the
+// name would then depend on whether a reference reached the coordinate first,
+// which is the dependence this path exists to remove.
+//
+// The two halves are asserted against each other rather than against a literal:
+// what matters is that they agree, not what the grammar happens to produce.
+func TestTypes_NameFromDeclarationNeutralizesTheHint(t *testing.T) {
+	t.Parallel()
+	const raw = "A"
+
+	declaredFirst := compile.NewTypes(0)
+	declaredFirst.Intern(provisionalPointer, provisionalID, func() ir.TypeDef {
+		return &ir.Scalar{TypeCommon: ir.TypeCommon{ID: provisionalID, Name: compile.NamingHint(raw)}}
+	})
+	interned := hintAt(t, declaredFirst)
+
+	referencedFirst := compile.NewTypes(0)
+	referencedFirst.InternProvisional(provisionalPointer, provisionalID, func() ir.TypeDef {
+		return named("placeholder")
+	})
+	referencedFirst.NameFromDeclaration(provisionalPointer, raw)
+	replaced := hintAt(t, referencedFirst)
+
+	assert.Equal(t, interned, replaced,
+		"one hint must name the node the same whether it was interned or replaced")
+	assert.NotEqual(t, raw, replaced, "and the stored hint carries no casing of its own")
+}
+
+// TestTypes_NameFromDeclarationLeavesADeclaredNameAlone holds the other
+// direction: a coordinate the declaration reached first carries no placeholder,
+// so a reference arriving later cannot have marked it and the name stands.
+func TestTypes_NameFromDeclarationLeavesADeclaredNameAlone(t *testing.T) {
+	t.Parallel()
+	types := compile.NewTypes(0)
+
+	types.Intern("/a/items", "t/anon/a/items", func() ir.TypeDef {
+		return named("a_item")
+	})
+	types.InternProvisional("/a/items", "t/anon/a/items", func() ir.TypeDef {
+		return named("items")
+	})
+	assert.Equal(t, "a_item", hintAt(t, types),
+		"the second call interns nothing, so it names nothing")
+
+	types.NameFromDeclaration("/a/items", "a_item")
+	assert.Equal(t, "a_item", hintAt(t, types))
+}
+
+// TestTypes_NameFromDeclarationIgnoresAnUninternedCoordinate covers the ordinary
+// case: every declaration calls this at its own coordinate, and almost none of
+// them are replacing anything.
+func TestTypes_NameFromDeclarationIgnoresAnUninternedCoordinate(t *testing.T) {
+	t.Parallel()
+	types := compile.NewTypes(0)
+	require.NotPanics(t, func() { types.NameFromDeclaration("/nothing/here", "x") })
+	assert.Empty(t, types.Violations())
+}
+
+// TestTypes_RefusedProvisionalInternIsNotNamed holds the guard on the marking: a
+// build yielding nothing leaves no node, so there is nothing for a later
+// declaration to rename and no coordinate left mapped.
+func TestTypes_RefusedProvisionalInternIsNotNamed(t *testing.T) {
+	t.Parallel()
+	types := compile.NewTypes(0)
+
+	types.InternProvisional("/a/items", "t/anon/a/items", func() ir.TypeDef { return nil })
+	_, ok := types.NodeAt("/a/items")
+	require.False(t, ok, "a refused intern leaves the coordinate unmapped")
+	assert.NotEmpty(t, types.Violations())
+
+	require.NotPanics(t, func() { types.NameFromDeclaration("/a/items", "a_item") })
+}

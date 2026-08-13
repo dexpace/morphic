@@ -10,6 +10,8 @@ import (
 	"github.com/stretchr/testify/require"
 	yaml "gopkg.in/yaml.v3"
 
+	"github.com/dexpace/morphic/compilers/openapi/internal/nodeview"
+	"github.com/dexpace/morphic/compilers/openapi/internal/openapitest"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -125,25 +127,38 @@ func TestSchemaOf_ReturnsOnlyAWrittenBody(t *testing.T) {
 }
 
 // TestEffectiveVisibility_MapsTheFlagsToLifecycles pins the readOnly/writeOnly
-// mapping of ir-design §5.2 and the precedence between them. A schema that says
-// readOnly at the site while its referent says writeOnly must read as readOnly:
-// the position is what binds.
+// mapping of ir-design §5.2, the precedence a site holds over its referent, and
+// the answer for the pairing that admits nothing.
+//
+// Precedence is per flag: a site that writes readOnly settles readOnly for the
+// position and says nothing about writeOnly, which therefore still resolves
+// from the referent — the uniform §14 merge every other annotation here already
+// follows. So a site's readOnly does not cancel a referent's writeOnly; the two
+// are both in force, they admit disjoint lifecycle sets, and the position is
+// left visible in none. That case read as plain readOnly until GitHub #276,
+// when the flag arriving second was dropped without a word.
 func TestEffectiveVisibility_MapsTheFlagsToLifecycles(t *testing.T) {
 	t.Parallel()
 	read := ir.Visibility{Only: []ir.Lifecycle{ir.LifecycleRead, ir.LifecycleDelete, ir.LifecycleQuery}}
 	write := ir.Visibility{Only: []ir.Lifecycle{ir.LifecycleCreate, ir.LifecycleUpdate}}
+	none := ir.Visibility{None: true}
 
 	tests := []struct {
-		name     string
-		ref, tgt string
-		want     ir.Visibility
+		name         string
+		ref, tgt     string
+		want         ir.Visibility
+		wantDisjoint bool
 	}{
 		{name: "readOnly at the site", ref: "readOnly: true\n", want: read},
 		{name: "writeOnly at the site", ref: "writeOnly: true\n", want: write},
 		{name: "readOnly inherited from the referent", ref: "type: string\n", tgt: "readOnly: true\n", want: read},
 		{name: "writeOnly inherited from the referent", ref: "type: string\n", tgt: "writeOnly: true\n", want: write},
-		{name: "the site wins over the referent", ref: "readOnly: true\n", tgt: "writeOnly: true\n", want: read},
+		{name: "the site wins over the referent for the flag it writes", ref: "readOnly: true\n", tgt: "readOnly: false\n", want: read},
 		{name: "a false flag is still the site's answer", ref: "readOnly: false\n", tgt: "readOnly: true\n"},
+		{name: "both flags on one schema", ref: "readOnly: true\nwriteOnly: true\n", want: none, wantDisjoint: true},
+		{name: "both flags on the referent", ref: "type: string\n", tgt: "readOnly: true\nwriteOnly: true\n", want: none, wantDisjoint: true},
+		{name: "the site's readOnly leaves the referent's writeOnly in force", ref: "readOnly: true\n", tgt: "writeOnly: true\n", want: none, wantDisjoint: true},
+		{name: "and the same the other way round", ref: "writeOnly: true\n", tgt: "readOnly: true\n", want: none, wantDisjoint: true},
 		{name: "neither declares one", ref: "type: string\n", tgt: "type: string\n"},
 		{name: "nothing at all", want: ir.Visibility{}},
 	}
@@ -157,7 +172,9 @@ func TestEffectiveVisibility_MapsTheFlagsToLifecycles(t *testing.T) {
 			if tc.tgt != "" {
 				tgt = schemaFromYAML(t, tc.tgt)
 			}
-			assert.Equal(t, tc.want, EffectiveVisibility(ref, tgt))
+			got, disjoint := EffectiveVisibility(ref, tgt)
+			assert.Equal(t, tc.want, got)
+			assert.Equal(t, tc.wantDisjoint, disjoint, "whether the flags left no lifecycle at all")
 		})
 	}
 }
@@ -303,6 +320,58 @@ func TestExtensionsFrom_UnserializableIsWarnedNotKept(t *testing.T) {
 	assert.Contains(t, diags[0].Message, `"x-bad"`)
 }
 
+// TestExtensionsUnder_KeysBeneathTheScope pins the scoped spelling: an object
+// with no Unmodeled map of its own keys its entries under the path that says
+// which object wrote them, while the entry's provenance still points at the
+// extension itself.
+func TestExtensionsUnder_KeysBeneathTheScope(t *testing.T) {
+	t.Parallel()
+	s := schemaFromYAML(t, "type: string\nx-a: 1\n")
+
+	got, diags := ExtensionsUnder(s.GetExtensions(), 2, "/info/contact", "info/contact")
+
+	assert.Empty(t, diags)
+	require.Len(t, got, 1)
+	require.Contains(t, got, "openapi:info/contact/x-a")
+	assert.Equal(t, ir.Provenance{Source: 2, Pointer: "/info/contact/x-a"},
+		got["openapi:info/contact/x-a"].Provenance)
+}
+
+// TestExtensionsAt_FoldsEverySiteWithoutCollision is the reason the scope
+// exists: two objects writing the same x-* key onto one carrier must both
+// survive, which one unscoped key cannot do.
+func TestExtensionsAt_FoldsEverySiteWithoutCollision(t *testing.T) {
+	t.Parallel()
+	info := schemaFromYAML(t, "type: string\nx-a: 1\n")
+	license := schemaFromYAML(t, "type: string\nx-a: 2\n")
+
+	got, diags := ExtensionsAt(0,
+		ExtensionSite{Scope: "info", Owner: "/info", Ext: info.GetExtensions()},
+		ExtensionSite{Scope: "info/license", Owner: "/info/license", Ext: license.GetExtensions()},
+		ExtensionSite{Scope: "components", Owner: "/components", Ext: nil},
+	)
+
+	assert.Empty(t, diags)
+	require.Len(t, got, 2, "one key spelling, two objects, two entries")
+	assert.Equal(t, ir.RawValue("1"), got["openapi:info/x-a"].Value)
+	assert.Equal(t, ir.RawValue("2"), got["openapi:info/license/x-a"].Value)
+}
+
+// TestExtensionsAt_ReportsEverySiteThatFailed holds the diagnostics to the same
+// completeness as the entries: a site whose extension cannot be serialized keeps
+// nothing, and the fold must still carry its warning out (GitHub #144's rule,
+// applied to the multi-site form).
+func TestExtensionsAt_ReportsEverySiteThatFailed(t *testing.T) {
+	t.Parallel()
+	bad := schemaFromYAML(t, "type: string\nx-bad: .nan\n")
+
+	got, diags := ExtensionsAt(0, ExtensionSite{Scope: "info", Owner: "/info", Ext: bad.GetExtensions()})
+
+	assert.Nil(t, got, "nothing was kept, so there is no map to emit")
+	require.Len(t, diags, 1)
+	assert.Equal(t, ir.SeverityWarning, diags[0].Severity)
+}
+
 // TestMergeUnmodeled_AllocatesOnlyOnFirstWrite pins the overlay: merging nothing
 // leaves the destination exactly as it was — including nil, which must not
 // become an empty map.
@@ -413,15 +482,15 @@ func TestRawFromNode_DistinguishesAbsentFromUnconvertible(t *testing.T) {
 	require.NoError(t, err)
 	assert.Nil(t, got, "an absent node is not a failure")
 
-	got, err = RawFromNode(yamlNode(t, "{a: 1}"))
+	got, err = RawFromNode(openapitest.YAMLNode(t, "{a: 1}"))
 	require.NoError(t, err)
 	assert.JSONEq(t, `{"a":1}`, string(got))
 
-	got, err = RawFromNode(yamlNode(t, ".nan"))
+	got, err = RawFromNode(openapitest.YAMLNode(t, ".nan"))
 	require.Error(t, err, "a value that decodes but does not marshal is a failure")
 	assert.Nil(t, got)
 
-	got, err = RawFromNode(yamlNode(t, "{? [1, 2]\n: v}"))
+	got, err = RawFromNode(openapitest.YAMLNode(t, "{? [1, 2]\n: v}"))
 	require.Error(t, err, "a mapping with a non-string key does not decode into the JSON model")
 	assert.Nil(t, got)
 }
@@ -442,9 +511,125 @@ func TestRawChildNode_ReadsOnlyAMappingChild(t *testing.T) {
 
 	assert.Nil(t, RawChildNode(nil, "a"))
 	assert.Nil(t, RawChildNode(&doc, "absent"))
-	assert.Nil(t, RawChildNode(yamlNode(t, "[1, 2]"), "a"), "a sequence has no keyed children")
-	assert.Nil(t, RawChildNode(yamlNode(t, "plain"), "a"), "nor does a scalar")
+	assert.Nil(t, RawChildNode(openapitest.YAMLNode(t, "[1, 2]"), "a"), "a sequence has no keyed children")
+	assert.Nil(t, RawChildNode(openapitest.YAMLNode(t, "plain"), "a"), "nor does a scalar")
 	assert.Nil(t, RawChildNode(&yaml.Node{Kind: yaml.DocumentNode}, "a"), "nor an empty document")
+}
+
+// TestRawChildNode_IsNotTheMergeAwareView pins the difference between this
+// reader and nodeview's, which is the reason the two exist side by side: what a
+// keyword is preserved *as* is what the source spelled at it, while what a
+// pointer or a $ref *resolves to* is what the parser will see.
+//
+// Two of the cases are ways the trees diverge, and each is a keyword this
+// package would preserve verbatim. Answering a raw read through the view would
+// silently rewrite both — a merged keyword would appear at a schema that never
+// wrote it, and an alias would be replaced by its target.
+//
+// The third is here because it stopped being one. A repeated key used to resolve
+// to opposite ends, and GitHub #356 made the raw read take the last pair as the
+// parser does, on the grounds that returning the first described a mapping by a
+// value nothing else in the compiler uses. It is asserted rather than dropped so
+// that the agreement is pinned: a reader drifting back to first-wins is a change
+// worth failing on, not a detail to rediscover.
+//
+// It reaches across packages because that is where the mistake would be made:
+// nothing inside either reader can see that the other answers differently.
+func TestRawChildNode_IsNotTheMergeAwareView(t *testing.T) {
+	t.Parallel()
+
+	// use is the mapping under test in each case; the raw read of a top-level
+	// key is unambiguous, so it is safe to navigate with.
+	useOf := func(t *testing.T, src string) *yaml.Node {
+		t.Helper()
+		use := RawChildNode(openapitest.YAMLNode(t, src), "use")
+		require.NotNil(t, use, "the fixture must declare a `use` mapping")
+		return use
+	}
+
+	t.Run("a merge key contributes nothing to the raw read", func(t *testing.T) {
+		t.Parallel()
+		use := useOf(t, "base: &b {title: merged}\nuse:\n  <<: *b\n")
+
+		assert.Nil(t, RawChildNode(use, "title"),
+			"the source wrote `<<`, not `title`, so nothing is preserved at title")
+		merged := nodeview.New().ChildByToken(use, "title")
+		require.NotNil(t, merged, "the parser, however, does see it")
+		assert.Equal(t, "merged", merged.Value)
+	})
+
+	t.Run("an aliased value is not dereferenced by the raw read", func(t *testing.T) {
+		t.Parallel()
+		use := useOf(t, "base: &b anchored\nuse: {title: *b}\n")
+
+		raw := RawChildNode(use, "title")
+		require.NotNil(t, raw)
+		assert.Equal(t, yaml.AliasNode, raw.Kind, "the raw tree keeps the alias the source wrote")
+		viewed := nodeview.New().ChildByToken(use, "title")
+		require.NotNil(t, viewed, "the view resolves the key the raw tree kept aliased")
+		assert.Equal(t, "anchored", viewed.Value, "where the view stands the anchor in its place")
+	})
+
+	t.Run("a repeated key resolves alike on both sides", func(t *testing.T) {
+		t.Parallel()
+		use := useOf(t, "use: {title: first, title: last}\n")
+
+		raw, viewed := RawChildNode(use, "title"), nodeview.New().ChildByToken(use, "title")
+		require.NotNil(t, raw, "the raw read finds the key")
+		require.NotNil(t, viewed, "and so does the view")
+		assert.Equal(t, "last", raw.Value,
+			"the raw read takes the pair the parser reads, not the first written")
+		assert.Equal(t, "last", viewed.Value,
+			"and the view takes the same one, so this is no longer a divergence")
+	})
+}
+
+// TestRawChildNode_FindsAKeyWrittenAsAnAlias pins the one spelling where the raw
+// tree and the parsed model disagree about a key's name. yaml.v3 leaves an alias
+// node's own Value as the anchor, so matching it raw looks for "k" while the
+// parser has already read the pair under "aliasedKey" — and every caller here
+// asks by the name the parser used. A key the census reported as undeclared then
+// reached no Unmodeled entry and, before this, no diagnostic either.
+func TestRawChildNode_FindsAKeyWrittenAsAnAlias(t *testing.T) {
+	t.Parallel()
+	var doc yaml.Node
+	require.NoError(t, yaml.Unmarshal([]byte("anchor: &k aliasedKey\n*k : found\n"), &doc))
+
+	found := RawChildNode(&doc, "aliasedKey")
+
+	require.NotNil(t, found, "the key is looked up by the name it resolves to")
+	assert.Equal(t, "found", found.Value)
+	assert.Nil(t, RawChildNode(&doc, "k"), "and not by the anchor it is written as")
+}
+
+// TestRawChildNode_RepeatedKeyReadsTheLastPair holds this reader to the pair the
+// parser reads: marshaller skips every occurrence of a repeated key but the
+// last, so returning the first would describe the mapping by a value nothing
+// else in the compiler uses.
+//
+// Spelled with an alias, because that is how the case is reachable from a parsed
+// document — yaml.v3 refuses a key written twice when it decodes into a typed
+// value, as the model parse does, so a plainly repeated key faults the document
+// before any reader sees it. Decoding into a *yaml.Node, which is how a fixture
+// builds a tree directly, accepts one; an explicit pair and an aliased one are
+// two nodes here and one key to the parser either way.
+func TestRawChildNode_RepeatedKeyReadsTheLastPair(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct{ name, body, want string }{
+		{"aliased pair last", "anchor: &k dup\ndup: first\n*k : last\n", "last"},
+		{"aliased pair first", "anchor: &k dup\n*k : first\ndup: last\n", "last"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			var doc yaml.Node
+			require.NoError(t, yaml.Unmarshal([]byte(tc.body), &doc))
+
+			found := RawChildNode(&doc, "dup")
+
+			require.NotNil(t, found)
+			assert.Equal(t, tc.want, found.Value, "the last pair spelling the key is the effective one")
+		})
+	}
 }
 
 // TestRawPropertyNode_NilSchemaReadsNothing pins the nil guard on the schema
@@ -502,13 +687,13 @@ func TestPreserveNodeInto_ReportsWhichOfThreeOutcomesHappened(t *testing.T) {
 	assert.Empty(t, diags)
 	assert.Nil(t, p)
 
-	kept, diags = PreserveNodeInto(&p, "openapi:x", yamlNode(t, ".nan"), ir.ReasonNoIRHome, "/x", 0)
+	kept, diags = PreserveNodeInto(&p, "openapi:x", openapitest.YAMLNode(t, ".nan"), ir.ReasonNoIRHome, "/x", 0)
 	assert.False(t, kept)
 	require.Len(t, diags, 1)
 	assert.Equal(t, ir.SeverityError, diags[0].Severity)
 	assert.Nil(t, p, "an unconvertible node writes no entry")
 
-	kept, diags = PreserveNodeInto(&p, "openapi:x", yamlNode(t, "{a: 1}"), ir.ReasonNoIRHome, "/x", 0)
+	kept, diags = PreserveNodeInto(&p, "openapi:x", openapitest.YAMLNode(t, "{a: 1}"), ir.ReasonNoIRHome, "/x", 0)
 	assert.True(t, kept)
 	assert.Empty(t, diags)
 	assert.JSONEq(t, `{"a":1}`, string(p["openapi:x"].Value))
@@ -519,7 +704,7 @@ func TestPreserveNodeInto_ReportsWhichOfThreeOutcomesHappened(t *testing.T) {
 // leaves no trace at all, which is a losslessness failure.
 func TestUnpreservableDiag_IsAnErrorNotADegradation(t *testing.T) {
 	t.Parallel()
-	_, err := RawFromNode(yamlNode(t, ".nan"))
+	_, err := RawFromNode(openapitest.YAMLNode(t, ".nan"))
 	require.Error(t, err)
 
 	got := UnpreservableDiag("openapi:not", "/components/schemas/S/not", 2, err)

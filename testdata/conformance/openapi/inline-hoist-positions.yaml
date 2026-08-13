@@ -1,0 +1,74 @@
+# Every position outside a component schema where an inline composite is hoisted
+# into a node of its own. inline-types.yaml pins one of them, the schema property;
+# compilers/openapi/internal/schema's inlinePositions table pins the ones the
+# schema package can reach on its own. These six are the operation-side rest:
+# a parameter's schema, a response header's schema, a property inside a request
+# body, a property inside a response body, a webhook operation's body, and a
+# callback operation's body.
+#
+# The body is byte-identical at all six. A hoist that keyed on shape, or that let
+# whichever position lowered first own the node, would collapse them into one and
+# every ID below would move; distinct pointers are the only thing keeping them
+# apart.
+#
+# What separates a pointer-derived ID from one minted in encounter order is the
+# order-invariance oracle, not the order things are written in here. An
+# operation's fields are fixed fields, read by name, and provenance records a
+# pointer rather than a line, so no arrangement of them reaches the IR: swapping
+# the responses and requestBody blocks below moves one line of the golden, the
+# source hash. harness.Check is what compiles this file a second time with every
+# mapping reversed — the operation's own fields among them — and diffs the two
+# documents.
+openapi: 3.1.0
+info: {title: InlineHoistPositions, version: "1.0.0"}
+webhooks:
+  onShipped:
+    post:
+      operationId: onShipped
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {type: object, properties: {v: {type: string}}}
+      responses:
+        "204": {description: no content}
+paths:
+  /orders:
+    post:
+      operationId: placeOrder
+      callbacks:
+        onProgress:
+          '{$request.body#/callbackUrl}':
+            post:
+              operationId: onProgress
+              requestBody:
+                required: true
+                content:
+                  application/json:
+                    schema: {type: object, properties: {v: {type: string}}}
+              responses:
+                "204": {description: no content}
+      responses:
+        "200":
+          description: ok
+          headers:
+            X-Order-Trace:
+              schema: {type: object, properties: {v: {type: string}}}
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  receipt: {type: object, properties: {v: {type: string}}}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                shipping: {type: object, properties: {v: {type: string}}}
+      parameters:
+        - name: audit
+          in: query
+          schema: {type: object, properties: {v: {type: string}}}

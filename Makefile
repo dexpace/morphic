@@ -25,9 +25,10 @@ FUZZTIME ?= 10s
 
 .DEFAULT_GOAL := gate
 
-.PHONY: gate fmt vet lint build coverage fuzz bench bench-smoke print-lint-version
+.PHONY: gate fmt vet lint nolint-grammar nolint build coverage-count coverage \
+	fuzz bench bench-smoke print-lint-version
 
-gate: fmt vet lint build coverage fuzz bench-smoke
+gate: fmt vet lint nolint-grammar nolint build coverage-count coverage fuzz bench-smoke
 
 fmt:
 	@unformatted="$$(gofmt -l $$(git ls-files '*.go'))"; \
@@ -53,8 +54,20 @@ lint:
 	fi
 	golangci-lint run
 
+# Both nolint checks run after lint, and in CI reach the golangci-lint the lint
+# step left on PATH: they ask it which linters it is running, which only
+# describes that step if it is the same build.
+nolint-grammar:
+	./scripts/verify-nolint-grammar.sh
+
+nolint:
+	./scripts/check-nolint-linters.sh
+
 build:
 	$(GO) build ./...
+
+coverage-count:
+	./scripts/verify-coverage-count.sh
 
 coverage:
 	./scripts/check-coverage.sh

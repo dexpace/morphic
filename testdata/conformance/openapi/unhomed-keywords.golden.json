@@ -18,6 +18,140 @@
     }
   ],
   "types": {
+    "t/openapi/components/schemas/AllOfWithObjectType": {
+      "kind": "model",
+      "id": "t/openapi/components/schemas/AllOfWithObjectType",
+      "name": {
+        "source": "AllOfWithObjectType",
+        "canonical": "all_of_with_object_type"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/AllOfWithObjectType"
+      },
+      "base": {
+        "target": "t/openapi/components/schemas/RefTargetObj",
+        "nullable": false
+      },
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
+    "t/openapi/components/schemas/AllOfWithScalarType": {
+      "kind": "model",
+      "id": "t/openapi/components/schemas/AllOfWithScalarType",
+      "name": {
+        "source": "AllOfWithScalarType",
+        "canonical": "all_of_with_scalar_type"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "unmodeled": {
+        "openapi:type": {
+          "reason": "degraded_lowering",
+          "value": "string",
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/AllOfWithScalarType/type"
+          }
+        }
+      },
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/AllOfWithScalarType"
+      },
+      "base": {
+        "target": "t/openapi/components/schemas/RefTargetObj",
+        "nullable": false
+      },
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
+    "t/openapi/components/schemas/ConstWithBound": {
+      "kind": "literal",
+      "id": "t/openapi/components/schemas/ConstWithBound",
+      "name": {
+        "source": "ConstWithBound",
+        "canonical": "const_with_bound"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "unmodeled": {
+        "openapi:maxLength": {
+          "reason": "degraded_lowering",
+          "value": 1,
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/ConstWithBound/maxLength"
+          }
+        },
+        "openapi:type": {
+          "reason": "degraded_lowering",
+          "value": "string",
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/ConstWithBound/type"
+          }
+        }
+      },
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/ConstWithBound"
+      },
+      "value": {
+        "kind": "string",
+        "str": "ab",
+        "bytes": null,
+        "list": null,
+        "object": null
+      }
+    },
+    "t/openapi/components/schemas/ConstWithFormat": {
+      "kind": "literal",
+      "id": "t/openapi/components/schemas/ConstWithFormat",
+      "name": {
+        "source": "ConstWithFormat",
+        "canonical": "const_with_format"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "unmodeled": {
+        "openapi:format": {
+          "reason": "degraded_lowering",
+          "value": "int32",
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/ConstWithFormat/format"
+          }
+        },
+        "openapi:type": {
+          "reason": "degraded_lowering",
+          "value": "integer",
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/ConstWithFormat/type"
+          }
+        }
+      },
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/ConstWithFormat"
+      },
+      "value": {
+        "kind": "number",
+        "num": "5",
+        "bytes": null,
+        "list": null,
+        "object": null
+      }
+    },
     "t/openapi/components/schemas/EnumWithProperties": {
       "kind": "enum",
       "id": "t/openapi/components/schemas/EnumWithProperties",
@@ -80,6 +214,120 @@
       "closed": true,
       "flags": false
     },
+    "t/openapi/components/schemas/ItemsBoundOnArray": {
+      "kind": "list",
+      "id": "t/openapi/components/schemas/ItemsBoundOnArray",
+      "name": {
+        "source": "ItemsBoundOnArray",
+        "canonical": "items_bound_on_array"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/ItemsBoundOnArray"
+      },
+      "elem": {
+        "target": "t/prim/string",
+        "nullable": false
+      },
+      "constraints": {
+        "exclusiveMin": false,
+        "exclusiveMax": false,
+        "minItems": 3,
+        "maxItems": 9,
+        "uniqueItems": true
+      }
+    },
+    "t/openapi/components/schemas/ItemsBoundOnObject": {
+      "kind": "model",
+      "id": "t/openapi/components/schemas/ItemsBoundOnObject",
+      "name": {
+        "source": "ItemsBoundOnObject",
+        "canonical": "items_bound_on_object"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "unmodeled": {
+        "openapi:minItems": {
+          "reason": "degraded_lowering",
+          "value": 3,
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/ItemsBoundOnObject/minItems"
+          }
+        }
+      },
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/ItemsBoundOnObject"
+      },
+      "properties": [
+        {
+          "id": "p/openapi/components/schemas/ItemsBoundOnObject/properties/f",
+          "name": {
+            "source": "f",
+            "canonical": "f"
+          },
+          "wireName": "f",
+          "type": {
+            "target": "t/prim/string",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/ItemsBoundOnObject/properties/f"
+          }
+        }
+      ],
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
+    "t/openapi/components/schemas/ItemsBoundOnTuple": {
+      "kind": "tuple",
+      "id": "t/openapi/components/schemas/ItemsBoundOnTuple",
+      "name": {
+        "source": "ItemsBoundOnTuple",
+        "canonical": "items_bound_on_tuple"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "unmodeled": {
+        "openapi:maxItems": {
+          "reason": "degraded_lowering",
+          "value": 2,
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/ItemsBoundOnTuple/maxItems"
+          }
+        }
+      },
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/ItemsBoundOnTuple"
+      },
+      "elems": [
+        {
+          "target": "t/prim/string",
+          "nullable": false
+        }
+      ]
+    },
     "t/openapi/components/schemas/ObjectWithItems": {
       "kind": "model",
       "id": "t/openapi/components/schemas/ObjectWithItems",
@@ -138,6 +386,306 @@
       "abstract": false,
       "positional": false,
       "inputOnly": false
+    },
+    "t/openapi/components/schemas/RefAdditionalProperties": {
+      "kind": "scalar",
+      "id": "t/openapi/components/schemas/RefAdditionalProperties",
+      "name": {
+        "source": "RefAdditionalProperties",
+        "canonical": "ref_additional_properties"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "unmodeled": {
+        "openapi:additionalProperties": {
+          "reason": "degraded_lowering",
+          "value": false,
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/RefAdditionalProperties/additionalProperties"
+          }
+        }
+      },
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/RefAdditionalProperties"
+      },
+      "base": {
+        "target": "t/openapi/components/schemas/RefTargetObj",
+        "nullable": false
+      }
+    },
+    "t/openapi/components/schemas/RefCarrier": {
+      "kind": "model",
+      "id": "t/openapi/components/schemas/RefCarrier",
+      "name": {
+        "source": "RefCarrier",
+        "canonical": "ref_carrier"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/RefCarrier"
+      },
+      "properties": [
+        {
+          "id": "p/openapi/components/schemas/RefCarrier/properties/p",
+          "name": {
+            "source": "p",
+            "canonical": "p"
+          },
+          "wireName": "p",
+          "type": {
+            "target": "t/openapi/components/schemas/RefTargetStr",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "unmodeled": {
+            "openapi:format": {
+              "reason": "degraded_lowering",
+              "value": "email",
+              "provenance": {
+                "source": 0,
+                "pointer": "/components/schemas/RefCarrier/properties/p/format"
+              }
+            }
+          },
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/RefCarrier/properties/p"
+          }
+        }
+      ],
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
+    "t/openapi/components/schemas/RefConst": {
+      "kind": "scalar",
+      "id": "t/openapi/components/schemas/RefConst",
+      "name": {
+        "source": "RefConst",
+        "canonical": "ref_const"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "unmodeled": {
+        "openapi:const": {
+          "reason": "degraded_lowering",
+          "value": "a",
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/RefConst/const"
+          }
+        }
+      },
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/RefConst"
+      },
+      "base": {
+        "target": "t/openapi/components/schemas/RefTargetStr",
+        "nullable": false
+      }
+    },
+    "t/openapi/components/schemas/RefConstrained": {
+      "kind": "scalar",
+      "id": "t/openapi/components/schemas/RefConstrained",
+      "name": {
+        "source": "RefConstrained",
+        "canonical": "ref_constrained"
+      },
+      "anonymous": false,
+      "docs": {
+        "description": "kept"
+      },
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/RefConstrained"
+      },
+      "base": {
+        "target": "t/openapi/components/schemas/RefTargetStr",
+        "nullable": false
+      },
+      "constraints": {
+        "exclusiveMin": false,
+        "exclusiveMax": false,
+        "minLength": 3,
+        "uniqueItems": false
+      }
+    },
+    "t/openapi/components/schemas/RefEnum": {
+      "kind": "scalar",
+      "id": "t/openapi/components/schemas/RefEnum",
+      "name": {
+        "source": "RefEnum",
+        "canonical": "ref_enum"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "unmodeled": {
+        "openapi:enum": {
+          "reason": "degraded_lowering",
+          "value": [
+            "a",
+            "b"
+          ],
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/RefEnum/enum"
+          }
+        }
+      },
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/RefEnum"
+      },
+      "base": {
+        "target": "t/openapi/components/schemas/RefTargetStr",
+        "nullable": false
+      }
+    },
+    "t/openapi/components/schemas/RefFormat": {
+      "kind": "scalar",
+      "id": "t/openapi/components/schemas/RefFormat",
+      "name": {
+        "source": "RefFormat",
+        "canonical": "ref_format"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "unmodeled": {
+        "openapi:format": {
+          "reason": "degraded_lowering",
+          "value": "email",
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/RefFormat/format"
+          }
+        }
+      },
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/RefFormat"
+      },
+      "base": {
+        "target": "t/openapi/components/schemas/RefTargetStr",
+        "nullable": false
+      }
+    },
+    "t/openapi/components/schemas/RefRequired": {
+      "kind": "scalar",
+      "id": "t/openapi/components/schemas/RefRequired",
+      "name": {
+        "source": "RefRequired",
+        "canonical": "ref_required"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "unmodeled": {
+        "openapi:required": {
+          "reason": "degraded_lowering",
+          "value": [
+            "a"
+          ],
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/RefRequired/required"
+          }
+        }
+      },
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/RefRequired"
+      },
+      "base": {
+        "target": "t/openapi/components/schemas/RefTargetObj",
+        "nullable": false
+      }
+    },
+    "t/openapi/components/schemas/RefTargetObj": {
+      "kind": "model",
+      "id": "t/openapi/components/schemas/RefTargetObj",
+      "name": {
+        "source": "RefTargetObj",
+        "canonical": "ref_target_obj"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/RefTargetObj"
+      },
+      "properties": [
+        {
+          "id": "p/openapi/components/schemas/RefTargetObj/properties/a",
+          "name": {
+            "source": "a",
+            "canonical": "a"
+          },
+          "wireName": "a",
+          "type": {
+            "target": "t/prim/string",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/RefTargetObj/properties/a"
+          }
+        }
+      ],
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
+    "t/openapi/components/schemas/RefTargetStr": {
+      "kind": "scalar",
+      "id": "t/openapi/components/schemas/RefTargetStr",
+      "name": {
+        "source": "RefTargetStr",
+        "canonical": "ref_target_str"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/RefTargetStr"
+      },
+      "base": {
+        "target": "t/prim/string",
+        "nullable": false
+      }
     },
     "t/openapi/components/schemas/ScalarWithProperties": {
       "kind": "scalar",
@@ -458,13 +1006,112 @@
         "source": 0,
         "pointer": "/components/schemas/UnionWithItems"
       }
+    },
+    {
+      "severity": "info",
+      "code": "openapi/degraded-construct",
+      "message": "this position lowered to an alias over its $ref target, which has no home for format declared beside it; kept verbatim under Unmodeled",
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/RefFormat"
+      }
+    },
+    {
+      "severity": "info",
+      "code": "openapi/degraded-construct",
+      "message": "this position lowered to an alias over its $ref target, which has no home for enum declared beside it; kept verbatim under Unmodeled",
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/RefEnum"
+      }
+    },
+    {
+      "severity": "info",
+      "code": "openapi/degraded-construct",
+      "message": "this position lowered to an alias over its $ref target, which has no home for const declared beside it; kept verbatim under Unmodeled",
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/RefConst"
+      }
+    },
+    {
+      "severity": "info",
+      "code": "openapi/degraded-construct",
+      "message": "this position lowered to an alias over its $ref target, which has no home for required declared beside it; kept verbatim under Unmodeled",
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/RefRequired"
+      }
+    },
+    {
+      "severity": "info",
+      "code": "openapi/degraded-construct",
+      "message": "this position lowered to an alias over its $ref target, which has no home for additionalProperties declared beside it; kept verbatim under Unmodeled",
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/RefAdditionalProperties"
+      }
+    },
+    {
+      "severity": "info",
+      "code": "openapi/degraded-construct",
+      "message": "this position lowered to an alias over its $ref target, which has no home for format declared beside it; kept verbatim under Unmodeled",
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/RefCarrier/properties/p"
+      }
+    },
+    {
+      "severity": "info",
+      "code": "openapi/degraded-construct",
+      "message": "this position lowered to a node of kind \"model\", which has no home for type declared beside it; kept verbatim under Unmodeled",
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/AllOfWithScalarType"
+      }
+    },
+    {
+      "severity": "info",
+      "code": "openapi/degraded-construct",
+      "message": "this position lowered to a node of kind \"literal\", which has no home for format, type declared beside it; kept verbatim under Unmodeled",
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/ConstWithFormat"
+      }
+    },
+    {
+      "severity": "info",
+      "code": "openapi/degraded-construct",
+      "message": "this position lowered to a node of kind \"literal\", which has no home for type, maxLength declared beside it; kept verbatim under Unmodeled",
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/ConstWithBound"
+      }
+    },
+    {
+      "severity": "info",
+      "code": "openapi/degraded-construct",
+      "message": "this position lowered to a node of kind \"model\", which has no home for minItems declared beside it; kept verbatim under Unmodeled",
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/ItemsBoundOnObject"
+      }
+    },
+    {
+      "severity": "info",
+      "code": "openapi/degraded-construct",
+      "message": "this position lowered to a node of kind \"tuple\", which has no home for maxItems declared beside it; kept verbatim under Unmodeled",
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/ItemsBoundOnTuple"
+      }
     }
   ],
   "sources": [
     {
       "format": "openapi@3.1",
       "path": "unhomed-keywords.yaml",
-      "hash": "093fbd1c4be0e24a7d21597c9526bdb2233b7f5a709e65c61561f900f7db0535"
+      "hash": "dcbdf05a564f1d173b5c0105508e731cc458e932a8307fd75912b092e72d949d"
     }
   ]
 }

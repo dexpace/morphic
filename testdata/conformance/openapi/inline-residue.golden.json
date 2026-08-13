@@ -87,7 +87,7 @@
       "kind": "scalar",
       "id": "t/anon/components/schemas/Batch/items",
       "name": {
-        "hint": "Batch_item"
+        "hint": "batch_item"
       },
       "anonymous": true,
       "docs": {},
