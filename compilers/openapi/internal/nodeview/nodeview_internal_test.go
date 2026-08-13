@@ -551,7 +551,8 @@ func TestPointerPath_SegmentCapStopsTheWalk(t *testing.T) {
 func wideMap(extra ...*yaml.Node) *yaml.Node {
 	var content []*yaml.Node
 	for i := range minIndexedPairs {
-		content = append(content, ynode.Scalar(fmt.Sprintf("k%d", i)), ynode.Scalar(fmt.Sprintf("v%d", i)))
+		content = append(content,
+			ynode.Scalar(fmt.Sprintf("k%d", i)), ynode.Scalar(fmt.Sprintf("v%d", i)))
 	}
 	return ynode.Map(append(content, extra...)...)
 }
@@ -576,17 +577,27 @@ func TestChildByToken_IndexAgreesWithTheScanItReplaces(t *testing.T) {
 		n    *yaml.Node
 	}{
 		{name: "explicit keys", n: wideMap()},
-		{name: "merged keys", n: wideMap(ynode.Merge(), ynode.Alias(base), ynode.Scalar("c"), ynode.Scalar("3"))},
-		{name: "explicit beats merged", n: wideMap(ynode.Merge(), ynode.Alias(base), ynode.Scalar("a"), ynode.Scalar("9"))},
+		{
+			name: "merged keys",
+			n:    wideMap(ynode.Merge(), ynode.Alias(base), ynode.Scalar("c"), ynode.Scalar("3")),
+		},
+		{
+			name: "explicit beats merged",
+			n:    wideMap(ynode.Merge(), ynode.Alias(base), ynode.Scalar("a"), ynode.Scalar("9")),
+		},
 		{name: "an aliased value", n: wideMap(ynode.Scalar("a"), ynode.Alias(ynode.Scalar("1")))},
-		{name: "a key written twice", n: wideMap(ynode.Scalar("a"), ynode.Scalar("1"), ynode.Scalar("a"), ynode.Scalar("2"))},
+		{
+			name: "a key written twice",
+			n:    wideMap(ynode.Scalar("a"), ynode.Scalar("1"), ynode.Scalar("a"), ynode.Scalar("2")),
+		},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			v := New()
 			pairs := v.MappingPairs(tc.n)
-			require.GreaterOrEqual(t, len(pairs), minIndexedPairs, "the fixture must be wide enough to index")
+			require.GreaterOrEqual(t, len(pairs), minIndexedPairs,
+				"the fixture must be wide enough to index")
 
 			for _, read := range []string{"builds the index", "reads it back"} {
 				for _, p := range pairs {
@@ -671,6 +682,37 @@ func TestKeyIndex_DeclinesWhatThePairsMemoDidNotKeep(t *testing.T) {
 		assert.Nil(t, v.ChildByToken(n, "absent"))
 		assert.Empty(t, v.keys, "and nothing was indexed")
 	})
+}
+
+// TestPointerPath_ReachesTheIndexOnAWideMapping settles by assertion what the
+// benchmark beside it can only show with a stopwatch.
+//
+// BenchmarkPointerPath_IntoAWideMapping reads a flat per-component cost as the
+// index being reached, and nothing runs it in CI. What that cost depends on is
+// not a timing question at all: a walk resolving many pointers through one view
+// must leave an index on the mapping every one of them descends. If a gate ever
+// stops admitting that mapping — a width raised, a reuse marker never promoted —
+// the walk silently returns to scanning and only a benchmark nobody runs would
+// show it.
+//
+// The pointers deliberately name distinct components, because it is the mapping
+// they share that has to be indexed, not the entries they end at.
+func TestPointerPath_ReachesTheIndexOnAWideMapping(t *testing.T) {
+	t.Parallel()
+	const width = minIndexedPairs
+	root := componentsDoc(width)
+	v := New()
+
+	for i := range width {
+		_, complete := v.PointerPath(root, fmt.Sprintf("/components/schemas/S%d", i))
+		require.True(t, complete, "every pointer resolves")
+	}
+
+	schemas := v.ChildByToken(v.ChildByToken(root, "components"), "schemas")
+	require.NotNil(t, schemas, "the fixture has the mapping the walk descends")
+	require.NotNil(t, v.keys[schemas],
+		"the mapping every pointer descends is indexed, which a flat per-component cost rests on")
+	assert.Len(t, v.keys[schemas], width, "one entry per component")
 }
 
 // TestPureRefTarget_ReadsTheIndexWhereTheWalkBuiltOne pins the sibling half of

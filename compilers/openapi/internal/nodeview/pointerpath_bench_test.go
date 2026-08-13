@@ -38,6 +38,12 @@ func componentsDoc(n int) *yaml.Node {
 // work of a single resolution, so the *per-component* cost is what to read:
 // divide by n and compare across widths. It should stay flat, and a run where it
 // grows with n is the index no longer being reached.
+//
+// Nothing runs this in CI, so that reading is a human's. The half of it that can
+// be settled without a stopwatch is settled without one:
+// TestPointerPath_ReachesTheIndexOnAWideMapping asserts the walk leaves an index
+// on the mapping it descends, which is the condition a flat cost depends on.
+//
 // The narrow widths are here because they are what a real document is mostly
 // made of, and because they are the case an index loses: below minIndexedPairs
 // the walk scans, and a run where these regress is that gate having stopped
