@@ -19,6 +19,9 @@
 #
 # The enabled set is asked of golangci-lint rather than copied from
 # .golangci.yml, so enabling or dropping a linter never needs an edit here.
+#
+# scripts/verify-nolint-grammar.sh drives this script over every grammar form,
+# and mutates it to prove each case bites.
 set -euo pipefail
 
 repo_root="$(git -C "$(dirname "${BASH_SOURCE[0]}")" rev-parse --show-toplevel)"
@@ -30,7 +33,7 @@ max_reported=25
 
 for tool in git jq golangci-lint; do
 	if ! command -v "$tool" >/dev/null 2>&1; then
-		echo "NOLINT FAIL: $tool is not on PATH; the enabled set cannot be derived" >&2
+		echo "NOLINT FAIL: $tool is not on PATH; the enabled set cannot be derived"
 		exit 1
 	fi
 done
@@ -38,15 +41,38 @@ done
 work="$(mktemp -d)"
 trap 'rm -rf "$work"' EXIT
 
+# Both lists are asked from the repo being scanned, not from wherever the caller
+# stood: golangci-lint discovers .golangci.yml relative to its own working
+# directory, so an unanchored call answers for a config that has nothing to do
+# with the directives git grep is about to read below.
+#
 # Formatters are a separate list in golangci-lint v2, but `run` reports their
 # findings under their own name ("File is not properly formatted (gci)"), so
 # //nolint:gci is a real directive and both lists belong in the enabled set.
-golangci-lint linters --json >"$work/linters.json"
-golangci-lint formatters --json >"$work/formatters.json"
-jq -r '.Enabled[].name' "$work/linters.json" "$work/formatters.json" | sort -u >"$work/enabled.txt"
+(cd "$repo_root" && golangci-lint linters --json) >"$work/linters.json"
+(cd "$repo_root" && golangci-lint formatters --json) >"$work/formatters.json"
 
+# Read each list on its own, and tolerate a null .Enabled. jq reports only the
+# status of its LAST input, so one call over both files exits 0 when the first
+# one is null — silently shrinking the enabled set to whatever the second held,
+# which is how every real directive comes to be reported as not running. The
+# guard between the two reads is what that would otherwise slip past.
+jq -r '(.Enabled // [])[].name' "$work/linters.json" >"$work/enabled.txt"
 if [ ! -s "$work/enabled.txt" ]; then
-	echo "NOLINT FAIL: golangci-lint reports no enabled linters, so nothing can be checked" >&2
+	echo "NOLINT FAIL: golangci-lint reports no enabled linters, so nothing can be checked"
+	exit 1
+fi
+jq -r '(.Enabled // [])[].name' "$work/formatters.json" >>"$work/enabled.txt"
+sort -u -o "$work/enabled.txt" "$work/enabled.txt"
+
+# git grep -n emits "path:line:text", which the awk below splits on the first two
+# colons. That is only correct while no path carries one, so refuse a tree where
+# one does rather than misparse it: the split would silently fold the line number
+# into the scanned text and report the finding at a location without one.
+colon_paths="$(git -C "$repo_root" ls-files -- '*.go' | grep ':' || true)"
+if [ -n "$colon_paths" ]; then
+	echo "NOLINT FAIL: a tracked path holds a colon, which git grep -n output cannot be split:"
+	echo "$colon_paths" | sed 's/^/  /'
 	exit 1
 fi
 
@@ -59,7 +85,7 @@ git -C "$repo_root" grep -nE '//[/ ]*nolint' -- '*.go' >"$work/hits.txt"
 grep_status=$?
 set -e
 if [ "$grep_status" -gt 1 ]; then
-	echo "NOLINT FAIL: git grep exited $grep_status" >&2
+	echo "NOLINT FAIL: git grep exited $grep_status"
 	exit 1
 fi
 
@@ -76,7 +102,7 @@ BEGIN {
 	}
 	close(enabled_file)
 	if (known == 0) {
-		print "NOLINT FAIL: the enabled set came through empty" > "/dev/stderr"
+		print "NOLINT FAIL: the enabled set came through empty"
 		fatal = 1
 		exit 1
 	}
@@ -93,37 +119,54 @@ function emit(file, lineno, why) {
 	if (findings <= max) printf "NOLINT FAIL: %s:%s: %s\n", file, lineno, why
 }
 
+# blanket reports a directive that suppresses every enabled linter at once. It
+# names nothing to cross-check, which also makes it the one way to write a
+# suppression this check cannot see through, so it fails here rather than
+# passing silently. (nolintlint has require-specific, which covers the same
+# ground when it is enabled; this check does not depend on that.)
+function blanket(file, lineno) {
+	emit(file, lineno, "//nolint suppresses every enabled linter, so nothing here names what it hides")
+}
+
 # check reads one directive and reports every name in it that golangci-lint is
 # not running.
 function check(file, lineno, cand,   body, cut, n, parts, i, name) {
 	directives++
-	if (substr(cand, 1, 7) != "nolint:") {
-		# A bare //nolint, or //nolint followed by prose, suppresses every enabled
-		# linter. It names nothing to cross-check, which also makes it the one way
-		# to write a suppression this check cannot see through, so it fails here
-		# rather than passing silently.
-		emit(file, lineno, "//nolint names no linter, so it suppresses every enabled one")
+
+	# extractInlineRangeFromComment blankets on a directive that does not start
+	# "nolint:", and — testing HasPrefix before it splits — on one that starts
+	# "nolint:all", which takes "nolint:allfoo" with it.
+	if (substr(cand, 1, 7) != "nolint:" || substr(cand, 8, 3) == "all") {
+		blanket(file, lineno)
 		return
 	}
+
 	body = substr(cand, 8)
 	cut = index(body, "//")
 	if (cut > 0) body = substr(body, 1, cut - 1)
 
 	n = split(body, parts, ",")
 	if (n == 0) {
-		# split of the empty string yields no fields at all, so a bare "//nolint:"
-		# would otherwise leave the loop below with nothing to look at.
-		emit(file, lineno, "//nolint names no linter, so it suppresses every enabled one")
-		return
+		# awk splits the empty string into no fields where Go splits it into one
+		# empty one, so "//nolint:" would otherwise skip the loop entirely.
+		n = 1
+		parts[1] = ""
 	}
 
 	for (i = 1; i <= n; i++) {
 		name = tolower(trim(parts[i]))
+		# "all" anywhere in the list is golangci-lint spelling out the blanket
+		# form above, and it stops reading the rest of the list there too.
+		if (name == "all") {
+			blanket(file, lineno)
+			return
+		}
 		checked++
-		# An empty name (a stray comma) resolves to no linter, and "all" is
-		# golangci-lint spelling out the blanket form above.
-		if (name == "" || name == "all") {
-			emit(file, lineno, "//nolint names no linter, so it suppresses every enabled one")
+		if (name == "") {
+			# A stray comma, or nothing at all after the colon. golangci-lint
+			# takes it as a linter whose name is "", which no linter has, so the
+			# directive is inert — the finding beneath it is still reported.
+			emit(file, lineno, "//nolint has an empty linter name, which suppresses nothing")
 		} else if (!(name in enabled)) {
 			emit(file, lineno, sprintf("//nolint names \"%s\", which golangci-lint is not running", name))
 		}
@@ -136,28 +179,32 @@ function check(file, lineno, cand,   body, cut, n, parts, i, name) {
 # directive spelled inside a string literal is reported although golangci-lint
 # would never see it) and never under-reports, which is the direction a check
 # written because another check missed something has to fail in.
-function scan(file, lineno, text,   pos, cand) {
+function scan(file, lineno, text,   pos, cand, lead) {
 	# text loses at least pos + 1 characters per turn, so the loop is bounded by
 	# the length of the line.
 	while ((pos = index(text, "//")) > 0) {
 		cand = substr(text, pos)
-		text = substr(text, pos + 2)
+		lead = cand
 		sub("^[/ ]+", "", cand)
+		# Resume past the whole run of slashes and spaces that opened this
+		# comment. Resuming after the first two re-enters the same run, which
+		# reads one "////nolint:x" as two directives and reports it twice.
+		text = substr(text, pos + length(lead) - length(cand))
 		if (cand == "nolint" || cand ~ "^nolint[ :]") check(file, lineno, cand)
 	}
 }
 
 $0 == "" { next }
 
-# git grep -n emits "path:line:text". No tracked path here holds a colon, so the
-# first two colons split it; a line without them is a broken invariant, not a
-# finding.
+# git grep -n emits "path:line:text", and the shell above has already refused a
+# tree in which a path could hold a colon, so the first two split it; a line
+# without them is a broken invariant, not a finding.
 {
 	p = index($0, ":")
 	rest = substr($0, p + 1)
 	q = index(rest, ":")
 	if (p == 0 || q == 0) {
-		printf "NOLINT FAIL: unparsable git grep line: %s\n", $0 > "/dev/stderr"
+		printf "NOLINT FAIL: unparsable git grep line: %s\n", $0
 		fatal = 1
 		exit 1
 	}
