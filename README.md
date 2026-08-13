@@ -221,20 +221,16 @@ The design documents are normative — read them before proposing changes to the
 
 ## Building
 
-Standard Go tooling. These are the same checks the CI `gate` runs, and all must pass before a
-change lands:
+One command, and it must pass before a change lands:
 
 ```bash
-gofmt -l .          # must print nothing
-go vet ./...
-golangci-lint run
-./scripts/verify-nolint-grammar.sh   # checks how the check below reads a directive
-./scripts/check-nolint-linters.sh   # every //nolint names a linter that is enabled
-go build ./...
-go test ./...
-./scripts/verify-coverage-count.sh   # checks how the gate below counts a profile
-./scripts/check-coverage.sh   # enforces 100% statement coverage, overall and per package
+make gate
 ```
+
+That is not a summary of CI — it is what CI runs. Every check in `.github/workflows/gate.yml` runs
+a `Makefile` target, so the local command and the job are the same commands in the same order. Read
+the `Makefile` for the step list rather than a copy here; `make coverage`, `make fuzz`, `make bench`
+and the rest are individually runnable while iterating.
 
 Run a single test with `go test ./ir -run TestName`. Golden IR snapshots are regenerated with
 the corpus test's `-update` flag after an intentional change.
