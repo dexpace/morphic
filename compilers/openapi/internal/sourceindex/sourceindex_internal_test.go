@@ -6,23 +6,9 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	yaml "gopkg.in/yaml.v3"
+
+	"github.com/dexpace/morphic/compilers/openapi/internal/ynode"
 )
-
-func yscalar(v string) *yaml.Node {
-	return &yaml.Node{Kind: yaml.ScalarNode, Value: v}
-}
-
-func ymap(pairs ...*yaml.Node) *yaml.Node {
-	return &yaml.Node{Kind: yaml.MappingNode, Content: pairs}
-}
-
-func yseq(items ...*yaml.Node) *yaml.Node {
-	return &yaml.Node{Kind: yaml.SequenceNode, Content: items}
-}
-
-func yalias(target *yaml.Node) *yaml.Node {
-	return &yaml.Node{Kind: yaml.AliasNode, Alias: target}
-}
 
 // decode is the one place these tests parse source text, so a fixture written as
 // YAML is indexed over exactly the tree a compile would index.
@@ -69,7 +55,7 @@ func TestBuild_WhitespaceOnlySourceIsOneEmptyNode(t *testing.T) {
 
 func TestBuild_RootIsTheDocumentsContent(t *testing.T) {
 	t.Parallel()
-	content := ymap(yscalar("a"), yscalar("1"))
+	content := ynode.Map(ynode.Scalar("a"), ynode.Scalar("1"))
 	doc := &yaml.Node{Kind: yaml.DocumentNode, Content: []*yaml.Node{content}}
 
 	assert.Same(t, content, Build(doc, MaxIndexedNodes).Root(),
@@ -81,9 +67,9 @@ func TestBuild_RootIsTheDocumentsContent(t *testing.T) {
 func TestBuild_CountsEveryNodeOnce(t *testing.T) {
 	t.Parallel()
 	// root, "a", "1", "b", the sequence, "x", "y" = 7.
-	root := ymap(
-		yscalar("a"), yscalar("1"),
-		yscalar("b"), yseq(yscalar("x"), yscalar("y")),
+	root := ynode.Map(
+		ynode.Scalar("a"), ynode.Scalar("1"),
+		ynode.Scalar("b"), ynode.Seq(ynode.Scalar("x"), ynode.Scalar("y")),
 	)
 	assert.Equal(t, int64(7), Build(root, MaxIndexedNodes).Nodes())
 }
@@ -94,10 +80,10 @@ func TestBuild_CountsEveryNodeOnce(t *testing.T) {
 // would compare a document against itself.
 func TestBuild_AnAliasCountsOnceAndIsNotFollowed(t *testing.T) {
 	t.Parallel()
-	base := ymap(yscalar("a"), yscalar("1")) // 3 nodes
-	root := ymap(
-		yscalar("base"), base,
-		yscalar("reuse"), yalias(base),
+	base := ynode.Map(ynode.Scalar("a"), ynode.Scalar("1")) // 3 nodes
+	root := ynode.Map(
+		ynode.Scalar("base"), base,
+		ynode.Scalar("reuse"), ynode.Alias(base),
 	)
 	// root, "base", base's 3, "reuse", the alias = 7.
 	assert.Equal(t, int64(7), Build(root, MaxIndexedNodes).Nodes(),
@@ -106,7 +92,7 @@ func TestBuild_AnAliasCountsOnceAndIsNotFollowed(t *testing.T) {
 
 func TestBuild_NilChildIsSkipped(t *testing.T) {
 	t.Parallel()
-	root := ymap(yscalar("k"), yscalar("v"))
+	root := ynode.Map(ynode.Scalar("k"), ynode.Scalar("v"))
 	root.Content = append(root.Content, nil)
 
 	idx := Build(root, MaxIndexedNodes)
@@ -117,7 +103,7 @@ func TestBuild_NilChildIsSkipped(t *testing.T) {
 
 func TestBuild_NonPositiveBoundIndexesNothing(t *testing.T) {
 	t.Parallel()
-	idx := Build(ymap(yscalar("a"), yscalar("1")), 0)
+	idx := Build(ynode.Map(ynode.Scalar("a"), ynode.Scalar("1")), 0)
 	assert.True(t, idx.Truncated(), "a bound that admits no node admits no answer either")
 	assert.Equal(t, int64(0), idx.Nodes())
 	assert.NotNil(t, idx.Root(), "the tree is still named, so a caller can say what it refused")
@@ -128,7 +114,7 @@ func TestBuild_NonPositiveBoundIndexesNothing(t *testing.T) {
 // fact: Truncated is the answer to every other question.
 func TestBuild_StopsAtItsNodeBound(t *testing.T) {
 	t.Parallel()
-	root := ymap(yscalar("a"), yscalar("1"), yscalar("b"), yscalar("2")) // 5 nodes
+	root := ynode.Map(ynode.Scalar("a"), ynode.Scalar("1"), ynode.Scalar("b"), ynode.Scalar("2")) // 5 nodes
 
 	assert.False(t, Build(root, 5).Truncated(), "a tree exactly at the bound is fully indexed")
 
@@ -143,8 +129,8 @@ func TestBuild_StopsAtItsNodeBound(t *testing.T) {
 // way a caller could act on. It reports Truncated, and the caller refuses.
 func TestBuild_TruncationDoesNotMisreportAnAnchorCycle(t *testing.T) {
 	t.Parallel()
-	root := ymap(yscalar("a"), yscalar("1"))
-	root.Content = append(root.Content, yscalar("b"), yalias(root))
+	root := ynode.Map(ynode.Scalar("a"), ynode.Scalar("1"))
+	root.Content = append(root.Content, ynode.Scalar("b"), ynode.Alias(root))
 
 	full := Build(root, MaxIndexedNodes)
 	_, found := full.AnchorCycle()
@@ -156,10 +142,10 @@ func TestBuild_TruncationDoesNotMisreportAnAnchorCycle(t *testing.T) {
 
 func TestAnchorCycle_AliasToAnAncestorIsFound(t *testing.T) {
 	t.Parallel()
-	inner := ymap(yscalar("k"), yscalar("v"))
-	root := ymap(yscalar("outer"), inner)
-	alias := yalias(root)
-	inner.Content = append(inner.Content, yscalar("loop"), alias)
+	inner := ynode.Map(ynode.Scalar("k"), ynode.Scalar("v"))
+	root := ynode.Map(ynode.Scalar("outer"), inner)
+	alias := ynode.Alias(root)
+	inner.Content = append(inner.Content, ynode.Scalar("loop"), alias)
 
 	got, found := Build(root, MaxIndexedNodes).AnchorCycle()
 	require.True(t, found, "an alias naming a node it is nested inside expands without bound")
@@ -179,7 +165,7 @@ func TestAnchorCycle_LegalReuseIsNotACycle(t *testing.T) {
 
 func TestAnchorCycle_AliasWithoutATargetIsNotACycle(t *testing.T) {
 	t.Parallel()
-	root := ymap(yscalar("k"), &yaml.Node{Kind: yaml.AliasNode})
+	root := ynode.Map(ynode.Scalar("k"), &yaml.Node{Kind: yaml.AliasNode})
 
 	idx := Build(root, MaxIndexedNodes)
 	_, found := idx.AnchorCycle()
@@ -193,11 +179,11 @@ func TestAnchorCycle_AliasWithoutATargetIsNotACycle(t *testing.T) {
 // shape rather than on what the document says.
 func TestAnchorCycle_FirstInDocumentOrderWins(t *testing.T) {
 	t.Parallel()
-	first, second := ymap(), ymap()
-	root := ymap(yscalar("a"), first, yscalar("b"), second)
-	firstAlias, secondAlias := yalias(root), yalias(root)
-	first.Content = append(first.Content, yscalar("loop"), firstAlias)
-	second.Content = append(second.Content, yscalar("loop"), secondAlias)
+	first, second := ynode.Map(), ynode.Map()
+	root := ynode.Map(ynode.Scalar("a"), first, ynode.Scalar("b"), second)
+	firstAlias, secondAlias := ynode.Alias(root), ynode.Alias(root)
+	first.Content = append(first.Content, ynode.Scalar("loop"), firstAlias)
+	second.Content = append(second.Content, ynode.Scalar("loop"), secondAlias)
 
 	got, found := Build(root, MaxIndexedNodes).AnchorCycle()
 	require.True(t, found)
@@ -213,15 +199,15 @@ func TestBuild_TracksAncestorsOnlyToItsDepthBound(t *testing.T) {
 	t.Parallel()
 	// A chain of single-entry mappings: root at depth 0, and each mapping's
 	// value two levels below its parent's.
-	root := ymap()
+	root := ynode.Map()
 	deepest := root
 	const links = maxTrackedDepth
 	for range links {
-		next := ymap()
-		deepest.Content = append(deepest.Content, yscalar("k"), next)
+		next := ynode.Map()
+		deepest.Content = append(deepest.Content, ynode.Scalar("k"), next)
 		deepest = next
 	}
-	deepest.Content = append(deepest.Content, yscalar("loop"), yalias(root))
+	deepest.Content = append(deepest.Content, ynode.Scalar("loop"), ynode.Alias(root))
 
 	idx := Build(root, MaxIndexedNodes)
 	assert.False(t, idx.Truncated())
@@ -242,16 +228,16 @@ func TestBuild_TracksAncestorsOnlyToItsDepthBound(t *testing.T) {
 // case the recursive descent this walk replaced still caught.
 func TestBuild_TracksAncestorsAtItsDepthBound(t *testing.T) {
 	t.Parallel()
-	root := ymap()
+	root := ynode.Map()
 	deepest := root
 	const links = maxTrackedDepth - 1
 	for range links {
-		next := ymap()
-		deepest.Content = append(deepest.Content, yscalar("k"), next)
+		next := ynode.Map()
+		deepest.Content = append(deepest.Content, ynode.Scalar("k"), next)
 		deepest = next
 	}
 	// One level shallower than the test above, so these land at the bound itself.
-	deepest.Content = append(deepest.Content, yscalar("loop"), yalias(root))
+	deepest.Content = append(deepest.Content, ynode.Scalar("loop"), ynode.Alias(root))
 
 	idx := Build(root, MaxIndexedNodes)
 	assert.False(t, idx.Truncated())

@@ -58,11 +58,19 @@ var rules = map[string][]string{
 	// spelling, so a package that could reach the compiler would be able to let a
 	// surrounding schema type change what a literal means.
 	"compilers/openapi/internal/value": {module + "/ir", "gopkg.in/yaml.v3"},
+	// The yaml.v3 node vocabulary: the tag a resolved `<<` merge key carries and
+	// the constructors for the node kinds a parse produces. It reaches yaml and
+	// nothing else, which is what lets the view below import it rather than the
+	// other way round — nodeview's own internal tests build these nodes, and an
+	// internal test file cannot import a package that imports its own.
+	"compilers/openapi/internal/ynode": {"gopkg.in/yaml.v3"},
 	// A view over the raw source: mappings read the way the resolver reads them,
 	// through aliases and `<<` merge keys. It reaches ids for the pointer
-	// unescaping one lookup needs, and is below both the scans that first wanted
-	// it and the schema lowering that wants the same view.
-	"compilers/openapi/internal/nodeview": {module + "/compilers/openapi/internal/ids", "gopkg.in/yaml.v3"},
+	// unescaping one lookup needs and ynode for the merge tag its key predicate
+	// tests against, and is below both the scans that first wanted it and the
+	// schema lowering that wants the same view.
+	"compilers/openapi/internal/nodeview": {module + "/compilers/openapi/internal/ids",
+		module + "/compilers/openapi/internal/ynode", "gopkg.in/yaml.v3"},
 	// One walk over the decoded source tree, answering what the pre-lowering
 	// refusals would otherwise each walk it to ask. It reaches nodeview for the
 	// document root and nothing else: an index of what the source says is not

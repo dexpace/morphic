@@ -11,6 +11,7 @@ import (
 	"gopkg.in/yaml.v3"
 
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
+	"github.com/dexpace/morphic/compilers/openapi/internal/ynode"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -201,9 +202,9 @@ func TestComputeAllowance_TakesTheLesserBound(t *testing.T) {
 }
 
 func aliasFanOutNode(levels int) *yaml.Node {
-	cur := ymap(yscalar("type"), yscalar("string"))
+	cur := ynode.Map(ynode.Scalar("type"), ynode.Scalar("string"))
 	for range levels {
-		cur = ymap(yscalar("allOf"), yseq(yalias(cur), yalias(cur)))
+		cur = ynode.Map(ynode.Scalar("allOf"), ynode.Seq(ynode.Alias(cur), ynode.Alias(cur)))
 	}
 	return cur
 }
@@ -233,10 +234,10 @@ func TestAliasWeigher_NilRoot(t *testing.T) {
 
 func TestExpandedWeight_NoAliasesEqualsRawCount(t *testing.T) {
 	t.Parallel()
-	root := ymap(
-		yscalar("a"), yscalar("1"),
-		yscalar("b"), yseq(yscalar("x"), yscalar("y"), ymap(yscalar("c"), yscalar("2"))),
-		yscalar("d"), ymap(yscalar("e"), yscalar("3"), yscalar("f"), yscalar("4")),
+	root := ynode.Map(
+		ynode.Scalar("a"), ynode.Scalar("1"),
+		ynode.Scalar("b"), ynode.Seq(ynode.Scalar("x"), ynode.Scalar("y"), ynode.Map(ynode.Scalar("c"), ynode.Scalar("2"))),
+		ynode.Scalar("d"), ynode.Map(ynode.Scalar("e"), ynode.Scalar("3"), ynode.Scalar("f"), ynode.Scalar("4")),
 	)
 	raw := rawNodes(root)
 
@@ -248,13 +249,13 @@ func TestExpandedWeight_NoAliasesEqualsRawCount(t *testing.T) {
 
 func TestAliasWeigher_AliasToSubtreeMultiplies(t *testing.T) {
 	t.Parallel()
-	base := ymap(yscalar("a"), yscalar("1")) // weight 3: itself, one key, one value
+	base := ynode.Map(ynode.Scalar("a"), ynode.Scalar("1")) // weight 3: itself, one key, one value
 	const reuses = 5
 	aliases := make([]*yaml.Node, reuses)
 	for i := range aliases {
-		aliases[i] = yalias(base)
+		aliases[i] = ynode.Alias(base)
 	}
-	root := ymap(yscalar("k"), yseq(aliases...))
+	root := ynode.Map(ynode.Scalar("k"), ynode.Seq(aliases...))
 
 	w := newAliasWeigher(1000)
 	_, exceeded := w.weigh(root)
@@ -266,13 +267,13 @@ func TestAliasWeigher_AliasToSubtreeMultiplies(t *testing.T) {
 
 func TestAliasWeigher_MemoizesSharedTarget(t *testing.T) {
 	t.Parallel()
-	base := ymap(yscalar("a"), yscalar("1"))
+	base := ynode.Map(ynode.Scalar("a"), ynode.Scalar("1"))
 	const reuses = 25
 	aliases := make([]*yaml.Node, reuses)
 	for i := range aliases {
-		aliases[i] = yalias(base)
+		aliases[i] = ynode.Alias(base)
 	}
-	root := ymap(yscalar("k"), yseq(aliases...))
+	root := ynode.Map(ynode.Scalar("k"), ynode.Seq(aliases...))
 
 	w := newAliasWeigher(1_000_000)
 	_, exceeded := w.weigh(root)
@@ -302,14 +303,14 @@ func TestChildrenOf_AliasWithoutTarget(t *testing.T) {
 	orphan := &yaml.Node{Kind: yaml.AliasNode}
 	assert.Nil(t, childrenOf(orphan), "an alias with no target depends on nothing")
 
-	pair := ymap(yscalar("k"), yscalar("v"))
+	pair := ynode.Map(ynode.Scalar("k"), ynode.Scalar("v"))
 	assert.Equal(t, pair.Content, childrenOf(pair), "every other node depends on its own Content")
 }
 
 func TestAliasWeigher_AliasWithoutTargetWeighsZero(t *testing.T) {
 	t.Parallel()
 	orphan := &yaml.Node{Kind: yaml.AliasNode}
-	root := ymap(yscalar("k"), orphan)
+	root := ynode.Map(ynode.Scalar("k"), orphan)
 
 	w := newAliasWeigher(1000)
 	_, exceeded := w.weigh(root)
@@ -320,7 +321,7 @@ func TestAliasWeigher_AliasWithoutTargetWeighsZero(t *testing.T) {
 
 func TestAliasWeigher_NilChildIsSkipped(t *testing.T) {
 	t.Parallel()
-	root := ymap(yscalar("k"), yscalar("v"))
+	root := ynode.Map(ynode.Scalar("k"), ynode.Scalar("v"))
 	root.Content = append(root.Content, nil)
 
 	w := newAliasWeigher(1000)
@@ -331,8 +332,8 @@ func TestAliasWeigher_NilChildIsSkipped(t *testing.T) {
 
 func TestAliasWeigher_InFlightCycleSaturates(t *testing.T) {
 	t.Parallel()
-	loop := ymap(yscalar("k"), yscalar("v"))
-	loop.Content = append(loop.Content, yalias(loop)) // loop's own subtree aliases loop
+	loop := ynode.Map(ynode.Scalar("k"), ynode.Scalar("v"))
+	loop.Content = append(loop.Content, ynode.Alias(loop)) // loop's own subtree aliases loop
 
 	w := newAliasWeigher(1000)
 	culprit, exceeded := w.weigh(loop)

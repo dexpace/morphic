@@ -16,6 +16,7 @@ import (
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/nodeview"
 	"github.com/dexpace/morphic/compilers/openapi/internal/sourceindex"
+	"github.com/dexpace/morphic/compilers/openapi/internal/ynode"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -288,26 +289,6 @@ func readReproducer(t *testing.T, file string) []byte {
 	return data
 }
 
-func yscalar(v string) *yaml.Node {
-	return &yaml.Node{Kind: yaml.ScalarNode, Value: v}
-}
-
-func ymap(pairs ...*yaml.Node) *yaml.Node {
-	return &yaml.Node{Kind: yaml.MappingNode, Content: pairs}
-}
-
-func yseq(items ...*yaml.Node) *yaml.Node {
-	return &yaml.Node{Kind: yaml.SequenceNode, Content: items}
-}
-
-func yalias(target *yaml.Node) *yaml.Node {
-	return &yaml.Node{Kind: yaml.AliasNode, Alias: target}
-}
-
-func ymerge() *yaml.Node {
-	return &yaml.Node{Kind: yaml.ScalarNode, Value: "<<", Tag: nodeview.MergeTag}
-}
-
 func TestRecoverCycleScan_PanicYieldsWarning(t *testing.T) {
 	t.Parallel()
 	got := recoverCycleScan(3, func() []ir.Diagnostic {
@@ -344,7 +325,7 @@ func TestDetectCycles_LegalAliasReuseClean(t *testing.T) {
 func TestAnchorName_Cases(t *testing.T) {
 	t.Parallel()
 	anchored := &yaml.Node{Kind: yaml.MappingNode, Anchor: "root"}
-	assert.Equal(t, "root", anchorName(yalias(anchored)))
+	assert.Equal(t, "root", anchorName(ynode.Alias(anchored)))
 	assert.Equal(t, "bare", anchorName(&yaml.Node{Kind: yaml.AliasNode, Value: "bare"}))
 }
 
@@ -370,15 +351,15 @@ func TestFollowRefChain_DepthCapReturnsFalse(t *testing.T) {
 	t.Parallel()
 	const n = maxCycleDepth + 2
 	schemas := &yaml.Node{Kind: yaml.MappingNode}
-	root := ymap(yscalar("schemas"), schemas)
+	root := ynode.Map(ynode.Scalar("schemas"), schemas)
 	nodes := make([]*yaml.Node, n)
 	for i := range nodes {
 		nodes[i] = &yaml.Node{Kind: yaml.MappingNode}
 	}
 	for i := range nodes {
-		schemas.Content = append(schemas.Content, yscalar(strconv.Itoa(i)), nodes[i])
+		schemas.Content = append(schemas.Content, ynode.Scalar(strconv.Itoa(i)), nodes[i])
 		if i < n-1 {
-			nodes[i].Content = []*yaml.Node{yscalar("$ref"), yscalar("#/schemas/" + strconv.Itoa(i+1))}
+			nodes[i].Content = []*yaml.Node{ynode.Scalar("$ref"), ynode.Scalar("#/schemas/" + strconv.Itoa(i+1))}
 		}
 	}
 	verdict, _ := newRefScan().followRefChain(root, nodes[0])
@@ -388,10 +369,10 @@ func TestFollowRefChain_DepthCapReturnsFalse(t *testing.T) {
 
 func TestFollowRefChain_SafeMemoShortCircuits(t *testing.T) {
 	t.Parallel()
-	a := ymap(yscalar("$ref"), yscalar("#/schemas/B"))
-	b := ymap(yscalar("$ref"), yscalar("#/schemas/A"))
-	schemas := ymap(yscalar("A"), a, yscalar("B"), b)
-	root := ymap(yscalar("schemas"), schemas)
+	a := ynode.Map(ynode.Scalar("$ref"), ynode.Scalar("#/schemas/B"))
+	b := ynode.Map(ynode.Scalar("$ref"), ynode.Scalar("#/schemas/A"))
+	schemas := ynode.Map(ynode.Scalar("A"), a, ynode.Scalar("B"), b)
+	root := ynode.Map(ynode.Scalar("schemas"), schemas)
 
 	verdict, _ := newRefScan().followRefChain(root, a)
 	assert.Equal(t, chainCycles, verdict, "A -> B -> A is cyclic with an empty memo")
@@ -405,8 +386,8 @@ func TestFollowRefChain_SafeMemoShortCircuits(t *testing.T) {
 
 func TestFollowRefChain_DanglingRefIsNotCycle(t *testing.T) {
 	t.Parallel()
-	a := ymap(yscalar("$ref"), yscalar("#/schemas/Missing"))
-	root := ymap(yscalar("schemas"), ymap(yscalar("A"), a))
+	a := ynode.Map(ynode.Scalar("$ref"), ynode.Scalar("#/schemas/Missing"))
+	root := ynode.Map(ynode.Scalar("schemas"), ynode.Map(ynode.Scalar("A"), a))
 	s := newRefScan()
 	verdict, _ := s.followRefChain(root, a)
 	assert.Equal(t, chainTerminates, verdict, "a dangling $ref is not a cycle")
@@ -422,28 +403,28 @@ func TestMappingPairs_Cases(t *testing.T) {
 		want map[string]string
 	}{
 		{"nil node yields no pairs", nil, nil},
-		{"non-mapping node yields no pairs", yscalar("x"), nil},
+		{"non-mapping node yields no pairs", ynode.Scalar("x"), nil},
 		{
 			"alias-valued mapping is dereferenced at entry",
-			yalias(ymap(yscalar("k"), yscalar("v"))),
+			ynode.Alias(ynode.Map(ynode.Scalar("k"), ynode.Scalar("v"))),
 			map[string]string{"k": "v"},
 		},
 		{
 			"alias key and alias value are dereferenced",
-			ymap(yalias(yscalar("k")), yalias(yscalar("v"))),
+			ynode.Map(ynode.Alias(ynode.Scalar("k")), ynode.Alias(ynode.Scalar("v"))),
 			map[string]string{"k": "v"},
 		},
 		{
 			"non-scalar key after nodeview.Deref is skipped",
-			ymap(
-				ymap(yscalar("x"), yscalar("1")), yscalar("ignored"),
-				yscalar("real"), yscalar("kept"),
+			ynode.Map(
+				ynode.Map(ynode.Scalar("x"), ynode.Scalar("1")), ynode.Scalar("ignored"),
+				ynode.Scalar("real"), ynode.Scalar("kept"),
 			),
 			map[string]string{"real": "kept"},
 		},
 		{
 			"key aliasing a nil target is skipped",
-			ymap(yalias(nil), yscalar("ignored"), yscalar("real"), yscalar("kept")),
+			ynode.Map(ynode.Alias(nil), ynode.Scalar("ignored"), ynode.Scalar("real"), ynode.Scalar("kept")),
 			map[string]string{"real": "kept"},
 		},
 		{
@@ -453,35 +434,35 @@ func TestMappingPairs_Cases(t *testing.T) {
 		},
 		{
 			"duplicate explicit Key: last wins",
-			ymap(yscalar("k"), yscalar("first"), yscalar("k"), yscalar("second")),
+			ynode.Map(ynode.Scalar("k"), ynode.Scalar("first"), ynode.Scalar("k"), ynode.Scalar("second")),
 			map[string]string{"k": "second"},
 		},
 		{
 			"a merged key still yields to a repeated explicit key",
-			ymap(yscalar("k"), yscalar("first"), ymerge(), ymap(yscalar("k"), yscalar("from-merge")),
-				yscalar("k"), yscalar("second")),
+			ynode.Map(ynode.Scalar("k"), ynode.Scalar("first"), ynode.Merge(), ynode.Map(ynode.Scalar("k"), ynode.Scalar("from-merge")),
+				ynode.Scalar("k"), ynode.Scalar("second")),
 			map[string]string{"k": "second"},
 		},
 		{
 			"merge key contributes a mapping's pairs",
-			ymap(ymerge(), yalias(ymap(yscalar("a"), yscalar("1"))), yscalar("b"), yscalar("2")),
+			ynode.Map(ynode.Merge(), ynode.Alias(ynode.Map(ynode.Scalar("a"), ynode.Scalar("1"))), ynode.Scalar("b"), ynode.Scalar("2")),
 			map[string]string{"a": "1", "b": "2"},
 		},
 		{
 			"merge value that is not a mapping contributes nothing",
-			ymap(ymerge(), yscalar("not-a-mapping"), yscalar("b"), yscalar("2")),
+			ynode.Map(ynode.Merge(), ynode.Scalar("not-a-mapping"), ynode.Scalar("b"), ynode.Scalar("2")),
 			map[string]string{"b": "2"},
 		},
 		{
 			"explicit key wins over merged key",
-			ymap(yscalar("a"), yscalar("explicit"), ymerge(), ymap(yscalar("a"), yscalar("from-merge"))),
+			ynode.Map(ynode.Scalar("a"), ynode.Scalar("explicit"), ynode.Merge(), ynode.Map(ynode.Scalar("a"), ynode.Scalar("from-merge"))),
 			map[string]string{"a": "explicit"},
 		},
 		{
 			"merge sequence: earlier source wins on a shared key",
-			ymap(ymerge(), yseq(
-				ymap(yscalar("a"), yscalar("from-first")),
-				ymap(yscalar("a"), yscalar("from-second"), yscalar("b"), yscalar("only-in-second")),
+			ynode.Map(ynode.Merge(), ynode.Seq(
+				ynode.Map(ynode.Scalar("a"), ynode.Scalar("from-first")),
+				ynode.Map(ynode.Scalar("a"), ynode.Scalar("from-second"), ynode.Scalar("b"), ynode.Scalar("only-in-second")),
 			)),
 			map[string]string{"a": "from-first", "b": "only-in-second"},
 		},
@@ -514,10 +495,10 @@ func TestMappingPairs_Cases(t *testing.T) {
 
 	t.Run("duplicate explicit key keeps the last occurrence's position", func(t *testing.T) {
 		t.Parallel()
-		n := ymap(
-			yscalar("k"), yscalar("first"),
-			yscalar("other"), yscalar("o"),
-			yscalar("k"), yscalar("second"),
+		n := ynode.Map(
+			ynode.Scalar("k"), ynode.Scalar("first"),
+			ynode.Scalar("other"), ynode.Scalar("o"),
+			ynode.Scalar("k"), ynode.Scalar("second"),
 		)
 		got := nodeview.New().MappingPairs(n)
 		require.Len(t, got, 2)
@@ -529,7 +510,7 @@ func TestMappingPairs_Cases(t *testing.T) {
 	t.Run("merge chain at the depth bound still reaches the leaf", func(t *testing.T) {
 		t.Parallel()
 		v := nodeview.New()
-		got := v.MappingPairs(mergeChain(nodeview.MergeDepthLimit))
+		got := v.MappingPairs(ynode.MergeChain(nodeview.MergeDepthLimit))
 		assert.Equal(t, map[string]string{"leaf": "v"}, pairMap(got),
 			"a chain exactly at the bound expands in full")
 		assert.False(t, v.Exhausted(), "expanding to the bound is not exceeding it")
@@ -538,39 +519,27 @@ func TestMappingPairs_Cases(t *testing.T) {
 	t.Run("merge chain past the depth bound stops at the bound", func(t *testing.T) {
 		t.Parallel()
 		v := nodeview.New()
-		assert.Empty(t, v.MappingPairs(mergeChain(nodeview.MergeDepthLimit+2)),
+		assert.Empty(t, v.MappingPairs(ynode.MergeChain(nodeview.MergeDepthLimit+2)),
 			"a merge chain longer than the bound never reaches the leaf pair")
 		assert.True(t, v.Exhausted(), "exceeding the bound is recorded for refCycles")
 	})
 }
 
 func trailingKeyNode() *yaml.Node {
-	n := ymap(yscalar("a"), yscalar("1"))
-	n.Content = append(n.Content, yscalar("dangling"))
+	n := ynode.Map(ynode.Scalar("a"), ynode.Scalar("1"))
+	n.Content = append(n.Content, ynode.Scalar("dangling"))
 	return n
 }
 
 func mergeSeqReuseNode() *yaml.Node {
-	base := ymap(yscalar("a"), yscalar("1"))
-	return ymap(ymerge(), yseq(yalias(base), yalias(base)))
+	base := ynode.Map(ynode.Scalar("a"), ynode.Scalar("1"))
+	return ynode.Map(ynode.Merge(), ynode.Seq(ynode.Alias(base), ynode.Alias(base)))
 }
 
 func selfReferentialMergeNode() *yaml.Node {
 	n := &yaml.Node{Kind: yaml.MappingNode}
-	n.Content = []*yaml.Node{ymerge(), yalias(n)}
+	n.Content = []*yaml.Node{ynode.Merge(), ynode.Alias(n)}
 	return n
-}
-
-func mergeChain(levels int) *yaml.Node {
-	nodes := make([]*yaml.Node, levels+1)
-	for i := range nodes {
-		nodes[i] = &yaml.Node{Kind: yaml.MappingNode}
-	}
-	for i := range levels {
-		nodes[i].Content = []*yaml.Node{ymerge(), yalias(nodes[i+1])}
-	}
-	nodes[levels].Content = []*yaml.Node{yscalar("leaf"), yscalar("v")}
-	return nodes[0]
 }
 
 func pairMap(pairs []nodeview.Pair) map[string]string {
@@ -603,14 +572,14 @@ components: {schemas: {A: {*k : *base}}}
 
 func TestRefScanCollect_VisitsEachNodeOncePerRole(t *testing.T) {
 	t.Parallel()
-	ref := ymap(yscalar("$ref"), yscalar("#/components/schemas/B"))
-	root := ymap(yscalar("schemas"), ymap(
-		yscalar("A"), ymap(yscalar("allOf"), yseq(yalias(ref), yalias(ref))),
-		yscalar("B"), ymap(yscalar("properties"), yalias(ref)),
-		yscalar("C"), yalias(ref),
+	ref := ynode.Map(ynode.Scalar("$ref"), ynode.Scalar("#/components/schemas/B"))
+	root := ynode.Map(ynode.Scalar("schemas"), ynode.Map(
+		ynode.Scalar("A"), ynode.Map(ynode.Scalar("allOf"), ynode.Seq(ynode.Alias(ref), ynode.Alias(ref))),
+		ynode.Scalar("B"), ynode.Map(ynode.Scalar("properties"), ynode.Alias(ref)),
+		ynode.Scalar("C"), ynode.Alias(ref),
 		// allOf whose value is the mapping itself, not a sequence: the only way
 		// this node is entered in the schema-list role.
-		yscalar("D"), ymap(yscalar("allOf"), yalias(ref)),
+		ynode.Scalar("D"), ynode.Map(ynode.Scalar("allOf"), ynode.Alias(ref)),
 	))
 
 	s := newRefScan()
@@ -649,19 +618,19 @@ func TestRefScanCollect_UnhandledRolePanics(t *testing.T) {
 	t.Parallel()
 	assert.Panics(t, func() {
 		s := newRefScan()
-		s.stack = append(s.stack, refTask{n: ymap(), role: roleCount})
+		s.stack = append(s.stack, refTask{n: ynode.Map(), role: roleCount})
 		s.collect(nil)
 	}, "a task carrying an unhandled role is a programmer error")
 }
 
 func TestRefScanCollect_DeepNestingIsNotTruncated(t *testing.T) {
 	t.Parallel()
-	ref := ymap(yscalar("$ref"), yscalar("#/components/schemas/A"))
+	ref := ynode.Map(ynode.Scalar("$ref"), ynode.Scalar("#/components/schemas/A"))
 	deep := ref
 	for range maxCycleDepth + 10 {
-		deep = ymap(yscalar("items"), deep)
+		deep = ynode.Map(ynode.Scalar("items"), deep)
 	}
-	root := ymap(yscalar("schemas"), ymap(yscalar("A"), deep))
+	root := ynode.Map(ynode.Scalar("schemas"), ynode.Map(ynode.Scalar("A"), deep))
 
 	s := newRefScan()
 	s.collect(root)
@@ -686,29 +655,15 @@ func TestDetectCycles_ChainedAliasFanOutIsRefusedFast(t *testing.T) {
 	assert.Equal(t, ir.SeverityError, diags[0].Severity)
 }
 
-func mergeChainSpec(levels int) string {
-	var b strings.Builder
-	b.WriteString("openapi: 3.1.0\ninfo: {title: t, version: '1'}\npaths: {}\nx-anchors:\n")
-	b.WriteString("  m0: &m0 {type: object}\n")
-	for i := 1; i <= levels; i++ {
-		fmt.Fprintf(&b, "  m%d: &m%d {<<: *m%d, p%d: %d}\n", i, i, i-1, i, i)
-	}
-	b.WriteString("components:\n  schemas:\n")
-	for i := levels; i >= 0; i-- {
-		fmt.Fprintf(&b, "    S%d: {properties: {x: *m%d}}\n", i, i)
-	}
-	return b.String()
-}
-
 func TestDetectCycles_MergeChainWithinBoundIsClean(t *testing.T) {
 	t.Parallel()
-	diags := scanWithin(t, mergeChainSpec(nodeview.MergeDepthLimit), "blowup on an in-bound merge chain")
+	diags := scanWithin(t, ynode.MergeChainSpec(nodeview.MergeDepthLimit), "blowup on an in-bound merge chain")
 	assert.Empty(t, diags, "a merge chain the scan can expand in full is clean")
 }
 
 func TestDetectCycles_MergeChainPastBoundStaysFastAndWarns(t *testing.T) {
 	t.Parallel()
-	diags := scanWithin(t, mergeChainSpec(1600), "super-linear blowup on a long merge chain")
+	diags := scanWithin(t, ynode.MergeChainSpec(1600), "super-linear blowup on a long merge chain")
 	require.Len(t, diags, 2, "both the truncation warning and the amplification refusal are reported")
 	assert.Equal(t, diag.CycleScanFailed, diags[0].Code)
 	assert.Equal(t, ir.SeverityWarning, diags[0].Severity,
@@ -748,17 +703,17 @@ func scanWithin(t *testing.T, src, blowup string) []ir.Diagnostic {
 // $ref is collected under no role at all.
 func TestRefScanCollect_OutsidePositions(t *testing.T) {
 	t.Parallel()
-	inSeq := ymap(yscalar("$ref"), yscalar("#/components/schemas/A"))
-	underSchema := ymap(yscalar("$ref"), yscalar("#/components/schemas/B"))
-	notASchema := ymap(yscalar("$ref"), yscalar("#/components/schemas/C"))
+	inSeq := ynode.Map(ynode.Scalar("$ref"), ynode.Scalar("#/components/schemas/A"))
+	underSchema := ynode.Map(ynode.Scalar("$ref"), ynode.Scalar("#/components/schemas/B"))
+	notASchema := ynode.Map(ynode.Scalar("$ref"), ynode.Scalar("#/components/schemas/C"))
 
-	root := ymap(
+	root := ynode.Map(
 		// a sequence at an outside position: each element stays outside
-		yscalar("parameters"), yseq(ymap(yscalar("schema"), underSchema)),
+		ynode.Scalar("parameters"), ynode.Seq(ynode.Map(ynode.Scalar("schema"), underSchema)),
 		// a data key: everything beneath it is data, whatever it looks like
-		yscalar("example"), notASchema,
+		ynode.Scalar("example"), notASchema,
 		// a mapping at an outside position that is a reference object itself
-		yscalar("requestBody"), inSeq,
+		ynode.Scalar("requestBody"), inSeq,
 	)
 
 	s := newRefScan()
