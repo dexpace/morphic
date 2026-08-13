@@ -166,9 +166,10 @@ function check(file, lineno, cand,   body, cut, n, parts, i, name) {
 		}
 		checked++
 		if (name == "") {
-			# A stray comma, or nothing at all after the colon. golangci-lint
-			# takes it as a linter whose name is "", which no linter has, so the
-			# directive is inert — the finding beneath it is still reported.
+			# A stray comma, or nothing at all after the colon. golangci-lint reads
+			# it as a linter named "", which none is, so this name suppresses
+			# nothing; where it is the only name, the whole directive is inert and
+			# the finding beneath it is still reported.
 			emit(file, lineno, "//nolint has an empty linter name, which suppresses nothing")
 		} else if (!(name in enabled)) {
 			emit(file, lineno, sprintf("//nolint names \"%s\", which golangci-lint is not running", name))
