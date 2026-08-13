@@ -318,7 +318,7 @@ func (v *View) PureRefTarget(n *yaml.Node) (string, bool) {
 	// a pointer descended, immediately after the walk that descended it, so a
 	// scan here re-reads exactly the mappings ChildByToken just stopped scanning
 	// — leaving the quadratic the index removes standing in its sibling.
-	if index, built := v.keys[n]; built {
+	if index := v.keys[n]; index != nil {
 		return pureRefFrom(index["$ref"])
 	}
 	return PureRefTargetOf(v.MappingPairs(n))
@@ -461,6 +461,14 @@ func tokenless(pointer string) bool {
 // node named by one JSON pointer token, or nil when absent. The mapping arm
 // reads through the view, so pointer navigation resolves an alias key and an
 // aliased or merged value exactly as PureRefTarget does.
+//
+// n itself is not dereferenced, which is where this parts company with its two
+// neighbours: MappingPairs and PureRefTarget both take an alias standing in for
+// a whole mapping and read the mapping it names, while an alias handed here
+// matches neither arm and answers nil. Every caller reaches a node through a
+// walk that dereferences as it goes — PointerPath does it at each hop — so the
+// difference is unreachable rather than harmless, and it is written down because
+// the sibling promising the opposite is one line away.
 func (v *View) ChildByToken(n *yaml.Node, token string) *yaml.Node {
 	if n == nil {
 		return nil
@@ -488,7 +496,7 @@ func (v *View) ChildByToken(n *yaml.Node, token string) *yaml.Node {
 // n is known to be a mapping node here, so it is its own Deref and keys the
 // index under the same node MappingPairs memoizes the pairs under.
 func (v *View) mappingChild(n *yaml.Node, token string) *yaml.Node {
-	if index, built := v.keys[n]; built {
+	if index := v.keys[n]; index != nil {
 		return index[token]
 	}
 	pairs := v.MappingPairs(n)
@@ -518,9 +526,12 @@ func (v *View) mappingChild(n *yaml.Node, token string) *yaml.Node {
 // included, so a run that regresses at n=2 or n=8 is this gate having stopped
 // paying for itself.
 //
-// The bound is a width rather than a read count because width is known at the
-// first read: counting reads would need its own per-node state, and would still
-// index a mapping the walk never returns to.
+// Width alone is not enough, because it says nothing about reuse: a walk that
+// reads a wide mapping once pays for an index it never reads again. That is not
+// hypothetical — declaresResourceIDAbove builds a view per call and reads each
+// node on the path exactly once, and indexing there cost it time and half again
+// its allocations for nothing. So width is one of two conditions; see keyIndex
+// for the other.
 const minIndexedPairs = 16
 
 // keyIndex returns n's expansion as a key map, building it on first use, or nil
@@ -564,8 +575,18 @@ const minIndexedPairs = 16
 // way for a view to answer two things. It inherits #404 rather than widening it,
 // and the fix landing there fixes this with it.
 //
-// It builds unconditionally rather than checking v.keys first: every caller
-// reads the built index itself before reaching here, so a hit never arrives.
+// The second condition is reuse, and it is what the first read records rather
+// than predicts. A mapping arrives here with no entry at all the first time and
+// leaves with a nil one; only a read that finds that marker builds the map. So an
+// index exists exactly where a walk came back, which is the only place it can be
+// repaid — and a caller that touches every node once, as the resource-boundary
+// walk does, allocates nothing but the markers.
+//
+// A nil entry cannot be mistaken for an empty index: an empty mapping has no
+// pairs, and no mapping below minIndexedPairs is ever stored.
+//
+// A built index is never returned from here — every caller reads v.keys itself
+// before reaching this — so the marker is the only entry this has to interpret.
 func (v *View) keyIndex(n *yaml.Node, pairs []Pair) map[string]*yaml.Node {
 	if len(pairs) < minIndexedPairs {
 		return nil
@@ -573,13 +594,17 @@ func (v *View) keyIndex(n *yaml.Node, pairs []Pair) map[string]*yaml.Node {
 	if _, memoized := v.pairs[n]; !memoized {
 		return nil
 	}
+	if _, seen := v.keys[n]; !seen {
+		if v.keys == nil {
+			v.keys = map[*yaml.Node]map[string]*yaml.Node{}
+		}
+		v.keys[n] = nil // read once; the next read is what earns an index
+		return nil
+	}
 
 	index := make(map[string]*yaml.Node, len(pairs))
 	for _, p := range pairs {
 		index[p.Key] = p.Val
-	}
-	if v.keys == nil {
-		v.keys = map[*yaml.Node]map[string]*yaml.Node{}
 	}
 	v.keys[n] = index
 	return index

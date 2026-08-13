@@ -593,7 +593,7 @@ func TestChildByToken_IndexAgreesWithTheScanItReplaces(t *testing.T) {
 					assert.Same(t, p.Val, v.ChildByToken(tc.n, p.Key), "%s: key %q", read, p.Key)
 				}
 				assert.Nil(t, v.ChildByToken(tc.n, "absent"), "%s: an unwritten key names nothing", read)
-				require.Contains(t, v.keys, tc.n, "%s: through the index, not the fallback scan", read)
+				require.NotNil(t, v.keys[tc.n], "%s: through the index, not the fallback scan", read)
 			}
 		})
 	}
@@ -617,7 +617,10 @@ func TestKeyIndex_IsBoundedByThePairsMemoRatherThanCharged(t *testing.T) {
 	require.Equal(t, minIndexedPairs, v.cachedPairs, "the expansion is charged")
 
 	require.Same(t, n.Content[1], v.ChildByToken(n, "k0"))
-	require.Contains(t, v.keys, n, "and indexed")
+	require.Nil(t, v.keys[n], "one read records the mapping without indexing it")
+	require.Same(t, n.Content[3], v.ChildByToken(n, "k1"), "a second read is what builds one")
+
+	require.NotNil(t, v.keys[n], "and indexed")
 	assert.Equal(t, minIndexedPairs, v.cachedPairs, "the index charges the pair budget nothing")
 	assert.Len(t, v.keys[n], len(pairs), "one entry per pair, so the memo bounds it")
 }
@@ -645,7 +648,7 @@ func TestKeyIndex_DeclinesWhatThePairsMemoDidNotKeep(t *testing.T) {
 
 		assert.Same(t, n.Content[1], v.ChildByToken(n, "k0"), "the scan still answers")
 		assert.Nil(t, v.ChildByToken(n, "absent"))
-		assert.Empty(t, v.keys, "and nothing was indexed")
+		assert.Empty(t, v.keys, "and nothing was indexed, not even a marker")
 	})
 
 	t.Run("a merge cycle expands to nothing, so nothing is indexed", func(t *testing.T) {
@@ -686,7 +689,9 @@ func TestPureRefTarget_ReadsTheIndexWhereTheWalkBuiltOne(t *testing.T) {
 
 	for _, n := range []*yaml.Node{withRef, without} {
 		require.NotNil(t, v.ChildByToken(n, "k0"), "the walk descends it")
-		require.Contains(t, v.keys, n, "so the walk indexed it")
+		require.Nil(t, v.keys[n], "one descent only marks it")
+		require.NotNil(t, v.ChildByToken(n, "k1"), "and the walk comes back")
+		require.NotNil(t, v.keys[n], "which is what earns the index")
 	}
 
 	target, ok := v.PureRefTarget(withRef)
