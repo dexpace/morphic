@@ -1,11 +1,14 @@
 package schema
 
 import (
+	"strings"
+
 	oas3 "github.com/speakeasy-api/openapi/jsonschema/oas3"
 
 	"github.com/dexpace/morphic/compilers/compile"
 	"github.com/dexpace/morphic/compilers/openapi/internal/annotation"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
+	"github.com/dexpace/morphic/compilers/openapi/internal/ids"
 	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
 	"github.com/dexpace/morphic/compilers/openapi/internal/resolve"
 	"github.com/dexpace/morphic/ir"
@@ -197,19 +200,26 @@ func hoistSubSchema(c lowering.Ctx, ts *compile.Types, anchors *AnchorIndex, dep
 
 // subSchemaHint names the node a $ref'd sub-schema pointer owns: the target it
 // aliases when the sub-schema is itself a $ref carrying siblings, the branch
-// hint when the pointer addresses a composition branch, the pointer's last
-// segment otherwise.
+// hint when the pointer addresses a composition branch, the structural hint when
+// it addresses an inline structural position, the pointer's last segment
+// otherwise.
 //
-// The first two cases exist because a composition branch can own the same
-// pointer and derives its hint that way (branchHint). Both lowerings reach the
-// pointer — the branch through its composition, this one through an outside $ref
-// naming it — and only the first to arrive interns the node, so a hint derived
+// Every case but the last exists because another lowering can own the same
+// pointer and derives its hint that way. Both lowerings reach the pointer — the
+// enclosing schema through its own body, this one through an outside $ref naming
+// it — and only the first to arrive interns the node, so a hint derived
 // differently here makes the document depend on declaration order.
 //
-// The branch case is the second half of that agreement. Falling through to the
-// last segment named an inline branch after its own ordinal — "0" — which is a
-// hint an emitter cannot build an identifier from, and which disagreed with the
-// composition's "variant_0" (GitHub #181).
+// The branch case is the second half of that agreement for a composition branch.
+// Falling through to the last segment named an inline branch after its own
+// ordinal — "0" — which is a hint an emitter cannot build an identifier from,
+// and which disagreed with the composition's "variant_0" (GitHub #181).
+//
+// The structural case is the same agreement for items, additionalProperties, a
+// patternProperties entry and a prefixItems slot (GitHub #353), where the last
+// segment named the node after the keyword that holds it — "items" — or after
+// the pattern text or the slot ordinal, none of which distinguish it from the
+// same position on any other schema.
 func subSchemaHint(decl *oas3.JSONSchema[oas3.Referenceable], pointer string) string {
 	if decl != nil && decl.IsReference() {
 		if name := refLastSegment(decl.GetRef().String()); name != "" {
@@ -219,7 +229,97 @@ func subSchemaHint(decl *oas3.JSONSchema[oas3.Referenceable], pointer string) st
 	if hint, ok := branchPointerHint(pointer); ok {
 		return hint
 	}
+	if hint, ok := structuralPointerHint(pointer); ok {
+		return hint
+	}
 	return refLastSegment(pointer)
+}
+
+// componentSchemasPrefix is the pointer root under which a structural position's
+// enclosing hint is the enclosing pointer's own last segment. See
+// structuralPointerHint for why the derivation is confined to it.
+const componentSchemasPrefix = "/components/schemas/"
+
+// structuralPointerHint returns the hint the inline structural position at
+// pointer takes, for a caller holding only the pointer, and whether the pointer
+// addresses one it can answer.
+//
+// It is branchPointerHint's counterpart for the four positions whose hint is
+// composed rather than positional: the structural lowering builds them as
+// compile.SubHint(enclosing, role), so answering requires the enclosing node's
+// hint, which a bare pointer walk does not carry. Under /components/schemas it
+// does: the enclosing hint there is the enclosing pointer's own last segment —
+// the component's name, or a property's key — so the composition can be replayed
+// by peeling roles off the tail and rebuilding from what is left.
+//
+// It is confined to that root because the derivation is not total, and the
+// remainder is a naming decision rather than a bug to paper over. A position
+// under /paths takes its enclosing hint from an operationId, a response, or a
+// media-type key, and the pointer records none of them: the same items position
+// is "response_item" to the structural lowering and has no pointer spelling that
+// reproduces it. Answering those with a pointer-derived name would replace one
+// disagreement with a different one, so they keep the last-segment fallback.
+// That leaves no order dependence there — components lower before paths, so a
+// reference from one always interns first — but it does leave a name that
+// depends on whether an unrelated schema points at the position. GitHub #372
+// holds that remainder.
+//
+// The walk is bounded by construction: each step consumes at least one segment
+// and the loop runs only while segments remain.
+func structuralPointerHint(pointer string) (string, bool) {
+	segments := strings.Split(pointer, "/")
+
+	var roles []string // innermost first
+	for len(segments) > 1 {
+		role, consumed, ok := structuralRole(segments)
+		if !ok {
+			break
+		}
+		roles = append(roles, role)
+		segments = segments[:len(segments)-consumed]
+	}
+	if len(roles) == 0 {
+		return "", false
+	}
+
+	enclosing := strings.Join(segments, "/")
+	if !strings.HasPrefix(enclosing, componentSchemasPrefix) {
+		return "", false
+	}
+
+	hint := ids.UnescapeSegment(segments[len(segments)-1])
+	for i := len(roles) - 1; i >= 0; i-- {
+		hint = compile.SubHint(hint, roles[i])
+	}
+	return hint, true
+}
+
+// structuralRole reports the role the structural lowering names the position at
+// the tail of segments by, and how many segments that position spells. The roles
+// are the suffixes the four compile.SubHint call sites pass, and a change to one
+// of them has to be made here too — TestInlinePosition_HintIsTheSameInBothOrders
+// is what fails when they drift.
+//
+// segments holds at least two entries: its only caller reads the tail of a
+// pointer, which always starts with the empty segment before the first token, and
+// stops looping once one segment is left.
+func structuralRole(segments []string) (role string, consumed int, ok bool) {
+	last := segments[len(segments)-1]
+	switch last {
+	case "items":
+		return "item", 1, true
+	case "additionalProperties":
+		return "value", 1, true
+	}
+	switch segments[len(segments)-2] {
+	case "patternProperties":
+		return "pattern", 2, true
+	case "prefixItems":
+		if isDecimalIndex(last) {
+			return last, 2, true
+		}
+	}
+	return "", 0, false
 }
 
 // refNullable reports whether a $ref usage admits null: the reference site or

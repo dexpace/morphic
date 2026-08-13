@@ -2176,6 +2176,103 @@ func stolenPositions() []stolenPosition {
 	}
 }
 
+// TestInlinePosition_HintIsTheSameInBothOrders pins the spelling each inline
+// position takes, rather than only that the two orders agree (GitHub #353).
+//
+// Agreement alone is satisfied by both namers producing the weaker name, so the
+// table is what says which one won: the structural spelling, composed from the
+// enclosing node's hint and the position's role. The outside $ref used to name
+// these after the keyword holding them ("items"), the pattern text ("^x") or the
+// slot ordinal ("0") — none of which distinguish the position from the same
+// position on any other schema.
+func TestInlinePosition_HintIsTheSameInBothOrders(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct {
+		name  string
+		owner string
+		id    ir.TypeID
+		hint  string
+	}{
+		{"items", "    A: {type: array, items: " + openapitest.InlineProbeBody + "}\n",
+			"t/anon/components/schemas/A/items", "a_item"},
+		{"additionalProperties", "    A: {type: object, additionalProperties: " + openapitest.InlineProbeBody + "}\n",
+			"t/anon/components/schemas/A/additionalProperties", "a_value"},
+		{"patternProperties", "    A: {type: object, patternProperties: {\"^x\": " + openapitest.InlineProbeBody + "}}\n",
+			"t/anon/components/schemas/A/patternProperties/^x", "a_pattern"},
+		{"prefixItems", "    A: {type: array, prefixItems: [" + openapitest.InlineProbeBody + "]}\n",
+			"t/anon/components/schemas/A/prefixItems/0", "a_0"},
+		// Nested, because the derivation replays the whole chain rather than one
+		// step: the outside $ref used to name this "items", losing both levels.
+		{"items under items", "    A: {type: array, items: {type: array, items: " + openapitest.InlineProbeBody + "}}\n",
+			"t/anon/components/schemas/A/items/items", "a_item_item"},
+		// Rooted at a property rather than at the component, so the enclosing hint
+		// the walk rebuilds from is the property's key.
+		{"items under a property", "    A: {type: object, properties: {p: {type: array, items: " +
+			openapitest.InlineProbeBody + "}}}\n",
+			"t/anon/components/schemas/A/properties/p/items", "p_item"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			pos := stolenPosition{name: tc.name, owner: tc.owner, id: tc.id}
+			for _, order := range []struct {
+				name     string
+				refFirst bool
+			}{{"owner declared first", false}, {"reference declared first", true}} {
+				doc, diags := parseFull(t, pos.spec(order.refFirst))
+				openapitest.RequireNoErrorDiags(t, diags)
+				td, ok := doc.Types[tc.id]
+				require.True(t, ok, "%s: the position owns a node at %s", order.name, tc.id)
+				assert.Equal(t, tc.hint, td.Common().Name.Hint, order.name)
+			}
+		})
+	}
+}
+
+// TestInlinePosition_UnderPathsTakesTheWeakerName pins what GitHub #353 did not
+// close, so the remainder is a recorded state rather than a silent one.
+//
+// The enclosing hint under /paths comes from a response, an operationId or a
+// media-type key, none of which the pointer records, so the pointer walk cannot
+// replay it and the position keeps the last-segment fallback. What is left is
+// not an order dependence — components lower before paths, so the reference
+// interns first in either spelling of the document — but a name that depends on
+// whether an unrelated schema points at the position: "response_item" without
+// the reference, "items" with it. GitHub #372 holds it.
+func TestInlinePosition_UnderPathsTakesTheWeakerName(t *testing.T) {
+	t.Parallel()
+	const id = ir.TypeID("t/anon/paths/~1x/get/responses/200/content/application~1json/schema/items")
+	const op = `paths:
+  /x:
+    get:
+      operationId: getX
+      responses:
+        "200":
+          description: ok
+          content:
+            application/json: {schema: {type: array, items: ` + openapitest.InlineProbeBody + `}}
+`
+	const outsider = "components:\n  schemas:\n" +
+		"    Outsider: {$ref: '#/paths/~1x/get/responses/200/content/application~1json/schema/items'}\n"
+
+	ownerFirst, diags := parseFull(t, "openapi: 3.1.0\ninfo: {title: O, version: \"1.0.0\"}\n"+op+outsider)
+	openapitest.RequireNoErrorDiags(t, diags)
+	refFirst, diags := parseFull(t, "openapi: 3.1.0\ninfo: {title: O, version: \"1.0.0\"}\n"+outsider+op)
+	openapitest.RequireNoErrorDiags(t, diags)
+
+	assert.Equal(t, "items", ownerFirst.Types[id].Common().Name.Hint,
+		"the reference names it, whichever order the two blocks are written in")
+	assert.Equal(t, "items", refFirst.Types[id].Common().Name.Hint,
+		"so the document is deterministic; it is the name that is weak")
+
+	// Without the reference the structural lowering names it, which is what the
+	// two above are being compared against: an unrelated $ref elsewhere in the
+	// document is what costs the position its enclosing context.
+	unreferenced, diags := parseFull(t, "openapi: 3.1.0\ninfo: {title: O, version: \"1.0.0\"}\n"+op)
+	openapitest.RequireNoErrorDiags(t, diags)
+	assert.Equal(t, "response_item", unreferenced.Types[id].Common().Name.Hint,
+		"the structural lowering composes the enclosing response's hint")
+}
+
 // TestInlinePosition_OutsideRefDoesNotMoveTheHome is the regression for the
 // second half of the pointer collision. A $ref naming an inline position hoists
 // that position's home before the position itself is reached, and the position
@@ -2213,30 +2310,20 @@ func TestInlinePosition_OutsideRefDoesNotMoveTheHome(t *testing.T) {
 	}
 }
 
-// orderInvariantIR compares two whole IR documents, minus the two fields that
-// differ by construction when the same components are declared in two orders.
+// orderInvariantIR compares two whole IR documents, minus what differs by
+// construction when the same components are declared in two orders.
 //
 // SourceInfo.Hash digests the source bytes, which are the thing being permuted.
 //
-// Naming.Hint is a live gap, and a narrower one than it was: the hint a node
-// hoisted at a pointer carries is minted by whichever of the two namers reaches
-// the pointer first, because intern keeps the first name it is given. The
-// composition-branch family no longer diverges — both namers ask branchHint's
-// question there (GitHub #181, #281) — so what is left is the four inline
-// structural positions, where the declaration's context ("a_item") and the
-// reference's last pointer segment ("items") genuinely hold different
-// information: GitHub #353, which permutes exactly the positions
-// TestInlinePosition_OutsideRefDoesNotMoveTheHome does. That divergence is
-// naming only, and predates the annotation work: a $ref to an object-bodied
-// `items` shows it with no annotations involved at all.
-//
-// Everything else is compared, and a caller whose shapes settle their hints
-// identically both ways should compare the registry a second time with nothing
-// excluded rather than rely on this — see TestNullCollapse_BranchHintIsOrder-
-// Independent.
+// Naming.Hint used to be excluded too, and no longer is. The hint a node hoisted
+// at a pointer carries is minted by whichever namer reaches the pointer first —
+// the enclosing declaration's context or an outside $ref's pointer walk —
+// because intern keeps the first name it is given, so the two had to agree and
+// did not. They now do at every position either can reach (GitHub #181, #281,
+// #353), which is what lets the field be compared: the tests permuting those
+// positions are the regression only while nothing here hides the difference.
 func orderInvariantIR() []cmp.Option {
 	return []cmp.Option{
-		cmpopts.IgnoreFields(ir.Naming{}, "Hint"),
 		cmpopts.IgnoreFields(ir.SourceInfo{}, "Hash"),
 	}
 }
