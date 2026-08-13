@@ -513,13 +513,14 @@ func fillOperationDocs(d *ir.Docs, src *soa.Operation) {
 //     pointer, which is the losslessness property the census exists for; what is
 //     lost is the key's value, not the fact that it was written.
 //   - Recovering the value means reading the raw node against a path item's key
-//     vocabulary, and the only vocabulary this compiler owns is httpMethods,
-//     which is narrower than the library's — it has no `query`, the method
-//     OpenAPI 3.2 adds. A census over what httpMethods does not name would
-//     therefore report a valid 3.2 `query` operation as an undeclared key.
+//     vocabulary rather than taking a census the library offers, which is work of
+//     a different kind from every other site here.
 //
-// That vocabulary is what GitHub #293 is about, so widening it here would settle
-// that issue as a side effect of this one. Tracked separately in GitHub #377.
+// The vocabulary itself is no longer the obstacle it was: httpMethods was
+// narrower than the library's until GitHub #293 added `query` to it, and
+// pathOperations reads additionalOperations beside it, so what a path item can
+// legally name is now fully spelled here. What is left is the reading, tracked
+// in GitHub #377.
 func applyPathItemResidue(c lowering.Ctx, op *ir.Operation, pi *soa.PathItem, declPtr string) []ir.Diagnostic {
 	diags := applyPathServers(c, op, pi, declPtr)
 	diags = append(diags, applyPathItemDocs(c, op, pi, declPtr)...)
