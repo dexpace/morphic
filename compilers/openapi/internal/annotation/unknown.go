@@ -151,9 +151,9 @@ func UnknownKeysUnder(p *ir.Unmodeled, model any, srcIndex int, owner, scope str
 // its operations. The unmarshaller folds a key it does not recognize into that
 // embedded map rather than recording it as undeclared, so the object's own
 // census is empty however much the document wrote (speakeasy-api/openapi
-// v1.24.0). Its leftovers are still an undeclared key of the path item, graded
-// as one — same code, same severity, same reason — because which reader found
-// them is not a property of the source.
+// v1.24.1). Its leftovers are still an undeclared key of the path item, graded as
+// one — same code, same severity, same reason — because which reader found them
+// is not a property of the source.
 //
 // It delegates rather than duplicating the grading, so the two can only be
 // announced alike.
@@ -313,6 +313,16 @@ type unknownReporter interface{ GetUnknownProperties() []string }
 // A model reporting no census yields nothing rather than panicking. The receiver
 // may be a typed nil — an absent object is what the getters return for one the
 // document omitted — and a promoted method on one of those dereferences it.
+//
+// An empty census is not evidence the object wrote no undeclared key. A core
+// model whose own shape is a sequenced map — Paths, Responses, Callback and Path
+// Item — folds an unrecognized key into that map instead of recording it, so it
+// reports nothing however much the document wrote. For the first three that is
+// the right answer, because every key under them is a legitimate entry and there
+// is nothing undeclared to find. For a Path Item it is not, and its keys are read
+// off the folded map and handed to UnknownKeysNamed instead. A fifth object
+// growing that shape would go quiet here the same way, and the census would look
+// like it had run.
 func undeclaredKeys(model any) ([]string, *yaml.Node) {
 	v := reflect.ValueOf(model)
 	if v.Kind() == reflect.Pointer && v.IsNil() {

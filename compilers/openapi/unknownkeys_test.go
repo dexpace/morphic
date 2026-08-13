@@ -347,9 +347,11 @@ paths:
 //
 // The rest of a path item's fields are here because a census is only evidence
 // about the keys it leaves alone. Each is a field of the library's model and so
-// never reaches the operations map, which is the property being pinned:
-// additionalOperations included, since #293 has it dropped rather than
-// undeclared.
+// never reaches the operations map, which is the property being pinned —
+// additionalOperations included, and independently of whether the compiler
+// lowers what it holds. It does lower it now (#293), so `PURGE` below is a real
+// operation rather than a dropped one; the row would read the same either way,
+// because what keeps it out of the census is the field, not the lowering.
 func TestUnknownKeys_PathItemDeclaredFieldsAreNotUndeclared(t *testing.T) {
 	t.Parallel()
 	doc, diags := compileAnnotationSpec(t, "path-item-fields", `openapi: 3.2.0

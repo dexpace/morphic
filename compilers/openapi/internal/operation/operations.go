@@ -219,7 +219,7 @@ func lowerPathItem(c lowering.Ctx, ts *compile.Types, anchors *schema.AnchorInde
 		mounted++
 	}
 	if mounted == 0 {
-		return append(diags, preserveUnmountedPathItem(c, svc, pi, pathPtr, declPtr)...)
+		return append(diags, preserveUnmountedPathItem(c, onNearestNode(&svc.Unmodeled, c.SrcIndex, pathPtr), pi, pathPtr, declPtr)...)
 	}
 	return diags
 }
@@ -269,7 +269,7 @@ func lowerWebhooks(ctx context.Context, c lowering.Ctx, ts *compile.Types, ancho
 			mounted++
 		}
 		if mounted == 0 {
-			diags = append(diags, preserveUnmountedPathItem(c, svc, pi, hookPtr, declPtr)...)
+			diags = append(diags, preserveUnmountedPathItem(c, onNearestNode(&svc.Unmodeled, c.SrcIndex, hookPtr), pi, hookPtr, declPtr)...)
 		}
 	}
 	return diags
@@ -519,7 +519,7 @@ func fillOperationDocs(d *ir.Docs, src *soa.Operation) {
 // The census reaches this object through its own keys rather than through the
 // library's, which reports none for it: the unmarshaller folds a key it does not
 // recognize into the item's embedded operations map, so GetUnknownProperties is
-// empty however much the document wrote (speakeasy-api/openapi v1.24.0). What is
+// empty however much the document wrote (speakeasy-api/openapi v1.24.1). What is
 // left of that map once the HTTP methods are taken out is the same set the
 // census would have reported, which is what undeclaredPathItemKeys reads.
 func applyPathItem(c lowering.Ctx, into carrier, pi *soa.PathItem, declPtr string) []ir.Diagnostic {
@@ -576,49 +576,55 @@ func onOperation(op *ir.Operation) carrier {
 	}
 }
 
-// onService carries them on the service, for an item that produced no operation
-// to hold them. mountPtr is the item's own pointer, which keys it apart from
-// every other item kept there.
-func onService(svc *ir.Service, mountPtr string) carrier {
+// onNearestNode carries them on the nearest node holding an Unmodeled map, for
+// an item that produced no operation to hold them: the service for an item under
+// paths or webhooks, the parent operation's HTTP binding for a callback
+// expression's, which is where the callback itself lives.
+//
+// mountPtr is the item's own mount pointer, and keys it apart from every other
+// item kept on that node. It is the provenance too: one node holds every such
+// item, so a diagnostic carrying the node's own pointer would name none of them —
+// and since diagnostic identity is the whole value, two items would produce one
+// indistinguishable finding rather than two.
+func onNearestNode(u *ir.Unmodeled, srcIndex int, mountPtr string) carrier {
 	return carrier{
-		unmodeled:  &svc.Unmodeled,
-		provenance: svc.Provenance,
+		unmodeled:  u,
+		provenance: ir.Provenance{Source: srcIndex, Pointer: mountPtr},
 		scope:      "pathItem" + mountPtr,
 		serversKey: "openapi:pathItem" + mountPtr + "/servers",
 	}
 }
 
 // preserveUnmountedPathItem keeps what an item that produced no operation wrote,
-// and says so: the item is not lowered, so a reader seeing its declarations on
-// the service needs to know why they are there rather than on an operation.
+// and says so: the item is not lowered, so a reader seeing its declarations away
+// from any operation needs to know why they are there.
 //
 // An item produces no operation when it declares none, when every method it
-// declares is one this compiler does not lower yet (GitHub #293), or when the
-// only keys it holds are ones the Path Item Object does not define.
+// declares names nothing this compiler lowers, or when the only keys it holds are
+// ones the Path Item Object does not define.
 //
 // What is kept is what applyPathItem keeps on a carrier holding no docs:
 // servers, extensions and undeclared keys. A mounted item's summary and
 // description are kept on its operation (GitHub #292); an unmounted item's are
-// still dropped, because the keys are bare and one service holds every such
-// item — GitHub #383, where the question is how path-item docs relate to an
-// operation's own rather than where to put a payload. The message below names
-// only what it keeps.
-func preserveUnmountedPathItem(c lowering.Ctx, svc *ir.Service, pi *soa.PathItem, mountPtr, declPtr string) []ir.Diagnostic {
-	diags := applyPathItem(c, onService(svc, mountPtr), pi, declPtr)
-	if len(diags) == 0 && !pathItemDeclaresAnything(pi) {
-		return nil // nothing was written beside the operations it does not have
+// still dropped, because the keys are bare and one node holds every such item —
+// GitHub #383, where the question is how path-item docs relate to an operation's
+// own rather than where to put a payload.
+//
+// The announcement is decided by what landed rather than by what the item wrote.
+// The two disagree: a construct supplied through a YAML merge key is read by the
+// model and not by RawChildNode, so a predicate over the model claims a
+// preservation that did not happen (GitHub #384). Reading the map also keeps this
+// from restating applyPathItem's list of constructs, which is the restatement
+// that would go stale the next time one is added there.
+func preserveUnmountedPathItem(c lowering.Ctx, into carrier, pi *soa.PathItem, mountPtr, declPtr string) []ir.Diagnostic {
+	before := len(*into.unmodeled)
+	diags := applyPathItem(c, into, pi, declPtr)
+	if len(*into.unmodeled) == before {
+		return diags // nothing landed, so there is no preservation to explain
 	}
-	return append(diags, c.DiagAt(ir.SeverityWarning, diag.DegradedConstruct, declPtr,
+	return append(diags, c.DiagAt(ir.SeverityWarning, diag.DegradedConstruct, mountPtr,
 		"path item declares no operation this compiler lowers; its servers, extensions and "+
-			"undeclared keys are kept on the service, having no operation to hold them"))
-}
-
-// pathItemDeclaresAnything reports whether pi wrote anything applyPathItem would
-// have had to find a home for.
-func pathItemDeclaresAnything(pi *soa.PathItem) bool {
-	return len(pi.GetServers()) > 0 ||
-		pi.GetExtensions().Len() > 0 ||
-		len(undeclaredPathItemKeys(pi)) > 0
+			"undeclared keys are kept beside it, having no operation to hold them"))
 }
 
 // undeclaredPathItemKeys returns the keys of a path item's operations map that
@@ -629,20 +635,35 @@ func pathItemDeclaresAnything(pi *soa.PathItem) bool {
 // wrapper around it — pi is the referent it named by the time this runs.
 //
 // The predicate is the library's IsStandardMethod, deliberately, and not
-// httpMethods. The two are different vocabularies for different questions:
-// httpMethods says what this compiler lowers, while this asks only whether a key
-// names a method at all. Reading the map against httpMethods would report a
-// valid OpenAPI 3.2 `query` operation as an undeclared key, since the compiler
-// does not lower it yet — and whether it should is GitHub #293, which this
-// leaves exactly where it stands.
+// httpMethods. The two answer different questions: httpMethods says what this
+// compiler lowers, while this asks only whether a key names a method at all, and
+// a method the specification defines is one the Path Item Object declares
+// whether or not this compiler has a field for it. Grading it as an undeclared
+// key would say something false about the document.
+//
+// The two vocabularies happen to hold the same nine names today — GitHub #293
+// closed by adding `query` to httpMethods and reading additionalOperations
+// beside it — so the choice changes nothing that can be measured here. It is
+// still the right one, because the sets are maintained independently: this
+// tracks the specification, httpMethods tracks the lowering. What that leaves
+// open is the other side of the gap — a method the library knows and this
+// compiler does not would be silently unmounted rather than reported, which is
+// GitHub #413 and not something a census can answer.
 //
 // A method spelled in any case but lowercase is undeclared and reported here.
 // OpenAPI fixes the field names, so `GET` is no more a path item's key than
 // `bogusPathItem` is, and neither is lowered.
 //
-// pi is never nil: every caller of applyPathItem has already lowered an
-// operation off it. An uninitialized map is still tolerated, since the iterator
-// is nil-safe.
+// One undeclared key does not reach this: the library short-circuits a value
+// carrying a YAML anchor before folding it, so the key never enters the map this
+// reads and is kept by nothing, while a plainly-valued key beside it is kept and
+// reported. Recovering it means reading the raw node against a path item's key
+// vocabulary rather than a map the library already built, which is GitHub #412.
+//
+// pi is never nil: resolve.ObjectAt yields no nil referent, and every route
+// checks it before lowering — including the unmounted one, which reaches this
+// through preserveUnmountedPathItem having lowered no operation at all. An
+// uninitialized map is tolerated, since the iterator is nil-safe.
 func undeclaredPathItemKeys(pi *soa.PathItem) []string {
 	var keys []string
 	for method := range pi.All() {
@@ -973,7 +994,8 @@ func lowerCallbacks(c lowering.Ctx, ts *compile.Types, anchors *schema.AnchorInd
 				continue
 			}
 			cbPtrs := opPointers{mount: parent.mount + ids.Ptr("callbacks", cbName, exprStr), decl: piDecl}
-			opIDs, cbOps, cbDiags := lowerCallbackOps(c, ts, anchors, operationIDs, pi, cbPtrs, exprStr, inferred)
+			opIDs, cbOps, orphan, cbDiags := lowerCallbackOps(c, ts, anchors, operationIDs, pi, cbPtrs, exprStr, inferred)
+			ext = annotation.MergeUnmodeled(ext, orphan)
 			diags = append(diags, cbDiags...)
 			callbacks = append(callbacks, ir.Callback{Expression: exprStr, Operations: opIDs})
 			ops = append(ops, cbOps...)
@@ -988,7 +1010,14 @@ func lowerCallbacks(c lowering.Ctx, ts *compile.Types, anchors *schema.AnchorInd
 // the expression's identity base (distinct per parent operation) with its
 // declaration base (shared when the callback or its path item is $ref'd;
 // issue #107).
-func lowerCallbackOps(c lowering.Ctx, ts *compile.Types, anchors *schema.AnchorIndex, operationIDs map[string]string, pi *soa.PathItem, cb opPointers, expr, inferred string) ([]ir.OpID, []ir.Operation, []ir.Diagnostic) {
+//
+// An expression mapping to an item that mounts no operation keeps what the item
+// wrote, on the returned map. This is the third route a path item is reached
+// through, and it needs the orphan branch for the same reason the other two do:
+// applyPathItem runs once per operation, so an item producing none reaches it
+// through nothing. The map goes where the Callback Object's own extensions
+// already go — the parent's HTTP binding, which is where the callbacks live.
+func lowerCallbackOps(c lowering.Ctx, ts *compile.Types, anchors *schema.AnchorIndex, operationIDs map[string]string, pi *soa.PathItem, cb opPointers, expr, inferred string) ([]ir.OpID, []ir.Operation, ir.Unmodeled, []ir.Diagnostic) {
 	declared := pathOperations(pi)
 	opIDs := make([]ir.OpID, 0, len(declared))
 	ops := make([]ir.Operation, 0, len(declared))
@@ -1008,7 +1037,13 @@ func lowerCallbackOps(c lowering.Ctx, ts *compile.Types, anchors *schema.AnchorI
 		opIDs = append(opIDs, op.ID)
 		ops = append(ops, op)
 	}
-	return opIDs, ops, diags
+	if len(ops) > 0 {
+		return opIDs, ops, nil, diags
+	}
+	orphan := ir.Unmodeled{}
+	orphanDiags := preserveUnmountedPathItem(c,
+		onNearestNode(&orphan, c.SrcIndex, cb.mount), pi, cb.mount, cb.decl)
+	return opIDs, ops, orphan, append(diags, orphanDiags...)
 }
 
 // sourcedParam pairs a parameter with its declaring list entry's pointer,
