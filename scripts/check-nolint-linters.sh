@@ -63,7 +63,10 @@ if [ ! -s "$work/enabled.txt" ]; then
 	exit 1
 fi
 jq -r '(.Enabled // [])[].name' "$work/formatters.json" >>"$work/enabled.txt"
-sort -u -o "$work/enabled.txt" "$work/enabled.txt"
+# LC_ALL=C so -u decides "same name" by bytes. Collation elsewhere can fold names
+# that differ only in case or punctuation into one, and the loser would then read
+# as a linter golangci-lint is not running.
+LC_ALL=C sort -u -o "$work/enabled.txt" "$work/enabled.txt"
 
 # git grep -n emits "path:line:text", which the awk below splits on the first two
 # colons. That is only correct while no path carries one, so refuse a tree where

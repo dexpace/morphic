@@ -66,9 +66,14 @@ make_repo() {
 	mkdir -p "$dir/pk" "$dir/scripts"
 	printf '%s' "$config" >"$dir/.golangci.yml"
 	printf 'package pk\n' >"$dir/pk/a.go"
-	git init -q "$dir"
+	# The fixture must not inherit the caller's git identity, signing or default
+	# branch: a global commit.gpgsign would fail the commit on a runner with no
+	# key, and the whole suite would read as a broken script rather than a
+	# missing fixture.
+	git -c init.defaultBranch=main init -q "$dir"
 	git -C "$dir" config user.email nolint@example.invalid
 	git -C "$dir" config user.name nolint
+	git -C "$dir" config commit.gpgsign false
 	git -C "$dir" add -A
 	git -C "$dir" commit -qm fixture
 }
