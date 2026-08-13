@@ -55,6 +55,14 @@ profile distinct 'x/a.go:1.1,2.2 1 1' 'x/a.go:3.1,4.2 1 0'
 profile conflict 'x/a.go:1.1,2.2 3 1' 'x/a.go:1.1,2.2 4 1'
 profile empty
 profile zerostmt 'x/a.go:1.1,2.2 0 0'
+profile badfields 'x/a.go:1.1,2.2 5'
+# go emits a numstmt=0 block for an empty body, such as an unreached "case x:". It
+# cannot be uncovered, so it must not be listed beside a passing verdict.
+profile empty-block 'x/a.go:1.1,2.2 5 1' 'x/b.go:9.1,9.9 0 0'
+
+# No "mode:" line at all, so this one cannot go through profile(). Its first block is
+# the uncovered one: a reader that eats a body line as the header calls this a pass.
+printf 'x/a.go:1.1,2.2 5 0\nx/b.go:1.1,2.2 5 1\n' >"$work/noheader.out"
 
 # 30 uncovered blocks, five past the 25 the failure listing prints.
 capped=()
@@ -62,18 +70,25 @@ for i in $(seq 30); do capped+=("x/c.go:$i.1,$i.9 1 0"); done
 profile capped "${capped[@]}"
 
 # One record per case: <profile> | <want exit status> | <substring stdout must hold>.
-# The mutation sweep below looks cases up by profile name, so the first record for a
-# name is the one a mutation has to break.
+# A substring prefixed with "!" must be absent instead. The mutation sweep below looks
+# cases up by profile name, so the first record for a name is the one a mutation has to
+# break — which is why the "!" records come first where both kinds exist.
 cases=(
 	'triple|0|Coverage gate passed: all 5 statements covered.'
 	'partial|0|Coverage gate passed: all 3 statements covered.'
 	'distinct|1|Coverage gate failed: 1 of 2 statements uncovered'
+	'conflict|1|!x/a.go:1.1,2.2 3 1'
 	'conflict|1|COVERAGE FAIL: x/a.go:1.1,2.2 reports 3 and 4 statements'
 	'conflict|1|Coverage gate failed: the profile does not describe a single build.'
 	'dead|1|COVERAGE FAIL: x/a.go:1.1,2.2 (3 statement(s) uncovered)'
 	'dead|1|Coverage gate failed: 3 of 3 statements uncovered'
 	'empty|1|COVERAGE FAIL: the profile records no statements'
 	'zerostmt|1|COVERAGE FAIL: the profile records no statements'
+	'noheader|1|COVERAGE FAIL: the first line is not a "mode:" header'
+	'noheader|1|Coverage gate failed: the profile could not be read.'
+	'badfields|1|COVERAGE FAIL: line 2 has 2 field(s), want 3: x/a.go:1.1,2.2 5'
+	'empty-block|0|!COVERAGE FAIL'
+	'empty-block|0|Coverage gate passed: all 5 statements covered.'
 	'capped|1|... and 5 more uncovered block(s)'
 	'capped|1|Coverage gate failed: 30 of 30 statements uncovered'
 	'sanity|0|Coverage gate passed: all 1 statements covered.'
@@ -86,6 +101,13 @@ check_case() {
 	local name="${record%%|*}" rest="${record#*|}"
 	local want_status="${rest%%|*}" want="${rest#*|}"
 
+	# A leading "!" inverts the check: the substring must be absent.
+	local absent=""
+	if [ "${want#!}" != "$want" ]; then
+		absent=1
+		want="${want#!}"
+	fi
+
 	# stdout only: what the counter reports there is the contract being checked, and
 	# a mutant broken outright would otherwise bury the run in awk parse errors.
 	local out status=0
@@ -94,11 +116,23 @@ check_case() {
 		printf 'exit %d, want %s' "$status" "$want_status"
 		return 1
 	fi
+
+	local held=""
 	case "$out" in
-	*"$want"*) return 0 ;;
+	*"$want"*) held=1 ;;
 	esac
-	printf 'stdout does not hold "%s"' "$want"
-	return 1
+	if [ -n "$absent" ]; then
+		if [ -n "$held" ]; then
+			printf 'stdout holds "%s", which it must not' "$want"
+			return 1
+		fi
+		return 0
+	fi
+	if [ -z "$held" ]; then
+		printf 'stdout does not hold "%s"' "$want"
+		return 1
+	fi
+	return 0
 }
 
 # case_record echoes the first case record for <profile>.
@@ -136,8 +170,9 @@ mutate() {
 	' "$script"
 }
 
-# Each mutation removes one decision the merge makes, and names the case that has to
-# notice. All four anchor in the merge program, none in the reporting one.
+# Each mutation removes one decision the counter makes, and names the case that has to
+# notice. The first four anchor in the merge program, the last three in what refuses a
+# profile and what reports one.
 #
 # <name> | <case the mutation must break> | <text to replace> | <replacement>
 mutations=(
@@ -145,6 +180,10 @@ mutations=(
 	'keyed-by-file|distinct|block = $1|block = substr($1, 1, index($1, ":"))'
 	'no-conflict-guard|conflict|stmts[block] != $2 + 0|0'
 	'no-covered-merge|partial|if ($3 + 0 > 0) {|if (0) {'
+	'no-header-guard|noheader|$0 !~ /^mode: /|0'
+	'no-field-guard|badfields|NF != 3|0'
+	'lists-empty-blocks|empty-block|if ($2 + 0 == 0) {|if (0) {'
+	'no-abort-flag|conflict|if (bad) {|if (0) {'
 )
 
 sanity_record="$(case_record sanity)"
@@ -167,7 +206,15 @@ for record in "${mutations[@]}"; do
 	# An anchor that no longer appears mutates nothing, and a case that "survives"
 	# that looks exactly like a case that catches nothing. One that appears twice
 	# would mutate both, so the case would not say which decision it caught.
-	hits="$(awk -v from="$from" 'index($0, from) { n++ } END { print n + 0 }' "$script")"
+	hits="$(awk -v from="$from" '
+		{
+			rest = $0
+			while ((at = index(rest, from)) > 0) {
+				n++
+				rest = substr(rest, at + length(from))
+			}
+		}
+		END { print n + 0 }' "$script")"
 	if [ "$hits" -ne 1 ]; then
 		fail "$name: its anchor appears $hits times in $(basename "$script"), want 1"
 		continue

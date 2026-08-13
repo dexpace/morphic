@@ -17,6 +17,9 @@
 # The second form is not a gate — it runs no tests. It exists so the counting below
 # can be driven over profiles a real run will not produce, which is what
 # scripts/verify-coverage-count.sh does. CI uses the first form.
+#
+# $COVER_FILE names where the first form writes its profile (default cover.out). An
+# argument supersedes it, since nothing is written in that case.
 set -euo pipefail
 
 cover_file="${COVER_FILE:-cover.out}"
@@ -66,7 +69,26 @@ fi
 # counts as covered. The raw count turned that divergence into a failure instead, by
 # charging the block's statements to the total twice and to the hits once. A block no
 # fragment ran still merges to 0, and is still reported and still fails.
-merge='NR > 1 {
+merge='NR == 1 {
+	# Without this, a body-only file has its first block eaten as the header and
+	# silently dropped — which reads as a pass when that block is the uncovered one.
+	if ($0 !~ /^mode: /) {
+		print "COVERAGE FAIL: the first line is not a \"mode:\" header"
+		print "Coverage gate failed: the profile could not be read."
+		bad = 1
+		exit 1
+	}
+	next
+}
+{
+	# Every block line is "<id> <stmts> <count>". Anything shorter would still be
+	# read positionally into those three, quietly counting as a 0-statement block.
+	if (NF != 3) {
+		printf "COVERAGE FAIL: line %d has %d field(s), want 3: %s\n", NR, NF, $0
+		print "Coverage gate failed: the profile could not be read."
+		bad = 1
+		exit 1
+	}
 	block = $1
 	if (!(block in stmts)) {
 		stmts[block] = $2 + 0
@@ -78,7 +100,8 @@ merge='NR > 1 {
 	# total would depend on line order.
 	if (stmts[block] != $2 + 0) {
 		printf "COVERAGE FAIL: %s reports %d and %d statements\n", block, stmts[block], $2
-		conflict = 1
+		print "Coverage gate failed: the profile does not describe a single build."
+		bad = 1
 		exit 1
 	}
 	if ($3 + 0 > 0) {
@@ -86,7 +109,7 @@ merge='NR > 1 {
 	}
 }
 END {
-	if (conflict) {
+	if (bad) {
 		exit 1
 	}
 	for (id in stmts) {
@@ -94,13 +117,12 @@ END {
 	}
 }'
 
-# A conflict aborts the merge before it prints any block, so the capture holds that
-# one COVERAGE FAIL line instead. Echo it rather than dying with an empty stdout:
-# every other failure here reports on stdout, and a caller that captures only stdout
-# should not have to guess why the gate stopped.
+# A refused profile aborts the merge before it prints any block, so the capture holds
+# its COVERAGE FAIL line and summary instead. Echo them rather than dying with an empty
+# stdout: every other failure here reports on stdout, and a caller that captures only
+# stdout should not have to guess why the gate stopped.
 if ! merged="$(awk "$merge" "$cover_file")"; then
 	printf '%s\n' "$merged"
-	echo "Coverage gate failed: the profile does not describe a single build."
 	exit 1
 fi
 
@@ -112,6 +134,13 @@ fi
 # Sorted so the same failure reads the same way on every run.
 printf '%s\n' "$merged" | sort | awk -v max="$max_reported" '
 	{
+		# A block with no statements cannot be uncovered, and contributes nothing
+		# either way. go emits these for an empty body — an unreached "case x:",
+		# say — and listing one would print a COVERAGE FAIL beside a passing
+		# verdict.
+		if ($2 + 0 == 0) {
+			next
+		}
 		total += $2
 		if ($3 == 0) {
 			blocks++
