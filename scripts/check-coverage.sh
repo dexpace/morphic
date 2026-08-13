@@ -9,6 +9,14 @@
 #
 # Packages with no statements and packages with no test files contribute no
 # profile blocks, so they pass without a special case.
+#
+# Usage:
+#   scripts/check-coverage.sh             # run the suite, then count its profile
+#   scripts/check-coverage.sh <profile>   # count an existing profile, running nothing
+#
+# The second form is not a gate — it runs no tests. It exists so the counting below
+# can be driven over profiles a real run will not produce, which is what
+# scripts/verify-coverage-count.sh does. CI uses the first form.
 set -euo pipefail
 
 cover_file="${COVER_FILE:-cover.out}"
@@ -17,79 +25,113 @@ cover_file="${COVER_FILE:-cover.out}"
 # blocks, and the first screenful is what gets read.
 max_reported=25
 
-# -timeout is explicit rather than left to go test's 10-minute default. The
-# compiler refuses documents that would otherwise hang the third-party resolver,
-# so a regression in that refusal is a test that never returns, not one that
-# fails. Ninety seconds is several times the suite's normal wall time and turns
-# that failure mode into a prompt stack dump naming the stuck goroutine.
-go test ./... -timeout 90s -covermode=atomic -coverprofile="$cover_file"
+if [ "$#" -gt 1 ]; then
+	echo "usage: $(basename "$0") [profile]" >&2
+	exit 2
+fi
+
+if [ "$#" -eq 1 ]; then
+	cover_file="$1"
+	if [ ! -r "$cover_file" ]; then
+		echo "COVERAGE FAIL: cannot read profile $cover_file"
+		exit 1
+	fi
+else
+	# -timeout is explicit rather than left to go test's 10-minute default. The
+	# compiler refuses documents that would otherwise hang the third-party resolver,
+	# so a regression in that refusal is a test that never returns, not one that
+	# fails. Ninety seconds is several times the suite's normal wall time and turns
+	# that failure mode into a prompt stack dump naming the stuck goroutine.
+	go test ./... -timeout 90s -covermode=atomic -coverprofile="$cover_file"
+fi
 
 # Profile body, one block per line: "<import-path>/<file>.go:<span> <stmts> <count>".
 #
 # Blocks are merged by identity — the "<file>.go:<span>" field — before anything is
 # counted, because the same block can arrive several times over. go test builds the
 # -coverprofile output by concatenating each package's fragment, and cmd/go appends a
-# cached fragment before the checks that decide whether that cached result is usable,
-# once for each of the two keys it tries. Immediately after `go clean -testcache` every
-# block therefore lands three times, and a count over the raw lines reports how warm
-# the test cache is rather than how large the tree is. Merging is what go tool cover
-# does when it reads a profile; an explicit -coverpkg would not help, since the repeats
-# are re-emissions of a package's own fragment.
+# cached fragment before the checks that decide whether that cached result is usable.
+# A package whose fragment is found but whose cached result is then rejected therefore
+# contributes its blocks once before the test re-runs and again afterwards, so a count
+# over the raw lines reports how warm the test cache is rather than how large the tree
+# is. With no cached fragment to find — a runner whose build cache is cold, which is
+# CI's usual state — the lookup returns before the merge and no repeat appears at all.
 #
-# Counts merge by max rather than the sum go tool cover uses in atomic mode, because
-# the repeats are one run's data re-emitted: summing would multiply real execution
-# counts by however many times a fragment happened to be appended. The verdict is the
-# same under either rule, since the gate only asks whether a block ever ran.
+# Merging is what go tool cover does when it reads a profile; an explicit -coverpkg
+# would not help, since the repeats are re-emissions of a package's own fragment.
 #
-# One consequence is deliberate: a block that ran in one fragment and not in another
-# now counts as covered, the plain meaning of "some test executed this statement". It
-# retires a false failure the raw count could produce, where such a block added 2 to
-# the total and 1 to the hits. A block no fragment ran still merges to 0, and is still
-# reported and still fails.
-#
-# Sorted so the same failure reads the same way on every run.
-merged="$(awk 'NR > 1 {
-	if (!($1 in stmts)) {
-		stmts[$1] = $2 + 0
-		count[$1] = $3 + 0
+# The merge keeps only whether some fragment ran a block, which is the one question
+# the gate asks. That has a consequence worth stating, because the fragments need not
+# come from the same run: a block a replayed fragment covered and this run did not now
+# counts as covered. The raw count turned that divergence into a failure instead, by
+# charging the block's statements to the total twice and to the hits once. A block no
+# fragment ran still merges to 0, and is still reported and still fails.
+merge='NR > 1 {
+	block = $1
+	if (!(block in stmts)) {
+		stmts[block] = $2 + 0
+		ran[block] = ($3 + 0 > 0)
 		next
 	}
 	# A span identifies one block of one file, so its statement count cannot
 	# differ between copies. If it does, the profile is not one build and the
 	# total would depend on line order.
-	if (stmts[$1] != $2 + 0) {
-		printf "COVERAGE FAIL: %s reports %d and %d statements\n", $1, stmts[$1], $2 > "/dev/stderr"
+	if (stmts[block] != $2 + 0) {
+		printf "COVERAGE FAIL: %s reports %d and %d statements\n", block, stmts[block], $2
 		conflict = 1
 		exit 1
 	}
-	if ($3 + 0 > count[$1]) {
-		count[$1] = $3 + 0
+	if ($3 + 0 > 0) {
+		ran[block] = 1
 	}
 }
 END {
 	if (conflict) {
 		exit 1
 	}
-	for (block in stmts) {
-		print block, stmts[block], count[block]
+	for (id in stmts) {
+		print id, stmts[id], ran[id]
 	}
-}' "$cover_file" | sort)"
+}'
 
-uncovered="$(printf '%s\n' "$merged" | awk '$3 == 0')"
+# A conflict aborts the merge before it prints any block, so the capture holds that
+# one COVERAGE FAIL line instead. Echo it rather than dying with an empty stdout:
+# every other failure here reports on stdout, and a caller that captures only stdout
+# should not have to guess why the gate stopped.
+if ! merged="$(awk "$merge" "$cover_file")"; then
+	printf '%s\n' "$merged"
+	echo "Coverage gate failed: the profile does not describe a single build."
+	exit 1
+fi
 
-read -r hit total <<<"$(printf '%s\n' "$merged" | awk '{ total += $2; if ($3 > 0) hit += $2 } END { print hit + 0, total + 0 }')"
-
-if [ "$total" -eq 0 ]; then
+if [ -z "$merged" ]; then
 	echo "COVERAGE FAIL: the profile records no statements"
 	exit 1
 fi
 
-if [ "$hit" -ne "$total" ]; then
-	printf '%s\n' "$uncovered" | awk -v max="$max_reported" '
-		NR <= max { printf "COVERAGE FAIL: %s (%s statement(s) uncovered)\n", $1, $2 }
-		END { if (NR > max) printf "  ... and %d more uncovered block(s)\n", NR - max }'
-	echo "Coverage gate failed: $((total - hit)) of $total statements uncovered; 100% is required."
-	exit 1
-fi
-
-echo "Coverage gate passed: all $total statements covered."
+# Sorted so the same failure reads the same way on every run.
+printf '%s\n' "$merged" | sort | awk -v max="$max_reported" '
+	{
+		total += $2
+		if ($3 == 0) {
+			blocks++
+			missed += $2
+			if (blocks <= max) {
+				printf "COVERAGE FAIL: %s (%s statement(s) uncovered)\n", $1, $2
+			}
+		}
+	}
+	END {
+		if (total == 0) {
+			print "COVERAGE FAIL: the profile records no statements"
+			exit 1
+		}
+		if (missed > 0) {
+			if (blocks > max) {
+				printf "  ... and %d more uncovered block(s)\n", blocks - max
+			}
+			printf "Coverage gate failed: %d of %d statements uncovered; 100%% is required.\n", missed, total
+			exit 1
+		}
+		printf "Coverage gate passed: all %d statements covered.\n", total
+	}'
