@@ -208,10 +208,10 @@ for record in "${mutations[@]}"; do
 	# would mutate both, so the case would not say which decision it caught.
 	hits="$(awk -v from="$from" '
 		{
-			rest = $0
-			while ((at = index(rest, from)) > 0) {
+			left = $0
+			while ((at = index(left, from)) > 0) {
 				n++
-				rest = substr(rest, at + length(from))
+				left = substr(left, at + length(from))
 			}
 		}
 		END { print n + 0 }' "$script")"
@@ -242,6 +242,52 @@ for record in "${mutations[@]}"; do
 		pass "$name turns '$target' red"
 	fi
 done
+
+# The failure listing is sorted, and sort's collation follows the locale: en_US.UTF-8
+# folds case and skips punctuation where C compares bytes. With the listing capped, an
+# unpinned sort changes which blocks a reader is shown, not merely their order — so the
+# same failure would read differently on two machines. Checked by running the same
+# profile under two locales rather than by inspecting the pin.
+printf '\nlocale independence\n'
+
+profile collate \
+	'x/a_b.go:1.1,2.2 1 0' \
+	'x/aB.go:1.1,2.2 1 0' \
+	'x/a-c.go:1.1,2.2 1 0' \
+	'x/aa.go:1.1,2.2 1 0'
+
+# A locale that is not installed silently falls back to C, which would make the whole
+# check pass without comparing anything. Find one by its effect on sort, not by name.
+c_order="$(printf 'a-c\naB\na_b\naa\n' | LC_ALL=C sort | tr '\n' ' ')"
+alt_locale=""
+for candidate in en_US.UTF-8 en_US.utf8 C.UTF-8; do
+	if [ "$(printf 'a-c\naB\na_b\naa\n' | LC_ALL="$candidate" sort 2>/dev/null | tr '\n' ' ')" != "$c_order" ]; then
+		alt_locale="$candidate"
+		break
+	fi
+done
+
+if [ -z "$alt_locale" ]; then
+	printf '  skip: no installed locale collates differently from C\n'
+else
+	under_c="$(LC_ALL=C "$script" "$work/collate.out" 2>/dev/null || true)"
+	under_alt="$(LC_ALL="$alt_locale" "$script" "$work/collate.out" 2>/dev/null || true)"
+
+	# Without the pin the two runs must disagree, or this proves nothing about it.
+	unpinned="$work/mutant-unpinned.sh"
+	mutate 'LC_ALL=C sort' 'sort' >"$unpinned"
+	chmod +x "$unpinned"
+	loose_c="$(LC_ALL=C "$unpinned" "$work/collate.out" 2>/dev/null || true)"
+	loose_alt="$(LC_ALL="$alt_locale" "$unpinned" "$work/collate.out" 2>/dev/null || true)"
+
+	if [ "$loose_c" = "$loose_alt" ]; then
+		fail "an unpinned sort agrees under C and $alt_locale, so this cannot detect one"
+	elif [ "$under_c" = "$under_alt" ]; then
+		pass "the listing is identical under C and $alt_locale"
+	else
+		fail "the listing differs between C and $alt_locale"
+	fi
+fi
 
 printf '\n'
 if ((failures > 0)); then

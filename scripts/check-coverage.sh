@@ -131,8 +131,11 @@ if [ -z "$merged" ]; then
 	exit 1
 fi
 
-# Sorted so the same failure reads the same way on every run.
-printf '%s\n' "$merged" | sort | awk -v max="$max_reported" '
+# Sorted so the same failure reads the same way on every run, and under LC_ALL=C so it
+# reads the same way on every machine: collation is locale-dependent — en_US.UTF-8
+# folds case and skips punctuation where C compares bytes — and with the listing capped
+# it is not only the order that would vary but which blocks a reader is shown at all.
+printf '%s\n' "$merged" | LC_ALL=C sort | awk -v max="$max_reported" '
 	{
 		# A block with no statements cannot be uncovered, and contributes nothing
 		# either way. go emits these for an empty body — an unreached "case x:",
