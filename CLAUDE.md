@@ -244,9 +244,10 @@ make gate
 ```
 
 That is not a summary of CI — it is what CI runs. Every check in `.github/workflows/gate.yml` runs a
-`Makefile` target, so the local command and the job are the same commands by construction. Read the
-`Makefile` for the step list rather than restating it here; `make coverage`, `make fuzz`, `make
-bench` and the rest are individually runnable while iterating.
+`Makefile` target bar `lint`, which the golangci-lint action runs at the version the `Makefile`
+pins, so the local command and the job are the same commands in the same order. Read the `Makefile`
+for the step list rather than restating it here; `make coverage`, `make fuzz`, `make bench` and the
+rest are individually runnable while iterating.
 
 **Coverage is a gate at exactly 100%, not a target.** `scripts/check-coverage.sh` counts
 statements from the profile rather than reading `go test`'s rounded percentage, so one uncovered

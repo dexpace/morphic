@@ -228,9 +228,10 @@ make gate
 ```
 
 That is not a summary of CI — it is what CI runs. Every check in `.github/workflows/gate.yml` runs
-a `Makefile` target, so the local command and the job are the same commands in the same order. Read
-the `Makefile` for the step list rather than a copy here; `make coverage`, `make fuzz`, `make bench`
-and the rest are individually runnable while iterating.
+a `Makefile` target bar `lint`, which the golangci-lint action runs at the version the `Makefile`
+pins, so the local command and the job are the same commands in the same order. Read the `Makefile`
+for the step list rather than a copy here; `make coverage`, `make fuzz`, `make bench` and the rest
+are individually runnable while iterating.
 
 Run a single test with `go test ./ir -run TestName`. Golden IR snapshots are regenerated with
 the corpus test's `-update` flag after an intentional change.
