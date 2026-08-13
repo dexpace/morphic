@@ -565,17 +565,21 @@ func TestRawChildNode_IsNotTheMergeAwareView(t *testing.T) {
 		raw := RawChildNode(use, "title")
 		require.NotNil(t, raw)
 		assert.Equal(t, yaml.AliasNode, raw.Kind, "the raw tree keeps the alias the source wrote")
-		assert.Equal(t, "anchored", nodeview.New().ChildByToken(use, "title").Value,
-			"where the view stands the anchor in its place")
+		viewed := nodeview.New().ChildByToken(use, "title")
+		require.NotNil(t, viewed, "the view resolves the key the raw tree kept aliased")
+		assert.Equal(t, "anchored", viewed.Value, "where the view stands the anchor in its place")
 	})
 
 	t.Run("a repeated key resolves alike on both sides", func(t *testing.T) {
 		t.Parallel()
 		use := useOf(t, "use: {title: first, title: last}\n")
 
-		assert.Equal(t, "last", RawChildNode(use, "title").Value,
+		raw, viewed := RawChildNode(use, "title"), nodeview.New().ChildByToken(use, "title")
+		require.NotNil(t, raw, "the raw read finds the key")
+		require.NotNil(t, viewed, "and so does the view")
+		assert.Equal(t, "last", raw.Value,
 			"the raw read takes the pair the parser reads, not the first written")
-		assert.Equal(t, "last", nodeview.New().ChildByToken(use, "title").Value,
+		assert.Equal(t, "last", viewed.Value,
 			"and the view takes the same one, so this is no longer a divergence")
 	})
 }
@@ -603,9 +607,12 @@ func TestRawChildNode_FindsAKeyWrittenAsAnAlias(t *testing.T) {
 // last, so returning the first would describe the mapping by a value nothing
 // else in the compiler uses.
 //
-// Spelled with an alias, because that is how the case is reachable — yaml.v3
-// refuses a key written twice the same way, while an explicit pair and an
-// aliased one are two nodes here and one key to the parser.
+// Spelled with an alias, because that is how the case is reachable from a parsed
+// document — yaml.v3 refuses a key written twice when it decodes into a typed
+// value, as the model parse does, so a plainly repeated key faults the document
+// before any reader sees it. Decoding into a *yaml.Node, which is how a fixture
+// builds a tree directly, accepts one; an explicit pair and an aliased one are
+// two nodes here and one key to the parser either way.
 func TestRawChildNode_RepeatedKeyReadsTheLastPair(t *testing.T) {
 	t.Parallel()
 	for _, tc := range []struct{ name, body, want string }{

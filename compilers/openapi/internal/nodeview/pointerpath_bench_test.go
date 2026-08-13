@@ -38,8 +38,12 @@ func componentsDoc(n int) *yaml.Node {
 // work of a single resolution, so the *per-component* cost is what to read:
 // divide by n and compare across widths. It should stay flat, and a run where it
 // grows with n is the index no longer being reached.
+// The narrow widths are here because they are what a real document is mostly
+// made of, and because they are the case an index loses: below minIndexedPairs
+// the walk scans, and a run where these regress is that gate having stopped
+// paying for itself.
 func BenchmarkPointerPath_IntoAWideMapping(b *testing.B) {
-	for _, n := range []int{64, 256, 1024} {
+	for _, n := range []int{2, 8, 64, 256, 1024} {
 		root := componentsDoc(n)
 		pointers := make([]string, n)
 		for i := range pointers {
