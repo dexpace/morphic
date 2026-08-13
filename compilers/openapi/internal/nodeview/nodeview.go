@@ -43,11 +43,18 @@ const maxPointerSegments = 1024
 // View.expand and refCycles), not silently truncated.
 const MergeDepthLimit = 64
 
-// maxCachedPairs bounds total expanded pairs one View retains, roughly
-// 50 MB at 2²¹. It complements MergeDepthLimit: that bound caps one mapping's
-// expansion depth, this one caps a document with many merged mappings. Past the
-// budget the view still answers correctly — it just stops memoizing, trading a
-// cache hit for a recomputation.
+// maxCachedPairs bounds total expanded pairs one View retains, on the order of
+// 50 MB at 2²¹ for the pairs themselves. It complements MergeDepthLimit: that
+// bound caps one mapping's expansion depth, this one caps a document with many
+// merged mappings. Past the budget the view still answers correctly — it just
+// stops memoizing, trading a cache hit for a recomputation.
+//
+// It bounds the key indexes beside the pairs rather than being charged twice for
+// them: an index exists only for a mapping whose pairs this retained and holds
+// one entry per pair, so what every index holds together is bounded by what this
+// already caps. The bound is a count, and a map entry costs more than a Pair, so
+// the memory ceiling with indexes in play is some multiple of the figure above
+// rather than that figure. See keyIndex.
 const maxCachedPairs = 1 << 21
 
 // DocumentRoot returns the effective root node to scan: the content of a
@@ -88,8 +95,13 @@ type Pair struct {
 // that first reached it. MergeDepthLimit and maxCachedPairs bound the chain
 // depth and cache size respectively, so unlimited memoization can't trade the
 // crash for exhausted memory instead.
+//
+// It memoizes one thing more, for the walk rather than the expansion: keyIndex
+// projects a memoized mapping into a key map, so descending a JSON pointer costs
+// a map read per token instead of a scan of every pair at each one.
 type View struct {
 	pairs       map[*yaml.Node][]Pair
+	keys        map[*yaml.Node]map[string]*yaml.Node
 	cachedPairs int
 	inFlight    map[*yaml.Node]bool
 	exhausted   bool
@@ -104,6 +116,8 @@ func (v *View) Exhausted() bool { return v.exhausted }
 // New returns an empty view; a view must not outlive the node tree whose
 // expansions it caches.
 func New() *View {
+	// keys is left nil: most views never index anything, and keyIndex allocates
+	// it on the first mapping wide enough to earn one.
 	return &View{
 		pairs:    map[*yaml.Node][]Pair{},
 		inFlight: map[*yaml.Node]bool{},
@@ -301,6 +315,13 @@ func dedupeFirstWins(pairs []Pair) []Pair {
 // $ref node with a type or properties sibling still drives the crash. The chain
 // terminates only at a node with no top-level $ref at all.
 func (v *View) PureRefTarget(n *yaml.Node) (string, bool) {
+	// Through the index where the walk already built one. This runs on every node
+	// a pointer descended, immediately after the walk that descended it, so a
+	// scan here re-reads exactly the mappings ChildByToken just stopped scanning
+	// — leaving the quadratic the index removes standing in its sibling.
+	if index := v.keys[n]; index != nil {
+		return pureRefFrom(index["$ref"])
+	}
 	return PureRefTargetOf(v.MappingPairs(n))
 }
 
@@ -313,12 +334,19 @@ func PureRefTargetOf(pairs []Pair) (string, bool) {
 		if p.Key != "$ref" {
 			continue
 		}
-		if p.Val == nil || p.Val.Kind != yaml.ScalarNode {
-			return "", false
-		}
-		return InternalPointer(p.Val.Value)
+		return pureRefFrom(p.Val)
 	}
 	return "", false
+}
+
+// pureRefFrom is the decision both readings share, once the value written at
+// `$ref` is in hand: a key that is absent and one whose value is not a scalar
+// are the same answer, so reading the index cannot part company with the scan.
+func pureRefFrom(val *yaml.Node) (string, bool) {
+	if val == nil || val.Kind != yaml.ScalarNode {
+		return "", false
+	}
+	return InternalPointer(val.Value)
 }
 
 // InternalPointer reports the JSON pointer a $ref value names inside this
@@ -434,17 +462,21 @@ func tokenless(pointer string) bool {
 // node named by one JSON pointer token, or nil when absent. The mapping arm
 // reads through the view, so pointer navigation resolves an alias key and an
 // aliased or merged value exactly as PureRefTarget does.
+//
+// n itself is not dereferenced, which is where this parts company with its two
+// neighbours: MappingPairs and PureRefTarget both take an alias standing in for
+// a whole mapping and read the mapping it names, while an alias handed here
+// matches neither arm and answers nil. Every caller reaches a node through a
+// walk that dereferences as it goes — PointerPath does it at each hop — so the
+// difference is unreachable rather than harmless, and it is written down because
+// the sibling promising the opposite is one line away.
 func (v *View) ChildByToken(n *yaml.Node, token string) *yaml.Node {
 	if n == nil {
 		return nil
 	}
 	switch n.Kind {
 	case yaml.MappingNode:
-		for _, p := range v.MappingPairs(n) {
-			if p.Key == token {
-				return p.Val
-			}
-		}
+		return v.mappingChild(n, token)
 	case yaml.SequenceNode:
 		idx, err := strconv.Atoi(token)
 		if err != nil || idx < 0 || idx >= len(n.Content) {
@@ -453,6 +485,136 @@ func (v *View) ChildByToken(n *yaml.Node, token string) *yaml.Node {
 		return n.Content[idx]
 	}
 	return nil
+}
+
+// mappingChild answers one key of a mapping through the key index, falling back
+// to a scan of its pairs for a mapping the index declines to cover.
+//
+// The built index is read before the pairs are, because on the path this exists
+// to speed up they are the same answer: re-deriving the pairs first would spend
+// a Deref and a memo lookup to reach a map read that never needed them.
+//
+// n is known to be a mapping node here, so it is its own Deref and keys the
+// index under the same node MappingPairs memoizes the pairs under.
+func (v *View) mappingChild(n *yaml.Node, token string) *yaml.Node {
+	if index := v.keys[n]; index != nil {
+		return index[token]
+	}
+	pairs := v.MappingPairs(n)
+	if index := v.keyIndex(n, pairs); index != nil {
+		return index[token]
+	}
+	for _, p := range pairs {
+		if p.Key == token {
+			return p.Val
+		}
+	}
+	return nil
+}
+
+// minIndexedPairs is the width below which a mapping is scanned rather than
+// indexed.
+//
+// An index costs a map allocation and one insert per pair to save a comparison
+// per pair per later read, so a mapping narrow enough, or read few enough times,
+// never repays it — and nearly every mapping a pointer descends is both. A
+// document is mostly narrow mappings: a schema body, a media-type entry, a
+// response. The wide ones a walk returns to over and over are the few a
+// components block holds, and those are what this admits.
+//
+// 16 is where the two costs meet closely enough that either side is cheap; the
+// benchmark beside this file carries the widths that show it, narrow ones
+// included, so a run that regresses at n=2 or n=8 is this gate having stopped
+// paying for itself.
+//
+// Width alone is not enough, because it says nothing about reuse: a walk that
+// reads a wide mapping once pays for an index it never reads again. That is not
+// hypothetical — declaresResourceIDAbove builds a view per call and reads each
+// node on the path exactly once, and indexing there cost it time and half again
+// its allocations for nothing. So width is one of two conditions; see keyIndex
+// for the other.
+const minIndexedPairs = 16
+
+// keyIndex returns n's expansion as a key map, building it on first use, or nil
+// for a mapping this view does not index.
+//
+// It is what stops a pointer walk rescanning the mappings it descends through.
+// Resolving R references into a components mapping of M entries scans R×M pairs
+// without it — quadratic in a document's own size, since both grow together —
+// where an index makes each hop a map read. A key map cannot answer differently
+// from the scan it replaces: expandContent yields each key once, so the pairs it
+// is built from hold no duplicate for a first-match scan to prefer.
+//
+// It is gated on the pairs memo rather than on a second reading of memoize's
+// budget test, which is a choice about coupling rather than about behaviour: at
+// the depth this runs at the two select the same mappings. Every read here enters
+// expand at depth 0, where isEntryPoint holds, so a truncated expansion is
+// memoized deliberately and the only expansion the budget turns away is the one
+// memoize turned away for the same reason a moment earlier. A merge cycle is
+// refused before memoize is reached, but it yields no pairs at all and is already
+// below minIndexedPairs.
+//
+// The memo is still the better gate, because it is the condition itself rather
+// than a restatement of it. An index is a projection of a memo entry, so "is
+// there an entry" is what it has to ask; a copy of memoize's arithmetic answers
+// the same today and silently stops tracking it the day memoize's own test
+// changes.
+//
+// It is bounded by that memo rather than charged against it. An index holds one
+// entry per pair of a mapping the memo kept, so the entries across every index
+// are bounded by cachedPairs, which maxCachedPairs already caps. Charging them
+// too would halve the memo — and that memo is not a speed budget but the bound
+// that keeps a merge chain from going cubic, where the bug being fixed was a
+// hang. Halving it would also bring GitHub #404 within reach at half the
+// document size, since which mappings keep a memo is what decides the answer
+// there.
+//
+// On #404 itself, which records that the pairs memo is depth-sensitive and asks
+// for that to be settled before this lookup work proceeds: this index is a
+// projection of that memo and holds no state of its own, so it can be neither
+// more nor less correct than the entry it is built from, and it adds no second
+// way for a view to answer two things. It inherits #404 rather than widening it,
+// and the fix landing there fixes this with it.
+//
+// The second condition is reuse, and it is what the first read records rather
+// than predicts. A mapping arrives here with no entry at all the first time and
+// leaves with a nil one; only a read that finds that marker builds the map. So an
+// index exists exactly where a walk came back, which is the only place it can be
+// repaid — and a caller that touches every node once, as the resource-boundary
+// walk does, allocates nothing but the markers.
+//
+// A nil entry cannot be mistaken for an empty index: an empty mapping has no
+// pairs, and no mapping below minIndexedPairs is ever stored.
+//
+// The markers are bounded by the same budget the indexes are, and more tightly:
+// one is written only for a mapping whose pairs the memo kept, and every such
+// mapping charged at least minIndexedPairs to it, so v.keys holds at most
+// maxCachedPairs/minIndexedPairs entries however many mappings a document has.
+// Measured at saturation, that bound is exact.
+//
+// A built index is never returned from here — every caller reads v.keys itself
+// before reaching this — so the marker is the only entry this has to interpret.
+func (v *View) keyIndex(n *yaml.Node, pairs []Pair) map[string]*yaml.Node {
+	if len(pairs) < minIndexedPairs {
+		return nil
+	}
+	if _, memoized := v.pairs[n]; !memoized {
+		return nil
+	}
+	if _, seen := v.keys[n]; !seen {
+		if v.keys == nil {
+			v.keys = map[*yaml.Node]map[string]*yaml.Node{}
+		}
+		v.keys[n] = nil // read once; the next read is what earns an index
+		return nil
+	}
+
+	index := make(map[string]*yaml.Node, len(pairs))
+	for _, p := range pairs {
+		index[p.Key] = p.Val
+	}
+	v.keys[n] = index
+	return index
 }
 
 // Deref follows AliasNode links to the anchored node, bounded against an alias

@@ -10,6 +10,7 @@ import (
 	"github.com/stretchr/testify/require"
 	yaml "gopkg.in/yaml.v3"
 
+	"github.com/dexpace/morphic/compilers/openapi/internal/nodeview"
 	"github.com/dexpace/morphic/compilers/openapi/internal/openapitest"
 	"github.com/dexpace/morphic/ir"
 )
@@ -515,6 +516,74 @@ func TestRawChildNode_ReadsOnlyAMappingChild(t *testing.T) {
 	assert.Nil(t, RawChildNode(&yaml.Node{Kind: yaml.DocumentNode}, "a"), "nor an empty document")
 }
 
+// TestRawChildNode_IsNotTheMergeAwareView pins the difference between this
+// reader and nodeview's, which is the reason the two exist side by side: what a
+// keyword is preserved *as* is what the source spelled at it, while what a
+// pointer or a $ref *resolves to* is what the parser will see.
+//
+// Two of the cases are ways the trees diverge, and each is a keyword this
+// package would preserve verbatim. Answering a raw read through the view would
+// silently rewrite both — a merged keyword would appear at a schema that never
+// wrote it, and an alias would be replaced by its target.
+//
+// The third is here because it stopped being one. A repeated key used to resolve
+// to opposite ends, and GitHub #356 made the raw read take the last pair as the
+// parser does, on the grounds that returning the first described a mapping by a
+// value nothing else in the compiler uses. It is asserted rather than dropped so
+// that the agreement is pinned: a reader drifting back to first-wins is a change
+// worth failing on, not a detail to rediscover.
+//
+// It reaches across packages because that is where the mistake would be made:
+// nothing inside either reader can see that the other answers differently.
+func TestRawChildNode_IsNotTheMergeAwareView(t *testing.T) {
+	t.Parallel()
+
+	// use is the mapping under test in each case; the raw read of a top-level
+	// key is unambiguous, so it is safe to navigate with.
+	useOf := func(t *testing.T, src string) *yaml.Node {
+		t.Helper()
+		use := RawChildNode(openapitest.YAMLNode(t, src), "use")
+		require.NotNil(t, use, "the fixture must declare a `use` mapping")
+		return use
+	}
+
+	t.Run("a merge key contributes nothing to the raw read", func(t *testing.T) {
+		t.Parallel()
+		use := useOf(t, "base: &b {title: merged}\nuse:\n  <<: *b\n")
+
+		assert.Nil(t, RawChildNode(use, "title"),
+			"the source wrote `<<`, not `title`, so nothing is preserved at title")
+		merged := nodeview.New().ChildByToken(use, "title")
+		require.NotNil(t, merged, "the parser, however, does see it")
+		assert.Equal(t, "merged", merged.Value)
+	})
+
+	t.Run("an aliased value is not dereferenced by the raw read", func(t *testing.T) {
+		t.Parallel()
+		use := useOf(t, "base: &b anchored\nuse: {title: *b}\n")
+
+		raw := RawChildNode(use, "title")
+		require.NotNil(t, raw)
+		assert.Equal(t, yaml.AliasNode, raw.Kind, "the raw tree keeps the alias the source wrote")
+		viewed := nodeview.New().ChildByToken(use, "title")
+		require.NotNil(t, viewed, "the view resolves the key the raw tree kept aliased")
+		assert.Equal(t, "anchored", viewed.Value, "where the view stands the anchor in its place")
+	})
+
+	t.Run("a repeated key resolves alike on both sides", func(t *testing.T) {
+		t.Parallel()
+		use := useOf(t, "use: {title: first, title: last}\n")
+
+		raw, viewed := RawChildNode(use, "title"), nodeview.New().ChildByToken(use, "title")
+		require.NotNil(t, raw, "the raw read finds the key")
+		require.NotNil(t, viewed, "and so does the view")
+		assert.Equal(t, "last", raw.Value,
+			"the raw read takes the pair the parser reads, not the first written")
+		assert.Equal(t, "last", viewed.Value,
+			"and the view takes the same one, so this is no longer a divergence")
+	})
+}
+
 // TestRawChildNode_FindsAKeyWrittenAsAnAlias pins the one spelling where the raw
 // tree and the parsed model disagree about a key's name. yaml.v3 leaves an alias
 // node's own Value as the anchor, so matching it raw looks for "k" while the
@@ -538,9 +607,12 @@ func TestRawChildNode_FindsAKeyWrittenAsAnAlias(t *testing.T) {
 // last, so returning the first would describe the mapping by a value nothing
 // else in the compiler uses.
 //
-// Spelled with an alias, because that is how the case is reachable — yaml.v3
-// refuses a key written twice the same way, while an explicit pair and an
-// aliased one are two nodes here and one key to the parser.
+// Spelled with an alias, because that is how the case is reachable from a parsed
+// document — yaml.v3 refuses a key written twice when it decodes into a typed
+// value, as the model parse does, so a plainly repeated key faults the document
+// before any reader sees it. Decoding into a *yaml.Node, which is how a fixture
+// builds a tree directly, accepts one; an explicit pair and an aliased one are
+// two nodes here and one key to the parser either way.
 func TestRawChildNode_RepeatedKeyReadsTheLastPair(t *testing.T) {
 	t.Parallel()
 	for _, tc := range []struct{ name, body, want string }{
