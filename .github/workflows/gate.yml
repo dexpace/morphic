@@ -4,10 +4,12 @@ on:
     branches: [main]
   pull_request:
 # Every check below runs a Makefile target, so `make gate` on a developer machine
-# is these same commands. Lint is the one step that does not: the action installs
-# the pinned release and runs it, reading the pin back from the Makefile so the
-# version still has a single definition. Add a check to the Makefile and give it
-# a step here; do not spell a command out in this file.
+# is these same commands in the same order — .NOTPARALLEL in the Makefile keeps
+# that true under `make -j`. Lint is the one check that does not run a target:
+# the action installs the pinned release and runs it, and the step above reads
+# that pin back from the Makefile so the version still has a single definition.
+# Add a check to the Makefile and give it a step here; do not spell a command out
+# in this file.
 jobs:
   gate:
     runs-on: ubuntu-latest
