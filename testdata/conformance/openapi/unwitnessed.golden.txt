@@ -23,9 +23,6 @@ Content.SchemaFormat
 CtorValue.Args
 CtorValue.Name
 CtorValue.Scalar
-Deprecation.Message
-Deprecation.RemovalVersion
-Deprecation.Since
 Discriminator.Envelope
 Discriminator.EnvelopeValueName
 Discriminator.Index
@@ -128,10 +125,7 @@ Operation.OneWay
 Operation.OverloadOf
 Operation.Pagination
 Operation.ParameterVisibility
-Operation.RequestStream
-Operation.ResponseStream
 Operation.ReturnTypeVisibility
-Operation.Streaming
 OperationGroup.Availability
 OperationGroup.Groups
 OperationGroup.Resource
@@ -167,7 +161,6 @@ Property.WireID
 Property.WireNameByFormat
 ProtocolDecl.Name
 ProtocolDecl.Options
-Provenance.Inferred
 Provenance.Source
 RPCBinding.FullMethod
 RPCBinding.IdempotencyLevel
@@ -200,7 +193,6 @@ Service.Provenance
 Service.Renames
 Service.Servers
 Service.Version
-StreamDetail.Events
 StreamDetail.Initial
 StreamDetail.RequiresLength
 TemplateArg.Type
@@ -236,6 +228,5 @@ VersionedName.Name
 VersionedName.Version
 VersionedType.Type
 VersionedType.Version
-Visibility.None
 WireIDRange.From
 WireIDRange.To

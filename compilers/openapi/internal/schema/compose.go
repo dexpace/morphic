@@ -47,6 +47,11 @@ func lowerAllOf(c lowering.Ctx, ts *compile.Types, anchors *AnchorIndex, depth i
 	return id, diags
 }
 
+// branchCensusHandled names the census keywords an allOf $ref branch's own
+// composition reads, so the branch census leaves them alone: applyCompositionRequired
+// ORs every branch's required list onto the composed model.
+var branchCensusHandled = []string{"required"}
+
 // requiredEntry is one `required` name declared somewhere in an allOf
 // composition, paired with the pointer of the schema that declared it (an
 // allOf branch, or the composed schema itself) so a diagnostic can point the
@@ -128,6 +133,11 @@ func diagUnattachableRequired(c lowering.Ctx, m *ir.Model, e requiredEntry) ir.D
 // writing nothing beside its $ref hoists nothing and composes straight to the
 // target, so this costs a node only where there is something to keep.
 //
+// The keywords an alias cannot model are kept on it instead, by the same census
+// every other $ref site runs (refSiteRef). `required` is left out of that census
+// because this composition reads it: applyCompositionRequired ORs every branch's
+// required list onto the composed model, so it is consumed here rather than lost.
+//
 // The merge itself is left as it is: merging a branch's own docs, constraints or
 // openness upward onto m would need a precedence rule for branches that disagree,
 // and some of it has no home to merge into at all — Model.Constraints bounds the
@@ -151,8 +161,11 @@ func fillAllOf(c lowering.Ctx, ts *compile.Types, anchors *AnchorIndex, depth in
 				"unresolved allOf $ref %q", b.GetRef().String()))
 			continue
 		}
-		ref, homeDiags := homeDeclaration(c, ts, anchors, b.GetSchema(), ir.TypeRef{Target: id}, bptr, branchHint(b, i), annotation.HomeOwnNode)
+		bs := b.GetSchema()
+		unhomed := unhomedKeywords(bs, nil, branchCensusHandled)
+		ref, homeDiags := homeDeclaration(c, ts, anchors, bs, ir.TypeRef{Target: id}, bptr, branchHint(b, i), annotation.HomeOwnNode, len(unhomed) > 0)
 		diags = append(diags, homeDiags...)
+		diags = append(diags, recordUnhomedKeywords(c, ts, ref.Target, bs, unhomed, refSiteShape, bptr)...)
 		if i == baseIdx {
 			m.Base = &ref
 		} else {
@@ -387,55 +400,131 @@ func isInlineBranch(b *oas3.JSONSchema[oas3.Referenceable]) bool {
 // refTargetHasDiscriminator reports whether a $ref branch resolves to a schema
 // that carries a discriminator (it anchors a polymorphic hierarchy).
 func refTargetHasDiscriminator(b *oas3.JSONSchema[oas3.Referenceable]) bool {
+	target := refBranchTarget(b)
+	return target != nil && target.GetDiscriminator() != nil
+}
+
+// refBranchTarget returns the schema a composition branch resolves to, or nil
+// when the branch is inline, names nothing this compilation resolved, or names a
+// bare boolean schema (which has no *oas3.Schema of its own).
+func refBranchTarget(b *oas3.JSONSchema[oas3.Referenceable]) *oas3.Schema {
+	if !isRefBranch(b) {
+		return nil
+	}
 	resolved := b.GetResolvedSchema()
 	if resolved == nil {
-		return false
+		return nil
 	}
-	s := resolved.GetSchema()
-	return s != nil && s.GetDiscriminator() != nil
+	return resolved.GetSchema()
 }
 
 // subtypeDiscriminatorValue returns the wire tag value this allOf subtype
-// carries within its base's discriminator hierarchy, or "" when no allOf base
-// anchors one. Per ir-design §4.3 the value is the base mapping key that points
-// at this subtype, falling back to the subtype's own schema name (OpenAPI's
+// carries within its discriminator hierarchy, or "" when no ancestor of it
+// anchors one. Per ir-design §4.3 the value is the mapping key that points at
+// this subtype, falling back to the subtype's own schema name (OpenAPI's
 // implicit mapping) when the mapping omits it.
+//
+// Every discriminated ancestor is asked, not only the immediate base: a
+// hierarchy deeper than two levels composes an intermediate schema that declares
+// no discriminator of its own, and reading one hop found nothing there and
+// dropped the key the ancestor spells for this subtype without a word
+// (GitHub #305).
 func subtypeDiscriminatorValue(c lowering.Ctx, ts *compile.Types, s *oas3.Schema, id ir.TypeID, pointer string) string {
-	d := baseBranchDiscriminator(s.GetAllOf())
-	if d == nil {
+	ds := ancestorDiscriminators(s)
+	if len(ds) == 0 {
 		return ""
 	}
-	if m := d.GetMapping(); m != nil {
-		for tag, target := range m.All() {
-			if tid, ok := mappingTargetID(c, ts, target); ok && tid == id {
-				return tag
-			}
+	for _, d := range ds {
+		if tag, ok := mappingTagFor(c, ts, d, id); ok {
+			return tag
 		}
 	}
 	return refLastSegment(pointer)
 }
 
-// baseBranchDiscriminator returns the discriminator declared on the resolved
-// target of the allOf base branch (the $ref anchoring the hierarchy), or nil
-// when no ref branch carries one.
-func baseBranchDiscriminator(branches []*oas3.JSONSchema[oas3.Referenceable]) *oas3.Discriminator {
-	for _, b := range branches {
-		if !isRefBranch(b) {
-			continue
-		}
-		resolved := b.GetResolvedSchema()
-		if resolved == nil {
-			continue
-		}
-		rs := resolved.GetSchema()
-		if rs == nil {
-			continue
-		}
-		if d := rs.GetDiscriminator(); d != nil {
-			return d
+// mappingTagFor returns the key d's mapping spells for the type id, and whether
+// the mapping names it at all. The two answers are distinct: a mapping that
+// names no target for id leaves the caller to fall back to the implicit name,
+// which an empty key would be indistinguishable from.
+func mappingTagFor(c lowering.Ctx, ts *compile.Types, d *oas3.Discriminator, id ir.TypeID) (string, bool) {
+	m := d.GetMapping()
+	if m == nil {
+		return "", false
+	}
+	for tag, target := range m.All() {
+		if tid, ok := mappingTargetID(c, ts, target); ok && tid == id {
+			return tag, true
 		}
 	}
-	return nil
+	return "", false
+}
+
+// maxDiscriminatorAncestorDepth bounds how many composition levels
+// ancestorDiscriminators climbs (styleguide bounded-everything rule). The visited
+// set below is what makes the walk terminate; this is the explicit limit, set far
+// beyond any hierarchy a source document plausibly declares.
+const maxDiscriminatorAncestorDepth = 256
+
+// ancestorDiscriminators returns the discriminators declared on s's composition
+// ancestors, nearest first: the resolved targets of s's own $ref branches in
+// source order, then those targets' $ref branches, and so on.
+//
+// Level by level rather than chain by chain, so "nearest" means fewest hops —
+// which is what decides between two ancestors whose mappings both name the same
+// subtype.
+//
+// The visited set is what bounds the work, and the depth cap does not stand in
+// for it wherever the walk branches. A schema more than one branch reaches is
+// walked once with the set and once per path without it, so the frontier
+// multiplies by the fan-out at every level: 2^level for a chain of diamonds,
+// 5^level for the six-schema cycle where each composes all the others. The cap
+// then bounds the number of levels, not the work, and the walk stops finishing.
+//
+// A cycle with no fan-out is the one shape the cap alone does handle — `A: allOf
+// [$ref B]`, `B: allOf [$ref A]` keeps a frontier of one and simply runs the cap
+// out. That is why the case is not the cycle but the branching, and why both
+// TestAllOf_DiscriminatorValueCyclicComposition (cyclic, fan-out 5) and
+// TestCompile_SharedCompositionAncestorsDoNotAmplify (acyclic, fan-out 2) are
+// needed to hold it: the first stops finishing, the second says so and names why.
+func ancestorDiscriminators(s *oas3.Schema) []*oas3.Discriminator {
+	var out []*oas3.Discriminator
+	visited := make(map[*oas3.Schema]bool)
+	// s is visited before the walk starts, so a composition cycle cannot bring it
+	// back as one of its own ancestors. Without this a schema in a cycle that
+	// declares a discriminator answers to its own mapping, which is a hierarchy of
+	// one thing standing above itself.
+	visited[s] = true
+	level := []*oas3.Schema{s}
+	for depth := 0; depth < maxDiscriminatorAncestorDepth && len(level) > 0; depth++ {
+		next := make([]*oas3.Schema, 0, len(level))
+		for _, cur := range level {
+			next = append(next, unvisitedRefTargets(cur, visited)...)
+		}
+		for _, target := range next {
+			if d := target.GetDiscriminator(); d != nil {
+				out = append(out, d)
+			}
+		}
+		level = next
+	}
+	return out
+}
+
+// unvisitedRefTargets returns the schemas s's $ref composition branches resolve
+// to, in source order, skipping those already seen and marking those it returns.
+// Marking as it enqueues rather than when the walk reaches them is what keeps a
+// schema two branches both name from being queued, and walked, twice.
+func unvisitedRefTargets(s *oas3.Schema, visited map[*oas3.Schema]bool) []*oas3.Schema {
+	var out []*oas3.Schema
+	for _, b := range s.GetAllOf() {
+		target := refBranchTarget(b)
+		if target == nil || visited[target] {
+			continue
+		}
+		visited[target] = true
+		out = append(out, target)
+	}
+	return out
 }
 
 // lowerOneOfAnyOf lowers a oneOf/anyOf schema. A two-variant {X, null} set
@@ -443,7 +532,7 @@ func baseBranchDiscriminator(branches []*oas3.JSONSchema[oas3.Referenceable]) *o
 // with one Variant per branch (oneOf exclusive, anyOf not), never collapsing a
 // union into optional fields.
 func lowerOneOfAnyOf(c lowering.Ctx, ts *compile.Types, anchors *AnchorIndex, depth int, s *oas3.Schema, pointer, hint string) (ir.TypeRef, []ir.Diagnostic) {
-	if inner, ip, ih, ok := nullUnionCollapse(s, pointer, hint); ok {
+	if inner, ip, ih, ok := nullUnionCollapse(s, pointer); ok {
 		ref, diags := Ref(c, ts, anchors, depth, inner, ip, ih)
 		ref.Nullable = true
 		return ref, diags
@@ -601,7 +690,7 @@ func diagUnresolvedBranches(c lowering.Ctx, s *oas3.Schema, pointer string) []ir
 // across. It mirrors lower's dispatch: const and enum win over everything, then
 // allOf, then a declared object type or a bare property set.
 func composesAsModel(s *oas3.Schema) bool {
-	if s.GetConst() != nil || len(s.GetEnum()) > 0 {
+	if s.GetConst() != nil || enumWritten(s) {
 		return false
 	}
 	if len(s.GetAllOf()) > 0 {
@@ -791,7 +880,26 @@ func composedVariant(c lowering.Ctx, ts *compile.Types, anchors *AnchorIndex, de
 	common := commonFor(c, id, vptr, compile.SubHint(body.hint, vhint))
 	def, variantDiags := buildComposedVariant(c, ts, anchors, depth, body, branch.Target, common)
 	ts.Register(id, def)
-	return ir.TypeRef{Target: id}, append(diags, variantDiags...)
+	return ir.TypeRef{Target: id, Nullable: composedVariantNullable(body.schema, branch)},
+		append(diags, variantDiags...)
+}
+
+// composedVariantNullable reports whether the union variant naming a
+// synthesized variant admits null: the variant is the enclosing body conjoined
+// with the branch, so it admits null exactly when the branch does and the body
+// does not forbid it. That is schemaNullVerdict's allOf rule applied to the one
+// conjunction the source does not spell as an allOf, which is what keeps a
+// distributed union answering what the plain union over the same branch does.
+//
+// The bit belongs on this TypeRef rather than on the variant model's Base or
+// Mixins for the reason conjoinBranch records: those name a conjunct, and
+// nullability is a property of the usage that names the conjunction.
+func composedVariantNullable(body *oas3.Schema, branch ir.TypeRef) bool {
+	if !branch.Nullable {
+		return false
+	}
+	budget := maxNullConjuncts
+	return schemaNullVerdict(body, &budget) != nullForbidden
 }
 
 // buildComposedVariant assembles the variant Model itself. Every fill reads the
@@ -818,7 +926,8 @@ func buildComposedVariant(c lowering.Ctx, ts *compile.Types, anchors *AnchorInde
 // nothing, a Mixin otherwise. Only the target is carried, never the branch
 // ref's Nullable bit — fillAllOf drops it for an allOf entry on the same
 // reasoning: Base and Mixins name a conjunct, and nullability is a property of
-// the usage that names the conjunction, not of one side of it.
+// the usage that names the conjunction, not of one side of it. The usage here is
+// the union variant, and composedVariantNullable is what puts the bit on it.
 func conjoinBranch(m *ir.Model, branch ir.TypeID) {
 	target := ir.TypeRef{Target: branch}
 	if m.Base == nil && len(m.Mixins) == 0 {
@@ -1012,30 +1121,54 @@ func propIDByName(m *ir.Model, name string) (ir.PropID, bool) {
 
 // lowerEnum hoists a schema with `enum` as a closed Enum. A heterogeneous or
 // non-scalar member set has no Enum home, so it falls back to a Union of
-// Literals with an info diagnostic — nothing is dropped.
+// Literals with an info diagnostic — nothing is dropped. An empty member list
+// takes neither path (emptyEnum).
 //
-// A schema that admits null in its own right — `type: [T, "null"]`, 3.0
-// `nullable: true` — spells its nullable enum by listing `null` among the
+// A member set past the caller's budget is the one case where something is: the
+// enum lowers as the top type with an error diagnostic naming the budget. The
+// count is checked before either branch below, because both are linear in it —
+// the Enum mints an EnumMember with a canonical word sequence per member, and
+// the fallback a hoisted Literal type and a union variant per member — and it is
+// that per-member cost, not the source's size, that GitHub #75 measured
+// amplifying 10.9 MB of one enum into 2.6 GB of peak RSS.
+//
+// A schema that admits null spells its nullable enum by listing `null` among the
 // members, so that member is stripped and normalized onto the enclosing
 // reference's Nullable bit (ir-design §3.3) rather than degrading the whole
 // enum. schemaAdmitsNull is what decides that here *and* what a reference
 // re-derives the bit from (refNullable at a $ref site, lowerSchemaBody inline),
 // so the null this drops is exactly the null those put back; a spelling only one
-// of them recognized would lose it. A conjunct position is the standing
-// exception: Model.Base and Mixins name one side of a conjunction and carry no
-// Nullable bit at all (conjoinBranch), so an `allOf: [{$ref: T}]` over a nullable
-// T reaches no null — in every spelling of T's nullability, this one included
-// rather than this one only. GitHub #279 holds that.
+// of them recognized would lose it.
 //
-// That is also why the enum's own `null` member does not itself count as
-// admitting null: `{enum: [red, green, null]}` with no type keyword is left to
-// the union-of-literals fallback, since schemaAdmitsNull does not read enum
-// members and stripping on a wider rule here would set the bit nowhere. Widening
-// it is a change to every site that computes nullability, not to this one, and
-// it has its own decisions to make — GitHub #265 holds them.
+// A non-empty enum decides null admission by itself, so a bare
+// `{enum: [red, green, null]}` normalizes like the type-array spelling of the
+// same set. `{type: string, enum: [red, green, null]}` still does not: the type
+// keyword conjoins with the members and forbids the null they list, so
+// stripping there would widen the declared type rather than normalize it.
+//
+// A member set with no Enum home is unaffected by the stripping either way. It
+// falls back to a Union over the members as written, null included, beside a
+// reference that also says the position admits null — one fact stated twice,
+// which is what the type-array spelling of such a set already produced and what
+// the bare spelling now matches.
 func lowerEnum(c lowering.Ctx, ts *compile.Types, s *oas3.Schema, pointer, hint string) (ir.TypeID, []ir.Diagnostic) {
 	var diags []ir.Diagnostic
 	id := internNode(c, ts, pointer, hint, func(common ir.TypeCommon) ir.TypeDef {
+		// The degenerate list first, then the budget. They cannot both hold — a
+		// member count of zero exceeds no positive budget — so the order decides
+		// nothing, but reading the empty case beside the members it lacks is
+		// clearer than reading it after a bound on how many there may be.
+		if len(s.GetEnum()) == 0 {
+			def, emptyDiags := emptyEnum(c, s, common, pointer)
+			diags = append(diags, emptyDiags...)
+			return def
+		}
+		if n := len(s.GetEnum()); c.Limits.EnumMembersExceeded(n) {
+			diags = append(diags, c.DiagAt(ir.SeverityError, diag.BudgetExceeded, pointer,
+				"enum declares %d members, past the %d-member budget; lowered as any",
+				n, c.Limits.MaxEnumMembers))
+			return &ir.Any{TypeCommon: common}
+		}
 		members, memberPrim, ok := enumMembers(s.GetEnum(), schemaAdmitsNull(s))
 		if !ok {
 			def, enumDiags := enumAsUnion(c, ts, s, common, pointer, hint)
@@ -1050,6 +1183,43 @@ func lowerEnum(c lowering.Ctx, ts *compile.Types, s *oas3.Schema, pointer, hint 
 		}
 	})
 	return id, diags
+}
+
+// emptyEnum lowers `enum: []` — a value space fixed to the empty set, so the
+// position accepts no instance — as the closed Enum over no member, with the one
+// warning that says so.
+//
+// This is the IR's exact spelling of an empty value space, not an approximation
+// of one. There is no bottom TypeKind to reach for, but a closed Enum admits its
+// members and nothing else, so a closed Enum with none admits nothing. The
+// neighbouring construct settles for less: a boolean `false` schema also matches
+// nothing and lowers to a closed empty Model (falseSchema), which still admits
+// the empty object.
+//
+// It deliberately does not reach enumAsUnion. That fallback mints one variant
+// per member, so an empty member list would produce a Union with no variants —
+// a node nothing in the IR rejects and no reader can act on, which is a quieter
+// version of the same defect rather than a fix for it (GitHub #318).
+//
+// ValueType is the declared scalar type where one is written and the top type
+// otherwise: with no member to classify, nothing narrower is known, and nothing
+// narrower is needed either — the member list is what holds the values, and it
+// is empty whatever this says.
+//
+// What the position lowers to is settled here; whether a *reference* to it
+// admits null is not. That bit is computed by schemaAdmitsNull at each use site,
+// which reads the type keyword and not the value set, so
+// `{type: [T, "null"], enum: []}` still reads as nullable at its uses — a
+// nullable type array beside an enum listing no null member, which is GitHub
+// #288's shape exactly and is settled there rather than here.
+func emptyEnum(c lowering.Ctx, s *oas3.Schema, common ir.TypeCommon, pointer string) (ir.TypeDef, []ir.Diagnostic) {
+	diags := []ir.Diagnostic{c.DiagAt(ir.SeverityWarning, diag.EmptyEnum, pointer,
+		"enum declares no member, so this position accepts no value; lowered as a closed enum with no members")}
+	return &ir.Enum{
+		TypeCommon: common,
+		ValueType:  enumValueType(s, ir.PrimAny),
+		Closed:     true,
+	}, diags
 }
 
 // enumMembers converts enum nodes into scalar members, reporting ok=false on any

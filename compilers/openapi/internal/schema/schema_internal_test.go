@@ -17,6 +17,7 @@ import (
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/ids"
 	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
+	"github.com/dexpace/morphic/compilers/openapi/internal/openapitest"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -31,7 +32,7 @@ func TestLower_DepthCapExceeded(t *testing.T) {
 		indent += "  "
 	}
 	b.WriteString(indent + "type: string\n")
-	doc, diags := lowerSpec(t, componentSpec(b.String()))
+	doc, diags := lowerSpec(t, openapitest.ComponentSpec(b.String()))
 	require.NotNil(t, doc)
 	var sawCap bool
 	for _, d := range diags {
@@ -44,7 +45,7 @@ func TestLower_DepthCapExceeded(t *testing.T) {
 
 func TestIsNullSchema_EmptyEitherFalse(t *testing.T) {
 	t.Parallel()
-	assert.False(t, isNullSchema(emptyEitherSchema()), "empty either is not a null schema")
+	assert.False(t, isNullSchema(openapitest.EmptyEitherSchema()), "empty either is not a null schema")
 }
 
 func TestPreserveUnionSiblings_MissingNode(t *testing.T) {
@@ -91,9 +92,11 @@ func TestSchemaConstraints_NonSchemaInputs(t *testing.T) {
 		annotation.SchemaOf(oas3.NewJSONSchemaFromBool(true)),
 		annotation.SchemaOf(oas3.NewJSONSchemaFromReference("#/components/schemas/Other")),
 	} {
-		cons, diags := schemaConstraints(l.ctx, js, "/p")
+		var kept ir.Unmodeled
+		cons, diags := schemaConstraints(l.ctx, &kept, js, "/p")
 		assert.Nil(t, cons)
 		assert.Empty(t, diags)
+		assert.Empty(t, kept)
 	}
 }
 
@@ -107,9 +110,11 @@ func TestSchemaConstraints_EmptyRefSchema(t *testing.T) {
 	l := newRawLowerer(&soa.OpenAPI{})
 	emptyRef := references.Reference("")
 	js := oas3.NewJSONSchemaFromSchema[oas3.Referenceable](&oas3.Schema{Ref: &emptyRef})
-	cons, diags := schemaConstraints(l.ctx, annotation.SchemaOf(js), "/p")
+	var kept ir.Unmodeled
+	cons, diags := schemaConstraints(l.ctx, &kept, annotation.SchemaOf(js), "/p")
 	assert.Nil(t, cons)
 	assert.Empty(t, diags)
+	assert.Empty(t, kept)
 }
 
 func TestResolveSchemaRef_ReusesInternedSubSchema(t *testing.T) {
@@ -117,7 +122,7 @@ func TestResolveSchemaRef_ReusesInternedSubSchema(t *testing.T) {
 	l := newRawLowerer(&soa.OpenAPI{})
 	l.types.Intern(deepPointer, "t/anon/prev", func() ir.TypeDef { return &ir.Any{} })
 
-	id, ok, diags := resolveSchemaRef(l.ctx, l.types, &l.anchors, TopLevelDepth, emptyEitherSchema(), "#"+deepPointer)
+	id, ok, diags := resolveSchemaRef(l.ctx, l.types, &l.anchors, TopLevelDepth, openapitest.EmptyEitherSchema(), "#"+deepPointer)
 	require.True(t, ok, "a $ref to an already-hoisted sub-schema reuses its ID")
 	assert.Equal(t, ir.TypeID("t/anon/prev"), id)
 	assert.Empty(t, diags, "reusing an interned node reports nothing")
@@ -212,6 +217,67 @@ func TestDeclaresResourceIDAbove_WithoutARawTree(t *testing.T) {
 		"a document with no raw tree declares no resource anywhere")
 }
 
+// TestDeclaresResourceIDAbove_EmptySegmentIsATokenNotAnArtifact pins which empty
+// segments the path walk may drop. Splitting a pointer on '/' produces one
+// leading empty segment that no reference token stands behind; every later one
+// is the token naming the key "", which is how a schema literally named "" is
+// addressed. Dropping those stopped the walk above the position and read the
+// $id of the components/schemas map instead of the schema's own.
+//
+// The document root carries a member named "" of its own, carrying an $id. It is
+// what makes the two rootward cases discriminating rather than decorative: the
+// empty pointer names the root and must not reach it, while "/" is precisely how
+// ids.Ptr spells that member and must. Without the $id there, "stopped at the
+// root" and "descended and fell off the tree" are the same false.
+func TestDeclaresResourceIDAbove_EmptySegmentIsATokenNotAnArtifact(t *testing.T) {
+	t.Parallel()
+	l, diags := loweredFor(t, `openapi: 3.1.0
+info: {title: T, version: "1"}
+paths: {}
+"": {$id: https://example.com/root-member}
+components:
+  schemas:
+    "":
+      $id: https://example.com/empty
+      properties: {x: {type: string}}
+    Sibling: {type: string}
+`)
+	openapitest.RequireNoErrorDiags(t, diags)
+
+	for name, tc := range map[string]struct {
+		pointer string
+		want    bool
+		why     string
+	}{
+		"the position is named by a trailing empty token": {
+			"/components/schemas/", true,
+			"the trailing token names the schema itself, whose own $id is the boundary",
+		},
+		"an interior empty token still descends": {
+			"/components/schemas//properties/x", true,
+			"the $id above a property is still a boundary over it",
+		},
+		"a sibling sits above no $id at all": {
+			"/components/schemas/Sibling", false,
+			"a neighbour of the named schema inherits no boundary from it",
+		},
+		"the empty pointer names the document root": {
+			"", false,
+			`the empty pointer stops at the root, so the $id under the root's "" member is out of reach`,
+		},
+		"a lone slash names the root member keyed \"\"": {
+			"/", true,
+			`ids.Ptr("") spells that member "/", so its own $id is the boundary — reading "/" as the root, ` +
+				"the way a reference resolves, would walk straight past it",
+		},
+	} {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			assert.Equal(t, tc.want, declaresResourceIDAbove(l.ctx, tc.pointer), tc.why)
+		})
+	}
+}
+
 // TestDynamicAnchors_WalksEveryNodeShape drives the raw-tree walk over the
 // shapes a YAML document can present, rather than only the mappings a schema
 // happens to be written as. The walk reads the raw tree because oas3.Schema has
@@ -228,32 +294,32 @@ func TestDynamicAnchors_WalksEveryNodeShape(t *testing.T) {
 		{"a nil node yields nothing", nil, map[string][]string{}},
 		{
 			"a bare scalar declares no anchor",
-			yamlNode(t, `just-a-string`),
+			openapitest.YAMLNode(t, `just-a-string`),
 			map[string][]string{},
 		},
 		{
 			"a sequence indexes its elements by ordinal",
-			yamlNode(t, "- {$dynamicAnchor: first}\n- {other: 1}\n- {$dynamicAnchor: third}\n"),
+			openapitest.YAMLNode(t, "- {$dynamicAnchor: first}\n- {other: 1}\n- {$dynamicAnchor: third}\n"),
 			map[string][]string{"first": {"/0"}, "third": {"/2"}},
 		},
 		{
 			"a sequence element standing in for a mapping is followed",
-			yamlNode(t, "- &a {$dynamicAnchor: first}\n- *a\n"),
+			openapitest.YAMLNode(t, "- &a {$dynamicAnchor: first}\n- *a\n"),
 			map[string][]string{"first": {"/0", "/1"}},
 		},
 		{
 			"a non-string key cannot name a keyword and is skipped",
-			yamlNode(t, "? [a, b]\n: {$dynamicAnchor: buried}\n$dynamicAnchor: reached\n"),
+			openapitest.YAMLNode(t, "? [a, b]\n: {$dynamicAnchor: buried}\n$dynamicAnchor: reached\n"),
 			map[string][]string{"reached": {""}},
 		},
 		{
 			"an empty anchor name is not indexed",
-			yamlNode(t, `{$dynamicAnchor: ""}`),
+			openapitest.YAMLNode(t, `{$dynamicAnchor: ""}`),
 			map[string][]string{},
 		},
 		{
 			"a non-scalar anchor value is not indexed",
-			yamlNode(t, `{$dynamicAnchor: [a]}`),
+			openapitest.YAMLNode(t, `{$dynamicAnchor: [a]}`),
 			map[string][]string{},
 		},
 	}
@@ -298,7 +364,7 @@ func TestDynamicAnchors_CountsWhatAnAliasBringsIn(t *testing.T) {
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			got, complete := dynamicAnchors(yamlNode(t, tc.source))
+			got, complete := dynamicAnchors(openapitest.YAMLNode(t, tc.source))
 			assert.True(t, complete)
 			assert.Equal(t, tc.want, got["tail"])
 		})
@@ -343,7 +409,7 @@ func TestDynamicAnchors_StopsAtTheDepthCap(t *testing.T) {
 // many more paths than the tree has nodes; the budget is what caps the total.
 func TestAnchorWalk_StopsAtTheNodeBudget(t *testing.T) {
 	t.Parallel()
-	source := yamlNode(t, "a: {$dynamicAnchor: first}\nb: {$dynamicAnchor: second}\n")
+	source := openapitest.YAMLNode(t, "a: {$dynamicAnchor: first}\nb: {$dynamicAnchor: second}\n")
 
 	w := newAnchorWalk(2) // the root mapping and its first value, and no more
 	w.walk(source, "", 0)
@@ -361,8 +427,8 @@ func TestDynamicAnchorIndex_ReportsATruncatedWalk(t *testing.T) {
 	// The walk descends into every key, so an extension at the document root
 	// nests the tree past the cap without the schema lowering ever seeing it.
 	deep := strings.Repeat("{a: ", maxDynamicAnchorDepth) + "1" + strings.Repeat("}", maxDynamicAnchorDepth)
-	l, diags := loweredFor(t, componentSpec("    A: {type: string}\n")+"x-deep: "+deep+"\n")
-	requireNoErrorDiags(t, diags)
+	l, diags := loweredFor(t, openapitest.ComponentSpec("    A: {type: string}\n")+"x-deep: "+deep+"\n")
+	openapitest.RequireNoErrorDiags(t, diags)
 
 	_, got := l.anchors.sites(l.ctx, "absent")
 	require.NotNil(t, l.anchors.byName, "the index is built even when partial")
@@ -393,7 +459,7 @@ func TestPreserveUnhomedKeywords_MissingNode(t *testing.T) {
 func TestRecordUnhomedKeywords_MissingOwner(t *testing.T) {
 	t.Parallel()
 	l := newRawLowerer(&soa.OpenAPI{})
-	diags := recordUnhomedKeywords(l.ctx, l.types, "t/anon/missing", &oas3.Schema{}, []string{"items"}, ir.KindPrimitive, "/p")
+	diags := recordUnhomedKeywords(l.ctx, l.types, "t/anon/missing", &oas3.Schema{}, []string{"items"}, nodeShape(ir.KindPrimitive), "/p")
 	assertInternalInvariant(t, diags)
 }
 
@@ -446,6 +512,43 @@ func TestRefNullable_AnUnresolvedRefIsNotNullable(t *testing.T) {
 	assert.False(t, refNullable(js))
 }
 
+// TestSchemaNullVerdict_TheConjunctWalkIsBounded pins the budget the conjunct
+// walk runs on. Whether a schema admits null is decided partly by its allOf
+// conjuncts, each reached through a $ref whose target is asked the same
+// question, so a schema conjoining itself would otherwise not terminate.
+//
+// A budget spent per schema visited caps depth as well as breadth, and an
+// exhausted walk answers "silent" — the verdict that claims the least, so a
+// spec too deep to read is never reported as admitting a null it does not.
+func TestSchemaNullVerdict_TheConjunctWalkIsBounded(t *testing.T) {
+	t.Parallel()
+	nullable := &oas3.Schema{
+		Type: oas3.NewTypeFromArray([]oas3.SchemaType{oas3.SchemaTypeString, oas3.SchemaTypeNull}),
+	}
+
+	budget := 1
+	require.Equal(t, nullAdmitted, schemaNullVerdict(nullable, &budget),
+		"the fixture admits null while there is budget to read it")
+
+	spent := 0
+	assert.Equal(t, nullSilent, schemaNullVerdict(nullable, &spent),
+		"an exhausted budget stops the walk without claiming anything")
+	assert.Positive(t, maxNullConjuncts, "the cap is a real bound, not zero")
+}
+
+// TestConjunctNullVerdict_ABranchWithNoSchemaSaysNothing pins the guard on an
+// absent allOf entry. The parser never produces a nil branch, so nothing in the
+// corpus reaches it; a conjunct that is not there constrains nothing, which is
+// silence rather than a refusal — reading it as forbidding would let one
+// missing entry strip a sibling's null.
+func TestConjunctNullVerdict_ABranchWithNoSchemaSaysNothing(t *testing.T) {
+	t.Parallel()
+	budget := maxNullConjuncts
+	assert.Equal(t, nullSilent, conjunctNullVerdict(nil, &budget))
+	assert.Equal(t, nullSilent, conjunctNullVerdict(openapitest.EmptyEitherSchema(), &budget),
+		"a branch whose either-value holds neither schema nor bool says nothing either")
+}
+
 // TestComponentSchemaAt_OnlyATopLevelComponentPointerHasABody pins the split
 // the function exists for: a component pointer has a body, and a pointer into
 // that same component does not.
@@ -459,11 +562,11 @@ func TestRefNullable_AnUnresolvedRefIsNotNullable(t *testing.T) {
 // the wrong answer visible: it is a name like any other here.
 func TestComponentSchemaAt_OnlyATopLevelComponentPointerHasABody(t *testing.T) {
 	t.Parallel()
-	l, diags := loweredFor(t, componentSpec(
+	l, diags := loweredFor(t, openapitest.ComponentSpec(
 		"    Outer:\n      type: object\n      title: outer\n"+
 			"      properties: {inner: {type: string, title: inner}}\n"+
 			"    \"\": {type: string, title: empty}\n"))
-	requireNoErrorDiags(t, diags)
+	openapitest.RequireNoErrorDiags(t, diags)
 
 	tests := []struct {
 		name, pointer, wantTitle string
@@ -542,8 +645,8 @@ func TestDynamicHop_HopsOnlyWhenExactlyOneAnchorSiteIsNamed(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			l, diags := loweredFor(t, componentSpec(tc.schemas))
-			requireNoErrorDiags(t, diags)
+			l, diags := loweredFor(t, openapitest.ComponentSpec(tc.schemas))
+			openapitest.RequireNoErrorDiags(t, diags)
 			if tc.anchor != "" {
 				sites, siteDiags := l.anchors.sites(l.ctx, tc.anchor)
 				require.Len(t, sites, tc.wantSites, "the fixture must set up the case it is named for")
@@ -556,5 +659,47 @@ func TestDynamicHop_HopsOnlyWhenExactlyOneAnchorSiteIsNamed(t *testing.T) {
 			assert.Equal(t, tc.wantNext, next)
 			assert.Empty(t, hopDiags)
 		})
+	}
+}
+
+// TestKeywordHome_AnUnknownKeywordIsHomedNowhere reaches the arm censusKeywords
+// cannot reach today, the way TestDeclaresFamily_AnUnknownNameDeclaresNothing
+// reaches its own: every keyword unhomedKeywords asks about is one with a case
+// here.
+//
+// "No home" is the safe half of that default. A keyword added to censusKeywords
+// without an arm is kept verbatim beside every node it is written on — noisy,
+// never lossy — where the opposite default would drop it in exactly the silence
+// GitHub #268 was.
+func TestKeywordHome_AnUnknownKeywordIsHomedNowhere(t *testing.T) {
+	t.Parallel()
+	assert.False(t, keywordHome(&ir.Model{}, &oas3.Schema{}, "unevaluatedItems"),
+		"a keyword with no arm has no home on any node")
+}
+
+// TestKeywordHome_EveryCensusKeywordHasANodeThatCarriesIt pins the agreement
+// censusKeywords and keywordHome's switch have to keep, in the direction the
+// default cannot fake.
+//
+// A listed keyword with no arm answers "homeless" everywhere, and that is the
+// answer a $ref site expects from every one of them, so no ref-site test can see
+// the omission. Asking instead for the node kind that *does* carry the keyword
+// is what makes it visible.
+func TestKeywordHome_EveryCensusKeywordHasANodeThatCarriesIt(t *testing.T) {
+	t.Parallel()
+	// A declared scalar type, which is what homes `format` on a primitive and
+	// `type` on anything at all.
+	s := &oas3.Schema{Type: oas3.NewTypeFromString(oas3.SchemaTypeString)}
+	nodes := []ir.TypeDef{
+		&ir.Model{}, &ir.List{}, &ir.Tuple{}, &ir.Literal{}, &ir.Enum{}, &ir.Union{},
+		&ir.Scalar{Encoding: &ir.Encoding{}}, &ir.Primitive{},
+	}
+	require.NotEmpty(t, censusKeywords, "an empty census would make this pass vacuously")
+	for _, keyword := range censusKeywords {
+		homed := false
+		for _, td := range nodes {
+			homed = homed || keywordHome(td, s, keyword)
+		}
+		assert.True(t, homed, "%q is in the census with no node kind that carries it", keyword)
 	}
 }

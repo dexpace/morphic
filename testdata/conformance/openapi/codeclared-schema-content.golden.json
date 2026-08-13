@@ -1,0 +1,248 @@
+{
+  "irVersion": "0.3.0",
+  "name": "CoDeclaredSchemaContent",
+  "version": "1.0.0",
+  "docs": {},
+  "services": [
+    {
+      "id": "s/openapi/0",
+      "name": {
+        "source": "CoDeclaredSchemaContent",
+        "canonical": "co_declared_schema_content"
+      },
+      "docs": {},
+      "groups": [
+        {
+          "name": {
+            "hint": "default"
+          },
+          "docs": {},
+          "operations": [
+            {
+              "id": "op/openapi/paths/~1x/get",
+              "name": {
+                "source": "getX",
+                "canonical": "get_x"
+              },
+              "docs": {},
+              "params": [
+                {
+                  "name": {
+                    "source": "p",
+                    "canonical": "p"
+                  },
+                  "type": {
+                    "target": "t/prim/string",
+                    "nullable": false
+                  },
+                  "required": false,
+                  "docs": {},
+                  "unmodeled": {
+                    "openapi:schema": {
+                      "reason": "degraded_lowering",
+                      "value": {
+                        "type": "integer"
+                      },
+                      "provenance": {
+                        "source": 0,
+                        "pointer": "/paths/~1x/get/parameters/0/schema"
+                      }
+                    }
+                  }
+                },
+                {
+                  "name": {
+                    "source": "q",
+                    "canonical": "q"
+                  },
+                  "type": {
+                    "target": "t/prim/string",
+                    "nullable": false
+                  },
+                  "required": false,
+                  "docs": {},
+                  "unmodeled": {
+                    "openapi:schema": {
+                      "reason": "degraded_lowering",
+                      "value": {
+                        "type": "integer"
+                      },
+                      "provenance": {
+                        "source": 0,
+                        "pointer": "/paths/~1x/get/parameters/1/schema"
+                      }
+                    }
+                  }
+                }
+              ],
+              "responses": [
+                {
+                  "name": {
+                    "hint": "200"
+                  },
+                  "conditions": {
+                    "statusCodes": [
+                      {
+                        "from": 200,
+                        "to": 200
+                      }
+                    ]
+                  },
+                  "headers": [
+                    {
+                      "id": "p/openapi/paths/~1x/get/responses/200/headers/X-H",
+                      "name": {
+                        "source": "X-H",
+                        "canonical": "x_h"
+                      },
+                      "wireName": "X-H",
+                      "type": {
+                        "target": "t/prim/string",
+                        "nullable": false
+                      },
+                      "required": false,
+                      "clientOptional": false,
+                      "defaultAdded": false,
+                      "visibility": {
+                        "none": false
+                      },
+                      "encoding": {
+                        "mediaType": "application/json"
+                      },
+                      "flatten": false,
+                      "eventHeader": false,
+                      "eventPayload": false,
+                      "secret": false,
+                      "docs": {},
+                      "unmodeled": {
+                        "openapi:schema": {
+                          "reason": "degraded_lowering",
+                          "value": {
+                            "type": "integer"
+                          },
+                          "provenance": {
+                            "source": 0,
+                            "pointer": "/paths/~1x/get/responses/200/headers/X-H/schema"
+                          }
+                        }
+                      },
+                      "provenance": {
+                        "source": 0,
+                        "pointer": "/paths/~1x/get/responses/200/headers/X-H"
+                      }
+                    }
+                  ],
+                  "docs": {
+                    "description": "ok"
+                  }
+                }
+              ],
+              "oneWay": false,
+              "idempotency": {},
+              "auth": null,
+              "bindings": {
+                "http": [
+                  {
+                    "method": "GET",
+                    "uriTemplate": "/x",
+                    "sharedRoute": false,
+                    "paramBindings": [
+                      {
+                        "param": "p",
+                        "location": "query",
+                        "wireName": "p",
+                        "style": "form",
+                        "explode": true,
+                        "allowReserved": false,
+                        "contentType": "application/json"
+                      },
+                      {
+                        "param": "q",
+                        "location": "query",
+                        "wireName": "q",
+                        "style": "form",
+                        "explode": true,
+                        "allowReserved": false,
+                        "contentType": "application/json"
+                      }
+                    ],
+                    "checksumRequired": false,
+                    "isWebhook": false
+                  }
+                ]
+              },
+              "provenance": {
+                "source": 0,
+                "pointer": "/paths/~1x/get"
+              }
+            }
+          ]
+        }
+      ],
+      "auth": null,
+      "provenance": {
+        "source": 0
+      }
+    }
+  ],
+  "types": {
+    "t/prim/string": {
+      "kind": "primitive",
+      "id": "t/prim/string",
+      "name": {},
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0
+      },
+      "prim": "string"
+    }
+  },
+  "servers": [
+    {
+      "name": {
+        "hint": "server"
+      },
+      "urlTemplate": "/",
+      "description": {},
+      "auth": null
+    }
+  ],
+  "diagnostics": [
+    {
+      "severity": "warning",
+      "code": "openapi/degraded-construct",
+      "message": "a parameter or header declares either schema or content, not both; this one declares both, so it lowered as its content, with schema kept verbatim under Unmodeled",
+      "provenance": {
+        "source": 0,
+        "pointer": "/paths/~1x/get/parameters/0/schema"
+      }
+    },
+    {
+      "severity": "warning",
+      "code": "openapi/degraded-construct",
+      "message": "a parameter or header declares either schema or content, not both; this one declares both, so it lowered as its content, with schema kept verbatim under Unmodeled",
+      "provenance": {
+        "source": 0,
+        "pointer": "/paths/~1x/get/parameters/1/schema"
+      }
+    },
+    {
+      "severity": "warning",
+      "code": "openapi/degraded-construct",
+      "message": "a parameter or header declares either schema or content, not both; this one declares both, so it lowered as its content, with schema kept verbatim under Unmodeled",
+      "provenance": {
+        "source": 0,
+        "pointer": "/paths/~1x/get/responses/200/headers/X-H/schema"
+      }
+    }
+  ],
+  "sources": [
+    {
+      "format": "openapi@3.1",
+      "path": "codeclared-schema-content.yaml",
+      "hash": "2967906975aba5023f63435116ac38f40448f8a82ed8f6fbf43211610e87ed77"
+    }
+  ]
+}

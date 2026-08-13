@@ -11,8 +11,8 @@ import (
 
 // The redeclaration-conflict helpers carry defensive guards for states a
 // well-formed lowered document never reaches: a reference into no interned type,
-// a base-less opaque scalar, a cyclic base chain, and an unparseable numeric
-// literal. These exercise those guards directly.
+// a base-less opaque scalar, and a cyclic base chain. These exercise those
+// guards directly.
 
 func TestResolvePrimKind_DanglingTargetIsNotResolved(t *testing.T) {
 	t.Parallel()
@@ -59,11 +59,45 @@ func TestDifferentTypeKind_UnresolvableTargetIsNotAConflict(t *testing.T) {
 		"an unresolvable target is not treated as a differing kind")
 }
 
-func TestBigValEqual_UnparseableFallsBackToStringEquality(t *testing.T) {
+// Both BigVal keywords rest on the same magnitude comparison, so both are
+// driven here over the literals that comparison has to get right: one value
+// under two spellings, and two values that genuinely differ — mostly at a
+// magnitude math/big will not build as a rational at all, with one in-range
+// row so a comparison that only handled the extremes would still be caught.
+//
+// Every literal is built through ir.NewBigVal, which is the only way a bound
+// reaches these helpers. A pair it refuses cannot arrive, so a row that used
+// one would say nothing about what the compiler compares.
+func TestBigValConflictDetails_CompareMagnitudesAtAnyScale(t *testing.T) {
 	t.Parallel()
-	assert.True(t, bigValEqual(ir.BigVal("not-a-number"), ir.BigVal("not-a-number")),
-		"unparseable operands compare by exact string")
-	assert.False(t, bigValEqual(ir.BigVal("not-a-number"), ir.BigVal("other")))
+	tests := []struct {
+		name         string
+		a, b         string
+		wantConflict bool
+	}{
+		{name: "one value, two spellings", a: "1e1000001", b: "10e1000000"},
+		{name: "one value, two spellings, in reverse", a: "10e1000000", b: "1e1000001"},
+		{name: "one value against a rational's own range", a: "1e2", b: "100"},
+		{name: "one exponent apart", a: "1e1000001", b: "1e1000002", wantConflict: true},
+		{name: "one leading digit apart", a: "1e1000001", b: "2e1000001", wantConflict: true},
+		{name: "a sign apart", a: "1e1000001", b: "-1e1000001", wantConflict: true},
+		{name: "too small for a rational, and unequal", a: "1e-1000001", b: "2e-1000001", wantConflict: true},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			a, err := ir.NewBigVal(tc.a)
+			require.NoError(t, err, "%q is a literal a schema may write", tc.a)
+			b, err := ir.NewBigVal(tc.b)
+			require.NoError(t, err, "%q is a literal a schema may write", tc.b)
+
+			_, boundOK := boundConflictDetail("minimum", &a, &b, false, false)
+			assert.Equal(t, tc.wantConflict, boundOK, "minimum %s against %s", a, b)
+
+			_, multipleOK := multipleOfConflictDetail(&a, &b)
+			assert.Equal(t, tc.wantConflict, multipleOK, "multipleOf %s against %s", a, b)
+		})
+	}
 }
 
 func TestIsStructuralType_DistinguishesCompositeFromOpaque(t *testing.T) {

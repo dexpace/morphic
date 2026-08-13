@@ -65,21 +65,40 @@ func EffectiveDeprecated(ref, tgt *oas3.Schema) bool {
 // EffectiveVisibility maps readOnly/writeOnly to a lifecycle visibility set
 // (ir-design §5.2): readOnly is present in every response lifecycle
 // (read/delete/query) and absent only from requests; writeOnly is create+update.
+// It reports separately whether both flags were in force, which no lifecycle
+// satisfies.
 //
-// A single schema declaring both flags keeps readOnly's set, since the switch
-// below takes the first matching case. Spread across two allOf branches the
-// same pairing instead intersects to Visibility{None: true}, the two sets
-// being disjoint — so one schema and two branches answer differently for what
-// a reader would call the same input. That divergence is tracked in #276 and
-// deliberately not settled here.
-func EffectiveVisibility(ref, tgt *oas3.Schema) ir.Visibility {
+// Each flag is resolved on its own, use-site over referent, so a position that
+// writes one of them settles that flag and leaves the other to resolve from the
+// referent — the uniform §14 merge, not a composite annotation one node wins
+// outright.
+//
+// Both in force is contradictory but legal: JSON Schema 2020-12 says readOnly
+// means the value is not writable and writeOnly that it is not readable, and
+// forbids neither beside the other. Read as sets, they leave nothing — the
+// property is admitted by no lifecycle, which Visibility{None: true} states
+// exactly. That is what merge.mergeVisibility already answers when the same
+// pairing is spread over two allOf branches, so the two spellings of one
+// contradiction no longer disagree (GitHub #276). Guarding readOnly first and
+// returning is what made them disagree, and it discarded the second flag with
+// no diagnostic in either channel.
+//
+// The bool rather than a diagnostic: this reader has no provenance of its own,
+// and the caller that has one is the caller that knows which carrier it is
+// filling.
+func EffectiveVisibility(ref, tgt *oas3.Schema) (ir.Visibility, bool) {
+	readOnly := pickFlag(ref, tgt, func(s *oas3.Schema) *bool { return s.ReadOnly })
+	writeOnly := pickFlag(ref, tgt, func(s *oas3.Schema) *bool { return s.WriteOnly })
+
 	switch {
-	case pickFlag(ref, tgt, func(s *oas3.Schema) *bool { return s.ReadOnly }):
-		return ir.Visibility{Only: []ir.Lifecycle{ir.LifecycleRead, ir.LifecycleDelete, ir.LifecycleQuery}}
-	case pickFlag(ref, tgt, func(s *oas3.Schema) *bool { return s.WriteOnly }):
-		return ir.Visibility{Only: []ir.Lifecycle{ir.LifecycleCreate, ir.LifecycleUpdate}}
+	case readOnly && writeOnly:
+		return ir.Visibility{None: true}, true
+	case readOnly:
+		return ir.Visibility{Only: []ir.Lifecycle{ir.LifecycleRead, ir.LifecycleDelete, ir.LifecycleQuery}}, false
+	case writeOnly:
+		return ir.Visibility{Only: []ir.Lifecycle{ir.LifecycleCreate, ir.LifecycleUpdate}}, false
 	default:
-		return ir.Visibility{}
+		return ir.Visibility{}, false
 	}
 }
 
@@ -190,8 +209,12 @@ func ExtensionsFrom(ext *extensions.Extensions, srcIndex int, owner string) (ir.
 // the carrier down to it, or the object's own keyword where it is not beneath
 // the carrier at all.
 //
-// A scoped key cannot collide with an unscoped one on the same map, since only
-// an x-* key reaches here and no scope begins with "x-".
+// No two keys can collide: every scope segment is a literal that never begins
+// with "x-" and every extension name always does, so the first "x-" segment is
+// where the scope ends and the name begins, and one key cannot be spelled by two
+// (scope, owner) pairs. That same gap holds against the non-extension keys a
+// carrier already holds under these scopes, such as the
+// "openapi:encoding/<part>/allowReserved" written beside an encoding's x-*.
 func ExtensionsUnder(ext *extensions.Extensions, srcIndex int, owner, scope string) (ir.Unmodeled, []ir.Diagnostic) {
 	if ext == nil || ext.Len() == 0 {
 		return nil, nil
@@ -480,6 +503,12 @@ func DeclaredSchema(js *oas3.JSONSchema[oas3.Referenceable]) *oas3.JSONSchema[oa
 // RawChildNode returns the raw YAML value node of a mapping child keyed by the
 // on-wire name, unwrapping a document node first; nil when absent. It reads exact
 // literals the high-level model does not preserve (links, servers, content maps).
+//
+// The last pair spelling the key wins, which is the pair the parser reads:
+// marshaller skips every occurrence of a repeated key but the last. Returning
+// the first instead described a mapping by a value nothing else in the compiler
+// uses — reachable once a key can be spelled two ways, since an explicit pair
+// and an aliased one are one key to the parser and two nodes here.
 func RawChildNode(root *yaml.Node, key string) *yaml.Node {
 	if root == nil {
 		return nil
@@ -490,12 +519,28 @@ func RawChildNode(root *yaml.Node, key string) *yaml.Node {
 	if root.Kind != yaml.MappingNode {
 		return nil
 	}
+	var found *yaml.Node
 	for i := 0; i+1 < len(root.Content); i += 2 {
-		if root.Content[i].Value == key {
-			return root.Content[i+1]
+		if keyName(root.Content[i]) == key {
+			found = root.Content[i+1]
 		}
 	}
-	return nil
+	return found
+}
+
+// keyName is the on-wire name a mapping key node spells, following an alias to
+// the scalar it stands for.
+//
+// yaml.v3 leaves an alias node's own Value as the anchor name, so a key written
+// as an alias matches nothing when read raw — while the parser reads that key
+// under the name it resolves to, which is the name every caller here looks up.
+// Comparing the two spellings is what let a key the model reported as
+// undeclared reach no Unmodeled entry at all (GitHub #297).
+func keyName(n *yaml.Node) string {
+	if n.Kind == yaml.AliasNode && n.Alias != nil {
+		return n.Alias.Value
+	}
+	return n.Value
 }
 
 // The readers below consume a Site the caller supplies rather than resolving

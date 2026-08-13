@@ -10,6 +10,7 @@ import (
 
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
+	"github.com/dexpace/morphic/compilers/openapi/internal/openapitest"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -47,7 +48,7 @@ paths: {}
 x-bad: {1: intkey}
 `
 	doc, diags := parseFull(t, spec)
-	assert.True(t, countDiagsAt(diags, diag.DegradedConstruct, ir.SeverityWarning) > 0,
+	assert.True(t, openapitest.CountDiagsAt(diags, diag.DegradedConstruct, ir.SeverityWarning) > 0,
 		"an entirely unserializable top-level extension still warns even though Unmodeled ends up empty")
 	assert.Empty(t, doc.Unmodeled, "the unserializable extension is dropped, not stored")
 }
@@ -82,6 +83,24 @@ func TestTagExtensions_NilEntrySkipped(t *testing.T) {
 	require.Len(t, got, 2, "one surviving tag contributes its own site and its externalDocs one")
 	assert.Equal(t, "tags/1", got[0].Scope, "the site is keyed at the tag's own index, not its position")
 	assert.Equal(t, "/tags/1", got[0].Owner)
+}
+
+// TestTagUnknownSites_NilEntrySkipped is TestTagExtensions_NilEntrySkipped's
+// twin on the census side: the two walks of the tag list keep the same guard, so
+// neither can be the one that dereferences a nil entry or keys a site at an
+// index holding no tag.
+func TestTagUnknownSites_NilEntrySkipped(t *testing.T) {
+	t.Parallel()
+	doc := &soa.OpenAPI{Tags: []*soa.Tag{nil, {Name: "kept"}}}
+
+	got := tagUnknownSites(lowering.Ctx{Doc: doc})
+
+	require.Len(t, got, 2,
+		"the nil tag contributes nothing, and the surviving one contributes its own site and its externalDocs")
+	assert.Equal(t, "tags/1", got[0].scope, "the site is keyed at the tag's own index, not its position")
+	assert.Equal(t, "/tags/1", got[0].owner)
+	assert.Equal(t, "tags/1/externalDocs", got[1].scope, "and its externalDocs is scoped under that same index")
+	assert.Equal(t, "/tags/1/externalDocs", got[1].owner)
 }
 
 func TestMeta_NoInfoNoServers(t *testing.T) {

@@ -7,6 +7,7 @@ package openapi_test // external test package — exercises only the public API
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -15,15 +16,21 @@ import (
 	"github.com/dexpace/morphic/ir"
 )
 
-// unknownKeysSpec reads the census fixture the corpus sweeps also drive, so the
-// assertions below and the six oracles run over the same bytes: putting it under
-// testdata is what gets it compiled in both declaration orders, round-tripped and
-// verified, none of which a spec written inline reaches.
-func unknownKeysSpec(t *testing.T) string {
+// specFile reads a census fixture the corpus sweeps also drive, so the
+// assertions below and the six oracles run over the same bytes: putting one
+// under testdata is what gets it compiled in both declaration orders,
+// round-tripped and verified, none of which a spec written inline reaches.
+func specFile(t *testing.T, name string) string {
 	t.Helper()
-	data, err := os.ReadFile(filepath.Join("..", "..", "testdata", "openapi", "unknown_keys.yaml"))
+	data, err := os.ReadFile(filepath.Join("..", "..", "testdata", "openapi", name))
 	require.NoError(t, err)
 	return string(data)
+}
+
+// unknownKeysSpec is the census fixture writing one undeclared key per object.
+func unknownKeysSpec(t *testing.T) string {
+	t.Helper()
+	return specFile(t, "unknown_keys.yaml")
 }
 
 // TestUnknownKeys_KeptAtEveryObject holds the whole rule rather than the
@@ -75,6 +82,7 @@ func TestUnknownKeys_KeptAtEveryObject(t *testing.T) {
 		{"response", "openapi:status", `"RESPONSE"`, ".Responses[0].Unmodeled"},
 		{"error response", "openapi:status", `"ERRORRESPONSE"`, ".Errors[0].Unmodeled"},
 		{"header", "openapi:in", `"HEADER"`, ".Headers[0].Unmodeled"},
+		{"components", "openapi:components/definitions", `"COMPONENTS"`, "doc.Unmodeled"},
 		{"security scheme", "openapi:tokenUrl", `"SECURITYSCHEME"`,
 			"doc.Auth[auth/openapi/components/securitySchemes/k].Unmodeled"},
 		{"oauth flows", "openapi:flows/application", `"OAUTHFLOWS"`,
@@ -136,6 +144,78 @@ func TestUnknownKeys_SchemaAndObjectAreGradedApart(t *testing.T) {
 	assert.Equal(t, "/paths/~1widgets/get/operationid", key.Provenance.Pointer)
 	assert.Equal(t, []ir.Severity{ir.SeverityWarning},
 		diagsAt(diags, "openapi/unknown-object-key", "/paths/~1widgets/get/operationid"))
+}
+
+// TestUnknownKeys_SpellingDecidesNeitherEntryNorCarrier holds the census to the
+// two spellings that used to lose a key outright, each of which put a document
+// writing it and a document writing nothing at all into the same IR.
+//
+// An aliased key is reported by the parser under the name it resolves to, while
+// the mapping node it was written on still holds an alias whose own value is the
+// anchor. Searching that mapping for the resolved name found nothing, and a key
+// with no node kept nothing and said nothing.
+//
+// A key holding a "/" collided with the scope of the object that path names:
+// entries for the objects with no Unmodeled map of their own are keyed by the
+// path from the carrier down, so a root key spelled "info/contact/slack" was the
+// same entry as the contact object's own "slack", and the site that reached the
+// carrier second found it taken and dropped its key in silence. Escaping the key
+// as one segment is what separates them, per ids.Scope.
+func TestUnknownKeys_SpellingDecidesNeitherEntryNorCarrier(t *testing.T) {
+	t.Parallel()
+	doc, diags := compileAnnotationSpec(t, "spellings", specFile(t, "unknown_key_spellings.yaml"))
+	requireNoErrorDiagnostics(t, diags)
+	sites := unmodeledSites(doc)
+
+	for _, tc := range []struct {
+		spelling string
+		key      string
+		want     string
+	}{
+		{"a key written as an alias", "openapi:info/license/spdx", `"LICENSE_ALIASED"`},
+		{"a root key spelling another object's scope", "openapi:info~1contact~1slack", `"ROOT_SLASHED"`},
+		{"the scope that key spells", "openapi:info/contact/slack", `"CONTACT_PLAIN"`},
+	} {
+		site, found := findUnmodeled(sites, tc.key, tc.want)
+		if !assert.True(t, found, "%s drops %s = %s: it is nowhere in the document",
+			tc.spelling, tc.key, tc.want) {
+			continue
+		}
+		assert.Equal(t, ir.ReasonOutOfScope, site.entry.Reason,
+			"%s is the census's, not the extension reader's", tc.spelling)
+	}
+	assert.Len(t, diagsAt(diags, "openapi/unknown-object-key", "/info/license/spdx"), 1,
+		"an aliased key is announced at the name it resolves to")
+}
+
+// TestUnknownKeys_ClashingCarrierEntryIsReportedNotDropped covers the one
+// carrier the census cannot key its way out of. A parameter and its schema are
+// two objects at two pointers whose entries share one unscoped map, so a key both
+// of them write is one entry, and the schema's reaches it first.
+//
+// The key that loses is announced with the pointer of the construct holding the
+// entry, rather than skipped by the branch meant for a keyword another reader
+// already said better. It is still in the IR in no form at all: separating the
+// namespaces moves keys #345, #348 and the validation-only reader already
+// publish, which is GitHub #396 and not this census's to settle.
+func TestUnknownKeys_ClashingCarrierEntryIsReportedNotDropped(t *testing.T) {
+	t.Parallel()
+	doc, diags := compileAnnotationSpec(t, "clash", specFile(t, "unknown_key_carrier_clash.yaml"))
+	requireNoErrorDiagnostics(t, diags)
+	sites := unmodeledSites(doc)
+
+	for _, tc := range []struct{ carrier, held, lost string }{
+		{"parameter", "/paths/~1widgets/get/parameters/0/schema/divisibleBy",
+			"/paths/~1widgets/get/parameters/0/divisibleBy"},
+		{"header", "/paths/~1widgets/get/responses/200/headers/X-Trace/schema/divisibleBy",
+			"/paths/~1widgets/get/responses/200/headers/X-Trace/divisibleBy"},
+	} {
+		assert.Equal(t, []ir.Severity{ir.SeverityWarning},
+			diagsAt(diags, "openapi/unknown-key-entry-taken", tc.lost),
+			"the %s key that lost the entry is announced at its own pointer", tc.carrier)
+		_, found := findUnmodeled(sites, "openapi:divisibleBy", `"FROM_`+strings.ToUpper(tc.carrier)+`_OBJECT"`)
+		assert.False(t, found, "the %s's own key is in the IR in no form at all, as reported", tc.carrier)
+	}
 }
 
 // TestUnknownKeys_WellFormedDocumentRecordsNothing is the control the census

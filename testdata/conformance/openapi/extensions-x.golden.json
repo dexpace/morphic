@@ -524,7 +524,7 @@
       "kind": "model",
       "id": "t/anon/paths/~1widgets/post/requestBody/content/multipart~1form-data/schema",
       "name": {
-        "hint": "createWidget_request"
+        "hint": "create_widget_request"
       },
       "anonymous": true,
       "docs": {},
@@ -640,7 +640,7 @@
       "variants": [
         {
           "name": {
-            "hint": "A"
+            "hint": "a"
           },
           "type": {
             "target": "t/openapi/components/schemas/A",

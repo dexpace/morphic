@@ -42,14 +42,90 @@ type docMeta struct {
 // that lowers to no node of its own (ir-design §10, §12).
 func lowerMeta(c lowering.Ctx) (docMeta, []ir.Diagnostic) {
 	m := lowerInfo(c)
+
 	ext, diags := documentExtensions(c)
 	m.Unmodeled = ext
 
 	servers, serverDiags := lowerServers(c)
 	m.Servers = servers
 	diags = append(diags, serverDiags...)
-	// After the extensions assignment, which would otherwise overwrite the map.
+
 	return m, append(diags, documentUnknownKeys(c, &m.Unmodeled)...)
+}
+
+// documentUnknownKeys collects the keys the OpenAPI model names no field for
+// from every object around the document metadata that lowers to no node of its
+// own: the document root, the info block and the contact and license inside it,
+// the root externalDocs, the components object, and each declared tag with its
+// own externalDocs.
+//
+// ir.Document is the nearest node with an Unmodeled map for all of them, so each
+// object's keys are scoped by the source path they were written at. One unscoped
+// "openapi:status" would be a single key for six objects, and the entry that
+// survived would be whichever site ran last.
+func documentUnknownKeys(c lowering.Ctx, p *ir.Unmodeled) []ir.Diagnostic {
+	sites := append(rootUnknownSites(c), tagUnknownSites(c)...)
+	diags := make([]ir.Diagnostic, 0, len(sites))
+	for _, site := range sites {
+		diags = append(diags,
+			annotation.UnknownKeysUnder(p, site.model, c.SrcIndex, site.owner, site.scope)...)
+	}
+	return diags
+}
+
+// unknownSite is one object's census: what it keys under on the carrier holding
+// it, the object's own source pointer, and the parsed object itself.
+type unknownSite struct {
+	scope string
+	owner string
+	model any
+}
+
+// rootUnknownSites returns the census sites a document has exactly one of. The
+// root's keys take no scope, since ir.Document stands for the OpenAPI Object
+// itself; the rest are keyed by the path from it down to the object that wrote
+// them.
+//
+// The components object is one of them, unlike the maps beneath it. `paths`,
+// `responses` and a callback each embed a sequenced map, so every key they hold
+// is a valid entry and an unrecognized one is not a thing they have; the
+// Components Object is a fixed-field struct beside them, and a key it does not
+// define is as undeclared as one on any other object here.
+func rootUnknownSites(c lowering.Ctx) []unknownSite {
+	info := c.Doc.GetInfo()
+	infoPtr := ids.Ptr("info")
+	return []unknownSite{
+		{"", "", c.Doc},
+		{"info", infoPtr, info},
+		{"info/contact", infoPtr + ids.Ptr("contact"), info.GetContact()},
+		{"info/license", infoPtr + ids.Ptr("license"), info.GetLicense()},
+		{"externalDocs", ids.Ptr("externalDocs"), c.Doc.GetExternalDocs()},
+		{"components", ids.Ptr("components"), c.Doc.GetComponents()},
+	}
+}
+
+// tagUnknownSites returns the census sites each declared tag contributes: its
+// own, and its externalDocs object's. Neither ir.TagDef nor ir.Link holds an
+// Unmodeled map, so both ride on the document.
+//
+// Scoped by index rather than name, which is the pointer a tag is written at. A
+// name would read better, but OpenAPI's requirement that tag names be unique is
+// the document's to keep and not this compiler's to rely on: two tags spelled
+// alike would silently leave one entry.
+func tagUnknownSites(c lowering.Ctx) []unknownSite {
+	tags := c.Doc.GetTags()
+	out := make([]unknownSite, 0, 2*len(tags))
+	for i, t := range tags {
+		if t == nil {
+			continue
+		}
+		index := strconv.Itoa(i)
+		ptr := ids.Ptr("tags", index)
+		out = append(out,
+			unknownSite{"tags/" + index, ptr, t},
+			unknownSite{"tags/" + index + "/externalDocs", ptr + ids.Ptr("externalDocs"), t.GetExternalDocs()})
+	}
+	return out
 }
 
 // documentExtensions collects the x-* of every object that lowers to no IR node
@@ -102,77 +178,6 @@ func tagExtensions(c lowering.Ctx) []annotation.ExtensionSite {
 			annotation.ExtensionSite{Scope: scope, Owner: ptr, Ext: t.GetExtensions()},
 			annotation.ExtensionSite{Scope: scope + "/externalDocs", Owner: ptr + ids.Ptr("externalDocs"),
 				Ext: t.GetExternalDocs().GetExtensions()})
-	}
-	return out
-}
-
-// documentUnknownKeys collects the keys the OpenAPI model names no field for
-// from every object around the document metadata that lowers to no node of its
-// own: the document root, the info block and the contact and license inside it,
-// the root externalDocs, the components object, and each declared tag with its
-// own externalDocs.
-//
-// ir.Document is the nearest node with an Unmodeled map for all of them, so each
-// object's keys are scoped by the source path they were written at. One unscoped
-// "openapi:status" would be a single key for six objects, and the entry that
-// survived would be whichever site ran last.
-func documentUnknownKeys(c lowering.Ctx, p *ir.Unmodeled) []ir.Diagnostic {
-	sites := append(rootUnknownSites(c), tagUnknownSites(c)...)
-	diags := make([]ir.Diagnostic, 0, len(sites))
-	for _, site := range sites {
-		diags = append(diags,
-			annotation.UnknownKeysUnder(p, site.model, c.SrcIndex, site.owner, site.scope)...)
-	}
-	return diags
-}
-
-// unknownSite is one object's census: what it keys under on the carrier holding
-// it, the object's own source pointer, and the parsed object itself.
-type unknownSite struct {
-	scope string
-	owner string
-	model any
-}
-
-// rootUnknownSites returns the census sites a document has exactly one of. The
-// root's keys take no scope, since ir.Document stands for the OpenAPI Object
-// itself; the rest are keyed by the path from it down to the object that wrote
-// them.
-//
-// The components object is one of them rather than a map with nothing to say:
-// its own key set is the fixed list of component kinds, which the library models
-// as named fields and takes a census over, and only the map *under* each of
-// those keys is the document's to name.
-func rootUnknownSites(c lowering.Ctx) []unknownSite {
-	info := c.Doc.GetInfo()
-	infoPtr := ids.Ptr("info")
-	return []unknownSite{
-		{"", "", c.Doc},
-		{"info", infoPtr, info},
-		{"info/contact", infoPtr + ids.Ptr("contact"), info.GetContact()},
-		{"info/license", infoPtr + ids.Ptr("license"), info.GetLicense()},
-		{"externalDocs", ids.Ptr("externalDocs"), c.Doc.GetExternalDocs()},
-		{"components", ids.Ptr("components"), c.Doc.GetComponents()},
-	}
-}
-
-// tagUnknownSites returns the census sites each declared tag contributes: its
-// own, and its externalDocs object's. Neither ir.TagDef nor ir.Link holds an
-// Unmodeled map, so both ride on the document.
-//
-// Scoped by index rather than name, which is the pointer a tag is written at. A
-// name would read better, but OpenAPI's requirement that tag names be unique is
-// the document's to keep and not this compiler's to rely on: two tags spelled
-// alike would silently leave one entry.
-func tagUnknownSites(c lowering.Ctx) []unknownSite {
-	tags := c.Doc.GetTags()
-	out := make([]unknownSite, 0, 2*len(tags))
-	for i, t := range tags {
-		index := strconv.Itoa(i)
-		ptr := ids.Ptr("tags", index)
-		out = append(out,
-			unknownSite{"tags/" + index, ptr, t},
-			unknownSite{"tags/" + index + "/externalDocs", ptr + ids.Ptr("externalDocs"), t.GetExternalDocs()})
 	}
 	return out
 }
@@ -236,6 +241,7 @@ func lowerServers(c lowering.Ctx) ([]ir.Server, []ir.Diagnostic) {
 func lowerServer(c lowering.Ctx, s *soa.Server, sptr string) (ir.Server, []ir.Diagnostic) {
 	vars, diags := serverVariables(c, s, sptr)
 	ext, extDiags := annotation.ExtensionsFrom(s.GetExtensions(), c.SrcIndex, sptr)
+	diags = append(diags, extDiags...)
 	out := ir.Server{
 		Name:        serverName(s),
 		URLTemplate: s.GetURL(),
@@ -243,7 +249,6 @@ func lowerServer(c lowering.Ctx, s *soa.Server, sptr string) (ir.Server, []ir.Di
 		Variables:   vars,
 		Unmodeled:   ext,
 	}
-	diags = append(diags, extDiags...)
 	return out, append(diags, annotation.UnknownKeysIn(&out.Unmodeled, s, c.SrcIndex, sptr)...)
 }
 
