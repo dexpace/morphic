@@ -204,6 +204,9 @@ type keyClass struct {
 func census(p *ir.Unmodeled, keys []string, root *yaml.Node,
 	srcIndex int, owner, scope string, cl keyClass,
 ) []ir.Diagnostic {
+	if len(keys) == 0 {
+		return nil // the common case: most objects write no key their model misses
+	}
 	fresh := unrecorded(p, slices.Sorted(slices.Values(keys)), owner, scope, cl.skip)
 	if len(fresh) == 0 {
 		return nil
