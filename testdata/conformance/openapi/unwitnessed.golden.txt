@@ -23,9 +23,6 @@ Content.SchemaFormat
 CtorValue.Args
 CtorValue.Name
 CtorValue.Scalar
-Deprecation.Message
-Deprecation.RemovalVersion
-Deprecation.Since
 Discriminator.Envelope
 Discriminator.EnvelopeValueName
 Discriminator.Index
@@ -51,7 +48,6 @@ Example.Error
 Example.Headers
 Example.Input
 Example.Output
-Example.Unmodeled
 External.Identity
 External.MinVersion
 External.Package
@@ -71,7 +67,6 @@ HTTPBinding.PatchImplicitOptionality
 HTTPBinding.ResponseBodyPath
 HTTPBinding.SharedRoute
 HTTPBinding.SuccessStatus
-HTTPBinding.Unmodeled
 HTTPParamBinding.BodyPath
 HTTPParamBinding.ParamPath
 HTTPParamBinding.PathPattern
@@ -113,7 +108,6 @@ Model.Implements
 Model.InputOnly
 Model.Positional
 Naming.Aliases
-OAuthFlow.Unmodeled
 OTPBinding.Behaviour
 OTPBinding.Kind
 OTPBinding.Process
@@ -131,10 +125,7 @@ Operation.OneWay
 Operation.OverloadOf
 Operation.Pagination
 Operation.ParameterVisibility
-Operation.RequestStream
-Operation.ResponseStream
 Operation.ReturnTypeVisibility
-Operation.Streaming
 OperationGroup.Availability
 OperationGroup.Groups
 OperationGroup.Resource
@@ -170,7 +161,6 @@ Property.WireID
 Property.WireNameByFormat
 ProtocolDecl.Name
 ProtocolDecl.Options
-Provenance.Inferred
 Provenance.Source
 RPCBinding.FullMethod
 RPCBinding.IdempotencyLevel
@@ -195,8 +185,6 @@ Server.Bindings
 Server.Protocol
 Server.ProtocolVersion
 Server.Tags
-Server.Unmodeled
-ServerVariable.Unmodeled
 Service.CommonErrors
 Service.Extends
 Service.Namespace
@@ -204,9 +192,7 @@ Service.Protocols
 Service.Provenance
 Service.Renames
 Service.Servers
-Service.Unmodeled
 Service.Version
-StreamDetail.Events
 StreamDetail.Initial
 StreamDetail.RequiresLength
 TemplateArg.Type
@@ -242,6 +228,5 @@ VersionedName.Name
 VersionedName.Version
 VersionedType.Type
 VersionedType.Version
-Visibility.None
 WireIDRange.From
 WireIDRange.To

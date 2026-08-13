@@ -114,6 +114,54 @@
         "nullable": true
       }
     },
+    "t/openapi/components/schemas/BareColor": {
+      "kind": "enum",
+      "id": "t/openapi/components/schemas/BareColor",
+      "name": {
+        "source": "BareColor",
+        "canonical": "bare_color"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/BareColor"
+      },
+      "valueType": "string",
+      "members": [
+        {
+          "name": {
+            "source": "red",
+            "canonical": "red"
+          },
+          "value": {
+            "kind": "string",
+            "str": "red",
+            "bytes": null,
+            "list": null,
+            "object": null
+          },
+          "docs": {}
+        },
+        {
+          "name": {
+            "source": "green",
+            "canonical": "green"
+          },
+          "value": {
+            "kind": "string",
+            "str": "green",
+            "bytes": null,
+            "list": null,
+            "object": null
+          },
+          "docs": {}
+        }
+      ],
+      "closed": true,
+      "flags": false
+    },
     "t/openapi/components/schemas/Color": {
       "kind": "enum",
       "id": "t/openapi/components/schemas/Color",
@@ -230,11 +278,113 @@
             "source": 0,
             "pointer": "/components/schemas/Holder/properties/many"
           }
+        },
+        {
+          "id": "p/openapi/components/schemas/Holder/properties/bare",
+          "name": {
+            "source": "bare",
+            "canonical": "bare"
+          },
+          "wireName": "bare",
+          "type": {
+            "target": "t/openapi/components/schemas/BareColor",
+            "nullable": true
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/Holder/properties/bare"
+          }
+        },
+        {
+          "id": "p/openapi/components/schemas/Holder/properties/narrowed",
+          "name": {
+            "source": "narrowed",
+            "canonical": "narrowed"
+          },
+          "wireName": "narrowed",
+          "type": {
+            "target": "t/openapi/components/schemas/NarrowedColor",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/Holder/properties/narrowed"
+          }
         }
       ],
       "abstract": false,
       "positional": false,
       "inputOnly": false
+    },
+    "t/openapi/components/schemas/NarrowedColor": {
+      "kind": "enum",
+      "id": "t/openapi/components/schemas/NarrowedColor",
+      "name": {
+        "source": "NarrowedColor",
+        "canonical": "narrowed_color"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/NarrowedColor"
+      },
+      "valueType": "string",
+      "members": [
+        {
+          "name": {
+            "source": "red",
+            "canonical": "red"
+          },
+          "value": {
+            "kind": "string",
+            "str": "red",
+            "bytes": null,
+            "list": null,
+            "object": null
+          },
+          "docs": {}
+        },
+        {
+          "name": {
+            "source": "green",
+            "canonical": "green"
+          },
+          "value": {
+            "kind": "string",
+            "str": "green",
+            "bytes": null,
+            "list": null,
+            "object": null
+          },
+          "docs": {}
+        }
+      ],
+      "closed": true,
+      "flags": false
     }
   },
   "servers": [
@@ -251,7 +401,7 @@
     {
       "format": "openapi@3.1",
       "path": "nullable-enum-31.yaml",
-      "hash": "b499a6a9913ed3f5173a77a4d492f04961325c66a10974a7fc4da2bfec5a36b1"
+      "hash": "8de80fe33a8b5b1a3f3edd5a56544fafa6a1cd89ecfe9506acdd811551b821f3"
     }
   ]
 }

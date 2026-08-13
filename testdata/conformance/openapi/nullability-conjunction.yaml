@@ -1,0 +1,48 @@
+openapi: 3.1.0
+info: {title: NullabilityConjunction, version: "1.0.0"}
+paths: {}
+components:
+  schemas:
+    # JSON Schema conjoins keywords, so whether a position admits null is a
+    # question about the whole schema rather than about its type keyword. Every
+    # pair below writes one constraint two ways; the two spellings have to reach
+    # the same Nullable bit, because an emitter generates from the bit alone.
+    NullableScalar: {type: [string, "null"]}
+    NullableModel:
+      type: [object, "null"]
+      properties: {a: {type: string}}
+    PlainModel:
+      type: object
+      properties: {b: {type: string}}
+    # A composition declares no nullability of its own, and Base names a conjunct
+    # rather than a usage, so the null a sole conjunct admits has nowhere to sit
+    # but on the reference that names the conjunction.
+    WrapNullableScalar:
+      allOf: [{$ref: '#/components/schemas/NullableScalar'}]
+    WrapNullableModel:
+      allOf: [{$ref: '#/components/schemas/NullableModel'}]
+    # One conjunct forbidding null decides the conjunction, however many of its
+    # siblings admit it.
+    WrapBoth:
+      allOf:
+        - {$ref: '#/components/schemas/NullableModel'}
+        - {$ref: '#/components/schemas/PlainModel'}
+    # A union and the same union distributed across a sibling body: the variants
+    # name different nodes, but a branch admits what it admits either way.
+    PlainUnion:
+      oneOf:
+        - {$ref: '#/components/schemas/NullableModel'}
+        - {$ref: '#/components/schemas/PlainModel'}
+    DistributedUnion:
+      properties: {z: {type: string}}
+      oneOf:
+        - {$ref: '#/components/schemas/NullableModel'}
+        - {$ref: '#/components/schemas/PlainModel'}
+    Holder:
+      type: object
+      properties:
+        direct: {$ref: '#/components/schemas/NullableScalar'}
+        viaAllOf: {$ref: '#/components/schemas/WrapNullableScalar'}
+        directModel: {$ref: '#/components/schemas/NullableModel'}
+        viaAllOfModel: {$ref: '#/components/schemas/WrapNullableModel'}
+        viaAllOfBoth: {$ref: '#/components/schemas/WrapBoth'}

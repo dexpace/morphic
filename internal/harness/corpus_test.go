@@ -62,6 +62,11 @@ import (
 //     RWMutex — and inside a hop that never completes, so its own cycle guard
 //     never runs. Unlike the cycles above, the components spelling deadlocks
 //     too, so all spellings are refused.
+//   - cycle_path_item_empty_segment.yaml: the same re-entrant prefix spelled with
+//     a trailing separator. The empty reference token it ends in names the key ""
+//     under the path item, so the resolver descends through the reference it is
+//     already resolving; a pointer walk that dropped the token read it as
+//     stopping there and let it past.
 //   - cycle_pointer_whitespace_self.yaml: the same self-reference, visible only
 //     once the pointer is normalized the way the resolver normalizes it.
 //     Speakeasy trims whitespace around the pointer half of a $ref, so
@@ -119,6 +124,7 @@ func knownInvalid() map[string]bool {
 		filepath.FromSlash("../../testdata/openapi/cycle_path_item_prefix_chain.yaml"):         true,
 		filepath.FromSlash("../../testdata/openapi/cycle_component_path_item_prefix.yaml"):     true,
 		filepath.FromSlash("../../testdata/openapi/cycle_webhook_prefix_self.yaml"):            true,
+		filepath.FromSlash("../../testdata/openapi/cycle_path_item_empty_segment.yaml"):        true,
 		filepath.FromSlash("../../testdata/openapi/cycle_pointer_whitespace_self.yaml"):        true,
 		filepath.FromSlash("../../testdata/openapi/amplification_alias_bomb.yaml"):             true,
 		filepath.FromSlash("../../testdata/dangling/openapi/f04-composition.yaml"):             true,

@@ -19,6 +19,11 @@ import (
 //
 //   - ℤ, ϒ: IsUpper reports true and ToLower returns them unchanged — a letter
 //     with no lowercase form.
+//   - ℤℤA: two of those before one that does lowercase. The seed beside it,
+//     ℤℤa, was already here and passed; the input that broke idempotence was
+//     the uppercase spelling one mutation away from it, because lowercasing the
+//     A is what supplied the lowercase letter the tail rule looks for
+//     (GitHub #336).
 //   - ǅ: titlecase, which is neither IsUpper nor IsLower.
 //   - ẞ: uppercase whose lowercase ß is a different letter.
 //   - İ: uppercase whose lowercase is two runes, so lowercasing changes length.
@@ -29,7 +34,7 @@ import (
 //     Hebrew are cased by nothing at all.
 //   - the rest: the boundaries the grammar splits on, and names with no words.
 var adversarialRunes = []string{
-	"Aℤ", "aℤ", "COUNTℤ", "ℤℤa", "aℤℤb",
+	"Aℤ", "aℤ", "COUNTℤ", "ℤℤa", "ℤℤA", "aℤℤb",
 	"Aϒ", "xǅy", "aẞb", "İstanbul", "ǅungla",
 	"café_v2", "́x", "x́",
 	"ᎠᎡ", "ꭰx", "𐐀𐐨", "Δε", "Жx", "中文", "אב",

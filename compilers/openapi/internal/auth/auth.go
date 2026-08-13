@@ -132,9 +132,56 @@ func lowerSecurityScheme(c lowering.Ctx, name string, ss *soa.SecurityScheme,
 		return ir.AuthScheme{}, false, []ir.Diagnostic{mechanismRefusalDiag(c, name, missing, entry)}
 	}
 	diags = preserveUnreadFields(c, &scheme, ss, decl)
-	ext, extDiags := annotation.ExtensionsFrom(ss.GetExtensions(), c.SrcIndex, decl)
+	diags = append(diags, applySchemeAnnotations(c, &scheme, ss, decl)...)
+	// Distinct from preserveUnreadFields above it: that keeps the fields OpenAPI
+	// defines for a securityScheme which this entry's own mechanism gives no
+	// meaning to, while this keeps the keys OpenAPI defines for no securityScheme
+	// at all.
+	diags = append(diags, annotation.UnknownKeysIn(&scheme.Unmodeled, ss, c.SrcIndex, decl)...)
+	// After the extensions, whose entries are what a promotion reads.
+	return scheme, true, append(diags,
+		c.PromoteDeprecation(scheme.Unmodeled, scheme.Deprecation, &scheme.Provenance)...)
+}
+
+// applySchemeAnnotations keeps what the securitySchemes entry and, for an oauth2
+// scheme, the flows object and each flow inside it declare that reaches no IR
+// field: their x-*, and the keys OpenAPI defines for none of them. ir.OAuthFlow
+// carries an Unmodeled map of its own; the flows object does not lower to a node
+// at all, so its entries are kept on the scheme under the keyword.
+//
+// Only oauth2 reads inside `flows`: on any other type the whole node is kept
+// verbatim by preserveUnreadFields, extensions and all, and no ir.OAuthFlow was
+// lowered for a flow's own to land on.
+func applySchemeAnnotations(c lowering.Ctx, scheme *ir.AuthScheme, ss *soa.SecurityScheme, decl string) []ir.Diagnostic {
+	ext, diags := annotation.ExtensionsFrom(ss.GetExtensions(), c.SrcIndex, decl)
 	scheme.Unmodeled = annotation.MergeUnmodeled(scheme.Unmodeled, ext)
-	return scheme, true, append(diags, extDiags...)
+	if scheme.Kind != ir.AuthKindOAuth2 {
+		return diags
+	}
+	flows := ss.GetFlows()
+	flowsPtr := decl + ids.Ptr("flows")
+	flowsExt, flowsDiags := annotation.ExtensionsUnder(flows.GetExtensions(), c.SrcIndex, flowsPtr, "flows")
+	scheme.Unmodeled = annotation.MergeUnmodeled(scheme.Unmodeled, flowsExt)
+	diags = append(diags, flowsDiags...)
+	diags = append(diags, annotation.UnknownKeysUnder(&scheme.Unmodeled, flows, c.SrcIndex, flowsPtr, "flows")...)
+	return append(diags, applyFlowAnnotations(c, scheme.Flows, flows, flowsPtr)...)
+}
+
+// applyFlowAnnotations writes each declared flow's own x-* and undeclared keys
+// onto the ir.OAuthFlow it lowered to. Both lists are one ordered reading of the
+// same object — scheme.Flows came from oauthFlows, which walks presentFlows — so
+// the i-th lowered flow is the i-th declared one and the two cannot differ in
+// length.
+func applyFlowAnnotations(c lowering.Ctx, lowered []ir.OAuthFlow, flows *soa.OAuthFlows, flowsPtr string) []ir.Diagnostic {
+	var diags []ir.Diagnostic
+	for i, f := range presentFlows(flows) {
+		fptr := flowsPtr + ids.Ptr(f.keyword)
+		ext, extDiags := annotation.ExtensionsFrom(f.src.GetExtensions(), c.SrcIndex, fptr)
+		lowered[i].Unmodeled = annotation.MergeUnmodeled(lowered[i].Unmodeled, ext)
+		diags = append(diags, extDiags...)
+		diags = append(diags, annotation.UnknownKeysIn(&lowered[i].Unmodeled, f.src, c.SrcIndex, fptr)...)
+	}
+	return diags
 }
 
 // mechanismRefusalDiag reports a securitySchemes entry that declares a scheme
@@ -312,28 +359,47 @@ func preserveUnreadFields(c lowering.Ctx, scheme *ir.AuthScheme, ss *soa.Securit
 	return diags
 }
 
+// sourceFlow is one declared OAuth2 flow: the IR kind it lowers to, the keyword
+// it is written under, and the object itself.
+type sourceFlow struct {
+	kind    string
+	keyword string
+	src     *soa.OAuthFlow
+}
+
+// presentFlows returns the flows an OAuthFlows object declares, in a fixed,
+// deterministic order. It is the single ordered reading of that object: the
+// lowering and the extension reader both walk it, which is what lets the i-th
+// ir.OAuthFlow be matched back to the i-th declaration without a second, and
+// possibly divergent, enumeration.
+func presentFlows(flows *soa.OAuthFlows) []sourceFlow {
+	candidates := []sourceFlow{
+		{"authorization_code", "authorizationCode", flows.GetAuthorizationCode()},
+		{"client_credentials", "clientCredentials", flows.GetClientCredentials()},
+		{"implicit", "implicit", flows.GetImplicit()},
+		{"password", "password", flows.GetPassword()},
+		{"device", "deviceAuthorization", flows.GetDeviceAuthorization()},
+	}
+	var out []sourceFlow
+	for _, cand := range candidates {
+		if cand.src != nil {
+			out = append(out, cand)
+		}
+	}
+	return out
+}
+
 // oauthFlows lowers each present OAuth2 flow in a fixed, deterministic order.
 // The device flow's deviceAuthorizationUrl rides OAuthFlow.AuthorizationURL
 // (ir-design §9).
 func oauthFlows(flows *soa.OAuthFlows) []ir.OAuthFlow {
-	if flows == nil {
-		return nil
-	}
 	var out []ir.OAuthFlow
-	if f := flows.GetAuthorizationCode(); f != nil {
-		out = append(out, oauthFlow("authorization_code", f))
-	}
-	if f := flows.GetClientCredentials(); f != nil {
-		out = append(out, oauthFlow("client_credentials", f))
-	}
-	if f := flows.GetImplicit(); f != nil {
-		out = append(out, oauthFlow("implicit", f))
-	}
-	if f := flows.GetPassword(); f != nil {
-		out = append(out, oauthFlow("password", f))
-	}
-	if f := flows.GetDeviceAuthorization(); f != nil {
-		out = append(out, deviceFlow(f))
+	for _, f := range presentFlows(flows) {
+		if f.kind == "device" {
+			out = append(out, deviceFlow(f.src))
+			continue
+		}
+		out = append(out, oauthFlow(f.kind, f.src))
 	}
 	return out
 }
@@ -377,12 +443,11 @@ func scopeMap(f *soa.OAuthFlow) map[string]string {
 // its own base+/security/<index> pointer. An empty option object {} means "no
 // auth is one acceptable choice".
 //
-// An entry the source wrote as something other than an object reaches here as
-// an empty option rather than as a nil one, so it lowers to that same encoding
-// and the collapse below never sees it. Telling the two apart needs the parse
-// the loader already rejected, so it is issue #284's to fix and deliberately
-// out of scope here — which is also why lowerSecurityRequirement's nil guard is
-// not that site, however much it looks like it.
+// An entry the source wrote as something other than an object is not an option
+// at all, and is dropped whole on the same terms — see writtenAsObject, which is
+// what tells it from the {} above. It draws no report from here, on the grounds
+// LowerSecuritySchemes states for the same shape: the loader's type-mismatch
+// already names both the entry and what was wrong with it.
 //
 // A requirement is a conjunction: every member must resolve for the option to
 // mean anything, so an option naming even one undeclared scheme is dropped in
@@ -432,10 +497,11 @@ func LowerSecurityRequirements(c lowering.Ctx, reqs []*soa.SecurityRequirement, 
 // option. A member naming a scheme the auth registry does not hold invalidates
 // the whole option, which the caller must drop in full rather than just that
 // member — never a dangling AuthID (issue #14), and never an unintended
-// empty-option encoding (issue #41). ok reports whether the option survives;
-// every unresolved member is still diagnosed individually, at the shared
-// requirement-level pointer, so a multi-member option reports each of its bad
-// names.
+// empty-option encoding (issue #41). An entry that is no object drops for the
+// second of those reasons alone (issue #284). ok reports whether the option
+// survives; every unresolved member is still diagnosed individually, at the
+// shared requirement-level pointer, so a multi-member option reports each of its
+// bad names.
 //
 // Three documents reach that state: one that never declared the name, one that
 // declared it as a $ref resolving to nothing, and one whose entry named no
@@ -445,8 +511,8 @@ func LowerSecurityRequirements(c lowering.Ctx, reqs []*soa.SecurityRequirement, 
 // two cases.
 func lowerSecurityRequirement(c lowering.Ctx, req *soa.SecurityRequirement, pointer string,
 ) (r ir.AuthRequirement, ok bool, diags []ir.Diagnostic) {
-	if req == nil {
-		return ir.AuthRequirement{}, true, nil
+	if !writtenAsObject(req) {
+		return ir.AuthRequirement{}, false, nil
 	}
 	var uses []ir.SchemeUse
 	ok = true
@@ -464,4 +530,25 @@ func lowerSecurityRequirement(c lowering.Ctx, req *soa.SecurityRequirement, poin
 		return ir.AuthRequirement{}, false, diags
 	}
 	return ir.AuthRequirement{Schemes: uses}, true, diags
+}
+
+// writtenAsObject reports whether the document wrote req as an object, which is
+// the only shape a requirement has.
+//
+// Every other spelling a security list can hold — null, a scalar, a sequence —
+// unmarshals to a requirement holding no members, the same shape as the {} an
+// author writes to mean "no auth is one acceptable choice", so what the entry
+// says is not recoverable from the requirement itself (issue #284). The node it
+// was read from is what separates them: the marshaller records a root node for a
+// value it could read as a mapping and none for anything else, so {} carries one
+// whether written inline or reached through an alias, and no other spelling
+// does. That is a fact about the library rather than about the document, which
+// is why the tests holding it compile documents instead of building
+// requirements.
+//
+// req's own nil is not reachable from a parsed document — a malformed entry
+// still arrives as a requirement — so that half of the guard is for a hand-built
+// slice, matching unresolvableSchemeDiags'.
+func writtenAsObject(req *soa.SecurityRequirement) bool {
+	return req != nil && req.GetRootNode() != nil
 }

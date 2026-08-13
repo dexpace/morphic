@@ -75,9 +75,38 @@
       "anonymous": false,
       "docs": {},
       "sensitive": false,
+      "unmodeled": {
+        "openapi:schema": {
+          "reason": "degraded_lowering",
+          "value": false,
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/BareFalse"
+          }
+        }
+      },
       "provenance": {
         "source": 0,
         "pointer": "/components/schemas/BareFalse"
+      },
+      "additional": "closed",
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
+    "t/openapi/components/schemas/ClosedEmpty": {
+      "kind": "model",
+      "id": "t/openapi/components/schemas/ClosedEmpty",
+      "name": {
+        "source": "ClosedEmpty",
+        "canonical": "closed_empty"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/ClosedEmpty"
       },
       "additional": "closed",
       "abstract": false,
@@ -178,7 +207,7 @@
     {
       "severity": "info",
       "code": "openapi/false-schema",
-      "message": "boolean false schema matches nothing; lowered as a closed empty model",
+      "message": "boolean false schema matches nothing; lowered as a closed empty model with the schema kept verbatim under Unmodeled",
       "provenance": {
         "source": 0,
         "pointer": "/components/schemas/BareFalse"
@@ -189,7 +218,7 @@
     {
       "format": "openapi@3.1",
       "path": "allof-boolean-branch.yaml",
-      "hash": "8dfa63f600320e6f52e6a34aeaf1723eac8e8595ed3031b284d1116d631c1d1e"
+      "hash": "36740dfe66d0792d6a325af84d776552173f3d1f3e2cba97a40b361f01d372f5"
     }
   ]
 }

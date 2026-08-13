@@ -36,7 +36,7 @@ func sampleDocument(t *testing.T) ir.Document {
 		id, td := mk("t/k/"+string(entry.Kind()), entry)
 		types[id] = td
 	}
-	return ir.Document{IRVersion: "0.1.0", Name: "kinds", Version: "1", Types: types}
+	return ir.Document{IRVersion: ir.IRVersion, Name: "kinds", Version: "1", Types: types}
 }
 
 func TestDocument_JSONRoundTripAllKinds(t *testing.T) {

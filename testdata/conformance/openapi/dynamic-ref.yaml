@@ -8,12 +8,27 @@ components:
       type: object
       properties:
         label: {type: string}
+    Leaf:
+      $dynamicAnchor: leaf-node
+      type: string
     Tree:
       type: object
       properties:
         # One $dynamicAnchor of this name is declared on a component schema, so
         # the reference expands to it.
         child: {$dynamicRef: '#T'}
+        # A fragment is URI text, in which '%2D' and '-' are the same character
+        # (RFC 3986 section 2.3), so this names the anchor 'leaf-node'.
+        escaped: {$dynamicRef: '#leaf%2Dnode'}
         # No anchor declares this name, so the reference is irreducible and is
         # kept verbatim instead of being dropped.
         ghost: {$dynamicRef: '#Missing'}
+    # A component keyed "" is addressed by /components/schemas/, a pointer whose
+    # last reference token is empty. The $id here starts a schema resource of its
+    # own, so this reference may not expand across it — and deciding that means
+    # reading the trailing empty token as this schema's own position instead of
+    # dropping it and reading the components/schemas map above it, which declares
+    # no $id and would have let the expansion through.
+    "":
+      $id: https://example.com/empty
+      $dynamicRef: '#T'
