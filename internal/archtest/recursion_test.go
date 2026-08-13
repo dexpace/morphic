@@ -135,13 +135,15 @@ func TestLoweringRecursion_IsOnlyTheKnownCycles(t *testing.T) {
 		"the lowering call graph's recursion changed; anything joining one of these sets can no longer be moved alone")
 }
 
-// decl is one declaration the call graph holds: the name it is known by, and the
-// receiver a method reaches its siblings through.
+// decl is one declaration the call graph holds: the name it is known by, the
+// receiver a method reaches its siblings through, and the scope its selectors
+// resolve against.
 type decl struct {
 	name     string // "lower", or "anchorWalk.walk" for a method
 	recv     string // the receiver's identifier; empty unless this is a method that names one
 	recvType string // the receiver's type; empty for a free function
-	body     *ast.BlockStmt
+	fn       *ast.FuncDecl
+	scope    *pkgScope
 }
 
 // declOf reads fn into the one node the graph holds for it.
@@ -152,19 +154,20 @@ type decl struct {
 // so the two have to stay distinguishable.
 //
 // A receiver with no identifier, or one spelled _, leaves recv empty: such a
-// method cannot write a sibling's name, so it has no receiver edges to resolve.
-func declOf(t *testing.T, fn *ast.FuncDecl) decl {
+// method cannot write its own name, so nothing in its body resolves through it.
+func declOf(t *testing.T, fn *ast.FuncDecl, scope *pkgScope) decl {
 	t.Helper()
 	require.NotNil(t, fn.Body, "a declaration with no body names no callees")
+	require.NotNil(t, scope, "a declaration resolves against its package's scope")
 
-	d := decl{name: fn.Name.Name, body: fn.Body}
+	d := decl{name: fn.Name.Name, fn: fn, scope: scope}
 	if fn.Recv == nil {
 		return d
 	}
 	require.Len(t, fn.Recv.List, 1, "a method declares exactly one receiver")
 
 	field := fn.Recv.List[0]
-	d.recvType = receiverTypeName(field.Type)
+	d.recvType = typeNameOf(field.Type)
 	require.NotEmpty(t, d.recvType,
 		"unreadable receiver on %s; keying it as a free function would hide its edges", fn.Name.Name)
 	d.name = d.recvType + "." + fn.Name.Name
@@ -174,18 +177,22 @@ func declOf(t *testing.T, fn *ast.FuncDecl) decl {
 	return d
 }
 
-// receiverTypeName returns the type a receiver names. Go's receiver grammar is
-// [*]TypeName[TypeParams], so the pointer and then the type arguments come off
-// and what is left has to be the name; anything else returns "" for declOf to
-// refuse.
-func receiverTypeName(expr ast.Expr) string {
+// typeNameOf returns the type a type expression names, or "" when it names none
+// a package this pin reads could declare a method on.
+//
+// It reads the grammar a receiver, a field, a parameter and a var all share:
+// [*]TypeName[TypeArgs]. The pointer and then the type arguments come off, and
+// what is left has to be an identifier — so `pkg.T`, `[]T`, `map[K]V`, a func
+// type and a literal interface are all refused rather than reduced to some inner
+// name, because a value of one is not a value of the type that name would key.
+func typeNameOf(expr ast.Expr) string {
 	if star, isStar := expr.(*ast.StarExpr); isStar {
 		expr = star.X
 	}
-	if idx, isIndex := expr.(*ast.IndexExpr); isIndex { // Receiver[T]
+	if idx, isIndex := expr.(*ast.IndexExpr); isIndex { // T[K]
 		expr = idx.X
 	}
-	if idx, isIndex := expr.(*ast.IndexListExpr); isIndex { // Receiver[K, V]
+	if idx, isIndex := expr.(*ast.IndexListExpr); isIndex { // T[K, V]
 		expr = idx.X
 	}
 	id, isIdent := expr.(*ast.Ident)
@@ -193,6 +200,249 @@ func receiverTypeName(expr ast.Expr) string {
 		return ""
 	}
 	return id.Name
+}
+
+// maxResolveDepth bounds how far pkgScope.typeOf follows a chain of selectors
+// and nested calls. A source expression is finite, so the walk terminates
+// without it; the cap is written down because recursion here is permitted only
+// against one.
+const maxResolveDepth = 8
+
+// pkgScope is what one package declares that a selector can be resolved
+// against: the fields of each struct it defines, the type each of its
+// declarations returns, and the nodes the graph holds for it.
+//
+// It is deliberately not a type checker. Declarations are all it reads, so a
+// type they do not settle — an interface value's dynamic type, a type another
+// package declares, a range variable's element — resolves to nothing and the
+// selector on it stays unread. Matching such a selector on its bare method name
+// instead would tie every `.Ref` in the package to whatever lowering shares the
+// name, which is the resolution the one-namespace rule refuses.
+type pkgScope struct {
+	fields  map[string]map[string]string // struct type -> field -> the type it names
+	results map[string]string            // node name -> the single type it returns
+	nodes   map[string]bool              // the node names this package declares
+}
+
+// newPkgScope returns an empty scope, which resolves nothing.
+func newPkgScope() *pkgScope {
+	return &pkgScope{
+		fields:  map[string]map[string]string{},
+		results: map[string]string{},
+		nodes:   map[string]bool{},
+	}
+}
+
+// addTypes indexes the struct fields f declares.
+//
+// Only a named field counts. An embedded one promotes the method set of
+// whatever it embeds, and a scope built from declarations cannot follow that, so
+// it is left unresolved rather than resolved to the wrong receiver.
+func (s *pkgScope) addTypes(f *ast.File) {
+	for _, d := range f.Decls {
+		gen, isGen := d.(*ast.GenDecl)
+		if !isGen || gen.Tok != token.TYPE {
+			continue
+		}
+		for _, spec := range gen.Specs {
+			ts, isType := spec.(*ast.TypeSpec)
+			if !isType {
+				continue
+			}
+			if st, isStruct := ts.Type.(*ast.StructType); isStruct {
+				s.fields[ts.Name.Name] = fieldTypes(st)
+			}
+		}
+	}
+}
+
+// fieldTypes maps each named field of st to the type written beside it.
+func fieldTypes(st *ast.StructType) map[string]string {
+	out := map[string]string{}
+	if st.Fields == nil {
+		return out
+	}
+	for _, f := range st.Fields.List {
+		named := typeNameOf(f.Type)
+		if named == "" {
+			continue
+		}
+		for _, id := range f.Names {
+			out[id.Name] = named
+		}
+	}
+	return out
+}
+
+// addDecl records d as a node of this package, along with the type it returns.
+//
+// A declaration returning anything but one named type records none: a caller
+// assigning from it has nothing this scope can name, and half an answer is the
+// guess the whole design refuses.
+func (s *pkgScope) addDecl(d decl) {
+	s.nodes[d.name] = true
+
+	results := d.fn.Type.Results
+	if results == nil || len(results.List) != 1 || len(results.List[0].Names) > 1 {
+		return
+	}
+	if named := typeNameOf(results.List[0].Type); named != "" {
+		s.results[d.name] = named
+	}
+}
+
+// declares reports whether name is a node this package holds.
+//
+// A resolved selector is looked for in the package that resolved it, not in the
+// graph's flat namespace. The type name came from one package's declarations, so
+// the method has to as well: two packages declaring the same type name would
+// otherwise let a field read on one match a method on the other.
+func (s *pkgScope) declares(name string) bool {
+	return s.nodes[name]
+}
+
+// typeOf resolves the type an expression evaluates to, named as this package
+// declares it, or "" when its declarations do not say.
+func (s *pkgScope) typeOf(x ast.Expr, env map[string]string, depth int) string {
+	if depth > maxResolveDepth {
+		return ""
+	}
+	switch v := x.(type) {
+	case *ast.Ident:
+		return env[v.Name]
+	case *ast.ParenExpr:
+		return s.typeOf(v.X, env, depth+1)
+	case *ast.StarExpr: // a dereference; a pointer and its value key the same node
+		return s.typeOf(v.X, env, depth+1)
+	case *ast.UnaryExpr: // &T{…}
+		if v.Op != token.AND {
+			return ""
+		}
+		return s.typeOf(v.X, env, depth+1)
+	case *ast.CompositeLit:
+		return typeNameOf(v.Type)
+	case *ast.CallExpr:
+		return s.results[s.nodeNamed(v.Fun, env, depth+1)]
+	case *ast.SelectorExpr:
+		return s.fields[s.typeOf(v.X, env, depth+1)][v.Sel.Name]
+	default:
+		return ""
+	}
+}
+
+// nodeNamed returns the node an expression names: the bare name for a free
+// function, "<type>.<method>" when the base's type resolves, and "" when it does
+// not.
+func (s *pkgScope) nodeNamed(x ast.Expr, env map[string]string, depth int) string {
+	switch v := x.(type) {
+	case *ast.Ident:
+		return v.Name
+	case *ast.SelectorExpr:
+		base := s.typeOf(v.X, env, depth+1)
+		if base == "" {
+			return ""
+		}
+		return base + "." + v.Sel.Name
+	default:
+		return ""
+	}
+}
+
+// bindingsOf maps each identifier d's body can write to the type it holds.
+//
+// Only what d's own signature and body state outright is read: the receiver, the
+// parameters and named results, a var with a written type, and a short
+// declaration whose value is a composite literal or a call to something this
+// package declares. A package-level var, a range variable, a type switch's
+// binding and every other form a type checker would have to work out are left
+// out, so a selector on one resolves to nothing.
+//
+// An identifier bound twice to different types is dropped. Go scopes a shadowed
+// name and this does not, so the two bindings are indistinguishable here and
+// neither of them can be trusted.
+func bindingsOf(d decl) map[string]string {
+	env := map[string]string{}
+	shadowed := map[string]bool{}
+	bind := func(name, named string) {
+		if name == "" || name == "_" || named == "" {
+			return
+		}
+		if held, seen := env[name]; seen && held != named {
+			shadowed[name] = true
+		}
+		env[name] = named
+	}
+
+	bind(d.recv, d.recvType)
+	bindFields(bind, d.fn.Type.Params)
+	bindFields(bind, d.fn.Type.Results)
+	ast.Inspect(d.fn.Body, func(n ast.Node) bool {
+		switch v := n.(type) {
+		case *ast.FuncLit:
+			bindFields(bind, v.Type.Params)
+			bindFields(bind, v.Type.Results)
+		case *ast.ValueSpec:
+			bindSpec(bind, d.scope, env, v)
+		case *ast.AssignStmt:
+			bindAssign(bind, d.scope, env, v)
+		default:
+			// No other node states a type outright for a name it introduces.
+		}
+		return true
+	})
+
+	for name := range shadowed {
+		delete(env, name)
+	}
+	return env
+}
+
+// bindFields binds every name a parameter, result or receiver list declares to
+// the type written beside it.
+func bindFields(bind func(name, named string), list *ast.FieldList) {
+	if list == nil {
+		return
+	}
+	for _, f := range list.List {
+		named := typeNameOf(f.Type)
+		for _, id := range f.Names {
+			bind(id.Name, named)
+		}
+	}
+}
+
+// bindSpec binds a var or const declaration: the type it writes when it writes
+// one, and otherwise the type of the value standing beside each name.
+func bindSpec(bind func(name, named string), scope *pkgScope, env map[string]string, spec *ast.ValueSpec) {
+	if spec.Type != nil {
+		named := typeNameOf(spec.Type)
+		for _, id := range spec.Names {
+			bind(id.Name, named)
+		}
+		return
+	}
+	if len(spec.Names) != len(spec.Values) {
+		return
+	}
+	for i, id := range spec.Names {
+		bind(id.Name, scope.typeOf(spec.Values[i], env, 0))
+	}
+}
+
+// bindAssign binds a short variable declaration to the type of the value beside
+// each name. A form spreading one value over several names — a call with two
+// results, a comma-ok — says nothing about any of them here, so it binds none.
+func bindAssign(bind func(name, named string), scope *pkgScope, env map[string]string, as *ast.AssignStmt) {
+	if as.Tok != token.DEFINE || len(as.Lhs) != len(as.Rhs) {
+		return
+	}
+	for i, lhs := range as.Lhs {
+		id, isIdent := lhs.(*ast.Ident)
+		if !isIdent {
+			continue
+		}
+		bind(id.Name, scope.typeOf(as.Rhs[i], env, 0))
+	}
 }
 
 // loweringCallGraph maps every lowering to the ones it depends on.
@@ -204,9 +454,10 @@ func receiverTypeName(expr ast.Expr) string {
 //
 // The lowering spans packages now, and all of them are read into one namespace.
 // That is sound rather than convenient: a call from openapi into the schema
-// package is a selector this graph does not record, but no such edge can close a
-// cycle, because Go refuses the import that would let the schema package call
-// back. Every cycle there can be is inside one package.
+// package is a selector this graph does not record — a package qualifier names
+// no value, so nothing resolves it — but no such edge can close a cycle, because
+// Go refuses the import that would let the schema package call back. Every cycle
+// there can be is inside one package.
 //
 // The packages are named rather than globbed, and
 // TestLoweringCallGraph_ReadsEveryPackageThatLowers derives the same set from
@@ -214,29 +465,12 @@ func receiverTypeName(expr ast.Expr) string {
 func loweringCallGraph(t *testing.T) map[string]map[string]bool {
 	t.Helper()
 	root := repoRoot(t)
-	var files []string
+	// One list across the packages, but one scope inside each: the flat namespace
+	// is what the collision check below polices, and a selector still resolves
+	// only against the package it was written in.
+	decls := make([]decl, 0, len(loweringPackages))
 	for _, pkg := range loweringPackages {
-		found, err := filepath.Glob(filepath.Join(root, pkg, "*.go"))
-		require.NoError(t, err)
-		require.NotEmpty(t, found, "no sources under %s; the lowering moved and this pin no longer reads it", pkg)
-		files = append(files, found...)
-	}
-
-	var decls []decl
-	for _, path := range files {
-		if strings.HasSuffix(path, "_test.go") {
-			continue
-		}
-		f, err := parser.ParseFile(token.NewFileSet(), path, nil, 0)
-		require.NoError(t, err, "parse %s", path)
-
-		for _, d := range f.Decls {
-			fn, isFunc := d.(*ast.FuncDecl)
-			if !isFunc || fn.Body == nil {
-				continue
-			}
-			decls = append(decls, declOf(t, fn))
-		}
+		decls = append(decls, declsOf(t, parseSources(t, filepath.Join(root, pkg), pkg))...)
 	}
 
 	// One namespace across every package read. Go would allow the same name in
@@ -256,6 +490,56 @@ func loweringCallGraph(t *testing.T) map[string]map[string]bool {
 	return graph
 }
 
+// declsOf reads one package's files into the declarations the graph holds, each
+// carrying the scope its selectors resolve against.
+//
+// The scope is that one package and nothing else, which is the whole of what a
+// parser can be sure of: an unqualified type name means the type declared
+// alongside, and a name no declaration there settles stays unresolved. Its nodes
+// and result types are filled after the declarations are built, over the same
+// pointer every one of them holds.
+func declsOf(t *testing.T, files []*ast.File) []decl {
+	t.Helper()
+	scope := newPkgScope()
+	for _, f := range files {
+		scope.addTypes(f)
+	}
+	var decls []decl
+	for _, f := range files {
+		for _, d := range f.Decls {
+			fn, isFunc := d.(*ast.FuncDecl)
+			if !isFunc || fn.Body == nil {
+				continue
+			}
+			decls = append(decls, declOf(t, fn, scope))
+		}
+	}
+	for _, d := range decls {
+		scope.addDecl(d)
+	}
+	return decls
+}
+
+// parseSources parses one package's production sources.
+func parseSources(t *testing.T, dir, pkg string) []*ast.File {
+	t.Helper()
+	paths, err := filepath.Glob(filepath.Join(dir, "*.go"))
+	require.NoError(t, err)
+	require.NotEmpty(t, paths, "no sources under %s; the lowering moved and this pin no longer reads it", pkg)
+
+	var files []*ast.File
+	for _, path := range paths {
+		if strings.HasSuffix(path, "_test.go") {
+			continue
+		}
+		f, parseErr := parser.ParseFile(token.NewFileSet(), path, nil, 0)
+		require.NoError(t, parseErr, "parse %s", path)
+		files = append(files, f)
+	}
+	require.NotEmpty(t, files, "only tests under %s; the lowering moved and this pin no longer reads it", pkg)
+	return files
+}
+
 // calleesOf returns the lowerings d's body names, whether it calls them, hands
 // them on as a value, or reaches them through its own receiver.
 //
@@ -272,14 +556,18 @@ func loweringCallGraph(t *testing.T) map[string]map[string]bool {
 // spelling that matters most, since it would otherwise tie the whole package to
 // the schema entry point.
 //
-// The exception is a selector on d's own receiver. `w.walkMapping` is how one
-// method names another, and the receiver's type is the one thing the parser can
-// resolve without a type checker, so that selector is read as an edge to
-// "<receiver type>.<name>". Every other selector stays unread, and the limit is
-// worth stating rather than hiding: a free function calling a method, a method
-// calling one on another value, and any call through an interface are edges this
-// graph cannot see — resolving them needs types, and guessing them from a bare
-// method name is the resolution the one-namespace rule refuses (GitHub #323).
+// The exception is a selector whose base has a type this package's declarations
+// settle: `w.walkMapping` on the receiver, `w.walk` on a local built by a
+// constructor, `groups.group` on a parameter. That selector is an edge to
+// "<type>.<name>", because the method name is written here and this declaration
+// cannot be moved without it. Reading only the receiver left the first shape and
+// the second unread, which was GitHub #323.
+//
+// What stays unread is what the declarations do not settle: a call through an
+// interface, a value of a type another package declares, a range variable. Those
+// resolve to nothing and record nothing. The alternative — matching the bare
+// method name against the graph — is the resolution the one-namespace rule
+// refuses, and would tie every `.Ref` in the package to the schema entry point.
 //
 // A name may be d's own. Direct recursion is recursion, so the self edge is
 // recorded and TestLoweringRecursion_IsOnlyTheKnownCycles reads a self-loop as a
@@ -294,7 +582,7 @@ func loweringCallGraph(t *testing.T) map[string]map[string]bool {
 // silence #210 was about.
 func calleesOf(d decl, known map[string]bool) map[string]bool {
 	skip := map[*ast.Ident]bool{}
-	ast.Inspect(d.body, func(n ast.Node) bool {
+	ast.Inspect(d.fn.Body, func(n ast.Node) bool {
 		switch v := n.(type) {
 		case *ast.SelectorExpr:
 			skip[v.Sel] = true
@@ -310,16 +598,20 @@ func calleesOf(d decl, known map[string]bool) map[string]bool {
 		return true
 	})
 
+	env := bindingsOf(d)
 	out := map[string]bool{}
 	record := func(name string) {
 		if known[name] {
 			out[name] = true
 		}
 	}
-	ast.Inspect(d.body, func(n ast.Node) bool {
+	ast.Inspect(d.fn.Body, func(n ast.Node) bool {
 		if sel, isSel := n.(*ast.SelectorExpr); isSel {
-			if base, isIdent := sel.X.(*ast.Ident); isIdent && d.recv != "" && base.Name == d.recv {
-				record(d.recvType + "." + sel.Sel.Name)
+			// Recorded against the resolving package rather than the flat
+			// namespace, so a field read on one package's type can never match a
+			// method on another's type of the same name.
+			if name := d.scope.nodeNamed(sel, env, 0); d.scope.declares(name) {
+				out[name] = true
 			}
 			return true
 		}
@@ -442,7 +734,7 @@ func TestLoweringCallGraph_RecordsAHandoffAsAnEdge(t *testing.T) {
 // entry point, which tied nine unrelated functions into the walk's cycle.
 func TestCalleesOf_SeparatesAValueFromWhatIsNotOne(t *testing.T) {
 	t.Parallel()
-	known := map[string]bool{"Ref": true, "lower": true, "self": true}
+	outside := map[string]bool{"Ref": true, "lower": true, "self": true}
 	tests := []struct {
 		name, body string
 		want       []string
@@ -471,7 +763,7 @@ func TestCalleesOf_SeparatesAValueFromWhatIsNotOne(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			src := "package p\nfunc self(x, y int) { " + tc.body + " }\n"
-			assert.Equal(t, tc.want, plantedCallees(t, src, known))
+			assert.Equal(t, tc.want, plantedCallees(t, src, outside))
 		})
 	}
 }
@@ -485,86 +777,204 @@ func TestCalleesOf_SeparatesAValueFromWhatIsNotOne(t *testing.T) {
 // nothing but itself, and a graph that recorded only the first would still call
 // a directly recursive method dependency-free.
 //
-// The negative cases are the boundary. Without a type checker the graph cannot
-// say what a selector on anything else resolves to, so it declines to guess
-// rather than matching on the bare method name.
+// A receiver with no identifier is the boundary here: nothing in such a body can
+// name it, so the names it does write resolve to nothing.
 func TestCalleesOf_ResolvesAMethodThroughItsReceiver(t *testing.T) {
 	t.Parallel()
-	known := map[string]bool{"T.self": true, "T.other": true, "U.other": true, "lower": true}
+	outside := map[string]bool{"lower": true}
 	tests := []struct {
-		name, decl string
-		want       []string
+		name, decls string
+		want        []string
 	}{
 		{
-			name: "a sibling method called",
-			decl: "func (w *T) self(x int) { w.other(x) }",
-			want: []string{"T.other"},
+			name:  "a sibling method called",
+			decls: "func (w *T) other(x int) {}\nfunc (w *T) self(x int) { w.other(x) }",
+			want:  []string{"T.other"},
 		},
 		{
-			name: "the method itself",
-			decl: "func (w *T) self(x int) { w.self(x - 1) }",
-			want: []string{"T.self"},
+			name:  "the method itself",
+			decls: "func (w *T) self(x int) { w.self(x - 1) }",
+			want:  []string{"T.self"},
 		},
 		{
-			name: "a sibling method handed on as a value",
-			decl: "func (w *T) self(x int) { apply(x, w.other) }",
-			want: []string{"T.other"},
+			name:  "a sibling method handed on as a value",
+			decls: "func (w *T) other(x int) {}\nfunc (w *T) self(x int) { apply(x, w.other) }",
+			want:  []string{"T.other"},
 		},
 		{
-			name: "a value receiver",
-			decl: "func (w T) self(x int) { w.other(x) }",
-			want: []string{"T.other"},
+			name:  "a value receiver",
+			decls: "func (w T) other(x int) {}\nfunc (w T) self(x int) { w.other(x) }",
+			want:  []string{"T.other"},
 		},
 		{
-			name: "a generic receiver",
-			decl: "func (w *T[K]) self(x int) { w.other(x) }",
-			want: []string{"T.other"},
+			name:  "a generic receiver",
+			decls: "func (w *T[K]) other(x int) {}\nfunc (w *T[K]) self(x int) { w.other(x) }",
+			want:  []string{"T.other"},
 		},
 		{
-			name: "a free function reached from a method",
-			decl: "func (w *T) self(x int) { lower(x) }",
-			want: []string{"lower"},
-		},
-		// The boundary. Each of these names a method the graph holds, and none of
-		// them is an edge: u is some other value, and a receiver the declaration
-		// leaves unnamed cannot be written in the body at all.
-		{
-			name: "a selector on something other than the receiver",
-			decl: "func (w *T) self(u U) { u.other(1) }",
-			want: nil,
+			name:  "a free function reached from a method",
+			decls: "func (w *T) self(x int) { lower(x) }",
+			want:  []string{"lower"},
 		},
 		{
-			name: "a receiver the method does not name",
-			decl: "func (*T) self(x int) { x.other() }",
-			want: nil,
+			name:  "a receiver the method does not name",
+			decls: "func (w *T) other(x int) {}\nfunc (*T) self() { w.other(1) }",
+			want:  nil,
 		},
 		{
-			name: "a blank receiver",
-			decl: "func (_ *T) self(x int) { x.other() }",
-			want: nil,
+			name:  "a blank receiver",
+			decls: "func (w *T) other(x int) {}\nfunc (_ *T) self() { w.other(1) }",
+			want:  nil,
 		},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			src := "package p\n" + tc.decl + "\n"
-			assert.Equal(t, tc.want, plantedCallees(t, src, known))
+			src := "package p\n" + tc.decls + "\n"
+			assert.Equal(t, tc.want, plantedCallees(t, src, outside))
 		})
 	}
 }
 
-// plantedCallees parses one declaration out of src and returns its callees,
-// sorted, with an empty result normalized to nil so a case expecting no edges
-// reads as want: nil rather than want: []string{}.
-func plantedCallees(t *testing.T, src string, known map[string]bool) []string {
+// TestCalleesOf_ResolvesASelectorFromDeclarations pins the fix for GitHub #323:
+// a selector resolves whenever the package's own declarations settle its base's
+// type, not only when the base is the declaring method's receiver.
+//
+// The positive cases are the shapes the tree writes — a free function calling a
+// method on a local it constructed, on a parameter, on a var; a method calling
+// one on a field. The negative cases are the boundary, and they matter more:
+// each of them writes a method name the graph holds, and each must come back
+// empty. Resolving them would mean guessing, and a guess here attaches an edge
+// to a lowering that never names it.
+func TestCalleesOf_ResolvesASelectorFromDeclarations(t *testing.T) {
+	t.Parallel()
+	// Declared by every case, so a case's own line is only what it is about.
+	const decls = "type T struct{ inner *U }\n" +
+		"type U struct{}\n" +
+		"func newT() *T { return nil }\n" +
+		"func (u *U) other(x int) {}\n" +
+		"func (w *T) reached(x int) {}\n"
+	tests := []struct {
+		name, subject string
+		want          []string
+	}{
+		{
+			name:    "a local built by a constructor",
+			subject: "func self(x int) { w := newT(); w.reached(x) }",
+			want:    []string{"T.reached", "newT"},
+		},
+		{
+			name:    "a local built by a composite literal",
+			subject: "func self(x int) { w := T{}; w.reached(x) }",
+			want:    []string{"T.reached"},
+		},
+		{
+			name:    "a local built by a pointer to a composite literal",
+			subject: "func self(x int) { w := &T{}; w.reached(x) }",
+			want:    []string{"T.reached"},
+		},
+		{
+			name:    "a var declaring its own type",
+			subject: "func self(x int) { var w T; w.reached(x) }",
+			want:    []string{"T.reached"},
+		},
+		{
+			name:    "a parameter",
+			subject: "func self(w *T, x int) { w.reached(x) }",
+			want:    []string{"T.reached"},
+		},
+		{
+			name:    "a field of the receiver",
+			subject: "func (w *T) self(x int) { w.inner.other(x) }",
+			want:    []string{"U.other"},
+		},
+		{
+			name:    "a field of a local",
+			subject: "func self(x int) { w := newT(); w.inner.other(x) }",
+			want:    []string{"U.other", "newT"},
+		},
+		{
+			name:    "a method handed on as a value from a local",
+			subject: "func self(x int) { w := newT(); apply(x, w.reached) }",
+			want:    []string{"T.reached", "newT"},
+		},
+		// The boundary. Every one of these writes `other`, and none of them is an
+		// edge, because nothing declared here settles what the base is.
+		{
+			name:    "a call through an interface",
+			subject: "type I interface{ other(int) }\nfunc self(i I, x int) { i.other(x) }",
+			want:    nil,
+		},
+		{
+			name:    "a value of a type another package declares",
+			subject: "func self(v *elsewhere.U, x int) { v.other(x) }",
+			want:    nil,
+		},
+		{
+			name:    "a range variable",
+			subject: "func self(us []U, x int) { for _, u := range us { u.other(x) } }",
+			want:    nil,
+		},
+		{
+			name:    "a type switch's binding",
+			subject: "func self(a any, x int) { switch v := a.(type) { case *U: v.other(x) } }",
+			want:    nil,
+		},
+		{
+			name:    "a name bound twice to different types",
+			subject: "func self(x int) { w := &T{}; { w := &U{}; w.other(x) } }",
+			want:    nil,
+		},
+		// An embedded field promotes U's methods onto T, and following that is
+		// past what declarations settle: T declares no field named other.
+		{
+			name:    "a promoted method",
+			subject: "type E struct{ *U }\nfunc self(e *E, x int) { e.other(x) }",
+			want:    nil,
+		},
+		// The one negative whose base is declared: two returns a *T, and the
+		// binding is still refused. A result list of two says which name holds
+		// which type only by counting them off, and that is arithmetic on a
+		// declaration rather than a reading of it.
+		{
+			name:    "a call with more than one result",
+			subject: "func two() (*T, error) { return nil, nil }\nfunc self(x int) { w, _ := two(); w.reached(x) }",
+			want:    []string{"two"},
+		},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			assert.Equal(t, tc.want, plantedCallees(t, "package p\n"+decls+tc.subject+"\n", nil))
+		})
+	}
+}
+
+// plantedCallees returns the callees of the last declaration in src, sorted,
+// with an empty result normalized to nil so a case expecting no edges reads as
+// want: nil rather than want: []string{}.
+//
+// src is read as a whole package through the same declsOf the tree goes through,
+// so a case can plant the type, the constructor and the sibling method its
+// subject resolves against. outside names the lowerings the planted file does
+// not declare, standing in for the other packages the real graph reads.
+func plantedCallees(t *testing.T, src string, outside map[string]bool) []string {
 	t.Helper()
 	f, err := parser.ParseFile(token.NewFileSet(), "planted.go", src, 0)
 	require.NoError(t, err)
-	require.Len(t, f.Decls, 1, "plant exactly one declaration")
-	fn, isFunc := f.Decls[0].(*ast.FuncDecl)
-	require.True(t, isFunc)
 
-	got := calleesOf(declOf(t, fn), known)
+	decls := declsOf(t, []*ast.File{f})
+	require.NotEmpty(t, decls, "plant at least one declaration with a body")
+
+	known := make(map[string]bool, len(outside)+len(decls))
+	for name := range outside {
+		known[name] = true
+	}
+	for _, d := range decls {
+		known[d.name] = true
+	}
+
+	got := calleesOf(decls[len(decls)-1], known)
 	names := make([]string, 0, len(got))
 	for n := range got {
 		names = append(names, n)
@@ -623,7 +1033,7 @@ func TestDeclOf_NamesAMethodByItsReceiverType(t *testing.T) {
 			fn, isFunc := f.Decls[0].(*ast.FuncDecl)
 			require.True(t, isFunc)
 
-			got := declOf(t, fn)
+			got := declOf(t, fn, newPkgScope())
 			assert.Equal(t, tc.wantName, got.name)
 			assert.Equal(t, tc.wantRecv, got.recv)
 			assert.Equal(t, tc.wantRecvType, got.recvType)
@@ -631,19 +1041,64 @@ func TestDeclOf_NamesAMethodByItsReceiverType(t *testing.T) {
 	}
 }
 
-// TestReceiverTypeName_RefusesWhatIsNotATypeName covers the guard declOf leans
-// on. go/parser accepts a receiver go/types would reject, so a source file can
-// reach this — and keying such a method as though it had no receiver would put
-// it in the free functions' namespace, where a real free function of that name
-// would then collide with it.
-func TestReceiverTypeName_RefusesWhatIsNotATypeName(t *testing.T) {
+// TestTypeNameOf_RefusesWhatIsNotATypeName covers the guard declOf leans on and
+// the one every binding leans on.
+//
+// On a receiver it is a correctness guard: go/parser accepts a receiver go/types
+// would reject, so a source file can reach it, and keying such a method as
+// though it had no receiver would put it in the free functions' namespace where
+// a real free function of that name would collide with it.
+//
+// On a field or a parameter it is the refusal itself. A value of `[]U` or of
+// `elsewhere.U` is not a value of the type this graph would key from the inner
+// name, so reducing to that name would resolve a selector onto the wrong
+// receiver — quietly, and only for whichever lowering shares the spelling.
+func TestTypeNameOf_RefusesWhatIsNotATypeName(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		name, typ string
+		want      string
+	}{
+		{name: "a type name", typ: "U", want: "U"},
+		{name: "a pointer to one", typ: "*U", want: "U"},
+		{name: "an instantiated generic", typ: "U[K]", want: "U"},
+		{name: "a map", typ: "map[string]U"},
+		{name: "a slice", typ: "[]U"},
+		{name: "an array", typ: "[3]U"},
+		{name: "a channel", typ: "chan U"},
+		{name: "a type another package declares", typ: "elsewhere.U"},
+		{name: "a func type", typ: "func(U) U"},
+		{name: "a literal interface", typ: "interface{ other(int) }"},
+		{name: "a literal struct", typ: "struct{ u U }"},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			f, err := parser.ParseFile(token.NewFileSet(), "planted.go", "package p\nvar v "+tc.typ+"\n", 0)
+			require.NoError(t, err)
+			gen, isGen := f.Decls[0].(*ast.GenDecl)
+			require.True(t, isGen)
+			spec, isValue := gen.Specs[0].(*ast.ValueSpec)
+			require.True(t, isValue)
+
+			assert.Equal(t, tc.want, typeNameOf(spec.Type),
+				"a type this graph cannot key must be refused, not read as some other name")
+		})
+	}
+}
+
+// TestTypeNameOf_RefusesAReceiverGoTypesWouldReject shows the refusal above is
+// reachable from a receiver and not only from a field: go/parser accepts this
+// declaration, so a source file can carry one to declOf, which requires a name
+// rather than keying the method as a free function.
+func TestTypeNameOf_RefusesAReceiverGoTypesWouldReject(t *testing.T) {
 	t.Parallel()
 	f, err := parser.ParseFile(token.NewFileSet(), "planted.go", "package p\nfunc (w map[string]int) f() {}\n", 0)
 	require.NoError(t, err)
 	fn, isFunc := f.Decls[0].(*ast.FuncDecl)
 	require.True(t, isFunc)
 
-	assert.Empty(t, receiverTypeName(fn.Recv.List[0].Type),
+	assert.Empty(t, typeNameOf(fn.Recv.List[0].Type),
 		"a receiver that names no type must be refused, not read as some other name")
 }
 
@@ -671,6 +1126,43 @@ func TestLoweringCallGraph_RecordsAMethodEdge(t *testing.T) {
 		require.True(t, held, "the graph no longer holds %q", e[0])
 		assert.True(t, graph[e[0]][e[1]],
 			"%q reaches %q through its receiver; the graph records only free functions again", e[0], e[1])
+	}
+}
+
+// TestLoweringCallGraph_ResolvesAMethodOnAValue holds the graph to the fix for
+// GitHub #323 on the tree. Each of these writes a method name and so decides
+// which lowering runs, and a graph resolving only the declaring method's own
+// receiver described every one of them as absent: dynamicAnchors reached
+// newAnchorWalk and nothing else, and LowerService reached neither of the two
+// methods that assemble its groups.
+//
+// The bases are the shapes these packages write: a local a constructor
+// returned, a pointer parameter, and a composite literal. A resolution covering
+// one of them and not the rest would still fail here.
+//
+// Not every selector resolves, and one declaration next to these shows why.
+// anchorWalk.walkMapping reads its pairs through w.view.MappingPairs, and the
+// field's type is qualified — nodeview declares it, and no package this pin
+// reads holds a node for it. So it resolves to nothing, rather than to whatever
+// this flat namespace might hold under the same trailing name.
+func TestLoweringCallGraph_ResolvesAMethodOnAValue(t *testing.T) {
+	t.Parallel()
+	graph := loweringCallGraph(t)
+
+	edges := [][2]string{
+		{"dynamicAnchors", "anchorWalk.walk"},      // w := newAnchorWalk(…)
+		{"LowerService", "serviceGroups.finalize"}, // groups := newServiceGroups()
+		{"lowerPathItem", "serviceGroups.group"},   // a *serviceGroups parameter
+		{"lowerWebhooks", "serviceGroups.group"},   // the same, in the other caller
+		{"soleAnchorSite", "AnchorIndex.sites"},    // an *AnchorIndex parameter
+		{"dynamicHop", "AnchorIndex.sites"},        // the same, in the other caller
+		{"optionsFrom", "Options.withDefaults"},    // Options{}.withDefaults()
+	}
+	for _, e := range edges {
+		_, held := graph[e[0]]
+		require.True(t, held, "the graph no longer holds %q", e[0])
+		assert.True(t, graph[e[0]][e[1]],
+			"%q names %q, which decides which lowering runs; the selector is unresolved again", e[0], e[1])
 	}
 }
 
