@@ -3,6 +3,13 @@ on:
   push:
     branches: [main]
   pull_request:
+# Every check below runs a Makefile target, so `make gate` on a developer machine
+# is these same commands in the same order — .NOTPARALLEL in the Makefile keeps
+# that true under `make -j`. Lint is the one check that does not run a target:
+# the action installs the pinned release and runs it, and the step above reads
+# that pin back from the Makefile so the version still has a single definition.
+# Add a check to the Makefile and give it a step here; do not spell a command out
+# in this file.
 jobs:
   gate:
     runs-on: ubuntu-latest
@@ -12,12 +19,45 @@ jobs:
         with:
           go-version: "1.26.3"
       - name: gofmt
-        run: test -z "$(gofmt -l $(git ls-files '*.go'))"
+        run: make fmt
       - name: vet
-        run: go vet ./...
+        run: make vet
+      - name: lint version
+        id: lint-version
+        run: echo "version=$(make -s print-lint-version)" >>"$GITHUB_OUTPUT"
       - name: lint
         uses: golangci/golangci-lint-action@v8.0.0
+        with:
+          # Pinned so a golangci-lint release cannot redden main without a commit,
+          # and so the nolint steps below describe the run that produced the
+          # findings above: they ask golangci-lint which linters it is running,
+          # which only answers for this step if it is the same build. The pin
+          # itself lives in the Makefile and is read back by the step above.
+          version: ${{ steps.lint-version.outputs.version }}
+      # The action leaves the golangci-lint it installed on PATH for later steps
+      # (core.addPath in its entrypoint), so these reach that same binary.
+      - name: nolint grammar
+        run: make nolint-grammar
+      - name: nolint directives
+        run: make nolint
       - name: build
-        run: go build ./...
-      - name: coverage
-        run: ./scripts/check-coverage.sh
+        run: make build
+      - name: coverage counting
+        run: make coverage-count
+      - name: test (race detector, exactly 100% coverage)
+        run: make coverage
+      - name: fuzz
+        id: fuzz
+        run: make fuzz
+      - name: benchmarks
+        run: make bench-smoke
+      # A crash the fuzz step finds is written to <pkg>/testdata/fuzz/<Target>/
+      # in the runner's workspace and would otherwise die with it, leaving a red
+      # gate and no reproducer to commit.
+      - name: upload fuzz findings
+        if: failure() && steps.fuzz.outcome == 'failure'
+        uses: actions/upload-artifact@v4
+        with:
+          name: fuzz-findings
+          path: "**/testdata/fuzz/**"
+          if-no-files-found: ignore

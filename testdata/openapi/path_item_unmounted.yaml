@@ -1,0 +1,62 @@
+# A Path Item Object that mounts no operation is reached by nothing that lowers
+# one: applyPathItem runs once per operation the item produces, so an item
+# producing none used to lose its servers, its extensions and its undeclared keys
+# whole, with no diagnostic naming the loss.
+#
+# All three routes that lower a path item are here, because the orphan branch is
+# per-route and the servers half of this same mechanism was live on one route and
+# missing on the other two once already (GitHub #39): a path, a webhook, and a
+# callback expression. Each keeps what it wrote on the nearest node holding an
+# Unmodeled map — the service for the first two, the parent operation's HTTP
+# binding for the callback, which is where the callback itself lives.
+#
+# Two unmounted paths rather than one, deliberately. Every entry is keyed by the
+# item's own mount pointer and every announcement is stamped with it, so a single
+# item cannot tell a correct implementation from one that keys or reports against
+# the carrier: both pass. Two collide under the carrier's own pointer — silently,
+# since diagnostic identity is the whole value and the survivor of an entry
+# collision is decided by iteration order.
+#
+# Nothing here draws an error diagnostic, which is what the shape of each stray
+# key is chosen for: harness.Check stops at the first one, so a fixture that drew
+# it would never reach the invariant, round-trip, determinism and order-invariance
+# oracles it exists to reach. A key the library does not recognize is folded into
+# the item's operations map and unmarshalled as an Operation, so anything that is
+# not one fails to parse — while a well-formed operation folds in silence. That
+# silent fold is also the half this compiler lost most quietly: it raises nothing
+# at all, so before the census nothing named it. `mounted` is here so both kinds
+# of carrier appear in one document.
+openapi: 3.1.0
+info: {title: Unmounted Path Items, version: "1"}
+paths:
+  /mounted:
+    servers: [{url: 'https://mounted.example'}]
+    x-on-mounted: mounted
+    get:
+      operationId: getMounted
+      responses:
+        "200": {description: ok}
+  /unmounted-a:
+    servers: [{url: 'https://a.example'}]
+    x-on-a: a
+    strayOnA: {responses: {"200": {description: STRAY_A}}}
+  /unmounted-b:
+    servers: [{url: 'https://b.example'}]
+    x-on-b: b
+    strayOnB: {responses: {"200": {description: STRAY_B}}}
+  /with-callback:
+    post:
+      operationId: postWithCallback
+      responses:
+        "200": {description: ok}
+      callbacks:
+        onEvent:
+          '{$request.body#/url}':
+            servers: [{url: 'https://cb.example'}]
+            x-on-callback: cb
+            strayOnCallback: {responses: {"200": {description: STRAY_CB}}}
+webhooks:
+  unmountedHook:
+    servers: [{url: 'https://hook.example'}]
+    x-on-hook: hook
+    strayOnHook: {responses: {"200": {description: STRAY_HOOK}}}

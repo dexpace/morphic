@@ -1,0 +1,410 @@
+{
+  "irVersion": "0.3.0",
+  "name": "EmptyEnum",
+  "version": "1.0.0",
+  "docs": {},
+  "services": [
+    {
+      "id": "s/openapi/0",
+      "name": {
+        "source": "EmptyEnum",
+        "canonical": "empty_enum"
+      },
+      "docs": {},
+      "auth": null,
+      "provenance": {
+        "source": 0
+      }
+    }
+  ],
+  "types": {
+    "t/anon/components/schemas/Holder/properties/colour": {
+      "kind": "enum",
+      "id": "t/anon/components/schemas/Holder/properties/colour",
+      "name": {
+        "hint": "colour"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Holder/properties/colour"
+      },
+      "valueType": "string",
+      "members": [
+        {
+          "name": {
+            "source": "red",
+            "canonical": "red"
+          },
+          "value": {
+            "kind": "string",
+            "str": "red",
+            "bytes": null,
+            "list": null,
+            "object": null
+          },
+          "docs": {}
+        },
+        {
+          "name": {
+            "source": "green",
+            "canonical": "green"
+          },
+          "value": {
+            "kind": "string",
+            "str": "green",
+            "bytes": null,
+            "list": null,
+            "object": null
+          },
+          "docs": {}
+        }
+      ],
+      "closed": true,
+      "flags": false
+    },
+    "t/openapi/components/schemas/Bare": {
+      "kind": "enum",
+      "id": "t/openapi/components/schemas/Bare",
+      "name": {
+        "source": "Bare",
+        "canonical": "bare"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Bare"
+      },
+      "valueType": "any",
+      "closed": true,
+      "flags": false
+    },
+    "t/openapi/components/schemas/Base": {
+      "kind": "model",
+      "id": "t/openapi/components/schemas/Base",
+      "name": {
+        "source": "Base",
+        "canonical": "base"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Base"
+      },
+      "properties": [
+        {
+          "id": "p/openapi/components/schemas/Base/properties/y",
+          "name": {
+            "source": "y",
+            "canonical": "y"
+          },
+          "wireName": "y",
+          "type": {
+            "target": "t/prim/string",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/Base/properties/y"
+          }
+        }
+      ],
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
+    "t/openapi/components/schemas/BesideAllOf": {
+      "kind": "enum",
+      "id": "t/openapi/components/schemas/BesideAllOf",
+      "name": {
+        "source": "BesideAllOf",
+        "canonical": "beside_all_of"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "unmodeled": {
+        "openapi:allOf": {
+          "reason": "degraded_lowering",
+          "value": [
+            {
+              "$ref": "#/components/schemas/Base"
+            }
+          ],
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/BesideAllOf/allOf"
+          }
+        }
+      },
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/BesideAllOf"
+      },
+      "valueType": "any",
+      "closed": true,
+      "flags": false
+    },
+    "t/openapi/components/schemas/BesideProperties": {
+      "kind": "enum",
+      "id": "t/openapi/components/schemas/BesideProperties",
+      "name": {
+        "source": "BesideProperties",
+        "canonical": "beside_properties"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "unmodeled": {
+        "openapi:properties": {
+          "reason": "degraded_lowering",
+          "value": {
+            "x": {
+              "type": "string"
+            }
+          },
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/BesideProperties/properties"
+          }
+        },
+        "openapi:type": {
+          "reason": "degraded_lowering",
+          "value": "object",
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/BesideProperties/type"
+          }
+        }
+      },
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/BesideProperties"
+      },
+      "valueType": "any",
+      "closed": true,
+      "flags": false
+    },
+    "t/openapi/components/schemas/Holder": {
+      "kind": "model",
+      "id": "t/openapi/components/schemas/Holder",
+      "name": {
+        "source": "Holder",
+        "canonical": "holder"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Holder"
+      },
+      "properties": [
+        {
+          "id": "p/openapi/components/schemas/Holder/properties/nothing",
+          "name": {
+            "source": "nothing",
+            "canonical": "nothing"
+          },
+          "wireName": "nothing",
+          "type": {
+            "target": "t/openapi/components/schemas/Nothing",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/Holder/properties/nothing"
+          }
+        },
+        {
+          "id": "p/openapi/components/schemas/Holder/properties/bare",
+          "name": {
+            "source": "bare",
+            "canonical": "bare"
+          },
+          "wireName": "bare",
+          "type": {
+            "target": "t/openapi/components/schemas/Bare",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/Holder/properties/bare"
+          }
+        },
+        {
+          "id": "p/openapi/components/schemas/Holder/properties/colour",
+          "name": {
+            "source": "colour",
+            "canonical": "colour"
+          },
+          "wireName": "colour",
+          "type": {
+            "target": "t/anon/components/schemas/Holder/properties/colour",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/Holder/properties/colour"
+          }
+        }
+      ],
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
+    "t/openapi/components/schemas/Nothing": {
+      "kind": "enum",
+      "id": "t/openapi/components/schemas/Nothing",
+      "name": {
+        "source": "Nothing",
+        "canonical": "nothing"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Nothing"
+      },
+      "valueType": "string",
+      "closed": true,
+      "flags": false
+    },
+    "t/prim/string": {
+      "kind": "primitive",
+      "id": "t/prim/string",
+      "name": {},
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0
+      },
+      "prim": "string"
+    }
+  },
+  "servers": [
+    {
+      "name": {
+        "hint": "server"
+      },
+      "urlTemplate": "/",
+      "description": {},
+      "auth": null
+    }
+  ],
+  "diagnostics": [
+    {
+      "severity": "warning",
+      "code": "openapi/empty-enum",
+      "message": "enum declares no member, so this position accepts no value; lowered as a closed enum with no members",
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Nothing"
+      }
+    },
+    {
+      "severity": "warning",
+      "code": "openapi/empty-enum",
+      "message": "enum declares no member, so this position accepts no value; lowered as a closed enum with no members",
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Bare"
+      }
+    },
+    {
+      "severity": "warning",
+      "code": "openapi/empty-enum",
+      "message": "enum declares no member, so this position accepts no value; lowered as a closed enum with no members",
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/BesideProperties"
+      }
+    },
+    {
+      "severity": "info",
+      "code": "openapi/degraded-construct",
+      "message": "this position lowered to a node of kind \"enum\", which has no home for properties, type declared beside it; kept verbatim under Unmodeled",
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/BesideProperties"
+      }
+    },
+    {
+      "severity": "warning",
+      "code": "openapi/empty-enum",
+      "message": "enum declares no member, so this position accepts no value; lowered as a closed enum with no members",
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/BesideAllOf"
+      }
+    },
+    {
+      "severity": "info",
+      "code": "openapi/degraded-construct",
+      "message": "this position declares allOf beside its enum, and JSON Schema conjoins them where only one can be the value; it lowered as the enum, with allOf kept verbatim under Unmodeled",
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/BesideAllOf"
+      }
+    }
+  ],
+  "sources": [
+    {
+      "format": "openapi@3.1",
+      "path": "empty-enum.yaml",
+      "hash": "ef67ef043c8831c60c30eb6be0a435cc09eed28394f0497006dfb6a3454f1ec9"
+    }
+  ]
+}

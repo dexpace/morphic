@@ -2,6 +2,8 @@ package schema_test
 
 import (
 	"encoding/json"
+	"fmt"
+	"sort"
 	"strings"
 	"testing"
 
@@ -16,6 +18,7 @@ import (
 	"github.com/dexpace/morphic/compilers/openapi/internal/annotation"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
+	"github.com/dexpace/morphic/compilers/openapi/internal/openapitest"
 	"github.com/dexpace/morphic/compilers/openapi/internal/overlay"
 	"github.com/dexpace/morphic/compilers/openapi/internal/schema"
 	"github.com/dexpace/morphic/ir"
@@ -46,7 +49,7 @@ func TestSchemaRef_NullableNormalization(t *testing.T) {
 				"      properties:\n" +
 				"        p: " + tc.schema + "\n"
 			doc, diags := lowerSpec(t, spec)
-			requireNoErrorDiags(t, diags)
+			openapitest.RequireNoErrorDiags(t, diags)
 			model, ok := doc.Types[componentID("S")].(*ir.Model)
 			require.True(t, ok)
 			require.Len(t, model.Properties, 1)
@@ -60,14 +63,14 @@ func TestLower_NamedScalarComponentResolves(t *testing.T) {
 	t.Parallel()
 	// A named component whose body is a plain scalar must register a resolvable
 	// node at its own component pointer, so a $ref to it never dangles.
-	spec := componentSpec(`    MyId: {type: string, format: uuid}
+	spec := openapitest.ComponentSpec(`    MyId: {type: string, format: uuid}
     Holder:
       type: object
       properties:
         id: {$ref: "#/components/schemas/MyId"}
 `)
 	doc, diags := lowerSpec(t, spec)
-	requireNoErrorDiags(t, diags)
+	openapitest.RequireNoErrorDiags(t, diags)
 
 	scalar, ok := doc.Types[componentID("MyId")].(*ir.Scalar)
 	require.True(t, ok, "named scalar component registers a Scalar at its own ID")
@@ -91,7 +94,7 @@ func TestLower_ConstraintOnlyUnionIsValidationOnly(t *testing.T) {
 	// logic, not shape — dependentRequired's sibling — so the structural body
 	// survives and the union is preserved under ReasonValidationOnly, the reason
 	// a validation emitter selects on (ir-design §4.7).
-	spec := componentSpec(`    Thing:
+	spec := openapitest.ComponentSpec(`    Thing:
       type: object
       additionalProperties: false
       required: [common]
@@ -102,7 +105,7 @@ func TestLower_ConstraintOnlyUnionIsValidationOnly(t *testing.T) {
         - {required: [b]}
 `)
 	doc, diags := lowerSpec(t, spec)
-	requireNoErrorDiags(t, diags)
+	openapitest.RequireNoErrorDiags(t, diags)
 
 	m, ok := doc.Types[componentID("Thing")].(*ir.Model)
 	require.True(t, ok, "structural body lowers to a Model, not a bare Union")
@@ -116,7 +119,7 @@ func TestLower_ConstraintOnlyUnionIsValidationOnly(t *testing.T) {
 	assert.Equal(t, ir.ReasonValidationOnly, raw.Reason,
 		"constraint-only branches narrow the body without reshaping it (ir-design §4.7)")
 	assert.Equal(t, "/components/schemas/Thing/oneOf", raw.Provenance.Pointer)
-	assert.Equal(t, 1, countDiagsAt(diags, diag.ValidationOnlyKeyword, ir.SeverityInfo),
+	assert.Equal(t, 1, openapitest.CountDiagsAt(diags, diag.ValidationOnlyKeyword, ir.SeverityInfo),
 		"the union is reported with §4.7's keyword family; got %+v", diags)
 }
 
@@ -128,7 +131,7 @@ func TestLower_BooleanUnionBranchDeclaresNoShape(t *testing.T) {
 	// as a constraint-only branch does, and takes the same validation-only
 	// lowering. The branch carries no schema object at all, which is what
 	// separates it from a branch that declares nothing structural.
-	spec := componentSpec(`    Flag:
+	spec := openapitest.ComponentSpec(`    Flag:
       type: object
       required: [common]
       properties:
@@ -138,7 +141,7 @@ func TestLower_BooleanUnionBranchDeclaresNoShape(t *testing.T) {
         - false
 `)
 	doc, diags := lowerSpec(t, spec)
-	requireNoErrorDiags(t, diags)
+	openapitest.RequireNoErrorDiags(t, diags)
 
 	m, ok := doc.Types[componentID("Flag")].(*ir.Model)
 	require.True(t, ok, "the structural body survives as a Model")
@@ -155,7 +158,7 @@ func TestLower_BooleanUnionBranchDeclaresNoShape(t *testing.T) {
 func TestLower_AllOfWithOneOfKeepsBoth(t *testing.T) {
 	t.Parallel()
 	// allOf co-declared with oneOf must not drop the allOf composition.
-	spec := componentSpec(`    Base:
+	spec := openapitest.ComponentSpec(`    Base:
       type: object
       properties:
         id: {type: string}
@@ -167,7 +170,7 @@ func TestLower_AllOfWithOneOfKeepsBoth(t *testing.T) {
         - {type: integer}
 `)
 	doc, diags := lowerSpec(t, spec)
-	requireNoErrorDiags(t, diags)
+	openapitest.RequireNoErrorDiags(t, diags)
 	m, ok := doc.Types[componentID("Combo")].(*ir.Model)
 	require.True(t, ok, "allOf composition survives (Model), oneOf preserved raw")
 	require.NotNil(t, m.Base, "the allOf $ref becomes Base")
@@ -178,13 +181,13 @@ func TestLower_AllOfWithOneOfKeepsBoth(t *testing.T) {
 
 func TestLower_RecursiveSchemaTerminates(t *testing.T) {
 	t.Parallel()
-	spec := componentSpec(`    Node:
+	spec := openapitest.ComponentSpec(`    Node:
       type: object
       properties:
         next: {$ref: "#/components/schemas/Node"}
 `)
 	doc, diags := lowerSpec(t, spec)
-	requireNoErrorDiags(t, diags)
+	openapitest.RequireNoErrorDiags(t, diags)
 	node, ok := doc.Types[componentID("Node")].(*ir.Model)
 	require.True(t, ok)
 	require.Equal(t, ir.TypeRef{Target: "t/openapi/components/schemas/Node"}, node.Properties[0].Type)
@@ -192,7 +195,7 @@ func TestLower_RecursiveSchemaTerminates(t *testing.T) {
 
 func TestLower_InlineSchemaHoistedOnce(t *testing.T) {
 	t.Parallel()
-	spec := componentSpec(`    S:
+	spec := openapitest.ComponentSpec(`    S:
       type: object
       properties:
         tags:
@@ -203,7 +206,7 @@ func TestLower_InlineSchemaHoistedOnce(t *testing.T) {
               name: {type: string}
 `)
 	doc, diags := lowerSpec(t, spec)
-	requireNoErrorDiags(t, diags)
+	openapitest.RequireNoErrorDiags(t, diags)
 	itemsID := ir.TypeID("t/anon/components/schemas/S/properties/tags/items")
 	item, ok := doc.Types[itemsID].(*ir.Model)
 	require.True(t, ok, "items object should be hoisted as a model")
@@ -214,7 +217,7 @@ func TestLower_InlineSchemaHoistedOnce(t *testing.T) {
 
 func TestSchemaRef_BooleanAndUntypedShapes(t *testing.T) {
 	t.Parallel()
-	spec := componentSpec(`    S:
+	spec := openapitest.ComponentSpec(`    S:
       type: object
       properties:
         anything: true
@@ -223,9 +226,9 @@ func TestSchemaRef_BooleanAndUntypedShapes(t *testing.T) {
         withprops: {properties: {x: {type: string}}}
 `)
 	doc, diags := lowerSpec(t, spec)
-	requireNoErrorDiags(t, diags)
+	openapitest.RequireNoErrorDiags(t, diags)
 	m := typeByName(doc, "S").(*ir.Model)
-	byWire := propsByWire(m.Properties)
+	byWire := openapitest.PropsByWire(m.Properties)
 	assert.Equal(t, ir.TypeID("t/prim/any"), byWire["anything"].Type.Target)
 	// `false` schema lowered to a closed empty model.
 	nothing := doc.Types[byWire["nothing"].Type.Target]
@@ -235,18 +238,18 @@ func TestSchemaRef_BooleanAndUntypedShapes(t *testing.T) {
 	assert.Equal(t, ir.TypeID("t/prim/any"), byWire["untyped"].Type.Target)
 	assert.Equal(t, ir.KindModel, doc.Types[byWire["withprops"].Type.Target].Kind())
 
-	assert.True(t, hasDiagAt(diags, diag.FalseSchema, ir.SeverityInfo), "false schema info diagnostic")
+	assert.True(t, openapitest.HasDiagAt(diags, diag.FalseSchema, ir.SeverityInfo), "false schema info diagnostic")
 }
 
 func TestLower_MultiTypeUnion(t *testing.T) {
 	t.Parallel()
-	spec := componentSpec(`    MT:
+	spec := openapitest.ComponentSpec(`    MT:
       type: [object, array, string]
       properties: {x: {type: string}}
       items: {type: integer}
 `)
 	doc, diags := lowerSpec(t, spec)
-	requireNoErrorDiags(t, diags)
+	openapitest.RequireNoErrorDiags(t, diags)
 	u, ok := typeByName(doc, "MT").(*ir.Union)
 	require.True(t, ok)
 	require.Len(t, u.Variants, 3)
@@ -255,7 +258,7 @@ func TestLower_MultiTypeUnion(t *testing.T) {
 
 func TestScalar_UnknownFormatPerBaseType(t *testing.T) {
 	t.Parallel()
-	spec := componentSpec(`    S:
+	spec := openapitest.ComponentSpec(`    S:
       type: object
       properties:
         i: {type: integer, format: weird}
@@ -264,7 +267,7 @@ func TestScalar_UnknownFormatPerBaseType(t *testing.T) {
         s: {type: string, format: weird}
 `)
 	doc, diags := lowerSpec(t, spec)
-	requireNoErrorDiags(t, diags)
+	openapitest.RequireNoErrorDiags(t, diags)
 	m := typeByName(doc, "S").(*ir.Model)
 	bases := map[string]ir.PrimKind{}
 	for _, p := range m.Properties {
@@ -282,13 +285,13 @@ func TestScalar_UnknownFormatPerBaseType(t *testing.T) {
 
 func TestLower_TupleWithTrailingItems(t *testing.T) {
 	t.Parallel()
-	spec := componentSpec(`    Tup:
+	spec := openapitest.ComponentSpec(`    Tup:
       type: array
       prefixItems: [{type: string}, {type: integer}]
       items: {type: boolean}
 `)
 	doc, diags := lowerSpec(t, spec)
-	requireNoErrorDiags(t, diags)
+	openapitest.RequireNoErrorDiags(t, diags)
 	tup, ok := typeByName(doc, "Tup").(*ir.Tuple)
 	require.True(t, ok)
 	require.Len(t, tup.Elems, 2)
@@ -315,7 +318,7 @@ func hasDegradedDiag(diags []ir.Diagnostic, want string) bool {
 
 func TestLower_ListConstraints(t *testing.T) {
 	t.Parallel()
-	spec := componentSpec(`    L:
+	spec := openapitest.ComponentSpec(`    L:
       type: array
       items: {type: string}
       minItems: 1
@@ -323,7 +326,7 @@ func TestLower_ListConstraints(t *testing.T) {
       uniqueItems: true
 `)
 	doc, diags := lowerSpec(t, spec)
-	requireNoErrorDiags(t, diags)
+	openapitest.RequireNoErrorDiags(t, diags)
 	l, ok := typeByName(doc, "L").(*ir.List)
 	require.True(t, ok)
 	require.NotNil(t, l.Constraints)
@@ -335,8 +338,8 @@ func TestLower_ListConstraints(t *testing.T) {
 func TestLower_ListWithoutItems(t *testing.T) {
 	t.Parallel()
 	// No `items` → schema.Ref(nil) → element is `any`.
-	doc, diags := lowerSpec(t, componentSpec("    L: {type: array}\n"))
-	requireNoErrorDiags(t, diags)
+	doc, diags := lowerSpec(t, openapitest.ComponentSpec("    L: {type: array}\n"))
+	openapitest.RequireNoErrorDiags(t, diags)
 	l, ok := typeByName(doc, "L").(*ir.List)
 	require.True(t, ok)
 	assert.Equal(t, ir.TypeID("t/prim/any"), l.Elem.Target)
@@ -344,7 +347,7 @@ func TestLower_ListWithoutItems(t *testing.T) {
 
 func TestLower_ValidationOnlyKeywords(t *testing.T) {
 	t.Parallel()
-	spec := componentSpec(`    V:
+	spec := openapitest.ComponentSpec(`    V:
       type: object
       properties: {a: {type: string}}
       if: {required: [a]}
@@ -358,7 +361,7 @@ func TestLower_ValidationOnlyKeywords(t *testing.T) {
       unevaluatedItems: {type: integer}
 `)
 	doc, diags := lowerSpec(t, spec)
-	requireNoErrorDiags(t, diags)
+	openapitest.RequireNoErrorDiags(t, diags)
 	m := typeByName(doc, "V").(*ir.Model)
 	// An entry the source writes as one keyword is located at that keyword; the
 	// three that synthesize several into one object fall back to the schema,
@@ -375,7 +378,7 @@ func TestLower_ValidationOnlyKeywords(t *testing.T) {
 		require.True(t, ok, "keyword %s preserved", key)
 		assert.Equal(t, want, entry.Provenance.Pointer, "entry provenance for %s", key)
 	}
-	assert.GreaterOrEqual(t, countDiagsAt(diags, diag.ValidationOnlyKeyword, ir.SeverityInfo), 5)
+	assert.GreaterOrEqual(t, openapitest.CountDiagsAt(diags, diag.ValidationOnlyKeyword, ir.SeverityInfo), 5)
 }
 
 // TestLower_PropertyNamesPreserved pins the whole §4.7 contract for
@@ -383,13 +386,13 @@ func TestLower_ValidationOnlyKeywords(t *testing.T) {
 // emitter selects on, and the one info diagnostic naming the keyword (#117).
 func TestLower_PropertyNamesPreserved(t *testing.T) {
 	t.Parallel()
-	spec := componentSpec(`    Codes:
+	spec := openapitest.ComponentSpec(`    Codes:
       type: object
       propertyNames: {type: string, pattern: "^[a-z]+$"}
       additionalProperties: {type: integer}
 `)
 	doc, diags := lowerSpec(t, spec)
-	requireNoErrorDiags(t, diags)
+	openapitest.RequireNoErrorDiags(t, diags)
 
 	m, ok := typeByName(doc, "Codes").(*ir.Model)
 	require.True(t, ok)
@@ -397,7 +400,7 @@ func TestLower_PropertyNamesPreserved(t *testing.T) {
 	require.True(t, ok, "propertyNames kept verbatim; got %v", m.Unmodeled)
 	assert.JSONEq(t, `{"type":"string","pattern":"^[a-z]+$"}`, string(entry.Value))
 	assert.Equal(t, ir.ReasonValidationOnly, entry.Reason)
-	assert.Equal(t, 1, countDiagsAt(diags, diag.ValidationOnlyKeyword, ir.SeverityInfo))
+	assert.Equal(t, 1, openapitest.CountDiagsAt(diags, diag.ValidationOnlyKeyword, ir.SeverityInfo))
 
 	// The keyword constrains keys only: the map's value lowering is untouched.
 	require.NotNil(t, m.AdditionalProps)
@@ -407,7 +410,7 @@ func TestLower_PropertyNamesPreserved(t *testing.T) {
 
 func TestLower_PropertyDetailRichSchema(t *testing.T) {
 	t.Parallel()
-	spec := componentSpec(`    D:
+	spec := openapitest.ComponentSpec(`    D:
       type: object
       externalDocs: {url: 'https://x', description: more}
       properties:
@@ -421,7 +424,7 @@ func TestLower_PropertyDetailRichSchema(t *testing.T) {
 	doc, diags := lowerSpec(t, spec)
 	m := typeByName(doc, "D").(*ir.Model)
 	assert.NotEmpty(t, m.Docs.ExternalDocs)
-	byWire := propsByWire(m.Properties)
+	byWire := openapitest.PropsByWire(m.Properties)
 	require.NotNil(t, byWire["withXml"].XML)
 	assert.Equal(t, "attribute", byWire["withXml"].XML.NodeType)
 	assert.Equal(t, "urn:x", byWire["withXml"].XML.Namespace)
@@ -439,7 +442,7 @@ func TestLower_PropertyDetailRichSchema(t *testing.T) {
 
 func TestLower_RefTargetDescriptionFallback(t *testing.T) {
 	t.Parallel()
-	spec := componentSpec(`    Owner:
+	spec := openapitest.ComponentSpec(`    Owner:
       type: object
       properties:
         ref: {$ref: '#/components/schemas/Target'}
@@ -448,26 +451,26 @@ func TestLower_RefTargetDescriptionFallback(t *testing.T) {
       description: target-desc
 `)
 	doc, diags := lowerSpec(t, spec)
-	requireNoErrorDiags(t, diags)
+	openapitest.RequireNoErrorDiags(t, diags)
 	m := typeByName(doc, "Owner").(*ir.Model)
 	assert.Equal(t, "target-desc", m.Properties[0].Docs.Description)
 }
 
 func TestLower_UnresolvedRefDiagnostics(t *testing.T) {
 	t.Parallel()
-	spec := componentSpec(`    Owner:
+	spec := openapitest.ComponentSpec(`    Owner:
       type: object
       properties:
         ghost: {$ref: '#/components/schemas/Ghost'}
 `)
 	doc, diags := lowerSpec(t, spec)
 	require.NotNil(t, doc)
-	assert.True(t, hasDiag(diags, diag.UnresolvedRef), "unresolved ref diagnostic emitted")
+	assert.True(t, openapitest.HasDiag(diags, diag.UnresolvedRef), "unresolved ref diagnostic emitted")
 }
 
 func TestLower_UnionWithStructuralSiblingVariants(t *testing.T) {
 	t.Parallel()
-	spec := componentSpec(`    A:
+	spec := openapitest.ComponentSpec(`    A:
       type: object
       properties: {x: {type: string}}
       required: [x]
@@ -484,7 +487,7 @@ func TestLower_UnionWithStructuralSiblingVariants(t *testing.T) {
       oneOf: [{$ref: '#/components/schemas/A'}, {type: integer}]
 `)
 	doc, diags := lowerSpec(t, spec)
-	requireNoErrorDiags(t, diags)
+	openapitest.RequireNoErrorDiags(t, diags)
 	for _, name := range []string{"A", "B", "C", "D"} {
 		td := typeByName(doc, name)
 		require.NotNil(t, td, "type %s present", name)
@@ -497,7 +500,7 @@ func TestLower_UnionWithStructuralSiblingVariants(t *testing.T) {
 
 func TestModel_FourOptionalityStates(t *testing.T) {
 	t.Parallel()
-	spec := componentSpec(`    S:
+	spec := openapitest.ComponentSpec(`    S:
       type: object
       required: [reqPlain, reqNull]
       properties:
@@ -507,11 +510,11 @@ func TestModel_FourOptionalityStates(t *testing.T) {
         optNull: {type: [string, "null"]}
 `)
 	doc, diags := lowerSpec(t, spec)
-	requireNoErrorDiags(t, diags)
+	openapitest.RequireNoErrorDiags(t, diags)
 	m, ok := doc.Types[componentID("S")].(*ir.Model)
 	require.True(t, ok)
 	require.Len(t, m.Properties, 4)
-	byName := propsByWire(m.Properties)
+	byName := openapitest.PropsByWire(m.Properties)
 	assert.True(t, byName["reqPlain"].Required)
 	assert.False(t, byName["reqPlain"].Type.Nullable)
 	assert.True(t, byName["reqNull"].Required)
@@ -524,7 +527,7 @@ func TestModel_FourOptionalityStates(t *testing.T) {
 
 func TestModel_ValidationOnlyKeywordPreserved(t *testing.T) {
 	t.Parallel()
-	spec := componentSpec(`    S:
+	spec := openapitest.ComponentSpec(`    S:
       type: object
       properties: {a: {type: string}}
       not: {required: [b]}
@@ -551,13 +554,13 @@ func TestModel_ValidationOnlyKeywordPreserved(t *testing.T) {
 
 func TestModel_DefaultBigLiteral(t *testing.T) {
 	t.Parallel()
-	spec := componentSpec(`    S:
+	spec := openapitest.ComponentSpec(`    S:
       type: object
       properties:
         n: {type: integer, default: 9007199254740993}
 `)
 	doc, diags := lowerSpec(t, spec)
-	requireNoErrorDiags(t, diags)
+	openapitest.RequireNoErrorDiags(t, diags)
 	m := doc.Types[componentID("S")].(*ir.Model)
 	require.NotNil(t, m.Properties[0].Default)
 	assert.Equal(t, ir.ValueNumber, m.Properties[0].Default.Kind)
@@ -569,13 +572,13 @@ func TestFillPropertyDetail_UnconvertibleExampleDiagnosed(t *testing.T) {
 	// A custom tag is structurally unconvertible; the example must be skipped
 	// (an example is an annotation, not a structural hole) but never silently —
 	// the conversion error was previously discarded on the floor.
-	spec := componentSpec("    S:\n      type: object\n      properties:\n        n:\n          type: string\n          example: !foo bar\n")
+	spec := openapitest.ComponentSpec("    S:\n      type: object\n      properties:\n        n:\n          type: string\n          example: !foo bar\n")
 	doc, diags := lowerSpec(t, spec)
 	m, ok := doc.Types[componentID("S")].(*ir.Model)
 	require.True(t, ok)
 	assert.Empty(t, m.Properties[0].Examples, "the unconvertible example is skipped, not appended")
-	require.Equal(t, 1, countDiagsAt(diags, diag.DegradedConstruct, ir.SeverityWarning))
-	d, ok := firstDegradedWarning(diags)
+	require.Equal(t, 1, openapitest.CountDiagsAt(diags, diag.DegradedConstruct, ir.SeverityWarning))
+	d, ok := openapitest.FirstDegradedWarning(diags)
 	require.True(t, ok)
 	assert.Equal(t, "/components/schemas/S/properties/n/example", d.Provenance.Pointer)
 	assert.Contains(t, d.Message, "example:")
@@ -583,54 +586,82 @@ func TestFillPropertyDetail_UnconvertibleExampleDiagnosed(t *testing.T) {
 
 func TestModel_ReadOnlyWriteOnlyVisibility(t *testing.T) {
 	t.Parallel()
-	spec := componentSpec(`    S:
+	spec := openapitest.ComponentSpec(`    S:
       type: object
       properties:
         r: {type: string, readOnly: true}
         w: {type: string, writeOnly: true}
 `)
 	doc, diags := lowerSpec(t, spec)
-	requireNoErrorDiags(t, diags)
+	openapitest.RequireNoErrorDiags(t, diags)
 	m := doc.Types[componentID("S")].(*ir.Model)
-	byName := propsByWire(m.Properties)
+	byName := openapitest.PropsByWire(m.Properties)
 	assert.Equal(t, ir.Visibility{Only: []ir.Lifecycle{ir.LifecycleRead, ir.LifecycleDelete, ir.LifecycleQuery}}, byName["r"].Visibility)
 	assert.Equal(t, ir.Visibility{Only: []ir.Lifecycle{ir.LifecycleCreate, ir.LifecycleUpdate}}, byName["w"].Visibility)
 }
 
+// TestModel_ReadOnlyAndWriteOnlyTogetherAreVisibleNowhere pins the answer for a
+// property whose schema writes both flags: they admit disjoint lifecycle sets,
+// so the property is admitted by none. Declaring both used to lower exactly as
+// declaring readOnly alone did, in silence, while the same pairing spread over
+// two allOf branches already intersected to None and warned (GitHub #276).
+func TestModel_ReadOnlyAndWriteOnlyTogetherAreVisibleNowhere(t *testing.T) {
+	t.Parallel()
+	spec := openapitest.ComponentSpec(`    S:
+      type: object
+      properties:
+        both: {type: string, readOnly: true, writeOnly: true}
+        r: {type: string, readOnly: true}
+`)
+	doc, diags := lowerSpec(t, spec)
+	openapitest.RequireNoErrorDiags(t, diags)
+	m := doc.Types[componentID("S")].(*ir.Model)
+	byName := openapitest.PropsByWire(m.Properties)
+
+	assert.Equal(t, ir.Visibility{None: true}, byName["both"].Visibility)
+	assert.NotEqual(t, byName["r"].Visibility, byName["both"].Visibility,
+		"declaring both flags must not lower exactly as declaring readOnly alone does")
+	msg := openapitest.DiagMessageAt(t, diags, diag.DisjointVisibility, ir.SeverityWarning,
+		"/components/schemas/S/properties/both")
+	assert.Contains(t, msg, "writeOnly", "the report names the keyword that was being dropped")
+	assert.Equal(t, 1, openapitest.CountDiagsAt(diags, diag.DisjointVisibility, ir.SeverityWarning),
+		"the property declaring one flag is not reported")
+}
+
 func TestModel_PasswordFormatSecret(t *testing.T) {
 	t.Parallel()
-	spec := componentSpec(`    S:
+	spec := openapitest.ComponentSpec(`    S:
       type: object
       properties:
         pw: {type: string, format: password}
 `)
 	doc, diags := lowerSpec(t, spec)
-	requireNoErrorDiags(t, diags)
+	openapitest.RequireNoErrorDiags(t, diags)
 	m := doc.Types[componentID("S")].(*ir.Model)
 	assert.True(t, m.Properties[0].Secret)
 }
 
 func TestModel_AdditionalPropertiesFalseClosed(t *testing.T) {
 	t.Parallel()
-	spec := componentSpec(`    S:
+	spec := openapitest.ComponentSpec(`    S:
       type: object
       properties: {a: {type: string}}
       additionalProperties: false
 `)
 	doc, diags := lowerSpec(t, spec)
-	requireNoErrorDiags(t, diags)
+	openapitest.RequireNoErrorDiags(t, diags)
 	m := doc.Types[componentID("S")].(*ir.Model)
 	assert.Equal(t, ir.AdditionalClosed, m.Additional)
 }
 
 func TestModel_AdditionalPropertiesSchema(t *testing.T) {
 	t.Parallel()
-	spec := componentSpec(`    S:
+	spec := openapitest.ComponentSpec(`    S:
       type: object
       additionalProperties: {type: integer}
 `)
 	doc, diags := lowerSpec(t, spec)
-	requireNoErrorDiags(t, diags)
+	openapitest.RequireNoErrorDiags(t, diags)
 	m := doc.Types[componentID("S")].(*ir.Model)
 	require.NotNil(t, m.AdditionalProps)
 	assert.Equal(t, ir.TypeID("t/prim/integer"), m.AdditionalProps.Value.Target)
@@ -638,14 +669,14 @@ func TestModel_AdditionalPropertiesSchema(t *testing.T) {
 
 func TestModel_PatternPropertiesOrder(t *testing.T) {
 	t.Parallel()
-	spec := componentSpec(`    S:
+	spec := openapitest.ComponentSpec(`    S:
       type: object
       patternProperties:
         "^x-": {type: string}
         "^y-": {type: integer}
 `)
 	doc, diags := lowerSpec(t, spec)
-	requireNoErrorDiags(t, diags)
+	openapitest.RequireNoErrorDiags(t, diags)
 	m := doc.Types[componentID("S")].(*ir.Model)
 	require.NotNil(t, m.AdditionalProps)
 	require.Len(t, m.AdditionalProps.Patterns, 2)
@@ -655,26 +686,26 @@ func TestModel_PatternPropertiesOrder(t *testing.T) {
 
 func TestModel_UnevaluatedPropertiesClosedAfterComposition(t *testing.T) {
 	t.Parallel()
-	spec := componentSpec(`    S:
+	spec := openapitest.ComponentSpec(`    S:
       type: object
       properties: {a: {type: string}}
       unevaluatedProperties: false
 `)
 	doc, diags := lowerSpec(t, spec)
-	requireNoErrorDiags(t, diags)
+	openapitest.RequireNoErrorDiags(t, diags)
 	m := doc.Types[componentID("S")].(*ir.Model)
 	assert.Equal(t, ir.AdditionalClosedAfterComposition, m.Additional)
 }
 
 func TestModel_SchemaExtensionPreserved(t *testing.T) {
 	t.Parallel()
-	spec := componentSpec(`    S:
+	spec := openapitest.ComponentSpec(`    S:
       type: object
       x-rate-limit: 100
       properties: {a: {type: string}}
 `)
 	doc, diags := lowerSpec(t, spec)
-	requireNoErrorDiags(t, diags)
+	openapitest.RequireNoErrorDiags(t, diags)
 	m := doc.Types[componentID("S")].(*ir.Model)
 	raw, ok := m.Unmodeled["openapi:x-rate-limit"]
 	require.True(t, ok)
@@ -686,14 +717,14 @@ func TestModel_SchemaExtensionPreserved(t *testing.T) {
 
 func TestModel_TitleDescriptionDocs(t *testing.T) {
 	t.Parallel()
-	spec := componentSpec(`    S:
+	spec := openapitest.ComponentSpec(`    S:
       type: object
       title: "My Title"
       description: "My Desc"
       properties: {a: {type: string}}
 `)
 	doc, diags := lowerSpec(t, spec)
-	requireNoErrorDiags(t, diags)
+	openapitest.RequireNoErrorDiags(t, diags)
 	m := doc.Types[componentID("S")].(*ir.Model)
 	assert.Equal(t, "My Title", m.Docs.Summary)
 	assert.Equal(t, "My Desc", m.Docs.Description)
@@ -701,26 +732,26 @@ func TestModel_TitleDescriptionDocs(t *testing.T) {
 
 func TestModel_PropertyDeprecation(t *testing.T) {
 	t.Parallel()
-	spec := componentSpec(`    S:
+	spec := openapitest.ComponentSpec(`    S:
       type: object
       properties:
         old: {type: string, deprecated: true}
 `)
 	doc, diags := lowerSpec(t, spec)
-	requireNoErrorDiags(t, diags)
+	openapitest.RequireNoErrorDiags(t, diags)
 	m := doc.Types[componentID("S")].(*ir.Model)
 	assert.NotNil(t, m.Properties[0].Deprecation)
 }
 
 func TestModel_PropertyXML(t *testing.T) {
 	t.Parallel()
-	spec := componentSpec(`    S:
+	spec := openapitest.ComponentSpec(`    S:
       type: object
       properties:
         p: {type: string, xml: {name: n, attribute: true}}
 `)
 	doc, diags := lowerSpec(t, spec)
-	requireNoErrorDiags(t, diags)
+	openapitest.RequireNoErrorDiags(t, diags)
 	m := doc.Types[componentID("S")].(*ir.Model)
 	require.NotNil(t, m.Properties[0].XML)
 	assert.Equal(t, "n", m.Properties[0].XML.Name)
@@ -729,7 +760,7 @@ func TestModel_PropertyXML(t *testing.T) {
 
 func TestModel_RefSiblingDescriptionWins(t *testing.T) {
 	t.Parallel()
-	spec := componentSpec(`    Target: {type: string, description: "target desc"}
+	spec := openapitest.ComponentSpec(`    Target: {type: string, description: "target desc"}
     S:
       type: object
       properties:
@@ -738,7 +769,7 @@ func TestModel_RefSiblingDescriptionWins(t *testing.T) {
           description: "sibling desc"
 `)
 	doc, diags := lowerSpec(t, spec)
-	requireNoErrorDiags(t, diags)
+	openapitest.RequireNoErrorDiags(t, diags)
 	m := doc.Types[componentID("S")].(*ir.Model)
 	assert.Equal(t, "sibling desc", m.Properties[0].Docs.Description)
 }
@@ -746,7 +777,7 @@ func TestModel_RefSiblingDescriptionWins(t *testing.T) {
 func TestSchemaRef_EmptyEitherIsAny(t *testing.T) {
 	t.Parallel()
 	l := newRawLowerer(&soa.OpenAPI{})
-	ref, diags := schema.Ref(l.ctx, l.types, &l.anchors, schema.TopLevelDepth, emptyEitherSchema(), "/p", "h")
+	ref, diags := schema.Ref(l.ctx, l.types, &l.anchors, schema.TopLevelDepth, openapitest.EmptyEitherSchema(), "/p", "h")
 	assert.Equal(t, ir.TypeID("t/prim/any"), ref.Target)
 	assert.Empty(t, diags, "an empty either lowers to any without complaint")
 }
@@ -775,7 +806,7 @@ components:
       in: query
       schema: {type: string, example: sub-example}
 `)
-	requireNoErrorDiags(t, diags)
+	openapitest.RequireNoErrorDiags(t, diags)
 	td, ok := doc.Types["t/anon/components/parameters/P/schema"]
 	require.True(t, ok, "the referenced sub-schema is hoisted at its own pointer")
 	require.Len(t, td.Common().Examples, 1)
@@ -804,7 +835,7 @@ components:
       $ref: '#/components/schemas/Base'
       example: alias-level
 `)
-	requireNoErrorDiags(t, diags)
+	openapitest.RequireNoErrorDiags(t, diags)
 	alias, ok := doc.Types["t/openapi/components/schemas/Alias"]
 	require.True(t, ok)
 	require.Len(t, alias.Common().Examples, 1)
@@ -827,7 +858,7 @@ func TestSiteSchema_BodylessPositions(t *testing.T) {
 
 func TestSchema_Ref30NullableSiblings(t *testing.T) {
 	t.Parallel()
-	spec := componentSpecVer("3.0.3", `    Owner:
+	spec := openapitest.ComponentSpecVer("3.0.3", `    Owner:
       type: object
       properties:
         p: {$ref: '#/components/schemas/Target', nullable: true}
@@ -1134,14 +1165,65 @@ func TestSchema_RefNullableAcrossSpellings(t *testing.T) {
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			spec := componentSpecVer(tc.version, tc.schemas)
+			spec := openapitest.ComponentSpecVer(tc.version, tc.schemas)
 			doc, diags := lowerSpec(t, spec)
-			requireNoErrorDiags(t, diags)
+			openapitest.RequireNoErrorDiags(t, diags)
 			m := typeByName(doc, "Owner").(*ir.Model)
 			require.Len(t, m.Properties, 1)
 			assert.Equal(t, tc.wantNullable, m.Properties[0].Type.Nullable, tc.msg)
 			assert.Equal(t, tc.wantTarget, m.Properties[0].Type.Target,
 				"ref resolves to the expected target")
+		})
+	}
+}
+
+// TestSchema_NullabilityAgreesAcrossEnumSpellings pins that a value set and a
+// type keyword conjoin, and that both ways of writing the same conjunction get
+// the same answer.
+//
+// `{type: [string, "null"], enum: [red, green]}` and
+// `{enum: [red, green], oneOf: [{type: string}, {type: "null"}]}` say one thing:
+// null is in the type space and out of the value space, so the position does not
+// admit it. The type-array spelling used to read the type keyword alone and call
+// the position nullable while the oneOf spelling read the enum and called it
+// not — two answers for one constraint in a single document (GitHub #288).
+//
+// Both members of a pair are written into one document on purpose: "the same
+// schema, two spellings" is then a property of one compile rather than of two
+// runs that could differ for unrelated reasons. The admitting pair is here for
+// the same reason the excluding one is — a predicate hardcoded either way fails
+// exactly one of them.
+func TestSchema_NullabilityAgreesAcrossEnumSpellings(t *testing.T) {
+	t.Parallel()
+	spec := openapitest.ComponentSpec(`    S:
+      type: object
+      properties:
+        excludedByType: {type: [string, "null"], enum: [red, green]}
+        excludedByUnion: {enum: [red, green], oneOf: [{type: string}, {type: "null"}]}
+        admittedByType: {type: [string, "null"], enum: [red, green, null]}
+        admittedByUnion: {enum: [red, green, null], oneOf: [{type: string}, {type: "null"}]}
+`)
+	doc, diags := lowerSpec(t, spec)
+	openapitest.RequireNoErrorDiags(t, diags)
+	m, ok := typeByName(doc, "S").(*ir.Model)
+	require.True(t, ok, "S is a model")
+	props := openapitest.PropsByWire(m.Properties)
+	require.Len(t, props, 4)
+
+	pairs := []struct {
+		name, typeSpelling, unionSpelling string
+		want                              bool
+	}{
+		{"an enum listing no null member", "excludedByType", "excludedByUnion", false},
+		{"an enum listing one", "admittedByType", "admittedByUnion", true},
+	}
+	for _, p := range pairs {
+		t.Run(p.name, func(t *testing.T) {
+			t.Parallel()
+			got := props[p.typeSpelling].Type.Nullable
+			assert.Equal(t, p.want, got, "the enum decides whether the position admits null")
+			assert.Equal(t, got, props[p.unionSpelling].Type.Nullable,
+				"the type-array and oneOf spellings of one constraint must agree")
 		})
 	}
 }
@@ -1161,7 +1243,7 @@ oneOf: [{type: string}, {type: "null"}]`
 		pad := strings.Repeat(" ", n)
 		return pad + strings.ReplaceAll(body, "\n", "\n"+pad) + "\n"
 	}
-	spec := componentSpec("    Target:\n" + indent(6) +
+	spec := openapitest.ComponentSpec("    Target:\n" + indent(6) +
 		`    Owner:
       type: object
       properties:
@@ -1169,9 +1251,9 @@ oneOf: [{type: string}, {type: "null"}]`
         inline:
 ` + indent(10))
 	doc, diags := lowerSpec(t, spec)
-	requireNoErrorDiags(t, diags)
+	openapitest.RequireNoErrorDiags(t, diags)
 	m := typeByName(doc, "Owner").(*ir.Model)
-	props := propsByWire(m.Properties)
+	props := openapitest.PropsByWire(m.Properties)
 	require.Len(t, props, 2)
 
 	assert.Equal(t, props["inline"].Type.Nullable, props["viaRef"].Type.Nullable,
@@ -1184,7 +1266,7 @@ oneOf: [{type: string}, {type: "null"}]`
 // $ref used as a list element, not just a model property.
 func TestSchema_RefNullableAtNonPropertyPosition(t *testing.T) {
 	t.Parallel()
-	spec := componentSpec(`    Owner:
+	spec := openapitest.ComponentSpec(`    Owner:
       type: object
       properties:
         p:
@@ -1194,7 +1276,7 @@ func TestSchema_RefNullableAtNonPropertyPosition(t *testing.T) {
       oneOf: [{type: string}, {type: integer}, {type: "null"}]
 `)
 	doc, diags := lowerSpec(t, spec)
-	requireNoErrorDiags(t, diags)
+	openapitest.RequireNoErrorDiags(t, diags)
 	list, ok := doc.Types["t/anon/components/schemas/Owner/properties/p"].(*ir.List)
 	require.True(t, ok)
 	assert.True(t, list.Elem.Nullable,
@@ -1204,7 +1286,7 @@ func TestSchema_RefNullableAtNonPropertyPosition(t *testing.T) {
 
 func TestSchema_UnionSiblingsAdditionalAndRequired(t *testing.T) {
 	t.Parallel()
-	spec := componentSpec(`    A:
+	spec := openapitest.ComponentSpec(`    A:
       additionalProperties: {type: string}
       oneOf: [{type: string}, {type: integer}]
     B:
@@ -1212,7 +1294,7 @@ func TestSchema_UnionSiblingsAdditionalAndRequired(t *testing.T) {
       oneOf: [{type: string}, {type: integer}]
 `)
 	doc, diags := lowerSpec(t, spec)
-	requireNoErrorDiags(t, diags)
+	openapitest.RequireNoErrorDiags(t, diags)
 	for _, name := range []string{"A", "B"} {
 		_, ok := typeByName(doc, name).Common().Unmodeled["openapi:oneOf"]
 		assert.True(t, ok, "%s preserves its union", name)
@@ -1221,28 +1303,28 @@ func TestSchema_UnionSiblingsAdditionalAndRequired(t *testing.T) {
 
 func TestSchema_RefTargetReadOnlyVisibility(t *testing.T) {
 	t.Parallel()
-	spec := componentSpec(`    Owner:
+	spec := openapitest.ComponentSpec(`    Owner:
       type: object
       properties:
         p: {$ref: '#/components/schemas/RO'}
     RO: {type: string, readOnly: true}
 `)
 	doc, diags := lowerSpec(t, spec)
-	requireNoErrorDiags(t, diags)
+	openapitest.RequireNoErrorDiags(t, diags)
 	m := typeByName(doc, "Owner").(*ir.Model)
 	assert.NotEmpty(t, m.Properties[0].Visibility.Only, "readOnly from the ref target applies")
 }
 
 func TestSchema_UnserializableExtension(t *testing.T) {
 	t.Parallel()
-	spec := componentSpec(`    S:
+	spec := openapitest.ComponentSpec(`    S:
       type: object
       properties: {a: {type: string}}
       x-bad: {1: intkey}
 `)
 	doc, diags := lowerSpec(t, spec)
 	require.NotNil(t, doc)
-	assert.True(t, hasDiagAt(diags, diag.DegradedConstruct, ir.SeverityWarning), "unserializable extension warns")
+	assert.True(t, openapitest.HasDiagAt(diags, diag.DegradedConstruct, ir.SeverityWarning), "unserializable extension warns")
 	m := typeByName(doc, "S").(*ir.Model)
 	_, hasBad := m.Unmodeled["openapi:x-bad"]
 	assert.False(t, hasBad, "unserializable extension is dropped, not stored")
@@ -1250,14 +1332,14 @@ func TestSchema_UnserializableExtension(t *testing.T) {
 
 func TestSchema_EmptyFragmentRef(t *testing.T) {
 	t.Parallel()
-	spec := componentSpec(`    Owner:
+	spec := openapitest.ComponentSpec(`    Owner:
       type: object
       properties:
         p: {$ref: '#'}
 `)
 	doc, diags := lowerSpec(t, spec)
 	require.NotNil(t, doc)
-	assert.True(t, hasDiag(diags, diag.UnresolvedRef), "the '#' ref form is unresolved")
+	assert.True(t, openapitest.HasDiag(diags, diag.UnresolvedRef), "the '#' ref form is unresolved")
 }
 
 func TestSchema_EmptyStringRefMirrorBranches(t *testing.T) {
@@ -1265,7 +1347,7 @@ func TestSchema_EmptyStringRefMirrorBranches(t *testing.T) {
 	// An empty-string $ref has IsReference()==false (the ref value is "") yet a
 	// non-nil oas3 Ref pointer, exercising that mirror path in schema.Ref and the
 	// branchHint fallback.
-	spec := componentSpec(`    Owner:
+	spec := openapitest.ComponentSpec(`    Owner:
       type: object
       properties:
         p: {$ref: ''}
@@ -1276,7 +1358,7 @@ func TestSchema_EmptyStringRefMirrorBranches(t *testing.T) {
 `)
 	doc, diags := lowerSpec(t, spec)
 	require.NotNil(t, doc)
-	assert.GreaterOrEqual(t, countDiagsAt(diags, diag.UnresolvedRef, ir.SeverityError), 2, "both empty refs are unresolved")
+	assert.GreaterOrEqual(t, openapitest.CountDiagsAt(diags, diag.UnresolvedRef, ir.SeverityError), 2, "both empty refs are unresolved")
 	u, ok := typeByName(doc, "U").(*ir.Union)
 	require.True(t, ok)
 	assert.Contains(t, []string{u.Variants[0].Name.Hint, u.Variants[1].Name.Hint}, "variant_0")
@@ -1287,7 +1369,7 @@ func TestAllOf_UntypedRedeclarationDoesNotConflict(t *testing.T) {
 	// One branch leaves the field schemaless (the top type), the other types it.
 	// `any` intersects with everything under allOf, so this is a narrowing, not a
 	// contradiction — it must not be reported.
-	spec := componentSpec(`    Anyish:
+	spec := openapitest.ComponentSpec(`    Anyish:
       allOf:
         - type: object
           properties:
@@ -1297,7 +1379,7 @@ func TestAllOf_UntypedRedeclarationDoesNotConflict(t *testing.T) {
             id: {type: integer}
 `)
 	doc, diags := lowerSpec(t, spec)
-	requireNoErrorDiags(t, diags)
+	openapitest.RequireNoErrorDiags(t, diags)
 	m, ok := typeByName(doc, "Anyish").(*ir.Model)
 	require.True(t, ok, "Anyish should be a model")
 	require.Len(t, m.Properties, 1, "id reconciles to one property")
@@ -1309,7 +1391,7 @@ func TestAllOf_EquivalentNumericBoundsDoNotConflict(t *testing.T) {
 	t.Parallel()
 	// The same bound spelled two ways (10 and 10.0) denotes one value, so it must
 	// compare equal by magnitude and stay silent.
-	spec := componentSpec(`    Boundish:
+	spec := openapitest.ComponentSpec(`    Boundish:
       allOf:
         - type: object
           properties:
@@ -1319,7 +1401,7 @@ func TestAllOf_EquivalentNumericBoundsDoNotConflict(t *testing.T) {
             n: {type: number, minimum: 10.0}
 `)
 	_, diags := lowerSpec(t, spec)
-	requireNoErrorDiags(t, diags)
+	openapitest.RequireNoErrorDiags(t, diags)
 	assert.Empty(t, conflictDiags(diags),
 		"10 and 10.0 are the same numeric bound, not a conflict")
 }
@@ -1328,7 +1410,7 @@ func TestAllOf_DifferingNumericBoundsConflict(t *testing.T) {
 	t.Parallel()
 	// Two branches pin the same lower bound to different magnitudes; the kept
 	// winner is arbitrary source order, so the dropped bound is surfaced.
-	spec := componentSpec(`    Boundish:
+	spec := openapitest.ComponentSpec(`    Boundish:
       allOf:
         - type: object
           properties:
@@ -1338,7 +1420,7 @@ func TestAllOf_DifferingNumericBoundsConflict(t *testing.T) {
             n: {type: integer, minimum: 10}
 `)
 	_, diags := lowerSpec(t, spec)
-	requireNoErrorDiags(t, diags)
+	openapitest.RequireNoErrorDiags(t, diags)
 	conflicts := conflictDiags(diags)
 	require.Len(t, conflicts, 1, "differing numeric bounds are diagnosed once")
 	assert.Contains(t, conflicts[0].Message, `"n"`)
@@ -1347,7 +1429,7 @@ func TestAllOf_DifferingNumericBoundsConflict(t *testing.T) {
 func TestAllOf_ScalarVersusObjectRedeclarationConflicts(t *testing.T) {
 	t.Parallel()
 	// A scalar in one branch and a structural type in the other cannot both hold.
-	spec := componentSpec(`    Mixed:
+	spec := openapitest.ComponentSpec(`    Mixed:
       allOf:
         - type: object
           properties:
@@ -1360,7 +1442,7 @@ func TestAllOf_ScalarVersusObjectRedeclarationConflicts(t *testing.T) {
                 x: {type: string}
 `)
 	_, diags := lowerSpec(t, spec)
-	requireNoErrorDiags(t, diags)
+	openapitest.RequireNoErrorDiags(t, diags)
 	conflicts := conflictDiags(diags)
 	require.Len(t, conflicts, 1, "a scalar against an object is diagnosed once")
 	assert.Contains(t, conflicts[0].Message, `"f"`)
@@ -1372,7 +1454,7 @@ func TestAllOf_DistinctInlineObjectsDoNotConflict(t *testing.T) {
 	// own model at its own pointer, so the targets differ — but two objects of the
 	// same kind are not provably contradictory, and conflict detection never
 	// guesses.
-	spec := componentSpec(`    Objish:
+	spec := openapitest.ComponentSpec(`    Objish:
       allOf:
         - type: object
           properties:
@@ -1388,7 +1470,7 @@ func TestAllOf_DistinctInlineObjectsDoNotConflict(t *testing.T) {
                 x: {type: string}
 `)
 	_, diags := lowerSpec(t, spec)
-	requireNoErrorDiags(t, diags)
+	openapitest.RequireNoErrorDiags(t, diags)
 	assert.Empty(t, conflictDiags(diags),
 		"two distinct inline objects for one field are not a provable conflict")
 }
@@ -1397,7 +1479,7 @@ func TestAllOf_DistinctInlineObjectsDoNotConflict(t *testing.T) {
 // declare field v with the given flow-style schemas, for exercising per-keyword
 // redeclaration conflict detection.
 func allOfConflictSpec(schemaA, schemaB string) string {
-	return componentSpec(
+	return openapitest.ComponentSpec(
 		"    T:\n" +
 			"      allOf:\n" +
 			"        - type: object\n" +
@@ -1408,13 +1490,14 @@ func allOfConflictSpec(schemaA, schemaB string) string {
 
 func TestAllOf_ConstraintAndFormatConflictsDiagnosed(t *testing.T) {
 	t.Parallel()
-	// Each keyword class that can contradict across branches: an inclusive vs
+	// Each way a redeclaration can contradict across branches: an inclusive vs
 	// exclusive bound of equal magnitude, a differing pattern, a differing
-	// multipleOf, and two format-derived primitives (string vs uuid). Each keeps
-	// the first declaration but surfaces exactly one conflict naming the field,
-	// both branch sites, and — for the constraint cases — the offending keyword
-	// with both of its conflicting values, so the author never has to diff both
-	// branches by hand.
+	// multipleOf, a bound and a multipleOf that differ past the magnitude a
+	// rational will build, and two format-derived primitives (string vs uuid).
+	// Each keeps the first declaration but surfaces exactly one conflict naming
+	// the field, both branch sites, and — for the constraint cases — the
+	// offending keyword with both of its conflicting values, so the author
+	// never has to diff both branches by hand.
 	cases := []struct {
 		name, a, b, wantDetail string
 	}{
@@ -1437,6 +1520,23 @@ func TestAllOf_ConstraintAndFormatConflictsDiagnosed(t *testing.T) {
 			wantDetail: "conflicting multipleOf (2 and 3)",
 		},
 		{
+			// The other half of the past-a-rational rows in
+			// TestAllOf_CompatibleConstraintRedeclarationsStaySilent: a
+			// magnitude no rational holds still has to be ordered, not waved
+			// through, or the fix for the equal pair would just silence every
+			// pair that large.
+			name:       "minimum too large for a rational",
+			a:          "{type: number, minimum: 1e1000001}",
+			b:          "{type: number, minimum: 2e1000001}",
+			wantDetail: "conflicting minimum (1e1000001 and 2e1000001)",
+		},
+		{
+			name:       "multipleOf too large for a rational",
+			a:          "{type: number, multipleOf: 1e1000001}",
+			b:          "{type: number, multipleOf: 1e1000002}",
+			wantDetail: "conflicting multipleOf (1e1000001 and 1e1000002)",
+		},
+		{
 			name: "string vs uuid",
 			a:    "{type: string}",
 			b:    "{type: string, format: uuid}",
@@ -1449,7 +1549,7 @@ func TestAllOf_ConstraintAndFormatConflictsDiagnosed(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			_, diags := lowerSpec(t, allOfConflictSpec(tc.a, tc.b))
-			requireNoErrorDiags(t, diags)
+			openapitest.RequireNoErrorDiags(t, diags)
 			conflicts := conflictDiags(diags)
 			require.Len(t, conflicts, 1, "%s is diagnosed exactly once", tc.name)
 			assert.Contains(t, conflicts[0].Message, `"v"`, "the diagnostic names the field")
@@ -1467,9 +1567,10 @@ func TestAllOf_CompatibleConstraintRedeclarationsStaySilent(t *testing.T) {
 	// only one branch (both branches still carry constraints) is intersected,
 	// not a conflict — and the merge must genuinely carry both keywords
 	// forward on the reconciled property, not just stay quiet about the one it
-	// used to drop; equal multipleOf spelled two ways is one value; and an
-	// unknown-format scalar resolves through its Base to the same primitive as
-	// the plain type, so it is not a type conflict.
+	// used to drop; one magnitude spelled two ways is one value, whether or not
+	// it is one a rational will build; and an unknown-format scalar resolves
+	// through its Base to the same primitive as the plain type, so it is not a
+	// type conflict.
 	cases := []struct {
 		name         string
 		a, b         string
@@ -1514,13 +1615,27 @@ func TestAllOf_CompatibleConstraintRedeclarationsStaySilent(t *testing.T) {
 			},
 		},
 		{name: "equivalent multipleOf", a: "{type: number, multipleOf: 2}", b: "{type: number, multipleOf: 2.0}"},
+		// Both BigVal keywords at a magnitude math/big will not build as a
+		// rational. The value is the same on either branch, so there is nothing
+		// to report; a comparison that gave up on the magnitude instead would
+		// call one value two and fail a --fail-on warning build.
+		{
+			name: "equal minimum too large for a rational",
+			a:    "{type: number, minimum: 1e1000001}",
+			b:    "{type: number, minimum: 10e1000000}",
+		},
+		{
+			name: "equal multipleOf too large for a rational",
+			a:    "{type: number, multipleOf: 1e1000001}",
+			b:    "{type: number, multipleOf: 10e1000000}",
+		},
 		{name: "custom format over base", a: "{type: string, format: weird}", b: "{type: string}"},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			doc, diags := lowerSpec(t, allOfConflictSpec(tc.a, tc.b))
-			requireNoErrorDiags(t, diags)
+			openapitest.RequireNoErrorDiags(t, diags)
 			assert.Empty(t, conflictDiags(diags), "%s must not be reported as a conflict", tc.name)
 			if tc.assertMerged == nil {
 				return
@@ -1538,7 +1653,7 @@ func TestAllOf_OpaqueScalarVsPrimitiveNoConflict(t *testing.T) {
 	// An opaque scalar (format without a base type) is unknown, not structural,
 	// so it's not provably incompatible with a primitive. The "never guess"
 	// principle means we don't flag this as a conflict.
-	spec := componentSpec(`    OpaqueTest:
+	spec := openapitest.ComponentSpec(`    OpaqueTest:
       allOf:
         - type: object
           properties:
@@ -1548,7 +1663,7 @@ func TestAllOf_OpaqueScalarVsPrimitiveNoConflict(t *testing.T) {
             id: {format: custom}
 `)
 	_, diags := lowerSpec(t, spec)
-	requireNoErrorDiags(t, diags)
+	openapitest.RequireNoErrorDiags(t, diags)
 	assert.Empty(t, conflictDiags(diags),
 		"opaque scalar vs primitive is not flagged as a conflict")
 }
@@ -1558,7 +1673,7 @@ func TestAllOf_ThreeWayRedeclarationProducesTwoDiagnostics(t *testing.T) {
 	// When three allOf branches declare the same field with different types,
 	// reconciliation runs twice: branch[1] vs branch[0], then branch[2] vs branch[0].
 	// Each incompatible pair produces one diagnostic, so we expect two total.
-	spec := componentSpec(`    ThreeWay:
+	spec := openapitest.ComponentSpec(`    ThreeWay:
       allOf:
         - type: object
           properties:
@@ -1571,7 +1686,7 @@ func TestAllOf_ThreeWayRedeclarationProducesTwoDiagnostics(t *testing.T) {
             id: {type: boolean}
 `)
 	_, diags := lowerSpec(t, spec)
-	requireNoErrorDiags(t, diags)
+	openapitest.RequireNoErrorDiags(t, diags)
 	conflicts := conflictDiags(diags)
 	require.Len(t, conflicts, 2, "three-way redeclaration produces two diagnostics")
 }
@@ -1580,7 +1695,7 @@ func TestAllOf_ThreeWayCompatibleRedeclarationStaysSilent(t *testing.T) {
 	t.Parallel()
 	// When three allOf branches declare the same field with compatible types
 	// (all the same), no conflict is reported.
-	spec := componentSpec(`    ThreeWayCompat:
+	spec := openapitest.ComponentSpec(`    ThreeWayCompat:
       allOf:
         - type: object
           properties:
@@ -1593,7 +1708,7 @@ func TestAllOf_ThreeWayCompatibleRedeclarationStaysSilent(t *testing.T) {
             id: {type: string}
 `)
 	_, diags := lowerSpec(t, spec)
-	requireNoErrorDiags(t, diags)
+	openapitest.RequireNoErrorDiags(t, diags)
 	assert.Empty(t, conflictDiags(diags),
 		"three-way compatible redeclaration stays silent")
 }
@@ -1617,7 +1732,7 @@ func TestAllOf_SatisfiableNarrowingsStaySilent(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			_, diags := lowerSpec(t, allOfConflictSpec(tc.a, tc.b))
-			requireNoErrorDiags(t, diags)
+			openapitest.RequireNoErrorDiags(t, diags)
 			assert.Empty(t, conflictDiags(diags), "%s must not be reported as a conflict", tc.name)
 		})
 	}
@@ -1632,7 +1747,7 @@ func TestAllOf_EnumVersusIncompatibleTypeStillConflicts(t *testing.T) {
 	// goes through the same aok&&bok path as two plain scalars.
 	_, diags := lowerSpec(t, allOfConflictSpec(
 		"{type: string, enum: [active, inactive]}", "{type: integer}"))
-	requireNoErrorDiags(t, diags)
+	openapitest.RequireNoErrorDiags(t, diags)
 	conflicts := conflictDiags(diags)
 	require.Len(t, conflicts, 1, "enum of strings vs integer is still a provable conflict")
 	assert.Contains(t, conflicts[0].Message, `"v"`, "the diagnostic names the conflicting field")
@@ -1644,7 +1759,7 @@ func TestAllOf_TypeConflictMessageNamesBothTypes(t *testing.T) {
 	// that something did: the two conflicting type identities, so the author
 	// can see at a glance what disagreed without cross-referencing the spec.
 	_, diags := lowerSpec(t, allOfConflictSpec("{type: string}", "{type: integer}"))
-	requireNoErrorDiags(t, diags)
+	openapitest.RequireNoErrorDiags(t, diags)
 	conflicts := conflictDiags(diags)
 	require.Len(t, conflicts, 1)
 	assert.Contains(t, conflicts[0].Message, "t/prim/string", "names the first branch's type")
@@ -1659,7 +1774,7 @@ func TestAllOf_PropertyAlongsideAllOfConflictMessageIsAccurate(t *testing.T) {
 	// so the message must not claim "allOf branches redeclare" — it must read
 	// correctly for a co-declared sibling property too (mergeProperty folds
 	// both cases the same way; see its doc comment).
-	spec := componentSpec(`    Along:
+	spec := openapitest.ComponentSpec(`    Along:
       type: object
       properties:
         id: {type: string}
@@ -1669,7 +1784,7 @@ func TestAllOf_PropertyAlongsideAllOfConflictMessageIsAccurate(t *testing.T) {
             id: {type: integer}
 `)
 	_, diags := lowerSpec(t, spec)
-	requireNoErrorDiags(t, diags)
+	openapitest.RequireNoErrorDiags(t, diags)
 	conflicts := conflictDiags(diags)
 	require.Len(t, conflicts, 1, "the co-declared property conflict is diagnosed once")
 	d := conflicts[0]
@@ -1694,10 +1809,10 @@ func TestRawFromNode_SeparatesAbsentFromUnconvertible(t *testing.T) {
 	}{
 		{name: "absent node is neither raw nor error", node: nil},
 		{name: "undecodable node errors", node: &yaml.Node{Kind: yaml.Kind(99)}, wantErr: true},
-		{name: "non-string key does not decode", node: yamlNode(t, "? [a, b]\n: v"), wantErr: true},
-		{name: "int key does not marshal", node: yamlNode(t, "1: a\n2: b"), wantErr: true},
-		{name: "nan decodes but does not marshal", node: yamlNode(t, "{a: .nan}"), wantErr: true},
-		{name: "convertible node yields json", node: yamlNode(t, "{a: 1}"), want: `{"a":1}`},
+		{name: "non-string key does not decode", node: openapitest.YAMLNode(t, "? [a, b]\n: v"), wantErr: true},
+		{name: "int key does not marshal", node: openapitest.YAMLNode(t, "1: a\n2: b"), wantErr: true},
+		{name: "nan decodes but does not marshal", node: openapitest.YAMLNode(t, "{a: .nan}"), wantErr: true},
+		{name: "convertible node yields json", node: openapitest.YAMLNode(t, "{a: 1}"), want: `{"a":1}`},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
@@ -1725,13 +1840,13 @@ func TestRawPropertyNode_NilSchema(t *testing.T) {
 
 func TestSchema_OneOfWithBoolBranch(t *testing.T) {
 	t.Parallel()
-	spec := componentSpec(`    U:
+	spec := openapitest.ComponentSpec(`    U:
       anyOf:
         - {type: string}
         - true
 `)
 	doc, diags := lowerSpec(t, spec)
-	requireNoErrorDiags(t, diags)
+	openapitest.RequireNoErrorDiags(t, diags)
 	u, ok := typeByName(doc, "U").(*ir.Union)
 	require.True(t, ok)
 	assert.Len(t, u.Variants, 2, "the boolean branch is a variant, not a null strip")
@@ -1755,7 +1870,7 @@ components:
       $ref: '#/components/schemas/Base'
       minimum: 5
 `)
-	requireNoErrorDiags(t, diags)
+	openapitest.RequireNoErrorDiags(t, diags)
 	bounded, ok := doc.Types["t/openapi/components/schemas/Bounded"].(*ir.Scalar)
 	require.True(t, ok, "a component aliasing another schema interns as a Scalar")
 	require.NotNil(t, bounded.Constraints)
@@ -1799,7 +1914,7 @@ components:
           minimum: 7
           example: 9
 `)
-	requireNoErrorDiags(t, diags)
+	openapitest.RequireNoErrorDiags(t, diags)
 	inner, ok := doc.Types["t/anon/components/schemas/Holder/properties/inner"].(*ir.Scalar)
 	require.True(t, ok, "the referenced sub-schema hoists an alias at its own pointer")
 
@@ -1841,7 +1956,7 @@ components:
       properties:
         inner: {$ref: '#/components/schemas/Base'}
 `)
-	requireNoErrorDiags(t, diags)
+	openapitest.RequireNoErrorDiags(t, diags)
 	inner, ok := doc.Types["t/anon/components/schemas/Holder/properties/inner"].(*ir.Scalar)
 	require.True(t, ok, "a bare $ref sub-schema aliases rather than copying its target")
 	require.NotNil(t, inner.Base)
@@ -1850,16 +1965,6 @@ components:
 	_, isModel := doc.Types[ir.TypeID("t/openapi/components/schemas/Base")].(*ir.Model)
 	assert.True(t, isModel, "the structure lives at the component it was declared at")
 }
-
-// inlineProbeBody is the body every inline-position case below writes: one
-// annotation of each kind attachDeclaredAnnotations reads, one validation-only
-// keyword, and one value constraint — all of them position-scoped, so a
-// position that lowers this to the shared string primitive loses every one. All
-// three documentation keywords are here because a home that keeps only the
-// description passes a probe that writes only a description.
-const inlineProbeBody = `{type: string, title: SUM, description: DOC, ` +
-	`externalDocs: {url: 'https://e.example', description: ED}, deprecated: true, ` +
-	`example: abc, x-vendor: V, xml: {name: X}, not: {const: N}, maxLength: 3}`
 
 // inlinePosition is one schema position with no ir.Property or ir.Parameter to
 // carry a declaration's annotations, so the declaration must own a node.
@@ -1876,33 +1981,33 @@ type inlinePosition struct {
 func inlinePositions() []inlinePosition {
 	const prim = ir.TypeID("t/prim/string")
 	return []inlinePosition{
-		{"items", func(b string) string { return componentSpec("    A: {type: array, items: " + b + "}\n") },
+		{"items", func(b string) string { return openapitest.ComponentSpec("    A: {type: array, items: " + b + "}\n") },
 			"t/anon/components/schemas/A/items", prim},
 		{"nested-items", func(b string) string {
-			return componentSpec("    A: {type: array, items: {type: array, items: " + b + "}}\n")
+			return openapitest.ComponentSpec("    A: {type: array, items: {type: array, items: " + b + "}}\n")
 		}, "t/anon/components/schemas/A/items/items", prim},
 		{"additionalProperties", func(b string) string {
-			return componentSpec("    A: {type: object, additionalProperties: " + b + "}\n")
+			return openapitest.ComponentSpec("    A: {type: object, additionalProperties: " + b + "}\n")
 		}, "t/anon/components/schemas/A/additionalProperties", prim},
 		{"prefixItems", func(b string) string {
-			return componentSpec("    A: {type: array, prefixItems: [" + b + "]}\n")
+			return openapitest.ComponentSpec("    A: {type: array, prefixItems: [" + b + "]}\n")
 		}, "t/anon/components/schemas/A/prefixItems/0", prim},
 		{"patternProperties", func(b string) string {
-			return componentSpec("    A: {type: object, patternProperties: {\"^x\": " + b + "}}\n")
+			return openapitest.ComponentSpec("    A: {type: object, patternProperties: {\"^x\": " + b + "}}\n")
 		}, "t/anon/components/schemas/A/patternProperties/^x", prim},
 		{"oneOf-branch", func(b string) string {
-			return componentSpec("    A: {oneOf: [" + b + ", {type: integer}]}\n")
+			return openapitest.ComponentSpec("    A: {oneOf: [" + b + ", {type: integer}]}\n")
 		}, "t/anon/components/schemas/A/oneOf/0", prim},
 		{"anyOf-branch", func(b string) string {
-			return componentSpec("    A: {anyOf: [" + b + ", {type: integer}]}\n")
+			return openapitest.ComponentSpec("    A: {anyOf: [" + b + ", {type: integer}]}\n")
 		}, "t/anon/components/schemas/A/anyOf/0", prim},
 		{"request-media-type", func(b string) string {
-			return pathsSpec("  /x:\n    post:\n      operationId: p\n      requestBody:\n" +
+			return openapitest.PathsSpec("  /x:\n    post:\n      operationId: p\n      requestBody:\n" +
 				"        content: {application/json: {schema: " + b + "}}\n" +
 				"      responses: {\"204\": {description: ok}}\n")
 		}, "t/anon/paths/~1x/post/requestBody/content/application~1json/schema", prim},
 		{"response-media-type", func(b string) string {
-			return pathsSpec("  /x:\n    get:\n      operationId: g\n      responses:\n" +
+			return openapitest.PathsSpec("  /x:\n    get:\n      operationId: g\n      responses:\n" +
 				"        \"200\":\n          description: ok\n" +
 				"          content: {application/json: {schema: " + b + "}}\n")
 		}, "t/anon/paths/~1x/get/responses/200/content/application~1json/schema", prim},
@@ -1919,8 +2024,8 @@ func TestInlinePosition_DeclarationOwnsANode(t *testing.T) {
 	for _, pos := range inlinePositions() {
 		t.Run(pos.name, func(t *testing.T) {
 			t.Parallel()
-			doc, diags := parseFull(t, pos.spec(inlineProbeBody))
-			requireNoErrorDiags(t, diags)
+			doc, diags := parseFull(t, pos.spec(openapitest.InlineProbeBody))
+			openapitest.RequireNoErrorDiags(t, diags)
 
 			sc, ok := doc.Types[pos.id].(*ir.Scalar)
 			require.True(t, ok, "the declaration owns a Scalar at its own pointer; got %v", doc.Types[pos.id])
@@ -1931,13 +2036,13 @@ func TestInlinePosition_DeclarationOwnsANode(t *testing.T) {
 	}
 }
 
-// assertProbeAnnotationsKept checks every keyword inlineProbeBody writes
+// assertProbeAnnotationsKept checks every keyword openapitest.InlineProbeBody writes
 // survived onto the node the declaration owns.
 func assertProbeAnnotationsKept(t *testing.T, sc *ir.Scalar) {
 	t.Helper()
-	assertProbeDocsKept(t, sc.Docs)
+	openapitest.AssertProbeDocsKept(t, sc.Docs)
 	assert.NotNil(t, sc.Deprecation, "deprecation")
-	assertProbeExample(t, sc.Examples)
+	openapitest.AssertProbeExample(t, sc.Examples)
 	if assert.NotNil(t, sc.XML, "xml hints") {
 		assert.Equal(t, "X", sc.XML.Name)
 	}
@@ -1956,29 +2061,6 @@ func assertProbeAnnotationsKept(t *testing.T, sc *ir.Scalar) {
 	}
 }
 
-// assertProbeDocsKept checks all three documentation keywords inlineProbeBody
-// writes reached d, wherever the position's home turned out to be.
-func assertProbeDocsKept(t *testing.T, d ir.Docs) {
-	t.Helper()
-	assert.Equal(t, "SUM", d.Summary, "title")
-	assert.Equal(t, "DOC", d.Description, "description")
-	if assert.Len(t, d.ExternalDocs, 1, "externalDocs") {
-		assert.Equal(t, "https://e.example", d.ExternalDocs[0].URL)
-		assert.Equal(t, "ED", d.ExternalDocs[0].Description)
-	}
-}
-
-// assertProbeExample checks the single example inlineProbeBody writes reached
-// the home under test with its value intact.
-func assertProbeExample(t *testing.T, examples []ir.Example) {
-	t.Helper()
-	if !assert.Len(t, examples, 1, "examples") {
-		return
-	}
-	require.NotNil(t, examples[0].Value)
-	assert.Equal(t, "abc", examples[0].Value.Str)
-}
-
 // TestInlinePosition_BareScalarStaysShared is the control that bounds the fix:
 // a position declaring nothing of its own gains nothing by owning a node, so it
 // must keep resolving straight to the shared primitive rather than growing an
@@ -1989,7 +2071,7 @@ func TestInlinePosition_BareScalarStaysShared(t *testing.T) {
 		t.Run(pos.name, func(t *testing.T) {
 			t.Parallel()
 			doc, diags := parseFull(t, pos.spec("{type: string}"))
-			requireNoErrorDiags(t, diags)
+			openapitest.RequireNoErrorDiags(t, diags)
 			assert.NotContains(t, doc.Types, pos.id, "a bare declaration must not hoist a node")
 			assert.Contains(t, doc.Types, pos.target, "it resolves to the shared primitive instead")
 		})
@@ -2002,9 +2084,9 @@ func TestInlinePosition_BareScalarStaysShared(t *testing.T) {
 // shared node a bare string does. Nullability still lifts onto the refs.
 func TestInlinePosition_NullStrippedScalarKeepsAnnotations(t *testing.T) {
 	t.Parallel()
-	doc, diags := parseFull(t, componentSpec(
+	doc, diags := parseFull(t, openapitest.ComponentSpec(
 		"    A: {type: array, items: {type: [string, \"null\"], description: DOC}}\n"))
-	requireNoErrorDiags(t, diags)
+	openapitest.RequireNoErrorDiags(t, diags)
 
 	sc, ok := doc.Types["t/anon/components/schemas/A/items"].(*ir.Scalar)
 	require.True(t, ok, "a null-stripped scalar declaration owns a node like any other")
@@ -2023,10 +2105,10 @@ func TestInlinePosition_NullStrippedScalarKeepsAnnotations(t *testing.T) {
 // them itself.
 func TestInlinePosition_RefSiblingsKeepTheirPosition(t *testing.T) {
 	t.Parallel()
-	doc, diags := parseFull(t, componentSpec(
+	doc, diags := parseFull(t, openapitest.ComponentSpec(
 		"    S: {type: string}\n"+
 			"    A: {type: array, items: {$ref: '#/components/schemas/S', maxLength: 25, description: D}}\n"))
-	requireNoErrorDiags(t, diags)
+	openapitest.RequireNoErrorDiags(t, diags)
 
 	sc, ok := doc.Types["t/anon/components/schemas/A/items"].(*ir.Scalar)
 	require.True(t, ok, "siblings beside a $ref give the position a node of its own")
@@ -2047,10 +2129,10 @@ func TestInlinePosition_RefSiblingsKeepTheirPosition(t *testing.T) {
 // $ref with nothing beside it still points straight at its target.
 func TestInlinePosition_BareRefStaysDirect(t *testing.T) {
 	t.Parallel()
-	doc, diags := parseFull(t, componentSpec(
+	doc, diags := parseFull(t, openapitest.ComponentSpec(
 		"    S: {type: string}\n"+
 			"    A: {type: array, items: {$ref: '#/components/schemas/S'}}\n"))
-	requireNoErrorDiags(t, diags)
+	openapitest.RequireNoErrorDiags(t, diags)
 
 	list, ok := doc.Types[componentID("A")].(*ir.List)
 	require.True(t, ok)
@@ -2074,24 +2156,121 @@ type stolenPosition struct {
 func (p stolenPosition) spec(refFirst bool) string {
 	outsider := "    Outsider: {$ref: '#" + strings.TrimPrefix(string(p.id), "t/anon") + "'}\n"
 	if refFirst {
-		return componentSpec(outsider + p.owner)
+		return openapitest.ComponentSpec(outsider + p.owner)
 	}
-	return componentSpec(p.owner + outsider)
+	return openapitest.ComponentSpec(p.owner + outsider)
 }
 
 func stolenPositions() []stolenPosition {
 	return []stolenPosition{
-		{"items", "    A: {type: array, items: " + inlineProbeBody + "}\n",
+		{"items", "    A: {type: array, items: " + openapitest.InlineProbeBody + "}\n",
 			"t/anon/components/schemas/A/items"},
-		{"additionalProperties", "    A: {type: object, additionalProperties: " + inlineProbeBody + "}\n",
+		{"additionalProperties", "    A: {type: object, additionalProperties: " + openapitest.InlineProbeBody + "}\n",
 			"t/anon/components/schemas/A/additionalProperties"},
-		{"prefixItems", "    A: {type: array, prefixItems: [" + inlineProbeBody + "]}\n",
+		{"prefixItems", "    A: {type: array, prefixItems: [" + openapitest.InlineProbeBody + "]}\n",
 			"t/anon/components/schemas/A/prefixItems/0"},
-		{"patternProperties", "    A: {type: object, patternProperties: {\"^x\": " + inlineProbeBody + "}}\n",
+		{"patternProperties", "    A: {type: object, patternProperties: {\"^x\": " + openapitest.InlineProbeBody + "}}\n",
 			"t/anon/components/schemas/A/patternProperties/^x"},
-		{"oneOf-branch", "    A: {oneOf: [" + inlineProbeBody + ", {type: integer}]}\n",
+		{"oneOf-branch", "    A: {oneOf: [" + openapitest.InlineProbeBody + ", {type: integer}]}\n",
 			"t/anon/components/schemas/A/oneOf/0"},
 	}
+}
+
+// TestInlinePosition_HintIsTheSameInBothOrders pins the spelling each inline
+// position takes, rather than only that the two orders agree (GitHub #353).
+//
+// Agreement alone is satisfied by both namers producing the weaker name, so the
+// table is what says which one won: the structural spelling, composed from the
+// enclosing node's hint and the position's role. The outside $ref used to name
+// these after the keyword holding them ("items"), the pattern text ("^x") or the
+// slot ordinal ("0") — none of which distinguish the position from the same
+// position on any other schema.
+func TestInlinePosition_HintIsTheSameInBothOrders(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct {
+		name  string
+		owner string
+		id    ir.TypeID
+		hint  string
+	}{
+		{"items", "    A: {type: array, items: " + openapitest.InlineProbeBody + "}\n",
+			"t/anon/components/schemas/A/items", "a_item"},
+		{"additionalProperties", "    A: {type: object, additionalProperties: " + openapitest.InlineProbeBody + "}\n",
+			"t/anon/components/schemas/A/additionalProperties", "a_value"},
+		{"patternProperties", "    A: {type: object, patternProperties: {\"^x\": " + openapitest.InlineProbeBody + "}}\n",
+			"t/anon/components/schemas/A/patternProperties/^x", "a_pattern"},
+		{"prefixItems", "    A: {type: array, prefixItems: [" + openapitest.InlineProbeBody + "]}\n",
+			"t/anon/components/schemas/A/prefixItems/0", "a_0"},
+		// Nested, because the derivation replays the whole chain rather than one
+		// step: the outside $ref used to name this "items", losing both levels.
+		{"items under items", "    A: {type: array, items: {type: array, items: " + openapitest.InlineProbeBody + "}}\n",
+			"t/anon/components/schemas/A/items/items", "a_item_item"},
+		// Rooted at a property rather than at the component, so the enclosing hint
+		// the walk rebuilds from is the property's key.
+		{"items under a property", "    A: {type: object, properties: {p: {type: array, items: " +
+			openapitest.InlineProbeBody + "}}}\n",
+			"t/anon/components/schemas/A/properties/p/items", "p_item"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			pos := stolenPosition{name: tc.name, owner: tc.owner, id: tc.id}
+			for _, order := range []struct {
+				name     string
+				refFirst bool
+			}{{"owner declared first", false}, {"reference declared first", true}} {
+				doc, diags := parseFull(t, pos.spec(order.refFirst))
+				openapitest.RequireNoErrorDiags(t, diags)
+				td, ok := doc.Types[tc.id]
+				require.True(t, ok, "%s: the position owns a node at %s", order.name, tc.id)
+				assert.Equal(t, tc.hint, td.Common().Name.Hint, order.name)
+			}
+		})
+	}
+}
+
+// TestInlinePosition_UnderPathsIsNamedByItsDeclaration is what GitHub #353 could
+// not reach and #372 closed.
+//
+// The enclosing hint under /paths comes from a response, an operationId or a
+// media-type key, none of which the pointer records, so no pointer-derived
+// spelling reproduces it and the reference could only offer the last segment.
+// The name is now taken from the declaration rather than from whichever lowering
+// interned the node first, so the position is "response_item" whether or not an
+// unrelated schema points at it, and in either declaration order.
+func TestInlinePosition_UnderPathsIsNamedByItsDeclaration(t *testing.T) {
+	t.Parallel()
+	const id = ir.TypeID("t/anon/paths/~1x/get/responses/200/content/application~1json/schema/items")
+	const op = `paths:
+  /x:
+    get:
+      operationId: getX
+      responses:
+        "200":
+          description: ok
+          content:
+            application/json: {schema: {type: array, items: ` + openapitest.InlineProbeBody + `}}
+`
+	const outsider = "components:\n  schemas:\n" +
+		"    Outsider: {$ref: '#/paths/~1x/get/responses/200/content/application~1json/schema/items'}\n"
+
+	ownerFirst, diags := parseFull(t, "openapi: 3.1.0\ninfo: {title: O, version: \"1.0.0\"}\n"+op+outsider)
+	openapitest.RequireNoErrorDiags(t, diags)
+	refFirst, diags := parseFull(t, "openapi: 3.1.0\ninfo: {title: O, version: \"1.0.0\"}\n"+outsider+op)
+	openapitest.RequireNoErrorDiags(t, diags)
+
+	// The reference lowers first in both spellings — components lower before
+	// paths — so both of these used to read "items".
+	assert.Equal(t, "response_item", ownerFirst.Types[id].Common().Name.Hint,
+		"the declaration names it, whichever order the two blocks are written in")
+	assert.Equal(t, "response_item", refFirst.Types[id].Common().Name.Hint,
+		"including when the reference is the lowering that interned the node")
+
+	// And the same name with nothing pointing at the position at all, which is
+	// the claim: an unrelated $ref elsewhere in the document costs it nothing.
+	unreferenced, diags := parseFull(t, "openapi: 3.1.0\ninfo: {title: O, version: \"1.0.0\"}\n"+op)
+	openapitest.RequireNoErrorDiags(t, diags)
+	assert.Equal(t, "response_item", unreferenced.Types[id].Common().Name.Hint,
+		"which is what the two above are being held to")
 }
 
 // TestInlinePosition_OutsideRefDoesNotMoveTheHome is the regression for the
@@ -2110,12 +2289,12 @@ func TestInlinePosition_OutsideRefDoesNotMoveTheHome(t *testing.T) {
 	for _, pos := range stolenPositions() {
 		t.Run(pos.name, func(t *testing.T) {
 			t.Parallel()
-			alone, diags := parseFull(t, componentSpec(pos.owner))
-			requireNoErrorDiags(t, diags)
+			alone, diags := parseFull(t, openapitest.ComponentSpec(pos.owner))
+			openapitest.RequireNoErrorDiags(t, diags)
 			refFirst, diags := parseFull(t, pos.spec(true))
-			requireNoErrorDiags(t, diags)
+			openapitest.RequireNoErrorDiags(t, diags)
 			refLast, diags := parseFull(t, pos.spec(false))
-			requireNoErrorDiags(t, diags)
+			openapitest.RequireNoErrorDiags(t, diags)
 
 			for _, with := range []*ir.Document{refFirst, refLast} {
 				assert.Empty(t, cmp.Diff(alone.Types[componentID("A")], with.Types[componentID("A")]),
@@ -2131,20 +2310,20 @@ func TestInlinePosition_OutsideRefDoesNotMoveTheHome(t *testing.T) {
 	}
 }
 
-// orderInvariantIR compares two whole IR documents, minus the two fields that
-// differ by construction when the same components are declared in two orders.
+// orderInvariantIR compares two whole IR documents, minus what differs by
+// construction when the same components are declared in two orders.
 //
 // SourceInfo.Hash digests the source bytes, which are the thing being permuted.
-// Naming.Hint is a live gap: the hint a node hoisted at a pointer carries is
-// minted by whichever of the two namers reaches the pointer first — the
-// declaration's context ("A_item") or the reference's last pointer segment
-// ("items") — because intern keeps the first name it is given. That divergence
-// is naming only, and predates the annotation work: a $ref to an object-bodied
-// `items` shows it with no annotations involved at all. Everything else is
-// compared.
+//
+// Naming.Hint used to be excluded too, and no longer is. The hint a node hoisted
+// at a pointer carries is minted by whichever namer reaches the pointer first —
+// the enclosing declaration's context or an outside $ref's pointer walk —
+// because intern keeps the first name it is given, so the two had to agree and
+// did not. They now do at every position either can reach (GitHub #181, #281,
+// #353), which is what lets the field be compared: the tests permuting those
+// positions are the regression only while nothing here hides the difference.
 func orderInvariantIR() []cmp.Option {
 	return []cmp.Option{
-		cmpopts.IgnoreFields(ir.Naming{}, "Hint"),
 		cmpopts.IgnoreFields(ir.SourceInfo{}, "Hash"),
 	}
 }
@@ -2157,24 +2336,24 @@ func orderInvariantIR() []cmp.Option {
 // second.
 func TestPropertyAnnotations_KeptWhenAnOutsideRefNamesTheProperty(t *testing.T) {
 	t.Parallel()
-	owner := "    A: {type: object, properties: {p: " + inlineProbeBody + "}}\n"
+	owner := "    A: {type: object, properties: {p: " + openapitest.InlineProbeBody + "}}\n"
 	outsider := "    Outsider: {$ref: '#/components/schemas/A/properties/p'}\n"
 	for _, tc := range []struct{ name, spec string }{
-		{"reference declared first", componentSpec(outsider + owner)},
-		{"reference declared last", componentSpec(owner + outsider)},
+		{"reference declared first", openapitest.ComponentSpec(outsider + owner)},
+		{"reference declared last", openapitest.ComponentSpec(owner + outsider)},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			doc, diags := parseFull(t, tc.spec)
-			requireNoErrorDiags(t, diags)
+			openapitest.RequireNoErrorDiags(t, diags)
 
 			m, ok := doc.Types[componentID("A")].(*ir.Model)
 			require.True(t, ok)
-			p, ok := propsByWire(m.Properties)["p"]
+			p, ok := openapitest.PropsByWire(m.Properties)["p"]
 			require.True(t, ok)
 			assert.Equal(t, ir.TypeID("t/prim/string"), p.Type.Target,
 				"the property's own type is unchanged by the outside reference")
-			assertProbeDocsKept(t, p.Docs)
+			openapitest.AssertProbeDocsKept(t, p.Docs)
 			assert.Contains(t, p.Unmodeled, "openapi:x-vendor")
 			assert.Contains(t, p.Unmodeled, "openapi:not")
 
@@ -2191,14 +2370,14 @@ func TestPropertyAnnotations_KeptWhenAnOutsideRefNamesTheProperty(t *testing.T) 
 // copies can never drift apart.
 func TestPropertyAnnotations_OneHomeWhenSchemaOwnsANode(t *testing.T) {
 	t.Parallel()
-	doc, diags := parseFull(t, componentSpec(
+	doc, diags := parseFull(t, openapitest.ComponentSpec(
 		"    A:\n      type: object\n      properties:\n"+
 			"        p: {type: object, description: DOC, deprecated: true, xml: {name: X}, x-vendor: V}\n"))
-	requireNoErrorDiags(t, diags)
+	openapitest.RequireNoErrorDiags(t, diags)
 
 	owner, ok := doc.Types[componentID("A")].(*ir.Model)
 	require.True(t, ok)
-	p, ok := propsByWire(owner.Properties)["p"]
+	p, ok := openapitest.PropsByWire(owner.Properties)["p"]
 	require.True(t, ok)
 	assert.Empty(t, p.Docs.Description, "the node the schema owns is the one home")
 	assert.Nil(t, p.Deprecation)
@@ -2220,19 +2399,19 @@ func TestPropertyAnnotations_OneHomeWhenSchemaOwnsANode(t *testing.T) {
 // property's declaration has ir.Property to land on already.
 func TestPropertyAnnotations_CarriedWhenSchemaOwnsNoNode(t *testing.T) {
 	t.Parallel()
-	doc, diags := parseFull(t, componentSpec(
-		"    A:\n      type: object\n      properties:\n        p: "+inlineProbeBody+"\n"))
-	requireNoErrorDiags(t, diags)
+	doc, diags := parseFull(t, openapitest.ComponentSpec(
+		"    A:\n      type: object\n      properties:\n        p: "+openapitest.InlineProbeBody+"\n"))
+	openapitest.RequireNoErrorDiags(t, diags)
 
 	owner, ok := doc.Types[componentID("A")].(*ir.Model)
 	require.True(t, ok)
-	p, ok := propsByWire(owner.Properties)["p"]
+	p, ok := openapitest.PropsByWire(owner.Properties)["p"]
 	require.True(t, ok)
 	assert.Equal(t, ir.TypeID("t/prim/string"), p.Type.Target, "a property keeps resolving to the shared primitive")
 	assert.NotContains(t, doc.Types, ir.TypeID("t/anon/components/schemas/A/properties/p"))
-	assertProbeDocsKept(t, p.Docs)
+	openapitest.AssertProbeDocsKept(t, p.Docs)
 	assert.NotNil(t, p.Deprecation)
-	assertProbeExample(t, p.Examples)
+	openapitest.AssertProbeExample(t, p.Examples)
 	require.NotNil(t, p.XML)
 	assert.Equal(t, "X", p.XML.Name)
 	assert.Contains(t, p.Unmodeled, "openapi:x-vendor")
@@ -2287,7 +2466,7 @@ func propertyOf(t *testing.T, doc *ir.Document, model, wire string) ir.Property 
 	t.Helper()
 	m, ok := doc.Types[componentID(model)].(*ir.Model)
 	require.True(t, ok, "%s lowers to a model", model)
-	p, ok := propsByWire(m.Properties)[wire]
+	p, ok := openapitest.PropsByWire(m.Properties)[wire]
 	require.True(t, ok, "%s declares a property %q", model, wire)
 	return p
 }
@@ -2303,9 +2482,9 @@ func TestPropertyDocs_RefTargetReachesTheCarrier(t *testing.T) {
 	for _, kw := range carrierDocKeywords() {
 		t.Run(kw.name, func(t *testing.T) {
 			t.Parallel()
-			doc, diags := parseFull(t, componentSpec(docTarget()+
+			doc, diags := parseFull(t, openapitest.ComponentSpec(docTarget()+
 				"    Owner: {type: object, properties: {p: {$ref: '#/components/schemas/Target'}}}\n"))
-			requireNoErrorDiags(t, diags)
+			openapitest.RequireNoErrorDiags(t, diags)
 
 			p := propertyOf(t, doc, "Owner", "p")
 			assert.Equal(t, componentID("Target"), p.Type.Target, "a bare $ref needs no alias")
@@ -2325,10 +2504,10 @@ func TestPropertyDocs_UseSiteWinsKeywordByKeyword(t *testing.T) {
 	for _, written := range carrierDocKeywords() {
 		t.Run(written.name, func(t *testing.T) {
 			t.Parallel()
-			doc, diags := parseFull(t, componentSpec(docTarget()+
+			doc, diags := parseFull(t, openapitest.ComponentSpec(docTarget()+
 				"    Owner: {type: object, properties: {p: {$ref: '#/components/schemas/Target', "+
 				written.write("SITE")+"}}}\n"))
-			requireNoErrorDiags(t, diags)
+			openapitest.RequireNoErrorDiags(t, diags)
 
 			p := propertyOf(t, doc, "Owner", "p")
 			assert.Equal(t, componentID("Target"), p.Type.Target, "a carrier hoists no alias for its siblings")
@@ -2395,9 +2574,9 @@ func TestInlinePosition_HoistGateFollowsWhatIsKept(t *testing.T) {
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			doc, diags := parseFull(t, componentSpec(
+			doc, diags := parseFull(t, openapitest.ComponentSpec(
 				"    A: {type: array, items: {type: string, "+tc.keyword+"}}\n"))
-			requireNoErrorDiags(t, diags)
+			openapitest.RequireNoErrorDiags(t, diags)
 			assert.Contains(t, doc.Types, ir.TypeID("t/anon/components/schemas/A/items"),
 				"%s binds the position it is written at, so the position must own a node", tc.keyword)
 		})
@@ -2417,9 +2596,9 @@ func TestInlinePosition_NothingToHoldHoistsNoNode(t *testing.T) {
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			doc, diags := parseFull(t, componentSpec(
+			doc, diags := parseFull(t, openapitest.ComponentSpec(
 				"    A: {type: array, items: {"+tc.keyword+"}}\n"))
-			requireNoErrorDiags(t, diags)
+			openapitest.RequireNoErrorDiags(t, diags)
 			assert.NotContains(t, doc.Types, ir.TypeID("t/anon/components/schemas/A/items"))
 			list, ok := doc.Types[componentID("A")].(*ir.List)
 			require.True(t, ok)
@@ -2454,8 +2633,8 @@ func TestInlinePosition_ResidueIsKeptAtEveryHomeOwnNodePosition(t *testing.T) {
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			doc, diags := parseFull(t, componentSpec(strings.ReplaceAll(tc.body, "RESIDUE", residue)))
-			requireNoErrorDiags(t, diags)
+			doc, diags := parseFull(t, openapitest.ComponentSpec(strings.ReplaceAll(tc.body, "RESIDUE", residue)))
+			openapitest.RequireNoErrorDiags(t, diags)
 
 			td, ok := doc.Types[ir.TypeID(tc.at)]
 			require.True(t, ok, "the position owns a node to hold what it wrote")
@@ -2491,10 +2670,10 @@ func assertResidueKeptAndAnnounced(t *testing.T, p ir.Unmodeled, diags []ir.Diag
 // residue would restate what the carrier already holds.
 func TestPropertyPosition_ResidueStaysOutOfTheTypeNode(t *testing.T) {
 	t.Parallel()
-	doc, diags := parseFull(t, componentSpec(
+	doc, diags := parseFull(t, openapitest.ComponentSpec(
 		"    A: {type: object, properties: {p: {type: array, items: {type: string}, "+
 			"default: [], readOnly: true}}}\n"))
-	requireNoErrorDiags(t, diags)
+	openapitest.RequireNoErrorDiags(t, diags)
 
 	p := propertyOf(t, doc, "A", "p")
 	require.NotNil(t, p.Default, "default lands in the property's own field")
@@ -2768,8 +2947,8 @@ func TestVocabulary2020_12_EveryKeywordIsLoweredOrKept(t *testing.T) {
 // case "differ" for free.
 func compileVocabIR(t *testing.T, schemas string) string {
 	t.Helper()
-	doc, diags := parseFull(t, componentSpec(schemas))
-	requireNoErrorDiags(t, diags)
+	doc, diags := parseFull(t, openapitest.ComponentSpec(schemas))
+	openapitest.RequireNoErrorDiags(t, diags)
 	doc.Diagnostics = nil
 	doc.Sources = nil
 	out, err := json.Marshal(doc)
@@ -2822,8 +3001,8 @@ func TestContentVocabulary_LowersToEncoding(t *testing.T) {
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			doc, diags := parseFull(t, componentSpec(tc.schemas))
-			requireNoErrorDiags(t, diags)
+			doc, diags := parseFull(t, openapitest.ComponentSpec(tc.schemas))
+			openapitest.RequireNoErrorDiags(t, diags)
 
 			sc, ok := doc.Types[tc.at].(*ir.Scalar)
 			require.True(t, ok, "the content vocabulary needs a Scalar of its own at %s", tc.at)
@@ -2864,8 +3043,8 @@ func TestContentVocabulary_KeepsTheBoundsWrittenBesideIt(t *testing.T) {
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			doc, diags := parseFull(t, componentSpec(tc.schemas))
-			requireNoErrorDiags(t, diags)
+			doc, diags := parseFull(t, openapitest.ComponentSpec(tc.schemas))
+			openapitest.RequireNoErrorDiags(t, diags)
 
 			sc, ok := doc.Types[tc.at].(*ir.Scalar)
 			require.True(t, ok, "the content vocabulary hoists a Scalar at %s", tc.at)
@@ -2904,8 +3083,8 @@ func TestContentVocabulary_KeptWhereNoEncodingHolds(t *testing.T) {
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			doc, diags := parseFull(t, componentSpec(tc.schemas))
-			requireNoErrorDiags(t, diags)
+			doc, diags := parseFull(t, openapitest.ComponentSpec(tc.schemas))
+			openapitest.RequireNoErrorDiags(t, diags)
 
 			td, ok := doc.Types[tc.at]
 			require.True(t, ok)
@@ -2913,7 +3092,7 @@ func TestContentVocabulary_KeptWhereNoEncodingHolds(t *testing.T) {
 			require.True(t, ok, "%s must be kept verbatim under Unmodeled", tc.key)
 			assert.JSONEq(t, tc.wantJSON, string(entry.Value))
 			assert.Equal(t, ir.ReasonNoIRHome, entry.Reason)
-			assertInfoDiagAt(t, diags, entry.Provenance.Pointer)
+			openapitest.AssertInfoDiagAt(t, diags, entry.Provenance.Pointer)
 		})
 	}
 }
@@ -2923,16 +3102,16 @@ func TestContentVocabulary_KeptWhereNoEncodingHolds(t *testing.T) {
 // primitive, where the ir.Property is the only home the keyword has.
 func TestContentVocabulary_KeptOnACarrierWithNoNode(t *testing.T) {
 	t.Parallel()
-	doc, diags := parseFull(t, componentSpec(
+	doc, diags := parseFull(t, openapitest.ComponentSpec(
 		"    A: {type: object, properties: {p: {contentMediaType: application/json}}}\n"))
-	requireNoErrorDiags(t, diags)
+	openapitest.RequireNoErrorDiags(t, diags)
 
 	p := propertyOf(t, doc, "A", "p")
 	assert.Equal(t, ir.TypeID("t/prim/any"), p.Type.Target, "an untyped schema stays schemaless")
 	entry, ok := p.Unmodeled["openapi:contentMediaType"]
 	require.True(t, ok, "the carrier is the only home when the schema hoisted no node")
 	assert.Equal(t, ir.ReasonNoIRHome, entry.Reason)
-	assertInfoDiagAt(t, diags, entry.Provenance.Pointer)
+	openapitest.AssertInfoDiagAt(t, diags, entry.Provenance.Pointer)
 }
 
 // TestDynamicRef_ExpandsAgainstTheOneMatchingAnchor pins the resolvable half of
@@ -2940,11 +3119,11 @@ func TestContentVocabulary_KeptOnACarrierWithNoNode(t *testing.T) {
 // the keyword worth having.
 func TestDynamicRef_ExpandsAgainstTheOneMatchingAnchor(t *testing.T) {
 	t.Parallel()
-	doc, diags := parseFull(t, componentSpec(
+	doc, diags := parseFull(t, openapitest.ComponentSpec(
 		"    Meta: {$dynamicAnchor: meta, type: object, properties: {n: {type: string}}}\n"+
 			"    Uses: {type: object, properties: {m: {$dynamicRef: '#meta'}}}\n"+
 			"    Tree: {$dynamicAnchor: node, type: object, properties: {kids: {type: array, items: {$dynamicRef: '#node'}}}}\n"))
-	requireNoErrorDiags(t, diags)
+	openapitest.RequireNoErrorDiags(t, diags)
 
 	assert.Equal(t, componentID("Meta"), propertyOf(t, doc, "Uses", "m").Type.Target,
 		"the reference resolves to the anchor's own component, not to the top type")
@@ -2964,8 +3143,60 @@ func TestDynamicRef_ExpandsAgainstTheOneMatchingAnchor(t *testing.T) {
 
 	// Expansion collapses an indirection the source left to evaluation, so it is
 	// announced under its own code rather than sharing the composition one.
-	assert.Equal(t, 2, countDiagsAt(diags, diag.DynamicRefExpanded, ir.SeverityInfo),
+	assert.Equal(t, 2, openapitest.CountDiagsAt(diags, diag.DynamicRefExpanded, ir.SeverityInfo),
 		"each expanded reference is announced once")
+}
+
+// TestDynamicRef_FragmentIsPercentDecoded pins that a $dynamicRef's fragment is
+// read as the URI text it is. RFC 3986 §2.3 makes an unreserved character and
+// its percent-encoded octet the same character, so `#my%2Danchor` names the
+// anchor `my-anchor`; §2.1 makes the escape's hex digits case-insignificant. All
+// three spellings below therefore address one declaration (GitHub #233).
+func TestDynamicRef_FragmentIsPercentDecoded(t *testing.T) {
+	t.Parallel()
+	const anchor = "    B: {$dynamicAnchor: my-anchor, type: string}\n"
+	cases := map[string]string{
+		"an escaped hyphen is the hyphen":           "#my%2Danchor",
+		"the escape's hex case is not significant":  "#my%2danchor",
+		"the unescaped spelling names the same one": "#my-anchor",
+	}
+	for name, ref := range cases {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			doc, diags := parseFull(t, openapitest.ComponentSpec(anchor+"    A: {$dynamicRef: '"+ref+"'}\n"))
+			openapitest.RequireNoErrorDiags(t, diags)
+
+			sc, ok := doc.Types[componentID("A")].(*ir.Scalar)
+			require.True(t, ok, "the reference position owns a node")
+			require.NotNil(t, sc.Base)
+			assert.Equal(t, componentID("B"), sc.Base.Target, "every spelling names the one anchor")
+			assert.NotContains(t, sc.Unmodeled, "openapi:$dynamicRef",
+				"an expanded reference is the position's type, so it is not also kept")
+		})
+	}
+}
+
+// TestDynamicRef_ReachesAnAnchorSpelledWithAPercent pins that the decode runs on
+// the reference alone: an anchor carrying a literal `%` is addressed by escaping
+// it as `%25`, and the anchor's own text is matched exactly as declared. The two
+// sides mean different things — 2020-12 §8.2.2 makes `$dynamicAnchor` a plain
+// name, §8.2.3.2 makes `$dynamicRef` a URI-reference — so only one is decoded.
+//
+// §8.2.2's production admits no `%` in an anchor name, so the document validator
+// reports the declaration and this case arrives with an error diagnostic beside
+// it, the same shape TestDynamicRef_NonScalarValueIsKeptNotExpanded documents.
+// The lowering still has to agree with itself about what each side spells.
+func TestDynamicRef_ReachesAnAnchorSpelledWithAPercent(t *testing.T) {
+	t.Parallel()
+	doc, _ := parseFull(t, openapitest.ComponentSpec(
+		"    B: {$dynamicAnchor: 'pct%name', type: string}\n"+
+			"    A: {$dynamicRef: '#pct%25name'}\n"))
+
+	sc, ok := doc.Types[componentID("A")].(*ir.Scalar)
+	require.True(t, ok, "the reference position owns a node")
+	require.NotNil(t, sc.Base)
+	assert.Equal(t, componentID("B"), sc.Base.Target,
+		"an escaped percent addresses the percent itself, so the reference reaches the anchor as declared")
 }
 
 // TestDynamicRef_IrreducibleIsKeptAndSaysWhy pins the other half of that promise.
@@ -2988,6 +3219,15 @@ func TestDynamicRef_IrreducibleIsKeptAndSaysWhy(t *testing.T) {
 			wantWhy: "is not a plain same-document fragment"},
 		{name: "a pointer, not an anchor", schemas: "    A: {$dynamicRef: '#/components/schemas/M1'}\n",
 			wantWhy: "not a plain same-document fragment"},
+		{name: "an invalid percent escape", schemas: "    A: {$dynamicRef: '#my%zzanchor'}\n",
+			wantWhy: `"#my%zzanchor" is not valid percent-encoded text: invalid URL escape "%zz"`},
+		{name: "an escaped percent decodes to the character", schemas: "    A: {$dynamicRef: '#pct%25name'}\n",
+			wantWhy: `no $dynamicAnchor "pct%name" is declared`},
+		// The anchor here is what a second decode would land on: it would read
+		// this fragment as "#my-anchor" and expand. Being kept is the proof.
+		{name: "the decode is not applied twice",
+			schemas: "    H: {$dynamicAnchor: my-anchor, type: string}\n    A: {$dynamicRef: '#my%252Danchor'}\n",
+			wantWhy: `no $dynamicAnchor "my%2Danchor" is declared`},
 		{name: "declared twice", schemas: anchors + "    A: {$dynamicRef: '#dup'}\n",
 			wantWhy: "declared 2 times"},
 		{name: "not a component", schemas: anchors + "    A: {$dynamicRef: '#deep'}\n",
@@ -3022,6 +3262,28 @@ func TestDynamicRef_IrreducibleIsKeptAndSaysWhy(t *testing.T) {
 			wantWhy: `an $id at or above "/components/schemas/A"`,
 		},
 		{
+			// The pointer of a schema named "" ends in an empty reference token,
+			// which the path walk once dropped as if it were the artifact of
+			// splitting a pointer on '/' — reading the components/schemas map for
+			// the $id instead of the schema itself, and expanding across a
+			// boundary it should have stopped at.
+			name:    `a schema named "" is still in a resource of its own`,
+			schemas: anchor + "    \"\": {$id: 'https://example.com/empty', $dynamicRef: '#m'}\n",
+			wantWhy: `an $id at or above "/components/schemas/"`,
+			at:      "t/anon/components/schemas/",
+		},
+		{
+			// The mirror of the case above, on the anchor's side. /components/
+			// schemas/ addresses a component schema, so the refusal may not say it
+			// does not — the reason is that an empty name earns no named TypeID,
+			// which is the policy testdata/conformance/openapi/empty-names.yaml
+			// records rather than a shape the compiler failed to recognise.
+			name:    `an anchor on a schema named "" says why, not that it is no component`,
+			schemas: "    \"\": {$dynamicAnchor: m, type: string}\n    A: {$dynamicRef: '#m'}\n",
+			wantWhy: `is declared on the component schema keyed "" at "/components/schemas/", ` +
+				`and an empty name earns no named type to expand to`,
+		},
+		{
 			name: "an enclosing schema starts the resource",
 			schemas: anchor +
 				"    A: {$id: 'https://example.com/a', type: array, items: {$dynamicRef: '#m'}}\n",
@@ -3043,8 +3305,8 @@ func TestDynamicRef_IrreducibleIsKeptAndSaysWhy(t *testing.T) {
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			doc, diags := parseFull(t, componentSpec(tc.schemas))
-			requireNoErrorDiags(t, diags)
+			doc, diags := parseFull(t, openapitest.ComponentSpec(tc.schemas))
+			openapitest.RequireNoErrorDiags(t, diags)
 
 			at := tc.at
 			if at == "" {
@@ -3060,6 +3322,67 @@ func TestDynamicRef_IrreducibleIsKeptAndSaysWhy(t *testing.T) {
 	}
 }
 
+// mergeBoundOrderSpec writes one document whose resource boundary is reachable
+// only through a YAML merge chain, with the two schemas that walk it declared in
+// the given order. P's chain is 51 links and expands whole; Q's rides on P's tail
+// for 71, past nodeview's MergeDepthLimit of 64.
+func mergeBoundOrderSpec(pFirst bool) string {
+	var b strings.Builder
+	b.WriteString("openapi: 3.1.0\ninfo: {title: MergeBound, version: \"1\"}\npaths: {}\n")
+	b.WriteString("x-c0: &c0 {$id: 'https://example.com/boundary'}\n")
+	for i := 1; i <= 50; i++ {
+		fmt.Fprintf(&b, "x-c%d: &c%d {<<: *c%d}\n", i, i, i-1)
+	}
+	b.WriteString("x-d0: &d0 {<<: *c50}\n")
+	for i := 1; i <= 20; i++ {
+		fmt.Fprintf(&b, "x-d%d: &d%d {<<: *d%d}\n", i, i, i-1)
+	}
+	b.WriteString("components:\n  schemas:\n    Node: {$dynamicAnchor: T, type: string}\n")
+	const p = "    P:\n      <<: *c50\n      $dynamicRef: '#T'\n"
+	const q = "    Q:\n      <<: *d20\n      $dynamicRef: '#T'\n"
+	if pFirst {
+		b.WriteString(p + q)
+		return b.String()
+	}
+	b.WriteString(q + p)
+	return b.String()
+}
+
+// TestDynamicRef_ResourceBoundaryVerdictIsOrderInvariant pins that which schema
+// lowered first cannot decide whether the other sees the $id above it.
+//
+// declaresResourceIDAbove builds its nodeview.View per call for this reason. A
+// view outliving one walk memoizes a mapping's merge expansion, and a node first
+// expanded shallowly is then served from that memo to a walk reaching it deeper
+// than MergeDepthLimit permits. Sharing one made P-then-Q keep Q's reference
+// verbatim where Q-then-P expanded it, in the same document.
+//
+// The order-invariance oracle cannot ask this. The construct needs YAML anchors,
+// and reverseMappings declines to permute a document whose aliases the reversal
+// would lift above their anchors, so the sweep returns ok whichever way the
+// walk answers — which is what earns this a two-order diff of its own.
+//
+// It asserts the two orders agree rather than which verdict they agree on: a
+// chain past the bound expands to nothing, so the $id is invisible and both
+// currently miss the boundary (GitHub #401). Fixing that changes the shared
+// answer, not this test.
+func TestDynamicRef_ResourceBoundaryVerdictIsOrderInvariant(t *testing.T) {
+	t.Parallel()
+	first, diags := parseFull(t, mergeBoundOrderSpec(true))
+	openapitest.RequireNoErrorDiags(t, diags)
+	last, diags := parseFull(t, mergeBoundOrderSpec(false))
+	openapitest.RequireNoErrorDiags(t, diags)
+
+	// The registry rather than the whole document: the cycle pre-scan shares one
+	// view across its own walk, so whether it reports stopping at the same
+	// 64-level bound depends on which schema it reached first, and that warning
+	// appears in one order only (GitHub #402). It is the same mechanism in a
+	// different walk, and it is not what this test governs — the boundary verdict
+	// lands in the registry.
+	assert.Empty(t, cmp.Diff(first.Types, last.Types, orderInvariantIR()...),
+		"the declaration order must not decide a resource-boundary verdict")
+}
+
 // TestDynamicRef_CycleIsRefusedAtEveryEdge pins that a cycle of $dynamicRef
 // expansions is preserved whole rather than broken at whichever edge lowered
 // first. Each member reaches the verdict from its own position, so no Scalar
@@ -3068,11 +3391,11 @@ func TestDynamicRef_IrreducibleIsKeptAndSaysWhy(t *testing.T) {
 // irverify checks for aliases.
 func TestDynamicRef_CycleIsRefusedAtEveryEdge(t *testing.T) {
 	t.Parallel()
-	doc, diags := parseFull(t, componentSpec(
+	doc, diags := parseFull(t, openapitest.ComponentSpec(
 		"    A: {$dynamicAnchor: a, $dynamicRef: '#b'}\n"+
 			"    B: {$dynamicAnchor: b, $dynamicRef: '#a'}\n"+
 			"    Self: {$dynamicAnchor: s, $dynamicRef: '#s'}\n"))
-	requireNoErrorDiags(t, diags)
+	openapitest.RequireNoErrorDiags(t, diags)
 
 	for _, name := range []string{"A", "B", "Self"} {
 		sc, ok := doc.Types[componentID(name)].(*ir.Scalar)
@@ -3083,7 +3406,7 @@ func TestDynamicRef_CycleIsRefusedAtEveryEdge(t *testing.T) {
 		assert.Contains(t, sc.Unmodeled, "openapi:$dynamicRef",
 			"%s keeps the reference it could not take", name)
 	}
-	assert.Equal(t, 0, countDiagsAt(diags, diag.DynamicRefExpanded, ir.SeverityInfo),
+	assert.Equal(t, 0, openapitest.CountDiagsAt(diags, diag.DynamicRefExpanded, ir.SeverityInfo),
 		"no edge of the cycle is reported as expanded")
 }
 
@@ -3093,11 +3416,11 @@ func TestDynamicRef_CycleIsRefusedAtEveryEdge(t *testing.T) {
 // top type rather than a link that loops.
 func TestDynamicRef_ExpandsIntoACycleItIsNotPartOf(t *testing.T) {
 	t.Parallel()
-	doc, diags := parseFull(t, componentSpec(
+	doc, diags := parseFull(t, openapitest.ComponentSpec(
 		"    A: {$dynamicAnchor: a, $dynamicRef: '#b'}\n"+
 			"    B: {$dynamicAnchor: b, $dynamicRef: '#a'}\n"+
 			"    Outside: {$dynamicRef: '#a'}\n"))
-	requireNoErrorDiags(t, diags)
+	openapitest.RequireNoErrorDiags(t, diags)
 
 	sc, ok := doc.Types[componentID("Outside")].(*ir.Scalar)
 	require.True(t, ok)
@@ -3122,8 +3445,8 @@ func TestDynamicRef_ChainEndsAtAnAnchorItCannotFollow(t *testing.T) {
 	for name, schemas := range cases {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
-			doc, diags := parseFull(t, componentSpec(schemas+"    A: {$dynamicRef: '#mid'}\n"))
-			requireNoErrorDiags(t, diags)
+			doc, diags := parseFull(t, openapitest.ComponentSpec(schemas+"    A: {$dynamicRef: '#mid'}\n"))
+			openapitest.RequireNoErrorDiags(t, diags)
 
 			sc, ok := doc.Types[componentID("A")].(*ir.Scalar)
 			require.True(t, ok)
@@ -3148,14 +3471,14 @@ func TestDialectKeywords_KeptOutOfScope(t *testing.T) {
 	require.ElementsMatch(t, want, annotation.DialectKeywords,
 		"a keyword joining or leaving the exclusion must be decided here too")
 
-	doc, diags := parseFull(t, componentSpec(
+	doc, diags := parseFull(t, openapitest.ComponentSpec(
 		"    A:\n"+
 			"      $id: 'urn:example:a'\n"+
 			"      $schema: 'https://json-schema.org/draft/2020-12/schema'\n"+
 			"      $vocabulary: {'https://json-schema.org/draft/2020-12/vocab/core': true}\n"+
 			"      $comment: not for end users\n"+
 			"      type: string\n"))
-	requireNoErrorDiags(t, diags)
+	openapitest.RequireNoErrorDiags(t, diags)
 
 	td, ok := doc.Types[componentID("A")]
 	require.True(t, ok)
@@ -3163,21 +3486,10 @@ func TestDialectKeywords_KeptOutOfScope(t *testing.T) {
 		entry, ok := td.Common().Unmodeled["openapi:"+keyword]
 		require.True(t, ok, "%s must be kept verbatim", keyword)
 		assert.Equal(t, ir.ReasonOutOfScope, entry.Reason)
-		assertInfoDiagAt(t, diags, entry.Provenance.Pointer)
+		openapitest.AssertInfoDiagAt(t, diags, entry.Provenance.Pointer)
 	}
 	assert.NotContains(t, td.Common().Unmodeled, "openapi:$comment",
 		"2020-12 §8.3 forbids presenting $comment, so it is dropped rather than kept")
-}
-
-// assertInfoDiagAt requires one info diagnostic stamped at pointer.
-func assertInfoDiagAt(t *testing.T, diags []ir.Diagnostic, pointer string) {
-	t.Helper()
-	for _, d := range diags {
-		if d.Severity == ir.SeverityInfo && d.Provenance.Pointer == pointer {
-			return
-		}
-	}
-	assert.Fail(t, "nothing announced this", "no info diagnostic at %q; got %+v", pointer, diags)
 }
 
 // assertDiagContains requires one diagnostic at pointer whose message carries
@@ -3207,7 +3519,7 @@ func TestDynamicRef_NonScalarValueIsKeptNotExpanded(t *testing.T) {
 	for name, schemas := range cases {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
-			doc, diags := parseFull(t, componentSpec(
+			doc, diags := parseFull(t, openapitest.ComponentSpec(
 				"    M1: {$dynamicAnchor: ok, type: string}\n"+schemas))
 
 			td, ok := doc.Types[componentID("A")]
@@ -3225,10 +3537,10 @@ func TestDynamicRef_NonScalarValueIsKeptNotExpanded(t *testing.T) {
 // prototype changes, so a site that fills in a name or a description keeps it.
 func TestAppendExample_ConvertsAndAppends(t *testing.T) {
 	t.Parallel()
-	c := lowering.New(0, &soa.OpenAPI{}, ir.SourceInfo{}, "", overlay.Origin{})
+	c := lowering.New(0, &soa.OpenAPI{}, ir.SourceInfo{}, "", lowering.Limits{}, lowering.StreamingMedia{}, lowering.ExtensionPromotions{}, overlay.Origin{})
 	proto := ir.Example{Name: "n", Summary: "s", Description: "d"}
 
-	out, diags := schema.AppendExample(c, nil, proto, strNode("hello"), "/p", "examples", "n")
+	out, diags := schema.AppendExample(c, nil, proto, openapitest.StrNode("hello"), "/p", "examples", "n")
 
 	assert.Empty(t, diags, "a convertible node is announced by nothing")
 	require.Len(t, out, 1)
@@ -3243,7 +3555,7 @@ func TestAppendExample_ConvertsAndAppends(t *testing.T) {
 // that joins them, so a wrong join shows up nowhere else.
 func TestAppendExample_UnconvertibleValueIsReported(t *testing.T) {
 	t.Parallel()
-	c := lowering.New(0, &soa.OpenAPI{}, ir.SourceInfo{}, "", overlay.Origin{})
+	c := lowering.New(0, &soa.OpenAPI{}, ir.SourceInfo{}, "", lowering.Limits{}, lowering.StreamingMedia{}, lowering.ExtensionPromotions{}, overlay.Origin{})
 	nan := &yaml.Node{Kind: yaml.ScalarNode, Tag: "!!float", Value: ".nan"}
 
 	out, diags := schema.AppendExample(c, nil, ir.Example{}, nan, "/p", "examples", "n")
@@ -3260,7 +3572,7 @@ func TestAppendExample_UnconvertibleValueIsReported(t *testing.T) {
 // it, not at the position that declared it.
 func TestStampConstraintDiags_RelocatesEveryDiagnosticToTheReadingPointer(t *testing.T) {
 	t.Parallel()
-	c := lowering.New(0, &soa.OpenAPI{}, ir.SourceInfo{}, "", overlay.Origin{})
+	c := lowering.New(0, &soa.OpenAPI{}, ir.SourceInfo{}, "", lowering.Limits{}, lowering.StreamingMedia{}, lowering.ExtensionPromotions{}, overlay.Origin{})
 	in := []ir.Diagnostic{
 		{Code: diag.DegradedConstruct, Provenance: ir.Provenance{Pointer: "/elsewhere"}},
 		{Code: diag.NumericPrecision, Provenance: ir.Provenance{Source: 9, Pointer: "/other"}},
@@ -3282,13 +3594,13 @@ func TestStampConstraintDiags_RelocatesEveryDiagnosticToTheReadingPointer(t *tes
 // the same answer a bare `false` schema gets in its own right.
 func TestAllOf_FalseBranchClosesTheComposition(t *testing.T) {
 	t.Parallel()
-	doc, diags := lowerSpec(t, componentSpec(`    Never:
+	doc, diags := lowerSpec(t, openapitest.ComponentSpec(`    Never:
       allOf:
         - false
         - type: object
           properties: {id: {type: string}}
 `))
-	requireNoErrorDiags(t, diags)
+	openapitest.RequireNoErrorDiags(t, diags)
 
 	m, ok := typeByName(doc, "Never").(*ir.Model)
 	require.True(t, ok, "the composition still lowers to a model")
@@ -3296,7 +3608,7 @@ func TestAllOf_FalseBranchClosesTheComposition(t *testing.T) {
 	require.Len(t, m.Unmodeled, 1, "the branch is kept verbatim")
 	assert.Equal(t, ir.RawValue("false"), m.Unmodeled["openapi:allOf/0"].Value,
 		"keyed by the branch index, so sibling branches cannot overwrite one another")
-	assert.True(t, hasDiagAt(diags, diag.FalseSchema, ir.SeverityInfo), "and it is announced")
+	assert.True(t, openapitest.HasDiagAt(diags, diag.FalseSchema, ir.SeverityInfo), "and it is announced")
 }
 
 // TestUnhomedApplicator_KeptOnAListAndAnnounced pins the arm of the home
@@ -3305,18 +3617,18 @@ func TestAllOf_FalseBranchClosesTheComposition(t *testing.T) {
 // kept verbatim and reported rather than silently dropped.
 func TestUnhomedApplicator_KeptOnAListAndAnnounced(t *testing.T) {
 	t.Parallel()
-	doc, diags := lowerSpec(t, componentSpec(`    Odd:
+	doc, diags := lowerSpec(t, openapitest.ComponentSpec(`    Odd:
       type: array
       items: {type: string}
       properties: {p: {type: string}}
 `))
-	requireNoErrorDiags(t, diags)
+	openapitest.RequireNoErrorDiags(t, diags)
 
 	td := typeByName(doc, "Odd")
 	require.NotNil(t, td, "the array still lowers")
 	assert.Contains(t, td.Common().Unmodeled, "openapi:properties",
 		"a list has no home for properties, so it is kept")
-	assert.True(t, hasDiagAt(diags, diag.DegradedConstruct, ir.SeverityInfo),
+	assert.True(t, openapitest.HasDiagAt(diags, diag.DegradedConstruct, ir.SeverityInfo),
 		"and the position says which keywords it could not carry")
 }
 
@@ -3332,12 +3644,12 @@ const unpreservableValue = ".nan"
 // read as though the object were an array.
 func TestUnhomedApplicator_ObjectCarriesNoItemKeyword(t *testing.T) {
 	t.Parallel()
-	doc, diags := lowerSpec(t, componentSpec(`    Odd:
+	doc, diags := lowerSpec(t, openapitest.ComponentSpec(`    Odd:
       type: object
       properties: {p: {type: string}}
       items: {type: string}
 `))
-	requireNoErrorDiags(t, diags)
+	openapitest.RequireNoErrorDiags(t, diags)
 
 	m, ok := typeByName(doc, "Odd").(*ir.Model)
 	require.True(t, ok, "it is still a model")
@@ -3352,7 +3664,7 @@ func TestUnhomedApplicator_ObjectCarriesNoItemKeyword(t *testing.T) {
 // looking in Unmodeled for something that is not there.
 func TestUnhomedApplicator_UnpreservableKeywordIsNotAnnounced(t *testing.T) {
 	t.Parallel()
-	doc, diags := lowerSpec(t, componentSpec(`    Odd:
+	doc, diags := lowerSpec(t, openapitest.ComponentSpec(`    Odd:
       type: object
       properties: {p: {type: string}}
       items: {type: string, x-t: `+unpreservableValue+`}
@@ -3361,7 +3673,7 @@ func TestUnhomedApplicator_UnpreservableKeywordIsNotAnnounced(t *testing.T) {
 	m, ok := typeByName(doc, "Odd").(*ir.Model)
 	require.True(t, ok)
 	assert.NotContains(t, m.Unmodeled, "openapi:items", "the conversion failed, so nothing was kept")
-	assert.True(t, hasDiag(diags, diag.UnpreservableConstruct), "the failure itself is reported")
+	assert.True(t, openapitest.HasDiag(diags, diag.UnpreservableConstruct), "the failure itself is reported")
 	assert.Empty(t, preservationClaims(diags),
 		"nothing was written under Unmodeled, so nothing may announce that it was")
 }
@@ -3372,7 +3684,7 @@ func TestUnhomedApplicator_UnpreservableKeywordIsNotAnnounced(t *testing.T) {
 // happen either.
 func TestAllOf_UnpreservableBranchIsNotAnnounced(t *testing.T) {
 	t.Parallel()
-	doc, diags := lowerSpec(t, componentSpec(`    M:
+	doc, diags := lowerSpec(t, openapitest.ComponentSpec(`    M:
       allOf:
         - {type: string, maxLength: 3, x-t: `+unpreservableValue+`}
 `))
@@ -3380,7 +3692,7 @@ func TestAllOf_UnpreservableBranchIsNotAnnounced(t *testing.T) {
 	td := typeByName(doc, "M")
 	require.NotNil(t, td)
 	assert.NotContains(t, td.Common().Unmodeled, "openapi:allOf/0", "the branch did not convert")
-	assert.True(t, hasDiag(diags, diag.UnpreservableConstruct))
+	assert.True(t, openapitest.HasDiag(diags, diag.UnpreservableConstruct))
 	assert.Empty(t, preservationClaims(diags),
 		"no degradation is announced for a branch that was not kept")
 }
@@ -3393,7 +3705,7 @@ func TestAllOf_UnpreservableBranchIsNotAnnounced(t *testing.T) {
 // preserved construct that a claim could be about.
 func TestUnionSiblings_UnpreservableIsReportedNotClaimed(t *testing.T) {
 	t.Parallel()
-	_, diags := lowerSpec(t, componentSpec(`    S:
+	_, diags := lowerSpec(t, openapitest.ComponentSpec(`    S:
       items: {type: string, x-t: `+unpreservableValue+`}
       oneOf: [{type: string, x-t: `+unpreservableValue+`}, {type: integer}]
 `))
@@ -3452,14 +3764,14 @@ func TestResidueKeywords_HandsBackACopy(t *testing.T) {
 // rather than dropped, which is the whole of §4.8 for this keyword.
 func TestUnhomedApplicator_FormatWithNoTypeIsKept(t *testing.T) {
 	t.Parallel()
-	doc, diags := lowerSpec(t, componentSpec("    Odd: {format: date-time}\n"))
-	requireNoErrorDiags(t, diags)
+	doc, diags := lowerSpec(t, openapitest.ComponentSpec("    Odd: {format: date-time}\n"))
+	openapitest.RequireNoErrorDiags(t, diags)
 
 	td := typeByName(doc, "Odd")
 	require.NotNil(t, td, "the position still lowers to something")
 	assert.Contains(t, td.Common().Unmodeled, "openapi:format",
 		"a format with no type to pair with reaches no field, so it is kept")
-	assert.True(t, hasDiag(diags, diag.DegradedConstruct), "and the position says so")
+	assert.True(t, openapitest.HasDiag(diags, diag.DegradedConstruct), "and the position says so")
 }
 
 // TestCoDeclaredFamily_PassedOverKeywordIsKept covers the families lower()'s
@@ -3503,9 +3815,9 @@ func TestCoDeclaredFamily_PassedOverKeywordIsKept(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			doc, diags := lowerSpec(t, componentSpec(
+			doc, diags := lowerSpec(t, openapitest.ComponentSpec(
 				"    Base: {type: object, properties: {id: {type: string}}}\n    S:\n"+tc.body))
-			requireNoErrorDiags(t, diags)
+			openapitest.RequireNoErrorDiags(t, diags)
 
 			td := typeByName(doc, "S")
 			require.NotNil(t, td)
@@ -3517,7 +3829,7 @@ func TestCoDeclaredFamily_PassedOverKeywordIsKept(t *testing.T) {
 			assert.Equal(t, "/components/schemas/S/"+tc.skipped, entry.Provenance.Pointer,
 				"routable to where it was written")
 			assert.Contains(t,
-				diagMessageAt(t, diags, diag.DegradedConstruct, ir.SeverityInfo, "/components/schemas/S"),
+				openapitest.DiagMessageAt(t, diags, diag.DegradedConstruct, ir.SeverityInfo, "/components/schemas/S"),
 				tc.skipped+" kept verbatim under Unmodeled")
 		})
 	}
@@ -3528,19 +3840,19 @@ func TestCoDeclaredFamily_PassedOverKeywordIsKept(t *testing.T) {
 // together in one report rather than one of them standing in for the rest.
 func TestCoDeclaredFamily_EveryPassedOverKeywordIsKept(t *testing.T) {
 	t.Parallel()
-	doc, diags := lowerSpec(t, componentSpec(`    Base: {type: object, properties: {id: {type: string}}}
+	doc, diags := lowerSpec(t, openapitest.ComponentSpec(`    Base: {type: object, properties: {id: {type: string}}}
     S:
       const: a
       enum: [a, b]
       allOf: [{$ref: '#/components/schemas/Base'}]
 `))
-	requireNoErrorDiags(t, diags)
+	openapitest.RequireNoErrorDiags(t, diags)
 
 	p := typeByName(doc, "S").Common().Unmodeled
 	assert.Contains(t, p, "openapi:enum")
 	assert.Contains(t, p, "openapi:allOf")
 	assert.Contains(t,
-		diagMessageAt(t, diags, diag.DegradedConstruct, ir.SeverityInfo, "/components/schemas/S"),
+		openapitest.DiagMessageAt(t, diags, diag.DegradedConstruct, ir.SeverityInfo, "/components/schemas/S"),
 		"declares enum and allOf beside its const",
 		"both are named in the one report")
 }
@@ -3551,7 +3863,7 @@ func TestCoDeclaredFamily_EveryPassedOverKeywordIsKept(t *testing.T) {
 // survived.
 func TestCoDeclaredFamily_UnpreservableIsNotAnnounced(t *testing.T) {
 	t.Parallel()
-	doc, diags := lowerSpec(t, componentSpec(`    S:
+	doc, diags := lowerSpec(t, openapitest.ComponentSpec(`    S:
       allOf: [{type: object, x-t: `+unpreservableValue+`}]
       enum: [a, b]
 `))
@@ -3559,7 +3871,356 @@ func TestCoDeclaredFamily_UnpreservableIsNotAnnounced(t *testing.T) {
 	td := typeByName(doc, "S")
 	require.NotNil(t, td)
 	assert.NotContains(t, td.Common().Unmodeled, "openapi:allOf", "the conversion failed")
-	assert.True(t, hasDiag(diags, diag.UnpreservableConstruct), "the failure itself is reported")
+	assert.True(t, openapitest.HasDiag(diags, diag.UnpreservableConstruct), "the failure itself is reported")
 	assert.Empty(t, preservationClaims(diags),
 		"nothing was written under Unmodeled, so nothing may announce that it was")
+}
+
+// keywordCensusSpec wraps the two $ref targets every ref-site row aliases in a
+// component block, so a row states only what it declares beside its $ref.
+func keywordCensusSpec(schemas string) string {
+	return openapitest.ComponentSpec("    BaseStr: {type: string}\n" +
+		"    BaseObj: {type: object, properties: {a: {type: string}}}\n" + schemas)
+}
+
+// assertKeptVerbatim asserts p holds key as a degraded-lowering entry whose raw
+// payload is raw.
+func assertKeptVerbatim(t *testing.T, p ir.Unmodeled, key, raw string) {
+	t.Helper()
+	entry, ok := p[key]
+	require.True(t, ok, "%q is kept verbatim; kept instead: %v", key, unmodeledKeys(p))
+	assert.Equal(t, ir.ReasonDegradedLowering, entry.Reason)
+	assert.JSONEq(t, raw, string(entry.Value))
+}
+
+// unmodeledKeys returns p's keys in sorted order, which is what makes an
+// expected key set assertable as a whole: a census that keeps too much fails the
+// same test as one that keeps too little.
+func unmodeledKeys(p ir.Unmodeled) []string {
+	if len(p) == 0 {
+		return nil
+	}
+	out := make([]string, 0, len(p))
+	for key := range p {
+		out = append(out, key)
+	}
+	sort.Strings(out)
+	return out
+}
+
+// TestRefSiteKeywords_KeptAtEveryPosition covers the census the $ref path never
+// ran (GitHub #283).
+//
+// In JSON Schema 2020-12 — and so in OpenAPI 3.1 — `$ref` is an ordinary keyword
+// and what stands beside it is conjoined with it. The position lowers to an alias
+// over the target, which has no property set, no member set, no value and no
+// encoding of its own, so each of these keywords reached no IR field at all: no
+// field, no Unmodeled entry and no diagnostic either.
+//
+// Every row is checked at both positions, because they take different paths: a
+// component is an annotation.HomeOwnNode position and keeps the keyword on the
+// alias it hoists, a property is an annotation.HomeCarrier one and keeps it on
+// itself, and only the first of the two ran any census at all.
+func TestRefSiteKeywords_KeptAtEveryPosition(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct{ keyword, sibling, target, raw string }{
+		{"format", "format: email", "BaseStr", `"email"`},
+		{"enum", "enum: [a, b]", "BaseStr", `["a","b"]`},
+		{"const", "const: a", "BaseStr", `"a"`},
+		{"required", "required: [a]", "BaseObj", `["a"]`},
+		{"additionalProperties", "additionalProperties: false", "BaseObj", `false`},
+	} {
+		t.Run(tc.keyword, func(t *testing.T) {
+			t.Parallel()
+			site := "{$ref: '#/components/schemas/" + tc.target + "', " + tc.sibling + "}"
+			doc, diags := lowerSpec(t, keywordCensusSpec(
+				"    Alias: "+site+"\n"+
+					"    Holder: {type: object, properties: {p: "+site+"}}\n"))
+			openapitest.RequireNoErrorDiags(t, diags)
+			key := "openapi:" + tc.keyword
+
+			alias, ok := typeByName(doc, "Alias").(*ir.Scalar)
+			require.True(t, ok, "the component position hoists an alias to hold what it wrote")
+			require.NotNil(t, alias.Base)
+			assert.Equal(t, componentID(tc.target), alias.Base.Target, "and still aliases the target")
+			assertKeptVerbatim(t, alias.Unmodeled, key, tc.raw)
+			assert.Contains(t,
+				openapitest.DiagMessageAt(t, diags, diag.DegradedConstruct, ir.SeverityInfo, "/components/schemas/Alias"),
+				"no home for "+tc.keyword)
+
+			holder, ok := typeByName(doc, "Holder").(*ir.Model)
+			require.True(t, ok)
+			p, ok := openapitest.PropsByWire(holder.Properties)["p"]
+			require.True(t, ok)
+			assert.Equal(t, componentID(tc.target), p.Type.Target,
+				"the carrier still resolves straight to the target; only the loss is now recorded")
+			assertKeptVerbatim(t, p.Unmodeled, key, tc.raw)
+			assert.Contains(t,
+				openapitest.DiagMessageAt(t, diags, diag.DegradedConstruct, ir.SeverityInfo,
+					"/components/schemas/Holder/properties/p"),
+				"no home for "+tc.keyword)
+		})
+	}
+}
+
+// TestRefSiteKeywords_SiblingsWithATypedHomeAreUntouched is the control the
+// census has to leave alone. A bound and a description written at the identical
+// position always did reach a field — the alias's Constraints and the property's
+// own — so neither may acquire an Unmodeled entry or a diagnostic now.
+func TestRefSiteKeywords_SiblingsWithATypedHomeAreUntouched(t *testing.T) {
+	t.Parallel()
+	site := "{$ref: '#/components/schemas/BaseStr', minLength: 3, description: kept}"
+	doc, diags := lowerSpec(t, keywordCensusSpec(
+		"    Alias: "+site+"\n"+
+			"    Holder: {type: object, properties: {p: "+site+"}}\n"))
+	openapitest.RequireNoErrorDiags(t, diags)
+	assert.Zero(t, openapitest.CountDiagsAt(diags, diag.DegradedConstruct, ir.SeverityInfo),
+		"nothing was degraded: %+v", diags)
+
+	alias, ok := typeByName(doc, "Alias").(*ir.Scalar)
+	require.True(t, ok)
+	require.NotNil(t, alias.Constraints)
+	assert.Equal(t, int64(3), *alias.Constraints.MinLength)
+	assert.Equal(t, "kept", alias.Docs.Description)
+	assert.Empty(t, unmodeledKeys(alias.Unmodeled))
+
+	holder, ok := typeByName(doc, "Holder").(*ir.Model)
+	require.True(t, ok)
+	p, ok := openapitest.PropsByWire(holder.Properties)["p"]
+	require.True(t, ok)
+	require.NotNil(t, p.Constraints)
+	assert.Equal(t, int64(3), *p.Constraints.MinLength)
+	assert.Equal(t, "kept", p.Docs.Description)
+	assert.Empty(t, unmodeledKeys(p.Unmodeled))
+}
+
+// TestUnhomedKeywords_ElectedLoweringKeepsWhatItCannotRead covers the keywords
+// the winning lowering never reads (GitHub #268).
+//
+// lower() elects one keyword family per position; what the elected form has no
+// field for was dropped, because the census that ran was a fixed list of shape
+// applicators. A Model has no type token, a Literal has no encoding and no
+// Constraints, and none of that is visible from a keyword list — only from the
+// node that was built, which is what the census asks now.
+//
+// The kept set is asserted whole, so a census that keeps too much fails here as
+// loudly as one that keeps too little; the `type: object` row is the case that
+// makes that matter, since a Model does restate it and nothing may be recorded.
+func TestUnhomedKeywords_ElectedLoweringKeepsWhatItCannotRead(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct {
+		name, body string
+		kind       ir.TypeKind
+		kept       []string
+	}{
+		{"non-object type beside allOf", "{allOf: [{$ref: '#/components/schemas/BaseObj'}], type: string}",
+			ir.KindModel, []string{"openapi:type"}},
+		{"object type beside allOf", "{allOf: [{$ref: '#/components/schemas/BaseObj'}], type: object}",
+			ir.KindModel, nil},
+		{"format beside const", "{const: 5, type: integer, format: int32}",
+			ir.KindLiteral, []string{"openapi:format", "openapi:type"}},
+		{"contradictory type beside const", "{const: 5, type: string}",
+			ir.KindLiteral, []string{"openapi:type"}},
+		{"value constraint beside const", "{const: ab, type: string, maxLength: 1}",
+			ir.KindLiteral, []string{"openapi:maxLength", "openapi:type"}},
+		// A collection bound is homed by ir.List.Constraints and by nothing else.
+		// listConstraints is its only reader and only lowerArray calls it, so an
+		// object keeps it here; so does a Tuple, which has no Constraints field at
+		// all. Both reached the IR in no form before they joined the census.
+		{"collection bound on an object", "{type: object, properties: {f: {type: string}}, minItems: 3}",
+			ir.KindModel, []string{"openapi:minItems"}},
+		{"collection bound beside prefixItems", "{type: array, prefixItems: [{type: string}], maxItems: 2}",
+			ir.KindTuple, []string{"openapi:maxItems"}},
+		// A Scalar rather than the shared Primitive the type alone would reach:
+		// the entry needs a node this pointer owns, so the census hoists the alias
+		// that carries it.
+		{"unique items on a string", "{type: string, uniqueItems: true}",
+			ir.KindScalar, []string{"openapi:uniqueItems"}},
+		// The control: the one node that does carry them keeps nothing.
+		{"collection bounds on an array", "{type: array, items: {type: string}, minItems: 3, maxItems: 9, uniqueItems: true}",
+			ir.KindList, nil},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			doc, diags := lowerSpec(t, keywordCensusSpec("    S: "+tc.body+"\n"))
+			openapitest.RequireNoErrorDiags(t, diags)
+
+			td := typeByName(doc, "S")
+			require.NotNil(t, td, "the position still lowers")
+			assert.Equal(t, tc.kind, td.Kind(), "and lowers to the form the election picked")
+			assert.Equal(t, tc.kept, unmodeledKeys(td.Common().Unmodeled))
+
+			want := 1
+			if len(tc.kept) == 0 {
+				want = 0
+			}
+			assert.Equal(t, want, len(diagsAtPointer(diags, diag.DegradedConstruct, "/components/schemas/S")),
+				"a position keeps nothing quietly and reports everything it keeps: %+v", diags)
+		})
+	}
+}
+
+// TestCoDeclaredBound_KeptOnTheCarrierThatReadIt pins the two carriers this
+// package owns for a 2020-12 side that declares both of its bound keywords
+// (GitHub #286). ir.Constraints holds one bound per side, so one keyword reaches
+// no field of it, and without an entry beside those constraints
+// {minimum: 10, exclusiveMinimum: 0} lowers to exactly what {minimum: 10} does.
+//
+// Both directions run at both carriers. A case where the exclusive keyword is
+// the one kept verbatim passes just as well on a reader that always kept that
+// one, so on its own it would say nothing about which keyword the carrier holds.
+func TestCoDeclaredBound_KeptOnTheCarrierThatReadIt(t *testing.T) {
+	t.Parallel()
+	doc, diags := parseFull(t, openapitest.ComponentSpec(
+		"    Alias: {type: integer, minimum: 10, exclusiveMinimum: 0}\n"+
+			"    Tight: {type: integer, maximum: 100, exclusiveMaximum: 5}\n"+
+			"    Holder:\n      type: object\n      properties:\n"+
+			"        low: {type: integer, minimum: 10, exclusiveMinimum: 0}\n"+
+			"        high: {type: integer, maximum: 100, exclusiveMaximum: 5}\n"))
+	openapitest.RequireNoErrorDiags(t, diags)
+
+	tests := []struct {
+		name     string
+		unmod    ir.Unmodeled
+		bound    *ir.Constraints
+		wantKept string
+		wantRaw  string
+		at       string
+	}{
+		{
+			name:     "alias node keeps the exclusive bound the minimum implies",
+			unmod:    typeByName(doc, "Alias").Common().Unmodeled,
+			bound:    typeByName(doc, "Alias").(*ir.Scalar).Constraints,
+			wantKept: "openapi:exclusiveMinimum", wantRaw: "0",
+			at: "/components/schemas/Alias/exclusiveMinimum",
+		},
+		{
+			name:     "alias node keeps the inclusive bound the exclusive one implies",
+			unmod:    typeByName(doc, "Tight").Common().Unmodeled,
+			bound:    typeByName(doc, "Tight").(*ir.Scalar).Constraints,
+			wantKept: "openapi:maximum", wantRaw: "100",
+			at: "/components/schemas/Tight/maximum",
+		},
+		{
+			name:     "property keeps the exclusive bound the minimum implies",
+			unmod:    propertyOf(t, doc, "Holder", "low").Unmodeled,
+			bound:    propertyOf(t, doc, "Holder", "low").Constraints,
+			wantKept: "openapi:exclusiveMinimum", wantRaw: "0",
+			at: "/components/schemas/Holder/properties/low/exclusiveMinimum",
+		},
+		{
+			name:     "property keeps the inclusive bound the exclusive one implies",
+			unmod:    propertyOf(t, doc, "Holder", "high").Unmodeled,
+			bound:    propertyOf(t, doc, "Holder", "high").Constraints,
+			wantKept: "openapi:maximum", wantRaw: "100",
+			at: "/components/schemas/Holder/properties/high/maximum",
+		},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			require.NotNil(t, tc.bound, "the tighter bound still reaches ir.Constraints")
+			entry, ok := tc.unmod[tc.wantKept]
+			require.True(t, ok, "%s is kept beside the constraints it did not reach; got %v",
+				tc.wantKept, tc.unmod)
+			assert.Equal(t, ir.ReasonDegradedLowering, entry.Reason)
+			assert.JSONEq(t, tc.wantRaw, string(entry.Value))
+			assert.Equal(t, tc.at, entry.Provenance.Pointer)
+		})
+	}
+}
+
+// diagsAtPointer returns the diagnostics in diags with the exact code whose
+// provenance is pointer.
+func diagsAtPointer(diags []ir.Diagnostic, code, pointer string) []ir.Diagnostic {
+	var out []ir.Diagnostic
+	for _, d := range diags {
+		if d.Code == code && d.Provenance.Pointer == pointer {
+			out = append(out, d)
+		}
+	}
+	return out
+}
+
+// TestUnhomedKeywords_BoundsThatLandedAreNotAlsoKept is the other half of the
+// value-constraint census: a bound is kept only where the node has no field it
+// reached, never where it did. The two rows are the two node kinds that read
+// annotation.Constraints, so a census asking the kind rather than the field
+// would double-record both.
+func TestUnhomedKeywords_BoundsThatLandedAreNotAlsoKept(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct{ name, body, unhomed string }{
+		{"scalar", "{type: string, format: email, minLength: 3, required: [a]}", "openapi:required"},
+		{"model", "{type: object, properties: {a: {type: string}}, minProperties: 1, items: {type: string}}", "openapi:items"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			doc, diags := lowerSpec(t, keywordCensusSpec("    S: "+tc.body+"\n"))
+			openapitest.RequireNoErrorDiags(t, diags)
+
+			td := typeByName(doc, "S")
+			require.NotNil(t, td)
+			assert.Equal(t, []string{tc.unhomed}, unmodeledKeys(td.Common().Unmodeled),
+				"the bound reached the node's Constraints, so only the homeless keyword is kept")
+		})
+	}
+}
+
+// TestUnhomedKeywords_ArrayBoundsKeepWhatListConstraintsDoesNotRead pins the
+// reason the census asks what filled a Constraints field rather than which kinds
+// have one. An ir.List has the field, but lowerArray fills it from
+// listConstraints — collection bounds only — so a string bound written on an
+// array reaches nothing however full the field looks.
+func TestUnhomedKeywords_ArrayBoundsKeepWhatListConstraintsDoesNotRead(t *testing.T) {
+	t.Parallel()
+	doc, diags := lowerSpec(t, keywordCensusSpec(
+		"    S: {type: array, items: {type: string}, minItems: 1, minLength: 3}\n"))
+	openapitest.RequireNoErrorDiags(t, diags)
+
+	l, ok := typeByName(doc, "S").(*ir.List)
+	require.True(t, ok)
+	require.NotNil(t, l.Constraints)
+	assert.Equal(t, int64(1), *l.Constraints.MinItems, "the collection bound lowers as it always did")
+	assert.Equal(t, []string{"openapi:minLength"}, unmodeledKeys(l.Unmodeled),
+		"and only the bound listConstraints does not read is kept")
+}
+
+// TestRefSiteKeywords_AllOfBranchKeepsWhatTheAliasCannotHold runs the same
+// census at the third $ref site: an allOf branch spelled as a reference, which
+// homes its siblings on an alias exactly as a component does.
+//
+// `required` is the branch keyword this composition does read —
+// applyCompositionRequired ORs every branch's list onto the composed model — so
+// it must not be kept, or one keyword would be reported twice.
+func TestRefSiteKeywords_AllOfBranchKeepsWhatTheAliasCannotHold(t *testing.T) {
+	t.Parallel()
+	doc, diags := lowerSpec(t, keywordCensusSpec(
+		"    S: {allOf: [{$ref: '#/components/schemas/BaseObj', format: email, required: [a]}]}\n"))
+	openapitest.RequireNoErrorDiags(t, diags)
+
+	m, ok := typeByName(doc, "S").(*ir.Model)
+	require.True(t, ok)
+	require.NotNil(t, m.Base, "the branch still composes")
+	branch, ok := doc.Types[m.Base.Target].(*ir.Scalar)
+	require.True(t, ok, "through an alias hoisted at the branch position")
+	assert.Equal(t, []string{"openapi:format"}, unmodeledKeys(branch.Unmodeled),
+		"required is read by the composition, so only the format is kept")
+	assert.Contains(t,
+		openapitest.DiagMessageAt(t, diags, diag.DegradedConstruct, ir.SeverityInfo, "/components/schemas/S/allOf/0"),
+		"no home for format")
+}
+
+// TestCoDeclaredBound_ASingleKeywordKeepsNothing is the other half of the case
+// above: a side writing one keyword has it in a field, so an entry restating it
+// would give one bound two homes and make the two source shapes indistinguishable
+// in the opposite direction.
+func TestCoDeclaredBound_ASingleKeywordKeepsNothing(t *testing.T) {
+	t.Parallel()
+	doc, diags := parseFull(t, openapitest.ComponentSpec(
+		"    Alias: {type: integer, minimum: 10}\n"+
+			"    Holder: {type: object, properties: {low: {type: integer, exclusiveMinimum: 0}}}\n"))
+	openapitest.RequireNoErrorDiags(t, diags)
+
+	assert.Empty(t, typeByName(doc, "Alias").Common().Unmodeled)
+	assert.Empty(t, propertyOf(t, doc, "Holder", "low").Unmodeled)
 }

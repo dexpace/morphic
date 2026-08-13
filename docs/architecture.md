@@ -97,9 +97,23 @@ framework that writes the type registry, derives a canonical name, or builds an 
 Promoting something into the framework later is additive, while demoting it breaks every compiler,
 so borderline machinery starts outside and moves in on evidence from more than one format.
 
-Compilers are registered in a registry keyed by detected format; the engine sniffs the source
-format and dispatches. Milestone 1 ships the OpenAPI 3.x compiler only; the compiler registry,
-provenance model, and IR are built for all eight from day one.
+A compiler is also bounded in what one compile may cost. Most bounds are constants beside the
+walk they bound (schema nesting depth, alias expansion, reference-chain length), because nothing
+about them is a caller's to choose. The bounds on the *input* are, so they are options:
+`openapi.Options.Limits` carries a byte budget and a parsed-node budget for one source document
+and a member budget for one enum, each with a documented default and each settable — zero takes
+the default, negative turns the budget off. Crossing one is a spec problem like any other, so it
+is an `openapi/budget-exceeded` diagnostic rather than a Go error. Time is bounded by the caller
+instead of by a constant: the two walks that do work proportional to the document honour the
+`context.Context` a compile is given, so a deadline or a cancellation stops one between items and
+the error reaches the caller unwrapped.
+
+Compilers are registered in a registry keyed by the formats they report, and detection belongs to
+them too: the registry asks each compiler in registration order whether it recognizes a source, and
+the engine dispatches to the one that does. A compiler also decodes its own textual options, so
+registering one is the whole of adding a format — no layer above names any of them. Milestone 1
+ships the OpenAPI 3.x compiler only; the compiler registry, provenance model, and IR are built for
+all eight from day one.
 
 ### 2.2 IR passes (IR → IR)
 
@@ -231,7 +245,7 @@ morphic/
 │   ├── typespec/ smithy/ graphql/ asyncapi/ protobuf/ otp/   (future)
 ├── pass/                   # Layer 1 — IR → IR passes (validate, dedup, filter, slice, overlay).
 ├── emitters/               # Layer 2 — emitter contract, plan layer, registry (future).
-├── engine/                 # Layer 3 — orchestration: sniff format, run compiler, passes, emitters.
+├── engine/                 # Layer 3 — orchestration: detect format, run compiler, passes, emitters.
 ├── internal/archtest/      #           Layering, grammar, recursion and method-cap rules (tooling).
 ├── internal/harness/       #           Bug-catching oracle sweep over a spec corpus (tooling).
 ├── internal/testspec/      #           Spec fixtures shared by the tooling (tooling).
@@ -287,7 +301,12 @@ stderr; the CLI renders diagnostics.
   snapshot-compared. IR changes show up as reviewable diffs.
 - **Capability conformance corpus**: one minimal spec per row of `ir-spec-matrix.md` per format
   that can express it, asserting the IR captures it losslessly. This is the regression net that
-  keeps "lossless by default" honest as compilers are added.
+  keeps "lossless by default" honest as compilers are added. Row and spec are tied to each other
+  rather than left to prose: every matrix row carries a stable key, each corpus spec names the keys
+  it witnesses, and a row the OpenAPI column marks expressible must be witnessed by a spec or
+  listed as not-yet-covered with a reason (`compilers/openapi/conformance_matrix_test.go`). What
+  stays a reviewer's job is the claim inside that link — a spec naming a row has to *exercise* that
+  capability, and no test can read a golden and tell you whether it does.
 - **Round-trip property**: `parse → serialize → deserialize → deep-equal` for every corpus
   document.
 - **Oracle sweep** (`internal/harness`): every corpus spec is driven through the oracles in order

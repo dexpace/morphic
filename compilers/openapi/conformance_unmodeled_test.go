@@ -7,11 +7,13 @@
 package openapi_test // external test package — exercises only the public API
 
 import (
+	"fmt"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/dexpace/morphic/compilers/openapi/internal/openapitest"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -90,6 +92,76 @@ func assertUnhomedKeywords(t *testing.T, doc *ir.Document, diags []ir.Diagnostic
 		string(unmodeledEntry(t, u.Unmodeled, "openapi:items").Value))
 	assert.JSONEq(t, `[{"type":"string"},{"type":"integer"}]`,
 		string(unmodeledEntry(t, u.Unmodeled, "openapi:oneOf").Value))
+
+	assertRefSiteKeywords(t, doc, diags)
+	assertElectedLoweringKeywords(t, doc, diags)
+}
+
+// assertRefSiteKeywords pins the same census at a $ref site, where it did not
+// run at all (GitHub #283). $ref is an ordinary 2020-12 keyword, so its siblings
+// are conjoined with it; the position lowers to an alias over the target, which
+// has none of their fields, and the five below reached no field, no Unmodeled
+// entry and no diagnostic.
+func assertRefSiteKeywords(t *testing.T, doc *ir.Document, diags []ir.Diagnostic) {
+	for name, want := range map[string]struct{ keyword, target, raw string }{
+		"RefFormat":               {"format", "RefTargetStr", `"email"`},
+		"RefEnum":                 {"enum", "RefTargetStr", `["a","b"]`},
+		"RefConst":                {"const", "RefTargetStr", `"a"`},
+		"RefRequired":             {"required", "RefTargetObj", `["a"]`},
+		"RefAdditionalProperties": {"additionalProperties", "RefTargetObj", `false`},
+	} {
+		sc, ok := doc.Types[namedID(name)].(*ir.Scalar)
+		require.True(t, ok, "%s hoists an alias to hold what it wrote beside its $ref", name)
+		require.NotNil(t, sc.Base)
+		assert.Equal(t, namedID(want.target), sc.Base.Target, "%s still aliases its target", name)
+		entry := unmodeledEntry(t, sc.Unmodeled, "openapi:"+want.keyword)
+		assert.Equal(t, ir.ReasonDegradedLowering, entry.Reason)
+		assert.JSONEq(t, want.raw, string(entry.Value))
+		assert.Equal(t, []ir.Severity{ir.SeverityInfo},
+			diagsAt(diags, "openapi/degraded-construct", "/components/schemas/"+name))
+	}
+
+	ctl, ok := doc.Types[namedID("RefConstrained")].(*ir.Scalar)
+	require.True(t, ok)
+	require.NotNil(t, ctl.Constraints)
+	assert.Equal(t, int64(3), *ctl.Constraints.MinLength, "a bound beside a $ref always had a home")
+	assert.Equal(t, "kept", ctl.Docs.Description)
+	assert.Empty(t, ctl.Unmodeled, "so it keeps nothing verbatim")
+
+	carrier, ok := doc.Types[namedID("RefCarrier")].(*ir.Model)
+	require.True(t, ok)
+	p, ok := propByWire(carrier, "p")
+	require.True(t, ok)
+	assert.Equal(t, namedID("RefTargetStr"), p.Type.Target,
+		"a carrier hoists no node, so it still resolves straight to the target")
+	assert.JSONEq(t, `"email"`, string(unmodeledEntry(t, p.Unmodeled, "openapi:format").Value),
+		"and keeps the keyword on itself instead")
+}
+
+// assertElectedLoweringKeywords pins the keywords the *winning* family's
+// lowering never reads (GitHub #268). The census asks the node that was built,
+// which is why the two allOf cases differ: a composed Model asserts `object`
+// already and loses nothing, and asserts nothing about `string` at all.
+func assertElectedLoweringKeywords(t *testing.T, doc *ir.Document, diags []ir.Diagnostic) {
+	scalarType, ok := doc.Types[namedID("AllOfWithScalarType")].(*ir.Model)
+	require.True(t, ok)
+	assert.JSONEq(t, `"string"`,
+		string(unmodeledEntry(t, scalarType.Unmodeled, "openapi:type").Value))
+
+	objectType, ok := doc.Types[namedID("AllOfWithObjectType")].(*ir.Model)
+	require.True(t, ok)
+	assert.Empty(t, objectType.Unmodeled, "the composed Model already asserts `object`")
+	assert.Empty(t, diagsAt(diags, "openapi/degraded-construct", "/components/schemas/AllOfWithObjectType"))
+
+	format, ok := doc.Types[namedID("ConstWithFormat")].(*ir.Literal)
+	require.True(t, ok)
+	assert.JSONEq(t, `"int32"`, string(unmodeledEntry(t, format.Unmodeled, "openapi:format").Value),
+		"a Literal has no Encoding field")
+
+	bound, ok := doc.Types[namedID("ConstWithBound")].(*ir.Literal)
+	require.True(t, ok)
+	assert.JSONEq(t, `1`, string(unmodeledEntry(t, bound.Unmodeled, "openapi:maxLength").Value),
+		"nor a Constraints field, and it owns its pointer so no alias carries one either")
 }
 
 // assertAllOfBooleanBranch pins the lowering of a boolean allOf branch, which
@@ -125,6 +197,28 @@ func assertAllOfBooleanBranch(t *testing.T, doc *ir.Document, diags []ir.Diagnos
 	require.True(t, ok)
 	assert.Equal(t, ir.AdditionalClosed, bare.Additional, "the rule the composed case is held to")
 	assert.Empty(t, bare.Properties)
+
+	// The whole-schema half keeps itself verbatim for the same reason the branch
+	// half does (GitHub #350). A closed empty Model admits {} and the source
+	// admits nothing, so the lowered type is one value wider than what was
+	// written; the entry is what makes that recoverable.
+	bareEntry := unmodeledEntry(t, bare.Unmodeled, "openapi:schema")
+	assert.Equal(t, ir.ReasonDegradedLowering, bareEntry.Reason)
+	assert.JSONEq(t, `false`, string(bareEntry.Value))
+	assert.Equal(t, []ir.Severity{ir.SeverityInfo},
+		diagsAt(diags, "openapi/false-schema", "/components/schemas/BareFalse"))
+
+	// And the claim that motivates it: the two shapes are now distinguishable.
+	// Both are closed empty models, so nothing but the preserved schema separates
+	// them, and asserting the pair is what stops the entry being dropped again.
+	closed, ok := doc.Types[namedID("ClosedEmpty")].(*ir.Model)
+	require.True(t, ok)
+	assert.Equal(t, bare.Additional, closed.Additional, "the two agree on everything else")
+	assert.Empty(t, closed.Properties)
+	assert.Empty(t, closed.Unmodeled,
+		"additionalProperties: false is exactly what the IR says, so it keeps nothing")
+	assert.NotEqual(t, bare.Unmodeled, closed.Unmodeled,
+		"a false schema and a closed empty model are no longer the same node")
 }
 
 // assertAllOfInlineResidue pins the residue of an inline allOf branch: the merge
@@ -308,6 +402,10 @@ func assertDialectKeywords(t *testing.T, doc *ir.Document, diags []ir.Diagnostic
 // declared exactly once on a component schema has one possible target whatever
 // path evaluation took, so it expands; anything else is irreducible and the
 // reference is kept verbatim beside whatever did lower.
+//
+// The escaped spelling is here because the fragment is URI text: RFC 3986 §2.3
+// makes '%2D' and '-' one character, so it must reach the same anchor the plain
+// spelling would (GitHub #233).
 func assertDynamicRef(t *testing.T, doc *ir.Document, diags []ir.Diagnostic) {
 	tree, ok := doc.Types[namedID("Tree")].(*ir.Model)
 	require.True(t, ok)
@@ -320,6 +418,14 @@ func assertDynamicRef(t *testing.T, doc *ir.Document, diags []ir.Diagnostic) {
 	assert.Equal(t, []ir.Severity{ir.SeverityInfo}, diagsAt(diags, "openapi/dynamic-ref-expanded",
 		"/components/schemas/Tree/properties/child/$dynamicRef"))
 
+	escaped, ok := propByWire(tree, "escaped")
+	require.True(t, ok)
+	assert.Equal(t, namedID("Leaf"), escaped.Type.Target,
+		"a percent-encoded fragment names the anchor its decoded spelling names")
+	assert.Empty(t, escaped.Unmodeled, "an expanded reference must not also be preserved")
+	assert.Equal(t, []ir.Severity{ir.SeverityInfo}, diagsAt(diags, "openapi/dynamic-ref-expanded",
+		"/components/schemas/Tree/properties/escaped/$dynamicRef"))
+
 	ghost, ok := propByWire(tree, "ghost")
 	require.True(t, ok)
 	entry := unmodeledEntry(t, ghost.Unmodeled, "openapi:$dynamicRef")
@@ -327,6 +433,36 @@ func assertDynamicRef(t *testing.T, doc *ir.Document, diags []ir.Diagnostic) {
 	assert.JSONEq(t, `"#Missing"`, string(entry.Value))
 	assert.Equal(t, []ir.Severity{ir.SeverityInfo}, diagsAt(diags, "openapi/degraded-construct",
 		"/components/schemas/Tree/properties/ghost/$dynamicRef"))
+
+	assertDynamicRefAcrossAnEmptyName(t, doc, diags)
+}
+
+// assertDynamicRefAcrossAnEmptyName pins the reference declared beside an $id on
+// the component schema keyed "". Its pointer, /components/schemas/, ends in an
+// empty reference token, and a walk that drops that token reads the
+// components/schemas map instead of the schema — a map declaring no $id, so the
+// resource boundary disappears and the reference expands across it (GitHub
+// #302).
+//
+// It lives in the corpus rather than only in a unit test because the oracles run
+// here: order-invariance, determinism, JSON round-trip and irverify each drive
+// this construct only if some committed spec writes it, and until this one did,
+// no spec combined an empty component name with $id and $dynamicRef at all.
+func assertDynamicRefAcrossAnEmptyName(t *testing.T, doc *ir.Document, diags []ir.Diagnostic) {
+	t.Helper()
+	// An empty name earns no named TypeID, so the schema hoists anonymously.
+	empty, ok := doc.Types[ir.TypeID("t/anon/components/schemas/")].(*ir.Scalar)
+	require.True(t, ok, `the component schema keyed "" owns a node`)
+
+	entry := unmodeledEntry(t, empty.Unmodeled, "openapi:$dynamicRef")
+	assert.Equal(t, ir.ReasonDegradedLowering, entry.Reason)
+	assert.JSONEq(t, `"#T"`, string(entry.Value),
+		"the reference is kept verbatim rather than expanded across the $id")
+	require.NotNil(t, empty.Base)
+	assert.Equal(t, ir.TypeID("t/prim/any"), empty.Base.Target,
+		"an expansion would have made the anchor's own node this one's base instead")
+	assert.Equal(t, []ir.Severity{ir.SeverityInfo}, diagsAt(diags, "openapi/degraded-construct",
+		"/components/schemas//$dynamicRef"))
 }
 
 // assertInlineResidue pins the other half of ir-design §14's OpenAPI row: a
@@ -340,7 +476,7 @@ func assertDynamicRef(t *testing.T, doc *ir.Document, diags []ir.Diagnostic) {
 func assertInlineResidue(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
 	op, ok := opByName(doc, "getThing")
 	require.True(t, ok)
-	bodyID := op.Responses[0].Payload.Contents[0].Type.Target
+	bodyID := openapitest.BodyTarget(t, op.Responses[0].Payload)
 	body, ok := doc.Types[bodyID]
 	require.True(t, ok, "the response body owns a node")
 	assertResidue(t, body.Common().Unmodeled, map[string]string{
@@ -387,9 +523,15 @@ func assertResidue(t *testing.T, p ir.Unmodeled, want map[string]string) {
 	}
 }
 
-// assertResponseLinks pins a response's links: ir.Response has no field for the
-// link objects OpenAPI declares there, so they are kept verbatim on the response
-// rather than dropped while the operation they name lowers normally.
+// assertResponseLinks pins a response's links: neither ir.Response nor
+// ir.ErrorCase has a field for the link objects OpenAPI declares there, so they
+// are kept verbatim rather than dropped while the operation they name lowers
+// normally.
+//
+// Both status ranges, because only the success one used to keep them: the same
+// declaration survived on a 2xx and vanished on a 4xx, with no diagnostic either
+// way, purely because the error branch had no links rule of its own
+// (GitHub #275).
 func assertResponseLinks(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
 	op, ok := opByName(doc, "createOrder")
 	require.True(t, ok)
@@ -399,6 +541,15 @@ func assertResponseLinks(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
 	assert.JSONEq(t,
 		`{"GetOrder":{"operationId":"getOrder","parameters":{"orderId":"$response.body#/id"}}}`,
 		string(entry.Value))
+
+	require.Len(t, op.Errors, 1)
+	errEntry := unmodeledEntry(t, op.Errors[0].Unmodeled, "openapi:links")
+	assert.Equal(t, ir.ReasonNoIRHome, errEntry.Reason)
+	assert.JSONEq(t,
+		`{"GetConflicting":{"operationId":"getOrder","parameters":{"orderId":"$response.body#/existingId"}}}`,
+		string(errEntry.Value),
+		"an error response keeps its links by the same rule the success one does")
+
 	_, ok = opByName(doc, "getOrder")
 	assert.True(t, ok, "the operation a link names is an ordinary operation")
 }
@@ -456,4 +607,52 @@ func assertKeptRaw(t *testing.T, p ir.Unmodeled, key, want string) {
 	entry := unmodeledEntry(t, p, key)
 	assert.Equal(t, ir.ReasonDegradedLowering, entry.Reason)
 	assert.JSONEq(t, want, string(entry.Value))
+}
+
+// assertCoDeclaredSchemaContent covers the election at the other pair of
+// positions: a parameter and a header may state their type as `schema` or as
+// `content`, and OpenAPI forbids both. `content` is elected at both — it names a
+// media type the IR models, which the schema spelling has none of — and the
+// passed-over schema is kept verbatim rather than dropped, which is what the two
+// positions each did in silence, in opposite directions (GitHub #320).
+func assertCoDeclaredSchemaContent(t *testing.T, doc *ir.Document, diags []ir.Diagnostic) {
+	op, ok := opByName(doc, "getX")
+	require.True(t, ok)
+	require.Len(t, op.Bindings.HTTP, 1)
+	binding := indexByParam(op.Bindings.HTTP[0].ParamBindings)
+
+	base := "/paths/~1x/get/parameters/"
+	for i, name := range []string{"p", "q"} {
+		param, found := paramByName(op, name)
+		require.True(t, found, "parameter %s", name)
+		assert.Equal(t, ir.TypeID("t/prim/string"), param.Type.Target,
+			"parameter %s takes its type from the elected content entry, not from the schema", name)
+		assert.Equal(t, "application/json", binding[name].ContentType,
+			"and the media type that entry names reaches the binding")
+		assertKeptRaw(t, param.Unmodeled, "openapi:schema", `{"type":"integer"}`)
+		assert.Equal(t, []ir.Severity{ir.SeverityWarning},
+			diagsAt(diags, "openapi/degraded-construct", fmt.Sprintf("%s%d/schema", base, i)),
+			"parameter %s announces the spelling it passed over, at that spelling's own node", name)
+	}
+
+	require.Len(t, op.Responses, 1)
+	header, ok := headerByWire(op.Responses[0].Headers, "X-H")
+	require.True(t, ok)
+	assert.Equal(t, ir.TypeID("t/prim/string"), header.Type.Target,
+		"the header elects content too: one order, not one per position")
+	require.NotNil(t, header.Encoding)
+	assert.Equal(t, "application/json", header.Encoding.MediaType)
+	assertKeptRaw(t, header.Unmodeled, "openapi:schema", `{"type":"integer"}`)
+	assert.Equal(t, []ir.Severity{ir.SeverityWarning},
+		diagsAt(diags, "openapi/degraded-construct", "/paths/~1x/get/responses/200/headers/X-H/schema"))
+}
+
+// indexByParam indexes HTTP parameter bindings by the logical parameter they
+// bind.
+func indexByParam(bindings []ir.HTTPParamBinding) map[string]ir.HTTPParamBinding {
+	out := make(map[string]ir.HTTPParamBinding, len(bindings))
+	for _, b := range bindings {
+		out[b.Param] = b
+	}
+	return out
 }

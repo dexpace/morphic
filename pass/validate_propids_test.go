@@ -83,7 +83,7 @@ func TestValidate_PropIDMapKeyIsLeftToTheEncodingCheck(t *testing.T) {
 // tagging prop.
 func discriminatedDoc(prop ir.PropID) *ir.Document {
 	doc := validDoc()
-	base := doc.Types["t/m"].(*ir.Model) //nolint:forcetypeassert // validDoc builds it
+	base := doc.Types["t/m"].(*ir.Model) // validDoc builds it
 	base.Discriminator = &ir.Discriminator{Property: prop}
 	return doc
 }

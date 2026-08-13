@@ -1,0 +1,171 @@
+{
+  "irVersion": "0.3.0",
+  "name": "StreamingMedia30",
+  "version": "1.0.0",
+  "docs": {},
+  "services": [
+    {
+      "id": "s/openapi/0",
+      "name": {
+        "source": "StreamingMedia30",
+        "canonical": "streaming_media_30"
+      },
+      "docs": {},
+      "groups": [
+        {
+          "name": {
+            "hint": "default"
+          },
+          "docs": {},
+          "operations": [
+            {
+              "id": "op/openapi/paths/~1events/get",
+              "name": {
+                "source": "streamEvents",
+                "canonical": "stream_events"
+              },
+              "docs": {},
+              "responses": [
+                {
+                  "name": {
+                    "hint": "200"
+                  },
+                  "conditions": {
+                    "statusCodes": [
+                      {
+                        "from": 200,
+                        "to": 200
+                      }
+                    ]
+                  },
+                  "payload": {
+                    "contents": [
+                      {
+                        "mediaType": "text/event-stream",
+                        "type": {
+                          "target": "t/anon/paths/~1events/get/responses/200/content/text~1event-stream/schema",
+                          "nullable": false
+                        }
+                      }
+                    ]
+                  },
+                  "docs": {
+                    "description": "ok"
+                  }
+                }
+              ],
+              "oneWay": false,
+              "streaming": "server",
+              "responseStream": {
+                "events": {
+                  "target": "t/anon/paths/~1events/get/responses/200/content/text~1event-stream/schema",
+                  "nullable": false
+                },
+                "requiresLength": false
+              },
+              "idempotency": {},
+              "auth": null,
+              "bindings": {
+                "http": [
+                  {
+                    "method": "GET",
+                    "uriTemplate": "/events",
+                    "sharedRoute": false,
+                    "checksumRequired": false,
+                    "isWebhook": false
+                  }
+                ]
+              },
+              "provenance": {
+                "source": 0,
+                "pointer": "/paths/~1events/get",
+                "inferred": "streaming-media-type"
+              }
+            }
+          ]
+        }
+      ],
+      "auth": null,
+      "provenance": {
+        "source": 0
+      }
+    }
+  ],
+  "types": {
+    "t/anon/paths/~1events/get/responses/200/content/text~1event-stream/schema": {
+      "kind": "model",
+      "id": "t/anon/paths/~1events/get/responses/200/content/text~1event-stream/schema",
+      "name": {
+        "hint": "response"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/paths/~1events/get/responses/200/content/text~1event-stream/schema"
+      },
+      "properties": [
+        {
+          "id": "p/openapi/paths/~1events/get/responses/200/content/text~1event-stream/schema/properties/message",
+          "name": {
+            "source": "message",
+            "canonical": "message"
+          },
+          "wireName": "message",
+          "type": {
+            "target": "t/prim/string",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/paths/~1events/get/responses/200/content/text~1event-stream/schema/properties/message"
+          }
+        }
+      ],
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
+    "t/prim/string": {
+      "kind": "primitive",
+      "id": "t/prim/string",
+      "name": {},
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0
+      },
+      "prim": "string"
+    }
+  },
+  "servers": [
+    {
+      "name": {
+        "hint": "server"
+      },
+      "urlTemplate": "/",
+      "description": {},
+      "auth": null
+    }
+  ],
+  "sources": [
+    {
+      "format": "openapi@3.0",
+      "path": "streaming-media-30.yaml",
+      "hash": "ca72c9d26dda23dcad23d4a59d848db345ac0bb8a7300831865899268e998741"
+    }
+  ]
+}

@@ -20,14 +20,19 @@ import (
 //
 // Compare against a whole compile rather than reading the number alone — the
 // claim in the design is a ratio, and a ratio is what has to stay true.
+// BenchmarkCompile_Petstore in compilers/openapi is the other half.
 func BenchmarkAnchorWalk(b *testing.B) {
-	data, err := os.ReadFile("../../testdata/conformance/openapi/allof-inline-merge.yaml")
+	// Four levels up, not two: this package sits at compilers/openapi/internal/
+	// schema, and the corpus is at the repo root. A missing or unparseable
+	// fixture stops the benchmark rather than skipping it — a skip is silent
+	// without -v and exits 0, which is how the shorter path went unnoticed.
+	data, err := os.ReadFile("../../../../testdata/conformance/openapi/allof-inline-merge.yaml")
 	if err != nil {
-		b.Skipf("corpus fixture unavailable: %v", err)
+		b.Fatalf("corpus fixture unavailable: %v", err)
 	}
 	var doc soa.OpenAPI
 	if _, err := marshaller.Unmarshal(b.Context(), strings.NewReader(string(data)), &doc); err != nil {
-		b.Skipf("fixture does not parse: %v", err)
+		b.Fatalf("fixture does not parse: %v", err)
 	}
 	root := doc.GetRootNode()
 
