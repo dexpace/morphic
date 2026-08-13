@@ -160,7 +160,7 @@ cases=(
 # not hold, echoing nothing and returning 0 when it did.
 check_case() {
 	local record="$1" candidate="$2" from_dir="${3:-}"
-	local name="${record%%|*}" rest="${record#*|}"
+	local rest="${record#*|}"
 	local repo="${rest%%|*}"
 	rest="${rest#*|}"
 	local planted="${rest%%|*}"
