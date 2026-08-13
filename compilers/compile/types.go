@@ -195,7 +195,13 @@ func (t *Types) NameFromDeclaration(pointer, hint string) {
 	// the pair again when a build yields nothing — so there is no state here in
 	// which one exists without the other, and a branch for one would be
 	// untestable (the reasoning NodeAt states).
-	t.reg[t.byPointer[pointer]].Common().Name.Hint = hint
+	//
+	// Neutralized on the way in, because this writes the field NamingHint would
+	// have written and has to write it the same way. A raw hint here would leave
+	// the node holding the caller's spelling — "A" where interning the same hint
+	// gives "a" — so the name would depend on whether a reference got there
+	// first, which is the dependence this whole path exists to remove.
+	t.reg[t.byPointer[pointer]].Common().Name.Hint = neutralHint(hint)
 }
 
 // Register records td under id without associating it with any source

@@ -289,14 +289,19 @@ func TestTypes_RefusesANamespaceUsedBothWays(t *testing.T) {
 
 // named returns a model at id carrying hint as its only name, for the
 // provisional-naming tests below.
-func named(id ir.TypeID, hint string) ir.TypeDef {
-	return &ir.Model{TypeCommon: ir.TypeCommon{ID: id, Name: ir.Naming{Hint: hint}}}
+func named(hint string) ir.TypeDef {
+	return &ir.Model{TypeCommon: ir.TypeCommon{ID: provisionalID, Name: ir.Naming{Hint: hint}}}
 }
 
 // provisionalPointer is the coordinate the provisional-naming tests below use:
 // an inline position inside another declaration's body, which is the shape a
 // reference can name and a declaration also owns.
-const provisionalPointer = "/a/items"
+const (
+	provisionalPointer = "/a/items"
+	// provisionalID is the ID that coordinate derives, spelled once so the helper
+	// below can mint a node without every caller repeating it.
+	provisionalID ir.TypeID = "t/anon/a/items"
+)
 
 // hintAt reads the hint of the node interned at provisionalPointer.
 func hintAt(t *testing.T, types *compile.Types) string {
@@ -315,7 +320,7 @@ func TestTypes_DeclarationReplacesAProvisionalName(t *testing.T) {
 	types := compile.NewTypes(0)
 
 	types.InternProvisional("/a/items", "t/anon/a/items", func() ir.TypeDef {
-		return named("t/anon/a/items", "items")
+		return named("items")
 	})
 	assert.Equal(t, "items", hintAt(t, types), "the reference names it first")
 
@@ -329,6 +334,36 @@ func TestTypes_DeclarationReplacesAProvisionalName(t *testing.T) {
 	assert.Equal(t, "a_item", hintAt(t, types))
 }
 
+// TestTypes_NameFromDeclarationNeutralizesTheHint pins that a replacement writes
+// the field the way interning writes it. NamingHint neutralizes on the way in, so
+// a raw hint here would leave the node holding the caller's spelling — and the
+// name would then depend on whether a reference reached the coordinate first,
+// which is the dependence this path exists to remove.
+//
+// The two halves are asserted against each other rather than against a literal:
+// what matters is that they agree, not what the grammar happens to produce.
+func TestTypes_NameFromDeclarationNeutralizesTheHint(t *testing.T) {
+	t.Parallel()
+	const raw = "A"
+
+	declaredFirst := compile.NewTypes(0)
+	declaredFirst.Intern(provisionalPointer, provisionalID, func() ir.TypeDef {
+		return &ir.Scalar{TypeCommon: ir.TypeCommon{ID: provisionalID, Name: compile.NamingHint(raw)}}
+	})
+	interned := hintAt(t, declaredFirst)
+
+	referencedFirst := compile.NewTypes(0)
+	referencedFirst.InternProvisional(provisionalPointer, provisionalID, func() ir.TypeDef {
+		return named("placeholder")
+	})
+	referencedFirst.NameFromDeclaration(provisionalPointer, raw)
+	replaced := hintAt(t, referencedFirst)
+
+	assert.Equal(t, interned, replaced,
+		"one hint must name the node the same whether it was interned or replaced")
+	assert.NotEqual(t, raw, replaced, "and the stored hint carries no casing of its own")
+}
+
 // TestTypes_NameFromDeclarationLeavesADeclaredNameAlone holds the other
 // direction: a coordinate the declaration reached first carries no placeholder,
 // so a reference arriving later cannot have marked it and the name stands.
@@ -337,10 +372,10 @@ func TestTypes_NameFromDeclarationLeavesADeclaredNameAlone(t *testing.T) {
 	types := compile.NewTypes(0)
 
 	types.Intern("/a/items", "t/anon/a/items", func() ir.TypeDef {
-		return named("t/anon/a/items", "a_item")
+		return named("a_item")
 	})
 	types.InternProvisional("/a/items", "t/anon/a/items", func() ir.TypeDef {
-		return named("t/anon/a/items", "items")
+		return named("items")
 	})
 	assert.Equal(t, "a_item", hintAt(t, types),
 		"the second call interns nothing, so it names nothing")
