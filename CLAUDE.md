@@ -241,11 +241,12 @@ Before claiming any Go work done, run and pass the same checks CI's `gate` job r
 (`.github/workflows/gate.yml`), in that order:
 
 ```bash
-gofmt -l $(git ls-files '*.go')   # must print nothing
+gofmt -l $(git ls-files '*.go')     # must print nothing
 go vet ./...
-golangci-lint run                 # must pass clean
+golangci-lint run                   # must pass clean
 go build ./...
-./scripts/check-coverage.sh       # go test ./... + exactly 100% statement coverage
+./scripts/verify-coverage-count.sh  # how the gate below counts a profile
+./scripts/check-coverage.sh         # go test ./... + exactly 100% statement coverage
 ```
 
 **Coverage is a gate at exactly 100%, not a target.** `scripts/check-coverage.sh` counts

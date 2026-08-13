@@ -19,5 +19,7 @@ jobs:
         uses: golangci/golangci-lint-action@v8.0.0
       - name: build
         run: go build ./...
+      - name: coverage counting
+        run: ./scripts/verify-coverage-count.sh
       - name: coverage
         run: ./scripts/check-coverage.sh
