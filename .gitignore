@@ -27,21 +27,13 @@ profile.cov
 go.work
 go.work.sum
 
-# Subagent-driven-development scratch ledger (git-ignored, not shared)
-.superpowers/
-# Planning docs / SDD plan artifacts - kept local, never committed
-docs/superpowers/
-
 # env file
 .env
 
-# Editor/IDE
+# Editor/IDE and OS metadata
 .idea/
 .vscode/
-
-# Agent scratch space — not project content
-.claude/
-.crush/
+.DS_Store
 
 # Scratch files that land in the repo root during ad hoc runs
 /out.json
