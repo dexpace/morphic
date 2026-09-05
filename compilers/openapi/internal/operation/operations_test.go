@@ -1222,7 +1222,7 @@ func TestResponses_RefdErrorAndDefaultInternAtDeclaration(t *testing.T) {
 	}
 }
 
-const sharedOptionalBodySpec = `openapi: 3.1.0
+const sharedDefectiveBodySpec = `openapi: 3.1.0
 info: {title: T, version: "1"}
 paths:
   /a:
@@ -1243,7 +1243,7 @@ components:
       required: false
       content:
         application/json:
-          schema: {type: object, properties: {n: {type: string}}}
+          schema: {type: string, required: [n]}
   responses:
     Err:
       description: err
@@ -1256,13 +1256,14 @@ components:
 
 // TestDiag_SharedDeclarationReportsEachDefectOnce pins the consequence of
 // lowering a referenced component at its declaration: both operations reach the
-// same optional body and the same header-bearing error response, so each defect
+// same request body — whose scalar schema carries a `required` the lowered node
+// has no field for — and the same header-bearing error response, so each defect
 // now has one pointer and one message. Reported per use site they would arrive
 // as byte-identical copies — nothing a reader could act on twice — and a
 // component shared by twenty operations would repeat each line twenty times.
 func TestDiag_SharedDeclarationReportsEachDefectOnce(t *testing.T) {
 	t.Parallel()
-	_, diags := parseFull(t, sharedOptionalBodySpec)
+	_, diags := parseFull(t, sharedDefectiveBodySpec)
 
 	seen := map[string]int{}
 	for _, d := range diags {
@@ -1274,8 +1275,8 @@ func TestDiag_SharedDeclarationReportsEachDefectOnce(t *testing.T) {
 
 	// Every defect still surfaces — de-duplication must not silence any of them.
 	assert.Equal(t, 3, openapitest.CountDiagsAt(diags, diag.DegradedConstruct, ir.SeverityInfo),
-		"the optional body, the homeless error headers and the homeless error media type "+
-			"are three distinct defects")
+		"the body schema's homeless required, the homeless error headers and the homeless "+
+			"error media type are three distinct defects")
 }
 
 // TestDiag_DistinctDefectsAtOnePointerBothSurvive is the control for the rule

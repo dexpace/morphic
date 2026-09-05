@@ -429,6 +429,7 @@
                     }
                   }
                 ],
+                "required": true,
                 "unmodeled": {
                   "openapi:x-mark": {
                     "reason": "vendor_extension",
