@@ -130,13 +130,15 @@ func TestPageStrategy_Constants(t *testing.T) {
 }
 
 // TestParameter_JSONContract pins Parameter's omitempty contract — Name,
-// Type, Required, and Docs carry no omitempty since every parameter has a
-// naming, a type, a required flag, and a docs object; everything else is
-// optional — and that a fully populated Parameter round-trips.
+// Type, Required, Docs, and Provenance carry no omitempty since every parameter
+// has a naming, a type, a required flag, a docs object, and a declaring
+// position; everything else is optional — and that a fully populated Parameter
+// round-trips.
 func TestParameter_JSONContract(t *testing.T) {
 	t.Parallel()
 	assertJSONContract(t, ir.Parameter{},
-		`{"name":{},"type":{"target":"","nullable":false},"required":false,"docs":{}}`,
+		`{"name":{},"type":{"target":"","nullable":false},"required":false,"docs":{},`+
+			`"provenance":{"source":0}}`,
 		ir.Parameter{
 			Name:         populatedNaming(),
 			Type:         populatedTypeRef(),
@@ -151,7 +153,8 @@ func TestParameter_JSONContract(t *testing.T) {
 				{Name: "ex1", Value: &ir.Value{Kind: ir.ValueNumber, Num: ir.BigVal("1")}},
 				{Name: "ex2", Value: &ir.Value{Kind: ir.ValueNumber, Num: ir.BigVal("2")}},
 			},
-			Unmodeled: populatedUnmodeled(),
+			Unmodeled:  populatedUnmodeled(),
+			Provenance: populatedProvenance(),
 		})
 }
 

@@ -30,6 +30,47 @@
                 "since": "1.2.0",
                 "removalVersion": "2.0.0"
               },
+              "params": [
+                {
+                  "name": {
+                    "source": "legacy",
+                    "canonical": "legacy"
+                  },
+                  "type": {
+                    "target": "t/prim/string",
+                    "nullable": false
+                  },
+                  "required": false,
+                  "docs": {},
+                  "deprecation": {
+                    "message": "use filter instead",
+                    "removalVersion": "3.0.0"
+                  },
+                  "unmodeled": {
+                    "openapi:x-deprecated-reason": {
+                      "reason": "vendor_extension",
+                      "value": "use filter instead",
+                      "provenance": {
+                        "source": 0,
+                        "pointer": "/paths/~1x/get/parameters/0/x-deprecated-reason"
+                      }
+                    },
+                    "openapi:x-sunset": {
+                      "reason": "vendor_extension",
+                      "value": "3.0.0",
+                      "provenance": {
+                        "source": 0,
+                        "pointer": "/paths/~1x/get/parameters/0/x-sunset"
+                      }
+                    }
+                  },
+                  "provenance": {
+                    "source": 0,
+                    "pointer": "/paths/~1x/get/parameters/0",
+                    "inferred": "extension-promotion"
+                  }
+                }
+              ],
               "responses": [
                 {
                   "name": {
@@ -100,6 +141,16 @@
                     "method": "GET",
                     "uriTemplate": "/x",
                     "sharedRoute": false,
+                    "paramBindings": [
+                      {
+                        "param": "legacy",
+                        "location": "query",
+                        "wireName": "legacy",
+                        "style": "form",
+                        "explode": true,
+                        "allowReserved": false
+                      }
+                    ],
                     "checksumRequired": false,
                     "isWebhook": false
                   }
@@ -383,7 +434,7 @@
     {
       "format": "openapi@3.1",
       "path": "extension-promotion.yaml",
-      "hash": "1bade65b585c75be141198f5312404923b56b7fbcf36105d20f13e26da63c52f"
+      "hash": "aa16a7bd98de256e0feb2bf240903d08db7f651a6b802255d7d89a98a69bcadd"
     }
   ]
 }

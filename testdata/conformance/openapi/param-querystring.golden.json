@@ -36,7 +36,11 @@
                     "nullable": false
                   },
                   "required": false,
-                  "docs": {}
+                  "docs": {},
+                  "provenance": {
+                    "source": 0,
+                    "pointer": "/paths/~1reports/get/parameters/0"
+                  }
                 }
               ],
               "responses": [
@@ -103,7 +107,11 @@
                     "nullable": false
                   },
                   "required": false,
-                  "docs": {}
+                  "docs": {},
+                  "provenance": {
+                    "source": 0,
+                    "pointer": "/paths/~1reports~1summary/get/parameters/0"
+                  }
                 }
               ],
               "responses": [
@@ -171,7 +179,11 @@
                     "nullable": false
                   },
                   "required": false,
-                  "docs": {}
+                  "docs": {},
+                  "provenance": {
+                    "source": 0,
+                    "pointer": "/paths/~1reports~1raw/get/parameters/0"
+                  }
                 }
               ],
               "responses": [

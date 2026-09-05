@@ -93,6 +93,12 @@ type Parameter struct {
 	Examples []Example `json:"examples,omitempty"`
 	// Unmodeled holds source constructs the IR does not model, kept verbatim.
 	Unmodeled Unmodeled `json:"unmodeled,omitempty"`
+	// Provenance records where the parameter was declared. A parameter shared by
+	// several operations — a path-item parameter in OpenAPI, merged into every
+	// operation on the path — points at its own single declaration rather than
+	// at the operation it was merged into, so a consumer can tell an inherited
+	// parameter from one the operation declares.
+	Provenance Provenance `json:"provenance"`
 }
 
 // Payload is the body/message content of a request, response, or message

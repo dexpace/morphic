@@ -36,7 +36,11 @@
                     "nullable": false
                   },
                   "required": true,
-                  "docs": {}
+                  "docs": {},
+                  "provenance": {
+                    "source": 0,
+                    "pointer": "/paths/~1items~1{id}/get/parameters/0"
+                  }
                 }
               ],
               "responses": [

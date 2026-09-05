@@ -134,7 +134,11 @@
                     "nullable": false
                   },
                   "required": true,
-                  "docs": {}
+                  "docs": {},
+                  "provenance": {
+                    "source": 0,
+                    "pointer": "/paths/~1orders~1{orderId}/get/parameters/0"
+                  }
                 }
               ],
               "responses": [
