@@ -71,6 +71,10 @@
                         "pointer": "/paths/~1widgets/parameters/0/x-mark"
                       }
                     }
+                  },
+                  "provenance": {
+                    "source": 0,
+                    "pointer": "/paths/~1widgets/parameters/0"
                   }
                 }
               ],
@@ -359,6 +363,10 @@
                         "pointer": "/paths/~1widgets/parameters/0/x-mark"
                       }
                     }
+                  },
+                  "provenance": {
+                    "source": 0,
+                    "pointer": "/paths/~1widgets/parameters/0"
                   }
                 }
               ],

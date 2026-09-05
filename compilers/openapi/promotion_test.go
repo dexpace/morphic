@@ -36,6 +36,8 @@ func promotionCarriers(t *testing.T, doc *ir.Document) map[string]promotionCarri
 	require.Len(t, op.Responses, 1)
 	require.Len(t, op.Responses[0].Headers, 1)
 	header := op.Responses[0].Headers[0]
+	require.Len(t, op.Params, 1)
+	param := op.Params[0]
 
 	model, ok := doc.Types[namedID("Old")].(*ir.Model)
 	require.True(t, ok)
@@ -47,6 +49,7 @@ func promotionCarriers(t *testing.T, doc *ir.Document) map[string]promotionCarri
 
 	return map[string]promotionCarrier{
 		"operation":   {op.Deprecation, op.Provenance, op.Unmodeled},
+		"parameter":   {param.Deprecation, param.Provenance, param.Unmodeled},
 		"header":      {header.Deprecation, header.Provenance, header.Unmodeled},
 		"type":        {model.Deprecation, model.Provenance, model.Unmodeled},
 		"property":    {prop.Deprecation, prop.Provenance, prop.Unmodeled},
@@ -61,6 +64,7 @@ func promotionCarriers(t *testing.T, doc *ir.Document) map[string]promotionCarri
 func assertExtensionPromotion(t *testing.T, doc *ir.Document, diags []ir.Diagnostic) {
 	want := map[string]string{
 		"operation":   "use getY instead",
+		"parameter":   "use filter instead",
 		"header":      "header goes away",
 		"type":        "replaced by New",
 		"property":    "field goes away",
@@ -81,6 +85,11 @@ func assertExtensionPromotion(t *testing.T, doc *ir.Document, diags []ir.Diagnos
 	require.True(t, ok)
 	assert.Equal(t, "1.2.0", op.Deprecation.Since)
 	assert.Equal(t, "2.0.0", op.Deprecation.RemovalVersion)
+
+	require.Len(t, op.Params, 1)
+	require.NotNil(t, op.Params[0].Deprecation)
+	assert.Equal(t, "3.0.0", op.Params[0].Deprecation.RemovalVersion,
+		"the parameter's own x-sunset reaches its own removal version, not the operation's")
 
 	assertPromotionDeclined(t, doc, diags)
 }

@@ -37,7 +37,11 @@
                     "nullable": false
                   },
                   "required": true,
-                  "docs": {}
+                  "docs": {},
+                  "provenance": {
+                    "source": 0,
+                    "pointer": "/paths/~1widgets~1{widget.id}/get/parameters/0"
+                  }
                 },
                 {
                   "name": {
@@ -49,7 +53,11 @@
                     "nullable": false
                   },
                   "required": false,
-                  "docs": {}
+                  "docs": {},
+                  "provenance": {
+                    "source": 0,
+                    "pointer": "/paths/~1widgets~1{widget.id}/get/parameters/1"
+                  }
                 }
               ],
               "responses": [

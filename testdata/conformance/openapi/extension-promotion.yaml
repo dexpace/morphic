@@ -8,6 +8,13 @@ paths:
       x-deprecated-reason: use getY instead
       x-deprecated-since: "1.2.0"
       x-sunset: "2.0.0"
+      parameters:
+        - name: legacy
+          in: query
+          deprecated: true
+          x-deprecated-reason: use filter instead
+          x-sunset: "3.0.0"
+          schema: {type: string}
       responses:
         "200":
           description: ok

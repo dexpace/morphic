@@ -36,7 +36,11 @@
                     "nullable": false
                   },
                   "required": false,
-                  "docs": {}
+                  "docs": {},
+                  "provenance": {
+                    "source": 0,
+                    "pointer": "/paths/~1search/get/parameters/0"
+                  }
                 },
                 {
                   "name": {
@@ -48,7 +52,11 @@
                     "nullable": false
                   },
                   "required": false,
-                  "docs": {}
+                  "docs": {},
+                  "provenance": {
+                    "source": 0,
+                    "pointer": "/paths/~1search/get/parameters/1"
+                  }
                 },
                 {
                   "name": {
@@ -60,7 +68,11 @@
                     "nullable": false
                   },
                   "required": false,
-                  "docs": {}
+                  "docs": {},
+                  "provenance": {
+                    "source": 0,
+                    "pointer": "/paths/~1search/get/parameters/2"
+                  }
                 },
                 {
                   "name": {
@@ -82,6 +94,10 @@
                         "pointer": "/paths/~1search/get/parameters/3/allowEmptyValue"
                       }
                     }
+                  },
+                  "provenance": {
+                    "source": 0,
+                    "pointer": "/paths/~1search/get/parameters/3"
                   }
                 },
                 {
@@ -94,7 +110,11 @@
                     "nullable": false
                   },
                   "required": false,
-                  "docs": {}
+                  "docs": {},
+                  "provenance": {
+                    "source": 0,
+                    "pointer": "/paths/~1search/get/parameters/4"
+                  }
                 },
                 {
                   "name": {
@@ -106,7 +126,11 @@
                     "nullable": false
                   },
                   "required": false,
-                  "docs": {}
+                  "docs": {},
+                  "provenance": {
+                    "source": 0,
+                    "pointer": "/paths/~1search/parameters/0"
+                  }
                 }
               ],
               "responses": [
@@ -215,7 +239,11 @@
                     "nullable": false
                   },
                   "required": false,
-                  "docs": {}
+                  "docs": {},
+                  "provenance": {
+                    "source": 0,
+                    "pointer": "/paths/~1search/parameters/0"
+                  }
                 }
               ],
               "responses": [

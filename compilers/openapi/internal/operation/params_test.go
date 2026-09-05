@@ -332,6 +332,59 @@ func TestParams_ComponentRefSharedAcrossOperationsInternsOnce(t *testing.T) {
 	assert.False(t, fabricatedB, "no fabricated per-operation ID for /b")
 }
 
+const paramProvenanceSpec = `openapi: 3.1.0
+info: {title: T, version: "1"}
+paths:
+  /pets/{petId}:
+    parameters:
+      - {name: petId, in: path, required: true, schema: {type: string}}
+    get:
+      operationId: getPet
+      parameters:
+        - {name: fields, in: query, schema: {type: string}}
+        - {$ref: '#/components/parameters/Page'}
+      responses: {"200": {description: ok}}
+    delete:
+      operationId: deletePet
+      responses: {"200": {description: ok}}
+components:
+  parameters:
+    Page: {name: page, in: query, schema: {type: integer}}
+`
+
+// TestParams_ProvenanceIsTheDeclaringPosition pins where a parameter says it
+// came from (GitHub #423). The three positions a parameter can be written at
+// each answer differently, and the merge is why: an operation's own entry sits
+// under that operation, a $ref'd one under the component it names, and a
+// path-item one under the path item — the last shared by every operation on the
+// path, which is what tells an inherited parameter from a declared one.
+func TestParams_ProvenanceIsTheDeclaringPosition(t *testing.T) {
+	t.Parallel()
+	doc, diags := parseFull(t, paramProvenanceSpec)
+	openapitest.RequireNoErrorDiags(t, diags)
+	getPet := openapitest.FindOp(t, doc, "getPet")
+	deletePet := openapitest.FindOp(t, doc, "deletePet")
+	byName := openapitest.IndexBy(getPet.Params, func(p ir.Parameter) string { return p.Name.Source })
+	require.Len(t, byName, 3, "two declared plus the inherited path-item one")
+
+	assert.Equal(t, "/paths/~1pets~1{petId}/get/parameters/0", byName["fields"].Provenance.Pointer,
+		"an operation's own entry is declared under that operation")
+	assert.Equal(t, "/components/parameters/Page", byName["page"].Provenance.Pointer,
+		"a $ref'd entry is declared at the component it names, not at the use site")
+
+	const pathItem = "/paths/~1pets~1{petId}/parameters/0"
+	assert.Equal(t, pathItem, byName["petId"].Provenance.Pointer,
+		"an inherited entry keeps the path item's pointer rather than the operation it merged into")
+	require.Len(t, deletePet.Params, 1)
+	assert.Equal(t, pathItem, deletePet.Params[0].Provenance.Pointer,
+		"and both operations on the path name the one declaration, not one pointer each")
+
+	for name, p := range byName {
+		assert.Equal(t, 0, p.Provenance.Source, "%s addresses the compiled source", name)
+		assert.Empty(t, p.Provenance.Inferred, "%s is declared, not inferred", name)
+	}
+}
+
 const componentContentParamRefSpec = `openapi: 3.1.0
 info: {title: T, version: "1"}
 paths:

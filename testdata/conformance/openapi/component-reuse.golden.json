@@ -35,7 +35,11 @@
                     "nullable": false
                   },
                   "required": false,
-                  "docs": {}
+                  "docs": {},
+                  "provenance": {
+                    "source": 0,
+                    "pointer": "/components/parameters/Sort"
+                  }
                 }
               ],
               "responses": [
@@ -142,7 +146,11 @@
                     "nullable": false
                   },
                   "required": false,
-                  "docs": {}
+                  "docs": {},
+                  "provenance": {
+                    "source": 0,
+                    "pointer": "/components/parameters/Sort"
+                  }
                 }
               ],
               "responses": [

@@ -1196,6 +1196,10 @@ type Parameter struct {
     Availability *Availability
     Examples   []Example
     Unmodeled  Unmodeled
+    Provenance Provenance      // the parameter's own declaration; a parameter merged into several
+                               // operations (an OpenAPI path-item parameter) points at that one
+                               // declaration, not at the operation it was merged into, which is
+                               // what tells an inherited parameter from a declared one
     // NOTE: no location here — path/query/header is HTTP-binding detail (§8.1)
 }
 
@@ -1824,10 +1828,11 @@ this from `Unmodeled` and no two derive it differently:
 3. **The node records that it was inferred**, in its own `Provenance.Inferred`, naming the
    heuristic. `Inferred` holds one string and a node can be reached by more than one heuristic, so
    the names are listed rather than overwritten, and a name already listed is not repeated.
-4. **A node with no `Provenance` is not promoted into.** `Parameter` is today's instance: it
-   carries a `Deprecation` and no provenance, so a promotion there could not satisfy rule 3, and a
-   heuristic that cannot be audited is worse than an empty field. Giving such a node a provenance
-   is a change to this document, and the promotion follows it rather than preceding it.
+4. **A node with no `Provenance` is not promoted into.** A node carrying a `Deprecation` and no
+   provenance could not satisfy rule 3, and a heuristic that cannot be audited is worse than an
+   empty field. Giving such a node a provenance is a change to this document, and the promotion
+   follows it rather than preceding it — which is the order `Parameter` went through: it was the
+   instance this rule named until it gained the `Provenance` §7.2 now gives it.
 
 A value the mapped field cannot hold — anything but text, for the three `Deprecation` members — is
 reported and not coerced, since the document means something else by the key.
