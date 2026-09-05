@@ -11,15 +11,20 @@ import (
 	"github.com/dexpace/morphic/ir"
 )
 
-// maxSniffBytes bounds the bytes Detect parses. Detection reads two top-level
-// keys, and 64 KiB reaches them in any document a person wrote, so the cost of
-// asking stays flat while spec size does not: a full parse of a 10 MB document
-// costs hundreds of milliseconds before the compiler's own parse begins.
+// maxSniffBytes bounds the prefix Detect parses on its fast path. Detection
+// reads two top-level keys, and 64 KiB reaches them in any document a person
+// wrote, so the cost of asking stays flat while spec size does not: a full parse
+// of a 10 MB document costs hundreds of milliseconds before the compiler's own
+// parse begins. It is a bound on the fast path, not on detection — a document
+// whose prefix declares neither key while its bytes name one is read whole, per
+// sniffWhole.
 const maxSniffBytes = 64 << 10
 
-// maxSniffEntries bounds the top-level entries read from a flow-style prefix.
-// The keys being looked for are declared among a document's first few, and a
-// prefix full of nothing else is not one this compiler will take.
+// maxSniffEntries bounds the top-level entries read from a flow-style mapping.
+// A document declares few top-level keys however large it grows, so a mapping
+// that runs past this without naming either key is not one this compiler will
+// take. The bound is on entries, not bytes: one of them may be megabytes long,
+// which is the whole reason the byte cap alone does not answer the question.
 const maxSniffEntries = 512
 
 // sniffProbe holds the two discriminating top-level keys. Which one is present
@@ -66,16 +71,16 @@ func (*Compiler) Detect(src compilers.Source) (compilers.SourceFormat, []ir.Diag
 }
 
 // declaresProbeKey reports whether data names one of the discriminating keys as
-// a top-level key. It is what separates a source of this compiler's own that
-// will not parse from one of another format that was never its business: a
-// parse failure alone says only "not YAML", which a Protobuf or Smithy source
-// is not either.
+// a top-level key. It is what separates a source of this compiler's own from one
+// of another format that was never its business, and it is asked twice: before
+// sniff parses a large document whole, and after a parse failed, where "not
+// YAML" alone says only what a Protobuf or Smithy source would also say.
 //
-// Only the bounded prefix is read, for the reason sniff bounds its own reads.
+// The whole of data is read. A byte scan costs a fraction of the parse it stands
+// in front of, and the key it looks for is exactly the one that can sit
+// megabytes into a document — bounding this to the prefix would blind it in
+// precisely the case it exists to catch.
 func declaresProbeKey(data []byte) bool {
-	if len(data) > maxSniffBytes {
-		data = data[:maxSniffBytes]
-	}
 	return declaresKey(data, "openapi") || declaresKey(data, "swagger")
 }
 
@@ -110,24 +115,56 @@ func followedByColon(data, name []byte) bool {
 	}
 }
 
-// sniff reads the discriminating keys out of at most maxSniffBytes bytes, and
-// returns the zero probe and the parser's error for anything it cannot read.
-// Whether that error is worth reporting is Detect's question, not this one's:
-// here it is only the record of what happened.
+// sniff reads the discriminating keys out of data, and returns the zero probe
+// and the parser's error for anything it cannot read. Whether that error is
+// worth reporting is Detect's question, not this one's: here it is only the
+// record of what happened.
 //
-// A document within the cap is decoded whole and exactly. A larger one is
-// decoded from a prefix, which cannot simply be cut: flow style — JSON is the
-// common case — is one token stream with no line structure, so its entries are
-// streamed instead, and block style is cut at its last complete line.
+// A document within the cap is decoded whole and exactly. A larger one is read
+// from its prefix first, and only from all of itself when that prefix answered
+// nothing and the bytes past it name a key this compiler serves.
 func sniff(data []byte) (sniffProbe, error) {
 	if len(data) <= maxSniffBytes {
 		return decodeYAML(data)
 	}
-	prefix := data[:maxSniffBytes]
-	if probe, ok := decodeFlowPrefix(prefix); ok {
+
+	probe, err := sniffPrefix(data[:maxSniffBytes])
+	if probe.OpenAPI != "" || probe.Swagger != "" {
+		return probe, nil
+	}
+	if declaresProbeKey(data) {
+		return sniffWhole(data)
+	}
+	return probe, err
+}
+
+// sniffPrefix reads the probe keys from the first maxSniffBytes of a document
+// too large to decode whole. The prefix cannot simply be cut: flow style — JSON
+// is the common case — is one token stream with no line structure, so its
+// entries are streamed instead, and block style is cut at its last complete
+// line.
+func sniffPrefix(prefix []byte) (sniffProbe, error) {
+	if probe, ok := decodeFlowEntries(prefix); ok {
 		return probe, nil
 	}
 	return decodeYAML(wholeLines(prefix))
+}
+
+// sniffWhole reads the probe keys from a whole document past the cap, for the
+// one case that earns the parse: the prefix declared neither key, yet the bytes
+// name one further in. Mapping key order carries no meaning, so a document that
+// writes a multi-megabyte `components` before its `openapi` is as valid as one
+// that writes them the other way round, and declining it would reject a valid
+// document over nothing.
+//
+// Nothing another format wrote reaches here — declaresProbeKey guards the call —
+// so the cost is paid only for bytes this compiler is about to parse in full
+// anyway, and the answer for everyone else is still the fast path's silence.
+func sniffWhole(data []byte) (sniffProbe, error) {
+	if probe, ok := decodeFlowEntries(data); ok {
+		return probe, nil
+	}
+	return decodeYAML(data)
 }
 
 // decodeYAML reads the probe keys from a complete YAML (or JSON, its subset)
@@ -140,12 +177,13 @@ func decodeYAML(data []byte) (sniffProbe, error) {
 	return probe, nil
 }
 
-// decodeFlowPrefix reads the top-level entries of a prefix that opens a flow
-// mapping, and reports whether it was one. The JSON decoder is used because it
-// streams: a prefix cut mid-document still yields every entry it completed,
-// where decoding those same bytes whole reports only that they end early.
-func decodeFlowPrefix(prefix []byte) (sniffProbe, bool) {
-	dec := json.NewDecoder(bytes.NewReader(prefix))
+// decodeFlowEntries reads the top-level entries of data, which may be a whole
+// document or a prefix of one, and reports whether it opened a flow mapping. The
+// JSON decoder is used because it streams: a prefix cut mid-document still
+// yields every entry it completed, where decoding those same bytes whole reports
+// only that they end early.
+func decodeFlowEntries(data []byte) (sniffProbe, bool) {
+	dec := json.NewDecoder(bytes.NewReader(data))
 	tok, err := dec.Token()
 	if err != nil || tok != json.Delim('{') {
 		return sniffProbe{}, false
