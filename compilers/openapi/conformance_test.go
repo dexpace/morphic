@@ -170,6 +170,7 @@ func conformanceCases() []conformanceCase {
 		{"allof-inline-residue", assertAllOfInlineResidue, []string{"intersection"}},
 		{"allof-ref-branch-siblings", assertAllOfRefBranchSiblings, []string{"intersection", "untagged-unions"}},
 		{"allof-boolean-branch", assertAllOfBooleanBranch, []string{"intersection"}},
+		{"allof-conflicting-type", assertAllOfConflictingType, nil},
 		{"oneof-discriminated", assertOneOfDiscriminated, []string{"tagged-unions"}},
 		{"discriminator-inheritance", assertDiscriminatorInheritance, []string{"tagged-unions", "inheritance"}},
 		{"discriminator-default-mapping", assertDiscriminatorDefaultMapping, []string{"tagged-unions"}},

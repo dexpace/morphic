@@ -180,6 +180,16 @@ func TestAllOf_ConflictingRedeclaredTypeDiagnosed(t *testing.T) {
 	assert.Contains(t, d.Message, `"id"`, "the diagnostic names the conflicting field")
 	assert.Contains(t, d.Message, "allOf/0", "the diagnostic names the first branch site")
 	assert.Contains(t, d.Message, "allOf/1", "the diagnostic names the second branch site")
+
+	// A diagnostic is not part of the document, so the losing declaration is
+	// also kept where a consumer reading the IR will reach it (GitHub #424).
+	lost := m.Properties[0].Unmodeled["openapi:conflicting-redeclaration"+
+		"/components/schemas/Conflictish/allOf/1/properties/id"]
+	assert.Equal(t, ir.ReasonDegradedLowering, lost.Reason,
+		"the discarded type is kept beside the winner; got %v", m.Properties[0].Unmodeled)
+	assert.JSONEq(t, `{"target":"t/prim/integer","nullable":false}`, string(lost.Value),
+		"and it names the type the second branch declared, not the one that won")
+	assert.Equal(t, "/components/schemas/Conflictish/allOf/1/properties/id", lost.Provenance.Pointer)
 }
 
 func TestAllOf_ConflictingRedeclaredConstraintDiagnosed(t *testing.T) {

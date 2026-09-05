@@ -251,6 +251,48 @@ func assertAllOfInlineResidue(t *testing.T, doc *ir.Document, diags []ir.Diagnos
 		"a branch excluding object contradicts the composed model and is a warning")
 }
 
+// assertAllOfConflictingType pins what an unsatisfiable redeclaration leaves in
+// the document. allOf is an intersection, so a field one branch types `uri` and
+// another types `string` describes a shape the IR has no combinator for: the
+// merge keeps the first declaration and, under ir-design §4.8, keeps the loser
+// verbatim beside it rather than dropping it (GitHub #424).
+//
+// The diagnostic is not what is being checked here. A consumer that diffs two
+// revisions of a document reads the document, and before this entry existed a
+// release in which the losing branch's type changed showed no change at all.
+//
+// The nullable case is the second half: a redeclaration says both what a field
+// is and whether it admits null, so an entry keeping only the target ID would
+// still be losing half of what it claims to preserve.
+func assertAllOfConflictingType(t *testing.T, doc *ir.Document, diags []ir.Diagnostic) {
+	repo, ok := doc.Types[namedID("Repository")].(*ir.Model)
+	require.True(t, ok)
+	clone, ok := propByWire(repo, "clone_url")
+	require.True(t, ok, "the two declarations still reconcile to one property")
+	assert.Equal(t, ir.TypeID("t/prim/url"), clone.Type.Target, "the first declaration wins the shape")
+
+	entry := unmodeledEntry(t, clone.Unmodeled,
+		"openapi:conflicting-redeclaration/components/schemas/Repository/allOf/1/properties/clone_url")
+	assert.Equal(t, ir.ReasonDegradedLowering, entry.Reason)
+	assert.JSONEq(t, `{"target":"t/prim/string","nullable":false}`, string(entry.Value))
+	assert.Equal(t, "/components/schemas/Repository/allOf/1/properties/clone_url", entry.Provenance.Pointer,
+		"the entry locates the losing declaration, not the merged property")
+	assert.Equal(t, []ir.Severity{ir.SeverityWarning},
+		diagsAt(diags, "openapi/conflicting-redeclaration",
+			"/components/schemas/Repository/allOf/1/properties/clone_url"),
+		"and the conflict is still reported")
+
+	identified, ok := doc.Types[namedID("Identified")].(*ir.Model)
+	require.True(t, ok)
+	id, ok := propByWire(identified, "id")
+	require.True(t, ok)
+	assert.Equal(t, ir.TypeID("t/prim/integer"), id.Type.Target)
+	entry = unmodeledEntry(t, id.Unmodeled,
+		"openapi:conflicting-redeclaration/components/schemas/Identified/allOf/1/properties/id")
+	assert.JSONEq(t, `{"target":"t/prim/string","nullable":true}`, string(entry.Value),
+		"a nullable loser keeps its nullability, which the target ID alone would drop")
+}
+
 // assertAllOfRefBranchSiblings covers the other branch kind: keywords written
 // beside a `$ref` in an allOf branch bind that branch, not the schema it names,
 // so they cannot go on the shared target's node. The branch position gets a node

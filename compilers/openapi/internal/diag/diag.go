@@ -144,6 +144,12 @@ const (
 	// representable by a simple merge, so the merge keeps an arbitrary
 	// source-order winner — possibly the looser bound — and surfaces the
 	// disagreement instead of silently discarding it.
+	//
+	// The type half additionally keeps the losing reference under the merged
+	// property's Unmodeled, so it survives for a consumer reading the document
+	// rather than the diagnostic stream (merge.keepLosingType). The constraint
+	// half does not: the recorded direction there is to intersect the bounds
+	// (GitHub #10), so this code alone still carries it.
 	ConflictingRedecl = "openapi/conflicting-redeclaration"
 	// DisjointVisibility reports one field restricted to lifecycle sets that
 	// share nothing — readOnly against writeOnly — so no lifecycle admits it at
