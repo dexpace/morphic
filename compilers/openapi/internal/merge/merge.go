@@ -9,6 +9,7 @@ package merge
 
 import (
 	"cmp"
+	"encoding/json"
 	"fmt"
 	"slices"
 
@@ -72,7 +73,10 @@ func (g *Merger) MergeProperty(m *ir.Model, byWire map[string]int, p ir.Property
 // differs between branches, an incompatible type, or a contradictory constraint
 // keyword are genuine conflicts the merge cannot represent (see
 // diag.ConflictingRedecl); each is diagnosed before any detail is folded in,
-// rather than silently picking an arbitrary winner.
+// rather than silently picking an arbitrary winner. The incompatible type is
+// additionally kept beside the winner under Unmodeled (keepLosingType), so the
+// discarded declaration survives in the document and not only in the diagnostic
+// stream.
 func (g *Merger) reconcileProperty(dst *ir.Property, src ir.Property, pointer string) {
 	g.diagnoseRedeclarationConflict(dst, &src, pointer)
 
@@ -239,6 +243,7 @@ const maxTypeResolveDepth = 64
 // subsumes any constraint conflict.
 func (g *Merger) diagnoseRedeclarationConflict(dst, src *ir.Property, pointer string) {
 	if g.typesConflict(dst.Type, src.Type) {
+		keepLosingType(dst, src, pointer)
 		g.redeclarationConflictDiag(dst, pointer,
 			fmt.Sprintf("incompatible types %s and %s", dst.Type.Target, src.Type.Target))
 		return
@@ -246,6 +251,52 @@ func (g *Merger) diagnoseRedeclarationConflict(dst, src *ir.Property, pointer st
 	if detail, ok := constraintsConflict(dst.Constraints, src.Constraints); ok {
 		g.redeclarationConflictDiag(dst, pointer, detail)
 	}
+}
+
+// losingTypeKey prefixes the Unmodeled entry a discarded redeclaration type is
+// kept under. The "openapi:" namespace is what keeps two source formats' keys
+// from colliding on one node (ir-design §12); the redeclaration's own pointer
+// completes it, the way an allOf branch's index completes the composition's
+// keys.
+const losingTypeKey = "openapi:conflicting-redeclaration"
+
+// keepLosingType keeps the redeclaration's discarded type beside the merged
+// property, so a consumer reading the document rather than the diagnostic stream
+// can still see what the losing declaration said (GitHub #424). Every other
+// degradation in this compiler preserves what it could not model; this path was
+// the exception.
+//
+// ReasonDegradedLowering is the reason: the IR has no combinator for "string
+// here, integer there", so the pair is lowered to the weaker shape of the first
+// declaration with the original kept beside it, which is that reason's own
+// definition (ir-design §4.8). Not ReasonNoIRHome — the position has a field and
+// it is holding the winner, so nothing is waiting on an IR gap to close; not
+// ReasonValidationOnly, since a type is data shape rather than validation.
+//
+// The value is the discarded ir.TypeRef rather than the branch's source schema:
+// this package never sees the document by design (see the package comment), and
+// the reference is the whole of what was dropped — Nullable included, which the
+// target ID alone would lose. Writing back an IR value already read rather than
+// re-reading a raw node is what annotation's redundant-bound preservation does
+// too.
+//
+// The redeclaration's pointer is part of the key rather than only of the
+// provenance, so a field three branches type three incompatible ways keeps all
+// three entries; a fixed key would leave whichever branch ran last. Provenance
+// locates the losing declaration itself, which is the entry's own position and
+// not the merged property's.
+//
+// Only the type is kept here. A constraint conflict discards the redeclaration's
+// keyword too, but the recorded direction for that is to intersect the bounds so
+// the merged field satisfies both branches (GitHub #10), and preserving the
+// loser instead would settle a decision that already has one.
+func keepLosingType(dst, src *ir.Property, pointer string) {
+	// A TypeID string and a bool: json.Marshal fails on neither, and rewrites
+	// ill-formed UTF-8 rather than refusing it, so the error it declares is
+	// discarded the way annotation.jsonString discards it for a key.
+	raw, _ := json.Marshal(src.Type)
+	annotation.PreserveInto(&dst.Unmodeled, losingTypeKey+pointer, raw,
+		ir.ReasonDegradedLowering, pointer, src.Provenance.Source)
 }
 
 // redeclarationConflictDiag emits the shared conflicting-redeclaration warning,
