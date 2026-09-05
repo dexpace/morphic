@@ -35,16 +35,7 @@
                     }
                   }
                 ],
-                "unmodeled": {
-                  "openapi:required": {
-                    "reason": "no_ir_home",
-                    "value": false,
-                    "provenance": {
-                      "source": 0,
-                      "pointer": "/webhooks/newPet/post/requestBody/required"
-                    }
-                  }
-                }
+                "required": false
               },
               "responses": [
                 {
@@ -151,15 +142,6 @@
     }
   ],
   "diagnostics": [
-    {
-      "severity": "info",
-      "code": "openapi/degraded-construct",
-      "message": "request body is not required; optionality kept under Unmodeled",
-      "provenance": {
-        "source": 0,
-        "pointer": "/webhooks/newPet/post/requestBody"
-      }
-    },
     {
       "severity": "info",
       "code": "openapi/degraded-construct",

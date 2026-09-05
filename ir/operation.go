@@ -100,6 +100,14 @@ type Parameter struct {
 type Payload struct {
 	// Contents holds one entry per media type / message schema — all kept.
 	Contents []Content `json:"contents,omitempty"`
+	// Required states whether the message may be omitted: true = the body must
+	// be sent, false = it is optional. nil = the source format does not express
+	// body optionality at all, which is why this is a pointer — for a format
+	// that does, an unstated body is optional, and collapsing that onto nil
+	// would make "the format is silent" indistinguishable from "the document
+	// says no". A response or message payload leaves it nil: only a request
+	// body can be omitted.
+	Required *bool `json:"required,omitempty"`
 	// Unmodeled holds source constructs the IR does not model, kept verbatim.
 	Unmodeled Unmodeled `json:"unmodeled,omitempty"`
 }

@@ -248,7 +248,8 @@
                       "nullable": false
                     }
                   }
-                ]
+                ],
+                "required": true
               },
               "responses": [
                 {

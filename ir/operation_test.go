@@ -155,18 +155,46 @@ func TestParameter_JSONContract(t *testing.T) {
 		})
 }
 
-// TestPayload_JSONContract pins Payload's omitempty contract (both fields are
+// TestPayload_JSONContract pins Payload's omitempty contract (every field is
 // optional) and that a Payload with multiple media-type contents round-trips,
 // all kept per the "no primary-response selection" invariant.
 func TestPayload_JSONContract(t *testing.T) {
 	t.Parallel()
+	required := true
 	assertJSONContract(t, ir.Payload{}, `{}`, ir.Payload{
 		Contents: []ir.Content{
 			{MediaType: "application/json", Type: populatedTypeRef()},
 			{MediaType: "application/xml", Type: populatedTypeRef()},
 		},
+		Required:  &required,
 		Unmodeled: populatedUnmodeled(),
 	})
+}
+
+// TestPayload_RequiredIsTriState pins the reason Required is a pointer: the
+// three states must survive the wire as three, so a consumer never has to read
+// a missing key as a value. omitempty on a *bool drops only nil, so an optional
+// body still says so out loud instead of looking like a format that cannot
+// express optionality at all.
+func TestPayload_RequiredIsTriState(t *testing.T) {
+	t.Parallel()
+	yes, no := true, false
+	for _, tc := range []struct {
+		name string
+		in   *bool
+		want string
+	}{
+		{"unstated", nil, `{}`},
+		{"optional", &no, `{"required":false}`},
+		{"mandatory", &yes, `{"required":true}`},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			payload := ir.Payload{Required: tc.in}
+			assertZeroValueShape(t, payload, tc.want)
+			assertRoundTrip(t, payload)
+		})
+	}
 }
 
 // TestContent_JSONContract pins Content's omitempty contract — Type carries

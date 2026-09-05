@@ -48,7 +48,8 @@
                       "nullable": false
                     }
                   }
-                ]
+                ],
+                "required": true
               },
               "responses": [
                 {
@@ -164,7 +165,8 @@
                       "nullable": false
                     }
                   }
-                ]
+                ],
+                "required": true
               },
               "responses": [
                 {
@@ -230,7 +232,8 @@
                       "nullable": false
                     }
                   }
-                ]
+                ],
+                "required": true
               },
               "responses": [
                 {

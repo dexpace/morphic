@@ -263,6 +263,8 @@ paths:
   /p:
     post:
       operationId: p
+      parameters:
+        - {name: q, in: query, allowEmptyValue: true, schema: {type: string}}
       requestBody:
         content: {application/json: {schema: {type: string}}}
       responses: {"204": {description: ok}}
@@ -280,11 +282,13 @@ paths:
 			seen[entry.Reason] = true
 		}
 	}
-	// The one no_ir_home site reachable from a minimal document: a requestBody
-	// that omits `required`, which the IR has no field for (§14).
-	body := openapitest.FirstOp(t, svc).Request
-	require.NotNil(t, body, "the operation must own a request payload")
-	for _, entry := range body.Unmodeled {
+	// The no_ir_home witness is the query parameter's allowEmptyValue, which
+	// ir.HTTPParamBinding holds no field for (§14). It replaced the requestBody
+	// one when Payload.Required landed, so this reason now rides on a lowering
+	// that still has no typed home rather than on one that just grew one.
+	params := openapitest.FirstOp(t, svc).Params
+	require.Len(t, params, 1, "the operation must own the allowEmptyValue parameter")
+	for _, entry := range params[0].Unmodeled {
 		seen[entry.Reason] = true
 	}
 
