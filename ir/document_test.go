@@ -81,9 +81,14 @@ func TestCompatibleVersion(t *testing.T) {
 	}{
 		{"this build's version", ir.IRVersion, true},
 		{"absent", "", false},
-		{"an earlier generation", "0.1.0", false},
-		{"a later generation", "0.4.0", false},
-		{"a differing patch", "0.3.1", false},
+		// These three are spelled relative to IRVersion and MOVE WITH IT. The
+		// neighbour rows are the point of the test, so a bump that leaves them
+		// behind stops testing what they name — at 0.4.0 the old "later
+		// generation" literal WAS the current version, and the row asserted the
+		// build rejects its own documents.
+		{"the generation before this one", "0.3.0", false},
+		{"a later generation", "0.5.0", false},
+		{"a differing patch", "0.4.1", false},
 		{"a prerelease of this version", ir.IRVersion + "-rc.1", false},
 		{"padded with whitespace", " " + ir.IRVersion + " ", false},
 		{"not a version at all", "99.99.99-bogus", false},
