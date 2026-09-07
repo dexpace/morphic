@@ -42,8 +42,9 @@ type Constraints struct {
 }
 
 // Encoding is the logical-type / encoding-name / wire-type triple that reifies
-// TypeSpec @encode and absorbs OpenAPI format and Protobuf wire variants
-// (ir-design §5.3). Property encoding overrides scalar encoding.
+// TypeSpec @encode and absorbs OpenAPI format and Protobuf wire variants, plus
+// the media type and decoded shape of an encoded payload (ir-design §5.3).
+// Property encoding overrides scalar encoding.
 type Encoding struct {
 	// Name is the encoding scheme ("rfc3339", "base64", "zigzag", "packed",
 	// "delimited", format strings, ...).
@@ -54,6 +55,11 @@ type Encoding struct {
 	// MediaType is the content media type of the value itself (Smithy @mediaType,
 	// JSON Schema contentMediaType); "" = none.
 	MediaType string `json:"mediaType,omitempty"`
+	// Schema is the shape the encoded value has once decoded — what a base64 blob
+	// or an application/json-typed string holds (JSON Schema contentSchema); nil =
+	// unstated. It is a reference into the type registry like any other schema,
+	// never the encoded value's own type.
+	Schema *TypeRef `json:"schema,omitempty"`
 }
 
 // XMLHints describes an XML wire shape that diverges from the JSON-implied one

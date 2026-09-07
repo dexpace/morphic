@@ -392,10 +392,11 @@ func assertDependentRequired(t *testing.T, doc *ir.Document, diags []ir.Diagnost
 		diagsAt(diags, "openapi/validation-only-keyword", "/components/schemas/Card"))
 }
 
-// assertContentVocabulary pins the 2020-12 content vocabulary: contentEncoding
-// and contentMediaType are an encoding and lower into ir.Encoding, contentSchema
-// is a schema and has no IR home anywhere, and a position with no Encoding field
-// at all keeps both of the first two verbatim (GitHub #125).
+// assertContentVocabulary pins the 2020-12 content vocabulary: all three
+// keywords lower into ir.Encoding — contentEncoding and contentMediaType as
+// names, contentSchema as a reference to the type it hoists — and a position
+// with no Encoding field at all keeps all three verbatim (GitHub #125,
+// GitHub #426).
 func assertContentVocabulary(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
 	thumb, ok := doc.Types[namedID("Thumbnail")].(*ir.Scalar)
 	require.True(t, ok)
@@ -408,13 +409,16 @@ func assertContentVocabulary(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) 
 	require.True(t, ok)
 	require.NotNil(t, env.Encoding)
 	assert.Equal(t, "application/json", env.Encoding.MediaType)
-	entry := unmodeledEntry(t, env.Unmodeled, "openapi:contentSchema")
-	assert.Equal(t, ir.ReasonNoIRHome, entry.Reason)
-	assert.JSONEq(t, `{"type":"object","properties":{"id":{"type":"string"}}}`, string(entry.Value))
+	require.NotNil(t, env.Encoding.Schema, "contentSchema has a home on ir.Encoding")
+	assert.Empty(t, env.Unmodeled, "so it is lowered, never also kept raw")
+	decoded, ok := doc.Types[env.Encoding.Schema.Target].(*ir.Model)
+	require.True(t, ok, "and it reaches the registry as a type rather than a blob")
+	require.Len(t, decoded.Properties, 1)
+	assert.Equal(t, "id", decoded.Properties[0].WireName)
 
 	bag, ok := doc.Types[namedID("Bag")].(*ir.Model)
 	require.True(t, ok)
-	for _, key := range []string{"openapi:contentEncoding", "openapi:contentMediaType"} {
+	for _, key := range []string{"openapi:contentEncoding", "openapi:contentMediaType", "openapi:contentSchema"} {
 		assert.Equal(t, ir.ReasonNoIRHome, unmodeledEntry(t, bag.Unmodeled, key).Reason,
 			"an object has no Encoding field, so %s is kept", key)
 	}
