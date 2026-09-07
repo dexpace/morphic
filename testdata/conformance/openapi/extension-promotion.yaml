@@ -7,13 +7,13 @@ paths:
       deprecated: true
       x-deprecated-reason: use getY instead
       x-deprecated-since: "1.2.0"
-      x-sunset: "2.0.0"
+      x-sunset: "2026-08-01"
       parameters:
         - name: legacy
           in: query
           deprecated: true
           x-deprecated-reason: use filter instead
-          x-sunset: "3.0.0"
+          x-sunset: "2027-01-15"
           schema: {type: string}
       responses:
         "200":

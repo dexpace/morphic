@@ -24,9 +24,11 @@ func TestLink_JSONContract(t *testing.T) {
 }
 
 // TestDeprecation_JSONContract pins Deprecation's omitempty contract — all
-// three fields are optional, so an entity deprecated with no detail at all
-// still marshals to an empty object rather than three empty strings — and
-// that a fully populated Deprecation round-trips.
+// four fields are optional, so an entity deprecated with no detail at all
+// still marshals to an empty object rather than four empty strings — and
+// that a fully populated Deprecation round-trips, RemovalVersion and
+// RemovalDate included, since a consumer tells one from the other by which key
+// it arrived under.
 func TestDeprecation_JSONContract(t *testing.T) {
 	t.Parallel()
 	assertJSONContract(t, ir.Deprecation{}, `{}`, *populatedDeprecation())

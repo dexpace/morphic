@@ -38,8 +38,13 @@ const (
 	TargetDeprecationMessage ExtensionTarget = "deprecation.message"
 	// TargetDeprecationSince fills ir.Deprecation.Since.
 	TargetDeprecationSince ExtensionTarget = "deprecation.since"
-	// TargetDeprecationRemovalVersion fills ir.Deprecation.RemovalVersion.
+	// TargetDeprecationRemovalVersion fills ir.Deprecation.RemovalVersion. No
+	// default key names it: the one convention in wide use for a scheduled
+	// removal, x-sunset, states a date, and a document that spells a removal
+	// *version* names its own key.
 	TargetDeprecationRemovalVersion ExtensionTarget = "deprecation.removalVersion"
+	// TargetDeprecationRemovalDate fills ir.Deprecation.RemovalDate.
+	TargetDeprecationRemovalDate ExtensionTarget = "deprecation.removalDate"
 )
 
 // ExtensionPromotions is the vendor-extension promotion policy: which x-* keys
@@ -71,7 +76,9 @@ func DefaultExtensionPromotions() map[string]ExtensionTarget {
 	return map[string]ExtensionTarget{
 		"x-deprecated-reason": TargetDeprecationMessage,
 		"x-deprecated-since":  TargetDeprecationSince,
-		"x-sunset":            TargetDeprecationRemovalVersion,
+		// x-sunset echoes the RFC 8594 Sunset header, which is a date by
+		// definition, so it fills the date field and not the version one.
+		"x-sunset": TargetDeprecationRemovalDate,
 	}
 }
 
@@ -127,14 +134,19 @@ func deprecationField(dep *ir.Deprecation, target ExtensionTarget) *string {
 		return &dep.Since
 	case TargetDeprecationRemovalVersion:
 		return &dep.RemovalVersion
+	case TargetDeprecationRemovalDate:
+		return &dep.RemovalDate
 	default:
 		return nil
 	}
 }
 
 // extensionText reads a preserved extension value as a string. Every
-// Deprecation field is prose or a version, so a value of any other JSON shape
-// is a document meaning something else by the key.
+// Deprecation field is prose, a version or a date, so a value of any other JSON
+// shape is a document meaning something else by the key. Text of the right JSON
+// shape is taken as written — a date is not parsed here, because the mapping is
+// the caller's policy and a key it points at the date field is its statement
+// that the key holds one.
 func extensionText(raw ir.RawValue) (string, bool) {
 	var text string
 	if err := json.Unmarshal(raw, &text); err != nil {

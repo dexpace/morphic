@@ -28,7 +28,7 @@
               "deprecation": {
                 "message": "use getY instead",
                 "since": "1.2.0",
-                "removalVersion": "2.0.0"
+                "removalDate": "2026-08-01"
               },
               "params": [
                 {
@@ -44,7 +44,7 @@
                   "docs": {},
                   "deprecation": {
                     "message": "use filter instead",
-                    "removalVersion": "3.0.0"
+                    "removalDate": "2027-01-15"
                   },
                   "unmodeled": {
                     "openapi:x-deprecated-reason": {
@@ -57,7 +57,7 @@
                     },
                     "openapi:x-sunset": {
                       "reason": "vendor_extension",
-                      "value": "3.0.0",
+                      "value": "2027-01-15",
                       "provenance": {
                         "source": 0,
                         "pointer": "/paths/~1x/get/parameters/0/x-sunset"
@@ -175,7 +175,7 @@
                 },
                 "openapi:x-sunset": {
                   "reason": "vendor_extension",
-                  "value": "2.0.0",
+                  "value": "2026-08-01",
                   "provenance": {
                     "source": 0,
                     "pointer": "/paths/~1x/get/x-sunset"
@@ -434,7 +434,7 @@
     {
       "format": "openapi@3.1",
       "path": "extension-promotion.yaml",
-      "hash": "aa16a7bd98de256e0feb2bf240903d08db7f651a6b802255d7d89a98a69bcadd"
+      "hash": "2433e30d378223aa920d20cb51cce28080a3a325c92f36dbbe7662470fbee376"
     }
   ]
 }
