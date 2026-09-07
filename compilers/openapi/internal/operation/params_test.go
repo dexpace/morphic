@@ -1,7 +1,6 @@
 package operation_test
 
 import (
-	"strings"
 	"testing"
 
 	"github.com/speakeasy-api/openapi/validation"
@@ -873,48 +872,71 @@ func TestParams_RefSiteKeywordsAreKeptOnTheParameter(t *testing.T) {
 	assert.Equal(t, int64(3), *r.Constraints.MinLength)
 }
 
-// TestParams_CoDeclaredBoundKeptOnTheParameter covers the parameter carrier for
-// a 2020-12 side that declares both of its bound keywords (GitHub #286).
-// ir.Constraints holds one bound per side, so one keyword reaches no field of
-// the constraints the parameter carries and is kept verbatim beside them —
-// otherwise {minimum: 10, exclusiveMinimum: 0} lowers to what {minimum: 10}
-// does, at the one carrier ir.Parameter owns rather than a node.
+// TestParams_CoDeclaredBoundsReachTheParameter covers the parameter carrier for
+// a 2020-12 side that declares both of its bound keywords. Each is a keyword the
+// source wrote and ir.Constraints has a field for each, so both reach the
+// constraints the parameter holds and nothing is kept beside them — at the one
+// carrier ir.Parameter owns rather than a node.
 //
-// Both directions are here for the reason the property cases are: a row where
-// the exclusive keyword is the one kept passes on a reader that always kept that
-// one.
-func TestParams_CoDeclaredBoundKeptOnTheParameter(t *testing.T) {
+// The two rows swap which keyword is the tighter across the same magnitudes. A
+// reader holding one bound per side answers both rows alike, which is what hid a
+// change to the looser keyword from a consumer diffing two revisions (GitHub
+// #425).
+func TestParams_CoDeclaredBoundsReachTheParameter(t *testing.T) {
 	t.Parallel()
 	_, svc, diags := lowerServiceSpec(t, openapitest.PathsSpec(
 		"  /x:\n    get:\n      operationId: g\n      parameters:\n"+
 			"        - {name: low, in: query, schema: {type: integer, minimum: 10, exclusiveMinimum: 0}}\n"+
-			"        - {name: high, in: query, schema: {type: integer, maximum: 100, exclusiveMaximum: 5}}\n"+
+			"        - {name: high, in: query, schema: {type: integer, minimum: 0, exclusiveMinimum: 10}}\n"+
 			"        - {name: plain, in: query, schema: {type: integer, minimum: 10}}\n"+
 			"      responses: {\"204\": {description: ok}}\n"))
 	openapitest.RequireNoErrorDiags(t, diags)
 	params := paramsOf(t, svc)
 
 	cases := []struct {
-		param, index, wantKept, wantRaw string
+		param, wantMin, wantExclMin string
 	}{
-		{param: "low", index: "0", wantKept: "openapi:exclusiveMinimum", wantRaw: "0"},
-		{param: "high", index: "1", wantKept: "openapi:maximum", wantRaw: "100"},
+		{param: "low", wantMin: "10", wantExclMin: "0"},
+		{param: "high", wantMin: "0", wantExclMin: "10"},
 	}
 	for _, tc := range cases {
 		t.Run(tc.param, func(t *testing.T) {
 			t.Parallel()
-			at := "/paths/~1x/get/parameters/" + tc.index + "/schema/" +
-				strings.TrimPrefix(tc.wantKept, "openapi:")
-			require.NotNil(t, params[tc.param].Constraints, "the tighter bound still reaches a field")
-			entry, ok := params[tc.param].Unmodeled[tc.wantKept]
-			require.True(t, ok, "%s is kept beside the constraints it did not reach; got %v",
-				tc.wantKept, params[tc.param].Unmodeled)
-			assert.Equal(t, ir.ReasonDegradedLowering, entry.Reason)
-			assert.JSONEq(t, tc.wantRaw, string(entry.Value))
-			assert.Equal(t, at, entry.Provenance.Pointer, "located at the keyword itself")
+			c := params[tc.param].Constraints
+			require.NotNil(t, c, "both bounds reach the parameter's constraints")
+			require.NotNil(t, c.Min)
+			require.NotNil(t, c.ExclusiveMin)
+			assert.Equal(t, tc.wantMin, c.Min.String(), "minimum as written")
+			assert.Equal(t, tc.wantExclMin, c.ExclusiveMin.String(), "exclusiveMinimum as written, beside it")
+			assert.Empty(t, params[tc.param].Unmodeled, "with a field apiece there is nothing left to keep")
 		})
 	}
 
 	assert.Empty(t, params["plain"].Unmodeled,
-		"a side writing one keyword has it in a field, so nothing is restated beside it")
+		"and a side writing one keyword has it in a field, so nothing is restated beside it")
+}
+
+// TestParams_ExclusiveModifierWithNoBoundIsKeptOnTheParameter covers the one
+// bound keyword that still reaches no field, at the parameter carrier. A 3.0
+// exclusiveMinimum modifies the minimum beside it, so one written without a
+// minimum modifies nothing and has no bound to become; dropping it would lose a
+// declared keyword silently, so the parameter keeps it verbatim.
+func TestParams_ExclusiveModifierWithNoBoundIsKeptOnTheParameter(t *testing.T) {
+	t.Parallel()
+	_, svc, diags := lowerServiceSpec(t, openapitest.PathsSpecVer("3.0.3",
+		"  /x:\n    get:\n      operationId: g\n      parameters:\n"+
+			"        - {name: bare, in: query, schema: {type: integer, exclusiveMinimum: true}}\n"+
+			"      responses: {\"204\": {description: ok}}\n"))
+	params := paramsOf(t, svc)
+
+	entry, ok := params["bare"].Unmodeled["openapi:exclusiveMinimum"]
+	require.True(t, ok, "kept beside the constraints it did not reach; got %v", params["bare"].Unmodeled)
+	assert.Equal(t, ir.ReasonDegradedLowering, entry.Reason)
+	assert.JSONEq(t, "true", string(entry.Value))
+	assert.Equal(t, "/paths/~1x/get/parameters/0/schema/exclusiveMinimum", entry.Provenance.Pointer,
+		"located at the keyword itself")
+	assert.Contains(t,
+		openapitest.DiagMessageAt(t, diags, diag.DegradedConstruct, ir.SeverityWarning,
+			"/paths/~1x/get/parameters/0/schema"),
+		"bounds nothing", "and reading it is what reports on it")
 }

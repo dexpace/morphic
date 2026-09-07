@@ -27,15 +27,17 @@ const (
 // are List-owned and read elsewhere. A non-finite bound literal yields an
 // error-severity diag.NumericPrecision diagnostic and is skipped; nil is
 // returned when no constraint is present. exclusiveBoolean selects the
-// exclusiveMinimum/exclusiveMaximum dialect (see applyExclusive), and under the
-// 2020-12 one a side that declares both of its keywords is settled by
-// reconcileBound rather than by whichever ran last.
+// exclusiveMinimum/exclusiveMaximum dialect (see applyExclusive); under the
+// 2020-12 one a side may declare both of its keywords, and both reach a field
+// of their own, so neither is chosen over the other.
 //
-// The keyword that reconciliation leaves out of ir.Constraints comes back as the
-// second return, an ir.Unmodeled the caller merges into whichever carrier its
-// reading position owns. pointer and srcIndex locate it, exactly as they locate
-// what Read keeps. Everything else a schema says about its values reaches a
-// field, so on all but a co-declared numeric bound that map is nil.
+// A keyword that reaches no field comes back as the second return, an
+// ir.Unmodeled the caller merges into whichever carrier its reading position
+// owns. pointer and srcIndex locate it, exactly as they locate what Read keeps.
+// One keyword can land there: a 3.0 exclusiveMinimum/exclusiveMaximum true with
+// no bound beside it to make exclusive (see applyExclusiveFlag). Everything
+// else a schema says about its values reaches a field, so that map is usually
+// nil.
 //
 // It reads beside the other readers here for the reason they are here at all:
 // what a schema says about the values admitted at a position is read the same
@@ -62,12 +64,12 @@ func Constraints(s *oas3.Schema, exclusiveBoolean bool, pointer string, srcIndex
 	return c, residue.kept, diags
 }
 
-// boundResidue is where a schema's bounds were written, and what became of the
-// co-declared keywords that reached no field of ir.Constraints.
+// boundResidue is where a schema's bounds were written, and what became of a
+// bound keyword that reached no field of ir.Constraints.
 //
-// One value serves both sides, so a schema co-declaring each of them leaves two
-// entries here and each keyword survives — writing the map rather than adding to
-// it would keep whichever side ran second.
+// One value serves both sides, so a schema leaving residue on each of them
+// leaves two entries here and each keyword survives — writing the map rather
+// than adding to it would keep whichever side ran second.
 //
 // The keyword is recorded here rather than handed back for a caller to record,
 // so that the diagnostic naming it is written at the same statement that keeps
@@ -82,19 +84,16 @@ type boundResidue struct {
 	kept     ir.Unmodeled
 }
 
-// keepRedundant keeps the co-declared keyword that ir.Constraints has no room
-// for, and returns the diagnostic reporting the pair.
+// keepUnmodifiable keeps a 3.0 exclusive-bound modifier that had no bound to
+// modify, and returns the diagnostic reporting it.
 //
-// It writes back the literal already read rather than re-reading the keyword's
-// raw node. The two produce the same bytes — RawFromNode renders a numeric
-// scalar through the same value.NumericLiteral this bound came from — but only
-// this one cannot fail, since BigVal's contract is that its text renders as a
-// JSON number. That is what lets the message state the keyword is kept without
-// a branch for the case where it was not.
-func (b *boundResidue) keepRedundant(keptProp string, kept ir.BigVal, dropProp string, dropped ir.BigVal, compared bool) ir.Diagnostic {
-	PreserveInto(&b.kept, "openapi:"+dropProp, ir.RawValue(dropped),
-		ir.ReasonDegradedLowering, b.pointer+ids.Ptr(dropProp), b.srcIndex)
-	return redundantBoundDiag(keptProp, kept, dropProp, dropped, compared)
+// The literal is the boolean the keyword was written as, which is the whole of
+// what it said; there is no numeric bound here to write back, because the
+// absence of one is the reason it is being kept at all.
+func (b *boundResidue) keepUnmodifiable(inclProp, exclProp string) ir.Diagnostic {
+	PreserveInto(&b.kept, "openapi:"+exclProp, ir.RawValue("true"),
+		ir.ReasonDegradedLowering, b.pointer+ids.Ptr(exclProp), b.srcIndex)
+	return unmodifiableExclusiveDiag(inclProp, exclProp)
 }
 
 // numericBounds fills Min, Max, and MultipleOf from the raw minimum/maximum/
@@ -135,15 +134,16 @@ func boundLiteralDiag(prop, literal string, err error) ir.Diagnostic {
 }
 
 // applyExclusive handles exclusiveMinimum/exclusiveMaximum in both dialects: the
-// 3.0 boolean arm flags the corresponding Min/Max as exclusive; the 2020-12
-// numeric arm (3.1/3.2) carries the bound value itself, read from the raw node to
-// avoid the float64 trap, and hands it to reconcileBound, which decides how it
-// meets any minimum/maximum declared beside it. side picks which of the two
-// keywords is read, residue is where the reconciliation records the one that
-// reaches no field, and exclusiveBoolean selects the dialect (true for 3.0).
-// Because load suppresses the library's type-mismatch on these keywords, a
-// value in the wrong form for the dialect is reported and dropped here rather
-// than silently accepted.
+// 3.0 boolean arm modifies the minimum/maximum written beside it (see
+// applyExclusiveFlag); the 2020-12 numeric arm (3.1/3.2) carries the bound value
+// itself, read from the raw node to avoid the float64 trap, and writes it to the
+// side's own exclusive field, where it stands beside any minimum/maximum
+// declared with it rather than in place of it. side picks which of the two
+// keywords is read, residue is where the one keyword that can reach no field is
+// recorded, and exclusiveBoolean selects the dialect (true for 3.0). Because
+// load suppresses the library's type-mismatch on these keywords, a value in the
+// wrong form for the dialect is reported and dropped here rather than silently
+// accepted.
 func applyExclusive(c *ir.Constraints, s *oas3.Schema, side boundSide, residue *boundResidue, exclusiveBoolean bool) []ir.Diagnostic {
 	ev, prop := s.GetExclusiveMaximum(), "exclusiveMaximum"
 	if side == minBound {
@@ -156,10 +156,7 @@ func applyExclusive(c *ir.Constraints, s *oas3.Schema, side boundSide, residue *
 		return []ir.Diagnostic{exclusiveFormDiag(prop, exclusiveBoolean)}
 	}
 	if ev.IsLeft() {
-		if b := ev.GetLeft(); b != nil && *b {
-			setExclusiveFlag(c, side)
-		}
-		return nil
+		return applyExclusiveFlag(c, side, residue, ev.GetLeft())
 	}
 	node := RawPropertyNode(s, prop)
 	if node == nil {
@@ -169,104 +166,55 @@ func applyExclusive(c *ir.Constraints, s *oas3.Schema, side boundSide, residue *
 	if err != nil {
 		return []ir.Diagnostic{boundLiteralDiag(prop, node.Value, err)}
 	}
-	return reconcileBound(c, side, residue, v)
+	setExclusiveBound(c, side, &v)
+	return nil
 }
 
-// reconcileBound settles one side's bound when the 2020-12 dialect declares
-// both keywords for it: the inclusive minimum/maximum numericBounds has already
-// put in c, and the exclusive bound excl read alongside it.
+// applyExclusiveFlag reads the 3.0 boolean arm, where exclusiveMinimum is not a
+// bound but a modifier of the minimum written beside it: "minimum: 5,
+// exclusiveMinimum: true" is "x > 5", which is what ir.Constraints spells as
+// ExclusiveMin. So the literal moves from the inclusive slot to the exclusive
+// one and the inclusive slot is emptied — the 2020-12 spelling of the same
+// restriction, not a lowering of it, and the only reading under which a 3.0
+// document and its 3.1 translation lower alike.
 //
-// The two are independent and conjunctive there — "x >= m and x > e" — so the
-// tighter of them is the effective bound and the other adds nothing. ir.Constraints
-// holds one bound plus one exclusivity flag per side, so the tighter one is kept;
-// taking the exclusive bound unconditionally, as this did before, published a
-// constraint weaker than the source wherever minimum was the tighter (GitHub #33).
+// A false modifier says the bound beside it is inclusive, which is where
+// numericBounds already put it, so it moves nothing.
 //
-// The discarded keyword is implied by the kept one, so no value the source
-// admits or excludes changes. What would change is the record that the source
-// spelled the bound twice, so it is kept verbatim on residue rather than left to a
-// diagnostic message: a consumer reconstructing or diffing the source reads the
-// document, not the diagnostics, and cannot otherwise tell
-// {minimum: 10, exclusiveMinimum: 0} from {minimum: 10} (GitHub #286).
-func reconcileBound(c *ir.Constraints, side boundSide, residue *boundResidue, excl ir.BigVal) []ir.Diagnostic {
-	incl, inclProp, exclProp := c.Max, "maximum", "exclusiveMaximum"
-	if side == minBound {
-		incl, inclProp, exclProp = c.Min, "minimum", "exclusiveMinimum"
-	}
-	if incl == nil {
-		setExclusiveBound(c, side, &excl)
+// A true modifier with no bound beside it modifies nothing: draft-4 requires
+// minimum wherever exclusiveMinimum appears, so such a schema is invalid, and
+// there is no bound for the IR to make exclusive. Dropping it would be a
+// declared keyword lost without a word, so it is kept verbatim under Unmodeled
+// and reported.
+func applyExclusiveFlag(c *ir.Constraints, side boundSide, residue *boundResidue, flag *bool) []ir.Diagnostic {
+	if flag == nil || !*flag {
 		return nil
 	}
-
-	tighter, compared := inclusiveIsTighter(*incl, excl, side)
-	if tighter {
-		return []ir.Diagnostic{residue.keepRedundant(inclProp, *incl, exclProp, excl, compared)}
+	incl := inclusiveBound(c, side)
+	if *incl == nil {
+		inclProp, exclProp := boundProps(side)
+		return []ir.Diagnostic{residue.keepUnmodifiable(inclProp, exclProp)}
 	}
-
-	dropped := *incl
-	setExclusiveBound(c, side, &excl)
-	return []ir.Diagnostic{residue.keepRedundant(exclProp, excl, inclProp, dropped, compared)}
+	setExclusiveBound(c, side, *incl)
+	*incl = nil
+	return nil
 }
 
-// inclusiveIsTighter reports whether the inclusive bound incl admits fewer
-// values than the exclusive bound excl written on the same side, and whether
-// the two could be compared at all.
-//
-// A minimum is tighter when it is the greater of the two, a maximum when it is
-// the lesser; equal magnitudes are never tighter, which is what gives the
-// exclusive bound the tie on both sides ("x >= 5 and x > 5" is "x > 5",
-// "x <= 5 and x < 5" is "x < 5").
-//
-// The comparison is exact and never rounds to float64: these are the literals
-// BigVal exists to keep intact, so comparing them as floats would let a pair
-// that differs past float64's precision — or one beyond its range — pick the
-// wrong bound, reintroducing the defect this reconciliation exists to fix. It
-// is also total over every magnitude a spec may legally write, which a rational
-// is not: math/big will not build 1e1000001 as one, and a bound it cannot order
-// is a bound it may silently widen.
-//
-// What it cannot order is a literal outside the decimal grammar, and there the
-// caller keeps the exclusive bound and says the other may have been the tighter.
-// No schema reaches that today — every bound comes through ir.NewBigVal, whose
-// grammar is the narrower of the two — so it stands for the day that changes:
-// a bound this cannot order is one that could be silently replaced by the looser
-// of its pair, which is the defect this reconciliation exists to prevent.
-func inclusiveIsTighter(incl, excl ir.BigVal, side boundSide) (tighter, compared bool) {
-	inclDec, inclOK := parseDecimalBound(incl)
-	exclDec, exclOK := parseDecimalBound(excl)
-	if !inclOK || !exclOK {
-		return false, false
+// boundProps names the inclusive and exclusive keyword that bound one side.
+func boundProps(side boundSide) (inclProp, exclProp string) {
+	if side == minBound {
+		return "minimum", "exclusiveMinimum"
 	}
-	order := compareDecimalBounds(inclDec, exclDec)
-	if order == 0 {
-		return false, true
-	}
-	return (order > 0) == (side == minBound), true
+	return "maximum", "exclusiveMaximum"
 }
 
-// redundantBoundDiag reports the co-declared 2020-12 bound that reached no
-// field of ir.Constraints, naming both keywords and both exact literals so a
-// reader can see which bound the IR carries without going back to the source.
-//
-// It states that the other keyword is kept verbatim because keepRedundant has
-// already kept it, by a route with no failure to report.
-//
-// compared tells the two cases apart. When the magnitudes did compare, the kept
-// bound is provably the tighter and the other is redundant, which costs the
-// consumer nothing — hence info severity. When they did not, the kept bound is
-// the exclusive one by fallback and may be the looser of the two, so the message
-// says so and the severity rises to warning.
-func redundantBoundDiag(keptProp string, kept ir.BigVal, dropProp string, dropped ir.BigVal, compared bool) ir.Diagnostic {
-	if !compared {
-		return diag.Newf(ir.SeverityWarning, diag.DegradedConstruct, ir.Provenance{},
-			"%s %s and %s %s both bound this value but their magnitudes could not be compared; "+
-				"kept %s as the bound, and %s, which may be the tighter of the two, verbatim under Unmodeled",
-			keptProp, kept, dropProp, dropped, keptProp, dropProp)
+// inclusiveBound addresses the Min or Max slot of c, so that a caller reading
+// one side can both read and clear it without repeating the side branch.
+func inclusiveBound(c *ir.Constraints, side boundSide) **ir.BigVal {
+	if side == minBound {
+		return &c.Min
 	}
-	return diag.Newf(ir.SeverityInfo, diag.DegradedConstruct, ir.Provenance{},
-		"%s %s and %s %s both bound this value and the IR holds one bound per side; "+
-			"kept %s as the tighter of the two, and %s, which it implies, verbatim under Unmodeled",
-		keptProp, kept, dropProp, dropped, keptProp, dropProp)
+	return &c.Max
 }
 
 // exclusiveFormDiag reports an exclusiveMinimum/exclusiveMaximum whose value form
@@ -283,27 +231,30 @@ func exclusiveFormDiag(prop string, exclusiveBoolean bool) ir.Diagnostic {
 		"%s must be %s in this OpenAPI dialect", prop, want)
 }
 
-// setExclusiveFlag marks the low or high bound exclusive.
-func setExclusiveFlag(c *ir.Constraints, side boundSide) {
-	if side == minBound {
-		c.ExclusiveMin = true
-		return
-	}
-	c.ExclusiveMax = true
+// unmodifiableExclusiveDiag reports a 3.0 exclusive-bound modifier written
+// without the bound it modifies. Draft-4 requires minimum wherever
+// exclusiveMinimum appears (and maximum wherever exclusiveMaximum does), so the
+// schema is invalid; but the keyword is one the loader hands to Morphic
+// unchecked, and an invalid schema is still a schema whose text a consumer may
+// need, so this is a warning over a kept construct rather than an error over a
+// dropped one.
+func unmodifiableExclusiveDiag(inclProp, exclProp string) ir.Diagnostic {
+	return diag.Newf(ir.SeverityWarning, diag.DegradedConstruct, ir.Provenance{},
+		"%s is true with no %s beside it to make exclusive, so it bounds nothing; "+
+			"kept verbatim under Unmodeled", exclProp, inclProp)
 }
 
-// setExclusiveBound sets an exclusive numeric bound (2020-12 arm) on Min or Max,
-// replacing whatever minimum/maximum put there. Only reconcileBound may call it,
-// which is where the replacement is decided; calling it directly is the shape of
-// GitHub #33.
+// setExclusiveBound writes the exclusive bound of one side. It never touches
+// the inclusive slot: the two keywords are independent, both apply where both
+// are declared, and overwriting one with the other published a bound the source
+// never wrote (GitHub #33) and hid a change to the overwritten one (GitHub
+// #425).
 func setExclusiveBound(c *ir.Constraints, side boundSide, v *ir.BigVal) {
 	if side == minBound {
-		c.Min = v
-		c.ExclusiveMin = true
+		c.ExclusiveMin = v
 		return
 	}
-	c.Max = v
-	c.ExclusiveMax = true
+	c.ExclusiveMax = v
 }
 
 // emptyConstraints reports whether c carries no scalar constraint set by
@@ -311,7 +262,7 @@ func setExclusiveBound(c *ir.Constraints, side boundSide, v *ir.BigVal) {
 // Constraints populates must appear in this check; a
 // missing field silently leaks a non-nil *Constraints when it should be nil.
 func emptyConstraints(c *ir.Constraints) bool {
-	return c.Min == nil && c.Max == nil && !c.ExclusiveMin && !c.ExclusiveMax &&
+	return c.Min == nil && c.Max == nil && c.ExclusiveMin == nil && c.ExclusiveMax == nil &&
 		c.MultipleOf == nil && c.Precision == nil && c.Scale == nil &&
 		c.MinLength == nil && c.MaxLength == nil &&
 		c.Pattern == "" && c.PatternMessage == "" &&

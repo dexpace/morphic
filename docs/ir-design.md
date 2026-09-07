@@ -993,8 +993,10 @@ with storage and computation split.
 ```go
 type Constraints struct {
     // numeric — arbitrary-precision decimal strings, never float64 (TypeSpec Numeric lesson)
-    Min, Max           *BigVal
-    ExclusiveMin, ExclusiveMax bool
+    Min, Max           *BigVal    // inclusive bounds (minimum / maximum)
+    ExclusiveMin, ExclusiveMax *BigVal // exclusive bounds (exclusiveMinimum / exclusiveMaximum);
+                                  // independent of Min/Max, not flags on them — a schema may
+                                  // declare both per side and both apply
     MultipleOf         *BigVal
     Precision, Scale   *int64     // decimal digit bounds (Avro decimal, XSD totalDigits/fractionDigits,
                                   // OData Edm.Decimal)

@@ -30,10 +30,15 @@ func TestConstraints_ExclusiveBoolean30(t *testing.T) {
 	doc, diags := lowerSpec(t, spec)
 	openapitest.RequireNoErrorDiags(t, diags)
 	c := propConstraints(t, doc, "S", "n")
-	assert.True(t, c.ExclusiveMin)
-	assert.True(t, c.ExclusiveMax)
-	require.NotNil(t, c.Min)
-	assert.Equal(t, ir.BigVal("5"), *c.Min)
+	// The modifier is a spelling of the exclusive bound, so the literal it
+	// modified lands in the exclusive field and the inclusive one is left empty
+	// — the same constraints the 2020-12 spelling of "x > 5, x < 10" produces.
+	assert.Nil(t, c.Min, "the modified minimum does not also stay inclusive")
+	assert.Nil(t, c.Max)
+	require.NotNil(t, c.ExclusiveMin)
+	require.NotNil(t, c.ExclusiveMax)
+	assert.Equal(t, ir.BigVal("5"), *c.ExclusiveMin)
+	assert.Equal(t, ir.BigVal("10"), *c.ExclusiveMax)
 }
 
 func TestConstraints_ExclusiveNumeric31(t *testing.T) {
@@ -49,12 +54,12 @@ func TestConstraints_ExclusiveNumeric31(t *testing.T) {
 	doc, diags := lowerSpec(t, spec)
 	openapitest.RequireNoErrorDiags(t, diags)
 	c := propConstraints(t, doc, "S", "n")
-	assert.True(t, c.ExclusiveMin)
-	assert.True(t, c.ExclusiveMax)
-	require.NotNil(t, c.Min)
-	require.NotNil(t, c.Max)
-	assert.Equal(t, ir.BigVal("1.5"), *c.Min)
-	assert.Equal(t, ir.BigVal("9.5"), *c.Max)
+	assert.Nil(t, c.Min)
+	assert.Nil(t, c.Max)
+	require.NotNil(t, c.ExclusiveMin)
+	require.NotNil(t, c.ExclusiveMax)
+	assert.Equal(t, ir.BigVal("1.5"), *c.ExclusiveMin)
+	assert.Equal(t, ir.BigVal("9.5"), *c.ExclusiveMax)
 }
 
 func TestConstraints_MalformedNumericLiterals(t *testing.T) {
@@ -174,7 +179,7 @@ func TestConstraints_ExclusiveWrongDialectForm(t *testing.T) {
 			require.True(t, ok)
 			for _, p := range m.Properties {
 				if p.WireName == "n" && p.Constraints != nil {
-					assert.False(t, p.Constraints.ExclusiveMin, "wrong-form exclusive bound is not set")
+					assert.Nil(t, p.Constraints.ExclusiveMin, "wrong-form exclusive bound is not set")
 				}
 			}
 		})

@@ -124,13 +124,13 @@ func TestApplyExclusive_BothDialects(t *testing.T) {
 		body             string
 		exclusiveBoolean bool
 		wantMin, wantMax *ir.BigVal
-		wantExclMin      bool
-		wantExclMax      bool
+		wantExclMin      *ir.BigVal
+		wantExclMax      *ir.BigVal
 	}{
 		{
-			name: "3.0 boolean flags the bound beside it", exclusiveBoolean: true,
-			body:    "minimum: 1\nexclusiveMinimum: true\nmaximum: 9\nexclusiveMaximum: true\n",
-			wantMin: bigOf("1"), wantMax: bigOf("9"), wantExclMin: true, wantExclMax: true,
+			name: "3.0 boolean turns the bound beside it exclusive", exclusiveBoolean: true,
+			body:        "minimum: 1\nexclusiveMinimum: true\nmaximum: 9\nexclusiveMaximum: true\n",
+			wantExclMin: bigOf("1"), wantExclMax: bigOf("9"),
 		},
 		{
 			name: "3.0 false leaves the bound inclusive", exclusiveBoolean: true,
@@ -139,8 +139,8 @@ func TestApplyExclusive_BothDialects(t *testing.T) {
 		},
 		{
 			name: "2020-12 numeric carries the bound itself", exclusiveBoolean: false,
-			body:    "exclusiveMinimum: 1\nexclusiveMaximum: 9\n",
-			wantMin: bigOf("1"), wantMax: bigOf("9"), wantExclMin: true, wantExclMax: true,
+			body:        "exclusiveMinimum: 1\nexclusiveMaximum: 9\n",
+			wantExclMin: bigOf("1"), wantExclMax: bigOf("9"),
 		},
 	}
 	for _, tc := range tests {
@@ -190,7 +190,8 @@ func TestApplyExclusive_TheWrongFormForTheDialectIsReported(t *testing.T) {
 			assert.Contains(t, diags[0].Message, tc.wantSays)
 			assert.Contains(t, diags[0].Message, "exclusiveMinimum")
 			require.NotNil(t, got, "the sibling minimum is still read")
-			assert.False(t, got.ExclusiveMin, "the mismatched value sets no flag")
+			assert.Nil(t, got.ExclusiveMin, "the mismatched value sets no bound")
+			assert.Equal(t, bigOf("1"), got.Min, "and it stays inclusive, unmoved")
 		})
 	}
 }
@@ -208,128 +209,70 @@ func TestApplyExclusive_AMalformedNumericBoundIsReported(t *testing.T) {
 	assert.Nil(t, got)
 }
 
-// TestReconcileBound_KeepsTheTighterOfTwoCoDeclaredBounds pins the 2020-12 rule
-// that a side's two keywords are independent and conjunctive, so one bound slot
-// must hold the tighter of them. Keeping the looser is a constraint weaker than
-// the source wrote, which is a wrong answer rather than an incomplete one
-// (GitHub #33) — {minimum: 10, exclusiveMinimum: 0} once compiled to "> 0".
+// TestConstraints_CoDeclaredBoundsBothReachAField pins the 2020-12 rule that a
+// side's two keywords are independent and conjunctive: each is a restriction the
+// source wrote, ir.Constraints has a field for each, and neither is chosen over
+// the other.
 //
-// The tie rows are the reason each side is spelled out rather than derived from
-// the other: "x >= 5 and x > 5" is "x > 5" and "x <= 5 and x < 5" is "x < 5", so
-// the exclusive bound wins a tie on both sides even though "tighter" runs the
-// opposite way on each.
+// The rows come in pairs that swap which keyword is the tighter while leaving
+// the same two magnitudes on the side. One slot per side answers both rows of a
+// pair with the tighter bound alone, so a consumer diffing two revisions of a
+// spec across such a swap saw a change of a different kind than the one that
+// happened — and a revision that moved only the looser keyword read as no change
+// at all (GitHub #425). Two fields answer them differently, which is what these
+// pairs are here to hold.
 //
-// wantKept is the other half of the rule and the half a diagnostic cannot do
-// (GitHub #286): the keyword the bound slot has no room for is a keyword the
-// source wrote, so it comes back as an entry a carrier holds. Without it
-// {minimum: 10, exclusiveMinimum: 0} and {minimum: 10} produce the same
-// document, which is what lossless-by-default forbids.
-// TestConstraints_BothSidesCoDeclaredKeepEachKeyword covers the two sides
-// together, which the rows below cover only one at a time.
-//
-// One boundResidue serves both calls to applyExclusive, so the second side adds
-// to what the first kept. Were it to write the map instead, the surviving entry
-// would be whichever side ran second and the other keyword would go — silently,
-// since a schema declaring all four is as valid as one declaring two. Every
-// other case here declares one side, so none of them can tell the two apart.
-//
-// The two sides are deliberately settled opposite ways — the minimum loses to
-// its exclusive keyword, the maximum wins over its own — so the entries come
-// from both of reconcileBound's arms rather than twice from one. Both dropping
-// the same keyword would leave the other arm's write untested in combination.
-func TestConstraints_BothSidesCoDeclaredKeepEachKeyword(t *testing.T) {
-	t.Parallel()
-	_, kept, diags := Constraints(schemaFromYAML(t, `type: integer
-minimum: 10
-exclusiveMinimum: 20
-maximum: 100
-exclusiveMaximum: 999
-`), false, "/p", 0)
-
-	require.Len(t, kept, 2, "each side leaves the keyword it had no room for; got %v", kept)
-	for _, want := range []struct{ key, value, pointer string }{
-		{"openapi:minimum", "10", "/p/minimum"},
-		{"openapi:exclusiveMaximum", "999", "/p/exclusiveMaximum"},
-	} {
-		entry, ok := kept[want.key]
-		require.True(t, ok, "%s survives the other side", want.key)
-		assert.Equal(t, want.value, string(entry.Value))
-		assert.Equal(t, ir.ReasonDegradedLowering, entry.Reason)
-		assert.Equal(t, ir.Provenance{Pointer: want.pointer}, entry.Provenance)
-	}
-	assert.Len(t, diags, 2, "and each side reports its own pair")
-}
-
-func TestReconcileBound_KeepsTheTighterOfTwoCoDeclaredBounds(t *testing.T) {
+// Nothing is kept verbatim and nothing is reported: with both keywords in the
+// document there is no residue to keep and no degradation to announce.
+func TestConstraints_CoDeclaredBoundsBothReachAField(t *testing.T) {
 	t.Parallel()
 	tests := []struct {
-		name     string
-		body     string
-		want     ir.Constraints
-		wantKept string
-		wantRaw  string
-		wantSays []string
+		name string
+		body string
+		want ir.Constraints
 	}{
 		{
-			name:     "minimum is the tighter of the pair",
-			body:     "minimum: 10\nexclusiveMinimum: 0\n",
-			want:     ir.Constraints{Min: bigOf("10")},
-			wantKept: "openapi:exclusiveMinimum", wantRaw: "0",
-			wantSays: []string{"minimum 10", "exclusiveMinimum 0",
-				"kept minimum as the tighter of the two, and exclusiveMinimum, " +
-					"which it implies, verbatim under Unmodeled"},
+			name: "minimum is the tighter of the pair",
+			body: "minimum: 10\nexclusiveMinimum: 0\n",
+			want: ir.Constraints{Min: bigOf("10"), ExclusiveMin: bigOf("0")},
 		},
 		{
-			name:     "exclusiveMinimum is the tighter of the pair",
-			body:     "minimum: 0\nexclusiveMinimum: 10\n",
-			want:     ir.Constraints{Min: bigOf("10"), ExclusiveMin: true},
-			wantKept: "openapi:minimum", wantRaw: "0",
-			wantSays: []string{"exclusiveMinimum 10", "minimum 0",
-				"kept exclusiveMinimum as the tighter of the two, and minimum, " +
-					"which it implies, verbatim under Unmodeled"},
+			name: "exclusiveMinimum is the tighter of the pair",
+			body: "minimum: 0\nexclusiveMinimum: 10\n",
+			want: ir.Constraints{Min: bigOf("0"), ExclusiveMin: bigOf("10")},
 		},
 		{
-			name:     "equal minimums leave the exclusive one standing",
-			body:     "minimum: 5\nexclusiveMinimum: 5\n",
-			want:     ir.Constraints{Min: bigOf("5"), ExclusiveMin: true},
-			wantKept: "openapi:minimum", wantRaw: "5",
-			wantSays: []string{"exclusiveMinimum 5", "minimum 5", "kept exclusiveMinimum as the tighter"},
+			name: "equal minimums are two keywords, not one",
+			body: "minimum: 5\nexclusiveMinimum: 5\n",
+			want: ir.Constraints{Min: bigOf("5"), ExclusiveMin: bigOf("5")},
 		},
 		{
-			name:     "maximum is the tighter of the pair",
-			body:     "maximum: 10\nexclusiveMaximum: 100\n",
-			want:     ir.Constraints{Max: bigOf("10")},
-			wantKept: "openapi:exclusiveMaximum", wantRaw: "100",
-			wantSays: []string{"maximum 10", "exclusiveMaximum 100", "kept maximum as the tighter"},
+			name: "maximum is the tighter of the pair",
+			body: "maximum: 10\nexclusiveMaximum: 100\n",
+			want: ir.Constraints{Max: bigOf("10"), ExclusiveMax: bigOf("100")},
 		},
 		{
-			name:     "exclusiveMaximum is the tighter of the pair",
-			body:     "maximum: 100\nexclusiveMaximum: 10\n",
-			want:     ir.Constraints{Max: bigOf("10"), ExclusiveMax: true},
-			wantKept: "openapi:maximum", wantRaw: "100",
-			wantSays: []string{"exclusiveMaximum 10", "maximum 100", "kept exclusiveMaximum as the tighter"},
+			name: "exclusiveMaximum is the tighter of the pair",
+			body: "maximum: 100\nexclusiveMaximum: 10\n",
+			want: ir.Constraints{Max: bigOf("100"), ExclusiveMax: bigOf("10")},
 		},
 		{
-			name:     "equal maximums leave the exclusive one standing",
-			body:     "maximum: 5\nexclusiveMaximum: 5\n",
-			want:     ir.Constraints{Max: bigOf("5"), ExclusiveMax: true},
-			wantKept: "openapi:maximum", wantRaw: "5",
-			wantSays: []string{"exclusiveMaximum 5", "maximum 5", "kept exclusiveMaximum as the tighter"},
+			name: "both sides co-declared keep all four keywords",
+			body: "minimum: 10\nexclusiveMinimum: 20\nmaximum: 100\nexclusiveMaximum: 999\n",
+			want: ir.Constraints{
+				Min: bigOf("10"), ExclusiveMin: bigOf("20"),
+				Max: bigOf("100"), ExclusiveMax: bigOf("999"),
+			},
 		},
 		{
-			name:     "a bound decided by a digit float64 cannot hold",
-			body:     "minimum: 9007199254740993\nexclusiveMinimum: 9007199254740992\n",
-			want:     ir.Constraints{Min: bigOf("9007199254740993")},
-			wantKept: "openapi:exclusiveMinimum", wantRaw: "9007199254740992",
-			wantSays: []string{"minimum 9007199254740993", "exclusiveMinimum 9007199254740992",
-				"kept minimum as the tighter"},
+			name: "a pair no float64 tells apart keeps both literals",
+			body: "minimum: 9007199254740993\nexclusiveMinimum: 9007199254740992\n",
+			want: ir.Constraints{Min: bigOf("9007199254740993"), ExclusiveMin: bigOf("9007199254740992")},
 		},
 		{
-			name:     "one value spelled two ways is still a tie",
-			body:     "minimum: 1e2\nexclusiveMinimum: 100\n",
-			want:     ir.Constraints{Min: bigOf("100"), ExclusiveMin: true},
-			wantKept: "openapi:minimum", wantRaw: "1e2",
-			wantSays: []string{"exclusiveMinimum 100", "minimum 1e2", "kept exclusiveMinimum as the tighter"},
+			name: "one value spelled two ways stays two keywords",
+			body: "minimum: 1e2\nexclusiveMinimum: 100\n",
+			want: ir.Constraints{Min: bigOf("1e2"), ExclusiveMin: bigOf("100")},
 		},
 	}
 	for _, tc := range tests {
@@ -341,32 +284,40 @@ func TestReconcileBound_KeepsTheTighterOfTwoCoDeclaredBounds(t *testing.T) {
 			if diff := cmp.Diff(tc.want, *got); diff != "" {
 				t.Errorf("constraints (-want +got):\n%s", diff)
 			}
-			entry, ok := kept[tc.wantKept]
-			require.True(t, ok, "the keyword no bound slot holds is kept verbatim; got %v", kept)
-			assert.Equal(t, ir.ReasonDegradedLowering, entry.Reason)
-			assert.Equal(t, tc.wantRaw, string(entry.Value), "its exact literal, not the bound that won")
-			assert.Equal(t, ir.Provenance{Source: 3, Pointer: "/p/" + strings.TrimPrefix(tc.wantKept, "openapi:")},
-				entry.Provenance, "located at the keyword it came from")
-			assert.Len(t, kept, 1, "only the keyword the reconciliation left over")
-
-			require.Len(t, diags, 1, "the keyword that did not reach the IR is reported")
-			assert.Equal(t, ir.SeverityInfo, diags[0].Severity)
-			assert.Equal(t, diag.DegradedConstruct, diags[0].Code)
-			for _, says := range tc.wantSays {
-				assert.Contains(t, diags[0].Message, says)
-			}
+			assert.Empty(t, kept, "every keyword written reaches a field of its own")
+			assert.Empty(t, diags, "so there is no degradation to report")
 		})
 	}
 }
 
-// TestReconcileBound_OneKeywordPerSideIsNotReconciled pins the silent path. A
-// side that writes one keyword has nothing to reconcile, so announcing a
-// dropped bound there would report a loss that did not happen — and it is the
-// common case, which a diagnostic on every numeric schema would drown.
-//
-// It keeps nothing verbatim either: every keyword written here reaches a field
-// of ir.Constraints, and an entry restating one would give a bound two homes.
-func TestReconcileBound_OneKeywordPerSideIsNotReconciled(t *testing.T) {
+// TestConstraints_ABoundNoFloatHoldsIsCarriedVerbatim pins that the fields hold
+// the literal the source wrote at magnitudes nothing else here could carry.
+// math/big will not build 1e2000000 as a rational and float64 has no room for it
+// at all, so a lowering that reduced either bound to a number would have to
+// round or fail; ir.NewBigVal keeps the text, and both keywords keep their own.
+func TestConstraints_ABoundNoFloatHoldsIsCarriedVerbatim(t *testing.T) {
+	t.Parallel()
+	got, kept, diags := Constraints(schemaFromYAMLUnvalidated(t,
+		"type: number\nminimum: 1.0e2000000\nexclusiveMinimum: 5\nmaximum: 1e-1000001\nexclusiveMaximum: 5\n"),
+		false, "/p", 0)
+
+	require.NotNil(t, got)
+	want := ir.Constraints{
+		Min: bigOf("1.0e2000000"), ExclusiveMin: bigOf("5"),
+		Max: bigOf("1e-1000001"), ExclusiveMax: bigOf("5"),
+	}
+	if diff := cmp.Diff(want, *got); diff != "" {
+		t.Errorf("constraints (-want +got):\n%s", diff)
+	}
+	assert.Empty(t, kept)
+	assert.Empty(t, diags)
+}
+
+// TestConstraints_OneKeywordPerSideKeepsNothing pins the ordinary case. Every
+// keyword written reaches a field, so there is nothing to keep verbatim — an
+// entry restating one would give a bound two homes — and nothing to report,
+// which a diagnostic on every numeric schema would drown anyway.
+func TestConstraints_OneKeywordPerSideKeepsNothing(t *testing.T) {
 	t.Parallel()
 	for _, body := range []string{
 		"minimum: 1\nmaximum: 9\n",
@@ -384,141 +335,91 @@ func TestReconcileBound_OneKeywordPerSideIsNotReconciled(t *testing.T) {
 	}
 }
 
-// TestReconcileBound_ThreeZeroDialectPairIsUntouched pins the 3.0 arm against
-// the 2020-12 fix. There exclusiveMinimum is a boolean modifier of the minimum
-// beside it, so the two cannot be rival bounds and there is nothing to drop:
-// reconciling them would invent a diagnostic and could discard the bound the
-// flag modifies. Nothing is kept verbatim there either: both keywords reach a
-// field, so there is no keyword left over to keep.
-func TestReconcileBound_ThreeZeroDialectPairIsUntouched(t *testing.T) {
-	t.Parallel()
-	got, kept, diags := Constraints(schemaFromYAML(t,
-		"type: number\nminimum: 10\nexclusiveMinimum: true\nmaximum: 20\nexclusiveMaximum: true\n"), true, "/p", 0)
-
-	require.NotNil(t, got)
-	assert.Empty(t, diags)
-	assert.Empty(t, kept)
-	want := ir.Constraints{Min: bigOf("10"), Max: bigOf("20"), ExclusiveMin: true, ExclusiveMax: true}
-	if diff := cmp.Diff(want, *got); diff != "" {
-		t.Errorf("constraints (-want +got):\n%s", diff)
-	}
-}
-
-// TestApplyExclusive_ThreeZeroFlagsTheSideItWasReadFrom pins which side the 3.0
-// boolean arm marks exclusive.
+// TestApplyExclusiveFlag_ThreeZeroModifierMovesTheBound pins the 3.0 arm. There
+// exclusiveMinimum is not a bound but a boolean modifying the minimum beside it,
+// so "minimum: 10, exclusiveMinimum: true" is "x > 10" — which ir.Constraints
+// spells as ExclusiveMin, not as Min plus something. The literal therefore moves
+// into the exclusive field and the inclusive one is left empty: the 2020-12
+// spelling of the same restriction, so a 3.0 document and its 3.1 translation
+// lower to the same constraints rather than to two documents that diff.
 //
-// The case above declares the keyword on both sides, and every other 3.0 case
-// here does too — where flagging the wrong side is symmetric, so a reader that
-// crossed them over produces exactly the expected constraints. Only a schema
-// exclusive on one side can tell the two apart.
-func TestApplyExclusive_ThreeZeroFlagsTheSideItWasReadFrom(t *testing.T) {
-	t.Parallel()
-	got, kept, diags := Constraints(schemaFromYAML(t,
-		"type: number\nminimum: 10\nexclusiveMinimum: true\nmaximum: 20\n"), true, "/p", 0)
-
-	require.NotNil(t, got)
-	assert.Empty(t, diags)
-	assert.Empty(t, kept)
-	want := ir.Constraints{Min: bigOf("10"), Max: bigOf("20"), ExclusiveMin: true}
-	if diff := cmp.Diff(want, *got); diff != "" {
-		t.Errorf("constraints (-want +got):\n%s", diff)
-	}
-}
-
-// TestReconcileBound_AMagnitudeNoRationalHoldsStillCompares pins the exactness
-// of the comparison at the size where the obvious way to make it gives out.
-// math/big will not build 1e2000000 as a rational — the exponent is past its
-// own limit for one — so reconciling through a rational had to fall back, and
-// the fallback keeps the exclusive bound. Here that is the looser one: "> 5"
-// where the source says ">= 1e2000000" is the wrong constraint GitHub #33 is
-// about, in a rarer case and with a warning attached.
-//
-// These magnitudes are legal in a spec and ir.NewBigVal keeps them, so the
-// comparison has to reach them; the exponent alone separates the two bounds,
-// and nothing here needs the million digits it stands for.
-func TestReconcileBound_AMagnitudeNoRationalHoldsStillCompares(t *testing.T) {
+// The maximum stays inclusive in the second case for the reason the first case
+// cannot cover: flagging the wrong side is symmetric when both sides declare the
+// modifier, so only a schema exclusive on one side can tell a crossed-over read
+// from a correct one.
+func TestApplyExclusiveFlag_ThreeZeroModifierMovesTheBound(t *testing.T) {
 	t.Parallel()
 	tests := []struct {
-		name     string
-		body     string
-		want     ir.Constraints
-		wantKept string
-		wantRaw  string
-		wantSays []string
+		name string
+		body string
+		want ir.Constraints
 	}{
 		{
-			name:     "a minimum too large for a rational is still the tighter",
-			body:     "minimum: 1.0e2000000\nexclusiveMinimum: 5\n",
-			want:     ir.Constraints{Min: bigOf("1.0e2000000")},
-			wantKept: "openapi:exclusiveMinimum", wantRaw: "5",
-			wantSays: []string{"minimum 1.0e2000000", "exclusiveMinimum 5", "kept minimum as the tighter"},
+			name: "both sides modified",
+			body: "minimum: 10\nexclusiveMinimum: true\nmaximum: 20\nexclusiveMaximum: true\n",
+			want: ir.Constraints{ExclusiveMin: bigOf("10"), ExclusiveMax: bigOf("20")},
 		},
 		{
-			name:     "a maximum too small for one is the tighter on its side",
-			body:     "maximum: 1e-1000001\nexclusiveMaximum: 5\n",
-			want:     ir.Constraints{Max: bigOf("1e-1000001")},
-			wantKept: "openapi:exclusiveMaximum", wantRaw: "5",
-			wantSays: []string{"maximum 1e-1000001", "exclusiveMaximum 5", "kept maximum as the tighter"},
+			name: "only the side that wrote the modifier moves",
+			body: "minimum: 10\nexclusiveMinimum: true\nmaximum: 20\n",
+			want: ir.Constraints{ExclusiveMin: bigOf("10"), Max: bigOf("20")},
+		},
+		{
+			name: "a false modifier leaves the bound where it is",
+			body: "minimum: 10\nexclusiveMinimum: false\nmaximum: 20\nexclusiveMaximum: false\n",
+			want: ir.Constraints{Min: bigOf("10"), Max: bigOf("20")},
 		},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			got, kept, diags := Constraints(schemaFromYAMLUnvalidated(t, "type: number\n"+tc.body), false, "/p", 0)
+			got, kept, diags := Constraints(schemaFromYAML(t, "type: number\n"+tc.body), true, "/p", 0)
 
 			require.NotNil(t, got)
 			if diff := cmp.Diff(tc.want, *got); diff != "" {
 				t.Errorf("constraints (-want +got):\n%s", diff)
 			}
-			entry, ok := kept[tc.wantKept]
-			require.True(t, ok, "the keyword the bound slot has no room for; got %v", kept)
-			assert.Equal(t, tc.wantRaw, string(entry.Value))
-			require.Len(t, diags, 1)
-			assert.Equal(t, ir.SeverityInfo, diags[0].Severity, "the pair did compare")
-			for _, says := range tc.wantSays {
-				assert.Contains(t, diags[0].Message, says)
-			}
+			assert.Empty(t, kept)
+			assert.Empty(t, diags)
 		})
 	}
 }
 
-// TestReconcileBound_ABoundNoDecimalReadingOrdersKeepsTheExclusiveOne pins the
-// guard standing at this reader's boundary with ir.NewBigVal.
+// TestApplyExclusiveFlag_AModifierWithNoBoundIsKeptAndReported pins the 3.0
+// modifier that modifies nothing. Draft-4 requires minimum wherever
+// exclusiveMinimum appears, so the schema is invalid and there is no bound for
+// the IR to make exclusive — but the loader hands these two keywords to Morphic
+// unchecked, so dropping it here would lose a declared keyword with nothing
+// said. It is kept verbatim at its own pointer and reported instead.
 //
-// It is driven through reconcileBound rather than through a schema because no
-// schema reaches it: every bound arrives via ir.NewBigVal, whose grammar
-// TestBigValGrammarStaysWithinTheDecimalReading holds inside the one
-// parseDecimalBound orders. The guard is what keeps a later widening of that
-// grammar from widening a bound instead — a bound that cannot be ordered is one
-// that could be silently replaced by the looser of the pair — so it keeps the
-// exclusive bound and says the discarded one may have been the tighter, rather
-// than claiming a comparison it never made.
-func TestReconcileBound_ABoundNoDecimalReadingOrdersKeepsTheExclusiveOne(t *testing.T) {
+// Both sides are declared at once because one boundResidue serves both calls to
+// applyExclusive: were it to write the map rather than add to it, the surviving
+// entry would be whichever side ran second, silently, since a schema writing
+// both modifiers is exactly as valid (which is to say not) as one writing either.
+func TestApplyExclusiveFlag_AModifierWithNoBoundIsKeptAndReported(t *testing.T) {
 	t.Parallel()
-	c := &ir.Constraints{Min: bigOf("1p4")}
-	residue := boundResidue{pointer: "/p", srcIndex: 1}
+	got, kept, diags := Constraints(schemaFromYAML(t,
+		"type: number\nexclusiveMinimum: true\nexclusiveMaximum: true\n"), true, "/p", 3)
 
-	diags := reconcileBound(c, minBound, &residue, ir.BigVal("5"))
-
-	want := ir.Constraints{Min: bigOf("5"), ExclusiveMin: true}
-	if diff := cmp.Diff(want, *c); diff != "" {
-		t.Errorf("constraints (-want +got):\n%s", diff)
+	assert.Nil(t, got, "a modifier that bounds nothing leaves no constraint behind")
+	require.Len(t, kept, 2, "each side keeps its own modifier; got %v", kept)
+	for _, want := range []struct{ key, pointer string }{
+		{"openapi:exclusiveMinimum", "/p/exclusiveMinimum"},
+		{"openapi:exclusiveMaximum", "/p/exclusiveMaximum"},
+	} {
+		entry, ok := kept[want.key]
+		require.True(t, ok, "%s survives the other side", want.key)
+		assert.Equal(t, "true", string(entry.Value), "the boolean is the whole of what it said")
+		assert.Equal(t, ir.ReasonDegradedLowering, entry.Reason)
+		assert.Equal(t, ir.Provenance{Source: 3, Pointer: want.pointer}, entry.Provenance)
 	}
-	require.Len(t, diags, 1)
-	assert.Equal(t, ir.SeverityWarning, diags[0].Severity, "the kept bound may be the looser one")
-	assert.Equal(t, diag.DegradedConstruct, diags[0].Code)
-	assert.Contains(t, diags[0].Message, "could not be compared")
-	assert.Contains(t, diags[0].Message, "minimum 1p4")
-	assert.Contains(t, diags[0].Message, "exclusiveMinimum 5")
 
-	// The bound this reading cannot order is still the one the source wrote, so
-	// the fallback keeps it too — a bound replaced by one that may be looser is
-	// exactly the case a consumer needs to see the original of. The payload is
-	// the literal itself: not JSON here only because the fixture is a BigVal that
-	// breaks BigVal's own promise, which is the state irverify's raw-payload
-	// check exists to name.
-	entry, ok := residue.kept["openapi:minimum"]
-	require.True(t, ok, "the unordered bound is kept verbatim; got %v", residue.kept)
-	assert.Equal(t, "1p4", string(entry.Value))
-	assert.Equal(t, ir.Provenance{Source: 1, Pointer: "/p/minimum"}, entry.Provenance)
+	require.Len(t, diags, 2, "and each side reports its own")
+	for _, d := range diags {
+		assert.Equal(t, ir.SeverityWarning, d.Severity)
+		assert.Equal(t, diag.DegradedConstruct, d.Code)
+		assert.Contains(t, d.Message, "bounds nothing")
+	}
+	assert.Contains(t, diags[0].Message, "exclusiveMinimum is true with no minimum beside it")
+	assert.Contains(t, diags[1].Message, "exclusiveMaximum is true with no maximum beside it")
 }

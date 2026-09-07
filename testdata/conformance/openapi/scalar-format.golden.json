@@ -36,8 +36,6 @@
         "nullable": false
       },
       "constraints": {
-        "exclusiveMin": false,
-        "exclusiveMax": false,
         "minLength": 4,
         "uniqueItems": false
       },
@@ -78,8 +76,6 @@
             "none": false
           },
           "constraints": {
-            "exclusiveMin": false,
-            "exclusiveMax": false,
             "minLength": 4,
             "uniqueItems": false
           },

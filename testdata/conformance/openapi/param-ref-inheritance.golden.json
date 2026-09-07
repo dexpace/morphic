@@ -71,8 +71,6 @@
                     "object": null
                   },
                   "constraints": {
-                    "exclusiveMin": false,
-                    "exclusiveMax": false,
                     "maxLength": 100,
                     "uniqueItems": false
                   },
@@ -185,8 +183,6 @@
         "nullable": false
       },
       "constraints": {
-        "exclusiveMin": false,
-        "exclusiveMax": false,
         "maxLength": 64,
         "uniqueItems": false
       }
@@ -269,8 +265,6 @@
             "object": null
           },
           "constraints": {
-            "exclusiveMin": false,
-            "exclusiveMax": false,
             "maxLength": 100,
             "uniqueItems": false
           },

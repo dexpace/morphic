@@ -287,8 +287,6 @@
         "nullable": false
       },
       "constraints": {
-        "exclusiveMin": false,
-        "exclusiveMax": false,
         "minLength": 3,
         "uniqueItems": false
       }
