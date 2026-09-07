@@ -279,13 +279,21 @@ type payloadSite struct {
 // positions that hold none.
 //
 // The fields that carry a Payload are named here — Operation.Request,
-// Response.Payload and Message.Payload — because nothing in a Payload's Go type
-// says who owns one, so a new one has to be added by hand. That coupling is
-// guarded: TestEncodingCarriers_NameEveryPayloadFieldInTheIR
+// Response.Payload, ErrorCase.Payload and Message.Payload — because nothing in a
+// Payload's Go type says who owns one, so a new one has to be added by hand.
+// That coupling is guarded: TestEncodingCarriers_NameEveryPayloadFieldInTheIR
 // (validate_carriers_test.go) walks the IR for Payload-bearing fields and fails
 // the moment one of them is not walked here, and every check built on this walk
 // reaches a carrier the day it is added.
+//
+// ErrorCase.Payload is reached at both of the IR's error positions — an
+// operation's own Errors and its service's CommonErrors — because the field is
+// one field wherever the node hangs, and a walk that visited only the operation
+// list would leave a service-level error's payload unjudged in silence.
 func forEachPayload(doc *ir.Document, fn func(payloadSite)) {
+	for i, svc := range doc.Services {
+		forEachErrorPayload(svc.CommonErrors, fmt.Sprintf("doc/services/%d/commonErrors", i), fn)
+	}
 	forEachOperation(doc, func(op ir.Operation) {
 		if op.Request != nil {
 			fn(payloadSite{payload: op.Request, where: string(op.ID) + "/request", request: true})
@@ -295,10 +303,21 @@ func forEachPayload(doc *ir.Document, fn func(payloadSite)) {
 				fn(payloadSite{payload: r.Payload, where: fmt.Sprintf("%s/responses/%d", op.ID, i)})
 			}
 		}
+		forEachErrorPayload(op.Errors, string(op.ID)+"/errors", fn)
 	})
 	for _, id := range sortedKeys(doc.Messages) {
 		msg := doc.Messages[id]
 		fn(payloadSite{payload: &msg.Payload, where: string(id)})
+	}
+}
+
+// forEachErrorPayload calls fn once per error case carrying a payload; where
+// locates the list the cases hang from.
+func forEachErrorPayload(errs []ir.ErrorCase, where string, fn func(payloadSite)) {
+	for i, ec := range errs {
+		if ec.Payload != nil {
+			fn(payloadSite{payload: ec.Payload, where: fmt.Sprintf("%s/%d", where, i)})
+		}
 	}
 }
 

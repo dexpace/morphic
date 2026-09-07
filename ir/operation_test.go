@@ -52,7 +52,13 @@ func TestOperation_PopulatedRoundTrip(t *testing.T) {
 			},
 		},
 		Errors: []ir.ErrorCase{
-			{Type: populatedTypeRef(), Conditions: ir.ResponseConditions{StatusCodes: []ir.StatusRange{{From: 400, To: 499}}}, Fault: "client"},
+			{
+				Name:       ir.Naming{Source: "client_error"},
+				Conditions: ir.ResponseConditions{StatusCodes: []ir.StatusRange{{From: 400, To: 499}}},
+				Payload:    &ir.Payload{Contents: []ir.Content{{MediaType: "application/json", Type: populatedTypeRef()}}},
+				Headers:    []ir.Property{{ID: "p/retry-after", Name: ir.Naming{Source: "Retry-After"}, Type: populatedTypeRef()}},
+				Fault:      "client",
+			},
 		},
 		OneWay:    false,
 		Streaming: ir.StreamingBidi,
@@ -343,19 +349,25 @@ func TestStatusRange_PopulatedRoundTrip(t *testing.T) {
 	}
 }
 
-// TestErrorCase_JSONContract pins ErrorCase's omitempty contract (Type,
+// TestErrorCase_JSONContract pins ErrorCase's omitempty contract (Name,
 // Conditions, and Docs carry no omitempty; every other field is optional)
-// and that a fully populated ErrorCase — fault classification,
-// retryable/throttling tri-state pointers — round-trips.
+// and that a fully populated ErrorCase — the four response fields it shares
+// with ir.Response, fault classification, retryable/throttling tri-state
+// pointers — round-trips.
 func TestErrorCase_JSONContract(t *testing.T) {
 	t.Parallel()
 	retryable := true
 	throttling := false
 	assertJSONContract(t, ir.ErrorCase{},
-		`{"type":{"target":"","nullable":false},"conditions":{},"docs":{}}`,
+		`{"name":{},"conditions":{},"docs":{}}`,
 		ir.ErrorCase{
-			Type:       populatedTypeRef(),
+			Name:       ir.Naming{Source: "too_many_requests", Hint: "429"},
 			Conditions: ir.ResponseConditions{StatusCodes: []ir.StatusRange{{From: 429, To: 429}}},
+			Payload: &ir.Payload{Contents: []ir.Content{
+				{MediaType: "application/json", Type: populatedTypeRef()},
+				{MediaType: "application/problem+json", Type: populatedTypeRef()},
+			}},
+			Headers:    []ir.Property{{ID: "p/retry-after", Name: ir.Naming{Source: "Retry-After"}, Type: populatedTypeRef()}},
 			Fault:      "client",
 			Retryable:  &retryable,
 			Throttling: &throttling,

@@ -101,7 +101,9 @@ func TestValidate_OperationHeadersAndItemWalked(t *testing.T) {
 				Type: ir.TypeRef{Target: "t/ghost-hdr"},
 			}},
 		}},
-		Errors: []ir.ErrorCase{{Type: ir.TypeRef{Target: "t/ghost-err"}}},
+		Errors: []ir.ErrorCase{{
+			Payload: &ir.Payload{Contents: []ir.Content{{Type: ir.TypeRef{Target: "t/ghost-err"}}}},
+		}},
 	}
 	diags := pass.Validate(docWithOperation(op))
 	// item, header, and error targets are all dangling.

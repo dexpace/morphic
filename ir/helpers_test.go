@@ -366,6 +366,13 @@ func populatedTypeRef() ir.TypeRef {
 	return ir.TypeRef{Target: "t/openapi/components/schemas/User", Nullable: true}
 }
 
+// errorPayload returns the one-media-type body an ir.ErrorCase fixture carries,
+// which is an ir.Payload for the same reason ir.Response's is: the two nodes
+// spell a body identically.
+func errorPayload() *ir.Payload {
+	return &ir.Payload{Contents: []ir.Content{{MediaType: "application/json", Type: populatedTypeRef()}}}
+}
+
 // populatedValue returns a fully populated Value of ValueKind list, itself
 // containing at least one member of every other ValueKind so a single
 // fixture exercises every payload variant (ir-design §6).

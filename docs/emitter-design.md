@@ -1036,8 +1036,9 @@ binding.
 
 ### 8.5 An error taxonomy (`RateLimited`, 429, retryable-throttling)
 
-IR: `ErrorCase{ Type:RateLimited (Model, Usage.Error), Conditions:{429}, Fault:"client",
-Retryable:&true, Throttling:&true }`; policy default maps `429 → "TooManyRequests"`.
+IR: `ErrorCase{ Name:{Hint:"429"}, Conditions:{429}, Payload:{Contents:[{application/json →
+RateLimited (Model, Usage.Error)}]}, Headers:[Retry-After], Fault:"client", Retryable:&true,
+Throttling:&true }`; policy default maps `429 → "TooManyRequests"`.
 
 - **plan.** `OpPlan.Errors` = `[PlannedError{ Conditions:{429}, Type:RateLimited, Fault:"client",
   Retryable:true, Throttling:true }]` — declared IR facts, carried as such.
