@@ -39,6 +39,17 @@ components:
       properties:
         p: {type: string, deprecated: true, x-deprecated-reason: field goes away}
         n: {type: string, deprecated: true, x-deprecated-reason: 7}
+    Size:
+      type: string
+      enum: [small, large]
+      x-extensible-enum: [small, large]
+    Shade:
+      type: string
+      enum: [light, dark]
+      x-extensible-enum: false
+    Fixed:
+      type: string
+      enum: [one, two]
   securitySchemes:
     k:
       type: apiKey

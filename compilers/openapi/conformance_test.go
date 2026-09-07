@@ -226,7 +226,7 @@ func conformanceCases() []conformanceCase {
 		{"path-item-docs", assertPathItemDocs, []string{"docs-summary-description"}},
 		{"path-item-operations", assertPathItemOperations, []string{"http-binding"}},
 		{"deprecation", assertDeprecation, []string{"deprecation"}},
-		{"extension-promotion", assertExtensionPromotion, []string{"deprecation"}},
+		{"extension-promotion", assertExtensionPromotion, []string{"deprecation", "open-enums"}},
 		{"examples", assertExamples, []string{"examples"}},
 		{"docs-summary-desc", assertDocsSummaryDesc, []string{"docs-summary-description"}},
 		{"extensions-x", assertExtensionsX, []string{"vendor-extensions"}},

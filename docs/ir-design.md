@@ -1800,12 +1800,12 @@ where the IR expects them, so there is no reason to record and no unmodelled con
 
 Several typed fields model information no source format gives a keyword for, so the only way a
 document can state it is a vendor extension:
-`Deprecation.Message`/`Since`/`RemovalVersion`/`RemovalDate`, `Pagination.*`, `LongRunning`,
-`Idempotency`, `ErrorCase.Retryable`/`Throttling`, `Enum.Flags`, `EnumMember.Name`, `Sensitive`
-and `Secret`. Reading such an extension into its field is **promotion**, and because the format
-assigns an `x-*` key no semantics at all, promotion is a heuristic — invariant 6 applies to it
-in full. Four rules, so that no emitter has to re-derive this from `Unmodeled` and no two derive
-it differently:
+`Deprecation.Message`/`Since`/`RemovalVersion`/`RemovalDate`, `Enum.Closed`, `Pagination.*`,
+`LongRunning`, `Idempotency`, `ErrorCase.Retryable`/`Throttling`, `Enum.Flags`,
+`EnumMember.Name`, `Sensitive` and `Secret`. Reading such an extension into its field is
+**promotion**, and because the format assigns an `x-*` key no semantics at all, promotion is a
+heuristic — invariant 6 applies to it in full. Four rules, so that no emitter has to re-derive
+this from `Unmodeled` and no two derive it differently:
 
 1. **The mapping is injectable policy, default-on and disableable**, per compiler. Its default
    contents are conventions, not standards: nothing in any specification says `x-deprecated-reason`
@@ -1830,6 +1830,18 @@ the header it echoes ([RFC 8594](https://www.rfc-editor.org/rfc/rfc8594)) is a d
 definition, and the mapping is where that reading is stated — the promotion does not then parse
 the date to confirm it. No default key names `RemovalVersion`: a document stating a removal
 *version* names its own key, per rule 1.
+
+`Enum.Closed` is the one target whose fact is stated by a key being *present* rather than by a
+value, so nothing is read or reported there. Its default key, `x-extensible-enum`, writes the
+member list as its own value, and a list of members says nothing about openness that the key
+naming it has not already said; the promotion therefore clears `Closed` on presence. A boolean
+value is the one shape that does state openness by itself, and an explicit `false` is read as
+written rather than inverted. Only openness is ever promoted: a schema's `enum` is closed by
+definition, so a document declares the open case or nothing, and the mapping names that fact
+rather than the field's own polarity. A document that writes `x-extensible-enum` *instead* of
+`enum` lowers to no `Enum` at all and there is no node to open — minting one from a vendor key
+would be a compiler reading a member list out of an extension, not a promotion, so the entry is
+left for a consumer that wants to.
 
 ### 12.1 One structural home per declaration
 
