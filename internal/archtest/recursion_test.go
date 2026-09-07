@@ -71,14 +71,18 @@ var loweringRecursions = [][]string{
 // The two exported names are the walk's entry points, which is what the
 // operation lowering reaches it by; the rest of the set is unexported because
 // nothing outside the schema package has any business entering mid-walk.
+// The scalar hoisters and the encoding reader joined it when contentSchema
+// gained an IR home: its value is a schema, so lowering it re-enters the walk
+// from a scalar position, which until then was the walk's one leaf.
 var schemaRecursion = []string{
 	"CarriedRef", "Ref", "buildComposedVariant", "buildTuple",
-	"composedVariant", "fillAdditional", "fillAllOf", "fillModelProperties",
-	"hoistSubSchema", "lower", "lowerAllOf", "lowerArray",
+	"composedVariant", "contentSchemaRef", "fillAdditional", "fillAllOf",
+	"fillModelProperties", "hoistByteScalar", "hoistContentScalar",
+	"hoistFormatScalar", "hoistSubSchema", "lower", "lowerAllOf", "lowerArray",
 	"lowerBesideUnmodeledUnion", "lowerCoDeclaredUnion", "lowerDistributedUnion",
 	"lowerModel", "lowerOneOfAnyOf", "lowerSchemaBody", "lowerTyped", "lowerUnion",
 	"lowerUntyped", "patternProps", "refSiteRef", "refTypeRef", "resolveSchemaRef",
-	"schemaBody", "schemaRefHomed",
+	"scalarEncoding", "scalarTypeID", "schemaBody", "schemaRefHomed",
 }
 
 // loweringPackages are the directories whose sources the call graph reads,

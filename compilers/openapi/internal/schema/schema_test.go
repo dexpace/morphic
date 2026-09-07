@@ -2958,8 +2958,9 @@ func compileVocabIR(t *testing.T, schemas string) string {
 
 // TestContentVocabulary_LowersToEncoding pins where the 2020-12 content
 // vocabulary lands: contentEncoding on Encoding.Name, contentMediaType on
-// Encoding.MediaType, on the Scalar node the position hoists rather than on the
-// shared primitive every other declaration of that type also resolves to.
+// Encoding.MediaType and contentSchema on Encoding.Schema, on the Scalar node
+// the position hoists rather than on the shared primitive every other
+// declaration of that type also resolves to.
 func TestContentVocabulary_LowersToEncoding(t *testing.T) {
 	t.Parallel()
 	cases := []struct {
@@ -2997,6 +2998,30 @@ func TestContentVocabulary_LowersToEncoding(t *testing.T) {
 			at:      componentID("A"),
 			want:    ir.Encoding{Name: "base64", WireType: &ir.TypeRef{Target: "t/prim/string"}},
 		},
+		{
+			name:    "contentSchema beside contentMediaType",
+			schemas: "    A: {type: string, contentMediaType: application/json, contentSchema: {type: object, properties: {id: {type: string}}}}\n",
+			at:      componentID("A"),
+			want: ir.Encoding{
+				MediaType: "application/json",
+				Schema:    &ir.TypeRef{Target: "t/anon/components/schemas/A/contentSchema"},
+			},
+		},
+		{
+			name:    "contentSchema alone still hoists the scalar that holds it",
+			schemas: "    A: {type: array, items: {type: string, contentSchema: {type: object}}}\n",
+			at:      "t/anon/components/schemas/A/items",
+			want: ir.Encoding{
+				Schema: &ir.TypeRef{Target: "t/anon/components/schemas/A/items/contentSchema"},
+			},
+		},
+		{
+			name: "contentSchema naming a component resolves to it",
+			schemas: "    A: {type: string, contentSchema: {$ref: '#/components/schemas/B'}}\n" +
+				"    B: {type: object, properties: {id: {type: string}}}\n",
+			at:   componentID("A"),
+			want: ir.Encoding{Schema: &ir.TypeRef{Target: componentID("B")}},
+		},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -3009,6 +3034,10 @@ func TestContentVocabulary_LowersToEncoding(t *testing.T) {
 			require.NotNil(t, sc.Encoding)
 			assert.Empty(t, cmp.Diff(tc.want, *sc.Encoding))
 			assert.Empty(t, sc.Unmodeled, "a keyword with a field is lowered, never also kept raw")
+			if tc.want.Schema != nil {
+				assert.Contains(t, doc.Types, tc.want.Schema.Target,
+					"contentSchema reaches the registry as a type, not a raw blob")
+			}
 		})
 	}
 }
@@ -3055,9 +3084,10 @@ func TestContentVocabulary_KeepsTheBoundsWrittenBesideIt(t *testing.T) {
 	}
 }
 
-// TestContentVocabulary_KeptWhereNoEncodingHolds covers the other half: a schema
-// with no Encoding field to fill, and contentSchema, which has no IR field at any
-// position.
+// TestContentVocabulary_KeptWhereNoEncodingHolds covers the other half: a
+// position that lowered to a shape with no Encoding field to fill keeps every
+// content keyword verbatim, contentSchema included — the three share one home,
+// so they are kept or lowered together.
 func TestContentVocabulary_KeptWhereNoEncodingHolds(t *testing.T) {
 	t.Parallel()
 	cases := []struct {
@@ -3070,8 +3100,8 @@ func TestContentVocabulary_KeptWhereNoEncodingHolds(t *testing.T) {
 			key:     "openapi:contentMediaType", wantJSON: `"application/zip"`, at: componentID("A"),
 		},
 		{
-			name:    "contentSchema has no field anywhere",
-			schemas: "    A: {type: string, contentSchema: {type: object}}\n",
+			name:    "object position has no Encoding for contentSchema either",
+			schemas: "    A: {type: object, properties: {p: {type: string}}, contentSchema: {type: object}}\n",
 			key:     "openapi:contentSchema", wantJSON: `{"type":"object"}`, at: componentID("A"),
 		},
 		{
