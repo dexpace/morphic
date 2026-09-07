@@ -2572,7 +2572,7 @@ func TestOneOf_CoDeclaredNotDistributedReasons(t *testing.T) {
 func TestUnionCombinators_CoDeclaredKeepsTheBoundsWrittenBesideIt(t *testing.T) {
 	t.Parallel()
 	three := int64(3)
-	ten, five := ir.BigVal("10"), ir.BigVal("5")
+	ten, five, zero := ir.BigVal("10"), ir.BigVal("5"), ir.BigVal("0")
 	cases := []struct {
 		name, schemas, unionKey string
 		reason                  ir.UnmodeledReason
@@ -2605,13 +2605,14 @@ func TestUnionCombinators_CoDeclaredKeepsTheBoundsWrittenBesideIt(t *testing.T) 
 			wantKept: []string{"openapi:anyOf"},
 		},
 		{
+			// Both bound keywords reach a field, so the union is the only
+			// entry on the node: a co-declared pair adds nothing beside it.
 			name:     "co-declared bounds beside a union",
 			schemas:  "    A: {type: number, minimum: 10, exclusiveMinimum: 0, oneOf: [{minLength: 1}, {minLength: 2}]}\n",
 			unionKey: "openapi:oneOf",
 			reason:   ir.ReasonValidationOnly,
-			want:     ir.Constraints{Min: &ten},
-			wantKept: []string{"openapi:exclusiveMinimum", "openapi:oneOf"},
-			wantDiag: "kept minimum as the tighter of the two",
+			want:     ir.Constraints{Min: &ten, ExclusiveMin: &zero},
+			wantKept: []string{"openapi:oneOf"},
 		},
 	}
 	for _, tc := range cases {

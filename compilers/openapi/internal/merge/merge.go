@@ -118,11 +118,13 @@ func (g *Merger) reconcileProperty(dst *ir.Property, src ir.Property, pointer st
 // from src any keyword dst leaves unset (nil/""/false) — a keyword only one
 // branch constrains still applies to the merged field, so it is never dropped.
 //
-// Min and Max are adopted together with their exclusivity flag: taking src.Min
-// without src.ExclusiveMin would silently flip an exclusive "> 5" into an
-// inclusive ">= 5". UniqueItems has no absent state to detect via cmp.Or, but
-// under intersection a true from either branch is always correct, so adopting
-// it via cmp.Or never wrongly downgrades dst from true to false.
+// The four numeric bounds are four keywords, not two bounds with an
+// exclusivity flag apiece, so each is adopted on its own: a branch declaring
+// only exclusiveMinimum contributes it to a merged field whose minimum came
+// from elsewhere, and neither displaces the other. UniqueItems has no absent
+// state to detect via cmp.Or, but under intersection a true from either branch
+// is always correct, so adopting it via cmp.Or never wrongly downgrades dst
+// from true to false.
 func mergeConstraints(dst, src *ir.Constraints) *ir.Constraints {
 	if dst == nil {
 		return src
@@ -130,12 +132,10 @@ func mergeConstraints(dst, src *ir.Constraints) *ir.Constraints {
 	if src == nil {
 		return dst
 	}
-	if dst.Min == nil {
-		dst.Min, dst.ExclusiveMin = src.Min, src.ExclusiveMin
-	}
-	if dst.Max == nil {
-		dst.Max, dst.ExclusiveMax = src.Max, src.ExclusiveMax
-	}
+	dst.Min = cmp.Or(dst.Min, src.Min)
+	dst.Max = cmp.Or(dst.Max, src.Max)
+	dst.ExclusiveMin = cmp.Or(dst.ExclusiveMin, src.ExclusiveMin)
+	dst.ExclusiveMax = cmp.Or(dst.ExclusiveMax, src.ExclusiveMax)
 	dst.MultipleOf = cmp.Or(dst.MultipleOf, src.MultipleOf)
 	dst.Precision = cmp.Or(dst.Precision, src.Precision)
 	dst.Scale = cmp.Or(dst.Scale, src.Scale)
@@ -443,13 +443,15 @@ func constraintsConflict(a, b *ir.Constraints) (string, bool) {
 		return "", false
 	}
 	checks := []func() (string, bool){
+		func() (string, bool) { return bigValConflictDetail("minimum", a.Min, b.Min) },
 		func() (string, bool) {
-			return boundConflictDetail("minimum", a.Min, b.Min, a.ExclusiveMin, b.ExclusiveMin)
+			return bigValConflictDetail("exclusiveMinimum", a.ExclusiveMin, b.ExclusiveMin)
 		},
+		func() (string, bool) { return bigValConflictDetail("maximum", a.Max, b.Max) },
 		func() (string, bool) {
-			return boundConflictDetail("maximum", a.Max, b.Max, a.ExclusiveMax, b.ExclusiveMax)
+			return bigValConflictDetail("exclusiveMaximum", a.ExclusiveMax, b.ExclusiveMax)
 		},
-		func() (string, bool) { return multipleOfConflictDetail(a.MultipleOf, b.MultipleOf) },
+		func() (string, bool) { return bigValConflictDetail("multipleOf", a.MultipleOf, b.MultipleOf) },
 		func() (string, bool) { return intConflictDetail("precision", a.Precision, b.Precision) },
 		func() (string, bool) { return intConflictDetail("scale", a.Scale, b.Scale) },
 		func() (string, bool) { return intConflictDetail("minLength", a.MinLength, b.MinLength) },
@@ -469,41 +471,23 @@ func constraintsConflict(a, b *ir.Constraints) (string, bool) {
 	return "", false
 }
 
-// boundConflictDetail reports whether two numeric bounds, each with its
-// exclusivity flag, are both present and disagree in magnitude or in
-// inclusive/exclusive sense, formatting the disagreement when they do. Such a
-// disagreement is usually still individually satisfiable (minimum: 10 and
-// exclusiveMinimum: 10 together just mean "> 10"), but it's diagnosed anyway:
-// the merge keeps dst's bound (first declaration wins) over the true
-// intersection, and the discarded bound is always the stricter one — staying
-// silent would silently loosen the validation the spec intended.
-func boundConflictDetail(keyword string, a, b *ir.BigVal, exclA, exclB bool) (string, bool) {
-	if a == nil || b == nil || (exclA == exclB && annotation.BigValEqual(*a, *b)) {
-		return "", false
-	}
-	return fmt.Sprintf("conflicting %s (%s and %s)", keyword, boundText(*a, exclA), boundText(*b, exclB)), true
-}
-
-// boundText renders a numeric bound for a conflict detail, marking an
-// exclusive bound so "conflicting minimum (10 and exclusive 10)" reads as the
-// differing sense it is, not a duplicate magnitude.
-func boundText(v ir.BigVal, exclusive bool) string {
-	if exclusive {
-		return "exclusive " + v.String()
-	}
-	return v.String()
-}
-
-// multipleOfConflictDetail reports whether both branches pin multipleOf and pin
-// it to different magnitudes, formatting the disagreement when they do. It is
-// the one BigVal constraint with no exclusivity sense, so unlike a bound it
-// compares by magnitude alone — the keyword is named here rather than passed
-// because there is nothing else with that shape to compare.
-func multipleOfConflictDetail(a, b *ir.BigVal) (string, bool) {
+// bigValConflictDetail reports whether both branches pin the same
+// arbitrary-precision keyword and pin it to different magnitudes, formatting
+// the disagreement when they do. Every numeric keyword of ir.Constraints has
+// this one shape — each of the four bounds states its own restriction, with no
+// exclusivity sense to carry beside it — so one comparison serves them all, by
+// magnitude, which is what keeps 10 and 10.0 from reading as a disagreement.
+//
+// A disagreement between two branches is usually still individually satisfiable
+// (minimum: 10 in one and minimum: 20 in the other together just mean ">= 20"),
+// but it's diagnosed anyway: the merge keeps dst's value (first declaration
+// wins) over the true intersection, and the discarded one may be the stricter —
+// staying silent would silently loosen the validation the spec intended.
+func bigValConflictDetail(keyword string, a, b *ir.BigVal) (string, bool) {
 	if a == nil || b == nil || annotation.BigValEqual(*a, *b) {
 		return "", false
 	}
-	return fmt.Sprintf("conflicting multipleOf (%s and %s)", a.String(), b.String()), true
+	return fmt.Sprintf("conflicting %s (%s and %s)", keyword, a.String(), b.String()), true
 }
 
 // intConflictDetail reports whether two optional integer bounds are both

@@ -1502,10 +1502,18 @@ func TestAllOf_ConstraintAndFormatConflictsDiagnosed(t *testing.T) {
 		name, a, b, wantDetail string
 	}{
 		{
-			name:       "exclusive sense",
+			name:       "minimum",
 			a:          "{type: number, minimum: 10}",
-			b:          "{type: number, exclusiveMinimum: 10}",
-			wantDetail: "conflicting minimum (10 and exclusive 10)",
+			b:          "{type: number, minimum: 20}",
+			wantDetail: "conflicting minimum (10 and 20)",
+		},
+		{
+			// The exclusive bound is a keyword of its own, so it conflicts
+			// under its own name rather than as a differing sense of minimum.
+			name:       "exclusiveMinimum",
+			a:          "{type: number, exclusiveMinimum: 10}",
+			b:          "{type: number, exclusiveMinimum: 20}",
+			wantDetail: "conflicting exclusiveMinimum (10 and 20)",
 		},
 		{
 			name:       "pattern",
@@ -1602,16 +1610,19 @@ func TestAllOf_CompatibleConstraintRedeclarationsStaySilent(t *testing.T) {
 			},
 		},
 		{
-			name: "min and exclusiveMin adopted together",
-			a:    "{type: number, multipleOf: 2}",
+			// minimum and exclusiveMinimum are two keywords, so a branch
+			// declaring one and a branch declaring the other intersect to a
+			// field carrying both — not to whichever the merge picked.
+			name: "minimum and exclusiveMinimum adopted side by side",
+			a:    "{type: number, minimum: 1}",
 			b:    "{type: number, exclusiveMinimum: 5}",
 			assertMerged: func(t *testing.T, c *ir.Constraints) {
 				t.Helper()
 				require.NotNil(t, c)
-				require.NotNil(t, c.Min, "the second branch's exclusiveMinimum is adopted as Min")
-				assert.Equal(t, "5", c.Min.String())
-				assert.True(t, c.ExclusiveMin,
-					"ExclusiveMin travels with the adopted Min, not left at its false zero value")
+				require.NotNil(t, c.Min, "the first branch's minimum stays")
+				assert.Equal(t, "1", c.Min.String())
+				require.NotNil(t, c.ExclusiveMin, "the second branch's exclusiveMinimum is adopted beside it")
+				assert.Equal(t, "5", c.ExclusiveMin.String())
 			},
 		},
 		{name: "equivalent multipleOf", a: "{type: number, multipleOf: 2}", b: "{type: number, multipleOf: 2.0}"},
@@ -4090,72 +4101,128 @@ func TestUnhomedKeywords_ElectedLoweringKeepsWhatItCannotRead(t *testing.T) {
 	}
 }
 
-// TestCoDeclaredBound_KeptOnTheCarrierThatReadIt pins the two carriers this
-// package owns for a 2020-12 side that declares both of its bound keywords
-// (GitHub #286). ir.Constraints holds one bound per side, so one keyword reaches
-// no field of it, and without an entry beside those constraints
-// {minimum: 10, exclusiveMinimum: 0} lowers to exactly what {minimum: 10} does.
+// TestCoDeclaredBound_BothKeywordsReachTheCarriersConstraints pins the two
+// carriers this package owns for a 2020-12 side that declares both of its bound
+// keywords. The two keywords are independent and both apply, and ir.Constraints
+// has a field for each, so both reach the constraints the carrier holds and
+// neither is kept beside them.
 //
-// Both directions run at both carriers. A case where the exclusive keyword is
-// the one kept verbatim passes just as well on a reader that always kept that
-// one, so on its own it would say nothing about which keyword the carrier holds.
-func TestCoDeclaredBound_KeptOnTheCarrierThatReadIt(t *testing.T) {
+// The rows are pairs that swap which of the two is the tighter while leaving the
+// same magnitudes on the side. One bound slot answered both rows of a pair
+// identically, which is what made a revision that moved only the looser keyword
+// read as no change at all (GitHub #425).
+func TestCoDeclaredBound_BothKeywordsReachTheCarriersConstraints(t *testing.T) {
 	t.Parallel()
 	doc, diags := parseFull(t, openapitest.ComponentSpec(
 		"    Alias: {type: integer, minimum: 10, exclusiveMinimum: 0}\n"+
-			"    Tight: {type: integer, maximum: 100, exclusiveMaximum: 5}\n"+
+			"    Tight: {type: integer, minimum: 0, exclusiveMinimum: 10}\n"+
 			"    Holder:\n      type: object\n      properties:\n"+
-			"        low: {type: integer, minimum: 10, exclusiveMinimum: 0}\n"+
-			"        high: {type: integer, maximum: 100, exclusiveMaximum: 5}\n"))
+			"        low: {type: integer, maximum: 100, exclusiveMaximum: 5}\n"+
+			"        high: {type: integer, maximum: 5, exclusiveMaximum: 100}\n"))
 	openapitest.RequireNoErrorDiags(t, diags)
 
 	tests := []struct {
 		name     string
 		unmod    ir.Unmodeled
 		bound    *ir.Constraints
-		wantKept string
-		wantRaw  string
-		at       string
+		read     func(*ir.Constraints) (incl, excl *ir.BigVal)
+		wantIncl *ir.BigVal
+		wantExcl *ir.BigVal
 	}{
 		{
-			name:     "alias node keeps the exclusive bound the minimum implies",
-			unmod:    typeByName(doc, "Alias").Common().Unmodeled,
-			bound:    typeByName(doc, "Alias").(*ir.Scalar).Constraints,
-			wantKept: "openapi:exclusiveMinimum", wantRaw: "0",
-			at: "/components/schemas/Alias/exclusiveMinimum",
+			name:  "alias node where the minimum is the tighter",
+			unmod: typeByName(doc, "Alias").Common().Unmodeled,
+			bound: typeByName(doc, "Alias").(*ir.Scalar).Constraints,
+			read:  minSide, wantIncl: bigValOf("10"), wantExcl: bigValOf("0"),
 		},
 		{
-			name:     "alias node keeps the inclusive bound the exclusive one implies",
-			unmod:    typeByName(doc, "Tight").Common().Unmodeled,
-			bound:    typeByName(doc, "Tight").(*ir.Scalar).Constraints,
-			wantKept: "openapi:maximum", wantRaw: "100",
-			at: "/components/schemas/Tight/maximum",
+			name:  "alias node where the exclusive minimum is the tighter",
+			unmod: typeByName(doc, "Tight").Common().Unmodeled,
+			bound: typeByName(doc, "Tight").(*ir.Scalar).Constraints,
+			read:  minSide, wantIncl: bigValOf("0"), wantExcl: bigValOf("10"),
 		},
 		{
-			name:     "property keeps the exclusive bound the minimum implies",
-			unmod:    propertyOf(t, doc, "Holder", "low").Unmodeled,
-			bound:    propertyOf(t, doc, "Holder", "low").Constraints,
-			wantKept: "openapi:exclusiveMinimum", wantRaw: "0",
-			at: "/components/schemas/Holder/properties/low/exclusiveMinimum",
+			name:  "property where the exclusive maximum is the tighter",
+			unmod: propertyOf(t, doc, "Holder", "low").Unmodeled,
+			bound: propertyOf(t, doc, "Holder", "low").Constraints,
+			read:  maxSide, wantIncl: bigValOf("100"), wantExcl: bigValOf("5"),
 		},
 		{
-			name:     "property keeps the inclusive bound the exclusive one implies",
-			unmod:    propertyOf(t, doc, "Holder", "high").Unmodeled,
-			bound:    propertyOf(t, doc, "Holder", "high").Constraints,
-			wantKept: "openapi:maximum", wantRaw: "100",
-			at: "/components/schemas/Holder/properties/high/maximum",
+			name:  "property where the maximum is the tighter",
+			unmod: propertyOf(t, doc, "Holder", "high").Unmodeled,
+			bound: propertyOf(t, doc, "Holder", "high").Constraints,
+			read:  maxSide, wantIncl: bigValOf("5"), wantExcl: bigValOf("100"),
 		},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			require.NotNil(t, tc.bound, "the tighter bound still reaches ir.Constraints")
+			require.NotNil(t, tc.bound, "both bounds reach ir.Constraints")
+			incl, excl := tc.read(tc.bound)
+			assert.Equal(t, tc.wantIncl, incl, "the inclusive keyword as written")
+			assert.Equal(t, tc.wantExcl, excl, "the exclusive keyword as written, beside it")
+			assert.Empty(t, tc.unmod, "with a field apiece there is nothing left to keep")
+		})
+	}
+}
+
+// minSide and maxSide read one side's pair of bounds off a Constraints, so one
+// table can drive both sides through the same assertion.
+func minSide(c *ir.Constraints) (incl, excl *ir.BigVal) { return c.Min, c.ExclusiveMin }
+func maxSide(c *ir.Constraints) (incl, excl *ir.BigVal) { return c.Max, c.ExclusiveMax }
+
+// bigValOf is the *ir.BigVal a bound assertion compares against.
+func bigValOf(v string) *ir.BigVal {
+	b := ir.BigVal(v)
+	return &b
+}
+
+// TestExclusiveModifier_WithNoBoundIsKeptOnTheCarrierThatReadIt pins the one
+// bound keyword that still reaches no field, at the two carriers this package
+// owns. A 3.0 exclusiveMinimum is a modifier of the minimum beside it, so one
+// written without a minimum modifies nothing — draft-4 forbids that schema, and
+// the loader hands the keyword here unchecked. Dropping it would lose a declared
+// keyword silently, so it is kept verbatim beside the constraints it did not
+// reach.
+func TestExclusiveModifier_WithNoBoundIsKeptOnTheCarrierThatReadIt(t *testing.T) {
+	t.Parallel()
+	doc, diags := parseFull(t, openapitest.ComponentSpecVer("3.0.3",
+		"    Alias: {type: integer, exclusiveMinimum: true}\n"+
+			"    Holder:\n      type: object\n      properties:\n"+
+			"        low: {type: integer, exclusiveMaximum: true}\n"))
+
+	tests := []struct {
+		name     string
+		unmod    ir.Unmodeled
+		wantKept string
+		at       string
+		carrier  string
+	}{
+		{
+			name:     "alias node",
+			unmod:    typeByName(doc, "Alias").Common().Unmodeled,
+			wantKept: "openapi:exclusiveMinimum",
+			at:       "/components/schemas/Alias/exclusiveMinimum",
+			carrier:  "/components/schemas/Alias",
+		},
+		{
+			name:     "property",
+			unmod:    propertyOf(t, doc, "Holder", "low").Unmodeled,
+			wantKept: "openapi:exclusiveMaximum",
+			at:       "/components/schemas/Holder/properties/low/exclusiveMaximum",
+			carrier:  "/components/schemas/Holder/properties/low",
+		},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
 			entry, ok := tc.unmod[tc.wantKept]
-			require.True(t, ok, "%s is kept beside the constraints it did not reach; got %v",
-				tc.wantKept, tc.unmod)
+			require.True(t, ok, "%s is kept on the carrier that read it; got %v", tc.wantKept, tc.unmod)
 			assert.Equal(t, ir.ReasonDegradedLowering, entry.Reason)
-			assert.JSONEq(t, tc.wantRaw, string(entry.Value))
-			assert.Equal(t, tc.at, entry.Provenance.Pointer)
+			assert.JSONEq(t, "true", string(entry.Value))
+			assert.Equal(t, tc.at, entry.Provenance.Pointer, "located at the keyword itself")
+			assert.Len(t, diagsAtPointer(diags, diag.DegradedConstruct, tc.carrier), 1,
+				"and reported once, at the schema that read it: %+v", diags)
 		})
 	}
 }

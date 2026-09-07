@@ -36,8 +36,6 @@
         "nullable": false
       },
       "constraints": {
-        "exclusiveMin": false,
-        "exclusiveMax": false,
         "minItems": 1,
         "maxItems": 5,
         "uniqueItems": true
@@ -53,16 +51,6 @@
       "anonymous": false,
       "docs": {},
       "sensitive": false,
-      "unmodeled": {
-        "openapi:exclusiveMinimum": {
-          "reason": "degraded_lowering",
-          "value": 0,
-          "provenance": {
-            "source": 0,
-            "pointer": "/components/schemas/Bounded/exclusiveMinimum"
-          }
-        }
-      },
       "provenance": {
         "source": 0,
         "pointer": "/components/schemas/Bounded"
@@ -73,8 +61,7 @@
       },
       "constraints": {
         "min": "10",
-        "exclusiveMin": false,
-        "exclusiveMax": false,
+        "exclusiveMin": "0",
         "uniqueItems": false
       }
     },
@@ -113,8 +100,6 @@
           "constraints": {
             "min": "0.30000000000000004",
             "max": "9007199254740993",
-            "exclusiveMin": false,
-            "exclusiveMax": false,
             "multipleOf": "0.1",
             "uniqueItems": false
           },
@@ -147,8 +132,7 @@
           },
           "constraints": {
             "min": "10",
-            "exclusiveMin": false,
-            "exclusiveMax": false,
+            "exclusiveMin": "0",
             "uniqueItems": false
           },
           "flatten": false,
@@ -156,16 +140,6 @@
           "eventPayload": false,
           "secret": false,
           "docs": {},
-          "unmodeled": {
-            "openapi:exclusiveMinimum": {
-              "reason": "degraded_lowering",
-              "value": 0,
-              "provenance": {
-                "source": 0,
-                "pointer": "/components/schemas/S/properties/atLeastTen/exclusiveMinimum"
-              }
-            }
-          },
           "provenance": {
             "source": 0,
             "pointer": "/components/schemas/S/properties/atLeastTen"
@@ -189,9 +163,8 @@
             "none": false
           },
           "constraints": {
-            "max": "10",
-            "exclusiveMin": false,
-            "exclusiveMax": true,
+            "max": "100",
+            "exclusiveMax": "10",
             "uniqueItems": false
           },
           "flatten": false,
@@ -199,16 +172,6 @@
           "eventPayload": false,
           "secret": false,
           "docs": {},
-          "unmodeled": {
-            "openapi:maximum": {
-              "reason": "degraded_lowering",
-              "value": 100,
-              "provenance": {
-                "source": 0,
-                "pointer": "/components/schemas/S/properties/underTen/maximum"
-              }
-            }
-          },
           "provenance": {
             "source": 0,
             "pointer": "/components/schemas/S/properties/underTen"
@@ -232,8 +195,6 @@
             "none": false
           },
           "constraints": {
-            "exclusiveMin": false,
-            "exclusiveMax": false,
             "minLength": 2,
             "maxLength": 8,
             "uniqueItems": false
@@ -277,8 +238,6 @@
         }
       ],
       "constraints": {
-        "exclusiveMin": false,
-        "exclusiveMax": false,
         "uniqueItems": false,
         "minProps": 1,
         "maxProps": 4
@@ -334,40 +293,11 @@
       "auth": null
     }
   ],
-  "diagnostics": [
-    {
-      "severity": "info",
-      "code": "openapi/degraded-construct",
-      "message": "minimum 10 and exclusiveMinimum 0 both bound this value and the IR holds one bound per side; kept minimum as the tighter of the two, and exclusiveMinimum, which it implies, verbatim under Unmodeled",
-      "provenance": {
-        "source": 0,
-        "pointer": "/components/schemas/S/properties/atLeastTen"
-      }
-    },
-    {
-      "severity": "info",
-      "code": "openapi/degraded-construct",
-      "message": "exclusiveMaximum 10 and maximum 100 both bound this value and the IR holds one bound per side; kept exclusiveMaximum as the tighter of the two, and maximum, which it implies, verbatim under Unmodeled",
-      "provenance": {
-        "source": 0,
-        "pointer": "/components/schemas/S/properties/underTen"
-      }
-    },
-    {
-      "severity": "info",
-      "code": "openapi/degraded-construct",
-      "message": "minimum 10 and exclusiveMinimum 0 both bound this value and the IR holds one bound per side; kept minimum as the tighter of the two, and exclusiveMinimum, which it implies, verbatim under Unmodeled",
-      "provenance": {
-        "source": 0,
-        "pointer": "/components/schemas/Bounded"
-      }
-    }
-  ],
   "sources": [
     {
       "format": "openapi@3.1",
       "path": "constraints.yaml",
-      "hash": "421ee970477facfbd1d3d21838c66e21f37423d509929cd1d7504307a49db90a"
+      "hash": "26eb5b8535115a810b33386594ce36baafe0fc21f0bf7171d6cc923754a2ddaa"
     }
   ]
 }

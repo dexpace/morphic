@@ -558,8 +558,6 @@
         "nullable": false
       },
       "constraints": {
-        "exclusiveMin": false,
-        "exclusiveMax": false,
         "pattern": "^[0-9a-f]{64}$",
         "uniqueItems": false
       }

@@ -295,58 +295,57 @@ func TestDiagnoseRedeclarationConflict_ConstraintDisagreementIsReported(t *testi
 		"and so is the discarded one")
 }
 
-// TestBoundConflictDetail_ComparesMagnitudeAndSense pins both halves of a bound
-// comparison. Equal magnitudes spelled differently must not read as a conflict,
-// while the same magnitude under a differing exclusivity flag must — "> 10" and
-// ">= 10" are different bounds, and the merge can only keep one.
-func TestBoundConflictDetail_ComparesMagnitudeAndSense(t *testing.T) {
+// TestBigValConflictDetail_ComparesByMagnitude pins the comparison every
+// arbitrary-precision keyword goes through. Equal magnitudes spelled
+// differently must not read as a conflict — 10 and 10.0 are one value, and
+// reporting them would invent a disagreement the source never wrote — while
+// differing magnitudes must, since the merge keeps one and drops the other.
+//
+// The keyword is a parameter, so the name in the message is the one the caller
+// passed: the four bounds and multipleOf share this helper, and a hard-coded
+// name would report every one of them as the same keyword.
+func TestBigValConflictDetail_ComparesByMagnitude(t *testing.T) {
 	t.Parallel()
 	tests := []struct {
-		name         string
-		a, b         *ir.BigVal
-		exclA, exclB bool
-		want         string
+		name    string
+		keyword string
+		a, b    *ir.BigVal
+		want    string
 	}{
-		{name: "only one side bounds", a: bigVal("10"), exclA: true},
-		{name: "neither side bounds"},
-		{name: "the same magnitude, spelled differently", a: bigVal("10"), b: bigVal("10.0")},
+		{name: "only one side bounds", keyword: "minimum", a: bigVal("10")},
+		{name: "neither side bounds", keyword: "minimum"},
 		{
-			name: "differing magnitudes", a: bigVal("10"), b: bigVal("20"),
+			name:    "the same magnitude, spelled differently",
+			keyword: "minimum", a: bigVal("10"), b: bigVal("10.0"),
+		},
+		{
+			name: "differing magnitudes", keyword: "minimum", a: bigVal("10"), b: bigVal("20"),
 			want: "conflicting minimum (10 and 20)",
 		},
 		{
-			name: "the same magnitude, differing sense", a: bigVal("10"), b: bigVal("10"), exclB: true,
-			want: "conflicting minimum (10 and exclusive 10)",
+			name:    "the exclusive bound reports under its own keyword",
+			keyword: "exclusiveMinimum", a: bigVal("10"), b: bigVal("20"),
+			want: "conflicting exclusiveMinimum (10 and 20)",
 		},
 		{
-			name: "unparseable operands compare exactly", a: bigVal("nan"), b: bigVal("other"),
+			name:    "multipleOf shares the comparison",
+			keyword: "multipleOf", a: bigVal("3"), b: bigVal("5"),
+			want: "conflicting multipleOf (3 and 5)",
+		},
+		{
+			name:    "unparseable operands compare exactly",
+			keyword: "minimum", a: bigVal("nan"), b: bigVal("other"),
 			want: "conflicting minimum (nan and other)",
 		},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			detail, ok := boundConflictDetail("minimum", tc.a, tc.b, tc.exclA, tc.exclB)
+			detail, ok := bigValConflictDetail(tc.keyword, tc.a, tc.b)
 			assert.Equal(t, tc.want != "", ok)
 			assert.Equal(t, tc.want, detail)
 		})
 	}
-}
-
-// TestMultipleOfConflictDetail_ComparesByMagnitude pins the plain numeric
-// comparison multipleOf goes through: 10 and 10.0 are one value, so reporting
-// them as a conflict would invent a disagreement the source never wrote.
-func TestMultipleOfConflictDetail_ComparesByMagnitude(t *testing.T) {
-	t.Parallel()
-	_, ok := multipleOfConflictDetail(bigVal("1e1"), bigVal("10"))
-	assert.False(t, ok, "equal magnitudes spelled differently do not conflict")
-
-	_, ok = multipleOfConflictDetail(nil, bigVal("10"))
-	assert.False(t, ok, "a keyword only one branch sets is adopted, not a conflict")
-
-	detail, ok := multipleOfConflictDetail(bigVal("3"), bigVal("5"))
-	assert.True(t, ok)
-	assert.Equal(t, "conflicting multipleOf (3 and 5)", detail)
 }
 
 // TestResolvePrimKind_EnumResolvesThroughItsValueType pins the enum case of the

@@ -14,14 +14,27 @@ package ir
 // a $ref's target onto the referencing carrier with use-site precedence, so a
 // use site already carries those and resolves nothing to read them.
 type Constraints struct {
-	// Min is the inclusive (or exclusive, per ExclusiveMin) lower numeric bound.
+	// Min is the inclusive lower numeric bound (JSON Schema minimum): an
+	// admissible value is >= it. nil = this position declared none.
 	Min *BigVal `json:"min,omitempty"`
-	// Max is the inclusive (or exclusive, per ExclusiveMax) upper numeric bound.
+	// Max is the inclusive upper numeric bound (JSON Schema maximum): an
+	// admissible value is <= it. nil = this position declared none.
 	Max *BigVal `json:"max,omitempty"`
-	// ExclusiveMin makes Min an exclusive bound.
-	ExclusiveMin bool `json:"exclusiveMin"`
-	// ExclusiveMax makes Max an exclusive bound.
-	ExclusiveMax bool `json:"exclusiveMax"`
+	// ExclusiveMin is the exclusive lower numeric bound (JSON Schema
+	// exclusiveMinimum): an admissible value is > it. nil = this position
+	// declared none.
+	//
+	// It is a bound of its own rather than a flag on Min, because the two
+	// keywords are independent and conjunctive: a schema may declare both, both
+	// then apply, and the effective floor is whichever admits fewer values. One
+	// slot per side would have to keep that one and lower the other some other
+	// way, which is a change to the weaker keyword that a consumer diffing two
+	// revisions of a spec could not see at all (GitHub #425).
+	ExclusiveMin *BigVal `json:"exclusiveMin,omitempty"`
+	// ExclusiveMax is the exclusive upper numeric bound (JSON Schema
+	// exclusiveMaximum): an admissible value is < it. nil = this position
+	// declared none. It is independent of Max exactly as ExclusiveMin is of Min.
+	ExclusiveMax *BigVal `json:"exclusiveMax,omitempty"`
 	// MultipleOf constrains the value to a multiple of this number.
 	MultipleOf *BigVal `json:"multipleOf,omitempty"`
 	// Precision bounds the total decimal digits (Avro decimal, XSD totalDigits,

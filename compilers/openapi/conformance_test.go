@@ -1480,62 +1480,63 @@ func assertConstraints(t *testing.T, doc *ir.Document, diags []ir.Diagnostic) {
 }
 
 // assertCoDeclaredBounds pins the 2020-12 rule that a side declaring both of
-// its keywords keeps the tighter of the two: the property bounded below keeps
-// its minimum, the one bounded above keeps its exclusiveMaximum, and each side
-// names the keyword that did not reach ir.Constraints (GitHub #33).
+// its keywords carries both: minimum and exclusiveMinimum are independent and
+// conjunctive, ir.Constraints has a field for each, and neither is chosen over
+// the other (GitHub #33, #425).
 //
-// Both directions are here on purpose. A case where only the exclusive keyword
-// survives passes just as well on the reader that always took it, so on its own
-// it would say nothing about the fix.
+// Both directions are here on purpose. The property bounded below has the
+// inclusive keyword as its tighter bound and the one bounded above the
+// exclusive one, so a reader that kept the tighter alone answers the two
+// differently — and a reader that always kept the exclusive keyword passes the
+// second on its own.
 func assertCoDeclaredBounds(t *testing.T, m *ir.Model, diags []ir.Diagnostic) {
 	t.Helper()
 	low, ok := propByWire(m, "atLeastTen")
 	require.True(t, ok)
 	require.NotNil(t, low.Constraints)
 	require.NotNil(t, low.Constraints.Min)
-	assert.Equal(t, ir.BigVal("10"), *low.Constraints.Min, "minimum is the tighter bound")
-	assert.False(t, low.Constraints.ExclusiveMin, "and it is inclusive as written")
+	require.NotNil(t, low.Constraints.ExclusiveMin)
+	assert.Equal(t, ir.BigVal("10"), *low.Constraints.Min, "minimum as written")
+	assert.Equal(t, ir.BigVal("0"), *low.Constraints.ExclusiveMin,
+		"and the looser exclusiveMinimum beside it, not dropped for being implied")
 
 	high, ok := propByWire(m, "underTen")
 	require.True(t, ok)
 	require.NotNil(t, high.Constraints)
 	require.NotNil(t, high.Constraints.Max)
-	assert.Equal(t, ir.BigVal("10"), *high.Constraints.Max, "exclusiveMaximum is the tighter bound")
-	assert.True(t, high.Constraints.ExclusiveMax)
+	require.NotNil(t, high.Constraints.ExclusiveMax)
+	assert.Equal(t, ir.BigVal("100"), *high.Constraints.Max, "maximum as written")
+	assert.Equal(t, ir.BigVal("10"), *high.Constraints.ExclusiveMax, "and exclusiveMaximum beside it")
 
-	for _, want := range []string{"exclusiveMinimum, which it implies", "maximum, which it implies"} {
-		assert.True(t, slices.ContainsFunc(diags, func(d ir.Diagnostic) bool {
-			return strings.Contains(d.Message, want)
-		}), "the keyword ir.Constraints has no room for is named, not dropped in silence: %q", want)
+	for _, d := range diags {
+		assert.NotContains(t, d.Message, "exclusiveMinimum",
+			"a pair that reaches two fields is not a degradation to report")
 	}
 }
 
-// assertCoDeclaredBoundKept is the losslessness half of the same rule
-// (GitHub #286): a keyword named only in a diagnostic reaches no field of the
-// document a downstream stage reads, so {minimum: 10, exclusiveMinimum: 0} and
-// {minimum: 10} lowered identically. It is kept verbatim on whichever carrier
-// read it — the property here, the alias node a component's body reduces to
-// below — beside the constraints it did not reach.
+// assertCoDeclaredBoundKept is the losslessness half of the same rule: with a
+// field per keyword there is nothing left over, so neither carrier keeps a bound
+// verbatim. Nothing is restated beside constraints that hold it all — an entry
+// there would give one bound two homes, and {minimum: 10, exclusiveMinimum: 0}
+// is told from {minimum: 10} by the fields themselves (GitHub #286).
 func assertCoDeclaredBoundKept(t *testing.T, doc *ir.Document, m *ir.Model) {
 	t.Helper()
 	low, ok := propByWire(m, "atLeastTen")
 	require.True(t, ok)
-	entry := unmodeledEntry(t, low.Unmodeled, "openapi:exclusiveMinimum")
-	assert.Equal(t, ir.ReasonDegradedLowering, entry.Reason)
-	assert.JSONEq(t, "0", string(entry.Value))
-	assert.Equal(t, "/components/schemas/S/properties/atLeastTen/exclusiveMinimum",
-		entry.Provenance.Pointer)
+	assert.Empty(t, low.Unmodeled, "the property keeps nothing beside its constraints")
 
 	high, ok := propByWire(m, "underTen")
 	require.True(t, ok)
-	assert.JSONEq(t, "100", string(unmodeledEntry(t, high.Unmodeled, "openapi:maximum").Value),
-		"the inclusive keyword is the one kept where the exclusive bound is tighter")
+	assert.Empty(t, high.Unmodeled, "and neither does the side settled the other way")
 
 	alias, ok := doc.Types[namedID("Bounded")].(*ir.Scalar)
 	require.True(t, ok, "a component reducing to a shared primitive owns an alias node")
 	require.NotNil(t, alias.Constraints)
-	assert.JSONEq(t, "0", string(unmodeledEntry(t, alias.Unmodeled, "openapi:exclusiveMinimum").Value),
-		"a node carries what its constraints had no room for, exactly as a property does")
+	require.NotNil(t, alias.Constraints.Min)
+	require.NotNil(t, alias.Constraints.ExclusiveMin)
+	assert.Equal(t, ir.BigVal("0"), *alias.Constraints.ExclusiveMin,
+		"a node carries both bounds, exactly as a property does")
+	assert.Empty(t, alias.Unmodeled)
 }
 
 // assertLengthAndCollectionBounds pins the non-numeric bounds: a string length
@@ -1583,12 +1584,10 @@ func assertNumericPrecision(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
 	exclusive, ok := propByWire(m, "exclusive")
 	require.True(t, ok)
 	require.NotNil(t, exclusive.Constraints)
-	require.NotNil(t, exclusive.Constraints.Min)
-	require.NotNil(t, exclusive.Constraints.Max)
-	assert.True(t, exclusive.Constraints.ExclusiveMin)
-	assert.True(t, exclusive.Constraints.ExclusiveMax)
-	assert.Equal(t, ir.BigVal("0.5"), *exclusive.Constraints.Min)
-	assert.Equal(t, ir.BigVal("0.12345678901234567890123456789"), *exclusive.Constraints.Max)
+	require.NotNil(t, exclusive.Constraints.ExclusiveMin)
+	require.NotNil(t, exclusive.Constraints.ExclusiveMax)
+	assert.Equal(t, ir.BigVal("0.5"), *exclusive.Constraints.ExclusiveMin)
+	assert.Equal(t, ir.BigVal("0.12345678901234567890123456789"), *exclusive.Constraints.ExclusiveMax)
 
 	// A default beyond float64 range is captured as a number, not a string.
 	withDefault, ok := propByWire(m, "withDefault")

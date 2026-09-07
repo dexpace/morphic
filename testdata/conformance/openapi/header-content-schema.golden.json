@@ -57,8 +57,6 @@
                         "none": false
                       },
                       "constraints": {
-                        "exclusiveMin": false,
-                        "exclusiveMax": false,
                         "maxLength": 4,
                         "uniqueItems": false
                       },
@@ -96,8 +94,6 @@
                         "none": false
                       },
                       "constraints": {
-                        "exclusiveMin": false,
-                        "exclusiveMax": false,
                         "maxLength": 4,
                         "uniqueItems": false
                       },
@@ -267,8 +263,6 @@
         "nullable": false
       },
       "constraints": {
-        "exclusiveMin": false,
-        "exclusiveMax": false,
         "pattern": "^r-[0-9]+$",
         "uniqueItems": false
       }
