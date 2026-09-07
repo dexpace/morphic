@@ -2150,6 +2150,12 @@ func assertParamQuerystring(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
 // silent, and from the use site when it is not. Constraints inherit at neither
 // carrier, so the identical property is asserted beside it — a parameter must not
 // take more from a referent than a property does (GitHub #131).
+//
+// The bound the use site declares beside the $ref is asserted at both carriers
+// too, against the referent's own: it is what makes the split observable rather
+// than merely absent, and it is the case use-site precedence would get wrong,
+// publishing 100 as the whole truth while the document enforces 64 (§12.2,
+// GitHub #428).
 func assertParamRefInheritance(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
 	op, ok := opByName(doc, "listItems")
 	require.True(t, ok)
@@ -2169,6 +2175,10 @@ func assertParamRefInheritance(t *testing.T, doc *ir.Document, _ []ir.Diagnostic
 		"...and a keyword the use site is silent about still inherits")
 	require.NotNil(t, override.Default)
 	assert.Equal(t, "9", override.Default.Str)
+	require.NotNil(t, override.Constraints, "a bound beside the $ref lands on the carrier")
+	require.NotNil(t, override.Constraints.MaxLength)
+	assert.Equal(t, int64(100), *override.Constraints.MaxLength,
+		"and it is the use site's own, not narrowed against the referent's here")
 
 	holder, ok := doc.Types[namedID("Holder")].(*ir.Model)
 	require.True(t, ok)
@@ -2180,12 +2190,18 @@ func assertParamRefInheritance(t *testing.T, doc *ir.Document, _ []ir.Diagnostic
 	assert.Equal(t, *cursor.Default, *prop.Default)
 	assert.Nil(t, prop.Constraints, "neither carrier inherits the referent's constraints")
 
+	overrideProp, ok := propByWire(holder, "override")
+	require.True(t, ok)
+	assert.Equal(t, override.Constraints, overrideProp.Constraints,
+		"and a property keeps its own bound exactly as the parameter does")
+
 	decl, ok := doc.Types[namedID("Cursor")].(*ir.Scalar)
 	require.True(t, ok)
 	require.NotNil(t, decl.Constraints)
 	require.NotNil(t, decl.Constraints.MaxLength)
 	assert.Equal(t, int64(64), *decl.Constraints.MaxLength,
-		"a consumer that wants the bound reads it off the referent")
+		"a consumer that wants the bound reads it off the referent, and conjoins "+
+			"it with the use site's: both are in force, and 64 is the narrower")
 }
 
 // assertHeaderContentSchema pins that both spellings of a header's type lower

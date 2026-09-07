@@ -1203,6 +1203,11 @@ func fillPropertyDefault(c lowering.Ctx, p *ir.Property, ref, tgt *oas3.Schema, 
 // co-declared bound keyword that reached none of them, to the property itself.
 // ir.Property is the carrier at this position: a property's schema is read
 // through CarriedRef, so it hoists no node of its own to hold either.
+//
+// It reads ref alone and never the $ref target, which is why no tgt reaches it:
+// bounds conjoin rather than override, so a referent's bound merged here under
+// use-site precedence would publish the wider of the two as the whole truth. It
+// stays on the node the reference points at instead (ir-design §12.2).
 func fillPropertyConstraints(c lowering.Ctx, p *ir.Property, ref *oas3.Schema, pointer string) []ir.Diagnostic {
 	cons, diags := schemaConstraints(c, &p.Unmodeled, ref, pointer)
 	if cons != nil {

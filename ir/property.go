@@ -88,7 +88,12 @@ type Property struct {
 	Visibility Visibility `json:"visibility"`
 	// Default is the property's default value.
 	Default *Value `json:"default,omitempty"`
-	// Constraints restricts the property's admissible values.
+	// Constraints restricts the property's admissible values, and holds only
+	// what the property's own position declared. A bound on a $ref'd schema
+	// stays on the node Type points at and is never copied here, unlike Docs,
+	// Deprecation and Default, which merge from that target with use-site
+	// precedence: bounds conjoin rather than override, so nil means this
+	// position declared none, not that the value is unbounded (ir-design §12.2).
 	Constraints *Constraints `json:"constraints,omitempty"`
 	// Encoding overrides the property's wire encoding.
 	Encoding *Encoding `json:"encoding,omitempty"`
