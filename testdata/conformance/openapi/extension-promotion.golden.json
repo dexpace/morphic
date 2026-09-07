@@ -252,6 +252,54 @@
     }
   ],
   "types": {
+    "t/openapi/components/schemas/Fixed": {
+      "kind": "enum",
+      "id": "t/openapi/components/schemas/Fixed",
+      "name": {
+        "source": "Fixed",
+        "canonical": "fixed"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Fixed"
+      },
+      "valueType": "string",
+      "members": [
+        {
+          "name": {
+            "source": "one",
+            "canonical": "one"
+          },
+          "value": {
+            "kind": "string",
+            "str": "one",
+            "bytes": null,
+            "list": null,
+            "object": null
+          },
+          "docs": {}
+        },
+        {
+          "name": {
+            "source": "two",
+            "canonical": "two"
+          },
+          "value": {
+            "kind": "string",
+            "str": "two",
+            "bytes": null,
+            "list": null,
+            "object": null
+          },
+          "docs": {}
+        }
+      ],
+      "closed": true,
+      "flags": false
+    },
     "t/openapi/components/schemas/Old": {
       "kind": "model",
       "id": "t/openapi/components/schemas/Old",
@@ -365,6 +413,126 @@
       "positional": false,
       "inputOnly": false
     },
+    "t/openapi/components/schemas/Shade": {
+      "kind": "enum",
+      "id": "t/openapi/components/schemas/Shade",
+      "name": {
+        "source": "Shade",
+        "canonical": "shade"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "unmodeled": {
+        "openapi:x-extensible-enum": {
+          "reason": "vendor_extension",
+          "value": false,
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/Shade/x-extensible-enum"
+          }
+        }
+      },
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Shade"
+      },
+      "valueType": "string",
+      "members": [
+        {
+          "name": {
+            "source": "light",
+            "canonical": "light"
+          },
+          "value": {
+            "kind": "string",
+            "str": "light",
+            "bytes": null,
+            "list": null,
+            "object": null
+          },
+          "docs": {}
+        },
+        {
+          "name": {
+            "source": "dark",
+            "canonical": "dark"
+          },
+          "value": {
+            "kind": "string",
+            "str": "dark",
+            "bytes": null,
+            "list": null,
+            "object": null
+          },
+          "docs": {}
+        }
+      ],
+      "closed": true,
+      "flags": false
+    },
+    "t/openapi/components/schemas/Size": {
+      "kind": "enum",
+      "id": "t/openapi/components/schemas/Size",
+      "name": {
+        "source": "Size",
+        "canonical": "size"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "unmodeled": {
+        "openapi:x-extensible-enum": {
+          "reason": "vendor_extension",
+          "value": [
+            "small",
+            "large"
+          ],
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/Size/x-extensible-enum"
+          }
+        }
+      },
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Size",
+        "inferred": "extension-promotion"
+      },
+      "valueType": "string",
+      "members": [
+        {
+          "name": {
+            "source": "small",
+            "canonical": "small"
+          },
+          "value": {
+            "kind": "string",
+            "str": "small",
+            "bytes": null,
+            "list": null,
+            "object": null
+          },
+          "docs": {}
+        },
+        {
+          "name": {
+            "source": "large",
+            "canonical": "large"
+          },
+          "value": {
+            "kind": "string",
+            "str": "large",
+            "bytes": null,
+            "list": null,
+            "object": null
+          },
+          "docs": {}
+        }
+      ],
+      "closed": false,
+      "flags": false
+    },
     "t/prim/string": {
       "kind": "primitive",
       "id": "t/prim/string",
@@ -434,7 +602,7 @@
     {
       "format": "openapi@3.1",
       "path": "extension-promotion.yaml",
-      "hash": "2433e30d378223aa920d20cb51cce28080a3a325c92f36dbbe7662470fbee376"
+      "hash": "d6cc084d89a9e2626e827271c565b828da3241cbf77c658fd57868a02954ff19"
     }
   ]
 }
