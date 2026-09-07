@@ -276,6 +276,7 @@ func populatedDeprecation() *ir.Deprecation {
 		Message:        "use v2 instead",
 		Since:          "1.2.0",
 		RemovalVersion: "2.0.0",
+		RemovalDate:    "2026-08-01",
 	}
 }
 

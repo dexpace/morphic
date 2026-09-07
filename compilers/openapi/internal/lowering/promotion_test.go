@@ -33,8 +33,10 @@ func vendorExtension(rawJSON string) ir.UnmodeledEntry {
 }
 
 // TestPromoteDeprecation_FillsTheFieldsThePolicyNames pins what each mapping
-// writes, one field at a time, because the three share a struct and a promotion
-// writing the wrong member of it would still look filled.
+// writes, one field at a time, because they share a struct and a promotion
+// writing the wrong member of it would still look filled. The removal pair is
+// why that matters most: a date written into the version field is the defect
+// GitHub #417 records, and it reads as a filled Deprecation either way.
 func TestPromoteDeprecation_FillsTheFieldsThePolicyNames(t *testing.T) {
 	t.Parallel()
 	tests := []struct {
@@ -45,6 +47,7 @@ func TestPromoteDeprecation_FillsTheFieldsThePolicyNames(t *testing.T) {
 		{"message", lowering.TargetDeprecationMessage, ir.Deprecation{Message: "why"}},
 		{"since", lowering.TargetDeprecationSince, ir.Deprecation{Since: "why"}},
 		{"removal version", lowering.TargetDeprecationRemovalVersion, ir.Deprecation{RemovalVersion: "why"}},
+		{"removal date", lowering.TargetDeprecationRemovalDate, ir.Deprecation{RemovalDate: "why"}},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {

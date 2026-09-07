@@ -1671,7 +1671,14 @@ type Docs struct {
     ExternalDocs []Link       // {URL, Description}
 }
 
-type Deprecation struct { Message, Since, RemovalVersion string }
+type Deprecation struct { Message, Since, RemovalVersion, RemovalDate string }
+// A scheduled removal is two fields because a version and a date are two facts, not two
+// spellings of one: a document may state either or both, and neither is derivable from the
+// other without a release calendar the IR does not have. A consumer deciding whether removing
+// a deprecated entity is breaking compares a removal date against a release date, so it must
+// be able to tell which fact it holds without re-parsing the string. RemovalDate is the
+// source's own text, unparsed and unnormalized — no source format defines the field, so none
+// defines its format either.
 
 type Example struct {
     Name        string
@@ -1792,12 +1799,13 @@ where the IR expects them, so there is no reason to record and no unmodelled con
 #### Promoting a vendor extension into the field it is the only spelling for
 
 Several typed fields model information no source format gives a keyword for, so the only way a
-document can state it is a vendor extension: `Deprecation.Message`/`Since`/`RemovalVersion`,
-`Pagination.*`, `LongRunning`, `Idempotency`, `ErrorCase.Retryable`/`Throttling`, `Enum.Flags`,
-`EnumMember.Name`, `Sensitive` and `Secret`. Reading such an extension into its field is
-**promotion**, and because the format assigns an `x-*` key no semantics at all, promotion is a
-heuristic — invariant 6 applies to it in full. Four rules, so that no emitter has to re-derive
-this from `Unmodeled` and no two derive it differently:
+document can state it is a vendor extension:
+`Deprecation.Message`/`Since`/`RemovalVersion`/`RemovalDate`, `Pagination.*`, `LongRunning`,
+`Idempotency`, `ErrorCase.Retryable`/`Throttling`, `Enum.Flags`, `EnumMember.Name`, `Sensitive`
+and `Secret`. Reading such an extension into its field is **promotion**, and because the format
+assigns an `x-*` key no semantics at all, promotion is a heuristic — invariant 6 applies to it
+in full. Four rules, so that no emitter has to re-derive this from `Unmodeled` and no two derive
+it differently:
 
 1. **The mapping is injectable policy, default-on and disableable**, per compiler. Its default
    contents are conventions, not standards: nothing in any specification says `x-deprecated-reason`
@@ -1815,8 +1823,13 @@ this from `Unmodeled` and no two derive it differently:
    follows it rather than preceding it — which is the order `Parameter` went through: it was the
    instance this rule named until it gained the `Provenance` §7.2 now gives it.
 
-A value the mapped field cannot hold — anything but text, for the three `Deprecation` members — is
-reported and not coerced, since the document means something else by the key.
+A value the mapped field cannot hold — anything but text, for the four `Deprecation` members — is
+reported and not coerced, since the document means something else by the key. Text of the right
+JSON shape is taken as written: `x-sunset` fills `RemovalDate` and not `RemovalVersion` because
+the header it echoes ([RFC 8594](https://www.rfc-editor.org/rfc/rfc8594)) is a date by
+definition, and the mapping is where that reading is stated — the promotion does not then parse
+the date to confirm it. No default key names `RemovalVersion`: a document stating a removal
+*version* names its own key, per rule 1.
 
 ### 12.1 One structural home per declaration
 
