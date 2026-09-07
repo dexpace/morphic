@@ -80,39 +80,112 @@ func (*Compiler) Detect(src compilers.Source) (compilers.SourceFormat, []ir.Diag
 // in front of, and the key it looks for is exactly the one that can sit
 // megabytes into a document — bounding this to the prefix would blind it in
 // precisely the case it exists to catch.
-func declaresProbeKey(data []byte) bool {
-	return declaresKey(data, "openapi") || declaresKey(data, "swagger")
-}
-
-// declaresKey reports whether data names key at the top level, in either style:
-// unquoted at the start of a line for block style, or quoted for flow style,
-// which is how JSON writes every key.
 //
-// Both spellings require the colon that makes it a key. Without it, a document
-// of another format that merely mentions the word — in a comment, or as a value
-// — would be claimed as this compiler's and reported under its parse error.
-func declaresKey(data []byte, key string) bool {
-	block := []byte(key + ":")
-	if bytes.HasPrefix(data, block) || bytes.Contains(data, []byte("\n"+key+":")) {
-		return true
-	}
-	return followedByColon(data, []byte(`"`+key+`"`))
+// Top-level is the whole of the claim, and the two styles answer it by different
+// structure: column 0 in block style, the root mapping's own entries in flow
+// style. Neither reading may be widened to "the name occurs somewhere followed
+// by a colon", because other formats nest a key of that name, and reporting
+// their bytes under this compiler's parse error is the one thing detection must
+// never do.
+func declaresProbeKey(data []byte) bool {
+	return declaresBlockKey(data, "openapi") || declaresBlockKey(data, "swagger") ||
+		declaresFlowKey(data)
 }
 
-// followedByColon reports whether name occurs in data followed by a colon,
-// ignoring the whitespace a flow mapping may put between them.
-func followedByColon(data, name []byte) bool {
-	for i := 0; ; {
-		j := bytes.Index(data[i:], name)
-		if j < 0 {
-			return false
-		}
-		rest := bytes.TrimLeft(data[i+j+len(name):], " \t\r\n")
-		if len(rest) > 0 && rest[0] == ':' {
-			return true
-		}
-		i += j + len(name)
+// declaresBlockKey reports whether data writes key bare at the start of a line,
+// which in block style is where a top-level key goes and nowhere else: a key
+// nested under another is indented past column 0, and a block scalar's content
+// is indented past its own key.
+//
+// Only the bare spelling is read here, because the quoted one is how flow style
+// writes every key and flow structure is what scopes it — declaresFlowKey has
+// it. A block document that quotes its top-level key is therefore not seen, and
+// is declined in silence rather than claimed; that is the direction to be wrong
+// in, and the spelling is rare enough that widening column 0 to admit the shape
+// JSON writes at every depth would cost far more than it buys.
+//
+// The colon that makes it a key is required. Without it, a document of another
+// format that merely mentions the word — in a comment, or as a value — would be
+// claimed as this compiler's and reported under its parse error.
+func declaresBlockKey(data []byte, key string) bool {
+	name := []byte(key + ":")
+	return bytes.HasPrefix(data, name) || bytes.Contains(data, append([]byte("\n"), name...))
+}
+
+// declaresFlowKey reports whether data opens a flow mapping — the shape JSON
+// writes — that names one of the discriminating keys among its own entries.
+//
+// Nesting depth is what makes the answer top-level, and it is the half a plain
+// search for `"openapi":` gets wrong: a quoted name followed by a colon reads as
+// a key wherever it sits, and other formats nest one. A source that opens no
+// mapping at all — a JSON array, say — declares nothing here for the same
+// reason: whatever it names, it does not name it as its own root key.
+//
+// The scan is a lexer, not a parser: it tracks quoted strings and nesting and
+// reads nothing else. It has to answer on bytes that will not parse, which is
+// the case it exists for — a document broken before the key that names it — so
+// there is no tree to ask instead.
+func declaresFlowKey(data []byte) bool {
+	i := skipSpace(data, 0)
+	if i == len(data) || data[i] != '{' {
+		return false
 	}
+
+	for depth := 0; i < len(data); {
+		switch data[i] {
+		case '"':
+			name, next := flowString(data, i)
+			if depth == 1 && isProbeName(name) && startsWithColon(data, next) {
+				return true
+			}
+			i = next
+		case '{', '[':
+			depth++
+			i++
+		case '}', ']':
+			depth--
+			i++
+		default:
+			i++
+		}
+	}
+	return false
+}
+
+// flowString returns the bytes between the quotes of the string data[i] opens,
+// and the index just past its closing quote. An unterminated string runs to the
+// end of data: there is nothing past it left to read.
+func flowString(data []byte, i int) ([]byte, int) {
+	for j := i + 1; j < len(data); j++ {
+		switch data[j] {
+		case '\\':
+			j++
+		case '"':
+			return data[i+1 : j], j + 1
+		}
+	}
+	return nil, len(data)
+}
+
+// isProbeName reports whether name is one of the discriminating keys.
+func isProbeName(name []byte) bool {
+	return string(name) == "openapi" || string(name) == "swagger"
+}
+
+// skipSpace returns the index of the first byte at or after i that is not
+// whitespace, or len(data) if there is none.
+func skipSpace(data []byte, i int) int {
+	for i < len(data) && (data[i] == ' ' || data[i] == '\t' || data[i] == '\r' || data[i] == '\n') {
+		i++
+	}
+	return i
+}
+
+// startsWithColon reports whether the first non-whitespace byte at or after i is
+// the colon that makes the name before it a key.
+func startsWithColon(data []byte, i int) bool {
+	i = skipSpace(data, i)
+	return i < len(data) && data[i] == ':'
 }
 
 // sniff reads the discriminating keys out of data, and returns the zero probe
@@ -144,7 +217,11 @@ func sniff(data []byte) (sniffProbe, error) {
 // entries are streamed instead, and block style is cut at its last complete
 // line.
 func sniffPrefix(prefix []byte) (sniffProbe, error) {
-	if probe, ok := decodeFlowEntries(prefix); ok {
+	// The cut breaks the token stream by construction, so the flow decoder's
+	// error here describes the cut and not the document. What it managed to read
+	// before the cut is the whole of what a prefix has to say.
+	probe, flow, _ := decodeFlowEntries(prefix)
+	if flow {
 		return probe, nil
 	}
 	return decodeYAML(wholeLines(prefix))
@@ -160,11 +237,22 @@ func sniffPrefix(prefix []byte) (sniffProbe, error) {
 // Nothing another format wrote reaches here — declaresProbeKey guards the call —
 // so the cost is paid only for bytes this compiler is about to parse in full
 // anyway, and the answer for everyone else is still the fast path's silence.
+//
+// Unlike sniffPrefix this keeps the flow decoder's error, and returns the zero
+// probe with it exactly as decodeYAML does. There is no cut here to explain a
+// broken token stream away: a whole document that stops mid-stream is a document
+// this compiler cannot read, and saying so is the answer the key it declares has
+// earned. Dropping the error instead reports the source as another format's,
+// which is what the document past the cap was found not to be.
 func sniffWhole(data []byte) (sniffProbe, error) {
-	if probe, ok := decodeFlowEntries(data); ok {
-		return probe, nil
+	probe, flow, err := decodeFlowEntries(data)
+	if !flow {
+		return decodeYAML(data)
 	}
-	return decodeYAML(data)
+	if err != nil {
+		return sniffProbe{}, err
+	}
+	return probe, nil
 }
 
 // decodeYAML reads the probe keys from a complete YAML (or JSON, its subset)
@@ -177,36 +265,52 @@ func decodeYAML(data []byte) (sniffProbe, error) {
 	return probe, nil
 }
 
-// decodeFlowEntries reads the top-level entries of data, which may be a whole
-// document or a prefix of one, and reports whether it opened a flow mapping. The
-// JSON decoder is used because it streams: a prefix cut mid-document still
-// yields every entry it completed, where decoding those same bytes whole reports
-// only that they end early.
-func decodeFlowEntries(data []byte) (sniffProbe, bool) {
-	dec := json.NewDecoder(bytes.NewReader(data))
+// opensFlowMapping reports whether the stream's first token opens a mapping.
+// A stream that does not is not flow style, which is an answer rather than a
+// failure: the decoder's complaint there says only that these bytes are not
+// JSON, and block YAML is not JSON either.
+func opensFlowMapping(dec *json.Decoder) bool {
 	tok, err := dec.Token()
-	if err != nil || tok != json.Delim('{') {
-		return sniffProbe{}, false
+	return err == nil && tok == json.Delim('{')
+}
+
+// decodeFlowEntries reads the top-level entries of data, which may be a whole
+// document or a prefix of one. It reports whether data opened a flow mapping,
+// and the error that ended the walk early. The JSON decoder is used because it
+// streams: a prefix cut mid-document still yields every entry it completed,
+// where decoding those same bytes whole reports only that they end early.
+//
+// A nil error means the walk ended on the mapping's own closing delimiter or on
+// the entry cap — the two ways of stopping that say nothing about the bytes.
+// Whether a non-nil one describes the document or only the cut that produced
+// data is the caller's question, since only the caller knows which it passed.
+func decodeFlowEntries(data []byte) (sniffProbe, bool, error) {
+	dec := json.NewDecoder(bytes.NewReader(data))
+	if !opensFlowMapping(dec) {
+		return sniffProbe{}, false, nil
 	}
 
 	var probe sniffProbe
 	for range maxSniffEntries {
 		key, err := dec.Token()
 		if err != nil {
-			break
+			return probe, true, err
+		}
+		if key == json.Delim('}') {
+			return probe, true, nil
 		}
 		var value json.RawMessage
 		if err := dec.Decode(&value); err != nil {
-			break
+			return probe, true, err
 		}
 		recordEntry(&probe, key, value)
 	}
-	return probe, true
+	return probe, true, nil
 }
 
 // recordEntry stores value under probe's field for key. key is compared as read
-// rather than asserted to a string: the closing delimiter of the mapping
-// arrives here too, and it matches neither name.
+// rather than asserted to a string: a json.Token holds whichever kind the stream
+// produced, and only the two names the switch spells are of any interest here.
 func recordEntry(probe *sniffProbe, key json.Token, value json.RawMessage) {
 	switch key {
 	case "openapi":
