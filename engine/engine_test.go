@@ -392,8 +392,10 @@ func (danglingCompiler) Compile(_ context.Context, _ []compilers.Source, _ compi
 			ID: "s/x",
 			Groups: []ir.OperationGroup{{
 				Operations: []ir.Operation{{
-					ID:     "op/x",
-					Errors: []ir.ErrorCase{{Type: ir.TypeRef{Target: "t/missing"}}},
+					ID: "op/x",
+					Errors: []ir.ErrorCase{{
+						Payload: &ir.Payload{Contents: []ir.Content{{Type: ir.TypeRef{Target: "t/missing"}}}},
+					}},
 				}},
 			}},
 		}},

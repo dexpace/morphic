@@ -61,14 +61,6 @@ func TestUnpreservable_AnnouncementNeverOutrunsTheEntry(t *testing.T) {
 			at: "/components/schemas/M/allOf/0",
 		},
 		{
-			name: "error response with multiple media types",
-			spec: openapitest.PathsSpec("  /x:\n    get:\n      responses:\n" +
-				"        \"500\":\n          description: bad\n          content:\n" +
-				"            application/json: {schema: {type: string}, example: " + unpreservableValue + "}\n" +
-				"            application/xml: {schema: {type: string}}\n"),
-			at: "/paths/~1x/get/responses/500/content",
-		},
-		{
 			name: "path-item servers",
 			spec: openapitest.PathsSpec("  /x:\n    servers: [{url: 'https://a', x-t: " + unpreservableValue + "}]\n" +
 				"    get:\n      responses: {\"200\": {description: ok}}\n"),

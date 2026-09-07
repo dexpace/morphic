@@ -41,6 +41,12 @@ func encodingCarriers() []encodingCarrier {
 				Payload: &ir.Payload{Contents: []ir.Content{multipartContent(enc)}},
 			}}
 		}},
+		{"ErrorCase.Payload", "op/errors/0/contents/0", func(d *ir.Document, enc map[ir.PropID]ir.PartEncoding) {
+			firstOp(d).Errors = []ir.ErrorCase{{
+				Name:    ir.Naming{Source: "bad_request"},
+				Payload: &ir.Payload{Contents: []ir.Content{multipartContent(enc)}},
+			}}
+		}},
 		{"Message.Payload", "msg/a/contents/0", func(d *ir.Document, enc map[ir.PropID]ir.PartEncoding) {
 			putMessage(d, func(m *ir.Message) {
 				m.Payload = ir.Payload{Contents: []ir.Content{multipartContent(enc)}}
@@ -85,6 +91,27 @@ func TestValidate_EncodingKeysNamingRealPropertiesAreClean(t *testing.T) {
 		tc.plant(doc, map[ir.PropID]ir.PartEncoding{"p/m/a": {Multi: true}})
 	}
 	assert.Empty(t, pass.Validate(doc))
+}
+
+// TestValidate_EncodingKeyThroughServiceCommonErrors covers the second position
+// an ir.ErrorCase hangs from. The carrier table above plants into an operation's
+// own Errors, which is one of two lists of the same node: a check reaching only
+// that one would resolve a service-level error's encoding keys against nothing
+// while every case above stayed green.
+func TestValidate_EncodingKeyThroughServiceCommonErrors(t *testing.T) {
+	t.Parallel()
+	doc := validDoc()
+	service(doc).CommonErrors = []ir.ErrorCase{{
+		Name: ir.Naming{Source: "throttled"},
+		Payload: &ir.Payload{Contents: []ir.Content{
+			multipartContent(map[ir.PropID]ir.PartEncoding{"p/m/ghost": {Multi: true}}),
+		}},
+	}}
+
+	found := withCode(pass.Validate(doc), "ir/encoding-key-unknown-property")
+	require.Len(t, found, 1, "exactly the planted key must address nothing")
+	assert.Equal(t, "doc/services/0/commonErrors/0/contents/0/encoding/p/m/ghost",
+		found[0].Provenance.Pointer, "the pointer names the list the error case hangs from")
 }
 
 // TestValidate_EncodingKeyThroughComposition covers the three ways a body model

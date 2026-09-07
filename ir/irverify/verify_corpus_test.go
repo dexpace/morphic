@@ -89,12 +89,18 @@ func TestVerify_Corpus(t *testing.T) {
 }
 
 // uncorpusedUnmodeled exercises the Unmodeled writes no committed fixture
-// reaches: path-item servers, an error response's headers, an error response's
-// second media type, and an `items` tail after `prefixItems`. The parameter's
-// xml hints are reached by the corpus too, and are here so the spec covers every
-// field unmodeledKeys reads — the operation itself, its parameters, its errors
-// and the type registry — leaving a collector that stopped reading one of them
-// to fail the precondition below rather than quietly narrow what is verified.
+// reaches: path-item servers, an error response's own x-* extension, and an
+// `items` tail after `prefixItems`. The parameter's xml hints are reached by the
+// corpus too, and are here so the spec covers every field unmodeledKeys reads —
+// the operation itself, its parameters, its errors and the type registry —
+// leaving a collector that stopped reading one of them to fail the precondition
+// below rather than quietly narrow what is verified.
+//
+// The 404 also declares headers and two media types, which write nothing here
+// any more: both lower structurally onto ir.ErrorCase (GitHub #422). They stay
+// because that is what makes them verified rather than merely absent — the
+// headers are ir.Property values the naming and reference checks now reach on an
+// error case, which no committed fixture put them on before.
 const uncorpusedUnmodeled = `openapi: 3.1.0
 info: {title: UnmodeledSites, version: "1"}
 paths:
@@ -118,6 +124,7 @@ paths:
                 items: {type: integer}
         "404":
           description: missing
+          x-mark: kept
           headers:
             X-Reason: {schema: {type: string}}
           content:
@@ -168,8 +175,7 @@ func TestVerify_UnmodeledSitesOutsideTheCorpus(t *testing.T) {
 	doc := compile(t, "unmodeled-sites.yaml", []byte(uncorpusedUnmodeled))
 	require.NotNil(t, doc)
 	require.Equal(t, []string{
-		"openapi:content", "openapi:headers", "openapi:items-after-prefix",
-		"openapi:servers", "openapi:xml",
+		"openapi:items-after-prefix", "openapi:servers", "openapi:x-mark", "openapi:xml",
 	}, unmodeledKeys(doc), "the spec must reach every preserve call this test exists for")
 
 	assert.Empty(t, irverify.Verify(doc))

@@ -477,7 +477,8 @@ func TestContent_FullPipeline(t *testing.T) {
 	_, hasLinks := resp.Unmodeled["openapi:links"]
 	assert.True(t, hasLinks)
 
-	assert.True(t, openapitest.HasDiag(diags, diag.DegradedConstruct))
+	assert.False(t, openapitest.HasDiag(diags, diag.DegradedConstruct),
+		"every construct this spec declares has a typed home; got %+v", diags)
 }
 
 func TestContent_OctetAndErrorMulti(t *testing.T) {
@@ -488,16 +489,14 @@ func TestContent_OctetAndErrorMulti(t *testing.T) {
 	require.NotNil(t, raw.Request)
 	require.NotEmpty(t, raw.Request.Contents)
 	assert.NotNil(t, raw.Request.Contents[0].File)
-	// Its 400 error has two media types → content preserved raw.
-	require.NotEmpty(t, raw.Errors)
-	var multi ir.ErrorCase
-	for _, ec := range raw.Errors {
-		if len(ec.Unmodeled) > 0 {
-			multi = ec
-		}
-	}
-	_, hasContent := multi.Unmodeled["openapi:content"]
-	assert.True(t, hasContent, "multi-media error content preserved")
+	// Its 400 error declares two media types, and both are Contents (#422).
+	require.Len(t, raw.Errors, 1)
+	payload := raw.Errors[0].Payload
+	require.NotNil(t, payload)
+	require.Len(t, payload.Contents, 2, "neither media type is elected over the other")
+	assert.Equal(t, []string{"application/json", "application/problem+json"},
+		[]string{payload.Contents[0].MediaType, payload.Contents[1].MediaType})
+	assert.Empty(t, raw.Errors[0].Unmodeled, "nothing is kept verbatim beside the typed payload")
 }
 
 func TestContent_SequentialAndEmptyBody(t *testing.T) {

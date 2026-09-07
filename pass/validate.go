@@ -234,25 +234,44 @@ func checkPropIDRefs(doc *ir.Document) []ir.Diagnostic {
 // Only this pass reports it today.
 //
 // The fields that carry a Payload are named here — Operation.Request,
-// Response.Payload and Message.Payload — because nothing in a Payload's Go type
-// says who owns one, so a new one has to be added by hand. That coupling is
-// guarded: TestEncodingCarriers_NameEveryPayloadFieldInTheIR
+// Response.Payload, ErrorCase.Payload and Message.Payload — because nothing in a
+// Payload's Go type says who owns one, so a new one has to be added by hand.
+// That coupling is guarded: TestEncodingCarriers_NameEveryPayloadFieldInTheIR
 // (validate_carriers_test.go) walks the IR for Payload-bearing fields and fails
 // the moment one of them is not walked here.
+//
+// ErrorCase.Payload is reached at both of the IR's error positions — an
+// operation's own Errors and its service's CommonErrors — because the field is
+// one field wherever the node hangs, and a check that walked only the operation
+// list would resolve a service-level error's keys against nothing in silence.
 func checkEncodingKeys(doc *ir.Document) []ir.Diagnostic {
 	var diags []ir.Diagnostic
+	for i, svc := range doc.Services {
+		at := fmt.Sprintf("doc/services/%d/commonErrors", i)
+		diags = appendErrorEncodingDiags(diags, doc, svc.CommonErrors, at)
+	}
 	forEachOperation(doc, func(op ir.Operation) {
 		diags = appendEncodingKeyDiags(diags, doc, op.Request, string(op.ID)+"/request")
 		for i, r := range op.Responses {
 			at := fmt.Sprintf("%s/responses/%d", op.ID, i)
 			diags = appendEncodingKeyDiags(diags, doc, r.Payload, at)
 		}
+		diags = appendErrorEncodingDiags(diags, doc, op.Errors, string(op.ID)+"/errors")
 	})
 	for _, id := range sortedKeys(doc.Messages) {
 		msg := doc.Messages[id]
 		diags = appendEncodingKeyDiags(diags, doc, &msg.Payload, string(id))
 	}
 	return diags
+}
+
+// appendErrorEncodingDiags appends to dst a diagnostic per unresolvable encoding
+// key in each error case's payload; where locates the list the cases hang from.
+func appendErrorEncodingDiags(dst []ir.Diagnostic, doc *ir.Document, errs []ir.ErrorCase, where string) []ir.Diagnostic {
+	for i, ec := range errs {
+		dst = appendEncodingKeyDiags(dst, doc, ec.Payload, fmt.Sprintf("%s/%d", where, i))
+	}
+	return dst
 }
 
 // appendEncodingKeyDiags appends to dst a diagnostic per unresolvable encoding
