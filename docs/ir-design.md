@@ -1829,8 +1829,10 @@ this from `Unmodeled` and no two derive it differently:
 4. **A node with no `Provenance` is not promoted into.** A node carrying a `Deprecation` and no
    provenance could not satisfy rule 3, and a heuristic that cannot be audited is worse than an
    empty field. Giving such a node a provenance is a change to this document, and the promotion
-   follows it rather than preceding it — which is the order `Parameter` went through: it was the
-   instance this rule named until it gained the `Provenance` §7.2 now gives it.
+   follows it rather than preceding it — which is the order `Parameter` went through, and it held
+   this rule's only named instance until it gained the `Provenance` §7.2 now gives it. `Variant`
+   (§4.4) and `EnumMember` (§4.5) are the instances today: each carries a `Deprecation` and no
+   provenance of its own, so no key maps into either until one of them gains one.
 
 A value the mapped field cannot hold — anything but text, for the four `Deprecation` members — is
 reported and not coerced, since the document means something else by the key. Text of the right
