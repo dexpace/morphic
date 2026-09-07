@@ -3,6 +3,16 @@ package ir
 // Constraints restricts the admissible values of a scalar, list, string, or
 // numeric type (ir-design §5.3). Numeric bounds are arbitrary-precision decimal
 // strings, never float64.
+//
+// Every Constraints is position-scoped: it holds what the position carrying it
+// declared, and nothing is ever copied across a TypeRef. Bounds conjoin rather
+// than override, so the effective restriction on a value is this struct
+// together with the Constraints of every node reached from the position's
+// TypeRef, and an absent Constraints means that position declared no bound —
+// never that the value is unbounded (ir-design §12.2). Documentation,
+// deprecation and Default are the other way round: a compiler merges them from
+// a $ref's target onto the referencing carrier with use-site precedence, so a
+// use site already carries those and resolves nothing to read them.
 type Constraints struct {
 	// Min is the inclusive (or exclusive, per ExclusiveMin) lower numeric bound.
 	Min *BigVal `json:"min,omitempty"`

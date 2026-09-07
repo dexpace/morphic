@@ -77,7 +77,12 @@ type Parameter struct {
 	Required bool `json:"required"`
 	// Default is the parameter's default value.
 	Default *Value `json:"default,omitempty"`
-	// Constraints restricts the parameter's admissible values.
+	// Constraints restricts the parameter's admissible values, and holds only
+	// what the parameter's own position declared. A bound on a $ref'd schema
+	// stays on the node Type points at and is never copied here, unlike Docs,
+	// Deprecation and Default, which merge from that target with use-site
+	// precedence: bounds conjoin rather than override, so nil means this
+	// position declared none, not that the value is unbounded (ir-design §12.2).
 	Constraints *Constraints `json:"constraints,omitempty"`
 	// ValueFrom derives the parameter's value from a location in the
 	// outgoing/incoming message (AsyncAPI parameter location runtime
