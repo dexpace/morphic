@@ -189,7 +189,7 @@
     {
       "severity": "warning",
       "code": "openapi/conflicting-redeclaration",
-      "message": "declarations of field \"clone_url\" disagree: incompatible types t/prim/url and t/prim/string; kept the first declaration (/components/schemas/Repository/allOf/0/properties/clone_url) over the redeclaration (/components/schemas/Repository/allOf/1/properties/clone_url)",
+      "message": "declarations of field \"clone_url\" disagree: incompatible types t/prim/url and t/prim/string (the redeclaration's type is kept verbatim under Unmodeled); kept the first declaration (/components/schemas/Repository/allOf/0/properties/clone_url) over the redeclaration (/components/schemas/Repository/allOf/1/properties/clone_url)",
       "provenance": {
         "source": 0,
         "pointer": "/components/schemas/Repository/allOf/1/properties/clone_url"
@@ -198,7 +198,7 @@
     {
       "severity": "warning",
       "code": "openapi/conflicting-redeclaration",
-      "message": "declarations of field \"id\" disagree: incompatible types t/prim/integer and t/prim/string; kept the first declaration (/components/schemas/Identified/allOf/0/properties/id) over the redeclaration (/components/schemas/Identified/allOf/1/properties/id)",
+      "message": "declarations of field \"id\" disagree: incompatible types t/prim/integer and t/prim/string (the redeclaration's type is kept verbatim under Unmodeled); kept the first declaration (/components/schemas/Identified/allOf/0/properties/id) over the redeclaration (/components/schemas/Identified/allOf/1/properties/id)",
       "provenance": {
         "source": 0,
         "pointer": "/components/schemas/Identified/allOf/1/properties/id"

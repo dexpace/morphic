@@ -271,11 +271,10 @@ func assertAllOfConflictingType(t *testing.T, doc *ir.Document, diags []ir.Diagn
 	require.True(t, ok, "the two declarations still reconcile to one property")
 	assert.Equal(t, ir.TypeID("t/prim/url"), clone.Type.Target, "the first declaration wins the shape")
 
-	entry := unmodeledEntry(t, clone.Unmodeled,
-		"openapi:conflicting-redeclaration/components/schemas/Repository/allOf/1/properties/clone_url")
-	assert.Equal(t, ir.ReasonDegradedLowering, entry.Reason)
-	assert.JSONEq(t, `{"target":"t/prim/string","nullable":false}`, string(entry.Value))
-	assert.Equal(t, "/components/schemas/Repository/allOf/1/properties/clone_url", entry.Provenance.Pointer,
+	const cloneKey = "openapi:conflicting-redeclaration/components/schemas/Repository/allOf/1/properties/clone_url"
+	assertKeptRaw(t, clone.Unmodeled, cloneKey, `{"target":"t/prim/string","nullable":false}`)
+	assert.Equal(t, "/components/schemas/Repository/allOf/1/properties/clone_url",
+		unmodeledEntry(t, clone.Unmodeled, cloneKey).Provenance.Pointer,
 		"the entry locates the losing declaration, not the merged property")
 	assert.Equal(t, []ir.Severity{ir.SeverityWarning},
 		diagsAt(diags, "openapi/conflicting-redeclaration",
@@ -287,10 +286,11 @@ func assertAllOfConflictingType(t *testing.T, doc *ir.Document, diags []ir.Diagn
 	id, ok := propByWire(identified, "id")
 	require.True(t, ok)
 	assert.Equal(t, ir.TypeID("t/prim/integer"), id.Type.Target)
-	entry = unmodeledEntry(t, id.Unmodeled,
-		"openapi:conflicting-redeclaration/components/schemas/Identified/allOf/1/properties/id")
-	assert.JSONEq(t, `{"target":"t/prim/string","nullable":true}`, string(entry.Value),
-		"a nullable loser keeps its nullability, which the target ID alone would drop")
+	// Held to the same check as the first: the Reason assertion above was not
+	// repeated here, so two cases in one fixture were not equally pinned.
+	assertKeptRaw(t, id.Unmodeled,
+		"openapi:conflicting-redeclaration/components/schemas/Identified/allOf/1/properties/id",
+		`{"target":"t/prim/string","nullable":true}`)
 }
 
 // assertAllOfRefBranchSiblings covers the other branch kind: keywords written

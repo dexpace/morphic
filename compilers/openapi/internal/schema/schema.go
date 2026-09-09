@@ -1070,7 +1070,7 @@ func fillModelProperties(c lowering.Ctx, ts *compile.Types, anchors *AnchorIndex
 		diags = append(diags, FillPropertyDetail(c, ts, anchors, &p, js, ppointer)...)
 		var mergeDiags []ir.Diagnostic
 		mg := merger(c, ts, &mergeDiags)
-		mg.MergeProperty(m, byWire, p, ppointer)
+		mg.MergeProperty(m, byWire, p)
 		diags = append(diags, mergeDiags...)
 	}
 	return diags

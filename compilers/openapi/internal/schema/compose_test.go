@@ -149,7 +149,7 @@ func TestAllOf_ConflictingRedeclaredDescriptionDiagnosed(t *testing.T) {
 		"a differing redeclared description is surfaced, not dropped silently")
 }
 
-func TestAllOf_ConflictingRedeclaredTypeDiagnosed(t *testing.T) {
+func TestAllOf_ConflictingRedeclaredTypeDiagnosedAndKept(t *testing.T) {
 	t.Parallel()
 	// allOf is an intersection, so a field one branch types `string` and another
 	// types `integer` describes an unsatisfiable schema. Reconciliation keeps the
@@ -183,10 +183,11 @@ func TestAllOf_ConflictingRedeclaredTypeDiagnosed(t *testing.T) {
 
 	// A diagnostic is not part of the document, so the losing declaration is
 	// also kept where a consumer reading the IR will reach it (GitHub #424).
-	lost := m.Properties[0].Unmodeled["openapi:conflicting-redeclaration"+
+	lost, ok := m.Properties[0].Unmodeled["openapi:conflicting-redeclaration"+
 		"/components/schemas/Conflictish/allOf/1/properties/id"]
-	assert.Equal(t, ir.ReasonDegradedLowering, lost.Reason,
+	require.True(t, ok,
 		"the discarded type is kept beside the winner; got %v", m.Properties[0].Unmodeled)
+	assert.Equal(t, ir.ReasonDegradedLowering, lost.Reason)
 	assert.JSONEq(t, `{"target":"t/prim/integer","nullable":false}`, string(lost.Value),
 		"and it names the type the second branch declared, not the one that won")
 	assert.Equal(t, "/components/schemas/Conflictish/allOf/1/properties/id", lost.Provenance.Pointer)
