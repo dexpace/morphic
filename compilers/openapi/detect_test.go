@@ -67,27 +67,28 @@ func TestDetect_Formats(t *testing.T) {
 		// key, so the parse error describes a parser that was wrong to be asked.
 		{"unparseable, key only mentioned", "svc.proto", "syntax = \"openapi\";\n{[",
 			compilers.SourceFormat{}, false, nil},
-		// Past the sniff cap and still this compiler's: the key it declares is in
-		// the prefix, so the fast path alone is enough to call it broken rather
-		// than somebody else's.
+		// Past the cap, where detection scans rather than parses, and the key it
+		// writes has no version beside it. A scan cannot tell that from another
+		// format's file naming the word, and claiming the wrong one of those two
+		// is the costlier mistake, so it declines and the caller is told the
+		// format was not recognized.
 		{"unparseable past the cap", "api.yaml",
 			padTo("openapi: [unterminated\n", "filler: x\n"),
-			compilers.SourceFormat{}, false, []string{diag.UndecodableSource}},
+			compilers.SourceFormat{}, false, nil},
 		// Declares the key only past the cap, on a prefix that does not parse. The
-		// key search reads every byte, so the declaration is found and the source
-		// is this compiler's own — broken, and said so, rather than declined as
-		// somebody else's for want of looking.
+		// scan reads every byte, so the version is found and the format named; that
+		// the bytes around it will not parse is the compile's finding to report,
+		// where the parse that discovers it is one the loader had agreed to pay
+		// for. See TestCompile_AnUnreadableSourceIsADiagnostic.
 		{"key past the cap on an unparseable prefix", "api.yaml",
 			padTo("bad: [unterminated\n", "filler: x\n") + "openapi: 3.1.0\n",
-			compilers.SourceFormat{}, false, []string{diag.UndecodableSource}},
-		// The same case in flow style, which is what the motivating spec is
-		// written in. A JSON document has no line structure to cut at, so its
-		// prefix is streamed and the stream stops at the cut; the whole read is
-		// what finds the declaration, and keeping that read's own error is what
-		// lets the answer be "this compiler's, and broken" rather than silence.
+			compilers.SourceFormat{Name: "openapi", Version: "3.1"}, true, nil},
+		// The same case in flow style, which is what the motivating spec is written
+		// in. A JSON document has no line structure to cut at, and the scan needs
+		// none: it tracks nesting through bytes a parser stops at.
 		{"key past the cap on an unparseable flow prefix", "spec3.json",
 			`{"pad":"` + flowPad() + `","bad" 1,"openapi":"3.1.0"}`,
-			compilers.SourceFormat{}, false, []string{diag.UndecodableSource}},
+			compilers.SourceFormat{Name: "openapi", Version: "3.1"}, true, nil},
 		// Another format's document, past the cap, naming the word as a key and
 		// broken besides. It opens no mapping of its own, so the key is not its
 		// declaration of itself and this compiler has nothing to say: reporting a
@@ -254,12 +255,6 @@ func TestDeclaresProbeKey_GuardsTheWholeRead(t *testing.T) {
 	}
 }
 
-// TestDecodeFlowEntries_ReadsWhatTheCutLeft pins both halves of what the walk
-// returns: the entries it completed, and whether the token stream broke before
-// the mapping closed. A cut prefix breaks it by construction and a whole
-// document does not, which is why the error is reported rather than folded into
-// the probe — the same bytes mean "cut here" to one caller and "unreadable" to
-// the other, and only the caller knows which it passed.
 // TestDeclaresProbeKey_ScopesTheNameToItsOwnDocument pins the half of the guard
 // that decides whose bytes these are. A name followed by a colon is a key
 // wherever it sits, so the scan has to say *whose* key: block style answers with
@@ -295,77 +290,6 @@ func TestDeclaresProbeKey_ScopesTheNameToItsOwnDocument(t *testing.T) {
 			assert.Equal(t, tc.want, declaresProbeKey([]byte(tc.src)))
 		})
 	}
-}
-
-func TestDecodeFlowEntries_ReadsWhatTheCutLeft(t *testing.T) {
-	t.Parallel()
-	cases := []struct {
-		name, prefix       string
-		want               sniffProbe
-		wantFlow, wantBrok bool
-	}{
-		{"complete document", `{"openapi":"3.1.0","info":{"title":"T"}}`,
-			sniffProbe{OpenAPI: "3.1.0"}, true, false},
-		{"cut inside a later value", `{"openapi":"3.1.0","info":{"title":"T`,
-			sniffProbe{OpenAPI: "3.1.0"}, true, true},
-		{"cut inside a key", `{"openapi":"3.1.0","inf`,
-			sniffProbe{OpenAPI: "3.1.0"}, true, true},
-		{"swagger", `{"swagger":"2.0","info":{}}`, sniffProbe{Swagger: "2.0"}, true, false},
-		// A version that is not a string declares no dialect, and must not be
-		// read as one by accident.
-		{"non-string version", `{"openapi":3}`, sniffProbe{}, true, false},
-		// Whole, opens a mapping, and breaks in the middle of it: nothing was cut
-		// away, so the break is the document's own.
-		{"malformed mid-mapping", `{"a":1,"b" 2,"openapi":"3.1.0"}`,
-			sniffProbe{}, true, true},
-		{"no flow mapping", "openapi: 3.1.0\n", sniffProbe{}, false, false},
-		{"not even a token", "\x00", sniffProbe{}, false, false},
-	}
-	for _, tc := range cases {
-		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
-			got, flow, err := decodeFlowEntries([]byte(tc.prefix))
-			assert.Equal(t, tc.wantFlow, flow)
-			assert.Equal(t, tc.want, got)
-			if tc.wantBrok {
-				assert.Error(t, err, "a broken token stream is reported, not swallowed")
-				return
-			}
-			assert.NoError(t, err)
-		})
-	}
-}
-
-// TestDecodeFlowEntries_StopsAtTheEntryCap proves the walk is bounded by its own
-// count and not only by the byte cap: a declaration after maxSniffEntries other
-// entries is not read.
-func TestDecodeFlowEntries_StopsAtTheEntryCap(t *testing.T) {
-	t.Parallel()
-	var b strings.Builder
-	b.WriteByte('{')
-	for i := range maxSniffEntries + 1 {
-		if i > 0 {
-			b.WriteByte(',')
-		}
-		b.WriteString(`"k`)
-		b.WriteString(strings.Repeat("x", 3))
-		b.WriteString(string(rune('a' + i%26)))
-		b.WriteString(strings.Repeat("y", i%7))
-		b.WriteString(`":0`)
-	}
-	b.WriteString(`,"openapi":"3.1.0"}`)
-
-	got, flow, err := decodeFlowEntries([]byte(b.String()))
-	require.True(t, flow)
-	require.NoError(t, err, "stopping on the cap is not the document breaking")
-	assert.Equal(t, sniffProbe{}, got, "the entry past the cap is not read")
-}
-
-func TestWholeLines(t *testing.T) {
-	t.Parallel()
-	assert.Equal(t, "a\nb\n", string(wholeLines([]byte("a\nb\nc"))))
-	assert.Equal(t, "nolines", string(wholeLines([]byte("nolines"))),
-		"a prefix with no newline has no better cut to make")
 }
 
 func TestMajorMinor(t *testing.T) {

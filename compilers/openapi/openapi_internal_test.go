@@ -24,11 +24,17 @@ func TestParse_UnsupportedVersion(t *testing.T) {
 	assert.True(t, openapitest.HasDiag(diags, diag.UnsupportedVersion))
 }
 
+// TestParse_UnmarshalError pins where a document that will not parse is
+// reported. It is a finding about the source, not a failure of the compiler:
+// engine.Run turns a compiler's Go error into one of its own, and the CLI reads
+// that as having been invoked wrong rather than as a spec it could not read.
 func TestParse_UnmarshalError(t *testing.T) {
 	t.Parallel()
-	_, _, err := New().Compile(context.Background(),
+	doc, diags, err := New().Compile(context.Background(),
 		[]compilers.Source{openapitest.SourceOf("\t\t: : : not valid : yaml\n\x00")}, compilers.Options{})
-	require.Error(t, err)
+	require.NoError(t, err)
+	assert.Nil(t, doc)
+	assert.True(t, openapitest.HasDiag(diags, diag.UndecodableSource))
 }
 
 // TestRun_RegistryRefusalsAreSurfaced covers the reporting of an entry

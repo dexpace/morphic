@@ -2,6 +2,7 @@ package openapi
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	"github.com/dexpace/morphic/compilers"
@@ -62,6 +63,15 @@ func (c *Compiler) Compile(ctx context.Context, sources []compilers.Source, opts
 		return nil, nil, err
 	}
 	loadedDoc, diags, err := load.Load(ctx, rootSrcIndex, sources[0], loadOptions(formatOpts))
+	if errors.Is(err, load.ErrParse) {
+		// Detection named this source's format by scanning for the key it
+		// declares, which is an answer a broken document gives as readily as a
+		// whole one. The parse that finds it broken is this one, so the complaint
+		// is this one's to carry — as a diagnostic, because a Go error here
+		// leaves engine.Run as a Go error and the CLI reads that as a misuse of
+		// itself rather than as a spec it could not read.
+		return nil, append(diags, undecodable(err)), nil
+	}
 	if err != nil || loadedDoc == nil {
 		return nil, diags, err
 	}
@@ -189,4 +199,12 @@ func loweringCtx(doc *load.Document, o Options) lowering.Ctx {
 	limits := lowering.Limits{MaxEnumMembers: bounded(o.Limits.MaxEnumMembers)}
 	return lowering.New(rootSrcIndex, doc.Doc, doc.Source, o.Grouping, limits,
 		o.StreamingMedia, o.Promotions, doc.Overlay)
+}
+
+// undecodable reports a source this compiler recognized and could not read. It
+// names the source rather than NoSource: by the time a parse has failed the
+// source table exists, so the finding can point at the file it is about.
+func undecodable(err error) ir.Diagnostic {
+	return diag.Newf(ir.SeverityError, diag.UndecodableSource, ir.Provenance{Source: rootSrcIndex},
+		"source cannot be read: %s", diag.OneLine(err))
 }

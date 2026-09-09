@@ -84,9 +84,12 @@ func budgetRefusal(srcIndex int, format string, observed, limit int) ir.Diagnost
 		ir.Provenance{Source: srcIndex}, format, observed, limit)
 }
 
-// errParse marks a hard failure to parse a source document — an I/O- or
-// programmer-level error, distinct from a spec problem reported as a diagnostic.
-var errParse = errors.New("parse source")
+// ErrParse marks a hard failure to read a source document: bytes that are not
+// YAML, or that fault the parser. It is exported because the compiler above
+// converts it into a diagnostic — a document that will not parse is a problem
+// with the document, and engine.Run turns a Go error from a compiler into one of
+// its own, which the CLI reports on the channel it uses for being invoked wrong.
+var ErrParse = errors.New("parse source")
 
 // maxSchemaScanDepth bounds the scalar scan of a schema node (styleguide
 // bounded-recursion rule); a schema nested deeper is pathological, not a spec the
@@ -486,7 +489,7 @@ func nodeCount(root *yaml.Node) int {
 func decode(data []byte) (*yaml.Node, error) {
 	var root yaml.Node
 	if err := yaml.Unmarshal(data, &root); err != nil {
-		return nil, fmt.Errorf("%w: %w", err, errParse)
+		return nil, fmt.Errorf("%w: %w", err, ErrParse)
 	}
 	return &root, nil
 }
@@ -499,7 +502,7 @@ func decode(data []byte) (*yaml.Node, error) {
 // an overlay.
 //
 // It converts a panic from the third-party parser — which faults on degenerate
-// input such as a whitespace-only document — into an errParse error, so the
+// input such as a whitespace-only document — into an ErrParse error, so the
 // compiler upholds the no-panics-escape invariant instead of crashing the
 // caller's process. The named returns are reset in the recover so a
 // partially-assigned document never leaks.
@@ -507,7 +510,7 @@ func unmarshal(ctx context.Context, data []byte, root *yaml.Node) (doc *soa.Open
 	defer func() {
 		if r := recover(); r != nil {
 			doc, valErrs = nil, nil
-			err = fmt.Errorf("parser panicked (%v): %w", r, errParse)
+			err = fmt.Errorf("parser panicked (%v): %w", r, ErrParse)
 		}
 	}()
 	if len(data) == 0 {
@@ -541,7 +544,7 @@ func resolveAll(ctx context.Context, doc *soa.OpenAPI, opts soa.ResolveAllOption
 	defer func() {
 		if r := recover(); r != nil {
 			resErrs = nil
-			err = fmt.Errorf("reference resolver panicked (%v): %w", r, errParse)
+			err = fmt.Errorf("reference resolver panicked (%v): %w", r, ErrParse)
 		}
 	}()
 	return doc.ResolveAllReferences(ctx, opts)

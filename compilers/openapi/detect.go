@@ -2,7 +2,6 @@ package openapi
 
 import (
 	"bytes"
-	"encoding/json"
 	"fmt"
 
 	yaml "gopkg.in/yaml.v3"
@@ -20,13 +19,6 @@ import (
 // whose prefix declares neither key while its bytes name one is read whole, per
 // sniffWhole.
 const maxSniffBytes = 64 << 10
-
-// maxSniffEntries bounds the top-level entries read from a flow-style mapping.
-// A document declares few top-level keys however large it grows, so a mapping
-// that runs past this without naming either key is not one this compiler will
-// take. The bound is on entries, not bytes: one of them may be megabytes long,
-// which is the whole reason the byte cap alone does not answer the question.
-const maxSniffEntries = 512
 
 // maxMergeDepth bounds how far a root mapping's merge keys are followed. A `<<`
 // value may be an alias to a mapping that merges another, and an anchor may name
@@ -211,66 +203,161 @@ func startsWithColon(data []byte, i int) bool {
 // worth reporting is Detect's question, not this one's: here it is only the
 // record of what happened.
 //
-// A document within the cap is decoded whole and exactly. A larger one is read
-// from its prefix first, and only from all of itself when that prefix answered
-// nothing and the bytes past it name a key this compiler serves.
+// A document within the cap is decoded whole and exactly, which is the only way
+// to tell one that declares nothing from one that will not parse. A larger one
+// is scanned instead: the answer detection owes is which of two keys a document
+// declares, and a scan reads that in one linear pass, where a parse builds a
+// tree of everything between them before the compiler's size and node budgets
+// have agreed to pay for one.
 func sniff(data []byte) (sniffProbe, error) {
+	probe, err := readProbe(data)
+	return declaredVersions(probe), err
+}
+
+// readProbe reads the probe keys by whichever means the document's size affords.
+func readProbe(data []byte) (sniffProbe, error) {
 	if len(data) <= maxSniffBytes {
 		return decodeYAML(data)
 	}
-
-	probe, err := sniffPrefix(data[:maxSniffBytes])
-	if probe.OpenAPI != "" || probe.Swagger != "" {
-		return probe, nil
-	}
-	if declaresProbeKey(data) {
-		return sniffWhole(data)
-	}
-	return probe, err
+	return scanProbe(data), nil
 }
 
-// sniffPrefix reads the probe keys from the first maxSniffBytes of a document
-// too large to decode whole. The prefix cannot simply be cut: flow style — JSON
-// is the common case — is one token stream with no line structure, so its
-// entries are streamed instead, and block style is cut at its last complete
-// line.
-func sniffPrefix(prefix []byte) (sniffProbe, error) {
-	// The cut breaks the token stream by construction, so the flow decoder's
-	// error here describes the cut and not the document. What it managed to read
-	// before the cut is the whole of what a prefix has to say.
-	probe, flow, _ := decodeFlowEntries(prefix)
-	if flow {
-		return probe, nil
+// declaredVersions drops any value that does not read as a version. A key alone
+// does not declare a format: another format's document may write the word — at
+// column 0 in Markdown prose, or as a field of its own — and what separates that
+// from a declaration is the version beside it. Claiming it instead reports this
+// compiler's complaint over a file that was never its own.
+func declaredVersions(probe sniffProbe) sniffProbe {
+	if !isVersion(probe.OpenAPI) {
+		probe.OpenAPI = ""
 	}
-	return decodeYAML(wholeLines(prefix))
+	if !isVersion(probe.Swagger) {
+		probe.Swagger = ""
+	}
+	return probe
 }
 
-// sniffWhole reads the probe keys from a whole document past the cap, for the
-// one case that earns the parse: the prefix declared neither key, yet the bytes
-// name one further in. Mapping key order carries no meaning, so a document that
-// writes a multi-megabyte `components` before its `openapi` is as valid as one
-// that writes them the other way round, and declining it would reject a valid
-// document over nothing.
-//
-// Nothing another format wrote reaches here — declaresProbeKey guards the call —
-// so the cost is paid only for bytes this compiler is about to parse in full
-// anyway, and the answer for everyone else is still the fast path's silence.
-//
-// Unlike sniffPrefix this keeps the flow decoder's error, and returns the zero
-// probe with it exactly as decodeYAML does. There is no cut here to explain a
-// broken token stream away: a whole document that stops mid-stream is a document
-// this compiler cannot read, and saying so is the answer the key it declares has
-// earned. Dropping the error instead reports the source as another format's,
-// which is what the document past the cap was found not to be.
-func sniffWhole(data []byte) (sniffProbe, error) {
-	probe, flow, err := decodeFlowEntries(data)
-	if !flow {
-		return decodeYAML(data)
+// isVersion reports whether value reads as a dotted version: digits and dots,
+// beginning with a digit. It admits the three shapes majorMinor is written for —
+// "3.1.0", "3.1", and a bare "4" — and nothing that a sentence of prose is.
+func isVersion(value string) bool {
+	if value == "" || value[0] < '0' || value[0] > '9' {
+		return false
 	}
-	if err != nil {
-		return sniffProbe{}, err
+	for i := range len(value) {
+		if (value[i] < '0' || value[i] > '9') && value[i] != '.' {
+			return false
+		}
 	}
-	return probe, nil
+	return true
+}
+
+// scanProbe reads the probe keys and their versions out of data without building
+// a tree of it. Both styles are scanned, because which one a document is written
+// in is not known until it has been read: block style writes a top-level key at
+// column 0, flow style writes it among the root mapping's own entries.
+//
+// Both keys are read wherever they sit, so where a document declares one carries
+// no meaning here — mapping keys being unordered, that is the whole property.
+// Which of the two wins when a document declares both is Detect's question.
+func scanProbe(data []byte) sniffProbe {
+	var probe sniffProbe
+	scanBlockProbe(data, &probe)
+	scanFlowProbe(data, &probe)
+	return probe
+}
+
+// scanBlockProbe reads a block document's top-level entries, which are its lines
+// beginning at column 0. It allocates nothing per line: a document past the cap
+// is megabytes of lines this walks and keeps none of.
+func scanBlockProbe(data []byte, probe *sniffProbe) {
+	for i := 0; i < len(data); {
+		line := data[i:]
+		if j := bytes.IndexByte(line, '\n'); j >= 0 {
+			line, i = line[:j], i+j+1
+		} else {
+			i = len(data)
+		}
+		if name, value, ok := bytes.Cut(line, []byte(":")); ok && isProbeName(name) {
+			setVersion(probe, name, blockValue(value))
+		}
+	}
+}
+
+// blockValue returns the scalar a block entry writes after its colon, without the
+// space around it, a trailing comment, or the quotes either style of quoting may
+// have put around it.
+func blockValue(raw []byte) []byte {
+	value := bytes.TrimSpace(raw)
+	if i := bytes.Index(value, []byte(" #")); i >= 0 {
+		value = bytes.TrimSpace(value[:i])
+	}
+	if len(value) >= 2 && (value[0] == '"' || value[0] == '\'') && value[len(value)-1] == value[0] {
+		value = value[1 : len(value)-1]
+	}
+	return value
+}
+
+// scanFlowProbe reads the entries of the flow mapping data opens, which is the
+// shape JSON writes. Nesting depth is what makes an entry the document's own: a
+// quoted name followed by a colon reads as a key wherever it sits, and other
+// formats nest one.
+//
+// The scan is a lexer, not a parser: it tracks quoted strings and nesting and
+// reads nothing else. It has to answer on bytes that will not parse, which is the
+// case it exists for — a document broken before the key that names it — so there
+// is no tree to ask instead.
+func scanFlowProbe(data []byte, probe *sniffProbe) {
+	i := skipSpace(data, 0)
+	if i == len(data) || data[i] != '{' {
+		return
+	}
+
+	for depth := 0; i < len(data); {
+		switch data[i] {
+		case '"':
+			name, next := flowString(data, i)
+			if value, after, ok := flowValue(data, next); depth == 1 && isProbeName(name) && ok {
+				setVersion(probe, name, value)
+				i = after
+				continue
+			}
+			i = next
+		case '{', '[':
+			depth++
+			i++
+		case '}', ']':
+			depth--
+			i++
+		default:
+			i++
+		}
+	}
+}
+
+// flowValue returns the quoted scalar written after the colon at i, and the index
+// just past it. A name with no colon after it is no key, and a version written as
+// anything but a string does not declare a dialect this compiler serves.
+func flowValue(data []byte, i int) ([]byte, int, bool) {
+	i = skipSpace(data, i)
+	if i == len(data) || data[i] != ':' {
+		return nil, i, false
+	}
+	if i = skipSpace(data, i+1); i == len(data) || data[i] != '"' {
+		return nil, i, false
+	}
+	value, next := flowString(data, i)
+	return value, next, true
+}
+
+// setVersion stores value under probe's field for name.
+func setVersion(probe *sniffProbe, name, value []byte) {
+	switch string(name) {
+	case "openapi":
+		probe.OpenAPI = string(value)
+	case "swagger":
+		probe.Swagger = string(value)
+	}
 }
 
 // decodeYAML reads the probe keys from a complete YAML (or JSON, its subset)
@@ -446,81 +533,6 @@ func (p *sniffProbe) fillFrom(other sniffProbe) {
 	if p.Swagger == "" {
 		p.Swagger = other.Swagger
 	}
-}
-
-// opensFlowMapping reports whether the stream's first token opens a mapping.
-// A stream that does not is not flow style, which is an answer rather than a
-// failure: the decoder's complaint there says only that these bytes are not
-// JSON, and block YAML is not JSON either.
-func opensFlowMapping(dec *json.Decoder) bool {
-	tok, err := dec.Token()
-	return err == nil && tok == json.Delim('{')
-}
-
-// decodeFlowEntries reads the top-level entries of data, which may be a whole
-// document or a prefix of one. It reports whether data opened a flow mapping,
-// and the error that ended the walk early. The JSON decoder is used because it
-// streams: a prefix cut mid-document still yields every entry it completed,
-// where decoding those same bytes whole reports only that they end early.
-//
-// A nil error means the walk ended on the mapping's own closing delimiter or on
-// the entry cap — the two ways of stopping that say nothing about the bytes.
-// Whether a non-nil one describes the document or only the cut that produced
-// data is the caller's question, since only the caller knows which it passed.
-func decodeFlowEntries(data []byte) (sniffProbe, bool, error) {
-	dec := json.NewDecoder(bytes.NewReader(data))
-	if !opensFlowMapping(dec) {
-		return sniffProbe{}, false, nil
-	}
-
-	var probe sniffProbe
-	for range maxSniffEntries {
-		key, err := dec.Token()
-		if err != nil {
-			return probe, true, err
-		}
-		if key == json.Delim('}') {
-			return probe, true, nil
-		}
-		var value json.RawMessage
-		if err := dec.Decode(&value); err != nil {
-			return probe, true, err
-		}
-		recordEntry(&probe, key, value)
-	}
-	return probe, true, nil
-}
-
-// recordEntry stores value under probe's field for key. key is compared as read
-// rather than asserted to a string: a json.Token holds whichever kind the stream
-// produced, and only the two names the switch spells are of any interest here.
-func recordEntry(probe *sniffProbe, key json.Token, value json.RawMessage) {
-	switch key {
-	case "openapi":
-		probe.OpenAPI = jsonString(value)
-	case "swagger":
-		probe.Swagger = jsonString(value)
-	}
-}
-
-// jsonString returns value as a string, or "" for any other shape. A version
-// that is not a string does not declare a dialect.
-func jsonString(value json.RawMessage) string {
-	var out string
-	if err := json.Unmarshal(value, &out); err != nil {
-		return ""
-	}
-	return out
-}
-
-// wholeLines returns prefix up to and including its last newline, so a block
-// document is cut between entries rather than inside one. A prefix with no
-// newline in it is returned as it is; there is no better cut to make.
-func wholeLines(prefix []byte) []byte {
-	if i := bytes.LastIndexByte(prefix, '\n'); i >= 0 {
-		return prefix[:i+1]
-	}
-	return prefix
 }
 
 // majorMinor returns the "major.minor" prefix of a dotted version string,
