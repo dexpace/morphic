@@ -3,6 +3,7 @@ package openapi
 import (
 	"bytes"
 	"encoding/json"
+	"fmt"
 
 	yaml "gopkg.in/yaml.v3"
 
@@ -27,12 +28,29 @@ const maxSniffBytes = 64 << 10
 // which is the whole reason the byte cap alone does not answer the question.
 const maxSniffEntries = 512
 
+// maxMergeDepth bounds how far a root mapping's merge keys are followed. A `<<`
+// value may be an alias to a mapping that merges another, and an anchor may name
+// a mapping that reaches itself, so the chain is not bounded by the document.
+// Detection reads two keys off the root, which a document that merges at all
+// reaches in one step; eight leaves room for a written chain and none for a
+// crafted one.
+const maxMergeDepth = 8
+
+// mergeTag is the tag YAML resolves `<<` to. The tag is read rather than the
+// key's text, because a mapping may legitimately hold a key spelled "<<" that
+// was quoted into a plain string and merges nothing.
+const mergeTag = "!!merge"
+
 // sniffProbe holds the two discriminating top-level keys. Which one is present
 // is the whole of the format question: an OpenAPI 3.x document declares
 // `openapi`, a Swagger 2.0 document declares `swagger`.
+//
+// It carries no struct tags: nothing decodes into it. Both readers — the flow
+// one over a JSON token stream and the block one over a parsed tree — name the
+// two keys themselves, in recordEntry and fieldFor.
 type sniffProbe struct {
-	OpenAPI string `yaml:"openapi"`
-	Swagger string `yaml:"swagger"`
+	OpenAPI string
+	Swagger string
 }
 
 // Detect implements compilers.Compiler. It reports the dialect src declares,
@@ -169,12 +187,177 @@ func sniffWhole(data []byte) (sniffProbe, error) {
 
 // decodeYAML reads the probe keys from a complete YAML (or JSON, its subset)
 // document.
+//
+// The document is parsed and its root mapping read; it is never decoded into
+// sniffProbe. That is the whole of the fix for a 32 KB source producing a 1.2 GB
+// diagnostic: yaml.v3 compares every pair of a mapping's keys before it reads
+// any of them, so a mapping repeating one key n times raises n(n-1)/2 errors —
+// 21 million of them for the 6,553-line case — and then abandons the mapping, so
+// the probe came back empty as well as expensive. Reading the two keys off the
+// parsed tree is linear, and answers for a document whose keys repeat exactly as
+// for one whose keys do not. The parser this compiler goes on to use reports
+// those repeats itself, once each and sited, which is where a reader wants them.
 func decodeYAML(data []byte) (sniffProbe, error) {
-	var probe sniffProbe
-	if err := yaml.Unmarshal(data, &probe); err != nil {
+	var doc yaml.Node
+	if err := yaml.Unmarshal(data, &doc); err != nil {
 		return sniffProbe{}, err
 	}
+
+	root := documentRoot(&doc)
+	switch {
+	case root == nil:
+		// A stream that carried no document declares no key, which is a decline
+		// and not a failure: empty bytes are no more this compiler's than
+		// anybody else's.
+		return sniffProbe{}, nil
+	case root.Kind != yaml.MappingNode:
+		return sniffProbe{}, fmt.Errorf("document root is %s, not a mapping", root.ShortTag())
+	default:
+		return probeFromMapping(root, maxMergeDepth)
+	}
+}
+
+// documentRoot returns the content node of a decoded stream's first document, or
+// nil for a stream that carried none. Decoding into a yaml.Node yields the
+// document node itself, and only the first: a multi-document stream is read to
+// its first document here exactly as the compiler's own load reads it.
+func documentRoot(doc *yaml.Node) *yaml.Node {
+	if doc.Kind != yaml.DocumentNode || len(doc.Content) != 1 {
+		return nil
+	}
+	return doc.Content[0]
+}
+
+// probeFromMapping reads the probe keys off a root mapping, following its merge
+// keys for a key the mapping does not write itself.
+//
+// A key written directly wins over one merged in, which is the precedence YAML
+// gives a merge. A key written twice takes its last spelling, which is what the
+// parser this compiler goes on to use takes: detection names the dialect that
+// routes the source, load records the one it read, and a document must not get
+// two answers. Neither rule could be had before, since the decoder this replaces
+// refused any mapping that repeated a key at all.
+//
+// depth is the merge chain still allowed. It is the bound on this recursion,
+// checked before every descent, and the recursion is otherwise over a parsed
+// tree of finite size.
+func probeFromMapping(root *yaml.Node, depth int) (sniffProbe, error) {
+	probe, merges, err := probeFromEntries(root)
+	if err != nil || depth <= 0 {
+		return probe, err
+	}
+
+	for _, merge := range merges {
+		merged, err := probeFromMerge(merge, depth-1)
+		if err != nil {
+			return sniffProbe{}, err
+		}
+		probe.fillFrom(merged)
+	}
 	return probe, nil
+}
+
+// probeFromEntries reads a mapping's own entries, and returns the values of its
+// merge keys separately for the caller to follow. A mapping may write more than
+// one `<<`, and their order is the order they are answered in.
+func probeFromEntries(root *yaml.Node) (sniffProbe, []*yaml.Node, error) {
+	var probe sniffProbe
+	var merges []*yaml.Node
+
+	for i := 0; i+1 < len(root.Content); i += 2 {
+		key, value := root.Content[i], root.Content[i+1]
+		if key.Tag == mergeTag {
+			merges = append(merges, value)
+			continue
+		}
+		field := probe.fieldFor(key)
+		if field == nil {
+			continue
+		}
+		version, err := probeVersion(value)
+		if err != nil {
+			return sniffProbe{}, nil, err
+		}
+		*field = version
+	}
+	return probe, merges, nil
+}
+
+// probeFromMerge reads the probe keys out of one `<<` value, which YAML admits
+// as an alias to a mapping, a mapping written out, or a sequence of either.
+// Anything else merges nothing, which is the source's problem to be reported by
+// the parser that reads it and not a reason for detection to refuse.
+func probeFromMerge(merge *yaml.Node, depth int) (sniffProbe, error) {
+	if depth <= 0 {
+		return sniffProbe{}, nil
+	}
+
+	switch merge.Kind {
+	case yaml.AliasNode:
+		if merge.Alias == nil {
+			return sniffProbe{}, nil
+		}
+		return probeFromMerge(merge.Alias, depth-1)
+	case yaml.MappingNode:
+		return probeFromMapping(merge, depth-1)
+	case yaml.SequenceNode:
+		// A sequence merges each of its entries, earlier ones winning over later,
+		// which is the precedence YAML gives them.
+		var probe sniffProbe
+		for _, item := range merge.Content {
+			merged, err := probeFromMerge(item, depth-1)
+			if err != nil {
+				return sniffProbe{}, err
+			}
+			probe.fillFrom(merged)
+		}
+		return probe, nil
+	default:
+		return sniffProbe{}, nil
+	}
+}
+
+// probeVersion returns the version string a probe key's value declares, and an
+// error for a value that is not a scalar at all.
+//
+// The scalar's text is taken as written rather than decoded, because the two
+// disagree only for tags no version carries — a version key is not !!binary —
+// and because decoding is what must not happen here: a mapping handed back to
+// the decoder is the quadratic path decodeYAML exists to avoid, and a probe
+// key's own value is the last place one could still be handed to it.
+func probeVersion(value *yaml.Node) (string, error) {
+	if value.Kind != yaml.ScalarNode {
+		return "", fmt.Errorf("version key is %s, not a scalar", value.ShortTag())
+	}
+	return value.Value, nil
+}
+
+// fieldFor returns the probe field that key names, or nil for a key that names
+// neither. Only a scalar names one: a mapping or sequence used as a key is legal
+// YAML and is not one of the two spellings this looks for.
+func (p *sniffProbe) fieldFor(key *yaml.Node) *string {
+	if key.Kind != yaml.ScalarNode {
+		return nil
+	}
+	switch key.Value {
+	case "openapi":
+		return &p.OpenAPI
+	case "swagger":
+		return &p.Swagger
+	default:
+		return nil
+	}
+}
+
+// fillFrom takes from other only what p does not already declare, which is what
+// makes a merged key lose to a written one.
+func (p *sniffProbe) fillFrom(other sniffProbe) {
+	if p.OpenAPI == "" {
+		p.OpenAPI = other.OpenAPI
+	}
+	if p.Swagger == "" {
+		p.Swagger = other.Swagger
+	}
 }
 
 // decodeFlowEntries reads the top-level entries of data, which may be a whole

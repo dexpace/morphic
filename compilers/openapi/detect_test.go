@@ -7,6 +7,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	yaml "gopkg.in/yaml.v3"
 
 	"github.com/dexpace/morphic/compilers"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
@@ -302,4 +303,288 @@ func codesOf(diags []ir.Diagnostic) []string {
 		codes = append(codes, d.Code)
 	}
 	return codes
+}
+
+// dupRepeats is how many times the fixtures below repeat a root key. It is not a
+// threshold: the wrong answer reproduces at two repeats, and this many only
+// makes the fixture recognizably a document rather than a corner. It is
+// deliberately far below the 6,553 of the report — yaml.v3 raises one error per
+// pair of matching keys, so that count produced 21,467,628 of them and a 1.2 GB
+// message, and a fixture that large turns a revert into an out-of-memory kill
+// instead of a failing assertion. What guards the cost is
+// TestSniff_CostIsNotQuadraticInRepeatedKeys, which measures growth rather than
+// paying for it.
+const dupRepeats = 512
+
+// TestDetect_RepeatedKeysDoNotDecideTheFormat pins the fix for the blow-up. A
+// document that repeats a top-level key is a document with a duplicate key —
+// the parser this compiler goes on to use says so, once per repeat and sited —
+// and it is not a document of another format, nor one that cannot be read.
+// Detection used to answer both of those, because it decoded the root mapping to
+// read two keys and yaml.v3 abandons a mapping that repeats any key at all.
+//
+// Both orders are pinned: where a writer put the version key says nothing about
+// what the document is, and a fixture that declares it first cannot see a
+// regression that loses it to the repeats that follow.
+func TestDetect_RepeatedKeysDoNotDecideTheFormat(t *testing.T) {
+	t.Parallel()
+	repeats := strings.Repeat("x: y\n", dupRepeats)
+	cases := []struct{ name, src string }{
+		{"version first", "openapi: 3.0.3\ninfo: {title: t, version: v}\n" + repeats},
+		{"version last", "info: {title: t, version: v}\n" + repeats + "openapi: 3.0.3\n"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			got, diags, ok := New().Detect(compilers.Source{Path: "api.yaml", Data: []byte(tc.src)})
+			assert.True(t, ok, "a document this compiler can lower must not be declined over a repeated key")
+			assert.Equal(t, compilers.SourceFormat{Name: "openapi", Version: "3.0"}, got)
+			assert.Nil(t, codesOf(diags), "the repeats are the parser's to report, sited, not detection's")
+		})
+	}
+}
+
+// TestDetect_ARepeatedVersionKeyAgreesWithTheParser holds detection to the
+// answer the lowering will reach. load reads the version off the parsed document
+// and records it on ir.SourceInfo, and that parser takes a repeated key's last
+// spelling; detection naming the first would give one document two dialects,
+// one routing it and one describing it.
+//
+// The two orders are the test: a single order passes whichever spelling is
+// taken.
+func TestDetect_ARepeatedVersionKeyAgreesWithTheParser(t *testing.T) {
+	t.Parallel()
+	cases := []struct{ first, second, want string }{
+		{"3.1.0", "3.0.3", "3.0"},
+		{"3.0.3", "3.1.0", "3.1"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.first+" then "+tc.second, func(t *testing.T) {
+			t.Parallel()
+			src := "openapi: " + tc.first + "\nopenapi: " + tc.second + "\ninfo: {}\n"
+			got, _, ok := New().Detect(compilers.Source{Path: "api.yaml", Data: []byte(src)})
+			require.True(t, ok)
+			assert.Equal(t, compilers.SourceFormat{Name: "openapi", Version: tc.want}, got,
+				"the last spelling is the one the parser reads and records")
+		})
+	}
+}
+
+// TestDetect_ReadsAVersionKeyThroughAMergeKey holds the merge cases the decoder
+// this replaced handled for free. A root that merges another mapping declares
+// what that mapping declares, and dropping it would put a new instance of "a
+// field supplied through a merge key reaches the IR in no form" into the one
+// place that decides whether the document is read at all.
+func TestDetect_ReadsAVersionKeyThroughAMergeKey(t *testing.T) {
+	t.Parallel()
+	cases := []struct {
+		name, src, want string
+	}{
+		{"alias", "base: &b\n  openapi: 3.1.0\n<<: *b\ninfo: {}\n", "3.1"},
+		{"mapping written out", "<<: {openapi: 3.1.0}\ninfo: {}\n", "3.1"},
+		{"sequence of aliases", "one: &o\n  unrelated: x\ntwo: &t\n  openapi: 3.1.0\n<<: [*o, *t]\n", "3.1"},
+		{"earlier merge wins", "one: &o\n  openapi: 3.0.3\ntwo: &t\n  openapi: 3.1.0\n<<: [*o, *t]\n", "3.0"},
+		{"a written key beats a merged one", "base: &b\n  openapi: 3.0.3\n<<: *b\nopenapi: 3.1.0\n", "3.1"},
+		{"a quoted << merges nothing", "base: &b\n  openapi: 3.1.0\n\"<<\": *b\ninfo: {}\n", ""},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			got, _, ok := New().Detect(compilers.Source{Path: "api.yaml", Data: []byte(tc.src)})
+			if tc.want == "" {
+				assert.False(t, ok, "a key spelled << as a plain string merges nothing")
+				return
+			}
+			require.True(t, ok)
+			assert.Equal(t, compilers.SourceFormat{Name: "openapi", Version: tc.want}, got)
+		})
+	}
+}
+
+// TestSniff_BoundsAMergeChain pins the bound on the one recursion this file has.
+// A merge key's value may be an alias to a mapping that merges another, so the
+// chain is a property of the document and not of its size, and an anchor may
+// name a mapping that reaches itself. The bound is what makes the walk finite;
+// what it costs is a version key buried deeper than any document writes one.
+func TestSniff_BoundsAMergeChain(t *testing.T) {
+	t.Parallel()
+	var b strings.Builder
+	for i := range maxMergeDepth + 2 {
+		fmt.Fprintf(&b, "l%d: &a%d\n", i, i)
+		if i == 0 {
+			b.WriteString("  openapi: 3.1.0\n")
+			continue
+		}
+		fmt.Fprintf(&b, "  <<: *a%d\n", i-1)
+	}
+	deep := b.String() + fmt.Sprintf("<<: *a%d\n", maxMergeDepth+1)
+
+	probe, err := sniff([]byte(deep))
+	require.NoError(t, err, "a chain past the bound is declined, not failed")
+	assert.Empty(t, probe.OpenAPI, "past the bound the key is not followed to")
+
+	shallow := "l0: &a0\n  openapi: 3.1.0\n<<: *a0\n"
+	probe, err = sniff([]byte(shallow))
+	require.NoError(t, err)
+	assert.Equal(t, "3.1.0", probe.OpenAPI, "the bound must not refuse the depth a document writes")
+}
+
+// TestDecodeYAML_RefusesARootThatIsNoMapping pins the shape complaint. A source
+// with no root mapping has no top-level keys, and saying so is what lets Detect
+// report bytes that declare a key it serves and will not read.
+func TestDecodeYAML_RefusesARootThatIsNoMapping(t *testing.T) {
+	t.Parallel()
+	cases := []struct{ name, src, wantErr string }{
+		{"sequence", "- openapi: 3.1.0\n", "!!seq"},
+		{"scalar", "just a string\n", "!!str"},
+		{"empty", "", ""},
+		{"comment only", "# openapi: 3.1.0\n", ""},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			probe, err := decodeYAML([]byte(tc.src))
+			assert.Empty(t, probe.OpenAPI)
+			if tc.wantErr == "" {
+				assert.NoError(t, err, "bytes that carry no document decline rather than fail")
+				return
+			}
+			require.Error(t, err)
+			assert.Contains(t, err.Error(), tc.wantErr, "the complaint names the shape that was read")
+		})
+	}
+}
+
+// TestSniff_CostIsNotQuadraticInRepeatedKeys guards the half of the defect an
+// answer cannot see. Reading two keys off a parsed tree is linear in the
+// document; decoding the root mapping to read them is quadratic in how often a
+// key repeats, because yaml.v3 compares every pair of keys before it reads any
+// of them. Both spellings answer alike on a small fixture, and only one of them
+// still answers on a large one.
+//
+// Allocation count is the probe because it is deterministic where wall time is
+// not. Doubling the repeats doubles the parse, so the bound is loose enough for
+// that and nowhere near a quadratic term: measured at this size the linear
+// reading grows by 1.97 and the quadratic one by 4.64.
+func TestSniff_CostIsNotQuadraticInRepeatedKeys(t *testing.T) {
+	head := "openapi: 3.0.3\ninfo: {}\n"
+	small := []byte(head + strings.Repeat("x: y\n", dupRepeats))
+	large := []byte(head + strings.Repeat("x: y\n", dupRepeats*2))
+
+	smallAllocs := testing.AllocsPerRun(2, func() { _, _ = sniff(small) })
+	largeAllocs := testing.AllocsPerRun(2, func() { _, _ = sniff(large) })
+
+	require.Positive(t, smallAllocs, "a measurement of nothing bounds nothing")
+	assert.Less(t, largeAllocs, smallAllocs*3,
+		"twice the repeats must cost about twice, not about four times")
+}
+
+// TestDecodeYAML_RefusesAVersionKeyThatIsNoScalar pins the complaint for a
+// version key whose value is a mapping or a sequence, written directly and
+// reached through a `<<`. Such bytes name a key this compiler serves and do not
+// say what dialect, which is unreadable here and nobody else's.
+//
+// Whether Detect reports that or declines in silence is declaresProbeKey's
+// answer and not this one's, and it is asserted separately below: the guard
+// reads a key at column 0, and a merged key is indented under the mapping that
+// carries it.
+func TestDecodeYAML_RefusesAVersionKeyThatIsNoScalar(t *testing.T) {
+	t.Parallel()
+	cases := []struct{ name, src, wantErr string }{
+		{"mapping", "openapi: {a: b}\ninfo: {}\n", "!!map"},
+		{"sequence", "openapi: [3.1.0]\ninfo: {}\n", "!!seq"},
+		{"merged mapping", "base: &b\n  openapi: {a: b}\n<<: *b\n", "!!map"},
+		{"merged through a sequence", "base: &b\n  openapi: {a: b}\n<<: [*b]\n", "!!map"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			probe, err := decodeYAML([]byte(tc.src))
+			require.Error(t, err)
+			assert.Contains(t, err.Error(), tc.wantErr, "the complaint names the shape that was read")
+			assert.Empty(t, probe.OpenAPI)
+		})
+	}
+}
+
+// TestDetect_ReportsAnUnreadableVersionKeyOnlyWhereItIsDeclared pins the split
+// the guard makes. A version key written at column 0 makes the source
+// recognizably this compiler's, so a value that is no version is reported; the
+// same value reached through a `<<` is indented under the mapping that carries
+// it, which declaresProbeKey does not read, so the source is declined in silence
+// instead.
+//
+// The silent half is deliberate and is the direction to be wrong in: the guard
+// may not be widened to "the name occurs somewhere followed by a colon" without
+// claiming documents of formats that nest a key of that name, and reporting
+// those under this compiler's parse error is the one thing detection must not
+// do.
+func TestDetect_ReportsAnUnreadableVersionKeyOnlyWhereItIsDeclared(t *testing.T) {
+	t.Parallel()
+	cases := []struct {
+		name, src string
+		wantCode  []string
+	}{
+		{"declared at column 0", "openapi: {a: b}\ninfo: {}\n", []string{diag.UndecodableSource}},
+		{"reached through a merge", "base: &b\n  openapi: {a: b}\n<<: *b\n", nil},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			_, diags, ok := New().Detect(compilers.Source{Path: "api.yaml", Data: []byte(tc.src)})
+			assert.False(t, ok)
+			assert.Equal(t, tc.wantCode, codesOf(diags))
+		})
+	}
+}
+
+// TestDecodeYAML_PassesOverWhatNamesNoVersion holds the walk to reading only
+// what it came for. A mapping may key an entry with a sequence, and a `<<` may
+// be written with a value that merges nothing; both are the source's business
+// and neither stops the two keys beside them from being read.
+func TestDecodeYAML_PassesOverWhatNamesNoVersion(t *testing.T) {
+	t.Parallel()
+	cases := []struct{ name, src string }{
+		{"a key that is a sequence", "? [a, b]\n: v\nopenapi: 3.1.0\n"},
+		{"a merge of a scalar", "<<: not-a-mapping\nopenapi: 3.1.0\n"},
+		{"a merge of a sequence of scalars", "<<: [x, y]\nopenapi: 3.1.0\n"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			probe, err := decodeYAML([]byte(tc.src))
+			require.NoError(t, err)
+			assert.Equal(t, "3.1.0", probe.OpenAPI)
+		})
+	}
+}
+
+// TestProbeFromMapping_StopsAtTheBound reaches the bound at the mapping rather
+// than at the merge, which is the other of the two places the count is spent.
+// It is called directly because the depth a chain lands on is a property of the
+// chain, and pinning the bound through one is pinning the chain instead.
+func TestProbeFromMapping_StopsAtTheBound(t *testing.T) {
+	t.Parallel()
+	var root yaml.Node
+	require.NoError(t, yaml.Unmarshal([]byte("base: &b\n  openapi: 3.1.0\n<<: *b\n"), &root))
+
+	spent, err := probeFromMapping(documentRoot(&root), 0)
+	require.NoError(t, err, "a walk that stops at the bound declines; it does not fail")
+	assert.Empty(t, spent.OpenAPI, "at the bound the merge is not followed")
+
+	within, err := probeFromMapping(documentRoot(&root), maxMergeDepth)
+	require.NoError(t, err)
+	assert.Equal(t, "3.1.0", within.OpenAPI, "the same mapping within the bound is read")
+}
+
+// TestProbeFromMerge_DeclinesAnAliasThatResolvedToNothing covers the guard on an
+// alias node carrying no target. A parser resolves every alias it accepts, so the
+// node is built here rather than parsed: the guard exists because dereferencing
+// the field is what the next line does, and a nil there is a panic in detection,
+// which runs before the compiler has decided the bytes are even its own.
+func TestProbeFromMerge_DeclinesAnAliasThatResolvedToNothing(t *testing.T) {
+	t.Parallel()
+	probe, err := probeFromMerge(&yaml.Node{Kind: yaml.AliasNode}, maxMergeDepth)
+	require.NoError(t, err)
+	assert.Empty(t, probe.OpenAPI)
 }

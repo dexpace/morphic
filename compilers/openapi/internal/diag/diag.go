@@ -13,6 +13,7 @@ package diag
 import (
 	"fmt"
 	"strings"
+	"unicode/utf8"
 
 	"github.com/dexpace/morphic/ir"
 )
@@ -315,8 +316,25 @@ func HasError(diags []ir.Diagnostic) bool {
 	return ir.HasError(diags)
 }
 
+// MaxQuotedErrorBytes bounds what a foreign error contributes to a diagnostic
+// message. A diagnostic is read by a person and stored by a log, and an error
+// raised by a library obeys neither: yaml.v3 reports a duplicated mapping key
+// once per prior occurrence of it, so a 32 KB source repeating one key 6,553
+// times raises an error of 1.2 GB. Quoting that whole is not a report.
+//
+// The cap is generous because the errors worth quoting are lists — the overlay
+// validator writes one sentence per finding — and a list cut to its first entry
+// says less than the reader came for. What a cut costs is the tail; what it
+// buys is that a message is always a message.
+const MaxQuotedErrorBytes = 4 << 10
+
+// elidedMarker ends a message the cap cut. It carries no count: a marker whose
+// text depends on how much was dropped makes the message depend on the whole
+// error again, which is the dependency the cap exists to remove.
+const elidedMarker = "… (elided)"
+
 // OneLine collapses err's text onto a single line, for a diagnostic that carries
-// an error raised by something else.
+// an error raised by something else, and cuts it at MaxQuotedErrorBytes.
 //
 // A diagnostic is rendered one per line, so an embedded newline splits one
 // report into several — and every line after the first carries no severity, code
@@ -328,9 +346,15 @@ func HasError(diags []ir.Diagnostic) bool {
 // Parts are joined with "; " so a flat list reads as a list, except after a part
 // that already ends in a colon, where the next line is that header's content and
 // a semicolon would read as a break in it.
+//
+// The scan stops at the cap rather than trimming afterwards, so the work is
+// bounded by what is kept and not by what the library wrote.
 func OneLine(err error) string {
 	var out strings.Builder
-	for _, line := range strings.Split(err.Error(), "\n") {
+	for rest := err.Error(); rest != "" && out.Len() < MaxQuotedErrorBytes; {
+		var line string
+		line, rest, _ = strings.Cut(rest, "\n")
+
 		part := strings.Join(strings.Fields(line), " ")
 		if part == "" {
 			continue
@@ -344,5 +368,22 @@ func OneLine(err error) string {
 		}
 		out.WriteString(part)
 	}
-	return out.String()
+	return cutToCap(out.String())
+}
+
+// cutToCap returns msg bounded by MaxQuotedErrorBytes, marked when it cut.
+//
+// The cut lands on a rune boundary. The bytes are a foreign library's and may be
+// multi-byte, and half a rune in a diagnostic is ill-formed text put in front of
+// a reader — the one thing a report must not do, and the reason checkDiagnostics
+// refuses to quote invalid UTF-8 back at all.
+func cutToCap(msg string) string {
+	if len(msg) <= MaxQuotedErrorBytes {
+		return msg
+	}
+	cut := MaxQuotedErrorBytes
+	for cut > 0 && !utf8.RuneStart(msg[cut]) {
+		cut--
+	}
+	return msg[:cut] + elidedMarker
 }

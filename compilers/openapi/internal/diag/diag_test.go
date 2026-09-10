@@ -174,7 +174,10 @@ func TestCodes_MatchTheDeclaredSet(t *testing.T) {
 }
 
 // declaredCodeCount returns how many exported string constants the package
-// declares, read from its own source.
+// declares, read from its own source. A code is a string, so an exported
+// constant of any other kind — MaxQuotedErrorBytes is one — is not one and is
+// not counted; the kind is read off the declaration rather than the name, so a
+// code added here is counted whatever it is called.
 //
 // It is parsed rather than written down because a maintained count is exactly
 // the claim that rots silently: a code added without touching this file would
@@ -204,7 +207,8 @@ func declaredCodeCount(t *testing.T) int {
 	return n
 }
 
-// constNamesIn returns how many exported names decl declares as constants.
+// constNamesIn returns how many exported names decl declares as string
+// constants.
 func constNamesIn(decl ast.Decl) int {
 	gen, ok := decl.(*ast.GenDecl)
 	if !ok || gen.Tok != token.CONST {
@@ -216,13 +220,24 @@ func constNamesIn(decl ast.Decl) int {
 		if !ok {
 			continue
 		}
-		for _, name := range vs.Names {
-			if name.IsExported() {
+		for i, name := range vs.Names {
+			if name.IsExported() && isStringLiteral(vs, i) {
 				n++
 			}
 		}
 	}
 	return n
+}
+
+// isStringLiteral reports whether the i'th name of vs is bound to a string
+// literal. A ValueSpec with no values at position i is an iota-style or repeated
+// declaration, which no code in this package uses and which names no string.
+func isStringLiteral(vs *ast.ValueSpec, i int) bool {
+	if i >= len(vs.Values) {
+		return false
+	}
+	lit, ok := vs.Values[i].(*ast.BasicLit)
+	return ok && lit.Kind == token.STRING
 }
 
 // TestOneLine_CollapsesWhatALibraryWrote pins both join rules and the reason for
@@ -250,4 +265,57 @@ func TestOneLine_CollapsesWhatALibraryWrote(t *testing.T) {
 			assert.NotContains(t, got, "\n", "the whole point is that nothing survives as a newline")
 		})
 	}
+}
+
+// TestOneLine_BoundsWhatALibraryWrote pins the cap. A diagnostic message is
+// something a person reads and something a log stores, and neither survives an
+// unbounded one: yaml.v3 reports a duplicated mapping key once per prior
+// occurrence, so a 32 KB source with one key repeated 6,553 times produces a
+// 1.2 GB error string, which this used to copy whole into a message the CLI
+// then printed.
+func TestOneLine_BoundsWhatALibraryWrote(t *testing.T) {
+	t.Parallel()
+	huge := errors.New(strings.Repeat("a line of complaint\n", 1<<16))
+	got := diag.OneLine(huge)
+
+	assert.Less(t, len(got), diag.MaxQuotedErrorBytes+64,
+		"a foreign error may be any size; what it contributes to a message may not")
+	assert.True(t, strings.HasPrefix(got, "a line of complaint; a line of complaint"),
+		"the cut keeps the head, which is the part that says what went wrong")
+	assert.Contains(t, got, "elided", "a cut message says it was cut")
+}
+
+// TestOneLine_CutsOnARuneBoundary holds the cut to well-formed output. The bytes
+// being quoted are a foreign library's and may be multi-byte; cutting one in
+// half would put ill-formed UTF-8 into a diagnostic, which is the one thing a
+// report must never do to a reader.
+func TestOneLine_CutsOnARuneBoundary(t *testing.T) {
+	t.Parallel()
+	for pad := range 8 {
+		got := diag.OneLine(errors.New(strings.Repeat("x", pad) + strings.Repeat("é", diag.MaxQuotedErrorBytes)))
+		assert.True(t, utf8.ValidString(got), "pad %d: a cut message is still text", pad)
+	}
+}
+
+// TestOneLine_IsBoundedInWorkNotOnlyOutput holds the cap to being a bound on
+// work. A message capped by collapsing the whole error and trimming the result
+// still walks the whole error, which is the half that costs the time: the 1.2 GB
+// case spent 7.4 s building the parts it was about to throw away.
+//
+// Allocation count is the probe because the per-line work is what allocates —
+// one strings.Fields join per line — so a scan that stops at the cap allocates
+// the same for two errors that both exceed it, and one that does not scales with
+// the error. It is not run in parallel: AllocsPerRun measures the process.
+func TestOneLine_IsBoundedInWorkNotOnlyOutput(t *testing.T) {
+	small := errors.New(strings.Repeat("line\n", 1<<10))
+	large := errors.New(strings.Repeat("line\n", 1<<20))
+	require.Greater(t, len(small.Error()), diag.MaxQuotedErrorBytes,
+		"both inputs must exceed the cap, or the comparison is between two uncapped runs")
+
+	assert.Equal(t, diag.OneLine(small), diag.OneLine(large),
+		"past the cap the answer no longer depends on how much more there was")
+	assert.Equal(t,
+		testing.AllocsPerRun(2, func() { _ = diag.OneLine(small) }),
+		testing.AllocsPerRun(2, func() { _ = diag.OneLine(large) }),
+		"past the cap the work no longer depends on how much more there was")
 }
