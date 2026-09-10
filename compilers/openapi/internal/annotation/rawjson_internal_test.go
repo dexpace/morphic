@@ -341,6 +341,13 @@ var rawDivergences = map[string]struct{ old, want string }{
 	// The old spelling is the escape encoding/json writes for a byte no UTF-8
 	// can name, which is the loss itself: 0xFF and a source that really wrote
 	// U+FFFD both reached the IR as this, with nothing to tell them apart.
+	//
+	// The escape is written out because it is what encoding/json produced, and
+	// that is what ties this row to a toolchain: Go 1.27 writes the replacement
+	// character raw where 1.26 escaped it, so this row and the one below redden
+	// there. Whichever change moves the go directive in go.mod owns rewriting
+	// both — the claim they make is that the old conversion lost the byte, not
+	// that a version of encoding/json spelled the loss one way (#431).
 	`!!binary /w==`: {"\"\\ufffd\"", `"/w=="`},
 	// Nesting is the same rule one level down: one divergent scalar makes the
 	// whole construct diverge, which is how every raw site holding a structure

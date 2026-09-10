@@ -17,7 +17,10 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-go@v5
         with:
-          go-version: "1.26.3"
+          # Read from go.mod, so the toolchain has one definition and this file
+          # holds no copy of it to drift. `make gate` pins the same version from
+          # the same line, which is what makes the two the same run.
+          go-version-file: go.mod
       - name: gofmt
         run: make fmt
       - name: vet

@@ -12,6 +12,37 @@
 
 GO ?= go
 
+# The Go toolchain the gate runs on, read from go.mod so the pin has one
+# definition and no copy — the same discipline GOLANGCI_LINT_VERSION gets below,
+# and for a sharper reason: the gate is only "the commands CI runs" if it runs
+# them on the toolchain CI uses. golangci-lint bundles a staticcheck that builds
+# its own IR of every package it loads, the standard library included, so a
+# stdlib newer than that release knows panics the linter before it reaches a
+# line of this repo. Exported, because the scripts below and golangci-lint each
+# invoke go themselves, and the linter reads the stdlib through `go list`.
+#
+# Moving this means moving GOLANGCI_LINT_VERSION with it, to a release whose
+# staticcheck knows the new stdlib, and rewriting the two rows of
+# rawDivergences that pin an encoding/json escape (#431). Bump the three
+# together or the gate fails on something other than the change under test.
+GO_VERSION := $(shell sed -n 's/^go //p' go.mod)
+ifeq ($(GO_VERSION),)
+$(error no go directive found in go.mod; the toolchain pin has nothing to read)
+endif
+
+GOTOOLCHAIN ?= go$(GO_VERSION)
+export GOTOOLCHAIN
+
+# A GOTOOLCHAIN already set in the environment wins, as an override should. It is
+# reported rather than refused, exactly as a local golangci-lint of the wrong
+# version is: a developer running the gate on another toolchain should know the
+# result is not CI's, and a toolchain setting is not a reason to decline to run
+# the gate at all.
+ifneq ($(GOTOOLCHAIN),go$(GO_VERSION))
+$(warning warning: GOTOOLCHAIN is $(GOTOOLCHAIN), go.mod pins go$(GO_VERSION))
+$(warning warning:   unset GOTOOLCHAIN to run the gate as CI runs it)
+endif
+
 # The golangci-lint release CI installs. The workflow reads it back from
 # `make print-lint-version`, so the pin has one definition and no copy: without
 # it the action installs whatever it resolves as latest that day, and an
@@ -91,3 +122,6 @@ bench-smoke:
 
 print-lint-version:
 	@echo $(GOLANGCI_LINT_VERSION)
+
+print-go-version:
+	@echo $(GO_VERSION)
