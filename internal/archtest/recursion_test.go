@@ -55,6 +55,10 @@ var loweringRecursions = [][]string{
 	// refuses past maxDynamicAnchorDepth or a spent node budget and records the
 	// refusal, so a caller learns the index is partial.
 	{"anchorWalk.walk", "anchorWalk.walkMapping"},
+	// Format detection's read of a root mapping's merge keys. A `<<` may name a
+	// mapping that merges another, so following one is following a chain the
+	// document's size does not bound. Bounded by maxMergeDepth.
+	{"probeFromMapping", "probeFromMerge"},
 	// Property lookup through a composition. Finding a property by wire name
 	// descends into a model's base and mixins, each of which is a model whose
 	// properties are looked up the same way.
