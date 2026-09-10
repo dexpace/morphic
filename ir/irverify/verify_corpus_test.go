@@ -98,9 +98,11 @@ func TestVerify_Corpus(t *testing.T) {
 //
 // The 404 also declares headers and two media types, which write nothing here
 // any more: both lower structurally onto ir.ErrorCase (GitHub #422). They stay
-// because that is what makes them verified rather than merely absent — the
-// headers are ir.Property values the naming and reference checks now reach on an
-// error case, which no committed fixture put them on before.
+// for the same reason the xml hints do — the corpus reaches them too
+// (per-status-errors.yaml puts Retry-After and X-RateLimit-Remaining on a 429,
+// and extensions-x.yaml declares x-mark on a 404), and keeping them here is what
+// makes this one spec cover every field unmodeledKeys reads rather than most of
+// them.
 const uncorpusedUnmodeled = `openapi: 3.1.0
 info: {title: UnmodeledSites, version: "1"}
 paths:

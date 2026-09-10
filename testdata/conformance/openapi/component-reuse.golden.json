@@ -574,7 +574,7 @@
       "kind": "model",
       "id": "t/anon/components/responses/Failure/content/application~1json/schema",
       "name": {
-        "hint": "error"
+        "hint": "failure"
       },
       "anonymous": true,
       "docs": {},
@@ -620,7 +620,7 @@
       "kind": "model",
       "id": "t/anon/components/responses/Listed/content/application~1json/schema",
       "name": {
-        "hint": "response"
+        "hint": "listed"
       },
       "anonymous": true,
       "docs": {},

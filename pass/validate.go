@@ -291,8 +291,8 @@ type payloadSite struct {
 // one field wherever the node hangs, and a walk that visited only the operation
 // list would leave a service-level error's payload unjudged in silence.
 func forEachPayload(doc *ir.Document, fn func(payloadSite)) {
-	for i, svc := range doc.Services {
-		forEachErrorPayload(svc.CommonErrors, fmt.Sprintf("doc/services/%d/commonErrors", i), fn)
+	for _, svc := range doc.Services {
+		forEachErrorPayload(svc.CommonErrors, string(svc.ID)+"/commonErrors", fn)
 	}
 	forEachOperation(doc, func(op ir.Operation) {
 		if op.Request != nil {

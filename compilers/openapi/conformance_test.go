@@ -162,6 +162,7 @@ func conformanceCases() []conformanceCase {
 		{"empty-names", assertEmptyNames, []string{"wire-name-distinct"}},
 		{"inline-types", assertInlineTypes, []string{"inline-anonymous"}},
 		{"component-reuse", assertComponentReuse, []string{"named-objects", "inline-anonymous"}},
+		{"shared-response-across-status", assertSharedResponseAcrossStatus, []string{"named-objects", "inline-anonymous"}},
 		{"allof-inheritance", assertAllOfInheritance, []string{"inheritance"}},
 		{"allof-mixins", assertAllOfMixins, []string{"intersection"}},
 		{"allof-inline-merge", assertAllOfInlineMerge, []string{"intersection"}},
@@ -650,6 +651,35 @@ func inlinePropTarget(t *testing.T, doc *ir.Document, id ir.TypeID, wire string)
 // declared once under components and referenced from many operations. Each
 // lowers at its declaration, so the shared node is interned once however many
 // operations reach it, while the operations that reach it stay distinct.
+
+// assertSharedResponseAcrossStatus reads the one shape that puts lowerResponse
+// and lowerErrorCase on the same declaration: a components/responses entry
+// mounted at both a success and an error status. Both intern the body type at
+// the component's own pointer, so the two mints race for it and the loser's
+// naming hint is discarded — the type came out hinted "response" or "error"
+// depending on which status was written first, which the order-invariance oracle
+// reports as an order-dependent registry.
+//
+// Nothing else in the corpus reaches one response component from both sides of
+// that boundary (component-reuse.yaml mounts Listed only at 200s and Failure
+// only at default), so without this spec the oracle never asks. The hint is now
+// derived from the declaration pointer, which is one pointer whichever side
+// reaches it first.
+func assertSharedResponseAcrossStatus(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
+	op := operationAt(t, doc, "GET", "/widgets")
+	require.Len(t, op.Responses, 1, "the success mount")
+	require.Len(t, op.Errors, 1, "and the error mount, of the one component")
+
+	success := op.Responses[0].Payload.Contents[0].Type.Target
+	failure := op.Errors[0].Payload.Contents[0].Type.Target
+	assert.Equal(t, success, failure, "one declaration is one type, reached from either status")
+
+	td, ok := doc.Types[success]
+	require.True(t, ok)
+	assert.Equal(t, "envelope", td.Common().Name.Hint,
+		"the hint comes from the declaration, not from whichever status class minted it first")
+}
+
 func assertComponentReuse(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
 	widgets := operationAt(t, doc, "GET", "/widgets")
 	gadgets := operationAt(t, doc, "GET", "/gadgets")
@@ -2488,7 +2518,7 @@ func assertErrorCaseIsAResponse(t *testing.T, byRange map[ir.StatusRange]ir.Erro
 		{From: 429, To: 429}: "429",
 		{From: 500, To: 599}: "5_xx",
 		{}:                   "default",
-	}, hints, "the responses-map key as written, which the range cannot state")
+	}, hints, "the key as declared, then neutralized; only \"default\" round-trips unchanged")
 
 	notFound, ok := byRange[ir.StatusRange{From: 404, To: 404}]
 	require.True(t, ok)

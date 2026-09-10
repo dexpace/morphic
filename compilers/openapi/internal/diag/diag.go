@@ -112,6 +112,14 @@ const (
 	// response still lowers, with no status condition rather than the catch-all
 	// range that "default" alone denotes (GitHub #262).
 	InvalidStatusKey = "openapi/invalid-status-key"
+	// DuplicateStatusKey reports two responses-map keys on one operation that
+	// resolve to the same status range — "4XX" beside "4xx", or "200" beside a
+	// second "200" a merge key introduced. The key reaches the IR neutralized, so
+	// both lower to one hint and one condition, and an ErrorCase carries no ID:
+	// name and conditions are the whole of what tells two apart. Both are kept,
+	// because neither key is wrong on its own and dropping one would pick a winner
+	// on nothing but declaration order.
+	DuplicateStatusKey = "openapi/duplicate-status-key"
 	// InvalidMethodKey reports an additionalOperations key that names no method:
 	// the empty string. The operation still lowers, binding the key as written, so
 	// nothing the entry declares is lost — what is reported is that the binding's

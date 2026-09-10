@@ -140,8 +140,10 @@ func TestValidate_EncodingKeyThroughServiceCommonErrors(t *testing.T) {
 
 	found := withCode(pass.Validate(doc), "ir/encoding-key-unknown-property")
 	require.Len(t, found, 1, "exactly the planted key must address nothing")
-	assert.Equal(t, "doc/services/0/commonErrors/0/contents/0/encoding/p/m/ghost",
-		found[0].Provenance.Pointer, "the pointer names the list the error case hangs from")
+	assert.Equal(t, "s/commonErrors/0/contents/0/encoding/p/m/ghost",
+		found[0].Provenance.Pointer,
+		"the pointer names the service by ID, as checkServerIndices does, so one node "+
+			"does not have two spellings from one package")
 }
 
 // TestValidate_EncodingKeyThroughComposition covers the three ways a body model

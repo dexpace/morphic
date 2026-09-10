@@ -2225,3 +2225,29 @@ paths:
 			"an item with nothing beside its operations announces nothing")
 	}
 }
+
+// TestResponses_TwoKeysForOneRangeAreReported pins the collision the neutralized
+// hint cannot show. "4XX" and "4xx" name one range, and the key reaches the IR
+// neutralized, so both responses arrive with hint "4_xx" and identical
+// conditions. An ErrorCase carries no ID, so name and conditions are the whole
+// of what tells one from another — two indistinguishable cases, compiled with
+// exit 0 and nothing said. Source cannot hold the difference: a responses-map
+// key is not a name the document declared, which TestResponses_NamedByStatusKey
+// pins. So the collision is reported where the keys are read.
+func TestResponses_TwoKeysForOneRangeAreReported(t *testing.T) {
+	t.Parallel()
+	spec := openapitest.PathsSpec(`  /w:
+    get:
+      operationId: w
+      responses:
+        "200": {description: ok}
+        "4XX": {description: upper}
+        "4xx": {description: lower}
+`)
+	_, svc, diags := lowerServiceSpec(t, spec)
+	op := openapitest.FirstOp(t, svc)
+
+	require.Len(t, op.Errors, 2, "both are kept: neither key is wrong on its own")
+	assert.True(t, openapitest.HasDiag(diags, diag.DuplicateStatusKey),
+		"two keys resolving to one range is reported; got %v", diags)
+}

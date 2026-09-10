@@ -103,11 +103,18 @@ func TestValidate_OperationHeadersAndItemWalked(t *testing.T) {
 		}},
 		Errors: []ir.ErrorCase{{
 			Payload: &ir.Payload{Contents: []ir.Content{{Type: ir.TypeRef{Target: "t/ghost-err"}}}},
+			// The error side's headers, which nothing reached until now: skipping
+			// ErrorCase.Headers in the reflection walk left the suite green, where
+			// skipping the Response.Headers above reddens this test.
+			Headers: []ir.Property{{
+				ID: "p/eh", Name: ir.Naming{Source: "X-Retry"}, WireName: "X-Retry",
+				Type: ir.TypeRef{Target: "t/ghost-err-hdr"},
+			}},
 		}},
 	}
 	diags := pass.Validate(docWithOperation(op))
-	// item, header, and error targets are all dangling.
-	assert.Equal(t, 3, countCode(t, diags, "ir/dangling-type-ref"))
+	// item, response header, error payload and error header targets all dangle.
+	assert.Equal(t, 4, countCode(t, diags, "ir/dangling-type-ref"))
 }
 
 // TestValidate_ModelDiscriminator drives checkModelDiscriminator and every
