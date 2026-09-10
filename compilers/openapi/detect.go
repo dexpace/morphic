@@ -11,13 +11,14 @@ import (
 	"github.com/dexpace/morphic/ir"
 )
 
-// maxSniffBytes bounds the prefix Detect parses on its fast path. Detection
-// reads two top-level keys, and 64 KiB reaches them in any document a person
-// wrote, so the cost of asking stays flat while spec size does not: a full parse
-// of a 10 MB document costs hundreds of milliseconds before the compiler's own
-// parse begins. It is a bound on the fast path, not on detection — a document
-// whose prefix declares neither key while its bytes name one is read whole, per
-// sniffWhole.
+// maxSniffBytes is the size at which detection stops parsing and scans instead.
+// Detection reads two top-level keys, and 64 KiB reaches them in any document a
+// person wrote, so the cost of asking stays flat while spec size does not: a
+// full parse of a 10 MB document costs hundreds of milliseconds before the
+// compiler's own size and node budgets have agreed to pay for one.
+//
+// Nothing is declined for being large. Past the cap the same two keys are read
+// by scanProbe, in one linear pass that builds no tree.
 const maxSniffBytes = 64 << 10
 
 // maxMergeDepth bounds how far a root mapping's merge keys are followed. A `<<`
