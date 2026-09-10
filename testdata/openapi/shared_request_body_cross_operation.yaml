@@ -1,0 +1,30 @@
+# A $ref naming a request body declared inline under another operation. The
+# body's hint is derived from the operation ID at its use site, so the shared
+# node must not take the ID of whichever operation lowered first (GitHub #433).
+openapi: 3.1.0
+info:
+  title: Request body shared across operations by pointer
+  version: 1.0.0
+paths:
+  /a:
+    post:
+      operationId: alpha
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                detail:
+                  type: string
+      responses:
+        "204":
+          description: accepted
+  /b:
+    post:
+      operationId: beta
+      requestBody:
+        $ref: '#/paths/~1a/post/requestBody'
+      responses:
+        "204":
+          description: accepted

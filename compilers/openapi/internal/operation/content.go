@@ -439,7 +439,10 @@ func reservedHeaderEntryDiag(c lowering.Ctx, name, hptr string) []ir.Diagnostic 
 // them (GitHub #116).
 func lowerHeader(c lowering.Ctx, ts *compile.Types, anchors *schema.AnchorIndex, h *soa.Header, name, hptr, hdecl string) (ir.Property, []ir.Diagnostic) {
 	elected, diags := electTypeSpelling(c, h.GetSchema(), h.GetContent(), h.GetRootNode(), hdecl)
-	headerType, headerDiags := schema.CarriedRef(c, ts, anchors, schema.TopLevelDepth, elected.js, elected.pointer, ids.DeclarationHint(hdecl, name))
+	// name is this entry's map key, which names the shared node after this mount
+	// when the header is declared under another response (GitHub #433).
+	headerType, headerDiags := schema.CarriedRef(c.NamingByReferenceAt(hptr, hdecl), ts, anchors,
+		schema.TopLevelDepth, elected.js, elected.pointer, ids.DeclarationHint(hdecl, name))
 	diags = append(diags, headerDiags...)
 	p := ir.Property{
 		ID:         ids.Prop(hptr),
@@ -730,12 +733,23 @@ func appendValuelessExample(c lowering.Ctx, out []ir.Example, proto ir.Example, 
 // content once at its component pointer rather than once per mount site
 // (issue #107) — and under the component's name, since the operationId hint
 // would otherwise name the shared node after one arbitrary referencing site.
+//
+// A body $ref'd from anywhere else takes the second half of that rule: the
+// pointer is some other operation's, which DeclarationHint has no name for, so
+// the lowering names by reference and leaves the owning operation to settle it
+// (GitHub #433).
 func lowerRequestBody(c lowering.Ctx, ts *compile.Types, anchors *schema.AnchorIndex, op *ir.Operation, hb *ir.HTTPBinding, src *soa.Operation, opDeclPtr string) []ir.Diagnostic {
-	rb, bodyPtr := resolve.ObjectAt[soa.RequestBody](c.RefScope(), src.GetRequestBody(), opDeclPtr+ids.Ptr("requestBody"))
+	usePtr := opDeclPtr + ids.Ptr("requestBody")
+	rb, bodyPtr := resolve.ObjectAt[soa.RequestBody](c.RefScope(), src.GetRequestBody(), usePtr)
 	if rb == nil {
 		return nil
 	}
-	payload, diags := lowerPayload(c, ts, anchors, rb.GetContent(), bodyPtr, ids.DeclarationHint(bodyPtr, requestBodyHint(src)))
+	// requestBodyHint spells this operation's ID, which names the shared node
+	// after this mount when the body is declared under another operation. Marking
+	// the lowering lets that operation's own pass replace the placeholder, in
+	// whichever order the two run (GitHub #433).
+	payload, diags := lowerPayload(c.NamingByReferenceAt(usePtr, bodyPtr), ts, anchors, rb.GetContent(),
+		bodyPtr, ids.DeclarationHint(bodyPtr, requestBodyHint(src)))
 	if payload == nil {
 		return diags
 	}
