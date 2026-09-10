@@ -71,8 +71,8 @@ func DefaultExtensionPromotions() map[string]ExtensionTarget {
 //
 // It stays whole here while each phase below takes its own input projected from
 // it — load.Options, and the strategy the lowering context carries. Its shape is
-// a published contract (ir-design §10), and most of it describes work no single
-// phase does.
+// a published contract, since a caller outside this package constructs this
+// exact type by field, and most of it describes work no single phase does.
 type Options struct {
 	// Grouping selects the operation-grouping strategy.
 	Grouping GroupingStrategy `json:"grouping,omitempty"`

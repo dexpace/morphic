@@ -36,8 +36,8 @@ import (
 
 // Options is what Load needs from the compiler's own options. It is a separate
 // type rather than the compiler's, because openapi.Options is public API whose
-// shape is fixed by ir-design §10 and most of it describes lowering, which
-// nothing here can see.
+// shape is a published contract (its own doc comment says why) and most of it
+// describes lowering, which nothing here can see.
 type Options struct {
 	// AllowExternalRefs lets reference resolution reach outside the document —
 	// off the filesystem or over the network. Off is the default, so the zero
