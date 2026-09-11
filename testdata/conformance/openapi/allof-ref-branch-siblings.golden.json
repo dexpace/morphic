@@ -74,6 +74,73 @@
         "nullable": false
       }
     },
+    "t/anon/components/schemas/NestedAllOfBranch/allOf/0": {
+      "kind": "scalar",
+      "id": "t/anon/components/schemas/NestedAllOfBranch/allOf/0",
+      "name": {
+        "hint": "base"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "unmodeled": {
+        "openapi:allOf": {
+          "reason": "degraded_lowering",
+          "value": [
+            {
+              "type": "string"
+            }
+          ],
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/NestedAllOfBranch/allOf/0/allOf"
+          }
+        }
+      },
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/NestedAllOfBranch/allOf/0"
+      },
+      "base": {
+        "target": "t/openapi/components/schemas/Base",
+        "nullable": false
+      }
+    },
+    "t/anon/components/schemas/UnionBranch/allOf/0": {
+      "kind": "scalar",
+      "id": "t/anon/components/schemas/UnionBranch/allOf/0",
+      "name": {
+        "hint": "base"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "unmodeled": {
+        "openapi:oneOf": {
+          "reason": "degraded_lowering",
+          "value": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "integer"
+            }
+          ],
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/UnionBranch/allOf/0/oneOf"
+          }
+        }
+      },
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/UnionBranch/allOf/0"
+      },
+      "base": {
+        "target": "t/openapi/components/schemas/Base",
+        "nullable": false
+      }
+    },
     "t/openapi/components/schemas/Annotated": {
       "kind": "model",
       "id": "t/openapi/components/schemas/Annotated",
@@ -269,6 +336,108 @@
       "positional": false,
       "inputOnly": false
     },
+    "t/openapi/components/schemas/NestedAllOfBranch": {
+      "kind": "model",
+      "id": "t/openapi/components/schemas/NestedAllOfBranch",
+      "name": {
+        "source": "NestedAllOfBranch",
+        "canonical": "nested_all_of_branch"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/NestedAllOfBranch"
+      },
+      "properties": [
+        {
+          "id": "p/openapi/components/schemas/NestedAllOfBranch/properties/e",
+          "name": {
+            "source": "e",
+            "canonical": "e"
+          },
+          "wireName": "e",
+          "type": {
+            "target": "t/prim/string",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/NestedAllOfBranch/properties/e"
+          }
+        }
+      ],
+      "base": {
+        "target": "t/anon/components/schemas/NestedAllOfBranch/allOf/0",
+        "nullable": false
+      },
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
+    "t/openapi/components/schemas/UnionBranch": {
+      "kind": "model",
+      "id": "t/openapi/components/schemas/UnionBranch",
+      "name": {
+        "source": "UnionBranch",
+        "canonical": "union_branch"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/UnionBranch"
+      },
+      "properties": [
+        {
+          "id": "p/openapi/components/schemas/UnionBranch/properties/d",
+          "name": {
+            "source": "d",
+            "canonical": "d"
+          },
+          "wireName": "d",
+          "type": {
+            "target": "t/prim/string",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/UnionBranch/properties/d"
+          }
+        }
+      ],
+      "base": {
+        "target": "t/anon/components/schemas/UnionBranch/allOf/0",
+        "nullable": false
+      },
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
     "t/prim/string": {
       "kind": "primitive",
       "id": "t/prim/string",
@@ -292,11 +461,31 @@
       "auth": null
     }
   ],
+  "diagnostics": [
+    {
+      "severity": "info",
+      "code": "openapi/degraded-construct",
+      "message": "oneOf/anyOf beside a $ref conjoin with it rather than composing into a structural body, so there is nothing at this position to distribute the union's composition across; union branches kept verbatim under Unmodeled",
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/UnionBranch/allOf/0"
+      }
+    },
+    {
+      "severity": "info",
+      "code": "openapi/degraded-construct",
+      "message": "this position lowered to an alias over its $ref target, which has no home for allOf declared beside it; kept verbatim under Unmodeled",
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/NestedAllOfBranch/allOf/0"
+      }
+    }
+  ],
   "sources": [
     {
       "format": "openapi@3.1",
       "path": "allof-ref-branch-siblings.yaml",
-      "hash": "dd090c2a38373b187c147286011326856946aa500396478077f4297eb9d7150d"
+      "hash": "ad6aa766317d420ba0bd8c68909128e09d3d73fcf6b29bbac8f7fcbb0746df08"
     }
   ]
 }

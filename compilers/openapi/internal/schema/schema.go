@@ -455,10 +455,17 @@ func preserveUnionSiblings(c lowering.Ctx, ts *compile.Types, id ir.TypeID, s *o
 // preserveUnionSiblingsAt is preserveUnionSiblings' body, addressed by the
 // Unmodeled map to write into rather than by the TypeID of a node to look one
 // up from. preserveUnionSiblings is the structural-body path's caller, which
-// already has a node and reaches this through it; refSiteRef and
-// PreserveRefSiteKeywords are the $ref-site callers (GitHub #406), which keep
-// the same co-declared union on an alias's or a carrier's Unmodeled directly,
-// with no second keeper of their own.
+// already has a node and reaches this through it; refSiteRef,
+// PreserveRefSiteKeywords and fillAllOf's $ref branch are the $ref-site
+// callers (GitHub #406), which keep the same co-declared union on an alias's
+// or a carrier's Unmodeled directly, with no second keeper of their own.
+//
+// why is the caller's own complete sentence, not a clause plugged into a
+// shared frame: lowerCoDeclaredUnion's five reasons each open with "oneOf/anyOf
+// co-declared with structural keywords intersects with them, and ..." because
+// there is a structural body at that position; a $ref site's refSiteUnionWhy
+// does not, because there is none. A shared template assuming one wording
+// fits both reads as self-contradictory at a $ref site (GitHub #406).
 func preserveUnionSiblingsAt(c lowering.Ctx, p *ir.Unmodeled, s *oas3.Schema, pointer string, reason ir.UnmodeledReason, why string) []ir.Diagnostic {
 	var diags []ir.Diagnostic
 	kept := false
@@ -480,14 +487,24 @@ func preserveUnionSiblingsAt(c lowering.Ctx, p *ir.Unmodeled, s *oas3.Schema, po
 		return diags
 	}
 	return append(diags, c.DiagAt(ir.SeverityInfo, diag.DegradedConstruct, pointer,
-		"oneOf/anyOf co-declared with structural keywords intersects with them, and %s; union branches kept verbatim under Unmodeled", why))
+		"%s; union branches kept verbatim under Unmodeled", why))
 }
 
-// refSiteUnionWhy explains, in preserveUnionSiblingsAt's message, why a $ref
-// site's co-declared union is kept rather than distributed: distribution needs
-// a structural body at this position to conjoin the branches into, and a $ref
-// site's own declaration is the reference alone.
-const refSiteUnionWhy = "the sibling is a $ref rather than a structural body, so there is nothing at this position to distribute the union's composition into"
+// declaresUnion reports whether s writes oneOf or anyOf at all. It is the one
+// predicate every $ref-site union keeper — a component or inline sub-schema
+// (refSiteRef), a carrier (PreserveRefSiteKeywords), an allOf branch spelled
+// as a $ref (fillAllOf) — gates hoisting a home for the union on, so the
+// three cannot drift into checking it three different ways.
+func declaresUnion(s *oas3.Schema) bool {
+	return len(s.GetOneOf()) > 0 || len(s.GetAnyOf()) > 0
+}
+
+// refSiteUnionWhy is preserveUnionSiblingsAt's why at every $ref site: a
+// complete sentence in its own right (see preserveUnionSiblingsAt's doc for
+// why it cannot share lowerCoDeclaredUnion's framing), because a $ref site's
+// own declaration is the reference alone — there is no structural body at
+// that position for the union to distribute its composition across.
+const refSiteUnionWhy = "oneOf/anyOf beside a $ref conjoin with it rather than composing into a structural body, so there is nothing at this position to distribute the union's composition across"
 
 // falseSchema hoists a boolean `false` schema as a closed empty model (it
 // matches nothing), returning the interned ID and the one info diagnostic that
@@ -672,25 +689,9 @@ func lower(c lowering.Ctx, ts *compile.Types, anchors *AnchorIndex, depth int, s
 // every node it is written on, which is noisy but never lossy; a keyword in
 // neither is dropped in silence, which is what GitHub #268 and #283 were.
 //
-// oneOf/anyOf/allOf do not belong here, at a body position or a $ref site
-// alike, and adding them would misfire rather than merely duplicate a keeper.
-// At a body position each already has a home this census cannot see: oneOf/
-// anyOf either lower a Union or dispatch to lowerCoDeclaredUnion before
-// lower() — and so this census — ever runs (lowerSchemaBody), and allOf either
-// wins dispatchOf's election and composes a Model or loses it and is kept by
-// recordSkippedFamilies; keywordHome has no arm for any of the three, so
-// adding them would report every ordinarily-composed schema as degraded too.
-// At a $ref site none of the three is fixed-homeless the way the rest of this
-// list is either: oneOf/anyOf keep the same shape they would beside a
-// structural body (a union of branches, not a node-dependent field), so
-// refSiteRef and PreserveRefSiteKeywords call preserveUnionSiblingsAt
-// directly — reusing the structural-body path's own keeper rather than
-// routing through a census keyed by keyword name. allOf has no keeper of its
-// own to reuse this way, because a $ref site never elects a family
-// (dispatchOf never runs there) for recordSkippedFamilies to have skipped it
-// from; refSiteUnhomedKeywords adds it to the $ref-site list on its own,
-// confined there by being a separate function rather than a change to this
-// one (GitHub #406).
+// oneOf/anyOf/allOf do not belong here — see refSiteUnhomedKeywords for why
+// adding them would misfire rather than merely duplicate a keeper (GitHub
+// #406).
 var censusKeywords = []string{
 	"additionalProperties", "const", "enum", "format", "items", "maxItems",
 	"minItems", "patternProperties", "prefixItems", "properties", "required",
@@ -860,19 +861,30 @@ func unhomedKeywords(s *oas3.Schema, td ir.TypeDef, handled []string) []string {
 	return out
 }
 
-// refSiteUnhomedKeywords is unhomedKeywords for a $ref site (td is always
-// nil there), plus allOf. Every censusKeywords entry is unconditionally
-// homeless at a $ref site already (keywordHome's nil-td case), and allOf
-// joins it for the same reason: a $ref site's own declaration is never
-// dispatched through dispatchOf, so allOf never wins or loses a family
-// election there the way it does at a body position — it is exactly as
-// homeless as `format` or `required` written beside the same $ref, and reaches
-// the alias by the same recordUnhomedKeywords/recordUnhomedAt path (GitHub
-// #406). oneOf/anyOf do not join this list: they keep the branch shape
-// preserveUnionSiblingsAt already knows how to report, so refSiteRef and
-// PreserveRefSiteKeywords call it directly instead.
-func refSiteUnhomedKeywords(s *oas3.Schema) []string {
-	unhomed := unhomedKeywords(s, nil, nil)
+// refSiteUnhomedKeywords is unhomedKeywords for a $ref site (td is always nil
+// there), plus allOf. It has three callers — refSiteRef and
+// PreserveRefSiteKeywords for a $ref written directly at a schema position,
+// fillAllOf for a $ref that is itself an allOf branch — passing handled
+// through to unhomedKeywords so a branch's own `required` still routes to
+// applyCompositionRequired instead of being claimed twice.
+//
+// Every censusKeywords entry is unconditionally homeless at a $ref site
+// already (keywordHome's nil-td case), and allOf joins it for the same
+// reason: none of these three positions ever dispatches through dispatchOf,
+// so allOf never wins or loses a family election there the way it does at an
+// ordinary body position — it is exactly as homeless as `format` or
+// `required` written beside the same $ref, and reaches the alias by the same
+// recordUnhomedKeywords/recordUnhomedAt path. Adding allOf to censusKeywords
+// itself instead would reach every *ordinarily* composed schema too, since
+// keywordHome has no arm for it there to say a Model built from a winning
+// allOf already carries it.
+//
+// oneOf/anyOf do not join this list at all, at any of the three positions:
+// they keep the branch shape preserveUnionSiblingsAt already knows how to
+// report, so each caller checks declaresUnion and calls it directly instead
+// of routing a keyword-name-keyed census through this one (GitHub #406).
+func refSiteUnhomedKeywords(s *oas3.Schema, handled []string) []string {
+	unhomed := unhomedKeywords(s, nil, handled)
 	if len(s.GetAllOf()) > 0 {
 		unhomed = append(unhomed, "allOf")
 	}

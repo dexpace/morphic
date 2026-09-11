@@ -3976,8 +3976,8 @@ func TestRefSiteKeywords_KeptAtEveryPosition(t *testing.T) {
 // narrows the referenced schema; the union family's one keeper,
 // preserveUnionSiblings, was reached only through the structural-body path
 // (lowerBesideUnmodeledUnion), so a $ref-peeling declaration reached it not
-// at all. The fix routes both ref-site positions through the keeper's body
-// directly (preserveUnionSiblingsAt), rather than writing a second one.
+// at all. Both ref-site positions route through the keeper's body directly
+// (preserveUnionSiblingsAt) instead of a second one.
 //
 // Both positions are checked, as TestRefSiteKeywords_KeptAtEveryPosition
 // checks the rest of the census: a component hoists an alias to hold the
@@ -4267,6 +4267,49 @@ func TestRefSiteKeywords_AllOfBranchKeepsWhatTheAliasCannotHold(t *testing.T) {
 	assert.Contains(t,
 		openapitest.DiagMessageAt(t, diags, diag.DegradedConstruct, ir.SeverityInfo, "/components/schemas/S/allOf/0"),
 		"no home for format")
+}
+
+// TestRefSiteKeywords_AllOfBranchKeepsUnion covers the same #406 gap at the
+// third $ref site: an allOf branch spelled as a $ref that co-declares
+// oneOf/anyOf, or a nested allOf, beside it. fillAllOf's branch census never
+// named oneOf/anyOf/allOf, so a branch's own $ref beside one composed
+// straight to the target with the sibling read by nothing (no alias, no
+// Unmodeled, no diagnostic) — the same mechanism as the component and
+// carrier positions.
+//
+// allOf reuses refSiteUnhomedKeywords, the same list the component and
+// carrier sites use; oneOf/anyOf reuse preserveUnionSiblings, the same
+// keeper. Neither gets a keeper of its own for the branch position.
+func TestRefSiteKeywords_AllOfBranchKeepsUnion(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct{ keyword, sibling, raw, wantMsg string }{
+		{"oneOf", "oneOf: [{type: string}, {type: integer}]",
+			`[{"type":"string"},{"type":"integer"}]`,
+			"there is nothing at this position to distribute the union's composition across"},
+		{"anyOf", "anyOf: [{type: string}, {type: integer}]",
+			`[{"type":"string"},{"type":"integer"}]`,
+			"there is nothing at this position to distribute the union's composition across"},
+		{"allOf", "allOf: [{type: string}]", `[{"type":"string"}]`, "no home for allOf"},
+	} {
+		t.Run(tc.keyword, func(t *testing.T) {
+			t.Parallel()
+			doc, diags := lowerSpec(t, keywordCensusSpec(
+				"    S: {allOf: [{$ref: '#/components/schemas/BaseObj', "+tc.sibling+"}]}\n"))
+			openapitest.RequireNoErrorDiags(t, diags)
+
+			m, ok := typeByName(doc, "S").(*ir.Model)
+			require.True(t, ok)
+			require.NotNil(t, m.Base, "the branch still composes")
+			branch, ok := doc.Types[m.Base.Target].(*ir.Scalar)
+			require.True(t, ok, "the branch position hoists an alias over its target, exactly as a component or carrier would")
+			require.NotNil(t, branch.Base)
+			assert.Equal(t, componentID("BaseObj"), branch.Base.Target)
+			assertKeptVerbatim(t, branch.Unmodeled, "openapi:"+tc.keyword, tc.raw)
+			assert.Contains(t,
+				openapitest.DiagMessageAt(t, diags, diag.DegradedConstruct, ir.SeverityInfo, "/components/schemas/S/allOf/0"),
+				tc.wantMsg)
+		})
+	}
 }
 
 // TestCoDeclaredBound_ASingleKeywordKeepsNothing is the other half of the case

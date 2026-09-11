@@ -261,7 +261,7 @@
     {
       "severity": "info",
       "code": "openapi/degraded-construct",
-      "message": "oneOf/anyOf co-declared with structural keywords intersects with them, and the sibling is a $ref rather than a structural body, so there is nothing at this position to distribute the union's composition into; union branches kept verbatim under Unmodeled",
+      "message": "oneOf/anyOf beside a $ref conjoin with it rather than composing into a structural body, so there is nothing at this position to distribute the union's composition across; union branches kept verbatim under Unmodeled",
       "provenance": {
         "source": 0,
         "pointer": "/components/schemas/G"
@@ -270,7 +270,7 @@
     {
       "severity": "info",
       "code": "openapi/degraded-construct",
-      "message": "oneOf/anyOf co-declared with structural keywords intersects with them, and the sibling is a $ref rather than a structural body, so there is nothing at this position to distribute the union's composition into; union branches kept verbatim under Unmodeled",
+      "message": "oneOf/anyOf beside a $ref conjoin with it rather than composing into a structural body, so there is nothing at this position to distribute the union's composition across; union branches kept verbatim under Unmodeled",
       "provenance": {
         "source": 0,
         "pointer": "/components/schemas/H"
@@ -288,7 +288,7 @@
     {
       "severity": "info",
       "code": "openapi/degraded-construct",
-      "message": "oneOf/anyOf co-declared with structural keywords intersects with them, and the sibling is a $ref rather than a structural body, so there is nothing at this position to distribute the union's composition into; union branches kept verbatim under Unmodeled",
+      "message": "oneOf/anyOf beside a $ref conjoin with it rather than composing into a structural body, so there is nothing at this position to distribute the union's composition across; union branches kept verbatim under Unmodeled",
       "provenance": {
         "source": 0,
         "pointer": "/components/schemas/Carrier/properties/p"

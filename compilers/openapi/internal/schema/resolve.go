@@ -92,8 +92,8 @@ func schemaRefHomed(c lowering.Ctx, ts *compile.Types, anchors *AnchorIndex, dep
 // carrier keeps them there too, through PreserveRefSiteKeywords.
 func refSiteRef(c lowering.Ctx, ts *compile.Types, anchors *AnchorIndex, depth int, js *oas3.JSONSchema[oas3.Referenceable], s *oas3.Schema, pointer, hint string, home annotation.Home) (ir.TypeRef, []ir.Diagnostic) {
 	target, diags := refTypeRef(c, ts, anchors, depth, js, pointer)
-	unhomed := refSiteUnhomedKeywords(s)
-	hasUnion := len(s.GetOneOf()) > 0 || len(s.GetAnyOf()) > 0
+	unhomed := refSiteUnhomedKeywords(s, nil)
+	hasUnion := declaresUnion(s)
 	ref, homeDiags := homeDeclaration(c, ts, anchors, s, target, pointer, hint, home, len(unhomed) > 0 || hasUnion)
 	diags = append(diags, homeDiags...)
 	if home != annotation.HomeOwnNode {
@@ -125,8 +125,8 @@ func PreserveRefSiteKeywords(c lowering.Ctx, ts *compile.Types, p *ir.Unmodeled,
 	if s == nil || !resolve.IsRefSite(js, s) || LoweredToOwnNode(ts, pointer, t) {
 		return nil
 	}
-	diags := recordUnhomedAt(c, p, s, refSiteUnhomedKeywords(s), refSiteShape, pointer)
-	if len(s.GetOneOf()) == 0 && len(s.GetAnyOf()) == 0 {
+	diags := recordUnhomedAt(c, p, s, refSiteUnhomedKeywords(s, nil), refSiteShape, pointer)
+	if !declaresUnion(s) {
 		return diags
 	}
 	return append(diags, preserveUnionSiblingsAt(c, p, s, pointer, ir.ReasonDegradedLowering, refSiteUnionWhy)...)

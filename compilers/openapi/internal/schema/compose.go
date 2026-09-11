@@ -134,9 +134,14 @@ func diagUnattachableRequired(c lowering.Ctx, m *ir.Model, e requiredEntry) ir.D
 // target, so this costs a node only where there is something to keep.
 //
 // The keywords an alias cannot model are kept on it instead, by the same census
-// every other $ref site runs (refSiteRef). `required` is left out of that census
-// because this composition reads it: applyCompositionRequired ORs every branch's
-// required list onto the composed model, so it is consumed here rather than lost.
+// every other $ref site runs (refSiteRef, through refSiteUnhomedKeywords).
+// `required` is left out of that census (branchCensusHandled) because this
+// composition reads it: applyCompositionRequired ORs every branch's required
+// list onto the composed model, so it is consumed here rather than lost. A
+// oneOf/anyOf co-declared with the branch's $ref is kept the same way
+// refSiteRef keeps one (preserveUnionSiblings): fillAllOf's branch census
+// never named oneOf/anyOf/allOf, so a $ref beside one inside an allOf branch
+// lost it the same way the component position did (GitHub #406).
 //
 // The merge itself is left as it is: merging a branch's own docs, constraints or
 // openness upward onto m would need a precedence rule for branches that disagree,
@@ -162,10 +167,14 @@ func fillAllOf(c lowering.Ctx, ts *compile.Types, anchors *AnchorIndex, depth in
 			continue
 		}
 		bs := b.GetSchema()
-		unhomed := unhomedKeywords(bs, nil, branchCensusHandled)
-		ref, homeDiags := homeDeclaration(c, ts, anchors, bs, ir.TypeRef{Target: id}, bptr, branchHint(b, i), annotation.HomeOwnNode, len(unhomed) > 0)
+		unhomed := refSiteUnhomedKeywords(bs, branchCensusHandled)
+		hasUnion := declaresUnion(bs)
+		ref, homeDiags := homeDeclaration(c, ts, anchors, bs, ir.TypeRef{Target: id}, bptr, branchHint(b, i), annotation.HomeOwnNode, len(unhomed) > 0 || hasUnion)
 		diags = append(diags, homeDiags...)
 		diags = append(diags, recordUnhomedKeywords(c, ts, ref.Target, bs, unhomed, refSiteShape, bptr)...)
+		if hasUnion {
+			diags = append(diags, preserveUnionSiblings(c, ts, ref.Target, bs, bptr, ir.ReasonDegradedLowering, refSiteUnionWhy)...)
+		}
 		if i == baseIdx {
 			m.Base = &ref
 		} else {
@@ -635,10 +644,21 @@ func branchesNameReferents(c lowering.Ctx, s *oas3.Schema) bool {
 	return true
 }
 
+// coDeclaredUnionWhyPrefix opens every lowerCoDeclaredUnion why string: at
+// each of its five reasons, a structural body genuinely sits beside the union
+// (that is what routed the schema here rather than to a $ref-site union
+// keeper), so the sentence that follows is always true of it. refSiteUnionWhy
+// does not share this prefix, because at a $ref site it would not be
+// (preserveUnionSiblingsAt's doc comment says why).
+const coDeclaredUnionWhyPrefix = "oneOf/anyOf co-declared with structural keywords intersects with them, and "
+
 // lowerCoDeclaredUnion lowers a schema whose oneOf/anyOf sits beside structural
 // keywords, per classifyUnionSiblings.
 func lowerCoDeclaredUnion(c lowering.Ctx, ts *compile.Types, anchors *AnchorIndex, depth int, s *oas3.Schema, pointer, hint string) (ir.TypeID, []ir.Diagnostic) {
 	beside := func(reason ir.UnmodeledReason, why string) (ir.TypeID, []ir.Diagnostic) {
+		if why != "" {
+			why = coDeclaredUnionWhyPrefix + why
+		}
 		return lowerBesideUnmodeledUnion(c, ts, anchors, depth, s, pointer, hint, reason, why)
 	}
 	switch classifyUnionSiblings(c, s) {
