@@ -1,0 +1,13 @@
+openapi: 3.1.0
+info: {title: PathItemAnchoredKey, version: "1"}
+paths:
+  /x:
+    # Neither key is one the Path Item Object defines, and both are kept and
+    # reported alike. The anchored one is declared first: the library folds a
+    # plainly-valued undeclared key into the item's operations map, which is
+    # where the census used to read, but skips a key whose value carries an
+    # anchor before that fold — so the raw mapping is the only place it is
+    # written, and nothing read it (GitHub #412).
+    bogusAnchored: &anch {responses: {"200": {description: ANCHORED}}}
+    plainBogus:    {responses: {"200": {description: PLAIN}}}
+    get: {operationId: getX, responses: {"200": {description: ok}}}
