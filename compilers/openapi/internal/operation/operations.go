@@ -2,6 +2,7 @@ package operation
 
 import (
 	"context"
+	"slices"
 	"strconv"
 	"strings"
 
@@ -520,7 +521,8 @@ func fillOperationDocs(d *ir.Docs, src *soa.Operation) {
 // library's, which reports none for it: the unmarshaller folds a key it does not
 // recognize into the item's embedded operations map, so GetUnknownProperties is
 // empty however much the document wrote (speakeasy-api/openapi v1.24.1). What is
-// left of that map once the HTTP methods are taken out is the same set the
+// left of that map once the HTTP methods are taken out, plus what the raw
+// mapping writes that neither the map nor the model holds, is the set the
 // census would have reported, which is what undeclaredPathItemKeys reads.
 func applyPathItem(c lowering.Ctx, into carrier, pi *soa.PathItem, declPtr string) []ir.Diagnostic {
 	diags := applyPathServers(c, into, pi, declPtr)
@@ -627,14 +629,32 @@ func preserveUnmountedPathItem(c lowering.Ctx, into carrier, pi *soa.PathItem, m
 			"undeclared keys are kept beside it, having no operation to hold them"))
 }
 
-// undeclaredPathItemKeys returns the keys of a path item's operations map that
-// name no HTTP method, which are the keys the Path Item Object does not define.
-// Everything else the object may write is taken out before that map is filled:
-// summary, description, servers, parameters, additionalOperations and every x-*
-// are fields of the library's model, and a $ref is consumed by the reference
-// wrapper around it — pi is the referent it named by the time this runs.
+// undeclaredPathItemKeys returns the keys a path item writes that the Path Item
+// Object does not define. Two readings are needed, because the library presents
+// no one place that holds them all.
 //
-// The predicate is the library's IsStandardMethod, deliberately, and not
+// The first is the item's operations map, less every key naming an HTTP method:
+// the unmarshaller folds a key it does not recognize into that map. Everything
+// else the object may write is taken out before the map is filled: summary,
+// description, servers, parameters, additionalOperations and every x-* are
+// fields of the library's model, and a $ref is consumed by the reference wrapper
+// around it — pi is the referent it named by the time this runs.
+//
+// The second is the raw mapping, less every key the first reading or the model
+// accounts for. One class of key reaches neither: the unmarshaller skips a key
+// whose value carries a YAML anchor before folding it, so `bogus: &a {...}`
+// enters no map and no field, and reading the map alone kept it by nothing and
+// reported it nowhere while a plainly-valued key beside it was kept and warned
+// about (GitHub #412). The raw node is the only place it is written, so the raw
+// node is read, against the vocabulary pathItemDeclares spells. That is the
+// reading GitHub #377 set aside, on two grounds since answered: the method
+// vocabulary was unsettled until #293 settled it, and a key set of the
+// compiler's own would have to track the library's model by hand — which is
+// what holds pathItemFields to that model's own tags. The value is handed to the
+// same keeper the first reading's keys reach, so the two are kept under one key
+// form and announced under one code.
+//
+// The method predicate is the library's IsStandardMethod, deliberately, and not
 // httpMethods. The two answer different questions: httpMethods says what this
 // compiler lowers, while this asks only whether a key names a method at all, and
 // a method the specification defines is one the Path Item Object declares
@@ -654,16 +674,10 @@ func preserveUnmountedPathItem(c lowering.Ctx, into carrier, pi *soa.PathItem, m
 // OpenAPI fixes the field names, so `GET` is no more a path item's key than
 // `bogusPathItem` is, and neither is lowered.
 //
-// One undeclared key does not reach this: the library short-circuits a value
-// carrying a YAML anchor before folding it, so the key never enters the map this
-// reads and is kept by nothing, while a plainly-valued key beside it is kept and
-// reported. Recovering it means reading the raw node against a path item's key
-// vocabulary rather than a map the library already built, which is GitHub #412.
-//
 // pi is never nil: resolve.ObjectAt yields no nil referent, and every route
 // checks it before lowering — including the unmounted one, which reaches this
 // through preserveUnmountedPathItem having lowered no operation at all. An
-// uninitialized map is tolerated, since the iterator is nil-safe.
+// uninitialized map is tolerated, since the iterator and Has are nil-safe.
 func undeclaredPathItemKeys(pi *soa.PathItem) []string {
 	var keys []string
 	for method := range pi.All() {
@@ -672,7 +686,35 @@ func undeclaredPathItemKeys(pi *soa.PathItem) []string {
 		}
 		keys = append(keys, string(method))
 	}
+	for _, key := range annotation.RawMappingKeys(pi.GetRootNode()) {
+		if pathItemDeclares(pi, key) {
+			continue
+		}
+		keys = append(keys, key)
+	}
 	return keys
+}
+
+// pathItemFields are the keys the library's Path Item core model names a field
+// for. The unmarshaller reads each into its field rather than folding it into the
+// operations map, so a raw key spelling one is declared whether or not the map
+// holds it. A hand-written list, held to the model's own key tags by
+// TestPathItemFields_MatchTheLibraryModel so a field the library adds cannot
+// start being reported as a key the document was not permitted to write.
+var pathItemFields = []string{"summary", "description", "servers", "parameters", "additionalOperations"}
+
+// pathItemDeclares reports whether key, read off a path item's raw mapping, is
+// one the object accounts for: held in the operations map — where the first
+// reading of undeclaredPathItemKeys already answers for it — naming a standard
+// method, a field of the model, or an x- extension.
+//
+// A method held nowhere in the map is still declared: `get: &g {...}` is
+// skipped by the same anchor rule as an undeclared key, and is not lowered
+// either, but it is a key the specification defines, and the census has no
+// truthful way to grade it as one the document may not write.
+func pathItemDeclares(pi *soa.PathItem, key string) bool {
+	return pi.Has(soa.HTTPMethod(key)) || soa.IsStandardMethod(key) ||
+		strings.HasPrefix(key, "x-") || slices.Contains(pathItemFields, key)
 }
 
 // pathItemDocFields pairs each Path Item Object documentation keyword with the

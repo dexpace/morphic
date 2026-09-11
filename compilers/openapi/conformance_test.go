@@ -224,6 +224,7 @@ func conformanceCases() []conformanceCase {
 		{"inline-hoist-positions", assertInlineHoistPositions, []string{"inline-anonymous"}},
 		{"path-item-docs", assertPathItemDocs, []string{"docs-summary-description"}},
 		{"path-item-operations", assertPathItemOperations, []string{"http-binding"}},
+		{"path-item-anchored-key", assertPathItemAnchoredKey, nil},
 		{"deprecation", assertDeprecation, []string{"deprecation"}},
 		{"extension-promotion", assertExtensionPromotion, []string{"deprecation"}},
 		{"examples", assertExamples, []string{"examples"}},
@@ -2568,6 +2569,36 @@ func assertCallbacks(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
 	assertPathItemServersKept(t, cb, "https://callbacks.example.com")
 	assert.NotContains(t, op.Unmodeled, "openapi:servers",
 		"the callback's own servers stay on the callback, not on the parent")
+}
+
+// assertPathItemAnchoredKey pins that an undeclared path-item key whose value
+// carries a YAML anchor is kept and reported exactly as a plainly-valued one
+// beside it is (GitHub #412).
+//
+// The two used to part company at the fold: the library folds a plain undeclared
+// key into the item's operations map, where the census read it, but skips a key
+// whose value is anchored before that fold, so the anchored one reached the IR
+// in no form at all — no entry, no diagnostic — while its neighbour was kept and
+// warned about. Each key is asserted with its own marker so an entry recovered
+// under the wrong key cannot pass for the right one.
+func assertPathItemAnchoredKey(t *testing.T, doc *ir.Document, diags []ir.Diagnostic) {
+	op, ok := opByName(doc, "getX")
+	require.True(t, ok)
+
+	for _, tc := range []struct{ key, marker, at string }{
+		{"openapi:pathItem/bogusAnchored", "ANCHORED", "/paths/~1x/bogusAnchored"},
+		{"openapi:pathItem/plainBogus", "PLAIN", "/paths/~1x/plainBogus"},
+	} {
+		entry := unmodeledEntry(t, op.Unmodeled, tc.key)
+		assert.JSONEq(t, `{"responses":{"200":{"description":"`+tc.marker+`"}}}`, string(entry.Value),
+			"%s keeps the value the source wrote", tc.key)
+		assert.Equal(t, ir.ReasonOutOfScope, entry.Reason,
+			"OpenAPI defines no such key on a path item, so no IR node is coming for it")
+		assert.Equal(t, tc.at, entry.Provenance.Pointer)
+		assert.Equal(t, []ir.Severity{ir.SeverityWarning},
+			diagsAt(diags, "openapi/unknown-object-key", tc.at),
+			"%s is announced once, at the key's own pointer, graded as any undeclared key", tc.key)
+	}
 }
 
 // assertPathItemDocs pins that a path item's own documentation survives at every

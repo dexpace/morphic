@@ -1,0 +1,141 @@
+{
+  "irVersion": "0.3.0",
+  "name": "PathItemAnchoredKey",
+  "version": "1",
+  "docs": {},
+  "services": [
+    {
+      "id": "s/openapi/0",
+      "name": {
+        "source": "PathItemAnchoredKey",
+        "canonical": "path_item_anchored_key"
+      },
+      "docs": {},
+      "groups": [
+        {
+          "name": {
+            "hint": "default"
+          },
+          "docs": {},
+          "operations": [
+            {
+              "id": "op/openapi/paths/~1x/get",
+              "name": {
+                "source": "getX",
+                "canonical": "get_x"
+              },
+              "docs": {},
+              "responses": [
+                {
+                  "name": {
+                    "hint": "200"
+                  },
+                  "conditions": {
+                    "statusCodes": [
+                      {
+                        "from": 200,
+                        "to": 200
+                      }
+                    ]
+                  },
+                  "docs": {
+                    "description": "ok"
+                  }
+                }
+              ],
+              "oneWay": false,
+              "idempotency": {},
+              "auth": null,
+              "bindings": {
+                "http": [
+                  {
+                    "method": "GET",
+                    "uriTemplate": "/x",
+                    "sharedRoute": false,
+                    "checksumRequired": false,
+                    "isWebhook": false
+                  }
+                ]
+              },
+              "unmodeled": {
+                "openapi:pathItem/bogusAnchored": {
+                  "reason": "out_of_scope",
+                  "value": {
+                    "responses": {
+                      "200": {
+                        "description": "ANCHORED"
+                      }
+                    }
+                  },
+                  "provenance": {
+                    "source": 0,
+                    "pointer": "/paths/~1x/bogusAnchored"
+                  }
+                },
+                "openapi:pathItem/plainBogus": {
+                  "reason": "out_of_scope",
+                  "value": {
+                    "responses": {
+                      "200": {
+                        "description": "PLAIN"
+                      }
+                    }
+                  },
+                  "provenance": {
+                    "source": 0,
+                    "pointer": "/paths/~1x/plainBogus"
+                  }
+                }
+              },
+              "provenance": {
+                "source": 0,
+                "pointer": "/paths/~1x/get"
+              }
+            }
+          ]
+        }
+      ],
+      "auth": null,
+      "provenance": {
+        "source": 0
+      }
+    }
+  ],
+  "servers": [
+    {
+      "name": {
+        "hint": "server"
+      },
+      "urlTemplate": "/",
+      "description": {},
+      "auth": null
+    }
+  ],
+  "diagnostics": [
+    {
+      "severity": "warning",
+      "code": "openapi/unknown-object-key",
+      "message": "key \"bogusAnchored\" is not defined by the OpenAPI object it is written on and is not an x- extension; kept verbatim under Unmodeled",
+      "provenance": {
+        "source": 0,
+        "pointer": "/paths/~1x/bogusAnchored"
+      }
+    },
+    {
+      "severity": "warning",
+      "code": "openapi/unknown-object-key",
+      "message": "key \"plainBogus\" is not defined by the OpenAPI object it is written on and is not an x- extension; kept verbatim under Unmodeled",
+      "provenance": {
+        "source": 0,
+        "pointer": "/paths/~1x/plainBogus"
+      }
+    }
+  ],
+  "sources": [
+    {
+      "format": "openapi@3.1",
+      "path": "path-item-anchored-key.yaml",
+      "hash": "b92130b8cd3da02c397044a838ffe467c21c8f1b9da525a8454f95f87f12ce25"
+    }
+  ]
+}
