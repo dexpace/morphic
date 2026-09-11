@@ -138,6 +138,44 @@ func assertRefSiteKeywords(t *testing.T, doc *ir.Document, diags []ir.Diagnostic
 		"and keeps the keyword on itself instead")
 }
 
+// assertUnionBesideRef pins oneOf/anyOf and allOf co-declared beside a $ref at
+// the same level (GitHub #406). Under JSON Schema 2020-12 — and so OpenAPI
+// 3.1 — $ref conjoins with its siblings, so the union narrows the referenced
+// schema; before this fix it reached no field of the document, no Unmodeled
+// entry and no diagnostic. The fix routes a $ref site's oneOf/anyOf through
+// preserveUnionSiblings, the same keeper the structural-body path already
+// uses, rather than a second one; allOf goes through the same unhomed-keyword
+// census refSiteRef already ran for format/const/enum/required/
+// additionalProperties (GitHub #283, #348), with allOf added to it.
+func assertUnionBesideRef(t *testing.T, doc *ir.Document, diags []ir.Diagnostic) {
+	for name, want := range map[string]struct{ keyword, raw string }{
+		"G": {"oneOf", `[{"type":"string"},{"type":"integer"}]`},
+		"H": {"anyOf", `[{"type":"string"},{"type":"integer"}]`},
+		"I": {"allOf", `[{"type":"string"}]`},
+	} {
+		sc, ok := doc.Types[namedID(name)].(*ir.Scalar)
+		require.True(t, ok, "%s hoists an alias to hold what it wrote beside its $ref", name)
+		require.NotNil(t, sc.Base)
+		assert.Equal(t, namedID("Base"), sc.Base.Target, "%s still aliases Base", name)
+		entry := unmodeledEntry(t, sc.Unmodeled, "openapi:"+want.keyword)
+		assert.Equal(t, ir.ReasonDegradedLowering, entry.Reason)
+		assert.JSONEq(t, want.raw, string(entry.Value))
+		assert.Equal(t, []ir.Severity{ir.SeverityInfo},
+			diagsAt(diags, "openapi/degraded-construct", "/components/schemas/"+name))
+	}
+
+	carrier, ok := doc.Types[namedID("Carrier")].(*ir.Model)
+	require.True(t, ok)
+	p, ok := propByWire(carrier, "p")
+	require.True(t, ok)
+	assert.Equal(t, namedID("Base"), p.Type.Target,
+		"a carrier hoists no node, so it still resolves straight to the target")
+	entry := unmodeledEntry(t, p.Unmodeled, "openapi:oneOf")
+	assert.Equal(t, ir.ReasonDegradedLowering, entry.Reason)
+	assert.JSONEq(t, `[{"type":"string"},{"type":"integer"}]`, string(entry.Value),
+		"and keeps the union on itself instead of an alias")
+}
+
 // assertElectedLoweringKeywords pins the keywords the *winning* family's
 // lowering never reads (GitHub #268). The census asks the node that was built,
 // which is why the two allOf cases differ: a composed Model asserts `object`

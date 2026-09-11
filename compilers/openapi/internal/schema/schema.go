@@ -449,7 +449,18 @@ func preserveUnionSiblings(c lowering.Ctx, ts *compile.Types, id ir.TypeID, s *o
 	if !ok {
 		return diags
 	}
-	common := td.Common()
+	return append(diags, preserveUnionSiblingsAt(c, &td.Common().Unmodeled, s, pointer, reason, why)...)
+}
+
+// preserveUnionSiblingsAt is preserveUnionSiblings' body, addressed by the
+// Unmodeled map to write into rather than by the TypeID of a node to look one
+// up from. preserveUnionSiblings is the structural-body path's caller, which
+// already has a node and reaches this through it; refSiteRef and
+// PreserveRefSiteKeywords are the $ref-site callers (GitHub #406), which keep
+// the same co-declared union on an alias's or a carrier's Unmodeled directly,
+// with no second keeper of their own.
+func preserveUnionSiblingsAt(c lowering.Ctx, p *ir.Unmodeled, s *oas3.Schema, pointer string, reason ir.UnmodeledReason, why string) []ir.Diagnostic {
+	var diags []ir.Diagnostic
 	kept := false
 	for _, kw := range []string{"oneOf", "anyOf"} {
 		raw, err := annotation.RawFromNode(annotation.RawPropertyNode(s, kw))
@@ -458,11 +469,11 @@ func preserveUnionSiblings(c lowering.Ctx, ts *compile.Types, id ir.TypeID, s *o
 			continue
 		}
 		if reason == ir.ReasonValidationOnly {
-			diags = append(diags, preserveKeyword(c, &common.Unmodeled, "openapi:"+kw, raw,
+			diags = append(diags, preserveKeyword(c, p, "openapi:"+kw, raw,
 				pointer, pointer+ids.Ptr(kw), kw)...)
 			continue
 		}
-		Preserve(c, &common.Unmodeled, "openapi:"+kw, raw, reason, pointer+ids.Ptr(kw))
+		Preserve(c, p, "openapi:"+kw, raw, reason, pointer+ids.Ptr(kw))
 		kept = kept || len(raw) > 0
 	}
 	if reason == ir.ReasonValidationOnly || !kept {
@@ -471,6 +482,12 @@ func preserveUnionSiblings(c lowering.Ctx, ts *compile.Types, id ir.TypeID, s *o
 	return append(diags, c.DiagAt(ir.SeverityInfo, diag.DegradedConstruct, pointer,
 		"oneOf/anyOf co-declared with structural keywords intersects with them, and %s; union branches kept verbatim under Unmodeled", why))
 }
+
+// refSiteUnionWhy explains, in preserveUnionSiblingsAt's message, why a $ref
+// site's co-declared union is kept rather than distributed: distribution needs
+// a structural body at this position to conjoin the branches into, and a $ref
+// site's own declaration is the reference alone.
+const refSiteUnionWhy = "the sibling is a $ref rather than a structural body, so there is nothing at this position to distribute the union's composition into"
 
 // falseSchema hoists a boolean `false` schema as a closed empty model (it
 // matches nothing), returning the interned ID and the one info diagnostic that
@@ -654,6 +671,26 @@ func lower(c lowering.Ctx, ts *compile.Types, anchors *AnchorIndex, depth int, s
 // with no arm there is reported homeless at every position and preserved beside
 // every node it is written on, which is noisy but never lossy; a keyword in
 // neither is dropped in silence, which is what GitHub #268 and #283 were.
+//
+// oneOf/anyOf/allOf do not belong here, at a body position or a $ref site
+// alike, and adding them would misfire rather than merely duplicate a keeper.
+// At a body position each already has a home this census cannot see: oneOf/
+// anyOf either lower a Union or dispatch to lowerCoDeclaredUnion before
+// lower() — and so this census — ever runs (lowerSchemaBody), and allOf either
+// wins dispatchOf's election and composes a Model or loses it and is kept by
+// recordSkippedFamilies; keywordHome has no arm for any of the three, so
+// adding them would report every ordinarily-composed schema as degraded too.
+// At a $ref site none of the three is fixed-homeless the way the rest of this
+// list is either: oneOf/anyOf keep the same shape they would beside a
+// structural body (a union of branches, not a node-dependent field), so
+// refSiteRef and PreserveRefSiteKeywords call preserveUnionSiblingsAt
+// directly — reusing the structural-body path's own keeper rather than
+// routing through a census keyed by keyword name. allOf has no keeper of its
+// own to reuse this way, because a $ref site never elects a family
+// (dispatchOf never runs there) for recordSkippedFamilies to have skipped it
+// from; refSiteUnhomedKeywords adds it to the $ref-site list on its own,
+// confined there by being a separate function rather than a change to this
+// one (GitHub #406).
 var censusKeywords = []string{
 	"additionalProperties", "const", "enum", "format", "items", "maxItems",
 	"minItems", "patternProperties", "prefixItems", "properties", "required",
@@ -821,6 +858,25 @@ func unhomedKeywords(s *oas3.Schema, td ir.TypeDef, handled []string) []string {
 		out = append(out, keyword)
 	}
 	return out
+}
+
+// refSiteUnhomedKeywords is unhomedKeywords for a $ref site (td is always
+// nil there), plus allOf. Every censusKeywords entry is unconditionally
+// homeless at a $ref site already (keywordHome's nil-td case), and allOf
+// joins it for the same reason: a $ref site's own declaration is never
+// dispatched through dispatchOf, so allOf never wins or loses a family
+// election there the way it does at a body position — it is exactly as
+// homeless as `format` or `required` written beside the same $ref, and reaches
+// the alias by the same recordUnhomedKeywords/recordUnhomedAt path (GitHub
+// #406). oneOf/anyOf do not join this list: they keep the branch shape
+// preserveUnionSiblingsAt already knows how to report, so refSiteRef and
+// PreserveRefSiteKeywords call it directly instead.
+func refSiteUnhomedKeywords(s *oas3.Schema) []string {
+	unhomed := unhomedKeywords(s, nil, nil)
+	if len(s.GetAllOf()) > 0 {
+		unhomed = append(unhomed, "allOf")
+	}
+	return unhomed
 }
 
 // preserveUnhomedKeywords keeps verbatim the census keywords and value

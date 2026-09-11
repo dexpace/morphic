@@ -1,0 +1,34 @@
+openapi: 3.1.0
+info: {title: UnionBesideRef, version: "1.0.0"}
+paths: {}
+components:
+  schemas:
+    # In JSON Schema 2020-12 — and so in OpenAPI 3.1 — $ref is an ordinary
+    # keyword and what stands beside it is conjoined with it, so oneOf/anyOf
+    # beside a $ref narrows the referenced schema. The union family's one
+    # keeper, preserveUnionSiblings, was reached only through the
+    # structural-body path (lowerBesideUnmodeledUnion); a declaration that
+    # peels a leading $ref never reached it, so the union vanished with no
+    # Unmodeled entry and no diagnostic (GitHub #406).
+    #
+    # Declared above Base on purpose, as unhomed-keywords.yaml's $ref cases
+    # are: the alias a $ref site hoists to hold what it cannot resolve into
+    # must not depend on which declaration arrives first.
+    G: {$ref: '#/components/schemas/Base', oneOf: [{type: string}, {type: integer}]}
+    H: {$ref: '#/components/schemas/Base', anyOf: [{type: string}, {type: integer}]}
+    # allOf beside a $ref at the same level has the identical gap. It is not
+    # the ordinary case of a $ref living *inside* an allOf branch (that is
+    # allof-ref-branch-siblings.yaml, fixed by GitHub #143) — here the $ref and
+    # the allOf sit beside each other at the schema's own level, and the
+    # census that runs at a $ref site (unhomedKeywords) never named allOf
+    # either: a body position elects it through dispatchOf/familyOrder, a
+    # mechanism a $ref site never reaches at all.
+    I: {$ref: '#/components/schemas/Base', allOf: [{type: string}]}
+    # The same gap at a carrier position: a property's $ref resolves straight
+    # to the target rather than hoisting a node of its own, so what it cannot
+    # home lands on the property's own Unmodeled instead of an alias's.
+    Carrier:
+      type: object
+      properties:
+        p: {$ref: '#/components/schemas/Base', oneOf: [{type: string}, {type: integer}]}
+    Base: {type: object, properties: {id: {type: string}}}

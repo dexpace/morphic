@@ -3921,6 +3921,12 @@ func unmodeledKeys(p ir.Unmodeled) []string {
 // component is an annotation.HomeOwnNode position and keeps the keyword on the
 // alias it hoists, a property is an annotation.HomeCarrier one and keeps it on
 // itself, and only the first of the two ran any census at all.
+//
+// allOf joins the table for a different reason than the rest (GitHub #406): a
+// $ref site never elects a composition family, so allOf beside one is never
+// skipped by recordSkippedFamilies the way it is at a body position — it
+// reaches the alias only because refSiteUnhomedKeywords adds it to this
+// site's own census.
 func TestRefSiteKeywords_KeptAtEveryPosition(t *testing.T) {
 	t.Parallel()
 	for _, tc := range []struct{ keyword, sibling, target, raw string }{
@@ -3929,6 +3935,7 @@ func TestRefSiteKeywords_KeptAtEveryPosition(t *testing.T) {
 		{"const", "const: a", "BaseStr", `"a"`},
 		{"required", "required: [a]", "BaseObj", `["a"]`},
 		{"additionalProperties", "additionalProperties: false", "BaseObj", `false`},
+		{"allOf", "allOf: [{type: string}]", "BaseObj", `[{"type":"string"}]`},
 	} {
 		t.Run(tc.keyword, func(t *testing.T) {
 			t.Parallel()
@@ -3959,6 +3966,58 @@ func TestRefSiteKeywords_KeptAtEveryPosition(t *testing.T) {
 				openapitest.DiagMessageAt(t, diags, diag.DegradedConstruct, ir.SeverityInfo,
 					"/components/schemas/Holder/properties/p"),
 				"no home for "+tc.keyword)
+		})
+	}
+}
+
+// TestRefSiteKeywords_UnionKeptAtEveryPosition covers oneOf/anyOf co-declared
+// beside a $ref at the same level (GitHub #406). Under JSON Schema 2020-12 —
+// and so OpenAPI 3.1 — `$ref` conjoins with its siblings, so the union
+// narrows the referenced schema; the union family's one keeper,
+// preserveUnionSiblings, was reached only through the structural-body path
+// (lowerBesideUnmodeledUnion), so a $ref-peeling declaration reached it not
+// at all. The fix routes both ref-site positions through the keeper's body
+// directly (preserveUnionSiblingsAt), rather than writing a second one.
+//
+// Both positions are checked, as TestRefSiteKeywords_KeptAtEveryPosition
+// checks the rest of the census: a component hoists an alias to hold the
+// union, a property keeps it on itself.
+func TestRefSiteKeywords_UnionKeptAtEveryPosition(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct{ keyword, sibling string }{
+		{"oneOf", "oneOf: [{type: string}, {type: integer}]"},
+		{"anyOf", "anyOf: [{type: string}, {type: integer}]"},
+	} {
+		t.Run(tc.keyword, func(t *testing.T) {
+			t.Parallel()
+			site := "{$ref: '#/components/schemas/BaseObj', " + tc.sibling + "}"
+			doc, diags := lowerSpec(t, keywordCensusSpec(
+				"    Alias: "+site+"\n"+
+					"    Holder: {type: object, properties: {p: "+site+"}}\n"))
+			openapitest.RequireNoErrorDiags(t, diags)
+			key := "openapi:" + tc.keyword
+			raw := `[{"type":"string"},{"type":"integer"}]`
+
+			alias, ok := typeByName(doc, "Alias").(*ir.Scalar)
+			require.True(t, ok, "the component position hoists an alias to hold the union its $ref cannot")
+			require.NotNil(t, alias.Base)
+			assert.Equal(t, componentID("BaseObj"), alias.Base.Target, "and still aliases the target")
+			assertKeptVerbatim(t, alias.Unmodeled, key, raw)
+			assert.Contains(t,
+				openapitest.DiagMessageAt(t, diags, diag.DegradedConstruct, ir.SeverityInfo, "/components/schemas/Alias"),
+				"union branches kept verbatim")
+
+			holder, ok := typeByName(doc, "Holder").(*ir.Model)
+			require.True(t, ok)
+			p, ok := openapitest.PropsByWire(holder.Properties)["p"]
+			require.True(t, ok)
+			assert.Equal(t, componentID("BaseObj"), p.Type.Target,
+				"the carrier still resolves straight to the target; only the loss is now recorded")
+			assertKeptVerbatim(t, p.Unmodeled, key, raw)
+			assert.Contains(t,
+				openapitest.DiagMessageAt(t, diags, diag.DegradedConstruct, ir.SeverityInfo,
+					"/components/schemas/Holder/properties/p"),
+				"union branches kept verbatim")
 		})
 	}
 }

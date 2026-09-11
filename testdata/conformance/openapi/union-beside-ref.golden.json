@@ -1,0 +1,305 @@
+{
+  "irVersion": "0.3.0",
+  "name": "UnionBesideRef",
+  "version": "1.0.0",
+  "docs": {},
+  "services": [
+    {
+      "id": "s/openapi/0",
+      "name": {
+        "source": "UnionBesideRef",
+        "canonical": "union_beside_ref"
+      },
+      "docs": {},
+      "auth": null,
+      "provenance": {
+        "source": 0
+      }
+    }
+  ],
+  "types": {
+    "t/openapi/components/schemas/Base": {
+      "kind": "model",
+      "id": "t/openapi/components/schemas/Base",
+      "name": {
+        "source": "Base",
+        "canonical": "base"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Base"
+      },
+      "properties": [
+        {
+          "id": "p/openapi/components/schemas/Base/properties/id",
+          "name": {
+            "source": "id",
+            "canonical": "id"
+          },
+          "wireName": "id",
+          "type": {
+            "target": "t/prim/string",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/Base/properties/id"
+          }
+        }
+      ],
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
+    "t/openapi/components/schemas/Carrier": {
+      "kind": "model",
+      "id": "t/openapi/components/schemas/Carrier",
+      "name": {
+        "source": "Carrier",
+        "canonical": "carrier"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Carrier"
+      },
+      "properties": [
+        {
+          "id": "p/openapi/components/schemas/Carrier/properties/p",
+          "name": {
+            "source": "p",
+            "canonical": "p"
+          },
+          "wireName": "p",
+          "type": {
+            "target": "t/openapi/components/schemas/Base",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "unmodeled": {
+            "openapi:oneOf": {
+              "reason": "degraded_lowering",
+              "value": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "integer"
+                }
+              ],
+              "provenance": {
+                "source": 0,
+                "pointer": "/components/schemas/Carrier/properties/p/oneOf"
+              }
+            }
+          },
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/Carrier/properties/p"
+          }
+        }
+      ],
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
+    "t/openapi/components/schemas/G": {
+      "kind": "scalar",
+      "id": "t/openapi/components/schemas/G",
+      "name": {
+        "source": "G",
+        "canonical": "g"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "unmodeled": {
+        "openapi:oneOf": {
+          "reason": "degraded_lowering",
+          "value": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "integer"
+            }
+          ],
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/G/oneOf"
+          }
+        }
+      },
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/G"
+      },
+      "base": {
+        "target": "t/openapi/components/schemas/Base",
+        "nullable": false
+      }
+    },
+    "t/openapi/components/schemas/H": {
+      "kind": "scalar",
+      "id": "t/openapi/components/schemas/H",
+      "name": {
+        "source": "H",
+        "canonical": "h"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "unmodeled": {
+        "openapi:anyOf": {
+          "reason": "degraded_lowering",
+          "value": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "integer"
+            }
+          ],
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/H/anyOf"
+          }
+        }
+      },
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/H"
+      },
+      "base": {
+        "target": "t/openapi/components/schemas/Base",
+        "nullable": false
+      }
+    },
+    "t/openapi/components/schemas/I": {
+      "kind": "scalar",
+      "id": "t/openapi/components/schemas/I",
+      "name": {
+        "source": "I",
+        "canonical": "i"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "unmodeled": {
+        "openapi:allOf": {
+          "reason": "degraded_lowering",
+          "value": [
+            {
+              "type": "string"
+            }
+          ],
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/I/allOf"
+          }
+        }
+      },
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/I"
+      },
+      "base": {
+        "target": "t/openapi/components/schemas/Base",
+        "nullable": false
+      }
+    },
+    "t/prim/string": {
+      "kind": "primitive",
+      "id": "t/prim/string",
+      "name": {},
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0
+      },
+      "prim": "string"
+    }
+  },
+  "servers": [
+    {
+      "name": {
+        "hint": "server"
+      },
+      "urlTemplate": "/",
+      "description": {},
+      "auth": null
+    }
+  ],
+  "diagnostics": [
+    {
+      "severity": "info",
+      "code": "openapi/degraded-construct",
+      "message": "oneOf/anyOf co-declared with structural keywords intersects with them, and the sibling is a $ref rather than a structural body, so there is nothing at this position to distribute the union's composition into; union branches kept verbatim under Unmodeled",
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/G"
+      }
+    },
+    {
+      "severity": "info",
+      "code": "openapi/degraded-construct",
+      "message": "oneOf/anyOf co-declared with structural keywords intersects with them, and the sibling is a $ref rather than a structural body, so there is nothing at this position to distribute the union's composition into; union branches kept verbatim under Unmodeled",
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/H"
+      }
+    },
+    {
+      "severity": "info",
+      "code": "openapi/degraded-construct",
+      "message": "this position lowered to an alias over its $ref target, which has no home for allOf declared beside it; kept verbatim under Unmodeled",
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/I"
+      }
+    },
+    {
+      "severity": "info",
+      "code": "openapi/degraded-construct",
+      "message": "oneOf/anyOf co-declared with structural keywords intersects with them, and the sibling is a $ref rather than a structural body, so there is nothing at this position to distribute the union's composition into; union branches kept verbatim under Unmodeled",
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Carrier/properties/p"
+      }
+    }
+  ],
+  "sources": [
+    {
+      "format": "openapi@3.1",
+      "path": "union-beside-ref.yaml",
+      "hash": "87dd8ccb535ad918710e631513e3a6f33c87f13ce9c76659b53fe52b0d84657a"
+    }
+  ]
+}
