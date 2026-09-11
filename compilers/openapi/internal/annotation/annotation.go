@@ -528,6 +528,59 @@ func RawChildNode(root *yaml.Node, key string) *yaml.Node {
 	return found
 }
 
+// RawMappingKeys returns the on-wire names a raw mapping writes, each once, in
+// the order first written, unwrapping a document node first; nil for a node
+// that is not a mapping, and for a mapping that writes no key. It reads the
+// same mapping RawChildNode does and spells each key the way RawChildNode looks
+// one up, so every name it returns is one RawChildNode can find a value for.
+//
+// It exists for the object whose parsed model does not present every key the
+// mapping wrote. A Path Item Object's unmarshaller folds a key it does not
+// recognize into the item's operations map, which the census reads — but skips
+// a key whose value carries a YAML anchor before that fold, so the raw mapping
+// is the only place such a key is written at all (speakeasy-api/openapi
+// v1.24.1, GitHub #412). What the parsed model dropped can only be recovered
+// from what the source wrote.
+//
+// A `<<` merge key is not a key the mapping writes: it names other mappings
+// whose pairs the parser reads in, and those pairs are what the model holds —
+// unless a merged-in value is itself anchored, when the library's skip drops it
+// too and neither reading sees it; only a merge-expanded view can, which is
+// GitHub #395's to close. It is left out here for the same reason the raw-JSON
+// converter expands it rather than encoding it. Like every raw-node reader in
+// this package, this reads the mapping's own pairs and not the merged-in ones,
+// which is #395.
+//
+// A key repeated in the mapping is one key to the parser and is returned once,
+// because a census that named it twice would find its own first entry occupied
+// on the second pass and report a collision the document does not contain.
+func RawMappingKeys(root *yaml.Node) []string {
+	if root == nil {
+		return nil
+	}
+	if root.Kind == yaml.DocumentNode && len(root.Content) > 0 {
+		root = root.Content[0]
+	}
+	if root.Kind != yaml.MappingNode {
+		return nil
+	}
+	var keys []string
+	seen := make(map[string]bool, len(root.Content)/2)
+	for i := 0; i+1 < len(root.Content); i += 2 {
+		k := root.Content[i]
+		if isMergeKey(k) {
+			continue
+		}
+		name := keyName(k)
+		if seen[name] {
+			continue
+		}
+		seen[name] = true
+		keys = append(keys, name)
+	}
+	return keys
+}
+
 // keyName is the on-wire name a mapping key node spells, following an alias to
 // the scalar it stands for.
 //

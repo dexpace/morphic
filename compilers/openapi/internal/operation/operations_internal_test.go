@@ -1,10 +1,15 @@
 package operation
 
 import (
+	"reflect"
 	"strconv"
+	"strings"
 	"testing"
 
+	"github.com/google/go-cmp/cmp"
+	"github.com/speakeasy-api/openapi/marshaller"
 	soa "github.com/speakeasy-api/openapi/openapi"
+	"github.com/speakeasy-api/openapi/openapi/core"
 	"github.com/speakeasy-api/openapi/sequencedmap"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -356,4 +361,72 @@ func TestPathOperations_NilAdditionalOperationSkipped(t *testing.T) {
 	require.Len(t, ops, 1, "the nil entry is skipped and the real one is not")
 	assert.Equal(t, "PURGE", ops[0].method)
 	assert.Equal(t, "/additionalOperations/PURGE", ops[0].seg)
+}
+
+// TestPathItemFields_MatchTheLibraryModel holds pathItemFields to the key tags of
+// the library's Path Item core model, the way the ir package holds its
+// hand-written kind lists to the kinds the sources declare. The list decides
+// which raw keys the census leaves alone as declared fields, so a field the
+// library adds and this list does not name would be announced as a key the
+// document was not permitted to write — and one this list names and the library
+// has dropped would be a key the census never looks at.
+//
+// The extensions field is the one tag left out: it is spelled "extensions" in
+// the tag and reached by x- prefix in the document, which pathItemDeclares tests
+// for on its own.
+func TestPathItemFields_MatchTheLibraryModel(t *testing.T) {
+	t.Parallel()
+	var declared []string
+	typ := reflect.TypeFor[core.PathItem]()
+	for i := range typ.NumField() {
+		key := typ.Field(i).Tag.Get("key")
+		if key == "" || key == "extensions" {
+			continue
+		}
+		declared = append(declared, key)
+	}
+	diff := cmp.Diff(declared, pathItemFields)
+	assert.Empty(t, diff,
+		"pathItemFields must name every keyed field of core.PathItem, once each, in its order (-model +listed)")
+}
+
+// TestPathItemDeclares_AnchoredDeclaredKeysAreNotUndeclared is the control the
+// raw reading needs: the library skips every anchored value on a path item, a
+// declared field's included, so the raw mapping presents each declared key
+// exactly as it presents an undeclared one and only the vocabulary tells them
+// apart. Each class of declared key is written with an anchored value here, and
+// the census must report none of them.
+//
+// The anchored `get` is not lowered — the same skip unmounts it — and that is a
+// loss of its own, outside what a census of undeclared keys can answer; what is
+// pinned here is only that it is not misreported as a key the specification does
+// not define.
+func TestPathItemDeclares_AnchoredDeclaredKeysAreNotUndeclared(t *testing.T) {
+	t.Parallel()
+	pi := pathItemOf(t, `
+summary: &s s
+description: &d d
+servers: &sv [{url: 'https://a.example'}]
+parameters: &pa [{name: p, in: query, schema: {type: string}}]
+additionalOperations: &ao
+  PURGE: {operationId: purgeY, responses: {"200": {description: ok}}}
+x-mark: &xm XVAL
+get: &g {operationId: getY, responses: {"200": {description: ok}}}
+put: {operationId: putY, responses: {"200": {description: ok}}}
+bogus: &b {responses: {"200": {description: BOGUS}}}
+`)
+	assert.Equal(t, []string{"bogus"}, undeclaredPathItemKeys(pi),
+		"every declared key is left alone whether or not the map holds it; the undeclared one is not")
+}
+
+// pathItemOf unmarshals src as a Path Item Object through the library, the way
+// the compiler reads one, so the folded map and the raw node are both what a
+// document produces.
+func pathItemOf(t *testing.T, src string) *soa.PathItem {
+	t.Helper()
+	pi := &soa.PathItem{}
+	valErrs, err := marshaller.Unmarshal(t.Context(), strings.NewReader(src), pi)
+	require.NoError(t, err)
+	require.Empty(t, valErrs, "the fixture parses cleanly")
+	return pi
 }

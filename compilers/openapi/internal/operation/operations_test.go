@@ -1539,17 +1539,28 @@ func TestOperations_PathItemServersKeptOnEveryRoute(t *testing.T) {
 // rather than a key with a value to keep. It is also the case that used to be
 // lost in silence — a well-formed operation under an undefined key raised no
 // finding at all.
+//
+// Each item writes a second such key whose value carries a YAML anchor. That one
+// never reaches the operations map — the library skips an anchored value before
+// folding it — so it is read off the raw mapping instead (GitHub #412), and the
+// raw reading has to reach every route exactly as the map reading does. The two
+// forms part company on a scalar: `bogus: 1` is folded and draws the library's
+// type-mismatch error, while `bogus: &a 1` bypasses the fold and is kept
+// verbatim with the warning alone. That divergence is the lossless outcome, not
+// a gap to close by rejecting the anchored one.
 const pathItemUnknownKeySpec = `openapi: 3.1.0
 info: {title: T, version: "1"}
 paths:
   /p:
     onPath: {responses: {"200": {description: PATH}}}
+    onPathAnchored: &pa {responses: {"200": {description: PATHANCHORED}}}
     post:
       operationId: postP
       callbacks:
         onEvent:
           '{$request.body#/url}':
             onCallback: {responses: {"200": {description: CALLBACK}}}
+            onCallbackAnchored: &ca {responses: {"200": {description: CALLBACKANCHORED}}}
             post:
               operationId: onEvent
               responses: {"200": {description: ok}}
@@ -1557,6 +1568,7 @@ paths:
 webhooks:
   hooked:
     onWebhook: {responses: {"200": {description: WEBHOOK}}}
+    onWebhookAnchored: &wa {responses: {"200": {description: WEBHOOKANCHORED}}}
     post:
       operationId: onHook
       responses: {"200": {description: ok}}
@@ -1575,9 +1587,14 @@ func TestOperations_PathItemUnknownKeyKeptOnEveryRoute(t *testing.T) {
 
 	for _, tc := range []struct{ op, key, marker, at string }{
 		{"postP", "openapi:pathItem/onPath", "PATH", "/paths/~1p/onPath"},
+		{"postP", "openapi:pathItem/onPathAnchored", "PATHANCHORED", "/paths/~1p/onPathAnchored"},
 		{"onHook", "openapi:pathItem/onWebhook", "WEBHOOK", "/webhooks/hooked/onWebhook"},
+		{"onHook", "openapi:pathItem/onWebhookAnchored", "WEBHOOKANCHORED",
+			"/webhooks/hooked/onWebhookAnchored"},
 		{"onEvent", "openapi:pathItem/onCallback", "CALLBACK",
 			"/paths/~1p/post/callbacks/onEvent/{$request.body#~1url}/onCallback"},
+		{"onEvent", "openapi:pathItem/onCallbackAnchored", "CALLBACKANCHORED",
+			"/paths/~1p/post/callbacks/onEvent/{$request.body#~1url}/onCallbackAnchored"},
 	} {
 		entry, ok := openapitest.FindOp(t, doc, tc.op).Unmodeled[tc.key]
 		require.True(t, ok, "%s keeps the key its own path item wrote", tc.op)
