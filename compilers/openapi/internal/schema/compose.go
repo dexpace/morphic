@@ -528,9 +528,11 @@ func unvisitedRefTargets(s *oas3.Schema, visited map[*oas3.Schema]bool) []*oas3.
 }
 
 // lowerOneOfAnyOf lowers a oneOf/anyOf schema. A two-variant {X, null} set
-// collapses to nullable X (ir-design §3.3); everything else becomes a Union
-// with one Variant per branch (oneOf exclusive, anyOf not), never collapsing a
-// union into optional fields.
+// collapses to nullable X (ir-design §3.3); a set with no non-null branch at
+// all (every branch a bare `type: null`) has no X for that collapse to name,
+// so it lowers to nullable `any` instead (lowerNullOnlyUnion, GitHub #416);
+// everything else becomes a Union with one Variant per branch (oneOf
+// exclusive, anyOf not), never collapsing a union into optional fields.
 func lowerOneOfAnyOf(c lowering.Ctx, ts *compile.Types, anchors *AnchorIndex, depth int, s *oas3.Schema, pointer, hint string) (ir.TypeRef, []ir.Diagnostic) {
 	if inner, ip, ih, ok := nullUnionCollapse(s, pointer); ok {
 		ref, diags := Ref(c, ts, anchors, depth, inner, ip, ih)
@@ -563,18 +565,15 @@ func lowerOneOfAnyOf(c lowering.Ctx, ts *compile.Types, anchors *AnchorIndex, de
 // or a Scalar's fields could hold, so it is kept verbatim under Unmodeled
 // instead of dropped (GitHub #416; ir-design §4.8).
 func lowerNullOnlyUnion(c lowering.Ctx, ts *compile.Types, s *oas3.Schema, pointer, hint string) (ir.TypeRef, []ir.Diagnostic) {
+	// inner is the shared `any` primitive: no schema pointer ever interns at
+	// its ID, so this position never already owns it. Hoist an alias
+	// unconditionally, rather than testing for a case that cannot occur, so
+	// the preserved union attaches to a node this pointer owns and not to the
+	// primitive every other unrelated position also resolves to.
 	inner := ts.PrimID(ir.PrimAny)
-	owner := inner
-	var diags []ir.Diagnostic
-	if got, _ := ts.Lookup(pointer); got != inner {
-		// This pointer owns no node yet: hoist an alias so the preserved union
-		// attaches to a node this pointer owns, never to the shared `any`
-		// primitive every other unrelated position also resolves to.
-		var kept ir.Unmodeled
-		cons, consDiags := schemaConstraints(c, &kept, s, pointer)
-		diags = append(diags, consDiags...)
-		owner = internAlias(c, ts, pointer, hint, ir.TypeRef{Target: inner, Nullable: true}, cons, kept)
-	}
+	var kept ir.Unmodeled
+	cons, diags := schemaConstraints(c, &kept, s, pointer)
+	owner := internAlias(c, ts, pointer, hint, ir.TypeRef{Target: inner, Nullable: true}, cons, kept)
 	return ir.TypeRef{Target: owner, Nullable: true}, append(diags, preserveNullOnlyUnion(c, ts, owner, s, pointer)...)
 }
 
@@ -590,12 +589,15 @@ func preserveNullOnlyUnion(c lowering.Ctx, ts *compile.Types, id ir.TypeID, s *o
 	common := td.Common()
 	kept, keepDiags := preserveBranchSets(c, &common.Unmodeled, s, ir.ReasonDegradedLowering, pointer)
 	diags = append(diags, keepDiags...)
-	if !kept {
+	if len(kept) == 0 {
 		return diags
 	}
+	// Both keywords land here when both are declared: buildUnion, and its
+	// preserveUnusedCombinator, are never reached from this arm, so this is the
+	// only place either combinator gets a home.
 	return append(diags, c.DiagAt(ir.SeverityInfo, diag.DegradedConstruct, pointer,
 		"every branch admits only the null value, so this position lowered as nullable any; "+
-			"the union is kept verbatim under Unmodeled"))
+			"%s kept verbatim under Unmodeled", strings.Join(kept, " and ")))
 }
 
 // unionLowering names how a oneOf/anyOf co-declared with structural keywords is

@@ -610,16 +610,17 @@ func assertKeptRaw(t *testing.T, p ir.Unmodeled, key, want string) {
 }
 
 // assertNullOnlyUnion covers a oneOf/anyOf whose only branches are a bare
-// `type: null` schema — one branch, two, and either combinator.
-// nullUnionCollapse has no non-null branch to collapse a set like this onto,
-// so without a guard for this shape lowerOneOfAnyOf's buildUnion fallback
-// strips every branch as a null marker and interns a Union with none left,
-// the empty value space irverify's ir/union-no-variants rule rejects
-// (GitHub #416). The branch set admits exactly what a bare `{type: null}`
-// schema at the same position admits — null alone — so this position lowers
-// the same way: the shared `any` primitive with Nullable set, and the
-// combinator that produced it is kept verbatim under Unmodeled since it
-// carries no shape the Scalar's fields could hold.
+// `type: null` schema — one branch, two, either combinator, and both
+// combinators declared at once with the elected one null-only. nullUnionCollapse
+// has no non-null branch to collapse a set like this onto, so without a guard
+// for this shape lowerOneOfAnyOf's buildUnion fallback strips every branch as a
+// null marker and interns a Union with none left, the empty value space
+// irverify's ir/union-no-variants rule rejects (GitHub #416). The branch set
+// admits exactly what a bare `{type: null}` schema at the same position admits
+// — null alone — so this position lowers the same way: the shared `any`
+// primitive with Nullable set, and the combinator(s) that produced it are kept
+// verbatim under Unmodeled since none carries a shape the Scalar's fields could
+// hold.
 func assertNullOnlyUnion(t *testing.T, doc *ir.Document, diags []ir.Diagnostic) {
 	cases := []struct {
 		name string
@@ -631,19 +632,42 @@ func assertNullOnlyUnion(t *testing.T, doc *ir.Document, diags []ir.Diagnostic) 
 		{"AnyOfTwoNull", "openapi:anyOf", `[{"type":"null"},{"type":"null"}]`},
 	}
 	for _, tc := range cases {
-		s, ok := doc.Types[namedID(tc.name)].(*ir.Scalar)
-		require.True(t, ok, "%s lowers to a scalar over any, the same node a bare "+
-			"`{type: null}` schema at this position would", tc.name)
-		require.NotNil(t, s.Base)
-		assert.Equal(t, ir.TypeID("t/prim/any"), s.Base.Target)
-		assert.True(t, s.Base.Nullable,
-			"%s: the null-only branch set lifts onto the reference the way a bare "+
-				"{type: null} schema's does", tc.name)
+		s := assertNullOnlyScalar(t, doc, tc.name)
 		assertKeptRaw(t, s.Unmodeled, tc.key, tc.raw)
 		assert.Equal(t, []ir.Severity{ir.SeverityInfo},
 			diagsAt(diags, "openapi/degraded-construct", "/components/schemas/"+tc.name),
 			"%s announces the degraded lowering", tc.name)
 	}
+
+	// BothNull declares oneOf and anyOf at once, each with its own null-only
+	// branch. unionBranches elects oneOf, so lowerNullOnlyUnion is reached the
+	// same way as the single-combinator cases above, but buildUnion is never
+	// called at all here — which is what sidesteps preserveUnusedCombinator,
+	// the union path's usual way of keeping a passed-over combinator. Both
+	// keywords must therefore come from preserveBranchSets's own loop over
+	// both, not from that mechanism.
+	both := assertNullOnlyScalar(t, doc, "BothNull")
+	assertKeptRaw(t, both.Unmodeled, "openapi:oneOf", `[{"type":"null"}]`)
+	assertKeptRaw(t, both.Unmodeled, "openapi:anyOf", `[{"type":"null"}]`)
+	assert.Equal(t, []ir.Severity{ir.SeverityInfo},
+		diagsAt(diags, "openapi/degraded-construct", "/components/schemas/BothNull"),
+		"BothNull announces the degraded lowering once, for both kept keywords")
+}
+
+// assertNullOnlyScalar requires doc.Types[name] to be the scalar over `any`
+// with Nullable set that a null-only union — and a bare `{type: null}` schema
+// at the same position — both lower to.
+func assertNullOnlyScalar(t *testing.T, doc *ir.Document, name string) *ir.Scalar {
+	t.Helper()
+	s, ok := doc.Types[namedID(name)].(*ir.Scalar)
+	require.True(t, ok, "%s lowers to a scalar over any, the same node a bare "+
+		"`{type: null}` schema at this position would", name)
+	require.NotNil(t, s.Base)
+	assert.Equal(t, ir.TypeID("t/prim/any"), s.Base.Target)
+	assert.True(t, s.Base.Nullable,
+		"%s: the null-only branch set lifts onto the reference the way a bare "+
+			"{type: null} schema's does", name)
+	return s
 }
 
 // assertCoDeclaredSchemaContent covers the election at the other pair of

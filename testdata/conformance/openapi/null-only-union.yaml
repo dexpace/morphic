@@ -9,3 +9,6 @@ components:
       oneOf: [{type: "null"}]
     AnyOfTwoNull:
       anyOf: [{type: "null"}, {type: "null"}]
+    BothNull:
+      oneOf: [{type: "null"}]
+      anyOf: [{type: "null"}]
