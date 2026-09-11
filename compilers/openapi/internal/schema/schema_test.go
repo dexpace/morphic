@@ -3349,13 +3349,18 @@ func mergeBoundOrderSpec(pFirst bool) string {
 }
 
 // TestDynamicRef_ResourceBoundaryVerdictIsOrderInvariant pins that which schema
-// lowered first cannot decide whether the other sees the $id above it.
+// lowered first cannot decide whether the other sees the $id above it, nor
+// whether the compiler reports stopping at its merge bound.
 //
-// declaresResourceIDAbove builds its nodeview.View per call for this reason. A
-// view outliving one walk memoizes a mapping's merge expansion, and a node first
-// expanded shallowly is then served from that memo to a walk reaching it deeper
-// than MergeDepthLimit permits. Sharing one made P-then-Q keep Q's reference
-// verbatim where Q-then-P expanded it, in the same document.
+// Both answers come from a nodeview.View, and a view memoizes a mapping's merge
+// expansion. Served without regard to the depth a later read reached the node
+// at, a memo filled by a shallow read answered a read that a fresh view would
+// have truncated, so what the view reported depended on which schema it read
+// first (GitHub #404). The resource-boundary walk built a view per call to stay
+// clear of that, and the cycle pre-scan, which shares one across its walk,
+// reported its bound in one order only (GitHub #402). The memo now records the
+// depth an entry is good for, and this holds both sites to it: the verdict
+// lands in the registry, the bound report in the diagnostics.
 //
 // The order-invariance oracle cannot ask this. The construct needs YAML anchors,
 // and reverseMappings declines to permute a document whose aliases the reversal
@@ -3373,14 +3378,29 @@ func TestDynamicRef_ResourceBoundaryVerdictIsOrderInvariant(t *testing.T) {
 	last, diags := parseFull(t, mergeBoundOrderSpec(false))
 	openapitest.RequireNoErrorDiags(t, diags)
 
-	// The registry rather than the whole document: the cycle pre-scan shares one
-	// view across its own walk, so whether it reports stopping at the same
-	// 64-level bound depends on which schema it reached first, and that warning
-	// appears in one order only (GitHub #402). It is the same mechanism in a
-	// different walk, and it is not what this test governs — the boundary verdict
-	// lands in the registry.
 	assert.Empty(t, cmp.Diff(first.Types, last.Types, orderInvariantIR()...),
 		"the declaration order must not decide a resource-boundary verdict")
+
+	// As a set: the per-schema diagnostics follow traversal order, which the
+	// permutation changes by design, so what is compared is what was reported
+	// and where, the way the harness's order-invariance oracle compares them.
+	assert.Empty(t, cmp.Diff(diagnosticSet(first.Diagnostics), diagnosticSet(last.Diagnostics)),
+		"the declaration order must not decide whether the merge bound is reported")
+	assert.Contains(t, diagnosticSet(first.Diagnostics),
+		"warning\x00"+diag.CycleScanFailed+"\x00", // a source-level finding: no pointer
+		"the chain past the bound is reported in the as-written order, so the set is not trivially equal")
+}
+
+// diagnosticSet renders diagnostics as a sorted multiset of severity, code and
+// pointer, which is how the harness's order-invariance oracle compares the
+// diagnostics of two orders of one document.
+func diagnosticSet(diags []ir.Diagnostic) []string {
+	out := make([]string, 0, len(diags))
+	for _, d := range diags {
+		out = append(out, fmt.Sprintf("%s\x00%s\x00%s", d.Severity, d.Code, d.Provenance.Pointer))
+	}
+	sort.Strings(out)
+	return out
 }
 
 // TestDynamicRef_CycleIsRefusedAtEveryEdge pins that a cycle of $dynamicRef

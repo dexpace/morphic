@@ -90,17 +90,19 @@ type Pair struct {
 //
 // It memoizes each mapping's expansion for the scan's lifetime: without that, a
 // merge chain costs O(n) per expansion and O(n) expansions per walk, going
-// cubic in chain length — a hang where the bug being fixed was a crash. A
-// cached expansion is always the depth-0 expansion, independent of the path
-// that first reached it. MergeDepthLimit and maxCachedPairs bound the chain
-// depth and cache size respectively, so unlimited memoization can't trade the
-// crash for exhausted memory instead.
+// cubic in chain length — a hang where the bug being fixed was a crash. The
+// memo is a pure cache: a read answers exactly what a fresh view would answer
+// at the same depth, whatever was read before it, which is what makes one view
+// safe to share across independent walks (see expansion and View.serves).
+// MergeDepthLimit and maxCachedPairs bound the chain depth and cache size
+// respectively, so unlimited memoization can't trade the crash for exhausted
+// memory instead.
 //
 // It memoizes one thing more, for the walk rather than the expansion: keyIndex
 // projects a memoized mapping into a key map, so descending a JSON pointer costs
 // a map read per token instead of a scan of every pair at each one.
 type View struct {
-	pairs       map[*yaml.Node][]Pair
+	pairs       map[*yaml.Node]expansion
 	keys        map[*yaml.Node]map[string]*yaml.Node
 	cachedPairs int
 	inFlight    map[*yaml.Node]bool
@@ -119,9 +121,26 @@ func New() *View {
 	// keys is left nil: most views never index anything, and keyIndex allocates
 	// it on the first mapping wide enough to earn one.
 	return &View{
-		pairs:    map[*yaml.Node][]Pair{},
+		pairs:    map[*yaml.Node]expansion{},
 		inFlight: map[*yaml.Node]bool{},
 	}
+}
+
+// expansion is one mapping's effective pairs together with what the memo needs
+// to know to serve them again: how deep the expansion reached, and whether it
+// reached everything.
+//
+// height is the longest chain of `<<` merges beneath the node — 0 for a mapping
+// that merges nothing — and it is what makes a memo entry safe to share. The
+// expansion of a node depends on the depth it is reached at, because the depth
+// bound truncates from the entry point down: a chain that fits inside the bound
+// from one node may not from a node above it. So an entry computed from one
+// read is only the answer for another read when the whole chain still fits
+// (GitHub #404).
+type expansion struct {
+	pairs    []Pair
+	height   int
+	complete bool
 }
 
 // MappingPairs returns the effective pairs of a mapping node, following
@@ -134,14 +153,16 @@ func New() *View {
 // directly; a non-mapping node (including nil) yields no pairs. The returned
 // slice is the view's own memo — callers must treat it as read-only.
 func (v *View) MappingPairs(n *yaml.Node) []Pair {
-	pairs, _ := v.expand(Deref(n), 0)
-	return pairs
+	return v.expand(Deref(n), 0).pairs
 }
 
 // expand returns n's effective pairs and whether the expansion is complete —
 // false if a merge cycle was broken or MergeDepthLimit was reached. Only a
 // complete expansion is memoized: caching an incomplete one could make one
-// traversal order silently lose a $ref another would find.
+// traversal order silently lose a $ref another would find. And a memoized
+// expansion is served only to a read it is the right answer for, which serves
+// decides — the memo must not let one traversal order see past a bound another
+// would stop at.
 //
 // Truncation is not contagious — only the node that hit the bound is refused,
 // every other mapping still expands in full — because truncation only ever
@@ -157,29 +178,45 @@ func (v *View) MappingPairs(n *yaml.Node) []Pair {
 //
 // The in-flight (merge-cycle) case needs no bound of its own: it requires an
 // alias to an ancestor, which anchorCycle already refuses before refCycles runs.
-func (v *View) expand(n *yaml.Node, depth int) ([]Pair, bool) {
+func (v *View) expand(n *yaml.Node, depth int) expansion {
 	if n == nil || n.Kind != yaml.MappingNode {
-		return nil, true
+		return expansion{complete: true}
 	}
-	if cached, ok := v.pairs[n]; ok {
-		return cached, true
+	if cached, ok := v.pairs[n]; ok && v.serves(cached, depth) {
+		return cached
 	}
 	if v.inFlight[n] {
-		return nil, false
+		return expansion{}
 	}
 	if depth > MergeDepthLimit {
 		v.exhausted = true
-		return nil, false
+		return expansion{}
 	}
 
 	v.inFlight[n] = true
-	pairs, complete := v.expandContent(n, depth)
+	e := v.expandContent(n, depth)
 	delete(v.inFlight, n)
 
-	if complete || v.isEntryPoint(depth) {
-		v.memoize(n, pairs)
+	if e.complete || v.isEntryPoint(depth) {
+		v.memoize(n, e)
 	}
-	return pairs, complete
+	return e
+}
+
+// serves reports whether a memoized expansion is the answer a fresh view would
+// give a read at this depth, which is the only condition under which the memo
+// may answer instead of expanding.
+//
+// A complete entry expanded its whole chain, so it is the answer wherever that
+// chain still fits under the bound; from deeper than that a fresh read would
+// truncate, and the memo must not hide the truncation. An incomplete entry was
+// kept only because it was an entry point, and an entry point is the one read
+// it can stand in for.
+func (v *View) serves(e expansion, depth int) bool {
+	if !e.complete {
+		return v.isEntryPoint(depth)
+	}
+	return depth+e.height <= MergeDepthLimit
 }
 
 // isEntryPoint reports whether an expansion that just finished at this depth was
@@ -193,12 +230,12 @@ func (v *View) isEntryPoint(depth int) bool {
 // Declining to cache costs a recomputation and nothing else — the cache is pure
 // memoization, so a miss recomputes exactly the same pairs — which makes the
 // budget a memory bound the scan can enforce without touching what it reports.
-func (v *View) memoize(n *yaml.Node, pairs []Pair) {
-	if v.cachedPairs+len(pairs) > maxCachedPairs {
+func (v *View) memoize(n *yaml.Node, e expansion) {
+	if v.cachedPairs+len(e.pairs) > maxCachedPairs {
 		return
 	}
-	v.pairs[n] = pairs
-	v.cachedPairs += len(pairs)
+	v.pairs[n] = e
+	v.cachedPairs += len(e.pairs)
 }
 
 // expandContent splits a mapping's raw content into the pairs it declares itself
@@ -206,16 +243,20 @@ func (v *View) memoize(n *yaml.Node, pairs []Pair) {
 // that govern them. They point in opposite directions, so they cannot share one
 // pass: a repeated explicit key resolves to its last value, while a merged key
 // yields to an explicit one and to any earlier merge source.
-func (v *View) expandContent(n *yaml.Node, depth int) ([]Pair, bool) {
+//
+// The height it records is one more than the tallest merge source's, so a
+// mapping that merges nothing has height 0.
+func (v *View) expandContent(n *yaml.Node, depth int) expansion {
 	var explicit, merged []Pair
-	complete := true
+	e := expansion{complete: true}
 
 	for i := 0; i+1 < len(n.Content); i += 2 {
 		raw, val := n.Content[i], Deref(n.Content[i+1])
 		if IsMergeKey(raw) {
-			got, ok := v.mergeSource(val, depth+1)
-			merged = append(merged, got...)
-			complete = complete && ok
+			got := v.mergeSource(val, depth+1)
+			merged = append(merged, got.pairs...)
+			e.complete = e.complete && got.complete
+			e.height = max(e.height, got.height+1)
 			continue
 		}
 		key := Deref(raw)
@@ -225,7 +266,8 @@ func (v *View) expandContent(n *yaml.Node, depth int) ([]Pair, bool) {
 		explicit = append(explicit, Pair{Key: key.Value, Val: val})
 	}
 
-	return appendUnseen(dedupeLastWins(explicit), merged), complete
+	e.pairs = appendUnseen(dedupeLastWins(explicit), merged)
+	return e
 }
 
 // dedupeLastWins keeps the last pair for each key, at that last occurrence's
@@ -271,18 +313,23 @@ func appendUnseen(base, add []Pair) []Pair {
 // mergeSource expands one `<<` value into the pairs it contributes: a mapping is
 // a single merge source, a sequence is several with an earlier element taking
 // precedence over a later one on a shared key.
-func (v *View) mergeSource(val *yaml.Node, depth int) ([]Pair, bool) {
+//
+// The height of a sequence is its tallest element's: the elements are
+// alternatives at one level, not links in a chain.
+func (v *View) mergeSource(val *yaml.Node, depth int) expansion {
 	if val == nil || val.Kind != yaml.SequenceNode {
 		return v.expand(val, depth)
 	}
 	var out []Pair
-	complete := true
+	e := expansion{complete: true}
 	for _, item := range val.Content {
-		got, ok := v.expand(Deref(item), depth)
-		out = append(out, got...)
-		complete = complete && ok
+		got := v.expand(Deref(item), depth)
+		out = append(out, got.pairs...)
+		e.complete = e.complete && got.complete
+		e.height = max(e.height, got.height)
 	}
-	return dedupeFirstWins(out), complete
+	e.pairs = dedupeFirstWins(out)
+	return e
 }
 
 // IsMergeKey reports whether a raw mapping key node is a `<<` merge key,
@@ -565,16 +612,14 @@ const minIndexedPairs = 16
 // are bounded by cachedPairs, which maxCachedPairs already caps. Charging them
 // too would halve the memo — and that memo is not a speed budget but the bound
 // that keeps a merge chain from going cubic, where the bug being fixed was a
-// hang. Halving it would also bring GitHub #404 within reach at half the
-// document size, since which mappings keep a memo is what decides the answer
-// there.
+// hang.
 //
-// On #404 itself, which records that the pairs memo is depth-sensitive and asks
-// for that to be settled before this lookup work proceeds: this index is a
-// projection of that memo and holds no state of its own, so it can be neither
-// more nor less correct than the entry it is built from, and it adds no second
-// way for a view to answer two things. It inherits #404 rather than widening it,
-// and the fix landing there fixes this with it.
+// A built index is read without asking serves, and may be: every read of it
+// comes from a pointer walk, which enters at depth 0, and at depth 0 the memo
+// entry it projects is always the answer — a complete entry fits under the bound
+// from wherever it was computed, and an incomplete one was kept only as an entry
+// point. The index holds no state of its own, so it can be neither more nor less
+// correct than that entry.
 //
 // The second condition is reuse, and it is what the first read records rather
 // than predicts. A mapping arrives here with no entry at all the first time and

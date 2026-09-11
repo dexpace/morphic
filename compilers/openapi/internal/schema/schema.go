@@ -1743,12 +1743,12 @@ func componentSchemaAt(c lowering.Ctx, pointer string) *oas3.Schema {
 // An incomplete walk needs no separate arm: the path holds the nodes it did
 // reach, and a boundary above a pointer that falls off the tree still binds.
 //
-// The view is built per call and deliberately not shared. nodeview memoizes a
-// mapping's merge expansion, and a node first expanded shallowly is served from
-// that memo to a later walk that reaches it deeper than MergeDepthLimit would
-// allow — so a view outliving one walk makes this answer depend on which schema
-// lowered first, which invariant #7 forbids. A per-call view costs one expansion
-// per path node and is order-invariant.
+// The view is built per call. It was once unsafe to share — a memo entry filled
+// by a shallow read answered a later, deeper read that a fresh view would have
+// truncated, so a view outliving one walk made this answer depend on which
+// schema lowered first (GitHub #404). The memo now records the depth an entry
+// is good for, so sharing a view across calls is a cost question rather than a
+// correctness one; GitHub #338 carries it.
 //
 // Known gap: a path node whose own merge chain exceeds MergeDepthLimit expands
 // to nothing, so an $id written there is invisible and this reports no boundary
