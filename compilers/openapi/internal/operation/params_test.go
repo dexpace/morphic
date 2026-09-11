@@ -257,9 +257,8 @@ func TestParams_QueryStringDeclaredStyleIsKeptAndReported(t *testing.T) {
 // forbids explode at this location as it forbids style, but the bundled parser
 // enforces only the style half — so this reaches the compiler unrefused, and
 // erasing it would be the same silent drop the invented style was, in the other
-// direction. Unlike style, no parser finding reports the defect, so this
-// compiler's own diag.InvalidLocationKeyword is the only diagnostic naming it
-// (GitHub #408).
+// direction. See diag.InvalidLocationKeyword's GoDoc for why this compiler's
+// own report is the only diagnostic naming it, and why it is a warning.
 func TestParams_QueryStringDeclaredExplodeAloneIsKeptAndReported(t *testing.T) {
 	t.Parallel()
 	spec := openapitest.PathsSpecVer("3.2.0", `  /q:
@@ -276,6 +275,7 @@ func TestParams_QueryStringDeclaredExplodeAloneIsKeptAndReported(t *testing.T) {
         "200": {description: ok}
 `)
 	doc, diags := parseFull(t, spec)
+	openapitest.RequireNoErrorDiags(t, diags)
 	op := openapitest.FindOp(t, doc, "q")
 	require.Len(t, op.Bindings.HTTP, 1)
 	require.Len(t, op.Bindings.HTTP[0].ParamBindings, 1)
@@ -289,14 +289,14 @@ func TestParams_QueryStringDeclaredExplodeAloneIsKeptAndReported(t *testing.T) {
 
 	assert.Equal(t,
 		"parameter field explode is not allowed for in=querystring; lowered as declared",
-		openapitest.DiagMessageAt(t, diags, diag.InvalidLocationKeyword, ir.SeverityError,
+		openapitest.DiagMessageAt(t, diags, diag.InvalidLocationKeyword, ir.SeverityWarning,
 			"/paths/~1q/get/parameters/0/explode"))
 }
 
 // TestParams_QueryStringDeclaredAllowReservedIsKeptAndReported is the third
-// keyword 3.2 forbids at this location alongside style and explode. The
-// bundled parser enforces none of it either, so this compiler's own diagnostic
-// is again the only one naming the defect (GitHub #408).
+// keyword 3.2 forbids at this location alongside style and explode; see
+// diag.InvalidLocationKeyword's GoDoc for why the parser enforces none of it
+// and why this compiler's report is a warning.
 func TestParams_QueryStringDeclaredAllowReservedIsKeptAndReported(t *testing.T) {
 	t.Parallel()
 	spec := openapitest.PathsSpecVer("3.2.0", `  /q:
@@ -313,6 +313,7 @@ func TestParams_QueryStringDeclaredAllowReservedIsKeptAndReported(t *testing.T) 
         "200": {description: ok}
 `)
 	doc, diags := parseFull(t, spec)
+	openapitest.RequireNoErrorDiags(t, diags)
 	op := openapitest.FindOp(t, doc, "q")
 	require.Len(t, op.Bindings.HTTP, 1)
 	require.Len(t, op.Bindings.HTTP[0].ParamBindings, 1)
@@ -324,7 +325,7 @@ func TestParams_QueryStringDeclaredAllowReservedIsKeptAndReported(t *testing.T) 
 
 	assert.Equal(t,
 		"parameter field allowReserved is not allowed for in=querystring; lowered as declared",
-		openapitest.DiagMessageAt(t, diags, diag.InvalidLocationKeyword, ir.SeverityError,
+		openapitest.DiagMessageAt(t, diags, diag.InvalidLocationKeyword, ir.SeverityWarning,
 			"/paths/~1q/get/parameters/0/allowReserved"))
 }
 

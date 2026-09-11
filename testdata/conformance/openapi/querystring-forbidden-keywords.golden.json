@@ -210,7 +210,7 @@
   ],
   "diagnostics": [
     {
-      "severity": "error",
+      "severity": "warning",
       "code": "openapi/invalid-location-keyword",
       "message": "parameter field explode is not allowed for in=querystring; lowered as declared",
       "provenance": {
@@ -219,7 +219,7 @@
       }
     },
     {
-      "severity": "error",
+      "severity": "warning",
       "code": "openapi/invalid-location-keyword",
       "message": "parameter field allowReserved is not allowed for in=querystring; lowered as declared",
       "provenance": {

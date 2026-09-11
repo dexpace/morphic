@@ -311,9 +311,15 @@ const (
 	// itself rather than relying on a validation finding that never arrives. The
 	// value still lowers as declared: dropping content the document states is an
 	// emitter's call, not a compiler's (invariant 2), the same choice already
-	// made for style at this position. Error severity matches what the parser
-	// gives style at the same location, so all three keywords are reported alike
-	// regardless of which one checks them.
+	// made for style at this position.
+	//
+	// Warning, not the error style gets: style's finding is the parser's own
+	// refusal-class validation, raised before this compiler ever sees the
+	// document. This one is the opposite shape — the compiler already kept a
+	// value it lowered and is saying so — the same class as
+	// ReservedHeaderName and InvalidMethodKey beside it. All three keywords
+	// are reported; a caller who wants the document refused over it has
+	// --fail-on warning for that.
 	InvalidLocationKeyword = "openapi/invalid-location-keyword"
 )
 

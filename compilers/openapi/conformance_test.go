@@ -45,21 +45,13 @@ const conformanceDir = "../../testdata/conformance/openapi"
 // cannot tell from never being written. That test's doc comment says which
 // weaknesses are structural; the point of the file is that nothing about the
 // corpus's reach is claimed here by hand.
-//
-// A case named by errorCarryingCases is the one exception to "lossless and
-// error-free": its whole point is a diagnostic at error severity, over a
-// construct OpenAPI itself forbids, so its own assert function checks which
-// error fires and where instead of assertNoErrorDiags ruling it out first.
 func TestConformance(t *testing.T) {
 	t.Parallel()
-	carriesError := errorCarryingCases()
 	for _, tc := range conformanceCases() {
 		t.Run(tc.file, func(t *testing.T) {
 			t.Parallel()
 			doc, diags := parseCorpus(t, tc.file)
-			if !carriesError[tc.file] {
-				assertNoErrorDiags(t, diags)
-			}
+			assertNoErrorDiags(t, diags)
 			tc.assert(t, doc, diags)
 			// A failed capability assertion must not reach the golden. require
 			// aborts, but assert does not, and under -update a non-fatal failure
@@ -243,26 +235,6 @@ func conformanceCases() []conformanceCase {
 		{"servers-variables", assertServersVariables, []string{"servers"}},
 		{"security-schemes", assertSecuritySchemes, []string{"auth-schemes"}},
 		{"security-or-and", assertSecurityOrAnd, []string{"per-op-auth"}},
-	}
-}
-
-// errorCarryingCases names the conformance cases whose whole point is a
-// diagnostic at error severity, so TestConformance's default "lossless and
-// error-free" gate does not apply to them.
-//
-// Kept as its own small table rather than a field on conformanceCase: every
-// other entry in that table is an unkeyed literal, and a struct field with no
-// zero-value spelling that already reads as "absent" would force every one of
-// them to be touched just to add this one exception.
-//
-// param-querystring's rawReport operation and querystring-forbidden-keywords
-// both pin diag.InvalidLocationKeyword (GitHub #408): a keyword OpenAPI 3.2
-// forbids at in: querystring, still lowered as declared, now reported by this
-// compiler because the bundled parser only enforces the rule for style.
-func errorCarryingCases() map[string]bool {
-	return map[string]bool{
-		"param-querystring":              true,
-		"querystring-forbidden-keywords": true,
 	}
 }
 
@@ -2110,8 +2082,8 @@ func assertQuerystringParam(t *testing.T, doc *ir.Document) {
 // survives at a location that takes no style. That case declares neither keyword
 // there, so reverting the early return that used to drop a declared explode
 // reddens this golden and leaves that one green. It also pins the one
-// diag.InvalidLocationKeyword this fixture raises (GitHub #408); the fuller
-// pairing of both forbidden keywords is querystring-forbidden-keywords.
+// diag.InvalidLocationKeyword this fixture raises — see that code's GoDoc for
+// why it is a warning; querystring-forbidden-keywords pairs both keywords.
 func assertParamQuerystring(t *testing.T, doc *ir.Document, diags []ir.Diagnostic) {
 	report, ok := opByName(doc, "runReport")
 	require.True(t, ok)
@@ -2146,19 +2118,16 @@ func assertParamQuerystring(t *testing.T, doc *ir.Document, diags []ir.Diagnosti
 
 	assert.Equal(t,
 		"parameter field explode is not allowed for in=querystring; lowered as declared",
-		openapitest.DiagMessageAt(t, diags, diag.InvalidLocationKeyword, ir.SeverityError,
-			"/paths/~1reports~1raw/get/parameters/0/explode"),
-		"the parser enforces this rule for style but not explode (GitHub #408), so this compiler reports it")
+		openapitest.DiagMessageAt(t, diags, diag.InvalidLocationKeyword, ir.SeverityWarning,
+			"/paths/~1reports~1raw/get/parameters/0/explode"))
 }
 
 // assertQuerystringForbiddenKeywords pins the construct assertParamQuerystring's
 // rawReport operation cannot see on its own: explode and allowReserved reported
-// at their own pointers rather than only one of the two. OpenAPI 3.2 forbids
-// both at in: querystring alongside style, but the bundled parser enforces only
-// style there, so this compiler's own diag.InvalidLocationKeyword is the one
-// diagnostic naming either gap (GitHub #408). Both values still lower as
-// declared: dropping content the document states is an emitter's call, not a
-// compiler's.
+// at their own pointers rather than only one of the two. See
+// diag.InvalidLocationKeyword's GoDoc for why the parser catches neither and why
+// this compiler's report is a warning. Both values still lower as declared:
+// dropping content the document states is an emitter's call, not a compiler's.
 func assertQuerystringForbiddenKeywords(t *testing.T, doc *ir.Document, diags []ir.Diagnostic) {
 	explodeOp, ok := opByName(doc, "explodeOnly")
 	require.True(t, ok)
@@ -2170,7 +2139,7 @@ func assertQuerystringForbiddenKeywords(t *testing.T, doc *ir.Document, diags []
 	assert.False(t, *explodeBinding.Explode)
 	assert.Equal(t,
 		"parameter field explode is not allowed for in=querystring; lowered as declared",
-		openapitest.DiagMessageAt(t, diags, diag.InvalidLocationKeyword, ir.SeverityError,
+		openapitest.DiagMessageAt(t, diags, diag.InvalidLocationKeyword, ir.SeverityWarning,
 			"/paths/~1a/get/parameters/0/explode"))
 
 	reservedOp, ok := opByName(doc, "reservedOnly")
@@ -2182,7 +2151,7 @@ func assertQuerystringForbiddenKeywords(t *testing.T, doc *ir.Document, diags []
 	assert.True(t, reservedBinding.AllowReserved, "the declared allowReserved is not dropped")
 	assert.Equal(t,
 		"parameter field allowReserved is not allowed for in=querystring; lowered as declared",
-		openapitest.DiagMessageAt(t, diags, diag.InvalidLocationKeyword, ir.SeverityError,
+		openapitest.DiagMessageAt(t, diags, diag.InvalidLocationKeyword, ir.SeverityWarning,
 			"/paths/~1b/get/parameters/0/allowReserved"))
 }
 
