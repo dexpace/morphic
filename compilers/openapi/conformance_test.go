@@ -194,6 +194,7 @@ func conformanceCases() []conformanceCase {
 		{"nullable-31-ref", assertNullable31Ref, []string{"optionality-vs-nullability"}},
 		{"nullable-enum-31", assertNullableEnum31, []string{"optionality-vs-nullability", "enums-string"}},
 		{"nullability-conjunction", assertNullabilityConjunction, []string{"optionality-vs-nullability"}},
+		{"null-only-union", assertNullOnlyUnion, []string{"optionality-vs-nullability"}},
 		{"defaults", assertDefaults, []string{"defaults"}},
 		{"yaml-timestamp-scalars", assertYAMLTimestampScalars, []string{"defaults", "literal-types"}},
 		{"constraints", assertConstraints, []string{"constraints"}},

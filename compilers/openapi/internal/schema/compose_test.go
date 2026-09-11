@@ -1045,6 +1045,48 @@ func TestOneOf_NullVariantCollapses(t *testing.T) {
 	}
 }
 
+// TestOneOfAnyOf_NullOnlyLowersToNullableAny covers a oneOf/anyOf whose every
+// branch is a bare `type: null` schema (GitHub #416). nullUnionCollapse has no
+// non-null branch to collapse a set like this onto, so without a guard for the
+// shape, buildUnion's null-branch strip leaves nothing behind it and interns a
+// Union with no variants — the empty value space irverify's
+// ir/union-no-variants rule rejects. This position instead lowers the way a
+// bare `{type: null}` schema at it would: the shared `any` primitive with
+// Nullable set, with the combinator that produced it kept verbatim under
+// Unmodeled since it has no shape a Scalar's fields could hold.
+func TestOneOfAnyOf_NullOnlyLowersToNullableAny(t *testing.T) {
+	t.Parallel()
+	spec := openapitest.ComponentSpec(`    AnyOfNull:
+      anyOf: [{type: "null"}]
+    OneOfNull:
+      oneOf: [{type: "null"}]
+    AnyOfTwoNull:
+      anyOf: [{type: "null"}, {type: "null"}]
+`)
+	doc, diags := lowerSpec(t, spec)
+	openapitest.RequireNoErrorDiags(t, diags)
+
+	for _, tc := range []struct{ name, key string }{
+		{"AnyOfNull", "openapi:anyOf"},
+		{"OneOfNull", "openapi:oneOf"},
+		{"AnyOfTwoNull", "openapi:anyOf"},
+	} {
+		s, ok := doc.Types[componentID(tc.name)].(*ir.Scalar)
+		require.True(t, ok, "%s lowers to a scalar over any, the same node a bare "+
+			"`{type: null}` schema at this position would", tc.name)
+		require.NotNil(t, s.Base)
+		assert.Equal(t, ir.TypeID("t/prim/any"), s.Base.Target)
+		assert.True(t, s.Base.Nullable, "%s: the null-only branch set lifts onto the reference", tc.name)
+		entry, ok := s.Unmodeled[tc.key]
+		require.True(t, ok, "%s: the union is kept verbatim beside the approximation", tc.name)
+		assert.Equal(t, ir.ReasonDegradedLowering, entry.Reason)
+	}
+	for id, def := range doc.Types {
+		_, isUnion := def.(*ir.Union)
+		assert.False(t, isUnion, "a null-only branch set must not produce a union node: %s", id)
+	}
+}
+
 func TestOneOf_ThreeVariantsWithNullStripsNullLiftsNullable(t *testing.T) {
 	t.Parallel()
 	// A oneOf with two non-null branches plus a null branch stays a Union of the

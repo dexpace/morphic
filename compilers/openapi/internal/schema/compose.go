@@ -528,14 +528,19 @@ func unvisitedRefTargets(s *oas3.Schema, visited map[*oas3.Schema]bool) []*oas3.
 }
 
 // lowerOneOfAnyOf lowers a oneOf/anyOf schema. A two-variant {X, null} set
-// collapses to nullable X (ir-design §3.3); everything else becomes a Union
-// with one Variant per branch (oneOf exclusive, anyOf not), never collapsing a
-// union into optional fields.
+// collapses to nullable X (ir-design §3.3); a set with no non-null branch at
+// all (every branch a bare `type: null`) has no X for that collapse to name,
+// so it lowers to nullable `any` instead (lowerNullOnlyUnion, GitHub #416);
+// everything else becomes a Union with one Variant per branch (oneOf
+// exclusive, anyOf not), never collapsing a union into optional fields.
 func lowerOneOfAnyOf(c lowering.Ctx, ts *compile.Types, anchors *AnchorIndex, depth int, s *oas3.Schema, pointer, hint string) (ir.TypeRef, []ir.Diagnostic) {
 	if inner, ip, ih, ok := nullUnionCollapse(s, pointer); ok {
 		ref, diags := Ref(c, ts, anchors, depth, inner, ip, ih)
 		ref.Nullable = true
 		return ref, diags
+	}
+	if allNullUnion(s) {
+		return lowerNullOnlyUnion(c, ts, s, pointer, hint)
 	}
 	var diags []ir.Diagnostic
 	tid := internNode(c, ts, pointer, hint, func(common ir.TypeCommon) ir.TypeDef {
@@ -549,6 +554,50 @@ func lowerOneOfAnyOf(c lowering.Ctx, ts *compile.Types, anchors *AnchorIndex, de
 		return def
 	})
 	return ir.TypeRef{Target: tid, Nullable: schemaAdmitsNull(s)}, diags
+}
+
+// lowerNullOnlyUnion lowers a oneOf/anyOf every one of whose branches is a bare
+// `type: null` schema (allNullUnion). One null branch or several admit exactly
+// the value a bare `{type: null}` schema at this position admits — null alone
+// — so this position lowers the way lowerUntyped's own null-only body does:
+// the shared `any` primitive with Nullable set. The combinator that produced
+// it, and the other one too when both are declared, carries no shape a Union
+// or a Scalar's fields could hold, so it is kept verbatim under Unmodeled
+// instead of dropped (GitHub #416; ir-design §4.8).
+func lowerNullOnlyUnion(c lowering.Ctx, ts *compile.Types, s *oas3.Schema, pointer, hint string) (ir.TypeRef, []ir.Diagnostic) {
+	// inner is the shared `any` primitive: no schema pointer ever interns at
+	// its ID, so this position never already owns it. Hoist an alias
+	// unconditionally, rather than testing for a case that cannot occur, so
+	// the preserved union attaches to a node this pointer owns and not to the
+	// primitive every other unrelated position also resolves to.
+	inner := ts.PrimID(ir.PrimAny)
+	var kept ir.Unmodeled
+	cons, diags := schemaConstraints(c, &kept, s, pointer)
+	owner := internAlias(c, ts, pointer, hint, ir.TypeRef{Target: inner, Nullable: true}, cons, kept)
+	return ir.TypeRef{Target: owner, Nullable: true}, append(diags, preserveNullOnlyUnion(c, ts, owner, s, pointer)...)
+}
+
+// preserveNullOnlyUnion keeps s's oneOf/anyOf verbatim under the owning node's
+// Unmodeled: lowerNullOnlyUnion's node is the shared `any` primitive or an
+// alias over it, neither of which carries a branch set of its own to hold
+// them in.
+func preserveNullOnlyUnion(c lowering.Ctx, ts *compile.Types, id ir.TypeID, s *oas3.Schema, pointer string) []ir.Diagnostic {
+	td, ok, diags := registeredNode(c, ts, id, pointer)
+	if !ok {
+		return diags
+	}
+	common := td.Common()
+	kept, keepDiags := preserveBranchSets(c, &common.Unmodeled, s, ir.ReasonDegradedLowering, pointer)
+	diags = append(diags, keepDiags...)
+	if len(kept) == 0 {
+		return diags
+	}
+	// Both keywords land here when both are declared: buildUnion, and its
+	// preserveUnusedCombinator, are never reached from this arm, so this is the
+	// only place either combinator gets a home.
+	return append(diags, c.DiagAt(ir.SeverityInfo, diag.DegradedConstruct, pointer,
+		"every branch admits only the null value, so this position lowered as nullable any; "+
+			"%s kept verbatim under Unmodeled", strings.Join(kept, " and ")))
 }
 
 // unionLowering names how a oneOf/anyOf co-declared with structural keywords is
