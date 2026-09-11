@@ -1,0 +1,238 @@
+{
+  "irVersion": "0.3.0",
+  "name": "QuerystringForbiddenKeywords",
+  "version": "1.0.0",
+  "docs": {},
+  "services": [
+    {
+      "id": "s/openapi/0",
+      "name": {
+        "source": "QuerystringForbiddenKeywords",
+        "canonical": "querystring_forbidden_keywords"
+      },
+      "docs": {},
+      "groups": [
+        {
+          "name": {
+            "hint": "default"
+          },
+          "docs": {},
+          "operations": [
+            {
+              "id": "op/openapi/paths/~1a/get",
+              "name": {
+                "source": "explodeOnly",
+                "canonical": "explode_only"
+              },
+              "docs": {},
+              "params": [
+                {
+                  "name": {
+                    "source": "whole",
+                    "canonical": "whole"
+                  },
+                  "type": {
+                    "target": "t/anon/paths/~1a/get/parameters/0/content/application~1x-www-form-urlencoded/schema",
+                    "nullable": false
+                  },
+                  "required": false,
+                  "docs": {}
+                }
+              ],
+              "responses": [
+                {
+                  "name": {
+                    "hint": "200"
+                  },
+                  "conditions": {
+                    "statusCodes": [
+                      {
+                        "from": 200,
+                        "to": 200
+                      }
+                    ]
+                  },
+                  "docs": {
+                    "description": "ok"
+                  }
+                }
+              ],
+              "oneWay": false,
+              "idempotency": {},
+              "auth": null,
+              "bindings": {
+                "http": [
+                  {
+                    "method": "GET",
+                    "uriTemplate": "/a",
+                    "sharedRoute": false,
+                    "paramBindings": [
+                      {
+                        "param": "whole",
+                        "location": "querystring",
+                        "wireName": "whole",
+                        "explode": false,
+                        "allowReserved": false,
+                        "contentType": "application/x-www-form-urlencoded"
+                      }
+                    ],
+                    "checksumRequired": false,
+                    "isWebhook": false
+                  }
+                ]
+              },
+              "provenance": {
+                "source": 0,
+                "pointer": "/paths/~1a/get"
+              }
+            },
+            {
+              "id": "op/openapi/paths/~1b/get",
+              "name": {
+                "source": "reservedOnly",
+                "canonical": "reserved_only"
+              },
+              "docs": {},
+              "params": [
+                {
+                  "name": {
+                    "source": "whole",
+                    "canonical": "whole"
+                  },
+                  "type": {
+                    "target": "t/anon/paths/~1b/get/parameters/0/content/application~1x-www-form-urlencoded/schema",
+                    "nullable": false
+                  },
+                  "required": false,
+                  "docs": {}
+                }
+              ],
+              "responses": [
+                {
+                  "name": {
+                    "hint": "200"
+                  },
+                  "conditions": {
+                    "statusCodes": [
+                      {
+                        "from": 200,
+                        "to": 200
+                      }
+                    ]
+                  },
+                  "docs": {
+                    "description": "ok"
+                  }
+                }
+              ],
+              "oneWay": false,
+              "idempotency": {},
+              "auth": null,
+              "bindings": {
+                "http": [
+                  {
+                    "method": "GET",
+                    "uriTemplate": "/b",
+                    "sharedRoute": false,
+                    "paramBindings": [
+                      {
+                        "param": "whole",
+                        "location": "querystring",
+                        "wireName": "whole",
+                        "allowReserved": true,
+                        "contentType": "application/x-www-form-urlencoded"
+                      }
+                    ],
+                    "checksumRequired": false,
+                    "isWebhook": false
+                  }
+                ]
+              },
+              "provenance": {
+                "source": 0,
+                "pointer": "/paths/~1b/get"
+              }
+            }
+          ]
+        }
+      ],
+      "auth": null,
+      "provenance": {
+        "source": 0
+      }
+    }
+  ],
+  "types": {
+    "t/anon/paths/~1a/get/parameters/0/content/application~1x-www-form-urlencoded/schema": {
+      "kind": "model",
+      "id": "t/anon/paths/~1a/get/parameters/0/content/application~1x-www-form-urlencoded/schema",
+      "name": {
+        "hint": "whole"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/paths/~1a/get/parameters/0/content/application~1x-www-form-urlencoded/schema"
+      },
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
+    "t/anon/paths/~1b/get/parameters/0/content/application~1x-www-form-urlencoded/schema": {
+      "kind": "model",
+      "id": "t/anon/paths/~1b/get/parameters/0/content/application~1x-www-form-urlencoded/schema",
+      "name": {
+        "hint": "whole"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/paths/~1b/get/parameters/0/content/application~1x-www-form-urlencoded/schema"
+      },
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    }
+  },
+  "servers": [
+    {
+      "name": {
+        "hint": "server"
+      },
+      "urlTemplate": "/",
+      "description": {},
+      "auth": null
+    }
+  ],
+  "diagnostics": [
+    {
+      "severity": "error",
+      "code": "openapi/invalid-location-keyword",
+      "message": "parameter field explode is not allowed for in=querystring; lowered as declared",
+      "provenance": {
+        "source": 0,
+        "pointer": "/paths/~1a/get/parameters/0/explode"
+      }
+    },
+    {
+      "severity": "error",
+      "code": "openapi/invalid-location-keyword",
+      "message": "parameter field allowReserved is not allowed for in=querystring; lowered as declared",
+      "provenance": {
+        "source": 0,
+        "pointer": "/paths/~1b/get/parameters/0/allowReserved"
+      }
+    }
+  ],
+  "sources": [
+    {
+      "format": "openapi@3.2",
+      "path": "querystring-forbidden-keywords.yaml",
+      "hash": "fb026926c3249f00c866eec9b74259fad2e43fd06aecdca2cce6150a735bba85"
+    }
+  ]
+}

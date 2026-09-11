@@ -300,6 +300,21 @@ const (
 	// than error because the document is otherwise lowered whole, and the entry
 	// that did survive is in it.
 	UnknownKeyEntryTaken = "openapi/unknown-key-entry-taken"
+	// InvalidLocationKeyword reports a serialization keyword OpenAPI 3.2 forbids
+	// at the parameter location that declares it: explode or allowReserved at
+	// in: querystring, where the location binds the whole query string from the
+	// parameter's content and states its serialization through the media type
+	// alone, leaving nothing for either keyword to qualify.
+	//
+	// The bundled parser enforces this rule for style at that location but not
+	// for its two neighbours (GitHub #408), so this compiler reports the gap
+	// itself rather than relying on a validation finding that never arrives. The
+	// value still lowers as declared: dropping content the document states is an
+	// emitter's call, not a compiler's (invariant 2), the same choice already
+	// made for style at this position. Error severity matches what the parser
+	// gives style at the same location, so all three keywords are reported alike
+	// regardless of which one checks them.
+	InvalidLocationKeyword = "openapi/invalid-location-keyword"
 )
 
 // Newf builds an ir.Diagnostic with a formatted message. It is the single

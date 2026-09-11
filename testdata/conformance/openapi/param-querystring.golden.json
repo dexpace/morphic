@@ -356,6 +356,17 @@
       "auth": null
     }
   ],
+  "diagnostics": [
+    {
+      "severity": "error",
+      "code": "openapi/invalid-location-keyword",
+      "message": "parameter field explode is not allowed for in=querystring; lowered as declared",
+      "provenance": {
+        "source": 0,
+        "pointer": "/paths/~1reports~1raw/get/parameters/0/explode"
+      }
+    }
+  ],
   "sources": [
     {
       "format": "openapi@3.2",
