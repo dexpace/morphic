@@ -249,15 +249,17 @@ func TestParams_QueryStringDeclaredStyleIsKeptAndReported(t *testing.T) {
 	assert.False(t, *qs.Explode, "and so does the explode qualifying it")
 }
 
-// TestParams_QueryStringDeclaredExplodeAloneIsKept covers the half of that rule
-// the case above cannot see, because it declares both keywords: an explode
-// written without a style beside it.
+// TestParams_QueryStringDeclaredExplodeAloneIsKeptAndReported covers the half
+// of that rule the style case above cannot see, because it declares both
+// keywords: an explode written without a style beside it.
 //
 // Suppressing the invented style must not take a declared explode with it. 3.2
-// forbids explode at this location as it forbids style, and the bundled parser
-// refuses neither — so this reaches the compiler, and erasing it would be the
-// same silent drop the invented style was, in the other direction.
-func TestParams_QueryStringDeclaredExplodeAloneIsKept(t *testing.T) {
+// forbids explode at this location as it forbids style, but the bundled parser
+// enforces only the style half — so this reaches the compiler unrefused, and
+// erasing it would be the same silent drop the invented style was, in the other
+// direction. See diag.InvalidLocationKeyword's GoDoc for why this compiler's
+// own report is the only diagnostic naming it, and why it is a warning.
+func TestParams_QueryStringDeclaredExplodeAloneIsKeptAndReported(t *testing.T) {
 	t.Parallel()
 	spec := openapitest.PathsSpecVer("3.2.0", `  /q:
     get:
@@ -284,6 +286,73 @@ func TestParams_QueryStringDeclaredExplodeAloneIsKept(t *testing.T) {
 	assert.Empty(t, qs.Style, "no style is invented at this location")
 	require.NotNil(t, qs.Explode, "but the declared explode is not dropped with it")
 	assert.False(t, *qs.Explode)
+
+	assert.Equal(t,
+		"parameter field explode is not allowed for in=querystring; lowered as declared",
+		openapitest.DiagMessageAt(t, diags, diag.InvalidLocationKeyword, ir.SeverityWarning,
+			"/paths/~1q/get/parameters/0/explode"))
+}
+
+// TestParams_QueryStringDeclaredAllowReservedIsKeptAndReported is the third
+// keyword 3.2 forbids at this location alongside style and explode; see
+// diag.InvalidLocationKeyword's GoDoc for why the parser enforces none of it
+// and why this compiler's report is a warning.
+func TestParams_QueryStringDeclaredAllowReservedIsKeptAndReported(t *testing.T) {
+	t.Parallel()
+	spec := openapitest.PathsSpecVer("3.2.0", `  /q:
+    get:
+      operationId: q
+      parameters:
+        - name: qs
+          in: querystring
+          allowReserved: true
+          content:
+            application/x-www-form-urlencoded:
+              schema: {type: object}
+      responses:
+        "200": {description: ok}
+`)
+	doc, diags := parseFull(t, spec)
+	openapitest.RequireNoErrorDiags(t, diags)
+	op := openapitest.FindOp(t, doc, "q")
+	require.Len(t, op.Bindings.HTTP, 1)
+	require.Len(t, op.Bindings.HTTP[0].ParamBindings, 1)
+
+	qs := op.Bindings.HTTP[0].ParamBindings[0]
+	require.Equal(t, ir.HTTPLocationQuerystring, qs.Location,
+		"the keyword below is only news at the location that forbids it")
+	assert.True(t, qs.AllowReserved, "the declared allowReserved lowers as declared")
+
+	assert.Equal(t,
+		"parameter field allowReserved is not allowed for in=querystring; lowered as declared",
+		openapitest.DiagMessageAt(t, diags, diag.InvalidLocationKeyword, ir.SeverityWarning,
+			"/paths/~1q/get/parameters/0/allowReserved"))
+}
+
+// TestParams_QueryStringUndeclaredKeywordsAreNotReported is the control for
+// both cases above: a querystring binding that declares neither keyword raises
+// diag.InvalidLocationKeyword at neither pointer, so the diagnostic tracks the
+// keyword's presence in the document rather than firing for every parameter at
+// this location.
+func TestParams_QueryStringUndeclaredKeywordsAreNotReported(t *testing.T) {
+	t.Parallel()
+	doc, diags := parseFull(t, openapitest.PathsSpecVer("3.2.0", `  /q:
+    get:
+      operationId: q
+      parameters:
+        - name: qs
+          in: querystring
+          content:
+            application/x-www-form-urlencoded:
+              schema: {type: object}
+      responses:
+        "200": {description: ok}
+`))
+	openapitest.RequireNoErrorDiags(t, diags)
+	op := openapitest.FindOp(t, doc, "q")
+	require.Len(t, op.Bindings.HTTP, 1)
+	require.Len(t, op.Bindings.HTTP[0].ParamBindings, 1)
+	assert.False(t, openapitest.HasDiag(diags, diag.InvalidLocationKeyword))
 }
 
 const componentParamRefSpec = `openapi: 3.1.0

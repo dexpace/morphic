@@ -208,6 +208,7 @@ func conformanceCases() []conformanceCase {
 		{"param-styles", assertParamStyles, []string{"param-styles"}},
 		{"param-style-matrix", assertParamStyleMatrix, []string{"param-styles"}},
 		{"param-querystring", assertParamQuerystring, nil},
+		{"querystring-forbidden-keywords", assertQuerystringForbiddenKeywords, nil},
 		{"param-xml-residue", assertParamXMLResidue, nil},
 		{"param-ref-inheritance", assertParamRefInheritance, []string{"defaults", "deprecation", "docs-summary-description"}},
 		{"header-content-schema", assertHeaderContentSchema, nil},
@@ -2080,8 +2081,10 @@ func assertQuerystringParam(t *testing.T, doc *ir.Document) {
 // only the *default* is suppressed here, so an explode the document declares
 // survives at a location that takes no style. That case declares neither keyword
 // there, so reverting the early return that used to drop a declared explode
-// reddens this golden and leaves that one green.
-func assertParamQuerystring(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
+// reddens this golden and leaves that one green. It also pins the one
+// diag.InvalidLocationKeyword this fixture raises — see that code's GoDoc for
+// why it is a warning; querystring-forbidden-keywords pairs both keywords.
+func assertParamQuerystring(t *testing.T, doc *ir.Document, diags []ir.Diagnostic) {
 	report, ok := opByName(doc, "runReport")
 	require.True(t, ok)
 	require.Len(t, report.Bindings.HTTP, 1)
@@ -2112,6 +2115,44 @@ func assertParamQuerystring(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
 	assert.Empty(t, declared.Style, "no style is invented beside a declared explode either")
 	require.NotNil(t, declared.Explode, "but the explode the document declares is not dropped")
 	assert.False(t, *declared.Explode)
+
+	assert.Equal(t,
+		"parameter field explode is not allowed for in=querystring; lowered as declared",
+		openapitest.DiagMessageAt(t, diags, diag.InvalidLocationKeyword, ir.SeverityWarning,
+			"/paths/~1reports~1raw/get/parameters/0/explode"))
+}
+
+// assertQuerystringForbiddenKeywords pins the construct assertParamQuerystring's
+// rawReport operation cannot see on its own: explode and allowReserved reported
+// at their own pointers rather than only one of the two. See
+// diag.InvalidLocationKeyword's GoDoc for why the parser catches neither and why
+// this compiler's report is a warning. Both values still lower as declared:
+// dropping content the document states is an emitter's call, not a compiler's.
+func assertQuerystringForbiddenKeywords(t *testing.T, doc *ir.Document, diags []ir.Diagnostic) {
+	explodeOp, ok := opByName(doc, "explodeOnly")
+	require.True(t, ok)
+	require.Len(t, explodeOp.Bindings.HTTP, 1)
+	require.Len(t, explodeOp.Bindings.HTTP[0].ParamBindings, 1)
+	explodeBinding := explodeOp.Bindings.HTTP[0].ParamBindings[0]
+	assert.Equal(t, ir.HTTPLocationQuerystring, explodeBinding.Location)
+	require.NotNil(t, explodeBinding.Explode, "the declared explode is not dropped")
+	assert.False(t, *explodeBinding.Explode)
+	assert.Equal(t,
+		"parameter field explode is not allowed for in=querystring; lowered as declared",
+		openapitest.DiagMessageAt(t, diags, diag.InvalidLocationKeyword, ir.SeverityWarning,
+			"/paths/~1a/get/parameters/0/explode"))
+
+	reservedOp, ok := opByName(doc, "reservedOnly")
+	require.True(t, ok)
+	require.Len(t, reservedOp.Bindings.HTTP, 1)
+	require.Len(t, reservedOp.Bindings.HTTP[0].ParamBindings, 1)
+	reservedBinding := reservedOp.Bindings.HTTP[0].ParamBindings[0]
+	assert.Equal(t, ir.HTTPLocationQuerystring, reservedBinding.Location)
+	assert.True(t, reservedBinding.AllowReserved, "the declared allowReserved is not dropped")
+	assert.Equal(t,
+		"parameter field allowReserved is not allowed for in=querystring; lowered as declared",
+		openapitest.DiagMessageAt(t, diags, diag.InvalidLocationKeyword, ir.SeverityWarning,
+			"/paths/~1b/get/parameters/0/allowReserved"))
 }
 
 // assertParamRefInheritance pins ir-design §14 at a parameter whose schema is a

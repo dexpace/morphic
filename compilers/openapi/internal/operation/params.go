@@ -63,7 +63,35 @@ func lowerParameter(c lowering.Ctx, ts *compile.Types, anchors *schema.AnchorInd
 	}
 	diags := fillParamType(c, ts, anchors, &param, &binding, p, pptr, name)
 	diags = append(diags, reservedHeaderParamDiag(c, name, in, pptr)...)
+	diags = append(diags, querystringKeywordDiags(c, in, p, pptr)...)
 	return param, binding, append(diags, fillParamDetail(c, &param, p, pptr)...)
+}
+
+// querystringKeywordDiags reports explode and allowReserved when they are
+// declared on a parameter at in: querystring. OpenAPI 3.2 forbids both there
+// alongside style — the location binds the whole query string from the
+// parameter's content, so its serialization is stated by the media type alone
+// and neither keyword has anything left to qualify. The bundled parser
+// enforces the rule for style but not for these two (GitHub #408), so this
+// compiler reports the gap itself; resolveStyleExplode already lowers each
+// value as declared regardless; see diag.InvalidLocationKeyword for why this
+// is a warning rather than the error style gets from the parser.
+func querystringKeywordDiags(c lowering.Ctx, in soa.ParameterIn, p *soa.Parameter, pptr string) []ir.Diagnostic {
+	if in != soa.ParameterInQueryString {
+		return nil
+	}
+	var diags []ir.Diagnostic
+	if p.Explode != nil {
+		diags = append(diags, c.DiagAt(ir.SeverityWarning, diag.InvalidLocationKeyword,
+			pptr+ids.Ptr("explode"),
+			"parameter field explode is not allowed for in=querystring; lowered as declared"))
+	}
+	if p.AllowReserved != nil {
+		diags = append(diags, c.DiagAt(ir.SeverityWarning, diag.InvalidLocationKeyword,
+			pptr+ids.Ptr("allowReserved"),
+			"parameter field allowReserved is not allowed for in=querystring; lowered as declared"))
+	}
+	return diags
 }
 
 // reservedHeaderParamDiag reports a header parameter OpenAPI §4.8.12 reserves —

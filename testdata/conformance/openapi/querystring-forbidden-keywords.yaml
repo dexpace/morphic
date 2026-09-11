@@ -1,0 +1,32 @@
+openapi: 3.2.0
+info: {title: QuerystringForbiddenKeywords, version: "1.0.0"}
+paths:
+  # 3.2 binds the whole query string from the parameter's content, so explode
+  # and allowReserved have nothing left to qualify at in: querystring, just as
+  # style does not. The bundled parser refuses a declared style there but
+  # neither of these two (GitHub #408), so each operation below pins one: the
+  # compiler still lowers the keyword as declared — dropping content the
+  # document states is an emitter's call, not a compiler's — but now reports
+  # the gap itself instead of letting it pass in silence.
+  /a:
+    get:
+      operationId: explodeOnly
+      parameters:
+        - name: whole
+          in: querystring
+          explode: false
+          content:
+            application/x-www-form-urlencoded:
+              schema: {type: object}
+      responses: {"200": {description: ok}}
+  /b:
+    get:
+      operationId: reservedOnly
+      parameters:
+        - name: whole
+          in: querystring
+          allowReserved: true
+          content:
+            application/x-www-form-urlencoded:
+              schema: {type: object}
+      responses: {"200": {description: ok}}
