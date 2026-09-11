@@ -174,6 +174,7 @@ func conformanceCases() []conformanceCase {
 		{"discriminator-inheritance", assertDiscriminatorInheritance, []string{"tagged-unions", "inheritance"}},
 		{"discriminator-default-mapping", assertDiscriminatorDefaultMapping, []string{"tagged-unions"}},
 		{"discriminator-transitive", assertDiscriminatorTransitive, []string{"tagged-unions", "inheritance"}},
+		{"discriminator-alias-mapping", assertDiscriminatorAliasMapping, []string{"tagged-unions"}},
 		{"unhomed-keywords", assertUnhomedKeywords, nil},
 		{"codeclared-keywords", assertCoDeclaredKeywords, []string{"intersection", "literal-types", "enums-string"}},
 		{"codeclared-schema-content", assertCoDeclaredSchemaContent, nil},
@@ -927,6 +928,27 @@ func assertDiscriminatorTransitive(t *testing.T, doc *ir.Document, _ []ir.Diagno
 		assert.Empty(t, sub.DiscriminatorValue,
 			"%s has no discriminated ancestor, so walking the chain finds no tag", name)
 	}
+}
+
+// assertDiscriminatorAliasMapping covers a mapping that spells two keys for one
+// subtype (GitHub #410). Model.DiscriminatorValue holds one value and a mapping
+// is unordered, so the subtype takes the smallest key in byte order whichever
+// was written first — the fixture writes the larger first — while the base's
+// mapping keeps both, and the election is reported at the subtype as
+// information since nothing is lost.
+func assertDiscriminatorAliasMapping(t *testing.T, doc *ir.Document, diags []ir.Diagnostic) {
+	pet, ok := doc.Types[namedID("Pet")].(*ir.Model)
+	require.True(t, ok, "the base is a Model")
+	require.NotNil(t, pet.Discriminator)
+	assert.Equal(t, map[string]ir.TypeID{"alpha": namedID("Dog"), "zulu": namedID("Dog")},
+		pet.Discriminator.Mapping, "the base keeps every key")
+
+	dog, ok := doc.Types[namedID("Dog")].(*ir.Model)
+	require.True(t, ok, "Dog composes as a Model")
+	assert.Equal(t, "alpha", dog.DiscriminatorValue,
+		"the smallest key in byte order, not the first written")
+	assert.True(t, openapitest.HasDiagCodeAt(diags, diag.DegradedConstruct, "/components/schemas/Dog"),
+		"the election is reported at the subtype: %+v", diags)
 }
 
 // assertDiscriminatorDefaultMapping pins Discriminator.Default, whose only source

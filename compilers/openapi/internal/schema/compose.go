@@ -41,7 +41,9 @@ func lowerAllOf(c lowering.Ctx, ts *compile.Types, anchors *AnchorIndex, depth i
 		if d != nil {
 			m.Discriminator = d
 		}
-		m.DiscriminatorValue = subtypeDiscriminatorValue(c, ts, s, common.ID, pointer)
+		tag, tagDiags := subtypeDiscriminatorValue(c, ts, s, common.ID, pointer)
+		m.DiscriminatorValue = tag
+		diags = append(diags, tagDiags...)
 		return m
 	})
 	return id, diags
@@ -429,34 +431,53 @@ func refBranchTarget(b *oas3.JSONSchema[oas3.Referenceable]) *oas3.Schema {
 // no discriminator of its own, and reading one hop found nothing there and
 // dropped the key the ancestor spells for this subtype without a word
 // (GitHub #305).
-func subtypeDiscriminatorValue(c lowering.Ctx, ts *compile.Types, s *oas3.Schema, id ir.TypeID, pointer string) string {
+//
+// A mapping may spell several keys for one subtype — alias tags — and the field
+// holds one. The smallest key in byte order is elected, because a mapping is
+// unordered and the first key written is not a property of the document
+// (GitHub #410); the base's Discriminator keeps every key, so the election
+// narrows what this field shows and loses nothing, and it is reported as such.
+func subtypeDiscriminatorValue(c lowering.Ctx, ts *compile.Types, s *oas3.Schema, id ir.TypeID, pointer string) (string, []ir.Diagnostic) {
 	ds := ancestorDiscriminators(s)
 	if len(ds) == 0 {
-		return ""
+		return "", nil
 	}
 	for _, d := range ds {
-		if tag, ok := mappingTagFor(c, ts, d, id); ok {
-			return tag
+		tags := mappingTagsFor(c, ts, d, id)
+		if len(tags) == 0 {
+			continue
 		}
+		if len(tags) == 1 {
+			return tags[0], nil
+		}
+		return tags[0], []ir.Diagnostic{c.DiagAt(ir.SeverityInfo, diag.DegradedConstruct, pointer,
+			"the discriminator mapping names this schema under %d keys (%s); "+
+				"discriminatorValue holds the smallest in byte order, and the base's mapping keeps them all",
+			len(tags), strings.Join(tags, ", "))}
 	}
-	return refLastSegment(pointer)
+	return refLastSegment(pointer), nil
 }
 
-// mappingTagFor returns the key d's mapping spells for the type id, and whether
-// the mapping names it at all. The two answers are distinct: a mapping that
-// names no target for id leaves the caller to fall back to the implicit name,
-// which an empty key would be indistinguishable from.
-func mappingTagFor(c lowering.Ctx, ts *compile.Types, d *oas3.Discriminator, id ir.TypeID) (string, bool) {
+// mappingTagsFor returns every key d's mapping spells for the type id, sorted
+// in byte order, or nothing when the mapping does not name it. An empty result
+// is what sends the caller to the implicit name, and it is distinct from a
+// mapping that names id under the empty key, which returns that one key.
+//
+// Sorted rather than in source order because the caller elects the first, and
+// a mapping's key order is not a property of the document it is written in.
+func mappingTagsFor(c lowering.Ctx, ts *compile.Types, d *oas3.Discriminator, id ir.TypeID) []string {
 	m := d.GetMapping()
 	if m == nil {
-		return "", false
+		return nil
 	}
+	var tags []string
 	for tag, target := range m.All() {
 		if tid, ok := mappingTargetID(c, ts, target); ok && tid == id {
-			return tag, true
+			tags = append(tags, tag)
 		}
 	}
-	return "", false
+	slices.Sort(tags)
+	return tags
 }
 
 // maxDiscriminatorAncestorDepth bounds how many composition levels
@@ -917,7 +938,9 @@ func buildComposedVariant(c lowering.Ctx, ts *compile.Types, anchors *AnchorInde
 	// The tag is the enclosing schema's: it is what a base's mapping names, and
 	// the variants are its lowering. No discriminator of its own can be declared
 	// here — a schema that declares one is never distributed.
-	m.DiscriminatorValue = subtypeDiscriminatorValue(c, ts, body.schema, body.id, body.pointer)
+	tag, tagDiags := subtypeDiscriminatorValue(c, ts, body.schema, body.id, body.pointer)
+	m.DiscriminatorValue = tag
+	diags = append(diags, tagDiags...)
 	return m, diags
 }
 

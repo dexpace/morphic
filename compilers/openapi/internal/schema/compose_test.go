@@ -2734,3 +2734,54 @@ func TestUnionCombinators_KeepingIsOrderIndependent(t *testing.T) {
 		"declaring the reference before or after the union must not change the IR")
 	assert.Empty(t, cmp.Diff(first.Types, last.Types), "nor any name hint in the registry")
 }
+
+// TestAllOf_DiscriminatorAliasTagIsOrderInvariant pins that a subtype two mapping
+// keys name takes the same tag whichever key is written first (GitHub #410).
+// Model.DiscriminatorValue holds one value, and a mapping is unordered, so the
+// key it holds must be chosen by a rule the source order cannot reach: the
+// smallest in byte order. The base keeps every key, so nothing is lost, and the
+// election is reported so a reader knows the subtype's tag set is wider than
+// the field shows.
+func TestAllOf_DiscriminatorAliasTagIsOrderInvariant(t *testing.T) {
+	t.Parallel()
+	const base = `    Pet:
+      type: object
+      required: [k]
+      properties: {k: {type: string}}
+      discriminator:
+        propertyName: k
+        mapping:
+`
+	const sub = `    Dog:
+      allOf: [{$ref: '#/components/schemas/Pet'}]
+      properties: {bark: {type: boolean}}
+`
+	const alpha = "          alpha: '#/components/schemas/Dog'\n"
+	const zulu = "          zulu: '#/components/schemas/Dog'\n"
+
+	for _, tc := range []struct{ name, mapping string }{
+		{"zulu first", zulu + alpha},
+		{"alpha first", alpha + zulu},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			doc, diags := lowerSpec(t, openapitest.ComponentSpec(base+tc.mapping+sub))
+			openapitest.RequireNoErrorDiags(t, diags)
+
+			dog, ok := doc.Types[componentID("Dog")].(*ir.Model)
+			require.True(t, ok, "Dog should be a model")
+			assert.Equal(t, "alpha", dog.DiscriminatorValue,
+				"the smallest key in byte order, whichever was written first")
+
+			pet, ok := doc.Types[componentID("Pet")].(*ir.Model)
+			require.True(t, ok, "Pet should be a model")
+			assert.Equal(t, map[string]ir.TypeID{"alpha": componentID("Dog"), "zulu": componentID("Dog")},
+				pet.Discriminator.Mapping, "the base keeps both keys")
+
+			assert.True(t, openapitest.HasDiagCodeAt(diags, diag.DegradedConstruct, "/components/schemas/Dog"),
+				"the election is reported at the subtype: %+v", diags)
+			assert.True(t, openapitest.HasDiagAt(diags, diag.DegradedConstruct, ir.SeverityInfo),
+				"as information, since the base's mapping loses nothing")
+		})
+	}
+}
