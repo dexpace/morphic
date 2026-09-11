@@ -1,7 +1,10 @@
 package operation
 
 import (
+	"slices"
+	"sort"
 	"strconv"
+	"strings"
 	"testing"
 
 	soa "github.com/speakeasy-api/openapi/openapi"
@@ -356,4 +359,73 @@ func TestPathOperations_NilAdditionalOperationSkipped(t *testing.T) {
 	require.Len(t, ops, 1, "the nil entry is skipped and the real one is not")
 	assert.Equal(t, "PURGE", ops[0].method)
 	assert.Equal(t, "/additionalOperations/PURGE", ops[0].seg)
+}
+
+// httpMethodsNames is the plain-string projection of httpMethods, which
+// TestHTTPMethods_AgreesWithLibraryVocabulary compares against
+// soa.IsStandardMethod. httpMethods itself carries a func field, so it cannot
+// be a slices.Contains argument directly.
+func httpMethodsNames() []string {
+	names := make([]string, len(httpMethods))
+	for i, m := range httpMethods {
+		names[i] = m.name
+	}
+	return names
+}
+
+// TestHTTPMethods_AgreesWithLibraryVocabulary holds httpMethods to
+// soa.IsStandardMethod, mirroring the shape of the schema package's 2020-12
+// vocabulary tests (internal/schema/schema_test.go's vocabularyCases): one
+// table enumerating the vocabulary, checked against the library predicate that
+// is meant to track it.
+//
+// The two vocabularies answer different questions — httpMethods says what this
+// compiler lowers, IsStandardMethod says what the specification defines — but
+// httpMethods is meant to be a subset of what the library recognizes, so the
+// two must agree on every name either one holds an opinion about. If the
+// library learns a method before this compiler does, IsStandardMethod turns
+// true for it while httpMethods stays silent: undeclaredPathItemKeys then
+// grades the key as declared, so no field lowers it and no diagnostic reports
+// it. That silent drop is GitHub #413; this test turns the disagreement that
+// causes it into a build failure instead.
+//
+// The library exports no list IsStandardMethod is built from — it is the
+// unexported standardHttpMethods in
+// github.com/speakeasy-api/openapi/openapi@v1.24.1's paths.go — so this probes
+// with an explicit candidate set instead: every method RFC 9110 §9.3 defines
+// (GET, HEAD, POST, PUT, DELETE, CONNECT, OPTIONS, TRACE), plus QUERY and
+// PATCH, plus every name httpMethods itself declares, each checked in both
+// letter cases since IsStandardMethod compares case-sensitively against
+// lowercase constants and a case mismatch would otherwise hide a real gap.
+func TestHTTPMethods_AgreesWithLibraryVocabulary(t *testing.T) {
+	t.Parallel()
+
+	rfc9110 := []string{
+		"GET", "HEAD", "POST", "PUT", "DELETE", "CONNECT", "OPTIONS", "TRACE",
+		"QUERY", "PATCH",
+	}
+	methods := httpMethodsNames()
+	candidates := make([]string, 0, len(rfc9110)+len(methods))
+	candidates = append(candidates, rfc9110...)
+	candidates = append(candidates, methods...)
+
+	seen := make(map[string]bool, 2*len(candidates))
+	for _, c := range candidates {
+		seen[strings.ToUpper(c)] = true
+		seen[strings.ToLower(c)] = true
+	}
+	names := make([]string, 0, len(seen))
+	for n := range seen {
+		names = append(names, n)
+	}
+	sort.Strings(names)
+
+	for _, name := range names {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			assert.Equal(t, soa.IsStandardMethod(name), slices.Contains(httpMethodsNames(), name),
+				"%q: soa.IsStandardMethod and httpMethods disagree on whether this is a "+
+					"standard HTTP method; one vocabulary fell behind the other", name)
+		})
+	}
 }
