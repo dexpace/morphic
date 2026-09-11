@@ -1543,7 +1543,11 @@ func TestOperations_PathItemServersKeptOnEveryRoute(t *testing.T) {
 // Each item writes a second such key whose value carries a YAML anchor. That one
 // never reaches the operations map — the library skips an anchored value before
 // folding it — so it is read off the raw mapping instead (GitHub #412), and the
-// raw reading has to reach every route exactly as the map reading does.
+// raw reading has to reach every route exactly as the map reading does. The two
+// forms part company on a scalar: `bogus: 1` is folded and draws the library's
+// type-mismatch error, while `bogus: &a 1` bypasses the fold and is kept
+// verbatim with the warning alone. That divergence is the lossless outcome, not
+// a gap to close by rejecting the anchored one.
 const pathItemUnknownKeySpec = `openapi: 3.1.0
 info: {title: T, version: "1"}
 paths:
