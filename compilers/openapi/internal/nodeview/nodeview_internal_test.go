@@ -310,12 +310,13 @@ func TestNodeView_TruncationIsPerNode(t *testing.T) {
 func TestNodeView_MemoizeRespectsPairBudget(t *testing.T) {
 	t.Parallel()
 	pairs := []Pair{{Key: "a", Val: ynode.Scalar("1")}, {Key: "b", Val: ynode.Scalar("2")}}
+	e := expansion{pairs: pairs, complete: true}
 
 	t.Run("within budget: retained and counted", func(t *testing.T) {
 		t.Parallel()
 		v := New()
 		n := ynode.Map()
-		v.memoize(n, pairs)
+		v.memoize(n, e)
 		assert.Contains(t, v.pairs, n)
 		assert.Equal(t, len(pairs), v.cachedPairs)
 	})
@@ -325,7 +326,7 @@ func TestNodeView_MemoizeRespectsPairBudget(t *testing.T) {
 		v := New()
 		v.cachedPairs = maxCachedPairs - 1
 		n := ynode.Map()
-		v.memoize(n, pairs)
+		v.memoize(n, e)
 		assert.NotContains(t, v.pairs, n, "an entry that would overrun the budget is not kept")
 		assert.Equal(t, maxCachedPairs-1, v.cachedPairs, "and does not count against it")
 	})
@@ -754,4 +755,103 @@ func TestPureRefTarget_ReadsTheIndexWhereTheWalkBuiltOne(t *testing.T) {
 	require.True(t, ok)
 	assert.Equal(t, "/components/schemas/Planted", target,
 		"the index is what answered, not a rescan of the pairs beneath it")
+}
+
+// TestNodeView_SharedViewAnswersAsAFreshOne pins that a memo hit never changes
+// an answer (GitHub #404). The expansion is a function of the node and the depth
+// it is reached at, and an entry memoized from a shallow read must not be
+// served to a read that reaches the same node too deep to expand it in full —
+// otherwise which schema a walk happened to read first decides what the view
+// reports, and a view cannot be shared across walks.
+func TestNodeView_SharedViewAnswersAsAFreshOne(t *testing.T) {
+	t.Parallel()
+
+	// head -> ... -> leaf, two links past the bound: a read from head truncates.
+	// inner sits ten links down, where a read from it fits inside the bound.
+	head := ynode.MergeChain(MergeDepthLimit + 2)
+	inner := head
+	for range 10 {
+		inner = Deref(inner.Content[1])
+	}
+
+	fresh := New()
+	wantHead := pairMap(fresh.MappingPairs(head))
+	require.Empty(t, wantHead, "the chain from head is past the bound, so nothing survives")
+	require.True(t, fresh.Exhausted())
+
+	t.Run("a shallow memo is not served to a read that is too deep for it", func(t *testing.T) {
+		t.Parallel()
+		v := New()
+		assert.Equal(t, map[string]string{"leaf": "v"}, pairMap(v.MappingPairs(inner)),
+			"from inner the chain fits inside the bound")
+		require.Contains(t, v.pairs, inner, "and is memoized")
+		assert.False(t, v.Exhausted())
+
+		assert.Equal(t, wantHead, pairMap(v.MappingPairs(head)),
+			"reading head afterwards still truncates where a fresh view does")
+		assert.True(t, v.Exhausted(), "and still reports it")
+	})
+
+	t.Run("a truncating read does not spoil a later read beneath it", func(t *testing.T) {
+		t.Parallel()
+		v := New()
+		require.Empty(t, v.MappingPairs(head))
+		assert.Equal(t, map[string]string{"leaf": "v"}, pairMap(v.MappingPairs(inner)),
+			"inner is read at depth 0 and expands in full, as on a fresh view")
+	})
+
+	t.Run("a memo that fits the reader's budget is served", func(t *testing.T) {
+		t.Parallel()
+		v := New()
+		_ = v.MappingPairs(inner)
+		retained := v.cachedPairs
+
+		// Two links above inner: inner is reached at depth 2, and its own chain
+		// fits under the bound from there, so the memo answers the read.
+		assert.Equal(t, map[string]string{"leaf": "v"}, pairMap(v.MappingPairs(linksAbove(inner, 2))))
+		assert.False(t, v.Exhausted())
+		assert.Equal(t, retained+2, v.cachedPairs,
+			"only the two new mappings were memoized; nothing beneath inner was recomputed")
+	})
+
+	// inner's chain is MergeDepthLimit-8 links, so from 8 links above it the whole
+	// chain is exactly the bound and fits; from 9 it is one past and truncates.
+	// Both readings must agree with a fresh view's, and the fitting one must be
+	// the memo answering: refusing it recomputes the same pairs, so only the memo
+	// count can see a bound drawn one short, where the answer sees one drawn one
+	// long. Together they fix the bound's meaning.
+	t.Run("the budget is exact at the bound", func(t *testing.T) {
+		t.Parallel()
+		for _, tc := range []struct {
+			links int
+			want  map[string]string
+		}{
+			{8, map[string]string{"leaf": "v"}},
+			{9, map[string]string{}},
+		} {
+			above := linksAbove(inner, tc.links)
+			fresh := New()
+			require.Equal(t, tc.want, pairMap(fresh.MappingPairs(above)), "links=%d: fresh", tc.links)
+
+			shared := New()
+			_ = shared.MappingPairs(inner)
+			retained := shared.cachedPairs
+			assert.Equal(t, tc.want, pairMap(shared.MappingPairs(above)), "links=%d: after inner", tc.links)
+			assert.Equal(t, fresh.Exhausted(), shared.Exhausted(), "links=%d: exhausted", tc.links)
+			if len(tc.want) == 0 {
+				continue
+			}
+			assert.Equal(t, retained+tc.links, shared.cachedPairs,
+				"links=%d: the memo answered for inner; only the links above it are new", tc.links)
+		}
+	})
+}
+
+// linksAbove returns a mapping that reaches n through the given number of `<<`
+// merges, one mapping per link.
+func linksAbove(n *yaml.Node, links int) *yaml.Node {
+	for range links {
+		n = ynode.Map(ynode.Merge(), ynode.Alias(n))
+	}
+	return n
 }
