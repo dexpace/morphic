@@ -81,26 +81,37 @@ func schemaRefHomed(c lowering.Ctx, ts *compile.Types, anchors *AnchorIndex, dep
 // and its siblings are conjoined with it. The alias carries the position's
 // constraints and annotations; every census keyword written beside the $ref is
 // kept verbatim on it instead, because an alias has no property set, no member
-// set, no value and no encoding of its own (GitHub #283).
+// set, no value and no encoding of its own (GitHub #283). oneOf/anyOf and
+// allOf are the same conjunction and reached none of that — the union's one
+// keeper (preserveUnionSiblingsAt) and the census (refSiteUnhomedKeywords) were
+// each reachable only from the structural-body path — so the alias narrows to
+// them too now (GitHub #406).
 //
 // At an annotation.HomeCarrier position no alias is hoisted — a description or a
 // bound beside a property's $ref belongs on the property (GitHub #114) — so the
 // carrier keeps them there too, through PreserveRefSiteKeywords.
 func refSiteRef(c lowering.Ctx, ts *compile.Types, anchors *AnchorIndex, depth int, js *oas3.JSONSchema[oas3.Referenceable], s *oas3.Schema, pointer, hint string, home annotation.Home) (ir.TypeRef, []ir.Diagnostic) {
 	target, diags := refTypeRef(c, ts, anchors, depth, js, pointer)
-	unhomed := unhomedKeywords(s, nil, nil)
-	ref, homeDiags := homeDeclaration(c, ts, anchors, s, target, pointer, hint, home, len(unhomed) > 0)
+	unhomed := refSiteUnhomedKeywords(s, nil)
+	hasUnion := declaresUnion(s)
+	ref, homeDiags := homeDeclaration(c, ts, anchors, s, target, pointer, hint, home, len(unhomed) > 0 || hasUnion)
 	diags = append(diags, homeDiags...)
 	if home != annotation.HomeOwnNode {
 		return ref, diags
 	}
-	return ref, append(diags, recordUnhomedKeywords(c, ts, ref.Target, s, unhomed, refSiteShape, pointer)...)
+	diags = append(diags, recordUnhomedKeywords(c, ts, ref.Target, s, unhomed, refSiteShape, pointer)...)
+	if hasUnion {
+		diags = append(diags, preserveUnionSiblings(c, ts, ref.Target, s, pointer, ir.ReasonDegradedLowering, refSiteUnionWhy)...)
+	}
+	return ref, diags
 }
 
 // PreserveRefSiteKeywords keeps, on a carrier's own Unmodeled, the keywords a
 // $ref position declared that the alias it resolves to cannot hold. It is
 // refSiteRef's other half: the same census, recorded where an
-// annotation.HomeCarrier position keeps everything else its schema declared.
+// annotation.HomeCarrier position keeps everything else its schema declared —
+// oneOf/anyOf/allOf included, through the same keepers refSiteRef calls
+// (GitHub #406).
 //
 // A schema that lowered to a node of its own already had the census recorded
 // there, so the carrier adds nothing — one home per declaration, exactly as
@@ -114,7 +125,11 @@ func PreserveRefSiteKeywords(c lowering.Ctx, ts *compile.Types, p *ir.Unmodeled,
 	if s == nil || !resolve.IsRefSite(js, s) || LoweredToOwnNode(ts, pointer, t) {
 		return nil
 	}
-	return recordUnhomedAt(c, p, s, unhomedKeywords(s, nil, nil), refSiteShape, pointer)
+	diags := recordUnhomedAt(c, p, s, refSiteUnhomedKeywords(s, nil), refSiteShape, pointer)
+	if !declaresUnion(s) {
+		return diags
+	}
+	return append(diags, preserveUnionSiblingsAt(c, p, s, pointer, ir.ReasonDegradedLowering, refSiteUnionWhy)...)
 }
 
 // homeDeclaration gives what s writes at this position a home and returns the

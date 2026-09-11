@@ -138,6 +138,56 @@ func assertRefSiteKeywords(t *testing.T, doc *ir.Document, diags []ir.Diagnostic
 		"and keeps the keyword on itself instead")
 }
 
+// unionWhy is the complete why refSiteUnionWhy (compilers/openapi/internal/
+// schema) gives a $ref site's own co-declared oneOf/anyOf: unlike the
+// structural-body path's five reasons, it opens with no "co-declared with
+// structural keywords" clause, because at a $ref site there is no structural
+// body for that clause to describe (GitHub #406).
+const unionWhy = "oneOf/anyOf beside a $ref conjoin with it rather than composing into a structural body"
+
+// assertUnionBesideRef pins oneOf/anyOf and allOf co-declared beside a $ref at
+// the same level (GitHub #406). Under JSON Schema 2020-12 — and so OpenAPI
+// 3.1 — $ref conjoins with its siblings, so the union narrows the referenced
+// schema; a $ref-peeling declaration otherwise reaches no field of the
+// document, no Unmodeled entry and no diagnostic. A $ref site's oneOf/anyOf
+// routes through preserveUnionSiblings, the same keeper the structural-body
+// path already uses, rather than a second one; allOf goes through the same
+// unhomed-keyword census refSiteRef already runs for format/const/enum/
+// required/additionalProperties (GitHub #283, #348), with allOf added to it.
+func assertUnionBesideRef(t *testing.T, doc *ir.Document, diags []ir.Diagnostic) {
+	for name, want := range map[string]struct{ keyword, raw, wantMsg string }{
+		"G": {"oneOf", `[{"type":"string"},{"type":"integer"}]`, unionWhy},
+		"H": {"anyOf", `[{"type":"string"},{"type":"integer"}]`, unionWhy},
+		"I": {"allOf", `[{"type":"string"}]`, "no home for allOf"},
+	} {
+		sc, ok := doc.Types[namedID(name)].(*ir.Scalar)
+		require.True(t, ok, "%s hoists an alias to hold what it wrote beside its $ref", name)
+		require.NotNil(t, sc.Base)
+		assert.Equal(t, namedID("Base"), sc.Base.Target, "%s still aliases Base", name)
+		entry := unmodeledEntry(t, sc.Unmodeled, "openapi:"+want.keyword)
+		assert.Equal(t, ir.ReasonDegradedLowering, entry.Reason)
+		assert.JSONEq(t, want.raw, string(entry.Value))
+		assert.Contains(t,
+			openapitest.DiagMessageAt(t, diags, "openapi/degraded-construct", ir.SeverityInfo, "/components/schemas/"+name),
+			want.wantMsg, name)
+	}
+
+	carrier, ok := doc.Types[namedID("Carrier")].(*ir.Model)
+	require.True(t, ok)
+	p, ok := propByWire(carrier, "p")
+	require.True(t, ok)
+	assert.Equal(t, namedID("Base"), p.Type.Target,
+		"a carrier hoists no node, so it still resolves straight to the target")
+	entry := unmodeledEntry(t, p.Unmodeled, "openapi:oneOf")
+	assert.Equal(t, ir.ReasonDegradedLowering, entry.Reason)
+	assert.JSONEq(t, `[{"type":"string"},{"type":"integer"}]`, string(entry.Value),
+		"and keeps the union on itself instead of an alias")
+	assert.Contains(t,
+		openapitest.DiagMessageAt(t, diags, "openapi/degraded-construct", ir.SeverityInfo,
+			"/components/schemas/Carrier/properties/p"),
+		unionWhy, "the carrier position is announced the same way as the alias positions")
+}
+
 // assertElectedLoweringKeywords pins the keywords the *winning* family's
 // lowering never reads (GitHub #268). The census asks the node that was built,
 // which is why the two allOf cases differ: a composed Model asserts `object`
@@ -261,7 +311,7 @@ func assertAllOfInlineResidue(t *testing.T, doc *ir.Document, diags []ir.Diagnos
 // The bare branch is here to pin the other half: a `$ref` that writes nothing
 // beside itself still composes straight to the target, so the fix costs no node
 // where there was nothing to keep.
-func assertAllOfRefBranchSiblings(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
+func assertAllOfRefBranchSiblings(t *testing.T, doc *ir.Document, diags []ir.Diagnostic) {
 	annotated, ok := doc.Types[namedID("Annotated")].(*ir.Model)
 	require.True(t, ok)
 	require.NotNil(t, annotated.Base, "the $ref branch still composes as Base")
@@ -281,6 +331,50 @@ func assertAllOfRefBranchSiblings(t *testing.T, doc *ir.Document, _ []ir.Diagnos
 	assert.JSONEq(t, `"keepme"`, string(entry.Value))
 
 	assertAllOfRefBranchShapes(t, doc)
+	assertAllOfRefBranchUnion(t, doc, diags)
+}
+
+// assertAllOfRefBranchUnion pins the third $ref site the union/allOf keeper
+// reaches: an allOf branch spelled as a $ref, co-declaring oneOf or a nested
+// allOf beside it. Before this, fillAllOf's branch handling ran the plain
+// census (unhomedKeywords) directly, which never named any of the three, so
+// the branch composed straight to Base with the sibling read by nothing — no
+// alias, no Unmodeled, no diagnostic (GitHub #406). It is fixed the same way
+// as the other two $ref sites: refSiteUnhomedKeywords (allOf) and
+// preserveUnionSiblings (oneOf/anyOf), reused rather than duplicated.
+func assertAllOfRefBranchUnion(t *testing.T, doc *ir.Document, diags []ir.Diagnostic) {
+	union, ok := doc.Types[namedID("UnionBranch")].(*ir.Model)
+	require.True(t, ok)
+	require.NotNil(t, union.Base, "the branch still composes as Base")
+	assert.Equal(t, ir.TypeID("t/anon/components/schemas/UnionBranch/allOf/0"), union.Base.Target,
+		"the branch's own $ref siblings get a node of their own, not the shared Base")
+	branch, ok := doc.Types[union.Base.Target].(*ir.Scalar)
+	require.True(t, ok, "the branch position hoists an alias over its target")
+	require.NotNil(t, branch.Base)
+	assert.Equal(t, namedID("Base"), branch.Base.Target, "the alias still resolves to the referenced schema")
+	entry := unmodeledEntry(t, branch.Unmodeled, "openapi:oneOf")
+	assert.Equal(t, ir.ReasonDegradedLowering, entry.Reason)
+	assert.JSONEq(t, `[{"type":"string"},{"type":"integer"}]`, string(entry.Value))
+	assert.Contains(t,
+		openapitest.DiagMessageAt(t, diags, "openapi/degraded-construct", ir.SeverityInfo,
+			"/components/schemas/UnionBranch/allOf/0"),
+		unionWhy)
+
+	nested, ok := doc.Types[namedID("NestedAllOfBranch")].(*ir.Model)
+	require.True(t, ok)
+	require.NotNil(t, nested.Base)
+	assert.Equal(t, ir.TypeID("t/anon/components/schemas/NestedAllOfBranch/allOf/0"), nested.Base.Target)
+	nestedBranch, ok := doc.Types[nested.Base.Target].(*ir.Scalar)
+	require.True(t, ok)
+	require.NotNil(t, nestedBranch.Base)
+	assert.Equal(t, namedID("Base"), nestedBranch.Base.Target)
+	entry = unmodeledEntry(t, nestedBranch.Unmodeled, "openapi:allOf")
+	assert.Equal(t, ir.ReasonDegradedLowering, entry.Reason)
+	assert.JSONEq(t, `[{"type":"string"}]`, string(entry.Value))
+	assert.Contains(t,
+		openapitest.DiagMessageAt(t, diags, "openapi/degraded-construct", ir.SeverityInfo,
+			"/components/schemas/NestedAllOfBranch/allOf/0"),
+		"no home for allOf")
 }
 
 // assertAllOfRefBranchShapes checks the two branch shapes the annotated case
