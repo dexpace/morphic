@@ -92,58 +92,50 @@ import (
 //     escapes non-canonically (a raw '~' for a component named "A~B"). The
 //     compiler resolves it to the interned node, but the loader still reports
 //     the malformed JSON pointer as an unresolved-ref error first (GitHub #14).
-//   - conformance/openapi/querystring-forbidden-keywords.yaml: explode and
-//     allowReserved declared at in: querystring, which OpenAPI 3.2 forbids —
-//     the compiler still lowers each as declared but now reports it as an
-//     error, matching the severity style already gets there (GitHub #408).
-//   - conformance/openapi/param-querystring.yaml: its rawReport operation pins
-//     the same rule as the fixture above, one keyword at a time.
 //
 // The remaining dangling reproducers (f07, f10, f11, f28, f31) intern their
 // targets and compile clean, so they're deliberately absent — the rot-guard
 // below fails any listed fixture that turns out to compile OK.
 func knownInvalid() map[string]bool {
 	return map[string]bool{
-		filepath.FromSlash("../../testdata/openapi/resolve_target_invalid.yaml"):                     true,
-		filepath.FromSlash("../../testdata/openapi/resolve_main_external.yaml"):                      true,
-		filepath.FromSlash("../../testdata/openapi/resolve_main_external_valid.yaml"):                true,
-		filepath.FromSlash("../../testdata/openapi/resolve_main_alias_external_valid.yaml"):          true,
-		filepath.FromSlash("../../testdata/openapi/cycle_self_ref.yaml"):                             true,
-		filepath.FromSlash("../../testdata/openapi/cycle_self_ref_sibling.yaml"):                     true,
-		filepath.FromSlash("../../testdata/openapi/cycle_two_node_ref.yaml"):                         true,
-		filepath.FromSlash("../../testdata/openapi/cycle_two_node_ref_sibling.yaml"):                 true,
-		filepath.FromSlash("../../testdata/openapi/cycle_yaml_anchor.yaml"):                          true,
-		filepath.FromSlash("../../testdata/openapi/cycle_alias_ref_value.yaml"):                      true,
-		filepath.FromSlash("../../testdata/openapi/cycle_content_schema.yaml"):                       true,
-		filepath.FromSlash("../../testdata/openapi/cycle_alias_ref_key.yaml"):                        true,
-		filepath.FromSlash("../../testdata/openapi/cycle_merge_key_ref.yaml"):                        true,
-		filepath.FromSlash("../../testdata/openapi/cycle_alias_schema_node.yaml"):                    true,
-		filepath.FromSlash("../../testdata/openapi/cycle_alias_dual_position.yaml"):                  true,
-		filepath.FromSlash("../../testdata/openapi/cycle_duplicate_key.yaml"):                        true,
-		filepath.FromSlash("../../testdata/openapi/cycle_path_item_mutual.yaml"):                     true,
-		filepath.FromSlash("../../testdata/openapi/cycle_path_item_self.yaml"):                       true,
-		filepath.FromSlash("../../testdata/openapi/cycle_webhook_mutual.yaml"):                       true,
-		filepath.FromSlash("../../testdata/openapi/cycle_response_via_path.yaml"):                    true,
-		filepath.FromSlash("../../testdata/openapi/cycle_path_item_via_component.yaml"):              true,
-		filepath.FromSlash("../../testdata/openapi/cycle_path_item_prefix_self.yaml"):                true,
-		filepath.FromSlash("../../testdata/openapi/cycle_path_item_prefix_sibling.yaml"):             true,
-		filepath.FromSlash("../../testdata/openapi/cycle_path_item_prefix_chain.yaml"):               true,
-		filepath.FromSlash("../../testdata/openapi/cycle_component_path_item_prefix.yaml"):           true,
-		filepath.FromSlash("../../testdata/openapi/cycle_webhook_prefix_self.yaml"):                  true,
-		filepath.FromSlash("../../testdata/openapi/cycle_path_item_empty_segment.yaml"):              true,
-		filepath.FromSlash("../../testdata/openapi/cycle_pointer_whitespace_self.yaml"):              true,
-		filepath.FromSlash("../../testdata/openapi/amplification_alias_bomb.yaml"):                   true,
-		filepath.FromSlash("../../testdata/dangling/openapi/f04-composition.yaml"):                   true,
-		filepath.FromSlash("../../testdata/dangling/openapi/f05-discriminator.yaml"):                 true,
-		filepath.FromSlash("../../testdata/dangling/openapi/f06-discriminator.yaml"):                 true,
-		filepath.FromSlash("../../testdata/dangling/openapi/f08-discriminator.yaml"):                 true,
-		filepath.FromSlash("../../testdata/dangling/openapi/f09-discriminator.yaml"):                 true,
-		filepath.FromSlash("../../testdata/dangling/openapi/f12-refs.yaml"):                          true,
-		filepath.FromSlash("../../testdata/dangling/openapi/f13-refs.yaml"):                          true,
-		filepath.FromSlash("../../testdata/dangling/openapi/f30-protocol-surface.yaml"):              true,
-		filepath.FromSlash("../../testdata/dangling/openapi/f32-ref-noncanonical-escape.yaml"):       true,
-		filepath.FromSlash("../../testdata/conformance/openapi/querystring-forbidden-keywords.yaml"): true,
-		filepath.FromSlash("../../testdata/conformance/openapi/param-querystring.yaml"):              true,
+		filepath.FromSlash("../../testdata/openapi/resolve_target_invalid.yaml"):               true,
+		filepath.FromSlash("../../testdata/openapi/resolve_main_external.yaml"):                true,
+		filepath.FromSlash("../../testdata/openapi/resolve_main_external_valid.yaml"):          true,
+		filepath.FromSlash("../../testdata/openapi/resolve_main_alias_external_valid.yaml"):    true,
+		filepath.FromSlash("../../testdata/openapi/cycle_self_ref.yaml"):                       true,
+		filepath.FromSlash("../../testdata/openapi/cycle_self_ref_sibling.yaml"):               true,
+		filepath.FromSlash("../../testdata/openapi/cycle_two_node_ref.yaml"):                   true,
+		filepath.FromSlash("../../testdata/openapi/cycle_two_node_ref_sibling.yaml"):           true,
+		filepath.FromSlash("../../testdata/openapi/cycle_yaml_anchor.yaml"):                    true,
+		filepath.FromSlash("../../testdata/openapi/cycle_alias_ref_value.yaml"):                true,
+		filepath.FromSlash("../../testdata/openapi/cycle_content_schema.yaml"):                 true,
+		filepath.FromSlash("../../testdata/openapi/cycle_alias_ref_key.yaml"):                  true,
+		filepath.FromSlash("../../testdata/openapi/cycle_merge_key_ref.yaml"):                  true,
+		filepath.FromSlash("../../testdata/openapi/cycle_alias_schema_node.yaml"):              true,
+		filepath.FromSlash("../../testdata/openapi/cycle_alias_dual_position.yaml"):            true,
+		filepath.FromSlash("../../testdata/openapi/cycle_duplicate_key.yaml"):                  true,
+		filepath.FromSlash("../../testdata/openapi/cycle_path_item_mutual.yaml"):               true,
+		filepath.FromSlash("../../testdata/openapi/cycle_path_item_self.yaml"):                 true,
+		filepath.FromSlash("../../testdata/openapi/cycle_webhook_mutual.yaml"):                 true,
+		filepath.FromSlash("../../testdata/openapi/cycle_response_via_path.yaml"):              true,
+		filepath.FromSlash("../../testdata/openapi/cycle_path_item_via_component.yaml"):        true,
+		filepath.FromSlash("../../testdata/openapi/cycle_path_item_prefix_self.yaml"):          true,
+		filepath.FromSlash("../../testdata/openapi/cycle_path_item_prefix_sibling.yaml"):       true,
+		filepath.FromSlash("../../testdata/openapi/cycle_path_item_prefix_chain.yaml"):         true,
+		filepath.FromSlash("../../testdata/openapi/cycle_component_path_item_prefix.yaml"):     true,
+		filepath.FromSlash("../../testdata/openapi/cycle_webhook_prefix_self.yaml"):            true,
+		filepath.FromSlash("../../testdata/openapi/cycle_path_item_empty_segment.yaml"):        true,
+		filepath.FromSlash("../../testdata/openapi/cycle_pointer_whitespace_self.yaml"):        true,
+		filepath.FromSlash("../../testdata/openapi/amplification_alias_bomb.yaml"):             true,
+		filepath.FromSlash("../../testdata/dangling/openapi/f04-composition.yaml"):             true,
+		filepath.FromSlash("../../testdata/dangling/openapi/f05-discriminator.yaml"):           true,
+		filepath.FromSlash("../../testdata/dangling/openapi/f06-discriminator.yaml"):           true,
+		filepath.FromSlash("../../testdata/dangling/openapi/f08-discriminator.yaml"):           true,
+		filepath.FromSlash("../../testdata/dangling/openapi/f09-discriminator.yaml"):           true,
+		filepath.FromSlash("../../testdata/dangling/openapi/f12-refs.yaml"):                    true,
+		filepath.FromSlash("../../testdata/dangling/openapi/f13-refs.yaml"):                    true,
+		filepath.FromSlash("../../testdata/dangling/openapi/f30-protocol-surface.yaml"):        true,
+		filepath.FromSlash("../../testdata/dangling/openapi/f32-ref-noncanonical-escape.yaml"): true,
 	}
 }
 
