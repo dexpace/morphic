@@ -1,0 +1,179 @@
+{
+  "irVersion": "0.3.0",
+  "name": "AllOfPositionConstraints",
+  "version": "1.0.0",
+  "docs": {},
+  "services": [
+    {
+      "id": "s/openapi/0",
+      "name": {
+        "source": "AllOfPositionConstraints",
+        "canonical": "all_of_position_constraints"
+      },
+      "docs": {},
+      "auth": null,
+      "provenance": {
+        "source": 0
+      }
+    }
+  ],
+  "types": {
+    "t/openapi/components/schemas/Base": {
+      "kind": "model",
+      "id": "t/openapi/components/schemas/Base",
+      "name": {
+        "source": "Base",
+        "canonical": "base"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Base"
+      },
+      "properties": [
+        {
+          "id": "p/openapi/components/schemas/Base/properties/id",
+          "name": {
+            "source": "id",
+            "canonical": "id"
+          },
+          "wireName": "id",
+          "type": {
+            "target": "t/prim/string",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/Base/properties/id"
+          }
+        }
+      ],
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
+    "t/openapi/components/schemas/ViaAllOf": {
+      "kind": "model",
+      "id": "t/openapi/components/schemas/ViaAllOf",
+      "name": {
+        "source": "ViaAllOf",
+        "canonical": "via_all_of"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/ViaAllOf"
+      },
+      "base": {
+        "target": "t/openapi/components/schemas/Base",
+        "nullable": false
+      },
+      "constraints": {
+        "exclusiveMin": false,
+        "exclusiveMax": false,
+        "uniqueItems": false,
+        "minProps": 2
+      },
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
+    "t/openapi/components/schemas/ViaModel": {
+      "kind": "model",
+      "id": "t/openapi/components/schemas/ViaModel",
+      "name": {
+        "source": "ViaModel",
+        "canonical": "via_model"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/ViaModel"
+      },
+      "properties": [
+        {
+          "id": "p/openapi/components/schemas/ViaModel/properties/a",
+          "name": {
+            "source": "a",
+            "canonical": "a"
+          },
+          "wireName": "a",
+          "type": {
+            "target": "t/prim/string",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/ViaModel/properties/a"
+          }
+        }
+      ],
+      "constraints": {
+        "exclusiveMin": false,
+        "exclusiveMax": false,
+        "uniqueItems": false,
+        "minProps": 2
+      },
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
+    "t/prim/string": {
+      "kind": "primitive",
+      "id": "t/prim/string",
+      "name": {},
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0
+      },
+      "prim": "string"
+    }
+  },
+  "servers": [
+    {
+      "name": {
+        "hint": "server"
+      },
+      "urlTemplate": "/",
+      "description": {},
+      "auth": null
+    }
+  ],
+  "sources": [
+    {
+      "format": "openapi@3.1",
+      "path": "allof-position-constraints.yaml",
+      "hash": "8f0d33d038c59706de71c4c801a8989898caa9309509475fab447cdd84e79496"
+    }
+  ]
+}

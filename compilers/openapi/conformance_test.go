@@ -170,6 +170,7 @@ func conformanceCases() []conformanceCase {
 		{"allof-inline-residue", assertAllOfInlineResidue, []string{"intersection"}},
 		{"allof-ref-branch-siblings", assertAllOfRefBranchSiblings, []string{"intersection", "untagged-unions"}},
 		{"allof-boolean-branch", assertAllOfBooleanBranch, []string{"intersection"}},
+		{"allof-position-constraints", assertAllOfPositionConstraints, []string{"intersection"}},
 		{"oneof-discriminated", assertOneOfDiscriminated, []string{"tagged-unions"}},
 		{"discriminator-inheritance", assertDiscriminatorInheritance, []string{"tagged-unions", "inheritance"}},
 		{"discriminator-default-mapping", assertDiscriminatorDefaultMapping, []string{"tagged-unions"}},
@@ -777,6 +778,9 @@ func assertAllOfOneOfCooccurrence(t *testing.T, doc *ir.Document, _ []ir.Diagnos
 		assert.Equal(t, namedID("Base"), v.Base.Target)
 		require.Len(t, v.Mixins, 1)
 		assert.Equal(t, namedID(branch), v.Mixins[0].Target)
+		require.NotNil(t, v.Constraints, "the enclosing schema's own minProperties rides on every variant too (GitHub #407)")
+		require.NotNil(t, v.Constraints.MinProps)
+		assert.Equal(t, int64(2), *v.Constraints.MinProps)
 	}
 
 	mixed, ok := doc.Types[namedID("MixedKinds")].(*ir.Model)
@@ -839,6 +843,31 @@ func assertInlineBranchHint(t *testing.T, doc *ir.Document) {
 	require.Len(t, outsider.Properties, 1)
 	assert.Equal(t, branchID, outsider.Properties[0].Type.Target,
 		"the outside reference resolves to that same node rather than hoisting a second")
+}
+
+// assertAllOfPositionConstraints pins GitHub #407: a value constraint written
+// beside an allOf composing position reaches the same ir.Model.Constraints
+// field a plain object's does, rather than falling to Unmodeled under a
+// diagnostic that claims the node has no home for it — the node demonstrably
+// does, since ViaModel's sibling proves the field exists and is read.
+func assertAllOfPositionConstraints(t *testing.T, doc *ir.Document, diags []ir.Diagnostic) {
+	viaModel, ok := doc.Types[namedID("ViaModel")].(*ir.Model)
+	require.True(t, ok)
+	require.NotNil(t, viaModel.Constraints)
+	require.NotNil(t, viaModel.Constraints.MinProps)
+	assert.Equal(t, int64(2), *viaModel.Constraints.MinProps)
+
+	viaAllOf, ok := doc.Types[namedID("ViaAllOf")].(*ir.Model)
+	require.True(t, ok)
+	require.NotNil(t, viaAllOf.Base, "the sole allOf $ref still becomes Base")
+	assert.Equal(t, namedID("Base"), viaAllOf.Base.Target)
+	require.NotNil(t, viaAllOf.Constraints, "the composing position's own minProperties reaches the model it built, exactly as a plain object's does")
+	require.NotNil(t, viaAllOf.Constraints.MinProps)
+	assert.Equal(t, int64(2), *viaAllOf.Constraints.MinProps)
+	assert.NotContains(t, viaAllOf.Unmodeled, "openapi:minProperties",
+		"minProperties has a home now, so it is not also kept verbatim")
+	assert.Empty(t, diagsAt(diags, diag.DegradedConstruct, "/components/schemas/ViaAllOf"),
+		"and no diagnostic claims the node has no home for it")
 }
 
 func assertOneOfDiscriminated(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
