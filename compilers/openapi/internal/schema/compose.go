@@ -537,6 +537,9 @@ func lowerOneOfAnyOf(c lowering.Ctx, ts *compile.Types, anchors *AnchorIndex, de
 		ref.Nullable = true
 		return ref, diags
 	}
+	if allNullUnion(s) {
+		return lowerNullOnlyUnion(c, ts, s, pointer, hint)
+	}
 	var diags []ir.Diagnostic
 	tid := internNode(c, ts, pointer, hint, func(common ir.TypeCommon) ir.TypeDef {
 		def, unionDiags := buildUnion(c, ts, s, common, pointer,
@@ -549,6 +552,50 @@ func lowerOneOfAnyOf(c lowering.Ctx, ts *compile.Types, anchors *AnchorIndex, de
 		return def
 	})
 	return ir.TypeRef{Target: tid, Nullable: schemaAdmitsNull(s)}, diags
+}
+
+// lowerNullOnlyUnion lowers a oneOf/anyOf every one of whose branches is a bare
+// `type: null` schema (allNullUnion). One null branch or several admit exactly
+// the value a bare `{type: null}` schema at this position admits — null alone
+// — so this position lowers the way lowerUntyped's own null-only body does:
+// the shared `any` primitive with Nullable set. The combinator that produced
+// it, and the other one too when both are declared, carries no shape a Union
+// or a Scalar's fields could hold, so it is kept verbatim under Unmodeled
+// instead of dropped (GitHub #416; ir-design §4.8).
+func lowerNullOnlyUnion(c lowering.Ctx, ts *compile.Types, s *oas3.Schema, pointer, hint string) (ir.TypeRef, []ir.Diagnostic) {
+	inner := ts.PrimID(ir.PrimAny)
+	owner := inner
+	var diags []ir.Diagnostic
+	if got, _ := ts.Lookup(pointer); got != inner {
+		// This pointer owns no node yet: hoist an alias so the preserved union
+		// attaches to a node this pointer owns, never to the shared `any`
+		// primitive every other unrelated position also resolves to.
+		var kept ir.Unmodeled
+		cons, consDiags := schemaConstraints(c, &kept, s, pointer)
+		diags = append(diags, consDiags...)
+		owner = internAlias(c, ts, pointer, hint, ir.TypeRef{Target: inner, Nullable: true}, cons, kept)
+	}
+	return ir.TypeRef{Target: owner, Nullable: true}, append(diags, preserveNullOnlyUnion(c, ts, owner, s, pointer)...)
+}
+
+// preserveNullOnlyUnion keeps s's oneOf/anyOf verbatim under the owning node's
+// Unmodeled: lowerNullOnlyUnion's node is the shared `any` primitive or an
+// alias over it, neither of which carries a branch set of its own to hold
+// them in.
+func preserveNullOnlyUnion(c lowering.Ctx, ts *compile.Types, id ir.TypeID, s *oas3.Schema, pointer string) []ir.Diagnostic {
+	td, ok, diags := registeredNode(c, ts, id, pointer)
+	if !ok {
+		return diags
+	}
+	common := td.Common()
+	kept, keepDiags := preserveBranchSets(c, &common.Unmodeled, s, ir.ReasonDegradedLowering, pointer)
+	diags = append(diags, keepDiags...)
+	if !kept {
+		return diags
+	}
+	return append(diags, c.DiagAt(ir.SeverityInfo, diag.DegradedConstruct, pointer,
+		"every branch admits only the null value, so this position lowered as nullable any; "+
+			"the union is kept verbatim under Unmodeled"))
 }
 
 // unionLowering names how a oneOf/anyOf co-declared with structural keywords is

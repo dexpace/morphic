@@ -609,6 +609,43 @@ func assertKeptRaw(t *testing.T, p ir.Unmodeled, key, want string) {
 	assert.JSONEq(t, want, string(entry.Value))
 }
 
+// assertNullOnlyUnion covers a oneOf/anyOf whose only branches are a bare
+// `type: null` schema — one branch, two, and either combinator.
+// nullUnionCollapse has no non-null branch to collapse a set like this onto,
+// so without a guard for this shape lowerOneOfAnyOf's buildUnion fallback
+// strips every branch as a null marker and interns a Union with none left,
+// the empty value space irverify's ir/union-no-variants rule rejects
+// (GitHub #416). The branch set admits exactly what a bare `{type: null}`
+// schema at the same position admits — null alone — so this position lowers
+// the same way: the shared `any` primitive with Nullable set, and the
+// combinator that produced it is kept verbatim under Unmodeled since it
+// carries no shape the Scalar's fields could hold.
+func assertNullOnlyUnion(t *testing.T, doc *ir.Document, diags []ir.Diagnostic) {
+	cases := []struct {
+		name string
+		key  string
+		raw  string
+	}{
+		{"AnyOfNull", "openapi:anyOf", `[{"type":"null"}]`},
+		{"OneOfNull", "openapi:oneOf", `[{"type":"null"}]`},
+		{"AnyOfTwoNull", "openapi:anyOf", `[{"type":"null"},{"type":"null"}]`},
+	}
+	for _, tc := range cases {
+		s, ok := doc.Types[namedID(tc.name)].(*ir.Scalar)
+		require.True(t, ok, "%s lowers to a scalar over any, the same node a bare "+
+			"`{type: null}` schema at this position would", tc.name)
+		require.NotNil(t, s.Base)
+		assert.Equal(t, ir.TypeID("t/prim/any"), s.Base.Target)
+		assert.True(t, s.Base.Nullable,
+			"%s: the null-only branch set lifts onto the reference the way a bare "+
+				"{type: null} schema's does", tc.name)
+		assertKeptRaw(t, s.Unmodeled, tc.key, tc.raw)
+		assert.Equal(t, []ir.Severity{ir.SeverityInfo},
+			diagsAt(diags, "openapi/degraded-construct", "/components/schemas/"+tc.name),
+			"%s announces the degraded lowering", tc.name)
+	}
+}
+
 // assertCoDeclaredSchemaContent covers the election at the other pair of
 // positions: a parameter and a header may state their type as `schema` or as
 // `content`, and OpenAPI forbids both. `content` is elected at both — it names a

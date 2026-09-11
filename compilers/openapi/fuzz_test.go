@@ -211,6 +211,7 @@ func schemaSeeds() []string {
 		`{"allOf":[{"type":"object"},{"type":"object"}]}`,
 		`{"oneOf":[{"type":"string"},{"type":"integer"}]}`,
 		`{"anyOf":[{"type":"boolean"},{"type":"null"}]}`,
+		`{"anyOf":[{"type":"null"}]}`,
 		`{"enum":["a","b",1,null]}`,
 		`{"const":"v1"}`,
 		`{"type":["string","null"]}`,

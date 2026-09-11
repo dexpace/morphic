@@ -1,0 +1,182 @@
+{
+  "irVersion": "0.3.0",
+  "name": "NullOnlyUnion",
+  "version": "1.0.0",
+  "docs": {},
+  "services": [
+    {
+      "id": "s/openapi/0",
+      "name": {
+        "source": "NullOnlyUnion",
+        "canonical": "null_only_union"
+      },
+      "docs": {},
+      "auth": null,
+      "provenance": {
+        "source": 0
+      }
+    }
+  ],
+  "types": {
+    "t/openapi/components/schemas/AnyOfNull": {
+      "kind": "scalar",
+      "id": "t/openapi/components/schemas/AnyOfNull",
+      "name": {
+        "source": "AnyOfNull",
+        "canonical": "any_of_null"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "unmodeled": {
+        "openapi:anyOf": {
+          "reason": "degraded_lowering",
+          "value": [
+            {
+              "type": "null"
+            }
+          ],
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/AnyOfNull/anyOf"
+          }
+        }
+      },
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/AnyOfNull"
+      },
+      "base": {
+        "target": "t/prim/any",
+        "nullable": true
+      }
+    },
+    "t/openapi/components/schemas/AnyOfTwoNull": {
+      "kind": "scalar",
+      "id": "t/openapi/components/schemas/AnyOfTwoNull",
+      "name": {
+        "source": "AnyOfTwoNull",
+        "canonical": "any_of_two_null"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "unmodeled": {
+        "openapi:anyOf": {
+          "reason": "degraded_lowering",
+          "value": [
+            {
+              "type": "null"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/AnyOfTwoNull/anyOf"
+          }
+        }
+      },
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/AnyOfTwoNull"
+      },
+      "base": {
+        "target": "t/prim/any",
+        "nullable": true
+      }
+    },
+    "t/openapi/components/schemas/OneOfNull": {
+      "kind": "scalar",
+      "id": "t/openapi/components/schemas/OneOfNull",
+      "name": {
+        "source": "OneOfNull",
+        "canonical": "one_of_null"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "unmodeled": {
+        "openapi:oneOf": {
+          "reason": "degraded_lowering",
+          "value": [
+            {
+              "type": "null"
+            }
+          ],
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/OneOfNull/oneOf"
+          }
+        }
+      },
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/OneOfNull"
+      },
+      "base": {
+        "target": "t/prim/any",
+        "nullable": true
+      }
+    },
+    "t/prim/any": {
+      "kind": "primitive",
+      "id": "t/prim/any",
+      "name": {},
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0
+      },
+      "prim": "any"
+    }
+  },
+  "servers": [
+    {
+      "name": {
+        "hint": "server"
+      },
+      "urlTemplate": "/",
+      "description": {},
+      "auth": null
+    }
+  ],
+  "diagnostics": [
+    {
+      "severity": "info",
+      "code": "openapi/degraded-construct",
+      "message": "every branch admits only the null value, so this position lowered as nullable any; the union is kept verbatim under Unmodeled",
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/AnyOfNull"
+      }
+    },
+    {
+      "severity": "info",
+      "code": "openapi/degraded-construct",
+      "message": "every branch admits only the null value, so this position lowered as nullable any; the union is kept verbatim under Unmodeled",
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/OneOfNull"
+      }
+    },
+    {
+      "severity": "info",
+      "code": "openapi/degraded-construct",
+      "message": "every branch admits only the null value, so this position lowered as nullable any; the union is kept verbatim under Unmodeled",
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/AnyOfTwoNull"
+      }
+    }
+  ],
+  "sources": [
+    {
+      "format": "openapi@3.1",
+      "path": "null-only-union.yaml",
+      "hash": "5aafbcd9d9aa022dec0d1da9eb02a6ef5590e57ec164bdd8b237411b3b50a8a3"
+    }
+  ]
+}

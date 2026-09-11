@@ -1,0 +1,11 @@
+openapi: 3.1.0
+info: {title: NullOnlyUnion, version: "1.0.0"}
+paths: {}
+components:
+  schemas:
+    AnyOfNull:
+      anyOf: [{type: "null"}]
+    OneOfNull:
+      oneOf: [{type: "null"}]
+    AnyOfTwoNull:
+      anyOf: [{type: "null"}, {type: "null"}]
