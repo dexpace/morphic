@@ -444,7 +444,8 @@ func TestPathItemFields_MatchTheLibraryModel(t *testing.T) {
 		}
 		declared = append(declared, key)
 	}
-	assert.Empty(t, cmp.Diff(declared, pathItemFields),
+	diff := cmp.Diff(declared, pathItemFields)
+	assert.Empty(t, diff,
 		"pathItemFields must name every keyed field of core.PathItem, once each, in its order (-model +listed)")
 }
 

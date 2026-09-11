@@ -530,9 +530,9 @@ func RawChildNode(root *yaml.Node, key string) *yaml.Node {
 
 // RawMappingKeys returns the on-wire names a raw mapping writes, each once, in
 // the order first written, unwrapping a document node first; nil for a node
-// that is not a mapping. It reads the same mapping RawChildNode does and spells
-// each key the way RawChildNode looks one up, so every name it returns is one
-// RawChildNode can find a value for.
+// that is not a mapping, and for a mapping that writes no key. It reads the
+// same mapping RawChildNode does and spells each key the way RawChildNode looks
+// one up, so every name it returns is one RawChildNode can find a value for.
 //
 // It exists for the object whose parsed model does not present every key the
 // mapping wrote. A Path Item Object's unmarshaller folds a key it does not
@@ -543,10 +543,13 @@ func RawChildNode(root *yaml.Node, key string) *yaml.Node {
 // from what the source wrote.
 //
 // A `<<` merge key is not a key the mapping writes: it names other mappings
-// whose pairs the parser reads in, and those pairs are what the model holds. It
-// is left out here for the same reason the raw-JSON converter expands it rather
-// than encoding it. Like every raw-node reader in this package, this reads the
-// mapping's own pairs and not the merged-in ones, which is GitHub #395.
+// whose pairs the parser reads in, and those pairs are what the model holds —
+// unless a merged-in value is itself anchored, when the library's skip drops it
+// too and neither reading sees it; only a merge-expanded view can, which is
+// GitHub #395's to close. It is left out here for the same reason the raw-JSON
+// converter expands it rather than encoding it. Like every raw-node reader in
+// this package, this reads the mapping's own pairs and not the merged-in ones,
+// which is #395.
 //
 // A key repeated in the mapping is one key to the parser and is returned once,
 // because a census that named it twice would find its own first entry occupied

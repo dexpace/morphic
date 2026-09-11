@@ -569,6 +569,7 @@ func TestRawMappingKeys_ReadsOnlyAMapping(t *testing.T) {
 	assert.Equal(t, []string{"a"}, RawMappingKeys(&doc), "a document node is stepped through to its mapping")
 
 	assert.Nil(t, RawMappingKeys(nil))
+	assert.Nil(t, RawMappingKeys(openapitest.YAMLNode(t, "{}")), "a mapping writing no key yields none")
 	assert.Nil(t, RawMappingKeys(openapitest.YAMLNode(t, "[1, 2]")), "a sequence has no keys")
 	assert.Nil(t, RawMappingKeys(openapitest.YAMLNode(t, "plain")), "nor does a scalar")
 	assert.Nil(t, RawMappingKeys(&yaml.Node{Kind: yaml.DocumentNode}), "nor an empty document")
