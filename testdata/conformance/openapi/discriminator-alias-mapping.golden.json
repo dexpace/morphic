@@ -1,0 +1,181 @@
+{
+  "irVersion": "0.3.0",
+  "name": "DiscriminatorAliasMapping",
+  "version": "1.0.0",
+  "docs": {},
+  "services": [
+    {
+      "id": "s/openapi/0",
+      "name": {
+        "source": "DiscriminatorAliasMapping",
+        "canonical": "discriminator_alias_mapping"
+      },
+      "docs": {},
+      "auth": null,
+      "provenance": {
+        "source": 0
+      }
+    }
+  ],
+  "types": {
+    "t/openapi/components/schemas/Dog": {
+      "kind": "model",
+      "id": "t/openapi/components/schemas/Dog",
+      "name": {
+        "source": "Dog",
+        "canonical": "dog"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Dog"
+      },
+      "properties": [
+        {
+          "id": "p/openapi/components/schemas/Dog/properties/bark",
+          "name": {
+            "source": "bark",
+            "canonical": "bark"
+          },
+          "wireName": "bark",
+          "type": {
+            "target": "t/prim/bool",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/Dog/properties/bark"
+          }
+        }
+      ],
+      "base": {
+        "target": "t/openapi/components/schemas/Pet",
+        "nullable": false
+      },
+      "abstract": false,
+      "positional": false,
+      "discriminatorValue": "alpha",
+      "inputOnly": false
+    },
+    "t/openapi/components/schemas/Pet": {
+      "kind": "model",
+      "id": "t/openapi/components/schemas/Pet",
+      "name": {
+        "source": "Pet",
+        "canonical": "pet"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Pet"
+      },
+      "properties": [
+        {
+          "id": "p/openapi/components/schemas/Pet/properties/petType",
+          "name": {
+            "source": "petType",
+            "canonical": "pet_type"
+          },
+          "wireName": "petType",
+          "type": {
+            "target": "t/prim/string",
+            "nullable": false
+          },
+          "required": true,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/Pet/properties/petType"
+          }
+        }
+      ],
+      "abstract": false,
+      "positional": false,
+      "discriminator": {
+        "property": "p/openapi/components/schemas/Pet/properties/petType",
+        "mapping": {
+          "alpha": "t/openapi/components/schemas/Dog",
+          "zulu": "t/openapi/components/schemas/Dog"
+        },
+        "inferred": false
+      },
+      "inputOnly": false
+    },
+    "t/prim/bool": {
+      "kind": "primitive",
+      "id": "t/prim/bool",
+      "name": {},
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0
+      },
+      "prim": "bool"
+    },
+    "t/prim/string": {
+      "kind": "primitive",
+      "id": "t/prim/string",
+      "name": {},
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0
+      },
+      "prim": "string"
+    }
+  },
+  "servers": [
+    {
+      "name": {
+        "hint": "server"
+      },
+      "urlTemplate": "/",
+      "description": {},
+      "auth": null
+    }
+  ],
+  "diagnostics": [
+    {
+      "severity": "info",
+      "code": "openapi/degraded-construct",
+      "message": "the discriminator mapping names this schema under 2 keys (alpha, zulu); discriminatorValue holds the smallest in byte order, and the base's mapping keeps them all",
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Dog"
+      }
+    }
+  ],
+  "sources": [
+    {
+      "format": "openapi@3.1",
+      "path": "discriminator-alias-mapping.yaml",
+      "hash": "1089b1621bcb5bfc402131bcbd3c766dc3d9cd4ad4ff49fd8664d61c0c373e6a"
+    }
+  ]
+}
