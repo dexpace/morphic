@@ -41,6 +41,11 @@ const (
 // It is closed, and the fields outside it are not: OpenAPI 3.2 added `query`
 // here and put every other method under `additionalOperations`, which
 // pathOperations reads beside this table.
+//
+// TestHTTPMethods_AgreesWithLibraryVocabulary holds this table to the
+// library's own soa.IsStandardMethod, so a method the library learns before
+// this table does reddens the build instead of being silently unmounted
+// (GitHub #413).
 var httpMethods = []struct {
 	name string
 	get  func(*soa.PathItem) *soa.Operation
