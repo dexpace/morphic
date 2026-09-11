@@ -468,7 +468,7 @@ func preserveUnionSiblings(c lowering.Ctx, ts *compile.Types, id ir.TypeID, s *o
 // fits both reads as self-contradictory at a $ref site (GitHub #406).
 func preserveUnionSiblingsAt(c lowering.Ctx, p *ir.Unmodeled, s *oas3.Schema, pointer string, reason ir.UnmodeledReason, why string) []ir.Diagnostic {
 	kept, diags := preserveBranchSets(c, p, s, reason, pointer)
-	if reason == ir.ReasonValidationOnly || !kept {
+	if reason == ir.ReasonValidationOnly || len(kept) == 0 {
 		return diags
 	}
 	return append(diags, c.DiagAt(ir.SeverityInfo, diag.DegradedConstruct, pointer,
@@ -476,19 +476,20 @@ func preserveUnionSiblingsAt(c lowering.Ctx, p *ir.Unmodeled, s *oas3.Schema, po
 }
 
 // preserveBranchSets stores s's declared oneOf/anyOf verbatim under p, in
-// keyword order, reporting one it cannot convert. It returns whether any bytes
-// were actually kept, so a caller with a message of its own knows whether to
-// emit it. reason == ir.ReasonValidationOnly routes each through §4.7's
-// keyword-family reporting (preserveKeyword) instead; every other reason goes
-// through the plain preserve every other §4.8 degradation uses.
+// keyword order, reporting one it cannot convert. It returns the keywords
+// actually kept (empty when neither is written or neither converts), so a
+// caller with a message of its own knows what to name in it. reason ==
+// ir.ReasonValidationOnly routes each through §4.7's keyword-family reporting
+// (preserveKeyword) instead; every other reason goes through the plain
+// preserve every other §4.8 degradation uses.
 //
 // preserveUnionSiblingsAt and preserveNullOnlyUnion share this loop because they
 // keep the same two keywords for the same underlying reason — the node they
 // attach to carries no branch set of its own to hold them in — and differ only
 // in the sentence that explains why.
-func preserveBranchSets(c lowering.Ctx, p *ir.Unmodeled, s *oas3.Schema, reason ir.UnmodeledReason, pointer string) (bool, []ir.Diagnostic) {
+func preserveBranchSets(c lowering.Ctx, p *ir.Unmodeled, s *oas3.Schema, reason ir.UnmodeledReason, pointer string) ([]string, []ir.Diagnostic) {
 	var diags []ir.Diagnostic
-	kept := false
+	var kept []string
 	for _, kw := range []string{"oneOf", "anyOf"} {
 		raw, err := annotation.RawFromNode(annotation.RawPropertyNode(s, kw))
 		if err != nil {
@@ -501,7 +502,9 @@ func preserveBranchSets(c lowering.Ctx, p *ir.Unmodeled, s *oas3.Schema, reason 
 			continue
 		}
 		preserve(c, p, "openapi:"+kw, raw, reason, pointer+ids.Ptr(kw))
-		kept = kept || len(raw) > 0
+		if len(raw) > 0 {
+			kept = append(kept, kw)
+		}
 	}
 	return kept, diags
 }

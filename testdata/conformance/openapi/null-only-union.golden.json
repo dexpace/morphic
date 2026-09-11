@@ -87,6 +87,51 @@
         "nullable": true
       }
     },
+    "t/openapi/components/schemas/BothNull": {
+      "kind": "scalar",
+      "id": "t/openapi/components/schemas/BothNull",
+      "name": {
+        "source": "BothNull",
+        "canonical": "both_null"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "unmodeled": {
+        "openapi:anyOf": {
+          "reason": "degraded_lowering",
+          "value": [
+            {
+              "type": "null"
+            }
+          ],
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/BothNull/anyOf"
+          }
+        },
+        "openapi:oneOf": {
+          "reason": "degraded_lowering",
+          "value": [
+            {
+              "type": "null"
+            }
+          ],
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/BothNull/oneOf"
+          }
+        }
+      },
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/BothNull"
+      },
+      "base": {
+        "target": "t/prim/any",
+        "nullable": true
+      }
+    },
     "t/openapi/components/schemas/OneOfNull": {
       "kind": "scalar",
       "id": "t/openapi/components/schemas/OneOfNull",
@@ -147,7 +192,7 @@
     {
       "severity": "info",
       "code": "openapi/degraded-construct",
-      "message": "every branch admits only the null value, so this position lowered as nullable any; the union is kept verbatim under Unmodeled",
+      "message": "every branch admits only the null value, so this position lowered as nullable any; anyOf kept verbatim under Unmodeled",
       "provenance": {
         "source": 0,
         "pointer": "/components/schemas/AnyOfNull"
@@ -156,7 +201,7 @@
     {
       "severity": "info",
       "code": "openapi/degraded-construct",
-      "message": "every branch admits only the null value, so this position lowered as nullable any; the union is kept verbatim under Unmodeled",
+      "message": "every branch admits only the null value, so this position lowered as nullable any; oneOf kept verbatim under Unmodeled",
       "provenance": {
         "source": 0,
         "pointer": "/components/schemas/OneOfNull"
@@ -165,10 +210,19 @@
     {
       "severity": "info",
       "code": "openapi/degraded-construct",
-      "message": "every branch admits only the null value, so this position lowered as nullable any; the union is kept verbatim under Unmodeled",
+      "message": "every branch admits only the null value, so this position lowered as nullable any; anyOf kept verbatim under Unmodeled",
       "provenance": {
         "source": 0,
         "pointer": "/components/schemas/AnyOfTwoNull"
+      }
+    },
+    {
+      "severity": "info",
+      "code": "openapi/degraded-construct",
+      "message": "every branch admits only the null value, so this position lowered as nullable any; oneOf and anyOf kept verbatim under Unmodeled",
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/BothNull"
       }
     }
   ],
@@ -176,7 +230,7 @@
     {
       "format": "openapi@3.1",
       "path": "null-only-union.yaml",
-      "hash": "5aafbcd9d9aa022dec0d1da9eb02a6ef5590e57ec164bdd8b237411b3b50a8a3"
+      "hash": "d9236f057b2a86756d7f39170f69d2a2c685d20adf0f7bc032a795fc4a6ceed5"
     }
   ]
 }
