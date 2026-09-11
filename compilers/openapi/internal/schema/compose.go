@@ -27,10 +27,19 @@ import (
 // hierarchy) becomes Base; other $refs become Mixins in source order; inline
 // branches contribute their properties, each carrying provenance into the
 // allOf branch it came from.
+//
+// The composing position's own value constraints (minProperties, maxProperties,
+// ...) are read the same way lowerModel reads a plain object's: a bound written
+// beside the allOf constrains the composed model exactly as one written beside
+// `type: object` constrains it, so it belongs on the same field rather than
+// falling to Unmodeled for want of a fill this lowering forgot to do (GitHub
+// #407).
 func lowerAllOf(c lowering.Ctx, ts *compile.Types, anchors *AnchorIndex, depth int, s *oas3.Schema, pointer, hint string) (ir.TypeID, []ir.Diagnostic) {
 	var diags []ir.Diagnostic
 	id := internNode(c, ts, pointer, hint, func(common ir.TypeCommon) ir.TypeDef {
-		m := &ir.Model{TypeCommon: common}
+		cons, consDiags := schemaConstraints(c, &common.Unmodeled, s, pointer)
+		diags = append(diags, consDiags...)
+		m := &ir.Model{TypeCommon: common, Constraints: cons}
 		diags = append(diags, fillAllOf(c, ts, anchors, depth, m, s, pointer)...)
 		diags = append(diags, fillModelProperties(c, ts, anchors, depth, m, s, pointer)...)
 		diags = append(diags, applyCompositionRequired(c, m, s, pointer)...)
@@ -907,9 +916,17 @@ func composedVariantNullable(body *oas3.Schema, branch ir.TypeRef) bool {
 // and any shared additionalProperties node are the single set the source
 // declared, named after the enclosing schema rather than after whichever branch
 // happened to build them first.
+//
+// The enclosing schema's own value constraints are read the same way, for the
+// same reason lowerAllOf reads them (GitHub #407): `S ∧ (X | Y)` distributes to
+// `(S ∧ X) | (S ∧ Y)`, and a bound S declares constrains both sides of that
+// disjunction, so each variant carries its own copy rather than the bound
+// reaching no field at all — this path never runs the pointer's own census, so
+// nothing else stamps it.
 func buildComposedVariant(c lowering.Ctx, ts *compile.Types, anchors *AnchorIndex, depth int, body composedBody, branch ir.TypeID, common ir.TypeCommon) (ir.TypeDef, []ir.Diagnostic) {
-	m := &ir.Model{TypeCommon: common}
-	diags := fillAllOf(c, ts, anchors, depth, m, body.schema, body.pointer)
+	cons, diags := schemaConstraints(c, &common.Unmodeled, body.schema, body.pointer)
+	m := &ir.Model{TypeCommon: common, Constraints: cons}
+	diags = append(diags, fillAllOf(c, ts, anchors, depth, m, body.schema, body.pointer)...)
 	diags = append(diags, fillModelProperties(c, ts, anchors, depth, m, body.schema, body.pointer)...)
 	diags = append(diags, applyCompositionRequired(c, m, body.schema, body.pointer)...)
 	diags = append(diags, fillAdditional(c, ts, anchors, depth, m, body.schema, body.pointer, body.hint)...)

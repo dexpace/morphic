@@ -79,6 +79,12 @@
           "nullable": false
         }
       ],
+      "constraints": {
+        "exclusiveMin": false,
+        "exclusiveMax": false,
+        "uniqueItems": false,
+        "minProps": 2
+      },
       "abstract": false,
       "positional": false,
       "inputOnly": false
@@ -106,6 +112,12 @@
           "nullable": false
         }
       ],
+      "constraints": {
+        "exclusiveMin": false,
+        "exclusiveMax": false,
+        "uniqueItems": false,
+        "minProps": 2
+      },
       "abstract": false,
       "positional": false,
       "inputOnly": false
@@ -599,7 +611,7 @@
     {
       "format": "openapi@3.1",
       "path": "allof-oneof-cooccurrence.yaml",
-      "hash": "9deaf845e7a310c701113bd61e60a7e0d170cbf96860921816623667813e458f"
+      "hash": "a7ad825638ecc39459061faaec4308e1f47ab61c99d30cad7b57373bbbab329a"
     }
   ]
 }

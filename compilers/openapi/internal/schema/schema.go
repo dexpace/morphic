@@ -780,11 +780,13 @@ func typeShapedBy(td ir.TypeDef, st oas3.SchemaType) bool {
 // anything that missed the field here reaches no field anywhere.
 //
 // Having the field is not reading it, so the two node kinds that have one ask
-// whether it was filled: a Model lowerAllOf composed carries no constraints at
-// all, where one lowerModel built carries whatever schemaConstraints read. A
-// List is absent for the stronger reason — lowerArray fills its Constraints from
-// listConstraints, whose collection bounds valueConstraintKeywords deliberately
-// excludes, so no value constraint ever reaches it however full the field looks.
+// whether it was filled: a Model carries whatever schemaConstraints read,
+// whether lowerModel or lowerAllOf built it — both fill Constraints the same
+// way (GitHub #407), so the composing position's own bound has the same home a
+// plain object's does. A List is absent for the stronger reason — lowerArray
+// fills its Constraints from listConstraints, whose collection bounds
+// valueConstraintKeywords deliberately excludes, so no value constraint ever
+// reaches it however full the field looks.
 func constraintsHome(td ir.TypeDef) bool {
 	switch n := td.(type) {
 	case *ir.Scalar:

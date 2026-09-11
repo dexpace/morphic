@@ -1,0 +1,8 @@
+openapi: 3.1.0
+info: {title: AllOfPositionConstraints, version: "1.0.0"}
+paths: {}
+components:
+  schemas:
+    Base:     {type: object, properties: {id: {type: string}}}
+    ViaModel: {type: object, properties: {a: {type: string}}, minProperties: 2}
+    ViaAllOf: {allOf: [{$ref: '#/components/schemas/Base'}], minProperties: 2}

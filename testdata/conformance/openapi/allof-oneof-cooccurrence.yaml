@@ -16,13 +16,16 @@ components:
       properties:
         b: {type: string}
     # allOf and oneOf at one level conjoin: the value satisfies Base AND exactly
-    # one of A/B. Both sides must survive (reference-learnings B11).
+    # one of A/B. Both sides must survive (reference-learnings B11). minProperties
+    # is the enclosing schema's own value constraint, distributed across both
+    # variants the same as Base is (GitHub #407).
     Combo:
       allOf:
         - {$ref: '#/components/schemas/Base'}
       oneOf:
         - {$ref: '#/components/schemas/A'}
         - {$ref: '#/components/schemas/B'}
+      minProperties: 2
     # An inline branch names no referent to conjoin Base with, so this union is
     # kept verbatim instead of half-distributed (ir-design 4.8).
     MixedKinds:
