@@ -153,11 +153,12 @@ func (c Ctx) PromoteDeprecation(unmodeled ir.Unmodeled, dep *ir.Deprecation, pro
 // says so, while here every value shape but an explicit `false` is a key that
 // means what its name says (TargetEnumOpen, extensionOpenness).
 //
-// The order the policy's keys are visited in is not fixed, because it cannot
-// matter: a key that states openness writes the same field the same value as
-// any other, a key that does not is skipped rather than deciding anything, and
-// none of them reports. Two keys disagreeing therefore read the same either
-// way round — open, because one of them said so.
+// The policy's keys are visited sorted, as PromoteDeprecation visits them.
+// Here the order cannot change the answer — a key that states openness writes
+// the same field the same value as any other, a key that does not is skipped
+// rather than deciding anything, and none of them reports, so two keys
+// disagreeing read as open either way round — but one spelling of the loop
+// for both carriers is one fewer place for the two to drift.
 //
 // Deliberately out of scope: a document that writes x-extensible-enum *instead*
 // of `enum`, listing the members in the extension, lowers to no ir.Enum at all,
@@ -168,9 +169,9 @@ func (c Ctx) PromoteEnumOpenness(unmodeled ir.Unmodeled, e *ir.Enum, prov *ir.Pr
 	if e == nil || prov == nil || len(unmodeled) == 0 || len(c.promotions) == 0 {
 		return
 	}
-	for key, target := range c.promotions {
+	for _, key := range slices.Sorted(maps.Keys(c.promotions)) {
 		entry, declared := unmodeled[extensionKeyPrefix+key]
-		if target != TargetEnumOpen || !declared || !extensionOpenness(entry.Value) {
+		if c.promotions[key] != TargetEnumOpen || !declared || !extensionOpenness(entry.Value) {
 			continue
 		}
 		e.Closed = false

@@ -320,6 +320,17 @@ func agreeingReadings() []readingsRow {
 		{name: "the key inside an open single-quoted scalar", src: "description: 'a\nopenapi: 3.1.0\n'\n"},
 		{name: "the key inside a single-quoted scalar with an escaped quote", src: "description: 'it''s\nopenapi: 3.1.0\n'\n"},
 		{name: "the key inside a quoted scalar opened on an indented line", src: "info:\n  d: \"a\nopenapi: 3.1.0\n\"\n"},
+		// A node property — an anchor, a tag, or both — stands between the colon
+		// and the opener, and yaml.v3 opens the construct behind it all the same.
+		{name: "the key inside a flow mapping behind an anchor", src: "a: &x {\nopenapi: 3.1.0\n}\n"},
+		{name: "the key inside a flow mapping behind a tag", src: "a: !!map {\nopenapi: 3.1.0\n}\n"},
+		{name: "the key inside a flow mapping behind a tag and an anchor", src: "a: !!map &x {\nopenapi: 3.1.0\n}\n"},
+		{name: "the key inside a quoted scalar behind an anchor", src: "a: &x \"s\nopenapi: 3.1.0\n\"\n"},
+		{name: "the key inside a flow mapping item behind an anchor", src: "x:\n  - &a {\nopenapi: 3.1.0\n}\n"},
+		{name: "the key inside a quoted scalar behind an anchor in flow style", src: "a: {b: &x \"}\nopenapi: 3.1.0\n\"}\n"},
+		{name: "a block key after an anchored flow document", src: "&x {\"a\":1}\nopenapi: 3.1.0\n"},
+		{name: "an anchored flow document", src: "&x {\"openapi\":\"3.1.0\"}", want: sniffProbe{OpenAPI: v}},
+		{name: "a tagged flow document", src: "!!map {\"openapi\":\"3.1.0\"}", want: sniffProbe{OpenAPI: v}},
 		// And the shapes that look like an opener and are not, so the guard
 		// above declines nothing the parse reads.
 		{name: "the key after a flow mapping closed on its line", src: "info: {title: T}\nopenapi: 3.1.0\n", want: sniffProbe{OpenAPI: v}},
@@ -333,6 +344,11 @@ func agreeingReadings() []readingsRow {
 		{name: "the key after a folded block scalar with a quote in it", src: "info:\n  d: >-\n    \"a\n\n    b\nopenapi: 3.1.0\n", want: sniffProbe{OpenAPI: v}},
 		{name: "the key after a block scalar item with an opener in it", src: "x:\n  - |\n    [\nopenapi: 3.1.0\n", want: sniffProbe{OpenAPI: v}},
 		{name: "the key after a block scalar with an indentation indicator", src: "d: |2\n   \"\nopenapi: 3.1.0\n", want: sniffProbe{OpenAPI: v}},
+		{name: "the key after a block scalar behind an anchor", src: "a: &x |\n  {\nopenapi: 3.1.0\nb: x}\n", want: sniffProbe{OpenAPI: v}},
+		// The brace the scalar carries is closed on a later root line, so this
+		// row reads the key only if the indicator was seen: a scalar whose
+		// opener never closes reads it at the end of the document regardless.
+		{name: "the key after a block scalar whose opener a later line closes", src: "d: |\n  {\nopenapi: 3.1.0\nb: x}\n", want: sniffProbe{OpenAPI: v}},
 		{name: "the key inside a flow mapping continued by a comment line", src: "info: {\n# c\nopenapi: 3.1.0\n}\n"},
 		{name: "the key inside a quoted scalar escaping its line break", src: "d: \"a\\\nopenapi: 3.1.0\n\"\n"},
 		{name: "the key after a quoted scalar closed on its line", src: "description: \"a # b\"\nopenapi: 3.1.0\n", want: sniffProbe{OpenAPI: v}},
@@ -358,6 +374,10 @@ func declaredReadings() []readingsRow {
 			declared: "the scan reads the scalar as written, and `&v 3.1.0` is no version", scan: sniffProbe{OpenAPI: "&v 3.1.0"}},
 		{name: "a tag before the version", src: "openapi: !!str 3.1.0\n", want: sniffProbe{OpenAPI: v},
 			declared: "the scan reads the scalar as written, and `!!str 3.1.0` is no version", scan: sniffProbe{OpenAPI: "!!str 3.1.0"}},
+		{name: "the version on the line after the key", src: "openapi:\n  3.1.0\n", want: sniffProbe{OpenAPI: v},
+			declared: "the scan reads a root entry off its own line; a value continued onto the next is a " +
+				"plain scalar that may run on for several, and reading its first line alone would claim " +
+				"`3.1.0 more` by its first word — the one direction detection must not be wrong in"},
 	}
 }
 

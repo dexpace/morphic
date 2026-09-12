@@ -161,7 +161,7 @@ func declaresFlowKey(data []byte) bool {
 // over by flowString alone, and the value after a root name is read only when
 // the visitor asks for it.
 func walkFlowRoot(data []byte, visit func(name []byte, next int) (resume int, stop bool)) bool {
-	i := skipSpaceAndComments(data, 0)
+	i := skipNodeProperties(data, skipSpaceAndComments(data, 0))
 	if i == len(data) || data[i] != '{' {
 		return false
 	}
@@ -227,6 +227,30 @@ func skipSpace(data []byte, i int) int {
 func skipSpaceAndComments(data []byte, i int) int {
 	for i = skipSpace(data, i); i < len(data) && data[i] == '#'; i = skipSpace(data, i) {
 		_, i = nextLine(data, i)
+	}
+	return i
+}
+
+// maxNodeProperties is how many node properties a node may carry: one anchor
+// and one tag, in either order. It bounds skipNodeProperties.
+const maxNodeProperties = 2
+
+// skipNodeProperties returns the index just past any node properties at i — an
+// `&anchor` or a `!tag`, each a word ended by whitespace or a flow indicator,
+// neither of which a name may contain — and the whitespace after them. YAML writes them in front of the node they annotate, so what
+// opens a construct may sit behind one or two of them: `a: &x {`, `!!map &x {`,
+// `&x "…"`. A reader testing the first byte after the colon for an opener
+// sees the property instead and opens nothing, which is the claiming direction
+// for every line the construct then continues.
+func skipNodeProperties(data []byte, i int) int {
+	for range maxNodeProperties {
+		if i == len(data) || (data[i] != '&' && data[i] != '!') {
+			return i
+		}
+		for i < len(data) && !isFlowScalarEnd(data[i]) {
+			i++
+		}
+		i = skipSpace(data, i)
 	}
 	return i
 }
@@ -411,7 +435,7 @@ func contentLine(line []byte) bool {
 // is left to scanFlowProbe: the parse reads nothing written after the closing
 // bracket, and walking the collection here would only lex it a second time.
 func scanBlockProbe(data []byte, probe *sniffProbe) {
-	if i := skipSpaceAndComments(data, 0); i < len(data) && (data[i] == '{' || data[i] == '[') {
+	if i := skipNodeProperties(data, skipSpaceAndComments(data, 0)); i < len(data) && (data[i] == '{' || data[i] == '[') {
 		return
 	}
 	sc := blockScan{probe: probe, scalarIndent: -1}
@@ -513,28 +537,35 @@ func (sc *blockScan) openAt(line []byte, j int) int {
 	if j == len(line) || line[j] == '#' {
 		return len(line)
 	}
-	if sc.openWith(line[j]) {
-		return j + 1
-	}
-	if blockScalarAt(line, j) {
-		sc.scalarIndent = indent
-		return len(line)
+	if next, opened := sc.openValue(line, j, indent); opened {
+		return next
 	}
 	k := separatedColon(line, j)
 	if k < 0 {
 		return len(line)
 	}
-	k = skipBlank(line, k+1)
-	if k == len(line) {
-		return len(line)
+	next, _ := sc.openValue(line, skipBlank(line, k+1), indent)
+	return next
+}
+
+// openValue opens whatever the value at line[j] begins — a flow collection or
+// quoted scalar, or a block scalar whose entry is indented by indent — behind
+// any node properties in front of it, and returns the index to read on from
+// and whether a construct or scalar was opened. A value that begins none of
+// them ends the line's reading.
+func (sc *blockScan) openValue(line []byte, j, indent int) (int, bool) {
+	j = skipNodeProperties(line, j)
+	if j == len(line) {
+		return len(line), false
 	}
-	if sc.openWith(line[k]) {
-		return k + 1
+	if sc.openWith(line[j]) {
+		return j + 1, true
 	}
-	if blockScalarAt(line, k) {
+	if blockScalarAt(line, j) {
 		sc.scalarIndent = indent
+		return len(line), true
 	}
-	return len(line)
+	return len(line), false
 }
 
 // blockScalarAt reports whether the value at line[j] is a block scalar
@@ -619,6 +650,11 @@ func (sc *blockScan) lexFlow(line []byte, j int) int {
 		case (b == '"' || b == '\'') && sc.atToken:
 			sc.quote = b
 			return j + 1
+		case (b == '&' || b == '!') && sc.atToken:
+			// A node property annotates the token after it, which is still
+			// to come: `{a: &x "}"}` quotes its closer.
+			j = skipNodeProperties(line, j)
+			continue
 		default:
 			sc.atToken = false
 		}
