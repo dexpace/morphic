@@ -357,7 +357,9 @@ components:
 // each answer differently, and the merge is why: an operation's own entry sits
 // under that operation, a $ref'd one under the component it names, and a
 // path-item one under the path item — the last shared by every operation on the
-// path, which is what tells an inherited parameter from a declared one.
+// path. Only the inline entries tell an inherited parameter from a declared
+// one: a $ref'd entry lands on its component from either mount, and the mount
+// site is not recorded.
 func TestParams_ProvenanceIsTheDeclaringPosition(t *testing.T) {
 	t.Parallel()
 	doc, diags := parseFull(t, paramProvenanceSpec)

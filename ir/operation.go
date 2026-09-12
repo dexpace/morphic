@@ -96,8 +96,10 @@ type Parameter struct {
 	// Provenance records where the parameter was declared. A parameter shared by
 	// several operations — a path-item parameter in OpenAPI, merged into every
 	// operation on the path — points at its own single declaration rather than
-	// at the operation it was merged into, so a consumer can tell an inherited
-	// parameter from one the operation declares.
+	// at the operation it was merged into. For a referenced entry the
+	// declaration is the component it names, and the mount site is not
+	// recorded: whether a parameter was inherited or declared by the operation
+	// is therefore readable off the pointer only for an entry written inline.
 	Provenance Provenance `json:"provenance"`
 }
 
@@ -106,13 +108,14 @@ type Parameter struct {
 type Payload struct {
 	// Contents holds one entry per media type / message schema — all kept.
 	Contents []Content `json:"contents,omitempty"`
-	// Required states whether the message may be omitted: true = the body must
-	// be sent, false = it is optional. nil = the source format does not express
-	// body optionality at all, which is why this is a pointer — for a format
-	// that does, an unstated body is optional, and collapsing that onto nil
-	// would make "the format is silent" indistinguishable from "the document
-	// says no". A response or message payload leaves it nil: only a request
-	// body can be omitted.
+	// Required states whether the message must be sent: true = the body is
+	// mandatory, false = it may be omitted. nil = the source format does not
+	// express body optionality at all, which is why this is a pointer — for a
+	// format that does, an unstated body is optional, and collapsing that onto
+	// nil would make "the format is silent" indistinguishable from "the
+	// document says no". A response or message payload leaves it nil: only a
+	// request body can be omitted, and pass/validate reports one that is set
+	// anywhere else (ir/payload-required-outside-request).
 	Required *bool `json:"required,omitempty"`
 	// Unmodeled holds source constructs the IR does not model, kept verbatim.
 	Unmodeled Unmodeled `json:"unmodeled,omitempty"`

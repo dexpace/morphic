@@ -1198,8 +1198,10 @@ type Parameter struct {
     Unmodeled  Unmodeled
     Provenance Provenance      // the parameter's own declaration; a parameter merged into several
                                // operations (an OpenAPI path-item parameter) points at that one
-                               // declaration, not at the operation it was merged into, which is
-                               // what tells an inherited parameter from a declared one
+                               // declaration, not at the operation it was merged into. For a
+                               // referenced entry that is the component it names, and the mount
+                               // site is not recorded — so inherited-vs-declared is readable off
+                               // the pointer only for an entry written inline
     // NOTE: no location here — path/query/header is HTTP-binding detail (§8.1)
 }
 
@@ -1211,7 +1213,8 @@ type Payload struct {
                                   // unstated body as optional, so folding that onto nil would make
                                   // "the format is silent" read as "the document says no".
                                   // Response and message payloads leave it nil — only a request
-                                  // body can be omitted
+                                  // body can be omitted — and pass/validate reports one set
+                                  // anywhere else (ir/payload-required-outside-request)
     Unmodeled  Unmodeled
 }
 
