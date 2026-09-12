@@ -423,3 +423,21 @@ func TestApplyExclusiveFlag_AModifierWithNoBoundIsKeptAndReported(t *testing.T) 
 	assert.Contains(t, diags[0].Message, "exclusiveMinimum is true with no minimum beside it")
 	assert.Contains(t, diags[1].Message, "exclusiveMaximum is true with no maximum beside it")
 }
+
+// TestApplyExclusiveFlag_AnUnreadableBoundIsNotAMissingOne pins the difference
+// between a minimum nobody wrote and one that would not read. numericBounds
+// leaves the parsed slot nil in both cases, so a modifier reading only the slot
+// took the second for the first: a literal that already earned its own error
+// then drew a second diagnostic asserting the keyword was absent, and parked
+// the modifier under Unmodeled as an orphan — on a schema that wrote the bound
+// on the line above.
+func TestApplyExclusiveFlag_AnUnreadableBoundIsNotAMissingOne(t *testing.T) {
+	t.Parallel()
+	got, kept, diags := Constraints(schemaFromYAML(t,
+		"type: number\nminimum: .inf\nexclusiveMinimum: true\n"), true, "/p", 3)
+
+	assert.Nil(t, got, "an unreadable bound leaves no constraint behind")
+	assert.Empty(t, kept, "the modifier modifies a bound that was written; it is no orphan")
+	require.Len(t, diags, 1, "the bad literal is the whole complaint; got %v", diags)
+	assert.Equal(t, diag.NumericPrecision, diags[0].Code)
+}

@@ -145,10 +145,11 @@ func boundLiteralDiag(prop, literal string, err error) ir.Diagnostic {
 // wrong form for the dialect is reported and dropped here rather than silently
 // accepted.
 func applyExclusive(c *ir.Constraints, s *oas3.Schema, side boundSide, residue *boundResidue, exclusiveBoolean bool) []ir.Diagnostic {
-	ev, prop := s.GetExclusiveMaximum(), "exclusiveMaximum"
+	ev := s.GetExclusiveMaximum()
 	if side == minBound {
-		ev, prop = s.GetExclusiveMinimum(), "exclusiveMinimum"
+		ev = s.GetExclusiveMinimum()
 	}
+	_, prop := boundProps(side)
 	if ev == nil {
 		return nil
 	}
@@ -156,7 +157,7 @@ func applyExclusive(c *ir.Constraints, s *oas3.Schema, side boundSide, residue *
 		return []ir.Diagnostic{exclusiveFormDiag(prop, exclusiveBoolean)}
 	}
 	if ev.IsLeft() {
-		return applyExclusiveFlag(c, side, residue, ev.GetLeft())
+		return applyExclusiveFlag(c, s, side, residue, ev.GetLeft())
 	}
 	node := RawPropertyNode(s, prop)
 	if node == nil {
@@ -186,14 +187,23 @@ func applyExclusive(c *ir.Constraints, s *oas3.Schema, side boundSide, residue *
 // there is no bound for the IR to make exclusive. Dropping it would be a
 // declared keyword lost without a word, so it is kept verbatim under Unmodeled
 // and reported.
-func applyExclusiveFlag(c *ir.Constraints, side boundSide, residue *boundResidue, flag *bool) []ir.Diagnostic {
+//
+// "No bound beside it" is read off the raw node, not the parsed slot: the slot
+// is nil for a bound nobody wrote and for one numericBounds could not read,
+// and only the first is an orphan. The second has already drawn the error its
+// literal earned, and a modifier of a bound the schema did write is dropped
+// with it rather than reported a second time as absent.
+func applyExclusiveFlag(c *ir.Constraints, s *oas3.Schema, side boundSide, residue *boundResidue, flag *bool) []ir.Diagnostic {
 	if flag == nil || !*flag {
 		return nil
 	}
+	inclProp, exclProp := boundProps(side)
+	if RawPropertyNode(s, inclProp) == nil {
+		return []ir.Diagnostic{residue.keepUnmodifiable(inclProp, exclProp)}
+	}
 	incl := inclusiveBound(c, side)
 	if *incl == nil {
-		inclProp, exclProp := boundProps(side)
-		return []ir.Diagnostic{residue.keepUnmodifiable(inclProp, exclProp)}
+		return nil
 	}
 	setExclusiveBound(c, side, *incl)
 	*incl = nil
