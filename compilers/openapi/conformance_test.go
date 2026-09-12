@@ -678,6 +678,14 @@ func assertSharedResponseAcrossStatus(t *testing.T, doc *ir.Document, _ []ir.Dia
 	require.True(t, ok)
 	assert.Equal(t, "envelope", td.Common().Name.Hint,
 		"the hint comes from the declaration, not from whichever status class minted it first")
+
+	created := operationAt(t, doc, "POST", "/widgets").Responses[0].Payload.Contents[0].Type.Target
+	rejected := operationAt(t, doc, "POST", "/gadgets").Errors[0].Payload.Contents[0].Type.Target
+	assert.Equal(t, created, rejected, "a path-pointer $ref reaches the same one type")
+	td, ok = doc.Types[created]
+	require.True(t, ok)
+	assert.Equal(t, "response", td.Common().Name.Hint,
+		"with no component to name it, both sides fall back to the one word")
 }
 
 func assertComponentReuse(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {

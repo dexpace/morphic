@@ -5,6 +5,12 @@
 # discarded. Without this fixture nothing in the corpus asks the question: no
 # other committed spec reaches one response component from both sides of the
 # success/error boundary, so the order-invariance oracle never fires on it.
+#
+# The second pair asks it where the declaration is no component: /gadgets
+# mounts /widgets' own inline 201 as its 400 by path pointer, so the body's
+# hint has no component name to fall back on and is whatever the mount that
+# lowered first passed — which the oracle sees only if a fixture puts the two
+# operations in the corpus.
 openapi: 3.1.0
 info: {title: SharedResponseAcrossStatus, version: "1"}
 paths:
@@ -14,6 +20,22 @@ paths:
       responses:
         "200": {$ref: '#/components/responses/Envelope'}
         "404": {$ref: '#/components/responses/Envelope'}
+    post:
+      operationId: createWidget
+      responses:
+        "201":
+          description: created, or the reason it was not
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  id: {type: string}
+  /gadgets:
+    post:
+      operationId: createGadget
+      responses:
+        "400": {$ref: '#/paths/~1widgets/post/responses/201'}
 components:
   responses:
     Envelope:

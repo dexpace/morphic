@@ -102,6 +102,117 @@
                 "source": 0,
                 "pointer": "/paths/~1widgets/get"
               }
+            },
+            {
+              "id": "op/openapi/paths/~1widgets/post",
+              "name": {
+                "source": "createWidget",
+                "canonical": "create_widget"
+              },
+              "docs": {},
+              "responses": [
+                {
+                  "name": {
+                    "hint": "201"
+                  },
+                  "conditions": {
+                    "statusCodes": [
+                      {
+                        "from": 201,
+                        "to": 201
+                      }
+                    ]
+                  },
+                  "payload": {
+                    "contents": [
+                      {
+                        "mediaType": "application/json",
+                        "type": {
+                          "target": "t/anon/paths/~1widgets/post/responses/201/content/application~1json/schema",
+                          "nullable": false
+                        }
+                      }
+                    ]
+                  },
+                  "docs": {
+                    "description": "created, or the reason it was not"
+                  }
+                }
+              ],
+              "oneWay": false,
+              "idempotency": {},
+              "auth": null,
+              "bindings": {
+                "http": [
+                  {
+                    "method": "POST",
+                    "uriTemplate": "/widgets",
+                    "sharedRoute": false,
+                    "checksumRequired": false,
+                    "isWebhook": false
+                  }
+                ]
+              },
+              "provenance": {
+                "source": 0,
+                "pointer": "/paths/~1widgets/post"
+              }
+            },
+            {
+              "id": "op/openapi/paths/~1gadgets/post",
+              "name": {
+                "source": "createGadget",
+                "canonical": "create_gadget"
+              },
+              "docs": {},
+              "errors": [
+                {
+                  "name": {
+                    "hint": "400"
+                  },
+                  "conditions": {
+                    "statusCodes": [
+                      {
+                        "from": 400,
+                        "to": 400
+                      }
+                    ]
+                  },
+                  "payload": {
+                    "contents": [
+                      {
+                        "mediaType": "application/json",
+                        "type": {
+                          "target": "t/anon/paths/~1widgets/post/responses/201/content/application~1json/schema",
+                          "nullable": false
+                        }
+                      }
+                    ]
+                  },
+                  "fault": "client",
+                  "docs": {
+                    "description": "created, or the reason it was not"
+                  }
+                }
+              ],
+              "oneWay": false,
+              "idempotency": {},
+              "auth": null,
+              "bindings": {
+                "http": [
+                  {
+                    "method": "POST",
+                    "uriTemplate": "/gadgets",
+                    "sharedRoute": false,
+                    "checksumRequired": false,
+                    "isWebhook": false
+                  }
+                ]
+              },
+              "provenance": {
+                "source": 0,
+                "pointer": "/paths/~1gadgets/post"
+              }
             }
           ]
         }
@@ -159,6 +270,52 @@
       "positional": false,
       "inputOnly": false
     },
+    "t/anon/paths/~1widgets/post/responses/201/content/application~1json/schema": {
+      "kind": "model",
+      "id": "t/anon/paths/~1widgets/post/responses/201/content/application~1json/schema",
+      "name": {
+        "hint": "response"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/paths/~1widgets/post/responses/201/content/application~1json/schema"
+      },
+      "properties": [
+        {
+          "id": "p/openapi/paths/~1widgets/post/responses/201/content/application~1json/schema/properties/id",
+          "name": {
+            "source": "id",
+            "canonical": "id"
+          },
+          "wireName": "id",
+          "type": {
+            "target": "t/prim/string",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/paths/~1widgets/post/responses/201/content/application~1json/schema/properties/id"
+          }
+        }
+      ],
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
     "t/prim/string": {
       "kind": "primitive",
       "id": "t/prim/string",
@@ -186,7 +343,7 @@
     {
       "format": "openapi@3.1",
       "path": "shared-response-across-status.yaml",
-      "hash": "2991fe4309203821a972955894df660694b68a1de80b95f8fe4fe2f0640fc27a"
+      "hash": "ef686506051b22594dccf327e04f82310be49464049aaeb827782fe4c97af856"
     }
   ]
 }

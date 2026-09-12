@@ -1,6 +1,8 @@
 package operation_test
 
 import (
+	"maps"
+	"slices"
 	"strconv"
 	"strings"
 	"testing"
@@ -2250,4 +2252,122 @@ func TestResponses_TwoKeysForOneRangeAreReported(t *testing.T) {
 	require.Len(t, op.Errors, 2, "both are kept: neither key is wrong on its own")
 	assert.True(t, openapitest.HasDiag(diags, diag.DuplicateStatusKey),
 		"two keys resolving to one range is reported; got %v", diags)
+}
+
+// TestResponses_ACollisionIsReportedTheSameInEitherOrder is the two-order diff
+// for that diagnostic. Reported at the second key to arrive, it named a
+// different key — and sat at a different pointer — when the two were declared
+// the other way round, though a responses map has no order to mean anything
+// by. One diagnostic per colliding range, at the map, naming every key in
+// sorted order, reads the same from either spelling; and three keys on one
+// range are one collision, not two.
+func TestResponses_ACollisionIsReportedTheSameInEitherOrder(t *testing.T) {
+	t.Parallel()
+	upper, lower, mixed := `        "4XX": {description: upper}
+`, `        "4xx": {description: lower}
+`, `        "4Xx": {description: mixed}
+`
+	diagsFor := func(keys string) []ir.Diagnostic {
+		t.Helper()
+		spec := openapitest.PathsSpec("  /w:\n    get:\n      operationId: w\n      responses:\n" + keys)
+		_, _, diags := lowerServiceSpec(t, spec)
+		var found []ir.Diagnostic
+		for _, d := range diags {
+			if d.Code == diag.DuplicateStatusKey {
+				found = append(found, d)
+			}
+		}
+		return found
+	}
+
+	asWritten := diagsFor(upper + lower + mixed)
+	reversed := diagsFor(mixed + lower + upper)
+	require.Len(t, asWritten, 1, "three keys on one range are one collision; got %v", asWritten)
+	assert.Equal(t, asWritten, reversed, "the report must not depend on which key was written first")
+	assert.Equal(t, "/paths/~1w/get/responses", asWritten[0].Provenance.Pointer)
+	assert.Contains(t, asWritten[0].Message, `"4XX", "4Xx", "4xx"`, "every colliding key, in sorted order")
+}
+
+// TestResponses_ASharedBodyIsNamedAlikeFromEitherStatusClass is the two-order
+// diff for the payload hint. A response $ref'd across operations by its path
+// pointer, mounted once as a success and once as an error, interns one type at
+// that pointer; the hint it carries was whichever side lowered first, because
+// the two sides fell back to different words where the pointer named no
+// component. Zero diagnostics either way, and nothing in the corpus reaches
+// the order-invariance oracle with this shape, so the swap is made here.
+func TestResponses_ASharedBodyIsNamedAlikeFromEitherStatusClass(t *testing.T) {
+	t.Parallel()
+	success := `  /a:
+    get:
+      operationId: getA
+      responses:
+        "200":
+          description: ok
+          content: {application/json: {schema: {type: object, properties: {a: {type: string}}}}}
+`
+	failure := `  /b:
+    get:
+      operationId: getB
+      responses:
+        "400": {$ref: '#/paths/~1a/get/responses/200'}
+`
+	hintOf := func(paths string) string {
+		t.Helper()
+		doc, _, diags := lowerServiceSpec(t, openapitest.PathsSpec(paths))
+		openapitest.RequireNoErrorDiags(t, diags)
+		td, ok := doc.Types["t/anon/paths/~1a/get/responses/200/content/application~1json/schema"]
+		require.True(t, ok, "the shared body is interned once at its declaration pointer; got %v", slices.Sorted(maps.Keys(doc.Types)))
+		return td.Common().Name.Hint
+	}
+
+	successFirst := hintOf(success + failure)
+	failureFirst := hintOf(failure + success)
+	assert.Equal(t, successFirst, failureFirst, "the hint depends on which mount lowered first")
+}
+
+// TestResponses_StatusKeyDiagsAreSitedAtTheOperation pins where the two
+// responses-map key diagnostics land. The key is a fact about the operation's
+// own map, so the diagnostic belongs at the operation's entry for it — not at
+// whatever the entry resolved to. Sited at the resolved pointer, a $ref'd
+// response put a warning about the operation on the shared component, naming
+// neither operation; and because the diagnostic stream dedups on full identity,
+// the second operation's warning vanished with it.
+func TestResponses_StatusKeyDiagsAreSitedAtTheOperation(t *testing.T) {
+	t.Parallel()
+	spec := `openapi: 3.1.0
+info: {title: T, version: "1"}
+paths:
+  /a:
+    get:
+      operationId: getA
+      responses:
+        "200": {description: ok}
+        "4XX": {$ref: '#/components/responses/NF'}
+        "4xx": {$ref: '#/components/responses/NF'}
+        "wat": {$ref: '#/components/responses/NF'}
+  /b:
+    get:
+      operationId: getB
+      responses:
+        "200": {description: ok}
+        "4XX": {$ref: '#/components/responses/NF'}
+        "4xx": {$ref: '#/components/responses/NF'}
+        "wat": {$ref: '#/components/responses/NF'}
+components:
+  responses:
+    NF: {description: not found}
+`
+	_, _, diags := lowerServiceSpec(t, spec)
+
+	for _, op := range []string{"~1a", "~1b"} {
+		responses := "/paths/" + op + "/get/responses"
+		msg := openapitest.DiagMessageAt(t, diags, diag.DuplicateStatusKey, ir.SeverityWarning, responses)
+		assert.Contains(t, msg, `"4XX", "4xx"`, "the message names every key that collided")
+		msg = openapitest.DiagMessageAt(t, diags, diag.InvalidStatusKey, ir.SeverityWarning, responses+"/wat")
+		assert.Contains(t, msg, `"wat"`, "the message names the key that could not be read")
+	}
+	for _, d := range diags {
+		assert.NotEqual(t, "/components/responses/NF", d.Provenance.Pointer,
+			"a key of the operation's map is no fault of the component it resolved to: %v", d)
+	}
 }
