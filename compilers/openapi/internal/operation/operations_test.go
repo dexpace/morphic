@@ -1263,7 +1263,7 @@ components:
 // component shared by twenty operations would repeat each line twenty times.
 func TestDiag_SharedDeclarationReportsEachDefectOnce(t *testing.T) {
 	t.Parallel()
-	_, diags := parseFull(t, sharedDefectiveBodySpec)
+	doc, diags := parseFull(t, sharedDefectiveBodySpec)
 
 	seen := map[string]int{}
 	for _, d := range diags {
@@ -1277,6 +1277,19 @@ func TestDiag_SharedDeclarationReportsEachDefectOnce(t *testing.T) {
 	assert.Equal(t, 3, openapitest.CountDiagsAt(diags, diag.DegradedConstruct, ir.SeverityInfo),
 		"the body schema's homeless required, the homeless error headers and the homeless "+
 			"error media type are three distinct defects")
+
+	// The shared component's own `required: false` reaches both use sites, as
+	// two values rather than one aliased pointer: lowering it at its declaration
+	// de-duplicates the diagnostics, not the field.
+	for _, name := range []string{"postA", "postB"} {
+		op := openapitest.FindOp(t, doc, name)
+		require.NotNil(t, op.Request, "%s has a body", name)
+		require.NotNil(t, op.Request.Required, "%s: OpenAPI states body optionality", name)
+		assert.False(t, *op.Request.Required, "%s: the component declares required: false", name)
+	}
+	assert.NotSame(t, openapitest.FindOp(t, doc, "postA").Request.Required,
+		openapitest.FindOp(t, doc, "postB").Request.Required,
+		"each use site owns its flag, so an emitter mutating one cannot reach the other")
 }
 
 // TestDiag_DistinctDefectsAtOnePointerBothSurvive is the control for the rule
