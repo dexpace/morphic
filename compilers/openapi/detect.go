@@ -3,6 +3,7 @@ package openapi
 import (
 	"bytes"
 	"fmt"
+	"strings"
 
 	yaml "gopkg.in/yaml.v3"
 
@@ -38,9 +39,9 @@ const mergeTag = "!!merge"
 // is the whole of the format question: an OpenAPI 3.x document declares
 // `openapi`, a Swagger 2.0 document declares `swagger`.
 //
-// It carries no struct tags: nothing decodes into it. Both readers — the flow
-// one over a JSON token stream and the block one over a parsed tree — name the
-// two keys themselves, in recordEntry and fieldFor.
+// It carries no struct tags: nothing decodes into it. Both readers — the scan
+// over bytes and the parse over a tree — name the two keys themselves, in
+// setVersion and fieldFor.
 type sniffProbe struct {
 	OpenAPI string
 	Swagger string
@@ -60,9 +61,12 @@ type sniffProbe struct {
 // source that says `openapi:` and will not read is this compiler's own and
 // broken, which nothing else is in a position to say. That covers a document
 // that does not parse and one that parses with a version key of the wrong shape
-// alike — both are unreadable here, and neither is another format's. Bytes that
-// declare neither key are, and a YAML parser's complaint about them describes
-// only the parser that was wrong to be asked.
+// alike — a mapping or a sequence where a version goes — since both are
+// unreadable here, and neither is another format's. Bytes that declare neither
+// key are, and a YAML parser's complaint about them describes only the parser
+// that was wrong to be asked. So is a key with prose beside it rather than a
+// version (declaredVersions): Markdown writes `openapi:` at column 0 too, and
+// what tells its line from a declaration is the one word after the colon.
 func (*Compiler) Detect(src compilers.Source) (compilers.SourceFormat, []ir.Diagnostic, bool) {
 	probe, err := sniff(src.Data)
 	switch {
@@ -139,7 +143,25 @@ func declaresBlockKey(data []byte, key string) bool {
 // the case it exists for — a document broken before the key that names it — so
 // there is no tree to ask instead.
 func declaresFlowKey(data []byte) bool {
-	i := skipSpace(data, 0)
+	return walkFlowRoot(data, func(name []byte, next int) (int, bool) {
+		return next, isProbeName(name) && startsWithColon(data, next)
+	})
+}
+
+// walkFlowRoot lexes the flow mapping data opens and calls visit at each quoted
+// string that is one of the root mapping's own entries — a name at depth 1 —
+// with the index just past its closing quote. visit returns where to resume
+// and whether to stop; walkFlowRoot reports whether it was stopped. Data that
+// opens no flow mapping is walked past nothing.
+//
+// The two flow readers share this walk so they cannot drift: one lexer, one
+// notion of depth, and the visitor is the whole of what differs between
+// "is the key there" and "what does it say". A name is handed over only at
+// depth 1, which is also what keeps the walk cheap — a nested string is stepped
+// over by flowString alone, and the value after a root name is read only when
+// the visitor asks for it.
+func walkFlowRoot(data []byte, visit func(name []byte, next int) (resume int, stop bool)) bool {
+	i := skipSpaceAndComments(data, 0)
 	if i == len(data) || data[i] != '{' {
 		return false
 	}
@@ -148,10 +170,15 @@ func declaresFlowKey(data []byte) bool {
 		switch data[i] {
 		case '"':
 			name, next := flowString(data, i)
-			if depth == 1 && isProbeName(name) && startsWithColon(data, next) {
+			if depth != 1 {
+				i = next
+				continue
+			}
+			resume, stop := visit(name, next)
+			if stop {
 				return true
 			}
-			i = next
+			i = resume
 		case '{', '[':
 			depth++
 			i++
@@ -190,6 +217,16 @@ func isProbeName(name []byte) bool {
 func skipSpace(data []byte, i int) int {
 	for i < len(data) && (data[i] == ' ' || data[i] == '\t' || data[i] == '\r' || data[i] == '\n') {
 		i++
+	}
+	return i
+}
+
+// skipSpaceAndComments returns the index of the first byte at or after i that
+// begins content: past whitespace, and past any line a `#` opens. A flow
+// document may follow a comment line, and yaml.v3 reads it there.
+func skipSpaceAndComments(data []byte, i int) int {
+	for i = skipSpace(data, i); i < len(data) && data[i] == '#'; i = skipSpace(data, i) {
+		_, i = nextLine(data, i)
 	}
 	return i
 }
@@ -240,19 +277,22 @@ func declaredVersions(probe sniffProbe) sniffProbe {
 	return probe
 }
 
-// isVersion reports whether value reads as a dotted version: digits and dots,
-// beginning with a digit. It admits the three shapes majorMinor is written for —
-// "3.1.0", "3.1", and a bare "4" — and nothing that a sentence of prose is.
+// isVersion reports whether value reads as a version rather than as prose: one
+// word, beginning with a digit. That admits the three shapes majorMinor is
+// written for — "3.1.0", "3.1", a bare "4" — and the ones load goes on to
+// refuse by name, "3.1.0-rc1" or "3x", and nothing that a sentence is.
+//
+// The suffixes are admitted on purpose. A document writing one is this
+// compiler's own and wrong, and the precise complaint — which version, and why
+// it is not served — is load's and the validator's to make; declining here
+// hands the same file to the engine's generic "unrecognized format" instead.
+// What the guard exists to keep out is another format's prose beside the word,
+// and prose has a space in it.
 func isVersion(value string) bool {
 	if value == "" || value[0] < '0' || value[0] > '9' {
 		return false
 	}
-	for i := range len(value) {
-		if (value[i] < '0' || value[i] > '9') && value[i] != '.' {
-			return false
-		}
-	}
-	return true
+	return !strings.ContainsAny(value, " \t")
 }
 
 // scanProbe reads the probe keys and their versions out of data without building
@@ -362,16 +402,255 @@ func contentLine(line []byte) bool {
 }
 
 // scanBlockProbe reads a block document's top-level entries, which are its lines
-// beginning at column 0. It allocates nothing per line: a document past the cap
-// is megabytes of lines this walks and keeps none of.
+// beginning at column 0 — outside any flow collection or quoted scalar still
+// open from a line above, since YAML continues both at any column. It allocates
+// nothing per line: a document past the cap is megabytes of lines this walks
+// and keeps none of.
+//
+// A document whose root is a flow collection has no block entries at all, and
+// is left to scanFlowProbe: the parse reads nothing written after the closing
+// bracket, and walking the collection here would only lex it a second time.
 func scanBlockProbe(data []byte, probe *sniffProbe) {
+	if i := skipSpaceAndComments(data, 0); i < len(data) && (data[i] == '{' || data[i] == '[') {
+		return
+	}
+	sc := blockScan{probe: probe, scalarIndent: -1}
 	for i := 0; i < len(data); {
 		var line []byte
 		line, i = nextLine(data, i)
-		if name, value, ok := blockEntry(line); ok {
-			setVersion(probe, name, value)
+		sc.line(line)
+	}
+	// A construct never closed is not a construct: the parse refuses such a
+	// document, and what a scan owes an unreadable document that names the
+	// key is to name its format, so the compile reports the break by name
+	// (TestDetect_Formats, "key past the cap on an unparseable prefix"). The
+	// lines read inside it were root lines after all.
+	if sc.open() {
+		sc.probe.fillFrom(sc.pending)
+	}
+}
+
+// blockScan is the state the block scan carries from one line to the next: the
+// flow collection or quoted scalar a line above opened and has not closed. A
+// line inside one is not a root entry whatever column it begins in — the
+// parse nests it — so the scan lexes through to the close instead of reading it.
+//
+// It is a lexer over three things only: quotes (with each style's escape),
+// bracket depth, and the comments flow style admits. Everything it cannot be
+// sure of it leaves open, since an open construct declines lines and a closed
+// one claims them, and declining is the direction detection may be wrong in.
+type blockScan struct {
+	probe *sniffProbe
+	depth int  // flow brackets open
+	quote byte // the quote a scalar was opened with, or 0
+	// atToken is whether the next byte in flow style begins a token, which is
+	// where a quote opens a scalar; elsewhere it is content, as in `{a: it's}`.
+	atToken bool
+	// scalarIndent is the indentation of the entry whose block scalar (`|` or
+	// `>`) is being read, or -1 outside one. Its content is every line indented
+	// deeper, whatever those lines look like, and the first that is not ends it.
+	scalarIndent int
+	// pending holds what the lines inside an open construct said, kept apart
+	// from probe until the construct closes — which discards them — or the
+	// document ends with it open, which adopts them (see scanBlockProbe).
+	pending sniffProbe
+}
+
+// open reports whether a construct from a line above is still open.
+func (sc *blockScan) open() bool { return sc.quote != 0 || sc.depth > 0 }
+
+// line reads one line: a root entry, if the line is one — into probe when
+// nothing is open, into pending when something is; then whatever the line
+// opens or closes, so the next line is read right.
+func (sc *blockScan) line(line []byte) {
+	if sc.scalarIndent >= 0 {
+		if blankLine(line) || indentOf(line) > sc.scalarIndent {
+			return
+		}
+		sc.scalarIndent = -1
+	}
+	// A root entry begins at column 0, so an indented line is not asked.
+	if name, value, ok := blockEntry(line); ok && indentOf(line) == 0 {
+		if sc.open() {
+			setVersion(&sc.pending, name, value)
+		} else {
+			setVersion(sc.probe, name, value)
 		}
 	}
+	sc.atToken = true
+	for j := 0; j < len(line); {
+		if sc.open() {
+			j = sc.lex(line, j)
+		} else {
+			j = sc.openAt(line, j)
+		}
+	}
+	if !sc.open() {
+		sc.pending = sniffProbe{}
+	}
+}
+
+// blankLine reports whether line carries nothing but blank space.
+func blankLine(line []byte) bool { return skipBlank(line, 0) == len(line) }
+
+// indentOf returns the column of the first byte of line that is not blank.
+func indentOf(line []byte) int { return skipBlank(line, 0) }
+
+// openAt finds the next place on line, from j, where a flow collection or a
+// quoted scalar begins — the value of a block entry or a sequence item, or a
+// quoted key — opens it, and returns the index just past its opener. It returns
+// the line's end when the line opens nothing more.
+//
+// A value that is a block scalar indicator opens one instead, whose content
+// the following lines carry (see scalarIndent): the indicator is what says
+// those lines are text, whatever byte they begin with.
+func (sc *blockScan) openAt(line []byte, j int) int {
+	indent := skipBlank(line, j)
+	j = indent
+	for j < len(line) && line[j] == '-' && (j+1 == len(line) || isBlank(line[j+1])) {
+		j = skipBlank(line, j+1)
+	}
+	if j == len(line) || line[j] == '#' {
+		return len(line)
+	}
+	if sc.openWith(line[j]) {
+		return j + 1
+	}
+	if blockScalarAt(line, j) {
+		sc.scalarIndent = indent
+		return len(line)
+	}
+	k := separatedColon(line, j)
+	if k < 0 {
+		return len(line)
+	}
+	k = skipBlank(line, k+1)
+	if k == len(line) {
+		return len(line)
+	}
+	if sc.openWith(line[k]) {
+		return k + 1
+	}
+	if blockScalarAt(line, k) {
+		sc.scalarIndent = indent
+	}
+	return len(line)
+}
+
+// blockScalarAt reports whether the value at line[j] is a block scalar
+// indicator: `|` or `>`, followed by the end of the line, a blank, or a
+// chomping or indentation modifier.
+func blockScalarAt(line []byte, j int) bool {
+	if line[j] != '|' && line[j] != '>' {
+		return false
+	}
+	if j+1 == len(line) {
+		return true
+	}
+	b := line[j+1]
+	return isBlank(b) || b == '+' || b == '-' || (b >= '0' && b <= '9')
+}
+
+// openWith opens the construct b begins, and reports whether b begins one.
+func (sc *blockScan) openWith(b byte) bool {
+	switch b {
+	case '{', '[':
+		sc.depth = 1
+		sc.atToken = true
+	case '"', '\'':
+		sc.quote = b
+	default:
+		return false
+	}
+	return true
+}
+
+// lex reads line from j through the close of whatever is open, and returns the
+// index just past it — or the line's end, leaving the construct open.
+func (sc *blockScan) lex(line []byte, j int) int {
+	if sc.quote != 0 {
+		return sc.lexQuoted(line, j)
+	}
+	return sc.lexFlow(line, j)
+}
+
+// lexQuoted reads a quoted scalar to its closing quote. A double-quoted scalar
+// escapes with a backslash, a single-quoted one by doubling the quote; a
+// backslash ending the line escapes the line break, and stepping past the end
+// is the same as reaching it.
+func (sc *blockScan) lexQuoted(line []byte, j int) int {
+	for j < len(line) {
+		switch {
+		case sc.quote == '"' && line[j] == '\\':
+			j += 2
+		case line[j] != sc.quote:
+			j++
+		case sc.quote == '\'' && j+1 < len(line) && line[j+1] == '\'':
+			j += 2
+		default:
+			sc.quote = 0
+			return j + 1
+		}
+	}
+	return len(line)
+}
+
+// lexFlow reads flow-style bytes: brackets nest, a quote at a token's start
+// opens a scalar, and a `#` after a blank opens a comment that ends the line.
+func (sc *blockScan) lexFlow(line []byte, j int) int {
+	for j < len(line) {
+		b := line[j]
+		switch {
+		case b == '{' || b == '[':
+			sc.depth++
+			sc.atToken = true
+		case b == '}' || b == ']':
+			sc.depth--
+			sc.atToken = false
+			if sc.depth == 0 {
+				return j + 1
+			}
+		case b == ',' || b == ':':
+			sc.atToken = true
+		case isBlank(b):
+			// Blank space neither begins nor ends a token.
+		case b == '#' && (j == 0 || isBlank(line[j-1])):
+			return len(line)
+		case (b == '"' || b == '\'') && sc.atToken:
+			sc.quote = b
+			return j + 1
+		default:
+			sc.atToken = false
+		}
+		j++
+	}
+	return len(line)
+}
+
+// separatedColon returns the index of the first colon at or after j that is
+// followed by a blank or the end of the line — the colon that ends a plain key
+// — or -1 when there is none.
+func separatedColon(line []byte, j int) int {
+	for k := bytes.IndexByte(line[j:], ':'); k >= 0; k = bytes.IndexByte(line[j:], ':') {
+		j += k
+		if j+1 == len(line) || isBlank(line[j+1]) {
+			return j
+		}
+		j++
+	}
+	return -1
+}
+
+// isBlank reports whether b is a space, a tab, or a carriage return.
+func isBlank(b byte) bool { return b == ' ' || b == '\t' || b == '\r' }
+
+// skipBlank returns the index of the first byte at or after j that is not
+// blank, or len(line) if there is none.
+func skipBlank(line []byte, j int) int {
+	for j < len(line) && isBlank(line[j]) {
+		j++
+	}
+	return j
 }
 
 // blockEntry returns the probe key line writes and the value beside it, and
@@ -381,12 +660,25 @@ func scanBlockProbe(data []byte, probe *sniffProbe) {
 // `openapi:3.1.0` as a plain scalar and not as a key — the parse below the cap
 // refuses that document for having a string at its root — so a scan that took it
 // for a key would name a format on bytes the parser says declare none.
+//
+// Whitespace between the name and the colon is YAML's to allow — `openapi :
+// 3.1.0` keys the same entry — so the name is trimmed before it is compared.
 func blockEntry(line []byte) (name, value []byte, ok bool) {
 	name, rest, cut := bytes.Cut(line, []byte(":"))
-	if !cut || !isProbeName(name) || !separated(rest) {
+	if !cut || !isProbeName(trimBlank(name)) || !separated(rest) {
 		return nil, nil, false
 	}
-	return name, blockValue(rest), true
+	return trimBlank(name), blockValue(rest), true
+}
+
+// trimBlank returns name without trailing spaces and tabs. The last byte is
+// looked at before anything is trimmed, because this runs once per line of a
+// document past the cap and nearly every line has nothing to trim.
+func trimBlank(name []byte) []byte {
+	if n := len(name); n == 0 || (name[n-1] != ' ' && name[n-1] != '\t') {
+		return name
+	}
+	return bytes.TrimRight(name, " \t")
 }
 
 // separated reports whether rest, the bytes after a colon, begins the way a
@@ -398,15 +690,29 @@ func separated(rest []byte) bool {
 // blockValue returns the scalar a block entry writes after its colon, without the
 // space around it, a trailing comment, or the quotes either style of quoting may
 // have put around it.
+//
+// A comment begins at a `#` after whitespace — a space or a tab, since YAML
+// admits either before one — and a `#` with neither before it is content.
 func blockValue(raw []byte) []byte {
 	value := bytes.TrimSpace(raw)
-	if i := bytes.Index(value, []byte(" #")); i >= 0 {
+	if i := commentStart(value); i >= 0 {
 		value = bytes.TrimSpace(value[:i])
 	}
 	if len(value) >= 2 && (value[0] == '"' || value[0] == '\'') && value[len(value)-1] == value[0] {
 		value = value[1 : len(value)-1]
 	}
 	return value
+}
+
+// commentStart returns the index of the `#` that opens a trailing comment in
+// value, or -1 when it carries none.
+func commentStart(value []byte) int {
+	for i := 1; i < len(value); i++ {
+		if value[i] == '#' && (value[i-1] == ' ' || value[i-1] == '\t') {
+			return i
+		}
+	}
+	return -1
 }
 
 // scanFlowProbe reads the entries of the flow mapping data opens, which is the
@@ -419,46 +725,61 @@ func blockValue(raw []byte) []byte {
 // case it exists for — a document broken before the key that names it — so there
 // is no tree to ask instead.
 func scanFlowProbe(data []byte, probe *sniffProbe) {
-	i := skipSpace(data, 0)
-	if i == len(data) || data[i] != '{' {
-		return
-	}
-
-	for depth := 0; i < len(data); {
-		switch data[i] {
-		case '"':
-			name, next := flowString(data, i)
-			if value, after, ok := flowValue(data, next); depth == 1 && isProbeName(name) && ok {
-				setVersion(probe, name, value)
-				i = after
-				continue
-			}
-			i = next
-		case '{', '[':
-			depth++
-			i++
-		case '}', ']':
-			depth--
-			i++
-		default:
-			i++
+	walkFlowRoot(data, func(name []byte, next int) (int, bool) {
+		if !isProbeName(name) {
+			return next, false
 		}
-	}
+		value, after, ok := flowValue(data, next)
+		if !ok {
+			return next, false
+		}
+		setVersion(probe, name, value)
+		return after, false
+	})
 }
 
-// flowValue returns the quoted scalar written after the colon at i, and the index
-// just past it. A name with no colon after it is no key, and a version written as
-// anything but a string does not declare a dialect this compiler serves.
+// flowValue returns the scalar written after the colon at i, and the index just
+// past it. A name with no colon after it is no key, and a value that opens a
+// collection is no version.
+//
+// A bare scalar is read as well as a quoted one, because the parse reads both:
+// `"openapi": 3.1` is a number to JSON and a version to yaml.v3's scalar text
+// alike, and a scan that took only the quoted spelling declined past the cap a
+// document the parse claimed below it. The bare scalar ends where flow syntax
+// ends it — at a comma, a closing bracket, or whitespace.
 func flowValue(data []byte, i int) ([]byte, int, bool) {
 	i = skipSpace(data, i)
 	if i == len(data) || data[i] != ':' {
 		return nil, i, false
 	}
-	if i = skipSpace(data, i+1); i == len(data) || data[i] != '"' {
+	if i = skipSpace(data, i+1); i == len(data) {
 		return nil, i, false
 	}
-	value, next := flowString(data, i)
-	return value, next, true
+	if data[i] == '"' {
+		value, next := flowString(data, i)
+		return value, next, true
+	}
+	j := i
+	for j < len(data) && !isFlowScalarEnd(data[j]) {
+		j++
+	}
+	if j == i {
+		return nil, i, false
+	}
+	return data[i:j], j, true
+}
+
+// isFlowScalarEnd reports whether b ends a bare scalar in flow style: the
+// separators and closers of flow syntax, and whitespace, which a version never
+// contains. The openers are here too, so a value that begins one reads as an
+// empty scalar and flowValue declines it.
+func isFlowScalarEnd(b byte) bool {
+	switch b {
+	case ',', '}', ']', '{', '[', ' ', '\t', '\r', '\n':
+		return true
+	default:
+		return false
+	}
 }
 
 // setVersion stores value under probe's field for name.

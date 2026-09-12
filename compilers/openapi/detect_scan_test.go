@@ -48,11 +48,7 @@ func TestDetect_AValueThatIsNoVersionIsNoDeclaration(t *testing.T) {
 		{"prose beside the key", "openapi: is a format\n"},
 		{"a pointer beside the key", "openapi: see the docs\n"},
 		{"prose beside swagger", "swagger: yes\n"},
-		// Version-shaped at its start and not to its end. A prerelease suffix is
-		// the live spelling of this: it names no dialect this compiler serves, and
-		// reading only the leading digits would claim one it does not.
-		{"a prerelease suffix", "openapi: 3.1.0-rc1\n"},
-		{"digits and then a word", "openapi: 3x\n"},
+		{"a number and then prose", "openapi: 3 things to know\n"},
 		{"markdown past the cap", "# Notes\n\n" + strings.Repeat("filler text\n", 8000) + "openapi: is a format\n"},
 		{"flow style, prose for a version", `{"openapi":"is a format"}`},
 	}
@@ -63,6 +59,34 @@ func TestDetect_AValueThatIsNoVersionIsNoDeclaration(t *testing.T) {
 			assert.False(t, ok, "prose beside the word is not a declaration of this format")
 			assert.Equal(t, compilers.SourceFormat{}, got)
 			assert.Nil(t, codesOf(diags), "another format's file earns no complaint from this one")
+		})
+	}
+}
+
+// TestDetect_AVersionThatIsNotServedIsStillADeclaration pins the other edge of
+// the prose guard. A prerelease or otherwise unserved version is still one
+// word beside the key, which is what a declaration looks like and prose does
+// not; declining it here handed a document whose first line is `openapi:` to
+// the engine's generic "unrecognized format", where claiming it lets load and
+// the validator say exactly which version was wrong. That is the precise error
+// this compiler gave on such a document before the scan existed, and the cap
+// must not decide whether the author gets it.
+func TestDetect_AVersionThatIsNotServedIsStillADeclaration(t *testing.T) {
+	t.Parallel()
+	cases := []struct{ name, src, want string }{
+		{"a prerelease suffix", "openapi: 3.1.0-rc1\n", "3.1"},
+		{"a build suffix", "openapi: 3.1.0+build.7\n", "3.1"},
+		{"digits and then a word", "openapi: 3x\n", "3x"},
+		{"a prerelease suffix past the cap", "openapi: 3.1.0-rc1\n#" + flowPad() + "\n", "3.1"},
+		{"a prerelease suffix in flow style", `{"openapi":"3.1.0-rc1"}`, "3.1"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			got, diags, ok := New().Detect(compilers.Source{Path: "api.yaml", Data: []byte(tc.src)})
+			assert.True(t, ok, "one word beside the key declares the format, whether or not it is served")
+			assert.Equal(t, compilers.SourceFormat{Name: "openapi", Version: tc.want}, got)
+			assert.Nil(t, codesOf(diags), "which version is wrong is load's to say")
 		})
 	}
 }
@@ -127,10 +151,12 @@ func TestScanProbe_ReadsTheVersionBesideTheKey(t *testing.T) {
 		{"both keys, whichever order", `{"swagger":"2.0","openapi":"3.1.0"}`,
 			sniffProbe{OpenAPI: "3.1.0", Swagger: "2.0"}},
 
-		// A version that is not a quoted scalar declares no dialect, and must not
-		// be read as one by accident.
-		{"flow style, non-string version", `{"openapi":3}`, sniffProbe{}},
+		// A bare scalar is read as the parse reads it — the scalar's text — and
+		// a value that opens a collection is not read at all.
+		{"flow style, bare scalar version", `{"openapi":3}`, sniffProbe{OpenAPI: "3"}},
+		{"flow style, collection for a version", `{"openapi":{"a":"3.1.0"}}`, sniffProbe{}},
 		{"the name has no colon after it", `{"openapi","3.1.0"}`, sniffProbe{}},
+		{"the document ends at the colon", `{"openapi":`, sniffProbe{}},
 		// Depth is what makes an entry the document's own.
 		{"nested one level down", `{"a":{"openapi":"3.1.0"}}`, sniffProbe{}},
 		{"a document that opens a sequence", `[{"openapi":"3.1.0"}]`, sniffProbe{}},
@@ -246,6 +272,12 @@ func agreeingReadings() []readingsRow {
 		{name: "flow style", src: `{"openapi":"3.1.0"}`, want: sniffProbe{OpenAPI: v}},
 		{name: "CRLF line endings", src: "openapi: 3.1.0\r\ninfo: {}\r\n", want: sniffProbe{OpenAPI: v}},
 		{name: "a tab after the colon", src: "openapi:\t3.1.0\n", want: sniffProbe{OpenAPI: v}},
+		{name: "a tab before a trailing comment", src: "openapi: 3.1.0\t# c\n", want: sniffProbe{OpenAPI: v}},
+		{name: "a space before the colon", src: "openapi : 3.1.0\n", want: sniffProbe{OpenAPI: v}},
+		{name: "a tab before the colon", src: "openapi\t: 3.1.0\n", want: sniffProbe{OpenAPI: v}},
+		{name: "a bare scalar in flow style", src: `{"openapi": 3.1}`, want: sniffProbe{OpenAPI: "3.1"}},
+		{name: "a bare scalar closing the flow mapping", src: `{"openapi":3.1}`, want: sniffProbe{OpenAPI: "3.1"}},
+		{name: "a bare scalar before a sibling", src: `{"openapi":3.1,"info":{}}`, want: sniffProbe{OpenAPI: "3.1"}},
 		{name: "a byte-order mark, block style", src: "\xef\xbb\xbfopenapi: 3.1.0\n", want: sniffProbe{OpenAPI: v}},
 		{name: "a byte-order mark, flow style", src: "\xef\xbb\xbf{\"openapi\":\"3.1.0\"}", want: sniffProbe{OpenAPI: v}},
 		{name: "an explicit document start", src: "---\nopenapi: 3.1.0\n", want: sniffProbe{OpenAPI: v}},
@@ -256,6 +288,10 @@ func agreeingReadings() []readingsRow {
 		{name: "a directive before the document start", src: "%YAML 1.1\n---\nopenapi: 3.1.0\n", want: sniffProbe{OpenAPI: v}},
 		{name: "a flow document after the marker", src: "--- {\"openapi\":\"3.1.0\"}\n", want: sniffProbe{OpenAPI: v}},
 		{name: "a flow document on the line after the marker", src: "---\n{\"openapi\":\"3.1.0\"}\n", want: sniffProbe{OpenAPI: v}},
+		{name: "a comment before a flow document", src: "# c\n\n  # d\n{\"openapi\":\"3.1.0\"}\n", want: sniffProbe{OpenAPI: v}},
+		// A root flow mapping is the whole document; a block entry written after
+		// it is no root key, and the parse reads none.
+		{name: "a block key after a flow document", src: "{\"openapi\":\"3.1.0\"}\nswagger: 2.0\n", want: sniffProbe{OpenAPI: v}},
 		{name: "an end marker after the key", src: "openapi: 3.1.0\n...\n", want: sniffProbe{OpenAPI: v}},
 		{name: "a plain scalar opening with dashes", src: "---- : 1\nopenapi: 3.1.0\n", want: sniffProbe{OpenAPI: v}},
 		{name: "a key opening with one dash", src: "-x: 1\nopenapi: 3.1.0\n", want: sniffProbe{OpenAPI: v}},
@@ -272,6 +308,35 @@ func agreeingReadings() []readingsRow {
 		// document for having a string at its root, and the scan reads no entry.
 		{name: "no space after the colon", src: "openapi:3.1.0\n"},
 		{name: "the name as a value", src: `{"note":"openapi"}`},
+		// Column 0 is a root key only outside a flow collection or a quoted
+		// scalar still open from a line above: yaml.v3 continues both there,
+		// wherever the opener sat. The scan used to read every column-0 line as
+		// a root key and claimed a document the parse reads as nesting the key.
+		{name: "the key inside an open flow mapping", src: "info: {\nopenapi: 3.1.0\n}\n"},
+		{name: "the key inside an open flow sequence", src: "info: [\nopenapi: 3.1.0\n]\n"},
+		{name: "the key inside a flow mapping opened on an indented line", src: "info:\n  x: {\nopenapi: 3.1.0\n}\n"},
+		{name: "the key inside a flow mapping after a comment", src: "info: {a: \"x\", # c\nopenapi: 3.1.0\n}\n"},
+		{name: "the key inside an open double-quoted scalar", src: "description: \"a\nopenapi: 3.1.0\n\"\n"},
+		{name: "the key inside an open single-quoted scalar", src: "description: 'a\nopenapi: 3.1.0\n'\n"},
+		{name: "the key inside a single-quoted scalar with an escaped quote", src: "description: 'it''s\nopenapi: 3.1.0\n'\n"},
+		{name: "the key inside a quoted scalar opened on an indented line", src: "info:\n  d: \"a\nopenapi: 3.1.0\n\"\n"},
+		// And the shapes that look like an opener and are not, so the guard
+		// above declines nothing the parse reads.
+		{name: "the key after a flow mapping closed on its line", src: "info: {title: T}\nopenapi: 3.1.0\n", want: sniffProbe{OpenAPI: v}},
+		{name: "the key after a flow mapping nesting collections", src: "info: {a: [1, {b: 2}]}\nopenapi: 3.1.0\n", want: sniffProbe{OpenAPI: v}},
+		{name: "the key after a plain scalar with an unseparated colon", src: "url: http://x\nopenapi: 3.1.0\n", want: sniffProbe{OpenAPI: v}},
+		{name: "the key after a flow mapping quoting a closer", src: "info: {title: \"}\"}\nopenapi: 3.1.0\n", want: sniffProbe{OpenAPI: v}},
+		{name: "the key after a flow mapping with an apostrophe in a plain scalar", src: "info: {t: it's}\nopenapi: 3.1.0\n", want: sniffProbe{OpenAPI: v}},
+		{name: "the key after a flow mapping commenting a closer", src: "info: {t: a # }\n}\nopenapi: 3.1.0\n", want: sniffProbe{OpenAPI: v}},
+		{name: "the key after a plain scalar with an opener in it", src: "description: a [b\nopenapi: 3.1.0\n", want: sniffProbe{OpenAPI: v}},
+		{name: "the key after a block scalar with an opener in it", src: "description: |\n  {\nopenapi: 3.1.0\n", want: sniffProbe{OpenAPI: v}},
+		{name: "the key after a folded block scalar with a quote in it", src: "info:\n  d: >-\n    \"a\n\n    b\nopenapi: 3.1.0\n", want: sniffProbe{OpenAPI: v}},
+		{name: "the key after a block scalar item with an opener in it", src: "x:\n  - |\n    [\nopenapi: 3.1.0\n", want: sniffProbe{OpenAPI: v}},
+		{name: "the key after a block scalar with an indentation indicator", src: "d: |2\n   \"\nopenapi: 3.1.0\n", want: sniffProbe{OpenAPI: v}},
+		{name: "the key inside a flow mapping continued by a comment line", src: "info: {\n# c\nopenapi: 3.1.0\n}\n"},
+		{name: "the key inside a quoted scalar escaping its line break", src: "d: \"a\\\nopenapi: 3.1.0\n\"\n"},
+		{name: "the key after a quoted scalar closed on its line", src: "description: \"a # b\"\nopenapi: 3.1.0\n", want: sniffProbe{OpenAPI: v}},
+		{name: "the key after a quoted scalar with an escaped quote", src: "description: \"a \\\" b\"\nopenapi: 3.1.0\n", want: sniffProbe{OpenAPI: v}},
 	}
 }
 
@@ -304,8 +369,10 @@ func declaredReadings() []readingsRow {
 // declaredReadings is the whole of the list of shapes the scan does not read;
 // every other row must read the same both ways. The two halves are asserted in
 // opposite directions, so a declared row whose scan catches up fails until its
-// reason is deleted, and an undeclared row the scan stops reading fails until
-// one is written.
+// reason is deleted, and an agreeing row the scan stops reading fails until one
+// is written. What neither half can see is a shape in neither table: the rows
+// are the universe here, and a divergence nobody has written down is found by
+// probing the two readings, not by this test.
 func TestReadings_AgreeExceptWhereDeclared(t *testing.T) {
 	t.Parallel()
 	for _, tc := range agreeingReadings() {
@@ -327,6 +394,35 @@ func TestReadings_AgreeExceptWhereDeclared(t *testing.T) {
 			assert.Equal(t, tc.scan, scanProbe([]byte(tc.src)), "the scan reads what the row declares it reads")
 			assert.NotEqual(t, tc.want, tc.scan, "the scan now reads this shape, so the reason (%s) is stale: "+
 				"move the row to agreeingReadings", tc.declared)
+		})
+	}
+}
+
+// BenchmarkDetect_ScanPastTheCap measures the scan on the input it exists for:
+// a document too large to parse, in each style, with the key at the end so the
+// whole of it is walked. The block case is the line walk; the flow case is the
+// lexer, where a value read for every quoted string at every depth once cost
+// nearly half the run.
+func BenchmarkDetect_ScanPastTheCap(b *testing.B) {
+	var block, flow strings.Builder
+	block.WriteString("info:\n  title: T\nfiller:\n")
+	flow.WriteString(`{"info":{"title":"T"},"filler":[`)
+	for block.Len() < 8<<20 {
+		block.WriteString("  - key: " + strings.Repeat("v", 80) + "\n")
+		flow.WriteString(`{"key":"` + strings.Repeat("v", 80) + `"},`)
+	}
+	block.WriteString("openapi: 3.1.0\n")
+	flow.WriteString(`{}],"openapi":"3.1.0"}`)
+
+	for name, data := range map[string][]byte{"block": []byte(block.String()), "flow": []byte(flow.String())} {
+		b.Run(name, func(b *testing.B) {
+			src := compilers.Source{Path: "big.yaml", Data: data}
+			b.SetBytes(int64(len(data)))
+			for b.Loop() {
+				if _, _, ok := New().Detect(src); !ok {
+					b.Fatal("the key at the end of the document must be found")
+				}
+			}
 		})
 	}
 }
