@@ -226,11 +226,29 @@ type StatusRange struct {
 }
 
 // ErrorCase is a declared failure shape of an Operation (ir-design §7.2).
+//
+// An error case is a response, so the four fields it shares with [Response] —
+// Name, Conditions, Payload, Headers — are spelled and lowered identically, and
+// the failure classification below them is what separates the two nodes.
+//
+// The sharing is those four fields, not everything [Response] holds:
+// StatusCodeProp stays success-only, because the formats that populate an output
+// member from the status line (Smithy @httpResponseCode, TypeSpec's non-literal
+// @statusCode) classify errors by @httpError instead, so an error case has no
+// runtime status to bind a member to.
 type ErrorCase struct {
-	// Type is an error-flagged model.
-	Type TypeRef `json:"type"`
+	// Name is the error naming for formats with named errors; Hint elsewhere —
+	// for OpenAPI, the responses-map key as declared and then neutralized ("404",
+	// "5_xx", "default"). Only a key that neutralizes to itself round-trips.
+	Name Naming `json:"name"`
 	// Conditions are the status codes/ranges this error maps to.
 	Conditions ResponseConditions `json:"conditions"`
+	// Payload is the error body, one Content per media type; nil = no body. The
+	// error-flagged models an error case references are its contents' types.
+	Payload *Payload `json:"payload,omitempty"`
+	// Headers are the error response's metadata fields — Retry-After and the
+	// rate-limit family live here.
+	Headers []Property `json:"headers,omitempty"`
 	// Fault is "" | "client" | "server" — protocol-neutral fault classification
 	// (Smithy @error; OpenAPI 4XX/5XX is its HTTP lowering). Drives exception
 	// hierarchies and default status synthesis.

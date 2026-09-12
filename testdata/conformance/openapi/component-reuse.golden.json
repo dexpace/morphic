@@ -319,9 +319,8 @@
               ],
               "errors": [
                 {
-                  "type": {
-                    "target": "t/anon/components/responses/Failure/content/application~1json/schema",
-                    "nullable": false
+                  "name": {
+                    "hint": "default"
                   },
                   "conditions": {
                     "statusCodes": [
@@ -331,29 +330,19 @@
                       }
                     ]
                   },
+                  "payload": {
+                    "contents": [
+                      {
+                        "mediaType": "application/json",
+                        "type": {
+                          "target": "t/anon/components/responses/Failure/content/application~1json/schema",
+                          "nullable": false
+                        }
+                      }
+                    ]
+                  },
                   "docs": {
                     "description": "anything else"
-                  },
-                  "unmodeled": {
-                    "openapi:content": {
-                      "reason": "no_ir_home",
-                      "value": {
-                        "application/json": {
-                          "schema": {
-                            "properties": {
-                              "message": {
-                                "type": "string"
-                              }
-                            },
-                            "type": "object"
-                          }
-                        }
-                      },
-                      "provenance": {
-                        "source": 0,
-                        "pointer": "/components/responses/Failure/content"
-                      }
-                    }
                   }
                 }
               ],
@@ -585,7 +574,7 @@
       "kind": "model",
       "id": "t/anon/components/responses/Failure/content/application~1json/schema",
       "name": {
-        "hint": "error"
+        "hint": "failure"
       },
       "anonymous": true,
       "docs": {},
@@ -631,7 +620,7 @@
       "kind": "model",
       "id": "t/anon/components/responses/Listed/content/application~1json/schema",
       "name": {
-        "hint": "response"
+        "hint": "listed"
       },
       "anonymous": true,
       "docs": {},
@@ -712,17 +701,6 @@
       "urlTemplate": "/",
       "description": {},
       "auth": null
-    }
-  ],
-  "diagnostics": [
-    {
-      "severity": "info",
-      "code": "openapi/degraded-construct",
-      "message": "error response media type has no ErrorCase home; content map kept under Unmodeled",
-      "provenance": {
-        "source": 0,
-        "pointer": "/components/responses/Failure"
-      }
     }
   ],
   "sources": [

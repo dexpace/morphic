@@ -159,9 +159,8 @@
               ],
               "errors": [
                 {
-                  "type": {
-                    "target": "",
-                    "nullable": false
+                  "name": {
+                    "hint": "404"
                   },
                   "conditions": {
                     "statusCodes": [

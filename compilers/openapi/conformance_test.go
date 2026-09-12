@@ -162,6 +162,7 @@ func conformanceCases() []conformanceCase {
 		{"empty-names", assertEmptyNames, []string{"wire-name-distinct"}},
 		{"inline-types", assertInlineTypes, []string{"inline-anonymous"}},
 		{"component-reuse", assertComponentReuse, []string{"named-objects", "inline-anonymous"}},
+		{"shared-response-across-status", assertSharedResponseAcrossStatus, []string{"named-objects", "inline-anonymous"}},
 		{"allof-inheritance", assertAllOfInheritance, []string{"inheritance"}},
 		{"allof-mixins", assertAllOfMixins, []string{"intersection"}},
 		{"allof-inline-merge", assertAllOfInlineMerge, []string{"intersection"}},
@@ -650,6 +651,35 @@ func inlinePropTarget(t *testing.T, doc *ir.Document, id ir.TypeID, wire string)
 // declared once under components and referenced from many operations. Each
 // lowers at its declaration, so the shared node is interned once however many
 // operations reach it, while the operations that reach it stay distinct.
+
+// assertSharedResponseAcrossStatus reads the one shape that puts lowerResponse
+// and lowerErrorCase on the same declaration: a components/responses entry
+// mounted at both a success and an error status. Both intern the body type at
+// the component's own pointer, so the two mints race for it and the loser's
+// naming hint is discarded — the type came out hinted "response" or "error"
+// depending on which status was written first, which the order-invariance oracle
+// reports as an order-dependent registry.
+//
+// Nothing else in the corpus reaches one response component from both sides of
+// that boundary (component-reuse.yaml mounts Listed only at 200s and Failure
+// only at default), so without this spec the oracle never asks. The hint is now
+// derived from the declaration pointer, which is one pointer whichever side
+// reaches it first.
+func assertSharedResponseAcrossStatus(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
+	op := operationAt(t, doc, "GET", "/widgets")
+	require.Len(t, op.Responses, 1, "the success mount")
+	require.Len(t, op.Errors, 1, "and the error mount, of the one component")
+
+	success := op.Responses[0].Payload.Contents[0].Type.Target
+	failure := op.Errors[0].Payload.Contents[0].Type.Target
+	assert.Equal(t, success, failure, "one declaration is one type, reached from either status")
+
+	td, ok := doc.Types[success]
+	require.True(t, ok)
+	assert.Equal(t, "envelope", td.Common().Name.Hint,
+		"the hint comes from the declaration, not from whichever status class minted it first")
+}
+
 func assertComponentReuse(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
 	widgets := operationAt(t, doc, "GET", "/widgets")
 	gadgets := operationAt(t, doc, "GET", "/gadgets")
@@ -2448,50 +2478,77 @@ func assertPerStatusErrors(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
 	op, ok := opByName(doc, "getWidgets")
 	require.True(t, ok)
 	require.Len(t, op.Responses, 1, "the 2xx success response")
-	faults := map[string]ir.StatusRange{}
+	faults := map[ir.StatusRange]string{}
 	byRange := map[ir.StatusRange]ir.ErrorCase{}
-	var sawDefault bool
 	for _, ec := range op.Errors {
 		require.Len(t, ec.Conditions.StatusCodes, 1)
 		rng := ec.Conditions.StatusCodes[0]
 		byRange[rng] = ec
-		if rng.From == 0 && rng.To == 0 {
-			sawDefault = true
-			assert.Empty(t, ec.Fault, "the default catch-all is unclassified")
-			continue
-		}
-		faults[ec.Fault] = rng
+		faults[rng] = ec.Fault
 	}
-	assert.Equal(t, ir.StatusRange{From: 404, To: 404}, faults["client"])
-	assert.Equal(t, ir.StatusRange{From: 500, To: 599}, faults["server"])
-	assert.True(t, sawDefault, "the default response becomes a catch-all error case")
+	assert.Equal(t, map[ir.StatusRange]string{
+		{From: 404, To: 404}: "client",
+		{From: 429, To: 429}: "client",
+		{From: 500, To: 599}: "server",
+		{}:                   "",
+	}, faults, "each range classified from its own status; the default catch-all unclassified")
 
-	assertErrorMediaTypeKept(t, byRange)
+	assertErrorCaseIsAResponse(t, byRange)
 }
 
-// assertErrorMediaTypeKept covers what ir.ErrorCase cannot say. It holds one
-// TypeRef and no media type, so an error declared as application/problem+json
-// reached the IR indistinguishable from one declared as application/json — the
-// single-entry half of a gap whose multi-entry half was already kept, which is
-// why it read as a deliberate asymmetry rather than a loss (GitHub #39). Both
-// halves are now the same rule.
+// assertErrorCaseIsAResponse holds the three fields ir.ErrorCase gained in
+// GitHub #422 to the same claim ir.Response already carried: every status
+// spelling, every header and every media type survives, whatever the status
+// class. Before them an error case held one bare TypeRef, so a 429 lost its
+// Retry-After outright, an error declaring two media types kept the first schema
+// and no media-type key at all, and "5XX" and "default" were told apart only by
+// ranges that render {500,599} and {0,0}.
 //
-// The 5XX case is the control: an error response with no content at all keeps
-// nothing, so the entry marks a declaration rather than appearing on every error.
-func assertErrorMediaTypeKept(t *testing.T, byRange map[ir.StatusRange]ir.ErrorCase) {
+// The 5XX case doubles as the control: an error response declaring no headers
+// and no content gets neither, so what the other two carry marks a declaration
+// rather than appearing on every error case.
+func assertErrorCaseIsAResponse(t *testing.T, byRange map[ir.StatusRange]ir.ErrorCase) {
 	t.Helper()
+	hints := map[ir.StatusRange]string{}
+	for rng, ec := range byRange {
+		hints[rng] = ec.Name.Hint
+	}
+	assert.Equal(t, map[ir.StatusRange]string{
+		{From: 404, To: 404}: "404",
+		{From: 429, To: 429}: "429",
+		{From: 500, To: 599}: "5_xx",
+		{}:                   "default",
+	}, hints, "the key as declared, then neutralized; only \"default\" round-trips unchanged")
+
 	notFound, ok := byRange[ir.StatusRange{From: 404, To: 404}]
 	require.True(t, ok)
-	entry, ok := notFound.Unmodeled["openapi:content"]
-	require.True(t, ok, "a single-media error keeps the map that names its media type")
-	assert.Equal(t, ir.ReasonNoIRHome, entry.Reason)
-	assert.JSONEq(t,
-		`{"application/json":{"schema":{"$ref":"#/components/schemas/Err"}}}`, string(entry.Value))
+	require.NotNil(t, notFound.Payload)
+	require.Len(t, notFound.Payload.Contents, 1)
+	assert.Equal(t, "application/json", notFound.Payload.Contents[0].MediaType,
+		"a single-media error keeps the key it was written under")
+
+	throttled, ok := byRange[ir.StatusRange{From: 429, To: 429}]
+	require.True(t, ok)
+	require.NotNil(t, throttled.Payload)
+	require.Len(t, throttled.Payload.Contents, 2, "every media type is kept, none elected")
+	assert.Equal(t, "t/openapi/components/schemas/Problem",
+		string(throttled.Payload.Contents[1].Type.Target),
+		"the second media type keeps its own schema rather than the first's")
+	wire := make([]string, 0, len(throttled.Headers))
+	for _, h := range throttled.Headers {
+		wire = append(wire, h.WireName)
+	}
+	assert.Equal(t, []string{"Retry-After", "X-RateLimit-Remaining"}, wire,
+		"the headers that only ever appear on an error status are structural")
 
 	serverErr, ok := byRange[ir.StatusRange{From: 500, To: 599}]
 	require.True(t, ok)
-	assert.NotContains(t, serverErr.Unmodeled, "openapi:content",
-		"an error response declaring no content keeps no content map")
+	assert.Nil(t, serverErr.Payload, "an error response declaring no content gets no payload")
+	assert.Empty(t, serverErr.Headers, "an error response declaring no headers gets none")
+	for rng, ec := range byRange {
+		assert.NotContains(t, ec.Unmodeled, "openapi:content", "%v keeps no content map", rng)
+		assert.NotContains(t, ec.Unmodeled, "openapi:headers", "%v keeps no headers map", rng)
+	}
 }
 
 func assertWebhooks(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {

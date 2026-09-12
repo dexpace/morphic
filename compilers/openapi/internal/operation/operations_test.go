@@ -73,7 +73,9 @@ func TestResponses_ErrorSplitAndRanges(t *testing.T) {
 	require.Len(t, op.Errors, 3)
 	assert.Equal(t, []ir.StatusRange{{From: 404, To: 404}}, op.Errors[0].Conditions.StatusCodes)
 	assert.Equal(t, "client", op.Errors[0].Fault)
-	assert.NotEmpty(t, op.Errors[0].Type.Target, "404 error model lowered and referenced")
+	require.NotNil(t, op.Errors[0].Payload)
+	require.Len(t, op.Errors[0].Payload.Contents, 1)
+	assert.NotEmpty(t, op.Errors[0].Payload.Contents[0].Type.Target, "404 error model lowered and referenced")
 	assert.Equal(t, []ir.StatusRange{{From: 500, To: 599}}, op.Errors[1].Conditions.StatusCodes)
 	assert.Equal(t, "server", op.Errors[1].Fault)
 	assert.Equal(t, []ir.StatusRange{{From: 0, To: 0}}, op.Errors[2].Conditions.StatusCodes)
@@ -87,8 +89,10 @@ func TestResponses_ErrorSplitAndRanges(t *testing.T) {
 // empty, leaving an emitter naming a per-response result type nothing to build
 // one from (GitHub #259).
 //
-// The error half of the same map has no counterpart to check: ir.ErrorCase
-// carries no Naming at all, so there is no channel on it to leave empty.
+// The error half of the same map is named the same way and by the same
+// function (GitHub #422), which is what "404" and "default" below assert: the
+// spelling a wildcard or catch-all key was written under is recorded nowhere
+// else, since StatusRange renders both {500,599} and {0,0} with no trace of it.
 func TestResponses_NamedByStatusKey(t *testing.T) {
 	t.Parallel()
 	spec := openapitest.PathsSpec(`  /w:
@@ -113,6 +117,15 @@ func TestResponses_NamedByStatusKey(t *testing.T) {
 	}
 	assert.Equal(t, []string{"200", "2_xx", "empty"}, hints,
 		"the key as declared, neutralized; a key with no word in it takes the mint")
+
+	require.Len(t, op.Errors, 2)
+	errHints := make([]string, 0, len(op.Errors))
+	for _, ec := range op.Errors {
+		assert.Empty(t, ec.Name.Source, "OpenAPI declares no error name either, so Source stays empty")
+		errHints = append(errHints, ec.Name.Hint)
+	}
+	assert.Equal(t, []string{"404", "default"}, errHints,
+		"an error case records the responses-map key its range cannot state")
 }
 
 // TestResponses_InvalidStatusKeyIsReported is the whole of GitHub #262 at the
@@ -178,10 +191,14 @@ func TestResponses_ValidStatusKeysAreNotReported(t *testing.T) {
 		"every key here names a status; got %+v", diags)
 }
 
-func TestResponses_ErrorHeadersPreserved(t *testing.T) {
+// TestResponses_ErrorHeadersAreStructural pins the header half of GitHub #422.
+// A 429's Retry-After and the rate-limit family live on precisely the status
+// class that had no typed home for them: they were kept verbatim under
+// ErrorCase.Unmodeled with an info diagnostic, so a consumer reading
+// Response.Headers saw headers on a 200 and none on a 429. They are now lowered
+// by lowerHeaders, exactly as the success side's are, and nothing is kept.
+func TestResponses_ErrorHeadersAreStructural(t *testing.T) {
 	t.Parallel()
-	// ErrorCase has no Headers field; a 429's Retry-After header must not be
-	// dropped silently — it is kept verbatim under Unmodeled with a diag.
 	spec := openapitest.PathsSpec(`  /w:
     get:
       operationId: w
@@ -191,23 +208,28 @@ func TestResponses_ErrorHeadersPreserved(t *testing.T) {
           description: slow down
           headers:
             Retry-After: {schema: {type: integer}}
+            X-RateLimit-Remaining: {schema: {type: integer}}
 `)
 	_, svc, diags := lowerServiceSpec(t, spec)
 	openapitest.RequireNoErrorDiags(t, diags)
 	op := openapitest.FirstOp(t, svc)
 	require.Len(t, op.Errors, 1)
-	raw, ok := op.Errors[0].Unmodeled["openapi:headers"]
-	require.True(t, ok, "error response headers kept under Unmodeled")
-	assert.Contains(t, string(raw.Value), "Retry-After")
-	assert.Equal(t, ir.ReasonNoIRHome, raw.Reason)
+	ec := op.Errors[0]
 
-	found := false
-	for _, d := range diags {
-		if d.Severity == ir.SeverityInfo && strings.Contains(d.Message, "error response headers") {
-			found = true
-		}
+	require.Len(t, ec.Headers, 2, "both headers lowered structurally")
+	wire := make([]string, 0, len(ec.Headers))
+	for _, h := range ec.Headers {
+		wire = append(wire, h.WireName)
+		assert.NotEmpty(t, h.Type.Target, "each header carries its lowered type")
 	}
-	assert.True(t, found, "dropped error headers emit one info diagnostic")
+	assert.Equal(t, []string{"Retry-After", "X-RateLimit-Remaining"}, wire)
+
+	assert.NotContains(t, ec.Unmodeled, "openapi:headers",
+		"a typed home means nothing is kept verbatim beside it")
+	for _, d := range diags {
+		assert.NotContains(t, d.Message, "error response headers",
+			"nothing is degraded, so nothing announces a degradation")
+	}
 }
 
 func TestOperation_ExplicitlyPublicSecurity(t *testing.T) {
@@ -1207,14 +1229,19 @@ func TestResponses_RefdErrorAndDefaultInternAtDeclaration(t *testing.T) {
 	}
 	aErrs, bErrs := byFault(getA), byFault(getB)
 
+	errType := func(ec ir.ErrorCase) ir.TypeID {
+		require.NotNil(t, ec.Payload)
+		require.Len(t, ec.Payload.Contents, 1)
+		return ec.Payload.Contents[0].Type.Target
+	}
 	wantNotFound := ir.TypeID("t/anon/components/responses/NotFound/content/application~1json/schema")
-	assert.Equal(t, wantNotFound, aErrs["client"].Type.Target)
-	assert.Equal(t, wantNotFound, bErrs["client"].Type.Target, "the shared 4XX error model interns once")
+	assert.Equal(t, wantNotFound, errType(aErrs["client"]))
+	assert.Equal(t, wantNotFound, errType(bErrs["client"]), "the shared 4XX error model interns once")
 
 	// The default response is the unclassified catch-all, so it keys on "".
 	wantFallback := ir.TypeID("t/anon/components/responses/Fallback/content/application~1json/schema")
-	assert.Equal(t, wantFallback, aErrs[""].Type.Target)
-	assert.Equal(t, wantFallback, bErrs[""].Type.Target, "the shared default error model interns once")
+	assert.Equal(t, wantFallback, errType(aErrs[""]))
+	assert.Equal(t, wantFallback, errType(bErrs[""]), "the shared default error model interns once")
 
 	for id := range doc.Types {
 		assert.NotContains(t, string(id), "/responses/404", "no fabricated per-operation error ID")
@@ -1248,7 +1275,7 @@ components:
     Err:
       description: err
       headers:
-        X-E: {schema: {type: string}}
+        X-E: {schema: {type: array, items: {type: string}}, explode: true}
       content:
         application/json:
           schema: {type: object}
@@ -1257,10 +1284,15 @@ components:
 // TestDiag_SharedDeclarationReportsEachDefectOnce pins the consequence of
 // lowering a referenced component at its declaration: both operations reach the
 // same request body — whose scalar schema carries a `required` the lowered node
-// has no field for — and the same header-bearing error response, so each defect
-// now has one pointer and one message. Reported per use site they would arrive
-// as byte-identical copies — nothing a reader could act on twice — and a
-// component shared by twenty operations would repeat each line twenty times.
+// has no field for — and the same error response, whose header declares an
+// `explode` ir.Property has no field for, so each defect has one pointer and one
+// message. Reported per use site they would arrive as byte-identical copies —
+// nothing a reader could act on twice — and a component shared by twenty
+// operations would repeat each line twenty times.
+//
+// The second defect sits on an error response's header on purpose: those reach
+// lowerHeaders only since GitHub #422, so the case covers the shared-declaration
+// rule on the path that gained them rather than on the success side alone.
 func TestDiag_SharedDeclarationReportsEachDefectOnce(t *testing.T) {
 	t.Parallel()
 	doc, diags := parseFull(t, sharedDefectiveBodySpec)
@@ -1274,9 +1306,9 @@ func TestDiag_SharedDeclarationReportsEachDefectOnce(t *testing.T) {
 	}
 
 	// Every defect still surfaces — de-duplication must not silence any of them.
-	assert.Equal(t, 3, openapitest.CountDiagsAt(diags, diag.DegradedConstruct, ir.SeverityInfo),
-		"the body schema's homeless required, the homeless error headers and the homeless "+
-			"error media type are three distinct defects")
+	assert.Equal(t, 2, openapitest.CountDiagsAt(diags, diag.DegradedConstruct, ir.SeverityInfo),
+		"the body schema's homeless required and the error header's homeless explode are two "+
+			"distinct defects")
 
 	// The shared component's own `required: false` reaches both use sites, as
 	// two values rather than one aliased pointer: lowering it at its declaration
@@ -1604,19 +1636,31 @@ func TestOperations_PathItemUnknownKeyKeptOnEveryRoute(t *testing.T) {
 	}
 }
 
-// TestErrorCase_SingleMediaTypeKeepsContentMap pins the arity-independent half of
-// error-content preservation. ir.ErrorCase holds a TypeRef and no media type, so
-// an error declared only as application/problem+json reached the IR
-// indistinguishable from one declared as application/json — while the same
-// response with a second media type beside it was kept in full. One entry losing
-// its key is the same loss as several losing all but the first.
-func TestErrorCase_SingleMediaTypeKeepsContentMap(t *testing.T) {
+// TestErrorCase_EveryMediaTypeIsAContent pins the content half of GitHub #422.
+// ir.ErrorCase held one bare TypeRef and no media type, so a 404 declaring only
+// application/problem+json reached the IR indistinguishable from one declaring
+// application/json, and a 400 declaring both kept the first schema and lost the
+// second entirely — the whole map going verbatim to Unmodeled in either case.
+// Both now lower to ErrorCase.Payload.Contents, one entry per media type, the
+// same shape and by the same function as a success response's.
+//
+// The 409 is the control: an error declaring no content at all still gets no
+// payload, so a Contents entry marks a declaration rather than appearing on
+// every error case.
+func TestErrorCase_EveryMediaTypeIsAContent(t *testing.T) {
 	t.Parallel()
 	doc, diags := parseFull(t, openapitest.PathsSpec(`  /x:
     get:
       operationId: getX
       responses:
         "200": {description: ok}
+        "400":
+          description: bad
+          content:
+            application/json:
+              schema: {type: object, properties: {a: {type: string}}}
+            application/problem+json:
+              schema: {type: object, properties: {b: {type: string}}}
         "404":
           description: gone
           content:
@@ -1628,19 +1672,30 @@ func TestErrorCase_SingleMediaTypeKeepsContentMap(t *testing.T) {
 	errs := openapitest.IndexBy(openapitest.FindOp(t, doc, "getX").Errors,
 		func(ec ir.ErrorCase) int { return ec.Conditions.StatusCodes[0].From })
 
-	entry, ok := errs[404].Unmodeled["openapi:content"]
-	require.True(t, ok, "the single-entry content map is kept")
-	assert.Equal(t, ir.ReasonNoIRHome, entry.Reason)
-	assert.JSONEq(t, `{"application/problem+json":{"schema":{"type":"object"}}}`, string(entry.Value),
-		"the media type the map is keyed by is what would otherwise be lost")
-	assert.Equal(t, "/paths/~1x/get/responses/404/content", entry.Provenance.Pointer)
-	assert.Contains(t,
-		openapitest.DiagMessageAt(t, diags, diag.DegradedConstruct, ir.SeverityInfo, "/paths/~1x/get/responses/404"),
-		"media type has no ErrorCase home",
-		"the single-entry case names its own loss, not the multi-entry one")
+	multi := errs[400]
+	require.NotNil(t, multi.Payload)
+	require.Len(t, multi.Payload.Contents, 2, "every media type is kept, none elected")
+	assert.Equal(t, []string{"application/json", "application/problem+json"},
+		[]string{multi.Payload.Contents[0].MediaType, multi.Payload.Contents[1].MediaType})
+	assert.NotEqual(t, multi.Payload.Contents[0].Type.Target, multi.Payload.Contents[1].Type.Target,
+		"the second media type keeps its own schema rather than the first's")
 
-	assert.NotContains(t, errs[409].Unmodeled, "openapi:content",
-		"an error response declaring no content keeps no content map")
+	single := errs[404]
+	require.NotNil(t, single.Payload)
+	require.Len(t, single.Payload.Contents, 1)
+	assert.Equal(t, "application/problem+json", single.Payload.Contents[0].MediaType,
+		"the sole media type's own key is what used to be lost")
+
+	for status, ec := range errs {
+		assert.NotContains(t, ec.Unmodeled, "openapi:content",
+			"%d keeps no content map beside a typed payload", status)
+	}
+	for _, d := range diags {
+		assert.NotContains(t, d.Message, "ErrorCase home",
+			"nothing is degraded, so nothing announces a degradation")
+	}
+
+	assert.Nil(t, errs[409].Payload, "an error response declaring no content gets no payload")
 }
 
 // operationServersSpec declares `servers` at both levels OpenAPI allows, on an
@@ -2169,4 +2224,30 @@ paths:
 		assert.NotContains(t, d.Message, "declares no operation this compiler lowers",
 			"an item with nothing beside its operations announces nothing")
 	}
+}
+
+// TestResponses_TwoKeysForOneRangeAreReported pins the collision the neutralized
+// hint cannot show. "4XX" and "4xx" name one range, and the key reaches the IR
+// neutralized, so both responses arrive with hint "4_xx" and identical
+// conditions. An ErrorCase carries no ID, so name and conditions are the whole
+// of what tells one from another — two indistinguishable cases, compiled with
+// exit 0 and nothing said. Source cannot hold the difference: a responses-map
+// key is not a name the document declared, which TestResponses_NamedByStatusKey
+// pins. So the collision is reported where the keys are read.
+func TestResponses_TwoKeysForOneRangeAreReported(t *testing.T) {
+	t.Parallel()
+	spec := openapitest.PathsSpec(`  /w:
+    get:
+      operationId: w
+      responses:
+        "200": {description: ok}
+        "4XX": {description: upper}
+        "4xx": {description: lower}
+`)
+	_, svc, diags := lowerServiceSpec(t, spec)
+	op := openapitest.FirstOp(t, svc)
+
+	require.Len(t, op.Errors, 2, "both are kept: neither key is wrong on its own")
+	assert.True(t, openapitest.HasDiag(diags, diag.DuplicateStatusKey),
+		"two keys resolving to one range is reported; got %v", diags)
 }

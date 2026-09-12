@@ -1036,11 +1036,15 @@ binding.
 
 ### 8.5 An error taxonomy (`RateLimited`, 429, retryable-throttling)
 
-IR: `ErrorCase{ Type:RateLimited (Model, Usage.Error), Conditions:{429}, Fault:"client",
-Retryable:&true, Throttling:&true }`; policy default maps `429 → "TooManyRequests"`.
+IR: `ErrorCase{ Name:{Hint:"429"}, Conditions:{429}, Payload:{Contents:[{application/json →
+RateLimited (Model, Usage.Error)}]}, Headers:[Retry-After], Fault:"client", Retryable:&true,
+Throttling:&true }`; policy default maps `429 → "TooManyRequests"`.
 
 - **plan.** `OpPlan.Errors` = `[PlannedError{ Conditions:{429}, Type:RateLimited, Fault:"client",
-  Retryable:true, Throttling:true }]` — declared IR facts, carried as such.
+  Retryable:true, Throttling:true }]` — declared IR facts, carried as such. **Known gap (#447):**
+  `PlannedError` has no `Headers` field, so the `Retry-After` on the IR line above has no home in
+  the plan, and its single `Type` names no election where `ErrorCase.Payload.Contents` is plural —
+  the negotiation `PrimaryContent` states for the success side has no error-side counterpart here.
 - **refine.** `LowerErrors` builds the error tree: `APIError` interface → a `ClientError`/`ServerError`
   split from `Fault` → concrete `RateLimited` implementing `error`. The retry wiring reads
   `Retryable`/`Throttling` **from the IR fact** and falls back to `Policy.Retry` only where the spec

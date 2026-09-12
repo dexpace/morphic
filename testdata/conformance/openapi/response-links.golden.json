@@ -62,9 +62,8 @@
               ],
               "errors": [
                 {
-                  "type": {
-                    "target": "",
-                    "nullable": false
+                  "name": {
+                    "hint": "409"
                   },
                   "conditions": {
                     "statusCodes": [
