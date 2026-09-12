@@ -162,6 +162,7 @@ func conformanceCases() []conformanceCase {
 		{"empty-names", assertEmptyNames, []string{"wire-name-distinct"}},
 		{"inline-types", assertInlineTypes, []string{"inline-anonymous"}},
 		{"component-reuse", assertComponentReuse, []string{"named-objects", "inline-anonymous"}},
+		{"shared-response-across-status", assertSharedResponseAcrossStatus, []string{"named-objects", "inline-anonymous"}},
 		{"allof-inheritance", assertAllOfInheritance, []string{"inheritance"}},
 		{"allof-mixins", assertAllOfMixins, []string{"intersection"}},
 		{"allof-inline-merge", assertAllOfInlineMerge, []string{"intersection"}},
@@ -170,6 +171,7 @@ func conformanceCases() []conformanceCase {
 		{"allof-inline-residue", assertAllOfInlineResidue, []string{"intersection"}},
 		{"allof-ref-branch-siblings", assertAllOfRefBranchSiblings, []string{"intersection", "untagged-unions"}},
 		{"allof-boolean-branch", assertAllOfBooleanBranch, []string{"intersection"}},
+		{"allof-conflicting-type", assertAllOfConflictingType, nil},
 		{"oneof-discriminated", assertOneOfDiscriminated, []string{"tagged-unions"}},
 		{"discriminator-inheritance", assertDiscriminatorInheritance, []string{"tagged-unions", "inheritance"}},
 		{"discriminator-default-mapping", assertDiscriminatorDefaultMapping, []string{"tagged-unions"}},
@@ -225,7 +227,7 @@ func conformanceCases() []conformanceCase {
 		{"path-item-docs", assertPathItemDocs, []string{"docs-summary-description"}},
 		{"path-item-operations", assertPathItemOperations, []string{"http-binding"}},
 		{"deprecation", assertDeprecation, []string{"deprecation"}},
-		{"extension-promotion", assertExtensionPromotion, []string{"deprecation"}},
+		{"extension-promotion", assertExtensionPromotion, []string{"deprecation", "open-enums"}},
 		{"examples", assertExamples, []string{"examples"}},
 		{"docs-summary-desc", assertDocsSummaryDesc, []string{"docs-summary-description"}},
 		{"extensions-x", assertExtensionsX, []string{"vendor-extensions"}},
@@ -649,6 +651,43 @@ func inlinePropTarget(t *testing.T, doc *ir.Document, id ir.TypeID, wire string)
 // declared once under components and referenced from many operations. Each
 // lowers at its declaration, so the shared node is interned once however many
 // operations reach it, while the operations that reach it stay distinct.
+
+// assertSharedResponseAcrossStatus reads the one shape that puts lowerResponse
+// and lowerErrorCase on the same declaration: a components/responses entry
+// mounted at both a success and an error status. Both intern the body type at
+// the component's own pointer, so the two mints race for it and the loser's
+// naming hint is discarded — the type came out hinted "response" or "error"
+// depending on which status was written first, which the order-invariance oracle
+// reports as an order-dependent registry.
+//
+// Nothing else in the corpus reaches one response component from both sides of
+// that boundary (component-reuse.yaml mounts Listed only at 200s and Failure
+// only at default), so without this spec the oracle never asks. The hint is now
+// derived from the declaration pointer, which is one pointer whichever side
+// reaches it first.
+func assertSharedResponseAcrossStatus(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
+	op := operationAt(t, doc, "GET", "/widgets")
+	require.Len(t, op.Responses, 1, "the success mount")
+	require.Len(t, op.Errors, 1, "and the error mount, of the one component")
+
+	success := op.Responses[0].Payload.Contents[0].Type.Target
+	failure := op.Errors[0].Payload.Contents[0].Type.Target
+	assert.Equal(t, success, failure, "one declaration is one type, reached from either status")
+
+	td, ok := doc.Types[success]
+	require.True(t, ok)
+	assert.Equal(t, "envelope", td.Common().Name.Hint,
+		"the hint comes from the declaration, not from whichever status class minted it first")
+
+	created := operationAt(t, doc, "POST", "/widgets").Responses[0].Payload.Contents[0].Type.Target
+	rejected := operationAt(t, doc, "POST", "/gadgets").Errors[0].Payload.Contents[0].Type.Target
+	assert.Equal(t, created, rejected, "a path-pointer $ref reaches the same one type")
+	td, ok = doc.Types[created]
+	require.True(t, ok)
+	assert.Equal(t, "response", td.Common().Name.Hint,
+		"with no component to name it, both sides fall back to the one word")
+}
+
 func assertComponentReuse(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
 	widgets := operationAt(t, doc, "GET", "/widgets")
 	gadgets := operationAt(t, doc, "GET", "/gadgets")
@@ -1479,62 +1518,63 @@ func assertConstraints(t *testing.T, doc *ir.Document, diags []ir.Diagnostic) {
 }
 
 // assertCoDeclaredBounds pins the 2020-12 rule that a side declaring both of
-// its keywords keeps the tighter of the two: the property bounded below keeps
-// its minimum, the one bounded above keeps its exclusiveMaximum, and each side
-// names the keyword that did not reach ir.Constraints (GitHub #33).
+// its keywords carries both: minimum and exclusiveMinimum are independent and
+// conjunctive, ir.Constraints has a field for each, and neither is chosen over
+// the other (GitHub #33, #425).
 //
-// Both directions are here on purpose. A case where only the exclusive keyword
-// survives passes just as well on the reader that always took it, so on its own
-// it would say nothing about the fix.
+// Both directions are here on purpose. The property bounded below has the
+// inclusive keyword as its tighter bound and the one bounded above the
+// exclusive one, so a reader that kept the tighter alone answers the two
+// differently — and a reader that always kept the exclusive keyword passes the
+// second on its own.
 func assertCoDeclaredBounds(t *testing.T, m *ir.Model, diags []ir.Diagnostic) {
 	t.Helper()
 	low, ok := propByWire(m, "atLeastTen")
 	require.True(t, ok)
 	require.NotNil(t, low.Constraints)
 	require.NotNil(t, low.Constraints.Min)
-	assert.Equal(t, ir.BigVal("10"), *low.Constraints.Min, "minimum is the tighter bound")
-	assert.False(t, low.Constraints.ExclusiveMin, "and it is inclusive as written")
+	require.NotNil(t, low.Constraints.ExclusiveMin)
+	assert.Equal(t, ir.BigVal("10"), *low.Constraints.Min, "minimum as written")
+	assert.Equal(t, ir.BigVal("0"), *low.Constraints.ExclusiveMin,
+		"and the looser exclusiveMinimum beside it, not dropped for being implied")
 
 	high, ok := propByWire(m, "underTen")
 	require.True(t, ok)
 	require.NotNil(t, high.Constraints)
 	require.NotNil(t, high.Constraints.Max)
-	assert.Equal(t, ir.BigVal("10"), *high.Constraints.Max, "exclusiveMaximum is the tighter bound")
-	assert.True(t, high.Constraints.ExclusiveMax)
+	require.NotNil(t, high.Constraints.ExclusiveMax)
+	assert.Equal(t, ir.BigVal("100"), *high.Constraints.Max, "maximum as written")
+	assert.Equal(t, ir.BigVal("10"), *high.Constraints.ExclusiveMax, "and exclusiveMaximum beside it")
 
-	for _, want := range []string{"exclusiveMinimum, which it implies", "maximum, which it implies"} {
-		assert.True(t, slices.ContainsFunc(diags, func(d ir.Diagnostic) bool {
-			return strings.Contains(d.Message, want)
-		}), "the keyword ir.Constraints has no room for is named, not dropped in silence: %q", want)
+	for _, d := range diags {
+		assert.NotContains(t, d.Message, "exclusiveMinimum",
+			"a pair that reaches two fields is not a degradation to report")
 	}
 }
 
-// assertCoDeclaredBoundKept is the losslessness half of the same rule
-// (GitHub #286): a keyword named only in a diagnostic reaches no field of the
-// document a downstream stage reads, so {minimum: 10, exclusiveMinimum: 0} and
-// {minimum: 10} lowered identically. It is kept verbatim on whichever carrier
-// read it — the property here, the alias node a component's body reduces to
-// below — beside the constraints it did not reach.
+// assertCoDeclaredBoundKept is the losslessness half of the same rule: with a
+// field per keyword there is nothing left over, so neither carrier keeps a bound
+// verbatim. Nothing is restated beside constraints that hold it all — an entry
+// there would give one bound two homes, and {minimum: 10, exclusiveMinimum: 0}
+// is told from {minimum: 10} by the fields themselves (GitHub #286).
 func assertCoDeclaredBoundKept(t *testing.T, doc *ir.Document, m *ir.Model) {
 	t.Helper()
 	low, ok := propByWire(m, "atLeastTen")
 	require.True(t, ok)
-	entry := unmodeledEntry(t, low.Unmodeled, "openapi:exclusiveMinimum")
-	assert.Equal(t, ir.ReasonDegradedLowering, entry.Reason)
-	assert.JSONEq(t, "0", string(entry.Value))
-	assert.Equal(t, "/components/schemas/S/properties/atLeastTen/exclusiveMinimum",
-		entry.Provenance.Pointer)
+	assert.Empty(t, low.Unmodeled, "the property keeps nothing beside its constraints")
 
 	high, ok := propByWire(m, "underTen")
 	require.True(t, ok)
-	assert.JSONEq(t, "100", string(unmodeledEntry(t, high.Unmodeled, "openapi:maximum").Value),
-		"the inclusive keyword is the one kept where the exclusive bound is tighter")
+	assert.Empty(t, high.Unmodeled, "and neither does the side settled the other way")
 
 	alias, ok := doc.Types[namedID("Bounded")].(*ir.Scalar)
 	require.True(t, ok, "a component reducing to a shared primitive owns an alias node")
 	require.NotNil(t, alias.Constraints)
-	assert.JSONEq(t, "0", string(unmodeledEntry(t, alias.Unmodeled, "openapi:exclusiveMinimum").Value),
-		"a node carries what its constraints had no room for, exactly as a property does")
+	require.NotNil(t, alias.Constraints.Min)
+	require.NotNil(t, alias.Constraints.ExclusiveMin)
+	assert.Equal(t, ir.BigVal("0"), *alias.Constraints.ExclusiveMin,
+		"a node carries both bounds, exactly as a property does")
+	assert.Empty(t, alias.Unmodeled)
 }
 
 // assertLengthAndCollectionBounds pins the non-numeric bounds: a string length
@@ -1582,12 +1622,10 @@ func assertNumericPrecision(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
 	exclusive, ok := propByWire(m, "exclusive")
 	require.True(t, ok)
 	require.NotNil(t, exclusive.Constraints)
-	require.NotNil(t, exclusive.Constraints.Min)
-	require.NotNil(t, exclusive.Constraints.Max)
-	assert.True(t, exclusive.Constraints.ExclusiveMin)
-	assert.True(t, exclusive.Constraints.ExclusiveMax)
-	assert.Equal(t, ir.BigVal("0.5"), *exclusive.Constraints.Min)
-	assert.Equal(t, ir.BigVal("0.12345678901234567890123456789"), *exclusive.Constraints.Max)
+	require.NotNil(t, exclusive.Constraints.ExclusiveMin)
+	require.NotNil(t, exclusive.Constraints.ExclusiveMax)
+	assert.Equal(t, ir.BigVal("0.5"), *exclusive.Constraints.ExclusiveMin)
+	assert.Equal(t, ir.BigVal("0.12345678901234567890123456789"), *exclusive.Constraints.ExclusiveMax)
 
 	// A default beyond float64 range is captured as a number, not a string.
 	withDefault, ok := propByWire(m, "withDefault")
@@ -2119,6 +2157,12 @@ func assertParamQuerystring(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
 // silent, and from the use site when it is not. Constraints inherit at neither
 // carrier, so the identical property is asserted beside it — a parameter must not
 // take more from a referent than a property does (GitHub #131).
+//
+// The bound the use site declares beside the $ref is asserted at both carriers
+// too, against the referent's own: it is what makes the split observable rather
+// than merely absent, and it is the case use-site precedence would get wrong,
+// publishing 100 as the whole truth while the document enforces 64 (§12.2,
+// GitHub #428).
 func assertParamRefInheritance(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
 	op, ok := opByName(doc, "listItems")
 	require.True(t, ok)
@@ -2138,6 +2182,10 @@ func assertParamRefInheritance(t *testing.T, doc *ir.Document, _ []ir.Diagnostic
 		"...and a keyword the use site is silent about still inherits")
 	require.NotNil(t, override.Default)
 	assert.Equal(t, "9", override.Default.Str)
+	require.NotNil(t, override.Constraints, "a bound beside the $ref lands on the carrier")
+	require.NotNil(t, override.Constraints.MaxLength)
+	assert.Equal(t, int64(100), *override.Constraints.MaxLength,
+		"and it is the use site's own, not narrowed against the referent's here")
 
 	holder, ok := doc.Types[namedID("Holder")].(*ir.Model)
 	require.True(t, ok)
@@ -2149,12 +2197,18 @@ func assertParamRefInheritance(t *testing.T, doc *ir.Document, _ []ir.Diagnostic
 	assert.Equal(t, *cursor.Default, *prop.Default)
 	assert.Nil(t, prop.Constraints, "neither carrier inherits the referent's constraints")
 
+	overrideProp, ok := propByWire(holder, "override")
+	require.True(t, ok)
+	assert.Equal(t, override.Constraints, overrideProp.Constraints,
+		"and a property keeps its own bound exactly as the parameter does")
+
 	decl, ok := doc.Types[namedID("Cursor")].(*ir.Scalar)
 	require.True(t, ok)
 	require.NotNil(t, decl.Constraints)
 	require.NotNil(t, decl.Constraints.MaxLength)
 	assert.Equal(t, int64(64), *decl.Constraints.MaxLength,
-		"a consumer that wants the bound reads it off the referent")
+		"a consumer that wants the bound reads it off the referent, and conjoins "+
+			"it with the use site's: both are in force, and 64 is the narrower")
 }
 
 // assertHeaderContentSchema pins that both spellings of a header's type lower
@@ -2447,50 +2501,77 @@ func assertPerStatusErrors(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
 	op, ok := opByName(doc, "getWidgets")
 	require.True(t, ok)
 	require.Len(t, op.Responses, 1, "the 2xx success response")
-	faults := map[string]ir.StatusRange{}
+	faults := map[ir.StatusRange]string{}
 	byRange := map[ir.StatusRange]ir.ErrorCase{}
-	var sawDefault bool
 	for _, ec := range op.Errors {
 		require.Len(t, ec.Conditions.StatusCodes, 1)
 		rng := ec.Conditions.StatusCodes[0]
 		byRange[rng] = ec
-		if rng.From == 0 && rng.To == 0 {
-			sawDefault = true
-			assert.Empty(t, ec.Fault, "the default catch-all is unclassified")
-			continue
-		}
-		faults[ec.Fault] = rng
+		faults[rng] = ec.Fault
 	}
-	assert.Equal(t, ir.StatusRange{From: 404, To: 404}, faults["client"])
-	assert.Equal(t, ir.StatusRange{From: 500, To: 599}, faults["server"])
-	assert.True(t, sawDefault, "the default response becomes a catch-all error case")
+	assert.Equal(t, map[ir.StatusRange]string{
+		{From: 404, To: 404}: "client",
+		{From: 429, To: 429}: "client",
+		{From: 500, To: 599}: "server",
+		{}:                   "",
+	}, faults, "each range classified from its own status; the default catch-all unclassified")
 
-	assertErrorMediaTypeKept(t, byRange)
+	assertErrorCaseIsAResponse(t, byRange)
 }
 
-// assertErrorMediaTypeKept covers what ir.ErrorCase cannot say. It holds one
-// TypeRef and no media type, so an error declared as application/problem+json
-// reached the IR indistinguishable from one declared as application/json — the
-// single-entry half of a gap whose multi-entry half was already kept, which is
-// why it read as a deliberate asymmetry rather than a loss (GitHub #39). Both
-// halves are now the same rule.
+// assertErrorCaseIsAResponse holds the three fields ir.ErrorCase gained in
+// GitHub #422 to the same claim ir.Response already carried: every status
+// spelling, every header and every media type survives, whatever the status
+// class. Before them an error case held one bare TypeRef, so a 429 lost its
+// Retry-After outright, an error declaring two media types kept the first schema
+// and no media-type key at all, and "5XX" and "default" were told apart only by
+// ranges that render {500,599} and {0,0}.
 //
-// The 5XX case is the control: an error response with no content at all keeps
-// nothing, so the entry marks a declaration rather than appearing on every error.
-func assertErrorMediaTypeKept(t *testing.T, byRange map[ir.StatusRange]ir.ErrorCase) {
+// The 5XX case doubles as the control: an error response declaring no headers
+// and no content gets neither, so what the other two carry marks a declaration
+// rather than appearing on every error case.
+func assertErrorCaseIsAResponse(t *testing.T, byRange map[ir.StatusRange]ir.ErrorCase) {
 	t.Helper()
+	hints := map[ir.StatusRange]string{}
+	for rng, ec := range byRange {
+		hints[rng] = ec.Name.Hint
+	}
+	assert.Equal(t, map[ir.StatusRange]string{
+		{From: 404, To: 404}: "404",
+		{From: 429, To: 429}: "429",
+		{From: 500, To: 599}: "5_xx",
+		{}:                   "default",
+	}, hints, "the key as declared, then neutralized; only \"default\" round-trips unchanged")
+
 	notFound, ok := byRange[ir.StatusRange{From: 404, To: 404}]
 	require.True(t, ok)
-	entry, ok := notFound.Unmodeled["openapi:content"]
-	require.True(t, ok, "a single-media error keeps the map that names its media type")
-	assert.Equal(t, ir.ReasonNoIRHome, entry.Reason)
-	assert.JSONEq(t,
-		`{"application/json":{"schema":{"$ref":"#/components/schemas/Err"}}}`, string(entry.Value))
+	require.NotNil(t, notFound.Payload)
+	require.Len(t, notFound.Payload.Contents, 1)
+	assert.Equal(t, "application/json", notFound.Payload.Contents[0].MediaType,
+		"a single-media error keeps the key it was written under")
+
+	throttled, ok := byRange[ir.StatusRange{From: 429, To: 429}]
+	require.True(t, ok)
+	require.NotNil(t, throttled.Payload)
+	require.Len(t, throttled.Payload.Contents, 2, "every media type is kept, none elected")
+	assert.Equal(t, "t/openapi/components/schemas/Problem",
+		string(throttled.Payload.Contents[1].Type.Target),
+		"the second media type keeps its own schema rather than the first's")
+	wire := make([]string, 0, len(throttled.Headers))
+	for _, h := range throttled.Headers {
+		wire = append(wire, h.WireName)
+	}
+	assert.Equal(t, []string{"Retry-After", "X-RateLimit-Remaining"}, wire,
+		"the headers that only ever appear on an error status are structural")
 
 	serverErr, ok := byRange[ir.StatusRange{From: 500, To: 599}]
 	require.True(t, ok)
-	assert.NotContains(t, serverErr.Unmodeled, "openapi:content",
-		"an error response declaring no content keeps no content map")
+	assert.Nil(t, serverErr.Payload, "an error response declaring no content gets no payload")
+	assert.Empty(t, serverErr.Headers, "an error response declaring no headers gets none")
+	for rng, ec := range byRange {
+		assert.NotContains(t, ec.Unmodeled, "openapi:content", "%v keeps no content map", rng)
+		assert.NotContains(t, ec.Unmodeled, "openapi:headers", "%v keeps no headers map", rng)
+	}
 }
 
 func assertWebhooks(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {

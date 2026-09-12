@@ -462,7 +462,7 @@ func preserveUnionSiblings(c lowering.Ctx, ts *compile.Types, id ir.TypeID, s *o
 				pointer, pointer+ids.Ptr(kw), kw)...)
 			continue
 		}
-		Preserve(c, &common.Unmodeled, "openapi:"+kw, raw, reason, pointer+ids.Ptr(kw))
+		preserve(c, &common.Unmodeled, "openapi:"+kw, raw, reason, pointer+ids.Ptr(kw))
 		kept = kept || len(raw) > 0
 	}
 	if reason == ir.ReasonValidationOnly || !kept {
@@ -494,7 +494,7 @@ func falseSchema(c lowering.Ctx, ts *compile.Types, pointer, hint string) (ir.Ty
 		// The key names the position rather than a keyword, because a boolean
 		// schema writes none. Nothing can collide with it: a schema that is a
 		// boolean has no other keywords to preserve.
-		Preserve(c, &common.Unmodeled, "openapi:schema",
+		preserve(c, &common.Unmodeled, "openapi:schema",
 			ir.RawValue("false"), ir.ReasonDegradedLowering, pointer)
 
 		diags = append(diags, c.DiagAt(ir.SeverityInfo, diag.FalseSchema, pointer,
@@ -981,7 +981,7 @@ func lowerTyped(c lowering.Ctx, ts *compile.Types, anchors *AnchorIndex, depth i
 	case oas3.SchemaTypeArray:
 		return lowerArray(c, ts, anchors, depth, s, pointer, hint)
 	default:
-		return scalarTypeID(c, ts, s, st, pointer, hint)
+		return scalarTypeID(c, ts, anchors, depth, s, st, pointer, hint)
 	}
 }
 
@@ -1070,10 +1070,28 @@ func fillModelProperties(c lowering.Ctx, ts *compile.Types, anchors *AnchorIndex
 		diags = append(diags, FillPropertyDetail(c, ts, anchors, &p, js, ppointer)...)
 		var mergeDiags []ir.Diagnostic
 		mg := merger(c, ts, &mergeDiags)
-		mg.MergeProperty(m, byWire, p, ppointer)
+		mg.MergeProperty(m, byWire, p, redeclarationSource(js))
 		diags = append(diags, mergeDiags...)
 	}
 	return diags
+}
+
+// redeclarationSource renders the schema written at a property position
+// verbatim, as the merge keeps it when the position redeclares a field and
+// not all of the redeclaration folds onto the first declaration. It is a
+// function rather than the bytes because nearly every property is declared
+// once, and rendering a node nobody will keep is the cost the merge asks for
+// only when it has something to keep.
+//
+// A boolean schema has no node of its own to render, so its value is spelled
+// out; a `$ref` is rendered as the `$ref` the position wrote, not the target.
+func redeclarationSource(js *oas3.JSONSchema[oas3.Referenceable]) func() (ir.RawValue, error) {
+	return func() (ir.RawValue, error) {
+		if b := js.GetBool(); b != nil {
+			return ir.RawValue(strconv.FormatBool(*b)), nil
+		}
+		return annotation.RawFromNode(js.GetSchema().GetRootNode())
+	}
 }
 
 // FillPropertyDetail enriches a property from its schema: the property-scoped
@@ -1203,6 +1221,11 @@ func fillPropertyDefault(c lowering.Ctx, p *ir.Property, ref, tgt *oas3.Schema, 
 // co-declared bound keyword that reached none of them, to the property itself.
 // ir.Property is the carrier at this position: a property's schema is read
 // through CarriedRef, so it hoists no node of its own to hold either.
+//
+// It reads ref alone and never the $ref target, which is why no tgt reaches it:
+// bounds conjoin rather than override, so a referent's bound merged here under
+// use-site precedence would publish the wider of the two as the whole truth. It
+// stays on the node the reference points at instead (ir-design §12.2).
 func fillPropertyConstraints(c lowering.Ctx, p *ir.Property, ref *oas3.Schema, pointer string) []ir.Diagnostic {
 	cons, diags := schemaConstraints(c, &p.Unmodeled, ref, pointer)
 	if cons != nil {
@@ -1246,6 +1269,13 @@ func attachDeclaredAnnotations(c lowering.Ctx, ts *compile.Types, anchors *Ancho
 	}
 	common.Unmodeled = annotation.MergeUnmodeled(common.Unmodeled, a.Unmodeled)
 	diags = append(diags, c.PromoteDeprecation(common.Unmodeled, common.Deprecation, &common.Provenance)...)
+	// The enum-openness promotion is applied here rather than where the Enum is
+	// built, for the same reason the deprecation one is: a promotion reads the
+	// preserved Unmodeled entries, and this is the point at which the
+	// declaration's extensions have reached the node's map.
+	if enum, isEnum := td.(*ir.Enum); isEnum {
+		c.PromoteEnumOpenness(common.Unmodeled, enum, &common.Provenance)
+	}
 	if len(a.Examples) > 0 {
 		common.Examples = a.Examples
 	}
@@ -1330,10 +1360,10 @@ func buildTuple(c lowering.Ctx, ts *compile.Types, anchors *AnchorIndex, depth i
 // 2020-12 content vocabulary each hoist a named Scalar wrapping the base
 // primitive with an Encoding, so what the position wrote never leaks onto the
 // shared primitive every other declaration of that type also resolves to.
-func scalarTypeID(c lowering.Ctx, ts *compile.Types, s *oas3.Schema, st oas3.SchemaType, pointer, hint string) (ir.TypeID, []ir.Diagnostic) {
+func scalarTypeID(c lowering.Ctx, ts *compile.Types, anchors *AnchorIndex, depth int, s *oas3.Schema, st oas3.SchemaType, pointer, hint string) (ir.TypeID, []ir.Diagnostic) {
 	format := s.GetFormat()
 	if st == oas3.SchemaTypeString && format == "byte" {
-		return hoistByteScalar(c, ts, s, pointer, hint)
+		return hoistByteScalar(c, ts, anchors, depth, s, pointer, hint)
 	}
 	key := string(st)
 	if format != "" {
@@ -1341,12 +1371,12 @@ func scalarTypeID(c lowering.Ctx, ts *compile.Types, s *oas3.Schema, st oas3.Sch
 	}
 	prim, known := formatTable[key]
 	if !known {
-		return hoistFormatScalar(c, ts, s, baseForType(st), format, pointer, hint)
+		return hoistFormatScalar(c, ts, anchors, depth, s, baseForType(st), format, pointer, hint)
 	}
-	if !declaresContent(s) {
+	if !declaresContentVocabulary(s) {
 		return ts.PrimID(prim), nil
 	}
-	return hoistContentScalar(c, ts, s, prim, pointer, hint)
+	return hoistContentScalar(c, ts, anchors, depth, s, prim, pointer, hint)
 }
 
 // hoistByteScalar hoists a base64-encoded byte scalar (string+byte).
@@ -1356,12 +1386,12 @@ func scalarTypeID(c lowering.Ctx, ts *compile.Types, s *oas3.Schema, st oas3.Sch
 // otherwise carry them: that fallback resolves to whatever node the pointer
 // already owns and returns early. A scalar that hoisted because it wrote a
 // format must not lose the bounds it wrote beside it (invariant 2).
-func hoistByteScalar(c lowering.Ctx, ts *compile.Types, s *oas3.Schema, pointer, hint string) (ir.TypeID, []ir.Diagnostic) {
+func hoistByteScalar(c lowering.Ctx, ts *compile.Types, anchors *AnchorIndex, depth int, s *oas3.Schema, pointer, hint string) (ir.TypeID, []ir.Diagnostic) {
 	var diags []ir.Diagnostic
 	id := internNode(c, ts, pointer, hint, func(common ir.TypeCommon) ir.TypeDef {
 		base := ts.PrimRef(ir.PrimBytes)
 		wire := ts.PrimRef(ir.PrimString)
-		enc, encDiags := scalarEncoding(c, s, "base64", &common, pointer)
+		enc, encDiags := scalarEncoding(c, ts, anchors, depth, s, "base64", &common, pointer, hint)
 		diags = append(diags, encDiags...)
 		enc.WireType = &wire
 		cons, consDiags := schemaConstraints(c, &common.Unmodeled, s, pointer)
@@ -1378,11 +1408,11 @@ func hoistByteScalar(c lowering.Ctx, ts *compile.Types, s *oas3.Schema, pointer,
 
 // hoistFormatScalar hoists a scalar over base carrying an unknown format as its
 // encoding name, preserving the format losslessly.
-func hoistFormatScalar(c lowering.Ctx, ts *compile.Types, s *oas3.Schema, base ir.PrimKind, format, pointer, hint string) (ir.TypeID, []ir.Diagnostic) {
+func hoistFormatScalar(c lowering.Ctx, ts *compile.Types, anchors *AnchorIndex, depth int, s *oas3.Schema, base ir.PrimKind, format, pointer, hint string) (ir.TypeID, []ir.Diagnostic) {
 	var diags []ir.Diagnostic
 	id := internNode(c, ts, pointer, hint, func(common ir.TypeCommon) ir.TypeDef {
 		baseRef := ts.PrimRef(base)
-		enc, encDiags := scalarEncoding(c, s, format, &common, pointer)
+		enc, encDiags := scalarEncoding(c, ts, anchors, depth, s, format, &common, pointer, hint)
 		diags = append(diags, encDiags...)
 		cons, consDiags := schemaConstraints(c, &common.Unmodeled, s, pointer)
 		diags = append(diags, consDiags...)
@@ -1400,11 +1430,11 @@ func hoistFormatScalar(c lowering.Ctx, ts *compile.Types, s *oas3.Schema, base i
 // (type, format) pair maps to, giving the content vocabulary written here a node
 // of its own to sit on. It carries the position's value constraints for the
 // reason hoistByteScalar records.
-func hoistContentScalar(c lowering.Ctx, ts *compile.Types, s *oas3.Schema, prim ir.PrimKind, pointer, hint string) (ir.TypeID, []ir.Diagnostic) {
+func hoistContentScalar(c lowering.Ctx, ts *compile.Types, anchors *AnchorIndex, depth int, s *oas3.Schema, prim ir.PrimKind, pointer, hint string) (ir.TypeID, []ir.Diagnostic) {
 	var diags []ir.Diagnostic
 	id := internNode(c, ts, pointer, hint, func(common ir.TypeCommon) ir.TypeDef {
 		base := ts.PrimRef(prim)
-		enc, encDiags := scalarEncoding(c, s, "", &common, pointer)
+		enc, encDiags := scalarEncoding(c, ts, anchors, depth, s, "", &common, pointer, hint)
 		diags = append(diags, encDiags...)
 		cons, consDiags := schemaConstraints(c, &common.Unmodeled, s, pointer)
 		diags = append(diags, consDiags...)
@@ -1418,25 +1448,34 @@ func hoistContentScalar(c lowering.Ctx, ts *compile.Types, s *oas3.Schema, prim 
 	return id, diags
 }
 
-// scalarEncoding builds the Encoding a scalar position declares: the 2020-12
-// content vocabulary over the OpenAPI `format` spelling of the same thing.
-// formatName is the encoding name the format contributes — "base64" for
+// scalarEncoding builds the Encoding a scalar position declares: the whole
+// 2020-12 content vocabulary over the OpenAPI `format` spelling of the encoding
+// name. formatName is the encoding name the format contributes — "base64" for
 // format: byte, an unrecognized format verbatim, "" when the pairing is already
 // captured by the primitive kind.
+func scalarEncoding(c lowering.Ctx, ts *compile.Types, anchors *AnchorIndex, depth int, s *oas3.Schema,
+	formatName string, common *ir.TypeCommon, pointer, hint string,
+) (*ir.Encoding, []ir.Diagnostic) {
+	name, diags := encodingName(c, s, formatName, common, pointer)
+	content, contentDiags := contentSchemaRef(c, ts, anchors, depth, s, pointer, hint)
+	enc := &ir.Encoding{Name: name, MediaType: s.GetContentMediaType(), Schema: content}
+	return enc, append(diags, contentDiags...)
+}
+
+// encodingName elects the one name ir.Encoding holds from the two keywords that
+// can name an encoding at a scalar position.
 //
-// contentEncoding wins Encoding.Name: it is the standard keyword, where a format
-// the IR could not place is only parked there. Encoding holds one name, so a
-// format that named a *different* encoding is kept verbatim on c rather than
+// contentEncoding wins: it is the standard keyword, where a format the IR could
+// not place is only parked there. Encoding holds one name, so a format that
+// named a *different* encoding is kept verbatim on the node rather than
 // overwritten away.
-func scalarEncoding(c lowering.Ctx, s *oas3.Schema, formatName string, common *ir.TypeCommon, pointer string) (*ir.Encoding, []ir.Diagnostic) {
-	enc := &ir.Encoding{Name: formatName, MediaType: s.GetContentMediaType()}
+func encodingName(c lowering.Ctx, s *oas3.Schema, formatName string, common *ir.TypeCommon, pointer string) (string, []ir.Diagnostic) {
 	content := s.GetContentEncoding()
 	if content == "" || content == formatName {
-		return enc, nil
+		return formatName, nil
 	}
-	enc.Name = content
 	if formatName == "" {
-		return enc, nil
+		return content, nil
 	}
 	at := pointer + ids.Ptr("format")
 	kept, diags := PreserveSchemaKeyword(c, &common.Unmodeled, s, "format", ir.ReasonNoIRHome, at)
@@ -1445,25 +1484,39 @@ func scalarEncoding(c lowering.Ctx, s *oas3.Schema, formatName string, common *i
 			"format and contentEncoding both name an encoding and ir.Encoding holds one; "+
 				"contentEncoding %q is lowered and format is kept verbatim under Unmodeled", content))
 	}
-	return enc, diags
+	return content, diags
 }
 
-// contentKeywords are the content-vocabulary keywords that lower into
-// ir.Encoding: contentEncoding names Encoding.Name and contentMediaType names
-// Encoding.MediaType (ir/constraints.go, ir-design §5.3). contentSchema is not
-// one of them — it is a schema rather than an encoding, and noIRHomeAt keeps it
-// verbatim at every position.
-var contentKeywords = []string{"contentEncoding", "contentMediaType"}
-
-// declaresContent reports whether s writes a contentKeywords entry.
-func declaresContent(s *oas3.Schema) bool {
-	return s.GetContentEncoding() != "" || s.GetContentMediaType() != ""
+// contentSchemaRef lowers contentSchema — the shape the encoded value has once
+// decoded — to Encoding.Schema. Its value is a schema, so it lowers like every
+// other sub-schema position (fillAdditional, patternProps): hoisted at its own
+// pointer and referenced by ID, never carried beside the encoding as a raw blob
+// a consumer would have to re-parse.
+//
+// The pointer it hoists at is the one the source wrote it at, which only this
+// declaration can name, so the node needs no namespace of its own (§4.3).
+func contentSchemaRef(c lowering.Ctx, ts *compile.Types, anchors *AnchorIndex, depth int, s *oas3.Schema, pointer, hint string) (*ir.TypeRef, []ir.Diagnostic) {
+	cs := s.GetContentSchema()
+	if cs == nil {
+		return nil, nil
+	}
+	ref, diags := Ref(c, ts, anchors, depth, cs, pointer+ids.Ptr("contentSchema"), compile.SubHint(hint, "content"))
+	return &ref, diags
 }
+
+// contentKeywords are the 2020-12 content-vocabulary keywords, all three of
+// which lower into ir.Encoding: contentEncoding names Encoding.Name,
+// contentMediaType names Encoding.MediaType, and contentSchema names
+// Encoding.Schema (ir/constraints.go, ir-design §5.3). One list because they
+// share one home — a position that reached no Encoding keeps all three, and one
+// that reached an Encoding keeps none.
+var contentKeywords = []string{"contentEncoding", "contentMediaType", "contentSchema"}
 
 // declaresContentVocabulary reports whether s writes any content-vocabulary
 // keyword, so a position that wrote one owns a node to keep it on.
 func declaresContentVocabulary(s *oas3.Schema) bool {
-	return declaresContent(s) || s.GetContentSchema() != nil
+	return s.GetContentEncoding() != "" || s.GetContentMediaType() != "" ||
+		s.GetContentSchema() != nil
 }
 
 // recordUnplacedContent keeps each content keyword verbatim on p, for a position
@@ -1476,7 +1529,7 @@ func declaresContentVocabulary(s *oas3.Schema) bool {
 // node the position actually lowered to instead of re-deriving lower()'s
 // dispatch, so the two cannot drift apart.
 func recordUnplacedContent(c lowering.Ctx, p *ir.Unmodeled, s *oas3.Schema, td ir.TypeDef, pointer string) []ir.Diagnostic {
-	if !declaresContent(s) || scalarHasEncoding(td) {
+	if !declaresContentVocabulary(s) || scalarHasEncoding(td) {
 		return nil
 	}
 	var diags []ir.Diagnostic
@@ -1487,8 +1540,8 @@ func recordUnplacedContent(c lowering.Ctx, p *ir.Unmodeled, s *oas3.Schema, td i
 			continue
 		}
 		diags = append(diags, c.DiagAt(ir.SeverityInfo, diag.DegradedConstruct, pointer+ids.Ptr(keyword),
-			"%s encodes a string value and this position lowered to a shape with no "+
-				"Encoding field; kept verbatim under Unmodeled", keyword))
+			"%s is content-vocabulary data the IR holds in ir.Encoding, and this position "+
+				"lowered to a shape with no Encoding field; kept verbatim under Unmodeled", keyword))
 	}
 	return diags
 }

@@ -23,6 +23,7 @@ Content.SchemaFormat
 CtorValue.Args
 CtorValue.Name
 CtorValue.Scalar
+Deprecation.RemovalVersion
 Discriminator.Envelope
 Discriminator.EnvelopeValueName
 Discriminator.Index

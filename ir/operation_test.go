@@ -52,7 +52,13 @@ func TestOperation_PopulatedRoundTrip(t *testing.T) {
 			},
 		},
 		Errors: []ir.ErrorCase{
-			{Type: populatedTypeRef(), Conditions: ir.ResponseConditions{StatusCodes: []ir.StatusRange{{From: 400, To: 499}}}, Fault: "client"},
+			{
+				Name:       ir.Naming{Source: "client_error"},
+				Conditions: ir.ResponseConditions{StatusCodes: []ir.StatusRange{{From: 400, To: 499}}},
+				Payload:    errorPayload(),
+				Headers:    []ir.Property{{ID: "p/retry-after", Name: ir.Naming{Source: "Retry-After"}, Type: populatedTypeRef()}},
+				Fault:      "client",
+			},
 		},
 		OneWay:    false,
 		Streaming: ir.StreamingBidi,
@@ -130,13 +136,15 @@ func TestPageStrategy_Constants(t *testing.T) {
 }
 
 // TestParameter_JSONContract pins Parameter's omitempty contract — Name,
-// Type, Required, and Docs carry no omitempty since every parameter has a
-// naming, a type, a required flag, and a docs object; everything else is
-// optional — and that a fully populated Parameter round-trips.
+// Type, Required, Docs, and Provenance carry no omitempty since every parameter
+// has a naming, a type, a required flag, a docs object, and a declaring
+// position; everything else is optional — and that a fully populated Parameter
+// round-trips.
 func TestParameter_JSONContract(t *testing.T) {
 	t.Parallel()
 	assertJSONContract(t, ir.Parameter{},
-		`{"name":{},"type":{"target":"","nullable":false},"required":false,"docs":{}}`,
+		`{"name":{},"type":{"target":"","nullable":false},"required":false,"docs":{},`+
+			`"provenance":{"source":0}}`,
 		ir.Parameter{
 			Name:         populatedNaming(),
 			Type:         populatedTypeRef(),
@@ -151,22 +159,51 @@ func TestParameter_JSONContract(t *testing.T) {
 				{Name: "ex1", Value: &ir.Value{Kind: ir.ValueNumber, Num: ir.BigVal("1")}},
 				{Name: "ex2", Value: &ir.Value{Kind: ir.ValueNumber, Num: ir.BigVal("2")}},
 			},
-			Unmodeled: populatedUnmodeled(),
+			Unmodeled:  populatedUnmodeled(),
+			Provenance: populatedProvenance(),
 		})
 }
 
-// TestPayload_JSONContract pins Payload's omitempty contract (both fields are
+// TestPayload_JSONContract pins Payload's omitempty contract (every field is
 // optional) and that a Payload with multiple media-type contents round-trips,
 // all kept per the "no primary-response selection" invariant.
 func TestPayload_JSONContract(t *testing.T) {
 	t.Parallel()
+	required := true
 	assertJSONContract(t, ir.Payload{}, `{}`, ir.Payload{
 		Contents: []ir.Content{
 			{MediaType: "application/json", Type: populatedTypeRef()},
 			{MediaType: "application/xml", Type: populatedTypeRef()},
 		},
+		Required:  &required,
 		Unmodeled: populatedUnmodeled(),
 	})
+}
+
+// TestPayload_RequiredIsTriState pins the reason Required is a pointer: the
+// three states must survive the wire as three, so a consumer never has to read
+// a missing key as a value. omitempty on a *bool drops only nil, so an optional
+// body still says so out loud instead of looking like a format that cannot
+// express optionality at all.
+func TestPayload_RequiredIsTriState(t *testing.T) {
+	t.Parallel()
+	yes, no := true, false
+	for _, tc := range []struct {
+		name string
+		in   *bool
+		want string
+	}{
+		{"unstated", nil, `{}`},
+		{"optional", &no, `{"required":false}`},
+		{"mandatory", &yes, `{"required":true}`},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			payload := ir.Payload{Required: tc.in}
+			assertZeroValueShape(t, payload, tc.want)
+			assertRoundTrip(t, payload)
+		})
+	}
 }
 
 // TestContent_JSONContract pins Content's omitempty contract — Type carries
@@ -312,19 +349,25 @@ func TestStatusRange_PopulatedRoundTrip(t *testing.T) {
 	}
 }
 
-// TestErrorCase_JSONContract pins ErrorCase's omitempty contract (Type,
+// TestErrorCase_JSONContract pins ErrorCase's omitempty contract (Name,
 // Conditions, and Docs carry no omitempty; every other field is optional)
-// and that a fully populated ErrorCase — fault classification,
-// retryable/throttling tri-state pointers — round-trips.
+// and that a fully populated ErrorCase — the four response fields it shares
+// with ir.Response, fault classification, retryable/throttling tri-state
+// pointers — round-trips.
 func TestErrorCase_JSONContract(t *testing.T) {
 	t.Parallel()
 	retryable := true
 	throttling := false
 	assertJSONContract(t, ir.ErrorCase{},
-		`{"type":{"target":"","nullable":false},"conditions":{},"docs":{}}`,
+		`{"name":{},"conditions":{},"docs":{}}`,
 		ir.ErrorCase{
-			Type:       populatedTypeRef(),
+			Name:       ir.Naming{Source: "too_many_requests", Hint: "429"},
 			Conditions: ir.ResponseConditions{StatusCodes: []ir.StatusRange{{From: 429, To: 429}}},
+			Payload: &ir.Payload{Contents: []ir.Content{
+				{MediaType: "application/json", Type: populatedTypeRef()},
+				{MediaType: "application/problem+json", Type: populatedTypeRef()},
+			}},
+			Headers:    []ir.Property{{ID: "p/retry-after", Name: ir.Naming{Source: "Retry-After"}, Type: populatedTypeRef()}},
 			Fault:      "client",
 			Retryable:  &retryable,
 			Throttling: &throttling,

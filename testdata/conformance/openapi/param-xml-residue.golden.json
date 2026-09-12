@@ -1,5 +1,5 @@
 {
-  "irVersion": "0.3.0",
+  "irVersion": "0.4.0",
   "name": "ParamXMLResidue",
   "version": "1.0.0",
   "docs": {},
@@ -49,6 +49,10 @@
                         "pointer": "/paths/~1docs/get/parameters/0/schema/xml"
                       }
                     }
+                  },
+                  "provenance": {
+                    "source": 0,
+                    "pointer": "/paths/~1docs/get/parameters/0"
                   }
                 },
                 {
@@ -74,6 +78,10 @@
                         "pointer": "/paths/~1docs/get/parameters/1/content/application~1xml/schema/xml"
                       }
                     }
+                  },
+                  "provenance": {
+                    "source": 0,
+                    "pointer": "/paths/~1docs/get/parameters/1"
                   }
                 }
               ],

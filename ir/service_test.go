@@ -36,8 +36,8 @@ func TestService_JSONContract(t *testing.T) {
 				{Schemes: []ir.SchemeUse{{Scheme: "auth/apiKey"}}},
 			},
 			CommonErrors: []ir.ErrorCase{
-				{Type: populatedTypeRef(), Fault: "client"},
-				{Type: populatedTypeRef(), Fault: "server"},
+				{Name: ir.Naming{Source: "throttled"}, Payload: errorPayload(), Fault: "client"},
+				{Name: ir.Naming{Source: "internal"}, Payload: errorPayload(), Fault: "server"},
 			},
 			Protocols: []ir.ProtocolDecl{
 				{Name: "aws.restJson1", Options: populatedRawConfig()},

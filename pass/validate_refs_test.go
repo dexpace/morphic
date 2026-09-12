@@ -100,7 +100,9 @@ func payloadAndVersioningSites() []refSite {
 			service(d).Renames = map[ir.TypeID]ir.Naming{t: {Source: "Ghost"}}
 		}, "t/ghost/rename-key"},
 		{"service common errors", ".CommonErrors[0]", func(d *ir.Document, t ir.TypeID) {
-			service(d).CommonErrors = []ir.ErrorCase{{Type: ir.TypeRef{Target: t}}}
+			service(d).CommonErrors = []ir.ErrorCase{{
+				Payload: &ir.Payload{Contents: []ir.Content{{Type: ir.TypeRef{Target: t}}}},
+			}}
 		}, "t/ghost/common-error"},
 	}
 }
@@ -271,7 +273,7 @@ var sortedRefPointers = []string{
 	"doc.Channels[chan/a].Params[0].Type.Target",
 	"doc.Messages[msg/a].CorrelationID.Root.Target",
 	"doc.Messages[msg/a].Headers.Target",
-	"doc.Services[0].CommonErrors[0].Type.Target",
+	"doc.Services[0].CommonErrors[0].Payload.Contents[0].Type.Target",
 	"doc.Services[0].Groups[0].Operations[0].Bindings.RPC.InputType.Target",
 	"doc.Services[0].Groups[0].Operations[0].LongRunning.FinalType.Target",
 	"doc.Services[0].Groups[0].Operations[0].LongRunning.PollingType.Target",

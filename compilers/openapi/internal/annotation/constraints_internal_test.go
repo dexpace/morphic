@@ -27,6 +27,6 @@ func TestApplyExclusive_NumericWithoutRootNode(t *testing.T) {
 	// The numeric arm is taken (2020-12 dialect, numeric value) but there is no raw
 	// node to read the exact literal from, so nothing is set and no diagnostic.
 	assert.Nil(t, diags)
-	assert.False(t, c.ExclusiveMin)
+	assert.Nil(t, c.ExclusiveMin)
 	assert.Empty(t, residue.kept)
 }

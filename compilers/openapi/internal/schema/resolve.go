@@ -310,9 +310,12 @@ func structuralPointerHint(pointer string) (string, bool) {
 
 // structuralRole reports the role the structural lowering names the position at
 // the tail of segments by, and how many segments that position spells. The roles
-// are the suffixes the four compile.SubHint call sites pass, and a change to one
-// of them has to be made here too — TestInlinePosition_HintIsTheSameInBothOrders
-// is what fails when they drift.
+// are the suffixes the compile.SubHint call sites pass, and a change to one of
+// them has to be made here too — TestInlinePosition_HintIsTheSameInBothOrders is
+// what fails when they drift, provided its row aims the outside $ref above the
+// node it asserts (see the refAt column there): a reference aimed at the node
+// itself is renamed by the declaration in either order and cannot see a role
+// missing here.
 //
 // segments holds at least two entries: its only caller reads the tail of a
 // pointer, which always starts with the empty segment before the first token, and
@@ -324,6 +327,8 @@ func structuralRole(segments []string) (role string, consumed int, ok bool) {
 		return "item", 1, true
 	case "additionalProperties":
 		return "value", 1, true
+	case "contentSchema":
+		return "content", 1, true
 	}
 	switch segments[len(segments)-2] {
 	case "patternProperties":

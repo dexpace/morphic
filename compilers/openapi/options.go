@@ -56,6 +56,10 @@ const (
 	TargetDeprecationSince = lowering.TargetDeprecationSince
 	// TargetDeprecationRemovalVersion fills ir.Deprecation.RemovalVersion.
 	TargetDeprecationRemovalVersion = lowering.TargetDeprecationRemovalVersion
+	// TargetDeprecationRemovalDate fills ir.Deprecation.RemovalDate.
+	TargetDeprecationRemovalDate = lowering.TargetDeprecationRemovalDate
+	// TargetEnumOpen clears ir.Enum.Closed.
+	TargetEnumOpen = lowering.TargetEnumOpen
 )
 
 // DefaultExtensionPromotions returns the extension-to-field mapping applied

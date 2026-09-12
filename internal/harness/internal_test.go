@@ -144,6 +144,24 @@ func TestDeterministic_MismatchIsReported(t *testing.T) {
 	assert.Contains(t, detail, "IR JSON differs")
 }
 
+// TestCheck_CompilerErrorIsAnErrorOutcome drives the arm that separates a
+// compiler that could not run from a spec that was found wanting. It goes
+// through the seam because the OpenAPI compiler no longer reaches it on a
+// document that will not parse — that is a diagnostic now, and an ErrorDiag
+// outcome — leaving cancellation and a caller's bad options as the live
+// producers of a Go error here.
+func TestCheck_CompilerErrorIsAnErrorOutcome(t *testing.T) {
+	orig := compile
+	t.Cleanup(func() { compile = orig })
+	compile = func(context.Context, string, []byte) (*ir.Document, []ir.Diagnostic, error) {
+		return nil, nil, errors.New("compile boom")
+	}
+
+	r := Check(context.Background(), "spec", []byte("x"))
+	assert.Equal(t, OutcomeError, r.Outcome)
+	assert.Contains(t, r.Detail, "compile boom")
+}
+
 func TestCheck_CompilerPanicIsCaptured(t *testing.T) {
 	orig := compile
 	t.Cleanup(func() { compile = orig })

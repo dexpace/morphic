@@ -1,5 +1,5 @@
 {
-  "irVersion": "0.3.0",
+  "irVersion": "0.4.0",
   "name": "PerStatusErrors",
   "version": "1.0.0",
   "docs": {},
@@ -45,9 +45,8 @@
               ],
               "errors": [
                 {
-                  "type": {
-                    "target": "t/openapi/components/schemas/Err",
-                    "nullable": false
+                  "name": {
+                    "hint": "404"
                   },
                   "conditions": {
                     "statusCodes": [
@@ -57,31 +56,116 @@
                       }
                     ]
                   },
+                  "payload": {
+                    "contents": [
+                      {
+                        "mediaType": "application/json",
+                        "type": {
+                          "target": "t/openapi/components/schemas/Err",
+                          "nullable": false
+                        }
+                      }
+                    ]
+                  },
                   "fault": "client",
                   "docs": {
                     "description": "not found"
-                  },
-                  "unmodeled": {
-                    "openapi:content": {
-                      "reason": "no_ir_home",
-                      "value": {
-                        "application/json": {
-                          "schema": {
-                            "$ref": "#/components/schemas/Err"
-                          }
-                        }
-                      },
-                      "provenance": {
-                        "source": 0,
-                        "pointer": "/paths/~1widgets/get/responses/404/content"
-                      }
-                    }
                   }
                 },
                 {
-                  "type": {
-                    "target": "",
-                    "nullable": false
+                  "name": {
+                    "hint": "429"
+                  },
+                  "conditions": {
+                    "statusCodes": [
+                      {
+                        "from": 429,
+                        "to": 429
+                      }
+                    ]
+                  },
+                  "payload": {
+                    "contents": [
+                      {
+                        "mediaType": "application/json",
+                        "type": {
+                          "target": "t/openapi/components/schemas/Err",
+                          "nullable": false
+                        }
+                      },
+                      {
+                        "mediaType": "application/problem+json",
+                        "type": {
+                          "target": "t/openapi/components/schemas/Problem",
+                          "nullable": false
+                        }
+                      }
+                    ]
+                  },
+                  "headers": [
+                    {
+                      "id": "p/openapi/paths/~1widgets/get/responses/429/headers/Retry-After",
+                      "name": {
+                        "source": "Retry-After",
+                        "canonical": "retry_after"
+                      },
+                      "wireName": "Retry-After",
+                      "type": {
+                        "target": "t/prim/integer",
+                        "nullable": false
+                      },
+                      "required": false,
+                      "clientOptional": false,
+                      "defaultAdded": false,
+                      "visibility": {
+                        "none": false
+                      },
+                      "flatten": false,
+                      "eventHeader": false,
+                      "eventPayload": false,
+                      "secret": false,
+                      "docs": {},
+                      "provenance": {
+                        "source": 0,
+                        "pointer": "/paths/~1widgets/get/responses/429/headers/Retry-After"
+                      }
+                    },
+                    {
+                      "id": "p/openapi/paths/~1widgets/get/responses/429/headers/X-RateLimit-Remaining",
+                      "name": {
+                        "source": "X-RateLimit-Remaining",
+                        "canonical": "x_rate_limit_remaining"
+                      },
+                      "wireName": "X-RateLimit-Remaining",
+                      "type": {
+                        "target": "t/prim/integer",
+                        "nullable": false
+                      },
+                      "required": false,
+                      "clientOptional": false,
+                      "defaultAdded": false,
+                      "visibility": {
+                        "none": false
+                      },
+                      "flatten": false,
+                      "eventHeader": false,
+                      "eventPayload": false,
+                      "secret": false,
+                      "docs": {},
+                      "provenance": {
+                        "source": 0,
+                        "pointer": "/paths/~1widgets/get/responses/429/headers/X-RateLimit-Remaining"
+                      }
+                    }
+                  ],
+                  "fault": "client",
+                  "docs": {
+                    "description": "slow down"
+                  }
+                },
+                {
+                  "name": {
+                    "hint": "5_xx"
                   },
                   "conditions": {
                     "statusCodes": [
@@ -97,9 +181,8 @@
                   }
                 },
                 {
-                  "type": {
-                    "target": "",
-                    "nullable": false
+                  "name": {
+                    "hint": "default"
                   },
                   "conditions": {
                     "statusCodes": [
@@ -190,6 +273,92 @@
       "positional": false,
       "inputOnly": false
     },
+    "t/openapi/components/schemas/Problem": {
+      "kind": "model",
+      "id": "t/openapi/components/schemas/Problem",
+      "name": {
+        "source": "Problem",
+        "canonical": "problem"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Problem"
+      },
+      "properties": [
+        {
+          "id": "p/openapi/components/schemas/Problem/properties/title",
+          "name": {
+            "source": "title",
+            "canonical": "title"
+          },
+          "wireName": "title",
+          "type": {
+            "target": "t/prim/string",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/Problem/properties/title"
+          }
+        },
+        {
+          "id": "p/openapi/components/schemas/Problem/properties/status",
+          "name": {
+            "source": "status",
+            "canonical": "status"
+          },
+          "wireName": "status",
+          "type": {
+            "target": "t/prim/integer",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/Problem/properties/status"
+          }
+        }
+      ],
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
+    "t/prim/integer": {
+      "kind": "primitive",
+      "id": "t/prim/integer",
+      "name": {},
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0
+      },
+      "prim": "integer"
+    },
     "t/prim/string": {
       "kind": "primitive",
       "id": "t/prim/string",
@@ -213,22 +382,11 @@
       "auth": null
     }
   ],
-  "diagnostics": [
-    {
-      "severity": "info",
-      "code": "openapi/degraded-construct",
-      "message": "error response media type has no ErrorCase home; content map kept under Unmodeled",
-      "provenance": {
-        "source": 0,
-        "pointer": "/paths/~1widgets/get/responses/404"
-      }
-    }
-  ],
   "sources": [
     {
       "format": "openapi@3.1",
       "path": "per-status-errors.yaml",
-      "hash": "f688d76cbabd110346bccc9c5d4f88a504b6fc9d034295ba3d5bc5b41340aea9"
+      "hash": "67887ccb06ad4e724eb61d53fb79619f13709d5a459d56763bbc3184c88dac74"
     }
   ]
 }

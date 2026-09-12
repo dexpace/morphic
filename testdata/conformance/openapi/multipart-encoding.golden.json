@@ -1,5 +1,5 @@
 {
-  "irVersion": "0.3.0",
+  "irVersion": "0.4.0",
   "name": "MultipartEncoding",
   "version": "1.0.0",
   "docs": {},
@@ -108,16 +108,7 @@
                     }
                   }
                 ],
-                "unmodeled": {
-                  "openapi:required": {
-                    "reason": "no_ir_home",
-                    "value": false,
-                    "provenance": {
-                      "source": 0,
-                      "pointer": "/paths/~1upload/post/requestBody/required"
-                    }
-                  }
-                }
+                "required": false
               },
               "responses": [
                 {
@@ -196,16 +187,7 @@
                     }
                   }
                 ],
-                "unmodeled": {
-                  "openapi:required": {
-                    "reason": "no_ir_home",
-                    "value": false,
-                    "provenance": {
-                      "source": 0,
-                      "pointer": "/paths/~1upload-composed/post/requestBody/required"
-                    }
-                  }
-                }
+                "required": false
               },
               "responses": [
                 {
@@ -282,16 +264,7 @@
                     }
                   }
                 ],
-                "unmodeled": {
-                  "openapi:required": {
-                    "reason": "no_ir_home",
-                    "value": false,
-                    "provenance": {
-                      "source": 0,
-                      "pointer": "/paths/~1submit/post/requestBody/required"
-                    }
-                  }
-                }
+                "required": false
               },
               "responses": [
                 {
@@ -585,8 +558,6 @@
         "nullable": false
       },
       "constraints": {
-        "exclusiveMin": false,
-        "exclusiveMax": false,
         "pattern": "^[0-9a-f]{64}$",
         "uniqueItems": false
       }
@@ -716,37 +687,10 @@
     {
       "severity": "info",
       "code": "openapi/degraded-construct",
-      "message": "request body is not required; optionality kept under Unmodeled",
-      "provenance": {
-        "source": 0,
-        "pointer": "/paths/~1upload/post/requestBody"
-      }
-    },
-    {
-      "severity": "info",
-      "code": "openapi/degraded-construct",
-      "message": "request body is not required; optionality kept under Unmodeled",
-      "provenance": {
-        "source": 0,
-        "pointer": "/paths/~1upload-composed/post/requestBody"
-      }
-    },
-    {
-      "severity": "info",
-      "code": "openapi/degraded-construct",
       "message": "encoding allowReserved has no ir.PartEncoding home; kept verbatim under Unmodeled",
       "provenance": {
         "source": 0,
         "pointer": "/paths/~1submit/post/requestBody/content/application~1x-www-form-urlencoded/encoding/ids/allowReserved"
-      }
-    },
-    {
-      "severity": "info",
-      "code": "openapi/degraded-construct",
-      "message": "request body is not required; optionality kept under Unmodeled",
-      "provenance": {
-        "source": 0,
-        "pointer": "/paths/~1submit/post/requestBody"
       }
     }
   ],

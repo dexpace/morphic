@@ -12,6 +12,16 @@ paths:
           content:
             application/json:
               schema: {$ref: '#/components/schemas/Err'}
+        "429":
+          description: slow down
+          headers:
+            Retry-After: {schema: {type: integer}}
+            X-RateLimit-Remaining: {schema: {type: integer}}
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Err'}
+            application/problem+json:
+              schema: {$ref: '#/components/schemas/Problem'}
         "5XX":
           description: server error
         default:
@@ -22,3 +32,8 @@ components:
       type: object
       properties:
         message: {type: string}
+    Problem:
+      type: object
+      properties:
+        title: {type: string}
+        status: {type: integer}

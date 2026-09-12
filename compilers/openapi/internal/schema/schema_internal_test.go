@@ -188,7 +188,7 @@ func TestPreserve_EmptyRawIsRejectedLikeNil(t *testing.T) {
 			t.Parallel()
 			l := &lowerer{}
 			var p ir.Unmodeled
-			Preserve(l.ctx, &p, "openapi:k", raw, ir.ReasonVendorExtension, "/p/k")
+			preserve(l.ctx, &p, "openapi:k", raw, ir.ReasonVendorExtension, "/p/k")
 			assert.Nil(t, p, "a payload with no bytes preserves no construct")
 
 			var q ir.Unmodeled

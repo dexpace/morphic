@@ -37,7 +37,7 @@ func TestLoad_DegenerateCycleIsRefusedBeforeParsing(t *testing.T) {
 // TestLoad_UnparseableSourceIsAGoError pins the other side of that split: bytes
 // that are not a document at all are an I/O-level failure, so they leave as a Go
 // error naming the source rather than as a diagnostic about the spec. (The
-// errParse sentinel is narrower — it marks only a recovered parser panic, which
+// ErrParse sentinel is narrower — it marks only a recovered parser panic, which
 // TestUnmarshal_RecoversParserPanic covers.)
 func TestLoad_UnparseableSourceIsAGoError(t *testing.T) {
 	t.Parallel()
@@ -270,7 +270,7 @@ func TestLoad_ADocumentThatFailsToBuildIsAGoError(t *testing.T) {
 	doc, diags, err := Load(t.Context(), 5, openapitest.SourceOf(" "), Options{})
 
 	require.Error(t, err)
-	assert.ErrorIs(t, err, errParse)
+	assert.ErrorIs(t, err, ErrParse)
 	assert.Contains(t, err.Error(), "source 5", "the failing source is named")
 	assert.Nil(t, doc)
 	assert.Nil(t, diags)

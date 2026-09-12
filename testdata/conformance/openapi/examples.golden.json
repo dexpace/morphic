@@ -1,5 +1,5 @@
 {
-  "irVersion": "0.3.0",
+  "irVersion": "0.4.0",
   "name": "Examples",
   "version": "1.0.0",
   "docs": {},
@@ -48,7 +48,11 @@
                         "object": null
                       }
                     }
-                  ]
+                  ],
+                  "provenance": {
+                    "source": 0,
+                    "pointer": "/paths/~1items/get/parameters/0"
+                  }
                 }
               ],
               "responses": [

@@ -1,5 +1,5 @@
 {
-  "irVersion": "0.3.0",
+  "irVersion": "0.4.0",
   "name": "ExtensionsX",
   "version": "1.0.0",
   "docs": {
@@ -71,6 +71,10 @@
                         "pointer": "/paths/~1widgets/parameters/0/x-mark"
                       }
                     }
+                  },
+                  "provenance": {
+                    "source": 0,
+                    "pointer": "/paths/~1widgets/parameters/0"
                   }
                 }
               ],
@@ -155,9 +159,8 @@
               ],
               "errors": [
                 {
-                  "type": {
-                    "target": "",
-                    "nullable": false
+                  "name": {
+                    "hint": "404"
                   },
                   "conditions": {
                     "statusCodes": [
@@ -359,6 +362,10 @@
                         "pointer": "/paths/~1widgets/parameters/0/x-mark"
                       }
                     }
+                  },
+                  "provenance": {
+                    "source": 0,
+                    "pointer": "/paths/~1widgets/parameters/0"
                   }
                 }
               ],
@@ -429,6 +436,7 @@
                     }
                   }
                 ],
+                "required": true,
                 "unmodeled": {
                   "openapi:x-mark": {
                     "reason": "vendor_extension",

@@ -59,8 +59,8 @@ func TestDifferentTypeKind_UnresolvableTargetIsNotAConflict(t *testing.T) {
 		"an unresolvable target is not treated as a differing kind")
 }
 
-// Both BigVal keywords rest on the same magnitude comparison, so both are
-// driven here over the literals that comparison has to get right: one value
+// Every BigVal keyword rests on the same magnitude comparison, so it is driven
+// here over the literals that comparison has to get right: one value
 // under two spellings, and two values that genuinely differ — mostly at a
 // magnitude math/big will not build as a rational at all, with one in-range
 // row so a comparison that only handled the extremes would still be caught.
@@ -91,10 +91,10 @@ func TestBigValConflictDetails_CompareMagnitudesAtAnyScale(t *testing.T) {
 			b, err := ir.NewBigVal(tc.b)
 			require.NoError(t, err, "%q is a literal a schema may write", tc.b)
 
-			_, boundOK := boundConflictDetail("minimum", &a, &b, false, false)
+			_, boundOK := bigValConflictDetail("minimum", &a, &b)
 			assert.Equal(t, tc.wantConflict, boundOK, "minimum %s against %s", a, b)
 
-			_, multipleOK := multipleOfConflictDetail(&a, &b)
+			_, multipleOK := bigValConflictDetail("multipleOf", &a, &b)
 			assert.Equal(t, tc.wantConflict, multipleOK, "multipleOf %s against %s", a, b)
 		})
 	}
@@ -208,9 +208,10 @@ func TestMergeConstraints_AdoptsEveryUnsetKeyword(t *testing.T) {
 	// the spec-driven table tests in the compiler package.
 	five, ten := int64(5), int64(10)
 	minVal, maxVal, multipleOf := ir.BigVal("1"), ir.BigVal("9"), ir.BigVal("2")
+	exclMin, exclMax := ir.BigVal("0"), ir.BigVal("10")
 	src := &ir.Constraints{
-		Min: &minVal, ExclusiveMin: true,
-		Max: &maxVal, ExclusiveMax: true,
+		Min: &minVal, ExclusiveMin: &exclMin,
+		Max: &maxVal, ExclusiveMax: &exclMax,
 		MultipleOf:     &multipleOf,
 		Precision:      &ten,
 		Scale:          &five,
@@ -227,9 +228,9 @@ func TestMergeConstraints_AdoptsEveryUnsetKeyword(t *testing.T) {
 	merged := mergeConstraints(&ir.Constraints{}, src)
 	require.NotNil(t, merged)
 	assert.Same(t, src.Min, merged.Min)
-	assert.Equal(t, src.ExclusiveMin, merged.ExclusiveMin)
+	assert.Same(t, src.ExclusiveMin, merged.ExclusiveMin)
 	assert.Same(t, src.Max, merged.Max)
-	assert.Equal(t, src.ExclusiveMax, merged.ExclusiveMax)
+	assert.Same(t, src.ExclusiveMax, merged.ExclusiveMax)
 	assert.Same(t, src.MultipleOf, merged.MultipleOf)
 	assert.Same(t, src.Precision, merged.Precision)
 	assert.Same(t, src.Scale, merged.Scale)

@@ -132,14 +132,14 @@ func TestParseDecimalBound_DeclinesWhatIsNotADecimalLiteral(t *testing.T) {
 }
 
 // TestBigValGrammarStaysWithinTheDecimalReading pins the coupling that decides
-// whether reconcileBound's incomparable guard is reachable: every literal
+// whether BigValEqual's incomparable guard is reachable: every literal
 // ir.NewBigVal accepts must be one parseDecimalBound can order.
 //
-// While it holds, no schema reaches that guard — which is why the test for it
-// calls reconcileBound directly. The two grammars live in different packages
-// and have already moved apart once, so nothing but this holds them together:
-// when ir widens NewBigVal, a bound it now admits and this reader cannot order
-// is a bound that would be silently replaced by the looser of its pair, and
+// While it holds, no bound compiled from a schema reaches that guard. The two
+// grammars live in different packages and have already moved apart once, so
+// nothing but this holds them together: when ir widens NewBigVal, a bound it
+// now admits and this reader cannot order is one whose disagreement with
+// another spelling of the same magnitude would be reported as a conflict, and
 // that has to fail here rather than in a compiled document.
 //
 // The spellings NewBigVal refuses today are the load-bearing half of the

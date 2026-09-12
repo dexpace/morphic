@@ -723,9 +723,10 @@ func appendValuelessExample(c lowering.Ctx, out []ir.Example, proto ir.Example, 
 }
 
 // lowerRequestBody lowers an operation's request body onto op.Request and the
-// binding's RequestContentTypes. The IR expresses body optionality via presence,
-// so a non-required body stays present with its optionality preserved under
-// Unmodeled plus one info diagnostic (ir-design §7.2 clarification). opDeclPtr
+// binding's RequestContentTypes. Body optionality lands on Payload.Required,
+// always set here because OpenAPI always states it — an undeclared `required`
+// means false by the specification's own default, not silence, so leaving the
+// field nil would report the format as unable to express optionality. opDeclPtr
 // is the operation's own declaration pointer, so a $ref'd body interns its
 // content once at its component pointer rather than once per mount site
 // (issue #107) — and under the component's name, since the operationId hint
@@ -739,13 +740,8 @@ func lowerRequestBody(c lowering.Ctx, ts *compile.Types, anchors *schema.AnchorI
 	if payload == nil {
 		return diags
 	}
-	if !rb.GetRequired() {
-		schema.Preserve(c, &payload.Unmodeled, "openapi:required", ir.RawValue("false"),
-			ir.ReasonNoIRHome, bodyPtr+ids.Ptr("required"))
-
-		diags = append(diags, c.DiagAt(ir.SeverityInfo, diag.DegradedConstruct, bodyPtr,
-			"request body is not required; optionality kept under Unmodeled"))
-	}
+	required := rb.GetRequired()
+	payload.Required = &required
 	// soa.RequestBody exposes no GetExtensions at this library version, so the
 	// field is read directly — as XMLHints already reads its own. Both reads sit
 	// after the payload guard because ir.Payload is the body's only carrier: a

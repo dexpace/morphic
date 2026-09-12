@@ -77,7 +77,12 @@ type Parameter struct {
 	Required bool `json:"required"`
 	// Default is the parameter's default value.
 	Default *Value `json:"default,omitempty"`
-	// Constraints restricts the parameter's admissible values.
+	// Constraints restricts the parameter's admissible values, and holds only
+	// what the parameter's own position declared. A bound on a $ref'd schema
+	// stays on the node Type points at and is never copied here, unlike Docs,
+	// Deprecation and Default, which merge from that target with use-site
+	// precedence: bounds conjoin rather than override, so nil means this
+	// position declared none, not that the value is unbounded (ir-design §12.2).
 	Constraints *Constraints `json:"constraints,omitempty"`
 	// ValueFrom derives the parameter's value from a location in the
 	// outgoing/incoming message (AsyncAPI parameter location runtime
@@ -93,6 +98,14 @@ type Parameter struct {
 	Examples []Example `json:"examples,omitempty"`
 	// Unmodeled holds source constructs the IR does not model, kept verbatim.
 	Unmodeled Unmodeled `json:"unmodeled,omitempty"`
+	// Provenance records where the parameter was declared. A parameter shared by
+	// several operations — a path-item parameter in OpenAPI, merged into every
+	// operation on the path — points at its own single declaration rather than
+	// at the operation it was merged into. For a referenced entry the
+	// declaration is the component it names, and the mount site is not
+	// recorded: whether a parameter was inherited or declared by the operation
+	// is therefore readable off the pointer only for an entry written inline.
+	Provenance Provenance `json:"provenance"`
 }
 
 // Payload is the body/message content of a request, response, or message
@@ -100,6 +113,15 @@ type Parameter struct {
 type Payload struct {
 	// Contents holds one entry per media type / message schema — all kept.
 	Contents []Content `json:"contents,omitempty"`
+	// Required states whether the message must be sent: true = the body is
+	// mandatory, false = it may be omitted. nil = the source format does not
+	// express body optionality at all, which is why this is a pointer — for a
+	// format that does, an unstated body is optional, and collapsing that onto
+	// nil would make "the format is silent" indistinguishable from "the
+	// document says no". A response or message payload leaves it nil: only a
+	// request body can be omitted, and pass/validate reports one that is set
+	// anywhere else (ir/payload-required-outside-request).
+	Required *bool `json:"required,omitempty"`
 	// Unmodeled holds source constructs the IR does not model, kept verbatim.
 	Unmodeled Unmodeled `json:"unmodeled,omitempty"`
 }
@@ -209,11 +231,29 @@ type StatusRange struct {
 }
 
 // ErrorCase is a declared failure shape of an Operation (ir-design §7.2).
+//
+// An error case is a response, so the four fields it shares with [Response] —
+// Name, Conditions, Payload, Headers — are spelled and lowered identically, and
+// the failure classification below them is what separates the two nodes.
+//
+// The sharing is those four fields, not everything [Response] holds:
+// StatusCodeProp stays success-only, because the formats that populate an output
+// member from the status line (Smithy @httpResponseCode, TypeSpec's non-literal
+// @statusCode) classify errors by @httpError instead, so an error case has no
+// runtime status to bind a member to.
 type ErrorCase struct {
-	// Type is an error-flagged model.
-	Type TypeRef `json:"type"`
+	// Name is the error naming for formats with named errors; Hint elsewhere —
+	// for OpenAPI, the responses-map key as declared and then neutralized ("404",
+	// "5_xx", "default"). Only a key that neutralizes to itself round-trips.
+	Name Naming `json:"name"`
 	// Conditions are the status codes/ranges this error maps to.
 	Conditions ResponseConditions `json:"conditions"`
+	// Payload is the error body, one Content per media type; nil = no body. The
+	// error-flagged models an error case references are its contents' types.
+	Payload *Payload `json:"payload,omitempty"`
+	// Headers are the error response's metadata fields — Retry-After and the
+	// rate-limit family live here.
+	Headers []Property `json:"headers,omitempty"`
 	// Fault is "" | "client" | "server" — protocol-neutral fault classification
 	// (Smithy @error; OpenAPI 4XX/5XX is its HTTP lowering). Drives exception
 	// hierarchies and default status synthesis.

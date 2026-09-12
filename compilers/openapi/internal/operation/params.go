@@ -49,8 +49,9 @@ func lowerParameters(c lowering.Ctx, ts *compile.Types, anchors *schema.AnchorIn
 func lowerParameter(c lowering.Ctx, ts *compile.Types, anchors *schema.AnchorIndex, p *soa.Parameter, pptr string) (ir.Parameter, ir.HTTPParamBinding, []ir.Diagnostic) {
 	name, in := p.GetName(), p.GetIn()
 	param := ir.Parameter{
-		Name:     compile.NamingFor(name),
-		Required: p.GetRequired() || in == soa.ParameterInPath,
+		Name:       compile.NamingFor(name),
+		Required:   p.GetRequired() || in == soa.ParameterInPath,
+		Provenance: c.ProvenanceAt(pptr),
 	}
 	style, explode := resolveStyleExplode(p, in)
 	binding := ir.HTTPParamBinding{
@@ -113,6 +114,10 @@ func fillParamType(c lowering.Ctx, ts *compile.Types, anchors *schema.AnchorInde
 // inherit from it still reach the parameter (ir-design §14, GitHub #131).
 // Constraints stay use-site-only, exactly as fillPropertyConstraints keeps
 // them: a parameter must not inherit more from a referent than a property does.
+// The referent's bounds are not dropped, they are simply left where they were
+// declared — bounds conjoin rather than override, so copying one down under
+// use-site precedence would publish the wider bound as the whole truth
+// (ir-design §12.2).
 func fillParamSchema(c lowering.Ctx, ts *compile.Types, param *ir.Parameter, js *oas3.JSONSchema[oas3.Referenceable], pointer string) []ir.Diagnostic {
 	if js == nil || !js.IsSchema() {
 		return nil
@@ -263,11 +268,10 @@ func paramHoldsResidue(keyword string) bool {
 // schema-derived annotations fillParamSchema already recorded rather than
 // erasing them with an unset value.
 //
-// It is the one carrier of an ir.Deprecation that does not promote a vendor
-// extension into it: ir.Parameter has no Provenance, so there is nowhere to
-// record that the field was read by a heuristic, and ir-design §12's promotion
-// rules require that before the reading. Giving Parameter a provenance is a
-// change to that document, not to this file (GitHub #252).
+// The extension promotion runs last, after the parameter's own extensions have
+// been preserved: PromoteDeprecation reads the kept Unmodeled entries rather
+// than the source node, so a parameter whose x-* keys are not in the map yet
+// has nothing to promote from (GitHub #423).
 func fillParamDetail(c lowering.Ctx, param *ir.Parameter, p *soa.Parameter, pptr string) []ir.Diagnostic {
 	if d := p.GetDescription(); d != "" {
 		param.Docs.Description = d
@@ -283,7 +287,8 @@ func fillParamDetail(c lowering.Ctx, param *ir.Parameter, p *soa.Parameter, pptr
 	diags = append(diags, extDiags...)
 	param.Unmodeled = annotation.MergeUnmodeled(param.Unmodeled, pExt)
 	diags = append(diags, annotation.UnknownKeysIn(&param.Unmodeled, p, c.SrcIndex, pptr)...)
-	return append(diags, preserveAllowEmptyValue(c, param, p, pptr)...)
+	diags = append(diags, preserveAllowEmptyValue(c, param, p, pptr)...)
+	return append(diags, c.PromoteDeprecation(param.Unmodeled, param.Deprecation, &param.Provenance)...)
 }
 
 // preserveAllowEmptyValue keeps a parameter's allowEmptyValue flag. It says a

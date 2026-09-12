@@ -1,5 +1,5 @@
 {
-  "irVersion": "0.3.0",
+  "irVersion": "0.4.0",
   "name": "PathItemOperations",
   "version": "1.0.0",
   "docs": {},
@@ -131,16 +131,7 @@
                     }
                   }
                 ],
-                "unmodeled": {
-                  "openapi:required": {
-                    "reason": "no_ir_home",
-                    "value": false,
-                    "provenance": {
-                      "source": 0,
-                      "pointer": "/paths/~1index/query/requestBody/required"
-                    }
-                  }
-                }
+                "required": false
               },
               "responses": [
                 {
@@ -399,17 +390,6 @@
       "urlTemplate": "/",
       "description": {},
       "auth": null
-    }
-  ],
-  "diagnostics": [
-    {
-      "severity": "info",
-      "code": "openapi/degraded-construct",
-      "message": "request body is not required; optionality kept under Unmodeled",
-      "provenance": {
-        "source": 0,
-        "pointer": "/paths/~1index/query/requestBody"
-      }
     }
   ],
   "sources": [
