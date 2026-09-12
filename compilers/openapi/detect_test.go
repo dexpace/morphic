@@ -67,19 +67,40 @@ func TestDetect_Formats(t *testing.T) {
 		// key, so the parse error describes a parser that was wrong to be asked.
 		{"unparseable, key only mentioned", "svc.proto", "syntax = \"openapi\";\n{[",
 			compilers.SourceFormat{}, false, nil},
-		// Past the sniff cap and still this compiler's: the key it declares is in
-		// the prefix, so the fast path alone is enough to call it broken rather
-		// than somebody else's.
+		// Past the cap, where detection scans rather than parses, and the key it
+		// writes has no version beside it. A scan cannot tell that from another
+		// format's file naming the word, and claiming the wrong one of those two
+		// is the costlier mistake, so it declines and the caller is told the
+		// format was not recognized.
 		{"unparseable past the cap", "api.yaml",
 			padTo("openapi: [unterminated\n", "filler: x\n"),
-			compilers.SourceFormat{}, false, []string{diag.UndecodableSource}},
+			compilers.SourceFormat{}, false, nil},
 		// Declares the key only past the cap, on a prefix that does not parse. The
-		// key search reads every byte, so the declaration is found and the source
-		// is this compiler's own — broken, and said so, rather than declined as
-		// somebody else's for want of looking.
+		// scan reads every byte, so the version is found and the format named; that
+		// the bytes around it will not parse is the compile's finding to report,
+		// where the parse that discovers it is one the loader had agreed to pay
+		// for. See TestCompile_AnUnreadableSourceIsADiagnostic.
 		{"key past the cap on an unparseable prefix", "api.yaml",
 			padTo("bad: [unterminated\n", "filler: x\n") + "openapi: 3.1.0\n",
-			compilers.SourceFormat{}, false, []string{diag.UndecodableSource}},
+			compilers.SourceFormat{Name: "openapi", Version: "3.1"}, true, nil},
+		// The same case in flow style, which is what the motivating spec is written
+		// in. A JSON document has no line structure to cut at, and the scan needs
+		// none: it tracks nesting through bytes a parser stops at.
+		{"key past the cap on an unparseable flow prefix", "spec3.json",
+			`{"pad":"` + flowPad() + `","bad" 1,"openapi":"3.1.0"}`,
+			compilers.SourceFormat{Name: "openapi", Version: "3.1"}, true, nil},
+		// Another format's document, past the cap, naming the word as a key and
+		// broken besides. It opens no mapping of its own, so the key is not its
+		// declaration of itself and this compiler has nothing to say: reporting a
+		// parse error here would claim bytes that were never its own.
+		{"a broken document of another format names the key", "asyncapi.json",
+			`[{"openapi":"3.1.0"},"` + flowPad() + `"`,
+			compilers.SourceFormat{}, false, nil},
+		// The same, one level down inside a mapping that does open the document.
+		// A nested key names a field, not the format of the file holding it.
+		{"a broken document of another format nests the key", "other.json",
+			`{"pad":"` + flowPad() + `","deep":{"openapi":"3.1.0"},"bad" 1}`,
+			compilers.SourceFormat{}, false, nil},
 		{"empty", "empty.yaml", "", compilers.SourceFormat{}, false, nil},
 	}
 	for _, tc := range cases {
@@ -140,6 +161,10 @@ func bigComponents() (flow, block string) {
 	return f.String(), b.String()
 }
 
+// flowPad returns a run of bytes long enough that a flow entry holding it puts
+// everything after it past the sniff cap.
+func flowPad() string { return strings.Repeat("p", maxSniffBytes) }
+
 // padTo returns src grown past the sniff cap by appending filler, so sniff reads
 // a prefix first rather than decoding the source whole on sight.
 func padTo(src, filler string) string {
@@ -151,12 +176,11 @@ func padTo(src, filler string) string {
 	return b.String()
 }
 
-// TestSniff_BeyondTheCap pins both paths a document larger than the cap can
-// take. The prefix answers on its own whenever it names a key, in whichever
-// style the document is written; when it names neither, a document whose bytes
-// name one further in is read whole rather than declined, because where a writer
-// put a key in a mapping says nothing about what the document is. Bytes that
-// name neither key anywhere never leave the prefix.
+// TestSniff_BeyondTheCap pins the reading a document larger than the cap gets:
+// a scan that finds a key wherever it sits, in whichever style the document is
+// written, because where a writer put a key in a mapping says nothing about what
+// the document is. Bytes that name neither key are declined in silence — the
+// scan has read one key and cannot tell a broken spec from another format's file.
 func TestSniff_BeyondTheCap(t *testing.T) {
 	t.Parallel()
 	const filler = "# a line of padding that says nothing about the format\n"
@@ -181,9 +205,8 @@ func TestSniff_BeyondTheCap(t *testing.T) {
 		// fails, and the answer is silence rather than a parser's complaint.
 		{"protobuf past the cap",
 			padTo("syntax = \"proto3\";\n", "message M { string a = 1; }\n"), sniffProbe{}},
-		// The word is there past the cap and is not a key, so the whole read is
-		// never reached — asserted on the guard itself below, since the probe a
-		// whole read would return here is the zero one either way.
+		// The word is there past the cap and is not a key: a value is not a
+		// declaration, and the flow scan reads names only where a colon follows.
 		{"the word past the cap is not a key",
 			`{"x":"` + pad + `","note":"openapi"}`, sniffProbe{}},
 	}
@@ -198,90 +221,49 @@ func TestSniff_BeyondTheCap(t *testing.T) {
 	}
 }
 
-// TestDeclaresProbeKey_GuardsTheWholeRead pins the one decision that keeps a
-// document of another format off the slow path: the whole of a source is scanned
-// for a key, and only a declaration — the name with the colon that makes it one
-// — counts as having found it.
-func TestDeclaresProbeKey_GuardsTheWholeRead(t *testing.T) {
+// TestDeclaresProbeKey_ScopesTheNameToItsOwnDocument pins the guard that decides
+// whose bytes these are. A name followed by a colon is a key wherever it sits,
+// so the scan has to say *whose* key: block style answers with column 0, flow
+// style with the root mapping's own depth. Everything below is a document naming
+// the word somewhere it does not declare this format, and the answer for each is
+// no — a compiler that says otherwise reports its own parse error over a file
+// that was never its own.
+//
+// None of the cases exceeds the cap, and none can: a reading only fails at or
+// below it, scanProbe returning no error above. What the scan does past the cap
+// with the same shapes is TestScanProbe_ReadsTheVersionBesideTheKey's and
+// TestSniff_BeyondTheCap's.
+func TestDeclaresProbeKey_ScopesTheNameToItsOwnDocument(t *testing.T) {
 	t.Parallel()
-	pad := strings.Repeat("p", maxSniffBytes)
 	cases := []struct {
 		name, src string
 		want      bool
 	}{
-		{"declared past the cap in flow style", `{"x":"` + pad + `","openapi":"3.1.0"}`, true},
-		{"declared past the cap in block style", "x: " + pad + "\nswagger: \"2.0\"\n", true},
-		{"named past the cap as a value", `{"x":"` + pad + `","note":"openapi"}`, false},
-		{"named past the cap in prose", "x: " + pad + "\n# openapi is a format\n", false},
+		{"flow mapping declares it", `{"openapi":"3.1.0"}`, true},
+		{"flow mapping declares swagger", `{"swagger":"2.0"}`, true},
+		{"space around the mapping and the colon", "  \n\t{\"openapi\" : \"3.1.0\"}", true},
+		{"an escape hides no key from the scan", `{"a\"b":1,"openapi":"3.1.0"}`, true},
+		{"block style at column 0", "openapi: 3.1.0\n", true},
+		{"block style past a byte-order mark", "\xef\xbb\xbfopenapi: [unterminated\n", true},
+		{"flow style past a byte-order mark", "\xef\xbb\xbf{\"openapi\":\"3.1.0\",", true},
+
+		{"nested one level down", `{"a":{"openapi":"3.1.0"}}`, false},
+		{"nested inside a sequence", `{"a":[{"openapi":"3.1.0"}]}`, false},
+		{"a document that opens a sequence", `[{"openapi":"3.1.0"}]`, false},
+		{"block style indented under another key", "a:\n  openapi: 3.1.0\n", false},
+		{"the name is a value", `{"note":"openapi"}`, false},
+		{"the name in a comment", "x: 1\n# openapi is a format\n", false},
+		{"the name has no colon after it", `{"openapi",1}`, false},
+		{"the name ends the bytes", `{"openapi"`, false},
+		{"a string runs off the end", `{"a":"unterminated`, false},
+		{"nothing but whitespace", "  \n\t ", false},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			require.Greater(t, len(tc.src), maxSniffBytes, "the case must exceed the cap to test it")
 			assert.Equal(t, tc.want, declaresProbeKey([]byte(tc.src)))
 		})
 	}
-}
-
-func TestDecodeFlowEntries_ReadsWhatTheCutLeft(t *testing.T) {
-	t.Parallel()
-	cases := []struct {
-		name, prefix string
-		want         sniffProbe
-		wantFlow     bool
-	}{
-		{"complete document", `{"openapi":"3.1.0","info":{"title":"T"}}`,
-			sniffProbe{OpenAPI: "3.1.0"}, true},
-		{"cut inside a later value", `{"openapi":"3.1.0","info":{"title":"T`,
-			sniffProbe{OpenAPI: "3.1.0"}, true},
-		{"cut inside a key", `{"openapi":"3.1.0","inf`,
-			sniffProbe{OpenAPI: "3.1.0"}, true},
-		{"swagger", `{"swagger":"2.0","info":{}}`, sniffProbe{Swagger: "2.0"}, true},
-		// A version that is not a string declares no dialect, and must not be
-		// read as one by accident.
-		{"non-string version", `{"openapi":3}`, sniffProbe{}, true},
-		{"no flow mapping", "openapi: 3.1.0\n", sniffProbe{}, false},
-		{"not even a token", "\x00", sniffProbe{}, false},
-	}
-	for _, tc := range cases {
-		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
-			got, flow := decodeFlowEntries([]byte(tc.prefix))
-			assert.Equal(t, tc.wantFlow, flow)
-			assert.Equal(t, tc.want, got)
-		})
-	}
-}
-
-// TestDecodeFlowEntries_StopsAtTheEntryCap proves the walk is bounded by its own
-// count and not only by the byte cap: a declaration after maxSniffEntries other
-// entries is not read.
-func TestDecodeFlowEntries_StopsAtTheEntryCap(t *testing.T) {
-	t.Parallel()
-	var b strings.Builder
-	b.WriteByte('{')
-	for i := range maxSniffEntries + 1 {
-		if i > 0 {
-			b.WriteByte(',')
-		}
-		b.WriteString(`"k`)
-		b.WriteString(strings.Repeat("x", 3))
-		b.WriteString(string(rune('a' + i%26)))
-		b.WriteString(strings.Repeat("y", i%7))
-		b.WriteString(`":0`)
-	}
-	b.WriteString(`,"openapi":"3.1.0"}`)
-
-	got, flow := decodeFlowEntries([]byte(b.String()))
-	require.True(t, flow)
-	assert.Equal(t, sniffProbe{}, got, "the entry past the cap is not read")
-}
-
-func TestWholeLines(t *testing.T) {
-	t.Parallel()
-	assert.Equal(t, "a\nb\n", string(wholeLines([]byte("a\nb\nc"))))
-	assert.Equal(t, "nolines", string(wholeLines([]byte("nolines"))),
-		"a prefix with no newline has no better cut to make")
 }
 
 func TestMajorMinor(t *testing.T) {
