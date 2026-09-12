@@ -108,6 +108,7 @@ func assertExtensionPromotion(t *testing.T, doc *ir.Document, diags []ir.Diagnos
 // names no such key is untouched — the last so that the first is a promotion
 // rather than a compiler that stopped closing enums.
 func assertEnumOpenness(t *testing.T, doc *ir.Document) {
+	t.Helper()
 	tests := []struct {
 		schema   string
 		closed   bool

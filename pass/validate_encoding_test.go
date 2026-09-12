@@ -131,12 +131,8 @@ func TestValidate_EncodingKeysNamingRealPropertiesAreClean(t *testing.T) {
 func TestValidate_EncodingKeyThroughServiceCommonErrors(t *testing.T) {
 	t.Parallel()
 	doc := validDoc()
-	service(doc).CommonErrors = []ir.ErrorCase{{
-		Name: ir.Naming{Source: "throttled"},
-		Payload: &ir.Payload{Contents: []ir.Content{
-			multipartContent(map[ir.PropID]ir.PartEncoding{"p/m/ghost": {Multi: true}}),
-		}},
-	}}
+	payload := multipartPayload(map[ir.PropID]ir.PartEncoding{"p/m/ghost": {Multi: true}})
+	service(doc).CommonErrors = []ir.ErrorCase{{Name: ir.Naming{Source: "throttled"}, Payload: &payload}}
 
 	found := withCode(pass.Validate(doc), "ir/encoding-key-unknown-property")
 	require.Len(t, found, 1, "exactly the planted key must address nothing")

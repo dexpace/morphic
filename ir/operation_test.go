@@ -55,7 +55,7 @@ func TestOperation_PopulatedRoundTrip(t *testing.T) {
 			{
 				Name:       ir.Naming{Source: "client_error"},
 				Conditions: ir.ResponseConditions{StatusCodes: []ir.StatusRange{{From: 400, To: 499}}},
-				Payload:    &ir.Payload{Contents: []ir.Content{{MediaType: "application/json", Type: populatedTypeRef()}}},
+				Payload:    errorPayload(),
 				Headers:    []ir.Property{{ID: "p/retry-after", Name: ir.Naming{Source: "Retry-After"}, Type: populatedTypeRef()}},
 				Fault:      "client",
 			},
