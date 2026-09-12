@@ -20,11 +20,12 @@ func TestConstraints_JSONContract(t *testing.T) {
 		*populatedConstraints())
 }
 
-// TestEncoding_JSONContract pins Encoding's omitempty contract — all three
-// fields are optional, so a Property/Scalar with no encoding override
-// marshals to an empty object rather than an explicit "no encoding" tag —
-// and that a fully populated Encoding — name, a nested nullable WireType, and
-// a media type — round-trips.
+// TestEncoding_JSONContract pins Encoding's omitempty contract — every field
+// is optional, so a Property/Scalar with no encoding override marshals to an
+// empty object rather than an explicit "no encoding" tag — and that a fully
+// populated Encoding — name, a nested nullable WireType, a media type, and a
+// decoded Schema — round-trips. populatedEncoding is held to "fully" by
+// TestPopulatedFixtures_LeaveNoFieldZero.
 func TestEncoding_JSONContract(t *testing.T) {
 	t.Parallel()
 	assertJSONContract(t, ir.Encoding{}, `{}`, *populatedEncoding())

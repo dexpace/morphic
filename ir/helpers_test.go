@@ -356,6 +356,7 @@ func populatedEncoding() *ir.Encoding {
 		Name:      "rfc3339",
 		WireType:  &ir.TypeRef{Target: "t/prim/string", Nullable: true},
 		MediaType: "text/plain",
+		Schema:    &ir.TypeRef{Target: "t/openapi/components/schemas/Decoded"},
 	}
 }
 
