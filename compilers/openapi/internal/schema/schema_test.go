@@ -2196,6 +2196,13 @@ func stolenPositions() []stolenPosition {
 // these after the keyword holding them ("items"), the pattern text ("^x") or the
 // slot ordinal ("0") — none of which distinguish the position from the same
 // position on any other schema.
+//
+// A row with no refAt aims the outside $ref at the node it asserts, and such a
+// row cannot see a role missing from structuralRole: the declaration renames
+// that very node in either order (#372), so both spellings agree on it whatever
+// the reference called it. The collision surfaces one level below, where the
+// subtree keeps the reference's name. A row meant to guard a role therefore
+// aims the reference above the node it asserts, per refAt.
 func TestInlinePosition_HintIsTheSameInBothOrders(t *testing.T) {
 	t.Parallel()
 	for _, tc := range []struct {
@@ -2203,28 +2210,44 @@ func TestInlinePosition_HintIsTheSameInBothOrders(t *testing.T) {
 		owner string
 		id    ir.TypeID
 		hint  string
+		refAt ir.TypeID
 	}{
 		{"items", "    A: {type: array, items: " + openapitest.InlineProbeBody + "}\n",
-			"t/anon/components/schemas/A/items", "a_item"},
+			"t/anon/components/schemas/A/items", "a_item", ""},
 		{"additionalProperties", "    A: {type: object, additionalProperties: " + openapitest.InlineProbeBody + "}\n",
-			"t/anon/components/schemas/A/additionalProperties", "a_value"},
+			"t/anon/components/schemas/A/additionalProperties", "a_value", ""},
 		{"patternProperties", "    A: {type: object, patternProperties: {\"^x\": " + openapitest.InlineProbeBody + "}}\n",
-			"t/anon/components/schemas/A/patternProperties/^x", "a_pattern"},
+			"t/anon/components/schemas/A/patternProperties/^x", "a_pattern", ""},
 		{"prefixItems", "    A: {type: array, prefixItems: [" + openapitest.InlineProbeBody + "]}\n",
-			"t/anon/components/schemas/A/prefixItems/0", "a_0"},
+			"t/anon/components/schemas/A/prefixItems/0", "a_0", ""},
 		// Nested, because the derivation replays the whole chain rather than one
 		// step: the outside $ref used to name this "items", losing both levels.
 		{"items under items", "    A: {type: array, items: {type: array, items: " + openapitest.InlineProbeBody + "}}\n",
-			"t/anon/components/schemas/A/items/items", "a_item_item"},
+			"t/anon/components/schemas/A/items/items", "a_item_item", ""},
 		// Rooted at a property rather than at the component, so the enclosing hint
 		// the walk rebuilds from is the property's key.
 		{"items under a property", "    A: {type: object, properties: {p: {type: array, items: " +
 			openapitest.InlineProbeBody + "}}}\n",
-			"t/anon/components/schemas/A/properties/p/items", "p_item"},
+			"t/anon/components/schemas/A/properties/p/items", "p_item", ""},
+		{"contentSchema", "    A: {type: string, contentMediaType: application/json, contentSchema: " +
+			openapitest.InlineProbeBody + "}\n",
+			"t/anon/components/schemas/A/contentSchema", "a_content", ""},
+		// The reference is aimed at contentSchema and the assertion at what is
+		// under it: pointed at the asserted node instead, this row passes with the
+		// contentSchema role removed, because the declaration renames that node
+		// itself.
+		{"items under contentSchema", "    A: {type: string, contentMediaType: application/json, " +
+			"contentSchema: {type: array, items: " + openapitest.InlineProbeBody + "}}\n",
+			"t/anon/components/schemas/A/contentSchema/items", "a_content_item",
+			"t/anon/components/schemas/A/contentSchema"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			pos := stolenPosition{name: tc.name, owner: tc.owner, id: tc.id}
+			refAt := tc.refAt
+			if refAt == "" {
+				refAt = tc.id
+			}
+			pos := stolenPosition{name: tc.name, owner: tc.owner, id: refAt}
 			for _, order := range []struct {
 				name     string
 				refFirst bool

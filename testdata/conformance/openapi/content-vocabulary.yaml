@@ -26,3 +26,19 @@ components:
         type: object
       properties:
         a: {type: string}
+    # An outside $ref can name the contentSchema position by pointer, interning
+    # the node the declaration owns before the declaration reaches it. Both
+    # namers have to spell what is under it the same way, so which one gets
+    # there first cannot decide the name (§4.3). Declared before its owner
+    # because that is the order that used to disagree.
+    Decoded:
+      $ref: '#/components/schemas/Feed/contentSchema'
+    Feed:
+      type: string
+      contentMediaType: application/json
+      contentSchema:
+        type: array
+        items:
+          type: object
+          properties:
+            id: {type: string}

@@ -64,6 +64,70 @@
       "positional": false,
       "inputOnly": false
     },
+    "t/anon/components/schemas/Feed/contentSchema": {
+      "kind": "list",
+      "id": "t/anon/components/schemas/Feed/contentSchema",
+      "name": {
+        "hint": "feed_content"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Feed/contentSchema"
+      },
+      "elem": {
+        "target": "t/anon/components/schemas/Feed/contentSchema/items",
+        "nullable": false
+      }
+    },
+    "t/anon/components/schemas/Feed/contentSchema/items": {
+      "kind": "model",
+      "id": "t/anon/components/schemas/Feed/contentSchema/items",
+      "name": {
+        "hint": "feed_content_item"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Feed/contentSchema/items"
+      },
+      "properties": [
+        {
+          "id": "p/openapi/components/schemas/Feed/contentSchema/items/properties/id",
+          "name": {
+            "source": "id",
+            "canonical": "id"
+          },
+          "wireName": "id",
+          "type": {
+            "target": "t/prim/string",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/Feed/contentSchema/items/properties/id"
+          }
+        }
+      ],
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
     "t/openapi/components/schemas/Bag": {
       "kind": "model",
       "id": "t/openapi/components/schemas/Bag",
@@ -139,6 +203,25 @@
       "positional": false,
       "inputOnly": false
     },
+    "t/openapi/components/schemas/Decoded": {
+      "kind": "scalar",
+      "id": "t/openapi/components/schemas/Decoded",
+      "name": {
+        "source": "Decoded",
+        "canonical": "decoded"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Decoded"
+      },
+      "base": {
+        "target": "t/anon/components/schemas/Feed/contentSchema",
+        "nullable": false
+      }
+    },
     "t/openapi/components/schemas/Envelope": {
       "kind": "scalar",
       "id": "t/openapi/components/schemas/Envelope",
@@ -161,6 +244,32 @@
         "mediaType": "application/json",
         "schema": {
           "target": "t/anon/components/schemas/Envelope/contentSchema",
+          "nullable": false
+        }
+      }
+    },
+    "t/openapi/components/schemas/Feed": {
+      "kind": "scalar",
+      "id": "t/openapi/components/schemas/Feed",
+      "name": {
+        "source": "Feed",
+        "canonical": "feed"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Feed"
+      },
+      "base": {
+        "target": "t/prim/string",
+        "nullable": false
+      },
+      "encoding": {
+        "mediaType": "application/json",
+        "schema": {
+          "target": "t/anon/components/schemas/Feed/contentSchema",
           "nullable": false
         }
       }
@@ -244,7 +353,7 @@
     {
       "format": "openapi@3.1",
       "path": "content-vocabulary.yaml",
-      "hash": "3ef4175a9903ee435b730ca49ade19bec243e6194599dcd221212ea6850fd81c"
+      "hash": "5866fcfbab242da99c5d4c259d1b45f85e7873d88924c822baf57edae5ed48da"
     }
   ]
 }

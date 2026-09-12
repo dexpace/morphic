@@ -422,6 +422,20 @@ func assertContentVocabulary(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) 
 		assert.Equal(t, ir.ReasonNoIRHome, unmodeledEntry(t, bag.Unmodeled, key).Reason,
 			"an object has no Encoding field, so %s is kept", key)
 	}
+
+	// The outside $ref reaches the contentSchema position first, and what is
+	// under it is still spelled from the declaration: the order-invariance oracle
+	// is what proves the two orders agree, and this is what says which spelling
+	// won (§4.3).
+	feed, ok := doc.Types[namedID("Feed")].(*ir.Scalar)
+	require.True(t, ok)
+	require.NotNil(t, feed.Encoding)
+	require.NotNil(t, feed.Encoding.Schema)
+	const contentItem = ir.TypeID("t/anon/components/schemas/Feed/contentSchema/items")
+	item, ok := doc.Types[contentItem]
+	require.True(t, ok, "the decoded array's item is hoisted at its own pointer")
+	assert.Equal(t, "feed_content_item", item.Common().Name.Hint,
+		"named from the enclosing declaration, not from the segment the reference offered")
 }
 
 // assertDialectKeywords pins the JSON Schema resource and dialect keywords as out
