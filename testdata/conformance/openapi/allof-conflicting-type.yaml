@@ -1,0 +1,26 @@
+openapi: 3.1.0
+info: {title: AllOfConflictingType, version: "1.0.0"}
+paths: {}
+components:
+  schemas:
+    # The shape GitHub's own spec writes 102 times: one branch narrows a string
+    # with a format, the other leaves it bare, and the two lower to different
+    # primitives. The first declaration wins; the second is kept beside it.
+    Repository:
+      allOf:
+        - type: object
+          properties:
+            clone_url: {type: string, format: uri}
+        - type: object
+          properties:
+            clone_url: {type: string}
+    # A nullable loser, so the entry is held to keeping the whole reference
+    # rather than only the type it names.
+    Identified:
+      allOf:
+        - type: object
+          properties:
+            id: {type: integer}
+        - type: object
+          properties:
+            id: {type: [string, "null"]}

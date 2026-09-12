@@ -9,6 +9,7 @@ package merge
 
 import (
 	"cmp"
+	"encoding/json"
 	"fmt"
 	"slices"
 
@@ -47,9 +48,14 @@ func WireNameIndex(props []ir.Property) map[string]int {
 // (and properties co-declared alongside allOf) redeclare one logical field under
 // allOf's intersection semantics (ir-design §4.3). Callers must set p.WireName
 // (fillModelProperties always does); it keys byWire directly.
-func (g *Merger) MergeProperty(m *ir.Model, byWire map[string]int, p ir.Property, pointer string) {
+//
+// p.Provenance locates the declaration, and is the only source of that fact
+// here. It used to arrive twice — as a parameter and on p — equal by
+// construction at the one call site, which left nothing able to catch them
+// disagreeing.
+func (g *Merger) MergeProperty(m *ir.Model, byWire map[string]int, p ir.Property) {
 	if i, ok := byWire[p.WireName]; ok {
-		g.reconcileProperty(&m.Properties[i], p, pointer)
+		g.reconcileProperty(&m.Properties[i], p)
 		return
 	}
 	byWire[p.WireName] = len(m.Properties)
@@ -72,9 +78,13 @@ func (g *Merger) MergeProperty(m *ir.Model, byWire map[string]int, p ir.Property
 // differs between branches, an incompatible type, or a contradictory constraint
 // keyword are genuine conflicts the merge cannot represent (see
 // diag.ConflictingRedecl); each is diagnosed before any detail is folded in,
-// rather than silently picking an arbitrary winner.
-func (g *Merger) reconcileProperty(dst *ir.Property, src ir.Property, pointer string) {
-	g.diagnoseRedeclarationConflict(dst, &src, pointer)
+// rather than silently picking an arbitrary winner. The incompatible type is
+// additionally kept beside the winner under Unmodeled (keepLosingType), so the
+// discarded declaration survives in the document and not only in the diagnostic
+// stream.
+func (g *Merger) reconcileProperty(dst *ir.Property, src ir.Property) {
+	pointer := src.Provenance.Pointer
+	discarded := g.recordRedeclarationConflict(dst, &src)
 
 	dst.Required = dst.Required || src.Required
 	dst.Secret = dst.Secret || src.Secret
@@ -97,15 +107,25 @@ func (g *Merger) reconcileProperty(dst *ir.Property, src ir.Property, pointer st
 		g.Report(ir.SeverityInfo, diag.DegradedConstruct, pointer,
 			"allOf branches describe field %q differently; kept the first declaration", dst.WireName)
 	}
-	dst.Default = cmp.Or(dst.Default, src.Default)
-	dst.Constraints = mergeConstraints(dst.Constraints, src.Constraints)
+	// Skipped when src's type was discarded as incompatible: default,
+	// constraints and examples describe the shape that lost, so folding them
+	// onto the winner makes the document assert two contradictory things about
+	// one field — an integer carrying a string default, beside an Unmodeled
+	// entry saying the string declaration was dropped. Nothing downstream
+	// compares a Value's kind to its property's type, so an emitter renders that
+	// pair into code that does not compile. Deprecation and XML are not shape
+	// bound and are adopted either way.
+	if !discarded {
+		dst.Default = cmp.Or(dst.Default, src.Default)
+		dst.Constraints = mergeConstraints(dst.Constraints, src.Constraints)
+		if len(dst.Examples) == 0 {
+			// Examples is a slice, not comparable, so it cannot go through
+			// cmp.Or like its neighbors; the len()==0 predicate is the rule.
+			dst.Examples = src.Examples
+		}
+	}
 	dst.Deprecation = cmp.Or(dst.Deprecation, src.Deprecation)
 	dst.XML = cmp.Or(dst.XML, src.XML)
-	if len(dst.Examples) == 0 {
-		// Examples is a slice, not comparable, so it cannot go through cmp.Or
-		// like its neighbors above; the len()==0 predicate is the adoption rule.
-		dst.Examples = src.Examples
-	}
 	dst.Unmodeled = annotation.MergeUnmodeled(dst.Unmodeled, src.Unmodeled)
 }
 
@@ -163,7 +183,7 @@ func mergeConstraints(dst, src *ir.Constraints) *ir.Constraints {
 // on the same field) intersect to ∅ too: every lifecycle is excluded. That is
 // recorded as None — the shape the IR already has for "invisible everywhere"
 // (TypeSpec's @invisible) — rather than raised through
-// diagnoseRedeclarationConflict. Unlike an incompatible-type redeclaration,
+// recordRedeclarationConflict. Unlike an incompatible-type redeclaration,
 // nothing here is arbitrarily discarded: ∅ is the exact intersection, not a
 // guess between two unrepresentable shapes.
 //
@@ -229,23 +249,116 @@ func intersectLifecycles(a, b []ir.Lifecycle) []ir.Lifecycle {
 // guards a pathological or malformed registry.
 const maxTypeResolveDepth = 64
 
-// diagnoseRedeclarationConflict reports when redeclaration src contradicts dst
-// under allOf intersection — an incompatible target type, or a constraint
-// keyword both branches pin to different values — without altering the merge
-// (dst keeps its shape). A type conflict is genuinely unsatisfiable; a
+// recordRedeclarationConflict folds src's type into dst and reports what the
+// fold could not represent: an incompatible target type, or a constraint keyword
+// both branches pin to different values. It alters dst — intersecting
+// nullability, and keeping a dropped type under Unmodeled — as well as
+// diagnosing, which is why it is named for recording rather than for diagnosis.
+//
+// It returns whether src's type was discarded as incompatible, which is what
+// tells reconcileProperty not to carry that shape's details onto the winner.
+//
+// Preservation is owed wherever a type is dropped, which is a wider set than the
+// conflicts worth reporting: typesConflict deliberately does not guess about two
+// composites of one kind, an unresolvable target, or the top type against
+// anything, and in each of those dst keeps its own type while src's vanishes.
+// Recording it there too is what stops a consumer diffing two versions from
+// seeing no change (GitHub #424); the diagnostic stays on the narrower
+// predicate, because "dropped" and "contradictory" are different claims.
+//
+// A type conflict is genuinely unsatisfiable; a
 // constraint conflict is usually satisfiable alone, but the merge can't
 // represent the true intersection and may keep the looser bound
 // (diag.ConflictingRedecl). At most one diagnostic fires: a type conflict
 // subsumes any constraint conflict.
-func (g *Merger) diagnoseRedeclarationConflict(dst, src *ir.Property, pointer string) {
+func (g *Merger) recordRedeclarationConflict(dst, src *ir.Property) bool {
+	pointer := src.Provenance.Pointer
+	if dst.Type.Target != src.Type.Target {
+		keepLosingType(dst, src)
+	} else {
+		// Same referent, and the only thing left for the two to disagree about
+		// is whether null is admitted. Under intersection it is admitted only
+		// where both branches admit it — the rule foldNullVerdicts already
+		// states for a single schema. Without this the answer came from
+		// whichever branch was written first, so reordering two allOf branches
+		// changed the merged field.
+		dst.Type.Nullable = dst.Type.Nullable && src.Type.Nullable
+	}
 	if g.typesConflict(dst.Type, src.Type) {
 		g.redeclarationConflictDiag(dst, pointer,
-			fmt.Sprintf("incompatible types %s and %s", dst.Type.Target, src.Type.Target))
-		return
+			fmt.Sprintf("incompatible types %s and %s (the redeclaration's type is kept verbatim under Unmodeled)",
+				dst.Type.Target, src.Type.Target))
+		return true
 	}
 	if detail, ok := constraintsConflict(dst.Constraints, src.Constraints); ok {
 		g.redeclarationConflictDiag(dst, pointer, detail)
 	}
+	return false
+}
+
+// losingTypeKey prefixes the Unmodeled entry a discarded redeclaration type is
+// kept under. The "openapi:" namespace is what keeps two source formats' keys
+// from colliding on one node (ir-design §12); the redeclaration's own pointer
+// completes it, the way an allOf branch's index completes the composition's
+// keys.
+const losingTypeKey = "openapi:conflicting-redeclaration"
+
+// keepLosingType keeps the redeclaration's discarded type beside the merged
+// property, so a consumer reading the document rather than the diagnostic stream
+// can still see what the losing declaration said (GitHub #424).
+//
+// ReasonDegradedLowering is the reason: the IR has no combinator for "string
+// here, integer there", so the pair is lowered to the weaker shape of the first
+// declaration with the original kept beside it, which is that reason's own
+// definition (ir-design §4.8). Not ReasonNoIRHome — the position has a field and
+// it is holding the winner, so nothing is waiting on an IR gap to close; not
+// ReasonValidationOnly, since a type is data shape rather than validation.
+//
+// KNOWN GAP (GitHub #445): ir-design §12 defines an Unmodeled value as the
+// source construct verbatim, and a TypeID is a compiler-minted registry ID
+// rather than anything the document wrote. Two things follow — irverify's
+// reference walk cannot see this reference dangle, since it reads []byte rather
+// than a typed ref; and a losing branch that also carries residue is preserved
+// twice, here and verbatim under openapi:allOf/<i>. The losing property's raw
+// node is still in scope at the MergeProperty call site and is what should be
+// kept instead. Left as it is here because changing it moves MergeProperty's
+// signature and the golden, where this change's scope is GitHub #424.
+//
+// The value is the discarded ir.TypeRef rather than the branch's source schema:
+// this package never sees the document by design (see the package comment), and
+// the reference is the whole of what was dropped — Nullable included, which the
+// target ID alone would lose. Writing back an IR value already read rather than
+// re-reading a raw node is what annotation's redundant-bound preservation does
+// too.
+//
+// The redeclaration's pointer is part of the key rather than only of the
+// provenance, so a field three branches type three incompatible ways keeps all
+// three entries; a fixed key would leave whichever branch ran last. Provenance
+// locates the losing declaration itself, which is the entry's own position and
+// not the merged property's. Both are read off src, so the key and the
+// provenance cannot disagree about where the loser was written.
+//
+// A loser with no pointer, or no target, is not recorded: the key would collapse
+// to the bare prefix, and PreserveInto is a plain overwrite, so a second such
+// loser would silently replace the first. No production path produces either —
+// ProvenanceAt always stamps the pointer it was given — which is why this is a
+// guard rather than a diagnostic.
+//
+// Only the type is kept here. A constraint conflict discards the redeclaration's
+// keyword too, but the recorded direction for that is to intersect the bounds so
+// the merged field satisfies both branches (GitHub #10), and preserving the
+// loser instead would settle a decision that already has one.
+func keepLosingType(dst, src *ir.Property) {
+	pointer := src.Provenance.Pointer
+	if pointer == "" || src.Type.Target == "" {
+		return
+	}
+	// A TypeID string and a bool: json.Marshal fails on neither, and rewrites
+	// ill-formed UTF-8 rather than refusing it, so the error it declares is
+	// discarded the way annotation.jsonString discards it for a key.
+	raw, _ := json.Marshal(src.Type)
+	annotation.PreserveInto(&dst.Unmodeled, losingTypeKey+pointer, raw,
+		ir.ReasonDegradedLowering, pointer, src.Provenance.Source)
 }
 
 // redeclarationConflictDiag emits the shared conflicting-redeclaration warning,
@@ -270,6 +383,12 @@ func (g *Merger) redeclarationConflictDiag(dst *ir.Property, pointer, detail str
 // Two distinct composite types of the same kind (two models, two lists) are not
 // provably contradictory, so they are never reported — conflict detection does
 // not guess.
+// KNOWN GAP (GitHub #446): PrimKinds are compared for equality with no notion
+// of narrowing, so {string, format: uri} against a bare {string} reads as a
+// conflict though the intersection is exactly the url the merge keeps — nothing
+// is lost, and both a diagnostic and a preserved entry claim otherwise. The same
+// holds for every format-narrowing pair (date-time/string, int32/integer,
+// double/number, uuid/string): 102 occurrences in the published GitHub spec.
 func (g *Merger) typesConflict(a, b ir.TypeRef) bool {
 	if a.Target == b.Target || g.isAnyType(a) || g.isAnyType(b) {
 		return false

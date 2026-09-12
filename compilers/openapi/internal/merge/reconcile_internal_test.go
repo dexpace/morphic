@@ -38,13 +38,13 @@ func TestMergeProperty_AppendsThenFolds(t *testing.T) {
 	m := &ir.Model{}
 	byWire := WireNameIndex(m.Properties)
 
-	g.MergeProperty(m, byWire, ir.Property{WireName: "id", Required: true}, "/p")
-	g.MergeProperty(m, byWire, ir.Property{WireName: "name"}, "/p")
+	g.MergeProperty(m, byWire, ir.Property{WireName: "id", Required: true, Provenance: ptrAt("/p")})
+	g.MergeProperty(m, byWire, ir.Property{WireName: "name", Provenance: ptrAt("/p")})
 
 	require.Len(t, m.Properties, 2, "two distinct wire names are two properties")
 	assert.Equal(t, map[string]int{"id": 0, "name": 1}, byWire)
 
-	g.MergeProperty(m, byWire, ir.Property{WireName: "id", Secret: true}, "/other")
+	g.MergeProperty(m, byWire, ir.Property{WireName: "id", Secret: true, Provenance: ptrAt("/other")})
 
 	require.Len(t, m.Properties, 2, "a redeclaration folds rather than appending")
 	assert.True(t, m.Properties[0].Required, "required is kept from the first declaration")
@@ -61,7 +61,7 @@ func TestReconcileProperty_DifferingDescriptionsKeepTheFirst(t *testing.T) {
 	g, recorded := stubMerger(nil)
 	dst := ir.Property{WireName: "id", Docs: ir.Docs{Description: "first"}}
 
-	g.reconcileProperty(&dst, ir.Property{WireName: "id", Docs: ir.Docs{Description: "second"}}, "/other")
+	g.reconcileProperty(&dst, ir.Property{WireName: "id", Docs: ir.Docs{Description: "second"}, Provenance: ptrAt("/other")})
 
 	assert.Equal(t, "first", dst.Docs.Description)
 	require.Len(t, *recorded, 1)
@@ -78,7 +78,7 @@ func TestReconcileProperty_AnIdenticalDescriptionIsNotADisagreement(t *testing.T
 	g, recorded := stubMerger(nil)
 	dst := ir.Property{WireName: "id", Docs: ir.Docs{Description: "same"}}
 
-	g.reconcileProperty(&dst, ir.Property{WireName: "id", Docs: ir.Docs{Description: "same"}}, "/other")
+	g.reconcileProperty(&dst, ir.Property{WireName: "id", Docs: ir.Docs{Description: "same"}, Provenance: ptrAt("/other")})
 
 	assert.Equal(t, "same", dst.Docs.Description)
 	assert.Empty(t, *recorded)
@@ -212,7 +212,7 @@ func TestReconcileProperty_VisibilityAdoptedFromRedeclaration(t *testing.T) {
 	g, _ := stubMerger(nil)
 	dst := ir.Property{WireName: "id"}
 
-	g.reconcileProperty(&dst, ir.Property{WireName: "id", Visibility: readOnlyVisibility}, "/other")
+	g.reconcileProperty(&dst, ir.Property{WireName: "id", Visibility: readOnlyVisibility, Provenance: ptrAt("/other")})
 
 	assert.Equal(t, readOnlyVisibility, dst.Visibility)
 }
@@ -221,7 +221,7 @@ func TestReconcileProperty_VisibilityAdoptedFromRedeclaration(t *testing.T) {
 // halves of the choice for an allOf pairing that admits no lifecycle at all
 // (readOnly against writeOnly on the same field). mergeVisibility represents it
 // exactly as None, so it is recorded rather than routed through
-// diagnoseRedeclarationConflict — nothing is arbitrarily discarded, as it would
+// recordRedeclarationConflict — nothing is arbitrarily discarded, as it would
 // be for an incompatible-type redeclaration. But exact is not unremarkable: a
 // field neither a request nor a response can carry is a composition that cannot
 // take effect, so it is warned about under its own code.
@@ -230,7 +230,7 @@ func TestReconcileProperty_DisjointVisibilityIsARestrictionNotAConflict(t *testi
 	g, recorded := stubMerger(nil)
 	dst := ir.Property{WireName: "id", Visibility: readOnlyVisibility}
 
-	g.reconcileProperty(&dst, ir.Property{WireName: "id", Visibility: writeOnlyVisibility}, "/other")
+	g.reconcileProperty(&dst, ir.Property{WireName: "id", Visibility: writeOnlyVisibility, Provenance: ptrAt("/other")})
 
 	assert.Equal(t, ir.Visibility{None: true}, dst.Visibility)
 	require.Len(t, *recorded, 1, "an emptied visibility set is reported, not passed over in silence")
@@ -261,7 +261,7 @@ func TestReconcileProperty_AlreadyInvisibleVisibilityIsNotReAnnounced(t *testing
 			g, recorded := stubMerger(nil)
 			dst := ir.Property{WireName: "id", Visibility: tc.dst}
 
-			g.reconcileProperty(&dst, ir.Property{WireName: "id", Visibility: tc.src}, "/other")
+			g.reconcileProperty(&dst, ir.Property{WireName: "id", Visibility: tc.src, Provenance: ptrAt("/other")})
 
 			assert.Equal(t, ir.Visibility{None: true}, dst.Visibility)
 			assert.Empty(t, *recorded, "None was already the answer; this merge announced nothing new")
@@ -269,11 +269,11 @@ func TestReconcileProperty_AlreadyInvisibleVisibilityIsNotReAnnounced(t *testing
 	}
 }
 
-// TestDiagnoseRedeclarationConflict_ConstraintDisagreementIsReported pins the
+// TestRecordRedeclarationConflict_ConstraintDisagreementIsReported pins the
 // second of the two conflict routes. Two branches that agree on type but pin one
 // keyword to different values produce a merge that keeps dst's bound, so the
 // stricter one is discarded and must be announced.
-func TestDiagnoseRedeclarationConflict_ConstraintDisagreementIsReported(t *testing.T) {
+func TestRecordRedeclarationConflict_ConstraintDisagreementIsReported(t *testing.T) {
 	t.Parallel()
 	g, recorded := stubMerger(nil)
 	dst := ir.Property{
@@ -281,9 +281,13 @@ func TestDiagnoseRedeclarationConflict_ConstraintDisagreementIsReported(t *testi
 		Provenance:  ir.Provenance{Pointer: "/components/schemas/A/properties/age"},
 		Constraints: &ir.Constraints{Min: bigVal("10")},
 	}
-	src := ir.Property{WireName: "age", Constraints: &ir.Constraints{Min: bigVal("20")}}
+	src := ir.Property{
+		WireName:    "age",
+		Provenance:  ptrAt("/components/schemas/B/properties/age"),
+		Constraints: &ir.Constraints{Min: bigVal("20")},
+	}
 
-	g.diagnoseRedeclarationConflict(&dst, &src, "/components/schemas/B/properties/age")
+	g.recordRedeclarationConflict(&dst, &src)
 
 	require.Len(t, *recorded, 1)
 	assert.Equal(t, ir.SeverityWarning, (*recorded)[0].Severity)
@@ -391,4 +395,225 @@ func TestDifferentTypeKind_ComparesResolvedKinds(t *testing.T) {
 		"a model and a union are different kinds")
 	assert.True(t, g.typesConflict(ir.TypeRef{Target: "t/opaque"}, ir.TypeRef{Target: "t/union"}),
 		"and typesConflict reaches that comparison when neither side is a primitive")
+}
+
+// TestKeepLosingType_RecordsTheDiscardedDeclaration pins what the fix for
+// GitHub #424 adds: the redeclaration whose type loses is kept verbatim beside
+// the winner, so a consumer reading the document — not the diagnostic stream —
+// still sees what the second declaration said.
+//
+// The reference is asserted whole rather than by its target alone: Nullable is
+// half of what a redeclaration says about a field, and an entry that kept only
+// the ID would lose it while still looking like a preservation.
+func TestKeepLosingType_RecordsTheDiscardedDeclaration(t *testing.T) {
+	t.Parallel()
+	g, recorded := stubMerger(map[ir.TypeID]ir.TypeDef{
+		"t/str": &ir.Primitive{TypeCommon: ir.TypeCommon{ID: "t/str"}, Prim: ir.PrimString},
+		"t/int": &ir.Primitive{TypeCommon: ir.TypeCommon{ID: "t/int"}, Prim: ir.PrimInt32},
+	})
+	dst := ir.Property{
+		WireName:   "id",
+		Type:       ir.TypeRef{Target: "t/str"},
+		Provenance: ir.Provenance{Source: 2, Pointer: "/components/schemas/S/allOf/0/properties/id"},
+	}
+	src := ir.Property{
+		WireName:   "id",
+		Type:       ir.TypeRef{Target: "t/int", Nullable: true},
+		Provenance: ir.Provenance{Source: 2, Pointer: "/components/schemas/S/allOf/1/properties/id"},
+	}
+
+	g.reconcileProperty(&dst, src)
+
+	require.Len(t, *recorded, 1, "the conflict is still diagnosed")
+	assert.Equal(t, ir.TypeID("t/str"), dst.Type.Target, "the first declaration still wins the shape")
+
+	key := "openapi:conflicting-redeclaration/components/schemas/S/allOf/1/properties/id"
+	entry, ok := dst.Unmodeled[key]
+	require.True(t, ok, "the losing declaration is kept under a pointer-namespaced key; got %v", dst.Unmodeled)
+	assert.Equal(t, ir.ReasonDegradedLowering, entry.Reason)
+	assert.JSONEq(t, `{"target":"t/int","nullable":true}`, string(entry.Value),
+		"the whole reference is kept, nullability included")
+	assert.Equal(t, ir.Provenance{Source: 2, Pointer: "/components/schemas/S/allOf/1/properties/id"},
+		entry.Provenance, "the entry locates the losing declaration, not the merged property")
+}
+
+// TestKeepLosingType_EveryLoserSurvivesItsSiblings pins the key's namespacing.
+// A field three branches type three incompatible ways discards two
+// declarations, and a fixed key would leave only whichever branch ran last —
+// the same silent overwrite the entry exists to prevent.
+func TestKeepLosingType_EveryLoserSurvivesItsSiblings(t *testing.T) {
+	t.Parallel()
+	g, _ := stubMerger(map[ir.TypeID]ir.TypeDef{
+		"t/str":  &ir.Primitive{TypeCommon: ir.TypeCommon{ID: "t/str"}, Prim: ir.PrimString},
+		"t/int":  &ir.Primitive{TypeCommon: ir.TypeCommon{ID: "t/int"}, Prim: ir.PrimInt32},
+		"t/bool": &ir.Primitive{TypeCommon: ir.TypeCommon{ID: "t/bool"}, Prim: ir.PrimBool},
+	})
+	m := &ir.Model{}
+	byWire := WireNameIndex(m.Properties)
+
+	g.MergeProperty(m, byWire, ir.Property{WireName: "id", Type: ir.TypeRef{Target: "t/str"}, Provenance: ptrAt("/a")})
+	g.MergeProperty(m, byWire, ir.Property{WireName: "id", Type: ir.TypeRef{Target: "t/int"}, Provenance: ptrAt("/b")})
+	g.MergeProperty(m, byWire, ir.Property{WireName: "id", Type: ir.TypeRef{Target: "t/bool"}, Provenance: ptrAt("/c")})
+
+	require.Len(t, m.Properties, 1, "three declarations still reconcile to one property")
+	assert.Equal(t, ir.Unmodeled{
+		"openapi:conflicting-redeclaration/b": {
+			Reason:     ir.ReasonDegradedLowering,
+			Value:      ir.RawValue(`{"target":"t/int","nullable":false}`),
+			Provenance: ir.Provenance{Pointer: "/b"},
+		},
+		"openapi:conflicting-redeclaration/c": {
+			Reason:     ir.ReasonDegradedLowering,
+			Value:      ir.RawValue(`{"target":"t/bool","nullable":false}`),
+			Provenance: ir.Provenance{Pointer: "/c"},
+		},
+	}, m.Properties[0].Unmodeled)
+}
+
+// TestKeepLosingType_LeavesAgreeingAndConstraintOnlyConflictsAlone pins the two
+// sides the entry must not appear on. Agreeing declarations discard nothing, so
+// an entry would be noise; a constraint conflict does discard the
+// redeclaration's keyword, but the recorded direction there is to intersect the
+// bounds rather than preserve the loser (GitHub #10), so preserving it here
+// would settle a decision that already has one.
+func TestKeepLosingType_LeavesAgreeingAndConstraintOnlyConflictsAlone(t *testing.T) {
+	t.Parallel()
+	g, recorded := stubMerger(map[ir.TypeID]ir.TypeDef{
+		"t/str": &ir.Primitive{TypeCommon: ir.TypeCommon{ID: "t/str"}, Prim: ir.PrimString},
+	})
+	ten, twenty := int64(10), int64(20)
+	agreeing := ir.Property{WireName: "id", Type: ir.TypeRef{Target: "t/str"}}
+
+	g.reconcileProperty(&agreeing, ir.Property{WireName: "id", Type: ir.TypeRef{Target: "t/str"}, Provenance: ptrAt("/b")})
+
+	assert.Empty(t, *recorded, "agreeing declarations are not a conflict")
+	assert.Empty(t, agreeing.Unmodeled, "and nothing was discarded to keep")
+
+	bounded := ir.Property{
+		WireName: "code", Type: ir.TypeRef{Target: "t/str"},
+		Constraints: &ir.Constraints{MaxLength: &ten},
+	}
+	g.reconcileProperty(&bounded, ir.Property{
+		WireName: "code", Type: ir.TypeRef{Target: "t/str"},
+		Constraints: &ir.Constraints{MaxLength: &twenty},
+		Provenance:  ptrAt("/b"),
+	})
+
+	require.Len(t, *recorded, 1, "the constraint conflict is still diagnosed")
+	assert.Equal(t, diag.ConflictingRedecl, (*recorded)[0].Code)
+	assert.Empty(t, bounded.Unmodeled, "a constraint conflict keeps no type entry")
+}
+
+// TestReconcileProperty_AConflictingTypeTakesNothingWithIt pins that a
+// discarded declaration is discarded whole. The type conflict is diagnosed and
+// the loser's type kept under Unmodeled, but the fold below it used to run to
+// completion regardless, adopting the loser's default, constraints and examples
+// onto the winner. That leaves the document asserting two contradictory things
+// about one field — an integer carrying a string default — and nothing in
+// pass/validate or irverify compares a Value's kind to its property's type, so
+// an emitter renders it into non-compiling code.
+func TestReconcileProperty_AConflictingTypeTakesNothingWithIt(t *testing.T) {
+	t.Parallel()
+	g, recorded := stubMerger(map[ir.TypeID]ir.TypeDef{
+		"t/str": &ir.Primitive{TypeCommon: ir.TypeCommon{ID: "t/str"}, Prim: ir.PrimString},
+		"t/int": &ir.Primitive{TypeCommon: ir.TypeCommon{ID: "t/int"}, Prim: ir.PrimInt32},
+	})
+	dst := ir.Property{WireName: "id", Type: ir.TypeRef{Target: "t/int"}}
+	maxLen := int64(10)
+	src := ir.Property{
+		WireName:    "id",
+		Type:        ir.TypeRef{Target: "t/str"},
+		Default:     &ir.Value{Kind: ir.ValueString, Str: "abc"},
+		Constraints: &ir.Constraints{MaxLength: &maxLen},
+		Examples:    []ir.Example{{Value: &ir.Value{Kind: ir.ValueString, Str: "abc"}}},
+	}
+
+	g.reconcileProperty(&dst, src)
+
+	require.Len(t, *recorded, 1, "the conflict is diagnosed")
+	assert.Equal(t, ir.TypeID("t/int"), dst.Type.Target, "the first declaration wins the shape")
+	assert.Nil(t, dst.Default, "a string default does not belong to an integer field")
+	assert.Nil(t, dst.Constraints, "maxLength constrains the string that was discarded")
+	assert.Empty(t, dst.Examples, "the examples are of the discarded shape")
+}
+
+// TestReconcileProperty_NullabilityIntersectsWhenTargetsAgree pins the case
+// typesConflict returns on before it reads Nullable: one branch admits null and
+// the other does not, so the intersection forbids it. Neither reconciled nor
+// preserved before, and the answer flipped with branch order — the same source
+// compiled to nullable: true or false depending on which branch was written
+// first. foldNullVerdicts already states the conjunction rule for the
+// single-schema case; this is the same rule across a redeclaration.
+func TestReconcileProperty_NullabilityIntersectsWhenTargetsAgree(t *testing.T) {
+	t.Parallel()
+	reg := map[ir.TypeID]ir.TypeDef{
+		"t/str": &ir.Primitive{TypeCommon: ir.TypeCommon{ID: "t/str"}, Prim: ir.PrimString},
+	}
+	cases := []struct {
+		name                   string
+		dstNull, srcNull, want bool
+	}{
+		{"nullable then not", true, false, false},
+		{"not then nullable", false, true, false},
+		{"both nullable", true, true, true},
+		{"neither nullable", false, false, false},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			g, recorded := stubMerger(reg)
+			dst := ir.Property{WireName: "x", Type: ir.TypeRef{Target: "t/str", Nullable: tc.dstNull}}
+			src := ir.Property{WireName: "x", Type: ir.TypeRef{Target: "t/str", Nullable: tc.srcNull}}
+
+			g.reconcileProperty(&dst, src)
+
+			assert.Equal(t, tc.want, dst.Type.Nullable, "the merged field admits null only where both branches do")
+			assert.Empty(t, *recorded, "an intersection the IR can express is not a conflict")
+		})
+	}
+}
+
+// TestReconcileProperty_ADroppedTypeIsKeptEvenWhenItDoesNotConflict pins the
+// gap between what the merge drops and what it used to record. typesConflict
+// deliberately answers false for two composites of one kind and for the top type
+// against anything — it does not guess — but reconcileProperty keeps dst.Type
+// regardless, so in every one of those the redeclaration vanished with neither a
+// diagnostic nor an entry. That is #424's own failure: a consumer diffing two
+// versions sees no change. Preservation is owed wherever a type is dropped;
+// the diagnostic stays with the conflict, which is a narrower claim.
+func TestReconcileProperty_ADroppedTypeIsKeptEvenWhenItDoesNotConflict(t *testing.T) {
+	t.Parallel()
+	reg := map[ir.TypeID]ir.TypeDef{
+		"t/A":   &ir.Model{TypeCommon: ir.TypeCommon{ID: "t/A"}},
+		"t/B":   &ir.Model{TypeCommon: ir.TypeCommon{ID: "t/B"}},
+		"t/any": &ir.Any{TypeCommon: ir.TypeCommon{ID: "t/any"}},
+		"t/str": &ir.Primitive{TypeCommon: ir.TypeCommon{ID: "t/str"}, Prim: ir.PrimString},
+	}
+	cases := []struct {
+		name                 string
+		dstTarget, srcTarget ir.TypeID
+	}{
+		{"two models of one kind", "t/A", "t/B"},
+		{"the top type keeps the position", "t/any", "t/str"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			g, recorded := stubMerger(reg)
+			dst := ir.Property{WireName: "id", Type: ir.TypeRef{Target: tc.dstTarget}}
+			src := ir.Property{
+				WireName:   "id",
+				Type:       ir.TypeRef{Target: tc.srcTarget},
+				Provenance: ir.Provenance{Source: 1, Pointer: "/p/allOf/1/properties/id"},
+			}
+
+			g.reconcileProperty(&dst, src)
+
+			assert.Equal(t, tc.dstTarget, dst.Type.Target, "the first declaration still wins")
+			assert.Empty(t, *recorded, "a drop the predicate does not call a conflict is not diagnosed")
+			entry, ok := dst.Unmodeled[losingTypeKey+"/p/allOf/1/properties/id"]
+			require.True(t, ok, "the dropped declaration is kept; got %v", dst.Unmodeled)
+			assert.Equal(t, ir.ReasonDegradedLowering, entry.Reason)
+		})
+	}
 }
