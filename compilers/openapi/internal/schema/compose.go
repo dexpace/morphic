@@ -206,7 +206,7 @@ func applyFalseBranches(c lowering.Ctx, m *ir.Model, s *oas3.Schema, pointer str
 		}
 		bptr := pointer + ids.Ptr("allOf", strconv.Itoa(i))
 		m.Additional = ir.AdditionalClosed
-		Preserve(c, &m.Unmodeled, "openapi:allOf/"+strconv.Itoa(i),
+		preserve(c, &m.Unmodeled, "openapi:allOf/"+strconv.Itoa(i),
 			ir.RawValue("false"), ir.ReasonDegradedLowering, bptr)
 
 		diags = append(diags, c.DiagAt(ir.SeverityInfo, diag.FalseSchema, bptr,

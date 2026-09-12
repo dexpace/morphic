@@ -462,7 +462,7 @@ func preserveUnionSiblings(c lowering.Ctx, ts *compile.Types, id ir.TypeID, s *o
 				pointer, pointer+ids.Ptr(kw), kw)...)
 			continue
 		}
-		Preserve(c, &common.Unmodeled, "openapi:"+kw, raw, reason, pointer+ids.Ptr(kw))
+		preserve(c, &common.Unmodeled, "openapi:"+kw, raw, reason, pointer+ids.Ptr(kw))
 		kept = kept || len(raw) > 0
 	}
 	if reason == ir.ReasonValidationOnly || !kept {
@@ -494,7 +494,7 @@ func falseSchema(c lowering.Ctx, ts *compile.Types, pointer, hint string) (ir.Ty
 		// The key names the position rather than a keyword, because a boolean
 		// schema writes none. Nothing can collide with it: a schema that is a
 		// boolean has no other keywords to preserve.
-		Preserve(c, &common.Unmodeled, "openapi:schema",
+		preserve(c, &common.Unmodeled, "openapi:schema",
 			ir.RawValue("false"), ir.ReasonDegradedLowering, pointer)
 
 		diags = append(diags, c.DiagAt(ir.SeverityInfo, diag.FalseSchema, pointer,
