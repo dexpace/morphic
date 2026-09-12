@@ -204,12 +204,18 @@ func deprecationField(dep *ir.Deprecation, target ExtensionTarget) *string {
 // shape is taken as written — a date is not parsed here, because the mapping is
 // the caller's policy and a key it points at the date field is its statement
 // that the key holds one.
+//
+// The target is *string rather than string because JSON null decodes into a
+// string without error and leaves it empty, so a bare `x-sunset:` would
+// otherwise read as text that says nothing — an empty field written and the
+// node marked inferred, with no diagnostic. A key with no value is a value of
+// another shape, and is reported as one.
 func extensionText(raw ir.RawValue) (string, bool) {
-	var text string
-	if err := json.Unmarshal(raw, &text); err != nil {
+	var text *string
+	if err := json.Unmarshal(raw, &text); err != nil || text == nil {
 		return "", false
 	}
-	return text, true
+	return *text, true
 }
 
 // extensionOpenness reads a preserved extension value as a statement that an
