@@ -201,10 +201,15 @@ func loweringCtx(doc *load.Document, o Options) lowering.Ctx {
 		o.StreamingMedia, o.Promotions, doc.Overlay)
 }
 
-// undecodable reports a source this compiler recognized and could not read. It
-// names the source rather than NoSource: by the time a parse has failed the
-// source table exists, so the finding can point at the file it is about.
+// undecodable reports a source this compiler recognized and could not read.
+//
+// NoSource, not source 0: the parse that failed is the one that would have built
+// the document, so no document is returned and there is no source table for a
+// provenance to index into. A Source of 0 against the nil document engine.Run
+// hands on resolves to no path at all, so it would name nothing while claiming
+// to. The loader's own message carries the position instead, which is the half
+// of a location a reader can act on here.
 func undecodable(err error) ir.Diagnostic {
-	return diag.Newf(ir.SeverityError, diag.UndecodableSource, ir.Provenance{Source: rootSrcIndex},
+	return diag.Newf(ir.SeverityError, diag.UndecodableSource, ir.Provenance{Source: ir.NoSource},
 		"source cannot be read: %s", diag.OneLine(err))
 }

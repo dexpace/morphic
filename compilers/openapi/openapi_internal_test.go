@@ -13,6 +13,7 @@ import (
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
 	"github.com/dexpace/morphic/compilers/openapi/internal/openapitest"
+	"github.com/dexpace/morphic/ir"
 )
 
 func TestParse_UnsupportedVersion(t *testing.T) {
@@ -34,7 +35,10 @@ func TestParse_UnmarshalError(t *testing.T) {
 		[]compilers.Source{openapitest.SourceOf("\t\t: : : not valid : yaml\n\x00")}, compilers.Options{})
 	require.NoError(t, err)
 	assert.Nil(t, doc)
-	assert.True(t, openapitest.HasDiag(diags, diag.UndecodableSource))
+	require.Len(t, diags, 1)
+	assert.Equal(t, diag.UndecodableSource, diags[0].Code)
+	assert.Equal(t, ir.NoSource, diags[0].Provenance.Source,
+		"no document comes back, so there is no source table for a Source of 0 to index into")
 }
 
 // TestRun_RegistryRefusalsAreSurfaced covers the reporting of an entry
