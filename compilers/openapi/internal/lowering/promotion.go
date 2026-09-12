@@ -220,12 +220,17 @@ func extensionText(raw ir.RawValue) (string, bool) {
 // naming it has not already said. A boolean is the one shape that does state
 // openness on its own, so an explicit false is read as written — a document
 // saying the set is not extensible, which is not something to invert.
+//
+// The target is *bool rather than bool because JSON null decodes into a bool
+// without error and leaves it false, so a bare `x-extensible-enum:` — the
+// presence-only spelling this reading exists for — would otherwise be read as
+// the explicit false that is the one way to decline.
 func extensionOpenness(raw ir.RawValue) bool {
-	var open bool
-	if err := json.Unmarshal(raw, &open); err != nil {
+	var open *bool
+	if err := json.Unmarshal(raw, &open); err != nil || open == nil {
 		return true
 	}
-	return open
+	return *open
 }
 
 // markInferred adds one heuristic's name to a provenance, keeping any already

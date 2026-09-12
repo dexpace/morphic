@@ -335,6 +335,9 @@ func TestPromoteEnumOpenness_ClearsClosedAndMarksTheNode(t *testing.T) {
 		{"the member list the convention writes", `["a","b"]`},
 		{"an explicit true", `true`},
 		{"a value that states nothing", `"whatever"`},
+		// JSON null decodes into a plain bool as false, so this row is what
+		// separates the presence-only spelling from an explicit decline.
+		{"a bare key, which is the presence-only spelling", `null`},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
