@@ -359,6 +359,14 @@ func agreeingReadings() []readingsRow {
 // declaredReadings are the shapes the scan reads less than the parse, each
 // against its reason. A tolerance added to the scan deletes a row from here, and
 // a shape it stops reading adds one — neither can happen silently.
+//
+// Both tables speak only for documents the parse accepts: a declared row must
+// parse, and an agreeing row's parse reading is the answer the scan is held
+// to. A document yaml.v3 refuses — `a: &x#`, a block scalar item at the root —
+// is reported as undecodable below the cap and read by the scan above it, and
+// that split is by design (TestDetect_TheCapDecidesWhichReadingAnswers): the
+// scan cannot tell a broken spec from another format's file, and a broken
+// spec that names the key is this compiler's to refuse in load either way.
 func declaredReadings() []readingsRow {
 	const v = "3.1.0"
 	return []readingsRow{
@@ -378,6 +386,14 @@ func declaredReadings() []readingsRow {
 			declared: "the scan reads a root entry off its own line; a value continued onto the next is a " +
 				"plain scalar that may run on for several, and reading its first line alone would claim " +
 				"`3.1.0 more` by its first word — the one direction detection must not be wrong in"},
+		// The shape the reason above is about. The parse reads the whole scalar
+		// and the prose guard then declines it, so Detect agrees on both sides
+		// of the cap; a scan that read the first continuation line alone would
+		// answer `3.1.0` here, and this row is what reddens.
+		{name: "the version running on past the line after the key", src: "openapi:\n  3.1.0\n  more\n",
+			want: sniffProbe{OpenAPI: "3.1.0 more"},
+			declared: "the scan reads a root entry off its own line, and a plain scalar continued across " +
+				"several is not one it can read by its first line without claiming by the first word"},
 	}
 }
 
