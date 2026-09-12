@@ -36,7 +36,11 @@
                     "nullable": false
                   },
                   "required": false,
-                  "docs": {}
+                  "docs": {},
+                  "provenance": {
+                    "source": 0,
+                    "pointer": "/paths/~1orders/post/parameters/0"
+                  }
                 }
               ],
               "request": {
@@ -48,7 +52,8 @@
                       "nullable": false
                     }
                   }
-                ]
+                ],
+                "required": true
               },
               "responses": [
                 {
@@ -164,7 +169,8 @@
                       "nullable": false
                     }
                   }
-                ]
+                ],
+                "required": true
               },
               "responses": [
                 {
@@ -230,7 +236,8 @@
                       "nullable": false
                     }
                   }
-                ]
+                ],
+                "required": true
               },
               "responses": [
                 {

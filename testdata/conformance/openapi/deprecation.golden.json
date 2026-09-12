@@ -38,7 +38,11 @@
                   },
                   "required": false,
                   "docs": {},
-                  "deprecation": {}
+                  "deprecation": {},
+                  "provenance": {
+                    "source": 0,
+                    "pointer": "/paths/~1old/get/parameters/0"
+                  }
                 }
               ],
               "responses": [

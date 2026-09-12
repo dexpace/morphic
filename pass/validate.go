@@ -29,6 +29,7 @@ func Validate(doc *ir.Document) []ir.Diagnostic {
 	diags = append(diags, checkServerIndices(doc)...)
 	diags = append(diags, checkResponseIndices(doc)...)
 	diags = append(diags, checkEncodingKeys(doc)...)
+	diags = append(diags, checkPayloadRequired(doc)...)
 	diags = append(diags, checkPropIDRefs(doc)...)
 	diags = append(diags, checkDiscriminators(doc)...)
 	diags = append(diags, checkDuplicateWireNames(doc)...)
@@ -232,35 +233,78 @@ func checkPropIDRefs(doc *ir.Document) []ir.Diagnostic {
 // (see the package doc): a key addressing nothing is a broken reference, so a
 // second checker growing this check adopts the code rather than forcing a rename.
 // Only this pass reports it today.
+func checkEncodingKeys(doc *ir.Document) []ir.Diagnostic {
+	var diags []ir.Diagnostic
+	forEachPayload(doc, func(site payloadSite) {
+		diags = appendEncodingKeyDiags(diags, doc, site.payload, site.where)
+	})
+	return diags
+}
+
+// checkPayloadRequired reports a Payload.Required set anywhere but on a request.
+//
+// Only a request body can be omitted, so ir.Payload defines the field for that
+// one position and says a response or message payload leaves it nil. Set there
+// it states something no exchange can honour, and an emitter that renders
+// "required" off the boolean prints it on a response — the reading GitHub #421
+// was filed about. No compiler produces the shape today; this is the rule's
+// guard rather than the repair of a lowering, and an error rather than a
+// warning because the document is wrong, not merely lossy.
+//
+// The code carries the ir/ namespace for the reason checkEncodingKeys does: it
+// names the defect, not the finder. Only this pass reports it today.
+func checkPayloadRequired(doc *ir.Document) []ir.Diagnostic {
+	var diags []ir.Diagnostic
+	forEachPayload(doc, func(site payloadSite) {
+		if site.request || site.payload.Required == nil {
+			return
+		}
+		diags = append(diags, diag(ir.SeverityError, "ir/payload-required-outside-request",
+			fmt.Sprintf("payload at %s sets required, which only a request body can state", site.where),
+			site.where))
+	})
+	return diags
+}
+
+// payloadSite is one Payload a document carries: the node, where it hangs, and
+// whether that position is a request — the one place Payload.Required is
+// defined.
+type payloadSite struct {
+	payload *ir.Payload
+	where   string
+	request bool
+}
+
+// forEachPayload calls fn once per Payload the document carries, skipping the
+// positions that hold none.
 //
 // The fields that carry a Payload are named here — Operation.Request,
 // Response.Payload and Message.Payload — because nothing in a Payload's Go type
 // says who owns one, so a new one has to be added by hand. That coupling is
 // guarded: TestEncodingCarriers_NameEveryPayloadFieldInTheIR
 // (validate_carriers_test.go) walks the IR for Payload-bearing fields and fails
-// the moment one of them is not walked here.
-func checkEncodingKeys(doc *ir.Document) []ir.Diagnostic {
-	var diags []ir.Diagnostic
+// the moment one of them is not walked here, and every check built on this walk
+// reaches a carrier the day it is added.
+func forEachPayload(doc *ir.Document, fn func(payloadSite)) {
 	forEachOperation(doc, func(op ir.Operation) {
-		diags = appendEncodingKeyDiags(diags, doc, op.Request, string(op.ID)+"/request")
+		if op.Request != nil {
+			fn(payloadSite{payload: op.Request, where: string(op.ID) + "/request", request: true})
+		}
 		for i, r := range op.Responses {
-			at := fmt.Sprintf("%s/responses/%d", op.ID, i)
-			diags = appendEncodingKeyDiags(diags, doc, r.Payload, at)
+			if r.Payload != nil {
+				fn(payloadSite{payload: r.Payload, where: fmt.Sprintf("%s/responses/%d", op.ID, i)})
+			}
 		}
 	})
 	for _, id := range sortedKeys(doc.Messages) {
 		msg := doc.Messages[id]
-		diags = appendEncodingKeyDiags(diags, doc, &msg.Payload, string(id))
+		fn(payloadSite{payload: &msg.Payload, where: string(id)})
 	}
-	return diags
 }
 
 // appendEncodingKeyDiags appends to dst a diagnostic per unresolvable encoding
 // key in each of the payload's contents; where locates the payload's owner.
 func appendEncodingKeyDiags(dst []ir.Diagnostic, doc *ir.Document, payload *ir.Payload, where string) []ir.Diagnostic {
-	if payload == nil {
-		return dst
-	}
 	for i, c := range payload.Contents {
 		if len(c.Encoding) == 0 {
 			continue

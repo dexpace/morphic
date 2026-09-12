@@ -49,7 +49,11 @@
                     "nullable": false
                   },
                   "required": false,
-                  "docs": {}
+                  "docs": {},
+                  "provenance": {
+                    "source": 0,
+                    "pointer": "/paths/~1pets/get/parameters/0"
+                  }
                 }
               ],
               "responses": [
@@ -164,7 +168,8 @@
                       "nullable": false
                     }
                   }
-                ]
+                ],
+                "required": true
               },
               "responses": [
                 {
@@ -276,7 +281,11 @@
                     "nullable": false
                   },
                   "required": true,
-                  "docs": {}
+                  "docs": {},
+                  "provenance": {
+                    "source": 0,
+                    "pointer": "/paths/~1pets~1{petId}/get/parameters/0"
+                  }
                 }
               ],
               "responses": [

@@ -19,6 +19,13 @@ package ir
 // 0.3.0 renames that field to Unmodeled on every carrier, so the JSON key
 // "preserved" is now "unmodeled". A consumer pinned to 0.2.0 finds no key it
 // recognizes and drops every unmodeled construct in silence.
+//
+// In flight: the stack/* branches (dexpace/morphic #436–#442) change the shape
+// under this version — Payload gains "required", Parameter a non-omitempty
+// "provenance", and more above them — and the bump to 0.4.0 lands with the
+// top of that stack (#442). The stack squash-merges bottom-up, so a main
+// between the first of those and the last carries a 0.4.0 shape stamped
+// 0.3.0; this paragraph goes with the bump.
 const IRVersion = "0.3.0"
 
 // CompatibleVersion reports whether a document stamped version can be read by

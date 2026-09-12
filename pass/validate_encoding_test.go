@@ -17,34 +17,36 @@ func multipartContent(enc map[ir.PropID]ir.PartEncoding) ir.Content {
 	return ir.Content{MediaType: "multipart/form-data", Type: ir.TypeRef{Target: "t/m"}, Encoding: enc}
 }
 
-// encodingCarrier is one field that carries a Payload — and so an Encoding map —
-// named as the ir field it is, and paired with the location a diagnostic about
-// its first content must point at.
-type encodingCarrier struct {
-	field string
-	at    string
-	plant func(doc *ir.Document, enc map[ir.PropID]ir.PartEncoding)
+// multipartPayload is a payload of one multipartContent carrying enc.
+func multipartPayload(enc map[ir.PropID]ir.PartEncoding) ir.Payload {
+	return ir.Payload{Contents: []ir.Content{multipartContent(enc)}}
 }
 
-// encodingCarriers enumerates the Payload-bearing fields checkEncodingKeys walks.
+// encodingCarrier is one field that carries a Payload, named as the ir field it
+// is, paired with the location a diagnostic about the payload must point at,
+// and saying whether the position is a request — the one place
+// Payload.Required is defined.
+type encodingCarrier struct {
+	field   string
+	at      string
+	request bool
+	plant   func(doc *ir.Document, payload ir.Payload)
+}
+
+// encodingCarriers enumerates the Payload-bearing fields forEachPayload walks.
 // TestEncodingCarriers_NameEveryPayloadFieldInTheIR holds this list against the
-// IR and the cases below hold checkEncodingKeys against this list, so a carrier
-// added to the IR has to reach both.
+// IR and the cases below hold the checks built on the walk against this list,
+// so a carrier added to the IR has to reach both.
 func encodingCarriers() []encodingCarrier {
 	return []encodingCarrier{
-		{"Operation.Request", "op/request/contents/0", func(d *ir.Document, enc map[ir.PropID]ir.PartEncoding) {
-			requestContent(d).Encoding = enc
+		{"Operation.Request", "op/request", true, func(d *ir.Document, p ir.Payload) {
+			firstOp(d).Request = &p
 		}},
-		{"Response.Payload", "op/responses/0/contents/0", func(d *ir.Document, enc map[ir.PropID]ir.PartEncoding) {
-			firstOp(d).Responses = []ir.Response{{
-				Name:    ir.Naming{Source: "ok"},
-				Payload: &ir.Payload{Contents: []ir.Content{multipartContent(enc)}},
-			}}
+		{"Response.Payload", "op/responses/0", false, func(d *ir.Document, p ir.Payload) {
+			firstOp(d).Responses = []ir.Response{{Name: ir.Naming{Source: "ok"}, Payload: &p}}
 		}},
-		{"Message.Payload", "msg/a/contents/0", func(d *ir.Document, enc map[ir.PropID]ir.PartEncoding) {
-			putMessage(d, func(m *ir.Message) {
-				m.Payload = ir.Payload{Contents: []ir.Content{multipartContent(enc)}}
-			})
+		{"Message.Payload", "msg/a", false, func(d *ir.Document, p ir.Payload) {
+			putMessage(d, func(m *ir.Message) { m.Payload = p })
 		}},
 	}
 }
@@ -61,15 +63,46 @@ func TestValidate_EncodingKeyAddressesNoProperty(t *testing.T) {
 		t.Run(tc.field, func(t *testing.T) {
 			t.Parallel()
 			doc := validDoc()
-			tc.plant(doc, map[ir.PropID]ir.PartEncoding{"p/m/ghost": {Multi: true}})
+			tc.plant(doc, multipartPayload(map[ir.PropID]ir.PartEncoding{"p/m/ghost": {Multi: true}}))
 
 			found := withCode(pass.Validate(doc), "ir/encoding-key-unknown-property")
 			require.Len(t, found, 1, "exactly the planted key must address nothing")
 			assert.Equal(t, ir.SeverityError, found[0].Severity)
-			assert.Equal(t, tc.at+"/encoding/p/m/ghost", found[0].Provenance.Pointer)
-			assert.Equal(t, `encoding key "p/m/ghost" at `+tc.at+
-				`/encoding/p/m/ghost addresses no property of the content's type "t/m"`, found[0].Message,
+			at := tc.at + "/contents/0/encoding/p/m/ghost"
+			assert.Equal(t, at, found[0].Provenance.Pointer)
+			assert.Equal(t, `encoding key "p/m/ghost" at `+at+
+				` addresses no property of the content's type "t/m"`, found[0].Message,
 				"the message names the key, where it sits, and what it failed to address")
+		})
+	}
+}
+
+// TestValidate_PayloadRequiredOutsideARequest sets Payload.Required in each
+// field that carries a Payload. Only the request may state it: ir.Payload
+// defines the field for that one position, and an emitter rendering "required"
+// off the boolean would print it on a response (GitHub #421). No compiler
+// produces the shape, so the fixture is built by hand.
+func TestValidate_PayloadRequiredOutsideARequest(t *testing.T) {
+	t.Parallel()
+	for _, tc := range encodingCarriers() {
+		t.Run(tc.field, func(t *testing.T) {
+			t.Parallel()
+			doc := validDoc()
+			payload := multipartPayload(nil)
+			required := false
+			payload.Required = &required
+			tc.plant(doc, payload)
+
+			found := withCode(pass.Validate(doc), "ir/payload-required-outside-request")
+			if tc.request {
+				assert.Empty(t, found, "a request body is the position the field is defined for")
+				return
+			}
+			require.Len(t, found, 1, "the one planted field must be reported once")
+			assert.Equal(t, ir.SeverityError, found[0].Severity)
+			assert.Equal(t, tc.at, found[0].Provenance.Pointer)
+			assert.Equal(t, "payload at "+tc.at+" sets required, which only a request body can state",
+				found[0].Message)
 		})
 	}
 }
@@ -82,7 +115,7 @@ func TestValidate_EncodingKeysNamingRealPropertiesAreClean(t *testing.T) {
 	t.Parallel()
 	doc := validDoc()
 	for _, tc := range encodingCarriers() {
-		tc.plant(doc, map[ir.PropID]ir.PartEncoding{"p/m/a": {Multi: true}})
+		tc.plant(doc, multipartPayload(map[ir.PropID]ir.PartEncoding{"p/m/a": {Multi: true}}))
 	}
 	assert.Empty(t, pass.Validate(doc))
 }

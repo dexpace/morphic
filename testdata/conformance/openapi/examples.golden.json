@@ -48,7 +48,11 @@
                         "object": null
                       }
                     }
-                  ]
+                  ],
+                  "provenance": {
+                    "source": 0,
+                    "pointer": "/paths/~1items/get/parameters/0"
+                  }
                 }
               ],
               "responses": [

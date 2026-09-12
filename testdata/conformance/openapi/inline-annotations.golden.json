@@ -54,6 +54,10 @@
                         "pointer": "/paths/~1codes/get/parameters/0/schema/x-facet"
                       }
                     }
+                  },
+                  "provenance": {
+                    "source": 0,
+                    "pointer": "/paths/~1codes/get/parameters/0"
                   }
                 }
               ],
