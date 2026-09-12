@@ -176,12 +176,11 @@ func padTo(src, filler string) string {
 	return b.String()
 }
 
-// TestSniff_BeyondTheCap pins both paths a document larger than the cap can
-// take. The prefix answers on its own whenever it names a key, in whichever
-// style the document is written; when it names neither, a document whose bytes
-// name one further in is read whole rather than declined, because where a writer
-// put a key in a mapping says nothing about what the document is. Bytes that
-// name neither key anywhere never leave the prefix.
+// TestSniff_BeyondTheCap pins the reading a document larger than the cap gets:
+// a scan that finds a key wherever it sits, in whichever style the document is
+// written, because where a writer put a key in a mapping says nothing about what
+// the document is. Bytes that name neither key are declined in silence — the
+// scan has read one key and cannot tell a broken spec from another format's file.
 func TestSniff_BeyondTheCap(t *testing.T) {
 	t.Parallel()
 	const filler = "# a line of padding that says nothing about the format\n"
@@ -206,9 +205,8 @@ func TestSniff_BeyondTheCap(t *testing.T) {
 		// fails, and the answer is silence rather than a parser's complaint.
 		{"protobuf past the cap",
 			padTo("syntax = \"proto3\";\n", "message M { string a = 1; }\n"), sniffProbe{}},
-		// The word is there past the cap and is not a key, so the whole read is
-		// never reached — asserted on the guard itself below, since the probe a
-		// whole read would return here is the zero one either way.
+		// The word is there past the cap and is not a key: a value is not a
+		// declaration, and the flow scan reads names only where a colon follows.
 		{"the word past the cap is not a key",
 			`{"x":"` + pad + `","note":"openapi"}`, sniffProbe{}},
 	}
@@ -223,45 +221,18 @@ func TestSniff_BeyondTheCap(t *testing.T) {
 	}
 }
 
-// TestDeclaresProbeKey_GuardsTheWholeRead pins the one decision that keeps a
-// document of another format off the slow path: the whole of a source is scanned
-// for a key, and only a declaration — the name with the colon that makes it one
-// — counts as having found it.
-func TestDeclaresProbeKey_GuardsTheWholeRead(t *testing.T) {
-	t.Parallel()
-	pad := strings.Repeat("p", maxSniffBytes)
-	cases := []struct {
-		name, src string
-		want      bool
-	}{
-		{"declared past the cap in flow style", `{"x":"` + pad + `","openapi":"3.1.0"}`, true},
-		{"declared past the cap in block style", "x: " + pad + "\nswagger: \"2.0\"\n", true},
-		{"named past the cap as a value", `{"x":"` + pad + `","note":"openapi"}`, false},
-		{"named past the cap in prose", "x: " + pad + "\n# openapi is a format\n", false},
-		// A key, and still not this document's: it names a field of something
-		// nested, which says nothing about the format of the file around it.
-		{"named past the cap as a nested key", `{"x":"` + pad + `","in":{"openapi":"3.1.0"}}`, false},
-		// A document that opens no mapping declares no top-level key at all, so
-		// whatever its members name, none of it is a declaration of this format.
-		{"named past the cap in a document that opens no mapping",
-			`[{"x":"` + pad + `"},{"openapi":"3.1.0"}]`, false},
-	}
-	for _, tc := range cases {
-		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
-			require.Greater(t, len(tc.src), maxSniffBytes, "the case must exceed the cap to test it")
-			assert.Equal(t, tc.want, declaresProbeKey([]byte(tc.src)))
-		})
-	}
-}
-
-// TestDeclaresProbeKey_ScopesTheNameToItsOwnDocument pins the half of the guard
-// that decides whose bytes these are. A name followed by a colon is a key
-// wherever it sits, so the scan has to say *whose* key: block style answers with
-// column 0, flow style with the root mapping's own depth. Everything below is a
-// document naming the word somewhere it does not declare this format, and the
-// answer for each is no — a compiler that says otherwise reports its own parse
-// error over a file that was never its own.
+// TestDeclaresProbeKey_ScopesTheNameToItsOwnDocument pins the guard that decides
+// whose bytes these are. A name followed by a colon is a key wherever it sits,
+// so the scan has to say *whose* key: block style answers with column 0, flow
+// style with the root mapping's own depth. Everything below is a document naming
+// the word somewhere it does not declare this format, and the answer for each is
+// no — a compiler that says otherwise reports its own parse error over a file
+// that was never its own.
+//
+// None of the cases exceeds the cap, and none can: a reading only fails at or
+// below it, scanProbe returning no error above. What the scan does past the cap
+// with the same shapes is TestScanProbe_ReadsTheVersionBesideTheKey's and
+// TestSniff_BeyondTheCap's.
 func TestDeclaresProbeKey_ScopesTheNameToItsOwnDocument(t *testing.T) {
 	t.Parallel()
 	cases := []struct {
@@ -273,12 +244,15 @@ func TestDeclaresProbeKey_ScopesTheNameToItsOwnDocument(t *testing.T) {
 		{"space around the mapping and the colon", "  \n\t{\"openapi\" : \"3.1.0\"}", true},
 		{"an escape hides no key from the scan", `{"a\"b":1,"openapi":"3.1.0"}`, true},
 		{"block style at column 0", "openapi: 3.1.0\n", true},
+		{"block style past a byte-order mark", "\xef\xbb\xbfopenapi: [unterminated\n", true},
+		{"flow style past a byte-order mark", "\xef\xbb\xbf{\"openapi\":\"3.1.0\",", true},
 
 		{"nested one level down", `{"a":{"openapi":"3.1.0"}}`, false},
 		{"nested inside a sequence", `{"a":[{"openapi":"3.1.0"}]}`, false},
 		{"a document that opens a sequence", `[{"openapi":"3.1.0"}]`, false},
 		{"block style indented under another key", "a:\n  openapi: 3.1.0\n", false},
 		{"the name is a value", `{"note":"openapi"}`, false},
+		{"the name in a comment", "x: 1\n# openapi is a format\n", false},
 		{"the name has no colon after it", `{"openapi",1}`, false},
 		{"the name ends the bytes", `{"openapi"`, false},
 		{"a string runs off the end", `{"a":"unterminated`, false},

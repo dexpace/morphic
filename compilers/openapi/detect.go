@@ -83,14 +83,10 @@ func (*Compiler) Detect(src compilers.Source) (compilers.SourceFormat, []ir.Diag
 
 // declaresProbeKey reports whether data names one of the discriminating keys as
 // a top-level key. It is what separates a source of this compiler's own from one
-// of another format that was never its business, and it is asked twice: before
-// sniff parses a large document whole, and after a parse failed, where "not
-// YAML" alone says only what a Protobuf or Smithy source would also say.
-//
-// The whole of data is read. A byte scan costs a fraction of the parse it stands
-// in front of, and the key it looks for is exactly the one that can sit
-// megabytes into a document — bounding this to the prefix would blind it in
-// precisely the case it exists to catch.
+// of another format that was never its business, and it is asked once: after a
+// parse failed, where "not YAML" alone says only what a Protobuf or Smithy
+// source would also say. A parse only runs at or below the cap — past it the
+// scan answers and cannot fail — so the bytes reaching here are never large.
 //
 // Top-level is the whole of the claim, and the two styles answer it by different
 // structure: column 0 in block style, the root mapping's own entries in flow
@@ -99,6 +95,7 @@ func (*Compiler) Detect(src compilers.Source) (compilers.SourceFormat, []ir.Diag
 // their bytes under this compiler's parse error is the one thing detection must
 // never do.
 func declaresProbeKey(data []byte) bool {
+	data = trimBOM(data)
 	return declaresBlockKey(data, "openapi") || declaresBlockKey(data, "swagger") ||
 		declaresFlowKey(data)
 }
@@ -117,7 +114,12 @@ func declaresProbeKey(data []byte) bool {
 //
 // The colon that makes it a key is required. Without it, a document of another
 // format that merely mentions the word — in a comment, or as a value — would be
-// claimed as this compiler's and reported under its parse error.
+// claimed as this compiler's and reported under its parse error. What follows
+// the colon is not: this guard is asked only after a reading has failed, so
+// there is no version left to read, and nothing else will claim a file this
+// compiler has already called broken. scanProbe names a format and routes the
+// source, so its block reading requires the separated colon YAML does; the
+// looseness here is deliberate, not inherited.
 func declaresBlockKey(data []byte, key string) bool {
 	name := []byte(key + ":")
 	return bytes.HasPrefix(data, name) || bytes.Contains(data, append([]byte("\n"), name...))
@@ -261,11 +263,102 @@ func isVersion(value string) bool {
 // Both keys are read wherever they sit, so where a document declares one carries
 // no meaning here — mapping keys being unordered, that is the whole property.
 // Which of the two wins when a document declares both is Detect's question.
+//
+// The scan reads less than the parse it stands in for, and the cap decides which
+// of them answers, so every shape they disagree on is a document that names one
+// format below the cap and another above it. The shapes the scan declines by
+// design — a root merge key, a quoted key in block style, an unquoted one in
+// flow style, an anchor or a tag before the version — are declared in
+// TestReadings_AgreeExceptWhereDeclared, each against its reason, rather than
+// here: that table fails when a reason goes stale or a new divergence appears,
+// and prose can do neither.
 func scanProbe(data []byte) sniffProbe {
 	var probe sniffProbe
-	scanBlockProbe(data, &probe)
-	scanFlowProbe(data, &probe)
+	first := firstDocument(trimBOM(data))
+	scanBlockProbe(first, &probe)
+	scanFlowProbe(first, &probe)
 	return probe
+}
+
+// bomUTF8 is the UTF-8 byte-order mark. YAML admits one at the start of a
+// stream and JSON is its subset, so a spec written by an editor that emits one
+// is a spec like any other: yaml.v3 reads straight through it and so does the
+// loader. The byte scans have to skip it themselves, or the same document would
+// name a format at the cap and none one byte past it.
+const bomUTF8 = "\xef\xbb\xbf"
+
+// trimBOM returns data without a leading byte-order mark. Comparing through a
+// string conversion compiles to a comparison rather than a copy, so the scan
+// stays allocation-free.
+func trimBOM(data []byte) []byte {
+	if len(data) >= len(bomUTF8) && string(data[:len(bomUTF8)]) == bomUTF8 {
+		return data[len(bomUTF8):]
+	}
+	return data
+}
+
+// firstDocument returns the content of data's first YAML document. A stream may
+// carry several, opened by `---` and ended by `...` at column 0, and load reads
+// only the first, so a key in a later one names a format for bytes the compile
+// never parses. A marker ends the document even in the middle of a scalar,
+// which is what makes a line scan the right reading for one.
+//
+// The opening marker is left behind rather than returned, so what comes back
+// begins where the document's own bytes do: a flow document written after a
+// `---`, or on its line, is then the same bytes to the flow scan as one written
+// without a marker at all.
+func firstDocument(data []byte) []byte {
+	start, opened := 0, false
+	for i := 0; i < len(data); {
+		line, next := nextLine(data, i)
+		marker, isMarker := docMarker(line)
+		if isMarker && (opened || marker == '.') {
+			return data[start:i]
+		}
+		if isMarker {
+			start, opened = i+len("---"), true
+		}
+		if contentLine(line) {
+			opened = true
+		}
+		i = next
+	}
+	return data[start:]
+}
+
+// nextLine returns the line beginning at i, without its terminator, and the
+// index of the line after it.
+func nextLine(data []byte, i int) (line []byte, next int) {
+	line = data[i:]
+	if j := bytes.IndexByte(line, '\n'); j >= 0 {
+		return line[:j], i + j + 1
+	}
+	return line, len(data)
+}
+
+// docMarker reports whether line is a document marker — `---` opening one or
+// `...` ending one — and which. A marker is the three bytes at column 0
+// followed by whitespace or the end of the line; `----` and `...x` are content.
+func docMarker(line []byte) (marker byte, ok bool) {
+	if len(line) < 3 || (line[0] != '-' && line[0] != '.') {
+		return 0, false
+	}
+	if line[1] != line[0] || line[2] != line[0] {
+		return 0, false
+	}
+	if len(line) > 3 && line[3] != ' ' && line[3] != '\t' && line[3] != '\r' {
+		return 0, false
+	}
+	return line[0], true
+}
+
+// contentLine reports whether line carries document content: anything but
+// blank space, a comment, or a `%` directive. Content before any `---` opens
+// the document implicitly, so a marker after it ends the document rather than
+// opening one.
+func contentLine(line []byte) bool {
+	rest := bytes.TrimLeft(line, " \t\r")
+	return len(rest) > 0 && rest[0] != '#' && rest[0] != '%'
 }
 
 // scanBlockProbe reads a block document's top-level entries, which are its lines
@@ -273,16 +366,33 @@ func scanProbe(data []byte) sniffProbe {
 // is megabytes of lines this walks and keeps none of.
 func scanBlockProbe(data []byte, probe *sniffProbe) {
 	for i := 0; i < len(data); {
-		line := data[i:]
-		if j := bytes.IndexByte(line, '\n'); j >= 0 {
-			line, i = line[:j], i+j+1
-		} else {
-			i = len(data)
-		}
-		if name, value, ok := bytes.Cut(line, []byte(":")); ok && isProbeName(name) {
-			setVersion(probe, name, blockValue(value))
+		var line []byte
+		line, i = nextLine(data, i)
+		if name, value, ok := blockEntry(line); ok {
+			setVersion(probe, name, value)
 		}
 	}
+}
+
+// blockEntry returns the probe key line writes and the value beside it, and
+// reports whether line writes one at all.
+//
+// A space, a tab or the end of the line has to follow the colon. YAML reads
+// `openapi:3.1.0` as a plain scalar and not as a key — the parse below the cap
+// refuses that document for having a string at its root — so a scan that took it
+// for a key would name a format on bytes the parser says declare none.
+func blockEntry(line []byte) (name, value []byte, ok bool) {
+	name, rest, cut := bytes.Cut(line, []byte(":"))
+	if !cut || !isProbeName(name) || !separated(rest) {
+		return nil, nil, false
+	}
+	return name, blockValue(rest), true
+}
+
+// separated reports whether rest, the bytes after a colon, begins the way a
+// block mapping value must: with whitespace, or with nothing at all.
+func separated(rest []byte) bool {
+	return len(rest) == 0 || rest[0] == ' ' || rest[0] == '\t' || rest[0] == '\r'
 }
 
 // blockValue returns the scalar a block entry writes after its colon, without the
