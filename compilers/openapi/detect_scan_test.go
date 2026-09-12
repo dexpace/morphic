@@ -364,9 +364,12 @@ func agreeingReadings() []readingsRow {
 // parse, and an agreeing row's parse reading is the answer the scan is held
 // to. A document yaml.v3 refuses — `a: &x#`, a block scalar item at the root —
 // is reported as undecodable below the cap and read by the scan above it, and
-// that split is by design (TestDetect_TheCapDecidesWhichReadingAnswers): the
-// scan cannot tell a broken spec from another format's file, and a broken
-// spec that names the key is this compiler's to refuse in load either way.
+// that split is by design: the scan cannot tell a broken spec from another
+// format's file, and a broken spec that names the key is this compiler's to
+// refuse in load either way. TestDetect_Formats pins it in "key past the cap
+// on an unparseable prefix", where the scan names a format on bytes the parse
+// refuses; TestDetect_TheCapDecidesWhichReadingAnswers pins the other half,
+// a document broken before any version, which neither reading claims.
 func declaredReadings() []readingsRow {
 	const v = "3.1.0"
 	return []readingsRow{
