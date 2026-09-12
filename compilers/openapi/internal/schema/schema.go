@@ -1246,6 +1246,13 @@ func attachDeclaredAnnotations(c lowering.Ctx, ts *compile.Types, anchors *Ancho
 	}
 	common.Unmodeled = annotation.MergeUnmodeled(common.Unmodeled, a.Unmodeled)
 	diags = append(diags, c.PromoteDeprecation(common.Unmodeled, common.Deprecation, &common.Provenance)...)
+	// The enum-openness promotion is applied here rather than where the Enum is
+	// built, for the same reason the deprecation one is: a promotion reads the
+	// preserved Unmodeled entries, and this is the point at which the
+	// declaration's extensions have reached the node's map.
+	if enum, isEnum := td.(*ir.Enum); isEnum {
+		c.PromoteEnumOpenness(common.Unmodeled, enum, &common.Provenance)
+	}
 	if len(a.Examples) > 0 {
 		common.Examples = a.Examples
 	}

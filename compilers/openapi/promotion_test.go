@@ -84,14 +84,54 @@ func assertExtensionPromotion(t *testing.T, doc *ir.Document, diags []ir.Diagnos
 	op, ok := opByName(doc, "getX")
 	require.True(t, ok)
 	assert.Equal(t, "1.2.0", op.Deprecation.Since)
-	assert.Equal(t, "2.0.0", op.Deprecation.RemovalVersion)
+	assert.Equal(t, "2026-08-01", op.Deprecation.RemovalDate,
+		"x-sunset is a date, so it reaches the date field")
+	assert.Empty(t, op.Deprecation.RemovalVersion,
+		"a sunset date does not land in the field a consumer reads as a version")
 
 	require.Len(t, op.Params, 1)
 	require.NotNil(t, op.Params[0].Deprecation)
-	assert.Equal(t, "3.0.0", op.Params[0].Deprecation.RemovalVersion,
-		"the parameter's own x-sunset reaches its own removal version, not the operation's")
+	assert.Equal(t, "2027-01-15", op.Params[0].Deprecation.RemovalDate,
+		"the parameter's own x-sunset reaches its own removal date, not the operation's")
 
+	assertEnumOpenness(t, doc)
 	assertPromotionDeclined(t, doc, diags)
+}
+
+// assertEnumOpenness is the corpus row for GitHub #427 and the matrix's
+// open-enums row. ir.Enum.Closed is exactly the fact x-extensible-enum states,
+// and every enum the compiler builds is closed, so without the promotion the
+// extension changed nothing an emitter or a differ could read.
+//
+// The three schemas are the three answers the reading has: the convention's own
+// spelling opens the enum, an explicit false declines to, and an enum that
+// names no such key is untouched — the last so that the first is a promotion
+// rather than a compiler that stopped closing enums.
+func assertEnumOpenness(t *testing.T, doc *ir.Document) {
+	tests := []struct {
+		schema   string
+		closed   bool
+		inferred string
+	}{
+		{"Size", false, "extension-promotion"},
+		{"Shade", true, ""},
+		{"Fixed", true, ""},
+	}
+	for _, tc := range tests {
+		enum, ok := doc.Types[namedID(tc.schema)].(*ir.Enum)
+		require.True(t, ok, "%s lowers to an enum", tc.schema)
+		assert.Equal(t, tc.closed, enum.Closed, "%s openness", tc.schema)
+		assert.Equal(t, tc.inferred, enum.Provenance.Inferred, "%s heuristic marker", tc.schema)
+	}
+
+	for _, schema := range []string{"Size", "Shade"} {
+		enum, ok := doc.Types[namedID(schema)].(*ir.Enum)
+		require.True(t, ok)
+		entry, kept := enum.Unmodeled["openapi:x-extensible-enum"]
+		require.True(t, kept, "%s keeps the extension whether or not it was read", schema)
+		assert.Equal(t, ir.ReasonVendorExtension, entry.Reason,
+			"%s promotion does not reclassify what it read", schema)
+	}
 }
 
 // assertPromotionDeclined pins the two shapes promotion refuses, both of which
@@ -190,6 +230,13 @@ func TestPromotion_DefaultTargetsAreTheOnesApplied(t *testing.T) {
 	defaults := openapi.DefaultExtensionPromotions()
 	require.NotEmpty(t, defaults, "an empty mapping would make this vacuous")
 
+	// Every default key is written twice, on a deprecated operation and on an
+	// enum, because the targets live on two carriers and a key reaching only the
+	// wrong one would read as a mapping that fills nothing.
+	keys := ""
+	for key := range defaults {
+		keys += "      " + key + ": filled\n"
+	}
 	spec := `openapi: 3.1.0
 info: {title: T, version: "1"}
 paths:
@@ -197,23 +244,85 @@ paths:
     get:
       operationId: getX
       deprecated: true
-`
-	for key := range defaults {
-		spec += "      " + key + ": filled\n"
-	}
-	spec += `      responses:
+` + keys + `      responses:
         "200":
           description: ok
-`
+components:
+  schemas:
+    E:
+      type: string
+      enum: [a, b]
+` + keys
 	doc := compilePromotionSpec(t, spec, openapi.Options{})
 	op, ok := opByName(doc, "getX")
 	require.True(t, ok)
 	require.NotNil(t, op.Deprecation)
-	for _, got := range map[openapi.ExtensionTarget]string{
+	enum, ok := doc.Types[namedID("E")].(*ir.Enum)
+	require.True(t, ok)
+
+	// Read off the defaults rather than listing the pairs, so a mapping this
+	// test does not know about fails here instead of going unread.
+	fields := map[openapi.ExtensionTarget]string{
 		openapi.TargetDeprecationMessage:        op.Deprecation.Message,
 		openapi.TargetDeprecationSince:          op.Deprecation.Since,
 		openapi.TargetDeprecationRemovalVersion: op.Deprecation.RemovalVersion,
-	} {
-		assert.Equal(t, "filled", got, "every default target is filled by its default key")
+		openapi.TargetDeprecationRemovalDate:    op.Deprecation.RemovalDate,
+		openapi.TargetEnumOpen:                  filledWhen(!enum.Closed),
 	}
+	named := map[openapi.ExtensionTarget]bool{}
+	for key, target := range defaults {
+		got, known := fields[target]
+		require.True(t, known, "%s is a default target this test reads no field for", target)
+		assert.Equal(t, "filled", got, "%s is filled by its default key %s", target, key)
+		named[target] = true
+	}
+	for target, got := range fields {
+		if !named[target] {
+			assert.Empty(t, got, "%s is filled by no default key, so it stays empty", target)
+		}
+	}
+}
+
+// filledWhen renders a target whose field is not text as the "filled" the text
+// ones carry, so one table can read every default target rather than growing an
+// arm per field type.
+func filledWhen(promoted bool) string {
+	if promoted {
+		return "filled"
+	}
+	return ""
+}
+
+// TestPromotion_RemovalDateAndVersionAreSeparateFacts pins why a scheduled
+// removal is two fields rather than one field carrying which spelling it holds
+// (GitHub #417). A document can state both — a sunset date and the release it
+// goes in — and one field would have to drop whichever it read second.
+func TestPromotion_RemovalDateAndVersionAreSeparateFacts(t *testing.T) {
+	t.Parallel()
+	both := openapi.Options{Promotions: openapi.ExtensionPromotions{
+		Targets: map[string]openapi.ExtensionTarget{
+			"x-sunset":  openapi.TargetDeprecationRemovalDate,
+			"x-gone-in": openapi.TargetDeprecationRemovalVersion,
+		},
+	}}
+	spec := `openapi: 3.1.0
+info: {title: T, version: "1"}
+paths:
+  /x:
+    get:
+      operationId: getX
+      deprecated: true
+      x-sunset: "2026-08-01"
+      x-gone-in: "9.0.0"
+      responses:
+        "200":
+          description: ok
+`
+	doc := compilePromotionSpec(t, spec, both)
+	op, ok := opByName(doc, "getX")
+	require.True(t, ok)
+	require.NotNil(t, op.Deprecation)
+	assert.Equal(t, "2026-08-01", op.Deprecation.RemovalDate)
+	assert.Equal(t, "9.0.0", op.Deprecation.RemovalVersion,
+		"both facts survive; neither overwrites the other")
 }
