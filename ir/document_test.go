@@ -81,11 +81,13 @@ func TestCompatibleVersion(t *testing.T) {
 	}{
 		{"this build's version", ir.IRVersion, true},
 		{"absent", "", false},
-		// These three are spelled relative to IRVersion and MOVE WITH IT. The
-		// neighbour rows are the point of the test, so a bump that leaves them
-		// behind stops testing what they name — at 0.4.0 the old "later
+		// These three are literals spelled against the CURRENT IRVersion, and
+		// nothing makes them follow it: every bump must re-anchor them by hand.
+		// The neighbour rows are the point of the test, so a bump that leaves
+		// them behind stops testing what they name — at 0.4.0 the old "later
 		// generation" literal WAS the current version, and the row asserted the
-		// build rejects its own documents.
+		// build rejects its own documents. The rows below spell IRVersion
+		// directly and need no such maintenance.
 		{"the generation before this one", "0.3.0", false},
 		{"a later generation", "0.5.0", false},
 		{"a differing patch", "0.4.1", false},
