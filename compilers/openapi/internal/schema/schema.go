@@ -1070,10 +1070,28 @@ func fillModelProperties(c lowering.Ctx, ts *compile.Types, anchors *AnchorIndex
 		diags = append(diags, FillPropertyDetail(c, ts, anchors, &p, js, ppointer)...)
 		var mergeDiags []ir.Diagnostic
 		mg := merger(c, ts, &mergeDiags)
-		mg.MergeProperty(m, byWire, p)
+		mg.MergeProperty(m, byWire, p, redeclarationSource(js))
 		diags = append(diags, mergeDiags...)
 	}
 	return diags
+}
+
+// redeclarationSource renders the schema written at a property position
+// verbatim, as the merge keeps it when the position redeclares a field and
+// not all of the redeclaration folds onto the first declaration. It is a
+// function rather than the bytes because nearly every property is declared
+// once, and rendering a node nobody will keep is the cost the merge asks for
+// only when it has something to keep.
+//
+// A boolean schema has no node of its own to render, so its value is spelled
+// out; a `$ref` is rendered as the `$ref` the position wrote, not the target.
+func redeclarationSource(js *oas3.JSONSchema[oas3.Referenceable]) func() (ir.RawValue, error) {
+	return func() (ir.RawValue, error) {
+		if b := js.GetBool(); b != nil {
+			return ir.RawValue(strconv.FormatBool(*b)), nil
+		}
+		return annotation.RawFromNode(js.GetSchema().GetRootNode())
+	}
 }
 
 // FillPropertyDetail enriches a property from its schema: the property-scoped

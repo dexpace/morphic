@@ -3,7 +3,7 @@ info: {title: AllOfConflictingType, version: "1.0.0"}
 paths: {}
 components:
   schemas:
-    # The shape GitHub's own spec writes 102 times: one branch narrows a string
+    # The shape GitHub's own spec writes throughout: one branch narrows a string
     # with a format, the other leaves it bare, and the two lower to different
     # primitives. The first declaration wins; the second is kept beside it.
     Repository:
@@ -14,7 +14,7 @@ components:
         - type: object
           properties:
             clone_url: {type: string}
-    # A nullable loser, so the entry is held to keeping the whole reference
+    # A nullable loser, so the entry is held to keeping the whole declaration
     # rather than only the type it names.
     Identified:
       allOf:
@@ -24,3 +24,14 @@ components:
         - type: object
           properties:
             id: {type: [string, "null"]}
+    # Agreeing types and a disagreeing default: not a conflict, and the merged
+    # field is whole, but the second declaration's default has nowhere to go
+    # and is kept the same way, beside a diagnostic naming what differed.
+    Described:
+      allOf:
+        - type: object
+          properties:
+            id: {type: integer, default: 1, description: first, example: 1}
+        - type: object
+          properties:
+            id: {type: integer, default: 2, description: second, example: 2}

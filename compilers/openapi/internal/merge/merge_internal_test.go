@@ -22,6 +22,22 @@ import (
 // merges one has to say where it was written.
 func ptrAt(pointer string) ir.Provenance { return ir.Provenance{Pointer: pointer} }
 
+// unread is the source of a redeclaration the merge has no reason to keep: it
+// fails the test if rendered, which is how a case asserts that nothing of the
+// redeclaration was lost.
+func unread(t *testing.T) func() (ir.RawValue, error) {
+	return func() (ir.RawValue, error) {
+		t.Helper()
+		t.Fatal("the redeclaration's source was rendered, so the merge believes it lost something")
+		return nil, nil
+	}
+}
+
+// written is the source of a redeclaration spelled as the given JSON.
+func written(source string) func() (ir.RawValue, error) {
+	return func() (ir.RawValue, error) { return ir.RawValue(source), nil }
+}
+
 func stubMerger(reg map[ir.TypeID]ir.TypeDef) (*Merger, *[]ir.Diagnostic) {
 	recorded := &[]ir.Diagnostic{}
 	g := &Merger{
@@ -67,7 +83,7 @@ func TestMerger_ReconcileReportsDisagreementAndKeepsAWinner(t *testing.T) {
 	src := ir.Property{Name: ir.Naming{Source: "id"}, WireName: "id", Type: ir.TypeRef{Target: "t/int"},
 		Provenance: ptrAt("/components/schemas/S/properties/id")}
 
-	g.reconcileProperty(&dst, src)
+	g.reconcileProperty(&dst, src, written(`{"type":"integer"}`))
 
 	require.Len(t, *recorded, 1, "one disagreement, one diagnostic")
 	d := (*recorded)[0]

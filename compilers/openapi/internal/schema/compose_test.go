@@ -188,9 +188,50 @@ func TestAllOf_ConflictingRedeclaredTypeDiagnosedAndKept(t *testing.T) {
 	require.True(t, ok,
 		"the discarded type is kept beside the winner; got %v", m.Properties[0].Unmodeled)
 	assert.Equal(t, ir.ReasonDegradedLowering, lost.Reason)
-	assert.JSONEq(t, `{"target":"t/prim/integer","nullable":false}`, string(lost.Value),
-		"and it names the type the second branch declared, not the one that won")
+	assert.JSONEq(t, `{"type":"integer"}`, string(lost.Value),
+		"and it is the declaration the second branch wrote, not the one that won")
 	assert.Equal(t, "/components/schemas/Conflictish/allOf/1/properties/id", lost.Provenance.Pointer)
+}
+
+// TestAllOf_ALosingRedeclarationIsKeptAsWritten pins what the entry holds at
+// the two property shapes that have no schema node of their own to speak of: a
+// `$ref` is kept as the `$ref` the position wrote, not as the target it names,
+// and a boolean schema — which has no node at all — is kept as its value.
+func TestAllOf_ALosingRedeclarationIsKeptAsWritten(t *testing.T) {
+	t.Parallel()
+	spec := openapitest.ComponentSpec(`    Str: {type: string}
+    Referred:
+      allOf:
+        - type: object
+          properties:
+            id: {type: integer}
+        - type: object
+          properties:
+            id: {$ref: '#/components/schemas/Str'}
+    Anything:
+      allOf:
+        - type: object
+          properties:
+            id: {type: integer}
+        - type: object
+          properties:
+            id: true
+`)
+	doc, diags := lowerSpec(t, spec)
+	openapitest.RequireNoErrorDiags(t, diags)
+
+	for _, tc := range []struct{ model, want string }{
+		{"Referred", `{"$ref":"#/components/schemas/Str"}`},
+		{"Anything", `true`},
+	} {
+		m, ok := doc.Types[componentID(tc.model)].(*ir.Model)
+		require.True(t, ok, "%s should be a model", tc.model)
+		require.Len(t, m.Properties, 1)
+		key := "openapi:conflicting-redeclaration/components/schemas/" + tc.model + "/allOf/1/properties/id"
+		lost, ok := m.Properties[0].Unmodeled[key]
+		require.True(t, ok, "%s keeps its losing declaration; got %v", tc.model, m.Properties[0].Unmodeled)
+		assert.JSONEq(t, tc.want, string(lost.Value))
+	}
 }
 
 func TestAllOf_ConflictingRedeclaredConstraintDiagnosed(t *testing.T) {

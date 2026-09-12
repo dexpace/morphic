@@ -261,9 +261,16 @@ func assertAllOfInlineResidue(t *testing.T, doc *ir.Document, diags []ir.Diagnos
 // revisions of a document reads the document, and before this entry existed a
 // release in which the losing branch's type changed showed no change at all.
 //
-// The nullable case is the second half: a redeclaration says both what a field
-// is and whether it admits null, so an entry keeping only the target ID would
-// still be losing half of what it claims to preserve.
+// The entry is the declaration as the document wrote it, not the IR value the
+// merge dropped (GitHub #445): ir-design §12 defines an Unmodeled value as the
+// source construct, and one verbatim node keeps everything a redeclaration said
+// at once. The nullable case is what that buys over a target ID: a
+// redeclaration says both what a field is and whether it admits null.
+//
+// Described is the same event on a field whose types agree: the fold has one
+// slot for a default and both branches fill it, so the second declaration is
+// kept whole and the disagreement named — before this a consumer diffing two
+// revisions that changed the second branch's default saw no change at all.
 func assertAllOfConflictingType(t *testing.T, doc *ir.Document, diags []ir.Diagnostic) {
 	repo, ok := doc.Types[namedID("Repository")].(*ir.Model)
 	require.True(t, ok)
@@ -272,7 +279,7 @@ func assertAllOfConflictingType(t *testing.T, doc *ir.Document, diags []ir.Diagn
 	assert.Equal(t, ir.TypeID("t/prim/url"), clone.Type.Target, "the first declaration wins the shape")
 
 	const cloneKey = "openapi:conflicting-redeclaration/components/schemas/Repository/allOf/1/properties/clone_url"
-	assertKeptRaw(t, clone.Unmodeled, cloneKey, `{"target":"t/prim/string","nullable":false}`)
+	assertKeptRaw(t, clone.Unmodeled, cloneKey, `{"type":"string"}`)
 	assert.Equal(t, "/components/schemas/Repository/allOf/1/properties/clone_url",
 		unmodeledEntry(t, clone.Unmodeled, cloneKey).Provenance.Pointer,
 		"the entry locates the losing declaration, not the merged property")
@@ -290,7 +297,22 @@ func assertAllOfConflictingType(t *testing.T, doc *ir.Document, diags []ir.Diagn
 	// repeated here, so two cases in one fixture were not equally pinned.
 	assertKeptRaw(t, id.Unmodeled,
 		"openapi:conflicting-redeclaration/components/schemas/Identified/allOf/1/properties/id",
-		`{"target":"t/prim/string","nullable":true}`)
+		`{"type":["string","null"]}`)
+
+	described, ok := doc.Types[namedID("Described")].(*ir.Model)
+	require.True(t, ok)
+	did, ok := propByWire(described, "id")
+	require.True(t, ok)
+	assert.Equal(t, &ir.Value{Kind: ir.ValueNumber, Num: "1"}, did.Default, "the first declaration's default stands")
+	assert.Equal(t, "first", did.Docs.Description)
+	const describedPtr = "/components/schemas/Described/allOf/1/properties/id"
+	assertKeptRaw(t, did.Unmodeled, "openapi:conflicting-redeclaration"+describedPtr,
+		`{"type":"integer","default":2,"description":"second","example":2}`)
+	assert.Empty(t, diagsAt(diags, "openapi/conflicting-redeclaration", describedPtr),
+		"agreeing types are not a conflict")
+	assert.Equal(t, []ir.Severity{ir.SeverityInfo, ir.SeverityInfo, ir.SeverityInfo},
+		diagsAt(diags, "openapi/degraded-construct", describedPtr),
+		"the description, the default and the example are each named as differing")
 }
 
 // assertAllOfRefBranchSiblings covers the other branch kind: keywords written
