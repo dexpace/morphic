@@ -135,12 +135,18 @@ func deprecationField(dep *ir.Deprecation, target ExtensionTarget) *string {
 // extensionText reads a preserved extension value as a string. Every
 // Deprecation field is prose or a version, so a value of any other JSON shape
 // is a document meaning something else by the key.
+//
+// The target is *string rather than string because JSON null decodes into a
+// string without error and leaves it empty, so a bare `x-sunset:` would
+// otherwise read as text that says nothing — an empty field written and the
+// node marked inferred, with no diagnostic. A key with no value is a value of
+// another shape, and is reported as one.
 func extensionText(raw ir.RawValue) (string, bool) {
-	var text string
-	if err := json.Unmarshal(raw, &text); err != nil {
+	var text *string
+	if err := json.Unmarshal(raw, &text); err != nil || text == nil {
 		return "", false
 	}
-	return text, true
+	return *text, true
 }
 
 // markInferred adds one heuristic's name to a provenance, keeping any already

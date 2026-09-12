@@ -139,18 +139,31 @@ func TestPromoteDeprecation_UndeprecatedNodeIsTheWholeAnswer(t *testing.T) {
 // is a reason to leave the field empty and say so, not to coerce.
 func TestPromoteDeprecation_ValueThatIsNotTextIsReported(t *testing.T) {
 	t.Parallel()
-	unmodeled := ir.Unmodeled{"openapi:x-deprecated-reason": vendorExtension(`7`)}
-	var dep ir.Deprecation
-	var prov ir.Provenance
-	diags := promotionCtx(lowering.ExtensionPromotions{}).PromoteDeprecation(unmodeled, &dep, &prov)
+	for _, tc := range []struct {
+		name, value string
+	}{
+		{"a number", `7`},
+		// JSON null decodes into a plain string as "", so this row is what
+		// separates a bare key from an empty string a document wrote on purpose:
+		// the first fills nothing and is reported, the second is text.
+		{"a bare key", `null`},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			unmodeled := ir.Unmodeled{"openapi:x-deprecated-reason": vendorExtension(tc.value)}
+			var dep ir.Deprecation
+			var prov ir.Provenance
+			diags := promotionCtx(lowering.ExtensionPromotions{}).PromoteDeprecation(unmodeled, &dep, &prov)
 
-	require.Len(t, diags, 1)
-	assert.Equal(t, ir.SeverityInfo, diags[0].Severity)
-	assert.Equal(t, "openapi/degraded-construct", diags[0].Code)
-	assert.Equal(t, "/components/schemas/S", diags[0].Provenance.Pointer,
-		"the report names the extension rather than the node holding it")
-	assert.Equal(t, ir.Deprecation{}, dep)
-	assert.Empty(t, prov.Inferred)
+			require.Len(t, diags, 1)
+			assert.Equal(t, ir.SeverityInfo, diags[0].Severity)
+			assert.Equal(t, "openapi/degraded-construct", diags[0].Code)
+			assert.Equal(t, "/components/schemas/S", diags[0].Provenance.Pointer,
+				"the report names the extension rather than the node holding it")
+			assert.Equal(t, ir.Deprecation{}, dep)
+			assert.Empty(t, prov.Inferred)
+		})
+	}
 }
 
 // TestPromoteDeprecation_MarksOnceBesideWhateverWasAlreadyThere pins the two
