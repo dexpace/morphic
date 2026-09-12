@@ -48,8 +48,6 @@
         "nullable": false
       },
       "constraints": {
-        "exclusiveMin": false,
-        "exclusiveMax": false,
         "uniqueItems": false,
         "minProps": 3
       }

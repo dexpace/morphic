@@ -639,43 +639,23 @@ func subObjectKeys(s *oas3.Schema, pointer string, srcIndex int) (ir.Unmodeled, 
 
 // unmodeledAt collects every keyword a site declares that the IR keeps verbatim
 // instead of modelling, each under the reason that says which of those it is
-// (§12): validation logic the IR draws a boundary against (§4.7), data with no IR
-// field yet, and JSON Schema resource/dialect metadata the IR excludes on
-// purpose.
+// (§12): validation logic the IR draws a boundary against (§4.7), and JSON
+// Schema resource/dialect metadata the IR excludes on purpose.
+//
+// The content vocabulary is not read here even though it is data with an IR
+// home: whether contentEncoding, contentMediaType and contentSchema reached
+// ir.Encoding depends on what the position lowered to, which only the schema
+// package can answer — schema.recordUnplacedContent asks the node that was
+// built rather than the keyword that was written.
 func unmodeledAt(s *oas3.Schema, pointer string, srcIndex int) (ir.Unmodeled, []ir.Diagnostic) {
 	vOnly, vDiags := validationOnlyAt(s, pointer, srcIndex)
-	noHome, nhDiags := noIRHomeAt(s, pointer, srcIndex)
 	dialect, dDiags := dialectAt(s, pointer, srcIndex)
 
-	diags := make([]ir.Diagnostic, 0, len(vDiags)+len(nhDiags)+len(dDiags))
+	diags := make([]ir.Diagnostic, 0, len(vDiags)+len(dDiags))
 	diags = append(diags, vDiags...)
-	diags = append(diags, nhDiags...)
 	diags = append(diags, dDiags...)
 
-	return MergeUnmodeled(MergeUnmodeled(vOnly, noHome), dialect), diags
-}
-
-// noIRHomeAt collects the keywords a schema declares that describe real data yet
-// have no field at any IR position. Unlike the §4.7 family these are gaps
-// expected to close rather than a boundary the IR draws, which is what
-// ReasonNoIRHome says and ReasonValidationOnly would not (§12).
-//
-// Site-only: contentSchema describes the value at the position that wrote it.
-func noIRHomeAt(s *oas3.Schema, pointer string, srcIndex int) (ir.Unmodeled, []ir.Diagnostic) {
-	if s.GetContentSchema() == nil {
-		return nil, nil
-	}
-	at := pointer + ids.Ptr("contentSchema")
-	var p ir.Unmodeled
-	kept, diags := PreserveNodeInto(&p, "openapi:contentSchema", RawPropertyNode(s, "contentSchema"),
-		ir.ReasonNoIRHome, at, srcIndex)
-	if !kept {
-		return nil, diags
-	}
-	return p, []ir.Diagnostic{diag.Newf(ir.SeverityInfo, diag.DegradedConstruct,
-		ir.Provenance{Source: srcIndex, Pointer: at},
-		"contentSchema is the shape of the decoded content and no IR position has a field "+
-			"for it; kept verbatim under Unmodeled")}
+	return MergeUnmodeled(vOnly, dialect), diags
 }
 
 // DialectKeywords are the JSON Schema resource and dialect keywords the IR

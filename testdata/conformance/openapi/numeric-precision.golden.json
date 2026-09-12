@@ -168,8 +168,6 @@
           "constraints": {
             "min": "1.8e308",
             "max": "123456789012345678901234567890",
-            "exclusiveMin": false,
-            "exclusiveMax": false,
             "multipleOf": "1e-30",
             "uniqueItems": false
           },
@@ -201,10 +199,8 @@
             "none": false
           },
           "constraints": {
-            "min": "0.5",
-            "max": "0.12345678901234567890123456789",
-            "exclusiveMin": true,
-            "exclusiveMax": true,
+            "exclusiveMin": "0.5",
+            "exclusiveMax": "0.12345678901234567890123456789",
             "uniqueItems": false
           },
           "flatten": false,
@@ -397,8 +393,6 @@
           "constraints": {
             "min": "15",
             "max": "31",
-            "exclusiveMin": false,
-            "exclusiveMax": false,
             "multipleOf": "10",
             "uniqueItems": false
           },

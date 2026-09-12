@@ -392,10 +392,11 @@ func assertDependentRequired(t *testing.T, doc *ir.Document, diags []ir.Diagnost
 		diagsAt(diags, "openapi/validation-only-keyword", "/components/schemas/Card"))
 }
 
-// assertContentVocabulary pins the 2020-12 content vocabulary: contentEncoding
-// and contentMediaType are an encoding and lower into ir.Encoding, contentSchema
-// is a schema and has no IR home anywhere, and a position with no Encoding field
-// at all keeps both of the first two verbatim (GitHub #125).
+// assertContentVocabulary pins the 2020-12 content vocabulary: all three
+// keywords lower into ir.Encoding — contentEncoding and contentMediaType as
+// names, contentSchema as a reference to the type it hoists — and a position
+// with no Encoding field at all keeps all three verbatim (GitHub #125,
+// GitHub #426).
 func assertContentVocabulary(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
 	thumb, ok := doc.Types[namedID("Thumbnail")].(*ir.Scalar)
 	require.True(t, ok)
@@ -408,16 +409,33 @@ func assertContentVocabulary(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) 
 	require.True(t, ok)
 	require.NotNil(t, env.Encoding)
 	assert.Equal(t, "application/json", env.Encoding.MediaType)
-	entry := unmodeledEntry(t, env.Unmodeled, "openapi:contentSchema")
-	assert.Equal(t, ir.ReasonNoIRHome, entry.Reason)
-	assert.JSONEq(t, `{"type":"object","properties":{"id":{"type":"string"}}}`, string(entry.Value))
+	require.NotNil(t, env.Encoding.Schema, "contentSchema has a home on ir.Encoding")
+	assert.Empty(t, env.Unmodeled, "so it is lowered, never also kept raw")
+	decoded, ok := doc.Types[env.Encoding.Schema.Target].(*ir.Model)
+	require.True(t, ok, "and it reaches the registry as a type rather than a blob")
+	require.Len(t, decoded.Properties, 1)
+	assert.Equal(t, "id", decoded.Properties[0].WireName)
 
 	bag, ok := doc.Types[namedID("Bag")].(*ir.Model)
 	require.True(t, ok)
-	for _, key := range []string{"openapi:contentEncoding", "openapi:contentMediaType"} {
+	for _, key := range []string{"openapi:contentEncoding", "openapi:contentMediaType", "openapi:contentSchema"} {
 		assert.Equal(t, ir.ReasonNoIRHome, unmodeledEntry(t, bag.Unmodeled, key).Reason,
 			"an object has no Encoding field, so %s is kept", key)
 	}
+
+	// The outside $ref reaches the contentSchema position first, and what is
+	// under it is still spelled from the declaration: the order-invariance oracle
+	// is what proves the two orders agree, and this is what says which spelling
+	// won (§4.3).
+	feed, ok := doc.Types[namedID("Feed")].(*ir.Scalar)
+	require.True(t, ok)
+	require.NotNil(t, feed.Encoding)
+	require.NotNil(t, feed.Encoding.Schema)
+	const contentItem = ir.TypeID("t/anon/components/schemas/Feed/contentSchema/items")
+	item, ok := doc.Types[contentItem]
+	require.True(t, ok, "the decoded array's item is hoisted at its own pointer")
+	assert.Equal(t, "feed_content_item", item.Common().Name.Hint,
+		"named from the enclosing declaration, not from the segment the reference offered")
 }
 
 // assertDialectKeywords pins the JSON Schema resource and dialect keywords as out

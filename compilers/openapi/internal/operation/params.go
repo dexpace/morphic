@@ -114,6 +114,10 @@ func fillParamType(c lowering.Ctx, ts *compile.Types, anchors *schema.AnchorInde
 // inherit from it still reach the parameter (ir-design §14, GitHub #131).
 // Constraints stay use-site-only, exactly as fillPropertyConstraints keeps
 // them: a parameter must not inherit more from a referent than a property does.
+// The referent's bounds are not dropped, they are simply left where they were
+// declared — bounds conjoin rather than override, so copying one down under
+// use-site precedence would publish the wider bound as the whole truth
+// (ir-design §12.2).
 func fillParamSchema(c lowering.Ctx, ts *compile.Types, param *ir.Parameter, js *oas3.JSONSchema[oas3.Referenceable], pointer string) []ir.Diagnostic {
 	if js == nil || !js.IsSchema() {
 		return nil

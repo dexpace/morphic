@@ -314,6 +314,14 @@ func populatedConstraints() *ir.Constraints {
 	if err != nil {
 		panic(err)
 	}
+	exclMinV, err := ir.NewBigVal("0")
+	if err != nil {
+		panic(err)
+	}
+	exclMaxV, err := ir.NewBigVal("101")
+	if err != nil {
+		panic(err)
+	}
 	precision := int64(10)
 	scale := int64(2)
 	minLen := int64(1)
@@ -325,8 +333,8 @@ func populatedConstraints() *ir.Constraints {
 	return &ir.Constraints{
 		Min:            &minV,
 		Max:            &maxV,
-		ExclusiveMin:   true,
-		ExclusiveMax:   true,
+		ExclusiveMin:   &exclMinV,
+		ExclusiveMax:   &exclMaxV,
 		MultipleOf:     &multV,
 		Precision:      &precision,
 		Scale:          &scale,
@@ -348,6 +356,7 @@ func populatedEncoding() *ir.Encoding {
 		Name:      "rfc3339",
 		WireType:  &ir.TypeRef{Target: "t/prim/string", Nullable: true},
 		MediaType: "text/plain",
+		Schema:    &ir.TypeRef{Target: "t/openapi/components/schemas/Decoded"},
 	}
 }
 

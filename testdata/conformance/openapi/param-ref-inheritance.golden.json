@@ -70,6 +70,10 @@
                     "list": null,
                     "object": null
                   },
+                  "constraints": {
+                    "maxLength": 100,
+                    "uniqueItems": false
+                  },
                   "docs": {
                     "summary": "Cursor",
                     "description": "Cursor for this endpoint only."
@@ -179,8 +183,6 @@
         "nullable": false
       },
       "constraints": {
-        "exclusiveMin": false,
-        "exclusiveMax": false,
         "maxLength": 64,
         "uniqueItems": false
       }
@@ -237,6 +239,48 @@
             "source": 0,
             "pointer": "/components/schemas/Holder/properties/cursor"
           }
+        },
+        {
+          "id": "p/openapi/components/schemas/Holder/properties/override",
+          "name": {
+            "source": "override",
+            "canonical": "override"
+          },
+          "wireName": "override",
+          "type": {
+            "target": "t/openapi/components/schemas/Cursor",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "default": {
+            "kind": "string",
+            "str": "0",
+            "bytes": null,
+            "list": null,
+            "object": null
+          },
+          "constraints": {
+            "maxLength": 100,
+            "uniqueItems": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {
+            "summary": "Cursor",
+            "description": "Opaque pagination cursor."
+          },
+          "deprecation": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/Holder/properties/override"
+          }
         }
       ],
       "abstract": false,
@@ -281,7 +325,7 @@
     {
       "format": "openapi@3.1",
       "path": "param-ref-inheritance.yaml",
-      "hash": "ceaabaa7016e71d9190b69c6ae61fb9a8388ccfc6f7cb9069bd067d65fab5d2a"
+      "hash": "05b17aae85704e581a282689a5cdb4c3b157bb884d6a23035b1f44e2d13b7d42"
     }
   ]
 }
