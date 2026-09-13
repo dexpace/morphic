@@ -392,8 +392,10 @@ func (danglingCompiler) Compile(_ context.Context, _ []compilers.Source, _ compi
 			ID: "s/x",
 			Groups: []ir.OperationGroup{{
 				Operations: []ir.Operation{{
-					ID:     "op/x",
-					Errors: []ir.ErrorCase{{Type: ir.TypeRef{Target: "t/missing"}}},
+					ID: "op/x",
+					Errors: []ir.ErrorCase{{
+						Payload: &ir.Payload{Contents: []ir.Content{{Type: ir.TypeRef{Target: "t/missing"}}}},
+					}},
 				}},
 			}},
 		}},
@@ -659,4 +661,32 @@ func TestEngine_RunDiagnosticsAreOneLineEach(t *testing.T) {
 			}
 		})
 	}
+}
+
+// TestEngine_RunReadsAVersionKeyPastTheSniffCap drives the whole pipeline over
+// the shape that motivated the detection change: a JSON document whose version
+// key sits behind an object too large to read on the fast path. Nothing else
+// reaches that path from the outside — the largest spec in the corpus is a few
+// kilobytes — so without this the scan ships covered only by tests that call
+// detection directly, and a break between Detect and a compiled document would
+// have nothing to fail.
+func TestEngine_RunReadsAVersionKeyPastTheSniffCap(t *testing.T) {
+	t.Parallel()
+	var b strings.Builder
+	b.WriteString(`{"info":{"title":"T","version":"1"},"paths":{},"components":{"schemas":{`)
+	for i := 0; b.Len() <= 64<<10; i++ {
+		if i > 0 {
+			b.WriteByte(',')
+		}
+		fmt.Fprintf(&b, `"S%d":{"type":"object","description":"a schema"}`, i)
+	}
+	b.WriteString(`}},"openapi":"3.1.0"}`)
+	require.Greater(t, b.Len(), 64<<10, "the version key must sit past the cap to test it")
+
+	eng, err := engine.New()
+	require.NoError(t, err)
+	res, err := eng.Run(t.Context(), writeNamed(t, "spec3.json", b.String()), engine.RunOptions{})
+	require.NoError(t, err)
+	assert.Equal(t, compilers.SourceFormat{Name: "openapi", Version: "3.1"}, res.Format)
+	require.NotNil(t, res.Document, "a document that declares its version last still compiles")
 }

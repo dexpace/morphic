@@ -46,10 +46,10 @@ func AppendExample(c lowering.Ctx, out []ir.Example, proto ir.Example, node *yam
 	return append(out, proto), nil
 }
 
-// Preserve records raw under key in *p with why it was kept and where it was
+// preserve records raw under key in *p with why it was kept and where it was
 // written, allocating the map on first write. An absent or unconvertible
 // payload records nothing, so no caller needs a nil guard of its own.
-func Preserve(c lowering.Ctx, p *ir.Unmodeled, key string, raw ir.RawValue,
+func preserve(c lowering.Ctx, p *ir.Unmodeled, key string, raw ir.RawValue,
 	reason ir.UnmodeledReason, pointer string,
 ) {
 	annotation.PreserveInto(p, key, raw, reason, pointer, c.SrcIndex)

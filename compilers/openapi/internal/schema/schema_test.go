@@ -1502,10 +1502,18 @@ func TestAllOf_ConstraintAndFormatConflictsDiagnosed(t *testing.T) {
 		name, a, b, wantDetail string
 	}{
 		{
-			name:       "exclusive sense",
+			name:       "minimum",
 			a:          "{type: number, minimum: 10}",
-			b:          "{type: number, exclusiveMinimum: 10}",
-			wantDetail: "conflicting minimum (10 and exclusive 10)",
+			b:          "{type: number, minimum: 20}",
+			wantDetail: "conflicting minimum (10 and 20)",
+		},
+		{
+			// The exclusive bound is a keyword of its own, so it conflicts
+			// under its own name rather than as a differing sense of minimum.
+			name:       "exclusiveMinimum",
+			a:          "{type: number, exclusiveMinimum: 10}",
+			b:          "{type: number, exclusiveMinimum: 20}",
+			wantDetail: "conflicting exclusiveMinimum (10 and 20)",
 		},
 		{
 			name:       "pattern",
@@ -1602,16 +1610,19 @@ func TestAllOf_CompatibleConstraintRedeclarationsStaySilent(t *testing.T) {
 			},
 		},
 		{
-			name: "min and exclusiveMin adopted together",
-			a:    "{type: number, multipleOf: 2}",
+			// minimum and exclusiveMinimum are two keywords, so a branch
+			// declaring one and a branch declaring the other intersect to a
+			// field carrying both — not to whichever the merge picked.
+			name: "minimum and exclusiveMinimum adopted side by side",
+			a:    "{type: number, minimum: 1}",
 			b:    "{type: number, exclusiveMinimum: 5}",
 			assertMerged: func(t *testing.T, c *ir.Constraints) {
 				t.Helper()
 				require.NotNil(t, c)
-				require.NotNil(t, c.Min, "the second branch's exclusiveMinimum is adopted as Min")
-				assert.Equal(t, "5", c.Min.String())
-				assert.True(t, c.ExclusiveMin,
-					"ExclusiveMin travels with the adopted Min, not left at its false zero value")
+				require.NotNil(t, c.Min, "the first branch's minimum stays")
+				assert.Equal(t, "1", c.Min.String())
+				require.NotNil(t, c.ExclusiveMin, "the second branch's exclusiveMinimum is adopted beside it")
+				assert.Equal(t, "5", c.ExclusiveMin.String())
 			},
 		},
 		{name: "equivalent multipleOf", a: "{type: number, multipleOf: 2}", b: "{type: number, multipleOf: 2.0}"},
@@ -2185,6 +2196,13 @@ func stolenPositions() []stolenPosition {
 // these after the keyword holding them ("items"), the pattern text ("^x") or the
 // slot ordinal ("0") — none of which distinguish the position from the same
 // position on any other schema.
+//
+// A row with no refAt aims the outside $ref at the node it asserts, and such a
+// row cannot see a role missing from structuralRole: the declaration renames
+// that very node in either order (#372), so both spellings agree on it whatever
+// the reference called it. The collision surfaces one level below, where the
+// subtree keeps the reference's name. A row meant to guard a role therefore
+// aims the reference above the node it asserts, per refAt.
 func TestInlinePosition_HintIsTheSameInBothOrders(t *testing.T) {
 	t.Parallel()
 	for _, tc := range []struct {
@@ -2192,28 +2210,44 @@ func TestInlinePosition_HintIsTheSameInBothOrders(t *testing.T) {
 		owner string
 		id    ir.TypeID
 		hint  string
+		refAt ir.TypeID
 	}{
 		{"items", "    A: {type: array, items: " + openapitest.InlineProbeBody + "}\n",
-			"t/anon/components/schemas/A/items", "a_item"},
+			"t/anon/components/schemas/A/items", "a_item", ""},
 		{"additionalProperties", "    A: {type: object, additionalProperties: " + openapitest.InlineProbeBody + "}\n",
-			"t/anon/components/schemas/A/additionalProperties", "a_value"},
+			"t/anon/components/schemas/A/additionalProperties", "a_value", ""},
 		{"patternProperties", "    A: {type: object, patternProperties: {\"^x\": " + openapitest.InlineProbeBody + "}}\n",
-			"t/anon/components/schemas/A/patternProperties/^x", "a_pattern"},
+			"t/anon/components/schemas/A/patternProperties/^x", "a_pattern", ""},
 		{"prefixItems", "    A: {type: array, prefixItems: [" + openapitest.InlineProbeBody + "]}\n",
-			"t/anon/components/schemas/A/prefixItems/0", "a_0"},
+			"t/anon/components/schemas/A/prefixItems/0", "a_0", ""},
 		// Nested, because the derivation replays the whole chain rather than one
 		// step: the outside $ref used to name this "items", losing both levels.
 		{"items under items", "    A: {type: array, items: {type: array, items: " + openapitest.InlineProbeBody + "}}\n",
-			"t/anon/components/schemas/A/items/items", "a_item_item"},
+			"t/anon/components/schemas/A/items/items", "a_item_item", ""},
 		// Rooted at a property rather than at the component, so the enclosing hint
 		// the walk rebuilds from is the property's key.
 		{"items under a property", "    A: {type: object, properties: {p: {type: array, items: " +
 			openapitest.InlineProbeBody + "}}}\n",
-			"t/anon/components/schemas/A/properties/p/items", "p_item"},
+			"t/anon/components/schemas/A/properties/p/items", "p_item", ""},
+		{"contentSchema", "    A: {type: string, contentMediaType: application/json, contentSchema: " +
+			openapitest.InlineProbeBody + "}\n",
+			"t/anon/components/schemas/A/contentSchema", "a_content", ""},
+		// The reference is aimed at contentSchema and the assertion at what is
+		// under it: pointed at the asserted node instead, this row passes with the
+		// contentSchema role removed, because the declaration renames that node
+		// itself.
+		{"items under contentSchema", "    A: {type: string, contentMediaType: application/json, " +
+			"contentSchema: {type: array, items: " + openapitest.InlineProbeBody + "}}\n",
+			"t/anon/components/schemas/A/contentSchema/items", "a_content_item",
+			"t/anon/components/schemas/A/contentSchema"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			pos := stolenPosition{name: tc.name, owner: tc.owner, id: tc.id}
+			refAt := tc.refAt
+			if refAt == "" {
+				refAt = tc.id
+			}
+			pos := stolenPosition{name: tc.name, owner: tc.owner, id: refAt}
 			for _, order := range []struct {
 				name     string
 				refFirst bool
@@ -2958,8 +2992,9 @@ func compileVocabIR(t *testing.T, schemas string) string {
 
 // TestContentVocabulary_LowersToEncoding pins where the 2020-12 content
 // vocabulary lands: contentEncoding on Encoding.Name, contentMediaType on
-// Encoding.MediaType, on the Scalar node the position hoists rather than on the
-// shared primitive every other declaration of that type also resolves to.
+// Encoding.MediaType and contentSchema on Encoding.Schema, on the Scalar node
+// the position hoists rather than on the shared primitive every other
+// declaration of that type also resolves to.
 func TestContentVocabulary_LowersToEncoding(t *testing.T) {
 	t.Parallel()
 	cases := []struct {
@@ -2997,6 +3032,30 @@ func TestContentVocabulary_LowersToEncoding(t *testing.T) {
 			at:      componentID("A"),
 			want:    ir.Encoding{Name: "base64", WireType: &ir.TypeRef{Target: "t/prim/string"}},
 		},
+		{
+			name:    "contentSchema beside contentMediaType",
+			schemas: "    A: {type: string, contentMediaType: application/json, contentSchema: {type: object, properties: {id: {type: string}}}}\n",
+			at:      componentID("A"),
+			want: ir.Encoding{
+				MediaType: "application/json",
+				Schema:    &ir.TypeRef{Target: "t/anon/components/schemas/A/contentSchema"},
+			},
+		},
+		{
+			name:    "contentSchema alone still hoists the scalar that holds it",
+			schemas: "    A: {type: array, items: {type: string, contentSchema: {type: object}}}\n",
+			at:      "t/anon/components/schemas/A/items",
+			want: ir.Encoding{
+				Schema: &ir.TypeRef{Target: "t/anon/components/schemas/A/items/contentSchema"},
+			},
+		},
+		{
+			name: "contentSchema naming a component resolves to it",
+			schemas: "    A: {type: string, contentSchema: {$ref: '#/components/schemas/B'}}\n" +
+				"    B: {type: object, properties: {id: {type: string}}}\n",
+			at:   componentID("A"),
+			want: ir.Encoding{Schema: &ir.TypeRef{Target: componentID("B")}},
+		},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -3009,6 +3068,10 @@ func TestContentVocabulary_LowersToEncoding(t *testing.T) {
 			require.NotNil(t, sc.Encoding)
 			assert.Empty(t, cmp.Diff(tc.want, *sc.Encoding))
 			assert.Empty(t, sc.Unmodeled, "a keyword with a field is lowered, never also kept raw")
+			if tc.want.Schema != nil {
+				assert.Contains(t, doc.Types, tc.want.Schema.Target,
+					"contentSchema reaches the registry as a type, not a raw blob")
+			}
 		})
 	}
 }
@@ -3055,9 +3118,10 @@ func TestContentVocabulary_KeepsTheBoundsWrittenBesideIt(t *testing.T) {
 	}
 }
 
-// TestContentVocabulary_KeptWhereNoEncodingHolds covers the other half: a schema
-// with no Encoding field to fill, and contentSchema, which has no IR field at any
-// position.
+// TestContentVocabulary_KeptWhereNoEncodingHolds covers the other half: a
+// position that lowered to a shape with no Encoding field to fill keeps every
+// content keyword verbatim, contentSchema included — the three share one home,
+// so they are kept or lowered together.
 func TestContentVocabulary_KeptWhereNoEncodingHolds(t *testing.T) {
 	t.Parallel()
 	cases := []struct {
@@ -3070,8 +3134,8 @@ func TestContentVocabulary_KeptWhereNoEncodingHolds(t *testing.T) {
 			key:     "openapi:contentMediaType", wantJSON: `"application/zip"`, at: componentID("A"),
 		},
 		{
-			name:    "contentSchema has no field anywhere",
-			schemas: "    A: {type: string, contentSchema: {type: object}}\n",
+			name:    "object position has no Encoding for contentSchema either",
+			schemas: "    A: {type: object, properties: {p: {type: string}}, contentSchema: {type: object}}\n",
 			key:     "openapi:contentSchema", wantJSON: `{"type":"object"}`, at: componentID("A"),
 		},
 		{
@@ -4060,72 +4124,128 @@ func TestUnhomedKeywords_ElectedLoweringKeepsWhatItCannotRead(t *testing.T) {
 	}
 }
 
-// TestCoDeclaredBound_KeptOnTheCarrierThatReadIt pins the two carriers this
-// package owns for a 2020-12 side that declares both of its bound keywords
-// (GitHub #286). ir.Constraints holds one bound per side, so one keyword reaches
-// no field of it, and without an entry beside those constraints
-// {minimum: 10, exclusiveMinimum: 0} lowers to exactly what {minimum: 10} does.
+// TestCoDeclaredBound_BothKeywordsReachTheCarriersConstraints pins the two
+// carriers this package owns for a 2020-12 side that declares both of its bound
+// keywords. The two keywords are independent and both apply, and ir.Constraints
+// has a field for each, so both reach the constraints the carrier holds and
+// neither is kept beside them.
 //
-// Both directions run at both carriers. A case where the exclusive keyword is
-// the one kept verbatim passes just as well on a reader that always kept that
-// one, so on its own it would say nothing about which keyword the carrier holds.
-func TestCoDeclaredBound_KeptOnTheCarrierThatReadIt(t *testing.T) {
+// The rows are pairs that swap which of the two is the tighter while leaving the
+// same magnitudes on the side. One bound slot answered both rows of a pair
+// identically, which is what made a revision that moved only the looser keyword
+// read as no change at all (GitHub #425).
+func TestCoDeclaredBound_BothKeywordsReachTheCarriersConstraints(t *testing.T) {
 	t.Parallel()
 	doc, diags := parseFull(t, openapitest.ComponentSpec(
 		"    Alias: {type: integer, minimum: 10, exclusiveMinimum: 0}\n"+
-			"    Tight: {type: integer, maximum: 100, exclusiveMaximum: 5}\n"+
+			"    Tight: {type: integer, minimum: 0, exclusiveMinimum: 10}\n"+
 			"    Holder:\n      type: object\n      properties:\n"+
-			"        low: {type: integer, minimum: 10, exclusiveMinimum: 0}\n"+
-			"        high: {type: integer, maximum: 100, exclusiveMaximum: 5}\n"))
+			"        low: {type: integer, maximum: 100, exclusiveMaximum: 5}\n"+
+			"        high: {type: integer, maximum: 5, exclusiveMaximum: 100}\n"))
 	openapitest.RequireNoErrorDiags(t, diags)
 
 	tests := []struct {
 		name     string
 		unmod    ir.Unmodeled
 		bound    *ir.Constraints
-		wantKept string
-		wantRaw  string
-		at       string
+		read     func(*ir.Constraints) (incl, excl *ir.BigVal)
+		wantIncl *ir.BigVal
+		wantExcl *ir.BigVal
 	}{
 		{
-			name:     "alias node keeps the exclusive bound the minimum implies",
-			unmod:    typeByName(doc, "Alias").Common().Unmodeled,
-			bound:    typeByName(doc, "Alias").(*ir.Scalar).Constraints,
-			wantKept: "openapi:exclusiveMinimum", wantRaw: "0",
-			at: "/components/schemas/Alias/exclusiveMinimum",
+			name:  "alias node where the minimum is the tighter",
+			unmod: typeByName(doc, "Alias").Common().Unmodeled,
+			bound: typeByName(doc, "Alias").(*ir.Scalar).Constraints,
+			read:  minSide, wantIncl: bigValOf("10"), wantExcl: bigValOf("0"),
 		},
 		{
-			name:     "alias node keeps the inclusive bound the exclusive one implies",
-			unmod:    typeByName(doc, "Tight").Common().Unmodeled,
-			bound:    typeByName(doc, "Tight").(*ir.Scalar).Constraints,
-			wantKept: "openapi:maximum", wantRaw: "100",
-			at: "/components/schemas/Tight/maximum",
+			name:  "alias node where the exclusive minimum is the tighter",
+			unmod: typeByName(doc, "Tight").Common().Unmodeled,
+			bound: typeByName(doc, "Tight").(*ir.Scalar).Constraints,
+			read:  minSide, wantIncl: bigValOf("0"), wantExcl: bigValOf("10"),
 		},
 		{
-			name:     "property keeps the exclusive bound the minimum implies",
-			unmod:    propertyOf(t, doc, "Holder", "low").Unmodeled,
-			bound:    propertyOf(t, doc, "Holder", "low").Constraints,
-			wantKept: "openapi:exclusiveMinimum", wantRaw: "0",
-			at: "/components/schemas/Holder/properties/low/exclusiveMinimum",
+			name:  "property where the exclusive maximum is the tighter",
+			unmod: propertyOf(t, doc, "Holder", "low").Unmodeled,
+			bound: propertyOf(t, doc, "Holder", "low").Constraints,
+			read:  maxSide, wantIncl: bigValOf("100"), wantExcl: bigValOf("5"),
 		},
 		{
-			name:     "property keeps the inclusive bound the exclusive one implies",
-			unmod:    propertyOf(t, doc, "Holder", "high").Unmodeled,
-			bound:    propertyOf(t, doc, "Holder", "high").Constraints,
-			wantKept: "openapi:maximum", wantRaw: "100",
-			at: "/components/schemas/Holder/properties/high/maximum",
+			name:  "property where the maximum is the tighter",
+			unmod: propertyOf(t, doc, "Holder", "high").Unmodeled,
+			bound: propertyOf(t, doc, "Holder", "high").Constraints,
+			read:  maxSide, wantIncl: bigValOf("5"), wantExcl: bigValOf("100"),
 		},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			require.NotNil(t, tc.bound, "the tighter bound still reaches ir.Constraints")
+			require.NotNil(t, tc.bound, "both bounds reach ir.Constraints")
+			incl, excl := tc.read(tc.bound)
+			assert.Equal(t, tc.wantIncl, incl, "the inclusive keyword as written")
+			assert.Equal(t, tc.wantExcl, excl, "the exclusive keyword as written, beside it")
+			assert.Empty(t, tc.unmod, "with a field apiece there is nothing left to keep")
+		})
+	}
+}
+
+// minSide and maxSide read one side's pair of bounds off a Constraints, so one
+// table can drive both sides through the same assertion.
+func minSide(c *ir.Constraints) (incl, excl *ir.BigVal) { return c.Min, c.ExclusiveMin }
+func maxSide(c *ir.Constraints) (incl, excl *ir.BigVal) { return c.Max, c.ExclusiveMax }
+
+// bigValOf is the *ir.BigVal a bound assertion compares against.
+func bigValOf(v string) *ir.BigVal {
+	b := ir.BigVal(v)
+	return &b
+}
+
+// TestExclusiveModifier_WithNoBoundIsKeptOnTheCarrierThatReadIt pins the one
+// bound keyword that still reaches no field, at the two carriers this package
+// owns. A 3.0 exclusiveMinimum is a modifier of the minimum beside it, so one
+// written without a minimum modifies nothing — draft-4 forbids that schema, and
+// the loader hands the keyword here unchecked. Dropping it would lose a declared
+// keyword silently, so it is kept verbatim beside the constraints it did not
+// reach.
+func TestExclusiveModifier_WithNoBoundIsKeptOnTheCarrierThatReadIt(t *testing.T) {
+	t.Parallel()
+	doc, diags := parseFull(t, openapitest.ComponentSpecVer("3.0.3",
+		"    Alias: {type: integer, exclusiveMinimum: true}\n"+
+			"    Holder:\n      type: object\n      properties:\n"+
+			"        low: {type: integer, exclusiveMaximum: true}\n"))
+
+	tests := []struct {
+		name     string
+		unmod    ir.Unmodeled
+		wantKept string
+		at       string
+		carrier  string
+	}{
+		{
+			name:     "alias node",
+			unmod:    typeByName(doc, "Alias").Common().Unmodeled,
+			wantKept: "openapi:exclusiveMinimum",
+			at:       "/components/schemas/Alias/exclusiveMinimum",
+			carrier:  "/components/schemas/Alias",
+		},
+		{
+			name:     "property",
+			unmod:    propertyOf(t, doc, "Holder", "low").Unmodeled,
+			wantKept: "openapi:exclusiveMaximum",
+			at:       "/components/schemas/Holder/properties/low/exclusiveMaximum",
+			carrier:  "/components/schemas/Holder/properties/low",
+		},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
 			entry, ok := tc.unmod[tc.wantKept]
-			require.True(t, ok, "%s is kept beside the constraints it did not reach; got %v",
-				tc.wantKept, tc.unmod)
+			require.True(t, ok, "%s is kept on the carrier that read it; got %v", tc.wantKept, tc.unmod)
 			assert.Equal(t, ir.ReasonDegradedLowering, entry.Reason)
-			assert.JSONEq(t, tc.wantRaw, string(entry.Value))
-			assert.Equal(t, tc.at, entry.Provenance.Pointer)
+			assert.JSONEq(t, "true", string(entry.Value))
+			assert.Equal(t, tc.at, entry.Provenance.Pointer, "located at the keyword itself")
+			assert.Len(t, diagsAtPointer(diags, diag.DegradedConstruct, tc.carrier), 1,
+				"and reported once, at the schema that read it: %+v", diags)
 		})
 	}
 }

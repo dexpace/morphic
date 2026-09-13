@@ -2,6 +2,7 @@ package openapi
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	"github.com/dexpace/morphic/compilers"
@@ -62,6 +63,15 @@ func (c *Compiler) Compile(ctx context.Context, sources []compilers.Source, opts
 		return nil, nil, err
 	}
 	loadedDoc, diags, err := load.Load(ctx, rootSrcIndex, sources[0], loadOptions(formatOpts))
+	if errors.Is(err, load.ErrParse) {
+		// Detection named this source's format by scanning for the key it
+		// declares, which is an answer a broken document gives as readily as a
+		// whole one. The parse that finds it broken is this one, so the complaint
+		// is this one's to carry — as a diagnostic, because a Go error here
+		// leaves engine.Run as a Go error and the CLI reads that as a misuse of
+		// itself rather than as a spec it could not read.
+		return nil, append(diags, undecodable(err)), nil
+	}
 	if err != nil || loadedDoc == nil {
 		return nil, diags, err
 	}
@@ -189,4 +199,17 @@ func loweringCtx(doc *load.Document, o Options) lowering.Ctx {
 	limits := lowering.Limits{MaxEnumMembers: bounded(o.Limits.MaxEnumMembers)}
 	return lowering.New(rootSrcIndex, doc.Doc, doc.Source, o.Grouping, limits,
 		o.StreamingMedia, o.Promotions, doc.Overlay)
+}
+
+// undecodable reports a source this compiler recognized and could not read.
+//
+// NoSource, not source 0: the parse that failed is the one that would have built
+// the document, so no document is returned and there is no source table for a
+// provenance to index into. A Source of 0 against the nil document engine.Run
+// hands on resolves to no path at all, so it would name nothing while claiming
+// to. The loader's own message carries the position instead, which is the half
+// of a location a reader can act on here.
+func undecodable(err error) ir.Diagnostic {
+	return diag.Newf(ir.SeverityError, diag.UndecodableSource, ir.Provenance{Source: ir.NoSource},
+		"source cannot be read: %s", diag.OneLine(err))
 }

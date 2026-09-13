@@ -207,9 +207,6 @@ func TestConformance_MatrixRowNamesResolve(t *testing.T) {
 // that reads as closable and is not.
 func matrixRowsUncovered() map[string]string {
 	return map[string]string{
-		"open-enums": "OpenAPI has no open-enum keyword; the matrix's ⚠ is the " +
-			"anyOf: [{enum: [...]}, {type: string}] idiom, which lowers as an ordinary union " +
-			"and needs a spec pinning that the enum branch survives beside the open one",
 		"pagination": "OpenAPI states it only through links and x-*, and this compiler keeps both " +
 			"verbatim rather than reading either into ir.Pagination — response-links pins that they " +
 			"survive. Invariant 6 puts the inference in a pass rather than in the compiler, so this " +

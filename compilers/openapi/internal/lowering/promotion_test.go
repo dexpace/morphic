@@ -33,8 +33,10 @@ func vendorExtension(rawJSON string) ir.UnmodeledEntry {
 }
 
 // TestPromoteDeprecation_FillsTheFieldsThePolicyNames pins what each mapping
-// writes, one field at a time, because the three share a struct and a promotion
-// writing the wrong member of it would still look filled.
+// writes, one field at a time, because they share a struct and a promotion
+// writing the wrong member of it would still look filled. The removal pair is
+// why that matters most: a date written into the version field is the defect
+// GitHub #417 records, and it reads as a filled Deprecation either way.
 func TestPromoteDeprecation_FillsTheFieldsThePolicyNames(t *testing.T) {
 	t.Parallel()
 	tests := []struct {
@@ -45,6 +47,7 @@ func TestPromoteDeprecation_FillsTheFieldsThePolicyNames(t *testing.T) {
 		{"message", lowering.TargetDeprecationMessage, ir.Deprecation{Message: "why"}},
 		{"since", lowering.TargetDeprecationSince, ir.Deprecation{Since: "why"}},
 		{"removal version", lowering.TargetDeprecationRemovalVersion, ir.Deprecation{RemovalVersion: "why"}},
+		{"removal date", lowering.TargetDeprecationRemovalDate, ir.Deprecation{RemovalDate: "why"}},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
@@ -264,6 +267,30 @@ func stringLiteral(value ast.Expr, typed bool) (string, bool) {
 	return lit.Value, true
 }
 
+// appliers is one closure per promote function the package exports. Each runs
+// c's policy against a carrier of its own — the key "x-k", which every caller
+// below maps — and reports whether that carrier changed.
+//
+// The census is hand-written, so a promote function this list does not know
+// about is the same gap one level down: the check beneath it would then declare
+// a target unapplied that a real lowering does apply.
+func appliers() []func(lowering.Ctx) (bool, []ir.Diagnostic) {
+	return []func(lowering.Ctx) (bool, []ir.Diagnostic){
+		func(c lowering.Ctx) (bool, []ir.Diagnostic) {
+			var dep ir.Deprecation
+			var prov ir.Provenance
+			diags := c.PromoteDeprecation(ir.Unmodeled{"openapi:x-k": vendorExtension(`"v"`)}, &dep, &prov)
+			return dep != (ir.Deprecation{}), diags
+		},
+		func(c lowering.Ctx) (bool, []ir.Diagnostic) {
+			enum := ir.Enum{Closed: true}
+			var prov ir.Provenance
+			c.PromoteEnumOpenness(ir.Unmodeled{"openapi:x-k": vendorExtension(`"v"`)}, &enum, &prov)
+			return !enum.Closed, nil
+		},
+	}
+}
+
 // TestExtensionTarget_EveryDeclaredTargetHasAnApplier holds the vocabulary to
 // the appliers, which is the half of "a target is a constant and an applier"
 // that nothing else checks: the constant alone compiles, maps cleanly, and
@@ -274,21 +301,128 @@ func stringLiteral(value ast.Expr, typed bool) (string, bool) {
 // vocabulary entry that fills nothing is the likeliest way this seam breaks.
 //
 // A target belonging to a family this package cannot yet apply fails here on
-// purpose: adding one means adding its applier, and teaching this test which
-// applier answers for it, exactly as a new census keyword means adding its arm.
+// purpose: adding one means adding its applier, and teaching appliers() which
+// promote function answers for it, exactly as a new census keyword means adding
+// its arm.
 func TestExtensionTarget_EveryDeclaredTargetHasAnApplier(t *testing.T) {
 	t.Parallel()
 	for _, target := range declaredTargets(t) {
 		c := promotionCtx(lowering.ExtensionPromotions{
 			Targets: map[string]lowering.ExtensionTarget{"x-k": target},
 		})
-		var dep ir.Deprecation
-		var prov ir.Provenance
-		diags := c.PromoteDeprecation(ir.Unmodeled{"openapi:x-k": vendorExtension(`"v"`)}, &dep, &prov)
-
-		assert.Empty(t, diags, "%s: a declared target reports nothing when it is applied", target)
-		assert.NotEqual(t, ir.Deprecation{}, dep,
+		var applied bool
+		for _, apply := range appliers() {
+			wrote, diags := apply(c)
+			assert.Empty(t, diags, "%s: a declared target reports nothing when it is applied", target)
+			applied = applied || wrote
+		}
+		assert.True(t, applied,
 			"%s is declared in the vocabulary but no applier fills it, so a policy naming it "+
 				"promotes nothing and says nothing", target)
 	}
+}
+
+// TestPromoteEnumOpenness_ClearsClosedAndMarksTheNode pins the promotion the
+// vocabulary's one non-Deprecation target performs. Every enum the compiler
+// builds is closed, so the write here is the whole of what x-extensible-enum
+// buys a consumer, and the marker is what says a heuristic made it.
+func TestPromoteEnumOpenness_ClearsClosedAndMarksTheNode(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		name  string
+		value string
+	}{
+		{"the member list the convention writes", `["a","b"]`},
+		{"an explicit true", `true`},
+		{"a value that states nothing", `"whatever"`},
+		// JSON null decodes into a plain bool as false, so this row is what
+		// separates the presence-only spelling from an explicit decline.
+		{"a bare key, which is the presence-only spelling", `null`},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			enum := ir.Enum{Closed: true}
+			var prov ir.Provenance
+			promotionCtx(lowering.ExtensionPromotions{}).PromoteEnumOpenness(
+				ir.Unmodeled{"openapi:x-extensible-enum": vendorExtension(tc.value)}, &enum, &prov)
+
+			assert.False(t, enum.Closed, "the key says the member set is open")
+			assert.Equal(t, lowering.ExtensionPromotionHeuristic, prov.Inferred)
+		})
+	}
+}
+
+// TestPromoteEnumOpenness_LeavesTheEntryItRead is the losslessness half, for
+// the same reason its deprecation twin is: the promotion is a second reading of
+// a preserved entry, so a consumer that disagrees still has what was written —
+// which for this key is the member list itself.
+func TestPromoteEnumOpenness_LeavesTheEntryItRead(t *testing.T) {
+	t.Parallel()
+	unmodeled := ir.Unmodeled{"openapi:x-extensible-enum": vendorExtension(`["a","b"]`)}
+	enum := ir.Enum{Closed: true}
+	promotionCtx(lowering.ExtensionPromotions{}).PromoteEnumOpenness(unmodeled, &enum, &ir.Provenance{})
+
+	entry, kept := unmodeled["openapi:x-extensible-enum"]
+	require.True(t, kept, "the entry survives its own promotion")
+	assert.Equal(t, ir.ReasonVendorExtension, entry.Reason)
+	assert.JSONEq(t, `["a","b"]`, string(entry.Value))
+}
+
+// TestPromoteEnumOpenness_WritesNothing pins every shape that must leave the
+// enum closed. The last row is the one that is not an absence: a document
+// writing the key with a boolean false says the set is *not* extensible, and
+// reading presence alone there would record the opposite of what it said.
+func TestPromoteEnumOpenness_WritesNothing(t *testing.T) {
+	t.Parallel()
+	filled := ir.Unmodeled{"openapi:x-extensible-enum": vendorExtension(`["a","b"]`)}
+	tests := []struct {
+		name      string
+		policy    lowering.ExtensionPromotions
+		unmodeled ir.Unmodeled
+	}{
+		{"promotion disabled", lowering.ExtensionPromotions{Disabled: true}, filled},
+		{"no extensions kept", lowering.ExtensionPromotions{}, nil},
+		{"a key the document did not write", lowering.ExtensionPromotions{}, ir.Unmodeled{
+			"openapi:x-other": vendorExtension(`["a","b"]`),
+		}},
+		{
+			"a key mapped to another target",
+			lowering.ExtensionPromotions{Targets: map[string]lowering.ExtensionTarget{
+				"x-extensible-enum": lowering.TargetDeprecationMessage,
+			}},
+			filled,
+		},
+		{
+			"an explicit false",
+			lowering.ExtensionPromotions{},
+			ir.Unmodeled{"openapi:x-extensible-enum": vendorExtension(`false`)},
+		},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			enum := ir.Enum{Closed: true}
+			var prov ir.Provenance
+			promotionCtx(tc.policy).PromoteEnumOpenness(tc.unmodeled, &enum, &prov)
+
+			assert.True(t, enum.Closed, "the enum stays as the format declared it")
+			assert.Empty(t, prov.Inferred, "nothing was inferred, so nothing is marked")
+		})
+	}
+}
+
+// TestPromoteEnumOpenness_NonEnumCarrierIsTheWholeAnswer pins the nil cases,
+// which are the ordinary shape rather than a guard: most nodes an x-* key can
+// sit on are not enums, and a node with no provenance could not record the
+// guess (promotion rule 4).
+func TestPromoteEnumOpenness_NonEnumCarrierIsTheWholeAnswer(t *testing.T) {
+	t.Parallel()
+	c := promotionCtx(lowering.ExtensionPromotions{})
+	unmodeled := ir.Unmodeled{"openapi:x-extensible-enum": vendorExtension(`["a","b"]`)}
+	c.PromoteEnumOpenness(unmodeled, nil, &ir.Provenance{})
+
+	enum := ir.Enum{Closed: true}
+	c.PromoteEnumOpenness(unmodeled, &enum, nil)
+	assert.True(t, enum.Closed, "with nowhere to record the guess, none is made")
 }

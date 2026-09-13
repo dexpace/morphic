@@ -1,5 +1,5 @@
 {
-  "irVersion": "0.3.0",
+  "irVersion": "0.4.0",
   "name": "InlineAnnotations",
   "version": "1.0.0",
   "docs": {},
@@ -37,8 +37,6 @@
                   },
                   "required": false,
                   "constraints": {
-                    "exclusiveMin": false,
-                    "exclusiveMax": false,
                     "maxLength": 4,
                     "uniqueItems": false
                   },
@@ -54,6 +52,10 @@
                         "pointer": "/paths/~1codes/get/parameters/0/schema/x-facet"
                       }
                     }
+                  },
+                  "provenance": {
+                    "source": 0,
+                    "pointer": "/paths/~1codes/get/parameters/0"
                   }
                 }
               ],
@@ -100,8 +102,6 @@
                         "none": false
                       },
                       "constraints": {
-                        "exclusiveMin": false,
-                        "exclusiveMax": false,
                         "maxLength": 64,
                         "uniqueItems": false
                       },
@@ -192,8 +192,6 @@
         "nullable": false
       },
       "constraints": {
-        "exclusiveMin": false,
-        "exclusiveMax": false,
         "maxLength": 64,
         "uniqueItems": false
       }
@@ -232,8 +230,6 @@
         "nullable": false
       },
       "constraints": {
-        "exclusiveMin": false,
-        "exclusiveMax": false,
         "maxLength": 3,
         "uniqueItems": false
       }
@@ -258,8 +254,6 @@
         "nullable": false
       },
       "constraints": {
-        "exclusiveMin": false,
-        "exclusiveMax": false,
         "maxLength": 8192,
         "uniqueItems": false
       }

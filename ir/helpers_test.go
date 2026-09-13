@@ -276,6 +276,7 @@ func populatedDeprecation() *ir.Deprecation {
 		Message:        "use v2 instead",
 		Since:          "1.2.0",
 		RemovalVersion: "2.0.0",
+		RemovalDate:    "2026-08-01",
 	}
 }
 
@@ -313,6 +314,14 @@ func populatedConstraints() *ir.Constraints {
 	if err != nil {
 		panic(err)
 	}
+	exclMinV, err := ir.NewBigVal("0")
+	if err != nil {
+		panic(err)
+	}
+	exclMaxV, err := ir.NewBigVal("101")
+	if err != nil {
+		panic(err)
+	}
 	precision := int64(10)
 	scale := int64(2)
 	minLen := int64(1)
@@ -324,8 +333,8 @@ func populatedConstraints() *ir.Constraints {
 	return &ir.Constraints{
 		Min:            &minV,
 		Max:            &maxV,
-		ExclusiveMin:   true,
-		ExclusiveMax:   true,
+		ExclusiveMin:   &exclMinV,
+		ExclusiveMax:   &exclMaxV,
 		MultipleOf:     &multV,
 		Precision:      &precision,
 		Scale:          &scale,
@@ -347,6 +356,7 @@ func populatedEncoding() *ir.Encoding {
 		Name:      "rfc3339",
 		WireType:  &ir.TypeRef{Target: "t/prim/string", Nullable: true},
 		MediaType: "text/plain",
+		Schema:    &ir.TypeRef{Target: "t/openapi/components/schemas/Decoded"},
 	}
 }
 
@@ -364,6 +374,13 @@ func populatedXMLHints() *ir.XMLHints {
 // populatedTypeRef returns a non-zero TypeRef.
 func populatedTypeRef() ir.TypeRef {
 	return ir.TypeRef{Target: "t/openapi/components/schemas/User", Nullable: true}
+}
+
+// errorPayload returns the one-media-type body an ir.ErrorCase fixture carries,
+// which is an ir.Payload for the same reason ir.Response's is: the two nodes
+// spell a body identically.
+func errorPayload() *ir.Payload {
+	return &ir.Payload{Contents: []ir.Content{{MediaType: "application/json", Type: populatedTypeRef()}}}
 }
 
 // populatedValue returns a fully populated Value of ValueKind list, itself

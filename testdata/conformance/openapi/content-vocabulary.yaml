@@ -8,8 +8,8 @@ components:
       type: string
       contentEncoding: base64
       contentMediaType: image/png
-    # contentSchema is a schema, not an encoding, so it has no IR home at any
-    # position and is kept verbatim beside the encoding that did lower.
+    # contentSchema is a schema, so it lowers like one: hoisted at its own
+    # pointer and reached from Encoding.Schema by ID, never a raw blob.
     Envelope:
       type: string
       contentMediaType: application/json
@@ -17,10 +17,28 @@ components:
         type: object
         properties:
           id: {type: string}
-    # An object position has no Encoding field at all, so both keywords are kept.
+    # An object position has no Encoding field at all, so all three are kept.
     Bag:
       type: object
       contentEncoding: base64
       contentMediaType: application/json
+      contentSchema:
+        type: object
       properties:
         a: {type: string}
+    # An outside $ref can name the contentSchema position by pointer, interning
+    # the node the declaration owns before the declaration reaches it. Both
+    # namers have to spell what is under it the same way, so which one gets
+    # there first cannot decide the name (§4.3). Declared before its owner
+    # because that is the order that used to disagree.
+    Decoded:
+      $ref: '#/components/schemas/Feed/contentSchema'
+    Feed:
+      type: string
+      contentMediaType: application/json
+      contentSchema:
+        type: array
+        items:
+          type: object
+          properties:
+            id: {type: string}

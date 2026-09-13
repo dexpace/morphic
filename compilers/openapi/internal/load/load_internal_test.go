@@ -106,7 +106,7 @@ func parseSpec(t *testing.T, spec string) (*soa.OpenAPI, []error) {
 
 // TestUnmarshal_RecoversParserPanic pins the no-panics-escape invariant: the
 // third-party parser faults on a whitespace-only document, and unmarshal must
-// convert that panic into an errParse error instead of letting it escape.
+// convert that panic into an ErrParse error instead of letting it escape.
 //
 // The decode ahead of it succeeds — whitespace is well-formed YAML — so this
 // still lands in unmarshal rather than being caught a step earlier.
@@ -117,7 +117,7 @@ func TestUnmarshal_RecoversParserPanic(t *testing.T) {
 
 	doc, valErrs, err := unmarshal(t.Context(), []byte(" "), root)
 	require.Error(t, err)
-	assert.ErrorIs(t, err, errParse)
+	assert.ErrorIs(t, err, ErrParse)
 	assert.Nil(t, doc)
 	assert.Nil(t, valErrs)
 }
@@ -152,7 +152,7 @@ func TestResolveAll_RecoversResolverPanic(t *testing.T) {
 
 	resErrs, err := resolveAll(t.Context(), doc, soa.ResolveAllOptions{})
 	require.Error(t, err)
-	assert.ErrorIs(t, err, errParse)
+	assert.ErrorIs(t, err, ErrParse)
 	assert.Contains(t, err.Error(), "reference resolver panicked")
 	assert.Nil(t, resErrs, "a partially-populated result never leaks")
 }

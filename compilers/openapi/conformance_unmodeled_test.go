@@ -251,6 +251,70 @@ func assertAllOfInlineResidue(t *testing.T, doc *ir.Document, diags []ir.Diagnos
 		"a branch excluding object contradicts the composed model and is a warning")
 }
 
+// assertAllOfConflictingType pins what an unsatisfiable redeclaration leaves in
+// the document. allOf is an intersection, so a field one branch types `uri` and
+// another types `string` describes a shape the IR has no combinator for: the
+// merge keeps the first declaration and, under ir-design §4.8, keeps the loser
+// verbatim beside it rather than dropping it (GitHub #424).
+//
+// The diagnostic is not what is being checked here. A consumer that diffs two
+// revisions of a document reads the document, and before this entry existed a
+// release in which the losing branch's type changed showed no change at all.
+//
+// The entry is the declaration as the document wrote it, not the IR value the
+// merge dropped (GitHub #445): ir-design §12 defines an Unmodeled value as the
+// source construct, and one verbatim node keeps everything a redeclaration said
+// at once. The nullable case is what that buys over a target ID: a
+// redeclaration says both what a field is and whether it admits null.
+//
+// Described is the same event on a field whose types agree: the fold has one
+// slot for a default and both branches fill it, so the second declaration is
+// kept whole and the disagreement named — before this a consumer diffing two
+// revisions that changed the second branch's default saw no change at all.
+func assertAllOfConflictingType(t *testing.T, doc *ir.Document, diags []ir.Diagnostic) {
+	repo, ok := doc.Types[namedID("Repository")].(*ir.Model)
+	require.True(t, ok)
+	clone, ok := propByWire(repo, "clone_url")
+	require.True(t, ok, "the two declarations still reconcile to one property")
+	assert.Equal(t, ir.TypeID("t/prim/url"), clone.Type.Target, "the first declaration wins the shape")
+
+	const cloneKey = "openapi:conflicting-redeclaration/components/schemas/Repository/allOf/1/properties/clone_url"
+	assertKeptRaw(t, clone.Unmodeled, cloneKey, `{"type":"string"}`)
+	assert.Equal(t, "/components/schemas/Repository/allOf/1/properties/clone_url",
+		unmodeledEntry(t, clone.Unmodeled, cloneKey).Provenance.Pointer,
+		"the entry locates the losing declaration, not the merged property")
+	assert.Equal(t, []ir.Severity{ir.SeverityWarning},
+		diagsAt(diags, "openapi/conflicting-redeclaration",
+			"/components/schemas/Repository/allOf/1/properties/clone_url"),
+		"and the conflict is still reported")
+
+	identified, ok := doc.Types[namedID("Identified")].(*ir.Model)
+	require.True(t, ok)
+	id, ok := propByWire(identified, "id")
+	require.True(t, ok)
+	assert.Equal(t, ir.TypeID("t/prim/integer"), id.Type.Target)
+	// Held to the same check as the first: the Reason assertion above was not
+	// repeated here, so two cases in one fixture were not equally pinned.
+	assertKeptRaw(t, id.Unmodeled,
+		"openapi:conflicting-redeclaration/components/schemas/Identified/allOf/1/properties/id",
+		`{"type":["string","null"]}`)
+
+	described, ok := doc.Types[namedID("Described")].(*ir.Model)
+	require.True(t, ok)
+	did, ok := propByWire(described, "id")
+	require.True(t, ok)
+	assert.Equal(t, &ir.Value{Kind: ir.ValueNumber, Num: "1"}, did.Default, "the first declaration's default stands")
+	assert.Equal(t, "first", did.Docs.Description)
+	const describedPtr = "/components/schemas/Described/allOf/1/properties/id"
+	assertKeptRaw(t, did.Unmodeled, "openapi:conflicting-redeclaration"+describedPtr,
+		`{"type":"integer","default":2,"description":"second","example":2}`)
+	assert.Empty(t, diagsAt(diags, "openapi/conflicting-redeclaration", describedPtr),
+		"agreeing types are not a conflict")
+	assert.Equal(t, []ir.Severity{ir.SeverityInfo, ir.SeverityInfo, ir.SeverityInfo},
+		diagsAt(diags, "openapi/degraded-construct", describedPtr),
+		"the description, the default and the example are each named as differing")
+}
+
 // assertAllOfRefBranchSiblings covers the other branch kind: keywords written
 // beside a `$ref` in an allOf branch bind that branch, not the schema it names,
 // so they cannot go on the shared target's node. The branch position gets a node
@@ -350,10 +414,11 @@ func assertDependentRequired(t *testing.T, doc *ir.Document, diags []ir.Diagnost
 		diagsAt(diags, "openapi/validation-only-keyword", "/components/schemas/Card"))
 }
 
-// assertContentVocabulary pins the 2020-12 content vocabulary: contentEncoding
-// and contentMediaType are an encoding and lower into ir.Encoding, contentSchema
-// is a schema and has no IR home anywhere, and a position with no Encoding field
-// at all keeps both of the first two verbatim (GitHub #125).
+// assertContentVocabulary pins the 2020-12 content vocabulary: all three
+// keywords lower into ir.Encoding — contentEncoding and contentMediaType as
+// names, contentSchema as a reference to the type it hoists — and a position
+// with no Encoding field at all keeps all three verbatim (GitHub #125,
+// GitHub #426).
 func assertContentVocabulary(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
 	thumb, ok := doc.Types[namedID("Thumbnail")].(*ir.Scalar)
 	require.True(t, ok)
@@ -366,16 +431,33 @@ func assertContentVocabulary(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) 
 	require.True(t, ok)
 	require.NotNil(t, env.Encoding)
 	assert.Equal(t, "application/json", env.Encoding.MediaType)
-	entry := unmodeledEntry(t, env.Unmodeled, "openapi:contentSchema")
-	assert.Equal(t, ir.ReasonNoIRHome, entry.Reason)
-	assert.JSONEq(t, `{"type":"object","properties":{"id":{"type":"string"}}}`, string(entry.Value))
+	require.NotNil(t, env.Encoding.Schema, "contentSchema has a home on ir.Encoding")
+	assert.Empty(t, env.Unmodeled, "so it is lowered, never also kept raw")
+	decoded, ok := doc.Types[env.Encoding.Schema.Target].(*ir.Model)
+	require.True(t, ok, "and it reaches the registry as a type rather than a blob")
+	require.Len(t, decoded.Properties, 1)
+	assert.Equal(t, "id", decoded.Properties[0].WireName)
 
 	bag, ok := doc.Types[namedID("Bag")].(*ir.Model)
 	require.True(t, ok)
-	for _, key := range []string{"openapi:contentEncoding", "openapi:contentMediaType"} {
+	for _, key := range []string{"openapi:contentEncoding", "openapi:contentMediaType", "openapi:contentSchema"} {
 		assert.Equal(t, ir.ReasonNoIRHome, unmodeledEntry(t, bag.Unmodeled, key).Reason,
 			"an object has no Encoding field, so %s is kept", key)
 	}
+
+	// The outside $ref reaches the contentSchema position first, and what is
+	// under it is still spelled from the declaration: the order-invariance oracle
+	// is what proves the two orders agree, and this is what says which spelling
+	// won (§4.3).
+	feed, ok := doc.Types[namedID("Feed")].(*ir.Scalar)
+	require.True(t, ok)
+	require.NotNil(t, feed.Encoding)
+	require.NotNil(t, feed.Encoding.Schema)
+	const contentItem = ir.TypeID("t/anon/components/schemas/Feed/contentSchema/items")
+	item, ok := doc.Types[contentItem]
+	require.True(t, ok, "the decoded array's item is hoisted at its own pointer")
+	assert.Equal(t, "feed_content_item", item.Common().Name.Hint,
+		"named from the enclosing declaration, not from the segment the reference offered")
 }
 
 // assertDialectKeywords pins the JSON Schema resource and dialect keywords as out

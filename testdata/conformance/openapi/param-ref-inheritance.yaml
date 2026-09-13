@@ -14,6 +14,10 @@ paths:
             $ref: '#/components/schemas/Cursor'
             description: Cursor for this endpoint only.
             default: "9"
+            # A bound is the one keyword the use site does not take over: this
+            # one lands here and the referent's 64 stays on the referent, both
+            # in force, since bounds conjoin rather than override.
+            maxLength: 100
       responses:
         "200":
           description: ok
@@ -26,9 +30,12 @@ components:
       deprecated: true
       default: "0"
       maxLength: 64
-    # The property form of the same reference: what a parameter inherits, a
-    # property inherits identically, constraints included in neither.
+    # The property form of the same references: what a parameter inherits, a
+    # property inherits identically, and constraints cross to neither.
     Holder:
       type: object
       properties:
         cursor: {$ref: '#/components/schemas/Cursor'}
+        override:
+          $ref: '#/components/schemas/Cursor'
+          maxLength: 100

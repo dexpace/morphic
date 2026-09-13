@@ -21,13 +21,30 @@ type Link struct {
 }
 
 // Deprecation marks an entity as deprecated with optional migration guidance.
+//
+// A scheduled removal has two fields because a version and a date are two
+// facts, not two spellings of one: a document may state either or both ("gone
+// in 3.0.0", "gone on 2026-08-01"), and neither is derivable from the other
+// without a release calendar the IR does not have. Keeping them apart is what
+// lets a consumer compare a scheduled removal against a release date without
+// re-parsing the string to work out which kind it was handed.
 type Deprecation struct {
 	// Message explains the deprecation and any migration path.
 	Message string `json:"message,omitempty"`
 	// Since is the version in which the entity was deprecated.
 	Since string `json:"since,omitempty"`
-	// RemovalVersion is the version in which the entity is scheduled for removal.
+	// RemovalVersion is the version in which the entity is scheduled for
+	// removal. A removal the source states as a date belongs in RemovalDate.
 	RemovalVersion string `json:"removalVersion,omitempty"`
+	// RemovalDate is the date on which the entity is scheduled for removal —
+	// the fact an RFC 8594 Sunset carries, and what the OpenAPI x-sunset
+	// convention echoing it holds.
+	//
+	// It is the source's own text, neither parsed nor normalized: the IR
+	// records which fact the document stated and leaves the calendar to the
+	// consumer, since no source format defines the field and so none defines
+	// its format either.
+	RemovalDate string `json:"removalDate,omitempty"`
 }
 
 // Example is a documentation example. Field legality is contextual:
