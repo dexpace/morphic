@@ -516,6 +516,65 @@ func TestRawChildNode_ReadsOnlyAMappingChild(t *testing.T) {
 	assert.Nil(t, RawChildNode(&yaml.Node{Kind: yaml.DocumentNode}, "a"), "nor an empty document")
 }
 
+// TestRawMappingKeys_SpellsWhatRawChildNodeCanFind pins the raw key reader to
+// the raw child reader beside it: every name it returns is one RawChildNode
+// finds a value for, and a name RawChildNode cannot find — one merged in through
+// `<<` — is not returned. The census hands each name straight to the keeper,
+// which reads the value with RawChildNode, so a name spelled any other way would
+// be announced as unreachable for a key the document wrote plainly.
+func TestRawMappingKeys_SpellsWhatRawChildNodeCanFind(t *testing.T) {
+	t.Parallel()
+
+	for _, tc := range []struct {
+		name string
+		src  string
+		want []string
+	}{
+		{"plain keys in written order", "b: 1\na: 2\n", []string{"b", "a"}},
+		{"an anchored value is a key like any other", "a: &x {k: v}\nb: *x\n", []string{"a", "b"}},
+		{"an aliased key is spelled by the scalar it stands for",
+			"names: [&n spelled]\n*n : 1\n", []string{"names", "spelled"}},
+		{"a repeated key is returned once", "a: 1\nb: 2\na: 3\n", []string{"a", "b"}},
+		{"a merge key is not a key the mapping writes",
+			"base: &b {merged: 1}\nuse:\n  <<: *b\n  own: 2\n", []string{"base", "use"}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			root := openapitest.YAMLNode(t, tc.src)
+			got := RawMappingKeys(root)
+			assert.Equal(t, tc.want, got)
+			for _, key := range got {
+				assert.NotNil(t, RawChildNode(root, key), "RawChildNode finds a value for %q", key)
+			}
+		})
+	}
+
+	t.Run("a merge key's own pairs are read on the merging mapping", func(t *testing.T) {
+		t.Parallel()
+		use := RawChildNode(openapitest.YAMLNode(t, "base: &b {merged: 1}\nuse:\n  <<: *b\n  own: 2\n"), "use")
+		require.NotNil(t, use)
+		assert.Equal(t, []string{"own"}, RawMappingKeys(use),
+			"the merged-in key is the parser's to present, not the raw mapping's — GitHub #395")
+	})
+}
+
+// TestRawMappingKeys_ReadsOnlyAMapping pins the unwrap and refusal rules to
+// RawChildNode's: a document node is stepped through, and anything that is not a
+// mapping yields nothing rather than a partial read.
+func TestRawMappingKeys_ReadsOnlyAMapping(t *testing.T) {
+	t.Parallel()
+	var doc yaml.Node
+	require.NoError(t, yaml.Unmarshal([]byte("a: 1\n"), &doc))
+	require.Equal(t, yaml.DocumentNode, doc.Kind)
+	assert.Equal(t, []string{"a"}, RawMappingKeys(&doc), "a document node is stepped through to its mapping")
+
+	assert.Nil(t, RawMappingKeys(nil))
+	assert.Nil(t, RawMappingKeys(openapitest.YAMLNode(t, "{}")), "a mapping writing no key yields none")
+	assert.Nil(t, RawMappingKeys(openapitest.YAMLNode(t, "[1, 2]")), "a sequence has no keys")
+	assert.Nil(t, RawMappingKeys(openapitest.YAMLNode(t, "plain")), "nor does a scalar")
+	assert.Nil(t, RawMappingKeys(&yaml.Node{Kind: yaml.DocumentNode}), "nor an empty document")
+}
+
 // TestRawChildNode_IsNotTheMergeAwareView pins the difference between this
 // reader and nodeview's, which is the reason the two exist side by side: what a
 // keyword is preserved *as* is what the source spelled at it, while what a
