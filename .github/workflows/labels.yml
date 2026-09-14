@@ -32,12 +32,12 @@
 name: Labels
 
 on:
-  # --- Uncomment at step 6, once the first real sync has been read. ---
-  # push:
-  #   branches: [ main ]
-  #   paths: ['.github/workflows/labels.yml']
-  # schedule:
-  #   - cron: '0 4 * * 1'        # Monday reconciliation
+  # Enabled 2026-09-14 (step 6) after the first pruning sync converged.
+  push:
+    branches: [ main ]
+    paths: ['.github/workflows/labels.yml']
+  schedule:
+    - cron: '0 4 * * 1'        # Monday reconciliation
   workflow_dispatch:
     inputs:
       dry_run:
