@@ -1,0 +1,30 @@
+# A $ref naming a header declared inline under another response. The header's
+# hint is its map key at the use site, so the shared node must not take the key
+# of whichever response lowered first (GitHub #433).
+openapi: 3.1.0
+info:
+  title: Header shared across responses by pointer
+  version: 1.0.0
+paths:
+  /a:
+    get:
+      operationId: getA
+      responses:
+        "200":
+          description: declares the header
+          headers:
+            X-First:
+              schema:
+                type: object
+                properties:
+                  detail:
+                    type: string
+  /b:
+    get:
+      operationId: getB
+      responses:
+        "200":
+          description: names the header above
+          headers:
+            X-Second:
+              $ref: '#/paths/~1a/get/responses/200/headers/X-First'

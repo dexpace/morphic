@@ -326,3 +326,30 @@ func TestCtx_NamingByReferenceIsScopedToTheCopy(t *testing.T) {
 	assert.True(t, referencing.NamingByReference().NamesByReference(),
 		"and marking an already-marked context is a no-op rather than a toggle")
 }
+
+// TestCtx_NamingByReferenceAtMarksOnlyAForeignDeclaration pins the question the
+// marking is derived from: whether the declaration a lowering is about to read
+// sits at the position that reached it.
+//
+// The two pointers agree exactly when a construct is declared where it is used,
+// and differ exactly when a $ref carried the lowering into a declaration another
+// position owns. Deciding it here rather than at each call site is what keeps a
+// request body and a response header answering it the same way (GitHub #433).
+func TestCtx_NamingByReferenceAtMarksOnlyAForeignDeclaration(t *testing.T) {
+	t.Parallel()
+	const use = "/paths/~1b/post/requestBody"
+	declaring := lowering.Ctx{}
+
+	assert.False(t, declaring.NamingByReferenceAt(use, use).NamesByReference(),
+		"a construct declared where it is used is reached through its own declaration")
+
+	foreign := declaring.NamingByReferenceAt(use, "/paths/~1a/post/requestBody")
+	assert.True(t, foreign.NamesByReference(),
+		"a declaration another position owns is reached by reference, so its name is a placeholder")
+	assert.False(t, declaring.NamesByReference(),
+		"and the caller's context is left alone, as NamingByReference leaves it")
+
+	assert.True(t, foreign.NamingByReferenceAt(use, use).NamesByReference(),
+		"a marked context stays marked: the subtree under a $ref is named by reference throughout, "+
+			"however its own positions line up")
+}

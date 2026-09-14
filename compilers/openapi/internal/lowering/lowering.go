@@ -212,6 +212,35 @@ func (c Ctx) NamingByReference() Ctx {
 // declaration replaces. See NamingByReference.
 func (c Ctx) NamesByReference() bool { return c.namesByReference }
 
+// NamingByReferenceAt is NamingByReference for a reference-or-declaration
+// position: it marks c when declPtr is not the position usePtr addressed, and
+// leaves it alone when the two agree.
+//
+// The two pointers agree exactly when the construct is declared where it is
+// used. They differ when a $ref carried this lowering into a declaration some
+// other position owns — a request body written under another operation, a
+// header written under another response — and that is the case
+// NamingByReference describes: the hint this lowering derives is a use-site
+// name (an operationId, a headers-map key) for a node the use site does not own.
+//
+// It exists because $ref is resolved at these positions before the lowering
+// starts, so the marking hoistSubSchema does for a schema-level $ref has no
+// counterpart here: by the time a body or header is lowered, nothing downstream
+// can still tell that a reference is what reached it. Without the mark both
+// lowerings claim to be the declaration, and Intern — first-write-wins — hands
+// the shared node to whichever ran first (GitHub #433).
+//
+// DeclarationHint already covers the case where the declaration is a top-level
+// component entry, which is named the same from every use site. This covers the
+// rest: a $ref may spell any pointer, and one naming a construct declared inline
+// elsewhere is just as shared while matching no component shape.
+func (c Ctx) NamingByReferenceAt(usePtr, declPtr string) Ctx {
+	if declPtr == usePtr {
+		return c
+	}
+	return c.NamingByReference()
+}
+
 // declaredSchemaNames collects the names under components/schemas, or nil when
 // the document declares none.
 func declaredSchemaNames(doc *soa.OpenAPI) map[string]bool {
