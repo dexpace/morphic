@@ -1,0 +1,73 @@
+# Org workflow template. In any dexpace repo: Actions -> New workflow -> this
+# lands under "Workflows created by dexpace". Or copy it in by hand as
+# .github/workflows/labels.yml.
+#
+# It ships DISPATCH-ONLY on purpose. Committing this file must not sync
+# anything: a repo with issue history needs its rename pass run first, and an
+# automatic sync on the adding commit would create the new names before the
+# renames can claim them — which permanently costs you the cheap migration.
+#
+# Onboarding order, from labels/README.md:
+#   1. rename pass (labels/MIGRATION.md) — BEFORE this file exists
+#   2. add this file, set `profiles`
+#   3. dispatch with dry_run on. read the plan.
+#   4. dispatch with dry_run off. labels are created.
+#   5. set repo variable LABELS_PRUNE=true, dispatch once more. strays deleted.
+#   6. uncomment the push and schedule triggers below.
+#
+# Step 6 is not optional. Between dispatches, a label edited in the web UI
+# stays edited — the Monday cron is what re-heals it. Skip step 6 and the YAML
+# is advisory.
+#
+# Profiles by repo:
+#
+#   the six SDK ports                     common,docs,package,sdk
+#   kuri, morphic                         common,docs,package
+#   zeus, dexpace-react                   common,package
+#   styleguide, morphic-test-assets       common,docs
+#   confluence, devhub, dexpace.org,
+#     .github, the two doc archetypes     common,docs
+#   spaceapi, devhub-api                  common
+
+name: Labels
+
+on:
+  # --- Uncomment at step 6, once the first real sync has been read. ---
+  # push:
+  #   branches: [ main ]
+  #   paths: ['.github/workflows/labels.yml']
+  # schedule:
+  #   - cron: '0 4 * * 1'        # Monday reconciliation
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: 'Report the plan, mutate nothing'
+        type: boolean
+        default: true
+      prune:
+        description: 'Delete labels absent from the profiles'
+        type: boolean
+        default: false
+
+permissions:
+  issues: write
+
+jobs:
+  sync:
+    uses: dexpace/.github/.github/workflows/labels.yml@main
+    with:
+      profiles: common,docs,package
+
+      # Dispatch says exactly what it means. Every other trigger is create-and
+      # -update only until the repo variable LABELS_PRUNE is set to 'true',
+      # so an unattended cron heals colors and descriptions and restores
+      # deleted labels, but cannot delete anything until deletion is opted in.
+      #
+      # Note the shape. `A && inputs.prune || B` would be a bug: unchecking
+      # prune on a dispatch reads `true && false || B` and falls through to B.
+      dry_run: ${{ github.event_name == 'workflow_dispatch' && inputs.dry_run }}
+      prune: >-
+        ${{ github.event_name == 'workflow_dispatch'
+            && inputs.prune
+            || (github.event_name != 'workflow_dispatch'
+                && vars.LABELS_PRUNE == 'true') }}
