@@ -467,8 +467,29 @@ func preserveUnionSiblings(c lowering.Ctx, ts *compile.Types, id ir.TypeID, s *o
 // does not, because there is none. A shared template assuming one wording
 // fits both reads as self-contradictory at a $ref site (GitHub #406).
 func preserveUnionSiblingsAt(c lowering.Ctx, p *ir.Unmodeled, s *oas3.Schema, pointer string, reason ir.UnmodeledReason, why string) []ir.Diagnostic {
+	kept, diags := preserveBranchSets(c, p, s, reason, pointer)
+	if reason == ir.ReasonValidationOnly || len(kept) == 0 {
+		return diags
+	}
+	return append(diags, c.DiagAt(ir.SeverityInfo, diag.DegradedConstruct, pointer,
+		"%s; union branches kept verbatim under Unmodeled", why))
+}
+
+// preserveBranchSets stores s's declared oneOf/anyOf verbatim under p, in
+// keyword order, reporting one it cannot convert. It returns the keywords
+// actually kept (empty when neither is written or neither converts), so a
+// caller with a message of its own knows what to name in it. reason ==
+// ir.ReasonValidationOnly routes each through §4.7's keyword-family reporting
+// (preserveKeyword) instead; every other reason goes through the plain
+// preserve every other §4.8 degradation uses.
+//
+// preserveUnionSiblingsAt and preserveNullOnlyUnion share this loop because they
+// keep the same two keywords for the same underlying reason — the node they
+// attach to carries no branch set of its own to hold them in — and differ only
+// in the sentence that explains why.
+func preserveBranchSets(c lowering.Ctx, p *ir.Unmodeled, s *oas3.Schema, reason ir.UnmodeledReason, pointer string) ([]string, []ir.Diagnostic) {
 	var diags []ir.Diagnostic
-	kept := false
+	var kept []string
 	for _, kw := range []string{"oneOf", "anyOf"} {
 		raw, err := annotation.RawFromNode(annotation.RawPropertyNode(s, kw))
 		if err != nil {
@@ -481,13 +502,11 @@ func preserveUnionSiblingsAt(c lowering.Ctx, p *ir.Unmodeled, s *oas3.Schema, po
 			continue
 		}
 		preserve(c, p, "openapi:"+kw, raw, reason, pointer+ids.Ptr(kw))
-		kept = kept || len(raw) > 0
+		if len(raw) > 0 {
+			kept = append(kept, kw)
+		}
 	}
-	if reason == ir.ReasonValidationOnly || !kept {
-		return diags
-	}
-	return append(diags, c.DiagAt(ir.SeverityInfo, diag.DegradedConstruct, pointer,
-		"%s; union branches kept verbatim under Unmodeled", why))
+	return kept, diags
 }
 
 // declaresUnion reports whether s writes oneOf or anyOf at all. It is the one
@@ -2379,6 +2398,27 @@ func isNullSchema(js *oas3.JSONSchema[oas3.Referenceable]) bool {
 	}
 	types := s.GetType()
 	return len(types) == 1 && types[0] == oas3.SchemaTypeNull
+}
+
+// allNullUnion reports whether every branch of the oneOf/anyOf combinator
+// unionBranches elects is a bare `type: null` schema. nullUnionCollapse has no
+// non-null branch to collapse a set like this onto, so without this check
+// lowerOneOfAnyOf's buildUnion fallback strips every branch as a null marker
+// and interns a Union with none left — the empty value space irverify's
+// ir/union-no-variants rejects (GitHub #416). The branch set still admits
+// exactly one value, the same one a bare `{type: null}` schema at this
+// position admits, so lowerOneOfAnyOf lowers it the same way instead.
+func allNullUnion(s *oas3.Schema) bool {
+	variants, _, _ := unionBranches(s)
+	if len(variants) == 0 {
+		return false
+	}
+	for _, v := range variants {
+		if !isNullSchema(v) {
+			return false
+		}
+	}
+	return true
 }
 
 // listConstraints reads a list schema's collection constraints. Only the safe
