@@ -30,7 +30,7 @@ the ones the next compiler will be first to bind to.
 | `negation` | Negation | ✅ not | — | — | — | — | ✅ not | — | — |
 | `enums-string` | Enums (string) | ✅ | ✅ | ✅ named members | ✅ enum | ✅ | ✅ | ⚠ | ⚠ atom unions |
 | `enums-numeric` | Enums (numeric, valued) | ✅ | ✅ | ✅ | ✅ intEnum | — | ✅ | ✅ | ⚠ int unions |
-| `open-enums` | Open enums (unknown values allowed) | ⚠ anyOf trick | — | ⚠ union w/ string | ✅ (enums are open by default) | — | ⚠ | ✅ open (proto3/editions) / closed (proto2, per-enum feature) | ⚠ atom() fallback |
+| `open-enums` | Open enums (unknown values allowed) | ⚠ anyOf trick, x-extensible-enum | — | ⚠ union w/ string | ✅ (enums are open by default) | — | ⚠ | ✅ open (proto3/editions) / closed (proto2, per-enum feature) | ⚠ atom() fallback |
 | `custom-scalars` | Custom scalars | ⚠ type+format | ⚠ | ✅ scalar extends | ⚠ traits | ✅ scalar | ⚠ | — | ✅ -type/-opaque |
 | `encoding-hints` | Wire encoding hints (@encode / format) | ✅ format | ✅ format | ✅ @encode | ✅ timestampFormat | — | ✅ | ✅ fixed/zigzag/packed/delimited | — (ETF fixed) |
 | `field-wire-ids` | Field wire IDs (numeric tags) | — | — | — | — | — | — | ✅ field numbers | ⚠ tuple positions |

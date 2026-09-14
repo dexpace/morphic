@@ -149,7 +149,7 @@ func TestAllOf_ConflictingRedeclaredDescriptionDiagnosed(t *testing.T) {
 		"a differing redeclared description is surfaced, not dropped silently")
 }
 
-func TestAllOf_ConflictingRedeclaredTypeDiagnosed(t *testing.T) {
+func TestAllOf_ConflictingRedeclaredTypeDiagnosedAndKept(t *testing.T) {
 	t.Parallel()
 	// allOf is an intersection, so a field one branch types `string` and another
 	// types `integer` describes an unsatisfiable schema. Reconciliation keeps the
@@ -180,6 +180,58 @@ func TestAllOf_ConflictingRedeclaredTypeDiagnosed(t *testing.T) {
 	assert.Contains(t, d.Message, `"id"`, "the diagnostic names the conflicting field")
 	assert.Contains(t, d.Message, "allOf/0", "the diagnostic names the first branch site")
 	assert.Contains(t, d.Message, "allOf/1", "the diagnostic names the second branch site")
+
+	// A diagnostic is not part of the document, so the losing declaration is
+	// also kept where a consumer reading the IR will reach it (GitHub #424).
+	lost, ok := m.Properties[0].Unmodeled["openapi:conflicting-redeclaration"+
+		"/components/schemas/Conflictish/allOf/1/properties/id"]
+	require.True(t, ok,
+		"the discarded type is kept beside the winner; got %v", m.Properties[0].Unmodeled)
+	assert.Equal(t, ir.ReasonDegradedLowering, lost.Reason)
+	assert.JSONEq(t, `{"type":"integer"}`, string(lost.Value),
+		"and it is the declaration the second branch wrote, not the one that won")
+	assert.Equal(t, "/components/schemas/Conflictish/allOf/1/properties/id", lost.Provenance.Pointer)
+}
+
+// TestAllOf_ALosingRedeclarationIsKeptAsWritten pins what the entry holds at
+// the two property shapes that have no schema node of their own to speak of: a
+// `$ref` is kept as the `$ref` the position wrote, not as the target it names,
+// and a boolean schema — which has no node at all — is kept as its value.
+func TestAllOf_ALosingRedeclarationIsKeptAsWritten(t *testing.T) {
+	t.Parallel()
+	spec := openapitest.ComponentSpec(`    Str: {type: string}
+    Referred:
+      allOf:
+        - type: object
+          properties:
+            id: {type: integer}
+        - type: object
+          properties:
+            id: {$ref: '#/components/schemas/Str'}
+    Anything:
+      allOf:
+        - type: object
+          properties:
+            id: {type: integer}
+        - type: object
+          properties:
+            id: true
+`)
+	doc, diags := lowerSpec(t, spec)
+	openapitest.RequireNoErrorDiags(t, diags)
+
+	for _, tc := range []struct{ model, want string }{
+		{"Referred", `{"$ref":"#/components/schemas/Str"}`},
+		{"Anything", `true`},
+	} {
+		m, ok := doc.Types[componentID(tc.model)].(*ir.Model)
+		require.True(t, ok, "%s should be a model", tc.model)
+		require.Len(t, m.Properties, 1)
+		key := "openapi:conflicting-redeclaration/components/schemas/" + tc.model + "/allOf/1/properties/id"
+		lost, ok := m.Properties[0].Unmodeled[key]
+		require.True(t, ok, "%s keeps its losing declaration; got %v", tc.model, m.Properties[0].Unmodeled)
+		assert.JSONEq(t, tc.want, string(lost.Value))
+	}
 }
 
 func TestAllOf_ConflictingRedeclaredConstraintDiagnosed(t *testing.T) {
@@ -2562,7 +2614,7 @@ func TestOneOf_CoDeclaredNotDistributedReasons(t *testing.T) {
 func TestUnionCombinators_CoDeclaredKeepsTheBoundsWrittenBesideIt(t *testing.T) {
 	t.Parallel()
 	three := int64(3)
-	ten, five := ir.BigVal("10"), ir.BigVal("5")
+	ten, five, zero := ir.BigVal("10"), ir.BigVal("5"), ir.BigVal("0")
 	cases := []struct {
 		name, schemas, unionKey string
 		reason                  ir.UnmodeledReason
@@ -2595,13 +2647,14 @@ func TestUnionCombinators_CoDeclaredKeepsTheBoundsWrittenBesideIt(t *testing.T) 
 			wantKept: []string{"openapi:anyOf"},
 		},
 		{
+			// Both bound keywords reach a field, so the union is the only
+			// entry on the node: a co-declared pair adds nothing beside it.
 			name:     "co-declared bounds beside a union",
 			schemas:  "    A: {type: number, minimum: 10, exclusiveMinimum: 0, oneOf: [{minLength: 1}, {minLength: 2}]}\n",
 			unionKey: "openapi:oneOf",
 			reason:   ir.ReasonValidationOnly,
-			want:     ir.Constraints{Min: &ten},
-			wantKept: []string{"openapi:exclusiveMinimum", "openapi:oneOf"},
-			wantDiag: "kept minimum as the tighter of the two",
+			want:     ir.Constraints{Min: &ten, ExclusiveMin: &zero},
+			wantKept: []string{"openapi:oneOf"},
 		},
 	}
 	for _, tc := range cases {

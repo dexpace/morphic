@@ -293,17 +293,59 @@ func TestContent_NonRequiredRequestBody(t *testing.T) {
 	openapitest.RequireNoErrorDiags(t, diags)
 	op := openapitest.FirstOp(t, svc)
 	require.NotNil(t, op.Request, "a non-required body still lowers to a present Payload")
-	raw, ok := op.Request.Unmodeled["openapi:required"]
-	require.True(t, ok, "body optionality kept under Unmodeled")
-	assert.Equal(t, "false", string(raw.Value))
-	assert.Equal(t, ir.ReasonNoIRHome, raw.Reason)
-	found := false
+	require.NotNil(t, op.Request.Required, "OpenAPI always states body optionality")
+	assert.False(t, *op.Request.Required)
+	assert.NotContains(t, op.Request.Unmodeled, "openapi:required",
+		"the typed field carries the fact, so no sentinel is written beside it")
 	for _, d := range diags {
-		if d.Severity == ir.SeverityInfo && strings.Contains(d.Message, "request body") {
-			found = true
-		}
+		assert.NotContains(t, d.Message, "request body",
+			"a typed fact is not a degraded construct")
 	}
-	assert.True(t, found, "non-required body emits one info diagnostic")
+}
+
+// TestContent_RequiredRequestBody is TestContent_NonRequiredRequestBody's other
+// arm: `required: true` must reach the same field rather than being encoded as
+// the sentinel's absence, which is what made a consumer read every body alike.
+func TestContent_RequiredRequestBody(t *testing.T) {
+	t.Parallel()
+	spec := openapitest.PathsSpec(`  /must:
+    post:
+      operationId: must
+      requestBody:
+        required: true
+        content:
+          application/json: {schema: {type: object, properties: {n: {type: string}}}}
+      responses: {"200": {description: ok}}
+`)
+	_, svc, diags := lowerServiceSpec(t, spec)
+	openapitest.RequireNoErrorDiags(t, diags)
+	op := openapitest.FirstOp(t, svc)
+	require.NotNil(t, op.Request)
+	require.NotNil(t, op.Request.Required)
+	assert.True(t, *op.Request.Required)
+}
+
+// TestContent_ResponsePayloadStatesNoOptionality pins the third state: only a
+// request body can be omitted, so a response Payload leaves Required nil and a
+// consumer reading it as "false" would be inventing a fact.
+func TestContent_ResponsePayloadStatesNoOptionality(t *testing.T) {
+	t.Parallel()
+	spec := openapitest.PathsSpec(`  /get:
+    get:
+      operationId: getThing
+      responses:
+        "200":
+          description: ok
+          content:
+            application/json: {schema: {type: object, properties: {n: {type: string}}}}
+`)
+	_, svc, diags := lowerServiceSpec(t, spec)
+	openapitest.RequireNoErrorDiags(t, diags)
+	op := openapitest.FirstOp(t, svc)
+	require.Len(t, op.Responses, 1)
+	require.NotNil(t, op.Responses[0].Payload)
+	assert.Nil(t, op.Responses[0].Payload.Required,
+		"a response body has no optionality to state")
 }
 
 func TestContent_ArrayMultipartPartMulti(t *testing.T) {
@@ -405,10 +447,10 @@ func TestContent_FullPipeline(t *testing.T) {
 	doc, diags := parseFull(t, contentSpec)
 	upload := openapitest.FindOp(t, doc, "upload")
 
-	// Non-required body preserved as present with optionality under Unmodeled.
+	// Non-required body preserved as present, optionality on the typed field.
 	require.NotNil(t, upload.Request)
-	_, hasReq := upload.Request.Unmodeled["openapi:required"]
-	assert.True(t, hasReq, "non-required optionality preserved")
+	require.NotNil(t, upload.Request.Required, "optionality preserved")
+	assert.False(t, *upload.Request.Required)
 
 	// Multipart encoding: comma-split content types, header, style/explode, file flag.
 	hb := upload.Bindings.HTTP[0]
@@ -435,7 +477,8 @@ func TestContent_FullPipeline(t *testing.T) {
 	_, hasLinks := resp.Unmodeled["openapi:links"]
 	assert.True(t, hasLinks)
 
-	assert.True(t, openapitest.HasDiag(diags, diag.DegradedConstruct))
+	assert.False(t, openapitest.HasDiag(diags, diag.DegradedConstruct),
+		"every construct this spec declares has a typed home; got %+v", diags)
 }
 
 func TestContent_OctetAndErrorMulti(t *testing.T) {
@@ -446,16 +489,14 @@ func TestContent_OctetAndErrorMulti(t *testing.T) {
 	require.NotNil(t, raw.Request)
 	require.NotEmpty(t, raw.Request.Contents)
 	assert.NotNil(t, raw.Request.Contents[0].File)
-	// Its 400 error has two media types → content preserved raw.
-	require.NotEmpty(t, raw.Errors)
-	var multi ir.ErrorCase
-	for _, ec := range raw.Errors {
-		if len(ec.Unmodeled) > 0 {
-			multi = ec
-		}
-	}
-	_, hasContent := multi.Unmodeled["openapi:content"]
-	assert.True(t, hasContent, "multi-media error content preserved")
+	// Its 400 error declares two media types, and both are Contents (#422).
+	require.Len(t, raw.Errors, 1)
+	payload := raw.Errors[0].Payload
+	require.NotNil(t, payload)
+	require.Len(t, payload.Contents, 2, "neither media type is elected over the other")
+	assert.Equal(t, []string{"application/json", "application/problem+json"},
+		[]string{payload.Contents[0].MediaType, payload.Contents[1].MediaType})
+	assert.Empty(t, raw.Errors[0].Unmodeled, "nothing is kept verbatim beside the typed payload")
 }
 
 func TestContent_SequentialAndEmptyBody(t *testing.T) {

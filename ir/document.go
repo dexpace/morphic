@@ -19,7 +19,29 @@ package ir
 // 0.3.0 renames that field to Unmodeled on every carrier, so the JSON key
 // "preserved" is now "unmodeled". A consumer pinned to 0.2.0 finds no key it
 // recognizes and drops every unmodeled construct in silence.
-const IRVersion = "0.3.0"
+//
+// 0.4.0 covers six shape changes made together, all of them closing a gap a
+// consumer had to read around rather than adding a capability:
+//
+//   - ErrorCase becomes Response's sibling: Type is REMOVED, and Name, Payload
+//     and Headers take its place. A consumer pinned to 0.3.0 finds no "type" on
+//     an error case and cannot reach its models at all; one that reads the new
+//     fields gets the status spelling, the headers and every media type, which
+//     0.3.0 dumped into Unmodeled whatever their arity.
+//   - Payload gains Required. Body optionality stopped being an inverted
+//     Unmodeled sentinel read by absence, so a consumer that still reads
+//     "openapi:required" now finds nothing and reads every body as required.
+//   - Parameter gains Provenance, non-omitempty, and with it x-sunset promotion
+//     at the parameter position.
+//   - Deprecation gains RemovalDate. x-sunset promotes into it rather than into
+//     RemovalVersion, so a consumer reading a removal date off the version field
+//     now finds it empty.
+//   - Encoding gains Schema, giving contentSchema a home at scalar positions.
+//   - Constraints.ExclusiveMin and ExclusiveMax change from bool to a decimal
+//     string carrying the bound itself, so the two dialects' exclusive bounds no
+//     longer lose one keyword to the other. The JSON type of both keys changed;
+//     a consumer decoding them as booleans fails rather than degrades.
+const IRVersion = "0.4.0"
 
 // CompatibleVersion reports whether a document stamped version can be read by
 // this build. It is the predicate behind the compatibility policy in

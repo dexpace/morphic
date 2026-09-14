@@ -204,18 +204,6 @@ func TestFaultFor(t *testing.T) {
 	assert.Equal(t, "", faultFor(ir.StatusRange{}))
 }
 
-func TestPreserveErrorHeaders_WithoutRootNode(t *testing.T) {
-	t.Parallel()
-	l := newRawLowerer(&soa.OpenAPI{})
-	headers := sequencedmap.New(
-		sequencedmap.NewElem("X-H", &soa.ReferencedHeader{}),
-	)
-	ec := &ir.ErrorCase{}
-	diags := preserveErrorHeaders(l.ctx, ec, &soa.Response{Headers: headers}, "/r")
-	assert.Nil(t, ec.Unmodeled, "headers with no raw node are not preserved")
-	require.Empty(t, diags)
-}
-
 func TestLowerResponses_NoResponses(t *testing.T) {
 	t.Parallel()
 	l := newRawLowerer(&soa.OpenAPI{})

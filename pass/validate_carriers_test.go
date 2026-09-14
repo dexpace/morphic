@@ -37,18 +37,18 @@ const (
 // TestEncodingCarriers_NameEveryPayloadFieldInTheIR fails when the IR declares a
 // field carrying an ir.Payload that encodingCarriers does not name.
 //
-// checkEncodingKeys reaches every Content by naming the Payload-bearing fields by
+// forEachPayload reaches every Payload by naming the Payload-bearing fields by
 // hand, because nothing in a Payload's Go type says who owns one. Naming them
 // costs a coupling the compiler cannot check, and this is what checks it: a
-// fourth carrier added to the IR would otherwise be walked by neither the check
-// nor the cases below, its encoding keys resolved against nothing, with the whole
-// suite green.
+// fourth carrier added to the IR would otherwise be walked by neither the checks
+// built on the walk nor the cases below, its encoding keys resolved against
+// nothing and its Required unjudged, with the whole suite green.
 //
 // The guard holds both lists at once, in two steps. Here it holds
 // encodingCarriers against the IR; TestValidate_EncodingKeyAddressesNoProperty
-// then holds checkEncodingKeys against encodingCarriers, by requiring a
-// diagnostic from every entry. So a carrier added to the IR reddens this test,
-// and adding it here reddens that one until checkEncodingKeys walks it too.
+// then holds forEachPayload against encodingCarriers, by requiring a diagnostic
+// from every entry. So a carrier added to the IR reddens this test, and adding
+// it here reddens that one until forEachPayload walks it too.
 func TestEncodingCarriers_NameEveryPayloadFieldInTheIR(t *testing.T) {
 	t.Parallel()
 	carriers := encodingCarriers()
@@ -63,7 +63,7 @@ func TestEncodingCarriers_NameEveryPayloadFieldInTheIR(t *testing.T) {
 		"nothing and proves nothing about the ones encodingCarriers names")
 	assert.Empty(t, cmp.Diff(found, listed),
 		"encodingCarriers must name every ir field that carries an ir.Payload, once each "+
-			"(-declared +listed); a new one also has to be walked by checkEncodingKeys")
+			"(-declared +listed); a new one also has to be walked by forEachPayload")
 }
 
 // payloadFields returns "Owner.Field", sorted, for every struct field the IR

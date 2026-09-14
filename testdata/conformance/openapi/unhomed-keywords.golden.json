@@ -1,5 +1,5 @@
 {
-  "irVersion": "0.3.0",
+  "irVersion": "0.4.0",
   "name": "UnhomedKeywords",
   "version": "1.0.0",
   "docs": {},
@@ -233,8 +233,6 @@
         "nullable": false
       },
       "constraints": {
-        "exclusiveMin": false,
-        "exclusiveMax": false,
         "minItems": 3,
         "maxItems": 9,
         "uniqueItems": true
@@ -523,8 +521,6 @@
         "nullable": false
       },
       "constraints": {
-        "exclusiveMin": false,
-        "exclusiveMax": false,
         "minLength": 3,
         "uniqueItems": false
       }

@@ -1,7 +1,10 @@
 package operation
 
 import (
+	"cmp"
 	"context"
+	"maps"
+	"slices"
 	"strconv"
 	"strings"
 
@@ -773,22 +776,36 @@ func lowerResponses(c lowering.Ctx, ts *compile.Types, anchors *schema.AnchorInd
 	var responses []ir.Response
 	var errs []ir.ErrorCase
 	var diags []ir.Diagnostic
+	// Every key read, by the range it resolved to: the map is keyed by the
+	// spelling, so two spellings of one range are two entries here and one
+	// condition in the IR. Collisions are reported after the loop, once per
+	// range, so the report does not depend on which spelling came first.
+	byRange := map[ir.StatusRange][]string{}
 	for code, rr := range resps.All() {
-		r, rptr := resolve.ObjectAt[soa.Response](c.RefScope(), rr, opDeclPtr+ids.Ptr("responses", code))
+		// The key's own entry, kept apart from rptr: a $ref'd response resolves
+		// to its component, and a fault in the operation's map is sited at the
+		// map. Sited at the component it named no operation, and the second
+		// operation to make the same mistake lost its warning to the first,
+		// since the diagnostic stream dedups on full identity.
+		entry := opDeclPtr + ids.Ptr("responses", code)
+		r, rptr := resolve.ObjectAt[soa.Response](c.RefScope(), rr, entry)
 		if r == nil {
 			continue
 		}
 		rng, named := statusRange(code)
 		if !named {
-			diags = append(diags, invalidStatusKeyDiag(c, code, rptr))
+			diags = append(diags, invalidStatusKeyDiag(c, code, entry))
+		} else {
+			byRange[rng] = append(byRange[rng], code)
 		}
 		// An unreadable key always takes the else branch, because statusRange pairs
 		// a false with the zero range and that is no error range. It has to: an
 		// ErrorCase would carry a fault classified from a range nothing derived,
-		// and it holds no naming to record the key under either.
+		// and its Conditions would assert a status the key never named — where
+		// statusConditions lets the success side record no status at all.
 		// TestStatusRange_NamesNoStatus is what pins the pairing.
 		if isErrorRange(rng) {
-			ec, ecDiags := lowerErrorCase(c, ts, anchors, r, rng, rptr)
+			ec, ecDiags := lowerErrorCase(c, ts, anchors, r, code, rng, rptr)
 			diags = append(diags, ecDiags...)
 			errs = append(errs, ec)
 		} else {
@@ -799,11 +816,30 @@ func lowerResponses(c lowering.Ctx, ts *compile.Types, anchors *schema.AnchorInd
 	}
 	def, dptr := resolve.ObjectAt[soa.Response](c.RefScope(), resps.GetDefault(), opDeclPtr+ids.Ptr("responses", defaultResponseKey))
 	if def != nil {
-		ec, ecDiags := lowerErrorCase(c, ts, anchors, def, ir.StatusRange{}, dptr)
+		ec, ecDiags := lowerErrorCase(c, ts, anchors, def, defaultResponseKey, ir.StatusRange{}, dptr)
 		diags = append(diags, ecDiags...)
 		errs = append(errs, ec)
 	}
-	return responses, errs, diags
+	return responses, errs, append(diags, duplicateStatusKeyDiags(c, byRange, opDeclPtr+ids.Ptr("responses"))...)
+}
+
+// duplicateStatusKeyDiags reports each status range more than one responses-map
+// key resolved to, at the map itself. Ranges are visited in order and the keys
+// of each sorted, so the same map reads the same however it was written.
+func duplicateStatusKeyDiags(c lowering.Ctx, byRange map[ir.StatusRange][]string, mapPtr string) []ir.Diagnostic {
+	var diags []ir.Diagnostic
+	ranges := slices.SortedFunc(maps.Keys(byRange), func(a, b ir.StatusRange) int {
+		return cmp.Or(cmp.Compare(a.From, b.From), cmp.Compare(a.To, b.To))
+	})
+	for _, rng := range ranges {
+		keys := byRange[rng]
+		if len(keys) < 2 {
+			continue
+		}
+		slices.Sort(keys)
+		diags = append(diags, duplicateStatusKeyDiag(c, keys, mapPtr))
+	}
+	return diags
 }
 
 // lowerResponse lowers one success response: its naming, status condition,
@@ -812,17 +848,52 @@ func lowerResponses(c lowering.Ctx, ts *compile.Types, anchors *schema.AnchorInd
 // and conds is what that key resolved to, which is nothing at all when it named
 // no status (see statusConditions).
 func lowerResponse(c lowering.Ctx, ts *compile.Types, anchors *schema.AnchorIndex, r *soa.Response, code string, conds ir.ResponseConditions, rptr string) (ir.Response, []ir.Diagnostic) {
-	headers, diags := lowerHeaders(c, ts, anchors, r.GetHeaders(), rptr)
-	payload, payloadDiags := lowerPayload(c, ts, anchors, r.GetContent(), rptr, "response")
-	diags = append(diags, payloadDiags...)
+	parts, diags := lowerResponseParts(c, ts, anchors, r, code, rptr)
 	resp := ir.Response{
-		Name:       responseName(code),
+		Name:       parts.name,
 		Conditions: conds,
-		Payload:    payload,
-		Headers:    headers,
+		Payload:    parts.payload,
+		Headers:    parts.headers,
+		Docs:       parts.docs,
+		Unmodeled:  parts.unmodeled,
 	}
-	resp.Docs.Description = r.GetDescription()
-	return resp, append(diags, preserveResponseExtras(c, &resp.Unmodeled, r, rptr)...)
+	return resp, diags
+}
+
+// responseParts is everything a Response Object lowers to before its status
+// class decides which node carries it: an ir.Response and an ir.ErrorCase are
+// two lowerings of one source object, and this is the half they share.
+type responseParts struct {
+	name      ir.Naming
+	payload   *ir.Payload
+	headers   []ir.Property
+	docs      ir.Docs
+	unmodeled ir.Unmodeled
+}
+
+// lowerResponseParts lowers what a Response Object declares regardless of the
+// status it answers to: its naming, payload (all media types), headers, docs,
+// and any raw links or extensions preserved for later promotion.
+//
+// It is one function for both status classes so that nothing about the lowering
+// can depend on which class reached a declaration first. The payload's naming
+// hint is the live instance: a response $ref'd across operations and mounted
+// once as a success and once as an error interns its body once at its
+// declaration pointer, and where that pointer names no component the hint is
+// whatever fallback the first mount passed — so two fallbacks, "response" here
+// and "error" there, renamed the type on a reordering of two paths. One
+// fallback, passed from one place, cannot.
+func lowerResponseParts(c lowering.Ctx, ts *compile.Types, anchors *schema.AnchorIndex, r *soa.Response, code, rptr string) (responseParts, []ir.Diagnostic) {
+	headers, diags := lowerHeaders(c, ts, anchors, r.GetHeaders(), rptr)
+	payload, payloadDiags := lowerPayload(c, ts, anchors, r.GetContent(), rptr, ids.DeclarationHint(rptr, "response"))
+	diags = append(diags, payloadDiags...)
+	parts := responseParts{
+		name:    responseName(code),
+		payload: payload,
+		headers: headers,
+		docs:    ir.Docs{Description: r.GetDescription()},
+	}
+	return parts, append(diags, preserveResponseExtras(c, &parts.unmodeled, r, rptr)...)
 }
 
 // preserveResponseExtras keeps what a Response Object declares that has no home
@@ -868,96 +939,45 @@ func preserveResponseExtras(c lowering.Ctx, p *ir.Unmodeled, r *soa.Response, rp
 // Source stays empty even for a $ref'd response: §7.2 fills it only "for formats
 // with named outputs", and a components/responses key names a reusable
 // definition rather than this mount of it — the same component reached at two
-// status codes is two responses, told apart by condition. ErrorCase carries no
-// Naming at all and so has no counterpart here, and would be held by the
-// presence rule at once if it gained one, since irverify does not exempt it.
+// status codes is two responses, told apart by condition.
+//
+// The error side names itself through this same function rather than one of its
+// own. ErrorCase.Name is Response.Name (GitHub #422), so a hint derived
+// differently on the two sides would make the spelling depend on the status
+// class — the asymmetry the field was added to end.
+//
+// The key reaches the IR neutralized, not as written: "5XX" becomes "5_xx" and
+// only "default" survives unchanged. Source stays empty because a responses-map
+// key is not a name the document declared for anything — the pairing NamingFor
+// holds is for spellings an author chose. Two keys that neutralize alike are
+// reported where they are read, rather than told apart here.
 func responseName(code string) ir.Naming {
 	return compile.NamingHint(code)
 }
 
-// lowerErrorCase lowers one error response into an ErrorCase, classifying its
-// fault from the status range and lowering its error-model content.
-func lowerErrorCase(c lowering.Ctx, ts *compile.Types, anchors *schema.AnchorIndex, r *soa.Response, rng ir.StatusRange, rptr string) (ir.ErrorCase, []ir.Diagnostic) {
+// lowerErrorCase lowers one error response into an ErrorCase: its naming,
+// status condition, payload (all media types), headers, docs and fault
+// classification, plus any raw links preserved for later promotion.
+//
+// Everything but the condition and the fault is lowerResponseParts' work,
+// because an error response is a response (GitHub #422): the same helper the
+// success side calls, so the two cannot lower a shared declaration two ways.
+//
+// code is the responses-map key it was declared under, which is the only record
+// of how the source spelled a status its range cannot state — "4XX" and
+// "default" both, though only the second reaches the IR unchanged.
+func lowerErrorCase(c lowering.Ctx, ts *compile.Types, anchors *schema.AnchorIndex, r *soa.Response, code string, rng ir.StatusRange, rptr string) (ir.ErrorCase, []ir.Diagnostic) {
+	parts, diags := lowerResponseParts(c, ts, anchors, r, code, rptr)
 	ec := ir.ErrorCase{
+		Name:       parts.name,
 		Conditions: ir.ResponseConditions{StatusCodes: []ir.StatusRange{rng}},
+		Payload:    parts.payload,
+		Headers:    parts.headers,
 		Fault:      faultFor(rng),
+		Docs:       parts.docs,
+		Unmodeled:  parts.unmodeled,
 	}
-	ec.Docs.Description = r.GetDescription()
-	diags := fillErrorType(c, ts, anchors, &ec, r, rptr)
-	diags = append(diags, preserveErrorHeaders(c, &ec, r, rptr)...)
-	return ec, append(diags, preserveResponseExtras(c, &ec.Unmodeled, r, rptr)...)
-}
-
-// preserveErrorHeaders keeps an error response's headers from being dropped:
-// ir.ErrorCase has no Headers field (ir-design §7.2), so when the response
-// declares headers they are kept verbatim under Unmodeled with one info
-// diagnostic, mirroring the success path's structural header lowering.
-func preserveErrorHeaders(c lowering.Ctx, ec *ir.ErrorCase, r *soa.Response, rptr string) []ir.Diagnostic {
-	headers := r.GetHeaders()
-	if headers == nil || headers.Len() == 0 {
-		return nil
-	}
-	kept, diags := schema.PreserveNode(c, &ec.Unmodeled, "openapi:headers",
-		annotation.RawChildNode(r.GetRootNode(), "headers"), ir.ReasonNoIRHome, rptr+ids.Ptr("headers"))
-	if !kept {
-		return diags
-	}
-	return append(diags, c.DiagAt(ir.SeverityInfo, diag.DegradedConstruct, rptr,
-		"error response headers have no ErrorCase home; kept verbatim under Unmodeled"))
-}
-
-// fillErrorType lowers every content entry's schema into the type registry
-// (nothing dropped) and points ErrorCase.Type at the first, then keeps the
-// content map beside it, since ErrorCase.Type holds a single model reference
-// (ir-design §7.2 clarification).
-func fillErrorType(c lowering.Ctx, ts *compile.Types, anchors *schema.AnchorIndex, ec *ir.ErrorCase, r *soa.Response, rptr string) []ir.Diagnostic {
-	content := r.GetContent()
-	if content == nil || content.Len() == 0 {
-		return nil
-	}
-	var diags []ir.Diagnostic
-	first := true
-	for mt, media := range content.All() {
-		ref, refDiags := schema.Ref(c, ts, anchors, schema.TopLevelDepth, media.GetSchema(), rptr+ids.Ptr("content", mt, "schema"), "error")
-		diags = append(diags, refDiags...)
-		if first {
-			ec.Type = ref
-			first = false
-		}
-	}
-	return append(diags, preserveErrorContent(c, ec, r, rptr, content.Len())...)
-}
-
-// preserveErrorContent keeps an error response's content map verbatim under
-// Unmodeled, whatever its arity.
-//
-// ir.ErrorCase holds a TypeRef and no media type at all, so one entry loses the
-// media type it was keyed by just as surely as several lose the entries past the
-// first: an error declared only as application/problem+json reached the IR
-// indistinguishable from one declared as application/json. Only the multi-entry
-// case used to be kept, which made the single-entry loss the quieter of two
-// halves of one gap rather than a different kind of thing (GitHub #39).
-//
-// n is the entry count, and picks which of the two the diagnostic names, so a
-// reader is told what was actually lost rather than a message covering both.
-func preserveErrorContent(c lowering.Ctx, ec *ir.ErrorCase, r *soa.Response, rptr string, n int) []ir.Diagnostic {
-	kept, diags := schema.PreserveNode(c, &ec.Unmodeled, "openapi:content",
-		annotation.RawChildNode(r.GetRootNode(), "content"), ir.ReasonNoIRHome, rptr+ids.Ptr("content"))
-	if kept {
-		diags = append(diags, c.DiagAt(ir.SeverityInfo, diag.DegradedConstruct, rptr,
-			"%s", errorContentMessage(n)))
-	}
-	return diags
-}
-
-// errorContentMessage names which loss the kept content map stands for: entries
-// past the first when there are several, and the sole media type's own key when
-// there is one.
-func errorContentMessage(n int) string {
-	if n > 1 {
-		return "error response has multiple media types; full content map kept under Unmodeled"
-	}
-	return "error response media type has no ErrorCase home; content map kept under Unmodeled"
+	return ec, diags
 }
 
 // lowerCallbacks lowers each callback expression's path-item operations as
@@ -1183,10 +1203,31 @@ func statusConditions(rng ir.StatusRange, ok bool) ir.ResponseConditions {
 // one reachable, since harness.Check returns at the first error diagnostic and
 // FuzzCompile skips an input that produces one, which would put every oracle
 // past this point out of reach of the case that provokes it.
-func invalidStatusKeyDiag(c lowering.Ctx, code, rptr string) ir.Diagnostic {
-	return c.DiagAt(ir.SeverityWarning, diag.InvalidStatusKey, rptr,
+func invalidStatusKeyDiag(c lowering.Ctx, code, entry string) ir.Diagnostic {
+	return c.DiagAt(ir.SeverityWarning, diag.InvalidStatusKey, entry,
 		"response key %q is no status code, no 1XX-5XX range, and not %s; "+
 			"the response is kept with no status condition", code, defaultResponseKey)
+}
+
+// duplicateStatusKeyDiag reports the responses-map keys, sorted, that resolve
+// to one status range.
+//
+// A warning, and every response is kept: no key is wrong on its own, and
+// dropping one would choose a winner on declaration order — the thing every
+// other tie here is written to avoid. What the caller gets told is that these
+// entries answer to one status and cannot be told apart by name or condition,
+// which is otherwise only visible by counting them. Sited at the map and
+// naming all the keys rather than sited at whichever key came second, so the
+// report reads the same from either spelling of the map — a responses map has
+// no order to mean anything by.
+func duplicateStatusKeyDiag(c lowering.Ctx, keys []string, mapPtr string) ir.Diagnostic {
+	quoted := make([]string, len(keys))
+	for i, k := range keys {
+		quoted[i] = strconv.Quote(k)
+	}
+	return c.DiagAt(ir.SeverityWarning, diag.DuplicateStatusKey, mapPtr,
+		"response keys %s name one status range; all are kept, "+
+			"and they reach the IR with the same name and condition", strings.Join(quoted, ", "))
 }
 
 // isErrorRange reports whether a status range denotes an error (>= 400).

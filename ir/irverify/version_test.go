@@ -39,7 +39,11 @@ func TestVerify_IncompatibleIRVersionIsAViolation(t *testing.T) {
 		{"older generation", "0.1.0"},
 		{"newer generation", "99.0.0"},
 		{"not a version", "99.99.99-bogus"},
-		{"whitespace around the current version", " 0.3.0 "},
+		// Spelled relative to IRVersion so it MOVES WITH IT. A literal stops
+		// testing the padding the moment the constant is bumped past it: the
+		// bare version is then rejected for being a prior generation, and the
+		// row passes whether or not whitespace is tolerated.
+		{"whitespace around the current version", " " + ir.IRVersion + " "},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {

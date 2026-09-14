@@ -249,6 +249,26 @@ func respondingDoc(r ir.Response) *ir.Document {
 	return doc
 }
 
+// erroringDoc is respondingDoc's twin, mounting ec where the other mounts a
+// response, so a rule can be asked the same question on both sides of the
+// success/error boundary.
+func erroringDoc(ec ir.ErrorCase) *ir.Document {
+	doc := validDoc()
+	doc.Services = []ir.Service{{
+		ID:   "s/x/S",
+		Name: named("s"),
+		Groups: []ir.OperationGroup{{
+			Name: named("g"),
+			Operations: []ir.Operation{{
+				ID:     "o/x/S/op",
+				Name:   named("op"),
+				Errors: []ir.ErrorCase{ec},
+			}},
+		}},
+	}}
+	return doc
+}
+
 // TestVerify_AbsentNameIsAViolation is the case every content rule was
 // vacuously true of: an entity whose Naming carries nothing in any channel. The
 // empty string is uncased, is a word sequence, and straddles no letter/digit
@@ -318,6 +338,12 @@ func TestVerify_NamelessServerAndResponseAreViolations(t *testing.T) {
 		"server": {server, "doc.Servers[0].Name"},
 		"response": {respondingDoc(ir.Response{Conditions: ok200()}),
 			"doc.Services[0].Groups[0].Operations[0].Responses[0].Name"},
+		// The error twin. ErrorCase.Name is Response.Name (GitHub #422), and the
+		// rule fired on one and not the other only because nothing walked here:
+		// skipping ErrorCase.Name in the reflection walk left the whole suite
+		// green, where skipping Response.Name reddens the row above.
+		"error case": {erroringDoc(ir.ErrorCase{Conditions: ok200()}),
+			"doc.Services[0].Groups[0].Operations[0].Errors[0].Name"},
 	} {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()

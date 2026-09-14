@@ -1,0 +1,325 @@
+{
+  "irVersion": "0.4.0",
+  "name": "AllOfConflictingType",
+  "version": "1.0.0",
+  "docs": {},
+  "services": [
+    {
+      "id": "s/openapi/0",
+      "name": {
+        "source": "AllOfConflictingType",
+        "canonical": "all_of_conflicting_type"
+      },
+      "docs": {},
+      "auth": null,
+      "provenance": {
+        "source": 0
+      }
+    }
+  ],
+  "types": {
+    "t/openapi/components/schemas/Described": {
+      "kind": "model",
+      "id": "t/openapi/components/schemas/Described",
+      "name": {
+        "source": "Described",
+        "canonical": "described"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Described"
+      },
+      "properties": [
+        {
+          "id": "p/openapi/components/schemas/Described/allOf/0/properties/id",
+          "name": {
+            "source": "id",
+            "canonical": "id"
+          },
+          "wireName": "id",
+          "type": {
+            "target": "t/prim/integer",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "default": {
+            "kind": "number",
+            "num": "1",
+            "bytes": null,
+            "list": null,
+            "object": null
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "examples": [
+            {
+              "value": {
+                "kind": "number",
+                "num": "1",
+                "bytes": null,
+                "list": null,
+                "object": null
+              }
+            }
+          ],
+          "docs": {
+            "description": "first"
+          },
+          "unmodeled": {
+            "openapi:conflicting-redeclaration/components/schemas/Described/allOf/1/properties/id": {
+              "reason": "degraded_lowering",
+              "value": {
+                "default": 2,
+                "description": "second",
+                "example": 2,
+                "type": "integer"
+              },
+              "provenance": {
+                "source": 0,
+                "pointer": "/components/schemas/Described/allOf/1/properties/id"
+              }
+            }
+          },
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/Described/allOf/0/properties/id"
+          }
+        }
+      ],
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
+    "t/openapi/components/schemas/Identified": {
+      "kind": "model",
+      "id": "t/openapi/components/schemas/Identified",
+      "name": {
+        "source": "Identified",
+        "canonical": "identified"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Identified"
+      },
+      "properties": [
+        {
+          "id": "p/openapi/components/schemas/Identified/allOf/0/properties/id",
+          "name": {
+            "source": "id",
+            "canonical": "id"
+          },
+          "wireName": "id",
+          "type": {
+            "target": "t/prim/integer",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "unmodeled": {
+            "openapi:conflicting-redeclaration/components/schemas/Identified/allOf/1/properties/id": {
+              "reason": "degraded_lowering",
+              "value": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "provenance": {
+                "source": 0,
+                "pointer": "/components/schemas/Identified/allOf/1/properties/id"
+              }
+            }
+          },
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/Identified/allOf/0/properties/id"
+          }
+        }
+      ],
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
+    "t/openapi/components/schemas/Repository": {
+      "kind": "model",
+      "id": "t/openapi/components/schemas/Repository",
+      "name": {
+        "source": "Repository",
+        "canonical": "repository"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Repository"
+      },
+      "properties": [
+        {
+          "id": "p/openapi/components/schemas/Repository/allOf/0/properties/clone_url",
+          "name": {
+            "source": "clone_url",
+            "canonical": "clone_url"
+          },
+          "wireName": "clone_url",
+          "type": {
+            "target": "t/prim/url",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "unmodeled": {
+            "openapi:conflicting-redeclaration/components/schemas/Repository/allOf/1/properties/clone_url": {
+              "reason": "degraded_lowering",
+              "value": {
+                "type": "string"
+              },
+              "provenance": {
+                "source": 0,
+                "pointer": "/components/schemas/Repository/allOf/1/properties/clone_url"
+              }
+            }
+          },
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/Repository/allOf/0/properties/clone_url"
+          }
+        }
+      ],
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
+    "t/prim/integer": {
+      "kind": "primitive",
+      "id": "t/prim/integer",
+      "name": {},
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0
+      },
+      "prim": "integer"
+    },
+    "t/prim/string": {
+      "kind": "primitive",
+      "id": "t/prim/string",
+      "name": {},
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0
+      },
+      "prim": "string"
+    },
+    "t/prim/url": {
+      "kind": "primitive",
+      "id": "t/prim/url",
+      "name": {},
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0
+      },
+      "prim": "url"
+    }
+  },
+  "servers": [
+    {
+      "name": {
+        "hint": "server"
+      },
+      "urlTemplate": "/",
+      "description": {},
+      "auth": null
+    }
+  ],
+  "diagnostics": [
+    {
+      "severity": "warning",
+      "code": "openapi/conflicting-redeclaration",
+      "message": "declarations of field \"clone_url\" disagree: incompatible types t/prim/url and t/prim/string; kept the first declaration (/components/schemas/Repository/allOf/0/properties/clone_url) over the redeclaration (/components/schemas/Repository/allOf/1/properties/clone_url), which is kept verbatim under Unmodeled",
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Repository/allOf/1/properties/clone_url"
+      }
+    },
+    {
+      "severity": "warning",
+      "code": "openapi/conflicting-redeclaration",
+      "message": "declarations of field \"id\" disagree: incompatible types t/prim/integer and t/prim/string; kept the first declaration (/components/schemas/Identified/allOf/0/properties/id) over the redeclaration (/components/schemas/Identified/allOf/1/properties/id), which is kept verbatim under Unmodeled",
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Identified/allOf/1/properties/id"
+      }
+    },
+    {
+      "severity": "info",
+      "code": "openapi/degraded-construct",
+      "message": "declarations of field \"id\" give its description differently; kept the first declaration, with the redeclaration verbatim under Unmodeled",
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Described/allOf/1/properties/id"
+      }
+    },
+    {
+      "severity": "info",
+      "code": "openapi/degraded-construct",
+      "message": "declarations of field \"id\" give its default differently; kept the first declaration, with the redeclaration verbatim under Unmodeled",
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Described/allOf/1/properties/id"
+      }
+    },
+    {
+      "severity": "info",
+      "code": "openapi/degraded-construct",
+      "message": "declarations of field \"id\" give its examples differently; kept the first declaration, with the redeclaration verbatim under Unmodeled",
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Described/allOf/1/properties/id"
+      }
+    }
+  ],
+  "sources": [
+    {
+      "format": "openapi@3.1",
+      "path": "allof-conflicting-type.yaml",
+      "hash": "6787a5cb05f2da027cab0cde21f7e6ff5d467f7e0bdb132bf61355212e20f0e5"
+    }
+  ]
+}

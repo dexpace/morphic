@@ -1,5 +1,5 @@
 {
-  "irVersion": "0.3.0",
+  "irVersion": "0.4.0",
   "name": "ExtensionPromotion",
   "version": "1.0.0",
   "docs": {},
@@ -28,8 +28,49 @@
               "deprecation": {
                 "message": "use getY instead",
                 "since": "1.2.0",
-                "removalVersion": "2.0.0"
+                "removalDate": "2026-08-01"
               },
+              "params": [
+                {
+                  "name": {
+                    "source": "legacy",
+                    "canonical": "legacy"
+                  },
+                  "type": {
+                    "target": "t/prim/string",
+                    "nullable": false
+                  },
+                  "required": false,
+                  "docs": {},
+                  "deprecation": {
+                    "message": "use filter instead",
+                    "removalDate": "2027-01-15"
+                  },
+                  "unmodeled": {
+                    "openapi:x-deprecated-reason": {
+                      "reason": "vendor_extension",
+                      "value": "use filter instead",
+                      "provenance": {
+                        "source": 0,
+                        "pointer": "/paths/~1x/get/parameters/0/x-deprecated-reason"
+                      }
+                    },
+                    "openapi:x-sunset": {
+                      "reason": "vendor_extension",
+                      "value": "2027-01-15",
+                      "provenance": {
+                        "source": 0,
+                        "pointer": "/paths/~1x/get/parameters/0/x-sunset"
+                      }
+                    }
+                  },
+                  "provenance": {
+                    "source": 0,
+                    "pointer": "/paths/~1x/get/parameters/0",
+                    "inferred": "extension-promotion"
+                  }
+                }
+              ],
               "responses": [
                 {
                   "name": {
@@ -100,6 +141,16 @@
                     "method": "GET",
                     "uriTemplate": "/x",
                     "sharedRoute": false,
+                    "paramBindings": [
+                      {
+                        "param": "legacy",
+                        "location": "query",
+                        "wireName": "legacy",
+                        "style": "form",
+                        "explode": true,
+                        "allowReserved": false
+                      }
+                    ],
                     "checksumRequired": false,
                     "isWebhook": false
                   }
@@ -124,7 +175,7 @@
                 },
                 "openapi:x-sunset": {
                   "reason": "vendor_extension",
-                  "value": "2.0.0",
+                  "value": "2026-08-01",
                   "provenance": {
                     "source": 0,
                     "pointer": "/paths/~1x/get/x-sunset"
@@ -201,6 +252,54 @@
     }
   ],
   "types": {
+    "t/openapi/components/schemas/Fixed": {
+      "kind": "enum",
+      "id": "t/openapi/components/schemas/Fixed",
+      "name": {
+        "source": "Fixed",
+        "canonical": "fixed"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Fixed"
+      },
+      "valueType": "string",
+      "members": [
+        {
+          "name": {
+            "source": "one",
+            "canonical": "one"
+          },
+          "value": {
+            "kind": "string",
+            "str": "one",
+            "bytes": null,
+            "list": null,
+            "object": null
+          },
+          "docs": {}
+        },
+        {
+          "name": {
+            "source": "two",
+            "canonical": "two"
+          },
+          "value": {
+            "kind": "string",
+            "str": "two",
+            "bytes": null,
+            "list": null,
+            "object": null
+          },
+          "docs": {}
+        }
+      ],
+      "closed": true,
+      "flags": false
+    },
     "t/openapi/components/schemas/Old": {
       "kind": "model",
       "id": "t/openapi/components/schemas/Old",
@@ -314,6 +413,126 @@
       "positional": false,
       "inputOnly": false
     },
+    "t/openapi/components/schemas/Shade": {
+      "kind": "enum",
+      "id": "t/openapi/components/schemas/Shade",
+      "name": {
+        "source": "Shade",
+        "canonical": "shade"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "unmodeled": {
+        "openapi:x-extensible-enum": {
+          "reason": "vendor_extension",
+          "value": false,
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/Shade/x-extensible-enum"
+          }
+        }
+      },
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Shade"
+      },
+      "valueType": "string",
+      "members": [
+        {
+          "name": {
+            "source": "light",
+            "canonical": "light"
+          },
+          "value": {
+            "kind": "string",
+            "str": "light",
+            "bytes": null,
+            "list": null,
+            "object": null
+          },
+          "docs": {}
+        },
+        {
+          "name": {
+            "source": "dark",
+            "canonical": "dark"
+          },
+          "value": {
+            "kind": "string",
+            "str": "dark",
+            "bytes": null,
+            "list": null,
+            "object": null
+          },
+          "docs": {}
+        }
+      ],
+      "closed": true,
+      "flags": false
+    },
+    "t/openapi/components/schemas/Size": {
+      "kind": "enum",
+      "id": "t/openapi/components/schemas/Size",
+      "name": {
+        "source": "Size",
+        "canonical": "size"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "unmodeled": {
+        "openapi:x-extensible-enum": {
+          "reason": "vendor_extension",
+          "value": [
+            "small",
+            "large"
+          ],
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/Size/x-extensible-enum"
+          }
+        }
+      },
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Size",
+        "inferred": "extension-promotion"
+      },
+      "valueType": "string",
+      "members": [
+        {
+          "name": {
+            "source": "small",
+            "canonical": "small"
+          },
+          "value": {
+            "kind": "string",
+            "str": "small",
+            "bytes": null,
+            "list": null,
+            "object": null
+          },
+          "docs": {}
+        },
+        {
+          "name": {
+            "source": "large",
+            "canonical": "large"
+          },
+          "value": {
+            "kind": "string",
+            "str": "large",
+            "bytes": null,
+            "list": null,
+            "object": null
+          },
+          "docs": {}
+        }
+      ],
+      "closed": false,
+      "flags": false
+    },
     "t/prim/string": {
       "kind": "primitive",
       "id": "t/prim/string",
@@ -383,7 +602,7 @@
     {
       "format": "openapi@3.1",
       "path": "extension-promotion.yaml",
-      "hash": "1bade65b585c75be141198f5312404923b56b7fbcf36105d20f13e26da63c52f"
+      "hash": "d6cc084d89a9e2626e827271c565b828da3241cbf77c658fd57868a02954ff19"
     }
   ]
 }

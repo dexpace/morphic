@@ -148,23 +148,6 @@ func TestDialectAt_KeepsEachKeywordOutOfScope(t *testing.T) {
 		"and the hoist gate agrees a node is needed to hold them")
 }
 
-// TestNoIRHomeAt_ContentSchemaIsKeptNotExcluded pins the reason split the other
-// way: contentSchema is real data shape with no field yet, a gap expected to
-// close, so it must not be filed as a deliberate exclusion.
-func TestNoIRHomeAt_ContentSchemaIsKeptNotExcluded(t *testing.T) {
-	t.Parallel()
-	s := schemaFromYAML(t, "type: string\ncontentSchema: {type: object}\n")
-
-	got, diags := noIRHomeAt(s, "/components/schemas/S", 0)
-
-	entry, ok := got["openapi:contentSchema"]
-	require.True(t, ok)
-	assert.JSONEq(t, `{"type":"object"}`, string(entry.Value))
-	assert.Equal(t, ir.ReasonNoIRHome, entry.Reason)
-	require.Len(t, diags, 1)
-	assert.Equal(t, "/components/schemas/S/contentSchema", diags[0].Provenance.Pointer)
-}
-
 // schemaFromYAML unmarshals body as a bare schema through the same marshaller
 // the compiler's loader parses documents with, so the raw nodes the verbatim
 // readers read off are present. A schema built in Go carries none, which
@@ -178,26 +161,6 @@ func schemaFromYAML(t *testing.T, body string) *oas3.Schema {
 	s := js.GetSchema()
 	require.NotNil(t, s, "the fixture is a schema, not a bare boolean")
 	return s
-}
-
-// TestNoIRHomeAt_ModelSetWithoutRawSourceRecordsNothing pins the guard between
-// the model and the raw tree. contentSchema is kept verbatim, so it is read off
-// the source node rather than the parsed model — and a schema built in memory,
-// or one whose value cannot be converted to JSON, has a model field set with no
-// bytes behind it. Recording an entry there would announce a preservation with
-// nothing preserved, so the collector reports nothing instead.
-func TestNoIRHomeAt_ModelSetWithoutRawSourceRecordsNothing(t *testing.T) {
-	t.Parallel()
-	inner := oas3.NewJSONSchemaFromSchema[oas3.Referenceable](
-		&oas3.Schema{Type: oas3.NewTypeFromString(oas3.SchemaTypeObject)})
-	s := &oas3.Schema{ContentSchema: inner}
-	require.NotNil(t, s.GetContentSchema(), "the model reports the keyword as set")
-	require.Nil(t, RawPropertyNode(s, "contentSchema"), "and no raw node backs it")
-
-	got, diags := noIRHomeAt(s, "/components/schemas/A", 0)
-
-	assert.Nil(t, got, "no entry is recorded when there are no bytes to record")
-	assert.Empty(t, diags, "and nothing is announced, so the two channels agree")
 }
 
 // TestKind_String covers both named values and the default case, so an
