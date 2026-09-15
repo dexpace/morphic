@@ -47,6 +47,16 @@ type Result struct {
 
 // Engine orchestrates the detect → compiler → passes pipeline over a registry
 // of compilers.
+//
+// An Engine is safe for concurrent use by multiple goroutines, and concurrent
+// runs over one spec yield identical documents rather than merely uncorrupted
+// ones. NewWith finishes writing the registry before the Engine exists and Run
+// only reads it; Run keeps nothing between calls. The rest of the guarantee is
+// compilers.Compiler's purity requirement — a compiler holding package-level
+// mutable state would break it, which is why that requirement is part of the
+// contract and not advice. TestEngine_ConcurrentRunSharesOneEngine pins both
+// properties: the second on every run, the first only under -race, which the
+// gate's coverage step passes.
 type Engine struct {
 	registry *compilers.Registry
 }
@@ -99,6 +109,10 @@ func NewWith(fronts ...compilers.Compiler) (*Engine, error) {
 // Result, a source no compiler can lower included. A caller that treats a Go
 // error as "the pipeline was invoked wrongly" therefore stays correct, which is
 // what lets the CLI keep its usage exit code for actual misuse.
+//
+// Calls on one Engine may overlap. They share only the read-only registry, and
+// each call owns the document it returns — which is what makes appending the
+// validate pass's diagnostics into that document safe.
 func (e *Engine) Run(ctx context.Context, specPath string, opts RunOptions) (*Result, error) {
 	// Ahead of the read, because an engine that never went through a constructor
 	// is the caller's mistake whatever the path turns out to say, and reporting
