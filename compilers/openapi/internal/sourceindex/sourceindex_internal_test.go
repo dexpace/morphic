@@ -33,6 +33,8 @@ func TestBuild_EmptyDocumentIndexesNothing(t *testing.T) {
 			assert.False(t, idx.Truncated(), "nothing to index is fully indexed")
 			_, found := idx.AnchorCycle()
 			assert.False(t, found)
+			_, found = idx.TaggedMapping()
+			assert.False(t, found)
 		})
 	}
 }
@@ -262,4 +264,96 @@ func TestBuild_IsAFunctionOfTheTreeAlone(t *testing.T) {
 	secondCycle, secondFound := second.AnchorCycle()
 	assert.Equal(t, firstFound, secondFound)
 	assert.Same(t, firstCycle, secondCycle)
+
+	firstTagged, firstTaggedFound := first.TaggedMapping()
+	secondTagged, secondTaggedFound := second.TaggedMapping()
+	assert.Equal(t, firstTaggedFound, secondTaggedFound)
+	assert.Same(t, firstTagged, secondTagged)
+}
+
+// TestTaggedMapping_LocalTagIsFound pins the shape that faults the parser: a
+// mapping carrying a tag other than the one YAML resolves a mapping to. The
+// node reported is the mapping itself, where the author wrote the tag.
+func TestTaggedMapping_LocalTagIsFound(t *testing.T) {
+	t.Parallel()
+	root := decode(t, "a:\n  b: !content:\n    c: 1\n")
+	want := root.Content[0].Content[1].Content[1]
+	require.Equal(t, "!content:", want.Tag, "the fixture's tag lands where this test reads it")
+
+	got, found := Build(root, MaxIndexedNodes).TaggedMapping()
+	require.True(t, found)
+	assert.Same(t, want, got)
+}
+
+// TestTaggedMapping_AnyTagButMapIsOne pins the predicate as the parser's own:
+// the tag must be exactly "!!map", so a standard tag naming another type, and
+// the empty tag of a node assembled rather than parsed, are both reported. A
+// parse never leaves a mapping's tag empty, so only the first is reachable
+// from source; the second keeps the answer honest for a caller that builds
+// nodes. The root case is the one mapping the walk starts at rather than
+// descends to, and it is not exempt.
+func TestTaggedMapping_AnyTagButMapIsOne(t *testing.T) {
+	t.Parallel()
+	for name, root := range map[string]*yaml.Node{
+		"!!str":       decode(t, "a: !!str {b: 1}\n"),
+		"!!set":       decode(t, "a: !!set {b: 1}\n"),
+		"at the root": decode(t, "--- !x\na: 1\n"),
+		"assembled":   ynode.Map(ynode.Scalar("a"), ynode.Scalar("1")),
+	} {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			_, found := Build(root, MaxIndexedNodes).TaggedMapping()
+			assert.True(t, found)
+		})
+	}
+}
+
+// TestTaggedMapping_OnlyAMappingCounts is the control. A tag on a scalar or a
+// sequence is a different question — the parser degrades those to a finding
+// rather than faulting — and a mapping spelled with the map tag in any of its
+// forms is what every ordinary document is made of.
+func TestTaggedMapping_OnlyAMappingCounts(t *testing.T) {
+	t.Parallel()
+	for name, src := range map[string]string{
+		"untagged":          "a: {b: 1}\n",
+		"explicit !!map":    "a: !!map {b: 1}\n",
+		"non-specific !":    "a: ! {b: 1}\n",
+		"verbatim map tag":  "a: !<tag:yaml.org,2002:map> {b: 1}\n",
+		"tagged scalar":     "a: !x b\n",
+		"tagged sequence":   "a: !x [1, 2]\n",
+		"timestamp scalar":  "a: 2001-12-14\n",
+		"tagged null value": "a: !!null\n",
+	} {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			_, found := Build(decode(t, src), MaxIndexedNodes).TaggedMapping()
+			assert.False(t, found)
+		})
+	}
+}
+
+// TestTaggedMapping_FirstInDocumentOrderWins pins which of several is reported,
+// for the same reason AnchorCycle pins it: the diagnostic must depend on the
+// document, not on the walk.
+func TestTaggedMapping_FirstInDocumentOrderWins(t *testing.T) {
+	t.Parallel()
+	root := decode(t, "a: !x {b: 1}\nc: !y {d: 2}\n")
+	first := root.Content[0].Content[1]
+
+	got, found := Build(root, MaxIndexedNodes).TaggedMapping()
+	require.True(t, found)
+	assert.Same(t, first, got, "the earlier mapping is the one reported")
+}
+
+// TestTaggedMapping_IsFoundThroughAnAnchor pins that an alias to a tagged
+// mapping needs no handling of its own: the walk reaches the anchored node
+// where it is declared, and that is the node reported.
+func TestTaggedMapping_IsFoundThroughAnAnchor(t *testing.T) {
+	t.Parallel()
+	root := decode(t, "a: &x !t {b: 1}\nc: *x\n")
+	anchored := root.Content[0].Content[1]
+
+	got, found := Build(root, MaxIndexedNodes).TaggedMapping()
+	require.True(t, found)
+	assert.Same(t, anchored, got)
 }
