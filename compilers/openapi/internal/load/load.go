@@ -213,14 +213,19 @@ func defaultIndex(root *yaml.Node) sourceindex.Index {
 }
 
 // refusals indexes a decoded tree once and reports the pre-parse refusals over
-// it: the degenerate reference and alias structures scan finds, or — when the
-// document is too large to index in full — a refusal of its own.
+// it: the degenerate reference and alias structures scan finds, a mapping
+// carrying a tag the parser faults on, or — when the document is too large to
+// index in full — a refusal of its own.
 //
 // The size refusal is here rather than in scan because every answer in a
 // truncated index is a partial one, and the alias-expansion allowance derived
 // from a partial node count would refuse documents on a bound they never
 // crossed. A document that large is beyond what the pre-parse guarantees cover,
 // so it is refused rather than lowered on incomplete information.
+//
+// The tag refusal is here because it is read straight off the index; what it
+// guards is stated on diag.TaggedMapping. It is reported alongside a cycle
+// rather than instead of one, so a document with both hears about both.
 func refusals(srcIndex int, root *yaml.Node, opts Options) []ir.Diagnostic {
 	build := opts.buildIndex
 	if build == nil {
@@ -234,7 +239,21 @@ func refusals(srcIndex int, root *yaml.Node, opts Options) []ir.Diagnostic {
 			"source document exceeds the %d-node bound the pre-parse scan indexes",
 			sourceindex.MaxIndexedNodes)}
 	}
-	return scan.Cycles(srcIndex, idx)
+
+	diags := scan.Cycles(srcIndex, idx)
+	if n, ok := idx.TaggedMapping(); ok {
+		diags = append(diags, taggedMappingRefusal(srcIndex, n))
+	}
+	return diags
+}
+
+// taggedMappingRefusal builds the diag.TaggedMapping refusal, anchored at the
+// mapping's line:col the way the cycle refusals are anchored.
+func taggedMappingRefusal(srcIndex int, n *yaml.Node) ir.Diagnostic {
+	return diag.Newf(ir.SeverityError, diag.TaggedMapping,
+		ir.Provenance{Source: srcIndex, Pointer: fmt.Sprintf("%d:%d", n.Line, n.Column)},
+		"mapping is tagged %q; an OpenAPI document limits YAML tags to YAML 1.2's JSON schema ruleset, which tags a mapping %s",
+		n.Tag, sourceindex.MapTag)
 }
 
 // patch applies the caller's overlay to the decoded tree, or does nothing when
@@ -506,6 +525,15 @@ func decode(data []byte) (*yaml.Node, error) {
 // compiler upholds the no-panics-escape invariant instead of crashing the
 // caller's process. The named returns are reset in the recover so a
 // partially-assigned document never leaks.
+//
+// The recover reaches only this goroutine: the model's entry point, populating
+// it from the core, and validating it — where the whitespace fault is raised.
+// The parser fans a model's fields out over an errgroup, so a fault while
+// building one of them — a tagged mapping at a reference position, before the
+// pre-parse refusals learned to catch it (GitHub #474) — is raised on a
+// goroutine the parser owns, and ends the process. Nothing here can change
+// that: recover is per goroutine and the parser exposes no hook. A shape known
+// to fault there is refused before the tree is handed over (see refusals).
 func unmarshal(ctx context.Context, data []byte, root *yaml.Node) (doc *soa.OpenAPI, valErrs []error, err error) {
 	defer func() {
 		if r := recover(); r != nil {

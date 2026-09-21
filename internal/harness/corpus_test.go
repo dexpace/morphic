@@ -78,6 +78,13 @@ import (
 //     memory inside soa.Unmarshal before ResolveAllReferences ever runs
 //     (GitHub #27). The pre-parse scan measures the alias-expanded node count
 //     and refuses it outright.
+//   - tagged_mapping_request_body.yaml: a request body written as a mapping
+//     carrying a local YAML tag (`!content:`). The parser builds a request body
+//     through a reference, and on a mapping whose tag is not !!map it leaves
+//     the model unbuilt and nil-dereferences it — on a goroutine of its own,
+//     where the loader's recover cannot reach — so the pre-parse scan refuses
+//     the tag before the parser sees it (GitHub #474). Before that refusal this
+//     fixture killed the sweep's process rather than producing a result.
 //   - dangling/openapi/f04, f05, f06, f08, f09, f13: discriminator mappings whose
 //     target is undeclared, external, or a sub-schema, dropped with an
 //     unresolved-ref error rather than written as a dangling TypeID (GitHub #14).
@@ -127,6 +134,7 @@ func knownInvalid() map[string]bool {
 		filepath.FromSlash("../../testdata/openapi/cycle_path_item_empty_segment.yaml"):        true,
 		filepath.FromSlash("../../testdata/openapi/cycle_pointer_whitespace_self.yaml"):        true,
 		filepath.FromSlash("../../testdata/openapi/amplification_alias_bomb.yaml"):             true,
+		filepath.FromSlash("../../testdata/openapi/tagged_mapping_request_body.yaml"):          true,
 		filepath.FromSlash("../../testdata/dangling/openapi/f04-composition.yaml"):             true,
 		filepath.FromSlash("../../testdata/dangling/openapi/f05-discriminator.yaml"):           true,
 		filepath.FromSlash("../../testdata/dangling/openapi/f06-discriminator.yaml"):           true,

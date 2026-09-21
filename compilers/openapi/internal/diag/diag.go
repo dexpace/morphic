@@ -46,6 +46,21 @@ const (
 	// alias-expansion allowance is derived from, so the document is refused rather
 	// than scanned against a bound computed from a count that stopped early.
 	SourceTooLarge = "openapi/source-too-large"
+	// TaggedMapping reports a mapping carrying a YAML tag other than !!map — a
+	// local `!content:`, or a standard tag naming another type — which OpenAPI
+	// forbids: its YAML form limits tags to YAML 1.2's JSON schema ruleset, the
+	// one that round-trips to JSON. The parser degrades one at a plain object
+	// position to a type-mismatch finding, and at a path item or a callback,
+	// whose models embed a map, drops the tag without a word; but at a reference
+	// position whose model is a struct — a request body, a response, a
+	// parameter, a header, an example, a link, a security scheme — it leaves the
+	// model unbuilt and dereferences it, on a goroutine of its own that no
+	// recover in this compiler reaches (GitHub #474). The document is refused
+	// before the parser sees it, at every position rather than only the faulting
+	// ones: telling them apart means maintaining a copy of the parser's object
+	// model, and each place the copy drifted would be a crash again. A tagged
+	// scalar is a different question (GitHub #245) and not refused here.
+	TaggedMapping = "openapi/tagged-mapping"
 	// UndecodableSource reports a source that declares one of this compiler's
 	// discriminating keys and does not parse as YAML or JSON. It is reported from
 	// detection rather than from the compile, because a document that cannot be
