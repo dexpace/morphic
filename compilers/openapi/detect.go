@@ -863,7 +863,11 @@ func decodeYAML(data []byte) (sniffProbe, error) {
 // documentRoot returns the content node of a decoded stream's first document, or
 // nil for a stream that carried none. Decoding into a yaml.Node yields the
 // document node itself, and only the first: a multi-document stream is read to
-// its first document here exactly as the compiler's own load reads it.
+// its first document here exactly as the compiler's own load reads it — which
+// is also where the documents after it are reported as dropped (GitHub #387);
+// detection routes the source and says nothing about its shape. A stream whose
+// first document is empty is declined here as undecodable, so the document
+// behind it is never reached and its drop never reported.
 func documentRoot(doc *yaml.Node) *yaml.Node {
 	if doc.Kind != yaml.DocumentNode || len(doc.Content) != 1 {
 		return nil
