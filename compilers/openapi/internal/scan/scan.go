@@ -65,6 +65,28 @@ var schemaDataKeys = map[string]bool{
 	"const": true, "enum": true,
 }
 
+// Locator answers where a diagnostic's subject is. Given a node it returns the
+// provenance to report the node at; given nil it returns the source alone, the
+// answer for a finding about the document rather than a position in it.
+//
+// It is a parameter rather than a source index because a node's own line and
+// column are not always the answer: a node an overlay grafted has none, and the
+// caller is the one holding the attribution that can say where it came from
+// (GitHub #476).
+type Locator func(n *yaml.Node) ir.Provenance
+
+// InSource is the Locator for a document nothing has patched: srcIndex, and the
+// node's own line and column when there is a node.
+func InSource(srcIndex int) Locator {
+	return func(n *yaml.Node) ir.Provenance {
+		prov := ir.Provenance{Source: srcIndex}
+		if n != nil {
+			prov.Pointer = fmt.Sprintf("%d:%d", n.Line, n.Column)
+		}
+		return prov
+	}
+}
+
 // Cycles scans an indexed source tree for degenerate reference structures that
 // would otherwise crash, hang or exhaust memory in the third-party parser and
 // resolver (GitHub #12, GitHub #27, speakeasy-api/openapi#231), before
@@ -85,9 +107,9 @@ var schemaDataKeys = map[string]bool{
 // Only the decode that produced the tree bounds alias expansion inside the
 // parser: the yaml.v3 alias budget is spent per Decode, so a tree that reached
 // here without one has already escaped it and nothing here can re-run it.
-func Cycles(srcIndex int, idx sourceindex.Index) []ir.Diagnostic {
-	return recoverCycleScan(srcIndex, func() []ir.Diagnostic {
-		return scanIndex(srcIndex, idx)
+func Cycles(locate Locator, idx sourceindex.Index) []ir.Diagnostic {
+	return recoverCycleScan(locate, func() []ir.Diagnostic {
+		return scanIndex(locate, idx)
 	})
 }
 
@@ -96,11 +118,11 @@ func Cycles(srcIndex int, idx sourceindex.Index) []ir.Diagnostic {
 // the detector must not crash the compiler on a degenerate spec (GitHub #12).
 // The compile still proceeds to the parser; only the pre-parse guarantee is
 // flagged incomplete for this source.
-func recoverCycleScan(srcIndex int, scan func() []ir.Diagnostic) (diags []ir.Diagnostic) {
+func recoverCycleScan(locate Locator, scan func() []ir.Diagnostic) (diags []ir.Diagnostic) {
 	defer func() {
 		if r := recover(); r != nil {
 			diags = []ir.Diagnostic{diag.Newf(ir.SeverityWarning, diag.CycleScanFailed,
-				ir.Provenance{Source: srcIndex},
+				locate(nil),
 				"cycle pre-scan aborted (%v); reference-cycle protection is incomplete for this source", r)}
 		}
 	}()
@@ -111,9 +133,9 @@ func recoverCycleScan(srcIndex int, scan func() []ir.Diagnostic) (diags []ir.Dia
 // The index's root is nil for a source with no document in it; the ref walk and
 // the weigher both treat that as "nothing to scan", so no explicit nil guard is
 // needed here.
-func scanIndex(srcIndex int, idx sourceindex.Index) []ir.Diagnostic {
+func scanIndex(locate Locator, idx sourceindex.Index) []ir.Diagnostic {
 	if alias, ok := idx.AnchorCycle(); ok {
-		return []ir.Diagnostic{cyclicDiag(srcIndex, alias,
+		return []ir.Diagnostic{cyclicDiag(locate, alias,
 			"recursive YAML anchor %q references an ancestor node", anchorName(alias))}
 	}
 
@@ -121,7 +143,7 @@ func scanIndex(srcIndex int, idx sourceindex.Index) []ir.Diagnostic {
 	// expandedWeight infinite, and having already refused those is what makes
 	// the alias graph a DAG and the weigh walk below provably terminating.
 	root := idx.Root()
-	diags := refCycles(srcIndex, root)
+	diags := refCycles(locate, root)
 	if diag.HasError(diags) {
 		return diags
 	}
@@ -132,7 +154,7 @@ func scanIndex(srcIndex int, idx sourceindex.Index) []ir.Diagnostic {
 	// Appending (rather than replacing) preserves any diag.CycleScanFailed
 	// warning refCycles already produced, so a document that both truncates a
 	// merge chain and amplifies reports both findings.
-	if d, ok := aliasAmplification(srcIndex, root, idx.Nodes()); ok {
+	if d, ok := aliasAmplification(locate, root, idx.Nodes()); ok {
 		return append(diags, d)
 	}
 	return diags
@@ -159,21 +181,21 @@ func anchorName(alias *yaml.Node) string {
 // warning instead of a clean nil: truncation only ever drops pairs, so a cycle
 // found despite it is still real, but a clean result only means "no cycle found
 // in what could be expanded."
-func refCycles(srcIndex int, root *yaml.Node) []ir.Diagnostic {
+func refCycles(locate Locator, root *yaml.Node) []ir.Diagnostic {
 	s := newRefScan()
 	s.collect(root)
 	for _, start := range s.out {
 		if verdict, _ := s.followRefChain(root, start); verdict == chainCycles {
-			return []ir.Diagnostic{cyclicDiag(srcIndex, start,
+			return []ir.Diagnostic{cyclicDiag(locate, start,
 				"cyclic $ref: reference chain never reaches a node without a $ref")}
 		}
 	}
-	if d, found := s.outsideCycle(srcIndex, root); found {
+	if d, found := s.outsideCycle(locate, root); found {
 		return []ir.Diagnostic{d}
 	}
 	if s.view.Exhausted() {
 		return []ir.Diagnostic{diag.Newf(ir.SeverityWarning, diag.CycleScanFailed,
-			ir.Provenance{Source: srcIndex},
+			locate(nil),
 			"cycle pre-scan stopped at its %d-level merge-key expansion bound; "+
 				"reference-cycle protection is incomplete for this source",
 			nodeview.MergeDepthLimit)}
@@ -200,15 +222,15 @@ func refCycles(srcIndex int, root *yaml.Node) []ir.Diagnostic {
 // the process deadlocks before the tracker is consulted. Nothing upstream can
 // report that, and the components spelling deadlocks exactly like the
 // document-position one, so chainReenters is refused whatever it names.
-func (s *refScan) outsideCycle(srcIndex int, root *yaml.Node) (ir.Diagnostic, bool) {
+func (s *refScan) outsideCycle(locate Locator, root *yaml.Node) (ir.Diagnostic, bool) {
 	for _, start := range s.outside {
 		verdict, leftComponents := s.followRefChain(root, start)
 		switch {
 		case verdict == chainReenters:
-			return cyclicDiag(srcIndex, start,
+			return cyclicDiag(locate, start,
 				"cyclic $ref: reference resolves through itself"), true
 		case verdict == chainCycles && leftComponents:
-			return cyclicDiag(srcIndex, start,
+			return cyclicDiag(locate, start,
 				"cyclic $ref: reference chain never reaches a node without a $ref"), true
 		}
 	}
@@ -537,14 +559,10 @@ func (s *refScan) markSafe(path []*yaml.Node, memoizable bool) {
 	}
 }
 
-// cyclicDiag builds a diag.CyclicRef error diagnostic anchored at a node's
-// line:col position, matching the provenance convention of the resolve path.
-func cyclicDiag(srcIndex int, n *yaml.Node, format string, args ...any) ir.Diagnostic {
-	prov := ir.Provenance{Source: srcIndex}
-	if n != nil {
-		prov.Pointer = fmt.Sprintf("%d:%d", n.Line, n.Column)
-	}
-	return diag.Newf(ir.SeverityError, diag.CyclicRef, prov, format, args...)
+// cyclicDiag builds a diag.CyclicRef error diagnostic anchored where locate
+// puts the node.
+func cyclicDiag(locate Locator, n *yaml.Node, format string, args ...any) ir.Diagnostic {
+	return diag.Newf(ir.SeverityError, diag.CyclicRef, locate(n), format, args...)
 }
 
 // maxAliasAmplification bounds how many times larger a document's alias-
@@ -606,14 +624,14 @@ const maxAliasSurplus = 1 << 18
 // that is what makes the alias graph a DAG and this walk's termination provable
 // without a cap of its own. See scanIndex for the ordering, and
 // aliasWeigher.pushChildren for the defensive guard kept anyway.
-func aliasAmplification(srcIndex int, root *yaml.Node, raw int64) (ir.Diagnostic, bool) {
+func aliasAmplification(locate Locator, root *yaml.Node, raw int64) (ir.Diagnostic, bool) {
 	allowance := computeAllowance(raw)
 
 	culprit, exceeded := newAliasWeigher(allowance).weigh(root)
 	if !exceeded {
 		return ir.Diagnostic{}, false
 	}
-	return aliasAmplificationDiag(srcIndex, culprit, allowance, raw), true
+	return aliasAmplificationDiag(locate, culprit, allowance, raw), true
 }
 
 // computeAllowance returns the expandedWeight a document with this many raw
@@ -635,18 +653,14 @@ func computeAllowance(raw int64) int64 {
 }
 
 // aliasAmplificationDiag builds a diag.AliasAmplification error diagnostic
-// anchored at the node whose expansion first crossed allowance, following
-// cyclicDiag's line:col provenance convention. The reported node count is a
-// lower bound ("at least"), not the exact expansion: aliasWeigher saturates
-// its arithmetic at the allowance, so the true expansion of a severe bomb
-// (the 10-level x 10-way fixture expands past 37 billion nodes) is never
-// actually computed, only proven to exceed the budget.
-func aliasAmplificationDiag(srcIndex int, n *yaml.Node, allowance, raw int64) ir.Diagnostic {
-	prov := ir.Provenance{Source: srcIndex}
-	if n != nil {
-		prov.Pointer = fmt.Sprintf("%d:%d", n.Line, n.Column)
-	}
-	return diag.Newf(ir.SeverityError, diag.AliasAmplification, prov,
+// anchored where locate puts the node whose expansion first crossed allowance.
+// The reported node count is a lower bound ("at least"), not the exact
+// expansion: aliasWeigher saturates its arithmetic at the allowance, so the
+// true expansion of a severe bomb (the 10-level x 10-way fixture expands past
+// 37 billion nodes) is never actually computed, only proven to exceed the
+// budget.
+func aliasAmplificationDiag(locate Locator, n *yaml.Node, allowance, raw int64) ir.Diagnostic {
+	return diag.Newf(ir.SeverityError, diag.AliasAmplification, locate(n),
 		"YAML alias expansion reaches at least %d nodes, past the %d-node budget for a %d-node document",
 		allowance+1, allowance, raw)
 }

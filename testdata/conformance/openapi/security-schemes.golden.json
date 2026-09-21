@@ -178,7 +178,7 @@
     {
       "severity": "warning",
       "code": "openapi/validation/validation-allowed-values",
-      "message": "[46:21] warning validation-allowed-values securityScheme.bearerFormat is not used for type=apiKey (only valid for type=http)",
+      "message": "securityScheme.bearerFormat is not used for type=apiKey (only valid for type=http)",
       "provenance": {
         "source": 0,
         "pointer": "46:21"

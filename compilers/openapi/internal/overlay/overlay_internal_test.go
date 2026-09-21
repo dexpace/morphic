@@ -64,17 +64,18 @@ func TestAttribute_DegradesWhenOnlyTheSecondWalkRunsOut(t *testing.T) {
 	before, complete := snapshot(&root, maxNodes)
 	require.True(t, complete)
 
-	root.Content[0].Content = append(root.Content[0].Content,
-		&yaml.Node{Kind: yaml.ScalarNode, Value: "b"},
-		&yaml.Node{Kind: yaml.ScalarNode, Value: "2"})
+	key, value := &yaml.Node{Kind: yaml.ScalarNode, Value: "b"}, &yaml.Node{Kind: yaml.ScalarNode, Value: "2"}
+	root.Content[0].Content = append(root.Content[0].Content, key, value)
 
-	_, ok := attribute(&root, before, 2)
+	_, _, ok := attribute(&root, before, 2)
 	assert.False(t, ok, "three nodes do not fit a budget of two")
 
-	pointers, ok := attribute(&root, before, maxNodes)
+	pointers, nodes, ok := attribute(&root, before, maxNodes)
 	require.True(t, ok, "and the same tree fits a real one — the budget is what differed")
 	assert.Equal(t, map[string]bool{"/b": true}, pointers,
 		"which is also the answer the exhausted walk withheld")
+	assert.Equal(t, map[*yaml.Node]string{key: "/b", value: "/b"}, nodes,
+		"and both nodes of the new member sit at that pointer")
 }
 
 // TestSnapshot_RecordsEveryNodeAgainstItsValue pins the record the attribution
@@ -137,9 +138,10 @@ func TestSnapshotAndAttribute_TakeADocumentWithNoRoot(t *testing.T) {
 	require.True(t, complete)
 	assert.Empty(t, before, "no node to record")
 
-	pointers, ok := attribute(root, before, maxNodes)
+	pointers, nodes, ok := attribute(root, before, maxNodes)
 	require.True(t, ok)
 	assert.Empty(t, pointers, "and none to attribute")
+	assert.Empty(t, nodes)
 }
 
 // nodeAt reads the scalar at a path of mapping keys, so a test can assert on the

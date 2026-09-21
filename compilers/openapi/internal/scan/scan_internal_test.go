@@ -250,7 +250,7 @@ func TestDetectCycles_RefShapedDataIsClean(t *testing.T) {
 // document is the only sourceless index the scan can be handed.
 func TestDetectCycles_EmptyDocumentIsNoCycle(t *testing.T) {
 	t.Parallel()
-	assert.Empty(t, Cycles(0, sourceindex.Build(nil, sourceindex.MaxIndexedNodes)))
+	assert.Empty(t, Cycles(InSource(0), sourceindex.Build(nil, sourceindex.MaxIndexedNodes)))
 	assert.Empty(t, scanBytes(t, nil))
 }
 
@@ -258,7 +258,7 @@ func TestDetectCycles_EmptyDocumentIsNoCycle(t *testing.T) {
 // them — what load does around Cycles, with the compile's one decode.
 func scanBytes(t *testing.T, data []byte) []ir.Diagnostic {
 	t.Helper()
-	return Cycles(0, indexOf(t, data))
+	return Cycles(InSource(0), indexOf(t, data))
 }
 
 // indexOf decodes source bytes and indexes the tree. A fixture that does not
@@ -291,7 +291,7 @@ func readReproducer(t *testing.T, file string) []byte {
 
 func TestRecoverCycleScan_PanicYieldsWarning(t *testing.T) {
 	t.Parallel()
-	got := recoverCycleScan(3, func() []ir.Diagnostic {
+	got := recoverCycleScan(InSource(3), func() []ir.Diagnostic {
 		panic("detector bug")
 	})
 	require.Len(t, got, 1, "a panicking scan degrades to one diagnostic")
@@ -303,7 +303,7 @@ func TestRecoverCycleScan_PanicYieldsWarning(t *testing.T) {
 func TestRecoverCycleScan_PassesThroughResult(t *testing.T) {
 	t.Parallel()
 	want := []ir.Diagnostic{{Code: diag.CyclicRef, Severity: ir.SeverityError}}
-	got := recoverCycleScan(0, func() []ir.Diagnostic {
+	got := recoverCycleScan(InSource(0), func() []ir.Diagnostic {
 		return want
 	})
 	assert.Equal(t, want, got)
@@ -681,7 +681,7 @@ func scanWithin(t *testing.T, src, blowup string) []ir.Diagnostic {
 	idx := indexOf(t, []byte(src))
 	done := make(chan []ir.Diagnostic, 1)
 	go func() {
-		done <- Cycles(0, idx)
+		done <- Cycles(InSource(0), idx)
 	}()
 	select {
 	case diags := <-done:
@@ -798,4 +798,44 @@ func TestDetectCycles_AcceptsATreeWithNoCycle(t *testing.T) {
 	t.Parallel()
 	assert.Empty(t, scanBytes(t, []byte(
 		"openapi: 3.1.0\ncomponents: {schemas: {A: {$ref: '#/components/schemas/B'}, B: {type: string}}}\n")))
+}
+
+// TestInSource_AnchorsANodeAndNamesTheSourceForNone pins the plain locator:
+// a node is reported at its own line and column, and no node at all at the
+// source alone — never at a position fabricated from a nil.
+func TestInSource_AnchorsANodeAndNamesTheSourceForNone(t *testing.T) {
+	t.Parallel()
+	locate := InSource(4)
+
+	assert.Equal(t, ir.Provenance{Source: 4, Pointer: "12:7"},
+		locate(&yaml.Node{Kind: yaml.ScalarNode, Line: 12, Column: 7}))
+	assert.Equal(t, ir.Provenance{Source: 4}, locate(nil))
+}
+
+// TestCycles_AnchorsThroughTheLocator pins that a refusal takes its provenance
+// from the locator it is handed rather than from the node it found. A locator
+// the caller composes over an overlay's attribution is how a refusal on a
+// grafted node — one with no line and column of its own — comes to name the
+// overlay (GitHub #476); a scan that read the node directly would bypass it.
+func TestCycles_AnchorsThroughTheLocator(t *testing.T) {
+	t.Parallel()
+	for name, fixture := range map[string]string{
+		"a $ref cycle":           "cycle_self_ref",
+		"a recursive anchor":     "cycle_yaml_anchor",
+		"an alias amplification": "amplification_alias_bomb",
+	} {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			var seen *yaml.Node
+			locate := func(n *yaml.Node) ir.Provenance {
+				seen = n
+				return ir.Provenance{Source: 9, Pointer: "/somewhere/the/locator/decided"}
+			}
+
+			got := Cycles(locate, indexOf(t, readReproducer(t, fixture)))
+			require.Len(t, got, 1)
+			assert.Equal(t, ir.Provenance{Source: 9, Pointer: "/somewhere/the/locator/decided"}, got[0].Provenance)
+			assert.NotNil(t, seen, "the locator was handed the node the refusal is about")
+		})
+	}
 }

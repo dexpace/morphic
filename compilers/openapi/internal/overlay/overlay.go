@@ -76,6 +76,13 @@ type Origin struct {
 	// Its nil-ness is what Applied reports, so a successful application of an
 	// overlay that changed nothing still yields a non-nil empty map.
 	pointers map[string]bool
+	// nodes holds the same positions keyed by the node that sits at each — the
+	// value the walk attributed, and the key beside it when the overlay
+	// introduced that too. A diagnostic raised on a raw node has the node and
+	// not the pointer; this is what lets it be answered at all, since a grafted
+	// node carries no line and column of its own (the library's clone keeps
+	// neither) and would otherwise be reported at 0:0 in the source.
+	nodes map[*yaml.Node]string
 }
 
 // Applied reports whether an overlay was applied to the document at all.
@@ -98,6 +105,26 @@ func (o Origin) IndexAt(pointer string, fallback int) int {
 		return o.index
 	}
 	return fallback
+}
+
+// At returns the provenance of a node the overlay introduced or rewrote — the
+// overlay's index and the JSON pointer of the position the node sits at, the
+// same answer IndexAt gives the lowering for that pointer — and false for any
+// other node, including nil.
+//
+// It is the answer for a diagnostic anchored on a raw node rather than on a
+// lowered position. Such a diagnostic would otherwise read the node's line and
+// column, and a grafted node has none: the library's clone copies neither, so
+// the finding would name the source at 0:0 (GitHub #476). A node reached only
+// through a grafted alias is not answered, for the reason IndexAt gives — the
+// clone points the alias at a detached copy of its target that no walk over
+// the tree reaches (GitHub #477).
+func (o Origin) At(n *yaml.Node) (ir.Provenance, bool) {
+	pointer, ok := o.nodes[n]
+	if !ok {
+		return ir.Provenance{}, false
+	}
+	return ir.Provenance{Source: o.index, Pointer: pointer}, true
 }
 
 // Apply applies opts to root in place and returns the attribution of what it
@@ -138,15 +165,16 @@ func applyWithin(index int, root *yaml.Node, opts Options, budget int) (Origin, 
 	}
 
 	var pointers map[string]bool
+	var nodes map[*yaml.Node]string
 	ok := false
 	if complete {
-		pointers, ok = attribute(root, before, budget)
+		pointers, nodes, ok = attribute(root, before, budget)
 	}
 	if !ok {
 		return Origin{}, append(diags, diag.Newf(ir.SeverityWarning, diag.OverlayOriginIncomplete, at,
 			"overlay applied, but the document exceeds %d nodes; every position keeps the source as its origin", budget))
 	}
-	return Origin{index: index, source: sourceInfo(doc, opts), pointers: pointers}, diags
+	return Origin{index: index, source: sourceInfo(doc, opts), pointers: pointers, nodes: nodes}, diags
 }
 
 // applyRecovered runs the application under a barrier, converting a panic from
@@ -249,8 +277,9 @@ func snapshot(root *yaml.Node, budget int) (map[*yaml.Node]string, bool) {
 	return before, true
 }
 
-// attribute walks the overlaid tree and collects the pointer of every position
-// the overlay is answerable for, reporting whether it visited the whole tree.
+// attribute walks the overlaid tree and collects every position the overlay is
+// answerable for — as the set of pointers, and as the nodes sitting at them —
+// reporting whether it visited the whole tree.
 //
 // A node the snapshot never saw was allocated while applying, and a node whose
 // scalar value moved was rewritten in place; both mean the content at that
@@ -258,51 +287,72 @@ func snapshot(root *yaml.Node, budget int) (map[*yaml.Node]string, bool) {
 // than stopping, which is what closes the set downwards: the library clones the
 // subtrees it grafts, so every node beneath a grafted one is itself unknown to
 // the snapshot and gets its own entry.
-func attribute(root *yaml.Node, before map[*yaml.Node]string, budget int) (map[string]bool, bool) {
+//
+// A key the overlay introduced is recorded under its member's pointer as well.
+// It adds no pointer — the value beside it is already attributed — but it is a
+// node a finding can be anchored on, and the library appends it uncloned from
+// the overlay document, so it carries that document's line and column: read as
+// the source's, a worse answer than none.
+func attribute(root *yaml.Node, before map[*yaml.Node]string, budget int) (map[string]bool, map[*yaml.Node]string, bool) {
+	changed := func(n *yaml.Node) bool {
+		prior, known := before[n]
+		return !known || prior != n.Value
+	}
+
 	pointers := map[string]bool{}
+	nodes := map[*yaml.Node]string{}
 	stack := []frame{{node: nodeview.DocumentRoot(root)}}
 	for ; len(stack) > 0; budget-- {
 		if budget == 0 {
-			return nil, false
+			return nil, nil, false
 		}
 		f := stack[len(stack)-1]
 		stack = stack[:len(stack)-1]
 		if f.node == nil {
 			continue
 		}
-		if prior, known := before[f.node]; !known || prior != f.node.Value {
+		if changed(f.node) {
 			pointers[f.pointer] = true
+			nodes[f.node] = f.pointer
+		}
+		if f.key != nil && changed(f.key) {
+			nodes[f.key] = f.pointer
 		}
 		stack = append(stack, children(f)...)
 	}
-	return pointers, true
+	return pointers, nodes, true
 }
 
 // frame is one node of the attribution walk together with the JSON pointer that
-// addresses it.
+// addresses it and, for a mapping's value, the key it sits under.
 type frame struct {
 	node    *yaml.Node
 	pointer string
+	key     *yaml.Node
 }
 
 // children returns the frames beneath f, addressed the way the compiler
 // addresses them: a mapping's values under their escaped keys, a sequence's
 // elements under their positions.
 //
-// Mapping keys are not walked in their own right. The library appends a new key
-// and its value together, so a key the overlay introduced always arrives beside
-// a value the walk already reaches through the pointer that names it. An alias
-// node is a leaf here for the same reason its target is not followed: the
-// content it stands for lives at the anchor's own position, which the walk
-// reaches there.
+// Mapping keys are not walked in their own right; each rides on its value's
+// frame. The library appends a new key and its value together, so a key the
+// overlay introduced always arrives beside a value the walk already reaches
+// through the pointer that names it. An alias node is a leaf here for the same
+// reason its target is not followed: the content it stands for lives at the
+// anchor's own position, which the walk reaches there. That holds for every
+// alias a parse produced and not for one the library grafted, whose clone
+// points at a detached copy of the target (GitHub #477).
 func children(f frame) []frame {
 	switch f.node.Kind {
 	case yaml.MappingNode:
 		out := make([]frame, 0, len(f.node.Content)/2)
 		for i := 0; i+1 < len(f.node.Content); i += 2 {
+			key := f.node.Content[i]
 			out = append(out, frame{
 				node:    f.node.Content[i+1],
-				pointer: f.pointer + ids.Ptr(f.node.Content[i].Value),
+				pointer: f.pointer + ids.Ptr(key.Value),
+				key:     key,
 			})
 		}
 		return out

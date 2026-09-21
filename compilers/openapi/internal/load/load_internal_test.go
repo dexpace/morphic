@@ -15,6 +15,7 @@ import (
 	"github.com/dexpace/morphic/compilers"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/openapitest"
+	"github.com/dexpace/morphic/compilers/openapi/internal/scan"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -183,25 +184,49 @@ func TestAsValidationError(t *testing.T) {
 
 func TestValidationDiag(t *testing.T) {
 	t.Parallel()
-	structured := validationDiag(0, validation.Error{Severity: "warning", Rule: "dup-tag", UnderlyingError: errors.New("x")})
+	at := &yaml.Node{Kind: yaml.ScalarNode, Line: 4, Column: 9}
+	structured := validationDiag(scan.InSource(0),
+		validation.Error{Severity: "warning", Rule: "dup-tag", UnderlyingError: errors.New("x"), Node: at})
 	assert.Equal(t, ir.SeverityWarning, structured.Severity)
 	assert.Equal(t, diag.Validation+"/dup-tag", structured.Code)
+	assert.Equal(t, ir.Provenance{Source: 0, Pointer: "4:9"}, structured.Provenance,
+		"anchored where the locator puts the finding's node")
+	assert.Equal(t, "x", structured.Message,
+		"the finding alone: the severity, rule and position the library prefixes are the diagnostic's own fields")
 
-	bare := validationDiag(3, errors.New("plain problem"))
+	elsewhere := validationDiag(scan.InSource(0),
+		validation.Error{Severity: "error", Rule: "r", UnderlyingError: errors.New("x"), DocumentLocation: "other.yaml"})
+	assert.Equal(t, "x (document: other.yaml)", elsewhere.Message,
+		"a finding about another document keeps saying so; no field holds that")
+
+	hollow := validationDiag(scan.InSource(0), validation.Error{Severity: "error", Rule: "r"})
+	assert.Equal(t, "r", hollow.Message,
+		"a finding with nothing underneath — which the library never produces — names its rule rather than faulting")
+
+	unanchored := validationDiag(scan.InSource(0),
+		validation.Error{Severity: "warning", Rule: "dup-tag", UnderlyingError: errors.New("x")})
+	assert.Equal(t, ir.Provenance{Source: 0}, unanchored.Provenance,
+		"a finding with no node names the source and no position — not a position it does not have")
+
+	bare := validationDiag(scan.InSource(3), errors.New("plain problem"))
 	assert.Equal(t, ir.SeverityError, bare.Severity)
 	assert.Equal(t, diag.Validation, bare.Code)
-	assert.Equal(t, 3, bare.Provenance.Source)
+	assert.Equal(t, ir.Provenance{Source: 3}, bare.Provenance)
 }
 
 func TestResolveDiag(t *testing.T) {
 	t.Parallel()
-	structured := resolveDiag(0, validation.Error{Severity: "error", Rule: "bad-ref", UnderlyingError: errors.New("x")})
+	at := &yaml.Node{Kind: yaml.ScalarNode, Line: 7, Column: 3}
+	structured := resolveDiag(scan.InSource(0),
+		validation.Error{Severity: "error", Rule: "bad-ref", UnderlyingError: errors.New("x"), Node: at})
 	assert.Equal(t, diag.UnresolvedRef, structured.Code)
-	assert.NotEmpty(t, structured.Provenance.Pointer, "line:col provenance from validation error")
+	assert.Equal(t, ir.Provenance{Source: 0, Pointer: "7:3"}, structured.Provenance,
+		"anchored where the locator puts the finding's node")
+	assert.Equal(t, "x", structured.Message, "rendered the way validationDiag renders a finding")
 
-	bare := resolveDiag(2, errors.New("io problem"))
+	bare := resolveDiag(scan.InSource(2), errors.New("io problem"))
 	assert.Equal(t, diag.UnresolvedRef, bare.Code)
-	assert.Equal(t, 2, bare.Provenance.Source)
+	assert.Equal(t, ir.Provenance{Source: 2}, bare.Provenance)
 }
 
 // TestResolveDiags covers what one diagnostic is allowed to carry.
@@ -234,7 +259,7 @@ func TestResolveDiags(t *testing.T) {
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
-			got := resolveDiags(7, tc.err)
+			got := resolveDiags(scan.InSource(7), tc.err)
 			if tc.wantEmpty {
 				assert.Empty(t, got)
 				return

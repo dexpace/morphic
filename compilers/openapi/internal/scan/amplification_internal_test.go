@@ -214,12 +214,12 @@ func TestAliasAmplification_BoundaryPair(t *testing.T) {
 
 	under := aliasFanOutNode(12)
 	require.Equal(t, int64(5), rawNodes(under), "sanity: the raw count aliasFanOutNode promises")
-	_, refused := aliasAmplification(0, under, rawNodes(under))
+	_, refused := aliasAmplification(InSource(0), under, rawNodes(under))
 	assert.False(t, refused, "expandedWeight 24,573 stays under the 32,768 floor")
 
 	over := aliasFanOutNode(13)
 	require.Equal(t, int64(5), rawNodes(over), "sanity: the raw count aliasFanOutNode promises")
-	d, refused := aliasAmplification(0, over, rawNodes(over))
+	d, refused := aliasAmplification(InSource(0), over, rawNodes(over))
 	require.True(t, refused, "expandedWeight 49,149 crosses the 32,768 floor")
 	assert.Equal(t, diag.AliasAmplification, d.Code)
 	assert.Equal(t, ir.SeverityError, d.Severity)

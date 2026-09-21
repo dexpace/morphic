@@ -320,4 +320,119 @@ func TestOrigin_ZeroValueAttributesNothing(t *testing.T) {
 	assert.False(t, zero.Applied())
 	assert.Equal(t, srcIndex, zero.IndexAt("/components/schemas/Pet", srcIndex))
 	assert.Equal(t, ir.SourceInfo{}, zero.Source())
+	_, found := zero.At(&yaml.Node{Kind: yaml.ScalarNode})
+	assert.False(t, found, "no node is the overlay's when none was applied")
+	_, found = zero.At(nil)
+	assert.False(t, found)
+}
+
+// applyKeeping is applyTo for a case that needs the tree the overlay left
+// behind, to hand At the nodes it will be asked about.
+func applyKeeping(t *testing.T, ov string) (overlay.Origin, *yaml.Node) {
+	t.Helper()
+	root := treeOf(t)
+	origin, diags := overlay.Apply(overlayIndex, root,
+		overlay.Options{Path: "o.yaml", Data: []byte(ov), Lax: false})
+	require.False(t, diag.HasError(diags), "overlay did not apply: %+v", diags)
+	require.True(t, origin.Applied())
+	return origin, root
+}
+
+// member returns the key and value nodes of a mapping member, reached from the
+// document root along a path of mapping keys.
+func member(t *testing.T, root *yaml.Node, keys ...string) (key, value *yaml.Node) {
+	t.Helper()
+	n := root.Content[0]
+	for _, want := range keys {
+		found := false
+		for i := 0; i+1 < len(n.Content); i += 2 {
+			if n.Content[i].Value == want {
+				key, value, found = n.Content[i], n.Content[i+1], true
+				break
+			}
+		}
+		require.True(t, found, "no %q under the path %v", want, keys)
+		n = value
+	}
+	return key, value
+}
+
+// TestAt_AnswersForTheNodesTheOverlayIntroduced pins the node-keyed half of
+// the attribution: a grafted node, and every node beneath it, answers with the
+// overlay's index and the pointer of the position it sits at — the answer
+// IndexAt gives the lowering for that pointer — while a node the source
+// declared answers nothing and is left to the caller's own reading of it.
+//
+// The pointer is asserted rather than the index alone for the reason
+// TestApply_AttributesIntroducedPositions gives: a right index with a wrong
+// pointer would send a reader to a position the finding is not about.
+func TestAt_AnswersForTheNodesTheOverlayIntroduced(t *testing.T) {
+	t.Parallel()
+	origin, root := applyKeeping(t, header+`  - target: $.components.schemas
+    update:
+      Owner: {type: object, properties: {id: {type: string}}}
+`)
+
+	_, owner := member(t, root, "components", "schemas", "Owner")
+	_, id := member(t, root, "components", "schemas", "Owner", "properties", "id")
+	_, pet := member(t, root, "components", "schemas", "Pet")
+
+	got, found := origin.At(owner)
+	require.True(t, found)
+	assert.Equal(t, ir.Provenance{Source: overlayIndex, Pointer: "/components/schemas/Owner"}, got)
+
+	got, found = origin.At(id)
+	require.True(t, found, "the set is closed downwards")
+	assert.Equal(t, ir.Provenance{Source: overlayIndex, Pointer: "/components/schemas/Owner/properties/id"}, got)
+
+	_, found = origin.At(pet)
+	assert.False(t, found, "a node the source declared is the source's own")
+}
+
+// TestAt_AnswersForAKeyTheOverlayIntroduced pins the one node the pointer walk
+// never addresses. The library appends a new key uncloned from the overlay
+// document, so unlike the value beside it the key carries a line and column —
+// the overlay file's. A finding anchored on it and read as the source's would
+// name a real position in the wrong file, so the key answers as the overlay's.
+func TestAt_AnswersForAKeyTheOverlayIntroduced(t *testing.T) {
+	t.Parallel()
+	origin, root := applyKeeping(t, header+`  - target: $.components.schemas.Pet.properties
+    update:
+      tag: {type: string}
+`)
+
+	key, value := member(t, root, "components", "schemas", "Pet", "properties", "tag")
+	require.NotZero(t, key.Line, "the library keeps the overlay document's position on the key")
+	require.Zero(t, value.Line, "and drops it from the cloned value")
+
+	got, found := origin.At(key)
+	require.True(t, found)
+	assert.Equal(t, ir.Provenance{Source: overlayIndex, Pointer: "/components/schemas/Pet/properties/tag"}, got)
+
+	name, _ := member(t, root, "components", "schemas", "Pet", "properties", "name")
+	_, found = origin.At(name)
+	assert.False(t, found, "a key the source declared is the source's own")
+}
+
+// TestAt_AnswersForARewrittenScalar pins that the node answer agrees with the
+// pointer answer on the half node identity alone would miss: a scalar the
+// library overwrote in place still has the source's line and column, but what
+// it holds is the overlay's, and that is what a finding about it is about.
+func TestAt_AnswersForARewrittenScalar(t *testing.T) {
+	t.Parallel()
+	origin, root := applyKeeping(t, header+`  - target: $.info
+    update:
+      title: Renamed
+`)
+
+	_, title := member(t, root, "info", "title")
+	_, version := member(t, root, "info", "version")
+	require.NotZero(t, title.Line, "the library overwrites the value in place; the node keeps the source's position")
+
+	got, found := origin.At(title)
+	require.True(t, found)
+	assert.Equal(t, ir.Provenance{Source: overlayIndex, Pointer: "/info/title"}, got)
+
+	_, found = origin.At(version)
+	assert.False(t, found, "the sibling it did not touch is unaffected")
 }
