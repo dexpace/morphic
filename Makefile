@@ -47,7 +47,7 @@ endif
 # `make print-lint-version`, so the pin has one definition and no copy: without
 # it the action installs whatever it resolves as latest that day, and an
 # upstream release reddens main with no change to this repo.
-GOLANGCI_LINT_VERSION ?= v2.12.2
+GOLANGCI_LINT_VERSION ?= v2.13.2
 
 # Per-target fuzz budget, bounded on purpose. The gate's job is to keep every
 # target executable and to search a little on every change; a campaign is what

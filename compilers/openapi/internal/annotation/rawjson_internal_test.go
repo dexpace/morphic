@@ -338,22 +338,23 @@ var rawDivergences = map[string]struct{ old, want string }{
 	"2021-1-1":            {`"2021-01-01T00:00:00Z"`, `"2021-1-1"`},
 	"2021-01-01 10:20:30": {`"2021-01-01T10:20:30Z"`, `"2021-01-01 10:20:30"`},
 	`!!binary aGVsbG8=`:   {`"hello"`, `"aGVsbG8="`},
-	// The old spelling is the escape encoding/json writes for a byte no UTF-8
-	// can name, which is the loss itself: 0xFF and a source that really wrote
-	// U+FFFD both reached the IR as this, with nothing to tell them apart.
+	// The old spelling is the replacement character encoding/json writes for a
+	// byte no UTF-8 can name, which is the loss itself: 0xFF and a source that
+	// really wrote U+FFFD both reached the IR as this, with nothing to tell
+	// them apart.
 	//
-	// The escape is written out because it is what encoding/json produced, and
-	// that is what ties this row to a toolchain: Go 1.27 writes the replacement
-	// character raw where 1.26 escaped it, so this row and the one below redden
-	// there. Whichever change moves the go directive in go.mod owns rewriting
-	// both — the claim they make is that the old conversion lost the byte, not
-	// that a version of encoding/json spelled the loss one way (#431).
-	`!!binary /w==`: {"\"\\ufffd\"", `"/w=="`},
+	// It is spelled the way encoding/json spells it, and that ties this row to
+	// a toolchain: Go 1.26 wrote the escape \ufffd where 1.27 writes the
+	// character raw, so this row and the one below redden on the older one.
+	// Whichever change moves the go directive in go.mod owns rewriting both —
+	// the claim they make is that the old conversion lost the byte, not that a
+	// version of encoding/json spelled the loss one way (#431).
+	`!!binary /w==`: {"\"\ufffd\"", `"/w=="`},
 	// Nesting is the same rule one level down: one divergent scalar makes the
 	// whole construct diverge, which is how every raw site holding a structure
 	// rather than a bare scalar reaches this.
 	"{when: 2021-1-1, blob: !!binary /w==}": {
-		"{\"blob\":\"\\ufffd\",\"when\":\"2021-01-01T00:00:00Z\"}",
+		"{\"blob\":\"\ufffd\",\"when\":\"2021-01-01T00:00:00Z\"}",
 		`{"blob":"/w==","when":"2021-1-1"}`,
 	},
 	// A block !!binary decodes to the same bytes as the flow one above, so the
