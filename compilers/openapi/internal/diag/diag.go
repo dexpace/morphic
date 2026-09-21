@@ -61,6 +61,15 @@ const (
 	// model, and each place the copy drifted would be a crash again. A tagged
 	// scalar is a different question (GitHub #245) and not refused here.
 	TaggedMapping = "openapi/tagged-mapping"
+	// StreamDocumentsDropped reports a YAML stream holding more than one
+	// document with content. An OpenAPI document is one YAML document, so the
+	// first is what is lowered; every one after it reaches the IR in no form at
+	// all, which is a losslessness failure rather than a degradation (the
+	// distinction UnpreservableConstruct draws) and so an error, though the
+	// compile proceeds with the first (GitHub #387). A document that holds
+	// nothing — a bare separator, an explicit null — drops nothing and is not
+	// reported.
+	StreamDocumentsDropped = "openapi/stream-documents-dropped"
 	// UndecodableSource reports a source that declares one of this compiler's
 	// discriminating keys and does not parse as YAML or JSON. It is reported from
 	// detection rather than from the compile, because a document that cannot be

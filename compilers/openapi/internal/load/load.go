@@ -9,12 +9,14 @@
 package load
 
 import (
+	"bytes"
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"iter"
 	"strings"
 
@@ -135,11 +137,27 @@ func Load(ctx context.Context, srcIndex int, src compilers.Source, opts Options)
 			len(src.Data), opts.MaxSourceBytes)}, nil
 	}
 
-	root, err := decode(src.Data)
+	root, rest, err := decode(src.Data)
 	if err != nil {
 		return nil, nil, fmt.Errorf("openapi: decode source %d: %w", srcIndex, err)
 	}
 
+	doc, diags, err := build(ctx, srcIndex, src, root, opts)
+	if err != nil {
+		return nil, nil, err
+	}
+	return doc, append(rest.diagnostics(srcIndex), diags...), nil
+}
+
+// build turns the decoded tree of a source's first document into a Document:
+// the pre-parse refusals, the overlay, the node budget, the model build, the
+// version check, then validation findings and reference resolution as
+// diagnostics. A nil document with error diagnostics is a refusal to lower.
+//
+// It is what Load does after the decode, split from it so that what the decode
+// found past the first document is reported on every return path — a refusal
+// included — without being read as a refusal itself.
+func build(ctx context.Context, srcIndex int, src compilers.Source, root *yaml.Node, opts Options) (*Document, []ir.Diagnostic, error) {
 	cyc := refusals(scan.InSource(srcIndex), root, opts)
 	if diag.HasError(cyc) {
 		return nil, cyc, nil // degenerate cycle: refuse to lower, do not crash the parser
@@ -524,7 +542,9 @@ func nodeCount(root *yaml.Node) int {
 	return count
 }
 
-// decode parses source bytes into a YAML node tree.
+// decode parses source bytes into the node tree of their first YAML document,
+// and reads what follows it so a stream of several is reported rather than
+// silently cut to one.
 //
 // It is split out from unmarshal so an overlay can be applied to the tree
 // between the two: the alternative — overlaying, re-serialising and re-parsing —
@@ -533,19 +553,123 @@ func nodeCount(root *yaml.Node) int {
 //
 // It is the compile's only parse of the source: the pre-parse refusals used to
 // decode the same bytes a second time to scan them, and now read the tree this
-// produces. That also makes it the one place the yaml.v3 alias budget is spent,
-// which is what bounds a billion-laughs expansion before anything walks it.
+// produces. Nothing here bounds alias expansion, and nothing needs to: a node
+// tree holds an alias as one node pointing at its anchor, so decoding into one
+// expands nothing, and yaml.v3's excessive-aliasing guard — which counts
+// expansions — never fires for a Node target. What refuses a billion-laughs
+// document is scan's weigher over this tree.
 //
-// It carries no recover of its own, unlike the model build and the resolve below
-// it. yaml.v3 converts its own faults into errors before they leave Unmarshal;
-// the third-party code that has been seen to fault is the layer above the
-// decode, which is where the barriers are.
-func decode(data []byte) (*yaml.Node, error) {
+// A source with no document in it — empty, or whitespace — decodes to a node
+// of no kind, as yaml.Unmarshal used to leave it; the model build faults on
+// that and its barrier turns the fault into ErrParse. It carries no recover of
+// its own, unlike the model build and the resolve below it. yaml.v3 converts
+// its own faults into errors before they leave Decode; the third-party code
+// that has been seen to fault is the layer above the decode, which is where
+// the barriers are.
+func decode(data []byte) (*yaml.Node, tail, error) {
+	dec := yaml.NewDecoder(bytes.NewReader(data))
 	var root yaml.Node
-	if err := yaml.Unmarshal(data, &root); err != nil {
-		return nil, fmt.Errorf("%w: %w", err, ErrParse)
+	if err := dec.Decode(&root); err != nil && !errors.Is(err, io.EOF) {
+		return nil, tail{}, fmt.Errorf("%w: %w", err, ErrParse)
 	}
-	return &root, nil
+	return &root, readTail(dec), nil
+}
+
+// maxStreamDocuments bounds how many documents past the first decode reads to
+// count them. Each is parsed into a tree that is never lowered, so the bound
+// caps what a stream can cost beyond the byte budget it already fits; a stream
+// past it is reported as holding at least that many, never as fewer.
+const maxStreamDocuments = 1024
+
+// tail is what a source carries past the document the compiler lowers. Its
+// zero value is the answer for a single-document source: nothing dropped.
+type tail struct {
+	// line and column are where the first dropped document that holds content
+	// begins, for the diagnostic to name; zero when none parsed. yaml.v3 counts
+	// lines from one, so zero is not a position. Only the position is kept: the
+	// document's tree is never lowered and is left to be collected.
+	line, column int
+	// dropped counts the documents past the first that hold content, up to
+	// maxStreamDocuments.
+	dropped int
+	// capped reports that counting stopped at maxStreamDocuments, so dropped
+	// is a floor.
+	capped bool
+	// unparsed reports that the stream continued with content yaml.v3 could
+	// not parse — bytes yaml.Unmarshal never read, since it parses one document
+	// per call. What it could not parse is not always malformed: a later
+	// document opening with a %YAML directive is refused as "incompatible", as
+	// it would be as the first document too.
+	unparsed bool
+}
+
+// readTail reads the documents that follow the one dec has already decoded,
+// counting those that hold content. A document that holds nothing — a bare
+// separator, an explicit null — is what a trailing `---` produces, and
+// skipping it drops nothing.
+func readTail(dec *yaml.Decoder) tail {
+	var t tail
+	for range maxStreamDocuments {
+		var doc yaml.Node
+		err := dec.Decode(&doc)
+		if errors.Is(err, io.EOF) {
+			return t
+		}
+		if err != nil {
+			t.unparsed = true
+			return t
+		}
+		if holdsContent(&doc) {
+			if t.line == 0 {
+				t.line, t.column = doc.Content[0].Line, doc.Content[0].Column
+			}
+			t.dropped++
+		}
+	}
+	t.capped = true
+	return t
+}
+
+// holdsContent reports whether a decoded document wraps a root that is not the
+// null scalar an empty document decodes to. yaml.v3 wraps exactly one root in
+// every document it parses; the length check is the guard, not a case.
+func holdsContent(doc *yaml.Node) bool {
+	if doc.Kind != yaml.DocumentNode || len(doc.Content) != 1 {
+		return false
+	}
+	root := doc.Content[0]
+	return root.Kind != yaml.ScalarNode || root.ShortTag() != "!!null"
+}
+
+// diagnostics reports the drop as one error diagnostic, anchored where the
+// first dropped document begins, or nothing for a single-document source.
+func (t tail) diagnostics(srcIndex int) []ir.Diagnostic {
+	if t.dropped == 0 && !t.unparsed {
+		return nil
+	}
+	prov := ir.Provenance{Source: srcIndex}
+	if t.line > 0 {
+		prov.Pointer = fmt.Sprintf("%d:%d", t.line, t.column)
+	}
+	return []ir.Diagnostic{diag.Newf(ir.SeverityError, diag.StreamDocumentsDropped, prov,
+		"only the first document of the YAML stream was lowered; %s", t.describe())}
+}
+
+// describe spells what the stream held past its first document.
+func (t tail) describe() string {
+	var parts []string
+	switch {
+	case t.capped:
+		parts = append(parts, fmt.Sprintf("at least %d after it hold content the IR does not", t.dropped))
+	case t.dropped == 1:
+		parts = append(parts, "the one after it holds content the IR does not")
+	case t.dropped > 1:
+		parts = append(parts, fmt.Sprintf("the %d after it hold content the IR does not", t.dropped))
+	}
+	if t.unparsed {
+		parts = append(parts, "what follows could not be parsed as YAML")
+	}
+	return strings.Join(parts, ", and ")
 }
 
 // unmarshal builds a speakeasy document from an already-decoded node tree,

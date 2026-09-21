@@ -85,6 +85,10 @@ import (
 //     where the loader's recover cannot reach — so the pre-parse scan refuses
 //     the tag before the parser sees it (GitHub #474). Before that refusal this
 //     fixture killed the sweep's process rather than producing a result.
+//   - stream_two_documents.yaml: a YAML stream of two OpenAPI documents. The
+//     first is lowered — an OpenAPI document is one YAML document — and the
+//     second reaches the IR in no form, which is reported as an error rather
+//     than dropped in silence as it used to be (GitHub #387).
 //   - dangling/openapi/f04, f05, f06, f08, f09, f13: discriminator mappings whose
 //     target is undeclared, external, or a sub-schema, dropped with an
 //     unresolved-ref error rather than written as a dangling TypeID (GitHub #14).
@@ -135,6 +139,7 @@ func knownInvalid() map[string]bool {
 		filepath.FromSlash("../../testdata/openapi/cycle_pointer_whitespace_self.yaml"):        true,
 		filepath.FromSlash("../../testdata/openapi/amplification_alias_bomb.yaml"):             true,
 		filepath.FromSlash("../../testdata/openapi/tagged_mapping_request_body.yaml"):          true,
+		filepath.FromSlash("../../testdata/openapi/stream_two_documents.yaml"):                 true,
 		filepath.FromSlash("../../testdata/dangling/openapi/f04-composition.yaml"):             true,
 		filepath.FromSlash("../../testdata/dangling/openapi/f05-discriminator.yaml"):           true,
 		filepath.FromSlash("../../testdata/dangling/openapi/f06-discriminator.yaml"):           true,
