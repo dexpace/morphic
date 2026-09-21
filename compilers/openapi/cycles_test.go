@@ -126,7 +126,7 @@ func TestDetectCycles_ComponentOnlyCyclesLeftToResolver(t *testing.T) {
 	for _, tc := range componentOnlyCycles {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			assert.Empty(t, scan.Cycles(0, scanIndex(t, tc.data)),
+			assert.Empty(t, scan.Cycles(scan.InSource(0), scanIndex(t, tc.data)),
 				"a components-only cycle is the resolver's to report")
 
 			_, diags, err := New().Compile(t.Context(),

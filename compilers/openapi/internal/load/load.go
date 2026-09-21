@@ -140,7 +140,7 @@ func Load(ctx context.Context, srcIndex int, src compilers.Source, opts Options)
 		return nil, nil, fmt.Errorf("openapi: decode source %d: %w", srcIndex, err)
 	}
 
-	cyc := refusals(srcIndex, root, opts)
+	cyc := refusals(scan.InSource(srcIndex), root, opts)
 	if diag.HasError(cyc) {
 		return nil, cyc, nil // degenerate cycle: refuse to lower, do not crash the parser
 	}
@@ -175,24 +175,10 @@ func Load(ctx context.Context, srcIndex int, src compilers.Source, opts Options)
 			"unsupported OpenAPI version %q; want 3.0, 3.1, or 3.2", doc.OpenAPI)), nil
 	}
 
+	locate := locator(srcIndex, origin)
 	diags := cyc
-	wrongMetaSchema := metaSchemaVersionArtifacts(ctx, doc, minor)
-	for _, ve := range valErrs {
-		if verr, ok := asValidationError(ve); ok &&
-			(numericLiteralArtifact(verr) || wrongMetaSchema[findingSite(verr)]) {
-			continue
-		}
-		diags = append(diags, validationDiag(srcIndex, ve))
-	}
-
-	resErrs, err := resolveAll(ctx, doc, soa.ResolveAllOptions{
-		OpenAPILocation:     src.Path,
-		DisableExternalRefs: !opts.AllowExternalRefs,
-	})
-	diags = append(diags, resolveDiags(srcIndex, err)...)
-	for _, re := range resErrs {
-		diags = append(diags, resolveDiag(srcIndex, re))
-	}
+	diags = append(diags, findings(ctx, locate, doc, valErrs, minor)...)
+	diags = append(diags, resolve(ctx, locate, doc, src.Path, opts)...)
 
 	return &Document{
 		Doc: doc,
@@ -205,6 +191,37 @@ func Load(ctx context.Context, srcIndex int, src compilers.Source, opts Options)
 	}, diags, nil
 }
 
+// findings converts the model build's validation errors into diagnostics,
+// dropping the two kinds that are library artifacts rather than spec problems:
+// a numeric literal Morphic captures losslessly anyway, and a schema finding
+// raised only because the library checked against the wrong meta-schema.
+func findings(ctx context.Context, locate scan.Locator, doc *soa.OpenAPI, valErrs []error, minor string) []ir.Diagnostic {
+	wrongMetaSchema := metaSchemaVersionArtifacts(ctx, doc, minor)
+	diags := make([]ir.Diagnostic, 0, len(valErrs))
+	for _, ve := range valErrs {
+		if verr, ok := asValidationError(ve); ok &&
+			(numericLiteralArtifact(verr) || wrongMetaSchema[findingSite(verr)]) {
+			continue
+		}
+		diags = append(diags, validationDiag(locate, ve))
+	}
+	return diags
+}
+
+// resolve resolves every reference in doc and converts what could not be
+// resolved into diagnostics, the refusal of external references included.
+func resolve(ctx context.Context, locate scan.Locator, doc *soa.OpenAPI, path string, opts Options) []ir.Diagnostic {
+	resErrs, err := resolveAll(ctx, doc, soa.ResolveAllOptions{
+		OpenAPILocation:     path,
+		DisableExternalRefs: !opts.AllowExternalRefs,
+	})
+	diags := resolveDiags(locate, err)
+	for _, re := range resErrs {
+		diags = append(diags, resolveDiag(locate, re))
+	}
+	return diags
+}
+
 // defaultIndex indexes a decoded tree under the compiler's node bound. It is
 // what Options.buildIndex stands in for when a caller leaves it nil, which
 // everything outside this package's tests does.
@@ -212,10 +229,27 @@ func defaultIndex(root *yaml.Node) sourceindex.Index {
 	return sourceindex.Build(root, sourceindex.MaxIndexedNodes)
 }
 
+// locator answers where a raw node is, for every diagnostic anchored on one:
+// the overlay's index and the node's JSON pointer for a node the overlay
+// introduced or rewrote — the answer the lowering gives for that pointer — and
+// srcIndex with the node's own line and column otherwise. A zero origin, the
+// answer for a compile with no overlay, never claims a node, so the two cases
+// need no telling apart here.
+func locator(srcIndex int, origin overlay.Origin) scan.Locator {
+	inSource := scan.InSource(srcIndex)
+	return func(n *yaml.Node) ir.Provenance {
+		if prov, ok := origin.At(n); ok {
+			return prov
+		}
+		return inSource(n)
+	}
+}
+
 // refusals indexes a decoded tree once and reports the pre-parse refusals over
 // it: the degenerate reference and alias structures scan finds, a mapping
 // carrying a tag the parser faults on, or — when the document is too large to
-// index in full — a refusal of its own.
+// index in full — a refusal of its own. Each is anchored where locate puts its
+// node.
 //
 // The size refusal is here rather than in scan because every answer in a
 // truncated index is a partial one, and the alias-expansion allowance derived
@@ -226,7 +260,7 @@ func defaultIndex(root *yaml.Node) sourceindex.Index {
 // The tag refusal is here because it is read straight off the index; what it
 // guards is stated on diag.TaggedMapping. It is reported alongside a cycle
 // rather than instead of one, so a document with both hears about both.
-func refusals(srcIndex int, root *yaml.Node, opts Options) []ir.Diagnostic {
+func refusals(locate scan.Locator, root *yaml.Node, opts Options) []ir.Diagnostic {
 	build := opts.buildIndex
 	if build == nil {
 		build = defaultIndex
@@ -234,24 +268,22 @@ func refusals(srcIndex int, root *yaml.Node, opts Options) []ir.Diagnostic {
 
 	idx := build(root)
 	if idx.Truncated() {
-		return []ir.Diagnostic{diag.Newf(ir.SeverityError, diag.SourceTooLarge,
-			ir.Provenance{Source: srcIndex},
+		return []ir.Diagnostic{diag.Newf(ir.SeverityError, diag.SourceTooLarge, locate(nil),
 			"source document exceeds the %d-node bound the pre-parse scan indexes",
 			sourceindex.MaxIndexedNodes)}
 	}
 
-	diags := scan.Cycles(srcIndex, idx)
+	diags := scan.Cycles(locate, idx)
 	if n, ok := idx.TaggedMapping(); ok {
-		diags = append(diags, taggedMappingRefusal(srcIndex, n))
+		diags = append(diags, taggedMappingRefusal(locate, n))
 	}
 	return diags
 }
 
-// taggedMappingRefusal builds the diag.TaggedMapping refusal, anchored at the
-// mapping's line:col the way the cycle refusals are anchored.
-func taggedMappingRefusal(srcIndex int, n *yaml.Node) ir.Diagnostic {
-	return diag.Newf(ir.SeverityError, diag.TaggedMapping,
-		ir.Provenance{Source: srcIndex, Pointer: fmt.Sprintf("%d:%d", n.Line, n.Column)},
+// taggedMappingRefusal builds the diag.TaggedMapping refusal, anchored where
+// locate puts the mapping — the way the cycle refusals are anchored.
+func taggedMappingRefusal(locate scan.Locator, n *yaml.Node) ir.Diagnostic {
+	return diag.Newf(ir.SeverityError, diag.TaggedMapping, locate(n),
 		"mapping is tagged %q; an OpenAPI document limits YAML tags to YAML 1.2's JSON schema ruleset, which tags a mapping %s",
 		n.Tag, sourceindex.MapTag)
 }
@@ -262,7 +294,10 @@ func taggedMappingRefusal(srcIndex int, n *yaml.Node) ir.Diagnostic {
 // It re-runs the pre-parse refusals over the result, because the tree that
 // reaches the parser is no longer the one they first saw: an overlay action can
 // graft a $ref cycle onto a document that had none, and the guarantee those
-// refusals exist for is about what the parser is handed.
+// refusals exist for is about what the parser is handed. That run locates
+// through the attribution the application produced, so a refusal on a node the
+// overlay grafted names the overlay rather than the source at a position the
+// node does not have.
 func patch(srcIndex int, root *yaml.Node, opts Options) (overlay.Origin, []ir.Diagnostic) {
 	if opts.Overlay == nil {
 		return overlay.Origin{}, nil
@@ -271,7 +306,7 @@ func patch(srcIndex int, root *yaml.Node, opts Options) (overlay.Origin, []ir.Di
 	if diag.HasError(diags) {
 		return overlay.Origin{}, diags
 	}
-	return origin, append(diags, refusals(srcIndex, root, opts)...)
+	return origin, append(diags, refusals(locator(srcIndex, origin), root, opts)...)
 }
 
 // metaSchemaReconciledMinor is the OpenAPI minor whose schema findings are
@@ -579,14 +614,34 @@ func resolveAll(ctx context.Context, doc *soa.OpenAPI, opts soa.ResolveAllOption
 }
 
 // validationDiag converts one speakeasy validation error into a diagnostic. A
-// structured *validation.Error yields severity, a rule-suffixed code, and
-// line:col provenance; anything else degrades to an error with the bare message.
-func validationDiag(srcIndex int, err error) ir.Diagnostic {
+// structured *validation.Error yields severity, a rule-suffixed code, the
+// provenance locate gives its node, and the finding itself as the message;
+// anything else degrades to an error with the bare message and the source
+// alone.
+func validationDiag(locate scan.Locator, err error) ir.Diagnostic {
 	if verr, ok := asValidationError(err); ok {
 		return diag.Newf(mapSeverity(verr.Severity), diag.Validation+"/"+verr.Rule,
-			validationProvenance(srcIndex, verr), "%s", verr.Error())
+			locate(verr.Node), "%s", validationMessage(verr))
 	}
-	return diag.Newf(ir.SeverityError, diag.Validation, ir.Provenance{Source: srcIndex}, "%s", err.Error())
+	return diag.Newf(ir.SeverityError, diag.Validation, locate(nil), "%s", err.Error())
+}
+
+// validationMessage is the finding a validation error carries, without the
+// prefix the library's Error renders around it. That prefix spells the
+// severity, the rule and the node's line and column, each of which the
+// diagnostic already holds as a field — and the position it spells is the
+// node's own, which for a node an overlay grafted is 0:0, contradicting the
+// provenance beside it. The document location is kept when there is one, as
+// the library keeps it: no field of the diagnostic holds it.
+func validationMessage(verr validation.Error) string {
+	if verr.UnderlyingError == nil {
+		return verr.Rule // never produced by the library, whose own Error would fault on it
+	}
+	msg := verr.UnderlyingError.Error()
+	if verr.DocumentLocation != "" {
+		msg += " (document: " + verr.DocumentLocation + ")"
+	}
+	return msg
 }
 
 // resolveDiags converts the resolver's failure into one diagnostic per distinct
@@ -598,7 +653,7 @@ func validationDiag(srcIndex int, err error) ir.Diagnostic {
 // Parts that render identically collapse: a refusal carries one fixed sentence
 // and no location, so N of them say no more than one. They separate again once
 // the refusal names its site (GitHub #235).
-func resolveDiags(srcIndex int, err error) []ir.Diagnostic {
+func resolveDiags(locate scan.Locator, err error) []ir.Diagnostic {
 	parts := joinedParts(err)
 	out := make([]ir.Diagnostic, 0, len(parts))
 	seen := make(map[string]bool, len(parts))
@@ -608,7 +663,7 @@ func resolveDiags(srcIndex int, err error) []ir.Diagnostic {
 			continue
 		}
 		seen[msg] = true
-		out = append(out, resolveDiag(srcIndex, part))
+		out = append(out, resolveDiag(locate, part))
 	}
 	return out
 }
@@ -632,14 +687,14 @@ func joinedParts(err error) []error {
 }
 
 // resolveDiag converts one reference-resolution error into a diag.UnresolvedRef
-// diagnostic. Resolution failures never abort lowering: the validate pass
-// reports dangling references downstream.
-func resolveDiag(srcIndex int, err error) ir.Diagnostic {
-	prov := ir.Provenance{Source: srcIndex}
+// diagnostic, anchored and rendered the way validationDiag anchors and renders
+// a finding when the error is one. Resolution failures never abort lowering:
+// the validate pass reports dangling references downstream.
+func resolveDiag(locate scan.Locator, err error) ir.Diagnostic {
 	if verr, ok := asValidationError(err); ok {
-		prov = validationProvenance(srcIndex, verr)
+		return diag.Newf(ir.SeverityError, diag.UnresolvedRef, locate(verr.Node), "%s", validationMessage(verr))
 	}
-	return diag.Newf(ir.SeverityError, diag.UnresolvedRef, prov, "%s", err.Error())
+	return diag.Newf(ir.SeverityError, diag.UnresolvedRef, locate(nil), "%s", err.Error())
 }
 
 // asValidationError extracts a structured validation error. The wrapped value
@@ -659,14 +714,6 @@ func asValidationError(err error) (validation.Error, bool) {
 		}
 	}
 	return validation.Error{}, false
-}
-
-// validationProvenance builds line:col provenance from a validation error.
-func validationProvenance(srcIndex int, e validation.Error) ir.Provenance {
-	return ir.Provenance{
-		Source:  srcIndex,
-		Pointer: fmt.Sprintf("%d:%d", e.GetLineNumber(), e.GetColumnNumber()),
-	}
 }
 
 // mapSeverity maps a speakeasy validation severity onto an ir.Severity.
