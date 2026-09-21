@@ -13,7 +13,10 @@ package ir
 // declares, Constraints above all, is read from the target node itself
 // (ir-design §12.2).
 type TypeRef struct {
-	// Target identifies the referenced TypeDef in Document.Types.
+	// Target identifies the referenced TypeDef in Document.Types. It is never
+	// empty: a position that admits no type holds a nil *TypeRef, so a TypeRef
+	// naming nothing is one a lowering left unfilled, and irverify reports it as
+	// ir/type-ref-no-target.
 	Target TypeID `json:"target"`
 	// Nullable reports that this usage admits null on the wire. Compilers
 	// normalize every source spelling to this one bit: OAS 3.0 nullable: true,

@@ -85,6 +85,7 @@ func readDeclarations(doc *ir.Document) declarations {
 func walkChecks() []func(*ir.Document, declarations) ([]Violation, bool) {
 	return []func(*ir.Document, declarations) ([]Violation, bool){
 		checkReferentialIntegrity,
+		checkTypeRefs,
 		checkDuplicateIDs,
 		checkDeclaredIDs,
 		checkNaming,
