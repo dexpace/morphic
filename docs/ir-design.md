@@ -280,6 +280,10 @@ type TypeRef struct {
 }
 ```
 
+`Target` is never empty. A position that admits no type — a model with no base, a stream with no
+event union — holds a `nil *TypeRef` (§4.1), so a `TypeRef` naming nothing is one a lowering left
+unfilled, and `irverify` reports it (`ir/type-ref-no-target`).
+
 Nullability lives on the reference, not the target type, because the same type is nullable in one
 position and not another. Combined with `Property.Required` this yields the four distinct states
 (required/optional × nullable/non-null) that OpenAPI 3.1, TypeSpec, and GraphQL all distinguish.

@@ -19,6 +19,11 @@ type refSite struct {
 // keys and values: most keys are an entry's own ID and resolve trivially, but
 // some — Service.Renames's map[TypeID]Naming keys — are genuine references into
 // a registry that must resolve.
+//
+// An empty ID is skipped because it is no reference: some positions spell
+// "none" with one (Discriminator.Default). Whether a position may hold one is a
+// different question: answered for ir.TypeRef by checkTypeRefs, open for the
+// bare ID positions (GitHub #473).
 func collectRefs(doc *ir.Document, regs ir.Registries) ([]refSite, bool) {
 	var sites []refSite
 	truncated := ir.WalkValues(doc, ir.DocumentPath, func(v reflect.Value, path string) bool {
