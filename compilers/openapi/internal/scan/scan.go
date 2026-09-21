@@ -104,9 +104,14 @@ func InSource(srcIndex int) Locator {
 // answer in one is partial, and the alias-expansion allowance derived from a
 // partial node count would refuse documents on a bound they never crossed.
 //
-// Only the decode that produced the tree bounds alias expansion inside the
-// parser: the yaml.v3 alias budget is spent per Decode, so a tree that reached
-// here without one has already escaped it and nothing here can re-run it.
+// Nothing bounds alias expansion ahead of this scan, so the weigher it runs is
+// the refusal and not a backstop to one. yaml.v3's excessive-aliasing guard
+// counts expansions during a decode into a Go value; the decode that produced
+// this tree targets a yaml.Node, which holds an alias as one node pointing at
+// its anchor, so nothing is expanded there and the guard never fires — the
+// bomb fixture decodes into a node tree without error (GitHub #479). The
+// expansion happens in the parser this runs ahead of, which follows aliases as
+// it builds the model.
 func Cycles(locate Locator, idx sourceindex.Index) []ir.Diagnostic {
 	return recoverCycleScan(locate, func() []ir.Diagnostic {
 		return scanIndex(locate, idx)

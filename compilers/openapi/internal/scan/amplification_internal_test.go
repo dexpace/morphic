@@ -341,3 +341,24 @@ func TestAliasWeigher_InFlightCycleSaturates(t *testing.T) {
 	require.NotNil(t, culprit)
 	assert.Equal(t, w.ceiling, w.weight[culprit], "the cycle saturates rather than looping")
 }
+
+// TestYAMLUnmarshal_IntoANodeSpendsNoAliasBudget pins the yaml.v3 fact the alias
+// weigher's reason for existing rests on, and that Cycles's comment states: the
+// library's excessive-aliasing guard counts expansions, and decoding into a
+// yaml.Node performs none, so the bomb this package refuses decodes into a tree
+// without a word from the library. The Go-value decode beside it is the control
+// that the guard exists and would fire on the same bytes if anything expanded
+// them. A yaml.v3 upgrade that changed either answer would change what this
+// package's refusal is for, and should be met here rather than in the comment.
+func TestYAMLUnmarshal_IntoANodeSpendsNoAliasBudget(t *testing.T) {
+	t.Parallel()
+	bomb := readReproducer(t, "amplification_alias_bomb")
+
+	var tree yaml.Node
+	require.NoError(t, yaml.Unmarshal(bomb, &tree), "a node tree holds an alias as a pointer; nothing is expanded")
+
+	var value any
+	err := yaml.Unmarshal(bomb, &value)
+	require.Error(t, err, "the same bytes expanded into a Go value trip the guard")
+	assert.Contains(t, err.Error(), "excessive aliasing")
+}
