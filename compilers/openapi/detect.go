@@ -9,6 +9,7 @@ import (
 
 	"github.com/dexpace/morphic/compilers"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
+	"github.com/dexpace/morphic/compilers/openapi/internal/load"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -361,11 +362,14 @@ func trimBOM(data []byte) []byte {
 	return data
 }
 
-// firstDocument returns the content of data's first YAML document. A stream may
-// carry several, opened by `---` and ended by `...` at column 0, and load reads
-// only the first, so a key in a later one names a format for bytes the compile
-// never parses. A marker ends the document even in the middle of a scalar,
-// which is what makes a line scan the right reading for one.
+// firstDocument returns the content of the first YAML document in data that
+// holds any. A stream may carry several, opened by `---` and ended by `...` at
+// column 0, and load lowers the first that holds content and none after it, so
+// a key in a later one names a format for bytes the compile never parses, and
+// a leading document that holds nothing — blank lines, comments, a bare null —
+// is stepped past here as load steps past it (GitHub #481). A marker ends the
+// document even in the middle of a scalar, which is what makes a line scan the
+// right reading for one.
 //
 // The opening marker is left behind rather than returned, so what comes back
 // begins where the document's own bytes do: a flow document written after a
@@ -376,18 +380,111 @@ func firstDocument(data []byte) []byte {
 	for i := 0; i < len(data); {
 		line, next := nextLine(data, i)
 		marker, isMarker := docMarker(line)
-		if isMarker && (opened || marker == '.') {
+		switch {
+		case isMarker && (opened || marker == '.') && !emptyDocument(data[start:i]):
 			return data[start:i]
-		}
-		if isMarker {
+		case isMarker && marker == '.':
+			// An empty document just ended; what follows opens the next, with
+			// a `---` of its own or implicitly with its first content line.
+			start, opened = next, false
+		case isMarker:
 			start, opened = i+len("---"), true
-		}
-		if contentLine(line) {
+		case contentLine(line):
 			opened = true
 		}
 		i = next
 	}
 	return data[start:]
+}
+
+// emptyDocument reports whether a document's bytes decode to nothing: only
+// blank lines, comments and directives, or beside them one bare null token,
+// which is what a `--- null` or a `~` on its own line writes.
+//
+// An anchor before the token is skipped, and a tag is not. An anchor names the
+// node and never decides what it resolves to, so `&a null` and a bare `&a` are
+// the null their unanchored spellings are. A tag decides exactly that — `!!null
+// "x"` is null and `!!str null` is the string "null" — and resolving one is
+// beyond a scan that reads bytes, so a tagged null reads as content here and
+// the readings table declares the loss.
+//
+// A quoted null is a string, and so content, by the same reading the parse
+// gives it.
+//
+// Exactly one contributing line may be that token: a second makes the document
+// content whatever the two say. No document the parse accepts is known to tell
+// that branch from taking the last line — yaml.v3 refuses every two-line shape
+// ending in a bare null tried against it — so it is the conservative answer to
+// a question only a malformed document asks, and reading less is the direction
+// this file is wrong in.
+func emptyDocument(doc []byte) bool {
+	var content []byte
+	seen := false
+	for i := 0; i < len(doc); {
+		line, next := nextLine(doc, i)
+		i = next
+		text := lineContent(line)
+		if len(text) == 0 {
+			continue // blank, a comment, a directive, or an anchor with nothing beside it
+		}
+		if seen {
+			return false // more than one line contributing: content, whatever it says
+		}
+		content, seen = text, true
+	}
+	return !seen || nullToken(content)
+}
+
+// lineContent returns what a line contributes to its document: the line without
+// its indentation, any comment, any anchor in front of the node, and trailing
+// space. It is empty for a line that contributes nothing — blank, a comment, a
+// `%` directive, or an anchor with nothing beside it.
+func lineContent(line []byte) []byte {
+	rest := bytes.TrimLeft(line, " \t\r")
+	for j := 0; j < len(rest); j++ {
+		if rest[j] == '#' && (j == 0 || rest[j-1] == ' ' || rest[j-1] == '\t') {
+			rest = rest[:j]
+			break
+		}
+	}
+	if len(rest) > 0 && rest[0] == '%' {
+		return nil
+	}
+	return bytes.TrimRight(skipAnchor(rest), " \t\r")
+}
+
+// skipAnchor returns text without a leading `&anchor` and the whitespace after
+// it. The name is a word ended by whitespace or a flow indicator, as
+// skipNodeProperties reads one; unlike that reader this skips no tag, for the
+// reason emptyDocument gives. At most one anchor can precede a node.
+//
+// A `&` naming nothing is not an anchor — YAML refuses the document — so it is
+// left as the content it looks like, and the scan then reads no key past it
+// rather than one the parse never reaches.
+func skipAnchor(text []byte) []byte {
+	if len(text) == 0 || text[0] != '&' {
+		return text
+	}
+	i := 1
+	for i < len(text) && !isFlowScalarEnd(text[i]) {
+		i++
+	}
+	if i == 1 {
+		return text
+	}
+	return bytes.TrimLeft(text[i:], " \t\r")
+}
+
+// nullToken reports whether text is one of the four spellings YAML's core
+// schema resolves to null. The empty spelling never reaches here: a line with
+// nothing on it is not a content line.
+func nullToken(text []byte) bool {
+	switch string(text) {
+	case "null", "Null", "NULL", "~":
+		return true
+	default:
+		return false
+	}
 }
 
 // nextLine returns the line beginning at i, without its terminator, and the
@@ -841,12 +938,12 @@ func setVersion(probe *sniffProbe, name, value []byte) {
 // for one whose keys do not. The parser this compiler goes on to use reports
 // those repeats itself, once each and sited, which is where a reader wants them.
 func decodeYAML(data []byte) (sniffProbe, error) {
-	var doc yaml.Node
-	if err := yaml.Unmarshal(data, &doc); err != nil {
+	doc, err := load.FirstDocument(data)
+	if err != nil {
 		return sniffProbe{}, err
 	}
 
-	root := documentRoot(&doc)
+	root := documentRoot(doc)
 	switch {
 	case root == nil:
 		// A stream that carried no document declares no key, which is a decline
@@ -860,14 +957,12 @@ func decodeYAML(data []byte) (sniffProbe, error) {
 	}
 }
 
-// documentRoot returns the content node of a decoded stream's first document, or
-// nil for a stream that carried none. Decoding into a yaml.Node yields the
-// document node itself, and only the first: a multi-document stream is read to
-// its first document here exactly as the compiler's own load reads it — which
-// is also where the documents after it are reported as dropped (GitHub #387);
-// detection routes the source and says nothing about its shape. A stream whose
-// first document is empty is declined here as undecodable, so the document
-// behind it is never reached and its drop never reported.
+// documentRoot returns the content node of the document load handed back, or
+// nil for a stream that carried none. That document is the first in the stream
+// that holds content — the one the compile lowers, read by the same function,
+// so a source routed here on what that document declares is the source lowered
+// here (GitHub #481). The documents after it are reported as dropped by load
+// (GitHub #387); detection routes the source and says nothing about its shape.
 func documentRoot(doc *yaml.Node) *yaml.Node {
 	if doc.Kind != yaml.DocumentNode || len(doc.Content) != 1 {
 		return nil

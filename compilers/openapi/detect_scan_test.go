@@ -228,6 +228,37 @@ func TestDetect_TheCapDecidesWhichReadingAnswers(t *testing.T) {
 	}
 }
 
+// TestDetect_AnEmptyFirstDocumentIsNotTheDocument pins GitHub #481 at the
+// public face, on both sides of the cap: a stream that opens with a document
+// holding nothing is routed on the document behind it, by the parse below the
+// cap and by the scan above it, where it used to be declined as undecodable
+// below and silently above — with a whole spec two lines further down.
+func TestDetect_AnEmptyFirstDocumentIsNotTheDocument(t *testing.T) {
+	t.Parallel()
+	want := compilers.SourceFormat{Name: "openapi", Version: "3.1"}
+	for name, lead := range map[string]string{
+		"a bare separator":   "---\n---\n",
+		"a null document":    "--- null\n---\n",
+		"a comment document": "---\n# nothing\n---\n",
+	} {
+		for side, pad := range map[string]string{"below the cap": "", "past the cap": "#" + flowPad() + "\n"} {
+			t.Run(name+" "+side, func(t *testing.T) {
+				t.Parallel()
+				src := lead + "openapi: 3.1.0\ninfo: {title: T, version: \"1\"}\npaths: {}\n" + pad
+				if pad != "" {
+					require.Greater(t, len(src), maxSniffBytes, "the case must exceed the cap to test the scan")
+				} else {
+					require.LessOrEqual(t, len(src), maxSniffBytes, "the case must fit the cap to test the parse")
+				}
+				got, diags, ok := New().Detect(compilers.Source{Path: "spec.yaml", Data: []byte(src)})
+				assert.True(t, ok, "the document behind the empty one is what the source declares")
+				assert.Equal(t, want, got)
+				assert.Nil(t, codesOf(diags))
+			})
+		}
+	}
+}
+
 // TestDetect_AByteOrderMarkIsNotAFormat pins the seam at the size it bites. A
 // mark before the first byte is invisible to the parse below the cap and was
 // fatal to the scan above it, so the same document read as OpenAPI at 64 KiB and
@@ -299,11 +330,41 @@ func agreeingReadings() []readingsRow {
 		// A root sequence is no mapping, so neither reading finds a key in it:
 		// the parse refuses the root, and `- openapi` is not the name.
 		{name: "a root sequence", src: "- openapi: 3.1.0\n"},
-		// Bytes the compile never parses cannot name its format: load reads the
-		// first document only.
+		// Bytes the compile never parses cannot name its format: load lowers the
+		// first document that holds content, and none after it.
 		{name: "the key in a second document", src: "kind: Foo\n---\nopenapi: 3.1.0\n"},
 		{name: "the key after an end marker", src: "kind: Foo\n...\nopenapi: 3.1.0\n"},
 		{name: "the key after a block scalar the marker ends", src: "text: |\n  line\n---\nopenapi: 3.1.0\n"},
+		// And a leading document that holds nothing is not the document: both
+		// readings step past it to the one that does (GitHub #481). Every
+		// spelling of nothing a person leaves at the top of a file is here — a
+		// bare separator, a comment, each null token — and the key it reveals.
+		{name: "the key after an empty first document", src: "---\n---\nopenapi: 3.1.0\n", want: sniffProbe{OpenAPI: v}},
+		{name: "the key after two empty documents", src: "---\n---\n---\nopenapi: 3.1.0\n", want: sniffProbe{OpenAPI: v}},
+		{name: "the key after a comment-only document", src: "---\n# nothing\n---\nopenapi: 3.1.0\n", want: sniffProbe{OpenAPI: v}},
+		{name: "the key after a comment on the marker", src: "--- # nothing\n---\nopenapi: 3.1.0\n", want: sniffProbe{OpenAPI: v}},
+		{name: "the key after a null document", src: "--- null\n---\nopenapi: 3.1.0\n", want: sniffProbe{OpenAPI: v}},
+		{name: "the key after a tilde document", src: "--- ~\n---\nopenapi: 3.1.0\n", want: sniffProbe{OpenAPI: v}},
+		{name: "the key after an upper-case null document", src: "--- NULL\n---\nopenapi: 3.1.0\n", want: sniffProbe{OpenAPI: v}},
+		{name: "the key after a null on its own line", src: "---\nnull\n---\nopenapi: 3.1.0\n", want: sniffProbe{OpenAPI: v}},
+		{name: "the key after a null with a comment", src: "--- null # nothing\n---\nopenapi: 3.1.0\n", want: sniffProbe{OpenAPI: v}},
+		{name: "the key after a directive and an empty document", src: "%YAML 1.1\n---\n---\nopenapi: 3.1.0\n", want: sniffProbe{OpenAPI: v}},
+		{name: "the key after an empty document holding a directive", src: "---\n%YAML 1.1\n---\nopenapi: 3.1.0\n", want: sniffProbe{OpenAPI: v}},
+		{name: "the key after an empty document an end marker closes", src: "---\n...\n---\nopenapi: 3.1.0\n", want: sniffProbe{OpenAPI: v}},
+		// An anchor names a node and never decides what it resolves to, so an
+		// anchored nothing is the nothing its unanchored spelling is.
+		{name: "the key after an anchored empty document", src: "--- &a\n---\nopenapi: 3.1.0\n", want: sniffProbe{OpenAPI: v}},
+		{name: "the key after an anchored null", src: "--- &a null\n---\nopenapi: 3.1.0\n", want: sniffProbe{OpenAPI: v}},
+		{name: "the key after an anchor with only a comment beside it", src: "--- &a # c\n---\nopenapi: 3.1.0\n", want: sniffProbe{OpenAPI: v}},
+		{name: "the key after an anchor on its own line", src: "---\n&a\n---\nopenapi: 3.1.0\n", want: sniffProbe{OpenAPI: v}},
+		// A `&` naming nothing is no anchor: yaml.v3 refuses the document, and
+		// the scan reads the byte as the content it looks like, so neither
+		// reading claims a key past it.
+		{name: "the key after a nameless anchor", src: "--- &\n---\nopenapi: 3.1.0\n"},
+		// A quoted null is a string, and a string is content: the document with
+		// it is the document, its root no mapping, and neither reading finds a
+		// key. The row is here so the null tokens above are read as tokens.
+		{name: "the key after a quoted null document", src: "--- \"null\"\n---\nopenapi: 3.1.0\n"},
 		// `openapi:3.1.0` is a plain scalar, not a key: the parse refuses the
 		// document for having a string at its root, and the scan reads no entry.
 		{name: "no space after the colon", src: "openapi:3.1.0\n"},
@@ -385,6 +446,15 @@ func declaredReadings() []readingsRow {
 			declared: "the scan reads the scalar as written, and `&v 3.1.0` is no version", scan: sniffProbe{OpenAPI: "&v 3.1.0"}},
 		{name: "a tag before the version", src: "openapi: !!str 3.1.0\n", want: sniffProbe{OpenAPI: v},
 			declared: "the scan reads the scalar as written, and `!!str 3.1.0` is no version", scan: sniffProbe{OpenAPI: "!!str 3.1.0"}},
+		{name: "a tagged null document before the spec", src: "--- !!null\n---\nopenapi: 3.1.0\n", want: sniffProbe{OpenAPI: v},
+			declared: "the parse resolves the tag to the null it names and steps past the document; the scan " +
+				"reads bytes, and `!!null` is content it cannot resolve"},
+		{name: "a tagged null with a value before the spec", src: "--- !!null \"x\"\n---\nopenapi: 3.1.0\n", want: sniffProbe{OpenAPI: v},
+			declared: "the same tag over a value: null to the parse, content to the scan"},
+		{name: "an anchored tagged null before the spec", src: "--- &a !!null\n---\nopenapi: 3.1.0\n", want: sniffProbe{OpenAPI: v},
+			declared: "skipping the anchor does not rescue the tag beside it, which still needs resolving"},
+		{name: "a tagged null carrying an anchor before the spec", src: "--- !!null &a\n---\nopenapi: 3.1.0\n", want: sniffProbe{OpenAPI: v},
+			declared: "the two properties in the other order, and the same unresolved tag"},
 		{name: "the version on the line after the key", src: "openapi:\n  3.1.0\n", want: sniffProbe{OpenAPI: v},
 			declared: "the scan reads a root entry off its own line; a value continued onto the next is a " +
 				"plain scalar that may run on for several, and reading its first line alone would claim " +

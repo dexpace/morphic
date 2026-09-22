@@ -1,0 +1,6 @@
+---
+---
+openapi: 3.1.0
+info: {title: BehindAnEmptyDocument, version: "1"}
+paths:
+  /only: {get: {operationId: only, responses: {"200": {description: ok}}}}
